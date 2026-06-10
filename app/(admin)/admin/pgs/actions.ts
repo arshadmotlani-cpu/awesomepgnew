@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect, unstable_rethrow } from 'next/navigation';
 import type { PgAmenities } from '@/src/db/schema';
+import { friendlyDbError } from '@/src/lib/db/friendlyDbError';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { archivePg, createPg, updatePg, type PgFormInput } from '@/src/services/pgAdmin';
 
@@ -69,7 +70,7 @@ export async function createPgAction(_prev: PgFormState, formData: FormData): Pr
     redirect(`/admin/pgs/${id}/edit?created=1`);
   } catch (err) {
     unstable_rethrow(err);
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    return { ok: false, error: friendlyDbError(err) };
   }
 }
 
@@ -88,7 +89,7 @@ export async function updatePgAction(
     revalidatePath(`/admin/pgs/${pgId}/edit`);
     return { ok: true, pgId };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    return { ok: false, error: friendlyDbError(err) };
   }
 }
 
