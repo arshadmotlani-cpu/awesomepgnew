@@ -1,5 +1,11 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres, { type Sql } from 'postgres';
+import {
+  databaseUrlHost,
+  parseDatabaseUrl,
+  resolveDatabaseUrl,
+  resolveDatabaseUrlSource,
+} from '@/src/lib/db/connectionOptions';
 import * as schema from './schema';
 
 type DrizzleClient = ReturnType<typeof drizzle<typeof schema>>;
@@ -19,15 +25,6 @@ function dbGlobal(): DbGlobal {
   return g[GLOBAL_KEY];
 }
 
-function poolMax(): number {
-  const raw = process.env.DATABASE_POOL_MAX;
-  if (raw) {
-    const n = Number.parseInt(raw, 10);
-    if (!Number.isNaN(n) && n > 0) return n;
-  }
-  // Dev/HMR: keep the per-process cap low so orphaned reloads cannot exhaust Postgres.
-  return process.env.NODE_ENV === 'production' ? 10 : 3;
-}
 
 async function logConnectionStats(sql: Sql, label: string): Promise<void> {
   if (process.env.NODE_ENV === 'production') return;
@@ -60,30 +57,29 @@ function init(): DrizzleClient {
   const global = dbGlobal();
   if (global.drizzle) return global.drizzle;
 
-  const url = process.env.DATABASE_URL;
+  const url = resolveDatabaseUrl();
   if (!url) {
     throw new Error(
-      'DATABASE_URL is not set. Copy .env.example to .env and set DATABASE_URL ' +
-        'before using the database (see DATABASE_SETUP.md).',
+      'Database connection string is not set. Set DATABASE_URL (or POSTGRES_URL from ' +
+        'Neon/Vercel integration) in environment variables — see DATABASE_SETUP.md.',
     );
   }
 
-  const max = poolMax();
-  const sql = postgres(url, {
-    max,
-    prepare: false,
-    idle_timeout: 20,
-    max_lifetime: 60 * 30,
-    connect_timeout: 10,
-    connection: {
-      application_name: `awesomepg-${process.env.NODE_ENV ?? 'development'}`,
-    },
-  });
+  const { connectionString, options } = parseDatabaseUrl(url);
+  const sql = postgres(connectionString, options);
 
   global.sql = sql;
   global.drizzle = drizzle(sql, { schema, casing: 'snake_case' });
 
-  void logConnectionStats(sql, `pool opened (max=${max})`);
+  if (process.env.VERCEL) {
+    console.log('[db] pool opened', {
+      source: resolveDatabaseUrlSource(),
+      host: databaseUrlHost(url),
+      max: options.max ?? '?',
+    });
+  }
+
+  void logConnectionStats(sql, `pool opened (max=${options.max ?? '?'})`);
 
   return global.drizzle;
 }
@@ -111,17 +107,17 @@ export { schema };
  * export above instead.
  */
 export function createClient(options?: { max?: number }) {
-  const url = process.env.DATABASE_URL;
+  const url = resolveDatabaseUrl();
   if (!url) {
-    throw new Error('DATABASE_URL is not set. See DATABASE_SETUP.md.');
+    throw new Error(
+      'Database connection string is not set (DATABASE_URL or POSTGRES_URL). See DATABASE_SETUP.md.',
+    );
   }
-  const client = postgres(url, {
+  const parsed = parseDatabaseUrl(url);
+  const client = postgres(parsed.connectionString, {
+    ...parsed.options,
     max: options?.max ?? 1,
-    prepare: false,
-    idle_timeout: 20,
-    connection: {
-      application_name: 'awesomepg-script',
-    },
+    connection: { application_name: 'awesomepg-script' },
   });
   return {
     db: drizzle(client, { schema, casing: 'snake_case' }),

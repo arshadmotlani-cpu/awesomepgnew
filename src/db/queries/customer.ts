@@ -28,17 +28,31 @@ import {
   vacatingRequests,
 } from '../schema';
 import type { PricingSnapshot } from '../schema/bookings';
+import {
+  classifyDatabaseError,
+  databaseUrlHost,
+  resolveDatabaseUrlSource,
+} from '@/src/lib/db/connectionOptions';
 
 export type QueryResult<T> =
   | { ok: true; data: T }
-  | { ok: false; error: string };
+  | { ok: false; error: string; errorCode?: string };
 
 async function guard<T>(fn: () => Promise<T>): Promise<QueryResult<T>> {
   try {
     return { ok: true, data: await fn() };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: message };
+    const stack = err instanceof Error ? err.stack : undefined;
+    const classified = classifyDatabaseError(message);
+    console.error('[db] query failed:', {
+      dbSource: resolveDatabaseUrlSource(),
+      dbHost: databaseUrlHost(),
+      message,
+      stack,
+      ...classified,
+    });
+    return { ok: false, error: message, errorCode: classified.code };
   }
 }
 

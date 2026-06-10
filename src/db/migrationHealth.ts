@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { readMigrationFiles } from 'drizzle-orm/migrator';
+import { resolveDatabaseUrl } from '@/src/lib/db/connectionOptions';
 import { createClient } from './client';
 
 export type RepoMigration = {
@@ -129,7 +130,7 @@ export async function checkMigrationHealth(): Promise<MigrationHealth> {
     const latestCodeVersion = repo.at(-1)?.tag ?? null;
     const codeCount = repo.length;
 
-    if (!process.env.DATABASE_URL?.trim()) {
+    if (!resolveDatabaseUrl()) {
       return {
         ok: false,
         latestCodeVersion,
@@ -138,7 +139,7 @@ export async function checkMigrationHealth(): Promise<MigrationHealth> {
         pending: repo.map((m) => m.tag),
         appliedCount: 0,
         codeCount,
-        error: 'DATABASE_URL is not set',
+        error: 'Database connection string is not set (DATABASE_URL or POSTGRES_URL)',
       };
     }
 

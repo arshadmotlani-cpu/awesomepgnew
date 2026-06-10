@@ -1,16 +1,47 @@
 import { listPublicPgs } from '@/src/db/queries/customer';
 import { PgCard } from '@/src/components/customer/PgCard';
+import {
+  databaseUrlHost,
+  resolveDatabaseUrl,
+  resolveDatabaseUrlSource,
+} from '@/src/lib/db/connectionOptions';
 
 export const metadata = {
   title: 'Browse PGs',
 };
 
-// Cart and availability data is request-time; opt out of build caching so we
-// always see fresh inventory in this read-heavy page.
+// Always run on the server per request — never serve a stale/cached PG list.
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const runtime = 'nodejs';
+export const fetchCache = 'force-no-store';
 
 export default async function PgListPage() {
+  console.log('PGS HIT');
+  console.log('[pgs] DATABASE_URL exists:', Boolean(process.env.DATABASE_URL?.trim()));
+  console.log('[pgs] POSTGRES_URL exists:', Boolean(process.env.POSTGRES_URL?.trim()));
+  console.log('[pgs] resolved DB source:', resolveDatabaseUrlSource());
+  console.log('[pgs] resolved DB host:', databaseUrlHost());
+  console.log('[pgs] connection string resolved:', Boolean(resolveDatabaseUrl()));
+
   const result = await listPublicPgs();
+
+  if (!result.ok) {
+    console.error('[pgs] listPublicPgs failed:', {
+      error: result.error,
+      errorCode: result.errorCode,
+      dbSource: resolveDatabaseUrlSource(),
+      dbHost: databaseUrlHost(),
+    });
+  } else {
+    console.log('[pgs] listPublicPgs ok:', {
+      count: result.data.length,
+      slugs: result.data.map((pg) => pg.slug),
+    });
+    if (result.data.length === 0) {
+      console.warn('[pgs] query succeeded but returned 0 active PGs');
+    }
+  }
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
@@ -51,6 +82,9 @@ function ErrorState({ message }: { message: string }) {
       <p className="mt-1">
         Please try again in a few moments. If the problem continues, contact support.
       </p>
+      {process.env.NODE_ENV !== 'production' && (
+        <p className="mt-2 font-mono text-xs text-amber-900">{message}</p>
+      )}
     </div>
   );
 }

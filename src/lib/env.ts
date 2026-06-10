@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { resolveDatabaseUrl } from '@/src/lib/db/connectionOptions';
 
 function required(name: string): string {
   const value = process.env[name];
@@ -44,7 +45,13 @@ function paymentProvider(): PaymentProvider {
  */
 export const env = {
   get DATABASE_URL() {
-    return required('DATABASE_URL');
+    const url = resolveDatabaseUrl();
+    if (!url) {
+      throw new Error(
+        'Missing required environment variable: DATABASE_URL (or POSTGRES_URL from Neon/Vercel)',
+      );
+    }
+    return url;
   },
   get DATABASE_POOL_MAX() {
     return optionalInt('DATABASE_POOL_MAX', 10);

@@ -1,10 +1,11 @@
 import 'dotenv/config';
 import { defineConfig } from 'drizzle-kit';
+import { resolveDatabaseUrl } from './src/lib/db/connectionOptions';
 
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl = resolveDatabaseUrl();
 if (!databaseUrl) {
   throw new Error(
-    'DATABASE_URL is not set. Copy .env.example to .env and fill it in before running drizzle-kit.',
+    'DATABASE_URL (or POSTGRES_URL) is not set. Copy .env.example to .env and fill it in before running drizzle-kit.',
   );
 }
 
