@@ -29,6 +29,7 @@ export const NAV_SECTIONS: NavSection[] = [
     title: 'Overview',
     items: [
       { href: '/admin', label: 'Dashboard', icon: IconDashboard },
+      { href: '/admin/dashboard', label: 'PG control', icon: IconBuilding },
       { href: '/admin/occupancy', label: 'Occupancy', icon: IconChart },
     ],
   },
@@ -65,6 +66,9 @@ export const NAV_SECTIONS: NavSection[] = [
     title: 'System',
     items: [
       { href: '/admin/system', label: 'System status', icon: IconDatabase },
+      { href: '/admin/monitoring', label: 'Monitoring', icon: IconChart },
+      { href: '/admin/health', label: 'Self-healing', icon: IconBell },
+      { href: '/admin/deployments', label: 'Deploy watchdog', icon: IconClipboard },
       { href: '/admin/settings', label: 'Settings', icon: IconSettings },
     ],
   },

@@ -1,33 +1,50 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --apg-charcoal: #0b0f14;
+  --apg-deep-grey: #1a1f27;
+  --apg-silver: #b0b7c3;
+  --apg-orange: #ff5a1f;
+  --background: var(--apg-charcoal);
+  --foreground: #f4f6f8;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-apg-charcoal: #0b0f14;
+  --color-apg-deep: #1a1f27;
+  --color-apg-silver: #b0b7c3;
+  --color-apg-orange: #ff5a1f;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
-/* Auth / customer forms: keep typed text and browser autofill readable on white fields. */
+/* Glass card utility for public site */
+.apg-glass {
+  background: rgba(26, 31, 39, 0.72);
+  border: 1px solid rgba(176, 183, 195, 0.12);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.apg-glass:hover {
+  border-color: rgba(255, 90, 31, 0.45);
+  box-shadow: 0 0 28px rgba(255, 90, 31, 0.12);
+}
+
+.apg-glow-btn {
+  box-shadow: 0 0 24px rgba(255, 90, 31, 0.35);
+}
+
 .apg-field-input::placeholder {
-  color: #a1a1aa; /* zinc-400 */
+  color: #6b7280;
   opacity: 1;
 }
 
@@ -35,9 +52,8 @@ body {
 .apg-field-input:-webkit-autofill:hover,
 .apg-field-input:-webkit-autofill:focus,
 .apg-field-input:-webkit-autofill:active {
-  -webkit-text-fill-color: #18181b; /* zinc-900 */
-  caret-color: #4f46e5; /* indigo-600 */
-  box-shadow: 0 0 0 1000px #ffffff inset;
-  -webkit-box-shadow: 0 0 0 1000px #ffffff inset;
-  transition: background-color 99999s ease-out 0s;
+  -webkit-text-fill-color: #f4f6f8;
+  caret-color: #ff5a1f;
+  box-shadow: 0 0 0 1000px #1a1f27 inset;
+  -webkit-box-shadow: 0 0 0 1000px #1a1f27 inset;
 }

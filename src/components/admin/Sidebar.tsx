@@ -14,21 +14,21 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname() ?? '/admin';
 
   return (
-    <nav className="flex h-full w-64 shrink-0 flex-col border-r border-zinc-200 bg-white">
+    <nav className="flex h-full w-64 shrink-0 flex-col border-r border-white/5 bg-[#1A1F27]/90 backdrop-blur-xl">
       <div className="flex items-center gap-2 px-5 py-5">
-        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-white">
+        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[#FF5A1F] text-white apg-glow-btn">
           <IconLogo width={18} height={18} />
         </span>
         <div>
-          <p className="text-sm font-semibold tracking-tight text-zinc-900">Awesome PG</p>
-          <p className="text-[11px] text-zinc-500">Property console</p>
+          <p className="text-sm font-semibold tracking-tight text-white">Awesome PG</p>
+          <p className="text-[11px] text-apg-silver">Admin console</p>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 pb-6">
         {NAV_SECTIONS.map((section) => (
           <div key={section.title} className="mt-4">
-            <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+            <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-apg-silver/70">
               {section.title}
             </p>
             <ul className="space-y-0.5">
@@ -43,8 +43,8 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                       className={
                         'group flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ' +
                         (active
-                          ? 'bg-indigo-50 font-medium text-indigo-700'
-                          : 'text-zinc-700 hover:bg-zinc-50 hover:text-zinc-900')
+                          ? 'bg-[#FF5A1F]/15 font-medium text-[#FF5A1F]'
+                          : 'text-apg-silver hover:bg-white/5 hover:text-white')
                       }
                     >
                       <Icon
@@ -52,7 +52,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                         height={18}
                         className={
                           'shrink-0 ' +
-                          (active ? 'text-indigo-600' : 'text-zinc-400 group-hover:text-zinc-600')
+                          (active ? 'text-[#FF5A1F]' : 'text-apg-silver/70 group-hover:text-white')
                         }
                       />
                       <span>{label}</span>
@@ -65,8 +65,8 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         ))}
       </div>
 
-      <div className="border-t border-zinc-100 px-5 py-3 text-[11px] text-zinc-400">
-        Phase 1 · Inventory live
+      <div className="border-t border-white/5 px-5 py-3 text-[11px] text-apg-silver/60">
+        SaaS admin · secured
       </div>
     </nav>
   );

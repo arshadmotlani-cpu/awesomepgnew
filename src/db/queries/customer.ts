@@ -28,32 +28,47 @@ import {
   vacatingRequests,
 } from '../schema';
 import type { PricingSnapshot } from '../schema/bookings';
-import {
-  classifyDatabaseError,
-  databaseUrlHost,
-  resolveDatabaseUrlSource,
-} from '@/src/lib/db/connectionOptions';
+import { classifyDatabaseError } from '@/src/lib/db/connectionOptions';
+import { getDatabaseHost, getDatabaseUrlSource } from '@/src/lib/db/env';
+import { logger } from '@/src/lib/logger';
+import { safeQuery } from '@/src/lib/healing/safeQuery';
+import { traceQuery } from '@/src/lib/monitoring/traceQuery';
+import { maybeRunRecoveryCheck } from '@/src/lib/healing/healthEngine';
 
 export type QueryResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: string; errorCode?: string };
 
-async function guard<T>(fn: () => Promise<T>): Promise<QueryResult<T>> {
-  try {
-    return { ok: true, data: await fn() };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    const stack = err instanceof Error ? err.stack : undefined;
+async function guard<T>(
+  fn: () => Promise<T>,
+  queryName = 'customerQuery',
+  fallback?: T,
+): Promise<QueryResult<T>> {
+  await maybeRunRecoveryCheck();
+
+  const result = await safeQuery(
+    queryName,
+    () => traceQuery(queryName, fn),
+    (fallback ?? (null as unknown as T)),
+  );
+
+  if (result.degraded) {
+    const message = result.error ?? 'Database temporarily unavailable';
     const classified = classifyDatabaseError(message);
-    console.error('[db] query failed:', {
-      dbSource: resolveDatabaseUrlSource(),
-      dbHost: databaseUrlHost(),
+    logger.error('customer query degraded', {
+      queryName,
+      dbSource: getDatabaseUrlSource(),
+      dbHost: getDatabaseHost(),
       message,
-      stack,
       ...classified,
     });
+    if (fallback !== undefined) {
+      return { ok: true, data: fallback };
+    }
     return { ok: false, error: message, errorCode: classified.code };
   }
+
+  return { ok: true, data: result.data };
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -140,7 +155,7 @@ export function listPublicPgs(): Promise<QueryResult<CustomerPgListRow[]>> {
       .where(and(sql`${pgs.archivedAt} IS NULL`, eq(pgs.isActive, true)))
       .orderBy(asc(pgs.name));
 
-    return rows.map((r) => ({
+    const result = rows.map((r) => ({
       id: r.id,
       slug: r.slug,
       name: r.name,
@@ -155,7 +170,16 @@ export function listPublicPgs(): Promise<QueryResult<CustomerPgListRow[]>> {
       availableBeds: r.availableBeds,
       startingFromPaise: r.startingFromPaise,
     }));
-  });
+
+    const sourceUsed = getDatabaseUrlSource();
+    logger.db('listPublicPgs', {
+      host: getDatabaseHost(),
+      source: sourceUsed,
+      count: result.length,
+    });
+
+    return result;
+  }, 'listPublicPgs', []);
 }
 
 // ───────────────────────────────────────────────────────────────────────────

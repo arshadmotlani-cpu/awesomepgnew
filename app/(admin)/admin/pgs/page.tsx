@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Badge } from '@/src/components/admin/Badge';
 import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import { EmptyState } from '@/src/components/admin/EmptyState';
@@ -5,18 +6,32 @@ import { IconBuilding } from '@/src/components/admin/icons';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
 import { listPgs } from '@/src/db/queries/admin';
+import { requireAdminSession } from '@/src/lib/auth/guards';
+import { adminHasPermission } from '@/src/lib/auth/roles';
 import { titleCase } from '@/src/lib/format';
 
 export const dynamic = 'force-dynamic';
 
 export default async function PgsPage() {
+  const session = await requireAdminSession('/admin/pgs');
+  const canWrite = adminHasPermission(session.role, 'pgs:write');
   const res = await listPgs();
 
   return (
     <>
       <PageHeader
         title="PGs"
-        description="Every property managed by Awesome PG. Phase 1 ships read-only views; CRUD wires up in Phase 6."
+        description="Manage every property — edit listings, images, features, and availability."
+        actions={
+          canWrite ? (
+            <Link
+              href="/admin/pgs/new"
+              className="rounded-lg bg-[#FF5A1F] px-4 py-2 text-sm font-semibold text-white hover:brightness-110"
+            >
+              + Add PG
+            </Link>
+          ) : null
+        }
       />
 
       {!res.ok ? (
@@ -25,7 +40,7 @@ export default async function PgsPage() {
         <EmptyState
           icon={<IconBuilding />}
           title="No PGs yet"
-          description="Run npm run db:seed to populate the demo PG, or create one once admin CRUD lands."
+          description="Create a listing or run npm run db:seed for demo data."
         />
       ) : (
         <Table>
@@ -34,10 +49,9 @@ export default async function PgsPage() {
               <TH>Name</TH>
               <TH>Location</TH>
               <TH>Gender policy</TH>
-              <TH className="text-right">Floors</TH>
-              <TH className="text-right">Rooms</TH>
               <TH className="text-right">Beds</TH>
               <TH>Status</TH>
+              <TH />
             </TR>
           </THead>
           <TBody>
@@ -52,13 +66,21 @@ export default async function PgsPage() {
                   <div className="text-xs text-zinc-500">PIN {row.pincode}</div>
                 </TD>
                 <TD>{titleCase(row.genderPolicy)}</TD>
-                <TD className="text-right tabular-nums">{row.floorCount}</TD>
-                <TD className="text-right tabular-nums">{row.roomCount}</TD>
                 <TD className="text-right tabular-nums">{row.bedCount}</TD>
                 <TD>
                   <Badge tone={row.isActive ? 'emerald' : 'zinc'}>
                     {row.isActive ? 'Active' : 'Inactive'}
                   </Badge>
+                </TD>
+                <TD>
+                  {canWrite ? (
+                    <Link
+                      href={`/admin/pgs/${row.id}/edit`}
+                      className="text-sm font-medium text-[#FF5A1F] hover:underline"
+                    >
+                      Edit
+                    </Link>
+                  ) : null}
                 </TD>
               </TR>
             ))}

@@ -1,5 +1,18 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "app/api/**": {
+      "runtime": "nodejs"
+    },
+    "app/api/webhooks/vercel/route.ts": {
+      "runtime": "nodejs",
+      "maxDuration": 60
+    },
+    "app/api/cron/deploy-watchdog/route.ts": {
+      "runtime": "nodejs",
+      "maxDuration": 60
+    }
+  },
   "crons": [
     {
       "path": "/api/cron/release-holds",

@@ -1,5 +1,14 @@
 import 'dotenv/config';
-import { resolveDatabaseUrl } from '@/src/lib/db/connectionOptions';
+import { getDatabaseUrl, hasDatabaseUrl } from '@/src/lib/db/env';
+import { checkRequiredEnv, getEnvHealthSummary } from '@/src/lib/healing/envHealer';
+import { isDegradedMode, isSafeMode } from '@/src/lib/healing/systemState';
+
+export { checkRequiredEnv, getEnvHealthSummary, isDegradedMode, isSafeMode };
+
+/** True when DATABASE_URL or Neon/Vercel Postgres vars are configured. */
+export function isDatabaseConfigured(): boolean {
+  return hasDatabaseUrl();
+}
 
 function required(name: string): string {
   const value = process.env[name];
@@ -45,13 +54,12 @@ function paymentProvider(): PaymentProvider {
  */
 export const env = {
   get DATABASE_URL() {
-    const url = resolveDatabaseUrl();
-    if (!url) {
+    if (!hasDatabaseUrl()) {
       throw new Error(
-        'Missing required environment variable: DATABASE_URL (or POSTGRES_URL from Neon/Vercel)',
+        'Database URL not configured (DATABASE_URL / POSTGRES_URL). System is in degraded mode.',
       );
     }
-    return url;
+    return getDatabaseUrl();
   },
   get DATABASE_POOL_MAX() {
     return optionalInt('DATABASE_POOL_MAX', 10);

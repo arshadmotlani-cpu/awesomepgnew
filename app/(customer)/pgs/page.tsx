@@ -1,99 +1,75 @@
-import { listPublicPgs } from '@/src/db/queries/customer';
+import { listPublicPgs, type CustomerPgListRow } from '@/src/db/queries/customer';
 import { PgCard } from '@/src/components/customer/PgCard';
+import { EmptyPgList } from '@/src/components/customer/EmptyPgList';
+import { MotionPgGrid, MotionPgGridItem, MotionReveal } from '@/src/components/customer/MotionReveal';
+import { SafeModeBanner } from '@/src/components/customer/SafeModeBanner';
+import { logServerRequest } from '@/src/lib/monitoring/logServerRequest';
 import {
-  databaseUrlHost,
-  resolveDatabaseUrl,
-  resolveDatabaseUrlSource,
-} from '@/src/lib/db/connectionOptions';
+  contextFromHeaders,
+  runWithMonitoringContextAsync,
+} from '@/src/lib/monitoring/requestContext';
+import { headers } from 'next/headers';
 
 export const metadata = {
   title: 'Browse PGs',
 };
 
-// Always run on the server per request — never serve a stale/cached PG list.
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
 export const runtime = 'nodejs';
-export const fetchCache = 'force-no-store';
+export const dynamic = 'force-dynamic';
 
 export default async function PgListPage() {
-  console.log('PGS HIT');
-  console.log('[pgs] DATABASE_URL exists:', Boolean(process.env.DATABASE_URL?.trim()));
-  console.log('[pgs] POSTGRES_URL exists:', Boolean(process.env.POSTGRES_URL?.trim()));
-  console.log('[pgs] resolved DB source:', resolveDatabaseUrlSource());
-  console.log('[pgs] resolved DB host:', databaseUrlHost());
-  console.log('[pgs] connection string resolved:', Boolean(resolveDatabaseUrl()));
+  let pgs: CustomerPgListRow[] = [];
 
-  const result = await listPublicPgs();
+  const h = await headers();
+  const ctx = contextFromHeaders(h);
+  ctx.route = '/pgs';
 
-  if (!result.ok) {
-    console.error('[pgs] listPublicPgs failed:', {
-      error: result.error,
-      errorCode: result.errorCode,
-      dbSource: resolveDatabaseUrlSource(),
-      dbHost: databaseUrlHost(),
-    });
-  } else {
-    console.log('[pgs] listPublicPgs ok:', {
-      count: result.data.length,
-      slugs: result.data.map((pg) => pg.slug),
-    });
-    if (result.data.length === 0) {
-      console.warn('[pgs] query succeeded but returned 0 active PGs');
+  return runWithMonitoringContextAsync(ctx, async () => {
+    await logServerRequest('/pgs');
+
+    try {
+      const result = await listPublicPgs();
+      if (result.ok) {
+        pgs = result.data;
+      } else {
+        console.error('[pgs error]', result.error, result.errorCode);
+      }
+    } catch (error) {
+      console.error('[pgs error]', error);
     }
-  }
 
-  return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
-      <header className="mb-6">
-        <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">
-          Discover
-        </p>
-        <h1 className="mt-1 text-2xl font-semibold text-zinc-900 sm:text-3xl">
-          PGs accepting bookings
-        </h1>
-        <p className="mt-1 max-w-2xl text-sm text-zinc-600">
-          Pick a PG, choose your dates, and select one or more beds. You&apos;ll
-          confirm your details and complete payment on the next steps.
-        </p>
-      </header>
+    return (
+      <div>
+        <SafeModeBanner />
+        <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
+          <MotionReveal>
+            <header className="mb-8">
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#FF5A1F]">
+                Discover
+              </p>
+              <h1 className="mt-1 text-2xl font-semibold text-white sm:text-3xl">
+                PGs accepting bookings
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm text-apg-silver">
+                Pick a PG, choose your dates, and select one or more beds. You&apos;ll
+                confirm your details and complete payment on the next steps.
+              </p>
+            </header>
+          </MotionReveal>
 
-      {!result.ok ? (
-        <ErrorState message={result.error} />
-      ) : result.data.length === 0 ? (
-        <EmptyState />
-      ) : (
-        <ul className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {result.data.map((pg) => (
-            <li key={pg.id}>
-              <PgCard pg={pg} />
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-function ErrorState({ message }: { message: string }) {
-  return (
-    <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">
-      <p className="font-semibold">We couldn&apos;t load PGs right now.</p>
-      <p className="mt-1">
-        Please try again in a few moments. If the problem continues, contact support.
-      </p>
-      {process.env.NODE_ENV !== 'production' && (
-        <p className="mt-2 font-mono text-xs text-amber-900">{message}</p>
-      )}
-    </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="rounded-xl border border-dashed border-zinc-300 bg-white p-10 text-center text-sm text-zinc-500">
-      <p className="font-semibold text-zinc-700">No PGs are accepting bookings yet.</p>
-      <p className="mt-1">New properties will appear here as they become available.</p>
-    </div>
-  );
+          {pgs.length === 0 ? (
+            <EmptyPgList />
+          ) : (
+            <MotionPgGrid>
+              {pgs.map((pg) => (
+                <MotionPgGridItem key={pg.id}>
+                  <PgCard pg={pg} />
+                </MotionPgGridItem>
+              ))}
+            </MotionPgGrid>
+          )}
+        </div>
+      </div>
+    );
+  });
 }

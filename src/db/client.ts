@@ -1,11 +1,8 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres, { type Sql } from 'postgres';
-import {
-  databaseUrlHost,
-  parseDatabaseUrl,
-  resolveDatabaseUrl,
-  resolveDatabaseUrlSource,
-} from '@/src/lib/db/connectionOptions';
+import { parseDatabaseUrl } from '@/src/lib/db/connectionOptions';
+import { getDatabaseUrl } from '@/src/lib/db/env';
+import { monitoringDrizzleLogger } from '@/src/lib/monitoring/drizzleLogger';
 import * as schema from './schema';
 
 type DrizzleClient = ReturnType<typeof drizzle<typeof schema>>;
@@ -13,8 +10,6 @@ type DrizzleClient = ReturnType<typeof drizzle<typeof schema>>;
 type DbGlobal = {
   sql?: Sql;
   drizzle?: DrizzleClient;
-  /** Throttle pg_stat_activity logging in dev. */
-  lastStatsLog?: number;
 };
 
 const GLOBAL_KEY = '__awesomepgDb' as const;
@@ -25,61 +20,20 @@ function dbGlobal(): DbGlobal {
   return g[GLOBAL_KEY];
 }
 
-
-async function logConnectionStats(sql: Sql, label: string): Promise<void> {
-  if (process.env.NODE_ENV === 'production') return;
-  try {
-    const [row] = await sql<{ total: number; app: number }[]>`
-      SELECT
-        count(*)::int AS total,
-        count(*) FILTER (WHERE application_name LIKE 'awesomepg%')::int AS app
-      FROM pg_stat_activity
-      WHERE datname = current_database()
-    `;
-    console.info(
-      `[db] ${label}: connections total=${row?.total ?? '?'} awesomepg=${row?.app ?? '?'}`,
-    );
-  } catch {
-    // Stats are best-effort in dev.
-  }
-}
-
-function maybeLogPeriodicStats(sql: Sql): void {
-  if (process.env.NODE_ENV === 'production') return;
-  const global = dbGlobal();
-  const now = Date.now();
-  if (global.lastStatsLog && now - global.lastStatsLog < 60_000) return;
-  global.lastStatsLog = now;
-  void logConnectionStats(sql, 'periodic');
-}
-
 function init(): DrizzleClient {
   const global = dbGlobal();
   if (global.drizzle) return global.drizzle;
 
-  const url = resolveDatabaseUrl();
-  if (!url) {
-    throw new Error(
-      'Database connection string is not set. Set DATABASE_URL (or POSTGRES_URL from ' +
-        'Neon/Vercel integration) in environment variables — see DATABASE_SETUP.md.',
-    );
-  }
-
+  const url = getDatabaseUrl();
   const { connectionString, options } = parseDatabaseUrl(url);
   const sql = postgres(connectionString, options);
 
   global.sql = sql;
-  global.drizzle = drizzle(sql, { schema, casing: 'snake_case' });
-
-  if (process.env.VERCEL) {
-    console.log('[db] pool opened', {
-      source: resolveDatabaseUrlSource(),
-      host: databaseUrlHost(url),
-      max: options.max ?? '?',
-    });
-  }
-
-  void logConnectionStats(sql, `pool opened (max=${options.max ?? '?'})`);
+  global.drizzle = drizzle(sql, {
+    schema,
+    casing: 'snake_case',
+    logger: monitoringDrizzleLogger,
+  });
 
   return global.drizzle;
 }
@@ -87,13 +41,11 @@ function init(): DrizzleClient {
 /**
  * Lazy singleton backed by `globalThis` so Next.js dev hot-reload reuses one
  * pool per Node process instead of leaking a new postgres.js pool on every
- * module re-evaluation.
+ * module re-evaluation. Connection is opened on first query, not at import.
  */
 export const db: DrizzleClient = new Proxy({} as DrizzleClient, {
   get(_target, prop, receiver) {
     const client = init();
-    const global = dbGlobal();
-    if (global.sql) maybeLogPeriodicStats(global.sql);
     return Reflect.get(client as object, prop, receiver);
   },
 });
@@ -107,12 +59,7 @@ export { schema };
  * export above instead.
  */
 export function createClient(options?: { max?: number }) {
-  const url = resolveDatabaseUrl();
-  if (!url) {
-    throw new Error(
-      'Database connection string is not set (DATABASE_URL or POSTGRES_URL). See DATABASE_SETUP.md.',
-    );
-  }
+  const url = getDatabaseUrl();
   const parsed = parseDatabaseUrl(url);
   const client = postgres(parsed.connectionString, {
     ...parsed.options,
@@ -120,7 +67,7 @@ export function createClient(options?: { max?: number }) {
     connection: { application_name: 'awesomepg-script' },
   });
   return {
-    db: drizzle(client, { schema, casing: 'snake_case' }),
+    db: drizzle(client, { schema, casing: 'snake_case', logger: monitoringDrizzleLogger }),
     sql: client,
     close: () => client.end({ timeout: 5 }),
   };

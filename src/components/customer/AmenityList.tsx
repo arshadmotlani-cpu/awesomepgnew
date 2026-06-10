@@ -13,14 +13,14 @@ export function AmenityList({ amenities }: { amenities: Record<string, unknown> 
     .filter(([, v]) => v === true)
     .map(([k]) => AMENITY_LABELS[k] ?? k);
   if (active.length === 0) {
-    return <span className="text-xs text-zinc-400">No amenities listed</span>;
+    return <span className="text-xs text-apg-silver/60">No amenities listed</span>;
   }
   return (
     <ul className="flex flex-wrap gap-1.5">
       {active.map((label) => (
         <li
           key={label}
-          className="rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[11px] font-medium text-zinc-700"
+          className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-medium text-apg-silver"
         >
           {label}
         </li>

@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { motion } from 'framer-motion';
 import { defaultBrowseStayQuery } from '@/src/lib/dateDefaults';
 import { paiseToInr } from '@/src/lib/format';
 import { AmenityList } from './AmenityList';
@@ -22,63 +25,63 @@ export type PgCardData = {
 
 export function PgCard({ pg }: { pg: PgCardData }) {
   return (
-    <Link
-      href={`/pgs/${pg.slug}?${defaultBrowseStayQuery()}`}
-      className="group flex flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-all hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md"
-    >
-      <div className="relative aspect-[16/9] w-full overflow-hidden bg-gradient-to-br from-indigo-100 via-zinc-100 to-emerald-100">
-        {pg.heroImage ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={pg.heroImage}
-            alt={`${pg.name} hero`}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-            loading="lazy"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-xs font-semibold uppercase tracking-wider text-zinc-500">
-            {pg.name}
+    <motion.div whileHover={{ y: -6, scale: 1.01 }} transition={{ type: 'spring', stiffness: 320, damping: 24 }}>
+      <Link
+        href={`/pgs/${pg.slug}?${defaultBrowseStayQuery()}`}
+        className="apg-glass group flex flex-col overflow-hidden rounded-2xl transition-all"
+      >
+        <div className="relative aspect-[16/9] w-full overflow-hidden bg-gradient-to-br from-[#1A1F27] via-[#0B0F14] to-[#2a1810]">
+          {pg.heroImage ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={pg.heroImage}
+              alt={`${pg.name} hero`}
+              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+              loading="lazy"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-xs font-semibold uppercase tracking-wider text-apg-silver">
+              {pg.name}
+            </div>
+          )}
+          <div className="absolute left-3 top-3 flex gap-1.5">
+            <GenderBadge policy={pg.genderPolicy} />
           </div>
-        )}
-        <div className="absolute left-3 top-3 flex gap-1.5">
-          <GenderBadge policy={pg.genderPolicy} />
-        </div>
-        <div className="absolute right-3 top-3 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-semibold text-zinc-700 ring-1 ring-zinc-200">
-          {pg.availableBeds} of {pg.totalBeds} beds free today
-        </div>
-      </div>
-
-      <div className="flex flex-1 flex-col gap-3 p-4">
-        <div>
-          <h3 className="text-base font-semibold text-zinc-900 group-hover:text-indigo-700">
-            {pg.name}
-          </h3>
-          <p className="mt-0.5 text-xs text-zinc-500">
-            {pg.city}, {pg.state} · {pg.pincode}
-          </p>
+          <div className="absolute right-3 top-3 rounded-full border border-white/10 bg-black/50 px-2 py-0.5 text-[11px] font-semibold text-apg-silver backdrop-blur">
+            {pg.availableBeds} of {pg.totalBeds} beds free today
+          </div>
         </div>
 
-        {pg.description ? (
-          <p className="line-clamp-2 text-sm text-zinc-600">{pg.description}</p>
-        ) : null}
-
-        <AmenityList amenities={pg.amenities} />
-
-        <div className="mt-auto flex items-end justify-between border-t border-zinc-100 pt-3">
+        <div className="flex flex-1 flex-col gap-3 p-4">
           <div>
-            <span className="text-[11px] uppercase tracking-wide text-zinc-500">
-              From
-            </span>
-            <p className="text-lg font-semibold text-zinc-900">
-              {pg.startingFromPaise > 0 ? paiseToInr(pg.startingFromPaise) : '—'}
-              <span className="ml-1 text-xs font-normal text-zinc-500">/mo</span>
+            <h3 className="text-base font-semibold text-white group-hover:text-[#FF5A1F] transition-colors">
+              {pg.name}
+            </h3>
+            <p className="mt-0.5 text-xs text-apg-silver">
+              {pg.city}, {pg.state} · {pg.pincode}
             </p>
           </div>
-          <span className="text-xs font-semibold text-indigo-600 group-hover:translate-x-0.5">
-            View beds →
-          </span>
+
+          {pg.description ? (
+            <p className="line-clamp-2 text-sm text-apg-silver/90">{pg.description}</p>
+          ) : null}
+
+          <AmenityList amenities={pg.amenities} />
+
+          <div className="mt-auto flex items-end justify-between border-t border-white/5 pt-3">
+            <div>
+              <span className="text-[11px] uppercase tracking-wide text-apg-silver">From</span>
+              <p className="text-lg font-semibold text-white">
+                {pg.startingFromPaise > 0 ? paiseToInr(pg.startingFromPaise) : '—'}
+                <span className="ml-1 text-xs font-normal text-apg-silver">/mo</span>
+              </p>
+            </div>
+            <span className="text-xs font-semibold text-[#FF5A1F] group-hover:translate-x-0.5 transition-transform">
+              View beds →
+            </span>
+          </div>
         </div>
-      </div>
-    </Link>
+      </Link>
+    </motion.div>
   );
 }

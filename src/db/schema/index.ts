@@ -23,3 +23,6 @@ export * from './authSessions';
 export * from './emailOtpChallenges';
 export * from './emailOtpAttemptLog';
 export * from './kycSubmissions';
+export * from './appLogs';
+export * from './systemHealth';
+export * from './deployments';

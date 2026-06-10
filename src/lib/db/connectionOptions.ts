@@ -1,37 +1,26 @@
 import type { Options } from 'postgres';
+import {
+  getDatabaseHost,
+  getDatabaseUrl,
+  getDatabaseUrlSource,
+  type DatabaseEnvSource,
+} from './env';
 
-const DATABASE_URL_ENV_KEYS = [
-  'DATABASE_URL',
-  'POSTGRES_URL',
-  'POSTGRES_PRISMA_URL',
-] as const;
+export type DatabaseUrlSource = DatabaseEnvSource;
 
-/** Resolve the Postgres connection string (Neon/Vercel often inject POSTGRES_URL only). */
-export function resolveDatabaseUrl(): string | undefined {
-  for (const key of DATABASE_URL_ENV_KEYS) {
-    const value = process.env[key]?.trim();
-    if (value) return value;
-  }
-  return undefined;
+/** @deprecated Use getDatabaseUrl() from ./env — kept for existing imports. */
+export function resolveDatabaseUrl(): string {
+  return getDatabaseUrl();
 }
 
-/** Which env var supplied the connection string (safe to log). */
-export function resolveDatabaseUrlSource(): (typeof DATABASE_URL_ENV_KEYS)[number] | null {
-  for (const key of DATABASE_URL_ENV_KEYS) {
-    if (process.env[key]?.trim()) return key;
-  }
-  return null;
+/** @deprecated Use getDatabaseUrlSource() from ./env — kept for existing imports. */
+export function resolveDatabaseUrlSource(): DatabaseUrlSource | null {
+  return getDatabaseUrlSource();
 }
 
-/** Hostname fingerprint for logs — never includes credentials. */
-export function databaseUrlHost(url?: string): string | null {
-  const raw = url ?? resolveDatabaseUrl();
-  if (!raw) return null;
-  try {
-    return new URL(raw.replace(/^postgres:/, 'postgresql:')).hostname;
-  } catch {
-    return null;
-  }
+/** @deprecated Use getDatabaseHost() from ./env — kept for existing imports. */
+export function databaseUrlHost(): string | null {
+  return getDatabaseHost();
 }
 
 /**
@@ -47,10 +36,10 @@ export function parseDatabaseUrl(url: string): {
 
   const needsSsl =
     /sslmode=(require|verify-full|verify-ca|no-verify)/i.test(url) ||
-    /@(localhost|127\.0\.0\.1)(:|\/)/i.test(url) === false &&
+    (/@(localhost|127\.0\.0\.1)(:|\/)/i.test(url) === false &&
       /neon\.tech|supabase\.co|vercel-storage\.com|aws\.amazonaws\.com|rds\.amazonaws|render\.com|railway\.app|elephantsql\.com/i.test(
         url,
-      );
+      ));
 
   const poolMax = (() => {
     const raw = process.env.DATABASE_POOL_MAX;
@@ -58,7 +47,6 @@ export function parseDatabaseUrl(url: string): {
       const n = Number.parseInt(raw, 10);
       if (!Number.isNaN(n) && n > 0) return n;
     }
-    // Serverless: one connection per warm lambda avoids pool exhaustion.
     if (isVercel) return 1;
     return isProduction ? 3 : 3;
   })();
@@ -85,11 +73,11 @@ export function classifyDatabaseError(message: string): {
   code: 'missing_url' | 'connection' | 'schema' | 'auth' | 'unknown';
   hint: string;
 } {
-  if (/DATABASE_URL|POSTGRES_URL|connection string is not set/i.test(message)) {
+  if (/DATABASE URL missing|DATABASE URL not found|DATABASE_URL|POSTGRES_URL/i.test(message)) {
     return {
       code: 'missing_url',
       hint:
-        'Set DATABASE_URL (or ensure POSTGRES_URL from Neon/Vercel integration is present) ' +
+        'Set DATABASE_URL (or POSTGRES_URL / POSTGRES_PRISMA_URL from Neon/Vercel integration) ' +
         'in Vercel → Project → Settings → Environment Variables.',
     };
   }

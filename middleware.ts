@@ -18,8 +18,22 @@ function needsAdminAuth(pathname: string): boolean {
   return true;
 }
 
+function attachMonitoringHeaders(request: NextRequest): Headers {
+  const requestHeaders = new Headers(request.headers);
+  if (!requestHeaders.get('x-request-id')) {
+    requestHeaders.set('x-request-id', crypto.randomUUID());
+  }
+  if (!requestHeaders.get('x-request-start')) {
+    requestHeaders.set('x-request-start', String(Date.now()));
+  }
+  requestHeaders.set('x-request-route', request.nextUrl.pathname);
+  requestHeaders.set('x-request-method', request.method);
+  return requestHeaders;
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const requestHeaders = attachMonitoringHeaders(request);
 
   if (needsCustomerAuth(pathname)) {
     const token = request.cookies.get(CUSTOMER_SESSION_COOKIE)?.value;
@@ -28,6 +42,7 @@ export function middleware(request: NextRequest) {
       login.searchParams.set('next', `${pathname}${request.nextUrl.search}`);
       return NextResponse.redirect(login);
     }
+    requestHeaders.set('x-user-id', 'customer');
   }
 
   if (needsAdminAuth(pathname)) {
@@ -37,13 +52,20 @@ export function middleware(request: NextRequest) {
       login.searchParams.set('next', `${pathname}${request.nextUrl.search}`);
       return NextResponse.redirect(login);
     }
+    requestHeaders.set('x-user-id', 'admin');
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next({
+    request: { headers: requestHeaders },
+  });
+  response.headers.set('x-request-id', requestHeaders.get('x-request-id')!);
+  return response;
 }
 
 export const config = {
   matcher: [
+    '/api/:path*',
+    '/pgs/:path*',
     '/booking/:path*',
     '/account/:path*',
     '/admin/:path*',

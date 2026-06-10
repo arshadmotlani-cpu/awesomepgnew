@@ -1,13 +1,8 @@
 import 'dotenv/config';
 import { defineConfig } from 'drizzle-kit';
-import { resolveDatabaseUrl } from './src/lib/db/connectionOptions';
+import { getDatabaseUrl } from './src/lib/db/env';
 
-const databaseUrl = resolveDatabaseUrl();
-if (!databaseUrl) {
-  throw new Error(
-    'DATABASE_URL (or POSTGRES_URL) is not set. Copy .env.example to .env and fill it in before running drizzle-kit.',
-  );
-}
+const databaseUrl = getDatabaseUrl();
 
 export default defineConfig({
   dialect: 'postgresql',

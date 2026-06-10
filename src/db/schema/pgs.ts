@@ -28,6 +28,8 @@ export const pgs = pgTable('pgs', {
   amenities: jsonb('amenities').$type<PgAmenities>().notNull().default({}),
   images: jsonb('images').$type<string[]>().notNull().default([]),
   description: text('description'),
+  contactPhone: text('contact_phone'),
+  contactEmail: text('contact_email'),
   isActive: boolean('is_active').notNull().default(true),
   archivedAt: timestamp('archived_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

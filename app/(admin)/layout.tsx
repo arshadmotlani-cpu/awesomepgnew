@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default async function AdminGroupLayout({ children }: { children: ReactNode }) {
   await requireAdminSession('/admin');
   return (
-    <div className="flex min-h-screen bg-zinc-50 text-zinc-900">
+    <div className="flex min-h-screen bg-[#0B0F14] text-[#f4f6f8]">
       <aside className="sticky top-0 hidden h-screen lg:block">
         <Sidebar />
       </aside>

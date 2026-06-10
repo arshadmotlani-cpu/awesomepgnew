@@ -3,6 +3,7 @@ import type { AdminUser } from '@/src/db/schema/adminUsers';
 export type AdminRole = AdminUser['role'];
 
 export type AdminPermission =
+  | 'pgs:write'
   | 'bookings:write'
   | 'extensions:write'
   | 'rent:write'
@@ -14,6 +15,7 @@ export type AdminPermission =
 
 const ROLE_PERMISSIONS: Record<AdminRole, ReadonlySet<AdminPermission>> = {
   super_admin: new Set([
+    'pgs:write',
     'bookings:write',
     'extensions:write',
     'rent:write',
@@ -23,7 +25,13 @@ const ROLE_PERMISSIONS: Record<AdminRole, ReadonlySet<AdminPermission>> = {
     'payments:write',
     'kyc:write',
   ]),
-  pg_manager: new Set(['bookings:write', 'extensions:write', 'vacating:write', 'kyc:write']),
+  pg_manager: new Set([
+    'pgs:write',
+    'bookings:write',
+    'extensions:write',
+    'vacating:write',
+    'kyc:write',
+  ]),
   accountant: new Set([
     'rent:write',
     'electricity:write',
