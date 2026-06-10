@@ -1,0 +1,112 @@
+/**
+ * Pure date helpers used by the pricing and availability services. Everything
+ * here operates in UTC and works on ISO-8601 calendar dates (YYYY-MM-DD) or
+ * `Date` objects. The codebase deliberately avoids depending on a date
+ * library at this stage — the math is small and easy to test.
+ *
+ * Half-open ranges (`[start, end)`) are the convention everywhere, matching
+ * the Postgres `daterange` type used by `bed_reservations.stay_range`.
+ */
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const MS_PER_DAY = 86_400_000;
+
+export type DateLike = Date | string;
+
+/**
+ * Parse YYYY-MM-DD as a UTC midnight Date. Existing Date instances are
+ * normalized to their UTC y-m-d component (time-of-day dropped) so downstream
+ * math is timezone-free.
+ */
+export function parseDate(input: DateLike): Date {
+  if (input instanceof Date) {
+    if (Number.isNaN(input.getTime())) {
+      throw new Error(`Invalid Date passed to parseDate`);
+    }
+    return new Date(Date.UTC(input.getUTCFullYear(), input.getUTCMonth(), input.getUTCDate()));
+  }
+  if (typeof input !== 'string' || !ISO_DATE_RE.test(input)) {
+    throw new Error(`Expected YYYY-MM-DD date string, got: ${JSON.stringify(input)}`);
+  }
+  const [y, m, d] = input.split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  // Round-trip catches things like 2026-02-30 (auto-normalizes to Mar 2).
+  if (
+    date.getUTCFullYear() !== y ||
+    date.getUTCMonth() !== m - 1 ||
+    date.getUTCDate() !== d
+  ) {
+    throw new Error(`Calendar date does not exist: ${input}`);
+  }
+  return date;
+}
+
+export function formatDate(date: Date): string {
+  const y = date.getUTCFullYear().toString().padStart(4, '0');
+  const m = (date.getUTCMonth() + 1).toString().padStart(2, '0');
+  const d = date.getUTCDate().toString().padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * Days between two dates, computed as `end - start`. Both inputs are first
+ * normalized to UTC midnight, so DST transitions cannot perturb the result.
+ */
+export function diffDays(start: DateLike, end: DateLike): number {
+  const s = parseDate(start);
+  const e = parseDate(end);
+  return Math.round((e.getTime() - s.getTime()) / MS_PER_DAY);
+}
+
+export function addDays(date: DateLike, days: number): Date {
+  const d = parseDate(date);
+  return new Date(d.getTime() + days * MS_PER_DAY);
+}
+
+/**
+ * Add `n` calendar months. Clamps to month-end when needed so that e.g.
+ * `addMonths(2026-01-31, 1) === 2026-02-28` (not Mar 3). Mirrors how humans
+ * read monthly billing cycles.
+ */
+export function addMonths(date: DateLike, n: number): Date {
+  const d = parseDate(date);
+  const targetMonth = d.getUTCMonth() + n;
+  const targetYear = d.getUTCFullYear() + Math.floor(targetMonth / 12);
+  const normalizedMonth = ((targetMonth % 12) + 12) % 12;
+  const day = d.getUTCDate();
+  const candidate = new Date(Date.UTC(targetYear, normalizedMonth, day));
+  if (candidate.getUTCMonth() !== normalizedMonth) {
+    // Day overflowed; clamp to last day of the target month.
+    return new Date(Date.UTC(targetYear, normalizedMonth + 1, 0));
+  }
+  return candidate;
+}
+
+export function isBefore(a: DateLike, b: DateLike): boolean {
+  return parseDate(a).getTime() < parseDate(b).getTime();
+}
+
+export function isAfter(a: DateLike, b: DateLike): boolean {
+  return parseDate(a).getTime() > parseDate(b).getTime();
+}
+
+export function isSameDay(a: DateLike, b: DateLike): boolean {
+  return parseDate(a).getTime() === parseDate(b).getTime();
+}
+
+export function maxDate(a: DateLike, b: DateLike): Date {
+  return isAfter(a, b) ? parseDate(a) : parseDate(b);
+}
+
+export function minDate(a: DateLike, b: DateLike): Date {
+  return isBefore(a, b) ? parseDate(a) : parseDate(b);
+}
+
+/**
+ * Today as a YYYY-MM-DD string in UTC. The system intentionally treats "today"
+ * as a calendar date (no timezone) so that occupancy reports are consistent
+ * regardless of where the server is running.
+ */
+export function todayString(now: Date = new Date()): string {
+  return formatDate(parseDate(now));
+}

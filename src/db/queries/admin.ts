@@ -1,0 +1,1271 @@
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { db } from '../client';
+import {
+  beds,
+  bedPrices,
+  bedReservations,
+  bookings,
+  customers,
+  depositLedger,
+  electricityBills,
+  electricityInvoices,
+  floors,
+  payments,
+  pgs,
+  rentInvoices,
+  rooms,
+  roomTypes,
+  stayExtensions,
+  vacatingRequests,
+} from '../schema';
+
+/**
+ * All admin read queries return a discriminated union so pages can render a
+ * "database not configured / unreachable" state without crashing. The shape
+ * is intentionally simple — Phase 6 will replace this with a proper service
+ * layer plus suspense streaming.
+ */
+export type QueryResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: string };
+
+async function guard<T>(fn: () => Promise<T>): Promise<QueryResult<T>> {
+  try {
+    return { ok: true, data: await fn() };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: message };
+  }
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Dashboard
+// ───────────────────────────────────────────────────────────────────────────
+
+export type DashboardStats = {
+  totalPgs: number;
+  totalFloors: number;
+  totalRooms: number;
+  totalBeds: number;
+  occupiedBeds: number;
+  availableBeds: number;
+  blockedBeds: number;
+  maintenanceBeds: number;
+  /** Occupied / total, rounded to one decimal (0 when totalBeds === 0). */
+  occupancyPct: number;
+};
+
+export function getDashboardStats(): Promise<QueryResult<DashboardStats>> {
+  return guard(async () => {
+    const [pgRow] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(pgs)
+      .where(sql`${pgs.archivedAt} IS NULL`);
+    const [floorRow] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(floors)
+      .where(sql`${floors.archivedAt} IS NULL`);
+    const [roomRow] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(rooms)
+      .where(sql`${rooms.archivedAt} IS NULL`);
+
+    const bedRows = await db
+      .select({
+        status: beds.status,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(beds)
+      .where(sql`${beds.archivedAt} IS NULL`)
+      .groupBy(beds.status);
+
+    const byStatus = new Map(bedRows.map((r) => [r.status, r.count]));
+    const totalBeds = bedRows.reduce((acc, r) => acc + r.count, 0);
+    const availableBedsRaw = byStatus.get('available') ?? 0;
+    const blockedBeds = byStatus.get('blocked') ?? 0;
+    const maintenanceBeds = byStatus.get('maintenance') ?? 0;
+
+    // Occupied = beds with an active reservation that covers today.
+    // Important: column references inside `sql` templates must be written
+    // as qualified literals (e.g. `beds.id`) when the surrounding FROM has
+    // more than one table with the same column name. Drizzle's `${col}`
+    // interpolation emits the bare column name, which Postgres then rejects
+    // with "column reference is ambiguous" (42702) — or worse, binds to the
+    // wrong column and silently returns zero.
+    const [occRow] = await db
+      .select({ count: sql<number>`count(distinct beds.id)::int` })
+      .from(beds)
+      .innerJoin(bedReservations, eq(bedReservations.bedId, beds.id))
+      .where(
+        sql`${bedReservations.status} = 'active' AND CURRENT_DATE <@ ${bedReservations.stayRange}`,
+      );
+
+    const occupiedBeds = occRow?.count ?? 0;
+    // Available now means "physically available AND not currently occupied".
+    const availableBeds = Math.max(0, availableBedsRaw - occupiedBeds);
+
+    const occupancyPct =
+      totalBeds === 0 ? 0 : Math.round((occupiedBeds / totalBeds) * 1000) / 10;
+
+    return {
+      totalPgs: pgRow?.count ?? 0,
+      totalFloors: floorRow?.count ?? 0,
+      totalRooms: roomRow?.count ?? 0,
+      totalBeds,
+      occupiedBeds,
+      availableBeds,
+      blockedBeds,
+      maintenanceBeds,
+      occupancyPct,
+    };
+  });
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// PGs
+// ───────────────────────────────────────────────────────────────────────────
+
+export type PgListRow = {
+  id: string;
+  name: string;
+  slug: string;
+  city: string;
+  state: string;
+  pincode: string;
+  genderPolicy: 'male' | 'female' | 'coed';
+  isActive: boolean;
+  floorCount: number;
+  roomCount: number;
+  bedCount: number;
+};
+
+export function listPgs(): Promise<QueryResult<PgListRow[]>> {
+  return guard(async () => {
+    const rows = await db
+      .select({
+        id: pgs.id,
+        name: pgs.name,
+        slug: pgs.slug,
+        city: pgs.city,
+        state: pgs.state,
+        pincode: pgs.pincode,
+        genderPolicy: pgs.genderPolicy,
+        isActive: pgs.isActive,
+        // Correlated subqueries — `pgs.id` must be a qualified literal
+        // (see notes above). The previous form `${pgs.id}` rendered as bare
+        // `"id"`, which Postgres bound to the *inner* `floors.id` and made
+        // every count silently 0.
+        floorCount: sql<number>`(
+          SELECT count(*)::int FROM ${floors}
+          WHERE floors.pg_id = pgs.id AND floors.archived_at IS NULL
+        )`,
+        roomCount: sql<number>`(
+          SELECT count(*)::int FROM ${rooms}
+          JOIN ${floors} ON floors.id = rooms.floor_id
+          WHERE floors.pg_id = pgs.id AND rooms.archived_at IS NULL
+        )`,
+        bedCount: sql<number>`(
+          SELECT count(*)::int FROM ${beds}
+          JOIN ${rooms} ON rooms.id = beds.room_id
+          JOIN ${floors} ON floors.id = rooms.floor_id
+          WHERE floors.pg_id = pgs.id AND beds.archived_at IS NULL
+        )`,
+      })
+      .from(pgs)
+      .where(sql`${pgs.archivedAt} IS NULL`)
+      .orderBy(asc(pgs.name));
+    return rows;
+  });
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Floors
+// ───────────────────────────────────────────────────────────────────────────
+
+export type FloorListRow = {
+  id: string;
+  floorNumber: number;
+  label: string | null;
+  pgName: string;
+  roomCount: number;
+  bedCount: number;
+};
+
+export function listFloors(): Promise<QueryResult<FloorListRow[]>> {
+  return guard(async () => {
+    return await db
+      .select({
+        id: floors.id,
+        floorNumber: floors.floorNumber,
+        label: floors.label,
+        pgName: pgs.name,
+        roomCount: sql<number>`(
+          SELECT count(*)::int FROM ${rooms}
+          WHERE rooms.floor_id = floors.id AND rooms.archived_at IS NULL
+        )`,
+        bedCount: sql<number>`(
+          SELECT count(*)::int FROM ${beds}
+          JOIN ${rooms} ON rooms.id = beds.room_id
+          WHERE rooms.floor_id = floors.id AND beds.archived_at IS NULL
+        )`,
+      })
+      .from(floors)
+      .innerJoin(pgs, eq(pgs.id, floors.pgId))
+      .where(sql`${floors.archivedAt} IS NULL`)
+      .orderBy(asc(pgs.name), asc(floors.floorNumber));
+  });
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Rooms
+// ───────────────────────────────────────────────────────────────────────────
+
+export type RoomListRow = {
+  id: string;
+  roomNumber: string;
+  roomType: string;
+  capacity: number;
+  hasAc: boolean;
+  floorLabel: string;
+  pgName: string;
+  bedCount: number;
+};
+
+export function listRooms(): Promise<QueryResult<RoomListRow[]>> {
+  return guard(async () => {
+    return await db
+      .select({
+        id: rooms.id,
+        roomNumber: rooms.roomNumber,
+        roomType: roomTypes.name,
+        capacity: roomTypes.defaultCapacity,
+        hasAc: roomTypes.hasAc,
+        floorLabel: sql<string>`coalesce(${floors.label}, 'Floor ' || ${floors.floorNumber})`,
+        pgName: pgs.name,
+        bedCount: sql<number>`(
+          SELECT count(*)::int FROM ${beds}
+          WHERE beds.room_id = rooms.id AND beds.archived_at IS NULL
+        )`,
+      })
+      .from(rooms)
+      .innerJoin(roomTypes, eq(roomTypes.id, rooms.roomTypeId))
+      .innerJoin(floors, eq(floors.id, rooms.floorId))
+      .innerJoin(pgs, eq(pgs.id, floors.pgId))
+      .where(sql`${rooms.archivedAt} IS NULL`)
+      .orderBy(asc(pgs.name), asc(floors.floorNumber), asc(rooms.roomNumber));
+  });
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Beds
+// ───────────────────────────────────────────────────────────────────────────
+
+export type BedListRow = {
+  id: string;
+  bedCode: string;
+  status: 'available' | 'maintenance' | 'blocked';
+  isOccupiedToday: boolean;
+  roomNumber: string;
+  roomType: string;
+  floorLabel: string;
+  pgName: string;
+};
+
+export function listBeds(): Promise<QueryResult<BedListRow[]>> {
+  return guard(async () => {
+    return await db
+      .select({
+        id: beds.id,
+        bedCode: beds.bedCode,
+        status: beds.status,
+        isOccupiedToday: sql<boolean>`EXISTS (
+          SELECT 1 FROM ${bedReservations} r
+          WHERE r.bed_id = beds.id
+            AND r.status = 'active'
+            AND CURRENT_DATE <@ r.stay_range
+        )`,
+        roomNumber: rooms.roomNumber,
+        roomType: roomTypes.name,
+        floorLabel: sql<string>`coalesce(${floors.label}, 'Floor ' || ${floors.floorNumber})`,
+        pgName: pgs.name,
+      })
+      .from(beds)
+      .innerJoin(rooms, eq(rooms.id, beds.roomId))
+      .innerJoin(roomTypes, eq(roomTypes.id, rooms.roomTypeId))
+      .innerJoin(floors, eq(floors.id, rooms.floorId))
+      .innerJoin(pgs, eq(pgs.id, floors.pgId))
+      .where(sql`${beds.archivedAt} IS NULL`)
+      .orderBy(asc(pgs.name), asc(floors.floorNumber), asc(rooms.roomNumber), asc(beds.bedCode));
+  });
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Pricing
+// ───────────────────────────────────────────────────────────────────────────
+
+export type PricingListRow = {
+  id: string;
+  bedCode: string;
+  roomNumber: string;
+  roomType: string;
+  pgName: string;
+  dailyRatePaise: number;
+  weeklyRatePaise: number;
+  monthlyRatePaise: number;
+  securityDepositPaise: number;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+};
+
+export function listPricing(): Promise<QueryResult<PricingListRow[]>> {
+  return guard(async () => {
+    return await db
+      .select({
+        id: bedPrices.id,
+        bedCode: beds.bedCode,
+        roomNumber: rooms.roomNumber,
+        roomType: roomTypes.name,
+        pgName: pgs.name,
+        dailyRatePaise: bedPrices.dailyRatePaise,
+        weeklyRatePaise: bedPrices.weeklyRatePaise,
+        monthlyRatePaise: bedPrices.monthlyRatePaise,
+        securityDepositPaise: bedPrices.securityDepositPaise,
+        effectiveFrom: bedPrices.effectiveFrom,
+        effectiveTo: bedPrices.effectiveTo,
+      })
+      .from(bedPrices)
+      .innerJoin(beds, eq(beds.id, bedPrices.bedId))
+      .innerJoin(rooms, eq(rooms.id, beds.roomId))
+      .innerJoin(roomTypes, eq(roomTypes.id, rooms.roomTypeId))
+      .innerJoin(floors, eq(floors.id, rooms.floorId))
+      .innerJoin(pgs, eq(pgs.id, floors.pgId))
+      .orderBy(asc(pgs.name), asc(rooms.roomNumber), asc(beds.bedCode));
+  });
+}
+
+/**
+ * Pricing summary used by the Pricing page header — gives a per-room-type
+ * "from ₹X/mo" so admins can see tier structure at a glance without scrolling
+ * through 48 rows.
+ */
+export type PricingTierRow = {
+  roomType: string;
+  capacity: number;
+  hasAc: boolean;
+  bedCount: number;
+  dailyRatePaise: number;
+  weeklyRatePaise: number;
+  monthlyRatePaise: number;
+};
+
+export function listPricingTiers(): Promise<QueryResult<PricingTierRow[]>> {
+  return guard(async () => {
+    return await db
+      .select({
+        roomType: roomTypes.name,
+        capacity: roomTypes.defaultCapacity,
+        hasAc: roomTypes.hasAc,
+        // Qualify `beds.id` literally — the surrounding LEFT JOIN brings
+        // multiple tables with `id` columns into scope.
+        bedCount: sql<number>`count(beds.id)::int`,
+        dailyRatePaise: sql<number>`min(${bedPrices.dailyRatePaise})::bigint::int`,
+        weeklyRatePaise: sql<number>`min(${bedPrices.weeklyRatePaise})::bigint::int`,
+        monthlyRatePaise: sql<number>`min(${bedPrices.monthlyRatePaise})::bigint::int`,
+      })
+      .from(roomTypes)
+      .leftJoin(rooms, eq(rooms.roomTypeId, roomTypes.id))
+      .leftJoin(beds, and(eq(beds.roomId, rooms.id), sql`${beds.archivedAt} IS NULL`))
+      .leftJoin(bedPrices, eq(bedPrices.bedId, beds.id))
+      .groupBy(roomTypes.id, roomTypes.name, roomTypes.defaultCapacity, roomTypes.hasAc)
+      .orderBy(asc(roomTypes.defaultCapacity));
+  });
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Residents / Bookings / Payments / Extensions  (all empty until Phase 3+)
+// ───────────────────────────────────────────────────────────────────────────
+
+export type ResidentListRow = {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  gender: 'male' | 'female' | 'other';
+  kycStatus: 'pending' | 'approved' | 'rejected';
+  createdAt: Date;
+};
+
+export function listResidents(): Promise<QueryResult<ResidentListRow[]>> {
+  return guard(async () => {
+    return await db
+      .select({
+        id: customers.id,
+        fullName: customers.fullName,
+        email: customers.email,
+        phone: customers.phone,
+        gender: customers.gender,
+        kycStatus: customers.kycStatus,
+        createdAt: customers.createdAt,
+      })
+      .from(customers)
+      .orderBy(desc(customers.createdAt))
+      .limit(100);
+  });
+}
+
+export type BookingListRow = {
+  id: string;
+  bookingCode: string;
+  customerName: string;
+  status: string;
+  durationMode: string;
+  totalPaise: number;
+  expectedCheckoutDate: string | null;
+  createdAt: Date;
+};
+
+export function listBookings(): Promise<QueryResult<BookingListRow[]>> {
+  return guard(async () => {
+    return await db
+      .select({
+        id: bookings.id,
+        bookingCode: bookings.bookingCode,
+        customerName: customers.fullName,
+        status: bookings.status,
+        durationMode: bookings.durationMode,
+        totalPaise: bookings.totalPaise,
+        expectedCheckoutDate: bookings.expectedCheckoutDate,
+        createdAt: bookings.createdAt,
+      })
+      .from(bookings)
+      .innerJoin(customers, eq(customers.id, bookings.customerId))
+      .orderBy(desc(bookings.createdAt))
+      .limit(100);
+  });
+}
+
+export type AdminBookingDetail = {
+  id: string;
+  bookingCode: string;
+  status: string;
+  durationMode: string;
+  expectedCheckoutDate: string | null;
+  subtotalPaise: number;
+  depositPaise: number;
+  totalPaise: number;
+  notes: string | null;
+  cancelledAt: Date | null;
+  cancellationReason: string | null;
+  createdAt: Date;
+  createdVia: string;
+  customer: {
+    id: string;
+    fullName: string;
+    email: string;
+    phone: string;
+    gender: string;
+  };
+  reservations: Array<{
+    id: string;
+    bedCode: string;
+    roomNumber: string;
+    floorLabel: string;
+    pgName: string;
+    stayRange: string;
+    status: string;
+    /** Phase 5 — `primary` for original reservations, `extension` for extensions. */
+    kind: string;
+    parentReservationId: string | null;
+    holdExpiresAt: Date | null;
+  }>;
+  payments: Array<{
+    id: string;
+    purpose: string;
+    provider: string;
+    providerPaymentId: string | null;
+    amountPaise: number;
+    currency: string;
+    status: string;
+    paidAt: Date | null;
+    createdAt: Date;
+  }>;
+  /** Phase 5 — every extension recorded against this booking, newest first. */
+  extensions: Array<{
+    id: string;
+    status: string;
+    requestedBy: string;
+    requestedUntilDate: string;
+    extensionDurationMode: string;
+    quotedTotalPaise: number;
+    paymentId: string | null;
+    bedCount: number;
+    createdAt: Date;
+    updatedAt: Date;
+  }>;
+};
+
+export function getAdminBookingDetail(
+  bookingId: string,
+): Promise<QueryResult<AdminBookingDetail | null>> {
+  return guard(async () => {
+    const [b] = await db
+      .select({
+        id: bookings.id,
+        bookingCode: bookings.bookingCode,
+        status: bookings.status,
+        durationMode: bookings.durationMode,
+        expectedCheckoutDate: bookings.expectedCheckoutDate,
+        subtotalPaise: bookings.subtotalPaise,
+        depositPaise: bookings.depositPaise,
+        totalPaise: bookings.totalPaise,
+        notes: bookings.notes,
+        cancelledAt: bookings.cancelledAt,
+        cancellationReason: bookings.cancellationReason,
+        createdAt: bookings.createdAt,
+        createdVia: bookings.createdVia,
+        customerId: customers.id,
+        customerFullName: customers.fullName,
+        customerEmail: customers.email,
+        customerPhone: customers.phone,
+        customerGender: customers.gender,
+      })
+      .from(bookings)
+      .innerJoin(customers, eq(customers.id, bookings.customerId))
+      .where(eq(bookings.id, bookingId))
+      .limit(1);
+    if (!b) return null;
+
+    const resv = await db
+      .select({
+        id: bedReservations.id,
+        bedCode: beds.bedCode,
+        roomNumber: rooms.roomNumber,
+        floorLabel: sql<string>`coalesce(${floors.label}, 'Floor ' || ${floors.floorNumber})`,
+        pgName: pgs.name,
+        stayRange: bedReservations.stayRange,
+        status: bedReservations.status,
+        kind: bedReservations.kind,
+        parentReservationId: bedReservations.parentReservationId,
+        holdExpiresAt: bedReservations.holdExpiresAt,
+      })
+      .from(bedReservations)
+      .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+      .innerJoin(rooms, eq(rooms.id, beds.roomId))
+      .innerJoin(floors, eq(floors.id, rooms.floorId))
+      .innerJoin(pgs, eq(pgs.id, floors.pgId))
+      .where(eq(bedReservations.bookingId, bookingId))
+      .orderBy(asc(bedReservations.kind), asc(beds.bedCode));
+
+    const exts = await db
+      .select({
+        id: stayExtensions.id,
+        status: stayExtensions.status,
+        requestedBy: stayExtensions.requestedBy,
+        requestedUntilDate: stayExtensions.requestedUntilDate,
+        extensionDurationMode: stayExtensions.extensionDurationMode,
+        quotedTotalPaise: stayExtensions.quotedTotalPaise,
+        paymentId: stayExtensions.paymentId,
+        bedCount: sql<number>`coalesce(array_length(${stayExtensions.newReservationIds}, 1), 0)::int`,
+        createdAt: stayExtensions.createdAt,
+        updatedAt: stayExtensions.updatedAt,
+      })
+      .from(stayExtensions)
+      .where(eq(stayExtensions.bookingId, bookingId))
+      .orderBy(desc(stayExtensions.createdAt));
+
+    const pays = await db
+      .select({
+        id: payments.id,
+        purpose: payments.purpose,
+        provider: payments.provider,
+        providerPaymentId: payments.providerPaymentId,
+        amountPaise: payments.amountPaise,
+        currency: payments.currency,
+        status: payments.status,
+        paidAt: payments.paidAt,
+        createdAt: payments.createdAt,
+      })
+      .from(payments)
+      .where(eq(payments.bookingId, bookingId))
+      .orderBy(desc(payments.createdAt));
+
+    return {
+      id: b.id,
+      bookingCode: b.bookingCode,
+      status: b.status,
+      durationMode: b.durationMode,
+      expectedCheckoutDate: b.expectedCheckoutDate,
+      subtotalPaise: b.subtotalPaise,
+      depositPaise: b.depositPaise,
+      totalPaise: b.totalPaise,
+      notes: b.notes,
+      cancelledAt: b.cancelledAt,
+      cancellationReason: b.cancellationReason,
+      createdAt: b.createdAt,
+      createdVia: b.createdVia,
+      customer: {
+        id: b.customerId,
+        fullName: b.customerFullName,
+        email: b.customerEmail,
+        phone: b.customerPhone,
+        gender: b.customerGender,
+      },
+      reservations: resv.map((r) => ({
+        id: r.id,
+        bedCode: r.bedCode,
+        roomNumber: r.roomNumber,
+        floorLabel: r.floorLabel,
+        pgName: r.pgName,
+        stayRange: r.stayRange as unknown as string,
+        status: r.status,
+        kind: r.kind,
+        parentReservationId: r.parentReservationId,
+        holdExpiresAt: r.holdExpiresAt,
+      })),
+      payments: pays.map((p) => ({
+        id: p.id,
+        purpose: p.purpose,
+        provider: p.provider,
+        providerPaymentId: p.providerPaymentId,
+        amountPaise: p.amountPaise,
+        currency: p.currency,
+        status: p.status,
+        paidAt: p.paidAt,
+        createdAt: p.createdAt,
+      })),
+      extensions: exts.map((e) => ({
+        id: e.id,
+        status: e.status,
+        requestedBy: e.requestedBy,
+        requestedUntilDate: e.requestedUntilDate,
+        extensionDurationMode: e.extensionDurationMode,
+        quotedTotalPaise: e.quotedTotalPaise,
+        paymentId: e.paymentId,
+        bedCount: e.bedCount,
+        createdAt: e.createdAt,
+        updatedAt: e.updatedAt,
+      })),
+    };
+  });
+}
+
+export type PaymentListRow = {
+  id: string;
+  bookingCode: string;
+  purpose: string;
+  provider: string;
+  amountPaise: number;
+  currency: string;
+  status: string;
+  paidAt: Date | null;
+};
+
+export function listPayments(): Promise<QueryResult<PaymentListRow[]>> {
+  return guard(async () => {
+    return await db
+      .select({
+        id: payments.id,
+        bookingCode: bookings.bookingCode,
+        purpose: payments.purpose,
+        provider: payments.provider,
+        amountPaise: payments.amountPaise,
+        currency: payments.currency,
+        status: payments.status,
+        paidAt: payments.paidAt,
+      })
+      .from(payments)
+      .innerJoin(bookings, eq(bookings.id, payments.bookingId))
+      .orderBy(desc(payments.createdAt))
+      .limit(100);
+  });
+}
+
+export type ExtensionListRow = {
+  id: string;
+  bookingId: string;
+  bookingCode: string;
+  customerFullName: string;
+  customerPhone: string;
+  requestedBy: string;
+  requestedUntilDate: string;
+  extensionDurationMode: string;
+  status: string;
+  quotedTotalPaise: number;
+  bedCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export function listStayExtensions(filter?: {
+  status?: 'pending' | 'approved' | 'paid' | 'rejected' | 'cancelled';
+}): Promise<QueryResult<ExtensionListRow[]>> {
+  return guard(async () => {
+    const whereClause = filter?.status
+      ? eq(stayExtensions.status, filter.status)
+      : undefined;
+    return await db
+      .select({
+        id: stayExtensions.id,
+        bookingId: stayExtensions.bookingId,
+        bookingCode: bookings.bookingCode,
+        customerFullName: customers.fullName,
+        customerPhone: customers.phone,
+        requestedBy: stayExtensions.requestedBy,
+        requestedUntilDate: stayExtensions.requestedUntilDate,
+        extensionDurationMode: stayExtensions.extensionDurationMode,
+        status: stayExtensions.status,
+        quotedTotalPaise: stayExtensions.quotedTotalPaise,
+        bedCount: sql<number>`coalesce(array_length(${stayExtensions.newReservationIds}, 1), 0)::int`,
+        createdAt: stayExtensions.createdAt,
+        updatedAt: stayExtensions.updatedAt,
+      })
+      .from(stayExtensions)
+      .innerJoin(bookings, eq(bookings.id, stayExtensions.bookingId))
+      .innerJoin(customers, eq(customers.id, bookings.customerId))
+      .where(whereClause)
+      .orderBy(desc(stayExtensions.createdAt))
+      .limit(200);
+  });
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Occupancy
+// ───────────────────────────────────────────────────────────────────────────
+
+export type OccupancyByPg = {
+  pgId: string;
+  pgName: string;
+  totalBeds: number;
+  occupiedBeds: number;
+  availableBeds: number;
+  blockedBeds: number;
+  occupancyPct: number;
+};
+
+export function getOccupancyByPg(): Promise<QueryResult<OccupancyByPg[]>> {
+  return guard(async () => {
+    return await db
+      .select({
+        pgId: pgs.id,
+        pgName: pgs.name,
+        // `beds.id` / `beds.status` qualified literally — the LEFT JOIN
+        // chain brings `pgs.id`, `floors.id`, `rooms.id`, `beds.id` all into
+        // scope. Bare `"id"` is ambiguous.
+        totalBeds: sql<number>`count(beds.id)::int`,
+        occupiedBeds: sql<number>`count(beds.id) FILTER (
+          WHERE EXISTS (
+            SELECT 1 FROM ${bedReservations} r
+            WHERE r.bed_id = beds.id
+              AND r.status = 'active'
+              AND CURRENT_DATE <@ r.stay_range
+          )
+        )::int`,
+        availableBeds: sql<number>`count(beds.id) FILTER (
+          WHERE beds.status = 'available' AND NOT EXISTS (
+            SELECT 1 FROM ${bedReservations} r
+            WHERE r.bed_id = beds.id
+              AND r.status = 'active'
+              AND CURRENT_DATE <@ r.stay_range
+          )
+        )::int`,
+        blockedBeds: sql<number>`count(beds.id) FILTER (WHERE beds.status = 'blocked')::int`,
+        occupancyPct: sql<number>`(
+          CASE WHEN count(beds.id) = 0 THEN 0
+          ELSE round(100.0 * count(beds.id) FILTER (
+            WHERE EXISTS (
+              SELECT 1 FROM ${bedReservations} r
+              WHERE r.bed_id = beds.id
+                AND r.status = 'active'
+                AND CURRENT_DATE <@ r.stay_range
+            )
+          ) / count(beds.id), 1)
+          END
+        )::float`,
+      })
+      .from(pgs)
+      .leftJoin(floors, eq(floors.pgId, pgs.id))
+      .leftJoin(rooms, eq(rooms.floorId, floors.id))
+      .leftJoin(beds, and(eq(beds.roomId, rooms.id), sql`${beds.archivedAt} IS NULL`))
+      .where(sql`${pgs.archivedAt} IS NULL`)
+      .groupBy(pgs.id, pgs.name)
+      .orderBy(asc(pgs.name));
+  });
+}
+
+export type OccupancyByFloor = {
+  pgName: string;
+  floorNumber: number;
+  floorLabel: string;
+  totalBeds: number;
+  occupiedBeds: number;
+  occupancyPct: number;
+};
+
+export function getOccupancyByFloor(): Promise<QueryResult<OccupancyByFloor[]>> {
+  return guard(async () => {
+    return await db
+      .select({
+        pgName: pgs.name,
+        floorNumber: floors.floorNumber,
+        floorLabel: sql<string>`coalesce(${floors.label}, 'Floor ' || ${floors.floorNumber})`,
+        totalBeds: sql<number>`count(beds.id)::int`,
+        occupiedBeds: sql<number>`count(beds.id) FILTER (
+          WHERE EXISTS (
+            SELECT 1 FROM ${bedReservations} r
+            WHERE r.bed_id = beds.id
+              AND r.status = 'active'
+              AND CURRENT_DATE <@ r.stay_range
+          )
+        )::int`,
+        occupancyPct: sql<number>`(
+          CASE WHEN count(beds.id) = 0 THEN 0
+          ELSE round(100.0 * count(beds.id) FILTER (
+            WHERE EXISTS (
+              SELECT 1 FROM ${bedReservations} r
+              WHERE r.bed_id = beds.id
+                AND r.status = 'active'
+                AND CURRENT_DATE <@ r.stay_range
+            )
+          ) / count(beds.id), 1)
+          END
+        )::float`,
+      })
+      .from(floors)
+      .innerJoin(pgs, eq(pgs.id, floors.pgId))
+      .leftJoin(rooms, eq(rooms.floorId, floors.id))
+      .leftJoin(beds, and(eq(beds.roomId, rooms.id), sql`${beds.archivedAt} IS NULL`))
+      .where(sql`${floors.archivedAt} IS NULL AND ${pgs.archivedAt} IS NULL`)
+      .groupBy(pgs.name, floors.floorNumber, floors.label, floors.id)
+      .orderBy(asc(pgs.name), asc(floors.floorNumber));
+  });
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Settings  — read-only view of the seeded PGs
+// ───────────────────────────────────────────────────────────────────────────
+
+export type SettingsRow = {
+  id: string;
+  name: string;
+  slug: string;
+  city: string;
+  state: string;
+  pincode: string;
+  genderPolicy: 'male' | 'female' | 'coed';
+  amenities: Record<string, unknown>;
+  description: string | null;
+  isActive: boolean;
+};
+
+export function listPgSettings(): Promise<QueryResult<SettingsRow[]>> {
+  return guard(async () => {
+    return await db
+      .select({
+        id: pgs.id,
+        name: pgs.name,
+        slug: pgs.slug,
+        city: pgs.city,
+        state: pgs.state,
+        pincode: pgs.pincode,
+        genderPolicy: pgs.genderPolicy,
+        amenities: pgs.amenities,
+        description: pgs.description,
+        isActive: pgs.isActive,
+      })
+      .from(pgs)
+      .where(sql`${pgs.archivedAt} IS NULL`)
+      .orderBy(asc(pgs.name));
+  });
+}
+
+// Used by the TopNav to show the active PG name.
+export function getPrimaryPgName(): Promise<QueryResult<string | null>> {
+  return guard(async () => {
+    const [row] = await db
+      .select({ name: pgs.name })
+      .from(pgs)
+      .where(sql`${pgs.archivedAt} IS NULL`)
+      .orderBy(asc(pgs.name))
+      .limit(1);
+    return row?.name ?? null;
+  });
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Phase 5.5 — resident billing reads (admin-facing)
+// ───────────────────────────────────────────────────────────────────────────
+
+export type AdminRentInvoiceRow = {
+  id: string;
+  invoiceNumber: string;
+  bookingId: string;
+  bookingCode: string;
+  customerFullName: string;
+  customerPhone: string;
+  pgName: string;
+  bedCode: string;
+  roomNumber: string;
+  billingMonth: string;
+  dueDate: string;
+  rentPaise: number;
+  paidPrincipalPaise: number;
+  paidLateFeePaise: number;
+  lateFeeLockedPaise: number | null;
+  status: 'pending' | 'paid' | 'overdue' | 'cancelled';
+  paidAt: Date | null;
+  createdAt: Date;
+};
+
+export function listAdminRentInvoices(
+  filter?: { status?: 'pending' | 'paid' | 'overdue' | 'cancelled'; pgId?: string },
+): Promise<QueryResult<AdminRentInvoiceRow[]>> {
+  return guard(async () => {
+    const conditions = [];
+    if (filter?.status) conditions.push(eq(rentInvoices.status, filter.status));
+    if (filter?.pgId) conditions.push(eq(rentInvoices.pgId, filter.pgId));
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+    return db
+      .select({
+        id: rentInvoices.id,
+        invoiceNumber: rentInvoices.invoiceNumber,
+        bookingId: rentInvoices.bookingId,
+        bookingCode: bookings.bookingCode,
+        customerFullName: customers.fullName,
+        customerPhone: customers.phone,
+        pgName: pgs.name,
+        bedCode: beds.bedCode,
+        roomNumber: rooms.roomNumber,
+        billingMonth: rentInvoices.billingMonth,
+        dueDate: rentInvoices.dueDate,
+        rentPaise: rentInvoices.rentPaise,
+        paidPrincipalPaise: rentInvoices.paidPrincipalPaise,
+        paidLateFeePaise: rentInvoices.paidLateFeePaise,
+        lateFeeLockedPaise: rentInvoices.lateFeeLockedPaise,
+        status: rentInvoices.status,
+        paidAt: rentInvoices.paidAt,
+        createdAt: rentInvoices.createdAt,
+      })
+      .from(rentInvoices)
+      .innerJoin(bookings, eq(bookings.id, rentInvoices.bookingId))
+      .innerJoin(customers, eq(customers.id, rentInvoices.customerId))
+      .innerJoin(pgs, eq(pgs.id, rentInvoices.pgId))
+      .innerJoin(beds, eq(beds.id, rentInvoices.bedId))
+      .innerJoin(rooms, eq(rooms.id, beds.roomId))
+      .where(where)
+      .orderBy(desc(rentInvoices.billingMonth), desc(rentInvoices.createdAt));
+  });
+}
+
+export type RentStats = {
+  pendingCount: number;
+  overdueCount: number;
+  paidCount: number;
+  cancelledCount: number;
+  totalRentPaise: number;
+  collectedPaise: number;
+  outstandingPaise: number;
+};
+
+export function getRentStats(): Promise<QueryResult<RentStats>> {
+  return guard(async () => {
+    const [row] = await db
+      .select({
+        pendingCount: sql<number>`count(*) FILTER (WHERE ${rentInvoices.status} = 'pending')::int`,
+        overdueCount: sql<number>`count(*) FILTER (WHERE ${rentInvoices.status} = 'overdue')::int`,
+        paidCount: sql<number>`count(*) FILTER (WHERE ${rentInvoices.status} = 'paid')::int`,
+        cancelledCount: sql<number>`count(*) FILTER (WHERE ${rentInvoices.status} = 'cancelled')::int`,
+        totalRentPaise: sql<number>`coalesce(sum(${rentInvoices.rentPaise}) FILTER (WHERE ${rentInvoices.status} IN ('pending','overdue','paid')), 0)::bigint`,
+        collectedPaise: sql<number>`coalesce(sum(${rentInvoices.paidPrincipalPaise} + ${rentInvoices.paidLateFeePaise}) FILTER (WHERE ${rentInvoices.status} = 'paid'), 0)::bigint`,
+      })
+      .from(rentInvoices);
+    return {
+      pendingCount: Number(row?.pendingCount ?? 0),
+      overdueCount: Number(row?.overdueCount ?? 0),
+      paidCount: Number(row?.paidCount ?? 0),
+      cancelledCount: Number(row?.cancelledCount ?? 0),
+      totalRentPaise: Number(row?.totalRentPaise ?? 0),
+      collectedPaise: Number(row?.collectedPaise ?? 0),
+      outstandingPaise:
+        Number(row?.totalRentPaise ?? 0) - Number(row?.collectedPaise ?? 0),
+    };
+  });
+}
+
+export type AdminElectricityBillRow = {
+  id: string;
+  pgName: string;
+  roomNumber: string;
+  billingMonth: string;
+  unitsConsumed: string;
+  ratePerUnitPaise: number;
+  totalPaise: number;
+  monthlyOccupantCount: number;
+  perResidentPaise: number;
+  roundingRemainderPaise: number;
+  invoicesCount: number;
+  invoicesPaidCount: number;
+  createdAt: Date;
+};
+
+export function listAdminElectricityBills(filter?: {
+  pgId?: string;
+}): Promise<QueryResult<AdminElectricityBillRow[]>> {
+  return guard(async () => {
+    const where = filter?.pgId ? eq(electricityBills.pgId, filter.pgId) : undefined;
+    return db
+      .select({
+        id: electricityBills.id,
+        pgName: pgs.name,
+        roomNumber: rooms.roomNumber,
+        billingMonth: electricityBills.billingMonth,
+        unitsConsumed: electricityBills.unitsConsumed,
+        ratePerUnitPaise: electricityBills.ratePerUnitPaise,
+        totalPaise: electricityBills.totalPaise,
+        monthlyOccupantCount: electricityBills.monthlyOccupantCount,
+        perResidentPaise: electricityBills.perResidentPaise,
+        roundingRemainderPaise: electricityBills.roundingRemainderPaise,
+        invoicesCount: sql<number>`(SELECT count(*)::int FROM electricity_invoices WHERE electricity_bill_id = ${electricityBills.id})`,
+        invoicesPaidCount: sql<number>`(SELECT count(*)::int FROM electricity_invoices WHERE electricity_bill_id = ${electricityBills.id} AND status = 'paid')`,
+        createdAt: electricityBills.createdAt,
+      })
+      .from(electricityBills)
+      .innerJoin(rooms, eq(rooms.id, electricityBills.roomId))
+      .innerJoin(pgs, eq(pgs.id, electricityBills.pgId))
+      .where(where)
+      .orderBy(desc(electricityBills.billingMonth), desc(electricityBills.createdAt));
+  });
+}
+
+export type ElectricityBillDistributionRow = {
+  invoiceId: string;
+  invoiceNumber: string;
+  bookingId: string;
+  bookingCode: string;
+  customerFullName: string;
+  customerPhone: string;
+  bedCode: string;
+  amountPaise: number;
+  status: 'pending' | 'paid' | 'cancelled';
+  paidAt: Date | null;
+};
+
+export function getElectricityBillDetail(billId: string): Promise<
+  QueryResult<{
+    bill: AdminElectricityBillRow | null;
+    distribution: ElectricityBillDistributionRow[];
+  }>
+> {
+  return guard(async () => {
+    const bills = await listAdminElectricityBills();
+    const bill =
+      bills.ok && bills.data
+        ? bills.data.find((b) => b.id === billId) ?? null
+        : null;
+
+    const distribution = await db
+      .select({
+        invoiceId: electricityInvoices.id,
+        invoiceNumber: electricityInvoices.invoiceNumber,
+        bookingId: electricityInvoices.bookingId,
+        bookingCode: bookings.bookingCode,
+        customerFullName: customers.fullName,
+        customerPhone: customers.phone,
+        bedCode: beds.bedCode,
+        amountPaise: electricityInvoices.amountPaise,
+        status: electricityInvoices.status,
+        paidAt: electricityInvoices.paidAt,
+      })
+      .from(electricityInvoices)
+      .innerJoin(bookings, eq(bookings.id, electricityInvoices.bookingId))
+      .innerJoin(customers, eq(customers.id, electricityInvoices.customerId))
+      .innerJoin(beds, eq(beds.id, electricityInvoices.bedId))
+      .where(eq(electricityInvoices.electricityBillId, billId));
+
+    return { bill, distribution };
+  });
+}
+
+export type AdminVacatingRow = {
+  id: string;
+  bookingId: string;
+  bookingCode: string;
+  customerFullName: string;
+  customerPhone: string;
+  pgName: string;
+  bedCode: string;
+  roomNumber: string;
+  noticeGivenDate: string;
+  vacatingDate: string;
+  noticeCompliant: boolean;
+  deductionPaise: number;
+  depositRefundPaise: number;
+  monthlyRentPaiseSnapshot: number;
+  status: 'pending' | 'approved' | 'completed' | 'rejected';
+  resolvedAt: Date | null;
+  createdAt: Date;
+};
+
+export function listAdminVacatingRequests(filter?: {
+  status?: 'pending' | 'approved' | 'completed' | 'rejected';
+}): Promise<QueryResult<AdminVacatingRow[]>> {
+  return guard(async () => {
+    const where = filter?.status ? eq(vacatingRequests.status, filter.status) : undefined;
+    return db
+      .select({
+        id: vacatingRequests.id,
+        bookingId: vacatingRequests.bookingId,
+        bookingCode: bookings.bookingCode,
+        customerFullName: customers.fullName,
+        customerPhone: customers.phone,
+        pgName: pgs.name,
+        bedCode: beds.bedCode,
+        roomNumber: rooms.roomNumber,
+        noticeGivenDate: vacatingRequests.noticeGivenDate,
+        vacatingDate: vacatingRequests.vacatingDate,
+        noticeCompliant: vacatingRequests.noticeCompliant,
+        deductionPaise: vacatingRequests.deductionPaise,
+        depositRefundPaise: vacatingRequests.depositRefundPaise,
+        monthlyRentPaiseSnapshot: vacatingRequests.monthlyRentPaiseSnapshot,
+        status: vacatingRequests.status,
+        resolvedAt: vacatingRequests.resolvedAt,
+        createdAt: vacatingRequests.createdAt,
+      })
+      .from(vacatingRequests)
+      .innerJoin(bookings, eq(bookings.id, vacatingRequests.bookingId))
+      .innerJoin(customers, eq(customers.id, vacatingRequests.customerId))
+      .innerJoin(bedReservations, and(
+        eq(bedReservations.bookingId, bookings.id),
+        eq(bedReservations.kind, 'primary'),
+      ))
+      .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+      .innerJoin(rooms, eq(rooms.id, beds.roomId))
+      .innerJoin(floors, eq(floors.id, rooms.floorId))
+      .innerJoin(pgs, eq(pgs.id, floors.pgId))
+      .where(where)
+      .orderBy(desc(vacatingRequests.createdAt));
+  });
+}
+
+export type DepositLedgerSummaryRow = {
+  bookingId: string;
+  bookingCode: string;
+  customerFullName: string;
+  customerPhone: string;
+  pgName: string;
+  bedCode: string;
+  collectedPaise: number;
+  deductedPaise: number;
+  refundedPaise: number;
+  refundableBalancePaise: number;
+};
+
+export function listAdminDepositSummaries(): Promise<QueryResult<DepositLedgerSummaryRow[]>> {
+  return guard(async () => {
+    return db
+      .select({
+        bookingId: bookings.id,
+        bookingCode: bookings.bookingCode,
+        customerFullName: customers.fullName,
+        customerPhone: customers.phone,
+        pgName: pgs.name,
+        bedCode: beds.bedCode,
+        collectedPaise: sql<number>`coalesce(sum(${depositLedger.amountPaise}) FILTER (WHERE ${depositLedger.entryKind} = 'collected'), 0)::bigint`,
+        deductedPaise: sql<number>`coalesce(-sum(${depositLedger.amountPaise}) FILTER (WHERE ${depositLedger.entryKind} = 'deducted'), 0)::bigint`,
+        refundedPaise: sql<number>`coalesce(-sum(${depositLedger.amountPaise}) FILTER (WHERE ${depositLedger.entryKind} = 'refunded'), 0)::bigint`,
+        refundableBalancePaise: sql<number>`coalesce(sum(${depositLedger.amountPaise}), 0)::bigint`,
+      })
+      .from(depositLedger)
+      .innerJoin(bookings, eq(bookings.id, depositLedger.bookingId))
+      .innerJoin(customers, eq(customers.id, depositLedger.customerId))
+      .innerJoin(bedReservations, and(
+        eq(bedReservations.bookingId, bookings.id),
+        eq(bedReservations.kind, 'primary'),
+      ))
+      .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+      .innerJoin(rooms, eq(rooms.id, beds.roomId))
+      .innerJoin(floors, eq(floors.id, rooms.floorId))
+      .innerJoin(pgs, eq(pgs.id, floors.pgId))
+      .groupBy(
+        bookings.id,
+        bookings.bookingCode,
+        customers.fullName,
+        customers.phone,
+        pgs.name,
+        beds.bedCode,
+      )
+      .orderBy(asc(bookings.bookingCode));
+  });
+}
+
+export type DepositLedgerEntryRow = {
+  id: string;
+  bookingId: string;
+  bookingCode: string;
+  customerFullName: string;
+  entryKind: 'collected' | 'deducted' | 'refunded';
+  amountPaise: number;
+  reason: string;
+  relatedPaymentId: string | null;
+  relatedVacatingId: string | null;
+  createdAt: Date;
+};
+
+export function listDepositLedgerEntriesForBooking(
+  bookingId: string,
+): Promise<QueryResult<DepositLedgerEntryRow[]>> {
+  return guard(async () => {
+    return db
+      .select({
+        id: depositLedger.id,
+        bookingId: depositLedger.bookingId,
+        bookingCode: bookings.bookingCode,
+        customerFullName: customers.fullName,
+        entryKind: depositLedger.entryKind,
+        amountPaise: depositLedger.amountPaise,
+        reason: depositLedger.reason,
+        relatedPaymentId: depositLedger.relatedPaymentId,
+        relatedVacatingId: depositLedger.relatedVacatingId,
+        createdAt: depositLedger.createdAt,
+      })
+      .from(depositLedger)
+      .innerJoin(bookings, eq(bookings.id, depositLedger.bookingId))
+      .innerJoin(customers, eq(customers.id, depositLedger.customerId))
+      .where(eq(depositLedger.bookingId, bookingId))
+      .orderBy(asc(depositLedger.createdAt));
+  });
+}
+
+/**
+ * Room listing for the "create electricity bill" form: every active room
+ * in every active PG, with the count of monthly residents currently
+ * occupying it (so the form can warn "this room has 0 monthly residents
+ * for {month}").
+ */
+export type RoomPickerRow = {
+  roomId: string;
+  roomNumber: string;
+  pgId: string;
+  pgName: string;
+  bedCount: number;
+};
+
+export function listRoomsForElectricityForm(): Promise<QueryResult<RoomPickerRow[]>> {
+  return guard(async () => {
+    return db
+      .select({
+        roomId: rooms.id,
+        roomNumber: rooms.roomNumber,
+        pgId: pgs.id,
+        pgName: pgs.name,
+        bedCount: sql<number>`(SELECT count(*)::int FROM beds WHERE room_id = ${rooms.id} AND archived_at IS NULL)`,
+      })
+      .from(rooms)
+      .innerJoin(floors, eq(floors.id, rooms.floorId))
+      .innerJoin(pgs, eq(pgs.id, floors.pgId))
+      .where(sql`${rooms.archivedAt} IS NULL AND ${pgs.archivedAt} IS NULL`)
+      .orderBy(asc(pgs.name), asc(rooms.roomNumber));
+  });
+}
+// Silence unused-import warnings when only some helpers are used.
+void inArray;

@@ -1,0 +1,83 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1780112782117,
+      "tag": "0000_phase1_inventory",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1780112801365,
+      "tag": "0001_constraints",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780739100000,
+      "tag": "0002_phase4_payments",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1781300000000,
+      "tag": "0003_phase5_extension_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1781800000000,
+      "tag": "0004_phase5_5_resident_billing",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1782120000000,
+      "tag": "0005_phase5_5_meter_readings_and_electricity_penalty",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1782400000000,
+      "tag": "0006_phase6_auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1782500000000,
+      "tag": "0007_admin_must_change_password",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1782600000000,
+      "tag": "0008_phase6_1_kyc",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1782700000000,
+      "tag": "0009_whatsapp_otp_attempt_log",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1782800000000,
+      "tag": "0010_email_auth",
+      "breakpoints": true
+    }
+  ]
+}

@@ -1,0 +1,785 @@
+/**
+ * Extension service — Phase 5 of PROJECT_PLAN.md ("Stay Extensions").
+ *
+ * Extends an EXISTING confirmed booking by `[old_end, new_end)` across the
+ * same set of beds. The actual extra inventory lives in `bed_reservations`
+ * with `kind = 'extension'` and `parent_reservation_id` pointing at the
+ * matching primary reservation; the `stay_extensions` table tracks the
+ * request, the quote, and the payment lifecycle.
+ *
+ * The transactional algorithm follows PROJECT_PLAN.md §2.5 "Extend a stay":
+ *
+ *   1. BEGIN.
+ *   2. Re-fetch the booking + its primary reservations; validate state.
+ *   3. For each bed, insert a new reservation `[old_end, new_end)`,
+ *      `kind='extension'`, `parent=original`, `status='hold'`. If the
+ *      GiST EXCLUDE constraint fires (23P01) on ANY bed, we ROLLBACK and
+ *      return a structured conflict listing all beds that couldn't fit
+ *      (we pre-flight every bed first so the typical case is the
+ *      `requestExtension` caller sees ALL conflicts in one round-trip,
+ *      not just the first one).
+ *   4. Compute the quote with `quoteExtension()` (deposit always 0).
+ *   5. Insert `stay_extensions` row in `pending` with the snapshotted
+ *      quote total and the new reservation ids.
+ *   6. Audit log `extension_requested`.
+ *   7. COMMIT.
+ *
+ * On payment success (see `bookingLifecycle.ts → recordExtensionPaymentSuccess`)
+ * the extension reservations flip to `active`, the extension row flips to
+ * `paid`, and `bookings.expected_checkout_date` rolls forward. The price
+ * snapshotted at request time wins — this is the documented Phase-5 race
+ * condition resolution from PROJECT_PLAN.md §8.6.
+ */
+
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { db } from '../db/client';
+import {
+  auditLog,
+  bedReservations,
+  beds,
+  bookings,
+  customers,
+  stayExtensions,
+} from '../db/schema';
+import { env } from '../lib/env';
+import { formatDate, parseDate, type DateLike } from '../lib/dates';
+import { isBedAvailable } from './availability';
+import { quoteExtension as priceExtension, type ExtensionQuote } from './pricing';
+
+// ───────────────────────────────────────────────────────────────────────────
+// Public types
+// ───────────────────────────────────────────────────────────────────────────
+
+export type ExtensionDurationMode = 'daily' | 'weekly' | 'monthly';
+
+export type ExtensionActor =
+  | { kind: 'customer'; customerId: string | null }
+  | { kind: 'admin'; adminId: string | null };
+
+export type ExtensionConflict = {
+  bedId: string;
+  bedCode: string;
+  /** ISO date string (YYYY-MM-DD), exclusive upper bound of the blocking range. */
+  blockingUntil: string;
+  /** Booking that owns the conflicting reservation, when discoverable. */
+  blockingBookingCode: string | null;
+};
+
+export type QuoteExtensionResult =
+  | {
+      ok: true;
+      bookingId: string;
+      bookingCode: string;
+      bedIds: string[];
+      fromDate: string;
+      untilDate: string;
+      durationMode: ExtensionDurationMode;
+      quote: ExtensionQuote;
+    }
+  | {
+      ok: false;
+      kind:
+        | 'no_such_booking'
+        | 'booking_not_extendable'
+        | 'invalid_dates'
+        | 'open_ended_not_supported'
+        | 'conflict'
+        | 'unknown';
+      message: string;
+      conflicts?: ExtensionConflict[];
+    };
+
+export type RequestExtensionInput = {
+  bookingCode: string;
+  /** Exclusive — the new `bookings.expected_checkout_date` if paid. */
+  newUntilDate: DateLike;
+  durationMode: ExtensionDurationMode;
+  requestedBy: 'customer' | 'admin';
+  actor: ExtensionActor;
+  /** Ownership proof for customer-requested extensions. Required when requestedBy='customer'. */
+  customerPhone?: string | null;
+  notes?: string;
+};
+
+export type RequestExtensionSuccess = {
+  ok: true;
+  extensionId: string;
+  bookingId: string;
+  bookingCode: string;
+  status: 'pending';
+  fromDate: string;
+  untilDate: string;
+  durationMode: ExtensionDurationMode;
+  quote: ExtensionQuote;
+  holdExpiresAt: Date;
+  newReservationIds: string[];
+};
+
+export type RequestExtensionFailure =
+  | {
+      ok: false;
+      kind:
+        | 'no_such_booking'
+        | 'booking_not_extendable'
+        | 'invalid_dates'
+        | 'open_ended_not_supported'
+        | 'ownership_failed'
+        | 'unknown';
+      message: string;
+    }
+  | { ok: false; kind: 'conflict'; message: string; conflicts: ExtensionConflict[] };
+
+export type RequestExtensionResult = RequestExtensionSuccess | RequestExtensionFailure;
+
+// ───────────────────────────────────────────────────────────────────────────
+// Helpers
+// ───────────────────────────────────────────────────────────────────────────
+
+function pgCode(err: unknown): string | null {
+  if (err && typeof err === 'object' && 'code' in err) {
+    const c = (err as { code?: unknown }).code;
+    if (typeof c === 'string') return c;
+  }
+  return null;
+}
+
+/**
+ * Load a booking + its primary reservations + the customer phone. Returns
+ * null if no such booking. This is the canonical "is this booking
+ * extendable?" probe.
+ */
+async function loadBookingForExtension(bookingCode: string) {
+  const [booking] = await db
+    .select({
+      id: bookings.id,
+      bookingCode: bookings.bookingCode,
+      status: bookings.status,
+      durationMode: bookings.durationMode,
+      expectedCheckoutDate: bookings.expectedCheckoutDate,
+      customerId: bookings.customerId,
+      customerPhone: customers.phone,
+    })
+    .from(bookings)
+    .innerJoin(customers, eq(customers.id, bookings.customerId))
+    .where(eq(bookings.bookingCode, bookingCode))
+    .limit(1);
+  if (!booking) return null;
+
+  // We extend the booking off the LATEST end of any active/hold extension
+  // OR the primary reservations — i.e. you can chain extensions. The
+  // booking's `expected_checkout_date` is the canonical answer because
+  // recordExtensionPaymentSuccess keeps it in sync, but we fall back to a
+  // reservations-derived max as belt-and-braces in case of bad data.
+  const primaries = await db
+    .select({
+      id: bedReservations.id,
+      bedId: bedReservations.bedId,
+      status: bedReservations.status,
+      upper: sql<string>`to_char(upper(${bedReservations.stayRange}), 'YYYY-MM-DD')`,
+    })
+    .from(bedReservations)
+    .where(
+      and(
+        eq(bedReservations.bookingId, booking.id),
+        eq(bedReservations.kind, 'primary'),
+      ),
+    )
+    .orderBy(asc(bedReservations.bedId));
+  return { booking, primaries };
+}
+
+async function resolveBedCodes(
+  bedIds: string[],
+): Promise<Map<string, string>> {
+  if (bedIds.length === 0) return new Map();
+  const rows = await db
+    .select({ id: beds.id, bedCode: beds.bedCode })
+    .from(beds)
+    .where(inArray(beds.id, bedIds));
+  return new Map(rows.map((r) => [r.id, r.bedCode]));
+}
+
+/**
+ * For every bed in `bedIds`, scan `bed_reservations` for any active/hold
+ * reservation whose `stay_range` overlaps `[from, until)` and return a
+ * structured list. Used to surface ALL conflicts at once instead of relying
+ * on the first 23P01 from the DB.
+ */
+async function findConflicts(args: {
+  bedIds: string[];
+  fromDate: string;
+  untilDate: string;
+  excludeBookingId: string;
+}): Promise<ExtensionConflict[]> {
+  if (args.bedIds.length === 0) return [];
+  const codeMap = await resolveBedCodes(args.bedIds);
+  const rows = await db
+    .select({
+      bedId: bedReservations.bedId,
+      upperRaw: sql<string>`to_char(upper(${bedReservations.stayRange}), 'YYYY-MM-DD')`,
+      blockingBookingId: bedReservations.bookingId,
+      blockingBookingCode: bookings.bookingCode,
+    })
+    .from(bedReservations)
+    .innerJoin(bookings, eq(bookings.id, bedReservations.bookingId))
+    .where(
+      and(
+        inArray(bedReservations.bedId, args.bedIds),
+        inArray(bedReservations.status, ['hold', 'active']),
+        sql`${bedReservations.stayRange} && daterange(${args.fromDate}::date, ${args.untilDate}::date, '[)')`,
+      ),
+    );
+
+  const conflicts: ExtensionConflict[] = [];
+  for (const r of rows) {
+    // Skip rows that belong to the booking we're extending — they're our own
+    // primary/extension reservations and don't count as conflicts.
+    if (r.blockingBookingId === args.excludeBookingId) continue;
+    conflicts.push({
+      bedId: r.bedId,
+      bedCode: codeMap.get(r.bedId) ?? '?',
+      blockingUntil: r.upperRaw,
+      blockingBookingCode: r.blockingBookingCode,
+    });
+  }
+  return conflicts;
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// quoteExtension — read-only, fast-path for the customer pre-pay UI
+// ───────────────────────────────────────────────────────────────────────────
+
+export async function quoteExtension(args: {
+  bookingCode: string;
+  newUntilDate: DateLike;
+  durationMode: ExtensionDurationMode;
+}): Promise<QuoteExtensionResult> {
+  const loaded = await loadBookingForExtension(args.bookingCode);
+  if (!loaded) {
+    return {
+      ok: false,
+      kind: 'no_such_booking',
+      message: `No booking with code "${args.bookingCode}".`,
+    };
+  }
+  const { booking, primaries } = loaded;
+
+  if (booking.status !== 'confirmed') {
+    return {
+      ok: false,
+      kind: 'booking_not_extendable',
+      message: `Only confirmed bookings can be extended (current status: ${booking.status}).`,
+    };
+  }
+  if (booking.durationMode === 'open_ended') {
+    return {
+      ok: false,
+      kind: 'open_ended_not_supported',
+      message:
+        'Open-ended bookings auto-renew monthly — they do not have a finite checkout to extend.',
+    };
+  }
+  if (!booking.expectedCheckoutDate) {
+    return {
+      ok: false,
+      kind: 'booking_not_extendable',
+      message: 'This booking has no scheduled checkout date — extensions are not applicable.',
+    };
+  }
+
+  const fromDate = booking.expectedCheckoutDate; // YYYY-MM-DD
+  const untilDateRaw = parseDate(args.newUntilDate);
+  const untilDate = formatDate(untilDateRaw);
+  if (untilDate <= fromDate) {
+    return {
+      ok: false,
+      kind: 'invalid_dates',
+      message: `New end date (${untilDate}) must be strictly after the current end date (${fromDate}).`,
+    };
+  }
+  // Anti-foot-gun: cap at 2 years out from the current checkout.
+  const maxDate = new Date(parseDate(fromDate).getTime() + 730 * 86400_000);
+  if (untilDateRaw.getTime() > maxDate.getTime()) {
+    return {
+      ok: false,
+      kind: 'invalid_dates',
+      message: 'Extension cannot exceed 2 years past the current checkout date.',
+    };
+  }
+
+  const bedIds = Array.from(new Set(primaries.map((p) => p.bedId)));
+  const conflicts = await findConflicts({
+    bedIds,
+    fromDate,
+    untilDate,
+    excludeBookingId: booking.id,
+  });
+  if (conflicts.length > 0) {
+    return {
+      ok: false,
+      kind: 'conflict',
+      message: `${conflicts.length} of the booking's bed${
+        conflicts.length === 1 ? ' is' : 's are'
+      } already booked between ${fromDate} and ${untilDate}.`,
+      conflicts,
+    };
+  }
+
+  let quote: ExtensionQuote;
+  try {
+    quote = await priceExtension({
+      bedIds,
+      fromDate,
+      untilDate,
+      durationMode: args.durationMode,
+    });
+  } catch (err) {
+    return {
+      ok: false,
+      kind: 'unknown',
+      message: err instanceof Error ? err.message : 'Failed to compute extension quote.',
+    };
+  }
+
+  return {
+    ok: true,
+    bookingId: booking.id,
+    bookingCode: booking.bookingCode,
+    bedIds,
+    fromDate,
+    untilDate,
+    durationMode: args.durationMode,
+    quote,
+  };
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// requestExtension — mutating, transactional, hold-creating
+// ───────────────────────────────────────────────────────────────────────────
+
+export async function requestExtension(
+  input: RequestExtensionInput,
+): Promise<RequestExtensionResult> {
+  const loaded = await loadBookingForExtension(input.bookingCode);
+  if (!loaded) {
+    return {
+      ok: false,
+      kind: 'no_such_booking',
+      message: `No booking with code "${input.bookingCode}".`,
+    };
+  }
+  const { booking, primaries } = loaded;
+
+  // Ownership gate for customer-driven requests (session customerId or legacy phone).
+  if (input.requestedBy === 'customer') {
+    const idMatch =
+      input.actor.kind === 'customer' &&
+      input.actor.customerId != null &&
+      input.actor.customerId === booking.customerId;
+    const phoneMatch =
+      Boolean(input.customerPhone) && input.customerPhone === booking.customerPhone;
+    if (!idMatch && !phoneMatch) {
+      return {
+        ok: false,
+        kind: 'ownership_failed',
+        message: "We couldn't verify ownership of this booking.",
+      };
+    }
+  }
+
+  if (booking.status !== 'confirmed') {
+    return {
+      ok: false,
+      kind: 'booking_not_extendable',
+      message: `Only confirmed bookings can be extended (current status: ${booking.status}).`,
+    };
+  }
+  if (booking.durationMode === 'open_ended') {
+    return {
+      ok: false,
+      kind: 'open_ended_not_supported',
+      message:
+        'Open-ended bookings auto-renew monthly — they do not have a finite checkout to extend.',
+    };
+  }
+  if (!booking.expectedCheckoutDate) {
+    return {
+      ok: false,
+      kind: 'booking_not_extendable',
+      message: 'This booking has no scheduled checkout date — extensions are not applicable.',
+    };
+  }
+
+  const fromDate = booking.expectedCheckoutDate;
+  const untilDateRaw = parseDate(input.newUntilDate);
+  const untilDate = formatDate(untilDateRaw);
+  if (untilDate <= fromDate) {
+    return {
+      ok: false,
+      kind: 'invalid_dates',
+      message: `New end date (${untilDate}) must be strictly after the current end date (${fromDate}).`,
+    };
+  }
+  const maxDate = new Date(parseDate(fromDate).getTime() + 730 * 86400_000);
+  if (untilDateRaw.getTime() > maxDate.getTime()) {
+    return {
+      ok: false,
+      kind: 'invalid_dates',
+      message: 'Extension cannot exceed 2 years past the current checkout date.',
+    };
+  }
+
+  const bedIds = Array.from(new Set(primaries.map((p) => p.bedId)));
+
+  // Pre-flight: surface ALL conflicts in one round-trip rather than rely
+  // on the EXCLUDE constraint to spit out just the first one.
+  const preConflicts = await findConflicts({
+    bedIds,
+    fromDate,
+    untilDate,
+    excludeBookingId: booking.id,
+  });
+  if (preConflicts.length > 0) {
+    return {
+      ok: false,
+      kind: 'conflict',
+      message: `${preConflicts.length} of the booking's bed${
+        preConflicts.length === 1 ? ' is' : 's are'
+      } already booked between ${fromDate} and ${untilDate}.`,
+      conflicts: preConflicts,
+    };
+  }
+
+  // Pre-flight availability (matches createBooking pattern). The
+  // EXCLUDE constraint remains the storage-layer authority.
+  for (const bedId of bedIds) {
+    const ok = await isBedAvailable({
+      bedId,
+      startDate: parseDate(fromDate),
+      endDate: untilDateRaw,
+    });
+    if (!ok) {
+      return {
+        ok: false,
+        kind: 'conflict',
+        message: `Bed ${bedId} is no longer available for ${fromDate} → ${untilDate}.`,
+        conflicts: [
+          {
+            bedId,
+            bedCode: '?',
+            blockingUntil: untilDate,
+            blockingBookingCode: null,
+          },
+        ],
+      };
+    }
+  }
+
+  let quote: ExtensionQuote;
+  try {
+    quote = await priceExtension({
+      bedIds,
+      fromDate,
+      untilDate,
+      durationMode: input.durationMode,
+    });
+  } catch (err) {
+    return {
+      ok: false,
+      kind: 'unknown',
+      message: err instanceof Error ? err.message : 'Failed to compute extension quote.',
+    };
+  }
+
+  const holdExpiresAt = new Date(Date.now() + env.BOOKING_HOLD_MINUTES * 60 * 1000);
+  const parentByBed = new Map(primaries.map((p) => [p.bedId, p.id]));
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      const newReservationIds: string[] = [];
+
+      for (const bedId of bedIds) {
+        const parentId = parentByBed.get(bedId) ?? null;
+        const [row] = await tx
+          .insert(bedReservations)
+          .values({
+            bookingId: booking.id,
+            bedId,
+            stayRange: sql`daterange(${fromDate}::date, ${untilDate}::date, '[)')` as unknown as string,
+            kind: 'extension',
+            parentReservationId: parentId,
+            status: 'hold',
+            holdExpiresAt,
+          })
+          .returning({ id: bedReservations.id });
+        newReservationIds.push(row.id);
+      }
+
+      const [extRow] = await tx
+        .insert(stayExtensions)
+        .values({
+          bookingId: booking.id,
+          requestedBy: input.requestedBy,
+          requestedUntilDate: untilDate,
+          extensionDurationMode: input.durationMode,
+          quotedTotalPaise: quote.totalPaise,
+          status: 'pending',
+          newReservationIds,
+        })
+        .returning({ id: stayExtensions.id });
+
+      await tx.insert(auditLog).values({
+        actorType: input.actor.kind,
+        actorId:
+          input.actor.kind === 'customer'
+            ? input.actor.customerId
+            : input.actor.adminId,
+        entity: 'stay_extension',
+        entityId: extRow.id,
+        action: 'extension_requested',
+        diff: {
+          bookingId: booking.id,
+          bookingCode: booking.bookingCode,
+          fromDate,
+          untilDate,
+          durationMode: input.durationMode,
+          quotedTotalPaise: quote.totalPaise,
+          bedCount: bedIds.length,
+          reservationIds: newReservationIds,
+          holdExpiresAt: holdExpiresAt.toISOString(),
+        },
+      });
+
+      return { extensionId: extRow.id, newReservationIds };
+    });
+
+    const { notifyExtensionUpdate } = await import('@/src/lib/email/notifications');
+    notifyExtensionUpdate({
+      customerId: booking.customerId,
+      bookingCode: booking.bookingCode,
+      status: 'requested',
+      newUntilDate: untilDate,
+      amountPaise: quote.totalPaise,
+    });
+
+    return {
+      ok: true,
+      extensionId: result.extensionId,
+      bookingId: booking.id,
+      bookingCode: booking.bookingCode,
+      status: 'pending',
+      fromDate,
+      untilDate,
+      durationMode: input.durationMode,
+      quote,
+      holdExpiresAt,
+      newReservationIds: result.newReservationIds,
+    };
+  } catch (err) {
+    // Race: another booking landed between our pre-flight and the insert.
+    // The EXCLUDE constraint caught it. Re-run conflict detection so we
+    // return the actual conflicting bed/range.
+    if (pgCode(err) === '23P01') {
+      const raceConflicts = await findConflicts({
+        bedIds,
+        fromDate,
+        untilDate,
+        excludeBookingId: booking.id,
+      });
+      return {
+        ok: false,
+        kind: 'conflict',
+        message:
+          raceConflicts.length > 0
+            ? 'One of the beds was booked by another customer while we were preparing your extension. Please pick a shorter extension or release the affected bed.'
+            : 'Could not reserve the extension dates. Please try again.',
+        conflicts: raceConflicts,
+      };
+    }
+    return {
+      ok: false,
+      kind: 'unknown',
+      message: err instanceof Error ? err.message : 'Failed to request extension.',
+    };
+  }
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// cancelPendingExtension — release a still-pending extension before payment
+// ───────────────────────────────────────────────────────────────────────────
+
+export type CancelExtensionResult =
+  | {
+      ok: true;
+      extensionId: string;
+      stateChanged: boolean;
+      bookingId: string;
+      releasedReservationIds: string[];
+    }
+  | { ok: false; kind: 'no_such_extension' | 'not_cancellable' | 'unknown'; message: string };
+
+/**
+ * Cancel a `stay_extensions` row that's still in `pending`. Releases its
+ * held reservations and writes an audit log. Idempotent — re-invocation on
+ * an already-cancelled extension returns `stateChanged: false`.
+ */
+export async function cancelPendingExtension(args: {
+  extensionId: string;
+  actor: ExtensionActor;
+  reason?: string;
+}): Promise<CancelExtensionResult> {
+  const [row] = await db
+    .select({
+      id: stayExtensions.id,
+      bookingId: stayExtensions.bookingId,
+      status: stayExtensions.status,
+      newReservationIds: stayExtensions.newReservationIds,
+    })
+    .from(stayExtensions)
+    .where(eq(stayExtensions.id, args.extensionId))
+    .limit(1);
+  if (!row) {
+    return { ok: false, kind: 'no_such_extension', message: 'Extension not found.' };
+  }
+  if (row.status === 'cancelled' || row.status === 'rejected') {
+    return {
+      ok: true,
+      extensionId: row.id,
+      stateChanged: false,
+      bookingId: row.bookingId,
+      releasedReservationIds: [],
+    };
+  }
+  if (row.status !== 'pending') {
+    return {
+      ok: false,
+      kind: 'not_cancellable',
+      message: `Extensions in status "${row.status}" cannot be cancelled (only "pending" can).`,
+    };
+  }
+
+  const ids = row.newReservationIds ?? [];
+  try {
+    await db.transaction(async (tx) => {
+      if (ids.length > 0) {
+        await tx
+          .update(bedReservations)
+          .set({ status: 'cancelled', updatedAt: new Date() })
+          .where(
+            and(
+              inArray(bedReservations.id, ids),
+              inArray(bedReservations.status, ['hold', 'active']),
+            ),
+          );
+      }
+      await tx
+        .update(stayExtensions)
+        .set({ status: 'cancelled', updatedAt: new Date() })
+        .where(eq(stayExtensions.id, row.id));
+      await tx.insert(auditLog).values({
+        actorType: args.actor.kind,
+        actorId:
+          args.actor.kind === 'customer'
+            ? args.actor.customerId
+            : args.actor.adminId,
+        entity: 'stay_extension',
+        entityId: row.id,
+        action: 'extension_cancelled',
+        diff: {
+          bookingId: row.bookingId,
+          reason: args.reason ?? null,
+          releasedReservationIds: ids,
+        },
+      });
+    });
+    return {
+      ok: true,
+      extensionId: row.id,
+      stateChanged: true,
+      bookingId: row.bookingId,
+      releasedReservationIds: ids,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      kind: 'unknown',
+      message: err instanceof Error ? err.message : 'Failed to cancel extension.',
+    };
+  }
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// markExpiredExtensions — sweeper fold-in
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * Find `stay_extensions` rows whose `new_reservation_ids` are now ALL in
+ * `cancelled` state (because `releaseExpiredHolds` got to them first) and
+ * flip the extension row from `pending` to `cancelled`. Called from the
+ * hold-expiry cron right after `releaseExpiredHolds` so the customer's UI
+ * doesn't continue to advertise a pay button for a dead extension.
+ *
+ * Idempotent: it only touches rows still in `pending`.
+ */
+export async function markExpiredExtensions(): Promise<{
+  expired: number;
+  extensionIds: string[];
+}> {
+  // Pull every pending extension and check the status of its reservations
+  // in batch. N(pending) is small in practice; if it grows we can switch to
+  // a single GROUP BY query.
+  const pending = await db
+    .select({
+      id: stayExtensions.id,
+      bookingId: stayExtensions.bookingId,
+      newReservationIds: stayExtensions.newReservationIds,
+    })
+    .from(stayExtensions)
+    .where(eq(stayExtensions.status, 'pending'));
+  if (pending.length === 0) return { expired: 0, extensionIds: [] };
+
+  const toExpire: { id: string; bookingId: string; ids: string[] }[] = [];
+  for (const e of pending) {
+    const ids = e.newReservationIds ?? [];
+    if (ids.length === 0) continue;
+    const rows = await db
+      .select({ status: bedReservations.status })
+      .from(bedReservations)
+      .where(inArray(bedReservations.id, ids));
+    if (rows.length === 0) continue;
+    const allCancelled = rows.every((r) => r.status === 'cancelled');
+    if (allCancelled) toExpire.push({ id: e.id, bookingId: e.bookingId, ids });
+  }
+  if (toExpire.length === 0) return { expired: 0, extensionIds: [] };
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(stayExtensions)
+      .set({ status: 'cancelled', updatedAt: new Date() })
+      .where(
+        and(
+          inArray(
+            stayExtensions.id,
+            toExpire.map((t) => t.id),
+          ),
+          eq(stayExtensions.status, 'pending'),
+        ),
+      );
+    await tx.insert(auditLog).values({
+      actorType: 'system',
+      actorId: null,
+      entity: 'stay_extension',
+      entityId: toExpire[0]!.id,
+      action: 'extension_hold_expired_sweep',
+      diff: {
+        expiredExtensionIds: toExpire.map((t) => t.id),
+        affectedBookingIds: Array.from(new Set(toExpire.map((t) => t.bookingId))),
+      },
+    });
+  });
+
+  return {
+    expired: toExpire.length,
+    extensionIds: toExpire.map((t) => t.id),
+  };
+}

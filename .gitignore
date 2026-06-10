@@ -33,6 +33,12 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# ephemeral local-dev postgres data dir (used by docs/verification flow)
+/.tmp/
+
+# KYC document uploads (local filesystem storage)
+/data/kyc/
+
 # vercel
 .vercel
 

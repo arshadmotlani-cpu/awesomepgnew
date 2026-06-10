@@ -24,3 +24,20 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Auth / customer forms: keep typed text and browser autofill readable on white fields. */
+.apg-field-input::placeholder {
+  color: #a1a1aa; /* zinc-400 */
+  opacity: 1;
+}
+
+.apg-field-input:-webkit-autofill,
+.apg-field-input:-webkit-autofill:hover,
+.apg-field-input:-webkit-autofill:focus,
+.apg-field-input:-webkit-autofill:active {
+  -webkit-text-fill-color: #18181b; /* zinc-900 */
+  caret-color: #4f46e5; /* indigo-600 */
+  box-shadow: 0 0 0 1000px #ffffff inset;
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset;
+  transition: background-color 99999s ease-out 0s;
+}
