@@ -103,6 +103,10 @@ export const env = {
   get AUTH_ADMIN_SESSION_HOURS() {
     return optionalInt('AUTH_ADMIN_SESSION_HOURS', 8);
   },
+  /** One-time bootstrap password for /api/cron/bootstrap-admin in production. */
+  get ADMIN_INITIAL_PASSWORD() {
+    return optional('ADMIN_INITIAL_PASSWORD');
+  },
   /** OTP validity window (minutes). Default 5. */
   get AUTH_OTP_TTL_MINUTES() {
     return optionalInt('AUTH_OTP_TTL_MINUTES', 5);
