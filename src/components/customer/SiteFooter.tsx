@@ -8,7 +8,8 @@ export function SiteFooter() {
           <div>
             <p className="text-sm font-semibold text-white">Awesome PG</p>
             <p className="mt-2 max-w-xs text-xs leading-relaxed text-apg-silver">
-              Premium paying-guest living with bed-first booking, social spaces, and resident perks.
+              Premium paying-guest living with bed-first booking, daily cleaning, free laundry, and
+              honest amenities.
             </p>
           </div>
           <div>
@@ -30,7 +31,8 @@ export function SiteFooter() {
             <p className="text-xs font-semibold uppercase tracking-wider text-apg-cyan">Living</p>
             <ul className="mt-3 space-y-2 text-xs text-apg-silver">
               <li>Gaming zones · Arcade · Chill rooms</li>
-              <li>Gym · Farmhouse retreats · Mobility</li>
+              <li>Daily cleaning · WiFi · Free laundry</li>
+              <li>Gym & farmhouse (coming soon) · Vehicle resale</li>
               <li>Secure UPI payments · Transparent billing</li>
             </ul>
           </div>

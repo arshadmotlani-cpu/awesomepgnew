@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { createBooking } from '@/src/services/booking';
 import type { PricingMode } from '@/src/services/pricing';
+import { createPendingMembershipForBooking } from '@/src/services/playstationMembership';
+import { isPs4PlanId } from '@/src/lib/playstation/plans';
 import { getCustomerSession } from '@/src/lib/auth/session';
 import { indianPhonesEqual, normaliseIndianPhone } from '@/src/lib/phone';
 import { getCustomerById, isProfileComplete } from '@/src/services/profile';
@@ -72,6 +74,7 @@ export async function createBookingAction(
   const phone = getString(formData, 'phone');
   const gender = getString(formData, 'gender');
   const notes = getString(formData, 'notes');
+  const ps4PlanRaw = getString(formData, 'ps4Plan');
 
   if (bedIds.length === 0 || bedIds.some((id) => !UUID_RE.test(id))) {
     return {
@@ -127,6 +130,19 @@ export async function createBookingAction(
       message: result.message,
       conflictBedIds: result.conflictBedIds,
     };
+  }
+
+  if (ps4PlanRaw && isPs4PlanId(ps4PlanRaw)) {
+    const { getBedsForCart } = await import('@/src/db/queries/customer');
+    const cartBeds = await getBedsForCart(bedIds);
+    if (cartBeds.ok && cartBeds.data.length > 0) {
+      await createPendingMembershipForBooking({
+        customerId: session.customerId,
+        pgId: cartBeds.data[0]!.pgId,
+        bookingId: result.bookingId,
+        plan: ps4PlanRaw,
+      });
+    }
   }
 
   // Bust the admin dashboard cache so the new reservation shows up there.

@@ -14,7 +14,7 @@ import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { formatDate } from '@/src/lib/dates';
 import { isBedAvailable } from '@/src/services/availability';
-import { recordDepositCollected } from '@/src/services/deposits';
+import { correctDepositCollected, getDepositSummaryForBooking } from '@/src/services/deposits';
 import { siblingBedIdsInRoom } from '@/src/services/tenantAssignmentInternals';
 
 const LONG_TERM_END = '2099-01-01';
@@ -350,7 +350,7 @@ export async function updateTenantTenancy(
     bookingId: string;
     newBedId?: string;
     monthlyRentInr?: number;
-    additionalDepositInr?: number;
+    depositCollectedInr?: number;
     blocksWholeRoom?: boolean;
   },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -358,6 +358,7 @@ export async function updateTenantTenancy(
     .select({
       id: bookings.id,
       customerId: bookings.customerId,
+      depositPaise: bookings.depositPaise,
       pricingSnapshot: bookings.pricingSnapshot,
       blocksRoomAvailability: bookings.blocksRoomAvailability,
     })
@@ -438,24 +439,31 @@ export async function updateTenantTenancy(
     snapshot.perBed[0].lineTotalPaise = paise * Math.max(1, snapshot.perBed[0].units ?? 1);
   }
 
+  const subtotalPaise = snapshot.perBed.reduce((acc, bed) => acc + (bed.lineTotalPaise ?? 0), 0);
+
   await db
     .update(bookings)
     .set({
       pricingSnapshot: snapshot,
+      subtotalPaise,
       blocksRoomAvailability: blocksWholeRoom,
       updatedAt: new Date(),
     })
     .where(eq(bookings.id, input.bookingId));
 
-  if (input.additionalDepositInr != null && input.additionalDepositInr > 0) {
-    const paise = Math.round(input.additionalDepositInr * 100);
-    await recordDepositCollected({
-      bookingId: input.bookingId,
-      customerId: booking.customerId,
-      amountPaise: paise,
-      reason: 'Additional deposit recorded by admin',
-      createdByAdminId: session.adminId,
-    });
+  if (input.depositCollectedInr != null && input.depositCollectedInr >= 0) {
+    const targetPaise = Math.round(input.depositCollectedInr * 100);
+    const summary = await getDepositSummaryForBooking(input.bookingId);
+    const ledgerCollectedPaise = summary?.collectedPaise ?? 0;
+    if (targetPaise !== booking.depositPaise || targetPaise !== ledgerCollectedPaise) {
+      await correctDepositCollected({
+        bookingId: input.bookingId,
+        customerId: booking.customerId,
+        targetCollectedPaise: targetPaise,
+        reason: 'Deposit corrected from resident profile',
+        createdByAdminId: session.adminId,
+      });
+    }
   }
 
   return { ok: true };

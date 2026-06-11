@@ -10,21 +10,9 @@ import {
 } from '@/app/(admin)/admin/pgs/actions';
 import { ImageGalleryEditor } from '@/src/components/admin/ImageGalleryEditor';
 import { VideoGalleryEditor } from '@/src/components/admin/VideoGalleryEditor';
+import { PG_AMENITY_DEFINITIONS, amenityAdminLabel } from '@/src/lib/pgAmenities';
 
-const AMENITY_KEYS = [
-  ['wifi', 'Wi-Fi'],
-  ['food', 'Food / meals'],
-  ['laundry', 'Laundry'],
-  ['parking', 'Parking'],
-  ['ac', 'AC rooms'],
-  ['housekeeping', 'Housekeeping'],
-  ['powerBackup', 'Power backup'],
-  ['gym', 'Gym'],
-  ['cctv', 'CCTV security'],
-  ['geyser', 'Geyser / hot water'],
-  ['waterPurifier', 'RO water'],
-  ['lift', 'Lift / elevator'],
-] as const;
+const AMENITY_KEYS = PG_AMENITY_DEFINITIONS.filter((d) => !d.deprecated).map((d) => d.key);
 
 type Props = {
   mode: 'create' | 'edit';
@@ -202,14 +190,14 @@ export function PgAdminForm({
         </fieldset>
 
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {AMENITY_KEYS.map(([key, label]) => (
+          {AMENITY_KEYS.map((key) => (
             <label key={key} className="flex items-center gap-2 text-sm text-zinc-200">
               <input
                 type="checkbox"
                 name={`amenity_${key}`}
                 defaultChecked={Boolean((pg?.amenities as Record<string, boolean>)?.[key])}
               />
-              {label}
+              {amenityAdminLabel(key)}
             </label>
           ))}
         </div>

@@ -16,7 +16,6 @@ import {
   DEFAULT_RENT_DEPOSIT_UPI_ID,
 } from '@/src/lib/payments/defaultQr';
 import { RentPaymentProofForm } from '@/src/components/customer/RentPaymentProofForm';
-import { isCloudinaryConfigured } from '@/src/lib/images/cloudinary';
 import { ensureDefaultPaymentCategoriesForPg, getRentDepositBookingCategory } from '@/src/services/pgPaymentDefaults';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import { projectInvoice } from '@/src/services/rentInvoices';
@@ -76,7 +75,6 @@ export default async function PayRentPage({
   if (!row || row.customerId !== session.customerId) notFound();
 
   const projected = projectInvoice(row);
-  const cloudinary = isCloudinaryConfigured();
 
   await ensureDefaultPaymentCategoriesForPg(row.pgId);
   const rentCategory = await getRentDepositBookingCategory(row.pgId);
@@ -135,7 +133,7 @@ export default async function PayRentPage({
         <p className="rounded-md bg-zinc-100 px-3 py-2 text-sm text-zinc-700 ring-1 ring-inset ring-zinc-200">
           This invoice has been cancelled — no payment required.
         </p>
-      ) : cloudinary ? (
+      ) : (
         <RentPaymentProofForm
           invoiceId={row.id}
           amountLabel={paiseToInr(projected.outstandingPaise)}
@@ -144,10 +142,6 @@ export default async function PayRentPage({
           qrImageUrl={rentCategory?.qrCodeImageUrl ?? DEFAULT_RENT_DEPOSIT_QR_PATH}
           upiId={rentCategory?.upiId ?? DEFAULT_RENT_DEPOSIT_UPI_ID}
         />
-      ) : (
-        <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          Photo upload is not configured yet. Contact the PG office to complete payment.
-        </p>
       )}
     </div>
   );

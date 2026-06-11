@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { eq } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { bookings, customers } from '@/src/db/schema';
+import { bedReservations, bookings, customers } from '@/src/db/schema';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import {
   TBody,
@@ -17,6 +17,7 @@ import { listDepositLedgerEntriesForBooking } from '@/src/db/queries/admin';
 import { DepositAdjustForms } from '@/src/components/admin/DepositAdjustForms';
 import { DepositRefundNotice } from '@/src/components/customer/DepositRefundNotice';
 import { paiseToInr, formatDate, titleCase } from '@/src/lib/format';
+import { loadBedPrice, securityDepositForMode } from '@/src/services/pricing';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,6 +48,32 @@ export default async function AdminDepositDetailPage({
 
   const summary = await getDepositSummaryForBooking(bookingId);
   const ledger = await listDepositLedgerEntriesForBooking(bookingId);
+
+  const [primaryBed] = await db
+    .select({
+      bedId: bedReservations.bedId,
+      moveInDate: sql<string>`to_char(lower(${bedReservations.stayRange}), 'YYYY-MM-DD')`,
+    })
+    .from(bedReservations)
+    .where(
+      and(
+        eq(bedReservations.bookingId, bookingId),
+        eq(bedReservations.kind, 'primary'),
+        eq(bedReservations.status, 'active'),
+      ),
+    )
+    .limit(1);
+
+  let websiteDepositPaise = 0;
+  if (primaryBed) {
+    const bedRate = await loadBedPrice(primaryBed.bedId, primaryBed.moveInDate);
+    if (bedRate) {
+      websiteDepositPaise = securityDepositForMode(
+        bedRate,
+        booking.durationMode === 'open_ended' ? 'open_ended' : 'monthly',
+      );
+    }
+  }
 
   return (
     <>
@@ -93,7 +120,12 @@ export default async function AdminDepositDetailPage({
 
       <section className="mb-6">
         <h2 className="mb-2 text-sm font-semibold text-zinc-900">Adjust deposit</h2>
-        <DepositAdjustForms bookingId={bookingId} />
+        <DepositAdjustForms
+          bookingId={bookingId}
+          bookingDepositPaise={booking.depositPaise}
+          ledgerCollectedPaise={summary?.collectedPaise ?? 0}
+          websiteDepositPaise={websiteDepositPaise}
+        />
         <p className="mt-2 text-[11px] text-zinc-500">
           Every form below writes one append-only ledger row + an audit-log
           entry. The DB enforces sign: collected &gt; 0, deducted &amp; refunded &lt; 0.

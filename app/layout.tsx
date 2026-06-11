@@ -18,7 +18,7 @@ export const metadata: Metadata = {
     template: '%s · Awesome PG',
   },
   description:
-    'Book your exact bed at premium PGs with gaming zones, chill rooms, social spaces, gym, farmhouse retreats, and resident perks. Live awesome.',
+    'Book your exact bed at premium PGs with gaming zones, chill rooms, daily cleaning, free laundry, high-speed WiFi, and honest amenities. Live awesome.',
 };
 
 export default function RootLayout({

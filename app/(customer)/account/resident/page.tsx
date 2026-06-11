@@ -17,11 +17,19 @@ import { formatIndianPhoneDisplay } from '@/src/lib/phone';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import { LogoutButton } from '@/src/components/auth/LogoutButton';
 import { DepositRefundNotice } from '@/src/components/customer/DepositRefundNotice';
+import { MyServicesPanel } from '@/src/components/customer/MyServicesPanel';
 import { getRoomElectricityForCustomer } from '@/src/services/meterElectricity';
+import {
+  getMembershipForDashboard,
+  isActiveTenant,
+} from '@/src/services/playstationMembership';
 import {
   labelAdminDepositRefundStatus,
   labelAdminDuesStatus,
 } from '@/src/lib/bookingAdminOpsLabels';
+import { RoachieResidentBriefing } from '@/src/components/cockroach/RoachieResidentBriefing';
+import { buildBriefingInputForBooking } from '@/src/lib/cockroach/briefingFromBooking';
+import type { PricingSnapshot } from '@/src/db/schema/bookings';
 
 export const dynamic = 'force-dynamic';
 
@@ -82,6 +90,8 @@ export default async function ResidentDashboardPage() {
     latestKyc.status === 'pending';
   const checkInAllowed = customer ? canCheckIn(customer) : false;
   const bookings = await listResidentBookingsForCustomer(session.customerId);
+  const tenantActive = await isActiveTenant(session.customerId);
+  const ps4Membership = tenantActive ? await getMembershipForDashboard(session.customerId) : null;
   const uniqueBookings: ResidentBookingRow[] =
     bookings.ok && bookings.data.length > 0
       ? Array.from(new Map(bookings.data.map((item) => [item.bookingId, item])).values())
@@ -121,8 +131,43 @@ export default async function ResidentDashboardPage() {
     }
   }
 
+  const primaryBooking = detail[0];
+  const residentBriefing =
+    primaryBooking != null
+      ? await buildBriefingInputForBooking({
+          customerId: session.customerId,
+          residentName: session.fullName || customer?.fullName || 'Resident',
+          kycLabel: customer?.kycStatus === 'approved' ? 'Verified' : 'Pending',
+          booking: {
+            bookingId: primaryBooking.bookingId,
+            bookingCode: primaryBooking.bookingCode,
+            pgName: primaryBooking.booking.pgName,
+            durationMode: primaryBooking.booking.durationMode,
+            status: 'confirmed',
+            expectedCheckoutDate: primaryBooking.booking.expectedCheckoutDate,
+            pricingSnapshot: {
+              perBed: [{ monthlyRatePaise: primaryBooking.booking.monthlyRentPaise }],
+            } as PricingSnapshot,
+            reservations: [
+              {
+                roomNumber: primaryBooking.booking.roomNumber,
+                bedCode: primaryBooking.booking.bedCode,
+                stayRange: `[${primaryBooking.booking.checkInDate},)`,
+              },
+            ],
+            customerFullName: session.fullName,
+          },
+        })
+      : null;
+
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6 px-4 py-10 sm:px-6">
+      {residentBriefing ? (
+        <RoachieResidentBriefing
+          sessionKey="resident-dashboard-briefing-v1"
+          {...residentBriefing}
+        />
+      ) : null}
       {customer && !checkInAllowed ? (
         <KycCheckInBanner
           kycStatus={customer.kycStatus}
@@ -149,6 +194,8 @@ export default async function ResidentDashboardPage() {
       </header>
 
       <DepositRefundNotice />
+
+      <MyServicesPanel membership={ps4Membership} isActiveTenant={tenantActive} />
 
       {bookings.ok === false ? (
         <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700 ring-1 ring-inset ring-rose-200">

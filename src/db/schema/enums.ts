@@ -155,3 +155,27 @@ export const vacatingStatusEnum = pgEnum('vacating_status', [
   'completed',
   'rejected',
 ]);
+
+export const playstationMembershipPlanEnum = pgEnum('playstation_membership_plan', [
+  'weekly',
+  'biweekly',
+  'monthly',
+]);
+
+export const playstationMembershipStatusEnum = pgEnum('playstation_membership_status', [
+  'pending_payment',
+  'active',
+  'expired',
+  'cancelled',
+]);
+
+export const membershipTransactionKindEnum = pgEnum('membership_transaction_kind', [
+  'purchase',
+  'renew',
+  'upgrade',
+  'admin_activate',
+  'admin_deactivate',
+  'admin_extend',
+  'admin_cancel',
+  'payment_proof',
+]);

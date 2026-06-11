@@ -12,6 +12,11 @@ type Props = {
   qrImageUrl: string;
   upiId: string | null;
   uploadScreenshot: (formData: FormData) => Promise<string>;
+  /** Optional PS4 add-on — combined checkout total, separate records. */
+  membershipId?: string;
+  membershipAmountPaise?: number;
+  membershipLabel?: string;
+  bookingAmountPaise?: number;
 };
 
 export function BookingQrCheckout({
@@ -22,6 +27,10 @@ export function BookingQrCheckout({
   qrImageUrl,
   upiId,
   uploadScreenshot,
+  membershipId,
+  membershipAmountPaise,
+  membershipLabel,
+  bookingAmountPaise,
 }: Props) {
   const [transactionRef, setTransactionRef] = useState('');
   const [screenshotUrl, setScreenshotUrl] = useState('');
@@ -65,6 +74,8 @@ export function BookingQrCheckout({
           amountPaise: totalPaise,
           paymentScreenshotUrl: screenshotUrl,
           transactionRef: transactionRef || undefined,
+          membershipId,
+          membershipAmountPaise,
         }),
       });
       const data = (await res.json()) as { ok: boolean; message?: string };
@@ -103,6 +114,11 @@ export function BookingQrCheckout({
       <p className="text-sm text-zinc-600">
         Pay <span className="font-semibold text-zinc-900">{totalLabel}</span> for{' '}
         <span className="font-medium">{pgName}</span> via UPI, then upload your screenshot.
+        {membershipId && membershipLabel ? (
+          <span className="mt-1 block text-xs text-zinc-500">
+            Includes bed/deposit plus {membershipLabel} (PS4 gaming maintenance add-on).
+          </span>
+        ) : null}
       </p>
 
       <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-center">

@@ -117,12 +117,14 @@ export async function assignTenantToBed(
     return { ok: false, error: result.message };
   }
 
-  if (customDepositPaise && customDepositPaise > 0) {
+  if (result.depositPaise > 0) {
     await recordDepositCollected({
       bookingId: result.bookingId,
       customerId: result.customerId,
-      amountPaise: customDepositPaise,
-      reason: `Deposit recorded on tenant assignment (${bedCtx.bedCode})`,
+      amountPaise: result.depositPaise,
+      reason: customDepositPaise != null
+        ? `Deposit recorded on tenant assignment (${bedCtx.bedCode}) — grandfathered amount`
+        : `Deposit recorded on tenant assignment (${bedCtx.bedCode})`,
       createdByAdminId: session.adminId,
     }).catch(() => {
       /* non-fatal if duplicate */
@@ -143,6 +145,16 @@ export async function listAssignableBeds(session: AdminSession, startDate?: stri
       pgName: pgs.name,
       monthlyRatePaise: sql<number>`coalesce((
         SELECT bp.monthly_rate_paise::bigint::int FROM ${bedPrices} bp
+        WHERE bp.bed_id = ${beds.id}
+          AND bp.effective_from <= CURRENT_DATE
+          AND (bp.effective_to IS NULL OR bp.effective_to > CURRENT_DATE)
+        ORDER BY bp.effective_from DESC LIMIT 1
+      ), 0)`,
+      depositPaise: sql<number>`coalesce((
+        SELECT coalesce(
+          nullif(bp.monthly_security_deposit_paise, 0),
+          bp.security_deposit_paise
+        )::bigint::int FROM ${bedPrices} bp
         WHERE bp.bed_id = ${beds.id}
           AND bp.effective_from <= CURRENT_DATE
           AND (bp.effective_to IS NULL OR bp.effective_to > CURRENT_DATE)
@@ -173,5 +185,6 @@ export async function listAssignableBeds(session: AdminSession, startDate?: stri
 }
 
 export function defaultTenantStartDate(): string {
-  return formatDate(new Date());
+  const now = new Date();
+  return formatDate(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)));
 }

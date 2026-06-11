@@ -17,10 +17,7 @@ import {
   DEFAULT_ELECTRICITY_DAILY_UPI_ID,
 } from '@/src/lib/payments/defaultQr';
 import { ElectricityPaymentProofForm } from '@/src/components/customer/ElectricityPaymentProofForm';
-import { PaymentUnavailable } from '@/src/components/customer/PaymentUnavailable';
 import { formatDate, paiseToInr } from '@/src/lib/format';
-import { isCloudinaryConfigured } from '@/src/lib/images/cloudinary';
-import { isRazorpayConfigured } from '@/src/lib/payments/config';
 import { projectElectricityInvoice } from '@/src/services/electricityBilling';
 import {
   ensureDefaultPaymentCategoriesForPg,
@@ -78,7 +75,6 @@ export default async function PayElectricityPage({
 
   const projection = projectElectricityInvoice(invoiceRow);
   const outstanding = projection.outstandingPaise;
-  const cloudinary = isCloudinaryConfigured();
 
   await ensureDefaultPaymentCategoriesForPg(row.pgId);
   const elecCategory = await getElectricityDailyCategory(row.pgId);
@@ -178,18 +174,14 @@ export default async function PayElectricityPage({
         </p>
       ) : (
         <div className="space-y-4">
-          {cloudinary ? (
-            <ElectricityPaymentProofForm
-              invoiceId={invoiceRow.id}
-              amountLabel={paiseToInr(outstanding)}
-              uploadScreenshot={uploadPaymentScreenshotAction}
-              existingProofUrl={row.paymentProofUrl}
-              qrImageUrl={elecCategory?.qrCodeImageUrl ?? DEFAULT_ELECTRICITY_DAILY_QR_PATH}
-              upiId={elecCategory?.upiId ?? DEFAULT_ELECTRICITY_DAILY_UPI_ID}
-            />
-          ) : isRazorpayConfigured() ? null : (
-            <PaymentUnavailable />
-          )}
+          <ElectricityPaymentProofForm
+            invoiceId={invoiceRow.id}
+            amountLabel={paiseToInr(outstanding)}
+            uploadScreenshot={uploadPaymentScreenshotAction}
+            existingProofUrl={row.paymentProofUrl}
+            qrImageUrl={elecCategory?.qrCodeImageUrl ?? DEFAULT_ELECTRICITY_DAILY_QR_PATH}
+            upiId={elecCategory?.upiId ?? DEFAULT_ELECTRICITY_DAILY_UPI_ID}
+          />
         </div>
       )}
     </div>

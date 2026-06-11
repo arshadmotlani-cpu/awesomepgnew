@@ -169,6 +169,13 @@
       "when": 1784100000000,
       "tag": "0023_customers_archived",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1784200000000,
+      "tag": "0024_playstation_memberships",
+      "breakpoints": true
     }
   ]
 }

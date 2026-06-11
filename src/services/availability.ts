@@ -22,7 +22,22 @@
 
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { db } from '../db/client';
-import { bedReservations, beds, floors, pgs, rooms, roomTypes } from '../db/schema';
+import {
+  bedReservations,
+  beds,
+  bookings,
+  floors,
+  pgs,
+  rooms,
+  roomTypes,
+} from '../db/schema';
+import {
+  checkoutCapMessage,
+  extensionCapMessage,
+  maxCheckoutForCheckIn,
+  validateStayWithinFreeWindows,
+  type StayWindowValidation,
+} from '../lib/bedAvailabilityWindows';
 import {
   addDays,
   diffDays,
@@ -31,6 +46,7 @@ import {
   maxDate,
   minDate,
   parseDate,
+  todayString,
   type DateLike,
 } from '../lib/dates';
 
@@ -125,6 +141,14 @@ function materializeWindow(start: Date, end: Date): FreeWindow {
     nights: diffDays(start, end),
   };
 }
+
+export {
+  checkoutCapMessage,
+  extensionCapMessage,
+  maxCheckoutForCheckIn,
+  validateStayWithinFreeWindows,
+  type StayWindowValidation,
+} from '../lib/bedAvailabilityWindows';
 
 // ───────────────────────────────────────────────────────────────────────────
 // DB-backed queries
@@ -221,6 +245,168 @@ export async function getAvailableDateRanges(
 
   const busy = await loadBusyRanges(input.bedId, windowStart, windowEnd);
   return computeFreeWindows(busy, windowStart, windowEnd);
+}
+
+export type BedFutureReservation = {
+  startDate: string;
+  endDate: string;
+  status: 'hold' | 'active';
+  bookingCode: string | null;
+};
+
+export type BedAvailabilityTimeline = {
+  bedId: string;
+  bedCode: string;
+  bedStatus: 'available' | 'maintenance' | 'blocked';
+  windowStart: string;
+  windowEnd: string;
+  lookAheadDays: number;
+  /** Earliest bookable check-in within the look-ahead window. */
+  earliestCheckIn: string | null;
+  freeWindows: FreeWindow[];
+  futureReservations: BedFutureReservation[];
+};
+
+export type GetBedAvailabilityTimelineInput = {
+  bedId: string;
+  fromDate?: DateLike;
+  lookAheadDays?: number;
+};
+
+/**
+ * Per-bed availability timeline for the booking modal: free windows,
+ * future reservations, and the earliest check-in date.
+ */
+export async function getBedAvailabilityTimeline(
+  input: GetBedAvailabilityTimelineInput,
+): Promise<BedAvailabilityTimeline | null> {
+  const lookAhead = input.lookAheadDays ?? 365;
+  const windowStart = parseDate(input.fromDate ?? todayString());
+  const windowEnd = addDays(windowStart, lookAhead);
+
+  const [bed] = await db
+    .select({
+      id: beds.id,
+      bedCode: beds.bedCode,
+      status: beds.status,
+      archivedAt: beds.archivedAt,
+    })
+    .from(beds)
+    .where(eq(beds.id, input.bedId))
+    .limit(1);
+  if (!bed || bed.archivedAt) return null;
+
+  const ws = formatDate(windowStart);
+  const we = formatDate(windowEnd);
+
+  const reservationRows = await db
+    .select({
+      stayRange: bedReservations.stayRange,
+      status: bedReservations.status,
+      bookingCode: bookings.bookingCode,
+    })
+    .from(bedReservations)
+    .leftJoin(bookings, eq(bookings.id, bedReservations.bookingId))
+    .where(
+      and(
+        eq(bedReservations.bedId, input.bedId),
+        sql`${bedReservations.status} IN ('hold','active')`,
+        sql`${bedReservations.stayRange} && daterange(${ws}::date, ${we}::date, '[)')`,
+      ),
+    )
+    .orderBy(asc(bedReservations.stayRange));
+
+  const futureReservations: BedFutureReservation[] = [];
+  for (const row of reservationRows) {
+    const parsed = parseDaterange(row.stayRange as unknown as string);
+    if (!parsed.lower || !parsed.upper) continue;
+    futureReservations.push({
+      startDate: formatDate(parsed.lower),
+      endDate: formatDate(parsed.upper),
+      status: row.status as 'hold' | 'active',
+      bookingCode: row.bookingCode,
+    });
+  }
+
+  if (bed.status !== 'available') {
+    return {
+      bedId: bed.id,
+      bedCode: bed.bedCode,
+      bedStatus: bed.status,
+      windowStart: ws,
+      windowEnd: we,
+      lookAheadDays: lookAhead,
+      earliestCheckIn: null,
+      freeWindows: [],
+      futureReservations,
+    };
+  }
+
+  const busy = futureReservations.map((r) => ({
+    start: parseDate(r.startDate),
+    end: parseDate(r.endDate),
+  }));
+  const freeWindows = computeFreeWindows(busy, windowStart, windowEnd);
+
+  return {
+    bedId: bed.id,
+    bedCode: bed.bedCode,
+    bedStatus: bed.status,
+    windowStart: ws,
+    windowEnd: we,
+    lookAheadDays: lookAhead,
+    earliestCheckIn: freeWindows.length > 0 ? freeWindows[0]!.startDate : null,
+    freeWindows,
+    futureReservations,
+  };
+}
+
+/**
+ * Validate a proposed stay against per-bed free windows. Used by createBooking
+ * before opening a transaction.
+ */
+export async function validateBedStayRange(input: {
+  bedId: string;
+  startDate: DateLike;
+  endDate: DateLike;
+  lookAheadDays?: number;
+}): Promise<
+  | { ok: true }
+  | { ok: false; message: string; maxCheckout: string | null }
+> {
+  const timeline = await getBedAvailabilityTimeline({
+    bedId: input.bedId,
+    fromDate: input.startDate,
+    lookAheadDays: input.lookAheadDays,
+  });
+  if (!timeline) {
+    return { ok: false, message: 'Bed not found.', maxCheckout: null };
+  }
+  if (timeline.bedStatus !== 'available') {
+    return {
+      ok: false,
+      message: `Bed ${timeline.bedCode} is ${timeline.bedStatus} and cannot be booked.`,
+      maxCheckout: null,
+    };
+  }
+  const result = validateStayWithinFreeWindows(
+    input.startDate,
+    input.endDate,
+    timeline.freeWindows,
+  );
+  if (result.ok) return { ok: true };
+  if (result.reason === 'no_window') {
+    return {
+      ok: false,
+      message: 'The selected check-in date is not available for this bed.',
+      maxCheckout: null,
+    };
+  }
+  return {
+    ok: false,
+    message: checkoutCapMessage(result.maxCheckout!),
+    maxCheckout: result.maxCheckout,
+  };
 }
 
 async function loadBusyRanges(

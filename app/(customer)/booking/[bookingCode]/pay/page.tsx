@@ -8,17 +8,21 @@ import {
   requireCustomerOwnsBookingCode,
   requireCustomerSession,
 } from '@/src/lib/auth/guards';
-import { isCloudinaryConfigured } from '@/src/lib/images/cloudinary';
 import {
+  DEFAULT_ELECTRICITY_DAILY_QR_PATH,
+  DEFAULT_ELECTRICITY_DAILY_UPI_ID,
   DEFAULT_RENT_DEPOSIT_QR_PATH,
   DEFAULT_RENT_DEPOSIT_UPI_ID,
 } from '@/src/lib/payments/defaultQr';
 import { paiseToInr as formatPaise } from '@/src/lib/format';
+import { PS4_ADDON_LABEL, PS4_PLANS } from '@/src/lib/playstation/plans';
 import { getCustomerById, isProfileComplete } from '@/src/services/profile';
 import {
   ensureDefaultPaymentCategoriesForPg,
+  getElectricityDailyCategory,
   getRentDepositBookingCategory,
 } from '@/src/services/pgPaymentDefaults';
+import { getPendingMembershipForBooking } from '@/src/services/playstationMembership';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,9 +62,20 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
   }
 
   await ensureDefaultPaymentCategoriesForPg(booking.pg.id);
-  const category = await getRentDepositBookingCategory(booking.pg.id);
-  const totalLabel = formatPaise(booking.totalPaise);
-  const canUpload = isCloudinaryConfigured();
+  const rentCategory = await getRentDepositBookingCategory(booking.pg.id);
+  const elecCategory = await getElectricityDailyCategory(booking.pg.id);
+  const pendingPs4 = await getPendingMembershipForBooking(booking.id);
+  const ps4Paise = pendingPs4?.amountPaise ?? 0;
+  const checkoutTotalPaise = booking.totalPaise + ps4Paise;
+  const totalLabel = formatPaise(checkoutTotalPaise);
+  const usePs4Qr = ps4Paise > 0;
+  const qrImageUrl = usePs4Qr
+    ? (elecCategory?.qrCodeImageUrl ?? DEFAULT_ELECTRICITY_DAILY_QR_PATH)
+    : (rentCategory?.qrCodeImageUrl ?? DEFAULT_RENT_DEPOSIT_QR_PATH);
+  const upiId = usePs4Qr
+    ? (elecCategory?.upiId ?? DEFAULT_ELECTRICITY_DAILY_UPI_ID)
+    : (rentCategory?.upiId ?? DEFAULT_RENT_DEPOSIT_UPI_ID);
+  const ps4PlanLabel = pendingPs4 ? PS4_PLANS[pendingPs4.plan].label : null;
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
@@ -127,33 +142,43 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
               <span className="text-zinc-500">Refundable deposit</span>
               <span className="text-zinc-900">{formatPaise(booking.depositPaise)}</span>
             </div>
+            {pendingPs4 ? (
+              <div className="flex justify-between">
+                <span className="text-zinc-500">
+                  {ps4PlanLabel} · {PS4_ADDON_LABEL}
+                </span>
+                <span className="text-zinc-900">{formatPaise(ps4Paise)}</span>
+              </div>
+            ) : null}
             <div className="mt-2 flex justify-between border-t border-zinc-100 pt-2 text-base font-semibold">
-              <span className="text-zinc-900">Total</span>
+              <span className="text-zinc-900">Total due now</span>
               <span className="text-zinc-900">{totalLabel}</span>
             </div>
+            {ps4Paise > 0 ? (
+              <p className="text-[11px] text-zinc-500">
+                Bed/deposit {formatPaise(booking.totalPaise)} + PS4 add-on{' '}
+                {formatPaise(ps4Paise)} — separate records, one UPI payment.
+              </p>
+            ) : null}
           </div>
 
           <div className="mt-5">
             <DepositRefundNotice variant="compact" />
             <div className="mt-4">
-            {canUpload ? (
               <BookingQrCheckout
                 bookingCode={booking.bookingCode}
                 pgName={booking.pg.name}
-                totalPaise={booking.totalPaise}
+                totalPaise={checkoutTotalPaise}
                 totalLabel={totalLabel}
-                qrImageUrl={category?.qrCodeImageUrl ?? DEFAULT_RENT_DEPOSIT_QR_PATH}
-                upiId={category?.upiId ?? DEFAULT_RENT_DEPOSIT_UPI_ID}
+                bookingAmountPaise={booking.totalPaise}
+                qrImageUrl={qrImageUrl}
+                upiId={upiId}
                 uploadScreenshot={uploadPaymentScreenshotAction}
+                membershipId={pendingPs4?.id}
+                membershipAmountPaise={ps4Paise > 0 ? ps4Paise : undefined}
+                membershipLabel={ps4PlanLabel ?? undefined}
               />
-            ) : (
-              <p className="text-sm text-amber-800">
-                Screenshot upload is not configured. Pay via UPI{' '}
-                <strong>{category?.upiId ?? DEFAULT_RENT_DEPOSIT_UPI_ID}</strong> and contact
-                support on WhatsApp with booking code {booking.bookingCode}.
-              </p>
-            )}
-          </div>
+            </div>
           </div>
         </aside>
       </div>

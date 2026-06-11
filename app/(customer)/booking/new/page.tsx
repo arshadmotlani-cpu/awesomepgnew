@@ -164,6 +164,9 @@ export default async function NewBookingPage(
     quoteError = err instanceof Error ? err.message : String(err);
   }
 
+  // Customer is in the booking flow with beds selected — eligible for PS4 add-on.
+  const showPs4Addon = profileComplete && !quoteError;
+
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
       <nav className="text-xs text-zinc-500">
@@ -227,6 +230,7 @@ export default async function NewBookingPage(
           email: session.email,
           phone: session.phone,
         }}
+        showPs4Addon={showPs4Addon}
       />
 
       {/* Selected beds quick-reference */}

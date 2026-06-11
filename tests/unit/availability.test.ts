@@ -1,7 +1,7 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
 import { parseDate } from '../../src/lib/dates';
-import { computeFreeWindows, parseDaterange } from '../../src/services/availability';
+import { computeFreeWindows, maxCheckoutForCheckIn, parseDaterange, validateStayWithinFreeWindows } from '../../src/services/availability';
 
 // ───────────────────────────────────────────────────────────────────────────
 // parseDaterange
@@ -129,4 +129,23 @@ test('computeFreeWindows: busy outside the window is ignored', () => {
 
 test('computeFreeWindows: empty window returns []', () => {
   assert.deepEqual(computeFreeWindows([busy('2026-06-01', '2026-06-10')], '2026-07-01', '2026-07-01'), []);
+});
+
+test('maxCheckoutForCheckIn: returns window end when check-in is inside', () => {
+  const windows = computeFreeWindows([busy('2026-06-10', '2026-06-15')], '2026-06-01', '2026-07-01');
+  assert.equal(maxCheckoutForCheckIn('2026-06-05', windows), '2026-06-10');
+  assert.equal(maxCheckoutForCheckIn('2026-06-20', windows), '2026-07-01');
+  assert.equal(maxCheckoutForCheckIn('2026-06-12', windows), null);
+});
+
+test('validateStayWithinFreeWindows: rejects stay past cap', () => {
+  const windows = computeFreeWindows([busy('2026-06-10', '2026-06-20')], '2026-06-01', '2026-07-01');
+  const ok = validateStayWithinFreeWindows('2026-06-01', '2026-06-10', windows);
+  assert.equal(ok.ok, true);
+  const bad = validateStayWithinFreeWindows('2026-06-01', '2026-06-25', windows);
+  assert.equal(bad.ok, false);
+  if (!bad.ok) {
+    assert.equal(bad.reason, 'exceeds_cap');
+    assert.equal(bad.maxCheckout, '2026-06-10');
+  }
 });

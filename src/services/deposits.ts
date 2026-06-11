@@ -32,6 +32,7 @@ import {
   depositLedger,
   type DepositLedgerEntry,
 } from '../db/schema';
+import type { PricingSnapshot } from '@/src/db/schema/bookings';
 
 // ───────────────────────────────────────────────────────────────────────────
 // Public types
@@ -191,6 +192,98 @@ export async function recordDepositRefunded(input: {
     diff: { bookingId: input.bookingId, amountPaise: input.amountPaise },
   });
   return { ok: true, entryId: row.id };
+}
+
+/**
+ * Set the booking's deposit to `targetCollectedPaise` and reconcile the
+ * append-only ledger so collected balance matches. Use when an admin
+ * records a grandfathered amount or fixes a mistake after assignment.
+ */
+export async function correctDepositCollected(input: {
+  bookingId: string;
+  customerId: string;
+  targetCollectedPaise: number;
+  reason: string;
+  createdByAdminId: string;
+}): Promise<{ ok: true; previousPaise: number; targetPaise: number }> {
+  if (input.targetCollectedPaise < 0) {
+    throw new Error('correctDepositCollected: targetCollectedPaise must be >= 0');
+  }
+
+  const [booking] = await db
+    .select({
+      depositPaise: bookings.depositPaise,
+      totalPaise: bookings.totalPaise,
+      subtotalPaise: bookings.subtotalPaise,
+      pricingSnapshot: bookings.pricingSnapshot,
+    })
+    .from(bookings)
+    .where(eq(bookings.id, input.bookingId))
+    .limit(1);
+  if (!booking) throw new Error('Booking not found.');
+
+  const summary = await getDepositSummaryForBooking(input.bookingId);
+  const ledgerCollectedPaise = summary?.collectedPaise ?? 0;
+  const previousPaise = booking.depositPaise;
+  const targetPaise = input.targetCollectedPaise;
+
+  const snapshot = (booking.pricingSnapshot ?? { perBed: [], computedAt: new Date().toISOString() }) as PricingSnapshot;
+  if (snapshot.perBed.length > 0) {
+    const perBedDeposit = Math.floor(targetPaise / snapshot.perBed.length);
+    const remainder = targetPaise - perBedDeposit * snapshot.perBed.length;
+    snapshot.perBed = snapshot.perBed.map((bed, index) => ({
+      ...bed,
+      securityDepositPaise: perBedDeposit + (index === 0 ? remainder : 0),
+    }));
+  }
+
+  const newTotalPaise = booking.totalPaise - previousPaise + targetPaise;
+
+  await db
+    .update(bookings)
+    .set({
+      depositPaise: targetPaise,
+      totalPaise: newTotalPaise,
+      pricingSnapshot: snapshot,
+      updatedAt: new Date(),
+    })
+    .where(eq(bookings.id, input.bookingId));
+
+  const ledgerDelta = targetPaise - ledgerCollectedPaise;
+  if (ledgerDelta > 0) {
+    await recordDepositCollected({
+      bookingId: input.bookingId,
+      customerId: input.customerId,
+      amountPaise: ledgerDelta,
+      reason: input.reason,
+      createdByAdminId: input.createdByAdminId,
+    });
+  } else if (ledgerDelta < 0) {
+    await recordDepositDeducted({
+      bookingId: input.bookingId,
+      customerId: input.customerId,
+      amountPaise: -ledgerDelta,
+      reason: input.reason,
+      createdByAdminId: input.createdByAdminId,
+    });
+  }
+
+  await db.insert(auditLog).values({
+    actorType: 'admin',
+    actorId: input.createdByAdminId,
+    entity: 'booking',
+    entityId: input.bookingId,
+    action: 'deposit_corrected',
+    diff: {
+      previousPaise,
+      targetPaise,
+      ledgerCollectedPaise,
+      ledgerDelta,
+      reason: input.reason,
+    },
+  });
+
+  return { ok: true, previousPaise, targetPaise };
 }
 
 // ───────────────────────────────────────────────────────────────────────────

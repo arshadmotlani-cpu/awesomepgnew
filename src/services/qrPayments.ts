@@ -40,6 +40,9 @@ export type SubmitBookingPaymentInput = {
   amountPaise: number;
   paymentScreenshotUrl: string;
   transactionRef?: string;
+  /** Pending PS4 add-on purchased with this booking — proof stored separately. */
+  membershipId?: string;
+  membershipAmountPaise?: number;
 };
 
 function assertPgAccess(session: AdminSession, pgId: string) {
@@ -256,15 +259,31 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
     .limit(1);
   if (dup) throw new Error('Payment proof is already pending review for this booking.');
 
-  return submitPaymentRecord({
-    pgId: booking.pgId,
-    categoryId: category.id,
-    customerId: input.customerId,
-    amountPaise: input.amountPaise,
-    paymentScreenshotUrl: input.paymentScreenshotUrl,
-    transactionRef: input.transactionRef,
-    bookingId: booking.id,
-  });
+  const [row] = await db
+    .insert(pgPaymentRecords)
+    .values({
+      pgId: booking.pgId,
+      categoryId: category.id,
+      customerId: input.customerId,
+      amountPaise: input.amountPaise,
+      paymentScreenshotUrl: input.paymentScreenshotUrl.trim(),
+      transactionRef: input.transactionRef?.trim() || null,
+      status: 'pending',
+      bookingId: booking.id,
+    })
+    .returning();
+
+  if (input.membershipId && input.membershipAmountPaise) {
+    const { submitMembershipPaymentProof } = await import('./playstationMembership');
+    await submitMembershipPaymentProof({
+      membershipId: input.membershipId,
+      customerId: input.customerId,
+      paymentProofUrl: input.paymentScreenshotUrl,
+      transactionRef: input.transactionRef,
+    });
+  }
+
+  return row!;
 }
 
 export async function listOwnerPayments(
@@ -386,6 +405,8 @@ export async function reviewPaymentRecord(
         bookingCode: booking.bookingCode,
         rawPayload: { pgPaymentRecordId: recordId, category: RENT_DEPOSIT_BOOKING_CATEGORY_NAME },
       });
+      const { activatePendingMembershipForBooking } = await import('./playstationMembership');
+      await activatePendingMembershipForBooking(record.bookingId);
     }
   }
 }

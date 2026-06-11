@@ -6,7 +6,7 @@ import { LandingPage } from '@/src/components/customer/marketing/LandingPage';
 export const metadata = {
   title: 'Awesome PG · Premium living beyond ordinary PGs',
   description:
-    'Book your exact bed at premium PGs with gaming zones, chill rooms, social spaces, gym, farmhouse retreats, and resident perks. Awesome PG — live awesome.',
+    'Book your exact bed at premium PGs with gaming zones, chill rooms, daily cleaning, free laundry, high-speed WiFi, and honest amenities. Awesome PG — live awesome.',
 };
 
 export default function Home() {

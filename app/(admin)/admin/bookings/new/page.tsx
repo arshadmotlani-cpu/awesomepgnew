@@ -29,6 +29,7 @@ export default async function AssignTenantPage({
     bedId: b.bedId,
     label: `${b.pgName} · Room ${b.roomNumber} · ${b.bedCode}`,
     monthlyRatePaise: b.monthlyRatePaise,
+    depositPaise: b.depositPaise,
   }));
 
   let prefill: {

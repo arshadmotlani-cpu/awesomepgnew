@@ -16,6 +16,8 @@ export async function POST(req: NextRequest) {
     amountPaise?: number;
     paymentScreenshotUrl?: string;
     transactionRef?: string;
+    membershipId?: string;
+    membershipAmountPaise?: number;
   };
   try {
     body = await req.json();
@@ -42,6 +44,10 @@ export async function POST(req: NextRequest) {
       amountPaise: Math.round(amountPaise),
       paymentScreenshotUrl: body.paymentScreenshotUrl,
       transactionRef: body.transactionRef,
+      membershipId: body.membershipId,
+      membershipAmountPaise: body.membershipAmountPaise
+        ? Math.round(body.membershipAmountPaise)
+        : undefined,
     });
     return NextResponse.json({ ok: true, record });
   } catch (err) {

@@ -312,6 +312,13 @@ export async function recordPaymentSuccess(
       }
     }
 
+    try {
+      const { activatePendingMembershipForBooking } = await import('./playstationMembership');
+      await activatePendingMembershipForBooking(booking.id);
+    } catch (ps4Err) {
+      console.error('PS4 membership activation failed:', ps4Err);
+    }
+
     const { notifyBookingConfirmed, notifyPaymentReceipt } = await import(
       '@/src/lib/email/notifications'
     );

@@ -30,6 +30,7 @@ import {
 import type { PricingSnapshot } from '../schema/bookings';
 import { classifyDatabaseError } from '@/src/lib/db/connectionOptions';
 import { getDatabaseHost, getDatabaseUrlSource } from '@/src/lib/db/env';
+import { todayString } from '@/src/lib/dates';
 import { logger } from '@/src/lib/logger';
 import { safeQuery } from '@/src/lib/healing/safeQuery';
 import { traceQuery } from '@/src/lib/monitoring/traceQuery';
@@ -257,10 +258,10 @@ export type CustomerRoomCard = {
 
 export function listRoomsForPg(
   pgId: string,
-  startDate: string,
-  endDate: string,
+  referenceDate?: string,
 ): Promise<QueryResult<CustomerRoomCard[]>> {
   return guard(async () => {
+    const refDate = referenceDate ?? todayString();
     const rows = await db
       .select({
         roomId: rooms.id,
@@ -286,7 +287,7 @@ export function listRoomsForPg(
               SELECT 1 FROM ${bedReservations} br
               WHERE br.bed_id = b.id
                 AND br.status IN ('hold','active')
-                AND br.stay_range && daterange(${startDate}::date, ${endDate}::date, '[)')
+                AND ${refDate}::date <@ br.stay_range
             )
         )`,
         monthlyRatePaise: sql<number>`coalesce((
@@ -294,24 +295,24 @@ export function listRoomsForPg(
           JOIN ${beds} b ON b.id = bp.bed_id
           WHERE b.room_id = rooms.id
             AND b.archived_at IS NULL
-            AND bp.effective_from <= ${startDate}::date
-            AND (bp.effective_to IS NULL OR bp.effective_to > ${startDate}::date)
+            AND bp.effective_from <= ${refDate}::date
+            AND (bp.effective_to IS NULL OR bp.effective_to > ${refDate}::date)
         ), 0)`,
         dailyRatePaise: sql<number>`coalesce((
           SELECT min(bp.daily_rate_paise)::bigint::int FROM ${bedPrices} bp
           JOIN ${beds} b ON b.id = bp.bed_id
           WHERE b.room_id = rooms.id
             AND b.archived_at IS NULL
-            AND bp.effective_from <= ${startDate}::date
-            AND (bp.effective_to IS NULL OR bp.effective_to > ${startDate}::date)
+            AND bp.effective_from <= ${refDate}::date
+            AND (bp.effective_to IS NULL OR bp.effective_to > ${refDate}::date)
         ), 0)`,
         weeklyRatePaise: sql<number>`coalesce((
           SELECT min(bp.weekly_rate_paise)::bigint::int FROM ${bedPrices} bp
           JOIN ${beds} b ON b.id = bp.bed_id
           WHERE b.room_id = rooms.id
             AND b.archived_at IS NULL
-            AND bp.effective_from <= ${startDate}::date
-            AND (bp.effective_to IS NULL OR bp.effective_to > ${startDate}::date)
+            AND bp.effective_from <= ${refDate}::date
+            AND (bp.effective_to IS NULL OR bp.effective_to > ${refDate}::date)
         ), 0)`,
       })
       .from(rooms)
@@ -349,7 +350,7 @@ export type CustomerRoomDetail = {
     bedId: string;
     bedCode: string;
     status: 'available' | 'maintenance' | 'blocked';
-    isAvailableForRange: boolean;
+    isAvailableNow: boolean;
     nextAvailableDate: string | null;
     dailyRatePaise: number;
     weeklyRatePaise: number;
@@ -364,10 +365,10 @@ export type CustomerRoomDetail = {
 export function getRoomDetail(
   pgSlug: string,
   roomId: string,
-  startDate: string,
-  endDate: string,
+  referenceDate?: string,
 ): Promise<QueryResult<CustomerRoomDetail | null>> {
   return guard(async () => {
+    const refDate = referenceDate ?? todayString();
     const [meta] = await db
       .select({
         roomId: rooms.id,
@@ -406,70 +407,72 @@ export function getRoomDetail(
         // Correlated references to the outer `beds.id` / `beds.status` are
         // qualified literals to avoid the ambiguity bug — see the note in
         // listPublicPgs above.
-        isAvailableForRange: sql<boolean>`(
+        isAvailableNow: sql<boolean>`(
           beds.status = 'available' AND NOT EXISTS (
             SELECT 1 FROM ${bedReservations} br
             WHERE br.bed_id = beds.id
               AND br.status IN ('hold','active')
-              AND br.stay_range && daterange(${startDate}::date, ${endDate}::date, '[)')
+              AND ${refDate}::date <@ br.stay_range
           )
         )`,
         nextAvailableDate: sql<string | null>`(
-          SELECT to_char(lower(br.stay_range), 'YYYY-MM-DD')
+          SELECT to_char(
+            max(upper(br.stay_range)),
+            'YYYY-MM-DD'
+          )
           FROM ${bedReservations} br
           WHERE br.bed_id = beds.id
             AND br.status IN ('hold','active')
-            AND br.stay_range && daterange(${startDate}::date, ${endDate}::date, '[)')
-          ORDER BY upper(br.stay_range) DESC
-          LIMIT 1
+            AND lower(br.stay_range) <= ${refDate}::date
+            AND upper(br.stay_range) > ${refDate}::date
         )`,
         dailyRatePaise: sql<number>`coalesce((
           SELECT bp.daily_rate_paise::bigint::int FROM ${bedPrices} bp
           WHERE bp.bed_id = beds.id
-            AND bp.effective_from <= ${startDate}::date
-            AND (bp.effective_to IS NULL OR bp.effective_to > ${startDate}::date)
+            AND bp.effective_from <= ${refDate}::date
+            AND (bp.effective_to IS NULL OR bp.effective_to > ${refDate}::date)
           ORDER BY bp.effective_from DESC LIMIT 1
         ), 0)`,
         weeklyRatePaise: sql<number>`coalesce((
           SELECT bp.weekly_rate_paise::bigint::int FROM ${bedPrices} bp
           WHERE bp.bed_id = beds.id
-            AND bp.effective_from <= ${startDate}::date
-            AND (bp.effective_to IS NULL OR bp.effective_to > ${startDate}::date)
+            AND bp.effective_from <= ${refDate}::date
+            AND (bp.effective_to IS NULL OR bp.effective_to > ${refDate}::date)
           ORDER BY bp.effective_from DESC LIMIT 1
         ), 0)`,
         monthlyRatePaise: sql<number>`coalesce((
           SELECT bp.monthly_rate_paise::bigint::int FROM ${bedPrices} bp
           WHERE bp.bed_id = beds.id
-            AND bp.effective_from <= ${startDate}::date
-            AND (bp.effective_to IS NULL OR bp.effective_to > ${startDate}::date)
+            AND bp.effective_from <= ${refDate}::date
+            AND (bp.effective_to IS NULL OR bp.effective_to > ${refDate}::date)
           ORDER BY bp.effective_from DESC LIMIT 1
         ), 0)`,
         securityDepositPaise: sql<number>`coalesce((
           SELECT bp.security_deposit_paise::bigint::int FROM ${bedPrices} bp
           WHERE bp.bed_id = beds.id
-            AND bp.effective_from <= ${startDate}::date
-            AND (bp.effective_to IS NULL OR bp.effective_to > ${startDate}::date)
+            AND bp.effective_from <= ${refDate}::date
+            AND (bp.effective_to IS NULL OR bp.effective_to > ${refDate}::date)
           ORDER BY bp.effective_from DESC LIMIT 1
         ), 0)`,
         dailySecurityDepositPaise: sql<number>`coalesce((
           SELECT bp.daily_security_deposit_paise::bigint::int FROM ${bedPrices} bp
           WHERE bp.bed_id = beds.id
-            AND bp.effective_from <= ${startDate}::date
-            AND (bp.effective_to IS NULL OR bp.effective_to > ${startDate}::date)
+            AND bp.effective_from <= ${refDate}::date
+            AND (bp.effective_to IS NULL OR bp.effective_to > ${refDate}::date)
           ORDER BY bp.effective_from DESC LIMIT 1
         ), 0)`,
         weeklySecurityDepositPaise: sql<number>`coalesce((
           SELECT bp.weekly_security_deposit_paise::bigint::int FROM ${bedPrices} bp
           WHERE bp.bed_id = beds.id
-            AND bp.effective_from <= ${startDate}::date
-            AND (bp.effective_to IS NULL OR bp.effective_to > ${startDate}::date)
+            AND bp.effective_from <= ${refDate}::date
+            AND (bp.effective_to IS NULL OR bp.effective_to > ${refDate}::date)
           ORDER BY bp.effective_from DESC LIMIT 1
         ), 0)`,
         monthlySecurityDepositPaise: sql<number>`coalesce((
           SELECT bp.monthly_security_deposit_paise::bigint::int FROM ${bedPrices} bp
           WHERE bp.bed_id = beds.id
-            AND bp.effective_from <= ${startDate}::date
-            AND (bp.effective_to IS NULL OR bp.effective_to > ${startDate}::date)
+            AND bp.effective_from <= ${refDate}::date
+            AND (bp.effective_to IS NULL OR bp.effective_to > ${refDate}::date)
           ORDER BY bp.effective_from DESC LIMIT 1
         ), 0)`,
       })

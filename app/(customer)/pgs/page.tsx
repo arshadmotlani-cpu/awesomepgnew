@@ -15,7 +15,8 @@ import { headers } from 'next/headers';
 
 export const metadata = {
   title: 'Browse PGs',
-  description: 'Discover premium PGs with live bed availability — gaming, chill rooms, and more.',
+  description:
+    'Discover premium PGs with live bed availability — gaming, chill rooms, daily cleaning, and more.',
 };
 
 export const runtime = 'nodejs';
@@ -79,7 +80,8 @@ export default async function PgListPage() {
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-relaxed text-apg-silver">
                 Search by name or city, pick your dates, and reserve the exact bed you want —
-                gaming zones, chill rooms, and premium amenities included where listed.
+                gaming zones, chill rooms, daily cleaning, free laundry, and amenities listed on
+                each property.
               </p>
             </header>
           </MotionReveal>

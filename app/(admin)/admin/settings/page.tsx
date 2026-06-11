@@ -5,6 +5,7 @@ import { EmptyState } from '@/src/components/admin/EmptyState';
 import { IconSettings } from '@/src/components/admin/icons';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { listPgSettings } from '@/src/db/queries/admin';
+import { amenityLabel } from '@/src/lib/pgAmenities';
 import { titleCase } from '@/src/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -31,7 +32,7 @@ export default async function SettingsPage() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {res.data.map((pg) => {
             const amenityEntries = Object.entries(pg.amenities ?? {}).filter(
-              ([, v]) => v,
+              ([k, v]) => v === true && amenityLabel(k),
             );
             return (
               <Card key={pg.id}>
@@ -72,7 +73,7 @@ export default async function SettingsPage() {
                         ) : (
                           amenityEntries.map(([k]) => (
                             <Badge key={k} tone="indigo">
-                              {titleCase(k)}
+                              {amenityLabel(k) ?? titleCase(k)}
                             </Badge>
                           ))
                         )}

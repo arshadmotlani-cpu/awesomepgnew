@@ -337,6 +337,138 @@ export async function loadBedPrice(
   };
 }
 
+/** Latest configured price row for a bed (ignores move-in date). Admin fallback. */
+export async function loadLatestBedPrice(bedId: string): Promise<RateSnapshot | null> {
+  const [row] = await db
+    .select({
+      id: bedPrices.id,
+      bedId: bedPrices.bedId,
+      dailyRatePaise: bedPrices.dailyRatePaise,
+      weeklyRatePaise: bedPrices.weeklyRatePaise,
+      monthlyRatePaise: bedPrices.monthlyRatePaise,
+      securityDepositPaise: bedPrices.securityDepositPaise,
+      dailySecurityDepositPaise: bedPrices.dailySecurityDepositPaise,
+      weeklySecurityDepositPaise: bedPrices.weeklySecurityDepositPaise,
+      monthlySecurityDepositPaise: bedPrices.monthlySecurityDepositPaise,
+      effectiveFrom: bedPrices.effectiveFrom,
+      effectiveTo: bedPrices.effectiveTo,
+    })
+    .from(bedPrices)
+    .where(eq(bedPrices.bedId, bedId))
+    .orderBy(desc(bedPrices.effectiveFrom))
+    .limit(1);
+
+  if (!row) return null;
+  return {
+    bedPriceId: row.id,
+    dailyRatePaise: row.dailyRatePaise,
+    weeklyRatePaise: row.weeklyRatePaise,
+    monthlyRatePaise: row.monthlyRatePaise,
+    securityDepositPaise: row.securityDepositPaise,
+    dailySecurityDepositPaise: row.dailySecurityDepositPaise,
+    weeklySecurityDepositPaise: row.weeklySecurityDepositPaise,
+    monthlySecurityDepositPaise: row.monthlySecurityDepositPaise,
+    effectiveFrom: row.effectiveFrom,
+    effectiveTo: row.effectiveTo,
+  };
+}
+
+function syntheticAdminRate(args: {
+  bedId: string;
+  startDate: string;
+  monthlyRatePaise: number;
+  depositPaise: number;
+}): RateSnapshot {
+  return {
+    bedPriceId: `admin-${args.bedId}`,
+    dailyRatePaise: Math.max(0, Math.floor(args.monthlyRatePaise / 30)),
+    weeklyRatePaise: 0,
+    monthlyRatePaise: args.monthlyRatePaise,
+    securityDepositPaise: args.depositPaise,
+    dailySecurityDepositPaise: 0,
+    weeklySecurityDepositPaise: 0,
+    monthlySecurityDepositPaise: args.depositPaise,
+    effectiveFrom: args.startDate,
+    effectiveTo: null,
+  };
+}
+
+export type QuoteAdminTenantInput = QuoteBookingInput & {
+  customMonthlyRatePaise?: number;
+  customDepositPaise?: number;
+};
+
+/**
+ * Admin tenant assignment quote. Supports grandfathered rent/deposit without
+ * requiring a bed_prices row on the exact move-in date.
+ */
+export async function quoteAdminTenantAssignment(
+  input: QuoteAdminTenantInput,
+): Promise<BookingQuote> {
+  if (input.bedIds.length === 0) {
+    throw new Error('quoteAdminTenantAssignment requires at least one bedId');
+  }
+
+  const startIso = formatDate(parseDate(input.startDate));
+  const perBed: PriceQuote[] = [];
+
+  for (const bedId of input.bedIds) {
+    let rate =
+      (await loadBedPrice(bedId, input.startDate)) ?? (await loadLatestBedPrice(bedId));
+
+    if (!rate) {
+      const monthly = input.customMonthlyRatePaise ?? 0;
+      if (monthly <= 0) {
+        throw new Error(
+          `No rent price for this bed on ${startIso}. Enter monthly rent (₹) below, or save room rent under PG → Rooms.`,
+        );
+      }
+      rate = syntheticAdminRate({
+        bedId,
+        startDate: startIso,
+        monthlyRatePaise: monthly,
+        depositPaise: input.customDepositPaise ?? 0,
+      });
+    }
+
+    const quote = computePriceBreakdown({
+      bedId,
+      rate,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      durationMode: input.durationMode,
+      includeDeposit: input.includeDeposit ?? true,
+    });
+
+    if (input.customMonthlyRatePaise != null && input.customMonthlyRatePaise > 0) {
+      quote.rate.monthlyRatePaise = input.customMonthlyRatePaise;
+      quote.subtotalPaise = input.customMonthlyRatePaise * Math.max(1, quote.units);
+    }
+
+    if (input.customDepositPaise != null) {
+      quote.depositPaise = input.customDepositPaise;
+      quote.rate.securityDepositPaise = input.customDepositPaise;
+      quote.rate.monthlySecurityDepositPaise = input.customDepositPaise;
+    }
+
+    quote.totalPaise = quote.subtotalPaise + quote.depositPaise;
+    perBed.push(quote);
+  }
+
+  const subtotalPaise = perBed.reduce((a, q) => a + q.subtotalPaise, 0);
+  const depositPaise = perBed.reduce((a, q) => a + q.depositPaise, 0);
+  return {
+    startDate: perBed[0]!.startDate,
+    endDate: perBed[0]!.endDate,
+    durationMode: input.durationMode,
+    perBed,
+    subtotalPaise,
+    depositPaise,
+    totalPaise: subtotalPaise + depositPaise,
+    computedAt: new Date().toISOString(),
+  };
+}
+
 export type QuoteBedInput = {
   bedId: string;
   startDate: DateLike;

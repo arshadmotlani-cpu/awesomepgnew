@@ -8,6 +8,8 @@ const FOCUS_TIPS: Record<string, string> = {
   'bed-pick': 'Green beds are yours to claim for your dates. You can grab more than one if you’re booking for friends.',
   'confirm-booking': 'Your deposit is refundable. Living-here stays bill monthly after move-in — no fixed checkout date needed upfront.',
   vacating: `When you plan to move out, submit vacating here at least ${VACATING_NOTICE_MIN_DAYS} days before your last day to protect your deposit refund.`,
+  'ps4-service':
+    'PS4 gaming maintenance is a separate add-on from rent — weekly ₹350, bi-weekly ₹550, or monthly ₹750. Subscribe here, pay via UPI, and lounge access activates automatically.',
   'pay-rent': 'Pay rent from here before the 5th to avoid late fees. Electricity is billed separately when your PG uses meter split.',
 };
 
@@ -65,7 +67,7 @@ function tipForPathAndElement(
       return FOCUS_TIPS['room-pick']!;
     }
     if (ctx.text.toLowerCase().includes('amenities')) {
-      return 'Amenities here are what you actually get — AC, laundry, Netflix, chill rooms, etc. Compare before you pick a room.';
+      return 'Amenities here are what you actually get — daily cleaning, free laundry, WiFi, chill rooms, and more. Compare before you pick a room.';
     }
     if (ctx.text.toLowerCase().includes('fully occupied')) {
       return 'Every bed is taken for these dates. Shift your move-in date or check another Awesome PG nearby.';
@@ -86,6 +88,9 @@ function tipForPathAndElement(
 
   if (pathname.startsWith('/account/resident')) {
     if (ctx.text.toLowerCase().includes('vacat')) return FOCUS_TIPS.vacating!;
+    if (ctx.text.toLowerCase().includes('ps4') || ctx.text.toLowerCase().includes('gaming')) {
+      return FOCUS_TIPS['ps4-service']!;
+    }
     if (ctx.text.toLowerCase().includes('rent') || ctx.text.toLowerCase().includes('pay')) {
       return FOCUS_TIPS['pay-rent']!;
     }
@@ -106,11 +111,25 @@ function tipForPathAndElement(
   return null;
 }
 
+function focusKeyFor(el: HTMLElement): string | null {
+  return (
+    el.closest('[data-roachie-focus]')?.getAttribute('data-roachie-focus')
+    ?? el.dataset.roachieFocus
+    ?? null
+  );
+}
+
 export function guideForTarget(args: {
   element: HTMLElement;
   pageContext: PageContext;
   elementContext: ElementContext;
 }): string | null {
+  const focus = focusKeyFor(args.element);
+  if (focus && FOCUS_TIPS[focus]) {
+    if (focus === 'pg-card') return tipForPgCard(args.elementContext);
+    return FOCUS_TIPS[focus]!;
+  }
+
   if (isBoringElement(args.element, args.elementContext)) return null;
   return tipForPathAndElement(
     args.pageContext.pathname,
@@ -121,7 +140,7 @@ export function guideForTarget(args: {
 }
 
 export const ROACHIE_INTRO =
-  'Roachie here — I only flag the stuff that trips people up. Watch the yellow highlight.';
+  'Nice pick — I’ll walk you through dates, rooms, and beds. Watch for the yellow highlight.';
 
 export const ROACHIE_IDLE =
-  'Nothing critical on this part of the page. Hit Next when you’re ready.';
+  'Tap Next when you want another pointer on this page.';

@@ -43,10 +43,11 @@ import { env } from '../lib/env';
 import { formatDate, parseDate, type DateLike } from '../lib/dates';
 import { nextBookingCode, utcYear } from '../lib/bookingCode';
 import { stampProfileCompletedAtIfReady } from './profile';
-import { isBedAvailable } from './availability';
+import { isBedAvailable, validateBedStayRange } from './availability';
 import { DEFAULT_POLICY } from './cancellationPolicy';
 import {
   quoteBookingPrice,
+  quoteAdminTenantAssignment,
   type BookingQuote,
   type PricingMode,
 } from './pricing';
@@ -101,6 +102,7 @@ export type CreateBookingSuccess = {
   bookingCode: string;
   customerId: string;
   totalPaise: number;
+  depositPaise: number;
   /** Final booking status after createBooking returns. */
   status: 'pending_payment' | 'confirmed';
   /**
@@ -262,6 +264,8 @@ export async function createBooking(
     };
   }
 
+  const isAdminCreated = input.createdVia === 'admin';
+
   const startDate = parseDate(input.startDate);
   const endDate = input.endDate ? parseDate(input.endDate) : null;
   if (endDate && endDate.getTime() <= startDate.getTime()) {
@@ -270,6 +274,25 @@ export async function createBooking(
       kind: 'validation',
       message: 'End date must be after start date.',
     };
+  }
+
+  // Checkout cap: stay must fit inside a single free window per bed.
+  if (endDate && !isAdminCreated) {
+    for (const bedId of uniqueBedIds) {
+      const cap = await validateBedStayRange({
+        bedId,
+        startDate,
+        endDate,
+      });
+      if (!cap.ok) {
+        return {
+          ok: false,
+          kind: 'validation',
+          message: cap.message,
+          conflictBedIds: [bedId],
+        };
+      }
+    }
   }
 
   const reservationEnd = input.reservationEndDate
@@ -355,13 +378,26 @@ export async function createBooking(
   //    service — small N, fine for Phase 3).
   let quote: BookingQuote;
   try {
-    quote = await quoteBookingPrice({
-      bedIds: uniqueBedIds,
-      startDate,
-      endDate: input.durationMode === 'open_ended' ? null : reservationEnd,
-      durationMode: input.durationMode,
-      includeDeposit: true,
-    });
+    if (isAdminCreated) {
+      quote = await quoteAdminTenantAssignment({
+        bedIds: uniqueBedIds,
+        startDate,
+        endDate: input.durationMode === 'open_ended' ? null : reservationEnd,
+        durationMode: input.durationMode,
+        includeDeposit: true,
+        customMonthlyRatePaise: input.customMonthlyRatePaise,
+        customDepositPaise: input.customDepositPaise,
+      });
+    } else {
+      quote = await quoteBookingPrice({
+        bedIds: uniqueBedIds,
+        startDate,
+        endDate: input.durationMode === 'open_ended' ? null : reservationEnd,
+        durationMode: input.durationMode,
+        includeDeposit: true,
+      });
+      quote = applyAdminPricingOverrides(quote, input);
+    }
   } catch (err) {
     return {
       ok: false,
@@ -369,7 +405,6 @@ export async function createBooking(
       message: err instanceof Error ? err.message : 'Failed to compute price.',
     };
   }
-  quote = applyAdminPricingOverrides(quote, input);
   const snapshot = buildSnapshot(quote, input.notes);
 
   // 5. Retry loop over booking_code collisions. The COUNT-based sequence
@@ -381,7 +416,6 @@ export async function createBooking(
 
   // Phase 4 state machine. Customer bookings need payment; admin bookings
   // are recorded as already-confirmed walk-ins.
-  const isAdminCreated = input.createdVia === 'admin';
   const bookingStatus: 'pending_payment' | 'confirmed' = isAdminCreated
     ? 'confirmed'
     : 'pending_payment';
@@ -512,6 +546,7 @@ export async function createBooking(
         bookingCode: candidateCode,
         customerId: result.customerId,
         totalPaise: quote.totalPaise,
+        depositPaise: quote.depositPaise,
         status: bookingStatus,
         holdExpiresAt,
       };

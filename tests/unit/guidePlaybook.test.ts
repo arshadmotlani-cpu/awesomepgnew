@@ -53,3 +53,29 @@ test('guideForTarget returns stay-dates tip on focus marker', () => {
 
   assert.match(tip ?? '', /Living here|14 days notice/i);
 });
+
+test('guideForTarget returns room-pick tip on focus marker', () => {
+  const el = {
+    closest: (sel: string) => (sel === '[data-roachie-focus]' ? el : null),
+    getAttribute: (name: string) => (name === 'data-roachie-focus' ? 'room-pick' : null),
+    dataset: { roachieFocus: 'room-pick' },
+    matches: () => false,
+    textContent: 'Select beds',
+  } as unknown as HTMLElement;
+
+  const tip = guideForTarget({
+    element: el,
+    pageContext: {
+      pathname: '/pgs/shantinagar-awesome-pg',
+      title: 'PG',
+      headings: [],
+      buttons: [],
+      links: [],
+      sectionCount: 1,
+      textPreview: '',
+    },
+    elementContext: { tag: 'a', text: 'Select beds', role: null, inputType: null, ariaLabel: null },
+  });
+
+  assert.match(tip ?? '', /exact bed/i);
+});

@@ -4,26 +4,16 @@ import {
   BedSelector,
   type BedSelectorBed,
 } from '@/src/components/customer/BedSelector';
-import { DateRangeBar } from '@/src/components/customer/DateRangeBar';
 import { getRoomDetail } from '@/src/db/queries/customer';
-import { normalizeBrowseStay } from '@/src/lib/dateDefaults';
 
 export const dynamic = 'force-dynamic';
-
-type SearchParams = {
-  start?: string;
-  end?: string;
-  mode?: string;
-};
 
 export default async function RoomDetailPage(
   props: PageProps<'/pgs/[pgSlug]/rooms/[roomId]'>,
 ) {
   const { pgSlug, roomId } = await props.params;
-  const sp = (await props.searchParams) as SearchParams;
-  const stay = normalizeBrowseStay(sp);
 
-  const detail = await getRoomDetail(pgSlug, roomId, stay.start, stay.end);
+  const detail = await getRoomDetail(pgSlug, roomId);
 
   if (!detail.ok) {
     return (
@@ -44,7 +34,7 @@ export default async function RoomDetailPage(
     bedId: b.bedId,
     bedCode: b.bedCode,
     status: b.status,
-    isAvailableForRange: b.isAvailableForRange,
+    isAvailableNow: b.isAvailableNow,
     nextAvailableDate: b.nextAvailableDate,
     dailyRatePaise: b.dailyRatePaise,
     weeklyRatePaise: b.weeklyRatePaise,
@@ -55,8 +45,9 @@ export default async function RoomDetailPage(
     monthlySecurityDepositPaise: b.monthlySecurityDepositPaise,
   }));
 
-  const availableCount = beds.filter(
-    (b) => b.status === 'available' && b.isAvailableForRange,
+  const availableNowCount = beds.filter((b) => b.status === 'available' && b.isAvailableNow).length;
+  const bookableCount = beds.filter(
+    (b) => b.status === 'available' && (b.isAvailableNow || b.nextAvailableDate),
   ).length;
 
   return (
@@ -66,17 +57,17 @@ export default async function RoomDetailPage(
           Browse
         </Link>
         <span className="mx-2 opacity-40">/</span>
-        <Link
-          href={`/pgs/${room.pgSlug}?start=${stay.start}&end=${stay.end}&mode=${stay.mode}`}
-          className="hover:text-apg-orange"
-        >
+        <Link href={`/pgs/${room.pgSlug}`} className="hover:text-apg-orange">
           {room.pgName}
         </Link>
         <span className="mx-2 opacity-40">/</span>
         <span className="text-white">Room {room.roomNumber}</span>
       </nav>
 
-      <header className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <header
+        className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"
+        data-roachie-tour="room"
+      >
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-apg-orange">
             {room.floorLabel}
@@ -90,35 +81,18 @@ export default async function RoomDetailPage(
           </p>
         </div>
         <span className="self-start rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-200 sm:self-end">
-          {availableCount} of {beds.length} beds free for these dates
+          {availableNowCount} free now · {bookableCount} of {beds.length} bookable
         </span>
       </header>
 
-      <section className="mt-6">
-        <DateRangeBar
-          action={`/pgs/${room.pgSlug}/rooms/${room.roomId}`}
-          startDate={stay.start}
-          endDate={stay.end}
-          durationMode={stay.mode}
-          theme="dark"
-        />
-      </section>
-
       <section className="mt-8">
-        <h2 className="mb-4 text-lg font-semibold text-white">Pick your exact bed</h2>
+        <h2 className="mb-4 text-lg font-semibold text-white">Pick your bed, then choose dates</h2>
         {beds.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-white/10 apg-glass-light p-8 text-center text-sm text-apg-silver">
             This room has no beds configured yet.
           </p>
         ) : (
-          <BedSelector
-            beds={beds}
-            startDate={stay.start}
-            endDate={stay.end}
-            durationMode={stay.mode}
-            pgSlug={room.pgSlug}
-            theme="dark"
-          />
+          <BedSelector beds={beds} theme="dark" />
         )}
       </section>
     </div>

@@ -5,12 +5,35 @@ import { genderPolicyEnum } from './enums';
 
 export type PgAmenities = {
   wifi?: boolean;
-  food?: boolean;
+  roomCleaning?: boolean;
+  bathroomCleaning?: boolean;
+  bedTidy?: boolean;
+  bedSheetsWeekly?: boolean;
   laundry?: boolean;
+  chairsInRooms?: boolean;
+  freeElectricity?: boolean;
+  waterCooler?: boolean;
+  fridge?: boolean;
+  airCoolerChillRoom?: boolean;
   parking?: boolean;
   ac?: boolean;
+  /** Legacy umbrella flag — prefer roomCleaning + bathroomCleaning */
   housekeeping?: boolean;
+  /** @deprecated Do not advertise — meals are not provided */
+  food?: boolean;
+  /** @deprecated Do not advertise — no general power backup claim */
   powerBackup?: boolean;
+  gym?: boolean;
+  farmhouse?: boolean;
+  vehicleResale?: boolean;
+  cctv?: boolean;
+  geyser?: boolean;
+  waterPurifier?: boolean;
+  lift?: boolean;
+  gaming?: boolean;
+  arcade?: boolean;
+  chillRoom?: boolean;
+  socialLounge?: boolean;
   /** Legacy flat deposit per sharing count. */
   depositBySharingPaise?: Record<string, number>;
   /** Rent + deposit presets (paise) per sharing count "1".."5". */

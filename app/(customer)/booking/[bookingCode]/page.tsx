@@ -12,6 +12,9 @@ import { CancelBookingForm } from '@/src/components/customer/CancelBookingForm';
 import { KycCheckInBanner } from '@/src/components/customer/KycCheckInBanner';
 import { canCheckIn, getCustomerById } from '@/src/services/profile';
 import { getLatestKycSubmission } from '@/src/services/kyc';
+import { RoachieResidentBriefing } from '@/src/components/cockroach/RoachieResidentBriefing';
+import { buildBriefingInputForBooking } from '@/src/lib/cockroach/briefingFromBooking';
+import type { PricingSnapshot } from '@/src/db/schema/bookings';
 
 export const dynamic = 'force-dynamic';
 
@@ -172,8 +175,33 @@ export default async function BookingConfirmationPage(
   const extsResult = await listExtensionsForBooking(b.id);
   const extensions = extsResult.ok ? extsResult.data : [];
 
+  const briefing = await buildBriefingInputForBooking({
+    customerId: session.customerId,
+    residentName: session.fullName || b.customer.fullName,
+    kycLabel: kycStatusLabel,
+    booking: {
+      bookingId: b.id,
+      bookingCode: b.bookingCode,
+      pgName: b.pg.name,
+      durationMode: b.durationMode,
+      status: b.status,
+      expectedCheckoutDate: b.expectedCheckoutDate,
+      pricingSnapshot: b.pricingSnapshot as PricingSnapshot | null,
+      reservations: b.reservations.map((r) => ({
+        roomNumber: r.roomNumber,
+        bedCode: r.bedCode,
+        stayRange: r.stayRange,
+      })),
+      customerFullName: b.customer.fullName,
+    },
+  });
+
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
+      <RoachieResidentBriefing
+        sessionKey={`booking-${b.bookingCode}-briefing-v1`}
+        {...briefing}
+      />
       {b.status === 'confirmed' && customer && !checkInAllowed ? (
         <KycCheckInBanner
           kycStatus={customer.kycStatus}

@@ -5,7 +5,9 @@ import {
   IndianPhoneInput,
   indianPhoneDefaultLocal,
 } from '@/src/components/customer/IndianPhoneInput';
+import { Ps4AddonSelector, ps4AddonPaise } from '@/src/components/customer/Ps4AddonSelector';
 import { paiseToInr } from '@/src/lib/format';
+import { PS4_ADDON_LABEL, PS4_PLANS, type Ps4PlanId } from '@/src/lib/playstation/plans';
 import { VACATING_NOTICE_MIN_DAYS } from '@/src/lib/dateDefaults';
 import type { BookingActionState } from '@/app/(customer)/booking/new/actions';
 import { createBookingAction } from '@/app/(customer)/booking/new/actions';
@@ -33,6 +35,8 @@ type Props = {
     email: string;
     phone: string;
   };
+  /** Show optional PS4 gaming maintenance add-on during checkout. */
+  showPs4Addon?: boolean;
 };
 
 const INITIAL_STATE: BookingActionState = { status: 'idle' };
@@ -47,11 +51,16 @@ export function BookingCartForm({
   depositPaise,
   totalPaise,
   defaultCustomer,
+  showPs4Addon = false,
 }: Props) {
   const [state, formAction, isPending] = useActionState(
     createBookingAction,
     INITIAL_STATE,
   );
+
+  const [ps4Plan, setPs4Plan] = useState<Ps4PlanId | null>(null);
+  const ps4Paise = ps4AddonPaise(ps4Plan);
+  const checkoutTotalPaise = totalPaise + ps4Paise;
 
   const conflictBedIds = new Set(
     state.status === 'error' ? state.conflictBedIds ?? [] : [],
@@ -137,6 +146,17 @@ export function BookingCartForm({
           />
         </label>
 
+        {showPs4Addon ? (
+          <div className="mt-6">
+            <Ps4AddonSelector
+              selectedPlan={ps4Plan}
+              onChange={setPs4Plan}
+              disabled={isPending}
+            />
+            <input type="hidden" name="ps4Plan" value={ps4Plan ?? ''} />
+          </div>
+        ) : null}
+
         {state.status === 'error' ? (
           <div className="mt-4 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
             <strong className="font-semibold">Couldn&apos;t create the booking.</strong>
@@ -211,14 +231,26 @@ export function BookingCartForm({
         <dl className="space-y-1.5 text-sm">
           <Row term="Subtotal" value={paiseToInr(subtotalPaise)} />
           <Row term="Refundable deposit" value={paiseToInr(depositPaise)} />
+          {ps4Paise > 0 && ps4Plan ? (
+            <Row
+              term={PS4_PLANS[ps4Plan].label + ' · ' + PS4_ADDON_LABEL}
+              value={paiseToInr(ps4Paise)}
+            />
+          ) : null}
         </dl>
 
         <div className="mt-3 flex items-center justify-between rounded-md bg-zinc-900 px-3 py-2 text-white">
           <span className="text-sm font-medium">Total due now</span>
           <span className="text-base font-semibold">
-            {paiseToInr(totalPaise)}
+            {paiseToInr(checkoutTotalPaise)}
           </span>
         </div>
+        {ps4Paise > 0 ? (
+          <p className="mt-2 text-[11px] text-zinc-500">
+            Includes {paiseToInr(totalPaise)} for bed/deposit plus {paiseToInr(ps4Paise)} PS4
+            add-on (separate service line).
+          </p>
+        ) : null}
 
         <button
           type="submit"

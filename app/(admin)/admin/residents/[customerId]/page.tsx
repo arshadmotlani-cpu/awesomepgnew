@@ -9,6 +9,7 @@ import { formatDateTime, paiseToInr, titleCase } from '@/src/lib/format';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { getResidentDetail } from '@/src/services/residentAdmin';
 import { listAssignableBeds } from '@/src/services/tenantAssignment';
+import { loadBedPrice, securityDepositForMode } from '@/src/services/pricing';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,10 +17,13 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 export default async function ResidentDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ customerId: string }>;
+  searchParams: Promise<{ assigned?: string }>;
 }) {
   const { customerId } = await params;
+  const sp = await searchParams;
   if (!UUID_RE.test(customerId)) notFound();
 
   const session = await requireAdminPermission('bookings:write');
@@ -48,6 +52,14 @@ export default async function ResidentDetailPage({
     ? await getDepositSummaryForBooking(activeTenancy.bookingId)
     : null;
 
+  let websiteDepositPaise = 0;
+  if (activeTenancy) {
+    const bedRate = await loadBedPrice(activeTenancy.bedId, activeTenancy.moveInDate);
+    if (bedRate) {
+      websiteDepositPaise = securityDepositForMode(bedRate, 'open_ended');
+    }
+  }
+
   return (
     <>
       <div className="mb-4">
@@ -60,6 +72,16 @@ export default async function ResidentDetailPage({
         title={customer.fullName}
         description="Manage bed assignment, rent, deposit, and monthly billing for this resident."
       />
+
+      {sp.assigned === '1' ? (
+        <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
+          <p className="font-semibold">Tenant assigned successfully</p>
+          <p className="mt-1">
+            Bed, rent, and deposit are saved. Monthly rent invoices will generate from their
+            move-in date.
+          </p>
+        </div>
+      ) : null}
 
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-zinc-200 bg-white p-4">
@@ -128,9 +150,13 @@ export default async function ResidentDetailPage({
 
           <EditTenantTenancyForm
             bookingId={activeTenancy.bookingId}
+            customerId={customerId}
             currentBedId={activeTenancy.bedId}
             currentRoomLabel={`${activeTenancy.pgName} · Room ${activeTenancy.roomNumber} · ${activeTenancy.bedCode}`}
             currentMonthlyRentPaise={activeTenancy.monthlyRentPaise}
+            currentDepositPaise={activeTenancy.depositPaise}
+            ledgerCollectedPaise={depositSummary?.collectedPaise ?? 0}
+            websiteDepositPaise={websiteDepositPaise}
             blocksWholeRoom={activeTenancy.blocksRoomAvailability}
             beds={bedOptions}
           />

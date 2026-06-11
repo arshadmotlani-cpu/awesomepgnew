@@ -23,6 +23,13 @@ export function formatDate(value: string | Date | null | undefined): string {
   }).format(date);
 }
 
+/** ISO YYYY-MM-DD → DD/MM/YYYY for checkout-cap user messages. */
+export function formatDateDdMmYyyy(iso: string): string {
+  const [y, m, d] = iso.split('-');
+  if (!y || !m || !d) return iso;
+  return `${d}/${m}/${y}`;
+}
+
 export function formatDateTime(value: Date | null | undefined): string {
   if (!value) return '—';
   return new Intl.DateTimeFormat('en-IN', {

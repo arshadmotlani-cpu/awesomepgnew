@@ -1,204 +1,89 @@
 'use client';
 
 import Image from 'next/image';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
+import { RoachieReminder } from './RoachieReminder';
+import { RoachieRecall } from './RoachieRecall';
+import { RoachieTourWidget } from './RoachieTourWidget';
 import {
-  describeElement,
-  getPageContext,
-} from '@/src/lib/cockroach/pageContextBuilder';
-import {
-  guideForTarget,
-  ROACHIE_IDLE,
-  ROACHIE_INTRO,
-} from '@/src/lib/cockroach/guidePlaybook';
-import { pickVisibleTargets } from '@/src/lib/cockroach/pickTargetElement';
-
-const GUIDE_INTERVAL_MS = 12000;
-const HIGHLIGHT_CLASS = 'roachie-target-highlight';
-const MASCOT = '/roachie-premium.png';
+  shouldRunOnboardingTour,
+  shouldShowRoachieGuide,
+} from '@/src/lib/cockroach/guidePaths';
+import { MASCOT_IMAGES } from '@/src/lib/cockroach/mascotAssets';
+import { shouldRunOnboarding } from '@/src/lib/cockroach/onboardingStorage';
 
 type Props = {
   enabled?: boolean;
 };
 
 export function CockroachGuide({ enabled = true }: Props) {
-  const [message, setMessage] = useState(ROACHIE_INTRO);
-  const [paused, setPaused] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
-  const [visible, setVisible] = useState(false);
-  const [talking, setTalking] = useState(false);
+  const pathname = usePathname() ?? '/';
+  const peekEligible = enabled && shouldShowRoachieGuide(pathname);
+  const tourEligible = enabled && shouldRunOnboardingTour(pathname) && shouldRunOnboarding();
 
-  const scanRef = useRef(0);
-  const highlightedRef = useRef<HTMLElement | null>(null);
-  const pausedRef = useRef(paused);
-  const dismissedRef = useRef(dismissed);
+  const [tourActive, setTourActive] = useState(false);
+  const [tourDone, setTourDone] = useState(false);
+  const [peekVisible, setPeekVisible] = useState(false);
 
-  pausedRef.current = paused;
-  dismissedRef.current = dismissed;
+  useEffect(() => {
+    if (!tourEligible || tourDone) {
+      setTourActive(false);
+      return;
+    }
+    const start = window.setTimeout(() => setTourActive(true), 400);
+    return () => window.clearTimeout(start);
+  }, [tourEligible, tourDone, pathname]);
 
-  const clearHighlight = useCallback(() => {
-    highlightedRef.current?.classList.remove(HIGHLIGHT_CLASS);
-    highlightedRef.current = null;
+  const handleTourFinished = useCallback(() => {
+    setTourActive(false);
+    setTourDone(true);
   }, []);
 
-  const highlight = useCallback(
-    (el: HTMLElement) => {
-      clearHighlight();
-      el.classList.add(HIGHLIGHT_CLASS);
-      highlightedRef.current = el;
-      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    },
-    [clearHighlight],
-  );
-
-  const pulseTalk = useCallback(() => {
-    setTalking(true);
-    window.setTimeout(() => setTalking(false), 480);
-  }, []);
-
-  const showNextTip = useCallback(() => {
-    if (pausedRef.current || dismissedRef.current) return;
-
-    const targets = pickVisibleTargets();
-    if (targets.length === 0) {
-      setMessage(ROACHIE_IDLE);
-      clearHighlight();
-      pulseTalk();
+  useEffect(() => {
+    if (!peekEligible || tourActive || tourEligible && !tourDone) {
+      setPeekVisible(false);
+      return;
+    }
+    if (!shouldRunOnboarding()) {
+      setPeekVisible(false);
       return;
     }
 
-    const pageContext = getPageContext();
-    let chosen: HTMLElement | null = null;
-    let tip: string | null = null;
+    const enterTimer = window.setTimeout(() => setPeekVisible(true), 180);
+    return () => window.clearTimeout(enterTimer);
+  }, [peekEligible, tourActive, tourEligible, tourDone, pathname]);
 
-    for (let i = 0; i < targets.length; i += 1) {
-      const idx = (scanRef.current + i) % targets.length;
-      const candidate = targets[idx]!;
-      const elementContext = describeElement(candidate);
-      const nextTip = guideForTarget({
-        element: candidate,
-        pageContext,
-        elementContext,
-      });
-      if (nextTip) {
-        chosen = candidate;
-        tip = nextTip;
-        scanRef.current = idx + 1;
-        break;
-      }
-    }
-
-    if (!chosen || !tip) {
-      setMessage(ROACHIE_IDLE);
-      clearHighlight();
-      pulseTalk();
-      return;
-    }
-
-    setMessage(tip);
-    highlight(chosen);
-    pulseTalk();
-  }, [clearHighlight, highlight, pulseTalk]);
-
-  useEffect(() => {
-    if (!enabled) return;
-
-    const enterTimer = window.setTimeout(() => setVisible(true), 180);
-    const startTimer = window.setTimeout(() => {
-      if (!dismissedRef.current && !pausedRef.current) showNextTip();
-    }, 1200);
-    const interval = window.setInterval(showNextTip, GUIDE_INTERVAL_MS);
-
-    return () => {
-      window.clearTimeout(enterTimer);
-      window.clearTimeout(startTimer);
-      window.clearInterval(interval);
-      clearHighlight();
-    };
-  }, [clearHighlight, enabled, showNextTip]);
-
-  useEffect(() => {
-    if (paused || dismissed) clearHighlight();
-  }, [clearHighlight, dismissed, paused]);
-
-  if (!enabled) return null;
-
-  if (dismissed) {
+  if (tourActive) {
     return (
-      <button
-        type="button"
-        className="roachie-recall"
-        data-cockroach-ignore
-        onClick={() => {
-          setDismissed(false);
-          setVisible(true);
-          setPaused(false);
-          setMessage(ROACHIE_INTRO);
-          showNextTip();
-        }}
-        aria-label="Open Roachie guide"
-      >
-        <Image
-          src={MASCOT}
-          alt=""
-          width={64}
-          height={35}
-          quality={95}
-          className="roachie-recall__img"
-        />
-      </button>
+      <>
+        <RoachieTourWidget onFinished={handleTourFinished} />
+        <RoachieReminder />
+        <RoachieRecall />
+      </>
     );
   }
 
   return (
-    <aside
-      className={`roachie-widget ${visible ? 'roachie-widget--visible' : ''} ${talking ? 'roachie-widget--talking' : ''}`}
-      data-cockroach-ignore
-      aria-live="polite"
-    >
-      <div className="roachie-widget__mascot">
-        <Image
-          src={MASCOT}
-          alt="Roachie — Awesome PG guide"
-          width={140}
-          height={76}
-          quality={95}
-          priority
-          className="roachie-widget__mascot-img"
-        />
-      </div>
-
-      <div className="roachie-widget__panel">
-        <p className="roachie-widget__badge">Awesome PG · guide</p>
-        {paused ? (
-          <>
-            <p className="roachie-widget__text">On break — tap when you want me back.</p>
-            <button type="button" className="roachie-btn roachie-btn--primary" onClick={() => setPaused(false)}>
-              Continue
-            </button>
-          </>
-        ) : (
-          <>
-            <p className="roachie-widget__text">{message}</p>
-            <div className="roachie-widget__actions">
-              <button type="button" className="roachie-btn roachie-btn--primary" onClick={showNextTip}>
-                Next
-              </button>
-              <button type="button" className="roachie-btn" onClick={() => setPaused(true)}>
-                Pause
-              </button>
-              <button
-                type="button"
-                className="roachie-btn roachie-btn--icon"
-                onClick={() => setDismissed(true)}
-                aria-label="Close guide"
-              >
-                ×
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </aside>
+    <>
+      {peekVisible ? (
+        <div
+          className={`roachie-peek ${peekVisible ? 'roachie-peek--visible' : ''}`}
+          data-cockroach-ignore
+          aria-hidden="true"
+        >
+          <Image
+            src={MASCOT_IMAGES.welcome}
+            alt=""
+            width={192}
+            height={192}
+            quality={95}
+            className="roachie-peek__img"
+          />
+        </div>
+      ) : null}
+      <RoachieReminder />
+      <RoachieRecall />
+    </>
   );
 }

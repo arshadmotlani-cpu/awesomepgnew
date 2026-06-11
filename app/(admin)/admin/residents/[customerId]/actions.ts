@@ -24,14 +24,14 @@ export async function updateTenancyAction(
     const session = await requireAdminPermission('bookings:write');
     const bookingId = formData.get('bookingId')?.toString() ?? '';
     const monthlyRaw = formData.get('monthlyRentInr')?.toString()?.trim();
-    const depositRaw = formData.get('additionalDepositInr')?.toString()?.trim();
+    const depositRaw = formData.get('depositCollectedInr')?.toString()?.trim();
     const newBedId = formData.get('newBedId')?.toString()?.trim();
 
     const result = await updateTenantTenancy(session, {
       bookingId,
       newBedId: newBedId || undefined,
       monthlyRentInr: monthlyRaw ? Number.parseFloat(monthlyRaw) : undefined,
-      additionalDepositInr: depositRaw ? Number.parseFloat(depositRaw) : undefined,
+      depositCollectedInr: depositRaw ? Number.parseFloat(depositRaw) : undefined,
       blocksWholeRoom: formData.get('blocksWholeRoom') === 'on',
     });
 
@@ -42,6 +42,8 @@ export async function updateTenancyAction(
     if (customerId) revalidatePath(`/admin/residents/${customerId}`);
     revalidatePath('/admin/bookings');
     revalidatePath(`/admin/bookings/${bookingId}`);
+    revalidatePath(`/admin/deposits/${bookingId}`);
+    revalidatePath('/admin/deposits');
     revalidatePath('/pgs');
     return { ok: true };
   } catch (err) {

@@ -176,20 +176,172 @@ body {
 
 /* Roachie — premium corner mascot guide */
 .roachie-widget {
-  position: fixed;
-  left: 12px;
-  bottom: 14px;
-  z-index: 99980;
-  display: flex;
-  align-items: flex-end;
-  gap: 4px;
-  max-width: min(360px, calc(100vw - 28px));
   pointer-events: auto;
   transform: translateX(-120%) translateY(8px);
   opacity: 0;
   transition:
     transform 0.65s cubic-bezier(0.22, 1.15, 0.36, 1),
     opacity 0.4s ease;
+}
+
+.roachie-tour-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 99960;
+  background: rgba(8, 10, 14, 0.52);
+  pointer-events: none;
+}
+
+.roachie-tour-widget {
+  position: fixed;
+  bottom: 1rem;
+  left: 1rem;
+  right: 1rem;
+  z-index: 99980;
+  max-width: 28rem;
+  margin: 0 auto;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(255, 204, 0, 0.35);
+  background: linear-gradient(145deg, rgba(22, 24, 30, 0.97), rgba(12, 14, 18, 0.98));
+  box-shadow:
+    0 20px 48px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+  padding: 0.85rem 1rem 1rem;
+}
+
+@media (min-width: 640px) {
+  .roachie-tour-widget {
+    right: auto;
+    left: 1.25rem;
+    margin: 0;
+    max-width: 24rem;
+  }
+}
+
+.roachie-tour-widget__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+}
+
+.roachie-tour-widget__progress {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 204, 0, 0.85);
+}
+
+.roachie-tour-widget__skip {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: rgba(244, 246, 248, 0.65);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.roachie-tour-widget__skip:hover {
+  color: #f4f6f8;
+}
+
+.roachie-tour-widget__body {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.roachie-tour-widget__mascot {
+  flex-shrink: 0;
+  width: 4.5rem;
+  height: 4.5rem;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.35));
+}
+
+.roachie-tour-widget__copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.roachie-tour-widget__message {
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #f4f6f8;
+}
+
+.roachie-tour-widget__fallback {
+  margin-top: 0.45rem;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: rgba(244, 246, 248, 0.6);
+  font-style: italic;
+}
+
+.roachie-tour-widget__footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.75rem;
+}
+
+.roachie-tour-widget__next {
+  border-radius: 0.6rem;
+  background: #ff5a1f;
+  padding: 0.45rem 1rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(255, 90, 31, 0.35);
+}
+
+.roachie-tour-widget__next:hover {
+  filter: brightness(1.08);
+}
+
+.roachie-tour-widget__hint {
+  font-size: 0.68rem;
+  color: rgba(244, 246, 248, 0.5);
+}
+
+.roachie-reminder {
+  position: fixed;
+  bottom: 5.5rem;
+  left: 1rem;
+  right: 1rem;
+  z-index: 99985;
+  max-width: 22rem;
+  margin: 0 auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(255, 204, 0, 0.3);
+  background: rgba(18, 20, 26, 0.96);
+  padding: 0.65rem 0.75rem;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+@media (min-width: 640px) {
+  .roachie-reminder {
+    right: auto;
+    left: 1.25rem;
+    margin: 0;
+  }
+}
+
+.roachie-reminder__text {
+  flex: 1;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: #f4f6f8;
+}
+
+.roachie-reminder__dismiss {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #ffcc00;
 }
 
 .roachie-widget--visible {
@@ -211,149 +363,204 @@ body {
   }
 }
 
-.roachie-widget__mascot {
-  flex-shrink: 0;
+.roachie-recall {
+  cursor: pointer;
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.4));
+}
+
+.roachie-recall__fab {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  z-index: 99980;
+  border: none;
+  background: transparent;
+  padding: 0;
   line-height: 0;
 }
 
-.roachie-widget__mascot-img {
-  display: block;
-  width: 118px;
+.roachie-recall__mascot {
+  width: 4.5rem;
   height: auto;
-  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.45));
-}
-
-.roachie-widget__panel {
-  position: relative;
-  min-width: 0;
-  margin-bottom: 10px;
-  padding: 11px 13px 10px;
-  border-radius: 16px;
-  border: 2px solid rgba(255, 90, 31, 0.55);
-  background: linear-gradient(145deg, rgba(18, 24, 32, 0.96) 0%, rgba(28, 22, 18, 0.96) 100%);
-  color: #f8fafc;
-  box-shadow:
-    0 12px 32px rgba(0, 0, 0, 0.42),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
-}
-
-.roachie-widget__panel::before {
-  content: '';
-  position: absolute;
-  left: -9px;
-  bottom: 18px;
-  width: 0;
-  height: 0;
-  border-top: 8px solid transparent;
-  border-bottom: 8px solid transparent;
-  border-right: 9px solid rgba(28, 22, 18, 0.96);
-}
-
-.roachie-widget__badge {
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: #ff5a1f;
-}
-
-.roachie-widget__text {
-  margin-top: 6px;
-  font-size: 13px;
-  line-height: 1.5;
-  font-weight: 500;
-  color: #eef2f7;
-}
-
-.roachie-widget__actions {
-  margin-top: 10px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.roachie-btn {
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-  border-radius: 999px;
-  padding: 4px 11px;
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.roachie-btn--primary {
-  background: linear-gradient(135deg, #ff5a1f 0%, #ff7a45 100%);
-  border-color: rgba(255, 90, 31, 0.6);
-  color: #fff;
-}
-
-.roachie-btn--icon {
-  min-width: 28px;
-  padding: 2px 8px;
-  font-size: 15px;
-  line-height: 1;
-}
-
-.roachie-recall {
-  position: fixed;
-  left: 12px;
-  bottom: 14px;
-  z-index: 99980;
-  border: none;
-  padding: 0;
-  background: transparent;
-  cursor: pointer;
-  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.4));
   transition: transform 0.2s ease;
 }
 
-.roachie-recall:hover {
-  transform: scale(1.05);
+.roachie-recall__fab:hover .roachie-recall__mascot {
+  transform: scale(1.06) translateY(-2px);
 }
 
-.roachie-recall__img {
-  display: block;
-  width: 72px;
+.roachie-recall-panel {
+  position: fixed;
+  bottom: 6rem;
+  right: 1rem;
+  left: 1rem;
+  z-index: 99990;
+  max-width: 26rem;
+  margin-left: auto;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 90, 31, 0.35);
+  background: rgba(11, 15, 20, 0.97);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55), 0 0 32px rgba(255, 90, 31, 0.12);
+  backdrop-filter: blur(12px);
+}
+
+@media (min-width: 640px) {
+  .roachie-recall-panel {
+    left: auto;
+    right: 1.25rem;
+  }
+}
+
+.roachie-recall-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 0.85rem 0;
+}
+
+.roachie-recall-panel__mascot {
+  width: 2.5rem;
   height: auto;
 }
 
+.roachie-recall-panel__title {
+  flex: 1;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #ff5a1f;
+  letter-spacing: 0.02em;
+}
+
+.roachie-recall-panel__close {
+  border: none;
+  background: transparent;
+  color: #b0b7c3;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.roachie-recall-panel__body {
+  margin: 0;
+  max-height: min(55vh, 22rem);
+  overflow-y: auto;
+  padding: 0.65rem 0.85rem;
+  font-family: inherit;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  color: #f4f6f8;
+}
+
+.roachie-recall-panel__dismiss {
+  display: block;
+  width: calc(100% - 1.7rem);
+  margin: 0 0.85rem 0.85rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: #ff5a1f;
+  padding: 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+}
+
+.roachie-recall-panel__dismiss:hover {
+  filter: brightness(1.08);
+}
+
+/* Roachie — idle peek (no tips, mascot only) */
+.roachie-peek {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  z-index: 9990;
+  pointer-events: auto;
+  width: 8rem;
+  height: 8rem;
+  transform: translateX(-55%) translateY(12%);
+  opacity: 0;
+  transition:
+    transform 0.4s cubic-bezier(0.22, 1.15, 0.36, 1),
+    opacity 0.35s ease;
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.4));
+}
+
+.roachie-peek--visible {
+  opacity: 1;
+}
+
+.roachie-peek:hover {
+  transform: translateX(-40%) translateY(8%);
+}
+
+.roachie-peek__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+@media (min-width: 640px) {
+  .roachie-peek {
+    width: 10rem;
+    height: 10rem;
+  }
+}
+
 .roachie-target-highlight {
-  outline: 2px solid #ffcc00 !important;
-  outline-offset: 3px;
+  position: relative;
+  z-index: 99970;
+  scroll-margin-block: 96px;
+}
+
+.roachie-spotlight-ring {
+  position: fixed;
+  z-index: 99975;
+  border: 3px solid #ffcc00;
+  border-radius: 12px;
   box-shadow:
-    0 0 0 5px rgba(255, 204, 0, 0.22),
-    0 0 24px rgba(255, 90, 31, 0.35) !important;
-  scroll-margin-block: 80px;
-  border-radius: 8px;
+    0 0 0 5px rgba(255, 204, 0, 0.28),
+    0 0 36px rgba(255, 90, 31, 0.55),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+  transition:
+    top 0.22s ease,
+    left 0.22s ease,
+    width 0.22s ease,
+    height 0.22s ease;
+  animation: roachie-spotlight-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes roachie-spotlight-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 5px rgba(255, 204, 0, 0.28),
+      0 0 36px rgba(255, 90, 31, 0.55),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+  }
+  50% {
+    box-shadow:
+      0 0 0 8px rgba(255, 204, 0, 0.38),
+      0 0 48px rgba(255, 90, 31, 0.7),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  }
 }
 
 @media (max-width: 640px) {
-  .roachie-widget {
-    left: 8px;
-    bottom: 68px;
-    max-width: calc(100vw - 16px);
-  }
-
-  .roachie-widget__mascot-img {
-    width: 96px;
-  }
-
-  .roachie-widget__text {
-    font-size: 12px;
-  }
-
-  .roachie-recall {
-    left: 8px;
-    bottom: 68px;
+  .roachie-target-highlight {
+    scroll-margin-block: 80px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .roachie-widget,
+  .roachie-tour-widget,
   .roachie-widget--talking .roachie-widget__mascot-img,
-  .roachie-recall {
+  .roachie-recall,
+  .roachie-peek,
+  .roachie-spotlight-ring {
     animation: none !important;
     transition: none !important;
   }

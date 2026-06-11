@@ -5,13 +5,10 @@ import type { CustomerRoomCard } from '@/src/db/queries/customer';
 type Props = {
   room: CustomerRoomCard;
   pgSlug: string;
-  startDate: string;
-  endDate: string;
-  durationMode: string;
 };
 
-export function RoomCard({ room, pgSlug, startDate, endDate, durationMode }: Props) {
-  const href = `/pgs/${pgSlug}/rooms/${room.roomId}?start=${startDate}&end=${endDate}&mode=${durationMode}`;
+export function RoomCard({ room, pgSlug }: Props) {
+  const href = `/pgs/${pgSlug}/rooms/${room.roomId}`;
   const allBooked = room.availableBeds === 0;
 
   return (
@@ -43,8 +40,8 @@ export function RoomCard({ room, pgSlug, startDate, endDate, durationMode }: Pro
           }
         >
           {allBooked && room.totalBeds > 0
-            ? 'Fully occupied'
-            : `${room.availableBeds} of ${room.totalBeds} free`}
+            ? 'Occupied today'
+            : `${room.availableBeds} of ${room.totalBeds} free now`}
         </span>
       </div>
 
@@ -64,7 +61,7 @@ export function RoomCard({ room, pgSlug, startDate, endDate, durationMode }: Pro
           </span>
         </div>
         <span className="text-xs font-semibold text-apg-orange group-hover:translate-x-0.5 transition-transform">
-          {allBooked ? 'View room →' : 'Select beds →'}
+          {allBooked ? 'View beds →' : 'Pick a bed →'}
         </span>
       </div>
     </Link>

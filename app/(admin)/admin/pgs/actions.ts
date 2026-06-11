@@ -5,6 +5,7 @@ import { revalidatePgAdminPages } from '@/src/lib/revalidatePgAdmin';
 import { redirect, unstable_rethrow } from 'next/navigation';
 import type { PgAmenities } from '@/src/db/schema';
 import { friendlyDbError } from '@/src/lib/db/friendlyDbError';
+import { PG_AMENITY_KEYS } from '@/src/lib/pgAmenities';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { archivePg, createPg, updatePg, type PgFormInput } from '@/src/services/pgAdmin';
 
@@ -15,9 +16,8 @@ export type PgFormState = {
 };
 
 function parseAmenities(formData: FormData): PgAmenities {
-  const keys = ['wifi', 'food', 'laundry', 'parking', 'ac', 'housekeeping', 'powerBackup'] as const;
   const amenities: PgAmenities = {};
-  for (const key of keys) {
+  for (const key of PG_AMENITY_KEYS) {
     if (formData.get(`amenity_${key}`) === 'on') amenities[key] = true;
   }
   return amenities;
@@ -36,10 +36,6 @@ function parseJsonUrlList(field: string, formData: FormData): string[] {
 
 function parseAmenitiesExtended(formData: FormData): PgAmenities {
   const amenities = parseAmenities(formData);
-  const extraKeys = ['gym', 'cctv', 'geyser', 'waterPurifier', 'lift'] as const;
-  for (const key of extraKeys) {
-    if (formData.get(`amenity_${key}`) === 'on') amenities[key] = true;
-  }
   const custom = formData.get('customAmenities')?.toString()?.trim();
   if (custom) {
     amenities.custom = custom

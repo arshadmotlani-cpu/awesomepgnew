@@ -152,7 +152,6 @@ async function main() {
     const roomsForPg = await listRoomsForPg(
       pgDetail.ok && pgDetail.data ? pgDetail.data.id : '',
       range.start,
-      range.end,
     );
     assert(roomsForPg.ok, 'listRoomsForPg() returns ok', roomsForPg);
     if (roomsForPg.ok) {
@@ -168,7 +167,7 @@ async function main() {
     // getRoomDetail
     if (roomsForPg.ok && roomsForPg.data[0]) {
       const firstRoom = roomsForPg.data[0];
-      const detail = await getRoomDetail(slug, firstRoom.roomId, range.start, range.end);
+      const detail = await getRoomDetail(slug, firstRoom.roomId, range.start);
       assert(detail.ok, 'getRoomDetail() returns ok', detail);
       if (detail.ok && detail.data) {
         assert(detail.data.beds.length === firstRoom.totalBeds,

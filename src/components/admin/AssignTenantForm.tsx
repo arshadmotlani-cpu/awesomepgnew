@@ -10,6 +10,7 @@ type BedOption = {
   bedId: string;
   label: string;
   monthlyRatePaise: number;
+  depositPaise: number;
 };
 
 const fieldClass =
@@ -41,16 +42,26 @@ export function AssignTenantForm({
   const [state, action, pending] = useActionState(assignTenantAction, {
     ok: false,
   } satisfies AssignTenantState);
-  const [selectedBedId, setSelectedBedId] = useState(defaultBedId ?? '');
+  const [selectedBedId, setSelectedBedId] = useState(defaultBedId ?? beds[0]?.bedId ?? '');
 
   const selectedBed = useMemo(
     () => beds.find((b) => b.bedId === selectedBedId) ?? null,
     [beds, selectedBedId],
   );
 
+  const defaultBedMissing =
+    !!defaultBedId && !beds.some((b) => b.bedId === defaultBedId);
+
   return (
     <form action={action} className="max-w-xl space-y-4 rounded-xl border border-zinc-200 bg-white p-6">
       {prefill ? <input type="hidden" name="customerId" value={prefill.customerId} /> : null}
+
+      {defaultBedMissing ? (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+          The bed from the link is not free right now (already booked). Pick another bed or clear
+          the placeholder booking on the calendar first.
+        </p>
+      ) : null}
 
       <label className="block text-sm">
         <span className="font-medium text-zinc-700">Bed *</span>
@@ -73,12 +84,18 @@ export function AssignTenantForm({
         </select>
         {selectedBed && selectedBed.monthlyRatePaise > 0 ? (
           <span className="mt-1 block text-xs text-zinc-600">
-            Room rate: <strong>₹{inrFromPaise(selectedBed.monthlyRatePaise)}/month</strong> — leave
-            Monthly rent empty below to use this.
+            Website room rate: <strong>₹{inrFromPaise(selectedBed.monthlyRatePaise)}/month</strong>
+            {selectedBed.depositPaise > 0 ? (
+              <>
+                {' '}
+                · Website deposit: <strong>₹{inrFromPaise(selectedBed.depositPaise)}</strong>
+              </>
+            ) : null}
           </span>
         ) : selectedBed ? (
           <span className="mt-1 block text-xs text-amber-700">
-            No rent saved for this bed yet. Open PG → Rooms and click Save room rent first.
+            No rent saved for this bed yet. Enter monthly rent below, or save room rent under PG →
+            Rooms.
           </span>
         ) : null}
       </label>
@@ -90,12 +107,10 @@ export function AssignTenantForm({
           name="startDate"
           required
           defaultValue={defaultStartDate}
-          min={defaultStartDate.slice(0, 8) + '01'}
           className={fieldClass}
         />
         <span className="mt-1 block text-xs text-zinc-500">
-          Can be any day in the current month (e.g. 1 {defaultStartDate.slice(0, 7)}) after room rent
-          is saved.
+          Defaults to the 1st of this month. Use the actual move-in day if different.
         </span>
       </label>
 
@@ -154,6 +169,15 @@ export function AssignTenantForm({
         </select>
       </label>
 
+      <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-3 text-sm text-sky-950">
+        <p className="font-semibold">Rent & deposit for this tenant</p>
+        <p className="mt-1 text-xs leading-relaxed text-sky-900">
+          Leave monthly rent empty to use the room rate above. If they agreed to a lower deposit
+          before prices changed on the website, enter the amount you actually collected — it
+          overrides the website deposit.
+        </p>
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block text-sm">
           <span className="font-medium text-zinc-700">Monthly rent (₹)</span>
@@ -162,12 +186,13 @@ export function AssignTenantForm({
             name="monthlyRentInr"
             min="0"
             step="1"
-            placeholder="Leave empty = room rate"
+            placeholder={
+              selectedBed && selectedBed.monthlyRatePaise > 0
+                ? `Leave empty = ₹${inrFromPaise(selectedBed.monthlyRatePaise)}`
+                : 'Required if room has no saved rate'
+            }
             className={fieldClass}
           />
-          <span className="mt-1 block text-xs text-zinc-500">
-            Only fill this for a special rate (e.g. old tenant paying more). Otherwise leave blank.
-          </span>
         </label>
         <label className="block text-sm">
           <span className="font-medium text-zinc-700">Deposit collected (₹)</span>
@@ -176,9 +201,19 @@ export function AssignTenantForm({
             name="depositInr"
             min="0"
             step="1"
-            placeholder="Optional"
+            placeholder={
+              selectedBed && selectedBed.depositPaise > 0
+                ? `Leave empty = ₹${inrFromPaise(selectedBed.depositPaise)} (website)`
+                : 'Amount you received'
+            }
             className={fieldClass}
           />
+          {selectedBed && selectedBed.depositPaise > 0 ? (
+            <span className="mt-1 block text-xs text-zinc-500">
+              Website default: <strong>₹{inrFromPaise(selectedBed.depositPaise)}</strong>. Enter a
+              lower amount here if that is what you actually collected.
+            </span>
+          ) : null}
         </label>
       </div>
 
@@ -200,11 +235,19 @@ export function AssignTenantForm({
         />
       </label>
 
-      {state.error ? <p className="text-sm text-rose-600">{state.error}</p> : null}
+      {state.error ? (
+        <div
+          role="alert"
+          className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800"
+        >
+          <p className="font-semibold">Could not assign tenant</p>
+          <p className="mt-1">{state.error}</p>
+        </div>
+      ) : null}
 
       <button
         type="submit"
-        disabled={pending}
+        disabled={pending || !selectedBedId}
         className="rounded-lg bg-[#FF5A1F] px-4 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-60"
       >
         {pending ? 'Assigning…' : 'Assign tenant to bed'}

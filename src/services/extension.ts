@@ -48,6 +48,7 @@ import { adminCanAccessPg } from '../lib/auth/roles';
 import type { AdminSession } from '../lib/auth/session';
 import { env } from '../lib/env';
 import { formatDate, parseDate, type DateLike } from '../lib/dates';
+import { extensionCapMessage } from '../lib/bedAvailabilityWindows';
 import { isBedAvailable } from './availability';
 import { quoteExtension as priceExtension, type ExtensionQuote } from './pricing';
 
@@ -64,6 +65,8 @@ export type ExtensionActor =
 export type ExtensionConflict = {
   bedId: string;
   bedCode: string;
+  /** ISO date — inclusive start of the blocking reservation. */
+  blockingFrom: string;
   /** ISO date string (YYYY-MM-DD), exclusive upper bound of the blocking range. */
   blockingUntil: string;
   /** Booking that owns the conflicting reservation, when discoverable. */
@@ -221,6 +224,7 @@ async function findConflicts(args: {
   const rows = await db
     .select({
       bedId: bedReservations.bedId,
+      lowerRaw: sql<string>`to_char(lower(${bedReservations.stayRange}), 'YYYY-MM-DD')`,
       upperRaw: sql<string>`to_char(upper(${bedReservations.stayRange}), 'YYYY-MM-DD')`,
       blockingBookingId: bedReservations.bookingId,
       blockingBookingCode: bookings.bookingCode,
@@ -243,6 +247,7 @@ async function findConflicts(args: {
     conflicts.push({
       bedId: r.bedId,
       bedCode: codeMap.get(r.bedId) ?? '?',
+      blockingFrom: r.lowerRaw,
       blockingUntil: r.upperRaw,
       blockingBookingCode: r.blockingBookingCode,
     });
@@ -320,12 +325,14 @@ export async function quoteExtension(args: {
     excludeBookingId: booking.id,
   });
   if (conflicts.length > 0) {
+    const capUntil = conflicts
+      .map((c) => c.blockingFrom)
+      .filter((d) => d > fromDate)
+      .sort()[0] ?? fromDate;
     return {
       ok: false,
       kind: 'conflict',
-      message: `${conflicts.length} of the booking's bed${
-        conflicts.length === 1 ? ' is' : 's are'
-      } already booked between ${fromDate} and ${untilDate}.`,
+      message: extensionCapMessage(capUntil),
       conflicts,
     };
   }
@@ -445,12 +452,14 @@ export async function requestExtension(
     excludeBookingId: booking.id,
   });
   if (preConflicts.length > 0) {
+    const capUntil = preConflicts
+      .map((c) => c.blockingFrom)
+      .filter((d) => d > fromDate)
+      .sort()[0] ?? fromDate;
     return {
       ok: false,
       kind: 'conflict',
-      message: `${preConflicts.length} of the booking's bed${
-        preConflicts.length === 1 ? ' is' : 's are'
-      } already booked between ${fromDate} and ${untilDate}.`,
+      message: extensionCapMessage(capUntil),
       conflicts: preConflicts,
     };
   }
@@ -472,6 +481,7 @@ export async function requestExtension(
           {
             bedId,
             bedCode: '?',
+            blockingFrom: fromDate,
             blockingUntil: untilDate,
             blockingBookingCode: null,
           },

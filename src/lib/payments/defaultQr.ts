@@ -15,6 +15,9 @@ export const DEFAULT_ELECTRICITY_DAILY_QR_PATH = '/payments/upi-electricity-dail
 
 export const ELECTRICITY_CATEGORY_NAME = 'Electricity, Daily & Reservation';
 
+/** PS4 gaming maintenance add-on — uses the electricity / daily UPI QR. */
+export const PS4_MAINTENANCE_CATEGORY_NAME = 'PS4 Gaming Maintenance';
+
 /** Legacy name used before the second QR was added — still matched when seeding. */
 export const LEGACY_ELECTRICITY_CATEGORY_NAME = 'Electricity';
 

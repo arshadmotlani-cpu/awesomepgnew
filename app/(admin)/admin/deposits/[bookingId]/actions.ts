@@ -9,6 +9,7 @@ import {
   recordDepositCollected,
   recordDepositDeducted,
   recordDepositRefunded,
+  correctDepositCollected,
 } from '@/src/services/deposits';
 
 export type ActionState =
@@ -31,6 +32,13 @@ function parseAmount(form: FormData): number | null {
   const raw = String(form.get('amountInr') ?? '');
   const n = Number(raw);
   if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.round(n * 100);
+}
+
+function parseCorrectDepositAmount(form: FormData): number | null {
+  const raw = String(form.get('amountInr') ?? '');
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return null;
   return Math.round(n * 100);
 }
 
@@ -155,6 +163,50 @@ export async function refundDepositAction(
     return {
       status: 'error',
       message: err instanceof Error ? err.message : 'Refund failed.',
+    };
+  }
+}
+
+export async function correctDepositAction(
+  bookingId: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  let admin;
+  try {
+    admin = await requireAdminPermission('deposits:write');
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : 'Permission denied.',
+    };
+  }
+  const amountPaise = parseCorrectDepositAmount(formData);
+  const reason = parseReason(formData);
+  if (amountPaise == null) return { status: 'error', message: 'Amount must be >= 0.' };
+  if (!reason) return { status: 'error', message: 'Reason is required.' };
+  const customerId = await resolveCustomerId(bookingId);
+  if (!customerId) return { status: 'error', message: 'Booking not found.' };
+  try {
+    const result = await correctDepositCollected({
+      bookingId,
+      customerId,
+      targetCollectedPaise: amountPaise,
+      reason: `admin correction: ${reason}`,
+      createdByAdminId: admin.adminId,
+    });
+    revalidatePath(`/admin/deposits/${bookingId}`);
+    revalidatePath('/admin/deposits');
+    revalidatePath(`/admin/bookings/${bookingId}`);
+    return {
+      status: 'ok',
+      message: `Deposit set to ₹${(result.targetPaise / 100).toLocaleString('en-IN')} (was ₹${(result.previousPaise / 100).toLocaleString('en-IN')}).`,
+    };
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : 'Correction failed.',
     };
   }
 }

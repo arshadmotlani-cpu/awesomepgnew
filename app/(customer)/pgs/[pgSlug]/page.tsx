@@ -1,26 +1,16 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AmenityList } from '@/src/components/customer/AmenityList';
-import { DateRangeBar } from '@/src/components/customer/DateRangeBar';
 import { GenderBadge } from '@/src/components/customer/GenderBadge';
 import { PgImageGallery } from '@/src/components/customer/PgImageGallery';
 import { RoomCard } from '@/src/components/customer/RoomCard';
 import { getPgBySlug, listRoomsForPg } from '@/src/db/queries/customer';
-import { formatBrowseStaySummary, normalizeBrowseStay } from '@/src/lib/dateDefaults';
 import { ElectricityMeterNotice } from '@/src/components/customer/ElectricityMeterNotice';
 
 export const dynamic = 'force-dynamic';
 
-type SearchParams = {
-  start?: string;
-  end?: string;
-  mode?: string;
-};
-
 export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
   const { pgSlug } = await props.params;
-  const sp = (await props.searchParams) as SearchParams;
-  const stay = normalizeBrowseStay(sp);
 
   const pgResult = await getPgBySlug(pgSlug);
 
@@ -36,7 +26,7 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
   }
   const pg = pgResult.data;
 
-  const roomsResult = await listRoomsForPg(pg.id, stay.start, stay.end);
+  const roomsResult = await listRoomsForPg(pg.id);
   const rooms = roomsResult.ok ? roomsResult.data : [];
   const totalBeds = rooms.reduce((n, r) => n + r.totalBeds, 0);
   const availableBeds = rooms.reduce((n, r) => n + r.availableBeds, 0);
@@ -79,13 +69,13 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
               </p>
             ) : (
               <p className="mt-4 text-sm text-apg-silver/70">
-                Premium PG living with bed-first booking, social spaces, and resident perks.
+                Premium PG living with daily cleaning, free laundry, high-speed WiFi, and bed-first
+                booking.
               </p>
             )}
             <div className="mt-4 flex flex-wrap gap-3 text-xs text-apg-silver">
               <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                {availableBeds} of {totalBeds} beds free
-                {stay.mode === 'open_ended' ? ' from move-in' : ' for your dates'}
+                {availableBeds} of {totalBeds} beds free right now
               </span>
             </div>
           </div>
@@ -102,31 +92,17 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
 
       {fullyOccupied ? (
         <section className="mt-6 rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-          <strong>Fully occupied</strong> — no beds available for new bookings at this PG right now.
-          Try different dates or explore another property.
+          <strong>Fully occupied today</strong> — all beds are taken right now. Open a room to
+          check when beds become available, or explore another property.
         </section>
       ) : null}
-
-      <section className="mt-6">
-        <DateRangeBar
-          action={`/pgs/${pg.slug}`}
-          startDate={stay.start}
-          endDate={stay.end}
-          durationMode={stay.mode}
-          theme="dark"
-        />
-      </section>
 
       <section className="mt-8">
         <div className="flex flex-col items-start justify-between gap-1 sm:flex-row sm:items-end">
           <div>
             <h2 className="text-xl font-semibold text-white">Rooms & beds</h2>
             <p className="text-sm text-apg-silver">
-              Availability for{' '}
-              <span className="font-medium text-white">
-                {formatBrowseStaySummary(stay)}
-              </span>
-              . Pick a room to choose your exact bed.
+              Pick a room, choose your bed, then select dates in the booking panel.
             </p>
           </div>
         </div>
@@ -142,13 +118,7 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
             <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {roomsResult.data.map((room) => (
                 <li key={room.roomId}>
-                  <RoomCard
-                    room={room}
-                    pgSlug={pg.slug}
-                    startDate={stay.start}
-                    endDate={stay.end}
-                    durationMode={stay.mode}
-                  />
+                  <RoomCard room={room} pgSlug={pg.slug} />
                 </li>
               ))}
             </ul>

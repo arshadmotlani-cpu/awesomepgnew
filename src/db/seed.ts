@@ -270,21 +270,30 @@ async function main() {
         genderPolicy: 'coed',
         amenities: {
           wifi: true,
-          food: true,
+          roomCleaning: true,
+          bathroomCleaning: true,
+          bedTidy: true,
+          bedSheetsWeekly: true,
           laundry: true,
-          parking: true,
+          chairsInRooms: true,
+          freeElectricity: true,
+          waterCooler: true,
+          fridge: true,
+          airCoolerChillRoom: true,
           ac: true,
-          housekeeping: true,
-          powerBackup: true,
+          cctv: true,
+          gaming: true,
+          chillRoom: true,
         },
         images: [
           'https://placehold.co/1200x800?text=Awesome+PG+Exterior',
           'https://placehold.co/1200x800?text=Common+Lounge',
-          'https://placehold.co/1200x800?text=Dining+Hall',
+          'https://placehold.co/1200x800?text=Chill+Room',
         ],
         description:
           'Modern co-living PG in the heart of Koramangala. Walkable to Forum Mall, Sony Signal, and Ejipura. ' +
-          'Daily housekeeping, three meals a day, high-speed Wi-Fi, and 24/7 power backup.',
+          'Daily room & bathroom cleaning, weekly bedsheets, free laundry (bring liquid detergent & a laundry bag), ' +
+          'high-speed WiFi, chilled water, fridge, chairs in every room, and electricity included — AC usage split per tenant.',
         isActive: true,
       })
       .returning({ id: pgs.id });

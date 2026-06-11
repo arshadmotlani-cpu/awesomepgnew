@@ -47,6 +47,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: '/admin/payments', label: 'Collections (all PGs)', icon: IconCard },
       { href: '/admin/rent', label: 'Rent invoices', icon: IconClipboard },
       { href: '/admin/electricity', label: 'Electricity bills', icon: IconChart },
+      { href: '/admin/playstation', label: 'PS4 memberships', icon: IconCard },
       { href: '/admin/deposits', label: 'Deposits', icon: IconCard },
       { href: '/admin/vacating', label: 'Vacating', icon: IconDoor },
     ],

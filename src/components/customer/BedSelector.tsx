@@ -1,16 +1,24 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
-import { paiseToInr } from '@/src/lib/format';
-import { VACATING_NOTICE_MIN_DAYS } from '@/src/lib/dateDefaults';
+import { paiseToInr, formatDate } from '@/src/lib/format';
+import { dispatchRoachieReminder } from '@/src/lib/cockroach/roachieReminders';
+import { BookingEducationBar } from './BookingEducationBar';
+import { BedBookingPanel } from './BedBookingPanel';
+import { RoachieTourDemoBeds } from './RoachieTourDemoBeds';
 
 export type BedSelectorBed = {
   bedId: string;
   bedCode: string;
   status: 'available' | 'maintenance' | 'blocked';
-  isAvailableForRange: boolean;
+  /** Free on the reference date (today). */
+  isAvailableNow: boolean;
+  /** When occupied, earliest date the bed frees up. */
   nextAvailableDate: string | null;
+  /** Guest gave notice — bed opens after this date. */
+  vacatingDate?: string | null;
+  /** Latest checkout when a future booking caps the stay. */
+  availableUntilDate?: string | null;
   dailyRatePaise: number;
   weeklyRatePaise: number;
   monthlyRatePaise: number;
@@ -20,56 +28,93 @@ export type BedSelectorBed = {
   monthlySecurityDepositPaise: number;
 };
 
-function depositForMode(bed: BedSelectorBed, durationMode: string): number {
-  const fallback = bed.securityDepositPaise;
-  if (durationMode === 'daily') {
-    return bed.dailySecurityDepositPaise > 0
-      ? bed.dailySecurityDepositPaise
-      : fallback;
-  }
-  if (durationMode === 'weekly') {
-    return bed.weeklySecurityDepositPaise > 0
-      ? bed.weeklySecurityDepositPaise
-      : fallback;
-  }
-  return bed.monthlySecurityDepositPaise > 0
-    ? bed.monthlySecurityDepositPaise
-    : fallback;
-}
+type TourRole = 'bed-available' | 'bed-notice' | 'bed-capped' | null;
 
 type Props = {
   beds: BedSelectorBed[];
-  startDate: string;
-  endDate: string;
-  durationMode: string;
-  pgSlug: string;
   theme?: 'dark' | 'light';
 };
 
-/**
- * Bed selector with local checkbox state. Submitting takes the user to
- * `/booking/new` with every selected bed propagated as a `bed=<uuid>` query
- * parameter and the date range / mode preserved. The booking-new page does
- * the next round of validation server-side.
- */
-export function BedSelector({ beds, startDate, endDate, durationMode, theme = 'light' }: Props) {
-  const dark = theme === 'dark';
-  const router = useRouter();
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+function assignTourRoles(beds: BedSelectorBed[]): Map<string, TourRole> {
+  const roles = new Map<string, TourRole>();
+  let hasAvailable = false;
+  let hasNotice = false;
+  let hasCapped = false;
 
-  const selectedCount = selected.size;
-  const subtotal = useMemo(() => {
-    let total = 0;
-    for (const b of beds) {
-      if (!selected.has(b.bedId)) continue;
-      if (durationMode === 'daily') total += b.dailyRatePaise;
-      else if (durationMode === 'weekly') total += b.weeklyRatePaise;
-      else total += b.monthlyRatePaise;
+  for (const bed of beds) {
+    if (bed.status !== 'available') continue;
+
+    if (!hasAvailable && bed.isAvailableNow) {
+      roles.set(bed.bedId, 'bed-available');
+      hasAvailable = true;
+      continue;
     }
-    return total;
-  }, [beds, selected, durationMode]);
+
+    if (
+      !hasNotice &&
+      !bed.isAvailableNow &&
+      bed.nextAvailableDate &&
+      bed.vacatingDate
+    ) {
+      roles.set(bed.bedId, 'bed-notice');
+      hasNotice = true;
+      continue;
+    }
+
+    if (!hasCapped && bed.availableUntilDate) {
+      roles.set(bed.bedId, 'bed-capped');
+      hasCapped = true;
+    }
+  }
+
+  if (!hasNotice) {
+    for (const bed of beds) {
+      if (roles.has(bed.bedId)) continue;
+      if (
+        bed.status === 'available' &&
+        !bed.isAvailableNow &&
+        bed.nextAvailableDate &&
+        !bed.availableUntilDate
+      ) {
+        roles.set(bed.bedId, 'bed-notice');
+        hasNotice = true;
+        break;
+      }
+    }
+  }
+
+  return roles;
+}
+
+/**
+ * Bed-first selector: pick bed(s), then open the booking panel to choose dates
+ * validated against per-bed availability timelines.
+ */
+export function BedSelector({ beds, theme = 'light' }: Props) {
+  const dark = theme === 'dark';
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [panelOpen, setPanelOpen] = useState(false);
+
+  const tourRoles = useMemo(() => assignTourRoles(beds), [beds]);
+  const hasNoticeBed = [...tourRoles.values()].includes('bed-notice');
+  const hasCappedBed = [...tourRoles.values()].includes('bed-capped');
+
+  const selectedBeds = useMemo(
+    () => beds.filter((b) => selected.has(b.bedId)),
+    [beds, selected],
+  );
+
+  const sampleBed = beds.find((b) => b.monthlyRatePaise > 0) ?? beds[0];
+
+  const bookableCount = beds.filter(
+    (b) => b.status === 'available' && (b.isAvailableNow || b.nextAvailableDate),
+  ).length;
 
   function toggle(bedId: string) {
+    const bed = beds.find((b) => b.bedId === bedId);
+    if (!bed || bed.status !== 'available') return;
+    if (!bed.isAvailableNow && !bed.nextAvailableDate) return;
+
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(bedId)) next.delete(bedId);
@@ -78,105 +123,143 @@ export function BedSelector({ beds, startDate, endDate, durationMode, theme = 'l
     });
   }
 
-  function goToCart() {
-    if (selectedCount === 0) return;
-    const params = new URLSearchParams();
-    params.set('start', startDate);
-    params.set('end', endDate);
-    params.set('mode', durationMode);
-    for (const bedId of selected) params.append('bed', bedId);
-    router.push(`/booking/new?${params.toString()}`);
+  function openPanelForBed(bedId: string) {
+    const bed = beds.find((b) => b.bedId === bedId);
+    if (!bed || bed.status !== 'available') return;
+    if (!bed.isAvailableNow && !bed.nextAvailableDate) return;
+    setSelected(new Set([bedId]));
+    setPanelOpen(true);
+  }
+
+  function openPanelForSelection() {
+    if (selected.size === 0) return;
+    setPanelOpen(true);
   }
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4" data-roachie-focus="bed-pick">
-        {beds.map((bed) => {
-          const isSelected = selected.has(bed.bedId);
-          const isAvailable =
-            bed.status === 'available' && bed.isAvailableForRange;
-          return (
-            <BedTile
-              key={bed.bedId}
-              bed={bed}
-              durationMode={durationMode}
-              isSelected={isSelected}
-              isAvailable={isAvailable}
-              onToggle={() => toggle(bed.bedId)}
-              dark={dark}
-            />
-          );
-        })}
-      </div>
+    <>
+      <div className="space-y-4">
+        <div
+          className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4"
+          data-roachie-focus="bed-pick"
+          data-roachie-tour="bed-grid"
+        >
+          {beds.map((bed) => {
+            const isSelected = selected.has(bed.bedId);
+            const canBook =
+              bed.status === 'available' &&
+              (bed.isAvailableNow || Boolean(bed.nextAvailableDate));
+            const tourRole = tourRoles.get(bed.bedId) ?? null;
+            return (
+              <BedTile
+                key={bed.bedId}
+                bed={bed}
+                isSelected={isSelected}
+                canBook={canBook}
+                tourRole={tourRole}
+                onToggle={() => toggle(bed.bedId)}
+                onBook={() => openPanelForBed(bed.bedId)}
+                onPreBook={() => {
+                  dispatchRoachieReminder('pre-book');
+                  openPanelForBed(bed.bedId);
+                }}
+                onReserve={() => {
+                  dispatchRoachieReminder('reserve');
+                  openPanelForBed(bed.bedId);
+                }}
+                dark={dark}
+              />
+            );
+          })}
+        </div>
 
-      <div
-        className={
-          dark
-            ? 'sticky bottom-4 z-10 rounded-2xl border border-white/10 apg-glass px-4 py-4 shadow-2xl'
-            : 'sticky bottom-0 z-10 -mx-4 border-t border-zinc-200 bg-white px-4 py-3 shadow-[0_-4px_12px_rgba(15,23,42,0.04)] sm:mx-0 sm:rounded-xl sm:border sm:shadow-sm'
-        }
-      >
-        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className={`text-sm font-semibold ${dark ? 'text-white' : 'text-zinc-900'}`}>
-              {selectedCount === 0
-                ? 'No beds selected'
-                : `${selectedCount} bed${selectedCount === 1 ? '' : 's'} selected`}
-            </p>
-            <p className={`text-xs ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
-              {durationMode === 'open_ended'
-                ? `Living here — billed monthly. Give ${VACATING_NOTICE_MIN_DAYS} days notice when you plan to leave.`
-                : `Subtotal at ${durationMode} rate: ${
-                    subtotal > 0 ? paiseToInr(subtotal) : '—'
-                  } (excl. deposit)`}
-            </p>
+        <RoachieTourDemoBeds
+          showNotice={!hasNoticeBed}
+          showCapped={!hasCappedBed}
+          theme={theme}
+        />
+
+        <BookingEducationBar
+          theme={theme}
+          sampleMonthlyPaise={sampleBed?.monthlyRatePaise || 12_000_00}
+          sampleDepositPaise={
+            sampleBed?.monthlySecurityDepositPaise ||
+            sampleBed?.securityDepositPaise ||
+            5_000_00
+          }
+        />
+
+        <div
+          className={
+            dark
+              ? 'sticky bottom-4 z-10 rounded-2xl border border-white/10 apg-glass px-4 py-4 shadow-2xl'
+              : 'sticky bottom-0 z-10 -mx-4 border-t border-zinc-200 bg-white px-4 py-3 shadow-[0_-4px_12px_rgba(15,23,42,0.04)] sm:mx-0 sm:rounded-xl sm:border sm:shadow-sm'
+          }
+        >
+          <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className={`text-sm font-semibold ${dark ? 'text-white' : 'text-zinc-900'}`}>
+                {selected.size === 0
+                  ? `${bookableCount} bed${bookableCount === 1 ? '' : 's'} bookable`
+                  : `${selected.size} bed${selected.size === 1 ? '' : 's'} selected`}
+              </p>
+              <p className={`text-xs ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
+                Tap a bed to book, or select several then continue
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={selected.size === 0}
+              onClick={openPanelForSelection}
+              className={
+                dark
+                  ? 'inline-flex items-center justify-center rounded-lg bg-apg-orange px-5 py-2.5 text-sm font-semibold text-white apg-glow-btn hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40'
+                  : 'inline-flex items-center justify-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400'
+              }
+            >
+              Choose dates →
+            </button>
           </div>
-          <button
-            type="button"
-            disabled={selectedCount === 0}
-            onClick={goToCart}
-            className={
-              dark
-                ? 'inline-flex items-center justify-center rounded-lg bg-apg-orange px-5 py-2.5 text-sm font-semibold text-white apg-glow-btn hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40'
-                : 'inline-flex items-center justify-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400'
-            }
-          >
-            Continue to booking →
-          </button>
         </div>
       </div>
-    </div>
+
+      {panelOpen && selectedBeds.length > 0 ? (
+        <BedBookingPanel
+          beds={selectedBeds}
+          theme={theme}
+          onClose={() => setPanelOpen(false)}
+        />
+      ) : null}
+    </>
   );
 }
 
 function BedTile({
   bed,
-  durationMode,
   isSelected,
-  isAvailable,
+  canBook,
+  tourRole,
   onToggle,
+  onBook,
+  onPreBook,
+  onReserve,
   dark = false,
 }: {
   bed: BedSelectorBed;
-  durationMode: string;
   isSelected: boolean;
-  isAvailable: boolean;
+  canBook: boolean;
+  tourRole: TourRole;
   onToggle: () => void;
+  onBook: () => void;
+  onPreBook: () => void;
+  onReserve: () => void;
   dark?: boolean;
 }) {
-  const rate =
-    durationMode === 'daily'
-      ? bed.dailyRatePaise
-      : durationMode === 'weekly'
-        ? bed.weeklyRatePaise
-        : bed.monthlyRatePaise;
-  const rateLabel =
-    durationMode === 'daily'
-      ? '/day'
-      : durationMode === 'weekly'
-        ? '/week'
-        : '/mo';
-  const depositPaise = depositForMode(bed, durationMode);
+  const rate = bed.monthlyRatePaise;
+  const depositPaise = bed.monthlySecurityDepositPaise || bed.securityDepositPaise;
+  const isNotice = tourRole === 'bed-notice';
+  const isCapped = tourRole === 'bed-capped';
+  const isFutureOnly = !bed.isAvailableNow && Boolean(bed.nextAvailableDate);
 
   let stateLabel: string;
   let stateClass: string;
@@ -186,32 +269,45 @@ function BedTile({
   } else if (bed.status === 'maintenance') {
     stateLabel = 'Maintenance';
     stateClass = dark ? 'bg-amber-500/15 text-amber-200' : 'bg-amber-50 text-amber-700';
-  } else if (!bed.isAvailableForRange) {
-    stateLabel = bed.nextAvailableDate
-      ? `Booked · next ${bed.nextAvailableDate}`
-      : 'Booked';
-    stateClass = dark ? 'bg-rose-500/15 text-rose-200' : 'bg-rose-50 text-rose-700';
-  } else {
-    stateLabel = 'Available';
+  } else if (isNotice) {
+    const leaveDate = bed.vacatingDate ?? bed.nextAvailableDate;
+    stateLabel = leaveDate
+      ? `Leaving Soon · ${formatDate(leaveDate)}`
+      : 'Leaving Soon';
+    stateClass = dark
+      ? 'bg-amber-500/20 text-amber-100 ring-1 ring-amber-400/30'
+      : 'bg-amber-50 text-amber-800 ring-1 ring-amber-200';
+  } else if (isCapped && bed.availableUntilDate) {
+    stateLabel = `Available until: ${formatDate(bed.availableUntilDate)}`;
+    stateClass = dark
+      ? 'bg-rose-500/15 text-rose-100 ring-1 ring-rose-400/25'
+      : 'bg-rose-50 text-rose-800 ring-1 ring-rose-200';
+  } else if (bed.isAvailableNow) {
+    stateLabel = 'Available now';
     stateClass = dark ? 'bg-emerald-500/15 text-emerald-200' : 'bg-emerald-50 text-emerald-700';
+  } else if (bed.nextAvailableDate) {
+    stateLabel = `From ${formatDate(bed.nextAvailableDate)}`;
+    stateClass = dark ? 'bg-sky-500/15 text-sky-200' : 'bg-sky-50 text-sky-700';
+  } else {
+    stateLabel = 'Fully booked';
+    stateClass = dark ? 'bg-rose-500/15 text-rose-200' : 'bg-rose-50 text-rose-700';
   }
 
+  const tourAttr = tourRole ? { 'data-roachie-tour': tourRole } : undefined;
+
   const tileBase = dark
-    ? 'flex flex-col items-start gap-2 rounded-xl border p-3 text-left transition-all '
-    : 'flex flex-col items-start gap-2 rounded-lg border p-3 text-left transition-all ';
+    ? 'relative flex flex-col items-start gap-2 rounded-xl border p-3 text-left transition-all '
+    : 'relative flex flex-col items-start gap-2 rounded-lg border p-3 text-left transition-all ';
 
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      disabled={!isAvailable}
-      aria-pressed={isSelected}
+    <div
+      {...tourAttr}
       className={
         tileBase +
-        (!isAvailable
+        (!canBook
           ? dark
-            ? 'cursor-not-allowed border-white/5 bg-white/[0.02] opacity-60'
-            : 'cursor-not-allowed border-zinc-200 bg-zinc-50 opacity-70'
+            ? 'border-white/5 bg-white/[0.02] opacity-60'
+            : 'border-zinc-200 bg-zinc-50 opacity-70'
           : isSelected
             ? dark
               ? 'border-apg-orange bg-apg-orange/10 ring-2 ring-apg-orange/40'
@@ -221,11 +317,19 @@ function BedTile({
               : 'border-zinc-200 bg-white hover:border-indigo-300 hover:shadow-sm')
       }
     >
-      <div className="flex w-full items-center justify-between">
+      <button
+        type="button"
+        onClick={onToggle}
+        disabled={!canBook}
+        aria-pressed={isSelected}
+        className="absolute inset-0 z-0 rounded-xl"
+        aria-label={`Select bed ${bed.bedCode}`}
+      />
+      <div className="relative z-10 flex w-full items-center justify-between pointer-events-none">
         <span className={`text-sm font-semibold ${dark ? 'text-white' : 'text-zinc-900'}`}>
           {bed.bedCode}
         </span>
-        {isAvailable ? (
+        {canBook ? (
           <span
             className={`flex h-4 w-4 items-center justify-center rounded border ${
               isSelected
@@ -253,27 +357,79 @@ function BedTile({
         ) : null}
       </div>
       <span
-        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${stateClass}`}
+        className={`relative z-10 rounded-full px-2 py-0.5 text-[10px] font-semibold ${stateClass}`}
       >
         {stateLabel}
       </span>
-      {isAvailable ? (
+      {canBook ? (
         <>
-          <span className={`text-xs ${dark ? 'text-apg-silver' : 'text-zinc-700'}`}>
+          <span className={`relative z-10 text-xs ${dark ? 'text-apg-silver' : 'text-zinc-700'}`}>
             {rate > 0 ? paiseToInr(rate) : '—'}
-            <span className={dark ? ' text-apg-muted' : ' text-zinc-500'}> {rateLabel}</span>
+            <span className={dark ? ' text-apg-muted' : ' text-zinc-500'}> /mo</span>
           </span>
           {depositPaise > 0 ? (
-            <span className={`text-[10px] ${dark ? 'text-apg-muted' : 'text-zinc-500'}`}>
+            <span className={`relative z-10 text-[10px] ${dark ? 'text-apg-muted' : 'text-zinc-500'}`}>
               + {paiseToInr(depositPaise)} deposit
             </span>
           ) : null}
+          <div className="relative z-10 mt-1 flex w-full flex-col gap-1 pointer-events-auto">
+            {isFutureOnly ? (
+              <button
+                type="button"
+                data-roachie-tour="pre-book"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPreBook();
+                }}
+                className={
+                  'w-full rounded-md px-2 py-1.5 text-[11px] font-semibold ' +
+                  (dark
+                    ? 'border border-sky-400/40 bg-sky-500/15 text-sky-100 hover:bg-sky-500/25'
+                    : 'border border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100')
+                }
+              >
+                Pre-Book
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onBook();
+                }}
+                className={
+                  'w-full rounded-md px-2 py-1.5 text-[11px] font-semibold ' +
+                  (dark
+                    ? 'bg-apg-orange/90 text-white hover:bg-apg-orange'
+                    : 'bg-indigo-600 text-white hover:bg-indigo-700')
+                }
+              >
+                Book this bed
+              </button>
+            )}
+            <button
+              type="button"
+              data-roachie-tour="reserve"
+              onClick={(e) => {
+                e.stopPropagation();
+                onReserve();
+              }}
+              className={
+                'w-full rounded-md px-2 py-1.5 text-[11px] font-semibold ' +
+                (dark
+                  ? 'border border-apg-orange/40 bg-apg-orange/10 text-white hover:bg-apg-orange/20'
+                  : 'border border-indigo-400 bg-indigo-50 text-indigo-800 hover:bg-indigo-100')
+              }
+            >
+              Reserve Bed
+            </button>
+          </div>
         </>
       ) : (
-        <span className={`text-[10px] ${dark ? 'text-apg-muted' : 'text-zinc-500'}`}>
-          Occupied — rates not shown
+        <span className={`relative z-10 text-[10px] ${dark ? 'text-apg-muted' : 'text-zinc-500'}`}>
+          Not bookable
         </span>
       )}
-    </button>
+    </div>
   );
 }
