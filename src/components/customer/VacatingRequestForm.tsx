@@ -8,6 +8,7 @@ import {
 import { defaultVacatingDate } from '@/src/lib/dateDefaults';
 import { todayString } from '@/src/lib/dates';
 import { paiseToInr } from '@/src/lib/format';
+import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
 
 const idleState: VacatingActionState = { status: 'idle' };
 
@@ -29,7 +30,7 @@ export function VacatingRequestForm({
         new Date(today + 'T00:00:00Z').getTime()) /
         86_400_000,
     );
-    return { days, compliant: days >= 15 };
+    return { days, compliant: days >= VACATING_NOTICE_MIN_DAYS };
   }, [vacatingDate]);
 
   const dailyRate = Math.floor(monthlyRentPaise / 30);
@@ -78,7 +79,7 @@ export function VacatingRequestForm({
         >
           {compliant.compliant
             ? `Notice: ${compliant.days} days — no deposit deduction.`
-            : `Notice: ${compliant.days} day(s) — short of 15. A fixed ${paiseToInr(
+            : `Notice: ${compliant.days} day(s) — short of ${VACATING_NOTICE_MIN_DAYS}. A fixed ${paiseToInr(
                 penalty,
               )} (5 × ${paiseToInr(dailyRate)}/day) will be deducted from your deposit.`}
         </div>

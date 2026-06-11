@@ -1,15 +1,23 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { uploadPaymentScreenshotAction } from '@/app/(admin)/admin/pgs/payment-actions';
+import { BookingQrCheckout } from '@/src/components/customer/BookingQrCheckout';
 import { getBookingByCode } from '@/src/db/queries/customer';
 import {
   requireCustomerOwnsBookingCode,
   requireCustomerSession,
 } from '@/src/lib/auth/guards';
+import { isCloudinaryConfigured } from '@/src/lib/images/cloudinary';
+import {
+  DEFAULT_RENT_DEPOSIT_QR_PATH,
+  DEFAULT_RENT_DEPOSIT_UPI_ID,
+} from '@/src/lib/payments/defaultQr';
 import { paiseToInr as formatPaise } from '@/src/lib/format';
 import { getCustomerById, isProfileComplete } from '@/src/services/profile';
-import { RazorpayCheckoutButton } from '@/src/components/customer/PayButtons';
-import { isRazorpayConfigured } from '@/src/lib/payments/config';
-import { PaymentUnavailable } from '@/src/components/customer/PaymentUnavailable';
+import {
+  ensureDefaultPaymentCategoriesForPg,
+  getRentDepositBookingCategory,
+} from '@/src/services/pgPaymentDefaults';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +34,7 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
   if (!result.ok) {
     return (
       <main className="mx-auto max-w-2xl px-6 py-16">
-        <h1 className="text-2xl font-semibold text-zinc-900">Couldn't load booking</h1>
+        <h1 className="text-2xl font-semibold text-zinc-900">Couldn&apos;t load booking</h1>
         <p className="mt-3 text-sm text-rose-700">{result.error}</p>
       </main>
     );
@@ -41,8 +49,6 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
     redirect(`/account/profile?next=${encodeURIComponent(`/booking/${bookingCode}/pay`)}`);
   }
 
-  // If the booking is already confirmed / cancelled, the pay page makes no
-  // sense — bounce to the confirmation/status page.
   if (booking.status !== 'pending_payment') {
     if (booking.status === 'confirmed') {
       redirect(`/booking/${booking.bookingCode}/payment-success`);
@@ -50,8 +56,10 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
     redirect(`/booking/${booking.bookingCode}`);
   }
 
-  const razorpayReady = isRazorpayConfigured();
+  await ensureDefaultPaymentCategoriesForPg(booking.pg.id);
+  const category = await getRentDepositBookingCategory(booking.pg.id);
   const totalLabel = formatPaise(booking.totalPaise);
+  const canUpload = isCloudinaryConfigured();
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
@@ -76,10 +84,8 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
         </span>
       </div>
       <p className="mt-1 text-sm text-zinc-600">
-        Booking{' '}
-        <span className="font-mono text-zinc-900">{booking.bookingCode}</span> is
-        held for you until payment is received. If you don't pay before the
-        hold expires, the beds are released back to availability.
+        Booking <span className="font-mono text-zinc-900">{booking.bookingCode}</span> is held
+        until we approve your UPI payment. Upload a screenshot after paying the exact amount below.
       </p>
 
       <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-3">
@@ -90,13 +96,8 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
           <dl className="mt-3 grid grid-cols-2 gap-y-2 text-sm">
             <dt className="text-zinc-500">PG</dt>
             <dd className="text-right text-zinc-900">{booking.pg.name}</dd>
-            <dt className="text-zinc-500">Address</dt>
-            <dd className="text-right text-zinc-900">
-              {booking.pg.addressLine1}, {booking.pg.city}, {booking.pg.state}{' '}
-              {booking.pg.pincode}
-            </dd>
             <dt className="text-zinc-500">Stay type</dt>
-            <dd className="text-right text-zinc-900 capitalize">
+            <dd className="text-right capitalize text-zinc-900">
               {booking.durationMode.replace('_', '-')}
             </dd>
             <dt className="text-zinc-500">Check-out</dt>
@@ -109,18 +110,6 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
                 .map((r) => `${r.bedCode} (Room ${r.roomNumber})`)
                 .join(', ')}
             </dd>
-          </dl>
-
-          <h2 className="mt-6 text-sm font-semibold uppercase tracking-wide text-zinc-500">
-            Customer
-          </h2>
-          <dl className="mt-3 grid grid-cols-2 gap-y-2 text-sm">
-            <dt className="text-zinc-500">Name</dt>
-            <dd className="text-right text-zinc-900">{booking.customer.fullName}</dd>
-            <dt className="text-zinc-500">Email</dt>
-            <dd className="text-right text-zinc-900">{booking.customer.email}</dd>
-            <dt className="text-zinc-500">Phone</dt>
-            <dd className="text-right text-zinc-900">{booking.customer.phone}</dd>
           </dl>
         </section>
 
@@ -144,19 +133,24 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
           </div>
 
           <div className="mt-5">
-            {razorpayReady ? (
-              <RazorpayCheckoutButton
+            {canUpload ? (
+              <BookingQrCheckout
                 bookingCode={booking.bookingCode}
+                pgName={booking.pg.name}
+                totalPaise={booking.totalPaise}
                 totalLabel={totalLabel}
+                qrImageUrl={category?.qrCodeImageUrl ?? DEFAULT_RENT_DEPOSIT_QR_PATH}
+                upiId={category?.upiId ?? DEFAULT_RENT_DEPOSIT_UPI_ID}
+                uploadScreenshot={uploadPaymentScreenshotAction}
               />
             ) : (
-              <PaymentUnavailable />
+              <p className="text-sm text-amber-800">
+                Screenshot upload is not configured. Pay via UPI{' '}
+                <strong>{category?.upiId ?? DEFAULT_RENT_DEPOSIT_UPI_ID}</strong> and contact
+                support on WhatsApp with booking code {booking.bookingCode}.
+              </p>
             )}
           </div>
-
-          <p className="mt-4 text-[11px] leading-relaxed text-zinc-500">
-            The refundable deposit is held against damages and returned when you check out.
-          </p>
         </aside>
       </div>
     </main>

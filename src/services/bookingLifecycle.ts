@@ -61,7 +61,7 @@ export type LifecycleActor =
 
 export type RecordPaymentSuccessInput = {
   /** Provider that signed the webhook. */
-  provider: ProviderName;
+  provider: AnyPaymentProvider;
   providerPaymentId: string;
   providerOrderId?: string | null;
   amountPaise: number;

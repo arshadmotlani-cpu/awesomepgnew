@@ -12,6 +12,7 @@ import {
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { slugify } from '@/src/lib/slug';
+import { ensureDefaultPaymentCategoriesForPg } from '@/src/services/pgPaymentDefaults';
 
 export type ClonePgInput = {
   name: string;
@@ -93,7 +94,7 @@ export async function clonePg(
   const slug = await uniqueSlug(input.slug ?? input.name);
   const description = [source.description, input.descriptionSuffix].filter(Boolean).join('\n\n');
 
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const [newPg] = await tx
       .insert(pgs)
       .values({
@@ -249,6 +250,9 @@ export async function clonePg(
       paymentCategories: categories.length,
     };
   });
+
+  await ensureDefaultPaymentCategoriesForPg(result.newPgId);
+  return result;
 }
 
 /** Find a single PG by partial name match (case-insensitive). */

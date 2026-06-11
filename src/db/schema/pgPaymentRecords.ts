@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { bigint, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { pgPaymentRecordStatusEnum } from './enums';
+import { bookings } from './bookings';
 import { customers } from './customers';
 import { pgPaymentCategories } from './pgPaymentCategories';
 import { pgs } from './pgs';
@@ -18,6 +19,7 @@ export const pgPaymentRecords = pgTable(
     customerId: uuid('customer_id')
       .notNull()
       .references(() => customers.id, { onDelete: 'cascade' }),
+    bookingId: uuid('booking_id').references(() => bookings.id, { onDelete: 'set null' }),
     amountPaise: bigint('amount_paise', { mode: 'number' }).notNull(),
     month: text('month'),
     status: pgPaymentRecordStatusEnum('status').notNull().default('pending'),
@@ -32,6 +34,9 @@ export const pgPaymentRecords = pgTable(
     uniqueIndex('pg_payment_records_pending_month_unique')
       .on(t.categoryId, t.customerId, t.month)
       .where(sql`${t.status} = 'pending' AND ${t.month} IS NOT NULL`),
+    uniqueIndex('pg_payment_records_pending_booking_unique')
+      .on(t.bookingId)
+      .where(sql`${t.status} = 'pending' AND ${t.bookingId} IS NOT NULL`),
   ],
 );
 

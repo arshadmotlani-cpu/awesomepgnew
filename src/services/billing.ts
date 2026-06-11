@@ -10,6 +10,9 @@
 
 import { addDays, addMonths, diffDays, formatDate, parseDate, type DateLike } from '../lib/dates';
 
+/** Minimum days of notice before vacating for 100% deposit refund (no 5-day penalty). */
+export const VACATING_NOTICE_MIN_DAYS = 14;
+
 /** Days in the calendar month containing `date`. */
 export function daysInMonth(date: DateLike): number {
   const d = parseDate(date);
@@ -141,7 +144,7 @@ export function dailyRateFromMonthly(monthlyRatePaise: number): number {
 }
 
 /**
- * Fixed 5-day vacating penalty when notice < 15 days.
+ * Fixed 5-day vacating penalty when notice < {@link VACATING_NOTICE_MIN_DAYS} days.
  * `daily * 5` (NOT the full notice shortfall — per explicit spec).
  */
 export function vacatingPenalty(monthlyRatePaise: number): number {
@@ -149,17 +152,15 @@ export function vacatingPenalty(monthlyRatePaise: number): number {
 }
 
 /**
- * Returns true if at least 15 calendar days separate the notice-given
- * date and the desired vacating date (inclusive of the notice day,
- * exclusive of the vacating day — i.e. the standard "days of notice"
- * reading).
+ * Returns true if at least {@link VACATING_NOTICE_MIN_DAYS} calendar days separate
+ * the notice-given date and the desired vacating date.
  */
 export function isNoticeCompliant(args: {
   noticeGivenDate: DateLike;
   vacatingDate: DateLike;
   minDays?: number;
 }): boolean {
-  const min = args.minDays ?? 15;
+  const min = args.minDays ?? VACATING_NOTICE_MIN_DAYS;
   return diffDays(args.noticeGivenDate, args.vacatingDate) >= min;
 }
 

@@ -42,7 +42,7 @@ export default async function AdminVacatingPage(
     <>
       <PageHeader
         title="Vacating requests"
-        description="Monthly residents filing notice. The 5-day deduction (when notice < 15 days) is computed and snapshotted at submit time; completion writes the deposit ledger and cancels future invoices."
+        description="Monthly residents filing notice. The 5-day deduction (when notice < 14 days) is computed and snapshotted at submit time; completion writes the deposit ledger and cancels future invoices."
       />
       <nav className="mb-4 flex flex-wrap gap-2 text-xs">
         {STATUS_FILTERS.map((f) => (

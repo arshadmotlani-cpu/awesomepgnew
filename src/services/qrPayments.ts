@@ -13,6 +13,8 @@ import {
 } from '@/src/db/schema';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
+import { RENT_DEPOSIT_BOOKING_CATEGORY_NAME } from '@/src/lib/payments/defaultQr';
+import { getRentDepositBookingCategory } from '@/src/services/pgPaymentDefaults';
 
 export type PaymentCategoryInput = {
   name: string;
@@ -27,6 +29,15 @@ export type SubmitPaymentInput = {
   customerId: string;
   amountPaise: number;
   month?: string;
+  paymentScreenshotUrl: string;
+  transactionRef?: string;
+  bookingId?: string;
+};
+
+export type SubmitBookingPaymentInput = {
+  bookingCode: string;
+  customerId: string;
+  amountPaise: number;
   paymentScreenshotUrl: string;
   transactionRef?: string;
 };
@@ -189,6 +200,7 @@ export async function submitPaymentRecord(input: SubmitPaymentInput) {
       pgId: input.pgId,
       categoryId: input.categoryId,
       customerId: input.customerId,
+      bookingId: input.bookingId ?? null,
       amountPaise: input.amountPaise,
       month,
       paymentScreenshotUrl: input.paymentScreenshotUrl.trim(),
@@ -198,6 +210,61 @@ export async function submitPaymentRecord(input: SubmitPaymentInput) {
     .returning();
 
   return row;
+}
+
+/** Submit UPI proof for a new booking checkout (rent + deposit + reservation). */
+export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInput) {
+  if (input.amountPaise <= 0) throw new Error('Amount must be greater than zero.');
+
+  const [booking] = await db
+    .select({
+      id: bookings.id,
+      bookingCode: bookings.bookingCode,
+      customerId: bookings.customerId,
+      status: bookings.status,
+      totalPaise: bookings.totalPaise,
+      pgId: floors.pgId,
+    })
+    .from(bookings)
+    .innerJoin(bedReservations, eq(bedReservations.bookingId, bookings.id))
+    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
+    .innerJoin(floors, eq(floors.id, rooms.floorId))
+    .where(eq(bookings.bookingCode, input.bookingCode))
+    .limit(1);
+
+  if (!booking) throw new Error('Booking not found.');
+  if (booking.customerId !== input.customerId) throw new Error('Access denied.');
+  if (booking.status !== 'pending_payment') {
+    throw new Error('This booking is not awaiting payment.');
+  }
+
+  const category = await getRentDepositBookingCategory(booking.pgId);
+  if (!category) {
+    throw new Error('Payment QR is not configured for this PG yet.');
+  }
+
+  const [dup] = await db
+    .select({ id: pgPaymentRecords.id })
+    .from(pgPaymentRecords)
+    .where(
+      and(
+        eq(pgPaymentRecords.bookingId, booking.id),
+        eq(pgPaymentRecords.status, 'pending'),
+      ),
+    )
+    .limit(1);
+  if (dup) throw new Error('Payment proof is already pending review for this booking.');
+
+  return submitPaymentRecord({
+    pgId: booking.pgId,
+    categoryId: category.id,
+    customerId: input.customerId,
+    amountPaise: input.amountPaise,
+    paymentScreenshotUrl: input.paymentScreenshotUrl,
+    transactionRef: input.transactionRef,
+    bookingId: booking.id,
+  });
 }
 
 export async function listOwnerPayments(
@@ -302,6 +369,25 @@ export async function reviewPaymentRecord(
       updatedAt: new Date(),
     })
     .where(eq(pgPaymentRecords.id, recordId));
+
+  if (status === 'approved' && record.bookingId) {
+    const [booking] = await db
+      .select({ bookingCode: bookings.bookingCode, status: bookings.status })
+      .from(bookings)
+      .where(eq(bookings.id, record.bookingId))
+      .limit(1);
+    if (booking?.status === 'pending_payment') {
+      const { recordPaymentSuccess } = await import('./bookingLifecycle');
+      await recordPaymentSuccess({
+        provider: 'upi_manual',
+        providerPaymentId: `qr_record_${recordId}`,
+        providerOrderId: record.transactionRef ?? recordId,
+        amountPaise: record.amountPaise,
+        bookingCode: booking.bookingCode,
+        rawPayload: { pgPaymentRecordId: recordId, category: RENT_DEPOSIT_BOOKING_CATEGORY_NAME },
+      });
+    }
+  }
 }
 
 export async function listPublicPgsWithPayments() {

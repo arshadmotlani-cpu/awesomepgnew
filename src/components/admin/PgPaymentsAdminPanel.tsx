@@ -29,7 +29,7 @@ type Payment = {
   createdAt: string;
 };
 
-const PRESET_NAMES = ['Rent', 'Electricity', 'Maintenance', 'Deposit', 'Custom'];
+const PRESET_NAMES = ['Rent, Deposit & Booking', 'Electricity', 'Maintenance', 'Custom'];
 
 export function PgPaymentsAdminPanel({
   pgId,

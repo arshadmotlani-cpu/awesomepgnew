@@ -4,11 +4,11 @@
  */
 import { addDays, formatDate, parseDate, todayString, type DateLike } from './dates';
 import type { PricingMode } from '@/src/services/pricing';
+import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
 
 export const DEFAULT_STAY_NIGHTS = 30;
 export const DEFAULT_EXTENSION_DAYS = 7;
-/** Minimum compliant vacating notice (matches billing policy). */
-export const DEFAULT_VACATING_NOTICE_DAYS = 15;
+export { VACATING_NOTICE_MIN_DAYS, VACATING_NOTICE_MIN_DAYS as DEFAULT_VACATING_NOTICE_DAYS };
 
 const VALID_MODES: ReadonlySet<PricingMode> = new Set([
   'daily',
@@ -44,9 +44,9 @@ export function defaultExtensionUntilDate(currentCheckout: DateLike): string {
   return preferred > minUntil ? preferred : minUntil;
 }
 
-/** Default vacating date: today + 15 days (meets notice policy). */
+/** Default vacating date: today + notice period (meets policy). */
 export function defaultVacatingDate(from: DateLike = todayString()): string {
-  return formatDate(addDays(from, DEFAULT_VACATING_NOTICE_DAYS));
+  return formatDate(addDays(from, VACATING_NOTICE_MIN_DAYS));
 }
 
 /** YYYY-MM-01 for the calendar month containing `date`. */

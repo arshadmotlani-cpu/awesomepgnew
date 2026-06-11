@@ -18,7 +18,7 @@ export function RazorpayCheckoutButton({
       </p>
       <QrPaymentNotice
         title="Complete payment via QR"
-        description="Find your PG on the listings page, open Payments, choose the right category (e.g. Deposit or Rent), pay via UPI QR, and upload your screenshot for approval."
+        description="Scan the Rent, Deposit & Booking UPI QR (shiba.motlani@oksbi), pay the exact amount shown, and upload your screenshot for approval."
       />
     </div>
   );

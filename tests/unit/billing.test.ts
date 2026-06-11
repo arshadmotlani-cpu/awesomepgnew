@@ -93,13 +93,13 @@ test('vacatingPenalty matches spec example (₹6000 → ₹1000)', () => {
   assert.equal(vacatingPenalty(6_00_000), 100_000); // 5 × ₹200 = ₹1,000
 });
 
-test('isNoticeCompliant: 15-day boundary inclusive', () => {
+test('isNoticeCompliant: 14-day boundary inclusive', () => {
   assert.equal(
-    isNoticeCompliant({ noticeGivenDate: '2026-06-01', vacatingDate: '2026-06-16' }),
+    isNoticeCompliant({ noticeGivenDate: '2026-06-01', vacatingDate: '2026-06-15' }),
     true,
   );
   assert.equal(
-    isNoticeCompliant({ noticeGivenDate: '2026-06-01', vacatingDate: '2026-06-15' }),
+    isNoticeCompliant({ noticeGivenDate: '2026-06-01', vacatingDate: '2026-06-14' }),
     false,
   );
   assert.equal(

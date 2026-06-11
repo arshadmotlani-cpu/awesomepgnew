@@ -64,10 +64,10 @@ export default async function RequestVacatingPage({
         <p className="font-medium">Notice policy</p>
         <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs">
           <li>
-            <strong>≥ 15 days notice:</strong> no deposit deduction.
+            <strong>≥ 14 days notice:</strong> no deposit deduction.
           </li>
           <li>
-            <strong>&lt; 15 days notice:</strong> fixed 5-day rent deduction —{' '}
+            <strong>&lt; 14 days notice:</strong> fixed 5-day rent deduction —{' '}
             {paiseToInr(penalty)} (5 × monthly rent / 30). No additional
             shortfall recovery.
           </li>

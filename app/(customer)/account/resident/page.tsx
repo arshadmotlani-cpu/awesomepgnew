@@ -518,7 +518,7 @@ export default async function ResidentDashboardPage() {
                         <dd className="font-medium">{formatDate(vacating.vacatingDate)}</dd>
                       </div>
                       <div>
-                        <dt className="text-zinc-500">Notice ≥ 15 days?</dt>
+                        <dt className="text-zinc-500">Notice ≥ 14 days?</dt>
                         <dd className="font-medium">
                           {vacating.noticeCompliant ? 'Yes — no deduction' : 'No — 5-day penalty applies'}
                         </dd>

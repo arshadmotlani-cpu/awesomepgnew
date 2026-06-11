@@ -9,8 +9,8 @@
  *                               future rent + electricity invoices
  *
  * Policy (spec):
- *   - If notice >= 15 days: no deposit deduction.
- *   - If notice < 15 days: deduct exactly 5 days' worth of rent
+ *   - If notice >= 14 days: no deposit deduction.
+ *   - If notice < 14 days: deduct exactly 5 days' worth of rent
  *     (monthlyRent / 30 * 5). FIXED — never the full notice shortfall.
  *
  * The monthly rent and computed deduction are snapshotted onto the

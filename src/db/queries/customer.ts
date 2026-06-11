@@ -560,6 +560,7 @@ export type CustomerBookingDetail = {
     phone: string;
   };
   pg: {
+    id: string;
     name: string;
     slug: string;
     addressLine1: string;
@@ -614,6 +615,7 @@ export function getBookingByCode(
         stayRange: bedReservations.stayRange,
         status: bedReservations.status,
         pgName: pgs.name,
+        pgId: pgs.id,
         pgSlug: pgs.slug,
         pgAddressLine1: pgs.addressLine1,
         pgCity: pgs.city,
@@ -649,6 +651,7 @@ export function getBookingByCode(
       },
       pg: first
         ? {
+            id: first.pgId,
             name: first.pgName,
             slug: first.pgSlug,
             addressLine1: first.pgAddressLine1,
@@ -657,6 +660,7 @@ export function getBookingByCode(
             pincode: first.pgPincode,
           }
         : {
+            id: '',
             name: '—',
             slug: '',
             addressLine1: '',

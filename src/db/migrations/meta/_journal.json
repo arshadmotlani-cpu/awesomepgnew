@@ -134,6 +134,13 @@
       "when": 1783600000000,
       "tag": "0018_bed_deposits_by_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1783700000000,
+      "tag": "0019_pg_payment_booking_link",
+      "breakpoints": true
     }
   ]
 }
