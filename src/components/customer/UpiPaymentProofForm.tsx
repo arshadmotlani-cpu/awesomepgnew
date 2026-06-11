@@ -1,6 +1,7 @@
 'use client';
 
 import { useId, useState } from 'react';
+import { isDataProofUrl } from '@/src/lib/payments/proofResponse';
 
 type SubmitResult = { ok: boolean; message?: string };
 
@@ -11,6 +12,7 @@ export function UpiPaymentProofForm({
   qrImageUrl,
   upiId,
   existingProofUrl,
+  proofViewHref,
   uploadScreenshot,
   submitProof,
   doneMessage = 'Payment proof submitted. An admin will verify the screenshot and mark it paid.',
@@ -21,6 +23,8 @@ export function UpiPaymentProofForm({
   qrImageUrl?: string | null;
   upiId?: string | null;
   existingProofUrl?: string | null;
+  /** Server route for viewing data-URL proofs in a new tab. */
+  proofViewHref?: string;
   uploadScreenshot: (formData: FormData) => Promise<string>;
   submitProof: (args: {
     screenshotUrl: string;
@@ -86,12 +90,15 @@ export function UpiPaymentProofForm({
   }
 
   if (done) {
+    const viewHref =
+      proofViewHref ?? (screenshotUrl && !isDataProofUrl(screenshotUrl) ? screenshotUrl : undefined);
+
     return (
       <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200 ring-1 ring-inset ring-emerald-500/20">
         {doneMessage}
-        {screenshotUrl ? (
+        {viewHref ? (
           <a
-            href={screenshotUrl}
+            href={viewHref}
             target="_blank"
             rel="noopener noreferrer"
             className="mt-2 block font-medium text-[#FF5A1F] hover:underline"

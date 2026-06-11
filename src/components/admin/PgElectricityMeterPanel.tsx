@@ -7,6 +7,8 @@ import {
   uploadMeterPhotoAction,
 } from '@/app/(admin)/admin/pgs/electricity-actions';
 import { defaultBillingMonth } from '@/src/lib/dateDefaults';
+import { adminPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
+import { PaymentScreenshotPreview } from '@/src/components/admin/PaymentScreenshotPreview';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import type { MeterLog } from '@/src/db/schema/meterLogs';
 import type { ElectricityBill } from '@/src/db/schema/electricityBills';
@@ -62,14 +64,12 @@ export function PgElectricityMeterPanel({
                 </span>
                 <div className="flex items-center gap-2">
                   {p.paymentProofUrl ? (
-                    <a
-                      href={p.paymentProofUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[#FF5A1F] hover:underline"
-                    >
-                      View proof
-                    </a>
+                    <PaymentScreenshotPreview
+                      url={p.paymentProofUrl}
+                      viewHref={adminPaymentProofViewUrl('electricity', p.invoiceId)}
+                      alt={`${p.invoiceNumber} payment proof`}
+                      className="h-16 w-16 rounded border border-zinc-600 object-contain bg-black/40"
+                    />
                   ) : null}
                   <ApproveProofButton invoiceId={p.invoiceId} pgId={pgId} />
                 </div>

@@ -9,6 +9,7 @@ import {
   uploadQrImageAction,
 } from '@/app/(admin)/admin/pgs/payment-actions';
 import { PaymentScreenshotPreview } from '@/src/components/admin/PaymentScreenshotPreview';
+import { adminPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import { paiseToInr } from '@/src/lib/format';
 
 type Category = {
@@ -330,7 +331,11 @@ export function PgCollectionsPanel({
               >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
                   {p.paymentProofUrl ? (
-                    <PaymentScreenshotPreview url={p.paymentProofUrl} />
+                    <PaymentScreenshotPreview
+                      url={p.paymentProofUrl}
+                      viewHref={adminPaymentProofViewUrl('rent', p.invoiceId)}
+                      alt={`${p.invoiceNumber} rent proof`}
+                    />
                   ) : null}
                   <div className="min-w-0 flex-1">
                     <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-xs text-emerald-300">
@@ -359,7 +364,11 @@ export function PgCollectionsPanel({
               <li key={p.invoiceId} className="rounded-xl border border-indigo-900/40 bg-indigo-950/20 p-3 text-sm">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
                   {p.paymentProofUrl ? (
-                    <PaymentScreenshotPreview url={p.paymentProofUrl} />
+                    <PaymentScreenshotPreview
+                      url={p.paymentProofUrl}
+                      viewHref={adminPaymentProofViewUrl('electricity', p.invoiceId)}
+                      alt={`${p.invoiceNumber} electricity proof`}
+                    />
                   ) : null}
                   <div className="min-w-0 flex-1">
                     <span className="rounded bg-indigo-500/20 px-1.5 py-0.5 text-xs text-indigo-300">
@@ -384,7 +393,11 @@ export function PgCollectionsPanel({
             {pendingQr.map((p) => (
               <li key={p.id} className="rounded-xl border border-zinc-800 p-3 text-sm">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-                  <PaymentScreenshotPreview url={p.paymentScreenshotUrl} />
+                  <PaymentScreenshotPreview
+                    url={p.paymentScreenshotUrl}
+                    viewHref={adminPaymentProofViewUrl('qr', p.id)}
+                    alt={`${p.customerName} QR payment proof`}
+                  />
                   <div className="min-w-0 flex-1">
                     <span className="rounded bg-zinc-700 px-1.5 py-0.5 text-xs text-zinc-300">
                       {p.categoryName}

@@ -5,6 +5,8 @@ import { PageHeader } from '@/src/components/admin/PageHeader';
 import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import { PS4_ADDON_LABEL, PS4_PLANS, type Ps4PlanId } from '@/src/lib/playstation/plans';
+import { adminPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
+import { PaymentScreenshotPreview } from '@/src/components/admin/PaymentScreenshotPreview';
 import {
   getMembershipRevenueStats,
   listAdminMemberships,
@@ -75,14 +77,12 @@ export default async function AdminPlaystationPage() {
                 <TD className="text-right">{paiseToInr(m.amountPaise)}</TD>
                 <TD className="text-xs">
                   {m.paymentProofUrl ? (
-                    <a
-                      href={m.paymentProofUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-medium text-[#FF5A1F] hover:underline"
-                    >
-                      View UPI proof
-                    </a>
+                    <PaymentScreenshotPreview
+                      url={m.paymentProofUrl}
+                      viewHref={adminPaymentProofViewUrl('playstation', m.id)}
+                      alt={`${m.customerName} PS4 payment proof`}
+                      className="h-24 w-24 rounded-lg border border-zinc-200 object-contain bg-zinc-50"
+                    />
                   ) : m.status === 'pending_payment' ? (
                     <span className="text-zinc-400">Awaiting payment</span>
                   ) : (

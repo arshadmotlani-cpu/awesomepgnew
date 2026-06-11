@@ -7,6 +7,8 @@ import {
   updatePaymentCategoryAction,
   uploadQrImageAction,
 } from '@/app/(admin)/admin/pgs/payment-actions';
+import { PaymentScreenshotPreview } from '@/src/components/admin/PaymentScreenshotPreview';
+import { adminPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import { paiseToInr } from '@/src/lib/format';
 
 type Category = {
@@ -268,14 +270,12 @@ export function PgPaymentsAdminPanel({
                       {paiseToInr(p.amountPaise)}
                       {p.month ? ` · ${p.month}` : ''}
                     </p>
-                    <a
-                      href={p.paymentScreenshotUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-xs text-[#FF5A1F] underline"
-                    >
-                      View screenshot
-                    </a>
+                    <PaymentScreenshotPreview
+                      url={p.paymentScreenshotUrl}
+                      viewHref={adminPaymentProofViewUrl('qr', p.id)}
+                      alt={`${p.customerName} payment screenshot`}
+                      className="h-24 w-24 rounded-lg border border-zinc-700 object-contain bg-black/40"
+                    />
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs uppercase text-zinc-400">{p.status}</span>

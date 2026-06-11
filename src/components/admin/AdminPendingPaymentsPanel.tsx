@@ -10,6 +10,7 @@ import {
   rejectQrPaymentAction,
 } from '@/app/(admin)/admin/payments/actions';
 import { PaymentScreenshotPreview } from '@/src/components/admin/PaymentScreenshotPreview';
+import { adminPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import type { PendingPaymentReviewItem } from '@/src/services/paymentProofQueue';
 import { paiseToInr } from '@/src/lib/format';
 
@@ -91,7 +92,11 @@ export function AdminPendingPaymentsPanel({
           key={item.key}
           className="flex flex-col gap-4 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm lg:flex-row lg:items-start"
         >
-          <PaymentScreenshotPreview url={item.screenshotUrl} alt={`${item.title} payment`} />
+          <PaymentScreenshotPreview
+            url={item.screenshotUrl}
+            viewHref={adminPaymentProofViewUrl(item.kind, item.entityId)}
+            alt={`${item.title} payment`}
+          />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900">

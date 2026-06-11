@@ -8,6 +8,7 @@ import {
   DEFAULT_ELECTRICITY_DAILY_QR_PATH,
   DEFAULT_ELECTRICITY_DAILY_UPI_ID,
 } from '@/src/lib/payments/defaultQr';
+import { customerPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import { PS4_ADDON_LABEL, PS4_PLANS, type Ps4PlanId } from '@/src/lib/playstation/plans';
 import {
   ensureDefaultPaymentCategoriesForPg,
@@ -127,7 +128,7 @@ export default async function PayPs4Page({
               (usually within a few hours).
             </div>
             <a
-              href={membership.paymentProofUrl}
+              href={customerPaymentProofViewUrl('playstation', membership.id)}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm font-medium text-[#FF5A1F] hover:underline"

@@ -1,5 +1,6 @@
 'use client';
 
+import { customerPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import { UpiPaymentProofForm } from './UpiPaymentProofForm';
 
 export function Ps4PaymentProofForm({
@@ -25,6 +26,7 @@ export function Ps4PaymentProofForm({
       qrImageUrl={qrImageUrl}
       upiId={upiId}
       existingProofUrl={existingProofUrl}
+      proofViewHref={customerPaymentProofViewUrl('playstation', membershipId)}
       uploadScreenshot={uploadScreenshot}
       doneMessage="Payment proof submitted. Your PS4 lounge access activates once admin verifies the UPI payment (usually within a few hours)."
       submitProof={async ({ screenshotUrl, transactionRef }) => {
