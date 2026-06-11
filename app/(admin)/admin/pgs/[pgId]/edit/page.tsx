@@ -2,13 +2,18 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArchivePgButton } from '@/src/components/admin/ArchivePgButton';
 import { PgAdminForm } from '@/src/components/admin/PgAdminForm';
-import { PgInventoryPanel } from '@/src/components/admin/PgInventoryPanel';
+import { PgEditSectionNav } from '@/src/components/admin/PgEditSectionNav';
+import { PgRoomOperationsPanel } from '@/src/components/admin/PgRoomOperationsPanel';
+import { PgCollectionsPanel } from '@/src/components/admin/PgCollectionsPanel';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { isCloudinaryConfigured } from '@/src/lib/images/cloudinary';
 import { getPgInventory } from '@/src/services/pgInventory';
 import { getPgForAdmin } from '@/src/services/pgAdmin';
-import { PgPaymentsAdminPanel } from '@/src/components/admin/PgPaymentsAdminPanel';
+import {
+  getPgMeterSummaries,
+  listPendingElectricityProofsForPg,
+} from '@/src/services/meterElectricity';
 import { uploadPgImageAction, uploadPgVideoAction } from '../../actions';
 
 export const runtime = 'nodejs';
@@ -29,6 +34,8 @@ export default async function EditPgPage({
 
   const inventory = await getPgInventory(session, pgId);
   const cloudinary = isCloudinaryConfigured();
+  const meterSummaries = await getPgMeterSummaries(session, pgId);
+  const pendingProofs = await listPendingElectricityProofsForPg(pgId);
 
   return (
     <>
@@ -45,8 +52,8 @@ export default async function EditPgPage({
         title={`Edit — ${pg.name}`}
         description={
           sp.created === '1'
-            ? 'PG created. Add photos, facilities, beds, and pricing below.'
-            : 'Update listing details, media, facilities, beds, and payments.'
+            ? 'Follow the 3 steps below: listing → rooms & electricity → collections.'
+            : 'Listing on /pgs, per-room rent & meter billing, and QR collections.'
         }
         actions={
           <div className="flex items-center gap-3">
@@ -62,19 +69,35 @@ export default async function EditPgPage({
         }
       />
 
-      <PgAdminForm
-        mode="edit"
-        pg={pg}
-        cloudinaryConfigured={cloudinary}
-        cloudinaryUploadAction={cloudinary ? uploadPgImageAction : undefined}
-        cloudinaryVideoUploadAction={cloudinary ? uploadPgVideoAction : undefined}
-      />
+      <PgEditSectionNav bedCount={inventory.beds.length} />
 
-      <div className="mt-8">
-        <PgInventoryPanel pgId={pgId} floors={inventory.floors} beds={inventory.beds} />
+      <div id="pg-section-listing" className="scroll-mt-24">
+        <PgAdminForm
+          mode="edit"
+          pg={pg}
+          cloudinaryConfigured={cloudinary}
+          cloudinaryUploadAction={cloudinary ? uploadPgImageAction : undefined}
+          cloudinaryVideoUploadAction={cloudinary ? uploadPgVideoAction : undefined}
+        />
       </div>
 
-      <PgPaymentsAdminPanel pgId={pgId} hasPaymentEnabled={pg.hasPaymentEnabled} />
+      <div className="mt-8 scroll-mt-24">
+        <PgRoomOperationsPanel
+          pgId={pgId}
+          floors={inventory.floors}
+          beds={inventory.beds}
+          roomMeters={meterSummaries}
+          cloudinaryConfigured={cloudinary}
+        />
+      </div>
+
+      <div className="mt-8 scroll-mt-24">
+        <PgCollectionsPanel
+          pgId={pgId}
+          hasPaymentEnabled={pg.hasPaymentEnabled}
+          electricityProofs={pendingProofs}
+        />
+      </div>
     </>
   );
 }

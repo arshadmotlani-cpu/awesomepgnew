@@ -14,8 +14,8 @@ export default async function AdminPaymentsPage() {
   return (
     <>
       <PageHeader
-        title="QR payments"
-        description="Review tenant payment screenshots across all PGs you manage."
+        title="Collections (all PGs)"
+        description="Rent and electricity QR submissions from /pgs. To set up QR categories per PG, use PG listings → Edit → Section 3 Collections."
       />
       <div className="space-y-2">
         {payments.length === 0 ? (

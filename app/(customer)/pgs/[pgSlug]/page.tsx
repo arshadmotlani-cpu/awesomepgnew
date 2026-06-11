@@ -8,6 +8,7 @@ import {
   listRoomsForPg,
 } from '@/src/db/queries/customer';
 import { normalizeBrowseStay } from '@/src/lib/dateDefaults';
+import { ElectricityMeterNotice } from '@/src/components/customer/ElectricityMeterNotice';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,6 +41,9 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
+      <div className="mb-6">
+        <ElectricityMeterNotice />
+      </div>
       {/* Hero */}
       <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
         <div className="relative aspect-[2.4/1] w-full overflow-hidden bg-gradient-to-br from-indigo-100 via-zinc-100 to-emerald-100">

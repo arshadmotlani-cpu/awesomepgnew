@@ -20,8 +20,8 @@ export default async function PgsPage() {
   return (
     <>
       <PageHeader
-        title="PGs"
-        description="Manage every property — edit listings, images, features, and availability."
+        title="PG listings"
+        description="Click Edit on any PG. Each PG has three sections: Listing (public page), Rooms & electricity (beds + meter billing), and Collections (QR payments)."
         actions={
           canWrite ? (
             <Link
@@ -78,7 +78,7 @@ export default async function PgsPage() {
                       href={`/admin/pgs/${row.id}/edit`}
                       className="text-sm font-medium text-[#FF5A1F] hover:underline"
                     >
-                      Edit
+                      Edit PG →
                     </Link>
                   ) : null}
                 </TD>

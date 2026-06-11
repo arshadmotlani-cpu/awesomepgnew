@@ -21,6 +21,7 @@ export type PgInventoryBedRow = {
   bedId: string;
   bedCode: string;
   bedStatus: string;
+  roomId: string;
   roomNumber: string;
   floorLabel: string;
   roomTypeName: string;
@@ -51,6 +52,7 @@ export async function getPgInventory(session: AdminSession, pgId: string) {
       bedId: beds.id,
       bedCode: beds.bedCode,
       bedStatus: beds.status,
+      roomId: rooms.id,
       roomNumber: rooms.roomNumber,
       floorLabel: sql<string>`coalesce(${floors.label}, 'Floor ' || ${floors.floorNumber})`,
       roomTypeName: roomTypes.name,

@@ -115,6 +115,20 @@ export const electricityInvoiceStatusEnum = pgEnum('electricity_invoice_status',
   'cancelled',
 ]);
 
+export const meterReadingTypeEnum = pgEnum('meter_reading_type', [
+  'checkin',
+  'monthly',
+  'checkout',
+]);
+
+export const meterRecordedByEnum = pgEnum('meter_recorded_by', ['admin', 'tenant', 'system']);
+
+export const electricityBillStatusEnum = pgEnum('electricity_bill_status', [
+  'calculated',
+  'pending',
+  'paid',
+]);
+
 export const depositEntryKindEnum = pgEnum('deposit_entry_kind', [
   'collected',
   'deducted',

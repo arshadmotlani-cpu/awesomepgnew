@@ -1,176 +1,139 @@
 import Link from 'next/link';
 import { Card, CardBody, CardHeader } from '@/src/components/admin/Card';
 import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
-import { EmptyState } from '@/src/components/admin/EmptyState';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { StatCard } from '@/src/components/admin/StatCard';
 import {
   IconBed,
   IconBuilding,
+  IconCard,
   IconChart,
-  IconCheckCircle,
-  IconClipboard,
-  IconDoor,
-  IconLayers,
   IconUsers,
 } from '@/src/components/admin/icons';
 import {
   getDashboardStats,
   getOccupancyByPg,
-  listBookings,
+  listPgs,
 } from '@/src/db/queries/admin';
 
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
-  const [stats, occupancy, recentBookings] = await Promise.all([
+  const [stats, occupancy, pgs] = await Promise.all([
     getDashboardStats(),
     getOccupancyByPg(),
-    listBookings(),
+    listPgs(),
   ]);
 
   if (!stats.ok) {
     return (
       <>
-        <PageHeader
-          title="Dashboard"
-          description="At-a-glance health of every PG you manage."
-        />
+        <PageHeader title="Overview" description="PG operations at a glance." />
         <DbStatusBanner error={stats.error} />
       </>
     );
   }
 
   const s = stats.data;
+  const pgCount = pgs.ok ? pgs.data.length : 0;
 
   return (
     <>
       <PageHeader
-        title="Dashboard"
-        description="Live inventory snapshot pulled from the Phase 1 schema."
+        title="Overview"
+        description="Manage each PG from PG listings — listing, rooms & electricity, and collections live on the edit page."
       />
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7">
-        <StatCard label="Total PGs" value={s.totalPgs} icon={<IconBuilding />} accent="indigo" />
+      <div className="rounded-xl border border-[#FF5A1F]/30 bg-[#FF5A1F]/10 p-4 text-sm text-orange-100">
+        <p className="font-semibold text-white">How to set up a PG</p>
+        <ol className="mt-2 list-inside list-decimal space-y-1 text-orange-100/90">
+          <li>
+            Open{' '}
+            <Link href="/admin/pgs" className="font-medium text-white underline">
+              PG listings
+            </Link>{' '}
+            → Edit a PG
+          </li>
+          <li>
+            <strong>Section 1 — Listing:</strong> photos, amenities, public details
+          </li>
+          <li>
+            <strong>Section 2 — Rooms & electricity:</strong> add beds (rent) + meter readings per
+            room
+          </li>
+          <li>
+            <strong>Section 3 — Collections:</strong> enable QR payments, approve rent & electricity
+            screenshots
+          </li>
+        </ol>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <StatCard label="PG listings" value={s.totalPgs} icon={<IconBuilding />} accent="indigo" />
+        <StatCard label="Total beds" value={s.totalBeds} icon={<IconBed />} accent="sky" />
         <StatCard
-          label="Total Floors"
-          value={s.totalFloors}
-          icon={<IconLayers />}
-          accent="sky"
-        />
-        <StatCard label="Total Rooms" value={s.totalRooms} icon={<IconDoor />} accent="zinc" />
-        <StatCard label="Total Beds" value={s.totalBeds} icon={<IconBed />} accent="indigo" />
-        <StatCard
-          label="Occupied Beds"
+          label="Occupied today"
           value={s.occupiedBeds}
           icon={<IconUsers />}
           accent="rose"
-          hint="Active reservations covering today"
         />
         <StatCard
-          label="Available Beds"
-          value={s.availableBeds}
-          icon={<IconCheckCircle />}
-          accent="emerald"
-          hint={`+ ${s.blockedBeds} blocked · ${s.maintenanceBeds} in maintenance`}
-        />
-        <StatCard
-          label="Occupancy %"
+          label="Occupancy"
           value={`${s.occupancyPct}%`}
           icon={<IconChart />}
           accent="amber"
-          hint="Occupied / total beds today"
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <Card className="xl:col-span-2">
-          <CardHeader
-            title="Occupancy by property"
-            description="Today's occupancy across every active PG."
-            actions={
-              <Link
-                href="/admin/occupancy"
-                className="text-xs font-medium text-indigo-600 hover:text-indigo-700"
-              >
-                View full report →
-              </Link>
-            }
-          />
-          <CardBody>
-            {!occupancy.ok ? (
-              <DbStatusBanner error={occupancy.error} />
-            ) : occupancy.data.length === 0 ? (
-              <EmptyState
-                title="No PGs yet"
-                description="Run the seed script or create a PG to populate this widget."
-              />
-            ) : (
-              <ul className="divide-y divide-zinc-100">
-                {occupancy.data.map((row) => (
-                  <li key={row.pgId} className="flex items-center gap-4 py-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-zinc-900">{row.pgName}</p>
-                      <p className="text-xs text-zinc-500">
-                        {row.occupiedBeds} / {row.totalBeds} occupied ·{' '}
-                        {row.availableBeds} available · {row.blockedBeds} blocked
-                      </p>
-                    </div>
-                    <div className="w-40">
-                      <div className="h-2 rounded-full bg-zinc-100">
-                        <div
-                          className="h-2 rounded-full bg-indigo-500"
-                          style={{ width: `${Math.min(100, row.occupancyPct)}%` }}
-                        />
-                      </div>
-                    </div>
-                    <span className="w-12 text-right text-sm font-medium text-zinc-700">
-                      {row.occupancyPct}%
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardHeader
-            title="Recent bookings"
-            description="Most recent booking activity."
-            actions={
-              <Link
-                href="/admin/bookings"
-                className="text-xs font-medium text-indigo-600 hover:text-indigo-700"
-              >
-                All bookings →
-              </Link>
-            }
-          />
-          <CardBody>
-            {!recentBookings.ok ? (
-              <DbStatusBanner error={recentBookings.error} />
-            ) : recentBookings.data.length === 0 ? (
-              <EmptyState
-                icon={<IconClipboard />}
-                title="No bookings yet"
-                description="Bookings will appear once Phase 3 (booking flow) goes live."
-              />
-            ) : (
-              <ul className="divide-y divide-zinc-100">
-                {recentBookings.data.slice(0, 5).map((b) => (
-                  <li key={b.id} className="py-2.5">
-                    <p className="text-sm font-medium text-zinc-900">{b.bookingCode}</p>
-                    <p className="text-xs text-zinc-500">
-                      {b.customerName} · {b.status} · {b.durationMode}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardBody>
-        </Card>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Link
+          href="/admin/pgs"
+          className="rounded-xl border border-white/10 bg-[#1A1F27] p-5 transition hover:border-[#FF5A1F]/40"
+        >
+          <IconBuilding className="text-[#FF5A1F]" width={24} height={24} />
+          <p className="mt-3 font-semibold text-white">PG listings</p>
+          <p className="mt-1 text-sm text-apg-silver">
+            {pgCount} properties · edit listing, rooms, electricity, collections
+          </p>
+        </Link>
+        <Link
+          href="/admin/payments"
+          className="rounded-xl border border-white/10 bg-[#1A1F27] p-5 transition hover:border-[#FF5A1F]/40"
+        >
+          <IconCard className="text-[#FF5A1F]" width={24} height={24} />
+          <p className="mt-3 font-semibold text-white">Collections</p>
+          <p className="mt-1 text-sm text-apg-silver">Approve rent & electricity QR payments</p>
+        </Link>
+        <Link
+          href="/admin/residents"
+          className="rounded-xl border border-white/10 bg-[#1A1F27] p-5 transition hover:border-[#FF5A1F]/40"
+        >
+          <IconUsers className="text-[#FF5A1F]" width={24} height={24} />
+          <p className="mt-3 font-semibold text-white">Residents</p>
+          <p className="mt-1 text-sm text-apg-silver">Monthly tenants & billing status</p>
+        </Link>
       </div>
+
+      {occupancy.ok && occupancy.data.length > 0 ? (
+        <Card>
+          <CardHeader title="Occupancy by PG" />
+          <CardBody>
+            <ul className="divide-y divide-zinc-100">
+              {occupancy.data.map((row) => (
+                <li key={row.pgId} className="flex items-center justify-between gap-4 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-zinc-900">{row.pgName}</p>
+                    <p className="text-xs text-zinc-500">
+                      {row.occupiedBeds}/{row.totalBeds} beds occupied
+                    </p>
+                  </div>
+                  <span className="text-sm font-medium text-zinc-700">{row.occupancyPct}%</span>
+                </li>
+              ))}
+            </ul>
+          </CardBody>
+        </Card>
+      ) : null}
     </>
   );
 }

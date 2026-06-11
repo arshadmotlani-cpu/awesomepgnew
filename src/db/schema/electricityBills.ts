@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   bigint,
+  boolean,
   date,
   index,
   integer,
@@ -12,6 +13,8 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { adminUsers } from './adminUsers';
+import { electricityBillStatusEnum } from './enums';
+import { meterLogs } from './meterLogs';
 import { pgs } from './pgs';
 import { rooms } from './rooms';
 
@@ -52,6 +55,15 @@ export const electricityBills = pgTable(
       .notNull()
       .default(0),
     createdByAdminId: uuid('created_by_admin_id').references(() => adminUsers.id, {
+      onDelete: 'set null',
+    }),
+    billStatus: electricityBillStatusEnum('bill_status').notNull().default('calculated'),
+    isEstimated: boolean('is_estimated').notNull().default(false),
+    meterImageUrl: text('meter_image_url'),
+    startMeterLogId: uuid('start_meter_log_id').references(() => meterLogs.id, {
+      onDelete: 'set null',
+    }),
+    endMeterLogId: uuid('end_meter_log_id').references(() => meterLogs.id, {
       onDelete: 'set null',
     }),
     notes: text('notes'),

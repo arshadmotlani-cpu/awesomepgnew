@@ -7,6 +7,7 @@ import { requireCustomerSession } from '@/src/lib/auth/guards';
 import { canCheckIn, getCustomerById } from '@/src/services/profile';
 import { getLatestKycSubmission } from '@/src/services/kyc';
 import { titleCase } from '@/src/lib/format';
+import { ElectricityMeterNotice } from '@/src/components/customer/ElectricityMeterNotice';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,6 +69,12 @@ export default async function KycPage(props: PageProps<'/account/kyc'>) {
           Upload your Aadhaar and a selfie. An admin will review before you can check in.
         </p>
       </header>
+
+      {kycForCheckIn && customer.kycStatus !== 'approved' ? (
+        <div className="mt-4">
+          <ElectricityMeterNotice variant="checkin" />
+        </div>
+      ) : null}
 
       <div className={`mt-4 rounded-lg border px-4 py-3 text-sm ${statusTone}`}>
         <p className="font-semibold">Status: {titleCase(customer.kycStatus)}</p>

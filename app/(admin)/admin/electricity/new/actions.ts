@@ -55,6 +55,7 @@ export async function createElectricityBillAction(
     ratePerUnitPaise: Math.round(ratePerUnitInr * 100),
     notes: notes || null,
     createdByAdminId: admin.adminId,
+    useProRataByActiveDays: true,
   });
   if (!result.ok) {
     if (result.kind === 'already_exists') {

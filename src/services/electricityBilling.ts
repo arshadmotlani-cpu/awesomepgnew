@@ -39,7 +39,7 @@ import {
   payments,
   rooms,
 } from '../db/schema';
-import { formatDate, parseDate, type DateLike } from '../lib/dates';
+import { diffDays, formatDate, parseDate, type DateLike } from '../lib/dates';
 import {
   ELECTRICITY_GRACE_DAYS,
   computeElectricityLateFee,
@@ -47,6 +47,7 @@ import {
   firstOfMonth,
   monthBounds,
   splitElectricity,
+  splitElectricityWeighted,
 } from './billing';
 import type { ElectricityInvoice } from '../db/schema';
 import type { AnyPaymentProvider } from './bookingLifecycle';
@@ -71,6 +72,8 @@ export type CreateElectricityBillInput = {
   ratePerUnitPaise: number; // paise (e.g. ₹10 = 1000 paise)
   createdByAdminId?: string | null;
   notes?: string | null;
+  /** When true, split by active days in billing month (mid-month check-ins). */
+  useProRataByActiveDays?: boolean;
 };
 
 export type CreateElectricityBillResult =
@@ -294,6 +297,8 @@ export async function createElectricityBill(
       bookingId: bookings.id,
       customerId: bookings.customerId,
       bedId: beds.id,
+      lower: sql<string>`lower(bed_reservations.stay_range)::text`,
+      upper: sql<string>`upper(bed_reservations.stay_range)::text`,
     })
     .from(bookings)
     .innerJoin(
@@ -311,20 +316,36 @@ export async function createElectricityBill(
       ),
     );
 
-  // Group: bookingId → { customerId, bedIds[] }
+  const daysInMonth = diffDays(monthStart, monthEnd);
+
+  function activeDaysInMonth(lower: string, upper: string | null): number {
+    const aStart = parseDate(lower);
+    const aEnd = upper ? parseDate(upper) : monthEnd;
+    const intersectStart = aStart > monthStart ? aStart : monthStart;
+    const intersectEnd = aEnd < monthEnd ? aEnd : monthEnd;
+    if (intersectEnd <= intersectStart) return 0;
+    return diffDays(intersectStart, intersectEnd);
+  }
+
+  // Group: bookingId → { customerId, bedIds[], weight (active-day shares) }
   const byBooking = new Map<
     string,
-    { bookingId: string; customerId: string; bedIds: Set<string> }
+    { bookingId: string; customerId: string; bedIds: Set<string>; weight: number }
   >();
   for (const row of occupantRows) {
+    const bedDays = input.useProRataByActiveDays
+      ? activeDaysInMonth(row.lower, row.upper)
+      : 1;
     const cur = byBooking.get(row.bookingId);
     if (cur) {
       cur.bedIds.add(row.bedId);
+      cur.weight += bedDays;
     } else {
       byBooking.set(row.bookingId, {
         bookingId: row.bookingId,
         customerId: row.customerId,
         bedIds: new Set([row.bedId]),
+        weight: bedDays,
       });
     }
   }
@@ -332,15 +353,28 @@ export async function createElectricityBill(
     (acc, b) => acc + b.bedIds.size,
     0,
   );
+  const totalWeight = [...byBooking.values()].reduce((acc, b) => acc + b.weight, 0);
 
   // Total bill in paise. Units is numeric, rate is paise. Float -> round
   // to int paise. Operator should round at entry time if they want
   // pristine numbers.
   const totalPaise = Math.round(unitsConsumed * input.ratePerUnitPaise);
-  const { perResidentPaise, remainderPaise } = splitElectricity({
+  const useProRata = input.useProRataByActiveDays && totalWeight > 0;
+  const bookingList = [...byBooking.values()];
+  const equalSplit = splitElectricity({
     totalPaise,
     occupantCount: totalMonthlyBedShares,
   });
+  const weightedShares = useProRata
+    ? splitElectricityWeighted({
+        totalPaise,
+        weights: bookingList.map((b) => b.weight),
+      })
+    : null;
+  const perResidentPaise = useProRata ? 0 : equalSplit.perResidentPaise;
+  const remainderPaise = useProRata
+    ? weightedShares!.remainderPaise
+    : equalSplit.remainderPaise;
 
   // Invoice due date = bill issuance date + 3 days. We pick the date
   // once here (not per-invoice) so every invoice in the fan-out shares
@@ -371,10 +405,21 @@ export async function createElectricityBill(
         .returning({ id: electricityBills.id });
 
       const invoiceIds: string[] = [];
-      if (totalMonthlyBedShares > 0 && perResidentPaise > 0) {
+      if (totalMonthlyBedShares > 0 && totalPaise > 0) {
+        let bookingIdx = 0;
         for (const bk of byBooking.values()) {
-          // Each booking pays (bedsInRoom * perResidentPaise).
-          const amount = perResidentPaise * bk.bedIds.size;
+          const amount = useProRata
+            ? weightedShares!.shares[bookingIdx]
+            : perResidentPaise * bk.bedIds.size;
+          const unitsShare = useProRata
+            ? roundToHundredth((unitsConsumed * bk.weight) / totalWeight)
+            : roundToHundredth(
+                (unitsConsumed * bk.bedIds.size) / totalMonthlyBedShares,
+              );
+          const activeDays = useProRata ? bk.weight : daysInMonth;
+          bookingIdx += 1;
+          if (amount <= 0) continue;
+
           // Representative bed = the smallest-UUID bed for determinism.
           const representativeBed = [...bk.bedIds].sort()[0];
 
@@ -396,6 +441,8 @@ export async function createElectricityBill(
                   billingMonth,
                   dueDate: dueDateIso,
                   amountPaise: amount,
+                  unitsShare: unitsShare.toString(),
+                  activeDays,
                   status: 'pending',
                 })
                 .returning({ id: electricityInvoices.id });

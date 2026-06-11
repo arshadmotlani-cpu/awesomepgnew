@@ -14,6 +14,9 @@ import { isRazorpayConfigured } from '@/src/lib/payments/config';
 import { PaymentUnavailable } from '@/src/components/customer/PaymentUnavailable';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import { ResidentPayButtons } from '@/src/components/customer/ResidentPayButtons';
+import { ElectricityPaymentProofForm } from '@/src/components/customer/ElectricityPaymentProofForm';
+import { uploadPaymentScreenshotAction } from '@/app/(admin)/admin/pgs/payment-actions';
+import { isCloudinaryConfigured } from '@/src/lib/images/cloudinary';
 import { projectElectricityInvoice } from '@/src/services/electricityBilling';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
 
@@ -48,6 +51,10 @@ export default async function PayElectricityPage({
       ratePerUnitPaise: electricityBills.ratePerUnitPaise,
       totalPaise: electricityBills.totalPaise,
       monthlyOccupantCount: electricityBills.monthlyOccupantCount,
+      isEstimated: electricityBills.isEstimated,
+      unitsShare: electricityInvoices.unitsShare,
+      activeDays: electricityInvoices.activeDays,
+      paymentProofUrl: electricityInvoices.paymentProofUrl,
     })
     .from(electricityInvoices)
     .innerJoin(bookings, eq(bookings.id, electricityInvoices.bookingId))
@@ -61,6 +68,7 @@ export default async function PayElectricityPage({
 
   const projection = projectElectricityInvoice(invoiceRow);
   const outstanding = projection.outstandingPaise;
+  const cloudinary = isCloudinaryConfigured();
 
   return (
     <div className="mx-auto w-full max-w-xl space-y-5 px-4 py-10 sm:px-6">
@@ -98,8 +106,21 @@ export default async function PayElectricityPage({
             {row.unitsConsumed} units × {paiseToInr(row.ratePerUnitPaise)} ={' '}
             {paiseToInr(row.totalPaise)}
           </dd>
+          <dt className="text-zinc-500">Your share</dt>
+          <dd className="text-right">
+            {row.unitsShare ? `${row.unitsShare} units` : '—'}
+            {row.activeDays ? ` · ${row.activeDays} active days` : ''}
+          </dd>
           <dt className="text-zinc-500">Split</dt>
           <dd className="text-right">{row.monthlyOccupantCount} monthly resident(s)</dd>
+          {row.isEstimated ? (
+            <>
+              <dt className="text-amber-700">Bill type</dt>
+              <dd className="text-right text-amber-700 font-medium">
+                Estimated (pending meter update)
+              </dd>
+            </>
+          ) : null}
           <dt className="text-zinc-500">Principal</dt>
           <dd className="text-right">{paiseToInr(invoiceRow.amountPaise)}</dd>
           <dt className="text-zinc-500">Due date</dt>
@@ -142,14 +163,24 @@ export default async function PayElectricityPage({
         <p className="rounded-md bg-zinc-100 px-3 py-2 text-sm text-zinc-700 ring-1 ring-inset ring-zinc-200">
           This invoice has been cancelled.
         </p>
-      ) : isRazorpayConfigured() ? (
-        <ResidentPayButtons
-          invoiceId={invoiceRow.id}
-          purpose="electricity"
-          totalLabel={paiseToInr(outstanding)}
-        />
       ) : (
-        <PaymentUnavailable />
+        <div className="space-y-4">
+          <ResidentPayButtons
+            invoiceId={invoiceRow.id}
+            purpose="electricity"
+            totalLabel={paiseToInr(outstanding)}
+          />
+          {cloudinary ? (
+            <ElectricityPaymentProofForm
+              invoiceId={invoiceRow.id}
+              amountLabel={paiseToInr(outstanding)}
+              uploadScreenshot={uploadPaymentScreenshotAction}
+              existingProofUrl={row.paymentProofUrl}
+            />
+          ) : isRazorpayConfigured() ? null : (
+            <PaymentUnavailable />
+          )}
+        </div>
       )}
     </div>
   );

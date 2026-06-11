@@ -16,6 +16,7 @@ import { getLatestKycSubmission } from '@/src/services/kyc';
 import { formatIndianPhoneDisplay } from '@/src/lib/phone';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import { LogoutButton } from '@/src/components/auth/LogoutButton';
+import { getRoomElectricityForCustomer } from '@/src/services/meterElectricity';
 
 export const dynamic = 'force-dynamic';
 
@@ -91,14 +92,16 @@ export default async function ResidentDashboardPage() {
     electricity: Awaited<ReturnType<typeof listElectricityInvoicesForBooking>>;
     deposit: Awaited<ReturnType<typeof getDepositSummaryForBooking>>;
     vacating: Awaited<ReturnType<typeof getVacatingForBooking>>;
+    roomElectricity: Awaited<ReturnType<typeof getRoomElectricityForCustomer>>;
   }> = [];
   if (uniqueBookings.length > 0) {
     for (const b of uniqueBookings) {
-      const [rent, electricity, deposit, vacating] = await Promise.all([
+      const [rent, electricity, deposit, vacating, roomElectricity] = await Promise.all([
         listRentInvoicesForBooking(b.bookingId),
         listElectricityInvoicesForBooking(b.bookingId),
         getDepositSummaryForBooking(b.bookingId),
         getVacatingForBooking(b.bookingId),
+        getRoomElectricityForCustomer(session.customerId, b.roomId),
       ]);
       detail.push({
         booking: b,
@@ -108,6 +111,7 @@ export default async function ResidentDashboardPage() {
         electricity,
         deposit,
         vacating,
+        roomElectricity,
       });
     }
   }
@@ -192,6 +196,9 @@ export default async function ResidentDashboardPage() {
                 status: e.status,
                 paymentId: null,
                 paidAt: e.paidAt,
+                paymentProofUrl: null,
+                unitsShare: null,
+                activeDays: null,
                 cancelledAt: null,
                 createdAt: e.createdAt,
                 updatedAt: e.updatedAt,
@@ -256,6 +263,46 @@ export default async function ResidentDashboardPage() {
                     Payment history →
                   </Link>
                 </div>
+
+                {d.roomElectricity?.latestBill ? (
+                  <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4 text-sm">
+                    <h3 className="font-medium text-indigo-900">Room electricity (Room {booking.roomNumber})</h3>
+                    {d.roomElectricity.latestBill.isEstimated ? (
+                      <p className="mt-1 text-xs text-amber-800">
+                        Estimated bill (pending meter update)
+                      </p>
+                    ) : null}
+                    <dl className="mt-2 grid gap-1 text-xs sm:grid-cols-2">
+                      <div>
+                        <dt className="text-indigo-700">Room consumption</dt>
+                        <dd className="font-medium">
+                          {d.roomElectricity.latestBill.unitsConsumed} units ·{' '}
+                          {paiseToInr(d.roomElectricity.latestBill.totalPaise)}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-indigo-700">Meter readings</dt>
+                        <dd className="font-medium">
+                          {d.roomElectricity.latestBill.previousReadingUnits} →{' '}
+                          {d.roomElectricity.latestBill.currentReadingUnits}
+                        </dd>
+                      </div>
+                    </dl>
+                    {d.roomElectricity.invoices.length > 0 ? (
+                      <ul className="mt-2 space-y-1 text-xs text-indigo-800">
+                        {d.roomElectricity.invoices.map((inv) => (
+                          <li key={inv.id}>
+                            Share {inv.unitsShare ?? '—'} units · {paiseToInr(inv.amountPaise)} ·{' '}
+                            {inv.status}
+                            {inv.paymentProofUrl && inv.status === 'pending'
+                              ? ' · proof submitted'
+                              : ''}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 {/* Rent invoices */}
                 <details open={projectedRent.some((r) => r.effectiveStatus !== 'paid')}>

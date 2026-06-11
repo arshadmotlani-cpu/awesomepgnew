@@ -1,5 +1,6 @@
 import { SiteFooter } from '@/src/components/customer/SiteFooter';
 import { SiteHeader } from '@/src/components/customer/SiteHeader';
+import { WhatsAppSupportButton } from '@/src/components/customer/WhatsAppSupportButton';
 
 export default function CustomerLayout({
   children,
@@ -11,6 +12,7 @@ export default function CustomerLayout({
       <SiteHeader />
       <main className="flex-1">{children}</main>
       <SiteFooter />
+      <WhatsAppSupportButton />
     </div>
   );
 }

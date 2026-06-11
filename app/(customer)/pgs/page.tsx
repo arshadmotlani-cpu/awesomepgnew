@@ -5,6 +5,7 @@ import { PgCard } from '@/src/components/customer/PgCard';
 import { EmptyPgList } from '@/src/components/customer/EmptyPgList';
 import { MotionPgGrid, MotionPgGridItem, MotionReveal } from '@/src/components/customer/MotionReveal';
 import { SafeModeBanner } from '@/src/components/customer/SafeModeBanner';
+import { ElectricityMeterNotice } from '@/src/components/customer/ElectricityMeterNotice';
 import { logServerRequest } from '@/src/lib/monitoring/logServerRequest';
 import {
   contextFromHeaders,
@@ -47,6 +48,9 @@ export default async function PgListPage() {
       <div>
         <SafeModeBanner />
         <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
+          <div className="mb-6">
+            <ElectricityMeterNotice />
+          </div>
           <MotionReveal>
             <header className="mb-8">
               <p className="text-xs font-semibold uppercase tracking-wider text-[#FF5A1F]">

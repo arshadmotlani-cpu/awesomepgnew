@@ -935,6 +935,7 @@ export type ResidentBookingRow = {
   pgName: string;
   pgSlug: string;
   bedCode: string;
+  roomId: string;
   roomNumber: string;
   durationMode: 'monthly' | 'open_ended';
   status: 'confirmed' | 'completed' | 'cancelled' | 'refunded' | 'draft' | 'pending_payment';
@@ -969,6 +970,7 @@ export function listResidentBookingsForCustomer(
         customerPhone: customers.phone,
         bedId: bedReservations.bedId,
         bedCode: beds.bedCode,
+        roomId: rooms.id,
         roomNumber: rooms.roomNumber,
         pgId: pgs.id,
         pgName: pgs.name,
@@ -1015,6 +1017,7 @@ export function listResidentBookingsForCustomer(
         pgName: r.pgName,
         pgSlug: r.pgSlug,
         bedCode: r.bedCode,
+        roomId: r.roomId,
         roomNumber: r.roomNumber,
         durationMode: r.durationMode as 'monthly' | 'open_ended',
         status: r.status,

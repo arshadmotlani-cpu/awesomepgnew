@@ -87,6 +87,9 @@ export function PgAdminForm({
       animate={{ opacity: 1, y: 0 }}
       className="space-y-6 rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6 backdrop-blur"
     >
+      <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+        Section 1 — Public listing (does not include rent beds or electricity)
+      </p>
       {state.error ? (
         <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-300">
           {state.error}

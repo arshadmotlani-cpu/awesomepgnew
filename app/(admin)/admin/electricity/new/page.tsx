@@ -15,7 +15,7 @@ export default async function NewElectricityBillPage() {
     <>
       <PageHeader
         title="New electricity bill"
-        description="Pick a room, enter the meter reading + rate, and the system will split the total equally across that room's monthly residents and create per-resident invoices in one transaction."
+        description="Pick a room, enter meter readings + rate. The system splits the total across monthly residents by active days in the billing month and creates per-resident invoices in one transaction."
       />
       <Link
         href="/admin/electricity"

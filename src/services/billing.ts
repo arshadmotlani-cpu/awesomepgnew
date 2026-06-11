@@ -246,6 +246,21 @@ export function splitElectricity(args: {
   return { perResidentPaise: per, remainderPaise: remainder };
 }
 
+/** Weighted split — remainder absorbed by operator (same policy as equal split). */
+export function splitElectricityWeighted(args: {
+  totalPaise: number;
+  weights: number[];
+}): { shares: number[]; remainderPaise: number } {
+  const weights = args.weights.map((w) => Math.max(0, w));
+  const totalWeight = weights.reduce((a, b) => a + b, 0);
+  if (totalWeight <= 0 || args.totalPaise <= 0) {
+    return { shares: weights.map(() => 0), remainderPaise: args.totalPaise };
+  }
+  const shares = weights.map((w) => Math.floor((args.totalPaise * w) / totalWeight));
+  const remainder = args.totalPaise - shares.reduce((a, b) => a + b, 0);
+  return { shares, remainderPaise: remainder };
+}
+
 /**
  * Format a paise amount as a human-readable INR string like `"₹6,000.00"`.
  * Lives here (and not in a shared formatter) because Phase 5.5 UIs

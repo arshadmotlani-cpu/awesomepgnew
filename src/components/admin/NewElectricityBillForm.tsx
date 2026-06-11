@@ -145,8 +145,8 @@ export function NewElectricityBillForm({
             Units consumed: <strong>{previewUnits.toFixed(2)}</strong>
           </div>
           <div>
-            Bill total: <strong>{paiseToInr(previewTotalPaise)}</strong> — split equally
-            across monthly residents in the selected room.
+            Bill total: <strong>{paiseToInr(previewTotalPaise)}</strong> — split across
+            monthly residents by active days in the billing month.
           </div>
           <div className="mt-1 text-xs text-zinc-500">
             Due 3 days after creation. 1%/day penalty thereafter.

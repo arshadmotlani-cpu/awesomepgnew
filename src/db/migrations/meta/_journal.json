@@ -120,6 +120,13 @@
       "when": 1783400000000,
       "tag": "0016_pg_videos",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1783500000000,
+      "tag": "0017_meter_electricity",
+      "breakpoints": true
     }
   ]
 }

@@ -15,15 +15,18 @@ export default async function AdminElectricityPage() {
   return (
     <>
       <PageHeader
-        title="Electricity billing"
-        description="Per-room electricity bills, split equally across monthly residents. Daily and weekly stays are excluded from the split (operator absorbs that share)."
+        title="Electricity bills (all PGs)"
+        description="Global list of room bills. To add meter readings and generate bills, use PG listings → Edit → Section 2 Rooms & electricity."
       />
-      <div className="mb-4 flex justify-end">
+      <div className="mb-4 flex flex-wrap items-center justify-end gap-3">
+        <Link href="/admin/pgs" className="text-sm text-[#FF5A1F] hover:underline">
+          ← Manage per PG
+        </Link>
         <Link
           href="/admin/electricity/new"
           className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-indigo-500"
         >
-          + New electricity bill
+          + Manual bill (legacy)
         </Link>
       </div>
       {!res.ok ? (

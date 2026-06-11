@@ -28,3 +28,4 @@ export * from './systemHealth';
 export * from './deployments';
 export * from './pgPaymentCategories';
 export * from './pgPaymentRecords';
+export * from './meterLogs';

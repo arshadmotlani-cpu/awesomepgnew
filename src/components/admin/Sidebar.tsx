@@ -66,7 +66,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       </div>
 
       <div className="border-t border-white/5 px-5 py-3 text-[11px] text-apg-silver/60">
-        SaaS admin · secured
+        Beds & meters are managed inside each PG listing
       </div>
     </nav>
   );
