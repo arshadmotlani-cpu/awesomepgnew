@@ -129,6 +129,27 @@ export async function markPgFullyOccupied(
   return { bedsMarked: vacantBeds.length, bookingCode };
 }
 
+export type MarkPgOccupancyResult = {
+  pgId: string;
+  pgName: string;
+  bedsMarked: number;
+  bookingCode: string;
+};
+
+/** Mark every PG whose name matches any pattern (case-insensitive). */
+export async function markPgsFullyOccupiedByPatterns(
+  session: AdminSession,
+  patterns: string[],
+): Promise<MarkPgOccupancyResult[]> {
+  const matches = await findPgIdsByNamePatterns(patterns);
+  const results: MarkPgOccupancyResult[] = [];
+  for (const pg of matches) {
+    const { bedsMarked, bookingCode } = await markPgFullyOccupied(session, pg.id);
+    results.push({ pgId: pg.id, pgName: pg.name, bedsMarked, bookingCode });
+  }
+  return results;
+}
+
 /** Match PGs by partial name (case-insensitive). */
 export async function findPgIdsByNamePatterns(patterns: string[]): Promise<
   Array<{ id: string; name: string }>

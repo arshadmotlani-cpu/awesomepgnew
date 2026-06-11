@@ -42,7 +42,9 @@ export function RoomCard({ room, pgSlug, startDate, endDate, durationMode }: Pro
               : 'bg-emerald-50 text-emerald-700 ring-emerald-200'
           }`}
         >
-          {room.availableBeds} of {room.totalBeds} free
+          {allBooked && room.totalBeds > 0
+            ? 'Fully occupied'
+            : `${room.availableBeds} of ${room.totalBeds} free`}
         </span>
       </div>
 

@@ -56,7 +56,9 @@ export function PgCard({
             <GenderBadge policy={pg.genderPolicy} />
           </div>
           <div className="absolute right-3 top-3 rounded-full border border-white/10 bg-black/50 px-2 py-0.5 text-[11px] font-semibold text-apg-silver backdrop-blur">
-            {pg.availableBeds} of {pg.totalBeds} beds free today
+            {pg.totalBeds > 0 && pg.availableBeds === 0
+              ? 'Fully occupied · no beds'
+              : `${pg.availableBeds} of ${pg.totalBeds} beds free today`}
           </div>
         </div>
 

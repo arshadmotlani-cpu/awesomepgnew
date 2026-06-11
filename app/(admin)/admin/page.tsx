@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { MarkCentralOccupiedButton } from '@/src/components/admin/MarkCentralOccupiedButton';
 import { PgBusinessMetricsTable } from '@/src/components/admin/PgBusinessMetricsTable';
 import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import { PageHeader } from '@/src/components/admin/PageHeader';
@@ -80,6 +81,8 @@ export default async function DashboardPage() {
         Income for {monthLabel}: approved QR collections + paid rent and electricity invoices.
         Expected rent is the sum of monthly rates on beds occupied today.
       </p>
+
+      <MarkCentralOccupiedButton />
 
       {metrics.ok && metrics.data.length > 0 ? (
         <section className="space-y-3">

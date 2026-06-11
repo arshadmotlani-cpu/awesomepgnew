@@ -39,6 +39,11 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
 
   const roomsResult = await listRoomsForPg(pg.id, stay.start, stay.end);
 
+  const rooms = roomsResult.ok ? roomsResult.data : [];
+  const totalBeds = rooms.reduce((n, r) => n + r.totalBeds, 0);
+  const availableBeds = rooms.reduce((n, r) => n + r.availableBeds, 0);
+  const fullyOccupied = totalBeds > 0 && availableBeds === 0;
+
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
       <div className="mb-6">
@@ -87,6 +92,12 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
       </section>
 
       {/* Date bar */}
+      {fullyOccupied ? (
+        <section className="mt-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          <strong>Fully occupied</strong> — no beds available for new bookings at this PG right now.
+        </section>
+      ) : null}
+
       <section className="mt-6">
         <DateRangeBar
           action={`/pgs/${pg.slug}`}

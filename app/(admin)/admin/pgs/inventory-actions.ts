@@ -10,7 +10,7 @@ import {
   updateRoomBedPricing,
   updateRoomDetails,
 } from '@/src/services/pgInventory';
-import { markPgFullyOccupied } from '@/src/services/occupancyAdmin';
+import { markPgFullyOccupied, markPgsFullyOccupiedByPatterns } from '@/src/services/occupancyAdmin';
 
 function parseRupeesPaise(raw: string | null | undefined): number | undefined {
   if (!raw || raw.trim() === '') return undefined;
@@ -105,6 +105,26 @@ export async function updateRoomDetailsAction(
     revalidatePath(`/admin/pgs/${pgId}/edit`);
     revalidatePath('/pgs');
     return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function markCentralPgsFullyOccupiedAction(): Promise<{
+  ok: boolean;
+  error?: string;
+  results?: Array<{ pgName: string; bedsMarked: number }>;
+}> {
+  try {
+    const session = await requireAdminPermission('pgs:write');
+    const results = await markPgsFullyOccupiedByPatterns(session, ['central']);
+    revalidatePath('/admin');
+    revalidatePath('/admin/pgs');
+    revalidatePath('/pgs');
+    return {
+      ok: true,
+      results: results.map((r) => ({ pgName: r.pgName, bedsMarked: r.bedsMarked })),
+    };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
