@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { ArchivePgButton } from '@/src/components/admin/ArchivePgButton';
 import { PgAdminForm } from '@/src/components/admin/PgAdminForm';
 import { PgEditSectionNav } from '@/src/components/admin/PgEditSectionNav';
+import { MarkPgFullyOccupiedButton } from '@/src/components/admin/MarkPgFullyOccupiedButton';
 import { PgRoomOperationsPanel } from '@/src/components/admin/PgRoomOperationsPanel';
 import { PgCollectionsPanel } from '@/src/components/admin/PgCollectionsPanel';
 import { PageHeader } from '@/src/components/admin/PageHeader';
@@ -82,6 +83,12 @@ export default async function EditPgPage({
       </div>
 
       <div className="mt-8 scroll-mt-24">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs text-zinc-500">
+            Occupancy tools — use when every bed is filled but not yet booked online.
+          </p>
+          <MarkPgFullyOccupiedButton pgId={pgId} pgName={pg.name} />
+        </div>
         <PgRoomOperationsPanel
           pgId={pgId}
           floors={inventory.floors}

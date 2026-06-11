@@ -11,6 +11,7 @@ import {
   electricityInvoices,
   floors,
   payments,
+  pgPaymentRecords,
   pgs,
   rentInvoices,
   rooms,
@@ -789,6 +790,156 @@ export function getOccupancyByPg(): Promise<QueryResult<OccupancyByPg[]>> {
       .where(sql`${pgs.archivedAt} IS NULL`)
       .groupBy(pgs.id, pgs.name)
       .orderBy(asc(pgs.name));
+  });
+}
+
+export type PgBusinessMetrics = OccupancyByPg & {
+  /** Approved QR rent/electricity submissions this calendar month. */
+  incomeQrPaise: number;
+  /** Paid rent invoices (principal + late fee) paid this calendar month. */
+  incomeRentPaise: number;
+  /** Paid electricity invoices this calendar month. */
+  incomeElectricityPaise: number;
+  incomeThisMonthPaise: number;
+  /** Sum of monthly bed rates for beds occupied today (expected rent). */
+  expectedMonthlyRentPaise: number;
+};
+
+export type BusinessMetricsSummary = {
+  totalBeds: number;
+  occupiedBeds: number;
+  availableBeds: number;
+  occupancyPct: number;
+  incomeThisMonthPaise: number;
+  incomeRentPaise: number;
+  incomeElectricityPaise: number;
+  incomeQrPaise: number;
+  expectedMonthlyRentPaise: number;
+};
+
+export function getPgBusinessMetrics(): Promise<QueryResult<PgBusinessMetrics[]>> {
+  return guard(async () => {
+    const occupancy = await getOccupancyByPg();
+    if (!occupancy.ok) throw new Error(occupancy.error);
+
+    const monthStart = sql`date_trunc('month', CURRENT_DATE)::date`;
+
+    const qrRows = await db
+      .select({
+        pgId: pgPaymentRecords.pgId,
+        total: sql<number>`coalesce(sum(${pgPaymentRecords.amountPaise}), 0)::bigint::int`,
+      })
+      .from(pgPaymentRecords)
+      .where(
+        and(
+          eq(pgPaymentRecords.status, 'approved'),
+          sql`${pgPaymentRecords.createdAt} >= ${monthStart}`,
+        ),
+      )
+      .groupBy(pgPaymentRecords.pgId);
+
+    const rentRows = await db
+      .select({
+        pgId: rentInvoices.pgId,
+        total: sql<number>`coalesce(sum(${rentInvoices.paidPrincipalPaise} + ${rentInvoices.paidLateFeePaise}), 0)::bigint::int`,
+      })
+      .from(rentInvoices)
+      .where(
+        and(
+          eq(rentInvoices.status, 'paid'),
+          sql`${rentInvoices.paidAt} >= ${monthStart}`,
+        ),
+      )
+      .groupBy(rentInvoices.pgId);
+
+    const elecRows = await db
+      .select({
+        pgId: electricityBills.pgId,
+        total: sql<number>`coalesce(sum(${electricityInvoices.paidPaise} + coalesce(${electricityInvoices.lateFeeLockedPaise}, 0)), 0)::bigint::int`,
+      })
+      .from(electricityInvoices)
+      .innerJoin(electricityBills, eq(electricityBills.id, electricityInvoices.electricityBillId))
+      .where(
+        and(
+          eq(electricityInvoices.status, 'paid'),
+          sql`${electricityInvoices.paidAt} >= ${monthStart}`,
+        ),
+      )
+      .groupBy(electricityBills.pgId);
+
+    const expectedRows = await db
+      .select({
+        pgId: pgs.id,
+        total: sql<number>`coalesce(sum(
+          (
+            SELECT bp.monthly_rate_paise::bigint::int FROM ${bedPrices} bp
+            WHERE bp.bed_id = beds.id
+              AND bp.effective_from <= CURRENT_DATE
+              AND (bp.effective_to IS NULL OR bp.effective_to > CURRENT_DATE)
+            ORDER BY bp.effective_from DESC LIMIT 1
+          )
+        ), 0)::bigint::int`,
+      })
+      .from(pgs)
+      .leftJoin(floors, eq(floors.pgId, pgs.id))
+      .leftJoin(rooms, eq(rooms.floorId, floors.id))
+      .leftJoin(beds, and(eq(beds.roomId, rooms.id), sql`${beds.archivedAt} IS NULL`))
+      .where(
+        and(
+          sql`${pgs.archivedAt} IS NULL`,
+          sql`EXISTS (
+            SELECT 1 FROM ${bedReservations} r
+            WHERE r.bed_id = beds.id
+              AND r.status = 'active'
+              AND CURRENT_DATE <@ r.stay_range
+          )`,
+        ),
+      )
+      .groupBy(pgs.id);
+
+    const qrMap = new Map(qrRows.map((r) => [r.pgId, r.total]));
+    const rentMap = new Map(rentRows.map((r) => [r.pgId, r.total]));
+    const elecMap = new Map(elecRows.map((r) => [r.pgId, r.total]));
+    const expectedMap = new Map(expectedRows.map((r) => [r.pgId, r.total]));
+
+    return occupancy.data.map((row) => {
+      const incomeQrPaise = qrMap.get(row.pgId) ?? 0;
+      const incomeRentPaise = rentMap.get(row.pgId) ?? 0;
+      const incomeElectricityPaise = elecMap.get(row.pgId) ?? 0;
+      return {
+        ...row,
+        incomeQrPaise,
+        incomeRentPaise,
+        incomeElectricityPaise,
+        incomeThisMonthPaise: incomeQrPaise + incomeRentPaise + incomeElectricityPaise,
+        expectedMonthlyRentPaise: expectedMap.get(row.pgId) ?? 0,
+      };
+    });
+  });
+}
+
+export function getBusinessMetricsSummary(): Promise<QueryResult<BusinessMetricsSummary>> {
+  return guard(async () => {
+    const rows = await getPgBusinessMetrics();
+    if (!rows.ok) throw new Error(rows.error);
+
+    const totalBeds = rows.data.reduce((a, r) => a + r.totalBeds, 0);
+    const occupiedBeds = rows.data.reduce((a, r) => a + r.occupiedBeds, 0);
+    const availableBeds = rows.data.reduce((a, r) => a + r.availableBeds, 0);
+    const occupancyPct =
+      totalBeds === 0 ? 0 : Math.round((occupiedBeds / totalBeds) * 1000) / 10;
+
+    return {
+      totalBeds,
+      occupiedBeds,
+      availableBeds,
+      occupancyPct,
+      incomeQrPaise: rows.data.reduce((a, r) => a + r.incomeQrPaise, 0),
+      incomeRentPaise: rows.data.reduce((a, r) => a + r.incomeRentPaise, 0),
+      incomeElectricityPaise: rows.data.reduce((a, r) => a + r.incomeElectricityPaise, 0),
+      incomeThisMonthPaise: rows.data.reduce((a, r) => a + r.incomeThisMonthPaise, 0),
+      expectedMonthlyRentPaise: rows.data.reduce((a, r) => a + r.expectedMonthlyRentPaise, 0),
+    };
   });
 }
 

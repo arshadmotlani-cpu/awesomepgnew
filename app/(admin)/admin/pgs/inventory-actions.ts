@@ -10,6 +10,7 @@ import {
   updateRoomBedPricing,
   updateRoomDetails,
 } from '@/src/services/pgInventory';
+import { markPgFullyOccupied } from '@/src/services/occupancyAdmin';
 
 function parseRupeesPaise(raw: string | null | undefined): number | undefined {
   if (!raw || raw.trim() === '') return undefined;
@@ -104,6 +105,27 @@ export async function updateRoomDetailsAction(
     revalidatePath(`/admin/pgs/${pgId}/edit`);
     revalidatePath('/pgs');
     return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function markPgFullyOccupiedAction(
+  pgId: string,
+): Promise<{ ok: boolean; error?: string; message?: string }> {
+  try {
+    const session = await requireAdminPermission('pgs:write');
+    const result = await markPgFullyOccupied(session, pgId);
+    revalidatePath(`/admin/pgs/${pgId}/edit`);
+    revalidatePath('/admin');
+    revalidatePath('/pgs');
+    if (result.bedsMarked === 0) {
+      return { ok: true, message: 'All beds are already marked occupied.' };
+    }
+    return {
+      ok: true,
+      message: `Marked ${result.bedsMarked} bed(s) as occupied (booking ${result.bookingCode}).`,
+    };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
