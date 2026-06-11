@@ -8,10 +8,14 @@
 import 'dotenv/config';
 
 import { closeDb } from '../src/db/client';
-import { findPgIdsByNamePatterns, markPgFullyOccupied } from '../src/services/occupancyAdmin';
+import {
+  FULLY_OCCUPIED_PG_NAME_PATTERNS,
+  findPgIdsByNamePatterns,
+  markPgFullyOccupied,
+} from '../src/services/occupancyAdmin';
 import type { AdminSession } from '../src/lib/auth/session';
 
-const DEFAULT_PATTERNS = ['central', 'trimurti'];
+const DEFAULT_PATTERNS = [...FULLY_OCCUPIED_PG_NAME_PATTERNS];
 
 function parsePatterns(): string[] {
   const arg = process.argv.find((a) => a.startsWith('--names='));

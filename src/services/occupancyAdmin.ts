@@ -18,6 +18,9 @@ import { countBookingsInYear } from '@/src/db/queries/customer';
 const PLACEHOLDER_PHONE = '+910000000001';
 const OCCUPANCY_END = '2099-01-01';
 
+/** PG name substrings matched case-insensitively for bulk “fully occupied” admin actions. */
+export const FULLY_OCCUPIED_PG_NAME_PATTERNS = ['central', 'trimurti'] as const;
+
 function assertPgAccess(session: AdminSession, pgId: string) {
   if (!adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, pgId)) {
     throw new Error('You do not have access to this PG.');

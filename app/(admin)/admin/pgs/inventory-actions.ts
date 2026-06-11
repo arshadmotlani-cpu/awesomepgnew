@@ -10,7 +10,11 @@ import {
   updateRoomBedPricing,
   updateRoomDetails,
 } from '@/src/services/pgInventory';
-import { markPgFullyOccupied, markPgsFullyOccupiedByPatterns } from '@/src/services/occupancyAdmin';
+import {
+  FULLY_OCCUPIED_PG_NAME_PATTERNS,
+  markPgFullyOccupied,
+  markPgsFullyOccupiedByPatterns,
+} from '@/src/services/occupancyAdmin';
 
 function parseRupeesPaise(raw: string | null | undefined): number | undefined {
   if (!raw || raw.trim() === '') return undefined;
@@ -117,7 +121,9 @@ export async function markCentralPgsFullyOccupiedAction(): Promise<{
 }> {
   try {
     const session = await requireAdminPermission('pgs:write');
-    const results = await markPgsFullyOccupiedByPatterns(session, ['central']);
+    const results = await markPgsFullyOccupiedByPatterns(session, [
+      ...FULLY_OCCUPIED_PG_NAME_PATTERNS,
+    ]);
     revalidatePath('/admin');
     revalidatePath('/admin/pgs');
     revalidatePath('/pgs');
