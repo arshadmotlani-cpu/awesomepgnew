@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArchivePgButton } from '@/src/components/admin/ArchivePgButton';
+import { CloneFemalePgButton } from '@/src/components/admin/CloneFemalePgButton';
 import { PgAdminForm } from '@/src/components/admin/PgAdminForm';
 import { PgEditSectionNav } from '@/src/components/admin/PgEditSectionNav';
 import { MarkPgFullyOccupiedButton } from '@/src/components/admin/MarkPgFullyOccupiedButton';
@@ -57,7 +58,7 @@ export default async function EditPgPage({
             : 'Listing on /pgs, per-room rent & meter billing, and QR collections.'
         }
         actions={
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Link
               href={`/pgs/${pg.slug}`}
               className="text-sm text-[#FF5A1F] hover:underline"
@@ -65,6 +66,7 @@ export default async function EditPgPage({
             >
               View public page
             </Link>
+            <CloneFemalePgButton pgId={pgId} pgName={pg.name} genderPolicy={pg.genderPolicy} />
             <ArchivePgButton pgId={pgId} />
           </div>
         }
