@@ -177,8 +177,28 @@ body {
 /* White account/resident surfaces on the dark customer shell. */
 .apg-account-surface {
   background-color: #ffffff;
-  color: #18181b;
+  color: #18181b !important;
   color-scheme: light;
+  isolation: isolate;
+}
+
+.apg-account-surface dt {
+  color: #52525b !important;
+}
+
+.apg-account-surface dd {
+  color: #111827 !important;
+  font-weight: 600;
+}
+
+.apg-account-surface .apg-subscription-label {
+  color: #374151 !important;
+  font-weight: 600;
+}
+
+.apg-account-surface .apg-subscription-value {
+  color: #030712 !important;
+  font-weight: 700;
 }
 
 .apg-account-nav {
