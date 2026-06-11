@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { revalidatePgAdminPages } from '@/src/lib/revalidatePgAdmin';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { uploadToCloudinary } from '@/src/lib/images/cloudinary';
 import {
@@ -12,7 +13,7 @@ import {
 export async function togglePgPaymentsAction(pgId: string, enabled: boolean) {
   const session = await requireAdminPermission('pgs:write');
   await setPgPaymentEnabled(session, pgId, enabled);
-  revalidatePath(`/admin/pgs/${pgId}/edit`);
+  revalidatePgAdminPages(pgId);
   revalidatePath('/pgs');
   return { ok: true };
 }
@@ -29,7 +30,7 @@ export async function createPaymentCategoryAction(
       upiId: formData.get('upiId')?.toString(),
       isActive: formData.get('isActive') === 'on',
     });
-    revalidatePath(`/admin/pgs/${pgId}/edit`);
+    revalidatePgAdminPages(pgId);
     revalidatePath('/pgs');
     return { ok: true };
   } catch (err) {
@@ -50,7 +51,7 @@ export async function updatePaymentCategoryAction(
       upiId: formData.get('upiId')?.toString(),
       isActive: formData.get('isActive') === 'on',
     });
-    revalidatePath(`/admin/pgs/${pgId}/edit`);
+    revalidatePgAdminPages(pgId);
     revalidatePath('/pgs');
     return { ok: true };
   } catch (err) {

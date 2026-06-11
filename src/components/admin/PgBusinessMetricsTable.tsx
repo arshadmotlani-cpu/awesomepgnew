@@ -24,7 +24,7 @@ export function PgBusinessMetricsTable({ rows }: { rows: PgBusinessMetrics[] }) 
             <tr key={row.pgId} className="hover:bg-white/[0.02]">
               <td className="px-4 py-3">
                 <Link
-                  href={`/admin/pgs/${row.pgId}/edit`}
+                  href={`/admin/pgs/${row.pgId}/listing`}
                   className="font-medium text-white hover:text-[#FF5A1F]"
                 >
                   {row.pgName}

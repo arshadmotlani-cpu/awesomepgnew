@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { revalidatePgAdminPages } from '@/src/lib/revalidatePgAdmin';
 import { redirect, unstable_rethrow } from 'next/navigation';
 import type { PgAmenities } from '@/src/db/schema';
 import { friendlyDbError } from '@/src/lib/db/friendlyDbError';
@@ -84,7 +85,7 @@ export async function createPgAction(_prev: PgFormState, formData: FormData): Pr
     revalidatePath('/pgs');
     revalidatePath('/admin/pgs');
     revalidatePath('/admin/dashboard');
-    redirect(`/admin/pgs/${id}/edit?created=1`);
+    redirect(`/admin/pgs/${id}/listing?created=1`);
   } catch (err) {
     unstable_rethrow(err);
     return { ok: false, error: friendlyDbError(err) };
@@ -103,7 +104,7 @@ export async function updatePgAction(
     revalidatePath('/pgs');
     revalidatePath(`/pgs/${input.slug ?? ''}`);
     revalidatePath('/admin/pgs');
-    revalidatePath(`/admin/pgs/${pgId}/edit`);
+    revalidatePgAdminPages(pgId);
     return { ok: true, pgId };
   } catch (err) {
     return { ok: false, error: friendlyDbError(err) };

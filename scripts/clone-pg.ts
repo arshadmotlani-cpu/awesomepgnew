@@ -57,7 +57,7 @@ async function main() {
   console.log(`  id:    ${result.newPgId}`);
   console.log(`  slug:  ${result.slug}`);
   console.log(`  url:   /pgs/${result.slug}`);
-  console.log(`  admin: /admin/pgs/${result.newPgId}/edit`);
+  console.log(`  admin: /admin/pgs/${result.newPgId}/listing`);
   console.log(`  floors: ${result.floors}, rooms: ${result.rooms}, beds: ${result.beds}`);
   console.log(`  payment categories: ${result.paymentCategories}`);
 

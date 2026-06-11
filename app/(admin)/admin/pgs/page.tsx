@@ -75,7 +75,7 @@ export default async function PgsPage() {
                 <TD>
                   {canWrite ? (
                     <Link
-                      href={`/admin/pgs/${row.id}/edit`}
+                      href={`/admin/pgs/${row.id}/listing`}
                       className="text-sm font-medium text-[#FF5A1F] hover:underline"
                     >
                       Edit PG →

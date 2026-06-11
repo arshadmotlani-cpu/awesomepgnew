@@ -31,7 +31,7 @@ export default async function AdminPaymentsPage() {
                   {p.customerName} · {p.categoryName}
                 </p>
                 <p className="text-sm text-zinc-400">
-                  <Link href={`/admin/pgs/${p.pgId}/edit`} className="text-[#FF5A1F] hover:underline">
+                  <Link href={`/admin/pgs/${p.pgId}/collections`} className="text-[#FF5A1F] hover:underline">
                     {p.pgName}
                   </Link>
                   {' · '}

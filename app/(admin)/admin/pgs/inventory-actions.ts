@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { revalidatePgAdminPages } from '@/src/lib/revalidatePgAdmin';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { parseSharingCount, sharingTypeName } from '@/src/lib/roomSharing';
 import {
@@ -64,7 +65,7 @@ export async function quickAddBedAction(
       monthlyDepositPaise,
     });
 
-    revalidatePath(`/admin/pgs/${pgId}/edit`);
+    revalidatePgAdminPages(pgId);
     revalidatePath('/pgs');
     revalidatePath('/admin/beds');
     revalidatePath('/admin/pricing');
@@ -102,7 +103,7 @@ export async function updateRoomDetailsAction(
       roomNumber,
     });
 
-    revalidatePath(`/admin/pgs/${pgId}/edit`);
+    revalidatePgAdminPages(pgId);
     revalidatePath('/pgs');
     return { ok: true };
   } catch (err) {
@@ -116,7 +117,7 @@ export async function markPgFullyOccupiedAction(
   try {
     const session = await requireAdminPermission('pgs:write');
     const result = await markPgFullyOccupied(session, pgId);
-    revalidatePath(`/admin/pgs/${pgId}/edit`);
+    revalidatePgAdminPages(pgId);
     revalidatePath('/admin');
     revalidatePath('/pgs');
     if (result.bedsMarked === 0) {
@@ -138,7 +139,7 @@ export async function archiveBedAction(
   try {
     const session = await requireAdminPermission('pgs:write');
     await archiveBed(session, pgId, bedId);
-    revalidatePath(`/admin/pgs/${pgId}/edit`);
+    revalidatePgAdminPages(pgId);
     revalidatePath('/pgs');
     revalidatePath('/admin/beds');
     return { ok: true };
@@ -154,7 +155,7 @@ export async function archiveRoomAction(
   try {
     const session = await requireAdminPermission('pgs:write');
     await archiveRoom(session, pgId, roomId);
-    revalidatePath(`/admin/pgs/${pgId}/edit`);
+    revalidatePgAdminPages(pgId);
     revalidatePath('/pgs');
     revalidatePath('/admin/beds');
     revalidatePath('/admin/rooms');
@@ -191,7 +192,7 @@ export async function updateRoomPricingAction(
       monthlyDepositPaise,
     });
 
-    revalidatePath(`/admin/pgs/${pgId}/edit`);
+    revalidatePgAdminPages(pgId);
     revalidatePath('/pgs');
     revalidatePath('/admin/pricing');
     return { ok: true };

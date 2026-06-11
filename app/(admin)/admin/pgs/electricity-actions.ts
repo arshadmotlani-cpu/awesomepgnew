@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { revalidatePgAdminPages } from '@/src/lib/revalidatePgAdmin';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { uploadToCloudinary } from '@/src/lib/images/cloudinary';
 import {
@@ -45,7 +46,7 @@ export async function recordMonthlyMeterAction(
         ratePerUnitPaise,
       });
       if (!result.ok) return { ok: false, error: result.message };
-      revalidatePath(`/admin/pgs/${pgId}/edit`);
+      revalidatePgAdminPages(pgId);
       revalidatePath('/admin/electricity');
       return { ok: true, billId: result.billId };
     }
@@ -68,7 +69,7 @@ export async function recordMonthlyMeterAction(
       autoCreateBill: true,
     });
 
-    revalidatePath(`/admin/pgs/${pgId}/edit`);
+    revalidatePgAdminPages(pgId);
     revalidatePath('/admin/electricity');
     return { ok: true, billId };
   } catch (err) {
@@ -84,7 +85,7 @@ export async function approveElectricityProofAction(
     const session = await requireAdminPermission('electricity:write');
     const result = await approveElectricityPaymentProof(session, invoiceId);
     if (!result.ok) return { ok: false, error: result.message };
-    revalidatePath(`/admin/pgs/${pgId}/edit`);
+    revalidatePgAdminPages(pgId);
     revalidatePath('/admin/electricity');
     return { ok: true };
   } catch (err) {
