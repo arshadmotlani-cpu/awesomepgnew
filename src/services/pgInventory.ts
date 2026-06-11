@@ -100,7 +100,9 @@ export type QuickAddRoomBedsInput = {
   dailyRatePaise: number;
   weeklyRatePaise: number;
   monthlyRatePaise: number;
-  securityDepositPaise?: number;
+  dailyDepositPaise?: number;
+  weeklyDepositPaise?: number;
+  monthlyDepositPaise?: number;
 };
 
 export type QuickAddRoomBedsResult = {
@@ -138,7 +140,9 @@ export async function quickAddBed(session: AdminSession, pgId: string, input: Qu
     dailyRatePaise: input.dailyRatePaise,
     weeklyRatePaise: input.weeklyRatePaise,
     monthlyRatePaise: input.monthlyRatePaise,
-    securityDepositPaise: input.securityDepositPaise,
+    dailyDepositPaise: input.dailyDepositPaise,
+    weeklyDepositPaise: input.weeklyDepositPaise,
+    monthlyDepositPaise: input.monthlyDepositPaise,
   });
   return result.bedIds[0];
 }
@@ -252,12 +256,16 @@ async function quickAddBedsInternal(
       })
       .returning();
 
+    const monthlyDep = input.monthlyDepositPaise ?? 0;
     await db.insert(bedPrices).values({
       bedId: bed.id,
       dailyRatePaise: input.dailyRatePaise,
       weeklyRatePaise: input.weeklyRatePaise,
       monthlyRatePaise: input.monthlyRatePaise,
-      securityDepositPaise: input.securityDepositPaise ?? 0,
+      securityDepositPaise: monthlyDep,
+      dailySecurityDepositPaise: input.dailyDepositPaise ?? 0,
+      weeklySecurityDepositPaise: input.weeklyDepositPaise ?? 0,
+      monthlySecurityDepositPaise: monthlyDep,
       effectiveFrom: today,
     });
 

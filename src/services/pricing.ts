@@ -30,10 +30,30 @@ export type RateSnapshot = {
   dailyRatePaise: number;
   weeklyRatePaise: number;
   monthlyRatePaise: number;
+  /** Legacy column — mirrors monthly deposit when set. */
   securityDepositPaise: number;
+  dailySecurityDepositPaise: number;
+  weeklySecurityDepositPaise: number;
+  monthlySecurityDepositPaise: number;
   effectiveFrom: string;
   effectiveTo: string | null;
 };
+
+export function securityDepositForMode(rate: RateSnapshot, durationMode: PricingMode): number {
+  if (durationMode === 'daily') {
+    return rate.dailySecurityDepositPaise > 0
+      ? rate.dailySecurityDepositPaise
+      : rate.securityDepositPaise;
+  }
+  if (durationMode === 'weekly') {
+    return rate.weeklySecurityDepositPaise > 0
+      ? rate.weeklySecurityDepositPaise
+      : rate.securityDepositPaise;
+  }
+  return rate.monthlySecurityDepositPaise > 0
+    ? rate.monthlySecurityDepositPaise
+    : rate.securityDepositPaise;
+}
 
 export type LineItem = {
   kind:
@@ -222,7 +242,7 @@ export function computePriceBreakdown(input: ComputePriceInput): PriceQuote {
     notes = 'Open-ended stay: first month billed now, subsequent months billed monthly.';
   }
 
-  const depositPaise = includeDeposit ? rate.securityDepositPaise : 0;
+  const depositPaise = includeDeposit ? securityDepositForMode(rate, durationMode) : 0;
   if (depositPaise > 0) {
     lineItems.push({
       kind: 'deposit',
@@ -282,6 +302,9 @@ export async function loadBedPrice(
       weeklyRatePaise: bedPrices.weeklyRatePaise,
       monthlyRatePaise: bedPrices.monthlyRatePaise,
       securityDepositPaise: bedPrices.securityDepositPaise,
+      dailySecurityDepositPaise: bedPrices.dailySecurityDepositPaise,
+      weeklySecurityDepositPaise: bedPrices.weeklySecurityDepositPaise,
+      monthlySecurityDepositPaise: bedPrices.monthlySecurityDepositPaise,
       effectiveFrom: bedPrices.effectiveFrom,
       effectiveTo: bedPrices.effectiveTo,
     })
@@ -306,6 +329,9 @@ export async function loadBedPrice(
     weeklyRatePaise: row.weeklyRatePaise,
     monthlyRatePaise: row.monthlyRatePaise,
     securityDepositPaise: row.securityDepositPaise,
+    dailySecurityDepositPaise: row.dailySecurityDepositPaise,
+    weeklySecurityDepositPaise: row.weeklySecurityDepositPaise,
+    monthlySecurityDepositPaise: row.monthlySecurityDepositPaise,
     effectiveFrom: row.effectiveFrom,
     effectiveTo: row.effectiveTo,
   };

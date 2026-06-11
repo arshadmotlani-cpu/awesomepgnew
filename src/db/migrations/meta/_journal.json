@@ -127,6 +127,13 @@
       "when": 1783500000000,
       "tag": "0017_meter_electricity",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1783600000000,
+      "tag": "0018_bed_deposits_by_mode",
+      "breakpoints": true
     }
   ]
 }

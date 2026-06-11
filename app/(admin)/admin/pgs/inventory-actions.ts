@@ -2,9 +2,20 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
+import {
+  type SharingPresetMatrix,
+  type SharingPresetPaise,
+} from '@/src/lib/pgSharingPresets';
 import { parseSharingCount, sharingTypeName, type RoomSharingCount } from '@/src/lib/roomSharing';
 import { quickAddRoomBeds } from '@/src/services/pgInventory';
-import { savePgDepositPresets } from '@/src/services/pgAdmin';
+import { savePgSharingPresets } from '@/src/services/pgAdmin';
+
+function parseRupeesPaise(raw: string | null | undefined): number | undefined {
+  if (!raw || raw.trim() === '') return undefined;
+  const rupees = Number.parseFloat(raw);
+  if (!Number.isFinite(rupees) || rupees < 0) return undefined;
+  return Math.round(rupees * 100);
+}
 
 export async function quickAddBedAction(
   pgId: string,
@@ -17,7 +28,6 @@ export async function quickAddBedAction(
     const daily = Number.parseFloat(formData.get('dailyRate')?.toString() ?? '0');
     const weekly = Number.parseFloat(formData.get('weeklyRate')?.toString() ?? '0');
     const monthly = Number.parseFloat(formData.get('monthlyRate')?.toString() ?? '0');
-    const deposit = Number.parseFloat(formData.get('securityDeposit')?.toString() ?? '0');
 
     const sharing = parseSharingCount(formData.get('sharingCount')?.toString());
     if (!sharing) {
@@ -32,10 +42,19 @@ export async function quickAddBedAction(
       };
     }
 
-    const depositPaise = Math.round(deposit * 100);
-    if (depositPaise > 0) {
-      await savePgDepositPresets(session, pgId, { [sharing]: depositPaise });
-    }
+    const dailyDepositPaise = parseRupeesPaise(formData.get('dailyDeposit')?.toString()) ?? 0;
+    const weeklyDepositPaise = parseRupeesPaise(formData.get('weeklyDeposit')?.toString()) ?? 0;
+    const monthlyDepositPaise = parseRupeesPaise(formData.get('monthlyDeposit')?.toString()) ?? 0;
+
+    const presetRow: SharingPresetPaise = {
+      dailyRatePaise: Math.round(daily * 100),
+      weeklyRatePaise: Math.round(weekly * 100),
+      monthlyRatePaise: Math.round(monthly * 100),
+      dailyDepositPaise,
+      weeklyDepositPaise,
+      monthlyDepositPaise,
+    };
+    await savePgSharingPresets(session, pgId, { [sharing]: presetRow });
 
     const result = await quickAddRoomBeds(session, pgId, {
       floorNumber,
@@ -48,7 +67,9 @@ export async function quickAddBedAction(
       dailyRatePaise: Math.round(daily * 100),
       weeklyRatePaise: Math.round(weekly * 100),
       monthlyRatePaise: Math.round(monthly * 100),
-      securityDepositPaise: depositPaise,
+      dailyDepositPaise,
+      weeklyDepositPaise,
+      monthlyDepositPaise,
     });
 
     revalidatePath(`/admin/pgs/${pgId}/edit`);
@@ -69,23 +90,34 @@ export async function quickAddBedAction(
   }
 }
 
-export async function saveDepositPresetsAction(
+export async function saveSharingPresetsAction(
   pgId: string,
   formData: FormData,
 ): Promise<{ ok: boolean; error?: string }> {
   try {
     const session = await requireAdminPermission('pgs:write');
-    const presets: Partial<Record<RoomSharingCount, number>> = {};
+    const presets: SharingPresetMatrix = {};
+
     for (const count of [1, 2, 3, 4, 5] as RoomSharingCount[]) {
-      const raw = formData.get(`deposit_${count}`)?.toString() ?? '';
-      if (raw.trim() === '') continue;
-      const rupees = Number.parseFloat(raw);
-      if (!Number.isFinite(rupees) || rupees < 0) {
-        return { ok: false, error: `Invalid deposit for ${count} sharing.` };
-      }
-      presets[count] = Math.round(rupees * 100);
+      const row: SharingPresetPaise = {};
+      const dailyRate = parseRupeesPaise(formData.get(`${count}_dailyRate`)?.toString());
+      const weeklyRate = parseRupeesPaise(formData.get(`${count}_weeklyRate`)?.toString());
+      const monthlyRate = parseRupeesPaise(formData.get(`${count}_monthlyRate`)?.toString());
+      const dailyDeposit = parseRupeesPaise(formData.get(`${count}_dailyDeposit`)?.toString());
+      const weeklyDeposit = parseRupeesPaise(formData.get(`${count}_weeklyDeposit`)?.toString());
+      const monthlyDeposit = parseRupeesPaise(
+        formData.get(`${count}_monthlyDeposit`)?.toString(),
+      );
+      if (dailyRate != null) row.dailyRatePaise = dailyRate;
+      if (weeklyRate != null) row.weeklyRatePaise = weeklyRate;
+      if (monthlyRate != null) row.monthlyRatePaise = monthlyRate;
+      if (dailyDeposit != null) row.dailyDepositPaise = dailyDeposit;
+      if (weeklyDeposit != null) row.weeklyDepositPaise = weeklyDeposit;
+      if (monthlyDeposit != null) row.monthlyDepositPaise = monthlyDeposit;
+      if (Object.keys(row).length > 0) presets[count] = row;
     }
-    await savePgDepositPresets(session, pgId, presets);
+
+    await savePgSharingPresets(session, pgId, presets);
     revalidatePath(`/admin/pgs/${pgId}/edit`);
     return { ok: true };
   } catch (err) {

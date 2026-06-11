@@ -14,7 +14,27 @@ export type BedSelectorBed = {
   weeklyRatePaise: number;
   monthlyRatePaise: number;
   securityDepositPaise: number;
+  dailySecurityDepositPaise: number;
+  weeklySecurityDepositPaise: number;
+  monthlySecurityDepositPaise: number;
 };
+
+function depositForMode(bed: BedSelectorBed, durationMode: string): number {
+  const fallback = bed.securityDepositPaise;
+  if (durationMode === 'daily') {
+    return bed.dailySecurityDepositPaise > 0
+      ? bed.dailySecurityDepositPaise
+      : fallback;
+  }
+  if (durationMode === 'weekly') {
+    return bed.weeklySecurityDepositPaise > 0
+      ? bed.weeklySecurityDepositPaise
+      : fallback;
+  }
+  return bed.monthlySecurityDepositPaise > 0
+    ? bed.monthlySecurityDepositPaise
+    : fallback;
+}
 
 type Props = {
   beds: BedSelectorBed[];
@@ -140,6 +160,7 @@ function BedTile({
       : durationMode === 'weekly'
         ? '/week'
         : '/mo';
+  const depositPaise = depositForMode(bed, durationMode);
 
   let stateLabel: string;
   let stateClass: string;
@@ -207,9 +228,9 @@ function BedTile({
         {rate > 0 ? paiseToInr(rate) : '—'}
         <span className="text-zinc-500"> {rateLabel}</span>
       </span>
-      {bed.securityDepositPaise > 0 ? (
+      {depositPaise > 0 ? (
         <span className="text-[10px] text-zinc-500">
-          + {paiseToInr(bed.securityDepositPaise)} deposit
+          + {paiseToInr(depositPaise)} deposit
         </span>
       ) : null}
     </button>

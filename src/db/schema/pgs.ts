@@ -11,8 +11,27 @@ export type PgAmenities = {
   ac?: boolean;
   housekeeping?: boolean;
   powerBackup?: boolean;
-  /** Per-bed security deposit (paise) keyed by sharing count "1".."5". */
+  /** Legacy flat deposit per sharing count. */
   depositBySharingPaise?: Record<string, number>;
+  /** Rent + deposit presets (paise) per sharing count "1".."5". */
+  sharingPresetsPaise?: Record<
+    string,
+    {
+      dailyRatePaise?: number;
+      weeklyRatePaise?: number;
+      monthlyRatePaise?: number;
+      dailyDepositPaise?: number;
+      weeklyDepositPaise?: number;
+      monthlyDepositPaise?: number;
+      /** Legacy keys (without Paise suffix) — migrated on read. */
+      dailyRate?: number;
+      weeklyRate?: number;
+      monthlyRate?: number;
+      dailyDeposit?: number;
+      weeklyDeposit?: number;
+      monthlyDeposit?: number;
+    }
+  >;
   [key: string]: unknown;
 };
 

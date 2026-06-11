@@ -355,6 +355,9 @@ export type CustomerRoomDetail = {
     weeklyRatePaise: number;
     monthlyRatePaise: number;
     securityDepositPaise: number;
+    dailySecurityDepositPaise: number;
+    weeklySecurityDepositPaise: number;
+    monthlySecurityDepositPaise: number;
   }>;
 };
 
@@ -443,6 +446,27 @@ export function getRoomDetail(
         ), 0)`,
         securityDepositPaise: sql<number>`coalesce((
           SELECT bp.security_deposit_paise::bigint::int FROM ${bedPrices} bp
+          WHERE bp.bed_id = beds.id
+            AND bp.effective_from <= ${startDate}::date
+            AND (bp.effective_to IS NULL OR bp.effective_to > ${startDate}::date)
+          ORDER BY bp.effective_from DESC LIMIT 1
+        ), 0)`,
+        dailySecurityDepositPaise: sql<number>`coalesce((
+          SELECT bp.daily_security_deposit_paise::bigint::int FROM ${bedPrices} bp
+          WHERE bp.bed_id = beds.id
+            AND bp.effective_from <= ${startDate}::date
+            AND (bp.effective_to IS NULL OR bp.effective_to > ${startDate}::date)
+          ORDER BY bp.effective_from DESC LIMIT 1
+        ), 0)`,
+        weeklySecurityDepositPaise: sql<number>`coalesce((
+          SELECT bp.weekly_security_deposit_paise::bigint::int FROM ${bedPrices} bp
+          WHERE bp.bed_id = beds.id
+            AND bp.effective_from <= ${startDate}::date
+            AND (bp.effective_to IS NULL OR bp.effective_to > ${startDate}::date)
+          ORDER BY bp.effective_from DESC LIMIT 1
+        ), 0)`,
+        monthlySecurityDepositPaise: sql<number>`coalesce((
+          SELECT bp.monthly_security_deposit_paise::bigint::int FROM ${bedPrices} bp
           WHERE bp.bed_id = beds.id
             AND bp.effective_from <= ${startDate}::date
             AND (bp.effective_to IS NULL OR bp.effective_to > ${startDate}::date)

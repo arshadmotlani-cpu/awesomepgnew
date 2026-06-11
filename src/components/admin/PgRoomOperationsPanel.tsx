@@ -7,9 +7,13 @@ import type { PgInventoryBedRow } from '@/src/services/pgInventory';
 import { RoomElectricityCard } from './RoomElectricityCard';
 import type { MeterLog } from '@/src/db/schema/meterLogs';
 import type { ElectricityBill } from '@/src/db/schema/electricityBills';
-import { depositPresetRupees, type DepositPresetsPaise } from '@/src/lib/pgDepositPresets';
+import {
+  presetForSharing,
+  presetRupees,
+  type SharingPresetMatrix,
+} from '@/src/lib/pgSharingPresets';
 import { ROOM_SHARING_OPTIONS, type RoomSharingCount } from '@/src/lib/roomSharing';
-import { PgDepositPresetsPanel } from './PgDepositPresetsPanel';
+import { PgSharingPresetsPanel } from './PgSharingPresetsPanel';
 
 type FloorRow = {
   id: string;
@@ -41,27 +45,38 @@ export function PgRoomOperationsPanel({
   beds,
   roomMeters,
   cloudinaryConfigured,
-  depositPresets,
+  sharingPresets,
 }: {
   pgId: string;
   floors: FloorRow[];
   beds: PgInventoryBedRow[];
   roomMeters: RoomMeterData[];
   cloudinaryConfigured: boolean;
-  depositPresets: DepositPresetsPaise;
+  sharingPresets: SharingPresetMatrix;
 }) {
   const action = quickAddBedAction.bind(null, pgId);
   const [state, formAction, pending] = useActionState(action, { ok: false });
   const [showAddBed, setShowAddBed] = useState(beds.length === 0);
   const [sharingCount, setSharingCount] = useState<RoomSharingCount>(2);
   const [bedsToAdd, setBedsToAdd] = useState<RoomSharingCount>(2);
-  const [securityDeposit, setSecurityDeposit] = useState(
-    depositPresetRupees(depositPresets, 2),
-  );
+
+  const applyPreset = (sharing: RoomSharingCount) => {
+    const row = presetForSharing(sharingPresets, sharing);
+    return {
+      dailyRate: presetRupees(row.dailyRatePaise),
+      weeklyRate: presetRupees(row.weeklyRatePaise),
+      monthlyRate: presetRupees(row.monthlyRatePaise),
+      dailyDeposit: presetRupees(row.dailyDepositPaise),
+      weeklyDeposit: presetRupees(row.weeklyDepositPaise),
+      monthlyDeposit: presetRupees(row.monthlyDepositPaise),
+    };
+  };
+
+  const [rates, setRates] = useState(() => applyPreset(2));
 
   useEffect(() => {
-    setSecurityDeposit(depositPresetRupees(depositPresets, sharingCount));
-  }, [sharingCount, depositPresets]);
+    setRates(applyPreset(sharingCount));
+  }, [sharingCount, sharingPresets]);
 
   const roomGroups = useMemo(() => {
     const meterByRoom = new Map(roomMeters.map((r) => [r.roomId, r]));
@@ -128,7 +143,7 @@ export function PgRoomOperationsPanel({
         </ol>
       ) : null}
 
-      <PgDepositPresetsPanel pgId={pgId} initialPresets={depositPresets} />
+      <PgSharingPresetsPanel pgId={pgId} initialPresets={sharingPresets} />
 
       <div className="grid gap-3 sm:grid-cols-4">
         <Stat label="Floors" value={floors.length} />
@@ -229,55 +244,84 @@ export function PgRoomOperationsPanel({
               <input type="checkbox" name="hasAc" />
               Room has AC
             </label>
+            <p className="sm:col-span-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
+              Rent per bed (₹) — {ROOM_SHARING_OPTIONS.find((o) => o.count === sharingCount)?.label}
+            </p>
             <label className="text-sm">
-              <span className="text-zinc-400">Daily rate (₹)</span>
+              <span className="text-zinc-400">Per day</span>
               <input
                 name="dailyRate"
                 type="number"
                 min={0}
                 step="0.01"
+                value={rates.dailyRate}
+                onChange={(e) => setRates((r) => ({ ...r, dailyRate: e.target.value }))}
                 className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
               />
             </label>
             <label className="text-sm">
-              <span className="text-zinc-400">Weekly rate (₹)</span>
+              <span className="text-zinc-400">Per week</span>
               <input
                 name="weeklyRate"
                 type="number"
                 min={0}
                 step="0.01"
+                value={rates.weeklyRate}
+                onChange={(e) => setRates((r) => ({ ...r, weeklyRate: e.target.value }))}
                 className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
               />
             </label>
             <label className="text-sm">
-              <span className="text-zinc-400">Monthly rent (₹) *</span>
+              <span className="text-zinc-400">Per month *</span>
               <input
                 name="monthlyRate"
                 type="number"
                 min={0}
                 step="0.01"
                 required
+                value={rates.monthlyRate}
+                onChange={(e) => setRates((r) => ({ ...r, monthlyRate: e.target.value }))}
                 className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
               />
             </label>
-            <label className="text-sm sm:col-span-2">
-              <span className="text-zinc-400">
-                Security deposit per bed (₹) —{' '}
-                {ROOM_SHARING_OPTIONS.find((o) => o.count === sharingCount)?.label}
-              </span>
+            <p className="sm:col-span-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
+              Security deposit per bed (₹)
+            </p>
+            <label className="text-sm">
+              <span className="text-zinc-400">Daily stay deposit</span>
               <input
-                name="securityDeposit"
+                name="dailyDeposit"
                 type="number"
                 min={0}
                 step="0.01"
-                value={securityDeposit}
-                onChange={(e) => setSecurityDeposit(e.target.value)}
+                value={rates.dailyDeposit}
+                onChange={(e) => setRates((r) => ({ ...r, dailyDeposit: e.target.value }))}
                 className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
               />
-              <span className="mt-1 block text-xs text-zinc-500">
-                Uses the default for this sharing type above. Change here or update defaults and
-                save.
-              </span>
+            </label>
+            <label className="text-sm">
+              <span className="text-zinc-400">Weekly stay deposit</span>
+              <input
+                name="weeklyDeposit"
+                type="number"
+                min={0}
+                step="0.01"
+                value={rates.weeklyDeposit}
+                onChange={(e) => setRates((r) => ({ ...r, weeklyDeposit: e.target.value }))}
+                className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
+              />
+            </label>
+            <label className="text-sm">
+              <span className="text-zinc-400">Monthly stay deposit</span>
+              <input
+                name="monthlyDeposit"
+                type="number"
+                min={0}
+                step="0.01"
+                value={rates.monthlyDeposit}
+                onChange={(e) => setRates((r) => ({ ...r, monthlyDeposit: e.target.value }))}
+                className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
+              />
             </label>
             <button
               type="submit"

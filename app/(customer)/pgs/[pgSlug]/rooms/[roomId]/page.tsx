@@ -50,6 +50,9 @@ export default async function RoomDetailPage(
     weeklyRatePaise: b.weeklyRatePaise,
     monthlyRatePaise: b.monthlyRatePaise,
     securityDepositPaise: b.securityDepositPaise,
+    dailySecurityDepositPaise: b.dailySecurityDepositPaise,
+    weeklySecurityDepositPaise: b.weeklySecurityDepositPaise,
+    monthlySecurityDepositPaise: b.monthlySecurityDepositPaise,
   }));
 
   const availableCount = beds.filter(

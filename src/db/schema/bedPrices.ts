@@ -21,6 +21,15 @@ export const bedPrices = pgTable(
     securityDepositPaise: bigint('security_deposit_paise', { mode: 'number' })
       .notNull()
       .default(0),
+    dailySecurityDepositPaise: bigint('daily_security_deposit_paise', { mode: 'number' })
+      .notNull()
+      .default(0),
+    weeklySecurityDepositPaise: bigint('weekly_security_deposit_paise', { mode: 'number' })
+      .notNull()
+      .default(0),
+    monthlySecurityDepositPaise: bigint('monthly_security_deposit_paise', { mode: 'number' })
+      .notNull()
+      .default(0),
     effectiveFrom: date('effective_from').notNull(),
     effectiveTo: date('effective_to'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

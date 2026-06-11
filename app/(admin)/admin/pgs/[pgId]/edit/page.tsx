@@ -10,7 +10,7 @@ import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { isCloudinaryConfigured } from '@/src/lib/images/cloudinary';
 import { getPgInventory } from '@/src/services/pgInventory';
 import { getPgForAdmin } from '@/src/services/pgAdmin';
-import { readDepositPresets } from '@/src/lib/pgDepositPresets';
+import { readSharingPresets } from '@/src/lib/pgSharingPresets';
 import {
   getPgMeterSummaries,
   listPendingElectricityProofsForPg,
@@ -37,7 +37,7 @@ export default async function EditPgPage({
   const cloudinary = isCloudinaryConfigured();
   const meterSummaries = await getPgMeterSummaries(session, pgId);
   const pendingProofs = await listPendingElectricityProofsForPg(pgId);
-  const depositPresets = readDepositPresets(pg.amenities);
+  const sharingPresets = readSharingPresets(pg.amenities);
 
   return (
     <>
@@ -90,7 +90,7 @@ export default async function EditPgPage({
           beds={inventory.beds}
           roomMeters={meterSummaries}
           cloudinaryConfigured={cloudinary}
-          depositPresets={depositPresets}
+          sharingPresets={sharingPresets}
         />
       </div>
 
