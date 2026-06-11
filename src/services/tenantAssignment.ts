@@ -1,17 +1,19 @@
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { beds, floors, pgs, rooms } from '@/src/db/schema';
+import { bedReservations, beds, bookings, floors, pgs, rooms } from '@/src/db/schema';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { formatDate } from '@/src/lib/dates';
 import { recordDepositCollected } from '@/src/services/deposits';
 import { createBooking } from '@/src/services/booking';
+import { isBedAvailable } from '@/src/services/availability';
 
 const LONG_TERM_RESERVATION_END = '2099-01-01';
 
 export type AssignTenantInput = {
   bedId: string;
   startDate: string;
+  customerId?: string;
   fullName: string;
   email: string;
   phone: string;
@@ -49,6 +51,34 @@ export async function assignTenantToBed(
     return { ok: false, error: 'You do not have access to this PG.' };
   }
 
+  const available = await isBedAvailable({
+    bedId: input.bedId,
+    startDate: input.startDate,
+    endDate: LONG_TERM_RESERVATION_END,
+  });
+  if (!available) {
+    return { ok: false, error: 'That bed is already booked for the selected dates.' };
+  }
+
+  if (input.customerId) {
+    const [existing] = await db
+      .select({ id: bookings.id })
+      .from(bookings)
+      .innerJoin(bedReservations, eq(bedReservations.bookingId, bookings.id))
+      .where(
+        and(
+          eq(bookings.customerId, input.customerId),
+          eq(bookings.status, 'confirmed'),
+          eq(bedReservations.status, 'active'),
+          sql`CURRENT_DATE <@ ${bedReservations.stayRange}`,
+        ),
+      )
+      .limit(1);
+    if (existing) {
+      return { ok: false, error: 'This tenant already has an active bed assignment.' };
+    }
+  }
+
   const customMonthlyRatePaise =
     input.monthlyRentInr != null && input.monthlyRentInr >= 0
       ? Math.round(input.monthlyRentInr * 100)
@@ -67,6 +97,7 @@ export async function assignTenantToBed(
     blocksRoomAvailability: input.blocksWholeRoom === true,
     customMonthlyRatePaise,
     customDepositPaise,
+    customerId: input.customerId,
     customer: {
       fullName: input.fullName.trim(),
       email: input.email.trim(),
@@ -101,7 +132,8 @@ export async function assignTenantToBed(
   return { ok: true, bookingId: result.bookingId, bookingCode: result.bookingCode };
 }
 
-export async function listAssignableBeds(session: AdminSession) {
+export async function listAssignableBeds(session: AdminSession, startDate?: string) {
+  const from = startDate ?? formatDate(new Date());
   const rows = await db
     .select({
       bedId: beds.id,
@@ -117,9 +149,20 @@ export async function listAssignableBeds(session: AdminSession) {
     .where(and(isNull(beds.archivedAt), isNull(pgs.archivedAt)))
     .orderBy(asc(pgs.name), asc(rooms.roomNumber), asc(beds.bedCode));
 
-  return rows.filter((row) =>
+  const allowed = rows.filter((row) =>
     adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, row.pgId),
   );
+
+  const available: typeof allowed = [];
+  for (const row of allowed) {
+    const ok = await isBedAvailable({
+      bedId: row.bedId,
+      startDate: from,
+      endDate: LONG_TERM_RESERVATION_END,
+    });
+    if (ok) available.push(row);
+  }
+  return available;
 }
 
 export function defaultTenantStartDate(): string {

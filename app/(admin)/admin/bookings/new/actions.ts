@@ -25,9 +25,12 @@ export async function assignTenantAction(
     const monthlyRaw = formData.get('monthlyRentInr')?.toString()?.trim();
     const depositRaw = formData.get('depositInr')?.toString()?.trim();
 
+    const customerId = formData.get('customerId')?.toString()?.trim() || undefined;
+
     const result = await assignTenantToBed(session, {
       bedId: formData.get('bedId')?.toString() ?? '',
       startDate: formData.get('startDate')?.toString() ?? '',
+      customerId,
       fullName: formData.get('fullName')?.toString() ?? '',
       email: formData.get('email')?.toString() ?? '',
       phone: formData.get('phone')?.toString() ?? '',
@@ -43,6 +46,10 @@ export async function assignTenantAction(
     revalidatePath('/admin/bookings');
     revalidatePath('/pgs');
     revalidatePath('/admin/residents');
+    if (customerId) {
+      revalidatePath(`/admin/residents/${customerId}`);
+      redirect(`/admin/residents/${customerId}?assigned=1`);
+    }
     redirect(`/admin/bookings/${result.bookingId}?assigned=1`);
   } catch (err) {
     if (err instanceof Error && err.message === 'NEXT_REDIRECT') throw err;

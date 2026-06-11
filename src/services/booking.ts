@@ -201,24 +201,7 @@ function applyAdminPricingOverrides(
   return next;
 }
 
-async function siblingBedIdsInRoom(primaryBedId: string): Promise<string[]> {
-  const [row] = await db
-    .select({ roomId: beds.roomId })
-    .from(beds)
-    .where(eq(beds.id, primaryBedId))
-    .limit(1);
-  if (!row) return [];
-
-  const siblings = await db
-    .select({ id: beds.id })
-    .from(beds)
-    .where(
-      sql`${beds.roomId} = ${row.roomId}
-        AND ${beds.id} != ${primaryBedId}
-        AND ${beds.archivedAt} IS NULL`,
-    );
-  return siblings.map((s) => s.id);
-}
+import { siblingBedIdsInRoom } from '@/src/services/tenantAssignmentInternals';
 
 /**
  * Best-effort error classification for postgres-js errors. We rely on

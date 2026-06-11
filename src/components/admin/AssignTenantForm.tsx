@@ -15,10 +15,18 @@ export function AssignTenantForm({
   beds,
   defaultBedId,
   defaultStartDate,
+  prefill,
 }: {
   beds: BedOption[];
   defaultBedId?: string;
   defaultStartDate: string;
+  prefill?: {
+    customerId: string;
+    fullName: string;
+    email: string;
+    phone: string;
+    gender: 'male' | 'female' | 'other';
+  } | null;
 }) {
   const [state, action, pending] = useActionState(assignTenantAction, {
     ok: false,
@@ -26,6 +34,8 @@ export function AssignTenantForm({
 
   return (
     <form action={action} className="max-w-xl space-y-4 rounded-xl border border-zinc-200 bg-white p-6">
+      {prefill ? <input type="hidden" name="customerId" value={prefill.customerId} /> : null}
+
       <label className="block text-sm">
         <span className="font-medium text-zinc-700">Bed *</span>
         <select
@@ -62,6 +72,7 @@ export function AssignTenantForm({
           <input
             name="fullName"
             required
+            defaultValue={prefill?.fullName ?? ''}
             className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
           />
         </label>
@@ -71,6 +82,7 @@ export function AssignTenantForm({
             name="phone"
             required
             placeholder="+91…"
+            defaultValue={prefill?.phone ?? ''}
             className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
           />
         </label>
@@ -82,13 +94,19 @@ export function AssignTenantForm({
           type="email"
           name="email"
           required
+          defaultValue={prefill?.email ?? ''}
           className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
         />
       </label>
 
       <label className="block text-sm">
         <span className="font-medium text-zinc-700">Gender *</span>
-        <select name="gender" required className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm">
+        <select
+          name="gender"
+          required
+          defaultValue={prefill?.gender ?? 'male'}
+          className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+        >
           <option value="male">Male</option>
           <option value="female">Female</option>
           <option value="other">Other</option>

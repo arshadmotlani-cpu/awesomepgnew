@@ -41,6 +41,7 @@ export const customers = pgTable(
     kycStatus: kycStatusEnum('kyc_status').notNull().default('pending'),
     profileCompletedAt: timestamp('profile_completed_at', { withTimezone: true }),
     authProvider: authProviderEnum('auth_provider').notNull().default('email'),
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
