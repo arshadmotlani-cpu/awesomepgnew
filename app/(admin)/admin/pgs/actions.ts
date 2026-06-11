@@ -6,7 +6,6 @@ import type { PgAmenities } from '@/src/db/schema';
 import { friendlyDbError } from '@/src/lib/db/friendlyDbError';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { archivePg, createPg, updatePg, type PgFormInput } from '@/src/services/pgAdmin';
-import { clonePg } from '@/src/services/pgClone';
 
 export type PgFormState = {
   ok: boolean;
@@ -135,33 +134,6 @@ export async function archivePgFormAction(formData: FormData): Promise<void> {
     redirect('/admin/pgs');
   } catch (err) {
     unstable_rethrow(err);
-  }
-}
-
-export async function clonePgAsFemaleAction(
-  sourcePgId: string,
-): Promise<{ ok: boolean; error?: string; newPgId?: string; slug?: string }> {
-  try {
-    const session = await requireAdminPermission('pgs:write');
-    const { getPgForAdmin } = await import('@/src/services/pgAdmin');
-    const source = await getPgForAdmin(sourcePgId, session);
-    if (!source) return { ok: false, error: 'PG not found.' };
-
-    const baseName = source.name.replace(/\s*\(female\)\s*/i, '').trim();
-    const name = `${baseName} (Female)`;
-
-    const result = await clonePg(session, sourcePgId, {
-      name,
-      genderPolicy: 'female',
-      descriptionSuffix: `Women-only PG — same rooms and pricing as ${baseName}.`,
-    });
-
-    revalidatePath('/pgs');
-    revalidatePath('/admin/pgs');
-    revalidatePath('/admin');
-    return { ok: true, newPgId: result.newPgId, slug: result.slug };
-  } catch (err) {
-    return { ok: false, error: friendlyDbError(err) };
   }
 }
 
