@@ -1,12 +1,11 @@
 'use client';
 
-import { useActionState, useEffect, useMemo, useState } from 'react';
-import { quickAddBedAction } from '@/app/(admin)/admin/pgs/inventory-actions';
+import { useMemo, useState } from 'react';
 import type { PgInventoryBedRow } from '@/src/services/pgInventory';
 import { RoomElectricityCard } from './RoomElectricityCard';
 import type { MeterLog } from '@/src/db/schema/meterLogs';
 import type { ElectricityBill } from '@/src/db/schema/electricityBills';
-import { ROOM_SHARING_OPTIONS, type RoomSharingCount } from '@/src/lib/roomSharing';
+import { AddRoomForm } from './AddRoomForm';
 import { RoomDetailsEditor } from './RoomDetailsEditor';
 import { RoomPricingEditor } from './RoomPricingEditor';
 
@@ -48,16 +47,7 @@ export function PgRoomOperationsPanel({
   roomMeters: RoomMeterData[];
   cloudinaryConfigured: boolean;
 }) {
-  const action = quickAddBedAction.bind(null, pgId);
-  const [state, formAction, pending] = useActionState(action, { ok: false });
   const [showAddBed, setShowAddBed] = useState(beds.length === 0);
-  const [sharingCount, setSharingCount] = useState<RoomSharingCount>(2);
-  const [bedsToAdd, setBedsToAdd] = useState<RoomSharingCount>(2);
-  const [formKey, setFormKey] = useState(0);
-
-  useEffect(() => {
-    if (state.ok) setFormKey((k) => k + 1);
-  }, [state.ok]);
 
   const roomGroups = useMemo(() => {
     const meterByRoom = new Map(roomMeters.map((r) => [r.roomId, r]));
@@ -145,172 +135,7 @@ export function PgRoomOperationsPanel({
           </span>
           <span className="text-zinc-500">{showAddBed ? '−' : '+'}</span>
         </button>
-        {showAddBed ? (
-          <form
-            key={formKey}
-            action={formAction}
-            className="grid gap-3 border-t border-zinc-800 p-4 sm:grid-cols-2"
-          >
-            <p className="sm:col-span-2 text-xs text-zinc-500">
-              Enter room details and rent for this room only. Bed codes (B1, B2, …) are assigned
-              automatically. Rent is per bed; electricity is per room.
-            </p>
-            <label className="text-sm">
-              <span className="text-zinc-400">Floor number *</span>
-              <input
-                name="floorNumber"
-                type="number"
-                required
-                defaultValue={0}
-                className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
-              />
-            </label>
-            <label className="text-sm">
-              <span className="text-zinc-400">Floor label</span>
-              <input
-                name="floorLabel"
-                placeholder="Ground"
-                className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
-              />
-            </label>
-            <label className="text-sm">
-              <span className="text-zinc-400">Room number *</span>
-              <input
-                name="roomNumber"
-                required
-                placeholder="101"
-                className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
-              />
-            </label>
-            <label className="text-sm">
-              <span className="text-zinc-400">Sharing type *</span>
-              <select
-                name="sharingCount"
-                required
-                value={sharingCount}
-                onChange={(e) => {
-                  const next = Number(e.target.value) as RoomSharingCount;
-                  setSharingCount(next);
-                  setBedsToAdd((prev) => (prev > next ? next : prev));
-                }}
-                className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
-              >
-                {ROOM_SHARING_OPTIONS.map((opt) => (
-                  <option key={opt.count} value={opt.count}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="text-sm">
-              <span className="text-zinc-400">Beds to add now *</span>
-              <select
-                name="bedsToAdd"
-                required
-                value={bedsToAdd}
-                onChange={(e) => setBedsToAdd(Number(e.target.value) as RoomSharingCount)}
-                className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
-              >
-                {ROOM_SHARING_OPTIONS.filter((opt) => opt.count <= sharingCount).map((opt) => (
-                  <option key={opt.count} value={opt.count}>
-                    {opt.count === 1
-                      ? '1 bed only'
-                      : `${opt.count} beds (fill ${opt.label})`}
-                  </option>
-                ))}
-              </select>
-              <span className="mt-1 block text-xs text-zinc-500">
-                Codes auto-assigned (e.g. B1, B2). Add remaining beds later if needed.
-              </span>
-            </label>
-            <label className="flex items-center gap-2 text-sm text-zinc-300 sm:col-span-2">
-              <input type="checkbox" name="hasAc" />
-              Room has AC
-            </label>
-            <p className="sm:col-span-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
-              Rent per bed (₹) — {ROOM_SHARING_OPTIONS.find((o) => o.count === sharingCount)?.label}
-            </p>
-            <label className="text-sm">
-              <span className="text-zinc-400">Per day</span>
-              <input
-                name="dailyRate"
-                type="number"
-                min={0}
-                step="0.01"
-                className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
-              />
-            </label>
-            <label className="text-sm">
-              <span className="text-zinc-400">Per week</span>
-              <input
-                name="weeklyRate"
-                type="number"
-                min={0}
-                step="0.01"
-                className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
-              />
-            </label>
-            <label className="text-sm">
-              <span className="text-zinc-400">Per month *</span>
-              <input
-                name="monthlyRate"
-                type="number"
-                min={0}
-                step="0.01"
-                required
-                className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
-              />
-            </label>
-            <p className="sm:col-span-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
-              Security deposit per bed (₹)
-            </p>
-            <label className="text-sm">
-              <span className="text-zinc-400">Daily stay deposit</span>
-              <input
-                name="dailyDeposit"
-                type="number"
-                min={0}
-                step="0.01"
-                className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
-              />
-            </label>
-            <label className="text-sm">
-              <span className="text-zinc-400">Weekly stay deposit</span>
-              <input
-                name="weeklyDeposit"
-                type="number"
-                min={0}
-                step="0.01"
-                className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
-              />
-            </label>
-            <label className="text-sm">
-              <span className="text-zinc-400">Monthly stay deposit</span>
-              <input
-                name="monthlyDeposit"
-                type="number"
-                min={0}
-                step="0.01"
-                className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
-              />
-            </label>
-            <button
-              type="submit"
-              disabled={pending}
-              className="sm:col-span-2 rounded-lg bg-[#FF5A1F] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
-            >
-              {pending ? 'Adding…' : '+ Add room / beds'}
-            </button>
-            {state.error ? (
-              <p className="sm:col-span-2 text-sm text-rose-400">{state.error}</p>
-            ) : null}
-            {state.ok ? (
-              <p className="sm:col-span-2 text-sm text-emerald-400">
-                {state.message ?? 'Saved.'} Scroll down to enter the meter reading for that room.
-              </p>
-            ) : null}
-          </form>
-        ) : null}
+        {showAddBed ? <AddRoomForm pgId={pgId} /> : null}
       </div>
 
       {roomGroups.length === 0 ? (
