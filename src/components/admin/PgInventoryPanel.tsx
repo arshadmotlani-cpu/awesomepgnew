@@ -1,10 +1,10 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { quickAddBedAction } from '@/app/(admin)/admin/pgs/inventory-actions';
 import { paiseToInr } from '@/src/lib/format';
 import type { PgInventoryBedRow } from '@/src/services/pgInventory';
-import { ROOM_SHARING_OPTIONS } from '@/src/lib/roomSharing';
+import { ROOM_SHARING_OPTIONS, type RoomSharingCount } from '@/src/lib/roomSharing';
 
 type FloorRow = {
   id: string;
@@ -25,6 +25,8 @@ export function PgInventoryPanel({
 }) {
   const action = quickAddBedAction.bind(null, pgId);
   const [state, formAction, pending] = useActionState(action, { ok: false });
+  const [sharingCount, setSharingCount] = useState<RoomSharingCount>(2);
+  const [bedsToAdd, setBedsToAdd] = useState<RoomSharingCount>(2);
 
   return (
     <section className="space-y-6 rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6">
@@ -67,20 +69,37 @@ export function PgInventoryPanel({
           <input name="roomNumber" required placeholder="101" className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white" />
         </label>
         <label className="text-sm">
-          <span className="text-zinc-400">Bed code *</span>
-          <input name="bedCode" required placeholder="B1" className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white" />
-        </label>
-        <label className="text-sm">
           <span className="text-zinc-400">Sharing type *</span>
           <select
             name="sharingCount"
             required
-            defaultValue="2"
+            value={sharingCount}
+            onChange={(e) => {
+              const next = Number(e.target.value) as RoomSharingCount;
+              setSharingCount(next);
+              setBedsToAdd((prev) => (prev > next ? next : prev));
+            }}
             className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
           >
             {ROOM_SHARING_OPTIONS.map((opt) => (
               <option key={opt.count} value={opt.count}>
                 {opt.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-sm">
+          <span className="text-zinc-400">Beds to add *</span>
+          <select
+            name="bedsToAdd"
+            required
+            value={bedsToAdd}
+            onChange={(e) => setBedsToAdd(Number(e.target.value) as RoomSharingCount)}
+            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
+          >
+            {ROOM_SHARING_OPTIONS.filter((opt) => opt.count <= sharingCount).map((opt) => (
+              <option key={opt.count} value={opt.count}>
+                {opt.count === 1 ? '1 bed' : `${opt.count} beds`}
               </option>
             ))}
           </select>
@@ -113,7 +132,9 @@ export function PgInventoryPanel({
           {pending ? 'Adding bed…' : '+ Add bed with pricing'}
         </button>
         {state.error ? <p className="sm:col-span-2 text-sm text-rose-400">{state.error}</p> : null}
-        {state.ok ? <p className="sm:col-span-2 text-sm text-emerald-400">Bed added.</p> : null}
+        {state.ok ? (
+          <p className="sm:col-span-2 text-sm text-emerald-400">{state.message ?? 'Added.'}</p>
+        ) : null}
       </form>
 
       {beds.length > 0 ? (

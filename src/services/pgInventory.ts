@@ -1,4 +1,5 @@
-import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, count, eq, isNull, sql } from 'drizzle-orm';
+import { autoBedCodes } from '@/src/lib/roomSharing';
 import { db } from '@/src/db/client';
 import {
   bedPrices,
@@ -88,21 +89,65 @@ export async function getPgInventory(session: AdminSession, pgId: string) {
   return { floors: floorRows, beds: bedRows as PgInventoryBedRow[] };
 }
 
-export type QuickAddBedInput = {
+export type QuickAddRoomBedsInput = {
   floorNumber: number;
   floorLabel?: string;
   roomNumber: string;
-  bedCode: string;
   roomTypeName: string;
+  sharingCount: number;
+  bedsToAdd: number;
   hasAc?: boolean;
-  capacity?: number;
   dailyRatePaise: number;
   weeklyRatePaise: number;
   monthlyRatePaise: number;
   securityDepositPaise?: number;
 };
 
+export type QuickAddRoomBedsResult = {
+  bedIds: string[];
+  bedCodes: string[];
+  roomNumber: string;
+};
+
+export async function quickAddRoomBeds(
+  session: AdminSession,
+  pgId: string,
+  input: QuickAddRoomBedsInput,
+): Promise<QuickAddRoomBedsResult> {
+  if (!Number.isInteger(input.bedsToAdd) || input.bedsToAdd < 1 || input.bedsToAdd > 5) {
+    throw new Error('Beds to add must be between 1 and 5.');
+  }
+  if (input.sharingCount < input.bedsToAdd) {
+    throw new Error('Cannot add more beds than the sharing type allows.');
+  }
+  return quickAddBedsInternal(session, pgId, input);
+}
+
+/** @deprecated Use quickAddRoomBeds — kept for any legacy callers. */
+export type QuickAddBedInput = QuickAddRoomBedsInput & { bedCode?: string; capacity?: number };
+
 export async function quickAddBed(session: AdminSession, pgId: string, input: QuickAddBedInput) {
+  const result = await quickAddBedsInternal(session, pgId, {
+    floorNumber: input.floorNumber,
+    floorLabel: input.floorLabel,
+    roomNumber: input.roomNumber,
+    roomTypeName: input.roomTypeName,
+    sharingCount: input.capacity ?? input.sharingCount ?? 1,
+    bedsToAdd: 1,
+    hasAc: input.hasAc,
+    dailyRatePaise: input.dailyRatePaise,
+    weeklyRatePaise: input.weeklyRatePaise,
+    monthlyRatePaise: input.monthlyRatePaise,
+    securityDepositPaise: input.securityDepositPaise,
+  });
+  return result.bedIds[0];
+}
+
+async function quickAddBedsInternal(
+  session: AdminSession,
+  pgId: string,
+  input: QuickAddRoomBedsInput,
+): Promise<QuickAddRoomBedsResult> {
   assertPgAccess(session, pgId);
 
   const [pg] = await db.select({ id: pgs.id }).from(pgs).where(eq(pgs.id, pgId)).limit(1);
@@ -110,6 +155,9 @@ export async function quickAddBed(session: AdminSession, pgId: string, input: Qu
 
   if (input.monthlyRatePaise <= 0 && input.dailyRatePaise <= 0 && input.weeklyRatePaise <= 0) {
     throw new Error('Set at least one rate (daily, weekly, or monthly).');
+  }
+  if (input.sharingCount < 1 || input.sharingCount > 5) {
+    throw new Error('Sharing type must be between 1 and 5.');
   }
 
   let [floor] = await db
@@ -147,7 +195,7 @@ export async function quickAddBed(session: AdminSession, pgId: string, input: Qu
       .values({
         pgId,
         name: input.roomTypeName.trim(),
-        defaultCapacity: input.capacity ?? 1,
+        defaultCapacity: input.sharingCount,
         hasAc: input.hasAc ?? false,
       })
       .returning();
@@ -172,24 +220,53 @@ export async function quickAddBed(session: AdminSession, pgId: string, input: Qu
       .returning();
   }
 
-  const [bed] = await db
-    .insert(beds)
-    .values({
-      roomId: room.id,
-      bedCode: input.bedCode.trim(),
-      status: 'available',
-    })
-    .returning();
+  const [{ existingCount }] = await db
+    .select({ existingCount: count() })
+    .from(beds)
+    .where(and(eq(beds.roomId, room.id), isNull(beds.archivedAt)));
 
+  const maxBeds = roomType.defaultCapacity;
+  const vacant = maxBeds - existingCount;
+  if (vacant <= 0) {
+    throw new Error(
+      `Room ${input.roomNumber.trim()} already has ${existingCount} bed(s) (max ${maxBeds} for ${roomType.name}).`,
+    );
+  }
+  if (input.bedsToAdd > vacant) {
+    throw new Error(
+      `Only ${vacant} more bed(s) can be added to room ${input.roomNumber.trim()} (${maxBeds} sharing max).`,
+    );
+  }
+
+  const bedCodes = autoBedCodes(existingCount, input.bedsToAdd);
   const today = new Date().toISOString().slice(0, 10);
-  await db.insert(bedPrices).values({
-    bedId: bed.id,
-    dailyRatePaise: input.dailyRatePaise,
-    weeklyRatePaise: input.weeklyRatePaise,
-    monthlyRatePaise: input.monthlyRatePaise,
-    securityDepositPaise: input.securityDepositPaise ?? 0,
-    effectiveFrom: today,
-  });
+  const bedIds: string[] = [];
 
-  return bed.id;
+  for (const bedCode of bedCodes) {
+    const [bed] = await db
+      .insert(beds)
+      .values({
+        roomId: room.id,
+        bedCode,
+        status: 'available',
+      })
+      .returning();
+
+    await db.insert(bedPrices).values({
+      bedId: bed.id,
+      dailyRatePaise: input.dailyRatePaise,
+      weeklyRatePaise: input.weeklyRatePaise,
+      monthlyRatePaise: input.monthlyRatePaise,
+      securityDepositPaise: input.securityDepositPaise ?? 0,
+      effectiveFrom: today,
+    });
+
+    bedIds.push(bed.id);
+  }
+
+  return {
+    bedIds,
+    bedCodes,
+    roomNumber: input.roomNumber.trim(),
+  };
 }

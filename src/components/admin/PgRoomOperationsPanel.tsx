@@ -7,7 +7,7 @@ import type { PgInventoryBedRow } from '@/src/services/pgInventory';
 import { RoomElectricityCard } from './RoomElectricityCard';
 import type { MeterLog } from '@/src/db/schema/meterLogs';
 import type { ElectricityBill } from '@/src/db/schema/electricityBills';
-import { ROOM_SHARING_OPTIONS } from '@/src/lib/roomSharing';
+import { ROOM_SHARING_OPTIONS, type RoomSharingCount } from '@/src/lib/roomSharing';
 
 type FloorRow = {
   id: string;
@@ -49,6 +49,8 @@ export function PgRoomOperationsPanel({
   const action = quickAddBedAction.bind(null, pgId);
   const [state, formAction, pending] = useActionState(action, { ok: false });
   const [showAddBed, setShowAddBed] = useState(beds.length === 0);
+  const [sharingCount, setSharingCount] = useState<RoomSharingCount>(2);
+  const [bedsToAdd, setBedsToAdd] = useState<RoomSharingCount>(2);
 
   const roomGroups = useMemo(() => {
     const meterByRoom = new Map(roomMeters.map((r) => [r.roomId, r]));
@@ -128,7 +130,9 @@ export function PgRoomOperationsPanel({
           onClick={() => setShowAddBed((v) => !v)}
           className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-zinc-200 hover:bg-zinc-950/50"
         >
-          <span>{beds.length === 0 ? 'Step 1 — Add first bed (rent pricing)' : 'Add another bed'}</span>
+          <span>
+            {beds.length === 0 ? 'Step 1 — Add room & beds (rent)' : 'Add room or more beds'}
+          </span>
           <span className="text-zinc-500">{showAddBed ? '−' : '+'}</span>
         </button>
         {showAddBed ? (
@@ -137,8 +141,8 @@ export function PgRoomOperationsPanel({
             className="grid gap-3 border-t border-zinc-800 p-4 sm:grid-cols-2"
           >
             <p className="sm:col-span-2 text-xs text-zinc-500">
-              Creates floor + room if needed. Monthly rate is rent only — electricity is billed
-              separately per room.
+              Pick room number, sharing type, and how many beds to add. Bed codes (B1, B2, …) are
+              assigned automatically — no per-bed photos. Rent is per bed; electricity is per room.
             </p>
             <label className="text-sm">
               <span className="text-zinc-400">Floor number *</span>
@@ -168,20 +172,16 @@ export function PgRoomOperationsPanel({
               />
             </label>
             <label className="text-sm">
-              <span className="text-zinc-400">Bed code *</span>
-              <input
-                name="bedCode"
-                required
-                placeholder="B1"
-                className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
-              />
-            </label>
-            <label className="text-sm">
               <span className="text-zinc-400">Sharing type *</span>
               <select
                 name="sharingCount"
                 required
-                defaultValue="2"
+                value={sharingCount}
+                onChange={(e) => {
+                  const next = Number(e.target.value) as RoomSharingCount;
+                  setSharingCount(next);
+                  setBedsToAdd((prev) => (prev > next ? next : prev));
+                }}
                 className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
               >
                 {ROOM_SHARING_OPTIONS.map((opt) => (
@@ -190,8 +190,26 @@ export function PgRoomOperationsPanel({
                   </option>
                 ))}
               </select>
+            </label>
+            <label className="text-sm">
+              <span className="text-zinc-400">Beds to add now *</span>
+              <select
+                name="bedsToAdd"
+                required
+                value={bedsToAdd}
+                onChange={(e) => setBedsToAdd(Number(e.target.value) as RoomSharingCount)}
+                className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
+              >
+                {ROOM_SHARING_OPTIONS.filter((opt) => opt.count <= sharingCount).map((opt) => (
+                  <option key={opt.count} value={opt.count}>
+                    {opt.count === 1
+                      ? '1 bed only'
+                      : `${opt.count} beds (fill ${opt.label})`}
+                  </option>
+                ))}
+              </select>
               <span className="mt-1 block text-xs text-zinc-500">
-                How many people share this room (sets room capacity).
+                Codes auto-assigned (e.g. B1, B2). Add remaining beds later if needed.
               </span>
             </label>
             <label className="flex items-center gap-2 text-sm text-zinc-300 sm:col-span-2">
@@ -244,14 +262,14 @@ export function PgRoomOperationsPanel({
               disabled={pending}
               className="sm:col-span-2 rounded-lg bg-[#FF5A1F] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
             >
-              {pending ? 'Adding…' : '+ Add bed'}
+              {pending ? 'Adding…' : '+ Add room / beds'}
             </button>
             {state.error ? (
               <p className="sm:col-span-2 text-sm text-rose-400">{state.error}</p>
             ) : null}
             {state.ok ? (
               <p className="sm:col-span-2 text-sm text-emerald-400">
-                Bed added — scroll down to enter meter reading for that room.
+                {state.message ?? 'Saved.'} Scroll down to enter the meter reading for that room.
               </p>
             ) : null}
           </form>
