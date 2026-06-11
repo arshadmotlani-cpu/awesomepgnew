@@ -55,6 +55,18 @@ export function defaultBillingMonth(from: DateLike = todayString()): string {
   return formatDate(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)));
 }
 
+/** Normalise `YYYY-MM` or `YYYY-MM-01` query params to billing month (YYYY-MM-01). */
+export function resolveBillingMonth(input?: string | null): string {
+  const raw = input?.trim();
+  if (!raw) return defaultBillingMonth();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const d = parseDate(raw);
+    return formatDate(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)));
+  }
+  if (/^\d{4}-\d{2}$/.test(raw)) return `${raw}-01`;
+  return defaultBillingMonth();
+}
+
 /**
  * Normalise browse/booking date query params. Invalid or missing values fall
  * back to today / today+30 / monthly so date pickers are never empty.

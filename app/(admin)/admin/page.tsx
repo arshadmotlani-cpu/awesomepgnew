@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { OverviewMonthPicker } from '@/src/components/admin/OverviewMonthPicker';
 import { PgBusinessMetricsTable } from '@/src/components/admin/PgBusinessMetricsTable';
 import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import { PageHeader } from '@/src/components/admin/PageHeader';
@@ -11,6 +12,7 @@ import {
   IconUsers,
 } from '@/src/components/admin/icons';
 import { paiseToInr } from '@/src/lib/format';
+import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import {
   getBusinessMetricsSummary,
   getPgBusinessMetrics,
@@ -19,10 +21,17 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string }>;
+}) {
+  const sp = await searchParams;
+  const billingMonth = resolveBillingMonth(sp.month);
+
   const [summary, metrics, pgs] = await Promise.all([
-    getBusinessMetricsSummary(),
-    getPgBusinessMetrics(),
+    getBusinessMetricsSummary(billingMonth),
+    getPgBusinessMetrics(billingMonth),
     listPgs(),
   ]);
 
@@ -40,25 +49,43 @@ export default async function DashboardPage() {
   const monthLabel = new Intl.DateTimeFormat('en-IN', {
     month: 'long',
     year: 'numeric',
-  }).format(new Date());
+    timeZone: 'UTC',
+  }).format(new Date(`${billingMonth}T00:00:00.000Z`));
 
   return (
     <>
       <PageHeader
         title="Overview"
-        description="Income and occupancy across all PGs — per property and business totals."
+        description="Monthly collection report — rent and electricity, per PG and business totals."
+        actions={<OverviewMonthPicker billingMonth={billingMonth} />}
       />
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
         <StatCard
-          label="Collected this month"
-          value={paiseToInr(s.incomeThisMonthPaise)}
+          label="Rent collected"
+          value={paiseToInr(s.incomeRentPaise)}
+          hint={`QR ${paiseToInr(s.incomeRentQrPaise)} · Invoice ${paiseToInr(s.incomeRentInvoicePaise)}`}
           icon={<IconCard />}
           accent="emerald"
         />
         <StatCard
-          label="Expected rent / month"
+          label="Electricity collected"
+          value={paiseToInr(s.incomeElectricityPaise)}
+          hint={`QR ${paiseToInr(s.incomeElectricityQrPaise)} · Invoice ${paiseToInr(s.incomeElectricityInvoicePaise)}`}
+          icon={<IconChart />}
+          accent="sky"
+        />
+        <StatCard
+          label="Total collected"
+          value={paiseToInr(s.incomeTotalPaise)}
+          hint={monthLabel}
+          icon={<IconCard />}
+          accent="indigo"
+        />
+        <StatCard
+          label="Expected rent / mo"
           value={paiseToInr(s.expectedMonthlyRentPaise)}
+          hint="Occupied beds today"
           icon={<IconChart />}
           accent="amber"
         />
@@ -72,19 +99,32 @@ export default async function DashboardPage() {
           label="Beds occupied"
           value={`${s.occupiedBeds}/${s.totalBeds}`}
           icon={<IconBed />}
-          accent="sky"
+          accent="zinc"
         />
       </div>
 
       <p className="text-xs text-zinc-500">
-        Income for {monthLabel}: approved QR collections + paid rent and electricity invoices.
-        Expected rent is the sum of monthly rates on beds occupied today.
+        Collections for <strong className="text-zinc-700">{monthLabel}</strong>: paid rent and
+        electricity invoices for that billing month, plus approved QR payments tagged to that month
+        (or approved in that month when no month tag). Occupancy and expected rent reflect today.
       </p>
 
       {metrics.ok && metrics.data.length > 0 ? (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold text-white">By PG</h2>
-          <PgBusinessMetricsTable rows={metrics.data} />
+          <h2 className="text-sm font-semibold text-zinc-900">Collection report by PG</h2>
+          <PgBusinessMetricsTable
+            rows={metrics.data}
+            totals={{
+              expectedMonthlyRentPaise: s.expectedMonthlyRentPaise,
+              incomeRentPaise: s.incomeRentPaise,
+              incomeRentQrPaise: s.incomeRentQrPaise,
+              incomeRentInvoicePaise: s.incomeRentInvoicePaise,
+              incomeElectricityPaise: s.incomeElectricityPaise,
+              incomeElectricityQrPaise: s.incomeElectricityQrPaise,
+              incomeElectricityInvoicePaise: s.incomeElectricityInvoicePaise,
+              incomeTotalPaise: s.incomeTotalPaise,
+            }}
+          />
         </section>
       ) : null}
 
