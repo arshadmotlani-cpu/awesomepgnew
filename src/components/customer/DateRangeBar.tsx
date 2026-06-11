@@ -89,7 +89,7 @@ export function DateRangeBar({
   }
 
   return (
-    <form method="GET" action={action} className={`space-y-4 ${shell}`}>
+    <form method="GET" action={action} className={`space-y-4 ${shell}`} data-roachie-focus="stay-dates">
       <fieldset className="space-y-2">
         <legend className={`${label} mb-1`}>How long are you staying?</legend>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">

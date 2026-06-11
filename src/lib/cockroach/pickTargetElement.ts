@@ -1,17 +1,15 @@
-const TARGET_SELECTORS = [
-  'main h1',
-  'main h2',
+const MEANINGFUL_SELECTORS = [
+  '[data-roachie-focus]',
+  'main a[href^="/pgs/"]',
+  'main form[method="GET"]',
+  'main ul.grid a',
+  'main .sticky button',
+  'main aside',
   'main section',
-  'main button:not([disabled])',
-  'main a[href]',
-  'main label',
-  'main input:not([type="hidden"])',
-  'main select',
-  'nav a[href]',
 ] as const;
 
 const IGNORE_SELECTOR =
-  '[data-cockroach-ignore], .roachie-widget, .roachie-recall, [aria-label="Support on WhatsApp"]';
+  '[data-cockroach-ignore], .roachie-widget, .roachie-recall, nav, header, footer, [aria-label="Support on WhatsApp"]';
 
 function isVisible(el: HTMLElement): boolean {
   const rect = el.getBoundingClientRect();
@@ -30,12 +28,12 @@ function isVisible(el: HTMLElement): boolean {
   return elBottom > viewportTop && elTop < viewportBottom;
 }
 
-/** Collect visible, explainable UI targets in reading order. */
+/** Collect meaningful UI targets — skips nav, search, and generic chrome. */
 export function pickVisibleTargets(): HTMLElement[] {
   const seen = new Set<HTMLElement>();
   const targets: HTMLElement[] = [];
 
-  for (const selector of TARGET_SELECTORS) {
+  for (const selector of MEANINGFUL_SELECTORS) {
     for (const node of document.querySelectorAll(selector)) {
       if (!(node instanceof HTMLElement)) continue;
       if (node.closest(IGNORE_SELECTOR)) continue;

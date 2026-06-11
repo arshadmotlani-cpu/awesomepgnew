@@ -174,157 +174,170 @@ body {
   color: #3f3f46;
 }
 
-/* Roachie — compact corner mascot guide (no overlay) */
+/* Roachie — premium corner mascot guide */
 .roachie-widget {
   position: fixed;
-  left: 16px;
-  bottom: 16px;
+  left: 12px;
+  bottom: 14px;
   z-index: 99980;
   display: flex;
   align-items: flex-end;
-  gap: 8px;
-  max-width: min(340px, calc(100vw - 32px));
+  gap: 4px;
+  max-width: min(360px, calc(100vw - 28px));
   pointer-events: auto;
-  transform: translateY(110%);
+  transform: translateX(-120%) translateY(8px);
   opacity: 0;
   transition:
-    transform 0.55s cubic-bezier(0.22, 1.1, 0.36, 1),
-    opacity 0.35s ease;
+    transform 0.65s cubic-bezier(0.22, 1.15, 0.36, 1),
+    opacity 0.4s ease;
 }
 
 .roachie-widget--visible {
-  transform: translateY(0);
+  transform: translateX(0) translateY(0);
   opacity: 1;
 }
 
-.roachie-widget--talking .roachie-widget__mascot {
-  animation: roachie-nod 0.45s ease;
+.roachie-widget--talking .roachie-widget__mascot-img {
+  animation: roachie-nod 0.5s ease;
 }
 
 @keyframes roachie-nod {
   0%,
   100% {
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
   40% {
-    transform: translateY(-4px);
+    transform: translateY(-5px) scale(1.02);
   }
 }
 
 .roachie-widget__mascot {
   flex-shrink: 0;
+  line-height: 0;
 }
 
 .roachie-widget__mascot-img {
   display: block;
-  width: 88px;
+  width: 118px;
   height: auto;
-  border-radius: 999px;
-  box-shadow:
-    0 0 0 3px #2d8f46,
-    0 0 0 6px #ff5a1f,
-    0 8px 20px rgba(0, 0, 0, 0.35);
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.45));
 }
 
 .roachie-widget__panel {
   position: relative;
   min-width: 0;
-  padding: 10px 12px;
-  border-radius: 14px;
-  border: 2px solid #1a1f27;
-  background: linear-gradient(180deg, #fffef9 0%, #fff4df 100%);
-  color: #1a1208;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  margin-bottom: 10px;
+  padding: 11px 13px 10px;
+  border-radius: 16px;
+  border: 2px solid rgba(255, 90, 31, 0.55);
+  background: linear-gradient(145deg, rgba(18, 24, 32, 0.96) 0%, rgba(28, 22, 18, 0.96) 100%);
+  color: #f8fafc;
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .roachie-widget__panel::before {
   content: '';
   position: absolute;
-  left: -8px;
-  bottom: 14px;
+  left: -9px;
+  bottom: 18px;
   width: 0;
   height: 0;
-  border-top: 7px solid transparent;
-  border-bottom: 7px solid transparent;
-  border-right: 8px solid #fff4df;
-  filter: drop-shadow(-1px 0 0 #1a1f27);
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-right: 9px solid rgba(28, 22, 18, 0.96);
+}
+
+.roachie-widget__badge {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #ff5a1f;
 }
 
 .roachie-widget__text {
+  margin-top: 6px;
   font-size: 13px;
-  line-height: 1.45;
-  font-weight: 600;
+  line-height: 1.5;
+  font-weight: 500;
+  color: #eef2f7;
 }
 
 .roachie-widget__actions {
-  margin-top: 8px;
+  margin-top: 10px;
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
 .roachie-btn {
-  border: 1.5px solid #1a1f27;
-  background: #fff;
-  color: #1a1208;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
   border-radius: 999px;
-  padding: 4px 10px;
+  padding: 4px 11px;
   font-size: 11px;
   font-weight: 700;
   cursor: pointer;
 }
 
 .roachie-btn--primary {
-  background: #ff5a1f;
+  background: linear-gradient(135deg, #ff5a1f 0%, #ff7a45 100%);
+  border-color: rgba(255, 90, 31, 0.6);
   color: #fff;
 }
 
 .roachie-btn--icon {
   min-width: 28px;
   padding: 2px 8px;
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1;
 }
 
 .roachie-recall {
   position: fixed;
-  left: 16px;
-  bottom: 16px;
+  left: 12px;
+  bottom: 14px;
   z-index: 99980;
   border: none;
-  padding: 4px;
-  border-radius: 999px;
-  background: #fff9ef;
+  padding: 0;
+  background: transparent;
   cursor: pointer;
-  box-shadow:
-    0 0 0 2px #2d8f46,
-    0 0 0 4px #ff5a1f,
-    0 6px 16px rgba(0, 0, 0, 0.3);
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.4));
+  transition: transform 0.2s ease;
+}
+
+.roachie-recall:hover {
+  transform: scale(1.05);
 }
 
 .roachie-recall__img {
   display: block;
-  width: 56px;
+  width: 72px;
   height: auto;
-  border-radius: 999px;
 }
 
 .roachie-target-highlight {
   outline: 2px solid #ffcc00 !important;
-  outline-offset: 2px;
-  box-shadow: 0 0 0 4px rgba(255, 204, 0, 0.28) !important;
-  scroll-margin-block: 72px;
+  outline-offset: 3px;
+  box-shadow:
+    0 0 0 5px rgba(255, 204, 0, 0.22),
+    0 0 24px rgba(255, 90, 31, 0.35) !important;
+  scroll-margin-block: 80px;
+  border-radius: 8px;
 }
 
 @media (max-width: 640px) {
   .roachie-widget {
-    left: 12px;
-    bottom: 72px;
-    max-width: calc(100vw - 24px);
+    left: 8px;
+    bottom: 68px;
+    max-width: calc(100vw - 16px);
   }
 
   .roachie-widget__mascot-img {
-    width: 72px;
+    width: 96px;
   }
 
   .roachie-widget__text {
@@ -332,20 +345,21 @@ body {
   }
 
   .roachie-recall {
-    left: 12px;
-    bottom: 72px;
+    left: 8px;
+    bottom: 68px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .roachie-widget,
-  .roachie-widget--talking .roachie-widget__mascot {
+  .roachie-widget--talking .roachie-widget__mascot-img,
+  .roachie-recall {
     animation: none !important;
     transition: none !important;
   }
 
   .roachie-widget--visible {
-    transform: translateY(0);
+    transform: translateX(0) translateY(0);
     opacity: 1;
   }
 }

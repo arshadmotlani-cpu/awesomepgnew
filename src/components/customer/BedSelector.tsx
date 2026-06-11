@@ -90,7 +90,7 @@ export function BedSelector({ beds, startDate, endDate, durationMode, theme = 'l
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4" data-roachie-focus="bed-pick">
         {beds.map((bed) => {
           const isSelected = selected.has(bed.bedId);
           const isAvailable =

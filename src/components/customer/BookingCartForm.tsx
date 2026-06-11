@@ -154,7 +154,7 @@ export function BookingCartForm({
       </section>
 
       {/* Cart summary */}
-      <aside className="self-start rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+      <aside className="self-start rounded-xl border border-zinc-200 bg-white p-5 shadow-sm" data-roachie-focus="confirm-booking">
         <h2 className="text-base font-semibold text-zinc-900">Your stay</h2>
         <dl className="mt-3 space-y-2 text-sm">
           <Row term="Check-in" value={startDate} />

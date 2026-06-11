@@ -17,6 +17,7 @@ export function RoomCard({ room, pgSlug, startDate, endDate, durationMode }: Pro
   return (
     <Link
       href={href}
+      data-roachie-focus="room-pick"
       className={
         'group flex flex-col gap-3 rounded-2xl border p-5 transition-all apg-glass ' +
         (allBooked ? 'opacity-70' : 'hover:-translate-y-1 hover:border-apg-orange/35')

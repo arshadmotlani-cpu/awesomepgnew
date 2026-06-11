@@ -39,6 +39,7 @@ export function VacatingRequestForm({
   return (
     <form
       action={action}
+      data-roachie-focus="vacating"
       className="space-y-4 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm"
     >
       <input type="hidden" name="bookingId" value={bookingId} />

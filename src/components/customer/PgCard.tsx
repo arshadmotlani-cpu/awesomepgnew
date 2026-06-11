@@ -37,6 +37,7 @@ export function PgCard({
       <Link
         href={`/pgs/${pg.slug}?${defaultBrowseStayQuery()}`}
         className="group flex flex-col transition-all"
+        data-roachie-focus="pg-card"
       >
         <div className="relative aspect-[16/9] w-full overflow-hidden bg-gradient-to-br from-[#1A1F27] via-[#0B0F14] to-[#2a1810]">
           {pg.heroImage ? (
