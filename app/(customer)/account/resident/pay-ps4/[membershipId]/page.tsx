@@ -65,38 +65,42 @@ export default async function PayPs4Page({
       <header>
         <Link
           href="/account/resident"
-          className="text-xs font-medium text-indigo-600 hover:text-indigo-500"
+          className="text-xs font-medium text-[#FF5A1F] hover:underline"
         >
           ← Back to resident dashboard
         </Link>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-900">
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white">
           Pay PS4 add-on
         </h1>
-        <p className="mt-1 text-sm text-zinc-500">{PS4_ADDON_LABEL}</p>
+        <p className="mt-1 text-sm text-apg-silver">{PS4_ADDON_LABEL}</p>
       </header>
 
-      <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
-        <dl className="grid grid-cols-2 gap-2 text-sm">
-          <dt className="text-zinc-500">Plan</dt>
-          <dd className="text-right font-medium">{plan.label}</dd>
-          <dt className="text-zinc-500">Duration</dt>
-          <dd className="text-right">{plan.durationDays} days</dd>
-          <dt className="text-zinc-500">Status</dt>
-          <dd className="text-right capitalize">{membership.status.replace('_', ' ')}</dd>
+      <section className="apg-glass rounded-2xl p-5">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+          <dt className="text-apg-silver">Plan</dt>
+          <dd className="text-right font-medium text-white">{plan.label}</dd>
+          <dt className="text-apg-silver">Duration</dt>
+          <dd className="text-right text-white">{plan.durationDays} days</dd>
+          <dt className="text-apg-silver">Status</dt>
+          <dd className="text-right capitalize text-white">
+            {membership.status.replace('_', ' ')}
+          </dd>
           {membership.expiresAt ? (
             <>
-              <dt className="text-zinc-500">Current expiry</dt>
-              <dd className="text-right">{formatDate(membership.expiresAt)}</dd>
+              <dt className="text-apg-silver">Current expiry</dt>
+              <dd className="text-right text-white">{formatDate(membership.expiresAt)}</dd>
             </>
           ) : null}
-          <dt className="text-base font-semibold text-zinc-900">Amount due</dt>
-          <dd className="text-right text-base font-semibold">{paiseToInr(membership.amountPaise)}</dd>
+          <dt className="pt-2 text-base font-semibold text-white">Amount due</dt>
+          <dd className="pt-2 text-right text-base font-semibold text-[#FF5A1F]">
+            {paiseToInr(membership.amountPaise)}
+          </dd>
         </dl>
       </section>
 
       {sp.action === 'upgrade' && !sp.plan ? (
-        <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-zinc-900">Upgrade plan</h2>
+        <section className="apg-glass rounded-2xl p-5">
+          <h2 className="text-sm font-semibold text-white">Upgrade plan</h2>
           <ul className="mt-3 space-y-2">
             {(['biweekly', 'monthly'] as const)
               .filter((p) => p !== membership.plan)
@@ -104,10 +108,12 @@ export default async function PayPs4Page({
                 <li key={p}>
                   <Link
                     href={`/account/resident/pay-ps4/${membershipId}?action=upgrade&plan=${p}`}
-                    className="flex justify-between rounded-lg border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50"
+                    className="flex justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white hover:border-[#FF5A1F]/40"
                   >
                     <span>{PS4_PLANS[p].label}</span>
-                    <span className="font-semibold">{paiseToInr(PS4_PLANS[p].pricePaise)}</span>
+                    <span className="font-semibold text-[#FF5A1F]">
+                      {paiseToInr(PS4_PLANS[p].pricePaise)}
+                    </span>
                   </Link>
                 </li>
               ))}
@@ -116,7 +122,7 @@ export default async function PayPs4Page({
       ) : membership.status === 'pending_payment' ? (
         membership.paymentProofUrl ? (
           <div className="space-y-3">
-            <div className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900 ring-1 ring-inset ring-amber-200">
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
               Payment proof received — lounge access activates once admin verifies your UPI payment
               (usually within a few hours).
             </div>
@@ -124,7 +130,7 @@ export default async function PayPs4Page({
               href={membership.paymentProofUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm font-medium text-indigo-600 hover:underline"
+              className="text-sm font-medium text-[#FF5A1F] hover:underline"
             >
               View uploaded screenshot →
             </a>
@@ -139,7 +145,7 @@ export default async function PayPs4Page({
           />
         )
       ) : active?.id === membership.id ? (
-        <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+        <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
           Your PS4 add-on is active until {formatDate(membership.expiresAt!)}.
         </p>
       ) : null}
