@@ -1,6 +1,7 @@
 import { and, eq, isNull } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { pgs, type PgAmenities } from '@/src/db/schema';
+import { mergeDepositPresets, type DepositPresetsPaise } from '@/src/lib/pgDepositPresets';
 import { slugify } from '@/src/lib/slug';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
@@ -88,6 +89,26 @@ export async function updatePg(session: AdminSession, id: string, input: PgFormI
       updatedAt: new Date(),
     })
     .where(eq(pgs.id, id));
+}
+
+export async function savePgDepositPresets(
+  session: AdminSession,
+  pgId: string,
+  presets: DepositPresetsPaise,
+) {
+  assertPgAccess(session, pgId);
+  const [row] = await db
+    .select({ amenities: pgs.amenities })
+    .from(pgs)
+    .where(and(eq(pgs.id, pgId), isNull(pgs.archivedAt)))
+    .limit(1);
+  if (!row) throw new Error('PG not found.');
+
+  const amenities = mergeDepositPresets(row.amenities ?? {}, presets);
+  await db
+    .update(pgs)
+    .set({ amenities, updatedAt: new Date() })
+    .where(eq(pgs.id, pgId));
 }
 
 export async function archivePg(session: AdminSession, id: string) {

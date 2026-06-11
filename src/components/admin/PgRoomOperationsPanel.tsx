@@ -1,13 +1,15 @@
 'use client';
 
-import { useActionState, useMemo, useState } from 'react';
+import { useActionState, useEffect, useMemo, useState } from 'react';
 import { quickAddBedAction } from '@/app/(admin)/admin/pgs/inventory-actions';
 import { paiseToInr } from '@/src/lib/format';
 import type { PgInventoryBedRow } from '@/src/services/pgInventory';
 import { RoomElectricityCard } from './RoomElectricityCard';
 import type { MeterLog } from '@/src/db/schema/meterLogs';
 import type { ElectricityBill } from '@/src/db/schema/electricityBills';
+import { depositPresetRupees, type DepositPresetsPaise } from '@/src/lib/pgDepositPresets';
 import { ROOM_SHARING_OPTIONS, type RoomSharingCount } from '@/src/lib/roomSharing';
+import { PgDepositPresetsPanel } from './PgDepositPresetsPanel';
 
 type FloorRow = {
   id: string;
@@ -39,18 +41,27 @@ export function PgRoomOperationsPanel({
   beds,
   roomMeters,
   cloudinaryConfigured,
+  depositPresets,
 }: {
   pgId: string;
   floors: FloorRow[];
   beds: PgInventoryBedRow[];
   roomMeters: RoomMeterData[];
   cloudinaryConfigured: boolean;
+  depositPresets: DepositPresetsPaise;
 }) {
   const action = quickAddBedAction.bind(null, pgId);
   const [state, formAction, pending] = useActionState(action, { ok: false });
   const [showAddBed, setShowAddBed] = useState(beds.length === 0);
   const [sharingCount, setSharingCount] = useState<RoomSharingCount>(2);
   const [bedsToAdd, setBedsToAdd] = useState<RoomSharingCount>(2);
+  const [securityDeposit, setSecurityDeposit] = useState(
+    depositPresetRupees(depositPresets, 2),
+  );
+
+  useEffect(() => {
+    setSecurityDeposit(depositPresetRupees(depositPresets, sharingCount));
+  }, [sharingCount, depositPresets]);
 
   const roomGroups = useMemo(() => {
     const meterByRoom = new Map(roomMeters.map((r) => [r.roomId, r]));
@@ -116,6 +127,8 @@ export function PgRoomOperationsPanel({
           <li>3. Enable QR collections and add Rent + Electricity categories.</li>
         </ol>
       ) : null}
+
+      <PgDepositPresetsPanel pgId={pgId} initialPresets={depositPresets} />
 
       <div className="grid gap-3 sm:grid-cols-4">
         <Stat label="Floors" value={floors.length} />
@@ -247,15 +260,24 @@ export function PgRoomOperationsPanel({
                 className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
               />
             </label>
-            <label className="text-sm">
-              <span className="text-zinc-400">Security deposit (₹)</span>
+            <label className="text-sm sm:col-span-2">
+              <span className="text-zinc-400">
+                Security deposit per bed (₹) —{' '}
+                {ROOM_SHARING_OPTIONS.find((o) => o.count === sharingCount)?.label}
+              </span>
               <input
                 name="securityDeposit"
                 type="number"
                 min={0}
                 step="0.01"
+                value={securityDeposit}
+                onChange={(e) => setSecurityDeposit(e.target.value)}
                 className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
               />
+              <span className="mt-1 block text-xs text-zinc-500">
+                Uses the default for this sharing type above. Change here or update defaults and
+                save.
+              </span>
             </label>
             <button
               type="submit"

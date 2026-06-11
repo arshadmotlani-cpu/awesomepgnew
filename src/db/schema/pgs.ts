@@ -11,6 +11,8 @@ export type PgAmenities = {
   ac?: boolean;
   housekeeping?: boolean;
   powerBackup?: boolean;
+  /** Per-bed security deposit (paise) keyed by sharing count "1".."5". */
+  depositBySharingPaise?: Record<string, number>;
   [key: string]: unknown;
 };
 

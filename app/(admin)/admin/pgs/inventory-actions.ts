@@ -2,8 +2,9 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
-import { parseSharingCount, sharingTypeName } from '@/src/lib/roomSharing';
+import { parseSharingCount, sharingTypeName, type RoomSharingCount } from '@/src/lib/roomSharing';
 import { quickAddRoomBeds } from '@/src/services/pgInventory';
+import { savePgDepositPresets } from '@/src/services/pgAdmin';
 
 export async function quickAddBedAction(
   pgId: string,
@@ -31,6 +32,11 @@ export async function quickAddBedAction(
       };
     }
 
+    const depositPaise = Math.round(deposit * 100);
+    if (depositPaise > 0) {
+      await savePgDepositPresets(session, pgId, { [sharing]: depositPaise });
+    }
+
     const result = await quickAddRoomBeds(session, pgId, {
       floorNumber,
       floorLabel: formData.get('floorLabel')?.toString(),
@@ -42,7 +48,7 @@ export async function quickAddBedAction(
       dailyRatePaise: Math.round(daily * 100),
       weeklyRatePaise: Math.round(weekly * 100),
       monthlyRatePaise: Math.round(monthly * 100),
-      securityDepositPaise: Math.round(deposit * 100),
+      securityDepositPaise: depositPaise,
     });
 
     revalidatePath(`/admin/pgs/${pgId}/edit`);
@@ -58,6 +64,30 @@ export async function quickAddBedAction(
           ? `Added bed ${codes} in room ${result.roomNumber}.`
           : `Added ${result.bedCodes.length} beds (${codes}) in room ${result.roomNumber}.`,
     };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function saveDepositPresetsAction(
+  pgId: string,
+  formData: FormData,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const session = await requireAdminPermission('pgs:write');
+    const presets: Partial<Record<RoomSharingCount, number>> = {};
+    for (const count of [1, 2, 3, 4, 5] as RoomSharingCount[]) {
+      const raw = formData.get(`deposit_${count}`)?.toString() ?? '';
+      if (raw.trim() === '') continue;
+      const rupees = Number.parseFloat(raw);
+      if (!Number.isFinite(rupees) || rupees < 0) {
+        return { ok: false, error: `Invalid deposit for ${count} sharing.` };
+      }
+      presets[count] = Math.round(rupees * 100);
+    }
+    await savePgDepositPresets(session, pgId, presets);
+    revalidatePath(`/admin/pgs/${pgId}/edit`);
+    return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
