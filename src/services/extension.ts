@@ -31,7 +31,7 @@
  * condition resolution from PROJECT_PLAN.md §8.6.
  */
 
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { db } from '../db/client';
 import {
   auditLog,
@@ -39,8 +39,13 @@ import {
   beds,
   bookings,
   customers,
+  floors,
+  pgs,
+  rooms,
   stayExtensions,
 } from '../db/schema';
+import { adminCanAccessPg } from '../lib/auth/roles';
+import type { AdminSession } from '../lib/auth/session';
 import { env } from '../lib/env';
 import { formatDate, parseDate, type DateLike } from '../lib/dates';
 import { isBedAvailable } from './availability';
@@ -782,4 +787,114 @@ export async function markExpiredExtensions(): Promise<{
     expired: toExpire.length,
     extensionIds: toExpire.map((t) => t.id),
   };
+}
+
+export async function submitExtensionPaymentProof(
+  customerId: string,
+  extensionId: string,
+  paymentProofUrl: string,
+  transactionRef?: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const [ext] = await db
+    .select({
+      id: stayExtensions.id,
+      status: stayExtensions.status,
+      bookingId: stayExtensions.bookingId,
+    })
+    .from(stayExtensions)
+    .innerJoin(bookings, eq(bookings.id, stayExtensions.bookingId))
+    .where(and(eq(stayExtensions.id, extensionId), eq(bookings.customerId, customerId)))
+    .limit(1);
+  if (!ext) return { ok: false, message: 'Extension not found.' };
+  if (ext.status !== 'pending') {
+    return { ok: false, message: 'This extension is not awaiting payment.' };
+  }
+  if (!paymentProofUrl.trim()) {
+    return { ok: false, message: 'Payment photo is required.' };
+  }
+
+  await db
+    .update(stayExtensions)
+    .set({
+      paymentProofUrl: paymentProofUrl.trim(),
+      paymentProofTransactionRef: transactionRef?.trim() || null,
+      updatedAt: new Date(),
+    })
+    .where(eq(stayExtensions.id, extensionId));
+
+  return { ok: true };
+}
+
+export async function listPendingExtensionProofsForPg(pgId: string) {
+  return db
+    .select({
+      extensionId: stayExtensions.id,
+      bookingCode: bookings.bookingCode,
+      customerName: customers.fullName,
+      amountPaise: stayExtensions.quotedTotalPaise,
+      paymentProofUrl: stayExtensions.paymentProofUrl,
+    })
+    .from(stayExtensions)
+    .innerJoin(bookings, eq(bookings.id, stayExtensions.bookingId))
+    .innerJoin(customers, eq(customers.id, bookings.customerId))
+    .where(
+      and(
+        eq(stayExtensions.status, 'pending'),
+        isNotNull(stayExtensions.paymentProofUrl),
+        sql`EXISTS (
+          SELECT 1 FROM ${bedReservations} br
+          JOIN ${beds} b ON b.id = br.bed_id
+          JOIN ${rooms} r ON r.id = b.room_id
+          JOIN ${floors} f ON f.id = r.floor_id
+          WHERE br.booking_id = ${stayExtensions.bookingId}
+            AND f.pg_id = ${pgId}
+          LIMIT 1
+        )`,
+      ),
+    )
+    .orderBy(desc(stayExtensions.updatedAt));
+}
+
+export async function approveExtensionPaymentProof(
+  session: AdminSession,
+  extensionId: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const [ext] = await db
+    .select()
+    .from(stayExtensions)
+    .where(eq(stayExtensions.id, extensionId))
+    .limit(1);
+  if (!ext) return { ok: false, message: 'Extension not found.' };
+  if (!ext.paymentProofUrl) {
+    return { ok: false, message: 'No payment photo uploaded.' };
+  }
+  if (ext.status !== 'pending') {
+    return { ok: false, message: 'Extension is not awaiting payment.' };
+  }
+
+  const [pgRow] = await db
+    .select({ pgId: floors.pgId })
+    .from(bookings)
+    .innerJoin(bedReservations, and(eq(bedReservations.bookingId, bookings.id), eq(bedReservations.kind, 'primary')))
+    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
+    .innerJoin(floors, eq(floors.id, rooms.floorId))
+    .where(eq(bookings.id, ext.bookingId))
+    .limit(1);
+
+  if (!pgRow || !adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, pgRow.pgId)) {
+    return { ok: false, message: 'Access denied.' };
+  }
+
+  const { recordExtensionPaymentSuccess } = await import('./bookingLifecycle');
+  const result = await recordExtensionPaymentSuccess({
+    provider: 'mock',
+    providerPaymentId: `extension-proof-${extensionId}`,
+    amountPaise: ext.quotedTotalPaise,
+    extensionId,
+    rawPayload: { source: 'payment_proof', proofUrl: ext.paymentProofUrl },
+  });
+
+  if (!result.ok) return { ok: false, message: result.reason };
+  return { ok: true };
 }

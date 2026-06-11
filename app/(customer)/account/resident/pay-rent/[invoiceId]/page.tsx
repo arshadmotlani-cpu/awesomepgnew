@@ -10,11 +10,16 @@ import {
   rentInvoices,
   rooms,
 } from '@/src/db/schema';
-import { projectInvoice } from '@/src/services/rentInvoices';
-import { isRazorpayConfigured } from '@/src/lib/payments/config';
-import { PaymentUnavailable } from '@/src/components/customer/PaymentUnavailable';
+import { uploadPaymentScreenshotAction } from '@/app/(admin)/admin/pgs/payment-actions';
+import {
+  DEFAULT_RENT_DEPOSIT_QR_PATH,
+  DEFAULT_RENT_DEPOSIT_UPI_ID,
+} from '@/src/lib/payments/defaultQr';
+import { RentPaymentProofForm } from '@/src/components/customer/RentPaymentProofForm';
+import { isCloudinaryConfigured } from '@/src/lib/images/cloudinary';
+import { ensureDefaultPaymentCategoriesForPg, getRentDepositBookingCategory } from '@/src/services/pgPaymentDefaults';
 import { formatDate, paiseToInr } from '@/src/lib/format';
-import { ResidentPayButtons } from '@/src/components/customer/ResidentPayButtons';
+import { projectInvoice } from '@/src/services/rentInvoices';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
 
 export const dynamic = 'force-dynamic';
@@ -50,6 +55,7 @@ export default async function PayRentPage({
       status: rentInvoices.status,
       paidAt: rentInvoices.paidAt,
       paymentId: rentInvoices.paymentId,
+      paymentProofUrl: rentInvoices.paymentProofUrl,
       cancelledAt: rentInvoices.cancelledAt,
       cancellationReason: rentInvoices.cancellationReason,
       notes: rentInvoices.notes,
@@ -70,6 +76,10 @@ export default async function PayRentPage({
   if (!row || row.customerId !== session.customerId) notFound();
 
   const projected = projectInvoice(row);
+  const cloudinary = isCloudinaryConfigured();
+
+  await ensureDefaultPaymentCategoriesForPg(row.pgId);
+  const rentCategory = await getRentDepositBookingCategory(row.pgId);
 
   return (
     <div className="mx-auto w-full max-w-xl space-y-5 px-4 py-10 sm:px-6">
@@ -125,14 +135,19 @@ export default async function PayRentPage({
         <p className="rounded-md bg-zinc-100 px-3 py-2 text-sm text-zinc-700 ring-1 ring-inset ring-zinc-200">
           This invoice has been cancelled — no payment required.
         </p>
-      ) : isRazorpayConfigured() ? (
-        <ResidentPayButtons
+      ) : cloudinary ? (
+        <RentPaymentProofForm
           invoiceId={row.id}
-          purpose="rent"
-          totalLabel={paiseToInr(projected.outstandingPaise)}
+          amountLabel={paiseToInr(projected.outstandingPaise)}
+          uploadScreenshot={uploadPaymentScreenshotAction}
+          existingProofUrl={row.paymentProofUrl}
+          qrImageUrl={rentCategory?.qrCodeImageUrl ?? DEFAULT_RENT_DEPOSIT_QR_PATH}
+          upiId={rentCategory?.upiId ?? DEFAULT_RENT_DEPOSIT_UPI_ID}
         />
       ) : (
-        <PaymentUnavailable />
+        <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Photo upload is not configured yet. Contact the PG office to complete payment.
+        </p>
       )}
     </div>
   );

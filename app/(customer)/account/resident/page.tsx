@@ -179,6 +179,7 @@ export default async function ResidentDashboardPage() {
                 bedId: '',
                 pgId: booking.pgId,
                 paymentId: null,
+                paymentProofUrl: null,
                 createdAt: new Date(),
                 updatedAt: new Date(),
               }),

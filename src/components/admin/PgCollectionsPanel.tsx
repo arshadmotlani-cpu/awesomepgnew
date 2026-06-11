@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { approveElectricityProofAction } from '@/app/(admin)/admin/pgs/electricity-actions';
+import { approveRentProofAction } from '@/app/(admin)/admin/payments/actions';
 import {
   createPaymentCategoryAction,
   togglePgPaymentsAction,
   uploadQrImageAction,
 } from '@/app/(admin)/admin/pgs/payment-actions';
+import { PaymentScreenshotPreview } from '@/src/components/admin/PaymentScreenshotPreview';
 import { paiseToInr } from '@/src/lib/format';
 
 type Category = {
@@ -37,16 +39,29 @@ type ElectricityProof = {
   paymentProofUrl: string | null;
 };
 
+type RentProof = {
+  invoiceId: string;
+  invoiceNumber: string;
+  customerName: string;
+  roomNumber: string;
+  bedCode: string;
+  billingMonth: string;
+  rentPaise: number;
+  paymentProofUrl: string | null;
+};
+
 const REQUIRED_CATEGORIES = ['Rent', 'Electricity'] as const;
 
 export function PgCollectionsPanel({
   pgId,
   hasPaymentEnabled,
   electricityProofs,
+  rentProofs = [],
 }: {
   pgId: string;
   hasPaymentEnabled: boolean;
   electricityProofs: ElectricityProof[];
+  rentProofs?: RentProof[];
 }) {
   const [enabled, setEnabled] = useState(hasPaymentEnabled);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -137,8 +152,19 @@ export function PgCollectionsPanel({
     window.location.reload();
   }
 
+  async function onApproveRent(invoiceId: string) {
+    setBusy(true);
+    const result = await approveRentProofAction(invoiceId, pgId);
+    setBusy(false);
+    if (!result.ok) {
+      setError(result.message ?? 'Approval failed.');
+      return;
+    }
+    window.location.reload();
+  }
+
   const pendingQr = qrPayments.filter((p) => p.status === 'pending');
-  const pendingCount = pendingQr.length + electricityProofs.length;
+  const pendingCount = pendingQr.length + electricityProofs.length + rentProofs.length;
 
   return (
     <section
@@ -296,11 +322,46 @@ export function PgCollectionsPanel({
             or upload invoice screenshots.
           </p>
         ) : (
-          <ul className="mt-3 space-y-2">
+          <ul className="mt-3 space-y-3">
+            {rentProofs.map((p) => (
+              <li
+                key={p.invoiceId}
+                className="rounded-xl border border-emerald-900/40 bg-emerald-950/20 p-3 text-sm"
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+                  {p.paymentProofUrl ? (
+                    <PaymentScreenshotPreview url={p.paymentProofUrl} />
+                  ) : null}
+                  <div className="min-w-0 flex-1">
+                    <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-xs text-emerald-300">
+                      Rent invoice
+                    </span>
+                    <p className="mt-1 font-medium text-white">
+                      {p.customerName} · {p.invoiceNumber}
+                    </p>
+                    <p className="text-zinc-400">
+                      Room {p.roomNumber} · {p.bedCode} · {p.billingMonth.slice(0, 7)} ·{' '}
+                      {paiseToInr(p.rentPaise)}
+                    </p>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void onApproveRent(p.invoiceId)}
+                      className="mt-2 rounded bg-emerald-600 px-3 py-1 text-xs text-white"
+                    >
+                      Approve & mark paid
+                    </button>
+                  </div>
+                </div>
+              </li>
+            ))}
             {electricityProofs.map((p) => (
               <li key={p.invoiceId} className="rounded-xl border border-indigo-900/40 bg-indigo-950/20 p-3 text-sm">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+                  {p.paymentProofUrl ? (
+                    <PaymentScreenshotPreview url={p.paymentProofUrl} />
+                  ) : null}
+                  <div className="min-w-0 flex-1">
                     <span className="rounded bg-indigo-500/20 px-1.5 py-0.5 text-xs text-indigo-300">
                       Electricity
                     </span>
@@ -308,32 +369,23 @@ export function PgCollectionsPanel({
                       {p.invoiceNumber} · Room {p.roomNumber}
                     </p>
                     <p className="text-zinc-400">{paiseToInr(p.amountPaise)}</p>
-                    {p.paymentProofUrl ? (
-                      <a
-                        href={p.paymentProofUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs text-[#FF5A1F] underline"
-                      >
-                        View screenshot
-                      </a>
-                    ) : null}
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void onApproveElectricity(p.invoiceId)}
+                      className="mt-2 rounded bg-emerald-600 px-3 py-1 text-xs text-white"
+                    >
+                      Approve & mark paid
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void onApproveElectricity(p.invoiceId)}
-                    className="rounded bg-emerald-600 px-3 py-1 text-xs text-white"
-                  >
-                    Approve & mark paid
-                  </button>
                 </div>
               </li>
             ))}
             {pendingQr.map((p) => (
               <li key={p.id} className="rounded-xl border border-zinc-800 p-3 text-sm">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+                  <PaymentScreenshotPreview url={p.paymentScreenshotUrl} />
+                  <div className="min-w-0 flex-1">
                     <span className="rounded bg-zinc-700 px-1.5 py-0.5 text-xs text-zinc-300">
                       {p.categoryName}
                     </span>
@@ -342,30 +394,22 @@ export function PgCollectionsPanel({
                       {paiseToInr(p.amountPaise)}
                       {p.month ? ` · ${p.month}` : ''}
                     </p>
-                    <a
-                      href={p.paymentScreenshotUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-xs text-[#FF5A1F] underline"
-                    >
-                      View screenshot
-                    </a>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void onReviewQr(p.id, 'approved')}
-                      className="rounded bg-emerald-600 px-2 py-1 text-xs text-white"
-                    >
-                      Approve
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void onReviewQr(p.id, 'rejected')}
-                      className="rounded bg-rose-600 px-2 py-1 text-xs text-white"
-                    >
-                      Reject
-                    </button>
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void onReviewQr(p.id, 'approved')}
+                        className="rounded bg-emerald-600 px-2 py-1 text-xs text-white"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void onReviewQr(p.id, 'rejected')}
+                        className="rounded bg-rose-600 px-2 py-1 text-xs text-white"
+                      >
+                        Reject
+                      </button>
+                    </div>
                   </div>
                 </div>
               </li>

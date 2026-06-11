@@ -1,17 +1,26 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { and, eq } from 'drizzle-orm';
+import { uploadPaymentScreenshotAction } from '@/app/(admin)/admin/pgs/payment-actions';
 import { getExtensionDetail } from '@/src/db/queries/customer';
+import { db } from '@/src/db/client';
+import { bedReservations, beds, bookings, floors, rooms, stayExtensions } from '@/src/db/schema';
 import {
   requireCustomerOwnsBookingCode,
   requireCustomerSession,
 } from '@/src/lib/auth/guards';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
+import { CancelPendingExtensionForm } from '@/src/components/customer/ExtensionPayButtons';
+import { ExtensionPaymentProofForm } from '@/src/components/customer/ExtensionPaymentProofForm';
 import {
-  CancelPendingExtensionForm,
-  RazorpayExtensionCheckoutButton,
-} from '@/src/components/customer/ExtensionPayButtons';
-import { isRazorpayConfigured } from '@/src/lib/payments/config';
-import { PaymentUnavailable } from '@/src/components/customer/PaymentUnavailable';
+  DEFAULT_RENT_DEPOSIT_QR_PATH,
+  DEFAULT_RENT_DEPOSIT_UPI_ID,
+} from '@/src/lib/payments/defaultQr';
+import { isCloudinaryConfigured } from '@/src/lib/images/cloudinary';
+import {
+  ensureDefaultPaymentCategoriesForPg,
+  getRentDepositBookingCategory,
+} from '@/src/services/pgPaymentDefaults';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,8 +57,28 @@ export default async function ExtensionPayPage(
     redirect(`/booking/${ext.bookingCode}`);
   }
 
-  const razorpayReady = isRazorpayConfigured();
   const totalLabel = paiseToInr(ext.quotedTotalPaise);
+  const cloudinary = isCloudinaryConfigured();
+
+  const [extMeta] = await db
+    .select({
+      paymentProofUrl: stayExtensions.paymentProofUrl,
+      pgId: floors.pgId,
+    })
+    .from(stayExtensions)
+    .innerJoin(bookings, eq(bookings.id, stayExtensions.bookingId))
+    .innerJoin(bedReservations, eq(bedReservations.bookingId, bookings.id))
+    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
+    .innerJoin(floors, eq(floors.id, rooms.floorId))
+    .where(and(eq(stayExtensions.id, extensionId), eq(bedReservations.kind, 'primary')))
+    .limit(1);
+
+  let rentCategory = null;
+  if (extMeta?.pgId) {
+    await ensureDefaultPaymentCategoriesForPg(extMeta.pgId);
+    rentCategory = await getRentDepositBookingCategory(extMeta.pgId);
+  }
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
@@ -136,13 +165,17 @@ export default async function ExtensionPayPage(
             </div>
 
             <div className="mt-5">
-              {razorpayReady ? (
-                <RazorpayExtensionCheckoutButton
+              {cloudinary ? (
+                <ExtensionPaymentProofForm
                   extensionId={ext.id}
-                  totalLabel={totalLabel}
+                  amountLabel={totalLabel}
+                  uploadScreenshot={uploadPaymentScreenshotAction}
+                  existingProofUrl={extMeta?.paymentProofUrl}
+                  qrImageUrl={rentCategory?.qrCodeImageUrl ?? DEFAULT_RENT_DEPOSIT_QR_PATH}
+                  upiId={rentCategory?.upiId ?? DEFAULT_RENT_DEPOSIT_UPI_ID}
                 />
               ) : (
-                <PaymentUnavailable />
+                <p className="text-sm text-amber-800">Online payment is not available.</p>
               )}
             </div>
 

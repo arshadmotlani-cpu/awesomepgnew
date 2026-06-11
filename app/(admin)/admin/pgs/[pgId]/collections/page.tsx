@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { PgCollectionsPanel } from '@/src/components/admin/PgCollectionsPanel';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { getPgForAdmin } from '@/src/services/pgAdmin';
+import { listPendingRentProofsForPg } from '@/src/services/rentInvoices';
 import { listPendingElectricityProofsForPg } from '@/src/services/meterElectricity';
 
 export const runtime = 'nodejs';
@@ -17,14 +18,18 @@ export default async function PgCollectionsPage({
   const pg = await getPgForAdmin(pgId, session);
   if (!pg) notFound();
 
-  const pendingProofs = await listPendingElectricityProofsForPg(pgId);
+  const [electricityProofs, rentProofs] = await Promise.all([
+    listPendingElectricityProofsForPg(pgId),
+    listPendingRentProofsForPg(pgId),
+  ]);
 
   return (
     <section>
       <PgCollectionsPanel
         pgId={pgId}
         hasPaymentEnabled={pg.hasPaymentEnabled}
-        electricityProofs={pendingProofs}
+        electricityProofs={electricityProofs}
+        rentProofs={rentProofs}
       />
     </section>
   );

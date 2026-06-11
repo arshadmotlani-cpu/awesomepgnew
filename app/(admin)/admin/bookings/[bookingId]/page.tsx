@@ -63,6 +63,7 @@ export default async function AdminBookingDetailPage(
             bedId: b.reservations[0]?.bedId ?? '',
             pgId: '',
             paymentId: null,
+            paymentProofUrl: null,
             cancelledAt: null,
             cancellationReason: null,
             createdAt: new Date(),

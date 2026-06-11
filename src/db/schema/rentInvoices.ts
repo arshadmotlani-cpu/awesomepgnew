@@ -56,6 +56,7 @@ export const rentInvoices = pgTable(
     /** Late fee snapshotted at the moment the payment landed. Null while unpaid. */
     lateFeeLockedPaise: bigint('late_fee_locked_paise', { mode: 'number' }),
     status: rentInvoiceStatusEnum('status').notNull().default('pending'),
+    paymentProofUrl: text('payment_proof_url'),
     paymentId: uuid('payment_id').references(() => payments.id, {
       onDelete: 'set null',
     }),

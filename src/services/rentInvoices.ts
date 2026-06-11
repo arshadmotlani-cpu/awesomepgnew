@@ -31,18 +31,22 @@
  *     "already processed".
  */
 
-import { and, eq, inArray, isNotNull, lte, ne, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, lte, ne, or, sql } from 'drizzle-orm';
 import { db } from '../db/client';
 import {
   auditLog,
   bedReservations,
+  beds,
   bookings,
   customers,
   payments,
   rentInvoices,
+  rooms,
   type RentInvoice,
 } from '../db/schema';
 import type { PricingSnapshot } from '../db/schema/bookings';
+import { adminCanAccessPg } from '../lib/auth/roles';
+import type { AdminSession } from '../lib/auth/session';
 import { formatDate, parseDate, type DateLike } from '../lib/dates';
 import {
   computeLateFee,
@@ -756,6 +760,97 @@ export async function cancelFutureRentInvoices(
 
 // Re-exports so callers don't have to import from two places.
 export { customers };
+
+export async function submitRentPaymentProof(
+  customerId: string,
+  invoiceId: string,
+  paymentProofUrl: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const [invoice] = await db
+    .select()
+    .from(rentInvoices)
+    .where(eq(rentInvoices.id, invoiceId))
+    .limit(1);
+  if (!invoice || invoice.customerId !== customerId) {
+    return { ok: false, message: 'Invoice not found.' };
+  }
+  if (!['pending', 'overdue'].includes(invoice.status)) {
+    return { ok: false, message: 'This invoice is not awaiting payment.' };
+  }
+  if (!paymentProofUrl.trim()) {
+    return { ok: false, message: 'Payment photo is required.' };
+  }
+
+  await db
+    .update(rentInvoices)
+    .set({ paymentProofUrl: paymentProofUrl.trim(), updatedAt: new Date() })
+    .where(eq(rentInvoices.id, invoiceId));
+
+  return { ok: true };
+}
+
+export async function listPendingRentProofsForPg(pgId: string) {
+  return db
+    .select({
+      invoiceId: rentInvoices.id,
+      invoiceNumber: rentInvoices.invoiceNumber,
+      customerName: customers.fullName,
+      roomNumber: rooms.roomNumber,
+      bedCode: beds.bedCode,
+      billingMonth: rentInvoices.billingMonth,
+      rentPaise: rentInvoices.rentPaise,
+      paymentProofUrl: rentInvoices.paymentProofUrl,
+    })
+    .from(rentInvoices)
+    .innerJoin(customers, eq(customers.id, rentInvoices.customerId))
+    .innerJoin(beds, eq(beds.id, rentInvoices.bedId))
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
+    .where(
+      and(
+        eq(rentInvoices.pgId, pgId),
+        inArray(rentInvoices.status, ['pending', 'overdue']),
+        isNotNull(rentInvoices.paymentProofUrl),
+      ),
+    )
+    .orderBy(desc(rentInvoices.updatedAt));
+}
+
+export async function approveRentPaymentProof(
+  session: AdminSession,
+  invoiceId: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const [invoice] = await db
+    .select()
+    .from(rentInvoices)
+    .where(eq(rentInvoices.id, invoiceId))
+    .limit(1);
+  if (!invoice) return { ok: false, message: 'Invoice not found.' };
+  if (!adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, invoice.pgId)) {
+    return { ok: false, message: 'Access denied.' };
+  }
+  if (!invoice.paymentProofUrl) {
+    return { ok: false, message: 'No payment photo uploaded.' };
+  }
+  if (!['pending', 'overdue'].includes(invoice.status)) {
+    return { ok: false, message: 'Invoice is not awaiting payment.' };
+  }
+
+  const projected = projectInvoice(invoice);
+  const amountPaise = projected.outstandingPaise;
+
+  const result = await recordRentPaymentSuccess({
+    provider: 'mock',
+    offlineProvider: 'upi_manual',
+    providerPaymentId: `rent-proof-${invoiceId}`,
+    amountPaise,
+    invoiceId,
+    rawPayload: { source: 'payment_proof', proofUrl: invoice.paymentProofUrl },
+  });
+
+  if (!result.ok) return { ok: false, message: result.reason };
+  return { ok: true };
+}
+
 // Pseudonyms to keep imports tidy in tests.
 export const _internals = { nextInvoiceNumber, monthlyRentFromSnapshot, loadStayWindow };
 // Suppress unused-import warnings if linter complains; these are used in tests.

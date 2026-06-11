@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { bigint, date, index, pgTable, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { bigint, date, index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { bookings } from './bookings';
 import {
   extensionDurationModeEnum,
@@ -25,6 +25,8 @@ export const stayExtensions = pgTable(
     extensionDurationMode: extensionDurationModeEnum('extension_duration_mode').notNull(),
     quotedTotalPaise: bigint('quoted_total_paise', { mode: 'number' }).notNull(),
     status: extensionStatusEnum('status').notNull().default('pending'),
+    paymentProofUrl: text('payment_proof_url'),
+    paymentProofTransactionRef: text('payment_proof_transaction_ref'),
     newReservationIds: uuid('new_reservation_ids').array().notNull().default(sql`'{}'::uuid[]`),
     paymentId: uuid('payment_id').references(() => payments.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

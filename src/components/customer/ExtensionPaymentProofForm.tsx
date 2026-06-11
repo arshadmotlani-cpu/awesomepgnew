@@ -2,15 +2,15 @@
 
 import { UpiPaymentProofForm } from './UpiPaymentProofForm';
 
-export function ElectricityPaymentProofForm({
-  invoiceId,
+export function ExtensionPaymentProofForm({
+  extensionId,
   amountLabel,
   uploadScreenshot,
   existingProofUrl,
   qrImageUrl,
   upiId,
 }: {
-  invoiceId: string;
+  extensionId: string;
   amountLabel: string;
   uploadScreenshot: (formData: FormData) => Promise<string>;
   existingProofUrl?: string | null;
@@ -20,13 +20,14 @@ export function ElectricityPaymentProofForm({
   return (
     <UpiPaymentProofForm
       amountLabel={amountLabel}
-      instructions="Scan the electricity / daily / reservation QR, pay via UPI, then upload a photo of the payment."
+      heading="Pay extension via QR + upload proof"
+      instructions="Scan the rent / deposit QR, pay the extension amount via UPI, then upload a photo of the payment."
       qrImageUrl={qrImageUrl}
       upiId={upiId}
       existingProofUrl={existingProofUrl}
       uploadScreenshot={uploadScreenshot}
       submitProof={async ({ screenshotUrl, transactionRef }) => {
-        const res = await fetch(`/api/electricity-invoice/${invoiceId}/payment-proof`, {
+        const res = await fetch(`/api/stay-extension/${extensionId}/payment-proof`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
