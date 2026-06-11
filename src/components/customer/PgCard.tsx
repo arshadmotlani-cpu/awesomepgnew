@@ -6,6 +6,7 @@ import { defaultBrowseStayQuery } from '@/src/lib/dateDefaults';
 import { paiseToInr } from '@/src/lib/format';
 import { AmenityList } from './AmenityList';
 import { GenderBadge } from './GenderBadge';
+import { PgPaymentsPanel } from './PgPaymentsPanel';
 
 export type PgCardData = {
   id: string;
@@ -21,14 +22,21 @@ export type PgCardData = {
   totalBeds: number;
   availableBeds: number;
   startingFromPaise: number;
+  hasPaymentEnabled?: boolean;
 };
 
-export function PgCard({ pg }: { pg: PgCardData }) {
+export function PgCard({
+  pg,
+  uploadScreenshot,
+}: {
+  pg: PgCardData;
+  uploadScreenshot?: (formData: FormData) => Promise<string>;
+}) {
   return (
-    <motion.div whileHover={{ y: -6, scale: 1.01 }} transition={{ type: 'spring', stiffness: 320, damping: 24 }}>
+    <motion.div whileHover={{ y: -6, scale: 1.01 }} transition={{ type: 'spring', stiffness: 320, damping: 24 }} className="apg-glass overflow-hidden rounded-2xl">
       <Link
         href={`/pgs/${pg.slug}?${defaultBrowseStayQuery()}`}
-        className="apg-glass group flex flex-col overflow-hidden rounded-2xl transition-all"
+        className="group flex flex-col transition-all"
       >
         <div className="relative aspect-[16/9] w-full overflow-hidden bg-gradient-to-br from-[#1A1F27] via-[#0B0F14] to-[#2a1810]">
           {pg.heroImage ? (
@@ -82,6 +90,13 @@ export function PgCard({ pg }: { pg: PgCardData }) {
           </div>
         </div>
       </Link>
+      {pg.hasPaymentEnabled && uploadScreenshot ? (
+        <PgPaymentsPanel
+          pgId={pg.id}
+          pgName={pg.name}
+          uploadScreenshot={uploadScreenshot}
+        />
+      ) : null}
     </motion.div>
   );
 }

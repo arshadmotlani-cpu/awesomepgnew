@@ -89,6 +89,7 @@ export type CustomerPgListRow = {
   totalBeds: number;
   availableBeds: number;
   startingFromPaise: number;
+  hasPaymentEnabled: boolean;
 };
 
 /**
@@ -109,6 +110,7 @@ export function listPublicPgs(): Promise<QueryResult<CustomerPgListRow[]>> {
         amenities: pgs.amenities,
         description: pgs.description,
         images: pgs.images,
+        hasPaymentEnabled: pgs.hasPaymentEnabled,
         // NOTE: All correlated references to the outer table must be written
         // as qualified literals (e.g. `pgs.id`, not `${pgs.id}`). Drizzle's
         // `sql` template renders `${pgs.id}` as the bare column name `"id"`,
@@ -169,6 +171,7 @@ export function listPublicPgs(): Promise<QueryResult<CustomerPgListRow[]>> {
       totalBeds: r.totalBeds,
       availableBeds: r.availableBeds,
       startingFromPaise: r.startingFromPaise,
+      hasPaymentEnabled: r.hasPaymentEnabled,
     }));
 
     const sourceUsed = getDatabaseUrlSource();

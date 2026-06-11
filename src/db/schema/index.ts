@@ -26,3 +26,5 @@ export * from './kycSubmissions';
 export * from './appLogs';
 export * from './systemHealth';
 export * from './deployments';
+export * from './pgPaymentCategories';
+export * from './pgPaymentRecords';

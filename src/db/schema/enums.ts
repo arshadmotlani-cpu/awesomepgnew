@@ -90,6 +90,12 @@ export const adminRoleEnum = pgEnum('admin_role', [
   'viewer',
 ]);
 
+export const pgPaymentRecordStatusEnum = pgEnum('pg_payment_record_status', [
+  'pending',
+  'approved',
+  'rejected',
+]);
+
 export const auditActorTypeEnum = pgEnum('audit_actor_type', ['customer', 'admin', 'system']);
 
 // ───────────────────────────────────────────────────────────────────────────

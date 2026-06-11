@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { boolean, jsonb, numeric, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { adminUsers } from './adminUsers';
 import { genderPolicyEnum } from './enums';
 
 export type PgAmenities = {
@@ -30,6 +31,8 @@ export const pgs = pgTable('pgs', {
   description: text('description'),
   contactPhone: text('contact_phone'),
   contactEmail: text('contact_email'),
+  hasPaymentEnabled: boolean('has_payment_enabled').notNull().default(false),
+  ownerId: uuid('owner_id').references(() => adminUsers.id, { onDelete: 'set null' }),
   isActive: boolean('is_active').notNull().default(true),
   archivedAt: timestamp('archived_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

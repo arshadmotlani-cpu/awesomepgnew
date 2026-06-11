@@ -6,6 +6,7 @@ import { PageHeader } from '@/src/components/admin/PageHeader';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { isCloudinaryConfigured } from '@/src/lib/images/cloudinary';
 import { getPgForAdmin } from '@/src/services/pgAdmin';
+import { PgPaymentsAdminPanel } from '@/src/components/admin/PgPaymentsAdminPanel';
 import { uploadPgImageAction } from '../../actions';
 
 export const runtime = 'nodejs';
@@ -45,6 +46,7 @@ export default async function EditPgPage({
         pg={pg}
         cloudinaryUploadAction={cloudinary ? uploadPgImageAction : undefined}
       />
+      <PgPaymentsAdminPanel pgId={pgId} hasPaymentEnabled={pg.hasPaymentEnabled} />
     </>
   );
 }

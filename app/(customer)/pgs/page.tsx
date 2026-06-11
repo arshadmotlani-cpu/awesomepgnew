@@ -1,4 +1,6 @@
+import { uploadPaymentScreenshotAction } from '@/app/(admin)/admin/pgs/payment-actions';
 import { listPublicPgs, type CustomerPgListRow } from '@/src/db/queries/customer';
+import { isCloudinaryConfigured } from '@/src/lib/images/cloudinary';
 import { PgCard } from '@/src/components/customer/PgCard';
 import { EmptyPgList } from '@/src/components/customer/EmptyPgList';
 import { MotionPgGrid, MotionPgGridItem, MotionReveal } from '@/src/components/customer/MotionReveal';
@@ -23,6 +25,9 @@ export default async function PgListPage() {
   const h = await headers();
   const ctx = contextFromHeaders(h);
   ctx.route = '/pgs';
+
+  const cloudinary = isCloudinaryConfigured();
+  const uploadScreenshot = cloudinary ? uploadPaymentScreenshotAction : undefined;
 
   return runWithMonitoringContextAsync(ctx, async () => {
     await logServerRequest('/pgs');
@@ -63,7 +68,7 @@ export default async function PgListPage() {
             <MotionPgGrid>
               {pgs.map((pg) => (
                 <MotionPgGridItem key={pg.id}>
-                  <PgCard pg={pg} />
+                  <PgCard pg={pg} uploadScreenshot={uploadScreenshot} />
                 </MotionPgGridItem>
               ))}
             </MotionPgGrid>
