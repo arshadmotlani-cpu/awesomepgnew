@@ -8,6 +8,12 @@ import { canCheckIn, getCustomerById } from '@/src/services/profile';
 import { getLatestKycSubmission } from '@/src/services/kyc';
 import { titleCase } from '@/src/lib/format';
 import { ElectricityMeterNotice } from '@/src/components/customer/ElectricityMeterNotice';
+import {
+  ACCOUNT_LINK_ON_DARK,
+  ACCOUNT_PAGE_SUBTITLE,
+  ACCOUNT_PAGE_TITLE,
+  ACCOUNT_SURFACE_PADDED,
+} from '@/src/components/customer/accountStyles';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,17 +61,15 @@ export default async function KycPage(props: PageProps<'/account/kyc'>) {
 
   return (
     <main className="mx-auto max-w-lg px-4 py-10 sm:px-6">
-      <nav className="text-xs text-zinc-500">
-        <Link href="/account/bookings" className="hover:text-indigo-600">
-          My bookings
-        </Link>
+      <nav className="apg-account-nav text-xs">
+        <Link href="/account/bookings">My bookings</Link>
         <span className="mx-1">/</span>
-        <span className="text-zinc-700">KYC</span>
+        <span aria-current="page">KYC</span>
       </nav>
 
       <header className="mt-4">
-        <h1 className="text-2xl font-semibold text-zinc-900">Identity verification</h1>
-        <p className="mt-1 text-sm text-zinc-600">
+        <h1 className={ACCOUNT_PAGE_TITLE}>Identity verification</h1>
+        <p className={`${ACCOUNT_PAGE_SUBTITLE} text-zinc-300`}>
           Upload your Aadhaar and a selfie. An admin will review before you can check in.
         </p>
       </header>
@@ -107,21 +111,21 @@ export default async function KycPage(props: PageProps<'/account/kyc'>) {
       ) : null}
 
       {bookingCode && !checkInOk ? (
-        <p className="mt-3 text-sm text-zinc-600">
+        <p className="mt-3 text-sm text-apg-silver">
           Complete KYC for booking{' '}
-          <span className="font-mono font-medium text-zinc-900">{bookingCode}</span>.
+          <span className="font-mono font-semibold text-white">{bookingCode}</span>.
         </p>
       ) : null}
 
       {customer.kycStatus === 'approved' ? (
-        <p className="mt-6 text-sm text-zinc-500">
+        <p className="mt-6 text-sm text-apg-silver">
           No further action needed.{' '}
-          <Link href="/account/bookings" className="font-medium text-indigo-600 hover:underline">
+          <Link href="/account/bookings" className={ACCOUNT_LINK_ON_DARK}>
             View bookings
           </Link>
         </p>
       ) : awaitingReview ? (
-        <div className="mt-6 rounded-xl border border-zinc-200 bg-zinc-50 p-5 text-sm text-zinc-700">
+        <div className={`${ACCOUNT_SURFACE_PADDED} text-sm text-zinc-800`}>
           <p className="font-semibold text-zinc-900">Documents already submitted</p>
           <p className="mt-1">
             Submitted{' '}

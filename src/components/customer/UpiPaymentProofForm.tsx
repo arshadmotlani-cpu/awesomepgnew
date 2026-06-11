@@ -117,7 +117,7 @@ export function UpiPaymentProofForm({
     >
       <div>
         <h3 className="text-base font-semibold text-white">{heading}</h3>
-        <p className="mt-1 text-sm text-apg-silver">
+        <p className="mt-1 text-sm text-zinc-300">
           Amount: <span className="font-semibold text-white">{amountLabel}</span>.
           {instructions
             ? ` ${instructions}`
@@ -174,7 +174,7 @@ export function UpiPaymentProofForm({
           }
         >
           {uploading ? (
-            <span className="text-sm font-medium text-apg-silver">Uploading…</span>
+            <span className="text-sm font-medium text-zinc-300">Uploading…</span>
           ) : screenshotUrl ? (
             <>
               <span className="text-2xl" aria-hidden>
@@ -182,9 +182,9 @@ export function UpiPaymentProofForm({
               </span>
               <span className="text-sm font-semibold text-emerald-300">Screenshot uploaded</span>
               {fileName ? (
-                <span className="max-w-full truncate text-xs text-apg-silver">{fileName}</span>
+                <span className="max-w-full truncate text-xs text-zinc-300">{fileName}</span>
               ) : null}
-              <span className="text-xs text-apg-silver">Tap to replace</span>
+              <span className="text-xs text-zinc-300">Tap to replace</span>
             </>
           ) : (
             <>
@@ -192,7 +192,7 @@ export function UpiPaymentProofForm({
                 📷
               </span>
               <span className="text-sm font-semibold text-white">Choose screenshot from gallery</span>
-              <span className="text-xs text-apg-silver">
+              <span className="text-xs text-zinc-300">
                 Photo library, Files, or saved UPI payment receipt
               </span>
             </>
@@ -210,7 +210,7 @@ export function UpiPaymentProofForm({
       </div>
 
       <label className="block text-sm">
-        <span className="font-medium text-apg-silver">UPI reference (optional)</span>
+        <span className="font-medium text-zinc-300">UPI reference (optional)</span>
         <input
           type="text"
           value={transactionRef}

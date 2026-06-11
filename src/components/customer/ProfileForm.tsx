@@ -23,7 +23,7 @@ export function ProfileForm({ defaultValues, next }: Props) {
   const [phone, setPhone] = useState(defaultValues.phone);
 
   return (
-    <form action={formAction} className="mt-6 space-y-4 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+    <form action={formAction} className="apg-account-surface mt-6 space-y-4 rounded-xl border border-zinc-200 p-5 shadow-sm">
       {next ? <input type="hidden" name="next" value={next} /> : null}
 
       <Field label="Full name" name="fullName" required defaultValue={defaultValues.fullName} />

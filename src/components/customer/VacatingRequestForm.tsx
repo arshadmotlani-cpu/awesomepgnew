@@ -40,12 +40,12 @@ export function VacatingRequestForm({
     <form
       action={action}
       data-roachie-focus="vacating"
-      className="space-y-4 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm"
+      className="apg-account-surface space-y-4 rounded-xl border border-zinc-200 p-5 shadow-sm"
     >
       <input type="hidden" name="bookingId" value={bookingId} />
 
       <label className="block">
-        <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+        <span className="text-xs font-medium uppercase tracking-wide text-zinc-600">
           Vacating date
         </span>
         <input
@@ -55,18 +55,18 @@ export function VacatingRequestForm({
           min={todayString()}
           value={vacatingDate}
           onChange={(e) => setVacatingDate(e.target.value)}
-          className="mt-1 block w-full rounded-md border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          className="apg-admin-field mt-1 block w-full rounded-md border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
         />
       </label>
 
       <label className="block">
-        <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+        <span className="text-xs font-medium uppercase tracking-wide text-zinc-600">
           Notes (optional)
         </span>
         <textarea
           name="notes"
           rows={2}
-          className="mt-1 block w-full rounded-md border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          className="apg-admin-field mt-1 block w-full rounded-md border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
         />
       </label>
 

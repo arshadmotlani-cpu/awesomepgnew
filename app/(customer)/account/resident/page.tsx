@@ -18,6 +18,15 @@ import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import { LogoutButton } from '@/src/components/auth/LogoutButton';
 import { DepositRefundNotice } from '@/src/components/customer/DepositRefundNotice';
 import { MyServicesPanel } from '@/src/components/customer/MyServicesPanel';
+import {
+  ACCOUNT_LINK_IN_SURFACE,
+  ACCOUNT_LINK_ON_DARK,
+  ACCOUNT_PAGE_SUBTITLE,
+  ACCOUNT_PAGE_TITLE,
+  ACCOUNT_SURFACE,
+  ACCOUNT_SURFACE_PADDED,
+  ACCOUNT_TABLE_HEAD,
+} from '@/src/components/customer/accountStyles';
 import { getRoomElectricityForCustomer } from '@/src/services/meterElectricity';
 import {
   getMembershipForDashboard,
@@ -177,20 +186,17 @@ export default async function ResidentDashboardPage() {
 
       <header className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">
-            Resident dashboard
-          </h1>
-          <p className="mt-1 text-sm text-zinc-500">
+          <h1 className={ACCOUNT_PAGE_TITLE}>Resident dashboard</h1>
+          <p className={ACCOUNT_PAGE_SUBTITLE}>
             Signed in as {session.fullName} · {formatIndianPhoneDisplay(session.phone)}.
-            Daily and weekly
-            bookings stay under{' '}
-            <Link className="text-indigo-600 hover:text-indigo-500" href="/account/bookings">
+            Daily and weekly bookings stay under{' '}
+            <Link className={ACCOUNT_LINK_ON_DARK} href="/account/bookings">
               My bookings
             </Link>
             .
           </p>
         </div>
-        <LogoutButton scope="customer" />
+        <LogoutButton scope="customer" tone="dark" />
       </header>
 
       <DepositRefundNotice />
@@ -204,7 +210,7 @@ export default async function ResidentDashboardPage() {
       ) : null}
 
       {bookings.ok && uniqueBookings.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-zinc-300 bg-white p-8 text-center text-sm text-zinc-500">
+        <div className={`${ACCOUNT_SURFACE} p-8 text-center text-sm text-zinc-600`}>
           <p className="font-medium text-zinc-700">No monthly bookings found.</p>
           <p className="mt-1">
             The resident dashboard only lists monthly + open-ended stays.
@@ -274,7 +280,7 @@ export default async function ResidentDashboardPage() {
             return (
               <section
                 key={d.bookingId}
-                className="space-y-4 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm"
+                className={`${ACCOUNT_SURFACE_PADDED} space-y-4`}
               >
                 <header className="flex flex-wrap items-baseline justify-between gap-3">
                   <div>
@@ -282,11 +288,11 @@ export default async function ResidentDashboardPage() {
                       {booking.pgName} · Room {booking.roomNumber} · Bed{' '}
                       {booking.bedCode}
                     </h2>
-                    <p className="text-xs text-zinc-500">
+                    <p className="text-xs text-zinc-600">
                       Booking{' '}
                       <Link
                         href={`/booking/${booking.bookingCode}`}
-                        className="font-mono font-medium text-indigo-600 hover:text-indigo-500"
+                        className={`font-mono font-medium ${ACCOUNT_LINK_IN_SURFACE}`}
                       >
                         {booking.bookingCode}
                       </Link>
@@ -319,7 +325,7 @@ export default async function ResidentDashboardPage() {
                   </span>
                   {totalRentOutstanding + totalElectricityOutstanding + lateFees === 0 &&
                   booking.adminDuesStatus === 'unknown' ? (
-                    <span className="text-zinc-500">No open invoices in the system.</span>
+                    <span className="text-zinc-600">No open invoices in the system.</span>
                   ) : null}
                 </div>
 
@@ -343,14 +349,14 @@ export default async function ResidentDashboardPage() {
                     <dl className="mt-2 grid gap-1 text-xs sm:grid-cols-2">
                       <div>
                         <dt className="text-indigo-700">Room consumption</dt>
-                        <dd className="font-medium">
+                        <dd className="font-semibold text-zinc-900">
                           {d.roomElectricity.latestBill.unitsConsumed} units ·{' '}
                           {paiseToInr(d.roomElectricity.latestBill.totalPaise)}
                         </dd>
                       </div>
                       <div>
                         <dt className="text-indigo-700">Meter readings</dt>
-                        <dd className="font-medium">
+                        <dd className="font-semibold text-zinc-900">
                           {d.roomElectricity.latestBill.previousReadingUnits} →{' '}
                           {d.roomElectricity.latestBill.currentReadingUnits}
                         </dd>
@@ -379,7 +385,7 @@ export default async function ResidentDashboardPage() {
                   </summary>
                   <div className="mt-2 overflow-hidden rounded-lg border border-zinc-200">
                     <table className="min-w-full divide-y divide-zinc-200 text-sm">
-                      <thead className="bg-zinc-50 text-left text-xs font-medium uppercase tracking-wide text-zinc-500">
+                      <thead className={ACCOUNT_TABLE_HEAD}>
                         <tr>
                           <th className="px-3 py-2">Invoice</th>
                           <th className="px-3 py-2">Month</th>
@@ -450,7 +456,7 @@ export default async function ResidentDashboardPage() {
                   </summary>
                   <div className="mt-2 overflow-hidden rounded-lg border border-zinc-200">
                     <table className="min-w-full divide-y divide-zinc-200 text-sm">
-                      <thead className="bg-zinc-50 text-left text-xs font-medium uppercase tracking-wide text-zinc-500">
+                      <thead className={ACCOUNT_TABLE_HEAD}>
                         <tr>
                           <th className="px-3 py-2">Invoice</th>
                           <th className="px-3 py-2">Month</th>
@@ -527,7 +533,7 @@ export default async function ResidentDashboardPage() {
                   </summary>
                   <div className="mt-2 overflow-hidden rounded-lg border border-zinc-200">
                     <table className="min-w-full divide-y divide-zinc-200 text-sm">
-                      <thead className="bg-zinc-50 text-left text-xs font-medium uppercase tracking-wide text-zinc-500">
+                      <thead className={ACCOUNT_TABLE_HEAD}>
                         <tr>
                           <th className="px-3 py-2">Date</th>
                           <th className="px-3 py-2">Type</th>
@@ -570,37 +576,37 @@ export default async function ResidentDashboardPage() {
                     {vacating ? (
                       <StatusPill status={vacating.status} tones={VACATING_TONE} />
                     ) : (
-                      <span className="text-xs text-zinc-500">No request on file</span>
+                      <span className="text-xs font-medium text-zinc-600">No request on file</span>
                     )}
                   </div>
                   {vacating ? (
                     <dl className="mt-2 grid gap-x-4 gap-y-1 text-xs sm:grid-cols-2">
                       <div>
-                        <dt className="text-zinc-500">Notice given</dt>
-                        <dd className="font-medium">
+                        <dt className="text-zinc-600">Notice given</dt>
+                        <dd className="font-semibold text-zinc-900">
                           {formatDate(vacating.noticeGivenDate)}
                         </dd>
                       </div>
                       <div>
-                        <dt className="text-zinc-500">Vacating date</dt>
-                        <dd className="font-medium">{formatDate(vacating.vacatingDate)}</dd>
+                        <dt className="text-zinc-600">Vacating date</dt>
+                        <dd className="font-semibold text-zinc-900">{formatDate(vacating.vacatingDate)}</dd>
                       </div>
                       <div>
-                        <dt className="text-zinc-500">Notice ≥ 14 days?</dt>
-                        <dd className="font-medium">
+                        <dt className="text-zinc-600">Notice ≥ 14 days?</dt>
+                        <dd className="font-semibold text-zinc-900">
                           {vacating.noticeCompliant ? 'Yes — no deduction' : 'No — 5-day penalty applies'}
                         </dd>
                       </div>
                       <div>
-                        <dt className="text-zinc-500">Deposit deduction</dt>
-                        <dd className="font-medium">
+                        <dt className="text-zinc-600">Deposit deduction</dt>
+                        <dd className="font-semibold text-zinc-900">
                           {paiseToInr(vacating.deductionPaise)}
                         </dd>
                       </div>
                       {vacating.status === 'completed' ? (
                         <div>
-                          <dt className="text-zinc-500">Refund issued</dt>
-                          <dd className="font-medium">
+                          <dt className="text-zinc-600">Refund issued</dt>
+                          <dd className="font-semibold text-zinc-900">
                             {paiseToInr(vacating.depositRefundPaise)}
                           </dd>
                         </div>
@@ -626,7 +632,7 @@ export default async function ResidentDashboardPage() {
 function Card({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
-      <div className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+      <div className="text-[10px] font-medium uppercase tracking-wide text-zinc-600">
         {label}
       </div>
       <div className="mt-1 text-base font-semibold text-zinc-900">{value}</div>

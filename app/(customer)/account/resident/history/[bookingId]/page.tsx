@@ -3,6 +3,13 @@ import { notFound } from 'next/navigation';
 import { listPaymentsForBooking } from '@/src/db/queries/customer';
 import { requireCustomerOwnsBooking, requireCustomerSession } from '@/src/lib/auth/guards';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
+import {
+  ACCOUNT_BACK_LINK,
+  ACCOUNT_PAGE_SUBTITLE,
+  ACCOUNT_PAGE_TITLE,
+  ACCOUNT_SURFACE,
+  ACCOUNT_TABLE_HEAD,
+} from '@/src/components/customer/accountStyles';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,24 +60,19 @@ export default async function PaymentHistoryPage({
   return (
     <div className="mx-auto w-full max-w-3xl space-y-5 px-4 py-10 sm:px-6">
       <header>
-        <Link
-          href="/account/resident"
-          className="text-xs font-medium text-indigo-600 hover:text-indigo-500"
-        >
+        <Link href="/account/resident" className={ACCOUNT_BACK_LINK}>
           ← Back to resident dashboard
         </Link>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-900">
-          Payment history
-        </h1>
-        <p className="mt-1 text-sm text-zinc-500">
+        <h1 className={`mt-2 ${ACCOUNT_PAGE_TITLE}`}>Payment history</h1>
+        <p className={ACCOUNT_PAGE_SUBTITLE}>
           {session.fullName} · Booking{' '}
-          <span className="font-mono">{booking.bookingCode}</span>
+          <span className="font-mono text-white">{booking.bookingCode}</span>
         </p>
       </header>
 
-      <section className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
+      <section className={`${ACCOUNT_SURFACE} overflow-hidden`}>
         <table className="min-w-full divide-y divide-zinc-200 text-sm">
-          <thead className="bg-zinc-50 text-left text-xs font-medium uppercase tracking-wide text-zinc-500">
+          <thead className={ACCOUNT_TABLE_HEAD}>
             <tr>
               <th className="px-3 py-2">When</th>
               <th className="px-3 py-2">Purpose</th>
@@ -82,23 +84,23 @@ export default async function PaymentHistoryPage({
           <tbody className="divide-y divide-zinc-100">
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-3 py-6 text-center text-zinc-500">
+                <td colSpan={5} className="px-3 py-6 text-center text-zinc-600">
                   No payments yet for this booking.
                 </td>
               </tr>
             ) : (
               rows.map((p) => (
                 <tr key={p.id}>
-                  <td className="px-3 py-2 text-xs text-zinc-500">
+                  <td className="px-3 py-2 text-xs text-zinc-600">
                     {formatDate(p.paidAt ?? p.createdAt)}
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-2 text-zinc-900">
                     {PURPOSE_LABEL[p.purpose] ?? titleCase(p.purpose)}
                   </td>
                   <td className="px-3 py-2 text-xs text-zinc-600">
                     {METHOD_LABEL[p.provider] ?? titleCase(p.provider)}
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums font-medium">
+                  <td className="px-3 py-2 text-right tabular-nums font-semibold text-zinc-900">
                     {paiseToInr(p.amountPaise)}
                   </td>
                   <td className="px-3 py-2">

@@ -7,10 +7,12 @@ export function LogoutButton({
   scope,
   label = 'Sign out',
   className = '',
+  tone = 'light',
 }: {
   scope: 'customer' | 'admin';
   label?: string;
   className?: string;
+  tone?: 'light' | 'dark';
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -37,7 +39,9 @@ export function LogoutButton({
       disabled={pending}
       className={
         className ||
-        'rounded-md px-3 py-1.5 text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 disabled:opacity-50'
+        (tone === 'dark'
+          ? 'rounded-md px-3 py-1.5 text-sm font-medium text-apg-silver hover:bg-white/10 hover:text-white disabled:opacity-50'
+          : 'rounded-md px-3 py-1.5 text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 disabled:opacity-50')
       }
     >
       {pending ? 'Signing out…' : label}

@@ -16,6 +16,14 @@ import {
   DEFAULT_RENT_DEPOSIT_UPI_ID,
 } from '@/src/lib/payments/defaultQr';
 import { RentPaymentProofForm } from '@/src/components/customer/RentPaymentProofForm';
+import {
+  ACCOUNT_BACK_LINK,
+  ACCOUNT_LABEL,
+  ACCOUNT_PAGE_SUBTITLE,
+  ACCOUNT_PAGE_TITLE,
+  ACCOUNT_SURFACE_PADDED,
+  ACCOUNT_VALUE,
+} from '@/src/components/customer/accountStyles';
 import { ensureDefaultPaymentCategoriesForPg, getRentDepositBookingCategory } from '@/src/services/pgPaymentDefaults';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import { projectInvoice } from '@/src/services/rentInvoices';
@@ -82,36 +90,29 @@ export default async function PayRentPage({
   return (
     <div className="mx-auto w-full max-w-xl space-y-5 px-4 py-10 sm:px-6">
       <header>
-        <Link
-          href="/account/resident"
-          className="text-xs font-medium text-indigo-600 hover:text-indigo-500"
-        >
+        <Link href="/account/resident" className={ACCOUNT_BACK_LINK}>
           ← Back to resident dashboard
         </Link>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-900">
-          Pay rent
-        </h1>
-        <p className="mt-1 font-mono text-sm text-zinc-500">
-          {row.invoiceNumber}
-        </p>
+        <h1 className={`mt-2 ${ACCOUNT_PAGE_TITLE}`}>Pay rent</h1>
+        <p className={`font-mono ${ACCOUNT_PAGE_SUBTITLE}`}>{row.invoiceNumber}</p>
       </header>
 
-      <section className="space-y-3 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+      <section className={`${ACCOUNT_SURFACE_PADDED} space-y-3`}>
         <dl className="grid grid-cols-2 gap-2 text-sm">
-          <dt className="text-zinc-500">Resident</dt>
-          <dd className="text-right font-medium">{row.customerFullName}</dd>
-          <dt className="text-zinc-500">Bed</dt>
-          <dd className="text-right font-medium">
+          <dt className={ACCOUNT_LABEL}>Resident</dt>
+          <dd className={`text-right ${ACCOUNT_VALUE}`}>{row.customerFullName}</dd>
+          <dt className={ACCOUNT_LABEL}>Bed</dt>
+          <dd className={`text-right ${ACCOUNT_VALUE}`}>
             {row.pgName} · Room {row.roomNumber} · Bed {row.bedCode}
           </dd>
-          <dt className="text-zinc-500">Billing month</dt>
-          <dd className="text-right font-medium">{formatDate(row.billingMonth)}</dd>
-          <dt className="text-zinc-500">Due date</dt>
-          <dd className="text-right font-medium">{formatDate(row.dueDate)}</dd>
-          <dt className="text-zinc-500">Rent</dt>
-          <dd className="text-right">{paiseToInr(row.rentPaise)}</dd>
-          <dt className="text-zinc-500">Late fee accrued</dt>
-          <dd className="text-right">{paiseToInr(projected.accruedLateFeePaise)}</dd>
+          <dt className={ACCOUNT_LABEL}>Billing month</dt>
+          <dd className={`text-right ${ACCOUNT_VALUE}`}>{formatDate(row.billingMonth)}</dd>
+          <dt className={ACCOUNT_LABEL}>Due date</dt>
+          <dd className={`text-right ${ACCOUNT_VALUE}`}>{formatDate(row.dueDate)}</dd>
+          <dt className={ACCOUNT_LABEL}>Rent</dt>
+          <dd className="text-right text-zinc-900">{paiseToInr(row.rentPaise)}</dd>
+          <dt className={ACCOUNT_LABEL}>Late fee accrued</dt>
+          <dd className="text-right text-zinc-900">{paiseToInr(projected.accruedLateFeePaise)}</dd>
           <dt className="text-base font-semibold text-zinc-900">Total due</dt>
           <dd className="text-right text-base font-semibold text-zinc-900">
             {paiseToInr(projected.outstandingPaise)}

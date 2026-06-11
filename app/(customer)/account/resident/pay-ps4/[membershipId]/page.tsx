@@ -4,6 +4,7 @@ import { uploadPaymentScreenshotAction } from '@/app/(admin)/admin/pgs/payment-a
 import { Ps4PaymentProofForm } from '@/src/components/customer/Ps4PaymentProofForm';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
 import { formatDateTime, paiseToInr } from '@/src/lib/format';
+import { ACCOUNT_BACK_LINK } from '@/src/components/customer/accountStyles';
 import {
   DEFAULT_ELECTRICITY_DAILY_QR_PATH,
   DEFAULT_ELECTRICITY_DAILY_UPI_ID,
@@ -64,10 +65,7 @@ export default async function PayPs4Page({
   return (
     <div className="mx-auto w-full max-w-xl space-y-5 px-4 py-10 sm:px-6">
       <header>
-        <Link
-          href="/account/resident"
-          className="text-xs font-medium text-[#FF5A1F] hover:underline"
-        >
+        <Link href="/account/resident" className={ACCOUNT_BACK_LINK}>
           ← Back to resident dashboard
         </Link>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white">
@@ -78,24 +76,24 @@ export default async function PayPs4Page({
 
       <section className="apg-glass rounded-2xl p-5">
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-          <dt className="text-apg-silver">Plan</dt>
-          <dd className="text-right font-medium text-white">{plan.label}</dd>
-          <dt className="text-apg-silver">Duration</dt>
-          <dd className="text-right text-white">{plan.durationDays} days</dd>
-          <dt className="text-apg-silver">Status</dt>
-          <dd className="text-right capitalize text-white">
+          <dt className="text-zinc-300">Plan</dt>
+          <dd className="text-right font-semibold text-white">{plan.label}</dd>
+          <dt className="text-zinc-300">Duration</dt>
+          <dd className="text-right font-semibold text-white">{plan.durationDays} days</dd>
+          <dt className="text-zinc-300">Status</dt>
+          <dd className="text-right font-semibold capitalize text-white">
             {membership.status.replace('_', ' ')}
           </dd>
           {membership.startsAt ? (
             <>
-              <dt className="text-apg-silver">Subscription starts</dt>
-              <dd className="text-right text-white">{formatDateTime(membership.startsAt)}</dd>
+              <dt className="text-zinc-300">Subscription starts</dt>
+              <dd className="text-right font-semibold text-white">{formatDateTime(membership.startsAt)}</dd>
             </>
           ) : null}
           {membership.expiresAt ? (
             <>
-              <dt className="text-apg-silver">Subscription ends</dt>
-              <dd className="text-right text-white">{formatDateTime(membership.expiresAt)}</dd>
+              <dt className="text-zinc-300">Subscription ends</dt>
+              <dd className="text-right font-semibold text-white">{formatDateTime(membership.expiresAt)}</dd>
             </>
           ) : null}
           <dt className="pt-2 text-base font-semibold text-white">Amount due</dt>

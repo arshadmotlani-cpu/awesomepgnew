@@ -2,6 +2,12 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
 import { paiseToInr } from '@/src/lib/format';
+import {
+  ACCOUNT_BACK_LINK,
+  ACCOUNT_PAGE_SUBTITLE,
+  ACCOUNT_PAGE_TITLE,
+  ACCOUNT_SURFACE_PADDED,
+} from '@/src/components/customer/accountStyles';
 import { PS4_ADDON_LABEL, PS4_PLANS } from '@/src/lib/playstation/plans';
 import { isActiveTenant } from '@/src/services/playstationMembership';
 import { subscribePs4Action } from './actions';
@@ -18,19 +24,14 @@ export default async function NewPs4SubscriptionPage() {
   return (
     <div className="mx-auto w-full max-w-xl space-y-5 px-4 py-10 sm:px-6">
       <header>
-        <Link
-          href="/account/resident"
-          className="text-xs font-medium text-indigo-600 hover:text-indigo-500"
-        >
+        <Link href="/account/resident" className={ACCOUNT_BACK_LINK}>
           ← Back to resident dashboard
         </Link>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-900">
-          Subscribe to PS4 add-on
-        </h1>
-        <p className="mt-1 text-sm text-zinc-500">{PS4_ADDON_LABEL}</p>
+        <h1 className={`mt-2 ${ACCOUNT_PAGE_TITLE}`}>Subscribe to PS4 add-on</h1>
+        <p className={ACCOUNT_PAGE_SUBTITLE}>{PS4_ADDON_LABEL}</p>
       </header>
 
-      <form action={subscribePs4Action} className="space-y-3 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+      <form action={subscribePs4Action} className={`${ACCOUNT_SURFACE_PADDED} space-y-3`}>
         {(Object.values(PS4_PLANS)).map((plan) => (
           <label
             key={plan.id}
@@ -41,10 +42,10 @@ export default async function NewPs4SubscriptionPage() {
               <span className="font-medium text-zinc-900">{plan.label}</span>
               <span className="block text-xs text-zinc-500">{plan.description}</span>
             </span>
-            <span className="text-sm font-semibold">{paiseToInr(plan.pricePaise)}</span>
+            <span className="text-sm font-semibold text-zinc-900">{paiseToInr(plan.pricePaise)}</span>
           </label>
         ))}
-        <p className="text-xs text-zinc-500">
+        <p className="text-xs text-zinc-600">
           Payment uses the electricity / daily UPI QR — separate from rent.
         </p>
         <button

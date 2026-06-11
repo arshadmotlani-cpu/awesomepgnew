@@ -4,6 +4,12 @@ import { requireCustomerSession } from '@/src/lib/auth/guards';
 import { formatIndianPhoneDisplay } from '@/src/lib/phone';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import { LogoutButton } from '@/src/components/auth/LogoutButton';
+import {
+  ACCOUNT_LINK_ON_DARK,
+  ACCOUNT_PAGE_SUBTITLE,
+  ACCOUNT_PAGE_TITLE,
+  ACCOUNT_SURFACE,
+} from '@/src/components/customer/accountStyles';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,14 +41,12 @@ export default async function AccountBookingsPage() {
     <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-10 sm:px-6">
       <header className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">
-            My bookings
-          </h1>
-          <p className="mt-1 text-sm text-zinc-500">
+          <h1 className={ACCOUNT_PAGE_TITLE}>My bookings</h1>
+          <p className={ACCOUNT_PAGE_SUBTITLE}>
             Signed in as {session.fullName} · {formatIndianPhoneDisplay(session.phone)}
           </p>
         </div>
-        <LogoutButton scope="customer" />
+        <LogoutButton scope="customer" tone="dark" />
       </header>
 
       {bookings.ok === false ? (
@@ -50,28 +54,28 @@ export default async function AccountBookingsPage() {
           Couldn&apos;t reach the database.
         </p>
       ) : rows.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-zinc-300 bg-white p-8 text-center text-sm text-zinc-500">
-          <p className="font-medium text-zinc-700">No bookings yet.</p>
-          <Link href="/pgs" className="mt-3 inline-block text-indigo-600 hover:text-indigo-500">
+        <div className={`${ACCOUNT_SURFACE} p-8 text-center text-sm text-zinc-600`}>
+          <p className="font-semibold text-zinc-900">No bookings yet.</p>
+          <Link href="/pgs" className={`mt-3 inline-block ${ACCOUNT_LINK_ON_DARK}`}>
             Browse PGs →
           </Link>
         </div>
       ) : (
-        <ul className="divide-y divide-zinc-200 rounded-xl border border-zinc-200 bg-white shadow-sm">
+        <ul className={`${ACCOUNT_SURFACE} divide-y divide-zinc-200`}>
           {rows.map((b) => (
             <li key={b.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-4">
               <div>
                 <Link
                   href={`/booking/${b.bookingCode}`}
-                  className="font-mono text-sm font-semibold text-indigo-600 hover:text-indigo-500"
+                  className="font-mono text-sm font-semibold text-indigo-700 hover:text-indigo-600"
                 >
                   {b.bookingCode}
                 </Link>
-                <p className="mt-0.5 text-sm text-zinc-600">
+                <p className="mt-0.5 text-sm text-zinc-800">
                   {b.pgName} · {b.bedCount} bed{b.bedCount === 1 ? '' : 's'}
                   {b.checkInDate ? ` · Check-in ${formatDate(b.checkInDate)}` : ''}
                 </p>
-                <p className="text-xs text-zinc-500">
+                <p className="text-xs text-zinc-600">
                   {titleCase(b.durationMode.replace('_', ' '))} · {paiseToInr(b.totalPaise)}
                 </p>
               </div>
@@ -81,9 +85,9 @@ export default async function AccountBookingsPage() {
         </ul>
       )}
 
-      <p className="text-sm text-zinc-500">
+      <p className="text-sm text-apg-silver">
         Monthly stay?{' '}
-        <Link href="/account/resident" className="font-medium text-indigo-600 hover:text-indigo-500">
+        <Link href="/account/resident" className={ACCOUNT_LINK_ON_DARK}>
           Open resident dashboard →
         </Link>
       </p>

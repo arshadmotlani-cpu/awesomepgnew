@@ -1,5 +1,9 @@
 import Link from 'next/link';
 import { ProfileForm } from '@/src/components/customer/ProfileForm';
+import {
+  ACCOUNT_PAGE_SUBTITLE,
+  ACCOUNT_PAGE_TITLE,
+} from '@/src/components/customer/accountStyles';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
 import { getCustomerById, isProfileComplete } from '@/src/services/profile';
 import { indianLocalFromE164 } from '@/src/lib/phone';
@@ -27,17 +31,15 @@ export default async function ProfilePage(
 
   return (
     <main className="mx-auto max-w-lg px-4 py-10 sm:px-6">
-      <nav className="text-xs text-zinc-500">
-        <Link href="/account/bookings" className="hover:text-indigo-600">
-          My bookings
-        </Link>
+      <nav className="apg-account-nav text-xs">
+        <Link href="/account/bookings">My bookings</Link>
         <span className="mx-1">/</span>
-        <span className="text-zinc-700">Profile</span>
+        <span aria-current="page">Profile</span>
       </nav>
 
       <header className="mt-4">
-        <h1 className="text-2xl font-semibold text-zinc-900">Your profile</h1>
-        <p className="mt-1 text-sm text-zinc-600">
+        <h1 className={ACCOUNT_PAGE_TITLE}>Your profile</h1>
+        <p className={`${ACCOUNT_PAGE_SUBTITLE} text-zinc-300`}>
           Booking and payment require name, email, and mobile on file. After payment
           you&apos;ll complete KYC before check-in.
         </p>

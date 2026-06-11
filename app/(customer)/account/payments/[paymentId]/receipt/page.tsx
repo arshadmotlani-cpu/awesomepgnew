@@ -3,6 +3,13 @@ import { notFound } from 'next/navigation';
 import { getPaymentForCustomer } from '@/src/db/queries/customer';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
 import { formatDate, formatDateTime, paiseToInr, titleCase } from '@/src/lib/format';
+import {
+  ACCOUNT_PAGE_SUBTITLE,
+  ACCOUNT_PAGE_TITLE,
+  ACCOUNT_SURFACE_PADDED,
+  ACCOUNT_LABEL,
+  ACCOUNT_VALUE,
+} from '@/src/components/customer/accountStyles';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,27 +40,25 @@ export default async function PaymentReceiptPage(
 
   return (
     <main className="mx-auto max-w-lg px-4 py-10 sm:px-6">
-      <nav className="text-xs text-zinc-500">
-        <Link href="/account/bookings" className="hover:text-indigo-600">
-          My bookings
-        </Link>
+      <nav className="apg-account-nav text-xs">
+        <Link href="/account/bookings">My bookings</Link>
         <span className="mx-1">/</span>
-        <span className="text-zinc-700">Payment receipt</span>
+        <span aria-current="page">Payment receipt</span>
       </nav>
 
       <header className="mt-4">
-        <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
+        <p className="text-xs font-semibold uppercase tracking-wider text-emerald-400">
           Payment receipt
         </p>
-        <h1 className="text-2xl font-semibold text-zinc-900">
+        <h1 className={`${ACCOUNT_PAGE_TITLE} text-3xl`}>
           {paiseToInr(p.amountPaise)}
         </h1>
-        <p className="mt-1 text-sm text-zinc-600">
+        <p className={ACCOUNT_PAGE_SUBTITLE}>
           {PURPOSE_LABEL[p.purpose] ?? titleCase(p.purpose)} · {titleCase(p.status)}
         </p>
       </header>
 
-      <section className="mt-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+      <section className={`${ACCOUNT_SURFACE_PADDED} mt-6`}>
         <dl className="space-y-3 text-sm">
           <Row label="Receipt ID" value={p.id} mono />
           <Row label="Booking" value={p.bookingCode} mono />
@@ -80,7 +85,7 @@ export default async function PaymentReceiptPage(
         </Link>
         <Link
           href="/account/bookings"
-          className="inline-flex items-center justify-center rounded-md border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
+          className="inline-flex items-center justify-center rounded-md border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-800 hover:bg-zinc-50"
         >
           All my bookings
         </Link>
@@ -100,8 +105,8 @@ function Row({
 }) {
   return (
     <div className="flex items-start justify-between gap-4">
-      <dt className="text-zinc-500">{label}</dt>
-      <dd className={`text-right font-medium text-zinc-900 ${mono ? 'font-mono text-xs' : ''}`}>
+      <dt className={ACCOUNT_LABEL}>{label}</dt>
+      <dd className={`text-right ${ACCOUNT_VALUE} ${mono ? 'font-mono text-xs' : ''}`}>
         {value}
       </dd>
     </div>

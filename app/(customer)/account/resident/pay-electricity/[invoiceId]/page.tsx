@@ -17,6 +17,14 @@ import {
   DEFAULT_ELECTRICITY_DAILY_UPI_ID,
 } from '@/src/lib/payments/defaultQr';
 import { ElectricityPaymentProofForm } from '@/src/components/customer/ElectricityPaymentProofForm';
+import {
+  ACCOUNT_BACK_LINK,
+  ACCOUNT_LABEL,
+  ACCOUNT_PAGE_SUBTITLE,
+  ACCOUNT_PAGE_TITLE,
+  ACCOUNT_SURFACE_PADDED,
+  ACCOUNT_VALUE,
+} from '@/src/components/customer/accountStyles';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import { projectElectricityInvoice } from '@/src/services/electricityBilling';
 import {
@@ -82,46 +90,39 @@ export default async function PayElectricityPage({
   return (
     <div className="mx-auto w-full max-w-xl space-y-5 px-4 py-10 sm:px-6">
       <header>
-        <Link
-          href="/account/resident"
-          className="text-xs font-medium text-indigo-600 hover:text-indigo-500"
-        >
+        <Link href="/account/resident" className={ACCOUNT_BACK_LINK}>
           ← Back to resident dashboard
         </Link>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-900">
-          Pay electricity
-        </h1>
-        <p className="mt-1 font-mono text-sm text-zinc-500">
-          {invoiceRow.invoiceNumber}
-        </p>
+        <h1 className={`mt-2 ${ACCOUNT_PAGE_TITLE}`}>Pay electricity</h1>
+        <p className={`font-mono ${ACCOUNT_PAGE_SUBTITLE}`}>{invoiceRow.invoiceNumber}</p>
       </header>
 
-      <section className="space-y-3 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+      <section className={`${ACCOUNT_SURFACE_PADDED} space-y-3`}>
         <dl className="grid grid-cols-2 gap-2 text-sm">
-          <dt className="text-zinc-500">Resident</dt>
-          <dd className="text-right font-medium">{row.customerFullName}</dd>
-          <dt className="text-zinc-500">Bed</dt>
-          <dd className="text-right font-medium">
+          <dt className={ACCOUNT_LABEL}>Resident</dt>
+          <dd className={`text-right ${ACCOUNT_VALUE}`}>{row.customerFullName}</dd>
+          <dt className={ACCOUNT_LABEL}>Bed</dt>
+          <dd className={`text-right ${ACCOUNT_VALUE}`}>
             Room {row.roomNumber} · Bed {row.bedCode}
           </dd>
-          <dt className="text-zinc-500">Billing month</dt>
-          <dd className="text-right font-medium">{formatDate(invoiceRow.billingMonth)}</dd>
-          <dt className="text-zinc-500">Meter readings</dt>
-          <dd className="text-right">
+          <dt className={ACCOUNT_LABEL}>Billing month</dt>
+          <dd className={`text-right ${ACCOUNT_VALUE}`}>{formatDate(invoiceRow.billingMonth)}</dd>
+          <dt className={ACCOUNT_LABEL}>Meter readings</dt>
+          <dd className="text-right text-zinc-900">
             {row.previousReadingUnits} → {row.currentReadingUnits}
           </dd>
-          <dt className="text-zinc-500">Room total</dt>
-          <dd className="text-right">
+          <dt className={ACCOUNT_LABEL}>Room total</dt>
+          <dd className="text-right text-zinc-900">
             {row.unitsConsumed} units × {paiseToInr(row.ratePerUnitPaise)} ={' '}
             {paiseToInr(row.totalPaise)}
           </dd>
-          <dt className="text-zinc-500">Your share</dt>
-          <dd className="text-right">
+          <dt className={ACCOUNT_LABEL}>Your share</dt>
+          <dd className="text-right text-zinc-900">
             {row.unitsShare ? `${row.unitsShare} units` : '—'}
             {row.activeDays ? ` · ${row.activeDays} active days` : ''}
           </dd>
-          <dt className="text-zinc-500">Split</dt>
-          <dd className="text-right">{row.monthlyOccupantCount} monthly resident(s)</dd>
+          <dt className={ACCOUNT_LABEL}>Split</dt>
+          <dd className="text-right text-zinc-900">{row.monthlyOccupantCount} monthly resident(s)</dd>
           {row.isEstimated ? (
             <>
               <dt className="text-amber-700">Bill type</dt>
@@ -130,10 +131,10 @@ export default async function PayElectricityPage({
               </dd>
             </>
           ) : null}
-          <dt className="text-zinc-500">Principal</dt>
-          <dd className="text-right">{paiseToInr(invoiceRow.amountPaise)}</dd>
-          <dt className="text-zinc-500">Due date</dt>
-          <dd className="text-right">{formatDate(invoiceRow.dueDate)}</dd>
+          <dt className={ACCOUNT_LABEL}>Principal</dt>
+          <dd className="text-right text-zinc-900">{paiseToInr(invoiceRow.amountPaise)}</dd>
+          <dt className={ACCOUNT_LABEL}>Due date</dt>
+          <dd className="text-right text-zinc-900">{formatDate(invoiceRow.dueDate)}</dd>
           {projection.accruedLateFeePaise > 0 ? (
             <>
               <dt className="text-rose-600">Late fee ({projection.daysOverdue}d overdue)</dt>
@@ -158,7 +159,7 @@ export default async function PayElectricityPage({
             Penalty accruing at 1% per day on the principal. Pay now to stop the clock.
           </p>
         ) : invoiceRow.status === 'pending' ? (
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-zinc-600">
             Pay by {formatDate(invoiceRow.dueDate)} to avoid a 1%/day late fee.
           </p>
         ) : null}

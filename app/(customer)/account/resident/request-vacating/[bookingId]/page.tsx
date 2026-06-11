@@ -7,6 +7,11 @@ import { VacatingRequestForm } from '@/src/components/customer/VacatingRequestFo
 import { vacatingPenalty } from '@/src/services/billing';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import { paiseToInr } from '@/src/lib/format';
+import {
+  ACCOUNT_BACK_LINK,
+  ACCOUNT_PAGE_SUBTITLE,
+  ACCOUNT_PAGE_TITLE,
+} from '@/src/components/customer/accountStyles';
 import { requireCustomerOwnsBooking, requireCustomerSession } from '@/src/lib/auth/guards';
 
 export const dynamic = 'force-dynamic';
@@ -45,17 +50,12 @@ export default async function RequestVacatingPage({
   return (
     <div className="mx-auto w-full max-w-xl space-y-5 px-4 py-10 sm:px-6">
       <header>
-        <Link
-          href="/account/resident"
-          className="text-xs font-medium text-indigo-600 hover:text-indigo-500"
-        >
+        <Link href="/account/resident" className={ACCOUNT_BACK_LINK}>
           ← Back to resident dashboard
         </Link>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-900">
-          Submit vacating request
-        </h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          Booking <span className="font-mono">{row.bookingCode}</span> ·{' '}
+        <h1 className={`mt-2 ${ACCOUNT_PAGE_TITLE}`}>Submit vacating request</h1>
+        <p className={ACCOUNT_PAGE_SUBTITLE}>
+          Booking <span className="font-mono text-white">{row.bookingCode}</span> ·{' '}
           {row.customerFullName}
         </p>
       </header>
