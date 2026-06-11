@@ -4,6 +4,7 @@ import { isCloudinaryConfigured } from '@/src/lib/images/cloudinary';
 import { PgCard } from '@/src/components/customer/PgCard';
 import { EmptyPgList } from '@/src/components/customer/EmptyPgList';
 import { MotionPgGrid, MotionPgGridItem, MotionReveal } from '@/src/components/customer/MotionReveal';
+import { PgSearchFilter } from '@/src/components/customer/PgSearchFilter';
 import { SafeModeBanner } from '@/src/components/customer/SafeModeBanner';
 import { ElectricityMeterNotice } from '@/src/components/customer/ElectricityMeterNotice';
 import { logServerRequest } from '@/src/lib/monitoring/logServerRequest';
@@ -15,6 +16,7 @@ import { headers } from 'next/headers';
 
 export const metadata = {
   title: 'Browse PGs',
+  description: 'Discover premium PGs with live bed availability — gaming, chill rooms, and more.',
 };
 
 export const runtime = 'nodejs';
@@ -44,8 +46,25 @@ export default async function PgListPage() {
       console.error('[pgs error]', error);
     }
 
+    const cardData = pgs.map((pg) => ({
+      id: pg.id,
+      slug: pg.slug,
+      name: pg.name,
+      city: pg.city,
+      state: pg.state,
+      pincode: pg.pincode,
+      genderPolicy: pg.genderPolicy,
+      amenities: pg.amenities,
+      description: pg.description,
+      heroImage: pg.heroImage,
+      totalBeds: pg.totalBeds,
+      availableBeds: pg.availableBeds,
+      startingFromPaise: pg.startingFromPaise,
+      hasPaymentEnabled: pg.hasPaymentEnabled,
+    }));
+
     return (
-      <div>
+      <div className="apg-aurora min-h-full">
         <SafeModeBanner />
         <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
           <div className="mb-6">
@@ -53,15 +72,15 @@ export default async function PgListPage() {
           </div>
           <MotionReveal>
             <header className="mb-8">
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#FF5A1F]">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-apg-cyan">
                 Discover
               </p>
-              <h1 className="mt-1 text-2xl font-semibold text-white sm:text-3xl">
-                PGs accepting bookings
+              <h1 className="mt-2 text-3xl font-semibold text-white sm:text-4xl">
+                Find your next home base
               </h1>
-              <p className="mt-2 max-w-2xl text-sm text-apg-silver">
-                Pick a PG, choose your dates, and select one or more beds. You&apos;ll
-                confirm your details and complete payment on the next steps.
+              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-apg-silver">
+                Search by name or city, pick your dates, and reserve the exact bed you want —
+                gaming zones, chill rooms, and premium amenities included where listed.
               </p>
             </header>
           </MotionReveal>
@@ -69,13 +88,17 @@ export default async function PgListPage() {
           {pgs.length === 0 ? (
             <EmptyPgList />
           ) : (
-            <MotionPgGrid>
-              {pgs.map((pg) => (
-                <MotionPgGridItem key={pg.id}>
-                  <PgCard pg={pg} uploadScreenshot={uploadScreenshot} />
-                </MotionPgGridItem>
-              ))}
-            </MotionPgGrid>
+            <PgSearchFilter pgs={cardData}>
+              {(filtered) => (
+                <MotionPgGrid>
+                  {filtered.map((pg) => (
+                    <MotionPgGridItem key={pg.id}>
+                      <PgCard pg={pg} uploadScreenshot={uploadScreenshot} />
+                    </MotionPgGridItem>
+                  ))}
+                </MotionPgGrid>
+              )}
+            </PgSearchFilter>
           )}
         </div>
       </div>

@@ -1,10 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  --apg-charcoal: #0b0f14;
-  --apg-deep-grey: #1a1f27;
+  --apg-charcoal: #070a0f;
+  --apg-deep-grey: #121820;
+  --apg-surface: #161d28;
   --apg-silver: #b0b7c3;
+  --apg-muted: #6b7280;
   --apg-orange: #ff5a1f;
+  --apg-orange-glow: rgba(255, 90, 31, 0.45);
+  --apg-cyan: #22d3ee;
+  --apg-violet: #a78bfa;
   --background: var(--apg-charcoal);
   --foreground: #f4f6f8;
 }
@@ -12,10 +17,14 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-apg-charcoal: #0b0f14;
-  --color-apg-deep: #1a1f27;
+  --color-apg-charcoal: #070a0f;
+  --color-apg-deep: #121820;
+  --color-apg-surface: #161d28;
   --color-apg-silver: #b0b7c3;
+  --color-apg-muted: #6b7280;
   --color-apg-orange: #ff5a1f;
+  --color-apg-cyan: #22d3ee;
+  --color-apg-violet: #a78bfa;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -26,21 +35,94 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
-/* Glass card utility for public site */
+/* Aurora mesh background */
+.apg-aurora {
+  position: relative;
+  isolation: isolate;
+}
+
+.apg-aurora::before {
+  content: '';
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% -10%, rgba(255, 90, 31, 0.18), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 90% 10%, rgba(34, 211, 238, 0.1), transparent 50%),
+    radial-gradient(ellipse 50% 30% at 50% 100%, rgba(167, 139, 250, 0.08), transparent 55%),
+    var(--apg-charcoal);
+}
+
+.apg-grid-overlay {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 30%, black, transparent);
+}
+
 .apg-glass {
-  background: rgba(26, 31, 39, 0.72);
+  background: rgba(18, 24, 32, 0.72);
   border: 1px solid rgba(176, 183, 195, 0.12);
-  backdrop-filter: blur(12px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
 .apg-glass:hover {
-  border-color: rgba(255, 90, 31, 0.45);
-  box-shadow: 0 0 28px rgba(255, 90, 31, 0.12);
+  border-color: rgba(255, 90, 31, 0.35);
+  box-shadow: 0 0 32px rgba(255, 90, 31, 0.1);
+}
+
+.apg-glass-light {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
 }
 
 .apg-glow-btn {
-  box-shadow: 0 0 24px rgba(255, 90, 31, 0.35);
+  box-shadow: 0 0 28px rgba(255, 90, 31, 0.35);
+}
+
+.apg-gradient-text {
+  background: linear-gradient(135deg, #fff 0%, #ff5a1f 45%, #22d3ee 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.apg-shimmer {
+  background: linear-gradient(
+    110deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.06) 45%,
+    rgba(255, 255, 255, 0) 90%
+  );
+  background-size: 200% 100%;
+  animation: apg-shimmer 4s ease-in-out infinite;
+}
+
+@keyframes apg-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes apg-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.apg-float {
+  animation: apg-float 5s ease-in-out infinite;
 }
 
 .apg-field-input::placeholder {
@@ -56,4 +138,20 @@ body {
   caret-color: #ff5a1f;
   box-shadow: 0 0 0 1000px #1a1f27 inset;
   -webkit-box-shadow: 0 0 0 1000px #1a1f27 inset;
+}
+
+.apg-input-dark {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: #f4f6f8;
+}
+
+.apg-input-dark:focus {
+  border-color: rgba(255, 90, 31, 0.5);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(255, 90, 31, 0.15);
+}
+
+.apg-input-dark::placeholder {
+  color: rgba(176, 183, 195, 0.6);
 }

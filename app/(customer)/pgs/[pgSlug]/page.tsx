@@ -1,12 +1,11 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AmenityList } from '@/src/components/customer/AmenityList';
 import { DateRangeBar } from '@/src/components/customer/DateRangeBar';
 import { GenderBadge } from '@/src/components/customer/GenderBadge';
+import { PgImageGallery } from '@/src/components/customer/PgImageGallery';
 import { RoomCard } from '@/src/components/customer/RoomCard';
-import {
-  getPgBySlug,
-  listRoomsForPg,
-} from '@/src/db/queries/customer';
+import { getPgBySlug, listRoomsForPg } from '@/src/db/queries/customer';
 import { normalizeBrowseStay } from '@/src/lib/dateDefaults';
 import { ElectricityMeterNotice } from '@/src/components/customer/ElectricityMeterNotice';
 
@@ -38,63 +37,72 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
   const pg = pgResult.data;
 
   const roomsResult = await listRoomsForPg(pg.id, stay.start, stay.end);
-
   const rooms = roomsResult.ok ? roomsResult.data : [];
   const totalBeds = rooms.reduce((n, r) => n + r.totalBeds, 0);
   const availableBeds = rooms.reduce((n, r) => n + r.availableBeds, 0);
   const fullyOccupied = totalBeds > 0 && availableBeds === 0;
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
+    <div className="apg-aurora mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
+      <nav className="mb-4 text-xs text-apg-silver">
+        <Link href="/pgs" className="hover:text-apg-orange">
+          Browse PGs
+        </Link>
+        <span className="mx-2 opacity-40">/</span>
+        <span className="text-white">{pg.name}</span>
+      </nav>
+
       <div className="mb-6">
         <ElectricityMeterNotice />
       </div>
-      {/* Hero */}
-      <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
-        <div className="relative aspect-[2.4/1] w-full overflow-hidden bg-gradient-to-br from-indigo-100 via-zinc-100 to-emerald-100">
-          {pg.images.length > 0 ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={pg.images[0]}
-              alt={pg.name}
-              className="h-full w-full object-cover"
-            />
-          ) : null}
-          <div className="absolute left-4 top-4">
+
+      <section className="overflow-hidden rounded-3xl border border-white/10 apg-glass">
+        <div className="relative p-4 sm:p-6">
+          <div className="absolute left-6 top-6 z-10">
             <GenderBadge policy={pg.genderPolicy} />
           </div>
+          <PgImageGallery images={pg.images} name={pg.name} />
         </div>
-        <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-[1.6fr_1fr] sm:p-6">
+        <div className="grid grid-cols-1 gap-6 border-t border-white/5 p-5 sm:grid-cols-[1.6fr_1fr] sm:p-6">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 sm:text-3xl">
+            <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-4xl">
               {pg.name}
             </h1>
-            <p className="mt-1 text-sm text-zinc-500">
+            <p className="mt-2 text-sm text-apg-silver">
               {pg.addressLine1}
-              {pg.addressLine2 ? `, ${pg.addressLine2}` : ''} · {pg.city},{' '}
-              {pg.state} {pg.pincode}
+              {pg.addressLine2 ? `, ${pg.addressLine2}` : ''} · {pg.city}, {pg.state}{' '}
+              {pg.pincode}
             </p>
             {pg.description ? (
-              <p className="mt-3 max-w-2xl text-sm text-zinc-700">
+              <p className="mt-4 max-w-2xl text-sm leading-relaxed text-apg-silver/90">
                 {pg.description}
               </p>
-            ) : null}
+            ) : (
+              <p className="mt-4 text-sm text-apg-silver/70">
+                Premium PG living with bed-first booking, social spaces, and resident perks.
+              </p>
+            )}
+            <div className="mt-4 flex flex-wrap gap-3 text-xs text-apg-silver">
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                {availableBeds} of {totalBeds} beds free for your dates
+              </span>
+            </div>
           </div>
-          <div className="self-start rounded-xl border border-zinc-200 bg-zinc-50 p-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+          <div className="self-start rounded-2xl border border-white/10 apg-glass-light p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-apg-orange">
               Amenities
             </p>
-            <div className="mt-2">
-              <AmenityList amenities={pg.amenities} />
+            <div className="mt-3">
+              <AmenityList amenities={pg.amenities} variant="dark" />
             </div>
           </div>
         </div>
       </section>
 
-      {/* Date bar */}
       {fullyOccupied ? (
-        <section className="mt-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+        <section className="mt-6 rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
           <strong>Fully occupied</strong> — no beds available for new bookings at this PG right now.
+          Try different dates or explore another property.
         </section>
       ) : null}
 
@@ -104,31 +112,29 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
           startDate={stay.start}
           endDate={stay.end}
           durationMode={stay.mode}
+          theme="dark"
         />
       </section>
 
-      {/* Rooms */}
-      <section className="mt-6">
+      <section className="mt-8">
         <div className="flex flex-col items-start justify-between gap-1 sm:flex-row sm:items-end">
           <div>
-            <h2 className="text-lg font-semibold text-zinc-900">
-              Rooms & beds
-            </h2>
-            <p className="text-sm text-zinc-500">
-              Per-room availability for{' '}
-              <span className="font-medium text-zinc-700">
-                {stay.start} → {stay.mode === 'open_ended' ? '—' : stay.end}
+            <h2 className="text-xl font-semibold text-white">Rooms & beds</h2>
+            <p className="text-sm text-apg-silver">
+              Availability for{' '}
+              <span className="font-medium text-white">
+                {stay.start} → {stay.mode === 'open_ended' ? 'open ended' : stay.end}
               </span>
-              . Click any room to pick specific beds.
+              . Pick a room to choose your exact bed.
             </p>
           </div>
         </div>
 
-        <div className="mt-4">
+        <div className="mt-5">
           {!roomsResult.ok ? (
             <ErrorState message={roomsResult.error} />
           ) : roomsResult.data.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-zinc-300 bg-white p-6 text-center text-sm text-zinc-500">
+            <p className="rounded-2xl border border-dashed border-white/10 apg-glass-light p-8 text-center text-sm text-apg-silver">
               No rooms have been added to this PG yet.
             </p>
           ) : (
@@ -154,7 +160,7 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
 
 function ErrorState({ message }: { message: string }) {
   return (
-    <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">
+    <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-5 text-sm text-amber-100">
       <p className="font-semibold">Couldn&apos;t reach the database.</p>
       <p className="mt-1">{message}</p>
     </div>

@@ -13,34 +13,33 @@ type Props = {
 export function RoomCard({ room, pgSlug, startDate, endDate, durationMode }: Props) {
   const href = `/pgs/${pgSlug}/rooms/${room.roomId}?start=${startDate}&end=${endDate}&mode=${durationMode}`;
   const allBooked = room.availableBeds === 0;
+
   return (
     <Link
       href={href}
-      className={`group flex flex-col gap-3 rounded-xl border bg-white p-4 transition-all hover:-translate-y-0.5 ${
-        allBooked
-          ? 'border-zinc-200 opacity-70'
-          : 'border-zinc-200 hover:border-indigo-300 hover:shadow-md'
-      }`}
+      className={
+        'group flex flex-col gap-3 rounded-2xl border p-5 transition-all apg-glass ' +
+        (allBooked ? 'opacity-70' : 'hover:-translate-y-1 hover:border-apg-orange/35')
+      }
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-indigo-600">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-apg-orange">
             {room.floorLabel} · Room {room.roomNumber}
           </div>
-          <h3 className="mt-0.5 text-base font-semibold text-zinc-900">
-            {room.roomType}
-          </h3>
-          <p className="text-xs text-zinc-500">
-            {room.capacity}-bed room · {room.hasAc ? 'AC' : 'Non-AC'} ·{' '}
+          <h3 className="mt-0.5 text-base font-semibold text-white">{room.roomType}</h3>
+          <p className="text-xs text-apg-silver">
+            {room.capacity}-bed · {room.hasAc ? 'AC' : 'Non-AC'} ·{' '}
             {room.hasAttachedBath ? 'Attached bath' : 'Shared bath'}
           </p>
         </div>
         <span
-          className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${
-            allBooked
-              ? 'bg-zinc-100 text-zinc-500 ring-zinc-200'
-              : 'bg-emerald-50 text-emerald-700 ring-emerald-200'
-          }`}
+          className={
+            'shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ' +
+            (allBooked
+              ? 'bg-white/5 text-apg-muted ring-white/10'
+              : 'bg-emerald-500/15 text-emerald-300 ring-emerald-400/30')
+          }
         >
           {allBooked && room.totalBeds > 0
             ? 'Fully occupied'
@@ -48,28 +47,22 @@ export function RoomCard({ room, pgSlug, startDate, endDate, durationMode }: Pro
         </span>
       </div>
 
-      <div className="flex items-end justify-between border-t border-zinc-100 pt-3">
-        <div className="flex gap-4 text-xs text-zinc-600">
+      <div className="flex items-end justify-between border-t border-white/5 pt-3">
+        <div className="flex gap-4 text-xs text-apg-silver">
           <span>
-            <span className="block text-[10px] uppercase tracking-wide text-zinc-400">
-              /day
-            </span>
+            <span className="block text-[10px] uppercase tracking-wide text-apg-muted">/day</span>
             {room.dailyRatePaise > 0 ? paiseToInr(room.dailyRatePaise) : '—'}
           </span>
           <span>
-            <span className="block text-[10px] uppercase tracking-wide text-zinc-400">
-              /week
-            </span>
+            <span className="block text-[10px] uppercase tracking-wide text-apg-muted">/week</span>
             {room.weeklyRatePaise > 0 ? paiseToInr(room.weeklyRatePaise) : '—'}
           </span>
           <span>
-            <span className="block text-[10px] uppercase tracking-wide text-zinc-400">
-              /month
-            </span>
+            <span className="block text-[10px] uppercase tracking-wide text-apg-muted">/month</span>
             {room.monthlyRatePaise > 0 ? paiseToInr(room.monthlyRatePaise) : '—'}
           </span>
         </div>
-        <span className="text-xs font-semibold text-indigo-600">
+        <span className="text-xs font-semibold text-apg-orange group-hover:translate-x-0.5 transition-transform">
           {allBooked ? 'View room →' : 'Select beds →'}
         </span>
       </div>

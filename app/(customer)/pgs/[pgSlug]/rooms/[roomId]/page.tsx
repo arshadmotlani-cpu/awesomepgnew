@@ -28,7 +28,7 @@ export default async function RoomDetailPage(
   if (!detail.ok) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">
+        <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-5 text-sm text-amber-100">
           <p className="font-semibold">Couldn&apos;t reach the database.</p>
           <p className="mt-1">{detail.error}</p>
         </div>
@@ -60,35 +60,36 @@ export default async function RoomDetailPage(
   ).length;
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
-      <nav className="text-xs text-zinc-500">
-        <Link href="/pgs" className="hover:text-indigo-600">
-          PGs
-        </Link>{' '}
-        ·{' '}
+    <div className="apg-aurora mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
+      <nav className="text-xs text-apg-silver">
+        <Link href="/pgs" className="hover:text-apg-orange">
+          Browse
+        </Link>
+        <span className="mx-2 opacity-40">/</span>
         <Link
           href={`/pgs/${room.pgSlug}?start=${stay.start}&end=${stay.end}&mode=${stay.mode}`}
-          className="hover:text-indigo-600"
+          className="hover:text-apg-orange"
         >
           {room.pgName}
-        </Link>{' '}
-        · <span className="text-zinc-700">Room {room.roomNumber}</span>
+        </Link>
+        <span className="mx-2 opacity-40">/</span>
+        <span className="text-white">Room {room.roomNumber}</span>
       </nav>
 
-      <header className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+      <header className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">
+          <p className="text-xs font-semibold uppercase tracking-wider text-apg-orange">
             {room.floorLabel}
           </p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-900 sm:text-3xl">
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-white sm:text-4xl">
             Room {room.roomNumber} · {room.roomType}
           </h1>
-          <p className="mt-1 text-sm text-zinc-500">
-            {room.capacity}-bed {room.hasAc ? 'AC' : 'Non-AC'} room ·{' '}
+          <p className="mt-2 text-sm text-apg-silver">
+            {room.capacity}-bed {room.hasAc ? 'AC' : 'Non-AC'} ·{' '}
             {room.hasAttachedBath ? 'Attached bath' : 'Shared bath'}
           </p>
         </div>
-        <span className="self-start rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200 sm:self-end">
+        <span className="self-start rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-200 sm:self-end">
           {availableCount} of {beds.length} beds free for these dates
         </span>
       </header>
@@ -99,15 +100,14 @@ export default async function RoomDetailPage(
           startDate={stay.start}
           endDate={stay.end}
           durationMode={stay.mode}
+          theme="dark"
         />
       </section>
 
-      <section className="mt-6">
-        <h2 className="mb-3 text-sm font-semibold text-zinc-900">
-          Pick the bed(s) you want
-        </h2>
+      <section className="mt-8">
+        <h2 className="mb-4 text-lg font-semibold text-white">Pick your exact bed</h2>
         {beds.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-zinc-300 bg-white p-6 text-center text-sm text-zinc-500">
+          <p className="rounded-2xl border border-dashed border-white/10 apg-glass-light p-8 text-center text-sm text-apg-silver">
             This room has no beds configured yet.
           </p>
         ) : (
@@ -117,6 +117,7 @@ export default async function RoomDetailPage(
             endDate={stay.end}
             durationMode={stay.mode}
             pgSlug={room.pgSlug}
+            theme="dark"
           />
         )}
       </section>

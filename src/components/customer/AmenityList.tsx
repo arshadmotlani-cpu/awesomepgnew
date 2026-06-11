@@ -11,9 +11,22 @@ const AMENITY_LABELS: Record<string, string> = {
   geyser: 'Geyser',
   waterPurifier: 'RO water',
   lift: 'Lift',
+  gaming: 'Gaming zone',
+  arcade: 'Arcade',
+  chillRoom: 'Chill room',
+  socialLounge: 'Social lounge',
 };
 
-export function AmenityList({ amenities }: { amenities: Record<string, unknown> }) {
+const PILL_DARK = 'border-white/10 bg-white/5 text-apg-silver';
+const PILL_LIGHT = 'border-zinc-200 bg-zinc-50 text-zinc-700';
+
+export function AmenityList({
+  amenities,
+  variant = 'dark',
+}: {
+  amenities: Record<string, unknown>;
+  variant?: 'dark' | 'light';
+}) {
   const custom = Array.isArray(amenities.custom)
     ? (amenities.custom as string[]).filter(Boolean)
     : [];
@@ -23,9 +36,14 @@ export function AmenityList({ amenities }: { amenities: Record<string, unknown> 
     .map(([k]) => AMENITY_LABELS[k] ?? k);
 
   const all = [...active, ...custom];
+  const pill = variant === 'light' ? PILL_LIGHT : PILL_DARK;
 
   if (all.length === 0) {
-    return <span className="text-xs text-apg-silver/60">No amenities listed</span>;
+    return (
+      <span className="text-xs text-apg-silver/60">
+        Premium amenities — ask us what&apos;s live at this property
+      </span>
+    );
   }
 
   return (
@@ -33,7 +51,7 @@ export function AmenityList({ amenities }: { amenities: Record<string, unknown> 
       {all.map((label) => (
         <li
           key={label}
-          className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-medium text-apg-silver"
+          className={`rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${pill}`}
         >
           {label}
         </li>

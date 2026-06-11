@@ -14,10 +14,11 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Awesome PG",
-    template: "%s · Awesome PG",
+    default: 'Awesome PG · Premium living beyond ordinary PGs',
+    template: '%s · Awesome PG',
   },
-  description: "Awesome PG — property management for paying-guest accommodations.",
+  description:
+    'Book your exact bed at premium PGs with gaming zones, chill rooms, social spaces, gym, farmhouse retreats, and resident perks. Live awesome.',
 };
 
 export default function RootLayout({

@@ -8,7 +8,7 @@ export default function CustomerLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen flex-col bg-[#0B0F14] text-[#f4f6f8]">
+    <div className="flex min-h-screen flex-col bg-apg-charcoal text-[#f4f6f8]">
       <SiteHeader />
       <main className="flex-1">{children}</main>
       <SiteFooter />
