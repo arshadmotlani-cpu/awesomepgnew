@@ -6,7 +6,7 @@ import { GenderBadge } from '@/src/components/customer/GenderBadge';
 import { PgImageGallery } from '@/src/components/customer/PgImageGallery';
 import { RoomCard } from '@/src/components/customer/RoomCard';
 import { getPgBySlug, listRoomsForPg } from '@/src/db/queries/customer';
-import { normalizeBrowseStay } from '@/src/lib/dateDefaults';
+import { formatBrowseStaySummary, normalizeBrowseStay } from '@/src/lib/dateDefaults';
 import { ElectricityMeterNotice } from '@/src/components/customer/ElectricityMeterNotice';
 
 export const dynamic = 'force-dynamic';
@@ -84,7 +84,8 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
             )}
             <div className="mt-4 flex flex-wrap gap-3 text-xs text-apg-silver">
               <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                {availableBeds} of {totalBeds} beds free for your dates
+                {availableBeds} of {totalBeds} beds free
+                {stay.mode === 'open_ended' ? ' from move-in' : ' for your dates'}
               </span>
             </div>
           </div>
@@ -123,7 +124,7 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
             <p className="text-sm text-apg-silver">
               Availability for{' '}
               <span className="font-medium text-white">
-                {stay.start} → {stay.mode === 'open_ended' ? 'open ended' : stay.end}
+                {formatBrowseStaySummary(stay)}
               </span>
               . Pick a room to choose your exact bed.
             </p>

@@ -155,3 +155,129 @@ body {
 .apg-input-dark::placeholder {
   color: rgba(176, 183, 195, 0.6);
 }
+
+/* White-card admin forms sit inside the dark shell — fields must not inherit light text. */
+.apg-admin-field {
+  background-color: #ffffff;
+  color: #18181b;
+  color-scheme: light;
+}
+
+.apg-admin-field::placeholder {
+  color: #71717a;
+  opacity: 1;
+}
+
+.apg-admin-field:disabled,
+.apg-admin-field[readonly] {
+  background-color: #fafafa;
+  color: #3f3f46;
+}
+
+/* Cockroach AI — GPT onboarding guide (customer site) */
+.cockroach-ai {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  z-index: 99999;
+  width: min(320px, calc(100vw - 40px));
+  border-radius: 16px;
+  border: 1px solid rgba(255, 204, 0, 0.35);
+  background: rgba(7, 10, 15, 0.92);
+  color: #f4f6f8;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.45;
+  box-shadow:
+    0 10px 40px rgba(0, 0, 0, 0.45),
+    0 0 24px rgba(255, 204, 0, 0.12);
+  backdrop-filter: blur(14px);
+}
+
+.cockroach-ai__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cockroach-ai__mascot {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.cockroach-ai__title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.cockroach-ai__status {
+  margin-top: 1px;
+  font-size: 11px;
+  color: var(--apg-silver);
+}
+
+.cockroach-ai__icon-btn {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: var(--apg-silver);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+
+.cockroach-ai__icon-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.cockroach-ai__message {
+  margin-top: 10px;
+  color: #f8fafc;
+}
+
+.cockroach-ai__error {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #fca5a5;
+}
+
+.cockroach-ai__actions {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cockroach-ai__btn {
+  border: 1px solid rgba(255, 204, 0, 0.45);
+  background: rgba(255, 204, 0, 0.15);
+  color: #fff;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cockroach-ai__btn:hover:not(:disabled) {
+  background: rgba(255, 204, 0, 0.28);
+}
+
+.cockroach-ai__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cockroach-ai__btn--ghost {
+  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.cockroach-ai-highlight {
+  outline: 2px solid #ffcc00 !important;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 4px rgba(255, 204, 0, 0.35) !important;
+  scroll-margin-block: 80px;
+}

@@ -6,6 +6,7 @@ import {
   indianPhoneDefaultLocal,
 } from '@/src/components/customer/IndianPhoneInput';
 import { paiseToInr } from '@/src/lib/format';
+import { VACATING_NOTICE_MIN_DAYS } from '@/src/lib/dateDefaults';
 import type { BookingActionState } from '@/app/(customer)/booking/new/actions';
 import { createBookingAction } from '@/app/(customer)/booking/new/actions';
 
@@ -159,11 +160,30 @@ export function BookingCartForm({
           <Row term="Check-in" value={startDate} />
           <Row
             term="Check-out"
-            value={endDate ?? 'Open-ended (1 month upfront)'}
+            value={
+              endDate
+                ? endDate
+                : `Flexible — ${VACATING_NOTICE_MIN_DAYS} days notice to leave`
+            }
           />
-          <Row term="Stay type" value={durationMode.replace('_', ' ')} />
+          <Row
+            term="Stay type"
+            value={
+              durationMode === 'open_ended'
+                ? 'Living here (monthly billing)'
+                : durationMode.replace('_', ' ')
+            }
+          />
           <Row term="Beds" value={String(bedIds.length)} />
         </dl>
+
+        {durationMode === 'open_ended' ? (
+          <p className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs leading-relaxed text-emerald-900">
+            You pay the first month now. After move-in, rent is billed monthly from your resident
+            dashboard. When you plan to leave, submit a vacating request at least{' '}
+            {VACATING_NOTICE_MIN_DAYS} days before your last day.
+          </p>
+        ) : null}
 
         <hr className="my-4 border-zinc-200" />
 

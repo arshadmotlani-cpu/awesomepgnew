@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { paiseToInr } from '@/src/lib/format';
+import { VACATING_NOTICE_MIN_DAYS } from '@/src/lib/dateDefaults';
 
 export type BedSelectorBed = {
   bedId: string;
@@ -124,7 +125,7 @@ export function BedSelector({ beds, startDate, endDate, durationMode, theme = 'l
             </p>
             <p className={`text-xs ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
               {durationMode === 'open_ended'
-                ? 'Open-ended stay billed monthly'
+                ? `Living here — billed monthly. Give ${VACATING_NOTICE_MIN_DAYS} days notice when you plan to leave.`
                 : `Subtotal at ${durationMode} rate: ${
                     subtotal > 0 ? paiseToInr(subtotal) : '—'
                   } (excl. deposit)`}

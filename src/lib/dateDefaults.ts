@@ -79,7 +79,7 @@ export function normalizeBrowseStay(sp: BrowseStayParams): NormalizedStay {
   let end = sp.end ?? fallbackEnd;
   let mode: PricingMode = VALID_MODES.has(sp.mode as PricingMode)
     ? (sp.mode as PricingMode)
-    : 'monthly';
+    : 'open_ended';
 
   try {
     parseDate(start);
@@ -94,7 +94,18 @@ export function normalizeBrowseStay(sp: BrowseStayParams): NormalizedStay {
   if (parseDate(end).getTime() <= parseDate(start).getTime()) {
     end = defaultCheckOutDate(start);
   }
+  if (mode === 'open_ended') {
+    end = defaultCheckOutDate(start);
+  }
   return { start, end, mode };
+}
+
+/** Human-readable browse summary for PG availability headers. */
+export function formatBrowseStaySummary(stay: NormalizedStay): string {
+  if (stay.mode === 'open_ended') {
+    return `${stay.start} · living here (${VACATING_NOTICE_MIN_DAYS} days notice to leave)`;
+  }
+  return `${stay.start} → ${stay.end}`;
 }
 
 /** Query string fragment for default PG browse dates (today → +30 days, monthly). */

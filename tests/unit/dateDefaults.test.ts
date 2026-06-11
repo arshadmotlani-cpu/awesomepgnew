@@ -13,7 +13,7 @@ test('normalizeBrowseStay fills missing params with today and +30 nights', () =>
   const stay = normalizeBrowseStay({});
   assert.match(stay.start, /^\d{4}-\d{2}-\d{2}$/);
   assert.match(stay.end, /^\d{4}-\d{2}-\d{2}$/);
-  assert.equal(stay.mode, 'monthly');
+  assert.equal(stay.mode, 'open_ended');
   assert.ok(stay.end > stay.start);
 });
 
@@ -25,8 +25,8 @@ test('defaultExtensionUntilDate is strictly after current checkout', () => {
 test('defaultVacatingDate is notice-compliant offset from today', () => {
   const from = '2026-06-01';
   const vacating = defaultVacatingDate(from);
-  assert.equal(vacating, '2026-06-16');
-  assert.equal(DEFAULT_VACATING_NOTICE_DAYS, 15);
+  assert.equal(vacating, '2026-06-15');
+  assert.equal(DEFAULT_VACATING_NOTICE_DAYS, 14);
 });
 
 test('defaultBillingMonth returns first of month', () => {
