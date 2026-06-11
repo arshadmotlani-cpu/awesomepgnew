@@ -33,6 +33,7 @@ import { countBookingsInYear } from '../db/queries/customer';
 import {
   auditLog,
   bedReservations,
+  beds,
   bookings,
   customers,
   pgs,
@@ -78,12 +79,27 @@ export type CreateBookingInput = {
    */
   createdVia?: 'customer' | 'admin';
   createdByAdminId?: string;
+  /**
+   * Admin only: hold reservations through this date (e.g. 2099-01-01 for
+   * long-term monthly residents).
+   */
+  reservationEndDate?: DateLike;
+  /**
+   * Admin only: block every bed in the tenant's room on the calendar even
+   * though only one bed is billed (single-sharing rent in a multi-bed room).
+   */
+  blocksRoomAvailability?: boolean;
+  /** Admin only: override monthly rent on the primary bed in the snapshot. */
+  customMonthlyRatePaise?: number;
+  /** Admin only: override refundable deposit on the booking. */
+  customDepositPaise?: number;
 };
 
 export type CreateBookingSuccess = {
   ok: true;
   bookingId: string;
   bookingCode: string;
+  customerId: string;
   totalPaise: number;
   /** Final booking status after createBooking returns. */
   status: 'pending_payment' | 'confirmed';
@@ -141,11 +157,67 @@ function buildSnapshot(quote: BookingQuote, notes?: string): PricingSnapshot {
     })),
     computedAt: quote.computedAt,
     notes,
-    // Phase 4: snapshot the cancellation policy onto every booking so
-    // refund tiers are always evaluated against the policy in effect at
-    // booking time.
     cancellationPolicy: { ...DEFAULT_POLICY },
   };
+}
+
+function applyAdminPricingOverrides(
+  quote: BookingQuote,
+  input: Pick<
+    CreateBookingInput,
+    'customMonthlyRatePaise' | 'customDepositPaise' | 'durationMode'
+  >,
+): BookingQuote {
+  if (input.customMonthlyRatePaise == null && input.customDepositPaise == null) {
+    return quote;
+  }
+
+  const next = {
+    ...quote,
+    perBed: quote.perBed.map((bed) => ({ ...bed, rate: { ...bed.rate } })),
+  };
+
+  if (next.perBed.length > 0 && input.customMonthlyRatePaise != null) {
+    const bed = next.perBed[0]!;
+    bed.rate.monthlyRatePaise = input.customMonthlyRatePaise;
+    if (input.durationMode === 'monthly' || input.durationMode === 'open_ended') {
+      bed.subtotalPaise = input.customMonthlyRatePaise * Math.max(1, bed.units);
+      bed.totalPaise = bed.subtotalPaise + bed.depositPaise;
+    }
+  }
+
+  if (input.customDepositPaise != null) {
+    next.depositPaise = input.customDepositPaise;
+    if (next.perBed.length > 0) {
+      const bed = next.perBed[0]!;
+      bed.depositPaise = input.customDepositPaise;
+      bed.rate.securityDepositPaise = input.customDepositPaise;
+      bed.totalPaise = bed.subtotalPaise + bed.depositPaise;
+    }
+  }
+
+  next.subtotalPaise = next.perBed.reduce((acc, bed) => acc + bed.subtotalPaise, 0);
+  next.totalPaise = next.subtotalPaise + next.depositPaise;
+  return next;
+}
+
+async function siblingBedIdsInRoom(primaryBedId: string): Promise<string[]> {
+  const [row] = await db
+    .select({ roomId: beds.roomId })
+    .from(beds)
+    .where(eq(beds.id, primaryBedId))
+    .limit(1);
+  if (!row) return [];
+
+  const siblings = await db
+    .select({ id: beds.id })
+    .from(beds)
+    .where(
+      sql`${beds.roomId} = ${row.roomId}
+        AND ${beds.id} != ${primaryBedId}
+        AND ${beds.archivedAt} IS NULL`,
+    );
+  return siblings.map((s) => s.id);
 }
 
 /**
@@ -217,23 +289,35 @@ export async function createBooking(
     };
   }
 
-  // For overlap-prevention we need a concrete end date even for open-ended
-  // stays. We hold a single month upfront (matches pricing.computePriceBreakdown).
-  const reservationEnd =
-    endDate ??
-    new Date(
-      Date.UTC(
-        startDate.getUTCFullYear(),
-        startDate.getUTCMonth() + 1,
-        startDate.getUTCDate(),
-      ),
-    );
+  const reservationEnd = input.reservationEndDate
+    ? parseDate(input.reservationEndDate)
+    : endDate ??
+      new Date(
+        Date.UTC(
+          startDate.getUTCFullYear(),
+          startDate.getUTCMonth() + 1,
+          startDate.getUTCDate(),
+        ),
+      );
+
+  let reservationBedIds = uniqueBedIds;
+  if (input.blocksRoomAvailability) {
+    if (uniqueBedIds.length !== 1) {
+      return {
+        ok: false,
+        kind: 'validation',
+        message: 'Whole-room occupancy applies to a single billed bed.',
+      };
+    }
+    const siblings = await siblingBedIdsInRoom(uniqueBedIds[0]!);
+    reservationBedIds = [...uniqueBedIds, ...siblings];
+  }
 
   // 2. Pre-flight availability. The DB constraint is still authoritative,
   //    but checking up-front means we usually fail with a clean error before
   //    we open a transaction or upsert the customer.
   const conflictBedIds: string[] = [];
-  for (const bedId of uniqueBedIds) {
+  for (const bedId of reservationBedIds) {
     const ok = await isBedAvailable({
       bedId,
       startDate,
@@ -302,6 +386,7 @@ export async function createBooking(
       message: err instanceof Error ? err.message : 'Failed to compute price.',
     };
   }
+  quote = applyAdminPricingOverrides(quote, input);
   const snapshot = buildSnapshot(quote, input.notes);
 
   // 5. Retry loop over booking_code collisions. The COUNT-based sequence
@@ -391,6 +476,7 @@ export async function createBooking(
             notes: input.notes ?? null,
             createdVia: isAdminCreated ? 'admin' : 'customer',
             createdByAdminId: input.createdByAdminId ?? null,
+            blocksRoomAvailability: input.blocksRoomAvailability === true,
           })
           .returning({ id: bookings.id });
 
@@ -400,15 +486,12 @@ export async function createBooking(
         // One insert per bed. We could VALUES-batch this, but per-row
         // inserts let postgres point us at the specific conflicting row in
         // its error message if the EXCLUDE constraint fires.
-        for (const bedId of uniqueBedIds) {
+        for (const bedId of reservationBedIds) {
           await tx
             .insert(bedReservations)
             .values({
               bookingId: booking.id,
               bedId,
-              // Build the daterange via Postgres so half-open semantics are
-              // applied by the server, not by JS string concat. Cast to a
-              // string-mode column via the daterange custom type.
               stayRange: sql`daterange(${startIso}::date, ${endIso}::date, '[)')` as unknown as string,
               kind: 'primary',
               status: reservationStatus,
@@ -416,8 +499,6 @@ export async function createBooking(
             });
         }
 
-        // Audit log for the create. PROJECT_PLAN.md §9 requires audit
-        // entries on every mutating action.
         await tx.insert(auditLog).values({
           actorType: isAdminCreated ? 'admin' : 'customer',
           actorId: isAdminCreated ? input.createdByAdminId ?? null : customer.id,
@@ -426,7 +507,9 @@ export async function createBooking(
           action: 'create',
           diff: {
             bookingCode: candidateCode,
-            bedCount: uniqueBedIds.length,
+            bedCount: reservationBedIds.length,
+            billedBedCount: uniqueBedIds.length,
+            blocksRoomAvailability: input.blocksRoomAvailability === true,
             durationMode: input.durationMode,
             status: bookingStatus,
             reservationStatus,
@@ -444,6 +527,7 @@ export async function createBooking(
         ok: true,
         bookingId: result.id,
         bookingCode: candidateCode,
+        customerId: result.customerId,
         totalPaise: quote.totalPaise,
         status: bookingStatus,
         holdExpiresAt,

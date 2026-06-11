@@ -37,6 +37,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: '/admin/residents', label: 'Residents', icon: IconUsers },
       { href: '/admin/bookings', label: 'Bookings', icon: IconClipboard },
+      { href: '/admin/bookings/new', label: 'Assign tenant', icon: IconUsers },
       { href: '/admin/kyc', label: 'KYC review', icon: IconUsers },
     ],
   },

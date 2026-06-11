@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   bigint,
+  boolean,
   date,
   index,
   jsonb,
@@ -110,6 +111,8 @@ export const bookings = pgTable(
       .notNull()
       .default('unknown'),
     adminOpsNotes: text('admin_ops_notes'),
+    /** When true, reservations cover all beds in the room (single-tenant whole room). */
+    blocksRoomAvailability: boolean('blocks_room_availability').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

@@ -18,6 +18,14 @@ export default async function BookingsPage() {
       <PageHeader
         title="Bookings"
         description="Customer bookings — each one bundles one or more bed reservations protected by the per-bed overlap constraint."
+        actions={
+          <Link
+            href="/admin/bookings/new"
+            className="rounded-lg bg-[#FF5A1F] px-4 py-2 text-sm font-semibold text-white hover:brightness-110"
+          >
+            Assign tenant
+          </Link>
+        }
       />
 
       {!res.ok ? (

@@ -224,15 +224,21 @@ function BedTile({
       >
         {stateLabel}
       </span>
-      <span className="text-xs text-zinc-700">
-        {rate > 0 ? paiseToInr(rate) : '—'}
-        <span className="text-zinc-500"> {rateLabel}</span>
-      </span>
-      {depositPaise > 0 ? (
-        <span className="text-[10px] text-zinc-500">
-          + {paiseToInr(depositPaise)} deposit
-        </span>
-      ) : null}
+      {isAvailable ? (
+        <>
+          <span className="text-xs text-zinc-700">
+            {rate > 0 ? paiseToInr(rate) : '—'}
+            <span className="text-zinc-500"> {rateLabel}</span>
+          </span>
+          {depositPaise > 0 ? (
+            <span className="text-[10px] text-zinc-500">
+              + {paiseToInr(depositPaise)} deposit
+            </span>
+          ) : null}
+        </>
+      ) : (
+        <span className="text-[10px] text-zinc-500">Occupied — rates not shown</span>
+      )}
     </button>
   );
 }

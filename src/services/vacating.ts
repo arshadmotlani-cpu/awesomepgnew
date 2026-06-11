@@ -24,10 +24,11 @@
  *   approved → rejected             (admin changes their mind)
  */
 
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { db } from '../db/client';
 import {
   auditLog,
+  bedReservations,
   bookings,
   vacatingRequests,
   type VacatingRequest,
@@ -109,6 +110,36 @@ function pgErrorCode(err: unknown): string | null {
 function monthlyRentFromBooking(snapshot: PricingSnapshot | null): number {
   if (!snapshot || !Array.isArray(snapshot.perBed)) return 0;
   return snapshot.perBed.reduce((acc, b) => acc + (b.monthlyRatePaise ?? 0), 0);
+}
+
+/** Shorten active reservations so beds open from vacating date onward. */
+async function shortenBookingReservationsToDate(bookingId: string, endDate: string) {
+  await db.execute(sql`
+    UPDATE bed_reservations
+    SET
+      stay_range = daterange(lower(stay_range), ${endDate}::date, '[)'),
+      updated_at = now()
+    WHERE booking_id = ${bookingId}
+      AND status IN ('hold', 'active')
+      AND upper(stay_range) > ${endDate}::date
+  `);
+
+  await db
+    .update(bookings)
+    .set({ expectedCheckoutDate: endDate, updatedAt: new Date() })
+    .where(eq(bookings.id, bookingId));
+}
+
+async function completeBookingReservations(bookingId: string) {
+  await db
+    .update(bedReservations)
+    .set({ status: 'completed', updatedAt: new Date() })
+    .where(
+      and(
+        eq(bedReservations.bookingId, bookingId),
+        sql`${bedReservations.status} IN ('hold', 'active')`,
+      ),
+    );
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -255,6 +286,8 @@ export async function approveVacatingRequest(input: {
     })
     .where(eq(vacatingRequests.id, input.requestId))
     .returning();
+
+  await shortenBookingReservationsToDate(updated.bookingId, updated.vacatingDate);
 
   await db.insert(auditLog).values({
     actorType: input.resolvedByAdminId ? 'admin' : 'system',
@@ -405,17 +438,18 @@ export async function completeVacatingRequest(
     .where(eq(vacatingRequests.id, current.id))
     .returning();
 
-  // 5. (Optional) Mark the booking itself as completed.
+  // 5. Mark the booking completed and close inventory holds.
   await db
     .update(bookings)
     .set({ status: 'completed', updatedAt: new Date() })
     .where(
       and(
         eq(bookings.id, current.bookingId),
-        // Only flip from confirmed — leave cancelled/refunded alone.
         eq(bookings.status, 'confirmed'),
       ),
     );
+
+  await completeBookingReservations(current.bookingId);
 
   await db.insert(auditLog).values({
     actorType: input.resolvedByAdminId ? 'admin' : 'system',
