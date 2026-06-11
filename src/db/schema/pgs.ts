@@ -28,6 +28,7 @@ export const pgs = pgTable('pgs', {
   genderPolicy: genderPolicyEnum('gender_policy').notNull(),
   amenities: jsonb('amenities').$type<PgAmenities>().notNull().default({}),
   images: jsonb('images').$type<string[]>().notNull().default([]),
+  videos: jsonb('videos').$type<string[]>().notNull().default([]),
   description: text('description'),
   contactPhone: text('contact_phone'),
   contactEmail: text('contact_email'),

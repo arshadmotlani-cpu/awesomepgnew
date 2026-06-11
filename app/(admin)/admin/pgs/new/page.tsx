@@ -3,7 +3,7 @@ import { PgAdminForm } from '@/src/components/admin/PgAdminForm';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { isCloudinaryConfigured } from '@/src/lib/images/cloudinary';
-import { uploadPgImageAction } from '../actions';
+import { uploadPgImageAction, uploadPgVideoAction } from '../actions';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -25,7 +25,9 @@ export default async function NewPgPage() {
       />
       <PgAdminForm
         mode="create"
+        cloudinaryConfigured={cloudinary}
         cloudinaryUploadAction={cloudinary ? uploadPgImageAction : undefined}
+        cloudinaryVideoUploadAction={cloudinary ? uploadPgVideoAction : undefined}
       />
     </>
   );

@@ -113,6 +113,13 @@
       "when": 1783300000000,
       "tag": "0015_qr_pg_payments",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1783400000000,
+      "tag": "0016_pg_videos",
+      "breakpoints": true
     }
   ]
 }

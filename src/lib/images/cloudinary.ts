@@ -7,7 +7,10 @@ export function isCloudinaryConfigured(): boolean {
   );
 }
 
-export async function uploadToCloudinary(file: File): Promise<string> {
+export async function uploadToCloudinary(
+  file: File,
+  resourceType: 'image' | 'video' | 'auto' = 'image',
+): Promise<string> {
   const cloudName = process.env.CLOUDINARY_CLOUD_NAME?.trim();
   const apiKey = process.env.CLOUDINARY_API_KEY?.trim();
   const apiSecret = process.env.CLOUDINARY_API_SECRET?.trim();
@@ -31,7 +34,12 @@ export async function uploadToCloudinary(file: File): Promise<string> {
   body.append('timestamp', String(timestamp));
   body.append('signature', signature);
 
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+  const endpoint =
+    resourceType === 'video'
+      ? `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`
+      : `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
+
+  const res = await fetch(endpoint, {
     method: 'POST',
     body,
   });

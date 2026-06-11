@@ -19,6 +19,7 @@ export type PgFormInput = {
   contactEmail?: string;
   amenities: PgAmenities;
   images: string[];
+  videos: string[];
   isActive: boolean;
 };
 
@@ -54,6 +55,7 @@ export async function createPg(session: AdminSession, input: PgFormInput) {
       contactEmail: input.contactEmail?.trim() || null,
       amenities: input.amenities,
       images: input.images.filter(Boolean),
+      videos: input.videos.filter(Boolean),
       isActive: input.isActive,
     })
     .returning({ id: pgs.id });
@@ -81,6 +83,7 @@ export async function updatePg(session: AdminSession, id: string, input: PgFormI
       contactEmail: input.contactEmail?.trim() || null,
       amenities: input.amenities,
       images: input.images.filter(Boolean),
+      videos: input.videos.filter(Boolean),
       isActive: input.isActive,
       updatedAt: new Date(),
     })

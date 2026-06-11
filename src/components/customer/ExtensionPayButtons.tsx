@@ -28,7 +28,7 @@ export function RazorpayExtensionCheckoutButton({
   );
 }
 
-export function ExtensionCancelButton({ extensionId }: { extensionId: string }) {
+export function CancelPendingExtensionForm({ extensionId }: { extensionId: string }) {
   const [state, formAction, pending] = useActionState(cancelPendingExtensionAction, idleCancel);
 
   return (

@@ -22,8 +22,8 @@ function parseAmenities(formData: FormData): PgAmenities {
   return amenities;
 }
 
-function parseImages(formData: FormData): string[] {
-  const raw = formData.get('images')?.toString() ?? '[]';
+function parseJsonUrlList(field: string, formData: FormData): string[] {
+  const raw = formData.get(field)?.toString() ?? '[]';
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
@@ -31,6 +31,22 @@ function parseImages(formData: FormData): string[] {
   } catch {
     return [];
   }
+}
+
+function parseAmenitiesExtended(formData: FormData): PgAmenities {
+  const amenities = parseAmenities(formData);
+  const extraKeys = ['gym', 'cctv', 'geyser', 'waterPurifier', 'lift'] as const;
+  for (const key of extraKeys) {
+    if (formData.get(`amenity_${key}`) === 'on') amenities[key] = true;
+  }
+  const custom = formData.get('customAmenities')?.toString()?.trim();
+  if (custom) {
+    amenities.custom = custom
+      .split(/[,;\n]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  return amenities;
 }
 
 function parseInput(formData: FormData): PgFormInput {
@@ -43,7 +59,7 @@ function parseInput(formData: FormData): PgFormInput {
     name: formData.get('name')?.toString() ?? '',
     slug: formData.get('slug')?.toString(),
     addressLine1: formData.get('addressLine1')?.toString() ?? '',
-    addressLine2: formData.get('addressLine2')?.toString(),
+    addressLine2: formData.get('addressLine2')?.toString() || undefined,
     city: formData.get('city')?.toString() ?? '',
     state: formData.get('state')?.toString() ?? '',
     pincode: formData.get('pincode')?.toString() ?? '',
@@ -51,8 +67,9 @@ function parseInput(formData: FormData): PgFormInput {
     description: formData.get('description')?.toString(),
     contactPhone: formData.get('contactPhone')?.toString(),
     contactEmail: formData.get('contactEmail')?.toString(),
-    amenities: parseAmenities(formData),
-    images: parseImages(formData),
+    amenities: parseAmenitiesExtended(formData),
+    images: parseJsonUrlList('images', formData),
+    videos: parseJsonUrlList('videos', formData),
     isActive: formData.get('isActive') === 'on',
   };
 }
@@ -98,7 +115,15 @@ export async function uploadPgImageAction(formData: FormData): Promise<string> {
   const file = formData.get('file');
   if (!(file instanceof File)) throw new Error('No file provided.');
   const { uploadToCloudinary } = await import('@/src/lib/images/cloudinary');
-  return uploadToCloudinary(file);
+  return uploadToCloudinary(file, 'image');
+}
+
+export async function uploadPgVideoAction(formData: FormData): Promise<string> {
+  await requireAdminPermission('pgs:write');
+  const file = formData.get('file');
+  if (!(file instanceof File)) throw new Error('No file provided.');
+  const { uploadToCloudinary } = await import('@/src/lib/images/cloudinary');
+  return uploadToCloudinary(file, 'video');
 }
 
 export async function archivePgFormAction(formData: FormData): Promise<void> {
