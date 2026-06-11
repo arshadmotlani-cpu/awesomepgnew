@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { eq } from 'drizzle-orm';
+import { uploadPaymentScreenshotAction } from '@/app/(admin)/admin/pgs/payment-actions';
 import { db } from '@/src/db/client';
 import {
   beds,
@@ -8,16 +9,23 @@ import {
   customers,
   electricityBills,
   electricityInvoices,
+  floors,
   rooms,
 } from '@/src/db/schema';
-import { isRazorpayConfigured } from '@/src/lib/payments/config';
+import {
+  DEFAULT_ELECTRICITY_DAILY_QR_PATH,
+  DEFAULT_ELECTRICITY_DAILY_UPI_ID,
+} from '@/src/lib/payments/defaultQr';
+import { ElectricityPaymentProofForm } from '@/src/components/customer/ElectricityPaymentProofForm';
 import { PaymentUnavailable } from '@/src/components/customer/PaymentUnavailable';
 import { formatDate, paiseToInr } from '@/src/lib/format';
-import { ResidentPayButtons } from '@/src/components/customer/ResidentPayButtons';
-import { ElectricityPaymentProofForm } from '@/src/components/customer/ElectricityPaymentProofForm';
-import { uploadPaymentScreenshotAction } from '@/app/(admin)/admin/pgs/payment-actions';
 import { isCloudinaryConfigured } from '@/src/lib/images/cloudinary';
+import { isRazorpayConfigured } from '@/src/lib/payments/config';
 import { projectElectricityInvoice } from '@/src/services/electricityBilling';
+import {
+  ensureDefaultPaymentCategoriesForPg,
+  getElectricityDailyCategory,
+} from '@/src/services/pgPaymentDefaults';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
 
 export const dynamic = 'force-dynamic';
@@ -55,6 +63,7 @@ export default async function PayElectricityPage({
       unitsShare: electricityInvoices.unitsShare,
       activeDays: electricityInvoices.activeDays,
       paymentProofUrl: electricityInvoices.paymentProofUrl,
+      pgId: floors.pgId,
     })
     .from(electricityInvoices)
     .innerJoin(bookings, eq(bookings.id, electricityInvoices.bookingId))
@@ -62,6 +71,7 @@ export default async function PayElectricityPage({
     .innerJoin(electricityBills, eq(electricityBills.id, electricityInvoices.electricityBillId))
     .innerJoin(rooms, eq(rooms.id, electricityBills.roomId))
     .innerJoin(beds, eq(beds.id, electricityInvoices.bedId))
+    .innerJoin(floors, eq(floors.id, rooms.floorId))
     .where(eq(electricityInvoices.id, invoiceId))
     .limit(1);
   if (!row) notFound();
@@ -69,6 +79,9 @@ export default async function PayElectricityPage({
   const projection = projectElectricityInvoice(invoiceRow);
   const outstanding = projection.outstandingPaise;
   const cloudinary = isCloudinaryConfigured();
+
+  await ensureDefaultPaymentCategoriesForPg(row.pgId);
+  const elecCategory = await getElectricityDailyCategory(row.pgId);
 
   return (
     <div className="mx-auto w-full max-w-xl space-y-5 px-4 py-10 sm:px-6">
@@ -165,17 +178,14 @@ export default async function PayElectricityPage({
         </p>
       ) : (
         <div className="space-y-4">
-          <ResidentPayButtons
-            invoiceId={invoiceRow.id}
-            purpose="electricity"
-            totalLabel={paiseToInr(outstanding)}
-          />
           {cloudinary ? (
             <ElectricityPaymentProofForm
               invoiceId={invoiceRow.id}
               amountLabel={paiseToInr(outstanding)}
               uploadScreenshot={uploadPaymentScreenshotAction}
               existingProofUrl={row.paymentProofUrl}
+              qrImageUrl={elecCategory?.qrCodeImageUrl ?? DEFAULT_ELECTRICITY_DAILY_QR_PATH}
+              upiId={elecCategory?.upiId ?? DEFAULT_ELECTRICITY_DAILY_UPI_ID}
             />
           ) : isRazorpayConfigured() ? null : (
             <PaymentUnavailable />

@@ -124,7 +124,7 @@ export function BookingQrCheckout({
           </button>
         </div>
         <p className="mt-2 text-xs text-zinc-500">
-          Rent, deposit, and booking payments · Electricity uses a separate QR later
+          Rent, deposit & booking · use the electricity QR for power bills, daily stays & reservations
         </p>
       </div>
 

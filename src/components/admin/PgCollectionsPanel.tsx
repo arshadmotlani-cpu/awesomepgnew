@@ -167,7 +167,7 @@ export function PgCollectionsPanel({
         />
         <SetupStep
           done={hasElectricity}
-          label="Electricity QR category"
+          label="Electricity / daily / reservation QR"
           hint="Optional backup; invoices also accept proof"
         />
       </ol>
@@ -202,7 +202,8 @@ export function PgCollectionsPanel({
       <div className="rounded-xl border border-zinc-800 p-4">
         <h3 className="text-sm font-medium text-zinc-300">QR categories</h3>
         <p className="mt-1 text-xs text-zinc-500">
-          Upload one QR per category. Use the same UPI QR for Rent and Electricity if you prefer.
+          Upload one QR per category. Rent/deposit/booking uses <strong>shiba.motlani@oksbi</strong>;
+          electricity, daily stays & reservations use <strong>9049163636@pthdfc</strong>.
         </p>
 
         {categories.length > 0 ? (

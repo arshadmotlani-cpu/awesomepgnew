@@ -1,17 +1,22 @@
 'use client';
 
 import { useState } from 'react';
+import { DEFAULT_ELECTRICITY_DAILY_UPI_ID } from '@/src/lib/payments/defaultQr';
 
 export function ElectricityPaymentProofForm({
   invoiceId,
   amountLabel,
   uploadScreenshot,
   existingProofUrl,
+  qrImageUrl,
+  upiId,
 }: {
   invoiceId: string;
   amountLabel: string;
   uploadScreenshot: (formData: FormData) => Promise<string>;
   existingProofUrl?: string | null;
+  qrImageUrl?: string | null;
+  upiId?: string | null;
 }) {
   const [screenshotUrl, setScreenshotUrl] = useState(existingProofUrl ?? '');
   const [transactionRef, setTransactionRef] = useState('');
@@ -19,6 +24,8 @@ export function ElectricityPaymentProofForm({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(Boolean(existingProofUrl));
+
+  const displayUpi = upiId ?? DEFAULT_ELECTRICITY_DAILY_UPI_ID;
 
   async function onFile(file: File | null) {
     if (!file) return;
@@ -88,9 +95,32 @@ export function ElectricityPaymentProofForm({
     <form onSubmit={onSubmit} className="space-y-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
       <h3 className="text-sm font-semibold text-zinc-900">Pay via QR + upload proof</h3>
       <p className="text-sm text-zinc-600">
-        Amount: <span className="font-semibold">{amountLabel}</span>. Scan your PG QR on{' '}
-        <span className="font-medium">/pgs</span>, pay via UPI, then upload the screenshot below.
+        Amount: <span className="font-semibold">{amountLabel}</span>. Scan the electricity /
+        daily / reservation QR below, pay via UPI, then upload your screenshot.
       </p>
+
+      {qrImageUrl ? (
+        <div className="rounded-lg border border-zinc-200 bg-white p-3 text-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={qrImageUrl}
+            alt="UPI QR for electricity, daily stays, and reservations"
+            className="mx-auto max-h-48 w-full max-w-xs object-contain"
+          />
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-2 text-sm">
+            <span className="text-zinc-500">UPI:</span>
+            <code className="rounded bg-zinc-100 px-2 py-0.5 text-indigo-700">{displayUpi}</code>
+            <button
+              type="button"
+              className="text-xs text-zinc-500 underline"
+              onClick={() => navigator.clipboard.writeText(displayUpi)}
+            >
+              Copy
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <label className="block text-sm">
         <span className="text-zinc-500">Payment screenshot</span>
         <input
