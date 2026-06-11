@@ -8,15 +8,24 @@ import {
   AdminCancelForm,
   RecordOfflinePaymentForm,
 } from '@/src/components/admin/AdminBookingActions';
+import { AdminBookingOpsPanel } from '@/src/components/admin/AdminBookingOpsPanel';
 import {
   AdminCancelExtensionForm,
   AdminRecordOfflineExtensionPaymentForm,
   AdminRequestExtensionForm,
 } from '@/src/components/admin/AdminExtensionActions';
 import { getAdminBookingDetail } from '@/src/db/queries/admin';
+import {
+  listElectricityInvoicesForBooking,
+  listRentInvoicesForBooking,
+} from '@/src/db/queries/customer';
 import { formatDate, formatDateTime, paiseToInr, titleCase } from '@/src/lib/format';
+import { getDepositSummaryForBooking } from '@/src/services/deposits';
+import { projectElectricityInvoice } from '@/src/services/electricityBilling';
 import { parseDaterange } from '@/src/services/availability';
+import { projectInvoice } from '@/src/services/rentInvoices';
 import { formatDate as formatDateIso } from '@/src/lib/dates';
+import { DepositRefundNotice } from '@/src/components/customer/DepositRefundNotice';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,6 +49,71 @@ export default async function AdminBookingDetailPage(
   if (!res.data) notFound();
 
   const b = res.data;
+  const [rentInvoices, electricityInvoices, depositSummary] = await Promise.all([
+    listRentInvoicesForBooking(bookingId),
+    listElectricityInvoicesForBooking(bookingId),
+    getDepositSummaryForBooking(bookingId),
+  ]);
+  const computedRentDues =
+    rentInvoices.ok === true
+      ? rentInvoices.data.reduce((acc, inv) => {
+          const p = projectInvoice({
+            ...inv,
+            customerId: b.customer.id,
+            bedId: b.reservations[0]?.bedId ?? '',
+            pgId: '',
+            paymentId: null,
+            cancelledAt: null,
+            cancellationReason: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
+          return acc + p.outstandingPaise;
+        }, 0)
+      : 0;
+  const computedElectricityDues =
+    electricityInvoices.ok === true
+      ? electricityInvoices.data.reduce((acc, inv) => {
+          const p = projectElectricityInvoice({
+            id: inv.id,
+            invoiceNumber: inv.invoiceNumber,
+            electricityBillId: inv.electricityBillId,
+            bookingId: inv.bookingId,
+            customerId: b.customer.id,
+            bedId: '',
+            billingMonth: inv.billingMonth,
+            dueDate: inv.dueDate,
+            amountPaise: inv.amountPaise,
+            paidPaise: inv.paidPaise,
+            lateFeeLockedPaise: inv.lateFeeLockedPaise,
+            status: inv.status,
+            paymentId: null,
+            paidAt: inv.paidAt,
+            paymentProofUrl: null,
+            unitsShare: null,
+            activeDays: null,
+            cancelledAt: null,
+            createdAt: inv.createdAt,
+            updatedAt: inv.updatedAt,
+          });
+          return acc + p.outstandingPaise;
+        }, 0)
+      : 0;
+  const computedDuesPaise = computedRentDues + computedElectricityDues;
+  const depositBalancePaise = depositSummary?.refundableBalancePaise ?? 0;
+  const uniqueBeds = Array.from(
+    new Map(
+      b.reservations.map((r) => [
+        r.bedId,
+        {
+          bedId: r.bedId,
+          bedCode: r.bedCode,
+          reservationStatus: r.status,
+          bedInventoryStatus: r.bedInventoryStatus,
+        },
+      ]),
+    ).values(),
+  );
   const totalCollected = b.payments
     .filter((p) => p.status === 'succeeded' && p.purpose === 'booking')
     .reduce((acc, p) => acc + p.amountPaise, 0);
@@ -269,6 +343,18 @@ export default async function AdminBookingDetailPage(
         </section>
 
         <aside className="space-y-5">
+          <AdminBookingOpsPanel
+            bookingId={b.id}
+            adminDuesStatus={b.adminDuesStatus}
+            adminDepositRefundStatus={b.adminDepositRefundStatus}
+            adminOpsNotes={b.adminOpsNotes}
+            computedDuesPaise={computedDuesPaise}
+            depositBalancePaise={depositBalancePaise}
+            beds={uniqueBeds}
+          />
+
+          <DepositRefundNotice variant="compact" />
+
           <div className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
             <h2 className="text-sm font-semibold text-zinc-900">Customer</h2>
             <dl className="mt-3 space-y-1 text-sm">

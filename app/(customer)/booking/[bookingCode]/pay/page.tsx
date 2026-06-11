@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { uploadPaymentScreenshotAction } from '@/app/(admin)/admin/pgs/payment-actions';
 import { BookingQrCheckout } from '@/src/components/customer/BookingQrCheckout';
+import { DepositRefundNotice } from '@/src/components/customer/DepositRefundNotice';
 import { getBookingByCode } from '@/src/db/queries/customer';
 import {
   requireCustomerOwnsBookingCode,
@@ -133,6 +134,8 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
           </div>
 
           <div className="mt-5">
+            <DepositRefundNotice variant="compact" />
+            <div className="mt-4">
             {canUpload ? (
               <BookingQrCheckout
                 bookingCode={booking.bookingCode}
@@ -150,6 +153,7 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
                 support on WhatsApp with booking code {booking.bookingCode}.
               </p>
             )}
+          </div>
           </div>
         </aside>
       </div>

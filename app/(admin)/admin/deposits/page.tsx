@@ -16,7 +16,7 @@ export default async function AdminDepositsPage() {
     <>
       <PageHeader
         title="Deposit management"
-        description="Per-booking deposit balances. Every entry is append-only; deductions and refunds are signed at the storage layer so the running balance can't be silently corrupted."
+        description="Per-booking deposit balances. Refunds: 95% within 2 hours, up to 24 hours when dues are cleared. Use booking detail → Operations checklist to mark refund status."
       />
       {!res.ok ? (
         <DbStatusBanner error={res.error} />

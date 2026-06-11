@@ -16,7 +16,12 @@ import { getLatestKycSubmission } from '@/src/services/kyc';
 import { formatIndianPhoneDisplay } from '@/src/lib/phone';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import { LogoutButton } from '@/src/components/auth/LogoutButton';
+import { DepositRefundNotice } from '@/src/components/customer/DepositRefundNotice';
 import { getRoomElectricityForCustomer } from '@/src/services/meterElectricity';
+import {
+  labelAdminDepositRefundStatus,
+  labelAdminDuesStatus,
+} from '@/src/lib/bookingAdminOpsLabels';
 
 export const dynamic = 'force-dynamic';
 
@@ -143,6 +148,8 @@ export default async function ResidentDashboardPage() {
         <LogoutButton scope="customer" />
       </header>
 
+      <DepositRefundNotice />
+
       {bookings.ok === false ? (
         <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700 ring-1 ring-inset ring-rose-200">
           Couldn&apos;t reach the database.
@@ -253,6 +260,19 @@ export default async function ResidentDashboardPage() {
                     label="Deposit balance"
                     value={paiseToInr(deposit?.refundableBalancePaise ?? 0)}
                   />
+                </div>
+
+                <div className="flex flex-wrap gap-2 text-xs">
+                  <span className="rounded-full bg-zinc-100 px-2.5 py-1 font-medium text-zinc-700 ring-1 ring-zinc-200">
+                    {labelAdminDuesStatus(booking.adminDuesStatus)}
+                  </span>
+                  <span className="rounded-full bg-indigo-50 px-2.5 py-1 font-medium text-indigo-800 ring-1 ring-indigo-200">
+                    {labelAdminDepositRefundStatus(booking.adminDepositRefundStatus)}
+                  </span>
+                  {totalRentOutstanding + totalElectricityOutstanding + lateFees === 0 &&
+                  booking.adminDuesStatus === 'unknown' ? (
+                    <span className="text-zinc-500">No open invoices in the system.</span>
+                  ) : null}
                 </div>
 
                 <div className="flex flex-wrap gap-2 text-xs">

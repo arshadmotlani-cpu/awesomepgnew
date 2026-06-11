@@ -29,6 +29,20 @@ export const durationModeEnum = pgEnum('duration_mode', [
 ]);
 export const createdViaEnum = pgEnum('created_via', ['customer', 'admin']);
 
+export const adminDuesStatusEnum = pgEnum('admin_dues_status', [
+  'unknown',
+  'cleared',
+  'has_dues',
+]);
+
+export const adminDepositRefundStatusEnum = pgEnum('admin_deposit_refund_status', [
+  'unknown',
+  'pending',
+  'refunded',
+  'blocked',
+  'not_applicable',
+]);
+
 export const reservationKindEnum = pgEnum('reservation_kind', ['primary', 'extension']);
 export const reservationStatusEnum = pgEnum('reservation_status', [
   'hold',

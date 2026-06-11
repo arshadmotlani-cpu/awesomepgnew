@@ -15,6 +15,7 @@ import {
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { listDepositLedgerEntriesForBooking } from '@/src/db/queries/admin';
 import { DepositAdjustForms } from '@/src/components/admin/DepositAdjustForms';
+import { DepositRefundNotice } from '@/src/components/customer/DepositRefundNotice';
 import { paiseToInr, formatDate, titleCase } from '@/src/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -63,7 +64,19 @@ export default async function AdminDepositDetailPage({
       />
       <div className="mt-4" />
 
-      <section className="mb-4 grid gap-3 sm:grid-cols-4">
+      <DepositRefundNotice />
+
+      <p className="mb-4 text-sm">
+        <Link
+          href={`/admin/bookings/${bookingId}`}
+          className="font-medium text-indigo-600 hover:underline"
+        >
+          Open booking → Operations checklist
+        </Link>{' '}
+        to mark dues cleared, deposit refunded, and bed availability.
+      </p>
+
+      <section className="mb-4 mt-4 grid gap-3 sm:grid-cols-4">
         <Stat label="Booking deposit" value={paiseToInr(booking.depositPaise)} />
         <Stat label="Collected (ledger)" value={paiseToInr(summary?.collectedPaise ?? 0)} />
         <Stat

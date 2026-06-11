@@ -12,7 +12,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { adminUsers } from './adminUsers';
 import { customers } from './customers';
-import { bookingStatusEnum, createdViaEnum, durationModeEnum } from './enums';
+import { bookingStatusEnum, createdViaEnum, durationModeEnum, adminDepositRefundStatusEnum, adminDuesStatusEnum } from './enums';
 
 /**
  * Per-bed pricing snapshot stored on the booking so historical totals stay
@@ -105,6 +105,11 @@ export const bookings = pgTable(
     }),
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
     cancellationReason: text('cancellation_reason'),
+    adminDuesStatus: adminDuesStatusEnum('admin_dues_status').notNull().default('unknown'),
+    adminDepositRefundStatus: adminDepositRefundStatusEnum('admin_deposit_refund_status')
+      .notNull()
+      .default('unknown'),
+    adminOpsNotes: text('admin_ops_notes'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

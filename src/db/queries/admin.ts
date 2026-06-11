@@ -455,6 +455,14 @@ export type AdminBookingDetail = {
   depositPaise: number;
   totalPaise: number;
   notes: string | null;
+  adminDuesStatus: 'unknown' | 'cleared' | 'has_dues';
+  adminDepositRefundStatus:
+    | 'unknown'
+    | 'pending'
+    | 'refunded'
+    | 'blocked'
+    | 'not_applicable';
+  adminOpsNotes: string | null;
   cancelledAt: Date | null;
   cancellationReason: string | null;
   createdAt: Date;
@@ -468,12 +476,14 @@ export type AdminBookingDetail = {
   };
   reservations: Array<{
     id: string;
+    bedId: string;
     bedCode: string;
     roomNumber: string;
     floorLabel: string;
     pgName: string;
     stayRange: string;
     status: string;
+    bedInventoryStatus: 'available' | 'maintenance' | 'blocked';
     /** Phase 5 — `primary` for original reservations, `extension` for extensions. */
     kind: string;
     parentReservationId: string | null;
@@ -520,6 +530,9 @@ export function getAdminBookingDetail(
         depositPaise: bookings.depositPaise,
         totalPaise: bookings.totalPaise,
         notes: bookings.notes,
+        adminDuesStatus: bookings.adminDuesStatus,
+        adminDepositRefundStatus: bookings.adminDepositRefundStatus,
+        adminOpsNotes: bookings.adminOpsNotes,
         cancelledAt: bookings.cancelledAt,
         cancellationReason: bookings.cancellationReason,
         createdAt: bookings.createdAt,
@@ -539,7 +552,9 @@ export function getAdminBookingDetail(
     const resv = await db
       .select({
         id: bedReservations.id,
+        bedId: beds.id,
         bedCode: beds.bedCode,
+        bedInventoryStatus: beds.status,
         roomNumber: rooms.roomNumber,
         floorLabel: sql<string>`coalesce(${floors.label}, 'Floor ' || ${floors.floorNumber})`,
         pgName: pgs.name,
@@ -600,6 +615,9 @@ export function getAdminBookingDetail(
       depositPaise: b.depositPaise,
       totalPaise: b.totalPaise,
       notes: b.notes,
+      adminDuesStatus: b.adminDuesStatus,
+      adminDepositRefundStatus: b.adminDepositRefundStatus,
+      adminOpsNotes: b.adminOpsNotes,
       cancelledAt: b.cancelledAt,
       cancellationReason: b.cancellationReason,
       createdAt: b.createdAt,
@@ -613,7 +631,9 @@ export function getAdminBookingDetail(
       },
       reservations: resv.map((r) => ({
         id: r.id,
+        bedId: r.bedId,
         bedCode: r.bedCode,
+        bedInventoryStatus: r.bedInventoryStatus,
         roomNumber: r.roomNumber,
         floorLabel: r.floorLabel,
         pgName: r.pgName,

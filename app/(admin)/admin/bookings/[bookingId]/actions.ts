@@ -354,3 +354,47 @@ export async function recordOfflineExtensionPaymentAction(
     amountPaise: ext.quotedTotalPaise,
   };
 }
+
+export async function updateBookingAdminOpsAction(
+  bookingId: string,
+  input: {
+    adminDuesStatus?: 'unknown' | 'cleared' | 'has_dues';
+    adminDepositRefundStatus?:
+      | 'unknown'
+      | 'pending'
+      | 'refunded'
+      | 'blocked'
+      | 'not_applicable';
+    adminOpsNotes?: string | null;
+  },
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const session = await requireAdminPermission('bookings:write');
+    const { updateBookingAdminOps } = await import('@/src/services/bookingAdminOps');
+    await updateBookingAdminOps(session, bookingId, input);
+    revalidatePath(`/admin/bookings/${bookingId}`);
+    revalidatePath('/admin/bookings');
+    revalidatePath('/admin/deposits');
+    revalidatePath('/account/resident');
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function updateBedStatusAction(
+  bedId: string,
+  status: 'available' | 'maintenance' | 'blocked',
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const session = await requireAdminPermission('pgs:write');
+    const { updateBedInventoryStatus } = await import('@/src/services/bookingAdminOps');
+    await updateBedInventoryStatus(session, bedId, status);
+    revalidatePath('/admin');
+    revalidatePath('/admin/pgs');
+    revalidatePath('/pgs');
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}

@@ -971,6 +971,13 @@ export type ResidentBookingRow = {
   expectedCheckoutDate: string | null;
   monthlyRentPaise: number;
   depositPaise: number;
+  adminDuesStatus: 'unknown' | 'cleared' | 'has_dues';
+  adminDepositRefundStatus:
+    | 'unknown'
+    | 'pending'
+    | 'refunded'
+    | 'blocked'
+    | 'not_applicable';
 };
 
 /** One row per booking — multi-bed bookings keep the lowest bed_id row. */
@@ -1009,6 +1016,8 @@ export function listResidentBookingsForCustomer(
         expectedCheckoutDate: bookings.expectedCheckoutDate,
         pricingSnapshot: bookings.pricingSnapshot,
         depositPaise: bookings.depositPaise,
+        adminDuesStatus: bookings.adminDuesStatus,
+        adminDepositRefundStatus: bookings.adminDepositRefundStatus,
       })
       .from(bookings)
       .innerJoin(customers, eq(customers.id, bookings.customerId))
@@ -1053,6 +1062,8 @@ export function listResidentBookingsForCustomer(
         expectedCheckoutDate: r.expectedCheckoutDate,
         monthlyRentPaise,
         depositPaise: r.depositPaise,
+        adminDuesStatus: r.adminDuesStatus,
+        adminDepositRefundStatus: r.adminDepositRefundStatus,
       };
     });
 
