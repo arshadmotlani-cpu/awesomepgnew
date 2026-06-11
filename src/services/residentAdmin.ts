@@ -137,6 +137,101 @@ export async function listResidentsForAdmin(session: AdminSession): Promise<Resi
     }));
 }
 
+export async function searchResidentsForAdmin(
+  session: AdminSession,
+  query: string,
+  limit = 20,
+): Promise<ResidentListRow[]> {
+  const q = query.trim();
+  if (q.length < 2) return [];
+
+  const pattern = `%${q.replace(/[%_\\]/g, '\\$&')}%`;
+  const phoneDigits = q.replace(/\D/g, '');
+
+  const rows = await db.execute<{
+    id: string;
+    full_name: string;
+    email: string;
+    phone: string;
+    gender: 'male' | 'female' | 'other';
+    kyc_status: 'pending' | 'approved' | 'rejected';
+    created_at: Date;
+    booking_id: string | null;
+    pg_name: string | null;
+    room_number: string | null;
+    bed_code: string | null;
+    pg_id: string | null;
+  }>(sql`
+    SELECT
+      c.id,
+      c.full_name,
+      c.email,
+      c.phone,
+      c.gender,
+      c.kyc_status,
+      c.created_at,
+      t.booking_id,
+      t.pg_name,
+      t.room_number,
+      t.bed_code,
+      t.pg_id
+    FROM customers c
+    LEFT JOIN LATERAL (
+      SELECT
+        b.id::text AS booking_id,
+        p.name AS pg_name,
+        r.room_number,
+        bd.bed_code,
+        f.pg_id::text AS pg_id
+      FROM bookings b
+      INNER JOIN bed_reservations br ON br.booking_id = b.id
+      INNER JOIN beds bd ON bd.id = br.bed_id
+      INNER JOIN rooms r ON r.id = bd.room_id
+      INNER JOIN floors f ON f.id = r.floor_id
+      INNER JOIN pgs p ON p.id = f.pg_id
+      WHERE b.customer_id = c.id
+        AND b.status = 'confirmed'
+        AND b.duration_mode IN ('monthly', 'open_ended')
+        AND br.status = 'active'
+        AND br.kind = 'primary'
+        AND CURRENT_DATE <@ br.stay_range
+      ORDER BY lower(br.stay_range) DESC
+      LIMIT 1
+    ) t ON true
+    WHERE c.archived_at IS NULL
+      AND (
+        c.full_name ILIKE ${pattern}
+        OR c.email ILIKE ${pattern}
+        OR (
+          ${phoneDigits.length >= 3}
+          AND regexp_replace(c.phone, '[^0-9]', '', 'g') LIKE ${`%${phoneDigits}%`}
+        )
+      )
+    ORDER BY c.created_at DESC
+    LIMIT ${limit}
+  `);
+
+  return Array.from(rows)
+    .filter(
+      (row) =>
+        !row.pg_id || adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, row.pg_id),
+    )
+    .map((row) => ({
+      id: row.id,
+      fullName: row.full_name,
+      email: row.email,
+      phone: row.phone,
+      gender: row.gender,
+      kycStatus: row.kyc_status,
+      createdAt: row.created_at,
+      bookingId: row.booking_id,
+      pgName: row.pg_name,
+      roomNumber: row.room_number,
+      bedCode: row.bed_code,
+      tenancyStatus: row.booking_id ? ('active' as const) : ('unassigned' as const),
+    }));
+}
+
 export async function getResidentDetail(
   session: AdminSession,
   customerId: string,

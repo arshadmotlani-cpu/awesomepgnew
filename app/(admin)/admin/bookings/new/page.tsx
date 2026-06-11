@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AssignTenantForm } from '@/src/components/admin/AssignTenantForm';
 import { PageHeader } from '@/src/components/admin/PageHeader';
+import { ResidentSearchPicker } from '@/src/components/admin/ResidentSearchPicker';
 import { db } from '@/src/db/client';
 import { customers } from '@/src/db/schema';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
@@ -65,36 +66,72 @@ export default async function AssignTenantPage({
 
   return (
     <>
-      <div className="mb-4">
-        <Link
-          href={prefill ? `/admin/residents/${prefill.customerId}` : '/admin/residents'}
-          className="text-sm text-zinc-500 hover:text-[#FF5A1F]"
-        >
-          ← Back to {prefill ? 'resident' : 'residents'}
+      <div className="mb-4 flex flex-wrap items-center gap-4">
+        <Link href="/admin/residents" className="text-sm text-zinc-500 hover:text-[#FF5A1F]">
+          ← Residents
+        </Link>
+        <Link href="/admin/bookings" className="text-sm text-zinc-500 hover:text-[#FF5A1F]">
+          Bookings
         </Link>
       </div>
 
       <PageHeader
         title={prefill ? `Assign ${prefill.fullName}` : 'Assign tenant'}
-        description="Link a tenant to a bed with rent, deposit, and optional whole-room blocking. If they already signed up, use the same phone/email so their dashboard matches."
+        description={
+          prefill
+            ? 'Choose a bed, set rent and deposit — monthly billing starts automatically from move-in.'
+            : 'Search for someone who signed up on the website, then assign them to a bed.'
+        }
       />
 
-      <AssignTenantForm
-        beds={beds}
-        defaultBedId={sp.bedId}
-        defaultStartDate={defaultTenantStartDate()}
-        prefill={prefill}
-      />
-
-      <div className="mt-8 max-w-xl rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600">
-        <p className="font-semibold text-zinc-800">Rollout checklist</p>
-        <ol className="mt-2 list-decimal space-y-1 pl-5">
-          <li>Tenant signs up at the website (same phone number you enter here).</li>
-          <li>Assign them to their bed with grandfathered rent if needed.</li>
-          <li>Generate rent invoices from 1st of next month.</li>
-          <li>They pay rent + electricity via resident dashboard or QR collections.</li>
-        </ol>
+      <div className="mb-6">
+        <ResidentSearchPicker
+          selectedCustomerId={prefill?.customerId}
+          selectedName={prefill?.fullName}
+          bedId={sp.bedId}
+        />
       </div>
+
+      {prefill ? (
+        <AssignTenantForm
+          beds={beds}
+          defaultBedId={sp.bedId}
+          defaultStartDate={defaultTenantStartDate()}
+          prefill={prefill}
+        />
+      ) : (
+        <div className="max-w-xl rounded-xl border border-dashed border-zinc-300 bg-zinc-50 px-5 py-8 text-sm text-zinc-600">
+          <p className="font-semibold text-zinc-800">Step 2: Bed, rent & deposit</p>
+          <p className="mt-2">
+            Search and select a resident above, or open{' '}
+            <Link href="/admin/residents" className="font-semibold text-[#FF5A1F] hover:underline">
+              Residents
+            </Link>{' '}
+            and click <strong>Assign</strong> next to their name. The assignment form appears once
+            someone is selected.
+          </p>
+        </div>
+      )}
+
+      {prefill ? (
+        <div className="mt-8 max-w-xl rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600">
+          <p className="font-semibold text-zinc-800">After assignment</p>
+          <ol className="mt-2 list-decimal space-y-1 pl-5">
+            <li>Rent invoices generate automatically each month.</li>
+            <li>They pay rent + electricity from their resident dashboard or QR collections.</li>
+            <li>
+              Manage them anytime from{' '}
+              <Link
+                href={`/admin/residents/${prefill.customerId}`}
+                className="font-semibold text-[#FF5A1F] hover:underline"
+              >
+                their resident profile
+              </Link>
+              .
+            </li>
+          </ol>
+        </div>
+      ) : null}
     </>
   );
 }

@@ -68,35 +68,52 @@ export function AssignTenantForm({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block text-sm">
-          <span className="font-medium text-zinc-700">Full name *</span>
+          <span className="font-medium text-zinc-700">Full name</span>
           <input
             name="fullName"
             required
+            readOnly={!!prefill}
             defaultValue={prefill?.fullName ?? ''}
-            className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+            className={
+              'mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm' +
+              (prefill ? ' bg-zinc-50 text-zinc-700' : '')
+            }
           />
         </label>
         <label className="block text-sm">
-          <span className="font-medium text-zinc-700">Phone *</span>
+          <span className="font-medium text-zinc-700">Phone</span>
           <input
             name="phone"
             required
+            readOnly={!!prefill}
             placeholder="+91…"
             defaultValue={prefill?.phone ?? ''}
-            className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+            className={
+              'mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm' +
+              (prefill ? ' bg-zinc-50 text-zinc-700' : '')
+            }
           />
         </label>
       </div>
 
       <label className="block text-sm">
-        <span className="font-medium text-zinc-700">Email *</span>
+        <span className="font-medium text-zinc-700">Email</span>
         <input
           type="email"
           name="email"
           required
+          readOnly={!!prefill}
           defaultValue={prefill?.email ?? ''}
-          className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+          className={
+            'mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm' +
+            (prefill ? ' bg-zinc-50 text-zinc-700' : '')
+          }
         />
+        {prefill ? (
+          <span className="mt-1 block text-xs text-zinc-500">
+            From website signup — linked to their login.
+          </span>
+        ) : null}
       </label>
 
       <label className="block text-sm">
