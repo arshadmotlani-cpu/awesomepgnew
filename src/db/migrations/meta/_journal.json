@@ -148,6 +148,27 @@
       "when": 1783800000000,
       "tag": "0020_booking_admin_ops",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1783900000000,
+      "tag": "0021_booking_blocks_room",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1784000000000,
+      "tag": "0022_payment_proof_screenshots",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1784100000000,
+      "tag": "0023_customers_archived",
+      "breakpoints": true
     }
   ]
 }
