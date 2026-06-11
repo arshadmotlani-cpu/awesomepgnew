@@ -61,111 +61,79 @@ export type ResidentDetail = {
 };
 
 export async function listResidentsForAdmin(session: AdminSession): Promise<ResidentListRow[]> {
-  const rows = await db
-    .select({
-      id: customers.id,
-      fullName: customers.fullName,
-      email: customers.email,
-      phone: customers.phone,
-      gender: customers.gender,
-      kycStatus: customers.kycStatus,
-      createdAt: customers.createdAt,
-      bookingId: sql<string | null>`(
-        SELECT b.id::text
-        FROM ${bookings} b
-        INNER JOIN ${bedReservations} br ON br.booking_id = b.id
-        WHERE b.customer_id = ${customers.id}
-          AND b.status = 'confirmed'
-          AND b.duration_mode IN ('monthly', 'open_ended')
-          AND br.status = 'active'
-          AND br.kind = 'primary'
-          AND CURRENT_DATE <@ br.stay_range
-        ORDER BY lower(br.stay_range) DESC
-        LIMIT 1
-      )`,
-      pgName: sql<string | null>`(
-        SELECT pgs.name
-        FROM ${bookings} b
-        INNER JOIN ${bedReservations} br ON br.booking_id = b.id
-        INNER JOIN ${beds} ON beds.id = br.bed_id
-        INNER JOIN ${rooms} ON rooms.id = beds.room_id
-        INNER JOIN ${floors} ON floors.id = rooms.floor_id
-        INNER JOIN ${pgs} ON pgs.id = floors.pg_id
-        WHERE b.customer_id = ${customers.id}
-          AND b.status = 'confirmed'
-          AND b.duration_mode IN ('monthly', 'open_ended')
-          AND br.status = 'active'
-          AND br.kind = 'primary'
-          AND CURRENT_DATE <@ br.stay_range
-        ORDER BY lower(br.stay_range) DESC
-        LIMIT 1
-      )`,
-      roomNumber: sql<string | null>`(
-        SELECT rooms.room_number
-        FROM ${bookings} b
-        INNER JOIN ${bedReservations} br ON br.booking_id = b.id
-        INNER JOIN ${beds} ON beds.id = br.bed_id
-        INNER JOIN ${rooms} ON rooms.id = beds.room_id
-        WHERE b.customer_id = ${customers.id}
-          AND b.status = 'confirmed'
-          AND b.duration_mode IN ('monthly', 'open_ended')
-          AND br.status = 'active'
-          AND br.kind = 'primary'
-          AND CURRENT_DATE <@ br.stay_range
-        ORDER BY lower(br.stay_range) DESC
-        LIMIT 1
-      )`,
-      bedCode: sql<string | null>`(
-        SELECT beds.bed_code
-        FROM ${bookings} b
-        INNER JOIN ${bedReservations} br ON br.booking_id = b.id
-        INNER JOIN ${beds} ON beds.id = br.bed_id
-        WHERE b.customer_id = ${customers.id}
-          AND b.status = 'confirmed'
-          AND b.duration_mode IN ('monthly', 'open_ended')
-          AND br.status = 'active'
-          AND br.kind = 'primary'
-          AND CURRENT_DATE <@ br.stay_range
-        ORDER BY lower(br.stay_range) DESC
-        LIMIT 1
-      )`,
-      pgId: sql<string | null>`(
-        SELECT floors.pg_id::text
-        FROM ${bookings} b
-        INNER JOIN ${bedReservations} br ON br.booking_id = b.id
-        INNER JOIN ${beds} ON beds.id = br.bed_id
-        INNER JOIN ${rooms} ON rooms.id = beds.room_id
-        INNER JOIN ${floors} ON floors.id = rooms.floor_id
-        WHERE b.customer_id = ${customers.id}
-          AND b.status = 'confirmed'
-          AND b.duration_mode IN ('monthly', 'open_ended')
-          AND br.status = 'active'
-          AND br.kind = 'primary'
-          AND CURRENT_DATE <@ br.stay_range
-        ORDER BY lower(br.stay_range) DESC
-        LIMIT 1
-      )`,
-    })
-    .from(customers)
-    .where(isNull(customers.archivedAt))
-    .orderBy(desc(customers.createdAt))
-    .limit(200);
+  const rows = await db.execute<{
+    id: string;
+    full_name: string;
+    email: string;
+    phone: string;
+    gender: 'male' | 'female' | 'other';
+    kyc_status: 'pending' | 'approved' | 'rejected';
+    created_at: Date;
+    booking_id: string | null;
+    pg_name: string | null;
+    room_number: string | null;
+    bed_code: string | null;
+    pg_id: string | null;
+  }>(sql`
+    SELECT
+      c.id,
+      c.full_name,
+      c.email,
+      c.phone,
+      c.gender,
+      c.kyc_status,
+      c.created_at,
+      t.booking_id,
+      t.pg_name,
+      t.room_number,
+      t.bed_code,
+      t.pg_id
+    FROM customers c
+    LEFT JOIN LATERAL (
+      SELECT
+        b.id::text AS booking_id,
+        p.name AS pg_name,
+        r.room_number,
+        bd.bed_code,
+        f.pg_id::text AS pg_id
+      FROM bookings b
+      INNER JOIN bed_reservations br ON br.booking_id = b.id
+      INNER JOIN beds bd ON bd.id = br.bed_id
+      INNER JOIN rooms r ON r.id = bd.room_id
+      INNER JOIN floors f ON f.id = r.floor_id
+      INNER JOIN pgs p ON p.id = f.pg_id
+      WHERE b.customer_id = c.id
+        AND b.status = 'confirmed'
+        AND b.duration_mode IN ('monthly', 'open_ended')
+        AND br.status = 'active'
+        AND br.kind = 'primary'
+        AND CURRENT_DATE <@ br.stay_range
+      ORDER BY lower(br.stay_range) DESC
+      LIMIT 1
+    ) t ON true
+    WHERE c.archived_at IS NULL
+    ORDER BY c.created_at DESC
+    LIMIT 200
+  `);
 
-  return rows
-    .filter((row) => !row.pgId || adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, row.pgId))
+  return Array.from(rows)
+    .filter(
+      (row) =>
+        !row.pg_id || adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, row.pg_id),
+    )
     .map((row) => ({
       id: row.id,
-      fullName: row.fullName,
+      fullName: row.full_name,
       email: row.email,
       phone: row.phone,
       gender: row.gender,
-      kycStatus: row.kycStatus,
-      createdAt: row.createdAt,
-      bookingId: row.bookingId,
-      pgName: row.pgName,
-      roomNumber: row.roomNumber,
-      bedCode: row.bedCode,
-      tenancyStatus: row.bookingId ? ('active' as const) : ('unassigned' as const),
+      kycStatus: row.kyc_status,
+      createdAt: row.created_at,
+      bookingId: row.booking_id,
+      pgName: row.pg_name,
+      roomNumber: row.room_number,
+      bedCode: row.bed_code,
+      tenancyStatus: row.booking_id ? ('active' as const) : ('unassigned' as const),
     }));
 }
 
