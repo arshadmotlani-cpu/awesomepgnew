@@ -7,7 +7,7 @@ import {
   type SharingPresetPaise,
 } from '@/src/lib/pgSharingPresets';
 import { parseSharingCount, sharingTypeName, type RoomSharingCount } from '@/src/lib/roomSharing';
-import { quickAddRoomBeds } from '@/src/services/pgInventory';
+import { quickAddRoomBeds, updateRoomBedPricing } from '@/src/services/pgInventory';
 import { savePgSharingPresets } from '@/src/services/pgAdmin';
 
 function parseRupeesPaise(raw: string | null | undefined): number | undefined {
@@ -46,16 +46,6 @@ export async function quickAddBedAction(
     const weeklyDepositPaise = parseRupeesPaise(formData.get('weeklyDeposit')?.toString()) ?? 0;
     const monthlyDepositPaise = parseRupeesPaise(formData.get('monthlyDeposit')?.toString()) ?? 0;
 
-    const presetRow: SharingPresetPaise = {
-      dailyRatePaise: Math.round(daily * 100),
-      weeklyRatePaise: Math.round(weekly * 100),
-      monthlyRatePaise: Math.round(monthly * 100),
-      dailyDepositPaise,
-      weeklyDepositPaise,
-      monthlyDepositPaise,
-    };
-    await savePgSharingPresets(session, pgId, { [sharing]: presetRow });
-
     const result = await quickAddRoomBeds(session, pgId, {
       floorNumber,
       floorLabel: formData.get('floorLabel')?.toString(),
@@ -85,6 +75,42 @@ export async function quickAddBedAction(
           ? `Added bed ${codes} in room ${result.roomNumber}.`
           : `Added ${result.bedCodes.length} beds (${codes}) in room ${result.roomNumber}.`,
     };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function updateRoomPricingAction(
+  pgId: string,
+  formData: FormData,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const session = await requireAdminPermission('pgs:write');
+    const roomId = formData.get('roomId')?.toString()?.trim();
+    if (!roomId) {
+      return { ok: false, error: 'Room not found.' };
+    }
+
+    const daily = Number.parseFloat(formData.get('dailyRate')?.toString() ?? '0');
+    const weekly = Number.parseFloat(formData.get('weeklyRate')?.toString() ?? '0');
+    const monthly = Number.parseFloat(formData.get('monthlyRate')?.toString() ?? '0');
+    const dailyDepositPaise = parseRupeesPaise(formData.get('dailyDeposit')?.toString()) ?? 0;
+    const weeklyDepositPaise = parseRupeesPaise(formData.get('weeklyDeposit')?.toString()) ?? 0;
+    const monthlyDepositPaise = parseRupeesPaise(formData.get('monthlyDeposit')?.toString()) ?? 0;
+
+    await updateRoomBedPricing(session, pgId, roomId, {
+      dailyRatePaise: Math.round(daily * 100),
+      weeklyRatePaise: Math.round(weekly * 100),
+      monthlyRatePaise: Math.round(monthly * 100),
+      dailyDepositPaise,
+      weeklyDepositPaise,
+      monthlyDepositPaise,
+    });
+
+    revalidatePath(`/admin/pgs/${pgId}/edit`);
+    revalidatePath('/pgs');
+    revalidatePath('/admin/pricing');
+    return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }

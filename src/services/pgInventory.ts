@@ -1,4 +1,4 @@
-import { and, asc, count, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import { autoBedCodes } from '@/src/lib/roomSharing';
 import { db } from '@/src/db/client';
 import {
@@ -26,9 +26,40 @@ export type PgInventoryBedRow = {
   roomNumber: string;
   floorLabel: string;
   roomTypeName: string;
-  monthlyRatePaise: number;
   dailyRatePaise: number;
+  weeklyRatePaise: number;
+  monthlyRatePaise: number;
+  dailyDepositPaise: number;
+  weeklyDepositPaise: number;
+  monthlyDepositPaise: number;
 };
+
+export type BedPricingInput = {
+  dailyRatePaise: number;
+  weeklyRatePaise: number;
+  monthlyRatePaise: number;
+  dailyDepositPaise: number;
+  weeklyDepositPaise: number;
+  monthlyDepositPaise: number;
+};
+
+function activeBedPricePaise(
+  columnName:
+    | 'daily_rate_paise'
+    | 'weekly_rate_paise'
+    | 'monthly_rate_paise'
+    | 'daily_security_deposit_paise'
+    | 'weekly_security_deposit_paise'
+    | 'monthly_security_deposit_paise',
+) {
+  return sql<number>`coalesce((
+    SELECT bp.${sql.raw(columnName)}::bigint::int FROM ${bedPrices} bp
+    WHERE bp.bed_id = ${beds.id}
+      AND bp.effective_from <= CURRENT_DATE
+      AND (bp.effective_to IS NULL OR bp.effective_to > CURRENT_DATE)
+    ORDER BY bp.effective_from DESC LIMIT 1
+  ), 0)`;
+}
 
 export async function getPgInventory(session: AdminSession, pgId: string) {
   assertPgAccess(session, pgId);
@@ -57,20 +88,12 @@ export async function getPgInventory(session: AdminSession, pgId: string) {
       roomNumber: rooms.roomNumber,
       floorLabel: sql<string>`coalesce(${floors.label}, 'Floor ' || ${floors.floorNumber})`,
       roomTypeName: roomTypes.name,
-      monthlyRatePaise: sql<number>`coalesce((
-        SELECT bp.monthly_rate_paise::bigint::int FROM ${bedPrices} bp
-        WHERE bp.bed_id = ${beds.id}
-          AND bp.effective_from <= CURRENT_DATE
-          AND (bp.effective_to IS NULL OR bp.effective_to > CURRENT_DATE)
-        ORDER BY bp.effective_from DESC LIMIT 1
-      ), 0)`,
-      dailyRatePaise: sql<number>`coalesce((
-        SELECT bp.daily_rate_paise::bigint::int FROM ${bedPrices} bp
-        WHERE bp.bed_id = ${beds.id}
-          AND bp.effective_from <= CURRENT_DATE
-          AND (bp.effective_to IS NULL OR bp.effective_to > CURRENT_DATE)
-        ORDER BY bp.effective_from DESC LIMIT 1
-      ), 0)`,
+      dailyRatePaise: activeBedPricePaise('daily_rate_paise'),
+      weeklyRatePaise: activeBedPricePaise('weekly_rate_paise'),
+      monthlyRatePaise: activeBedPricePaise('monthly_rate_paise'),
+      dailyDepositPaise: activeBedPricePaise('daily_security_deposit_paise'),
+      weeklyDepositPaise: activeBedPricePaise('weekly_security_deposit_paise'),
+      monthlyDepositPaise: activeBedPricePaise('monthly_security_deposit_paise'),
     })
     .from(beds)
     .innerJoin(rooms, eq(rooms.id, beds.roomId))
@@ -277,4 +300,98 @@ async function quickAddBedsInternal(
     bedCodes,
     roomNumber: input.roomNumber.trim(),
   };
+}
+
+/**
+ * Apply the same rent + deposit to every bed in a room. Creates a new
+ * `bed_prices` row (or updates today's row) per bed — rooms of the same
+ * sharing type can keep different prices.
+ */
+export async function updateRoomBedPricing(
+  session: AdminSession,
+  pgId: string,
+  roomId: string,
+  input: BedPricingInput,
+): Promise<void> {
+  assertPgAccess(session, pgId);
+
+  if (
+    input.monthlyRatePaise <= 0 &&
+    input.dailyRatePaise <= 0 &&
+    input.weeklyRatePaise <= 0
+  ) {
+    throw new Error('Set at least one rate (daily, weekly, or monthly).');
+  }
+
+  const roomBeds = await db
+    .select({ bedId: beds.id })
+    .from(beds)
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
+    .innerJoin(floors, eq(floors.id, rooms.floorId))
+    .where(
+      and(
+        eq(beds.roomId, roomId),
+        eq(floors.pgId, pgId),
+        isNull(beds.archivedAt),
+        isNull(rooms.archivedAt),
+        isNull(floors.archivedAt),
+      ),
+    );
+
+  if (roomBeds.length === 0) {
+    throw new Error('No beds in this room.');
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const monthlyDep = input.monthlyDepositPaise;
+  const priceValues = {
+    dailyRatePaise: input.dailyRatePaise,
+    weeklyRatePaise: input.weeklyRatePaise,
+    monthlyRatePaise: input.monthlyRatePaise,
+    securityDepositPaise: monthlyDep,
+    dailySecurityDepositPaise: input.dailyDepositPaise,
+    weeklySecurityDepositPaise: input.weeklyDepositPaise,
+    monthlySecurityDepositPaise: monthlyDep,
+  };
+
+  for (const { bedId } of roomBeds) {
+    const [active] = await db
+      .select()
+      .from(bedPrices)
+      .where(
+        and(
+          eq(bedPrices.bedId, bedId),
+          sql`${bedPrices.effectiveFrom} <= ${today}::date`,
+          or(
+            isNull(bedPrices.effectiveTo),
+            sql`${bedPrices.effectiveTo} > ${today}::date`,
+          ),
+        ),
+      )
+      .orderBy(desc(bedPrices.effectiveFrom))
+      .limit(1);
+
+    if (active?.effectiveFrom === today) {
+      await db
+        .update(bedPrices)
+        .set({ ...priceValues, updatedAt: new Date() })
+        .where(eq(bedPrices.id, active.id));
+    } else if (active) {
+      await db
+        .update(bedPrices)
+        .set({ effectiveTo: today, updatedAt: new Date() })
+        .where(eq(bedPrices.id, active.id));
+      await db.insert(bedPrices).values({
+        bedId,
+        ...priceValues,
+        effectiveFrom: today,
+      });
+    } else {
+      await db.insert(bedPrices).values({
+        bedId,
+        ...priceValues,
+        effectiveFrom: today,
+      });
+    }
+  }
 }

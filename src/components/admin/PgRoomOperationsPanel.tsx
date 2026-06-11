@@ -2,7 +2,6 @@
 
 import { useActionState, useEffect, useMemo, useState } from 'react';
 import { quickAddBedAction } from '@/app/(admin)/admin/pgs/inventory-actions';
-import { paiseToInr } from '@/src/lib/format';
 import type { PgInventoryBedRow } from '@/src/services/pgInventory';
 import { RoomElectricityCard } from './RoomElectricityCard';
 import type { MeterLog } from '@/src/db/schema/meterLogs';
@@ -14,6 +13,7 @@ import {
 } from '@/src/lib/pgSharingPresets';
 import { ROOM_SHARING_OPTIONS, type RoomSharingCount } from '@/src/lib/roomSharing';
 import { PgSharingPresetsPanel } from './PgSharingPresetsPanel';
+import { RoomPricingEditor } from './RoomPricingEditor';
 
 type FloorRow = {
   id: string;
@@ -323,6 +323,10 @@ export function PgRoomOperationsPanel({
                 className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
               />
             </label>
+            <p className="sm:col-span-2 text-xs text-zinc-500">
+              Defaults auto-fill from the table above. Adjust here for this room only — other
+              rooms with the same sharing can keep different prices.
+            </p>
             <button
               type="submit"
               disabled={pending}
@@ -362,31 +366,7 @@ export function PgRoomOperationsPanel({
               </header>
               <div className="p-4 space-y-4">
                 {room.beds.length > 0 ? (
-                  <div>
-                    <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
-                      Beds & rent
-                    </p>
-                    <table className="min-w-full text-sm">
-                      <thead className="text-left text-xs text-zinc-500">
-                        <tr>
-                          <th className="pb-2 pr-4">Bed</th>
-                          <th className="pb-2 pr-4">Sharing</th>
-                          <th className="pb-2 pr-4">Monthly rent</th>
-                          <th className="pb-2">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="text-zinc-300">
-                        {room.beds.map((b) => (
-                          <tr key={b.bedId}>
-                            <td className="py-1 pr-4 font-medium text-white">{b.bedCode}</td>
-                            <td className="py-1 pr-4">{b.roomTypeName}</td>
-                            <td className="py-1 pr-4">{paiseToInr(b.monthlyRatePaise)}</td>
-                            <td className="py-1 capitalize">{b.bedStatus}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <RoomPricingEditor pgId={pgId} roomId={room.roomId} beds={room.beds} />
                 ) : (
                   <p className="text-sm text-zinc-500">No beds in this room.</p>
                 )}

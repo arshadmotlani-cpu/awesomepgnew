@@ -89,8 +89,8 @@ export function PgSharingPresetsPanel({
         Rent & security deposit defaults by sharing type
       </h3>
       <p className="mt-1 text-xs text-zinc-500">
-        Set different rent and deposit for daily, weekly, and monthly stays — per sharing type.
-        When you add a room, fields auto-fill from the row you pick.
+        Starting suggestions when you add a room — each room can have its own rent. Use
+        &ldquo;Edit rent for this room&rdquo; below to set room-specific prices.
       </p>
       <div className="mt-3 overflow-x-auto">
         <table className="min-w-full text-sm">
