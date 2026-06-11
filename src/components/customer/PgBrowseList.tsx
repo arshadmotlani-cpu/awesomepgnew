@@ -1,14 +1,15 @@
 'use client';
 
-import { useMemo, useState, type ReactNode } from 'react';
-import type { PgCardData } from './PgCard';
+import { useMemo, useState } from 'react';
+import { MotionPgGrid, MotionPgGridItem } from '@/src/components/customer/MotionReveal';
+import { PgCard, type PgCardData } from '@/src/components/customer/PgCard';
 
-export function PgSearchFilter({
+export function PgBrowseList({
   pgs,
-  children,
+  uploadScreenshot,
 }: {
   pgs: PgCardData[];
-  children: (filtered: PgCardData[]) => ReactNode;
+  uploadScreenshot?: (formData: FormData) => Promise<string>;
 }) {
   const [query, setQuery] = useState('');
 
@@ -16,7 +17,8 @@ export function PgSearchFilter({
     const q = query.trim().toLowerCase();
     if (!q) return pgs;
     return pgs.filter((pg) => {
-      const haystack = `${pg.name} ${pg.city} ${pg.state} ${pg.pincode} ${pg.description ?? ''}`.toLowerCase();
+      const haystack =
+        `${pg.name} ${pg.city} ${pg.state} ${pg.pincode} ${pg.description ?? ''}`.toLowerCase();
       return haystack.includes(q);
     });
   }, [pgs, query]);
@@ -35,12 +37,19 @@ export function PgSearchFilter({
           className="apg-input-dark mt-2 w-full rounded-xl px-4 py-3 text-sm"
         />
       </label>
+
       {query && filtered.length === 0 ? (
         <p className="rounded-xl border border-dashed border-white/10 apg-glass-light px-6 py-10 text-center text-sm text-apg-silver">
           No PGs match &ldquo;{query}&rdquo;. Try a different city or name.
         </p>
       ) : (
-        children(filtered)
+        <MotionPgGrid>
+          {filtered.map((pg) => (
+            <MotionPgGridItem key={pg.id}>
+              <PgCard pg={pg} uploadScreenshot={uploadScreenshot} />
+            </MotionPgGridItem>
+          ))}
+        </MotionPgGrid>
       )}
     </div>
   );

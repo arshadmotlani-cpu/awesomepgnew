@@ -1,10 +1,9 @@
 import { uploadPaymentScreenshotAction } from '@/app/(admin)/admin/pgs/payment-actions';
 import { listPublicPgs, type CustomerPgListRow } from '@/src/db/queries/customer';
 import { isCloudinaryConfigured } from '@/src/lib/images/cloudinary';
-import { PgCard } from '@/src/components/customer/PgCard';
 import { EmptyPgList } from '@/src/components/customer/EmptyPgList';
-import { MotionPgGrid, MotionPgGridItem, MotionReveal } from '@/src/components/customer/MotionReveal';
-import { PgSearchFilter } from '@/src/components/customer/PgSearchFilter';
+import { MotionReveal } from '@/src/components/customer/MotionReveal';
+import { PgBrowseList } from '@/src/components/customer/PgBrowseList';
 import { SafeModeBanner } from '@/src/components/customer/SafeModeBanner';
 import { ElectricityMeterNotice } from '@/src/components/customer/ElectricityMeterNotice';
 import { logServerRequest } from '@/src/lib/monitoring/logServerRequest';
@@ -88,17 +87,7 @@ export default async function PgListPage() {
           {pgs.length === 0 ? (
             <EmptyPgList />
           ) : (
-            <PgSearchFilter pgs={cardData}>
-              {(filtered) => (
-                <MotionPgGrid>
-                  {filtered.map((pg) => (
-                    <MotionPgGridItem key={pg.id}>
-                      <PgCard pg={pg} uploadScreenshot={uploadScreenshot} />
-                    </MotionPgGridItem>
-                  ))}
-                </MotionPgGrid>
-              )}
-            </PgSearchFilter>
+            <PgBrowseList pgs={cardData} uploadScreenshot={uploadScreenshot} />
           )}
         </div>
       </div>
