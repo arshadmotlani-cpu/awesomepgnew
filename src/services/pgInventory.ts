@@ -24,6 +24,7 @@ export type PgInventoryBedRow = {
   bedStatus: string;
   roomId: string;
   roomNumber: string;
+  floorNumber: number;
   floorLabel: string;
   roomTypeName: string;
   dailyRatePaise: number;
@@ -86,6 +87,7 @@ export async function getPgInventory(session: AdminSession, pgId: string) {
       bedStatus: beds.status,
       roomId: rooms.id,
       roomNumber: rooms.roomNumber,
+      floorNumber: floors.floorNumber,
       floorLabel: sql<string>`coalesce(${floors.label}, 'Floor ' || ${floors.floorNumber})`,
       roomTypeName: roomTypes.name,
       dailyRatePaise: activeBedPricePaise('daily_rate_paise'),
@@ -394,4 +396,99 @@ export async function updateRoomBedPricing(
       });
     }
   }
+}
+
+export type UpdateRoomDetailsInput = {
+  floorNumber: number;
+  floorLabel?: string;
+  roomNumber: string;
+};
+
+/** Move a room to another floor and/or change its room number. */
+export async function updateRoomDetails(
+  session: AdminSession,
+  pgId: string,
+  roomId: string,
+  input: UpdateRoomDetailsInput,
+): Promise<void> {
+  assertPgAccess(session, pgId);
+
+  if (!Number.isInteger(input.floorNumber)) {
+    throw new Error('Enter a valid floor number.');
+  }
+
+  const roomNumber = input.roomNumber.trim();
+  if (!roomNumber) {
+    throw new Error('Room number is required.');
+  }
+
+  const [roomRow] = await db
+    .select({
+      roomId: rooms.id,
+      pgId: floors.pgId,
+    })
+    .from(rooms)
+    .innerJoin(floors, eq(floors.id, rooms.floorId))
+    .where(
+      and(eq(rooms.id, roomId), isNull(rooms.archivedAt), isNull(floors.archivedAt)),
+    )
+    .limit(1);
+
+  if (!roomRow || roomRow.pgId !== pgId) {
+    throw new Error('Room not found.');
+  }
+
+  let [targetFloor] = await db
+    .select()
+    .from(floors)
+    .where(
+      and(
+        eq(floors.pgId, pgId),
+        eq(floors.floorNumber, input.floorNumber),
+        isNull(floors.archivedAt),
+      ),
+    )
+    .limit(1);
+
+  if (!targetFloor) {
+    [targetFloor] = await db
+      .insert(floors)
+      .values({
+        pgId,
+        floorNumber: input.floorNumber,
+        label: input.floorLabel?.trim() || `Floor ${input.floorNumber}`,
+      })
+      .returning();
+  } else if (input.floorLabel?.trim()) {
+    await db
+      .update(floors)
+      .set({ label: input.floorLabel.trim(), updatedAt: new Date() })
+      .where(eq(floors.id, targetFloor.id));
+  }
+
+  const [conflict] = await db
+    .select({ id: rooms.id })
+    .from(rooms)
+    .where(
+      and(
+        eq(rooms.floorId, targetFloor.id),
+        eq(rooms.roomNumber, roomNumber),
+        isNull(rooms.archivedAt),
+        sql`${rooms.id} <> ${roomId}`,
+      ),
+    )
+    .limit(1);
+
+  if (conflict) {
+    throw new Error(`Room ${roomNumber} already exists on this floor.`);
+  }
+
+  await db
+    .update(rooms)
+    .set({
+      floorId: targetFloor.id,
+      roomNumber,
+      updatedAt: new Date(),
+    })
+    .where(eq(rooms.id, roomId));
 }

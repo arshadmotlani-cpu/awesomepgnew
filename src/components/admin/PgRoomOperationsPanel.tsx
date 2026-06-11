@@ -7,6 +7,7 @@ import { RoomElectricityCard } from './RoomElectricityCard';
 import type { MeterLog } from '@/src/db/schema/meterLogs';
 import type { ElectricityBill } from '@/src/db/schema/electricityBills';
 import { ROOM_SHARING_OPTIONS, type RoomSharingCount } from '@/src/lib/roomSharing';
+import { RoomDetailsEditor } from './RoomDetailsEditor';
 import { RoomPricingEditor } from './RoomPricingEditor';
 
 type FloorRow = {
@@ -28,6 +29,7 @@ type RoomMeterData = {
 type RoomGroup = {
   roomId: string;
   roomNumber: string;
+  floorNumber: number;
   floorLabel: string;
   beds: PgInventoryBedRow[];
   meter: RoomMeterData | undefined;
@@ -69,6 +71,7 @@ export function PgRoomOperationsPanel({
         byRoom.set(bed.roomId, {
           roomId: bed.roomId,
           roomNumber: bed.roomNumber,
+          floorNumber: bed.floorNumber,
           floorLabel: bed.floorLabel,
           beds: [bed],
           meter: meterByRoom.get(bed.roomId),
@@ -78,9 +81,11 @@ export function PgRoomOperationsPanel({
 
     for (const m of roomMeters) {
       if (!byRoom.has(m.roomId)) {
+        const floorFromMeter = floors.find((f) => m.floorLabel.includes(String(f.floorNumber)));
         byRoom.set(m.roomId, {
           roomId: m.roomId,
           roomNumber: m.roomNumber,
+          floorNumber: floorFromMeter?.floorNumber ?? 0,
           floorLabel: m.floorLabel,
           beds: [],
           meter: m,
@@ -91,7 +96,7 @@ export function PgRoomOperationsPanel({
     return [...byRoom.values()].sort((a, b) =>
       a.roomNumber.localeCompare(b.roomNumber, undefined, { numeric: true }),
     );
-  }, [beds, roomMeters]);
+  }, [beds, roomMeters, floors]);
 
   const availableCount = beds.filter((b) => b.bedStatus === 'available').length;
 
@@ -321,10 +326,13 @@ export function PgRoomOperationsPanel({
               className="rounded-xl border border-zinc-800 bg-zinc-950/40 overflow-hidden"
             >
               <header className="border-b border-zinc-800 bg-zinc-950/60 px-4 py-3">
-                <h4 className="font-semibold text-white">
-                  Room {room.roomNumber}
-                  <span className="ml-2 text-sm font-normal text-zinc-500">{room.floorLabel}</span>
-                </h4>
+                <RoomDetailsEditor
+                  pgId={pgId}
+                  roomId={room.roomId}
+                  roomNumber={room.roomNumber}
+                  floorNumber={room.floorNumber}
+                  floorLabel={room.floorLabel}
+                />
               </header>
               <div className="p-4 space-y-4">
                 {room.beds.length > 0 ? (

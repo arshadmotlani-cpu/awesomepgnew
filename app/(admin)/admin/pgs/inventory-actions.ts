@@ -3,7 +3,11 @@
 import { revalidatePath } from 'next/cache';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { parseSharingCount, sharingTypeName } from '@/src/lib/roomSharing';
-import { quickAddRoomBeds, updateRoomBedPricing } from '@/src/services/pgInventory';
+import {
+  quickAddRoomBeds,
+  updateRoomBedPricing,
+  updateRoomDetails,
+} from '@/src/services/pgInventory';
 
 function parseRupeesPaise(raw: string | null | undefined): number | undefined {
   if (!raw || raw.trim() === '') return undefined;
@@ -70,6 +74,34 @@ export async function quickAddBedAction(
           ? `Added bed ${codes} in room ${result.roomNumber}.`
           : `Added ${result.bedCodes.length} beds (${codes}) in room ${result.roomNumber}.`,
     };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function updateRoomDetailsAction(
+  pgId: string,
+  formData: FormData,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const session = await requireAdminPermission('pgs:write');
+    const roomId = formData.get('roomId')?.toString()?.trim();
+    if (!roomId) {
+      return { ok: false, error: 'Room not found.' };
+    }
+
+    const floorNumber = Number.parseInt(formData.get('floorNumber')?.toString() ?? '', 10);
+    const roomNumber = formData.get('roomNumber')?.toString() ?? '';
+
+    await updateRoomDetails(session, pgId, roomId, {
+      floorNumber,
+      floorLabel: formData.get('floorLabel')?.toString(),
+      roomNumber,
+    });
+
+    revalidatePath(`/admin/pgs/${pgId}/edit`);
+    revalidatePath('/pgs');
+    return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
