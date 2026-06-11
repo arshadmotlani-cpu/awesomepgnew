@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
+import { parseSharingCount, sharingTypeName } from '@/src/lib/roomSharing';
 import { quickAddBed } from '@/src/services/pgInventory';
 
 export async function quickAddBedAction(
@@ -17,14 +18,19 @@ export async function quickAddBedAction(
     const monthly = Number.parseFloat(formData.get('monthlyRate')?.toString() ?? '0');
     const deposit = Number.parseFloat(formData.get('securityDeposit')?.toString() ?? '0');
 
+    const sharing = parseSharingCount(formData.get('sharingCount')?.toString());
+    if (!sharing) {
+      return { ok: false, error: 'Select a sharing type (1–5 sharing).' };
+    }
+
     await quickAddBed(session, pgId, {
       floorNumber,
       floorLabel: formData.get('floorLabel')?.toString(),
       roomNumber: formData.get('roomNumber')?.toString() ?? '',
       bedCode: formData.get('bedCode')?.toString() ?? '',
-      roomTypeName: formData.get('roomTypeName')?.toString() ?? 'Standard',
+      roomTypeName: sharingTypeName(sharing),
       hasAc: formData.get('hasAc') === 'on',
-      capacity: Number.parseInt(formData.get('capacity')?.toString() ?? '1', 10) || 1,
+      capacity: sharing,
       dailyRatePaise: Math.round(daily * 100),
       weeklyRatePaise: Math.round(weekly * 100),
       monthlyRatePaise: Math.round(monthly * 100),

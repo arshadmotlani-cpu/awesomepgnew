@@ -7,6 +7,7 @@ import type { PgInventoryBedRow } from '@/src/services/pgInventory';
 import { RoomElectricityCard } from './RoomElectricityCard';
 import type { MeterLog } from '@/src/db/schema/meterLogs';
 import type { ElectricityBill } from '@/src/db/schema/electricityBills';
+import { ROOM_SHARING_OPTIONS } from '@/src/lib/roomSharing';
 
 type FloorRow = {
   id: string;
@@ -176,23 +177,22 @@ export function PgRoomOperationsPanel({
               />
             </label>
             <label className="text-sm">
-              <span className="text-zinc-400">Room type *</span>
-              <input
-                name="roomTypeName"
+              <span className="text-zinc-400">Sharing type *</span>
+              <select
+                name="sharingCount"
                 required
-                defaultValue="Standard Sharing"
+                defaultValue="2"
                 className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
-              />
-            </label>
-            <label className="text-sm">
-              <span className="text-zinc-400">Capacity</span>
-              <input
-                name="capacity"
-                type="number"
-                min={1}
-                defaultValue={1}
-                className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
-              />
+              >
+                {ROOM_SHARING_OPTIONS.map((opt) => (
+                  <option key={opt.count} value={opt.count}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <span className="mt-1 block text-xs text-zinc-500">
+                How many people share this room (sets room capacity).
+              </span>
             </label>
             <label className="flex items-center gap-2 text-sm text-zinc-300 sm:col-span-2">
               <input type="checkbox" name="hasAc" />
@@ -286,7 +286,7 @@ export function PgRoomOperationsPanel({
                       <thead className="text-left text-xs text-zinc-500">
                         <tr>
                           <th className="pb-2 pr-4">Bed</th>
-                          <th className="pb-2 pr-4">Type</th>
+                          <th className="pb-2 pr-4">Sharing</th>
                           <th className="pb-2 pr-4">Monthly rent</th>
                           <th className="pb-2">Status</th>
                         </tr>

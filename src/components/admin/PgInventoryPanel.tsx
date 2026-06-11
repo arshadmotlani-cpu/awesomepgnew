@@ -4,6 +4,7 @@ import { useActionState } from 'react';
 import { quickAddBedAction } from '@/app/(admin)/admin/pgs/inventory-actions';
 import { paiseToInr } from '@/src/lib/format';
 import type { PgInventoryBedRow } from '@/src/services/pgInventory';
+import { ROOM_SHARING_OPTIONS } from '@/src/lib/roomSharing';
 
 type FloorRow = {
   id: string;
@@ -70,12 +71,19 @@ export function PgInventoryPanel({
           <input name="bedCode" required placeholder="B1" className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white" />
         </label>
         <label className="text-sm">
-          <span className="text-zinc-400">Room type *</span>
-          <input name="roomTypeName" required defaultValue="Standard Sharing" className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white" />
-        </label>
-        <label className="text-sm">
-          <span className="text-zinc-400">Capacity</span>
-          <input name="capacity" type="number" min={1} defaultValue={1} className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white" />
+          <span className="text-zinc-400">Sharing type *</span>
+          <select
+            name="sharingCount"
+            required
+            defaultValue="2"
+            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
+          >
+            {ROOM_SHARING_OPTIONS.map((opt) => (
+              <option key={opt.count} value={opt.count}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="flex items-center gap-2 text-sm text-zinc-300 sm:col-span-2">
           <input type="checkbox" name="hasAc" />
