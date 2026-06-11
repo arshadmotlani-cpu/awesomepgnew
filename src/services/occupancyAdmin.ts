@@ -132,6 +132,122 @@ export async function markPgFullyOccupied(
   return { bedsMarked: vacantBeds.length, bookingCode };
 }
 
+export type ClearPgOccupancyResult = {
+  pgId: string;
+  pgName: string;
+  bedsReleased: number;
+  bookingsCancelled: number;
+};
+
+/**
+ * Cancel admin "occupancy placeholder" bookings for a PG so beds show
+ * available again on the website. Only touches bookings created by
+ * {@link markPgFullyOccupied} (placeholder customer / marker notes) — not
+ * real tenant assignments.
+ */
+export async function clearPgOccupancyPlaceholders(
+  session: AdminSession,
+  pgId: string,
+): Promise<{ bedsReleased: number; bookingsCancelled: number }> {
+  assertPgAccess(session, pgId);
+
+  const [pg] = await db
+    .select({ id: pgs.id, name: pgs.name })
+    .from(pgs)
+    .where(and(eq(pgs.id, pgId), isNull(pgs.archivedAt)))
+    .limit(1);
+  if (!pg) throw new Error('PG not found.');
+
+  const rows = await db
+    .selectDistinct({ bookingId: bookings.id })
+    .from(bookings)
+    .innerJoin(customers, eq(customers.id, bookings.customerId))
+    .innerJoin(bedReservations, eq(bedReservations.bookingId, bookings.id))
+    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
+    .innerJoin(floors, eq(floors.id, rooms.floorId))
+    .where(
+      and(
+        eq(floors.pgId, pgId),
+        eq(bookings.status, 'confirmed'),
+        sql`${bedReservations.status} IN ('hold', 'active')`,
+        sql`(
+          ${customers.phone} = ${PLACEHOLDER_PHONE}
+          OR ${customers.email} = 'occupancy@awesomepg.internal'
+          OR ${bookings.notes} ILIKE '%occupancy placeholder%'
+          OR ${bookings.notes} ILIKE '%Full occupancy marker%'
+          OR ${bookings.notes} ILIKE '%full occupancy%'
+          OR ${bookings.pricingSnapshot}::text ILIKE '%Occupancy placeholder%'
+          OR (
+            ${bookings.createdVia} = 'admin'
+            AND ${bookings.subtotalPaise} = 0
+            AND ${bookings.depositPaise} = 0
+            AND ${bookings.notes} ILIKE '%occupancy%'
+          )
+        )`,
+      ),
+    );
+
+  let bedsReleased = 0;
+  const now = new Date();
+  for (const { bookingId } of rows) {
+    const released = await db.transaction(async (tx) => {
+      const cancelled = await tx
+        .update(bedReservations)
+        .set({ status: 'cancelled', updatedAt: now })
+        .where(
+          and(
+            eq(bedReservations.bookingId, bookingId),
+            sql`${bedReservations.status} IN ('hold', 'active')`,
+          ),
+        )
+        .returning({ id: bedReservations.id });
+
+      await tx
+        .update(bookings)
+        .set({
+          status: 'cancelled',
+          cancelledAt: now,
+          cancellationReason: 'Occupancy placeholder cleared — beds available for assignment.',
+          updatedAt: now,
+        })
+        .where(eq(bookings.id, bookingId));
+
+      return cancelled.length;
+    });
+    bedsReleased += released;
+  }
+
+  return { bedsReleased, bookingsCancelled: rows.length };
+}
+
+type PgNamePatternOptions = {
+  excludePatterns?: string[];
+};
+
+/** Clear occupancy placeholders on every PG matching name patterns. */
+export async function clearPgOccupancyPlaceholdersByPatterns(
+  session: AdminSession,
+  patterns: string[],
+  options?: PgNamePatternOptions,
+): Promise<ClearPgOccupancyResult[]> {
+  const matches = await findPgIdsByNamePatterns(patterns, options);
+  const results: ClearPgOccupancyResult[] = [];
+  for (const pg of matches) {
+    const { bedsReleased, bookingsCancelled } = await clearPgOccupancyPlaceholders(
+      session,
+      pg.id,
+    );
+    results.push({
+      pgId: pg.id,
+      pgName: pg.name,
+      bedsReleased,
+      bookingsCancelled,
+    });
+  }
+  return results;
+}
+
 export type MarkPgOccupancyResult = {
   pgId: string;
   pgName: string;
@@ -143,8 +259,9 @@ export type MarkPgOccupancyResult = {
 export async function markPgsFullyOccupiedByPatterns(
   session: AdminSession,
   patterns: string[],
+  options?: PgNamePatternOptions,
 ): Promise<MarkPgOccupancyResult[]> {
-  const matches = await findPgIdsByNamePatterns(patterns);
+  const matches = await findPgIdsByNamePatterns(patterns, options);
   const results: MarkPgOccupancyResult[] = [];
   for (const pg of matches) {
     const { bedsMarked, bookingCode } = await markPgFullyOccupied(session, pg.id);
@@ -154,9 +271,10 @@ export async function markPgsFullyOccupiedByPatterns(
 }
 
 /** Match PGs by partial name (case-insensitive). */
-export async function findPgIdsByNamePatterns(patterns: string[]): Promise<
-  Array<{ id: string; name: string }>
-> {
+export async function findPgIdsByNamePatterns(
+  patterns: string[],
+  options?: PgNamePatternOptions,
+): Promise<Array<{ id: string; name: string }>> {
   const rows = await db
     .select({ id: pgs.id, name: pgs.name })
     .from(pgs)
@@ -164,7 +282,11 @@ export async function findPgIdsByNamePatterns(patterns: string[]): Promise<
     .orderBy(asc(pgs.name));
 
   const normalized = patterns.map((p) => p.toLowerCase());
-  return rows.filter((r) =>
-    normalized.some((p) => r.name.toLowerCase().includes(p)),
-  );
+  const excluded = (options?.excludePatterns ?? []).map((p) => p.toLowerCase());
+  return rows.filter((r) => {
+    const name = r.name.toLowerCase();
+    const included = normalized.some((p) => name.includes(p));
+    const rejected = excluded.some((p) => name.includes(p));
+    return included && !rejected;
+  });
 }
