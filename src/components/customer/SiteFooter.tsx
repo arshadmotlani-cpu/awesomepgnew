@@ -8,8 +8,7 @@ export function SiteFooter() {
           <div>
             <p className="text-sm font-semibold text-white">Awesome PG</p>
             <p className="mt-2 max-w-xs text-xs leading-relaxed text-apg-silver">
-              Premium paying-guest living with bed-first booking, social spaces, and resident perks
-              built for 2050 — available now.
+              Premium paying-guest living with bed-first booking, social spaces, and resident perks.
             </p>
           </div>
           <div>

@@ -56,7 +56,7 @@ export function LandingPage() {
         >
           <span className="inline-flex items-center gap-2 rounded-full border border-apg-orange/30 bg-apg-orange/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-apg-orange">
             <span className="h-1.5 w-1.5 rounded-full bg-apg-orange apg-float" />
-            Awesome PG · 2050 living, today
+            Awesome PG
           </span>
           <h1 className="mt-8 text-4xl font-semibold leading-[1.08] tracking-tight sm:text-6xl lg:text-7xl">
             Not just a room.
