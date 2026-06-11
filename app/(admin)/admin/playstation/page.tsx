@@ -3,7 +3,7 @@ import { EmptyState } from '@/src/components/admin/EmptyState';
 import { IconCard } from '@/src/components/admin/icons';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
-import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
+import { formatDate, formatDateTime, paiseToInr, titleCase } from '@/src/lib/format';
 import { PS4_ADDON_LABEL, PS4_PLANS, type Ps4PlanId } from '@/src/lib/playstation/plans';
 import { adminPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import { PaymentScreenshotPreview } from '@/src/components/admin/PaymentScreenshotPreview';
@@ -55,7 +55,8 @@ export default async function AdminPlaystationPage() {
               <TH>Status</TH>
               <TH className="text-right">Amount</TH>
               <TH>Proof</TH>
-              <TH>Valid until</TH>
+              <TH>Starts</TH>
+              <TH>Ends</TH>
               <TH>Created</TH>
               <TH className="text-right">Actions</TH>
             </TR>
@@ -92,8 +93,11 @@ export default async function AdminPlaystationPage() {
                     <div className="mt-0.5 font-mono text-[10px] text-zinc-500">{m.transactionRef}</div>
                   ) : null}
                 </TD>
-                <TD className="text-xs">
-                  {m.expiresAt ? formatDate(m.expiresAt) : '—'}
+                <TD className="text-xs whitespace-nowrap">
+                  {m.startsAt ? formatDateTime(m.startsAt) : '—'}
+                </TD>
+                <TD className="text-xs whitespace-nowrap">
+                  {m.expiresAt ? formatDateTime(m.expiresAt) : '—'}
                 </TD>
                 <TD className="text-xs text-zinc-500">{formatDate(m.createdAt)}</TD>
                 <TD className="text-right">

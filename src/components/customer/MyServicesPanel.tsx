@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
+import { formatDate, formatDateTime, paiseToInr, titleCase } from '@/src/lib/format';
 import { PS4_ADDON_LABEL, PS4_PLANS, type Ps4PlanId } from '@/src/lib/playstation/plans';
 import type { PlaystationMembership } from '@/src/db/schema/playstationMemberships';
 
@@ -39,14 +39,22 @@ export function MyServicesPanel({ membership, isActiveTenant }: Props) {
         </div>
 
         {active && membership ? (
-          <dl className="mt-3 grid gap-1 text-xs sm:grid-cols-2">
+          <dl className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
             <div>
               <dt className="text-zinc-500">Plan</dt>
               <dd className="font-medium">{PS4_PLANS[membership.plan as Ps4PlanId].label}</dd>
             </div>
             <div>
-              <dt className="text-zinc-500">Valid until</dt>
-              <dd className="font-medium">{formatDate(membership.expiresAt!)}</dd>
+              <dt className="text-zinc-500">Amount</dt>
+              <dd className="font-medium">{paiseToInr(membership.amountPaise)}</dd>
+            </div>
+            <div className="sm:col-span-2">
+              <dt className="text-zinc-500">Subscription starts</dt>
+              <dd className="font-medium">{formatDateTime(membership.startsAt)}</dd>
+            </div>
+            <div className="sm:col-span-2">
+              <dt className="text-zinc-500">Subscription ends</dt>
+              <dd className="font-medium">{formatDateTime(membership.expiresAt)}</dd>
             </div>
           </dl>
         ) : membership?.status === 'pending_payment' ? (

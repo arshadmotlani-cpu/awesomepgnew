@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { uploadPaymentScreenshotAction } from '@/app/(admin)/admin/pgs/payment-actions';
 import { Ps4PaymentProofForm } from '@/src/components/customer/Ps4PaymentProofForm';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
-import { formatDate, paiseToInr } from '@/src/lib/format';
+import { formatDateTime, paiseToInr } from '@/src/lib/format';
 import {
   DEFAULT_ELECTRICITY_DAILY_QR_PATH,
   DEFAULT_ELECTRICITY_DAILY_UPI_ID,
@@ -86,10 +86,16 @@ export default async function PayPs4Page({
           <dd className="text-right capitalize text-white">
             {membership.status.replace('_', ' ')}
           </dd>
+          {membership.startsAt ? (
+            <>
+              <dt className="text-apg-silver">Subscription starts</dt>
+              <dd className="text-right text-white">{formatDateTime(membership.startsAt)}</dd>
+            </>
+          ) : null}
           {membership.expiresAt ? (
             <>
-              <dt className="text-apg-silver">Current expiry</dt>
-              <dd className="text-right text-white">{formatDate(membership.expiresAt)}</dd>
+              <dt className="text-apg-silver">Subscription ends</dt>
+              <dd className="text-right text-white">{formatDateTime(membership.expiresAt)}</dd>
             </>
           ) : null}
           <dt className="pt-2 text-base font-semibold text-white">Amount due</dt>
@@ -147,7 +153,17 @@ export default async function PayPs4Page({
         )
       ) : active?.id === membership.id ? (
         <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
-          Your PS4 add-on is active until {formatDate(membership.expiresAt!)}.
+          Your PS4 add-on is active
+          {membership.startsAt && membership.expiresAt ? (
+            <>
+              {' '}
+              from {formatDateTime(membership.startsAt)} until {formatDateTime(membership.expiresAt)}.
+            </>
+          ) : membership.expiresAt ? (
+            <> until {formatDateTime(membership.expiresAt)}.</>
+          ) : (
+            <>.</>
+          )}
         </p>
       ) : null}
     </div>
