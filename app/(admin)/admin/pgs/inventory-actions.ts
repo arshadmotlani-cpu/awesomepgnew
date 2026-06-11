@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { parseSharingCount, sharingTypeName } from '@/src/lib/roomSharing';
 import {
+  archiveBed,
+  archiveRoom,
   quickAddRoomBeds,
   updateRoomBedPricing,
   updateRoomDetails,
@@ -101,6 +103,39 @@ export async function updateRoomDetailsAction(
 
     revalidatePath(`/admin/pgs/${pgId}/edit`);
     revalidatePath('/pgs');
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function archiveBedAction(
+  pgId: string,
+  bedId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const session = await requireAdminPermission('pgs:write');
+    await archiveBed(session, pgId, bedId);
+    revalidatePath(`/admin/pgs/${pgId}/edit`);
+    revalidatePath('/pgs');
+    revalidatePath('/admin/beds');
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function archiveRoomAction(
+  pgId: string,
+  roomId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const session = await requireAdminPermission('pgs:write');
+    await archiveRoom(session, pgId, roomId);
+    revalidatePath(`/admin/pgs/${pgId}/edit`);
+    revalidatePath('/pgs');
+    revalidatePath('/admin/beds');
+    revalidatePath('/admin/rooms');
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };

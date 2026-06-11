@@ -3,6 +3,7 @@ import { autoBedCodes } from '@/src/lib/roomSharing';
 import { db } from '@/src/db/client';
 import {
   bedPrices,
+  bedReservations,
   beds,
   floors,
   pgs,
@@ -490,5 +491,110 @@ export async function updateRoomDetails(
       roomNumber,
       updatedAt: new Date(),
     })
+    .where(eq(rooms.id, roomId));
+}
+
+async function bedHasActiveReservation(bedId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: bedReservations.id })
+    .from(bedReservations)
+    .where(
+      and(
+        eq(bedReservations.bedId, bedId),
+        sql`${bedReservations.status} IN ('hold', 'active')`,
+      ),
+    )
+    .limit(1);
+  return Boolean(row);
+}
+
+async function assertBedInPg(pgId: string, bedId: string) {
+  const [row] = await db
+    .select({ bedId: beds.id })
+    .from(beds)
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
+    .innerJoin(floors, eq(floors.id, rooms.floorId))
+    .where(
+      and(
+        eq(beds.id, bedId),
+        eq(floors.pgId, pgId),
+        isNull(beds.archivedAt),
+        isNull(rooms.archivedAt),
+        isNull(floors.archivedAt),
+      ),
+    )
+    .limit(1);
+  if (!row) throw new Error('Bed not found.');
+}
+
+async function assertRoomInPg(pgId: string, roomId: string) {
+  const [row] = await db
+    .select({ roomId: rooms.id })
+    .from(rooms)
+    .innerJoin(floors, eq(floors.id, rooms.floorId))
+    .where(
+      and(
+        eq(rooms.id, roomId),
+        eq(floors.pgId, pgId),
+        isNull(rooms.archivedAt),
+        isNull(floors.archivedAt),
+      ),
+    )
+    .limit(1);
+  if (!row) throw new Error('Room not found.');
+}
+
+/** Soft-delete a bed (hidden from listings; booking history kept). */
+export async function archiveBed(
+  session: AdminSession,
+  pgId: string,
+  bedId: string,
+): Promise<void> {
+  assertPgAccess(session, pgId);
+  await assertBedInPg(pgId, bedId);
+
+  if (await bedHasActiveReservation(bedId)) {
+    throw new Error('Cannot remove this bed — it has an active booking or hold.');
+  }
+
+  await db
+    .update(beds)
+    .set({ archivedAt: new Date(), updatedAt: new Date() })
+    .where(eq(beds.id, bedId));
+}
+
+/** Soft-delete a room and all its beds. */
+export async function archiveRoom(
+  session: AdminSession,
+  pgId: string,
+  roomId: string,
+): Promise<void> {
+  assertPgAccess(session, pgId);
+  await assertRoomInPg(pgId, roomId);
+
+  const roomBeds = await db
+    .select({ bedId: beds.id })
+    .from(beds)
+    .where(and(eq(beds.roomId, roomId), isNull(beds.archivedAt)));
+
+  for (const { bedId } of roomBeds) {
+    if (await bedHasActiveReservation(bedId)) {
+      throw new Error(
+        'Cannot remove this room — one or more beds have an active booking or hold.',
+      );
+    }
+  }
+
+  const now = new Date();
+  if (roomBeds.length > 0) {
+    await db
+      .update(beds)
+      .set({ archivedAt: now, updatedAt: now })
+      .where(and(eq(beds.roomId, roomId), isNull(beds.archivedAt)));
+  }
+
+  await db
+    .update(rooms)
+    .set({ archivedAt: now, updatedAt: now })
     .where(eq(rooms.id, roomId));
 }

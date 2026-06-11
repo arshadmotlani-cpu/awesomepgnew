@@ -2,7 +2,10 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { updateRoomPricingAction } from '@/app/(admin)/admin/pgs/inventory-actions';
+import {
+  archiveBedAction,
+  updateRoomPricingAction,
+} from '@/app/(admin)/admin/pgs/inventory-actions';
 import { paiseToInr } from '@/src/lib/format';
 import type { PgInventoryBedRow } from '@/src/services/pgInventory';
 
@@ -60,8 +63,25 @@ export function RoomPricingEditor({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [removingBedId, setRemovingBedId] = useState<string | null>(null);
 
   const mixed = bedsHaveMixedPricing(beds);
+
+  async function onRemoveBed(bedId: string, bedCode: string) {
+    const confirmed = window.confirm(
+      `Remove bed ${bedCode}? Past bookings stay in records.`,
+    );
+    if (!confirmed) return;
+    setRemovingBedId(bedId);
+    setError(null);
+    const result = await archiveBedAction(pgId, bedId);
+    setRemovingBedId(null);
+    if (!result.ok) {
+      setError(result.error ?? 'Failed to remove bed');
+      return;
+    }
+    router.refresh();
+  }
 
   async function onSave(e: React.FormEvent) {
     e.preventDefault();
@@ -114,6 +134,8 @@ export function RoomPricingEditor({
           Beds in this room have different prices. Editing applies the same rent to all beds here.
         </p>
       ) : null}
+
+      {error && !open ? <p className="mb-2 text-sm text-rose-400">{error}</p> : null}
 
       {open ? (
         <form
@@ -211,7 +233,8 @@ export function RoomPricingEditor({
             <th className="pb-2 pr-4">Sharing</th>
             <th className="pb-2 pr-4">Monthly</th>
             <th className="pb-2 pr-4">Weekly</th>
-            <th className="pb-2">Status</th>
+            <th className="pb-2 pr-4">Status</th>
+            <th className="pb-2"> </th>
           </tr>
         </thead>
         <tbody className="text-zinc-300">
@@ -223,7 +246,17 @@ export function RoomPricingEditor({
               <td className="py-1 pr-4">
                 {b.weeklyRatePaise > 0 ? paiseToInr(b.weeklyRatePaise) : '—'}
               </td>
-              <td className="py-1 capitalize">{b.bedStatus}</td>
+              <td className="py-1 pr-4 capitalize">{b.bedStatus}</td>
+              <td className="py-1">
+                <button
+                  type="button"
+                  onClick={() => onRemoveBed(b.bedId, b.bedCode)}
+                  disabled={removingBedId === b.bedId}
+                  className="text-xs text-rose-400 hover:underline disabled:opacity-50"
+                >
+                  {removingBedId === b.bedId ? 'Removing…' : 'Remove'}
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>

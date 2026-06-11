@@ -2,7 +2,10 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { updateRoomDetailsAction } from '@/app/(admin)/admin/pgs/inventory-actions';
+import {
+  archiveRoomAction,
+  updateRoomDetailsAction,
+} from '@/app/(admin)/admin/pgs/inventory-actions';
 
 function editableFloorLabel(label: string, floorNumber: number): string {
   const auto = `Floor ${floorNumber}`;
@@ -30,6 +33,7 @@ export function RoomDetailsEditor({
     floorLabel: editableFloorLabel(floorLabel, floorNumber),
   });
   const [pending, setPending] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function resetFromProps() {
@@ -59,6 +63,22 @@ export function RoomDetailsEditor({
     router.refresh();
   }
 
+  async function onRemoveRoom() {
+    const confirmed = window.confirm(
+      `Remove room ${roomNumber} and all its beds? This cannot be undone from the admin UI. Past bookings stay in records.`,
+    );
+    if (!confirmed) return;
+    setRemoving(true);
+    setError(null);
+    const result = await archiveRoomAction(pgId, roomId);
+    setRemoving(false);
+    if (!result.ok) {
+      setError(result.error ?? 'Failed to remove room');
+      return;
+    }
+    router.refresh();
+  }
+
   return (
     <div className="flex flex-wrap items-start justify-between gap-2">
       <div>
@@ -67,17 +87,28 @@ export function RoomDetailsEditor({
           <span className="ml-2 text-sm font-normal text-zinc-500">{floorLabel}</span>
         </h4>
       </div>
-      <button
-        type="button"
-        onClick={() => {
-          resetFromProps();
-          setOpen((v) => !v);
-          setError(null);
-        }}
-        className="text-xs font-medium text-[#FF5A1F] hover:underline"
-      >
-        {open ? 'Cancel' : 'Edit room / floor'}
-      </button>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            resetFromProps();
+            setOpen((v) => !v);
+            setError(null);
+          }}
+          className="text-xs font-medium text-[#FF5A1F] hover:underline"
+        >
+          {open ? 'Cancel' : 'Edit room / floor'}
+        </button>
+        <button
+          type="button"
+          onClick={onRemoveRoom}
+          disabled={removing}
+          className="text-xs font-medium text-rose-400 hover:underline disabled:opacity-50"
+        >
+          {removing ? 'Removing…' : 'Remove room'}
+        </button>
+      </div>
+      {error && !open ? <p className="w-full text-sm text-rose-400">{error}</p> : null}
 
       {open ? (
         <form
