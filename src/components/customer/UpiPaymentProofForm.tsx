@@ -152,8 +152,7 @@ export function UpiPaymentProofForm({
         <input
           id={inputId}
           type="file"
-          accept="image/*"
-          capture="environment"
+          accept="image/*,.heic,.heif"
           className="sr-only"
           onChange={(e) => void onFile(e.target.files?.[0] ?? null)}
         />
@@ -185,9 +184,9 @@ export function UpiPaymentProofForm({
               <span className="text-2xl" aria-hidden>
                 📷
               </span>
-              <span className="text-sm font-semibold text-white">Tap to upload screenshot</span>
+              <span className="text-sm font-semibold text-white">Choose screenshot from gallery</span>
               <span className="text-xs text-apg-silver">
-                Photo from gallery or UPI payment success screen
+                Photo library, Files, or saved UPI payment receipt
               </span>
             </>
           )}
