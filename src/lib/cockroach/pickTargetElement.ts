@@ -11,7 +11,7 @@ const TARGET_SELECTORS = [
 ] as const;
 
 const IGNORE_SELECTOR =
-  '[data-cockroach-ignore], .roachie-guide, [aria-label="Support on WhatsApp"]';
+  '[data-cockroach-ignore], .roachie-widget, .roachie-recall, [aria-label="Support on WhatsApp"]';
 
 function isVisible(el: HTMLElement): boolean {
   const rect = el.getBoundingClientRect();

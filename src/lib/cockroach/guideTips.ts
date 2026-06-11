@@ -57,10 +57,5 @@ export function guideExplanation(args: {
 }): string {
   const tips = tipsForPath(args.pageContext.pathname);
   const idx = (args.index ?? 0) % tips.length;
-  const tip = tips[idx]!;
-  const label = args.elementContext.text?.trim();
-  if (label) {
-    return `${tip} Right now I am pointing at “${label.slice(0, 80)}”.`;
-  }
-  return tip;
+  return tips[idx]!;
 }
