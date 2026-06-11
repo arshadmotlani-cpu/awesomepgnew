@@ -31,8 +31,12 @@
 
 body {
   background: var(--background);
-  color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/* Dark customer shell default — do not set on body (white cards would inherit it). */
+.apg-customer-shell {
+  color: #f4f6f8;
 }
 
 /* Aurora mesh background */
@@ -198,7 +202,40 @@ body {
 
 .apg-account-surface .apg-subscription-value {
   color: #030712 !important;
+  -webkit-text-fill-color: #030712 !important;
   font-weight: 700;
+}
+
+/*
+ * White Tailwind surfaces inside the dark shell: force readable text.
+ * Fixes copyable-but-invisible values when light foreground inherits onto bg-white.
+ */
+.bg-white,
+.bg-zinc-50 {
+  color: #18181b;
+  color-scheme: light;
+  -webkit-text-fill-color: #18181b;
+}
+
+.bg-white :is(dd, td, th, li, p, span, div, h1, h2, h3, h4, a, button),
+.bg-zinc-50 :is(dd, td, th, li, p, span, div, h1, h2, h3, h4, a, button) {
+  -webkit-text-fill-color: currentColor;
+}
+
+.bg-white dd,
+.bg-zinc-50 dd,
+.bg-white .font-medium,
+.bg-zinc-50 .font-medium,
+.bg-white .font-semibold,
+.bg-zinc-50 .font-semibold {
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+.bg-white dt,
+.bg-zinc-50 dt {
+  color: #52525b !important;
+  -webkit-text-fill-color: #52525b !important;
 }
 
 .apg-account-nav {

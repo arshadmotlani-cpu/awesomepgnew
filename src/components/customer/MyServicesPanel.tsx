@@ -136,7 +136,7 @@ function SubscriptionField({
       </div>
       <div
         className="mt-1 text-base font-bold leading-snug text-white"
-        style={{ color: '#ffffff' }}
+        style={{ color: '#ffffff', WebkitTextFillColor: '#ffffff' }}
       >
         {value}
       </div>

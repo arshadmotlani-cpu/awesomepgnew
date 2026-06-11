@@ -15,7 +15,7 @@ export default function CustomerLayout({
   const cockroachEnabled = isCockroachGuideEnabled();
 
   return (
-    <div className="flex min-h-screen flex-col bg-apg-charcoal text-[#f4f6f8]">
+    <div className="apg-customer-shell flex min-h-screen flex-col bg-apg-charcoal">
       <SiteHeader />
       <main className="flex-1">{children}</main>
       <SiteFooter />
