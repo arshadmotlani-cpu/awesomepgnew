@@ -145,18 +145,9 @@ export const env = {
     return optional('SMTP_PASS');
   },
 
-  // ── Cockroach AI onboarding guide ───────────────────────────────────────
-  /** Server-only OpenAI key for /api/cockroach-explain. Never expose to the client. */
-  get OPENAI_API_KEY() {
-    return optional('OPENAI_API_KEY');
-  },
-  /** Set to "false" to disable the Roachie widget even when OPENAI_API_KEY is set. */
+  /** Set to "false" to hide the Roachie site guide on customer pages. */
   get COCKROACH_AI_ENABLED() {
     return process.env.COCKROACH_AI_ENABLED !== 'false';
-  },
-  /** OpenAI model for UI explanations. Default gpt-4.1-mini. */
-  get COCKROACH_AI_MODEL() {
-    return optional('COCKROACH_AI_MODEL') ?? 'gpt-4.1-mini';
   },
 } as const;
 

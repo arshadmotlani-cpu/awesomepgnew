@@ -5,32 +5,24 @@ import {
   describeElement,
   getPageContext,
 } from '@/src/lib/cockroach/pageContextBuilder';
-import {
-  inferUserStage,
-  pickVisibleTargets,
-} from '@/src/lib/cockroach/pickTargetElement';
-import type { CockroachExplainResponse } from '@/src/lib/cockroach/types';
-import { fallbackExplanation } from '@/src/lib/cockroach/fallbackTips';
+import { guideExplanation } from '@/src/lib/cockroach/guideTips';
+import { pickVisibleTargets } from '@/src/lib/cockroach/pickTargetElement';
 
 const GUIDE_INTERVAL_MS = 8000;
 const HIGHLIGHT_CLASS = 'cockroach-ai-highlight';
 
 type Props = {
-  /** When false, the widget is not rendered at all. */
   enabled?: boolean;
 };
 
-export function CockroachGPTEngine({ enabled = true }: Props) {
+export function CockroachGuide({ enabled = true }: Props) {
   const [message, setMessage] = useState('Hi! I’m Roachie. I’ll show you around.');
-  const [loading, setLoading] = useState(false);
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(false);
   const [minimized, setMinimized] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const targetIndexRef = useRef(0);
   const highlightedRef = useRef<HTMLElement | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
   const pausedRef = useRef(paused);
   const minimizedRef = useRef(minimized);
 
@@ -65,7 +57,7 @@ export function CockroachGPTEngine({ enabled = true }: Props) {
     [clearHighlight],
   );
 
-  const explainNext = useCallback(async () => {
+  const showNextTip = useCallback(() => {
     if (pausedRef.current || minimizedRef.current) return;
 
     const targets = pickVisibleTargets();
@@ -78,90 +70,31 @@ export function CockroachGPTEngine({ enabled = true }: Props) {
     targetIndexRef.current += 1;
     const target = targets[index]!;
 
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
+    const pageContext = getPageContext();
+    const elementContext = describeElement(target);
+    const text = guideExplanation({
+      pageContext,
+      elementContext,
+      index: targetIndexRef.current,
+    });
 
-    setLoading(true);
-    setError(null);
-
-    try {
-      const res = await fetch('/api/cockroach-explain', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
-        body: JSON.stringify({
-          pageContext: getPageContext(),
-          elementContext: describeElement(target),
-          userStage: inferUserStage(window.location.pathname),
-        }),
-      });
-
-      if (!res.ok) {
-        const payload = (await res.json().catch(() => null)) as {
-          error?: string;
-          message?: string;
-        } | null;
-        const pageContext = getPageContext();
-        const elementContext = describeElement(target);
-        const fallback = fallbackExplanation({
-          pageContext,
-          elementContext,
-          index: targetIndexRef.current,
-        });
-        setMessage(fallback);
-        highlight(target);
-        speak(fallback);
-        if (payload?.error === 'insufficient_quota') {
-          setError('GPT billing needs credits — showing built-in tips for now.');
-        } else {
-          setError(payload?.message ?? 'Guide unavailable — showing built-in tips.');
-        }
-        return;
-      }
-
-      const data = (await res.json()) as CockroachExplainResponse;
-      setMessage(data.text);
-      highlight(target);
-      speak(data.text);
-    } catch (err) {
-      if (controller.signal.aborted) return;
-      const targets = pickVisibleTargets();
-      if (targets.length > 0) {
-        const target = targets[(targetIndexRef.current - 1) % targets.length]!;
-        const pageContext = getPageContext();
-        const elementContext = describeElement(target);
-        const fallback = fallbackExplanation({
-          pageContext,
-          elementContext,
-          index: targetIndexRef.current,
-        });
-        setMessage(fallback);
-        highlight(target);
-        speak(fallback);
-      }
-      const msg = err instanceof Error ? err.message : 'Guide unavailable';
-      setError(`${msg} — showing built-in tips.`);
-    } finally {
-      setLoading(false);
-    }
+    setMessage(text);
+    highlight(target);
+    speak(text);
   }, [highlight, speak]);
 
   useEffect(() => {
     if (!enabled) return;
 
-    void explainNext();
-    const interval = window.setInterval(() => {
-      void explainNext();
-    }, GUIDE_INTERVAL_MS);
+    showNextTip();
+    const interval = window.setInterval(showNextTip, GUIDE_INTERVAL_MS);
 
     return () => {
       window.clearInterval(interval);
-      abortRef.current?.abort();
       clearHighlight();
       window.speechSynthesis?.cancel();
     };
-  }, [clearHighlight, enabled, explainNext]);
+  }, [clearHighlight, enabled, showNextTip]);
 
   useEffect(() => {
     if (paused || minimized) {
@@ -179,9 +112,9 @@ export function CockroachGPTEngine({ enabled = true }: Props) {
           🪳
         </span>
         <div>
-          <p className="cockroach-ai__title">Roachie · AI guide</p>
+          <p className="cockroach-ai__title">Roachie · site guide</p>
           <p className="cockroach-ai__status">
-            {loading ? 'Thinking…' : paused ? 'Paused' : 'Live help'}
+            {paused ? 'Paused' : 'Showing tips'}
           </p>
         </div>
         <button
@@ -197,15 +130,9 @@ export function CockroachGPTEngine({ enabled = true }: Props) {
       {!minimized ? (
         <>
           <p className="cockroach-ai__message">{message}</p>
-          {error ? <p className="cockroach-ai__error">{error}</p> : null}
 
           <div className="cockroach-ai__actions">
-            <button
-              type="button"
-              className="cockroach-ai__btn"
-              onClick={() => void explainNext()}
-              disabled={loading}
-            >
+            <button type="button" className="cockroach-ai__btn" onClick={showNextTip}>
               Next tip
             </button>
             <button

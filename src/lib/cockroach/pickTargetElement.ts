@@ -48,10 +48,3 @@ export function pickVisibleTargets(): HTMLElement[] {
 
   return targets;
 }
-
-export function inferUserStage(pathname: string): import('./types').UserStage {
-  if (pathname.startsWith('/account/resident')) return 'resident_dashboard';
-  if (pathname.startsWith('/booking')) return 'booking_flow';
-  if (pathname.startsWith('/pgs')) return 'browsing_pgs';
-  return 'first_time_user';
-}

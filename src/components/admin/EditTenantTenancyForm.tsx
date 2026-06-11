@@ -47,7 +47,7 @@ export function EditTenantTenancyForm({
         <select
           name="newBedId"
           defaultValue={currentBedId}
-          className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+          className="apg-admin-field mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
         >
           {beds.map((b) => (
             <option key={b.bedId} value={b.bedId}>
@@ -65,7 +65,7 @@ export function EditTenantTenancyForm({
           min="0"
           step="1"
           defaultValue={Math.round(currentMonthlyRentPaise / 100)}
-          className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+          className="apg-admin-field mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
         />
       </label>
 
@@ -77,7 +77,7 @@ export function EditTenantTenancyForm({
           min="0"
           step="1"
           placeholder="0 — add to deposit ledger"
-          className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+          className="apg-admin-field mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
         />
       </label>
 

@@ -34,7 +34,7 @@ export function ResidentsTable({ residents }: { residents: ResidentListRow[] }) 
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Name or phone number…"
-            className="mt-1 w-full max-w-md rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+            className="apg-admin-field mt-1 w-full max-w-md rounded-lg border border-zinc-300 px-3 py-2 text-sm"
           />
         </label>
         <p className="text-sm text-zinc-500">

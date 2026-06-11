@@ -1,9 +1,9 @@
-import { CockroachGPTEngine } from '@/src/components/cockroach/CockroachGPTEngine';
+import { CockroachGuide } from '@/src/components/cockroach/CockroachGuide';
 
 type Props = {
   enabled: boolean;
 };
 
 export function CockroachAI({ enabled }: Props) {
-  return <CockroachGPTEngine enabled={enabled} />;
+  return <CockroachGuide enabled={enabled} />;
 }

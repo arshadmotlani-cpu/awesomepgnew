@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { ClearPgOccupancyButton } from '@/src/components/admin/ClearPgOccupancyButton';
 import { MarkPgFullyOccupiedButton } from '@/src/components/admin/MarkPgFullyOccupiedButton';
 import { PgRoomOperationsPanel } from '@/src/components/admin/PgRoomOperationsPanel';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
@@ -26,7 +27,10 @@ export default async function PgRoomsPage({ params }: { params: Promise<{ pgId: 
         <p className="text-xs text-zinc-500">
           Beds, per-room rent, and room electricity meters.
         </p>
-        <MarkPgFullyOccupiedButton pgId={pgId} pgName={pg.name} />
+        <div className="flex flex-wrap items-center gap-2">
+          <ClearPgOccupancyButton pgId={pgId} pgName={pg.name} />
+          <MarkPgFullyOccupiedButton pgId={pgId} pgName={pg.name} />
+        </div>
       </div>
       <PgRoomOperationsPanel
         pgId={pgId}

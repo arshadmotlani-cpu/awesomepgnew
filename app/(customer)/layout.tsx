@@ -3,9 +3,8 @@ import { SiteHeader } from '@/src/components/customer/SiteHeader';
 import { WhatsAppSupportButton } from '@/src/components/customer/WhatsAppSupportButton';
 import { CockroachAI } from '@/src/components/cockroach/CockroachAI';
 
-function isCockroachAiEnabled(): boolean {
-  if (process.env.COCKROACH_AI_ENABLED === 'false') return false;
-  return Boolean(process.env.OPENAI_API_KEY?.trim());
+function isCockroachGuideEnabled(): boolean {
+  return process.env.COCKROACH_AI_ENABLED !== 'false';
 }
 
 export default function CustomerLayout({
@@ -13,7 +12,7 @@ export default function CustomerLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const cockroachEnabled = isCockroachAiEnabled();
+  const cockroachEnabled = isCockroachGuideEnabled();
 
   return (
     <div className="flex min-h-screen flex-col bg-apg-charcoal text-[#f4f6f8]">

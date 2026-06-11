@@ -11,7 +11,7 @@ import {
   updateRoomBedPricing,
   updateRoomDetails,
 } from '@/src/services/pgInventory';
-import { markPgFullyOccupied } from '@/src/services/occupancyAdmin';
+import { markPgFullyOccupied, clearPgOccupancyPlaceholders } from '@/src/services/occupancyAdmin';
 
 function parseRupeesPaise(raw: string | null | undefined): number | undefined {
   if (!raw || raw.trim() === '') return undefined;
@@ -126,6 +126,29 @@ export async function markPgFullyOccupiedAction(
     return {
       ok: true,
       message: `Marked ${result.bedsMarked} bed(s) as occupied (booking ${result.bookingCode}).`,
+    };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function clearPgOccupancyPlaceholdersAction(
+  pgId: string,
+): Promise<{ ok: boolean; error?: string; message?: string }> {
+  try {
+    const session = await requireAdminPermission('pgs:write');
+    const result = await clearPgOccupancyPlaceholders(session, pgId);
+    revalidatePgAdminPages(pgId);
+    revalidatePath('/admin');
+    revalidatePath('/admin/bookings');
+    revalidatePath('/admin/residents');
+    revalidatePath('/pgs');
+    if (result.bedsReleased === 0) {
+      return { ok: true, message: 'No placeholder occupancy to clear — beds should already be available.' };
+    }
+    return {
+      ok: true,
+      message: `Released ${result.bedsReleased} bed(s) from ${result.bookingsCancelled} placeholder booking(s).`,
     };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };

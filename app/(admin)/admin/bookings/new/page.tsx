@@ -28,6 +28,7 @@ export default async function AssignTenantPage({
   const beds = bedRows.map((b) => ({
     bedId: b.bedId,
     label: `${b.pgName} · Room ${b.roomNumber} · ${b.bedCode}`,
+    monthlyRatePaise: b.monthlyRatePaise,
   }));
 
   let prefill: {

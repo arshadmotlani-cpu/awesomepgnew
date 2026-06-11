@@ -353,9 +353,8 @@ export async function quoteBedPrice(input: QuoteBedInput): Promise<PriceQuote> {
   const rate = await loadBedPrice(input.bedId, input.startDate);
   if (!rate) {
     throw new Error(
-      `No active bed_prices row found for bed ${input.bedId} on ${formatDate(
-        parseDate(input.startDate),
-      )}. Configure pricing first.`,
+      `No rent price for this bed on ${formatDate(parseDate(input.startDate))}. ` +
+        `Set move-in to today or later, or open PG → Rooms, click Save room rent, and try again.`,
     );
   }
   return computePriceBreakdown({

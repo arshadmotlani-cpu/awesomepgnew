@@ -1,6 +1,6 @@
-import type { ElementContext, PageContext, UserStage } from './types';
+import type { ElementContext, PageContext } from './types';
 
-const FALLBACK_BY_PATH: Array<{ match: RegExp; tips: string[] }> = [
+const TIPS_BY_PATH: Array<{ match: RegExp; tips: string[] }> = [
   {
     match: /^\/pgs\/[^/]+\/rooms\//,
     tips: [
@@ -41,7 +41,7 @@ const FALLBACK_BY_PATH: Array<{ match: RegExp; tips: string[] }> = [
 ];
 
 function tipsForPath(pathname: string): string[] {
-  for (const entry of FALLBACK_BY_PATH) {
+  for (const entry of TIPS_BY_PATH) {
     if (entry.match.test(pathname)) return entry.tips;
   }
   return [
@@ -50,10 +50,9 @@ function tipsForPath(pathname: string): string[] {
   ];
 }
 
-export function fallbackExplanation(args: {
+export function guideExplanation(args: {
   pageContext: PageContext;
   elementContext: ElementContext;
-  userStage?: UserStage;
   index?: number;
 }): string {
   const tips = tipsForPath(args.pageContext.pathname);

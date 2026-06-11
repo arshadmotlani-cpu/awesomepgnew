@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useMemo, useState } from 'react';
 import {
   assignTenantAction,
   type AssignTenantState,
@@ -9,7 +9,17 @@ import {
 type BedOption = {
   bedId: string;
   label: string;
+  monthlyRatePaise: number;
 };
+
+const fieldClass =
+  'apg-admin-field mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm';
+const readOnlyFieldClass = `${fieldClass} bg-zinc-50`;
+
+function inrFromPaise(paise: number): string {
+  if (paise <= 0) return '';
+  return (paise / 100).toLocaleString('en-IN');
+}
 
 export function AssignTenantForm({
   beds,
@@ -31,6 +41,12 @@ export function AssignTenantForm({
   const [state, action, pending] = useActionState(assignTenantAction, {
     ok: false,
   } satisfies AssignTenantState);
+  const [selectedBedId, setSelectedBedId] = useState(defaultBedId ?? '');
+
+  const selectedBed = useMemo(
+    () => beds.find((b) => b.bedId === selectedBedId) ?? null,
+    [beds, selectedBedId],
+  );
 
   return (
     <form action={action} className="max-w-xl space-y-4 rounded-xl border border-zinc-200 bg-white p-6">
@@ -41,8 +57,9 @@ export function AssignTenantForm({
         <select
           name="bedId"
           required
-          defaultValue={defaultBedId ?? ''}
-          className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+          value={selectedBedId}
+          onChange={(e) => setSelectedBedId(e.target.value)}
+          className={fieldClass}
         >
           <option value="" disabled>
             Select bed…
@@ -50,9 +67,20 @@ export function AssignTenantForm({
           {beds.map((b) => (
             <option key={b.bedId} value={b.bedId}>
               {b.label}
+              {b.monthlyRatePaise > 0 ? ` · ₹${inrFromPaise(b.monthlyRatePaise)}/mo` : ''}
             </option>
           ))}
         </select>
+        {selectedBed && selectedBed.monthlyRatePaise > 0 ? (
+          <span className="mt-1 block text-xs text-zinc-600">
+            Room rate: <strong>₹{inrFromPaise(selectedBed.monthlyRatePaise)}/month</strong> — leave
+            Monthly rent empty below to use this.
+          </span>
+        ) : selectedBed ? (
+          <span className="mt-1 block text-xs text-amber-700">
+            No rent saved for this bed yet. Open PG → Rooms and click Save room rent first.
+          </span>
+        ) : null}
       </label>
 
       <label className="block text-sm">
@@ -62,8 +90,13 @@ export function AssignTenantForm({
           name="startDate"
           required
           defaultValue={defaultStartDate}
-          className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+          min={defaultStartDate.slice(0, 8) + '01'}
+          className={fieldClass}
         />
+        <span className="mt-1 block text-xs text-zinc-500">
+          Can be any day in the current month (e.g. 1 {defaultStartDate.slice(0, 7)}) after room rent
+          is saved.
+        </span>
       </label>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -74,10 +107,7 @@ export function AssignTenantForm({
             required
             readOnly={!!prefill}
             defaultValue={prefill?.fullName ?? ''}
-            className={
-              'mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm' +
-              (prefill ? ' bg-zinc-50 text-zinc-700' : '')
-            }
+            className={prefill ? readOnlyFieldClass : fieldClass}
           />
         </label>
         <label className="block text-sm">
@@ -88,10 +118,7 @@ export function AssignTenantForm({
             readOnly={!!prefill}
             placeholder="+91…"
             defaultValue={prefill?.phone ?? ''}
-            className={
-              'mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm' +
-              (prefill ? ' bg-zinc-50 text-zinc-700' : '')
-            }
+            className={prefill ? readOnlyFieldClass : fieldClass}
           />
         </label>
       </div>
@@ -104,10 +131,7 @@ export function AssignTenantForm({
           required
           readOnly={!!prefill}
           defaultValue={prefill?.email ?? ''}
-          className={
-            'mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm' +
-            (prefill ? ' bg-zinc-50 text-zinc-700' : '')
-          }
+          className={prefill ? readOnlyFieldClass : fieldClass}
         />
         {prefill ? (
           <span className="mt-1 block text-xs text-zinc-500">
@@ -122,7 +146,7 @@ export function AssignTenantForm({
           name="gender"
           required
           defaultValue={prefill?.gender ?? 'male'}
-          className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+          className={fieldClass}
         >
           <option value="male">Male</option>
           <option value="female">Female</option>
@@ -138,11 +162,11 @@ export function AssignTenantForm({
             name="monthlyRentInr"
             min="0"
             step="1"
-            placeholder="7140 — grandfathered rate"
-            className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+            placeholder="Leave empty = room rate"
+            className={fieldClass}
           />
           <span className="mt-1 block text-xs text-zinc-500">
-            Locked on booking — only this tenant sees it on their dashboard.
+            Only fill this for a special rate (e.g. old tenant paying more). Otherwise leave blank.
           </span>
         </label>
         <label className="block text-sm">
@@ -152,7 +176,8 @@ export function AssignTenantForm({
             name="depositInr"
             min="0"
             step="1"
-            className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+            placeholder="Optional"
+            className={fieldClass}
           />
         </label>
       </div>
@@ -160,9 +185,8 @@ export function AssignTenantForm({
       <label className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-950">
         <input type="checkbox" name="blocksWholeRoom" className="mt-1" />
         <span>
-          <strong>Block whole room on calendar</strong> — both/all beds show occupied to
-          others; when this tenant vacates, all beds in the room free on the same date.
-          Use for single-sharing rent in a multi-bed room (e.g. Room 201).
+          <strong>Block whole room on calendar</strong> — all beds in the room show occupied to
+          others. Only use when one person has the entire room alone (single sharing).
         </span>
       </label>
 
@@ -171,8 +195,8 @@ export function AssignTenantForm({
         <textarea
           name="notes"
           rows={2}
-          className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
-          placeholder="Grandfathered single-sharing rent until Jul 2026…"
+          className={fieldClass}
+          placeholder="Optional internal note…"
         />
       </label>
 

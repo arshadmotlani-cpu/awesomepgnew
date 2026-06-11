@@ -1,5 +1,6 @@
 import { and, asc, count, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import { autoBedCodes } from '@/src/lib/roomSharing';
+import { formatDate, parseDate, todayString } from '@/src/lib/dates';
 import { db } from '@/src/db/client';
 import {
   bedPrices,
@@ -17,6 +18,12 @@ function assertPgAccess(session: AdminSession, pgId: string) {
   if (!adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, pgId)) {
     throw new Error('You do not have access to this PG.');
   }
+}
+
+/** First calendar day of the month containing `dateIso` (YYYY-MM-DD). */
+function monthStartFor(dateIso: string): string {
+  const d = parseDate(dateIso);
+  return formatDate(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)));
 }
 
 export type PgInventoryBedRow = {
@@ -269,7 +276,7 @@ async function quickAddBedsInternal(
   }
 
   const bedCodes = autoBedCodes(existingCount, input.bedsToAdd);
-  const today = new Date().toISOString().slice(0, 10);
+  const monthStart = monthStartFor(todayString());
   const bedIds: string[] = [];
 
   for (const bedCode of bedCodes) {
@@ -292,7 +299,7 @@ async function quickAddBedsInternal(
       dailySecurityDepositPaise: input.dailyDepositPaise ?? 0,
       weeklySecurityDepositPaise: input.weeklyDepositPaise ?? 0,
       monthlySecurityDepositPaise: monthlyDep,
-      effectiveFrom: today,
+      effectiveFrom: monthStart,
     });
 
     bedIds.push(bed.id);
@@ -307,8 +314,9 @@ async function quickAddBedsInternal(
 
 /**
  * Apply the same rent + deposit to every bed in a room. Creates a new
- * `bed_prices` row (or updates today's row) per bed — rooms of the same
- * sharing type can keep different prices.
+ * `bed_prices` row (or updates this month's row) per bed — rooms of the same
+ * sharing type can keep different prices. Effective from is the 1st of the
+ * current month so admin move-in dates like the 1st match saved room rent.
  */
 export async function updateRoomBedPricing(
   session: AdminSession,
@@ -345,7 +353,8 @@ export async function updateRoomBedPricing(
     throw new Error('No beds in this room.');
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayString();
+  const monthStart = monthStartFor(today);
   const monthlyDep = input.monthlyDepositPaise;
   const priceValues = {
     dailyRatePaise: input.dailyRatePaise,
@@ -374,26 +383,33 @@ export async function updateRoomBedPricing(
       .orderBy(desc(bedPrices.effectiveFrom))
       .limit(1);
 
-    if (active?.effectiveFrom === today) {
-      await db
-        .update(bedPrices)
-        .set({ ...priceValues, updatedAt: new Date() })
-        .where(eq(bedPrices.id, active.id));
-    } else if (active) {
-      await db
-        .update(bedPrices)
-        .set({ effectiveTo: today, updatedAt: new Date() })
-        .where(eq(bedPrices.id, active.id));
-      await db.insert(bedPrices).values({
-        bedId,
-        ...priceValues,
-        effectiveFrom: today,
-      });
+    if (active) {
+      if (active.effectiveFrom < monthStart) {
+        await db
+          .update(bedPrices)
+          .set({ effectiveTo: monthStart, updatedAt: new Date() })
+          .where(eq(bedPrices.id, active.id));
+        await db.insert(bedPrices).values({
+          bedId,
+          ...priceValues,
+          effectiveFrom: monthStart,
+        });
+      } else {
+        await db
+          .update(bedPrices)
+          .set({
+            ...priceValues,
+            effectiveFrom: monthStart,
+            effectiveTo: null,
+            updatedAt: new Date(),
+          })
+          .where(eq(bedPrices.id, active.id));
+      }
     } else {
       await db.insert(bedPrices).values({
         bedId,
         ...priceValues,
-        effectiveFrom: today,
+        effectiveFrom: monthStart,
       });
     }
   }
