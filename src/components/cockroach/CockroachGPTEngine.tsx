@@ -10,6 +10,7 @@ import {
   pickVisibleTargets,
 } from '@/src/lib/cockroach/pickTargetElement';
 import type { CockroachExplainResponse } from '@/src/lib/cockroach/types';
+import { fallbackExplanation } from '@/src/lib/cockroach/fallbackTips';
 
 const GUIDE_INTERVAL_MS = 8000;
 const HIGHLIGHT_CLASS = 'cockroach-ai-highlight';
@@ -97,8 +98,26 @@ export function CockroachGPTEngine({ enabled = true }: Props) {
       });
 
       if (!res.ok) {
-        const payload = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(payload?.error ?? 'Guide unavailable');
+        const payload = (await res.json().catch(() => null)) as {
+          error?: string;
+          message?: string;
+        } | null;
+        const pageContext = getPageContext();
+        const elementContext = describeElement(target);
+        const fallback = fallbackExplanation({
+          pageContext,
+          elementContext,
+          index: targetIndexRef.current,
+        });
+        setMessage(fallback);
+        highlight(target);
+        speak(fallback);
+        if (payload?.error === 'insufficient_quota') {
+          setError('GPT billing needs credits — showing built-in tips for now.');
+        } else {
+          setError(payload?.message ?? 'Guide unavailable — showing built-in tips.');
+        }
+        return;
       }
 
       const data = (await res.json()) as CockroachExplainResponse;
@@ -107,9 +126,22 @@ export function CockroachGPTEngine({ enabled = true }: Props) {
       speak(data.text);
     } catch (err) {
       if (controller.signal.aborted) return;
+      const targets = pickVisibleTargets();
+      if (targets.length > 0) {
+        const target = targets[(targetIndexRef.current - 1) % targets.length]!;
+        const pageContext = getPageContext();
+        const elementContext = describeElement(target);
+        const fallback = fallbackExplanation({
+          pageContext,
+          elementContext,
+          index: targetIndexRef.current,
+        });
+        setMessage(fallback);
+        highlight(target);
+        speak(fallback);
+      }
       const msg = err instanceof Error ? err.message : 'Guide unavailable';
-      setError(msg);
-      setMessage('Roachie is resting right now. Try again in a bit.');
+      setError(`${msg} — showing built-in tips.`);
     } finally {
       setLoading(false);
     }

@@ -40,6 +40,18 @@ export async function POST(req: Request) {
     return Response.json(result);
   } catch (err) {
     console.error('[cockroach-explain]', err);
-    return Response.json({ error: 'AI failed' }, { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+    const quota =
+      message.includes('insufficient_quota') ||
+      message.includes('exceeded your current quota');
+    return Response.json(
+      {
+        error: quota ? 'insufficient_quota' : 'AI failed',
+        message: quota
+          ? 'OpenAI billing quota exceeded. Add credits at platform.openai.com.'
+          : 'AI failed',
+      },
+      { status: quota ? 402 : 500 },
+    );
   }
 }
