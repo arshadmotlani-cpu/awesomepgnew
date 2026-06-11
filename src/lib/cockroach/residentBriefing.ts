@@ -21,11 +21,13 @@ export type ResidentBriefingInput = {
   vacatingStatus?: string;
 };
 
-/** One Roachie message: booking summary + PS4 add-on + vacating with date picker. */
+import { COCKROACH_AI_NAME } from '@/src/lib/cockroach/branding';
+
+/** One Cockroach message: booking summary + PS4 add-on + vacating with date picker. */
 export function buildResidentBriefingMessage(input: ResidentBriefingInput): string {
   const lines: string[] = [];
 
-  lines.push(`Hey ${input.residentName}! I'm Roachie — here's your full stay guide for ${input.pgName}.`);
+  lines.push(`Hey ${input.residentName}! I'm ${COCKROACH_AI_NAME} — here's your full stay guide for ${input.pgName}.`);
 
   lines.push('');
   lines.push('YOUR BOOKING');

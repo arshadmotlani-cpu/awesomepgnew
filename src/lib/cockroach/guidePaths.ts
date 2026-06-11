@@ -1,4 +1,4 @@
-/** Roachie peeks in only on PG detail and room pages — not browse, booking, or account. */
+/** Cockroach peeks in only on PG detail and room pages — not browse, booking, or account. */
 export function shouldShowRoachieGuide(pathname: string): boolean {
   if (!pathname || pathname === '/') return false;
   if (pathname === '/pgs' || pathname.startsWith('/pgs?')) return false;

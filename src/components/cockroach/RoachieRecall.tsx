@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import { useCallback, useEffect, useState } from 'react';
+import { COCKROACH_AI_NAME, COCKROACH_TAGLINE } from '@/src/lib/cockroach/branding';
 import { MASCOT_IMAGES } from '@/src/lib/cockroach/mascotAssets';
 
 export const ROACHIE_BRIEFING_EVENT = 'roachie:briefing';
@@ -68,7 +69,7 @@ export function RoachieRecall() {
         type="button"
         className="roachie-recall roachie-recall__fab"
         data-cockroach-ignore
-        aria-label="Open Roachie stay guide"
+        aria-label={`Open ${COCKROACH_AI_NAME} stay guide`}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >
@@ -83,7 +84,7 @@ export function RoachieRecall() {
       </button>
 
       {open ? (
-        <div className="roachie-recall-panel" data-cockroach-ignore role="dialog" aria-label="Roachie stay guide">
+        <div className="roachie-recall-panel" data-cockroach-ignore role="dialog" aria-label={`${COCKROACH_AI_NAME} stay guide`}>
           <div className="roachie-recall-panel__header">
             <Image
               src={MASCOT_IMAGES.welcome}
@@ -93,7 +94,7 @@ export function RoachieRecall() {
               quality={95}
               className="roachie-recall-panel__mascot"
             />
-            <p className="roachie-recall-panel__title">Roachie · your stay guide</p>
+            <p className="roachie-recall-panel__title">{COCKROACH_AI_NAME} · {COCKROACH_TAGLINE}</p>
             <button
               type="button"
               className="roachie-recall-panel__close"

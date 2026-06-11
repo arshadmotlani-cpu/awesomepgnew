@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { COCKROACH_AI_NAME } from '@/src/lib/cockroach/branding';
 import { RoachieSpotlight } from './RoachieSpotlight';
 import { MASCOT_IMAGES } from '@/src/lib/cockroach/mascotAssets';
 import {
@@ -131,7 +132,7 @@ export function RoachieTourWidget({ onFinished }: Props) {
         className={`roachie-widget roachie-tour-widget ${visible ? 'roachie-widget--visible' : ''} ${talking ? 'roachie-widget--talking' : ''}`}
         data-cockroach-ignore
         role="dialog"
-        aria-label="Roachie booking guide"
+        aria-label={`${COCKROACH_AI_NAME} booking guide`}
       >
         <div className="roachie-tour-widget__header">
           <span className="roachie-tour-widget__progress">{progress}</span>

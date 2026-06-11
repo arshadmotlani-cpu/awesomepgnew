@@ -139,8 +139,10 @@ export function guideForTarget(args: {
   );
 }
 
+import { COCKROACH_AI_NAME } from '@/src/lib/cockroach/branding';
+
 export const ROACHIE_INTRO =
-  'Nice pick — I’ll walk you through dates, rooms, and beds. Watch for the yellow highlight.';
+  `Nice pick — ${COCKROACH_AI_NAME} will walk you through dates, rooms, and beds. Watch for the yellow highlight.`;
 
 export const ROACHIE_IDLE =
-  'Tap Next when you want another pointer on this page.';
+  `Tap Next when you want another pointer from ${COCKROACH_AI_NAME} on this page.`;

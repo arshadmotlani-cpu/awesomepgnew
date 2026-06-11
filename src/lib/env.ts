@@ -145,7 +145,7 @@ export const env = {
     return optional('SMTP_PASS');
   },
 
-  /** Set to "false" to hide the Roachie site guide on customer pages. */
+  /** Set to "false" to hide the Cockroach AI guide on customer pages. */
   get COCKROACH_AI_ENABLED() {
     return process.env.COCKROACH_AI_ENABLED !== 'false';
   },

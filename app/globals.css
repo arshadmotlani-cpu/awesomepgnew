@@ -174,7 +174,7 @@ body {
   color: #3f3f46;
 }
 
-/* Roachie — premium corner mascot guide */
+/* Cockroach AI — bottom-left mascot (Support stays bottom-right) */
 .roachie-widget {
   pointer-events: auto;
   transform: translateX(-120%) translateY(8px);
@@ -370,8 +370,9 @@ body {
 
 .roachie-recall__fab {
   position: fixed;
-  bottom: 1rem;
-  right: 1rem;
+  bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+  left: max(1rem, env(safe-area-inset-left, 0px));
+  right: auto;
   z-index: 99980;
   border: none;
   background: transparent;
@@ -391,12 +392,13 @@ body {
 
 .roachie-recall-panel {
   position: fixed;
-  bottom: 6rem;
+  bottom: calc(5.75rem + env(safe-area-inset-bottom, 0px));
+  left: max(1rem, env(safe-area-inset-left, 0px));
   right: 1rem;
-  left: 1rem;
   z-index: 99990;
   max-width: 26rem;
-  margin-left: auto;
+  margin-right: auto;
+  margin-left: 0;
   border-radius: 1rem;
   border: 1px solid rgba(255, 90, 31, 0.35);
   background: rgba(11, 15, 20, 0.97);
@@ -406,8 +408,8 @@ body {
 
 @media (min-width: 640px) {
   .roachie-recall-panel {
-    left: auto;
-    right: 1.25rem;
+    right: auto;
+    left: 1.25rem;
   }
 }
 
@@ -470,16 +472,16 @@ body {
   filter: brightness(1.08);
 }
 
-/* Roachie — idle peek (no tips, mascot only) */
+/* Cockroach — idle peek (bottom-left, clear of WhatsApp Support) */
 .roachie-peek {
   position: fixed;
-  bottom: 0;
-  left: 0;
+  bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+  left: max(0.75rem, env(safe-area-inset-left, 0px));
   z-index: 9990;
   pointer-events: auto;
-  width: 8rem;
-  height: 8rem;
-  transform: translateX(-55%) translateY(12%);
+  width: 5.5rem;
+  height: 5.5rem;
+  transform: translateY(0);
   opacity: 0;
   transition:
     transform 0.4s cubic-bezier(0.22, 1.15, 0.36, 1),
@@ -492,7 +494,7 @@ body {
 }
 
 .roachie-peek:hover {
-  transform: translateX(-40%) translateY(8%);
+  transform: translateY(-4px) scale(1.03);
 }
 
 .roachie-peek__img {
@@ -504,8 +506,10 @@ body {
 
 @media (min-width: 640px) {
   .roachie-peek {
-    width: 10rem;
-    height: 10rem;
+    width: 7rem;
+    height: 7rem;
+    bottom: 1rem;
+    left: 1.25rem;
   }
 }
 
