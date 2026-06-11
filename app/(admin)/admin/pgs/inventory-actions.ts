@@ -2,13 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
-import {
-  type SharingPresetMatrix,
-  type SharingPresetPaise,
-} from '@/src/lib/pgSharingPresets';
-import { parseSharingCount, sharingTypeName, type RoomSharingCount } from '@/src/lib/roomSharing';
+import { parseSharingCount, sharingTypeName } from '@/src/lib/roomSharing';
 import { quickAddRoomBeds, updateRoomBedPricing } from '@/src/services/pgInventory';
-import { savePgSharingPresets } from '@/src/services/pgAdmin';
 
 function parseRupeesPaise(raw: string | null | undefined): number | undefined {
   if (!raw || raw.trim() === '') return undefined;
@@ -110,41 +105,6 @@ export async function updateRoomPricingAction(
     revalidatePath(`/admin/pgs/${pgId}/edit`);
     revalidatePath('/pgs');
     revalidatePath('/admin/pricing');
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
-  }
-}
-
-export async function saveSharingPresetsAction(
-  pgId: string,
-  formData: FormData,
-): Promise<{ ok: boolean; error?: string }> {
-  try {
-    const session = await requireAdminPermission('pgs:write');
-    const presets: SharingPresetMatrix = {};
-
-    for (const count of [1, 2, 3, 4, 5] as RoomSharingCount[]) {
-      const row: SharingPresetPaise = {};
-      const dailyRate = parseRupeesPaise(formData.get(`${count}_dailyRate`)?.toString());
-      const weeklyRate = parseRupeesPaise(formData.get(`${count}_weeklyRate`)?.toString());
-      const monthlyRate = parseRupeesPaise(formData.get(`${count}_monthlyRate`)?.toString());
-      const dailyDeposit = parseRupeesPaise(formData.get(`${count}_dailyDeposit`)?.toString());
-      const weeklyDeposit = parseRupeesPaise(formData.get(`${count}_weeklyDeposit`)?.toString());
-      const monthlyDeposit = parseRupeesPaise(
-        formData.get(`${count}_monthlyDeposit`)?.toString(),
-      );
-      if (dailyRate != null) row.dailyRatePaise = dailyRate;
-      if (weeklyRate != null) row.weeklyRatePaise = weeklyRate;
-      if (monthlyRate != null) row.monthlyRatePaise = monthlyRate;
-      if (dailyDeposit != null) row.dailyDepositPaise = dailyDeposit;
-      if (weeklyDeposit != null) row.weeklyDepositPaise = weeklyDeposit;
-      if (monthlyDeposit != null) row.monthlyDepositPaise = monthlyDeposit;
-      if (Object.keys(row).length > 0) presets[count] = row;
-    }
-
-    await savePgSharingPresets(session, pgId, presets);
-    revalidatePath(`/admin/pgs/${pgId}/edit`);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
