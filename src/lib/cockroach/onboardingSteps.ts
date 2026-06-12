@@ -73,11 +73,11 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
       {
         target: 'bed-notice',
         message:
-          'Orange = notice period. Someone is leaving soon — tap the bed to pre-book and see how many others are interested (real count).',
+          'Orange = notice period. Tap the bed — Cockroach explains pre-book (check in when it opens) vs reserve (hold now, move in when you reach Nagpur).',
         durationMs: 6000,
       },
     ],
-    fallbackNote: 'Notice beds show when a guest is leaving — tap to pre-book before it opens.',
+    fallbackNote: 'Notice beds — tap for rent and Cockroach’s pre-book vs reserve guide.',
   },
   {
     id: 'payment',

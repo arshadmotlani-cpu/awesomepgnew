@@ -4,9 +4,9 @@ export const ROACHIE_REMINDER_EVENT = 'roachie:reminder';
 
 export const REMINDER_COPY: Record<RoachieReminderKind, string> = {
   'pre-book':
-    'Pre-Book saves a future bed for you. Pick your move-in date when the bed opens up — no need to keep checking every day.',
+    'Pre-book = you check in on the date the bed opens (e.g. when the current guest leaves). Pick that move-in date at checkout.',
   reserve:
-    'Reserve Bed holds your spot before move-in at about half rate. Full rent starts on your actual move-in day.',
+    'Reserve = you are not moving in on the open date. Pay ~50% rent now to hold the bed; when you reach Nagpur you choose your actual check-in day.',
 };
 
 export function dispatchRoachieReminder(kind: RoachieReminderKind): void {

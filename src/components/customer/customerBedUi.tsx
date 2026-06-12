@@ -7,6 +7,7 @@ import {
 } from '@/src/lib/bedAvailabilityState';
 import { customerBookableFromDate } from '@/src/lib/dates';
 import { formatDate, paiseToInr } from '@/src/lib/format';
+import { RoachieBedSheetTip } from './RoachieBedSheetTip';
 import type { BedSelectorBed } from './customerBedTypes';
 
 function bedAvailability(bed: BedSelectorBed) {
@@ -65,6 +66,45 @@ export function CustomerBedTile({
   );
 }
 
+function BedPricingDetails({
+  bed,
+  isNotice,
+}: {
+  bed: BedSelectorBed;
+  isNotice: boolean;
+}) {
+  const rate = bed.monthlyRatePaise;
+  const deposit = bed.monthlySecurityDepositPaise || bed.securityDepositPaise;
+  const bookableFrom = customerBookableFromDate(bed.nextAvailableDate);
+
+  return (
+    <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
+      <dt className="text-apg-silver">Rent</dt>
+      <dd className="text-right font-medium text-white">
+        {rate > 0 ? `${paiseToInr(rate)}/mo` : '—'}
+      </dd>
+      {deposit > 0 ? (
+        <>
+          <dt className="text-apg-silver">Deposit</dt>
+          <dd className="text-right text-white">{paiseToInr(deposit)}</dd>
+        </>
+      ) : null}
+      {isNotice && bed.vacatingDate ? (
+        <>
+          <dt className="text-apg-silver">Opens</dt>
+          <dd className="text-right text-white">{formatDate(bed.vacatingDate)}</dd>
+        </>
+      ) : null}
+      {!isNotice && bookableFrom && !bed.isAvailableNow ? (
+        <>
+          <dt className="text-apg-silver">Available from</dt>
+          <dd className="text-right text-white">{formatDate(bookableFrom)}</dd>
+        </>
+      ) : null}
+    </dl>
+  );
+}
+
 export function CustomerBedDetailSheet({
   bed,
   roomLabel,
@@ -89,11 +129,10 @@ export function CustomerBedDetailSheet({
   }, [bed.bedId, bed.noticeInterestCount]);
 
   const availability = bedAvailability({ ...bed, noticeInterestCount: noticeCount });
-  const rate = bed.monthlyRatePaise;
-  const deposit = bed.monthlySecurityDepositPaise || bed.securityDepositPaise;
   const isNotice = availability.kind === 'notice';
-  const isFuture =
-    !bed.isAvailableNow && Boolean(customerBookableFromDate(bed.nextAvailableDate));
+  const bookableFrom = customerBookableFromDate(bed.nextAvailableDate);
+  const isFuturePreBook = !bed.isAvailableNow && Boolean(bookableFrom) && !isNotice;
+  const showBookActions = canBookBed(bed);
 
   useEffect(() => {
     if (!isNotice) return;
@@ -114,6 +153,7 @@ export function CustomerBedDetailSheet({
         className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-white/10 bg-[#1A1F27] p-5 shadow-2xl"
         role="dialog"
         aria-modal
+        data-roachie-tour="bed-detail-sheet"
       >
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -141,38 +181,18 @@ export function CustomerBedDetailSheet({
             <p className="mt-2 text-xs font-medium text-orange-200">
               {noticeCount > 0
                 ? `${noticeCount} ${noticeCount === 1 ? 'person is' : 'people are'} interested in this bed`
-                : 'Tap pre-book below to register your interest when this bed opens.'}
+                : 'Others can see interest too — pre-book below if you want this bed when it opens.'}
             </p>
           ) : null}
         </div>
 
-        {canBookBed(bed) ? (
-          <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
-            <dt className="text-apg-silver">Rent</dt>
-            <dd className="text-right font-medium text-white">
-              {rate > 0 ? `${paiseToInr(rate)}/mo` : '—'}
-            </dd>
-            {deposit > 0 ? (
-              <>
-                <dt className="text-apg-silver">Deposit</dt>
-                <dd className="text-right text-white">{paiseToInr(deposit)}</dd>
-              </>
+        {showBookActions ? (
+          <>
+            <BedPricingDetails bed={bed} isNotice={isNotice} />
+            {(isNotice || isFuturePreBook) ? (
+              <RoachieBedSheetTip opensDate={isNotice ? bed.vacatingDate : bookableFrom} />
             ) : null}
-            {bed.vacatingDate ? (
-              <>
-                <dt className="text-apg-silver">Opens</dt>
-                <dd className="text-right text-white">{formatDate(bed.vacatingDate)}</dd>
-              </>
-            ) : null}
-            {customerBookableFromDate(bed.nextAvailableDate) && !bed.isAvailableNow ? (
-              <>
-                <dt className="text-apg-silver">From</dt>
-                <dd className="text-right text-white">
-                  {formatDate(customerBookableFromDate(bed.nextAvailableDate)!)}
-                </dd>
-              </>
-            ) : null}
-          </dl>
+          </>
         ) : (
           <p className="mt-4 text-sm text-apg-silver">
             {availability.kind === 'occupied'
@@ -181,9 +201,26 @@ export function CustomerBedDetailSheet({
           </p>
         )}
 
-        {canBookBed(bed) ? (
+        {isNotice ? (
           <div className="mt-5 flex flex-col gap-2">
-            {isFuture ? (
+            <button
+              type="button"
+              onClick={onPreBook}
+              className="w-full rounded-lg bg-apg-orange py-2.5 text-sm font-semibold text-white apg-glow-btn hover:brightness-110"
+            >
+              Pre-book — check in when bed opens
+            </button>
+            <button
+              type="button"
+              onClick={onReserve}
+              className="w-full rounded-lg border border-apg-orange/40 bg-apg-orange/10 py-2.5 text-sm font-semibold text-white hover:bg-apg-orange/20"
+            >
+              Reserve early (50% rent) — move in when you reach Nagpur
+            </button>
+          </div>
+        ) : showBookActions ? (
+          <div className="mt-5 flex flex-col gap-2">
+            {isFuturePreBook ? (
               <button
                 type="button"
                 onClick={onPreBook}
@@ -206,16 +243,6 @@ export function CustomerBedDetailSheet({
               className="w-full rounded-lg border border-apg-orange/40 bg-apg-orange/10 py-2.5 text-sm font-semibold text-white hover:bg-apg-orange/20"
             >
               Reserve early (50% rent)
-            </button>
-          </div>
-        ) : isNotice ? (
-          <div className="mt-5">
-            <button
-              type="button"
-              onClick={onPreBook}
-              className="w-full rounded-lg bg-apg-orange py-2.5 text-sm font-semibold text-white"
-            >
-              Pre-book for after they leave
             </button>
           </div>
         ) : null}
