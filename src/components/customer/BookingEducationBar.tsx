@@ -59,7 +59,7 @@ export function BookingEducationBar({
             }
             onClick={() => dispatchRoachieReminder('reserve')}
           >
-            Reserve Bed
+            Reserve early (50% rent)
           </button>
           <button
             type="button"

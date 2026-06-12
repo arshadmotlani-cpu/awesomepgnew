@@ -421,7 +421,7 @@ function BedTile({
                   : 'border border-indigo-400 bg-indigo-50 text-indigo-800 hover:bg-indigo-100')
               }
             >
-              Reserve Bed
+              Reserve early (50% rent)
             </button>
           </div>
         </>

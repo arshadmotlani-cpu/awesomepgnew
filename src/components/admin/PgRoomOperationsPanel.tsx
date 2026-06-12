@@ -30,6 +30,10 @@ type RoomGroup = {
   roomNumber: string;
   floorNumber: number;
   floorLabel: string;
+  roomTypeName: string;
+  sharingCount: number;
+  hasAc: boolean;
+  roomNotes: string | null;
   beds: PgInventoryBedRow[];
   meter: RoomMeterData | undefined;
 };
@@ -63,6 +67,10 @@ export function PgRoomOperationsPanel({
           roomNumber: bed.roomNumber,
           floorNumber: bed.floorNumber,
           floorLabel: bed.floorLabel,
+          roomTypeName: bed.roomTypeName,
+          sharingCount: bed.sharingCount,
+          hasAc: bed.hasAc,
+          roomNotes: bed.roomNotes,
           beds: [bed],
           meter: meterByRoom.get(bed.roomId),
         });
@@ -77,6 +85,10 @@ export function PgRoomOperationsPanel({
           roomNumber: m.roomNumber,
           floorNumber: floorFromMeter?.floorNumber ?? 0,
           floorLabel: m.floorLabel,
+          roomTypeName: '—',
+          sharingCount: 1,
+          hasAc: false,
+          roomNotes: null,
           beds: [],
           meter: m,
         });
@@ -157,6 +169,10 @@ export function PgRoomOperationsPanel({
                   roomNumber={room.roomNumber}
                   floorNumber={room.floorNumber}
                   floorLabel={room.floorLabel}
+                  roomTypeName={room.roomTypeName}
+                  sharingCount={room.sharingCount}
+                  hasAc={room.hasAc}
+                  roomNotes={room.roomNotes}
                 />
               </header>
               <div className="p-4 space-y-4">

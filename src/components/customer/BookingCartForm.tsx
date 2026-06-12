@@ -9,6 +9,7 @@ import { Ps4AddonSelector, ps4AddonPaise } from '@/src/components/customer/Ps4Ad
 import { paiseToInr } from '@/src/lib/format';
 import { PS4_ADDON_LABEL, PS4_PLANS, type Ps4PlanId } from '@/src/lib/playstation/plans';
 import { VACATING_NOTICE_MIN_DAYS } from '@/src/lib/dateDefaults';
+import { formatDate } from '@/src/lib/format';
 import type { BookingActionState } from '@/app/(customer)/booking/new/actions';
 import { createBookingAction } from '@/app/(customer)/booking/new/actions';
 
@@ -37,6 +38,8 @@ type Props = {
   };
   /** Show optional PS4 gaming maintenance add-on during checkout. */
   showPs4Addon?: boolean;
+  /** Whether check-in is today/soon (direct book) or a future date (pre-book). */
+  checkoutTiming?: 'available_now' | 'future_start';
 };
 
 const INITIAL_STATE: BookingActionState = { status: 'idle' };
@@ -52,6 +55,7 @@ export function BookingCartForm({
   totalPaise,
   defaultCustomer,
   showPs4Addon = false,
+  checkoutTiming = 'available_now',
 }: Props) {
   const [state, formAction, isPending] = useActionState(
     createBookingAction,
@@ -70,6 +74,15 @@ export function BookingCartForm({
     indianPhoneDefaultLocal(defaultCustomer?.phone),
   );
   const phoneLocked = Boolean(defaultCustomer?.phone);
+
+  const isPreBook = checkoutTiming === 'future_start';
+  const submitLabel = isPreBook
+    ? 'Pre-book & continue to payment'
+    : 'Book bed & continue to payment';
+  const pendingLabel = isPreBook ? 'Pre-booking…' : 'Booking your bed…';
+  const stepHint = isPreBook
+    ? `You're pre-booking for check-in on ${formatDate(startDate)}. Next: pay via UPI QR and upload proof — admin confirms once verified.`
+    : 'This bed is available now — you are booking it directly (not pre-booking). Next: pay rent + deposit via UPI QR and upload proof for admin approval.';
 
   return (
     <form
@@ -142,7 +155,7 @@ export function BookingCartForm({
             name="notes"
             rows={3}
             placeholder="e.g. arriving late evening, need help with luggage"
-            className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm placeholder:text-zinc-400 placeholder:opacity-100 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
           />
         </label>
 
@@ -239,9 +252,9 @@ export function BookingCartForm({
           ) : null}
         </dl>
 
-        <div className="mt-3 flex items-center justify-between rounded-md bg-zinc-900 px-3 py-2 text-white">
+        <div className="apg-checkout-total mt-3 flex items-center justify-between rounded-md px-3 py-2.5">
           <span className="text-sm font-medium">Total due now</span>
-          <span className="text-base font-semibold">
+          <span className="apg-checkout-total-amount text-base font-semibold">
             {paiseToInr(checkoutTotalPaise)}
           </span>
         </div>
@@ -252,16 +265,20 @@ export function BookingCartForm({
           </p>
         ) : null}
 
+        <p className="mt-3 rounded-md border border-sky-100 bg-sky-50 px-3 py-2 text-xs leading-relaxed text-sky-900">
+          {stepHint}
+        </p>
+
         <button
           type="submit"
           disabled={isPending}
           className="mt-4 inline-flex w-full items-center justify-center rounded-md bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-zinc-300"
         >
-          {isPending ? 'Reserving beds…' : 'Reserve & continue to payment'}
+          {isPending ? pendingLabel : submitLabel}
         </button>
         <p className="mt-2 text-center text-[11px] text-zinc-500">
-          Next step: scan UPI QR, pay the total shown, and upload your payment screenshot for admin
-          approval.
+          Your bed is held briefly while you complete payment — separate from &quot;Reserve
+          Bed&quot; on the room page (that is an optional half-rent hold before move-in).
         </p>
       </aside>
     </form>

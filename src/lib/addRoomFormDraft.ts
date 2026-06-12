@@ -4,6 +4,7 @@ export type AddRoomFormDraft = {
   floorNumber: string;
   floorLabel: string;
   roomNumber: string;
+  roomTypeName: string;
   sharingCount: RoomSharingCount;
   bedsToAdd: RoomSharingCount;
   hasAc: boolean;
@@ -19,6 +20,7 @@ export const EMPTY_ADD_ROOM_FORM: AddRoomFormDraft = {
   floorNumber: '0',
   floorLabel: '',
   roomNumber: '',
+  roomTypeName: '',
   sharingCount: 2,
   bedsToAdd: 2,
   hasAc: false,
@@ -76,6 +78,7 @@ export function buildAddRoomFormData(draft: AddRoomFormDraft): FormData {
   fd.set('floorNumber', draft.floorNumber);
   fd.set('floorLabel', draft.floorLabel);
   fd.set('roomNumber', draft.roomNumber);
+  fd.set('roomTypeName', draft.roomTypeName);
   fd.set('sharingCount', String(draft.sharingCount));
   fd.set('bedsToAdd', String(draft.bedsToAdd));
   if (draft.hasAc) fd.set('hasAc', 'on');

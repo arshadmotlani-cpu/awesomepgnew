@@ -4,6 +4,7 @@ export * from './pgs';
 export * from './floors';
 export * from './roomTypes';
 export * from './rooms';
+export * from './roomPageViews';
 export * from './beds';
 export * from './bedPrices';
 export * from './customers';

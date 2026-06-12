@@ -1,5 +1,5 @@
 import { and, asc, count, desc, eq, isNull, or, sql } from 'drizzle-orm';
-import { autoBedCodes } from '@/src/lib/roomSharing';
+import { autoBedCodes, sharingTypeName } from '@/src/lib/roomSharing';
 import { formatDate, parseDate, todayString } from '@/src/lib/dates';
 import { db } from '@/src/db/client';
 import {
@@ -34,7 +34,11 @@ export type PgInventoryBedRow = {
   roomNumber: string;
   floorNumber: number;
   floorLabel: string;
+  roomTypeId: string;
   roomTypeName: string;
+  sharingCount: number;
+  hasAc: boolean;
+  roomNotes: string | null;
   dailyRatePaise: number;
   weeklyRatePaise: number;
   monthlyRatePaise: number;
@@ -97,7 +101,11 @@ export async function getPgInventory(session: AdminSession, pgId: string) {
       roomNumber: rooms.roomNumber,
       floorNumber: floors.floorNumber,
       floorLabel: sql<string>`coalesce(${floors.label}, 'Floor ' || ${floors.floorNumber})`,
+      roomTypeId: roomTypes.id,
       roomTypeName: roomTypes.name,
+      sharingCount: roomTypes.defaultCapacity,
+      hasAc: roomTypes.hasAc,
+      roomNotes: rooms.notes,
       dailyRatePaise: activeBedPricePaise('daily_rate_paise'),
       weeklyRatePaise: activeBedPricePaise('weekly_rate_paise'),
       monthlyRatePaise: activeBedPricePaise('monthly_rate_paise'),
@@ -419,7 +427,86 @@ export type UpdateRoomDetailsInput = {
   floorNumber: number;
   floorLabel?: string;
   roomNumber: string;
+  /** Display label on listings, e.g. "Tuition room" or "2 Sharing". */
+  roomTypeName?: string;
+  sharingCount?: number;
+  hasAc?: boolean;
+  notes?: string;
 };
+
+async function assignRoomTypeForRoom(
+  pgId: string,
+  roomId: string,
+  currentRoomTypeId: string,
+  input: { roomTypeName: string; sharingCount: number; hasAc: boolean },
+): Promise<string> {
+  const typeName = input.roomTypeName.trim() || sharingTypeName(input.sharingCount);
+
+  if (input.sharingCount < 1 || input.sharingCount > 5) {
+    throw new Error('Sharing type must be between 1 and 5.');
+  }
+
+  const [{ bedCount }] = await db
+    .select({ bedCount: count() })
+    .from(beds)
+    .where(and(eq(beds.roomId, roomId), isNull(beds.archivedAt)));
+
+  if (bedCount > input.sharingCount) {
+    throw new Error(
+      `This room has ${bedCount} bed(s). Pick sharing ${bedCount} or higher, or remove beds first.`,
+    );
+  }
+
+  const [{ roomCount }] = await db
+    .select({ roomCount: count() })
+    .from(rooms)
+    .where(and(eq(rooms.roomTypeId, currentRoomTypeId), isNull(rooms.archivedAt)));
+
+  if (roomCount === 1) {
+    await db
+      .update(roomTypes)
+      .set({
+        name: typeName,
+        defaultCapacity: input.sharingCount,
+        hasAc: input.hasAc,
+        updatedAt: new Date(),
+      })
+      .where(eq(roomTypes.id, currentRoomTypeId));
+    return currentRoomTypeId;
+  }
+
+  let [targetType] = await db
+    .select()
+    .from(roomTypes)
+    .where(
+      and(
+        eq(roomTypes.pgId, pgId),
+        eq(roomTypes.name, typeName),
+        eq(roomTypes.defaultCapacity, input.sharingCount),
+        eq(roomTypes.hasAc, input.hasAc),
+      ),
+    )
+    .limit(1);
+
+  if (!targetType) {
+    [targetType] = await db
+      .insert(roomTypes)
+      .values({
+        pgId,
+        name: typeName,
+        defaultCapacity: input.sharingCount,
+        hasAc: input.hasAc,
+      })
+      .returning();
+  }
+
+  await db
+    .update(rooms)
+    .set({ roomTypeId: targetType.id, updatedAt: new Date() })
+    .where(eq(rooms.id, roomId));
+
+  return targetType.id;
+}
 
 /** Move a room to another floor and/or change its room number. */
 export async function updateRoomDetails(
@@ -443,6 +530,7 @@ export async function updateRoomDetails(
     .select({
       roomId: rooms.id,
       pgId: floors.pgId,
+      roomTypeId: rooms.roomTypeId,
     })
     .from(rooms)
     .innerJoin(floors, eq(floors.id, rooms.floorId))
@@ -505,9 +593,37 @@ export async function updateRoomDetails(
     .set({
       floorId: targetFloor.id,
       roomNumber,
+      notes: input.notes?.trim() ? input.notes.trim() : null,
       updatedAt: new Date(),
     })
     .where(eq(rooms.id, roomId));
+
+  if (
+    input.roomTypeName !== undefined ||
+    input.sharingCount !== undefined ||
+    input.hasAc !== undefined
+  ) {
+    const [currentType] = await db
+      .select({
+        id: roomTypes.id,
+        name: roomTypes.name,
+        defaultCapacity: roomTypes.defaultCapacity,
+        hasAc: roomTypes.hasAc,
+      })
+      .from(roomTypes)
+      .where(eq(roomTypes.id, roomRow.roomTypeId))
+      .limit(1);
+
+    if (!currentType) {
+      throw new Error('Room type not found.');
+    }
+
+    await assignRoomTypeForRoom(pgId, roomId, roomRow.roomTypeId, {
+      roomTypeName: input.roomTypeName ?? currentType.name,
+      sharingCount: input.sharingCount ?? currentType.defaultCapacity,
+      hasAc: input.hasAc ?? currentType.hasAc,
+    });
+  }
 }
 
 async function bedHasActiveReservation(bedId: string): Promise<boolean> {

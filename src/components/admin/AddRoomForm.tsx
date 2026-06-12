@@ -97,6 +97,15 @@ export function AddRoomForm({ pgId }: { pgId: string }) {
           className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
         />
       </label>
+      <label className="text-sm sm:col-span-2">
+        <span className="text-zinc-400">Room type label</span>
+        <input
+          placeholder="e.g. Tuition room (optional — defaults to sharing label)"
+          value={draft.roomTypeName}
+          onChange={(e) => patch('roomTypeName', e.target.value)}
+          className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
+        />
+      </label>
       <label className="text-sm">
         <span className="text-zinc-400">Sharing type *</span>
         <select

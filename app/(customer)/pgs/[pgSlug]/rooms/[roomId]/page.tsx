@@ -1,10 +1,14 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { headers } from 'next/headers';
 import {
   BedSelector,
   type BedSelectorBed,
 } from '@/src/components/customer/BedSelector';
+import { RoomDetailInsights } from '@/src/components/customer/RoomDetailInsights';
 import { getRoomDetail } from '@/src/db/queries/customer';
+import { getCustomerSession } from '@/src/lib/auth/session';
+import { getRoomActivityStats, recordRoomPageView } from '@/src/services/roomActivity';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,6 +34,19 @@ export default async function RoomDetailPage(
   }
   const room = detail.data;
 
+  const [session, reqHeaders, activity] = await Promise.all([
+    getCustomerSession(),
+    headers(),
+    getRoomActivityStats(room.roomId),
+  ]);
+
+  void recordRoomPageView({
+    roomId: room.roomId,
+    customerId: session?.customerId ?? null,
+    ip: reqHeaders.get('x-forwarded-for') ?? reqHeaders.get('x-real-ip'),
+    userAgent: reqHeaders.get('user-agent'),
+  });
+
   const beds: BedSelectorBed[] = room.beds.map((b) => ({
     bedId: b.bedId,
     bedCode: b.bedCode,
@@ -49,6 +66,8 @@ export default async function RoomDetailPage(
   const bookableCount = beds.filter(
     (b) => b.status === 'available' && (b.isAvailableNow || b.nextAvailableDate),
   ).length;
+
+  const rateSample = beds.find((b) => b.monthlyRatePaise > 0) ?? beds[0];
 
   return (
     <div className="apg-aurora mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
@@ -76,7 +95,7 @@ export default async function RoomDetailPage(
             Room {room.roomNumber} · {room.roomType}
           </h1>
           <p className="mt-2 text-sm text-apg-silver">
-            {room.capacity}-bed {room.hasAc ? 'AC' : 'Non-AC'} ·{' '}
+            {room.capacity}-sharing · {room.hasAc ? 'AC' : 'Non-AC'} ·{' '}
             {room.hasAttachedBath ? 'Attached bath' : 'Shared bath'}
           </p>
         </div>
@@ -84,6 +103,23 @@ export default async function RoomDetailPage(
           {availableNowCount} free now · {bookableCount} of {beds.length} bookable
         </span>
       </header>
+
+      <RoomDetailInsights
+        roomType={room.roomType}
+        capacity={room.capacity}
+        hasAc={room.hasAc}
+        hasAttachedBath={room.hasAttachedBath}
+        floorLabel={room.floorLabel}
+        roomNumber={room.roomNumber}
+        rates={{
+          dailyRatePaise: rateSample?.dailyRatePaise ?? 0,
+          weeklyRatePaise: rateSample?.weeklyRatePaise ?? 0,
+          monthlyRatePaise: rateSample?.monthlyRatePaise ?? 0,
+          monthlyDepositPaise:
+            rateSample?.monthlySecurityDepositPaise ?? rateSample?.securityDepositPaise ?? 0,
+        }}
+        activity={activity}
+      />
 
       <section className="mt-8">
         <h2 className="mb-4 text-lg font-semibold text-white">Pick your bed, then choose dates</h2>

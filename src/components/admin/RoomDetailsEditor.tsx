@@ -6,6 +6,7 @@ import {
   archiveRoomAction,
   updateRoomDetailsAction,
 } from '@/app/(admin)/admin/pgs/inventory-actions';
+import { ROOM_SHARING_OPTIONS, type RoomSharingCount } from '@/src/lib/roomSharing';
 
 function editableFloorLabel(label: string, floorNumber: number): string {
   const auto = `Floor ${floorNumber}`;
@@ -18,12 +19,20 @@ export function RoomDetailsEditor({
   roomNumber,
   floorNumber,
   floorLabel,
+  roomTypeName,
+  sharingCount,
+  hasAc,
+  roomNotes,
 }: {
   pgId: string;
   roomId: string;
   roomNumber: string;
   floorNumber: number;
   floorLabel: string;
+  roomTypeName: string;
+  sharingCount: number;
+  hasAc: boolean;
+  roomNotes: string | null;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -31,6 +40,10 @@ export function RoomDetailsEditor({
     roomNumber,
     floorNumber: String(floorNumber),
     floorLabel: editableFloorLabel(floorLabel, floorNumber),
+    roomTypeName,
+    sharingCount: String(sharingCount) as `${RoomSharingCount}`,
+    hasAc,
+    notes: roomNotes ?? '',
   });
   const [pending, setPending] = useState(false);
   const [removing, setRemoving] = useState(false);
@@ -41,6 +54,10 @@ export function RoomDetailsEditor({
       roomNumber,
       floorNumber: String(floorNumber),
       floorLabel: editableFloorLabel(floorLabel, floorNumber),
+      roomTypeName,
+      sharingCount: String(sharingCount) as `${RoomSharingCount}`,
+      hasAc,
+      notes: roomNotes ?? '',
     });
   }
 
@@ -53,6 +70,10 @@ export function RoomDetailsEditor({
     fd.set('roomNumber', values.roomNumber);
     fd.set('floorNumber', values.floorNumber);
     fd.set('floorLabel', values.floorLabel);
+    fd.set('roomTypeName', values.roomTypeName);
+    fd.set('sharingCount', values.sharingCount);
+    if (values.hasAc) fd.set('hasAc', 'on');
+    fd.set('notes', values.notes);
     const result = await updateRoomDetailsAction(pgId, fd);
     setPending(false);
     if (!result.ok) {
@@ -86,6 +107,12 @@ export function RoomDetailsEditor({
           Room {roomNumber}
           <span className="ml-2 text-sm font-normal text-zinc-500">{floorLabel}</span>
         </h4>
+        <p className="mt-0.5 text-xs text-zinc-400">
+          {roomTypeName}
+          {hasAc ? ' · AC' : ''}
+          {' · '}
+          {sharingCount} sharing max
+        </p>
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <button
@@ -115,6 +142,48 @@ export function RoomDetailsEditor({
           onSubmit={onSave}
           className="w-full grid gap-3 rounded-lg border border-zinc-800 bg-zinc-950/60 p-3 sm:grid-cols-3"
         >
+          <label className="text-sm sm:col-span-2">
+            <span className="text-zinc-400">Room type label *</span>
+            <input
+              type="text"
+              required
+              placeholder="e.g. Tuition room, 2 Sharing"
+              value={values.roomTypeName}
+              onChange={(e) => setValues((v) => ({ ...v, roomTypeName: e.target.value }))}
+              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-white"
+            />
+            <span className="mt-1 block text-xs text-zinc-500">
+              Shown to tenants when browsing beds — rename anytime (e.g. Tuition room).
+            </span>
+          </label>
+          <label className="text-sm">
+            <span className="text-zinc-400">Max sharing *</span>
+            <select
+              required
+              value={values.sharingCount}
+              onChange={(e) =>
+                setValues((v) => ({
+                  ...v,
+                  sharingCount: e.target.value as `${RoomSharingCount}`,
+                }))
+              }
+              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-white"
+            >
+              {ROOM_SHARING_OPTIONS.map((opt) => (
+                <option key={opt.count} value={opt.count}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-2 text-sm text-zinc-300 sm:col-span-3">
+            <input
+              type="checkbox"
+              checked={values.hasAc}
+              onChange={(e) => setValues((v) => ({ ...v, hasAc: e.target.checked }))}
+            />
+            Room has AC
+          </label>
           <label className="text-sm">
             <span className="text-zinc-400">Room number *</span>
             <input
@@ -143,6 +212,16 @@ export function RoomDetailsEditor({
               placeholder="First floor"
               value={values.floorLabel}
               onChange={(e) => setValues((v) => ({ ...v, floorLabel: e.target.value }))}
+              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-white"
+            />
+          </label>
+          <label className="text-sm sm:col-span-3">
+            <span className="text-zinc-400">Internal notes (optional)</span>
+            <input
+              type="text"
+              placeholder="Admin-only note about this room"
+              value={values.notes}
+              onChange={(e) => setValues((v) => ({ ...v, notes: e.target.value }))}
               className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-white"
             />
           </label>

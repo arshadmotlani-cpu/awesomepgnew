@@ -5,6 +5,7 @@ import {
 } from '@/src/components/customer/BookingCartForm';
 import { getBedsForCart } from '@/src/db/queries/customer';
 import { normalizeBrowseStay } from '@/src/lib/dateDefaults';
+import { todayString } from '@/src/lib/dates';
 import { paiseToInr } from '@/src/lib/format';
 import { quoteBookingPrice } from '@/src/services/pricing';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
@@ -166,6 +167,7 @@ export default async function NewBookingPage(
 
   // Customer is in the booking flow with beds selected — eligible for PS4 add-on.
   const showPs4Addon = profileComplete && !quoteError;
+  const checkoutTiming = start > todayString() ? 'future_start' : 'available_now';
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
@@ -231,6 +233,7 @@ export default async function NewBookingPage(
           phone: session.phone,
         }}
         showPs4Addon={showPs4Addon}
+        checkoutTiming={checkoutTiming}
       />
 
       {/* Selected beds quick-reference */}

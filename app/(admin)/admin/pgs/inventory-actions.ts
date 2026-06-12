@@ -53,7 +53,8 @@ export async function quickAddBedAction(
       floorNumber,
       floorLabel: formData.get('floorLabel')?.toString(),
       roomNumber: formData.get('roomNumber')?.toString() ?? '',
-      roomTypeName: sharingTypeName(sharing),
+      roomTypeName:
+        formData.get('roomTypeName')?.toString()?.trim() || sharingTypeName(sharing),
       sharingCount: sharing,
       bedsToAdd,
       hasAc: formData.get('hasAc') === 'on',
@@ -96,11 +97,17 @@ export async function updateRoomDetailsAction(
 
     const floorNumber = Number.parseInt(formData.get('floorNumber')?.toString() ?? '', 10);
     const roomNumber = formData.get('roomNumber')?.toString() ?? '';
+    const sharing = parseSharingCount(formData.get('sharingCount')?.toString());
+    const roomTypeNameRaw = formData.get('roomTypeName')?.toString()?.trim();
 
     await updateRoomDetails(session, pgId, roomId, {
       floorNumber,
       floorLabel: formData.get('floorLabel')?.toString(),
       roomNumber,
+      roomTypeName: roomTypeNameRaw || undefined,
+      sharingCount: sharing ?? undefined,
+      hasAc: formData.get('hasAc') === 'on',
+      notes: formData.get('notes')?.toString(),
     });
 
     revalidatePgAdminPages(pgId);
