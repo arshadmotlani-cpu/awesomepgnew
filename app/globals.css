@@ -58,49 +58,52 @@ body {
     var(--apg-charcoal);
 }
 
-/* Bright marketing / home landing — light shell, readable body copy */
+/* Brighter dark home landing — same theme as the app, lifted contrast & glow */
 .apg-landing {
-  color: #0f172a;
+  color: #f4f6f8;
+  --apg-silver: #c5cdd8;
+  --apg-muted: #8b95a5;
 }
 
 .apg-landing.apg-aurora::before {
   background:
-    radial-gradient(ellipse 85% 55% at 15% -5%, rgba(255, 90, 31, 0.14), transparent 58%),
-    radial-gradient(ellipse 70% 45% at 92% 8%, rgba(34, 211, 238, 0.16), transparent 52%),
-    radial-gradient(ellipse 55% 35% at 50% 100%, rgba(167, 139, 250, 0.12), transparent 58%),
-    linear-gradient(180deg, #ffffff 0%, #f8fafc 45%, #f1f5f9 100%);
+    radial-gradient(ellipse 90% 60% at 12% -8%, rgba(255, 90, 31, 0.32), transparent 58%),
+    radial-gradient(ellipse 75% 50% at 88% 5%, rgba(34, 211, 238, 0.24), transparent 52%),
+    radial-gradient(ellipse 60% 40% at 50% 100%, rgba(167, 139, 250, 0.18), transparent 58%),
+    linear-gradient(180deg, #141b26 0%, #1a2332 42%, #121820 100%);
 }
 
 .apg-landing.apg-grid-overlay {
   background-image:
-    linear-gradient(rgba(15, 23, 42, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(15, 23, 42, 0.04) 1px, transparent 1px);
+    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
 }
 
 .apg-landing .apg-glass {
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(30, 38, 52, 0.82);
+  border: 1px solid rgba(176, 183, 195, 0.22);
   box-shadow:
-    0 4px 24px rgba(15, 23, 42, 0.06),
-    0 1px 0 rgba(255, 255, 255, 0.8) inset;
-  backdrop-filter: blur(12px);
+    0 8px 32px rgba(0, 0, 0, 0.35),
+    0 1px 0 rgba(255, 255, 255, 0.06) inset;
+  backdrop-filter: blur(16px);
 }
 
 .apg-landing .apg-glass:hover {
-  border-color: rgba(255, 90, 31, 0.35);
+  border-color: rgba(255, 90, 31, 0.45);
   box-shadow:
-    0 8px 32px rgba(255, 90, 31, 0.1),
-    0 1px 0 rgba(255, 255, 255, 0.9) inset;
+    0 8px 36px rgba(255, 90, 31, 0.14),
+    0 1px 0 rgba(255, 255, 255, 0.08) inset;
 }
 
 .apg-landing .apg-glass-light {
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  box-shadow: 0 2px 16px rgba(15, 23, 42, 0.04);
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(12px);
 }
 
 .apg-landing .apg-gradient-text {
-  background: linear-gradient(135deg, #0f172a 0%, #ea580c 42%, #0891b2 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #ff5a1f 45%, #22d3ee 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -110,7 +113,7 @@ body {
   background: linear-gradient(
     110deg,
     rgba(255, 255, 255, 0) 0%,
-    rgba(255, 90, 31, 0.06) 45%,
+    rgba(255, 90, 31, 0.1) 45%,
     rgba(255, 255, 255, 0) 90%
   );
 }
@@ -274,9 +277,31 @@ body {
   -webkit-text-fill-color: #18181b;
 }
 
-.bg-white :is(dd, td, th, li, p, span, div, h1, h2, h3, h4, a, button),
-.bg-zinc-50 :is(dd, td, th, li, p, span, div, h1, h2, h3, h4, a, button) {
+.bg-white
+  :is(dd, td, th, li, p, span, div, h1, h2, h3, h4, a, button):not(
+    .apg-surface-primary
+  ),
+.bg-zinc-50
+  :is(dd, td, th, li, p, span, div, h1, h2, h3, h4, a, button):not(
+    .apg-surface-primary
+  ) {
   -webkit-text-fill-color: currentColor;
+}
+
+/* Primary CTAs on light cards inside the dark shell — keep label readable. */
+.apg-surface-primary,
+.apg-account-surface .apg-surface-primary,
+.apg-account-surface :is(a, button)[class*='bg-zinc-9'],
+.apg-account-surface :is(a, button)[class*='bg-apg-orange'],
+.apg-account-surface :is(a, button)[class*='bg-[#FF5A1F]'],
+.bg-zinc-50 .apg-surface-primary,
+.bg-zinc-50 :is(a, button)[class*='bg-zinc-9'],
+.bg-zinc-50 :is(a, button)[class*='bg-apg-orange'],
+.bg-white .apg-surface-primary,
+.bg-white :is(a, button)[class*='bg-zinc-9'],
+.bg-white :is(a, button)[class*='bg-apg-orange'] {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
 }
 
 .bg-white dd,
@@ -598,6 +623,7 @@ body {
   background: rgba(11, 15, 20, 0.97);
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55), 0 0 32px rgba(255, 90, 31, 0.12);
   backdrop-filter: blur(12px);
+  pointer-events: auto;
 }
 
 @media (min-width: 640px) {
@@ -628,12 +654,27 @@ body {
 }
 
 .roachie-recall-panel__close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  margin: -0.35rem -0.35rem -0.35rem 0;
   border: none;
+  border-radius: 0.5rem;
   background: transparent;
   color: #b0b7c3;
-  font-size: 1.25rem;
+  font-size: 1.5rem;
   line-height: 1;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.roachie-recall-panel__close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .roachie-recall-panel__body {

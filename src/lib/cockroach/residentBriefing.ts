@@ -63,9 +63,16 @@ export function buildResidentBriefingMessage(input: ResidentBriefingInput): stri
     lines.push('');
     lines.push('GIVE MOVE-OUT NOTICE (PICK YOUR DATE)');
     if (input.vacatingDate && input.vacatingStatus) {
-      lines.push(
-        `You already submitted vacating for ${input.vacatingDate} (${input.vacatingStatus}). Admin sees it instantly — no need to call or WhatsApp.`,
-      );
+      const statusLower = input.vacatingStatus.toLowerCase();
+      if (statusLower === 'pending') {
+        lines.push(
+          `You submitted vacating for ${input.vacatingDate} (pending admin review). If that was a mistake, open Profile → Resident area → Vacating → Withdraw vacating request.`,
+        );
+      } else {
+        lines.push(
+          `You already submitted vacating for ${input.vacatingDate} (${input.vacatingStatus}). Admin sees it instantly — no need to call or WhatsApp.`,
+        );
+      }
     } else {
       const vacatingPath = input.bookingId
         ? `/account/resident/request-vacating/${input.bookingId}`

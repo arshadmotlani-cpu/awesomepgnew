@@ -11,12 +11,12 @@ export const metadata = {
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900">
-      <SiteHeader theme="light" />
+    <div className="apg-customer-shell flex min-h-screen flex-col bg-apg-charcoal">
+      <SiteHeader />
       <main className="flex-1">
         <LandingPage />
       </main>
-      <SiteFooter theme="light" />
+      <SiteFooter />
       <WhatsAppSupportButton />
     </div>
   );

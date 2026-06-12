@@ -46,7 +46,8 @@ test('buildResidentBriefingMessage reflects submitted vacating', () => {
     vacatingDate: '2026-07-15',
     vacatingStatus: 'pending',
   });
-  assert.match(text, /already submitted vacating for 2026-07-15/);
+  assert.match(text, /submitted vacating for 2026-07-15/);
+  assert.match(text, /Withdraw vacating request/);
   assert.doesNotMatch(text, /Choose your vacating date/);
 });
 

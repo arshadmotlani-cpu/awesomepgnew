@@ -4,6 +4,7 @@
  *   submitVacatingRequest()  — resident or admin files a vacating notice
  *   approveVacatingRequest() — admin acknowledges
  *   rejectVacatingRequest()  — admin denies (rare)
+ *   cancelVacatingRequestByCustomer() — resident withdraws a pending notice
  *   completeVacatingRequest()— admin marks done; writes deposit ledger
  *                               entries (deducted + refunded), cancels
  *                               future rent + electricity invoices
@@ -89,6 +90,12 @@ export type CompleteVacatingResult =
       electricityInvoicesCancelled: number;
     }
   | { ok: false; kind: 'not_found' }
+  | { ok: false; kind: 'wrong_status'; status: VacatingRequest['status'] };
+
+export type CancelVacatingByCustomerResult =
+  | { ok: true; bookingId: string }
+  | { ok: false; kind: 'not_found' }
+  | { ok: false; kind: 'forbidden' }
   | { ok: false; kind: 'wrong_status'; status: VacatingRequest['status'] };
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -360,6 +367,53 @@ export async function rejectVacatingRequest(input: {
   });
 
   return { ok: true, request: updated };
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// cancelVacatingRequestByCustomer — withdraw a pending notice
+// ───────────────────────────────────────────────────────────────────────────
+
+export async function cancelVacatingRequestByCustomer(input: {
+  requestId: string;
+  customerId: string;
+}): Promise<CancelVacatingByCustomerResult> {
+  const [current] = await db
+    .select()
+    .from(vacatingRequests)
+    .where(eq(vacatingRequests.id, input.requestId))
+    .limit(1);
+  if (!current) return { ok: false, kind: 'not_found' };
+  if (current.customerId !== input.customerId) return { ok: false, kind: 'forbidden' };
+  if (current.status !== 'pending') {
+    return { ok: false, kind: 'wrong_status', status: current.status };
+  }
+
+  await db.delete(vacatingRequests).where(eq(vacatingRequests.id, current.id));
+
+  await db.insert(auditLog).values({
+    actorType: 'customer',
+    actorId: input.customerId,
+    entity: 'vacating_request',
+    entityId: current.id,
+    action: 'cancelled_by_customer',
+    diff: {
+      bookingId: current.bookingId,
+      vacatingDate: current.vacatingDate,
+      fromStatus: 'pending',
+    },
+  });
+
+  const meta = await vacatingEmailMeta(current.bookingId);
+  const { notifyVacatingUpdate } = await import('@/src/lib/email/notifications');
+  notifyVacatingUpdate({
+    customerId: current.customerId,
+    bookingCode: meta.bookingCode,
+    status: 'rejected',
+    vacatingDate: current.vacatingDate,
+    note: 'You withdrew your vacating request. Your stay continues as before.',
+  });
+
+  return { ok: true, bookingId: current.bookingId };
 }
 
 // ───────────────────────────────────────────────────────────────────────────

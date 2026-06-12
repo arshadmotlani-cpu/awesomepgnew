@@ -14,7 +14,7 @@ import {
   mockProvider,
   razorpayProvider,
 } from '@/src/services/payments';
-import { submitVacatingRequest } from '@/src/services/vacating';
+import { submitVacatingRequest, cancelVacatingRequestByCustomer } from '@/src/services/vacating';
 import { accountProfileHref } from '@/src/lib/accountNavigation';
 
 /**
@@ -334,7 +334,7 @@ export async function submitVacatingAction(
       return {
         status: 'error',
         message:
-          'A vacating request is already on file for this booking. Reach out to your PG manager to amend.',
+          'A vacating request is already on file for this booking. Open your resident area to withdraw it if you submitted by mistake.',
       };
     }
     if (result.kind === 'invalid_input') {
@@ -345,6 +345,48 @@ export async function submitVacatingAction(
       message: `Could not submit (${result.kind}).`,
     };
   }
+  revalidatePath('/account/profile');
+  redirect(accountProfileHref('resident'));
+}
+
+export type CancelVacatingActionState =
+  | { status: 'idle' }
+  | { status: 'error'; message: string };
+
+export async function cancelVacatingAction(
+  _prev: CancelVacatingActionState,
+  formData: FormData,
+): Promise<CancelVacatingActionState> {
+  const requestId = String(formData.get('requestId') ?? '');
+  const bookingId = String(formData.get('bookingId') ?? '');
+
+  if (!requestId || !bookingId) {
+    return { status: 'error', message: 'Missing request details.' };
+  }
+
+  const ownership = await verifySessionOwnership(bookingId);
+  if (!ownership.ok) return { status: 'error', message: ownership.message };
+
+  const result = await cancelVacatingRequestByCustomer({
+    requestId,
+    customerId: ownership.customer.id,
+  });
+  if (!result.ok) {
+    if (result.kind === 'forbidden') {
+      return { status: 'error', message: 'Access denied.' };
+    }
+    if (result.kind === 'wrong_status') {
+      return {
+        status: 'error',
+        message:
+          result.status === 'approved'
+            ? 'Admin already approved this request — contact your PG manager to change plans.'
+            : 'This vacating request can no longer be withdrawn.',
+      };
+    }
+    return { status: 'error', message: 'Vacating request not found.' };
+  }
+
   revalidatePath('/account/profile');
   redirect(accountProfileHref('resident'));
 }

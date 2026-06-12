@@ -64,16 +64,16 @@ export function LandingPage() {
           transition={{ duration: 0.6 }}
           className="max-w-4xl"
         >
-          <span className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-orange-700">
+          <span className="inline-flex items-center gap-2 rounded-full border border-apg-orange/40 bg-apg-orange/15 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-orange-100">
             <span className="h-1.5 w-1.5 rounded-full bg-apg-orange apg-float" />
             Awesome PG
           </span>
-          <h1 className="mt-8 text-4xl font-semibold leading-[1.08] tracking-tight text-slate-900 sm:text-6xl lg:text-7xl">
+          <h1 className="mt-8 text-4xl font-semibold leading-[1.08] tracking-tight text-white sm:text-6xl lg:text-7xl">
             Not just a room.
             <br />
             <span className="apg-gradient-text">A universe you&apos;ll never want to leave.</span>
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-slate-600 sm:text-lg">
+          <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-apg-silver sm:text-lg">
             Premium paying-guest living with gaming zones, chill rooms, daily cleaning, free laundry,
             and honest amenities — not empty promises. Book your exact bed in minutes and step into
             a community built for people who expect more.
@@ -81,13 +81,13 @@ export function LandingPage() {
           <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
             <Link
               href="/pgs"
-              className="inline-flex items-center justify-center rounded-xl bg-apg-orange px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-orange-500/25 transition hover:brightness-110"
+              className="apg-glow-btn inline-flex items-center justify-center rounded-xl bg-apg-orange px-8 py-3.5 text-sm font-semibold text-white transition hover:brightness-110"
             >
               Explore PGs & pick your bed
             </Link>
             <Link
               href="/login?next=/account/profile"
-              className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-8 py-3.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-orange-300 hover:bg-orange-50"
+              className="inline-flex items-center justify-center rounded-xl border border-white/20 bg-white/10 px-8 py-3.5 text-sm font-semibold text-white transition hover:border-apg-orange/40 hover:bg-white/15"
             >
               Resident sign in
             </Link>
@@ -107,8 +107,8 @@ export function LandingPage() {
             { label: 'Transparent bills', sub: 'Rent · AC power · deposit' },
           ].map((s) => (
             <div key={s.label} className="apg-glass rounded-2xl px-4 py-4 text-left">
-              <p className="text-sm font-semibold text-slate-900">{s.label}</p>
-              <p className="mt-1 text-xs text-slate-600">{s.sub}</p>
+              <p className="text-sm font-semibold text-white">{s.label}</p>
+              <p className="mt-1 text-xs text-apg-silver">{s.sub}</p>
             </div>
           ))}
         </motion.div>
@@ -117,13 +117,13 @@ export function LandingPage() {
       {/* Lifestyle */}
       <section className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6">
         <div className="mb-10 max-w-2xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-700">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-apg-cyan">
             The Awesome life
           </p>
-          <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+          <h2 className="mt-2 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
             Facilities that make people talk about this place
           </h2>
-          <p className="mt-3 text-slate-600">
+          <p className="mt-3 text-apg-silver">
             We&apos;re building the PG you wish existed — where quality living, entertainment, and
             community aren&apos;t extras. They&apos;re the standard, and we&apos;re honest about
             what&apos;s live today versus coming soon.
@@ -137,40 +137,40 @@ export function LandingPage() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: '-40px' }}
               transition={{ delay: i * 0.05 }}
-              className="group apg-glass apg-shimmer overflow-hidden rounded-2xl p-6 transition hover:border-cyan-300/60"
+              className="group apg-glass apg-shimmer overflow-hidden rounded-2xl p-6 transition hover:border-apg-cyan/30"
             >
               <div className="flex items-start justify-between gap-2">
                 <span className="text-3xl">{item.emoji}</span>
                 {item.comingSoon ? (
-                  <span className="shrink-0 rounded-full border border-cyan-200 bg-cyan-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-cyan-800">
+                  <span className="shrink-0 rounded-full border border-apg-cyan/35 bg-apg-cyan/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-apg-cyan">
                     Coming soon
                   </span>
                 ) : null}
               </div>
-              <h3 className="mt-4 text-lg font-semibold text-slate-900 transition-colors group-hover:text-apg-orange">
+              <h3 className="mt-4 text-lg font-semibold text-white transition-colors group-hover:text-apg-orange">
                 {item.title}
               </h3>
-              <p className="mt-2 text-sm leading-relaxed text-slate-600">{item.body}</p>
+              <p className="mt-2 text-sm leading-relaxed text-apg-silver">{item.body}</p>
             </motion.div>
           ))}
         </div>
       </section>
 
       {/* How it works */}
-      <section className="border-y border-slate-200/80 bg-white/70 py-20 backdrop-blur-sm">
+      <section className="border-y border-white/10 bg-white/[0.03] py-20 backdrop-blur-sm">
         <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
-          <p className="text-center text-xs font-semibold uppercase tracking-[0.2em] text-orange-700">
+          <p className="text-center text-xs font-semibold uppercase tracking-[0.2em] text-apg-orange">
             Simple journey
           </p>
-          <h2 className="mt-2 text-center text-3xl font-semibold text-slate-900 sm:text-4xl">
+          <h2 className="mt-2 text-center text-3xl font-semibold text-white sm:text-4xl">
             From browse to belonging
           </h2>
           <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {STEPS.map((step) => (
               <div key={step.n} className="relative apg-glass-light rounded-2xl p-6">
-                <span className="text-3xl font-bold text-orange-300">{step.n}</span>
-                <h3 className="mt-3 text-base font-semibold text-slate-900">{step.title}</h3>
-                <p className="mt-2 text-sm text-slate-600">{step.body}</p>
+                <span className="text-3xl font-bold text-apg-orange/50">{step.n}</span>
+                <h3 className="mt-3 text-base font-semibold text-white">{step.title}</h3>
+                <p className="mt-2 text-sm text-apg-silver">{step.body}</p>
               </div>
             ))}
           </div>
@@ -179,18 +179,18 @@ export function LandingPage() {
 
       {/* CTA */}
       <section className="mx-auto w-full max-w-6xl px-4 py-24 text-center sm:px-6">
-        <h2 className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-5xl">
+        <h2 className="text-3xl font-semibold tracking-tight text-white sm:text-5xl">
           Ready to live somewhere
           <br />
           <span className="apg-gradient-text">you&apos;ll recommend forever?</span>
         </h2>
-        <p className="mx-auto mt-4 max-w-xl text-slate-600">
+        <p className="mx-auto mt-4 max-w-xl text-apg-silver">
           Search PGs, see real availability, and reserve the bed that fits your life — before
           someone else does.
         </p>
         <Link
           href="/pgs"
-          className="mt-10 inline-flex rounded-xl bg-apg-orange px-10 py-4 text-sm font-semibold text-white shadow-lg shadow-orange-500/25 transition hover:brightness-110"
+          className="apg-glow-btn mt-10 inline-flex rounded-xl bg-apg-orange px-10 py-4 text-sm font-semibold text-white transition hover:brightness-110"
         >
           Start browsing →
         </Link>

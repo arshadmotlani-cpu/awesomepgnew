@@ -21,7 +21,7 @@ export default async function PgsPage() {
     <>
       <PageHeader
         title="PG listings"
-        description="Click Edit on any PG. Each PG has three sections: Listing (public page), Rooms & electricity (beds + meter billing), and Collections (QR payments)."
+        description="Open Bed map to see every room and tenant, or Edit to manage listing, rooms, and collections."
         actions={
           canWrite ? (
             <Link
@@ -74,12 +74,20 @@ export default async function PgsPage() {
                 </TD>
                 <TD>
                   {canWrite ? (
-                    <Link
-                      href={`/admin/pgs/${row.id}/listing`}
-                      className="text-sm font-medium text-[#FF5A1F] hover:underline"
-                    >
-                      Edit PG →
-                    </Link>
+                    <div className="flex flex-col items-end gap-1">
+                      <Link
+                        href={`/admin/pgs/${row.id}/map`}
+                        className="text-sm font-semibold text-[#FF5A1F] hover:underline"
+                      >
+                        Bed map →
+                      </Link>
+                      <Link
+                        href={`/admin/pgs/${row.id}/listing`}
+                        className="text-xs text-zinc-500 hover:text-[#FF5A1F] hover:underline"
+                      >
+                        Setup
+                      </Link>
+                    </div>
                   ) : null}
                 </TD>
               </TR>

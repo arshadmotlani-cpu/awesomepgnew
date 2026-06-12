@@ -13,12 +13,14 @@ import { getCustomerSession } from '@/src/lib/auth/session';
 import { getCustomerById } from '@/src/services/profile';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import { DepositRefundNotice } from '@/src/components/customer/DepositRefundNotice';
+import { CancelVacatingForm } from '@/src/components/customer/CancelVacatingForm';
 import { MyServicesPanel } from '@/src/components/customer/MyServicesPanel';
 import {
   ACCOUNT_LINK_IN_SURFACE,
   ACCOUNT_LINK_ON_DARK,
   ACCOUNT_SURFACE,
   ACCOUNT_SURFACE_PADDED,
+  ACCOUNT_SURFACE_PRIMARY_BTN,
   ACCOUNT_TABLE_HEAD,
 } from '@/src/components/customer/accountStyles';
 import { getRoomElectricityForCustomer } from '@/src/services/meterElectricity';
@@ -582,14 +584,21 @@ export async function ResidentAreaSection({ customerId }: { customerId: string }
                         </div>
                       ) : null}
                     </dl>
-                  ) : (
+                  ) : null}
+                  {vacating?.status === 'pending' ? (
+                    <CancelVacatingForm
+                      requestId={vacating.id}
+                      bookingId={d.bookingId}
+                    />
+                  ) : null}
+                  {!vacating ? (
                     <Link
                       href={`/account/resident/request-vacating/${d.bookingId}`}
-                      className="mt-3 inline-flex items-center justify-center rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-800"
+                      className={`mt-3 ${ACCOUNT_SURFACE_PRIMARY_BTN} px-3 py-1.5 text-xs`}
                     >
                       Submit vacating request →
                     </Link>
-                  )}
+                  ) : null}
                 </div>
               </section>
             );

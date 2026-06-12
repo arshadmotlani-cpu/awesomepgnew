@@ -9,6 +9,7 @@ import { defaultVacatingDate } from '@/src/lib/dateDefaults';
 import { todayString } from '@/src/lib/dates';
 import { paiseToInr } from '@/src/lib/format';
 import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
+import { ACCOUNT_SURFACE_PRIMARY_BTN } from '@/src/components/customer/accountStyles';
 
 const idleState: VacatingActionState = { status: 'idle' };
 
@@ -89,7 +90,7 @@ export function VacatingRequestForm({
       <button
         type="submit"
         disabled={pending}
-        className="inline-flex w-full items-center justify-center rounded-md bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-zinc-800 disabled:bg-zinc-400"
+        className={`w-full ${ACCOUNT_SURFACE_PRIMARY_BTN}`}
       >
         {pending ? 'Submitting…' : 'Submit vacating request'}
       </button>

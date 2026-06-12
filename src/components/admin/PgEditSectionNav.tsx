@@ -5,6 +5,11 @@ import { usePathname } from 'next/navigation';
 
 const SECTIONS = [
   {
+    slug: 'map',
+    label: 'Bed map',
+    desc: 'Occupancy & tenants',
+  },
+  {
     slug: 'listing',
     label: '1. Listing',
     desc: 'Public /pgs page',
@@ -33,9 +38,9 @@ export function PgEditSectionNav({
   return (
     <div className="sticky top-14 z-20 -mx-4 mb-6 border-b border-white/10 bg-[#0B0F14]/95 px-4 py-3 backdrop-blur lg:-mx-8 lg:px-8">
       <p className="mb-2 text-xs font-medium uppercase tracking-wide text-apg-silver">
-        PG setup — three sections
+        PG operations & setup
       </p>
-      <nav className="flex flex-col gap-2 sm:flex-row sm:flex-wrap" aria-label="PG setup sections">
+      <nav className="flex flex-col gap-2 sm:flex-row sm:flex-wrap" aria-label="PG sections">
         {SECTIONS.map((s) => {
           const href = `/admin/pgs/${pgId}/${s.slug}`;
           const active = pathname === href || pathname.startsWith(`${href}/`);

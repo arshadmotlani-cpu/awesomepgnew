@@ -65,7 +65,7 @@ export function PgBusinessMetricsTable({
             <tr key={row.pgId} className="hover:bg-zinc-50">
               <td className="px-4 py-3">
                 <Link
-                  href={`/admin/pgs/${row.pgId}/listing`}
+                  href={`/admin/pgs/${row.pgId}/map`}
                   className="font-medium text-zinc-900 hover:text-[#FF5A1F]"
                 >
                   {row.pgName}

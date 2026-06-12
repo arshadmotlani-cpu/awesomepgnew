@@ -376,6 +376,20 @@ export default async function AdminBookingDetailPage(
                 <dd className="text-zinc-900">{titleCase(b.customer.gender)}</dd>
               </div>
             </dl>
+            <div className="mt-3 flex flex-col gap-2 border-t border-zinc-100 pt-3">
+              <Link
+                href={`/admin/residents/${b.customer.id}`}
+                className="text-sm font-semibold text-[#FF5A1F] hover:underline"
+              >
+                Open resident profile →
+              </Link>
+              <Link
+                href={`/admin/deposits/${b.id}`}
+                className="text-sm font-medium text-indigo-600 hover:underline"
+              >
+                Deposit ledger →
+              </Link>
+            </div>
           </div>
 
           {canRecordPayment ? (

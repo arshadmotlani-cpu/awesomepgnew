@@ -38,6 +38,7 @@ export async function updateTenancyAction(
     if (!result.ok) return result;
 
     const customerId = formData.get('customerId')?.toString()?.trim();
+    const pgId = formData.get('pgId')?.toString()?.trim();
     revalidatePath('/admin/residents');
     if (customerId) revalidatePath(`/admin/residents/${customerId}`);
     revalidatePath('/admin/bookings');
@@ -45,6 +46,7 @@ export async function updateTenancyAction(
     revalidatePath(`/admin/deposits/${bookingId}`);
     revalidatePath('/admin/deposits');
     revalidatePath('/pgs');
+    if (pgId) revalidatePath(`/admin/pgs/${pgId}/map`);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };

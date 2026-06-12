@@ -37,7 +37,7 @@ export default async function PgSetupLayout({
 
       <PageHeader
         title={pg.name}
-        description="One page per section — listing, rooms & electricity, or collections."
+        description="One page per section — bed map, listing, rooms & electricity, or collections."
         actions={
           <div className="flex flex-wrap items-center gap-3">
             <Link
