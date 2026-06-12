@@ -16,6 +16,8 @@ export function UpiPaymentProofForm({
   uploadScreenshot,
   submitProof,
   doneMessage = 'Payment proof submitted. An admin will verify the screenshot and mark it paid.',
+  variant = 'dark',
+  qrFootnote,
 }: {
   amountLabel: string;
   heading?: string;
@@ -31,7 +33,11 @@ export function UpiPaymentProofForm({
     transactionRef?: string;
   }) => Promise<SubmitResult>;
   doneMessage?: string;
+  /** Light surfaces for booking checkout; dark glass for resident dashboard. */
+  variant?: 'light' | 'dark';
+  qrFootnote?: string;
 }) {
+  const isLight = variant === 'light';
   const inputId = useId();
   const [screenshotUrl, setScreenshotUrl] = useState(existingProofUrl ?? '');
   const [fileName, setFileName] = useState<string | null>(null);
@@ -94,7 +100,13 @@ export function UpiPaymentProofForm({
       proofViewHref ?? (screenshotUrl && !isDataProofUrl(screenshotUrl) ? screenshotUrl : undefined);
 
     return (
-      <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200 ring-1 ring-inset ring-emerald-500/20">
+      <div
+        className={
+          isLight
+            ? 'rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900'
+            : 'rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200 ring-1 ring-inset ring-emerald-500/20'
+        }
+      >
         {doneMessage}
         {viewHref ? (
           <a
@@ -113,12 +125,22 @@ export function UpiPaymentProofForm({
   return (
     <form
       onSubmit={onSubmit}
-      className="apg-glass space-y-4 rounded-2xl p-5"
+      className={
+        isLight
+          ? 'space-y-4 rounded-xl border border-zinc-200 bg-zinc-50 p-4'
+          : 'apg-glass space-y-4 rounded-2xl p-5'
+      }
     >
       <div>
-        <h3 className="text-base font-semibold text-white">{heading}</h3>
-        <p className="mt-1 text-sm text-zinc-300">
-          Amount: <span className="font-semibold text-white">{amountLabel}</span>.
+        <h3 className={`text-base font-semibold ${isLight ? 'text-zinc-900' : 'text-white'}`}>
+          {heading}
+        </h3>
+        <p className={`mt-1 text-sm ${isLight ? 'text-zinc-600' : 'text-zinc-300'}`}>
+          Amount:{' '}
+          <span className={`font-semibold ${isLight ? 'text-zinc-900' : 'text-white'}`}>
+            {amountLabel}
+          </span>
+          .
           {instructions
             ? ` ${instructions}`
             : ' Scan the QR, pay via UPI, then upload a photo of the payment.'}
@@ -148,11 +170,16 @@ export function UpiPaymentProofForm({
               </button>
             </div>
           ) : null}
+          {qrFootnote ? (
+            <p className={`mt-2 text-xs ${isLight ? 'text-zinc-500' : 'text-zinc-400'}`}>
+              {qrFootnote}
+            </p>
+          ) : null}
         </div>
       ) : null}
 
       <div className="space-y-2">
-        <p className="text-sm font-medium text-white">
+        <p className={`text-sm font-medium ${isLight ? 'text-zinc-900' : 'text-white'}`}>
           Step 2 — Upload payment screenshot <span className="text-[#FF5A1F]">*</span>
         </p>
 
@@ -169,30 +196,50 @@ export function UpiPaymentProofForm({
           className={
             'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-8 text-center transition ' +
             (screenshotUrl
-              ? 'border-emerald-500/50 bg-emerald-500/10'
-              : 'border-[#FF5A1F]/40 bg-[#FF5A1F]/5 hover:border-[#FF5A1F]/70 hover:bg-[#FF5A1F]/10')
+              ? isLight
+                ? 'border-emerald-300 bg-emerald-50'
+                : 'border-emerald-500/50 bg-emerald-500/10'
+              : isLight
+                ? 'border-zinc-300 bg-white hover:border-[#FF5A1F]/50'
+                : 'border-[#FF5A1F]/40 bg-[#FF5A1F]/5 hover:border-[#FF5A1F]/70 hover:bg-[#FF5A1F]/10')
           }
         >
           {uploading ? (
-            <span className="text-sm font-medium text-zinc-300">Uploading…</span>
+            <span className={`text-sm font-medium ${isLight ? 'text-zinc-600' : 'text-zinc-300'}`}>
+              Uploading…
+            </span>
           ) : screenshotUrl ? (
             <>
               <span className="text-2xl" aria-hidden>
                 ✓
               </span>
-              <span className="text-sm font-semibold text-emerald-300">Screenshot uploaded</span>
+              <span
+                className={`text-sm font-semibold ${isLight ? 'text-emerald-700' : 'text-emerald-300'}`}
+              >
+                Screenshot uploaded
+              </span>
               {fileName ? (
-                <span className="max-w-full truncate text-xs text-zinc-300">{fileName}</span>
+                <span
+                  className={`max-w-full truncate text-xs ${isLight ? 'text-zinc-500' : 'text-zinc-300'}`}
+                >
+                  {fileName}
+                </span>
               ) : null}
-              <span className="text-xs text-zinc-300">Tap to replace</span>
+              <span className={`text-xs ${isLight ? 'text-zinc-500' : 'text-zinc-300'}`}>
+                Tap to replace
+              </span>
             </>
           ) : (
             <>
               <span className="text-2xl" aria-hidden>
                 📷
               </span>
-              <span className="text-sm font-semibold text-white">Choose screenshot from gallery</span>
-              <span className="text-xs text-zinc-300">
+              <span
+                className={`text-sm font-semibold ${isLight ? 'text-zinc-900' : 'text-white'}`}
+              >
+                Choose screenshot from gallery
+              </span>
+              <span className={`text-xs ${isLight ? 'text-zinc-500' : 'text-zinc-300'}`}>
                 Photo library, Files, or saved UPI payment receipt
               </span>
             </>
@@ -204,32 +251,48 @@ export function UpiPaymentProofForm({
           <img
             src={screenshotUrl}
             alt="Payment screenshot preview"
-            className="mx-auto max-h-40 rounded-lg border border-white/10 object-contain"
+            className={`mx-auto max-h-40 rounded-lg border object-contain ${isLight ? 'border-zinc-200' : 'border-white/10'}`}
           />
         ) : null}
       </div>
 
       <label className="block text-sm">
-        <span className="font-medium text-zinc-300">UPI reference (optional)</span>
+        <span className={`font-medium ${isLight ? 'text-zinc-600' : 'text-zinc-300'}`}>
+          UPI reference (optional)
+        </span>
         <input
           type="text"
           value={transactionRef}
           onChange={(e) => setTransactionRef(e.target.value)}
           placeholder="e.g. 123456789012"
-          className="apg-input-dark mt-1.5 w-full rounded-lg px-3 py-2.5 text-sm"
+          className={
+            isLight
+              ? 'mt-1.5 w-full rounded-lg border border-zinc-300 px-3 py-2.5 text-sm text-zinc-900'
+              : 'apg-input-dark mt-1.5 w-full rounded-lg px-3 py-2.5 text-sm'
+          }
         />
       </label>
 
       <button
         type="submit"
         disabled={pending || uploading || !screenshotUrl}
-        className="apg-glow-btn w-full rounded-lg bg-[#FF5A1F] px-4 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+        className={
+          isLight
+            ? 'w-full rounded-lg bg-[#FF5A1F] px-4 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40'
+            : 'apg-glow-btn w-full rounded-lg bg-[#FF5A1F] px-4 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40'
+        }
       >
         {pending ? 'Submitting…' : 'Submit payment for approval'}
       </button>
 
       {error ? (
-        <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+        <p
+          className={
+            isLight
+              ? 'rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700'
+              : 'rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200'
+          }
+        >
           {error}
         </p>
       ) : null}

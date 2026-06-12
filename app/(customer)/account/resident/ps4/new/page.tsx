@@ -8,7 +8,13 @@ import {
   ACCOUNT_PAGE_TITLE,
   ACCOUNT_SURFACE_PADDED,
 } from '@/src/components/customer/accountStyles';
-import { PS4_ADDON_LABEL, PS4_PLANS } from '@/src/lib/playstation/plans';
+import {
+  PS4_ADDON_LABEL,
+  PS4_LOUNGE_HEADLINE,
+  PS4_LOUNGE_HOURLY_NOTE,
+  PS4_PLANS,
+  ps4PlanRatesSummary,
+} from '@/src/lib/playstation/plans';
 import { isActiveTenant } from '@/src/services/playstationMembership';
 import { subscribePs4Action } from './actions';
 
@@ -29,6 +35,9 @@ export default async function NewPs4SubscriptionPage() {
         </Link>
         <h1 className={`mt-2 ${ACCOUNT_PAGE_TITLE}`}>Subscribe to PS4 add-on</h1>
         <p className={ACCOUNT_PAGE_SUBTITLE}>{PS4_ADDON_LABEL}</p>
+        <p className="mt-2 text-sm font-medium text-zinc-800">{PS4_LOUNGE_HEADLINE}</p>
+        <p className="mt-1 text-sm text-zinc-600">{PS4_LOUNGE_HOURLY_NOTE}</p>
+        <p className="mt-1 text-xs text-zinc-500">Plans: {ps4PlanRatesSummary()}</p>
       </header>
 
       <form action={subscribePs4Action} className={`${ACCOUNT_SURFACE_PADDED} space-y-3`}>
@@ -46,7 +55,8 @@ export default async function NewPs4SubscriptionPage() {
           </label>
         ))}
         <p className="text-xs text-zinc-600">
-          Payment uses the electricity / daily UPI QR — separate from rent.
+          Payment uses the electricity / daily UPI QR — scan, pay, upload proof; admin verifies before
+          lounge access activates (same as PG booking checkout).
         </p>
         <button
           type="submit"

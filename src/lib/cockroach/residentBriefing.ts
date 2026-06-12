@@ -1,4 +1,4 @@
-import { PS4_ADDON_LABEL, PS4_PLANS } from '@/src/lib/playstation/plans';
+import { PS4_ADDON_LABEL, PS4_LOUNGE_HOURLY_NOTE, PS4_PLANS, ps4PlanRatesSummary } from '@/src/lib/playstation/plans';
 import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
 
 export type ResidentBriefingInput = {
@@ -55,7 +55,7 @@ export function buildResidentBriefingMessage(input: ResidentBriefingInput): stri
       lines.push(`1. Go to Resident dashboard → My services → "${PS4_ADDON_LABEL}".`);
       lines.push('2. Tap Subscribe to PS4 add-on.');
       lines.push(
-        `3. Pick a plan: Weekly ${formatInr(PS4_PLANS.weekly.pricePaise)}, Bi-weekly ${formatInr(PS4_PLANS.biweekly.pricePaise)}, or Monthly ${formatInr(PS4_PLANS.monthly.pricePaise)} — billed separately from rent.`,
+        `3. Pick a plan: ${ps4PlanRatesSummary()} — billed separately from rent. ${PS4_LOUNGE_HOURLY_NOTE}`,
       );
       lines.push('4. Scan the UPI QR and upload payment proof to activate lounge access.');
     }

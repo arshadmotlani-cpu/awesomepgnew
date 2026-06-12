@@ -27,13 +27,20 @@ export async function listPendingPaymentReviews(
 
   const qrRows = await listOwnerPayments(session, { status: 'pending' });
   for (const p of qrRows) {
+    const isBookingCheckout = Boolean(p.bookingCode);
     items.push({
       key: `qr-${p.id}`,
       kind: 'qr',
       pgId: p.pgId,
       pgName: p.pgName,
-      title: `${p.customerName} · ${p.categoryName}`,
-      subtitle: p.month ? `Month ${p.month}` : 'QR payment',
+      title: isBookingCheckout
+        ? `${p.customerName} · Booking ${p.bookingCode}`
+        : `${p.customerName} · ${p.categoryName}`,
+      subtitle: isBookingCheckout
+        ? 'PG booking checkout — rent, deposit & reservation'
+        : p.month
+          ? `Month ${p.month}`
+          : 'QR payment',
       amountPaise: p.amountPaise,
       screenshotUrl: p.paymentScreenshotUrl,
       entityId: p.id,

@@ -6,7 +6,10 @@ export function adminPaymentProofViewUrl(
   return `/api/admin/payment-proof/${kind}/${id}`;
 }
 
-export function customerPaymentProofViewUrl(kind: 'playstation', id: string): string {
+export function customerPaymentProofViewUrl(
+  kind: 'playstation' | 'booking',
+  id: string,
+): string {
   return `/api/payment-proof/${kind}/${id}`;
 }
 

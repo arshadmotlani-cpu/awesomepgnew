@@ -22,19 +22,33 @@ export const PS4_PLANS: Record<Ps4PlanId, Ps4Plan> = {
     id: 'biweekly',
     label: 'Bi-weekly',
     description: 'PS4 gaming maintenance · 14 days',
-    pricePaise: 55_000,
+    pricePaise: 60_000,
     durationDays: 14,
   },
   monthly: {
     id: 'monthly',
     label: 'Monthly',
     description: 'PS4 gaming maintenance · 30 days',
-    pricePaise: 75_000,
+    pricePaise: 80_000,
     durationDays: 30,
   },
 };
 
 export const PS4_ADDON_LABEL = 'PS4 gaming maintenance add-on';
+
+/** Walk-in hourly lounge rate (₹50/hr) — membership plans are better value. */
+export const PS4_HOURLY_RATE_PAISE = 5_000;
+
+export const PS4_LOUNGE_HEADLINE = 'Our only best shared gaming lounge';
+
+export const PS4_LOUNGE_HOURLY_NOTE =
+  'Also available at ₹50 per hour — pick a plan below for unlimited lounge access during your stay.';
+
+/** Customer-facing rate card line (weekly / bi-weekly / monthly). */
+export function ps4PlanRatesSummary(): string {
+  const fmt = (paise: number) => `₹${Math.round(paise / 100)}`;
+  return `Weekly ${fmt(PS4_PLANS.weekly.pricePaise)} · Bi-weekly ${fmt(PS4_PLANS.biweekly.pricePaise)} · Monthly ${fmt(PS4_PLANS.monthly.pricePaise)}`;
+}
 
 export function isPs4PlanId(value: string): value is Ps4PlanId {
   return value === 'weekly' || value === 'biweekly' || value === 'monthly';

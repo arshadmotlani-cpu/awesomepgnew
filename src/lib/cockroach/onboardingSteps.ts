@@ -1,4 +1,5 @@
 import type { MascotPose } from './mascotAssets';
+import { PS4_LOUNGE_HEADLINE, PS4_LOUNGE_HOURLY_NOTE, ps4PlanRatesSummary } from '@/src/lib/playstation/plans';
 
 export type OnboardingSubStep = {
   /** `data-roachie-tour` value; null = mascot-only (no spotlight). */
@@ -177,7 +178,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
       {
         target: 'ps4-addon',
         message:
-          'Optional add-ons include PS4 gaming maintenance — a separate service from your bed rent. Weekly ₹350, bi-weekly ₹550, or monthly ₹750.',
+          `Optional add-ons include our PS4 lounge — ${PS4_LOUNGE_HEADLINE.toLowerCase()}. ${PS4_LOUNGE_HOURLY_NOTE} Plans: ${ps4PlanRatesSummary()} — billed separately from rent and deposit.`,
         durationMs: 7000,
       },
     ],

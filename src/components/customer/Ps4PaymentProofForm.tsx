@@ -1,6 +1,7 @@
 'use client';
 
 import { customerPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
+import { PS4_LOUNGE_HEADLINE, PS4_LOUNGE_HOURLY_NOTE } from '@/src/lib/playstation/plans';
 import { UpiPaymentProofForm } from './UpiPaymentProofForm';
 
 export function Ps4PaymentProofForm({
@@ -22,7 +23,7 @@ export function Ps4PaymentProofForm({
     <UpiPaymentProofForm
       amountLabel={amountLabel}
       heading="Pay PS4 add-on via UPI"
-      instructions="Scan the QR, pay the PS4 gaming maintenance add-on via UPI, then upload your payment screenshot."
+      instructions={`${PS4_LOUNGE_HEADLINE}. ${PS4_LOUNGE_HOURLY_NOTE} Scan the QR, pay the exact add-on amount via UPI, then upload your payment screenshot.`}
       qrImageUrl={qrImageUrl}
       upiId={upiId}
       existingProofUrl={existingProofUrl}

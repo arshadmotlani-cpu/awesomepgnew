@@ -260,7 +260,8 @@ export function BookingCartForm({
           {isPending ? 'Reserving beds…' : 'Reserve & continue to payment'}
         </button>
         <p className="mt-2 text-center text-[11px] text-zinc-500">
-          You&apos;ll complete secure payment on the next step.
+          Next step: scan UPI QR, pay the total shown, and upload your payment screenshot for admin
+          approval.
         </p>
       </aside>
     </form>

@@ -1,5 +1,6 @@
 import type { ElementContext, PageContext } from './types';
 import { VACATING_NOTICE_MIN_DAYS } from '@/src/lib/dateDefaults';
+import { PS4_LOUNGE_HEADLINE, PS4_LOUNGE_HOURLY_NOTE, ps4PlanRatesSummary } from '@/src/lib/playstation/plans';
 
 const FOCUS_TIPS: Record<string, string> = {
   'stay-dates': `Planning to stay long-term? Pick Living here — you only set a move-in date. Leave anytime with ${VACATING_NOTICE_MIN_DAYS} days notice from your resident dashboard.`,
@@ -9,7 +10,7 @@ const FOCUS_TIPS: Record<string, string> = {
   'confirm-booking': 'Your deposit is refundable. Living-here stays bill monthly after move-in — no fixed checkout date needed upfront.',
   vacating: `When you plan to move out, submit vacating here at least ${VACATING_NOTICE_MIN_DAYS} days before your last day to protect your deposit refund.`,
   'ps4-service':
-    'PS4 gaming maintenance is a separate add-on from rent — weekly ₹350, bi-weekly ₹550, or monthly ₹750. Subscribe here, pay via UPI, and lounge access activates automatically.',
+    `${PS4_LOUNGE_HEADLINE} — ${PS4_LOUNGE_HOURLY_NOTE} Membership plans: ${ps4PlanRatesSummary()}. Subscribe here, pay via UPI QR + upload proof; lounge access activates once admin verifies (same as PG booking checkout).`,
   'pay-rent': 'Pay rent from here before the 5th to avoid late fees. Electricity is billed separately when your PG uses meter split.',
 };
 

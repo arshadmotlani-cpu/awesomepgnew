@@ -286,6 +286,25 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
   return row!;
 }
 
+/** Pending UPI proof for a booking checkout (rent + deposit ± PS4 add-on). */
+export async function getPendingBookingPaymentRecord(bookingId: string, customerId: string) {
+  const [row] = await db
+    .select({
+      id: pgPaymentRecords.id,
+      paymentScreenshotUrl: pgPaymentRecords.paymentScreenshotUrl,
+    })
+    .from(pgPaymentRecords)
+    .where(
+      and(
+        eq(pgPaymentRecords.bookingId, bookingId),
+        eq(pgPaymentRecords.customerId, customerId),
+        eq(pgPaymentRecords.status, 'pending'),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
 export async function listOwnerPayments(
   session: AdminSession,
   filters?: { pgId?: string; status?: 'pending' | 'approved' | 'rejected'; month?: string },
@@ -325,11 +344,14 @@ export async function listOwnerPayments(
       paymentScreenshotUrl: pgPaymentRecords.paymentScreenshotUrl,
       transactionRef: pgPaymentRecords.transactionRef,
       createdAt: pgPaymentRecords.createdAt,
+      bookingId: pgPaymentRecords.bookingId,
+      bookingCode: bookings.bookingCode,
     })
     .from(pgPaymentRecords)
     .innerJoin(pgs, eq(pgs.id, pgPaymentRecords.pgId))
     .innerJoin(pgPaymentCategories, eq(pgPaymentCategories.id, pgPaymentRecords.categoryId))
     .innerJoin(customers, eq(customers.id, pgPaymentRecords.customerId))
+    .leftJoin(bookings, eq(bookings.id, pgPaymentRecords.bookingId))
     .where(and(...conditions))
     .orderBy(desc(pgPaymentRecords.createdAt));
 }

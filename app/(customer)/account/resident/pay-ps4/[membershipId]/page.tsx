@@ -10,7 +10,7 @@ import {
   DEFAULT_ELECTRICITY_DAILY_UPI_ID,
 } from '@/src/lib/payments/defaultQr';
 import { customerPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
-import { PS4_ADDON_LABEL, PS4_PLANS, type Ps4PlanId } from '@/src/lib/playstation/plans';
+import { PS4_ADDON_LABEL, PS4_LOUNGE_HEADLINE, PS4_LOUNGE_HOURLY_NOTE, PS4_PLANS, type Ps4PlanId } from '@/src/lib/playstation/plans';
 import {
   ensureDefaultPaymentCategoriesForPg,
   getElectricityDailyCategory,
@@ -72,6 +72,8 @@ export default async function PayPs4Page({
           Pay PS4 add-on
         </h1>
         <p className="mt-1 text-sm text-apg-silver">{PS4_ADDON_LABEL}</p>
+        <p className="mt-2 text-sm font-medium text-white">{PS4_LOUNGE_HEADLINE}</p>
+        <p className="mt-1 text-xs text-zinc-300">{PS4_LOUNGE_HOURLY_NOTE}</p>
       </header>
 
       <section className="apg-glass rounded-2xl p-5">

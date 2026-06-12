@@ -129,3 +129,19 @@ export async function resolveCustomerPlaystationProofUrl(
   if (!row?.url || row.customerId !== customerId) return null;
   return row.url;
 }
+
+export async function resolveCustomerBookingProofUrl(
+  customerId: string,
+  recordId: string,
+): Promise<string | null> {
+  const [row] = await db
+    .select({
+      customerId: pgPaymentRecords.customerId,
+      url: pgPaymentRecords.paymentScreenshotUrl,
+    })
+    .from(pgPaymentRecords)
+    .where(eq(pgPaymentRecords.id, recordId))
+    .limit(1);
+  if (!row?.url || row.customerId !== customerId) return null;
+  return row.url;
+}

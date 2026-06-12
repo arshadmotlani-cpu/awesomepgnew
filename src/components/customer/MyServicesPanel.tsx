@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { formatDateTime, paiseToInr, titleCase } from '@/src/lib/format';
-import { PS4_ADDON_LABEL, PS4_PLANS, type Ps4PlanId } from '@/src/lib/playstation/plans';
+import { PS4_ADDON_LABEL, PS4_PLANS, ps4PlanRatesSummary, PS4_LOUNGE_HEADLINE, PS4_LOUNGE_HOURLY_NOTE, type Ps4PlanId } from '@/src/lib/playstation/plans';
 import type { PlaystationMembership } from '@/src/db/schema/playstationMemberships';
 
 type Props = {
@@ -77,7 +77,7 @@ export function MyServicesPanel({ membership, isActiveTenant }: Props) {
           </p>
         ) : (
           <p className="mt-3 text-sm text-zinc-300">
-            Access the shared PS4 lounge. Choose weekly (₹350), bi-weekly (₹550), or monthly (₹750).
+            {PS4_LOUNGE_HEADLINE}. {PS4_LOUNGE_HOURLY_NOTE} Plans: {ps4PlanRatesSummary()}.
           </p>
         )}
 

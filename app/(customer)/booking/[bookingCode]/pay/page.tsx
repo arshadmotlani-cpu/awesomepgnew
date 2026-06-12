@@ -23,6 +23,7 @@ import {
   getRentDepositBookingCategory,
 } from '@/src/services/pgPaymentDefaults';
 import { getPendingMembershipForBooking } from '@/src/services/playstationMembership';
+import { getPendingBookingPaymentRecord } from '@/src/services/qrPayments';
 
 export const dynamic = 'force-dynamic';
 
@@ -65,6 +66,7 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
   const rentCategory = await getRentDepositBookingCategory(booking.pg.id);
   const elecCategory = await getElectricityDailyCategory(booking.pg.id);
   const pendingPs4 = await getPendingMembershipForBooking(booking.id);
+  const pendingPayment = await getPendingBookingPaymentRecord(booking.id, session.customerId);
   const ps4Paise = pendingPs4?.amountPaise ?? 0;
   const checkoutTotalPaise = booking.totalPaise + ps4Paise;
   const totalLabel = formatPaise(checkoutTotalPaise);
@@ -101,7 +103,8 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
       </div>
       <p className="mt-1 text-sm text-zinc-600">
         Booking <span className="font-mono text-zinc-900">{booking.bookingCode}</span> is held
-        until we approve your UPI payment. Upload a screenshot after paying the exact amount below.
+        until we approve your UPI payment. Scan the QR, pay the exact total below, then upload your
+        payment screenshot — same process as rent and PS4 add-on payments.
       </p>
 
       <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-3">
@@ -177,6 +180,7 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
                 membershipId={pendingPs4?.id}
                 membershipAmountPaise={ps4Paise > 0 ? ps4Paise : undefined}
                 membershipLabel={ps4PlanLabel ?? undefined}
+                existingProofRecordId={pendingPayment?.id}
               />
             </div>
           </div>

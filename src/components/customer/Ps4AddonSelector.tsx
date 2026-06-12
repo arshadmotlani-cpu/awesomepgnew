@@ -1,6 +1,6 @@
 'use client';
 
-import { PS4_ADDON_LABEL, PS4_PLANS, type Ps4PlanId } from '@/src/lib/playstation/plans';
+import { PS4_ADDON_LABEL, PS4_LOUNGE_HEADLINE, PS4_LOUNGE_HOURLY_NOTE, PS4_PLANS, type Ps4PlanId } from '@/src/lib/playstation/plans';
 import { paiseToInr } from '@/src/lib/format';
 
 type Props = {
@@ -17,9 +17,9 @@ export function Ps4AddonSelector({ selectedPlan, onChange, disabled }: Props) {
       data-roachie-tour="ps4-addon"
     >
       <h2 className="text-base font-semibold text-zinc-900">Optional add-ons</h2>
+      <p className="mt-1 text-sm font-medium text-zinc-800">{PS4_LOUNGE_HEADLINE}</p>
       <p className="mt-1 text-sm text-zinc-500">
-        {PS4_ADDON_LABEL} — separate from your bed rent and deposit. Billed as a
-        gaming maintenance service, not rent.
+        {PS4_LOUNGE_HOURLY_NOTE} {PS4_ADDON_LABEL} — separate from your bed rent and deposit.
       </p>
 
       <div className="mt-4 space-y-2">

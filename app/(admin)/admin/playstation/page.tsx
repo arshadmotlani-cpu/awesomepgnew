@@ -4,7 +4,7 @@ import { IconCard } from '@/src/components/admin/icons';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
 import { formatDate, formatDateTime, paiseToInr, titleCase } from '@/src/lib/format';
-import { PS4_ADDON_LABEL, PS4_PLANS, type Ps4PlanId } from '@/src/lib/playstation/plans';
+import { PS4_ADDON_LABEL, PS4_PLANS, ps4PlanRatesSummary, PS4_LOUNGE_HEADLINE, PS4_LOUNGE_HOURLY_NOTE, type Ps4PlanId } from '@/src/lib/playstation/plans';
 import { adminPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import { PaymentScreenshotPreview } from '@/src/components/admin/PaymentScreenshotPreview';
 import {
@@ -30,7 +30,7 @@ export default async function AdminPlaystationPage() {
     <>
       <PageHeader
         title="PS4 gaming maintenance"
-        description={`${PS4_ADDON_LABEL} memberships — separate from rent. Weekly ₹350 · Bi-weekly ₹550 · Monthly ₹750.`}
+        description={`${PS4_LOUNGE_HEADLINE} — ${PS4_ADDON_LABEL}, separate from rent. ${PS4_LOUNGE_HOURLY_NOTE} Plans: ${ps4PlanRatesSummary()}.`}
       />
 
       <div className="mb-6 grid gap-3 sm:grid-cols-3">
