@@ -17,6 +17,7 @@ import {
   DEFAULT_ELECTRICITY_DAILY_UPI_ID,
 } from '@/src/lib/payments/defaultQr';
 import { ElectricityPaymentProofForm } from '@/src/components/customer/ElectricityPaymentProofForm';
+import { ACCOUNT_RESIDENT_HREF } from '@/src/lib/accountNavigation';
 import {
   ACCOUNT_BACK_LINK,
   ACCOUNT_LABEL,
@@ -90,8 +91,8 @@ export default async function PayElectricityPage({
   return (
     <div className="mx-auto w-full max-w-xl space-y-5 px-4 py-10 sm:px-6">
       <header>
-        <Link href="/account/resident" className={ACCOUNT_BACK_LINK}>
-          ← Back to resident dashboard
+        <Link href={ACCOUNT_RESIDENT_HREF} className={ACCOUNT_BACK_LINK}>
+          ← Back to resident area
         </Link>
         <h1 className={`mt-2 ${ACCOUNT_PAGE_TITLE}`}>Pay electricity</h1>
         <p className={`font-mono ${ACCOUNT_PAGE_SUBTITLE}`}>{invoiceRow.invoiceNumber}</p>

@@ -53,6 +53,7 @@ export default async function RoomDetailPage(
     status: b.status,
     isAvailableNow: b.isAvailableNow,
     nextAvailableDate: b.nextAvailableDate,
+    interestCount: b.interestCount,
     dailyRatePaise: b.dailyRatePaise,
     weeklyRatePaise: b.weeklyRatePaise,
     monthlyRatePaise: b.monthlyRatePaise,

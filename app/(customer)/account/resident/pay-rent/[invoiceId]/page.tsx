@@ -16,6 +16,7 @@ import {
   DEFAULT_RENT_DEPOSIT_UPI_ID,
 } from '@/src/lib/payments/defaultQr';
 import { RentPaymentProofForm } from '@/src/components/customer/RentPaymentProofForm';
+import { ACCOUNT_RESIDENT_HREF } from '@/src/lib/accountNavigation';
 import {
   ACCOUNT_BACK_LINK,
   ACCOUNT_LABEL,
@@ -90,8 +91,8 @@ export default async function PayRentPage({
   return (
     <div className="mx-auto w-full max-w-xl space-y-5 px-4 py-10 sm:px-6">
       <header>
-        <Link href="/account/resident" className={ACCOUNT_BACK_LINK}>
-          ← Back to resident dashboard
+        <Link href={ACCOUNT_RESIDENT_HREF} className={ACCOUNT_BACK_LINK}>
+          ← Back to resident area
         </Link>
         <h1 className={`mt-2 ${ACCOUNT_PAGE_TITLE}`}>Pay rent</h1>
         <p className={`font-mono ${ACCOUNT_PAGE_SUBTITLE}`}>{row.invoiceNumber}</p>

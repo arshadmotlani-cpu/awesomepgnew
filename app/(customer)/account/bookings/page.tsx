@@ -87,8 +87,8 @@ export default async function AccountBookingsPage() {
 
       <p className="text-sm text-apg-silver">
         Monthly stay?{' '}
-        <Link href="/account/resident" className={ACCOUNT_LINK_ON_DARK}>
-          Open resident dashboard →
+        <Link href="/account/profile?section=resident" className={ACCOUNT_LINK_ON_DARK}>
+          Resident area (rent &amp; bills) →
         </Link>
       </p>
     </div>

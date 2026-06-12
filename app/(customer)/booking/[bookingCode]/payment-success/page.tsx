@@ -62,7 +62,7 @@ export default async function PaymentSuccessPage(
 
   const customer = await getCustomerById(session.customerId);
   const checkInAllowed = customer ? canCheckIn(customer) : false;
-  const kycHref = `/account/kyc?booking=${encodeURIComponent(bookingCode)}`;
+  const kycHref = `/account/profile?section=identity&booking=${encodeURIComponent(bookingCode)}`;
 
   const payment =
     paymentId != null

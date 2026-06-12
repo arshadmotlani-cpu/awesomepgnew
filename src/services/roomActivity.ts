@@ -18,8 +18,8 @@ export type RoomActivityStats = {
   bedsAvailableNow: number;
   bedsOccupiedNow: number;
   bedsLeavingSoon: number;
-  /** Distinct bookings with a non-expired hold on a bed in this room. */
-  activeCheckoutHolds: number;
+  /** Distinct unpaid checkouts (hold) overlapping today — soft interest, not occupancy. */
+  interestedBookings: number;
   /** Bookings awaiting payment for beds in this room. */
   pendingPayments: number;
   /** Unique visitors in the last 7 days (null if view tracking is unavailable). */
@@ -79,7 +79,7 @@ export async function getRoomActivityStats(
         ${beds.status} = 'available' AND NOT EXISTS (
           SELECT 1 FROM ${bedReservations} br
           WHERE br.bed_id = ${beds.id}
-            AND br.status IN ('hold','active')
+            AND br.status = 'active'
             AND ${refDate}::date <@ br.stay_range
         )
       )`,
@@ -91,21 +91,24 @@ export async function getRoomActivityStats(
   const bedsAvailableNow = bedRows.filter((b) => b.isAvailableNow).length;
   const bedsOccupiedNow = bedsTotal - bedsAvailableNow;
 
-  const [{ holdCount }] = await db
+  const [{ interestCount }] = await db
     .select({
-      holdCount: sql<number>`count(distinct ${bedReservations.bookingId})::int`,
+      interestCount: sql<number>`count(distinct ${bedReservations.bookingId})::int`,
     })
     .from(bedReservations)
     .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+    .innerJoin(bookings, eq(bookings.id, bedReservations.bookingId))
     .where(
       and(
         eq(beds.roomId, roomId),
         isNull(beds.archivedAt),
         eq(bedReservations.status, 'hold'),
+        eq(bookings.status, 'pending_payment'),
         or(
           isNull(bedReservations.holdExpiresAt),
           sql`${bedReservations.holdExpiresAt} > now()`,
         ),
+        sql`${refDate}::date <@ ${bedReservations.stayRange}`,
       ),
     );
 
@@ -162,7 +165,7 @@ export async function getRoomActivityStats(
     bedsAvailableNow,
     bedsOccupiedNow,
     bedsLeavingSoon: leavingSoon,
-    activeCheckoutHolds: holdCount,
+    interestedBookings: interestCount,
     pendingPayments: pendingCount,
     uniqueViewers7d,
   };

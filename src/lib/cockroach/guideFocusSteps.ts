@@ -9,7 +9,7 @@ export function focusStepsForPath(pathname: string): string[] {
   if (pathname.startsWith('/booking/new')) {
     return ['confirm-booking'];
   }
-  if (pathname.startsWith('/account/resident')) {
+  if (pathname.startsWith('/account/resident') || pathname.startsWith('/account/profile')) {
     return ['vacating', 'pay-rent'];
   }
   return [];

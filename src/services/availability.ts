@@ -12,8 +12,9 @@
  *
  * Overlap rules respect the same `[start, end)` half-open daterange
  * convention enforced by the GiST EXCLUDE constraint
- * `bed_reservations_no_overlap_per_bed`. Reservations with status NOT IN
- * ('hold', 'active') are ignored — they can't block inventory.
+ * `bed_reservations_no_overlap_per_bed`. Only `active` reservations block
+ * the public calendar; unpaid `hold` rows are soft interest until admin
+ * approves payment proof.
  *
  * Pure helpers (`parseDaterange`, `computeFreeWindows`) are exported
  * separately from DB-touching code so the math is easy to unit-test
@@ -49,6 +50,7 @@ import {
   todayString,
   type DateLike,
 } from '../lib/dates';
+import { BLOCKING_RESERVATION_STATUS_SQL } from '../lib/reservationBlocking';
 
 // ───────────────────────────────────────────────────────────────────────────
 // Pure helpers
@@ -161,10 +163,11 @@ export type IsBedAvailableInput = {
 };
 
 /**
- * `true` iff the bed has no `hold`/`active` reservation overlapping
- * [startDate, endDate). Also checks that the bed itself isn't blocked /
- * archived. Returns `false` for unknown beds (rather than throwing) so the
- * caller can treat "unknown" identically to "unavailable".
+ * `true` iff the bed has no confirmed (`active`) reservation overlapping
+ * [startDate, endDate). Unpaid holds do not block. Also checks that the
+ * bed itself isn't blocked / archived. Returns `false` for unknown beds
+ * (rather than throwing) so the caller can treat "unknown" identically to
+ * "unavailable".
  */
 export async function isBedAvailable(input: IsBedAvailableInput): Promise<boolean> {
   const start = formatDate(parseDate(input.startDate));
@@ -183,7 +186,7 @@ export async function isBedAvailable(input: IsBedAvailableInput): Promise<boolea
     .where(
       and(
         eq(bedReservations.bedId, input.bedId),
-        sql`${bedReservations.status} IN ('hold','active')`,
+        sql`${bedReservations.status} IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
         sql`${bedReservations.stayRange} && daterange(${start}::date, ${end}::date, '[)')`,
       ),
     )
@@ -250,7 +253,7 @@ export async function getAvailableDateRanges(
 export type BedFutureReservation = {
   startDate: string;
   endDate: string;
-  status: 'hold' | 'active';
+  status: 'active';
   bookingCode: string | null;
 };
 
@@ -310,7 +313,7 @@ export async function getBedAvailabilityTimeline(
     .where(
       and(
         eq(bedReservations.bedId, input.bedId),
-        sql`${bedReservations.status} IN ('hold','active')`,
+        sql`${bedReservations.status} IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
         sql`${bedReservations.stayRange} && daterange(${ws}::date, ${we}::date, '[)')`,
       ),
     )
@@ -323,7 +326,7 @@ export async function getBedAvailabilityTimeline(
     futureReservations.push({
       startDate: formatDate(parsed.lower),
       endDate: formatDate(parsed.upper),
-      status: row.status as 'hold' | 'active',
+      status: 'active',
       bookingCode: row.bookingCode,
     });
   }
@@ -422,7 +425,7 @@ async function loadBusyRanges(
     .where(
       and(
         eq(bedReservations.bedId, bedId),
-        sql`${bedReservations.status} IN ('hold','active')`,
+        sql`${bedReservations.status} IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
         sql`${bedReservations.stayRange} && daterange(${ws}::date, ${we}::date, '[)')`,
       ),
     );
@@ -551,7 +554,7 @@ export async function getPgAvailability(
       .where(
         and(
           sql`${bedReservations.bedId} = ANY(${sql.raw(`'{${bedIds.join(',')}}'::uuid[]`)})`,
-          sql`${bedReservations.status} IN ('hold','active')`,
+          sql`${bedReservations.status} IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
           sql`${bedReservations.stayRange} && daterange(${startIso}::date, ${horizonIso}::date, '[)')`,
         ),
       )) as Array<{ bedId: string; stayRange: string }>;

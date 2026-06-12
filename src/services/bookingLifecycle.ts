@@ -148,6 +148,45 @@ function pgErrorCode(err: unknown): string | null {
   return null;
 }
 
+/** True when activating this booking would overlap an already-confirmed stay. */
+async function bookingActivationConflicts(bookingId: string): Promise<string | null> {
+  const holds = await db
+    .select({
+      bedId: bedReservations.bedId,
+      stayRange: bedReservations.stayRange,
+    })
+    .from(bedReservations)
+    .where(
+      and(
+        eq(bedReservations.bookingId, bookingId),
+        eq(bedReservations.status, 'hold'),
+        eq(bedReservations.kind, 'primary'),
+      ),
+    );
+
+  for (const hold of holds) {
+    const [conflict] = await db
+      .select({ id: bedReservations.id })
+      .from(bedReservations)
+      .where(
+        and(
+          eq(bedReservations.bedId, hold.bedId),
+          eq(bedReservations.status, 'active'),
+          sql`${bedReservations.bookingId} <> ${bookingId}::uuid`,
+          sql`${bedReservations.stayRange} && ${hold.stayRange}::daterange`,
+        ),
+      )
+      .limit(1);
+    if (conflict) {
+      return (
+        'This bed is already confirmed for another guest. Reject this payment or ask the ' +
+        'customer to choose a different bed.'
+      );
+    }
+  }
+  return null;
+}
+
 /**
  * Earliest check-in across a booking's primary reservations, in UTC. Used to
  * compute the cancellation refund tier. Returns `null` if the booking has no
@@ -195,6 +234,13 @@ export async function recordPaymentSuccess(
     .limit(1);
   if (!booking) {
     return { ok: false, reason: `no booking with code "${input.bookingCode}"` };
+  }
+
+  if (booking.status === 'pending_payment' || booking.status === 'draft') {
+    const conflictReason = await bookingActivationConflicts(booking.id);
+    if (conflictReason) {
+      return { ok: false, reason: conflictReason };
+    }
   }
 
   // 2. Idempotency probe: has this exact (provider, providerPaymentId) pair
@@ -366,7 +412,12 @@ export async function recordPaymentSuccess(
     }
     return {
       ok: false,
-      reason: err instanceof Error ? err.message : 'unknown error',
+      reason:
+        pgErrorCode(err) === '23P01'
+          ? 'This bed is already confirmed for another guest. Reject this payment or ask the customer to choose a different bed.'
+          : err instanceof Error
+            ? err.message
+            : 'unknown error',
     };
   }
 }

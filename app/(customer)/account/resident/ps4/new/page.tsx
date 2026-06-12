@@ -16,6 +16,7 @@ import {
   ps4PlanRatesSummary,
 } from '@/src/lib/playstation/plans';
 import { isActiveTenant } from '@/src/services/playstationMembership';
+import { ACCOUNT_RESIDENT_HREF } from '@/src/lib/accountNavigation';
 import { subscribePs4Action } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -24,14 +25,14 @@ export default async function NewPs4SubscriptionPage() {
   const session = await requireCustomerSession('/account/resident/ps4/new');
   const active = await isActiveTenant(session.customerId);
   if (!active) {
-    redirect('/account/resident');
+    redirect(ACCOUNT_RESIDENT_HREF);
   }
 
   return (
     <div className="mx-auto w-full max-w-xl space-y-5 px-4 py-10 sm:px-6">
       <header>
-        <Link href="/account/resident" className={ACCOUNT_BACK_LINK}>
-          ← Back to resident dashboard
+        <Link href={ACCOUNT_RESIDENT_HREF} className={ACCOUNT_BACK_LINK}>
+          ← Back to resident area
         </Link>
         <h1 className={`mt-2 ${ACCOUNT_PAGE_TITLE}`}>Subscribe to PS4 add-on</h1>
         <p className={ACCOUNT_PAGE_SUBTITLE}>{PS4_ADDON_LABEL}</p>

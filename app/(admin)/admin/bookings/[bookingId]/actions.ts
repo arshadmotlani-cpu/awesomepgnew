@@ -375,7 +375,7 @@ export async function updateBookingAdminOpsAction(
     revalidatePath(`/admin/bookings/${bookingId}`);
     revalidatePath('/admin/bookings');
     revalidatePath('/admin/deposits');
-    revalidatePath('/account/resident');
+    revalidatePath('/account/profile');
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };

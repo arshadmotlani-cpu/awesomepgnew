@@ -15,6 +15,8 @@ export type BedSelectorBed = {
   isAvailableNow: boolean;
   /** When occupied, earliest date the bed frees up. */
   nextAvailableDate: string | null;
+  /** Unpaid checkouts in progress for this bed today. */
+  interestCount?: number;
   /** Guest gave notice — bed opens after this date. */
   vacatingDate?: string | null;
   /** Latest checkout when a future booking caps the stay. */
@@ -257,6 +259,7 @@ function BedTile({
 }) {
   const rate = bed.monthlyRatePaise;
   const depositPaise = bed.monthlySecurityDepositPaise || bed.securityDepositPaise;
+  const interestCount = bed.interestCount ?? 0;
   const isNotice = tourRole === 'bed-notice';
   const isCapped = tourRole === 'bed-capped';
   const isFutureOnly = !bed.isAvailableNow && Boolean(bed.nextAvailableDate);
@@ -370,6 +373,15 @@ function BedTile({
           {depositPaise > 0 ? (
             <span className={`relative z-10 text-[10px] ${dark ? 'text-apg-muted' : 'text-zinc-500'}`}>
               + {paiseToInr(depositPaise)} deposit
+            </span>
+          ) : null}
+          {interestCount > 0 ? (
+            <span
+              className={`relative z-10 text-[10px] font-medium ${
+                dark ? 'text-amber-200/90' : 'text-amber-700'
+              }`}
+            >
+              {interestCount} interested — bed still open until payment approved
             </span>
           ) : null}
           <div className="relative z-10 mt-1 flex w-full flex-col gap-1 pointer-events-auto">

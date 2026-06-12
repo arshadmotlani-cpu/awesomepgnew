@@ -273,6 +273,19 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
     })
     .returning();
 
+  // Keep the booking alive while admin reviews proof — holds no longer block
+  // the public calendar, but we still cancel abandoned checkouts via cron.
+  const reviewHoldUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  await db
+    .update(bedReservations)
+    .set({ holdExpiresAt: reviewHoldUntil, updatedAt: new Date() })
+    .where(
+      and(
+        eq(bedReservations.bookingId, booking.id),
+        eq(bedReservations.status, 'hold'),
+      ),
+    );
+
   if (input.membershipId && input.membershipAmountPaise) {
     const { submitMembershipPaymentProof } = await import('./playstationMembership');
     await submitMembershipPaymentProof({
@@ -401,6 +414,33 @@ export async function reviewPaymentRecord(
   assertPgAccess(session, record.pgId);
   if (record.status !== 'pending') throw new Error('Only pending payments can be reviewed.');
 
+  if (status === 'approved' && record.bookingId) {
+    const [booking] = await db
+      .select({ bookingCode: bookings.bookingCode, status: bookings.status })
+      .from(bookings)
+      .where(eq(bookings.id, record.bookingId))
+      .limit(1);
+    if (booking?.status === 'pending_payment') {
+      const { recordPaymentSuccess } = await import('./bookingLifecycle');
+      const paymentResult = await recordPaymentSuccess({
+        provider: 'upi_manual',
+        providerPaymentId: `qr_record_${recordId}`,
+        providerOrderId: record.transactionRef ?? recordId,
+        amountPaise: record.amountPaise,
+        bookingCode: booking.bookingCode,
+        rawPayload: { pgPaymentRecordId: recordId, category: RENT_DEPOSIT_BOOKING_CATEGORY_NAME },
+      });
+      if (!paymentResult.ok) {
+        throw new Error(
+          paymentResult.reason ??
+            'Could not confirm booking — the bed may already be taken by another approved payment.',
+        );
+      }
+      const { activatePendingMembershipForBooking } = await import('./playstationMembership');
+      await activatePendingMembershipForBooking(record.bookingId);
+    }
+  }
+
   await db
     .update(pgPaymentRecords)
     .set({
@@ -410,27 +450,6 @@ export async function reviewPaymentRecord(
       updatedAt: new Date(),
     })
     .where(eq(pgPaymentRecords.id, recordId));
-
-  if (status === 'approved' && record.bookingId) {
-    const [booking] = await db
-      .select({ bookingCode: bookings.bookingCode, status: bookings.status })
-      .from(bookings)
-      .where(eq(bookings.id, record.bookingId))
-      .limit(1);
-    if (booking?.status === 'pending_payment') {
-      const { recordPaymentSuccess } = await import('./bookingLifecycle');
-      await recordPaymentSuccess({
-        provider: 'upi_manual',
-        providerPaymentId: `qr_record_${recordId}`,
-        providerOrderId: record.transactionRef ?? recordId,
-        amountPaise: record.amountPaise,
-        bookingCode: booking.bookingCode,
-        rawPayload: { pgPaymentRecordId: recordId, category: RENT_DEPOSIT_BOOKING_CATEGORY_NAME },
-      });
-      const { activatePendingMembershipForBooking } = await import('./playstationMembership');
-      await activatePendingMembershipForBooking(record.bookingId);
-    }
-  }
 }
 
 export async function listPublicPgsWithPayments() {

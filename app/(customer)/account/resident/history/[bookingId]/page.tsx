@@ -10,6 +10,7 @@ import {
   ACCOUNT_SURFACE,
   ACCOUNT_TABLE_HEAD,
 } from '@/src/components/customer/accountStyles';
+import { ACCOUNT_RESIDENT_HREF } from '@/src/lib/accountNavigation';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,8 +61,8 @@ export default async function PaymentHistoryPage({
   return (
     <div className="mx-auto w-full max-w-3xl space-y-5 px-4 py-10 sm:px-6">
       <header>
-        <Link href="/account/resident" className={ACCOUNT_BACK_LINK}>
-          ← Back to resident dashboard
+        <Link href={ACCOUNT_RESIDENT_HREF} className={ACCOUNT_BACK_LINK}>
+          ← Back to resident area
         </Link>
         <h1 className={`mt-2 ${ACCOUNT_PAGE_TITLE}`}>Payment history</h1>
         <p className={ACCOUNT_PAGE_SUBTITLE}>

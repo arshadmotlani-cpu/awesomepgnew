@@ -4,6 +4,7 @@ import { uploadPaymentScreenshotAction } from '@/app/(admin)/admin/pgs/payment-a
 import { Ps4PaymentProofForm } from '@/src/components/customer/Ps4PaymentProofForm';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
 import { formatDateTime, paiseToInr } from '@/src/lib/format';
+import { ACCOUNT_RESIDENT_HREF } from '@/src/lib/accountNavigation';
 import { ACCOUNT_BACK_LINK } from '@/src/components/customer/accountStyles';
 import {
   DEFAULT_ELECTRICITY_DAILY_QR_PATH,
@@ -52,7 +53,7 @@ export default async function PayPs4Page({
     .where(eq(playstationMemberships.id, membershipId))
     .limit(1);
   if (!membership || membership.customerId !== session.customerId) {
-    redirect('/account/resident');
+    redirect(ACCOUNT_RESIDENT_HREF);
   }
 
   await ensureDefaultPaymentCategoriesForPg(membership.pgId);
@@ -65,8 +66,8 @@ export default async function PayPs4Page({
   return (
     <div className="mx-auto w-full max-w-xl space-y-5 px-4 py-10 sm:px-6">
       <header>
-        <Link href="/account/resident" className={ACCOUNT_BACK_LINK}>
-          ← Back to resident dashboard
+        <Link href={ACCOUNT_RESIDENT_HREF} className={ACCOUNT_BACK_LINK}>
+          ← Back to resident area
         </Link>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white">
           Pay PS4 add-on

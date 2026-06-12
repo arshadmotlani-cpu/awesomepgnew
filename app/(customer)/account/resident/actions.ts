@@ -15,6 +15,7 @@ import {
   razorpayProvider,
 } from '@/src/services/payments';
 import { submitVacatingRequest } from '@/src/services/vacating';
+import { accountProfileHref } from '@/src/lib/accountNavigation';
 
 /**
  * Phase 5.5 — customer/resident server actions.
@@ -109,7 +110,7 @@ export async function simulateMockRentPayment(
   const ownership = await verifySessionOwnership(invoice.bookingId);
   if (!ownership.ok) return { status: 'error', message: ownership.message };
   if (invoice.status === 'paid') {
-    redirect('/account/resident');
+    redirect(accountProfileHref('resident'));
   }
   if (invoice.status === 'cancelled') {
     return { status: 'error', message: 'Invoice is cancelled.' };
@@ -145,8 +146,8 @@ export async function simulateMockRentPayment(
     const text = await res.text();
     return { status: 'error', message: 'Payment could not be completed. Please try again.' };
   }
-  revalidatePath('/account/resident');
-  redirect('/account/resident');
+  revalidatePath('/account/profile');
+  redirect(accountProfileHref('resident'));
 }
 
 export async function startRazorpayRentOrder(
@@ -224,7 +225,7 @@ export async function simulateMockElectricityPayment(
   const ownership = await verifySessionOwnership(invoice.bookingId);
   if (!ownership.ok) return { status: 'error', message: ownership.message };
   if (invoice.status === 'paid') {
-    redirect('/account/resident');
+    redirect(accountProfileHref('resident'));
   }
   if (invoice.status === 'cancelled') {
     return { status: 'error', message: 'Invoice is cancelled.' };
@@ -257,8 +258,8 @@ export async function simulateMockElectricityPayment(
     const text = await res.text();
     return { status: 'error', message: 'Payment could not be completed. Please try again.' };
   }
-  revalidatePath('/account/resident');
-  redirect('/account/resident');
+  revalidatePath('/account/profile');
+  redirect(accountProfileHref('resident'));
 }
 
 export async function startRazorpayElectricityOrder(
@@ -344,6 +345,6 @@ export async function submitVacatingAction(
       message: `Could not submit (${result.kind}).`,
     };
   }
-  revalidatePath('/account/resident');
-  redirect('/account/resident');
+  revalidatePath('/account/profile');
+  redirect(accountProfileHref('resident'));
 }

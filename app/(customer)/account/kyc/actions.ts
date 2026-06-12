@@ -74,13 +74,13 @@ export async function submitKycAction(
       return { status: 'error', message: result.message };
     }
 
-    revalidatePath('/account/kyc');
-    revalidatePath('/admin/kyc');
+    revalidatePath('/account/profile');
+  revalidatePath('/admin/kyc');
     if (bookingCode) {
       revalidatePath(`/booking/${bookingCode}`);
       redirect(`/booking/${bookingCode}`);
     }
-    redirect('/account/kyc?submitted=1');
+    redirect('/account/profile?section=identity&submitted=1');
   } catch (err) {
     unstable_rethrow(err);
     const message = err instanceof Error ? err.message : String(err);

@@ -42,15 +42,15 @@ export function RoomDetailInsights({
     );
   }
 
-  if (activity.activeCheckoutHolds > 0) {
+  if (activity.interestedBookings > 0) {
     activityLines.push(
-      `${activity.activeCheckoutHolds} checkout${activity.activeCheckoutHolds === 1 ? '' : 's'} in progress — someone is reserving a bed here right now`,
+      `${activity.interestedBookings} ${activity.interestedBookings === 1 ? 'person is' : 'people are'} interested in beds here — checkout started, not confirmed until payment is approved`,
     );
   }
 
   if (activity.pendingPayments > 0) {
     activityLines.push(
-      `${activity.pendingPayments} booking${activity.pendingPayments === 1 ? '' : 's'} awaiting payment for this room`,
+      `${activity.pendingPayments} booking${activity.pendingPayments === 1 ? '' : 's'} awaiting payment review for this room`,
     );
   }
 
@@ -116,13 +116,14 @@ export function RoomDetailInsights({
             ))}
           </ul>
           <p className="mt-2 text-[11px] text-amber-200/60">
-            Counts come from real bookings, holds, and page visits — not estimates.
+            Beds stay available until payment is approved. Interest counts are from real in-progress
+            checkouts — not fake urgency.
           </p>
         </div>
       ) : (
         <p className="mt-4 text-xs text-apg-muted">
-          No checkout holds or recent browsing activity yet — numbers appear here as people view and
-          book this room.
+          No recent interest or browsing activity yet — numbers appear here as people view and start
+          booking this room.
         </p>
       )}
     </section>

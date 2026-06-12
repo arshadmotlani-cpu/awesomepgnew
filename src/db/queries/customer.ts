@@ -139,7 +139,7 @@ export function listPublicPgs(): Promise<QueryResult<CustomerPgListRow[]>> {
             AND NOT EXISTS (
               SELECT 1 FROM ${bedReservations} br
               WHERE br.bed_id = b.id
-                AND br.status IN ('hold','active')
+                AND br.status = 'active'
                 AND CURRENT_DATE <@ br.stay_range
             )
         )`,
@@ -286,7 +286,7 @@ export function listRoomsForPg(
             AND NOT EXISTS (
               SELECT 1 FROM ${bedReservations} br
               WHERE br.bed_id = b.id
-                AND br.status IN ('hold','active')
+                AND br.status = 'active'
                 AND ${refDate}::date <@ br.stay_range
             )
         )`,
@@ -352,6 +352,8 @@ export type CustomerRoomDetail = {
     status: 'available' | 'maintenance' | 'blocked';
     isAvailableNow: boolean;
     nextAvailableDate: string | null;
+    /** Unpaid checkouts in progress — shown as interest, not occupancy. */
+    interestCount: number;
     dailyRatePaise: number;
     weeklyRatePaise: number;
     monthlyRatePaise: number;
@@ -411,7 +413,7 @@ export function getRoomDetail(
           beds.status = 'available' AND NOT EXISTS (
             SELECT 1 FROM ${bedReservations} br
             WHERE br.bed_id = beds.id
-              AND br.status IN ('hold','active')
+              AND br.status = 'active'
               AND ${refDate}::date <@ br.stay_range
           )
         )`,
@@ -422,10 +424,20 @@ export function getRoomDetail(
           )
           FROM ${bedReservations} br
           WHERE br.bed_id = beds.id
-            AND br.status IN ('hold','active')
+            AND br.status = 'active'
             AND lower(br.stay_range) <= ${refDate}::date
             AND upper(br.stay_range) > ${refDate}::date
         )`,
+        interestCount: sql<number>`coalesce((
+          SELECT count(distinct bk.id)::int
+          FROM ${bedReservations} br
+          INNER JOIN ${bookings} bk ON bk.id = br.booking_id
+          WHERE br.bed_id = beds.id
+            AND br.status = 'hold'
+            AND bk.status = 'pending_payment'
+            AND (br.hold_expires_at IS NULL OR br.hold_expires_at > now())
+            AND ${refDate}::date <@ br.stay_range
+        ), 0)`,
         dailyRatePaise: sql<number>`coalesce((
           SELECT bp.daily_rate_paise::bigint::int FROM ${bedPrices} bp
           WHERE bp.bed_id = beds.id

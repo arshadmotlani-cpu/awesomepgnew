@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { accountProfileHref } from '@/src/lib/accountNavigation';
 
 type Props = {
   kycStatus: 'pending' | 'approved' | 'rejected';
@@ -20,9 +21,7 @@ export function KycCheckInBanner({
         ? 'border-indigo-200 bg-indigo-50 text-indigo-900'
         : 'border-amber-200 bg-amber-50 text-amber-900';
 
-  const href = bookingCode
-    ? `/account/kyc?booking=${encodeURIComponent(bookingCode)}`
-    : '/account/kyc';
+  const href = accountProfileHref('identity', { booking: bookingCode });
 
   const headline =
     kycStatus === 'rejected'

@@ -12,6 +12,7 @@ import {
   ACCOUNT_PAGE_SUBTITLE,
   ACCOUNT_PAGE_TITLE,
 } from '@/src/components/customer/accountStyles';
+import { ACCOUNT_RESIDENT_HREF } from '@/src/lib/accountNavigation';
 import { requireCustomerOwnsBooking, requireCustomerSession } from '@/src/lib/auth/guards';
 
 export const dynamic = 'force-dynamic';
@@ -50,8 +51,8 @@ export default async function RequestVacatingPage({
   return (
     <div className="mx-auto w-full max-w-xl space-y-5 px-4 py-10 sm:px-6">
       <header>
-        <Link href="/account/resident" className={ACCOUNT_BACK_LINK}>
-          ← Back to resident dashboard
+        <Link href={ACCOUNT_RESIDENT_HREF} className={ACCOUNT_BACK_LINK}>
+          ← Back to resident area
         </Link>
         <h1 className={`mt-2 ${ACCOUNT_PAGE_TITLE}`}>Submit vacating request</h1>
         <p className={ACCOUNT_PAGE_SUBTITLE}>

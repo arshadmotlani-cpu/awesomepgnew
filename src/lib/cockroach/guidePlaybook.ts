@@ -87,7 +87,7 @@ function tipForPathAndElement(
     return FOCUS_TIPS['confirm-booking']!;
   }
 
-  if (pathname.startsWith('/account/resident')) {
+  if (pathname.startsWith('/account/resident') || pathname.startsWith('/account/profile')) {
     if (ctx.text.toLowerCase().includes('vacat')) return FOCUS_TIPS.vacating!;
     if (ctx.text.toLowerCase().includes('ps4') || ctx.text.toLowerCase().includes('gaming')) {
       return FOCUS_TIPS['ps4-service']!;

@@ -45,7 +45,7 @@ export function buildResidentBriefingMessage(input: ResidentBriefingInput): stri
   if (input.isActiveResident) {
     lines.push('');
     lines.push('RESIDENT DASHBOARD');
-    lines.push('Open Resident in the top menu (or /account/resident) for rent invoices, electricity split, deposit balance, and payment history.');
+    lines.push('Open Profile → Resident area for rent invoices, electricity split, deposit balance, and payment history.');
 
     lines.push('');
     lines.push('ADD PS4 GAMING LOUNGE');
@@ -69,7 +69,7 @@ export function buildResidentBriefingMessage(input: ResidentBriefingInput): stri
     } else {
       const vacatingPath = input.bookingId
         ? `/account/resident/request-vacating/${input.bookingId}`
-        : '/account/resident';
+        : '/account/profile?section=resident';
       lines.push(`1. Open Resident dashboard → your ${input.pgName} card → Vacating → Submit vacating request.`);
       lines.push(`   (Direct link: ${vacatingPath})`);
       lines.push('2. Choose your vacating date in the calendar — the website saves it automatically when you submit.');

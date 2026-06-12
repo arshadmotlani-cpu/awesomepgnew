@@ -28,7 +28,7 @@ export type BedTimelineResponse = {
   futureReservations: Array<{
     startDate: string;
     endDate: string;
-    status: 'hold' | 'active';
+    status: 'active';
     bookingCode: string | null;
   }>;
 };
