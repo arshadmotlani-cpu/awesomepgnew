@@ -10,20 +10,45 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + '/');
 }
 
-export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
+export function Sidebar({
+  onNavigate,
+  variant = 'docked',
+}: {
+  onNavigate?: () => void;
+  /** Drawer variant hides duplicate branding — MobileNav supplies the close bar. */
+  variant?: 'docked' | 'drawer';
+}) {
   const pathname = usePathname() ?? '/admin';
 
   return (
-    <nav className="flex h-full w-64 shrink-0 flex-col border-r border-white/5 bg-[#1A1F27]/90 backdrop-blur-xl">
-      <div className="flex items-center gap-2 px-5 py-5">
-        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[#FF5A1F] text-white apg-glow-btn">
-          <IconLogo width={18} height={18} />
-        </span>
-        <div>
-          <p className="text-sm font-semibold tracking-tight text-white">Awesome PG</p>
-          <p className="text-[11px] text-apg-silver">Admin console</p>
+    <nav
+      className={
+        variant === 'drawer'
+          ? 'flex w-full flex-col bg-[#1A1F27]'
+          : 'flex h-full w-64 shrink-0 flex-col border-r border-white/5 bg-[#1A1F27]'
+      }
+    >
+      {variant === 'docked' ? (
+        <div className="flex items-center gap-2 px-5 py-5">
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[#FF5A1F] text-white apg-glow-btn">
+            <IconLogo width={18} height={18} />
+          </span>
+          <div>
+            <p className="text-sm font-semibold tracking-tight text-white">Awesome PG</p>
+            <p className="text-[11px] text-apg-silver">Admin console</p>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="flex items-center gap-2 px-5 pb-2 pt-4">
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[#FF5A1F] text-white">
+            <IconLogo width={18} height={18} />
+          </span>
+          <div>
+            <p className="text-sm font-semibold tracking-tight text-white">Menu</p>
+            <p className="text-[11px] text-apg-silver">Tap a section to navigate</p>
+          </div>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto px-3 pb-6">
         {NAV_SECTIONS.map((section) => (
@@ -41,7 +66,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                       onClick={onNavigate}
                       aria-current={active ? 'page' : undefined}
                       className={
-                        'group flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ' +
+                        'group flex min-h-11 items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors ' +
                         (active
                           ? 'bg-[#FF5A1F]/15 font-medium text-[#FF5A1F]'
                           : 'text-apg-silver hover:bg-white/5 hover:text-white')
@@ -65,7 +90,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         ))}
       </div>
 
-      <div className="border-t border-white/5 px-5 py-3 text-[11px] text-apg-silver/60">
+      <div className="border-t border-white/5 px-5 py-3 text-[11px] leading-relaxed text-apg-silver/60">
         Beds & meters are managed inside each PG listing
       </div>
     </nav>

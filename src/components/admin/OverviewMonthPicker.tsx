@@ -8,7 +8,7 @@ export function OverviewMonthPicker({ billingMonth }: { billingMonth: string }) 
   const monthValue = billingMonth.slice(0, 7);
 
   return (
-    <label className="flex flex-col gap-1 text-sm">
+    <label className="flex w-full min-w-0 flex-col gap-1 text-sm sm:w-auto">
       <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">
         Report month
       </span>
@@ -20,7 +20,7 @@ export function OverviewMonthPicker({ billingMonth }: { billingMonth: string }) 
           router.push(next ? `${pathname}?month=${next}` : pathname);
           router.refresh();
         }}
-        className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm"
+        className="w-full min-w-0 rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-base text-zinc-900 shadow-sm sm:w-auto sm:py-2 sm:text-sm"
       />
     </label>
   );
