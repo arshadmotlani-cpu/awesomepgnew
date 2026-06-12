@@ -4,7 +4,7 @@ import { useMemo, useState, useCallback } from 'react';
 import { dispatchRoachieReminder } from '@/src/lib/cockroach/roachieReminders';
 import { BookingEducationBar } from './BookingEducationBar';
 import { BedBookingPanel } from './BedBookingPanel';
-import { CustomerBedDetailSheet, CustomerBedTile } from './customerBedUi';
+import { CustomerBedDetailSheet, CustomerBedTile, canBookBed } from './customerBedUi';
 import { RoachieTourDemoBeds } from './RoachieTourDemoBeds';
 import type { BedSelectorBed } from './customerBedTypes';
 
@@ -73,9 +73,7 @@ export function BedSelector({ beds, theme = 'light', roomLabel = 'This room' }: 
   );
 
   const sampleBed = beds.find((b) => b.monthlyRatePaise > 0) ?? beds[0];
-  const bookableCount = beds.filter(
-    (b) => b.status === 'available' && (b.isAvailableNow || b.nextAvailableDate || b.vacatingDate),
-  ).length;
+  const bookableCount = beds.filter((b) => canBookBed(b)).length;
 
   function openPanelForBed(bedId: string) {
     setSelected(new Set([bedId]));

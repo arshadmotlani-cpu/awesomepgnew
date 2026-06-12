@@ -1,5 +1,6 @@
 /** Shared bed availability labels for admin map + customer bed picker. */
 
+import { customerBookableFromDate, isOpenEndedStayEnd } from '@/src/lib/dates';
 export type BedAvailabilityKind =
   | 'open_now'
   | 'pre_bookable'
@@ -73,9 +74,10 @@ export function deriveBedAvailabilityView(input: {
     return {
       kind: 'occupied',
       label: input.occupantFirstName ?? 'Occupied',
-      sublabel: input.preBookableFrom
-        ? `Until ${formatShortDate(input.preBookableFrom)}`
-        : undefined,
+      sublabel:
+        input.preBookableFrom && !isOpenEndedStayEnd(input.preBookableFrom)
+          ? `Until ${formatShortDate(input.preBookableFrom)}`
+          : undefined,
     };
   }
 
@@ -91,7 +93,7 @@ export function deriveBedAvailabilityView(input: {
     return { kind: 'open_now', label: 'Open · book now' };
   }
 
-  const from = input.preBookableFrom ?? input.nextAvailableDate;
+  const from = customerBookableFromDate(input.preBookableFrom ?? input.nextAvailableDate);
   if (from) {
     return {
       kind: 'pre_bookable',
@@ -130,10 +132,12 @@ export function deriveCustomerBedAvailabilityView(input: {
     };
   }
 
+  const realisticNextDate = customerBookableFromDate(input.nextAvailableDate);
   const isNotice =
     Boolean(input.vacatingDate) &&
     (input.vacatingStatus === 'pending' || input.vacatingStatus === 'approved');
-  const isOccupied = !input.isAvailableNow && !input.nextAvailableDate && !isNotice;
+  const isOccupied =
+    !input.isAvailableNow && !realisticNextDate && !isNotice && !input.reservedFrom;
 
   if (isNotice && input.vacatingDate) {
     const interest = input.noticeInterestCount ?? 0;
@@ -171,11 +175,11 @@ export function deriveCustomerBedAvailabilityView(input: {
     };
   }
 
-  if (input.nextAvailableDate) {
+  if (realisticNextDate) {
     return {
       kind: 'pre_bookable',
       label: 'Available soon',
-      sublabel: `From ${formatShortDate(input.nextAvailableDate)}`,
+      sublabel: `From ${formatShortDate(realisticNextDate)}`,
     };
   }
 

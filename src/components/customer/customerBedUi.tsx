@@ -5,6 +5,7 @@ import {
   CUSTOMER_BED_KIND_CLASS,
   deriveCustomerBedAvailabilityView,
 } from '@/src/lib/bedAvailabilityState';
+import { customerBookableFromDate } from '@/src/lib/dates';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import type { BedSelectorBed } from './customerBedTypes';
 
@@ -23,9 +24,10 @@ function bedAvailability(bed: BedSelectorBed) {
 }
 
 export function canBookBed(bed: BedSelectorBed): boolean {
+  const bookableFrom = customerBookableFromDate(bed.nextAvailableDate);
   return (
     bed.status === 'available' &&
-    (bed.isAvailableNow || Boolean(bed.nextAvailableDate) || Boolean(bed.vacatingDate))
+    (bed.isAvailableNow || Boolean(bookableFrom) || Boolean(bed.vacatingDate))
   );
 }
 
@@ -90,7 +92,8 @@ export function CustomerBedDetailSheet({
   const rate = bed.monthlyRatePaise;
   const deposit = bed.monthlySecurityDepositPaise || bed.securityDepositPaise;
   const isNotice = availability.kind === 'notice';
-  const isFuture = !bed.isAvailableNow && Boolean(bed.nextAvailableDate);
+  const isFuture =
+    !bed.isAvailableNow && Boolean(customerBookableFromDate(bed.nextAvailableDate));
 
   useEffect(() => {
     if (!isNotice) return;
@@ -161,10 +164,12 @@ export function CustomerBedDetailSheet({
                 <dd className="text-right text-white">{formatDate(bed.vacatingDate)}</dd>
               </>
             ) : null}
-            {bed.nextAvailableDate && !bed.isAvailableNow ? (
+            {customerBookableFromDate(bed.nextAvailableDate) && !bed.isAvailableNow ? (
               <>
                 <dt className="text-apg-silver">From</dt>
-                <dd className="text-right text-white">{formatDate(bed.nextAvailableDate)}</dd>
+                <dd className="text-right text-white">
+                  {formatDate(customerBookableFromDate(bed.nextAvailableDate)!)}
+                </dd>
               </>
             ) : null}
           </dl>

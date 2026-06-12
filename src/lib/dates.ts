@@ -110,3 +110,27 @@ export function minDate(a: DateLike, b: DateLike): Date {
 export function todayString(now: Date = new Date()): string {
   return formatDate(parseDate(now));
 }
+
+/**
+ * Sentinel upper bound for open-ended monthly stays in `bed_reservations`.
+ * Never surface this to customers as a move-out or pre-book date.
+ */
+export const OPEN_ENDED_STAY_END = '2099-01-01';
+
+const OPEN_ENDED_CUTOFF = parseDate('2090-01-01');
+
+/** True when a date is the open-ended placeholder, not a real checkout. */
+export function isOpenEndedStayEnd(date: string | null | undefined): boolean {
+  if (!date) return false;
+  try {
+    return parseDate(date).getTime() >= OPEN_ENDED_CUTOFF.getTime();
+  } catch {
+    return false;
+  }
+}
+
+/** Strip sentinel end dates before showing "available from" on the website. */
+export function customerBookableFromDate(date: string | null | undefined): string | null {
+  if (!date || isOpenEndedStayEnd(date)) return null;
+  return date;
+}

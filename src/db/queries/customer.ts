@@ -425,15 +425,16 @@ export function getRoomDetail(
           )
         )`,
         nextAvailableDate: sql<string | null>`(
-          SELECT to_char(
-            max(upper(br.stay_range)),
-            'YYYY-MM-DD'
-          )
-          FROM ${bedReservations} br
-          WHERE br.bed_id = beds.id
-            AND br.status = 'active'
-            AND lower(br.stay_range) <= ${refDate}::date
-            AND upper(br.stay_range) > ${refDate}::date
+          SELECT to_char(sub.d, 'YYYY-MM-DD')
+          FROM (
+            SELECT max(upper(br.stay_range)) AS d
+            FROM ${bedReservations} br
+            WHERE br.bed_id = beds.id
+              AND br.status = 'active'
+              AND lower(br.stay_range) <= ${refDate}::date
+              AND upper(br.stay_range) > ${refDate}::date
+          ) sub
+          WHERE sub.d IS NOT NULL AND sub.d < '2090-01-01'::date
         )`,
         interestCount: sql<number>`coalesce((
           SELECT count(distinct bk.id)::int
