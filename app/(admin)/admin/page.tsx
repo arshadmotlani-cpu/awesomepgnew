@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { AdminOverviewKpiRow } from '@/src/components/admin/AdminOverviewKpiRow';
+import { AdminSectionErrorBoundary } from '@/src/components/admin/AdminSectionErrorBoundary';
 import { VisitorAnalyticsDashboard } from '@/src/components/admin/VisitorAnalyticsDashboard';
 import { OverviewMonthPicker } from '@/src/components/admin/OverviewMonthPicker';
 import {
@@ -131,10 +132,12 @@ export default async function DashboardPage({
 
       <div className="mb-6 space-y-6">
         <AdminOverviewKpiRow kpis={overviewKpis} visitors={visitors} />
-        <VisitorAnalyticsDashboard
-          initialVisitors={visitors}
-          billingMonth={billingMonth}
-        />
+        <AdminSectionErrorBoundary title="Visitor analytics">
+          <VisitorAnalyticsDashboard
+            initialVisitors={visitors}
+            billingMonth={billingMonth}
+          />
+        </AdminSectionErrorBoundary>
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">

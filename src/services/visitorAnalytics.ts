@@ -370,16 +370,20 @@ export async function getVisitorChartSeries(input: {
   from: Date;
   to: Date;
 }): Promise<VisitorChartPoint[]> {
-  const trunc =
+  const truncUnit =
     input.granularity === 'daily'
       ? 'day'
       : input.granularity === 'weekly'
         ? 'week'
         : 'month';
 
+  // Literal trunc unit — parameterized date_trunc($1, col) breaks GROUP BY in Postgres.
+  const truncLiteral = sql.raw(`'${truncUnit}'`);
+  const bucketExpr = sql`date_trunc(${truncLiteral}, ${visitorSessions.firstSeenAt})`;
+
   const rows = await db
     .select({
-      bucket: sql<string>`date_trunc(${trunc}, ${visitorSessions.firstSeenAt})::text`,
+      bucket: sql<string>`${bucketExpr}::text`,
       visitors: sql<number>`count(*)::int`,
     })
     .from(visitorSessions)
@@ -389,8 +393,8 @@ export async function getVisitorChartSeries(input: {
         lte(visitorSessions.firstSeenAt, input.to),
       ),
     )
-    .groupBy(sql`date_trunc(${trunc}, ${visitorSessions.firstSeenAt})`)
-    .orderBy(sql`date_trunc(${trunc}, ${visitorSessions.firstSeenAt})`);
+    .groupBy(bucketExpr)
+    .orderBy(bucketExpr);
 
   return rows.map((r) => ({
     label: r.bucket,

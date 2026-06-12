@@ -56,7 +56,11 @@ async function handle(req: NextRequest) {
         error: 'Analytics tables not migrated. Run npm run db:migrate.',
       }, { status: 503 });
     }
-    throw error;
+    console.error('[analytics/details]', message);
+    return Response.json(
+      { ok: false, error: 'Could not load visitor analytics. Try again in a moment.' },
+      { status: 500 },
+    );
   }
 }
 
