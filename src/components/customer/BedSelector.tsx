@@ -85,7 +85,7 @@ export function BedSelector({ beds, theme = 'light', roomLabel = 'This room' }: 
     <>
       <div className="space-y-4">
         <div
-          className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
+          className="grid grid-cols-[repeat(auto-fill,minmax(7rem,1fr))] gap-3"
           data-roachie-focus="bed-pick"
           data-roachie-tour="bed-grid"
         >

@@ -281,7 +281,7 @@ function RoomCard({
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(7rem,1fr))] gap-3">
         {room.beds.map((bed) => {
           const selected = selectedBedId === bed.bedId;
           const kindClass = ADMIN_BED_KIND_CLASS[bed.availability.kind];
@@ -291,8 +291,10 @@ function RoomCard({
               type="button"
               onClick={() => onSelectBed(bed.bedId)}
               aria-pressed={selected}
-              className={`relative flex min-h-[104px] min-w-[88px] flex-col items-center justify-center rounded-xl border-2 px-2.5 py-3 text-center transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF5A1F] ${
-                selected ? 'border-[#FF5A1F] ring-2 ring-[#FF5A1F]/30' : kindClass
+              className={`relative box-border flex min-h-[104px] w-full min-w-0 max-w-full flex-col items-center justify-center rounded-xl border-2 px-2 py-3 text-center transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF5A1F] ${
+                selected
+                  ? 'border-[#FF5A1F] ring-2 ring-inset ring-[#FF5A1F]/40'
+                  : kindClass
               }`}
             >
               <span className="text-sm font-bold uppercase tracking-wide">{bed.bedCode}</span>

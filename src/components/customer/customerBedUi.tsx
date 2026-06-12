@@ -49,9 +49,9 @@ export function CustomerBedTile({
     <button
       type="button"
       onClick={onSelect}
-      className={`relative flex min-h-[108px] w-full flex-col items-center justify-center rounded-xl border-2 px-2.5 py-3 text-center transition focus:outline-none focus-visible:ring-2 focus-visible:ring-apg-orange ${
+      className={`relative box-border flex min-h-[108px] w-full min-w-0 max-w-full flex-col items-center justify-center rounded-xl border-2 px-2 py-3 text-center transition focus:outline-none focus-visible:ring-2 focus-visible:ring-apg-orange ${
         isSelected
-          ? 'border-apg-orange ring-2 ring-apg-orange/35'
+          ? 'border-apg-orange ring-2 ring-inset ring-apg-orange/35'
           : bookable || availability.kind === 'notice'
             ? kindClass
             : `${kindClass} opacity-80`
