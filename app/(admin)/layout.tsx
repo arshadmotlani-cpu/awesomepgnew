@@ -12,13 +12,13 @@ export const metadata: Metadata = {
 export default async function AdminGroupLayout({ children }: { children: ReactNode }) {
   await requireAdminSession('/admin');
   return (
-    <div className="apg-admin-shell flex min-h-[100dvh] w-full max-w-[100vw] overflow-x-hidden bg-[#0B0F14] text-[#f4f6f8]">
-      <aside className="sticky top-0 hidden h-[100dvh] shrink-0 lg:block">
+    <div className="apg-admin-shell flex h-[100dvh] w-full max-w-[100vw] overflow-hidden bg-[#0B0F14] text-[#f4f6f8]">
+      <aside className="hidden h-full shrink-0 lg:block lg:w-64">
         <Sidebar />
       </aside>
-      <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <TopNav />
-        <main className="w-full flex-1 overflow-x-hidden px-3 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-4 sm:py-6 lg:px-8 lg:py-8">
+        <main className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-4 sm:py-6 lg:px-8 lg:py-8">
           <div className="mx-auto w-full min-w-0 max-w-7xl space-y-5 sm:space-y-6">{children}</div>
         </main>
       </div>

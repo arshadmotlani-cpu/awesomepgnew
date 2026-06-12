@@ -25,7 +25,7 @@ export function Sidebar({
       className={
         variant === 'drawer'
           ? 'flex w-full flex-col bg-[#1A1F27]'
-          : 'flex h-full w-64 shrink-0 flex-col border-r border-white/5 bg-[#1A1F27]'
+          : 'flex h-full min-h-0 w-64 shrink-0 flex-col border-r border-white/5 bg-[#1A1F27]'
       }
     >
       {variant === 'docked' ? (
@@ -50,7 +50,7 @@ export function Sidebar({
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto px-3 pb-6">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-6">
         {NAV_SECTIONS.map((section) => (
           <div key={section.title} className="mt-4">
             <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-apg-silver/70">
