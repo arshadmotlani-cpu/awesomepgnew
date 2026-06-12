@@ -4,7 +4,6 @@ import { PageHeader } from '@/src/components/admin/PageHeader';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { getPgBedMap } from '@/src/services/pgBedMap';
 import { getPgForAdmin } from '@/src/services/pgAdmin';
-import { listAssignableBeds } from '@/src/services/tenantAssignment';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,24 +14,26 @@ export default async function PgBedMapPage({ params }: { params: Promise<{ pgId:
   const pg = await getPgForAdmin(pgId, session);
   if (!pg) notFound();
 
-  const [map, assignableBeds] = await Promise.all([
-    getPgBedMap(session, pgId),
-    listAssignableBeds(session),
-  ]);
+  const map = await getPgBedMap(session, pgId);
   if (!map) notFound();
 
-  const moveBedOptions = assignableBeds.map((b) => ({
-    bedId: b.bedId,
-    label: `${b.pgName} · Room ${b.roomNumber} · ${b.bedCode}`,
-  }));
+  const moveBedOptions: Array<{ bedId: string; label: string }> = [];
 
   for (const floor of map.floors) {
     for (const room of floor.rooms) {
       for (const bed of room.beds) {
-        if (
-          bed.occupant &&
-          !moveBedOptions.some((opt) => opt.bedId === bed.bedId)
-        ) {
+        const label = `${pg.name} · Room ${room.roomNumber} · ${bed.bedCode}`;
+        if (!bed.isOccupiedToday && bed.bedStatus === 'available') {
+          moveBedOptions.push({ bedId: bed.bedId, label });
+        }
+      }
+    }
+  }
+
+  for (const floor of map.floors) {
+    for (const room of floor.rooms) {
+      for (const bed of room.beds) {
+        if (bed.occupant && !moveBedOptions.some((opt) => opt.bedId === bed.bedId)) {
           moveBedOptions.unshift({
             bedId: bed.bedId,
             label: `${pg.name} · Room ${room.roomNumber} · ${bed.bedCode} (current)`,

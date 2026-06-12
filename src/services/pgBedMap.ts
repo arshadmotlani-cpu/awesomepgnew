@@ -138,7 +138,8 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
     return null;
   }
 
-  const rows = await db.execute<RawRow>(sql`
+  const rows = Array.from(
+    await db.execute<RawRow>(sql`
     SELECT
       f.floor_number,
       coalesce(f.label, 'Floor ' || f.floor_number) AS floor_label,
@@ -207,7 +208,7 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
         (
           SELECT count(*)::int FROM electricity_invoices ei
           WHERE ei.booking_id = occ.booking_id
-            AND ei.status IN ('pending', 'overdue')
+            AND ei.status = 'pending'
         ) AS elec_pending
       FROM rent_invoices ri
       WHERE ri.booking_id = occ.booking_id
@@ -215,7 +216,8 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
     WHERE f.pg_id = ${pgId}::uuid
       AND b.archived_at IS NULL
     ORDER BY f.floor_number ASC, r.room_number ASC, b.bed_code ASC
-  `);
+  `),
+  );
 
   const floorMap = new Map<number, { floorLabel: string; rooms: Map<string, PgBedMapRoom> }>();
 
