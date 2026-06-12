@@ -67,7 +67,7 @@ async function main() {
     ['Aadhaar front accept=image/*', front.accept === 'image/*'],
     ['Aadhaar back accept=image/*', back.accept === 'image/*'],
     ['Selfie accept=image/*', selfie.accept === 'image/*'],
-    ['Selfie capture=user', selfie.capture === 'user'],
+    ['Selfie has no capture (gallery allowed)', !selfie.capture],
     ['Aadhaar front has no capture', !front.capture],
     ['Aadhaar back has no capture', !back.capture],
     ['Inputs use opacity overlay tap target', html.includes('opacity-0')],

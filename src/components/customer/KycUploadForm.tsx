@@ -104,8 +104,8 @@ export function KycUploadForm({ bookingCode }: Props) {
         name="aadhaarFront"
         label="Aadhaar — front"
         hint="Full card visible, good lighting, no glare."
-        actionLabel="Take photo or choose image"
-        actionHint="Camera · Photos · Files"
+        actionLabel="Choose from gallery or take photo"
+        actionHint="Photo library · Camera · Files"
         kind="aadhaar"
         selectedFile={files.aadhaarFront}
         error={fieldErrors.aadhaarFront}
@@ -118,8 +118,8 @@ export function KycUploadForm({ bookingCode }: Props) {
         name="aadhaarBack"
         label="Aadhaar — back"
         hint="Address and barcode side clearly readable."
-        actionLabel="Take photo or choose image"
-        actionHint="Camera · Photos · Files"
+        actionLabel="Choose from gallery or take photo"
+        actionHint="Photo library · Camera · Files"
         kind="aadhaar"
         selectedFile={files.aadhaarBack}
         error={fieldErrors.aadhaarBack}
@@ -132,10 +132,9 @@ export function KycUploadForm({ bookingCode }: Props) {
         name="selfie"
         label="Selfie"
         hint="Face clearly visible, plain background preferred."
-        actionLabel="Take selfie or choose image"
-        actionHint="Front camera when available · Photos · Files"
+        actionLabel="Choose from gallery or take photo"
+        actionHint="Photo library · Camera · Files"
         kind="selfie"
-        capture="user"
         selectedFile={files.selfie}
         error={fieldErrors.selfie}
         onPrepared={(file, error) => {
@@ -174,7 +173,6 @@ type KycPhotoUploadFieldProps = {
   selectedFile?: File;
   error?: string;
   onPrepared: (file: File | undefined, error: string | null) => void;
-  capture?: 'user';
 };
 
 function KycPhotoUploadField({
@@ -187,7 +185,6 @@ function KycPhotoUploadField({
   selectedFile,
   error,
   onPrepared,
-  capture,
 }: KycPhotoUploadFieldProps) {
   const inputId = useId();
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -248,7 +245,6 @@ function KycPhotoUploadField({
           id={inputId}
           type="file"
           accept="image/*"
-          {...(capture ? { capture } : {})}
           aria-labelledby={`${inputId}-label`}
           className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
           disabled={preparing}
