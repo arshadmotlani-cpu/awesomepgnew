@@ -197,6 +197,13 @@
       "when": 1784600000000,
       "tag": "0028_bed_notice_interest",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1784700000000,
+      "tag": "0029_customer_password",
+      "breakpoints": true
     }
   ]
 }

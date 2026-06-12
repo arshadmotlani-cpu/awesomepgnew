@@ -19,6 +19,7 @@ export type CustomerSession = {
   phone: string;
   fullName: string;
   email: string;
+  mustSetPassword: boolean;
   expiresAt: Date;
 };
 
@@ -138,6 +139,7 @@ export const getCustomerSession = cache(async (): Promise<CustomerSession | null
         phone: customers.phone,
         fullName: customers.fullName,
         email: customers.email,
+        mustSetPassword: customers.mustSetPassword,
       })
       .from(customers)
       .where(eq(customers.id, base.subjectId))
@@ -150,6 +152,7 @@ export const getCustomerSession = cache(async (): Promise<CustomerSession | null
       phone: normaliseIndianPhone(customer.phone) ?? customer.phone,
       fullName: customer.fullName,
       email: customer.email,
+      mustSetPassword: customer.mustSetPassword,
       expiresAt: base.expiresAt,
     };
   } catch (err) {

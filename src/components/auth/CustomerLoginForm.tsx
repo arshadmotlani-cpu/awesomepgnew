@@ -10,16 +10,21 @@ import { IndianPhoneInput } from '@/src/components/customer/IndianPhoneInput';
 import { safeNext } from '@/src/lib/auth/safeNext';
 import { INDIAN_MOBILE_LOCAL, formatIndianPhoneDisplay } from '@/src/lib/phone';
 
-type Step = 'email' | 'otp' | 'profile';
+type Step = 'credentials' | 'otp' | 'profile' | 'reset-password';
+type OtpPurpose = 'signup' | 'forgot_password';
 
 export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark' }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = safeNext(searchParams.get('next'));
 
-  const [step, setStep] = useState<Step>('email');
+  const [step, setStep] = useState<Step>('credentials');
+  const [otpPurpose, setOtpPurpose] = useState<OtpPurpose>('signup');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [pending, setPending] = useState(false);
@@ -43,7 +48,51 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
     if (wait > 0) setResendSeconds(wait);
   }
 
-  async function sendCode() {
+  async function signInWithPassword() {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError('Enter a valid email address.');
+      return;
+    }
+    if (!password) {
+      setError('Enter your password.');
+      return;
+    }
+    setPending(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/auth/customer/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
+      const data = (await res.json()) as {
+        ok: boolean;
+        message?: string;
+        needsPasswordSetup?: boolean;
+        mustSetPassword?: boolean;
+      };
+      if (!res.ok || !data.ok) {
+        if (data.needsPasswordSetup) {
+          setOtpPurpose('signup');
+          setError('Verify your email with a one-time code to set a password.');
+          await sendCode('signup');
+          return;
+        }
+        setError(data.message ?? 'Sign in failed.');
+        return;
+      }
+      if (data.mustSetPassword) {
+        router.replace(`/account/set-password?next=${encodeURIComponent(next)}`);
+        return;
+      }
+      router.replace(next);
+      router.refresh();
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function sendCode(purpose: OtpPurpose = otpPurpose) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       setError('Enter a valid email address.');
       return;
@@ -54,7 +103,7 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
       const res = await fetch('/api/auth/customer/email/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({ email: email.trim(), purpose }),
       });
       const data = (await res.json()) as {
         ok: boolean;
@@ -70,6 +119,7 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
         return;
       }
       applyResendAfter(data.resendAfter);
+      setOtpPurpose(purpose);
       setStep('otp');
     } finally {
       setPending(false);
@@ -80,6 +130,11 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
     setPending(true);
     setError(null);
     try {
+      if (otpPurpose === 'forgot_password') {
+        setStep('reset-password');
+        return;
+      }
+
       const res = await fetch('/api/auth/customer/email/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -95,6 +150,7 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
         message?: string;
         needsProfile?: boolean;
         needsProfileComplete?: boolean;
+        mustSetPassword?: boolean;
         redirect?: string;
       };
       if (!res.ok || !data.ok) {
@@ -110,11 +166,61 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
         setError(data.message ?? 'Verification failed.');
         return;
       }
+      if (data.mustSetPassword) {
+        router.replace(`/account/set-password?next=${encodeURIComponent(next)}`);
+        return;
+      }
       router.replace(next);
       router.refresh();
     } finally {
       setPending(false);
     }
+  }
+
+  async function completeForgotPassword() {
+    setPending(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/auth/customer/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim(),
+          code,
+          password: newPassword,
+          confirmPassword,
+        }),
+      });
+      const data = (await res.json()) as { ok: boolean; message?: string };
+      if (!res.ok || !data.ok) {
+        setError(data.message ?? 'Could not reset password.');
+        return;
+      }
+      router.replace(next);
+      router.refresh();
+    } finally {
+      setPending(false);
+    }
+  }
+
+  function startSignup() {
+    setError(null);
+    setPassword('');
+    setCode('');
+    setOtpPurpose('signup');
+    void sendCode('signup');
+  }
+
+  function startForgotPassword() {
+    setError(null);
+    setPassword('');
+    setCode('');
+    setOtpPurpose('forgot_password');
+    if (!email.trim()) {
+      setError('Enter your email above, then tap forgot password.');
+      return;
+    }
+    void sendCode('forgot_password');
   }
 
   const dark = theme === 'dark';
@@ -143,21 +249,21 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
 
   return (
     <div className={shell}>
-      {!dark ? (
+      {!dark && step === 'credentials' ? (
         <div>
-          <h1 className={titleClass}>Sign in with email</h1>
+          <h1 className={titleClass}>Sign in</h1>
           <p className={subClass}>
-            We&apos;ll send a one-time code to your email. Booking and your resident account require
-            login.
+            Use your email and password. We only send a verification code when you sign up or forget
+            your password.
           </p>
         </div>
       ) : null}
 
-      {step === 'email' ? (
+      {step === 'credentials' ? (
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            void sendCode();
+            void signInWithPassword();
           }}
           className="space-y-3"
         >
@@ -173,13 +279,29 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
               className={inputClass}
             />
           </label>
-          <button
-            type="submit"
-            disabled={pending}
-            className={btnClass}
-          >
-            {pending ? 'Sending…' : 'Send verification code'}
+          <label className="block">
+            <span className={labelClass}>Password</span>
+            <input
+              type="password"
+              name="password"
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+          <button type="submit" disabled={pending} className={btnClass}>
+            {pending ? 'Signing in…' : 'Sign in'}
           </button>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <button type="button" onClick={startForgotPassword} className={linkAccent}>
+              Forgot password?
+            </button>
+            <button type="button" onClick={startSignup} className={linkAccent}>
+              New here? Sign up with email code
+            </button>
+          </div>
         </form>
       ) : null}
 
@@ -192,7 +314,11 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
           className="space-y-3"
         >
           <p className={mutedText}>
-            Code sent to <strong className="text-white">{email.trim()}</strong>. It expires in 5 minutes.
+            {otpPurpose === 'forgot_password'
+              ? 'Enter the code we sent to reset your password for '
+              : 'Code sent to '}
+            <strong className={dark ? 'text-white' : 'text-zinc-900'}>{email.trim()}</strong>.
+            {otpPurpose === 'signup' ? ' It expires in 5 minutes.' : null}
           </p>
           <label className="block">
             <span className={labelClass}>6-digit code</span>
@@ -209,25 +335,29 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
               className={`${inputClass} font-mono tracking-[0.3em]`}
             />
           </label>
-          <button
-            type="submit"
-            disabled={pending}
-            className={btnClass}
-          >
-            {pending ? 'Verifying…' : 'Verify & sign in'}
+          <button type="submit" disabled={pending} className={btnClass}>
+            {pending
+              ? 'Verifying…'
+              : otpPurpose === 'forgot_password'
+                ? 'Verify code'
+                : 'Verify & continue'}
           </button>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <button
               type="button"
-              onClick={() => setStep('email')}
+              onClick={() => {
+                setStep('credentials');
+                setCode('');
+                setError(null);
+              }}
               className={linkMuted}
             >
-              ← Use a different email
+              ← Back to sign in
             </button>
             <button
               type="button"
               disabled={pending || resendSeconds > 0}
-              onClick={() => void sendCode()}
+              onClick={() => void sendCode(otpPurpose)}
               className={linkAccent}
             >
               {resendSeconds > 0 ? `Resend in ${resendSeconds}s` : 'Resend code'}
@@ -245,7 +375,9 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
           className="space-y-3"
         >
           <p className={mutedText}>
-            First time here with <strong className="text-white">{email.trim()}</strong>. Tell us a bit about you.
+            First time here with{' '}
+            <strong className={dark ? 'text-white' : 'text-zinc-900'}>{email.trim()}</strong>. Tell
+            us a bit about you, then you&apos;ll choose a password.
           </p>
           <label className="block">
             <span className={labelClass}>Full name</span>
@@ -277,6 +409,58 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
             className={btnClass}
           >
             {pending ? 'Creating account…' : 'Continue'}
+          </button>
+        </form>
+      ) : null}
+
+      {step === 'reset-password' ? (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void completeForgotPassword();
+          }}
+          className="space-y-3"
+        >
+          <p className={mutedText}>
+            Choose a new password for{' '}
+            <strong className={dark ? 'text-white' : 'text-zinc-900'}>{email.trim()}</strong>.
+          </p>
+          <label className="block">
+            <span className={labelClass}>New password</span>
+            <input
+              type="password"
+              required
+              minLength={8}
+              autoComplete="new-password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className={inputClass}
+            />
+            <span className={`mt-1 block text-[11px] ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
+              At least 8 characters.
+            </span>
+          </label>
+          <label className="block">
+            <span className={labelClass}>Confirm password</span>
+            <input
+              type="password"
+              required
+              minLength={8}
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+          <button type="submit" disabled={pending} className={btnClass}>
+            {pending ? 'Saving…' : 'Save password & sign in'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setStep('otp')}
+            className={linkMuted}
+          >
+            ← Back to code
           </button>
         </form>
       ) : null}

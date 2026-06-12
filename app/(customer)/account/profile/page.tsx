@@ -124,6 +124,15 @@ export default async function ProfilePage(
             next={next}
           />
 
+          <p className="text-sm text-apg-silver">
+            <Link href="/account/change-password" className={ACCOUNT_LINK_ON_DARK}>
+              Change password
+            </Link>
+            {' · '}
+            Sign in with email and password — codes are only sent when you sign up or forget your
+            password.
+          </p>
+
           {showResident ? (
             <p className="text-sm text-apg-silver">
               Monthly rent, electricity, and vacating →{' '}

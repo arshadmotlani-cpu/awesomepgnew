@@ -44,7 +44,21 @@ export async function createCustomerProfile(args: {
       gender: 'other',
       profileCompletedAt,
       authProvider: 'email',
+      mustSetPassword: true,
     })
     .returning();
   return row;
+}
+
+export async function setCustomerPassword(customerId: string, password: string): Promise<void> {
+  const { hashPassword } = await import('@/src/lib/auth/crypto');
+  const passwordHash = hashPassword(password);
+  await db
+    .update(customers)
+    .set({
+      passwordHash,
+      mustSetPassword: false,
+      updatedAt: new Date(),
+    })
+    .where(eq(customers.id, customerId));
 }

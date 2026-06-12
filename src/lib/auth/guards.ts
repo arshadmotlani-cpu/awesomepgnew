@@ -10,11 +10,18 @@ import {
 } from './session';
 import { adminHasPermission, type AdminPermission } from './roles';
 
-export async function requireCustomerSession(next?: string): Promise<CustomerSession> {
+export async function requireCustomerSession(
+  next?: string,
+  opts?: { allowPasswordSetup?: boolean },
+): Promise<CustomerSession> {
   const session = await getCustomerSession();
   if (!session) {
     const dest = next ? `/login?next=${encodeURIComponent(next)}` : '/login';
     redirect(dest);
+  }
+  if (session.mustSetPassword && !opts?.allowPasswordSetup) {
+    const q = next ? `?next=${encodeURIComponent(next)}` : '';
+    redirect(`/account/set-password${q}`);
   }
   return session;
 }

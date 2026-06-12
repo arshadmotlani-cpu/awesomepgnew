@@ -102,5 +102,6 @@ export async function POST(request: Request) {
     email: customer.email,
     phone: customer.phone,
     fullName: customer.fullName,
+    mustSetPassword: !customer.passwordHash || customer.mustSetPassword,
   });
 }

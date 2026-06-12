@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { date, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, date, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { citext } from './customTypes';
 import {
   authProviderEnum,
@@ -41,6 +41,9 @@ export const customers = pgTable(
     kycStatus: kycStatusEnum('kyc_status').notNull().default('pending'),
     profileCompletedAt: timestamp('profile_completed_at', { withTimezone: true }),
     authProvider: authProviderEnum('auth_provider').notNull().default('email'),
+    passwordHash: text('password_hash'),
+    /** When true, customer must set a password before using the account. */
+    mustSetPassword: boolean('must_set_password').notNull().default(false),
     archivedAt: timestamp('archived_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
