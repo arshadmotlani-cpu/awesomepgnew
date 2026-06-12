@@ -1,13 +1,13 @@
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { authFieldLabelClassName, authInputClassName } from '@/src/components/auth/authFieldStyles';
+import { redirectAfterAuth, safeAdminNext } from '@/src/lib/auth/safeNext';
 
 export function AdminChangePasswordForm({ email }: { email: string }) {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get('next') ?? '/admin';
+  const next = safeAdminNext(searchParams.get('next'));
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -23,6 +23,7 @@ export function AdminChangePasswordForm({ email }: { email: string }) {
       const res = await fetch('/api/auth/admin/change-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({ currentPassword, newPassword, confirmPassword }),
       });
       const data = (await res.json()) as { ok: boolean; message?: string };
@@ -30,8 +31,7 @@ export function AdminChangePasswordForm({ email }: { email: string }) {
         setError(data.message ?? 'Could not update password.');
         return;
       }
-      router.replace(next);
-      router.refresh();
+      redirectAfterAuth(next);
     } finally {
       setPending(false);
     }
@@ -40,7 +40,7 @@ export function AdminChangePasswordForm({ email }: { email: string }) {
   return (
     <form
       onSubmit={onSubmit}
-      className="mx-auto w-full max-w-md space-y-4 rounded-xl border border-zinc-200 bg-white p-6 text-zinc-900 shadow-sm scheme-light"
+      className="mx-auto w-full max-w-md space-y-4 rounded-xl border border-zinc-200 bg-white p-6 text-base text-zinc-900 shadow-sm scheme-light sm:p-8"
     >
       <div>
         <h1 className="text-xl font-semibold text-zinc-900">Set a new password</h1>
@@ -92,7 +92,7 @@ export function AdminChangePasswordForm({ email }: { email: string }) {
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800 disabled:bg-zinc-400"
+        className="min-h-11 w-full rounded-md bg-zinc-900 px-4 py-2.5 text-base font-semibold text-white hover:bg-zinc-800 disabled:bg-zinc-400"
       >
         {pending ? 'Updating…' : 'Update password & continue'}
       </button>

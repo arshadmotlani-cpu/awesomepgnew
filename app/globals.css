@@ -238,6 +238,16 @@ body {
   color: #3f3f46;
 }
 
+/* Admin console — mobile browsers, safe areas, touch targets */
+.apg-admin-shell {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.apg-admin-shell main {
+  -webkit-overflow-scrolling: touch;
+}
+
 /* White account/resident surfaces on the dark customer shell. */
 .apg-account-surface {
   background-color: #ffffff;

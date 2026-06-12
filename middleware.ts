@@ -68,6 +68,7 @@ export const config = {
     '/pgs/:path*',
     '/booking/:path*',
     '/account/:path*',
+    '/admin',
     '/admin/:path*',
   ],
 };

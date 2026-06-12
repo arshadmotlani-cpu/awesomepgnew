@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { BedMapManualOccupiedToggle } from '@/src/components/admin/BedMapManualOccupiedToggle';
 import { AdminKycStatusWithWhatsApp } from '@/src/components/admin/AdminKycWhatsAppButton';
 import { AdminVacatingSubmitForm } from '@/src/components/admin/AdminVacatingSubmitForm';
@@ -349,6 +349,14 @@ export function PgBedMapPanel({
   moveBedOptions: BedOption[];
 }) {
   const [selectedBedId, setSelectedBedId] = useState<string | null>(null);
+  const detailRef = useRef<HTMLDivElement>(null);
+
+  function selectBed(bedId: string) {
+    setSelectedBedId(bedId);
+    requestAnimationFrame(() => {
+      detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  }
 
   const selectedCtx = useMemo((): SelectedContext | null => {
     if (!selectedBedId) return null;
@@ -399,7 +407,7 @@ export function PgBedMapPanel({
                     key={room.roomId}
                     room={room}
                     selectedBedId={selectedBedId}
-                    onSelectBed={setSelectedBedId}
+                    onSelectBed={selectBed}
                   />
                 ))}
               </div>
@@ -407,7 +415,7 @@ export function PgBedMapPanel({
           ))}
         </div>
 
-        <div className="xl:sticky xl:top-28 xl:self-start">
+        <div ref={detailRef} className="xl:sticky xl:top-28 xl:self-start">
           {selectedCtx ? (
             <BedDetailPanel
               ctx={selectedCtx}

@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
+import { useState } from 'react';
 import { IconClose, IconMenu } from './icons';
 import { Sidebar } from './Sidebar';
 
@@ -9,46 +9,35 @@ export function MobileNav() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
-  // Close the drawer whenever the route changes.
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
-
-  // Lock body scroll while the drawer is open.
-  useEffect(() => {
-    if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
-
   return (
     <>
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-zinc-200 text-zinc-600 hover:bg-zinc-50 lg:hidden"
-        aria-label="Open navigation"
+        className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-[#1A1F27] text-white hover:bg-white/10 lg:hidden"
+        aria-label="Open navigation menu"
       >
         <IconMenu />
       </button>
 
       {open ? (
-        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Admin navigation">
           <div
-            className="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setOpen(false)}
+            aria-hidden
           />
-          <div className="absolute inset-y-0 left-0 flex">
-            <div className="relative">
-              <Sidebar onNavigate={() => setOpen(false)} />
+          <div className="absolute inset-y-0 left-0 flex max-w-[min(100vw,18rem)] shadow-2xl">
+            <div className="relative flex h-full w-64 flex-col">
+              <Sidebar
+                key={pathname}
+                onNavigate={() => setOpen(false)}
+              />
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                aria-label="Close navigation"
-                className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-100"
+                aria-label="Close navigation menu"
+                className="absolute right-3 top-3 inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-black/30 text-white hover:bg-white/10"
               >
                 <IconClose />
               </button>

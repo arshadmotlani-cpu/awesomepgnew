@@ -1,7 +1,7 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { redirectAfterAuth } from '@/src/lib/auth/safeNext';
 
 export function LogoutButton({
   scope,
@@ -14,7 +14,6 @@ export function LogoutButton({
   className?: string;
   tone?: 'light' | 'dark';
 }) {
-  const router = useRouter();
   const [pending, setPending] = useState(false);
 
   async function logout() {
@@ -23,10 +22,10 @@ export function LogoutButton({
       await fetch('/api/auth/logout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({ scope }),
       });
-      router.replace(scope === 'admin' ? '/admin/login' : '/login');
-      router.refresh();
+      redirectAfterAuth(scope === 'admin' ? '/admin/login' : '/login');
     } finally {
       setPending(false);
     }

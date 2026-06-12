@@ -1,13 +1,13 @@
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { authFieldLabelClassName, authInputClassName } from '@/src/components/auth/authFieldStyles';
+import { redirectAfterAuth, safeAdminNext } from '@/src/lib/auth/safeNext';
 
 export function AdminLoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get('next') ?? '/admin';
+  const next = safeAdminNext(searchParams.get('next'));
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -22,6 +22,7 @@ export function AdminLoginForm() {
       const res = await fetch('/api/auth/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({ email, password }),
       });
       const data = (await res.json()) as {
@@ -34,12 +35,10 @@ export function AdminLoginForm() {
         return;
       }
       if (data.mustChangePassword) {
-        const dest = `/admin/change-password?next=${encodeURIComponent(next)}`;
-        router.replace(dest);
-      } else {
-        router.replace(next);
+        redirectAfterAuth(`/admin/change-password?next=${encodeURIComponent(next)}`);
+        return;
       }
-      router.refresh();
+      redirectAfterAuth(next);
     } finally {
       setPending(false);
     }
@@ -48,7 +47,7 @@ export function AdminLoginForm() {
   return (
     <form
       onSubmit={onSubmit}
-      className="mx-auto w-full max-w-md space-y-4 rounded-xl border border-zinc-200 bg-white p-6 text-zinc-900 shadow-sm scheme-light"
+      className="mx-auto w-full max-w-md space-y-4 rounded-xl border border-zinc-200 bg-white p-6 text-base text-zinc-900 shadow-sm scheme-light sm:p-8"
     >
       <div>
         <h1 className="text-xl font-semibold text-zinc-900">Admin sign in</h1>
@@ -79,7 +78,7 @@ export function AdminLoginForm() {
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800 disabled:bg-zinc-400"
+        className="min-h-11 w-full rounded-md bg-zinc-900 px-4 py-2.5 text-base font-semibold text-white hover:bg-zinc-800 disabled:bg-zinc-400"
       >
         {pending ? 'Signing in…' : 'Sign in'}
       </button>
