@@ -5,6 +5,7 @@ import { redirect, unstable_rethrow } from 'next/navigation';
 import { getCustomerSession } from '@/src/lib/auth/session';
 import { requireCustomerOwnsBookingCode } from '@/src/lib/auth/guards';
 import { requireCompleteProfile } from '@/src/services/profile';
+import { kycCustomerErrorMessage } from '@/src/lib/kyc/errors';
 import {
   KYC_FILE_TOO_LARGE_MESSAGE,
   validateKycUploadSize,
@@ -75,7 +76,7 @@ export async function submitKycAction(
     }
 
     revalidatePath('/account/profile');
-  revalidatePath('/admin/kyc');
+    revalidatePath('/admin/kyc');
     if (bookingCode) {
       revalidatePath(`/booking/${bookingCode}`);
       redirect(`/booking/${bookingCode}`);
@@ -87,6 +88,6 @@ export async function submitKycAction(
     if (/body exceeded.*limit/i.test(message)) {
       return { status: 'error', message: KYC_FILE_TOO_LARGE_MESSAGE };
     }
-    return { status: 'error', message };
+    return { status: 'error', message: kycCustomerErrorMessage(err) };
   }
 }

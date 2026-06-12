@@ -1,10 +1,12 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { auditLog, customers, kycSubmissions, type KycValidationReport } from '@/src/db/schema';
+import { kycCustomerErrorMessage, KYC_UPLOAD_FAILED_MESSAGE } from '@/src/lib/kyc/errors';
+import { logger } from '@/src/lib/logger';
 import {
   assertKycFileSize,
   assertKycMimeType,
-  saveKycFile,
+  storeKycFile,
 } from '@/src/lib/kyc/storage';
 import { stampProfileCompletedAtIfReady } from './profile';
 import { validateKycImage, type KycImageKind } from './kycValidation';
@@ -43,62 +45,102 @@ export async function submitKyc(input: KycUploadInput) {
   }
 
   const submissionId = crypto.randomUUID();
-  const paths = {
-    aadhaarFrontPath: await saveKycFile({
-      customerId: input.customerId,
-      submissionId,
-      kind: 'aadhaar_front',
-      buffer: input.aadhaarFront.buffer,
-      mime: input.aadhaarFront.mime,
-    }),
-    aadhaarBackPath: await saveKycFile({
-      customerId: input.customerId,
-      submissionId,
-      kind: 'aadhaar_back',
-      buffer: input.aadhaarBack.buffer,
-      mime: input.aadhaarBack.mime,
-    }),
-    selfiePath: await saveKycFile({
-      customerId: input.customerId,
-      submissionId,
-      kind: 'selfie',
-      buffer: input.selfie.buffer,
-      mime: input.selfie.mime,
-    }),
-  };
 
-  const now = new Date();
-  const [row] = await db
-    .insert(kycSubmissions)
-    .values({
-      id: submissionId,
-      customerId: input.customerId,
-      bookingId: input.bookingId ?? null,
-      ...paths,
-      status: 'pending',
-      validationReport: report,
-      createdAt: now,
-      updatedAt: now,
-    })
-    .returning();
-
-  await db
-    .update(customers)
-    .set({ kycStatus: 'pending', updatedAt: now })
-    .where(eq(customers.id, input.customerId));
-
-  await stampProfileCompletedAtIfReady(input.customerId, now);
-
-  await db.insert(auditLog).values({
-    actorType: 'customer',
-    actorId: input.customerId,
-    entity: 'kyc_submission',
-    entityId: row.id,
-    action: 'submit',
-    diff: { bookingId: input.bookingId ?? null, validationReport: report },
+  logger.info('KYC submit start', {
+    customerId: input.customerId,
+    submissionId,
+    bookingId: input.bookingId ?? null,
+    sizes: {
+      aadhaarFront: input.aadhaarFront.buffer.length,
+      aadhaarBack: input.aadhaarBack.buffer.length,
+      selfie: input.selfie.buffer.length,
+    },
   });
 
-  return { ok: true as const, submissionId: row.id };
+  try {
+    // Upload to Cloudinary / filesystem BEFORE inserting kyc_submissions (no FK on blobs).
+    const [aadhaarFront, aadhaarBack, selfie] = await Promise.all([
+      storeKycFile({
+        customerId: input.customerId,
+        submissionId,
+        kind: 'aadhaar_front',
+        buffer: input.aadhaarFront.buffer,
+        mime: input.aadhaarFront.mime,
+      }),
+      storeKycFile({
+        customerId: input.customerId,
+        submissionId,
+        kind: 'aadhaar_back',
+        buffer: input.aadhaarBack.buffer,
+        mime: input.aadhaarBack.mime,
+      }),
+      storeKycFile({
+        customerId: input.customerId,
+        submissionId,
+        kind: 'selfie',
+        buffer: input.selfie.buffer,
+        mime: input.selfie.mime,
+      }),
+    ]);
+
+    const now = new Date();
+    const [row] = await db
+      .insert(kycSubmissions)
+      .values({
+        id: submissionId,
+        customerId: input.customerId,
+        bookingId: input.bookingId ?? null,
+        aadhaarFrontPath: aadhaarFront.storagePath,
+        aadhaarFrontMime: aadhaarFront.mime,
+        aadhaarBackPath: aadhaarBack.storagePath,
+        aadhaarBackMime: aadhaarBack.mime,
+        selfiePath: selfie.storagePath,
+        selfieMime: selfie.mime,
+        status: 'pending',
+        validationReport: report,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
+
+    await db
+      .update(customers)
+      .set({ kycStatus: 'pending', updatedAt: now })
+      .where(eq(customers.id, input.customerId));
+
+    await stampProfileCompletedAtIfReady(input.customerId, now);
+
+    await db.insert(auditLog).values({
+      actorType: 'customer',
+      actorId: input.customerId,
+      entity: 'kyc_submission',
+      entityId: row.id,
+      action: 'submit',
+      diff: {
+        bookingId: input.bookingId ?? null,
+        validationReport: report,
+        storage: {
+          aadhaarFront: aadhaarFront.backend,
+          aadhaarBack: aadhaarBack.backend,
+          selfie: selfie.backend,
+        },
+      },
+    });
+
+    logger.info('KYC submit ok', {
+      customerId: input.customerId,
+      submissionId: row.id,
+    });
+
+    return { ok: true as const, submissionId: row.id };
+  } catch (err) {
+    logger.error('KYC submit failed', {
+      customerId: input.customerId,
+      submissionId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return { ok: false as const, message: kycCustomerErrorMessage(err) || KYC_UPLOAD_FAILED_MESSAGE };
+  }
 }
 
 export async function reviewKycSubmission(args: {

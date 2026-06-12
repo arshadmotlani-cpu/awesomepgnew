@@ -1,16 +1,23 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { and, eq } from 'drizzle-orm';
-import { db } from '@/src/db/client';
-import { kycSubmissionFiles } from '@/src/db/schema';
+import { isCloudinaryConfigured, uploadBufferToCloudinary } from '@/src/lib/images/cloudinary';
+import { logger } from '@/src/lib/logger';
+import { KycStorageError } from '@/src/lib/kyc/errors';
 
 const KYC_ROOT = path.join(process.cwd(), 'data', 'kyc');
-const DB_PATH_PREFIX = 'db:';
-
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const MAX_BYTES = 8 * 1024 * 1024;
 
 export type KycFileKind = 'aadhaar_front' | 'aadhaar_back' | 'selfie';
+
+export type KycStoredFile = {
+  /** Value stored in kyc_submissions.*_path — HTTPS URL or relative filesystem path. */
+  storagePath: string;
+  fileUrl: string | null;
+  mime: string;
+  backend: 'cloudinary' | 'filesystem';
+  bytes: number;
+};
 
 export function assertKycMimeType(mime: string): boolean {
   return ALLOWED_MIME.has(mime);
@@ -24,11 +31,19 @@ export function kycStorageRoot(): string {
   return KYC_ROOT;
 }
 
-/** Serverless (Vercel) has a read-only filesystem — store blobs in Postgres instead. */
-export function useKycDatabaseStorage(): boolean {
-  if (process.env.KYC_STORAGE === 'filesystem') return false;
-  if (process.env.KYC_STORAGE === 'database') return true;
-  return process.env.VERCEL === '1';
+export type KycStorageBackend = 'cloudinary' | 'filesystem';
+
+/** Production (Vercel) requires Cloudinary — never store binary blobs in Postgres. */
+export function resolveKycStorageBackend(): KycStorageBackend {
+  if (process.env.KYC_STORAGE === 'filesystem') return 'filesystem';
+  if (isCloudinaryConfigured()) return 'cloudinary';
+  if (process.env.VERCEL === '1') {
+    throw new KycStorageError(
+      'NOT_CONFIGURED',
+      'KYC storage is not configured for production (Cloudinary env vars missing).',
+    );
+  }
+  return 'filesystem';
 }
 
 function mimeToExt(mime: string): string {
@@ -37,24 +52,110 @@ function mimeToExt(mime: string): string {
   return 'jpg';
 }
 
-function dbStoragePath(submissionId: string, kind: KycFileKind, ext: string): string {
-  return `${DB_PATH_PREFIX}${submissionId}/${kind}.${ext}`;
+function normalizeMime(mime: string): string {
+  const trimmed = mime.trim().toLowerCase();
+  if (trimmed === 'image/jpg') return 'image/jpeg';
+  return trimmed || 'image/jpeg';
 }
 
-function parseDbStoragePath(relativePath: string): { submissionId: string; kind: KycFileKind } | null {
-  if (!relativePath.startsWith(DB_PATH_PREFIX)) return null;
-  const rest = relativePath.slice(DB_PATH_PREFIX.length);
-  const slash = rest.indexOf('/');
-  if (slash <= 0) return null;
-  const submissionId = rest.slice(0, slash);
-  const filename = rest.slice(slash + 1);
-  const dot = filename.lastIndexOf('.');
-  if (dot <= 0) return null;
-  const kind = filename.slice(0, dot) as KycFileKind;
-  if (kind !== 'aadhaar_front' && kind !== 'aadhaar_back' && kind !== 'selfie') return null;
-  return { submissionId, kind };
+/**
+ * Upload a validated KYC image to external storage, then persist only metadata in Postgres.
+ * Must run before inserting the parent kyc_submissions row.
+ */
+export async function storeKycFile(args: {
+  customerId: string;
+  submissionId: string;
+  kind: KycFileKind;
+  buffer: Buffer;
+  mime: string;
+}): Promise<KycStoredFile> {
+  const mime = normalizeMime(args.mime);
+  const bytes = args.buffer.length;
+
+  logger.info('KYC store start', {
+    kind: args.kind,
+    submissionId: args.submissionId,
+    customerId: args.customerId,
+    mime,
+    bytes,
+  });
+
+  if (!assertKycMimeType(mime)) {
+    throw new KycStorageError('UPLOAD_FAILED', `Unsupported mime type: ${mime}`);
+  }
+  if (!assertKycFileSize(bytes)) {
+    throw new KycStorageError('UPLOAD_FAILED', 'Image exceeds 8 MB after processing.');
+  }
+
+  const backend = resolveKycStorageBackend();
+
+  try {
+    if (backend === 'cloudinary') {
+      const folder = `awesomepg/kyc/${args.customerId}/${args.submissionId}`;
+      const uploaded = await uploadBufferToCloudinary(args.buffer, mime, {
+        folder,
+        publicId: args.kind,
+      });
+
+      const stored: KycStoredFile = {
+        storagePath: uploaded.secureUrl,
+        fileUrl: uploaded.secureUrl,
+        mime,
+        backend: 'cloudinary',
+        bytes,
+      };
+
+      logger.info('KYC store cloudinary ok', {
+        kind: args.kind,
+        submissionId: args.submissionId,
+        mime,
+        bytes,
+        publicId: uploaded.publicId,
+      });
+
+      return stored;
+    }
+
+    const dir = path.join(KYC_ROOT, args.customerId, args.submissionId);
+    await mkdir(dir, { recursive: true });
+    const ext = mimeToExt(mime);
+    const filename = `${args.kind}.${ext}`;
+    const fullPath = path.join(dir, filename);
+    await writeFile(fullPath, args.buffer);
+    const relativePath = path.relative(KYC_ROOT, fullPath);
+
+    const stored: KycStoredFile = {
+      storagePath: relativePath,
+      fileUrl: null,
+      mime,
+      backend: 'filesystem',
+      bytes,
+    };
+
+    logger.info('KYC store filesystem ok', {
+      kind: args.kind,
+      submissionId: args.submissionId,
+      mime,
+      bytes,
+      storagePath: relativePath,
+    });
+
+    return stored;
+  } catch (err) {
+    logger.error('KYC store failed', {
+      kind: args.kind,
+      submissionId: args.submissionId,
+      mime,
+      bytes,
+      backend,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    if (err instanceof KycStorageError) throw err;
+    throw new KycStorageError('UPLOAD_FAILED', 'KYC file upload failed.', err);
+  }
 }
 
+/** @deprecated Use storeKycFile — kept for scripts/tests. */
 export async function saveKycFile(args: {
   customerId: string;
   submissionId: string;
@@ -62,38 +163,35 @@ export async function saveKycFile(args: {
   buffer: Buffer;
   mime: string;
 }): Promise<string> {
-  const ext = mimeToExt(args.mime);
+  const stored = await storeKycFile(args);
+  return stored.storagePath;
+}
 
-  if (useKycDatabaseStorage()) {
-    await db
-      .insert(kycSubmissionFiles)
-      .values({
-        submissionId: args.submissionId,
-        kind: args.kind,
-        mime: args.mime,
-        content: args.buffer,
-      })
-      .onConflictDoUpdate({
-        target: [kycSubmissionFiles.submissionId, kycSubmissionFiles.kind],
-        set: {
-          mime: args.mime,
-          content: args.buffer,
-        },
-      });
-    return dbStoragePath(args.submissionId, args.kind, ext);
+export function isRemoteKycUrl(storedPath: string): boolean {
+  const trimmed = storedPath.trim();
+  return trimmed.startsWith('https://') || trimmed.startsWith('http://');
+}
+
+export async function resolveKycDocumentResponse(
+  storedPath: string,
+  mimeHint?: string | null,
+): Promise<Response> {
+  if (isRemoteKycUrl(storedPath)) {
+    return Response.redirect(storedPath, 302);
   }
 
-  const dir = path.join(KYC_ROOT, args.customerId, args.submissionId);
-  await mkdir(dir, { recursive: true });
-  const filename = `${args.kind}.${ext}`;
-  const fullPath = path.join(dir, filename);
-  await writeFile(fullPath, args.buffer);
-  return path.relative(KYC_ROOT, fullPath);
+  const { buffer, mime } = await readKycFileBytes(storedPath, mimeHint);
+  return new Response(new Uint8Array(buffer), {
+    headers: {
+      'Content-Type': mime,
+      'Cache-Control': 'private, no-store',
+    },
+  });
 }
 
 export function resolveKycFilePath(relativePath: string): string {
-  if (relativePath.startsWith(DB_PATH_PREFIX)) {
-    throw new Error('Database-backed KYC files must be read via readKycFileBytes().');
+  if (isRemoteKycUrl(relativePath)) {
+    throw new Error('Remote KYC URLs must be served via redirect.');
   }
   const resolved = path.resolve(KYC_ROOT, relativePath);
   if (!resolved.startsWith(path.resolve(KYC_ROOT))) {
@@ -102,32 +200,27 @@ export function resolveKycFilePath(relativePath: string): string {
   return resolved;
 }
 
-export async function readKycFileBytes(relativePath: string): Promise<{ buffer: Buffer; mime: string }> {
-  const dbRef = parseDbStoragePath(relativePath);
-  if (dbRef) {
-    const [row] = await db
-      .select({
-        mime: kycSubmissionFiles.mime,
-        content: kycSubmissionFiles.content,
-      })
-      .from(kycSubmissionFiles)
-      .where(
-        and(
-          eq(kycSubmissionFiles.submissionId, dbRef.submissionId),
-          eq(kycSubmissionFiles.kind, dbRef.kind),
-        ),
-      )
-      .limit(1);
-    if (!row) {
-      throw new Error('KYC file not found in database.');
-    }
-    return { buffer: row.content, mime: row.mime };
+export async function readKycFileBytes(
+  storedPath: string,
+  mimeHint?: string | null,
+): Promise<{ buffer: Buffer; mime: string }> {
+  if (isRemoteKycUrl(storedPath)) {
+    throw new KycStorageError('READ_FAILED', 'Use resolveKycDocumentResponse for remote URLs.');
   }
 
-  const absolutePath = resolveKycFilePath(relativePath);
-  const buffer = await readFile(absolutePath);
-  const ext = path.extname(absolutePath).slice(1).toLowerCase();
-  const mime =
-    ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
-  return { buffer, mime };
+  try {
+    const absolutePath = resolveKycFilePath(storedPath);
+    const buffer = await readFile(absolutePath);
+    if (mimeHint) return { buffer, mime: mimeHint };
+    const ext = path.extname(absolutePath).slice(1).toLowerCase();
+    const mime =
+      ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+    return { buffer, mime };
+  } catch (err) {
+    logger.error('KYC read failed', {
+      storagePath: storedPath,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw new KycStorageError('READ_FAILED', 'KYC file missing.', err);
+  }
 }
