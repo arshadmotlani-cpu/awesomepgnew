@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { AdminKycStatusWithWhatsApp } from '@/src/components/admin/AdminKycWhatsAppButton';
+import { BulkKycWhatsAppReminder } from '@/src/components/admin/BulkKycWhatsAppReminder';
 import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
 import { formatDateTime, titleCase } from '@/src/lib/format';
 import type { ResidentListRow } from '@/src/services/residentAdmin';
@@ -27,6 +28,8 @@ export function ResidentsTable({ residents }: { residents: ResidentListRow[] }) 
 
   return (
     <div className="space-y-4">
+      <BulkKycWhatsAppReminder residents={residents} />
+
       <div className="flex flex-wrap items-end justify-between gap-3">
         <label className="block min-w-[16rem] flex-1 text-sm">
           <span className="font-medium text-zinc-700">Search residents</span>

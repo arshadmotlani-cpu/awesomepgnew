@@ -7,6 +7,8 @@ import {
   publicSiteBaseUrl,
 } from '@/src/lib/kyc/adminWhatsApp';
 
+export { WhatsAppIcon };
+
 function WhatsAppIcon({ className }: { className?: string }) {
   return (
     <svg

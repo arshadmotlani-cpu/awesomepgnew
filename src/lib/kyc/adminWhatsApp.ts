@@ -55,3 +55,29 @@ export function publicSiteBaseUrl(): string {
 export function needsKycReminder(status: 'pending' | 'approved' | 'rejected'): boolean {
   return status === 'pending' || status === 'rejected';
 }
+
+export function assignedResidentsNeedingKyc<
+  T extends {
+    tenancyStatus: 'active' | 'unassigned';
+    kycStatus: 'pending' | 'approved' | 'rejected';
+    phone: string;
+  },
+>(residents: T[]): T[] {
+  return residents.filter(
+    (r) =>
+      r.tenancyStatus === 'active' &&
+      needsKycReminder(r.kycStatus) &&
+      Boolean(whatsAppPhoneDigits(r.phone)),
+  );
+}
+
+export function openWhatsAppUrl(url: string): void {
+  if (typeof window === 'undefined') return;
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.target = '_blank';
+  anchor.rel = 'noopener noreferrer';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+}
