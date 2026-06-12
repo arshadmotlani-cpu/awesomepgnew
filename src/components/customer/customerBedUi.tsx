@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import {
   CUSTOMER_BED_KIND_CLASS,
   deriveCustomerBedAvailabilityView,
 } from '@/src/lib/bedAvailabilityState';
 import { customerBookableFromDate } from '@/src/lib/dates';
 import { formatDate, paiseToInr } from '@/src/lib/format';
-import { RoachieBedSheetTip } from './RoachieBedSheetTip';
+import { RoachieBedSheetCoach } from './RoachieBedSheetCoach';
 import type { BedSelectorBed } from './customerBedTypes';
 
 function bedAvailability(bed: BedSelectorBed) {
@@ -122,6 +122,7 @@ export function CustomerBedDetailSheet({
   onReserve: () => void;
   onNoticeInterestUpdate?: (bedId: string, count: number) => void;
 }) {
+  const sheetRootId = useId().replace(/:/g, '');
   const [noticeCount, setNoticeCount] = useState(bed.noticeInterestCount ?? 0);
 
   useEffect(() => {
@@ -133,6 +134,8 @@ export function CustomerBedDetailSheet({
   const bookableFrom = customerBookableFromDate(bed.nextAvailableDate);
   const isFuturePreBook = !bed.isAvailableNow && Boolean(bookableFrom) && !isNotice;
   const showBookActions = canBookBed(bed);
+  const showReserve = showBookActions;
+  const opensDate = isNotice ? bed.vacatingDate : isFuturePreBook ? bookableFrom : null;
 
   useEffect(() => {
     if (!isNotice) return;
@@ -148,106 +151,117 @@ export function CustomerBedDetailSheet({
   }, [bed.bedId, isNotice, onNoticeInterestUpdate]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center">
-      <div
-        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-white/10 bg-[#1A1F27] p-5 shadow-2xl"
-        role="dialog"
-        aria-modal
-        data-roachie-tour="bed-detail-sheet"
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-apg-orange">
-              {roomLabel}
-            </p>
-            <h2 className="text-xl font-semibold text-white">Bed {bed.bedCode}</h2>
+    <>
+      <div className="fixed inset-0 z-[99950] flex items-end justify-center bg-black/60 p-4 sm:items-center">
+        <div
+          id={sheetRootId}
+          className="relative max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-white/10 bg-[#1A1F27] p-5 shadow-2xl"
+          role="dialog"
+          aria-modal
+          data-roachie-tour="bed-detail-sheet"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-apg-orange">
+                {roomLabel}
+              </p>
+              <h2 className="text-xl font-semibold text-white">Bed {bed.bedCode}</h2>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg px-2 py-1 text-apg-silver hover:bg-white/5 hover:text-white"
+              aria-label="Close"
+            >
+              ✕
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg px-2 py-1 text-apg-silver hover:bg-white/5 hover:text-white"
-            aria-label="Close"
-          >
-            ✕
-          </button>
-        </div>
 
-        <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-          <p className="text-sm font-semibold text-white">{availability.label}</p>
-          {availability.sublabel ? (
-            <p className="mt-1 text-xs text-apg-silver">{availability.sublabel}</p>
-          ) : null}
-          {isNotice ? (
-            <p className="mt-2 text-xs font-medium text-orange-200">
-              {noticeCount > 0
-                ? `${noticeCount} ${noticeCount === 1 ? 'person is' : 'people are'} interested in this bed`
-                : 'Others can see interest too — pre-book below if you want this bed when it opens.'}
-            </p>
-          ) : null}
-        </div>
-
-        {showBookActions ? (
-          <>
-            <BedPricingDetails bed={bed} isNotice={isNotice} />
-            {(isNotice || isFuturePreBook) ? (
-              <RoachieBedSheetTip opensDate={isNotice ? bed.vacatingDate : bookableFrom} />
+          <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+            <p className="text-sm font-semibold text-white">{availability.label}</p>
+            {availability.sublabel ? (
+              <p className="mt-1 text-xs text-apg-silver">{availability.sublabel}</p>
             ) : null}
-          </>
-        ) : (
-          <p className="mt-4 text-sm text-apg-silver">
-            {availability.kind === 'occupied'
-              ? 'Someone is living here right now. Check back when the bed opens up.'
-              : 'This bed is not available for booking at the moment.'}
-          </p>
-        )}
-
-        {isNotice ? (
-          <div className="mt-5 flex flex-col gap-2">
-            <button
-              type="button"
-              onClick={onPreBook}
-              className="w-full rounded-lg bg-apg-orange py-2.5 text-sm font-semibold text-white apg-glow-btn hover:brightness-110"
-            >
-              Pre-book — check in when bed opens
-            </button>
-            <button
-              type="button"
-              onClick={onReserve}
-              className="w-full rounded-lg border border-apg-orange/40 bg-apg-orange/10 py-2.5 text-sm font-semibold text-white hover:bg-apg-orange/20"
-            >
-              Reserve early (50% rent) — move in when you reach Nagpur
-            </button>
+            {isNotice ? (
+              <p className="mt-2 text-xs font-medium text-orange-200">
+                {noticeCount > 0
+                  ? `${noticeCount} ${noticeCount === 1 ? 'person is' : 'people are'} interested in this bed`
+                  : 'Cockroach will explain pre-book vs reserve on the buttons below.'}
+              </p>
+            ) : null}
           </div>
-        ) : showBookActions ? (
-          <div className="mt-5 flex flex-col gap-2">
-            {isFuturePreBook ? (
+
+          {showBookActions ? (
+            <BedPricingDetails bed={bed} isNotice={isNotice} />
+          ) : (
+            <p className="mt-4 text-sm text-apg-silver">
+              {availability.kind === 'occupied'
+                ? 'Someone is living here right now. Check back when the bed opens up.'
+                : 'This bed is not available for booking at the moment.'}
+            </p>
+          )}
+
+          {isNotice ? (
+            <div className="mt-5 flex flex-col gap-2" data-roachie-tour="bed-sheet-actions">
               <button
                 type="button"
+                data-roachie-bed-action="pre-book"
                 onClick={onPreBook}
-                className="w-full rounded-lg bg-sky-600 py-2.5 text-sm font-semibold text-white hover:bg-sky-500"
-              >
-                Pre-book this bed
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={onBook}
                 className="w-full rounded-lg bg-apg-orange py-2.5 text-sm font-semibold text-white apg-glow-btn hover:brightness-110"
               >
-                Book this bed
+                Pre-book — check in when bed opens
               </button>
-            )}
-            <button
-              type="button"
-              onClick={onReserve}
-              className="w-full rounded-lg border border-apg-orange/40 bg-apg-orange/10 py-2.5 text-sm font-semibold text-white hover:bg-apg-orange/20"
-            >
-              Reserve early (50% rent)
-            </button>
-          </div>
-        ) : null}
+              {showReserve ? (
+                <button
+                  type="button"
+                  data-roachie-bed-action="reserve"
+                  onClick={onReserve}
+                  className="w-full rounded-lg border border-apg-orange/40 bg-apg-orange/10 py-2.5 text-sm font-semibold text-white hover:bg-apg-orange/20"
+                >
+                  Reserve early (50% rent) — move in when you reach Nagpur
+                </button>
+              ) : null}
+            </div>
+          ) : showBookActions ? (
+            <div className="mt-5 flex flex-col gap-2" data-roachie-tour="bed-sheet-actions">
+              {isFuturePreBook ? (
+                <button
+                  type="button"
+                  data-roachie-bed-action="pre-book"
+                  onClick={onPreBook}
+                  className="w-full rounded-lg bg-sky-600 py-2.5 text-sm font-semibold text-white hover:bg-sky-500"
+                >
+                  Pre-book this bed
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  data-roachie-bed-action="book"
+                  onClick={onBook}
+                  className="w-full rounded-lg bg-apg-orange py-2.5 text-sm font-semibold text-white apg-glow-btn hover:brightness-110"
+                >
+                  Book this bed
+                </button>
+              )}
+              {showReserve ? (
+                <button
+                  type="button"
+                  data-roachie-bed-action="reserve"
+                  onClick={onReserve}
+                  className="w-full rounded-lg border border-apg-orange/40 bg-apg-orange/10 py-2.5 text-sm font-semibold text-white hover:bg-apg-orange/20"
+                >
+                  Reserve early (50% rent)
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
       </div>
-    </div>
+
+      {showBookActions ? (
+        <RoachieBedSheetCoach sheetRootId={sheetRootId} opensDate={opensDate} />
+      ) : null}
+    </>
   );
 }
 

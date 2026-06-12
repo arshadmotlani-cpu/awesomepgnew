@@ -748,6 +748,32 @@ body {
   }
 }
 
+.roachie-bed-sheet-coach-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 99958;
+  background: rgba(8, 10, 14, 0.35);
+  pointer-events: none;
+}
+
+.roachie-bed-sheet-coach.roachie-tour-widget {
+  z-index: 99985;
+}
+
+@media (max-width: 640px) {
+  .roachie-bed-sheet-coach.roachie-tour-widget {
+    top: auto;
+    bottom: 1rem;
+    left: 50%;
+    transform: translate(-50%, 0) scale(0.96);
+    width: min(22rem, calc(100vw - 1.5rem));
+  }
+
+  .roachie-bed-sheet-coach.roachie-widget--visible {
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
 .roachie-target-highlight {
   position: relative;
   z-index: 99970;
