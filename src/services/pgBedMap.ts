@@ -317,7 +317,6 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
         AND br.status = 'active'
         AND br.kind = 'primary'
         AND bk.status = 'confirmed'
-        AND bk.duration_mode IN ('monthly', 'open_ended')
         AND CURRENT_DATE <@ br.stay_range
       ORDER BY lower(br.stay_range) DESC
       LIMIT 1
@@ -351,7 +350,7 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
       SELECT brh.check_in_date
       FROM bed_reserve_holds brh
       WHERE brh.bed_id = b.id
-        AND brh.status = 'active'
+        AND brh.status IN ('pending_payment', 'active')
         AND brh.reserve_start <= CURRENT_DATE
         AND brh.check_in_date >= CURRENT_DATE
       LIMIT 1
