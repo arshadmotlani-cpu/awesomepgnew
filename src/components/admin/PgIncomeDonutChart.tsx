@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { paiseToInr } from '@/src/lib/format';
 import {
+  buildDonutSlices,
   PG_INCOME_DONUT_PALETTE,
   type DonutSlice,
 } from '@/src/lib/pgIncomeDonut';
@@ -40,30 +41,48 @@ function arcPath(
 }
 
 export function PgIncomeDonutChart({
-  slices,
+  rows,
   totalPaise,
   monthLabel,
 }: {
-  slices: DonutSlice[];
+  rows: Array<{ pgId: string; pgName: string; incomeTotalPaise: number }>;
   totalPaise: number;
   monthLabel: string;
 }) {
+  const slices = buildDonutSlices(rows);
   const active = slices.filter((s) => s.valuePaise > 0);
   const total = active.reduce((a, s) => a + s.valuePaise, 0) || 1;
 
-  let cursor = 0;
-  const arcs = active.map((slice, i) => {
-    const sweep = (slice.valuePaise / total) * 360;
-    const start = cursor;
-    const end = cursor + sweep;
-    cursor = end;
-    return {
-      ...slice,
-      d: arcPath(120, 120, 100, 62, start, end),
-      pct: Math.round((slice.valuePaise / total) * 1000) / 10,
-      color: slice.color || PG_INCOME_DONUT_PALETTE[i % PG_INCOME_DONUT_PALETTE.length],
-    };
-  });
+  const arcs = active.reduce<{
+    cursor: number;
+    items: Array<{
+      pgId: string;
+      pgName: string;
+      valuePaise: number;
+      color: string;
+      d: string;
+      pct: number;
+    }>;
+  }>(
+    (acc, slice, i) => {
+      const sweep = (slice.valuePaise / total) * 360;
+      const start = acc.cursor;
+      const end = start + sweep;
+      return {
+        cursor: end,
+        items: [
+          ...acc.items,
+          {
+            ...slice,
+            d: arcPath(120, 120, 100, 62, start, end),
+            pct: Math.round((slice.valuePaise / total) * 1000) / 10,
+            color: slice.color || PG_INCOME_DONUT_PALETTE[i % PG_INCOME_DONUT_PALETTE.length],
+          },
+        ],
+      };
+    },
+    { cursor: 0, items: [] },
+  ).items;
 
   return (
     <div className="rounded-2xl border border-white/10 bg-[#1A1F27] p-5">

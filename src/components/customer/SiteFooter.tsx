@@ -12,7 +12,7 @@ export function SiteFooter({ theme = 'dark' }: { theme?: 'dark' | 'light' }) {
       }
     >
       <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
-        <div className="grid grid-cols-1 gap-8 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <p className={`text-sm font-semibold ${light ? 'text-slate-900' : 'text-white'}`}>
               Awesome PG
@@ -23,6 +23,27 @@ export function SiteFooter({ theme = 'dark' }: { theme?: 'dark' | 'light' }) {
               Premium paying-guest living with bed-first booking, daily cleaning, free laundry, and
               honest amenities.
             </p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-apg-orange">Guides</p>
+            <ul className={`mt-3 space-y-2 text-sm ${light ? 'text-slate-600' : 'text-apg-silver'}`}>
+              <li>
+                <Link
+                  href="/guide?type=booking"
+                  className={light ? 'hover:text-slate-900' : 'hover:text-white'}
+                >
+                  How to book a PG
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/guide?type=resident"
+                  className={light ? 'hover:text-slate-900' : 'hover:text-white'}
+                >
+                  Resident guide (rent, KYC, vacating)
+                </Link>
+              </li>
+            </ul>
           </div>
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-apg-orange">Explore</p>

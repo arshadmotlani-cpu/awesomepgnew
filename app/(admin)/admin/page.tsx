@@ -4,7 +4,6 @@ import {
   OverviewFinancialPanels,
   PgBusinessMetricsTable,
 } from '@/src/components/admin/PgBusinessMetricsTable';
-import { buildDonutSlices } from '@/src/lib/pgIncomeDonut';
 import { PgIncomeDonutChart } from '@/src/components/admin/PgIncomeDonutChart';
 import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import { OverviewStatCard } from '@/src/components/admin/OverviewStatCard';
@@ -27,25 +26,6 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 export default async function DashboardPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ month?: string }>;
-}) {
-  try {
-    return await DashboardPageContent({ searchParams });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error('[admin/overview] render failed:', message);
-    return (
-      <>
-        <PageHeader title="Overview" description="PG operations at a glance." />
-        <DbStatusBanner error={message} />
-      </>
-    );
-  }
-}
-
-async function DashboardPageContent({
   searchParams,
 }: {
   searchParams: Promise<{ month?: string }>;
@@ -89,8 +69,6 @@ async function DashboardPageContent({
     year: 'numeric',
     timeZone: 'UTC',
   }).format(new Date(`${billingMonth}T00:00:00.000Z`));
-
-  const donutSlices = metrics.data.length > 0 ? buildDonutSlices(metrics.data) : [];
 
   return (
     <>
@@ -148,7 +126,7 @@ async function DashboardPageContent({
       <div className="grid gap-4 xl:grid-cols-5">
         <div className="xl:col-span-2">
           <PgIncomeDonutChart
-            slices={donutSlices}
+            rows={metrics.data}
             totalPaise={s.incomeTotalPaise}
             monthLabel={monthLabel}
           />
