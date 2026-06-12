@@ -346,6 +346,24 @@ export async function recordPaymentSuccess(
       } catch (reserveErr) {
         console.error('bed reserve activation failed:', reserveErr);
       }
+    } else if (booking.durationMode === 'monthly' || booking.durationMode === 'open_ended') {
+      try {
+        const { clearBedAdminMarks } = await import('./bookingAdminOps');
+        const assignedBeds = await db
+          .select({ bedId: bedReservations.bedId })
+          .from(bedReservations)
+          .where(
+            and(
+              eq(bedReservations.bookingId, booking.id),
+              eq(bedReservations.kind, 'primary'),
+            ),
+          );
+        for (const row of assignedBeds) {
+          await clearBedAdminMarks(row.bedId);
+        }
+      } catch (markErr) {
+        console.error('clear admin bed marks after payment failed:', markErr);
+      }
     }
 
     if (!isReserveBooking && booking.depositPaise > 0) {

@@ -138,6 +138,18 @@ export async function updateBedInventoryStatus(
   });
 }
 
+export async function clearBedAdminMarks(bedId: string): Promise<void> {
+  await db
+    .update(beds)
+    .set({
+      manualOccupied: false,
+      manualReservedStart: null,
+      manualReservedCheckIn: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(beds.id, bedId));
+}
+
 export async function setBedManualOccupied(
   session: AdminSession,
   bedId: string,

@@ -362,6 +362,8 @@ export type CustomerRoomDetail = {
     reservedFrom?: string | null;
     /** Active 50% reserve hold — holder check-in date. */
     activeBedReserveCheckIn?: string | null;
+    /** Admin marked occupied — hidden from booking on website. */
+    manualOccupied?: boolean;
     /** Unpaid checkouts in progress — shown as interest, not occupancy. */
     interestCount: number;
     /** Distinct visitors who tapped this bed during notice period. */

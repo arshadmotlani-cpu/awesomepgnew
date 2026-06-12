@@ -548,6 +548,7 @@ export async function activateReservationNow(
   const [ctx] = await db
     .select({
       pgId: pgs.id,
+      bedId: beds.id,
     })
     .from(bedReservations)
     .innerJoin(beds, eq(beds.id, bedReservations.bedId))
@@ -576,6 +577,9 @@ export async function activateReservationNow(
     WHERE booking_id = ${input.bookingId}
       AND status = 'active'
   `);
+
+  const { clearBedAdminMarks } = await import('@/src/services/bookingAdminOps');
+  await clearBedAdminMarks(ctx.bedId);
 
   return { ok: true };
 }

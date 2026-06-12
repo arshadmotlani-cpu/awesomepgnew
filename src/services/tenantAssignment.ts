@@ -6,6 +6,7 @@ import type { AdminSession } from '@/src/lib/auth/session';
 import { formatDate } from '@/src/lib/dates';
 import { recordDepositCollected } from '@/src/services/deposits';
 import { createBooking } from '@/src/services/booking';
+import { clearBedAdminMarks } from '@/src/services/bookingAdminOps';
 import { isBedAvailable } from '@/src/services/availability';
 
 const LONG_TERM_RESERVATION_END = '2099-01-01';
@@ -50,6 +51,9 @@ export async function assignTenantToBed(
   if (!adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, bedCtx.pgId)) {
     return { ok: false, error: 'You do not have access to this PG.' };
   }
+
+  // Admin assignment replaces any manual occupied/reserved marks on the bed.
+  await clearBedAdminMarks(input.bedId);
 
   const available = await isBedAvailable({
     bedId: input.bedId,

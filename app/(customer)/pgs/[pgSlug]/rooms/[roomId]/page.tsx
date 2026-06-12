@@ -59,6 +59,7 @@ export default async function RoomDetailPage(
     vacatingStatus: b.vacatingStatus ?? null,
     reservedFrom: b.reservedFrom ?? null,
     activeBedReserveCheckIn: b.activeBedReserveCheckIn ?? null,
+    manualOccupied: b.manualOccupied ?? false,
     dailyRatePaise: b.dailyRatePaise,
     weeklyRatePaise: b.weeklyRatePaise,
     monthlyRatePaise: b.monthlyRatePaise,

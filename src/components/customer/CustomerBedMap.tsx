@@ -48,10 +48,8 @@ function RoomBedCard({
   const openCount = room.beds.filter((b) => b.isAvailableNow && b.status === 'available').length;
   const occupiedCount = room.beds.filter(
     (b) =>
-      !b.isAvailableNow &&
-      b.status === 'available' &&
-      !b.reservedFrom &&
-      !b.activeBedReserveCheckIn,
+      (!b.isAvailableNow && b.status === 'available' && !b.reservedFrom && !b.activeBedReserveCheckIn) ||
+      b.manualOccupied,
   ).length;
 
   return (
