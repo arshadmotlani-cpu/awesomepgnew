@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { AdminOverviewKpiRow } from '@/src/components/admin/AdminOverviewKpiRow';
 import { AdminSectionErrorBoundary } from '@/src/components/admin/AdminSectionErrorBoundary';
+import { OperationsCenter } from '@/src/components/admin/OperationsCenter';
 import { VisitorAnalyticsDashboard } from '@/src/components/admin/VisitorAnalyticsDashboard';
 import { OverviewMonthPicker } from '@/src/components/admin/OverviewMonthPicker';
 import {
@@ -32,6 +33,7 @@ import {
   getAdminOverviewKpis,
   getVisitorCountSummary,
 } from '@/src/services/visitorAnalytics';
+import { getOperationsCenterData } from '@/src/services/operationsCenter';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -61,7 +63,9 @@ export default async function DashboardPage({
 
   const billingMonth = resolveBillingMonth(sp.month);
 
-  const [summary, metrics, pgs, visitors, overviewKpis] = await Promise.all([
+  const session = await requireAdminSession('/admin');
+
+  const [summary, metrics, pgs, visitors, overviewKpis, operationsCenter] = await Promise.all([
     getBusinessMetricsSummary(billingMonth),
     getPgBusinessMetrics(billingMonth),
     listPgs(),
@@ -81,6 +85,7 @@ export default async function DashboardPage({
       todayRevenuePaise: 0,
       monthlyRevenuePaise: 0,
     })),
+    getOperationsCenterData(session).catch(() => null),
   ]);
 
   if (!summary.ok) {
@@ -131,6 +136,11 @@ export default async function DashboardPage({
       ) : null}
 
       <div className="mb-6 space-y-6">
+        {operationsCenter ? (
+          <AdminSectionErrorBoundary title="Operations Center">
+            <OperationsCenter data={operationsCenter} />
+          </AdminSectionErrorBoundary>
+        ) : null}
         <AdminOverviewKpiRow kpis={overviewKpis} visitors={visitors} />
         <AdminSectionErrorBoundary title="Visitor analytics">
           <VisitorAnalyticsDashboard
