@@ -85,6 +85,32 @@ export function AdminLoginForm() {
       {error ? (
         <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>
       ) : null}
+      <details className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
+        <summary className="cursor-pointer font-medium text-zinc-700">
+          Forgot password or can&apos;t sign in?
+        </summary>
+        <ul className="mt-2 list-disc space-y-1.5 pl-4 leading-relaxed">
+          <li>
+            <strong>Production</strong> does not use the dev password{' '}
+            <code className="rounded bg-white px-1">changeme</code>. Use the password you set
+            after first login.
+          </li>
+          <li>
+            Admin sessions expire after about a day of inactivity — that is why you may be asked
+            to sign in again.
+          </li>
+          <li>
+            To reset <code className="rounded bg-white px-1">admin@awesomepg.local</code> to your
+            Vercel <code className="rounded bg-white px-1">ADMIN_INITIAL_PASSWORD</code>, run from
+            a machine that knows that secret:
+            <pre className="mt-1 overflow-x-auto rounded bg-white p-2 text-[10px] text-zinc-800">
+              {`curl -X POST https://awesomepg.in/api/cron/bootstrap-admin \\
+  -H "Authorization: Bearer YOUR_ADMIN_INITIAL_PASSWORD"`}
+            </pre>
+            Then sign in with that password.
+          </li>
+        </ul>
+      </details>
     </form>
   );
 }

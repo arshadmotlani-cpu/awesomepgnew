@@ -101,7 +101,7 @@ export const env = {
     return optionalInt('AUTH_CUSTOMER_SESSION_DAYS', 7);
   },
   get AUTH_ADMIN_SESSION_HOURS() {
-    return optionalInt('AUTH_ADMIN_SESSION_HOURS', 8);
+    return optionalInt('AUTH_ADMIN_SESSION_HOURS', 24);
   },
   /** One-time bootstrap password for /api/cron/bootstrap-admin in production. */
   get ADMIN_INITIAL_PASSWORD() {
