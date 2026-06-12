@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import {
+  addRoomElectricityPrepaidAction,
   approveElectricityProofAction,
   recordMonthlyMeterAction,
   uploadMeterPhotoAction,
@@ -12,6 +13,7 @@ import { PaymentScreenshotPreview } from '@/src/components/admin/PaymentScreensh
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import type { MeterLog } from '@/src/db/schema/meterLogs';
 import type { ElectricityBill } from '@/src/db/schema/electricityBills';
+import type { RoomElectricityPrepaidLedgerEntry } from '@/src/db/schema/roomElectricityPrepaidLedger';
 
 type RoomSummary = {
   roomId: string;
@@ -19,6 +21,8 @@ type RoomSummary = {
   floorLabel: string;
   logs: MeterLog[];
   latestBill: ElectricityBill | undefined;
+  prepaidCreditPaise: number;
+  prepaidLedger: RoomElectricityPrepaidLedgerEntry[];
 };
 
 type PendingProof = {
@@ -135,6 +139,11 @@ function RoomMeterCard({
 
   const latestLog = room.logs[0];
   const bill = room.latestBill;
+  const [prepaidInr, setPrepaidInr] = useState('');
+  const [prepaidNote, setPrepaidNote] = useState('');
+  const [prepaidPending, setPrepaidPending] = useState(false);
+  const [prepaidError, setPrepaidError] = useState<string | null>(null);
+  const [prepaidSuccess, setPrepaidSuccess] = useState(false);
 
   async function onFile(file: File | null) {
     if (!file || !cloudinaryConfigured) return;
@@ -175,6 +184,26 @@ function RoomMeterCard({
     setMeterUrl('');
   }
 
+  async function onAddPrepaid(e: React.FormEvent) {
+    e.preventDefault();
+    setPrepaidPending(true);
+    setPrepaidError(null);
+    setPrepaidSuccess(false);
+    const fd = new FormData();
+    fd.append('roomId', room.roomId);
+    fd.append('amountInr', prepaidInr);
+    fd.append('paidByNote', prepaidNote);
+    const result = await addRoomElectricityPrepaidAction(pgId, fd);
+    setPrepaidPending(false);
+    if (!result.ok) {
+      setPrepaidError(result.error ?? 'Failed');
+      return;
+    }
+    setPrepaidSuccess(true);
+    setPrepaidInr('');
+    setPrepaidNote('');
+  }
+
   return (
     <div className="rounded-xl border border-zinc-800 p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -199,12 +228,78 @@ function RoomMeterCard({
           <div>
             Last bill:{' '}
             <span className="text-zinc-200">
-              {bill.unitsConsumed} units · {paiseToInr(bill.totalPaise)} ·{' '}
-              {formatDate(bill.billingMonth)}
+              {bill.unitsConsumed} units · {paiseToInr(bill.totalPaise)}
+              {bill.prepaidCreditAppliedPaise > 0
+                ? ` (−${paiseToInr(bill.prepaidCreditAppliedPaise)} prepaid)`
+                : ''}{' '}
+              · {formatDate(bill.billingMonth)}
             </span>
           </div>
         ) : null}
+        <div>
+          Pending offline prepaid:{' '}
+          <span className="font-medium text-emerald-300">
+            {room.prepaidCreditPaise > 0 ? paiseToInr(room.prepaidCreditPaise) : '—'}
+          </span>
+        </div>
       </dl>
+
+      {room.prepaidLedger.length > 0 ? (
+        <ul className="mt-2 space-y-1 text-[11px] text-zinc-500">
+          {room.prepaidLedger.map((entry) => (
+            <li key={entry.id}>
+              {entry.entryKind === 'added' ? '+' : '−'}
+              {paiseToInr(entry.amountPaise)}
+              {entry.paidByNote ? ` · ${entry.paidByNote}` : ''}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      <form onSubmit={onAddPrepaid} className="mt-3 rounded-lg border border-emerald-900/40 bg-emerald-950/20 p-3">
+        <p className="text-xs font-medium text-emerald-200">
+          Add offline prepaid (former tenant paid outside website)
+        </p>
+        <p className="mt-1 text-[11px] text-emerald-100/70">
+          Applied automatically when you generate the next bill for this room.
+        </p>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          <label className="text-sm">
+            <span className="text-zinc-400">Amount (₹)</span>
+            <input
+              type="number"
+              min={0.01}
+              step="0.01"
+              required
+              value={prepaidInr}
+              onChange={(e) => setPrepaidInr(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
+            />
+          </label>
+          <label className="text-sm sm:col-span-2">
+            <span className="text-zinc-400">Who paid / note</span>
+            <input
+              type="text"
+              required
+              placeholder="e.g. Rahul — paid cash before vacating"
+              value={prepaidNote}
+              onChange={(e) => setPrepaidNote(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white"
+            />
+          </label>
+        </div>
+        <button
+          type="submit"
+          disabled={prepaidPending}
+          className="mt-2 rounded-lg border border-emerald-700/50 px-3 py-1.5 text-xs font-semibold text-emerald-200 hover:bg-emerald-900/30 disabled:opacity-50"
+        >
+          {prepaidPending ? 'Saving…' : 'Save prepaid credit'}
+        </button>
+        {prepaidError ? <p className="mt-2 text-xs text-rose-400">{prepaidError}</p> : null}
+        {prepaidSuccess ? (
+          <p className="mt-2 text-xs text-emerald-400">Prepaid credit saved for this room.</p>
+        ) : null}
+      </form>
 
       <form onSubmit={onSubmit} className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="text-sm">

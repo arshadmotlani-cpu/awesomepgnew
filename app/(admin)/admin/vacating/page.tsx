@@ -9,8 +9,11 @@ import { listAdminVacatingRequests } from '@/src/db/queries/admin';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import {
   ApproveVacatingButton,
+  CancelVacatingNoticeButton,
   CompleteVacatingButton,
   RejectVacatingButton,
+  UndoVacatingApprovalButton,
+  UndoVacatingCompletionButton,
 } from '@/src/components/admin/VacatingActions';
 
 export const dynamic = 'force-dynamic';
@@ -126,15 +129,23 @@ export default async function AdminVacatingPage(
                   <Badge tone={toneForStatus(v.status)}>{titleCase(v.status)}</Badge>
                 </TD>
                 <TD className="text-right">
-                  <div className="flex justify-end gap-1">
+                  <div className="flex flex-wrap justify-end gap-1">
                     {v.status === 'pending' ? (
                       <>
                         <ApproveVacatingButton requestId={v.id} />
                         <RejectVacatingButton requestId={v.id} />
+                        <CancelVacatingNoticeButton requestId={v.id} />
                       </>
                     ) : null}
-                    {(v.status === 'pending' || v.status === 'approved') ? (
-                      <CompleteVacatingButton requestId={v.id} />
+                    {v.status === 'approved' ? (
+                      <>
+                        <CompleteVacatingButton requestId={v.id} />
+                        <UndoVacatingApprovalButton requestId={v.id} />
+                        <CancelVacatingNoticeButton requestId={v.id} />
+                      </>
+                    ) : null}
+                    {v.status === 'completed' ? (
+                      <UndoVacatingCompletionButton requestId={v.id} />
                     ) : null}
                   </div>
                 </TD>

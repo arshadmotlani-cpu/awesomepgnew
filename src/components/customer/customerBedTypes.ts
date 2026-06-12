@@ -1,0 +1,20 @@
+export type BedSelectorBed = {
+  bedId: string;
+  bedCode: string;
+  status: 'available' | 'maintenance' | 'blocked';
+  isAvailableNow: boolean;
+  nextAvailableDate: string | null;
+  interestCount?: number;
+  noticeInterestCount?: number;
+  vacatingDate?: string | null;
+  vacatingStatus?: 'pending' | 'approved' | null;
+  reservedFrom?: string | null;
+  availableUntilDate?: string | null;
+  dailyRatePaise: number;
+  weeklyRatePaise: number;
+  monthlyRatePaise: number;
+  securityDepositPaise: number;
+  dailySecurityDepositPaise: number;
+  weeklySecurityDepositPaise: number;
+  monthlySecurityDepositPaise: number;
+};

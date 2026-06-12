@@ -1,6 +1,7 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useId } from 'react';
+import { AdminConfirmSubmit } from '@/src/components/admin/AdminConfirmSubmit';
 import {
   approveKycAction,
   rejectKycAction,
@@ -10,6 +11,9 @@ import {
 const INITIAL: KycReviewActionState = { status: 'idle' };
 
 export function KycReviewActions({ submissionId }: { submissionId: string }) {
+  const approveFormId = useId().replace(/:/g, '');
+  const rejectFormId = useId().replace(/:/g, '');
+
   const [approveState, approveAction, approvePending] = useActionState(
     approveKycAction,
     INITIAL,
@@ -34,35 +38,45 @@ export function KycReviewActions({ submissionId }: { submissionId: string }) {
     <div className="space-y-4 rounded-lg border border-zinc-200 bg-white p-4">
       <h3 className="text-sm font-semibold text-zinc-900">Review decision</h3>
 
-      <form action={approveAction} className="flex flex-wrap items-center gap-2">
+      <form id={approveFormId} action={approveAction} className="flex flex-wrap items-center gap-2">
         <input type="hidden" name="submissionId" value={submissionId} />
-        <button
-          type="submit"
-          disabled={approvePending || rejectPending}
+        <AdminConfirmSubmit
+          formId={approveFormId}
+          title="Approve KYC?"
+          description="The resident can check in with verified identity. Make sure documents are clear and match the booking."
+          confirmLabel="Approve KYC"
+          pending={approvePending}
+          disabled={rejectPending}
           className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
         >
           {approvePending ? 'Approving…' : 'Approve KYC'}
-        </button>
+        </AdminConfirmSubmit>
       </form>
 
-      <form action={rejectAction} className="space-y-2">
+      <form id={rejectFormId} action={rejectAction} className="space-y-2">
         <input type="hidden" name="submissionId" value={submissionId} />
         <label className="block text-xs font-medium text-zinc-600">
           Rejection reason
           <textarea
             name="reason"
             rows={2}
+            required
             placeholder="e.g. Aadhaar number not visible"
             className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900"
           />
         </label>
-        <button
-          type="submit"
-          disabled={approvePending || rejectPending}
+        <AdminConfirmSubmit
+          formId={rejectFormId}
+          title="Reject KYC?"
+          description="The resident will need to re-upload documents. Include a clear reason below."
+          confirmLabel="Reject KYC"
+          tone="danger"
+          pending={rejectPending}
+          disabled={approvePending}
           className="rounded-md bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-500 disabled:opacity-50"
         >
           {rejectPending ? 'Rejecting…' : 'Reject KYC'}
-        </button>
+        </AdminConfirmSubmit>
       </form>
 
       {feedback ? (

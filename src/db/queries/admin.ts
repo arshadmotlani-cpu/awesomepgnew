@@ -1574,6 +1574,7 @@ export type RoomPickerRow = {
   pgId: string;
   pgName: string;
   bedCount: number;
+  prepaidCreditPaise: number;
 };
 
 export function listRoomsForElectricityForm(): Promise<QueryResult<RoomPickerRow[]>> {
@@ -1585,6 +1586,7 @@ export function listRoomsForElectricityForm(): Promise<QueryResult<RoomPickerRow
         pgId: pgs.id,
         pgName: pgs.name,
         bedCount: sql<number>`(SELECT count(*)::int FROM beds WHERE room_id = ${rooms.id} AND archived_at IS NULL)`,
+        prepaidCreditPaise: rooms.electricityPrepaidCreditPaise,
       })
       .from(rooms)
       .innerJoin(floors, eq(floors.id, rooms.floorId))

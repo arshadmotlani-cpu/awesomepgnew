@@ -8,8 +8,10 @@ import { BedMapReservationForm } from '@/src/components/admin/BedMapReservationF
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import {
   ApproveVacatingButton,
+  CancelVacatingNoticeButton,
   CompleteVacatingButton,
   RejectVacatingButton,
+  UndoVacatingApprovalButton,
 } from '@/src/components/admin/VacatingActions';
 import { ADMIN_BED_KIND_CLASS } from '@/src/lib/bedAvailabilityState';
 import type {
@@ -31,12 +33,13 @@ type SelectedContext = {
 
 const SURFACE = 'rounded-2xl border border-white/10 bg-[#1A1F27]';
 const LEGEND = [
-  { label: 'Open now', className: 'border-emerald-400/50 bg-emerald-500/10' },
-  { label: 'Pre-book', className: 'border-sky-400/50 bg-sky-500/10' },
-  { label: 'Notice', className: 'border-orange-400/50 bg-orange-500/10' },
-  { label: 'Occupied', className: 'border-emerald-400/30 bg-emerald-500/5' },
-  { label: 'Reserved', className: 'border-violet-400/50 bg-violet-500/10' },
-  { label: 'Maintenance', className: 'border-amber-400/50 bg-amber-500/10' },
+  { label: 'Open now', className: 'border-emerald-400/60 bg-emerald-500/15' },
+  { label: 'Pre-book', className: 'border-sky-400/50 bg-sky-500/12' },
+  { label: 'Notice', className: 'border-orange-400/55 bg-orange-500/12' },
+  { label: 'Occupied', className: 'border-zinc-500/50 bg-zinc-700/40' },
+  { label: 'Booked', className: 'border-violet-400/55 bg-violet-500/15' },
+  { label: 'Checkout pending', className: 'border-cyan-400/50 bg-cyan-500/12' },
+  { label: 'Maintenance', className: 'border-amber-400/50 bg-amber-500/12' },
 ];
 
 function ActionLink({ href, children }: { href: string; children: ReactNode }) {
@@ -54,7 +57,7 @@ function ActionLink({ href, children }: { href: string; children: ReactNode }) {
 function SummaryStrip({ summary }: { summary: PgBedMapSummary }) {
   const items = [
     { label: 'Total', value: summary.totalBeds, tone: 'text-white' },
-    { label: 'Occupied', value: summary.occupiedBeds, tone: 'text-emerald-300' },
+    { label: 'Occupied', value: summary.occupiedBeds, tone: 'text-zinc-300' },
     { label: 'Open now', value: summary.openNowBeds, tone: 'text-sky-300' },
     { label: 'Reserved', value: summary.reservedBeds, tone: 'text-violet-300' },
     { label: 'Vacating', value: summary.vacatingSoon, tone: 'text-orange-300' },
@@ -117,6 +120,11 @@ function BedDetailPanel({
           {bed.availability.sublabel ? (
             <p className="text-xs text-apg-silver">{bed.availability.sublabel}</p>
           ) : null}
+          {bed.availability.kind === 'notice' && bed.availability.sublabel?.includes('interested') ? (
+            <p className="mt-2 text-xs font-medium text-orange-200">
+              Website interest is counted when someone taps this notice bed — one person per visitor.
+            </p>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -176,12 +184,18 @@ function BedDetailPanel({
                 <div className="mt-2 flex flex-wrap gap-2">
                   {bed.vacating.status === 'pending' ? (
                     <>
-                      <ApproveVacatingButton requestId={bed.vacating.requestId} />
-                      <RejectVacatingButton requestId={bed.vacating.requestId} />
+                      <ApproveVacatingButton requestId={bed.vacating.requestId} pgId={pgId} />
+                      <RejectVacatingButton requestId={bed.vacating.requestId} pgId={pgId} />
                     </>
                   ) : null}
                   {bed.vacating.status === 'approved' ? (
-                    <CompleteVacatingButton requestId={bed.vacating.requestId} />
+                    <>
+                      <CompleteVacatingButton requestId={bed.vacating.requestId} pgId={pgId} />
+                      <UndoVacatingApprovalButton requestId={bed.vacating.requestId} pgId={pgId} />
+                    </>
+                  ) : null}
+                  {bed.vacating.status === 'pending' || bed.vacating.status === 'approved' ? (
+                    <CancelVacatingNoticeButton requestId={bed.vacating.requestId} pgId={pgId} />
                   ) : null}
                 </div>
               </section>
@@ -267,7 +281,7 @@ function RoomCard({
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
         {room.beds.map((bed) => {
           const selected = selectedBedId === bed.bedId;
           const kindClass = ADMIN_BED_KIND_CLASS[bed.availability.kind];
@@ -277,16 +291,16 @@ function RoomCard({
               type="button"
               onClick={() => onSelectBed(bed.bedId)}
               aria-pressed={selected}
-              className={`relative flex min-h-[76px] flex-col items-center justify-center rounded-xl border-2 px-2 py-2.5 text-center transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF5A1F] ${
+              className={`relative flex min-h-[104px] min-w-[88px] flex-col items-center justify-center rounded-xl border-2 px-2.5 py-3 text-center transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF5A1F] ${
                 selected ? 'border-[#FF5A1F] ring-2 ring-[#FF5A1F]/30' : kindClass
               }`}
             >
-              <span className="text-xs font-bold uppercase tracking-wide">{bed.bedCode}</span>
-              <span className="mt-1 line-clamp-2 text-[10px] font-medium leading-tight opacity-90">
+              <span className="text-sm font-bold uppercase tracking-wide">{bed.bedCode}</span>
+              <span className="mt-1.5 text-[11px] font-medium leading-snug opacity-95">
                 {bed.availability.label}
               </span>
               {bed.availability.sublabel ? (
-                <span className="mt-0.5 line-clamp-2 text-[9px] leading-tight opacity-75">
+                <span className="mt-1 text-[10px] leading-snug opacity-80">
                   {bed.availability.sublabel}
                 </span>
               ) : null}

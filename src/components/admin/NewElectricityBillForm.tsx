@@ -21,6 +21,12 @@ export function NewElectricityBillForm({
   const [prevReading, setPrevReading] = useState<string>('');
   const [currReading, setCurrReading] = useState<string>('');
   const [rateInr, setRateInr] = useState<string>('');
+  const [roomId, setRoomId] = useState<string>('');
+
+  const selectedRoom = useMemo(
+    () => rooms.find((r) => r.roomId === roomId),
+    [rooms, roomId],
+  );
 
   const previewUnits = useMemo(() => {
     const p = Number(prevReading);
@@ -61,12 +67,15 @@ export function NewElectricityBillForm({
         <select
           name="roomId"
           required
+          value={roomId}
+          onChange={(e) => setRoomId(e.target.value)}
           className="mt-1 block w-full rounded-md border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
         >
           <option value="">— pick a room —</option>
           {rooms.map((r) => (
             <option key={r.roomId} value={r.roomId}>
               {r.pgName} · Room {r.roomNumber} ({r.bedCount} bed{r.bedCount === 1 ? '' : 's'})
+              {r.prepaidCreditPaise > 0 ? ` · ${paiseToInr(r.prepaidCreditPaise)} prepaid` : ''}
             </option>
           ))}
         </select>
@@ -145,8 +154,20 @@ export function NewElectricityBillForm({
             Units consumed: <strong>{previewUnits.toFixed(2)}</strong>
           </div>
           <div>
-            Bill total: <strong>{paiseToInr(previewTotalPaise)}</strong> — split across
-            monthly residents by active days in the billing month.
+            Bill total: <strong>{paiseToInr(previewTotalPaise)}</strong>
+            {selectedRoom && selectedRoom.prepaidCreditPaise > 0 ? (
+              <>
+                {' '}
+                − prepaid <strong>{paiseToInr(Math.min(selectedRoom.prepaidCreditPaise, previewTotalPaise))}</strong>{' '}
+                = split{' '}
+                <strong>
+                  {paiseToInr(
+                    Math.max(0, previewTotalPaise - selectedRoom.prepaidCreditPaise),
+                  )}
+                </strong>
+              </>
+            ) : null}{' '}
+            — split across monthly residents by active days in the billing month.
           </div>
           <div className="mt-1 text-xs text-zinc-500">
             Due 3 days after creation. 1%/day penalty thereafter.

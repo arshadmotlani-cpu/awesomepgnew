@@ -30,5 +30,8 @@ export * from './deployments';
 export * from './pgPaymentCategories';
 export * from './pgPaymentRecords';
 export * from './meterLogs';
+export * from './roomElectricityPrepaidLedger';
+export * from './emailDeliveryLog';
+export * from './bedNoticeInterest';
 export * from './playstationMemberships';
 export * from './membershipTransactions';

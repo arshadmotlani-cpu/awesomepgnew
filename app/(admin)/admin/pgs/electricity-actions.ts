@@ -9,6 +9,7 @@ import {
   createEstimatedMonthlyBill,
   recordMeterLog,
 } from '@/src/services/meterElectricity';
+import { addRoomElectricityPrepaidCredit } from '@/src/services/roomElectricityPrepaid';
 import { firstOfMonth } from '@/src/services/billing';
 
 export async function uploadMeterPhotoAction(formData: FormData): Promise<string> {
@@ -85,6 +86,36 @@ export async function approveElectricityProofAction(
     const session = await requireAdminPermission('electricity:write');
     const result = await approveElectricityPaymentProof(session, invoiceId);
     if (!result.ok) return { ok: false, error: result.message };
+    revalidatePgAdminPages(pgId);
+    revalidatePath('/admin/electricity');
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function addRoomElectricityPrepaidAction(
+  pgId: string,
+  formData: FormData,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const session = await requireAdminPermission('electricity:write');
+    const roomId = formData.get('roomId')?.toString() ?? '';
+    const amountInr = Number(formData.get('amountInr'));
+    const paidByNote = formData.get('paidByNote')?.toString() ?? '';
+
+    if (!roomId) return { ok: false, error: 'Pick a room.' };
+    if (!Number.isFinite(amountInr) || amountInr <= 0) {
+      return { ok: false, error: 'Amount must be greater than zero.' };
+    }
+
+    const result = await addRoomElectricityPrepaidCredit(session, {
+      roomId,
+      amountPaise: Math.round(amountInr * 100),
+      paidByNote,
+    });
+    if (!result.ok) return { ok: false, error: result.message };
+
     revalidatePgAdminPages(pgId);
     revalidatePath('/admin/electricity');
     return { ok: true };

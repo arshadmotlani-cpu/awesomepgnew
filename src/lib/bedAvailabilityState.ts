@@ -5,12 +5,19 @@ export type BedAvailabilityKind =
   | 'pre_bookable'
   | 'notice'
   | 'occupied'
+  | 'booked'
   | 'reserved'
   | 'hold_interest'
   | 'maintenance'
   | 'blocked';
 
 export type BedAvailabilityView = {
+  kind: BedAvailabilityKind;
+  label: string;
+  sublabel?: string;
+};
+
+export type CustomerBedAvailabilityView = {
   kind: BedAvailabilityKind;
   label: string;
   sublabel?: string;
@@ -26,7 +33,9 @@ export function deriveBedAvailabilityView(input: {
   reservedFrom?: string | null;
   nextAvailableDate?: string | null;
   interestCount?: number;
+  noticeInterestCount?: number;
   occupantFirstName?: string | null;
+  hasPendingBooking?: boolean;
 }): BedAvailabilityView {
   if (input.bedStatus === 'maintenance') {
     return { kind: 'maintenance', label: 'Maintenance' };
@@ -35,11 +44,11 @@ export function deriveBedAvailabilityView(input: {
     return { kind: 'blocked', label: 'Blocked' };
   }
 
-  if (input.reservedFrom) {
+  if (input.reservedFrom && !input.isOccupiedToday) {
     return {
-      kind: 'reserved',
-      label: 'Reserved',
-      sublabel: `From ${formatShortDate(input.reservedFrom)}`,
+      kind: 'booked',
+      label: 'Booked',
+      sublabel: `Move-in ${formatShortDate(input.reservedFrom)}`,
     };
   }
 
@@ -52,10 +61,13 @@ export function deriveBedAvailabilityView(input: {
       };
     }
     if (input.vacatingDate && input.vacatingStatus === 'pending') {
+      const interest = input.noticeInterestCount ?? 0;
       return {
         kind: 'notice',
         label: input.occupantFirstName ?? 'Occupied',
-        sublabel: `Notice · leaves ${formatShortDate(input.vacatingDate)}`,
+        sublabel:
+          `Notice · leaves ${formatShortDate(input.vacatingDate)}` +
+          (interest > 0 ? ` · ${interest} interested` : ''),
       };
     }
     return {
@@ -68,12 +80,12 @@ export function deriveBedAvailabilityView(input: {
   }
 
   if (input.isAvailableNow) {
-    const interest = input.interestCount ?? 0;
-    if (interest > 0) {
+    const holdInterest = input.interestCount ?? 0;
+    if (holdInterest > 0) {
       return {
         kind: 'hold_interest',
         label: 'Open now',
-        sublabel: `${interest} checkout${interest === 1 ? '' : 's'} in progress`,
+        sublabel: `${holdInterest} booking${holdInterest === 1 ? '' : 's'} in progress`,
       };
     }
     return { kind: 'open_now', label: 'Open · book now' };
@@ -91,6 +103,89 @@ export function deriveBedAvailabilityView(input: {
   return { kind: 'occupied', label: 'Unavailable' };
 }
 
+/** Customer-facing labels — no admin jargon, privacy-safe. */
+export function deriveCustomerBedAvailabilityView(input: {
+  bedStatus: 'available' | 'maintenance' | 'blocked';
+  isAvailableNow: boolean;
+  nextAvailableDate?: string | null;
+  vacatingDate?: string | null;
+  vacatingStatus?: 'pending' | 'approved' | null;
+  reservedFrom?: string | null;
+  availableUntilDate?: string | null;
+  noticeInterestCount?: number;
+  holdInterestCount?: number;
+}): CustomerBedAvailabilityView {
+  if (input.bedStatus === 'maintenance') {
+    return { kind: 'maintenance', label: 'Maintenance' };
+  }
+  if (input.bedStatus === 'blocked') {
+    return { kind: 'blocked', label: 'Unavailable' };
+  }
+
+  if (input.reservedFrom) {
+    return {
+      kind: 'booked',
+      label: 'Booked',
+      sublabel: `From ${formatShortDate(input.reservedFrom)}`,
+    };
+  }
+
+  const isNotice =
+    Boolean(input.vacatingDate) &&
+    (input.vacatingStatus === 'pending' || input.vacatingStatus === 'approved');
+  const isOccupied = !input.isAvailableNow && !input.nextAvailableDate && !isNotice;
+
+  if (isNotice && input.vacatingDate) {
+    const interest = input.noticeInterestCount ?? 0;
+    const leaveLabel =
+      input.vacatingStatus === 'approved'
+        ? `Available from ${formatShortDate(input.vacatingDate)}`
+        : `Leaving ${formatShortDate(input.vacatingDate)}`;
+    return {
+      kind: 'notice',
+      label: 'Notice period',
+      sublabel:
+        interest > 0
+          ? `${leaveLabel} · ${interest} interested`
+          : leaveLabel,
+    };
+  }
+
+  if (input.availableUntilDate) {
+    return {
+      kind: 'pre_bookable',
+      label: 'Limited availability',
+      sublabel: `Until ${formatShortDate(input.availableUntilDate)}`,
+    };
+  }
+
+  if (input.isAvailableNow) {
+    const holds = input.holdInterestCount ?? 0;
+    return {
+      kind: 'open_now',
+      label: 'Available',
+      sublabel:
+        holds > 0
+          ? `${holds} checkout${holds === 1 ? '' : 's'} in progress — still bookable`
+          : 'Book this bed',
+    };
+  }
+
+  if (input.nextAvailableDate) {
+    return {
+      kind: 'pre_bookable',
+      label: 'Available soon',
+      sublabel: `From ${formatShortDate(input.nextAvailableDate)}`,
+    };
+  }
+
+  if (isOccupied || !input.isAvailableNow) {
+    return { kind: 'occupied', label: 'Occupied' };
+  }
+
+  return { kind: 'blocked', label: 'Unavailable' };
+}
+
 function formatShortDate(iso: string): string {
   const d = new Date(iso + 'T00:00:00Z');
   return d.toLocaleDateString('en-IN', {
@@ -103,12 +198,26 @@ function formatShortDate(iso: string): string {
 
 export const ADMIN_BED_KIND_CLASS: Record<BedAvailabilityKind, string> = {
   open_now:
-    'border-emerald-400/50 bg-emerald-500/10 text-emerald-100 hover:border-emerald-400/70',
-  pre_bookable: 'border-sky-400/50 bg-sky-500/10 text-sky-100 hover:border-sky-400/70',
-  notice: 'border-orange-400/50 bg-orange-500/10 text-orange-100 hover:border-orange-400/70',
-  occupied: 'border-emerald-400/40 bg-emerald-500/5 text-white hover:border-emerald-400/60',
-  reserved: 'border-violet-400/50 bg-violet-500/10 text-violet-100 hover:border-violet-400/70',
-  hold_interest: 'border-cyan-400/40 bg-cyan-500/10 text-cyan-100 hover:border-cyan-400/60',
-  maintenance: 'border-amber-400/50 bg-amber-500/10 text-amber-100 hover:border-amber-400/70',
-  blocked: 'border-rose-400/50 bg-rose-500/10 text-rose-200 hover:border-rose-400/70',
+    'border-emerald-400/60 bg-emerald-500/15 text-emerald-50 hover:border-emerald-400/80',
+  pre_bookable: 'border-sky-400/50 bg-sky-500/12 text-sky-50 hover:border-sky-400/70',
+  notice: 'border-orange-400/55 bg-orange-500/12 text-orange-50 hover:border-orange-400/75',
+  occupied: 'border-zinc-500/50 bg-zinc-700/40 text-zinc-100 hover:border-zinc-400/60',
+  booked: 'border-violet-400/55 bg-violet-500/15 text-violet-50 hover:border-violet-400/75',
+  reserved: 'border-violet-400/55 bg-violet-500/15 text-violet-50 hover:border-violet-400/75',
+  hold_interest: 'border-cyan-400/50 bg-cyan-500/12 text-cyan-50 hover:border-cyan-400/70',
+  maintenance: 'border-amber-400/50 bg-amber-500/12 text-amber-50 hover:border-amber-400/70',
+  blocked: 'border-rose-400/50 bg-rose-500/12 text-rose-100 hover:border-rose-400/70',
+};
+
+export const CUSTOMER_BED_KIND_CLASS: Record<BedAvailabilityKind, string> = {
+  open_now:
+    'border-emerald-400/45 bg-emerald-500/12 text-emerald-100 hover:border-emerald-400/65',
+  pre_bookable: 'border-sky-400/45 bg-sky-500/10 text-sky-100 hover:border-sky-400/60',
+  notice: 'border-orange-400/45 bg-orange-500/12 text-orange-100 hover:border-orange-400/60',
+  occupied: 'border-zinc-500/40 bg-zinc-800/50 text-zinc-300',
+  booked: 'border-violet-400/45 bg-violet-500/12 text-violet-100',
+  reserved: 'border-violet-400/45 bg-violet-500/12 text-violet-100',
+  hold_interest: 'border-cyan-400/40 bg-cyan-500/10 text-cyan-100',
+  maintenance: 'border-amber-400/45 bg-amber-500/10 text-amber-100',
+  blocked: 'border-rose-400/40 bg-rose-500/10 text-rose-200/80',
 };

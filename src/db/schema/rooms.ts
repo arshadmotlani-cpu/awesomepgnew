@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { bigint, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { floors } from './floors';
 import { roomTypes } from './roomTypes';
 
@@ -15,6 +15,10 @@ export const rooms = pgTable(
       .references(() => roomTypes.id, { onDelete: 'restrict' }),
     roomNumber: text('room_number').notNull(),
     notes: text('notes'),
+    /** Offline electricity paid by a former tenant — applied to the next room bill. */
+    electricityPrepaidCreditPaise: bigint('electricity_prepaid_credit_paise', { mode: 'number' })
+      .notNull()
+      .default(0),
     archivedAt: timestamp('archived_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

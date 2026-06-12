@@ -54,6 +54,7 @@ export default async function RoomDetailPage(
     isAvailableNow: b.isAvailableNow,
     nextAvailableDate: b.nextAvailableDate,
     interestCount: b.interestCount,
+    noticeInterestCount: b.noticeInterestCount,
     vacatingDate: b.vacatingDate ?? null,
     vacatingStatus: b.vacatingStatus ?? null,
     reservedFrom: b.reservedFrom ?? null,
@@ -132,7 +133,11 @@ export default async function RoomDetailPage(
             This room has no beds configured yet.
           </p>
         ) : (
-          <BedSelector beds={beds} theme="dark" />
+          <BedSelector
+            beds={beds}
+            theme="dark"
+            roomLabel={`${room.floorLabel} · Room ${room.roomNumber}`}
+          />
         )}
       </section>
     </div>

@@ -724,7 +724,7 @@ export async function cancelFutureRentInvoices(
   bookingId: string,
   reason: string,
   asOf: DateLike = formatDate(new Date()),
-): Promise<{ cancelled: number }> {
+): Promise<{ cancelled: number; ids: string[] }> {
   const today = formatDate(parseDate(asOf));
   const rows = await db
     .update(rentInvoices)
@@ -755,7 +755,7 @@ export async function cancelFutureRentInvoices(
       })),
     );
   }
-  return { cancelled: rows.length };
+  return { cancelled: rows.length, ids: rows.map((r) => r.id) };
 }
 
 // Re-exports so callers don't have to import from two places.

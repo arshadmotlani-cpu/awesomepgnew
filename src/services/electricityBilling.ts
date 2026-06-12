@@ -37,6 +37,7 @@ import {
   electricityBills,
   electricityInvoices,
   payments,
+  roomElectricityPrepaidLedger,
   rooms,
 } from '../db/schema';
 import { diffDays, formatDate, parseDate, type DateLike } from '../lib/dates';
@@ -77,12 +78,14 @@ export type CreateElectricityBillInput = {
 };
 
 export type CreateElectricityBillResult =
-  | {
+      | {
       ok: true;
       billId: string;
       billingMonth: string; // YYYY-MM-01
       unitsConsumed: number;
       totalPaise: number;
+      prepaidCreditAppliedPaise: number;
+      netSplittablePaise: number;
       monthlyOccupantCount: number;
       perResidentPaise: number;
       roundingRemainderPaise: number;
@@ -250,11 +253,13 @@ export async function createElectricityBill(
   const monthStartIso = formatDate(monthStart);
   const monthEndIso = formatDate(monthEnd);
 
-  // 1. Resolve room → pg.
+  // 1. Resolve room → pg + pending offline prepaid credit.
   const [room] = await db
     .select({
       id: rooms.id,
+      roomNumber: rooms.roomNumber,
       pgId: sql<string>`(SELECT pg_id FROM floors WHERE id = ${rooms.floorId} LIMIT 1)`,
+      prepaidCreditPaise: rooms.electricityPrepaidCreditPaise,
     })
     .from(rooms)
     .where(eq(rooms.id, input.roomId))
@@ -355,19 +360,24 @@ export async function createElectricityBill(
   );
   const totalWeight = [...byBooking.values()].reduce((acc, b) => acc + b.weight, 0);
 
-  // Total bill in paise. Units is numeric, rate is paise. Float -> round
-  // to int paise. Operator should round at entry time if they want
-  // pristine numbers.
-  const totalPaise = Math.round(unitsConsumed * input.ratePerUnitPaise);
+  // Gross meter total in paise. Offline prepaid credit is deducted before
+  // splitting among current monthly residents.
+  const grossTotalPaise = Math.round(unitsConsumed * input.ratePerUnitPaise);
+  const prepaidCreditAppliedPaise = Math.min(
+    room.prepaidCreditPaise ?? 0,
+    grossTotalPaise,
+  );
+  const netSplittablePaise = grossTotalPaise - prepaidCreditAppliedPaise;
+
   const useProRata = input.useProRataByActiveDays && totalWeight > 0;
   const bookingList = [...byBooking.values()];
   const equalSplit = splitElectricity({
-    totalPaise,
+    totalPaise: netSplittablePaise,
     occupantCount: totalMonthlyBedShares,
   });
   const weightedShares = useProRata
     ? splitElectricityWeighted({
-        totalPaise,
+        totalPaise: netSplittablePaise,
         weights: bookingList.map((b) => b.weight),
       })
     : null;
@@ -383,8 +393,30 @@ export async function createElectricityBill(
   const dueDateIso = formatDate(electricityDueDate(issuedAt));
 
   // 3. Transactional insert.
+  type PendingNotify = {
+    customerId: string;
+    amountPaise: number;
+  };
+  const pendingNotifications: PendingNotify[] = [];
+  let prepaidCreditNote: string | null = null;
+
   try {
     const result = await db.transaction(async (tx) => {
+      if (prepaidCreditAppliedPaise > 0) {
+        const [latestAdded] = await tx
+          .select({ paidByNote: roomElectricityPrepaidLedger.paidByNote })
+          .from(roomElectricityPrepaidLedger)
+          .where(
+            and(
+              eq(roomElectricityPrepaidLedger.roomId, input.roomId),
+              eq(roomElectricityPrepaidLedger.entryKind, 'added'),
+            ),
+          )
+          .orderBy(sql`${roomElectricityPrepaidLedger.createdAt} DESC`)
+          .limit(1);
+        prepaidCreditNote = latestAdded?.paidByNote ?? 'Previous tenant offline payment';
+      }
+
       const [bill] = await tx
         .insert(electricityBills)
         .values({
@@ -395,17 +427,19 @@ export async function createElectricityBill(
           currentReadingUnits: input.currentReadingUnits.toString(),
           unitsConsumed: unitsConsumed.toString(),
           ratePerUnitPaise: input.ratePerUnitPaise,
-          totalPaise,
+          totalPaise: grossTotalPaise,
           monthlyOccupantCount: totalMonthlyBedShares,
           perResidentPaise,
           roundingRemainderPaise: remainderPaise,
+          prepaidCreditAppliedPaise,
+          prepaidCreditNote,
           createdByAdminId: input.createdByAdminId ?? null,
           notes: input.notes ?? null,
         })
         .returning({ id: electricityBills.id });
 
       const invoiceIds: string[] = [];
-      if (totalMonthlyBedShares > 0 && totalPaise > 0) {
+      if (totalMonthlyBedShares > 0 && netSplittablePaise > 0) {
         let bookingIdx = 0;
         for (const bk of byBooking.values()) {
           const amount = useProRata
@@ -455,15 +489,31 @@ export async function createElectricityBill(
           }
           if (inserted) {
             invoiceIds.push(inserted.id);
-            const { notifyElectricityReminder } = await import('@/src/lib/email/notifications');
-            notifyElectricityReminder({
+            pendingNotifications.push({
               customerId: bk.customerId,
-              billingMonth,
               amountPaise: amount,
-              dueDate: dueDateIso,
             });
           }
         }
+      }
+
+      if (prepaidCreditAppliedPaise > 0) {
+        await tx
+          .update(rooms)
+          .set({
+            electricityPrepaidCreditPaise: sql`${rooms.electricityPrepaidCreditPaise} - ${prepaidCreditAppliedPaise}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(rooms.id, input.roomId));
+
+        await tx.insert(roomElectricityPrepaidLedger).values({
+          roomId: input.roomId,
+          entryKind: 'applied',
+          amountPaise: prepaidCreditAppliedPaise,
+          paidByNote: prepaidCreditNote,
+          electricityBillId: bill.id,
+          createdByAdminId: input.createdByAdminId ?? null,
+        });
       }
 
       await tx.insert(auditLog).values({
@@ -479,7 +529,9 @@ export async function createElectricityBill(
           currentReadingUnits: input.currentReadingUnits,
           unitsConsumed,
           ratePerUnitPaise: input.ratePerUnitPaise,
-          totalPaise,
+          grossTotalPaise,
+          prepaidCreditAppliedPaise,
+          netSplittablePaise,
           monthlyOccupantCount: totalMonthlyBedShares,
           perResidentPaise,
           dueDate: dueDateIso,
@@ -491,12 +543,28 @@ export async function createElectricityBill(
       return { billId: bill.id, invoiceIds };
     });
 
+    const { notifyElectricityReminder } = await import('@/src/lib/email/notifications');
+    for (const n of pendingNotifications) {
+      notifyElectricityReminder({
+        customerId: n.customerId,
+        billingMonth,
+        amountPaise: n.amountPaise,
+        dueDate: dueDateIso,
+        roomNumber: room.roomNumber,
+        grossRoomTotalPaise: grossTotalPaise,
+        prepaidCreditAppliedPaise,
+        prepaidCreditNote,
+      });
+    }
+
     return {
       ok: true,
       billId: result.billId,
       billingMonth,
       unitsConsumed,
-      totalPaise,
+      totalPaise: grossTotalPaise,
+      prepaidCreditAppliedPaise,
+      netSplittablePaise,
       monthlyOccupantCount: totalMonthlyBedShares,
       perResidentPaise,
       roundingRemainderPaise: remainderPaise,
@@ -722,7 +790,7 @@ export async function recordElectricityPaymentFailure(input: {
 /** Cancel all electricity invoices for a booking. Used on vacating-complete. */
 export async function cancelElectricityInvoicesForBooking(
   bookingId: string,
-): Promise<{ cancelled: number }> {
+): Promise<{ cancelled: number; ids: string[] }> {
   const rows = await db
     .update(electricityInvoices)
     .set({ status: 'cancelled', cancelledAt: new Date(), updatedAt: new Date() })
@@ -733,5 +801,5 @@ export async function cancelElectricityInvoicesForBooking(
       ),
     )
     .returning({ id: electricityInvoices.id });
-  return { cancelled: rows.length };
+  return { cancelled: rows.length, ids: rows.map((r) => r.id) };
 }

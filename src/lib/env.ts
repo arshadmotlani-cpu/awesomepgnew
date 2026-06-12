@@ -144,6 +144,10 @@ export const env = {
   get SMTP_PASS() {
     return optional('SMTP_PASS');
   },
+  /** Receives a copy of every tenant notification email (BCC). */
+  get ADMIN_NOTIFICATION_EMAIL() {
+    return optional('ADMIN_NOTIFICATION_EMAIL');
+  },
 
   /** Set to "false" to hide the Cockroach AI guide on customer pages. */
   get COCKROACH_AI_ENABLED() {

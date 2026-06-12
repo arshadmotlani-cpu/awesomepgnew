@@ -54,6 +54,12 @@ export const electricityBills = pgTable(
     roundingRemainderPaise: bigint('rounding_remainder_paise', { mode: 'number' })
       .notNull()
       .default(0),
+    /** Offline prepaid credit from a previous tenant applied to this bill. */
+    prepaidCreditAppliedPaise: bigint('prepaid_credit_applied_paise', { mode: 'number' })
+      .notNull()
+      .default(0),
+    /** Who paid offline, e.g. "Former tenant Amit — paid cash June 2026". */
+    prepaidCreditNote: text('prepaid_credit_note'),
     createdByAdminId: uuid('created_by_admin_id').references(() => adminUsers.id, {
       onDelete: 'set null',
     }),

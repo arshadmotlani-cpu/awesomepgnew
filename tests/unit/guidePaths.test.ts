@@ -21,13 +21,13 @@ test('shouldShowRoachieGuide shows peek on PG detail and room pages', () => {
   assert.equal(shouldShowRoachieGuide('/pgs/shantinagar-awesome-pg/rooms/abc'), true);
 });
 
-test('shouldRunOnboardingTour only on room detail pages', () => {
-  assert.equal(shouldRunOnboardingTour('/pgs/shantinagar-awesome-pg'), false);
+test('shouldRunOnboardingTour on PG detail and room pages', () => {
+  assert.equal(shouldRunOnboardingTour('/pgs/shantinagar-awesome-pg'), true);
   assert.equal(shouldRunOnboardingTour('/pgs/shantinagar-awesome-pg/rooms/abc'), true);
   assert.equal(shouldRunOnboardingTour('/booking/new'), false);
 });
 
-test('hasActiveTips is true on room pages for onboarding', () => {
-  assert.equal(hasActiveTips('/pgs/shantinagar-awesome-pg'), false);
+test('hasActiveTips is true on PG detail and room pages', () => {
+  assert.equal(hasActiveTips('/pgs/shantinagar-awesome-pg'), true);
   assert.equal(hasActiveTips('/pgs/shantinagar-awesome-pg/rooms/abc'), true);
 });

@@ -3,8 +3,11 @@ import { notFound } from 'next/navigation';
 import { AmenityList } from '@/src/components/customer/AmenityList';
 import { GenderBadge } from '@/src/components/customer/GenderBadge';
 import { PgImageGallery } from '@/src/components/customer/PgImageGallery';
-import { RoomCard } from '@/src/components/customer/RoomCard';
-import { getPgBySlug, listRoomsForPg } from '@/src/db/queries/customer';
+import {
+  CustomerBedMap,
+  type CustomerRoomBedMap,
+} from '@/src/components/customer/CustomerBedMap';
+import { getPgBySlug, getRoomDetail, listRoomsForPg } from '@/src/db/queries/customer';
 import { ElectricityMeterNotice } from '@/src/components/customer/ElectricityMeterNotice';
 
 export const dynamic = 'force-dynamic';
@@ -27,9 +30,46 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
   const pg = pgResult.data;
 
   const roomsResult = await listRoomsForPg(pg.id);
-  const rooms = roomsResult.ok ? roomsResult.data : [];
-  const totalBeds = rooms.reduce((n, r) => n + r.totalBeds, 0);
-  const availableBeds = rooms.reduce((n, r) => n + r.availableBeds, 0);
+  const roomList = roomsResult.ok ? roomsResult.data : [];
+
+  const roomDetails = (
+    await Promise.all(roomList.map((r) => getRoomDetail(pg.slug, r.roomId)))
+  ).flatMap((d) => (d.ok && d.data ? [d.data] : []));
+
+  const bedMapRooms: CustomerRoomBedMap[] = roomDetails.map((room) => ({
+    roomId: room.roomId,
+    roomNumber: room.roomNumber,
+    roomType: room.roomType,
+    capacity: room.capacity,
+    hasAc: room.hasAc,
+    floorLabel: room.floorLabel,
+    floorNumber: room.floorNumber,
+    beds: room.beds.map((b) => ({
+      bedId: b.bedId,
+      bedCode: b.bedCode,
+      status: b.status,
+      isAvailableNow: b.isAvailableNow,
+      nextAvailableDate: b.nextAvailableDate,
+      interestCount: b.interestCount,
+      noticeInterestCount: b.noticeInterestCount,
+      vacatingDate: b.vacatingDate ?? null,
+      vacatingStatus: b.vacatingStatus ?? null,
+      reservedFrom: b.reservedFrom ?? null,
+      dailyRatePaise: b.dailyRatePaise,
+      weeklyRatePaise: b.weeklyRatePaise,
+      monthlyRatePaise: b.monthlyRatePaise,
+      securityDepositPaise: b.securityDepositPaise,
+      dailySecurityDepositPaise: b.dailySecurityDepositPaise,
+      weeklySecurityDepositPaise: b.weeklySecurityDepositPaise,
+      monthlySecurityDepositPaise: b.monthlySecurityDepositPaise,
+    })),
+  }));
+
+  const totalBeds = bedMapRooms.reduce((n, r) => n + r.beds.length, 0);
+  const availableBeds = bedMapRooms.reduce(
+    (n, r) => n + r.beds.filter((b) => b.isAvailableNow && b.status === 'available').length,
+    0,
+  );
   const fullyOccupied = totalBeds > 0 && availableBeds === 0;
 
   return (
@@ -92,38 +132,28 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
 
       {fullyOccupied ? (
         <section className="mt-6 rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-          <strong>Fully occupied today</strong> — all beds are taken right now. Open a room to
-          check when beds become available, or explore another property.
+          <strong>Fully occupied today</strong> — all beds are taken right now. Notice-period beds
+          may still be pre-bookable; tap any bed for details.
         </section>
       ) : null}
 
-      <section className="mt-8">
-        <div className="flex flex-col items-start justify-between gap-1 sm:flex-row sm:items-end">
-          <div>
-            <h2 className="text-xl font-semibold text-white">Rooms & beds</h2>
-            <p className="text-sm text-apg-silver">
-              Pick a room, choose your bed, then select dates in the booking panel.
-            </p>
-          </div>
+      <section className="mt-8" data-roachie-tour="pg-beds">
+        <div className="mb-5">
+          <h2 className="text-xl font-semibold text-white">Rooms & beds</h2>
+          <p className="text-sm text-apg-silver">
+            Tap any bed for rent, availability, and booking. Orange = notice (someone leaving soon).
+          </p>
         </div>
 
-        <div className="mt-5">
-          {!roomsResult.ok ? (
-            <ErrorState message={roomsResult.error} />
-          ) : roomsResult.data.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-white/10 apg-glass-light p-8 text-center text-sm text-apg-silver">
-              No rooms have been added to this PG yet.
-            </p>
-          ) : (
-            <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {roomsResult.data.map((room) => (
-                <li key={room.roomId}>
-                  <RoomCard room={room} pgSlug={pg.slug} />
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        {!roomsResult.ok ? (
+          <ErrorState message={roomsResult.error} />
+        ) : bedMapRooms.length === 0 ? (
+          <p className="rounded-2xl border border-dashed border-white/10 apg-glass-light p-8 text-center text-sm text-apg-silver">
+            No rooms have been added to this PG yet.
+          </p>
+        ) : (
+          <CustomerBedMap rooms={bedMapRooms} />
+        )}
       </section>
     </div>
   );

@@ -10,9 +10,9 @@ export function shouldShowRoachieGuide(pathname: string): boolean {
   return false;
 }
 
-/** Structured onboarding tour — room page only (all bed concepts visible). */
+/** Structured onboarding tour — PG bed map and room pages. */
 export function shouldRunOnboardingTour(pathname: string): boolean {
-  return /^\/pgs\/[^/]+\/rooms\/[^/]+$/.test(pathname);
+  return /^\/pgs\/[^/]+$/.test(pathname) || /^\/pgs\/[^/]+\/rooms\/[^/]+$/.test(pathname);
 }
 
 /** Full bubble widget when onboarding tour is active on this route. */

@@ -5,6 +5,7 @@ export type SendEmailInput = {
   subject: string;
   text: string;
   html?: string;
+  bcc?: string[];
 };
 
 export type SendEmailResult =
@@ -28,6 +29,7 @@ async function sendViaResend(input: SendEmailInput): Promise<SendEmailResult> {
       body: JSON.stringify({
         from,
         to: [input.to],
+        bcc: input.bcc?.length ? input.bcc : undefined,
         subject: input.subject,
         text: input.text,
         html: input.html ?? undefined,
@@ -78,6 +80,7 @@ async function sendViaSmtp(input: SendEmailInput): Promise<SendEmailResult> {
     const info = await transport.sendMail({
       from,
       to: input.to,
+      bcc: input.bcc?.length ? input.bcc.join(', ') : undefined,
       subject: input.subject,
       text: input.text,
       html: input.html,
@@ -92,6 +95,7 @@ async function sendViaSmtp(input: SendEmailInput): Promise<SendEmailResult> {
 function logEmail(input: SendEmailInput): SendEmailResult {
   console.log('[email] (dev log)', {
     to: input.to,
+    bcc: input.bcc,
     subject: input.subject,
     text: input.text,
   });
@@ -101,24 +105,17 @@ function logEmail(input: SendEmailInput): SendEmailResult {
 /**
  * Send transactional email via Resend (preferred), SMTP fallback, or console
  * log in development when no real provider is configured.
- *
- * When RESEND_API_KEY or SMTP is configured, delivery failures are surfaced
- * to the caller — we do not silently fall back to console logging.
  */
 export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult> {
   const resendConfigured = Boolean(env.RESEND_API_KEY && env.EMAIL_FROM);
   const smtpConfigured = Boolean(env.SMTP_HOST && env.EMAIL_FROM);
 
   if (resendConfigured) {
-    const result = await sendViaResend(input);
-    if (result.ok) return result;
-    return result;
+    return sendViaResend(input);
   }
 
   if (smtpConfigured) {
-    const result = await sendViaSmtp(input);
-    if (result.ok) return result;
-    return result;
+    return sendViaSmtp(input);
   }
 
   if (env.NODE_ENV !== 'production') {
@@ -137,4 +134,10 @@ export function queueEmail(input: SendEmailInput): void {
   void sendEmail(input).catch((err) => {
     console.error('[email] queue failed:', err);
   });
+}
+
+/** BCC the admin notification inbox when configured. */
+export function adminNotificationBcc(): string[] | undefined {
+  const email = env.ADMIN_NOTIFICATION_EMAIL;
+  return email ? [email] : undefined;
 }

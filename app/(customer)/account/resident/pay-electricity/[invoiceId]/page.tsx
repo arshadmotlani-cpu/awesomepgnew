@@ -64,6 +64,8 @@ export default async function PayElectricityPage({
       unitsConsumed: electricityBills.unitsConsumed,
       ratePerUnitPaise: electricityBills.ratePerUnitPaise,
       totalPaise: electricityBills.totalPaise,
+      prepaidCreditAppliedPaise: electricityBills.prepaidCreditAppliedPaise,
+      prepaidCreditNote: electricityBills.prepaidCreditNote,
       monthlyOccupantCount: electricityBills.monthlyOccupantCount,
       isEstimated: electricityBills.isEstimated,
       unitsShare: electricityInvoices.unitsShare,
@@ -117,6 +119,23 @@ export default async function PayElectricityPage({
             {row.unitsConsumed} units × {paiseToInr(row.ratePerUnitPaise)} ={' '}
             {paiseToInr(row.totalPaise)}
           </dd>
+          {row.prepaidCreditAppliedPaise > 0 ? (
+            <>
+              <dt className="text-emerald-700">Previous tenant prepaid</dt>
+              <dd className="text-right font-medium text-emerald-700">
+                −{paiseToInr(row.prepaidCreditAppliedPaise)}
+                {row.prepaidCreditNote ? (
+                  <span className="mt-0.5 block text-xs font-normal text-emerald-600/90">
+                    {row.prepaidCreditNote}
+                  </span>
+                ) : null}
+              </dd>
+              <dt className={ACCOUNT_LABEL}>Split among residents</dt>
+              <dd className="text-right text-zinc-900">
+                {paiseToInr(row.totalPaise - row.prepaidCreditAppliedPaise)}
+              </dd>
+            </>
+          ) : null}
           <dt className={ACCOUNT_LABEL}>Your share</dt>
           <dd className="text-right text-zinc-900">
             {row.unitsShare ? `${row.unitsShare} units` : '—'}

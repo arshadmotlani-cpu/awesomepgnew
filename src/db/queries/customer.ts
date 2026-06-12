@@ -359,6 +359,8 @@ export type CustomerRoomDetail = {
     reservedFrom?: string | null;
     /** Unpaid checkouts in progress — shown as interest, not occupancy. */
     interestCount: number;
+    /** Distinct visitors who tapped this bed during notice period. */
+    noticeInterestCount: number;
     dailyRatePaise: number;
     weeklyRatePaise: number;
     monthlyRatePaise: number;
@@ -442,6 +444,11 @@ export function getRoomDetail(
             AND bk.status = 'pending_payment'
             AND (br.hold_expires_at IS NULL OR br.hold_expires_at > now())
             AND ${refDate}::date <@ br.stay_range
+        ), 0)`,
+        noticeInterestCount: sql<number>`coalesce((
+          SELECT count(distinct bni.visitor_key)::int
+          FROM bed_notice_interest bni
+          WHERE bni.bed_id = beds.id
         ), 0)`,
         vacatingDate: sql<string | null>`(
           SELECT vr.vacating_date::text

@@ -236,6 +236,16 @@ test('computeElectricityLateFee: 1%/day after due (spec example)', () => {
   );
 });
 
+test('splitElectricity with prepaid credit deducted first', () => {
+  const gross = 1500_00;
+  const prepaid = 500_00;
+  const net = gross - Math.min(prepaid, gross);
+  const split = splitElectricity({ totalPaise: net, occupantCount: 2 });
+  assert.equal(net, 1000_00);
+  assert.equal(split.perResidentPaise, 500_00);
+  assert.equal(split.remainderPaise, 0);
+});
+
 test('computeElectricityLateFee: 0 for zero or negative amounts', () => {
   assert.equal(
     computeElectricityLateFee({ amountPaise: 0, dueDate: '2026-07-04', today: '2026-08-01' }),

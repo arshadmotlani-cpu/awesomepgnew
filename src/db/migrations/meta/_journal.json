@@ -183,6 +183,20 @@
       "when": 1784400000000,
       "tag": "0026_active_only_overlap",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1784500000000,
+      "tag": "0027_room_electricity_prepaid",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1784600000000,
+      "tag": "0028_bed_notice_interest",
+      "breakpoints": true
     }
   ]
 }

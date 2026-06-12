@@ -6,6 +6,7 @@ import {
   electricityBills,
   floors,
   meterLogs,
+  roomElectricityPrepaidLedger,
   rooms,
 } from '@/src/db/schema';
 import { diffDays, formatDate, parseDate } from '@/src/lib/dates';
@@ -210,6 +211,14 @@ export async function getPgMeterRooms(session: AdminSession, pgId: string) {
 }
 
 export async function getRoomMeterSummary(roomId: string) {
+  const [roomRow] = await db
+    .select({
+      prepaidCreditPaise: rooms.electricityPrepaidCreditPaise,
+    })
+    .from(rooms)
+    .where(eq(rooms.id, roomId))
+    .limit(1);
+
   const logs = await db
     .select()
     .from(meterLogs)
@@ -224,7 +233,19 @@ export async function getRoomMeterSummary(roomId: string) {
     .orderBy(desc(electricityBills.billingMonth))
     .limit(1);
 
-  return { logs, latestBill };
+  const prepaidLedger = await db
+    .select()
+    .from(roomElectricityPrepaidLedger)
+    .where(eq(roomElectricityPrepaidLedger.roomId, roomId))
+    .orderBy(desc(roomElectricityPrepaidLedger.createdAt))
+    .limit(3);
+
+  return {
+    logs,
+    latestBill,
+    prepaidCreditPaise: roomRow?.prepaidCreditPaise ?? 0,
+    prepaidLedger,
+  };
 }
 
 /** Active days in billing month for a booking's beds in a room (pro-rata weight). */

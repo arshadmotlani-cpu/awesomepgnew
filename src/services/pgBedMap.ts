@@ -115,6 +115,7 @@ type RawRow = {
   rent_pending_count: number;
   electricity_pending_count: number;
   interest_count: number;
+  notice_interest_count: number;
 };
 
 function buildOccupant(
@@ -192,6 +193,7 @@ function buildBed(row: RawRow): PgBedMapBed {
     reservedFrom: row.reserved_from,
     interestCount: row.interest_count,
     occupantFirstName: occupant?.customerName.split(' ')[0] ?? reserved?.customerName.split(' ')[0],
+    noticeInterestCount: row.notice_interest_count,
   });
 
   return {
@@ -258,7 +260,8 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
       coalesce(bill.rent_overdue, 0)::int AS rent_overdue_count,
       coalesce(bill.rent_pending, 0)::int AS rent_pending_count,
       coalesce(bill.elec_pending, 0)::int AS electricity_pending_count,
-      coalesce(hold.interest_count, 0)::int AS interest_count
+      coalesce(hold.interest_count, 0)::int AS interest_count,
+      coalesce(notice_i.notice_interest_count, 0)::int AS notice_interest_count
     FROM beds b
     INNER JOIN rooms r ON r.id = b.room_id AND r.archived_at IS NULL
     INNER JOIN floors f ON f.id = r.floor_id AND f.archived_at IS NULL
@@ -343,6 +346,11 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
         AND (br.hold_expires_at IS NULL OR br.hold_expires_at > now())
         AND CURRENT_DATE <@ br.stay_range
     ) hold ON true
+    LEFT JOIN LATERAL (
+      SELECT count(distinct bni.visitor_key)::int AS notice_interest_count
+      FROM bed_notice_interest bni
+      WHERE bni.bed_id = b.id
+    ) notice_i ON true
     WHERE f.pg_id = ${pgId}::uuid
       AND b.archived_at IS NULL
     ORDER BY f.floor_number ASC, r.room_number ASC, b.bed_code ASC
