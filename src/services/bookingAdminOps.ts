@@ -1,8 +1,10 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { auditLog, beds, bedReservations, bookings, floors, pgs, rooms } from '@/src/db/schema';
+import { auditLog, beds, bedReservations, bedReserveHolds, bookings, floors, pgs, rooms } from '@/src/db/schema';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
+import { formatDate, isBefore, parseDate, todayString } from '@/src/lib/dates';
+import { RESERVE_MIN_PERIOD_DAYS } from '@/src/lib/bedReservePolicy';
 import type {
   AdminDepositRefundStatus,
   AdminDuesStatus,
@@ -163,6 +165,20 @@ export async function setBedManualOccupied(
       if (bed.status !== 'available') {
         return { ok: false, error: 'Only available beds can be marked occupied.' };
       }
+      const [manualReserve] = await db
+        .select({ id: beds.id })
+        .from(beds)
+        .where(
+          and(
+            eq(beds.id, bedId),
+            sql`${beds.manualReservedCheckIn} IS NOT NULL`,
+            sql`${beds.manualReservedCheckIn} >= CURRENT_DATE`,
+          ),
+        )
+        .limit(1);
+      if (manualReserve) {
+        return { ok: false, error: 'Clear the reserved mark before marking occupied.' };
+      }
       const [live] = await db
         .select({ id: bedReservations.id })
         .from(bedReservations)
@@ -195,6 +211,164 @@ export async function setBedManualOccupied(
         bedCode: bed.bedCode,
         from: bed.manualOccupied,
         to: occupied,
+      },
+    });
+
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function setBedManualReserved(
+  session: AdminSession,
+  bedId: string,
+  checkInDate: string,
+  reserveStart?: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await assertBedAccess(session, bedId);
+
+    const start = formatDate(parseDate(reserveStart ?? todayString()));
+    const checkIn = formatDate(parseDate(checkInDate));
+
+    if (!isBefore(parseDate(start), parseDate(checkIn))) {
+      return { ok: false, error: 'Check-in date must be after reserve start.' };
+    }
+    const periodDays =
+      Math.round(
+        (parseDate(checkIn).getTime() - parseDate(start).getTime()) / (24 * 60 * 60 * 1000),
+      );
+    if (periodDays < RESERVE_MIN_PERIOD_DAYS) {
+      return {
+        ok: false,
+        error: `Reserve period must be at least ${RESERVE_MIN_PERIOD_DAYS} days.`,
+      };
+    }
+
+    const [bed] = await db
+      .select({
+        status: beds.status,
+        bedCode: beds.bedCode,
+        manualOccupied: beds.manualOccupied,
+        pgName: pgs.name,
+      })
+      .from(beds)
+      .innerJoin(rooms, eq(rooms.id, beds.roomId))
+      .innerJoin(floors, eq(floors.id, rooms.floorId))
+      .innerJoin(pgs, eq(pgs.id, floors.pgId))
+      .where(and(eq(beds.id, bedId), isNull(beds.archivedAt)))
+      .limit(1);
+    if (!bed) return { ok: false, error: 'Bed not found.' };
+
+    if (bed.status !== 'available') {
+      return { ok: false, error: 'Only available beds can be marked reserved.' };
+    }
+    if (bed.manualOccupied) {
+      return { ok: false, error: 'Clear occupied mark before marking reserved.' };
+    }
+
+    const [live] = await db
+      .select({ id: bedReservations.id })
+      .from(bedReservations)
+      .where(
+        and(
+          eq(bedReservations.bedId, bedId),
+          sql`${bedReservations.status} IN ('hold', 'active')`,
+          sql`CURRENT_DATE <@ ${bedReservations.stayRange}`,
+        ),
+      )
+      .limit(1);
+    if (live) {
+      return { ok: false, error: 'This bed already has a booking or resident.' };
+    }
+
+    const [hold] = await db
+      .select({ id: bedReserveHolds.id })
+      .from(bedReserveHolds)
+      .where(
+        and(
+          eq(bedReserveHolds.bedId, bedId),
+          sql`${bedReserveHolds.status} IN ('pending_payment', 'active')`,
+        ),
+      )
+      .limit(1);
+    if (hold) {
+      return { ok: false, error: 'This bed already has a customer reserve hold.' };
+    }
+
+    await db
+      .update(beds)
+      .set({
+        manualReservedStart: start,
+        manualReservedCheckIn: checkIn,
+        updatedAt: new Date(),
+      })
+      .where(eq(beds.id, bedId));
+
+    await db.insert(auditLog).values({
+      actorType: 'admin',
+      actorId: session.adminId,
+      entity: 'bed',
+      entityId: bedId,
+      action: 'manual_reserved_set',
+      diff: {
+        pgName: bed.pgName,
+        bedCode: bed.bedCode,
+        reserveStart: start,
+        checkInDate: checkIn,
+      },
+    });
+
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function clearBedManualReserved(
+  session: AdminSession,
+  bedId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await assertBedAccess(session, bedId);
+
+    const [bed] = await db
+      .select({
+        bedCode: beds.bedCode,
+        manualReservedCheckIn: beds.manualReservedCheckIn,
+        pgName: pgs.name,
+      })
+      .from(beds)
+      .innerJoin(rooms, eq(rooms.id, beds.roomId))
+      .innerJoin(floors, eq(floors.id, rooms.floorId))
+      .innerJoin(pgs, eq(pgs.id, floors.pgId))
+      .where(and(eq(beds.id, bedId), isNull(beds.archivedAt)))
+      .limit(1);
+    if (!bed) return { ok: false, error: 'Bed not found.' };
+    if (!bed.manualReservedCheckIn) {
+      return { ok: false, error: 'Bed is not marked reserved.' };
+    }
+
+    await db
+      .update(beds)
+      .set({
+        manualReservedStart: null,
+        manualReservedCheckIn: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(beds.id, bedId));
+
+    await db.insert(auditLog).values({
+      actorType: 'admin',
+      actorId: session.adminId,
+      entity: 'bed',
+      entityId: bedId,
+      action: 'manual_reserved_cleared',
+      diff: {
+        pgName: bed.pgName,
+        bedCode: bed.bedCode,
+        fromCheckIn: String(bed.manualReservedCheckIn),
       },
     });
 

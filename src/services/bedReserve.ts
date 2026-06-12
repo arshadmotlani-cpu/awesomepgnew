@@ -44,6 +44,54 @@ export type ActiveBedReserve = {
   status: 'pending_payment' | 'active' | 'expired' | 'cancelled' | 'converted';
 };
 
+export type EffectiveBedReserveWindow = {
+  source: 'hold' | 'manual';
+  reserveStart: string;
+  checkInDate: string;
+  bufferDate: string;
+};
+
+async function getManualReserveWindow(bedId: string): Promise<EffectiveBedReserveWindow | null> {
+  const today = todayString();
+  const [row] = await db
+    .select({
+      reserveStart: beds.manualReservedStart,
+      checkInDate: beds.manualReservedCheckIn,
+    })
+    .from(beds)
+    .where(
+      and(
+        eq(beds.id, bedId),
+        sql`${beds.manualReservedCheckIn} IS NOT NULL`,
+        sql`${beds.manualReservedCheckIn} >= ${today}::date`,
+      ),
+    )
+    .limit(1);
+  if (!row?.checkInDate || !row.reserveStart) return null;
+  const checkIn = String(row.checkInDate);
+  return {
+    source: 'manual',
+    reserveStart: String(row.reserveStart),
+    checkInDate: checkIn,
+    bufferDate: reserveBufferDate(checkIn),
+  };
+}
+
+export async function getEffectiveReserveForBed(
+  bedId: string,
+): Promise<EffectiveBedReserveWindow | null> {
+  const hold = await getActiveReserveForBed(bedId);
+  if (hold?.status === 'active') {
+    return {
+      source: 'hold',
+      reserveStart: hold.reserveStart,
+      checkInDate: hold.checkInDate,
+      bufferDate: hold.bufferDate,
+    };
+  }
+  return getManualReserveWindow(bedId);
+}
+
 async function countReservesInYear(year: number): Promise<number> {
   const [row] = await db
     .select({ count: sql<number>`count(*)::int` })
@@ -145,6 +193,11 @@ export async function canOfferBedReserve(bedId: string): Promise<{
   const existing = await getActiveReserveForBed(bedId);
   if (existing) {
     return { ok: false, reason: 'This bed already has an active reserve.' };
+  }
+
+  const manual = await getManualReserveWindow(bedId);
+  if (manual) {
+    return { ok: false, reason: 'This bed is marked reserved by admin.' };
   }
 
   const today = todayString();
@@ -477,8 +530,8 @@ export async function reserveBlocksLongStay(
 ): Promise<boolean> {
   if (durationMode === 'daily' || durationMode === 'weekly') return false;
 
-  const reserve = await getActiveReserveForBed(bedId);
-  if (!reserve || reserve.status !== 'active') return false;
+  const reserve = await getEffectiveReserveForBed(bedId);
+  if (!reserve) return false;
 
   const start = formatDate(parseDate(startDate));
   const end = endDate ? formatDate(parseDate(endDate)) : reserve.checkInDate;
@@ -491,8 +544,8 @@ export async function validateShortStayDuringReserve(
   startDate: DateLike,
   endDate: DateLike,
 ): Promise<string | null> {
-  const reserve = await getActiveReserveForBed(bedId);
-  if (!reserve || reserve.status !== 'active') return null;
+  const reserve = await getEffectiveReserveForBed(bedId);
+  if (!reserve) return null;
 
   const start = formatDate(parseDate(startDate));
   const end = formatDate(parseDate(endDate));

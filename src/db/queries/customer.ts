@@ -492,13 +492,24 @@ export function getRoomDetail(
           LIMIT 1
         )`,
         activeBedReserveCheckIn: sql<string | null>`(
-          SELECT brh.check_in_date::text
-          FROM ${bedReserveHolds} brh
-          WHERE brh.bed_id = beds.id
-            AND brh.status = 'active'
-            AND brh.reserve_start <= ${refDate}::date
-            AND brh.check_in_date >= ${refDate}::date
-          LIMIT 1
+          coalesce(
+            (
+              SELECT brh.check_in_date::text
+              FROM ${bedReserveHolds} brh
+              WHERE brh.bed_id = beds.id
+                AND brh.status = 'active'
+                AND brh.reserve_start <= ${refDate}::date
+                AND brh.check_in_date >= ${refDate}::date
+              LIMIT 1
+            ),
+            CASE
+              WHEN beds.manual_reserved_check_in IS NOT NULL
+                AND beds.manual_reserved_start <= ${refDate}::date
+                AND beds.manual_reserved_check_in >= ${refDate}::date
+              THEN beds.manual_reserved_check_in::text
+              ELSE NULL
+            END
+          )
         )`,
         dailyRatePaise: sql<number>`coalesce((
           SELECT bp.daily_rate_paise::bigint::int FROM ${bedPrices} bp

@@ -6,6 +6,7 @@ import {
 } from '@/src/lib/bedAvailabilityState';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
+import { todayString } from '@/src/lib/dates';
 
 export type PgBedMapOccupant = {
   customerId: string;
@@ -38,6 +39,9 @@ export type PgBedMapBed = {
   isOccupiedToday: boolean;
   isAvailableNow: boolean;
   manualOccupied: boolean;
+  manualReservedStart: string | null;
+  manualReservedCheckIn: string | null;
+  bedReserveCheckIn: string | null;
   occupant: PgBedMapOccupant | null;
   reserved: PgBedMapOccupant | null;
   reservedFrom: string | null;
@@ -92,6 +96,9 @@ type RawRow = {
   bed_code: string;
   bed_status: 'available' | 'maintenance' | 'blocked';
   manual_occupied: boolean;
+  manual_reserved_start: string | null;
+  manual_reserved_check_in: string | null;
+  bed_reserve_check_in: string | null;
   customer_id: string | null;
   customer_name: string | null;
   customer_phone: string | null;
@@ -177,11 +184,18 @@ function buildBed(row: RawRow): PgBedMapBed {
 
   const isOccupiedToday = occupant !== null;
   const manualOccupied = Boolean(row.manual_occupied);
+  const manualReservedCheckIn =
+    row.manual_reserved_check_in && row.manual_reserved_check_in >= todayString()
+      ? row.manual_reserved_check_in
+      : null;
+  const bedReserveCheckIn = row.bed_reserve_check_in;
+  const effectiveReserveCheckIn = manualReservedCheckIn ?? bedReserveCheckIn;
   const isAvailableNow =
     row.bed_status === 'available' &&
     !isOccupiedToday &&
     !reserved &&
-    !manualOccupied;
+    !manualOccupied &&
+    !effectiveReserveCheckIn;
   const preBookableFrom =
     vacating?.status === 'approved'
       ? vacating.vacatingDate
@@ -194,6 +208,7 @@ function buildBed(row: RawRow): PgBedMapBed {
     isOccupiedToday,
     isAvailableNow,
     manualOccupied,
+    manualReservedCheckIn: effectiveReserveCheckIn,
     vacatingDate: vacating?.vacatingDate,
     vacatingStatus: vacating?.status,
     preBookableFrom,
@@ -210,6 +225,9 @@ function buildBed(row: RawRow): PgBedMapBed {
     isOccupiedToday,
     isAvailableNow,
     manualOccupied,
+    manualReservedStart: row.manual_reserved_start,
+    manualReservedCheckIn,
+    bedReserveCheckIn,
     occupant,
     reserved,
     reservedFrom: row.reserved_from,
@@ -245,6 +263,9 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
       b.bed_code,
       b.status AS bed_status,
       b.manual_occupied,
+      b.manual_reserved_start::text,
+      b.manual_reserved_check_in::text,
+      brhold.check_in_date::text AS bed_reserve_check_in,
       occ.customer_id::text,
       occ.customer_name,
       occ.customer_phone,
@@ -327,6 +348,15 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
       LIMIT 1
     ) res ON true
     LEFT JOIN LATERAL (
+      SELECT brh.check_in_date
+      FROM bed_reserve_holds brh
+      WHERE brh.bed_id = b.id
+        AND brh.status = 'active'
+        AND brh.reserve_start <= CURRENT_DATE
+        AND brh.check_in_date >= CURRENT_DATE
+      LIMIT 1
+    ) brhold ON true
+    LEFT JOIN LATERAL (
       SELECT vr.id AS request_id, vr.status, vr.vacating_date::text AS vacating_date, vr.deduction_paise
       FROM vacating_requests vr
       WHERE vr.booking_id = coalesce(occ.booking_id, res.booking_id)
@@ -407,7 +437,9 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
     totalBeds: allBeds.length,
     occupiedBeds: allBeds.filter((b) => b.isOccupiedToday || b.manualOccupied).length,
     openNowBeds: allBeds.filter((b) => b.isAvailableNow).length,
-    reservedBeds: allBeds.filter((b) => b.reserved && !b.isOccupiedToday).length,
+    reservedBeds: allBeds.filter(
+      (b) => (b.reserved && !b.isOccupiedToday) || Boolean(b.manualReservedCheckIn) || Boolean(b.bedReserveCheckIn),
+    ).length,
     maintenanceBeds: allBeds.filter((b) => b.bedStatus === 'maintenance').length,
     blockedBeds: allBeds.filter((b) => b.bedStatus === 'blocked').length,
     vacatingSoon: allBeds.filter((b) => b.vacating).length,

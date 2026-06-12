@@ -33,6 +33,8 @@ export function deriveBedAvailabilityView(input: {
   vacatingStatus?: 'pending' | 'approved' | null;
   preBookableFrom?: string | null;
   reservedFrom?: string | null;
+  /** Admin manual reserve or customer 50% hold check-in. */
+  manualReservedCheckIn?: string | null;
   nextAvailableDate?: string | null;
   interestCount?: number;
   noticeInterestCount?: number;
@@ -51,6 +53,14 @@ export function deriveBedAvailabilityView(input: {
       kind: 'occupied',
       label: 'Occupied',
       sublabel: 'Marked occupied · not on website',
+    };
+  }
+
+  if (input.manualReservedCheckIn && !input.isOccupiedToday) {
+    return {
+      kind: 'reserved',
+      label: 'Reserved',
+      sublabel: `Check-in ${formatShortDate(input.manualReservedCheckIn)} · daily/weekly OK`,
     };
   }
 

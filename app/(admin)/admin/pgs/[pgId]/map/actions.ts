@@ -115,3 +115,43 @@ export async function setBedManualOccupiedAction(
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
+
+export async function setBedManualReservedAction(
+  bedId: string,
+  pgId: string,
+  checkInDate: string,
+  reserveStart?: string,
+): Promise<MapActionState> {
+  try {
+    const session = await requireAdminPermission('bookings:write');
+    const { setBedManualReserved } = await import('@/src/services/bookingAdminOps');
+    const result = await setBedManualReserved(session, bedId, checkInDate, reserveStart);
+    if (!result.ok) return result;
+
+    revalidatePath('/admin/pgs');
+    revalidatePath(`/admin/pgs/${pgId}/map`);
+    revalidatePath('/pgs');
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function clearBedManualReservedAction(
+  bedId: string,
+  pgId: string,
+): Promise<MapActionState> {
+  try {
+    const session = await requireAdminPermission('bookings:write');
+    const { clearBedManualReserved } = await import('@/src/services/bookingAdminOps');
+    const result = await clearBedManualReserved(session, bedId);
+    if (!result.ok) return result;
+
+    revalidatePath('/admin/pgs');
+    revalidatePath(`/admin/pgs/${pgId}/map`);
+    revalidatePath('/pgs');
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}

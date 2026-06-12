@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { BedMapManualOccupiedToggle } from '@/src/components/admin/BedMapManualOccupiedToggle';
+import { BedMapManualReservedToggle } from '@/src/components/admin/BedMapManualReservedToggle';
 import { AdminKycStatusWithWhatsApp } from '@/src/components/admin/AdminKycWhatsAppButton';
 import { AdminVacatingSubmitForm } from '@/src/components/admin/AdminVacatingSubmitForm';
 import { BedMapMoveForm } from '@/src/components/admin/BedMapMoveForm';
@@ -40,6 +41,7 @@ const LEGEND = [
   { label: 'Notice', className: 'border-orange-400/55 bg-orange-500/12' },
   { label: 'Occupied', className: 'border-zinc-500/50 bg-zinc-700/40' },
   { label: 'Booked', className: 'border-violet-400/55 bg-violet-500/15' },
+  { label: 'Reserved', className: 'border-violet-400/55 bg-violet-500/15' },
   { label: 'Checkout pending', className: 'border-cyan-400/50 bg-cyan-500/12' },
   { label: 'Maintenance', className: 'border-amber-400/50 bg-amber-500/12' },
 ];
@@ -130,12 +132,22 @@ function BedDetailPanel({
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Badge tone={bed.isOccupiedToday ? 'emerald' : bed.manualOccupied ? 'zinc' : bed.reserved ? 'violet' : 'zinc'}>
+          <Badge
+            tone={
+              bed.isOccupiedToday
+                ? 'emerald'
+                : bed.manualOccupied
+                  ? 'zinc'
+                  : bed.reserved || bed.manualReservedCheckIn || bed.bedReserveCheckIn
+                    ? 'violet'
+                    : 'zinc'
+            }
+          >
             {bed.isOccupiedToday
               ? 'Living here'
               : bed.manualOccupied
                 ? 'Occupied'
-                : bed.reserved
+                : bed.reserved || bed.manualReservedCheckIn || bed.bedReserveCheckIn
                   ? 'Reserved'
                   : titleCase(bed.bedStatus)}
           </Badge>
@@ -254,18 +266,30 @@ function BedDetailPanel({
             <p className="text-sm text-apg-silver">
               {bed.manualOccupied
                 ? 'Bed is marked occupied — customers cannot book it. Open it again when you want it listed.'
-                : 'Bed is open — assign a tenant or mark as reserved for someone who has not moved in yet.'}
+                : bed.manualReservedCheckIn
+                  ? `Bed is marked reserved until ${bed.manualReservedCheckIn}. Daily/weekly stays still allowed.`
+                  : 'Bed is open — mark as reserved or occupied, or assign a tenant.'}
             </p>
             {bed.bedStatus === 'available' ? (
-              <BedMapManualOccupiedToggle
-                pgId={pgId}
-                bedId={bed.bedId}
-                bedCode={bed.bedCode}
-                manualOccupied={bed.manualOccupied}
-              />
+              <>
+                <BedMapManualReservedToggle
+                  pgId={pgId}
+                  bedId={bed.bedId}
+                  bedCode={bed.bedCode}
+                  manualReservedCheckIn={bed.manualReservedCheckIn}
+                  disabled={bed.manualOccupied}
+                />
+                <BedMapManualOccupiedToggle
+                  pgId={pgId}
+                  bedId={bed.bedId}
+                  bedCode={bed.bedCode}
+                  manualOccupied={bed.manualOccupied}
+                  disabled={Boolean(bed.manualReservedCheckIn)}
+                />
+              </>
             ) : null}
             <nav className="grid gap-2">
-              {!bed.manualOccupied ? (
+              {!bed.manualOccupied && !bed.manualReservedCheckIn ? (
                 <ActionLink href={`/admin/bookings/new?bedId=${bed.bedId}`}>
                   Assign / reserve tenant
                 </ActionLink>

@@ -218,6 +218,13 @@
       "when": 1784900000000,
       "tag": "0031_bed_reserve_holds",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1785000000000,
+      "tag": "0032_bed_manual_reserved",
+      "breakpoints": true
     }
   ]
 }
