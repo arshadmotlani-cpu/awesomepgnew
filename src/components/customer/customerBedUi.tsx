@@ -19,6 +19,7 @@ function bedAvailability(bed: BedSelectorBed) {
     vacatingDate: bed.vacatingDate,
     vacatingStatus: bed.vacatingStatus,
     reservedFrom: bed.reservedFrom,
+    activeBedReserveCheckIn: bed.activeBedReserveCheckIn,
     availableUntilDate: bed.availableUntilDate,
     noticeInterestCount: bed.noticeInterestCount,
     holdInterestCount: bed.interestCount,
@@ -30,7 +31,10 @@ export function canBookBed(bed: BedSelectorBed): boolean {
   const bookableFrom = customerBookableFromDate(bed.nextAvailableDate);
   return (
     bed.status === 'available' &&
-    (bed.isAvailableNow || Boolean(bookableFrom) || Boolean(bed.vacatingDate))
+    (bed.isAvailableNow ||
+      Boolean(bookableFrom) ||
+      Boolean(bed.vacatingDate) ||
+      Boolean(bed.activeBedReserveCheckIn))
   );
 }
 
@@ -136,7 +140,7 @@ export function CustomerBedDetailSheet({
   const bookableFrom = customerBookableFromDate(bed.nextAvailableDate);
   const isFuturePreBook = !bed.isAvailableNow && Boolean(bookableFrom) && !isNotice;
   const showBookActions = canBookBed(bed);
-  const showReserve = showBookActions;
+  const showReserve = showBookActions && !bed.activeBedReserveCheckIn;
   const opensDate = isNotice ? bed.vacatingDate : isFuturePreBook ? bookableFrom : null;
 
   useEffect(() => {

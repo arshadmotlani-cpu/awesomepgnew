@@ -11,6 +11,7 @@ export * from './customers';
 export * from './adminUsers';
 export * from './bookings';
 export * from './bedReservations';
+export * from './bedReserveHolds';
 export * from './stayExtensions';
 export * from './payments';
 export * from './auditLog';

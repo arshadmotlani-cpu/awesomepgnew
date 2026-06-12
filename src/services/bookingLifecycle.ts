@@ -224,6 +224,7 @@ export async function recordPaymentSuccess(
     .select({
       id: bookings.id,
       status: bookings.status,
+      durationMode: bookings.durationMode,
       totalPaise: bookings.totalPaise,
       depositPaise: bookings.depositPaise,
       customerId: bookings.customerId,
@@ -236,7 +237,12 @@ export async function recordPaymentSuccess(
     return { ok: false, reason: `no booking with code "${input.bookingCode}"` };
   }
 
-  if (booking.status === 'pending_payment' || booking.status === 'draft') {
+  const isReserveBooking = booking.durationMode === 'reserve';
+
+  if (
+    !isReserveBooking &&
+    (booking.status === 'pending_payment' || booking.status === 'draft')
+  ) {
     const conflictReason = await bookingActivationConflicts(booking.id);
     if (conflictReason) {
       return { ok: false, reason: conflictReason };
@@ -275,7 +281,7 @@ export async function recordPaymentSuccess(
         .insert(payments)
         .values({
           bookingId: booking.id,
-          purpose: 'booking',
+          purpose: isReserveBooking ? 'bed_reserve' : 'booking',
           provider: input.provider,
           providerPaymentId: input.providerPaymentId,
           providerOrderId: input.providerOrderId ?? null,
@@ -287,23 +293,21 @@ export async function recordPaymentSuccess(
         })
         .returning({ id: payments.id });
 
-      // Flip all `hold` PRIMARY reservations on this booking to `active`.
-      // We only touch:
-      //   - those still in `hold` (so re-runs don't clobber manual updates), AND
-      //   - kind='primary' (so a duplicate primary-payment webhook replay
-      //     CANNOT silently activate a Phase-5 extension whose own payment
-      //     hasn't been captured yet).
-      const flipped = await tx
-        .update(bedReservations)
-        .set({ status: 'active', holdExpiresAt: null, updatedAt: new Date() })
-        .where(
-          and(
-            eq(bedReservations.bookingId, booking.id),
-            eq(bedReservations.status, 'hold'),
-            eq(bedReservations.kind, 'primary'),
-          ),
-        )
-        .returning({ id: bedReservations.id });
+      let flippedCount = 0;
+      if (!isReserveBooking) {
+        const flipped = await tx
+          .update(bedReservations)
+          .set({ status: 'active', holdExpiresAt: null, updatedAt: new Date() })
+          .where(
+            and(
+              eq(bedReservations.bookingId, booking.id),
+              eq(bedReservations.status, 'hold'),
+              eq(bedReservations.kind, 'primary'),
+            ),
+          )
+          .returning({ id: bedReservations.id });
+        flippedCount = flipped.length;
+      }
 
       // Flip the booking itself if it was awaiting payment. We do NOT flip
       // already-`confirmed` bookings (defensive: admins might have manually
@@ -325,23 +329,26 @@ export async function recordPaymentSuccess(
           provider: input.provider,
           providerPaymentId: input.providerPaymentId,
           amountPaise: input.amountPaise,
-          reservationsFlipped: flipped.length,
+          reservationsFlipped: flippedCount,
           fromStatus: booking.status,
           toStatus: 'confirmed',
+          reserveBooking: isReserveBooking,
         },
       });
 
-      return { paymentId: payment.id };
+      return { paymentId: payment.id, isReserveBooking };
     });
 
-    // Phase 5.5 — mirror the deposit (if any) into the deposit ledger so
-    // the resident dashboard + admin deposit page can compute the
-    // refundable balance from one source of truth. Guarded by
-    // related_payment_id idempotency inside recordDepositCollected().
-    //
-    // Wrapped in try/catch so a deposit-ledger insert hiccup can never
-    // unwind a payment that already succeeded.
-    if (booking.depositPaise > 0) {
+    if (result.isReserveBooking) {
+      try {
+        const { activateBedReserveAfterPayment } = await import('./bedReserve');
+        await activateBedReserveAfterPayment(booking.id);
+      } catch (reserveErr) {
+        console.error('bed reserve activation failed:', reserveErr);
+      }
+    }
+
+    if (!isReserveBooking && booking.depositPaise > 0) {
       try {
         const { recordDepositCollected } = await import('./deposits');
         await recordDepositCollected({
@@ -360,7 +367,9 @@ export async function recordPaymentSuccess(
 
     try {
       const { activatePendingMembershipForBooking } = await import('./playstationMembership');
-      await activatePendingMembershipForBooking(booking.id);
+      if (!isReserveBooking) {
+        await activatePendingMembershipForBooking(booking.id);
+      }
     } catch (ps4Err) {
       console.error('PS4 membership activation failed:', ps4Err);
     }

@@ -50,6 +50,7 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
   }
 
   const booking = result.data;
+  const isReserveBooking = booking.durationMode === 'reserve';
   const customer = await getCustomerById(session.customerId);
   if (!customer || !isProfileComplete(customer)) {
     redirect(`/account/profile?next=${encodeURIComponent(`/booking/${bookingCode}/pay`)}`);
@@ -65,7 +66,7 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
   await ensureDefaultPaymentCategoriesForPg(booking.pg.id);
   const rentCategory = await getRentDepositBookingCategory(booking.pg.id);
   const elecCategory = await getElectricityDailyCategory(booking.pg.id);
-  const pendingPs4 = await getPendingMembershipForBooking(booking.id);
+  const pendingPs4 = isReserveBooking ? null : await getPendingMembershipForBooking(booking.id);
   const pendingPayment = await getPendingBookingPaymentRecord(booking.id, session.customerId);
   const ps4Paise = pendingPs4?.amountPaise ?? 0;
   const checkoutTotalPaise = booking.totalPaise + ps4Paise;
@@ -95,34 +96,61 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
 
       <div className="mt-4 flex items-baseline justify-between">
         <h1 className="text-3xl font-semibold tracking-tight text-zinc-900">
-          Complete your payment
+          {isReserveBooking ? 'Pay reserve fee' : 'Complete your payment'}
         </h1>
         <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-900">
           Awaiting payment
         </span>
       </div>
       <p className="mt-1 text-sm text-zinc-600">
-        Booking <span className="font-mono text-zinc-900">{booking.bookingCode}</span> is held
-        until we approve your UPI payment. Scan the QR, pay the exact total below, then upload your
-        payment screenshot — same process as rent and PS4 add-on payments.
+        {isReserveBooking ? (
+          <>
+            Reserve hold for{' '}
+            <span className="font-mono text-zinc-900">{booking.bookingCode}</span> — pay the
+            50% rent fee below. This fee is non-refundable and is not credited toward your future
+            rent or deposit. On your check-in date you will complete a normal booking with full rent
+            + deposit.
+          </>
+        ) : (
+          <>
+            Booking <span className="font-mono text-zinc-900">{booking.bookingCode}</span> is held
+            until we approve your UPI payment. Scan the QR, pay the exact total below, then upload
+            your payment screenshot — same process as rent and PS4 add-on payments.
+          </>
+        )}
       </p>
 
       <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-3">
         <section className="md:col-span-2 rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
-            Reservation
+            {isReserveBooking ? 'Reserve hold' : 'Reservation'}
           </h2>
           <dl className="mt-3 grid grid-cols-2 gap-y-2 text-sm">
             <dt className="text-zinc-500">PG</dt>
             <dd className="text-right text-zinc-900">{booking.pg.name}</dd>
-            <dt className="text-zinc-500">Stay type</dt>
-            <dd className="text-right capitalize text-zinc-900">
-              {booking.durationMode.replace('_', '-')}
-            </dd>
-            <dt className="text-zinc-500">Check-out</dt>
-            <dd className="text-right text-zinc-900">
-              {booking.expectedCheckoutDate ?? 'Open-ended'}
-            </dd>
+            {isReserveBooking ? (
+              <>
+                <dt className="text-zinc-500">Reserve starts</dt>
+                <dd className="text-right text-zinc-900">
+                  {booking.reserveStart ?? '—'}
+                </dd>
+                <dt className="text-zinc-500">Your check-in</dt>
+                <dd className="text-right text-zinc-900">
+                  {booking.reserveCheckIn ?? booking.expectedCheckoutDate ?? '—'}
+                </dd>
+              </>
+            ) : (
+              <>
+                <dt className="text-zinc-500">Stay type</dt>
+                <dd className="text-right capitalize text-zinc-900">
+                  {booking.durationMode.replace('_', '-')}
+                </dd>
+                <dt className="text-zinc-500">Check-out</dt>
+                <dd className="text-right text-zinc-900">
+                  {booking.expectedCheckoutDate ?? 'Open-ended'}
+                </dd>
+              </>
+            )}
             <dt className="text-zinc-500">Bed{booking.reservations.length === 1 ? '' : 's'}</dt>
             <dd className="text-right text-zinc-900">
               {booking.reservations
@@ -138,13 +166,22 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
           </h2>
           <div className="mt-3 space-y-1 text-sm">
             <div className="flex justify-between">
-              <span className="text-zinc-500">Subtotal (rent)</span>
+              <span className="text-zinc-500">
+                {isReserveBooking ? 'Reserve fee (50% rent)' : 'Subtotal (rent)'}
+              </span>
               <span className="text-zinc-900">{formatPaise(booking.subtotalPaise)}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-zinc-500">Refundable deposit</span>
-              <span className="text-zinc-900">{formatPaise(booking.depositPaise)}</span>
-            </div>
+            {!isReserveBooking ? (
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Refundable deposit</span>
+                <span className="text-zinc-900">{formatPaise(booking.depositPaise)}</span>
+              </div>
+            ) : (
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Deposit now</span>
+                <span className="text-zinc-900">₹0 — at check-in booking</span>
+              </div>
+            )}
             {pendingPs4 ? (
               <div className="flex justify-between">
                 <span className="text-zinc-500">
@@ -166,8 +203,16 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
           </div>
 
           <div className="mt-5">
-            <DepositRefundNotice variant="compact" />
-            <div className="mt-4">
+            {!isReserveBooking ? (
+              <DepositRefundNotice variant="compact" />
+            ) : (
+              <p className="text-xs text-rose-700">
+                Non-refundable. Not credited toward future rent or deposit. If you do not complete
+                check-in booking on your check-in date, the bed opens to others after the reserve
+                expires.
+              </p>
+            )}
+            <div className={isReserveBooking ? 'mt-4' : 'mt-4'}>
               <BookingQrCheckout
                 bookingCode={booking.bookingCode}
                 pgName={booking.pg.name}

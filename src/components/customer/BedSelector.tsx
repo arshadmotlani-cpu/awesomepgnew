@@ -4,6 +4,7 @@ import { useMemo, useState, useCallback } from 'react';
 import { dispatchRoachieReminder } from '@/src/lib/cockroach/roachieReminders';
 import { BookingEducationBar } from './BookingEducationBar';
 import { BedBookingPanel } from './BedBookingPanel';
+import { BedReservePanel } from './BedReservePanel';
 import { CustomerBedDetailSheet, CustomerBedTile, canBookBed } from './customerBedUi';
 import { RoachieTourDemoBeds } from './RoachieTourDemoBeds';
 import type { BedSelectorBed } from './customerBedTypes';
@@ -49,6 +50,7 @@ export function BedSelector({ beds, theme = 'light', roomLabel = 'This room' }: 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [detailBedId, setDetailBedId] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [reservePanelBed, setReservePanelBed] = useState<BedSelectorBed | null>(null);
   const [interestOverrides, setInterestOverrides] = useState<Record<string, number>>({});
 
   const mergeBed = useCallback(
@@ -151,7 +153,8 @@ export function BedSelector({ beds, theme = 'light', roomLabel = 'This room' }: 
           }}
           onReserve={() => {
             dispatchRoachieReminder('reserve');
-            openPanelForBed(detailBedView.bedId);
+            setReservePanelBed(detailBedView);
+            setDetailBedId(null);
           }}
           onNoticeInterestUpdate={handleNoticeInterestUpdate}
         />
@@ -163,6 +166,10 @@ export function BedSelector({ beds, theme = 'light', roomLabel = 'This room' }: 
           theme={theme}
           onClose={() => setPanelOpen(false)}
         />
+      ) : null}
+
+      {reservePanelBed ? (
+        <BedReservePanel bed={reservePanelBed} onClose={() => setReservePanelBed(null)} />
       ) : null}
     </>
   );

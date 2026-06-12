@@ -191,11 +191,6 @@ export async function createPendingMembershipForBooking(input: {
       amountPaise: plan.pricePaise,
     })
     .returning();
-  await insertTransaction(row!.id, 'purchase', {
-    amountPaise: plan.pricePaise,
-    toPlan: input.plan,
-    notes: 'Added during booking checkout',
-  });
   return row!;
 }
 
@@ -227,10 +222,6 @@ export async function purchaseMembership(input: {
       amountPaise: plan.pricePaise,
     })
     .returning();
-  await insertTransaction(row!.id, 'purchase', {
-    amountPaise: plan.pricePaise,
-    toPlan: input.plan,
-  });
   return row!;
 }
 
@@ -258,11 +249,6 @@ export async function renewMembership(membershipId: string, customerId: string) 
       updatedAt: new Date(),
     })
     .where(eq(playstationMemberships.id, membershipId));
-
-  await insertTransaction(membershipId, 'renew', {
-    amountPaise: plan.pricePaise,
-    toPlan: membership.plan,
-  });
 
   const [updated] = await db
     .select()
@@ -304,12 +290,6 @@ export async function upgradeMembership(
       updatedAt: new Date(),
     })
     .where(eq(playstationMemberships.id, membershipId));
-
-  await insertTransaction(membershipId, 'upgrade', {
-    amountPaise: plan.pricePaise,
-    fromPlan: membership.plan,
-    toPlan: newPlan,
-  });
 
   const [updated] = await db
     .select()
@@ -504,23 +484,60 @@ export async function listAdminMemberships() {
 }
 
 export async function getMembershipRevenueStats() {
+  // Revenue is recorded only when a membership is activated (admin or payment confirmed).
+  // Exclude cancelled/pending rows and legacy duplicate "purchase" rows that were
+  // written at checkout before activation existed.
   const [row] = await db
     .select({
       totalPaise: sql<number>`coalesce(sum(${membershipTransactions.amountPaise}), 0)::int`,
       count: sql<number>`count(*)::int`,
     })
     .from(membershipTransactions)
+    .innerJoin(
+      playstationMemberships,
+      eq(playstationMemberships.id, membershipTransactions.membershipId),
+    )
     .where(
-      inArray(membershipTransactions.kind, [
-        'purchase',
-        'renew',
-        'upgrade',
-        'admin_activate',
-      ]),
+      and(
+        inArray(membershipTransactions.kind, [
+          'purchase',
+          'renew',
+          'upgrade',
+          'admin_activate',
+        ]),
+        inArray(playstationMemberships.status, ['active', 'expired']),
+        sql`NOT (
+          ${membershipTransactions.kind} = 'purchase'
+          AND EXISTS (
+            SELECT 1 FROM ${membershipTransactions} mt2
+            WHERE mt2.membership_id = ${membershipTransactions.membershipId}
+              AND mt2.kind = 'admin_activate'
+          )
+        )`,
+      ),
     );
   return {
     totalRevenuePaise: row?.totalPaise ?? 0,
     transactionCount: row?.count ?? 0,
+  };
+}
+
+export async function getMembershipStatusCounts() {
+  const rows = await db
+    .select({
+      status: playstationMemberships.status,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(playstationMemberships)
+    .groupBy(playstationMemberships.status);
+
+  const byStatus = Object.fromEntries(rows.map((r) => [r.status, r.count]));
+  return {
+    active: byStatus.active ?? 0,
+    pendingPayment: byStatus.pending_payment ?? 0,
+    cancelled: byStatus.cancelled ?? 0,
+    expired: byStatus.expired ?? 0,
+    total: rows.reduce((sum, r) => sum + r.count, 0),
   };
 }
 

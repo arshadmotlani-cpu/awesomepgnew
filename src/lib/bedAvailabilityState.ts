@@ -123,6 +123,7 @@ export function deriveCustomerBedAvailabilityView(input: {
   vacatingDate?: string | null;
   vacatingStatus?: 'pending' | 'approved' | null;
   reservedFrom?: string | null;
+  activeBedReserveCheckIn?: string | null;
   availableUntilDate?: string | null;
   noticeInterestCount?: number;
   holdInterestCount?: number;
@@ -136,6 +137,14 @@ export function deriveCustomerBedAvailabilityView(input: {
 
   if (input.manualOccupied) {
     return { kind: 'occupied', label: 'Occupied' };
+  }
+
+  if (input.activeBedReserveCheckIn) {
+    return {
+      kind: 'reserved',
+      label: 'Reserved',
+      sublabel: `Holder check-in ${formatShortDate(input.activeBedReserveCheckIn)} · daily/weekly OK`,
+    };
   }
 
   if (input.reservedFrom) {

@@ -6,11 +6,29 @@ import { IconSettings } from '@/src/components/admin/icons';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { listPgSettings } from '@/src/db/queries/admin';
 import { amenityLabel } from '@/src/lib/pgAmenities';
+import { OperatorTestDataCleanupButton } from '@/src/components/admin/OperatorTestDataCleanupButton';
 import { titleCase } from '@/src/lib/format';
+import { requireAdminSession } from '@/src/lib/auth/guards';
+import { runOperatorTestDataCleanup } from '@/src/services/operatorTestDataCleanup';
+import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 
 export const dynamic = 'force-dynamic';
 
-export default async function SettingsPage() {
+type SettingsPageProps = {
+  searchParams?: Promise<{ cleanupTestData?: string; cleaned?: string; removedPaise?: string }>;
+};
+
+export default async function SettingsPage({ searchParams }: SettingsPageProps) {
+  const params = (await searchParams) ?? {};
+  if (params.cleanupTestData === '1') {
+    await requireAdminSession('/admin/settings?cleanupTestData=1');
+    const result = await runOperatorTestDataCleanup();
+    revalidatePath('/admin');
+    revalidatePath('/admin/deposits');
+    redirect(`/admin/settings?cleaned=1&removedPaise=${result.removedDeductionPaise}`);
+  }
+
   const res = await listPgSettings();
 
   return (
@@ -19,6 +37,14 @@ export default async function SettingsPage() {
         title="Settings"
         description="PG-level configuration. Editing UI ships in Phase 6 — for now this is a read-only mirror of what's in the database."
       />
+
+      {params.cleaned === '1' ? (
+        <div className="mb-6 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          Test data cleanup completed
+          {params.removedPaise ? ` — removed ₹${Number(params.removedPaise) / 100} from June deposit deductions` : ''}.
+          Check Overview — extra income should no longer include test deposit charges.
+        </div>
+      ) : null}
 
       {!res.ok ? (
         <DbStatusBanner error={res.error} />
@@ -86,6 +112,16 @@ export default async function SettingsPage() {
           })}
         </div>
       )}
+
+      <Card>
+        <CardHeader
+          title="Test data cleanup"
+          description="One-time fix when Overview extra income or bed occupancy still reflects your own test bookings."
+        />
+        <CardBody>
+          <OperatorTestDataCleanupButton />
+        </CardBody>
+      </Card>
 
       <Card>
         <CardHeader

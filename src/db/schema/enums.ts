@@ -26,6 +26,15 @@ export const durationModeEnum = pgEnum('duration_mode', [
   'weekly',
   'monthly',
   'open_ended',
+  'reserve',
+]);
+
+export const bedReserveStatusEnum = pgEnum('bed_reserve_status', [
+  'pending_payment',
+  'active',
+  'expired',
+  'cancelled',
+  'converted',
 ]);
 export const createdViaEnum = pgEnum('created_via', ['customer', 'admin']);
 
@@ -75,6 +84,7 @@ export const paymentPurposeEnum = pgEnum('payment_purpose', [
   'rent',
   'electricity',
   'deposit_deduction',
+  'bed_reserve',
 ]);
 export const paymentProviderEnum = pgEnum('payment_provider', [
   'razorpay',

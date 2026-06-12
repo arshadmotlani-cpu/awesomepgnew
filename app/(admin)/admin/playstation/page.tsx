@@ -9,6 +9,7 @@ import { adminPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import { PaymentScreenshotPreview } from '@/src/components/admin/PaymentScreenshotPreview';
 import {
   getMembershipRevenueStats,
+  getMembershipStatusCounts,
   listAdminMemberships,
 } from '@/src/services/playstationMembership';
 import {
@@ -21,9 +22,10 @@ import {
 export const dynamic = 'force-dynamic';
 
 export default async function AdminPlaystationPage() {
-  const [memberships, revenue] = await Promise.all([
+  const [memberships, revenue, statusCounts] = await Promise.all([
     listAdminMemberships(),
     getMembershipRevenueStats(),
+    getMembershipStatusCounts(),
   ]);
 
   return (
@@ -35,8 +37,20 @@ export default async function AdminPlaystationPage() {
 
       <div className="mb-6 grid gap-3 sm:grid-cols-3">
         <StatCard label="Total revenue" value={paiseToInr(revenue.totalRevenuePaise)} />
-        <StatCard label="Paid transactions" value={String(revenue.transactionCount)} />
-        <StatCard label="Memberships" value={String(memberships.length)} />
+        <StatCard
+          label="Paid activations"
+          value={String(revenue.transactionCount)}
+          hint="Approved or confirmed payments only"
+        />
+        <StatCard
+          label="Active memberships"
+          value={String(statusCounts.active)}
+          hint={
+            statusCounts.pendingPayment > 0 || statusCounts.cancelled > 0
+              ? `${statusCounts.pendingPayment} awaiting payment · ${statusCounts.cancelled} cancelled`
+              : undefined
+          }
+        />
       </div>
 
       {memberships.length === 0 ? (
@@ -158,11 +172,20 @@ export default async function AdminPlaystationPage() {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
+function StatCard({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+}) {
   return (
     <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
       <div className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">{label}</div>
       <div className="mt-1 text-xl font-semibold text-zinc-900">{value}</div>
+      {hint ? <div className="mt-1 text-xs text-zinc-500">{hint}</div> : null}
     </div>
   );
 }

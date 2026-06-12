@@ -44,6 +44,10 @@ import { formatDate, parseDate, type DateLike } from '../lib/dates';
 import { nextBookingCode, utcYear } from '../lib/bookingCode';
 import { stampProfileCompletedAtIfReady } from './profile';
 import { isBedAvailable, validateBedStayRange } from './availability';
+import {
+  reserveBlocksLongStay,
+  validateShortStayDuringReserve,
+} from './bedReserve';
 import { DEFAULT_POLICY } from './cancellationPolicy';
 import {
   quoteBookingPrice,
@@ -341,6 +345,36 @@ export async function createBooking(
           : `${conflictBedIds.length} of the selected beds are no longer available for the requested dates.`,
       conflictBedIds,
     };
+  }
+
+  if (!isAdminCreated && endDate) {
+    for (const bedId of uniqueBedIds) {
+      if (
+        await reserveBlocksLongStay(
+          bedId,
+          startDate,
+          endDate,
+          input.durationMode,
+        )
+      ) {
+        return {
+          ok: false,
+          kind: 'unavailable_bed',
+          message:
+            'This bed is reserved for a future tenant — only daily or weekly stays are allowed until their check-in.',
+          conflictBedIds: [bedId],
+        };
+      }
+      const shortErr = await validateShortStayDuringReserve(bedId, startDate, endDate);
+      if (shortErr) {
+        return {
+          ok: false,
+          kind: 'validation',
+          message: shortErr,
+          conflictBedIds: [bedId],
+        };
+      }
+    }
   }
 
   // 3. Gender policy: every selected bed must belong to a PG whose

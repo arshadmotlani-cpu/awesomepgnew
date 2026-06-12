@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { dispatchRoachieReminder } from '@/src/lib/cockroach/roachieReminders';
 import { BedBookingPanel } from './BedBookingPanel';
+import { BedReservePanel } from './BedReservePanel';
 import {
   CUSTOMER_BED_KIND_CLASS,
   CustomerBedDetailSheet,
@@ -26,6 +27,7 @@ export type CustomerRoomBedMap = {
 const LEGEND = [
   { label: 'Available', kind: 'open_now' as const },
   { label: 'Notice', kind: 'notice' as const },
+  { label: 'Reserved', kind: 'reserved' as const },
   { label: 'Occupied', kind: 'occupied' as const },
   { label: 'Booked', kind: 'booked' as const },
   { label: 'Available soon', kind: 'pre_bookable' as const },
@@ -45,7 +47,11 @@ function RoomBedCard({
 }) {
   const openCount = room.beds.filter((b) => b.isAvailableNow && b.status === 'available').length;
   const occupiedCount = room.beds.filter(
-    (b) => !b.isAvailableNow && b.status === 'available' && !b.reservedFrom,
+    (b) =>
+      !b.isAvailableNow &&
+      b.status === 'available' &&
+      !b.reservedFrom &&
+      !b.activeBedReserveCheckIn,
   ).length;
 
   return (
@@ -85,6 +91,7 @@ export function CustomerBedMap({ rooms }: { rooms: CustomerRoomBedMap[] }) {
   const [selectedBedId, setSelectedBedId] = useState<string | null>(null);
   const [panelBeds, setPanelBeds] = useState<BedSelectorBed[]>([]);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [reservePanelBed, setReservePanelBed] = useState<BedSelectorBed | null>(null);
   const [interestOverrides, setInterestOverrides] = useState<Record<string, number>>({});
 
   const mergeBed = useCallback(
@@ -173,7 +180,8 @@ export function CustomerBedMap({ rooms }: { rooms: CustomerRoomBedMap[] }) {
           }}
           onReserve={() => {
             dispatchRoachieReminder('reserve');
-            openPanel(selectedBed.bed);
+            setReservePanelBed(selectedBed.bed);
+            setSelectedBedId(null);
           }}
           onNoticeInterestUpdate={handleNoticeInterestUpdate}
         />
@@ -181,6 +189,10 @@ export function CustomerBedMap({ rooms }: { rooms: CustomerRoomBedMap[] }) {
 
       {panelOpen && panelBeds.length > 0 ? (
         <BedBookingPanel beds={panelBeds} theme="dark" onClose={() => setPanelOpen(false)} />
+      ) : null}
+
+      {reservePanelBed ? (
+        <BedReservePanel bed={reservePanelBed} onClose={() => setReservePanelBed(null)} />
       ) : null}
     </>
   );

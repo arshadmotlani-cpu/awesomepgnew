@@ -16,6 +16,10 @@ import {
 } from '@/src/components/admin/icons';
 import { paiseToInr } from '@/src/lib/format';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
+import { requireAdminSession } from '@/src/lib/auth/guards';
+import { runOperatorTestDataCleanup } from '@/src/services/operatorTestDataCleanup';
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import {
   getBusinessMetricsSummary,
   getPgBusinessMetrics,
@@ -28,9 +32,26 @@ export const maxDuration = 60;
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string }>;
+  searchParams: Promise<{
+    month?: string;
+    clearTestExtraIncome?: string;
+    extraIncomeCleared?: string;
+    removedPaise?: string;
+  }>;
 }) {
   const sp = await searchParams;
+
+  if (sp.clearTestExtraIncome === '1') {
+    await requireAdminSession('/admin?clearTestExtraIncome=1');
+    const result = await runOperatorTestDataCleanup();
+    revalidatePath('/admin');
+    revalidatePath('/admin/deposits');
+    const month = resolveBillingMonth(sp.month);
+    redirect(
+      `/admin?month=${month}&extraIncomeCleared=1&removedPaise=${result.removedDeductionPaise}`,
+    );
+  }
+
   const billingMonth = resolveBillingMonth(sp.month);
 
   const [summary, metrics, pgs] = await Promise.all([
@@ -77,6 +98,14 @@ export default async function DashboardPage({
         description="Monthly collections, per-PG income, deposit refunds, and extra income from penalties."
         actions={<OverviewMonthPicker billingMonth={billingMonth} />}
       />
+
+      {sp.extraIncomeCleared === '1' ? (
+        <div className="mb-6 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          Removed June test deposit deductions
+          {sp.removedPaise ? ` (₹${Number(sp.removedPaise) / 100})` : ''}. Extra income should
+          now reflect only real charges.
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <OverviewStatCard

@@ -14,6 +14,7 @@ import {
   beds,
   bedPrices,
   bedReservations,
+  bedReserveHolds,
   bookings,
   customers,
   electricityBills,
@@ -359,6 +360,8 @@ export type CustomerRoomDetail = {
     vacatingStatus?: 'pending' | 'approved' | null;
     /** Future reservation — move-in after reference date. */
     reservedFrom?: string | null;
+    /** Active 50% reserve hold — holder check-in date. */
+    activeBedReserveCheckIn?: string | null;
     /** Unpaid checkouts in progress — shown as interest, not occupancy. */
     interestCount: number;
     /** Distinct visitors who tapped this bed during notice period. */
@@ -486,6 +489,15 @@ export function getRoomDetail(
             AND br.status = 'active'
             AND bk.status = 'confirmed'
             AND lower(br.stay_range) > ${refDate}::date
+          LIMIT 1
+        )`,
+        activeBedReserveCheckIn: sql<string | null>`(
+          SELECT brh.check_in_date::text
+          FROM ${bedReserveHolds} brh
+          WHERE brh.bed_id = beds.id
+            AND brh.status = 'active'
+            AND brh.reserve_start <= ${refDate}::date
+            AND brh.check_in_date >= ${refDate}::date
           LIMIT 1
         )`,
         dailyRatePaise: sql<number>`coalesce((
@@ -619,6 +631,9 @@ export type CustomerBookingDetail = {
   pricingSnapshot: PricingSnapshot | null;
   notes: string | null;
   createdAt: Date;
+  /** Set when durationMode is `reserve`. */
+  reserveStart?: string | null;
+  reserveCheckIn?: string | null;
   customer: {
     fullName: string;
     email: string;
@@ -697,6 +712,87 @@ export function getBookingByCode(
 
     const first = reservationRows[0];
 
+    let pg = first
+      ? {
+          id: first.pgId,
+          name: first.pgName,
+          slug: first.pgSlug,
+          addressLine1: first.pgAddressLine1,
+          city: first.pgCity,
+          state: first.pgState,
+          pincode: first.pgPincode,
+        }
+      : {
+          id: '',
+          name: '—',
+          slug: '',
+          addressLine1: '',
+          city: '',
+          state: '',
+          pincode: '',
+        };
+
+    let reservations = reservationRows.map((r) => ({
+      id: r.id,
+      bedCode: r.bedCode,
+      roomNumber: r.roomNumber,
+      floorLabel: r.floorLabel,
+      stayRange: r.stayRange as unknown as string,
+      status: r.status,
+    }));
+
+    let reserveStart: string | null = null;
+    let reserveCheckIn: string | null = null;
+
+    if (b.durationMode === 'reserve' && reservationRows.length === 0) {
+      const [hold] = await db
+        .select({
+          reserveStart: bedReserveHolds.reserveStart,
+          checkInDate: bedReserveHolds.checkInDate,
+          bedCode: beds.bedCode,
+          roomNumber: rooms.roomNumber,
+          floorLabel: sql<string>`coalesce(${floors.label}, 'Floor ' || ${floors.floorNumber})`,
+          pgName: pgs.name,
+          pgId: pgs.id,
+          pgSlug: pgs.slug,
+          pgAddressLine1: pgs.addressLine1,
+          pgCity: pgs.city,
+          pgState: pgs.state,
+          pgPincode: pgs.pincode,
+        })
+        .from(bedReserveHolds)
+        .innerJoin(beds, eq(beds.id, bedReserveHolds.bedId))
+        .innerJoin(rooms, eq(rooms.id, beds.roomId))
+        .innerJoin(floors, eq(floors.id, rooms.floorId))
+        .innerJoin(pgs, eq(pgs.id, floors.pgId))
+        .where(eq(bedReserveHolds.bookingId, b.id))
+        .limit(1);
+
+      if (hold) {
+        reserveStart = String(hold.reserveStart);
+        reserveCheckIn = String(hold.checkInDate);
+        pg = {
+          id: hold.pgId,
+          name: hold.pgName,
+          slug: hold.pgSlug,
+          addressLine1: hold.pgAddressLine1,
+          city: hold.pgCity,
+          state: hold.pgState,
+          pincode: hold.pgPincode,
+        };
+        reservations = [
+          {
+            id: b.id,
+            bedCode: hold.bedCode,
+            roomNumber: hold.roomNumber,
+            floorLabel: hold.floorLabel,
+            stayRange: `[${reserveStart},${reserveCheckIn})`,
+            status: 'active',
+          },
+        ];
+      }
+    }
+
     return {
       id: b.id,
       bookingCode: b.bookingCode,
@@ -709,38 +805,15 @@ export function getBookingByCode(
       pricingSnapshot: (b.pricingSnapshot as PricingSnapshot | null) ?? null,
       notes: b.notes,
       createdAt: b.createdAt,
+      reserveStart,
+      reserveCheckIn,
       customer: {
         fullName: b.customerFullName,
         email: b.customerEmail,
         phone: b.customerPhone,
       },
-      pg: first
-        ? {
-            id: first.pgId,
-            name: first.pgName,
-            slug: first.pgSlug,
-            addressLine1: first.pgAddressLine1,
-            city: first.pgCity,
-            state: first.pgState,
-            pincode: first.pgPincode,
-          }
-        : {
-            id: '',
-            name: '—',
-            slug: '',
-            addressLine1: '',
-            city: '',
-            state: '',
-            pincode: '',
-          },
-      reservations: reservationRows.map((r) => ({
-        id: r.id,
-        bedCode: r.bedCode,
-        roomNumber: r.roomNumber,
-        floorLabel: r.floorLabel,
-        stayRange: r.stayRange as unknown as string,
-        status: r.status,
-      })),
+      pg,
+      reservations,
     };
   });
 }
@@ -1284,7 +1357,8 @@ export type PaymentHistoryRow = {
     | 'refund'
     | 'deposit'
     | 'deposit_deduction'
-    | 'adjustment';
+    | 'adjustment'
+    | 'bed_reserve';
   provider: string;
   providerPaymentId: string | null;
   amountPaise: number;

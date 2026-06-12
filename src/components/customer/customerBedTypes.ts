@@ -10,6 +10,8 @@ export type BedSelectorBed = {
   vacatingDate?: string | null;
   vacatingStatus?: 'pending' | 'approved' | null;
   reservedFrom?: string | null;
+  /** Active 50% reserve hold — bed shows Reserved; daily/weekly still allowed. */
+  activeBedReserveCheckIn?: string | null;
   availableUntilDate?: string | null;
   dailyRatePaise: number;
   weeklyRatePaise: number;
