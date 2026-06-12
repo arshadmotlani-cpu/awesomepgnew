@@ -8,7 +8,6 @@ import {
 import { reserveBufferDate } from '@/src/lib/bedReservePolicy';
 import { customerBookableFromDate } from '@/src/lib/dates';
 import { formatDate, paiseToInr } from '@/src/lib/format';
-import { RoachieBedSheetCoach } from './RoachieBedSheetCoach';
 import type { BedSelectorBed } from './customerBedTypes';
 
 function bedAvailability(bed: BedSelectorBed) {
@@ -226,7 +225,7 @@ export function CustomerBedDetailSheet({
               <p className="mt-2 text-xs font-medium text-orange-200">
                 {noticeCount > 0
                   ? `${noticeCount} ${noticeCount === 1 ? 'person is' : 'people are'} interested in this bed`
-                  : 'Cockroach will explain pre-book vs reserve on the buttons below.'}
+                  : 'Someone is still living here — you can pre-book or reserve for when they leave.'}
               </p>
             ) : null}
           </div>
@@ -302,6 +301,12 @@ export function CustomerBedDetailSheet({
                   Reserve early (50% rent) — move in when you reach Nagpur
                 </button>
               ) : null}
+              <p className="text-xs leading-relaxed text-apg-silver">
+                <strong className="text-white">Pre-book</strong> — you plan to move in when this bed
+                opens{opensDate ? ` (${formatDate(opensDate)})` : ''}.{' '}
+                <strong className="text-white">Reserve</strong> — hold the bed now at 50% rent and
+                pick your check-in day when you reach Nagpur.
+              </p>
             </div>
           ) : showBookActions ? (
             <div className="mt-5 flex flex-col gap-2" data-roachie-tour="bed-sheet-actions">
@@ -334,14 +339,28 @@ export function CustomerBedDetailSheet({
                   Reserve early (50% rent)
                 </button>
               ) : null}
+              {showReserve ? (
+                <p className="text-xs leading-relaxed text-apg-silver">
+                  {isFuturePreBook ? (
+                    <>
+                      <strong className="text-white">Pre-book</strong> — move in when the bed opens
+                      {opensDate ? ` (${formatDate(opensDate)})` : ''}.{' '}
+                      <strong className="text-white">Reserve</strong> — hold it now at 50% rent and
+                      choose check-in when you arrive.
+                    </>
+                  ) : (
+                    <>
+                      <strong className="text-white">Book</strong> — move in on your selected dates
+                      now. <strong className="text-white">Reserve</strong> — hold the bed at 50% rent
+                      and pick your check-in day when you reach Nagpur.
+                    </>
+                  )}
+                </p>
+              ) : null}
             </div>
           ) : null}
         </div>
       </div>
-
-      {showBookActions && !isReserved ? (
-        <RoachieBedSheetCoach sheetRootId={sheetRootId} opensDate={opensDate} />
-      ) : null}
     </>
   );
 }

@@ -169,7 +169,15 @@ export type IsBedAvailableInput = {
  * (rather than throwing) so the caller can treat "unknown" identically to
  * "unavailable".
  */
-export async function isBedAvailable(input: IsBedAvailableInput): Promise<boolean> {
+export type IsBedAvailableOptions = {
+  /** Admin assignment clears manual marks first; listing assignable beds skips this flag. */
+  ignoreManualOccupied?: boolean;
+};
+
+export async function isBedAvailable(
+  input: IsBedAvailableInput,
+  options?: IsBedAvailableOptions,
+): Promise<boolean> {
   const start = formatDate(parseDate(input.startDate));
   const end = formatDate(parseDate(input.endDate));
 
@@ -182,7 +190,8 @@ export async function isBedAvailable(input: IsBedAvailableInput): Promise<boolea
     .from(beds)
     .where(eq(beds.id, input.bedId))
     .limit(1);
-  if (!bed || bed.archivedAt || bed.status !== 'available' || bed.manualOccupied) return false;
+  if (!bed || bed.archivedAt || bed.status !== 'available') return false;
+  if (bed.manualOccupied && !options?.ignoreManualOccupied) return false;
 
   const [conflict] = await db
     .select({ id: bedReservations.id })

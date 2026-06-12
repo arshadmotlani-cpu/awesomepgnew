@@ -144,6 +144,7 @@ export async function listAssignableBeds(session: AdminSession, startDate?: stri
     .select({
       bedId: beds.id,
       bedCode: beds.bedCode,
+      manualOccupied: beds.manualOccupied,
       roomNumber: rooms.roomNumber,
       pgId: pgs.id,
       pgName: pgs.name,
@@ -178,11 +179,14 @@ export async function listAssignableBeds(session: AdminSession, startDate?: stri
 
   const available: typeof allowed = [];
   for (const row of allowed) {
-    const ok = await isBedAvailable({
-      bedId: row.bedId,
-      startDate: from,
-      endDate: LONG_TERM_RESERVATION_END,
-    });
+    const ok = await isBedAvailable(
+      {
+        bedId: row.bedId,
+        startDate: from,
+        endDate: LONG_TERM_RESERVATION_END,
+      },
+      { ignoreManualOccupied: true },
+    );
     if (ok) available.push(row);
   }
   return available;

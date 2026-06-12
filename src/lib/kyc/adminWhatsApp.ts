@@ -52,6 +52,17 @@ export function publicSiteBaseUrl(): string {
   return getWatchdogBaseUrl();
 }
 
+/**
+ * Public site origin safe to use in client components (admin WhatsApp links).
+ * Prefer the live browser origin so KYC URLs always match awesomepg.in.
+ */
+export function clientPublicSiteBaseUrl(): string {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin.replace(/\/$/, '');
+  }
+  return publicSiteBaseUrl();
+}
+
 export function needsKycReminder(status: 'pending' | 'approved' | 'rejected'): boolean {
   return status === 'pending' || status === 'rejected';
 }
@@ -73,11 +84,6 @@ export function assignedResidentsNeedingKyc<
 
 export function openWhatsAppUrl(url: string): void {
   if (typeof window === 'undefined') return;
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.target = '_blank';
-  anchor.rel = 'noopener noreferrer';
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
+  // Direct navigation survives mobile popup blockers better than synthetic clicks.
+  window.location.assign(url);
 }

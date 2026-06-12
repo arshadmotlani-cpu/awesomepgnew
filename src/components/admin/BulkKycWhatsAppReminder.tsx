@@ -1,12 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { WhatsAppIcon } from '@/src/components/admin/AdminKycWhatsAppButton';
 import {
   assignedResidentsNeedingKyc,
   buildKycWhatsAppUrl,
+  clientPublicSiteBaseUrl,
   openWhatsAppUrl,
-  publicSiteBaseUrl,
 } from '@/src/lib/kyc/adminWhatsApp';
 import type { ResidentListRow } from '@/src/services/residentAdmin';
 
@@ -23,28 +23,33 @@ export function BulkKycWhatsAppReminder({ residents }: Props) {
   const total = queue.length;
   const done = index >= total;
 
+  const buildUrlFor = useCallback(
+    (person: (typeof queue)[number]) =>
+      buildKycWhatsAppUrl({
+        customerName: person.fullName,
+        phone: person.phone,
+        baseUrl: clientPublicSiteBaseUrl(),
+      }),
+    [],
+  );
+
   const currentUrl = useMemo(() => {
     if (!current) return null;
-    return buildKycWhatsAppUrl({
-      customerName: current.fullName,
-      phone: current.phone,
-      baseUrl: publicSiteBaseUrl(),
-    });
-  }, [current]);
+    return buildUrlFor(current);
+  }, [buildUrlFor, current]);
 
   const openCurrentWhatsApp = useCallback(() => {
     if (!currentUrl) return;
     openWhatsAppUrl(currentUrl);
   }, [currentUrl]);
 
-  useEffect(() => {
-    if (!open || done || !currentUrl) return;
-    openWhatsAppUrl(currentUrl);
-  }, [open, index, done, currentUrl]);
-
   if (total === 0) return null;
 
   function start() {
+    const first = queue[0];
+    if (!first) return;
+    const url = buildUrlFor(first);
+    if (url) openWhatsAppUrl(url);
     setIndex(0);
     setOpen(true);
   }
@@ -55,12 +60,16 @@ export function BulkKycWhatsAppReminder({ residents }: Props) {
   }
 
   function next() {
-    if (index + 1 >= total) {
+    const nextIndex = index + 1;
+    if (nextIndex >= total) {
       setOpen(false);
       setIndex(0);
       return;
     }
-    setIndex((i) => i + 1);
+    const person = queue[nextIndex];
+    const url = person ? buildUrlFor(person) : null;
+    if (url) openWhatsAppUrl(url);
+    setIndex(nextIndex);
   }
 
   return (
@@ -124,6 +133,25 @@ export function BulkKycWhatsAppReminder({ residents }: Props) {
                 ) : null}
                 <p className="mt-1 text-sm text-zinc-600">{current.phone}</p>
 
+                {currentUrl ? (
+                  <p className="mt-3 break-all text-xs text-zinc-500">
+                    KYC link:{' '}
+                    <a
+                      href={currentUrl}
+                      className="font-medium text-[#25D366] underline"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Open in WhatsApp
+                    </a>
+                  </p>
+                ) : (
+                  <p className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
+                    Could not build WhatsApp link — check this person&apos;s phone number is a valid
+                    Indian mobile (+91).
+                  </p>
+                )}
+
                 <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
                   WhatsApp should open with the KYC message ready. Tap <strong>Send</strong> in
                   WhatsApp, then come back and tap Next.
@@ -133,7 +161,8 @@ export function BulkKycWhatsAppReminder({ residents }: Props) {
                   <button
                     type="button"
                     onClick={openCurrentWhatsApp}
-                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-zinc-300 px-4 py-2.5 text-sm font-medium text-zinc-800 hover:bg-zinc-50"
+                    disabled={!currentUrl}
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-zinc-300 px-4 py-2.5 text-sm font-medium text-zinc-800 hover:bg-zinc-50 disabled:opacity-50"
                   >
                     <WhatsAppIcon className="h-4 w-4 text-[#25D366]" />
                     Open WhatsApp again

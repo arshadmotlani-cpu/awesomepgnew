@@ -3,8 +3,8 @@
 import type { ReactNode } from 'react';
 import {
   buildKycWhatsAppUrl,
+  clientPublicSiteBaseUrl,
   needsKycReminder,
-  publicSiteBaseUrl,
 } from '@/src/lib/kyc/adminWhatsApp';
 
 export { WhatsAppIcon };
@@ -36,9 +36,7 @@ export function AdminKycWhatsAppButton({
   baseUrl,
   className = '',
 }: Props) {
-  const origin =
-    baseUrl ??
-    (typeof window !== 'undefined' ? window.location.origin : publicSiteBaseUrl());
+  const origin = baseUrl ?? clientPublicSiteBaseUrl();
   const href = buildKycWhatsAppUrl({
     phone,
     customerName,

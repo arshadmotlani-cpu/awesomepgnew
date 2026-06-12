@@ -1,11 +1,9 @@
-import { readFile } from 'node:fs/promises';
-import path from 'node:path';
 import { NextResponse } from 'next/server';
 import { eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { kycSubmissions } from '@/src/db/schema';
 import { getAdminSession, getCustomerSession } from '@/src/lib/auth/session';
-import { resolveKycFilePath } from '@/src/lib/kyc/storage';
+import { readKycFileBytes } from '@/src/lib/kyc/storage';
 
 const KIND_TO_FIELD = {
   aadhaar_front: 'aadhaarFrontPath',
@@ -14,13 +12,6 @@ const KIND_TO_FIELD = {
 } as const;
 
 type Kind = keyof typeof KIND_TO_FIELD;
-
-const MIME: Record<string, string> = {
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  png: 'image/png',
-  webp: 'image/webp',
-};
 
 export async function GET(
   _request: Request,
@@ -50,22 +41,16 @@ export async function GET(
   }
 
   const relativePath = sub[KIND_TO_FIELD[kind]];
-  let absolutePath: string;
-  try {
-    absolutePath = resolveKycFilePath(relativePath);
-  } catch {
-    return NextResponse.json({ error: 'Invalid path.' }, { status: 400 });
-  }
 
   let bytes: Buffer;
+  let contentType: string;
   try {
-    bytes = await readFile(absolutePath);
+    const file = await readKycFileBytes(relativePath);
+    bytes = file.buffer;
+    contentType = file.mime;
   } catch {
     return NextResponse.json({ error: 'File missing.' }, { status: 404 });
   }
-
-  const ext = path.extname(absolutePath).slice(1).toLowerCase();
-  const contentType = MIME[ext] ?? 'application/octet-stream';
 
   return new NextResponse(new Uint8Array(bytes), {
     headers: {

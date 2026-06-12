@@ -225,6 +225,13 @@
       "when": 1785000000000,
       "tag": "0032_bed_manual_reserved",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1785100000000,
+      "tag": "0033_kyc_submission_files",
+      "breakpoints": true
     }
   ]
 }

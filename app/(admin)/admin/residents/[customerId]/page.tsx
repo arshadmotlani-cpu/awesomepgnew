@@ -36,7 +36,7 @@ export default async function ResidentDetailPage({
   const assignableRows = await listAssignableBeds(session);
   const bedOptions = assignableRows.map((b) => ({
     bedId: b.bedId,
-    label: `${b.pgName} · Room ${b.roomNumber} · ${b.bedCode}`,
+    label: `${b.pgName} · Room ${b.roomNumber} · ${b.bedCode}${b.manualOccupied ? ' · marked occupied' : ''}`,
   }));
 
   if (activeTenancy) {

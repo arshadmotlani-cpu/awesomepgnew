@@ -27,7 +27,7 @@ export default async function AssignTenantPage({
 
   const beds = bedRows.map((b) => ({
     bedId: b.bedId,
-    label: `${b.pgName} · Room ${b.roomNumber} · ${b.bedCode}`,
+    label: `${b.pgName} · Room ${b.roomNumber} · ${b.bedCode}${b.manualOccupied ? ' · marked occupied' : ''}`,
     monthlyRatePaise: b.monthlyRatePaise,
     depositPaise: b.depositPaise,
   }));

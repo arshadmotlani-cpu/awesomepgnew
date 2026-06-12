@@ -25,6 +25,7 @@ export * from './authSessions';
 export * from './emailOtpChallenges';
 export * from './emailOtpAttemptLog';
 export * from './kycSubmissions';
+export * from './kycSubmissionFiles';
 export * from './appLogs';
 export * from './systemHealth';
 export * from './deployments';
