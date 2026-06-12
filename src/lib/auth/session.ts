@@ -9,6 +9,7 @@ import {
   CUSTOMER_SESSION_COOKIE,
 } from './constants';
 import { normaliseIndianPhone } from '@/src/lib/phone';
+import { hasDatabaseUrl } from '@/src/lib/db/env';
 import { randomToken, sha256 } from './crypto';
 
 export type CustomerSession = {
@@ -98,82 +99,101 @@ async function readSessionByCookie(
   cookieName: string,
   kind: 'customer' | 'admin',
 ): Promise<{ sessionId: string; subjectId: string; expiresAt: Date } | null> {
+  if (!hasDatabaseUrl()) return null;
   const jar = await cookies();
   const token = jar.get(cookieName)?.value;
   if (!token) return null;
-  const [row] = await db
-    .select({
-      sessionId: authSessions.id,
-      subjectId: authSessions.subjectId,
-      expiresAt: authSessions.expiresAt,
-    })
-    .from(authSessions)
-    .where(
-      and(
-        eq(authSessions.kind, kind),
-        eq(authSessions.tokenHash, sha256(token)),
-        gt(authSessions.expiresAt, new Date()),
-      ),
-    )
-    .limit(1);
-  return row ?? null;
+  try {
+    const [row] = await db
+      .select({
+        sessionId: authSessions.id,
+        subjectId: authSessions.subjectId,
+        expiresAt: authSessions.expiresAt,
+      })
+      .from(authSessions)
+      .where(
+        and(
+          eq(authSessions.kind, kind),
+          eq(authSessions.tokenHash, sha256(token)),
+          gt(authSessions.expiresAt, new Date()),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[auth] ${kind} session lookup failed:`, message);
+    return null;
+  }
 }
 
 /** Per-request dedupe — layout + page may both need the session. */
 export const getCustomerSession = cache(async (): Promise<CustomerSession | null> => {
   const base = await readSessionByCookie(CUSTOMER_SESSION_COOKIE, 'customer');
   if (!base) return null;
-  const [customer] = await db
-    .select({
-      id: customers.id,
-      phone: customers.phone,
-      fullName: customers.fullName,
-      email: customers.email,
-    })
-    .from(customers)
-    .where(eq(customers.id, base.subjectId))
-    .limit(1);
-  if (!customer) return null;
-  return {
-    kind: 'customer',
-    sessionId: base.sessionId,
-    customerId: customer.id,
-    phone: normaliseIndianPhone(customer.phone) ?? customer.phone,
-    fullName: customer.fullName,
-    email: customer.email,
-    expiresAt: base.expiresAt,
-  };
+  try {
+    const [customer] = await db
+      .select({
+        id: customers.id,
+        phone: customers.phone,
+        fullName: customers.fullName,
+        email: customers.email,
+      })
+      .from(customers)
+      .where(eq(customers.id, base.subjectId))
+      .limit(1);
+    if (!customer) return null;
+    return {
+      kind: 'customer',
+      sessionId: base.sessionId,
+      customerId: customer.id,
+      phone: normaliseIndianPhone(customer.phone) ?? customer.phone,
+      fullName: customer.fullName,
+      email: customer.email,
+      expiresAt: base.expiresAt,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[auth] customer profile lookup failed:', message);
+    return null;
+  }
 });
 
 /** Per-request dedupe — admin shell may read session from multiple server components. */
 export const getAdminSession = cache(async (): Promise<AdminSession | null> => {
   const base = await readSessionByCookie(ADMIN_SESSION_COOKIE, 'admin');
   if (!base) return null;
-  const [admin] = await db
-    .select({
-      id: adminUsers.id,
-      email: adminUsers.email,
-      fullName: adminUsers.fullName,
-      role: adminUsers.role,
-      pgScope: adminUsers.pgScope,
-      isActive: adminUsers.isActive,
-      mustChangePassword: adminUsers.mustChangePassword,
-    })
-    .from(adminUsers)
-    .where(eq(adminUsers.id, base.subjectId))
-    .limit(1);
-  if (!admin || !admin.isActive) return null;
-  return {
-    kind: 'admin',
-    sessionId: base.sessionId,
-    adminId: admin.id,
-    email: admin.email,
-    fullName: admin.fullName,
-    role: admin.role,
-    pgScope: admin.pgScope ?? [],
-    mustChangePassword: admin.mustChangePassword,
-    expiresAt: base.expiresAt,
-  };
+  try {
+    const [admin] = await db
+      .select({
+        id: adminUsers.id,
+        email: adminUsers.email,
+        fullName: adminUsers.fullName,
+        role: adminUsers.role,
+        pgScope: adminUsers.pgScope,
+        isActive: adminUsers.isActive,
+        mustChangePassword: adminUsers.mustChangePassword,
+      })
+      .from(adminUsers)
+      .where(eq(adminUsers.id, base.subjectId))
+      .limit(1);
+    if (!admin || !admin.isActive) return null;
+    return {
+      kind: 'admin',
+      sessionId: base.sessionId,
+      adminId: admin.id,
+      email: admin.email,
+      fullName: admin.fullName,
+      role: admin.role,
+      pgScope: admin.pgScope ?? [],
+      mustChangePassword: admin.mustChangePassword,
+      expiresAt: base.expiresAt,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[auth] admin profile lookup failed:', message);
+    return null;
+  }
 });
 
 export async function destroyCustomerSession(): Promise<void> {
