@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { trackClientEvent } from '@/src/lib/analytics/client';
 import { addDays, formatDate, todayString } from '@/src/lib/dates';
 import {
   defaultCheckOutDate,
@@ -208,6 +209,7 @@ export function BedBookingPanel({
     params.set('end', checkout);
     params.set('mode', mode);
     for (const bed of beds) params.append('bed', bed.bedId);
+    void trackClientEvent('bed_selected', { bedCount: beds.length });
     router.push(`/booking/new?${params.toString()}`);
   }
 

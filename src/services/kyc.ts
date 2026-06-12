@@ -14,6 +14,7 @@ import {
   storeKycFile,
 } from '@/src/lib/kyc/storage';
 import { stampProfileCompletedAtIfReady } from './profile';
+import { trackAnalyticsEvent } from './visitorAnalytics';
 import { validateKycImage, type KycImageKind } from './kycValidation';
 
 export type KycUploadInput = {
@@ -118,6 +119,8 @@ export async function submitKyc(input: KycUploadInput) {
       .where(eq(customers.id, input.customerId));
 
     await stampProfileCompletedAtIfReady(input.customerId, now);
+
+    void trackAnalyticsEvent({ eventType: 'kyc_submitted' });
 
     await db.insert(auditLog).values({
       actorType: 'customer',

@@ -9,6 +9,7 @@ import { isPs4PlanId } from '@/src/lib/playstation/plans';
 import { getCustomerSession } from '@/src/lib/auth/session';
 import { indianPhonesEqual, normaliseIndianPhone } from '@/src/lib/phone';
 import { getCustomerById, isProfileComplete } from '@/src/services/profile';
+import { trackAnalyticsEvent } from '@/src/services/visitorAnalytics';
 
 /**
  * The single mutating entry point for the customer cart.
@@ -131,6 +132,11 @@ export async function createBookingAction(
       conflictBedIds: result.conflictBedIds,
     };
   }
+
+  void trackAnalyticsEvent({
+    eventType: 'booking_started',
+    metadata: { bedCount: bedIds.length, durationMode },
+  });
 
   if (ps4PlanRaw && isPs4PlanId(ps4PlanRaw)) {
     const { getBedsForCart } = await import('@/src/db/queries/customer');

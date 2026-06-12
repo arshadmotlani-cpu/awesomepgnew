@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { AdminOverviewKpiRow } from '@/src/components/admin/AdminOverviewKpiRow';
+import { VisitorAnalyticsDashboard } from '@/src/components/admin/VisitorAnalyticsDashboard';
 import { OverviewMonthPicker } from '@/src/components/admin/OverviewMonthPicker';
 import {
   OverviewFinancialPanels,
@@ -25,6 +27,10 @@ import {
   getPgBusinessMetrics,
   listPgs,
 } from '@/src/db/queries/admin';
+import {
+  getAdminOverviewKpis,
+  getVisitorCountSummary,
+} from '@/src/services/visitorAnalytics';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -54,10 +60,26 @@ export default async function DashboardPage({
 
   const billingMonth = resolveBillingMonth(sp.month);
 
-  const [summary, metrics, pgs] = await Promise.all([
+  const [summary, metrics, pgs, visitors, overviewKpis] = await Promise.all([
     getBusinessMetricsSummary(billingMonth),
     getPgBusinessMetrics(billingMonth),
     listPgs(),
+    getVisitorCountSummary().catch(() => ({
+      today: 0,
+      week: 0,
+      month: 0,
+      allTime: 0,
+    })),
+    getAdminOverviewKpis(billingMonth).catch(() => ({
+      totalVisitorsAllTime: 0,
+      activeTenants: 0,
+      bedsOccupied: 0,
+      bedsAvailable: 0,
+      pendingKyc: 0,
+      pendingPayments: 0,
+      todayRevenuePaise: 0,
+      monthlyRevenuePaise: 0,
+    })),
   ]);
 
   if (!summary.ok) {
@@ -106,6 +128,14 @@ export default async function DashboardPage({
           now reflect only real charges.
         </div>
       ) : null}
+
+      <div className="mb-6 space-y-6">
+        <AdminOverviewKpiRow kpis={overviewKpis} visitors={visitors} />
+        <VisitorAnalyticsDashboard
+          initialVisitors={visitors}
+          billingMonth={billingMonth}
+        />
+      </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <OverviewStatCard

@@ -407,6 +407,27 @@ export async function recordPaymentSuccess(
       reference: booking.bookingCode,
     });
 
+    const { trackAnalyticsEvent } = await import('./visitorAnalytics');
+    void trackAnalyticsEvent({ eventType: 'payment_completed' });
+    if (!isReserveBooking) {
+      const today = new Date().toISOString().slice(0, 10);
+      const [stayRow] = await db
+        .select({
+          checkIn: sql<string>`lower(${bedReservations.stayRange})::date::text`,
+        })
+        .from(bedReservations)
+        .where(
+          and(
+            eq(bedReservations.bookingId, booking.id),
+            eq(bedReservations.kind, 'primary'),
+          ),
+        )
+        .limit(1);
+      if (stayRow?.checkIn && stayRow.checkIn <= today) {
+        void trackAnalyticsEvent({ eventType: 'check_in_completed' });
+      }
+    }
+
     return {
       ok: true,
       paymentId: result.paymentId,

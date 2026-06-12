@@ -9,6 +9,7 @@ import { RoomDetailInsights } from '@/src/components/customer/RoomDetailInsights
 import { getRoomDetail } from '@/src/db/queries/customer';
 import { getCustomerSession } from '@/src/lib/auth/session';
 import { getRoomActivityStats, recordRoomPageView } from '@/src/services/roomActivity';
+import { trackAnalyticsEvent } from '@/src/services/visitorAnalytics';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,6 +46,10 @@ export default async function RoomDetailPage(
     customerId: session?.customerId ?? null,
     ip: reqHeaders.get('x-forwarded-for') ?? reqHeaders.get('x-real-ip'),
     userAgent: reqHeaders.get('user-agent'),
+  });
+  void trackAnalyticsEvent({
+    eventType: 'room_viewed',
+    metadata: { roomId: room.roomId, pgSlug },
   });
 
   const beds: BedSelectorBed[] = room.beds.map((b) => ({
