@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo, useState, type ReactNode } from 'react';
+import { AdminKycStatusWithWhatsApp } from '@/src/components/admin/AdminKycWhatsAppButton';
 import { AdminVacatingSubmitForm } from '@/src/components/admin/AdminVacatingSubmitForm';
 import { BedMapMoveForm } from '@/src/components/admin/BedMapMoveForm';
 import { BedMapReservationForm } from '@/src/components/admin/BedMapReservationForm';
@@ -152,9 +153,16 @@ function BedDetailPanel({
                 {formatDate(person.moveInDate)} · {paiseToInr(person.monthlyRentPaise)}/mo
               </p>
               <p className="mt-1">
-                <Badge tone={toneForStatus(person.kycStatus)}>
-                  KYC {titleCase(person.kycStatus)}
-                </Badge>
+                <AdminKycStatusWithWhatsApp
+                  kycStatus={person.kycStatus}
+                  phone={person.customerPhone}
+                  customerName={person.customerName}
+                  badge={
+                    <Badge tone={toneForStatus(person.kycStatus)}>
+                      KYC {titleCase(person.kycStatus)}
+                    </Badge>
+                  }
+                />
               </p>
             </section>
 

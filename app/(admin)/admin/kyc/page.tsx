@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { AdminKycStatusWithWhatsApp } from '@/src/components/admin/AdminKycWhatsAppButton';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { EmptyState } from '@/src/components/admin/EmptyState';
 import { IconUsers } from '@/src/components/admin/icons';
@@ -45,7 +46,14 @@ export default async function AdminKycPage() {
                 <TD>{r.customerEmail}</TD>
                 <TD>{formatDateTime(r.createdAt)}</TD>
                 <TD>
-                  <Badge tone={toneForStatus(r.status)}>{titleCase(r.status)}</Badge>
+                  <AdminKycStatusWithWhatsApp
+                    kycStatus="pending"
+                    phone={r.customerPhone}
+                    customerName={r.customerName}
+                    badge={
+                      <Badge tone={toneForStatus(r.status)}>{titleCase(r.status)}</Badge>
+                    }
+                  />
                 </TD>
                 <TD className="text-right">
                   <Link

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
+import { AdminKycStatusWithWhatsApp } from '@/src/components/admin/AdminKycWhatsAppButton';
 import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
 import { formatDateTime, titleCase } from '@/src/lib/format';
 import type { ResidentListRow } from '@/src/services/residentAdmin';
@@ -78,7 +79,14 @@ export function ResidentsTable({ residents }: { residents: ResidentListRow[] }) 
                 </TD>
                 <TD>{r.phone}</TD>
                 <TD>
-                  <Badge tone={toneForStatus(r.kycStatus)}>{titleCase(r.kycStatus)}</Badge>
+                  <AdminKycStatusWithWhatsApp
+                    kycStatus={r.kycStatus}
+                    phone={r.phone}
+                    customerName={r.fullName}
+                    badge={
+                      <Badge tone={toneForStatus(r.kycStatus)}>{titleCase(r.kycStatus)}</Badge>
+                    }
+                  />
                 </TD>
                 <TD>{formatDateTime(new Date(r.createdAt))}</TD>
                 <TD className="text-right">

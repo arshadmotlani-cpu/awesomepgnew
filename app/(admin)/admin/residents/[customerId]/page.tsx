@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { AdminKycStatusWithWhatsApp } from '@/src/components/admin/AdminKycWhatsAppButton';
 import { ArchiveResidentButton } from '@/src/components/admin/ArchiveResidentButton';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { EditTenantTenancyForm } from '@/src/components/admin/EditTenantTenancyForm';
@@ -104,7 +105,16 @@ export default async function ResidentDetailPage({
         <div className="rounded-xl border border-zinc-200 bg-white p-4">
           <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">KYC</p>
           <p className="mt-1">
-            <Badge tone={toneForStatus(customer.kycStatus)}>{titleCase(customer.kycStatus)}</Badge>
+            <AdminKycStatusWithWhatsApp
+              kycStatus={customer.kycStatus}
+              phone={customer.phone}
+              customerName={customer.fullName}
+              badge={
+                <Badge tone={toneForStatus(customer.kycStatus)}>
+                  {titleCase(customer.kycStatus)}
+                </Badge>
+              }
+            />
           </p>
         </div>
         <div className="rounded-xl border border-zinc-200 bg-white p-4">
