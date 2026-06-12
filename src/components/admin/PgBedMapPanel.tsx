@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo, useState, type ReactNode } from 'react';
+import { BedMapManualOccupiedToggle } from '@/src/components/admin/BedMapManualOccupiedToggle';
 import { AdminKycStatusWithWhatsApp } from '@/src/components/admin/AdminKycWhatsAppButton';
 import { AdminVacatingSubmitForm } from '@/src/components/admin/AdminVacatingSubmitForm';
 import { BedMapMoveForm } from '@/src/components/admin/BedMapMoveForm';
@@ -129,8 +130,14 @@ function BedDetailPanel({
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Badge tone={bed.isOccupiedToday ? 'emerald' : bed.reserved ? 'violet' : 'zinc'}>
-            {bed.isOccupiedToday ? 'Living here' : bed.reserved ? 'Reserved' : titleCase(bed.bedStatus)}
+          <Badge tone={bed.isOccupiedToday ? 'emerald' : bed.manualOccupied ? 'zinc' : bed.reserved ? 'violet' : 'zinc'}>
+            {bed.isOccupiedToday
+              ? 'Living here'
+              : bed.manualOccupied
+                ? 'Occupied'
+                : bed.reserved
+                  ? 'Reserved'
+                  : titleCase(bed.bedStatus)}
           </Badge>
           {bed.vacating ? (
             <Badge tone="amber">Vacating {formatDate(bed.vacating.vacatingDate)}</Badge>
@@ -245,12 +252,24 @@ function BedDetailPanel({
         ) : (
           <>
             <p className="text-sm text-apg-silver">
-              Bed is open — assign a tenant or mark as reserved for someone who has not moved in yet.
+              {bed.manualOccupied
+                ? 'Bed is marked occupied — customers cannot book it. Open it again when you want it listed.'
+                : 'Bed is open — assign a tenant or mark as reserved for someone who has not moved in yet.'}
             </p>
+            {bed.bedStatus === 'available' ? (
+              <BedMapManualOccupiedToggle
+                pgId={pgId}
+                bedId={bed.bedId}
+                bedCode={bed.bedCode}
+                manualOccupied={bed.manualOccupied}
+              />
+            ) : null}
             <nav className="grid gap-2">
-              <ActionLink href={`/admin/bookings/new?bedId=${bed.bedId}`}>
-                Assign / reserve tenant
-              </ActionLink>
+              {!bed.manualOccupied ? (
+                <ActionLink href={`/admin/bookings/new?bedId=${bed.bedId}`}>
+                  Assign / reserve tenant
+                </ActionLink>
+              ) : null}
               <ActionLink href={`/admin/pgs/${pgId}/rooms`}>Edit room & pricing</ActionLink>
             </nav>
           </>

@@ -1,4 +1,4 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { auditLog, beds, bedReservations, bookings, floors, pgs, rooms } from '@/src/db/schema';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
@@ -134,4 +134,72 @@ export async function updateBedInventoryStatus(
       to: status,
     },
   });
+}
+
+export async function setBedManualOccupied(
+  session: AdminSession,
+  bedId: string,
+  occupied: boolean,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await assertBedAccess(session, bedId);
+
+    const [bed] = await db
+      .select({
+        status: beds.status,
+        bedCode: beds.bedCode,
+        manualOccupied: beds.manualOccupied,
+        pgName: pgs.name,
+      })
+      .from(beds)
+      .innerJoin(rooms, eq(rooms.id, beds.roomId))
+      .innerJoin(floors, eq(floors.id, rooms.floorId))
+      .innerJoin(pgs, eq(pgs.id, floors.pgId))
+      .where(and(eq(beds.id, bedId), isNull(beds.archivedAt)))
+      .limit(1);
+    if (!bed) return { ok: false, error: 'Bed not found.' };
+
+    if (occupied) {
+      if (bed.status !== 'available') {
+        return { ok: false, error: 'Only available beds can be marked occupied.' };
+      }
+      const [live] = await db
+        .select({ id: bedReservations.id })
+        .from(bedReservations)
+        .where(
+          and(
+            eq(bedReservations.bedId, bedId),
+            sql`${bedReservations.status} IN ('hold', 'active')`,
+            sql`CURRENT_DATE <@ ${bedReservations.stayRange}`,
+          ),
+        )
+        .limit(1);
+      if (live) {
+        return { ok: false, error: 'This bed already has a booking or resident.' };
+      }
+    }
+
+    await db
+      .update(beds)
+      .set({ manualOccupied: occupied, updatedAt: new Date() })
+      .where(eq(beds.id, bedId));
+
+    await db.insert(auditLog).values({
+      actorType: 'admin',
+      actorId: session.adminId,
+      entity: 'bed',
+      entityId: bedId,
+      action: occupied ? 'manual_occupied_set' : 'manual_occupied_cleared',
+      diff: {
+        pgName: bed.pgName,
+        bedCode: bed.bedCode,
+        from: bed.manualOccupied,
+        to: occupied,
+      },
+    });
+
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
 }

@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, uniqueIndex, uuid, boolean } from 'drizzle-orm/pg-core';
 import { bedStatusEnum } from './enums';
 import { rooms } from './rooms';
 
@@ -12,6 +12,8 @@ export const beds = pgTable(
       .references(() => rooms.id, { onDelete: 'restrict' }),
     bedCode: text('bed_code').notNull(),
     status: bedStatusEnum('status').notNull().default('available'),
+    /** When true, bed shows as occupied on admin + customer maps until cleared. */
+    manualOccupied: boolean('manual_occupied').notNull().default(false),
     notes: text('notes'),
     archivedAt: timestamp('archived_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

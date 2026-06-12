@@ -14,6 +14,7 @@ function bedAvailability(bed: BedSelectorBed) {
   return deriveCustomerBedAvailabilityView({
     bedStatus: bed.status,
     isAvailableNow: bed.isAvailableNow,
+    manualOccupied: bed.manualOccupied,
     nextAvailableDate: bed.nextAvailableDate,
     vacatingDate: bed.vacatingDate,
     vacatingStatus: bed.vacatingStatus,
@@ -25,6 +26,7 @@ function bedAvailability(bed: BedSelectorBed) {
 }
 
 export function canBookBed(bed: BedSelectorBed): boolean {
+  if (bed.manualOccupied) return false;
   const bookableFrom = customerBookableFromDate(bed.nextAvailableDate);
   return (
     bed.status === 'available' &&

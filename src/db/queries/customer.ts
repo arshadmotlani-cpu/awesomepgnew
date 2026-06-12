@@ -136,6 +136,7 @@ export function listPublicPgs(): Promise<QueryResult<CustomerPgListRow[]>> {
             AND r.archived_at IS NULL
             AND f.archived_at IS NULL
             AND b.status = 'available'
+            AND NOT b.manual_occupied
             AND NOT EXISTS (
               SELECT 1 FROM ${bedReservations} br
               WHERE br.bed_id = b.id
@@ -283,6 +284,7 @@ export function listRoomsForPg(
           WHERE b.room_id = rooms.id
             AND b.archived_at IS NULL
             AND b.status = 'available'
+            AND NOT b.manual_occupied
             AND NOT EXISTS (
               SELECT 1 FROM ${bedReservations} br
               WHERE br.bed_id = b.id
@@ -413,11 +415,14 @@ export function getRoomDetail(
         bedId: beds.id,
         bedCode: beds.bedCode,
         status: beds.status,
+        manualOccupied: beds.manualOccupied,
         // Correlated references to the outer `beds.id` / `beds.status` are
         // qualified literals to avoid the ambiguity bug — see the note in
         // listPublicPgs above.
         isAvailableNow: sql<boolean>`(
-          beds.status = 'available' AND NOT EXISTS (
+          beds.status = 'available'
+          AND NOT beds.manual_occupied
+          AND NOT EXISTS (
             SELECT 1 FROM ${bedReservations} br
             WHERE br.bed_id = beds.id
               AND br.status = 'active'

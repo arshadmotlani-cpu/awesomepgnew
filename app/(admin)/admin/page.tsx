@@ -4,7 +4,8 @@ import {
   OverviewFinancialPanels,
   PgBusinessMetricsTable,
 } from '@/src/components/admin/PgBusinessMetricsTable';
-import { buildDonutSlices, PgIncomeDonutChart } from '@/src/components/admin/PgIncomeDonutChart';
+import { buildDonutSlices } from '@/src/lib/pgIncomeDonut';
+import { PgIncomeDonutChart } from '@/src/components/admin/PgIncomeDonutChart';
 import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import { OverviewStatCard } from '@/src/components/admin/OverviewStatCard';
 import { PageHeader } from '@/src/components/admin/PageHeader';

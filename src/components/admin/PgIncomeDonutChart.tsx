@@ -1,25 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { asPlainNumber, paiseToInr } from '@/src/lib/format';
+import { paiseToInr } from '@/src/lib/format';
+import {
+  PG_INCOME_DONUT_PALETTE,
+  type DonutSlice,
+} from '@/src/lib/pgIncomeDonut';
 
-export type DonutSlice = {
-  pgId: string;
-  pgName: string;
-  valuePaise: number;
-  color: string;
-};
-
-const PALETTE = [
-  '#FF5A1F',
-  '#22d3ee',
-  '#a78bfa',
-  '#34d399',
-  '#fbbf24',
-  '#f472b6',
-  '#60a5fa',
-  '#fb923c',
-];
+export type { DonutSlice };
 
 function polar(cx: number, cy: number, r: number, angleDeg: number) {
   const rad = ((angleDeg - 90) * Math.PI) / 180;
@@ -73,7 +61,7 @@ export function PgIncomeDonutChart({
       ...slice,
       d: arcPath(120, 120, 100, 62, start, end),
       pct: Math.round((slice.valuePaise / total) * 1000) / 10,
-      color: slice.color || PALETTE[i % PALETTE.length],
+      color: slice.color || PG_INCOME_DONUT_PALETTE[i % PG_INCOME_DONUT_PALETTE.length],
     };
   });
 
@@ -130,15 +118,4 @@ export function PgIncomeDonutChart({
       </div>
     </div>
   );
-}
-
-export function buildDonutSlices(
-  rows: Array<{ pgId: string; pgName: string; incomeTotalPaise: number }>,
-): DonutSlice[] {
-  return rows.map((row, i) => ({
-    pgId: row.pgId,
-    pgName: row.pgName,
-    valuePaise: asPlainNumber(row.incomeTotalPaise),
-    color: PALETTE[i % PALETTE.length],
-  }));
 }

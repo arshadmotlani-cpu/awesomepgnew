@@ -174,11 +174,15 @@ export async function isBedAvailable(input: IsBedAvailableInput): Promise<boolea
   const end = formatDate(parseDate(input.endDate));
 
   const [bed] = await db
-    .select({ status: beds.status, archivedAt: beds.archivedAt })
+    .select({
+      status: beds.status,
+      manualOccupied: beds.manualOccupied,
+      archivedAt: beds.archivedAt,
+    })
     .from(beds)
     .where(eq(beds.id, input.bedId))
     .limit(1);
-  if (!bed || bed.archivedAt || bed.status !== 'available') return false;
+  if (!bed || bed.archivedAt || bed.status !== 'available' || bed.manualOccupied) return false;
 
   const [conflict] = await db
     .select({ id: bedReservations.id })
@@ -211,11 +215,15 @@ export async function getNextAvailableDate(input: NextAvailableInput): Promise<s
   const windowEnd = addDays(windowStart, lookAhead);
 
   const [bed] = await db
-    .select({ status: beds.status, archivedAt: beds.archivedAt })
+    .select({
+      status: beds.status,
+      manualOccupied: beds.manualOccupied,
+      archivedAt: beds.archivedAt,
+    })
     .from(beds)
     .where(eq(beds.id, input.bedId))
     .limit(1);
-  if (!bed || bed.archivedAt || bed.status !== 'available') return null;
+  if (!bed || bed.archivedAt || bed.status !== 'available' || bed.manualOccupied) return null;
 
   const busy = await loadBusyRanges(input.bedId, windowStart, windowEnd);
   const free = computeFreeWindows(busy, windowStart, windowEnd);
@@ -240,11 +248,15 @@ export async function getAvailableDateRanges(
   const windowEnd = addDays(windowStart, lookAhead);
 
   const [bed] = await db
-    .select({ status: beds.status, archivedAt: beds.archivedAt })
+    .select({
+      status: beds.status,
+      manualOccupied: beds.manualOccupied,
+      archivedAt: beds.archivedAt,
+    })
     .from(beds)
     .where(eq(beds.id, input.bedId))
     .limit(1);
-  if (!bed || bed.archivedAt || bed.status !== 'available') return [];
+  if (!bed || bed.archivedAt || bed.status !== 'available' || bed.manualOccupied) return [];
 
   const busy = await loadBusyRanges(input.bedId, windowStart, windowEnd);
   return computeFreeWindows(busy, windowStart, windowEnd);

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { deriveCustomerBedAvailabilityView } from '../../src/lib/bedAvailabilityState';
+import { deriveBedAvailabilityView, deriveCustomerBedAvailabilityView } from '../../src/lib/bedAvailabilityState';
 import { customerBookableFromDate, isOpenEndedStayEnd } from '../../src/lib/dates';
 
 test('isOpenEndedStayEnd treats 2099 sentinel as open-ended', () => {
@@ -53,4 +53,24 @@ test('notice period still wins over open-ended stay end', () => {
   });
   assert.equal(view.kind, 'notice');
   assert.equal(view.label, 'Notice period');
+});
+
+test('manual occupied shows Occupied on admin and customer maps', () => {
+  const admin = deriveBedAvailabilityView({
+    bedStatus: 'available',
+    manualOccupied: true,
+    isOccupiedToday: false,
+    isAvailableNow: false,
+  });
+  assert.equal(admin.kind, 'occupied');
+  assert.equal(admin.label, 'Occupied');
+  assert.match(admin.sublabel ?? '', /not on website/);
+
+  const customer = deriveCustomerBedAvailabilityView({
+    bedStatus: 'available',
+    manualOccupied: true,
+    isAvailableNow: false,
+  });
+  assert.equal(customer.kind, 'occupied');
+  assert.equal(customer.label, 'Occupied');
 });

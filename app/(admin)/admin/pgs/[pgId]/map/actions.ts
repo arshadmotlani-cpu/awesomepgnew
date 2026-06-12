@@ -95,3 +95,23 @@ export async function activateReservationAction(
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
+
+export async function setBedManualOccupiedAction(
+  bedId: string,
+  pgId: string,
+  occupied: boolean,
+): Promise<MapActionState> {
+  try {
+    const session = await requireAdminPermission('bookings:write');
+    const { setBedManualOccupied } = await import('@/src/services/bookingAdminOps');
+    const result = await setBedManualOccupied(session, bedId, occupied);
+    if (!result.ok) return result;
+
+    revalidatePath('/admin/pgs');
+    revalidatePath(`/admin/pgs/${pgId}/map`);
+    revalidatePath('/pgs');
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}

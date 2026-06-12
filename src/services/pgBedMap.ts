@@ -37,6 +37,7 @@ export type PgBedMapBed = {
   bedStatus: 'available' | 'maintenance' | 'blocked';
   isOccupiedToday: boolean;
   isAvailableNow: boolean;
+  manualOccupied: boolean;
   occupant: PgBedMapOccupant | null;
   reserved: PgBedMapOccupant | null;
   reservedFrom: string | null;
@@ -90,6 +91,7 @@ type RawRow = {
   bed_id: string;
   bed_code: string;
   bed_status: 'available' | 'maintenance' | 'blocked';
+  manual_occupied: boolean;
   customer_id: string | null;
   customer_name: string | null;
   customer_phone: string | null;
@@ -174,8 +176,12 @@ function buildBed(row: RawRow): PgBedMapBed {
       : null;
 
   const isOccupiedToday = occupant !== null;
+  const manualOccupied = Boolean(row.manual_occupied);
   const isAvailableNow =
-    row.bed_status === 'available' && !isOccupiedToday && !reserved;
+    row.bed_status === 'available' &&
+    !isOccupiedToday &&
+    !reserved &&
+    !manualOccupied;
   const preBookableFrom =
     vacating?.status === 'approved'
       ? vacating.vacatingDate
@@ -187,6 +193,7 @@ function buildBed(row: RawRow): PgBedMapBed {
     bedStatus: row.bed_status,
     isOccupiedToday,
     isAvailableNow,
+    manualOccupied,
     vacatingDate: vacating?.vacatingDate,
     vacatingStatus: vacating?.status,
     preBookableFrom,
@@ -202,6 +209,7 @@ function buildBed(row: RawRow): PgBedMapBed {
     bedStatus: row.bed_status,
     isOccupiedToday,
     isAvailableNow,
+    manualOccupied,
     occupant,
     reserved,
     reservedFrom: row.reserved_from,
@@ -236,6 +244,7 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
       b.id::text AS bed_id,
       b.bed_code,
       b.status AS bed_status,
+      b.manual_occupied,
       occ.customer_id::text,
       occ.customer_name,
       occ.customer_phone,
@@ -396,7 +405,7 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
   const allBeds = floors.flatMap((f) => f.rooms.flatMap((r) => r.beds));
   const summary: PgBedMapSummary = {
     totalBeds: allBeds.length,
-    occupiedBeds: allBeds.filter((b) => b.isOccupiedToday).length,
+    occupiedBeds: allBeds.filter((b) => b.isOccupiedToday || b.manualOccupied).length,
     openNowBeds: allBeds.filter((b) => b.isAvailableNow).length,
     reservedBeds: allBeds.filter((b) => b.reserved && !b.isOccupiedToday).length,
     maintenanceBeds: allBeds.filter((b) => b.bedStatus === 'maintenance').length,

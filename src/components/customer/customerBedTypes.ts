@@ -2,6 +2,7 @@ export type BedSelectorBed = {
   bedId: string;
   bedCode: string;
   status: 'available' | 'maintenance' | 'blocked';
+  manualOccupied?: boolean;
   isAvailableNow: boolean;
   nextAvailableDate: string | null;
   interestCount?: number;

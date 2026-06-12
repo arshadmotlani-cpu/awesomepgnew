@@ -26,6 +26,7 @@ export type CustomerBedAvailabilityView = {
 
 export function deriveBedAvailabilityView(input: {
   bedStatus: 'available' | 'maintenance' | 'blocked';
+  manualOccupied?: boolean;
   isOccupiedToday: boolean;
   isAvailableNow?: boolean;
   vacatingDate?: string | null;
@@ -43,6 +44,14 @@ export function deriveBedAvailabilityView(input: {
   }
   if (input.bedStatus === 'blocked') {
     return { kind: 'blocked', label: 'Blocked' };
+  }
+
+  if (input.manualOccupied && !input.isOccupiedToday) {
+    return {
+      kind: 'occupied',
+      label: 'Occupied',
+      sublabel: 'Marked occupied · not on website',
+    };
   }
 
   if (input.reservedFrom && !input.isOccupiedToday) {
@@ -109,6 +118,7 @@ export function deriveBedAvailabilityView(input: {
 export function deriveCustomerBedAvailabilityView(input: {
   bedStatus: 'available' | 'maintenance' | 'blocked';
   isAvailableNow: boolean;
+  manualOccupied?: boolean;
   nextAvailableDate?: string | null;
   vacatingDate?: string | null;
   vacatingStatus?: 'pending' | 'approved' | null;
@@ -122,6 +132,10 @@ export function deriveCustomerBedAvailabilityView(input: {
   }
   if (input.bedStatus === 'blocked') {
     return { kind: 'blocked', label: 'Unavailable' };
+  }
+
+  if (input.manualOccupied) {
+    return { kind: 'occupied', label: 'Occupied' };
   }
 
   if (input.reservedFrom) {
