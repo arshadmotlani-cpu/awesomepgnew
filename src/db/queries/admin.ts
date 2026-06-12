@@ -832,6 +832,16 @@ export type PgBusinessMetrics = OccupancyByPg & {
   incomeTotalPaise: number;
   /** Sum of monthly bed rates for beds occupied today (expected rent). */
   expectedMonthlyRentPaise: number;
+  /** Rent late fees collected (extra income). */
+  lateFeePaise: number;
+  /** 5-day vacating penalties kept from deposit (pure profit). */
+  vacatingDeductionPaise: number;
+  /** Other deposit deductions — damages, admin charges, etc. */
+  otherDeductionPaise: number;
+  /** Distinct bookings with a deposit refund issued this month. */
+  depositRefundsCount: number;
+  /** Cash returned to residents from deposits this month. */
+  depositRefundsPaise: number;
 };
 
 export type BusinessMetricsSummary = {
@@ -848,6 +858,13 @@ export type BusinessMetricsSummary = {
   incomeElectricityPaise: number;
   incomeTotalPaise: number;
   expectedMonthlyRentPaise: number;
+  lateFeePaise: number;
+  vacatingDeductionPaise: number;
+  otherDeductionPaise: number;
+  depositRefundsCount: number;
+  depositRefundsPaise: number;
+  /** Vacating penalties + other deductions + late fees. */
+  extraIncomePaise: number;
 };
 
 function qrMonthMatchesBillingMonth(billingMonth: string) {
@@ -969,6 +986,65 @@ export function getPgBusinessMetrics(
     const elecMap = new Map(elecRows.map((r) => [r.pgId, r.total]));
     const expectedMap = new Map(expectedRows.map((r) => [r.pgId, r.total]));
 
+    const lateFeeRows = await db
+      .select({
+        pgId: rentInvoices.pgId,
+        total: sql<number>`coalesce(sum(${rentInvoices.paidLateFeePaise}), 0)::bigint::int`,
+      })
+      .from(rentInvoices)
+      .where(and(eq(rentInvoices.status, 'paid'), eq(rentInvoices.billingMonth, billingMonth)))
+      .groupBy(rentInvoices.pgId);
+
+    type DepositPgRow = {
+      pg_id: string;
+      refund_count: number;
+      refund_paise: number;
+      vacating_deduction_paise: number;
+      other_deduction_paise: number;
+    };
+
+    const depositRows = await db.execute<DepositPgRow>(sql`
+      SELECT
+        pg.pg_id::text AS pg_id,
+        count(distinct dl.booking_id) FILTER (WHERE dl.entry_kind = 'refunded')::int AS refund_count,
+        coalesce(-sum(dl.amount_paise) FILTER (WHERE dl.entry_kind = 'refunded'), 0)::bigint::int AS refund_paise,
+        coalesce(-sum(dl.amount_paise) FILTER (
+          WHERE dl.entry_kind = 'deducted' AND dl.related_vacating_id IS NOT NULL
+        ), 0)::bigint::int AS vacating_deduction_paise,
+        coalesce(-sum(dl.amount_paise) FILTER (
+          WHERE dl.entry_kind = 'deducted' AND dl.related_vacating_id IS NULL
+        ), 0)::bigint::int AS other_deduction_paise
+      FROM deposit_ledger dl
+      INNER JOIN bookings bk ON bk.id = dl.booking_id
+      INNER JOIN LATERAL (
+        SELECT f.pg_id
+        FROM bed_reservations br
+        INNER JOIN beds b ON b.id = br.bed_id
+        INNER JOIN rooms r ON r.id = b.room_id
+        INNER JOIN floors f ON f.id = r.floor_id
+        WHERE br.booking_id = bk.id
+          AND br.kind = 'primary'
+        ORDER BY br.created_at DESC
+        LIMIT 1
+      ) pg ON true
+      WHERE dl.created_at >= ${billingMonth}::timestamptz
+        AND dl.created_at < (${billingMonth}::date + interval '1 month')::timestamptz
+      GROUP BY pg.pg_id
+    `);
+
+    const lateFeeMap = new Map(lateFeeRows.map((r) => [r.pgId, r.total]));
+    const depositMap = new Map(
+      Array.from(depositRows).map((r) => [
+        r.pg_id,
+        {
+          refundCount: r.refund_count,
+          refundPaise: r.refund_paise,
+          vacatingDeductionPaise: r.vacating_deduction_paise,
+          otherDeductionPaise: r.other_deduction_paise,
+        },
+      ]),
+    );
+
     return occupancy.data.map((row) => {
       const incomeRentQrPaise = rentQrMap.get(row.pgId) ?? 0;
       const incomeRentInvoicePaise = rentMap.get(row.pgId) ?? 0;
@@ -976,6 +1052,7 @@ export function getPgBusinessMetrics(
       const incomeElectricityQrPaise = electricityQrMap.get(row.pgId) ?? 0;
       const incomeElectricityInvoicePaise = elecMap.get(row.pgId) ?? 0;
       const incomeElectricityPaise = incomeElectricityQrPaise + incomeElectricityInvoicePaise;
+      const deposit = depositMap.get(row.pgId);
       return {
         ...row,
         billingMonth,
@@ -987,6 +1064,11 @@ export function getPgBusinessMetrics(
         incomeElectricityPaise,
         incomeTotalPaise: incomeRentPaise + incomeElectricityPaise,
         expectedMonthlyRentPaise: expectedMap.get(row.pgId) ?? 0,
+        lateFeePaise: lateFeeMap.get(row.pgId) ?? 0,
+        vacatingDeductionPaise: deposit?.vacatingDeductionPaise ?? 0,
+        otherDeductionPaise: deposit?.otherDeductionPaise ?? 0,
+        depositRefundsCount: deposit?.refundCount ?? 0,
+        depositRefundsPaise: deposit?.refundPaise ?? 0,
       };
     });
   });
@@ -1023,6 +1105,15 @@ export function getBusinessMetricsSummary(
       incomeElectricityPaise: rows.data.reduce((a, r) => a + r.incomeElectricityPaise, 0),
       incomeTotalPaise: rows.data.reduce((a, r) => a + r.incomeTotalPaise, 0),
       expectedMonthlyRentPaise: rows.data.reduce((a, r) => a + r.expectedMonthlyRentPaise, 0),
+      lateFeePaise: rows.data.reduce((a, r) => a + r.lateFeePaise, 0),
+      vacatingDeductionPaise: rows.data.reduce((a, r) => a + r.vacatingDeductionPaise, 0),
+      otherDeductionPaise: rows.data.reduce((a, r) => a + r.otherDeductionPaise, 0),
+      depositRefundsCount: rows.data.reduce((a, r) => a + r.depositRefundsCount, 0),
+      depositRefundsPaise: rows.data.reduce((a, r) => a + r.depositRefundsPaise, 0),
+      extraIncomePaise: rows.data.reduce(
+        (a, r) => a + r.lateFeePaise + r.vacatingDeductionPaise + r.otherDeductionPaise,
+        0,
+      ),
     };
   });
 }

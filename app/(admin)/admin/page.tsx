@@ -1,11 +1,14 @@
 import Link from 'next/link';
 import { OverviewMonthPicker } from '@/src/components/admin/OverviewMonthPicker';
-import { PgBusinessMetricsTable } from '@/src/components/admin/PgBusinessMetricsTable';
-import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
-import { PageHeader } from '@/src/components/admin/PageHeader';
-import { StatCard } from '@/src/components/admin/StatCard';
 import {
-  IconBed,
+  OverviewFinancialPanels,
+  PgBusinessMetricsTable,
+} from '@/src/components/admin/PgBusinessMetricsTable';
+import { buildDonutSlices, PgIncomeDonutChart } from '@/src/components/admin/PgIncomeDonutChart';
+import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
+import { OverviewStatCard } from '@/src/components/admin/OverviewStatCard';
+import { PageHeader } from '@/src/components/admin/PageHeader';
+import {
   IconBuilding,
   IconCard,
   IconChart,
@@ -52,79 +55,84 @@ export default async function DashboardPage({
     timeZone: 'UTC',
   }).format(new Date(`${billingMonth}T00:00:00.000Z`));
 
+  const donutSlices =
+    metrics.ok && metrics.data.length > 0 ? buildDonutSlices(metrics.data) : [];
+
   return (
     <>
       <PageHeader
         title="Overview"
-        description="Monthly collection report — rent and electricity, per PG and business totals."
+        description="Monthly collections, per-PG income, deposit refunds, and extra income from penalties."
         actions={<OverviewMonthPicker billingMonth={billingMonth} />}
       />
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
-        <StatCard
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <OverviewStatCard
           label="Rent collected"
           value={paiseToInr(s.incomeRentPaise)}
-          hint={`QR ${paiseToInr(s.incomeRentQrPaise)} · Invoice ${paiseToInr(s.incomeRentInvoicePaise)}`}
+          hint={`QR ${paiseToInr(s.incomeRentQrPaise)} · Inv ${paiseToInr(s.incomeRentInvoicePaise)}`}
           icon={<IconCard />}
           accent="emerald"
         />
-        <StatCard
+        <OverviewStatCard
           label="Electricity collected"
           value={paiseToInr(s.incomeElectricityPaise)}
-          hint={`QR ${paiseToInr(s.incomeElectricityQrPaise)} · Invoice ${paiseToInr(s.incomeElectricityInvoicePaise)}`}
+          hint={`QR ${paiseToInr(s.incomeElectricityQrPaise)} · Inv ${paiseToInr(s.incomeElectricityInvoicePaise)}`}
           icon={<IconChart />}
           accent="sky"
         />
-        <StatCard
+        <OverviewStatCard
           label="Total collected"
           value={paiseToInr(s.incomeTotalPaise)}
           hint={monthLabel}
           icon={<IconCard />}
           accent="indigo"
         />
-        <StatCard
-          label="Expected rent / mo"
-          value={paiseToInr(s.expectedMonthlyRentPaise)}
-          hint="Occupied beds today"
+        <OverviewStatCard
+          label="Extra income"
+          value={paiseToInr(s.extraIncomePaise)}
+          hint="Vacating + charges + late fees"
           icon={<IconChart />}
-          accent="amber"
+          accent="orange"
         />
-        <StatCard
-          label="Occupancy"
-          value={`${s.occupancyPct}%`}
-          icon={<IconUsers />}
+        <OverviewStatCard
+          label="Deposit refunds"
+          value={paiseToInr(s.depositRefundsPaise)}
+          hint={`${s.depositRefundsCount} resident${s.depositRefundsCount === 1 ? '' : 's'} refunded`}
+          icon={<IconCard />}
           accent="rose"
         />
-        <StatCard
-          label="Beds occupied"
-          value={`${s.occupiedBeds}/${s.totalBeds}`}
-          icon={<IconBed />}
-          accent="zinc"
+        <OverviewStatCard
+          label="Occupancy"
+          value={`${s.occupancyPct}%`}
+          hint={`${s.occupiedBeds}/${s.totalBeds} beds · exp ${paiseToInr(s.expectedMonthlyRentPaise)}/mo`}
+          icon={<IconUsers />}
+          accent="violet"
         />
       </div>
 
-      <p className="text-xs text-zinc-500">
-        Collections for <strong className="text-zinc-700">{monthLabel}</strong>: paid rent and
-        electricity invoices for that billing month, plus approved QR payments tagged to that month
-        (or approved in that month when no month tag). Occupancy and expected rent reflect today.
-      </p>
+      <div className="grid gap-4 xl:grid-cols-5">
+        <div className="xl:col-span-2">
+          <PgIncomeDonutChart
+            slices={donutSlices}
+            totalPaise={s.incomeTotalPaise}
+            monthLabel={monthLabel}
+          />
+        </div>
+        <div className="xl:col-span-3">
+          <OverviewFinancialPanels summary={s} />
+        </div>
+      </div>
 
       {metrics.ok && metrics.data.length > 0 ? (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold text-zinc-900">Collection report by PG</h2>
-          <PgBusinessMetricsTable
-            rows={metrics.data}
-            totals={{
-              expectedMonthlyRentPaise: s.expectedMonthlyRentPaise,
-              incomeRentPaise: s.incomeRentPaise,
-              incomeRentQrPaise: s.incomeRentQrPaise,
-              incomeRentInvoicePaise: s.incomeRentInvoicePaise,
-              incomeElectricityPaise: s.incomeElectricityPaise,
-              incomeElectricityQrPaise: s.incomeElectricityQrPaise,
-              incomeElectricityInvoicePaise: s.incomeElectricityInvoicePaise,
-              incomeTotalPaise: s.incomeTotalPaise,
-            }}
-          />
+          <div>
+            <h2 className="text-sm font-semibold text-white">Breakdown by PG</h2>
+            <p className="text-xs text-apg-silver">
+              Collections, vacating profit, other charges, and deposit refunds for {monthLabel}.
+            </p>
+          </div>
+          <PgBusinessMetricsTable rows={metrics.data} totals={s} />
         </section>
       ) : null}
 

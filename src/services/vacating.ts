@@ -60,6 +60,11 @@ export type SubmitVacatingInput = {
   /** Defaults to today. Admin can backdate if filing on behalf of resident. */
   noticeGivenDate?: DateLike;
   notes?: string | null;
+  /** Admin: skip 5-day penalty regardless of notice length. */
+  waiveDeduction?: boolean;
+  /** Admin: approve immediately so the bed is pre-bookable on the website from vacatingDate. */
+  openBedForBookingFromVacatingDate?: boolean;
+  resolvedByAdminId?: string | null;
 };
 
 export type SubmitVacatingResult =
@@ -186,11 +191,14 @@ export async function submitVacatingRequest(
     };
   }
 
-  const noticeCompliant = isNoticeCompliant({ noticeGivenDate, vacatingDate });
+  const noticeCompliant = input.waiveDeduction
+    ? true
+    : isNoticeCompliant({ noticeGivenDate, vacatingDate });
   const monthlyRent = monthlyRentFromBooking(
     booking.pricingSnapshot as PricingSnapshot | null,
   );
-  const deduction = noticeCompliant ? 0 : vacatingPenalty(monthlyRent);
+  const deduction =
+    input.waiveDeduction || noticeCompliant ? 0 : vacatingPenalty(monthlyRent);
 
   try {
     const [row] = await db
@@ -214,8 +222,8 @@ export async function submitVacatingRequest(
       86_400_000;
 
     await db.insert(auditLog).values({
-      actorType: 'system',
-      actorId: null,
+      actorType: input.resolvedByAdminId ? 'admin' : 'system',
+      actorId: input.resolvedByAdminId ?? null,
       entity: 'vacating_request',
       entityId: row.id,
       action: 'submitted',
@@ -227,8 +235,32 @@ export async function submitVacatingRequest(
         noticeCompliant,
         deductionPaise: deduction,
         monthlyRentPaise: monthlyRent,
+        waiveDeduction: input.waiveDeduction ?? false,
+        openBedForBooking: input.openBedForBookingFromVacatingDate ?? false,
       },
     });
+
+    let request = row;
+    if (input.waiveDeduction && deduction !== row.deductionPaise) {
+      const [updated] = await db
+        .update(vacatingRequests)
+        .set({
+          noticeCompliant: true,
+          deductionPaise: 0,
+          updatedAt: new Date(),
+        })
+        .where(eq(vacatingRequests.id, row.id))
+        .returning();
+      request = updated;
+    }
+
+    if (input.openBedForBookingFromVacatingDate) {
+      const approved = await approveVacatingRequest({
+        requestId: request.id,
+        resolvedByAdminId: input.resolvedByAdminId ?? null,
+      });
+      if (approved.ok) request = approved.request;
+    }
 
     const meta = await vacatingEmailMeta(booking.id);
     const { notifyVacatingUpdate } = await import('@/src/lib/email/notifications');
@@ -241,10 +273,10 @@ export async function submitVacatingRequest(
 
     return {
       ok: true,
-      request: row,
+      request,
       noticeDays,
       noticeCompliant,
-      deductionPaise: deduction,
+      deductionPaise: request.deductionPaise,
     };
   } catch (err) {
     // Duplicate UNIQUE(booking_id) — already a vacating request open.

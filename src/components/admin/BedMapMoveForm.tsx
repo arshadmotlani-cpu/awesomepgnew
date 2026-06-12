@@ -32,11 +32,11 @@ export function BedMapMoveForm({
   }, [state.ok, router]);
 
   return (
-    <form action={action} className="space-y-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+    <form action={action} className="space-y-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
       <input type="hidden" name="bookingId" value={bookingId} />
       <input type="hidden" name="customerId" value={customerId} />
       <input type="hidden" name="pgId" value={pgId} />
-      <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Shift to another bed</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-apg-orange">Shift to another bed</p>
       <select
         name="newBedId"
         defaultValue={currentBedId}
@@ -48,8 +48,8 @@ export function BedMapMoveForm({
           </option>
         ))}
       </select>
-      {state.error ? <p className="text-xs text-rose-600">{state.error}</p> : null}
-      {state.ok ? <p className="text-xs text-emerald-600">Bed updated.</p> : null}
+      {state.error ? <p className="text-xs text-rose-300">{state.error}</p> : null}
+      {state.ok ? <p className="text-xs text-emerald-300">Bed updated.</p> : null}
       <button
         type="submit"
         disabled={pending}

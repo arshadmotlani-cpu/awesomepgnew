@@ -19,6 +19,9 @@ export type BedSelectorBed = {
   interestCount?: number;
   /** Guest gave notice — bed opens after this date. */
   vacatingDate?: string | null;
+  vacatingStatus?: 'pending' | 'approved' | null;
+  /** Future admin/customer reservation. */
+  reservedFrom?: string | null;
   /** Latest checkout when a future booking caps the stay. */
   availableUntilDate?: string | null;
   dailyRatePaise: number;
@@ -260,7 +263,14 @@ function BedTile({
   const rate = bed.monthlyRatePaise;
   const depositPaise = bed.monthlySecurityDepositPaise || bed.securityDepositPaise;
   const interestCount = bed.interestCount ?? 0;
-  const isNotice = tourRole === 'bed-notice';
+  const hasVacatingNotice = Boolean(bed.vacatingDate);
+  const isNotice =
+    tourRole === 'bed-notice' ||
+    (hasVacatingNotice && bed.vacatingStatus === 'pending') ||
+    (!bed.isAvailableNow && Boolean(bed.nextAvailableDate) && hasVacatingNotice);
+  const isPreBookApproved =
+    hasVacatingNotice && bed.vacatingStatus === 'approved' && Boolean(bed.vacatingDate);
+  const isReserved = Boolean(bed.reservedFrom);
   const isCapped = tourRole === 'bed-capped';
   const isFutureOnly = !bed.isAvailableNow && Boolean(bed.nextAvailableDate);
 
@@ -272,6 +282,16 @@ function BedTile({
   } else if (bed.status === 'maintenance') {
     stateLabel = 'Maintenance';
     stateClass = dark ? 'bg-amber-500/15 text-amber-200' : 'bg-amber-50 text-amber-700';
+  } else if (isReserved) {
+    stateLabel = `Reserved · ${formatDate(bed.reservedFrom!)}`;
+    stateClass = dark
+      ? 'bg-violet-500/15 text-violet-100 ring-1 ring-violet-400/30'
+      : 'bg-violet-50 text-violet-800 ring-1 ring-violet-200';
+  } else if (isPreBookApproved && bed.vacatingDate) {
+    stateLabel = `Pre-book from ${formatDate(bed.vacatingDate)}`;
+    stateClass = dark
+      ? 'bg-sky-500/15 text-sky-100 ring-1 ring-sky-400/30'
+      : 'bg-sky-50 text-sky-800 ring-1 ring-sky-200';
   } else if (isNotice) {
     const leaveDate = bed.vacatingDate ?? bed.nextAvailableDate;
     stateLabel = leaveDate

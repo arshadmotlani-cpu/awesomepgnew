@@ -12,7 +12,8 @@ import {
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
-import { formatDate } from '@/src/lib/dates';
+import { BLOCKING_RESERVATION_STATUS_SQL } from '@/src/lib/reservationBlocking';
+import { formatDate, parseDate } from '@/src/lib/dates';
 import { isBedAvailable } from '@/src/services/availability';
 import { correctDepositCollected, getDepositSummaryForBooking } from '@/src/services/deposits';
 import { siblingBedIdsInRoom } from '@/src/services/tenantAssignmentInternals';
@@ -465,6 +466,116 @@ export async function updateTenantTenancy(
       });
     }
   }
+
+  return { ok: true };
+}
+
+/** Move an active tenancy to a future reservation — bed stays bookable until move-in. */
+export async function shiftBookingToReservation(
+  session: AdminSession,
+  input: { bookingId: string; moveInDate: string },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const moveInDate = formatDate(parseDate(input.moveInDate));
+  const today = formatDate(new Date());
+  if (moveInDate <= today) {
+    return { ok: false, error: 'Reservation move-in must be after today.' };
+  }
+
+  const [ctx] = await db
+    .select({
+      pgId: pgs.id,
+      bedId: beds.id,
+    })
+    .from(bedReservations)
+    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
+    .innerJoin(floors, eq(floors.id, rooms.floorId))
+    .innerJoin(pgs, eq(pgs.id, floors.pgId))
+    .where(
+      and(
+        eq(bedReservations.bookingId, input.bookingId),
+        eq(bedReservations.kind, 'primary'),
+        eq(bedReservations.status, 'active'),
+      ),
+    )
+    .limit(1);
+  if (!ctx) return { ok: false, error: 'No active bed assignment found.' };
+  if (!adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, ctx.pgId)) {
+    return { ok: false, error: 'Access denied.' };
+  }
+
+  const [conflict] = await db
+    .select({ id: bedReservations.id })
+    .from(bedReservations)
+    .innerJoin(bookings, eq(bookings.id, bedReservations.bookingId))
+    .where(
+      and(
+        eq(bedReservations.bedId, ctx.bedId),
+        sql`${bedReservations.status} IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
+        sql`${bedReservations.stayRange} && daterange(${moveInDate}::date, ${LONG_TERM_END}::date, '[)')`,
+        sql`${bedReservations.bookingId} <> ${input.bookingId}`,
+      ),
+    )
+    .limit(1);
+  if (conflict) {
+    return { ok: false, error: 'Bed is not free from that move-in date.' };
+  }
+
+  await db.execute(sql`
+    UPDATE bed_reservations
+    SET
+      stay_range = daterange(${moveInDate}::date, ${LONG_TERM_END}::date, '[)'),
+      updated_at = now()
+    WHERE booking_id = ${input.bookingId}
+      AND status = 'active'
+  `);
+
+  await db
+    .update(bookings)
+    .set({ expectedCheckoutDate: LONG_TERM_END, updatedAt: new Date() })
+    .where(eq(bookings.id, input.bookingId));
+
+  return { ok: true };
+}
+
+/** Mark a future reservation as active from today (resident has moved in). */
+export async function activateReservationNow(
+  session: AdminSession,
+  input: { bookingId: string },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const today = formatDate(new Date());
+
+  const [ctx] = await db
+    .select({
+      pgId: pgs.id,
+    })
+    .from(bedReservations)
+    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
+    .innerJoin(floors, eq(floors.id, rooms.floorId))
+    .innerJoin(pgs, eq(pgs.id, floors.pgId))
+    .where(
+      and(
+        eq(bedReservations.bookingId, input.bookingId),
+        eq(bedReservations.kind, 'primary'),
+        eq(bedReservations.status, 'active'),
+        sql`lower(${bedReservations.stayRange}) > ${today}::date`,
+      ),
+    )
+    .limit(1);
+  if (!ctx) return { ok: false, error: 'No future reservation found for this booking.' };
+  if (!adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, ctx.pgId)) {
+    return { ok: false, error: 'Access denied.' };
+  }
+
+  await db.execute(sql`
+    UPDATE bed_reservations
+    SET
+      stay_range = daterange(${today}::date, upper(stay_range), '[)'),
+      updated_at = now()
+    WHERE booking_id = ${input.bookingId}
+      AND status = 'active'
+  `);
 
   return { ok: true };
 }

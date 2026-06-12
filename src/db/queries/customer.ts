@@ -352,6 +352,11 @@ export type CustomerRoomDetail = {
     status: 'available' | 'maintenance' | 'blocked';
     isAvailableNow: boolean;
     nextAvailableDate: string | null;
+    /** Approved/pending vacating date for the current occupant. */
+    vacatingDate?: string | null;
+    vacatingStatus?: 'pending' | 'approved' | null;
+    /** Future reservation — move-in after reference date. */
+    reservedFrom?: string | null;
     /** Unpaid checkouts in progress — shown as interest, not occupancy. */
     interestCount: number;
     dailyRatePaise: number;
@@ -438,6 +443,38 @@ export function getRoomDetail(
             AND (br.hold_expires_at IS NULL OR br.hold_expires_at > now())
             AND ${refDate}::date <@ br.stay_range
         ), 0)`,
+        vacatingDate: sql<string | null>`(
+          SELECT vr.vacating_date::text
+          FROM ${bedReservations} br
+          INNER JOIN ${bookings} bk ON bk.id = br.booking_id
+          INNER JOIN ${vacatingRequests} vr ON vr.booking_id = bk.id
+          WHERE br.bed_id = beds.id
+            AND br.status = 'active'
+            AND ${refDate}::date <@ br.stay_range
+            AND vr.status IN ('pending', 'approved')
+          LIMIT 1
+        )`,
+        vacatingStatus: sql<'pending' | 'approved' | null>`(
+          SELECT vr.status
+          FROM ${bedReservations} br
+          INNER JOIN ${bookings} bk ON bk.id = br.booking_id
+          INNER JOIN ${vacatingRequests} vr ON vr.booking_id = bk.id
+          WHERE br.bed_id = beds.id
+            AND br.status = 'active'
+            AND ${refDate}::date <@ br.stay_range
+            AND vr.status IN ('pending', 'approved')
+          LIMIT 1
+        )`,
+        reservedFrom: sql<string | null>`(
+          SELECT lower(br.stay_range)::text
+          FROM ${bedReservations} br
+          INNER JOIN ${bookings} bk ON bk.id = br.booking_id
+          WHERE br.bed_id = beds.id
+            AND br.status = 'active'
+            AND bk.status = 'confirmed'
+            AND lower(br.stay_range) > ${refDate}::date
+          LIMIT 1
+        )`,
         dailyRatePaise: sql<number>`coalesce((
           SELECT bp.daily_rate_paise::bigint::int FROM ${bedPrices} bp
           WHERE bp.bed_id = beds.id

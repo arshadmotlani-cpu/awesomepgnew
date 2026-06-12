@@ -2,13 +2,16 @@
 
 import Link from 'next/link';
 import { useMemo, useState, type ReactNode } from 'react';
+import { AdminVacatingSubmitForm } from '@/src/components/admin/AdminVacatingSubmitForm';
 import { BedMapMoveForm } from '@/src/components/admin/BedMapMoveForm';
+import { BedMapReservationForm } from '@/src/components/admin/BedMapReservationForm';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import {
   ApproveVacatingButton,
   CompleteVacatingButton,
   RejectVacatingButton,
 } from '@/src/components/admin/VacatingActions';
+import { ADMIN_BED_KIND_CLASS } from '@/src/lib/bedAvailabilityState';
 import type {
   PgBedMap,
   PgBedMapBed,
@@ -26,66 +29,44 @@ type SelectedContext = {
   floor: PgBedMapFloor;
 };
 
-function bedTileClass(bed: PgBedMapBed, selected: boolean): string {
-  const base =
-    'relative flex min-h-[72px] flex-col items-center justify-center rounded-lg border-2 px-2 py-3 text-center transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF5A1F] focus-visible:ring-offset-2';
+const SURFACE = 'rounded-2xl border border-white/10 bg-[#1A1F27]';
+const LEGEND = [
+  { label: 'Open now', className: 'border-emerald-400/50 bg-emerald-500/10' },
+  { label: 'Pre-book', className: 'border-sky-400/50 bg-sky-500/10' },
+  { label: 'Notice', className: 'border-orange-400/50 bg-orange-500/10' },
+  { label: 'Occupied', className: 'border-emerald-400/30 bg-emerald-500/5' },
+  { label: 'Reserved', className: 'border-violet-400/50 bg-violet-500/10' },
+  { label: 'Maintenance', className: 'border-amber-400/50 bg-amber-500/10' },
+];
 
-  if (selected) {
-    return `${base} border-[#FF5A1F] bg-[#FF5A1F]/10 shadow-md`;
-  }
-
-  if (bed.bedStatus === 'maintenance') {
-    return `${base} border-amber-300 bg-amber-50 text-amber-950 hover:border-amber-400`;
-  }
-  if (bed.bedStatus === 'blocked') {
-    return `${base} border-rose-300 bg-rose-50 text-rose-900 hover:border-rose-400`;
-  }
-  if (bed.isOccupiedToday) {
-    if (bed.vacating) {
-      return `${base} border-orange-400 bg-orange-50 text-orange-950 hover:border-orange-500`;
-    }
-    if (bed.billing.rentOverdueCount > 0) {
-      return `${base} border-rose-400 bg-rose-50 text-rose-950 hover:border-rose-500`;
-    }
-    return `${base} border-emerald-400 bg-emerald-50 text-emerald-950 hover:border-emerald-500`;
-  }
-  return `${base} border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400 hover:bg-zinc-50`;
-}
-
-function ActionLink({
-  href,
-  children,
-  external,
-}: {
-  href: string;
-  children: ReactNode;
-  external?: boolean;
-}) {
+function ActionLink({ href, children }: { href: string; children: ReactNode }) {
   return (
     <Link
       href={href}
-      target={external ? '_blank' : undefined}
-      className="flex items-center justify-between rounded-lg border border-zinc-200 bg-white px-3 py-2.5 text-sm font-medium text-zinc-800 transition hover:border-[#FF5A1F]/40 hover:bg-[#FF5A1F]/5"
+      className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm font-medium text-white transition hover:border-[#FF5A1F]/40 hover:bg-[#FF5A1F]/10"
     >
       {children}
-      <span className="text-zinc-400">→</span>
+      <span className="text-apg-silver">→</span>
     </Link>
   );
 }
 
 function SummaryStrip({ summary }: { summary: PgBedMapSummary }) {
+  const items = [
+    { label: 'Total', value: summary.totalBeds, tone: 'text-white' },
+    { label: 'Occupied', value: summary.occupiedBeds, tone: 'text-emerald-300' },
+    { label: 'Open now', value: summary.openNowBeds, tone: 'text-sky-300' },
+    { label: 'Reserved', value: summary.reservedBeds, tone: 'text-violet-300' },
+    { label: 'Vacating', value: summary.vacatingSoon, tone: 'text-orange-300' },
+    { label: 'Maint / blocked', value: summary.maintenanceBeds + summary.blockedBeds, tone: 'text-amber-300' },
+  ];
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-      {[
-        { label: 'Total beds', value: summary.totalBeds, tone: 'text-zinc-900' },
-        { label: 'Occupied', value: summary.occupiedBeds, tone: 'text-emerald-700' },
-        { label: 'Vacant', value: summary.vacantBeds, tone: 'text-zinc-600' },
-        { label: 'Maintenance', value: summary.maintenanceBeds, tone: 'text-amber-700' },
-        { label: 'Blocked', value: summary.blockedBeds, tone: 'text-rose-700' },
-        { label: 'Vacating soon', value: summary.vacatingSoon, tone: 'text-orange-700' },
-      ].map((item) => (
-        <div key={item.label} className="rounded-xl border border-zinc-200 bg-white px-4 py-3">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">{item.label}</p>
+      {items.map((item) => (
+        <div key={item.label} className={`${SURFACE} px-4 py-3`}>
+          <p className="text-[10px] font-medium uppercase tracking-wide text-apg-silver">
+            {item.label}
+          </p>
           <p className={`mt-1 text-2xl font-semibold tabular-nums ${item.tone}`}>{item.value}</p>
         </div>
       ))}
@@ -105,17 +86,17 @@ function BedDetailPanel({
   onClose: () => void;
 }) {
   const { bed, room, floor } = ctx;
-  const occ = bed.occupant;
+  const person = bed.occupant ?? bed.reserved;
 
   return (
-    <aside className="flex h-full flex-col rounded-xl border border-zinc-200 bg-white shadow-lg">
-      <div className="flex items-start justify-between border-b border-zinc-100 px-4 py-3">
+    <aside className={`${SURFACE} flex max-h-[calc(100vh-8rem)] flex-col shadow-xl`}>
+      <div className="flex items-start justify-between border-b border-white/10 px-4 py-3">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-apg-orange">
             {floor.floorLabel} · Room {room.roomNumber}
           </p>
-          <h2 className="text-lg font-semibold text-zinc-900">{bed.bedCode}</h2>
-          <p className="text-xs text-zinc-500">
+          <h2 className="text-lg font-semibold text-white">{bed.bedCode}</h2>
+          <p className="text-xs text-apg-silver">
             {room.roomTypeName}
             {room.hasAc ? ' · AC' : ''} · {room.sharingCount}-sharing
           </p>
@@ -123,7 +104,7 @@ function BedDetailPanel({
         <button
           type="button"
           onClick={onClose}
-          className="rounded-lg px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800"
+          className="rounded-lg px-2 py-1 text-sm text-apg-silver hover:bg-white/5 hover:text-white"
           aria-label="Close panel"
         >
           ✕
@@ -131,16 +112,17 @@ function BedDetailPanel({
       </div>
 
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
+        <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
+          <p className="text-sm font-semibold text-white">{bed.availability.label}</p>
+          {bed.availability.sublabel ? (
+            <p className="text-xs text-apg-silver">{bed.availability.sublabel}</p>
+          ) : null}
+        </div>
+
         <div className="flex flex-wrap gap-2">
-          {bed.isOccupiedToday ? (
-            <Badge tone="emerald">Occupied</Badge>
-          ) : bed.bedStatus === 'available' ? (
-            <Badge tone="zinc">Vacant</Badge>
-          ) : (
-            <Badge tone={bed.bedStatus === 'maintenance' ? 'amber' : 'rose'}>
-              {titleCase(bed.bedStatus)}
-            </Badge>
-          )}
+          <Badge tone={bed.isOccupiedToday ? 'emerald' : bed.reserved ? 'violet' : 'zinc'}>
+            {bed.isOccupiedToday ? 'Living here' : bed.reserved ? 'Reserved' : titleCase(bed.bedStatus)}
+          </Badge>
           {bed.vacating ? (
             <Badge tone="amber">Vacating {formatDate(bed.vacating.vacatingDate)}</Badge>
           ) : null}
@@ -149,44 +131,48 @@ function BedDetailPanel({
           ) : null}
         </div>
 
-        {occ ? (
+        {person ? (
           <>
-            <section className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Resident</p>
-              <p className="mt-1 text-base font-semibold text-zinc-900">{occ.customerName}</p>
-              <p className="text-sm text-zinc-600">{occ.customerPhone}</p>
-              <p className="mt-2 text-xs text-zinc-500">
-                Booking{' '}
-                <span className="font-mono font-medium text-zinc-800">{occ.bookingCode}</span> · Move-in{' '}
-                {formatDate(occ.moveInDate)} · {paiseToInr(occ.monthlyRentPaise)}/mo
+            <section className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-apg-silver">
+                {bed.occupant ? 'Resident' : 'Reserved for'}
+              </p>
+              <p className="mt-1 text-base font-semibold text-white">{person.customerName}</p>
+              <p className="text-sm text-apg-silver">{person.customerPhone}</p>
+              <p className="mt-2 text-xs text-apg-silver">
+                {person.bookingCode} · {bed.occupant ? 'Move-in' : 'From'}{' '}
+                {formatDate(person.moveInDate)} · {paiseToInr(person.monthlyRentPaise)}/mo
               </p>
               <p className="mt-1">
-                <Badge tone={toneForStatus(occ.kycStatus)}>KYC {titleCase(occ.kycStatus)}</Badge>
+                <Badge tone={toneForStatus(person.kycStatus)}>
+                  KYC {titleCase(person.kycStatus)}
+                </Badge>
               </p>
             </section>
 
             <nav className="grid gap-2" aria-label="Resident actions">
-              <ActionLink href={`/admin/residents/${occ.customerId}`}>Resident profile</ActionLink>
-              <ActionLink href={`/admin/bookings/${occ.bookingId}`}>
-                Booking — rent, electricity & payments
+              <ActionLink href={`/admin/residents/${person.customerId}`}>Resident profile</ActionLink>
+              <ActionLink href={`/admin/bookings/${person.bookingId}`}>
+                Booking · rent & electricity
               </ActionLink>
-              <ActionLink href={`/admin/deposits/${occ.bookingId}`}>Deposit ledger</ActionLink>
-              <ActionLink href="/admin/rent">All rent invoices</ActionLink>
-              <ActionLink href={`/admin/pgs/${pgId}/rooms`}>Room meter & electricity setup</ActionLink>
-              <ActionLink href="/admin/vacating">Vacating queue</ActionLink>
-              {occ.kycStatus !== 'approved' ? (
-                <ActionLink href="/admin/kyc">KYC review</ActionLink>
-              ) : null}
+              <ActionLink href={`/admin/deposits/${person.bookingId}`}>Deposit ledger</ActionLink>
+              <ActionLink href={`/admin/pgs/${pgId}/rooms`}>Room meter & bills</ActionLink>
             </nav>
 
             {bed.vacating ? (
-              <section className="rounded-lg border border-orange-200 bg-orange-50 p-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-orange-800">
-                  Vacating request
+              <section className="rounded-xl border border-orange-400/30 bg-orange-500/10 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-orange-200">
+                  Vacating · {titleCase(bed.vacating.status)}
                 </p>
-                <p className="mt-1 text-sm text-orange-950">
-                  {titleCase(bed.vacating.status)} · leaves {formatDate(bed.vacating.vacatingDate)}
+                <p className="mt-1 text-sm text-orange-50">
+                  Leaves {formatDate(bed.vacating.vacatingDate)} · deduction{' '}
+                  {paiseToInr(bed.vacating.deductionPaise)}
                 </p>
+                {bed.vacating.status === 'approved' ? (
+                  <p className="mt-1 text-xs text-orange-100/80">
+                    Website pre-booking is open from this date.
+                  </p>
+                ) : null}
                 <div className="mt-2 flex flex-wrap gap-2">
                   {bed.vacating.status === 'pending' ? (
                     <>
@@ -199,29 +185,116 @@ function BedDetailPanel({
                   ) : null}
                 </div>
               </section>
+            ) : bed.occupant ? (
+              <AdminVacatingSubmitForm
+                pgId={pgId}
+                bookingId={person.bookingId}
+                monthlyRentPaise={person.monthlyRentPaise}
+                hasExistingVacating={Boolean(bed.vacating)}
+              />
             ) : null}
 
-            <BedMapMoveForm
-              pgId={pgId}
-              bookingId={occ.bookingId}
-              customerId={occ.customerId}
-              currentBedId={bed.bedId}
-              beds={moveBedOptions}
-            />
+            {bed.occupant ? (
+              <>
+                <BedMapMoveForm
+                  pgId={pgId}
+                  bookingId={person.bookingId}
+                  customerId={person.customerId}
+                  currentBedId={bed.bedId}
+                  beds={moveBedOptions}
+                />
+                <BedMapReservationForm
+                  pgId={pgId}
+                  bookingId={person.bookingId}
+                  mode="shift_to_reservation"
+                />
+              </>
+            ) : null}
+
+            {bed.reserved && !bed.occupant ? (
+              <BedMapReservationForm
+                pgId={pgId}
+                bookingId={person.bookingId}
+                mode="activate_now"
+                reservedFrom={bed.reservedFrom}
+              />
+            ) : null}
           </>
         ) : (
           <>
-            <p className="text-sm text-zinc-600">
-              This bed is free. Assign a tenant or update inventory status from the booking tools.
+            <p className="text-sm text-apg-silver">
+              Bed is open — assign a tenant or mark as reserved for someone who has not moved in yet.
             </p>
             <nav className="grid gap-2">
-              <ActionLink href={`/admin/bookings/new?bedId=${bed.bedId}`}>Assign tenant to this bed</ActionLink>
-              <ActionLink href={`/admin/pgs/${pgId}/rooms`}>Edit room & pricing setup</ActionLink>
+              <ActionLink href={`/admin/bookings/new?bedId=${bed.bedId}`}>
+                Assign / reserve tenant
+              </ActionLink>
+              <ActionLink href={`/admin/pgs/${pgId}/rooms`}>Edit room & pricing</ActionLink>
             </nav>
           </>
         )}
       </div>
     </aside>
+  );
+}
+
+function RoomCard({
+  room,
+  selectedBedId,
+  onSelectBed,
+}: {
+  room: PgBedMapRoom;
+  selectedBedId: string | null;
+  onSelectBed: (bedId: string) => void;
+}) {
+  const openCount = room.beds.filter((b) => b.isAvailableNow).length;
+  const occupiedCount = room.beds.filter((b) => b.isOccupiedToday).length;
+
+  return (
+    <article className={`${SURFACE} flex flex-col gap-4 p-5`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-apg-orange">
+            {room.floorLabel} · Room {room.roomNumber}
+          </p>
+          <h3 className="mt-0.5 text-base font-semibold text-white">{room.roomTypeName}</h3>
+          <p className="text-xs text-apg-silver">
+            {room.sharingCount}-sharing · {room.hasAc ? 'AC' : 'Non-AC'}
+          </p>
+        </div>
+        <span className="shrink-0 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-300 ring-1 ring-emerald-400/30 ring-inset">
+          {openCount} open · {occupiedCount}/{room.beds.length} in
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+        {room.beds.map((bed) => {
+          const selected = selectedBedId === bed.bedId;
+          const kindClass = ADMIN_BED_KIND_CLASS[bed.availability.kind];
+          return (
+            <button
+              key={bed.bedId}
+              type="button"
+              onClick={() => onSelectBed(bed.bedId)}
+              aria-pressed={selected}
+              className={`relative flex min-h-[76px] flex-col items-center justify-center rounded-xl border-2 px-2 py-2.5 text-center transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF5A1F] ${
+                selected ? 'border-[#FF5A1F] ring-2 ring-[#FF5A1F]/30' : kindClass
+              }`}
+            >
+              <span className="text-xs font-bold uppercase tracking-wide">{bed.bedCode}</span>
+              <span className="mt-1 line-clamp-2 text-[10px] font-medium leading-tight opacity-90">
+                {bed.availability.label}
+              </span>
+              {bed.availability.sublabel ? (
+                <span className="mt-0.5 line-clamp-2 text-[9px] leading-tight opacity-75">
+                  {bed.availability.sublabel}
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+    </article>
   );
 }
 
@@ -247,8 +320,8 @@ export function PgBedMapPanel({
 
   if (map.floors.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-zinc-300 bg-zinc-50 px-6 py-12 text-center text-sm text-zinc-600">
-        No beds configured yet. Add floors, rooms, and beds under{' '}
+      <div className={`${SURFACE} border-dashed px-6 py-12 text-center text-sm text-apg-silver`}>
+        No beds yet. Add them under{' '}
         <Link href={`/admin/pgs/${map.pgId}/rooms`} className="font-semibold text-[#FF5A1F] hover:underline">
           Rooms & electricity
         </Link>
@@ -258,82 +331,33 @@ export function PgBedMapPanel({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <SummaryStrip summary={map.summary} />
 
-      <div className="flex flex-wrap gap-3 text-xs text-zinc-600">
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded border-2 border-emerald-400 bg-emerald-50" /> Occupied
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded border-2 border-orange-400 bg-orange-50" /> Vacating
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded border-2 border-rose-400 bg-rose-50" /> Rent overdue
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded border-2 border-zinc-200 bg-white" /> Vacant
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded border-2 border-amber-300 bg-amber-50" /> Maintenance
-        </span>
+      <div className="flex flex-wrap gap-3 text-[11px] text-apg-silver">
+        {LEGEND.map((item) => (
+          <span key={item.label} className="inline-flex items-center gap-1.5">
+            <span className={`h-3 w-5 rounded border ${item.className}`} />
+            {item.label}
+          </span>
+        ))}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-8">
           {map.floors.map((floor) => (
             <section key={floor.floorNumber}>
-              <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-apg-silver">
                 {floor.floorLabel}
               </h2>
-              <div className="space-y-4">
+              <div className="grid gap-4 lg:grid-cols-2">
                 {floor.rooms.map((room) => (
-                  <article
+                  <RoomCard
                     key={room.roomId}
-                    className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm"
-                  >
-                    <header className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-                      <div>
-                        <h3 className="font-semibold text-zinc-900">Room {room.roomNumber}</h3>
-                        <p className="text-xs text-zinc-500">
-                          {room.roomTypeName}
-                          {room.hasAc ? ' · AC' : ''}
-                        </p>
-                      </div>
-                      <p className="text-xs text-zinc-500">
-                        {room.beds.filter((b) => b.isOccupiedToday).length}/{room.beds.length} occupied
-                      </p>
-                    </header>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                      {room.beds.map((bed) => {
-                        const isSelected = selectedBedId === bed.bedId;
-                        const occupantLabel = bed.occupant?.customerName.split(' ')[0];
-                        return (
-                          <button
-                            key={bed.bedId}
-                            type="button"
-                            onClick={() => setSelectedBedId(bed.bedId)}
-                            className={bedTileClass(bed, isSelected)}
-                            aria-pressed={isSelected}
-                          >
-                            <span className="text-xs font-bold uppercase tracking-wide">{bed.bedCode}</span>
-                            {bed.isOccupiedToday && occupantLabel ? (
-                              <span className="mt-1 line-clamp-2 text-[11px] font-medium leading-tight">
-                                {occupantLabel}
-                              </span>
-                            ) : (
-                              <span className="mt-1 text-[10px] uppercase tracking-wide opacity-70">
-                                {bed.bedStatus === 'available' ? 'Free' : titleCase(bed.bedStatus)}
-                              </span>
-                            )}
-                            {bed.vacating ? (
-                              <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-orange-500" />
-                            ) : null}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </article>
+                    room={room}
+                    selectedBedId={selectedBedId}
+                    onSelectBed={setSelectedBedId}
+                  />
                 ))}
               </div>
             </section>
@@ -349,8 +373,8 @@ export function PgBedMapPanel({
               onClose={() => setSelectedBedId(null)}
             />
           ) : (
-            <div className="rounded-xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-10 text-center text-sm text-zinc-600">
-              Click a bed to see who lives there and manage rent, vacating, deposits, or room moves.
+            <div className={`${SURFACE} border-dashed px-4 py-10 text-center text-sm text-apg-silver`}>
+              Tap a bed to manage the resident, file vacating, shift rooms, or open billing.
             </div>
           )}
         </div>
