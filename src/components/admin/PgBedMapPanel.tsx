@@ -265,7 +265,7 @@ function BedDetailPanel({
           <>
             <p className="text-sm text-apg-silver">
               {bed.manualOccupied
-                ? 'Bed is marked occupied — customers cannot book it. Open it again when you want it listed.'
+                ? 'Bed is marked occupied on the website — customers see it as full and cannot book. Open it again when you want it listed, or assign a tenant below.'
                 : bed.manualReservedCheckIn
                   ? `Bed is marked reserved until ${bed.manualReservedCheckIn}. Daily/weekly stays still allowed.`
                   : 'Bed is open — mark as reserved or occupied, or assign a tenant.'}
@@ -289,9 +289,9 @@ function BedDetailPanel({
               </>
             ) : null}
             <nav className="grid gap-2">
-              {!bed.manualOccupied && !bed.manualReservedCheckIn ? (
+              {!bed.manualReservedCheckIn ? (
                 <ActionLink href={`/admin/bookings/new?bedId=${bed.bedId}`}>
-                  Assign / reserve tenant
+                  {bed.manualOccupied ? 'Assign tenant to this bed' : 'Assign / reserve tenant'}
                 </ActionLink>
               ) : null}
               <ActionLink href={`/admin/pgs/${pgId}/rooms`}>Edit room & pricing</ActionLink>
@@ -313,7 +313,7 @@ function RoomCard({
   onSelectBed: (bedId: string) => void;
 }) {
   const openCount = room.beds.filter((b) => b.isAvailableNow).length;
-  const occupiedCount = room.beds.filter((b) => b.isOccupiedToday).length;
+  const occupiedCount = room.beds.filter((b) => b.isOccupiedToday || b.manualOccupied).length;
 
   return (
     <article className={`${SURFACE} flex flex-col gap-4 p-5`}>

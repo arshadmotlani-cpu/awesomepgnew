@@ -53,7 +53,7 @@ export function deriveBedAvailabilityView(input: {
     return {
       kind: 'occupied',
       label: 'Occupied',
-      sublabel: 'Marked occupied · not on website',
+      sublabel: 'Marked occupied · shown on website',
     };
   }
 

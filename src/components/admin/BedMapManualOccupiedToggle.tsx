@@ -50,8 +50,8 @@ export function BedMapManualOccupiedToggle({
       </p>
       <p className="mt-1 text-sm text-apg-silver">
         {manualOccupied
-          ? `${bedCode} is marked occupied — customers cannot book it until you open it again.`
-          : `${bedCode} is open — mark it occupied to hide from booking without assigning a tenant.`}
+          ? `${bedCode} is marked occupied on the website — customers see it as full and cannot book until you open it again.`
+          : `${bedCode} is open — mark it occupied to show as full on the website without assigning a tenant yet.`}
       </p>
 
       {manualOccupied ? (

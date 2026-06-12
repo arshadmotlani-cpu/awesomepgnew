@@ -64,7 +64,7 @@ test('manual occupied shows Occupied on admin and customer maps', () => {
   });
   assert.equal(admin.kind, 'occupied');
   assert.equal(admin.label, 'Occupied');
-  assert.match(admin.sublabel ?? '', /not on website/);
+  assert.match(admin.sublabel ?? '', /shown on website/);
 
   const customer = deriveCustomerBedAvailabilityView({
     bedStatus: 'available',
