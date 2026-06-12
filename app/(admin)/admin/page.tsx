@@ -30,6 +30,25 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<{ month?: string }>;
 }) {
+  try {
+    return await DashboardPageContent({ searchParams });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[admin/overview] render failed:', message);
+    return (
+      <>
+        <PageHeader title="Overview" description="PG operations at a glance." />
+        <DbStatusBanner error={message} />
+      </>
+    );
+  }
+}
+
+async function DashboardPageContent({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string }>;
+}) {
   const sp = await searchParams;
   const billingMonth = resolveBillingMonth(sp.month);
 

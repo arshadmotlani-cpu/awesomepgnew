@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { paiseToInr } from '@/src/lib/format';
+import { asPlainNumber, paiseToInr } from '@/src/lib/format';
 
 export type DonutSlice = {
   pgId: string;
@@ -138,7 +138,7 @@ export function buildDonutSlices(
   return rows.map((row, i) => ({
     pgId: row.pgId,
     pgName: row.pgName,
-    valuePaise: row.incomeTotalPaise,
+    valuePaise: asPlainNumber(row.incomeTotalPaise),
     color: PALETTE[i % PALETTE.length],
   }));
 }

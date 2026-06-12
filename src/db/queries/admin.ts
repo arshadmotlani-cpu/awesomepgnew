@@ -2,6 +2,7 @@ import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../client';
 import { hasDatabaseUrl } from '@/src/lib/db/env';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
+import { asPlainNumber } from '@/src/lib/format';
 import {
   beds,
   bedPrices,
@@ -899,6 +900,64 @@ const electricityQrCategorySql = sql`(
   )
 )`;
 
+function normalizePgBusinessMetrics(
+  row: Omit<PgBusinessMetrics, 'billingMonth'> & { billingMonth?: string },
+  billingMonth: string,
+): PgBusinessMetrics {
+  return {
+    pgId: row.pgId,
+    pgName: row.pgName,
+    totalBeds: asPlainNumber(row.totalBeds),
+    occupiedBeds: asPlainNumber(row.occupiedBeds),
+    availableBeds: asPlainNumber(row.availableBeds),
+    blockedBeds: asPlainNumber(row.blockedBeds),
+    occupancyPct: asPlainNumber(row.occupancyPct),
+    billingMonth,
+    incomeRentQrPaise: asPlainNumber(row.incomeRentQrPaise),
+    incomeRentInvoicePaise: asPlainNumber(row.incomeRentInvoicePaise),
+    incomeRentPaise: asPlainNumber(row.incomeRentPaise),
+    incomeElectricityQrPaise: asPlainNumber(row.incomeElectricityQrPaise),
+    incomeElectricityInvoicePaise: asPlainNumber(row.incomeElectricityInvoicePaise),
+    incomeElectricityPaise: asPlainNumber(row.incomeElectricityPaise),
+    incomeTotalPaise: asPlainNumber(row.incomeTotalPaise),
+    expectedMonthlyRentPaise: asPlainNumber(row.expectedMonthlyRentPaise),
+    lateFeePaise: asPlainNumber(row.lateFeePaise),
+    vacatingDeductionPaise: asPlainNumber(row.vacatingDeductionPaise),
+    otherDeductionPaise: asPlainNumber(row.otherDeductionPaise),
+    depositRefundsCount: asPlainNumber(row.depositRefundsCount),
+    depositRefundsPaise: asPlainNumber(row.depositRefundsPaise),
+  };
+}
+
+function normalizeBusinessMetricsSummary(
+  summary: Omit<BusinessMetricsSummary, 'extraIncomePaise'> & { extraIncomePaise?: number },
+): BusinessMetricsSummary {
+  const lateFeePaise = asPlainNumber(summary.lateFeePaise);
+  const vacatingDeductionPaise = asPlainNumber(summary.vacatingDeductionPaise);
+  const otherDeductionPaise = asPlainNumber(summary.otherDeductionPaise);
+  return {
+    billingMonth: summary.billingMonth,
+    totalBeds: asPlainNumber(summary.totalBeds),
+    occupiedBeds: asPlainNumber(summary.occupiedBeds),
+    availableBeds: asPlainNumber(summary.availableBeds),
+    occupancyPct: asPlainNumber(summary.occupancyPct),
+    incomeRentQrPaise: asPlainNumber(summary.incomeRentQrPaise),
+    incomeRentInvoicePaise: asPlainNumber(summary.incomeRentInvoicePaise),
+    incomeRentPaise: asPlainNumber(summary.incomeRentPaise),
+    incomeElectricityQrPaise: asPlainNumber(summary.incomeElectricityQrPaise),
+    incomeElectricityInvoicePaise: asPlainNumber(summary.incomeElectricityInvoicePaise),
+    incomeElectricityPaise: asPlainNumber(summary.incomeElectricityPaise),
+    incomeTotalPaise: asPlainNumber(summary.incomeTotalPaise),
+    expectedMonthlyRentPaise: asPlainNumber(summary.expectedMonthlyRentPaise),
+    lateFeePaise,
+    vacatingDeductionPaise,
+    otherDeductionPaise,
+    depositRefundsCount: asPlainNumber(summary.depositRefundsCount),
+    depositRefundsPaise: asPlainNumber(summary.depositRefundsPaise),
+    extraIncomePaise: lateFeePaise + vacatingDeductionPaise + otherDeductionPaise,
+  };
+}
+
 export function getPgBusinessMetrics(
   billingMonthInput?: string,
 ): Promise<QueryResult<PgBusinessMetrics[]>> {
@@ -1058,30 +1117,32 @@ export function getPgBusinessMetrics(
     );
 
     return occupancy.data.map((row) => {
-      const incomeRentQrPaise = rentQrMap.get(row.pgId) ?? 0;
-      const incomeRentInvoicePaise = rentMap.get(row.pgId) ?? 0;
+      const incomeRentQrPaise = asPlainNumber(rentQrMap.get(row.pgId));
+      const incomeRentInvoicePaise = asPlainNumber(rentMap.get(row.pgId));
       const incomeRentPaise = incomeRentQrPaise + incomeRentInvoicePaise;
-      const incomeElectricityQrPaise = electricityQrMap.get(row.pgId) ?? 0;
-      const incomeElectricityInvoicePaise = elecMap.get(row.pgId) ?? 0;
+      const incomeElectricityQrPaise = asPlainNumber(electricityQrMap.get(row.pgId));
+      const incomeElectricityInvoicePaise = asPlainNumber(elecMap.get(row.pgId));
       const incomeElectricityPaise = incomeElectricityQrPaise + incomeElectricityInvoicePaise;
       const deposit = depositMap.get(row.pgId);
-      return {
-        ...row,
+      return normalizePgBusinessMetrics(
+        {
+          ...row,
+          incomeRentQrPaise,
+          incomeRentInvoicePaise,
+          incomeRentPaise,
+          incomeElectricityQrPaise,
+          incomeElectricityInvoicePaise,
+          incomeElectricityPaise,
+          incomeTotalPaise: incomeRentPaise + incomeElectricityPaise,
+          expectedMonthlyRentPaise: asPlainNumber(expectedMap.get(row.pgId)),
+          lateFeePaise: asPlainNumber(lateFeeMap.get(row.pgId)),
+          vacatingDeductionPaise: asPlainNumber(deposit?.vacatingDeductionPaise),
+          otherDeductionPaise: asPlainNumber(deposit?.otherDeductionPaise),
+          depositRefundsCount: asPlainNumber(deposit?.refundCount),
+          depositRefundsPaise: asPlainNumber(deposit?.refundPaise),
+        },
         billingMonth,
-        incomeRentQrPaise,
-        incomeRentInvoicePaise,
-        incomeRentPaise,
-        incomeElectricityQrPaise,
-        incomeElectricityInvoicePaise,
-        incomeElectricityPaise,
-        incomeTotalPaise: incomeRentPaise + incomeElectricityPaise,
-        expectedMonthlyRentPaise: expectedMap.get(row.pgId) ?? 0,
-        lateFeePaise: lateFeeMap.get(row.pgId) ?? 0,
-        vacatingDeductionPaise: deposit?.vacatingDeductionPaise ?? 0,
-        otherDeductionPaise: deposit?.otherDeductionPaise ?? 0,
-        depositRefundsCount: deposit?.refundCount ?? 0,
-        depositRefundsPaise: deposit?.refundPaise ?? 0,
-      };
+      );
     });
   });
 }
@@ -1100,7 +1161,7 @@ export function getBusinessMetricsSummary(
     const occupancyPct =
       totalBeds === 0 ? 0 : Math.round((occupiedBeds / totalBeds) * 1000) / 10;
 
-    return {
+    return normalizeBusinessMetricsSummary({
       billingMonth,
       totalBeds,
       occupiedBeds,
@@ -1122,11 +1183,7 @@ export function getBusinessMetricsSummary(
       otherDeductionPaise: rows.data.reduce((a, r) => a + r.otherDeductionPaise, 0),
       depositRefundsCount: rows.data.reduce((a, r) => a + r.depositRefundsCount, 0),
       depositRefundsPaise: rows.data.reduce((a, r) => a + r.depositRefundsPaise, 0),
-      extraIncomePaise: rows.data.reduce(
-        (a, r) => a + r.lateFeePaise + r.vacatingDeductionPaise + r.otherDeductionPaise,
-        0,
-      ),
-    };
+    });
   });
 }
 

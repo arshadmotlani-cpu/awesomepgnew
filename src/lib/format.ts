@@ -8,8 +8,19 @@ const inrFormatter = new Intl.NumberFormat('en-IN', {
   maximumFractionDigits: 0,
 });
 
-export function paiseToInr(paise: number): string {
-  return inrFormatter.format(paise / 100);
+/** Coerce SQL/driver values (bigint, numeric strings) to finite numbers for UI + RSC. */
+export function asPlainNumber(value: unknown): number {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (typeof value === 'bigint') return Number(value);
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+export function paiseToInr(paise: number | bigint | string | null | undefined): string {
+  return inrFormatter.format(asPlainNumber(paise) / 100);
 }
 
 export function formatDate(value: string | Date | null | undefined): string {
