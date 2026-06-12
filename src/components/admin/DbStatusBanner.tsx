@@ -7,7 +7,7 @@ import { IconAlertTriangle, IconDatabase } from './icons';
  * it themselves.
  */
 export function DbStatusBanner({ error }: { error: string }) {
-  const isMissingUrl = /DATABASE_URL is not set/.test(error);
+  const isMissingUrl = /DATABASE_URL is not set|DATABASE URL missing/i.test(error);
   const isConnRefused = /ECONNREFUSED|connection refused/i.test(error);
 
   return (

@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../client';
+import { hasDatabaseUrl } from '@/src/lib/db/env';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import {
   beds,
@@ -33,6 +34,12 @@ export type QueryResult<T> =
   | { ok: false; error: string };
 
 async function guard<T>(fn: () => Promise<T>): Promise<QueryResult<T>> {
+  if (!hasDatabaseUrl()) {
+    return {
+      ok: false,
+      error: 'DATABASE_URL is not set. Add it to your environment and restart.',
+    };
+  }
   try {
     return { ok: true, data: await fn() };
   } catch (err) {
@@ -897,103 +904,7 @@ export function getPgBusinessMetrics(
 ): Promise<QueryResult<PgBusinessMetrics[]>> {
   return guard(async () => {
     const billingMonth = resolveBillingMonth(billingMonthInput);
-    const occupancy = await getOccupancyByPg();
-    if (!occupancy.ok) throw new Error(occupancy.error);
-
     const monthMatch = qrMonthMatchesBillingMonth(billingMonth);
-
-    const rentQrRows = await db
-      .select({
-        pgId: pgPaymentRecords.pgId,
-        total: sql<number>`coalesce(sum(${pgPaymentRecords.amountPaise}), 0)::bigint::int`,
-      })
-      .from(pgPaymentRecords)
-      .innerJoin(pgPaymentCategories, eq(pgPaymentCategories.id, pgPaymentRecords.categoryId))
-      .where(
-        and(eq(pgPaymentRecords.status, 'approved'), rentQrCategorySql, monthMatch),
-      )
-      .groupBy(pgPaymentRecords.pgId);
-
-    const electricityQrRows = await db
-      .select({
-        pgId: pgPaymentRecords.pgId,
-        total: sql<number>`coalesce(sum(${pgPaymentRecords.amountPaise}), 0)::bigint::int`,
-      })
-      .from(pgPaymentRecords)
-      .innerJoin(pgPaymentCategories, eq(pgPaymentCategories.id, pgPaymentRecords.categoryId))
-      .where(
-        and(eq(pgPaymentRecords.status, 'approved'), electricityQrCategorySql, monthMatch),
-      )
-      .groupBy(pgPaymentRecords.pgId);
-
-    const rentRows = await db
-      .select({
-        pgId: rentInvoices.pgId,
-        total: sql<number>`coalesce(sum(${rentInvoices.paidPrincipalPaise} + ${rentInvoices.paidLateFeePaise}), 0)::bigint::int`,
-      })
-      .from(rentInvoices)
-      .where(and(eq(rentInvoices.status, 'paid'), eq(rentInvoices.billingMonth, billingMonth)))
-      .groupBy(rentInvoices.pgId);
-
-    const elecRows = await db
-      .select({
-        pgId: electricityBills.pgId,
-        total: sql<number>`coalesce(sum(${electricityInvoices.paidPaise} + coalesce(${electricityInvoices.lateFeeLockedPaise}, 0)), 0)::bigint::int`,
-      })
-      .from(electricityInvoices)
-      .innerJoin(electricityBills, eq(electricityBills.id, electricityInvoices.electricityBillId))
-      .where(
-        and(
-          eq(electricityInvoices.status, 'paid'),
-          eq(electricityInvoices.billingMonth, billingMonth),
-        ),
-      )
-      .groupBy(electricityBills.pgId);
-
-    const expectedRows = await db
-      .select({
-        pgId: pgs.id,
-        total: sql<number>`coalesce(sum(
-          (
-            SELECT bp.monthly_rate_paise::bigint::int FROM ${bedPrices} bp
-            WHERE bp.bed_id = beds.id
-              AND bp.effective_from <= CURRENT_DATE
-              AND (bp.effective_to IS NULL OR bp.effective_to > CURRENT_DATE)
-            ORDER BY bp.effective_from DESC LIMIT 1
-          )
-        ), 0)::bigint::int`,
-      })
-      .from(pgs)
-      .leftJoin(floors, eq(floors.pgId, pgs.id))
-      .leftJoin(rooms, eq(rooms.floorId, floors.id))
-      .leftJoin(beds, and(eq(beds.roomId, rooms.id), sql`${beds.archivedAt} IS NULL`))
-      .where(
-        and(
-          sql`${pgs.archivedAt} IS NULL`,
-          sql`EXISTS (
-            SELECT 1 FROM ${bedReservations} r
-            WHERE r.bed_id = beds.id
-              AND r.status = 'active'
-              AND CURRENT_DATE <@ r.stay_range
-          )`,
-        ),
-      )
-      .groupBy(pgs.id);
-
-    const rentQrMap = new Map(rentQrRows.map((r) => [r.pgId, r.total]));
-    const electricityQrMap = new Map(electricityQrRows.map((r) => [r.pgId, r.total]));
-    const rentMap = new Map(rentRows.map((r) => [r.pgId, r.total]));
-    const elecMap = new Map(elecRows.map((r) => [r.pgId, r.total]));
-    const expectedMap = new Map(expectedRows.map((r) => [r.pgId, r.total]));
-
-    const lateFeeRows = await db
-      .select({
-        pgId: rentInvoices.pgId,
-        total: sql<number>`coalesce(sum(${rentInvoices.paidLateFeePaise}), 0)::bigint::int`,
-      })
-      .from(rentInvoices)
-      .where(and(eq(rentInvoices.status, 'paid'), eq(rentInvoices.billingMonth, billingMonth)))
-      .groupBy(rentInvoices.pgId);
 
     type DepositPgRow = {
       pg_id: string;
@@ -1003,34 +914,135 @@ export function getPgBusinessMetrics(
       other_deduction_paise: number;
     };
 
-    const depositRows = await db.execute<DepositPgRow>(sql`
-      SELECT
-        pg.pg_id::text AS pg_id,
-        count(distinct dl.booking_id) FILTER (WHERE dl.entry_kind = 'refunded')::int AS refund_count,
-        coalesce(-sum(dl.amount_paise) FILTER (WHERE dl.entry_kind = 'refunded'), 0)::bigint::int AS refund_paise,
-        coalesce(-sum(dl.amount_paise) FILTER (
-          WHERE dl.entry_kind = 'deducted' AND dl.related_vacating_id IS NOT NULL
-        ), 0)::bigint::int AS vacating_deduction_paise,
-        coalesce(-sum(dl.amount_paise) FILTER (
-          WHERE dl.entry_kind = 'deducted' AND dl.related_vacating_id IS NULL
-        ), 0)::bigint::int AS other_deduction_paise
-      FROM deposit_ledger dl
-      INNER JOIN bookings bk ON bk.id = dl.booking_id
-      INNER JOIN LATERAL (
-        SELECT f.pg_id
-        FROM bed_reservations br
-        INNER JOIN beds b ON b.id = br.bed_id
-        INNER JOIN rooms r ON r.id = b.room_id
-        INNER JOIN floors f ON f.id = r.floor_id
-        WHERE br.booking_id = bk.id
-          AND br.kind = 'primary'
-        ORDER BY br.created_at DESC
-        LIMIT 1
-      ) pg ON true
-      WHERE dl.created_at >= ${billingMonth}::timestamptz
-        AND dl.created_at < (${billingMonth}::date + interval '1 month')::timestamptz
-      GROUP BY pg.pg_id
-    `);
+    const [
+      occupancy,
+      rentQrRows,
+      electricityQrRows,
+      rentRows,
+      elecRows,
+      expectedRows,
+      lateFeeRows,
+      depositRows,
+    ] = await Promise.all([
+      getOccupancyByPg(),
+      db
+        .select({
+          pgId: pgPaymentRecords.pgId,
+          total: sql<number>`coalesce(sum(${pgPaymentRecords.amountPaise}), 0)::bigint::int`,
+        })
+        .from(pgPaymentRecords)
+        .innerJoin(pgPaymentCategories, eq(pgPaymentCategories.id, pgPaymentRecords.categoryId))
+        .where(
+          and(eq(pgPaymentRecords.status, 'approved'), rentQrCategorySql, monthMatch),
+        )
+        .groupBy(pgPaymentRecords.pgId),
+      db
+        .select({
+          pgId: pgPaymentRecords.pgId,
+          total: sql<number>`coalesce(sum(${pgPaymentRecords.amountPaise}), 0)::bigint::int`,
+        })
+        .from(pgPaymentRecords)
+        .innerJoin(pgPaymentCategories, eq(pgPaymentCategories.id, pgPaymentRecords.categoryId))
+        .where(
+          and(eq(pgPaymentRecords.status, 'approved'), electricityQrCategorySql, monthMatch),
+        )
+        .groupBy(pgPaymentRecords.pgId),
+      db
+        .select({
+          pgId: rentInvoices.pgId,
+          total: sql<number>`coalesce(sum(${rentInvoices.paidPrincipalPaise} + ${rentInvoices.paidLateFeePaise}), 0)::bigint::int`,
+        })
+        .from(rentInvoices)
+        .where(and(eq(rentInvoices.status, 'paid'), eq(rentInvoices.billingMonth, billingMonth)))
+        .groupBy(rentInvoices.pgId),
+      db
+        .select({
+          pgId: electricityBills.pgId,
+          total: sql<number>`coalesce(sum(${electricityInvoices.paidPaise} + coalesce(${electricityInvoices.lateFeeLockedPaise}, 0)), 0)::bigint::int`,
+        })
+        .from(electricityInvoices)
+        .innerJoin(electricityBills, eq(electricityBills.id, electricityInvoices.electricityBillId))
+        .where(
+          and(
+            eq(electricityInvoices.status, 'paid'),
+            eq(electricityInvoices.billingMonth, billingMonth),
+          ),
+        )
+        .groupBy(electricityBills.pgId),
+      db
+        .select({
+          pgId: pgs.id,
+          total: sql<number>`coalesce(sum(
+            (
+              SELECT bp.monthly_rate_paise::bigint::int FROM ${bedPrices} bp
+              WHERE bp.bed_id = beds.id
+                AND bp.effective_from <= CURRENT_DATE
+                AND (bp.effective_to IS NULL OR bp.effective_to > CURRENT_DATE)
+              ORDER BY bp.effective_from DESC LIMIT 1
+            )
+          ), 0)::bigint::int`,
+        })
+        .from(pgs)
+        .leftJoin(floors, eq(floors.pgId, pgs.id))
+        .leftJoin(rooms, eq(rooms.floorId, floors.id))
+        .leftJoin(beds, and(eq(beds.roomId, rooms.id), sql`${beds.archivedAt} IS NULL`))
+        .where(
+          and(
+            sql`${pgs.archivedAt} IS NULL`,
+            sql`EXISTS (
+              SELECT 1 FROM ${bedReservations} r
+              WHERE r.bed_id = beds.id
+                AND r.status = 'active'
+                AND CURRENT_DATE <@ r.stay_range
+            )`,
+          ),
+        )
+        .groupBy(pgs.id),
+      db
+        .select({
+          pgId: rentInvoices.pgId,
+          total: sql<number>`coalesce(sum(${rentInvoices.paidLateFeePaise}), 0)::bigint::int`,
+        })
+        .from(rentInvoices)
+        .where(and(eq(rentInvoices.status, 'paid'), eq(rentInvoices.billingMonth, billingMonth)))
+        .groupBy(rentInvoices.pgId),
+      db.execute<DepositPgRow>(sql`
+        SELECT
+          pg.pg_id::text AS pg_id,
+          count(distinct dl.booking_id) FILTER (WHERE dl.entry_kind = 'refunded')::int AS refund_count,
+          coalesce(-sum(dl.amount_paise) FILTER (WHERE dl.entry_kind = 'refunded'), 0)::bigint::int AS refund_paise,
+          coalesce(-sum(dl.amount_paise) FILTER (
+            WHERE dl.entry_kind = 'deducted' AND dl.related_vacating_id IS NOT NULL
+          ), 0)::bigint::int AS vacating_deduction_paise,
+          coalesce(-sum(dl.amount_paise) FILTER (
+            WHERE dl.entry_kind = 'deducted' AND dl.related_vacating_id IS NULL
+          ), 0)::bigint::int AS other_deduction_paise
+        FROM deposit_ledger dl
+        INNER JOIN bookings bk ON bk.id = dl.booking_id
+        INNER JOIN LATERAL (
+          SELECT f.pg_id
+          FROM bed_reservations br
+          INNER JOIN beds b ON b.id = br.bed_id
+          INNER JOIN rooms r ON r.id = b.room_id
+          INNER JOIN floors f ON f.id = r.floor_id
+          WHERE br.booking_id = bk.id
+            AND br.kind = 'primary'
+          ORDER BY br.created_at DESC
+          LIMIT 1
+        ) pg ON true
+        WHERE dl.created_at >= ${billingMonth}::timestamptz
+          AND dl.created_at < (${billingMonth}::date + interval '1 month')::timestamptz
+        GROUP BY pg.pg_id
+      `),
+    ]);
+
+    if (!occupancy.ok) throw new Error(occupancy.error);
+
+    const rentQrMap = new Map(rentQrRows.map((r) => [r.pgId, r.total]));
+    const electricityQrMap = new Map(electricityQrRows.map((r) => [r.pgId, r.total]));
+    const rentMap = new Map(rentRows.map((r) => [r.pgId, r.total]));
+    const elecMap = new Map(elecRows.map((r) => [r.pgId, r.total]));
+    const expectedMap = new Map(expectedRows.map((r) => [r.pgId, r.total]));
 
     const lateFeeMap = new Map(lateFeeRows.map((r) => [r.pgId, r.total]));
     const depositMap = new Map(

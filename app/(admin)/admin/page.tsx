@@ -23,6 +23,7 @@ import {
 } from '@/src/db/queries/admin';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 export default async function DashboardPage({
   searchParams,
@@ -43,6 +44,20 @@ export default async function DashboardPage({
       <>
         <PageHeader title="Overview" description="PG operations at a glance." />
         <DbStatusBanner error={summary.error} />
+        {!metrics.ok ? <DbStatusBanner error={metrics.error} /> : null}
+      </>
+    );
+  }
+
+  if (!metrics.ok) {
+    return (
+      <>
+        <PageHeader
+          title="Overview"
+          description="Monthly collections, per-PG income, deposit refunds, and extra income from penalties."
+          actions={<OverviewMonthPicker billingMonth={billingMonth} />}
+        />
+        <DbStatusBanner error={metrics.error} />
       </>
     );
   }
@@ -55,8 +70,7 @@ export default async function DashboardPage({
     timeZone: 'UTC',
   }).format(new Date(`${billingMonth}T00:00:00.000Z`));
 
-  const donutSlices =
-    metrics.ok && metrics.data.length > 0 ? buildDonutSlices(metrics.data) : [];
+  const donutSlices = metrics.data.length > 0 ? buildDonutSlices(metrics.data) : [];
 
   return (
     <>
@@ -124,7 +138,7 @@ export default async function DashboardPage({
         </div>
       </div>
 
-      {metrics.ok && metrics.data.length > 0 ? (
+      {metrics.data.length > 0 ? (
         <section className="space-y-3">
           <div>
             <h2 className="text-sm font-semibold text-white">Breakdown by PG</h2>
