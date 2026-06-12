@@ -22,6 +22,7 @@ export * from './electricityInvoices';
 export * from './depositLedger';
 export * from './vacatingRequests';
 export * from './authSessions';
+export * from './adminPasswordResetTokens';
 export * from './emailOtpChallenges';
 export * from './emailOtpAttemptLog';
 export * from './kycSubmissions';

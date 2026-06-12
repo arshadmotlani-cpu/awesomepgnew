@@ -1,6 +1,6 @@
 import { uploadPaymentScreenshotAction } from '@/app/(admin)/admin/pgs/payment-actions';
 import { listPublicPgs, type CustomerPgListRow } from '@/src/db/queries/customer';
-import { isCloudinaryConfigured } from '@/src/lib/images/cloudinary';
+import { isPaymentScreenshotUploadAvailable } from '@/src/lib/payments/screenshotUpload';
 import { EmptyPgList } from '@/src/components/customer/EmptyPgList';
 import { MotionReveal } from '@/src/components/customer/MotionReveal';
 import { PgBrowseList } from '@/src/components/customer/PgBrowseList';
@@ -29,8 +29,9 @@ export default async function PgListPage() {
   const ctx = contextFromHeaders(h);
   ctx.route = '/pgs';
 
-  const cloudinary = isCloudinaryConfigured();
-  const uploadScreenshot = cloudinary ? uploadPaymentScreenshotAction : undefined;
+  const uploadScreenshot = isPaymentScreenshotUploadAvailable()
+    ? uploadPaymentScreenshotAction
+    : undefined;
 
   return runWithMonitoringContextAsync(ctx, async () => {
     await logServerRequest('/pgs');

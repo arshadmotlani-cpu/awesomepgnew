@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { PgAdminForm } from '@/src/components/admin/PgAdminForm';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
-import { isCloudinaryConfigured } from '@/src/lib/images/cloudinary';
+import { isBlobPublicConfigured } from '@/src/lib/storage/blob';
 import { getPgForAdmin } from '@/src/services/pgAdmin';
 import { uploadPgImageAction, uploadPgVideoAction } from '../../actions';
 
@@ -21,7 +21,7 @@ export default async function PgListingPage({
   const pg = await getPgForAdmin(pgId, session);
   if (!pg) notFound();
 
-  const cloudinary = isCloudinaryConfigured();
+  const blobUpload = isBlobPublicConfigured();
 
   return (
     <section>
@@ -35,9 +35,9 @@ export default async function PgListingPage({
       <PgAdminForm
         mode="edit"
         pg={pg}
-        cloudinaryConfigured={cloudinary}
-        cloudinaryUploadAction={cloudinary ? uploadPgImageAction : undefined}
-        cloudinaryVideoUploadAction={cloudinary ? uploadPgVideoAction : undefined}
+        blobUploadConfigured={blobUpload}
+        blobImageUploadAction={blobUpload ? uploadPgImageAction : undefined}
+        blobVideoUploadAction={blobUpload ? uploadPgVideoAction : undefined}
       />
     </section>
   );

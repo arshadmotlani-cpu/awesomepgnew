@@ -100,12 +100,43 @@ export const env = {
   get AUTH_CUSTOMER_SESSION_DAYS() {
     return optionalInt('AUTH_CUSTOMER_SESSION_DAYS', 7);
   },
-  get AUTH_ADMIN_SESSION_HOURS() {
-    return optionalInt('AUTH_ADMIN_SESSION_HOURS', 24);
+  /** Standard admin session length (without Remember Me). Default 30 days. */
+  get AUTH_ADMIN_SESSION_DAYS() {
+    return optionalInt('AUTH_ADMIN_SESSION_DAYS', 30);
   },
-  /** One-time bootstrap password for /api/cron/bootstrap-admin in production. */
+  /** Remember Me admin session length. Default 365 days. */
+  get AUTH_ADMIN_REMEMBER_DAYS() {
+    return optionalInt('AUTH_ADMIN_REMEMBER_DAYS', 365);
+  },
+  /** Extend admin session when remaining lifetime falls below this threshold. Default 7 days. */
+  get AUTH_ADMIN_SESSION_REFRESH_DAYS() {
+    return optionalInt('AUTH_ADMIN_SESSION_REFRESH_DAYS', 7);
+  },
+  /** @deprecated Use AUTH_ADMIN_SESSION_DAYS. Kept for backward compatibility. */
+  get AUTH_ADMIN_SESSION_HOURS() {
+    const days = optionalInt('AUTH_ADMIN_SESSION_DAYS', 0);
+    if (days > 0) return days * 24;
+    return optionalInt('AUTH_ADMIN_SESSION_HOURS', 24 * 30);
+  },
+  /** Password reset link validity (minutes). Default 60. */
+  get AUTH_ADMIN_RESET_TOKEN_MINUTES() {
+    return optionalInt('AUTH_ADMIN_RESET_TOKEN_MINUTES', 60);
+  },
+  /** Minimum seconds between admin password reset email sends. Default 60. */
+  get AUTH_ADMIN_RESET_RESEND_SECONDS() {
+    return optionalInt('AUTH_ADMIN_RESET_RESEND_SECONDS', 60);
+  },
+  /** Max password reset emails per hour (per admin account). Default 5. */
+  get AUTH_ADMIN_RESET_MAX_PER_HOUR() {
+    return optionalInt('AUTH_ADMIN_RESET_MAX_PER_HOUR', 5);
+  },
+  /** One-time bootstrap password for first admin account on deploy. */
   get ADMIN_INITIAL_PASSWORD() {
     return optional('ADMIN_INITIAL_PASSWORD');
+  },
+  /** Receives admin password reset links (forgot-password flow). */
+  get ADMIN_RECOVERY_EMAIL() {
+    return optional('ADMIN_RECOVERY_EMAIL');
   },
   /** OTP validity window (minutes). Default 5. */
   get AUTH_OTP_TTL_MINUTES() {

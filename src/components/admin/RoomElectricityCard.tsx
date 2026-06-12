@@ -15,13 +15,13 @@ export function RoomElectricityCard({
   roomId,
   logs,
   latestBill,
-  cloudinaryConfigured,
+  blobUploadConfigured,
 }: {
   pgId: string;
   roomId: string;
   logs: MeterLog[];
   latestBill: ElectricityBill | undefined;
-  cloudinaryConfigured: boolean;
+  blobUploadConfigured: boolean;
 }) {
   const [units, setUnits] = useState('');
   const [rateInr, setRateInr] = useState('');
@@ -35,7 +35,7 @@ export function RoomElectricityCard({
   const latestLog = logs[0];
 
   async function onFile(file: File | null) {
-    if (!file || !cloudinaryConfigured) return;
+    if (!file || !blobUploadConfigured) return;
     setUploading(true);
     setError(null);
     try {
@@ -137,7 +137,7 @@ export function RoomElectricityCard({
           />
           Estimated bill from historical average (no meter photo)
         </label>
-        {!useEstimate && cloudinaryConfigured ? (
+        {!useEstimate && blobUploadConfigured ? (
           <label className="text-sm sm:col-span-2">
             <span className="text-zinc-400">Meter photo *</span>
             <input
@@ -151,7 +151,7 @@ export function RoomElectricityCard({
           </label>
         ) : !useEstimate ? (
           <p className="text-xs text-amber-400 sm:col-span-2">
-            Configure Cloudinary for meter photos, or use estimated billing.
+            Configure Vercel Blob public storage for meter photos, or use estimated billing.
           </p>
         ) : null}
         <div className="sm:col-span-2">

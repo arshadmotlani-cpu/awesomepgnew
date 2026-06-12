@@ -1,11 +1,16 @@
 import { desc, eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { auditLog, customers, kycSubmissions, type KycValidationReport } from '@/src/db/schema';
-import { kycCustomerErrorMessage, KYC_UPLOAD_FAILED_MESSAGE } from '@/src/lib/kyc/errors';
+import {
+  kycCustomerErrorMessage,
+  KYC_STORAGE_UNAVAILABLE_MESSAGE,
+  KYC_UPLOAD_FAILED_MESSAGE,
+} from '@/src/lib/kyc/errors';
 import { logger } from '@/src/lib/logger';
 import {
   assertKycFileSize,
   assertKycMimeType,
+  isKycUploadAvailable,
   storeKycFile,
 } from '@/src/lib/kyc/storage';
 import { stampProfileCompletedAtIfReady } from './profile';
@@ -20,6 +25,10 @@ export type KycUploadInput = {
 };
 
 export async function submitKyc(input: KycUploadInput) {
+  if (!isKycUploadAvailable()) {
+    return { ok: false as const, message: KYC_STORAGE_UNAVAILABLE_MESSAGE };
+  }
+
   const files: Array<{ kind: KycImageKind; buffer: Buffer; mime: string }> = [
     { kind: 'aadhaar_front', ...input.aadhaarFront },
     { kind: 'aadhaar_back', ...input.aadhaarBack },
@@ -58,7 +67,7 @@ export async function submitKyc(input: KycUploadInput) {
   });
 
   try {
-    // Upload to Cloudinary / filesystem BEFORE inserting kyc_submissions (no FK on blobs).
+    // Upload to Blob / filesystem BEFORE inserting kyc_submissions (no FK on blobs).
     const [aadhaarFront, aadhaarBack, selfie] = await Promise.all([
       storeKycFile({
         customerId: input.customerId,

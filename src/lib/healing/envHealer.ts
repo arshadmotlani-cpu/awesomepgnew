@@ -1,4 +1,5 @@
 import { hasDatabaseUrl } from '@/src/lib/db/env';
+import { getIntegrationsHealthSummary } from '@/src/lib/integrations/status';
 import { logger } from '@/src/lib/logger';
 import { patchSystemState } from '@/src/lib/healing/systemState';
 
@@ -68,6 +69,7 @@ export function checkRequiredEnv(): EnvCheckResult {
 
 export function getEnvHealthSummary() {
   const check = checkRequiredEnv();
+  const integrations = getIntegrationsHealthSummary();
   return {
     ok: check.ok,
     missing: check.missing,
@@ -75,5 +77,9 @@ export function getEnvHealthSummary() {
     databaseConfigured: hasDatabaseUrl(),
     authConfigured: hasAuthSecret() || !isProduction(),
     baseUrlConfigured: hasBaseUrl(),
+    blobPrivateConfigured: integrations.blob.privateConfigured,
+    blobPublicConfigured: integrations.blob.publicConfigured,
+    kycUploadsAvailable: integrations.kyc.uploadsAvailable,
+    integrations,
   };
 }

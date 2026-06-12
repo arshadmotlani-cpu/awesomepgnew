@@ -7,6 +7,7 @@ import type { Customer } from '@/src/db/schema/customers';
 import { canCheckIn, getCustomerById } from '@/src/services/profile';
 import { getLatestKycSubmission } from '@/src/services/kyc';
 import { titleCase } from '@/src/lib/format';
+import { isKycUploadAvailable } from '@/src/lib/kyc/storage';
 import { ElectricityMeterNotice } from '@/src/components/customer/ElectricityMeterNotice';
 import {
   ACCOUNT_LINK_IN_SURFACE,
@@ -51,6 +52,7 @@ export async function KycIdentitySection({
     customer.kycStatus === 'pending' &&
     latest != null &&
     latest.status === 'pending';
+  const kycUploadAvailable = isKycUploadAvailable();
 
   const statusTone =
     customer.kycStatus === 'approved'
@@ -145,7 +147,7 @@ export async function KycIdentitySection({
           {latest && customer.kycStatus === 'rejected' ? (
             <KycDocumentPreview customer={customer} submissionId={latest.id} />
           ) : null}
-          <KycUploadForm bookingCode={bookingCode} />
+          <KycUploadForm bookingCode={bookingCode} uploadAvailable={kycUploadAvailable} />
         </>
       )}
     </section>

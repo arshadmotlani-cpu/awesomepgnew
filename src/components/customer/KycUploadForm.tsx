@@ -13,6 +13,7 @@ import {
   type KycActionState,
 } from '@/app/(customer)/account/kyc/actions';
 import { prepareKycImageForUpload } from '@/src/lib/kyc/clientImagePrep';
+import { KYC_STORAGE_UNAVAILABLE_MESSAGE } from '@/src/lib/kyc/errors';
 import {
   KYC_FILE_TOO_LARGE_MESSAGE,
   type KycUploadKind,
@@ -24,9 +25,10 @@ type KycFieldName = 'aadhaarFront' | 'aadhaarBack' | 'selfie';
 
 type Props = {
   bookingCode?: string;
+  uploadAvailable?: boolean;
 };
 
-export function KycUploadForm({ bookingCode }: Props) {
+export function KycUploadForm({ bookingCode, uploadAvailable = true }: Props) {
   const [state, formAction, pending] = useActionState(submitKycAction, INITIAL);
   const [files, setFiles] = useState<Partial<Record<KycFieldName, File>>>({});
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<KycFieldName, string>>>({});
@@ -61,6 +63,11 @@ export function KycUploadForm({ bookingCode }: Props) {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitError(null);
+
+    if (!uploadAvailable) {
+      setSubmitError(KYC_STORAGE_UNAVAILABLE_MESSAGE);
+      return;
+    }
 
     if (!files.aadhaarFront || !files.aadhaarBack || !files.selfie) {
       setSubmitError('Upload Aadhaar front, Aadhaar back, and a selfie.');
@@ -100,6 +107,12 @@ export function KycUploadForm({ bookingCode }: Props) {
     >
       {bookingCode ? <input type="hidden" name="bookingCode" value={bookingCode} /> : null}
 
+      {!uploadAvailable ? (
+        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          {KYC_STORAGE_UNAVAILABLE_MESSAGE}
+        </p>
+      ) : null}
+
       <KycPhotoUploadField
         name="aadhaarFront"
         label="Aadhaar — front"
@@ -109,6 +122,7 @@ export function KycUploadForm({ bookingCode }: Props) {
         kind="aadhaar"
         selectedFile={files.aadhaarFront}
         error={fieldErrors.aadhaarFront}
+        disabled={!uploadAvailable}
         onPrepared={(file, error) => {
           setFieldFile('aadhaarFront', file);
           setFieldError('aadhaarFront', error);
@@ -123,6 +137,7 @@ export function KycUploadForm({ bookingCode }: Props) {
         kind="aadhaar"
         selectedFile={files.aadhaarBack}
         error={fieldErrors.aadhaarBack}
+        disabled={!uploadAvailable}
         onPrepared={(file, error) => {
           setFieldFile('aadhaarBack', file);
           setFieldError('aadhaarBack', error);
@@ -137,6 +152,7 @@ export function KycUploadForm({ bookingCode }: Props) {
         kind="selfie"
         selectedFile={files.selfie}
         error={fieldErrors.selfie}
+        disabled={!uploadAvailable}
         onPrepared={(file, error) => {
           setFieldFile('selfie', file);
           setFieldError('selfie', error);
@@ -150,7 +166,7 @@ export function KycUploadForm({ bookingCode }: Props) {
 
       <button
         type="submit"
-        disabled={!ready || pending || !allSelected}
+        disabled={!uploadAvailable || !ready || pending || !allSelected}
         className="w-full rounded-md bg-indigo-600 px-4 py-3 text-sm font-semibold text-white hover:bg-indigo-500 disabled:bg-indigo-300"
       >
         {pending ? 'Validating & submitting…' : 'Submit for review'}
@@ -172,6 +188,7 @@ type KycPhotoUploadFieldProps = {
   kind: KycUploadKind;
   selectedFile?: File;
   error?: string;
+  disabled?: boolean;
   onPrepared: (file: File | undefined, error: string | null) => void;
 };
 
@@ -184,6 +201,7 @@ function KycPhotoUploadField({
   kind,
   selectedFile,
   error,
+  disabled = false,
   onPrepared,
 }: KycPhotoUploadFieldProps) {
   const inputId = useId();
@@ -239,7 +257,12 @@ function KycPhotoUploadField({
 
       <label
         htmlFor={inputId}
-        className="relative block min-h-[5.5rem] w-full cursor-pointer rounded-xl border-2 border-dashed border-indigo-200 bg-indigo-50/40 transition-colors hover:border-indigo-300 hover:bg-indigo-50/70 active:bg-indigo-100/60"
+        className={
+          'relative block min-h-[5.5rem] w-full rounded-xl border-2 border-dashed border-indigo-200 bg-indigo-50/40 transition-colors ' +
+          (disabled
+            ? 'cursor-not-allowed opacity-60'
+            : 'cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/70 active:bg-indigo-100/60')
+        }
       >
         <input
           id={inputId}
@@ -247,7 +270,7 @@ function KycPhotoUploadField({
           accept="image/*"
           aria-labelledby={`${inputId}-label`}
           className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
-          disabled={preparing}
+          disabled={disabled || preparing}
           onChange={(e) => void onFileChange(e.target.files?.[0])}
         />
 

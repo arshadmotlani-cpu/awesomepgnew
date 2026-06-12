@@ -22,7 +22,7 @@ describe('proofResponse', () => {
   it('streams base64 data URLs as image responses', async () => {
     const payload = Buffer.from('fake-jpeg').toString('base64');
     const url = `data:image/jpeg;base64,${payload}`;
-    const res = proofUrlToImageResponse(url);
+    const res = await proofUrlToImageResponse(url);
 
     assert.equal(res.status, 200);
     assert.equal(res.headers.get('Content-Type'), 'image/jpeg');
@@ -30,8 +30,8 @@ describe('proofResponse', () => {
     assert.equal(body.toString(), 'fake-jpeg');
   });
 
-  it('redirects https URLs', () => {
-    const res = proofUrlToImageResponse('https://cdn.example.com/proof.jpg');
+  it('redirects https URLs', async () => {
+    const res = await proofUrlToImageResponse('https://cdn.example.com/proof.jpg');
     assert.equal(res.status, 302);
     assert.equal(res.headers.get('Location'), 'https://cdn.example.com/proof.jpg');
   });

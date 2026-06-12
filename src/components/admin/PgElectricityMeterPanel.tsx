@@ -37,12 +37,12 @@ export function PgElectricityMeterPanel({
   pgId,
   rooms,
   pendingProofs,
-  cloudinaryConfigured,
+  blobUploadConfigured,
 }: {
   pgId: string;
   rooms: RoomSummary[];
   pendingProofs: PendingProof[];
-  cloudinaryConfigured: boolean;
+  blobUploadConfigured: boolean;
 }) {
   return (
     <section className="mt-8 space-y-6 rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6">
@@ -92,7 +92,7 @@ export function PgElectricityMeterPanel({
               key={room.roomId}
               pgId={pgId}
               room={room}
-              cloudinaryConfigured={cloudinaryConfigured}
+              blobUploadConfigured={blobUploadConfigured}
             />
           ))}
         </div>
@@ -122,11 +122,11 @@ function ApproveProofButton({ invoiceId, pgId }: { invoiceId: string; pgId: stri
 function RoomMeterCard({
   pgId,
   room,
-  cloudinaryConfigured,
+  blobUploadConfigured,
 }: {
   pgId: string;
   room: RoomSummary;
-  cloudinaryConfigured: boolean;
+  blobUploadConfigured: boolean;
 }) {
   const [units, setUnits] = useState('');
   const [rateInr, setRateInr] = useState('');
@@ -146,7 +146,7 @@ function RoomMeterCard({
   const [prepaidSuccess, setPrepaidSuccess] = useState(false);
 
   async function onFile(file: File | null) {
-    if (!file || !cloudinaryConfigured) return;
+    if (!file || !blobUploadConfigured) return;
     setUploading(true);
     setError(null);
     try {
@@ -334,7 +334,7 @@ function RoomMeterCard({
           />
           Generate estimated bill from historical average (no photo)
         </label>
-        {!useEstimate && cloudinaryConfigured ? (
+        {!useEstimate && blobUploadConfigured ? (
           <label className="text-sm sm:col-span-2">
             <span className="text-zinc-400">Meter photo</span>
             <input
@@ -348,7 +348,7 @@ function RoomMeterCard({
           </label>
         ) : !useEstimate ? (
           <p className="text-xs text-amber-400 sm:col-span-2">
-            Configure Cloudinary to upload meter photos, or use estimated billing.
+            Configure Vercel Blob to upload meter photos, or use estimated billing.
           </p>
         ) : null}
         <div className="sm:col-span-2">

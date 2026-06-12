@@ -1,16 +1,28 @@
 'use client';
 
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { authFieldLabelClassName, authInputClassName } from '@/src/components/auth/authFieldStyles';
 import { redirectAfterAuth, safeAdminNext } from '@/src/lib/auth/safeNext';
 
-export function AdminLoginForm() {
+type AdminLoginFormProps = {
+  recoveryConfigured: boolean;
+  maskedRecoveryEmail: string | null;
+  passwordResetSuccess?: boolean;
+};
+
+export function AdminLoginForm({
+  recoveryConfigured,
+  maskedRecoveryEmail,
+  passwordResetSuccess = false,
+}: AdminLoginFormProps) {
   const searchParams = useSearchParams();
   const next = safeAdminNext(searchParams.get('next'));
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,7 +35,7 @@ export function AdminLoginForm() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, rememberMe }),
       });
       const data = (await res.json()) as {
         ok: boolean;
@@ -75,6 +87,15 @@ export function AdminLoginForm() {
           className={authInputClassName}
         />
       </label>
+      <label className="flex items-center gap-2 text-sm text-zinc-700">
+        <input
+          type="checkbox"
+          checked={rememberMe}
+          onChange={(e) => setRememberMe(e.target.checked)}
+          className="size-4 rounded border-zinc-300 text-zinc-900 focus:ring-indigo-500"
+        />
+        Remember me on this device
+      </label>
       <button
         type="submit"
         disabled={pending}
@@ -82,35 +103,30 @@ export function AdminLoginForm() {
       >
         {pending ? 'Signing in…' : 'Sign in'}
       </button>
+      {passwordResetSuccess ? (
+        <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          Password updated. Sign in with your new password.
+        </p>
+      ) : null}
       {error ? (
         <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>
       ) : null}
-      <details className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
-        <summary className="cursor-pointer font-medium text-zinc-700">
-          Forgot password or can&apos;t sign in?
-        </summary>
-        <ul className="mt-2 list-disc space-y-1.5 pl-4 leading-relaxed">
-          <li>
-            <strong>Production</strong> does not use the dev password{' '}
-            <code className="rounded bg-white px-1">changeme</code>. Use the password you set
-            after first login.
-          </li>
-          <li>
-            Admin sessions expire after about a day of inactivity — that is why you may be asked
-            to sign in again.
-          </li>
-          <li>
-            To reset <code className="rounded bg-white px-1">admin@awesomepg.local</code> to your
-            Vercel <code className="rounded bg-white px-1">ADMIN_INITIAL_PASSWORD</code>, run from
-            a machine that knows that secret:
-            <pre className="mt-1 overflow-x-auto rounded bg-white p-2 text-[10px] text-zinc-800">
-              {`curl -X POST https://awesomepg.in/api/cron/bootstrap-admin \\
-  -H "Authorization: Bearer YOUR_ADMIN_INITIAL_PASSWORD"`}
-            </pre>
-            Then sign in with that password.
-          </li>
-        </ul>
-      </details>
+      <p className="text-center text-sm text-zinc-600">
+        <Link href="/admin/forgot-password" className="font-medium text-indigo-700 hover:underline">
+          Forgot password?
+        </Link>
+      </p>
+      {recoveryConfigured && maskedRecoveryEmail ? (
+        <p className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs leading-relaxed text-zinc-600">
+          Password reset links are sent to{' '}
+          <span className="font-medium text-zinc-800">{maskedRecoveryEmail}</span>.
+        </p>
+      ) : (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+          Password recovery is not configured. Set{' '}
+          <code className="rounded bg-white px-1">ADMIN_RECOVERY_EMAIL</code> in your environment.
+        </p>
+      )}
     </form>
   );
 }

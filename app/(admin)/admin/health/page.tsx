@@ -1,6 +1,7 @@
 import { HealthDashboard } from '@/src/components/admin/HealthDashboard';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { getEnvHealthSummary } from '@/src/lib/healing/envHealer';
+import { getIntegrationsHealthSummaryWithBlobProbe } from '@/src/lib/integrations/status';
 import { getLatestPersistedHealth, runHealthDiagnosis } from '@/src/lib/healing/healthEngine';
 
 export const runtime = 'nodejs';
@@ -13,7 +14,9 @@ export default async function AdminHealthPage() {
   try {
     const state = await runHealthDiagnosis();
     const persisted = await getLatestPersistedHealth();
-    const env = getEnvHealthSummary();
+    const envBase = getEnvHealthSummary();
+    const integrations = await getIntegrationsHealthSummaryWithBlobProbe();
+    const env = { ...envBase, integrations };
     initial = { ...state, env, persisted: persisted ? {
       status: persisted.status,
       dbStatus: persisted.dbStatus,
@@ -28,8 +31,8 @@ export default async function AdminHealthPage() {
   return (
     <>
       <PageHeader
-        title="Self-healing health"
-        description="Auto-detects env/DB issues, enters safe mode when needed, and recovers without manual intervention."
+        title="Diagnostics & health"
+        description="Database, Vercel Blob, email, Razorpay, and KYC storage status. Auto-detects env/DB issues and recovers when possible."
       />
       <HealthDashboard initial={initial} initialError={initialError} />
     </>

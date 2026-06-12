@@ -5,7 +5,11 @@ import { redirect, unstable_rethrow } from 'next/navigation';
 import { getCustomerSession } from '@/src/lib/auth/session';
 import { requireCustomerOwnsBookingCode } from '@/src/lib/auth/guards';
 import { requireCompleteProfile } from '@/src/services/profile';
-import { kycCustomerErrorMessage } from '@/src/lib/kyc/errors';
+import {
+  kycCustomerErrorMessage,
+  KYC_STORAGE_UNAVAILABLE_MESSAGE,
+} from '@/src/lib/kyc/errors';
+import { isKycUploadAvailable } from '@/src/lib/kyc/storage';
 import {
   KYC_FILE_TOO_LARGE_MESSAGE,
   validateKycUploadSize,
@@ -39,6 +43,10 @@ export async function submitKycAction(
   }
 
   await requireCompleteProfile(session.customerId);
+
+  if (!isKycUploadAvailable()) {
+    return { status: 'error', message: KYC_STORAGE_UNAVAILABLE_MESSAGE };
+  }
 
   const bookingCode = String(formData.get('bookingCode') ?? '').trim();
   let bookingId: string | null = null;

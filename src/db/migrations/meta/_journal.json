@@ -239,6 +239,13 @@
       "when": 1785200000000,
       "tag": "0034_kyc_external_storage",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1785300000000,
+      "tag": "0035_admin_auth_recovery",
+      "breakpoints": true
     }
   ]
 }

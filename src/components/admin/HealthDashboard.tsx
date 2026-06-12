@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Badge } from '@/src/components/admin/Badge';
 import { Card, CardBody, CardHeader } from '@/src/components/admin/Card';
+import { IntegrationsDiagnostics } from '@/src/components/admin/IntegrationsDiagnostics';
 import { Table, TBody, TD, TH, THead, TR } from '@/src/components/admin/Table';
+import type { IntegrationsHealthSummary } from '@/src/lib/integrations/status';
 
 type HealthPayload = {
   status: string;
@@ -20,6 +22,10 @@ type HealthPayload = {
     ok: boolean;
     missing: string[];
     degradedFeatures: string[];
+    blobPrivateConfigured?: boolean;
+    blobPublicConfigured?: boolean;
+    kycUploadsAvailable?: boolean;
+    integrations?: IntegrationsHealthSummary;
   };
   persisted: {
     status: string;
@@ -125,6 +131,13 @@ export function HealthDashboard({
             </ul>
           </CardBody>
         </Card>
+      ) : null}
+
+      {data.env.integrations ? (
+        <IntegrationsDiagnostics
+          integrations={data.env.integrations}
+          databaseStatus={data.dbStatus}
+        />
       ) : null}
 
       <Card>

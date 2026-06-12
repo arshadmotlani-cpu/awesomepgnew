@@ -16,7 +16,7 @@ import {
   DEFAULT_RENT_DEPOSIT_QR_PATH,
   DEFAULT_RENT_DEPOSIT_UPI_ID,
 } from '@/src/lib/payments/defaultQr';
-import { isCloudinaryConfigured } from '@/src/lib/images/cloudinary';
+import { isPaymentScreenshotUploadAvailable } from '@/src/lib/payments/screenshotUpload';
 import {
   ensureDefaultPaymentCategoriesForPg,
   getRentDepositBookingCategory,
@@ -58,7 +58,7 @@ export default async function ExtensionPayPage(
   }
 
   const totalLabel = paiseToInr(ext.quotedTotalPaise);
-  const cloudinary = isCloudinaryConfigured();
+  const paymentUploadAvailable = isPaymentScreenshotUploadAvailable();
 
   const [extMeta] = await db
     .select({
@@ -165,7 +165,7 @@ export default async function ExtensionPayPage(
             </div>
 
             <div className="mt-5">
-              {cloudinary ? (
+              {paymentUploadAvailable ? (
                 <ExtensionPaymentProofForm
                   extensionId={ext.id}
                   amountLabel={totalLabel}
@@ -175,7 +175,9 @@ export default async function ExtensionPayPage(
                   upiId={rentCategory?.upiId ?? DEFAULT_RENT_DEPOSIT_UPI_ID}
                 />
               ) : (
-                <p className="text-sm text-amber-800">Online payment is not available.</p>
+                <p className="text-sm text-amber-800">
+                  Payment proof upload is temporarily unavailable. Please contact Awesome PG support.
+                </p>
               )}
             </div>
 

@@ -17,9 +17,9 @@ const AMENITY_KEYS = PG_AMENITY_DEFINITIONS.filter((d) => !d.deprecated).map((d)
 type Props = {
   mode: 'create' | 'edit';
   pg?: Pg;
-  cloudinaryUploadAction?: (formData: FormData) => Promise<string>;
-  cloudinaryVideoUploadAction?: (formData: FormData) => Promise<string>;
-  cloudinaryConfigured?: boolean;
+  blobImageUploadAction?: (formData: FormData) => Promise<string>;
+  blobVideoUploadAction?: (formData: FormData) => Promise<string>;
+  blobUploadConfigured?: boolean;
 };
 
 const initial: PgFormState = { ok: false };
@@ -39,9 +39,9 @@ function Section({ title, description, children }: { title: string; description?
 export function PgAdminForm({
   mode,
   pg,
-  cloudinaryUploadAction,
-  cloudinaryVideoUploadAction,
-  cloudinaryConfigured = false,
+  blobImageUploadAction,
+  blobVideoUploadAction,
+  blobUploadConfigured = false,
 }: Props) {
   const action =
     mode === 'create'
@@ -50,19 +50,19 @@ export function PgAdminForm({
 
   const [state, formAction, pending] = useActionState(action, initial);
 
-  const handleImageUpload = cloudinaryUploadAction
+  const handleImageUpload = blobImageUploadAction
     ? async (file: File) => {
         const fd = new FormData();
         fd.append('file', file);
-        return cloudinaryUploadAction(fd);
+        return blobImageUploadAction(fd);
       }
     : undefined;
 
-  const handleVideoUpload = cloudinaryVideoUploadAction
+  const handleVideoUpload = blobVideoUploadAction
     ? async (file: File) => {
         const fd = new FormData();
         fd.append('file', file);
-        return cloudinaryVideoUploadAction(fd);
+        return blobVideoUploadAction(fd);
       }
     : undefined;
 
@@ -89,12 +89,10 @@ export function PgAdminForm({
         </p>
       ) : null}
 
-      {!cloudinaryConfigured ? (
+      {!blobUploadConfigured ? (
         <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
-          Photo/video file upload needs Cloudinary env vars on the server. You can still paste image and video URLs below, or add{' '}
-          <code className="text-amber-100">CLOUDINARY_CLOUD_NAME</code>,{' '}
-          <code className="text-amber-100">CLOUDINARY_API_KEY</code>, and{' '}
-          <code className="text-amber-100">CLOUDINARY_API_SECRET</code> in Vercel.
+          Photo/video file upload needs a public Vercel Blob store. You can still paste image and video URLs below, or set{' '}
+          <code className="text-amber-100">BLOB_PUBLIC_READ_WRITE_TOKEN</code> in Vercel.
         </p>
       ) : null}
 
@@ -219,7 +217,7 @@ export function PgAdminForm({
           onUpload={handleImageUpload}
         />
         {!handleImageUpload ? (
-          <p className="text-xs text-zinc-500">Use “Add URL” to paste image links, or configure Cloudinary for file upload.</p>
+          <p className="text-xs text-zinc-500">Use “Add URL” to paste image links, or configure Vercel Blob for file upload.</p>
         ) : null}
       </Section>
 

@@ -111,16 +111,16 @@ export async function uploadPgImageAction(formData: FormData): Promise<string> {
   await requireAdminPermission('pgs:write');
   const file = formData.get('file');
   if (!(file instanceof File)) throw new Error('No file provided.');
-  const { uploadToCloudinary } = await import('@/src/lib/images/cloudinary');
-  return uploadToCloudinary(file, 'image');
+  const { uploadPublicFile } = await import('@/src/lib/storage/blob');
+  return uploadPublicFile(file, 'pg/images');
 }
 
 export async function uploadPgVideoAction(formData: FormData): Promise<string> {
   await requireAdminPermission('pgs:write');
   const file = formData.get('file');
   if (!(file instanceof File)) throw new Error('No file provided.');
-  const { uploadToCloudinary } = await import('@/src/lib/images/cloudinary');
-  return uploadToCloudinary(file, 'video');
+  const { uploadPublicFile } = await import('@/src/lib/storage/blob');
+  return uploadPublicFile(file, 'pg/videos');
 }
 
 export async function archivePgFormAction(formData: FormData): Promise<void> {

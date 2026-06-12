@@ -5,11 +5,15 @@ export const PUBLIC_PATHS = new Set([
   '/',
   '/login',
   '/admin/login',
+  '/admin/forgot-password',
+  '/admin/reset-password',
   '/pgs',
   '/api/availability',
   '/api/auth/customer/email/send',
   '/api/auth/customer/email/verify',
   '/api/auth/admin/login',
+  '/api/auth/admin/forgot-password',
+  '/api/auth/admin/reset-password',
   '/api/auth/logout',
 ]);
 

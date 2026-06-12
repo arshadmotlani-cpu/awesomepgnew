@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { revalidatePgAdminPages } from '@/src/lib/revalidatePgAdmin';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
-import { uploadToCloudinary } from '@/src/lib/images/cloudinary';
+import { uploadPublicFile } from '@/src/lib/storage/blob';
 import { uploadPaymentScreenshot } from '@/src/lib/payments/screenshotUpload';
 import {
   createPaymentCategory,
@@ -65,7 +65,7 @@ export async function uploadQrImageAction(formData: FormData): Promise<string> {
   const file = formData.get('file');
   if (!(file instanceof File)) throw new Error('No file provided.');
   if (!file.type.startsWith('image/')) throw new Error('Only image files are allowed.');
-  return uploadToCloudinary(file);
+  return uploadPublicFile(file, 'pg/qr');
 }
 
 export async function uploadPaymentScreenshotAction(formData: FormData): Promise<string> {

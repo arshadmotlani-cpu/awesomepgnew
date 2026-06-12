@@ -43,13 +43,13 @@ export function PgRoomOperationsPanel({
   floors,
   beds,
   roomMeters,
-  cloudinaryConfigured,
+  blobUploadConfigured,
 }: {
   pgId: string;
   floors: FloorRow[];
   beds: PgInventoryBedRow[];
   roomMeters: RoomMeterData[];
-  cloudinaryConfigured: boolean;
+  blobUploadConfigured: boolean;
 }) {
   const [showAddBed, setShowAddBed] = useState(beds.length === 0);
 
@@ -187,7 +187,7 @@ export function PgRoomOperationsPanel({
                   roomId={room.roomId}
                   logs={room.meter?.logs ?? []}
                   latestBill={room.meter?.latestBill}
-                  cloudinaryConfigured={cloudinaryConfigured}
+                  blobUploadConfigured={blobUploadConfigured}
                 />
               </div>
             </article>

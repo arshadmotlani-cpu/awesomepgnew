@@ -36,5 +36,5 @@ export async function GET(
     return new Response('Payment proof not found', { status: 404 });
   }
 
-  return proofUrlToImageResponse(url);
+  return await proofUrlToImageResponse(url);
 }

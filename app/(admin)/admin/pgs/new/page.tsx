@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { PgAdminForm } from '@/src/components/admin/PgAdminForm';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
-import { isCloudinaryConfigured } from '@/src/lib/images/cloudinary';
+import { isBlobPublicConfigured } from '@/src/lib/storage/blob';
 import { uploadPgImageAction, uploadPgVideoAction } from '../actions';
 
 export const runtime = 'nodejs';
@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function NewPgPage() {
   await requireAdminPermission('pgs:write');
-  const cloudinary = isCloudinaryConfigured();
+  const blobUpload = isBlobPublicConfigured();
 
   return (
     <>
@@ -25,9 +25,9 @@ export default async function NewPgPage() {
       />
       <PgAdminForm
         mode="create"
-        cloudinaryConfigured={cloudinary}
-        cloudinaryUploadAction={cloudinary ? uploadPgImageAction : undefined}
-        cloudinaryVideoUploadAction={cloudinary ? uploadPgVideoAction : undefined}
+        blobUploadConfigured={blobUpload}
+        blobImageUploadAction={blobUpload ? uploadPgImageAction : undefined}
+        blobVideoUploadAction={blobUpload ? uploadPgVideoAction : undefined}
       />
     </>
   );

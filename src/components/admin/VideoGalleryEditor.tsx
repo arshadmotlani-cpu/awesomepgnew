@@ -90,7 +90,7 @@ export function VideoGalleryEditor({ name = 'videos', initialVideos, onUpload }:
         </label>
       ) : (
         <p className="text-xs text-amber-400/90">
-          File upload needs Cloudinary env vars — you can still paste video URLs above.
+          File upload needs a public Vercel Blob store — you can still paste video URLs above.
         </p>
       )}
 

@@ -182,14 +182,14 @@ const PRICE_EFFECTIVE_FROM = '2026-01-01';
 const SEED_ADMIN_EMAIL = 'admin@awesomepg.local';
 
 /**
- * Dev-only default. Production builds never use a baked-in password — set
- * `ADMIN_INITIAL_PASSWORD` for a one-time bootstrap instead.
+ * Dev seed password. Production uses migrate-time bootstrap from
+ * `ADMIN_INITIAL_PASSWORD` or the forgot-password flow.
  */
 function resolveSeedAdminPassword(): string | null {
   const fromEnv = process.env.ADMIN_INITIAL_PASSWORD?.trim();
   if (fromEnv) return fromEnv;
   if (process.env.NODE_ENV === 'production') return null;
-  return 'changeme';
+  return null;
 }
 
 async function seedAdminUser() {
@@ -197,7 +197,7 @@ async function seedAdminUser() {
   const password = resolveSeedAdminPassword();
   if (!password) {
     console.log(
-      '  skip: admin user seed in production (set ADMIN_INITIAL_PASSWORD to bootstrap)',
+      '  skip: admin user seed (set ADMIN_INITIAL_PASSWORD or run npm run db:migrate to bootstrap)',
     );
     await close();
     return;
@@ -226,11 +226,11 @@ async function seedAdminUser() {
   const isProd = process.env.NODE_ENV === 'production';
   if (isProd) {
     console.log(
-      `  ✓ admin user: ${SEED_ADMIN_EMAIL} (password from ADMIN_INITIAL_PASSWORD — must change on first login)`,
+      `  ✓ admin user: ${SEED_ADMIN_EMAIL} (password from ADMIN_INITIAL_PASSWORD)`,
     );
   } else {
     console.log(
-      `  ✓ admin user: ${SEED_ADMIN_EMAIL} / changeme (must change on first login)`,
+      `  ✓ admin user: ${SEED_ADMIN_EMAIL} (password from ADMIN_INITIAL_PASSWORD — change via admin console)`,
     );
   }
   await close();

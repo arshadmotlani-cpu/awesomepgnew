@@ -3,17 +3,16 @@ import { NextRequest } from 'next/server';
 import { db } from '@/src/db/client';
 import { adminUsers } from '@/src/db/schema';
 import { hashPassword } from '@/src/lib/auth/crypto';
+import { SEED_ADMIN_EMAIL } from '@/src/lib/auth/adminPasswordReset';
 import { env } from '@/src/lib/env';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const SEED_ADMIN_EMAIL = 'admin@awesomepg.local';
-
 /**
  * One-time production bootstrap for the first admin account.
- * Requires `ADMIN_INITIAL_PASSWORD` on the server and the same value as
- * `Authorization: Bearer <ADMIN_INITIAL_PASSWORD>`.
+ * Creates the account only — never resets an existing admin password.
+ * Requires `ADMIN_INITIAL_PASSWORD` and `Authorization: Bearer <CRON_SECRET>`.
  */
 async function handle(req: NextRequest) {
   const bootstrapPassword = env.ADMIN_INITIAL_PASSWORD;
@@ -24,8 +23,12 @@ async function handle(req: NextRequest) {
     );
   }
 
+  const cronSecret = env.CRON_SECRET;
   const auth = req.headers.get('authorization');
-  if (auth !== `Bearer ${bootstrapPassword}`) {
+  const expectedAuth = cronSecret
+    ? `Bearer ${cronSecret}`
+    : `Bearer ${bootstrapPassword}`;
+  if (auth !== expectedAuth) {
     return new Response('Unauthorized', { status: 401 });
   }
 
@@ -35,35 +38,31 @@ async function handle(req: NextRequest) {
     .where(eq(adminUsers.email, SEED_ADMIN_EMAIL))
     .limit(1);
 
-  const passwordHash = hashPassword(bootstrapPassword);
-
   if (existing) {
-    await db
-      .update(adminUsers)
-      .set({
-        passwordHash,
-        isActive: true,
-        mustChangePassword: false,
-        updatedAt: new Date(),
-      })
-      .where(eq(adminUsers.email, SEED_ADMIN_EMAIL));
-  } else {
-    await db.insert(adminUsers).values({
-      fullName: 'Super Admin',
+    return Response.json({
+      ok: true,
       email: SEED_ADMIN_EMAIL,
-      passwordHash,
-      role: 'super_admin',
-      pgScope: [],
-      isActive: true,
-      mustChangePassword: false,
+      created: false,
+      message: 'Admin account already exists. Use forgot password to reset credentials.',
     });
   }
+
+  const passwordHash = hashPassword(bootstrapPassword);
+  await db.insert(adminUsers).values({
+    fullName: 'Super Admin',
+    email: SEED_ADMIN_EMAIL,
+    passwordHash,
+    role: 'super_admin',
+    pgScope: [],
+    isActive: true,
+    mustChangePassword: false,
+  });
 
   return Response.json({
     ok: true,
     email: SEED_ADMIN_EMAIL,
-    created: !existing,
-    updated: Boolean(existing),
+    created: true,
+    updated: false,
   });
 }
 

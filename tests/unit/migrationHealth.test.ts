@@ -13,7 +13,7 @@ describe('listRepoMigrations', () => {
     assert.ok(repo.length >= 10);
     assert.equal(repo[0]?.tag, '0000_phase1_inventory');
     assert.match(repo[0]?.hash ?? '', /^[a-f0-9]{64}$/);
-    assert.equal(repo.at(-1)?.tag, '0034_kyc_external_storage');
+    assert.equal(repo.at(-1)?.tag, '0035_admin_auth_recovery');
   });
 });
 

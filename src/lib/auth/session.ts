@@ -5,6 +5,10 @@ import { db } from '@/src/db/client';
 import { adminUsers, authSessions, customers } from '@/src/db/schema';
 import { env } from '@/src/lib/env';
 import {
+  adminSessionExpiry,
+  adminSessionRefreshThresholdMs,
+} from './adminSessionPolicy';
+import {
   ADMIN_SESSION_COOKIE,
   CUSTOMER_SESSION_COOKIE,
 } from './constants';
@@ -32,6 +36,7 @@ export type AdminSession = {
   role: (typeof adminUsers.$inferSelect)['role'];
   pgScope: string[];
   mustChangePassword: boolean;
+  rememberMe: boolean;
   expiresAt: Date;
 };
 
@@ -40,9 +45,12 @@ function customerExpiry(): Date {
   return new Date(Date.now() + days * 86_400_000);
 }
 
-function adminExpiry(): Date {
-  const hours = env.AUTH_ADMIN_SESSION_HOURS;
-  return new Date(Date.now() + hours * 3_600_000);
+function adminExpiryFor(rememberMe: boolean): Date {
+  return adminSessionExpiry(rememberMe);
+}
+
+function adminRefreshThresholdMs(): number {
+  return adminSessionRefreshThresholdMs();
 }
 
 export async function createCustomerSession(args: {
@@ -51,11 +59,12 @@ export async function createCustomerSession(args: {
   userAgent?: string | null;
 }): Promise<string> {
   const token = randomToken();
+  const expires = customerExpiry();
   await db.insert(authSessions).values({
     kind: 'customer',
     subjectId: args.customerId,
     tokenHash: sha256(token),
-    expiresAt: customerExpiry(),
+    expiresAt: expires,
     ip: args.ip ?? null,
     userAgent: args.userAgent ?? null,
   });
@@ -65,23 +74,26 @@ export async function createCustomerSession(args: {
     sameSite: 'lax',
     secure: env.NODE_ENV === 'production',
     path: '/',
-    expires: customerExpiry(),
+    expires,
   });
   return token;
 }
 
 export async function createAdminSession(args: {
   adminId: string;
+  rememberMe?: boolean;
   ip?: string | null;
   userAgent?: string | null;
 }): Promise<string> {
+  const rememberMe = args.rememberMe ?? false;
   const token = randomToken();
-  const expires = adminExpiry();
+  const expires = adminExpiryFor(rememberMe);
   await db.insert(authSessions).values({
     kind: 'admin',
     subjectId: args.adminId,
     tokenHash: sha256(token),
     expiresAt: expires,
+    rememberMe,
     ip: args.ip ?? null,
     userAgent: args.userAgent ?? null,
   });
@@ -99,7 +111,13 @@ export async function createAdminSession(args: {
 async function readSessionByCookie(
   cookieName: string,
   kind: 'customer' | 'admin',
-): Promise<{ sessionId: string; subjectId: string; expiresAt: Date } | null> {
+): Promise<{
+  sessionId: string;
+  subjectId: string;
+  expiresAt: Date;
+  rememberMe: boolean;
+  token: string;
+} | null> {
   if (!hasDatabaseUrl()) return null;
   const jar = await cookies();
   const token = jar.get(cookieName)?.value;
@@ -110,6 +128,7 @@ async function readSessionByCookie(
         sessionId: authSessions.id,
         subjectId: authSessions.subjectId,
         expiresAt: authSessions.expiresAt,
+        rememberMe: authSessions.rememberMe,
       })
       .from(authSessions)
       .where(
@@ -120,12 +139,54 @@ async function readSessionByCookie(
         ),
       )
       .limit(1);
-    return row ?? null;
+    if (!row) return null;
+    return {
+      sessionId: row.sessionId,
+      subjectId: row.subjectId,
+      expiresAt: row.expiresAt,
+      rememberMe: row.rememberMe,
+      token,
+    };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`[auth] ${kind} session lookup failed:`, message);
     return null;
   }
+}
+
+async function refreshAdminSessionIfNeeded(args: {
+  sessionId: string;
+  expiresAt: Date;
+  rememberMe: boolean;
+  token: string;
+}): Promise<Date> {
+  const remaining = args.expiresAt.getTime() - Date.now();
+  if (remaining > adminRefreshThresholdMs()) {
+    return args.expiresAt;
+  }
+
+  const newExpires = adminExpiryFor(args.rememberMe);
+  try {
+    await db
+      .update(authSessions)
+      .set({ expiresAt: newExpires, lastSeenAt: new Date() })
+      .where(eq(authSessions.id, args.sessionId));
+
+    const jar = await cookies();
+    jar.set(ADMIN_SESSION_COOKIE, args.token, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: env.NODE_ENV === 'production',
+      path: '/',
+      expires: newExpires,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[auth] admin session refresh failed:', message);
+    return args.expiresAt;
+  }
+
+  return newExpires;
 }
 
 /** Per-request dedupe — layout + page may both need the session. */
@@ -167,6 +228,13 @@ export const getAdminSession = cache(async (): Promise<AdminSession | null> => {
   const base = await readSessionByCookie(ADMIN_SESSION_COOKIE, 'admin');
   if (!base) return null;
   try {
+    const expiresAt = await refreshAdminSessionIfNeeded({
+      sessionId: base.sessionId,
+      expiresAt: base.expiresAt,
+      rememberMe: base.rememberMe,
+      token: base.token,
+    });
+
     const [admin] = await db
       .select({
         id: adminUsers.id,
@@ -190,7 +258,8 @@ export const getAdminSession = cache(async (): Promise<AdminSession | null> => {
       role: admin.role,
       pgScope: admin.pgScope ?? [],
       mustChangePassword: admin.mustChangePassword,
-      expiresAt: base.expiresAt,
+      rememberMe: base.rememberMe,
+      expiresAt,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

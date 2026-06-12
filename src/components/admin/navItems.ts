@@ -57,6 +57,7 @@ export const NAV_SECTIONS: NavSection[] = [
     title: 'Settings',
     items: [
       { href: '/admin/guide', label: 'Help guide', icon: IconClipboard },
+      { href: '/admin/health', label: 'Diagnostics', icon: IconSettings },
       { href: '/admin/settings', label: 'Settings', icon: IconSettings },
     ],
   },

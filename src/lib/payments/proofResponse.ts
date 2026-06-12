@@ -1,4 +1,6 @@
-/** Build admin URL that streams payment proof images (works for data URLs and Cloudinary). */
+import { getPrivate, isPrivateBlobUrl } from '@/src/lib/storage/blob';
+
+/** Build admin URL that streams payment proof images (Blob, data URLs, or legacy HTTPS). */
 export function adminPaymentProofViewUrl(
   kind: 'playstation' | 'rent' | 'electricity' | 'extension' | 'qr',
   id: string,
@@ -13,8 +15,8 @@ export function customerPaymentProofViewUrl(
   return `/api/payment-proof/${kind}/${id}`;
 }
 
-/** Parse data: URIs or pass through https URLs into an HTTP image Response. */
-export function proofUrlToImageResponse(url: string): Response {
+/** Parse data URIs, stream private Blob URLs, or redirect public HTTPS URLs. */
+export async function proofUrlToImageResponse(url: string): Promise<Response> {
   const trimmed = url.trim();
   if (!trimmed) {
     return new Response('Empty proof URL', { status: 404 });
@@ -46,6 +48,22 @@ export function proofUrlToImageResponse(url: string): Response {
         'Content-Disposition': 'inline; filename="payment-proof.jpg"',
       },
     });
+  }
+
+  if (isPrivateBlobUrl(trimmed)) {
+    try {
+      const { stream, contentType } = await getPrivate(trimmed);
+      return new Response(stream, {
+        status: 200,
+        headers: {
+          'Content-Type': contentType,
+          'Cache-Control': 'private, max-age=3600',
+          'Content-Disposition': 'inline; filename="payment-proof.jpg"',
+        },
+      });
+    } catch {
+      return new Response('Payment proof not found', { status: 404 });
+    }
   }
 
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {

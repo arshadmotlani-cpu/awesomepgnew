@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { AdminKycStatusWithWhatsApp } from '@/src/components/admin/AdminKycWhatsAppButton';
+import { KycStorageWarning } from '@/src/components/admin/KycStorageWarning';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { EmptyState } from '@/src/components/admin/EmptyState';
 import { IconUsers } from '@/src/components/admin/icons';
@@ -19,6 +20,10 @@ export default async function AdminKycPage() {
         title="KYC review"
         description="Pending identity submissions from residents. Approve before check-in."
       />
+
+      <div className="mb-6">
+        <KycStorageWarning />
+      </div>
 
       {rows.length === 0 ? (
         <EmptyState

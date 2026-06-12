@@ -3,7 +3,7 @@ import { ClearPgOccupancyButton } from '@/src/components/admin/ClearPgOccupancyB
 import { MarkPgFullyOccupiedButton } from '@/src/components/admin/MarkPgFullyOccupiedButton';
 import { PgRoomOperationsPanel } from '@/src/components/admin/PgRoomOperationsPanel';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
-import { isCloudinaryConfigured } from '@/src/lib/images/cloudinary';
+import { isBlobPublicConfigured } from '@/src/lib/storage/blob';
 import { getPgInventory } from '@/src/services/pgInventory';
 import { getPgForAdmin } from '@/src/services/pgAdmin';
 import { getPgMeterSummaries } from '@/src/services/meterElectricity';
@@ -18,7 +18,7 @@ export default async function PgRoomsPage({ params }: { params: Promise<{ pgId: 
   if (!pg) notFound();
 
   const inventory = await getPgInventory(session, pgId);
-  const cloudinary = isCloudinaryConfigured();
+  const blobUpload = isBlobPublicConfigured();
   const meterSummaries = await getPgMeterSummaries(session, pgId);
 
   return (
@@ -37,7 +37,7 @@ export default async function PgRoomsPage({ params }: { params: Promise<{ pgId: 
         floors={inventory.floors}
         beds={inventory.beds}
         roomMeters={meterSummaries}
-        cloudinaryConfigured={cloudinary}
+        blobUploadConfigured={blobUpload}
       />
     </section>
   );

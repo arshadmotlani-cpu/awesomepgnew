@@ -1,6 +1,11 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { isCloudinaryConfigured, uploadBufferToCloudinary } from '@/src/lib/images/cloudinary';
+import {
+  getPrivate,
+  isBlobPrivateConfigured,
+  isPrivateBlobUrl,
+  uploadPrivate,
+} from '@/src/lib/storage/blob';
 import { logger } from '@/src/lib/logger';
 import { KycStorageError } from '@/src/lib/kyc/errors';
 
@@ -11,11 +16,11 @@ const MAX_BYTES = 8 * 1024 * 1024;
 export type KycFileKind = 'aadhaar_front' | 'aadhaar_back' | 'selfie';
 
 export type KycStoredFile = {
-  /** Value stored in kyc_submissions.*_path — HTTPS URL or relative filesystem path. */
+  /** Value stored in kyc_submissions.*_path — Blob URL, legacy HTTPS URL, or relative filesystem path. */
   storagePath: string;
   fileUrl: string | null;
   mime: string;
-  backend: 'cloudinary' | 'filesystem';
+  backend: 'blob' | 'filesystem';
   bytes: number;
 };
 
@@ -31,19 +36,37 @@ export function kycStorageRoot(): string {
   return KYC_ROOT;
 }
 
-export type KycStorageBackend = 'cloudinary' | 'filesystem';
+export type KycStorageBackend = 'blob' | 'filesystem';
 
-/** Production (Vercel) requires Cloudinary — never store binary blobs in Postgres. */
+/** Production (Vercel) requires Vercel Blob private store — never store binary blobs in Postgres. */
 export function resolveKycStorageBackend(): KycStorageBackend {
   if (process.env.KYC_STORAGE === 'filesystem') return 'filesystem';
-  if (isCloudinaryConfigured()) return 'cloudinary';
+  if (isBlobPrivateConfigured()) return 'blob';
   if (process.env.VERCEL === '1') {
     throw new KycStorageError(
       'NOT_CONFIGURED',
-      'KYC storage is not configured for production (Cloudinary env vars missing).',
+      'KYC storage is not configured for production (BLOB_READ_WRITE_TOKEN missing).',
     );
   }
   return 'filesystem';
+}
+
+/** Non-throwing check used by forms, actions, and diagnostics. */
+export function isKycUploadAvailable(): boolean {
+  if (process.env.KYC_STORAGE === 'filesystem') return true;
+  if (isBlobPrivateConfigured()) return true;
+  if (process.env.VERCEL === '1') return false;
+  return true;
+}
+
+/** Returns the active backend without throwing; null when uploads are blocked. */
+export function peekKycStorageBackend(): KycStorageBackend | null {
+  if (!isKycUploadAvailable()) return null;
+  try {
+    return resolveKycStorageBackend();
+  } catch {
+    return null;
+  }
 }
 
 function mimeToExt(mime: string): string {
@@ -90,27 +113,24 @@ export async function storeKycFile(args: {
   const backend = resolveKycStorageBackend();
 
   try {
-    if (backend === 'cloudinary') {
-      const folder = `awesomepg/kyc/${args.customerId}/${args.submissionId}`;
-      const uploaded = await uploadBufferToCloudinary(args.buffer, mime, {
-        folder,
-        publicId: args.kind,
-      });
+    if (backend === 'blob') {
+      const pathname = `kyc/${args.customerId}/${args.submissionId}/${args.kind}.${mimeToExt(mime)}`;
+      const uploaded = await uploadPrivate(pathname, args.buffer, mime);
 
       const stored: KycStoredFile = {
-        storagePath: uploaded.secureUrl,
-        fileUrl: uploaded.secureUrl,
+        storagePath: uploaded.url,
+        fileUrl: uploaded.url,
         mime,
-        backend: 'cloudinary',
+        backend: 'blob',
         bytes,
       };
 
-      logger.info('KYC store cloudinary ok', {
+      logger.info('KYC store blob ok', {
         kind: args.kind,
         submissionId: args.submissionId,
         mime,
         bytes,
-        publicId: uploaded.publicId,
+        pathname: uploaded.pathname,
       });
 
       return stored;
@@ -176,6 +196,25 @@ export async function resolveKycDocumentResponse(
   storedPath: string,
   mimeHint?: string | null,
 ): Promise<Response> {
+  if (isPrivateBlobUrl(storedPath)) {
+    try {
+      const { stream, contentType } = await getPrivate(storedPath);
+      return new Response(stream, {
+        headers: {
+          'Content-Type': mimeHint ?? contentType,
+          'Cache-Control': 'private, no-store',
+        },
+      });
+    } catch (err) {
+      logger.error('KYC blob read failed', {
+        storagePath: storedPath,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw new KycStorageError('READ_FAILED', 'KYC file missing.', err);
+    }
+  }
+
+  // Legacy Cloudinary / other HTTPS URLs in DB
   if (isRemoteKycUrl(storedPath)) {
     return Response.redirect(storedPath, 302);
   }
@@ -191,7 +230,7 @@ export async function resolveKycDocumentResponse(
 
 export function resolveKycFilePath(relativePath: string): string {
   if (isRemoteKycUrl(relativePath)) {
-    throw new Error('Remote KYC URLs must be served via redirect.');
+    throw new Error('Remote KYC URLs must be served via resolveKycDocumentResponse.');
   }
   const resolved = path.resolve(KYC_ROOT, relativePath);
   if (!resolved.startsWith(path.resolve(KYC_ROOT))) {

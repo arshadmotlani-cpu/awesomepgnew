@@ -32,6 +32,7 @@ const bootstrapSession: AdminSession = {
   role: 'super_admin',
   pgScope: [],
   mustChangePassword: false,
+  rememberMe: false,
   expiresAt: new Date(Date.now() + 3600_000),
 };
 
