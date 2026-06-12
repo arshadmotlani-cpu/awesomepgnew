@@ -50,6 +50,10 @@ export function BedSelector({ beds, theme = 'light', roomLabel = 'This room' }: 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [detailBedId, setDetailBedId] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [panelOptions, setPanelOptions] = useState<{
+    shortStayOnly?: boolean;
+    reserveCheckIn?: string;
+  }>({});
   const [reservePanelBed, setReservePanelBed] = useState<BedSelectorBed | null>(null);
   const [interestOverrides, setInterestOverrides] = useState<Record<string, number>>({});
 
@@ -77,7 +81,11 @@ export function BedSelector({ beds, theme = 'light', roomLabel = 'This room' }: 
   const sampleBed = beds.find((b) => b.monthlyRatePaise > 0) ?? beds[0];
   const bookableCount = beds.filter((b) => canBookBed(b)).length;
 
-  function openPanelForBed(bedId: string) {
+  function openPanelForBed(
+    bedId: string,
+    options?: { shortStayOnly?: boolean; reserveCheckIn?: string },
+  ) {
+    setPanelOptions(options ?? {});
     setSelected(new Set([bedId]));
     setDetailBedId(null);
     setPanelOpen(true);
@@ -146,7 +154,7 @@ export function BedSelector({ beds, theme = 'light', roomLabel = 'This room' }: 
           bed={detailBedView}
           roomLabel={roomLabel}
           onClose={() => setDetailBedId(null)}
-          onBook={() => openPanelForBed(detailBedView.bedId)}
+          onBook={(options) => openPanelForBed(detailBedView.bedId, options)}
           onPreBook={() => {
             dispatchRoachieReminder('pre-book');
             openPanelForBed(detailBedView.bedId);
@@ -165,6 +173,8 @@ export function BedSelector({ beds, theme = 'light', roomLabel = 'This room' }: 
           beds={selectedBeds}
           theme={theme}
           onClose={() => setPanelOpen(false)}
+          shortStayOnly={panelOptions.shortStayOnly}
+          reserveCheckInDate={panelOptions.reserveCheckIn}
         />
       ) : null}
 

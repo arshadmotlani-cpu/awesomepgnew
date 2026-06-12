@@ -89,6 +89,10 @@ export function CustomerBedMap({ rooms }: { rooms: CustomerRoomBedMap[] }) {
   const [selectedBedId, setSelectedBedId] = useState<string | null>(null);
   const [panelBeds, setPanelBeds] = useState<BedSelectorBed[]>([]);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [panelOptions, setPanelOptions] = useState<{
+    shortStayOnly?: boolean;
+    reserveCheckIn?: string;
+  }>({});
   const [reservePanelBed, setReservePanelBed] = useState<BedSelectorBed | null>(null);
   const [interestOverrides, setInterestOverrides] = useState<Record<string, number>>({});
 
@@ -123,11 +127,15 @@ export function CustomerBedMap({ rooms }: { rooms: CustomerRoomBedMap[] }) {
     setInterestOverrides((prev) => ({ ...prev, [bedId]: count }));
   }, []);
 
-  const openPanel = useCallback((bed: BedSelectorBed) => {
-    setPanelBeds([bed]);
-    setPanelOpen(true);
-    setSelectedBedId(null);
-  }, []);
+  const openPanel = useCallback(
+    (bed: BedSelectorBed, options?: { shortStayOnly?: boolean; reserveCheckIn?: string }) => {
+      setPanelOptions(options ?? {});
+      setPanelBeds([bed]);
+      setPanelOpen(true);
+      setSelectedBedId(null);
+    },
+    [],
+  );
 
   return (
     <>
@@ -171,7 +179,7 @@ export function CustomerBedMap({ rooms }: { rooms: CustomerRoomBedMap[] }) {
           bed={selectedBed.bed}
           roomLabel={`${selectedBed.room.floorLabel} · Room ${selectedBed.room.roomNumber}`}
           onClose={() => setSelectedBedId(null)}
-          onBook={() => openPanel(selectedBed.bed)}
+          onBook={(options) => openPanel(selectedBed.bed, options)}
           onPreBook={() => {
             dispatchRoachieReminder('pre-book');
             openPanel(selectedBed.bed);
@@ -186,7 +194,13 @@ export function CustomerBedMap({ rooms }: { rooms: CustomerRoomBedMap[] }) {
       ) : null}
 
       {panelOpen && panelBeds.length > 0 ? (
-        <BedBookingPanel beds={panelBeds} theme="dark" onClose={() => setPanelOpen(false)} />
+        <BedBookingPanel
+          beds={panelBeds}
+          theme="dark"
+          onClose={() => setPanelOpen(false)}
+          shortStayOnly={panelOptions.shortStayOnly}
+          reserveCheckInDate={panelOptions.reserveCheckIn}
+        />
       ) : null}
 
       {reservePanelBed ? (

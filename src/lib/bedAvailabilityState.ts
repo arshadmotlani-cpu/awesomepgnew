@@ -1,6 +1,7 @@
 /** Shared bed availability labels for admin map + customer bed picker. */
 
 import { customerBookableFromDate, isOpenEndedStayEnd } from '@/src/lib/dates';
+import { reserveBufferDate } from '@/src/lib/bedReservePolicy';
 export type BedAvailabilityKind =
   | 'open_now'
   | 'pre_bookable'
@@ -150,10 +151,12 @@ export function deriveCustomerBedAvailabilityView(input: {
   }
 
   if (input.activeBedReserveCheckIn) {
+    const checkIn = input.activeBedReserveCheckIn;
+    const bufferIso = reserveBufferDate(checkIn);
     return {
       kind: 'reserved',
       label: 'Reserved',
-      sublabel: `Holder check-in ${formatShortDate(input.activeBedReserveCheckIn)} · daily/weekly OK`,
+      sublabel: `Short stays until ${formatShortDate(bufferIso)} · holder moves in ${formatShortDate(checkIn)}`,
     };
   }
 

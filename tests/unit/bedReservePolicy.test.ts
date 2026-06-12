@@ -30,5 +30,5 @@ test('active bed reserve shows Reserved on customer map', () => {
     activeBedReserveCheckIn: '2026-06-21',
   });
   assert.equal(view.kind, 'reserved');
-  assert.match(view.sublabel ?? '', /daily\/weekly/i);
+  assert.match(view.sublabel ?? '', /Short stays until/i);
 });

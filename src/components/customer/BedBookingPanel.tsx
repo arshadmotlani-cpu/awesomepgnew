@@ -13,6 +13,7 @@ import {
   intersectFreeWindows,
   maxCheckoutForCheckIn,
 } from '@/src/lib/bedAvailabilityWindows';
+import { reserveBufferDate } from '@/src/lib/bedReservePolicy';
 import type { PricingMode } from '@/src/services/pricing';
 import type { BedSelectorBed } from './BedSelector';
 
@@ -37,6 +38,9 @@ type Props = {
   beds: BedSelectorBed[];
   theme?: 'dark' | 'light';
   onClose: () => void;
+  /** When set, only daily/weekly booking — used for beds with an active reserve hold. */
+  shortStayOnly?: boolean;
+  reserveCheckInDate?: string;
 };
 
 type StayIntent = 'fixed' | 'indefinite';
@@ -68,17 +72,24 @@ function depositForMode(bed: BedSelectorBed, durationMode: string): number {
  * Modal panel for picking stay dates after selecting bed(s). Fetches per-bed
  * availability timelines and validates checkout caps before navigation.
  */
-export function BedBookingPanel({ beds, theme = 'dark', onClose }: Props) {
+export function BedBookingPanel({
+  beds,
+  theme = 'dark',
+  onClose,
+  shortStayOnly = false,
+  reserveCheckInDate,
+}: Props) {
   const dark = theme === 'dark';
   const router = useRouter();
   const today = todayString();
+  const reserveLastStay = reserveCheckInDate ? reserveBufferDate(reserveCheckInDate) : null;
 
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [timelines, setTimelines] = useState<BedTimelineResponse[]>([]);
 
-  const [intent, setIntent] = useState<StayIntent>('indefinite');
-  const [fixedMode, setFixedMode] = useState<PricingMode>('monthly');
+  const [intent, setIntent] = useState<StayIntent>(shortStayOnly ? 'fixed' : 'indefinite');
+  const [fixedMode, setFixedMode] = useState<PricingMode>(shortStayOnly ? 'daily' : 'monthly');
   const [start, setStart] = useState(today);
   const [end, setEnd] = useState(() => defaultCheckOutDate(today));
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -129,10 +140,14 @@ export function BedBookingPanel({ beds, theme = 'dark', onClose }: Props) {
     [timelines],
   );
 
-  const maxCheckout = useMemo(
-    () => maxCheckoutForCheckIn(start, combinedFreeWindows),
-    [start, combinedFreeWindows],
-  );
+  const maxCheckout = useMemo(() => {
+    const cap = maxCheckoutForCheckIn(start, combinedFreeWindows);
+    if (shortStayOnly && reserveLastStay) {
+      if (!cap) return reserveLastStay;
+      return cap < reserveLastStay ? cap : reserveLastStay;
+    }
+    return cap;
+  }, [start, combinedFreeWindows, shortStayOnly, reserveLastStay]);
 
   const minCheckOut = formatDate(addDays(start, 1));
   const checkoutCapDisplay = maxCheckout ? formatDateDdMmYyyy(maxCheckout) : null;
@@ -166,6 +181,11 @@ export function BedBookingPanel({ beds, theme = 'dark', onClose }: Props) {
 
     const mode: PricingMode = intent === 'indefinite' ? 'open_ended' : fixedMode;
     const checkout = intent === 'indefinite' ? availabilityEnd : end;
+
+    if (shortStayOnly && (mode === 'open_ended' || mode === 'monthly')) {
+      setValidationError('Only daily or weekly stays are allowed while this bed is reserved.');
+      return;
+    }
 
     if (mode !== 'open_ended') {
       const cap = maxCheckoutForCheckIn(start, combinedFreeWindows);
@@ -301,9 +321,18 @@ export function BedBookingPanel({ beds, theme = 'dark', onClose }: Props) {
                 </div>
               ) : null}
 
+              {shortStayOnly && reserveCheckInDate && reserveLastStay ? (
+                <div className="rounded-xl border border-violet-400/30 bg-violet-500/10 px-3 py-2 text-xs text-violet-100">
+                  This bed is reserved for someone else from{' '}
+                  {formatDisplayDate(reserveCheckInDate)}. Pick daily or weekly dates with checkout
+                  on or before {formatDisplayDate(reserveLastStay)}.
+                </div>
+              ) : null}
+
               <fieldset className="space-y-2">
                 <legend className={`${label} mb-1`}>How long are you staying?</legend>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <div className={`grid grid-cols-1 gap-2 ${shortStayOnly ? '' : 'sm:grid-cols-2'}`}>
+                  {!shortStayOnly ? (
                   <label
                     className={
                       dark
@@ -332,6 +361,7 @@ export function BedBookingPanel({ beds, theme = 'dark', onClose }: Props) {
                       Monthly billing · {VACATING_NOTICE_MIN_DAYS} days notice to leave
                     </span>
                   </label>
+                  ) : null}
                   <label
                     className={
                       dark
@@ -357,7 +387,7 @@ export function BedBookingPanel({ beds, theme = 'dark', onClose }: Props) {
                       Fixed dates
                     </span>
                     <span className={`mt-0.5 block text-xs ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
-                      Daily, weekly, or monthly stay
+                      {shortStayOnly ? 'Daily or weekly only' : 'Daily, weekly, or monthly stay'}
                     </span>
                   </label>
                 </div>
@@ -398,7 +428,9 @@ export function BedBookingPanel({ beds, theme = 'dark', onClose }: Props) {
                         onChange={(e) => setFixedMode(e.target.value as PricingMode)}
                         className={input}
                       >
-                        {FIXED_MODES.map((m) => (
+                        {FIXED_MODES.filter((m) =>
+                          shortStayOnly ? m.value === 'daily' || m.value === 'weekly' : true,
+                        ).map((m) => (
                           <option key={m.value} value={m.value}>
                             {m.label}
                           </option>

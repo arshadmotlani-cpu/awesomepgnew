@@ -135,7 +135,7 @@ export function RoachieBedSheetCoach({
     };
   }, [visible, current, refreshSpotlight, sheetRootId]);
 
-  if (!mounted || steps.length === 0 || !current) return null;
+  if (!mounted || steps.length === 0 || !current || !visible) return null;
 
   return createPortal(
     <>
