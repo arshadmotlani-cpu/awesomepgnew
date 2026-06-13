@@ -464,6 +464,36 @@ export async function reviewPaymentRecord(
       metadata: { bookingId: record.bookingId, pgId: record.pgId },
     });
   }
+
+  if (status === 'approved') {
+    const { customers, pgs } = await import('@/src/db/schema');
+    const { eq } = await import('drizzle-orm');
+    const customerId = record.customerId;
+    if (customerId) {
+      const [ctx] = await db
+        .select({
+          customerName: customers.fullName,
+          pgName: pgs.name,
+        })
+        .from(customers)
+        .innerJoin(pgs, eq(pgs.id, record.pgId))
+        .where(eq(customers.id, customerId))
+        .limit(1);
+      if (ctx) {
+        const { emitPaymentReceivedAutomation } = await import('./automationEngine');
+        void emitPaymentReceivedAutomation({
+          pgId: record.pgId,
+          customerId,
+          bookingId: record.bookingId,
+          paymentId: `qr_${recordId}`,
+          amountPaise: record.amountPaise,
+          pgName: ctx.pgName,
+          customerName: ctx.customerName,
+          paymentPurpose: 'collections',
+        });
+      }
+    }
+  }
 }
 
 export async function listPublicPgsWithPayments() {

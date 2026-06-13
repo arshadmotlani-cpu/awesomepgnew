@@ -249,6 +249,10 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
+.apg-admin-scroll {
+  -webkit-overflow-scrolling: touch;
+}
+
 /* White account/resident surfaces on the dark customer shell. */
 .apg-account-surface {
   background-color: #ffffff;

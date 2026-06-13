@@ -25,8 +25,8 @@ export default async function PgSetupLayout({
   const inventory = await getPgInventory(session, pgId);
 
   return (
-    <>
-      <div className="mb-4">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="mb-4 shrink-0">
         <Link
           href="/admin/pgs"
           className="inline-flex items-center gap-1 text-sm font-medium text-zinc-500 hover:text-[#FF5A1F]"
@@ -35,26 +35,28 @@ export default async function PgSetupLayout({
         </Link>
       </div>
 
-      <PageHeader
-        title={pg.name}
-        description="One page per section — bed map, listing, rooms & electricity, or collections."
-        actions={
-          <div className="flex flex-wrap items-center gap-3">
-            <Link
-              href={`/pgs/${pg.slug}`}
-              className="text-sm text-[#FF5A1F] hover:underline"
-              target="_blank"
-            >
-              View public page
-            </Link>
-            <ArchivePgButton pgId={pgId} />
-          </div>
-        }
-      />
+      <div className="shrink-0">
+        <PageHeader
+          title={pg.name}
+          description="One page per section — bed map, listing, rooms & electricity, or collections."
+          actions={
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                href={`/pgs/${pg.slug}`}
+                className="text-sm text-[#FF5A1F] hover:underline"
+                target="_blank"
+              >
+                View public page
+              </Link>
+              <ArchivePgButton pgId={pgId} />
+            </div>
+          }
+        />
+      </div>
 
       <PgEditSectionNav pgId={pgId} bedCount={inventory.beds.length} />
 
-      {children}
-    </>
+      <div className="min-h-0 flex-1">{children}</div>
+    </div>
   );
 }

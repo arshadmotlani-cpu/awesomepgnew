@@ -40,3 +40,5 @@ export * from './emailDeliveryLog';
 export * from './bedNoticeInterest';
 export * from './playstationMemberships';
 export * from './membershipTransactions';
+export * from './automationEvents';
+export * from './automationActions';

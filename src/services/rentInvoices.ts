@@ -40,6 +40,7 @@ import {
   bookings,
   customers,
   payments,
+  pgs,
   rentInvoices,
   rooms,
   type RentInvoice,
@@ -547,6 +548,32 @@ export async function recordRentPaymentSuccess(
       amountPaise: input.amountPaise,
       reference: invoice.billingMonth,
     });
+
+    const [automationCtx] = await db
+      .select({
+        pgId: rentInvoices.pgId,
+        pgName: pgs.name,
+        customerName: customers.fullName,
+      })
+      .from(rentInvoices)
+      .innerJoin(pgs, eq(pgs.id, rentInvoices.pgId))
+      .innerJoin(customers, eq(customers.id, rentInvoices.customerId))
+      .where(eq(rentInvoices.id, invoice.id))
+      .limit(1);
+
+    if (automationCtx) {
+      const { emitPaymentReceivedAutomation } = await import('./automationEngine');
+      void emitPaymentReceivedAutomation({
+        pgId: automationCtx.pgId,
+        customerId: invoice.customerId,
+        bookingId: invoice.bookingId,
+        paymentId: result.paymentId,
+        amountPaise: input.amountPaise,
+        pgName: automationCtx.pgName,
+        customerName: automationCtx.customerName,
+        paymentPurpose: 'rent',
+      });
+    }
 
     return {
       ok: true,

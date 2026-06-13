@@ -36,7 +36,7 @@ export function PgEditSectionNav({
   const pathname = usePathname();
 
   return (
-    <div className="sticky top-14 z-20 -mx-4 mb-6 border-b border-white/10 bg-[#0B0F14]/95 px-4 py-3 backdrop-blur lg:-mx-8 lg:px-8">
+    <div className="sticky top-0 z-30 -mx-3 mb-6 border-b border-white/10 bg-[#0B0F14] px-3 py-3 shadow-[0_8px_24px_-8px_rgba(11,15,20,0.95)] sm:-mx-4 sm:px-4 lg:-mx-8 lg:px-8">
       <p className="mb-2 text-xs font-medium uppercase tracking-wide text-apg-silver">
         PG operations & setup
       </p>
