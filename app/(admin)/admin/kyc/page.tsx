@@ -1,12 +1,14 @@
 import Link from 'next/link';
 import { AdminKycStatusWithWhatsApp } from '@/src/components/admin/AdminKycWhatsAppButton';
 import { KycStorageWarning } from '@/src/components/admin/KycStorageWarning';
+import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { EmptyState } from '@/src/components/admin/EmptyState';
 import { IconUsers } from '@/src/components/admin/icons';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
 import { listPendingKycSubmissions } from '@/src/services/kyc';
+import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
 import { formatDateTime, titleCase } from '@/src/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -16,9 +18,16 @@ export default async function AdminKycPage() {
 
   return (
     <>
+      <ModuleBreadcrumbs
+        items={[
+          { label: 'Overview', href: moduleHref('overview') },
+          { label: ADMIN_MODULES.operations.label, href: moduleHref('operations') },
+          { label: 'KYC review' },
+        ]}
+      />
       <PageHeader
         title="KYC review"
-        description="Pending identity submissions from residents. Approve before check-in."
+        description="Pending identity submissions. Open a row to approve or reject — residents see status on their account."
       />
 
       <div className="mb-6">
@@ -29,7 +38,7 @@ export default async function AdminKycPage() {
         <EmptyState
           icon={<IconUsers />}
           title="No pending KYC"
-          description="New submissions appear here after residents pay for a booking."
+          description="New submissions appear here after residents upload from Account → Identity (KYC)."
         />
       ) : (
         <Table>

@@ -19,7 +19,9 @@ const MIN_AADHAAR_WIDTH = 480;
 const MIN_AADHAAR_HEIGHT = 300;
 const MIN_SELFIE_WIDTH = 240;
 const MIN_SELFIE_HEIGHT = 240;
-const MIN_BLUR_SCORE = 12;
+const MIN_BLUR_SCORE = 8;
+const MIN_DOCUMENT_STDEV = 28;
+const MIN_DOCUMENT_STDEV_FALLBACK = 22;
 const MAX_MEAN_BRIGHTNESS = 248;
 const MIN_MEAN_BRIGHTNESS = 18;
 
@@ -149,15 +151,38 @@ export async function validateKycImage(
   if (kind === 'aadhaar_front' || kind === 'aadhaar_back') {
     const ocrSignals = detectAadhaarOcrSignals(buffer);
     const stdev = stats.channels[0]?.stdev ?? 0;
-    // Documents with printed text show higher channel variance than blank walls.
-    if (stdev >= 42) ocrSignals.push('document_text_variance');
-    if (ocrSignals.length === 0) {
+    // Printed cards / barcodes raise channel variance vs blank walls or single-color photos.
+    if (stdev >= MIN_DOCUMENT_STDEV) ocrSignals.push('document_text_variance');
+
+    const looksLikeDocumentPhoto =
+      ocrSignals.length > 0 ||
+      (stdev >= MIN_DOCUMENT_STDEV_FALLBACK && blur >= MIN_BLUR_SCORE);
+
+    // Back side often lacks "AADHAAR" ASCII after phone JPEG compression — structure is enough.
+    if (kind === 'aadhaar_back' && !looksLikeDocumentPhoto && stdev >= MIN_DOCUMENT_STDEV_FALLBACK) {
+      ocrSignals.push('barcode_side_variance');
+    }
+
+    if (kind === 'aadhaar_front' && ocrSignals.length === 0 && stdev >= MIN_DOCUMENT_STDEV_FALLBACK && blur >= MIN_BLUR_SCORE) {
+      ocrSignals.push('visual_document_fallback');
+    }
+
+    if (kind === 'aadhaar_front' && ocrSignals.length === 0) {
       return {
         ok: false,
         reason:
-          'Could not detect Aadhaar content. Ensure the full card is visible and in focus.',
+          'Photo does not look like an Aadhaar card. Use good light, hold the full card flat, and avoid blur or glare.',
       };
     }
+
+    if (kind === 'aadhaar_back' && ocrSignals.length === 0) {
+      return {
+        ok: false,
+        reason:
+          'Photo does not look like the back of an Aadhaar card. Capture the address / barcode side clearly.',
+      };
+    }
+
     result.ocrSignals = ocrSignals;
   }
 

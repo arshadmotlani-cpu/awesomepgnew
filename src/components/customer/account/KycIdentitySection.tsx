@@ -1,11 +1,9 @@
 import Link from 'next/link';
-import { and, eq } from 'drizzle-orm';
 import { KycUploadForm } from '@/src/components/customer/KycUploadForm';
-import { db } from '@/src/db/client';
-import { bookings } from '@/src/db/schema';
 import type { Customer } from '@/src/db/schema/customers';
 import { canCheckIn, getCustomerById } from '@/src/services/profile';
 import { getLatestKycSubmission } from '@/src/services/kyc';
+import { getCustomerKycUploadContext } from '@/src/services/kycEligibility';
 import { titleCase } from '@/src/lib/format';
 import { isKycUploadAvailable } from '@/src/lib/kyc/storage';
 import { ElectricityMeterNotice } from '@/src/components/customer/ElectricityMeterNotice';
@@ -36,18 +34,7 @@ export async function KycIdentitySection({
 
   const latest = await getLatestKycSubmission(customerId);
   const checkInOk = canCheckIn(customer);
-  const [confirmedBooking] = await db
-    .select({ id: bookings.id })
-    .from(bookings)
-    .where(
-      and(
-        eq(bookings.customerId, customerId),
-        eq(bookings.status, 'confirmed'),
-      ),
-    )
-    .limit(1);
-  const hasConfirmedBooking = Boolean(confirmedBooking);
-  const kycForCheckIn = Boolean(bookingCode || hasConfirmedBooking);
+  const kycCtx = await getCustomerKycUploadContext(customerId, bookingCode);
   const awaitingReview =
     customer.kycStatus === 'pending' &&
     latest != null &&
@@ -61,6 +48,19 @@ export async function KycIdentitySection({
         ? 'border-rose-200 bg-rose-50 text-rose-900'
         : 'border-amber-200 bg-amber-50 text-amber-900';
 
+  function pendingStatusMessage(): string {
+    if (awaitingReview) {
+      return 'Documents under review. Our team is reviewing your Aadhaar and selfie — you will receive an update once verification is complete.';
+    }
+    if (kycCtx.hasActiveTenancy || kycCtx.hasConfirmedBooking) {
+      return 'Upload your Aadhaar and selfie below. Admin reviews from the KYC queue before check-in.';
+    }
+    if (kycCtx.hasPendingPaymentBooking) {
+      return 'Upload your documents now while payment is processed — admin will review and approve from the KYC panel.';
+    }
+    return 'Upload your Aadhaar and selfie below. Admin will review your submission in the KYC queue.';
+  }
+
   return (
     <section className="mt-6 space-y-4">
       <div>
@@ -71,7 +71,7 @@ export async function KycIdentitySection({
         </p>
       </div>
 
-      {kycForCheckIn && customer.kycStatus !== 'approved' ? (
+      {kycCtx.kycForCheckIn && customer.kycStatus !== 'approved' ? (
         <ElectricityMeterNotice variant="checkin" />
       ) : null}
 
@@ -80,16 +80,9 @@ export async function KycIdentitySection({
         {customer.kycStatus === 'approved' ? (
           <p className="mt-1">You&apos;re cleared for check-in.</p>
         ) : customer.kycStatus === 'pending' && latest ? (
-          <p className="mt-1">
-            Documents under review. Our team is reviewing your Aadhaar and selfie — you&apos;ll
-            receive an update once verification is complete.
-          </p>
+          <p className="mt-1">{pendingStatusMessage()}</p>
         ) : customer.kycStatus === 'pending' ? (
-          <p className="mt-1">
-            {kycForCheckIn
-              ? 'Upload your Aadhaar and selfie below before check-in.'
-              : 'Upload your documents when you have a confirmed booking and are ready to check in.'}
-          </p>
+          <p className="mt-1">{pendingStatusMessage()}</p>
         ) : (
           <p className="mt-1">
             {latest?.rejectionReason
