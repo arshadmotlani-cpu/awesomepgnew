@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState, useTransition } from 'react';
+import { useCallback, useMemo, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { EmptyState } from '@/src/components/admin/EmptyState';
@@ -12,7 +12,7 @@ import {
 } from '@/src/lib/actionCenter/constants';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import type { ActionItemRow } from '@/src/services/actionItems';
-import { ActionDrawer } from './ActionDrawer';
+import { useAdminActionDrawer } from '@/src/components/admin/AdminActionDrawerProvider';
 
 type Props = {
   items: ActionItemRow[];
@@ -27,7 +27,7 @@ function priorityTone(p: ActionItemRow['priority']) {
 export function ActionCenter({ items }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const { openActionDrawer } = useAdminActionDrawer();
 
   const grouped = useMemo(() => {
     const map = new Map<string, ActionItemRow[]>();
@@ -61,85 +61,71 @@ export function ActionCenter({ items }: Props) {
   }
 
   return (
-    <>
-      <div className="space-y-8">
-        {grouped.map((group) => (
-          <section key={group.type} className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-sm font-semibold text-white">{group.label}</h2>
-                <p className="text-xs text-apg-silver">{group.items.length} open</p>
-              </div>
+    <div className="space-y-8">
+      {grouped.map((group) => (
+        <section key={group.type} className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-white">{group.label}</h2>
+              <p className="text-xs text-apg-silver">{group.items.length} open</p>
             </div>
-            <div className="overflow-hidden rounded-xl border border-white/10 bg-[#1A1F27]">
-              <Table>
-                <THead>
-                  <TR>
-                    <TH>Resident / title</TH>
-                    <TH className="hidden sm:table-cell">PG · room · bed</TH>
-                    <TH className="hidden md:table-cell">Amount</TH>
-                    <TH className="hidden lg:table-cell">Due</TH>
-                    <TH>Status</TH>
+          </div>
+          <div className="overflow-hidden rounded-xl border border-white/10 bg-[#1A1F27]">
+            <Table>
+              <THead>
+                <TR>
+                  <TH>Resident / title</TH>
+                  <TH className="hidden sm:table-cell">PG · room · bed</TH>
+                  <TH className="hidden md:table-cell">Amount</TH>
+                  <TH className="hidden lg:table-cell">Due</TH>
+                  <TH>Status</TH>
+                </TR>
+              </THead>
+              <TBody>
+                {group.items.map((item) => (
+                  <TR
+                    key={item.id}
+                    className="cursor-pointer transition hover:bg-white/[0.03]"
+                    onClick={() => openActionDrawer(item.id)}
+                  >
+                    <TD>
+                      <button type="button" className="text-left">
+                        <p className="font-medium text-white">
+                          {item.residentName ?? item.title}
+                        </p>
+                        {item.residentName ? (
+                          <p className="mt-0.5 text-xs text-apg-silver">{item.title}</p>
+                        ) : null}
+                      </button>
+                    </TD>
+                    <TD className="hidden text-apg-silver sm:table-cell">
+                      {[item.pgName, item.roomNumber ? `R${item.roomNumber}` : null, item.bedCode]
+                        .filter(Boolean)
+                        .join(' · ') || '—'}
+                    </TD>
+                    <TD className="hidden md:table-cell">
+                      {item.amount != null ? (
+                        <span className="font-medium text-white">{paiseToInr(item.amount)}</span>
+                      ) : (
+                        <span className="text-apg-silver">—</span>
+                      )}
+                    </TD>
+                    <TD className="hidden text-apg-silver lg:table-cell">
+                      {item.dueDate ? formatDate(item.dueDate) : '—'}
+                    </TD>
+                    <TD>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Badge tone={priorityTone(item.priority)}>{item.priority}</Badge>
+                        <Badge tone={toneForStatus(item.status)}>{titleCase(item.status)}</Badge>
+                      </div>
+                    </TD>
                   </TR>
-                </THead>
-                <TBody>
-                  {group.items.map((item) => (
-                    <TR
-                      key={item.id}
-                      className="cursor-pointer transition hover:bg-white/[0.03]"
-                      onClick={() => setSelectedId(item.id)}
-                    >
-                      <TD>
-                        <button
-                          type="button"
-                          className="text-left"
-                          onClick={() => setSelectedId(item.id)}
-                        >
-                          <p className="font-medium text-white">
-                            {item.residentName ?? item.title}
-                          </p>
-                          {item.residentName ? (
-                            <p className="mt-0.5 text-xs text-apg-silver">{item.title}</p>
-                          ) : null}
-                        </button>
-                      </TD>
-                      <TD className="hidden text-apg-silver sm:table-cell">
-                        {[item.pgName, item.roomNumber ? `R${item.roomNumber}` : null, item.bedCode]
-                          .filter(Boolean)
-                          .join(' · ') || '—'}
-                      </TD>
-                      <TD className="hidden md:table-cell">
-                        {item.amount != null ? (
-                          <span className="font-medium text-white">{paiseToInr(item.amount)}</span>
-                        ) : (
-                          <span className="text-apg-silver">—</span>
-                        )}
-                      </TD>
-                      <TD className="hidden text-apg-silver lg:table-cell">
-                        {item.dueDate ? formatDate(item.dueDate) : '—'}
-                      </TD>
-                      <TD>
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <Badge tone={priorityTone(item.priority)}>{item.priority}</Badge>
-                          <Badge tone={toneForStatus(item.status)}>{titleCase(item.status)}</Badge>
-                        </div>
-                      </TD>
-                    </TR>
-                  ))}
-                </TBody>
-              </Table>
-            </div>
-          </section>
-        ))}
-      </div>
-
-      {selectedId ? (
-        <ActionDrawer
-          actionItemId={selectedId}
-          onClose={() => setSelectedId(null)}
-          onUpdated={refresh}
-        />
-      ) : null}
-    </>
+                ))}
+              </TBody>
+            </Table>
+          </div>
+        </section>
+      ))}
+    </div>
   );
 }

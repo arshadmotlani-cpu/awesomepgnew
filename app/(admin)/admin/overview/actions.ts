@@ -24,6 +24,11 @@ export async function syncOverviewAction(): Promise<OverviewActionState> {
   const session = await requireAdminSession('/admin/overview');
   await syncActionItems(session);
   revalidatePath('/admin/overview');
+  revalidatePath('/admin/revenue');
+  revalidatePath('/admin/collections');
+  revalidatePath('/admin/operations');
+  revalidatePath('/admin/analytics');
+  revalidatePath('/admin/system');
   revalidatePath('/admin');
   return { status: 'ok', message: 'Control board refreshed.' };
 }

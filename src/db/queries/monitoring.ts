@@ -211,3 +211,32 @@ export async function getMonitoringSnapshot(
     };
   });
 }
+
+export type ErrorsByRouteRow = {
+  route: string;
+  count: number;
+  lastSeen: string;
+};
+
+/** Error counts grouped by route for the health module. */
+export async function getErrorsByRoute(days = 7, limit = 25): Promise<ErrorsByRouteRow[]> {
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  return runWithoutLogPersistence(async () => {
+    const rows = await db
+      .select({
+        route: sql<string>`coalesce(${appLogs.route}, '(unknown)')`,
+        count: sql<number>`count(*)::int`,
+        lastSeen: sql<string>`max(${appLogs.createdAt})::text`,
+      })
+      .from(appLogs)
+      .where(and(gte(appLogs.createdAt, since), eq(appLogs.level, 'error')))
+      .groupBy(sql`coalesce(${appLogs.route}, '(unknown)')`)
+      .orderBy(desc(sql`count(*)`))
+      .limit(limit);
+    return rows.map((r) => ({
+      route: r.route,
+      count: r.count,
+      lastSeen: r.lastSeen,
+    }));
+  });
+}

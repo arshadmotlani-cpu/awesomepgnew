@@ -5,10 +5,20 @@ import {
   IconChart,
   IconClipboard,
   IconDashboard,
-  IconDoor,
   IconSettings,
   IconUsers,
 } from './icons';
+import { SIDEBAR_MODULES, type AdminModule } from '@/src/lib/admin/navigation';
+
+const MODULE_ICONS: Record<AdminModule, ComponentType<SVGProps<SVGSVGElement>>> = {
+  overview: IconDashboard,
+  revenue: IconCard,
+  collections: IconClipboard,
+  operations: IconUsers,
+  analytics: IconChart,
+  system: IconSettings,
+  pgs: IconBuilding,
+};
 
 export type NavSection = {
   title: string;
@@ -16,37 +26,26 @@ export type NavSection = {
     href: string;
     label: string;
     icon: ComponentType<SVGProps<SVGSVGElement>>;
+    module?: AdminModule;
   }>;
 };
 
-/** Overview is the single control board; utility pages under More. */
+/** Sidebar mirrors SaaS module architecture exactly. */
 export const NAV_SECTIONS: NavSection[] = [
   {
-    title: 'Operate',
-    items: [
-      { href: '/admin/overview', label: 'Overview', icon: IconDashboard },
-      { href: '/admin/pgs', label: 'PGs', icon: IconBuilding },
-      { href: '/admin/residents', label: 'Residents', icon: IconUsers },
-    ],
-  },
-  {
-    title: 'More',
-    items: [
-      { href: '/admin/bookings', label: 'Bookings', icon: IconClipboard },
-      { href: '/admin/kyc', label: 'KYC review', icon: IconUsers },
-      { href: '/admin/payments', label: 'Collections', icon: IconCard },
-      { href: '/admin/rent', label: 'Rent invoices', icon: IconClipboard },
-      { href: '/admin/electricity', label: 'Electricity bills', icon: IconChart },
-      { href: '/admin/deposits', label: 'Deposits', icon: IconCard },
-      { href: '/admin/vacating', label: 'Vacating', icon: IconDoor },
-    ],
+    title: 'Platform',
+    items: SIDEBAR_MODULES.map((mod) => ({
+      href: mod.href,
+      label: mod.label,
+      icon: MODULE_ICONS[mod.id],
+      module: mod.id,
+    })),
   },
   {
     title: 'Settings',
     items: [
       { href: '/admin/settings', label: 'Settings', icon: IconSettings },
       { href: '/admin/guide', label: 'Help guide', icon: IconClipboard },
-      { href: '/admin/health', label: 'Diagnostics', icon: IconSettings },
     ],
   },
 ];

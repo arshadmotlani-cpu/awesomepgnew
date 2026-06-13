@@ -4,12 +4,16 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { IconLogo } from './icons';
 import { NAV_SECTIONS } from './navItems';
+import { isModuleActive } from '@/src/lib/admin/navigation';
 
-function isActive(pathname: string, href: string) {
-  if (href === '/admin/overview') {
-    return pathname === '/admin' || pathname === '/admin/overview' || pathname === '/admin/actions';
+function isActive(pathname: string, href: string, module: string) {
+  if ('module' in { module } && module !== 'overview') {
+    return isModuleActive(pathname, module as Parameters<typeof isModuleActive>[1]);
   }
-  return pathname === href || pathname.startsWith(href + '/');
+  if (href === '/admin/settings' || href === '/admin/guide') {
+    return pathname === href;
+  }
+  return isModuleActive(pathname, 'overview');
 }
 
 export function Sidebar({
@@ -17,7 +21,6 @@ export function Sidebar({
   variant = 'docked',
 }: {
   onNavigate?: () => void;
-  /** Drawer variant hides duplicate branding — MobileNav supplies the close bar. */
   variant?: 'docked' | 'drawer';
 }) {
   const pathname = usePathname() ?? '/admin';
@@ -59,8 +62,10 @@ export function Sidebar({
               {section.title}
             </p>
             <ul className="space-y-0.5">
-              {section.items.map(({ href, label, icon: Icon }) => {
-                const active = isActive(pathname, href);
+              {section.items.map(({ href, label, icon: Icon, module }) => {
+                const active = module
+                  ? isModuleActive(pathname, module)
+                  : pathname === href;
                 return (
                   <li key={href}>
                     <Link
@@ -93,7 +98,7 @@ export function Sidebar({
       </div>
 
       <div className="border-t border-white/5 px-5 py-3 text-[11px] leading-relaxed text-apg-silver/60">
-        Beds & meters are managed inside each PG listing
+        Module → PG → Resident → Actions
       </div>
     </nav>
   );

@@ -12,9 +12,11 @@ function MoneyCell({ paise }: { paise: number }) {
 export function RevenueCommandCenter({
   data,
   monthLabel,
+  pgHref = (pgId) => `/admin/revenue/pg/${pgId}`,
 }: {
   data: RevenueCommandCenterData;
   monthLabel: string;
+  pgHref?: (pgId: string) => string;
 }) {
   const { today, mtd, byPg, outstanding } = data;
 
@@ -123,7 +125,7 @@ export function RevenueCommandCenter({
                   <tr key={row.pgId} className="hover:bg-white/[0.02]">
                     <td className="px-4 py-3">
                       <Link
-                        href={`/admin/pgs/${row.pgId}/collections`}
+                        href={pgHref(row.pgId)}
                         className="font-medium text-white hover:text-[#FF5A1F]"
                       >
                         {row.pgName}

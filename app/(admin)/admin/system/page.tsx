@@ -1,94 +1,141 @@
+import Link from 'next/link';
+import { AdminSectionErrorBoundary } from '@/src/components/admin/AdminSectionErrorBoundary';
 import { Badge } from '@/src/components/admin/Badge';
-import { Card, CardBody, CardHeader } from '@/src/components/admin/Card';
+import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
+import { HealthDashboard } from '@/src/components/admin/HealthDashboard';
 import { IconDatabase } from '@/src/components/admin/icons';
+import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
+import { MonitoringDashboard } from '@/src/components/admin/MonitoringDashboard';
 import { PageHeader } from '@/src/components/admin/PageHeader';
-import { StatCard } from '@/src/components/admin/StatCard';
+import { SystemHealthCard } from '@/src/components/admin/SystemHealthCard';
 import { checkMigrationHealth } from '@/src/db/migrationHealth';
+import { getErrorsByRoute, getMonitoringSnapshot } from '@/src/db/queries/monitoring';
+import { getEnvHealthSummary } from '@/src/lib/healing/envHealer';
+import { getLatestPersistedHealth, runHealthDiagnosis } from '@/src/lib/healing/healthEngine';
+import { getIntegrationsHealthSummaryWithBlobProbe } from '@/src/lib/integrations/status';
+import { requireAdminSession } from '@/src/lib/auth/guards';
+import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
+import { loadOverviewContext } from '@/src/services/overviewData';
+import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
-export default async function AdminSystemPage() {
-  const health = await checkMigrationHealth();
+export default async function SystemHealthModulePage() {
+  const session = await requireAdminSession('/admin/system');
+  const ctx = await loadOverviewContext(session, undefined, { syncActions: false });
+  const migration = await checkMigrationHealth();
+
+  let healthInitial = null;
+  let healthError: string | null = null;
+  try {
+    const state = await runHealthDiagnosis();
+    const persisted = await getLatestPersistedHealth();
+    const envBase = getEnvHealthSummary();
+    const integrations = await getIntegrationsHealthSummaryWithBlobProbe();
+    healthInitial = {
+      ...state,
+      env: { ...envBase, integrations },
+      persisted: persisted
+        ? {
+            status: persisted.status,
+            dbStatus: persisted.dbStatus,
+            envStatus: persisted.envStatus,
+            lastError: persisted.lastError,
+            updatedAt: persisted.updatedAt.toISOString(),
+          }
+        : null,
+    };
+  } catch (error) {
+    healthError = error instanceof Error ? error.message : String(error);
+  }
+
+  const [monitoring, errorsByRoute] = await Promise.all([
+    getMonitoringSnapshot({ limit: 50 }).catch(() => null),
+    getErrorsByRoute(7, 20).catch(() => []),
+  ]);
+
+  if (!ctx.ok) {
+    return (
+      <>
+        <PageHeader title="System health" />
+        <DbStatusBanner error={ctx.error} />
+      </>
+    );
+  }
 
   return (
     <>
+      <ModuleBreadcrumbs
+        items={[
+          { label: 'Overview', href: moduleHref('overview') },
+          { label: ADMIN_MODULES.system.label },
+        ]}
+      />
       <PageHeader
-        title="System status"
-        description="Database migration health — compare the running schema with the codebase."
+        title="System health"
+        description="Sentry errors, logs, uptime, failed requests, and schema diagnostics."
       />
 
-      {!health.ok ? (
-        <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
-          <p className="font-semibold">Migrations are pending or could not be verified.</p>
-          <p className="mt-1">
-            Run <code className="rounded bg-rose-100 px-1">npm run db:migrate</code> before
-            using booking, auth, or KYC features.
+      <div className="space-y-8">
+        <AdminSectionErrorBoundary title="Uptime & errors">
+          <SystemHealthCard health={ctx.data.systemHealth} sentryUrl={ctx.data.sentryUrl} />
+        </AdminSectionErrorBoundary>
+
+        {errorsByRoute.length > 0 ? (
+          <section className="space-y-3">
+            <h2 className="text-sm font-semibold text-white">Errors by route (7 days)</h2>
+            <div className="overflow-hidden rounded-xl border border-white/10">
+              <Table>
+                <THead>
+                  <TR>
+                    <TH>Route</TH>
+                    <TH className="text-right">Count</TH>
+                    <TH>Last seen</TH>
+                  </TR>
+                </THead>
+                <TBody>
+                  {errorsByRoute.map((row) => (
+                    <TR key={row.route}>
+                      <TD className="font-mono text-xs text-white">{row.route}</TD>
+                      <TD className="text-right tabular-nums">{row.count}</TD>
+                      <TD className="text-xs text-apg-silver">
+                        {new Intl.DateTimeFormat('en-IN', {
+                          dateStyle: 'medium',
+                          timeStyle: 'short',
+                        }).format(new Date(row.lastSeen))}
+                      </TD>
+                    </TR>
+                  ))}
+                </TBody>
+              </Table>
+            </div>
+          </section>
+        ) : null}
+
+        <AdminSectionErrorBoundary title="Request monitoring">
+          <MonitoringDashboard initial={monitoring} />
+        </AdminSectionErrorBoundary>
+
+        <AdminSectionErrorBoundary title="Diagnostics">
+          <HealthDashboard initial={healthInitial} initialError={healthError} />
+        </AdminSectionErrorBoundary>
+
+        <section className="rounded-xl border border-white/10 bg-[#1A1F27] p-5">
+          <div className="flex items-center gap-2">
+            <IconDatabase className="text-apg-silver" width={20} height={20} />
+            <h2 className="text-sm font-semibold text-white">Database migrations</h2>
+            <Badge tone={migration.ok ? 'emerald' : 'rose'}>{migration.ok ? 'OK' : 'Pending'}</Badge>
+          </div>
+          <p className="mt-2 text-xs text-apg-silver">
+            Current version: {migration.currentDbVersion ?? '—'} · Expected:{' '}
+            {migration.latestCodeVersion ?? '—'}
           </p>
-          {health.error ? <p className="mt-2 text-rose-800">{health.error}</p> : null}
-        </div>
-      ) : (
-        <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
-          <p className="font-semibold">Database schema matches the codebase.</p>
-        </div>
-      )}
-
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
-        <StatCard
-          label="Current DB version"
-          value={health.currentDbVersion ?? '—'}
-          icon={<IconDatabase />}
-        />
-        <StatCard
-          label="Latest code version"
-          value={health.latestCodeVersion ?? '—'}
-          icon={<IconDatabase />}
-        />
-        <StatCard
-          label="Pending migrations"
-          value={String(health.pendingCount)}
-          icon={<IconDatabase />}
-          accent={health.pendingCount > 0 ? 'amber' : 'emerald'}
-        />
+          {!migration.ok && migration.error ? (
+            <p className="mt-2 text-xs text-rose-300">{migration.error}</p>
+          ) : null}
+        </section>
       </div>
-
-      <Card>
-        <CardHeader
-          title="Migration summary"
-          description={`${health.appliedCount} applied · ${health.codeCount} in repository`}
-          actions={
-            <Badge tone={health.ok ? 'emerald' : 'rose'}>
-              {health.ok ? 'Up to date' : 'Action required'}
-            </Badge>
-          }
-        />
-        <CardBody className="space-y-4 text-sm text-zinc-700">
-          <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-zinc-500">Applied count</dt>
-              <dd className="mt-0.5 font-mono text-zinc-900">{health.appliedCount}</dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-zinc-500">Repository count</dt>
-              <dd className="mt-0.5 font-mono text-zinc-900">{health.codeCount}</dd>
-            </div>
-          </dl>
-
-          {health.pending.length > 0 ? (
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                Pending migrations
-              </p>
-              <ul className="mt-2 space-y-1 font-mono text-xs text-rose-800">
-                {health.pending.map((tag) => (
-                  <li key={tag}>• {tag}</li>
-                ))}
-              </ul>
-            </div>
-          ) : (
-            <p className="text-zinc-500">No pending migrations.</p>
-          )}
-        </CardBody>
-      </Card>
     </>
   );
 }

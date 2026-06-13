@@ -123,9 +123,11 @@ function CollectionCell({
 export function PgBusinessMetricsTable({
   rows,
   totals,
+  pgHref = (pgId) => `/admin/revenue/pg/${pgId}`,
 }: {
   rows: PgBusinessMetrics[];
   totals?: BusinessMetricsSummary;
+  pgHref?: (pgId: string) => string;
 }) {
   if (rows.length === 0) {
     return <p className="text-sm text-apg-silver">No PG listings yet.</p>;
@@ -151,7 +153,7 @@ export function PgBusinessMetricsTable({
             <tr key={row.pgId} className="hover:bg-white/[0.02]">
               <td className="px-4 py-3">
                 <Link
-                  href={`/admin/pgs/${row.pgId}/map`}
+                  href={pgHref(row.pgId)}
                   className="font-medium text-white hover:text-[#FF5A1F]"
                 >
                   {row.pgName}
