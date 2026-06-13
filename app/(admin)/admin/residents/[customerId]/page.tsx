@@ -22,7 +22,7 @@ import {
 } from '@/src/services/tenantAssignment';
 import { loadBedPrice, securityDepositForMode } from '@/src/services/pricing';
 import { db } from '@/src/db/client';
-import { rentInvoices } from '@/src/db/schema';
+import { rentInvoices as rentInvoicesTable } from '@/src/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
@@ -82,18 +82,18 @@ export default async function ResidentDetailPage({
   if (activeTenancy) {
     const [inv] = await db
       .select({
-        rentPaise: rentInvoices.rentPaise,
-        dueDate: rentInvoices.dueDate,
-        status: rentInvoices.status,
+        rentPaise: rentInvoicesTable.rentPaise,
+        dueDate: rentInvoicesTable.dueDate,
+        status: rentInvoicesTable.status,
       })
-      .from(rentInvoices)
+      .from(rentInvoicesTable)
       .where(
         and(
-          eq(rentInvoices.bookingId, activeTenancy.bookingId),
-          inArray(rentInvoices.status, ['pending', 'overdue']),
+          eq(rentInvoicesTable.bookingId, activeTenancy.bookingId),
+          inArray(rentInvoicesTable.status, ['pending', 'overdue']),
         ),
       )
-      .orderBy(rentInvoices.dueDate)
+      .orderBy(rentInvoicesTable.dueDate)
       .limit(1);
     if (inv) {
       pendingRent = {
@@ -113,7 +113,7 @@ export default async function ResidentDetailPage({
   }
 
   const rentRes = await listAdminRentInvoices();
-  const rentInvoices = rentRes.ok
+  const rentHistory = rentRes.ok
     ? rentRes.data
         .filter((r) => r.customerPhone === customer.phone)
         .slice(0, 12)
@@ -320,7 +320,7 @@ export default async function ResidentDetailPage({
           </section>
         )}
 
-        {rentInvoices.length > 0 ? (
+        {rentHistory.length > 0 ? (
           <section className={SURFACE}>
             <h2 className="text-sm font-semibold uppercase tracking-wide text-apg-orange">
               Payment history
@@ -337,7 +337,7 @@ export default async function ResidentDetailPage({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {rentInvoices.map((inv) => (
+                  {rentHistory.map((inv) => (
                     <tr key={inv.id}>
                       <td className="py-2 pr-4 text-white">{inv.invoiceNumber}</td>
                       <td className="py-2 pr-4 text-apg-silver">{inv.billingMonth}</td>
