@@ -13,6 +13,16 @@ export type BillingWhatsAppInput = {
   billingMonth?: string;
   roomNumber?: string;
   isOverdue?: boolean;
+  /** When set, message includes this payment link (rent / electricity). */
+  paymentLinkUrl?: string;
+};
+
+export type RentUpdatedWhatsAppInput = {
+  customerName: string;
+  phone: string;
+  pgName: string;
+  newAmountPaise: number;
+  paymentLinkUrl: string;
 };
 
 export function buildBillingWhatsAppMessage(input: BillingWhatsAppInput): string {
@@ -20,6 +30,18 @@ export function buildBillingWhatsAppMessage(input: BillingWhatsAppInput): string
   const amount = paiseToInr(input.amountPaise);
 
   if (input.kind === 'rent') {
+    if (input.paymentLinkUrl) {
+      if (input.isOverdue) {
+        return (
+          `Hi ${firstName}, your rent for ${input.pgName} is ${amount} (overdue). ` +
+          `Please complete payment using this link: ${input.paymentLinkUrl}`
+        );
+      }
+      return (
+        `Hi ${firstName}, your rent for ${input.pgName} is ${amount}. ` +
+        `Please complete payment using this link: ${input.paymentLinkUrl}`
+      );
+    }
     if (input.isOverdue) {
       return (
         `Hi ${firstName}, your rent of ${amount} for ${input.pgName} is overdue. ` +
@@ -33,6 +55,12 @@ export function buildBillingWhatsAppMessage(input: BillingWhatsAppInput): string
   }
 
   const room = input.roomNumber ? ` · Room ${input.roomNumber}` : '';
+  if (input.paymentLinkUrl) {
+    return (
+      `Hi ${firstName}, your electricity bill for ${input.pgName}${room} is ${amount}. ` +
+      `Please complete payment using this link: ${input.paymentLinkUrl}`
+    );
+  }
   if (input.isOverdue) {
     return (
       `Hi ${firstName}, your electricity bill of ${amount} for ${input.pgName}${room} is overdue. ` +
@@ -43,6 +71,32 @@ export function buildBillingWhatsAppMessage(input: BillingWhatsAppInput): string
     `Hi ${firstName}, your electricity share of ${amount} for ${input.pgName}${room} is due on ${input.dueDate}. ` +
     `Please pay from your resident dashboard or via QR.`
   );
+}
+
+export function buildRentUpdatedWhatsAppMessage(input: {
+  customerName: string;
+  pgName: string;
+  newAmountPaise: number;
+  paymentLinkUrl: string;
+}): string {
+  const firstName = input.customerName.trim().split(/\s+/)[0] || 'there';
+  const amount = paiseToInr(input.newAmountPaise);
+  return (
+    `Hi ${firstName}, your rent has been updated to ${amount} for ${input.pgName}. ` +
+    `Please review and complete payment here: ${input.paymentLinkUrl}`
+  );
+}
+
+export function buildRentUpdatedWhatsAppUrl(input: RentUpdatedWhatsAppInput): string | null {
+  const digits = whatsAppPhoneDigits(input.phone);
+  if (!digits) return null;
+  const text = buildRentUpdatedWhatsAppMessage({
+    customerName: input.customerName,
+    pgName: input.pgName,
+    newAmountPaise: input.newAmountPaise,
+    paymentLinkUrl: input.paymentLinkUrl,
+  });
+  return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
 }
 
 export function buildBillingWhatsAppUrl(input: BillingWhatsAppInput): string | null {

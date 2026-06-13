@@ -878,6 +878,81 @@ export async function approveRentPaymentProof(
   return { ok: true };
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// Admin rent edit — recalculate open invoices from booking snapshot
+// ───────────────────────────────────────────────────────────────────────────
+
+export async function recalculatePendingRentInvoicesForBooking(args: {
+  bookingId: string;
+  pricingSnapshot: PricingSnapshot;
+  adminId: string;
+}): Promise<{
+  updatedCount: number;
+  invoiceChanges: Array<{
+    invoiceId: string;
+    billingMonth: string;
+    fromPaise: number;
+    toPaise: number;
+  }>;
+}> {
+  const monthlyRent = monthlyRentFromSnapshot(args.pricingSnapshot);
+  const pending = await db
+    .select()
+    .from(rentInvoices)
+    .where(
+      and(
+        eq(rentInvoices.bookingId, args.bookingId),
+        inArray(rentInvoices.status, ['pending', 'overdue']),
+      ),
+    );
+
+  const stay = await loadStayWindow(args.bookingId);
+  const invoiceChanges: Array<{
+    invoiceId: string;
+    billingMonth: string;
+    fromPaise: number;
+    toPaise: number;
+  }> = [];
+  const now = new Date();
+
+  for (const inv of pending) {
+    if (!stay) continue;
+    const prorated = prorateForMonth({
+      monthlyRatePaise: monthlyRent,
+      billingMonth: inv.billingMonth,
+      activeStart: stay.start,
+      activeEnd: stay.end ?? '9999-12-31',
+    });
+    const newPaise = prorated.amountPaise;
+    if (newPaise <= 0 || newPaise === inv.rentPaise) continue;
+
+    await db
+      .update(rentInvoices)
+      .set({ rentPaise: newPaise, updatedAt: now })
+      .where(eq(rentInvoices.id, inv.id));
+
+    invoiceChanges.push({
+      invoiceId: inv.id,
+      billingMonth: inv.billingMonth,
+      fromPaise: inv.rentPaise,
+      toPaise: newPaise,
+    });
+  }
+
+  if (invoiceChanges.length > 0) {
+    await db.insert(auditLog).values({
+      actorType: 'admin',
+      actorId: args.adminId,
+      entity: 'rent_invoice',
+      entityId: args.bookingId,
+      action: 'recalculate_pending',
+      diff: { invoiceChanges, monthlyRentPaise: monthlyRent },
+    });
+  }
+
+  return { updatedCount: invoiceChanges.length, invoiceChanges };
+}
+
 // Pseudonyms to keep imports tidy in tests.
 export const _internals = { nextInvoiceNumber, monthlyRentFromSnapshot, loadStayWindow };
 // Suppress unused-import warnings if linter complains; these are used in tests.

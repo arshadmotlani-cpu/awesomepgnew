@@ -2,12 +2,13 @@ export type AdminModule =
   | 'overview'
   | 'revenue'
   | 'collections'
+  | 'pgs'
+  | 'residents'
+  | 'kyc'
   | 'operations'
   | 'analytics'
   | 'system'
-  | 'residents'
-  | 'kyc'
-  | 'pgs';
+  | 'panel';
 
 export type AdminModuleMeta = {
   id: AdminModule;
@@ -39,10 +40,31 @@ export const ADMIN_MODULES: Record<AdminModule, AdminModuleMeta> = {
     href: '/admin/collections',
     sidebar: true,
   },
+  pgs: {
+    id: 'pgs',
+    label: 'PGs',
+    description: 'All properties — click a PG to manage',
+    href: '/admin/pgs',
+    sidebar: true,
+  },
+  residents: {
+    id: 'residents',
+    label: 'Residents',
+    description: 'Assign and reassign beds, manage tenancies and walk-ins',
+    href: '/admin/residents',
+    sidebar: true,
+  },
+  kyc: {
+    id: 'kyc',
+    label: 'KYC review',
+    description: 'Verify Aadhaar and selfie uploads — approve before check-in',
+    href: '/admin/residents/kyc',
+    sidebar: true,
+  },
   operations: {
     id: 'operations',
     label: 'Operations',
-    description: 'Beds, rooms, residents, vacating, KYC',
+    description: 'Beds, vacating, KYC, and occupancy — assign residents from Residents',
     href: '/admin/operations',
     sidebar: true,
   },
@@ -60,25 +82,11 @@ export const ADMIN_MODULES: Record<AdminModule, AdminModuleMeta> = {
     href: '/admin/system',
     sidebar: true,
   },
-  residents: {
-    id: 'residents',
-    label: 'Residents',
-    description: 'Assign and reassign beds, manage tenancies and walk-ins',
-    href: '/admin/residents',
-    sidebar: true,
-  },
-  kyc: {
-    id: 'kyc',
-    label: 'KYC review',
-    description: 'Verify Aadhaar and selfie uploads — approve before check-in',
-    href: '/admin/residents/kyc',
-    sidebar: true,
-  },
-  pgs: {
-    id: 'pgs',
-    label: 'PGs',
-    description: 'All properties — click a PG to manage',
-    href: '/admin/pgs',
+  panel: {
+    id: 'panel',
+    label: 'Admin panel',
+    description: 'Rent audit, payment links, coupons, permissions, manual controls',
+    href: '/admin/panel',
     sidebar: true,
   },
 };
@@ -102,7 +110,7 @@ export function moduleHref(module: AdminModule, billingMonth?: string): string {
 }
 
 export function modulePgHref(
-  module: Exclude<AdminModule, 'overview' | 'pgs'>,
+  module: Exclude<AdminModule, 'overview' | 'pgs' | 'panel'>,
   pgId: string,
   billingMonth?: string,
 ): string {
@@ -110,7 +118,10 @@ export function modulePgHref(
 }
 
 export function moduleResidentHref(
-  module: Exclude<AdminModule, 'overview' | 'analytics' | 'system' | 'pgs' | 'residents' | 'kyc'>,
+  module: Exclude<
+    AdminModule,
+    'overview' | 'analytics' | 'system' | 'pgs' | 'residents' | 'kyc' | 'panel'
+  >,
   pgId: string,
   residentId: string,
   billingMonth?: string,
@@ -130,6 +141,7 @@ export function pathnameToModule(pathname: string): AdminModule | null {
   ) {
     return 'residents';
   }
+  if (pathname.startsWith('/admin/panel')) return 'panel';
   for (const mod of SIDEBAR_MODULES) {
     if (mod.id === 'overview') continue;
     if (pathname === mod.href || pathname.startsWith(`${mod.href}/`)) return mod.id;

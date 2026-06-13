@@ -22,6 +22,7 @@ const MODULE_ICONS: Record<AdminModule, ComponentType<SVGProps<SVGSVGElement>>> 
   residents: IconUsers,
   kyc: IconCheckCircle,
   pgs: IconBuilding,
+  panel: IconSettings,
 };
 
 export type NavSection = {

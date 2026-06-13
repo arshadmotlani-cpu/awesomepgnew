@@ -13,15 +13,12 @@ import {
   moduleHref,
   moduleKycVerifyHref,
 } from '@/src/lib/admin/navigation';
+import { KYC_DOCUMENT_LABELS, kycDocumentUrl } from '@/src/lib/kyc/documentUrls';
 import { formatDateTime, titleCase } from '@/src/lib/format';
 
 export const dynamic = 'force-dynamic';
 
 type RouteParams = { submissionId: string };
-
-function docUrl(submissionId: string, kind: 'aadhaar_front' | 'aadhaar_back' | 'selfie') {
-  return `/api/kyc/documents/${submissionId}/${kind}`;
-}
 
 const SURFACE = 'rounded-2xl border border-white/10 bg-[#1A1F27]';
 
@@ -93,9 +90,18 @@ export default async function ResidentsKycVerifyPage({
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <section className="grid gap-4 sm:grid-cols-3">
-          <DocPreview title="Aadhaar front" src={docUrl(submissionId, 'aadhaar_front')} />
-          <DocPreview title="Aadhaar back" src={docUrl(submissionId, 'aadhaar_back')} />
-          <DocPreview title="Selfie" src={docUrl(submissionId, 'selfie')} />
+          <DocPreview
+            title={KYC_DOCUMENT_LABELS.aadhaar_front}
+            src={kycDocumentUrl(submissionId, 'aadhaar_front')}
+          />
+          <DocPreview
+            title={KYC_DOCUMENT_LABELS.aadhaar_back}
+            src={kycDocumentUrl(submissionId, 'aadhaar_back')}
+          />
+          <DocPreview
+            title={KYC_DOCUMENT_LABELS.selfie}
+            src={kycDocumentUrl(submissionId, 'selfie')}
+          />
         </section>
 
         {sub.status === 'pending' ? (

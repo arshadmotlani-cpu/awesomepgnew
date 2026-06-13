@@ -6,6 +6,7 @@ import { AssignTenantForm } from '@/src/components/admin/AssignTenantForm';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { BedAssignmentWhatsAppButton } from '@/src/components/admin/BedAssignmentWhatsAppButton';
 import { EditTenantTenancyForm } from '@/src/components/admin/EditTenantTenancyForm';
+import { ResidentActionBar } from '@/src/components/admin/ResidentActionBar';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { listAdminRentInvoices } from '@/src/db/queries/admin';
@@ -20,6 +21,9 @@ import {
   listAssignableBeds,
 } from '@/src/services/tenantAssignment';
 import { loadBedPrice, securityDepositForMode } from '@/src/services/pricing';
+import { db } from '@/src/db/client';
+import { rentInvoices } from '@/src/db/schema';
+import { and, eq, inArray } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
 
@@ -73,6 +77,32 @@ export default async function ResidentDetailPage({
   const latestKyc = await getLatestKycSubmission(customerId);
   const pendingKycSubmissionId =
     latestKyc?.status === 'pending' ? latestKyc.id : null;
+
+  let pendingRent: { rentPaise: number; dueDate: string; isOverdue: boolean } | null = null;
+  if (activeTenancy) {
+    const [inv] = await db
+      .select({
+        rentPaise: rentInvoices.rentPaise,
+        dueDate: rentInvoices.dueDate,
+        status: rentInvoices.status,
+      })
+      .from(rentInvoices)
+      .where(
+        and(
+          eq(rentInvoices.bookingId, activeTenancy.bookingId),
+          inArray(rentInvoices.status, ['pending', 'overdue']),
+        ),
+      )
+      .orderBy(rentInvoices.dueDate)
+      .limit(1);
+    if (inv) {
+      pendingRent = {
+        rentPaise: inv.rentPaise,
+        dueDate: inv.dueDate,
+        isOverdue: inv.status === 'overdue',
+      };
+    }
+  }
 
   let websiteDepositPaise = 0;
   if (activeTenancy) {
@@ -192,6 +222,24 @@ export default async function ResidentDetailPage({
           )}
         </div>
       </div>
+
+      {activeTenancy ? (
+        <div className="mb-8">
+          <ResidentActionBar
+            customerId={customerId}
+            customerName={customer.fullName}
+            phone={customer.phone}
+            kycStatus={customer.kycStatus}
+            pgId={activeTenancy.pgId}
+            pgName={activeTenancy.pgName}
+            roomNumber={activeTenancy.roomNumber}
+            bookingId={activeTenancy.bookingId}
+            pendingRentPaise={pendingRent?.rentPaise}
+            rentDueDate={pendingRent?.dueDate}
+            rentOverdue={pendingRent?.isOverdue}
+          />
+        </div>
+      ) : null}
 
       <div className="space-y-8">
         {activeTenancy ? (

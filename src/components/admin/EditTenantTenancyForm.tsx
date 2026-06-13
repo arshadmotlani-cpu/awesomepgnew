@@ -8,6 +8,7 @@ import {
 } from '@/app/(admin)/admin/residents/[customerId]/actions';
 import { AdminConfirmSubmit } from '@/src/components/admin/AdminConfirmSubmit';
 import { BedAssignmentWhatsAppButton } from '@/src/components/admin/BedAssignmentWhatsAppButton';
+import { RentUpdatedWhatsAppButton } from '@/src/components/admin/RentUpdatedWhatsAppButton';
 import { paiseToInr } from '@/src/lib/format';
 
 type BedOption = { bedId: string; label: string };
@@ -78,6 +79,8 @@ export function EditTenantTenancyForm({
     >
       <input type="hidden" name="bookingId" value={bookingId} />
       <input type="hidden" name="customerId" value={customerId} />
+      <input type="hidden" name="customerName" value={customerName} />
+      <input type="hidden" name="customerPhone" value={customerPhone} />
 
       <div>
         <h3 className="text-sm font-semibold uppercase tracking-wide text-apg-orange">
@@ -154,7 +157,36 @@ export function EditTenantTenancyForm({
 
       {state.error ? <p className="text-sm text-rose-300">{state.error}</p> : null}
 
-      {state.ok && parsedTarget ? (
+      {state.ok && state.rentChanged && state.paymentLinkUrl ? (
+        <div className="rounded-lg border border-sky-400/30 bg-sky-500/10 px-3 py-3 text-sm text-sky-100">
+          <p className="font-semibold">
+            Rent updated — {paiseToInr(state.rentChanged.fromPaise)} →{' '}
+            {paiseToInr(state.rentChanged.toPaise)}/mo
+          </p>
+          <p className="mt-1 text-xs">
+            Pending invoices and action items were synced. Payment link generated.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <RentUpdatedWhatsAppButton
+              customerName={customerName}
+              phone={customerPhone}
+              pgName={state.pgName ?? parsedTarget?.pgName ?? 'your PG'}
+              newAmountPaise={state.rentChanged.toPaise}
+              paymentLinkUrl={state.paymentLinkUrl}
+            />
+            <a
+              href={state.paymentLinkUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/5"
+            >
+              Open payment link →
+            </a>
+          </div>
+        </div>
+      ) : null}
+
+      {state.ok && parsedTarget && bedChanged ? (
         <div className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-3 text-sm text-emerald-100">
           <p className="font-semibold">Assignment saved</p>
           <div className="mt-2">

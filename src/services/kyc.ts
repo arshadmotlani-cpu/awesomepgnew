@@ -227,22 +227,49 @@ export async function getKycSubmission(id: string) {
   return row ?? null;
 }
 
-export async function listPendingKycSubmissions() {
+const kycSubmissionListSelect = {
+  id: kycSubmissions.id,
+  customerId: kycSubmissions.customerId,
+  bookingId: kycSubmissions.bookingId,
+  status: kycSubmissions.status,
+  createdAt: kycSubmissions.createdAt,
+  reviewedAt: kycSubmissions.reviewedAt,
+  customerName: customers.fullName,
+  customerPhone: customers.phone,
+  customerEmail: customers.email,
+};
+
+export type KycSubmissionListRow = {
+  id: string;
+  customerId: string;
+  bookingId: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: Date;
+  reviewedAt: Date | null;
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string;
+};
+
+export async function listPendingKycSubmissions(): Promise<KycSubmissionListRow[]> {
   return db
-    .select({
-      id: kycSubmissions.id,
-      customerId: kycSubmissions.customerId,
-      bookingId: kycSubmissions.bookingId,
-      status: kycSubmissions.status,
-      createdAt: kycSubmissions.createdAt,
-      customerName: customers.fullName,
-      customerPhone: customers.phone,
-      customerEmail: customers.email,
-    })
+    .select(kycSubmissionListSelect)
     .from(kycSubmissions)
     .innerJoin(customers, eq(customers.id, kycSubmissions.customerId))
     .where(eq(kycSubmissions.status, 'pending'))
     .orderBy(desc(kycSubmissions.createdAt));
+}
+
+export async function listApprovedKycSubmissions(
+  limit = 100,
+): Promise<KycSubmissionListRow[]> {
+  return db
+    .select(kycSubmissionListSelect)
+    .from(kycSubmissions)
+    .innerJoin(customers, eq(customers.id, kycSubmissions.customerId))
+    .where(eq(kycSubmissions.status, 'approved'))
+    .orderBy(desc(kycSubmissions.reviewedAt), desc(kycSubmissions.createdAt))
+    .limit(limit);
 }
 
 function reportKeyFor(kind: KycImageKind): keyof KycValidationReport {

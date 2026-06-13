@@ -29,11 +29,7 @@ export function buildKycWhatsAppMessage(input: {
   kycUrl: string;
 }): string {
   const firstName = input.customerName.trim().split(/\s+/)[0] || 'there';
-  return (
-    `Hi ${firstName}, please complete your KYC for Awesome PG so we can verify your identity.\n\n` +
-    `Upload your Aadhaar (front & back) and a selfie here:\n${input.kycUrl}\n\n` +
-    `Thank you!`
-  );
+  return `Hi ${firstName}, please complete your KYC using this link: ${input.kycUrl}`;
 }
 
 export function buildKycWhatsAppUrl(input: KycWhatsAppPromptInput): string | null {

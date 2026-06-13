@@ -8,6 +8,7 @@ import {
   floors,
   pgs,
   rooms,
+  auditLog,
 } from '@/src/db/schema';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
@@ -16,6 +17,7 @@ import { BLOCKING_RESERVATION_STATUS_SQL } from '@/src/lib/reservationBlocking';
 import { formatDate, parseDate } from '@/src/lib/dates';
 import { isBedAvailable } from '@/src/services/availability';
 import { correctDepositCollected, getDepositSummaryForBooking } from '@/src/services/deposits';
+import { recalculatePendingRentInvoicesForBooking } from '@/src/services/rentInvoices';
 import { siblingBedIdsInRoom } from '@/src/services/tenantAssignmentInternals';
 
 const LONG_TERM_END = '2099-01-01';
@@ -353,7 +355,17 @@ export async function updateTenantTenancy(
     depositCollectedInr?: number;
     blocksWholeRoom?: boolean;
   },
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<
+  | {
+      ok: true;
+      pgId: string;
+      customerId: string;
+      pgName: string;
+      roomNumber: string;
+      rentChanged?: { fromPaise: number; toPaise: number };
+    }
+  | { ok: false; error: string }
+> {
   const [booking] = await db
     .select({
       id: bookings.id,
@@ -370,6 +382,7 @@ export async function updateTenantTenancy(
   const [ctx] = await db
     .select({
       pgId: pgs.id,
+      pgName: pgs.name,
       bedId: beds.id,
       roomNumber: rooms.roomNumber,
     })
@@ -394,6 +407,10 @@ export async function updateTenantTenancy(
   const today = formatDate(new Date());
   const snapshot = (booking.pricingSnapshot ?? { perBed: [], computedAt: new Date().toISOString() }) as PricingSnapshot;
   const primaryBedId = snapshot.perBed[0]?.bedId ?? ctx.bedId;
+  const oldMonthlyRentPaise = snapshot.perBed.reduce(
+    (acc, bed) => acc + (bed.monthlyRatePaise ?? 0),
+    0,
+  );
   const newBedId = input.newBedId?.trim() || primaryBedId;
   const blocksWholeRoom = input.blocksWholeRoom ?? booking.blocksRoomAvailability;
 
@@ -466,7 +483,45 @@ export async function updateTenantTenancy(
     }
   }
 
-  return { ok: true };
+  const newMonthlyRentPaise = snapshot.perBed.reduce(
+    (acc, bed) => acc + (bed.monthlyRatePaise ?? 0),
+    0,
+  );
+  const rentChanged =
+    newMonthlyRentPaise !== oldMonthlyRentPaise
+      ? { fromPaise: oldMonthlyRentPaise, toPaise: newMonthlyRentPaise }
+      : undefined;
+
+  if (rentChanged) {
+    await recalculatePendingRentInvoicesForBooking({
+      bookingId: input.bookingId,
+      pricingSnapshot: snapshot,
+      adminId: session.adminId,
+    });
+
+    await db.insert(auditLog).values({
+      actorType: 'admin',
+      actorId: session.adminId,
+      entity: 'booking',
+      entityId: input.bookingId,
+      action: 'rent_updated',
+      diff: {
+        customerId: booking.customerId,
+        pgId: ctx.pgId,
+        fromMonthlyRentPaise: rentChanged.fromPaise,
+        toMonthlyRentPaise: rentChanged.toPaise,
+      },
+    });
+  }
+
+  return {
+    ok: true,
+    pgId: ctx.pgId,
+    customerId: booking.customerId,
+    pgName: ctx.pgName,
+    roomNumber: ctx.roomNumber,
+    rentChanged,
+  };
 }
 
 /** Move an active tenancy to a future reservation — bed stays bookable until move-in. */
