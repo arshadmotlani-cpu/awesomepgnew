@@ -28,7 +28,8 @@ export type ResidentListRow = {
   gender: 'male' | 'female' | 'other';
   kycStatus: 'pending' | 'approved' | 'rejected';
   createdAt: Date;
-  tenancyStatus: 'unassigned' | 'active';
+  tenancyStatus: 'unassigned' | 'active' | 'vacating';
+  pgId: string | null;
   pgName: string | null;
   roomNumber: string | null;
   bedCode: string | null;
@@ -61,21 +62,46 @@ export type ResidentDetail = {
   canArchive: boolean;
 };
 
+type ResidentListDbRow = {
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  gender: 'male' | 'female' | 'other';
+  kyc_status: 'pending' | 'approved' | 'rejected';
+  created_at: Date;
+  booking_id: string | null;
+  pg_name: string | null;
+  room_number: string | null;
+  bed_code: string | null;
+  pg_id: string | null;
+  is_vacating: boolean;
+};
+
+function mapResidentListRow(row: ResidentListDbRow): ResidentListRow {
+  return {
+    id: row.id,
+    fullName: row.full_name,
+    email: row.email,
+    phone: row.phone,
+    gender: row.gender,
+    kycStatus: row.kyc_status,
+    createdAt: row.created_at,
+    bookingId: row.booking_id,
+    pgId: row.pg_id,
+    pgName: row.pg_name,
+    roomNumber: row.room_number,
+    bedCode: row.bed_code,
+    tenancyStatus: !row.booking_id
+      ? 'unassigned'
+      : row.is_vacating
+        ? 'vacating'
+        : 'active',
+  };
+}
+
 export async function listResidentsForAdmin(session: AdminSession): Promise<ResidentListRow[]> {
-  const rows = await db.execute<{
-    id: string;
-    full_name: string;
-    email: string;
-    phone: string;
-    gender: 'male' | 'female' | 'other';
-    kyc_status: 'pending' | 'approved' | 'rejected';
-    created_at: Date;
-    booking_id: string | null;
-    pg_name: string | null;
-    room_number: string | null;
-    bed_code: string | null;
-    pg_id: string | null;
-  }>(sql`
+  const rows = await db.execute<ResidentListDbRow>(sql`
     SELECT
       c.id,
       c.full_name,
@@ -88,7 +114,8 @@ export async function listResidentsForAdmin(session: AdminSession): Promise<Resi
       t.pg_name,
       t.room_number,
       t.bed_code,
-      t.pg_id
+      t.pg_id,
+      t.is_vacating
     FROM customers c
     LEFT JOIN LATERAL (
       SELECT
@@ -96,7 +123,12 @@ export async function listResidentsForAdmin(session: AdminSession): Promise<Resi
         p.name AS pg_name,
         r.room_number,
         bd.bed_code,
-        f.pg_id::text AS pg_id
+        f.pg_id::text AS pg_id,
+        EXISTS (
+          SELECT 1 FROM vacating_requests vr
+          WHERE vr.booking_id = b.id
+            AND vr.status IN ('pending', 'approved')
+        ) AS is_vacating
       FROM bookings b
       INNER JOIN bed_reservations br ON br.booking_id = b.id
       INNER JOIN beds bd ON bd.id = br.bed_id
@@ -122,20 +154,7 @@ export async function listResidentsForAdmin(session: AdminSession): Promise<Resi
       (row) =>
         !row.pg_id || adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, row.pg_id),
     )
-    .map((row) => ({
-      id: row.id,
-      fullName: row.full_name,
-      email: row.email,
-      phone: row.phone,
-      gender: row.gender,
-      kycStatus: row.kyc_status,
-      createdAt: row.created_at,
-      bookingId: row.booking_id,
-      pgName: row.pg_name,
-      roomNumber: row.room_number,
-      bedCode: row.bed_code,
-      tenancyStatus: row.booking_id ? ('active' as const) : ('unassigned' as const),
-    }));
+    .map(mapResidentListRow);
 }
 
 export async function searchResidentsForAdmin(
@@ -149,20 +168,7 @@ export async function searchResidentsForAdmin(
   const pattern = `%${q.replace(/[%_\\]/g, '\\$&')}%`;
   const phoneDigits = q.replace(/\D/g, '');
 
-  const rows = await db.execute<{
-    id: string;
-    full_name: string;
-    email: string;
-    phone: string;
-    gender: 'male' | 'female' | 'other';
-    kyc_status: 'pending' | 'approved' | 'rejected';
-    created_at: Date;
-    booking_id: string | null;
-    pg_name: string | null;
-    room_number: string | null;
-    bed_code: string | null;
-    pg_id: string | null;
-  }>(sql`
+  const rows = await db.execute<ResidentListDbRow>(sql`
     SELECT
       c.id,
       c.full_name,
@@ -175,7 +181,8 @@ export async function searchResidentsForAdmin(
       t.pg_name,
       t.room_number,
       t.bed_code,
-      t.pg_id
+      t.pg_id,
+      t.is_vacating
     FROM customers c
     LEFT JOIN LATERAL (
       SELECT
@@ -183,7 +190,12 @@ export async function searchResidentsForAdmin(
         p.name AS pg_name,
         r.room_number,
         bd.bed_code,
-        f.pg_id::text AS pg_id
+        f.pg_id::text AS pg_id,
+        EXISTS (
+          SELECT 1 FROM vacating_requests vr
+          WHERE vr.booking_id = b.id
+            AND vr.status IN ('pending', 'approved')
+        ) AS is_vacating
       FROM bookings b
       INNER JOIN bed_reservations br ON br.booking_id = b.id
       INNER JOIN beds bd ON bd.id = br.bed_id
@@ -217,20 +229,7 @@ export async function searchResidentsForAdmin(
       (row) =>
         !row.pg_id || adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, row.pg_id),
     )
-    .map((row) => ({
-      id: row.id,
-      fullName: row.full_name,
-      email: row.email,
-      phone: row.phone,
-      gender: row.gender,
-      kycStatus: row.kyc_status,
-      createdAt: row.created_at,
-      bookingId: row.booking_id,
-      pgName: row.pg_name,
-      roomNumber: row.room_number,
-      bedCode: row.bed_code,
-      tenancyStatus: row.booking_id ? ('active' as const) : ('unassigned' as const),
-    }));
+    .map(mapResidentListRow);
 }
 
 export async function getResidentDetail(

@@ -1,113 +1,185 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { AdminKycStatusWithWhatsApp } from '@/src/components/admin/AdminKycWhatsAppButton';
 import { BulkKycWhatsAppReminder } from '@/src/components/admin/BulkKycWhatsAppReminder';
-import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
 import { formatDateTime, titleCase } from '@/src/lib/format';
 import type { ResidentListRow } from '@/src/services/residentAdmin';
 
-export function ResidentsTable({ residents }: { residents: ResidentListRow[] }) {
-  const [query, setQuery] = useState('');
+type StatusFilter = 'all' | 'active' | 'unassigned' | 'vacating' | 'kyc_pending';
+
+const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'active', label: 'Active' },
+  { id: 'unassigned', label: 'Unassigned' },
+  { id: 'vacating', label: 'Vacating' },
+  { id: 'kyc_pending', label: 'KYC pending' },
+];
+
+function statusBadge(r: ResidentListRow) {
+  if (r.tenancyStatus === 'unassigned') {
+    return <Badge tone="amber">Unassigned</Badge>;
+  }
+  if (r.tenancyStatus === 'vacating') {
+    return <Badge tone="amber">Vacating</Badge>;
+  }
+  return (
+    <span className="text-sm text-white">
+      {r.pgName} · Room {r.roomNumber} · {r.bedCode}
+    </span>
+  );
+}
+
+export function ResidentsTable({
+  residents,
+  initialQuery = '',
+}: {
+  residents: ResidentListRow[];
+  initialQuery?: string;
+}) {
+  const router = useRouter();
+  const [query, setQuery] = useState(initialQuery);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const digits = query.replace(/\D/g, '');
-    if (!q) return residents;
 
     return residents.filter((r) => {
+      if (statusFilter === 'active' && r.tenancyStatus !== 'active') return false;
+      if (statusFilter === 'unassigned' && r.tenancyStatus !== 'unassigned') return false;
+      if (statusFilter === 'vacating' && r.tenancyStatus !== 'vacating') return false;
+      if (statusFilter === 'kyc_pending' && r.kycStatus !== 'pending') return false;
+
+      if (!q) return true;
+
       const nameMatch = r.fullName.toLowerCase().includes(q);
       const emailMatch = r.email.toLowerCase().includes(q);
-      const phoneMatch =
-        digits.length >= 3 && r.phone.replace(/\D/g, '').includes(digits);
-      return nameMatch || emailMatch || phoneMatch;
+      const phoneMatch = digits.length >= 3 && r.phone.replace(/\D/g, '').includes(digits);
+      const pgMatch = r.pgName?.toLowerCase().includes(q);
+      const bedMatch =
+        r.bedCode?.toLowerCase().includes(q) ||
+        r.roomNumber?.toLowerCase().includes(q) ||
+        `${r.roomNumber ?? ''} ${r.bedCode ?? ''}`.toLowerCase().includes(q);
+
+      return nameMatch || emailMatch || phoneMatch || pgMatch || bedMatch;
     });
-  }, [query, residents]);
+  }, [query, residents, statusFilter]);
 
   return (
     <div className="space-y-4">
       <BulkKycWhatsAppReminder residents={residents} />
 
+      <div className="flex flex-wrap gap-2">
+        {STATUS_FILTERS.map((f) => (
+          <button
+            key={f.id}
+            type="button"
+            onClick={() => setStatusFilter(f.id)}
+            className={
+              statusFilter === f.id
+                ? 'rounded-lg bg-[#FF5A1F] px-3 py-1.5 text-xs font-semibold text-white'
+                : 'rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-apg-silver hover:text-white'
+            }
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
       <div className="flex flex-wrap items-end justify-between gap-3">
         <label className="block min-w-[16rem] flex-1 text-sm">
-          <span className="font-medium text-zinc-700">Search residents</span>
+          <span className="font-medium text-apg-silver">Search</span>
           <input
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Name or phone number…"
-            className="apg-admin-field mt-1 w-full max-w-md rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+            placeholder="Name, phone, PG, room, or bed…"
+            className="apg-admin-field mt-1 w-full max-w-md rounded-lg border border-white/10 bg-[#1A1F27] px-3 py-2 text-sm text-white"
           />
         </label>
-        <p className="text-sm text-zinc-500">
+        <p className="text-sm text-apg-silver">
           Showing {filtered.length} of {residents.length}
         </p>
       </div>
 
       {filtered.length === 0 ? (
-        <p className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-8 text-center text-sm text-zinc-600">
-          No residents match your search.
+        <p className="rounded-xl border border-white/10 bg-[#1A1F27] px-4 py-8 text-center text-sm text-apg-silver">
+          No residents match your filters.
         </p>
       ) : (
-        <Table>
-          <THead>
-            <TR>
-              <TH>Name</TH>
-              <TH>Room / status</TH>
-              <TH>Phone</TH>
-              <TH>KYC</TH>
-              <TH>Joined</TH>
-              <TH />
-            </TR>
-          </THead>
-          <TBody>
-            {filtered.map((r) => (
-              <TR key={r.id}>
-                <TD className="font-medium text-zinc-900">
-                  <Link href={`/admin/residents/${r.id}`} className="hover:text-[#FF5A1F]">
-                    {r.fullName}
-                  </Link>
-                  <p className="text-xs font-normal text-zinc-500">{r.email}</p>
-                </TD>
-                <TD>
-                  {r.tenancyStatus === 'active' && r.pgName ? (
-                    <span className="text-sm">
-                      {r.pgName} · Room {r.roomNumber} · {r.bedCode}
-                    </span>
-                  ) : (
-                    <Badge tone="amber">Unassigned</Badge>
-                  )}
-                </TD>
-                <TD>{r.phone}</TD>
-                <TD>
-                  <AdminKycStatusWithWhatsApp
-                    kycStatus={r.kycStatus}
-                    phone={r.phone}
-                    customerName={r.fullName}
-                    badge={
-                      <Badge tone={toneForStatus(r.kycStatus)}>{titleCase(r.kycStatus)}</Badge>
-                    }
-                  />
-                </TD>
-                <TD>{formatDateTime(new Date(r.createdAt))}</TD>
-                <TD className="text-right">
-                  <Link
-                    href={
-                      r.tenancyStatus === 'active'
-                        ? `/admin/residents/${r.id}`
-                        : `/admin/bookings/new?customerId=${r.id}`
-                    }
-                    className="text-sm font-semibold text-[#FF5A1F] hover:underline"
+        <div className="overflow-hidden rounded-xl border border-white/10 bg-[#1A1F27]">
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="border-b border-white/10 bg-white/[0.03]">
+                <tr>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-apg-silver">
+                    Name
+                  </th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-apg-silver">
+                    PG / bed
+                  </th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-apg-silver">
+                    Phone
+                  </th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-apg-silver">
+                    KYC
+                  </th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-apg-silver">
+                    Joined
+                  </th>
+                  <th className="px-4 py-3" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {filtered.map((r) => (
+                  <tr
+                    key={r.id}
+                    className="cursor-pointer transition hover:bg-white/[0.04]"
+                    onClick={() => router.push(`/admin/residents/${r.id}`)}
                   >
-                    {r.tenancyStatus === 'active' ? 'Manage' : 'Assign'}
-                  </Link>
-                </TD>
-              </TR>
-            ))}
-          </TBody>
-        </Table>
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-white">{r.fullName}</p>
+                      <p className="text-xs text-apg-silver">{r.email}</p>
+                    </td>
+                    <td className="px-4 py-3">{statusBadge(r)}</td>
+                    <td className="px-4 py-3 text-apg-silver">{r.phone}</td>
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <AdminKycStatusWithWhatsApp
+                        kycStatus={r.kycStatus}
+                        phone={r.phone}
+                        customerName={r.fullName}
+                        badge={
+                          <Badge tone={toneForStatus(r.kycStatus)}>
+                            {titleCase(r.kycStatus)}
+                          </Badge>
+                        }
+                      />
+                    </td>
+                    <td className="px-4 py-3 text-apg-silver">
+                      {formatDateTime(new Date(r.createdAt))}
+                    </td>
+                    <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                      <Link
+                        href={
+                          r.tenancyStatus === 'unassigned'
+                            ? `/admin/residents/${r.id}#assign-bed`
+                            : `/admin/residents/${r.id}`
+                        }
+                        className="text-sm font-semibold text-[#FF5A1F] hover:underline"
+                      >
+                        {r.tenancyStatus === 'unassigned' ? 'Assign bed' : 'Manage'}
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
     </div>
   );

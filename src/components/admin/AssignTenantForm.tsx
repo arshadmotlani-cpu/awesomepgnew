@@ -1,10 +1,12 @@
 'use client';
 
-import { useActionState, useMemo, useState } from 'react';
+import { useActionState, useId, useMemo, useState } from 'react';
 import {
   assignTenantAction,
   type AssignTenantState,
 } from '@/app/(admin)/admin/bookings/new/actions';
+import { AdminConfirmSubmit } from '@/src/components/admin/AdminConfirmSubmit';
+import { paiseToInr } from '@/src/lib/format';
 
 type BedOption = {
   bedId: string;
@@ -14,8 +16,11 @@ type BedOption = {
 };
 
 const fieldClass =
+  'apg-admin-field mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white';
+const readOnlyFieldClass = `${fieldClass} opacity-80`;
+const lightFieldClass =
   'apg-admin-field mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm';
-const readOnlyFieldClass = `${fieldClass} bg-zinc-50`;
+const lightReadOnlyFieldClass = `${lightFieldClass} bg-zinc-50`;
 
 function inrFromPaise(paise: number): string {
   if (paise <= 0) return '';
@@ -27,6 +32,7 @@ export function AssignTenantForm({
   defaultBedId,
   defaultStartDate,
   prefill,
+  theme = 'light',
 }: {
   beds: BedOption[];
   defaultBedId?: string;
@@ -38,11 +44,21 @@ export function AssignTenantForm({
     phone: string;
     gender: 'male' | 'female' | 'other';
   } | null;
+  theme?: 'light' | 'dark';
 }) {
+  const formId = useId().replace(/:/g, '');
   const [state, action, pending] = useActionState(assignTenantAction, {
     ok: false,
   } satisfies AssignTenantState);
   const [selectedBedId, setSelectedBedId] = useState(defaultBedId ?? beds[0]?.bedId ?? '');
+
+  const fc = theme === 'dark' ? fieldClass : lightFieldClass;
+  const roFc = theme === 'dark' ? readOnlyFieldClass : lightReadOnlyFieldClass;
+  const shellClass =
+    theme === 'dark'
+      ? 'max-w-xl space-y-4 rounded-2xl border border-white/10 bg-[#1A1F27] p-6'
+      : 'max-w-xl space-y-4 rounded-xl border border-zinc-200 bg-white p-6';
+  const labelClass = theme === 'dark' ? 'font-medium text-apg-silver' : 'font-medium text-zinc-700';
 
   const selectedBed = useMemo(
     () => beds.find((b) => b.bedId === selectedBedId) ?? null,
@@ -53,7 +69,7 @@ export function AssignTenantForm({
     !!defaultBedId && !beds.some((b) => b.bedId === defaultBedId);
 
   return (
-    <form action={action} className="max-w-xl space-y-4 rounded-xl border border-zinc-200 bg-white p-6">
+    <form id={formId} action={action} className={shellClass}>
       {prefill ? <input type="hidden" name="customerId" value={prefill.customerId} /> : null}
 
       {defaultBedMissing ? (
@@ -64,13 +80,13 @@ export function AssignTenantForm({
       ) : null}
 
       <label className="block text-sm">
-        <span className="font-medium text-zinc-700">Bed *</span>
+        <span className={labelClass}>Bed *</span>
         <select
           name="bedId"
           required
           value={selectedBedId}
           onChange={(e) => setSelectedBedId(e.target.value)}
-          className={fieldClass}
+          className={fc}
         >
           <option value="" disabled>
             Select bed…
@@ -101,52 +117,52 @@ export function AssignTenantForm({
       </label>
 
       <label className="block text-sm">
-        <span className="font-medium text-zinc-700">Move-in date *</span>
+        <span className={labelClass}>Move-in date *</span>
         <input
           type="date"
           name="startDate"
           required
           defaultValue={defaultStartDate}
-          className={fieldClass}
+          className={fc}
         />
-        <span className="mt-1 block text-xs text-zinc-500">
+        <span className={`mt-1 block text-xs ${theme === 'dark' ? 'text-apg-silver' : 'text-zinc-500'}`}>
           Defaults to the 1st of this month. Use the actual move-in day if different.
         </span>
       </label>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block text-sm">
-          <span className="font-medium text-zinc-700">Full name</span>
+          <span className={labelClass}>Full name</span>
           <input
             name="fullName"
             required
             readOnly={!!prefill}
             defaultValue={prefill?.fullName ?? ''}
-            className={prefill ? readOnlyFieldClass : fieldClass}
+            className={prefill ? roFc : fc}
           />
         </label>
         <label className="block text-sm">
-          <span className="font-medium text-zinc-700">Phone</span>
+          <span className={labelClass}>Phone</span>
           <input
             name="phone"
             required
             readOnly={!!prefill}
             placeholder="+91…"
             defaultValue={prefill?.phone ?? ''}
-            className={prefill ? readOnlyFieldClass : fieldClass}
+            className={prefill ? roFc : fc}
           />
         </label>
       </div>
 
       <label className="block text-sm">
-        <span className="font-medium text-zinc-700">Email</span>
+        <span className={labelClass}>Email</span>
         <input
           type="email"
           name="email"
           required
           readOnly={!!prefill}
           defaultValue={prefill?.email ?? ''}
-          className={prefill ? readOnlyFieldClass : fieldClass}
+          className={prefill ? roFc : fc}
         />
         {prefill ? (
           <span className="mt-1 block text-xs text-zinc-500">
@@ -156,12 +172,12 @@ export function AssignTenantForm({
       </label>
 
       <label className="block text-sm">
-        <span className="font-medium text-zinc-700">Gender *</span>
+        <span className={labelClass}>Gender *</span>
         <select
           name="gender"
           required
           defaultValue={prefill?.gender ?? 'male'}
-          className={fieldClass}
+          className={fc}
         >
           <option value="male">Male</option>
           <option value="female">Female</option>
@@ -180,7 +196,7 @@ export function AssignTenantForm({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block text-sm">
-          <span className="font-medium text-zinc-700">Monthly rent (₹)</span>
+          <span className={labelClass}>Monthly rent (₹)</span>
           <input
             type="number"
             name="monthlyRentInr"
@@ -191,11 +207,11 @@ export function AssignTenantForm({
                 ? `Leave empty = ₹${inrFromPaise(selectedBed.monthlyRatePaise)}`
                 : 'Required if room has no saved rate'
             }
-            className={fieldClass}
+            className={fc}
           />
         </label>
         <label className="block text-sm">
-          <span className="font-medium text-zinc-700">Deposit collected (₹)</span>
+          <span className={labelClass}>Deposit collected (₹)</span>
           <input
             type="number"
             name="depositInr"
@@ -206,7 +222,7 @@ export function AssignTenantForm({
                 ? `Leave empty = ₹${inrFromPaise(selectedBed.depositPaise)} (website)`
                 : 'Amount you received'
             }
-            className={fieldClass}
+            className={fc}
           />
           {selectedBed && selectedBed.depositPaise > 0 ? (
             <span className="mt-1 block text-xs text-zinc-500">
@@ -226,32 +242,67 @@ export function AssignTenantForm({
       </label>
 
       <label className="block text-sm">
-        <span className="font-medium text-zinc-700">Notes</span>
-        <textarea
-          name="notes"
-          rows={2}
-          className={fieldClass}
-          placeholder="Optional internal note…"
-        />
+        <span className={labelClass}>Notes</span>
+        <textarea name="notes" rows={2} className={fc} placeholder="Optional internal note…" />
       </label>
 
       {state.error ? (
         <div
           role="alert"
-          className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800"
+          className={
+            theme === 'dark'
+              ? 'rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200'
+              : 'rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800'
+          }
         >
           <p className="font-semibold">Could not assign tenant</p>
           <p className="mt-1">{state.error}</p>
         </div>
       ) : null}
 
-      <button
-        type="submit"
-        disabled={pending || !selectedBedId}
+      <AdminConfirmSubmit
+        formId={formId}
+        title="Assign tenant to this bed?"
+        description={
+          <div className="space-y-2">
+            <p>
+              Assign <strong>{prefill?.fullName ?? 'tenant'}</strong> to{' '}
+              <strong>{selectedBed?.label ?? 'selected bed'}</strong>. Creates tenancy and updates
+              occupancy immediately. Double-booking is blocked if the bed is taken.
+            </p>
+            {selectedBed ? (
+              <>
+                <p>
+                  Rent:{' '}
+                  <strong>
+                    {selectedBed.monthlyRatePaise > 0
+                      ? `${paiseToInr(selectedBed.monthlyRatePaise)}/mo (room rate)`
+                      : 'Enter manually below'}
+                  </strong>
+                </p>
+                <p>
+                  Deposit:{' '}
+                  <strong>
+                    {selectedBed.depositPaise > 0
+                      ? paiseToInr(selectedBed.depositPaise)
+                      : 'Enter collected amount'}
+                  </strong>
+                </p>
+              </>
+            ) : null}
+            <p className="text-xs text-zinc-500">
+              After assignment you can send WhatsApp: &ldquo;Your bed has been assigned in [PG
+              NAME]&rdquo;
+            </p>
+          </div>
+        }
+        confirmLabel="Confirm assignment"
+        pending={pending}
+        disabled={!selectedBedId}
         className="rounded-lg bg-[#FF5A1F] px-4 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-60"
       >
         {pending ? 'Assigning…' : 'Assign tenant to bed'}
-      </button>
+      </AdminConfirmSubmit>
     </form>
   );
 }

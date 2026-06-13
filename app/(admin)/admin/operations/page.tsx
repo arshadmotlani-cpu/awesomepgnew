@@ -48,7 +48,7 @@ export default async function OperationsModulePage({
       />
       <PageHeader
         title="Operations"
-        description="Beds, vacating, KYC, refunds, and occupancy — resident lists only at PG level."
+        description="Beds, vacating, KYC, and occupancy — assign residents from the Residents module."
         actions={
           <div className="flex gap-2">
             <SyncActionsButton />
@@ -59,7 +59,7 @@ export default async function OperationsModulePage({
 
       <div className="mb-6 flex flex-wrap gap-2">
         {[
-          ['Residents', '/admin/residents'],
+          ['Residents & bed assignment', moduleHref('residents')],
           ['Vacating', '/admin/vacating'],
           ['KYC', '/admin/kyc'],
           ['Bookings', '/admin/bookings'],

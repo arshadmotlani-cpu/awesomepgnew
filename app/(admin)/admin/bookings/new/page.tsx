@@ -1,11 +1,13 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AssignTenantForm } from '@/src/components/admin/AssignTenantForm';
+import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { ResidentSearchPicker } from '@/src/components/admin/ResidentSearchPicker';
 import { db } from '@/src/db/client';
 import { customers } from '@/src/db/schema';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
+import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
 import { eq } from 'drizzle-orm';
 import {
   defaultTenantStartDate,
@@ -68,14 +70,13 @@ export default async function AssignTenantPage({
 
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-center gap-4">
-        <Link href="/admin/residents" className="text-sm text-zinc-500 hover:text-[#FF5A1F]">
-          ← Residents
-        </Link>
-        <Link href="/admin/bookings" className="text-sm text-zinc-500 hover:text-[#FF5A1F]">
-          Bookings
-        </Link>
-      </div>
+      <ModuleBreadcrumbs
+        items={[
+          { label: 'Overview', href: moduleHref('overview') },
+          { label: ADMIN_MODULES.residents.label, href: moduleHref('residents') },
+          { label: prefill ? `Assign ${prefill.fullName}` : 'Assign tenant' },
+        ]}
+      />
 
       <PageHeader
         title={prefill ? `Assign ${prefill.fullName}` : 'Assign tenant'}

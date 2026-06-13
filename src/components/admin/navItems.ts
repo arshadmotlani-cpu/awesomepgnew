@@ -1,5 +1,6 @@
 import type { ComponentType, SVGProps } from 'react';
 import {
+  IconBed,
   IconBuilding,
   IconCard,
   IconChart,
@@ -14,9 +15,10 @@ const MODULE_ICONS: Record<AdminModule, ComponentType<SVGProps<SVGSVGElement>>> 
   overview: IconDashboard,
   revenue: IconCard,
   collections: IconClipboard,
-  operations: IconUsers,
+  operations: IconBed,
   analytics: IconChart,
   system: IconSettings,
+  residents: IconUsers,
   pgs: IconBuilding,
 };
 

@@ -5,6 +5,7 @@ export type AdminModule =
   | 'operations'
   | 'analytics'
   | 'system'
+  | 'residents'
   | 'pgs';
 
 export type AdminModuleMeta = {
@@ -65,6 +66,13 @@ export const ADMIN_MODULES: Record<AdminModule, AdminModuleMeta> = {
     href: '/admin/pgs',
     sidebar: true,
   },
+  residents: {
+    id: 'residents',
+    label: 'Residents',
+    description: 'Assign and reassign beds, manage tenancies and walk-ins',
+    href: '/admin/residents',
+    sidebar: true,
+  },
 };
 
 export const SIDEBAR_MODULES: AdminModuleMeta[] = Object.values(ADMIN_MODULES).filter(
@@ -90,7 +98,7 @@ export function modulePgHref(
 }
 
 export function moduleResidentHref(
-  module: Exclude<AdminModule, 'overview' | 'analytics' | 'system' | 'pgs'>,
+  module: Exclude<AdminModule, 'overview' | 'analytics' | 'system' | 'pgs' | 'residents'>,
   pgId: string,
   residentId: string,
   billingMonth?: string,
@@ -101,6 +109,9 @@ export function moduleResidentHref(
 /** Match pathname to a sidebar module for active state. */
 export function pathnameToModule(pathname: string): AdminModule | null {
   if (pathname === '/admin' || pathname.startsWith('/admin/overview')) return 'overview';
+  if (pathname.startsWith('/admin/residents') || pathname.startsWith('/admin/bookings/new')) {
+    return 'residents';
+  }
   for (const mod of SIDEBAR_MODULES) {
     if (mod.id === 'overview') continue;
     if (pathname === mod.href || pathname.startsWith(`${mod.href}/`)) return mod.id;

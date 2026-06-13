@@ -69,14 +69,14 @@ export function needsKycReminder(status: 'pending' | 'approved' | 'rejected'): b
 
 export function assignedResidentsNeedingKyc<
   T extends {
-    tenancyStatus: 'active' | 'unassigned';
+    tenancyStatus: 'active' | 'unassigned' | 'vacating';
     kycStatus: 'pending' | 'approved' | 'rejected';
     phone: string;
   },
 >(residents: T[]): T[] {
   return residents.filter(
     (r) =>
-      r.tenancyStatus === 'active' &&
+      (r.tenancyStatus === 'active' || r.tenancyStatus === 'vacating') &&
       needsKycReminder(r.kycStatus) &&
       Boolean(whatsAppPhoneDigits(r.phone)),
   );
