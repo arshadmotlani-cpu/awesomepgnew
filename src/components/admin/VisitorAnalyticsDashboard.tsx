@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type {
-  FunnelStep,
   LiveVisitorsSnapshot,
   PageAnalyticsRow,
   VisitorChartPoint,
@@ -20,7 +19,6 @@ type LocationBreakdown = {
 type DetailsData = {
   chart: VisitorChartPoint[];
   pages: PageAnalyticsRow[];
-  funnel: FunnelStep[];
   sources: BreakdownRow[];
   devices: BreakdownRow[];
   locations: LocationBreakdown;
@@ -197,10 +195,14 @@ export function VisitorAnalyticsDashboard({
 
   const visitorCards = useMemo(
     () => [
-      { label: 'Today', value: visitors.today },
-      { label: 'This week', value: visitors.week },
-      { label: 'This month', value: visitors.month },
-      { label: 'All time', value: visitors.allTime },
+      { label: 'Today', value: visitors.today, hint: `${visitors.returningToday} returning` },
+      { label: 'This week', value: visitors.week, hint: `${visitors.returningWeek} returning` },
+      { label: 'This month', value: visitors.month, hint: `${visitors.returningMonth} returning` },
+      {
+        label: 'All time',
+        value: visitors.allTime,
+        hint: `${visitors.returningAllTime} returning`,
+      },
     ],
     [visitors],
   );
@@ -208,9 +210,10 @@ export function VisitorAnalyticsDashboard({
   return (
     <section className="space-y-4">
       <div>
-        <h2 className="text-sm font-semibold text-white">Website visitor analytics</h2>
+        <h2 className="text-sm font-semibold text-white">Website Analytics</h2>
         <p className="text-xs text-apg-silver">
-          Anonymous session tracking — no passwords, Aadhaar, or sensitive PII stored.
+          Unique visitors by session — returning counts are sessions active in period but first seen
+          earlier. No passwords, Aadhaar, or sensitive PII stored.
         </p>
       </div>
 
@@ -226,6 +229,7 @@ export function VisitorAnalyticsDashboard({
             <p className="mt-2 text-2xl font-semibold text-white">
               {c.value.toLocaleString('en-IN')}
             </p>
+            <p className="mt-1 text-[10px] text-apg-silver">{c.hint}</p>
           </div>
         ))}
       </div>
@@ -271,7 +275,7 @@ export function VisitorAnalyticsDashboard({
         </Panel>
 
         <div className="xl:col-span-2">
-          <Panel title="Visitor trends" description="Unique sessions by period">
+          <Panel title="Visitor trend" description="Unique sessions by period">
             <div className="mb-4 flex flex-wrap items-end gap-3">
               <label className="text-xs text-apg-silver">
                 From
@@ -321,7 +325,7 @@ export function VisitorAnalyticsDashboard({
         <p className="text-sm text-apg-silver">Loading breakdowns…</p>
       ) : detailsError ? null : details ? (
         <div className="grid gap-4 xl:grid-cols-2">
-          <Panel title="Page analytics" description="Views, unique visitors, avg time on page">
+          <Panel title="Top pages" description="Views, unique visitors, avg time on page">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
@@ -354,27 +358,6 @@ export function VisitorAnalyticsDashboard({
                 </tbody>
               </table>
             </div>
-          </Panel>
-
-          <Panel title="Booking funnel" description="Conversion % from previous step">
-            <ul className="space-y-2">
-              {details.funnel.map((step) => (
-                <li
-                  key={step.key}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2 text-sm"
-                >
-                  <span className="text-white">{step.label}</span>
-                  <span className="shrink-0 text-right">
-                    <span className="font-semibold text-emerald-300">{step.count}</span>
-                    {step.conversionPct != null ? (
-                      <span className="ml-2 text-xs text-apg-silver">
-                        {step.conversionPct}%
-                      </span>
-                    ) : null}
-                  </span>
-                </li>
-              ))}
-            </ul>
           </Panel>
 
           <Panel title="Traffic sources">

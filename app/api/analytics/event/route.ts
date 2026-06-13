@@ -6,11 +6,14 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const ALLOWED: ReadonlySet<AnalyticsEventType> = new Set([
+  'pg_viewed',
   'room_viewed',
   'bed_selected',
   'booking_started',
+  'payment_uploaded',
   'payment_completed',
   'kyc_submitted',
+  'booking_approved',
   'check_in_completed',
 ]);
 

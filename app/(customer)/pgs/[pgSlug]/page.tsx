@@ -7,8 +7,10 @@ import {
   CustomerBedMap,
   type CustomerRoomBedMap,
 } from '@/src/components/customer/CustomerBedMap';
+import { AnalyticsMountEvent } from '@/src/components/analytics/AnalyticsMountEvent';
 import { getPgBySlug, getRoomDetail, listRoomsForPg } from '@/src/db/queries/customer';
 import { ElectricityMeterNotice } from '@/src/components/customer/ElectricityMeterNotice';
+import { trackAnalyticsEvent } from '@/src/services/visitorAnalytics';
 
 export const dynamic = 'force-dynamic';
 
@@ -74,8 +76,14 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
   );
   const fullyOccupied = totalBeds > 0 && availableBeds === 0;
 
+  void trackAnalyticsEvent({
+    eventType: 'pg_viewed',
+    metadata: { pgSlug: pg.slug, pgId: pg.id },
+  });
+
   return (
     <div className="apg-aurora mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
+      <AnalyticsMountEvent eventType="pg_viewed" metadata={{ pgSlug: pg.slug, pgId: pg.id }} />
       <nav className="mb-4 text-xs text-apg-silver">
         <Link href="/pgs" className="hover:text-apg-orange">
           Browse PGs

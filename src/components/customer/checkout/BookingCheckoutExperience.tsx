@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useId, useRef, useState } from 'react';
+import { mirrorClientEventToPostHog } from '@/src/lib/analytics/client';
 import { customerPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import { paiseToInr } from '@/src/lib/format';
 import { CheckoutDepositAccordion } from './CheckoutDepositAccordion';
@@ -159,6 +160,7 @@ export function BookingCheckoutExperience({
         setError(data.message ?? 'Submission failed.');
         return;
       }
+      mirrorClientEventToPostHog('payment_uploaded', { bookingCode });
       setDone(true);
     } catch {
       setError('Network error. Try again.');

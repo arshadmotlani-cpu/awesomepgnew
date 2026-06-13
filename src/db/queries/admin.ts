@@ -2,6 +2,7 @@ import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../client';
 import { hasDatabaseUrl } from '@/src/lib/db/env';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
+import { todayString } from '@/src/lib/dates';
 import { asPlainNumber } from '@/src/lib/format';
 import {
   beds,
@@ -1184,6 +1185,139 @@ export function getBusinessMetricsSummary(
       depositRefundsCount: rows.data.reduce((a, r) => a + r.depositRefundsCount, 0),
       depositRefundsPaise: rows.data.reduce((a, r) => a + r.depositRefundsPaise, 0),
     });
+  });
+}
+
+export type CollectionBreakdown = {
+  rentPaise: number;
+  electricityPaise: number;
+  depositPaise: number;
+  totalPaise: number;
+};
+
+export type DepositCollectedByPgRow = {
+  pgId: string;
+  collectedPaise: number;
+};
+
+/** Calendar-day collections using the same rent/electricity category rules as business metrics. */
+export function getDailyCollectionTotals(
+  dateInput?: string,
+): Promise<QueryResult<CollectionBreakdown>> {
+  return guard(async () => {
+    const date = dateInput ?? todayString();
+    const qrDateMatch = sql`date(coalesce(${pgPaymentRecords.reviewedAt}, ${pgPaymentRecords.createdAt})) = ${date}::date`;
+
+    const [rentQrRow, elecQrRow, rentInvRow, elecInvRow, depositRow] = await Promise.all([
+      db
+        .select({
+          total: sql<number>`coalesce(sum(${pgPaymentRecords.amountPaise}), 0)::bigint::int`,
+        })
+        .from(pgPaymentRecords)
+        .innerJoin(pgPaymentCategories, eq(pgPaymentCategories.id, pgPaymentRecords.categoryId))
+        .where(
+          and(
+            eq(pgPaymentRecords.status, 'approved'),
+            rentQrCategorySql,
+            qrDateMatch,
+          ),
+        ),
+      db
+        .select({
+          total: sql<number>`coalesce(sum(${pgPaymentRecords.amountPaise}), 0)::bigint::int`,
+        })
+        .from(pgPaymentRecords)
+        .innerJoin(pgPaymentCategories, eq(pgPaymentCategories.id, pgPaymentRecords.categoryId))
+        .where(
+          and(
+            eq(pgPaymentRecords.status, 'approved'),
+            electricityQrCategorySql,
+            qrDateMatch,
+          ),
+        ),
+      db
+        .select({
+          total: sql<number>`coalesce(sum(${rentInvoices.paidPrincipalPaise} + ${rentInvoices.paidLateFeePaise}), 0)::bigint::int`,
+        })
+        .from(rentInvoices)
+        .where(
+          and(
+            eq(rentInvoices.status, 'paid'),
+            sql`${rentInvoices.paidAt}::date = ${date}::date`,
+          ),
+        ),
+      db
+        .select({
+          total: sql<number>`coalesce(sum(${electricityInvoices.paidPaise} + coalesce(${electricityInvoices.lateFeeLockedPaise}, 0)), 0)::bigint::int`,
+        })
+        .from(electricityInvoices)
+        .where(
+          and(
+            eq(electricityInvoices.status, 'paid'),
+            sql`${electricityInvoices.paidAt}::date = ${date}::date`,
+          ),
+        ),
+      db
+        .select({
+          total: sql<number>`coalesce(sum(${depositLedger.amountPaise}), 0)::bigint::int`,
+        })
+        .from(depositLedger)
+        .where(
+          and(
+            eq(depositLedger.entryKind, 'collected'),
+            sql`${depositLedger.createdAt}::date = ${date}::date`,
+          ),
+        ),
+    ]);
+
+    const rentPaise =
+      asPlainNumber(rentQrRow[0]?.total) + asPlainNumber(rentInvRow[0]?.total);
+    const electricityPaise =
+      asPlainNumber(elecQrRow[0]?.total) + asPlainNumber(elecInvRow[0]?.total);
+    const depositPaise = asPlainNumber(depositRow[0]?.total);
+
+    return {
+      rentPaise,
+      electricityPaise,
+      depositPaise,
+      totalPaise: rentPaise + electricityPaise + depositPaise,
+    };
+  });
+}
+
+/** Deposit collected per PG for a billing month — matches `/admin/deposits` ledger attribution. */
+export function getDepositCollectedByPgForBillingMonth(
+  billingMonthInput?: string,
+): Promise<QueryResult<DepositCollectedByPgRow[]>> {
+  return guard(async () => {
+    const billingMonth = resolveBillingMonth(billingMonthInput);
+    const rows = await db.execute<{ pg_id: string; collected_paise: number }>(sql`
+      SELECT
+        pg.pg_id::text AS pg_id,
+        coalesce(sum(dl.amount_paise), 0)::bigint::int AS collected_paise
+      FROM deposit_ledger dl
+      INNER JOIN bookings bk ON bk.id = dl.booking_id
+      INNER JOIN LATERAL (
+        SELECT f.pg_id
+        FROM bed_reservations br
+        INNER JOIN beds b ON b.id = br.bed_id
+        INNER JOIN rooms r ON r.id = b.room_id
+        INNER JOIN floors f ON f.id = r.floor_id
+        WHERE br.booking_id = bk.id
+          AND br.kind = 'primary'
+        ORDER BY br.created_at DESC
+        LIMIT 1
+      ) pg ON true
+      WHERE dl.entry_kind = 'collected'
+        AND dl.created_at >= ${billingMonth}::timestamptz
+        AND dl.created_at < (${billingMonth}::date + interval '1 month')::timestamptz
+      GROUP BY pg.pg_id
+    `);
+
+    return Array.from(rows).map((r) => ({
+      pgId: r.pg_id,
+      collectedPaise: asPlainNumber(r.collected_paise),
+    }));
   });
 }
 

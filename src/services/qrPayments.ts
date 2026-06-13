@@ -296,6 +296,12 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
     });
   }
 
+  const { trackAnalyticsEvent } = await import('./visitorAnalytics');
+  void trackAnalyticsEvent({
+    eventType: 'payment_uploaded',
+    metadata: { bookingCode: input.bookingCode, bookingId: booking.id },
+  });
+
   return row!;
 }
 
@@ -450,6 +456,14 @@ export async function reviewPaymentRecord(
       updatedAt: new Date(),
     })
     .where(eq(pgPaymentRecords.id, recordId));
+
+  if (status === 'approved' && record.bookingId) {
+    const { trackAnalyticsEvent } = await import('./visitorAnalytics');
+    void trackAnalyticsEvent({
+      eventType: 'booking_approved',
+      metadata: { bookingId: record.bookingId, pgId: record.pgId },
+    });
+  }
 }
 
 export async function listPublicPgsWithPayments() {

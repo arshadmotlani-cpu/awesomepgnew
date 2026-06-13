@@ -6,6 +6,7 @@ import {
   type BedSelectorBed,
 } from '@/src/components/customer/BedSelector';
 import { RoomDetailInsights } from '@/src/components/customer/RoomDetailInsights';
+import { AnalyticsMountEvent } from '@/src/components/analytics/AnalyticsMountEvent';
 import { getRoomDetail } from '@/src/db/queries/customer';
 import { getCustomerSession } from '@/src/lib/auth/session';
 import { getRoomActivityStats, recordRoomPageView } from '@/src/services/roomActivity';
@@ -83,6 +84,10 @@ export default async function RoomDetailPage(
 
   return (
     <div className="apg-aurora mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
+      <AnalyticsMountEvent
+        eventType="room_viewed"
+        metadata={{ roomId: room.roomId, pgSlug: room.pgSlug }}
+      />
       <nav className="text-xs text-apg-silver">
         <Link href="/pgs" className="hover:text-apg-orange">
           Browse

@@ -184,6 +184,23 @@ export const env = {
   get COCKROACH_AI_ENABLED() {
     return process.env.COCKROACH_AI_ENABLED !== 'false';
   },
+
+  // ── Analytics & observability ─────────────────────────────────────────────
+  get NEXT_PUBLIC_POSTHOG_KEY() {
+    return optional('NEXT_PUBLIC_POSTHOG_KEY');
+  },
+  get NEXT_PUBLIC_POSTHOG_HOST() {
+    return optional('NEXT_PUBLIC_POSTHOG_HOST') ?? 'https://us.i.posthog.com';
+  },
+  get NEXT_PUBLIC_SENTRY_DSN() {
+    return optional('NEXT_PUBLIC_SENTRY_DSN');
+  },
+  get SENTRY_ORG() {
+    return optional('SENTRY_ORG');
+  },
+  get SENTRY_PROJECT() {
+    return optional('SENTRY_PROJECT');
+  },
 } as const;
 
 export type Env = typeof env;

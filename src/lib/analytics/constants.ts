@@ -19,10 +19,12 @@ export type DeviceType = (typeof DEVICE_TYPES)[number];
 
 export const FUNNEL_STEPS = [
   { key: 'visitors', label: 'Visitors' },
+  { key: 'pg_viewed', label: 'PG Viewed' },
   { key: 'room_viewed', label: 'Room Viewed' },
   { key: 'bed_selected', label: 'Bed Selected' },
   { key: 'booking_started', label: 'Booking Started' },
-  { key: 'payment_completed', label: 'Payment Completed' },
+  { key: 'payment_uploaded', label: 'Payment Uploaded' },
   { key: 'kyc_submitted', label: 'KYC Submitted' },
+  { key: 'booking_approved', label: 'Booking Approved' },
   { key: 'check_in_completed', label: 'Check-In Completed' },
 ] as const;

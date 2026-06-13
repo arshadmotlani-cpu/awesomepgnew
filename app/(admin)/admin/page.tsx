@@ -1,7 +1,10 @@
 import Link from 'next/link';
 import { AdminOverviewKpiRow } from '@/src/components/admin/AdminOverviewKpiRow';
 import { AdminSectionErrorBoundary } from '@/src/components/admin/AdminSectionErrorBoundary';
+import { BookingFunnelAnalyticsDashboard } from '@/src/components/admin/BookingFunnelAnalyticsDashboard';
 import { OperationsCenter } from '@/src/components/admin/OperationsCenter';
+import { RevenueCommandCenter } from '@/src/components/admin/RevenueCommandCenter';
+import { SystemHealthCard } from '@/src/components/admin/SystemHealthCard';
 import { VisitorAnalyticsDashboard } from '@/src/components/admin/VisitorAnalyticsDashboard';
 import { OverviewMonthPicker } from '@/src/components/admin/OverviewMonthPicker';
 import {
@@ -34,6 +37,8 @@ import {
   getVisitorCountSummary,
 } from '@/src/services/visitorAnalytics';
 import { getOperationsCenterData } from '@/src/services/operationsCenter';
+import { getRevenueCommandCenterData } from '@/src/services/revenueCommandCenter';
+import { getSentryDashboardUrl, getSystemHealthSnapshot } from '@/src/services/systemHealth';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -65,7 +70,8 @@ export default async function DashboardPage({
 
   const session = await requireAdminSession('/admin');
 
-  const [summary, metrics, pgs, visitors, overviewKpis, operationsCenter] = await Promise.all([
+  const [summary, metrics, pgs, visitors, overviewKpis, operationsCenter, systemHealth] =
+    await Promise.all([
     getBusinessMetricsSummary(billingMonth),
     getPgBusinessMetrics(billingMonth),
     listPgs(),
@@ -74,6 +80,14 @@ export default async function DashboardPage({
       week: 0,
       month: 0,
       allTime: 0,
+      uniqueToday: 0,
+      uniqueWeek: 0,
+      uniqueMonth: 0,
+      uniqueAllTime: 0,
+      returningToday: 0,
+      returningWeek: 0,
+      returningMonth: 0,
+      returningAllTime: 0,
     })),
     getAdminOverviewKpis(billingMonth).catch(() => ({
       totalVisitorsAllTime: 0,
@@ -86,7 +100,15 @@ export default async function DashboardPage({
       monthlyRevenuePaise: 0,
     })),
     getOperationsCenterData(session).catch(() => null),
+    getSystemHealthSnapshot().catch(() => ({
+      errorsToday: 0,
+      errorsThisWeek: 0,
+      lastCriticalError: null,
+      uptimeStatus: 'healthy' as const,
+    })),
   ]);
+
+  const sentryUrl = getSentryDashboardUrl();
 
   if (!summary.ok) {
     return (
@@ -119,6 +141,14 @@ export default async function DashboardPage({
     timeZone: 'UTC',
   }).format(new Date(`${billingMonth}T00:00:00.000Z`));
 
+  const revenueCommandCenter = await getRevenueCommandCenterData({
+    billingMonth,
+    session,
+    summary: s,
+    pgMetrics: metrics.data,
+    electricityPending: operationsCenter?.electricityPending,
+  }).catch(() => null);
+
   return (
     <>
       <PageHeader
@@ -135,6 +165,14 @@ export default async function DashboardPage({
         </div>
       ) : null}
 
+      <div className="mb-6">
+        {revenueCommandCenter ? (
+          <AdminSectionErrorBoundary title="Revenue Command Center">
+            <RevenueCommandCenter data={revenueCommandCenter} monthLabel={monthLabel} />
+          </AdminSectionErrorBoundary>
+        ) : null}
+      </div>
+
       <div className="mb-6 space-y-6">
         {operationsCenter ? (
           <AdminSectionErrorBoundary title="Operations Center">
@@ -142,11 +180,17 @@ export default async function DashboardPage({
           </AdminSectionErrorBoundary>
         ) : null}
         <AdminOverviewKpiRow kpis={overviewKpis} visitors={visitors} />
-        <AdminSectionErrorBoundary title="Visitor analytics">
+        <AdminSectionErrorBoundary title="System health">
+          <SystemHealthCard health={systemHealth} sentryUrl={sentryUrl} />
+        </AdminSectionErrorBoundary>
+        <AdminSectionErrorBoundary title="Website Analytics">
           <VisitorAnalyticsDashboard
             initialVisitors={visitors}
             billingMonth={billingMonth}
           />
+        </AdminSectionErrorBoundary>
+        <AdminSectionErrorBoundary title="Booking funnel">
+          <BookingFunnelAnalyticsDashboard billingMonth={billingMonth} />
         </AdminSectionErrorBoundary>
       </div>
 

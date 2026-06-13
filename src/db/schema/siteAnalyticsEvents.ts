@@ -3,11 +3,14 @@ import { index, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-cor
 import { visitorSessions } from './visitorSessions';
 
 export type AnalyticsEventType =
+  | 'pg_viewed'
   | 'room_viewed'
   | 'bed_selected'
   | 'booking_started'
+  | 'payment_uploaded'
   | 'payment_completed'
   | 'kyc_submitted'
+  | 'booking_approved'
   | 'check_in_completed';
 
 export const siteAnalyticsEvents = pgTable(

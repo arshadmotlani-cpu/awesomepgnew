@@ -206,6 +206,16 @@ export type VisitorCountSummary = {
   week: number;
   month: number;
   allTime: number;
+  /** Sessions first seen in each window (unique new visitors). */
+  uniqueToday: number;
+  uniqueWeek: number;
+  uniqueMonth: number;
+  uniqueAllTime: number;
+  /** Sessions active in window but first seen before the window start. */
+  returningToday: number;
+  returningWeek: number;
+  returningMonth: number;
+  returningAllTime: number;
 };
 
 export async function getVisitorCountSummary(): Promise<VisitorCountSummary> {
@@ -220,14 +230,31 @@ export async function getVisitorCountSummary(): Promise<VisitorCountSummary> {
       week: sql<number>`count(*) FILTER (WHERE ${visitorSessions.firstSeenAt} >= ${weekStart})::int`,
       month: sql<number>`count(*) FILTER (WHERE ${visitorSessions.firstSeenAt} >= ${monthStart})::int`,
       allTime: sql<number>`count(*)::int`,
+      returningToday: sql<number>`count(*) FILTER (WHERE ${visitorSessions.lastSeenAt} >= ${todayStart} AND ${visitorSessions.firstSeenAt} < ${todayStart})::int`,
+      returningWeek: sql<number>`count(*) FILTER (WHERE ${visitorSessions.lastSeenAt} >= ${weekStart} AND ${visitorSessions.firstSeenAt} < ${weekStart})::int`,
+      returningMonth: sql<number>`count(*) FILTER (WHERE ${visitorSessions.lastSeenAt} >= ${monthStart} AND ${visitorSessions.firstSeenAt} < ${monthStart})::int`,
+      returningAllTime: sql<number>`count(*) FILTER (WHERE ${visitorSessions.lastSeenAt} > ${visitorSessions.firstSeenAt} + interval '30 minutes')::int`,
     })
     .from(visitorSessions);
 
+  const today = row?.today ?? 0;
+  const week = row?.week ?? 0;
+  const month = row?.month ?? 0;
+  const allTime = row?.allTime ?? 0;
+
   return {
-    today: row?.today ?? 0,
-    week: row?.week ?? 0,
-    month: row?.month ?? 0,
-    allTime: row?.allTime ?? 0,
+    today,
+    week,
+    month,
+    allTime,
+    uniqueToday: today,
+    uniqueWeek: week,
+    uniqueMonth: month,
+    uniqueAllTime: allTime,
+    returningToday: row?.returningToday ?? 0,
+    returningWeek: row?.returningWeek ?? 0,
+    returningMonth: row?.returningMonth ?? 0,
+    returningAllTime: row?.returningAllTime ?? 0,
   };
 }
 
@@ -472,15 +499,21 @@ export async function getBookingFunnel(input: {
 
   const steps = [
     { key: 'visitors', label: 'Visitors', count: visitorRow?.count ?? 0 },
+    { key: 'pg_viewed', label: 'PG Viewed', count: eventMap.get('pg_viewed') ?? 0 },
     { key: 'room_viewed', label: 'Room Viewed', count: eventMap.get('room_viewed') ?? 0 },
     { key: 'bed_selected', label: 'Bed Selected', count: eventMap.get('bed_selected') ?? 0 },
     { key: 'booking_started', label: 'Booking Started', count: eventMap.get('booking_started') ?? 0 },
     {
-      key: 'payment_completed',
-      label: 'Payment Completed',
-      count: eventMap.get('payment_completed') ?? 0,
+      key: 'payment_uploaded',
+      label: 'Payment Uploaded',
+      count: eventMap.get('payment_uploaded') ?? 0,
     },
     { key: 'kyc_submitted', label: 'KYC Submitted', count: eventMap.get('kyc_submitted') ?? 0 },
+    {
+      key: 'booking_approved',
+      label: 'Booking Approved',
+      count: eventMap.get('booking_approved') ?? 0,
+    },
     {
       key: 'check_in_completed',
       label: 'Check-In Completed',
