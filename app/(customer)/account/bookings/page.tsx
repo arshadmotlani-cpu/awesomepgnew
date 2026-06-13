@@ -77,6 +77,9 @@ export default async function AccountBookingsPage() {
                 </p>
                 <p className="text-xs text-zinc-600">
                   {titleCase(b.durationMode.replace('_', ' '))} · {paiseToInr(b.totalPaise)}
+                  {b.discountPaise > 0
+                    ? ` (incl. ${paiseToInr(b.discountPaise)} rent discount)`
+                    : ''}
                 </p>
               </div>
               <StatusBadge status={b.status} />

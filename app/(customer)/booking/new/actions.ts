@@ -76,6 +76,7 @@ export async function createBookingAction(
   const gender = getString(formData, 'gender');
   const notes = getString(formData, 'notes');
   const ps4PlanRaw = getString(formData, 'ps4Plan');
+  const couponCode = getString(formData, 'couponCode');
 
   if (bedIds.length === 0 || bedIds.some((id) => !UUID_RE.test(id))) {
     return {
@@ -123,6 +124,7 @@ export async function createBookingAction(
       gender: gender as 'male' | 'female' | 'other',
     },
     notes: notes || undefined,
+    couponCode: couponCode || undefined,
   });
 
   if (!result.ok) {
@@ -135,8 +137,15 @@ export async function createBookingAction(
 
   void trackAnalyticsEvent({
     eventType: 'booking_started',
-    metadata: { bedCount: bedIds.length, durationMode },
+    metadata: { bedCount: bedIds.length, durationMode, couponApplied: Boolean(couponCode) },
   });
+
+  if (couponCode) {
+    void trackAnalyticsEvent({
+      eventType: 'coupon_applied',
+      metadata: { bookingId: result.bookingId, couponCode: couponCode.trim() },
+    });
+  }
 
   if (ps4PlanRaw && isPs4PlanId(ps4PlanRaw)) {
     const { getBedsForCart } = await import('@/src/db/queries/customer');

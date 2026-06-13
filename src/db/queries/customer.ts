@@ -639,6 +639,7 @@ export type CustomerBookingDetail = {
   durationMode: string;
   expectedCheckoutDate: string | null;
   subtotalPaise: number;
+  discountPaise: number;
   depositPaise: number;
   totalPaise: number;
   pricingSnapshot: PricingSnapshot | null;
@@ -683,6 +684,7 @@ export function getBookingByCode(
         durationMode: bookings.durationMode,
         expectedCheckoutDate: bookings.expectedCheckoutDate,
         subtotalPaise: bookings.subtotalPaise,
+        discountPaise: bookings.discountPaise,
         depositPaise: bookings.depositPaise,
         totalPaise: bookings.totalPaise,
         pricingSnapshot: bookings.pricingSnapshot,
@@ -813,6 +815,7 @@ export function getBookingByCode(
       durationMode: b.durationMode,
       expectedCheckoutDate: b.expectedCheckoutDate,
       subtotalPaise: b.subtotalPaise,
+      discountPaise: b.discountPaise,
       depositPaise: b.depositPaise,
       totalPaise: b.totalPaise,
       pricingSnapshot: (b.pricingSnapshot as PricingSnapshot | null) ?? null,
@@ -842,6 +845,7 @@ export type MyBookingRow = {
   durationMode: string;
   expectedCheckoutDate: string | null;
   totalPaise: number;
+  discountPaise: number;
   createdAt: Date;
   pgName: string;
   pgSlug: string;
@@ -867,6 +871,7 @@ function myBookingsSelect() {
     durationMode: bookings.durationMode,
     expectedCheckoutDate: bookings.expectedCheckoutDate,
     totalPaise: bookings.totalPaise,
+    discountPaise: bookings.discountPaise,
     createdAt: bookings.createdAt,
     pgName: sql<string>`(
       select pgs.name

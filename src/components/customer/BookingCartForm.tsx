@@ -1,10 +1,11 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useCallback, useState } from 'react';
 import {
   IndianPhoneInput,
   indianPhoneDefaultLocal,
 } from '@/src/components/customer/IndianPhoneInput';
+import { CouponCodeField } from '@/src/components/customer/CouponCodeField';
 import { Ps4AddonSelector, ps4AddonPaise } from '@/src/components/customer/Ps4AddonSelector';
 import { paiseToInr } from '@/src/lib/format';
 import { PS4_ADDON_LABEL, PS4_PLANS, type Ps4PlanId } from '@/src/lib/playstation/plans';
@@ -63,8 +64,13 @@ export function BookingCartForm({
   );
 
   const [ps4Plan, setPs4Plan] = useState<Ps4PlanId | null>(null);
+  const [couponDiscountPaise, setCouponDiscountPaise] = useState(0);
+  const onCouponDiscountChange = useCallback((discount: number) => {
+    setCouponDiscountPaise(discount);
+  }, []);
   const ps4Paise = ps4AddonPaise(ps4Plan);
-  const checkoutTotalPaise = totalPaise + ps4Paise;
+  const bookingTotalPaise = totalPaise - couponDiscountPaise;
+  const checkoutTotalPaise = bookingTotalPaise + ps4Paise;
 
   const conflictBedIds = new Set(
     state.status === 'error' ? state.conflictBedIds ?? [] : [],
@@ -241,8 +247,16 @@ export function BookingCartForm({
 
         <hr className="my-4 border-zinc-200" />
 
-        <dl className="space-y-1.5 text-sm">
+        <CouponCodeField subtotalPaise={subtotalPaise} onDiscountChange={onCouponDiscountChange} />
+
+        <dl className="mt-4 space-y-1.5 text-sm">
           <Row term="Subtotal" value={paiseToInr(subtotalPaise)} />
+          {couponDiscountPaise > 0 ? (
+            <Row
+              term="Rent discount (10%)"
+              value={`−${paiseToInr(couponDiscountPaise)}`}
+            />
+          ) : null}
           <Row term="Refundable deposit" value={paiseToInr(depositPaise)} />
           {ps4Paise > 0 && ps4Plan ? (
             <Row
@@ -260,7 +274,7 @@ export function BookingCartForm({
         </div>
         {ps4Paise > 0 ? (
           <p className="mt-2 text-[11px] text-zinc-500">
-            Includes {paiseToInr(totalPaise)} for bed/deposit plus {paiseToInr(ps4Paise)} PS4
+            Includes {paiseToInr(bookingTotalPaise)} for bed/deposit plus {paiseToInr(ps4Paise)} PS4
             add-on (separate service line).
           </p>
         ) : null}

@@ -55,6 +55,14 @@ export type PricingSnapshot = {
     depositRefundPct: number;
     label: string;
   };
+  /** Date-based rent coupon (DDMMYY) applied at checkout — rent only. */
+  dateCoupon?: {
+    code: string;
+    couponDate: string;
+    discountPct: number;
+    discountPaise: number;
+    appliedAt: string;
+  };
   /**
    * Phase 5 — append-only log of paid extensions stamped onto the booking
    * for historical record. The actual inventory rows live in

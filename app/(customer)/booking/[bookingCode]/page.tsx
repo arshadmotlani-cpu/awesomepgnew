@@ -402,6 +402,9 @@ export default async function BookingConfirmationPage(
         <hr className="my-4 border-zinc-200" />
         <dl className="space-y-1.5 text-sm">
           <Row term="Subtotal" value={paiseToInr(b.subtotalPaise)} />
+          {b.discountPaise > 0 ? (
+            <Row term="Rent discount (10%)" value={`−${paiseToInr(b.discountPaise)}`} />
+          ) : null}
           <Row term="Refundable deposit" value={paiseToInr(b.depositPaise)} />
         </dl>
         <div className="mt-3 flex items-center justify-between rounded-md bg-zinc-900 px-3 py-2 text-white">
@@ -410,6 +413,12 @@ export default async function BookingConfirmationPage(
             {paiseToInr(b.totalPaise)}
           </span>
         </div>
+        {b.pricingSnapshot?.dateCoupon ? (
+          <p className="mt-2 text-xs text-emerald-700">
+            Coupon {b.pricingSnapshot.dateCoupon.code} applied —{' '}
+            {paiseToInr(b.pricingSnapshot.dateCoupon.discountPaise)} off rent
+          </p>
+        ) : null}
       </section>
 
       {/* Customer + PG */}

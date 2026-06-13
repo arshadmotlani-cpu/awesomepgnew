@@ -35,10 +35,12 @@ import {
   bedReservations,
   beds,
   bookings,
+  couponRedemptions,
   customers,
   pgs,
 } from '../db/schema';
 import type { PricingSnapshot } from '../db/schema/bookings';
+import { applyDateCouponToRentSubtotal } from '../lib/dateCoupon';
 import { env } from '../lib/env';
 import { formatDate, parseDate, type DateLike } from '../lib/dates';
 import { nextBookingCode, utcYear } from '../lib/bookingCode';
@@ -98,6 +100,8 @@ export type CreateBookingInput = {
   customMonthlyRatePaise?: number;
   /** Admin only: override refundable deposit on the booking. */
   customDepositPaise?: number;
+  /** Customer checkout: DDMMYY date coupon — 10% off rent only. */
+  couponCode?: string;
 };
 
 export type CreateBookingSuccess = {
@@ -149,7 +153,11 @@ export type CreateBookingResult = CreateBookingSuccess | CreateBookingFailure;
  * The bed's deposit is still available as `securityDepositPaise` on each
  * snapshot row for invoicing/refund flows.
  */
-function buildSnapshot(quote: BookingQuote, notes?: string): PricingSnapshot {
+function buildSnapshot(
+  quote: BookingQuote,
+  notes?: string,
+  dateCoupon?: PricingSnapshot['dateCoupon'],
+): PricingSnapshot {
   return {
     perBed: quote.perBed.map((q) => ({
       bedId: q.bedId,
@@ -164,6 +172,7 @@ function buildSnapshot(quote: BookingQuote, notes?: string): PricingSnapshot {
     computedAt: quote.computedAt,
     notes,
     cancellationPolicy: { ...DEFAULT_POLICY },
+    dateCoupon,
   };
 }
 
@@ -439,7 +448,24 @@ export async function createBooking(
       message: err instanceof Error ? err.message : 'Failed to compute price.',
     };
   }
-  const snapshot = buildSnapshot(quote, input.notes);
+
+  let discountPaise = 0;
+  let dateCoupon: PricingSnapshot['dateCoupon'];
+  if (!isAdminCreated && input.couponCode?.trim()) {
+    const couponResult = applyDateCouponToRentSubtotal(quote.subtotalPaise, input.couponCode);
+    if (!couponResult.ok) {
+      return {
+        ok: false,
+        kind: 'validation',
+        message: 'Invalid coupon',
+      };
+    }
+    discountPaise = couponResult.discountPaise;
+    dateCoupon = couponResult.coupon ?? undefined;
+  }
+
+  const totalPaise = quote.subtotalPaise - discountPaise + quote.depositPaise;
+  const snapshot = buildSnapshot(quote, input.notes, dateCoupon);
 
   // 5. Retry loop over booking_code collisions. The COUNT-based sequence
   //    can lose a race with another concurrent booking; the unique index on
@@ -519,9 +545,9 @@ export async function createBooking(
                 ? null
                 : formatDate(endDate),
             subtotalPaise: quote.subtotalPaise,
-            discountPaise: 0,
+            discountPaise,
             taxPaise: 0,
-            totalPaise: quote.totalPaise,
+            totalPaise,
             depositPaise: quote.depositPaise,
             pricingSnapshot: snapshot,
             notes: input.notes ?? null,
@@ -550,6 +576,16 @@ export async function createBooking(
             });
         }
 
+        if (dateCoupon && discountPaise > 0) {
+          await tx.insert(couponRedemptions).values({
+            bookingId: booking.id,
+            customerId: customer.id,
+            couponCode: dateCoupon.code,
+            couponDate: dateCoupon.couponDate,
+            discountPaise,
+          });
+        }
+
         await tx.insert(auditLog).values({
           actorType: isAdminCreated ? 'admin' : 'customer',
           actorId: isAdminCreated ? input.createdByAdminId ?? null : customer.id,
@@ -565,7 +601,9 @@ export async function createBooking(
             status: bookingStatus,
             reservationStatus,
             holdExpiresAt: holdExpiresAt?.toISOString() ?? null,
-            totalPaise: quote.totalPaise,
+            totalPaise,
+            discountPaise,
+            couponCode: dateCoupon?.code ?? null,
           },
         });
 
@@ -579,7 +617,7 @@ export async function createBooking(
         bookingId: result.id,
         bookingCode: candidateCode,
         customerId: result.customerId,
-        totalPaise: quote.totalPaise,
+        totalPaise,
         depositPaise: quote.depositPaise,
         status: bookingStatus,
         holdExpiresAt,

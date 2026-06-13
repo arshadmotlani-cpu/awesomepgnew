@@ -7,6 +7,7 @@ export type AnalyticsEventType =
   | 'room_viewed'
   | 'bed_selected'
   | 'booking_started'
+  | 'coupon_applied'
   | 'payment_uploaded'
   | 'payment_completed'
   | 'kyc_submitted'

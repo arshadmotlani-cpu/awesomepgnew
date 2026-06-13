@@ -9,9 +9,11 @@ import { OverviewMonthPicker } from '@/src/components/admin/OverviewMonthPicker'
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { PgIncomeDonutChart } from '@/src/components/admin/PgIncomeDonutChart';
 import { RevenueCommandCenter } from '@/src/components/admin/RevenueCommandCenter';
+import { DateCouponAdminPanel } from '@/src/components/admin/DateCouponAdminPanel';
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import { ADMIN_MODULES, moduleHref, modulePgHref } from '@/src/lib/admin/navigation';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
+import { getDateCouponAdminSnapshot } from '@/src/services/dateCouponAdmin';
 import { loadOverviewContext } from '@/src/services/overviewData';
 
 export const dynamic = 'force-dynamic';
@@ -38,6 +40,7 @@ export default async function RevenueModulePage({
 
   const { data } = ctx;
   const pgHref = (pgId: string) => modulePgHref('revenue', pgId, billingMonth);
+  const couponSnapshot = await getDateCouponAdminSnapshot();
 
   return (
     <>
@@ -54,6 +57,8 @@ export default async function RevenueModulePage({
       />
 
       <div className="space-y-8">
+        <DateCouponAdminPanel {...couponSnapshot} />
+
         <AdminSectionErrorBoundary title="Revenue command center">
           <RevenueCommandCenter data={data.revenue} monthLabel={data.monthLabel} pgHref={pgHref} />
         </AdminSectionErrorBoundary>

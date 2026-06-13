@@ -115,6 +115,7 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
             reserveCheckIn={booking.reserveCheckIn ?? booking.expectedCheckoutDate}
             subtotalPaise={booking.subtotalPaise}
             depositPaise={booking.depositPaise}
+            discountPaise={booking.discountPaise}
             totalPaise={checkoutTotalPaise}
             totalLabel={totalLabel}
             qrImageUrl={qrImageUrl}

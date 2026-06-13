@@ -30,6 +30,7 @@ export type BookingCheckoutExperienceProps = {
   membershipAmountPaise?: number;
   membershipLabel?: string | null;
   existingProofRecordId?: string | null;
+  discountPaise?: number;
 };
 
 const PIPELINE = [
@@ -59,6 +60,7 @@ export function BookingCheckoutExperience({
   membershipAmountPaise,
   membershipLabel,
   existingProofRecordId,
+  discountPaise = 0,
 }: BookingCheckoutExperienceProps) {
   const galleryInputId = useId();
   const cameraInputId = useId();
@@ -278,10 +280,18 @@ export function BookingCheckoutExperience({
               <span className="font-medium text-white">{paiseToInr(subtotalPaise)}</span>
             </li>
             {!isReserveBooking ? (
-              <li className="flex justify-between gap-4">
-                <span>Refundable deposit</span>
-                <span className="font-medium text-white">{paiseToInr(depositPaise)}</span>
-              </li>
+              <>
+                {discountPaise > 0 ? (
+                  <li className="flex justify-between gap-4 text-emerald-300">
+                    <span>Rent discount (10%)</span>
+                    <span className="font-medium">−{paiseToInr(discountPaise)}</span>
+                  </li>
+                ) : null}
+                <li className="flex justify-between gap-4">
+                  <span>Refundable deposit</span>
+                  <span className="font-medium text-white">{paiseToInr(depositPaise)}</span>
+                </li>
+              </>
             ) : (
               <li className="flex justify-between gap-4">
                 <span>Deposit now</span>
