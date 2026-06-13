@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
 
 export default function LegacyDashboardRedirect() {
-  redirect('/admin/pgs');
+  redirect('/admin/overview');
 }

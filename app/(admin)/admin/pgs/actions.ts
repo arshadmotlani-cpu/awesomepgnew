@@ -80,7 +80,8 @@ export async function createPgAction(_prev: PgFormState, formData: FormData): Pr
     const id = await createPg(session, input);
     revalidatePath('/pgs');
     revalidatePath('/admin/pgs');
-    revalidatePath('/admin/dashboard');
+    revalidatePath('/admin/overview');
+    revalidatePath('/admin/actions');
     redirect(`/admin/pgs/${id}/listing?created=1`);
   } catch (err) {
     unstable_rethrow(err);
@@ -140,7 +141,8 @@ export async function archivePgAction(pgId: string): Promise<PgFormState> {
     await archivePg(session, pgId);
     revalidatePath('/pgs');
     revalidatePath('/admin/pgs');
-    revalidatePath('/admin/dashboard');
+    revalidatePath('/admin/overview');
+    revalidatePath('/admin/actions');
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };

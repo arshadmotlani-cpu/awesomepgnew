@@ -4,6 +4,7 @@ import {
   detectAutomationEvents,
   processQueuedAutomationActions,
 } from '@/src/services/automationEngine';
+import { syncActionItemsForCron } from '@/src/services/actionItems';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -27,11 +28,13 @@ async function handle(req: NextRequest) {
 
   const detected = await detectAutomationEvents();
   const processed = await processQueuedAutomationActions(100);
+  await syncActionItemsForCron();
 
   return Response.json({
     ok: true,
     detected,
     processed,
+    actionItemsSynced: true,
     at: new Date().toISOString(),
   });
 }

@@ -1566,6 +1566,55 @@ export function listAdminElectricityBills(filter?: {
   });
 }
 
+export type AdminElectricityInvoiceReminderRow = {
+  id: string;
+  invoiceNumber: string;
+  customerFullName: string;
+  customerPhone: string;
+  pgName: string;
+  roomNumber: string;
+  billingMonth: string;
+  dueDate: string;
+  amountPaise: number;
+  isOverdue: boolean;
+};
+
+/** Pending electricity invoices eligible for WhatsApp / email reminders. */
+export function listAdminElectricityInvoicesForReminders(
+  filter?: { pgId?: string },
+): Promise<QueryResult<AdminElectricityInvoiceReminderRow[]>> {
+  return guard(async () => {
+    const conditions = [eq(electricityInvoices.status, 'pending')];
+    if (filter?.pgId) conditions.push(eq(electricityBills.pgId, filter.pgId));
+
+    const rows = await db
+      .select({
+        id: electricityInvoices.id,
+        invoiceNumber: electricityInvoices.invoiceNumber,
+        customerFullName: customers.fullName,
+        customerPhone: customers.phone,
+        pgName: pgs.name,
+        roomNumber: rooms.roomNumber,
+        billingMonth: electricityInvoices.billingMonth,
+        dueDate: electricityInvoices.dueDate,
+        amountPaise: electricityInvoices.amountPaise,
+      })
+      .from(electricityInvoices)
+      .innerJoin(electricityBills, eq(electricityBills.id, electricityInvoices.electricityBillId))
+      .innerJoin(customers, eq(customers.id, electricityInvoices.customerId))
+      .innerJoin(pgs, eq(pgs.id, electricityBills.pgId))
+      .innerJoin(rooms, eq(rooms.id, electricityBills.roomId))
+      .where(and(...conditions))
+      .orderBy(desc(electricityInvoices.dueDate));
+
+    const today = todayString();
+    return rows.map((r) => ({
+      ...r,
+      isOverdue: r.dueDate < today,
+    }));
+  });
+}
+
 export type ElectricityBillDistributionRow = {
   invoiceId: string;
   invoiceNumber: string;

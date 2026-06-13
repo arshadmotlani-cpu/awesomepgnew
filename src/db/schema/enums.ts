@@ -189,3 +189,43 @@ export const membershipTransactionKindEnum = pgEnum('membership_transaction_kind
   'admin_cancel',
   'payment_proof',
 ]);
+
+export const actionItemTypeEnum = pgEnum('action_item_type', [
+  'rent_due',
+  'electricity_due',
+  'refund_pending',
+  'kyc_pending',
+  'vacating_alert',
+  'payment_received',
+  'maintenance_issue',
+]);
+
+export const actionItemStatusEnum = pgEnum('action_item_status', [
+  'open',
+  'in_progress',
+  'resolved',
+]);
+
+export const actionItemPriorityEnum = pgEnum('action_item_priority', [
+  'low',
+  'medium',
+  'high',
+]);
+
+export const paymentLinkPurposeEnum = pgEnum('payment_link_purpose', [
+  'rent',
+  'electricity',
+  'deposit',
+]);
+
+export const paymentLinkStatusEnum = pgEnum('payment_link_status', [
+  'active',
+  'paid',
+  'expired',
+]);
+
+export type ActionItemType = (typeof actionItemTypeEnum.enumValues)[number];
+export type ActionItemStatus = (typeof actionItemStatusEnum.enumValues)[number];
+export type ActionItemPriority = (typeof actionItemPriorityEnum.enumValues)[number];
+export type PaymentLinkPurpose = (typeof paymentLinkPurposeEnum.enumValues)[number];
+export type PaymentLinkStatus = (typeof paymentLinkStatusEnum.enumValues)[number];

@@ -6,7 +6,12 @@ import { IconLogo } from './icons';
 import { NAV_SECTIONS } from './navItems';
 
 function isActive(pathname: string, href: string) {
-  if (href === '/admin') return pathname === '/admin';
+  if (href === '/admin/actions') {
+    return pathname === '/admin' || pathname === '/admin/actions';
+  }
+  if (href === '/admin/overview') {
+    return pathname === '/admin/overview';
+  }
   return pathname === href || pathname.startsWith(href + '/');
 }
 

@@ -1,6 +1,5 @@
 import type { ComponentType, SVGProps } from 'react';
 import {
-  IconBed,
   IconBuilding,
   IconCard,
   IconChart,
@@ -20,35 +19,25 @@ export type NavSection = {
   }>;
 };
 
-/**
- * Admin nav aligned with the PG workflow:
- *   PG listings (edit page) → Listing · Rooms & electricity · Collections
- */
+/** Primary nav — Action Center first; legacy pages under More. */
 export const NAV_SECTIONS: NavSection[] = [
   {
-    title: 'PG management',
+    title: 'Operate',
     items: [
-      { href: '/admin', label: 'Overview', icon: IconDashboard },
-      { href: '/admin/pgs', label: 'PG listings', icon: IconBuilding },
-    ],
-  },
-  {
-    title: 'Tenants',
-    items: [
+      { href: '/admin/actions', label: 'Action Center', icon: IconDashboard },
+      { href: '/admin/pgs', label: 'PGs', icon: IconBuilding },
       { href: '/admin/residents', label: 'Residents', icon: IconUsers },
-      { href: '/admin/bookings', label: 'Bookings', icon: IconClipboard },
-      { href: '/admin/bookings/new', label: 'Assign tenant', icon: IconUsers },
-      { href: '/admin/kyc', label: 'KYC review', icon: IconUsers },
     ],
   },
   {
-    title: 'Billing & collections',
+    title: 'More',
     items: [
-      { href: '/admin/payments', label: 'Collections (all PGs)', icon: IconCard },
+      { href: '/admin/overview', label: 'Revenue overview', icon: IconChart },
+      { href: '/admin/bookings', label: 'Bookings', icon: IconClipboard },
+      { href: '/admin/kyc', label: 'KYC review', icon: IconUsers },
+      { href: '/admin/payments', label: 'Collections', icon: IconCard },
       { href: '/admin/rent', label: 'Rent invoices', icon: IconClipboard },
       { href: '/admin/electricity', label: 'Electricity bills', icon: IconChart },
-      { href: '/admin/emails', label: 'Email log', icon: IconClipboard },
-      { href: '/admin/playstation', label: 'PS4 memberships', icon: IconCard },
       { href: '/admin/deposits', label: 'Deposits', icon: IconCard },
       { href: '/admin/vacating', label: 'Vacating', icon: IconDoor },
     ],
@@ -56,9 +45,9 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     title: 'Settings',
     items: [
+      { href: '/admin/settings', label: 'Settings', icon: IconSettings },
       { href: '/admin/guide', label: 'Help guide', icon: IconClipboard },
       { href: '/admin/health', label: 'Diagnostics', icon: IconSettings },
-      { href: '/admin/settings', label: 'Settings', icon: IconSettings },
     ],
   },
 ];

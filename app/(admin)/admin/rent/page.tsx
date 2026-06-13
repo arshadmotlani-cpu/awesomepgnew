@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { AdminBillingWhatsAppButton } from '@/src/components/admin/AdminBillingWhatsAppButton';
+import { BulkBillingWhatsAppReminder } from '@/src/components/admin/BulkBillingWhatsAppReminder';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import { EmptyState } from '@/src/components/admin/EmptyState';
@@ -9,6 +11,7 @@ import { getRentStats, listAdminRentInvoices } from '@/src/db/queries/admin';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import { GenerateInvoicesButton, MarkOverdueButton } from '@/src/components/admin/RentBillingActions';
 import { defaultBillingMonth } from '@/src/lib/dateDefaults';
+import type { BillingReminderQueueItem } from '@/src/lib/billing/adminWhatsApp';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,14 +33,52 @@ export default async function AdminRentPage(props: PageProps<'/admin/rent'>) {
     ? (rawStatus as '' | 'pending' | 'paid' | 'overdue' | 'cancelled')
     : '';
 
-  const [stats, invoices] = await Promise.all([
+  const [stats, invoices, pendingInvoices, overdueInvoices] = await Promise.all([
     getRentStats(),
     listAdminRentInvoices(
       status
         ? { status: status as 'pending' | 'paid' | 'overdue' | 'cancelled' }
         : undefined,
     ),
+    listAdminRentInvoices({ status: 'pending' }),
+    listAdminRentInvoices({ status: 'overdue' }),
   ]);
+
+  const rentReminderQueue: BillingReminderQueueItem[] = [];
+  if (pendingInvoices.ok) {
+    for (const r of pendingInvoices.data) {
+      rentReminderQueue.push({
+        id: r.id,
+        kind: 'rent',
+        customerName: r.customerFullName,
+        phone: r.customerPhone,
+        pgName: r.pgName,
+        roomNumber: r.roomNumber,
+        bedCode: r.bedCode,
+        amountPaise: r.rentPaise,
+        dueDate: r.dueDate,
+        billingMonth: r.billingMonth,
+        isOverdue: false,
+      });
+    }
+  }
+  if (overdueInvoices.ok) {
+    for (const r of overdueInvoices.data) {
+      rentReminderQueue.push({
+        id: r.id,
+        kind: 'rent',
+        customerName: r.customerFullName,
+        phone: r.customerPhone,
+        pgName: r.pgName,
+        roomNumber: r.roomNumber,
+        bedCode: r.bedCode,
+        amountPaise: r.rentPaise,
+        dueDate: r.dueDate,
+        billingMonth: r.billingMonth,
+        isOverdue: true,
+      });
+    }
+  }
 
   const thisMonth = defaultBillingMonth();
 
@@ -82,6 +123,8 @@ export default async function AdminRentPage(props: PageProps<'/admin/rent'>) {
           <MarkOverdueButton />
         </div>
       </div>
+
+      <BulkBillingWhatsAppReminder kind="rent" items={rentReminderQueue} />
 
       {!invoices.ok ? (
         <DbStatusBanner error={invoices.error} />
@@ -136,7 +179,21 @@ export default async function AdminRentPage(props: PageProps<'/admin/rent'>) {
                   {paiseToInr(r.paidLateFeePaise + (r.lateFeeLockedPaise ?? 0))}
                 </TD>
                 <TD>
-                  <Badge tone={toneForStatus(r.status)}>{titleCase(r.status)}</Badge>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge tone={toneForStatus(r.status)}>{titleCase(r.status)}</Badge>
+                    {r.status === 'pending' || r.status === 'overdue' ? (
+                      <AdminBillingWhatsAppButton
+                        kind="rent"
+                        customerName={r.customerFullName}
+                        phone={r.customerPhone}
+                        pgName={r.pgName}
+                        amountPaise={r.rentPaise}
+                        dueDate={r.dueDate}
+                        billingMonth={r.billingMonth}
+                        isOverdue={r.status === 'overdue'}
+                      />
+                    ) : null}
+                  </div>
                 </TD>
               </TR>
             ))}
