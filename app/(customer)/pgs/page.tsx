@@ -4,7 +4,6 @@ import { isPaymentScreenshotUploadAvailable } from '@/src/lib/payments/screensho
 import { EmptyPgList } from '@/src/components/customer/EmptyPgList';
 import { MotionReveal } from '@/src/components/customer/MotionReveal';
 import { PgBrowseList } from '@/src/components/customer/PgBrowseList';
-import { SafeModeBanner } from '@/src/components/customer/SafeModeBanner';
 import { ElectricityMeterNotice } from '@/src/components/customer/ElectricityMeterNotice';
 import { logServerRequest } from '@/src/lib/monitoring/logServerRequest';
 import {
@@ -66,7 +65,6 @@ export default async function PgListPage() {
 
     return (
       <div className="apg-aurora min-h-full">
-        <SafeModeBanner />
         <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
           <div className="mb-6">
             <ElectricityMeterNotice />

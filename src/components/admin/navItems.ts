@@ -19,12 +19,12 @@ export type NavSection = {
   }>;
 };
 
-/** Primary nav — Action Center first; legacy pages under More. */
+/** Overview is the single control board; utility pages under More. */
 export const NAV_SECTIONS: NavSection[] = [
   {
     title: 'Operate',
     items: [
-      { href: '/admin/actions', label: 'Action Center', icon: IconDashboard },
+      { href: '/admin/overview', label: 'Overview', icon: IconDashboard },
       { href: '/admin/pgs', label: 'PGs', icon: IconBuilding },
       { href: '/admin/residents', label: 'Residents', icon: IconUsers },
     ],
@@ -32,7 +32,6 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     title: 'More',
     items: [
-      { href: '/admin/overview', label: 'Revenue overview', icon: IconChart },
       { href: '/admin/bookings', label: 'Bookings', icon: IconClipboard },
       { href: '/admin/kyc', label: 'KYC review', icon: IconUsers },
       { href: '/admin/payments', label: 'Collections', icon: IconCard },

@@ -1,33 +1,16 @@
 import { redirect } from 'next/navigation';
-import { requireAdminSession } from '@/src/lib/auth/guards';
-import { runOperatorTestDataCleanup } from '@/src/services/operatorTestDataCleanup';
-import { resolveBillingMonth } from '@/src/lib/dateDefaults';
-import { revalidatePath } from 'next/cache';
-
-export const dynamic = 'force-dynamic';
 
 export default async function AdminHomeRedirect({
   searchParams,
 }: {
-  searchParams: Promise<{
-    month?: string;
-    clearTestExtraIncome?: string;
-    extraIncomeCleared?: string;
-    removedPaise?: string;
-  }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
-
-  if (sp.clearTestExtraIncome === '1') {
-    await requireAdminSession('/admin?clearTestExtraIncome=1');
-    const result = await runOperatorTestDataCleanup();
-    revalidatePath('/admin/overview');
-    revalidatePath('/admin/deposits');
-    const month = resolveBillingMonth(sp.month);
-    redirect(
-      `/admin/overview?month=${month}&extraIncomeCleared=1&removedPaise=${result.removedDeductionPaise}`,
-    );
+  const qs = new URLSearchParams();
+  for (const [key, value] of Object.entries(sp)) {
+    if (typeof value === 'string') qs.set(key, value);
+    else if (Array.isArray(value)) value.forEach((v) => qs.append(key, v));
   }
-
-  redirect('/admin/actions');
+  const query = qs.toString();
+  redirect(query ? `/admin/overview?${query}` : '/admin/overview');
 }

@@ -2,7 +2,7 @@
 
 import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { syncActionItemsAction } from '@/app/(admin)/admin/actions/actions';
+import { syncOverviewAction } from '@/app/(admin)/admin/overview/actions';
 
 export function SyncActionsButton() {
   const router = useRouter();
@@ -14,7 +14,7 @@ export function SyncActionsButton() {
       disabled={pending}
       onClick={() => {
         startTransition(async () => {
-          await syncActionItemsAction();
+          await syncOverviewAction();
           router.refresh();
         });
       }}
