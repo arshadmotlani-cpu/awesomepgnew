@@ -4,6 +4,7 @@ import {
   IconBuilding,
   IconCard,
   IconChart,
+  IconCheckCircle,
   IconClipboard,
   IconDashboard,
   IconSettings,
@@ -19,6 +20,7 @@ const MODULE_ICONS: Record<AdminModule, ComponentType<SVGProps<SVGSVGElement>>> 
   analytics: IconChart,
   system: IconSettings,
   residents: IconUsers,
+  kyc: IconCheckCircle,
   pgs: IconBuilding,
 };
 

@@ -10,9 +10,10 @@ import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { listAdminRentInvoices } from '@/src/db/queries/admin';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
-import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
+import { ADMIN_MODULES, moduleHref, moduleKycVerifyHref } from '@/src/lib/admin/navigation';
 import { formatDate, formatDateTime, paiseToInr, titleCase } from '@/src/lib/format';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
+import { getLatestKycSubmission } from '@/src/services/kyc';
 import { getResidentDetail } from '@/src/services/residentAdmin';
 import {
   defaultTenantStartDate,
@@ -68,6 +69,10 @@ export default async function ResidentDetailPage({
   const depositSummary = activeTenancy
     ? await getDepositSummaryForBooking(activeTenancy.bookingId)
     : null;
+
+  const latestKyc = await getLatestKycSubmission(customerId);
+  const pendingKycSubmissionId =
+    latestKyc?.status === 'pending' ? latestKyc.id : null;
 
   let websiteDepositPaise = 0;
   if (activeTenancy) {
@@ -162,6 +167,14 @@ export default async function ResidentDetailPage({
               }
             />
           </p>
+          {pendingKycSubmissionId ? (
+            <Link
+              href={moduleKycVerifyHref(pendingKycSubmissionId)}
+              className="mt-3 inline-flex rounded-lg bg-[#FF5A1F] px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110"
+            >
+              Verify KYC →
+            </Link>
+          ) : null}
         </div>
         <div className={SURFACE}>
           <p className="text-xs font-medium uppercase tracking-wide text-apg-silver">Deposit</p>

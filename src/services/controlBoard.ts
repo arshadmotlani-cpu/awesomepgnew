@@ -618,9 +618,9 @@ export async function loadControlBoardDrillDown(
           pgName: '—',
           status: 'pending',
           timestamp: r.createdAt.toISOString(),
-          href: `/admin/kyc`,
+          href: `/admin/residents/kyc`,
         }));
-      return drillDown('KYC pending', rows, { bulkActionKind: 'kyc', ledgerHref: '/admin/kyc' });
+      return drillDown('KYC pending', rows, { bulkActionKind: 'kyc', ledgerHref: '/admin/residents/kyc' });
     }
     case 'active_tenants': {
       const res = await listResidents();

@@ -75,9 +75,9 @@ test('comparePriority sorts red before orange before green', () => {
 
 test('dedupeOpsTasks removes duplicate ids', () => {
   const out = dedupeOpsTasks([
-    { id: 'a', priority: 'red', pgName: 'X', label: 'One', href: '/admin/kyc' },
-    { id: 'a', priority: 'orange', pgName: 'X', label: 'Dup', href: '/admin/kyc' },
-    { id: 'b', priority: 'green', pgName: 'Y', label: 'Two', href: '/admin/kyc' },
+    { id: 'a', priority: 'red', pgName: 'X', label: 'One', href: '/admin/residents/kyc' },
+    { id: 'a', priority: 'orange', pgName: 'X', label: 'Dup', href: '/admin/residents/kyc' },
+    { id: 'b', priority: 'green', pgName: 'Y', label: 'Two', href: '/admin/residents/kyc' },
   ]);
   assert.equal(out.length, 2);
   assert.equal(out[0]!.label, 'One');

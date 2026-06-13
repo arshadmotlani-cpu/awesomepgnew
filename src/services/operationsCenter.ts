@@ -459,7 +459,7 @@ export function buildOperationsTasks(
       priority: kycPriority(k.submittedAt, today),
       pgName: k.pgName,
       label: `Review KYC for ${k.residentName}`,
-      href: '/admin/kyc',
+      href: `/admin/residents/kyc/${k.id}`,
     });
   }
 

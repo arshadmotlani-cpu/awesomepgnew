@@ -696,7 +696,7 @@ export async function getActionItemDetail(
     availableActions.push({
       type: 'view_ledger',
       label: 'Review KYC',
-      href: `/admin/kyc/${meta.submissionId}`,
+      href: `/admin/residents/kyc/${meta.submissionId}`,
     });
   }
   if (base.type === 'vacating_alert') {

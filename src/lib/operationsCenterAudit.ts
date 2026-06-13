@@ -3,7 +3,7 @@ import type { OpsPriority } from '@/src/lib/operationsCenterRules';
 /** Canonical admin routes for Operations Center cards (audit-verified). */
 export const OPERATIONS_CENTER_CARD_ROUTES = {
   pendingPayments: '/admin/payments',
-  pendingKyc: '/admin/kyc',
+  pendingKyc: '/admin/residents/kyc',
   leavingSoon: '/admin/vacating',
   bedsReleasingSoon: '/admin/vacating',
   upcomingReservations: '/admin/bookings',

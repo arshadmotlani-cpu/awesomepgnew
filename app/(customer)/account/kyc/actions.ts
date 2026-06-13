@@ -84,7 +84,7 @@ export async function submitKycAction(
     }
 
     revalidatePath('/account/profile');
-    revalidatePath('/admin/kyc');
+    revalidatePath('/admin/residents/kyc');
     if (bookingCode) {
       revalidatePath(`/booking/${bookingCode}`);
       redirect(`/booking/${bookingCode}`);

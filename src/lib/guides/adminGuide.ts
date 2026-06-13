@@ -234,7 +234,7 @@ export const ADMIN_GUIDE: GuideCatalog = {
         'Resident re-uploads from Profile → Identity if rejected.',
         'WhatsApp nudge from list for pending assigned residents.',
       ],
-      links: [{ label: 'KYC review', href: '/admin/kyc' }],
+      links: [{ label: 'KYC review', href: '/admin/residents/kyc' }],
     },
 
     // ── Collections ──
@@ -379,7 +379,7 @@ export const ADMIN_GUIDE: GuideCatalog = {
         'Approve clear documents or reject with reason for re-upload.',
         'Use bulk WhatsApp reminder on Residents list if many pending.',
       ],
-      links: [{ label: 'KYC review', href: '/admin/kyc' }],
+      links: [{ label: 'KYC review', href: '/admin/residents/kyc' }],
     },
     {
       id: 'fix-overview-error',

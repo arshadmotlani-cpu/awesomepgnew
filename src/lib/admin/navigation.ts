@@ -6,6 +6,7 @@ export type AdminModule =
   | 'analytics'
   | 'system'
   | 'residents'
+  | 'kyc'
   | 'pgs';
 
 export type AdminModuleMeta = {
@@ -59,13 +60,6 @@ export const ADMIN_MODULES: Record<AdminModule, AdminModuleMeta> = {
     href: '/admin/system',
     sidebar: true,
   },
-  pgs: {
-    id: 'pgs',
-    label: 'PGs',
-    description: 'All properties — click a PG to manage',
-    href: '/admin/pgs',
-    sidebar: true,
-  },
   residents: {
     id: 'residents',
     label: 'Residents',
@@ -73,11 +67,29 @@ export const ADMIN_MODULES: Record<AdminModule, AdminModuleMeta> = {
     href: '/admin/residents',
     sidebar: true,
   },
+  kyc: {
+    id: 'kyc',
+    label: 'KYC review',
+    description: 'Verify Aadhaar and selfie uploads — approve before check-in',
+    href: '/admin/residents/kyc',
+    sidebar: true,
+  },
+  pgs: {
+    id: 'pgs',
+    label: 'PGs',
+    description: 'All properties — click a PG to manage',
+    href: '/admin/pgs',
+    sidebar: true,
+  },
 };
 
 export const SIDEBAR_MODULES: AdminModuleMeta[] = Object.values(ADMIN_MODULES).filter(
   (m) => m.sidebar,
 );
+
+export function moduleKycVerifyHref(submissionId: string): string {
+  return `/admin/residents/kyc/${submissionId}`;
+}
 
 export function withMonth(href: string, billingMonth?: string): string {
   if (!billingMonth) return href;
@@ -98,7 +110,7 @@ export function modulePgHref(
 }
 
 export function moduleResidentHref(
-  module: Exclude<AdminModule, 'overview' | 'analytics' | 'system' | 'pgs' | 'residents'>,
+  module: Exclude<AdminModule, 'overview' | 'analytics' | 'system' | 'pgs' | 'residents' | 'kyc'>,
   pgId: string,
   residentId: string,
   billingMonth?: string,
@@ -109,7 +121,13 @@ export function moduleResidentHref(
 /** Match pathname to a sidebar module for active state. */
 export function pathnameToModule(pathname: string): AdminModule | null {
   if (pathname === '/admin' || pathname.startsWith('/admin/overview')) return 'overview';
-  if (pathname.startsWith('/admin/residents') || pathname.startsWith('/admin/bookings/new')) {
+  if (pathname.startsWith('/admin/residents/kyc') || pathname.startsWith('/admin/kyc')) {
+    return 'kyc';
+  }
+  if (
+    pathname.startsWith('/admin/residents') ||
+    pathname.startsWith('/admin/bookings/new')
+  ) {
     return 'residents';
   }
   for (const mod of SIDEBAR_MODULES) {

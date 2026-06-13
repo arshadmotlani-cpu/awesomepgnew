@@ -60,7 +60,7 @@ export default async function OperationsModulePage({
       <div className="mb-6 flex flex-wrap gap-2">
         {[
           ['Residents & bed assignment', moduleHref('residents')],
-          ['KYC review', '/admin/kyc'],
+          ['KYC review', moduleHref('kyc')],
           ['Vacating', '/admin/vacating'],
           ['Bookings', '/admin/bookings'],
         ].map(([label, href]) => (
