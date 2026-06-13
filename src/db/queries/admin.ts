@@ -839,7 +839,7 @@ export type PgBusinessMetrics = OccupancyByPg & {
   /** Total electricity collected (QR + invoices). */
   incomeElectricityPaise: number;
   incomeTotalPaise: number;
-  /** Sum of monthly bed rates for beds occupied today (expected rent). */
+  /** Sum of monthly rent from active booking snapshots (admin overrides included). */
   expectedMonthlyRentPaise: number;
   /** Rent late fees collected (extra income). */
   lateFeePaise: number;
@@ -1029,35 +1029,25 @@ export function getPgBusinessMetrics(
           ),
         )
         .groupBy(electricityBills.pgId),
-      db
-        .select({
-          pgId: pgs.id,
-          total: sql<number>`coalesce(sum(
+      db.execute<{ pg_id: string; total: number }>(sql`
+        SELECT pg_id, coalesce(sum(monthly_rent_paise), 0)::bigint::int AS total
+        FROM (
+          SELECT DISTINCT ON (br.bed_id)
+            f.pg_id AS pg_id,
             (
-              SELECT bp.monthly_rate_paise::bigint::int FROM ${bedPrices} bp
-              WHERE bp.bed_id = beds.id
-                AND bp.effective_from <= CURRENT_DATE
-                AND (bp.effective_to IS NULL OR bp.effective_to > CURRENT_DATE)
-              ORDER BY bp.effective_from DESC LIMIT 1
-            )
-          ), 0)::bigint::int`,
-        })
-        .from(pgs)
-        .leftJoin(floors, eq(floors.pgId, pgs.id))
-        .leftJoin(rooms, eq(rooms.floorId, floors.id))
-        .leftJoin(beds, and(eq(beds.roomId, rooms.id), sql`${beds.archivedAt} IS NULL`))
-        .where(
-          and(
-            sql`${pgs.archivedAt} IS NULL`,
-            sql`EXISTS (
-              SELECT 1 FROM ${bedReservations} r
-              WHERE r.bed_id = beds.id
-                AND r.status = 'active'
-                AND CURRENT_DATE <@ r.stay_range
-            )`,
-          ),
-        )
-        .groupBy(pgs.id),
+              SELECT coalesce(sum((elem->>'monthlyRatePaise')::bigint), 0)
+              FROM jsonb_array_elements(bk.pricing_snapshot->'perBed') elem
+            ) AS monthly_rent_paise
+          FROM bed_reservations br
+          INNER JOIN beds b ON b.id = br.bed_id AND b.archived_at IS NULL
+          INNER JOIN rooms r ON r.id = b.room_id
+          INNER JOIN floors f ON f.id = r.floor_id
+          INNER JOIN pgs ON pgs.id = f.pg_id AND pgs.archived_at IS NULL
+          INNER JOIN bookings bk ON bk.id = br.booking_id AND bk.status = 'confirmed'
+          WHERE br.status = 'active' AND CURRENT_DATE <@ br.stay_range
+        ) occ
+        GROUP BY pg_id
+      `),
       db
         .select({
           pgId: rentInvoices.pgId,
@@ -1102,7 +1092,9 @@ export function getPgBusinessMetrics(
     const electricityQrMap = new Map(electricityQrRows.map((r) => [r.pgId, r.total]));
     const rentMap = new Map(rentRows.map((r) => [r.pgId, r.total]));
     const elecMap = new Map(elecRows.map((r) => [r.pgId, r.total]));
-    const expectedMap = new Map(expectedRows.map((r) => [r.pgId, r.total]));
+    const expectedMap = new Map(
+      Array.from(expectedRows).map((r) => [r.pg_id, r.total]),
+    );
 
     const lateFeeMap = new Map(lateFeeRows.map((r) => [r.pgId, r.total]));
     const depositMap = new Map(
@@ -1429,8 +1421,10 @@ export type AdminRentInvoiceRow = {
   invoiceNumber: string;
   bookingId: string;
   bookingCode: string;
+  customerId: string;
   customerFullName: string;
   customerPhone: string;
+  pgId: string;
   pgName: string;
   bedCode: string;
   roomNumber: string;
@@ -1460,8 +1454,10 @@ export function listAdminRentInvoices(
         invoiceNumber: rentInvoices.invoiceNumber,
         bookingId: rentInvoices.bookingId,
         bookingCode: bookings.bookingCode,
+        customerId: rentInvoices.customerId,
         customerFullName: customers.fullName,
         customerPhone: customers.phone,
+        pgId: rentInvoices.pgId,
         pgName: pgs.name,
         bedCode: beds.bedCode,
         roomNumber: rooms.roomNumber,
@@ -1569,8 +1565,10 @@ export function listAdminElectricityBills(filter?: {
 export type AdminElectricityInvoiceReminderRow = {
   id: string;
   invoiceNumber: string;
+  customerId: string;
   customerFullName: string;
   customerPhone: string;
+  pgId: string;
   pgName: string;
   roomNumber: string;
   billingMonth: string;
@@ -1591,8 +1589,10 @@ export function listAdminElectricityInvoicesForReminders(
       .select({
         id: electricityInvoices.id,
         invoiceNumber: electricityInvoices.invoiceNumber,
+        customerId: electricityInvoices.customerId,
         customerFullName: customers.fullName,
         customerPhone: customers.phone,
+        pgId: electricityBills.pgId,
         pgName: pgs.name,
         roomNumber: rooms.roomNumber,
         billingMonth: electricityInvoices.billingMonth,
@@ -1728,8 +1728,10 @@ export function listAdminVacatingRequests(filter?: {
 export type DepositLedgerSummaryRow = {
   bookingId: string;
   bookingCode: string;
+  customerId: string;
   customerFullName: string;
   customerPhone: string;
+  pgId: string;
   pgName: string;
   bedCode: string;
   collectedPaise: number;
@@ -1744,8 +1746,10 @@ export function listAdminDepositSummaries(): Promise<QueryResult<DepositLedgerSu
       .select({
         bookingId: bookings.id,
         bookingCode: bookings.bookingCode,
+        customerId: depositLedger.customerId,
         customerFullName: customers.fullName,
         customerPhone: customers.phone,
+        pgId: pgs.id,
         pgName: pgs.name,
         bedCode: beds.bedCode,
         collectedPaise: sql<number>`coalesce(sum(${depositLedger.amountPaise}) FILTER (WHERE ${depositLedger.entryKind} = 'collected'), 0)::bigint`,
@@ -1767,8 +1771,10 @@ export function listAdminDepositSummaries(): Promise<QueryResult<DepositLedgerSu
       .groupBy(
         bookings.id,
         bookings.bookingCode,
+        depositLedger.customerId,
         customers.fullName,
         customers.phone,
+        pgs.id,
         pgs.name,
         beds.bedCode,
       )

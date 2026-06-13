@@ -3,11 +3,11 @@
 import { useState, useTransition } from 'react';
 import { generatePaymentLinkAction } from '@/app/(admin)/admin/residents/paymentActions';
 import { AdminBillingWhatsAppButton } from '@/src/components/admin/AdminBillingWhatsAppButton';
-import { AdminKycStatusWithWhatsApp } from '@/src/components/admin/AdminKycWhatsAppButton';
+import { AdminKycWhatsAppButton, WhatsAppIcon } from '@/src/components/admin/AdminKycWhatsAppButton';
 import { RentUpdatedWhatsAppButton } from '@/src/components/admin/RentUpdatedWhatsAppButton';
-import { WhatsAppIcon } from '@/src/components/admin/AdminKycWhatsAppButton';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
-import { titleCase } from '@/src/lib/format';
+import { buildKycWhatsAppUrl, clientPublicSiteBaseUrl } from '@/src/lib/kyc/adminWhatsApp';
+import { paiseToInr, titleCase } from '@/src/lib/format';
 
 const BTN =
   'inline-flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1.5 text-[11px] font-medium text-apg-silver hover:text-white';
@@ -21,10 +21,11 @@ type ResidentActionBarProps = {
   pgName?: string;
   roomNumber?: string;
   bookingId?: string;
+  /** Current monthly rent from booking snapshot */
+  monthlyRentPaise?: number;
   pendingRentPaise?: number;
   rentDueDate?: string;
   rentOverdue?: boolean;
-  /** After rent save — show updated-rent WhatsApp with fresh payment link */
   rentUpdated?: { newAmountPaise: number; paymentLinkUrl: string };
 };
 
@@ -36,13 +37,22 @@ export function ResidentActionBar(props: ResidentActionBarProps) {
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const canBill = props.pgId && props.pgName && props.pendingRentPaise && props.pendingRentPaise > 0;
+  const billAmountPaise = props.pendingRentPaise ?? props.monthlyRentPaise ?? 0;
+  const canBill =
+    props.pgId && props.pgName && billAmountPaise > 0;
+
+  const kycWhatsAppHref =
+    buildKycWhatsAppUrl({
+      phone: props.phone,
+      customerName: props.customerName,
+      baseUrl: clientPublicSiteBaseUrl(),
+    }) ?? undefined;
 
   function generateLink(rentUpdated?: boolean) {
     if (!props.pgId || !props.pgName) return;
     const amount = rentUpdated
       ? props.rentUpdated?.newAmountPaise
-      : props.pendingRentPaise;
+      : billAmountPaise;
     if (!amount) return;
 
     startTransition(async () => {
@@ -70,35 +80,57 @@ export function ResidentActionBar(props: ResidentActionBarProps) {
   }
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-[#1A1F27] p-4">
+    <div className="rounded-2xl border border-[#FF5A1F]/30 bg-[#1A1F27] p-4 ring-1 ring-[#FF5A1F]/10">
       <p className="text-xs font-semibold uppercase tracking-wide text-apg-orange">
-        Actions
+        Actions — WhatsApp, payment link, history
       </p>
+      <p className="mt-1 text-[11px] text-apg-silver">
+        {canBill
+          ? `Bill amount: ${paiseToInr(billAmountPaise)}${props.pendingRentPaise ? ' (pending invoice)' : ' (monthly rent)'}`
+          : 'Assign a bed and set rent below to unlock billing actions.'}
+      </p>
+
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <AdminKycStatusWithWhatsApp
-          kycStatus={props.kycStatus}
-          phone={props.phone}
-          customerName={props.customerName}
-          badge={
-            <span className={`${BTN} border-[#25D366]/40 bg-[#25D366]/10 text-[#25D366]`}>
-              <WhatsAppIcon className="h-3.5 w-3.5" />
-              KYC
-            </span>
-          }
-        />
+        {kycWhatsAppHref ? (
+          <a
+            href={kycWhatsAppHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`${BTN} border-[#25D366]/40 bg-[#25D366]/10 text-[#25D366]`}
+          >
+            <WhatsAppIcon className="h-3.5 w-3.5" />
+            KYC WhatsApp
+          </a>
+        ) : (
+          <AdminKycWhatsAppButton
+            phone={props.phone}
+            customerName={props.customerName}
+            className="!h-auto !w-auto !rounded-lg !px-2.5 !py-1.5"
+          />
+        )}
 
         {canBill ? (
-          <AdminBillingWhatsAppButton
-            kind="rent"
-            customerName={props.customerName}
-            phone={props.phone}
-            pgName={props.pgName!}
-            amountPaise={props.pendingRentPaise!}
-            dueDate={props.rentDueDate ?? 'soon'}
-            roomNumber={props.roomNumber}
-            isOverdue={props.rentOverdue}
-            paymentLinkUrl={linkResult?.publicUrl}
-          />
+          <>
+            <AdminBillingWhatsAppButton
+              kind="rent"
+              customerName={props.customerName}
+              phone={props.phone}
+              pgName={props.pgName!}
+              amountPaise={billAmountPaise}
+              dueDate={props.rentDueDate ?? 'soon'}
+              roomNumber={props.roomNumber}
+              isOverdue={props.rentOverdue}
+              paymentLinkUrl={linkResult?.publicUrl}
+            />
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => generateLink(false)}
+              className={`${BTN} border-[#FF5A1F]/40 text-[#FF5A1F] hover:bg-[#FF5A1F]/10`}
+            >
+              {pending ? 'Generating…' : 'Payment link'}
+            </button>
+          </>
         ) : null}
 
         {props.rentUpdated ? (
@@ -111,25 +143,17 @@ export function ResidentActionBar(props: ResidentActionBarProps) {
           />
         ) : null}
 
-        {canBill ? (
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => generateLink(false)}
-            className={`${BTN} hover:border-[#FF5A1F]/50 hover:text-[#FF5A1F]`}
-          >
-            {pending ? 'Generating…' : 'Payment link'}
-          </button>
-        ) : null}
-
         {props.bookingId ? (
           <a href={`/admin/bookings/${props.bookingId}`} className={BTN}>
             History →
           </a>
         ) : null}
 
-        <a href={`/admin/panel?tab=audit`} className={BTN}>
-          Audit log →
+        <a href="/admin/panel?tab=audit" className={BTN}>
+          Rent audit →
+        </a>
+        <a href="/admin/panel?tab=links" className={BTN}>
+          All links →
         </a>
       </div>
 
@@ -160,11 +184,12 @@ export function ResidentActionBar(props: ResidentActionBarProps) {
 
       {error ? <p className="mt-2 text-xs text-rose-300">{error}</p> : null}
 
-      {props.kycStatus !== 'approved' ? (
-        <p className="mt-2 text-[11px] text-apg-silver">
-          KYC: <Badge tone={toneForStatus(props.kycStatus)}>{titleCase(props.kycStatus)}</Badge>
-        </p>
-      ) : null}
+      <p className="mt-2 text-[11px] text-apg-silver">
+        KYC status:{' '}
+        <Badge tone={toneForStatus(props.kycStatus)}>{titleCase(props.kycStatus)}</Badge>
+        {' · '}
+        Edit rent in the form below — save triggers audit + payment link.
+      </p>
     </div>
   );
 }

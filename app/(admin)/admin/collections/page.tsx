@@ -3,6 +3,7 @@ import { AdminPendingPaymentsPanel } from '@/src/components/admin/AdminPendingPa
 import { AdminSectionErrorBoundary } from '@/src/components/admin/AdminSectionErrorBoundary';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
+import { FinancialRowActions } from '@/src/components/admin/FinancialRowActions';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
@@ -145,15 +146,18 @@ function InvoiceTable({
   error: string | null;
   rows: Array<{
     id: string;
+    customerId?: string;
     customerFullName: string;
     customerPhone: string;
     pgName: string;
+    pgId?: string;
     roomNumber: string;
     amountPaise?: number;
     rentPaise?: number;
     status?: string;
     dueDate: string;
-    pgId?: string;
+    bookingId?: string;
+    isOverdue?: boolean;
   }>;
   pgNameById: Map<string, string>;
   electricity?: boolean;
@@ -172,16 +176,27 @@ function InvoiceTable({
               <TH className="text-right">Amount</TH>
               <TH>Due</TH>
               <TH>Status</TH>
+              <TH className="text-right">Actions</TH>
             </TR>
           </THead>
           <TBody>
             {rows.map((r) => {
               const amount = electricity ? (r.amountPaise ?? 0) : (r.rentPaise ?? 0);
-              const pgId = [...pgNameById.entries()].find(([, n]) => n === r.pgName)?.[0];
+              const pgId =
+                r.pgId ?? [...pgNameById.entries()].find(([, n]) => n === r.pgName)?.[0] ?? '';
+              const showActions =
+                r.customerId && pgId && amount > 0 && r.status !== 'paid' && r.status !== 'cancelled';
               return (
                 <TR key={r.id}>
                   <TD>
-                    {pgId ? (
+                    {r.customerId ? (
+                      <Link
+                        href={`/admin/residents/${r.customerId}`}
+                        className="font-medium text-white hover:text-[#FF5A1F]"
+                      >
+                        {r.customerFullName}
+                      </Link>
+                    ) : pgId ? (
                       <Link
                         href={modulePgHref('collections', pgId)}
                         className="font-medium text-white hover:text-[#FF5A1F]"
@@ -203,6 +218,25 @@ function InvoiceTable({
                       <Badge tone={toneForStatus(r.status)}>{titleCase(r.status)}</Badge>
                     ) : (
                       <Badge tone="amber">pending</Badge>
+                    )}
+                  </TD>
+                  <TD className="text-right">
+                    {showActions ? (
+                      <FinancialRowActions
+                        residentId={r.customerId!}
+                        residentName={r.customerFullName}
+                        phone={r.customerPhone}
+                        pgId={pgId}
+                        pgName={r.pgName}
+                        amountPaise={amount}
+                        purpose={electricity ? 'electricity' : 'rent'}
+                        dueDate={r.dueDate}
+                        roomNumber={r.roomNumber}
+                        isOverdue={r.isOverdue ?? r.status === 'overdue'}
+                        bookingId={r.bookingId}
+                      />
+                    ) : (
+                      <span className="text-[10px] text-apg-silver">—</span>
                     )}
                   </TD>
                 </TR>

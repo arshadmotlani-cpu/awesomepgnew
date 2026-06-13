@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { paymentLinks } from '@/src/db/schema';
 import {
@@ -8,6 +8,7 @@ import {
 import { paymentLinkPublicUrl } from '@/src/lib/billing/paymentLinkUrl';
 import { buildKycWhatsAppUrl, publicSiteBaseUrl } from '@/src/lib/kyc/adminWhatsApp';
 import { getPgQrForPurpose } from '@/src/services/actionItems';
+import { logWhatsAppEvent } from '@/src/services/whatsappLogs';
 import type { ActionItemDetail } from '@/src/services/actionItems';
 
 export type CreatePaymentLinkInput = {
@@ -74,6 +75,23 @@ export async function createPaymentLink(input: CreatePaymentLinkInput) {
       .update(paymentLinks)
       .set({ whatsappShareUrl })
       .where(eq(paymentLinks.id, row.id));
+
+    void logWhatsAppEvent({
+      adminId: null,
+      residentId: input.residentId,
+      phone: input.residentPhone,
+      kind:
+        input.purpose === 'rent'
+          ? input.rentUpdated
+            ? 'rent_updated'
+            : 'rent_due'
+          : input.purpose === 'electricity'
+            ? 'electricity_due'
+            : 'deposit',
+      messagePreview: whatsappShareUrl,
+      paymentLinkId: row.id,
+      metadata: { pgId: input.pgId, amountPaise: input.amountPaise },
+    });
   }
 
   return {
@@ -144,4 +162,52 @@ export async function getPaymentLinkById(linkId: string) {
     .where(eq(paymentLinks.id, linkId))
     .limit(1);
   return row ?? null;
+}
+
+/** Mark active links paid when resident completes rent/electricity/deposit payment. */
+export async function markActivePaymentLinksPaid(args: {
+  residentId: string;
+  purpose: 'rent' | 'electricity' | 'deposit';
+  amountPaise?: number;
+}) {
+  const conditions = [
+    eq(paymentLinks.residentId, args.residentId),
+    eq(paymentLinks.purpose, args.purpose),
+    eq(paymentLinks.status, 'active'),
+  ];
+  const rows = await db
+    .select({ id: paymentLinks.id })
+    .from(paymentLinks)
+    .where(and(...conditions))
+    .orderBy(desc(paymentLinks.createdAt))
+    .limit(5);
+
+  if (rows.length === 0) return 0;
+
+  await db
+    .update(paymentLinks)
+    .set({ status: 'paid' })
+    .where(
+      inArray(
+        paymentLinks.id,
+        rows.map((r) => r.id),
+      ),
+    );
+  return rows.length;
+}
+
+/** Expire active links older than N days (run on panel load / cron). */
+export async function expireStalePaymentLinks(maxAgeDays = 30) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - maxAgeDays);
+
+  const expired = await db
+    .update(paymentLinks)
+    .set({ status: 'expired' })
+    .where(
+      and(eq(paymentLinks.status, 'active'), sql`${paymentLinks.createdAt} < ${cutoff}`),
+    )
+    .returning({ id: paymentLinks.id });
+
+  return expired.length;
 }

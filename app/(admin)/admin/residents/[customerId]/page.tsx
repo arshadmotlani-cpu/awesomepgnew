@@ -234,6 +234,7 @@ export default async function ResidentDetailPage({
             pgName={activeTenancy.pgName}
             roomNumber={activeTenancy.roomNumber}
             bookingId={activeTenancy.bookingId}
+            monthlyRentPaise={activeTenancy.monthlyRentPaise}
             pendingRentPaise={pendingRent?.rentPaise}
             rentDueDate={pendingRent?.dueDate}
             rentOverdue={pendingRent?.isOverdue}

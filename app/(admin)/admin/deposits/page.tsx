@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import { EmptyState } from '@/src/components/admin/EmptyState';
+import { FinancialRowActions } from '@/src/components/admin/FinancialRowActions';
 import { IconCard } from '@/src/components/admin/icons';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
@@ -64,7 +65,7 @@ export default async function AdminDepositsPage() {
                 <TH className="text-right">Deducted</TH>
                 <TH className="text-right">Refunded</TH>
                 <TH className="text-right">Balance</TH>
-                <TH className="text-right">Adjust</TH>
+                <TH className="text-right">Actions</TH>
               </TR>
             </THead>
             <TBody>
@@ -73,39 +74,55 @@ export default async function AdminDepositsPage() {
                   <TD>
                     <Link
                       href={`/admin/bookings/${r.bookingId}`}
-                      className="font-mono text-xs text-indigo-600 hover:underline"
+                      className="font-mono text-xs text-indigo-400 hover:underline"
                     >
                       {r.bookingCode}
                     </Link>
                   </TD>
                   <TD>
-                    <div className="text-sm">{r.customerFullName}</div>
-                    <div className="font-mono text-[11px] text-zinc-500">
-                      {r.customerPhone}
-                    </div>
+                    <Link
+                      href={`/admin/residents/${r.customerId}`}
+                      className="text-sm text-white hover:text-[#FF5A1F]"
+                    >
+                      {r.customerFullName}
+                    </Link>
+                    <div className="font-mono text-[11px] text-zinc-500">{r.customerPhone}</div>
                   </TD>
-                  <TD className="text-xs">
+                  <TD className="text-xs text-apg-silver">
                     {r.pgName} · {r.bedCode}
                   </TD>
-                  <TD className="text-right tabular-nums">
+                  <TD className="text-right tabular-nums text-white">
                     {paiseToInr(Number(r.collectedPaise))}
                   </TD>
-                  <TD className="text-right tabular-nums text-rose-700">
+                  <TD className="text-right tabular-nums text-rose-400">
                     {paiseToInr(Number(r.deductedPaise))}
                   </TD>
-                  <TD className="text-right tabular-nums">
+                  <TD className="text-right tabular-nums text-white">
                     {paiseToInr(Number(r.refundedPaise))}
                   </TD>
-                  <TD className="text-right tabular-nums font-medium">
+                  <TD className="text-right tabular-nums font-medium text-white">
                     {paiseToInr(Number(r.refundableBalancePaise))}
                   </TD>
                   <TD className="text-right">
-                    <Link
-                      href={`/admin/deposits/${r.bookingId}`}
-                      className="rounded-md border border-zinc-300 bg-white px-2 py-0.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
-                    >
-                      Open →
-                    </Link>
+                    {Number(r.refundableBalancePaise) > 0 ? (
+                      <FinancialRowActions
+                        residentId={r.customerId}
+                        residentName={r.customerFullName}
+                        phone={r.customerPhone}
+                        pgId={r.pgId}
+                        pgName={r.pgName}
+                        amountPaise={Number(r.refundableBalancePaise)}
+                        purpose="deposit"
+                        bookingId={r.bookingId}
+                      />
+                    ) : (
+                      <Link
+                        href={`/admin/deposits/${r.bookingId}`}
+                        className="text-xs text-[#FF5A1F] hover:underline"
+                      >
+                        Open →
+                      </Link>
+                    )}
                   </TD>
                 </TR>
               ))}

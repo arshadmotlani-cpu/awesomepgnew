@@ -2,7 +2,7 @@ import { and, desc, eq, or } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { adminUsers, auditLog, customers, pgs } from '@/src/db/schema';
 import { paymentLinkPublicUrl } from '@/src/lib/billing/paymentLinkUrl';
-import { listRecentPaymentLinks } from '@/src/services/paymentLinks';
+import { expireStalePaymentLinks, listRecentPaymentLinks } from '@/src/services/paymentLinks';
 
 export async function listRentChangeAuditLogs(limit = 100) {
   return db
@@ -38,6 +38,32 @@ export async function listAdminUsersForPanel() {
     })
     .from(adminUsers)
     .orderBy(adminUsers.fullName);
+}
+
+export async function listWhatsAppLogs(limit = 100) {
+  return db
+    .select({
+      id: auditLog.id,
+      action: auditLog.action,
+      entityId: auditLog.entityId,
+      diff: auditLog.diff,
+      createdAt: auditLog.createdAt,
+    })
+    .from(auditLog)
+    .where(eq(auditLog.entity, 'whatsapp_message'))
+    .orderBy(desc(auditLog.createdAt))
+    .limit(limit);
+}
+
+export async function loadAdminPanelData() {
+  await expireStalePaymentLinks(30).catch(() => 0);
+  const [auditLogs, paymentLinks, admins, whatsappLogs] = await Promise.all([
+    listRentChangeAuditLogs(),
+    loadPaymentLinksPanel(),
+    listAdminUsersForPanel(),
+    listWhatsAppLogs(),
+  ]);
+  return { auditLogs, paymentLinks, admins, whatsappLogs };
 }
 
 export async function loadPaymentLinksPanel(limit = 50) {

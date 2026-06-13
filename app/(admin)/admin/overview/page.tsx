@@ -1,4 +1,5 @@
 import { AdminSectionErrorBoundary } from '@/src/components/admin/AdminSectionErrorBoundary';
+import { ControlBoard } from '@/src/components/admin/ControlBoard';
 import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import { OverviewMonthPicker } from '@/src/components/admin/OverviewMonthPicker';
 import { PageHeader } from '@/src/components/admin/PageHeader';
@@ -6,6 +7,7 @@ import { SyncActionsButton } from '@/src/components/admin/SyncActionsButton';
 import { OverviewGlobalSummary } from '@/src/components/admin/overview/OverviewGlobalSummary';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import { requireAdminSession } from '@/src/lib/auth/guards';
+import { buildControlBoardData } from '@/src/services/controlBoard';
 import { runOperatorTestDataCleanup } from '@/src/services/operatorTestDataCleanup';
 import { loadOverviewContext } from '@/src/services/overviewData';
 import { revalidatePath } from 'next/cache';
@@ -51,6 +53,21 @@ export default async function OverviewPage({
     );
   }
 
+  const controlBoard = buildControlBoardData({
+    billingMonth: ctx.data.billingMonth,
+    monthLabel: ctx.data.monthLabel,
+    summary: ctx.data.summary,
+    pgMetrics: ctx.data.pgMetrics,
+    revenue: ctx.data.revenue,
+    operations: ctx.data.operations,
+    dashboard: ctx.data.dashboard,
+    rentStats: ctx.data.rentStats,
+    overviewKpis: ctx.data.overviewKpis,
+    visitors: ctx.data.visitors,
+    actionItems: ctx.data.actionItems,
+    depositByPg: new Map(),
+  });
+
   return (
     <>
       <PageHeader
@@ -73,6 +90,20 @@ export default async function OverviewPage({
 
       <AdminSectionErrorBoundary title="Overview summary">
         <OverviewGlobalSummary ctx={ctx.data} />
+      </AdminSectionErrorBoundary>
+
+      <AdminSectionErrorBoundary title="Control board">
+        <section className="mt-10">
+          <h2 className="mb-1 text-sm font-semibold text-white">Control board</h2>
+          <p className="mb-4 text-xs text-apg-silver">
+            Live metrics — click any card to drill down and act (WhatsApp, payment links, bulk reminders).
+          </p>
+          <ControlBoard
+            cards={controlBoard.cards}
+            billingMonth={ctx.data.billingMonth}
+            monthLabel={ctx.data.monthLabel}
+          />
+        </section>
       </AdminSectionErrorBoundary>
     </>
   );

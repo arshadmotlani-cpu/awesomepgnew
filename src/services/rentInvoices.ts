@@ -549,6 +549,13 @@ export async function recordRentPaymentSuccess(
       reference: invoice.billingMonth,
     });
 
+    const { markActivePaymentLinksPaid } = await import('@/src/services/paymentLinks');
+    void markActivePaymentLinksPaid({
+      residentId: invoice.customerId,
+      purpose: 'rent',
+      amountPaise: input.amountPaise,
+    });
+
     const [automationCtx] = await db
       .select({
         pgId: rentInvoices.pgId,
