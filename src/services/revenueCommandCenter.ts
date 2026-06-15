@@ -2,12 +2,10 @@ import type {
   BusinessMetricsSummary,
   CollectionBreakdown,
   PgBusinessMetrics,
-  RentStats,
 } from '@/src/db/queries/admin';
 import {
   getDailyCollectionTotals,
   getDepositCollectedByPgForBillingMonth,
-  getRentStats,
 } from '@/src/db/queries/admin';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
@@ -31,6 +29,7 @@ export type OutstandingMoneySummary = {
   pendingRentInvoicesPaise: number;
   pendingElectricityInvoices: number;
   pendingElectricityInvoicesPaise: number;
+  pendingDepositPaise: number;
   pendingPaymentApprovals: number;
   pendingPaymentApprovalsPaise: number;
   totalOutstandingPaise: number;
@@ -95,33 +94,23 @@ function buildByPgRows(
     .sort((a, b) => b.totalRevenuePaise - a.totalRevenuePaise);
 }
 
-function buildOutstanding(
-  rentStats: RentStats,
+function buildOutstandingFromSsot(
+  portfolio: Awaited<ReturnType<typeof import('@/src/services/residentFinancialEngine').getPortfolioFinancialTotals>>,
   pendingPayments: PendingPaymentReviewItem[],
-  electricityPending?: RevenueCommandCenterInput['electricityPending'],
 ): OutstandingMoneySummary {
-  const pendingRentInvoices = rentStats.pendingCount + rentStats.overdueCount;
-  const pendingRentInvoicesPaise = rentStats.outstandingPaise;
-  const pendingElectricityInvoices = electricityPending?.count ?? 0;
-  const pendingElectricityInvoicesPaise =
-    electricityPending?.items.reduce((a, i) => a + i.amountDuePaise, 0) ?? 0;
   const pendingPaymentApprovals = pendingPayments.length;
-  const pendingPaymentApprovalsPaise = pendingPayments.reduce(
-    (a, p) => a + p.amountPaise,
-    0,
-  );
+  const pendingPaymentApprovalsPaise = pendingPayments.reduce((a, p) => a + p.amountPaise, 0);
 
   return {
-    pendingRentInvoices,
-    pendingRentInvoicesPaise,
-    pendingElectricityInvoices,
-    pendingElectricityInvoicesPaise,
+    pendingRentInvoices: portfolio.pendingRentInvoiceCount,
+    pendingRentInvoicesPaise: portfolio.rent.outstandingPaise,
+    pendingElectricityInvoices: portfolio.pendingElectricityInvoiceCount,
+    pendingElectricityInvoicesPaise: portfolio.electricity.outstandingPaise,
+    pendingDepositPaise: portfolio.deposit.outstandingPaise,
     pendingPaymentApprovals,
     pendingPaymentApprovalsPaise,
     totalOutstandingPaise:
-      pendingRentInvoicesPaise +
-      pendingElectricityInvoicesPaise +
-      pendingPaymentApprovalsPaise,
+      portfolio.totals.outstandingPaise + pendingPaymentApprovalsPaise,
   };
 }
 
@@ -131,11 +120,13 @@ export async function getRevenueCommandCenterData(
 ): Promise<RevenueCommandCenterData> {
   const billingMonth = resolveBillingMonth(input.billingMonth);
 
-  const [todayResult, depositRows, rentStatsResult, pendingPayments] = await Promise.all([
+  const [todayResult, depositRows, pendingPayments, portfolioTotals] = await Promise.all([
     getDailyCollectionTotals(),
     getDepositCollectedByPgForBillingMonth(billingMonth),
-    getRentStats(),
     listPendingPaymentReviews(input.session),
+    import('@/src/services/residentFinancialEngine').then((m) =>
+      m.getPortfolioFinancialTotals(input.session),
+    ),
   ]);
 
   const today: CollectionBreakdown = todayResult.ok
@@ -152,23 +143,7 @@ export async function getRevenueCommandCenterData(
   const mtd = buildMtdBreakdown(input.summary, depositByPg);
   const byPg = buildByPgRows(input.pgMetrics, depositByPg);
 
-  const rentStats: RentStats = rentStatsResult.ok
-    ? rentStatsResult.data
-    : {
-        pendingCount: 0,
-        overdueCount: 0,
-        paidCount: 0,
-        cancelledCount: 0,
-        totalRentPaise: 0,
-        collectedPaise: 0,
-        outstandingPaise: 0,
-      };
-
-  const outstanding = buildOutstanding(
-    rentStats,
-    pendingPayments,
-    input.electricityPending,
-  );
+  const outstanding = buildOutstandingFromSsot(portfolioTotals, pendingPayments);
 
   return {
     billingMonth,

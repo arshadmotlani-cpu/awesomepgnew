@@ -1492,26 +1492,8 @@ export type RentStats = {
 
 export function getRentStats(): Promise<QueryResult<RentStats>> {
   return guard(async () => {
-    const [row] = await db
-      .select({
-        pendingCount: sql<number>`count(*) FILTER (WHERE ${rentInvoices.status} = 'pending')::int`,
-        overdueCount: sql<number>`count(*) FILTER (WHERE ${rentInvoices.status} = 'overdue')::int`,
-        paidCount: sql<number>`count(*) FILTER (WHERE ${rentInvoices.status} = 'paid')::int`,
-        cancelledCount: sql<number>`count(*) FILTER (WHERE ${rentInvoices.status} = 'cancelled')::int`,
-        totalRentPaise: sql<number>`coalesce(sum(${rentInvoices.rentPaise}) FILTER (WHERE ${rentInvoices.status} IN ('pending','overdue','paid')), 0)::bigint`,
-        collectedPaise: sql<number>`coalesce(sum(${rentInvoices.paidPrincipalPaise} + ${rentInvoices.paidLateFeePaise}) FILTER (WHERE ${rentInvoices.status} = 'paid'), 0)::bigint`,
-      })
-      .from(rentInvoices);
-    return {
-      pendingCount: Number(row?.pendingCount ?? 0),
-      overdueCount: Number(row?.overdueCount ?? 0),
-      paidCount: Number(row?.paidCount ?? 0),
-      cancelledCount: Number(row?.cancelledCount ?? 0),
-      totalRentPaise: Number(row?.totalRentPaise ?? 0),
-      collectedPaise: Number(row?.collectedPaise ?? 0),
-      outstandingPaise:
-        Number(row?.totalRentPaise ?? 0) - Number(row?.collectedPaise ?? 0),
-    };
+    const { getPortfolioRentStats } = await import('@/src/services/residentFinancialEngine');
+    return getPortfolioRentStats();
   });
 }
 

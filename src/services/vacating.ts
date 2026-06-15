@@ -44,6 +44,7 @@ import { isNoticeCompliant, vacatingPenalty } from './billing';
 import { recordDepositDeducted, recordDepositRefunded, getDepositSummaryForBooking } from './deposits';
 import { cancelFutureRentInvoices } from './rentInvoices';
 import { cancelElectricityInvoicesForBooking } from './electricityBilling';
+import { recalculateBillingAfterVacatingRestore } from './residentFinancialEngine';
 
 async function vacatingEmailMeta(bookingId: string) {
   const [row] = await db
@@ -803,6 +804,10 @@ export async function adminWithdrawVacatingRequest(input: {
 
   if (current.status === 'approved') {
     await restoreOpenEndedStay(current.bookingId);
+    await recalculateBillingAfterVacatingRestore({
+      bookingId: current.bookingId,
+      adminId: input.resolvedByAdminId,
+    });
   }
 
   await db.delete(vacatingRequests).where(eq(vacatingRequests.id, current.id));
@@ -839,6 +844,10 @@ export async function revertVacatingApproval(input: {
   }
 
   await restoreOpenEndedStay(current.bookingId);
+  await recalculateBillingAfterVacatingRestore({
+    bookingId: current.bookingId,
+    adminId: input.resolvedByAdminId,
+  });
 
   const [updated] = await db
     .update(vacatingRequests)

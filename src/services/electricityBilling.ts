@@ -110,7 +110,7 @@ export type ElectricityInvoiceView = {
    * `paid`    → late fee locked
    * `cancelled` → no penalty, no outstanding
    */
-  effectiveStatus: 'pending' | 'overdue' | 'paid' | 'cancelled';
+  effectiveStatus: 'pending' | 'partial' | 'overdue' | 'paid' | 'cancelled';
   accruedLateFeePaise: number;
   outstandingPaise: number;
   daysOverdue: number;
@@ -151,11 +151,18 @@ export function projectElectricityInvoice(
     accrued > 0
       ? Math.max(0, Math.floor((parseDate(today).getTime() - parseDate(invoice.dueDate).getTime()) / 86_400_000))
       : 0;
+  const outstandingPaise = Math.max(0, invoice.amountPaise + accrued - invoice.paidPaise);
+  const hasPartial = outstandingPaise > 0 && invoice.paidPaise > 0;
+  const effectiveStatus = hasPartial
+    ? 'partial'
+    : accrued > 0
+      ? 'overdue'
+      : 'pending';
   return {
     invoice,
-    effectiveStatus: accrued > 0 ? 'overdue' : 'pending',
+    effectiveStatus,
     accruedLateFeePaise: accrued,
-    outstandingPaise: invoice.amountPaise + accrued - invoice.paidPaise,
+    outstandingPaise,
     daysOverdue: overdueDays,
   };
 }
@@ -606,28 +613,33 @@ export async function recordElectricityPaymentSuccess(
   | { ok: false; reason: string }
 > {
   const [invoice] = await db
-    .select({
-      id: electricityInvoices.id,
-      bookingId: electricityInvoices.bookingId,
-      customerId: electricityInvoices.customerId,
-      billingMonth: electricityInvoices.billingMonth,
-      status: electricityInvoices.status,
-      amountPaise: electricityInvoices.amountPaise,
-      dueDate: electricityInvoices.dueDate,
-    })
+    .select()
     .from(electricityInvoices)
     .where(eq(electricityInvoices.id, input.invoiceId))
     .limit(1);
   if (!invoice) return { ok: false, reason: `no electricity invoice ${input.invoiceId}` };
   if (invoice.status === 'cancelled') return { ok: false, reason: 'invoice cancelled' };
+  if (invoice.status === 'paid') {
+    return { ok: true, paymentId: '', invoiceId: invoice.id, stateChanged: false };
+  }
 
-  // Snapshot the accrued late fee NOW so future renders don't keep
-  // ticking up. `today` is "the moment of payment".
+  const projected = projectElectricityInvoice(invoice as ElectricityInvoice);
+  if (input.amountPaise <= 0) return { ok: false, reason: 'payment amount must be > 0' };
+  if (input.amountPaise > projected.outstandingPaise) {
+    return {
+      ok: false,
+      reason: `payment ${input.amountPaise} exceeds outstanding ${projected.outstandingPaise}`,
+    };
+  }
+
   const lockedLateFee = computeElectricityLateFee({
     amountPaise: invoice.amountPaise,
     dueDate: invoice.dueDate,
     today: formatDate(new Date()),
   });
+  const newPaidPaise = invoice.paidPaise + input.amountPaise;
+  const totalDue = invoice.amountPaise + lockedLateFee;
+  const fullyPaid = newPaidPaise >= totalDue;
 
   const provider = (input.offlineProvider ?? input.provider) as AnyPaymentProvider;
 
@@ -665,11 +677,11 @@ export async function recordElectricityPaymentSuccess(
       await tx
         .update(electricityInvoices)
         .set({
-          status: 'paid',
-          paidPaise: invoice.amountPaise + lockedLateFee,
-          lateFeeLockedPaise: lockedLateFee,
-          paymentId: payment.id,
-          paidAt: new Date(),
+          status: fullyPaid ? 'paid' : 'pending',
+          paidPaise: newPaidPaise,
+          lateFeeLockedPaise: fullyPaid ? lockedLateFee : invoice.lateFeeLockedPaise,
+          paymentId: fullyPaid ? payment.id : undefined,
+          paidAt: fullyPaid ? new Date() : undefined,
           updatedAt: new Date(),
         })
         .where(eq(electricityInvoices.id, invoice.id));
@@ -679,13 +691,13 @@ export async function recordElectricityPaymentSuccess(
         actorId: null,
         entity: 'electricity_invoice',
         entityId: invoice.id,
-        action: 'paid',
+        action: fullyPaid ? 'paid' : 'partial_payment',
         diff: {
           provider,
           providerPaymentId: input.providerPaymentId,
           amountPaise: input.amountPaise,
-          principalPaise: invoice.amountPaise,
-          lateFeeLockedPaise: lockedLateFee,
+          paidPaise: newPaidPaise,
+          outstandingPaise: Math.max(0, totalDue - newPaidPaise),
         },
       });
 

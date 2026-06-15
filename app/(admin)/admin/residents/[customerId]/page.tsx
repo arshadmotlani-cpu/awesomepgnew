@@ -7,6 +7,7 @@ import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { BedAssignmentWhatsAppButton } from '@/src/components/admin/BedAssignmentWhatsAppButton';
 import { EditTenantTenancyForm } from '@/src/components/admin/EditTenantTenancyForm';
 import { RentUpdatedSuccessBanner } from '@/src/components/admin/RentUpdatedSuccessBanner';
+import { ResidentFinancialSummaryCard } from '@/src/components/admin/ResidentFinancialSummaryCard';
 import { ResidentActionBar } from '@/src/components/admin/ResidentActionBar';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
@@ -22,11 +23,7 @@ import {
   listAssignableBeds,
 } from '@/src/services/tenantAssignment';
 import { loadBedPrice, computeMonthlyDepositPaise } from '@/src/services/pricing';
-import { projectElectricityInvoice } from '@/src/services/electricityBilling';
-import { projectInvoice } from '@/src/services/rentInvoices';
-import { db } from '@/src/db/client';
-import { rentInvoices as rentInvoicesTable, electricityInvoices as electricityInvoicesTable, bookings as bookingsTable } from '@/src/db/schema';
-import { and, eq, inArray } from 'drizzle-orm';
+import { getResidentFinancialSummary } from '@/src/services/residentFinancialEngine';
 
 export const dynamic = 'force-dynamic';
 
@@ -93,72 +90,10 @@ export default async function ResidentDetailPage({
   const pendingKycSubmissionId =
     latestKyc?.status === 'pending' ? latestKyc.id : null;
 
-  let pendingRent: { rentPaise: number; dueDate: string; isOverdue: boolean } | null = null;
-  if (activeTenancy) {
-    const [inv] = await db
-      .select()
-      .from(rentInvoicesTable)
-      .where(
-        and(
-          eq(rentInvoicesTable.bookingId, activeTenancy.bookingId),
-          inArray(rentInvoicesTable.status, ['pending', 'overdue']),
-        ),
-      )
-      .orderBy(rentInvoicesTable.dueDate)
-      .limit(1);
-    if (inv) {
-      const projected = projectInvoice(inv);
-      pendingRent = {
-        rentPaise: projected.outstandingPaise,
-        dueDate: inv.dueDate,
-        isOverdue: projected.effectiveStatus === 'overdue',
-      };
-    }
-  }
+  const financialSummary = await getResidentFinancialSummary(customerId);
 
-  let pendingElectricity: {
-    amountPaise: number;
-    basePaise: number;
-    dueDate: string;
-    isOverdue: boolean;
-    invoiceNumber: string;
-  } | null = null;
-  let depositDuePaise = 0;
-  let depositCollectionStatus: string | undefined;
-  if (activeTenancy) {
-    const [elec] = await db
-      .select()
-      .from(electricityInvoicesTable)
-      .where(
-        and(
-          eq(electricityInvoicesTable.bookingId, activeTenancy.bookingId),
-          eq(electricityInvoicesTable.status, 'pending'),
-        ),
-      )
-      .orderBy(electricityInvoicesTable.dueDate)
-      .limit(1);
-    if (elec) {
-      const projected = projectElectricityInvoice(elec);
-      pendingElectricity = {
-        amountPaise: projected.outstandingPaise,
-        basePaise: elec.amountPaise,
-        dueDate: elec.dueDate,
-        isOverdue: projected.effectiveStatus === 'overdue',
-        invoiceNumber: elec.invoiceNumber,
-      };
-    }
-
-    const [bookingRow] = await db
-      .select({
-        depositDuePaise: bookingsTable.depositDuePaise,
-        depositCollectionStatus: bookingsTable.depositCollectionStatus,
-      })
-      .from(bookingsTable)
-      .where(eq(bookingsTable.id, activeTenancy.bookingId))
-      .limit(1);
-    depositDuePaise = bookingRow?.depositDuePaise ?? 0;
-    depositCollectionStatus = bookingRow?.depositCollectionStatus ?? undefined;
-  }
+  const firstOpenRent = financialSummary?.rent.items.find((l) => l.outstandingPaise > 0);
+  const firstOpenElec = financialSummary?.electricity.items.find((l) => l.outstandingPaise > 0);
 
   let websiteDepositPaise = 0;
   if (activeTenancy) {
@@ -278,6 +213,10 @@ export default async function ResidentDetailPage({
         </div>
       ) : null}
 
+      {financialSummary && activeTenancy ? (
+        <ResidentFinancialSummaryCard summary={financialSummary} />
+      ) : null}
+
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className={SURFACE}>
           <p className="text-xs font-medium uppercase tracking-wide text-apg-silver">Status</p>
@@ -351,17 +290,17 @@ export default async function ResidentDetailPage({
             roomNumber={activeTenancy.roomNumber}
             bookingId={activeTenancy.bookingId}
             monthlyRentPaise={activeTenancy.monthlyRentPaise}
-            pendingRentPaise={pendingRent?.rentPaise}
-            rentDueDate={pendingRent?.dueDate}
-            rentOverdue={pendingRent?.isOverdue}
-            depositDuePaise={depositDuePaise}
-            depositCollectionStatus={depositCollectionStatus}
-            depositRefundablePaise={depositSummary?.refundableBalancePaise}
-            pendingElectricityPaise={pendingElectricity?.amountPaise}
-            electricityBasePaise={pendingElectricity?.basePaise}
-            electricityDueDate={pendingElectricity?.dueDate}
-            electricityOverdue={pendingElectricity?.isOverdue}
-            electricityInvoiceNumber={pendingElectricity?.invoiceNumber}
+            pendingRentPaise={firstOpenRent?.outstandingPaise ?? financialSummary?.rent.outstandingPaise}
+            rentDueDate={firstOpenRent?.dueDate ?? undefined}
+            rentOverdue={firstOpenRent?.status === 'overdue'}
+            depositDuePaise={financialSummary?.deposit.outstandingPaise}
+            depositCollectionStatus={financialSummary?.deposit.outstandingPaise ? 'partial' : undefined}
+            depositRefundablePaise={financialSummary?.deposit.refundablePaise}
+            pendingElectricityPaise={firstOpenElec?.outstandingPaise}
+            electricityBasePaise={firstOpenElec?.requiredPaise}
+            electricityDueDate={firstOpenElec?.dueDate ?? undefined}
+            electricityOverdue={firstOpenElec?.status === 'overdue'}
+            electricityInvoiceNumber={firstOpenElec?.invoiceNumber ?? undefined}
           />
         </div>
       ) : null}

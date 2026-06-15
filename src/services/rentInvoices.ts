@@ -94,7 +94,7 @@ export type RentInvoiceView = RentInvoice & {
   /** rent + late fee - paid. 0 if fully paid. */
   outstandingPaise: number;
   /** Effective UI status — computes overdue dynamically when stored status is `pending`. */
-  effectiveStatus: 'pending' | 'paid' | 'overdue' | 'cancelled';
+  effectiveStatus: 'pending' | 'partial' | 'paid' | 'overdue' | 'cancelled';
 };
 
 export type RecordRentPaymentSuccessInput = {
@@ -476,6 +476,9 @@ export async function recordRentPaymentSuccess(
       status: rentInvoices.status,
       rentPaise: rentInvoices.rentPaise,
       billingMonth: rentInvoices.billingMonth,
+      paidPrincipalPaise: rentInvoices.paidPrincipalPaise,
+      paidLateFeePaise: rentInvoices.paidLateFeePaise,
+      lateFeeLockedPaise: rentInvoices.lateFeeLockedPaise,
     })
     .from(rentInvoices)
     .where(eq(rentInvoices.id, input.invoiceId))
@@ -509,12 +512,41 @@ export async function recordRentPaymentSuccess(
     };
   }
 
-  // Snapshot the late fee accrued AT PAYMENT TIME so the customer ledger
-  // doesn't keep accruing after the payment lands.
+  if (invoice.status === 'paid') {
+    return {
+      ok: true,
+      paymentId: '',
+      invoiceId: invoice.id,
+      stateChanged: false,
+    };
+  }
+
+  const projected = projectInvoice(invoice as RentInvoice);
+  if (input.amountPaise <= 0) {
+    return { ok: false, reason: 'payment amount must be > 0' };
+  }
+  if (input.amountPaise > projected.outstandingPaise) {
+    return {
+      ok: false,
+      reason: `payment ${input.amountPaise} exceeds outstanding ${projected.outstandingPaise}`,
+    };
+  }
+
   const lateFee = computeLateFee({
     rentPaise: invoice.rentPaise,
     billingMonth: invoice.billingMonth,
   });
+
+  let remaining = input.amountPaise;
+  const lateOwed = Math.max(0, lateFee - invoice.paidLateFeePaise);
+  const latePaid = Math.min(remaining, lateOwed);
+  remaining -= latePaid;
+  const principalOwed = Math.max(0, invoice.rentPaise - invoice.paidPrincipalPaise);
+  const principalPaid = Math.min(remaining, principalOwed);
+  const newPaidLate = invoice.paidLateFeePaise + latePaid;
+  const newPaidPrincipal = invoice.paidPrincipalPaise + principalPaid;
+  const newOutstanding = invoice.rentPaise + lateFee - newPaidPrincipal - newPaidLate;
+  const fullyPaid = newOutstanding <= 0;
 
   try {
     const result = await db.transaction(async (tx) => {
@@ -536,20 +568,16 @@ export async function recordRentPaymentSuccess(
       await tx
         .update(rentInvoices)
         .set({
-          status: 'paid',
-          paidPrincipalPaise: invoice.rentPaise,
-          paidLateFeePaise: lateFee,
-          lateFeeLockedPaise: lateFee,
-          paymentId: payment.id,
-          paidAt: new Date(),
+          status: fullyPaid ? 'paid' : invoice.status === 'overdue' ? 'overdue' : 'pending',
+          paidPrincipalPaise: newPaidPrincipal,
+          paidLateFeePaise: newPaidLate,
+          lateFeeLockedPaise: fullyPaid ? lateFee : invoice.lateFeeLockedPaise,
+          paymentId: fullyPaid ? payment.id : null,
+          paidAt: fullyPaid ? new Date() : undefined,
           updatedAt: new Date(),
         })
         .where(
-          and(
-            eq(rentInvoices.id, invoice.id),
-            // Re-check non-cancellation under the transaction.
-            ne(rentInvoices.status, 'cancelled'),
-          ),
+          and(eq(rentInvoices.id, invoice.id), ne(rentInvoices.status, 'cancelled')),
         );
 
       await tx.insert(auditLog).values({
@@ -557,13 +585,16 @@ export async function recordRentPaymentSuccess(
         actorId: null,
         entity: 'rent_invoice',
         entityId: invoice.id,
-        action: 'paid',
+        action: fullyPaid ? 'paid' : 'partial_payment',
         diff: {
           provider,
           providerPaymentId: input.providerPaymentId,
           amountPaise: input.amountPaise,
           rentPaise: invoice.rentPaise,
-          lateFeeLockedPaise: lateFee,
+          paidPrincipalPaise: newPaidPrincipal,
+          paidLateFeePaise: newPaidLate,
+          lateFeeLockedPaise: fullyPaid ? lateFee : invoice.lateFeeLockedPaise,
+          outstandingPaise: Math.max(0, newOutstanding),
         },
       });
 
@@ -772,12 +803,19 @@ export function projectInvoice(
   const outstanding = invoice.rentPaise + lateFee
     - invoice.paidPrincipalPaise
     - invoice.paidLateFeePaise;
-  const effectiveStatus =
-    daysOverdue(invoice.billingMonth, asOf) > 0 ? 'overdue' : 'pending';
+  const outstandingPaise = Math.max(0, outstanding);
+  const hasPartial =
+    outstandingPaise > 0 &&
+    (invoice.paidPrincipalPaise > 0 || invoice.paidLateFeePaise > 0);
+  const effectiveStatus = hasPartial
+    ? 'partial'
+    : daysOverdue(invoice.billingMonth, asOf) > 0
+      ? 'overdue'
+      : 'pending';
   return {
     ...invoice,
     accruedLateFeePaise: lateFee,
-    outstandingPaise: Math.max(0, outstanding),
+    outstandingPaise,
     effectiveStatus,
   };
 }
