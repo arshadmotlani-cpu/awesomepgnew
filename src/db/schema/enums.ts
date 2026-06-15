@@ -230,6 +230,25 @@ export const paymentLinkPurposeEnum = pgEnum('payment_link_purpose', [
   'deposit',
 ]);
 
+export const financialInvoiceTypeEnum = pgEnum('financial_invoice_type', [
+  'rent',
+  'deposit',
+  'electricity',
+  'ps4',
+  'penalty',
+  'damage',
+  'custom',
+]);
+
+export const financialInvoiceStatusEnum = pgEnum('financial_invoice_status', [
+  'draft',
+  'sent',
+  'paid',
+  'overdue',
+  'cancelled',
+  'refunded',
+]);
+
 export const paymentLinkStatusEnum = pgEnum('payment_link_status', [
   'active',
   'paid',
@@ -262,3 +281,5 @@ export type ActionItemPriority = (typeof actionItemPriorityEnum.enumValues)[numb
 export type DepositCollectionStatus = (typeof depositCollectionStatusEnum.enumValues)[number];
 export type PaymentLinkPurpose = (typeof paymentLinkPurposeEnum.enumValues)[number];
 export type PaymentLinkStatus = (typeof paymentLinkStatusEnum.enumValues)[number];
+export type FinancialInvoiceType = (typeof financialInvoiceTypeEnum.enumValues)[number];
+export type FinancialInvoiceStatus = (typeof financialInvoiceStatusEnum.enumValues)[number];

@@ -289,7 +289,7 @@ export function BookingCheckoutExperience({
               <>
                 {discountPaise > 0 ? (
                   <li className="flex justify-between gap-4 text-emerald-300">
-                    <span>Rent discount (10%)</span>
+                    <span>Promo discount</span>
                     <span className="font-medium">−{paiseToInr(discountPaise)}</span>
                   </li>
                 ) : null}

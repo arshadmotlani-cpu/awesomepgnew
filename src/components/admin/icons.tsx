@@ -81,6 +81,13 @@ export const IconClipboard = (props: IconProps) => (
   </svg>
 );
 
+export const IconDocument = (props: IconProps) => (
+  <svg {...base(props)}>
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <path d="M14 2v6h6M8 13h8M8 17h5" />
+  </svg>
+);
+
 export const IconCard = (props: IconProps) => (
   <svg {...base(props)}>
     <rect x="2" y="5" width="20" height="14" rx="2" />

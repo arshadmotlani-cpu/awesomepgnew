@@ -57,8 +57,14 @@ export default async function CollectionsModulePage({
       />
       <PageHeader
         title="Collections"
-        description="Pending payments, invoice status, QR approvals, and paid history — separate from revenue analytics."
+        description="Pending payments, invoice status, QR approvals, and paid history. Active collections are driven by the unified invoice registry."
       />
+      <p className="mb-4 text-sm text-apg-silver">
+        <Link href="/admin/invoices" className="font-semibold text-[#FF5A1F] hover:underline">
+          Open Invoices →
+        </Link>{' '}
+        — single source of truth (paid − cancelled − refunded). Cancelled and refunded invoices are excluded from revenue.
+      </p>
 
       {rentStats.ok ? (
         <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">

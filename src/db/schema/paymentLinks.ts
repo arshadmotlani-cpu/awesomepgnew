@@ -18,6 +18,7 @@ export const paymentLinks = pgTable(
     purpose: paymentLinkPurposeEnum('purpose').notNull(),
     upiQrUrl: text('upi_qr_url').notNull(),
     whatsappShareUrl: text('whatsapp_share_url'),
+    invoiceId: uuid('invoice_id'),
     status: paymentLinkStatusEnum('status').notNull().default('active'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

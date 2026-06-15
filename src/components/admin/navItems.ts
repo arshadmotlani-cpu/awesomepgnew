@@ -7,6 +7,7 @@ import {
   IconCheckCircle,
   IconClipboard,
   IconDashboard,
+  IconDocument,
   IconSettings,
   IconUsers,
 } from './icons';
@@ -17,6 +18,7 @@ const MODULE_ICONS: Record<AdminModule, ComponentType<SVGProps<SVGSVGElement>>> 
   overview: IconDashboard,
   revenue: IconCard,
   collections: IconClipboard,
+  invoices: IconDocument,
   deposits: IconCard,
   operations: IconBed,
   analytics: IconChart,

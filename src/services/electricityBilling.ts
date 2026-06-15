@@ -557,6 +557,9 @@ export async function createElectricityBill(
       });
     }
 
+    const { syncManyToUnified } = await import('@/src/services/unifiedInvoices');
+    void syncManyToUnified(result.invoiceIds, 'electricity');
+
     return {
       ok: true,
       billId: result.billId,
@@ -697,6 +700,9 @@ export async function recordElectricityPaymentSuccess(
       reference: invoice.billingMonth,
     });
 
+    const { syncElectricityInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
+    void syncElectricityInvoiceToUnified(invoice.id);
+
     return { ok: true, paymentId: result.paymentId, invoiceId: invoice.id, stateChanged: true };
   } catch (err) {
     if (pgErrorCode(err) === '23505') {
@@ -801,5 +807,12 @@ export async function cancelElectricityInvoicesForBooking(
       ),
     )
     .returning({ id: electricityInvoices.id });
+  if (rows.length > 0) {
+    const { syncManyToUnified } = await import('@/src/services/unifiedInvoices');
+    void syncManyToUnified(
+      rows.map((r) => r.id),
+      'electricity',
+    );
+  }
   return { cancelled: rows.length, ids: rows.map((r) => r.id) };
 }

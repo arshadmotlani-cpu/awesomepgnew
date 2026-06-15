@@ -44,6 +44,7 @@ export * from './automationEvents';
 export * from './automationActions';
 export * from './actionItems';
 export * from './paymentLinks';
+export * from './financialInvoices';
 export * from './couponRedemptions';
 export * from './residentRequests';
 export * from './adminNotifications';

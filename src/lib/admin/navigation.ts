@@ -2,6 +2,7 @@ export type AdminModule =
   | 'overview'
   | 'revenue'
   | 'collections'
+  | 'invoices'
   | 'deposits'
   | 'pgs'
   | 'residents'
@@ -39,6 +40,13 @@ export const ADMIN_MODULES: Record<AdminModule, AdminModuleMeta> = {
     label: 'Collections',
     description: 'Pending payments, invoices, QR approvals, paid history',
     href: '/admin/collections',
+    sidebar: true,
+  },
+  invoices: {
+    id: 'invoices',
+    label: 'Invoices',
+    description: 'Unified billing — rent, deposit, electricity, PS4, penalties, and custom charges',
+    href: '/admin/invoices',
     sidebar: true,
   },
   deposits: {

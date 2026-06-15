@@ -260,10 +260,7 @@ export function BookingCartForm({
         <dl className="mt-4 space-y-1.5 text-sm">
           <Row term="Subtotal" value={paiseToInr(subtotalPaise)} />
           {couponDiscountPaise > 0 ? (
-            <Row
-              term="Rent discount (10%)"
-              value={`−${paiseToInr(couponDiscountPaise)}`}
-            />
+            <Row term="Promo discount" value={`−${paiseToInr(couponDiscountPaise)}`} />
           ) : null}
           <Row term="Refundable deposit" value={paiseToInr(depositPaise)} />
           {depositCreditAppliedPaise > 0 ? (

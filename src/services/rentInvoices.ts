@@ -361,6 +361,8 @@ export async function generateRentInvoicesForMonth(
     if (inserted) {
       created += 1;
       invoiceIds.push(inserted.id);
+      const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
+      void syncRentInvoiceToUnified(inserted.id);
       await db.insert(auditLog).values({
         actorType: 'system',
         actorId: null,
@@ -427,6 +429,11 @@ export async function markOverdueInvoices(
         action: 'marked_overdue',
         diff: { asOf: today },
       })),
+    );
+    const { syncManyToUnified } = await import('@/src/services/unifiedInvoices');
+    void syncManyToUnified(
+      rows.map((r) => r.id),
+      'rent',
     );
   }
   return { updated: rows.length, updatedInvoiceIds: rows.map((r) => r.id) };
@@ -581,6 +588,9 @@ export async function recordRentPaymentSuccess(
         paymentPurpose: 'rent',
       });
     }
+
+    const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
+    void syncRentInvoiceToUnified(invoice.id);
 
     return {
       ok: true,
@@ -787,6 +797,11 @@ export async function cancelFutureRentInvoices(
         action: 'cancelled',
         diff: { reason, asOf: today },
       })),
+    );
+    const { syncManyToUnified } = await import('@/src/services/unifiedInvoices');
+    void syncManyToUnified(
+      rows.map((r) => r.id),
+      'rent',
     );
   }
   return { cancelled: rows.length, ids: rows.map((r) => r.id) };

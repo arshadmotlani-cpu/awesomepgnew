@@ -5,7 +5,6 @@ import {
   previewDateCouponAction,
   type PreviewCouponState,
 } from '@/app/(customer)/booking/new/couponActions';
-import { DATE_COUPON_DISCOUNT_PCT } from '@/src/lib/dateCoupon';
 import { paiseToInr } from '@/src/lib/format';
 
 export function CouponCodeField({
@@ -42,7 +41,7 @@ export function CouponCodeField({
   return (
     <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-3">
       <label className="block text-xs font-medium text-zinc-700">
-        Coupon code <span className="text-zinc-400">(optional)</span>
+        Promo code <span className="text-zinc-400">(optional)</span>
       </label>
       <div className="mt-2 flex gap-2">
         <input
@@ -55,9 +54,8 @@ export function CouponCodeField({
               onDiscountChange(0);
             }
           }}
-          placeholder="DDMMYY"
-          inputMode="numeric"
-          maxLength={6}
+          placeholder="Enter code if you have one"
+          autoComplete="off"
           className="h-9 flex-1 rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
         />
         <button
@@ -71,15 +69,11 @@ export function CouponCodeField({
       </div>
       {preview.status === 'applied' ? (
         <p className="mt-2 text-xs text-emerald-700">
-          {DATE_COUPON_DISCOUNT_PCT}% rent discount applied — save {paiseToInr(preview.discountPaise)}
+          Promo applied — you save {paiseToInr(preview.discountPaise)}
         </p>
       ) : preview.status === 'invalid' ? (
-        <p className="mt-2 text-xs text-rose-600">Invalid coupon</p>
-      ) : (
-        <p className="mt-2 text-xs text-zinc-500">
-          {DATE_COUPON_DISCOUNT_PCT}% off rent only — deposit unchanged.
-        </p>
-      )}
+        <p className="mt-2 text-xs text-rose-600">Invalid or expired promo code</p>
+      ) : null}
     </div>
   );
 }

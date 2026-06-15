@@ -974,12 +974,17 @@ export function getPgBusinessMetrics(
       other_deduction_paise: number;
     };
 
+    type InvoiceNetPgRow = {
+      pg_id: string;
+      invoice_type: string;
+      net_paise: number;
+    };
+
     const [
       occupancy,
       rentQrRows,
       electricityQrRows,
-      rentRows,
-      elecRows,
+      invoiceNetRows,
       expectedRows,
       lateFeeRows,
       depositRows,
@@ -1007,28 +1012,19 @@ export function getPgBusinessMetrics(
           and(eq(pgPaymentRecords.status, 'approved'), electricityQrCategorySql, monthMatch),
         )
         .groupBy(pgPaymentRecords.pgId),
-      db
-        .select({
-          pgId: rentInvoices.pgId,
-          total: sql<number>`coalesce(sum(${rentInvoices.paidPrincipalPaise} + ${rentInvoices.paidLateFeePaise}), 0)::bigint::int`,
-        })
-        .from(rentInvoices)
-        .where(and(eq(rentInvoices.status, 'paid'), eq(rentInvoices.billingMonth, billingMonth)))
-        .groupBy(rentInvoices.pgId),
-      db
-        .select({
-          pgId: electricityBills.pgId,
-          total: sql<number>`coalesce(sum(${electricityInvoices.paidPaise} + coalesce(${electricityInvoices.lateFeeLockedPaise}, 0)), 0)::bigint::int`,
-        })
-        .from(electricityInvoices)
-        .innerJoin(electricityBills, eq(electricityBills.id, electricityInvoices.electricityBillId))
-        .where(
-          and(
-            eq(electricityInvoices.status, 'paid'),
-            eq(electricityInvoices.billingMonth, billingMonth),
-          ),
-        )
-        .groupBy(electricityBills.pgId),
+      db.execute<InvoiceNetPgRow>(sql`
+        SELECT
+          fi.pg_id,
+          fi.invoice_type,
+          (
+            COALESCE(SUM(fi.amount_paise) FILTER (WHERE fi.status = 'paid'), 0)
+            - COALESCE(SUM(fi.amount_paise) FILTER (WHERE fi.status = 'cancelled'), 0)
+            - COALESCE(SUM(fi.amount_paise) FILTER (WHERE fi.status = 'refunded'), 0)
+          )::bigint::int AS net_paise
+        FROM financial_invoices fi
+        WHERE fi.billing_month = ${billingMonth}::date
+        GROUP BY fi.pg_id, fi.invoice_type
+      `),
       db.execute<{ pg_id: string; total: number }>(sql`
         SELECT pg_id, coalesce(sum(monthly_rent_paise), 0)::bigint::int AS total
         FROM (
@@ -1090,8 +1086,16 @@ export function getPgBusinessMetrics(
 
     const rentQrMap = new Map(rentQrRows.map((r) => [r.pgId, r.total]));
     const electricityQrMap = new Map(electricityQrRows.map((r) => [r.pgId, r.total]));
-    const rentMap = new Map(rentRows.map((r) => [r.pgId, r.total]));
-    const elecMap = new Map(elecRows.map((r) => [r.pgId, r.total]));
+    const rentMap = new Map<string, number>();
+    const elecMap = new Map<string, number>();
+    for (const row of Array.from(invoiceNetRows)) {
+      const net = asPlainNumber(row.net_paise);
+      if (row.invoice_type === 'rent') {
+        rentMap.set(row.pg_id, (rentMap.get(row.pg_id) ?? 0) + net);
+      } else if (row.invoice_type === 'electricity') {
+        elecMap.set(row.pg_id, (elecMap.get(row.pg_id) ?? 0) + net);
+      }
+    }
     const expectedMap = new Map(
       Array.from(expectedRows).map((r) => [r.pg_id, r.total]),
     );
