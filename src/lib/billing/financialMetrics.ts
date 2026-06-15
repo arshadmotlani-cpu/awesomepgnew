@@ -160,6 +160,16 @@ export async function sumPaidRentForBillingMonth(billingMonth: string): Promise<
   return Number(row?.total ?? 0);
 }
 
+/** Re-export resident financial engine — use for all outstanding/required/paid figures. */
+export {
+  getResidentFinancialSummary,
+  getBookingFinancialSummary,
+  getGlobalFinancialAggregates,
+  getPortfolioFinancialTotals,
+  getPortfolioRentStats,
+  recalculateBillingAfterVacatingRestore,
+} from '@/src/services/residentFinancialEngine';
+
 /** Count non-cancelled invoices that still contribute to outstanding (pending/overdue/paid). */
 export function activeRentInvoiceStatuses() {
   return ['pending', 'overdue', 'paid'] as const;
