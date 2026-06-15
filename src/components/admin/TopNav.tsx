@@ -1,3 +1,4 @@
+import { AdminNotificationCenter } from '@/src/components/admin/AdminNotificationCenter';
 import { getAdminSession } from '@/src/lib/auth/session';
 import { LogoutButton } from '@/src/components/auth/LogoutButton';
 import { MobileNav } from './MobileNav';
@@ -5,6 +6,7 @@ import type { AdminNavBadges } from '@/src/services/adminNavBadges';
 
 export async function TopNav({ badges = {} }: { badges?: AdminNavBadges }) {
   const adminSession = await getAdminSession();
+  const unreadTotal = badges.overview ?? 0;
 
   return (
     <header className="sticky top-0 z-40 flex min-h-14 w-full max-w-[100vw] items-center gap-2 border-b border-white/5 bg-[#0B0F14] px-3 pt-[env(safe-area-inset-top)] sm:gap-3 sm:px-4 lg:px-6">
@@ -21,6 +23,7 @@ export async function TopNav({ badges = {} }: { badges?: AdminNavBadges }) {
 
       <div className="ml-auto flex shrink-0 items-center">
         <div className="flex items-center gap-1 sm:gap-2">
+          <AdminNotificationCenter initialUnread={unreadTotal} />
           <div
             className="hidden items-center gap-2 rounded-md border border-white/10 bg-[#1A1F27] px-2 py-1 sm:flex"
             title={adminSession?.fullName ?? 'Admin'}

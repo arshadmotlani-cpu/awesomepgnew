@@ -229,6 +229,7 @@ export async function recordPaymentSuccess(
       depositPaise: bookings.depositPaise,
       customerId: bookings.customerId,
       bookingCode: bookings.bookingCode,
+      pricingSnapshot: bookings.pricingSnapshot,
     })
     .from(bookings)
     .where(eq(bookings.bookingCode, input.bookingCode))
@@ -368,19 +369,46 @@ export async function recordPaymentSuccess(
 
     if (!isReserveBooking && booking.depositPaise > 0) {
       try {
-        const { recordDepositCollected } = await import('./deposits');
-        await recordDepositCollected({
-          bookingId: booking.id,
-          customerId: booking.customerId,
-          amountPaise: booking.depositPaise,
-          reason: `deposit captured with payment ${input.providerPaymentId}`,
-          relatedPaymentId: result.paymentId,
-        });
+        const snapshot = booking.pricingSnapshot as PricingSnapshot | null;
+        const creditApplied = snapshot?.depositCredit?.appliedPaise ?? 0;
+        const paidDepositPaise = booking.depositPaise - creditApplied;
+
+        if (creditApplied > 0) {
+          const { applyDepositCreditToBooking } = await import('./depositCredit');
+          const creditResult = await applyDepositCreditToBooking({
+            customerId: booking.customerId,
+            targetBookingId: booking.id,
+            creditPaise: creditApplied,
+          });
+          if (!creditResult.ok) {
+            console.error('deposit credit transfer failed:', creditResult.error);
+          }
+        }
+
+        if (paidDepositPaise > 0) {
+          const { recordDepositCollected } = await import('./deposits');
+          await recordDepositCollected({
+            bookingId: booking.id,
+            customerId: booking.customerId,
+            amountPaise: paidDepositPaise,
+            reason: `deposit captured with payment ${input.providerPaymentId}`,
+            relatedPaymentId: result.paymentId,
+          });
+        }
       } catch (depositErr) {
         // Log + continue; the operator can backfill from the admin
         // deposits page if this ever fires.
         console.error('deposit ledger mirror failed:', depositErr);
       }
+    }
+
+    try {
+      const { clearBedInterestForBooking } = await import('./bedNoticeInterest');
+      if (!isReserveBooking) {
+        await clearBedInterestForBooking(booking.id);
+      }
+    } catch (interestErr) {
+      console.error('clear bed interest after booking failed:', interestErr);
     }
 
     try {

@@ -29,6 +29,8 @@ type Props = {
   lineItems: CartLineItem[];
   subtotalPaise: number;
   depositPaise: number;
+  depositCreditAppliedPaise?: number;
+  additionalDepositDuePaise?: number;
   totalPaise: number;
   notes?: string;
   /** Pre-filled from the signed-in customer session (Phase 6). */
@@ -53,6 +55,8 @@ export function BookingCartForm({
   lineItems,
   subtotalPaise,
   depositPaise,
+  depositCreditAppliedPaise = 0,
+  additionalDepositDuePaise,
   totalPaise,
   defaultCustomer,
   showPs4Addon = false,
@@ -71,6 +75,8 @@ export function BookingCartForm({
   const ps4Paise = ps4AddonPaise(ps4Plan);
   const bookingTotalPaise = totalPaise - couponDiscountPaise;
   const checkoutTotalPaise = bookingTotalPaise + ps4Paise;
+  const depositDueNowPaise =
+    additionalDepositDuePaise ?? Math.max(0, depositPaise - depositCreditAppliedPaise);
 
   const conflictBedIds = new Set(
     state.status === 'error' ? state.conflictBedIds ?? [] : [],
@@ -258,6 +264,18 @@ export function BookingCartForm({
             />
           ) : null}
           <Row term="Refundable deposit" value={paiseToInr(depositPaise)} />
+          {depositCreditAppliedPaise > 0 ? (
+            <>
+              <Row
+                term="Deposit credit used"
+                value={`−${paiseToInr(depositCreditAppliedPaise)}`}
+              />
+              <Row
+                term="Additional deposit due"
+                value={paiseToInr(depositDueNowPaise)}
+              />
+            </>
+          ) : null}
           {ps4Paise > 0 && ps4Plan ? (
             <Row
               term={PS4_PLANS[ps4Plan].label + ' · ' + PS4_ADDON_LABEL}
@@ -272,6 +290,12 @@ export function BookingCartForm({
             {paiseToInr(checkoutTotalPaise)}
           </span>
         </div>
+        {depositCreditAppliedPaise > 0 ? (
+          <p className="mt-2 text-[11px] text-emerald-700">
+            {paiseToInr(depositCreditAppliedPaise)} from your deposit wallet is applied toward
+            this booking&apos;s security deposit.
+          </p>
+        ) : null}
         {ps4Paise > 0 ? (
           <p className="mt-2 text-[11px] text-zinc-500">
             Includes {paiseToInr(bookingTotalPaise)} for bed/deposit plus {paiseToInr(ps4Paise)} PS4

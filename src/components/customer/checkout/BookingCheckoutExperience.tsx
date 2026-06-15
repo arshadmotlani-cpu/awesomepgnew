@@ -31,6 +31,8 @@ export type BookingCheckoutExperienceProps = {
   membershipLabel?: string | null;
   existingProofRecordId?: string | null;
   discountPaise?: number;
+  depositCreditAppliedPaise?: number;
+  additionalDepositDuePaise?: number;
 };
 
 const PIPELINE = [
@@ -61,6 +63,8 @@ export function BookingCheckoutExperience({
   membershipLabel,
   existingProofRecordId,
   discountPaise = 0,
+  depositCreditAppliedPaise = 0,
+  additionalDepositDuePaise,
 }: BookingCheckoutExperienceProps) {
   const galleryInputId = useId();
   const cameraInputId = useId();
@@ -78,6 +82,8 @@ export function BookingCheckoutExperience({
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const hasScreenshot = Boolean(screenshotUrl);
+  const depositDueNowPaise =
+    additionalDepositDuePaise ?? Math.max(0, depositPaise - depositCreditAppliedPaise);
   const canSubmit = hasScreenshot && !uploading && !pending;
 
   const onFile = useCallback(
@@ -291,6 +297,18 @@ export function BookingCheckoutExperience({
                   <span>Refundable deposit</span>
                   <span className="font-medium text-white">{paiseToInr(depositPaise)}</span>
                 </li>
+                {depositCreditAppliedPaise > 0 ? (
+                  <>
+                    <li className="flex justify-between gap-4 text-emerald-300">
+                      <span>Deposit credit used</span>
+                      <span className="font-medium">−{paiseToInr(depositCreditAppliedPaise)}</span>
+                    </li>
+                    <li className="flex justify-between gap-4">
+                      <span>Additional deposit due</span>
+                      <span className="font-medium text-white">{paiseToInr(depositDueNowPaise)}</span>
+                    </li>
+                  </>
+                ) : null}
               </>
             ) : (
               <li className="flex justify-between gap-4">

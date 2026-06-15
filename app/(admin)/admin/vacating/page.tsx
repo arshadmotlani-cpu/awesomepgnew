@@ -17,7 +17,7 @@ import {
   UndoVacatingCompletionButton,
 } from '@/src/components/admin/VacatingActions';
 
-export const dynamic = 'force-dynamic';
+import { handleNotificationReadFromParams } from '@/src/lib/admin/notificationRead';
 
 const STATUS_FILTERS: Array<{
   label: string;
@@ -30,10 +30,15 @@ const STATUS_FILTERS: Array<{
   { label: 'Rejected', value: 'rejected' },
 ];
 
+export const dynamic = 'force-dynamic';
+
 export default async function AdminVacatingPage(
   props: PageProps<'/admin/vacating'>,
 ) {
   const sp = await props.searchParams;
+  const readParam = typeof sp.read === 'string' ? sp.read : undefined;
+  await handleNotificationReadFromParams('/admin/vacating', readParam);
+
   const rawStatus = typeof sp.status === 'string' ? sp.status : '';
   const status = STATUS_FILTERS.some((f) => f.value === rawStatus)
     ? (rawStatus as '' | 'pending' | 'approved' | 'completed' | 'rejected')

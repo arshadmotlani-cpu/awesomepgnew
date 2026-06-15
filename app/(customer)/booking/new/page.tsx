@@ -10,6 +10,10 @@ import { paiseToInr } from '@/src/lib/format';
 import { quoteBookingPrice } from '@/src/services/pricing';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
 import { getCustomerById, isProfileComplete } from '@/src/services/profile';
+import {
+  computeDepositDue,
+  getCustomerDepositCredit,
+} from '@/src/services/depositCredit';
 
 export const metadata = {
   title: 'Confirm your booking',
@@ -118,6 +122,8 @@ export default async function NewBookingPage(
   let lineItems: CartLineItem[] = [];
   let subtotalPaise = 0;
   let depositPaise = 0;
+  let depositCreditAppliedPaise = 0;
+  let additionalDepositDuePaise = 0;
   let totalPaise = 0;
   let quoteError: string | null = null;
 
@@ -131,7 +137,11 @@ export default async function NewBookingPage(
     });
     subtotalPaise = quote.subtotalPaise;
     depositPaise = quote.depositPaise;
-    totalPaise = quote.totalPaise;
+    const wallet = await getCustomerDepositCredit(session.customerId);
+    const depositDue = computeDepositDue(depositPaise, wallet.availableCreditPaise);
+    depositCreditAppliedPaise = depositDue.creditAppliedPaise;
+    additionalDepositDuePaise = depositDue.additionalDuePaise;
+    totalPaise = subtotalPaise + additionalDepositDuePaise;
     lineItems = quote.perBed.map((q) => {
       const bedMeta = cartBeds.find((c) => c.bedId === q.bedId);
       const bedLabel = bedMeta
@@ -226,6 +236,8 @@ export default async function NewBookingPage(
         lineItems={lineItems}
         subtotalPaise={subtotalPaise}
         depositPaise={depositPaise}
+        depositCreditAppliedPaise={depositCreditAppliedPaise}
+        additionalDepositDuePaise={additionalDepositDuePaise}
         totalPaise={totalPaise}
         defaultCustomer={{
           fullName: session.fullName,

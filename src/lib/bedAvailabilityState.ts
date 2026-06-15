@@ -103,11 +103,19 @@ export function deriveBedAvailabilityView(input: {
 
   if (input.isAvailableNow) {
     const holdInterest = input.interestCount ?? 0;
+    const bedInterest = input.noticeInterestCount ?? 0;
     if (holdInterest > 0) {
       return {
         kind: 'hold_interest',
         label: 'Open now',
         sublabel: `${holdInterest} booking${holdInterest === 1 ? '' : 's'} in progress`,
+      };
+    }
+    if (bedInterest > 0) {
+      return {
+        kind: 'open_now',
+        label: 'Open · book now',
+        sublabel: `${bedInterest} interested`,
       };
     }
     return { kind: 'open_now', label: 'Open · book now' };
@@ -201,13 +209,16 @@ export function deriveCustomerBedAvailabilityView(input: {
 
   if (input.isAvailableNow) {
     const holds = input.holdInterestCount ?? 0;
+    const interested = input.noticeInterestCount ?? 0;
     return {
       kind: 'open_now',
       label: 'Available',
       sublabel:
-        holds > 0
-          ? `${holds} checkout${holds === 1 ? '' : 's'} in progress — still bookable`
-          : 'Book this bed',
+        interested > 0
+          ? `${interested} ${interested === 1 ? 'person is' : 'people are'} interested · book now`
+          : holds > 0
+            ? `${holds} checkout${holds === 1 ? '' : 's'} in progress — still bookable`
+            : 'Book this bed',
     };
   }
 

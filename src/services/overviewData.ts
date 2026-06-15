@@ -13,6 +13,9 @@ import {
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { listOpenActionItems, syncActionItems } from '@/src/services/actionItems';
+import {
+  listAdminNotifications,
+} from '@/src/services/adminNotifications';
 import { getOperationsCenterData } from '@/src/services/operationsCenter';
 import { getRevenueCommandCenterData } from '@/src/services/revenueCommandCenter';
 import { getSentryDashboardUrl, getSystemHealthSnapshot } from '@/src/services/systemHealth';
@@ -37,6 +40,8 @@ export type OverviewContext = {
   sentryUrl: string | null;
   pgCount: number;
   pendingActionsCount: number;
+  unreadNotificationsCount: number;
+  unreadNotifications: Awaited<ReturnType<typeof listAdminNotifications>>;
   vacatingAlertsCount: number;
 };
 
@@ -141,6 +146,8 @@ export async function loadOverviewContext(
   void depositByPg; // reserved for future MTD deposit reconciliation per PG
 
   const pendingActionsCount = actionItems.length;
+  const unreadNotifications = await listAdminNotifications(session, 'unread', 20).catch(() => []);
+  const unreadNotificationsCount = unreadNotifications.length;
   const vacatingAlertsCount = operations?.leavingSoon.count ?? 0;
 
   return {
@@ -161,6 +168,8 @@ export async function loadOverviewContext(
       sentryUrl: getSentryDashboardUrl(),
       pgCount: pgs.ok ? pgs.data.length : metrics.data.length,
       pendingActionsCount,
+      unreadNotificationsCount,
+      unreadNotifications,
       vacatingAlertsCount,
     },
   };

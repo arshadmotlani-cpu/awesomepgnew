@@ -239,6 +239,12 @@ export const residentRequestStatusEnum = pgEnum('resident_request_status', [
   'completed',
 ]);
 
+export const adminNotificationStateEnum = pgEnum('admin_notification_state', [
+  'unread',
+  'read',
+  'archived',
+]);
+
 export type ActionItemType = (typeof actionItemTypeEnum.enumValues)[number];
 export type ActionItemStatus = (typeof actionItemStatusEnum.enumValues)[number];
 export type ActionItemPriority = (typeof actionItemPriorityEnum.enumValues)[number];

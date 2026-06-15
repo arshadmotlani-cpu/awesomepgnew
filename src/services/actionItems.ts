@@ -27,6 +27,7 @@ import { formatPgDisplayName } from '@/src/lib/operationsCenterRules';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
 import { projectElectricityInvoice } from '@/src/services/electricityBilling';
 import { syncResidentRequestActionItems } from '@/src/services/residentRequestActions';
+import { syncAdminNotificationsFromActionItems } from '@/src/services/adminNotifications';
 import { diffDays, formatDate } from '@/src/lib/dates';
 
 export type ActionItemRow = {
@@ -493,6 +494,8 @@ export async function syncActionItems(session: AdminSession): Promise<void> {
     syncMaintenanceIssues(session),
     syncResidentRequestActionItems(),
   ]);
+  const openItems = await listOpenActionItems(session);
+  await syncAdminNotificationsFromActionItems(openItems);
 }
 
 /** Unscoped super-admin session for cron jobs that sync all PGs. */

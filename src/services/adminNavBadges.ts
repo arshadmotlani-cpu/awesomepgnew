@@ -1,65 +1,38 @@
-import { and, eq, inArray, sql } from 'drizzle-orm';
-import { db } from '@/src/db/client';
-import { actionItems, kycSubmissions } from '@/src/db/schema';
-import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
 import type { AdminModule } from '@/src/lib/admin/navigation';
+import {
+  listAdminNotifications,
+  type AdminNotificationRow,
+} from '@/src/services/adminNotifications';
 
 export type AdminNavBadges = Partial<Record<AdminModule | 'deposits', number>>;
 
-/**
- * Unresolved counts for sidebar badges — only open / in_progress action items
- * and pending KYC submissions scoped to the admin's PG access.
- */
+const TYPE_TO_MODULE: Record<AdminNotificationRow['type'], AdminModule | 'deposits'> = {
+  kyc_pending: 'kyc',
+  rent_due: 'collections',
+  electricity_due: 'collections',
+  payment_received: 'collections',
+  vacating_alert: 'operations',
+  extension_request: 'operations',
+  maintenance_issue: 'operations',
+  refund_pending: 'deposits',
+  deposit_refund_request: 'deposits',
+};
+
+/** Sidebar badges — unread notifications only (WhatsApp-style). */
 export async function loadAdminNavBadges(session: AdminSession): Promise<AdminNavBadges> {
-  const pgScope = session.pgScope;
-  const isScoped = session.role !== 'super_admin' && pgScope.length > 0;
+  try {
+    const unread = await listAdminNotifications(session, 'unread', 500);
+    const badges: AdminNavBadges = {};
 
-  const actionRows = await db
-    .select({
-      type: actionItems.type,
-      pgId: actionItems.pgId,
-      count: sql<number>`count(*)::int`,
-    })
-    .from(actionItems)
-    .where(inArray(actionItems.status, ['open', 'in_progress']))
-    .groupBy(actionItems.type, actionItems.pgId);
+    for (const n of unread) {
+      const mod = TYPE_TO_MODULE[n.type] ?? 'overview';
+      badges[mod] = (badges[mod] ?? 0) + 1;
+    }
 
-  const counts: Record<string, number> = {};
-  for (const row of actionRows) {
-    if (isScoped && !adminCanAccessPg({ role: session.role, pgScope }, row.pgId)) continue;
-    counts[row.type] = (counts[row.type] ?? 0) + row.count;
+    badges.overview = unread.length;
+    return badges;
+  } catch {
+    return {};
   }
-
-  const kycConditions = [eq(kycSubmissions.status, 'pending')];
-  const kycRows = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(kycSubmissions)
-    .where(and(...kycConditions));
-
-  const kycPending = kycRows[0]?.count ?? 0;
-
-  const collections =
-    (counts.rent_due ?? 0) +
-    (counts.electricity_due ?? 0) +
-    (counts.payment_received ?? 0);
-
-  const operations =
-    (counts.vacating_alert ?? 0) +
-    (counts.deposit_refund_request ?? 0) +
-    (counts.extension_request ?? 0);
-
-  const deposits =
-    (counts.deposit_refund_request ?? 0) + (counts.refund_pending ?? 0);
-
-  const overviewTotal = Object.values(counts).reduce((a, b) => a + b, 0) + kycPending;
-
-  return {
-    overview: overviewTotal,
-    kyc: kycPending,
-    collections,
-    operations,
-    deposits,
-    residents: (counts.deposit_refund_request ?? 0) + (counts.extension_request ?? 0),
-  };
 }

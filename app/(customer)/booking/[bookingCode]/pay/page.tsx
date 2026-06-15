@@ -24,6 +24,7 @@ import {
 } from '@/src/services/pgPaymentDefaults';
 import { getPendingMembershipForBooking } from '@/src/services/playstationMembership';
 import { getPendingBookingPaymentRecord } from '@/src/services/qrPayments';
+import type { PricingSnapshot } from '@/src/db/schema/bookings';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,6 +70,11 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
   const pendingPs4 = isReserveBooking ? null : await getPendingMembershipForBooking(booking.id);
   const pendingPayment = await getPendingBookingPaymentRecord(booking.id, session.customerId);
   const ps4Paise = pendingPs4?.amountPaise ?? 0;
+  const snapshot = booking.pricingSnapshot as PricingSnapshot | null;
+  const depositCreditAppliedPaise = snapshot?.depositCredit?.appliedPaise ?? 0;
+  const additionalDepositDuePaise =
+    snapshot?.depositCredit?.additionalDuePaise ??
+    Math.max(0, booking.depositPaise - depositCreditAppliedPaise);
   const checkoutTotalPaise = booking.totalPaise + ps4Paise;
   const totalLabel = formatPaise(checkoutTotalPaise);
   const usePs4Qr = ps4Paise > 0;
@@ -115,6 +121,8 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
             reserveCheckIn={booking.reserveCheckIn ?? booking.expectedCheckoutDate}
             subtotalPaise={booking.subtotalPaise}
             depositPaise={booking.depositPaise}
+            depositCreditAppliedPaise={depositCreditAppliedPaise}
+            additionalDepositDuePaise={additionalDepositDuePaise}
             discountPaise={booking.discountPaise}
             totalPaise={checkoutTotalPaise}
             totalLabel={totalLabel}

@@ -30,7 +30,7 @@ export function OverviewGlobalSummary({ ctx }: { ctx: OverviewContext }) {
             [
               ['revenue', IconCard, mtdTotal, 'Total MTD'],
               ['collections', IconClipboard, ctx.revenue.outstanding.totalOutstandingPaise, 'Outstanding'],
-              ['operations', IconClipboard, ctx.pendingActionsCount, 'Open actions'],
+              ['operations', IconClipboard, ctx.unreadNotificationsCount, 'Unread actions'],
               ['analytics', IconChart, ctx.visitors.today, 'Visitors today'],
             ] as const
           ).map(([key, Icon, value, hint]) => {
@@ -64,10 +64,10 @@ export function OverviewGlobalSummary({ ctx }: { ctx: OverviewContext }) {
             large
           />
           <ClickableOverviewCard
-            href="/admin/requests"
-            label="Resident requests"
-            value={(ctx.pendingActionsCount ?? 0).toLocaleString('en-IN')}
-            hint="Refunds & extensions queue"
+            href="/admin/notifications"
+            label="Notifications"
+            value={(ctx.unreadNotificationsCount ?? 0).toLocaleString('en-IN')}
+            hint="Unread — resident requests & alerts"
             icon={<IconUsers />}
             accent="amber"
             large
@@ -151,8 +151,9 @@ export function OverviewGlobalSummary({ ctx }: { ctx: OverviewContext }) {
           />
           <ClickableOverviewCard
             href={moduleHref('operations', month)}
-            label="Vacating alerts"
+            label="Active vacating"
             value={ctx.vacatingAlertsCount.toLocaleString('en-IN')}
+            hint="Still active after you read notifications"
             icon={<IconUsers />}
             accent="rose"
           />

@@ -63,6 +63,13 @@ export type PricingSnapshot = {
     discountPaise: number;
     appliedAt: string;
   };
+  /** Deposit wallet credit applied at checkout — reduces cash/UPI due now. */
+  depositCredit?: {
+    requiredPaise: number;
+    appliedPaise: number;
+    additionalDuePaise: number;
+    appliedAt: string;
+  };
   /**
    * Phase 5 — append-only log of paid extensions stamped onto the booking
    * for historical record. The actual inventory rows live in

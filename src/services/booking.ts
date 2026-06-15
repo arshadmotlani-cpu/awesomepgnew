@@ -464,8 +464,26 @@ export async function createBooking(
     dateCoupon = couponResult.coupon ?? undefined;
   }
 
-  const totalPaise = quote.subtotalPaise - discountPaise + quote.depositPaise;
+  let depositCreditAppliedPaise = 0;
+  if (!isAdminCreated && input.customerId) {
+    const { getCustomerDepositCredit, computeDepositDue } = await import('./depositCredit');
+    const wallet = await getCustomerDepositCredit(input.customerId);
+    depositCreditAppliedPaise = computeDepositDue(
+      quote.depositPaise,
+      wallet.availableCreditPaise,
+    ).creditAppliedPaise;
+  }
+  const additionalDepositDuePaise = quote.depositPaise - depositCreditAppliedPaise;
+  const totalPaise = quote.subtotalPaise - discountPaise + additionalDepositDuePaise;
   const snapshot = buildSnapshot(quote, input.notes, dateCoupon);
+  if (depositCreditAppliedPaise > 0) {
+    snapshot.depositCredit = {
+      requiredPaise: quote.depositPaise,
+      appliedPaise: depositCreditAppliedPaise,
+      additionalDuePaise: additionalDepositDuePaise,
+      appliedAt: new Date().toISOString(),
+    };
+  }
 
   // 5. Retry loop over booking_code collisions. The COUNT-based sequence
   //    can lose a race with another concurrent booking; the unique index on
@@ -603,6 +621,7 @@ export async function createBooking(
             holdExpiresAt: holdExpiresAt?.toISOString() ?? null,
             totalPaise,
             discountPaise,
+            depositCreditAppliedPaise,
             couponCode: dateCoupon?.code ?? null,
           },
         });

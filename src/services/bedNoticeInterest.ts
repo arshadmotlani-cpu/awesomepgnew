@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { bedNoticeInterest, bedReservations, bookings, vacatingRequests } from '@/src/db/schema';
+import { bedNoticeInterest, bedReservations, beds, bookings, vacatingRequests } from '@/src/db/schema';
 import { todayString } from '@/src/lib/dates';
 
 function visitorKey(customerId: string | null, ip: string | null, userAgent: string | null): string {
@@ -29,15 +29,43 @@ export async function bedIsInNoticePeriod(bedId: string): Promise<boolean> {
   return Boolean(row);
 }
 
+/** Bed is bookable now (available) — visitors can register interest. */
+export async function bedIsAvailableForInterest(bedId: string): Promise<boolean> {
+  const refDate = todayString();
+  const [bed] = await db
+    .select({ status: beds.status, manualOccupied: beds.manualOccupied })
+    .from(beds)
+    .where(eq(beds.id, bedId))
+    .limit(1);
+  if (!bed || bed.status !== 'available' || bed.manualOccupied) return false;
+
+  const [activeStay] = await db
+    .select({ id: bedReservations.id })
+    .from(bedReservations)
+    .where(
+      sql`${bedReservations.bedId} = ${bedId}
+        AND ${bedReservations.status} = 'active'
+        AND ${refDate}::date <@ ${bedReservations.stayRange}`,
+    )
+    .limit(1);
+
+  return !activeStay;
+}
+
+/** Record visitor interest for notice-period OR currently available beds. */
 export async function recordBedNoticeInterest(input: {
   bedId: string;
   customerId?: string | null;
   ip?: string | null;
   userAgent?: string | null;
 }): Promise<{ ok: true; recorded: boolean; totalInterest: number } | { ok: false; message: string }> {
-  const inNotice = await bedIsInNoticePeriod(input.bedId);
-  if (!inNotice) {
-    return { ok: false, message: 'This bed is not in notice period.' };
+  const [inNotice, available] = await Promise.all([
+    bedIsInNoticePeriod(input.bedId),
+    bedIsAvailableForInterest(input.bedId),
+  ]);
+
+  if (!inNotice && !available) {
+    return { ok: false, message: 'This bed is not open for interest tracking.' };
   }
 
   const key = visitorKey(input.customerId ?? null, input.ip ?? null, input.userAgent ?? null);
@@ -52,6 +80,22 @@ export async function recordBedNoticeInterest(input: {
     return { ok: true, recorded: true, totalInterest: total };
   } catch {
     return { ok: false, message: 'Could not record interest.' };
+  }
+}
+
+/** Reset interest when a bed is booked — fresh count when it becomes vacant again. */
+export async function clearBedInterest(bedId: string): Promise<void> {
+  await db.delete(bedNoticeInterest).where(eq(bedNoticeInterest.bedId, bedId));
+}
+
+export async function clearBedInterestForBooking(bookingId: string): Promise<void> {
+  const rows = await db
+    .select({ bedId: bedReservations.bedId })
+    .from(bedReservations)
+    .where(eq(bedReservations.bookingId, bookingId));
+
+  for (const row of rows) {
+    await clearBedInterest(row.bedId);
   }
 }
 

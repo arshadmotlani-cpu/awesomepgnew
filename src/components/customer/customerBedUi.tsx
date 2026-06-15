@@ -154,6 +154,7 @@ export function CustomerBedDetailSheet({
 
   const availability = bedAvailability({ ...bed, noticeInterestCount: noticeCount });
   const isNotice = availability.kind === 'notice';
+  const isAvailable = availability.kind === 'open_now' || availability.kind === 'hold_interest';
   const isReserved = availability.kind === 'reserved';
   const reserveCheckIn = bed.activeBedReserveCheckIn ?? null;
   const reserveLastStay = reserveCheckIn ? reserveBufferDate(reserveCheckIn) : null;
@@ -172,7 +173,7 @@ export function CustomerBedDetailSheet({
   }, [onClose]);
 
   useEffect(() => {
-    if (!isNotice) return;
+    if (!isNotice && !isAvailable) return;
     void fetch(`/api/beds/${bed.bedId}/interest`, { method: 'POST' })
       .then((res) => res.json())
       .then((data: { ok?: boolean; totalInterest?: number }) => {
@@ -182,7 +183,7 @@ export function CustomerBedDetailSheet({
         }
       })
       .catch(() => undefined);
-  }, [bed.bedId, isNotice, onNoticeInterestUpdate]);
+  }, [bed.bedId, isNotice, isAvailable, onNoticeInterestUpdate]);
 
   return (
     <>
@@ -221,11 +222,13 @@ export function CustomerBedDetailSheet({
             {availability.sublabel ? (
               <p className="mt-1 text-xs text-apg-silver">{availability.sublabel}</p>
             ) : null}
-            {isNotice ? (
+            {isNotice || (isAvailable && noticeCount > 0) ? (
               <p className="mt-2 text-xs font-medium text-orange-200">
                 {noticeCount > 0
                   ? `${noticeCount} ${noticeCount === 1 ? 'person is' : 'people are'} interested in this bed`
-                  : 'Someone is still living here — you can pre-book or reserve for when they leave.'}
+                  : isNotice
+                    ? 'Someone is still living here — you can pre-book or reserve for when they leave.'
+                    : null}
               </p>
             ) : null}
           </div>

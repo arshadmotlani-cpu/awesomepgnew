@@ -1,7 +1,11 @@
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { bookings } from '@/src/db/schema';
-import { getDepositSummaryForBooking } from '@/src/services/deposits';
+import { bookings, depositLedger } from '@/src/db/schema';
+import {
+  getDepositSummaryForBooking,
+  recordDepositCollected,
+  recordDepositDeducted,
+} from '@/src/services/deposits';
 
 export type DepositCreditSummary = {
   totalCollectedPaise: number;
@@ -73,4 +77,63 @@ export function computeDepositDue(requiredPaise: number, availableCreditPaise: n
     creditAppliedPaise,
     additionalDuePaise: Math.max(0, requiredPaise - creditAppliedPaise),
   };
+}
+
+const DEPOSIT_CREDIT_REASON = 'Deposit credit applied from prior stay wallet';
+
+/**
+ * Move deposit credit from prior confirmed bookings onto a new booking.
+ * Idempotent — skips if credit was already applied to the target booking.
+ */
+export async function applyDepositCreditToBooking(input: {
+  customerId: string;
+  targetBookingId: string;
+  creditPaise: number;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (input.creditPaise <= 0) return { ok: true };
+
+  const [existing] = await db
+    .select({ id: depositLedger.id })
+    .from(depositLedger)
+    .where(
+      and(
+        eq(depositLedger.bookingId, input.targetBookingId),
+        eq(depositLedger.entryKind, 'collected'),
+        eq(depositLedger.reason, DEPOSIT_CREDIT_REASON),
+      ),
+    )
+    .limit(1);
+  if (existing) return { ok: true };
+
+  const wallet = await getCustomerDepositCredit(input.customerId);
+  let remaining = input.creditPaise;
+
+  const sources = wallet.byBooking
+    .filter((b) => b.bookingId !== input.targetBookingId && b.availablePaise > 0)
+    .sort((a, b) => b.availablePaise - a.availablePaise);
+
+  for (const source of sources) {
+    if (remaining <= 0) break;
+    const slice = Math.min(remaining, source.availablePaise);
+    await recordDepositDeducted({
+      bookingId: source.bookingId,
+      customerId: input.customerId,
+      amountPaise: slice,
+      reason: `Deposit credit transferred to booking ${input.targetBookingId}`,
+    });
+    remaining -= slice;
+  }
+
+  if (remaining > 0) {
+    return { ok: false, error: 'Insufficient deposit credit at payment time' };
+  }
+
+  await recordDepositCollected({
+    bookingId: input.targetBookingId,
+    customerId: input.customerId,
+    amountPaise: input.creditPaise,
+    reason: DEPOSIT_CREDIT_REASON,
+  });
+
+  return { ok: true };
 }
