@@ -23,6 +23,7 @@ export const ACTION_ITEM_GROUP_LABELS: Record<ActionItemType, string> = {
   maintenance_issue: 'Maintenance Issues',
   deposit_refund_request: 'Deposit Refund Requests',
   extension_request: 'Extension Requests',
+  deposit_collection_due: 'Outstanding Deposits',
 };
 
 export const ACTION_ITEM_GROUP_ORDER: ActionItemType[] = [
@@ -30,6 +31,7 @@ export const ACTION_ITEM_GROUP_ORDER: ActionItemType[] = [
   'electricity_due',
   'payment_received',
   'refund_pending',
+  'deposit_collection_due',
   'deposit_refund_request',
   'extension_request',
   'kyc_pending',

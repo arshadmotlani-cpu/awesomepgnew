@@ -27,6 +27,10 @@ const LABELS: Record<
     title: 'unpaid electricity',
     button: 'Remind all via WhatsApp',
   },
+  deposit: {
+    title: 'outstanding deposit due',
+    button: 'Remind all via WhatsApp',
+  },
 };
 
 export function BulkBillingWhatsAppReminder({ kind, items }: Props) {

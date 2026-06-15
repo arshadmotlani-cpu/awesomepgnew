@@ -77,6 +77,8 @@ export async function addDepositAction(
       reason: `admin ${method}: ${reason}`,
       createdByAdminId: admin.adminId,
     });
+    const { syncDepositCollectionFromLedger } = await import('@/src/services/depositCollection');
+    await syncDepositCollectionFromLedger(bookingId);
     revalidatePath(`/admin/deposits/${bookingId}`);
     revalidatePath('/admin/deposits');
     return { status: 'ok', message: 'Deposit added to ledger.' };

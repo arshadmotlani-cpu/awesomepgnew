@@ -196,10 +196,12 @@ export async function isBedAvailable(
   const [conflict] = await db
     .select({ id: bedReservations.id })
     .from(bedReservations)
+    .innerJoin(bookings, eq(bookings.id, bedReservations.bookingId))
     .where(
       and(
         eq(bedReservations.bedId, input.bedId),
         sql`${bedReservations.status} IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
+        eq(bookings.status, 'confirmed'),
         sql`${bedReservations.stayRange} && daterange(${start}::date, ${end}::date, '[)')`,
       ),
     )

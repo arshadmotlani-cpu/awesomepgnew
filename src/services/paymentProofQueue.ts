@@ -3,7 +3,7 @@ import type { AdminSession } from '@/src/lib/auth/session';
 import { listPendingExtensionProofsForPg } from '@/src/services/extension';
 import { listPendingElectricityProofsForPg } from '@/src/services/meterElectricity';
 import { listPendingRentProofsForPg } from '@/src/services/rentInvoices';
-import { listOwnerPayments } from '@/src/services/qrPayments';
+import { listOwnerPayments, getQrBookingPaymentReview } from '@/src/services/qrPayments';
 import { db } from '@/src/db/client';
 import { pgs } from '@/src/db/schema';
 import { isNull } from 'drizzle-orm';
@@ -18,6 +18,7 @@ export type PendingPaymentReviewItem = {
   amountPaise: number;
   screenshotUrl: string;
   entityId: string;
+  bookingPaymentReview?: Awaited<ReturnType<typeof getQrBookingPaymentReview>>;
 };
 
 export async function listPendingPaymentReviews(
@@ -28,6 +29,10 @@ export async function listPendingPaymentReviews(
   const qrRows = await listOwnerPayments(session, { status: 'pending' });
   for (const p of qrRows) {
     const isBookingCheckout = Boolean(p.bookingCode);
+    const bookingPaymentReview =
+      isBookingCheckout && p.bookingId
+        ? await getQrBookingPaymentReview(p.id)
+        : null;
     items.push({
       key: `qr-${p.id}`,
       kind: 'qr',
@@ -37,13 +42,16 @@ export async function listPendingPaymentReviews(
         ? `${p.customerName} · Booking ${p.bookingCode}`
         : `${p.customerName} · ${p.categoryName}`,
       subtitle: isBookingCheckout
-        ? 'PG booking checkout — rent, deposit & reservation'
+        ? bookingPaymentReview?.canPartialApprove
+          ? 'Booking checkout — partial deposit eligible (rent + part deposit paid)'
+          : 'PG booking checkout — rent, deposit & reservation'
         : p.month
           ? `Month ${p.month}`
           : 'QR payment',
       amountPaise: p.amountPaise,
       screenshotUrl: p.paymentScreenshotUrl,
       entityId: p.id,
+      bookingPaymentReview: bookingPaymentReview ?? undefined,
     });
   }
 

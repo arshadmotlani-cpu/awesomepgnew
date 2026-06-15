@@ -37,8 +37,12 @@ import { buildBriefingInputForBooking } from '@/src/lib/cockroach/briefingFromBo
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import { accountProfileHref } from '@/src/lib/accountNavigation';
 import { DepositWalletSection } from '@/src/components/customer/account/DepositWalletSection';
+import { DepositDueSection } from '@/src/components/customer/account/DepositDueSection';
 import { ResidentRequestForms } from '@/src/components/customer/account/ResidentRequestForms';
 import { getCustomerDepositCredit } from '@/src/services/depositCredit';
+import { ensureDepositDuePaymentLink } from '@/src/services/depositCollection';
+import { paymentLinkPublicUrl } from '@/src/lib/billing/paymentLinkUrl';
+import { getLatestPaymentLinkForResident } from '@/src/services/paymentLinks';
 import { listOpenRequestsForCustomer } from '@/src/services/residentRequests';
 
 const RENT_STATUS_TONE: Record<string, string> = {
@@ -126,6 +130,31 @@ export async function ResidentAreaSection({ customerId }: { customerId: string }
     }
   }
 
+  const depositDueCards = await Promise.all(
+    detail.map(async (d) => {
+      const collected = d.deposit?.collectedPaise ?? 0;
+      let paymentLinkUrl: string | null = null;
+      if (d.booking.depositDuePaise > 0) {
+        const existing = await getLatestPaymentLinkForResident(session.customerId, 'deposit');
+        paymentLinkUrl =
+          existing?.status === 'active'
+            ? paymentLinkPublicUrl(existing.id)
+            : await ensureDepositDuePaymentLink(d.bookingId);
+      }
+      return {
+        bookingId: d.bookingId,
+        bookingCode: d.bookingCode,
+        pgName: d.booking.pgName,
+        depositPaise: d.booking.depositPaise,
+        collectedPaise: collected,
+        depositDuePaise: d.booking.depositDuePaise,
+        depositDueDate: d.booking.depositDueDate,
+        depositCollectionStatus: d.booking.depositCollectionStatus,
+        paymentLinkUrl,
+      };
+    }),
+  );
+
   const primaryBooking = detail[0];
   const residentBriefing =
     primaryBooking != null
@@ -178,6 +207,10 @@ export async function ResidentAreaSection({ customerId }: { customerId: string }
       </p>
 
       <DepositRefundNotice />
+
+      {depositDueCards.map((card) => (
+        <DepositDueSection key={`deposit-due-${card.bookingId}`} {...card} />
+      ))}
 
       {depositWallet.totalCollectedPaise > 0 ? (
         <DepositWalletSection wallet={depositWallet} />

@@ -17,6 +17,7 @@ const TYPE_TO_MODULE: Record<AdminNotificationRow['type'], AdminModule | 'deposi
   maintenance_issue: 'operations',
   refund_pending: 'deposits',
   deposit_refund_request: 'deposits',
+  deposit_collection_due: 'deposits',
 };
 
 /** Sidebar badges — unread notifications only (WhatsApp-style). */

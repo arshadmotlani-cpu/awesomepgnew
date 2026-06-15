@@ -5,6 +5,7 @@ import { handleNotificationReadFromParams } from '@/src/lib/admin/notificationRe
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { titleCase } from '@/src/lib/format';
 import { listPendingResidentRequestsForAdmin } from '@/src/services/residentRequests';
+import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { syncActionItems } from '@/src/services/actionItems';
 
 export const dynamic = 'force-dynamic';
@@ -24,7 +25,7 @@ export default async function AdminRequestsPage({
     <>
       <PageHeader
         title="Resident requests"
-        description="Deposit refund and stay extension queue — synced with Take Action badges."
+        description="Deposit refund and deposit due extension queue — synced with Take Action badges."
         actions={
           <Link
             href="/admin/overview"
@@ -45,14 +46,25 @@ export default async function AdminRequestsPage({
         <p className="text-sm text-apg-silver">No open resident requests.</p>
       ) : (
         <div className="space-y-4">
-          {requests.map((r) => (
-            <div key={r.id}>
-              <p className="mb-2 text-xs uppercase tracking-wide text-apg-silver">
-                {titleCase(r.type.replace('_', ' '))} · {titleCase(r.status)}
-              </p>
-              <ResidentRequestReviewPanel request={{ ...r, createdAt: r.createdAt }} />
-            </div>
-          ))}
+          {await Promise.all(
+            requests.map(async (r) => {
+              const depositSummary =
+                r.type === 'deposit_refund'
+                  ? await getDepositSummaryForBooking(r.bookingId)
+                  : null;
+              return (
+                <div key={r.id}>
+                  <p className="mb-2 text-xs uppercase tracking-wide text-apg-silver">
+                    {titleCase(r.type.replace('_', ' '))} · {titleCase(r.status)}
+                  </p>
+                  <ResidentRequestReviewPanel
+                    request={{ ...r, createdAt: r.createdAt }}
+                    depositHeldPaise={depositSummary?.refundableBalancePaise ?? r.amountPaise ?? 0}
+                  />
+                </div>
+              );
+            }),
+          )}
         </div>
       )}
     </>

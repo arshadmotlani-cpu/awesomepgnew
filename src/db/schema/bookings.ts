@@ -13,7 +13,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { adminUsers } from './adminUsers';
 import { customers } from './customers';
-import { bookingStatusEnum, createdViaEnum, durationModeEnum, adminDepositRefundStatusEnum, adminDuesStatusEnum } from './enums';
+import { bookingStatusEnum, createdViaEnum, durationModeEnum, adminDepositRefundStatusEnum, adminDuesStatusEnum, depositCollectionStatusEnum } from './enums';
 
 /**
  * Per-bed pricing snapshot stored on the booking so historical totals stay
@@ -27,7 +27,7 @@ export type PricingSnapshot = {
     monthlyRatePaise: number;
     /** Per-bed deposit captured at booking time. Summed into bookings.deposit_paise. */
     securityDepositPaise: number;
-    durationMode: 'daily' | 'weekly' | 'monthly' | 'open_ended';
+    durationMode: 'daily' | 'weekly' | 'monthly' | 'open_ended' | 'fixed_stay';
     /** Nights / weeks / months consumed for the quote. */
     units: number;
     /**
@@ -125,6 +125,15 @@ export const bookings = pgTable(
     adminDepositRefundStatus: adminDepositRefundStatusEnum('admin_deposit_refund_status')
       .notNull()
       .default('unknown'),
+    depositCollectionStatus: depositCollectionStatusEnum('deposit_collection_status')
+      .notNull()
+      .default('pending'),
+    depositDuePaise: bigint('deposit_due_paise', { mode: 'number' }).notNull().default(0),
+    depositDueDate: date('deposit_due_date'),
+    depositDueApprovedByAdminId: uuid('deposit_due_approved_by_admin_id').references(
+      () => adminUsers.id,
+      { onDelete: 'set null' },
+    ),
     adminOpsNotes: text('admin_ops_notes'),
     /** When true, reservations cover all beds in the room (single-tenant whole room). */
     blocksRoomAvailability: boolean('blocks_room_availability').notNull().default(false),

@@ -164,11 +164,8 @@ export default async function BookingConfirmationPage(
   // Once cancelled / refunded / completed, the action button disappears.
   const canCancel = b.status === 'pending_payment' || b.status === 'confirmed';
 
-  // Phase 5 — extension CTA shows only for finite-checkout confirmed
-  // bookings. Open-ended stays auto-renew (out of Phase 5 scope) so they
-  // have no "Extend" affordance here.
-  const canExtend =
-    b.status === 'confirmed' && b.expectedCheckoutDate != null && b.durationMode !== 'open_ended';
+  // Extend stay retired — to continue living, cancel vacating notice instead.
+  const canExtend = false;
 
   // Load extensions for the booking — we render them as a "stay history"
   // strip even when there are zero (the section just gets hidden).

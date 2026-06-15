@@ -32,7 +32,7 @@ export async function reconcileBedForAdminMark(
       AND br.bed_id = ${bedId}::uuid
       AND br.status IN ('hold', 'active')
       AND CURRENT_DATE <@ br.stay_range
-      AND bk.status IN ('cancelled', 'refunded')
+      AND bk.status IN ('cancelled', 'refunded', 'completed')
   `);
 
   const unpaidHolds = await db

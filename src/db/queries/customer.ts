@@ -1134,6 +1134,9 @@ export type ResidentBookingRow = {
     | 'refunded'
     | 'blocked'
     | 'not_applicable';
+  depositCollectionStatus: 'pending' | 'full' | 'partial' | 'overdue' | 'waived';
+  depositDuePaise: number;
+  depositDueDate: string | null;
 };
 
 /** One row per booking — multi-bed bookings keep the lowest bed_id row. */
@@ -1174,6 +1177,9 @@ export function listResidentBookingsForCustomer(
         depositPaise: bookings.depositPaise,
         adminDuesStatus: bookings.adminDuesStatus,
         adminDepositRefundStatus: bookings.adminDepositRefundStatus,
+        depositCollectionStatus: bookings.depositCollectionStatus,
+        depositDuePaise: bookings.depositDuePaise,
+        depositDueDate: bookings.depositDueDate,
       })
       .from(bookings)
       .innerJoin(customers, eq(customers.id, bookings.customerId))
@@ -1220,6 +1226,9 @@ export function listResidentBookingsForCustomer(
         depositPaise: r.depositPaise,
         adminDuesStatus: r.adminDuesStatus,
         adminDepositRefundStatus: r.adminDepositRefundStatus,
+        depositCollectionStatus: r.depositCollectionStatus,
+        depositDuePaise: r.depositDuePaise,
+        depositDueDate: r.depositDueDate,
       };
     });
 

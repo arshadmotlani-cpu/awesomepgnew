@@ -8,6 +8,13 @@ import { syncActionItems } from '@/src/services/actionItems';
 
 export type ReviewRequestState = { ok: boolean; error?: string };
 
+function parseIntField(formData: FormData, key: string): number | undefined {
+  const raw = formData.get(key)?.toString();
+  if (!raw) return undefined;
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) ? n : undefined;
+}
+
 export async function reviewResidentRequestAction(
   _prev: ReviewRequestState,
   formData: FormData,
@@ -24,11 +31,26 @@ export async function reviewResidentRequestAction(
 
   if (!requestId || !action) return { ok: false, error: 'Invalid request.' };
 
+  const refundCompletion =
+    action === 'complete'
+      ? {
+          electricityUnitCostPaise: parseIntField(formData, 'electricityUnitCostPaise'),
+          electricityUnits: parseIntField(formData, 'electricityUnits'),
+          damageChargePaise: parseIntField(formData, 'damageChargePaise'),
+          cleaningChargePaise: parseIntField(formData, 'cleaningChargePaise'),
+          penaltyChargePaise: parseIntField(formData, 'penaltyChargePaise'),
+          customChargePaise: parseIntField(formData, 'customChargePaise'),
+          customChargeLabel: formData.get('customChargeLabel')?.toString()?.trim() || undefined,
+          refundMethod: formData.get('refundMethod')?.toString()?.trim() || undefined,
+        }
+      : undefined;
+
   const result = await adminReviewResidentRequest({
     requestId,
     adminId: session.adminId,
     action,
     adminNotes: adminNotes || undefined,
+    refundCompletion,
   });
 
   if (!result.ok) return { ok: false, error: result.error };

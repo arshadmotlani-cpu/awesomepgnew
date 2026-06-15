@@ -7,6 +7,7 @@ import { formatDate } from '@/src/lib/dates';
 import { recordDepositCollected } from '@/src/services/deposits';
 import { createBooking } from '@/src/services/booking';
 import { clearBedAdminMarks } from '@/src/services/bookingAdminOps';
+import { reconcileOrphanBedReservations } from '@/src/lib/occupancySync';
 import { isBedAvailable } from '@/src/services/availability';
 
 const LONG_TERM_RESERVATION_END = '2099-01-01';
@@ -54,6 +55,7 @@ export async function assignTenantToBed(
 
   // Admin assignment replaces any manual occupied/reserved marks on the bed.
   await clearBedAdminMarks(input.bedId);
+  await reconcileOrphanBedReservations(input.bedId);
 
   const available = await isBedAvailable({
     bedId: input.bedId,

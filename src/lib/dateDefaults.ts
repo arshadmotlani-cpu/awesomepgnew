@@ -15,6 +15,7 @@ const VALID_MODES: ReadonlySet<PricingMode> = new Set([
   'weekly',
   'monthly',
   'open_ended',
+  'fixed_stay',
 ]);
 
 export type BrowseStayParams = {
@@ -103,7 +104,10 @@ export function normalizeBrowseStay(sp: BrowseStayParams): NormalizedStay {
 /** Human-readable browse summary for PG availability headers. */
 export function formatBrowseStaySummary(stay: NormalizedStay): string {
   if (stay.mode === 'open_ended') {
-    return `${stay.start} · living here (${VACATING_NOTICE_MIN_DAYS} days notice to leave)`;
+    return `${stay.start} · live without checkout (${VACATING_NOTICE_MIN_DAYS} days notice to leave)`;
+  }
+  if (stay.mode === 'fixed_stay') {
+    return `${stay.start} → ${stay.end} · fixed stay`;
   }
   return `${stay.start} → ${stay.end}`;
 }

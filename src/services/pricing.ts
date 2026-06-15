@@ -23,7 +23,7 @@ import { db } from '../db/client';
 import { bedPrices } from '../db/schema';
 import { addMonths, diffDays, formatDate, isBefore, parseDate, type DateLike } from '../lib/dates';
 
-export type PricingMode = 'daily' | 'weekly' | 'monthly' | 'open_ended';
+export type PricingMode = 'daily' | 'weekly' | 'monthly' | 'open_ended' | 'fixed_stay';
 
 export type RateSnapshot = {
   bedPriceId: string;
@@ -40,6 +40,9 @@ export type RateSnapshot = {
 };
 
 export function securityDepositForMode(rate: RateSnapshot, durationMode: PricingMode): number {
+  if (durationMode === 'open_ended' || durationMode === 'monthly') {
+    return computeMonthlyDepositPaise(rate);
+  }
   if (durationMode === 'daily') {
     return rate.dailySecurityDepositPaise > 0
       ? rate.dailySecurityDepositPaise
@@ -53,6 +56,32 @@ export function securityDepositForMode(rate: RateSnapshot, durationMode: Pricing
   return rate.monthlySecurityDepositPaise > 0
     ? rate.monthlySecurityDepositPaise
     : rate.securityDepositPaise;
+}
+
+/** Monthly / open-ended stays: deposit = 2 × monthly rent. */
+export function computeMonthlyDepositPaise(rate: RateSnapshot): number {
+  requirePositiveRate(rate.monthlyRatePaise, 'monthly');
+  return rate.monthlyRatePaise * 2;
+}
+
+/** Fixed-date stays: deposit = 50% of booking subtotal (rent only, not deposit). */
+export function computeFixedStayDepositPaise(subtotalPaise: number): number {
+  if (subtotalPaise <= 0) return 0;
+  return Math.ceil(subtotalPaise * 0.5);
+}
+
+export function computeRequiredDepositPaise(
+  rate: RateSnapshot,
+  durationMode: PricingMode,
+  subtotalPaise: number,
+): number {
+  if (durationMode === 'open_ended' || durationMode === 'monthly') {
+    return computeMonthlyDepositPaise(rate);
+  }
+  if (durationMode === 'fixed_stay') {
+    return computeFixedStayDepositPaise(subtotalPaise);
+  }
+  return securityDepositForMode(rate, durationMode);
 }
 
 export type LineItem = {
@@ -172,6 +201,37 @@ export function computePriceBreakdown(input: ComputePriceInput): PriceQuote {
       amountPaise: amount,
     });
     subtotalPaise = amount;
+  } else if (durationMode === 'fixed_stay') {
+    nights = diffDays(startDate, endDate!);
+    requirePositiveRate(rate.weeklyRatePaise, 'weekly');
+    requirePositiveRate(rate.dailyRatePaise, 'daily');
+    const fullWeeks = Math.floor(nights / 7);
+    const remainderDays = nights % 7;
+    units = fullWeeks + (remainderDays > 0 ? 1 : 0);
+
+    if (fullWeeks > 0) {
+      const weeklyAmount = fullWeeks * rate.weeklyRatePaise;
+      lineItems.push({
+        kind: 'weekly_cycle',
+        description: `${fullWeeks} week${fullWeeks === 1 ? '' : 's'} @ weekly rate`,
+        units: fullWeeks,
+        unitPricePaise: rate.weeklyRatePaise,
+        amountPaise: weeklyAmount,
+      });
+      subtotalPaise += weeklyAmount;
+    }
+    if (remainderDays > 0) {
+      const dailyAmount = remainderDays * rate.dailyRatePaise;
+      lineItems.push({
+        kind: 'daily_nights',
+        description: `${remainderDays} day${remainderDays === 1 ? '' : 's'} @ daily rate`,
+        units: remainderDays,
+        unitPricePaise: rate.dailyRatePaise,
+        amountPaise: dailyAmount,
+      });
+      subtotalPaise += dailyAmount;
+    }
+    notes = `Fixed stay: ${nights} night${nights === 1 ? '' : 's'} (${fullWeeks} week${fullWeeks === 1 ? '' : 's'} + ${remainderDays} day${remainderDays === 1 ? '' : 's'}).`;
   } else if (durationMode === 'weekly') {
     nights = diffDays(startDate, endDate!);
     requirePositiveRate(rate.weeklyRatePaise, 'weekly');
@@ -242,11 +302,19 @@ export function computePriceBreakdown(input: ComputePriceInput): PriceQuote {
     notes = 'Open-ended stay: first month billed now, subsequent months billed monthly.';
   }
 
-  const depositPaise = includeDeposit ? securityDepositForMode(rate, durationMode) : 0;
+  const depositPaise = includeDeposit
+    ? computeRequiredDepositPaise(rate, durationMode, subtotalPaise)
+    : 0;
   if (depositPaise > 0) {
+    const depositLabel =
+      durationMode === 'open_ended' || durationMode === 'monthly'
+        ? 'Refundable security deposit (2 months rent)'
+        : durationMode === 'fixed_stay'
+          ? 'Refundable security deposit (50% of booking)'
+          : 'Refundable security deposit';
     lineItems.push({
       kind: 'deposit',
-      description: 'Refundable security deposit',
+      description: depositLabel,
       units: 1,
       unitPricePaise: depositPaise,
       amountPaise: depositPaise,

@@ -17,6 +17,34 @@ export async function approveQrPaymentAction(recordId: string, pgId: string) {
   return { ok: true as const };
 }
 
+export async function approvePartialQrPaymentAction(
+  recordId: string,
+  pgId: string,
+  depositDueDate: string,
+) {
+  const session = await requireAdminPermission('payments:write');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(depositDueDate)) {
+    return { ok: false as const, message: 'Invalid due date.' };
+  }
+  try {
+    await reviewPaymentRecord(session, recordId, 'approved', {
+      partialDeposit: { depositDueDate },
+    });
+  } catch (err) {
+    return {
+      ok: false as const,
+      message: err instanceof Error ? err.message : 'Partial approval failed.',
+    };
+  }
+  revalidatePath('/admin');
+  revalidatePath('/admin/payments');
+  revalidatePath('/admin/collections');
+  revalidatePath('/admin/deposits');
+  revalidatePath(`/admin/pgs/${pgId}/collections`);
+  revalidatePath('/pgs');
+  return { ok: true as const };
+}
+
 export async function rejectQrPaymentAction(recordId: string, pgId: string) {
   const session = await requireAdminPermission('payments:write');
   await reviewPaymentRecord(session, recordId, 'rejected');

@@ -27,14 +27,20 @@ export async function syncResidentRequestActionItems(): Promise<void> {
 
   for (const row of rows) {
     const type =
-      row.type === 'deposit_refund' ? 'deposit_refund_request' : 'extension_request';
+      row.type === 'deposit_refund'
+        ? 'deposit_refund_request'
+        : row.type === 'deposit_due_extension'
+          ? 'extension_request'
+          : 'extension_request';
     const sourceKey = `resident_request:${row.id}`;
     openKeys.add(sourceKey);
 
     const title =
       row.type === 'deposit_refund'
         ? `Deposit refund — ${row.residentName ?? 'Resident'}`
-        : `Stay extension — ${row.residentName ?? 'Resident'} until ${row.requestedEndDate ?? '?'}`;
+        : row.type === 'deposit_due_extension'
+          ? `Deposit due extension — ${row.residentName ?? 'Resident'} to ${row.requestedEndDate ?? '?'}`
+          : `Stay extension — ${row.residentName ?? 'Resident'} until ${row.requestedEndDate ?? '?'}`;
 
     await db
       .insert(actionItems)

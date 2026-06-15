@@ -81,7 +81,7 @@ export function FinancialRowActions(props: FinancialRowActionsProps) {
   return (
     <div className="flex flex-col items-end gap-1">
       <div className="flex flex-wrap justify-end gap-1">
-        {props.purpose === 'rent' || props.purpose === 'electricity' ? (
+        {props.purpose === 'rent' || props.purpose === 'electricity' || props.purpose === 'deposit' ? (
           <AdminBillingWhatsAppButton
             kind={props.purpose}
             customerName={props.residentName}

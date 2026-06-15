@@ -25,7 +25,7 @@ type Props = {
   bedIds: string[];
   startDate: string;
   endDate: string | null;
-  durationMode: 'daily' | 'weekly' | 'monthly' | 'open_ended';
+  durationMode: 'daily' | 'weekly' | 'monthly' | 'open_ended' | 'fixed_stay';
   lineItems: CartLineItem[];
   subtotalPaise: number;
   depositPaise: number;
@@ -215,8 +215,10 @@ export function BookingCartForm({
             term="Stay type"
             value={
               durationMode === 'open_ended'
-                ? 'Living here (monthly billing)'
-                : durationMode.replace('_', ' ')
+                ? 'Live without checkout (monthly billing)'
+                : durationMode === 'fixed_stay'
+                  ? 'Fixed stay (auto week + day pricing)'
+                  : durationMode.replace('_', ' ')
             }
           />
           <Row term="Beds" value={String(bedIds.length)} />

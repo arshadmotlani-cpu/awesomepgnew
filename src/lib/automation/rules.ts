@@ -46,4 +46,15 @@ export const AUTOMATION_RULES: Record<AutomationEventType, AutomationActionPlan[
     { channel: 'email', recipient: 'resident', templateType: 'deposit_refund_pending' },
     { channel: 'email', recipient: 'admin', templateType: 'deposit_refund_pending' },
   ],
+  deposit_collection_due: [
+    { channel: 'whatsapp', recipient: 'resident', templateType: 'deposit_collection_due' },
+    { channel: 'email', recipient: 'resident', templateType: 'deposit_collection_due' },
+  ],
+  deposit_collection_overdue: [
+    { channel: 'whatsapp', recipient: 'resident', templateType: 'deposit_collection_overdue' },
+    { channel: 'email', recipient: 'admin', templateType: 'deposit_collection_overdue_admin' },
+  ],
+  deposit_collection_received: [
+    { channel: 'email', recipient: 'resident', templateType: 'deposit_collection_received' },
+  ],
 };

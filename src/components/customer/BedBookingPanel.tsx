@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { trackClientEvent } from '@/src/lib/analytics/client';
-import { addDays, formatDate, todayString } from '@/src/lib/dates';
+import { addDays, diffDays, formatDate, parseDate, todayString } from '@/src/lib/dates';
 import {
   defaultCheckOutDate,
   VACATING_NOTICE_MIN_DAYS,
@@ -39,34 +39,26 @@ type Props = {
   beds: BedSelectorBed[];
   theme?: 'dark' | 'light';
   onClose: () => void;
-  /** When set, only daily/weekly booking — used for beds with an active reserve hold. */
   shortStayOnly?: boolean;
   reserveCheckInDate?: string;
 };
 
 type StayIntent = 'fixed' | 'indefinite';
 
-const FIXED_MODES: Array<{ value: PricingMode; label: string }> = [
-  { value: 'daily', label: 'Daily' },
-  { value: 'weekly', label: 'Weekly' },
-  { value: 'monthly', label: 'Monthly' },
-];
+function estimateFixedStaySubtotal(bed: BedSelectorBed, nights: number): number {
+  const weeks = Math.floor(nights / 7);
+  const rem = nights % 7;
+  return weeks * bed.weeklyRatePaise + rem * bed.dailyRatePaise;
+}
 
-function depositForMode(bed: BedSelectorBed, durationMode: string): number {
-  const fallback = bed.securityDepositPaise;
-  if (durationMode === 'daily') {
-    return bed.dailySecurityDepositPaise > 0
-      ? bed.dailySecurityDepositPaise
-      : fallback;
+function depositPreview(bed: BedSelectorBed, mode: PricingMode, nights: number): number {
+  if (mode === 'open_ended') {
+    return bed.monthlyRatePaise > 0 ? bed.monthlyRatePaise * 2 : bed.securityDepositPaise;
   }
-  if (durationMode === 'weekly') {
-    return bed.weeklySecurityDepositPaise > 0
-      ? bed.weeklySecurityDepositPaise
-      : fallback;
+  if (mode === 'fixed_stay' && nights > 0) {
+    return Math.ceil(estimateFixedStaySubtotal(bed, nights) * 0.5);
   }
-  return bed.monthlySecurityDepositPaise > 0
-    ? bed.monthlySecurityDepositPaise
-    : fallback;
+  return bed.securityDepositPaise;
 }
 
 /**
@@ -90,7 +82,6 @@ export function BedBookingPanel({
   const [timelines, setTimelines] = useState<BedTimelineResponse[]>([]);
 
   const [intent, setIntent] = useState<StayIntent>(shortStayOnly ? 'fixed' : 'indefinite');
-  const [fixedMode, setFixedMode] = useState<PricingMode>(shortStayOnly ? 'daily' : 'monthly');
   const [start, setStart] = useState(today);
   const [end, setEnd] = useState(() => defaultCheckOutDate(today));
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -152,6 +143,9 @@ export function BedBookingPanel({
 
   const minCheckOut = formatDate(addDays(start, 1));
   const checkoutCapDisplay = maxCheckout ? formatDateDdMmYyyy(maxCheckout) : null;
+  const mode: PricingMode = intent === 'indefinite' ? 'open_ended' : 'fixed_stay';
+  const fixedNights =
+    intent === 'fixed' && end > start ? diffDays(parseDate(start), parseDate(end)) : 0;
 
   const availabilityEnd = useMemo(() => defaultCheckOutDate(start), [start]);
 
@@ -180,21 +174,13 @@ export function BedBookingPanel({
       return;
     }
 
-    const mode: PricingMode = intent === 'indefinite' ? 'open_ended' : fixedMode;
     const checkout = intent === 'indefinite' ? availabilityEnd : end;
 
-    if (shortStayOnly && (mode === 'open_ended' || mode === 'monthly')) {
-      setValidationError('Only daily or weekly stays are allowed while this bed is reserved.');
-      return;
-    }
-
-    if (mode !== 'open_ended') {
+    if (intent === 'fixed') {
       const cap = maxCheckoutForCheckIn(start, combinedFreeWindows);
       if (!cap || end > cap) {
         setValidationError(
-          cap
-            ? checkoutCapMessage(cap)
-            : 'Invalid stay dates for the selected beds.',
+          cap ? checkoutCapMessage(cap) : 'Invalid stay dates for the selected beds.',
         );
         return;
       }
@@ -244,7 +230,7 @@ export function BedBookingPanel({
               Book {beds.length === 1 ? `bed ${beds[0]!.bedCode}` : `${beds.length} beds`}
             </h2>
             <p className={`mt-0.5 text-xs ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
-              Pick your dates — availability is checked per bed before you continue.
+              Pick your dates — pricing is calculated automatically from weekly + daily rates.
             </p>
           </div>
           <button type="button" onClick={onClose} className={btnGhost} aria-label="Close">
@@ -266,12 +252,7 @@ export function BedBookingPanel({
               <ul className="space-y-2">
                 {beds.map((bed) => {
                   const timeline = timelines.find((t) => t.bedId === bed.bedId);
-                  const rate =
-                    fixedMode === 'daily'
-                      ? bed.dailyRatePaise
-                      : fixedMode === 'weekly'
-                        ? bed.weeklyRatePaise
-                        : bed.monthlyRatePaise;
+                  const dep = depositPreview(bed, mode, fixedNights);
                   return (
                     <li
                       key={bed.bedId}
@@ -291,14 +272,17 @@ export function BedBookingPanel({
                             : 'Unavailable'}
                         </span>
                       </div>
-                      {rate > 0 ? (
-                        <p className={`mt-1 text-xs ${dark ? 'text-apg-silver' : 'text-zinc-600'}`}>
-                          {paiseToInr(rate)} / {fixedMode === 'daily' ? 'day' : fixedMode === 'weekly' ? 'week' : 'mo'}
-                          {depositForMode(bed, fixedMode) > 0
-                            ? ` · ${paiseToInr(depositForMode(bed, fixedMode))} deposit`
-                            : ''}
-                        </p>
-                      ) : null}
+                      <p className={`mt-1 text-xs ${dark ? 'text-apg-silver' : 'text-zinc-600'}`}>
+                        {paiseToInr(bed.weeklyRatePaise)}/wk · {paiseToInr(bed.dailyRatePaise)}/day
+                        {bed.monthlyRatePaise > 0
+                          ? ` · ${paiseToInr(bed.monthlyRatePaise)}/mo`
+                          : ''}
+                        {dep > 0
+                          ? mode === 'open_ended'
+                            ? ` · ${paiseToInr(dep)} deposit (2× rent)`
+                            : ` · ~${paiseToInr(dep)} deposit (50%)`
+                          : ''}
+                      </p>
                     </li>
                   );
                 })}
@@ -326,8 +310,8 @@ export function BedBookingPanel({
               {shortStayOnly && reserveCheckInDate && reserveLastStay ? (
                 <div className="rounded-xl border border-violet-400/30 bg-violet-500/10 px-3 py-2 text-xs text-violet-100">
                   This bed is reserved for someone else from{' '}
-                  {formatDisplayDate(reserveCheckInDate)}. Pick daily or weekly dates with checkout
-                  on or before {formatDisplayDate(reserveLastStay)}.
+                  {formatDisplayDate(reserveCheckInDate)}. Pick dates with checkout on or before{' '}
+                  {formatDisplayDate(reserveLastStay)}.
                 </div>
               ) : null}
 
@@ -335,34 +319,34 @@ export function BedBookingPanel({
                 <legend className={`${label} mb-1`}>How long are you staying?</legend>
                 <div className={`grid grid-cols-1 gap-2 ${shortStayOnly ? '' : 'sm:grid-cols-2'}`}>
                   {!shortStayOnly ? (
-                  <label
-                    className={
-                      dark
-                        ? `rounded-xl border px-3 py-2.5 text-left ${
-                            intent === 'indefinite'
-                              ? 'border-apg-orange/50 bg-apg-orange/10'
-                              : 'border-white/10 bg-white/5'
-                          }`
-                        : `rounded-lg border px-3 py-2.5 text-left ${
-                            intent === 'indefinite'
-                              ? 'border-indigo-500 bg-indigo-50'
-                              : 'border-zinc-200 bg-white'
-                          }`
-                    }
-                  >
-                    <input
-                      type="radio"
-                      checked={intent === 'indefinite'}
-                      onChange={() => setIntent('indefinite')}
-                      className="sr-only"
-                    />
-                    <span className={`text-sm font-semibold ${dark ? 'text-white' : 'text-zinc-900'}`}>
-                      Living here
-                    </span>
-                    <span className={`mt-0.5 block text-xs ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
-                      Monthly billing · {VACATING_NOTICE_MIN_DAYS} days notice to leave
-                    </span>
-                  </label>
+                    <label
+                      className={
+                        dark
+                          ? `rounded-xl border px-3 py-2.5 text-left ${
+                              intent === 'indefinite'
+                                ? 'border-apg-orange/50 bg-apg-orange/10'
+                                : 'border-white/10 bg-white/5'
+                            }`
+                          : `rounded-lg border px-3 py-2.5 text-left ${
+                              intent === 'indefinite'
+                                ? 'border-indigo-500 bg-indigo-50'
+                                : 'border-zinc-200 bg-white'
+                            }`
+                      }
+                    >
+                      <input
+                        type="radio"
+                        checked={intent === 'indefinite'}
+                        onChange={() => setIntent('indefinite')}
+                        className="sr-only"
+                      />
+                      <span className={`text-sm font-semibold ${dark ? 'text-white' : 'text-zinc-900'}`}>
+                        Live without checkout
+                      </span>
+                      <span className={`mt-0.5 block text-xs ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
+                        Monthly billing · {VACATING_NOTICE_MIN_DAYS} days notice to leave
+                      </span>
+                    </label>
                   ) : null}
                   <label
                     className={
@@ -386,10 +370,10 @@ export function BedBookingPanel({
                       className="sr-only"
                     />
                     <span className={`text-sm font-semibold ${dark ? 'text-white' : 'text-zinc-900'}`}>
-                      Fixed dates
+                      Fixed stay
                     </span>
                     <span className={`mt-0.5 block text-xs ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
-                      {shortStayOnly ? 'Daily or weekly only' : 'Daily, weekly, or monthly stay'}
+                      Check-in and check-out only — we calculate weeks + days automatically
                     </span>
                   </label>
                 </div>
@@ -408,40 +392,32 @@ export function BedBookingPanel({
                   />
                 </label>
                 {intent === 'fixed' ? (
-                  <>
-                    <label className={`flex flex-col gap-1 ${label}`}>
-                      Check-out
-                      <input
-                        type="date"
-                        value={end}
-                        min={minCheckOut}
-                        max={maxCheckout ?? undefined}
-                        onChange={(e) => {
-                          setEnd(e.target.value);
-                          setValidationError(null);
-                        }}
-                        className={input}
-                      />
-                    </label>
-                    <label className={`flex flex-col gap-1 sm:col-span-2 ${label}`}>
-                      Stay type
-                      <select
-                        value={fixedMode}
-                        onChange={(e) => setFixedMode(e.target.value as PricingMode)}
-                        className={input}
-                      >
-                        {FIXED_MODES.filter((m) =>
-                          shortStayOnly ? m.value === 'daily' || m.value === 'weekly' : true,
-                        ).map((m) => (
-                          <option key={m.value} value={m.value}>
-                            {m.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </>
+                  <label className={`flex flex-col gap-1 ${label}`}>
+                    Check-out
+                    <input
+                      type="date"
+                      value={end}
+                      min={minCheckOut}
+                      max={maxCheckout ?? undefined}
+                      onChange={(e) => {
+                        setEnd(e.target.value);
+                        setValidationError(null);
+                      }}
+                      className={input}
+                    />
+                  </label>
                 ) : null}
               </div>
+
+              {intent === 'fixed' && fixedNights > 0 ? (
+                <p className={`text-xs ${dark ? 'text-apg-silver' : 'text-zinc-600'}`}>
+                  {fixedNights} night{fixedNights === 1 ? '' : 's'} — billed as{' '}
+                  {Math.floor(fixedNights / 7)} week{Math.floor(fixedNights / 7) === 1 ? '' : 's'}
+                  {fixedNights % 7 > 0
+                    ? ` + ${fixedNights % 7} day${fixedNights % 7 === 1 ? '' : 's'}`
+                    : ''}
+                </p>
+              ) : null}
 
               {intent === 'fixed' && checkoutCapDisplay && maxCheckout ? (
                 <p

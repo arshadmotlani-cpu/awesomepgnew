@@ -39,6 +39,7 @@ import {
 } from '../db/schema';
 import type { PricingSnapshot } from '../db/schema/bookings';
 import { formatDate, parseDate, type DateLike } from '../lib/dates';
+import { reconcileBookingOccupancy } from '../lib/occupancySync';
 import { isNoticeCompliant, vacatingPenalty } from './billing';
 import { recordDepositDeducted, recordDepositRefunded, getDepositSummaryForBooking } from './deposits';
 import { cancelFutureRentInvoices } from './rentInvoices';
@@ -600,6 +601,7 @@ export async function completeVacatingRequest(
     );
 
   await completeBookingReservations(current.bookingId);
+  await reconcileBookingOccupancy(current.bookingId);
 
   await db.insert(auditLog).values({
     actorType: input.resolvedByAdminId ? 'admin' : 'system',

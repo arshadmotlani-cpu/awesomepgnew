@@ -15,6 +15,9 @@ export const automationEventTypeEnum = pgEnum('automation_event_type', [
   'kyc_pending',
   'payment_received',
   'deposit_pending_refund',
+  'deposit_collection_due',
+  'deposit_collection_overdue',
+  'deposit_collection_received',
 ]);
 
 export const automationEventStatusEnum = pgEnum('automation_event_status', [

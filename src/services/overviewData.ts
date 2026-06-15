@@ -43,6 +43,7 @@ export type OverviewContext = {
   unreadNotificationsCount: number;
   unreadNotifications: Awaited<ReturnType<typeof listAdminNotifications>>;
   vacatingAlertsCount: number;
+  outstandingDeposits: Awaited<ReturnType<typeof import('@/src/services/depositCollection').listOutstandingDeposits>>;
 };
 
 export async function loadOverviewContext(
@@ -149,6 +150,8 @@ export async function loadOverviewContext(
   const unreadNotifications = await listAdminNotifications(session, 'unread', 20).catch(() => []);
   const unreadNotificationsCount = unreadNotifications.length;
   const vacatingAlertsCount = operations?.leavingSoon.count ?? 0;
+  const { listOutstandingDeposits } = await import('@/src/services/depositCollection');
+  const outstandingDeposits = await listOutstandingDeposits().catch(() => []);
 
   return {
     ok: true,
@@ -171,6 +174,7 @@ export async function loadOverviewContext(
       unreadNotificationsCount,
       unreadNotifications,
       vacatingAlertsCount,
+      outstandingDeposits,
     },
   };
 }

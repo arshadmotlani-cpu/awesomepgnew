@@ -45,6 +45,7 @@ const TYPE_LABELS: Partial<Record<ActionItem['type'], string>> = {
   refund_pending: 'Refund Pending',
   deposit_refund_request: 'Deposit Refund Request',
   extension_request: 'Extension Request',
+  deposit_collection_due: 'Deposit Due',
   maintenance_issue: 'Maintenance Issue',
 };
 
@@ -60,8 +61,8 @@ function notificationHref(type: ActionItem['type'], meta: ActionItemMetadata, re
       return `/admin/requests?read=${encodeURIComponent(`request:${meta.requestId}`)}`;
     }
   }
-  if (meta.bookingId && (type === 'refund_pending' || type === 'deposit_refund_request')) {
-    return `/admin/deposits/${meta.bookingId}?read=${encodeURIComponent(`refund:${meta.bookingId}`)}`;
+  if (meta.bookingId && (type === 'refund_pending' || type === 'deposit_refund_request' || type === 'deposit_collection_due')) {
+    return `/admin/deposits/${meta.bookingId}?read=${encodeURIComponent(`deposit:${meta.bookingId}`)}`;
   }
   if (residentId) {
     return `/admin/residents/${residentId}?read=${encodeURIComponent(`resident:${residentId}:${type}`)}`;
@@ -98,6 +99,7 @@ function typeToModule(type: ActionItem['type']): AdminModule | 'deposits' {
       return 'operations';
     case 'refund_pending':
     case 'deposit_refund_request':
+    case 'deposit_collection_due':
       return 'deposits';
     default:
       return 'overview';

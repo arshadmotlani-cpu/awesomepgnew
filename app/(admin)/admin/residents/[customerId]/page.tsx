@@ -21,9 +21,9 @@ import {
   defaultTenantStartDate,
   listAssignableBeds,
 } from '@/src/services/tenantAssignment';
-import { loadBedPrice, securityDepositForMode } from '@/src/services/pricing';
+import { loadBedPrice, computeMonthlyDepositPaise } from '@/src/services/pricing';
 import { db } from '@/src/db/client';
-import { rentInvoices as rentInvoicesTable } from '@/src/db/schema';
+import { rentInvoices as rentInvoicesTable, electricityInvoices as electricityInvoicesTable, bookings as bookingsTable } from '@/src/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
@@ -114,11 +114,52 @@ export default async function ResidentDetailPage({
     }
   }
 
+  let pendingElectricity: { amountPaise: number; dueDate: string; isOverdue: boolean } | null =
+    null;
+  let depositDuePaise = 0;
+  let depositCollectionStatus: string | undefined;
+  if (activeTenancy) {
+    const [elec] = await db
+      .select({
+        amountPaise: electricityInvoicesTable.amountPaise,
+        dueDate: electricityInvoicesTable.dueDate,
+        status: electricityInvoicesTable.status,
+      })
+      .from(electricityInvoicesTable)
+      .where(
+        and(
+          eq(electricityInvoicesTable.bookingId, activeTenancy.bookingId),
+          eq(electricityInvoicesTable.status, 'pending'),
+        ),
+      )
+      .orderBy(electricityInvoicesTable.dueDate)
+      .limit(1);
+    if (elec) {
+      const today = new Date().toISOString().slice(0, 10);
+      pendingElectricity = {
+        amountPaise: elec.amountPaise,
+        dueDate: elec.dueDate,
+        isOverdue: elec.dueDate < today,
+      };
+    }
+
+    const [bookingRow] = await db
+      .select({
+        depositDuePaise: bookingsTable.depositDuePaise,
+        depositCollectionStatus: bookingsTable.depositCollectionStatus,
+      })
+      .from(bookingsTable)
+      .where(eq(bookingsTable.id, activeTenancy.bookingId))
+      .limit(1);
+    depositDuePaise = bookingRow?.depositDuePaise ?? 0;
+    depositCollectionStatus = bookingRow?.depositCollectionStatus ?? undefined;
+  }
+
   let websiteDepositPaise = 0;
   if (activeTenancy) {
     const bedRate = await loadBedPrice(activeTenancy.bedId, activeTenancy.moveInDate);
     if (bedRate) {
-      websiteDepositPaise = securityDepositForMode(bedRate, 'open_ended');
+      websiteDepositPaise = computeMonthlyDepositPaise(bedRate);
     }
   }
 
@@ -281,6 +322,12 @@ export default async function ResidentDetailPage({
             pendingRentPaise={pendingRent?.rentPaise}
             rentDueDate={pendingRent?.dueDate}
             rentOverdue={pendingRent?.isOverdue}
+            depositDuePaise={depositDuePaise}
+            depositCollectionStatus={depositCollectionStatus}
+            depositRefundablePaise={depositSummary?.refundableBalancePaise}
+            pendingElectricityPaise={pendingElectricity?.amountPaise}
+            electricityDueDate={pendingElectricity?.dueDate}
+            electricityOverdue={pendingElectricity?.isOverdue}
           />
         </div>
       ) : null}
@@ -325,6 +372,7 @@ export default async function ResidentDetailPage({
               </div>
             </section>
 
+            <section id="edit-tenancy">
             <EditTenantTenancyForm
               bookingId={activeTenancy.bookingId}
               customerId={customerId}
@@ -339,6 +387,7 @@ export default async function ResidentDetailPage({
               blocksWholeRoom={activeTenancy.blocksRoomAvailability}
               beds={bedOptions}
             />
+            </section>
           </>
         ) : (
           <section id="assign-bed" className="scroll-mt-6">

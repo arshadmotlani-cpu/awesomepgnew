@@ -603,6 +603,59 @@ export async function detectAutomationEvents(): Promise<{ emitted: number; skipp
     });
   }
 
+  const { markOverdueDeposits, listOutstandingDeposits } = await import('./depositCollection');
+  await markOverdueDeposits();
+  const inOneDay = formatDate(addDays(parseDate(today), 1));
+  const depositDueRows = await listOutstandingDeposits();
+
+  for (const row of depositDueRows) {
+    if (row.depositDueDate === inSevenDays) {
+      await tryEmit({
+        eventType: 'deposit_collection_due',
+        pgId: row.pgId,
+        customerId: row.customerId,
+        bookingId: row.bookingId,
+        idempotencyKey: `deposit_due_7d:${row.bookingId}:${inSevenDays}`,
+        metadata: {
+          customerName: row.customerFullName,
+          pgName: row.pgName,
+          amountPaise: row.depositDuePaise,
+          dueDate: row.depositDueDate,
+        },
+      });
+    }
+    if (row.depositDueDate === inOneDay) {
+      await tryEmit({
+        eventType: 'deposit_collection_due',
+        pgId: row.pgId,
+        customerId: row.customerId,
+        bookingId: row.bookingId,
+        idempotencyKey: `deposit_due_1d:${row.bookingId}:${inOneDay}`,
+        metadata: {
+          customerName: row.customerFullName,
+          pgName: row.pgName,
+          amountPaise: row.depositDuePaise,
+          dueDate: row.depositDueDate,
+        },
+      });
+    }
+    if (row.depositCollectionStatus === 'overdue') {
+      await tryEmit({
+        eventType: 'deposit_collection_overdue',
+        pgId: row.pgId,
+        customerId: row.customerId,
+        bookingId: row.bookingId,
+        idempotencyKey: `deposit_overdue:${row.bookingId}:${today}`,
+        metadata: {
+          customerName: row.customerFullName,
+          pgName: row.pgName,
+          amountPaise: row.depositDuePaise,
+          dueDate: row.depositDueDate,
+        },
+      });
+    }
+  }
+
   return { emitted, skipped };
 }
 

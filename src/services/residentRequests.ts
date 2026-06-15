@@ -18,9 +18,15 @@ import {
 } from '@/src/db/schema';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { formatDate, parseDate } from '@/src/lib/dates';
-import { getDepositSummaryForBooking, recordDepositRefunded } from '@/src/services/deposits';
-import { extendVacatingDate } from '@/src/services/vacating';
+import { getDepositSummaryForBooking, recordDepositDeducted, recordDepositRefunded } from '@/src/services/deposits';
 import { syncResidentRequestActionItems } from '@/src/services/residentRequestActions';
+import {
+  computeRefundDeductions,
+  type RefundCompletionInput,
+} from '@/src/lib/refundDeductions';
+
+export type { RefundCompletionInput } from '@/src/lib/refundDeductions';
+export { computeRefundDeductions } from '@/src/lib/refundDeductions';
 
 async function bookingContext(bookingId: string) {
   const [row] = await db
@@ -99,10 +105,10 @@ export async function submitDepositRefundRequest(input: {
   }
 }
 
-export async function submitStayExtensionRequest(input: {
+export async function submitDepositDueExtensionRequest(input: {
   customerId: string;
   bookingId: string;
-  requestedEndDate: string;
+  requestedDueDate: string;
   notes?: string;
 }) {
   const ctx = await bookingContext(input.bookingId);
@@ -110,10 +116,26 @@ export async function submitStayExtensionRequest(input: {
     return { ok: false as const, error: 'Booking not found.' };
   }
 
-  const endDate = formatDate(parseDate(input.requestedEndDate));
+  const [booking] = await db
+    .select({
+      depositDuePaise: bookings.depositDuePaise,
+      depositCollectionStatus: bookings.depositCollectionStatus,
+    })
+    .from(bookings)
+    .where(eq(bookings.id, input.bookingId))
+    .limit(1);
+  if (
+    !booking ||
+    !['partial', 'overdue'].includes(booking.depositCollectionStatus) ||
+    (booking.depositDuePaise ?? 0) <= 0
+  ) {
+    return { ok: false as const, error: 'No outstanding deposit due on this booking.' };
+  }
+
+  const dueDate = formatDate(parseDate(input.requestedDueDate));
   const today = formatDate(new Date());
-  if (endDate <= today) {
-    return { ok: false as const, error: 'Extension date must be in the future.' };
+  if (dueDate <= today) {
+    return { ok: false as const, error: 'New due date must be in the future.' };
   }
 
   try {
@@ -123,9 +145,10 @@ export async function submitStayExtensionRequest(input: {
         customerId: input.customerId,
         bookingId: input.bookingId,
         pgId: ctx.pgId,
-        type: 'stay_extension',
+        type: 'deposit_due_extension',
         status: 'submitted',
-        requestedEndDate: endDate,
+        requestedEndDate: dueDate,
+        amountPaise: booking.depositDuePaise,
         notes: input.notes ?? null,
       })
       .returning();
@@ -135,16 +158,32 @@ export async function submitStayExtensionRequest(input: {
       actorId: input.customerId,
       entity: 'resident_request',
       entityId: row.id,
-      action: 'extension_submitted',
-      diff: { bookingId: input.bookingId, requestedEndDate: endDate },
+      action: 'deposit_due_extension_submitted',
+      diff: { bookingId: input.bookingId, requestedDueDate: dueDate },
     });
 
     await syncResidentRequestActionItems();
 
     return { ok: true as const, request: row };
   } catch {
-    return { ok: false as const, error: 'An extension request is already open for this booking.' };
+    return {
+      ok: false as const,
+      error: 'A deposit extension request is already open for this booking.',
+    };
   }
+}
+
+export async function submitStayExtensionRequest(_input: {
+  customerId: string;
+  bookingId: string;
+  requestedEndDate: string;
+  notes?: string;
+}) {
+  return {
+    ok: false as const,
+    error:
+      'Stay extensions are no longer supported. To continue living here, ask admin to cancel your vacating notice.',
+  };
 }
 
 export async function listOpenRequestsForCustomer(customerId: string) {
@@ -165,6 +204,7 @@ export async function adminReviewResidentRequest(input: {
   adminId: string;
   action: 'under_review' | 'approve' | 'reject' | 'complete';
   adminNotes?: string;
+  refundCompletion?: RefundCompletionInput;
 }) {
   const [current] = await db
     .select()
@@ -200,15 +240,24 @@ export async function adminReviewResidentRequest(input: {
   }
 
   if (input.action === 'approve') {
-    if (current.type === 'stay_extension' && current.requestedEndDate) {
-      const ext = await extendVacatingDate({
+    if (current.type === 'stay_extension') {
+      return {
+        ok: false as const,
+        error:
+          'Stay extensions are disabled. Cancel the resident vacating notice instead so tenancy continues.',
+      };
+    }
+
+    if (current.type === 'deposit_due_extension' && current.requestedEndDate) {
+      const { extendDepositDueDate } = await import('./depositCollection');
+      const ext = await extendDepositDueDate({
         bookingId: current.bookingId,
-        newVacatingDate: current.requestedEndDate,
-        resolvedByAdminId: input.adminId,
-        fromExtensionRequest: true,
+        newDueDate: current.requestedEndDate,
+        adminId: input.adminId,
+        fromResidentRequest: true,
       });
       if (!ext.ok) {
-        return { ok: false as const, error: ext.message ?? 'Could not extend stay.' };
+        return { ok: false as const, error: ext.error };
       }
     }
 
@@ -227,18 +276,82 @@ export async function adminReviewResidentRequest(input: {
   }
 
   if (input.action === 'complete') {
-    if (current.type === 'deposit_refund' && current.amountPaise && current.amountPaise > 0) {
-      await recordDepositRefunded({
-        bookingId: current.bookingId,
-        customerId: current.customerId,
-        amountPaise: current.amountPaise,
-        reason: 'Resident deposit refund request completed',
-        createdByAdminId: input.adminId,
-      });
+    if (current.type === 'deposit_refund') {
+      const summary = await getDepositSummaryForBooking(current.bookingId);
+      if (!summary || summary.refundableBalancePaise <= 0) {
+        return { ok: false as const, error: 'No refundable deposit balance.' };
+      }
+
+      const calc = computeRefundDeductions(
+        summary.refundableBalancePaise,
+        input.refundCompletion ?? {},
+      );
+
+      if (calc.electricityDeductionPaise && calc.electricityDeductionPaise > 0) {
+        await recordDepositDeducted({
+          bookingId: current.bookingId,
+          customerId: current.customerId,
+          amountPaise: calc.electricityDeductionPaise,
+          reason: `Electricity: ${input.refundCompletion?.electricityUnits ?? 0} units @ ₹${((input.refundCompletion?.electricityUnitCostPaise ?? 0) / 100).toFixed(2)}/unit`,
+          createdByAdminId: input.adminId,
+        });
+      }
+
+      const otherDeductions =
+        (calc.damageChargePaise ?? 0) +
+        (calc.cleaningChargePaise ?? 0) +
+        (calc.penaltyChargePaise ?? 0) +
+        (calc.customChargePaise ?? 0);
+      if (otherDeductions > 0) {
+        const parts: string[] = [];
+        if (calc.damageChargePaise) parts.push(`Damage ₹${calc.damageChargePaise / 100}`);
+        if (calc.cleaningChargePaise) parts.push(`Cleaning ₹${calc.cleaningChargePaise / 100}`);
+        if (calc.penaltyChargePaise) parts.push(`Penalty ₹${calc.penaltyChargePaise / 100}`);
+        if (calc.customChargePaise) {
+          parts.push(`${calc.customChargeLabel ?? 'Custom'} ₹${calc.customChargePaise / 100}`);
+        }
+        await recordDepositDeducted({
+          bookingId: current.bookingId,
+          customerId: current.customerId,
+          amountPaise: otherDeductions,
+          reason: `Refund deductions: ${parts.join(', ')}`,
+          createdByAdminId: input.adminId,
+        });
+      }
+
+      if (calc.finalRefundPaise > 0) {
+        await recordDepositRefunded({
+          bookingId: current.bookingId,
+          customerId: current.customerId,
+          amountPaise: calc.finalRefundPaise,
+          reason: 'Resident deposit refund request completed',
+          createdByAdminId: input.adminId,
+        });
+      }
+
       await db
         .update(bookings)
         .set({ adminDepositRefundStatus: 'refunded', updatedAt: new Date() })
         .where(eq(bookings.id, current.bookingId));
+
+      const [updated] = await db
+        .update(residentRequests)
+        .set({
+          status: 'completed',
+          adminNotes: input.adminNotes ?? current.adminNotes,
+          refundDeductions: calc,
+          finalRefundPaise: calc.finalRefundPaise,
+          refundMethod: input.refundCompletion?.refundMethod ?? null,
+          refundPaidAt: new Date(),
+          resolvedByAdminId: input.adminId,
+          resolvedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(residentRequests.id, input.requestId))
+        .returning();
+
+      await syncResidentRequestActionItems();
+      return { ok: true as const, request: updated };
     }
 
     const [updated] = await db

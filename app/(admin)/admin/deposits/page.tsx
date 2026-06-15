@@ -10,8 +10,17 @@ import { paiseToInr } from '@/src/lib/format';
 
 export const dynamic = 'force-dynamic';
 
-export default async function AdminDepositsPage() {
+export default async function AdminDepositsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ filter?: string }>;
+}) {
+  const sp = await searchParams;
+  const dueOnly = sp.filter === 'due';
   const res = await listAdminDepositSummaries();
+  const { listOutstandingDeposits } = await import('@/src/services/depositCollection');
+  const outstanding = dueOnly ? await listOutstandingDeposits() : [];
+  const outstandingIds = new Set(outstanding.map((r) => r.bookingId));
 
   return (
     <>
@@ -37,20 +46,37 @@ export default async function AdminDepositsPage() {
         />
       ) : (
         <>
+          {dueOnly ? (
+            <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              Showing bookings with outstanding deposit balances only.{' '}
+              <Link href="/admin/deposits" className="font-semibold underline">
+                Clear filter
+              </Link>
+            </p>
+          ) : (
+            <p className="mb-4 text-sm text-zinc-500">
+              <Link href="/admin/deposits?filter=due" className="font-semibold text-indigo-600 hover:underline">
+                View outstanding deposits →
+              </Link>
+            </p>
+          )}
           {(() => {
-            const totalCollected = res.data.reduce(
+            const tableRows = dueOnly
+              ? res.data.filter((r) => outstandingIds.has(r.bookingId))
+              : res.data;
+            const totalCollected = tableRows.reduce(
               (acc, r) => acc + Number(r.collectedPaise),
               0,
             );
-            const totalDeducted = res.data.reduce(
+            const totalDeducted = tableRows.reduce(
               (acc, r) => acc + Number(r.deductedPaise),
               0,
             );
-            const totalRefunded = res.data.reduce(
+            const totalRefunded = tableRows.reduce(
               (acc, r) => acc + Number(r.refundedPaise),
               0,
             );
-            const totalRefundable = res.data.reduce(
+            const totalRefundable = tableRows.reduce(
               (acc, r) => acc + Number(r.refundableBalancePaise),
               0,
             );
@@ -77,7 +103,10 @@ export default async function AdminDepositsPage() {
               </TR>
             </THead>
             <TBody>
-              {res.data.map((r) => (
+              {(dueOnly
+                ? res.data.filter((r) => outstandingIds.has(r.bookingId))
+                : res.data
+              ).map((r) => (
                 <TR key={r.bookingId}>
                   <TD>
                     <Link

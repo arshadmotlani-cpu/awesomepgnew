@@ -88,6 +88,29 @@ export function renderAutomationTemplate(
         body:
           `Hi ${ctx.name}, your deposit refund of ${amount} for ${ctx.pgName} is being processed after checkout.`,
       };
+    case 'deposit_collection_due':
+      return {
+        subject: `Security deposit due — ${ctx.pgName}`,
+        body:
+          `Hi ${ctx.name}, your remaining security deposit of ${amount} for ${ctx.pgName} is due by ${ctx.dueDate ?? 'the due date'}. Please pay via your resident dashboard.`,
+      };
+    case 'deposit_collection_overdue':
+      return {
+        subject: `Security deposit overdue — ${ctx.pgName}`,
+        body:
+          `Hi ${ctx.name}, your remaining security deposit of ${amount} for ${ctx.pgName} is overdue. Please pay immediately.`,
+      };
+    case 'deposit_collection_overdue_admin':
+      return {
+        subject: `[Escalation] Deposit overdue — ${ctx.name} @ ${ctx.pgName}`,
+        body: `${ctx.name} has overdue deposit balance of ${amount} at ${ctx.pgName}. Follow up in Deposits.`,
+      };
+    case 'deposit_collection_received':
+      return {
+        subject: `Deposit paid in full — ${ctx.pgName}`,
+        body:
+          `Hi ${ctx.name}, thank you — your security deposit for ${ctx.pgName} is now paid in full.`,
+      };
     default:
       return {
         subject: `Update from ${ctx.pgName}`,

@@ -3,6 +3,7 @@ import {
   bigint,
   date,
   index,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -34,6 +35,11 @@ export const residentRequests = pgTable(
     amountPaise: bigint('amount_paise', { mode: 'number' }),
     notes: text('notes'),
     adminNotes: text('admin_notes'),
+    /** Electricity, damage, and other deductions applied at refund approval. */
+    refundDeductions: jsonb('refund_deductions').$type<RefundDeductionsSnapshot>(),
+    finalRefundPaise: bigint('final_refund_paise', { mode: 'number' }),
+    refundMethod: text('refund_method'),
+    refundPaidAt: timestamp('refund_paid_at', { withTimezone: true }),
     resolvedByAdminId: uuid('resolved_by_admin_id').references(() => adminUsers.id, {
       onDelete: 'set null',
     }),
@@ -56,6 +62,19 @@ export const residentRequests = pgTable(
       ),
   ],
 );
+
+export type RefundDeductionsSnapshot = {
+  depositHeldPaise: number;
+  electricityUnitCostPaise?: number;
+  electricityUnits?: number;
+  electricityDeductionPaise?: number;
+  damageChargePaise?: number;
+  cleaningChargePaise?: number;
+  penaltyChargePaise?: number;
+  customChargePaise?: number;
+  customChargeLabel?: string;
+  otherDeductionsPaise?: number;
+};
 
 export type ResidentRequest = typeof residentRequests.$inferSelect;
 export type NewResidentRequest = typeof residentRequests.$inferInsert;

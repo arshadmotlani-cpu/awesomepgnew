@@ -3,6 +3,7 @@ import { db } from '@/src/db/client';
 import { paymentLinks } from '@/src/db/schema';
 import {
   buildBillingWhatsAppUrl,
+  buildDepositDueWhatsAppUrl,
   buildRentUpdatedWhatsAppUrl,
 } from '@/src/lib/billing/adminWhatsApp';
 import { paymentLinkPublicUrl } from '@/src/lib/billing/paymentLinkUrl';
@@ -68,6 +69,16 @@ export async function createPaymentLink(input: CreatePaymentLinkInput) {
       isOverdue: input.isOverdue,
       paymentLinkUrl: publicUrl,
     });
+  } else if (input.purpose === 'deposit') {
+    whatsappShareUrl = buildDepositDueWhatsAppUrl({
+      customerName: input.residentName,
+      phone: input.residentPhone,
+      pgName: input.pgName,
+      amountPaise: input.amountPaise,
+      dueDate: input.dueDate ?? 'soon',
+      paymentLinkUrl: publicUrl,
+      isOverdue: input.isOverdue,
+    });
   }
 
   if (whatsappShareUrl) {
@@ -125,6 +136,17 @@ export function buildWhatsAppUrlForActionItem(detail: ActionItemDetail): string 
       dueDate: detail.dueDate ?? 'soon',
       roomNumber: meta.roomNumber ?? detail.roomNumber ?? undefined,
       billingMonth: meta.billingMonth,
+      isOverdue: meta.isOverdue,
+    });
+  }
+
+  if (detail.type === 'deposit_collection_due') {
+    return buildDepositDueWhatsAppUrl({
+      customerName: meta.residentName ?? detail.residentName ?? 'Resident',
+      phone,
+      pgName: meta.pgName ?? detail.pgName ?? 'PG',
+      amountPaise: detail.amount ?? 0,
+      dueDate: detail.dueDate ?? 'soon',
       isOverdue: meta.isOverdue,
     });
   }

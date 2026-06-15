@@ -483,6 +483,37 @@ async function syncMaintenanceIssues(session: AdminSession): Promise<void> {
   }
 }
 
+async function syncDepositCollectionDue(session: AdminSession): Promise<void> {
+  const { listOutstandingDeposits } = await import('./depositCollection');
+  const today = formatDate(new Date());
+  const rows = await listOutstandingDeposits();
+
+  for (const row of rows) {
+    if (!sessionCanAccessPg(session, row.pgId)) continue;
+    const daysUntilDue = row.depositDueDate ? diffDays(today, row.depositDueDate) : 99;
+    const isOverdue = row.depositCollectionStatus === 'overdue';
+    await upsertActionItem({
+      type: 'deposit_collection_due',
+      title: `${row.customerFullName} · Deposit due ${isOverdue ? '(overdue)' : ''}`.trim(),
+      pgId: row.pgId,
+      residentId: row.customerId,
+      amount: row.depositDuePaise,
+      dueDate: row.depositDueDate,
+      priority: isOverdue ? 'high' : daysUntilDue <= 7 ? 'medium' : 'low',
+      sourceKey: `deposit_due:${row.bookingId}`,
+      metadata: {
+        residentName: row.customerFullName,
+        residentPhone: row.customerPhone,
+        pgName: formatPgDisplayName(row.pgName),
+        roomNumber: row.roomNumber,
+        bedCode: row.bedCode,
+        bookingId: row.bookingId,
+        isOverdue,
+      },
+    });
+  }
+}
+
 export async function syncActionItems(session: AdminSession): Promise<void> {
   await Promise.all([
     syncRentDue(session),
@@ -490,6 +521,7 @@ export async function syncActionItems(session: AdminSession): Promise<void> {
     syncKycPending(session),
     syncVacatingAlerts(session),
     syncRefundsPending(session),
+    syncDepositCollectionDue(session),
     syncPaymentReviews(session),
     syncMaintenanceIssues(session),
     syncResidentRequestActionItems(),

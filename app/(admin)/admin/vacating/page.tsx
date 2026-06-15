@@ -11,7 +11,6 @@ import {
   ApproveVacatingButton,
   CancelVacatingNoticeButton,
   CompleteVacatingButton,
-  ExtendVacatingDateForm,
   RejectVacatingButton,
   UndoVacatingApprovalButton,
   UndoVacatingCompletionButton,
@@ -141,11 +140,6 @@ export default async function AdminVacatingPage(
                         <ApproveVacatingButton requestId={v.id} />
                         <RejectVacatingButton requestId={v.id} />
                         <CancelVacatingNoticeButton requestId={v.id} />
-                        <ExtendVacatingDateForm
-                          key={`${v.bookingId}-${v.vacatingDate}`}
-                          bookingId={v.bookingId}
-                          currentVacatingDate={v.vacatingDate}
-                        />
                       </>
                     ) : null}
                     {v.status === 'approved' ? (
@@ -153,11 +147,6 @@ export default async function AdminVacatingPage(
                         <CompleteVacatingButton requestId={v.id} />
                         <UndoVacatingApprovalButton requestId={v.id} />
                         <CancelVacatingNoticeButton requestId={v.id} />
-                        <ExtendVacatingDateForm
-                          key={`${v.bookingId}-${v.vacatingDate}`}
-                          bookingId={v.bookingId}
-                          currentVacatingDate={v.vacatingDate}
-                        />
                       </>
                     ) : null}
                     {v.status === 'completed' ? (

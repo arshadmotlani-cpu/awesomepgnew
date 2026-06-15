@@ -5,6 +5,7 @@ import { OverviewMonthPicker } from '@/src/components/admin/OverviewMonthPicker'
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { SyncActionsButton } from '@/src/components/admin/SyncActionsButton';
 import { UnreadNotificationsPanel } from '@/src/components/admin/UnreadNotificationsPanel';
+import { OutstandingDepositsPanel } from '@/src/components/admin/overview/OutstandingDepositsPanel';
 import { OverviewGlobalSummary } from '@/src/components/admin/overview/OverviewGlobalSummary';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import { requireAdminSession } from '@/src/lib/auth/guards';
@@ -92,6 +93,9 @@ export default async function OverviewPage({
       <AdminSectionErrorBoundary title="Overview summary">
         <div className="mb-8">
           <UnreadNotificationsPanel items={ctx.data.unreadNotifications} />
+        </div>
+        <div className="mb-8">
+          <OutstandingDepositsPanel rows={ctx.data.outstandingDeposits} />
         </div>
         <OverviewGlobalSummary ctx={ctx.data} />
       </AdminSectionErrorBoundary>

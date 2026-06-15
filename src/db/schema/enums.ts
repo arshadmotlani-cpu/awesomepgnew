@@ -26,6 +26,7 @@ export const durationModeEnum = pgEnum('duration_mode', [
   'weekly',
   'monthly',
   'open_ended',
+  'fixed_stay',
   'reserve',
 ]);
 
@@ -50,6 +51,14 @@ export const adminDepositRefundStatusEnum = pgEnum('admin_deposit_refund_status'
   'refunded',
   'blocked',
   'not_applicable',
+]);
+
+export const depositCollectionStatusEnum = pgEnum('deposit_collection_status', [
+  'pending',
+  'full',
+  'partial',
+  'overdue',
+  'waived',
 ]);
 
 export const reservationKindEnum = pgEnum('reservation_kind', ['primary', 'extension']);
@@ -200,6 +209,7 @@ export const actionItemTypeEnum = pgEnum('action_item_type', [
   'maintenance_issue',
   'deposit_refund_request',
   'extension_request',
+  'deposit_collection_due',
 ]);
 
 export const actionItemStatusEnum = pgEnum('action_item_status', [
@@ -229,6 +239,7 @@ export const paymentLinkStatusEnum = pgEnum('payment_link_status', [
 export const residentRequestTypeEnum = pgEnum('resident_request_type', [
   'deposit_refund',
   'stay_extension',
+  'deposit_due_extension',
 ]);
 
 export const residentRequestStatusEnum = pgEnum('resident_request_status', [
@@ -248,5 +259,6 @@ export const adminNotificationStateEnum = pgEnum('admin_notification_state', [
 export type ActionItemType = (typeof actionItemTypeEnum.enumValues)[number];
 export type ActionItemStatus = (typeof actionItemStatusEnum.enumValues)[number];
 export type ActionItemPriority = (typeof actionItemPriorityEnum.enumValues)[number];
+export type DepositCollectionStatus = (typeof depositCollectionStatusEnum.enumValues)[number];
 export type PaymentLinkPurpose = (typeof paymentLinkPurposeEnum.enumValues)[number];
 export type PaymentLinkStatus = (typeof paymentLinkStatusEnum.enumValues)[number];

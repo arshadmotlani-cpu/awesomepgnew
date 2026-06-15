@@ -69,6 +69,13 @@ export type RecordPaymentSuccessInput = {
   /** Awesome PG's `bookings.booking_code` (== webhook receipt). */
   bookingCode: string;
   rawPayload?: unknown;
+  /** PS4 add-on portion included in amountPaise — excluded from rent/deposit split. */
+  membershipAmountPaise?: number;
+  /** Admin-approved partial deposit move-in. */
+  partialDeposit?: {
+    depositDueDate: string;
+    approvedByAdminId: string;
+  };
 };
 
 export type RecordPaymentSuccessResult =
@@ -225,6 +232,8 @@ export async function recordPaymentSuccess(
       id: bookings.id,
       status: bookings.status,
       durationMode: bookings.durationMode,
+      subtotalPaise: bookings.subtotalPaise,
+      discountPaise: bookings.discountPaise,
       totalPaise: bookings.totalPaise,
       depositPaise: bookings.depositPaise,
       customerId: bookings.customerId,
@@ -239,6 +248,30 @@ export async function recordPaymentSuccess(
   }
 
   const isReserveBooking = booking.durationMode === 'reserve';
+
+  if (!isReserveBooking && booking.depositPaise > 0) {
+    const { validateBookingPayment } = await import('./depositCollection');
+    const validation = validateBookingPayment({
+      booking,
+      amountPaise: input.amountPaise,
+      membershipAmountPaise: input.membershipAmountPaise,
+      allowPartialDeposit: Boolean(input.partialDeposit),
+    });
+    if (!validation.ok) {
+      return { ok: false, reason: validation.reason };
+    }
+  } else if (!isReserveBooking && !input.partialDeposit) {
+    const bookingPaymentPaise = Math.max(
+      0,
+      input.amountPaise - (input.membershipAmountPaise ?? 0),
+    );
+    if (bookingPaymentPaise < booking.totalPaise) {
+      return {
+        ok: false,
+        reason: `Payment is short by ₹${((booking.totalPaise - bookingPaymentPaise) / 100).toFixed(0)}.`,
+      };
+    }
+  }
 
   if (
     !isReserveBooking &&
@@ -371,7 +404,19 @@ export async function recordPaymentSuccess(
       try {
         const snapshot = booking.pricingSnapshot as PricingSnapshot | null;
         const creditApplied = snapshot?.depositCredit?.appliedPaise ?? 0;
-        const paidDepositPaise = booking.depositPaise - creditApplied;
+        const {
+          validateBookingPayment,
+          applyPartialDepositOnConfirm,
+          applyFullDepositOnConfirm,
+        } = await import('./depositCollection');
+        const validation = validateBookingPayment({
+          booking,
+          amountPaise: input.amountPaise,
+          membershipAmountPaise: input.membershipAmountPaise,
+          allowPartialDeposit: Boolean(input.partialDeposit),
+        });
+        const split = validation.ok ? validation.split : null;
+        const depositPaisePaid = split?.depositPaisePaid ?? Math.max(0, booking.depositPaise - creditApplied);
 
         if (creditApplied > 0) {
           const { applyDepositCreditToBooking } = await import('./depositCredit');
@@ -385,15 +430,26 @@ export async function recordPaymentSuccess(
           }
         }
 
-        if (paidDepositPaise > 0) {
+        if (depositPaisePaid > 0) {
           const { recordDepositCollected } = await import('./deposits');
           await recordDepositCollected({
             bookingId: booking.id,
             customerId: booking.customerId,
-            amountPaise: paidDepositPaise,
+            amountPaise: depositPaisePaid,
             reason: `deposit captured with payment ${input.providerPaymentId}`,
             relatedPaymentId: result.paymentId,
           });
+        }
+
+        if (input.partialDeposit && split && split.depositDuePaise > 0) {
+          await applyPartialDepositOnConfirm({
+            bookingId: booking.id,
+            depositDuePaise: split.depositDuePaise,
+            depositDueDate: input.partialDeposit.depositDueDate,
+            approvedByAdminId: input.partialDeposit.approvedByAdminId,
+          });
+        } else if (split?.isFullPayment || depositPaisePaid + creditApplied >= booking.depositPaise) {
+          await applyFullDepositOnConfirm(booking.id);
         }
       } catch (depositErr) {
         // Log + continue; the operator can backfill from the admin

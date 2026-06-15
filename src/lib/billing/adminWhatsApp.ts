@@ -1,7 +1,7 @@
 import { paiseToInr } from '@/src/lib/format';
 import { whatsAppPhoneDigits } from '@/src/lib/kyc/adminWhatsApp';
 
-export type BillingWhatsAppKind = 'rent' | 'electricity';
+export type BillingWhatsAppKind = 'rent' | 'electricity' | 'deposit';
 
 export type BillingWhatsAppInput = {
   kind: BillingWhatsAppKind;
@@ -31,16 +31,7 @@ export function buildBillingWhatsAppMessage(input: BillingWhatsAppInput): string
 
   if (input.kind === 'rent') {
     if (input.paymentLinkUrl) {
-      if (input.isOverdue) {
-        return (
-          `Hi ${firstName}, your rent for ${input.pgName} is ${amount} (overdue). ` +
-          `Please complete payment using this link: ${input.paymentLinkUrl}`
-        );
-      }
-      return (
-        `Hi ${firstName}, your rent for ${input.pgName} is ${amount}. ` +
-        `Please complete payment using this link: ${input.paymentLinkUrl}`
-      );
+      return `Hi ${firstName},\n\nYour rent due is ${amount}.\n\nPay here:\n${input.paymentLinkUrl}`;
     }
     if (input.isOverdue) {
       return (
@@ -54,12 +45,25 @@ export function buildBillingWhatsAppMessage(input: BillingWhatsAppInput): string
     );
   }
 
+  if (input.kind === 'deposit') {
+    if (input.paymentLinkUrl) {
+      return `Hi ${firstName},\n\nYour remaining deposit due is ${amount}.\n\nPay here:\n${input.paymentLinkUrl}`;
+    }
+    if (input.isOverdue) {
+      return (
+        `Hi ${firstName}, your remaining deposit due of ${amount} for ${input.pgName} is overdue. ` +
+        `Please pay via UPI or contact the office immediately.`
+      );
+    }
+    return (
+      `Hi ${firstName}, your remaining deposit due of ${amount} for ${input.pgName} is due by ${input.dueDate}. ` +
+      `Please pay via UPI or contact the office.`
+    );
+  }
+
   const room = input.roomNumber ? ` · Room ${input.roomNumber}` : '';
   if (input.paymentLinkUrl) {
-    return (
-      `Hi ${firstName}, your electricity bill for ${input.pgName}${room} is ${amount}. ` +
-      `Please complete payment using this link: ${input.paymentLinkUrl}`
-    );
+    return `Hi ${firstName},\n\nYour electricity bill is ${amount}.\n\nPay here:\n${input.paymentLinkUrl}`;
   }
   if (input.isOverdue) {
     return (
@@ -91,6 +95,50 @@ export function buildRentUpdatedWhatsAppMessage(input: {
     `Hi ${firstName}, your rent has been updated to ${amount} for ${input.pgName}. ` +
     `Please pay via UPI or contact the office for the payment link.`
   );
+}
+
+export type DepositDueWhatsAppInput = {
+  customerName: string;
+  phone: string;
+  pgName: string;
+  amountPaise: number;
+  dueDate: string;
+  paymentLinkUrl?: string;
+  isOverdue?: boolean;
+};
+
+export function buildDepositDueWhatsAppMessage(input: Omit<DepositDueWhatsAppInput, 'phone'>): string {
+  const firstName = input.customerName.trim().split(/\s+/)[0] || 'there';
+  const amount = paiseToInr(input.amountPaise);
+  if (input.paymentLinkUrl) {
+    if (input.isOverdue) {
+      return (
+        `Hi ${firstName}, your remaining security deposit of ${amount} for ${input.pgName} is overdue. ` +
+        `Please pay using this link: ${input.paymentLinkUrl}`
+      );
+    }
+    return (
+      `Hi ${firstName}, your remaining security deposit of ${amount} for ${input.pgName} is due by ${input.dueDate}. ` +
+      `Please complete payment using this link: ${input.paymentLinkUrl}`
+    );
+  }
+  if (input.isOverdue) {
+    return (
+      `Hi ${firstName}, your remaining security deposit of ${amount} for ${input.pgName} is overdue. ` +
+      `Please pay via UPI or contact the office immediately.`
+    );
+  }
+  return (
+    `Hi ${firstName}, your remaining security deposit of ${amount} for ${input.pgName} is due by ${input.dueDate}. ` +
+    `Please pay via UPI or contact the office.`
+  );
+}
+
+export function buildDepositDueWhatsAppUrl(input: DepositDueWhatsAppInput): string | null {
+  const digits = whatsAppPhoneDigits(input.phone);
+  if (!digits) return null;
+  const text = buildDepositDueWhatsAppMessage(input);
+  return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
 }
 
 export function buildRentUpdatedWhatsAppUrl(input: RentUpdatedWhatsAppInput): string | null {

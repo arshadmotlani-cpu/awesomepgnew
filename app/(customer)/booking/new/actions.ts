@@ -30,6 +30,7 @@ const VALID_MODES: ReadonlySet<PricingMode> = new Set([
   'weekly',
   'monthly',
   'open_ended',
+  'fixed_stay',
 ]);
 const VALID_GENDERS = new Set(['male', 'female', 'other']);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

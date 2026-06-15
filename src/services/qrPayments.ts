@@ -324,6 +324,40 @@ export async function getPendingBookingPaymentRecord(bookingId: string, customer
   return row ?? null;
 }
 
+/** Booking checkout context for admin payment review (rent/deposit split). */
+export async function getQrBookingPaymentReview(recordId: string) {
+  const [record] = await db
+    .select({
+      id: pgPaymentRecords.id,
+      bookingId: pgPaymentRecords.bookingId,
+      amountPaise: pgPaymentRecords.amountPaise,
+    })
+    .from(pgPaymentRecords)
+    .where(eq(pgPaymentRecords.id, recordId))
+    .limit(1);
+  if (!record?.bookingId) return null;
+
+  const { getBookingPaymentContext, splitBookingPayment } = await import('./depositCollection');
+  const ctx = await getBookingPaymentContext(record.bookingId);
+  if (!ctx) return null;
+
+  const bookingPaymentPaise = record.amountPaise;
+  const split = splitBookingPayment(ctx, bookingPaymentPaise);
+
+  return {
+    bookingCode: ctx.bookingCode,
+    bookingTotalDuePaise: ctx.totalPaise,
+    amountSubmittedPaise: record.amountPaise,
+    rentDuePaise: split.rentDuePaise,
+    depositCashDuePaise: split.depositCashDuePaise,
+    rentPaisePaid: split.rentPaisePaid,
+    depositPaisePaid: split.depositPaisePaid,
+    depositDuePaise: split.depositDuePaise,
+    isFullPayment: split.isFullPayment,
+    canPartialApprove: !split.isFullPayment && split.depositPaisePaid > 0,
+  };
+}
+
 export async function listOwnerPayments(
   session: AdminSession,
   filters?: { pgId?: string; status?: 'pending' | 'approved' | 'rejected'; month?: string },
@@ -410,6 +444,9 @@ export async function reviewPaymentRecord(
   session: AdminSession,
   recordId: string,
   status: 'approved' | 'rejected',
+  opts?: {
+    partialDeposit?: { depositDueDate: string };
+  },
 ) {
   const [record] = await db
     .select()
@@ -434,7 +471,17 @@ export async function reviewPaymentRecord(
         providerOrderId: record.transactionRef ?? recordId,
         amountPaise: record.amountPaise,
         bookingCode: booking.bookingCode,
-        rawPayload: { pgPaymentRecordId: recordId, category: RENT_DEPOSIT_BOOKING_CATEGORY_NAME },
+        rawPayload: {
+          pgPaymentRecordId: recordId,
+          category: RENT_DEPOSIT_BOOKING_CATEGORY_NAME,
+          partialDeposit: opts?.partialDeposit ?? null,
+        },
+        partialDeposit: opts?.partialDeposit
+          ? {
+              depositDueDate: opts.partialDeposit.depositDueDate,
+              approvedByAdminId: session.adminId,
+            }
+          : undefined,
       });
       if (!paymentResult.ok) {
         throw new Error(
