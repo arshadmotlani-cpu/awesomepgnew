@@ -49,21 +49,21 @@ export function UnverifiedWebsiteSignupsTable({
         ) : null}
       </div>
 
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="space-y-3">
         <div>
           <h2 className="text-base font-semibold text-white">Website signups (not verified)</h2>
           <p className="mt-1 text-sm text-apg-silver">
             People who registered on awesomepg.in but have no approved KYC or payment yet.
           </p>
         </div>
-        <label className="block min-w-[14rem] text-sm">
-          <span className="sr-only">Search signups</span>
+        <label className="block w-full text-sm">
+          <span className="font-medium text-apg-silver">Search</span>
           <input
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search…"
-            className="apg-admin-field w-full rounded-lg border border-white/10 bg-[#1A1F27] px-3 py-2 text-sm text-white"
+            placeholder="Name, phone, room, or bed…"
+            className="apg-admin-field mt-1 w-full rounded-lg border border-white/10 bg-[#1A1F27] px-3 py-2 text-sm text-white"
           />
         </label>
       </div>

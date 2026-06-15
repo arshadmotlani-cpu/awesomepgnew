@@ -22,7 +22,7 @@ export default async function AdminGroupLayout({ children }: { children: ReactNo
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <TopNav badges={badges} />
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden px-3 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-4 sm:py-6 lg:px-8 lg:py-8">
-          <div className="apg-admin-scroll mx-auto flex min-h-0 w-full min-w-0 max-w-7xl flex-1 flex-col gap-5 overflow-y-auto overflow-x-clip sm:gap-6">
+          <div className="apg-admin-scroll flex min-h-0 w-full min-w-0 flex-1 flex-col gap-5 overflow-y-auto overflow-x-auto sm:gap-6">
             <AdminActionDrawerProvider>{children}</AdminActionDrawerProvider>
           </div>
         </main>

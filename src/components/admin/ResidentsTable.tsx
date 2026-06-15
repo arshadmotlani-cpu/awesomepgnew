@@ -91,14 +91,14 @@ export function ResidentsTable({
       </div>
 
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <label className="block min-w-[16rem] flex-1 text-sm">
+        <label className="block min-w-0 flex-1 basis-full text-sm sm:basis-auto">
           <span className="font-medium text-apg-silver">Search</span>
           <input
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Name, phone, PG, room, or bed…"
-            className="apg-admin-field mt-1 w-full max-w-md rounded-lg border border-white/10 bg-[#1A1F27] px-3 py-2 text-sm text-white"
+            className="apg-admin-field mt-1 w-full rounded-lg border border-white/10 bg-[#1A1F27] px-3 py-2 text-sm text-white"
           />
         </label>
         <p className="text-sm text-apg-silver">
