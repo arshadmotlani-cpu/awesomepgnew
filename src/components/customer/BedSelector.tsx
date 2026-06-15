@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback } from 'react';
 import { dispatchRoachieReminder } from '@/src/lib/cockroach/roachieReminders';
+import { displayMonthlyDepositPaise } from '@/src/lib/customerDepositDisplay';
 import { BookingEducationBar } from './BookingEducationBar';
 import { BedBookingPanel } from './BedBookingPanel';
 import { BedReservePanel } from './BedReservePanel';
@@ -123,9 +124,7 @@ export function BedSelector({ beds, theme = 'light', roomLabel = 'This room' }: 
           theme={theme}
           sampleMonthlyPaise={sampleBed?.monthlyRatePaise || 12_000_00}
           sampleDepositPaise={
-            sampleBed?.monthlySecurityDepositPaise ||
-            sampleBed?.securityDepositPaise ||
-            5_000_00
+            sampleBed ? displayMonthlyDepositPaise(sampleBed) : 5_000_00
           }
         />
 

@@ -7,6 +7,7 @@ import {
 } from '@/src/lib/bedAvailabilityState';
 import { reserveBufferDate } from '@/src/lib/bedReservePolicy';
 import { customerBookableFromDate } from '@/src/lib/dates';
+import { displayMonthlyDepositPaise } from '@/src/lib/customerDepositDisplay';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import type { BedSelectorBed } from './customerBedTypes';
 
@@ -82,7 +83,7 @@ function BedPricingDetails({
   shortStayOnly?: boolean;
 }) {
   const rate = bed.monthlyRatePaise;
-  const deposit = bed.monthlySecurityDepositPaise || bed.securityDepositPaise;
+  const deposit = displayMonthlyDepositPaise(bed);
   const bookableFrom = customerBookableFromDate(bed.nextAvailableDate);
 
   return (

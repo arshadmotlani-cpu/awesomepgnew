@@ -15,6 +15,7 @@ import {
   maxCheckoutForCheckIn,
 } from '@/src/lib/bedAvailabilityWindows';
 import { reserveBufferDate } from '@/src/lib/bedReservePolicy';
+import { displayMonthlyDepositPaise } from '@/src/lib/customerDepositDisplay';
 import type { PricingMode } from '@/src/services/pricing';
 import type { BedSelectorBed } from './BedSelector';
 
@@ -53,7 +54,7 @@ function estimateFixedStaySubtotal(bed: BedSelectorBed, nights: number): number 
 
 function depositPreview(bed: BedSelectorBed, mode: PricingMode, nights: number): number {
   if (mode === 'open_ended') {
-    return bed.monthlyRatePaise > 0 ? bed.monthlyRatePaise * 2 : bed.securityDepositPaise;
+    return displayMonthlyDepositPaise(bed);
   }
   if (mode === 'fixed_stay' && nights > 0) {
     return Math.ceil(estimateFixedStaySubtotal(bed, nights) * 0.5);

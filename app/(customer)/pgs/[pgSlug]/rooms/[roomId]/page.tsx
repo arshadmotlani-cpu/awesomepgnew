@@ -9,6 +9,7 @@ import { RoomDetailInsights } from '@/src/components/customer/RoomDetailInsights
 import { AnalyticsMountEvent } from '@/src/components/analytics/AnalyticsMountEvent';
 import { getRoomDetail } from '@/src/db/queries/customer';
 import { getCustomerSession } from '@/src/lib/auth/session';
+import { displayMonthlyDepositPaise } from '@/src/lib/customerDepositDisplay';
 import { getRoomActivityStats, recordRoomPageView } from '@/src/services/roomActivity';
 import { trackAnalyticsEvent } from '@/src/services/visitorAnalytics';
 
@@ -132,8 +133,7 @@ export default async function RoomDetailPage(
           dailyRatePaise: rateSample?.dailyRatePaise ?? 0,
           weeklyRatePaise: rateSample?.weeklyRatePaise ?? 0,
           monthlyRatePaise: rateSample?.monthlyRatePaise ?? 0,
-          monthlyDepositPaise:
-            rateSample?.monthlySecurityDepositPaise ?? rateSample?.securityDepositPaise ?? 0,
+          monthlyDepositPaise: rateSample ? displayMonthlyDepositPaise(rateSample) : 0,
         }}
         activity={activity}
       />
