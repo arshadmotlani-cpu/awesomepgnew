@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
 
   let data = await searchResidentsForAdmin(session, q);
   if (kycApproved) {
-    data = data.filter((r) => r.kycStatus === 'approved' && r.bookingId);
+    data = data.filter((r) => r.bookingId);
   }
   return Response.json({
     ok: true,

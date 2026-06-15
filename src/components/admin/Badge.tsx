@@ -52,11 +52,14 @@ export function toneForStatus(status: string): BadgeTone {
     case 'verified':
     case 'paid':
     case 'completed':
+    case 'full':
       return 'emerald';
     case 'pending':
     case 'pending_payment':
     case 'hold':
     case 'initiated':
+    case 'partial':
+    case 'overdue':
       return 'amber';
     case 'cancelled':
     case 'failed':

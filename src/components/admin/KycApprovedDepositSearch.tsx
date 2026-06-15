@@ -2,7 +2,8 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Badge } from '@/src/components/admin/Badge';
+import { Badge, toneForStatus } from '@/src/components/admin/Badge';
+import { titleCase } from '@/src/lib/format';
 
 type SearchResult = {
   id: string;
@@ -10,7 +11,7 @@ type SearchResult = {
   email: string;
   phone: string;
   kycStatus: string;
-  tenancyStatus: 'unassigned' | 'active';
+  tenancyStatus: 'unassigned' | 'active' | 'vacating';
   pgName: string | null;
   roomNumber: string | null;
   bedCode: string | null;
@@ -61,11 +62,12 @@ export function KycApprovedDepositSearch() {
   }, [query]);
 
   return (
-    <div className="max-w-2xl space-y-4 rounded-xl border border-zinc-200 bg-white p-5">
+    <div className="w-full space-y-4 rounded-xl border border-white/10 bg-[#1A1F27] p-5">
       <div>
-        <h3 className="text-sm font-semibold text-zinc-900">Add deposit — KYC-approved residents</h3>
-        <p className="mt-1 text-sm text-zinc-600">
-          Search by name or phone. Only residents with approved KYC and an active booking appear.
+        <h3 className="text-sm font-semibold text-white">Add deposit — verified residents</h3>
+        <p className="mt-1 text-sm text-apg-silver">
+          Search by name or phone. Shows verified residents (KYC or payment approved) with an active
+          booking.
         </p>
       </div>
       <input
@@ -73,24 +75,30 @@ export function KycApprovedDepositSearch() {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Name or phone…"
-        className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+        className="apg-admin-field w-full rounded-lg border border-white/10 bg-[#12161D] px-3 py-2 text-sm text-white"
       />
-      {loading ? <p className="text-xs text-zinc-500">Searching…</p> : null}
-      {error ? <p className="text-xs text-rose-600">{error}</p> : null}
-      <ul className="divide-y divide-zinc-100 rounded-lg border border-zinc-200">
+      {loading ? <p className="text-xs text-apg-silver">Searching…</p> : null}
+      {error ? <p className="text-xs text-rose-300">{error}</p> : null}
+      <ul className="divide-y divide-white/5 rounded-lg border border-white/10">
         {results.length === 0 && query.trim().length >= 2 && !loading ? (
-          <li className="px-3 py-4 text-sm text-zinc-500">No KYC-approved residents with active stays.</li>
+          <li className="px-3 py-4 text-sm text-apg-silver">
+            No verified residents with an active booking match your search.
+          </li>
         ) : null}
         {results.map((r) => (
-          <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-3">
+          <li
+            key={r.id}
+            className="flex flex-wrap items-center justify-between gap-2 px-3 py-3 hover:bg-white/[0.03]"
+          >
             <div>
-              <p className="text-sm font-medium text-zinc-900">{r.fullName}</p>
-              <p className="text-xs text-zinc-500">
-                {r.phone} · {r.pgName ?? 'No bed'} {r.roomNumber ? `· Room ${r.roomNumber}` : ''}
+              <p className="text-sm font-medium text-white">{r.fullName}</p>
+              <p className="text-xs text-apg-silver">
+                {r.phone} · {r.pgName ?? 'No bed'}{' '}
+                {r.roomNumber ? `· Room ${r.roomNumber} · ${r.bedCode}` : ''}
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <Badge tone="emerald">KYC approved</Badge>
+              <Badge tone={toneForStatus(r.kycStatus)}>{titleCase(r.kycStatus)} KYC</Badge>
               {r.bookingId ? (
                 <button
                   type="button"
@@ -99,7 +107,9 @@ export function KycApprovedDepositSearch() {
                 >
                   Add deposit →
                 </button>
-              ) : null}
+              ) : (
+                <span className="text-xs text-apg-silver">No active booking</span>
+              )}
             </div>
           </li>
         ))}

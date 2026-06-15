@@ -14,7 +14,7 @@ export default async function AdminDepositsAddPage() {
     <>
       <PageHeader
         title="Add deposit"
-        description="Record cash, UPI, or bank transfer deposits for KYC-approved residents. Ledger, reports, and revenue sync automatically."
+        description="Record cash, UPI, or bank transfer for verified residents. Ledger, reports, and revenue sync automatically."
         actions={
           <Link
             href={moduleHref('deposits')}

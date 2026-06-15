@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, or, sql } from 'drizzle-orm';
 import { db } from '../client';
 import { hasDatabaseUrl } from '@/src/lib/db/env';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
@@ -1737,7 +1737,11 @@ export type DepositLedgerSummaryRow = {
   customerPhone: string;
   pgId: string;
   pgName: string;
+  roomNumber: string;
   bedCode: string;
+  depositPaise: number;
+  depositDuePaise: number;
+  depositCollectionStatus: 'pending' | 'full' | 'partial' | 'overdue' | 'waived';
   collectedPaise: number;
   deductedPaise: number;
   refundedPaise: number;
@@ -1750,39 +1754,56 @@ export function listAdminDepositSummaries(): Promise<QueryResult<DepositLedgerSu
       .select({
         bookingId: bookings.id,
         bookingCode: bookings.bookingCode,
-        customerId: depositLedger.customerId,
+        customerId: bookings.customerId,
         customerFullName: customers.fullName,
         customerPhone: customers.phone,
         pgId: pgs.id,
         pgName: pgs.name,
+        roomNumber: rooms.roomNumber,
         bedCode: beds.bedCode,
+        depositPaise: bookings.depositPaise,
+        depositDuePaise: bookings.depositDuePaise,
+        depositCollectionStatus: bookings.depositCollectionStatus,
         collectedPaise: sql<number>`coalesce(sum(${depositLedger.amountPaise}) FILTER (WHERE ${depositLedger.entryKind} = 'collected'), 0)::bigint`,
         deductedPaise: sql<number>`coalesce(-sum(${depositLedger.amountPaise}) FILTER (WHERE ${depositLedger.entryKind} = 'deducted'), 0)::bigint`,
         refundedPaise: sql<number>`coalesce(-sum(${depositLedger.amountPaise}) FILTER (WHERE ${depositLedger.entryKind} = 'refunded'), 0)::bigint`,
         refundableBalancePaise: sql<number>`coalesce(sum(${depositLedger.amountPaise}), 0)::bigint`,
       })
-      .from(depositLedger)
-      .innerJoin(bookings, eq(bookings.id, depositLedger.bookingId))
-      .innerJoin(customers, eq(customers.id, depositLedger.customerId))
-      .innerJoin(bedReservations, and(
-        eq(bedReservations.bookingId, bookings.id),
-        eq(bedReservations.kind, 'primary'),
-      ))
+      .from(bookings)
+      .innerJoin(customers, eq(customers.id, bookings.customerId))
+      .innerJoin(
+        bedReservations,
+        and(eq(bedReservations.bookingId, bookings.id), eq(bedReservations.kind, 'primary')),
+      )
       .innerJoin(beds, eq(beds.id, bedReservations.bedId))
       .innerJoin(rooms, eq(rooms.id, beds.roomId))
       .innerJoin(floors, eq(floors.id, rooms.floorId))
       .innerJoin(pgs, eq(pgs.id, floors.pgId))
+      .leftJoin(depositLedger, eq(depositLedger.bookingId, bookings.id))
+      .where(
+        and(
+          inArray(bookings.status, ['confirmed', 'completed']),
+          or(
+            gt(bookings.depositPaise, 0),
+            sql`exists (select 1 from deposit_ledger dl where dl.booking_id = ${bookings.id})`,
+          ),
+        ),
+      )
       .groupBy(
         bookings.id,
         bookings.bookingCode,
-        depositLedger.customerId,
+        bookings.customerId,
+        bookings.depositPaise,
+        bookings.depositDuePaise,
+        bookings.depositCollectionStatus,
         customers.fullName,
         customers.phone,
         pgs.id,
         pgs.name,
+        rooms.roomNumber,
         beds.bedCode,
       )
-      .orderBy(asc(bookings.bookingCode));
+      .orderBy(desc(bookings.createdAt));
   });
 }
 
