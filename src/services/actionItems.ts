@@ -118,6 +118,52 @@ async function upsertActionItem(input: UpsertInput): Promise<void> {
     });
 }
 
+/** Drop open billing tasks when the underlying invoice is no longer due. */
+export async function resolveStaleBillingActionItems(): Promise<{ resolved: number }> {
+  const rentRows = await db.execute<{ id: string }>(sql`
+    UPDATE action_items ai
+    SET status = 'resolved', updated_at = now()
+    WHERE ai.type = 'rent_due'
+      AND ai.status IN ('open', 'in_progress')
+      AND NOT EXISTS (
+        SELECT 1 FROM rent_invoices ri
+        WHERE ai.source_key = 'rent:' || ri.id::text
+          AND ri.status IN ('pending', 'overdue')
+      )
+    RETURNING ai.id
+  `);
+
+  const elecRows = await db.execute<{ id: string }>(sql`
+    UPDATE action_items ai
+    SET status = 'resolved', updated_at = now()
+    WHERE ai.type = 'electricity_due'
+      AND ai.status IN ('open', 'in_progress')
+      AND NOT EXISTS (
+        SELECT 1 FROM electricity_invoices ei
+        WHERE ai.source_key = 'electricity:' || ei.id::text
+          AND ei.status = 'pending'
+      )
+    RETURNING ai.id
+  `);
+
+  return { resolved: rentRows.length + elecRows.length };
+}
+
+async function archiveNotificationsWithoutOpenTasks(): Promise<void> {
+  await db.execute(sql`
+    UPDATE admin_notification_states ans
+    SET state = 'archived', archived_at = now(), updated_at = now()
+    FROM admin_notifications an
+    WHERE ans.notification_id = an.id
+      AND ans.state IN ('unread', 'read')
+      AND NOT EXISTS (
+        SELECT 1 FROM action_items ai
+        WHERE ai.source_key = an.source_key
+          AND ai.status IN ('open', 'in_progress')
+      )
+  `);
+}
+
 async function syncRentDue(session: AdminSession): Promise<void> {
   const rows = await db
     .select({
@@ -515,6 +561,7 @@ async function syncDepositCollectionDue(session: AdminSession): Promise<void> {
 }
 
 export async function syncActionItems(session: AdminSession): Promise<void> {
+  await resolveStaleBillingActionItems();
   await Promise.all([
     syncRentDue(session),
     syncElectricityDue(session),
@@ -528,6 +575,7 @@ export async function syncActionItems(session: AdminSession): Promise<void> {
   ]);
   const openItems = await listOpenActionItems(session);
   await syncAdminNotificationsFromActionItems(openItems);
+  await archiveNotificationsWithoutOpenTasks();
 }
 
 /** Unscoped super-admin session for cron jobs that sync all PGs. */

@@ -63,6 +63,14 @@ async function main() {
   console.log(`Total cancelled: ${totalCancelled}`);
   if (allErrors.length > 0) console.log('Errors:', allErrors);
 
+  const { resolveStaleBillingActionItems, syncActionItemsForCron } = await import(
+    '../src/services/actionItems'
+  );
+  const resolved = await resolveStaleBillingActionItems();
+  console.log('Resolved stale action items:', resolved);
+  await syncActionItemsForCron();
+  console.log('Synced action items + notifications');
+
   const after = await db.execute<{ month: string; status: string; n: number }>(sql`
     SELECT billing_month::text AS month, status, count(*)::int AS n
     FROM rent_invoices

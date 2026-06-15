@@ -21,6 +21,8 @@ function revalidateBillingPaths() {
   revalidatePath('/admin/invoices');
   revalidatePath('/admin/revenue');
   revalidatePath('/admin/rent');
+  revalidatePath('/admin/overview');
+  revalidatePath('/admin/notifications');
 }
 
 export async function generateInvoicesAction(

@@ -1208,6 +1208,14 @@ export async function cancelPendingRentInvoicesForMonth(
     cancelled += 1;
   }
 
+  if (cancelled > 0) {
+    const { resolveStaleBillingActionItems, syncActionItemsForCron } = await import(
+      '@/src/services/actionItems'
+    );
+    await resolveStaleBillingActionItems();
+    await syncActionItemsForCron();
+  }
+
   return { cancelled, errors };
 }
 
