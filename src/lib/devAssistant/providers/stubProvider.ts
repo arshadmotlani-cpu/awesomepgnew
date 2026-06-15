@@ -4,12 +4,7 @@ import type {
   DevAssistantProvider,
 } from '@/src/lib/devAssistant/providers/types';
 import { formatDebugContextForPrompt } from '@/src/lib/devAssistant/contextBuilder';
-
-const SYSTEM_PROMPT = `You are the Awesome PG internal AI Developer Assistant embedded in the admin panel.
-You help the operator debug bugs, fix UI issues, improve workflows, and plan features while they test the site.
-Be concise, actionable, and specific. Reference the auto-collected debug context.
-Suggest exact files, routes, or admin pages when relevant.
-If screenshot is attached, describe what you see and what might be wrong.`;
+import { MODE_LABELS } from '@/src/lib/devAssistant/modes/prompts';
 
 export class StubDevAssistantProvider implements DevAssistantProvider {
   id = 'stub' as const;
@@ -19,43 +14,71 @@ export class StubDevAssistantProvider implements DevAssistantProvider {
   }
 
   async complete(input: DevAssistantCompletionInput): Promise<DevAssistantCompletionResult> {
+    const mode = input.mode ?? 'ask';
     const lastUser = [...input.messages].reverse().find((m) => m.role === 'user');
     const userText = lastUser?.content ?? '';
-    const ctxBlock = formatDebugContextForPrompt(input.context);
+    const ctxBlock = input.enrichedContextBlock ?? formatDebugContextForPrompt(input.context);
+
+    if (mode === 'plan') {
+      return {
+        content: [
+          `## Goal\n${userText}\n`,
+          `## Current behavior\nBased on \`${input.context.pathname}\`, review the modules listed in enriched context.`,
+          `## Proposed changes\n- Define data model changes\n- Update admin UI\n- Add tests\n`,
+          `## Files to touch\n${input.context.pathname.includes('deposit') ? '- src/services/deposits.ts\n- app/(admin)/admin/deposits/' : '- See codebase context below'}`,
+          `## Steps\n1. Audit current flow\n2. Implement changes\n3. Run build\n4. Deploy\n`,
+          `## Risks\n- Billing consistency\n- Migration required\n`,
+          `\n*Set OPENAI_API_KEY for full PLAN responses.*`,
+        ].join('\n'),
+        provider: 'stub',
+        model: 'plan-stub',
+      };
+    }
+
+    if (mode === 'agent') {
+      return {
+        content: [
+          `## Implementation notes (stub)\n`,
+          `Task: ${userText.slice(0, 200)}\n`,
+          `1. Read ${input.context.pageName} handlers\n2. Apply fix\n3. npm run build\n4. Deploy via Vercel hook\n`,
+          `\nConnect OPENAI_API_KEY + DEV_ASSISTANT_AGENT_WEBHOOK_URL for full agent execution.`,
+        ].join('\n'),
+        provider: 'stub',
+        model: 'agent-stub',
+      };
+    }
 
     const hints: string[] = [];
     if (input.context.recentErrors.length > 0) {
-      hints.push(
-        `I see ${input.context.recentErrors.length} recent error(s) on **${input.context.pageName}**. Check the browser console and API responses first.`,
-      );
+      hints.push(`${input.context.recentErrors.length} browser error(s) captured.`);
     }
-    if (input.context.recentFailedRequests.length > 0) {
-      hints.push(
-        `There ${input.context.recentFailedRequests.length === 1 ? 'is' : 'are'} ${input.context.recentFailedRequests.length} failed network request(s) — inspect the Network tab for those endpoints.`,
-      );
-    }
-    if (input.screenshotDataUrl) {
-      hints.push('Screenshot attached — use it to pinpoint the visual/UI issue.');
+    if (input.context.entity.bedCode || input.context.entity.bedId) {
+      hints.push(`Bed context: ${input.context.entity.bedCode ?? input.context.entity.bedId}`);
     }
 
-    const body = [
-      `**Page:** ${input.context.pageName} (\`${input.context.pathname}\`)`,
-      '',
-      userText ? `**Your message:** ${userText}` : '',
-      '',
-      hints.length > 0 ? hints.map((h) => `- ${h}`).join('\n') : '- No errors captured yet. Describe what you expected vs what happened.',
-      '',
-      '---',
-      '*Connect `OPENAI_API_KEY` (or another provider) for full AI responses. Context was collected automatically:*',
-      '',
-      '```',
-      ctxBlock.slice(0, 2000),
-      ctxBlock.length > 2000 ? '…(truncated)' : '',
-      '```',
-    ]
-      .filter(Boolean)
-      .join('\n');
-
-    return { content: body, provider: 'stub', model: 'context-only' };
+    return {
+      content: [
+        `**${MODE_LABELS.ask}** · ${input.context.pageName}`,
+        '',
+        userText ? `**Q:** ${userText}` : '',
+        '',
+        hints.length ? hints.map((h) => `- ${h}`).join('\n') : '- No errors captured yet.',
+        '',
+        input.context.recentErrors.length > 0
+          ? `**Suggested fix**\nInspect the failing API route and matching service file for ${input.context.pathname}. Use **Fix automatically** to create an AGENT task.`
+          : '',
+        '',
+        '---',
+        '```',
+        ctxBlock.slice(0, 1800),
+        '```',
+        '',
+        '*Add OPENAI_API_KEY for code-aware answers with full codebase context.*',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+      provider: 'stub',
+      model: 'ask-stub',
+    };
   }
 }

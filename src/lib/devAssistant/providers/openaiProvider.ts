@@ -22,11 +22,11 @@ export class OpenAIDevAssistantProvider implements DevAssistantProvider {
     if (!apiKey) throw new Error('OPENAI_API_KEY is not configured.');
 
     const model = process.env.OPENAI_DEV_ASSISTANT_MODEL?.trim() || 'gpt-4o-mini';
-    const contextBlock = formatDebugContextForPrompt(input.context);
+    const contextBlock = input.enrichedContextBlock ?? formatDebugContextForPrompt(input.context);
+    const system = [input.systemPromptExtra ?? SYSTEM_PROMPT, contextBlock].filter(Boolean).join('\n\n');
 
     const apiMessages: Array<{ role: string; content: unknown }> = [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'system', content: contextBlock },
+      { role: 'system', content: system },
       ...input.messages.map((m) => ({ role: m.role, content: m.content })),
     ];
 

@@ -1,4 +1,4 @@
-import type { DevAssistantDebugContext } from '@/src/lib/devAssistant/types';
+import type { DevAssistantDebugContext, DevAssistantMode } from '@/src/lib/devAssistant/types';
 
 export type DevAssistantProviderId = 'openai' | 'stub' | 'anthropic' | 'gemini' | 'cursor';
 
@@ -11,6 +11,9 @@ export type DevAssistantCompletionInput = {
   messages: DevAssistantProviderMessage[];
   context: DevAssistantDebugContext;
   screenshotDataUrl?: string | null;
+  mode?: DevAssistantMode;
+  systemPromptExtra?: string;
+  enrichedContextBlock?: string;
 };
 
 export type DevAssistantCompletionResult = {

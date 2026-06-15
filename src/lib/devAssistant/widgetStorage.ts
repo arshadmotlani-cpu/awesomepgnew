@@ -8,16 +8,20 @@ export type DevAssistantUiState = {
   x: number | null;
   y: number | null;
   conversationId: string | null;
+  mode: 'ask' | 'plan' | 'agent';
+  panel: 'workspace' | 'tasks';
 };
 
 const DEFAULT: DevAssistantUiState = {
   minimized: false,
   open: false,
-  width: 420,
-  height: 560,
+  width: 480,
+  height: 640,
   x: null,
   y: null,
   conversationId: null,
+  mode: 'ask',
+  panel: 'workspace',
 };
 
 export function loadDevAssistantUiState(): DevAssistantUiState {
