@@ -5,9 +5,13 @@ import { IconUsers } from '@/src/components/admin/icons';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { ResidentsTable } from '@/src/components/admin/ResidentsTable';
+import { UnverifiedWebsiteSignupsTable } from '@/src/components/admin/UnverifiedWebsiteSignupsTable';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
-import { listResidentsForAdmin } from '@/src/services/residentAdmin';
+import {
+  listResidentsForAdmin,
+  listUnverifiedWebsiteSignupsForAdmin,
+} from '@/src/services/residentAdmin';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,9 +22,13 @@ export default async function ResidentsPage({
 }) {
   const sp = await searchParams;
   let residents;
+  let unverifiedSignups;
   try {
     const session = await requireAdminPermission('bookings:write');
-    residents = await listResidentsForAdmin(session);
+    [residents, unverifiedSignups] = await Promise.all([
+      listResidentsForAdmin(session),
+      listUnverifiedWebsiteSignupsForAdmin(session),
+    ]);
   } catch (err) {
     return (
       <>
@@ -42,7 +50,7 @@ export default async function ResidentsPage({
       />
       <PageHeader
         title="Residents"
-        description="Assign beds manually, reassign tenants, and fix occupancy when bookings fail or walk-ins arrive."
+        description="Verified tenants only — KYC or payment approved. Assign beds here after verification."
         actions={
           <div className="flex flex-wrap gap-2">
             <Link
@@ -71,12 +79,16 @@ export default async function ResidentsPage({
       {residents.length === 0 ? (
         <EmptyState
           icon={<IconUsers />}
-          title="No residents yet"
-          description="Customers appear here when they sign up on the website or are assigned by admin."
+          title="No verified residents yet"
+          description="Approve KYC or a payment for website signups below — they move here once verified."
         />
       ) : (
         <ResidentsTable residents={residents} initialQuery={sp.search ?? ''} />
       )}
+
+      <div className="mt-12">
+        <UnverifiedWebsiteSignupsTable signups={unverifiedSignups} />
+      </div>
     </>
   );
 }

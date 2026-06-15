@@ -66,7 +66,7 @@ export const ADMIN_MODULES: Record<AdminModule, AdminModuleMeta> = {
   residents: {
     id: 'residents',
     label: 'Residents',
-    description: 'Assign and reassign beds, manage tenancies and walk-ins',
+    description: 'Verified tenants (KYC or payment approved) — assign beds after verification',
     href: '/admin/residents',
     sidebar: true,
   },

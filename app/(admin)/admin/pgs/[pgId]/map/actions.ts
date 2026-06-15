@@ -155,3 +155,37 @@ export async function clearBedManualReservedAction(
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
+
+export async function removeTenantFromBedAction(
+  _prev: MapActionState,
+  formData: FormData,
+): Promise<MapActionState> {
+  try {
+    const session = await requireAdminPermission('bookings:write');
+    const bookingId = String(formData.get('bookingId') ?? '');
+    const pgId = String(formData.get('pgId') ?? '');
+    const reason = String(formData.get('reason') ?? '').trim();
+
+    if (!/^[0-9a-f-]{36}$/i.test(bookingId)) {
+      return { ok: false, error: 'Invalid booking.' };
+    }
+
+    const { adminRemoveTenantFromBed } = await import('@/src/services/vacating');
+    const result = await adminRemoveTenantFromBed({
+      bookingId,
+      resolvedByAdminId: session.adminId,
+      reason: reason || undefined,
+    });
+    if (!result.ok) return result;
+
+    revalidatePath('/admin/vacating');
+    revalidatePath('/admin/residents');
+    revalidatePath('/admin/bookings');
+    revalidatePath('/admin/pgs');
+    revalidatePath('/pgs');
+    if (pgId) revalidatePath(`/admin/pgs/${pgId}/map`);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}

@@ -82,8 +82,8 @@ export default async function AssignTenantPage({
         title={prefill ? `Assign ${prefill.fullName}` : 'Assign tenant'}
         description={
           prefill
-            ? 'Choose a bed, set rent and deposit — monthly billing starts automatically from move-in.'
-            : 'Search for someone who signed up on the website, then assign them to a bed.'
+            ? 'Choose a bed, set rent and deposit — tenant must already be verified (KYC or payment).'
+            : 'Search a verified resident, then assign them to a bed.'
         }
       />
 

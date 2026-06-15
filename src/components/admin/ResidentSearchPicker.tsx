@@ -77,7 +77,7 @@ export function ResidentSearchPicker({
       <div>
         <h3 className="text-sm font-semibold text-zinc-900">Find resident</h3>
         <p className="mt-1 text-sm text-zinc-600">
-          Search by name or phone number — only people who signed up on the website appear here.
+          Search verified residents by name or phone — KYC or payment must be approved first.
         </p>
       </div>
 
@@ -121,7 +121,8 @@ export function ResidentSearchPicker({
 
       {query.trim().length >= 2 && !loading && results.length === 0 && !error ? (
         <p className="text-sm text-zinc-500">
-          No one found. They may not have signed up yet — ask them to register on the website first.
+          No verified resident found. Approve their KYC or payment under Website signups on the
+          Residents page first.
         </p>
       ) : null}
 

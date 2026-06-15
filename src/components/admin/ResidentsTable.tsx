@@ -126,6 +126,9 @@ export function ResidentsTable({
                     Phone
                   </th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-apg-silver">
+                    Verified via
+                  </th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-apg-silver">
                     KYC
                   </th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-apg-silver">
@@ -147,6 +150,11 @@ export function ResidentsTable({
                     </td>
                     <td className="px-4 py-3">{statusBadge(r)}</td>
                     <td className="px-4 py-3 text-apg-silver">{r.phone}</td>
+                    <td className="px-4 py-3">
+                      <Badge tone={r.verificationSource === 'kyc' ? 'emerald' : 'sky'}>
+                        {r.verificationSource === 'kyc' ? 'KYC' : 'Payment'}
+                      </Badge>
+                    </td>
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <AdminKycStatusWithWhatsApp
                         kycStatus={r.kycStatus}

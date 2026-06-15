@@ -14,6 +14,14 @@ import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { BLOCKING_RESERVATION_STATUS_SQL } from '@/src/lib/reservationBlocking';
+import {
+  customerIsVerifiedSql,
+  customerIsWebsiteSignupSql,
+  customerVerificationSelectSql,
+  mapVerificationStatus,
+  type ResidentVerificationSource,
+  type ResidentVerificationStatus,
+} from '@/src/lib/residentVerification';
 import { formatDate, parseDate } from '@/src/lib/dates';
 import { isBedAvailable } from '@/src/services/availability';
 import { correctDepositCollected, getDepositSummaryForBooking } from '@/src/services/deposits';
@@ -36,6 +44,13 @@ export type ResidentListRow = {
   roomNumber: string | null;
   bedCode: string | null;
   bookingId: string | null;
+  verificationSource: ResidentVerificationSource;
+};
+
+export type UnverifiedWebsiteSignupRow = ResidentListRow & {
+  verificationSource: null;
+  hasPendingPayment: boolean;
+  hasPendingKycSubmission: boolean;
 };
 
 export type ResidentDetail = {
@@ -78,9 +93,16 @@ type ResidentListDbRow = {
   bed_code: string | null;
   pg_id: string | null;
   is_vacating: boolean;
+  is_website_signup: boolean;
+  is_verified: boolean;
+  verified_via_kyc: boolean;
+  verified_via_payment: boolean;
+  has_pending_payment: boolean;
+  has_pending_kyc_submission: boolean;
 };
 
 function mapResidentListRow(row: ResidentListDbRow): ResidentListRow {
+  const verification = mapVerificationStatus(row);
   return {
     id: row.id,
     fullName: row.full_name,
@@ -99,7 +121,74 @@ function mapResidentListRow(row: ResidentListDbRow): ResidentListRow {
       : row.is_vacating
         ? 'vacating'
         : 'active',
+    verificationSource: verification.verificationSource,
   };
+}
+
+function mapUnverifiedSignupRow(row: ResidentListDbRow): UnverifiedWebsiteSignupRow {
+  const base = mapResidentListRow(row);
+  return {
+    ...base,
+    verificationSource: null,
+    hasPendingPayment: row.has_pending_payment,
+    hasPendingKycSubmission: row.has_pending_kyc_submission,
+  };
+}
+
+const activeTenancyLateralSql = sql`
+  LEFT JOIN LATERAL (
+    SELECT
+      b.id::text AS booking_id,
+      p.name AS pg_name,
+      r.room_number,
+      bd.bed_code,
+      f.pg_id::text AS pg_id,
+      EXISTS (
+        SELECT 1 FROM vacating_requests vr
+        WHERE vr.booking_id = b.id
+          AND vr.status IN ('pending', 'approved')
+      ) AS is_vacating
+    FROM bookings b
+    INNER JOIN bed_reservations br ON br.booking_id = b.id
+    INNER JOIN beds bd ON bd.id = br.bed_id
+    INNER JOIN rooms r ON r.id = bd.room_id
+    INNER JOIN floors f ON f.id = r.floor_id
+    INNER JOIN pgs p ON p.id = f.pg_id
+    WHERE b.customer_id = c.id
+      AND b.status = 'confirmed'
+      AND b.duration_mode IN ('monthly', 'open_ended')
+      AND br.status = 'active'
+      AND br.kind = 'primary'
+      AND CURRENT_DATE <@ br.stay_range
+    ORDER BY lower(br.stay_range) DESC
+    LIMIT 1
+  ) t ON true
+`;
+
+export async function getCustomerVerificationStatus(
+  customerId: string,
+): Promise<ResidentVerificationStatus | null> {
+  const rows = await db.execute<{
+    is_website_signup: boolean;
+    is_verified: boolean;
+    verified_via_kyc: boolean;
+    verified_via_payment: boolean;
+    has_pending_payment: boolean;
+  }>(sql`
+    SELECT
+      ${customerVerificationSelectSql},
+      EXISTS (
+        SELECT 1 FROM kyc_submissions ks
+        WHERE ks.customer_id = c.id AND ks.status = 'pending'
+      ) AS has_pending_kyc_submission
+    FROM customers c
+    WHERE c.id = ${customerId}::uuid
+      AND c.archived_at IS NULL
+    LIMIT 1
+  `);
+  const row = rows[0];
+  if (!row) return null;
+  return mapVerificationStatus(row);
 }
 
 export async function listResidentsForAdmin(session: AdminSession): Promise<ResidentListRow[]> {
@@ -117,36 +206,16 @@ export async function listResidentsForAdmin(session: AdminSession): Promise<Resi
       t.room_number,
       t.bed_code,
       t.pg_id,
-      t.is_vacating
+      coalesce(t.is_vacating, false) AS is_vacating,
+      ${customerVerificationSelectSql},
+      EXISTS (
+        SELECT 1 FROM kyc_submissions ks
+        WHERE ks.customer_id = c.id AND ks.status = 'pending'
+      ) AS has_pending_kyc_submission
     FROM customers c
-    LEFT JOIN LATERAL (
-      SELECT
-        b.id::text AS booking_id,
-        p.name AS pg_name,
-        r.room_number,
-        bd.bed_code,
-        f.pg_id::text AS pg_id,
-        EXISTS (
-          SELECT 1 FROM vacating_requests vr
-          WHERE vr.booking_id = b.id
-            AND vr.status IN ('pending', 'approved')
-        ) AS is_vacating
-      FROM bookings b
-      INNER JOIN bed_reservations br ON br.booking_id = b.id
-      INNER JOIN beds bd ON bd.id = br.bed_id
-      INNER JOIN rooms r ON r.id = bd.room_id
-      INNER JOIN floors f ON f.id = r.floor_id
-      INNER JOIN pgs p ON p.id = f.pg_id
-      WHERE b.customer_id = c.id
-        AND b.status = 'confirmed'
-        AND b.duration_mode IN ('monthly', 'open_ended')
-        AND br.status = 'active'
-        AND br.kind = 'primary'
-        AND CURRENT_DATE <@ br.stay_range
-      ORDER BY lower(br.stay_range) DESC
-      LIMIT 1
-    ) t ON true
+    ${activeTenancyLateralSql}
     WHERE c.archived_at IS NULL
+      AND ${customerIsVerifiedSql}
     ORDER BY c.created_at DESC
     LIMIT 200
   `);
@@ -157,6 +226,48 @@ export async function listResidentsForAdmin(session: AdminSession): Promise<Resi
         !row.pg_id || adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, row.pg_id),
     )
     .map(mapResidentListRow);
+}
+
+export async function listUnverifiedWebsiteSignupsForAdmin(
+  session: AdminSession,
+): Promise<UnverifiedWebsiteSignupRow[]> {
+  const rows = await db.execute<ResidentListDbRow>(sql`
+    SELECT
+      c.id,
+      c.full_name,
+      c.email,
+      c.phone,
+      c.gender,
+      c.kyc_status,
+      c.created_at,
+      t.booking_id,
+      t.pg_name,
+      t.room_number,
+      t.bed_code,
+      t.pg_id,
+      coalesce(t.is_vacating, false) AS is_vacating,
+      ${customerVerificationSelectSql},
+      EXISTS (
+        SELECT 1 FROM kyc_submissions ks
+        WHERE ks.customer_id = c.id AND ks.status = 'pending'
+      ) AS has_pending_kyc_submission
+    FROM customers c
+    ${activeTenancyLateralSql}
+    WHERE c.archived_at IS NULL
+      AND ${customerIsWebsiteSignupSql}
+      AND NOT ${customerIsVerifiedSql}
+    ORDER BY
+      (t.booking_id IS NOT NULL) DESC,
+      c.created_at DESC
+    LIMIT 200
+  `);
+
+  return Array.from(rows)
+    .filter(
+      (row) =>
+        !row.pg_id || adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, row.pg_id),
+    )
+    .map(mapUnverifiedSignupRow);
 }
 
 export async function searchResidentsForAdmin(
@@ -184,36 +295,16 @@ export async function searchResidentsForAdmin(
       t.room_number,
       t.bed_code,
       t.pg_id,
-      t.is_vacating
+      coalesce(t.is_vacating, false) AS is_vacating,
+      ${customerVerificationSelectSql},
+      EXISTS (
+        SELECT 1 FROM kyc_submissions ks
+        WHERE ks.customer_id = c.id AND ks.status = 'pending'
+      ) AS has_pending_kyc_submission
     FROM customers c
-    LEFT JOIN LATERAL (
-      SELECT
-        b.id::text AS booking_id,
-        p.name AS pg_name,
-        r.room_number,
-        bd.bed_code,
-        f.pg_id::text AS pg_id,
-        EXISTS (
-          SELECT 1 FROM vacating_requests vr
-          WHERE vr.booking_id = b.id
-            AND vr.status IN ('pending', 'approved')
-        ) AS is_vacating
-      FROM bookings b
-      INNER JOIN bed_reservations br ON br.booking_id = b.id
-      INNER JOIN beds bd ON bd.id = br.bed_id
-      INNER JOIN rooms r ON r.id = bd.room_id
-      INNER JOIN floors f ON f.id = r.floor_id
-      INNER JOIN pgs p ON p.id = f.pg_id
-      WHERE b.customer_id = c.id
-        AND b.status = 'confirmed'
-        AND b.duration_mode IN ('monthly', 'open_ended')
-        AND br.status = 'active'
-        AND br.kind = 'primary'
-        AND CURRENT_DATE <@ br.stay_range
-      ORDER BY lower(br.stay_range) DESC
-      LIMIT 1
-    ) t ON true
+    ${activeTenancyLateralSql}
     WHERE c.archived_at IS NULL
+      AND ${customerIsVerifiedSql}
       AND (
         c.full_name ILIKE ${pattern}
         OR c.email ILIKE ${pattern}

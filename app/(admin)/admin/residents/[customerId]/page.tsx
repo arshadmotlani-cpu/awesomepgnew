@@ -16,7 +16,7 @@ import { ADMIN_MODULES, moduleHref, moduleKycVerifyHref } from '@/src/lib/admin/
 import { formatDate, formatDateTime, paiseToInr, titleCase } from '@/src/lib/format';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { getLatestKycSubmission } from '@/src/services/kyc';
-import { getResidentDetail } from '@/src/services/residentAdmin';
+import { getResidentDetail, getCustomerVerificationStatus } from '@/src/services/residentAdmin';
 import {
   defaultTenantStartDate,
   listAssignableBeds,
@@ -54,7 +54,10 @@ export default async function ResidentDetailPage({
   if (!UUID_RE.test(customerId)) notFound();
 
   const session = await requireAdminPermission('bookings:write');
-  const detail = await getResidentDetail(session, customerId);
+  const [detail, verification] = await Promise.all([
+    getResidentDetail(session, customerId),
+    getCustomerVerificationStatus(customerId),
+  ]);
   if (!detail) notFound();
 
   const { customer, activeTenancy, canArchive } = detail;
@@ -196,6 +199,33 @@ export default async function ResidentDetailPage({
           ) : null
         }
       />
+
+      {verification && !verification.isVerified ? (
+        <div className="mb-6 rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+          <p className="font-semibold">Not verified yet</p>
+          <p className="mt-1">
+            This person is in <strong>Website signups</strong> until you approve their{' '}
+            <Link href="/admin/residents/kyc" className="font-semibold text-[#FF5A1F] hover:underline">
+              KYC
+            </Link>{' '}
+            or a{' '}
+            <Link href="/admin/collections" className="font-semibold text-[#FF5A1F] hover:underline">
+              payment
+            </Link>
+            . Bed assignment is blocked until then.
+            {activeTenancy ? (
+              <>
+                {' '}
+                They currently occupy{' '}
+                <strong>
+                  Room {activeTenancy.roomNumber} · {activeTenancy.bedCode}
+                </strong>{' '}
+                — remove or reassign from the bed map if this was accidental.
+              </>
+            ) : null}
+          </p>
+        </div>
+      ) : null}
 
       {sp.rentUpdated === '1' && sp.rentTo && activeTenancy ? (
         <RentUpdatedSuccessBanner
@@ -393,14 +423,13 @@ export default async function ResidentDetailPage({
             />
             </section>
           </>
-        ) : (
+        ) : verification?.isVerified ? (
           <section id="assign-bed" className="scroll-mt-6">
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-apg-orange">
               Assign to bed
             </h2>
             <p className="mb-4 max-w-xl text-sm text-apg-silver">
-              Manual check-in or booking failure? Select PG, room, and bed below. Tenancy and
-              occupancy update immediately.
+              Select PG, room, and bed below. Tenancy and occupancy update immediately.
             </p>
             <AssignTenantForm
               beds={bedsForAssign}
@@ -414,6 +443,16 @@ export default async function ResidentDetailPage({
               }}
               theme="dark"
             />
+          </section>
+        ) : (
+          <section id="assign-bed" className={`${SURFACE} scroll-mt-6`}>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-apg-orange">
+              Assign to bed
+            </h2>
+            <p className="mt-2 text-sm text-apg-silver">
+              Approve KYC or a payment first — then this person moves to verified Residents and
+              bed assignment unlocks.
+            </p>
           </section>
         )}
 

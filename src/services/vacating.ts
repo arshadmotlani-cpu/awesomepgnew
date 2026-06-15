@@ -38,7 +38,7 @@ import {
   type VacatingRequest,
 } from '../db/schema';
 import type { PricingSnapshot } from '../db/schema/bookings';
-import { formatDate, parseDate, type DateLike } from '../lib/dates';
+import { formatDate, parseDate, todayString, type DateLike } from '../lib/dates';
 import { reconcileBookingOccupancy } from '../lib/occupancySync';
 import { isNoticeCompliant, vacatingPenalty } from './billing';
 import { recordDepositDeducted, recordDepositRefunded, getDepositSummaryForBooking } from './deposits';
@@ -958,6 +958,142 @@ export async function extendVacatingDate(input: {
     action: 'stay_extended',
     diff: { newEndDate: newDate, fromExtensionRequest: input.fromExtensionRequest ?? false },
   });
+
+  return { ok: true };
+}
+
+/** Admin bed map — release a tenant from a bed today (checkout + free the bed). */
+export async function adminRemoveTenantFromBed(input: {
+  bookingId: string;
+  resolvedByAdminId: string;
+  reason?: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const [booking] = await db
+    .select({
+      id: bookings.id,
+      bookingCode: bookings.bookingCode,
+      status: bookings.status,
+      durationMode: bookings.durationMode,
+    })
+    .from(bookings)
+    .where(eq(bookings.id, input.bookingId))
+    .limit(1);
+  if (!booking) return { ok: false, error: 'Booking not found.' };
+  if (!['confirmed', 'pending_payment'].includes(booking.status)) {
+    return {
+      ok: false,
+      error: `Cannot remove tenant — booking is ${booking.status.replace('_', ' ')}.`,
+    };
+  }
+
+  const occupiedToday = await bookingHasActiveStayToday(booking.id);
+  const today = todayString();
+
+  if (!occupiedToday) {
+    const { cancelBooking } = await import('./bookingLifecycle');
+    const cancelled = await cancelBooking({
+      bookingCode: booking.bookingCode,
+      reason: input.reason ?? '[admin] Removed from bed — future reservation cancelled',
+      actor: { kind: 'admin', adminId: input.resolvedByAdminId },
+    });
+    if (!cancelled.ok) {
+      return { ok: false, error: cancelled.reason };
+    }
+    await reconcileBookingOccupancy(booking.id);
+    return { ok: true };
+  }
+
+  if (!['monthly', 'open_ended'].includes(booking.durationMode)) {
+    return {
+      ok: false,
+      error: 'Short-stay bookings must be cancelled from the booking detail page.',
+    };
+  }
+
+  let requestId: string | undefined;
+
+  const [existing] = await db
+    .select()
+    .from(vacatingRequests)
+    .where(
+      and(
+        eq(vacatingRequests.bookingId, booking.id),
+        inArray(vacatingRequests.status, ['pending', 'approved']),
+      ),
+    )
+    .limit(1);
+
+  if (existing) {
+    requestId = existing.id;
+    if (existing.vacatingDate !== today) {
+      await db
+        .update(vacatingRequests)
+        .set({
+          vacatingDate: today,
+          noticeCompliant: true,
+          deductionPaise: 0,
+          updatedAt: new Date(),
+        })
+        .where(eq(vacatingRequests.id, existing.id));
+      if (existing.status === 'approved') {
+        await shortenBookingReservationsToDate(booking.id, today);
+      }
+    }
+  } else {
+    const submitted = await submitVacatingRequest({
+      bookingId: booking.id,
+      vacatingDate: today,
+      waiveDeduction: true,
+      openBedForBookingFromVacatingDate: true,
+      resolvedByAdminId: input.resolvedByAdminId,
+      notes: input.reason ?? 'Removed from bed via admin bed map',
+    });
+    if (!submitted.ok) {
+      if (submitted.kind === 'already_exists' && submitted.existingRequestId) {
+        requestId = submitted.existingRequestId;
+      } else {
+        const msg =
+          submitted.kind === 'invalid_input'
+            ? submitted.message
+            : `Could not start checkout (${submitted.kind}).`;
+        return { ok: false, error: msg };
+      }
+    } else {
+      requestId = submitted.request.id;
+    }
+  }
+
+  if (!requestId) {
+    return { ok: false, error: 'Could not resolve vacating request.' };
+  }
+
+  const [fresh] = await db
+    .select({ status: vacatingRequests.status })
+    .from(vacatingRequests)
+    .where(eq(vacatingRequests.id, requestId))
+    .limit(1);
+
+  if (fresh?.status === 'pending') {
+    const approved = await approveVacatingRequest({
+      requestId,
+      resolvedByAdminId: input.resolvedByAdminId,
+    });
+    if (!approved.ok) {
+      return { ok: false, error: 'Could not approve checkout.' };
+    }
+  }
+
+  const completed = await completeVacatingRequest({
+    requestId,
+    resolvedByAdminId: input.resolvedByAdminId,
+  });
+  if (!completed.ok) {
+    const msg =
+      completed.kind === 'bed_not_occupied'
+        ? completed.message
+        : `Could not complete checkout (${completed.kind}).`;
+    return { ok: false, error: msg };
+  }
 
   return { ok: true };
 }

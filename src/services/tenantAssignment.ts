@@ -4,6 +4,7 @@ import { bedPrices, bedReservations, beds, bookings, floors, pgs, rooms } from '
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { formatDate } from '@/src/lib/dates';
+import { getCustomerVerificationStatus } from '@/src/services/residentAdmin';
 import { recordDepositCollected } from '@/src/services/deposits';
 import { createBooking } from '@/src/services/booking';
 import { clearBedAdminMarks } from '@/src/services/bookingAdminOps';
@@ -67,6 +68,18 @@ export async function assignTenantToBed(
   }
 
   if (input.customerId) {
+    const verification = await getCustomerVerificationStatus(input.customerId);
+    if (!verification) {
+      return { ok: false, error: 'Customer account not found.' };
+    }
+    if (!verification.isVerified) {
+      return {
+        ok: false,
+        error:
+          'This person is not verified yet. Approve their KYC or a payment first — they appear under Website signups until then.',
+      };
+    }
+
     const [existing] = await db
       .select({ id: bookings.id })
       .from(bookings)

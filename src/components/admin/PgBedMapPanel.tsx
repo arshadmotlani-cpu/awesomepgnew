@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
+import { BedMapRemoveTenantButton } from '@/src/components/admin/BedMapRemoveTenantButton';
 import { BedMapManualOccupiedToggle } from '@/src/components/admin/BedMapManualOccupiedToggle';
 import { BedMapManualReservedToggle } from '@/src/components/admin/BedMapManualReservedToggle';
 import { AdminKycStatusWithWhatsApp } from '@/src/components/admin/AdminKycWhatsAppButton';
@@ -96,7 +97,7 @@ function BedDetailPanel({
   const person = bed.occupant ?? bed.reserved;
 
   return (
-    <aside className={`${SURFACE} flex max-h-[calc(100vh-8rem)] flex-col shadow-xl`}>
+    <aside className={`${SURFACE} flex max-h-[min(calc(100dvh-10rem),900px)] flex-col shadow-xl`}>
       <div className="flex items-start justify-between border-b border-white/10 px-4 py-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wider text-apg-orange">
@@ -193,6 +194,14 @@ function BedDetailPanel({
               <ActionLink href={`/admin/deposits/${person.bookingId}`}>Deposit ledger</ActionLink>
               <ActionLink href={`/admin/pgs/${pgId}/rooms`}>Room meter & bills</ActionLink>
             </nav>
+
+            <BedMapRemoveTenantButton
+              pgId={pgId}
+              bookingId={person.bookingId}
+              customerName={person.customerName}
+              bedLabel={`${floor.floorLabel} · Room ${room.roomNumber} · ${bed.bedCode}`}
+              isOccupiedToday={Boolean(bed.occupant)}
+            />
 
             {bed.vacating ? (
               <section className="rounded-xl border border-orange-400/30 bg-orange-500/10 p-3">
@@ -373,13 +382,9 @@ export function PgBedMapPanel({
   moveBedOptions: BedOption[];
 }) {
   const [selectedBedId, setSelectedBedId] = useState<string | null>(null);
-  const detailRef = useRef<HTMLDivElement>(null);
 
   function selectBed(bedId: string) {
     setSelectedBedId(bedId);
-    requestAnimationFrame(() => {
-      detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    });
   }
 
   const selectedCtx = useMemo((): SelectedContext | null => {
@@ -418,8 +423,8 @@ export function PgBedMapPanel({
         ))}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="space-y-8">
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="min-w-0 space-y-8">
           {map.floors.map((floor) => (
             <section key={floor.floorNumber}>
               <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-apg-silver">
@@ -439,7 +444,7 @@ export function PgBedMapPanel({
           ))}
         </div>
 
-        <div ref={detailRef} className="xl:sticky xl:top-28 xl:self-start">
+        <div className="min-w-0 xl:sticky xl:top-0 xl:self-start">
           {selectedCtx ? (
             <BedDetailPanel
               ctx={selectedCtx}
