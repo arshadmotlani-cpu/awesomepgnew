@@ -30,15 +30,27 @@ export default async function PaymentLinkPage({
     .limit(1);
 
   const [booking] = await db
-    .select({ depositPaise: bookings.depositPaise })
+    .select({
+      depositPaise: bookings.depositPaise,
+      depositDuePaise: bookings.depositDuePaise,
+    })
     .from(bookings)
     .where(eq(bookings.customerId, link.residentId))
     .orderBy(desc(bookings.createdAt))
     .limit(1);
 
-  const depositPaise = booking?.depositPaise ?? 0;
-  const rentPaise = link.purpose === 'deposit' ? 0 : link.amount;
-  const depositLine = link.purpose === 'deposit' ? link.amount : 0;
+  const depositDuePaise = booking?.depositDuePaise ?? 0;
+  const combinedDeposit =
+    link.purpose === 'rent' && depositDuePaise > 0 && link.amount > depositDuePaise
+      ? depositDuePaise
+      : 0;
+  const rentPaise =
+    link.purpose === 'rent'
+      ? combinedDeposit > 0
+        ? link.amount - combinedDeposit
+        : link.amount
+      : 0;
+  const depositLine = link.purpose === 'deposit' ? link.amount : combinedDeposit;
   const discountPaise = 0;
   const finalPaise = link.amount;
 
@@ -75,9 +87,15 @@ export default async function PaymentLinkPage({
               <dd>{paiseToInr(depositLine)}</dd>
             </div>
           ) : null}
-          {link.purpose === 'rent' && depositPaise > 0 ? (
+          {link.purpose === 'rent' && combinedDeposit === 0 && (booking?.depositPaise ?? 0) > 0 ? (
             <p className="text-xs text-zinc-500">
-              Security deposit ({paiseToInr(depositPaise)}) is not included in this rent payment.
+              Security deposit ({paiseToInr(booking!.depositPaise)}) is not included in this rent
+              payment.
+            </p>
+          ) : null}
+          {combinedDeposit > 0 ? (
+            <p className="text-xs text-emerald-400">
+              Combined payment — rent and remaining deposit in one QR (rent UPI account).
             </p>
           ) : null}
           <div className="flex justify-between border-t border-zinc-800 pt-3 text-base font-semibold">

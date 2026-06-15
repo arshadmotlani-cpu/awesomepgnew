@@ -5,6 +5,10 @@ import { useCallback, useId, useRef, useState } from 'react';
 import { mirrorClientEventToPostHog } from '@/src/lib/analytics/client';
 import { customerPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import { paiseToInr } from '@/src/lib/format';
+import {
+  checkoutTotalWithOneMonthDeposit,
+  oneMonthDepositPaise,
+} from '@/src/lib/billing/partialDepositCheckout';
 import { CheckoutDepositAccordion } from './CheckoutDepositAccordion';
 import { CheckoutProgressStepper } from './CheckoutProgressStepper';
 
@@ -79,11 +83,21 @@ export function BookingCheckoutExperience({
   const [done, setDone] = useState(Boolean(existingProofRecordId));
   const [copied, setCopied] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [payOneMonthDeposit, setPayOneMonthDeposit] = useState(false);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const hasScreenshot = Boolean(screenshotUrl);
   const depositDueNowPaise =
     additionalDepositDuePaise ?? Math.max(0, depositPaise - depositCreditAppliedPaise);
+  const oneMonthDeposit =
+    !isReserveBooking && depositCreditAppliedPaise === 0
+      ? oneMonthDepositPaise(depositPaise, subtotalPaise)
+      : null;
+  const payNowPaise =
+    payOneMonthDeposit && oneMonthDeposit != null
+      ? checkoutTotalWithOneMonthDeposit(totalPaise, depositPaise, oneMonthDeposit)
+      : totalPaise;
+  const payNowLabel = paiseToInr(payNowPaise);
   const canSubmit = hasScreenshot && !uploading && !pending;
 
   const onFile = useCallback(
@@ -156,11 +170,12 @@ export function BookingCheckoutExperience({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           bookingCode,
-          amountPaise: totalPaise,
+          amountPaise: payNowPaise,
           paymentScreenshotUrl: screenshotUrl,
           transactionRef: transactionRef || undefined,
           membershipId,
           membershipAmountPaise,
+          partialDepositRequested: payOneMonthDeposit && oneMonthDeposit != null,
         }),
       });
       const data = (await res.json()) as SubmitResult;
@@ -275,8 +290,14 @@ export function BookingCheckoutExperience({
             Total due
           </p>
           <p className="mt-2 text-5xl font-bold tracking-tight text-apg-orange sm:text-6xl">
-            {totalLabel}
+            {payNowLabel}
           </p>
+          {payOneMonthDeposit && oneMonthDeposit != null ? (
+            <p className="mt-2 text-xs text-amber-200">
+              Paying {paiseToInr(oneMonthDeposit)} deposit now — remaining{' '}
+              {paiseToInr(depositPaise - oneMonthDeposit)} due next month with rent.
+            </p>
+          ) : null}
           <p className="mt-6 text-sm font-semibold text-white">Includes</p>
           <ul className="mt-3 space-y-2 text-sm text-apg-silver">
             <li className="flex justify-between gap-4">
@@ -295,8 +316,18 @@ export function BookingCheckoutExperience({
                 ) : null}
                 <li className="flex justify-between gap-4">
                   <span>Refundable deposit</span>
-                  <span className="font-medium text-white">{paiseToInr(depositPaise)}</span>
+                  <span className="font-medium text-white">
+                    {payOneMonthDeposit && oneMonthDeposit != null
+                      ? paiseToInr(oneMonthDeposit)
+                      : paiseToInr(depositPaise)}
+                  </span>
                 </li>
+                {payOneMonthDeposit && oneMonthDeposit != null ? (
+                  <li className="flex justify-between gap-4 text-xs text-apg-muted">
+                    <span>Remaining deposit (next month)</span>
+                    <span>{paiseToInr(depositPaise - oneMonthDeposit)}</span>
+                  </li>
+                ) : null}
                 {depositCreditAppliedPaise > 0 ? (
                   <>
                     <li className="flex justify-between gap-4 text-emerald-300">
@@ -372,7 +403,7 @@ export function BookingCheckoutExperience({
             <li key={item.step} className="flex items-center">
               <span className="rounded-full bg-apg-orange/15 px-3 py-1.5 text-apg-orange ring-1 ring-apg-orange/30">
                 {item.step}.{' '}
-                {item.step === 2 ? `Pay ${totalLabel}` : item.label}
+                {item.step === 2 ? `Pay ${payNowLabel}` : item.label}
               </span>
               {i < PIPELINE.length - 1 ? (
                 <span className="mx-2 hidden text-apg-muted sm:inline" aria-hidden>
@@ -490,9 +521,27 @@ export function BookingCheckoutExperience({
         </label>
       </section>
 
-      {/* Section 8 — Deposit accordion */}
+      {/* Section 8 — Deposit accordion + partial option */}
       {!isReserveBooking && depositPaise > 0 ? (
-        <div className="mt-8">
+        <div className="mt-8 space-y-4">
+          {oneMonthDeposit != null ? (
+            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-5 py-4">
+              <input
+                type="checkbox"
+                checked={payOneMonthDeposit}
+                onChange={(e) => setPayOneMonthDeposit(e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-white/20"
+              />
+              <span className="text-sm leading-relaxed text-amber-50">
+                <span className="font-semibold text-white">Pay one month&apos;s deposit now</span>
+                <span className="mt-1 block text-xs text-amber-100/90">
+                  Pay {paiseToInr(oneMonthDeposit)} deposit today instead of the full{' '}
+                  {paiseToInr(depositPaise)}. The remaining {paiseToInr(depositPaise - oneMonthDeposit)}{' '}
+                  will be due with next month&apos;s rent (admin approval required for move-in).
+                </span>
+              </span>
+            </label>
+          ) : null}
           <CheckoutDepositAccordion depositPaise={depositPaise} />
         </div>
       ) : isReserveBooking ? (

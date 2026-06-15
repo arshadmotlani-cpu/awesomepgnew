@@ -33,14 +33,16 @@ export function CollectionsBillingTools({
             Rent — all tenants
           </h3>
           <p className="mt-2 text-xs leading-relaxed text-apg-silver">
-            Creates one rent invoice per active open-ended / monthly booking for the selected month.
-            Safe to run again — skips bookings that already have an invoice.
+            Rent invoices are created automatically each day for tenants past their check-in date.
+            Use the <strong className="text-white">Billing queue</strong> tab to review, undo
+            mistakes, or send deposit links. Generated rent invoices appear under{' '}
+            <strong className="text-white">Rent invoices</strong>.
           </p>
           <div className="mt-4 space-y-3">
             <CollectionsMonthPicker billingMonth={billingMonth} />
             {canGenerateRent ? (
               <div className="flex flex-wrap items-end gap-2">
-                <GenerateInvoicesButton billingMonth={billingMonth} />
+                <GenerateInvoicesButton billingMonth={billingMonth} forceAll />
                 <MarkOverdueButton />
               </div>
             ) : (
@@ -64,6 +66,12 @@ export function CollectionsBillingTools({
             for the billing month.
           </p>
           <div className="mt-4 flex flex-col gap-2">
+            <Link
+              href={`/admin/collections?tab=billing&month=${monthLabel}-01`}
+              className="inline-flex items-center justify-center rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-apg-silver hover:text-white"
+            >
+              Billing queue →
+            </Link>
             <Link
               href={`/admin/electricity/new?month=${monthLabel}`}
               className="inline-flex items-center justify-center rounded-lg bg-[#FF5A1F] px-3 py-2 text-xs font-semibold text-white hover:brightness-110"

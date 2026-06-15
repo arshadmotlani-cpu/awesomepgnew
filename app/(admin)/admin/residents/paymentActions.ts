@@ -19,6 +19,8 @@ export async function generatePaymentLinkAction(
   const residentPhone = String(formData.get('residentPhone') ?? '');
   const amountPaise = Number(formData.get('amountPaise') ?? 0);
   const purpose = (formData.get('purpose') as 'rent' | 'electricity' | 'deposit') ?? 'rent';
+  const rentComponentPaise = Number(formData.get('rentPaise') ?? 0);
+  const depositComponentPaise = Number(formData.get('depositDuePaise') ?? 0);
 
   if (!residentId || !pgId || amountPaise <= 0) {
     return { ok: false, message: 'Missing resident, PG, or amount.' };
@@ -36,6 +38,8 @@ export async function generatePaymentLinkAction(
     dueDate: formData.get('dueDate')?.toString(),
     isOverdue: formData.get('isOverdue') === '1',
     rentUpdated: formData.get('rentUpdated') === '1',
+    rentComponentPaise: rentComponentPaise > 0 ? rentComponentPaise : undefined,
+    depositComponentPaise: depositComponentPaise > 0 ? depositComponentPaise : undefined,
   });
 
   if (!result.ok) return result;

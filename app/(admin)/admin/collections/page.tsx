@@ -2,7 +2,10 @@ import Link from 'next/link';
 import { AdminPendingPaymentsPanel } from '@/src/components/admin/AdminPendingPaymentsPanel';
 import { AdminSectionErrorBoundary } from '@/src/components/admin/AdminSectionErrorBoundary';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
+import { BillingOverviewPanel } from '@/src/components/admin/BillingOverviewPanel';
 import { CollectionsBillingTools } from '@/src/components/admin/CollectionsBillingTools';
+import { ElectricityBulkSendPanel } from '@/src/components/admin/ElectricityBulkSendPanel';
+import { RentInvoicesBulkSendBar } from '@/src/components/admin/RentInvoicesBulkSendBar';
 import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import { FinancialRowActions } from '@/src/components/admin/FinancialRowActions';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
@@ -20,10 +23,12 @@ import { ADMIN_MODULES, moduleHref, modulePgHref } from '@/src/lib/admin/navigat
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
+import { listRentBillingOverview } from '@/src/services/rentInvoices';
 
 export const dynamic = 'force-dynamic';
 
 const TABS = [
+  { id: 'billing', label: 'Billing queue' },
   { id: 'approvals', label: 'Approval queue' },
   { id: 'rent', label: 'Rent invoices' },
   { id: 'electricity', label: 'Electricity' },
@@ -42,18 +47,21 @@ export default async function CollectionsModulePage({
   searchParams: Promise<{ tab?: string; month?: string }>;
 }) {
   const sp = await searchParams;
-  const tab = TABS.some((t) => t.id === sp.tab) ? sp.tab! : 'approvals';
+  const tab = TABS.some((t) => t.id === sp.tab) ? sp.tab! : 'billing';
   const billingMonth = resolveBillingMonth(sp.month);
 
   const session = await requireAdminSession('/admin/collections');
   const canGenerateRent = adminHasPermission(session.role, 'rent:write');
-  const [pending, rentStats, rentPending, rentPaid, elecPending, pgs] = await Promise.all([
+  const canSendLinks = adminHasPermission(session.role, 'payments:write');
+  const [pending, rentStats, rentPending, rentPaid, elecPending, pgs, billingOverview] =
+    await Promise.all([
     requireAdminPermission('payments:write').then((s) => listPendingPaymentReviews(s)),
     getRentStats(),
     listAdminRentInvoices({ status: 'pending' }),
     listAdminRentInvoices({ status: 'paid' }),
     listAdminElectricityInvoicesForReminders(),
     listPgs(),
+    listRentBillingOverview(billingMonth),
   ]);
 
   const pgNameById = new Map(pgs.ok ? pgs.data.map((p) => [p.id, p.name]) : []);
@@ -76,8 +84,6 @@ export default async function CollectionsModulePage({
         </Link>{' '}
         — single source of truth (paid − cancelled − refunded). Cancelled and refunded invoices are excluded from revenue.
       </p>
-
-      <CollectionsBillingTools billingMonth={billingMonth} canGenerateRent={canGenerateRent} />
 
       {rentStats.ok ? (
         <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -112,6 +118,18 @@ export default async function CollectionsModulePage({
         ))}
       </div>
 
+      {tab === 'billing' ? (
+        <>
+          <CollectionsBillingTools billingMonth={billingMonth} canGenerateRent={canGenerateRent} />
+          <BillingOverviewPanel
+            billingMonth={billingMonth}
+            rows={billingOverview}
+            canGenerateRent={canGenerateRent}
+            canSendLinks={canSendLinks}
+          />
+        </>
+      ) : null}
+
       {tab === 'approvals' ? (
         <AdminSectionErrorBoundary title="Approval queue">
           <section className="space-y-3">
@@ -124,22 +142,65 @@ export default async function CollectionsModulePage({
       ) : null}
 
       {tab === 'rent' ? (
-        <InvoiceTable
-          title="Pending rent invoices"
-          error={rentPending.ok ? null : rentPending.error}
-          rows={rentPending.ok ? rentPending.data : []}
-          pgNameById={pgNameById}
-        />
+        <>
+          <RentInvoicesBulkSendBar
+            canSendLinks={canSendLinks}
+            rows={
+              rentPending.ok
+                ? rentPending.data.map((r) => ({
+                    id: r.id,
+                    customerId: r.customerId,
+                    customerFullName: r.customerFullName,
+                    customerPhone: r.customerPhone,
+                    pgId: r.pgId,
+                    pgName: r.pgName,
+                    roomNumber: r.roomNumber,
+                    rentPaise: r.rentPaise,
+                    dueDate: r.dueDate,
+                    isOverdue: r.status === 'overdue',
+                  }))
+                : []
+            }
+          />
+          <InvoiceTable
+            title="Pending rent invoices"
+            error={rentPending.ok ? null : rentPending.error}
+            rows={rentPending.ok ? rentPending.data : []}
+            pgNameById={pgNameById}
+          />
+        </>
       ) : null}
 
       {tab === 'electricity' ? (
-        <InvoiceTable
-          title="Pending electricity invoices"
-          error={elecPending.ok ? null : elecPending.error}
-          rows={elecPending.ok ? elecPending.data : []}
-          pgNameById={pgNameById}
-          electricity
-        />
+        <>
+          <ElectricityBulkSendPanel
+            rows={
+              elecPending.ok
+                ? elecPending.data.map((r) => ({
+                    id: r.id,
+                    customerId: r.customerId,
+                    customerFullName: r.customerFullName,
+                    customerPhone: r.customerPhone,
+                    pgId: r.pgId,
+                    pgName: r.pgName,
+                    roomNumber: r.roomNumber,
+                    amountPaise: r.amountPaise,
+                    dueDate: r.dueDate,
+                    isOverdue: r.isOverdue,
+                  }))
+                : []
+            }
+            canSendLinks={canSendLinks}
+            billingMonth={billingMonth}
+          />
+          <InvoiceTable
+            title="Pending electricity invoices"
+            error={elecPending.ok ? null : elecPending.error}
+            rows={elecPending.ok ? elecPending.data : []}
+            pgNameById={pgNameById}
+            electricity
+          />
+        </>
       ) : null}
 
       {tab === 'paid' ? (

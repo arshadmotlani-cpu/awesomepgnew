@@ -8,6 +8,10 @@ import {
 import { CouponCodeField } from '@/src/components/customer/CouponCodeField';
 import { Ps4AddonSelector, ps4AddonPaise } from '@/src/components/customer/Ps4AddonSelector';
 import { paiseToInr } from '@/src/lib/format';
+import {
+  checkoutTotalWithOneMonthDeposit,
+  oneMonthDepositPaise,
+} from '@/src/lib/billing/partialDepositCheckout';
 import { PS4_ADDON_LABEL, PS4_PLANS, type Ps4PlanId } from '@/src/lib/playstation/plans';
 import { VACATING_NOTICE_MIN_DAYS } from '@/src/lib/dateDefaults';
 import { formatDate } from '@/src/lib/format';
@@ -74,7 +78,6 @@ export function BookingCartForm({
   }, []);
   const ps4Paise = ps4AddonPaise(ps4Plan);
   const bookingTotalPaise = totalPaise - couponDiscountPaise;
-  const checkoutTotalPaise = bookingTotalPaise + ps4Paise;
   const depositDueNowPaise =
     additionalDepositDuePaise ?? Math.max(0, depositPaise - depositCreditAppliedPaise);
 
@@ -85,7 +88,15 @@ export function BookingCartForm({
   const [phoneLocal, setPhoneLocal] = useState(() =>
     indianPhoneDefaultLocal(defaultCustomer?.phone),
   );
+  const [payOneMonthDeposit, setPayOneMonthDeposit] = useState(false);
   const phoneLocked = Boolean(defaultCustomer?.phone);
+
+  const oneMonthDeposit =
+    depositCreditAppliedPaise === 0 ? oneMonthDepositPaise(depositPaise, subtotalPaise) : null;
+  const checkoutTotalPaise =
+    payOneMonthDeposit && oneMonthDeposit != null
+      ? checkoutTotalWithOneMonthDeposit(bookingTotalPaise + ps4Paise, depositPaise, oneMonthDeposit)
+      : bookingTotalPaise + ps4Paise;
 
   const isPreBook = checkoutTiming === 'future_start';
   const submitLabel = isPreBook
@@ -263,6 +274,20 @@ export function BookingCartForm({
             <Row term="Promo discount" value={`−${paiseToInr(couponDiscountPaise)}`} />
           ) : null}
           <Row term="Refundable deposit" value={paiseToInr(depositPaise)} />
+          {oneMonthDeposit != null ? (
+            <label className="mt-2 flex cursor-pointer items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+              <input
+                type="checkbox"
+                checked={payOneMonthDeposit}
+                onChange={(e) => setPayOneMonthDeposit(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span>
+                Pay one month&apos;s deposit now ({paiseToInr(oneMonthDeposit)}) — remaining{' '}
+                {paiseToInr(depositPaise - oneMonthDeposit)} due next month
+              </span>
+            </label>
+          ) : null}
           {depositCreditAppliedPaise > 0 ? (
             <>
               <Row

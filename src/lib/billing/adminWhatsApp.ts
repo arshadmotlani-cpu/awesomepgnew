@@ -15,6 +15,9 @@ export type BillingWhatsAppInput = {
   isOverdue?: boolean;
   /** When set, message includes this payment link (rent / electricity). */
   paymentLinkUrl?: string;
+  /** Combined rent + deposit messaging. */
+  rentPaise?: number;
+  depositDuePaise?: number;
 };
 
 export type RentUpdatedWhatsAppInput = {
@@ -31,6 +34,14 @@ export function buildBillingWhatsAppMessage(input: BillingWhatsAppInput): string
 
   if (input.kind === 'rent') {
     if (input.paymentLinkUrl) {
+      if (input.rentPaise && input.depositDuePaise) {
+        return (
+          `Hi ${firstName},\n\n` +
+          `Rent due: ${paiseToInr(input.rentPaise)}\n` +
+          `Remaining deposit: ${paiseToInr(input.depositDuePaise)}\n` +
+          `Total: ${amount}\n\nPay here:\n${input.paymentLinkUrl}`
+        );
+      }
       return `Hi ${firstName},\n\nYour rent due is ${amount}.\n\nPay here:\n${input.paymentLinkUrl}`;
     }
     if (input.isOverdue) {

@@ -304,7 +304,17 @@ export async function searchResidentsForAdmin(
     FROM customers c
     ${activeTenancyLateralSql}
     WHERE c.archived_at IS NULL
-      AND ${customerIsVerifiedSql}
+      AND (
+        ${customerIsVerifiedSql}
+        OR EXISTS (
+          SELECT 1 FROM bookings bx
+          INNER JOIN bed_reservations brx ON brx.booking_id = bx.id
+          WHERE bx.customer_id = c.id
+            AND bx.status = 'confirmed'
+            AND brx.status = 'active'
+            AND brx.kind = 'primary'
+        )
+      )
       AND (
         c.full_name ILIKE ${pattern}
         OR c.email ILIKE ${pattern}

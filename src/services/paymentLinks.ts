@@ -25,6 +25,9 @@ export type CreatePaymentLinkInput = {
   isOverdue?: boolean;
   /** When true, WhatsApp uses rent-updated template instead of rent-due. */
   rentUpdated?: boolean;
+  /** Combined rent + deposit link breakdown (WhatsApp + pay page). */
+  rentComponentPaise?: number;
+  depositComponentPaise?: number;
 };
 
 export async function getOrCreatePaymentLink(input: CreatePaymentLinkInput) {
@@ -58,6 +61,8 @@ export async function getOrCreatePaymentLink(input: CreatePaymentLinkInput) {
             roomNumber: input.roomNumber,
             isOverdue: input.isOverdue,
             paymentLinkUrl: publicUrl,
+            rentPaise: input.rentComponentPaise,
+            depositDuePaise: input.depositComponentPaise,
           })
         : buildDepositDueWhatsAppUrl({
             customerName: input.residentName,
@@ -124,6 +129,8 @@ export async function createPaymentLink(input: CreatePaymentLinkInput) {
       roomNumber: input.roomNumber,
       isOverdue: input.isOverdue,
       paymentLinkUrl: publicUrl,
+      rentPaise: input.rentComponentPaise,
+      depositDuePaise: input.depositComponentPaise,
     });
   } else if (input.purpose === 'deposit') {
     whatsappShareUrl = buildDepositDueWhatsAppUrl({

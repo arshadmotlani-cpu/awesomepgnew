@@ -46,16 +46,19 @@ async function handle(req: NextRequest) {
   const url = new URL(req.url);
   const monthOverride = url.searchParams.get('month'); // YYYY-MM-01
   const force = url.searchParams.get('force') === '1';
-
   const today = new Date();
-  const isFirstOfMonth = today.getUTCDate() === 1;
+
+  // Daily check-in-aware generation + overdue sweep. force=1 backfills everyone.
 
   let generation: Awaited<ReturnType<typeof generateRentInvoicesForMonth>> | null = null;
-  if (isFirstOfMonth || monthOverride || force) {
-    const month =
-      monthOverride ??
-      `${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, '0')}-01`;
-    generation = await generateRentInvoicesForMonth({ billingMonth: month });
+  const month =
+    monthOverride ??
+    `${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, '0')}-01`;
+
+  if (monthOverride && force) {
+    generation = await generateRentInvoicesForMonth({ billingMonth: month, forceAll: true });
+  } else {
+    generation = await generateRentInvoicesForMonth({ billingMonth: month, asOf: today });
   }
 
   const overdue = await markOverdueInvoices();

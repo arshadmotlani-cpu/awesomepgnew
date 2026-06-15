@@ -39,6 +39,7 @@ import {
   beds,
   bookings,
   customers,
+  financialInvoices,
   payments,
   pgs,
   rentInvoices,
@@ -48,7 +49,7 @@ import {
 import type { PricingSnapshot } from '../db/schema/bookings';
 import { adminCanAccessPg } from '../lib/auth/roles';
 import type { AdminSession } from '../lib/auth/session';
-import { formatDate, parseDate, type DateLike } from '../lib/dates';
+import { addDays, formatDate, parseDate, type DateLike } from '../lib/dates';
 import {
   computeLateFee,
   daysOverdue,
@@ -71,6 +72,12 @@ export type GenerateRentInvoicesInput = {
   billingMonth: DateLike;
   /** Optional: restrict to a single PG (defaults to all). */
   pgId?: string;
+  /** Skip tenants whose move-in is after this date (check-in aware auto-billing). */
+  asOf?: DateLike;
+  /** When set, only these bookings are considered. */
+  bookingIds?: string[];
+  /** Admin batch: generate even if move-in is after `asOf`. */
+  forceAll?: boolean;
 };
 
 export type GenerateRentInvoicesResult = {
@@ -209,7 +216,7 @@ export async function generateRentInvoicesForMonth(
   input: GenerateRentInvoicesInput,
 ): Promise<GenerateRentInvoicesResult> {
   const billingMonth = firstOfMonth(input.billingMonth);
-  const dueDate = formatDate(dueDateForMonth(billingMonth));
+  const asOf = formatDate(parseDate(input.asOf ?? new Date()));
   const { start: monthStart, end: monthEnd } = monthBounds(billingMonth);
   const monthStartIso = formatDate(monthStart);
   const monthEndIso = formatDate(monthEnd);
@@ -281,6 +288,11 @@ export async function generateRentInvoicesForMonth(
   let skipped = 0;
 
   for (const c of candidates) {
+    if (input.bookingIds?.length && !input.bookingIds.includes(c.bookingId)) {
+      skipped += 1;
+      continue;
+    }
+
     const monthlyRent = monthlyRentFromSnapshot(c.pricingSnapshot);
     if (monthlyRent <= 0) {
       // No monthly rate on snapshot — skip (audit log, no invoice).
@@ -294,6 +306,16 @@ export async function generateRentInvoicesForMonth(
       skipped += 1;
       continue;
     }
+
+    if (!input.forceAll && !input.bookingIds?.length && stay.start > asOf) {
+      skipped += 1;
+      continue;
+    }
+
+    const calendarDue = formatDate(dueDateForMonth(billingMonth));
+    const dueDate =
+      stay.start > calendarDue ? formatDate(addDays(stay.start, 4)) : calendarDue;
+
     const prorated = prorateForMonth({
       monthlyRatePaise: monthlyRent,
       billingMonth,
@@ -973,6 +995,220 @@ export async function recalculatePendingRentInvoicesForBooking(args: {
   }
 
   return { updatedCount: invoiceChanges.length, invoiceChanges };
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Billing overview + undo / selective generation helpers
+// ───────────────────────────────────────────────────────────────────────────
+
+export type RentBillingOverviewRow = {
+  bookingId: string;
+  bookingCode: string;
+  customerId: string;
+  customerFullName: string;
+  customerPhone: string;
+  pgId: string;
+  pgName: string;
+  roomNumber: string;
+  bedCode: string;
+  checkInDate: string;
+  expectedRentPaise: number;
+  invoiceId: string | null;
+  invoiceNumber: string | null;
+  invoiceStatus: 'none' | 'pending' | 'paid' | 'overdue' | 'cancelled';
+  rentPaise: number;
+  dueDate: string | null;
+  depositDuePaise: number;
+  depositCollectionStatus: string;
+  isDueForGeneration: boolean;
+};
+
+export async function listRentBillingOverview(
+  billingMonth: DateLike,
+  opts?: { pgId?: string },
+): Promise<RentBillingOverviewRow[]> {
+  const month = firstOfMonth(billingMonth);
+  const asOf = formatDate(new Date());
+  const { start: monthStart, end: monthEnd } = monthBounds(month);
+  const monthStartIso = formatDate(monthStart);
+  const monthEndIso = formatDate(monthEnd);
+
+  const rows = await db
+    .selectDistinct({
+      bookingId: bookings.id,
+      bookingCode: bookings.bookingCode,
+      customerId: bookings.customerId,
+      customerFullName: customers.fullName,
+      customerPhone: customers.phone,
+      depositDuePaise: bookings.depositDuePaise,
+      depositCollectionStatus: bookings.depositCollectionStatus,
+      pricingSnapshot: bookings.pricingSnapshot,
+      bedId: bedReservations.bedId,
+    })
+    .from(bookings)
+    .innerJoin(customers, eq(customers.id, bookings.customerId))
+    .innerJoin(bedReservations, eq(bedReservations.bookingId, bookings.id))
+    .where(
+      and(
+        eq(bookings.status, 'confirmed'),
+        inArray(bookings.durationMode, ['monthly', 'open_ended']),
+        eq(bedReservations.status, 'active'),
+        eq(bedReservations.kind, 'primary'),
+        sql`${bedReservations.stayRange} && daterange(${monthStartIso}::date, ${monthEndIso}::date, '[)')`,
+        opts?.pgId
+          ? sql`EXISTS (
+              SELECT 1 FROM beds b
+              JOIN rooms r ON r.id = b.room_id
+              JOIN floors f ON f.id = r.floor_id
+              WHERE b.id = ${bedReservations.bedId} AND f.pg_id = ${opts.pgId}
+            )`
+          : sql`TRUE`,
+      ),
+    );
+
+  const byBooking = new Map<string, (typeof rows)[0]>();
+  for (const row of rows) {
+    const existing = byBooking.get(row.bookingId);
+    if (!existing || row.bedId < existing.bedId) byBooking.set(row.bookingId, row);
+  }
+
+  const overview: RentBillingOverviewRow[] = [];
+
+  for (const c of byBooking.values()) {
+    const stay = await loadStayWindow(c.bookingId);
+    if (!stay) continue;
+
+    const monthlyRent = monthlyRentFromSnapshot(c.pricingSnapshot as PricingSnapshot | null);
+    const prorated =
+      monthlyRent > 0
+        ? prorateForMonth({
+            monthlyRatePaise: monthlyRent,
+            billingMonth: month,
+            activeStart: stay.start,
+            activeEnd: stay.end ?? '9999-12-31',
+          })
+        : { amountPaise: 0 };
+
+    const [bedMeta] = await db.execute<{
+      pg_id: string;
+      pg_name: string;
+      room_number: string;
+      bed_code: string;
+    }>(sql`
+      SELECT f.pg_id, p.name AS pg_name, r.room_number, b.bed_code
+      FROM beds b
+      JOIN rooms r ON r.id = b.room_id
+      JOIN floors f ON f.id = r.floor_id
+      JOIN pgs p ON p.id = f.pg_id
+      WHERE b.id = ${c.bedId}
+      LIMIT 1
+    `);
+    if (!bedMeta) continue;
+
+    const [inv] = await db
+      .select({
+        id: rentInvoices.id,
+        invoiceNumber: rentInvoices.invoiceNumber,
+        status: rentInvoices.status,
+        rentPaise: rentInvoices.rentPaise,
+        dueDate: rentInvoices.dueDate,
+      })
+      .from(rentInvoices)
+      .where(and(eq(rentInvoices.bookingId, c.bookingId), eq(rentInvoices.billingMonth, month)))
+      .limit(1);
+
+    const invoiceStatus = (inv?.status ?? 'none') as RentBillingOverviewRow['invoiceStatus'];
+    const isDueForGeneration =
+      prorated.amountPaise > 0 && stay.start <= asOf && !inv;
+
+    overview.push({
+      bookingId: c.bookingId,
+      bookingCode: c.bookingCode,
+      customerId: c.customerId,
+      customerFullName: c.customerFullName,
+      customerPhone: c.customerPhone,
+      pgId: bedMeta.pg_id,
+      pgName: bedMeta.pg_name,
+      roomNumber: bedMeta.room_number,
+      bedCode: bedMeta.bed_code,
+      checkInDate: stay.start,
+      expectedRentPaise: prorated.amountPaise,
+      invoiceId: inv?.id ?? null,
+      invoiceNumber: inv?.invoiceNumber ?? null,
+      invoiceStatus: inv ? invoiceStatus : 'none',
+      rentPaise: inv?.rentPaise ?? 0,
+      dueDate: inv?.dueDate ?? null,
+      depositDuePaise: c.depositDuePaise ?? 0,
+      depositCollectionStatus: c.depositCollectionStatus ?? 'pending',
+      isDueForGeneration,
+    });
+  }
+
+  return overview.sort((a, b) => a.customerFullName.localeCompare(b.customerFullName));
+}
+
+export async function cancelPendingRentInvoicesForMonth(
+  billingMonth: DateLike,
+  reason: string,
+  opts?: { pgId?: string; bookingIds?: string[] },
+): Promise<{ cancelled: number; errors: string[] }> {
+  const month = firstOfMonth(billingMonth);
+  const { cancelUnifiedInvoice } = await import('@/src/services/unifiedInvoices');
+
+  const rows = await db
+    .select({
+      rentInvoiceId: rentInvoices.id,
+      unifiedId: financialInvoices.id,
+      bookingId: rentInvoices.bookingId,
+      pgId: rentInvoices.pgId,
+    })
+    .from(rentInvoices)
+    .leftJoin(
+      financialInvoices,
+      and(
+        eq(financialInvoices.sourceTable, 'rent_invoices'),
+        eq(financialInvoices.sourceId, rentInvoices.id),
+      ),
+    )
+    .where(
+      and(
+        eq(rentInvoices.billingMonth, month),
+        inArray(rentInvoices.status, ['pending', 'overdue']),
+        opts?.pgId ? eq(rentInvoices.pgId, opts.pgId) : sql`TRUE`,
+        opts?.bookingIds?.length
+          ? inArray(rentInvoices.bookingId, opts.bookingIds)
+          : sql`TRUE`,
+      ),
+    );
+
+  let cancelled = 0;
+  const errors: string[] = [];
+
+  for (const row of rows) {
+    if (row.unifiedId) {
+      const res = await cancelUnifiedInvoice(row.unifiedId, reason, {
+        type: 'admin',
+        id: null,
+      });
+      if (!res.ok) {
+        errors.push(`${row.rentInvoiceId}: ${res.error}`);
+        continue;
+      }
+    } else {
+      await db
+        .update(rentInvoices)
+        .set({
+          status: 'cancelled',
+          cancelledAt: new Date(),
+          cancellationReason: reason,
+          updatedAt: new Date(),
+        })
+        .where(eq(rentInvoices.id, row.rentInvoiceId));
+    }
+    cancelled += 1;
+  }
+
+  return { cancelled, errors };
 }
 
 // Pseudonyms to keep imports tidy in tests.

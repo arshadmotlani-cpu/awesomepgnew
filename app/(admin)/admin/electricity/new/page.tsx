@@ -33,7 +33,7 @@ export default async function NewElectricityBillPage({
           <DbStatusBanner error={rooms.error} />
         </div>
       ) : (
-        <div className="mt-4 max-w-xl">
+        <div className="mt-4 w-full max-w-2xl">
           <NewElectricityBillForm rooms={rooms.data} defaultMonth={billingMonth} />
         </div>
       )}
