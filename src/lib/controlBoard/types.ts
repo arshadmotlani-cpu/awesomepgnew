@@ -26,6 +26,8 @@ export type ControlBoardCard = {
   priority?: 'high' | 'medium' | 'low';
   drillDownKey: string;
   count?: number;
+  /** When set, card navigates to this page instead of opening the drawer. */
+  href?: string;
 };
 
 export type ControlBoardDrillDownRow = {

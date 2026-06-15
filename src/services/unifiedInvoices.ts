@@ -504,33 +504,59 @@ export async function syncManyToUnified(
 export async function getInvoiceStats() {
   const rows = await db.execute(sql`
     SELECT
-      status,
+      'paid_rent' AS bucket,
       count(*)::int AS cnt,
-      coalesce(sum(amount_paise), 0)::bigint::int AS paise
-    FROM financial_invoices
-    GROUP BY status
+      coalesce(sum(ri.paid_principal_paise + ri.paid_late_fee_paise), 0)::bigint::int AS paise
+    FROM rent_invoices ri
+    WHERE ri.status = 'paid'
+    UNION ALL
+    SELECT
+      'pending_rent' AS bucket,
+      count(*)::int,
+      coalesce(sum(ri.rent_paise), 0)::bigint::int
+    FROM rent_invoices ri
+    WHERE ri.status IN ('pending', 'overdue')
+    UNION ALL
+    SELECT
+      'cancelled_rent' AS bucket,
+      count(*)::int,
+      coalesce(sum(ri.rent_paise), 0)::bigint::int
+    FROM rent_invoices ri
+    WHERE ri.status = 'cancelled'
+    UNION ALL
+    SELECT
+      'paid_elec' AS bucket,
+      count(*)::int,
+      coalesce(sum(ei.paid_paise + coalesce(ei.late_fee_locked_paise, 0)), 0)::bigint::int
+    FROM electricity_invoices ei
+    WHERE ei.status = 'paid'
+    UNION ALL
+    SELECT
+      'pending_elec' AS bucket,
+      count(*)::int,
+      coalesce(sum(ei.amount_paise), 0)::bigint::int
+    FROM electricity_invoices ei
+    WHERE ei.status = 'pending'
   `);
 
-  const list =
-    (rows as unknown as Array<{ status: string; cnt: number; paise: number }>) ?? [];
+  const list = (rows as unknown as Array<{ bucket: string; cnt: number; paise: number }>) ?? [];
+  const by = new Map(list.map((r) => [r.bucket, r]));
 
-  const byStatus = new Map(list.map((r) => [r.status, { count: r.cnt, paise: r.paise }]));
-  const paid = byStatus.get('paid') ?? { count: 0, paise: 0 };
-  const sent = byStatus.get('sent') ?? { count: 0, paise: 0 };
-  const overdue = byStatus.get('overdue') ?? { count: 0, paise: 0 };
-  const cancelled = byStatus.get('cancelled') ?? { count: 0, paise: 0 };
-  const refunded = byStatus.get('refunded') ?? { count: 0, paise: 0 };
-  const draft = byStatus.get('draft') ?? { count: 0, paise: 0 };
+  const paidRent = by.get('paid_rent') ?? { cnt: 0, paise: 0 };
+  const pendingRent = by.get('pending_rent') ?? { cnt: 0, paise: 0 };
+  const cancelledRent = by.get('cancelled_rent') ?? { cnt: 0, paise: 0 };
+  const paidElec = by.get('paid_elec') ?? { cnt: 0, paise: 0 };
+  const pendingElec = by.get('pending_elec') ?? { cnt: 0, paise: 0 };
 
   return {
-    paidCount: paid.count,
-    paidPaise: paid.paise,
-    pendingCount: sent.count + overdue.count + draft.count,
-    pendingPaise: sent.paise + overdue.paise + draft.paise,
-    overdueCount: overdue.count,
-    cancelledCount: cancelled.count,
-    refundedCount: refunded.count,
-    netRevenuePaise: paid.paise - cancelled.paise - refunded.paise,
+    paidCount: paidRent.cnt + paidElec.cnt,
+    paidPaise: paidRent.paise + paidElec.paise,
+    pendingCount: pendingRent.cnt + pendingElec.cnt,
+    pendingPaise: pendingRent.paise + pendingElec.paise,
+    overdueCount: 0,
+    cancelledCount: cancelledRent.cnt,
+    refundedCount: 0,
+    netRevenuePaise: paidRent.paise + paidElec.paise,
   };
 }
 

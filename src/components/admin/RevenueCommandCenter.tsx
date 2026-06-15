@@ -91,6 +91,7 @@ export function RevenueCommandCenter({
             hint="Deposit ledger collected this month"
             icon={<IconCard />}
             accent="orange"
+            href={`/admin/deposits/collected?month=${data.billingMonth}`}
           />
           <OverviewStatCard
             label="Total revenue"

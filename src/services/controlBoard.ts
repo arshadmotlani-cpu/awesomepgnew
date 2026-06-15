@@ -12,6 +12,7 @@ import {
   getOccupancyByPg,
   listAdminDepositSummaries,
   listAdminElectricityInvoicesForReminders,
+  listAdminPaidElectricityInvoicesForMonth,
   listAdminRentInvoices,
   listResidents,
 } from '@/src/db/queries/admin';
@@ -60,6 +61,7 @@ function card(
     category?: ControlBoardCategory;
     priority?: 'high' | 'medium' | 'low';
     count?: number;
+    href?: string;
   } = {},
 ): ControlBoardCard {
   return {
@@ -72,6 +74,7 @@ function card(
     priority: opts.priority,
     drillDownKey,
     count: opts.count,
+    href: opts.href,
   };
 }
 
@@ -110,6 +113,7 @@ function buildGlobalCards(input: ControlBoardInput): ControlBoardCard[] {
       card(`${prefix}_today_deposit`, 'Deposits today', money(breakdown.depositPaise), `${prefix}_today_deposit`, {
         accent: 'violet',
         category: 'revenue',
+        href: '/admin/deposits/collected',
       }),
     );
   };
@@ -135,6 +139,7 @@ function buildGlobalCards(input: ControlBoardInput): ControlBoardCard[] {
     card('mtd_deposit', 'Deposit collected', money(r.mtd.depositPaise), 'mtd_deposit', {
       accent: 'violet',
       category: 'revenue',
+      href: `/admin/deposits/collected?month=${input.billingMonth}`,
     }),
     card('extra_income', 'Extra income', money(s.extraIncomePaise), 'extra_income', {
       hint: 'Late fees + vacating + charges',
@@ -383,6 +388,7 @@ function buildPgCards(input: ControlBoardInput): ControlBoardCard[] {
       card(`${prefix}_deposit`, `${pg.pgName} · Deposits`, money(deposit), `${prefix}_deposit`, {
         accent: 'violet',
         category: 'pg',
+        href: `/admin/deposits/collected?month=${input.billingMonth}&pgId=${pg.pgId}`,
       }),
       card(`${prefix}_occupancy`, `${pg.pgName} · Occupancy`, pct(pg.occupancyPct), `${prefix}_occupancy`, {
         hint: `${pg.occupiedBeds}/${pg.totalBeds} beds`,
@@ -531,7 +537,9 @@ export async function loadControlBoardDrillDown(
     case 'mtd_rent':
     case 'paid_rent': {
       const res = await listAdminRentInvoices(
-        drillDownKey === 'paid_rent' ? { status: 'paid' } : undefined,
+        drillDownKey === 'paid_rent' || drillDownKey === 'mtd_rent'
+          ? { status: 'paid' }
+          : undefined,
       );
       if (!res.ok) return null;
       const rows = res.data
@@ -576,17 +584,15 @@ export async function loadControlBoardDrillDown(
     case 'pending_electricity':
     case 'mtd_electricity':
     case 'ops_electricity': {
-      const res = await listAdminElectricityInvoicesForReminders();
-      if (!res.ok) return null;
-      const rows =
-        drillDownKey === 'mtd_electricity'
-          ? []
-          : res.data.map(rowFromElecInvoice);
       if (drillDownKey === 'mtd_electricity') {
-        return drillDown('Electricity collected this month', rows, {
+        const paid = await listAdminPaidElectricityInvoicesForMonth(billingMonth);
+        if (!paid.ok) return null;
+        return drillDown('Electricity collected this month', paid.data.map(rowFromElecInvoice), {
           ledgerHref: '/admin/electricity',
         });
       }
+      const res = await listAdminElectricityInvoicesForReminders();
+      if (!res.ok) return null;
       return drillDown('Electricity pending', res.data.map(rowFromElecInvoice), {
         bulkActionKind: 'electricity',
         ledgerHref: '/admin/electricity',

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import Link from 'next/link';
 
 const ACCENT: Record<string, string> = {
   indigo: 'bg-indigo-500/15 text-indigo-300',
@@ -17,15 +18,17 @@ export function OverviewStatCard({
   icon,
   hint,
   accent = 'indigo',
+  href,
 }: {
   label: string;
   value: ReactNode;
   icon?: ReactNode;
   hint?: ReactNode;
   accent?: keyof typeof ACCENT;
+  href?: string;
 }) {
-  return (
-    <div className="rounded-xl border border-white/10 bg-[#1A1F27] p-4">
+  const inner = (
+    <div className="rounded-xl border border-white/10 bg-[#1A1F27] p-4 transition hover:border-white/20">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[10px] font-medium uppercase tracking-wide text-apg-silver">{label}</p>
@@ -42,4 +45,14 @@ export function OverviewStatCard({
       </div>
     </div>
   );
+
+  if (href) {
+    return (
+      <Link href={href} className="block rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF5A1F]">
+        {inner}
+      </Link>
+    );
+  }
+
+  return inner;
 }

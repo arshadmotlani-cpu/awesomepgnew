@@ -11,7 +11,12 @@ import {
   visitorSessions,
   type AnalyticsEventType,
 } from '@/src/db/schema';
-import { getDashboardStats } from '@/src/db/queries/admin';
+import {
+  getBusinessMetricsSummary,
+  getDailyCollectionTotals,
+  getDepositCollectedByPgForBillingMonth,
+  getDashboardStats,
+} from '@/src/db/queries/admin';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import { todayString } from '@/src/lib/dates';
 import { VISITOR_SESSION_COOKIE, LIVE_VISITOR_WINDOW_MS } from '@/src/lib/analytics/constants';
@@ -318,26 +323,19 @@ export async function getAdminOverviewKpis(
     .from(bookings)
     .where(eq(bookings.status, 'pending_payment'));
 
-  const [todayRevRow] = await db
-    .select({ total: sql<number>`coalesce(sum(${payments.amountPaise}), 0)::bigint` })
-    .from(payments)
-    .where(
-      and(
-        eq(payments.status, 'succeeded'),
-        sql`${payments.paidAt} >= ${today}::date`,
-      ),
-    );
+  const [todayRevResult, monthSummary, depositByPg] = await Promise.all([
+    getDailyCollectionTotals(),
+    getBusinessMetricsSummary(billingMonth),
+    getDepositCollectedByPgForBillingMonth(billingMonth),
+  ]);
 
-  const [monthRevRow] = await db
-    .select({ total: sql<number>`coalesce(sum(${payments.amountPaise}), 0)::bigint` })
-    .from(payments)
-    .where(
-      and(
-        eq(payments.status, 'succeeded'),
-        gte(payments.paidAt, monthStart),
-        lte(payments.paidAt, monthEnd),
-      ),
-    );
+  const todayBreakdown = todayRevResult.ok
+    ? todayRevResult.data
+    : { rentPaise: 0, electricityPaise: 0, depositPaise: 0, totalPaise: 0 };
+  const monthRent = monthSummary.ok ? monthSummary.data.incomeTotalPaise : 0;
+  const monthDeposits = depositByPg.ok
+    ? depositByPg.data.reduce((a, r) => a + r.collectedPaise, 0)
+    : 0;
 
   return {
     totalVisitorsAllTime: visitorRow?.count ?? 0,
@@ -346,8 +344,8 @@ export async function getAdminOverviewKpis(
     bedsAvailable,
     pendingKyc: kycRow?.count ?? 0,
     pendingPayments: pendingPayRow?.count ?? 0,
-    todayRevenuePaise: Number(todayRevRow?.total ?? 0),
-    monthlyRevenuePaise: Number(monthRevRow?.total ?? 0),
+    todayRevenuePaise: todayBreakdown.totalPaise,
+    monthlyRevenuePaise: monthRent + monthDeposits,
   };
 }
 

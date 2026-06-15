@@ -1204,11 +1204,16 @@ export async function cancelPendingRentInvoicesForMonth(
           updatedAt: new Date(),
         })
         .where(eq(rentInvoices.id, row.rentInvoiceId));
+      const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
+      await syncRentInvoiceToUnified(row.rentInvoiceId).catch(() => undefined);
     }
     cancelled += 1;
   }
 
   if (cancelled > 0) {
+    const { reconcileStaleFinancialInvoices } = await import('@/src/lib/billing/financialMetrics');
+    await reconcileStaleFinancialInvoices({ billingMonth: month }).catch(() => undefined);
+
     const { resolveStaleBillingActionItems, syncActionItemsForCron } = await import(
       '@/src/services/actionItems'
     );

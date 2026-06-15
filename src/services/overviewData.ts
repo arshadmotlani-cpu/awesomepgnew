@@ -65,6 +65,9 @@ export async function loadOverviewContext(
     await syncActionItems(session).catch(() => undefined);
   }
 
+  const { reconcileStaleFinancialInvoices } = await import('@/src/lib/billing/financialMetrics');
+  await reconcileStaleFinancialInvoices({ billingMonth }).catch(() => undefined);
+
   const [
     summary,
     metrics,

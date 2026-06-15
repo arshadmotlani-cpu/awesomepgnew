@@ -41,16 +41,20 @@ export function ControlBoard({ cards, billingMonth, monthLabel }: Props) {
   );
 
   const openDrillDown = useCallback(
-    async (drillDownKey: string) => {
-      setLoadingKey(drillDownKey);
+    async (card: Card) => {
+      if (card.href) {
+        router.push(card.href);
+        return;
+      }
+      setLoadingKey(card.drillDownKey);
       try {
-        const data = await loadDrillDownAction(drillDownKey, billingMonth);
+        const data = await loadDrillDownAction(card.drillDownKey, billingMonth);
         if (data) setDrillDown(data);
       } finally {
         setLoadingKey(null);
       }
     },
-    [billingMonth],
+    [billingMonth, router],
   );
 
   const refresh = useCallback(() => {
@@ -104,7 +108,7 @@ export function ControlBoard({ cards, billingMonth, monthLabel }: Props) {
             accent={c.accent}
             priority={c.priority}
             loading={loadingKey === c.drillDownKey}
-            onClick={() => void openDrillDown(c.drillDownKey)}
+            onClick={() => void openDrillDown(c)}
           />
         ))}
       </div>

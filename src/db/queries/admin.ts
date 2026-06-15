@@ -974,17 +974,12 @@ export function getPgBusinessMetrics(
       other_deduction_paise: number;
     };
 
-    type InvoiceNetPgRow = {
-      pg_id: string;
-      invoice_type: string;
-      net_paise: number;
-    };
-
     const [
       occupancy,
       rentQrRows,
       electricityQrRows,
-      invoiceNetRows,
+      rentPaidRows,
+      elecPaidRows,
       expectedRows,
       lateFeeRows,
       depositRows,
@@ -1012,18 +1007,23 @@ export function getPgBusinessMetrics(
           and(eq(pgPaymentRecords.status, 'approved'), electricityQrCategorySql, monthMatch),
         )
         .groupBy(pgPaymentRecords.pgId),
-      db.execute<InvoiceNetPgRow>(sql`
+      db
+        .select({
+          pgId: rentInvoices.pgId,
+          total: sql<number>`coalesce(sum(${rentInvoices.paidPrincipalPaise} + ${rentInvoices.paidLateFeePaise}), 0)::bigint::int`,
+        })
+        .from(rentInvoices)
+        .where(and(eq(rentInvoices.status, 'paid'), eq(rentInvoices.billingMonth, billingMonth)))
+        .groupBy(rentInvoices.pgId),
+      db.execute<{ pg_id: string; total: number }>(sql`
         SELECT
-          fi.pg_id,
-          fi.invoice_type,
-          (
-            COALESCE(SUM(fi.amount_paise) FILTER (WHERE fi.status = 'paid'), 0)
-            - COALESCE(SUM(fi.amount_paise) FILTER (WHERE fi.status = 'cancelled'), 0)
-            - COALESCE(SUM(fi.amount_paise) FILTER (WHERE fi.status = 'refunded'), 0)
-          )::bigint::int AS net_paise
-        FROM financial_invoices fi
-        WHERE fi.billing_month = ${billingMonth}::date
-        GROUP BY fi.pg_id, fi.invoice_type
+          eb.pg_id::text AS pg_id,
+          coalesce(sum(ei.paid_paise + coalesce(ei.late_fee_locked_paise, 0)), 0)::bigint::int AS total
+        FROM electricity_invoices ei
+        INNER JOIN electricity_bills eb ON eb.id = ei.electricity_bill_id
+        WHERE ei.status = 'paid'
+          AND ei.billing_month = ${billingMonth}::date
+        GROUP BY eb.pg_id
       `),
       db.execute<{ pg_id: string; total: number }>(sql`
         SELECT pg_id, coalesce(sum(monthly_rent_paise), 0)::bigint::int AS total
@@ -1086,16 +1086,10 @@ export function getPgBusinessMetrics(
 
     const rentQrMap = new Map(rentQrRows.map((r) => [r.pgId, r.total]));
     const electricityQrMap = new Map(electricityQrRows.map((r) => [r.pgId, r.total]));
-    const rentMap = new Map<string, number>();
-    const elecMap = new Map<string, number>();
-    for (const row of Array.from(invoiceNetRows)) {
-      const net = asPlainNumber(row.net_paise);
-      if (row.invoice_type === 'rent') {
-        rentMap.set(row.pg_id, (rentMap.get(row.pg_id) ?? 0) + net);
-      } else if (row.invoice_type === 'electricity') {
-        elecMap.set(row.pg_id, (elecMap.get(row.pg_id) ?? 0) + net);
-      }
-    }
+    const rentMap = new Map(rentPaidRows.map((r) => [r.pgId, asPlainNumber(r.total)]));
+    const elecMap = new Map(
+      Array.from(elecPaidRows).map((r) => [r.pg_id, asPlainNumber(r.total)]),
+    );
     const expectedMap = new Map(
       Array.from(expectedRows).map((r) => [r.pg_id, r.total]),
     );
@@ -1582,6 +1576,47 @@ export type AdminElectricityInvoiceReminderRow = {
 };
 
 /** Pending electricity invoices eligible for WhatsApp / email reminders. */
+export function listAdminPaidElectricityInvoicesForMonth(
+  billingMonthInput?: string,
+  filter?: { pgId?: string },
+): Promise<QueryResult<AdminElectricityInvoiceReminderRow[]>> {
+  return guard(async () => {
+    const billingMonth = resolveBillingMonth(billingMonthInput);
+    const conditions = [
+      eq(electricityInvoices.status, 'paid'),
+      eq(electricityInvoices.billingMonth, billingMonth),
+    ];
+    if (filter?.pgId) conditions.push(eq(electricityBills.pgId, filter.pgId));
+
+    const rows = await db
+      .select({
+        id: electricityInvoices.id,
+        invoiceNumber: electricityInvoices.invoiceNumber,
+        customerId: electricityInvoices.customerId,
+        customerFullName: customers.fullName,
+        customerPhone: customers.phone,
+        pgId: electricityBills.pgId,
+        pgName: pgs.name,
+        roomNumber: rooms.roomNumber,
+        billingMonth: electricityInvoices.billingMonth,
+        dueDate: electricityInvoices.dueDate,
+        amountPaise: sql<number>`(${electricityInvoices.paidPaise} + coalesce(${electricityInvoices.lateFeeLockedPaise}, 0))::bigint::int`,
+      })
+      .from(electricityInvoices)
+      .innerJoin(electricityBills, eq(electricityBills.id, electricityInvoices.electricityBillId))
+      .innerJoin(customers, eq(customers.id, electricityInvoices.customerId))
+      .innerJoin(pgs, eq(pgs.id, electricityBills.pgId))
+      .innerJoin(rooms, eq(rooms.id, electricityBills.roomId))
+      .where(and(...conditions))
+      .orderBy(desc(electricityInvoices.paidAt));
+
+    return rows.map((r) => ({
+      ...r,
+      isOverdue: false,
+    }));
+  });
+}
+
 export function listAdminElectricityInvoicesForReminders(
   filter?: { pgId?: string },
 ): Promise<QueryResult<AdminElectricityInvoiceReminderRow[]>> {
@@ -1747,6 +1782,95 @@ export type DepositLedgerSummaryRow = {
   refundedPaise: number;
   refundableBalancePaise: number;
 };
+
+export type DepositCollectionDetailRow = DepositLedgerSummaryRow & {
+  collectedThisMonthPaise: number;
+  lastCollectedAt: Date | null;
+  hasRefundRequest: boolean;
+  hasManualAdjustment: boolean;
+};
+
+/** Deposit rows with collection activity in a billing month — for overview drill-down. */
+export function listDepositCollectionsForBillingMonth(
+  billingMonthInput?: string,
+): Promise<QueryResult<DepositCollectionDetailRow[]>> {
+  return guard(async () => {
+    const billingMonth = resolveBillingMonth(billingMonthInput);
+    const rows = await db.execute<{
+      booking_id: string;
+      collected_this_month_paise: number;
+      last_collected_at: Date | null;
+    }>(sql`
+      SELECT
+        dl.booking_id,
+        coalesce(sum(dl.amount_paise), 0)::bigint::int AS collected_this_month_paise,
+        max(dl.created_at) AS last_collected_at
+      FROM deposit_ledger dl
+      WHERE dl.entry_kind = 'collected'
+        AND dl.created_at >= ${billingMonth}::timestamptz
+        AND dl.created_at < (${billingMonth}::date + interval '1 month')::timestamptz
+      GROUP BY dl.booking_id
+      HAVING coalesce(sum(dl.amount_paise), 0) > 0
+    `);
+
+    const bookingIds = Array.from(rows).map((r) => r.booking_id);
+    if (bookingIds.length === 0) return [];
+
+    const summaries = await listAdminDepositSummaries();
+    if (!summaries.ok) throw new Error(summaries.error);
+
+    const monthMap = new Map(
+      Array.from(rows).map((r) => [
+        r.booking_id,
+        {
+          collectedThisMonthPaise: Number(r.collected_this_month_paise),
+          lastCollectedAt: r.last_collected_at,
+        },
+      ]),
+    );
+
+    const refundRequests = await db
+      .selectDistinct({ bookingId: vacatingRequests.bookingId })
+      .from(vacatingRequests)
+      .where(
+        and(
+          inArray(vacatingRequests.bookingId, bookingIds),
+          inArray(vacatingRequests.status, ['pending', 'approved']),
+        ),
+      );
+    const refundSet = new Set(refundRequests.map((r) => r.bookingId));
+
+    const adjustments = await db
+      .selectDistinct({ bookingId: depositLedger.bookingId })
+      .from(depositLedger)
+      .where(
+        and(
+          inArray(depositLedger.bookingId, bookingIds),
+          eq(depositLedger.entryKind, 'deducted'),
+          sql`${depositLedger.relatedVacatingId} IS NULL`,
+        ),
+      );
+    const adjustSet = new Set(adjustments.map((r) => r.bookingId));
+
+    return summaries.data
+      .filter((s) => monthMap.has(s.bookingId))
+      .map((s) => {
+        const m = monthMap.get(s.bookingId)!;
+        return {
+          ...s,
+          collectedThisMonthPaise: m.collectedThisMonthPaise,
+          lastCollectedAt: m.lastCollectedAt,
+          hasRefundRequest: refundSet.has(s.bookingId),
+          hasManualAdjustment: adjustSet.has(s.bookingId),
+        };
+      })
+      .sort((a, b) => {
+        const ta = a.lastCollectedAt?.getTime() ?? 0;
+        const tb = b.lastCollectedAt?.getTime() ?? 0;
+        return tb - ta;
+      });
+  });
+}
 
 export function listAdminDepositSummaries(): Promise<QueryResult<DepositLedgerSummaryRow[]>> {
   return guard(async () => {

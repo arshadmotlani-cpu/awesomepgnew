@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { bookings } from '@/src/db/schema';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
+import { revalidateFinancialViews } from '@/src/lib/billing/revalidateFinancialViews';
 import {
   recordDepositCollected,
   recordDepositDeducted,
@@ -79,8 +80,7 @@ export async function addDepositAction(
     });
     const { syncDepositCollectionFromLedger } = await import('@/src/services/depositCollection');
     await syncDepositCollectionFromLedger(bookingId);
-    revalidatePath(`/admin/deposits/${bookingId}`);
-    revalidatePath('/admin/deposits');
+    revalidateFinancialViews();
     return { status: 'ok', message: 'Deposit added to ledger.' };
   } catch (err) {
     return {
@@ -119,8 +119,7 @@ export async function deductDepositAction(
       reason,
       createdByAdminId: admin.adminId,
     });
-    revalidatePath(`/admin/deposits/${bookingId}`);
-    revalidatePath('/admin/deposits');
+    revalidateFinancialViews();
     return { status: 'ok', message: `Deducted ${reason}.` };
   } catch (err) {
     return {
@@ -159,8 +158,7 @@ export async function refundDepositAction(
       reason,
       createdByAdminId: admin.adminId,
     });
-    revalidatePath(`/admin/deposits/${bookingId}`);
-    revalidatePath('/admin/deposits');
+    revalidateFinancialViews();
     return { status: 'ok', message: 'Refund recorded.' };
   } catch (err) {
     return {
@@ -199,8 +197,7 @@ export async function correctDepositAction(
       reason: `admin correction: ${reason}`,
       createdByAdminId: admin.adminId,
     });
-    revalidatePath(`/admin/deposits/${bookingId}`);
-    revalidatePath('/admin/deposits');
+    revalidateFinancialViews();
     revalidatePath(`/admin/bookings/${bookingId}`);
     return {
       status: 'ok',
