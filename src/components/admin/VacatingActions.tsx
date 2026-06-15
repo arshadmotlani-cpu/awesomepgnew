@@ -1,6 +1,7 @@
 'use client';
 
-import { useActionState, type ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
+import { useActionState, useEffect, type ReactNode } from 'react';
 import { AdminConfirmSubmit } from '@/src/components/admin/AdminConfirmSubmit';
 import {
   approveVacatingAction,
@@ -42,7 +43,13 @@ function MicroForm({
   tone?: 'default' | 'danger';
   extraFields?: ReactNode;
 }) {
+  const router = useRouter();
   const [state, formAction, pending] = useActionState(action, idle);
+
+  useEffect(() => {
+    if (state.status === 'ok') router.refresh();
+  }, [state.status, router]);
+
   return (
     <form id={formId} action={formAction}>
       <input type="hidden" name="requestId" value={requestId} />
@@ -197,8 +204,14 @@ export function ExtendVacatingDateForm({
   bookingId: string;
   currentVacatingDate?: string;
 }) {
+  const router = useRouter();
   const [state, formAction, pending] = useActionState(extendVacatingDateAction, idle);
   const formId = `extend-vacating-${bookingId}`;
+
+  useEffect(() => {
+    if (state.status === 'ok') router.refresh();
+  }, [state.status, router]);
+
   return (
     <form id={formId} action={formAction} className="mt-2 flex flex-wrap items-end gap-2">
       <input type="hidden" name="bookingId" value={bookingId} />

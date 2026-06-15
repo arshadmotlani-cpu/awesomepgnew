@@ -142,6 +142,7 @@ export default async function AdminVacatingPage(
                         <RejectVacatingButton requestId={v.id} />
                         <CancelVacatingNoticeButton requestId={v.id} />
                         <ExtendVacatingDateForm
+                          key={`${v.bookingId}-${v.vacatingDate}`}
                           bookingId={v.bookingId}
                           currentVacatingDate={v.vacatingDate}
                         />
@@ -153,6 +154,7 @@ export default async function AdminVacatingPage(
                         <UndoVacatingApprovalButton requestId={v.id} />
                         <CancelVacatingNoticeButton requestId={v.id} />
                         <ExtendVacatingDateForm
+                          key={`${v.bookingId}-${v.vacatingDate}`}
                           bookingId={v.bookingId}
                           currentVacatingDate={v.vacatingDate}
                         />
