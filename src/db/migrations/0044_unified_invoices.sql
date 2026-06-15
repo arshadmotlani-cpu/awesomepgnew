@@ -145,7 +145,7 @@ SELECT
   ei.paid_at,
   ei.created_at,
   ei.cancelled_at,
-  ei.notes,
+  NULL,
   ei.created_at,
   ei.updated_at
 FROM "electricity_invoices" ei

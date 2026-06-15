@@ -136,11 +136,18 @@ export default async function AdminBookingDetailPage(
   return (
     <>
       <PageHeader
-        title={`Booking ${b.bookingCode}`}
+        title={`${b.customer.fullName} · ${b.bookingCode}`}
         description={
           <span>
             <Link href="/admin/bookings" className="text-indigo-600 hover:underline">
               ← All bookings
+            </Link>
+            <span className="mx-2 text-zinc-300">·</span>
+            <Link
+              href={`/admin/residents/${b.customer.id}`}
+              className="text-indigo-600 hover:underline"
+            >
+              {b.customer.fullName}
             </Link>
             <span className="mx-2 text-zinc-300">·</span>
             Customer link:{' '}

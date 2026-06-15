@@ -22,6 +22,8 @@ import {
   listAssignableBeds,
 } from '@/src/services/tenantAssignment';
 import { loadBedPrice, computeMonthlyDepositPaise } from '@/src/services/pricing';
+import { projectElectricityInvoice } from '@/src/services/electricityBilling';
+import { projectInvoice } from '@/src/services/rentInvoices';
 import { db } from '@/src/db/client';
 import { rentInvoices as rentInvoicesTable, electricityInvoices as electricityInvoicesTable, bookings as bookingsTable } from '@/src/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
@@ -91,11 +93,7 @@ export default async function ResidentDetailPage({
   let pendingRent: { rentPaise: number; dueDate: string; isOverdue: boolean } | null = null;
   if (activeTenancy) {
     const [inv] = await db
-      .select({
-        rentPaise: rentInvoicesTable.rentPaise,
-        dueDate: rentInvoicesTable.dueDate,
-        status: rentInvoicesTable.status,
-      })
+      .select()
       .from(rentInvoicesTable)
       .where(
         and(
@@ -106,25 +104,27 @@ export default async function ResidentDetailPage({
       .orderBy(rentInvoicesTable.dueDate)
       .limit(1);
     if (inv) {
+      const projected = projectInvoice(inv);
       pendingRent = {
-        rentPaise: inv.rentPaise,
+        rentPaise: projected.outstandingPaise,
         dueDate: inv.dueDate,
-        isOverdue: inv.status === 'overdue',
+        isOverdue: projected.effectiveStatus === 'overdue',
       };
     }
   }
 
-  let pendingElectricity: { amountPaise: number; dueDate: string; isOverdue: boolean } | null =
-    null;
+  let pendingElectricity: {
+    amountPaise: number;
+    basePaise: number;
+    dueDate: string;
+    isOverdue: boolean;
+    invoiceNumber: string;
+  } | null = null;
   let depositDuePaise = 0;
   let depositCollectionStatus: string | undefined;
   if (activeTenancy) {
     const [elec] = await db
-      .select({
-        amountPaise: electricityInvoicesTable.amountPaise,
-        dueDate: electricityInvoicesTable.dueDate,
-        status: electricityInvoicesTable.status,
-      })
+      .select()
       .from(electricityInvoicesTable)
       .where(
         and(
@@ -135,11 +135,13 @@ export default async function ResidentDetailPage({
       .orderBy(electricityInvoicesTable.dueDate)
       .limit(1);
     if (elec) {
-      const today = new Date().toISOString().slice(0, 10);
+      const projected = projectElectricityInvoice(elec);
       pendingElectricity = {
-        amountPaise: elec.amountPaise,
+        amountPaise: projected.outstandingPaise,
+        basePaise: elec.amountPaise,
         dueDate: elec.dueDate,
-        isOverdue: elec.dueDate < today,
+        isOverdue: projected.effectiveStatus === 'overdue',
+        invoiceNumber: elec.invoiceNumber,
       };
     }
 
@@ -326,8 +328,10 @@ export default async function ResidentDetailPage({
             depositCollectionStatus={depositCollectionStatus}
             depositRefundablePaise={depositSummary?.refundableBalancePaise}
             pendingElectricityPaise={pendingElectricity?.amountPaise}
+            electricityBasePaise={pendingElectricity?.basePaise}
             electricityDueDate={pendingElectricity?.dueDate}
             electricityOverdue={pendingElectricity?.isOverdue}
+            electricityInvoiceNumber={pendingElectricity?.invoiceNumber}
           />
         </div>
       ) : null}

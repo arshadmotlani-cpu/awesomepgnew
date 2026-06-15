@@ -78,8 +78,8 @@ export default async function AdminDepositDetailPage({
   return (
     <>
       <PageHeader
-        title="Deposit ledger"
-        description={`Booking ${booking.bookingCode} · ${booking.customerFullName} · ${booking.customerPhone}`}
+        title={`Deposit — ${booking.customerFullName}`}
+        description={`Booking ${booking.bookingCode} · ${booking.customerPhone}`}
         actions={
           <Link
             href="/admin/deposits"

@@ -27,6 +27,62 @@ export type CreatePaymentLinkInput = {
   rentUpdated?: boolean;
 };
 
+export async function getOrCreatePaymentLink(input: CreatePaymentLinkInput) {
+  const [existing] = await db
+    .select()
+    .from(paymentLinks)
+    .where(
+      and(
+        eq(paymentLinks.residentId, input.residentId),
+        eq(paymentLinks.pgId, input.pgId),
+        eq(paymentLinks.purpose, input.purpose),
+        eq(paymentLinks.status, 'active'),
+        eq(paymentLinks.amount, input.amountPaise),
+      ),
+    )
+    .orderBy(desc(paymentLinks.createdAt))
+    .limit(1);
+
+  if (existing) {
+    const publicUrl = paymentLinkPublicUrl(existing.id);
+    const whatsappShareUrl =
+      existing.whatsappShareUrl ??
+      (input.purpose === 'rent' || input.purpose === 'electricity'
+        ? buildBillingWhatsAppUrl({
+            kind: input.purpose,
+            customerName: input.residentName,
+            phone: input.residentPhone,
+            pgName: input.pgName,
+            amountPaise: input.amountPaise,
+            dueDate: input.dueDate ?? 'soon',
+            roomNumber: input.roomNumber,
+            isOverdue: input.isOverdue,
+            paymentLinkUrl: publicUrl,
+          })
+        : buildDepositDueWhatsAppUrl({
+            customerName: input.residentName,
+            phone: input.residentPhone,
+            pgName: input.pgName,
+            amountPaise: input.amountPaise,
+            dueDate: input.dueDate ?? 'soon',
+            paymentLinkUrl: publicUrl,
+            isOverdue: input.isOverdue,
+          }));
+
+    return {
+      ok: true as const,
+      link: { ...existing, whatsappShareUrl },
+      upiId: null as string | null,
+      publicUrl,
+      reused: true as const,
+    };
+  }
+
+  const created = await createPaymentLink(input);
+  if (!created.ok) return created;
+  return { ...created, reused: false as const };
+}
+
 export async function createPaymentLink(input: CreatePaymentLinkInput) {
   const qr = await getPgQrForPurpose(input.pgId, input.purpose);
   if (!qr) {

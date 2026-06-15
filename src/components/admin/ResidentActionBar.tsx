@@ -1,9 +1,8 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { generatePaymentLinkAction } from '@/app/(admin)/admin/residents/paymentActions';
-import { AdminBillingWhatsAppButton } from '@/src/components/admin/AdminBillingWhatsAppButton';
+import { BillingWhatsAppWithLinkButton } from '@/src/components/admin/BillingWhatsAppWithLinkButton';
 import { AdminKycWhatsAppButton, WhatsAppIcon } from '@/src/components/admin/AdminKycWhatsAppButton';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { buildKycWhatsAppUrl, clientPublicSiteBaseUrl } from '@/src/lib/kyc/adminWhatsApp';
@@ -13,8 +12,6 @@ import { labelDepositCollectionStatus } from '@/src/lib/depositCollectionLabels'
 
 const BTN =
   'inline-flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1.5 text-[11px] font-medium text-apg-silver hover:text-white';
-
-type BillingLinkState = { publicUrl: string; whatsappShareUrl: string | null } | null;
 
 type ResidentActionBarProps = {
   customerId: string;
@@ -33,8 +30,10 @@ type ResidentActionBarProps = {
   depositCollectionStatus?: string;
   depositRefundablePaise?: number;
   pendingElectricityPaise?: number;
+  electricityBasePaise?: number;
   electricityDueDate?: string;
   electricityOverdue?: boolean;
+  electricityInvoiceNumber?: string;
 };
 
 function ActionRow({
@@ -72,15 +71,17 @@ function ActionRow({
 }
 
 export function ResidentActionBar(props: ResidentActionBarProps) {
-  const [pending, startTransition] = useTransition();
-  const [rentLink, setRentLink] = useState<BillingLinkState>(null);
-  const [depositLink, setDepositLink] = useState<BillingLinkState>(null);
-  const [elecLink, setElecLink] = useState<BillingLinkState>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [elecAmountInr, setElecAmountInr] = useState(() =>
+    Math.max(0, Math.round((props.pendingElectricityPaise ?? 0) / 100)),
+  );
+
+  useEffect(() => {
+    setElecAmountInr(Math.max(0, Math.round((props.pendingElectricityPaise ?? 0) / 100)));
+  }, [props.pendingElectricityPaise]);
 
   const rentAmountPaise = props.pendingRentPaise ?? props.monthlyRentPaise ?? 0;
   const depositBillPaise = props.depositDuePaise ?? 0;
-  const elecAmountPaise = props.pendingElectricityPaise ?? 0;
+  const elecAmountPaise = Math.round(elecAmountInr * 100);
   const canBill = Boolean(props.pgId && props.pgName);
 
   const kycWhatsAppHref =
@@ -90,45 +91,13 @@ export function ResidentActionBar(props: ResidentActionBarProps) {
       baseUrl: clientPublicSiteBaseUrl(),
     }) ?? undefined;
 
-  function generateLink(
-    purpose: 'rent' | 'deposit' | 'electricity',
-    amountPaise: number,
-    extra?: { dueDate?: string; isOverdue?: boolean },
-  ) {
-    if (!props.pgId || !props.pgName || amountPaise <= 0) return;
-    startTransition(async () => {
-      setError(null);
-      const fd = new FormData();
-      fd.set('residentId', props.customerId);
-      fd.set('pgId', props.pgId!);
-      fd.set('pgName', props.pgName!);
-      fd.set('residentName', props.customerName);
-      fd.set('residentPhone', props.phone);
-      fd.set('amountPaise', String(amountPaise));
-      fd.set('purpose', purpose);
-      if (props.roomNumber) fd.set('roomNumber', props.roomNumber);
-      if (extra?.dueDate) fd.set('dueDate', extra.dueDate);
-      if (extra?.isOverdue) fd.set('isOverdue', '1');
-
-      const res = await generatePaymentLinkAction(fd);
-      if (!res.ok) {
-        setError(res.message);
-        return;
-      }
-      const payload = { publicUrl: res.publicUrl, whatsappShareUrl: res.whatsappShareUrl };
-      if (purpose === 'rent') setRentLink(payload);
-      if (purpose === 'deposit') setDepositLink(payload);
-      if (purpose === 'electricity') setElecLink(payload);
-    });
-  }
-
   return (
     <div className="rounded-2xl border border-[#FF5A1F]/30 bg-[#1A1F27] p-4 ring-1 ring-[#FF5A1F]/10">
       <p className="text-xs font-semibold uppercase tracking-wide text-apg-orange">
         Resident actions
       </p>
       <p className="mt-1 text-[11px] text-apg-silver">
-        WhatsApp and payment links always use current amounts below.
+        WhatsApp opens with the payment link included — no separate link step.
       </p>
 
       <div className="mt-2">
@@ -172,32 +141,18 @@ export function ResidentActionBar(props: ResidentActionBarProps) {
           editLabel="Edit"
         >
           {canBill && rentAmountPaise > 0 ? (
-            <>
-              <AdminBillingWhatsAppButton
-                kind="rent"
-                customerName={props.customerName}
-                phone={props.phone}
-                pgName={props.pgName!}
-                amountPaise={rentAmountPaise}
-                dueDate={props.rentDueDate ?? 'soon'}
-                roomNumber={props.roomNumber}
-                isOverdue={props.rentOverdue}
-                paymentLinkUrl={rentLink?.publicUrl}
-              />
-              <button
-                type="button"
-                disabled={pending}
-                onClick={() =>
-                  generateLink('rent', rentAmountPaise, {
-                    dueDate: props.rentDueDate,
-                    isOverdue: props.rentOverdue,
-                  })
-                }
-                className={`${BTN} border-[#FF5A1F]/40 text-[#FF5A1F]`}
-              >
-                Link
-              </button>
-            </>
+            <BillingWhatsAppWithLinkButton
+              kind="rent"
+              residentId={props.customerId}
+              pgId={props.pgId!}
+              customerName={props.customerName}
+              phone={props.phone}
+              pgName={props.pgName!}
+              amountPaise={rentAmountPaise}
+              dueDate={props.rentDueDate ?? 'soon'}
+              roomNumber={props.roomNumber}
+              isOverdue={props.rentOverdue}
+            />
           ) : null}
         </ActionRow>
 
@@ -220,26 +175,17 @@ export function ResidentActionBar(props: ResidentActionBarProps) {
           editHref={props.bookingId ? `/admin/deposits/${props.bookingId}` : undefined}
         >
           {canBill && depositBillPaise > 0 ? (
-            <>
-              <AdminBillingWhatsAppButton
-                kind="deposit"
-                customerName={props.customerName}
-                phone={props.phone}
-                pgName={props.pgName!}
-                amountPaise={depositBillPaise}
-                dueDate="soon"
-                roomNumber={props.roomNumber}
-                paymentLinkUrl={depositLink?.publicUrl}
-              />
-              <button
-                type="button"
-                disabled={pending}
-                onClick={() => generateLink('deposit', depositBillPaise)}
-                className={`${BTN} border-[#FF5A1F]/40 text-[#FF5A1F]`}
-              >
-                Link
-              </button>
-            </>
+            <BillingWhatsAppWithLinkButton
+              kind="deposit"
+              residentId={props.customerId}
+              pgId={props.pgId!}
+              customerName={props.customerName}
+              phone={props.phone}
+              pgName={props.pgName!}
+              amountPaise={depositBillPaise}
+              dueDate="soon"
+              roomNumber={props.roomNumber}
+            />
           ) : null}
         </ActionRow>
 
@@ -247,16 +193,48 @@ export function ResidentActionBar(props: ResidentActionBarProps) {
           label="Electricity"
           amount={elecAmountPaise > 0 ? paiseToInr(elecAmountPaise) : '—'}
           status={
-            props.electricityOverdue ? (
-              <span className="text-[10px] text-rose-300">Overdue</span>
-            ) : null
-          }
-          editHref={props.bookingId ? `/admin/electricity?booking=${props.bookingId}` : '/admin/electricity'}
-        >
-          {canBill && elecAmountPaise > 0 ? (
             <>
-              <AdminBillingWhatsAppButton
+              {props.electricityOverdue ? (
+                <span className="text-[10px] text-rose-300">Overdue</span>
+              ) : props.pendingElectricityPaise ? (
+                <span className="text-[10px] text-amber-200">
+                  From generated bill
+                  {props.electricityInvoiceNumber ? ` · ${props.electricityInvoiceNumber}` : ''}
+                </span>
+              ) : null}
+            </>
+          }
+          editHref={
+            props.bookingId
+              ? `/admin/collections?tab=electricity`
+              : '/admin/electricity/new'
+          }
+          editLabel={props.pendingElectricityPaise ? 'View bill' : 'Create bill'}
+        >
+          {canBill && (props.pendingElectricityPaise ?? 0) > 0 ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="flex items-center gap-1 text-[10px] text-apg-silver">
+                ₹
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={elecAmountInr}
+                  onChange={(e) => {
+                    setElecAmountInr(Math.max(0, Number(e.target.value) || 0));
+                  }}
+                  className="w-20 rounded border border-white/10 bg-[#12161C] px-2 py-1 text-xs text-white"
+                  title={
+                    props.electricityBasePaise
+                      ? `Bill share ${paiseToInr(props.electricityBasePaise)} — edit if needed`
+                      : 'Amount to collect'
+                  }
+                />
+              </label>
+              <BillingWhatsAppWithLinkButton
                 kind="electricity"
+                residentId={props.customerId}
+                pgId={props.pgId!}
                 customerName={props.customerName}
                 phone={props.phone}
                 pgName={props.pgName!}
@@ -264,27 +242,15 @@ export function ResidentActionBar(props: ResidentActionBarProps) {
                 dueDate={props.electricityDueDate ?? 'soon'}
                 roomNumber={props.roomNumber}
                 isOverdue={props.electricityOverdue}
-                paymentLinkUrl={elecLink?.publicUrl}
               />
-              <button
-                type="button"
-                disabled={pending}
-                onClick={() =>
-                  generateLink('electricity', elecAmountPaise, {
-                    dueDate: props.electricityDueDate,
-                    isOverdue: props.electricityOverdue,
-                  })
-                }
-                className={`${BTN} border-[#FF5A1F]/40 text-[#FF5A1F]`}
-              >
-                Link
-              </button>
-            </>
+            </div>
+          ) : canBill ? (
+            <Link href="/admin/electricity/new" className={BTN}>
+              Generate bill
+            </Link>
           ) : null}
         </ActionRow>
       </div>
-
-      {error ? <p className="mt-2 text-xs text-rose-300">{error}</p> : null}
 
       <div className="mt-3 flex flex-wrap gap-2 border-t border-white/5 pt-3">
         {props.bookingId ? (
@@ -292,11 +258,8 @@ export function ResidentActionBar(props: ResidentActionBarProps) {
             History →
           </Link>
         ) : null}
-        <Link href="/admin/panel?tab=audit" className={BTN}>
-          Rent audit →
-        </Link>
-        <Link href="/admin/panel?tab=links" className={BTN}>
-          All links →
+        <Link href="/admin/invoices" className={BTN}>
+          Invoices →
         </Link>
       </div>
     </div>

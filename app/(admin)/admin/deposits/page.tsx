@@ -92,8 +92,7 @@ export default async function AdminDepositsPage({
           <Table>
             <THead>
               <TR>
-                <TH>Booking</TH>
-                <TH>Resident</TH>
+                <TH>Resident / booking</TH>
                 <TH>Bed</TH>
                 <TH className="text-right">Collected</TH>
                 <TH className="text-right">Deducted</TH>
@@ -110,20 +109,18 @@ export default async function AdminDepositsPage({
                 <TR key={r.bookingId}>
                   <TD>
                     <Link
-                      href={`/admin/bookings/${r.bookingId}`}
-                      className="font-mono text-xs text-indigo-400 hover:underline"
-                    >
-                      {r.bookingCode}
-                    </Link>
-                  </TD>
-                  <TD>
-                    <Link
                       href={`/admin/residents/${r.customerId}`}
-                      className="text-sm text-white hover:text-[#FF5A1F]"
+                      className="text-sm font-medium text-white hover:text-[#FF5A1F]"
                     >
                       {r.customerFullName}
                     </Link>
                     <div className="font-mono text-[11px] text-zinc-500">{r.customerPhone}</div>
+                    <Link
+                      href={`/admin/bookings/${r.bookingId}`}
+                      className="mt-0.5 inline-block font-mono text-[10px] text-indigo-400 hover:underline"
+                    >
+                      {r.bookingCode}
+                    </Link>
                   </TD>
                   <TD className="text-xs text-apg-silver">
                     {r.pgName} · {r.bedCode}

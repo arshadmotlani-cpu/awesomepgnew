@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
-import { createPaymentLink } from '@/src/services/paymentLinks';
+import { getOrCreatePaymentLink } from '@/src/services/paymentLinks';
 
 export async function generatePaymentLinkAction(
   formData: FormData,
@@ -24,7 +24,7 @@ export async function generatePaymentLinkAction(
     return { ok: false, message: 'Missing resident, PG, or amount.' };
   }
 
-  const result = await createPaymentLink({
+  const result = await getOrCreatePaymentLink({
     residentId,
     pgId,
     pgName,
