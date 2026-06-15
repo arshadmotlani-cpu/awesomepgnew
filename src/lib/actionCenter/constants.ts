@@ -21,6 +21,8 @@ export const ACTION_ITEM_GROUP_LABELS: Record<ActionItemType, string> = {
   vacating_alert: 'Vacating Alerts',
   payment_received: 'Payments to Review',
   maintenance_issue: 'Maintenance Issues',
+  deposit_refund_request: 'Deposit Refund Requests',
+  extension_request: 'Extension Requests',
 };
 
 export const ACTION_ITEM_GROUP_ORDER: ActionItemType[] = [
@@ -28,6 +30,8 @@ export const ACTION_ITEM_GROUP_ORDER: ActionItemType[] = [
   'electricity_due',
   'payment_received',
   'refund_pending',
+  'deposit_refund_request',
+  'extension_request',
   'kyc_pending',
   'vacating_alert',
   'maintenance_issue',
@@ -45,6 +49,8 @@ export type ActionItemMetadata = {
   submissionId?: string;
   vacatingRequestId?: string;
   paymentReviewKey?: string;
+  requestId?: string;
+  requestStatus?: string;
   isOverdue?: boolean;
   billingMonth?: string;
   notes?: string;

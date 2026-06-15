@@ -2,6 +2,7 @@ export type AdminModule =
   | 'overview'
   | 'revenue'
   | 'collections'
+  | 'deposits'
   | 'pgs'
   | 'residents'
   | 'kyc'
@@ -38,6 +39,13 @@ export const ADMIN_MODULES: Record<AdminModule, AdminModuleMeta> = {
     label: 'Collections',
     description: 'Pending payments, invoices, QR approvals, paid history',
     href: '/admin/collections',
+    sidebar: true,
+  },
+  deposits: {
+    id: 'deposits',
+    label: 'Deposits',
+    description: 'Deposit wallets, manual entry, refunds, and ledger',
+    href: '/admin/deposits',
     sidebar: true,
   },
   pgs: {
@@ -142,6 +150,7 @@ export function pathnameToModule(pathname: string): AdminModule | null {
     return 'residents';
   }
   if (pathname.startsWith('/admin/panel')) return 'panel';
+  if (pathname.startsWith('/admin/deposits')) return 'deposits';
   for (const mod of SIDEBAR_MODULES) {
     if (mod.id === 'overview') continue;
     if (pathname === mod.href || pathname.startsWith(`${mod.href}/`)) return mod.id;

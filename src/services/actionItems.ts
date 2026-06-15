@@ -26,6 +26,7 @@ import { todayString } from '@/src/lib/dates';
 import { formatPgDisplayName } from '@/src/lib/operationsCenterRules';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
 import { projectElectricityInvoice } from '@/src/services/electricityBilling';
+import { syncResidentRequestActionItems } from '@/src/services/residentRequestActions';
 import { diffDays, formatDate } from '@/src/lib/dates';
 
 export type ActionItemRow = {
@@ -490,6 +491,7 @@ export async function syncActionItems(session: AdminSession): Promise<void> {
     syncRefundsPending(session),
     syncPaymentReviews(session),
     syncMaintenanceIssues(session),
+    syncResidentRequestActionItems(),
   ]);
 }
 
@@ -711,6 +713,16 @@ export async function getActionItemDetail(
       type: 'view_ledger',
       label: 'Process refund',
       href: `/admin/deposits/${meta.bookingId}`,
+    });
+  }
+  if (
+    (base.type === 'deposit_refund_request' || base.type === 'extension_request') &&
+    meta.requestId
+  ) {
+    availableActions.push({
+      type: 'view_ledger',
+      label: 'Review request',
+      href: `/admin/requests/${meta.requestId}`,
     });
   }
   if (base.status !== 'resolved') {

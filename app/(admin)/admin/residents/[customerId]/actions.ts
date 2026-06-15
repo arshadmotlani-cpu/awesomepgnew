@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { syncActionItems } from '@/src/services/actionItems';
 import { createPaymentLink } from '@/src/services/paymentLinks';
@@ -96,6 +97,26 @@ export async function updateTenancyAction(
     }
 
     revalidateOperationalPaths(result.customerId, bookingId, result.pgId);
+
+    const customerId = result.customerId;
+    if (customerId) {
+      const currentBedId = formData.get('currentBedId')?.toString()?.trim() ?? '';
+      const bedChanged = Boolean(newBedId && currentBedId && newBedId !== currentBedId);
+      const params = new URLSearchParams();
+
+      if (result.rentChanged) {
+        params.set('rentUpdated', '1');
+        params.set('rentFrom', String(result.rentChanged.fromPaise));
+        params.set('rentTo', String(result.rentChanged.toPaise));
+        if (paymentLinkUrl) params.set('paymentLink', paymentLinkUrl);
+        else params.set('linkError', '1');
+      }
+      if (bedChanged) params.set('bedReassigned', '1');
+      if (!result.rentChanged && !bedChanged) params.set('saved', '1');
+
+      const qs = params.toString();
+      redirect(qs ? `/admin/residents/${customerId}?${qs}` : `/admin/residents/${customerId}`);
+    }
 
     return {
       ok: true,

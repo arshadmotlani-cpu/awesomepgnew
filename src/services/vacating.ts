@@ -859,3 +859,103 @@ export async function revertVacatingApproval(input: {
 
   return { ok: true, request: updated };
 }
+
+/** Extend or shorten an active vacating date, or extend tenancy when no notice exists. */
+export async function extendVacatingDate(input: {
+  bookingId: string;
+  newVacatingDate: DateLike;
+  resolvedByAdminId?: string | null;
+  fromExtensionRequest?: boolean;
+}): Promise<{ ok: true; requestId?: string } | { ok: false; message: string }> {
+  const newDate = formatDate(parseDate(input.newVacatingDate));
+  const today = formatDate(new Date());
+  if (newDate <= today) {
+    return { ok: false, message: 'New end date must be after today.' };
+  }
+
+  const [vacating] = await db
+    .select()
+    .from(vacatingRequests)
+    .where(
+      and(
+        eq(vacatingRequests.bookingId, input.bookingId),
+        inArray(vacatingRequests.status, ['pending', 'approved']),
+      ),
+    )
+    .limit(1);
+
+  if (vacating) {
+    const noticeCompliant = isNoticeCompliant({
+      noticeGivenDate: vacating.noticeGivenDate,
+      vacatingDate: newDate,
+    });
+    const monthlyRent = vacating.monthlyRentPaiseSnapshot;
+    const deduction = noticeCompliant ? 0 : vacatingPenalty(monthlyRent);
+
+    const [updated] = await db
+      .update(vacatingRequests)
+      .set({
+        vacatingDate: newDate,
+        noticeCompliant,
+        deductionPaise: deduction,
+        updatedAt: new Date(),
+      })
+      .where(eq(vacatingRequests.id, vacating.id))
+      .returning();
+
+    if (updated.status === 'approved') {
+      await db.execute(sql`
+        UPDATE bed_reservations
+        SET
+          stay_range = daterange(lower(stay_range), ${newDate}::date, '[)'),
+          updated_at = now()
+        WHERE booking_id = ${input.bookingId}
+          AND status IN ('hold', 'active')
+      `);
+      await db
+        .update(bookings)
+        .set({ expectedCheckoutDate: newDate, updatedAt: new Date() })
+        .where(eq(bookings.id, input.bookingId));
+    }
+
+    await db.insert(auditLog).values({
+      actorType: input.resolvedByAdminId ? 'admin' : 'system',
+      actorId: input.resolvedByAdminId ?? null,
+      entity: 'vacating_request',
+      entityId: updated.id,
+      action: 'vacating_date_changed',
+      diff: {
+        fromDate: vacating.vacatingDate,
+        toDate: newDate,
+        fromExtensionRequest: input.fromExtensionRequest ?? false,
+      },
+    });
+
+    return { ok: true, requestId: updated.id };
+  }
+
+  await db.execute(sql`
+    UPDATE bed_reservations
+    SET
+      stay_range = daterange(lower(stay_range), ${newDate}::date, '[)'),
+      updated_at = now()
+    WHERE booking_id = ${input.bookingId}
+      AND status IN ('hold', 'active')
+  `);
+
+  await db
+    .update(bookings)
+    .set({ expectedCheckoutDate: newDate, updatedAt: new Date() })
+    .where(eq(bookings.id, input.bookingId));
+
+  await db.insert(auditLog).values({
+    actorType: input.resolvedByAdminId ? 'admin' : 'system',
+    actorId: input.resolvedByAdminId ?? null,
+    entity: 'booking',
+    entityId: input.bookingId,
+    action: 'stay_extended',
+    diff: { newEndDate: newDate, fromExtensionRequest: input.fromExtensionRequest ?? false },
+  });
+
+  return { ok: true };
+}

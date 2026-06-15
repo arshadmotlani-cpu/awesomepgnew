@@ -18,6 +18,14 @@ export default async function AdminDepositsPage() {
       <PageHeader
         title="Deposit management"
         description="Per-booking deposit balances. Refunds: 95% within 2 hours, up to 24 hours when dues are cleared. Use booking detail → Operations checklist to mark refund status."
+        actions={
+          <Link
+            href="/admin/deposits/add"
+            className="rounded-lg bg-[#FF5A1F] px-4 py-2 text-sm font-semibold text-white hover:brightness-110"
+          >
+            Add deposit
+          </Link>
+        }
       />
       {!res.ok ? (
         <DbStatusBanner error={res.error} />

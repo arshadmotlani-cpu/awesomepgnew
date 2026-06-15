@@ -13,11 +13,15 @@ export async function GET(req: NextRequest) {
   }
 
   const q = req.nextUrl.searchParams.get('q')?.trim() ?? '';
+  const kycApproved = req.nextUrl.searchParams.get('kycApproved') === '1';
   if (q.length < 2) {
     return Response.json({ ok: true, data: [] });
   }
 
-  const data = await searchResidentsForAdmin(session, q);
+  let data = await searchResidentsForAdmin(session, q);
+  if (kycApproved) {
+    data = data.filter((r) => r.kycStatus === 'approved' && r.bookingId);
+  }
   return Response.json({
     ok: true,
     data: data.map((r) => ({

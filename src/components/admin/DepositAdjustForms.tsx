@@ -36,12 +36,13 @@ export function DepositAdjustForms({
       <div className="grid gap-4 sm:grid-cols-3">
         <DepositForm
           title="Add deposit"
-          helper="Record an additional deposit collected from the resident (e.g. top-up)."
+          helper="Record cash, UPI, or bank transfer. Updates wallet, reports, and revenue."
           bookingId={bookingId}
           action={addDepositAction}
           submitLabel="Add to ledger"
           accent="positive"
           minAmount="0.01"
+          showPaymentMethod
         />
         <DepositForm
           title="Deduct"
@@ -160,6 +161,7 @@ function DepositForm({
   submitLabel,
   accent,
   minAmount,
+  showPaymentMethod = false,
 }: {
   title: string;
   helper: string;
@@ -168,6 +170,7 @@ function DepositForm({
   submitLabel: string;
   accent: 'positive' | 'warn' | 'neutral';
   minAmount: string;
+  showPaymentMethod?: boolean;
 }) {
   const bound = action.bind(null, bookingId);
   const [state, runAction, pending] = useActionState(bound, initialActionState);
@@ -199,6 +202,22 @@ function DepositForm({
           className="mt-1 block w-full rounded-md border border-zinc-300 px-2.5 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
         />
       </label>
+      {showPaymentMethod ? (
+        <label className="block">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+            Payment method
+          </span>
+          <select
+            name="paymentMethod"
+            className="mt-1 block w-full rounded-md border border-zinc-300 px-2.5 py-1.5 text-sm"
+            defaultValue="cash"
+          >
+            <option value="cash">Cash</option>
+            <option value="upi">UPI</option>
+            <option value="bank_transfer">Bank transfer</option>
+          </select>
+        </label>
+      ) : null}
       <label className="block">
         <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
           Reason

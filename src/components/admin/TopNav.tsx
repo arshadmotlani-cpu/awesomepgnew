@@ -1,13 +1,14 @@
 import { getAdminSession } from '@/src/lib/auth/session';
 import { LogoutButton } from '@/src/components/auth/LogoutButton';
 import { MobileNav } from './MobileNav';
+import type { AdminNavBadges } from '@/src/services/adminNavBadges';
 
-export async function TopNav() {
+export async function TopNav({ badges = {} }: { badges?: AdminNavBadges }) {
   const adminSession = await getAdminSession();
 
   return (
     <header className="sticky top-0 z-40 flex min-h-14 w-full max-w-[100vw] items-center gap-2 border-b border-white/5 bg-[#0B0F14] px-3 pt-[env(safe-area-inset-top)] sm:gap-3 sm:px-4 lg:px-6">
-      <MobileNav />
+      <MobileNav badges={badges} />
 
       <div className="min-w-0 flex-1 lg:hidden">
         <p className="truncate text-sm font-semibold text-white">Awesome PG</p>

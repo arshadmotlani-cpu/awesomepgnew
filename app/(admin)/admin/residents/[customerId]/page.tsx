@@ -6,6 +6,7 @@ import { AssignTenantForm } from '@/src/components/admin/AssignTenantForm';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { BedAssignmentWhatsAppButton } from '@/src/components/admin/BedAssignmentWhatsAppButton';
 import { EditTenantTenancyForm } from '@/src/components/admin/EditTenantTenancyForm';
+import { RentUpdatedSuccessBanner } from '@/src/components/admin/RentUpdatedSuccessBanner';
 import { ResidentActionBar } from '@/src/components/admin/ResidentActionBar';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
@@ -35,7 +36,16 @@ export default async function ResidentDetailPage({
   searchParams,
 }: {
   params: Promise<{ customerId: string }>;
-  searchParams: Promise<{ assigned?: string }>;
+  searchParams: Promise<{
+    assigned?: string;
+    rentUpdated?: string;
+    rentFrom?: string;
+    rentTo?: string;
+    paymentLink?: string;
+    linkError?: string;
+    bedReassigned?: string;
+    saved?: string;
+  }>;
 }) {
   const { customerId } = await params;
   const sp = await searchParams;
@@ -143,6 +153,39 @@ export default async function ResidentDetailPage({
           ) : null
         }
       />
+
+      {sp.rentUpdated === '1' && sp.rentTo && activeTenancy ? (
+        <RentUpdatedSuccessBanner
+          fromPaise={Number(sp.rentFrom ?? activeTenancy.monthlyRentPaise)}
+          toPaise={Number(sp.rentTo)}
+          paymentLinkUrl={sp.paymentLink}
+          linkError={sp.linkError === '1'}
+          customerName={customer.fullName}
+          customerPhone={customer.phone}
+          pgName={activeTenancy.pgName}
+        />
+      ) : null}
+
+      {sp.bedReassigned === '1' && activeTenancy ? (
+        <div className="mb-6 rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+          <p className="font-semibold">Bed reassignment saved</p>
+          <div className="mt-3">
+            <BedAssignmentWhatsAppButton
+              customerName={customer.fullName}
+              phone={customer.phone}
+              pgName={activeTenancy.pgName}
+              roomNumber={activeTenancy.roomNumber}
+              bedCode={activeTenancy.bedCode}
+            />
+          </div>
+        </div>
+      ) : null}
+
+      {sp.saved === '1' ? (
+        <div className="mb-6 rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+          Assignment and rent saved — all modules synced.
+        </div>
+      ) : null}
 
       {sp.assigned === '1' && activeTenancy ? (
         <div className="mb-6 rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">

@@ -14,7 +14,7 @@ export function RentUpdatedWhatsAppButton({
   phone: string;
   pgName: string;
   newAmountPaise: number;
-  paymentLinkUrl: string;
+  paymentLinkUrl?: string;
 }) {
   const href = buildRentUpdatedWhatsAppUrl({
     customerName,

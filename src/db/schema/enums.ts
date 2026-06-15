@@ -198,6 +198,8 @@ export const actionItemTypeEnum = pgEnum('action_item_type', [
   'vacating_alert',
   'payment_received',
   'maintenance_issue',
+  'deposit_refund_request',
+  'extension_request',
 ]);
 
 export const actionItemStatusEnum = pgEnum('action_item_status', [
@@ -222,6 +224,19 @@ export const paymentLinkStatusEnum = pgEnum('payment_link_status', [
   'active',
   'paid',
   'expired',
+]);
+
+export const residentRequestTypeEnum = pgEnum('resident_request_type', [
+  'deposit_refund',
+  'stay_extension',
+]);
+
+export const residentRequestStatusEnum = pgEnum('resident_request_status', [
+  'submitted',
+  'under_review',
+  'approved',
+  'rejected',
+  'completed',
 ]);
 
 export type ActionItemType = (typeof actionItemTypeEnum.enumValues)[number];

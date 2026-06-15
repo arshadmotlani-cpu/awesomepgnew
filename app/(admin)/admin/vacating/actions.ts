@@ -6,6 +6,7 @@ import {
   adminWithdrawVacatingRequest,
   approveVacatingRequest,
   completeVacatingRequest,
+  extendVacatingDate,
   rejectVacatingRequest,
   revertVacatingApproval,
   revertVacatingCompletion,
@@ -153,4 +154,25 @@ export async function undoVacatingApprovalAction(
   revalidateVacatingPaths();
   if (pgId) revalidatePath(`/admin/pgs/${pgId}/map`);
   return { status: 'ok', message: 'Approval undone — notice is pending again.' };
+}
+
+export async function extendVacatingDateAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const admin = await requireAdminPermission('vacating:write');
+  const bookingId = String(formData.get('bookingId') ?? '');
+  const newDate = String(formData.get('newVacatingDate') ?? '');
+  const result = await extendVacatingDate({
+    bookingId,
+    newVacatingDate: newDate,
+    resolvedByAdminId: admin.adminId,
+  });
+  if (!result.ok) {
+    return { status: 'error', message: result.message };
+  }
+  revalidateVacatingPaths();
+  revalidatePath('/admin/overview');
+  revalidatePath('/admin/operations');
+  return { status: 'ok', message: 'Vacate / end date updated — occupancy and revenue synced.' };
 }

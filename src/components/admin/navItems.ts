@@ -11,11 +11,13 @@ import {
   IconUsers,
 } from './icons';
 import { SIDEBAR_MODULES, type AdminModule } from '@/src/lib/admin/navigation';
+import type { AdminNavBadges } from '@/src/services/adminNavBadges';
 
 const MODULE_ICONS: Record<AdminModule, ComponentType<SVGProps<SVGSVGElement>>> = {
   overview: IconDashboard,
   revenue: IconCard,
   collections: IconClipboard,
+  deposits: IconCard,
   operations: IconBed,
   analytics: IconChart,
   system: IconSettings,

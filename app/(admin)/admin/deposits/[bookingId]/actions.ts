@@ -64,6 +64,7 @@ export async function addDepositAction(
   }
   const amountPaise = parseAmount(formData);
   const reason = parseReason(formData);
+  const method = formData.get('paymentMethod')?.toString()?.trim() || 'cash';
   if (amountPaise == null) return { status: 'error', message: 'Amount must be > 0.' };
   if (!reason) return { status: 'error', message: 'Reason is required.' };
   const customerId = await resolveCustomerId(bookingId);
@@ -73,7 +74,7 @@ export async function addDepositAction(
       bookingId,
       customerId,
       amountPaise,
-      reason: `admin adjustment: ${reason}`,
+      reason: `admin ${method}: ${reason}`,
       createdByAdminId: admin.adminId,
     });
     revalidatePath(`/admin/deposits/${bookingId}`);

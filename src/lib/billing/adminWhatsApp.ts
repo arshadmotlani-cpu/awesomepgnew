@@ -22,7 +22,7 @@ export type RentUpdatedWhatsAppInput = {
   phone: string;
   pgName: string;
   newAmountPaise: number;
-  paymentLinkUrl: string;
+  paymentLinkUrl?: string;
 };
 
 export function buildBillingWhatsAppMessage(input: BillingWhatsAppInput): string {
@@ -77,13 +77,19 @@ export function buildRentUpdatedWhatsAppMessage(input: {
   customerName: string;
   pgName: string;
   newAmountPaise: number;
-  paymentLinkUrl: string;
+  paymentLinkUrl?: string;
 }): string {
   const firstName = input.customerName.trim().split(/\s+/)[0] || 'there';
   const amount = paiseToInr(input.newAmountPaise);
+  if (input.paymentLinkUrl) {
+    return (
+      `Hi ${firstName}, your rent has been updated to ${amount} for ${input.pgName}. ` +
+      `Please review and complete payment here: ${input.paymentLinkUrl}`
+    );
+  }
   return (
     `Hi ${firstName}, your rent has been updated to ${amount} for ${input.pgName}. ` +
-    `Please review and complete payment here: ${input.paymentLinkUrl}`
+    `Please pay via UPI or contact the office for the payment link.`
   );
 }
 

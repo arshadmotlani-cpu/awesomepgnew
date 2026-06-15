@@ -36,6 +36,10 @@ import { RoachieResidentBriefing } from '@/src/components/cockroach/RoachieResid
 import { buildBriefingInputForBooking } from '@/src/lib/cockroach/briefingFromBooking';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import { accountProfileHref } from '@/src/lib/accountNavigation';
+import { DepositWalletSection } from '@/src/components/customer/account/DepositWalletSection';
+import { ResidentRequestForms } from '@/src/components/customer/account/ResidentRequestForms';
+import { getCustomerDepositCredit } from '@/src/services/depositCredit';
+import { listOpenRequestsForCustomer } from '@/src/services/residentRequests';
 
 const RENT_STATUS_TONE: Record<string, string> = {
   pending: 'bg-amber-50 text-amber-700 ring-amber-200',
@@ -78,6 +82,8 @@ export async function ResidentAreaSection({ customerId }: { customerId: string }
     return null;
   }
   const customer = await getCustomerById(session.customerId);
+  const depositWallet = await getCustomerDepositCredit(session.customerId);
+  const openRequests = await listOpenRequestsForCustomer(session.customerId);
   const bookings = await listResidentBookingsForCustomer(session.customerId);
   const tenantActive = await isActiveTenant(session.customerId);
   const ps4Membership = tenantActive ? await getMembershipForDashboard(session.customerId) : null;
@@ -172,6 +178,10 @@ export async function ResidentAreaSection({ customerId }: { customerId: string }
       </p>
 
       <DepositRefundNotice />
+
+      {depositWallet.totalCollectedPaise > 0 ? (
+        <DepositWalletSection wallet={depositWallet} />
+      ) : null}
 
       <MyServicesPanel membership={ps4Membership} isActiveTenant={tenantActive} />
 
@@ -300,6 +310,28 @@ export async function ResidentAreaSection({ customerId }: { customerId: string }
                     <span className="text-zinc-600">No open invoices in the system.</span>
                   ) : null}
                 </div>
+
+                <ResidentRequestForms
+                  bookingId={d.bookingId}
+                  refundableBalancePaise={deposit?.refundableBalancePaise ?? 0}
+                  hasOpenVacating={Boolean(vacating && ['pending', 'approved'].includes(vacating.status))}
+                />
+
+                {openRequests.filter((r) => r.bookingId === d.bookingId).length > 0 ? (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                    <p className="font-semibold">Open requests</p>
+                    <ul className="mt-1 list-inside list-disc">
+                      {openRequests
+                        .filter((r) => r.bookingId === d.bookingId)
+                        .map((r) => (
+                          <li key={r.id}>
+                            {r.type === 'deposit_refund' ? 'Deposit refund' : 'Stay extension'} —{' '}
+                            {r.status.replace('_', ' ')}
+                          </li>
+                        ))}
+                    </ul>
+                  </div>
+                ) : null}
 
                 <div className="flex flex-wrap gap-2 text-xs">
                   <Link

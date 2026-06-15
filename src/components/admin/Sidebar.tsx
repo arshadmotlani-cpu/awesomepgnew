@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { IconLogo } from './icons';
 import { NAV_SECTIONS } from './navItems';
 import { isModuleActive } from '@/src/lib/admin/navigation';
+import type { AdminNavBadges } from '@/src/services/adminNavBadges';
 
 function isActive(pathname: string, href: string, module: string) {
   if ('module' in { module } && module !== 'overview') {
@@ -19,9 +20,11 @@ function isActive(pathname: string, href: string, module: string) {
 export function Sidebar({
   onNavigate,
   variant = 'docked',
+  badges = {},
 }: {
   onNavigate?: () => void;
   variant?: 'docked' | 'drawer';
+  badges?: AdminNavBadges;
 }) {
   const pathname = usePathname() ?? '/admin';
 
@@ -66,6 +69,7 @@ export function Sidebar({
                 const active = module
                   ? isModuleActive(pathname, module)
                   : pathname === href;
+                const badgeCount = module ? badges[module] : undefined;
                 return (
                   <li key={href}>
                     <Link
@@ -87,7 +91,15 @@ export function Sidebar({
                           (active ? 'text-[#FF5A1F]' : 'text-apg-silver/70 group-hover:text-white')
                         }
                       />
-                      <span>{label}</span>
+                      <span className="min-w-0 flex-1 truncate">{label}</span>
+                      {badgeCount != null && badgeCount > 0 ? (
+                        <span
+                          className="inline-flex min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-[#FF5A1F] px-1.5 py-0.5 text-[10px] font-bold leading-none text-white"
+                          aria-label={`${badgeCount} pending`}
+                        >
+                          {badgeCount > 99 ? '99+' : badgeCount}
+                        </span>
+                      ) : null}
                     </Link>
                   </li>
                 );

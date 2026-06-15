@@ -6,6 +6,7 @@ import {
   approveVacatingAction,
   cancelVacatingNoticeAction,
   completeVacatingAction,
+  extendVacatingDateAction,
   rejectVacatingAction,
   undoVacatingApprovalAction,
   undoVacatingCompletionAction,
@@ -182,10 +183,51 @@ export function CancelVacatingNoticeButton({
       action={cancelVacatingNoticeAction}
       className="rounded-md bg-white px-2 py-1 text-[11px] font-medium text-amber-800 ring-1 ring-inset ring-amber-200 hover:bg-amber-50"
       title="Cancel vacating notice?"
-      description="Removes the notice entirely. Use this if you filed vacating by mistake or the bed is already vacant — not Complete."
+      description="Removes the notice entirely. Tenancy continues without a new booking."
       confirmLabel="Remove notice"
       tone="danger"
     />
+  );
+}
+
+export function ExtendVacatingDateForm({
+  bookingId,
+  currentVacatingDate,
+}: {
+  bookingId: string;
+  currentVacatingDate?: string;
+}) {
+  const [state, formAction, pending] = useActionState(extendVacatingDateAction, idle);
+  const formId = `extend-vacating-${bookingId}`;
+  return (
+    <form id={formId} action={formAction} className="mt-2 flex flex-wrap items-end gap-2">
+      <input type="hidden" name="bookingId" value={bookingId} />
+      <label className="text-[11px] text-zinc-600">
+        New vacate / end date
+        <input
+          type="date"
+          name="newVacatingDate"
+          defaultValue={currentVacatingDate}
+          required
+          className="mt-0.5 block rounded border border-zinc-300 px-2 py-1 text-xs"
+        />
+      </label>
+      <AdminConfirmSubmit
+        formId={formId}
+        title="Change vacate date?"
+        description="Extends or shortens the stay on the existing booking — no duplicate booking. Occupancy and revenue update immediately."
+        confirmLabel="Update date"
+        pending={pending}
+        className="rounded-md bg-sky-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-sky-500 disabled:opacity-50"
+      >
+        {pending ? 'Saving…' : 'Extend / change date'}
+      </AdminConfirmSubmit>
+      {state.status === 'ok' ? (
+        <p className="w-full text-[10px] text-emerald-700">{state.message}</p>
+      ) : state.status === 'error' ? (
+        <p className="w-full text-[10px] text-rose-600">{state.message}</p>
+      ) : null}
+    </form>
   );
 }
 

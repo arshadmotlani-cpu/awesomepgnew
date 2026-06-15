@@ -55,6 +55,26 @@ export function OverviewGlobalSummary({ ctx }: { ctx: OverviewContext }) {
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           <ClickableOverviewCard
+            href={moduleHref('analytics', month)}
+            label={ADMIN_MODULES.analytics.label}
+            value={ctx.visitors.today.toLocaleString('en-IN')}
+            hint={`${ctx.visitors.week} visitors this week · funnel & traffic`}
+            icon={<IconChart />}
+            accent="violet"
+            large
+          />
+          <ClickableOverviewCard
+            href="/admin/requests"
+            label="Resident requests"
+            value={(ctx.pendingActionsCount ?? 0).toLocaleString('en-IN')}
+            hint="Refunds & extensions queue"
+            icon={<IconUsers />}
+            accent="amber"
+            large
+          />
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <ClickableOverviewCard
             href={moduleHref('system', month)}
             label={ADMIN_MODULES.system.label}
             value={ctx.systemHealth.errorsToday.toLocaleString('en-IN')}

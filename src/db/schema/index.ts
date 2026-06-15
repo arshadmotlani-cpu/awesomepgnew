@@ -45,3 +45,4 @@ export * from './automationActions';
 export * from './actionItems';
 export * from './paymentLinks';
 export * from './couponRedemptions';
+export * from './residentRequests';
