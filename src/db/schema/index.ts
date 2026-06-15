@@ -48,3 +48,4 @@ export * from './financialInvoices';
 export * from './couponRedemptions';
 export * from './residentRequests';
 export * from './adminNotifications';
+export * from './devAssistant';

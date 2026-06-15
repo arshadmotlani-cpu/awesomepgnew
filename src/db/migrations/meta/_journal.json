@@ -323,6 +323,13 @@
       "when": 1786400000000,
       "tag": "0046_deposit_due_extension_index",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1786500000000,
+      "tag": "0047_dev_assistant",
+      "breakpoints": true
     }
   ]
 }
