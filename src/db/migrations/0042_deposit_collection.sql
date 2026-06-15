@@ -22,17 +22,7 @@ CREATE INDEX IF NOT EXISTS bookings_deposit_collection_status_idx
   ON bookings (deposit_collection_status)
   WHERE deposit_due_paise > 0;
 
--- Extend enums for ops / automation / resident requests
-ALTER TYPE action_item_type ADD VALUE IF NOT EXISTS 'deposit_collection_due';
-ALTER TYPE resident_request_type ADD VALUE IF NOT EXISTS 'deposit_due_extension';
-ALTER TYPE automation_event_type ADD VALUE IF NOT EXISTS 'deposit_collection_due';
-ALTER TYPE automation_event_type ADD VALUE IF NOT EXISTS 'deposit_collection_overdue';
-ALTER TYPE automation_event_type ADD VALUE IF NOT EXISTS 'deposit_collection_received';
-
-CREATE UNIQUE INDEX IF NOT EXISTS resident_requests_open_deposit_due_ext_unique
-  ON resident_requests (booking_id, type)
-  WHERE type = 'deposit_due_extension'
-    AND status IN ('submitted', 'under_review', 'approved');
+-- Enum extensions + partial unique index moved to 0045 (PG requires commit before new enum use).
 
 -- Backfill: confirmed/completed bookings with deposit fully collected in ledger
 UPDATE bookings b
