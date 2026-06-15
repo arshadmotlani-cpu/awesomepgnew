@@ -64,6 +64,14 @@ export async function getOrCreateWorkspace(adminId: string, conversationId?: str
     if (existing) return existing;
   }
 
+  const [latest] = await db
+    .select()
+    .from(devAssistantConversations)
+    .where(eq(devAssistantConversations.adminId, adminId))
+    .orderBy(desc(devAssistantConversations.updatedAt))
+    .limit(1);
+  if (latest) return latest;
+
   const [row] = await db
     .insert(devAssistantConversations)
     .values({ adminId, title: 'Dev workspace', activeMode: 'ask' })

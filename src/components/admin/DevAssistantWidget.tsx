@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import type {
+  DevAssistantConversationSummary,
   DevAssistantMode,
   DevAssistantTaskDetail,
   DevAssistantTaskStatus,
@@ -15,7 +16,9 @@ import { MODE_DESCRIPTIONS, MODE_LABELS } from '@/src/lib/devAssistant/modes/pro
 import { collectDevAssistantContext } from '@/src/lib/devAssistant/collectContext';
 import { formatDebugContextForClipboard } from '@/src/lib/devAssistant/contextBuilder';
 import {
+  loadDevAssistantDraft,
   loadDevAssistantUiState,
+  saveDevAssistantDraft,
   saveDevAssistantUiState,
 } from '@/src/lib/devAssistant/widgetStorage';
 import { installDevAssistantErrorCollector } from '@/src/lib/devAssistant/errorCollector';
@@ -25,24 +28,62 @@ export type DevAssistantWidgetProps = {
   admin: { id: string; email: string; fullName: string; role: string };
 };
 
+type ClientMessage = DevAssistantWorkspaceMessage & {
+  clientStatus?: 'sending' | 'failed' | 'sent';
+  isOptimistic?: boolean;
+};
+
+type PendingSend = {
+  tempId: string;
+  content: string;
+  mode: DevAssistantMode;
+  conversationId: string | null;
+};
+
 const MODES: DevAssistantMode[] = ['ask', 'plan', 'agent'];
+
+const LOADING_LABEL: Record<DevAssistantMode, string> = {
+  ask: 'Researching…',
+  plan: 'Analyzing request…',
+  agent: 'Creating task…',
+};
 
 function statusLabel(s: DevAssistantTaskStatus): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+function makeOptimisticUserMessage(content: string, mode: DevAssistantMode, tempId: string): ClientMessage {
+  return {
+    id: tempId,
+    role: 'user',
+    mode,
+    content,
+    createdAt: new Date().toISOString(),
+    clientStatus: 'sending',
+    isOptimistic: true,
+  };
+}
+
 export function DevAssistantWidget({ admin }: DevAssistantWidgetProps) {
   const [ui, setUi] = useState(loadDevAssistantUiState);
   const [mode, setMode] = useState<DevAssistantMode>(ui.mode ?? 'ask');
-  const [messages, setMessages] = useState<DevAssistantWorkspaceMessage[]>([]);
+  const [messages, setMessages] = useState<ClientMessage[]>([]);
+  const [conversations, setConversations] = useState<DevAssistantConversationSummary[]>([]);
   const [tasks, setTasks] = useState<DevAssistantTaskSummary[]>([]);
   const [activeTask, setActiveTask] = useState<DevAssistantTaskDetail | null>(null);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [pendingRetry, setPendingRetry] = useState<PendingSend | null>(null);
   const [copied, setCopied] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const conversationIdRef = useRef<string | null>(ui.conversationId);
+
+  useEffect(() => {
+    conversationIdRef.current = ui.conversationId;
+  }, [ui.conversationId]);
 
   useEffect(() => {
     installDevAssistantErrorCollector();
@@ -52,34 +93,57 @@ export function DevAssistantWidget({ admin }: DevAssistantWidgetProps) {
     trackNavigation(pathname);
   }, [pathname]);
 
+  useEffect(() => {
+    setInput(loadDevAssistantDraft(ui.conversationId));
+  }, [ui.conversationId]);
+
   const persistUi = useCallback((partial: Partial<typeof ui>) => {
     setUi((prev) => {
       const next = { ...prev, ...partial };
       saveDevAssistantUiState(next);
+      if ('conversationId' in partial) {
+        conversationIdRef.current = partial.conversationId ?? null;
+      }
       return next;
     });
   }, []);
 
-  const loadWorkspace = useCallback(async () => {
-    const q = ui.conversationId ? `?conversationId=${ui.conversationId}` : '';
-    const res = await fetch(`/api/admin/dev-assistant/chat${q}`);
+  const loadWorkspace = useCallback(
+    async (conversationIdOverride?: string | null) => {
+      const id = conversationIdOverride !== undefined ? conversationIdOverride : conversationIdRef.current;
+      const q = id ? `?conversationId=${encodeURIComponent(id)}` : '';
+      const res = await fetch(`/api/admin/dev-assistant/chat${q}`);
+      if (!res.ok) return false;
+      const json = (await res.json()) as {
+        ok: boolean;
+        data?: {
+          conversationId: string;
+          activeMode: DevAssistantMode;
+          messages: DevAssistantWorkspaceMessage[];
+          activeTask: DevAssistantTaskDetail | null;
+        };
+      };
+      if (json.ok && json.data) {
+        persistUi({ conversationId: json.data.conversationId });
+        setMessages(json.data.messages);
+        setMode(json.data.activeMode);
+        setActiveTask(json.data.activeTask);
+        return true;
+      }
+      return false;
+    },
+    [persistUi],
+  );
+
+  const loadConversations = useCallback(async () => {
+    const res = await fetch('/api/admin/dev-assistant/conversations');
     if (!res.ok) return;
     const json = (await res.json()) as {
       ok: boolean;
-      data?: {
-        conversationId: string;
-        activeMode: DevAssistantMode;
-        messages: DevAssistantWorkspaceMessage[];
-        activeTask: DevAssistantTaskDetail | null;
-      };
+      data?: { conversations: DevAssistantConversationSummary[] };
     };
-    if (json.ok && json.data) {
-      persistUi({ conversationId: json.data.conversationId });
-      setMessages(json.data.messages);
-      setMode(json.data.activeMode);
-      setActiveTask(json.data.activeTask);
-    }
-  }, [ui.conversationId, persistUi]);
+    if (json.ok && json.data) setConversations(json.data.conversations);
+  }, []);
 
   const loadTasks = useCallback(async () => {
     const res = await fetch('/api/admin/dev-assistant/tasks');
@@ -108,8 +172,9 @@ export function DevAssistantWidget({ admin }: DevAssistantWidgetProps) {
     if (ui.open) {
       void loadWorkspace();
       void loadTasks();
+      void loadConversations();
     }
-  }, [ui.open, loadWorkspace, loadTasks]);
+  }, [ui.open, loadWorkspace, loadTasks, loadConversations]);
 
   useEffect(() => {
     if (!activeTask || ['completed', 'failed', 'cancelled'].includes(activeTask.status)) {
@@ -126,45 +191,97 @@ export function DevAssistantWidget({ admin }: DevAssistantWidgetProps) {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, activeTask?.events.length, loading]);
 
-  const submit = async () => {
-    const content = input.trim();
-    if (!content || loading) return;
+  const handleInputChange = (text: string) => {
+    setInput(text);
+    saveDevAssistantDraft(conversationIdRef.current, text);
+  };
 
-    const context = collectDevAssistantContext(admin);
-    setInput('');
+  const sendMessage = async (content: string, sendMode: DevAssistantMode, conversationId: string | null) => {
+    const trimmed = content.trim();
+    if (!trimmed || loading) return;
+
+    const tempId = `optimistic-${Date.now()}`;
+    const optimistic = makeOptimisticUserMessage(trimmed, sendMode, tempId);
+    setMessages((prev) => [...prev, optimistic]);
+    setSendError(null);
+    setPendingRetry(null);
     setLoading(true);
 
-    if (mode === 'agent') {
+    if (sendMode === 'agent') {
       persistUi({ panel: 'workspace' });
     }
+
+    const context = collectDevAssistantContext(admin);
 
     try {
       const res = await fetch('/api/admin/dev-assistant/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          content,
-          mode,
-          conversationId: ui.conversationId,
+          content: trimmed,
+          mode: sendMode,
+          conversationId,
           context,
         }),
       });
       const json = (await res.json()) as {
         ok: boolean;
+        error?: string;
         data?: {
           conversationId: string;
           activeTask?: DevAssistantTaskDetail | null;
         };
       };
-      if (json.ok && json.data) {
-        persistUi({ conversationId: json.data.conversationId, mode });
-        await loadWorkspace();
-        if (json.data.activeTask) setActiveTask(json.data.activeTask);
-        void loadTasks();
+
+      if (!json.ok || !json.data) {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === tempId ? { ...m, clientStatus: 'failed' } : m)),
+        );
+        setSendError(json.error ?? 'Failed to send.');
+        setPendingRetry({ tempId, content: trimmed, mode: sendMode, conversationId });
+        return;
       }
+
+      persistUi({ conversationId: json.data.conversationId, mode: sendMode });
+      const loaded = await loadWorkspace(json.data.conversationId);
+      if (!loaded) {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === tempId ? { ...m, clientStatus: 'failed' } : m)),
+        );
+        setSendError('Failed to load conversation.');
+        setPendingRetry({ tempId, content: trimmed, mode: sendMode, conversationId: json.data.conversationId });
+        return;
+      }
+
+      if (json.data.activeTask) setActiveTask(json.data.activeTask);
+      void loadTasks();
+      void loadConversations();
+    } catch {
+      setMessages((prev) =>
+        prev.map((m) => (m.id === tempId ? { ...m, clientStatus: 'failed' } : m)),
+      );
+      setSendError('Failed to send.');
+      setPendingRetry({ tempId, content: trimmed, mode: sendMode, conversationId });
     } finally {
       setLoading(false);
     }
+  };
+
+  const submit = async () => {
+    const content = input.trim();
+    if (!content || loading) return;
+
+    handleInputChange('');
+    await sendMessage(content, mode, conversationIdRef.current);
+  };
+
+  const retrySend = async () => {
+    if (!pendingRetry || loading) return;
+    const { tempId, content, mode: retryMode, conversationId } = pendingRetry;
+    setMessages((prev) => prev.filter((m) => m.id !== tempId));
+    setSendError(null);
+    setPendingRetry(null);
+    await sendMessage(content, retryMode, conversationId);
   };
 
   const handoff = async (
@@ -180,7 +297,7 @@ export function DevAssistantWidget({ admin }: DevAssistantWidgetProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'handoff',
-          conversationId: ui.conversationId,
+          conversationId: conversationIdRef.current,
           sourceMessageId,
           handoffKind: kind,
         }),
@@ -192,11 +309,33 @@ export function DevAssistantWidget({ admin }: DevAssistantWidgetProps) {
       if (json.ok && json.data?.activeTask) {
         setActiveTask(json.data.activeTask);
         void loadTasks();
-        void loadWorkspace();
+        void loadWorkspace(conversationIdRef.current);
       }
     } finally {
       setLoading(false);
     }
+  };
+
+  const startNewWorkspace = async () => {
+    const res = await fetch('/api/admin/dev-assistant/conversations', { method: 'POST' });
+    if (!res.ok) return;
+    const json = (await res.json()) as { ok: boolean; data?: { id: string } };
+    if (json.ok && json.data) {
+      persistUi({ conversationId: json.data.id, panel: 'workspace' });
+      setMessages([]);
+      setActiveTask(null);
+      setSendError(null);
+      setPendingRetry(null);
+      handleInputChange('');
+      void loadConversations();
+    }
+  };
+
+  const openConversation = async (id: string) => {
+    persistUi({ conversationId: id, panel: 'workspace' });
+    setSendError(null);
+    setPendingRetry(null);
+    await loadWorkspace(id);
   };
 
   const copyContext = async () => {
@@ -204,6 +343,8 @@ export function DevAssistantWidget({ admin }: DevAssistantWidgetProps) {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const hasVisibleContent = messages.length > 0 || activeTask != null || loading || sendError != null;
 
   const panelStyle: React.CSSProperties = {
     width: ui.width,
@@ -232,6 +373,9 @@ export function DevAssistantWidget({ admin }: DevAssistantWidgetProps) {
               <div className="flex items-center gap-1">
                 <TabBtn active={ui.panel === 'workspace'} onClick={() => persistUi({ panel: 'workspace' })}>
                   Workspace
+                </TabBtn>
+                <TabBtn active={ui.panel === 'history'} onClick={() => persistUi({ panel: 'history' })}>
+                  Chats
                 </TabBtn>
                 <TabBtn active={ui.panel === 'tasks'} onClick={() => persistUi({ panel: 'tasks' })}>
                   Tasks
@@ -266,7 +410,14 @@ export function DevAssistantWidget({ admin }: DevAssistantWidgetProps) {
             </p>
 
             <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto p-3">
-              {ui.panel === 'tasks' ? (
+              {ui.panel === 'history' ? (
+                <ConversationHistoryPanel
+                  conversations={conversations}
+                  activeId={ui.conversationId}
+                  onOpen={(c) => void openConversation(c.id)}
+                  onNew={() => void startNewWorkspace()}
+                />
+              ) : ui.panel === 'tasks' ? (
                 <TaskHistoryPanel
                   tasks={tasks}
                   onOpen={(t) => {
@@ -290,7 +441,7 @@ export function DevAssistantWidget({ admin }: DevAssistantWidgetProps) {
                     <TaskResultCard task={activeTask} onDismiss={() => setActiveTask(null)} />
                   ) : null}
 
-                  {messages.length === 0 && !activeTask ? (
+                  {!hasVisibleContent ? (
                     <EmptyWorkspace mode={mode} pathname={pathname} />
                   ) : (
                     messages.map((m) => (
@@ -303,7 +454,25 @@ export function DevAssistantWidget({ admin }: DevAssistantWidgetProps) {
                       />
                     ))
                   )}
-                  {loading ? <p className="mt-2 text-[10px] text-white/40">Processing…</p> : null}
+
+                  {loading ? (
+                    <p className="mt-2 text-[10px] text-white/40">{LOADING_LABEL[mode]}</p>
+                  ) : null}
+
+                  {sendError ? (
+                    <div className="mt-2 flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2 py-1.5">
+                      <span className="text-[10px] text-rose-300">{sendError}</span>
+                      {pendingRetry ? (
+                        <button
+                          type="button"
+                          onClick={() => void retrySend()}
+                          className="text-[10px] font-semibold text-rose-200 underline hover:text-white"
+                        >
+                          Retry
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </>
               )}
             </div>
@@ -311,15 +480,7 @@ export function DevAssistantWidget({ admin }: DevAssistantWidgetProps) {
             <div className="shrink-0 border-t border-white/10 bg-[#161b22] p-2">
               <div className="mb-2 flex flex-wrap gap-1">
                 <SmallBtn onClick={() => void copyContext()}>{copied ? '✓ Copied' : 'Context'}</SmallBtn>
-                <SmallBtn
-                  onClick={() => {
-                    persistUi({ conversationId: null });
-                    setMessages([]);
-                    setActiveTask(null);
-                  }}
-                >
-                  New workspace
-                </SmallBtn>
+                <SmallBtn onClick={() => void startNewWorkspace()}>New workspace</SmallBtn>
               </div>
               <form
                 onSubmit={(e) => {
@@ -330,7 +491,7 @@ export function DevAssistantWidget({ admin }: DevAssistantWidgetProps) {
               >
                 <textarea
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  onChange={(e) => handleInputChange(e.target.value)}
                   placeholder={
                     mode === 'ask'
                       ? 'Ask about this page, data, or error…'
@@ -444,24 +605,31 @@ function WorkspaceBlock({
   onFixAutomatically,
   loading,
 }: {
-  message: DevAssistantWorkspaceMessage;
+  message: ClientMessage;
   onImplementPlan: () => void;
   onFixAutomatically: () => void;
   loading: boolean;
 }) {
   const isUser = message.role === 'user';
   const meta = message.metadata;
+  const failed = message.clientStatus === 'failed';
+  const sending = message.clientStatus === 'sending';
 
   return (
     <div
       className={
         'mb-3 rounded-lg border ' +
-        (isUser ? 'border-[#FF5A1F]/30 bg-[#FF5A1F]/5' : 'border-white/10 bg-[#161b22]')
+        (failed
+          ? 'border-rose-500/40 bg-rose-500/5'
+          : isUser
+            ? 'border-[#FF5A1F]/30 bg-[#FF5A1F]/5'
+            : 'border-white/10 bg-[#161b22]')
       }
     >
       <div className="flex items-center gap-2 border-b border-white/5 px-2 py-1">
         <span className="text-[9px] uppercase tracking-wider text-white/40">
           {isUser ? 'You' : 'Assistant'} · {MODE_LABELS[message.mode]}
+          {sending ? ' · sending…' : failed ? ' · failed' : ''}
         </span>
       </div>
       <pre className="whitespace-pre-wrap p-2 text-[11px] leading-relaxed text-white/85">{message.content}</pre>
@@ -501,6 +669,78 @@ function HandoffBtn({
     >
       {children}
     </button>
+  );
+}
+
+function ConversationHistoryPanel({
+  conversations,
+  activeId,
+  onOpen,
+  onNew,
+}: {
+  conversations: DevAssistantConversationSummary[];
+  activeId: string | null;
+  onOpen: (c: DevAssistantConversationSummary) => void;
+  onNew: () => void;
+}) {
+  const groups: Array<{ label: string; key: 'today' | 'yesterday' | 'older' }> = [
+    { label: 'Today', key: 'today' },
+    { label: 'Yesterday', key: 'yesterday' },
+    { label: 'Older', key: 'older' },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] uppercase tracking-wide text-white/40">Conversation history</p>
+        <button
+          type="button"
+          onClick={onNew}
+          className="text-[10px] text-[#FF5A1F] hover:text-[#FF5A1F]/80"
+        >
+          + New
+        </button>
+      </div>
+      {conversations.length === 0 ? (
+        <p className="text-[11px] text-white/40">No conversations yet. Send a message to start.</p>
+      ) : (
+        groups.map(({ label, key }) => {
+          const items = conversations.filter((c) => c.group === key);
+          if (items.length === 0) return null;
+          return (
+            <div key={key}>
+              <p className="mb-1 text-[9px] uppercase tracking-wider text-white/30">{label}</p>
+              <div className="space-y-1">
+                {items.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => onOpen(c)}
+                    className={
+                      'w-full rounded-lg border p-2 text-left hover:border-white/20 ' +
+                      (c.id === activeId
+                        ? 'border-[#FF5A1F]/40 bg-[#FF5A1F]/5'
+                        : 'border-white/10 bg-[#161b22]')
+                    }
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-xs text-white">{c.title}</span>
+                      <span className="shrink-0 rounded bg-white/5 px-1 py-0.5 text-[9px] uppercase text-white/40">
+                        {MODE_LABELS[c.activeMode]}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[10px] text-white/40">
+                      {c.messageCount} message{c.messageCount === 1 ? '' : 's'} ·{' '}
+                      {new Date(c.updatedAt).toLocaleString()}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })
+      )}
+    </div>
   );
 }
 

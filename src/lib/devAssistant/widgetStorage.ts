@@ -9,7 +9,7 @@ export type DevAssistantUiState = {
   y: number | null;
   conversationId: string | null;
   mode: 'ask' | 'plan' | 'agent';
-  panel: 'workspace' | 'tasks';
+  panel: 'workspace' | 'tasks' | 'history';
 };
 
 const DEFAULT: DevAssistantUiState = {
@@ -42,5 +42,34 @@ export function saveDevAssistantUiState(partial: Partial<DevAssistantUiState>) {
     localStorage.setItem(UI_KEY, JSON.stringify(next));
   } catch {
     /* ignore quota */
+  }
+}
+
+const DRAFT_KEY = 'apg-dev-assistant-draft';
+
+export function saveDevAssistantDraft(conversationId: string | null, text: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    const key = conversationId ?? '__new__';
+    const raw = localStorage.getItem(DRAFT_KEY);
+    const drafts = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+    if (text.trim()) drafts[key] = text;
+    else delete drafts[key];
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(drafts));
+  } catch {
+    /* ignore quota */
+  }
+}
+
+export function loadDevAssistantDraft(conversationId: string | null): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    const key = conversationId ?? '__new__';
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return '';
+    const drafts = JSON.parse(raw) as Record<string, string>;
+    return drafts[key] ?? '';
+  } catch {
+    return '';
   }
 }
