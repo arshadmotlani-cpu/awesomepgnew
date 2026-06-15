@@ -266,7 +266,7 @@ export const ADMIN_GUIDE: GuideCatalog = {
         'Mark overdue sweep after due date passes.',
         'Residents pay via website; you approve proofs in Collections.',
       ],
-      links: [{ label: 'Rent invoices', href: '/admin/rent' }],
+      links: [{ label: 'Collections · billing tools', href: '/admin/collections' }],
     },
 
     // ── Electricity ──

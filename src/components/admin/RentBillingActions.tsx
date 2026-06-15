@@ -12,19 +12,19 @@ const idle: ActionState = { status: 'idle' };
 export function GenerateInvoicesButton({ billingMonth }: { billingMonth: string }) {
   const [state, action, pending] = useActionState(generateInvoicesAction, idle);
   return (
-    <form action={action} className="inline-flex flex-col items-end gap-1">
+    <form action={action} className="inline-flex flex-col gap-1">
       <input type="hidden" name="billingMonth" value={billingMonth} />
       <button
         type="submit"
         disabled={pending}
-        className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-indigo-500 disabled:bg-indigo-300"
+        className="rounded-lg bg-[#FF5A1F] px-3 py-2 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-50"
       >
-        {pending ? 'Generating…' : `Generate invoices for ${billingMonth.slice(0, 7)}`}
+        {pending ? 'Generating…' : `Generate rent for ${billingMonth.slice(0, 7)}`}
       </button>
       {state.status === 'ok' ? (
-        <span className="text-[11px] text-emerald-700">{state.message}</span>
+        <span className="text-[11px] text-emerald-300">{state.message}</span>
       ) : state.status === 'error' ? (
-        <span className="text-[11px] text-rose-700">{state.message}</span>
+        <span className="text-[11px] text-rose-300">{state.message}</span>
       ) : null}
     </form>
   );
@@ -33,18 +33,18 @@ export function GenerateInvoicesButton({ billingMonth }: { billingMonth: string 
 export function MarkOverdueButton() {
   const [state, action, pending] = useActionState(markOverdueAction, idle);
   return (
-    <form action={action} className="inline-flex flex-col items-end gap-1">
+    <form action={action} className="inline-flex flex-col gap-1">
       <button
         type="submit"
         disabled={pending}
-        className="rounded-md bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 ring-1 ring-inset ring-zinc-200 hover:bg-zinc-50 disabled:opacity-60"
+        className="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-apg-silver hover:text-white disabled:opacity-50"
       >
-        {pending ? 'Sweeping…' : 'Mark overdue (sweep)'}
+        {pending ? 'Sweeping…' : 'Mark overdue'}
       </button>
       {state.status === 'ok' ? (
-        <span className="text-[11px] text-emerald-700">{state.message}</span>
+        <span className="text-[11px] text-emerald-300">{state.message}</span>
       ) : state.status === 'error' ? (
-        <span className="text-[11px] text-rose-700">{state.message}</span>
+        <span className="text-[11px] text-rose-300">{state.message}</span>
       ) : null}
     </form>
   );

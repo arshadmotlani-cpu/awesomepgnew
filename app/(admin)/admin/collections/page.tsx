@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { AdminPendingPaymentsPanel } from '@/src/components/admin/AdminPendingPaymentsPanel';
 import { AdminSectionErrorBoundary } from '@/src/components/admin/AdminSectionErrorBoundary';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
+import { CollectionsBillingTools } from '@/src/components/admin/CollectionsBillingTools';
 import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import { FinancialRowActions } from '@/src/components/admin/FinancialRowActions';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
@@ -14,7 +15,9 @@ import {
   listPgs,
 } from '@/src/db/queries/admin';
 import { requireAdminPermission, requireAdminSession } from '@/src/lib/auth/guards';
+import { adminHasPermission } from '@/src/lib/auth/roles';
 import { ADMIN_MODULES, moduleHref, modulePgHref } from '@/src/lib/admin/navigation';
+import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
 
@@ -27,15 +30,23 @@ const TABS = [
   { id: 'paid', label: 'Paid history' },
 ] as const;
 
+function collectionsTabHref(tab: string, billingMonth: string) {
+  const params = new URLSearchParams({ tab });
+  params.set('month', billingMonth);
+  return `/admin/collections?${params.toString()}`;
+}
+
 export default async function CollectionsModulePage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; month?: string }>;
 }) {
   const sp = await searchParams;
   const tab = TABS.some((t) => t.id === sp.tab) ? sp.tab! : 'approvals';
+  const billingMonth = resolveBillingMonth(sp.month);
 
   const session = await requireAdminSession('/admin/collections');
+  const canGenerateRent = adminHasPermission(session.role, 'rent:write');
   const [pending, rentStats, rentPending, rentPaid, elecPending, pgs] = await Promise.all([
     requireAdminPermission('payments:write').then((s) => listPendingPaymentReviews(s)),
     getRentStats(),
@@ -66,6 +77,8 @@ export default async function CollectionsModulePage({
         — single source of truth (paid − cancelled − refunded). Cancelled and refunded invoices are excluded from revenue.
       </p>
 
+      <CollectionsBillingTools billingMonth={billingMonth} canGenerateRent={canGenerateRent} />
+
       {rentStats.ok ? (
         <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
           {[
@@ -86,7 +99,7 @@ export default async function CollectionsModulePage({
         {TABS.map((t) => (
           <Link
             key={t.id}
-            href={`/admin/collections?tab=${t.id}`}
+            href={collectionsTabHref(t.id, billingMonth)}
             className={
               'rounded-full px-3 py-1.5 text-xs font-medium transition ' +
               (tab === t.id

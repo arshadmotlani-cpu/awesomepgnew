@@ -3,13 +3,18 @@ import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { listRoomsForElectricityForm } from '@/src/db/queries/admin';
 import { NewElectricityBillForm } from '@/src/components/admin/NewElectricityBillForm';
-import { defaultBillingMonth } from '@/src/lib/dateDefaults';
+import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 
 export const dynamic = 'force-dynamic';
 
-export default async function NewElectricityBillPage() {
+export default async function NewElectricityBillPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string }>;
+}) {
+  const sp = await searchParams;
   const rooms = await listRoomsForElectricityForm();
-  const thisMonth = defaultBillingMonth();
+  const billingMonth = resolveBillingMonth(sp.month);
 
   return (
     <>
@@ -18,10 +23,10 @@ export default async function NewElectricityBillPage() {
         description="Pick a room, enter meter readings + rate. The system splits the total across monthly residents by active days in the billing month and creates per-resident invoices in one transaction."
       />
       <Link
-        href="/admin/electricity"
-        className="text-xs font-medium text-indigo-600 hover:text-indigo-500"
+        href="/admin/collections?tab=electricity"
+        className="text-xs font-medium text-[#FF5A1F] hover:underline"
       >
-        ← Back to electricity bills
+        ← Back to Collections · Electricity
       </Link>
       {!rooms.ok ? (
         <div className="mt-4">
@@ -29,7 +34,7 @@ export default async function NewElectricityBillPage() {
         </div>
       ) : (
         <div className="mt-4 max-w-xl">
-          <NewElectricityBillForm rooms={rooms.data} defaultMonth={thisMonth} />
+          <NewElectricityBillForm rooms={rooms.data} defaultMonth={billingMonth} />
         </div>
       )}
     </>

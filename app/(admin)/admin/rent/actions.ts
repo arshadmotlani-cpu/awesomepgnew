@@ -34,6 +34,9 @@ export async function generateInvoicesAction(
   }
   try {
     const result = await generateRentInvoicesForMonth({ billingMonth });
+    revalidatePath('/admin/collections');
+    revalidatePath('/admin/invoices');
+    revalidatePath('/admin/revenue');
     revalidatePath('/admin/rent');
     return {
       status: 'ok',
@@ -63,6 +66,9 @@ export async function markOverdueAction(
   }
   try {
     const result = await markOverdueInvoices();
+    revalidatePath('/admin/collections');
+    revalidatePath('/admin/invoices');
+    revalidatePath('/admin/revenue');
     revalidatePath('/admin/rent');
     return {
       status: 'ok',
