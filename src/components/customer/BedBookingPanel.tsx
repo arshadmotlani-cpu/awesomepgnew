@@ -19,7 +19,7 @@ import { displayMonthlyDepositPaise } from '@/src/lib/customerDepositDisplay';
 import { previewLowestFixedStayRent } from '@/src/lib/pricing/fixedStayOptimizer';
 import type { PricingMode } from '@/src/services/pricing';
 import type { BedSelectorBed } from './BedSelector';
-import { StayDateRangePicker } from './StayDateRangePicker';
+import { StayDateRangePicker, type StayDateSummary } from './StayDateRangePicker';
 
 export type BedTimelineResponse = {
   bedId: string;
@@ -142,13 +142,37 @@ export function BedBookingPanel({
     return cap;
   }, [start, combinedFreeWindows, shortStayOnly, reserveLastStay]);
 
-  const minCheckOut = formatDate(addDays(start, 1));
   const checkoutCapDisplay = maxCheckout ? formatDateDdMmYyyy(maxCheckout) : null;
   const mode: PricingMode = intent === 'indefinite' ? 'open_ended' : 'fixed_stay';
   const fixedNights =
     intent === 'fixed' && end > start ? diffDays(parseDate(start), parseDate(end)) : 0;
 
   const availabilityEnd = useMemo(() => defaultCheckOutDate(start), [start]);
+
+  const combinedReservations = useMemo(
+    () => timelines.flatMap((t) => t.futureReservations),
+    [timelines],
+  );
+
+  const staySummary = useMemo((): StayDateSummary | null => {
+    if (intent !== 'fixed' || fixedNights <= 0 || beds.length === 0) return null;
+    const primary = beds[0]!;
+    const accommodationPaise = beds.reduce(
+      (sum, bed) => sum + estimateFixedStaySubtotal(bed, fixedNights),
+      0,
+    );
+    const depositPaise = beds.reduce(
+      (sum, bed) => sum + depositPreview(bed, 'fixed_stay', fixedNights),
+      0,
+    );
+    return {
+      nights: fixedNights,
+      dailyRatePaise: primary.dailyRatePaise,
+      accommodationPaise,
+      depositPaise,
+      totalDuePaise: accommodationPaise + depositPaise,
+    };
+  }, [intent, fixedNights, beds]);
 
   function handleStartChange(value: string) {
     setStart(value);
@@ -390,18 +414,38 @@ export function BedBookingPanel({
                   setValidationError(null);
                 }}
                 minCheckIn={timelines[0]?.earliestCheckIn ?? today}
-                maxCheckIn={maxCheckout ?? undefined}
-                minCheckOut={minCheckOut}
                 maxCheckOut={maxCheckout ?? undefined}
                 showCheckOut={intent === 'fixed'}
                 disabled={loading || Boolean(fetchError)}
+                freeWindows={combinedFreeWindows}
+                futureReservations={combinedReservations}
+                summary={staySummary}
               />
 
-              {intent === 'fixed' && fixedNights > 0 ? (
-                <p className={`text-xs ${dark ? 'text-apg-silver' : 'text-zinc-600'}`}>
-                  {fixedNights} night{fixedNights === 1 ? '' : 's'} — lowest available stay price
-                  automatically applied.
-                </p>
+              {intent === 'fixed' && fixedNights > 0 && staySummary ? (
+                <div
+                  className={
+                    dark
+                      ? 'rounded-xl border border-white/10 bg-white/5 p-4'
+                      : 'rounded-xl border border-zinc-200 bg-zinc-50 p-4'
+                  }
+                >
+                  <p className={`text-xs font-semibold uppercase tracking-wide ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
+                    Your stay
+                  </p>
+                  <p className={`mt-1 text-sm font-semibold ${dark ? 'text-white' : 'text-zinc-900'}`}>
+                    {formatDisplayDate(start)} → {formatDisplayDate(end)} · {fixedNights} night
+                    {fixedNights === 1 ? '' : 's'}
+                  </p>
+                  <p className={`mt-2 text-xs ${dark ? 'text-apg-silver' : 'text-zinc-600'}`}>
+                    Accommodation {paiseToInr(staySummary.accommodationPaise)} + deposit{' '}
+                    {paiseToInr(staySummary.depositPaise)} ≈{' '}
+                    <span className="font-semibold text-apg-orange">
+                      {paiseToInr(staySummary.totalDuePaise)}
+                    </span>{' '}
+                    due at checkout
+                  </p>
+                </div>
               ) : null}
 
               {intent === 'fixed' && checkoutCapDisplay && maxCheckout ? (

@@ -36,7 +36,9 @@ function optionalInt(name: string, fallback: number): number {
 type PaymentProvider = 'mock' | 'razorpay';
 
 function paymentProvider(): PaymentProvider {
-  const fallback = process.env.NODE_ENV === 'production' ? 'razorpay' : 'mock';
+  // Phase 0: default mock everywhere. Production uses Razorpay only when
+  // PAYMENT_PROVIDER=razorpay is set explicitly (not the silent default).
+  const fallback = 'mock';
   const raw = (process.env.PAYMENT_PROVIDER ?? fallback).toLowerCase();
   if (raw !== 'mock' && raw !== 'razorpay') {
     throw new Error(
@@ -66,7 +68,7 @@ export const env = {
   },
 
   // ── Phase 4 — Payments ────────────────────────────────────────────────
-  /** "mock" (default, dev) or "razorpay" (production). */
+  /** "mock" (default everywhere) or "razorpay" (explicit opt-in only). */
   get PAYMENT_PROVIDER() {
     return paymentProvider();
   },
