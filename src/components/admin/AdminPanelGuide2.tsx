@@ -99,7 +99,7 @@ const SECTIONS: GuideSection[] = [
       'Deposits page → verify final refund and ledger entries.',
       'deposit_settlements table should have a row (source = vacating).',
     ],
-    href: moduleHref('vacating'),
+    href: '/admin/vacating',
   },
   {
     title: 'Production environment & boot checks',

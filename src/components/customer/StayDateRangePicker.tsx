@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
+  addDays,
   addMonths,
   diffDays,
   formatDate,
@@ -129,8 +130,9 @@ function MonthGrid({
           if (!cell.date) {
             return <span key={`pad-${idx}`} className="h-11" />;
           }
+          const date = cell.date;
 
-          const availability = classifyDayAvailability(cell.date, {
+          const availability = classifyDayAvailability(date, {
             earliestCheckIn,
             futureReservations,
             selectedCheckIn: draftStart,
@@ -138,20 +140,20 @@ function MonthGrid({
           });
 
           const rangePos = isInStayRange(
-            cell.date,
+            date,
             draftStart,
             draftEnd,
             !draftEnd ? hoverDate : null,
           );
 
           const canPickStart = bedSets.every((res) =>
-            isCheckInAvailableForReservations(cell.date, res, earliestCheckIn),
+            isCheckInAvailableForReservations(date, res, earliestCheckIn),
           );
           const canPickEnd =
             draftStart != null &&
             bedSets.every((res) =>
               isCheckOutAvailableForReservations(
-                cell.date,
+                date,
                 draftStart,
                 res,
                 effectiveHorizon,
@@ -188,7 +190,7 @@ function MonthGrid({
 
           return (
             <div
-              key={cell.date}
+              key={date}
               className={`relative flex h-11 items-center justify-center ${
                 inBand && !isStart && !isEnd
                   ? dark
@@ -200,13 +202,13 @@ function MonthGrid({
               <button
                 type="button"
                 disabled={disabled}
-                onClick={() => onPick(cell.date!)}
-                onMouseEnter={() => onHover(cell.date!)}
+                onClick={() => onPick(date)}
+                onMouseEnter={() => onHover(date)}
                 onMouseLeave={() => onHover(null)}
                 className={`relative z-[1] flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold transition-all ${cellBg} ${
                   disabled ? 'cursor-not-allowed' : 'cursor-pointer'
                 }`}
-                aria-label={cell.date}
+                aria-label={date}
                 aria-pressed={isStart || isEnd}
               >
                 {cell.day}

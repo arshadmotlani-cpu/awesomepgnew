@@ -451,6 +451,13 @@ export async function validateBedStayRange(input: {
     timeline.futureReservations,
     timeline.windowEnd,
   );
+  if (result.ok) {
+    return {
+      ok: false,
+      message: 'This bed is not available for the selected dates.',
+      maxCheckout: null,
+    };
+  }
   if (result.reason === 'no_window') {
     return {
       ok: false,
