@@ -35,17 +35,37 @@ export async function reconcileOrphanBedReservations(bedId?: string): Promise<nu
   return count;
 }
 
+/** Close active/hold reservations when the parent booking is terminal. */
+export async function closeReservationsForTerminalBooking(
+  bookingId: string,
+): Promise<number> {
+  const result = await db.execute(sql`
+    UPDATE bed_reservations br
+    SET status = 'completed', updated_at = now()
+    FROM bookings bk
+    WHERE br.booking_id = bk.id
+      AND br.booking_id = ${bookingId}::uuid
+      AND br.status IN ('hold', 'active')
+      AND bk.status IN ('completed', 'cancelled', 'refunded')
+    RETURNING br.id
+  `);
+
+  const rows = (result as unknown as { rows?: { id?: string }[] }).rows ?? result;
+  return Array.isArray(rows) ? rows.length : 0;
+}
+
 /** Reconcile all beds touched by a booking, then clear stale manual marks. */
 export async function reconcileBookingOccupancy(
   bookingId: string,
   opts?: { revalidate?: boolean },
-): Promise<{ bedsTouched: string[]; orphansReconciled: number }> {
+): Promise<{ bedsTouched: string[]; orphansReconciled: number; terminalClosed: number }> {
   const bedRows = await db.execute(sql`
     SELECT DISTINCT br.bed_id AS bed_id
     FROM bed_reservations br
     WHERE br.booking_id = ${bookingId}::uuid
   `);
 
+  const terminalClosed = await closeReservationsForTerminalBooking(bookingId);
   const orphansReconciled = await reconcileOrphanBedReservations();
 
   const bedsTouched: string[] = [];
@@ -62,5 +82,5 @@ export async function reconcileBookingOccupancy(
     revalidateOccupancyViews();
   }
 
-  return { bedsTouched, orphansReconciled };
+  return { bedsTouched, orphansReconciled, terminalClosed };
 }

@@ -39,6 +39,11 @@ import {
 } from '../db/schema';
 import type { PricingSnapshot } from '../db/schema/bookings';
 import { formatDate, parseDate, todayString, type DateLike } from '../lib/dates';
+import {
+  assertMayRestoreOccupancy,
+  canCompleteCheckoutWithoutActiveStayToday,
+  shouldShortenStayOnVacatingApproval,
+} from '../lib/occupancyEligibility';
 import { reconcileBookingOccupancy } from '../lib/occupancySync';
 import { isNoticeCompliant, vacatingPenalty } from './billing';
 import { recordDepositDeducted, recordDepositRefunded, getDepositSummaryForBooking } from './deposits';
@@ -107,17 +112,20 @@ export type RevertVacatingCompletionResult =
   | { ok: true; request: VacatingRequest }
   | { ok: false; kind: 'not_found' }
   | { ok: false; kind: 'wrong_status'; status: VacatingRequest['status'] }
-  | { ok: false; kind: 'bed_reassigned'; message: string };
+  | { ok: false; kind: 'bed_reassigned'; message: string }
+  | { ok: false; kind: 'cannot_restore'; message: string };
 
 export type AdminWithdrawVacatingResult =
   | { ok: true; bookingId: string }
   | { ok: false; kind: 'not_found' }
-  | { ok: false; kind: 'wrong_status'; status: VacatingRequest['status'] };
+  | { ok: false; kind: 'wrong_status'; status: VacatingRequest['status'] }
+  | { ok: false; kind: 'cannot_restore'; message: string };
 
 export type RevertVacatingApprovalResult =
   | { ok: true; request: VacatingRequest }
   | { ok: false; kind: 'not_found' }
-  | { ok: false; kind: 'wrong_status'; status: VacatingRequest['status'] };
+  | { ok: false; kind: 'wrong_status'; status: VacatingRequest['status'] }
+  | { ok: false; kind: 'cannot_restore'; message: string };
 
 export type CancelVacatingByCustomerResult =
   | { ok: true; bookingId: string }
@@ -181,21 +189,39 @@ async function bookingHasActiveStayToday(bookingId: string): Promise<boolean> {
   return Boolean(row);
 }
 
-async function restoreOpenEndedStay(bookingId: string) {
-  await db.execute(sql`
-    UPDATE bed_reservations
-    SET
-      stay_range = daterange(lower(stay_range), ${LONG_TERM_END}::date, '[)'),
-      updated_at = now()
-    WHERE booking_id = ${bookingId}
-      AND status IN ('active', 'hold', 'completed')
-      AND kind = 'primary'
-  `);
+async function restoreOpenEndedStay(
+  bookingId: string,
+  opts?: { includeCompletedReservations?: boolean; skipKyc?: boolean },
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const mayRestore = await assertMayRestoreOccupancy(bookingId, opts);
+  if (!mayRestore.ok) {
+    return { ok: false, reason: mayRestore.reason };
+  }
+
+  const statuses = opts?.includeCompletedReservations
+    ? (['active', 'hold', 'completed'] as const)
+    : (['active', 'hold'] as const);
+
+  await db
+    .update(bedReservations)
+    .set({
+      stayRange: sql`daterange(lower(${bedReservations.stayRange}), ${LONG_TERM_END}::date, '[)')`,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(bedReservations.bookingId, bookingId),
+        eq(bedReservations.kind, 'primary'),
+        inArray(bedReservations.status, [...statuses]),
+      ),
+    );
 
   await db
     .update(bookings)
     .set({ expectedCheckoutDate: LONG_TERM_END, updatedAt: new Date() })
     .where(eq(bookings.id, bookingId));
+
+  return { ok: true };
 }
 
 async function completeBookingReservations(bookingId: string) {
@@ -382,7 +408,9 @@ export async function approveVacatingRequest(input: {
     .where(eq(vacatingRequests.id, input.requestId))
     .returning();
 
-  await shortenBookingReservationsToDate(updated.bookingId, updated.vacatingDate);
+  if (shouldShortenStayOnVacatingApproval(updated.vacatingDate)) {
+    await shortenBookingReservationsToDate(updated.bookingId, updated.vacatingDate);
+  }
 
   await db.insert(auditLog).values({
     actorType: input.resolvedByAdminId ? 'admin' : 'system',
@@ -522,7 +550,12 @@ export async function completeVacatingRequest(
   }
 
   const occupiedToday = await bookingHasActiveStayToday(current.bookingId);
-  if (!occupiedToday) {
+  const checkoutAlreadyShortened = canCompleteCheckoutWithoutActiveStayToday({
+    vacatingDate: current.vacatingDate,
+    vacatingStatus: current.status as 'pending' | 'approved',
+  });
+
+  if (!occupiedToday && !checkoutAlreadyShortened) {
     return {
       ok: false,
       kind: 'bed_not_occupied',
@@ -754,12 +787,17 @@ export async function revertVacatingCompletion(input: {
       ),
     );
 
-  await restoreOpenEndedStay(current.bookingId);
-
   await db
     .update(bookings)
     .set({ status: 'confirmed', updatedAt: new Date() })
     .where(eq(bookings.id, current.bookingId));
+
+  const restored = await restoreOpenEndedStay(current.bookingId, {
+    includeCompletedReservations: true,
+  });
+  if (!restored.ok) {
+    return { ok: false, kind: 'cannot_restore', message: restored.reason };
+  }
 
   const restoreStatus =
     diff.previousVacatingStatus === 'pending' ? 'pending' : 'approved';
@@ -803,7 +841,10 @@ export async function adminWithdrawVacatingRequest(input: {
   }
 
   if (current.status === 'approved') {
-    await restoreOpenEndedStay(current.bookingId);
+    const restored = await restoreOpenEndedStay(current.bookingId);
+    if (!restored.ok) {
+      return { ok: false, kind: 'cannot_restore', message: restored.reason };
+    }
     await recalculateBillingAfterVacatingRestore({
       bookingId: current.bookingId,
       adminId: input.resolvedByAdminId,
@@ -843,7 +884,10 @@ export async function revertVacatingApproval(input: {
     return { ok: false, kind: 'wrong_status', status: current.status };
   }
 
-  await restoreOpenEndedStay(current.bookingId);
+  const restored = await restoreOpenEndedStay(current.bookingId);
+  if (!restored.ok) {
+    return { ok: false, kind: 'cannot_restore', message: restored.reason };
+  }
   await recalculateBillingAfterVacatingRestore({
     bookingId: current.bookingId,
     adminId: input.resolvedByAdminId,
@@ -1044,7 +1088,10 @@ export async function adminRemoveTenantFromBed(input: {
           updatedAt: new Date(),
         })
         .where(eq(vacatingRequests.id, existing.id));
-      if (existing.status === 'approved') {
+      if (
+        existing.status === 'approved' &&
+        shouldShortenStayOnVacatingApproval(today)
+      ) {
         await shortenBookingReservationsToDate(booking.id, today);
       }
     }
@@ -1053,7 +1100,7 @@ export async function adminRemoveTenantFromBed(input: {
       bookingId: booking.id,
       vacatingDate: today,
       waiveDeduction: true,
-      openBedForBookingFromVacatingDate: true,
+      openBedForBookingFromVacatingDate: false,
       resolvedByAdminId: input.resolvedByAdminId,
       notes: input.reason ?? 'Removed from bed via admin bed map',
     });

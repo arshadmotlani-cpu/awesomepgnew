@@ -22,6 +22,7 @@ import {
   type ResidentVerificationSource,
   type ResidentVerificationStatus,
 } from '@/src/lib/residentVerification';
+import { assertBookingOperationalGates } from '@/src/lib/occupancyEligibility';
 import { formatDate, parseDate } from '@/src/lib/dates';
 import { isBedAvailable } from '@/src/services/availability';
 import { correctDepositCollected, getDepositSummaryForBooking } from '@/src/services/deposits';
@@ -471,6 +472,7 @@ export async function updateTenantTenancy(
     .select({
       id: bookings.id,
       customerId: bookings.customerId,
+      status: bookings.status,
       depositPaise: bookings.depositPaise,
       pricingSnapshot: bookings.pricingSnapshot,
       blocksRoomAvailability: bookings.blocksRoomAvailability,
@@ -479,6 +481,9 @@ export async function updateTenantTenancy(
     .where(eq(bookings.id, input.bookingId))
     .limit(1);
   if (!booking) return { ok: false, error: 'Booking not found.' };
+  if (booking.status !== 'confirmed') {
+    return { ok: false, error: `Booking is ${booking.status.replace('_', ' ')}; cannot update tenancy.` };
+  }
 
   const [ctx] = await db
     .select({
@@ -516,6 +521,11 @@ export async function updateTenantTenancy(
   const blocksWholeRoom = input.blocksWholeRoom ?? booking.blocksRoomAvailability;
 
   if (newBedId !== primaryBedId) {
+    const gates = await assertBookingOperationalGates(input.bookingId);
+    if (!gates.ok) {
+      return { ok: false, error: gates.reason };
+    }
+
     const available = await isBedAvailable({
       bedId: newBedId,
       startDate: today,
@@ -725,6 +735,11 @@ export async function activateReservationNow(
   if (!ctx) return { ok: false, error: 'No future reservation found for this booking.' };
   if (!adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, ctx.pgId)) {
     return { ok: false, error: 'Access denied.' };
+  }
+
+  const gates = await assertBookingOperationalGates(input.bookingId);
+  if (!gates.ok) {
+    return { ok: false, error: gates.reason };
   }
 
   await db.execute(sql`

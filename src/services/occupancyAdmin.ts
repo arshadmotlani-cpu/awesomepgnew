@@ -13,9 +13,13 @@ import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { nextBookingCode, utcYear } from '@/src/lib/bookingCode';
 import { formatDate } from '@/src/lib/dates';
+import {
+  OCCUPANCY_PLACEHOLDER_EMAIL,
+  OCCUPANCY_PLACEHOLDER_PHONE,
+} from '@/src/lib/occupancySqlFilters';
 import { countBookingsInYear } from '@/src/db/queries/customer';
 
-const PLACEHOLDER_PHONE = '+910000000001';
+const PLACEHOLDER_PHONE = OCCUPANCY_PLACEHOLDER_PHONE;
 const OCCUPANCY_END = '2099-01-01';
 
 /** PG name substrings matched case-insensitively for bulk “fully occupied” admin actions. */
@@ -32,7 +36,7 @@ async function upsertPlaceholderCustomer() {
     .insert(customers)
     .values({
       fullName: 'Occupancy placeholder',
-      email: 'occupancy@awesomepg.internal',
+      email: OCCUPANCY_PLACEHOLDER_EMAIL,
       phone: PLACEHOLDER_PHONE,
       gender: 'other',
       authProvider: 'email',
@@ -173,7 +177,7 @@ export async function clearPgOccupancyPlaceholders(
         sql`${bedReservations.status} IN ('hold', 'active')`,
         sql`(
           ${customers.phone} = ${PLACEHOLDER_PHONE}
-          OR ${customers.email} = 'occupancy@awesomepg.internal'
+          OR ${customers.email} = ${OCCUPANCY_PLACEHOLDER_EMAIL}
           OR ${bookings.notes} ILIKE '%occupancy placeholder%'
           OR ${bookings.notes} ILIKE '%Full occupancy marker%'
           OR ${bookings.notes} ILIKE '%full occupancy%'
