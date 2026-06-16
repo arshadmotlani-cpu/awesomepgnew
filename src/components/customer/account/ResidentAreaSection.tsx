@@ -7,6 +7,7 @@ import {
   type ResidentBookingRow,
 } from '@/src/db/queries/customer';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
+import { getResidentFinancialSummary } from '@/src/services/residentFinancialEngine';
 import { projectInvoice } from '@/src/services/rentInvoices';
 import { projectElectricityInvoice } from '@/src/services/electricityBilling';
 import { getCustomerSession } from '@/src/lib/auth/session';
@@ -38,6 +39,7 @@ import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import { accountProfileHref } from '@/src/lib/accountNavigation';
 import { DepositWalletSection } from '@/src/components/customer/account/DepositWalletSection';
 import { DepositDueSection } from '@/src/components/customer/account/DepositDueSection';
+import { ResidentFinancialSummaryPanel } from '@/src/components/customer/account/ResidentFinancialSummaryPanel';
 import { ResidentRequestForms } from '@/src/components/customer/account/ResidentRequestForms';
 import { getCustomerDepositCredit } from '@/src/services/depositCredit';
 import { ensureDepositDuePaymentLink } from '@/src/services/depositCollection';
@@ -91,6 +93,7 @@ export async function ResidentAreaSection({ customerId }: { customerId: string }
   const bookings = await listResidentBookingsForCustomer(session.customerId);
   const tenantActive = await isActiveTenant(session.customerId);
   const ps4Membership = tenantActive ? await getMembershipForDashboard(session.customerId) : null;
+  const financialSummary = await getResidentFinancialSummary(session.customerId);
   const uniqueBookings: ResidentBookingRow[] =
     bookings.ok && bookings.data.length > 0
       ? Array.from(new Map(bookings.data.map((item) => [item.bookingId, item])).values())
@@ -132,9 +135,23 @@ export async function ResidentAreaSection({ customerId }: { customerId: string }
 
   const depositDueCards = await Promise.all(
     detail.map(async (d) => {
-      const collected = d.deposit?.collectedPaise ?? 0;
+      const { getBookingFinancialSummary } = await import('@/src/services/residentFinancialEngine');
+      const fin = await getBookingFinancialSummary({
+        bookingId: d.bookingId,
+        customerId: session.customerId,
+        customerName: session.fullName || customer?.fullName || 'Resident',
+        customerPhone: customer?.phone ?? '',
+        bookingCode: d.bookingCode,
+        pgId: d.booking.pgId,
+        pgName: d.booking.pgName,
+        roomNumber: d.booking.roomNumber,
+        depositPaise: d.booking.depositPaise,
+        depositDuePaise: d.booking.depositDuePaise,
+      });
+      const depositDuePaise = fin.deposit.outstandingPaise;
+      const collected = fin.deposit.paidPaise;
       let paymentLinkUrl: string | null = null;
-      if (d.booking.depositDuePaise > 0) {
+      if (depositDuePaise > 0) {
         const existing = await getLatestPaymentLinkForResident(session.customerId, 'deposit');
         paymentLinkUrl =
           existing?.status === 'active'
@@ -145,9 +162,9 @@ export async function ResidentAreaSection({ customerId }: { customerId: string }
         bookingId: d.bookingId,
         bookingCode: d.bookingCode,
         pgName: d.booking.pgName,
-        depositPaise: d.booking.depositPaise,
+        depositPaise: fin.deposit.requiredPaise,
         collectedPaise: collected,
-        depositDuePaise: d.booking.depositDuePaise,
+        depositDuePaise,
         depositDueDate: d.booking.depositDueDate,
         depositCollectionStatus: d.booking.depositCollectionStatus,
         paymentLinkUrl,
@@ -207,6 +224,10 @@ export async function ResidentAreaSection({ customerId }: { customerId: string }
       </p>
 
       <DepositRefundNotice />
+
+      {financialSummary ? (
+        <ResidentFinancialSummaryPanel summary={financialSummary} />
+      ) : null}
 
       {depositDueCards.map((card) => (
         <DepositDueSection key={`deposit-due-${card.bookingId}`} {...card} />

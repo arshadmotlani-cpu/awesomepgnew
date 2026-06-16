@@ -28,7 +28,6 @@ function bedAvailability(bed: BedSelectorBed) {
 }
 
 export function canBookBed(bed: BedSelectorBed): boolean {
-  if (bed.manualOccupied) return false;
   const bookableFrom = customerBookableFromDate(bed.nextAvailableDate);
   return (
     bed.status === 'available' &&

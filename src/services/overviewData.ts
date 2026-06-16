@@ -23,6 +23,7 @@ import {
   getAdminOverviewKpis,
   getVisitorCountSummary,
 } from '@/src/services/visitorAnalytics';
+import type { GlobalFinancialAggregates } from '@/src/lib/billing/residentFinancialTypes';
 
 export type OverviewContext = {
   billingMonth: string;
@@ -30,6 +31,7 @@ export type OverviewContext = {
   summary: BusinessMetricsSummary;
   pgMetrics: PgBusinessMetrics[];
   revenue: NonNullable<Awaited<ReturnType<typeof getRevenueCommandCenterData>>>;
+  financialAggregates: GlobalFinancialAggregates;
   dashboard: DashboardStats | null;
   rentStats: RentStats | null;
   visitors: Awaited<ReturnType<typeof getVisitorCountSummary>>;
@@ -147,6 +149,18 @@ export async function loadOverviewContext(
     return { ok: false, error: 'Could not load revenue data.', partial: { billingMonth, monthLabel } };
   }
 
+  const { getGlobalFinancialAggregates } = await import('@/src/services/residentFinancialEngine');
+  const financialAggregates = await getGlobalFinancialAggregates(session).catch(() => ({
+    asOf: new Date().toISOString(),
+    rent: { requiredPaise: 0, paidPaise: 0, outstandingPaise: 0 },
+    deposit: { requiredPaise: 0, paidPaise: 0, outstandingPaise: 0 },
+    electricity: { requiredPaise: 0, paidPaise: 0, outstandingPaise: 0 },
+    other: { requiredPaise: 0, paidPaise: 0, outstandingPaise: 0 },
+    totals: { requiredPaise: 0, paidPaise: 0, outstandingPaise: 0 },
+    pendingRentInvoiceCount: 0,
+    pendingElectricityInvoiceCount: 0,
+  }));
+
   void depositByPg; // reserved for future MTD deposit reconciliation per PG
 
   const pendingActionsCount = actionItems.length;
@@ -164,6 +178,7 @@ export async function loadOverviewContext(
       summary: summary.data,
       pgMetrics: metrics.data,
       revenue,
+      financialAggregates,
       dashboard: dashboard.ok ? dashboard.data : null,
       rentStats: rentStats.ok ? rentStats.data : null,
       visitors,

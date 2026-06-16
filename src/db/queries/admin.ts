@@ -1435,6 +1435,9 @@ export type AdminRentInvoiceRow = {
   status: 'pending' | 'paid' | 'overdue' | 'cancelled';
   paidAt: Date | null;
   createdAt: Date;
+  /** SSOT outstanding including late fees and partial payments */
+  outstandingPaise: number;
+  effectiveStatus: string;
 };
 
 export function listAdminRentInvoices(
@@ -1446,7 +1449,7 @@ export function listAdminRentInvoices(
     if (filter?.pgId) conditions.push(eq(rentInvoices.pgId, filter.pgId));
     const where = conditions.length > 0 ? and(...conditions) : undefined;
 
-    return db
+    const rows = await db
       .select({
         id: rentInvoices.id,
         invoiceNumber: rentInvoices.invoiceNumber,
@@ -1457,6 +1460,7 @@ export function listAdminRentInvoices(
         customerPhone: customers.phone,
         pgId: rentInvoices.pgId,
         pgName: pgs.name,
+        bedId: rentInvoices.bedId,
         bedCode: beds.bedCode,
         roomNumber: rooms.roomNumber,
         billingMonth: rentInvoices.billingMonth,
@@ -1477,6 +1481,38 @@ export function listAdminRentInvoices(
       .innerJoin(rooms, eq(rooms.id, beds.roomId))
       .where(where)
       .orderBy(desc(rentInvoices.billingMonth), desc(rentInvoices.createdAt));
+
+    const { projectInvoice } = await import('@/src/services/rentInvoices');
+    return rows.map((r) => {
+      const projected = projectInvoice({
+        id: r.id,
+        invoiceNumber: r.invoiceNumber,
+        bookingId: r.bookingId,
+        customerId: r.customerId,
+        bedId: r.bedId,
+        pgId: r.pgId,
+        billingMonth: r.billingMonth,
+        dueDate: r.dueDate,
+        rentPaise: r.rentPaise,
+        paidPrincipalPaise: r.paidPrincipalPaise,
+        paidLateFeePaise: r.paidLateFeePaise,
+        lateFeeLockedPaise: r.lateFeeLockedPaise,
+        status: r.status,
+        paidAt: r.paidAt,
+        paymentId: null,
+        paymentProofUrl: null,
+        notes: null,
+        cancelledAt: null,
+        cancellationReason: null,
+        createdAt: r.createdAt,
+        updatedAt: r.createdAt,
+      });
+      return {
+        ...r,
+        outstandingPaise: projected.outstandingPaise,
+        effectiveStatus: projected.effectiveStatus,
+      };
+    });
   });
 }
 
@@ -1554,6 +1590,9 @@ export type AdminElectricityInvoiceReminderRow = {
   billingMonth: string;
   dueDate: string;
   amountPaise: number;
+  /** SSOT outstanding including late fees and partial payments */
+  outstandingPaise: number;
+  effectiveStatus: string;
   isOverdue: boolean;
 };
 
@@ -1594,6 +1633,8 @@ export function listAdminPaidElectricityInvoicesForMonth(
 
     return rows.map((r) => ({
       ...r,
+      outstandingPaise: 0,
+      effectiveStatus: 'paid',
       isOverdue: false,
     }));
   });
@@ -1608,17 +1649,13 @@ export function listAdminElectricityInvoicesForReminders(
 
     const rows = await db
       .select({
-        id: electricityInvoices.id,
-        invoiceNumber: electricityInvoices.invoiceNumber,
+        invoice: electricityInvoices,
         customerId: electricityInvoices.customerId,
         customerFullName: customers.fullName,
         customerPhone: customers.phone,
         pgId: electricityBills.pgId,
         pgName: pgs.name,
         roomNumber: rooms.roomNumber,
-        billingMonth: electricityInvoices.billingMonth,
-        dueDate: electricityInvoices.dueDate,
-        amountPaise: electricityInvoices.amountPaise,
       })
       .from(electricityInvoices)
       .innerJoin(electricityBills, eq(electricityBills.id, electricityInvoices.electricityBillId))
@@ -1629,10 +1666,29 @@ export function listAdminElectricityInvoicesForReminders(
       .orderBy(desc(electricityInvoices.dueDate));
 
     const today = todayString();
-    return rows.map((r) => ({
-      ...r,
-      isOverdue: r.dueDate < today,
-    }));
+    const { projectElectricityInvoice } = await import('@/src/services/electricityBilling');
+    const result: AdminElectricityInvoiceReminderRow[] = [];
+    for (const r of rows) {
+      const projected = projectElectricityInvoice(r.invoice, today);
+      if (projected.outstandingPaise <= 0) continue;
+      result.push({
+        id: r.invoice.id,
+        invoiceNumber: r.invoice.invoiceNumber,
+        customerId: r.customerId,
+        customerFullName: r.customerFullName,
+        customerPhone: r.customerPhone,
+        pgId: r.pgId,
+        pgName: r.pgName,
+        roomNumber: r.roomNumber,
+        billingMonth: r.invoice.billingMonth,
+        dueDate: r.invoice.dueDate,
+        amountPaise: r.invoice.amountPaise,
+        outstandingPaise: projected.outstandingPaise,
+        effectiveStatus: projected.effectiveStatus,
+        isOverdue: projected.effectiveStatus === 'overdue',
+      });
+    }
+    return result;
   });
 }
 

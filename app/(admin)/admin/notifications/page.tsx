@@ -1,7 +1,11 @@
 import Link from 'next/link';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { requireAdminSession } from '@/src/lib/auth/guards';
-import { formatNotificationAge, listAdminNotifications } from '@/src/services/adminNotifications';
+import {
+  formatNotificationAge,
+  listAdminNotifications,
+  NOTIFICATION_TAB_LABELS,
+} from '@/src/services/adminNotifications';
 import { syncActionItems } from '@/src/services/actionItems';
 
 export const dynamic = 'force-dynamic';
@@ -15,22 +19,23 @@ export default async function AdminNotificationsPage({
   const session = await requireAdminSession('/admin/notifications');
   await syncActionItems(session).catch(() => undefined);
 
-  const tab = sp.tab === 'archived' ? 'archived' : sp.tab === 'read' ? 'read' : 'unread';
+  const tab =
+    sp.tab === 'archived' ? 'archived' : sp.tab === 'read' ? 'read' : 'unread';
   const items = await listAdminNotifications(session, tab, 100);
 
   return (
     <>
       <PageHeader
-        title="Notifications"
-        description="Unread items clear badge counts when opened. Active tasks remain in Operations and Collections."
+        title="Notification center"
+        description="New items show badge counts. Opening the relevant page marks them Seen. Resolved when the task is completed."
       />
 
       <nav className="mb-6 flex flex-wrap gap-2 text-sm">
         {(
           [
-            ['unread', 'Unread'],
-            ['read', 'Read'],
-            ['archived', 'Archived'],
+            ['unread', NOTIFICATION_TAB_LABELS.unread],
+            ['read', NOTIFICATION_TAB_LABELS.read],
+            ['archived', NOTIFICATION_TAB_LABELS.archived],
           ] as const
         ).map(([key, label]) => (
           <Link
@@ -49,7 +54,7 @@ export default async function AdminNotificationsPage({
       </nav>
 
       {items.length === 0 ? (
-        <p className="text-sm text-apg-silver">No {tab} notifications.</p>
+        <p className="text-sm text-apg-silver">No {NOTIFICATION_TAB_LABELS[tab].toLowerCase()} notifications.</p>
       ) : (
         <ul className="space-y-2">
           {items.map((item) => (
@@ -71,6 +76,16 @@ export default async function AdminNotificationsPage({
                     ) : null}
                     {item.detail ? (
                       <p className="mt-1 text-xs text-sky-200">{item.detail}</p>
+                    ) : null}
+                    {item.readAt ? (
+                      <p className="mt-1 text-[10px] text-apg-silver">
+                        Seen {formatNotificationAge(item.readAt)}
+                      </p>
+                    ) : null}
+                    {item.resolvedAt ? (
+                      <p className="text-[10px] text-emerald-300/80">
+                        Resolved {formatNotificationAge(item.resolvedAt)}
+                      </p>
                     ) : null}
                   </div>
                   <span className="text-[10px] text-apg-silver">

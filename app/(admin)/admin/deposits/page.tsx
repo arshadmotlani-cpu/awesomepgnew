@@ -8,6 +8,7 @@ import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { listAdminDepositSummaries } from '@/src/db/queries/admin';
 import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
+import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
 import {
   hasOutstandingDepositDue,
   labelDepositCollectionStatus,
@@ -22,6 +23,7 @@ export default async function AdminDepositsPage({
   searchParams: Promise<{ filter?: string }>;
 }) {
   const sp = await searchParams;
+  await ensureAdminPageNotificationsSeen('/admin/deposits', '/admin/deposits');
   const dueOnly = sp.filter === 'due';
   const res = await listAdminDepositSummaries();
   const { listOutstandingDeposits } = await import('@/src/services/depositCollection');

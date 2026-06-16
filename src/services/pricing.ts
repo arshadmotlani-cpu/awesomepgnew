@@ -22,6 +22,8 @@ import { and, asc, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import { db } from '../db/client';
 import { bedPrices } from '../db/schema';
 import { addMonths, diffDays, formatDate, isBefore, parseDate, type DateLike } from '../lib/dates';
+import { computeLowestFixedStayRent } from '../lib/pricing/fixedStayOptimizer';
+import type { FixedStayPricingStrategy } from '../lib/pricing/types';
 
 export type PricingMode = 'daily' | 'weekly' | 'monthly' | 'open_ended' | 'fixed_stay';
 
@@ -97,6 +99,9 @@ export type LineItem = {
   amountPaise: number;
 };
 
+// Re-export for client-safe imports
+export type { PricingLineItem } from '@/src/lib/pricing/types';
+
 export type PriceQuote = {
   bedId: string;
   durationMode: PricingMode;
@@ -116,6 +121,10 @@ export type PriceQuote = {
   totalPaise: number;
   computedAt: string;
   notes?: string;
+  /** True when fixed_stay used a cheaper strategy than naive week+day split. */
+  lowestPriceApplied?: boolean;
+  /** Which rent strategy won for fixed_stay. */
+  pricingStrategy?: FixedStayPricingStrategy;
 };
 
 export type ComputePriceInput = {
@@ -187,6 +196,8 @@ export function computePriceBreakdown(input: ComputePriceInput): PriceQuote {
   let units = 0;
   let nights: number | null = null;
   let notes: string | undefined;
+  let lowestPriceApplied: boolean | undefined;
+  let pricingStrategy: FixedStayPricingStrategy | undefined;
 
   if (durationMode === 'daily') {
     nights = diffDays(startDate, endDate!);
@@ -205,33 +216,23 @@ export function computePriceBreakdown(input: ComputePriceInput): PriceQuote {
     nights = diffDays(startDate, endDate!);
     requirePositiveRate(rate.weeklyRatePaise, 'weekly');
     requirePositiveRate(rate.dailyRatePaise, 'daily');
-    const fullWeeks = Math.floor(nights / 7);
-    const remainderDays = nights % 7;
-    units = fullWeeks + (remainderDays > 0 ? 1 : 0);
 
-    if (fullWeeks > 0) {
-      const weeklyAmount = fullWeeks * rate.weeklyRatePaise;
-      lineItems.push({
-        kind: 'weekly_cycle',
-        description: `${fullWeeks} week${fullWeeks === 1 ? '' : 's'} @ weekly rate`,
-        units: fullWeeks,
-        unitPricePaise: rate.weeklyRatePaise,
-        amountPaise: weeklyAmount,
-      });
-      subtotalPaise += weeklyAmount;
-    }
-    if (remainderDays > 0) {
-      const dailyAmount = remainderDays * rate.dailyRatePaise;
-      lineItems.push({
-        kind: 'daily_nights',
-        description: `${remainderDays} day${remainderDays === 1 ? '' : 's'} @ daily rate`,
-        units: remainderDays,
-        unitPricePaise: rate.dailyRatePaise,
-        amountPaise: dailyAmount,
-      });
-      subtotalPaise += dailyAmount;
-    }
-    notes = `Fixed stay: ${nights} night${nights === 1 ? '' : 's'} (${fullWeeks} week${fullWeeks === 1 ? '' : 's'} + ${remainderDays} day${remainderDays === 1 ? '' : 's'}).`;
+    const optimized = computeLowestFixedStayRent({
+      nights,
+      dailyRatePaise: rate.dailyRatePaise,
+      weeklyRatePaise: rate.weeklyRatePaise,
+      monthlyRatePaise: rate.monthlyRatePaise,
+    });
+
+    lineItems.push(...optimized.lineItems);
+    subtotalPaise = optimized.subtotalPaise;
+    units = optimized.units;
+    lowestPriceApplied = optimized.lowestPriceApplied;
+    pricingStrategy = optimized.strategy;
+
+    notes = optimized.lowestPriceApplied
+      ? `Fixed stay: ${nights} night${nights === 1 ? '' : 's'} — lowest available price automatically applied (${optimized.strategy}).`
+      : `Fixed stay: ${nights} night${nights === 1 ? '' : 's'} (${optimized.strategy}).`;
   } else if (durationMode === 'weekly') {
     nights = diffDays(startDate, endDate!);
     requirePositiveRate(rate.weeklyRatePaise, 'weekly');
@@ -335,6 +336,8 @@ export function computePriceBreakdown(input: ComputePriceInput): PriceQuote {
     totalPaise: subtotalPaise + depositPaise,
     computedAt: new Date().toISOString(),
     notes,
+    lowestPriceApplied,
+    pricingStrategy,
   };
 }
 

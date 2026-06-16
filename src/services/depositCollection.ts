@@ -411,83 +411,12 @@ export async function listOutstandingDeposits(filter?: {
   overdueOnly?: boolean;
   dueWithinDays?: number;
 }): Promise<OutstandingDepositRow[]> {
-  const today = formatDate(new Date());
-  const rows = await db
-    .select({
-      bookingId: bookings.id,
-      bookingCode: bookings.bookingCode,
-      customerId: bookings.customerId,
-      customerFullName: customers.fullName,
-      customerPhone: customers.phone,
-      pgId: floors.pgId,
-      pgName: pgs.name,
-      roomNumber: rooms.roomNumber,
-      bedCode: beds.bedCode,
-      depositPaise: bookings.depositPaise,
-      depositDuePaise: bookings.depositDuePaise,
-      depositDueDate: bookings.depositDueDate,
-      depositCollectionStatus: bookings.depositCollectionStatus,
-      collectedPaise: sql<number>`coalesce(sum(case when ${depositLedger.entryKind} = 'collected' then ${depositLedger.amountPaise} else 0 end), 0)::bigint`,
-    })
-    .from(bookings)
-    .innerJoin(customers, eq(customers.id, bookings.customerId))
-    .innerJoin(
-      bedReservations,
-      and(eq(bedReservations.bookingId, bookings.id), eq(bedReservations.kind, 'primary')),
-    )
-    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
-    .innerJoin(rooms, eq(rooms.id, beds.roomId))
-    .innerJoin(floors, eq(floors.id, rooms.floorId))
-    .innerJoin(pgs, eq(pgs.id, floors.pgId))
-    .leftJoin(depositLedger, eq(depositLedger.bookingId, bookings.id))
-    .where(
-      and(
-        eq(bookings.status, 'confirmed'),
-        inArray(bookings.depositCollectionStatus, ['partial', 'overdue']),
-        sql`${bookings.depositDuePaise} > 0`,
-      ),
-    )
-    .groupBy(
-      bookings.id,
-      bookings.bookingCode,
-      bookings.customerId,
-      customers.fullName,
-      customers.phone,
-      floors.pgId,
-      pgs.name,
-      rooms.roomNumber,
-      beds.bedCode,
-      bookings.depositPaise,
-      bookings.depositDuePaise,
-      bookings.depositDueDate,
-      bookings.depositCollectionStatus,
-    );
-
-  let result = rows.map((r) => ({
+  const { listOutstandingDepositsFromEngine } = await import('./residentFinancialEngine');
+  const rows = await listOutstandingDepositsFromEngine(undefined, filter);
+  return rows.map((r) => ({
     ...r,
-    collectedPaise: Number(r.collectedPaise),
-    depositDuePaise: Number(r.depositDuePaise),
+    depositCollectionStatus: r.depositCollectionStatus as DepositCollectionStatus,
   }));
-
-  if (filter?.overdueOnly) {
-    result = result.filter(
-      (r) => r.depositDueDate != null && r.depositDueDate < today,
-    );
-  }
-
-  if (filter?.dueWithinDays != null) {
-    const limit = new Date();
-    limit.setDate(limit.getDate() + filter.dueWithinDays);
-    const limitStr = formatDate(limit);
-    result = result.filter(
-      (r) =>
-        r.depositDueDate != null &&
-        r.depositDueDate >= today &&
-        r.depositDueDate <= limitStr,
-    );
-  }
-
-  return result;
 }
 
 /** Mark overdue partial deposits (cron). */

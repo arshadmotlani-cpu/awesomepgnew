@@ -25,7 +25,14 @@ export type InvoiceBreakdown = {
   ps4Paise?: number;
   otherPaise?: number;
   lateFeePaise?: number;
-  lines?: Array<{ kind: string; label: string; amountPaise: number }>;
+  paidPaise?: number;
+  lines?: Array<{
+    kind: string;
+    label: string;
+    amountPaise: number;
+    sourceTable?: string | null;
+    sourceId?: string | null;
+  }>;
 };
 
 export const financialInvoices = pgTable(

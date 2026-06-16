@@ -6,6 +6,7 @@
 import { eq, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { bedReservations, bookings } from '@/src/db/schema';
+import { revalidateOccupancyViews } from '@/src/lib/occupancyRevalidate';
 import { clearBedAdminMarks } from '@/src/services/bookingAdminOps';
 
 /**
@@ -34,19 +35,32 @@ export async function reconcileOrphanBedReservations(bedId?: string): Promise<nu
   return count;
 }
 
-/** Reconcile all beds touched by a booking, then clear manual marks. */
-export async function reconcileBookingOccupancy(bookingId: string): Promise<void> {
+/** Reconcile all beds touched by a booking, then clear stale manual marks. */
+export async function reconcileBookingOccupancy(
+  bookingId: string,
+  opts?: { revalidate?: boolean },
+): Promise<{ bedsTouched: string[]; orphansReconciled: number }> {
   const bedRows = await db.execute(sql`
     SELECT DISTINCT br.bed_id AS bed_id
     FROM bed_reservations br
     WHERE br.booking_id = ${bookingId}::uuid
   `);
 
-  await reconcileOrphanBedReservations();
+  const orphansReconciled = await reconcileOrphanBedReservations();
 
+  const bedsTouched: string[] = [];
   const beds = (bedRows as unknown as { bed_id?: string }[]) ?? [];
   for (const row of beds) {
     const id = row.bed_id;
-    if (id) await clearBedAdminMarks(id);
+    if (id) {
+      bedsTouched.push(id);
+      await clearBedAdminMarks(id);
+    }
   }
+
+  if (opts?.revalidate !== false) {
+    revalidateOccupancyViews();
+  }
+
+  return { bedsTouched, orphansReconciled };
 }

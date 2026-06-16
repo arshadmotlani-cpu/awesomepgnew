@@ -15,8 +15,7 @@ import {
   UndoVacatingApprovalButton,
   UndoVacatingCompletionButton,
 } from '@/src/components/admin/VacatingActions';
-
-import { handleNotificationReadFromParams } from '@/src/lib/admin/notificationRead';
+import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
 
 const STATUS_FILTERS: Array<{
   label: string;
@@ -36,7 +35,7 @@ export default async function AdminVacatingPage(
 ) {
   const sp = await props.searchParams;
   const readParam = typeof sp.read === 'string' ? sp.read : undefined;
-  await handleNotificationReadFromParams('/admin/vacating', readParam);
+  await ensureAdminPageNotificationsSeen('/admin/vacating', '/admin/vacating', readParam);
 
   const rawStatus = typeof sp.status === 'string' ? sp.status : '';
   const status = STATUS_FILTERS.some((f) => f.value === rawStatus)

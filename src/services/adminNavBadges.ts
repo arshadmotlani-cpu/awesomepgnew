@@ -5,7 +5,7 @@ import {
   type AdminNotificationRow,
 } from '@/src/services/adminNotifications';
 
-export type AdminNavBadges = Partial<Record<AdminModule | 'deposits', number>>;
+export type AdminNavBadges = Partial<Record<AdminModule | 'deposits' | 'notifications', number>>;
 
 const TYPE_TO_MODULE: Record<AdminNotificationRow['type'], AdminModule | 'deposits'> = {
   kyc_pending: 'kyc',
@@ -32,6 +32,7 @@ export async function loadAdminNavBadges(session: AdminSession): Promise<AdminNa
     }
 
     badges.overview = unread.length;
+    badges.notifications = unread.length;
     return badges;
   } catch {
     return {};

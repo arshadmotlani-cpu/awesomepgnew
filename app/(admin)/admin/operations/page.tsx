@@ -11,6 +11,7 @@ import { getOccupancyByPg } from '@/src/db/queries/admin';
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import { ADMIN_MODULES, moduleHref, modulePgHref } from '@/src/lib/admin/navigation';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
+import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
 import { loadOverviewContext } from '@/src/services/overviewData';
 
 export const dynamic = 'force-dynamic';
@@ -22,6 +23,7 @@ export default async function OperationsModulePage({
   searchParams: Promise<{ month?: string }>;
 }) {
   const billingMonth = resolveBillingMonth((await searchParams).month);
+  await ensureAdminPageNotificationsSeen('/admin/operations', '/admin/operations');
   const session = await requireAdminSession('/admin/operations');
   const ctx = await loadOverviewContext(session, billingMonth);
   const occupancy = await getOccupancyByPg().catch(() => ({ ok: false as const, error: '' }));

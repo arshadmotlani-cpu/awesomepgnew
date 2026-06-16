@@ -15,6 +15,7 @@ import {
 } from '@/src/lib/admin/navigation';
 import { KYC_DOCUMENT_LABELS, kycDocumentUrl } from '@/src/lib/kyc/documentUrls';
 import { formatDateTime, titleCase } from '@/src/lib/format';
+import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +29,10 @@ export default async function ResidentsKycVerifyPage({
   params: Promise<RouteParams>;
 }) {
   const { submissionId } = await params;
+  await ensureAdminPageNotificationsSeen(
+    `/admin/residents/kyc/${submissionId}`,
+    `/admin/residents/kyc/${submissionId}`,
+  );
   const sub = await getKycSubmission(submissionId);
   if (!sub) notFound();
 

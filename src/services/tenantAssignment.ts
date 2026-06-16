@@ -153,6 +153,9 @@ export async function assignTenantToBed(
   const { clearBedInterest } = await import('./bedNoticeInterest');
   await clearBedInterest(input.bedId).catch(() => undefined);
 
+  const { reconcileBookingOccupancy } = await import('@/src/lib/occupancySync');
+  await reconcileBookingOccupancy(result.bookingId);
+
   return { ok: true, bookingId: result.bookingId, bookingCode: result.bookingCode };
 }
 

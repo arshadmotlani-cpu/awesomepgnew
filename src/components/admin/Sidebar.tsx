@@ -65,11 +65,15 @@ export function Sidebar({
               {section.title}
             </p>
             <ul className="space-y-0.5">
-              {section.items.map(({ href, label, icon: Icon, module }) => {
+              {section.items.map(({ href, label, icon: Icon, module, badgeKey }) => {
                 const active = module
                   ? isModuleActive(pathname, module)
-                  : pathname === href;
-                const badgeCount = module ? badges[module] : undefined;
+                  : pathname === href || pathname.startsWith(`${href}/`);
+                const badgeCount = badgeKey
+                  ? badges[badgeKey]
+                  : module
+                    ? badges[module]
+                    : undefined;
                 return (
                   <li key={href}>
                     <Link

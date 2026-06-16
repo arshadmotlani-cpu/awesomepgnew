@@ -1,0 +1,96 @@
+/**
+ * Phase 3.2 — run bed, financial, and system health audits against live DB.
+ *
+ * Usage: npx tsx scripts/run-production-health-audit.ts
+ */
+import 'dotenv/config';
+
+import { closeDb } from '../src/db/client';
+import type { AdminSession } from '../src/lib/auth/session';
+import { runBedAudit, repairBedAuditIssue } from '../src/services/bedAudit';
+import { runFinancialHealthAudit } from '../src/services/financialAudit';
+import { runSystemHealthAudit } from '../src/services/systemHealthAudit';
+import { repairVacatingAuditIssues, runVacatingAudit } from '../src/services/vacatingAudit';
+
+function mockSuperAdminSession(): AdminSession {
+  return {
+    kind: 'admin',
+    sessionId: '00000000-0000-4000-8000-000000000099',
+    adminId: '00000000-0000-4000-8000-000000000001',
+    email: 'audit@local',
+    fullName: 'Health Audit',
+    role: 'super_admin',
+    pgScope: [],
+    mustChangePassword: false,
+    rememberMe: false,
+    expiresAt: new Date(Date.now() + 86_400_000),
+  };
+}
+
+async function main() {
+  const session = mockSuperAdminSession();
+
+  console.log('\n=== BED AUDIT (before repair) ===\n');
+  const bedBefore = await runBedAudit();
+  console.log(`Beds checked: ${bedBefore.bedsChecked}`);
+  console.log(`Issues: ${bedBefore.issues.length}`);
+  for (const issue of bedBefore.issues) {
+    console.log(`  [${issue.kind}] ${issue.detail} (${issue.bedCode || issue.bookingId})`);
+  }
+
+  const repairable = bedBefore.issues.filter((i) =>
+    ['ghost_occupied', 'double_assignment'].includes(i.kind),
+  );
+  if (repairable.length > 0) {
+    console.log('\n=== BED REPAIR (emergency) ===\n');
+    for (const issue of repairable) {
+      const result = await repairBedAuditIssue(issue);
+      console.log(`  ${issue.kind}: ${result.message}`);
+    }
+  }
+
+  console.log('\n=== BED AUDIT (after repair) ===\n');
+  const bedAfter = await runBedAudit();
+  console.log(`Issues: ${bedAfter.issues.length}`);
+  for (const issue of bedAfter.issues) {
+    console.log(`  [${issue.kind}] ${issue.detail}`);
+  }
+
+  console.log('\n=== FINANCIAL AUDIT ===\n');
+  const financial = await runFinancialHealthAudit(session);
+  for (const c of financial.checks) {
+    const mark = c.differencePaise === 0 ? 'PASS' : 'FAIL';
+    console.log(
+      `  [${mark}] ${c.name}: surface ${c.surfaceValuePaise} vs engine ${c.engineValuePaise} (Δ ${c.differencePaise})`,
+    );
+  }
+
+  const vacatingBefore = await runVacatingAudit();
+  if (vacatingBefore.issues.length > 0) {
+    console.log('\n=== VACATING REPAIR ===\n');
+    const repair = await repairVacatingAuditIssues(vacatingBefore.issues);
+    for (const msg of repair.messages) {
+      console.log(`  ${msg}`);
+    }
+    console.log(`Repaired: ${repair.repaired}`);
+  }
+
+  console.log('\n=== SYSTEM HEALTH REPORT ===\n');
+  const health = await runSystemHealthAudit(session);
+  for (const section of health.sections) {
+    console.log(`  [${section.pass ? 'PASS' : 'FAIL'}] ${section.name}: ${section.summary}`);
+    for (const m of section.mismatches.slice(0, 10)) {
+      console.log(`      - ${m}`);
+    }
+  }
+
+  console.log(`\n=== OVERALL: ${health.allPass ? 'PRODUCTION READY' : 'NOT READY'} ===\n`);
+  process.exit(health.allPass ? 0 : 1);
+}
+
+main()
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  })
+  .finally(() => closeDb());

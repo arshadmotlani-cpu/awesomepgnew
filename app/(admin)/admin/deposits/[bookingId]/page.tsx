@@ -15,7 +15,9 @@ import {
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { listDepositLedgerEntriesForBooking } from '@/src/db/queries/admin';
 import { DepositAdjustForms } from '@/src/components/admin/DepositAdjustForms';
+import { DepositSettlementPanel } from '@/src/components/admin/DepositSettlementPanel';
 import { DepositRefundNotice } from '@/src/components/customer/DepositRefundNotice';
+import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
 import { paiseToInr, formatDate, titleCase } from '@/src/lib/format';
 import { loadBedPrice, securityDepositForMode } from '@/src/services/pricing';
 
@@ -29,6 +31,10 @@ export default async function AdminDepositDetailPage({
   params: Promise<RouteParams>;
 }) {
   const { bookingId } = await params;
+  await ensureAdminPageNotificationsSeen(
+    `/admin/deposits/${bookingId}`,
+    `/admin/deposits/${bookingId}`,
+  );
 
   const [booking] = await db
     .select({
@@ -37,6 +43,7 @@ export default async function AdminDepositDetailPage({
       durationMode: bookings.durationMode,
       status: bookings.status,
       depositPaise: bookings.depositPaise,
+      customerId: bookings.customerId,
       customerFullName: customers.fullName,
       customerPhone: customers.phone,
     })
@@ -131,6 +138,20 @@ export default async function AdminDepositDetailPage({
           entry. The DB enforces sign: collected &gt; 0, deducted &amp; refunded &lt; 0.
         </p>
       </section>
+
+      {(summary?.refundableBalancePaise ?? 0) > 0 || booking.status === 'completed' ? (
+        <div className="mb-6">
+          <DepositSettlementPanel
+            bookingId={bookingId}
+            customerId={booking.customerId}
+            customerName={booking.customerFullName}
+            customerPhone={booking.customerPhone}
+            depositHeldPaise={summary?.collectedPaise ?? booking.depositPaise}
+            depositPaidPaise={summary?.collectedPaise ?? 0}
+            depositRefundablePaise={summary?.refundableBalancePaise ?? 0}
+          />
+        </div>
+      ) : null}
 
       <section>
         <h2 className="mb-2 text-sm font-semibold text-zinc-900">

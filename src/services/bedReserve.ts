@@ -186,7 +186,7 @@ export async function canOfferBedReserve(bedId: string): Promise<{
     .from(beds)
     .where(eq(beds.id, bedId))
     .limit(1);
-  if (!bed || bed.status !== 'available' || bed.manualOccupied) {
+  if (!bed || bed.status !== 'available') {
     return { ok: false, reason: 'Bed is not available for reserve.' };
   }
 

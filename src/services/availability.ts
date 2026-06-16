@@ -191,7 +191,7 @@ export async function isBedAvailable(
     .where(eq(beds.id, input.bedId))
     .limit(1);
   if (!bed || bed.archivedAt || bed.status !== 'available') return false;
-  if (bed.manualOccupied && !options?.ignoreManualOccupied) return false;
+  // Reservations are SSOT — manualOccupied is legacy admin mark only, not operational.
 
   const [conflict] = await db
     .select({ id: bedReservations.id })
@@ -234,7 +234,7 @@ export async function getNextAvailableDate(input: NextAvailableInput): Promise<s
     .from(beds)
     .where(eq(beds.id, input.bedId))
     .limit(1);
-  if (!bed || bed.archivedAt || bed.status !== 'available' || bed.manualOccupied) return null;
+  if (!bed || bed.archivedAt || bed.status !== 'available') return null;
 
   const busy = await loadBusyRanges(input.bedId, windowStart, windowEnd);
   const free = computeFreeWindows(busy, windowStart, windowEnd);
@@ -267,7 +267,7 @@ export async function getAvailableDateRanges(
     .from(beds)
     .where(eq(beds.id, input.bedId))
     .limit(1);
-  if (!bed || bed.archivedAt || bed.status !== 'available' || bed.manualOccupied) return [];
+  if (!bed || bed.archivedAt || bed.status !== 'available') return [];
 
   const busy = await loadBusyRanges(input.bedId, windowStart, windowEnd);
   return computeFreeWindows(busy, windowStart, windowEnd);

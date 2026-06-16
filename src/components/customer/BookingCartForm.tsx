@@ -6,8 +6,10 @@ import {
   indianPhoneDefaultLocal,
 } from '@/src/components/customer/IndianPhoneInput';
 import { CouponCodeField } from '@/src/components/customer/CouponCodeField';
+import { PricingBreakdown } from '@/src/components/customer/PricingBreakdown';
 import { Ps4AddonSelector, ps4AddonPaise } from '@/src/components/customer/Ps4AddonSelector';
 import { paiseToInr } from '@/src/lib/format';
+import type { LineItem } from '@/src/services/pricing';
 import {
   checkoutTotalWithOneMonthDeposit,
   oneMonthDepositPaise,
@@ -37,6 +39,9 @@ type Props = {
   additionalDepositDuePaise?: number;
   totalPaise: number;
   notes?: string;
+  /** Rent line items for transparent breakdown (excludes deposit lines). */
+  breakdownLineItems?: LineItem[];
+  lowestPriceApplied?: boolean;
   /** Pre-filled from the signed-in customer session (Phase 6). */
   defaultCustomer?: {
     fullName: string;
@@ -65,6 +70,8 @@ export function BookingCartForm({
   defaultCustomer,
   showPs4Addon = false,
   checkoutTiming = 'available_now',
+  breakdownLineItems = [],
+  lowestPriceApplied,
 }: Props) {
   const [state, formAction, isPending] = useActionState(
     createBookingAction,
@@ -245,24 +252,38 @@ export function BookingCartForm({
 
         <hr className="my-4 border-zinc-200" />
 
-        <ul className="space-y-2 text-sm">
-          {lineItems.map((item) => (
-            <li
-              key={item.bedId}
-              className="flex items-start justify-between gap-3"
-            >
-              <span>
-                <span className="block font-medium text-zinc-900">
-                  {item.label}
+        {breakdownLineItems.length > 0 ? (
+          <PricingBreakdown
+            rentLineItems={breakdownLineItems}
+            rentSubtotalPaise={subtotalPaise}
+            depositPaise={depositPaise}
+            ps4Paise={ps4Paise}
+            couponDiscountPaise={couponDiscountPaise}
+            grandTotalPaise={checkoutTotalPaise}
+            lowestPriceApplied={lowestPriceApplied}
+            durationMode={durationMode}
+            compact
+          />
+        ) : (
+          <ul className="space-y-2 text-sm">
+            {lineItems.map((item) => (
+              <li
+                key={item.bedId}
+                className="flex items-start justify-between gap-3"
+              >
+                <span>
+                  <span className="block font-medium text-zinc-900">
+                    {item.label}
+                  </span>
+                  <span className="text-xs text-zinc-500">{item.unitsLabel}</span>
                 </span>
-                <span className="text-xs text-zinc-500">{item.unitsLabel}</span>
-              </span>
-              <span className="font-semibold text-zinc-900">
-                {paiseToInr(item.lineTotalPaise)}
-              </span>
-            </li>
-          ))}
-        </ul>
+                <span className="font-semibold text-zinc-900">
+                  {paiseToInr(item.lineTotalPaise)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
 
         <hr className="my-4 border-zinc-200" />
 

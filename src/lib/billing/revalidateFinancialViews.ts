@@ -9,4 +9,6 @@ export function revalidateFinancialViews() {
   revalidatePath('/admin/deposits/collected');
   revalidatePath('/admin/invoices');
   revalidatePath('/admin/analytics');
+  revalidatePath('/admin/residents');
+  revalidatePath('/admin/operations');
 }

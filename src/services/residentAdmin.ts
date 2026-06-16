@@ -615,6 +615,9 @@ export async function updateTenantTenancy(
     });
   }
 
+  const { reconcileBookingOccupancy } = await import('@/src/lib/occupancySync');
+  await reconcileBookingOccupancy(input.bookingId);
+
   return {
     ok: true,
     pgId: ctx.pgId,

@@ -26,6 +26,7 @@ import { todayString } from '@/src/lib/dates';
 import { formatPgDisplayName } from '@/src/lib/operationsCenterRules';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
 import { projectElectricityInvoice } from '@/src/services/electricityBilling';
+import { projectInvoice } from '@/src/services/rentInvoices';
 import { syncResidentRequestActionItems } from '@/src/services/residentRequestActions';
 import { syncAdminNotificationsFromActionItems } from '@/src/services/adminNotifications';
 import { diffDays, formatDate } from '@/src/lib/dates';
@@ -167,15 +168,11 @@ async function archiveNotificationsWithoutOpenTasks(): Promise<void> {
 async function syncRentDue(session: AdminSession): Promise<void> {
   const rows = await db
     .select({
-      id: rentInvoices.id,
+      invoice: rentInvoices,
       pgId: rentInvoices.pgId,
       bedId: rentInvoices.bedId,
       roomId: rooms.id,
       residentId: rentInvoices.customerId,
-      amount: rentInvoices.rentPaise,
-      dueDate: rentInvoices.dueDate,
-      status: rentInvoices.status,
-      billingMonth: rentInvoices.billingMonth,
       pgName: pgs.name,
       residentName: customers.fullName,
       residentPhone: customers.phone,
@@ -193,7 +190,9 @@ async function syncRentDue(session: AdminSession): Promise<void> {
 
   for (const row of rows) {
     if (!sessionCanAccessPg(session, row.pgId)) continue;
-    const isOverdue = row.status === 'overdue';
+    const projected = projectInvoice(row.invoice);
+    if (projected.outstandingPaise <= 0) continue;
+    const isOverdue = projected.effectiveStatus === 'overdue';
     await upsertActionItem({
       type: 'rent_due',
       title: `${row.residentName} · Rent ${isOverdue ? 'overdue' : 'due'}`,
@@ -201,10 +200,10 @@ async function syncRentDue(session: AdminSession): Promise<void> {
       roomId: row.roomId,
       bedId: row.bedId,
       residentId: row.residentId,
-      amount: row.amount,
-      dueDate: row.dueDate,
+      amount: projected.outstandingPaise,
+      dueDate: row.invoice.dueDate,
       priority: isOverdue ? 'high' : 'medium',
-      sourceKey: `rent:${row.id}`,
+      sourceKey: `rent:${row.invoice.id}`,
       metadata: {
         residentName: row.residentName,
         residentPhone: row.residentPhone,
@@ -213,9 +212,9 @@ async function syncRentDue(session: AdminSession): Promise<void> {
         roomNumber: row.roomNumber,
         bedCode: row.bedCode,
         bookingId: row.bookingId,
-        invoiceId: row.id,
+        invoiceId: row.invoice.id,
         isOverdue,
-        billingMonth: row.billingMonth,
+        billingMonth: row.invoice.billingMonth,
       },
     });
   }
@@ -449,7 +448,10 @@ async function syncRefundsPending(session: AdminSession): Promise<void> {
 
   for (const row of rows) {
     if (!sessionCanAccessPg(session, row.pgId)) continue;
-    const depositPaise = Math.max(0, Number(row.depositPaise));
+    const { getDepositSummaryForBooking } = await import('./deposits');
+    const depositSummary = await getDepositSummaryForBooking(row.bookingId);
+    const refundPaise = depositSummary?.refundableBalancePaise ?? 0;
+    if (refundPaise <= 0) continue;
     const anchor = row.completedAt ?? row.updatedAt;
     const daysWaiting = Math.max(0, diffDays(formatDate(anchor), today));
     await upsertActionItem({
@@ -459,7 +461,7 @@ async function syncRefundsPending(session: AdminSession): Promise<void> {
       roomId: row.roomId,
       bedId: row.bedId,
       residentId: row.residentId,
-      amount: depositPaise,
+      amount: refundPaise,
       priority: daysWaiting >= 7 ? 'high' : daysWaiting >= 3 ? 'medium' : 'low',
       sourceKey: `refund:${row.bookingId}`,
       metadata: {
@@ -846,10 +848,10 @@ export async function updateActionItemStatus(
 
 export async function getPgQrForPurpose(
   pgId: string,
-  purpose: 'rent' | 'electricity' | 'deposit',
+  purpose: 'rent' | 'electricity' | 'deposit' | 'combined',
 ): Promise<{ qrUrl: string; upiId: string | null } | null> {
   const nameHints =
-    purpose === 'rent'
+    purpose === 'rent' || purpose === 'combined'
       ? ['rent', 'monthly']
       : purpose === 'electricity'
         ? ['electricity', 'elec', 'power']

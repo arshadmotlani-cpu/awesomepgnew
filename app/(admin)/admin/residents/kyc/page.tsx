@@ -12,6 +12,7 @@ import {
   listPendingKycSubmissions,
 } from '@/src/services/kyc';
 import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
+import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,6 +22,7 @@ export default async function ResidentsKycPage({
   searchParams: Promise<{ tab?: string }>;
 }) {
   const sp = await searchParams;
+  await ensureAdminPageNotificationsSeen('/admin/residents/kyc', '/admin/residents/kyc');
   const tab: KycReviewTabId | 'all' =
     sp.tab === 'approved' ? 'approved' : sp.tab === 'pending' ? 'pending' : 'all';
 

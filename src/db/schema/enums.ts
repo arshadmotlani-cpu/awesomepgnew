@@ -228,6 +228,7 @@ export const paymentLinkPurposeEnum = pgEnum('payment_link_purpose', [
   'rent',
   'electricity',
   'deposit',
+  'combined',
 ]);
 
 export const financialInvoiceTypeEnum = pgEnum('financial_invoice_type', [
@@ -238,12 +239,14 @@ export const financialInvoiceTypeEnum = pgEnum('financial_invoice_type', [
   'penalty',
   'damage',
   'custom',
+  'combined',
 ]);
 
 export const financialInvoiceStatusEnum = pgEnum('financial_invoice_status', [
   'draft',
   'sent',
   'paid',
+  'partial',
   'overdue',
   'cancelled',
   'refunded',

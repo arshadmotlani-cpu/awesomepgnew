@@ -16,8 +16,10 @@ import {
 } from '@/src/lib/bedAvailabilityWindows';
 import { reserveBufferDate } from '@/src/lib/bedReservePolicy';
 import { displayMonthlyDepositPaise } from '@/src/lib/customerDepositDisplay';
+import { previewLowestFixedStayRent } from '@/src/lib/pricing/fixedStayOptimizer';
 import type { PricingMode } from '@/src/services/pricing';
 import type { BedSelectorBed } from './BedSelector';
+import { StayDateRangePicker } from './StayDateRangePicker';
 
 export type BedTimelineResponse = {
   bedId: string;
@@ -47,9 +49,7 @@ type Props = {
 type StayIntent = 'fixed' | 'indefinite';
 
 function estimateFixedStaySubtotal(bed: BedSelectorBed, nights: number): number {
-  const weeks = Math.floor(nights / 7);
-  const rem = nights % 7;
-  return weeks * bed.weeklyRatePaise + rem * bed.dailyRatePaise;
+  return previewLowestFixedStayRent(nights, bed.dailyRatePaise, bed.weeklyRatePaise);
 }
 
 function depositPreview(bed: BedSelectorBed, mode: PricingMode, nights: number): number {
@@ -231,7 +231,7 @@ export function BedBookingPanel({
               Book {beds.length === 1 ? `bed ${beds[0]!.bedCode}` : `${beds.length} beds`}
             </h2>
             <p className={`mt-0.5 text-xs ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
-              Pick your dates — pricing is calculated automatically from weekly + daily rates.
+              Pick your dates — we automatically apply the lowest available price.
             </p>
           </div>
           <button type="button" onClick={onClose} className={btnGhost} aria-label="Close">
@@ -374,49 +374,33 @@ export function BedBookingPanel({
                       Fixed stay
                     </span>
                     <span className={`mt-0.5 block text-xs ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
-                      Check-in and check-out only — we calculate weeks + days automatically
+                      Check-in and check-out only — lowest price calculated automatically
                     </span>
                   </label>
                 </div>
               </fieldset>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <label className={`flex flex-col gap-1 ${label}`}>
-                  {intent === 'indefinite' ? 'Move-in date' : 'Check-in'}
-                  <input
-                    type="date"
-                    value={start}
-                    min={timelines[0]?.earliestCheckIn ?? today}
-                    max={maxCheckout ?? undefined}
-                    onChange={(e) => handleStartChange(e.target.value)}
-                    className={input}
-                  />
-                </label>
-                {intent === 'fixed' ? (
-                  <label className={`flex flex-col gap-1 ${label}`}>
-                    Check-out
-                    <input
-                      type="date"
-                      value={end}
-                      min={minCheckOut}
-                      max={maxCheckout ?? undefined}
-                      onChange={(e) => {
-                        setEnd(e.target.value);
-                        setValidationError(null);
-                      }}
-                      className={input}
-                    />
-                  </label>
-                ) : null}
-              </div>
+              <StayDateRangePicker
+                theme={dark ? 'dark' : 'light'}
+                checkIn={start}
+                checkOut={intent === 'fixed' ? end : null}
+                onCheckInChange={handleStartChange}
+                onCheckOutChange={(d) => {
+                  setEnd(d);
+                  setValidationError(null);
+                }}
+                minCheckIn={timelines[0]?.earliestCheckIn ?? today}
+                maxCheckIn={maxCheckout ?? undefined}
+                minCheckOut={minCheckOut}
+                maxCheckOut={maxCheckout ?? undefined}
+                showCheckOut={intent === 'fixed'}
+                disabled={loading || Boolean(fetchError)}
+              />
 
               {intent === 'fixed' && fixedNights > 0 ? (
                 <p className={`text-xs ${dark ? 'text-apg-silver' : 'text-zinc-600'}`}>
-                  {fixedNights} night{fixedNights === 1 ? '' : 's'} — billed as{' '}
-                  {Math.floor(fixedNights / 7)} week{Math.floor(fixedNights / 7) === 1 ? '' : 's'}
-                  {fixedNights % 7 > 0
-                    ? ` + ${fixedNights % 7} day${fixedNights % 7 === 1 ? '' : 's'}`
-                    : ''}
+                  {fixedNights} night{fixedNights === 1 ? '' : 's'} — lowest available stay price
+                  automatically applied.
                 </p>
               ) : null}
 

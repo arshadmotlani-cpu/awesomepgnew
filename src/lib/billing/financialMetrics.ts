@@ -167,8 +167,15 @@ export {
   getGlobalFinancialAggregates,
   getPortfolioFinancialTotals,
   getPortfolioRentStats,
+  listOutstandingDepositsFromEngine,
   recalculateBillingAfterVacatingRestore,
 } from '@/src/services/residentFinancialEngine';
+
+export {
+  runFinancialHealthAudit,
+  recalculateAllFinancialSummaries,
+} from '@/src/services/financialAudit';
+export type { FinancialAuditReport, FinancialAuditCheck, FinancialRecalcResult } from '@/src/services/financialAudit';
 
 /** Count non-cancelled invoices that still contribute to outstanding (pending/overdue/paid). */
 export function activeRentInvoiceStatuses() {

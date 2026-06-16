@@ -17,6 +17,7 @@ export const dynamic = 'force-dynamic';
 const STATUS_TABS: Array<{ id: InvoiceListFilters['status']; label: string }> = [
   { id: 'all', label: 'All' },
   { id: 'paid', label: 'Paid' },
+  { id: 'partial', label: 'Partial' },
   { id: 'pending', label: 'Pending' },
   { id: 'overdue', label: 'Overdue' },
   { id: 'cancelled', label: 'Cancelled' },

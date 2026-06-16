@@ -331,6 +331,7 @@ export async function updateRoomBedPricing(
   pgId: string,
   roomId: string,
   input: BedPricingInput,
+  opts?: { notifyResident?: boolean },
 ): Promise<void> {
   assertPgAccess(session, pgId);
 
@@ -421,6 +422,15 @@ export async function updateRoomBedPricing(
       });
     }
   }
+
+  const bedIdList = roomBeds.map((b) => b.bedId);
+  const { propagatePricingChangeForBeds } = await import('@/src/services/pricingPropagation');
+  const { revalidatePricingViews } = await import('@/src/lib/pricingRevalidate');
+  const [pgRow] = await db.select({ slug: pgs.slug }).from(pgs).where(eq(pgs.id, pgId)).limit(1);
+  await propagatePricingChangeForBeds(session, pgId, bedIdList, {
+    notifyResident: opts?.notifyResident,
+  });
+  revalidatePricingViews(pgRow?.slug);
 }
 
 export type UpdateRoomDetailsInput = {

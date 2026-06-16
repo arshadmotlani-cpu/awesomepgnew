@@ -21,6 +21,7 @@ import { requireAdminPermission, requireAdminSession } from '@/src/lib/auth/guar
 import { adminHasPermission } from '@/src/lib/auth/roles';
 import { ADMIN_MODULES, moduleHref, modulePgHref } from '@/src/lib/admin/navigation';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
+import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
 import { listRentBillingOverview } from '@/src/services/rentInvoices';
@@ -51,6 +52,7 @@ export default async function CollectionsModulePage({
   const billingMonth = resolveBillingMonth(sp.month);
 
   const session = await requireAdminSession('/admin/collections');
+  await ensureAdminPageNotificationsSeen('/admin/collections', '/admin/collections');
   const canGenerateRent = adminHasPermission(session.role, 'rent:write');
   const canSendLinks = adminHasPermission(session.role, 'payments:write');
   const [pending, rentStats, rentPending, rentPaid, elecPending, pgs, billingOverview] =
@@ -155,9 +157,9 @@ export default async function CollectionsModulePage({
                     pgId: r.pgId,
                     pgName: r.pgName,
                     roomNumber: r.roomNumber,
-                    rentPaise: r.rentPaise,
+                    rentPaise: r.outstandingPaise,
                     dueDate: r.dueDate,
-                    isOverdue: r.status === 'overdue',
+                    isOverdue: r.effectiveStatus === 'overdue',
                   }))
                 : []
             }
@@ -184,7 +186,7 @@ export default async function CollectionsModulePage({
                     pgId: r.pgId,
                     pgName: r.pgName,
                     roomNumber: r.roomNumber,
-                    amountPaise: r.amountPaise,
+                    amountPaise: r.outstandingPaise,
                     dueDate: r.dueDate,
                     isOverdue: r.isOverdue,
                   }))
@@ -234,7 +236,9 @@ function InvoiceTable({
     roomNumber: string;
     amountPaise?: number;
     rentPaise?: number;
+    outstandingPaise?: number;
     status?: string;
+    effectiveStatus?: string;
     dueDate: string;
     bookingId?: string;
     isOverdue?: boolean;
@@ -261,11 +265,18 @@ function InvoiceTable({
           </THead>
           <TBody>
             {rows.map((r) => {
-              const amount = electricity ? (r.amountPaise ?? 0) : (r.rentPaise ?? 0);
+              const amount =
+                r.outstandingPaise ??
+                (electricity ? (r.amountPaise ?? 0) : (r.rentPaise ?? 0));
+              const displayStatus = r.effectiveStatus ?? r.status;
               const pgId =
                 r.pgId ?? [...pgNameById.entries()].find(([, n]) => n === r.pgName)?.[0] ?? '';
               const showActions =
-                r.customerId && pgId && amount > 0 && r.status !== 'paid' && r.status !== 'cancelled';
+                r.customerId &&
+                pgId &&
+                amount > 0 &&
+                displayStatus !== 'paid' &&
+                displayStatus !== 'cancelled';
               return (
                 <TR key={r.id}>
                   <TD>
@@ -294,8 +305,8 @@ function InvoiceTable({
                   <TD className="text-right tabular-nums">{paiseToInr(amount)}</TD>
                   <TD className="text-xs">{formatDate(r.dueDate)}</TD>
                   <TD>
-                    {r.status ? (
-                      <Badge tone={toneForStatus(r.status)}>{titleCase(r.status)}</Badge>
+                    {displayStatus ? (
+                      <Badge tone={toneForStatus(displayStatus)}>{titleCase(displayStatus)}</Badge>
                     ) : (
                       <Badge tone="amber">pending</Badge>
                     )}
@@ -312,7 +323,7 @@ function InvoiceTable({
                         purpose={electricity ? 'electricity' : 'rent'}
                         dueDate={r.dueDate}
                         roomNumber={r.roomNumber}
-                        isOverdue={r.isOverdue ?? r.status === 'overdue'}
+                        isOverdue={r.isOverdue ?? displayStatus === 'overdue'}
                         bookingId={r.bookingId}
                       />
                     ) : (

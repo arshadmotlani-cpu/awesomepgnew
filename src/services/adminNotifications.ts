@@ -14,6 +14,7 @@ import {
   adminUsers,
 } from '@/src/db/schema';
 import type { ActionItem } from '@/src/db/schema/actionItems';
+import type { ActionItemType } from '@/src/db/schema/enums';
 import type { ActionItemMetadata } from '@/src/lib/actionCenter/constants';
 import { ACTION_ITEM_GROUP_LABELS } from '@/src/lib/actionCenter/constants';
 import type { AdminModule } from '@/src/lib/admin/navigation';
@@ -21,6 +22,9 @@ import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { formatDate } from '@/src/lib/dates';
 import type { ActionItemRow } from '@/src/services/actionItems';
+
+/** NEW = unread badge, SEEN = read history, RESOLVED = archived (task closed). */
+export type AdminNotificationState = 'unread' | 'read' | 'archived';
 
 export type AdminNotificationRow = {
   id: string;
@@ -32,9 +36,17 @@ export type AdminNotificationRow = {
   pgName: string | null;
   detail: string | null;
   href: string;
-  state: 'unread' | 'read' | 'archived';
+  state: AdminNotificationState;
   createdAt: Date;
+  readAt: Date | null;
+  resolvedAt: Date | null;
 };
+
+export const NOTIFICATION_TAB_LABELS = {
+  unread: 'New',
+  read: 'Seen',
+  archived: 'Resolved',
+} as const;
 
 const TYPE_LABELS: Partial<Record<ActionItem['type'], string>> = {
   vacating_alert: 'New Vacating Notice',
@@ -263,6 +275,8 @@ export async function listAdminNotifications(
       metadata: adminNotifications.metadata,
       createdAt: adminNotifications.createdAt,
       state: adminNotificationStates.state,
+      readAt: adminNotificationStates.readAt,
+      archivedAt: adminNotificationStates.archivedAt,
     })
     .from(adminNotifications)
     .leftJoin(
@@ -303,6 +317,8 @@ export async function listAdminNotifications(
       href: row.href,
       state,
       createdAt: row.createdAt,
+      readAt: row.readAt ?? null,
+      resolvedAt: row.archivedAt ?? null,
     });
 
     if (result.length >= limit) break;
@@ -410,19 +426,68 @@ export async function archiveNotification(
 
 function resolveReadKeyToSourceKey(readKey: string): string | null {
   if (readKey.startsWith('vacating:')) return readKey;
-  if (readKey.startsWith('kyc:')) {
-    const id = readKey.slice(4);
-    return `kyc:${id}`;
-  }
+  if (readKey.startsWith('kyc:')) return readKey;
   if (readKey.startsWith('request:')) {
-    const id = readKey.slice(8);
-    return `resident_request:${id}`;
+    return `resident_request:${readKey.slice(8)}`;
   }
-  if (readKey.startsWith('refund:')) {
-    const bookingId = readKey.slice(7);
+  if (readKey.startsWith('refund:')) return readKey;
+  if (readKey.startsWith('deposit:')) {
+    const bookingId = readKey.slice(8);
     return `refund:${bookingId}`;
   }
+  if (readKey.startsWith('payment_review:')) return readKey;
+  if (readKey.startsWith('deposit_due:')) return readKey;
   return null;
+}
+
+const PATH_NOTIFICATION_TYPES: Array<{ prefix: string; types: ActionItemType[] }> = [
+  { prefix: '/admin/vacating', types: ['vacating_alert'] },
+  { prefix: '/admin/residents/kyc', types: ['kyc_pending'] },
+  { prefix: '/admin/collections', types: ['rent_due', 'electricity_due', 'payment_received'] },
+  {
+    prefix: '/admin/deposits',
+    types: ['refund_pending', 'deposit_refund_request', 'deposit_collection_due'],
+  },
+  { prefix: '/admin/requests', types: ['deposit_refund_request', 'extension_request'] },
+  {
+    prefix: '/admin/operations',
+    types: ['vacating_alert', 'extension_request', 'maintenance_issue'],
+  },
+  { prefix: '/admin/electricity', types: ['electricity_due'] },
+  { prefix: '/admin/rent', types: ['rent_due'] },
+  { prefix: '/admin/payments', types: ['payment_received'] },
+];
+
+function typesForAdminPath(pathname: string): ActionItemType[] {
+  for (const row of PATH_NOTIFICATION_TYPES) {
+    if (pathname === row.prefix || pathname.startsWith(`${row.prefix}/`)) {
+      return row.types;
+    }
+  }
+  return [];
+}
+
+/** Mark all unread notifications of given types as SEEN for this admin. */
+export async function markNotificationsSeenForTypes(
+  session: AdminSession,
+  types: ActionItemType[],
+): Promise<number> {
+  if (types.length === 0) return 0;
+
+  const unread = await listAdminNotifications(session, 'unread', 500);
+  const toMark = unread.filter((n) => types.includes(n.type));
+  for (const n of toMark) {
+    await markNotificationRead(session, { notificationId: n.id });
+  }
+  return toMark.length;
+}
+
+/** When admin opens a module page, clear badge counts for that module's notification types. */
+export async function markNotificationsSeenForPath(
+  session: AdminSession,
+  pathname: string,
+): Promise<number> {
+  return markNotificationsSeenForTypes(session, typesForAdminPath(pathname));
 }
 
 /** Call from admin pages when ?read= query param is present. */

@@ -61,18 +61,6 @@ export function BookingEducationBar({
           >
             Reserve early (50% rent)
           </button>
-          <button
-            type="button"
-            data-roachie-tour="extend"
-            className={
-              dark
-                ? 'rounded-lg border border-emerald-400/35 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100'
-                : 'rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800'
-            }
-            onClick={(e) => e.preventDefault()}
-          >
-            Extend Stay
-          </button>
         </div>
       </div>
 

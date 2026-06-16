@@ -194,7 +194,6 @@ function buildBed(row: RawRow): PgBedMapBed {
     row.bed_status === 'available' &&
     !isOccupiedToday &&
     !reserved &&
-    !manualOccupied &&
     !effectiveReserveCheckIn;
   const preBookableFrom =
     vacating?.status === 'approved'
@@ -434,7 +433,7 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
   const allBeds = floors.flatMap((f) => f.rooms.flatMap((r) => r.beds));
   const summary: PgBedMapSummary = {
     totalBeds: allBeds.length,
-    occupiedBeds: allBeds.filter((b) => b.isOccupiedToday || b.manualOccupied).length,
+    occupiedBeds: allBeds.filter((b) => b.isOccupiedToday).length,
     openNowBeds: allBeds.filter((b) => b.isAvailableNow).length,
     reservedBeds: allBeds.filter(
       (b) => (b.reserved && !b.isOccupiedToday) || Boolean(b.manualReservedCheckIn) || Boolean(b.bedReserveCheckIn),

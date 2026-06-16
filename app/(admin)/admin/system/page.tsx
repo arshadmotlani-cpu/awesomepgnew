@@ -78,6 +78,45 @@ export default async function SystemHealthModulePage() {
       />
 
       <div className="space-y-8">
+        <section className="rounded-xl border border-white/10 bg-[#1A1F27] p-5">
+          <h2 className="text-sm font-semibold text-white">Financial SSOT tools</h2>
+          <p className="mt-1 text-xs text-apg-silver">
+            Audit and emergency recalc for the Resident Financial Engine.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Link
+              href="/admin/system/financial-audit"
+              className="rounded-lg border border-[#FF5A1F]/40 bg-[#FF5A1F]/10 px-4 py-2 text-sm font-medium text-[#FF5A1F] hover:bg-[#FF5A1F]/20"
+            >
+              Financial audit →
+            </Link>
+            <Link
+              href="/admin/system/recalculate-financial"
+              className="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/5"
+            >
+              Recalculate financial data →
+            </Link>
+            <Link
+              href="/admin/system/bed-audit"
+              className="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/5"
+            >
+              Bed audit →
+            </Link>
+            <Link
+              href="/admin/system/pricing-health"
+              className="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/5"
+            >
+              Pricing health report →
+            </Link>
+            <Link
+              href="/admin/system/health-report"
+              className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-300 hover:bg-emerald-500/20"
+            >
+              System health report →
+            </Link>
+          </div>
+        </section>
+
         <AdminSectionErrorBoundary title="Uptime & errors">
           <SystemHealthCard health={ctx.data.systemHealth} sentryUrl={ctx.data.sentryUrl} />
         </AdminSectionErrorBoundary>

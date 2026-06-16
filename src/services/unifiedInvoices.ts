@@ -27,6 +27,7 @@ export type InvoiceListFilters = {
   status?: FinancialInvoiceStatus | 'all' | 'pending';
   search?: string;
   pgId?: string;
+  customerId?: string;
   limit?: number;
 };
 
@@ -255,7 +256,10 @@ export async function listUnifiedInvoices(
   const limit = filters.limit ?? 200;
   let statusFilter: FinancialInvoiceStatus[] | undefined;
   if (filters.status && filters.status !== 'all') {
-    statusFilter = filters.status === 'pending' ? ['sent', 'overdue'] : [filters.status];
+    statusFilter =
+      filters.status === 'pending'
+        ? ['sent', 'overdue', 'partial']
+        : [filters.status];
   }
 
   const search = filters.search?.trim();
@@ -282,6 +286,7 @@ export async function listUnifiedInvoices(
     .where(
       and(
         filters.pgId ? eq(financialInvoices.pgId, filters.pgId) : undefined,
+        filters.customerId ? eq(financialInvoices.customerId, filters.customerId) : undefined,
         statusFilter ? inArray(financialInvoices.status, statusFilter) : undefined,
         search
           ? or(
@@ -341,19 +346,49 @@ export async function cancelUnifiedInvoice(
   invoiceId: string,
   reason: string,
   actor?: { type: string; id?: string | null },
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<
+  | {
+      ok: true;
+      audit: {
+        beforeOutstandingPaise: number;
+        afterOutstandingPaise: number;
+        differencePaise: number;
+        cascadedSources: string[];
+      };
+    }
+  | { ok: false; error: string }
+> {
   const [inv] = await db
     .select()
     .from(financialInvoices)
     .where(eq(financialInvoices.id, invoiceId))
     .limit(1);
   if (!inv) return { ok: false, error: 'Invoice not found.' };
-  if (inv.status === 'cancelled') return { ok: true };
-  if (inv.status === 'paid') {
+  if (inv.status === 'cancelled') {
+    return {
+      ok: true,
+      audit: {
+        beforeOutstandingPaise: 0,
+        afterOutstandingPaise: 0,
+        differencePaise: 0,
+        cascadedSources: [],
+      },
+    };
+  }
+  if (inv.status === 'paid' || inv.status === 'partial') {
     return { ok: false, error: 'Paid invoices must be refunded, not cancelled.' };
   }
 
-  const before = { status: inv.status, amountPaise: inv.amountPaise };
+  const { getResidentFinancialSummary } = await import('@/src/services/residentFinancialEngine');
+  const beforeSummary = await getResidentFinancialSummary(inv.customerId);
+  const beforeOutstanding = beforeSummary?.totals.outstandingPaise ?? 0;
+
+  const before = {
+    status: inv.status,
+    amountPaise: inv.amountPaise,
+    outstandingPaise: beforeOutstanding,
+  };
+  const cascadedSources: string[] = [];
 
   await db
     .update(financialInvoices)
@@ -365,26 +400,123 @@ export async function cancelUnifiedInvoice(
     })
     .where(eq(financialInvoices.id, invoiceId));
 
-  if (inv.sourceTable === 'rent_invoices' && inv.sourceId) {
+  if (inv.paymentLinkId) {
     await db
-      .update(rentInvoices)
-      .set({
-        status: 'cancelled',
-        cancelledAt: new Date(),
-        cancellationReason: reason,
-        updatedAt: new Date(),
-      })
-      .where(eq(rentInvoices.id, inv.sourceId));
-  }
-  if (inv.sourceTable === 'electricity_invoices' && inv.sourceId) {
-    await db
-      .update(electricityInvoices)
-      .set({ status: 'cancelled', cancelledAt: new Date(), updatedAt: new Date() })
-      .where(eq(electricityInvoices.id, inv.sourceId));
+      .update(paymentLinks)
+      .set({ status: 'expired' })
+      .where(and(eq(paymentLinks.id, inv.paymentLinkId), eq(paymentLinks.status, 'active')));
   }
 
-  await logInvoiceAudit(invoiceId, 'cancelled', { before, after: { status: 'cancelled', reason } }, actor);
-  return { ok: true };
+  const lines = inv.breakdown?.lines ?? [];
+  const isCombined = inv.invoiceType === 'combined' || lines.length > 1;
+
+  if (isCombined || lines.length > 0) {
+    for (const line of lines) {
+      if (line.sourceTable === 'rent_invoices' && line.sourceId) {
+        if (inv.invoiceType === 'combined') {
+          await syncRentInvoiceToUnified(line.sourceId);
+          cascadedSources.push(`sync:rent:${line.sourceId}`);
+        } else {
+          await db
+            .update(rentInvoices)
+            .set({
+              status: 'cancelled',
+              cancelledAt: new Date(),
+              cancellationReason: reason,
+              updatedAt: new Date(),
+            })
+            .where(eq(rentInvoices.id, line.sourceId));
+          cascadedSources.push(`cancel:rent:${line.sourceId}`);
+        }
+      }
+      if (line.sourceTable === 'electricity_invoices' && line.sourceId) {
+        if (inv.invoiceType === 'combined') {
+          await syncElectricityInvoiceToUnified(line.sourceId);
+          cascadedSources.push(`sync:electricity:${line.sourceId}`);
+        } else {
+          await db
+            .update(electricityInvoices)
+            .set({ status: 'cancelled', cancelledAt: new Date(), updatedAt: new Date() })
+            .where(eq(electricityInvoices.id, line.sourceId));
+          cascadedSources.push(`cancel:electricity:${line.sourceId}`);
+        }
+      }
+      if (
+        line.sourceTable === 'financial_invoices' &&
+        line.sourceId &&
+        line.sourceId !== inv.id
+      ) {
+        const [nested] = await db
+          .select({ status: financialInvoices.status })
+          .from(financialInvoices)
+          .where(eq(financialInvoices.id, line.sourceId))
+          .limit(1);
+        if (nested && nested.status !== 'cancelled' && nested.status !== 'paid') {
+          await db
+            .update(financialInvoices)
+            .set({
+              status: 'cancelled',
+              cancelledAt: new Date(),
+              cancellationReason: `Cancelled with parent ${inv.invoiceNumber}`,
+              updatedAt: new Date(),
+            })
+            .where(eq(financialInvoices.id, line.sourceId));
+          cascadedSources.push(`cancel:custom:${line.sourceId}`);
+        }
+      }
+    }
+  } else {
+    if (inv.sourceTable === 'rent_invoices' && inv.sourceId) {
+      await db
+        .update(rentInvoices)
+        .set({
+          status: 'cancelled',
+          cancelledAt: new Date(),
+          cancellationReason: reason,
+          updatedAt: new Date(),
+        })
+        .where(eq(rentInvoices.id, inv.sourceId));
+      cascadedSources.push(`cancel:rent:${inv.sourceId}`);
+    }
+    if (inv.sourceTable === 'electricity_invoices' && inv.sourceId) {
+      await db
+        .update(electricityInvoices)
+        .set({ status: 'cancelled', cancelledAt: new Date(), updatedAt: new Date() })
+        .where(eq(electricityInvoices.id, inv.sourceId));
+      cascadedSources.push(`cancel:electricity:${inv.sourceId}`);
+    }
+  }
+
+  const { reconcileStaleFinancialInvoices } = await import('@/src/lib/billing/financialMetrics');
+  await reconcileStaleFinancialInvoices();
+
+  const afterSummary = await getResidentFinancialSummary(inv.customerId);
+  const afterOutstanding = afterSummary?.totals.outstandingPaise ?? 0;
+
+  await logInvoiceAudit(
+    invoiceId,
+    'cancelled',
+    {
+      before,
+      after: { status: 'cancelled', reason, outstandingPaise: afterOutstanding },
+      differencePaise: afterOutstanding - beforeOutstanding,
+      cascadedSources,
+    },
+    actor,
+  );
+
+  const { revalidateFinancialViews } = await import('@/src/lib/billing/revalidateFinancialViews');
+  revalidateFinancialViews();
+
+  return {
+    ok: true,
+    audit: {
+      beforeOutstandingPaise: beforeOutstanding,
+      afterOutstandingPaise: afterOutstanding,
+      differencePaise: afterOutstanding - beforeOutstanding,
+      cascadedSources,
+    },
+  };
 }
 
 export async function refundUnifiedInvoice(
@@ -398,7 +530,9 @@ export async function refundUnifiedInvoice(
     .where(eq(financialInvoices.id, invoiceId))
     .limit(1);
   if (!inv) return { ok: false, error: 'Invoice not found.' };
-  if (inv.status !== 'paid') return { ok: false, error: 'Only paid invoices can be refunded.' };
+  if (inv.status !== 'paid' && inv.status !== 'partial') {
+    return { ok: false, error: 'Only paid or partial invoices can be refunded.' };
+  }
 
   const before = { status: inv.status, amountPaise: inv.amountPaise };
 
@@ -411,6 +545,9 @@ export async function refundUnifiedInvoice(
       updatedAt: new Date(),
     })
     .where(eq(financialInvoices.id, invoiceId));
+
+  const { reverseInvoicePaymentAllocation } = await import('@/src/services/invoicePayment');
+  await reverseInvoicePaymentAllocation(inv);
 
   await logInvoiceAudit(invoiceId, 'refunded', { before, after: { status: 'refunded', reason } }, actor);
   return { ok: true };
@@ -450,7 +587,12 @@ export async function createPaymentLinkForInvoice(invoiceId: string) {
       ? 'electricity'
       : detail.invoiceType === 'deposit'
         ? 'deposit'
-        : 'rent';
+        : detail.invoiceType === 'combined'
+          ? 'combined'
+          : 'rent';
+
+  const rentComponent = detail.breakdown?.rentPaise ?? 0;
+  const depositComponent = detail.breakdown?.depositPaise ?? 0;
 
   const link = await createPaymentLink({
     residentId: detail.customerId,
@@ -462,6 +604,10 @@ export async function createPaymentLinkForInvoice(invoiceId: string) {
     pgName: detail.pgName,
     dueDate: detail.dueDate ?? undefined,
     isOverdue: detail.status === 'overdue',
+    rentComponentPaise: rentComponent > 0 ? rentComponent : undefined,
+    depositComponentPaise: depositComponent > 0 ? depositComponent : undefined,
+    invoiceNumber: detail.invoiceNumber,
+    invoiceBreakdown: detail.breakdown ?? undefined,
   });
 
   if (!link.ok) return link;
@@ -481,6 +627,7 @@ export async function createPaymentLinkForInvoice(invoiceId: string) {
     invoiceNumber: detail.invoiceNumber,
     amountPaise: detail.amountPaise,
     paymentLinkUrl: link.publicUrl,
+    breakdown: detail.breakdown ?? undefined,
   });
 
   return {
@@ -504,59 +651,32 @@ export async function syncManyToUnified(
 export async function getInvoiceStats() {
   const rows = await db.execute(sql`
     SELECT
-      'paid_rent' AS bucket,
+      status,
       count(*)::int AS cnt,
-      coalesce(sum(ri.paid_principal_paise + ri.paid_late_fee_paise), 0)::bigint::int AS paise
-    FROM rent_invoices ri
-    WHERE ri.status = 'paid'
-    UNION ALL
-    SELECT
-      'pending_rent' AS bucket,
-      count(*)::int,
-      coalesce(sum(ri.rent_paise), 0)::bigint::int
-    FROM rent_invoices ri
-    WHERE ri.status IN ('pending', 'overdue')
-    UNION ALL
-    SELECT
-      'cancelled_rent' AS bucket,
-      count(*)::int,
-      coalesce(sum(ri.rent_paise), 0)::bigint::int
-    FROM rent_invoices ri
-    WHERE ri.status = 'cancelled'
-    UNION ALL
-    SELECT
-      'paid_elec' AS bucket,
-      count(*)::int,
-      coalesce(sum(ei.paid_paise + coalesce(ei.late_fee_locked_paise, 0)), 0)::bigint::int
-    FROM electricity_invoices ei
-    WHERE ei.status = 'paid'
-    UNION ALL
-    SELECT
-      'pending_elec' AS bucket,
-      count(*)::int,
-      coalesce(sum(ei.amount_paise), 0)::bigint::int
-    FROM electricity_invoices ei
-    WHERE ei.status = 'pending'
+      coalesce(sum(amount_paise), 0)::bigint::int AS paise
+    FROM financial_invoices
+    GROUP BY status
   `);
 
-  const list = (rows as unknown as Array<{ bucket: string; cnt: number; paise: number }>) ?? [];
-  const by = new Map(list.map((r) => [r.bucket, r]));
+  const list = (rows as unknown as Array<{ status: string; cnt: number; paise: number }>) ?? [];
+  const by = new Map(list.map((r) => [r.status, r]));
 
-  const paidRent = by.get('paid_rent') ?? { cnt: 0, paise: 0 };
-  const pendingRent = by.get('pending_rent') ?? { cnt: 0, paise: 0 };
-  const cancelledRent = by.get('cancelled_rent') ?? { cnt: 0, paise: 0 };
-  const paidElec = by.get('paid_elec') ?? { cnt: 0, paise: 0 };
-  const pendingElec = by.get('pending_elec') ?? { cnt: 0, paise: 0 };
+  const paid = by.get('paid') ?? { cnt: 0, paise: 0 };
+  const partial = by.get('partial') ?? { cnt: 0, paise: 0 };
+  const sent = by.get('sent') ?? { cnt: 0, paise: 0 };
+  const overdue = by.get('overdue') ?? { cnt: 0, paise: 0 };
+  const cancelled = by.get('cancelled') ?? { cnt: 0, paise: 0 };
+  const refunded = by.get('refunded') ?? { cnt: 0, paise: 0 };
 
   return {
-    paidCount: paidRent.cnt + paidElec.cnt,
-    paidPaise: paidRent.paise + paidElec.paise,
-    pendingCount: pendingRent.cnt + pendingElec.cnt,
-    pendingPaise: pendingRent.paise + pendingElec.paise,
-    overdueCount: 0,
-    cancelledCount: cancelledRent.cnt,
-    refundedCount: 0,
-    netRevenuePaise: paidRent.paise + paidElec.paise,
+    paidCount: paid.cnt + partial.cnt,
+    paidPaise: paid.paise,
+    pendingCount: sent.cnt,
+    pendingPaise: sent.paise,
+    overdueCount: overdue.cnt,
+    cancelledCount: cancelled.cnt,
+    refundedCount: refunded.cnt,
+    netRevenuePaise: paid.paise,
   };
 }
 

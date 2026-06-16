@@ -12,11 +12,13 @@ import { getPgQrForPurpose } from '@/src/services/actionItems';
 import { logWhatsAppEvent } from '@/src/services/whatsappLogs';
 import type { ActionItemDetail } from '@/src/services/actionItems';
 
+import type { InvoiceBreakdown } from '@/src/db/schema/financialInvoices';
+
 export type CreatePaymentLinkInput = {
   residentId: string;
   pgId: string;
   amountPaise: number;
-  purpose: 'rent' | 'electricity' | 'deposit';
+  purpose: 'rent' | 'electricity' | 'deposit' | 'combined';
   residentName: string;
   residentPhone: string;
   pgName: string;
@@ -28,6 +30,8 @@ export type CreatePaymentLinkInput = {
   /** Combined rent + deposit link breakdown (WhatsApp + pay page). */
   rentComponentPaise?: number;
   depositComponentPaise?: number;
+  invoiceNumber?: string;
+  invoiceBreakdown?: InvoiceBreakdown;
 };
 
 export async function getOrCreatePaymentLink(input: CreatePaymentLinkInput) {
@@ -141,6 +145,16 @@ export async function createPaymentLink(input: CreatePaymentLinkInput) {
       dueDate: input.dueDate ?? 'soon',
       paymentLinkUrl: publicUrl,
       isOverdue: input.isOverdue,
+    });
+  } else if (input.purpose === 'combined' && input.invoiceNumber) {
+    const { buildInvoiceWhatsAppUrl } = await import('@/src/lib/billing/invoiceWhatsApp');
+    whatsappShareUrl = buildInvoiceWhatsAppUrl({
+      customerName: input.residentName,
+      customerPhone: input.residentPhone,
+      invoiceNumber: input.invoiceNumber,
+      amountPaise: input.amountPaise,
+      paymentLinkUrl: publicUrl,
+      breakdown: input.invoiceBreakdown,
     });
   }
 

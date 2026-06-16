@@ -1,6 +1,7 @@
 import type { ComponentType, SVGProps } from 'react';
 import {
   IconBed,
+  IconBell,
   IconBuilding,
   IconCard,
   IconChart,
@@ -36,6 +37,7 @@ export type NavSection = {
     label: string;
     icon: ComponentType<SVGProps<SVGSVGElement>>;
     module?: AdminModule;
+    badgeKey?: keyof AdminNavBadges;
   }>;
 };
 
@@ -43,16 +45,25 @@ export type NavSection = {
 export const NAV_SECTIONS: NavSection[] = [
   {
     title: 'Platform',
-    items: SIDEBAR_MODULES.map((mod) => ({
-      href: mod.href,
-      label: mod.label,
-      icon: MODULE_ICONS[mod.id],
-      module: mod.id,
-    })),
+    items: [
+      ...SIDEBAR_MODULES.map((mod) => ({
+        href: mod.href,
+        label: mod.label,
+        icon: MODULE_ICONS[mod.id],
+        module: mod.id,
+      })),
+      {
+        href: '/admin/notifications',
+        label: 'Notifications',
+        icon: IconBell,
+        badgeKey: 'notifications' as const,
+      },
+    ],
   },
   {
     title: 'Settings',
     items: [
+      { href: '/admin/pricing', label: 'Pricing', icon: IconCard },
       { href: '/admin/settings', label: 'Settings', icon: IconSettings },
       { href: '/admin/guide', label: 'Help guide', icon: IconClipboard },
     ],

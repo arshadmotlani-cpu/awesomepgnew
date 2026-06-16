@@ -7,7 +7,8 @@ import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { BedAssignmentWhatsAppButton } from '@/src/components/admin/BedAssignmentWhatsAppButton';
 import { EditTenantTenancyForm } from '@/src/components/admin/EditTenantTenancyForm';
 import { RentUpdatedSuccessBanner } from '@/src/components/admin/RentUpdatedSuccessBanner';
-import { ResidentFinancialSummaryCard } from '@/src/components/admin/ResidentFinancialSummaryCard';
+import { FinancialCommandCenter } from '@/src/components/admin/FinancialCommandCenter';
+import { CreateCustomChargeForm } from '@/src/components/admin/CreateCustomChargeForm';
 import { ResidentActionBar } from '@/src/components/admin/ResidentActionBar';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
@@ -24,6 +25,7 @@ import {
 } from '@/src/services/tenantAssignment';
 import { loadBedPrice, computeMonthlyDepositPaise } from '@/src/services/pricing';
 import { getResidentFinancialSummary } from '@/src/services/residentFinancialEngine';
+import { listResidentInvoiceHistory } from '@/src/services/invoiceGeneration';
 
 export const dynamic = 'force-dynamic';
 
@@ -91,6 +93,9 @@ export default async function ResidentDetailPage({
     latestKyc?.status === 'pending' ? latestKyc.id : null;
 
   const financialSummary = await getResidentFinancialSummary(customerId);
+  const invoiceHistory = financialSummary
+    ? await listResidentInvoiceHistory(customerId, 20)
+    : [];
 
   const firstOpenRent = financialSummary?.rent.items.find((l) => l.outstandingPaise > 0);
   const firstOpenElec = financialSummary?.electricity.items.find((l) => l.outstandingPaise > 0);
@@ -214,7 +219,15 @@ export default async function ResidentDetailPage({
       ) : null}
 
       {financialSummary && activeTenancy ? (
-        <ResidentFinancialSummaryCard summary={financialSummary} />
+        <>
+          <FinancialCommandCenter summary={financialSummary} invoiceHistory={invoiceHistory} />
+          <div className="mb-8">
+            <CreateCustomChargeForm
+              customerId={customerId}
+              bookingId={activeTenancy.bookingId}
+            />
+          </div>
+        </>
       ) : null}
 
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

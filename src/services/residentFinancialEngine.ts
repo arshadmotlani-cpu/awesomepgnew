@@ -283,14 +283,17 @@ async function buildOtherCategory(
       and(
         eq(financialInvoices.customerId, customerId),
         inArray(financialInvoices.invoiceType, ['custom', 'penalty', 'damage', 'ps4']),
-        inArray(financialInvoices.status, ['draft', 'sent', 'overdue']),
+        inArray(financialInvoices.status, ['draft', 'sent', 'overdue', 'partial']),
       ),
     );
 
   for (const fi of customInvoices) {
-    const paidAmount = fi.status === 'paid' ? fi.amountPaise : 0;
-    const outstanding = fi.status === 'paid' ? 0 : fi.amountPaise;
-    if (outstanding <= 0) continue;
+    const paidAmount = fi.breakdown?.paidPaise ?? (fi.status === 'paid' ? fi.amountPaise : 0);
+    const outstanding =
+      fi.status === 'paid' || fi.status === 'cancelled' || fi.status === 'refunded'
+        ? 0
+        : Math.max(0, fi.amountPaise - paidAmount);
+    if (outstanding <= 0 && fi.status !== 'partial') continue;
     requiredPaise += fi.amountPaise;
     paidPaise += paidAmount;
     outstandingPaise += outstanding;
@@ -598,4 +601,129 @@ export async function recalculateBillingAfterVacatingRestore(args: {
     adminId: args.adminId ?? 'system',
   });
   return { updatedCount: result.updatedCount };
+}
+
+export type EngineOutstandingDepositRow = {
+  bookingId: string;
+  bookingCode: string;
+  customerId: string;
+  customerFullName: string;
+  customerPhone: string;
+  pgId: string;
+  pgName: string;
+  roomNumber: string;
+  bedCode: string;
+  depositPaise: number;
+  collectedPaise: number;
+  depositDuePaise: number;
+  depositDueDate: string | null;
+  depositCollectionStatus: string;
+};
+
+/** Deposit outstanding rows — SSOT via getBookingFinancialSummary().deposit */
+export async function listOutstandingDepositsFromEngine(
+  session?: AdminSession,
+  filter?: { overdueOnly?: boolean; dueWithinDays?: number },
+): Promise<EngineOutstandingDepositRow[]> {
+  const today = formatDate(new Date());
+  const rows = await db.execute<{
+    booking_id: string;
+    booking_code: string;
+    customer_id: string;
+    customer_name: string;
+    customer_phone: string;
+    deposit_paise: number;
+    deposit_due_paise: number;
+    deposit_due_date: string | null;
+    deposit_collection_status: string;
+    pg_id: string;
+    pg_name: string;
+    room_number: string;
+    bed_code: string;
+  }>(sql`
+    SELECT DISTINCT ON (b.id)
+      b.id AS booking_id,
+      b.booking_code,
+      c.id AS customer_id,
+      c.full_name AS customer_name,
+      c.phone AS customer_phone,
+      b.deposit_paise,
+      coalesce(b.deposit_due_paise, 0) AS deposit_due_paise,
+      b.deposit_due_date::text AS deposit_due_date,
+      b.deposit_collection_status,
+      p.id AS pg_id,
+      p.name AS pg_name,
+      r.room_number,
+      bd.bed_code
+    FROM bookings b
+    INNER JOIN customers c ON c.id = b.customer_id
+    INNER JOIN bed_reservations br ON br.booking_id = b.id
+      AND br.kind = 'primary'
+      AND br.status = 'active'
+    INNER JOIN beds bd ON bd.id = br.bed_id
+    INNER JOIN rooms r ON r.id = bd.room_id
+    INNER JOIN floors f ON f.id = r.floor_id
+    INNER JOIN pgs p ON p.id = f.pg_id
+    WHERE b.status = 'confirmed'
+      AND b.duration_mode IN ('monthly', 'open_ended')
+    ORDER BY b.id, br.created_at DESC
+  `);
+
+  const result: EngineOutstandingDepositRow[] = [];
+  for (const row of Array.from(rows)) {
+    if (session && !adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, row.pg_id)) {
+      continue;
+    }
+    const summary = await getBookingFinancialSummary({
+      bookingId: row.booking_id,
+      customerId: row.customer_id,
+      customerName: row.customer_name,
+      customerPhone: row.customer_phone,
+      bookingCode: row.booking_code,
+      pgId: row.pg_id,
+      pgName: row.pg_name,
+      roomNumber: row.room_number,
+      depositPaise: Number(row.deposit_paise),
+      depositDuePaise: Number(row.deposit_due_paise),
+    });
+    if (summary.deposit.outstandingPaise <= 0) continue;
+
+    result.push({
+      bookingId: row.booking_id,
+      bookingCode: row.booking_code,
+      customerId: row.customer_id,
+      customerFullName: row.customer_name,
+      customerPhone: row.customer_phone,
+      pgId: row.pg_id,
+      pgName: row.pg_name,
+      roomNumber: row.room_number,
+      bedCode: row.bed_code,
+      depositPaise: summary.deposit.requiredPaise,
+      collectedPaise: summary.deposit.paidPaise,
+      depositDuePaise: summary.deposit.outstandingPaise,
+      depositDueDate: row.deposit_due_date,
+      depositCollectionStatus: row.deposit_collection_status,
+    });
+  }
+
+  let filtered = result;
+  if (filter?.overdueOnly) {
+    filtered = filtered.filter(
+      (r) =>
+        r.depositCollectionStatus === 'overdue' ||
+        (r.depositDueDate != null && r.depositDueDate < today),
+    );
+  }
+  if (filter?.dueWithinDays != null) {
+    const limit = new Date();
+    limit.setDate(limit.getDate() + filter.dueWithinDays);
+    const limitStr = formatDate(limit);
+    filtered = filtered.filter(
+      (r) =>
+        r.depositDueDate != null &&
+        r.depositDueDate >= today &&
+        r.depositDueDate <= limitStr,
+    );
+  }
+  return filtered;
 }

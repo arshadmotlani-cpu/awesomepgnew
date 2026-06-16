@@ -37,7 +37,7 @@ export async function bedIsAvailableForInterest(bedId: string): Promise<boolean>
     .from(beds)
     .where(eq(beds.id, bedId))
     .limit(1);
-  if (!bed || bed.status !== 'available' || bed.manualOccupied) return false;
+  if (!bed || bed.status !== 'available') return false;
 
   const [activeStay] = await db
     .select({ id: bedReservations.id })

@@ -158,6 +158,7 @@ export function pathnameToModule(pathname: string): AdminModule | null {
     return 'residents';
   }
   if (pathname.startsWith('/admin/panel')) return 'panel';
+  if (pathname.startsWith('/admin/pricing')) return 'pgs';
   if (pathname.startsWith('/admin/deposits')) return 'deposits';
   for (const mod of SIDEBAR_MODULES) {
     if (mod.id === 'overview') continue;

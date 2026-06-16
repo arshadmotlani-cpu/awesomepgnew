@@ -13,6 +13,9 @@ const RATE: RateSnapshot = {
   weeklyRatePaise: 4_50_000, // ₹4,500/week
   monthlyRatePaise: 14_00_000, // ₹14,000/month
   securityDepositPaise: 14_00_000,
+  dailySecurityDepositPaise: 80_000,
+  weeklySecurityDepositPaise: 4_50_000,
+  monthlySecurityDepositPaise: 28_00_000,
   effectiveFrom: '2026-01-01',
   effectiveTo: null,
 };
@@ -22,7 +25,7 @@ const BED_ID = '11111111-1111-1111-1111-111111111111';
 function quote(args: {
   startDate: string;
   endDate: string | null;
-  durationMode: 'daily' | 'weekly' | 'monthly' | 'open_ended';
+  durationMode: 'daily' | 'weekly' | 'monthly' | 'open_ended' | 'fixed_stay';
   includeDeposit?: boolean;
   rate?: RateSnapshot;
 }) {
@@ -220,8 +223,8 @@ test('deposit: included when includeDeposit=true', () => {
     durationMode: 'daily',
     includeDeposit: true,
   });
-  assert.equal(q.depositPaise, 14_00_000);
-  assert.equal(q.totalPaise, 9 * 80_000 + 14_00_000);
+  assert.equal(q.depositPaise, 80_000);
+  assert.equal(q.totalPaise, 9 * 80_000 + 80_000);
   assert(q.lineItems.some((li) => li.kind === 'deposit'));
 });
 
@@ -237,7 +240,13 @@ test('deposit: omitted when includeDeposit=false', () => {
 });
 
 test('deposit: omitted when bed has zero security deposit', () => {
-  const noDeposit: RateSnapshot = { ...RATE, securityDepositPaise: 0 };
+  const noDeposit: RateSnapshot = {
+    ...RATE,
+    securityDepositPaise: 0,
+    dailySecurityDepositPaise: 0,
+    weeklySecurityDepositPaise: 0,
+    monthlySecurityDepositPaise: 0,
+  };
   const q = quote({
     startDate: '2026-06-01',
     endDate: '2026-06-10',
@@ -300,4 +309,59 @@ test('snapshot shape matches the bookings.pricing_snapshot.perBed[] contract', (
   // Every line item adds up to subtotal+deposit.
   const sum = q.lineItems.reduce((a, li) => a + li.amountPaise, 0);
   assert.equal(sum, q.subtotalPaise + q.depositPaise);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// Fixed stay — lowest price
+// ───────────────────────────────────────────────────────────────────────────
+
+const FIXED_RATE: RateSnapshot = {
+  ...RATE,
+  dailyRatePaise: 33_000,
+  weeklyRatePaise: 190_000,
+};
+
+test('fixed_stay: 10 nights picks week+3 days (₹2890) over pure daily (₹3300)', () => {
+  const q = computePriceBreakdown({
+    bedId: BED_ID,
+    rate: FIXED_RATE,
+    startDate: '2026-06-01',
+    endDate: '2026-06-11',
+    durationMode: 'fixed_stay',
+    includeDeposit: true,
+  });
+  assert.equal(q.nights, 10);
+  assert.equal(q.subtotalPaise, 289_000);
+  assert.equal(q.pricingStrategy, 'weeks_plus_days');
+  assert.equal(q.depositPaise, 144_500);
+});
+
+test('fixed_stay: 7 nights uses single weekly rate', () => {
+  const q = computePriceBreakdown({
+    bedId: BED_ID,
+    rate: FIXED_RATE,
+    startDate: '2026-06-01',
+    endDate: '2026-06-08',
+    durationMode: 'fixed_stay',
+    includeDeposit: false,
+  });
+  assert.equal(q.subtotalPaise, 190_000);
+});
+
+test('fixed_stay: pure daily wins when cheaper', () => {
+  const cheapDaily: RateSnapshot = {
+    ...FIXED_RATE,
+    dailyRatePaise: 10_000,
+  };
+  const q = computePriceBreakdown({
+    bedId: BED_ID,
+    rate: cheapDaily,
+    startDate: '2026-06-01',
+    endDate: '2026-06-04',
+    durationMode: 'fixed_stay',
+    includeDeposit: false,
+  });
+  assert.equal(q.nights, 3);
+  assert.equal(q.subtotalPaise, 30_000);
+  assert.equal(q.pricingStrategy, 'pure_daily');
 });

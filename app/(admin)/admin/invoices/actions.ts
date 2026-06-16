@@ -41,7 +41,15 @@ export async function cancelInvoiceAction(
     if (!result.ok) return { status: 'error', message: result.error };
 
     revalidateInvoice(invoiceId);
-    return { status: 'ok', message: 'Invoice cancelled. Revenue and collections updated automatically.' };
+    const diff = result.audit.differencePaise;
+    const diffNote =
+      diff === 0
+        ? 'Outstanding unchanged (collection document only).'
+        : `Outstanding ${diff > 0 ? 'increased' : 'decreased'} by ₹${Math.abs(diff / 100).toFixed(2)}.`;
+    return {
+      status: 'ok',
+      message: `Invoice cancelled. Before ₹${(result.audit.beforeOutstandingPaise / 100).toFixed(2)} → after ₹${(result.audit.afterOutstandingPaise / 100).toFixed(2)}. ${diffNote}`,
+    };
   } catch (err) {
     return {
       status: 'error',

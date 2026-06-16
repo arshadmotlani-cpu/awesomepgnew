@@ -381,9 +381,6 @@ export async function setBedManualReserved(
     if (bed.status !== 'available') {
       return { ok: false, error: 'Only available beds can be marked reserved.' };
     }
-    if (bed.manualOccupied) {
-      return { ok: false, error: 'Clear occupied mark before marking reserved.' };
-    }
 
     const reconciled = await reconcileBedForAdminMark(bedId);
     if (!reconciled.ok) return reconciled;

@@ -126,6 +126,8 @@ export default async function NewBookingPage(
   let additionalDepositDuePaise = 0;
   let totalPaise = 0;
   let quoteError: string | null = null;
+  let breakdownLineItems: import('@/src/services/pricing').LineItem[] = [];
+  let lowestPriceApplied = false;
 
   try {
     const quote = await quoteBookingPrice({
@@ -142,6 +144,10 @@ export default async function NewBookingPage(
     depositCreditAppliedPaise = depositDue.creditAppliedPaise;
     additionalDepositDuePaise = depositDue.additionalDuePaise;
     totalPaise = subtotalPaise + additionalDepositDuePaise;
+    breakdownLineItems = quote.perBed.flatMap((q) =>
+      q.lineItems.filter((li) => li.kind !== 'deposit'),
+    );
+    lowestPriceApplied = quote.perBed.some((q) => q.lowestPriceApplied);
     lineItems = quote.perBed.map((q) => {
       const bedMeta = cartBeds.find((c) => c.bedId === q.bedId);
       const bedLabel = bedMeta
@@ -158,7 +164,9 @@ export default async function NewBookingPage(
                     ? ' + pro-rata days'
                     : ''
                 }`
-              : '1 month upfront (open-ended)';
+              : mode === 'fixed_stay'
+                ? `${q.nights ?? 0} night${q.nights === 1 ? '' : 's'} (lowest price)`
+                : '1 month upfront (open-ended)';
       return {
         bedId: q.bedId,
         label: bedLabel,
@@ -246,6 +254,8 @@ export default async function NewBookingPage(
         }}
         showPs4Addon={showPs4Addon}
         checkoutTiming={checkoutTiming}
+        breakdownLineItems={breakdownLineItems}
+        lowestPriceApplied={lowestPriceApplied}
       />
 
       {/* Selected beds quick-reference */}

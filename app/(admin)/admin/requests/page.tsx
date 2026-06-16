@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { ResidentRequestReviewPanel } from '@/src/components/admin/ResidentRequestReviewPanel';
 import { PageHeader } from '@/src/components/admin/PageHeader';
-import { handleNotificationReadFromParams } from '@/src/lib/admin/notificationRead';
+import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { titleCase } from '@/src/lib/format';
 import { listPendingResidentRequestsForAdmin } from '@/src/services/residentRequests';
@@ -16,7 +16,7 @@ export default async function AdminRequestsPage({
   searchParams: Promise<{ reviewed?: string; read?: string }>;
 }) {
   const sp = await searchParams;
-  await handleNotificationReadFromParams('/admin/requests', sp.read);
+  await ensureAdminPageNotificationsSeen('/admin/requests', '/admin/requests', sp.read);
   const session = await requireAdminPermission('bookings:write');
   await syncActionItems(session).catch(() => undefined);
   const requests = await listPendingResidentRequestsForAdmin(session);

@@ -1533,6 +1533,9 @@ export async function cancelBooking(
     });
   });
 
+  const { reconcileBookingOccupancy } = await import('../lib/occupancySync');
+  await reconcileBookingOccupancy(b.id);
+
   return {
     ok: true,
     bookingId: b.id,
