@@ -455,6 +455,72 @@ export async function getResidentFinancialSummary(
   });
 }
 
+/** TEMP: set DEBUG_RENT_OUTSTANDING_TRACE=1 to log every rent invoice in portfolio aggregates. */
+function traceRentOutstandingForDebug(
+  rows: Array<{
+    booking_id: string;
+    customer_id: string;
+    customer_name: string;
+    booking_code: string;
+    pg_name: string;
+    room_number: string;
+    pg_id: string;
+  }>,
+  session?: AdminSession,
+): void {
+  if (process.env.DEBUG_RENT_OUTSTANDING_TRACE !== '1') return;
+
+  void (async () => {
+    console.log('\n=== DEBUG_RENT_OUTSTANDING_TRACE (Admin Overview SSOT path) ===\n');
+    let grandOutstanding = 0;
+    const invoiceRows: Array<Record<string, unknown>> = [];
+
+    for (const row of rows) {
+      if (session && !adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, row.pg_id)) {
+        continue;
+      }
+      const rentInvs = await db
+        .select()
+        .from(rentInvoices)
+        .where(eq(rentInvoices.bookingId, row.booking_id));
+
+      for (const inv of rentInvs) {
+        if (inv.status === 'cancelled' || inv.status === 'paid') continue;
+        const projected = projectInvoice(inv);
+        if (projected.outstandingPaise <= 0) continue;
+
+        grandOutstanding += projected.outstandingPaise;
+        invoiceRows.push({
+          invoiceId: inv.id,
+          invoiceNumber: inv.invoiceNumber,
+          residentName: row.customer_name,
+          residentId: row.customer_id,
+          bookingId: row.booking_id,
+          bookingCode: row.booking_code,
+          pgName: row.pg_name,
+          roomNumber: row.room_number,
+          billingMonth: inv.billingMonth,
+          dueDate: inv.dueDate,
+          invoiceAmountPaise: inv.rentPaise,
+          amountPaidPaise: inv.paidPrincipalPaise + inv.paidLateFeePaise,
+          outstandingPaise: projected.outstandingPaise,
+          storedStatus: inv.status,
+          effectiveStatus: projected.effectiveStatus,
+          notes: inv.notes,
+          isAdhoc: inv.isAdhoc,
+        });
+      }
+    }
+
+    console.log(`Rent invoices with outstanding > 0: ${invoiceRows.length}`);
+    console.log(`Sum outstanding (rent only): ${grandOutstanding} paise (₹${grandOutstanding / 100})`);
+    for (const r of invoiceRows) {
+      console.log(JSON.stringify(r, null, 2));
+    }
+    console.log('\n=== end DEBUG_RENT_OUTSTANDING_TRACE ===\n');
+  })();
+}
+
 /** Global aggregates — used by Overview, Revenue, Collections dashboards. */
 export async function getGlobalFinancialAggregates(
   session?: AdminSession,
@@ -495,6 +561,20 @@ export async function getGlobalFinancialAggregates(
       AND b.duration_mode IN ('monthly', 'open_ended')
     ORDER BY b.id, br.created_at DESC
   `);
+
+  const bookingRows = Array.from(rows);
+  traceRentOutstandingForDebug(
+    bookingRows.map((row) => ({
+      booking_id: row.booking_id,
+      customer_id: row.customer_id,
+      customer_name: row.customer_name,
+      booking_code: row.booking_code,
+      pg_name: row.pg_name,
+      room_number: row.room_number,
+      pg_id: row.pg_id,
+    })),
+    session,
+  );
 
   const empty: ResidentFinancialTotals = {
     requiredPaise: 0,

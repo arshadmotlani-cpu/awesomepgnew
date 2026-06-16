@@ -106,6 +106,10 @@ export type RecordRentPaymentSuccessInput = {
   rawPayload?: unknown;
   /** Offline (`'cash' | 'upi_manual' | 'bank_transfer'`) admin overrides. */
   offlineProvider?: AnyPaymentProvider;
+  /** Backdate paid_at for express / historical collections. */
+  paidAt?: Date;
+  /** Skip receipts, automations, and payment-link side effects. */
+  historical?: boolean;
 };
 
 export type RecordRentPaymentSuccessResult =
@@ -547,6 +551,7 @@ export async function recordRentPaymentSuccess(
   const newPaidPrincipal = invoice.paidPrincipalPaise + principalPaid;
   const newOutstanding = invoice.rentPaise + lateFee - newPaidPrincipal - newPaidLate;
   const fullyPaid = newOutstanding <= 0;
+  const paidAt = input.paidAt ?? new Date();
 
   try {
     const result = await db.transaction(async (tx) => {
@@ -561,7 +566,7 @@ export async function recordRentPaymentSuccess(
           amountPaise: input.amountPaise,
           status: 'succeeded',
           rawPayload: (input.rawPayload as object | undefined) ?? null,
-          paidAt: new Date(),
+          paidAt,
         })
         .returning({ id: payments.id });
 
@@ -573,7 +578,7 @@ export async function recordRentPaymentSuccess(
           paidLateFeePaise: newPaidLate,
           lateFeeLockedPaise: fullyPaid ? lateFee : invoice.lateFeeLockedPaise,
           paymentId: fullyPaid ? payment.id : null,
-          paidAt: fullyPaid ? new Date() : undefined,
+          paidAt: fullyPaid ? paidAt : undefined,
           updatedAt: new Date(),
         })
         .where(
@@ -601,45 +606,47 @@ export async function recordRentPaymentSuccess(
       return { paymentId: payment.id };
     });
 
-    const { notifyPaymentReceipt } = await import('@/src/lib/email/notifications');
-    notifyPaymentReceipt({
-      customerId: invoice.customerId,
-      purpose: 'rent',
-      amountPaise: input.amountPaise,
-      reference: invoice.billingMonth,
-    });
-
-    const { markActivePaymentLinksPaid } = await import('@/src/services/paymentLinks');
-    void markActivePaymentLinksPaid({
-      residentId: invoice.customerId,
-      purpose: 'rent',
-      amountPaise: input.amountPaise,
-    });
-
-    const [automationCtx] = await db
-      .select({
-        pgId: rentInvoices.pgId,
-        pgName: pgs.name,
-        customerName: customers.fullName,
-      })
-      .from(rentInvoices)
-      .innerJoin(pgs, eq(pgs.id, rentInvoices.pgId))
-      .innerJoin(customers, eq(customers.id, rentInvoices.customerId))
-      .where(eq(rentInvoices.id, invoice.id))
-      .limit(1);
-
-    if (automationCtx) {
-      const { emitPaymentReceivedAutomation } = await import('./automationEngine');
-      void emitPaymentReceivedAutomation({
-        pgId: automationCtx.pgId,
+    if (!input.historical) {
+      const { notifyPaymentReceipt } = await import('@/src/lib/email/notifications');
+      notifyPaymentReceipt({
         customerId: invoice.customerId,
-        bookingId: invoice.bookingId,
-        paymentId: result.paymentId,
+        purpose: 'rent',
         amountPaise: input.amountPaise,
-        pgName: automationCtx.pgName,
-        customerName: automationCtx.customerName,
-        paymentPurpose: 'rent',
+        reference: invoice.billingMonth,
       });
+
+      const { markActivePaymentLinksPaid } = await import('@/src/services/paymentLinks');
+      void markActivePaymentLinksPaid({
+        residentId: invoice.customerId,
+        purpose: 'rent',
+        amountPaise: input.amountPaise,
+      });
+
+      const [automationCtx] = await db
+        .select({
+          pgId: rentInvoices.pgId,
+          pgName: pgs.name,
+          customerName: customers.fullName,
+        })
+        .from(rentInvoices)
+        .innerJoin(pgs, eq(pgs.id, rentInvoices.pgId))
+        .innerJoin(customers, eq(customers.id, rentInvoices.customerId))
+        .where(eq(rentInvoices.id, invoice.id))
+        .limit(1);
+
+      if (automationCtx) {
+        const { emitPaymentReceivedAutomation } = await import('./automationEngine');
+        void emitPaymentReceivedAutomation({
+          pgId: automationCtx.pgId,
+          customerId: invoice.customerId,
+          bookingId: invoice.bookingId,
+          paymentId: result.paymentId,
+          amountPaise: input.amountPaise,
+          pgName: automationCtx.pgName,
+          customerName: automationCtx.customerName,
+          paymentPurpose: 'rent',
+        });
+      }
     }
 
     const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');

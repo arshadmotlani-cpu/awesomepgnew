@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useActionState, useMemo, useState } from 'react';
 import { BillingWhatsAppWithLinkButton } from '@/src/components/admin/BillingWhatsAppWithLinkButton';
 import { paiseToInr } from '@/src/lib/format';
+import { isExpressCollectionNote } from '@/src/lib/billing/expressCollectionConstants';
 import { buildInvoiceWhatsAppMessage } from '@/src/lib/billing/invoiceWhatsApp';
 import type {
   ResidentFinancialCategory,
@@ -25,6 +26,8 @@ type Props = {
     amountPaise: number;
     status: string;
     createdAt: Date;
+    notes?: string | null;
+    paidAt?: Date | null;
   }>;
 };
 
@@ -481,7 +484,8 @@ export function FinancialCommandCenter({ summary, invoiceHistory }: Props) {
                   {inv.invoiceNumber} · {inv.invoiceType}
                 </Link>
                 <span className="text-apg-silver">
-                  {paiseToInr(inv.amountPaise)} · {inv.status}
+                  {paiseToInr(inv.amountPaise)} ·{' '}
+                  {isExpressCollectionNote(inv.notes) ? 'Paid (Historical)' : inv.status}
                 </span>
               </li>
             ))}

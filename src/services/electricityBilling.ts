@@ -175,6 +175,8 @@ export type RecordElectricityPaymentSuccessInput = {
   invoiceId: string;
   rawPayload?: unknown;
   offlineProvider?: AnyPaymentProvider;
+  paidAt?: Date;
+  historical?: boolean;
 };
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -640,6 +642,7 @@ export async function recordElectricityPaymentSuccess(
   const newPaidPaise = invoice.paidPaise + input.amountPaise;
   const totalDue = invoice.amountPaise + lockedLateFee;
   const fullyPaid = newPaidPaise >= totalDue;
+  const paidAt = input.paidAt ?? new Date();
 
   const provider = (input.offlineProvider ?? input.provider) as AnyPaymentProvider;
 
@@ -670,7 +673,7 @@ export async function recordElectricityPaymentSuccess(
           amountPaise: input.amountPaise,
           status: 'succeeded',
           rawPayload: (input.rawPayload as object | undefined) ?? null,
-          paidAt: new Date(),
+          paidAt,
         })
         .returning({ id: payments.id });
 
@@ -681,7 +684,7 @@ export async function recordElectricityPaymentSuccess(
           paidPaise: newPaidPaise,
           lateFeeLockedPaise: fullyPaid ? lockedLateFee : invoice.lateFeeLockedPaise,
           paymentId: fullyPaid ? payment.id : undefined,
-          paidAt: fullyPaid ? new Date() : undefined,
+          paidAt: fullyPaid ? paidAt : undefined,
           updatedAt: new Date(),
         })
         .where(eq(electricityInvoices.id, invoice.id));
@@ -704,13 +707,15 @@ export async function recordElectricityPaymentSuccess(
       return { paymentId: payment.id };
     });
 
-    const { notifyPaymentReceipt } = await import('@/src/lib/email/notifications');
-    notifyPaymentReceipt({
-      customerId: invoice.customerId,
-      purpose: 'electricity',
-      amountPaise: input.amountPaise,
-      reference: invoice.billingMonth,
-    });
+    if (!input.historical) {
+      const { notifyPaymentReceipt } = await import('@/src/lib/email/notifications');
+      notifyPaymentReceipt({
+        customerId: invoice.customerId,
+        purpose: 'electricity',
+        amountPaise: input.amountPaise,
+        reference: invoice.billingMonth,
+      });
+    }
 
     const { syncElectricityInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
     void syncElectricityInvoiceToUnified(invoice.id);

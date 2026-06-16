@@ -9,12 +9,14 @@ import { EditTenantTenancyForm } from '@/src/components/admin/EditTenantTenancyF
 import { RentUpdatedSuccessBanner } from '@/src/components/admin/RentUpdatedSuccessBanner';
 import { FinancialCommandCenter } from '@/src/components/admin/FinancialCommandCenter';
 import { CreateChargeGeneratorForm } from '@/src/components/admin/CreateChargeGeneratorForm';
+import { ExpressCollectionButton } from '@/src/components/admin/ExpressCollectionButton';
 import { ResidentActionBar } from '@/src/components/admin/ResidentActionBar';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { listAdminRentInvoices } from '@/src/db/queries/admin';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { ADMIN_MODULES, moduleHref, moduleKycVerifyHref } from '@/src/lib/admin/navigation';
+import { isExpressCollectionNote } from '@/src/lib/billing/expressCollectionConstants';
 import { formatDate, formatDateTime, paiseToInr, titleCase } from '@/src/lib/format';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { getLatestKycSubmission } from '@/src/services/kyc';
@@ -46,6 +48,7 @@ export default async function ResidentDetailPage({
     linkError?: string;
     bedReassigned?: string;
     saved?: string;
+    expressCollection?: string;
   }>;
 }) {
   const { customerId } = await params;
@@ -221,11 +224,19 @@ export default async function ResidentDetailPage({
       {financialSummary && activeTenancy ? (
         <>
           <FinancialCommandCenter summary={financialSummary} invoiceHistory={invoiceHistory} />
-          <div className="mb-8">
-            <CreateChargeGeneratorForm
+          <div className="mb-8 flex flex-wrap items-center gap-3">
+            <ExpressCollectionButton
               customerId={customerId}
               bookingId={activeTenancy.bookingId}
+              customerName={customer.fullName}
+              defaultOpen={sp.expressCollection === '1'}
             />
+            <div className="min-w-0 flex-1">
+              <CreateChargeGeneratorForm
+                customerId={customerId}
+                bookingId={activeTenancy.bookingId}
+              />
+            </div>
           </div>
         </>
       ) : null}
@@ -420,22 +431,35 @@ export default async function ResidentDetailPage({
                     <th className="py-2 pr-4">Invoice</th>
                     <th className="py-2 pr-4">Month</th>
                     <th className="py-2 pr-4">Amount</th>
-                    <th className="py-2 pr-4">Due</th>
+                    <th className="py-2 pr-4">Paid</th>
+                    <th className="py-2 pr-4">Method</th>
                     <th className="py-2">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {rentHistory.map((inv) => (
+                  {rentHistory.map((inv) => {
+                    const historical = isExpressCollectionNote(inv.notes);
+                    return (
                     <tr key={inv.id}>
                       <td className="py-2 pr-4 text-white">{inv.invoiceNumber}</td>
                       <td className="py-2 pr-4 text-apg-silver">{inv.billingMonth}</td>
                       <td className="py-2 pr-4 text-white">{paiseToInr(inv.rentPaise)}</td>
-                      <td className="py-2 pr-4 text-apg-silver">{formatDate(inv.dueDate)}</td>
+                      <td className="py-2 pr-4 text-apg-silver">
+                        {inv.paidAt ? formatDate(inv.paidAt) : '—'}
+                      </td>
+                      <td className="py-2 pr-4 text-apg-silver">
+                        {inv.paymentProvider ? titleCase(inv.paymentProvider.replace('_', ' ')) : '—'}
+                      </td>
                       <td className="py-2">
-                        <Badge tone={toneForStatus(inv.status)}>{titleCase(inv.status)}</Badge>
+                        {historical ? (
+                          <Badge tone="emerald">Paid (Historical)</Badge>
+                        ) : (
+                          <Badge tone={toneForStatus(inv.status)}>{titleCase(inv.status)}</Badge>
+                        )}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

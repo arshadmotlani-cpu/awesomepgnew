@@ -3,6 +3,7 @@ import {
   GenerateInvoicesButton,
   MarkOverdueButton,
 } from '@/src/components/admin/RentBillingActions';
+import { CollectionsHistoricalPaymentPanel } from '@/src/components/admin/CollectionsHistoricalPaymentPanel';
 import { CollectionsMonthPicker } from '@/src/components/admin/CollectionsMonthPicker';
 import { moduleHref } from '@/src/lib/admin/navigation';
 
@@ -117,6 +118,8 @@ export function CollectionsBillingTools({
           </div>
         </div>
       </div>
+
+      <CollectionsHistoricalPaymentPanel />
     </section>
   );
 }

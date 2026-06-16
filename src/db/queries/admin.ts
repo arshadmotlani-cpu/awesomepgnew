@@ -1435,6 +1435,8 @@ export type AdminRentInvoiceRow = {
   status: 'pending' | 'paid' | 'overdue' | 'cancelled';
   paidAt: Date | null;
   createdAt: Date;
+  notes: string | null;
+  paymentProvider: string | null;
   /** SSOT outstanding including late fees and partial payments */
   outstandingPaise: number;
   effectiveStatus: string;
@@ -1472,6 +1474,8 @@ export function listAdminRentInvoices(
         status: rentInvoices.status,
         paidAt: rentInvoices.paidAt,
         createdAt: rentInvoices.createdAt,
+        notes: rentInvoices.notes,
+        paymentProvider: payments.provider,
       })
       .from(rentInvoices)
       .innerJoin(bookings, eq(bookings.id, rentInvoices.bookingId))
@@ -1479,6 +1483,7 @@ export function listAdminRentInvoices(
       .innerJoin(pgs, eq(pgs.id, rentInvoices.pgId))
       .innerJoin(beds, eq(beds.id, rentInvoices.bedId))
       .innerJoin(rooms, eq(rooms.id, beds.roomId))
+      .leftJoin(payments, eq(payments.id, rentInvoices.paymentId))
       .where(where)
       .orderBy(desc(rentInvoices.billingMonth), desc(rentInvoices.createdAt));
 

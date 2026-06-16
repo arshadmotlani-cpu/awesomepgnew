@@ -45,6 +45,7 @@ export type InvoiceListRow = {
   createdAt: Date;
   dueDate: string | null;
   paidAt: Date | null;
+  notes: string | null;
 };
 
 async function logInvoiceAudit(
@@ -281,6 +282,7 @@ export async function listUnifiedInvoices(
       createdAt: financialInvoices.createdAt,
       dueDate: financialInvoices.dueDate,
       paidAt: financialInvoices.paidAt,
+      notes: financialInvoices.notes,
     })
     .from(financialInvoices)
     .innerJoin(customers, eq(customers.id, financialInvoices.customerId))
