@@ -21,6 +21,7 @@ import {
   payments,
 } from '../src/db/schema';
 import { createBooking } from '../src/services/booking';
+import { signMockWebhookPayload } from '../src/lib/payments/mockWebhookAuth';
 
 function ok(label: string) {
   console.log(`  \u2713 ${label}`);
@@ -85,19 +86,21 @@ async function main() {
     receipt: created.bookingCode,
     reason: 'simulated insufficient funds',
   };
+  const body = JSON.stringify(event);
+  const signed = signMockWebhookPayload(body);
   const res = await fetch(`${baseUrl}/api/webhooks/mock`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(event),
+    headers: signed.headers,
+    body,
     cache: 'no-store',
   });
   if (res.status !== 200) {
     const text = await res.text();
     fail(`expected 200, got ${res.status}: ${text}`);
   }
-  const body = (await res.json()) as { ok: boolean; stateChanged?: boolean };
-  if (!body.ok || body.stateChanged !== true) {
-    fail('first failure webhook should be ok=true stateChanged=true', body);
+  const payload = (await res.json()) as { ok: boolean; stateChanged?: boolean };
+  if (!payload.ok || payload.stateChanged !== true) {
+    fail('first failure webhook should be ok=true stateChanged=true', payload);
   }
   ok('first failure webhook recorded with stateChanged=true');
 
@@ -148,10 +151,11 @@ async function main() {
   ok(`audit_log includes payment_failed (${actions.join(', ')})`);
 
   console.log('\n[4] Replay same failure — must be idempotent');
+  const replaySigned = signMockWebhookPayload(body);
   const res2 = await fetch(`${baseUrl}/api/webhooks/mock`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(event),
+    headers: replaySigned.headers,
+    body,
     cache: 'no-store',
   });
   if (res2.status !== 200) fail(`replay returned ${res2.status}`);

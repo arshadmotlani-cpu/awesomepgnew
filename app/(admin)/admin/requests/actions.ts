@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
+import { assertAdminResidentRequestAccess } from '@/src/lib/auth/pgAccess';
 import { adminReviewResidentRequest } from '@/src/services/residentRequests';
 import { syncActionItems } from '@/src/services/actionItems';
 
@@ -30,6 +31,15 @@ export async function reviewResidentRequestAction(
   const adminNotes = formData.get('adminNotes')?.toString()?.trim();
 
   if (!requestId || !action) return { ok: false, error: 'Invalid request.' };
+
+  try {
+    await assertAdminResidentRequestAccess(session, requestId);
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Access denied for this PG.',
+    };
+  }
 
   const refundCompletion =
     action === 'complete'

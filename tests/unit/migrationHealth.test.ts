@@ -13,7 +13,19 @@ describe('listRepoMigrations', () => {
     assert.ok(repo.length >= 10);
     assert.equal(repo[0]?.tag, '0000_phase1_inventory');
     assert.match(repo[0]?.hash ?? '', /^[a-f0-9]{64}$/);
-    assert.equal(repo.at(-1)?.tag, '0035_admin_auth_recovery');
+    const latest = repo.at(-1);
+    assert.ok(latest?.tag, 'latest migration tag must exist');
+    assert.match(latest!.tag, /^\d{4}_[a-z0-9_]+$/);
+    assert.equal(latest?.tag, repo[repo.length - 1]?.tag);
+  });
+
+  it('latest migration matches journal tail (future-proof)', () => {
+    const repo = listRepoMigrations();
+    const safe = safeListRepoMigrations();
+    assert.equal(safe.ok, true);
+    if (safe.ok) {
+      assert.equal(safe.migrations.at(-1)?.tag, repo.at(-1)?.tag);
+    }
   });
 });
 

@@ -14,7 +14,7 @@
     "db:seed": "tsx src/db/seed.ts",
     "db:reset": "tsx src/db/reset.ts",
     "db:studio": "drizzle-kit studio",
-    "test": "node --import tsx --test 'tests/unit/**/*.test.ts'"
+    "test": "node --import tsx --test 'tests/unit/**/*.test.ts' 'tests/integration/**/*.test.ts'"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.57.0",

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
+import { assertAdminFinancialInvoiceAccess } from '@/src/lib/auth/pgAccess';
 import {
   cancelUnifiedInvoice,
   createPaymentLinkForInvoice,
@@ -33,6 +34,8 @@ export async function cancelInvoiceAction(
     const invoiceId = String(formData.get('invoiceId') ?? '');
     const reason = String(formData.get('reason') ?? 'Cancelled by admin').trim();
     if (!invoiceId) return { status: 'error', message: 'Missing invoice ID.' };
+
+    await assertAdminFinancialInvoiceAccess(session, invoiceId);
 
     const result = await cancelUnifiedInvoice(invoiceId, reason, {
       type: 'admin',
@@ -68,6 +71,8 @@ export async function refundInvoiceAction(
     const reason = String(formData.get('reason') ?? 'Refunded by admin').trim();
     if (!invoiceId) return { status: 'error', message: 'Missing invoice ID.' };
 
+    await assertAdminFinancialInvoiceAccess(session, invoiceId);
+
     const result = await refundUnifiedInvoice(invoiceId, reason, {
       type: 'admin',
       id: session.adminId,
@@ -89,9 +94,11 @@ export async function invoicePaymentLinkAction(
   formData: FormData,
 ): Promise<InvoiceActionState> {
   try {
-    await requireAdminPermission('payments:write');
+    const session = await requireAdminPermission('payments:write');
     const invoiceId = String(formData.get('invoiceId') ?? '');
     if (!invoiceId) return { status: 'error', message: 'Missing invoice ID.' };
+
+    await assertAdminFinancialInvoiceAccess(session, invoiceId);
 
     const result = await createPaymentLinkForInvoice(invoiceId);
     if (!result.ok) return { status: 'error', message: result.message };
@@ -116,9 +123,11 @@ export async function invoiceWhatsAppAction(
   formData: FormData,
 ): Promise<InvoiceActionState> {
   try {
-    await requireAdminPermission('payments:write');
+    const session = await requireAdminPermission('payments:write');
     const invoiceId = String(formData.get('invoiceId') ?? '');
     if (!invoiceId) return { status: 'error', message: 'Missing invoice ID.' };
+
+    await assertAdminFinancialInvoiceAccess(session, invoiceId);
 
     const detail = await getUnifiedInvoiceDetail(invoiceId);
     if (!detail) return { status: 'error', message: 'Invoice not found.' };

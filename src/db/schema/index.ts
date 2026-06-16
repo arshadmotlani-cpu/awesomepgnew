@@ -23,6 +23,8 @@ export * from './rentInvoices';
 export * from './electricityBills';
 export * from './electricityInvoices';
 export * from './depositLedger';
+export * from './depositSettlements';
+export * from './webhookReplayGuard';
 export * from './vacatingRequests';
 export * from './authSessions';
 export * from './adminPasswordResetTokens';

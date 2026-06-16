@@ -4,8 +4,8 @@ import { bookings, depositLedger } from '@/src/db/schema';
 import {
   getDepositSummaryForBooking,
   recordDepositCollected,
-  recordDepositDeducted,
 } from '@/src/services/deposits';
+import { applyDepositDeduction } from '@/src/services/depositSettlement';
 
 export type DepositCreditSummary = {
   totalCollectedPaise: number;
@@ -115,12 +115,15 @@ export async function applyDepositCreditToBooking(input: {
   for (const source of sources) {
     if (remaining <= 0) break;
     const slice = Math.min(remaining, source.availablePaise);
-    await recordDepositDeducted({
+    const deducted = await applyDepositDeduction({
       bookingId: source.bookingId,
       customerId: input.customerId,
       amountPaise: slice,
       reason: `Deposit credit transferred to booking ${input.targetBookingId}`,
     });
+    if (!deducted.ok) {
+      return { ok: false, error: deducted.error };
+    }
     remaining -= slice;
   }
 

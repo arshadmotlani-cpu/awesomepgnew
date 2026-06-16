@@ -46,7 +46,8 @@ import {
 } from '../lib/occupancyEligibility';
 import { reconcileBookingOccupancy } from '../lib/occupancySync';
 import { isNoticeCompliant, vacatingPenalty } from './billing';
-import { recordDepositDeducted, recordDepositRefunded, getDepositSummaryForBooking } from './deposits';
+import { getDepositSummaryForBooking } from './deposits';
+import { settleVacatingDepositRefund } from './depositSettlement';
 import { cancelFutureRentInvoices } from './rentInvoices';
 import { cancelElectricityInvoicesForBooking } from './electricityBilling';
 import { recalculateBillingAfterVacatingRestore } from './residentFinancialEngine';
@@ -106,7 +107,8 @@ export type CompleteVacatingResult =
     }
   | { ok: false; kind: 'not_found' }
   | { ok: false; kind: 'wrong_status'; status: VacatingRequest['status'] }
-  | { ok: false; kind: 'bed_not_occupied'; message: string };
+  | { ok: false; kind: 'bed_not_occupied'; message: string }
+  | { ok: false; kind: 'settlement_failed'; message: string };
 
 export type RevertVacatingCompletionResult =
   | { ok: true; request: VacatingRequest }
@@ -566,43 +568,21 @@ export async function completeVacatingRequest(
 
   // Compute refundable balance AT COMPLETION TIME (collected - deductions
   // already on file). We DEDUCT this request's penalty, then REFUND the
-  // remaining balance.
-  const summaryBefore = await getDepositSummaryForBooking(current.bookingId);
-  if (!summaryBefore) return { ok: false, kind: 'not_found' };
-
+  // remaining balance via canonical settlement (locked + idempotent).
   const deductionPaise = current.deductionPaise;
 
-  // 1. Write the deduction (if any).
-  if (deductionPaise > 0) {
-    await recordDepositDeducted({
-      bookingId: current.bookingId,
-      customerId: current.customerId,
-      amountPaise: deductionPaise,
-      reason: `vacating notice ${
-        current.noticeCompliant ? 'compliant' : 'short'
-      } — 5-day rent penalty`,
-      relatedVacatingId: current.id,
-      createdByAdminId: input.resolvedByAdminId ?? null,
-    });
+  const settlement = await settleVacatingDepositRefund({
+    requestId: current.id,
+    bookingId: current.bookingId,
+    customerId: current.customerId,
+    adminId: input.resolvedByAdminId ?? null,
+    deductionPaise,
+    noticeCompliant: current.noticeCompliant,
+  });
+  if (!settlement.ok) {
+    return { ok: false, kind: 'settlement_failed', message: settlement.error };
   }
-
-  // 2. Compute refundable balance and write the refund (if any).
-  const refundablePaise = Math.max(
-    0,
-    summaryBefore.refundableBalancePaise - deductionPaise,
-  );
-  if (refundablePaise > 0) {
-    await recordDepositRefunded({
-      bookingId: current.bookingId,
-      customerId: current.customerId,
-      amountPaise: refundablePaise,
-      reason: 'vacating refund',
-      relatedVacatingId: current.id,
-      createdByAdminId: input.resolvedByAdminId ?? null,
-    });
-  }
-
-  // 3. Cancel forward-dated rent + electricity invoices so the resident
+  const refundablePaise = settlement.depositRefundPaise;
   //    isn't billed for months they've vacated.
   const futureRent = await cancelFutureRentInvoices(
     current.bookingId,

@@ -3,9 +3,7 @@
  *
  *   recordDepositCollected()      — write a +amount row (e.g. when the
  *                                   booking's deposit payment lands)
- *   recordDepositDeducted()       — write a -amount row (vacating
- *                                   penalty, damages, missed rent)
- *   recordDepositRefunded()       — write a -amount row (refund out)
+ *   applyDepositDeduction()       — canonical deduction (depositSettlement)
  *   getDepositSummaryForBooking() — read: paid / deducted / refunded /
  *                                   refundable balance
  *
@@ -33,6 +31,7 @@ import {
   type DepositLedgerEntry,
 } from '../db/schema';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
+import { applyDepositDeduction } from '@/src/services/depositSettlement';
 
 // ───────────────────────────────────────────────────────────────────────────
 // Public types
@@ -111,90 +110,6 @@ export async function recordDepositCollected(input: {
 }
 
 /**
- * Write a deduction. Amount is supplied as a POSITIVE number — this
- * helper signs it correctly for storage.
- */
-export async function recordDepositDeducted(input: {
-  bookingId: string;
-  customerId: string;
-  amountPaise: number; // positive
-  reason: string;
-  relatedVacatingId?: string | null;
-  createdByAdminId?: string | null;
-}): Promise<{ ok: true; entryId: string }> {
-  if (input.amountPaise <= 0) {
-    throw new Error('recordDepositDeducted: amountPaise must be > 0');
-  }
-  const [row] = await db
-    .insert(depositLedger)
-    .values({
-      bookingId: input.bookingId,
-      customerId: input.customerId,
-      entryKind: 'deducted',
-      amountPaise: -input.amountPaise,
-      reason: input.reason,
-      relatedVacatingId: input.relatedVacatingId ?? null,
-      createdByAdminId: input.createdByAdminId ?? null,
-    })
-    .returning({ id: depositLedger.id });
-
-  await db.insert(auditLog).values({
-    actorType: input.createdByAdminId ? 'admin' : 'system',
-    actorId: input.createdByAdminId ?? null,
-    entity: 'deposit_ledger',
-    entityId: row.id,
-    action: 'deposit_deducted',
-    diff: {
-      bookingId: input.bookingId,
-      amountPaise: input.amountPaise,
-      reason: input.reason,
-    },
-  });
-
-  return { ok: true, entryId: row.id };
-}
-
-/**
- * Write a refund. Amount is supplied as a POSITIVE number.
- */
-export async function recordDepositRefunded(input: {
-  bookingId: string;
-  customerId: string;
-  amountPaise: number;
-  reason: string;
-  relatedPaymentId?: string | null;
-  relatedVacatingId?: string | null;
-  createdByAdminId?: string | null;
-}): Promise<{ ok: true; entryId: string }> {
-  if (input.amountPaise <= 0) {
-    throw new Error('recordDepositRefunded: amountPaise must be > 0');
-  }
-  const [row] = await db
-    .insert(depositLedger)
-    .values({
-      bookingId: input.bookingId,
-      customerId: input.customerId,
-      entryKind: 'refunded',
-      amountPaise: -input.amountPaise,
-      reason: input.reason,
-      relatedPaymentId: input.relatedPaymentId ?? null,
-      relatedVacatingId: input.relatedVacatingId ?? null,
-      createdByAdminId: input.createdByAdminId ?? null,
-    })
-    .returning({ id: depositLedger.id });
-
-  await db.insert(auditLog).values({
-    actorType: input.createdByAdminId ? 'admin' : 'system',
-    actorId: input.createdByAdminId ?? null,
-    entity: 'deposit_ledger',
-    entityId: row.id,
-    action: 'deposit_refunded',
-    diff: { bookingId: input.bookingId, amountPaise: input.amountPaise },
-  });
-  return { ok: true, entryId: row.id };
-}
-
-/**
  * Set the booking's deposit to `targetCollectedPaise` and reconcile the
  * append-only ledger so collected balance matches. Use when an admin
  * records a grandfathered amount or fixes a mistake after assignment.
@@ -259,13 +174,16 @@ export async function correctDepositCollected(input: {
       createdByAdminId: input.createdByAdminId,
     });
   } else if (ledgerDelta < 0) {
-    await recordDepositDeducted({
+    const deducted = await applyDepositDeduction({
       bookingId: input.bookingId,
       customerId: input.customerId,
       amountPaise: -ledgerDelta,
       reason: input.reason,
-      createdByAdminId: input.createdByAdminId,
+      adminId: input.createdByAdminId,
     });
+    if (!deducted.ok) {
+      throw new Error(deducted.error);
+    }
   }
 
   await db.insert(auditLog).values({

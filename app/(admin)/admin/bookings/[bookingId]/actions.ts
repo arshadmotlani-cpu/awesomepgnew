@@ -5,6 +5,8 @@ import { and, eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { auditLog, bookings, payments, stayExtensions } from '@/src/db/schema';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
+import { assertAdminBookingAccess, assertAdminBookingCodeAccess } from '@/src/lib/auth/pgAccess';
+import { adminHasPermission } from '@/src/lib/auth/roles';
 import { cancelBooking, recordExtensionPaymentSuccess } from '@/src/services/bookingLifecycle';
 import {
   cancelPendingExtension,
@@ -47,6 +49,14 @@ export async function adminCancelBookingAction(
     return { status: 'error', message: 'Reason must be at least 3 characters.' };
   }
   const admin = await requireAdminPermission('bookings:write');
+  try {
+    await assertAdminBookingCodeAccess(admin, bookingCode);
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : 'Access denied for this PG.',
+    };
+  }
   const result = await cancelBooking({
     bookingCode,
     reason: `[admin] ${reason}`,
@@ -96,6 +106,17 @@ export async function recordOfflinePaymentAction(
   }
   const amountPaise = Math.round(amountRupees * 100);
   const reference = String(formData.get('reference') ?? '').trim() || null;
+  const amountOverrideReason = String(formData.get('amountOverrideReason') ?? '').trim();
+
+  let bookingAccess;
+  try {
+    bookingAccess = await assertAdminBookingCodeAccess(admin, bookingCode);
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : 'Access denied for this PG.',
+    };
+  }
 
   const [b] = await db
     .select({
@@ -114,6 +135,17 @@ export async function recordOfflinePaymentAction(
     };
   }
 
+  const willConfirmBooking = b.status !== 'confirmed';
+  if (willConfirmBooking && amountPaise !== b.totalPaise) {
+    const canOverride = adminHasPermission(admin.role, 'payments:override');
+    if (!canOverride || amountOverrideReason.length < 5) {
+      return {
+        status: 'error',
+        message: `Amount must match booking total (₹${(b.totalPaise / 100).toFixed(2)}). Super admins may override with a documented reason.`,
+      };
+    }
+  }
+
   let paymentId = '';
   await db.transaction(async (tx) => {
     const [row] = await tx
@@ -129,7 +161,12 @@ export async function recordOfflinePaymentAction(
         amountPaise,
         currency: 'INR',
         status: 'succeeded',
-        rawPayload: { recordedBy: 'admin', reference },
+        rawPayload: {
+          recordedBy: 'admin',
+          reference,
+          amountOverrideReason:
+            willConfirmBooking && amountPaise !== b.totalPaise ? amountOverrideReason : undefined,
+        },
         paidAt: new Date(),
       })
       .returning({ id: payments.id });
@@ -163,7 +200,16 @@ export async function recordOfflinePaymentAction(
       entity: 'payment',
       entityId: row.id,
       action: 'record_offline_payment',
-      diff: { bookingCode, provider, amountPaise, reference },
+      diff: {
+        bookingCode,
+        provider,
+        amountPaise,
+        reference,
+        expectedTotalPaise: b.totalPaise,
+        amountOverrideReason:
+          willConfirmBooking && amountPaise !== b.totalPaise ? amountOverrideReason : undefined,
+        pgId: bookingAccess.pgId,
+      },
     });
   });
 
@@ -295,7 +341,7 @@ export async function recordOfflineExtensionPaymentAction(
   _prev: AdminRecordExtensionPaymentState,
   formData: FormData,
 ): Promise<AdminRecordExtensionPaymentState> {
-  await requireAdminPermission('payments:write');
+  const admin = await requireAdminPermission('payments:write');
   const extensionId = String(formData.get('extensionId') ?? '');
   if (!/^[0-9a-f-]{36}$/i.test(extensionId)) {
     return { status: 'error', message: 'Invalid extension id.' };
@@ -318,6 +364,14 @@ export async function recordOfflineExtensionPaymentAction(
     .where(eq(stayExtensions.id, extensionId))
     .limit(1);
   if (!ext) return { status: 'error', message: 'Extension not found.' };
+  try {
+    await assertAdminBookingAccess(admin, ext.bookingId);
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : 'Access denied for this PG.',
+    };
+  }
   if (ext.status !== 'pending') {
     return {
       status: 'error',

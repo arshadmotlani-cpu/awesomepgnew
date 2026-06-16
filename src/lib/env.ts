@@ -36,14 +36,19 @@ function optionalInt(name: string, fallback: number): number {
 type PaymentProvider = 'mock' | 'razorpay';
 
 function paymentProvider(): PaymentProvider {
-  // Phase 0: default mock everywhere. Production uses Razorpay only when
-  // PAYMENT_PROVIDER=razorpay is set explicitly (not the silent default).
-  const fallback = 'mock';
+  const isProd = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
+  const fallback = isProd ? '' : 'mock';
   const raw = (process.env.PAYMENT_PROVIDER ?? fallback).toLowerCase();
+  if (!raw) {
+    throw new Error('PAYMENT_PROVIDER is required in production (use razorpay).');
+  }
   if (raw !== 'mock' && raw !== 'razorpay') {
     throw new Error(
       `PAYMENT_PROVIDER must be "mock" or "razorpay", got "${process.env.PAYMENT_PROVIDER}"`,
     );
+  }
+  if (isProd && raw === 'mock') {
+    throw new Error('PAYMENT_PROVIDER=mock is not allowed in production.');
   }
   return raw as PaymentProvider;
 }
@@ -89,6 +94,10 @@ export const env = {
   /** Shared secret expected as `Authorization: Bearer <secret>` on cron routes. */
   get CRON_SECRET() {
     return optional('CRON_SECRET');
+  },
+  /** Dev/CI only — HMAC secret for /api/webhooks/mock (min 16 chars). */
+  get MOCK_WEBHOOK_SECRET() {
+    return optional('MOCK_WEBHOOK_SECRET');
   },
 
   // ── Phase 6 — Authentication ────────────────────────────────────────────

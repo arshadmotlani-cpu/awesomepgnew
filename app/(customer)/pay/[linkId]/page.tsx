@@ -1,8 +1,9 @@
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
-import { eq, desc } from 'drizzle-orm';
+import { notFound, redirect } from 'next/navigation';
+import { desc, eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { bookings, customers, pgs } from '@/src/db/schema';
+import { bookings, pgs } from '@/src/db/schema';
+import { requireCustomerSession } from '@/src/lib/auth/guards';
 import { paiseToInr, titleCase } from '@/src/lib/format';
 import { PaymentLinkProofForm } from '@/src/components/customer/PaymentLinkProofForm';
 import { getPaymentLinkById } from '@/src/services/paymentLinks';
@@ -15,14 +16,13 @@ export default async function PaymentLinkPage({
   params: Promise<{ linkId: string }>;
 }) {
   const { linkId } = await params;
+  const session = await requireCustomerSession(`/pay/${linkId}`);
+
   const link = await getPaymentLinkById(linkId);
   if (!link || link.status === 'expired') notFound();
-
-  const [resident] = await db
-    .select({ fullName: customers.fullName, phone: customers.phone })
-    .from(customers)
-    .where(eq(customers.id, link.residentId))
-    .limit(1);
+  if (link.residentId !== session.customerId) {
+    redirect('/account?error=payment_link_forbidden');
+  }
 
   const [pg] = await db
     .select({ name: pgs.name })
@@ -63,11 +63,6 @@ export default async function PaymentLinkPage({
       </h1>
       {link.description ? (
         <p className="mt-2 text-sm text-zinc-400">{link.description}</p>
-      ) : null}
-      {resident ? (
-        <p className="mt-1 text-sm text-zinc-400">
-          {resident.fullName} · {resident.phone}
-        </p>
       ) : null}
 
       <section className="mt-8 rounded-2xl border border-zinc-800 bg-zinc-900 p-5">

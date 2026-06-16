@@ -4,7 +4,7 @@
  *
  *   1. Booking payment auto-mirrors a `collected` row.
  *   2. `recordDepositCollected` is idempotent per relatedPaymentId.
- *   3. Manual `recordDepositDeducted` + `recordDepositRefunded` write rows
+ *   3. Canonical `applyDepositDeduction` + `settleDepositRefund` write rows
  *      with the correct sign.
  *   4. DB-level CHECK rejects sign violations (positive deducted, etc).
  *   5. `getDepositSummaryForBooking` returns the right running balance.
@@ -23,9 +23,11 @@ import { recordPaymentSuccess } from '../src/services/bookingLifecycle';
 import {
   getDepositSummaryForBooking,
   recordDepositCollected,
-  recordDepositDeducted,
-  recordDepositRefunded,
 } from '../src/services/deposits';
+import {
+  applyDepositDeduction,
+  settleDepositRefund,
+} from '../src/services/depositSettlement';
 import { isBedAvailable } from '../src/services/availability';
 
 function ok(label: string) { console.log(`  \u2713 ${label}`); }
@@ -113,19 +115,23 @@ async function main() {
   if (after !== before) fail(`row count changed (${before} → ${after}) on idempotent replay`);
   ok('replay was a no-op (same relatedPaymentId)');
 
-  console.log('\n[3] manual deducted + refunded writers store correct signs');
-  await recordDepositDeducted({
+  console.log('\n[3] canonical deducted + refunded writers store correct signs');
+  const dedResult = await applyDepositDeduction({
     bookingId: bookingRow.id,
     customerId: bookingRow.customerId,
-    amountPaise: 50000, // ₹500
+    amountPaise: 50000,
     reason: 'verify-deposit-ledger sample damages',
   });
-  await recordDepositRefunded({
+  if (!dedResult.ok) fail('applyDepositDeduction failed', dedResult);
+  const refResult = await settleDepositRefund({
     bookingId: bookingRow.id,
     customerId: bookingRow.customerId,
-    amountPaise: 100000, // ₹1,000 partial refund
+    idempotencyKey: `verify-script:${bookingRow.id}`,
+    source: 'manual',
     reason: 'verify-deposit-ledger partial refund',
+    refundPaise: 100000,
   });
+  if (!refResult.ok) fail('settleDepositRefund failed', refResult);
   const ledger2 = await db.select().from(depositLedger).where(eq(depositLedger.bookingId, bookingRow.id)).orderBy(depositLedger.createdAt);
   const ded = ledger2.find((r) => r.entryKind === 'deducted');
   const ref = ledger2.find((r) => r.entryKind === 'refunded');
@@ -169,8 +175,17 @@ async function main() {
   console.log('\n[6] writers refuse non-positive client amounts');
   let refused = 0;
   try { await recordDepositCollected({ bookingId: bookingRow.id, customerId: bookingRow.customerId, amountPaise: 0, reason: 'zero' }); } catch { refused += 1; }
-  try { await recordDepositDeducted({ bookingId: bookingRow.id, customerId: bookingRow.customerId, amountPaise: -5, reason: 'neg' }); } catch { refused += 1; }
-  try { await recordDepositRefunded({ bookingId: bookingRow.id, customerId: bookingRow.customerId, amountPaise: 0, reason: 'zero' }); } catch { refused += 1; }
+  const negDed = await applyDepositDeduction({ bookingId: bookingRow.id, customerId: bookingRow.customerId, amountPaise: -5, reason: 'neg' });
+  if (!negDed.ok) refused += 1;
+  const zeroRef = await settleDepositRefund({
+    bookingId: bookingRow.id,
+    customerId: bookingRow.customerId,
+    idempotencyKey: `verify-script-zero:${Date.now()}`,
+    source: 'manual',
+    reason: 'zero',
+    refundPaise: -1,
+  });
+  if (!zeroRef.ok) refused += 1;
   if (refused !== 3) fail(`expected 3 client-side rejections, got ${refused}`);
   ok('writers refuse zero/negative amounts at the service boundary');
 

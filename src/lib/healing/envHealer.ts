@@ -1,5 +1,6 @@
 import { hasDatabaseUrl } from '@/src/lib/db/env';
 import { getIntegrationsHealthSummary } from '@/src/lib/integrations/status';
+import { isBlobPrivateConfigured } from '@/src/lib/storage/blob';
 import { logger } from '@/src/lib/logger';
 import { patchSystemState } from '@/src/lib/healing/systemState';
 
@@ -10,7 +11,10 @@ export type EnvCheckResult = {
 };
 
 function isProduction(): boolean {
-  return process.env.NODE_ENV === 'production';
+  return (
+    process.env.NODE_ENV === 'production' ||
+    process.env.VERCEL_ENV === 'production'
+  );
 }
 
 function hasAuthSecret(): boolean {
@@ -65,6 +69,33 @@ export function checkRequiredEnv(): EnvCheckResult {
   }
 
   return { ok, missing, degradedFeatures };
+}
+
+/** Throws in production when critical secrets or payment config are missing or insecure. */
+export function assertProductionBootSecrets(): void {
+  if (!isProduction()) return;
+
+  const missing: string[] = [];
+
+  if (!hasAuthSecret()) missing.push('AUTH_SECRET');
+  if (!process.env.CRON_SECRET?.trim()) missing.push('CRON_SECRET');
+
+  if (!isBlobPrivateConfigured()) {
+    missing.push('BLOB_READ_WRITE_TOKEN (private blob)');
+  }
+
+  const provider = (process.env.PAYMENT_PROVIDER ?? 'mock').toLowerCase();
+  if (provider === 'mock') {
+    missing.push('PAYMENT_PROVIDER must not be mock in production');
+  } else if (provider === 'razorpay') {
+    if (!process.env.RAZORPAY_KEY_ID?.trim()) missing.push('RAZORPAY_KEY_ID');
+    if (!process.env.RAZORPAY_KEY_SECRET?.trim()) missing.push('RAZORPAY_KEY_SECRET');
+    if (!process.env.RAZORPAY_WEBHOOK_SECRET?.trim()) missing.push('RAZORPAY_WEBHOOK_SECRET');
+  }
+
+  if (missing.length > 0) {
+    throw new Error(`Production boot blocked — fix environment: ${missing.join('; ')}`);
+  }
 }
 
 export function getEnvHealthSummary() {

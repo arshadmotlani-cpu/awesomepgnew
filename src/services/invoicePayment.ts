@@ -168,8 +168,8 @@ export async function reverseInvoicePaymentAllocation(inv: FinancialInvoice): Pr
         })
         .where(eq(electricityInvoices.id, line.sourceId));
     } else if (line.kind === 'deposit' && inv.bookingId) {
-      const { recordDepositDeducted } = await import('@/src/services/deposits');
-      await recordDepositDeducted({
+      const { applyDepositDeduction } = await import('@/src/services/depositSettlement');
+      await applyDepositDeduction({
         bookingId: inv.bookingId,
         customerId: inv.customerId,
         amountPaise: line.amountPaise,

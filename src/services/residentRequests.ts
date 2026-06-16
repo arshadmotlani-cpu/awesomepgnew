@@ -18,7 +18,8 @@ import {
 } from '@/src/db/schema';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { formatDate, parseDate } from '@/src/lib/dates';
-import { getDepositSummaryForBooking, recordDepositDeducted, recordDepositRefunded } from '@/src/services/deposits';
+import { getDepositSummaryForBooking } from '@/src/services/deposits';
+import { settleDepositWithDeductions } from '@/src/services/depositSettlement';
 import { syncResidentRequestActionItems } from '@/src/services/residentRequestActions';
 import {
   computeRefundDeductions,
@@ -277,70 +278,35 @@ export async function adminReviewResidentRequest(input: {
 
   if (input.action === 'complete') {
     if (current.type === 'deposit_refund') {
+      const settlement = await settleDepositWithDeductions({
+        bookingId: current.bookingId,
+        customerId: current.customerId,
+        idempotencyKey: `resident_request:${input.requestId}`,
+        source: 'resident_request',
+        sourceId: input.requestId,
+        adminId: input.adminId,
+        refundCompletion: input.refundCompletion,
+        refundAudit: {
+          refundMethod: input.refundCompletion?.refundMethod ?? null,
+        },
+        markBookingRefunded: true,
+      });
+      if (!settlement.ok) {
+        return { ok: false as const, error: settlement.error };
+      }
+
       const summary = await getDepositSummaryForBooking(current.bookingId);
-      if (!summary || summary.refundableBalancePaise <= 0) {
-        return { ok: false as const, error: 'No refundable deposit balance.' };
-      }
-
-      const calc = computeRefundDeductions(
-        summary.refundableBalancePaise,
-        input.refundCompletion ?? {},
-      );
-
-      if (calc.electricityDeductionPaise && calc.electricityDeductionPaise > 0) {
-        await recordDepositDeducted({
-          bookingId: current.bookingId,
-          customerId: current.customerId,
-          amountPaise: calc.electricityDeductionPaise,
-          reason: `Electricity: ${input.refundCompletion?.electricityUnits ?? 0} units @ ₹${((input.refundCompletion?.electricityUnitCostPaise ?? 0) / 100).toFixed(2)}/unit`,
-          createdByAdminId: input.adminId,
-        });
-      }
-
-      const otherDeductions =
-        (calc.damageChargePaise ?? 0) +
-        (calc.cleaningChargePaise ?? 0) +
-        (calc.penaltyChargePaise ?? 0) +
-        (calc.customChargePaise ?? 0);
-      if (otherDeductions > 0) {
-        const parts: string[] = [];
-        if (calc.damageChargePaise) parts.push(`Damage ₹${calc.damageChargePaise / 100}`);
-        if (calc.cleaningChargePaise) parts.push(`Cleaning ₹${calc.cleaningChargePaise / 100}`);
-        if (calc.penaltyChargePaise) parts.push(`Penalty ₹${calc.penaltyChargePaise / 100}`);
-        if (calc.customChargePaise) {
-          parts.push(`${calc.customChargeLabel ?? 'Custom'} ₹${calc.customChargePaise / 100}`);
-        }
-        await recordDepositDeducted({
-          bookingId: current.bookingId,
-          customerId: current.customerId,
-          amountPaise: otherDeductions,
-          reason: `Refund deductions: ${parts.join(', ')}`,
-          createdByAdminId: input.adminId,
-        });
-      }
-
-      if (calc.finalRefundPaise > 0) {
-        await recordDepositRefunded({
-          bookingId: current.bookingId,
-          customerId: current.customerId,
-          amountPaise: calc.finalRefundPaise,
-          reason: 'Resident deposit refund request completed',
-          createdByAdminId: input.adminId,
-        });
-      }
-
-      await db
-        .update(bookings)
-        .set({ adminDepositRefundStatus: 'refunded', updatedAt: new Date() })
-        .where(eq(bookings.id, current.bookingId));
+      const refundDeductions = summary
+        ? computeRefundDeductions(summary.refundableBalancePaise, input.refundCompletion ?? {})
+        : null;
 
       const [updated] = await db
         .update(residentRequests)
         .set({
           status: 'completed',
           adminNotes: input.adminNotes ?? current.adminNotes,
-          refundDeductions: calc,
-          finalRefundPaise: calc.finalRefundPaise,
+          refundDeductions,
+          finalRefundPaise: settlement.refundPaise,
           refundMethod: input.refundCompletion?.refundMethod ?? null,
           refundPaidAt: new Date(),
           resolvedByAdminId: input.adminId,

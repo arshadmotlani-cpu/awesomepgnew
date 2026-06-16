@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { isMockWebhookRouteEnabled, verifyMockWebhookRequest } from '@/src/lib/payments/mockWebhookAuth';
 import { mockProvider } from '@/src/services/payments';
 import {
   recordExtensionPaymentFailure,
@@ -19,25 +20,24 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 /**
- * Mock provider webhook receiver — the dev/CI equivalent of
- * /api/webhooks/razorpay. The "Simulate payment" button on the pay page
- * POSTs a hand-built `payment_succeeded` event here, which then flows
- * through the same recordPaymentSuccess() path as a real Razorpay event.
- *
- * The route also accepts `payment_failed` events so the failure path can
- * be exercised end-to-end without standing up Razorpay test mode (see
- * scripts/verify-payment-failure.ts).
- *
- * Because there's no external signing authority, we trust the body but only
- * allow the route to run when PAYMENT_PROVIDER=mock. In production
- * (PAYMENT_PROVIDER=razorpay) this returns 404.
+ * Dev/CI mock webhook — disabled in all production deployments.
+ * Requires HMAC signature (MOCK_WEBHOOK_SECRET) and replay protection.
  */
 export async function POST(req: NextRequest) {
-  if (process.env.PAYMENT_PROVIDER === 'razorpay') {
+  if (!isMockWebhookRouteEnabled()) {
     return new Response('Not Found', { status: 404 });
   }
+
   const rawBody = await req.text();
-  const verification = mockProvider.verifyWebhook({ rawBody, signature: null });
+  const auth = await verifyMockWebhookRequest(rawBody, req.headers);
+  if (!auth.ok) {
+    if (auth.status === 403 && auth.reason.includes('disabled')) {
+      return new Response('Not Found', { status: 404 });
+    }
+    return Response.json({ ok: false, reason: auth.reason }, { status: auth.status });
+  }
+
+  const verification = mockProvider.verifyWebhook({ rawBody, signature: 'verified-externally' });
   if (!verification.ok) {
     return Response.json({ ok: false, reason: verification.reason }, { status: 400 });
   }

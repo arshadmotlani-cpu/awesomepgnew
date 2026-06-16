@@ -5,13 +5,9 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { bookings } from '@/src/db/schema';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
+import { assertAdminBookingAccess } from '@/src/lib/auth/pgAccess';
 import { revalidateFinancialViews } from '@/src/lib/billing/revalidateFinancialViews';
-import { computeRefundDeductions } from '@/src/lib/refundDeductions';
-import {
-  getDepositSummaryForBooking,
-  recordDepositDeducted,
-  recordDepositRefunded,
-} from '@/src/services/deposits';
+import { settleDepositWithDeductions } from '@/src/services/depositSettlement';
 import { syncActionItems } from '@/src/services/actionItems';
 
 export type DepositSettlementState =
@@ -40,6 +36,8 @@ export async function processDepositSettlementAction(
       return { status: 'error', message: 'Missing booking or resident.' };
     }
 
+    await assertAdminBookingAccess(session, bookingId);
+
     if (decision === 'reject') {
       await db
         .update(bookings)
@@ -55,68 +53,35 @@ export async function processDepositSettlementAction(
       return { status: 'error', message: 'Select approve or reject.' };
     }
 
-    const summary = await getDepositSummaryForBooking(bookingId);
-    if (!summary || summary.refundableBalancePaise <= 0) {
-      return { status: 'error', message: 'No refundable deposit balance.' };
-    }
-
-    const calc = computeRefundDeductions(summary.refundableBalancePaise, {
+    const refundCompletion = {
       electricityUnitCostPaise: parseInrField(formData, 'electricityUnitCostInr'),
       electricityUnits: parseInt(String(formData.get('electricityUnits') ?? '0'), 10) || 0,
       damageChargePaise: parseInrField(formData, 'damageInr'),
       penaltyChargePaise: parseInrField(formData, 'penaltyInr'),
       customChargePaise: parseInrField(formData, 'otherInr'),
       customChargeLabel: String(formData.get('otherLabel') ?? '').trim() || undefined,
+      refundMethod: String(formData.get('refundMethod') ?? '').trim() || undefined,
+    };
+
+    const settlement = await settleDepositWithDeductions({
+      bookingId,
+      customerId,
+      idempotencyKey: `admin_panel:${bookingId}`,
+      source: 'admin_panel',
+      sourceId: bookingId,
+      adminId: session.adminId,
+      refundCompletion,
+      refundAudit: {
+        refundMethod: refundCompletion.refundMethod ?? null,
+        refundReference: String(formData.get('refundReference') ?? '').trim() || null,
+        refundProofUrl: String(formData.get('refundProofUrl') ?? '').trim() || null,
+      },
+      markBookingRefunded: true,
     });
 
-    if (calc.electricityDeductionPaise && calc.electricityDeductionPaise > 0) {
-      const units = parseInt(String(formData.get('electricityUnits') ?? '0'), 10) || 0;
-      const rate = parseInrField(formData, 'electricityUnitCostInr');
-      await recordDepositDeducted({
-        bookingId,
-        customerId,
-        amountPaise: calc.electricityDeductionPaise,
-        reason: `Electricity: ${units} units @ ₹${(rate / 100).toFixed(2)}/unit`,
-        createdByAdminId: session.adminId,
-      });
+    if (!settlement.ok) {
+      return { status: 'error', message: settlement.error };
     }
-
-    const otherDeductions =
-      (calc.damageChargePaise ?? 0) +
-      (calc.cleaningChargePaise ?? 0) +
-      (calc.penaltyChargePaise ?? 0) +
-      (calc.customChargePaise ?? 0);
-
-    if (otherDeductions > 0) {
-      const parts: string[] = [];
-      if (calc.damageChargePaise) parts.push(`Damage ₹${calc.damageChargePaise / 100}`);
-      if (calc.penaltyChargePaise) parts.push(`Penalty ₹${calc.penaltyChargePaise / 100}`);
-      if (calc.customChargePaise) {
-        parts.push(`${calc.customChargeLabel ?? 'Other'} ₹${calc.customChargePaise / 100}`);
-      }
-      await recordDepositDeducted({
-        bookingId,
-        customerId,
-        amountPaise: otherDeductions,
-        reason: `Settlement deductions: ${parts.join(', ')}`,
-        createdByAdminId: session.adminId,
-      });
-    }
-
-    if (calc.finalRefundPaise > 0) {
-      await recordDepositRefunded({
-        bookingId,
-        customerId,
-        amountPaise: calc.finalRefundPaise,
-        reason: 'Deposit settlement refund approved',
-        createdByAdminId: session.adminId,
-      });
-    }
-
-    await db
-      .update(bookings)
-      .set({ adminDepositRefundStatus: 'refunded', updatedAt: new Date() })
-      .where(eq(bookings.id, bookingId));
 
     await syncActionItems(session).catch(() => undefined);
     revalidatePath(`/admin/deposits/${bookingId}`);
@@ -125,7 +90,7 @@ export async function processDepositSettlementAction(
 
     return {
       status: 'ok',
-      message: `Refund approved — final payout ₹${(calc.finalRefundPaise / 100).toFixed(2)}.`,
+      message: `Refund approved — final payout ₹${(settlement.refundPaise / 100).toFixed(2)}.`,
     };
   } catch (err) {
     return {

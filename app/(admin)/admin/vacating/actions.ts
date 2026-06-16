@@ -3,6 +3,10 @@
 import { revalidatePath } from 'next/cache';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import {
+  assertAdminBookingAccess,
+  assertAdminVacatingRequestAccess,
+} from '@/src/lib/auth/pgAccess';
+import {
   adminWithdrawVacatingRequest,
   approveVacatingRequest,
   completeVacatingRequest,
@@ -31,6 +35,9 @@ function completeErrorMessage(kind: string, message?: string): string {
       'This bed is already vacant. Use Cancel notice instead of Complete.'
     );
   }
+  if (kind === 'settlement_failed' && message) {
+    return message;
+  }
   return `Failed: ${kind}`;
 }
 
@@ -40,6 +47,14 @@ export async function approveVacatingAction(
 ): Promise<ActionState> {
   const admin = await requireAdminPermission('vacating:write');
   const requestId = String(formData.get('requestId') ?? '');
+  try {
+    await assertAdminVacatingRequestAccess(admin, requestId);
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : 'Access denied for this PG.',
+    };
+  }
   const result = await approveVacatingRequest({
     requestId,
     resolvedByAdminId: admin.adminId,
@@ -57,6 +72,14 @@ export async function rejectVacatingAction(
 ): Promise<ActionState> {
   const admin = await requireAdminPermission('vacating:write');
   const requestId = String(formData.get('requestId') ?? '');
+  try {
+    await assertAdminVacatingRequestAccess(admin, requestId);
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : 'Access denied for this PG.',
+    };
+  }
   const reason = String(formData.get('reason') ?? 'admin rejected');
   const result = await rejectVacatingRequest({
     requestId,
@@ -76,6 +99,14 @@ export async function completeVacatingAction(
 ): Promise<ActionState> {
   const admin = await requireAdminPermission('vacating:write');
   const requestId = String(formData.get('requestId') ?? '');
+  try {
+    await assertAdminVacatingRequestAccess(admin, requestId);
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : 'Access denied for this PG.',
+    };
+  }
   const result = await completeVacatingRequest({
     requestId,
     resolvedByAdminId: admin.adminId,
@@ -100,6 +131,14 @@ export async function undoVacatingCompletionAction(
   const admin = await requireAdminPermission('vacating:write');
   const requestId = String(formData.get('requestId') ?? '');
   const pgId = String(formData.get('pgId') ?? '');
+  try {
+    await assertAdminVacatingRequestAccess(admin, requestId);
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : 'Access denied for this PG.',
+    };
+  }
   const result = await revertVacatingCompletion({
     requestId,
     resolvedByAdminId: admin.adminId,
@@ -125,6 +164,14 @@ export async function cancelVacatingNoticeAction(
   const admin = await requireAdminPermission('vacating:write');
   const requestId = String(formData.get('requestId') ?? '');
   const pgId = String(formData.get('pgId') ?? '');
+  try {
+    await assertAdminVacatingRequestAccess(admin, requestId);
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : 'Access denied for this PG.',
+    };
+  }
   const result = await adminWithdrawVacatingRequest({
     requestId,
     resolvedByAdminId: admin.adminId,
@@ -144,6 +191,14 @@ export async function undoVacatingApprovalAction(
   const admin = await requireAdminPermission('vacating:write');
   const requestId = String(formData.get('requestId') ?? '');
   const pgId = String(formData.get('pgId') ?? '');
+  try {
+    await assertAdminVacatingRequestAccess(admin, requestId);
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : 'Access denied for this PG.',
+    };
+  }
   const result = await revertVacatingApproval({
     requestId,
     resolvedByAdminId: admin.adminId,
@@ -163,6 +218,14 @@ export async function extendVacatingDateAction(
   const admin = await requireAdminPermission('vacating:write');
   const bookingId = String(formData.get('bookingId') ?? '');
   const newDate = String(formData.get('newVacatingDate') ?? '');
+  try {
+    await assertAdminBookingAccess(admin, bookingId);
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : 'Access denied for this PG.',
+    };
+  }
   const result = await extendVacatingDate({
     bookingId,
     newVacatingDate: newDate,

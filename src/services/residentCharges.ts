@@ -291,8 +291,12 @@ export async function createResidentCharge(
 
 export async function submitDepositLinkPaymentProof(
   linkId: string,
+  customerId: string,
   paymentProofUrl: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
+  if (!customerId?.trim()) {
+    return { ok: false, message: 'Sign in required.' };
+  }
   const [link] = await db
     .select()
     .from(paymentLinks)
@@ -300,6 +304,9 @@ export async function submitDepositLinkPaymentProof(
     .limit(1);
   if (!link || link.status !== 'active') {
     return { ok: false, message: 'Payment link not found or no longer active.' };
+  }
+  if (link.residentId !== customerId) {
+    return { ok: false, message: 'This payment link belongs to another resident.' };
   }
   if (link.purpose !== 'deposit' || !link.bookingId) {
     return { ok: false, message: 'This link is not a deposit collection request.' };

@@ -1,17 +1,17 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import { db } from '@/src/db/client';
-import { bookings } from '@/src/db/schema';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
+import { assertAdminBookingAccess } from '@/src/lib/auth/pgAccess';
 import { revalidateFinancialViews } from '@/src/lib/billing/revalidateFinancialViews';
 import {
   recordDepositCollected,
-  recordDepositDeducted,
-  recordDepositRefunded,
   correctDepositCollected,
+  getDepositSummaryForBooking,
 } from '@/src/services/deposits';
+import { applyDepositDeduction, settleDepositRefund } from '@/src/services/depositSettlement';
 
 export type ActionState =
   | { status: 'idle' }
@@ -21,6 +21,8 @@ export type ActionState =
 const idle: ActionState = { status: 'idle' };
 
 async function resolveCustomerId(bookingId: string): Promise<string | null> {
+  const { db } = await import('@/src/db/client');
+  const { bookings } = await import('@/src/db/schema');
   const [row] = await db
     .select({ customerId: bookings.customerId })
     .from(bookings)
@@ -50,13 +52,13 @@ function parseReason(form: FormData): string | null {
 
 export async function addDepositAction(
   bookingId: string,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
   let admin;
   try {
     admin = await requireAdminPermission('deposits:write');
+    await assertAdminBookingAccess(admin, bookingId);
   } catch (err) {
     return {
       status: 'error',
@@ -92,13 +94,13 @@ export async function addDepositAction(
 
 export async function deductDepositAction(
   bookingId: string,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
   let admin;
   try {
     admin = await requireAdminPermission('deposits:write');
+    await assertAdminBookingAccess(admin, bookingId);
   } catch (err) {
     return {
       status: 'error',
@@ -112,13 +114,20 @@ export async function deductDepositAction(
   const customerId = await resolveCustomerId(bookingId);
   if (!customerId) return { status: 'error', message: 'Booking not found.' };
   try {
-    await recordDepositDeducted({
+    const summary = await getDepositSummaryForBooking(bookingId);
+    if (!summary || amountPaise > summary.refundableBalancePaise) {
+      return { status: 'error', message: 'Deduction exceeds refundable deposit balance.' };
+    }
+    const result = await applyDepositDeduction({
       bookingId,
       customerId,
       amountPaise,
       reason,
-      createdByAdminId: admin.adminId,
+      adminId: admin.adminId,
     });
+    if (!result.ok) {
+      return { status: 'error', message: result.error };
+    }
     revalidateFinancialViews();
     return { status: 'ok', message: `Deducted ${reason}.` };
   } catch (err) {
@@ -131,13 +140,13 @@ export async function deductDepositAction(
 
 export async function refundDepositAction(
   bookingId: string,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
   let admin;
   try {
     admin = await requireAdminPermission('deposits:write');
+    await assertAdminBookingAccess(admin, bookingId);
   } catch (err) {
     return {
       status: 'error',
@@ -151,13 +160,23 @@ export async function refundDepositAction(
   const customerId = await resolveCustomerId(bookingId);
   if (!customerId) return { status: 'error', message: 'Booking not found.' };
   try {
-    await recordDepositRefunded({
+    const settlement = await settleDepositRefund({
       bookingId,
       customerId,
-      amountPaise,
+      idempotencyKey: `manual:${bookingId}:${randomUUID()}`,
+      source: 'manual',
+      adminId: admin.adminId,
       reason,
-      createdByAdminId: admin.adminId,
+      refundPaise: amountPaise,
+      refundAudit: {
+        refundMethod: formData.get('refundMethod')?.toString()?.trim() || null,
+        refundReference: formData.get('refundReference')?.toString()?.trim() || null,
+        refundProofUrl: formData.get('refundProofUrl')?.toString()?.trim() || null,
+      },
     });
+    if (!settlement.ok) {
+      return { status: 'error', message: settlement.error };
+    }
     revalidateFinancialViews();
     return { status: 'ok', message: 'Refund recorded.' };
   } catch (err) {
@@ -170,13 +189,13 @@ export async function refundDepositAction(
 
 export async function correctDepositAction(
   bookingId: string,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
   let admin;
   try {
     admin = await requireAdminPermission('deposits:write');
+    await assertAdminBookingAccess(admin, bookingId);
   } catch (err) {
     return {
       status: 'error',

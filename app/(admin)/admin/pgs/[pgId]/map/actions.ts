@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
+import { assertAdminBookingAccess } from '@/src/lib/auth/pgAccess';
 import {
   activateReservationNow,
   shiftBookingToReservation,
@@ -26,6 +27,12 @@ export async function submitAdminVacatingAction(
     if (!/^\d{4}-\d{2}-\d{2}$/.test(vacatingDate)) {
       return { ok: false, error: 'Vacating date must be YYYY-MM-DD.' };
     }
+
+    if (!/^[0-9a-f-]{36}$/i.test(bookingId)) {
+      return { ok: false, error: 'Invalid booking.' };
+    }
+
+    await assertAdminBookingAccess(admin, bookingId);
 
     const result = await submitVacatingRequest({
       bookingId,
@@ -169,6 +176,8 @@ export async function removeTenantFromBedAction(
     if (!/^[0-9a-f-]{36}$/i.test(bookingId)) {
       return { ok: false, error: 'Invalid booking.' };
     }
+
+    await assertAdminBookingAccess(session, bookingId);
 
     const { adminRemoveTenantFromBed } = await import('@/src/services/vacating');
     const result = await adminRemoveTenantFromBed({

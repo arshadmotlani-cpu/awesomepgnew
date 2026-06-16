@@ -11,6 +11,7 @@ export type AdminPermission =
   | 'deposits:write'
   | 'vacating:write'
   | 'payments:write'
+  | 'payments:override'
   | 'kyc:write';
 
 const ROLE_PERMISSIONS: Record<AdminRole, ReadonlySet<AdminPermission>> = {
@@ -23,6 +24,7 @@ const ROLE_PERMISSIONS: Record<AdminRole, ReadonlySet<AdminPermission>> = {
     'deposits:write',
     'vacating:write',
     'payments:write',
+    'payments:override',
     'kyc:write',
   ]),
   pg_manager: new Set([
@@ -46,9 +48,9 @@ export function adminHasPermission(role: AdminRole, permission: AdminPermission)
   return ROLE_PERMISSIONS[role].has(permission);
 }
 
-/** Empty pgScope means unrestricted (super_admin convention). */
+/** Only super_admin is unrestricted; all other roles require explicit PG membership. */
 export function adminCanAccessPg(admin: Pick<AdminUser, 'role' | 'pgScope'>, pgId: string): boolean {
   if (admin.role === 'super_admin') return true;
-  if (!admin.pgScope || admin.pgScope.length === 0) return true;
+  if (!admin.pgScope || admin.pgScope.length === 0) return false;
   return admin.pgScope.includes(pgId);
 }

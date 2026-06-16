@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
+import { assertAdminCustomerBookingAccess } from '@/src/lib/auth/pgAccess';
 import { revalidateFinancialViews } from '@/src/lib/billing/revalidateFinancialViews';
 import type {
   ExpressCollectionChargeType,
@@ -49,6 +50,8 @@ export async function recordExpressCollectionAction(
       return { status: 'error', message: 'Enter a valid amount.' };
     }
     if (!paymentDate) return { status: 'error', message: 'Payment date is required.' };
+
+    await assertAdminCustomerBookingAccess(session, customerId, bookingId);
 
     const result = await recordExpressCollection({
       customerId,

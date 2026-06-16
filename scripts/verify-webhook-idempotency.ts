@@ -15,6 +15,7 @@ import { eq } from 'drizzle-orm';
 import { closeDb, db } from '../src/db/client';
 import { bedReservations, beds, bookings, payments } from '../src/db/schema';
 import { createBooking } from '../src/services/booking';
+import { signMockWebhookPayload } from '../src/lib/payments/mockWebhookAuth';
 
 function ok(label: string) {
   console.log(`  \u2713 ${label}`);
@@ -78,13 +79,16 @@ async function main() {
     currency: 'INR',
     receipt: created.bookingCode,
   };
-  const post = () =>
-    fetch(`${baseUrl}/api/webhooks/mock`, {
+  const body = JSON.stringify(event);
+  const post = () => {
+    const signed = signMockWebhookPayload(body);
+    return fetch(`${baseUrl}/api/webhooks/mock`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(event),
+      headers: signed.headers,
+      body,
       cache: 'no-store',
     }).then(async (r) => ({ status: r.status, body: await r.json() }));
+  };
 
   const r1 = await post();
   const r2 = await post();

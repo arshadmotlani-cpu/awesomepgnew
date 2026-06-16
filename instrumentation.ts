@@ -14,10 +14,17 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === 'edge') return;
 
   try {
-    const { checkRequiredEnv } = await import('./src/lib/healing/envHealer');
+    const { checkRequiredEnv, assertProductionBootSecrets } = await import('./src/lib/healing/envHealer');
     checkRequiredEnv();
+    assertProductionBootSecrets();
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    if (
+      process.env.NODE_ENV === 'production' ||
+      process.env.VERCEL_ENV === 'production'
+    ) {
+      throw err;
+    }
     console.warn(`[heal] Env check skipped: ${message}`);
   }
 
