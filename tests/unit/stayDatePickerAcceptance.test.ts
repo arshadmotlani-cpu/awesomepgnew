@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { addDays, formatDate } from '@/src/lib/dates';
-import { maxCheckoutForCheckIn } from '@/src/lib/bedAvailabilityWindows';
+import { maxCheckoutBeforeOverlap } from '@/src/lib/bedStayOverlap';
 import {
   isCheckInAvailable,
   isCheckOutAvailable,
@@ -16,8 +16,8 @@ import {
 } from '@/src/lib/stayDateSelection';
 import { defaultCheckOutDate } from '@/src/lib/dateDefaults';
 
-const WINDOWS = [{ startDate: '2026-07-01', endDate: '2026-07-20', nights: 19 }];
 const RESERVATIONS: ReservationSpan[] = [{ startDate: '2026-07-15', endDate: '2026-07-20' }];
+const HORIZON_END = '2026-08-01';
 const EARLIEST = '2026-07-01';
 
 type ParentState = { start: string; end: string };
@@ -40,9 +40,9 @@ class PickerController {
   }
 
   canSelect(date: string, phase: 'start' | 'end') {
-    if (phase === 'start') return isCheckInAvailable(date, WINDOWS, EARLIEST);
+    if (phase === 'start') return isCheckInAvailable(date, RESERVATIONS, EARLIEST);
     if (!this.draftStart) return false;
-    return isCheckOutAvailable(date, this.draftStart, WINDOWS);
+    return isCheckOutAvailable(date, this.draftStart, RESERVATIONS, HORIZON_END);
   }
 
   commitRange(start: string, end: string | null) {
@@ -163,34 +163,41 @@ test('P0-5 unavailable dates cannot be selected', () => {
   const picker = new PickerController({ start: '2026-07-01', end: '2026-07-08' });
   picker.openModal();
   assert.equal(picker.pick('2026-06-30').picked, false);
-  assert.equal(picker.pick('2026-07-25').picked, false);
+  assert.equal(picker.pick('2026-07-16').picked, false);
   picker.pick('2026-07-10');
   assert.equal(picker.pick('2026-07-21').picked, false);
 });
 
 test('P0-6 reservation boundaries block checkout into reserved span', () => {
-  const cap = maxCheckoutForCheckIn('2026-07-10', WINDOWS);
-  assert.equal(cap, '2026-07-20');
-  assert.equal(isCheckOutAvailable('2026-07-14', '2026-07-10', WINDOWS), true);
-  assert.equal(isCheckOutAvailable('2026-07-20', '2026-07-10', WINDOWS), true);
-  assert.equal(isCheckOutAvailable('2026-07-21', '2026-07-10', WINDOWS), false);
+  const cap = maxCheckoutBeforeOverlap('2026-07-10', RESERVATIONS, HORIZON_END);
+  assert.equal(cap, '2026-07-15');
+  assert.equal(isCheckOutAvailable('2026-07-14', '2026-07-10', RESERVATIONS, HORIZON_END), true);
+  assert.equal(isCheckOutAvailable('2026-07-15', '2026-07-10', RESERVATIONS, HORIZON_END), true);
+  assert.equal(isCheckOutAvailable('2026-07-16', '2026-07-10', RESERVATIONS, HORIZON_END), false);
 
   const picker = new PickerController({ start: '2026-07-01', end: '2026-07-08' });
   picker.openModal();
   picker.pick('2026-07-10');
   assert.equal(picker.pick('2026-07-21').picked, false);
-  void RESERVATIONS;
 });
 
 test('P0-7 checkout cap logic enforced', () => {
-  const cap = maxCheckoutForCheckIn('2026-07-10', WINDOWS);
-  assert.equal(cap, '2026-07-20');
-  assert.equal(isCheckOutAvailable('2026-07-20', '2026-07-10', WINDOWS), true);
-  assert.equal(isCheckOutAvailable('2026-07-21', '2026-07-10', WINDOWS), false);
+  const cap = maxCheckoutBeforeOverlap('2026-07-10', RESERVATIONS, HORIZON_END);
+  assert.equal(cap, '2026-07-15');
+  assert.equal(isCheckOutAvailable('2026-07-15', '2026-07-10', RESERVATIONS, HORIZON_END), true);
+  assert.equal(isCheckOutAvailable('2026-07-16', '2026-07-10', RESERVATIONS, HORIZON_END), false);
 
   const parent = { start: '2026-07-10', end: '2026-07-21' };
-  const cap2 = maxCheckoutForCheckIn(parent.start, WINDOWS);
+  const cap2 = maxCheckoutBeforeOverlap(parent.start, RESERVATIONS, HORIZON_END);
   assert.ok(cap2 && parent.end > cap2);
+});
+
+test('P0-7b distant future reservation does not cap unrelated stay', () => {
+  const distant = [{ startDate: '2027-06-16', endDate: '2027-07-01' }];
+  assert.equal(
+    isCheckOutAvailable('2026-06-08', '2026-06-01', distant, '2028-01-01'),
+    true,
+  );
 });
 
 test('P0-8 no Done button in StayDateRangePicker source', () => {

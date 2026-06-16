@@ -133,10 +133,16 @@ export function AdminPanelGuide() {
   return (
     <section className="mt-10 space-y-6 border-t border-white/10 pt-8">
       <div>
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-apg-silver/60">
+          Guide 1
+        </p>
         <h2 className="text-lg font-semibold text-white">Platform guide & test checklist</h2>
         <p className="mt-1 text-sm text-apg-silver">
           Use this while testing the connected ops stack. Each section maps to a live feature — follow
-          the steps in order when validating a deploy.
+          the steps in order when validating a deploy.{' '}
+          <Link href="/admin/panel?tab=guide2" className="text-[#FF5A1F] hover:underline">
+            Guide 2 (security) →
+          </Link>
         </p>
       </div>
 

@@ -1,9 +1,15 @@
 /**
  * Pure range-selection logic for stay date pickers (Airbnb-style).
+ * Blocking availability uses reservation overlap on the selected window only.
  */
 import { addDays, formatDate, parseDate } from '@/src/lib/dates';
-import type { FreeWindow } from '@/src/lib/bedAvailabilityWindows';
-import { maxCheckoutForCheckIn } from '@/src/lib/bedAvailabilityWindows';
+import {
+  isCheckInAvailableForReservations,
+  isCheckOutAvailableForReservations,
+  isDateReserved,
+  maxCheckoutBeforeOverlap,
+  type ReservationSpan,
+} from '@/src/lib/bedStayOverlap';
 
 export type DayAvailabilityKind =
   | 'available'
@@ -21,70 +27,61 @@ export type RangePickResult = {
   complete: boolean;
 };
 
-export type ReservationSpan = { startDate: string; endDate: string };
+export type { ReservationSpan };
 
-/** Whether `date` falls inside any future reservation (half-open [start, end)). */
-export function isDateReserved(date: string, reservations: ReservationSpan[]): boolean {
-  const t = parseDate(date).getTime();
-  return reservations.some((r) => {
-    const s = parseDate(r.startDate).getTime();
-    const e = parseDate(r.endDate).getTime();
-    return t >= s && t < e;
-  });
-}
+export { isDateReserved };
 
-/** True when `date` is a valid check-in day across combined free windows. */
 export function isCheckInAvailable(
   date: string,
-  freeWindows: FreeWindow[],
+  reservations: ReservationSpan[],
   earliestCheckIn: string,
 ): boolean {
-  if (date < earliestCheckIn) return false;
-  const t = parseDate(date).getTime();
-  return freeWindows.some((w) => {
-    const s = parseDate(w.startDate).getTime();
-    const e = parseDate(w.endDate).getTime();
-    return t >= s && t < e;
-  });
+  return isCheckInAvailableForReservations(date, reservations, earliestCheckIn);
 }
 
-/** True when `date` is a valid check-out day for a given check-in. */
 export function isCheckOutAvailable(
   date: string,
   checkIn: string,
-  freeWindows: FreeWindow[],
+  reservations: ReservationSpan[],
+  horizonEnd: string,
 ): boolean {
-  if (date <= checkIn) return false;
-  const cap = maxCheckoutForCheckIn(checkIn, freeWindows);
-  if (!cap || date > cap) return false;
-  return true;
+  return isCheckOutAvailableForReservations(date, checkIn, reservations, horizonEnd);
 }
 
 export function classifyDayAvailability(
   date: string,
   opts: {
-    freeWindows: FreeWindow[];
     earliestCheckIn: string;
     futureReservations: ReservationSpan[];
     selectedCheckIn: string | null;
+    horizonEnd: string;
   },
 ): DayAvailabilityKind {
-  if (opts.selectedCheckIn && date === maxCheckoutForCheckIn(opts.selectedCheckIn, opts.freeWindows)) {
-    return 'checkout-limit';
+  if (opts.selectedCheckIn) {
+    const cap = maxCheckoutBeforeOverlap(
+      opts.selectedCheckIn,
+      opts.futureReservations,
+      opts.horizonEnd,
+    );
+    if (cap && date === cap) return 'checkout-limit';
   }
+
   if (isDateReserved(date, opts.futureReservations)) return 'reserved';
-  const checkInOk = isCheckInAvailable(date, opts.freeWindows, opts.earliestCheckIn);
+
+  const checkInOk = isCheckInAvailable(date, opts.futureReservations, opts.earliestCheckIn);
   const checkOutOk = opts.selectedCheckIn
-    ? isCheckOutAvailable(date, opts.selectedCheckIn, opts.freeWindows)
+    ? isCheckOutAvailable(
+        date,
+        opts.selectedCheckIn,
+        opts.futureReservations,
+        opts.horizonEnd,
+      )
     : false;
+
   if (checkInOk || checkOutOk) return 'available';
   return 'unavailable';
 }
 
-/**
- * Airbnb-style range pick: first click sets start; second click after start sets end;
- * click before start while selecting end resets start; when complete, next click restarts.
- */
 export function pickStayRange(
   draft: RangeDraft,
   date: string,
@@ -107,12 +104,10 @@ export function pickStayRange(
     return { draft: { start, end: date }, complete: true };
   }
 
-  // Range already complete — new selection starts over
   if (!canSelect(date, 'start')) return null;
   return { draft: { start: date, end: null }, complete: false };
 }
 
-/** Inclusive range highlight for nights between start (inclusive) and end (exclusive checkout). */
 export function isInStayRange(
   date: string,
   start: string | null,

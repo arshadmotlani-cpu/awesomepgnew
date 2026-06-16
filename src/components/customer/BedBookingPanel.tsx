@@ -8,12 +8,15 @@ import {
   defaultCheckOutDate,
   VACATING_NOTICE_MIN_DAYS,
 } from '@/src/lib/dateDefaults';
-import { formatDate as formatDisplayDate, formatDateDdMmYyyy, paiseToInr } from '@/src/lib/format';
+import { formatDate as formatDisplayDate, paiseToInr } from '@/src/lib/format';
 import {
   checkoutCapMessage,
-  intersectFreeWindows,
-  maxCheckoutForCheckIn,
 } from '@/src/lib/bedAvailabilityWindows';
+import {
+  isCheckInAvailableForReservations,
+  isStayRangeAvailableForAllBeds,
+  maxCheckoutForAllBeds,
+} from '@/src/lib/bedStayOverlap';
 import { reserveBufferDate } from '@/src/lib/bedReservePolicy';
 import { displayMonthlyDepositPaise } from '@/src/lib/customerDepositDisplay';
 import { previewLowestFixedStayRent } from '@/src/lib/pricing/fixedStayOptimizer';
@@ -128,21 +131,22 @@ export function BedBookingPanel({
     void loadTimelines();
   }, [loadTimelines]);
 
-  const combinedFreeWindows = useMemo(
-    () => intersectFreeWindows(timelines.map((t) => t.freeWindows)),
+  const reservationsByBed = useMemo(
+    () => timelines.map((t) => t.futureReservations),
     [timelines],
   );
 
+  const horizonEnd = timelines[0]?.windowEnd ?? formatDate(addDays(parseDate(today), 365));
+
   const maxCheckout = useMemo(() => {
-    const cap = maxCheckoutForCheckIn(start, combinedFreeWindows);
+    const cap = maxCheckoutForAllBeds(start, reservationsByBed, horizonEnd);
     if (shortStayOnly && reserveLastStay) {
       if (!cap) return reserveLastStay;
       return cap < reserveLastStay ? cap : reserveLastStay;
     }
     return cap;
-  }, [start, combinedFreeWindows, shortStayOnly, reserveLastStay]);
+  }, [start, reservationsByBed, horizonEnd, shortStayOnly, reserveLastStay]);
 
-  const checkoutCapDisplay = maxCheckout ? formatDateDdMmYyyy(maxCheckout) : null;
   const mode: PricingMode = intent === 'indefinite' ? 'open_ended' : 'fixed_stay';
   const fixedNights =
     intent === 'fixed' && end > start ? diffDays(parseDate(start), parseDate(end)) : 0;
@@ -153,6 +157,23 @@ export function BedBookingPanel({
     () => timelines.flatMap((t) => t.futureReservations),
     [timelines],
   );
+
+  /** Blocking message — only when selected range overlaps or exceeds checkout cap. */
+  const stayRangeConflict = useMemo((): string | null => {
+    const checkout = intent === 'indefinite' ? availabilityEnd : end;
+    if (checkout <= start) return null;
+
+    if (!isStayRangeAvailableForAllBeds(start, checkout, reservationsByBed)) {
+      return 'The selected dates overlap an existing reservation for one or more beds.';
+    }
+
+    if (intent === 'fixed') {
+      const cap = maxCheckoutForAllBeds(start, reservationsByBed, horizonEnd);
+      if (cap && end > cap) return checkoutCapMessage(cap);
+    }
+
+    return null;
+  }, [intent, start, end, availabilityEnd, reservationsByBed, horizonEnd]);
 
   const staySummary = useMemo((): StayDateSummary | null => {
     if (intent !== 'fixed' || fixedNights <= 0 || beds.length === 0) return null;
@@ -178,10 +199,10 @@ export function BedBookingPanel({
     setStart(value);
     setValidationError(null);
     if (intent === 'fixed') {
-      const cap = maxCheckoutForCheckIn(value, combinedFreeWindows);
+      const cap = maxCheckoutForAllBeds(value, reservationsByBed, horizonEnd);
       const preferred = defaultCheckOutDate(value);
       if (cap && preferred > cap) {
-        setEnd(formatDate(addDays(cap, -1)));
+        setEnd(formatDate(addDays(parseDate(cap), -1)));
       } else if (end <= value) {
         setEnd(preferred);
       }
@@ -194,23 +215,37 @@ export function BedBookingPanel({
       setValidationError('One or more selected beds cannot be booked.');
       return;
     }
-    if (!maxCheckoutForCheckIn(start, combinedFreeWindows)) {
+
+    const earliest = timelines
+      .map((t) => t.earliestCheckIn)
+      .filter((d): d is string => Boolean(d))
+      .sort()[0];
+    const checkInOk = reservationsByBed.every((res) =>
+      isCheckInAvailableForReservations(start, res, earliest ?? today),
+    );
+    if (!checkInOk) {
       setValidationError('The selected check-in date is not available for these beds.');
       return;
     }
 
     const checkout = intent === 'indefinite' ? availabilityEnd : end;
 
+    if (intent === 'fixed' && end <= start) {
+      setValidationError('Check-out must be after check-in.');
+      return;
+    }
+
+    if (!isStayRangeAvailableForAllBeds(start, checkout, reservationsByBed)) {
+      setValidationError('The selected dates overlap an existing reservation for one or more beds.');
+      return;
+    }
+
     if (intent === 'fixed') {
-      const cap = maxCheckoutForCheckIn(start, combinedFreeWindows);
+      const cap = maxCheckoutForAllBeds(start, reservationsByBed, horizonEnd);
       if (!cap || end > cap) {
         setValidationError(
           cap ? checkoutCapMessage(cap) : 'Invalid stay dates for the selected beds.',
         );
-        return;
-      }
-      if (end <= start) {
-        setValidationError('Check-out must be after check-in.');
         return;
       }
     }
@@ -417,7 +452,8 @@ export function BedBookingPanel({
                 maxCheckOut={maxCheckout ?? undefined}
                 showCheckOut={intent === 'fixed'}
                 disabled={loading || Boolean(fetchError)}
-                freeWindows={combinedFreeWindows}
+                horizonEnd={horizonEnd}
+                reservationsByBed={reservationsByBed}
                 futureReservations={combinedReservations}
                 summary={staySummary}
               />
@@ -448,7 +484,7 @@ export function BedBookingPanel({
                 </div>
               ) : null}
 
-              {intent === 'fixed' && checkoutCapDisplay && maxCheckout ? (
+              {intent === 'fixed' && stayRangeConflict ? (
                 <p
                   className={
                     dark
@@ -456,9 +492,7 @@ export function BedBookingPanel({
                       : 'rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900'
                   }
                 >
-                  This bed is only available until{' '}
-                  <strong>{checkoutCapDisplay}</strong> because another guest has already
-                  reserved this bed after that date.
+                  {stayRangeConflict}
                 </p>
               ) : null}
 

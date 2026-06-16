@@ -35,8 +35,7 @@ import {
 import {
   checkoutCapMessage,
   extensionCapMessage,
-  maxCheckoutForCheckIn,
-  validateStayWithinFreeWindows,
+  validateStayAgainstReservations,
   type StayWindowValidation,
 } from '../lib/bedAvailabilityWindows';
 import {
@@ -147,10 +146,18 @@ function materializeWindow(start: Date, end: Date): FreeWindow {
 export {
   checkoutCapMessage,
   extensionCapMessage,
-  maxCheckoutForCheckIn,
+  validateStayAgainstReservations,
   validateStayWithinFreeWindows,
+  maxCheckoutForCheckIn,
   type StayWindowValidation,
 } from '../lib/bedAvailabilityWindows';
+export {
+  stayRangesOverlap,
+  isStayRangeAvailable,
+  findOverlappingReservations,
+  maxCheckoutBeforeOverlap,
+  type ReservationSpan,
+} from '../lib/bedStayOverlap';
 
 // ───────────────────────────────────────────────────────────────────────────
 // DB-backed queries
@@ -332,11 +339,12 @@ export async function getBedAvailabilityTimeline(
       bookingCode: bookings.bookingCode,
     })
     .from(bedReservations)
-    .leftJoin(bookings, eq(bookings.id, bedReservations.bookingId))
+    .innerJoin(bookings, eq(bookings.id, bedReservations.bookingId))
     .where(
       and(
         eq(bedReservations.bedId, input.bedId),
         sql`${bedReservations.status} IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
+        eq(bookings.status, 'confirmed'),
         sql`${bedReservations.stayRange} && daterange(${ws}::date, ${we}::date, '[)')`,
       ),
     )
@@ -400,31 +408,53 @@ export async function validateBedStayRange(input: {
   | { ok: true }
   | { ok: false; message: string; maxCheckout: string | null }
 > {
+  const [bed] = await db
+    .select({
+      bedCode: beds.bedCode,
+      status: beds.status,
+      archivedAt: beds.archivedAt,
+    })
+    .from(beds)
+    .where(eq(beds.id, input.bedId))
+    .limit(1);
+  if (!bed || bed.archivedAt) {
+    return { ok: false, message: 'Bed not found.', maxCheckout: null };
+  }
+  if (bed.status !== 'available') {
+    return {
+      ok: false,
+      message: `Bed ${bed.bedCode} is ${bed.status} and cannot be booked.`,
+      maxCheckout: null,
+    };
+  }
+
+  const available = await isBedAvailable({
+    bedId: input.bedId,
+    startDate: input.startDate,
+    endDate: input.endDate,
+  });
+  if (available) return { ok: true };
+
+  const lookAhead = input.lookAheadDays ?? 365;
   const timeline = await getBedAvailabilityTimeline({
     bedId: input.bedId,
     fromDate: input.startDate,
-    lookAheadDays: input.lookAheadDays,
+    lookAheadDays: lookAhead,
   });
   if (!timeline) {
     return { ok: false, message: 'Bed not found.', maxCheckout: null };
   }
-  if (timeline.bedStatus !== 'available') {
-    return {
-      ok: false,
-      message: `Bed ${timeline.bedCode} is ${timeline.bedStatus} and cannot be booked.`,
-      maxCheckout: null,
-    };
-  }
-  const result = validateStayWithinFreeWindows(
+
+  const result = validateStayAgainstReservations(
     input.startDate,
     input.endDate,
-    timeline.freeWindows,
+    timeline.futureReservations,
+    timeline.windowEnd,
   );
-  if (result.ok) return { ok: true };
   if (result.reason === 'no_window') {
     return {
       ok: false,
-      message: 'The selected check-in date is not available for this bed.',
+      message: 'The selected dates overlap an existing reservation for this bed.',
       maxCheckout: null,
     };
   }
@@ -445,10 +475,12 @@ async function loadBusyRanges(
   const rows = await db
     .select({ stayRange: bedReservations.stayRange })
     .from(bedReservations)
+    .innerJoin(bookings, eq(bookings.id, bedReservations.bookingId))
     .where(
       and(
         eq(bedReservations.bedId, bedId),
         sql`${bedReservations.status} IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
+        eq(bookings.status, 'confirmed'),
         sql`${bedReservations.stayRange} && daterange(${ws}::date, ${we}::date, '[)')`,
       ),
     );
@@ -574,10 +606,12 @@ export async function getPgAvailability(
         stayRange: bedReservations.stayRange,
       })
       .from(bedReservations)
+      .innerJoin(bookings, eq(bookings.id, bedReservations.bookingId))
       .where(
         and(
           sql`${bedReservations.bedId} = ANY(${sql.raw(`'{${bedIds.join(',')}}'::uuid[]`)})`,
           sql`${bedReservations.status} IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
+          eq(bookings.status, 'confirmed'),
           sql`${bedReservations.stayRange} && daterange(${startIso}::date, ${horizonIso}::date, '[)')`,
         ),
       )) as Array<{ bedId: string; stayRange: string }>;

@@ -10,14 +10,16 @@ import {
   todayString,
 } from '@/src/lib/dates';
 import type { FreeWindow } from '@/src/lib/bedAvailabilityWindows';
+import {
+  isCheckInAvailableForReservations,
+  isCheckOutAvailableForReservations,
+  type ReservationSpan,
+} from '@/src/lib/bedStayOverlap';
 import { formatDate as formatDisplayDate, formatDateDdMmYyyy, paiseToInr } from '@/src/lib/format';
 import {
   classifyDayAvailability,
-  isCheckInAvailable,
-  isCheckOutAvailable,
   isInStayRange,
   pickStayRange,
-  type ReservationSpan,
 } from '@/src/lib/stayDateSelection';
 
 type Theme = 'dark' | 'light';
@@ -40,7 +42,10 @@ type Props = {
   maxCheckOut?: string;
   showCheckOut?: boolean;
   disabled?: boolean;
+  /** @deprecated Use futureReservations + horizonEnd */
   freeWindows?: FreeWindow[];
+  horizonEnd?: string;
+  reservationsByBed?: ReservationSpan[][];
   futureReservations?: ReservationSpan[];
   summary?: StayDateSummary | null;
   holdMinutes?: number;
@@ -75,8 +80,10 @@ function MonthGrid({
   draftEnd,
   hoverDate,
   earliestCheckIn,
-  freeWindows,
+  freeWindows: _freeWindows,
   futureReservations,
+  horizonEnd: effectiveHorizon,
+  reservationsByBed,
   onPick,
   onHover,
 }: {
@@ -89,9 +96,12 @@ function MonthGrid({
   earliestCheckIn: string;
   freeWindows: FreeWindow[];
   futureReservations: ReservationSpan[];
+  horizonEnd: string;
+  reservationsByBed?: ReservationSpan[][];
   onPick: (date: string) => void;
   onHover: (date: string | null) => void;
 }) {
+  const bedSets = reservationsByBed?.length ? reservationsByBed : [futureReservations];
   const dark = theme === 'dark';
   const cells = calendarCells(year, month);
   const monthLabel = new Date(Date.UTC(year, month, 1)).toLocaleString('en-IN', {
@@ -121,10 +131,10 @@ function MonthGrid({
           }
 
           const availability = classifyDayAvailability(cell.date, {
-            freeWindows,
             earliestCheckIn,
             futureReservations,
             selectedCheckIn: draftStart,
+            horizonEnd: effectiveHorizon,
           });
 
           const rangePos = isInStayRange(
@@ -134,10 +144,19 @@ function MonthGrid({
             !draftEnd ? hoverDate : null,
           );
 
-          const canPickStart = isCheckInAvailable(cell.date, freeWindows, earliestCheckIn);
+          const canPickStart = bedSets.every((res) =>
+            isCheckInAvailableForReservations(cell.date, res, earliestCheckIn),
+          );
           const canPickEnd =
             draftStart != null &&
-            isCheckOutAvailable(cell.date, draftStart, freeWindows);
+            bedSets.every((res) =>
+              isCheckOutAvailableForReservations(
+                cell.date,
+                draftStart,
+                res,
+                effectiveHorizon,
+              ),
+            );
           const disabled = !canPickStart && !canPickEnd;
 
           const isStart = rangePos === 'start';
@@ -322,7 +341,9 @@ export function StayDateRangePicker({
   maxCheckOut: _maxCheckOut,
   showCheckOut = true,
   disabled = false,
-  freeWindows = [],
+  freeWindows: _freeWindows = [],
+  horizonEnd,
+  reservationsByBed,
   futureReservations = [],
   summary = null,
   holdMinutes = 15,
@@ -341,6 +362,12 @@ export function StayDateRangePicker({
   }, []);
 
   const earliestCheckIn = minCheckIn ?? todayString();
+  const effectiveHorizon =
+    horizonEnd ?? formatDate(addDays(parseDate(earliestCheckIn), 365));
+  const bedReservationSets = useMemo(
+    () => (reservationsByBed?.length ? reservationsByBed : [futureReservations]),
+    [reservationsByBed, futureReservations],
+  );
 
   // Only reset draft when modal opens — NOT when parent checkIn changes during selection.
   useEffect(() => {
@@ -368,12 +395,16 @@ export function StayDateRangePicker({
   const canSelect = useCallback(
     (date: string, phase: 'start' | 'end') => {
       if (phase === 'start') {
-        return isCheckInAvailable(date, freeWindows, earliestCheckIn);
+        return bedReservationSets.every((res) =>
+          isCheckInAvailableForReservations(date, res, earliestCheckIn),
+        );
       }
       if (!draftStart) return false;
-      return isCheckOutAvailable(date, draftStart, freeWindows);
+      return bedReservationSets.every((res) =>
+        isCheckOutAvailableForReservations(date, draftStart, res, effectiveHorizon),
+      );
     },
-    [draftStart, earliestCheckIn, freeWindows],
+    [draftStart, earliestCheckIn, bedReservationSets, effectiveHorizon],
   );
 
   const commitRange = useCallback(
@@ -389,7 +420,13 @@ export function StayDateRangePicker({
   const onPick = useCallback(
     (date: string) => {
       if (!showCheckOut) {
-        if (!isCheckInAvailable(date, freeWindows, earliestCheckIn)) return;
+        if (
+          !bedReservationSets.every((res) =>
+            isCheckInAvailableForReservations(date, res, earliestCheckIn),
+          )
+        ) {
+          return;
+        }
         commitRange(date, null);
         setOpen(false);
         return;
@@ -418,7 +455,8 @@ export function StayDateRangePicker({
       canSelect,
       commitRange,
       earliestCheckIn,
-      freeWindows,
+      bedReservationSets,
+      effectiveHorizon,
     ],
   );
 
@@ -556,8 +594,10 @@ export function StayDateRangePicker({
                       draftEnd={draftEnd}
                       hoverDate={hoverDate}
                       earliestCheckIn={earliestCheckIn}
-                      freeWindows={freeWindows}
+                      freeWindows={_freeWindows}
                       futureReservations={futureReservations}
+                      horizonEnd={effectiveHorizon}
+                      reservationsByBed={reservationsByBed}
                       onPick={onPick}
                       onHover={setHoverDate}
                     />
@@ -569,8 +609,10 @@ export function StayDateRangePicker({
                       draftEnd={draftEnd}
                       hoverDate={hoverDate}
                       earliestCheckIn={earliestCheckIn}
-                      freeWindows={freeWindows}
+                      freeWindows={_freeWindows}
                       futureReservations={futureReservations}
+                      horizonEnd={effectiveHorizon}
+                      reservationsByBed={reservationsByBed}
                       onPick={onPick}
                       onHover={setHoverDate}
                     />

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { AdminPanelGuide } from '@/src/components/admin/AdminPanelGuide';
+import { AdminPanelGuide2 } from '@/src/components/admin/AdminPanelGuide2';
 import { DateCouponAdminPanel } from '@/src/components/admin/DateCouponAdminPanel';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
@@ -14,7 +15,8 @@ export const dynamic = 'force-dynamic';
 
 const TABS = [
   { id: 'controls', label: 'Controls' },
-  { id: 'guide', label: 'Guide & tests' },
+  { id: 'guide', label: 'Guide 1 · Ops' },
+  { id: 'guide2', label: 'Guide 2 · Security' },
   { id: 'audit', label: 'Rent changes' },
   { id: 'links', label: 'Payment links' },
   { id: 'whatsapp', label: 'WhatsApp log' },
@@ -89,6 +91,8 @@ export default async function AdminPanelPage({
       ) : null}
 
       {tab === 'guide' ? <AdminPanelGuide /> : null}
+
+      {tab === 'guide2' ? <AdminPanelGuide2 /> : null}
 
       {tab === 'audit' ? (
         <AuditTable rows={auditLogs} empty="No rent changes yet — edit rent on a resident profile." />
@@ -215,7 +219,7 @@ export default async function AdminPanelPage({
         </section>
       ) : null}
 
-      {tab !== 'guide' ? <AdminPanelGuide /> : null}
+      {tab !== 'guide' && tab !== 'guide2' ? <AdminPanelGuide /> : null}
     </>
   );
 }

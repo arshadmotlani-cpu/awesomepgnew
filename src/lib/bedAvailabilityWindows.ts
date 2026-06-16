@@ -3,7 +3,11 @@
  * Mirrors the helpers in availability.ts without DB imports.
  */
 import { formatDateDdMmYyyy } from './format';
-import { parseDate, type DateLike } from './dates';
+import { parseDate, formatDate, type DateLike } from './dates';
+import {
+  isStayRangeAvailable,
+  maxCheckoutBeforeOverlap,
+} from './bedStayOverlap';
 
 export type FreeWindow = { startDate: string; endDate: string; nights: number };
 
@@ -42,6 +46,31 @@ export function validateStayWithinFreeWindows(
     return { ok: false, maxCheckout, reason: 'exceeds_cap' };
   }
   return { ok: true, maxCheckout };
+}
+
+/** Blocking validation: selected [checkIn, checkOut) must not overlap any reservation. */
+export function validateStayAgainstReservations(
+  checkIn: DateLike,
+  checkOut: DateLike,
+  reservations: Array<{ startDate: string; endDate: string }>,
+  horizonEnd: DateLike,
+): StayWindowValidation {
+  const ci = formatDate(parseDate(checkIn));
+  const co = formatDate(parseDate(checkOut));
+  if (co <= ci) {
+    return { ok: false, maxCheckout: null, reason: 'no_window' };
+  }
+
+  if (!isStayRangeAvailable(ci, co, reservations)) {
+    return { ok: false, maxCheckout: null, reason: 'no_window' };
+  }
+
+  const cap = maxCheckoutBeforeOverlap(ci, reservations, horizonEnd);
+  if (!cap || co > cap) {
+    return { ok: false, maxCheckout: cap, reason: 'exceeds_cap' };
+  }
+
+  return { ok: true, maxCheckout: cap };
 }
 
 export function checkoutCapMessage(maxCheckout: string): string {

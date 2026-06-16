@@ -491,5 +491,70 @@ export const ADMIN_GUIDE: GuideCatalog = {
         '7. Electricity — record meter readings on billing day.',
       ],
     },
+
+    // ── Security & deploy (Guide 2) ──
+    {
+      id: 'security-pg-scope',
+      title: 'Scoped admin PG access',
+      category: 'Security & deploy',
+      keywords: ['scope', 'pg scope', 'access denied', 'cross pg', 'manager', 'permission'],
+      summary:
+        'pg_manager and accountant roles with a PG scope can only mutate data for assigned PGs.',
+      steps: [
+        'Permissions tab shows role; pg_scope limits which PGs appear in actions.',
+        'Bed map vacating, remove tenant, deposits, bookings, vacating, and invoices all enforce scope.',
+        'Cross-PG bookingId in a form returns “Access denied for this PG.”',
+        'super_admin has full access; empty scope on non–super_admin denies all PGs.',
+      ],
+      links: [
+        { label: 'Guide 2 · Security', href: '/admin/panel?tab=guide2' },
+        { label: 'PG listings', href: '/admin/pgs' },
+      ],
+    },
+    {
+      id: 'security-deposit-settlement',
+      title: 'Deposit deduct, refund & settlement audit',
+      category: 'Security & deploy',
+      keywords: ['deposit', 'refund', 'deduct', 'settlement', 'ledger', 'balance'],
+      summary:
+        'All deposit mutations use canonical settlement — row locks, balance checks, idempotency, audit rows.',
+      steps: [
+        'Deposits page → deduct with reason; cannot exceed ledger balance.',
+        'Refund (manual or vacating complete) creates deposit_settlements row.',
+        'Migration 0052 adds deposit_settlements and webhook_replay_guard tables.',
+        'Run npm run db:migrate after deploy.',
+      ],
+      links: [{ label: 'Guide 2 · Security', href: '/admin/panel?tab=guide2' }],
+    },
+    {
+      id: 'security-payment-links',
+      title: 'Payment link ownership & proof upload',
+      category: 'Security & deploy',
+      keywords: ['payment link', 'proof', 'resident', 'pay page', 'access'],
+      summary: 'Residents must sign in and match link owner to view /pay/{id} or upload proof.',
+      steps: [
+        'Generate link for Resident A from Residents or Collections.',
+        'Resident A opens /pay/{linkId} while signed in — sees QR and breakdown.',
+        'Resident B opening same URL is blocked.',
+        'Proof upload validates residentId in both action and service layer.',
+      ],
+      links: [{ label: 'Payment links tab', href: '/admin/panel?tab=links' }],
+    },
+    {
+      id: 'security-deploy-checklist',
+      title: 'Pre-production security checklist',
+      category: 'Security & deploy',
+      keywords: ['deploy', 'migration', 'env', 'staging', 'production', 'secrets', 'test'],
+      summary: 'Run before promoting security-hardened builds to production.',
+      steps: [
+        'npm run db:migrate — confirm 0052_security_hardening applied.',
+        'npm test — all pass (330+).',
+        'Production env: AUTH_SECRET, CRON_SECRET, BLOB_READ_WRITE_TOKEN, Razorpay keys.',
+        'Staging env: MOCK_WEBHOOK_SECRET for mock provider.',
+        'Staging smoke: booking, deposit, vacating, payment links, PG scope, mock webhook 401.',
+        'Production: /api/webhooks/mock returns 404.',
+      ],
+      links: [{ label: 'Guide 2 · Security', href: '/admin/panel?tab=guide2' }],
+    },
   ],
 };

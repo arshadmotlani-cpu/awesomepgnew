@@ -5,10 +5,10 @@ import {
   isCheckInAvailable,
   isCheckOutAvailable,
   pickStayRange,
-} from '@/src/lib/stayDateSelection';
+} from '../../src/lib/stayDateSelection';
 
-const windows = [{ startDate: '2026-07-01', endDate: '2026-07-20', nights: 19 }];
 const reservations = [{ startDate: '2026-07-15', endDate: '2026-07-20' }];
+const horizonEnd = '2026-08-01';
 
 test('pickStayRange sets start on first click', () => {
   const can = () => true;
@@ -38,22 +38,30 @@ test('pickStayRange restarts range when already complete', () => {
   assert.equal(r?.draft.end, null);
 });
 
-test('isCheckOutAvailable respects free window cap', () => {
-  assert.equal(isCheckOutAvailable('2026-07-19', '2026-07-10', windows), true);
-  assert.equal(isCheckOutAvailable('2026-07-21', '2026-07-10', windows), false);
+test('isCheckOutAvailable respects reservation cap from check-in', () => {
+  assert.equal(isCheckOutAvailable('2026-07-14', '2026-07-10', reservations, horizonEnd), true);
+  assert.equal(isCheckOutAvailable('2026-07-19', '2026-07-10', reservations, horizonEnd), false);
+  assert.equal(isCheckOutAvailable('2026-07-21', '2026-07-10', reservations, horizonEnd), false);
 });
 
 test('classifyDayAvailability marks reserved span', () => {
   const kind = classifyDayAvailability('2026-07-16', {
-    freeWindows: windows,
     earliestCheckIn: '2026-07-01',
     futureReservations: reservations,
     selectedCheckIn: '2026-07-10',
+    horizonEnd,
   });
   assert.equal(kind, 'reserved');
 });
 
 test('isCheckInAvailable requires earliest check-in', () => {
-  assert.equal(isCheckInAvailable('2026-06-30', windows, '2026-07-01'), false);
-  assert.equal(isCheckInAvailable('2026-07-05', windows, '2026-07-01'), true);
+  assert.equal(isCheckInAvailable('2026-06-30', reservations, '2026-07-01'), false);
+  assert.equal(isCheckInAvailable('2026-07-05', reservations, '2026-07-01'), true);
+});
+
+test('isCheckInAvailable: distant future reservation does not block earlier check-in', () => {
+  assert.equal(
+    isCheckInAvailable('2026-06-01', [{ startDate: '2027-06-16', endDate: '2027-07-01' }], '2026-06-01'),
+    true,
+  );
 });
