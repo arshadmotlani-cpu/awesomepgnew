@@ -8,7 +8,7 @@ import { BedAssignmentWhatsAppButton } from '@/src/components/admin/BedAssignmen
 import { EditTenantTenancyForm } from '@/src/components/admin/EditTenantTenancyForm';
 import { RentUpdatedSuccessBanner } from '@/src/components/admin/RentUpdatedSuccessBanner';
 import { FinancialCommandCenter } from '@/src/components/admin/FinancialCommandCenter';
-import { CreateCustomChargeForm } from '@/src/components/admin/CreateCustomChargeForm';
+import { CreateChargeGeneratorForm } from '@/src/components/admin/CreateChargeGeneratorForm';
 import { ResidentActionBar } from '@/src/components/admin/ResidentActionBar';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
@@ -222,7 +222,7 @@ export default async function ResidentDetailPage({
         <>
           <FinancialCommandCenter summary={financialSummary} invoiceHistory={invoiceHistory} />
           <div className="mb-8">
-            <CreateCustomChargeForm
+            <CreateChargeGeneratorForm
               customerId={customerId}
               bookingId={activeTenancy.bookingId}
             />

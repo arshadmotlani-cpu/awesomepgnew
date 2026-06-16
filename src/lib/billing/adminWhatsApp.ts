@@ -171,6 +171,39 @@ export function buildBillingWhatsAppUrl(input: BillingWhatsAppInput): string | n
   return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
 }
 
+/** Operator-generated charge request (deposit / rent / custom via payment link). */
+export function buildChargeRequestWhatsAppMessage(input: {
+  customerName: string;
+  title: string;
+  amountPaise: number;
+  paymentLinkUrl: string;
+}): string {
+  const name = input.customerName.trim() || 'Resident';
+  const amount = paiseToInr(input.amountPaise);
+  return (
+    `Hello ${name},\n\n` +
+    `A payment request has been generated for:\n\n` +
+    `${input.title.trim()}\n\n` +
+    `Amount: ${amount}\n\n` +
+    `Please complete the payment using the link below and upload payment proof after payment.\n\n` +
+    `${input.paymentLinkUrl}\n\n` +
+    `Thank you.`
+  );
+}
+
+export function buildChargeRequestWhatsAppUrl(input: {
+  customerName: string;
+  customerPhone: string;
+  title: string;
+  amountPaise: number;
+  paymentLinkUrl: string;
+}): string | null {
+  const digits = whatsAppPhoneDigits(input.customerPhone);
+  if (!digits) return null;
+  const text = buildChargeRequestWhatsAppMessage(input);
+  return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
+}
+
 export { openWhatsAppUrl } from '@/src/lib/kyc/adminWhatsApp';
 
 export type BillingReminderQueueItem = {

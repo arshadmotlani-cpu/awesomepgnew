@@ -2,7 +2,7 @@ import { getPrivate, isPrivateBlobUrl } from '@/src/lib/storage/blob';
 
 /** Build admin URL that streams payment proof images (Blob, data URLs, or legacy HTTPS). */
 export function adminPaymentProofViewUrl(
-  kind: 'playstation' | 'rent' | 'electricity' | 'extension' | 'qr',
+  kind: 'playstation' | 'rent' | 'electricity' | 'extension' | 'qr' | 'deposit_link',
   id: string,
 ): string {
   return `/api/admin/payment-proof/${kind}/${id}`;

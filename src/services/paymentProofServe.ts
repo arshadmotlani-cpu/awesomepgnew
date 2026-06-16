@@ -6,6 +6,7 @@ import {
   electricityBills,
   electricityInvoices,
   floors,
+  paymentLinks,
   pgPaymentRecords,
   playstationMemberships,
   rentInvoices,
@@ -15,7 +16,7 @@ import {
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
 
-export type PaymentProofKind = 'playstation' | 'rent' | 'electricity' | 'extension' | 'qr';
+export type PaymentProofKind = 'playstation' | 'rent' | 'electricity' | 'extension' | 'qr' | 'deposit_link';
 
 async function pgIdForBooking(bookingId: string): Promise<string | null> {
   const [row] = await db
@@ -102,6 +103,18 @@ export async function resolveAdminPaymentProofUrl(
         })
         .from(pgPaymentRecords)
         .where(eq(pgPaymentRecords.id, id))
+        .limit(1);
+      if (!row?.url) return null;
+      if (!adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, row.pgId)) {
+        return null;
+      }
+      return row.url;
+    }
+    case 'deposit_link': {
+      const [row] = await db
+        .select({ pgId: paymentLinks.pgId, url: paymentLinks.paymentProofUrl })
+        .from(paymentLinks)
+        .where(eq(paymentLinks.id, id))
         .limit(1);
       if (!row?.url) return null;
       if (!adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, row.pgId)) {

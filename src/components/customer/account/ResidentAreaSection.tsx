@@ -269,6 +269,7 @@ export async function ResidentAreaSection({ customerId }: { customerId: string }
                 pgId: booking.pgId,
                 paymentId: null,
                 paymentProofUrl: null,
+                isAdhoc: false,
                 createdAt: new Date(),
                 updatedAt: new Date(),
               }),

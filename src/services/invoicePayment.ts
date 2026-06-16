@@ -200,13 +200,14 @@ export async function recordDepositPaymentFromLink(input: {
   customerId: string;
   amountPaise: number;
   providerPaymentId: string;
+  reason?: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   if (input.amountPaise <= 0) return { ok: false, error: 'Invalid amount.' };
   await recordDepositCollected({
     bookingId: input.bookingId,
     customerId: input.customerId,
     amountPaise: input.amountPaise,
-    reason: `Deposit payment link ${input.linkId}`,
+    reason: input.reason ?? `Deposit payment link ${input.linkId}`,
     relatedPaymentId: input.providerPaymentId,
   });
   await syncDepositCollectionFromLedger(input.bookingId);

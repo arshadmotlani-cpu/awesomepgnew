@@ -3,6 +3,7 @@ import type { AdminSession } from '@/src/lib/auth/session';
 import { listPendingExtensionProofsForPg } from '@/src/services/extension';
 import { listPendingElectricityProofsForPg } from '@/src/services/meterElectricity';
 import { listPendingRentProofsForPg } from '@/src/services/rentInvoices';
+import { listPendingDepositLinkProofsForPg } from '@/src/services/residentCharges';
 import { listOwnerPayments, getQrBookingPaymentReview } from '@/src/services/qrPayments';
 import { db } from '@/src/db/client';
 import { pgs } from '@/src/db/schema';
@@ -10,7 +11,7 @@ import { isNull } from 'drizzle-orm';
 
 export type PendingPaymentReviewItem = {
   key: string;
-  kind: 'qr' | 'rent' | 'electricity' | 'extension';
+  kind: 'qr' | 'rent' | 'electricity' | 'extension' | 'deposit_link';
   pgId: string;
   pgName: string;
   title: string;
@@ -113,6 +114,22 @@ export async function listPendingPaymentReviews(
         amountPaise: x.amountPaise,
         screenshotUrl: x.paymentProofUrl,
         entityId: x.extensionId,
+      });
+    }
+
+    const depositLinks = await listPendingDepositLinkProofsForPg(pg.id);
+    for (const d of depositLinks) {
+      if (!d.paymentProofUrl) continue;
+      items.push({
+        key: `deposit-link-${d.linkId}`,
+        kind: 'deposit_link',
+        pgId: pg.id,
+        pgName: pg.name,
+        title: `${d.customerName} · ${d.title ?? 'Additional deposit'}`,
+        subtitle: 'Additional security deposit',
+        amountPaise: d.amountPaise,
+        screenshotUrl: d.paymentProofUrl,
+        entityId: d.linkId,
       });
     }
   }

@@ -88,10 +88,11 @@ function buildRentCategory(
     outstandingPaise += outstanding;
 
     if (outstanding > 0 || inv.status === 'pending' || inv.status === 'overdue') {
+      const adhocLabel = inv.isAdhoc && inv.notes ? inv.notes.split(' — ')[0] : null;
       items.push({
         id: inv.id,
         kind: 'rent',
-        label: `Rent · ${inv.billingMonth.slice(0, 7)}`,
+        label: adhocLabel ?? `Rent · ${inv.billingMonth.slice(0, 7)}`,
         invoiceNumber: inv.invoiceNumber,
         sourceTable: 'rent_invoices',
         sourceId: inv.id,

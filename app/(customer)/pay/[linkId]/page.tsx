@@ -4,6 +4,7 @@ import { eq, desc } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { bookings, customers, pgs } from '@/src/db/schema';
 import { paiseToInr, titleCase } from '@/src/lib/format';
+import { PaymentLinkProofForm } from '@/src/components/customer/PaymentLinkProofForm';
 import { getPaymentLinkById } from '@/src/services/paymentLinks';
 
 export const dynamic = 'force-dynamic';
@@ -58,8 +59,11 @@ export default async function PaymentLinkPage({
     <main className="mx-auto min-h-screen max-w-lg bg-zinc-950 px-4 py-10 text-white">
       <p className="text-xs uppercase tracking-wide text-zinc-500">Awesome PG · Payment</p>
       <h1 className="mt-2 text-2xl font-semibold">
-        {titleCase(link.purpose)} — {pg?.name ?? 'PG'}
+        {link.title ?? `${titleCase(link.purpose)} — ${pg?.name ?? 'PG'}`}
       </h1>
+      {link.description ? (
+        <p className="mt-2 text-sm text-zinc-400">{link.description}</p>
+      ) : null}
       {resident ? (
         <p className="mt-1 text-sm text-zinc-400">
           {resident.fullName} · {resident.phone}
@@ -114,11 +118,24 @@ export default async function PaymentLinkPage({
             alt="UPI QR code"
             className="mx-auto mt-4 max-h-64 rounded-lg bg-white p-2"
           />
-          <p className="mt-3 text-xs text-zinc-500">
-            After paying, upload proof from your resident account or share screenshot with admin.
-          </p>
         </section>
       ) : null}
+
+      {(link.purpose === 'deposit' && link.bookingId) || link.rentInvoiceId ? (
+        <section className="mt-6">
+          <PaymentLinkProofForm
+            linkId={link.id}
+            amountLabel={paiseToInr(finalPaise)}
+            qrImageUrl={link.upiQrUrl}
+            existingProofUrl={link.paymentProofUrl}
+            title={link.title}
+          />
+        </section>
+      ) : (
+        <p className="mt-6 text-center text-xs text-zinc-500">
+          After paying, upload proof from your resident account or share screenshot with admin.
+        </p>
+      )}
 
       <p className="mt-8 text-center text-xs text-zinc-600">
         <Link href="/account" className="underline hover:text-zinc-400">

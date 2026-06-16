@@ -32,6 +32,14 @@ export type CreatePaymentLinkInput = {
   depositComponentPaise?: number;
   invoiceNumber?: string;
   invoiceBreakdown?: InvoiceBreakdown;
+  /** Operator charge generator metadata */
+  title?: string;
+  description?: string;
+  bookingId?: string;
+  rentInvoiceId?: string;
+  createdByAdminId?: string;
+  /** Use charge-request WhatsApp template when title is set. */
+  chargeRequest?: boolean;
 };
 
 export async function getOrCreatePaymentLink(input: CreatePaymentLinkInput) {
@@ -108,13 +116,27 @@ export async function createPaymentLink(input: CreatePaymentLinkInput) {
       upiQrUrl: qr.qrUrl,
       whatsappShareUrl: null,
       status: 'active',
+      title: input.title?.trim() || null,
+      description: input.description?.trim() || null,
+      bookingId: input.bookingId ?? null,
+      rentInvoiceId: input.rentInvoiceId ?? null,
+      createdByAdminId: input.createdByAdminId ?? null,
     })
     .returning();
 
   const publicUrl = paymentLinkPublicUrl(row.id);
   let whatsappShareUrl: string | null = null;
 
-  if (input.purpose === 'rent' && input.rentUpdated) {
+  if (input.chargeRequest && input.title) {
+    const { buildChargeRequestWhatsAppUrl } = await import('@/src/lib/billing/adminWhatsApp');
+    whatsappShareUrl = buildChargeRequestWhatsAppUrl({
+      customerName: input.residentName,
+      customerPhone: input.residentPhone,
+      title: input.title,
+      amountPaise: input.amountPaise,
+      paymentLinkUrl: publicUrl,
+    });
+  } else if (input.purpose === 'rent' && input.rentUpdated) {
     whatsappShareUrl = buildRentUpdatedWhatsAppUrl({
       customerName: input.residentName,
       phone: input.residentPhone,

@@ -870,6 +870,64 @@ export async function cancelFutureRentInvoices(
 // Re-exports so callers don't have to import from two places.
 export { customers };
 
+export async function createAdhocRentInvoice(input: {
+  bookingId: string;
+  customerId: string;
+  bedId: string;
+  pgId: string;
+  amountPaise: number;
+  title: string;
+  description?: string;
+  dueDate?: string;
+}): Promise<
+  | { ok: true; invoiceId: string; invoiceNumber: string }
+  | { ok: false; error: string }
+> {
+  if (input.amountPaise <= 0) {
+    return { ok: false, error: 'Amount must be greater than zero.' };
+  }
+
+  const billingMonth = firstOfMonth(formatDate(new Date()));
+  const dueDate = input.dueDate ?? formatDate(new Date());
+  const notes = input.description?.trim()
+    ? `${input.title.trim()} — ${input.description.trim()}`
+    : input.title.trim();
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const invoiceNumber = await nextInvoiceNumber(billingMonth, attempt);
+    try {
+      const [row] = await db
+        .insert(rentInvoices)
+        .values({
+          invoiceNumber,
+          bookingId: input.bookingId,
+          customerId: input.customerId,
+          bedId: input.bedId,
+          pgId: input.pgId,
+          billingMonth,
+          dueDate,
+          rentPaise: input.amountPaise,
+          status: 'pending',
+          notes,
+          isAdhoc: true,
+        })
+        .returning({
+          id: rentInvoices.id,
+          invoiceNumber: rentInvoices.invoiceNumber,
+        });
+
+      const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
+      void syncRentInvoiceToUnified(row.id);
+
+      return { ok: true, invoiceId: row.id, invoiceNumber: row.invoiceNumber };
+    } catch (err) {
+      if (pgErrorCode(err) !== '23505') throw err;
+    }
+  }
+
+  return { ok: false, error: 'Could not allocate rent invoice number.' };
+}
+
 export async function submitRentPaymentProof(
   customerId: string,
   invoiceId: string,

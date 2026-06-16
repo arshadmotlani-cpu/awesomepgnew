@@ -66,6 +66,7 @@ export default async function AdminBookingDetailPage(
             paymentProofUrl: null,
             cancelledAt: null,
             cancellationReason: null,
+            isAdhoc: false,
             createdAt: new Date(),
             updatedAt: new Date(),
           });

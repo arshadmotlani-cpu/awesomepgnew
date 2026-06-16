@@ -15,6 +15,7 @@ const KINDS = new Set<PaymentProofKind>([
   'electricity',
   'extension',
   'qr',
+  'deposit_link',
 ]);
 
 export async function GET(

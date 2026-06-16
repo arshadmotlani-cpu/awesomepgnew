@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   bigint,
+  boolean,
   date,
   index,
   pgTable,
@@ -64,12 +65,15 @@ export const rentInvoices = pgTable(
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
     cancellationReason: text('cancellation_reason'),
     notes: text('notes'),
+    isAdhoc: boolean('is_adhoc').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     uniqueIndex('rent_invoices_invoice_number_unique').on(t.invoiceNumber),
-    uniqueIndex('rent_invoices_booking_month_unique').on(t.bookingId, t.billingMonth),
+    uniqueIndex('rent_invoices_booking_month_unique')
+      .on(t.bookingId, t.billingMonth)
+      .where(sql`${t.isAdhoc} = false`),
     index('rent_invoices_booking_idx').on(t.bookingId),
     index('rent_invoices_customer_idx').on(t.customerId),
     index('rent_invoices_status_idx').on(t.status),

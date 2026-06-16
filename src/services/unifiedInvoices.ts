@@ -93,10 +93,12 @@ export async function syncRentInvoiceToUnified(rentInvoiceId: string): Promise<s
 
   const ctx = await loadBedContext(ri.bedId);
   const amountPaise = ri.rentPaise + (ri.paidLateFeePaise ?? 0);
+  const rentLabel =
+    ri.isAdhoc && ri.notes ? ri.notes.split(' — ')[0] : 'Monthly rent';
   const breakdown: InvoiceBreakdown = {
     rentPaise: ri.rentPaise,
     lateFeePaise: ri.paidLateFeePaise ?? 0,
-    lines: [{ kind: 'rent', label: 'Monthly rent', amountPaise: ri.rentPaise }],
+    lines: [{ kind: 'rent', label: rentLabel, amountPaise: ri.rentPaise }],
   };
   const status = rentStatusToUnified(ri.status, ri.dueDate);
 

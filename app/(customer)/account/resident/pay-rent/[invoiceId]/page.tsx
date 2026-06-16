@@ -67,6 +67,7 @@ export default async function PayRentPage({
       cancelledAt: rentInvoices.cancelledAt,
       cancellationReason: rentInvoices.cancellationReason,
       notes: rentInvoices.notes,
+      isAdhoc: rentInvoices.isAdhoc,
       bedId: rentInvoices.bedId,
       pgId: rentInvoices.pgId,
       createdAt: rentInvoices.createdAt,

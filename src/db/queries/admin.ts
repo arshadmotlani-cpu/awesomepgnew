@@ -1504,6 +1504,7 @@ export function listAdminRentInvoices(
         notes: null,
         cancelledAt: null,
         cancellationReason: null,
+        isAdhoc: false,
         createdAt: r.createdAt,
         updatedAt: r.createdAt,
       });

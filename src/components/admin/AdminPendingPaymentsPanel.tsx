@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import {
   approveElectricityProofAction,
+  approveDepositLinkProofAction,
   approveExtensionProofAction,
   approvePartialQrPaymentAction,
   approveQrPaymentAction,
@@ -20,6 +21,7 @@ const KIND_LABEL: Record<PendingPaymentReviewItem['kind'], string> = {
   rent: 'Rent invoice',
   electricity: 'Electricity',
   extension: 'Extension',
+  deposit_link: 'Additional deposit',
 };
 
 export function AdminPendingPaymentsPanel({
@@ -50,6 +52,9 @@ export function AdminPendingPaymentsPanel({
           break;
         case 'extension':
           result = await approveExtensionProofAction(item.entityId, item.pgId);
+          break;
+        case 'deposit_link':
+          result = await approveDepositLinkProofAction(item.entityId, item.pgId);
           break;
       }
       if (!result.ok) {
