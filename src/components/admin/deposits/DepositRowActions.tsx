@@ -7,7 +7,7 @@ import { WhatsAppIcon } from '@/src/components/admin/AdminKycWhatsAppButton';
 import type { DepositTableRow } from '@/src/components/admin/deposits/types';
 
 const BTN =
-  'inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-[11px] font-medium text-apg-silver hover:border-white/20 hover:text-white';
+  'inline-flex items-center gap-1 rounded border border-white/10 px-1.5 py-0.5 text-[10px] font-medium text-apg-silver hover:border-white/20 hover:text-white xl:px-2 xl:py-1 xl:text-[11px]';
 
 function whatsAppAmount(row: DepositTableRow): number {
   if (row.depositDuePaise > 0) return row.depositDuePaise;
@@ -107,11 +107,12 @@ function DepositActionsMenu({ items }: { items: Array<{ key: string; node: React
           e.stopPropagation();
           setOpen((v) => !v);
         }}
-        className={`${BTN} min-w-[2.5rem] justify-center`}
+        className={`${BTN} min-w-[2rem] justify-center xl:min-w-[2.5rem]`}
         aria-expanded={open}
         aria-haspopup="menu"
+        aria-label="More actions"
       >
-        ⋯ More
+        ⋯
       </button>
       {open ? (
         <div

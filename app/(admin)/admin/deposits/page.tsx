@@ -1,10 +1,8 @@
-import Link from 'next/link';
 import { DepositManagementPanel } from '@/src/components/admin/deposits/DepositManagementPanel';
 import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import { EmptyState } from '@/src/components/admin/EmptyState';
 import { IconCard } from '@/src/components/admin/icons';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
-import { PageHeader } from '@/src/components/admin/PageHeader';
 import { listAdminDepositSummaries } from '@/src/db/queries/admin';
 import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
@@ -38,18 +36,6 @@ export default async function AdminDepositsPage({
           { label: 'Overview', href: moduleHref('overview') },
           { label: ADMIN_MODULES.deposits.label },
         ]}
-      />
-      <PageHeader
-        title="Deposit management"
-        description="Every booking with a security deposit — required amount, collection status, ledger balance, and refunds."
-        actions={
-          <Link
-            href="/admin/deposits/add"
-            className="rounded-lg bg-[#FF5A1F] px-4 py-2 text-sm font-semibold text-white hover:brightness-110"
-          >
-            Add deposit
-          </Link>
-        }
       />
 
       {!res.ok ? (

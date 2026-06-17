@@ -24,8 +24,8 @@ export default async function AdminRequestsPage({
   return (
     <>
       <PageHeader
-        title="Resident requests"
-        description="Deposit refund and deposit due extension queue — synced with Take Action badges."
+        title="Refund requests"
+        description="Deposit refund workflow — wallet balance, deductions, electricity, and payout approval."
         actions={
           <Link
             href="/admin/overview"

@@ -1,9 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useActionState } from 'react';
 import {
+  calculateRefundElectricityAction,
   reviewResidentRequestAction,
+  type RefundElectricityActionState,
   type ReviewRequestState,
 } from '@/app/(admin)/admin/requests/actions';
 import { DepositWalletSummary } from '@/src/components/admin/DepositWalletSummary';
@@ -32,6 +34,7 @@ export function ResidentRequestReviewPanel({
     customerPhone: string;
     customerId: string;
     bookingId: string;
+    bookingCode?: string | null;
     pgName: string;
     createdAt: Date;
     meterReadingPhotoUrl?: string | null;
@@ -46,14 +49,29 @@ export function ResidentRequestReviewPanel({
     ok: false,
   } satisfies ReviewRequestState);
 
+  const [elecState, elecAction, elecPending] = useActionState(
+    calculateRefundElectricityAction,
+    null as RefundElectricityActionState | null,
+  );
+
   const [elecCost, setElecCost] = useState('12');
   const [elecUnits, setElecUnits] = useState('');
+  const [calcUseAverage, setCalcUseAverage] = useState(
+    Boolean(request.useAverageBillingFallback),
+  );
   const [damage, setDamage] = useState('');
   const [cleaning, setCleaning] = useState('');
   const [penalty, setPenalty] = useState('');
   const [custom, setCustom] = useState('');
   const [customLabel, setCustomLabel] = useState('');
   const [refundMethod, setRefundMethod] = useState('UPI');
+
+  useEffect(() => {
+    if (elecState?.ok) {
+      setElecCost(String(elecState.ratePerUnitPaise / 100));
+      setElecUnits(String(elecState.units));
+    }
+  }, [elecState]);
 
   const held =
     depositWallet?.refundableBalancePaise ??
@@ -95,12 +113,37 @@ export function ResidentRequestReviewPanel({
       </h3>
       <p className="mt-1 text-xs text-apg-silver">
         {request.pgName} · {request.customerPhone} · {titleCase(request.status)}
+        {request.bookingCode ? (
+          <>
+            {' '}
+            · <span className="font-mono">{request.bookingCode}</span>
+          </>
+        ) : null}
       </p>
 
       {request.type === 'deposit_refund' ? (
         <div className="mt-4 space-y-4">
           {depositWallet ? (
-            <DepositWalletSummary wallet={depositWallet} bookingId={request.bookingId} compact />
+            <>
+              <DepositWalletSummary wallet={depositWallet} bookingId={request.bookingId} compact />
+              {depositWallet.entries.filter((e) => e.entryKind === 'deducted').length > 0 ? (
+                <div className="rounded-xl border border-white/10 bg-[#12161C] p-3">
+                  <p className="text-xs font-semibold text-white">Wallet deductions</p>
+                  <ul className="mt-2 space-y-1 text-xs text-apg-silver">
+                    {depositWallet.entries
+                      .filter((e) => e.entryKind === 'deducted')
+                      .map((e) => (
+                        <li key={e.id} className="flex justify-between gap-2">
+                          <span>{e.reason}</span>
+                          <span className="tabular-nums text-rose-300">
+                            −{paiseToInr(Math.abs(e.amountPaise))}
+                          </span>
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              ) : null}
+            </>
           ) : null}
 
           <div className="rounded-xl border border-white/10 bg-[#12161C] p-4">
@@ -150,6 +193,45 @@ export function ResidentRequestReviewPanel({
             {!submissionValid.ok ? (
               <p className="mt-3 rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
                 Cannot approve — {submissionValid.error}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="rounded-xl border border-white/10 bg-[#12161C] p-4">
+            <p className="text-sm font-semibold text-white">Electricity before approval</p>
+            <p className="mt-1 text-xs text-apg-silver">
+              Fetch meter readings or apply room-average estimate, then generate the electricity
+              invoice before deducting from the deposit wallet.
+            </p>
+            <form action={elecAction} className="mt-3 space-y-3">
+              <input type="hidden" name="bookingId" value={request.bookingId} />
+              <label className="flex items-center gap-2 text-xs text-apg-silver">
+                <input
+                  type="checkbox"
+                  name="useAverageFallback"
+                  value="1"
+                  checked={calcUseAverage}
+                  onChange={(e) => setCalcUseAverage(e.target.checked)}
+                  className="rounded border-white/20"
+                />
+                Auto average calculation per room (no meter photo)
+              </label>
+              <button
+                type="submit"
+                disabled={elecPending}
+                className="rounded-lg border border-sky-400/40 bg-sky-500/10 px-3 py-2 text-xs font-medium text-sky-200 hover:bg-sky-500/20 disabled:opacity-50"
+              >
+                {elecPending ? 'Calculating…' : 'Calculate electricity before approval'}
+              </button>
+            </form>
+            {elecState?.ok === false ? (
+              <p className="mt-2 text-xs text-rose-300">{elecState.error}</p>
+            ) : null}
+            {elecState?.ok ? (
+              <p className="mt-2 text-xs text-emerald-300">
+                {elecState.message} — {elecState.units} units @ ₹
+                {(elecState.ratePerUnitPaise / 100).toFixed(2)} ={' '}
+                {paiseToInr(elecState.amountPaise)}
               </p>
             ) : null}
           </div>

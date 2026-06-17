@@ -401,6 +401,7 @@ export async function listPendingResidentRequestsForAdmin(_session: AdminSession
       customerPhone: customers.phone,
       customerId: residentRequests.customerId,
       bookingId: residentRequests.bookingId,
+      bookingCode: bookings.bookingCode,
       pgName: pgs.name,
       meterReadingPhotoUrl: residentRequests.meterReadingPhotoUrl,
       useAverageBillingFallback: residentRequests.useAverageBillingFallback,
@@ -410,6 +411,7 @@ export async function listPendingResidentRequestsForAdmin(_session: AdminSession
     })
     .from(residentRequests)
     .innerJoin(customers, eq(customers.id, residentRequests.customerId))
+    .innerJoin(bookings, eq(bookings.id, residentRequests.bookingId))
     .innerJoin(pgs, eq(pgs.id, residentRequests.pgId))
     .where(inArray(residentRequests.status, ['submitted', 'under_review', 'approved']))
     .orderBy(residentRequests.createdAt);

@@ -4,7 +4,9 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { assertAdminResidentRequestAccess } from '@/src/lib/auth/pgAccess';
+import { assertAdminBookingAccess } from '@/src/lib/auth/pgAccess';
 import { adminReviewResidentRequest } from '@/src/services/residentRequests';
+import { calculateRefundElectricityForBooking } from '@/src/services/refundElectricity';
 import { syncActionItems } from '@/src/services/actionItems';
 
 export type ReviewRequestState = { ok: boolean; error?: string };
@@ -70,4 +72,52 @@ export async function reviewResidentRequestAction(
   revalidatePath('/admin/overview');
   revalidatePath('/admin/deposits');
   redirect('/admin/requests?reviewed=1');
+}
+
+export type RefundElectricityActionState =
+  | { ok: false; error: string }
+  | {
+      ok: true;
+      units: number;
+      ratePerUnitPaise: number;
+      amountPaise: number;
+      message: string;
+    };
+
+export async function calculateRefundElectricityAction(
+  _prev: RefundElectricityActionState | null,
+  formData: FormData,
+): Promise<RefundElectricityActionState> {
+  const session = await requireAdminPermission('bookings:write');
+  const bookingId = formData.get('bookingId')?.toString() ?? '';
+  const useAverageFallback = formData.get('useAverageFallback')?.toString() === '1';
+
+  if (!bookingId) return { ok: false, error: 'Booking required.' };
+
+  try {
+    await assertAdminBookingAccess(session, bookingId);
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Access denied for this PG.',
+    };
+  }
+
+  const result = await calculateRefundElectricityForBooking(session, {
+    bookingId,
+    useAverageFallback,
+  });
+
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath('/admin/requests');
+  revalidatePath('/admin/electricity');
+
+  return {
+    ok: true,
+    units: result.units,
+    ratePerUnitPaise: result.ratePerUnitPaise,
+    amountPaise: result.amountPaise,
+    message: result.message,
+  };
 }

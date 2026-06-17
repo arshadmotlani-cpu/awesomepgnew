@@ -7,6 +7,7 @@ import { PageHeader } from '@/src/components/admin/PageHeader';
 import { listPgSettings } from '@/src/db/queries/admin';
 import { amenityLabel } from '@/src/lib/pgAmenities';
 import { OperatorTestDataCleanupButton } from '@/src/components/admin/OperatorTestDataCleanupButton';
+import { ProductionFinancialResetPanel } from '@/src/components/admin/ProductionFinancialResetPanel';
 import { titleCase } from '@/src/lib/format';
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import { runOperatorTestDataCleanup } from '@/src/services/operatorTestDataCleanup';
@@ -115,7 +116,17 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
 
       <Card>
         <CardHeader
-          title="Test data cleanup"
+          title="Production financial reset"
+          description="Remove test/spurious revenue and reset to manual-entry-only going forward."
+        />
+        <CardBody>
+          <ProductionFinancialResetPanel />
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Test data cleanup (legacy)"
           description="One-time fix when Overview extra income or bed occupancy still reflects your own test bookings."
         />
         <CardBody>

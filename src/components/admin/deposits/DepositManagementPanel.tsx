@@ -31,128 +31,150 @@ export function DepositManagementPanel({ rows, dueOnly }: Props) {
   );
 
   return (
-    <div className="flex min-h-0 flex-col gap-4">
-      {dueOnly ? (
-        <p className="shrink-0 rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-          Showing bookings with outstanding deposit balances only.{' '}
-          <Link href="/admin/deposits" className="font-semibold text-white underline">
-            Clear filter
-          </Link>
-        </p>
-      ) : (
-        <p className="shrink-0 text-sm text-apg-silver">
+    <div className="flex flex-col">
+      <header className="sticky top-0 z-20 -mx-3 border-b border-white/10 bg-[#0B0F14]/95 px-3 py-2 backdrop-blur-sm sm:-mx-4 sm:px-4 lg:-mx-8 lg:px-8">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h1 className="text-base font-semibold tracking-tight text-white sm:text-lg">Deposits</h1>
           <Link
-            href="/admin/deposits?filter=due"
-            className="font-semibold text-[#FF5A1F] hover:underline"
+            href="/admin/deposits/add"
+            className="shrink-0 rounded-lg bg-[#FF5A1F] px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110 sm:px-4 sm:py-2 sm:text-sm"
           >
-            View outstanding deposits →
+            Add deposit
           </Link>
-        </p>
-      )}
+        </div>
 
-      <section className="shrink-0 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Required" value={paiseToInr(totals.required)} />
-        <StatCard label="Collected (ledger)" value={paiseToInr(totals.collected)} />
-        <StatCard label="Still due" value={paiseToInr(totals.due)} accent={totals.due > 0} />
-        <StatCard label="Refundable balance" value={paiseToInr(totals.refundable)} />
-      </section>
+        <dl className="mt-1.5 flex flex-wrap items-baseline gap-x-4 gap-y-0.5 text-xs">
+          <InlineStat label="Required" value={paiseToInr(totals.required)} />
+          <InlineStat label="Collected" value={paiseToInr(totals.collected)} accent="emerald" />
+          <InlineStat
+            label="Due"
+            value={paiseToInr(totals.due)}
+            accent={totals.due > 0 ? 'amber' : undefined}
+          />
+          <InlineStat label="Refundable" value={paiseToInr(totals.refundable)} />
+        </dl>
+
+        {dueOnly ? (
+          <p className="mt-1.5 text-[11px] text-amber-200/90">
+            Outstanding only ·{' '}
+            <Link href="/admin/deposits" className="font-medium text-white underline">
+              Clear filter
+            </Link>
+          </p>
+        ) : (
+          <p className="mt-1.5 text-[11px] text-apg-silver">
+            <Link href="/admin/deposits?filter=due" className="font-medium text-[#FF5A1F] hover:underline">
+              View outstanding →
+            </Link>
+          </p>
+        )}
+      </header>
 
       {rows.length === 0 ? (
-        <p className="rounded-xl border border-white/10 bg-[#1A1F27] px-4 py-8 text-center text-sm text-apg-silver">
+        <p className="mt-4 rounded-xl border border-white/10 bg-[#1A1F27] px-4 py-8 text-center text-sm text-apg-silver">
           No bookings match this filter.
         </p>
       ) : (
         <>
-          {/* Desktop: scrollable table with sticky header */}
-          <div className="hidden min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-white/10 bg-[#1A1F27] md:flex md:max-h-[calc(100dvh-18rem)]">
-            <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
-              <table className="min-w-[960px] w-full text-left text-sm">
-                <thead className="sticky top-0 z-10 border-b border-white/10 bg-[#1A1F27] shadow-[0_1px_0_rgba(255,255,255,0.06)]">
-                  <tr>
-                    <Th>Resident / booking</Th>
-                    <Th>Bed</Th>
-                    <Th className="text-right">Required</Th>
-                    <Th className="text-right">Collected</Th>
-                    <Th className="text-right">Due</Th>
-                    <Th>Status</Th>
-                    <Th className="text-right">Deducted</Th>
-                    <Th className="text-right">Refunded</Th>
-                    <Th className="text-right">Balance</Th>
-                    <Th className="text-right min-w-[11rem]">Actions</Th>
+          <div className="mt-3 hidden rounded-xl border border-white/10 bg-[#1A1F27] md:block">
+            <table className="min-w-[960px] w-full text-left text-sm">
+              <thead className="border-b border-white/10 bg-[#1A1F27]">
+                <tr>
+                  <Th>Resident</Th>
+                  <Th>Bed</Th>
+                  <Th className="text-right">Required</Th>
+                  <Th className="text-right">Collected</Th>
+                  <Th className="text-right">Due</Th>
+                  <Th>Status</Th>
+                  <Th className="text-right">Deducted</Th>
+                  <Th className="text-right">Refunded</Th>
+                  <Th className="text-right">Balance</Th>
+                  <Th className="min-w-[7rem] text-right">Actions</Th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {rows.map((r) => (
+                  <tr
+                    key={r.bookingId}
+                    className="cursor-pointer transition hover:bg-white/[0.03]"
+                    onClick={() => setSelected(r)}
+                  >
+                    <td className="px-3 py-2">
+                      <p className="text-sm font-medium leading-tight text-white">
+                        {r.customerFullName}
+                      </p>
+                      <p className="mt-0.5 text-[11px] leading-tight text-apg-silver">
+                        {r.customerPhone}
+                        <span className="mx-1 text-white/20">·</span>
+                        <span className="font-mono text-[#FF5A1F]/80">{r.bookingCode}</span>
+                      </p>
+                    </td>
+                    <td className="px-3 py-2 text-[11px] leading-tight text-apg-silver">
+                      {r.pgName}
+                      <span className="mx-1 text-white/20">·</span>
+                      R{r.roomNumber}
+                      <span className="mx-1 text-white/20">·</span>
+                      {r.bedCode}
+                    </td>
+                    <AmountCell>{paiseToInr(Number(r.depositPaise))}</AmountCell>
+                    <AmountCell className="text-emerald-300">
+                      {paiseToInr(Number(r.collectedPaise))}
+                    </AmountCell>
+                    <AmountCell className="text-amber-200">
+                      {Number(r.depositDuePaise) > 0
+                        ? paiseToInr(Number(r.depositDuePaise))
+                        : '—'}
+                    </AmountCell>
+                    <td className="px-3 py-2">
+                      <Badge
+                        tone={
+                          hasOutstandingDepositDue(r)
+                            ? 'rose'
+                            : toneForStatus(r.depositCollectionStatus)
+                        }
+                      >
+                        {labelDepositCollectionStatus(r.depositCollectionStatus)}
+                      </Badge>
+                    </td>
+                    <AmountCell className="text-rose-300">
+                      {paiseToInr(Number(r.deductedPaise))}
+                    </AmountCell>
+                    <AmountCell>{paiseToInr(Number(r.refundedPaise))}</AmountCell>
+                    <AmountCell className="font-medium">
+                      {paiseToInr(Number(r.refundableBalancePaise))}
+                    </AmountCell>
+                    <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                      <div className="hidden xl:block">
+                        <DepositRowActions row={r} onOpen={() => setSelected(r)} />
+                      </div>
+                      <div className="xl:hidden">
+                        <DepositRowActions row={r} onOpen={() => setSelected(r)} compact />
+                      </div>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {rows.map((r) => (
-                    <tr
-                      key={r.bookingId}
-                      className="cursor-pointer transition hover:bg-white/[0.03]"
-                      onClick={() => setSelected(r)}
-                    >
-                      <td className="px-4 py-3">
-                        <p className="text-sm font-medium text-white">{r.customerFullName}</p>
-                        <p className="font-mono text-[11px] text-apg-silver">{r.customerPhone}</p>
-                        <p className="mt-0.5 font-mono text-[10px] text-[#FF5A1F]/80">{r.bookingCode}</p>
-                      </td>
-                      <td className="px-4 py-3 text-xs text-apg-silver">
-                        {r.pgName}
-                        <div>
-                          Room {r.roomNumber} · {r.bedCode}
-                        </div>
-                      </td>
-                      <AmountCell>{paiseToInr(Number(r.depositPaise))}</AmountCell>
-                      <AmountCell className="text-emerald-300">
-                        {paiseToInr(Number(r.collectedPaise))}
-                      </AmountCell>
-                      <AmountCell className="text-amber-200">
-                        {Number(r.depositDuePaise) > 0
-                          ? paiseToInr(Number(r.depositDuePaise))
-                          : '—'}
-                      </AmountCell>
-                      <td className="px-4 py-3">
-                        <Badge
-                          tone={
-                            hasOutstandingDepositDue(r)
-                              ? 'rose'
-                              : toneForStatus(r.depositCollectionStatus)
-                          }
-                        >
-                          {labelDepositCollectionStatus(r.depositCollectionStatus)}
-                        </Badge>
-                      </td>
-                      <AmountCell className="text-rose-300">
-                        {paiseToInr(Number(r.deductedPaise))}
-                      </AmountCell>
-                      <AmountCell>{paiseToInr(Number(r.refundedPaise))}</AmountCell>
-                      <AmountCell className="font-medium">
-                        {paiseToInr(Number(r.refundableBalancePaise))}
-                      </AmountCell>
-                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                        <div className="hidden lg:block">
-                          <DepositRowActions row={r} onOpen={() => setSelected(r)} />
-                        </div>
-                        <div className="lg:hidden">
-                          <DepositRowActions row={r} onOpen={() => setSelected(r)} compact />
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </table>
           </div>
 
-          {/* Mobile: card list */}
-          <div className="flex max-h-[calc(100dvh-18rem)] flex-col gap-3 overflow-y-auto overscroll-contain md:hidden">
+          <div className="mt-3 flex flex-col gap-2 md:hidden">
             {rows.map((r) => (
               <article
                 key={r.bookingId}
-                className="rounded-xl border border-white/10 bg-[#1A1F27] p-4"
+                className="rounded-lg border border-white/10 bg-[#1A1F27] p-3"
                 onClick={() => setSelected(r)}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="truncate font-medium text-white">{r.customerFullName}</p>
-                    <p className="text-xs text-apg-silver">
+                    <p className="truncate text-sm font-medium leading-tight text-white">
+                      {r.customerFullName}
+                    </p>
+                    <p className="mt-0.5 text-[11px] leading-tight text-apg-silver">
+                      {r.customerPhone}
+                      <span className="mx-1 text-white/20">·</span>
+                      <span className="font-mono text-[#FF5A1F]/80">{r.bookingCode}</span>
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-apg-silver">
                       {r.pgName} · R{r.roomNumber} · {r.bedCode}
                     </p>
                   </div>
@@ -166,9 +188,9 @@ export function DepositManagementPanel({ rows, dueOnly }: Props) {
                     {labelDepositCollectionStatus(r.depositCollectionStatus)}
                   </Badge>
                 </div>
-                <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                  <Metric label="Required" value={paiseToInr(Number(r.depositPaise))} />
-                  <Metric label="Collected" value={paiseToInr(Number(r.collectedPaise))} />
+                <dl className="mt-2 grid grid-cols-4 gap-1 text-[11px]">
+                  <Metric label="Req" value={paiseToInr(Number(r.depositPaise))} />
+                  <Metric label="Coll" value={paiseToInr(Number(r.collectedPaise))} />
                   <Metric
                     label="Due"
                     value={
@@ -177,12 +199,9 @@ export function DepositManagementPanel({ rows, dueOnly }: Props) {
                         : '—'
                     }
                   />
-                  <Metric
-                    label="Balance"
-                    value={paiseToInr(Number(r.refundableBalancePaise))}
-                  />
+                  <Metric label="Bal" value={paiseToInr(Number(r.refundableBalancePaise))} />
                 </dl>
-                <div className="mt-3 border-t border-white/5 pt-3" onClick={(e) => e.stopPropagation()}>
+                <div className="mt-2 border-t border-white/5 pt-2" onClick={(e) => e.stopPropagation()}>
                   <DepositRowActions row={r} onOpen={() => setSelected(r)} compact />
                 </div>
               </article>
@@ -198,24 +217,26 @@ export function DepositManagementPanel({ rows, dueOnly }: Props) {
   );
 }
 
-function StatCard({
+function InlineStat({
   label,
   value,
-  accent = false,
+  accent,
 }: {
   label: string;
   value: string;
-  accent?: boolean;
+  accent?: 'emerald' | 'amber';
 }) {
+  const valueClass =
+    accent === 'emerald'
+      ? 'text-emerald-300'
+      : accent === 'amber'
+        ? 'text-amber-200'
+        : 'text-white';
+
   return (
-    <div
-      className={
-        'rounded-xl border p-4 ' +
-        (accent ? 'border-amber-400/30 bg-amber-500/10' : 'border-white/10 bg-[#1A1F27]')
-      }
-    >
-      <div className="text-[10px] font-medium uppercase tracking-wide text-apg-silver">{label}</div>
-      <div className="mt-1 text-lg font-semibold text-white">{value}</div>
+    <div className="flex items-baseline gap-1.5">
+      <dt className="text-apg-silver">{label}</dt>
+      <dd className={`font-semibold tabular-nums ${valueClass}`}>{value}</dd>
     </div>
   );
 }
@@ -231,7 +252,8 @@ function Th({
     <th
       scope="col"
       className={
-        'px-4 py-3 text-xs font-semibold uppercase tracking-wide text-apg-silver ' + className
+        'px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-apg-silver ' +
+        className
       }
     >
       {children}
@@ -247,7 +269,9 @@ function AmountCell({
   className?: string;
 }) {
   return (
-    <td className={'px-4 py-3 text-right tabular-nums text-white ' + className}>{children}</td>
+    <td className={'px-3 py-2 text-right text-sm tabular-nums text-white ' + className}>
+      {children}
+    </td>
   );
 }
 

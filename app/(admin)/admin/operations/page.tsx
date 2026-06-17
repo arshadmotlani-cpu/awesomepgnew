@@ -6,6 +6,7 @@ import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { OperationsCenter } from '@/src/components/admin/OperationsCenter';
 import { OverviewMonthPicker } from '@/src/components/admin/OverviewMonthPicker';
 import { PageHeader } from '@/src/components/admin/PageHeader';
+import { RefundRequestsOpsPanel } from '@/src/components/admin/RefundRequestsOpsPanel';
 import { SyncActionsButton } from '@/src/components/admin/SyncActionsButton';
 import { getOccupancyByPg } from '@/src/db/queries/admin';
 import { requireAdminSession } from '@/src/lib/auth/guards';
@@ -64,6 +65,7 @@ export default async function OperationsModulePage({
           ['Residents & bed assignment', moduleHref('residents')],
           ['KYC review', moduleHref('kyc')],
           ['Vacating', '/admin/vacating'],
+          ['Refund requests', '/admin/requests'],
           ['Bookings', '/admin/bookings'],
         ].map(([label, href]) => (
           <Link
@@ -77,6 +79,10 @@ export default async function OperationsModulePage({
       </div>
 
       <div className="space-y-8">
+        <AdminSectionErrorBoundary title="Refund requests">
+          <RefundRequestsOpsPanel session={session} />
+        </AdminSectionErrorBoundary>
+
         {data.operations ? (
           <AdminSectionErrorBoundary title="Operations queues">
             <OperationsCenter data={data.operations} />

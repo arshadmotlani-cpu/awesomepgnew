@@ -1312,6 +1312,10 @@ export function getDepositCollectedByPgForBillingMonth(
         LIMIT 1
       ) pg ON true
       WHERE dl.entry_kind = 'collected'
+        AND bk.is_test = false
+        AND NOT EXISTS (
+          SELECT 1 FROM customers c2 WHERE c2.id = bk.customer_id AND c2.is_test = true
+        )
         AND dl.created_at >= ${billingMonth}::timestamptz
         AND dl.created_at < (${billingMonth}::date + interval '1 month')::timestamptz
       GROUP BY pg.pg_id
