@@ -47,7 +47,12 @@ import {
 import { reconcileBookingOccupancy } from '../lib/occupancySync';
 import { isNoticeCompliant, vacatingPenalty } from './billing';
 import { getDepositSummaryForBooking } from './deposits';
-import { settleVacatingDepositRefund } from './depositSettlement';
+import { settleVacatingDepositRefund, applyDepositDeduction } from './depositSettlement';
+import {
+  DEPOSIT_REFUND_MISSING_DETAILS_MESSAGE,
+  validateDepositRefundSubmission,
+} from '@/src/lib/billing/depositRefundRequirements';
+import { getOpenDepositRefundRequestForBooking } from './residentRequests';
 import { cancelFutureRentInvoices } from './rentInvoices';
 import { cancelElectricityInvoicesForBooking } from './electricityBilling';
 import { recalculateBillingAfterVacatingRestore } from './residentFinancialEngine';
@@ -425,11 +430,17 @@ export async function approveVacatingRequest(input: {
 
   const meta = await vacatingEmailMeta(updated.bookingId);
   const { notifyVacatingUpdate } = await import('@/src/lib/email/notifications');
+  const depositSummary = await getDepositSummaryForBooking(updated.bookingId);
+  const refundNote =
+    depositSummary && depositSummary.refundableBalancePaise > 0
+      ? 'To process your deposit refund, open your resident dashboard and submit a deposit refund request with your final electricity meter photo (or average billing fallback) and your UPI ID or QR code for transfer.'
+      : undefined;
   notifyVacatingUpdate({
     customerId: updated.customerId,
     bookingCode: meta.bookingCode,
     status: 'approved',
     vacatingDate: updated.vacatingDate,
+    note: refundNote,
   });
 
   return { ok: true, request: updated };
@@ -571,18 +582,72 @@ export async function completeVacatingRequest(
   // remaining balance via canonical settlement (locked + idempotent).
   const deductionPaise = current.deductionPaise;
 
-  const settlement = await settleVacatingDepositRefund({
-    requestId: current.id,
-    bookingId: current.bookingId,
-    customerId: current.customerId,
-    adminId: input.resolvedByAdminId ?? null,
-    deductionPaise,
-    noticeCompliant: current.noticeCompliant,
-  });
-  if (!settlement.ok) {
-    return { ok: false, kind: 'settlement_failed', message: settlement.error };
+  const depositSummary = await getDepositSummaryForBooking(current.bookingId);
+  const refundReq =
+    depositSummary && depositSummary.refundableBalancePaise > 0
+      ? await getOpenDepositRefundRequestForBooking(current.bookingId)
+      : null;
+
+  if (depositSummary && depositSummary.refundableBalancePaise > 0) {
+    if (!refundReq) {
+      return {
+        ok: false,
+        kind: 'settlement_failed',
+        message:
+          'Cannot complete vacating — resident must submit a deposit refund request with meter photo and UPI/QR before checkout settlement.',
+      };
+    }
+    const submission = validateDepositRefundSubmission(refundReq);
+    if (!submission.ok) {
+      return {
+        ok: false,
+        kind: 'settlement_failed',
+        message: DEPOSIT_REFUND_MISSING_DETAILS_MESSAGE,
+      };
+    }
+    if (refundReq.status !== 'approved') {
+      return {
+        ok: false,
+        kind: 'settlement_failed',
+        message:
+          'Cannot complete vacating — approve the resident deposit refund request (with payout details) first.',
+      };
+    }
   }
-  const refundablePaise = settlement.depositRefundPaise;
+
+  let refundablePaise = 0;
+
+  if (refundReq?.status === 'approved') {
+    if (deductionPaise > 0) {
+      const deducted = await applyDepositDeduction({
+        bookingId: current.bookingId,
+        customerId: current.customerId,
+        amountPaise: deductionPaise,
+        reason: `vacating notice ${
+          current.noticeCompliant ? 'compliant' : 'short'
+        } — 5-day rent penalty`,
+        relatedVacatingId: current.id,
+        adminId: input.resolvedByAdminId ?? null,
+      });
+      if (!deducted.ok) {
+        return { ok: false, kind: 'settlement_failed', message: deducted.error };
+      }
+    }
+    refundablePaise = 0;
+  } else {
+    const settlement = await settleVacatingDepositRefund({
+      requestId: current.id,
+      bookingId: current.bookingId,
+      customerId: current.customerId,
+      adminId: input.resolvedByAdminId ?? null,
+      deductionPaise,
+      noticeCompliant: current.noticeCompliant,
+    });
+    if (!settlement.ok) {
+      return { ok: false, kind: 'settlement_failed', message: settlement.error };
+    }
+    refundablePaise = settlement.depositRefundPaise;
+  }
   //    isn't billed for months they've vacated.
   const futureRent = await cancelFutureRentInvoices(
     current.bookingId,

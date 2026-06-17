@@ -223,7 +223,12 @@ export default async function ResidentDetailPage({
 
       {financialSummary && activeTenancy ? (
         <>
-          <FinancialCommandCenter summary={financialSummary} invoiceHistory={invoiceHistory} />
+          <FinancialCommandCenter
+            summary={financialSummary}
+            invoiceHistory={invoiceHistory}
+            depositWallet={depositSummary}
+            bookingId={activeTenancy.bookingId}
+          />
           <div className="mb-8 flex flex-wrap items-center gap-3">
             <ExpressCollectionButton
               customerId={customerId}

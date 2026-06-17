@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useActionState, useMemo, useState } from 'react';
 import { BillingWhatsAppWithLinkButton } from '@/src/components/admin/BillingWhatsAppWithLinkButton';
+import { DepositWalletSummary } from '@/src/components/admin/DepositWalletSummary';
 import { paiseToInr } from '@/src/lib/format';
 import { isExpressCollectionNote } from '@/src/lib/billing/expressCollectionConstants';
 import { buildInvoiceWhatsAppMessage } from '@/src/lib/billing/invoiceWhatsApp';
@@ -16,6 +17,7 @@ import {
   generateResidentInvoiceAction,
   type ResidentInvoiceActionState,
 } from '@/app/(admin)/admin/residents/[customerId]/invoiceActions';
+import type { DepositSummary } from '@/src/services/deposits';
 
 type Props = {
   summary: ResidentFinancialSummary;
@@ -29,6 +31,9 @@ type Props = {
     notes?: string | null;
     paidAt?: Date | null;
   }>;
+  /** SSOT deposit wallet from deposit_ledger — always show when provided. */
+  depositWallet?: DepositSummary | null;
+  bookingId?: string | null;
 };
 
 type BillCategory = 'rent' | 'deposit' | 'electricity' | 'custom';
@@ -164,7 +169,12 @@ function CategoryTable({
   );
 }
 
-export function FinancialCommandCenter({ summary, invoiceHistory }: Props) {
+export function FinancialCommandCenter({
+  summary,
+  invoiceHistory,
+  depositWallet,
+  bookingId,
+}: Props) {
   const [state, formAction, pending] = useActionState(generateResidentInvoiceAction, idle);
   const [pendingKind, setPendingKind] = useState<string | null>(null);
   const [selectedCategories, setSelectedCategories] = useState<Set<BillCategory>>(
@@ -296,6 +306,12 @@ export function FinancialCommandCenter({ summary, invoiceHistory }: Props) {
           </p>
         </div>
       </div>
+
+      {depositWallet ? (
+        <div className="mb-4">
+          <DepositWalletSummary wallet={depositWallet} bookingId={bookingId ?? undefined} />
+        </div>
+      ) : null}
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <CategoryTable

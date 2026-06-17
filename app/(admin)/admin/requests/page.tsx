@@ -59,7 +59,7 @@ export default async function AdminRequestsPage({
                   </p>
                   <ResidentRequestReviewPanel
                     request={{ ...r, createdAt: r.createdAt }}
-                    depositHeldPaise={depositSummary?.refundableBalancePaise ?? r.amountPaise ?? 0}
+                    depositWallet={depositSummary}
                   />
                 </div>
               );

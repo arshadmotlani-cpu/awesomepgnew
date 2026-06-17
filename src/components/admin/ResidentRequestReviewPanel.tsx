@@ -6,8 +6,11 @@ import {
   reviewResidentRequestAction,
   type ReviewRequestState,
 } from '@/app/(admin)/admin/requests/actions';
+import { DepositWalletSummary } from '@/src/components/admin/DepositWalletSummary';
+import { validateDepositRefundSubmission } from '@/src/lib/billing/depositRefundRequirements';
 import { computeRefundDeductions } from '@/src/lib/refundDeductions';
 import { paiseToInr, titleCase } from '@/src/lib/format';
+import type { DepositSummary } from '@/src/services/deposits';
 
 function parseInrToPaise(value: string): number {
   const n = parseFloat(value.replace(/,/g, ''));
@@ -17,7 +20,7 @@ function parseInrToPaise(value: string): number {
 
 export function ResidentRequestReviewPanel({
   request,
-  depositHeldPaise,
+  depositWallet,
 }: {
   request: {
     id: string;
@@ -31,8 +34,13 @@ export function ResidentRequestReviewPanel({
     bookingId: string;
     pgName: string;
     createdAt: Date;
+    meterReadingPhotoUrl?: string | null;
+    useAverageBillingFallback?: boolean;
+    payoutUpiId?: string | null;
+    payoutQrUrl?: string | null;
+    notes?: string | null;
   };
-  depositHeldPaise: number;
+  depositWallet: DepositSummary | null;
 }) {
   const [state, action, pending] = useActionState(reviewResidentRequestAction, {
     ok: false,
@@ -47,7 +55,14 @@ export function ResidentRequestReviewPanel({
   const [customLabel, setCustomLabel] = useState('');
   const [refundMethod, setRefundMethod] = useState('UPI');
 
-  const held = depositHeldPaise > 0 ? depositHeldPaise : (request.amountPaise ?? 0);
+  const held =
+    depositWallet?.refundableBalancePaise ??
+    (request.amountPaise ?? 0);
+
+  const submissionValid = useMemo(
+    () => validateDepositRefundSubmission(request),
+    [request],
+  );
 
   const preview = useMemo(
     () =>
@@ -83,16 +98,65 @@ export function ResidentRequestReviewPanel({
       </p>
 
       {request.type === 'deposit_refund' ? (
-        <div className="mt-4 space-y-4 rounded-xl border border-white/10 bg-[#12161C] p-4">
-          <p className="text-sm font-semibold text-white">Refund approval</p>
-          <dl className="grid gap-2 text-sm sm:grid-cols-2">
-            <div>
-              <dt className="text-apg-silver">Deposit held</dt>
-              <dd className="font-semibold text-white">{paiseToInr(held)}</dd>
-            </div>
-          </dl>
+        <div className="mt-4 space-y-4">
+          {depositWallet ? (
+            <DepositWalletSummary wallet={depositWallet} bookingId={request.bookingId} compact />
+          ) : null}
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-white/10 bg-[#12161C] p-4">
+            <p className="text-sm font-semibold text-white">Refund submission</p>
+            <ul className="mt-2 space-y-1 text-xs text-apg-silver">
+              <li>
+                Meter photo:{' '}
+                {request.useAverageBillingFallback ? (
+                  <span className="text-amber-300">Average billing fallback selected</span>
+                ) : request.meterReadingPhotoUrl ? (
+                  <a
+                    href={request.meterReadingPhotoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sky-300 underline"
+                  >
+                    View photo
+                  </a>
+                ) : (
+                  <span className="text-rose-300">Missing</span>
+                )}
+              </li>
+              <li>
+                UPI ID:{' '}
+                {request.payoutUpiId ? (
+                  <span className="font-mono text-white">{request.payoutUpiId}</span>
+                ) : (
+                  <span className="text-apg-silver">—</span>
+                )}
+              </li>
+              <li>
+                UPI QR:{' '}
+                {request.payoutQrUrl ? (
+                  <a
+                    href={request.payoutQrUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sky-300 underline"
+                  >
+                    View QR
+                  </a>
+                ) : (
+                  <span className="text-apg-silver">—</span>
+                )}
+              </li>
+            </ul>
+            {!submissionValid.ok ? (
+              <p className="mt-3 rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+                Cannot approve — {submissionValid.error}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="rounded-xl border border-white/10 bg-[#12161C] p-4">
+            <p className="text-sm font-semibold text-white">Refund breakdown preview</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <label className="text-xs text-apg-silver">
               Electricity unit cost (₹)
               <input
@@ -168,23 +232,23 @@ export function ResidentRequestReviewPanel({
                 className="apg-admin-field mt-1 w-full rounded-lg border border-white/10 bg-[#0d1015] px-2 py-1.5 text-sm text-white"
               />
             </label>
-          </div>
+            </div>
 
-          <input type="hidden" name="electricityUnitCostPaise" value={parseInrToPaise(elecCost)} />
+            <div className="mt-3 rounded-lg border border-white/10 p-3 text-xs text-apg-silver">
+              <p>Electricity deduction: {paiseToInr(preview.electricityDeductionPaise ?? 0)}</p>
+              <p>Other charges: {paiseToInr(preview.otherDeductionsPaise ?? 0)}</p>
+              <p className="mt-2 text-sm font-semibold text-emerald-300">
+                Final refund: {paiseToInr(preview.finalRefundPaise)}
+              </p>
+            </div>
+
+            <input type="hidden" name="electricityUnitCostPaise" value={parseInrToPaise(elecCost)} />
           <input type="hidden" name="electricityUnits" value={parseInt(elecUnits, 10) || 0} />
           <input type="hidden" name="damageChargePaise" value={parseInrToPaise(damage)} />
           <input type="hidden" name="cleaningChargePaise" value={parseInrToPaise(cleaning)} />
           <input type="hidden" name="penaltyChargePaise" value={parseInrToPaise(penalty)} />
           <input type="hidden" name="customChargePaise" value={parseInrToPaise(custom)} />
           <input type="hidden" name="customChargeLabel" value={customLabel} />
-
-          <div className="rounded-lg border border-white/10 p-3 text-xs text-apg-silver">
-            <p>Electricity deduction: {paiseToInr(preview.electricityDeductionPaise ?? 0)}</p>
-            <p>Other charges: {paiseToInr(preview.otherDeductionsPaise ?? 0)}</p>
-            <p className="mt-2 text-sm font-semibold text-emerald-300">
-              Final refund: {paiseToInr(preview.finalRefundPaise)}
-            </p>
-          </div>
 
           {request.status === 'approved' ? (
             <label className="block text-xs text-apg-silver">
@@ -202,6 +266,7 @@ export function ResidentRequestReviewPanel({
               </select>
             </label>
           ) : null}
+          </div>
         </div>
       ) : (
         <>
@@ -242,8 +307,16 @@ export function ResidentRequestReviewPanel({
             type="submit"
             name="action"
             value="approve"
-            disabled={pending}
-            className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-500"
+            disabled={
+              pending ||
+              (request.type === 'deposit_refund' && !submissionValid.ok)
+            }
+            className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+            title={
+              request.type === 'deposit_refund' && !submissionValid.ok
+                ? submissionValid.error
+                : undefined
+            }
           >
             Approve
           </button>
@@ -253,8 +326,8 @@ export function ResidentRequestReviewPanel({
             type="submit"
             name="action"
             value="complete"
-            disabled={pending}
-            className="rounded-lg bg-[#FF5A1F] px-3 py-2 text-xs font-semibold text-white"
+            disabled={pending || !submissionValid.ok}
+            className="rounded-lg bg-[#FF5A1F] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
           >
             Proceed to refund
           </button>

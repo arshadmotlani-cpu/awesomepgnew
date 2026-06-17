@@ -2,12 +2,31 @@
 
 import { revalidatePath } from 'next/cache';
 import { getCustomerSession } from '@/src/lib/auth/session';
+import { uploadPaymentScreenshot } from '@/src/lib/payments/screenshotUpload';
 import {
   submitDepositRefundRequest,
   submitStayExtensionRequest,
 } from '@/src/services/residentRequests';
 
 export type RequestActionState = { ok: boolean; error?: string };
+
+export async function uploadDepositRefundMeterAction(formData: FormData): Promise<string> {
+  const session = await getCustomerSession();
+  if (!session) throw new Error('Sign in required.');
+
+  const file = formData.get('file');
+  if (!(file instanceof File)) throw new Error('No file provided.');
+  return uploadPaymentScreenshot(file);
+}
+
+export async function uploadDepositRefundQrAction(formData: FormData): Promise<string> {
+  const session = await getCustomerSession();
+  if (!session) throw new Error('Sign in required.');
+
+  const file = formData.get('file');
+  if (!(file instanceof File)) throw new Error('No file provided.');
+  return uploadPaymentScreenshot(file);
+}
 
 export async function submitDepositRefundRequestAction(
   _prev: RequestActionState,
@@ -18,11 +37,19 @@ export async function submitDepositRefundRequestAction(
 
   const bookingId = formData.get('bookingId')?.toString() ?? '';
   const notes = formData.get('notes')?.toString()?.trim();
+  const meterReadingPhotoUrl = formData.get('meterReadingPhotoUrl')?.toString()?.trim() || null;
+  const payoutQrUrl = formData.get('payoutQrUrl')?.toString()?.trim() || null;
+  const payoutUpiId = formData.get('payoutUpiId')?.toString()?.trim() || null;
+  const useAverageBillingFallback = formData.get('useAverageBillingFallback')?.toString() === '1';
 
   const result = await submitDepositRefundRequest({
     customerId: session.customerId,
     bookingId,
     notes: notes || undefined,
+    meterReadingPhotoUrl,
+    useAverageBillingFallback,
+    payoutUpiId,
+    payoutQrUrl,
   });
 
   if (!result.ok) return { ok: false, error: result.error };

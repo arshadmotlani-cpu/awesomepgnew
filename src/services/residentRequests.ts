@@ -25,6 +25,10 @@ import {
   computeRefundDeductions,
   type RefundCompletionInput,
 } from '@/src/lib/refundDeductions';
+import {
+  validateDepositRefundSubmission,
+  DEPOSIT_REFUND_MISSING_DETAILS_MESSAGE,
+} from '@/src/lib/billing/depositRefundRequirements';
 
 export type { RefundCompletionInput } from '@/src/lib/refundDeductions';
 export { computeRefundDeductions } from '@/src/lib/refundDeductions';
@@ -64,10 +68,24 @@ export async function submitDepositRefundRequest(input: {
   customerId: string;
   bookingId: string;
   notes?: string;
+  meterReadingPhotoUrl?: string | null;
+  useAverageBillingFallback?: boolean;
+  payoutUpiId?: string | null;
+  payoutQrUrl?: string | null;
 }) {
   const ctx = await bookingContext(input.bookingId);
   if (!ctx || ctx.customerId !== input.customerId) {
     return { ok: false as const, error: 'Booking not found.' };
+  }
+
+  const submission = validateDepositRefundSubmission({
+    meterReadingPhotoUrl: input.meterReadingPhotoUrl,
+    useAverageBillingFallback: input.useAverageBillingFallback,
+    payoutUpiId: input.payoutUpiId,
+    payoutQrUrl: input.payoutQrUrl,
+  });
+  if (!submission.ok) {
+    return { ok: false as const, error: submission.error };
   }
 
   const summary = await getDepositSummaryForBooking(input.bookingId);
@@ -86,6 +104,10 @@ export async function submitDepositRefundRequest(input: {
         status: 'submitted',
         amountPaise: summary.refundableBalancePaise,
         notes: input.notes ?? null,
+        meterReadingPhotoUrl: input.meterReadingPhotoUrl?.trim() || null,
+        useAverageBillingFallback: Boolean(input.useAverageBillingFallback),
+        payoutUpiId: input.payoutUpiId?.trim() || null,
+        payoutQrUrl: input.payoutQrUrl?.trim() || null,
       })
       .returning();
 
@@ -249,6 +271,13 @@ export async function adminReviewResidentRequest(input: {
       };
     }
 
+    if (current.type === 'deposit_refund') {
+      const submission = validateDepositRefundSubmission(current);
+      if (!submission.ok) {
+        return { ok: false as const, error: DEPOSIT_REFUND_MISSING_DETAILS_MESSAGE };
+      }
+    }
+
     if (current.type === 'deposit_due_extension' && current.requestedEndDate) {
       const { extendDepositDueDate } = await import('./depositCollection');
       const ext = await extendDepositDueDate({
@@ -278,6 +307,11 @@ export async function adminReviewResidentRequest(input: {
 
   if (input.action === 'complete') {
     if (current.type === 'deposit_refund') {
+      const submission = validateDepositRefundSubmission(current);
+      if (!submission.ok) {
+        return { ok: false as const, error: DEPOSIT_REFUND_MISSING_DETAILS_MESSAGE };
+      }
+
       const settlement = await settleDepositWithDeductions({
         bookingId: current.bookingId,
         customerId: current.customerId,
@@ -339,6 +373,21 @@ export async function adminReviewResidentRequest(input: {
   return { ok: false as const, error: 'Invalid action.' };
 }
 
+export async function getOpenDepositRefundRequestForBooking(bookingId: string) {
+  const [row] = await db
+    .select()
+    .from(residentRequests)
+    .where(
+      and(
+        eq(residentRequests.bookingId, bookingId),
+        eq(residentRequests.type, 'deposit_refund'),
+        inArray(residentRequests.status, ['submitted', 'under_review', 'approved']),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
 export async function listPendingResidentRequestsForAdmin(_session: AdminSession) {
   return db
     .select({
@@ -353,6 +402,11 @@ export async function listPendingResidentRequestsForAdmin(_session: AdminSession
       customerId: residentRequests.customerId,
       bookingId: residentRequests.bookingId,
       pgName: pgs.name,
+      meterReadingPhotoUrl: residentRequests.meterReadingPhotoUrl,
+      useAverageBillingFallback: residentRequests.useAverageBillingFallback,
+      payoutUpiId: residentRequests.payoutUpiId,
+      payoutQrUrl: residentRequests.payoutQrUrl,
+      notes: residentRequests.notes,
     })
     .from(residentRequests)
     .innerJoin(customers, eq(customers.id, residentRequests.customerId))

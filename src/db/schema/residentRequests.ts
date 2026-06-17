@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   bigint,
+  boolean,
   date,
   index,
   jsonb,
@@ -34,6 +35,11 @@ export const residentRequests = pgTable(
     requestedEndDate: date('requested_end_date'),
     amountPaise: bigint('amount_paise', { mode: 'number' }),
     notes: text('notes'),
+    /** Final electricity meter photo for vacating refund (or use average billing fallback). */
+    meterReadingPhotoUrl: text('meter_reading_photo_url'),
+    useAverageBillingFallback: boolean('use_average_billing_fallback').notNull().default(false),
+    payoutUpiId: text('payout_upi_id'),
+    payoutQrUrl: text('payout_qr_url'),
     adminNotes: text('admin_notes'),
     /** Electricity, damage, and other deductions applied at refund approval. */
     refundDeductions: jsonb('refund_deductions').$type<RefundDeductionsSnapshot>(),
