@@ -109,6 +109,26 @@ export async function recordDepositCollected(input: {
   return { ok: true, entryId: row.id, created: true };
 }
 
+/** Record an advance/offline deposit payment — separate from bed assignment. */
+export async function recordAdvanceDeposit(input: {
+  bookingId: string;
+  customerId: string;
+  amountPaise: number;
+  createdByAdminId: string;
+  note?: string;
+}): Promise<{ ok: true; entryId: string }> {
+  const result = await recordDepositCollected({
+    bookingId: input.bookingId,
+    customerId: input.customerId,
+    amountPaise: input.amountPaise,
+    reason: input.note?.trim()
+      ? `ADVANCE_DEPOSIT: ${input.note.trim()}`
+      : 'ADVANCE_DEPOSIT',
+    createdByAdminId: input.createdByAdminId,
+  });
+  return { ok: true, entryId: result.entryId };
+}
+
 /**
  * Set the booking's deposit to `targetCollectedPaise` and reconcile the
  * append-only ledger so collected balance matches. Use when an admin

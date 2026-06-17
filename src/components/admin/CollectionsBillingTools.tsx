@@ -73,13 +73,13 @@ export function CollectionsBillingTools({
             </div>
             <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               <Link
-                href={`/admin/collections?tab=billing&month=${monthLabel}-01`}
+                href={`/admin/revenue/billing?tab=billing&month=${monthLabel}-01`}
                 className="inline-flex items-center justify-center rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-apg-silver hover:text-white"
               >
                 View rent invoice queue →
               </Link>
               <Link
-                href={`/admin/collections?tab=rent`}
+                href={`/admin/revenue/billing?tab=rent`}
                 className="inline-flex items-center justify-center rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-apg-silver hover:text-white"
               >
                 All rent invoices →
@@ -119,7 +119,7 @@ export function CollectionsBillingTools({
                 View room meter history →
               </Link>
               <Link
-                href={`/admin/collections?tab=electricity&month=${monthLabel}-01`}
+                href={`/admin/revenue/billing?tab=electricity&month=${monthLabel}-01`}
                 className="inline-flex items-center justify-center rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-apg-silver hover:text-white"
               >
                 Electricity invoice queue →

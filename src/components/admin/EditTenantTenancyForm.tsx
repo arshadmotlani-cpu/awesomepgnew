@@ -7,7 +7,6 @@ import {
 } from '@/app/(admin)/admin/residents/[customerId]/actions';
 import { AdminConfirmSubmit } from '@/src/components/admin/AdminConfirmSubmit';
 import { BedAssignmentWhatsAppButton } from '@/src/components/admin/BedAssignmentWhatsAppButton';
-import { paiseToInr } from '@/src/lib/format';
 
 type BedOption = { bedId: string; label: string };
 
@@ -27,10 +26,6 @@ export function EditTenantTenancyForm({
   customerPhone,
   currentBedId,
   currentRoomLabel,
-  currentMonthlyRentPaise,
-  currentDepositPaise,
-  ledgerCollectedPaise,
-  websiteDepositPaise,
   blocksWholeRoom,
   beds,
 }: {
@@ -40,10 +35,6 @@ export function EditTenantTenancyForm({
   customerPhone: string;
   currentBedId: string;
   currentRoomLabel: string;
-  currentMonthlyRentPaise: number;
-  currentDepositPaise: number;
-  ledgerCollectedPaise: number;
-  websiteDepositPaise: number;
   blocksWholeRoom: boolean;
   beds: BedOption[];
 }) {
@@ -61,9 +52,6 @@ export function EditTenantTenancyForm({
   const bedChanged = selectedBedId !== currentBedId;
   const parsedTarget = selectedBed ? parseBedLabel(selectedBed.label) : null;
 
-  const depositMismatch =
-    ledgerCollectedPaise > 0 && ledgerCollectedPaise !== currentDepositPaise;
-
   return (
     <form
       id={formId}
@@ -78,21 +66,15 @@ export function EditTenantTenancyForm({
 
       <div>
         <h3 className="text-sm font-semibold uppercase tracking-wide text-apg-orange">
-          Assign / reassign bed
+          Reassign bed
         </h3>
         <p className="mt-1 text-sm text-apg-silver">
-          Current: <strong className="text-white">{currentRoomLabel}</strong> · Rent{' '}
-          {paiseToInr(currentMonthlyRentPaise)}/mo · Deposit {paiseToInr(currentDepositPaise)}
-          {ledgerCollectedPaise > 0 ? ` · Ledger ${paiseToInr(ledgerCollectedPaise)}` : null}
+          Current: <strong className="text-white">{currentRoomLabel}</strong>
+        </p>
+        <p className="mt-2 text-xs text-apg-silver">
+          Occupancy mapping only. Change rent or record deposits from Billing / Deposits modules.
         </p>
       </div>
-
-      {depositMismatch ? (
-        <p className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-          Booking deposit and ledger collected amount differ. Save below to reconcile both to the
-          amount you enter.
-        </p>
-      ) : null}
 
       <label className="block text-sm">
         <span className="font-medium text-apg-silver">PG · Room · Bed</span>
@@ -110,40 +92,6 @@ export function EditTenantTenancyForm({
         </select>
       </label>
 
-      <label className="block text-sm">
-        <span className="font-medium text-apg-silver">Monthly rent (₹)</span>
-        <input
-          type="number"
-          name="monthlyRentInr"
-          min="0"
-          step="1"
-          defaultValue={Math.round(currentMonthlyRentPaise / 100)}
-          className="apg-admin-field mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white"
-        />
-        {bedChanged ? (
-          <span className="mt-1 block text-xs text-sky-300">
-            Rent may change with the new bed — confirm the amount before saving.
-          </span>
-        ) : null}
-      </label>
-
-      <label className="block text-sm">
-        <span className="font-medium text-apg-silver">Deposit collected (₹)</span>
-        <input
-          type="number"
-          name="depositCollectedInr"
-          min="0"
-          step="1"
-          defaultValue={Math.round(currentDepositPaise / 100)}
-          className="apg-admin-field mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white"
-        />
-        {websiteDepositPaise > 0 ? (
-          <span className="mt-1 block text-xs text-apg-silver">
-            Website default for this bed: <strong>{paiseToInr(websiteDepositPaise)}</strong>
-          </span>
-        ) : null}
-      </label>
-
       <label className="flex items-start gap-2 text-sm text-apg-silver">
         <input type="checkbox" name="blocksWholeRoom" defaultChecked={blocksWholeRoom} />
         <span>Block whole room on calendar (single-tenant room)</span>
@@ -153,7 +101,7 @@ export function EditTenantTenancyForm({
 
       {state.ok && parsedTarget && bedChanged ? (
         <div className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-3 text-sm text-emerald-100">
-          <p className="font-semibold">Assignment saved</p>
+          <p className="font-semibold">Bed reassigned</p>
           <div className="mt-2">
             <BedAssignmentWhatsAppButton
               customerName={customerName}
@@ -168,41 +116,24 @@ export function EditTenantTenancyForm({
 
       <AdminConfirmSubmit
         formId={formId}
-        title={bedChanged ? 'Reassign to this bed?' : 'Save assignment & rent?'}
+        title={bedChanged ? 'Reassign to this bed?' : 'No change'}
         description={
-          <div className="space-y-2">
-            {bedChanged && selectedBed ? (
-              <p>
-                Move <strong>{customerName}</strong> to <strong>{selectedBed.label}</strong>.
-                Occupancy updates immediately; double-booking is blocked if the bed is taken.
-              </p>
-            ) : (
-              <p>Update rent, deposit, and room blocking for this tenant.</p>
-            )}
+          bedChanged && selectedBed ? (
             <p>
-              Rent: <strong>{paiseToInr(currentMonthlyRentPaise)}/mo</strong>
-              {bedChanged ? ' (edit field above if the new bed rate differs)' : null}
+              Move <strong>{customerName}</strong> to <strong>{selectedBed.label}</strong>. Occupancy
+              updates immediately; no financial entries are created.
             </p>
-            <p>
-              Deposit on booking: <strong>{paiseToInr(currentDepositPaise)}</strong>
-              {ledgerCollectedPaise > 0
-                ? ` · Ledger collected ${paiseToInr(ledgerCollectedPaise)}`
-                : null}
-            </p>
-            {bedChanged && parsedTarget ? (
-              <p className="text-xs text-zinc-500">
-                After saving, use WhatsApp to notify: &ldquo;Your bed has been assigned in{' '}
-                {parsedTarget.pgName}&rdquo;
-              </p>
-            ) : null}
-          </div>
+          ) : (
+            <p>Select a different bed to reassign this tenant.</p>
+          )
         }
-        confirmLabel={bedChanged ? 'Confirm reassignment' : 'Save changes'}
+        confirmLabel={bedChanged ? 'Confirm reassignment' : 'Save'}
         tone={bedChanged ? 'danger' : 'default'}
         pending={pending}
+        disabled={!bedChanged}
         className="rounded-lg bg-[#FF5A1F] px-4 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-60"
       >
-        {pending ? 'Saving…' : bedChanged ? 'Reassign bed' : 'Save assignment & rent'}
+        {pending ? 'Saving…' : bedChanged ? 'Reassign bed' : 'Select another bed to reassign'}
       </AdminConfirmSubmit>
     </form>
   );

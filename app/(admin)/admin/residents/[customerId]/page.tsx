@@ -400,10 +400,6 @@ export default async function ResidentDetailPage({
               customerPhone={customer.phone}
               currentBedId={activeTenancy.bedId}
               currentRoomLabel={`${activeTenancy.pgName} · Room ${activeTenancy.roomNumber} · ${activeTenancy.bedCode}`}
-              currentMonthlyRentPaise={activeTenancy.monthlyRentPaise}
-              currentDepositPaise={activeTenancy.depositPaise}
-              ledgerCollectedPaise={depositSummary?.collectedPaise ?? 0}
-              websiteDepositPaise={websiteDepositPaise}
               blocksWholeRoom={activeTenancy.blocksRoomAvailability}
               beds={bedOptions}
             />

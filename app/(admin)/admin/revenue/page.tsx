@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { AdminSectionErrorBoundary } from '@/src/components/admin/AdminSectionErrorBoundary';
 import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import {
@@ -53,7 +54,17 @@ export default async function RevenueModulePage({
       <PageHeader
         title="Revenue"
         description={`Rent, electricity, deposits, and PG-wise charts · ${data.monthLabel}`}
-        actions={<OverviewMonthPicker billingMonth={billingMonth} />}
+        actions={
+          <div className="flex items-center gap-2">
+            <Link
+              href="/admin/revenue/billing?tab=billing"
+              className="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-apg-silver hover:text-white"
+            >
+              Billing & collections →
+            </Link>
+            <OverviewMonthPicker billingMonth={billingMonth} />
+          </div>
+        }
       />
 
       <div className="space-y-8">

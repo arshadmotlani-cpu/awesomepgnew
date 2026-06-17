@@ -2,6 +2,9 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { eq } from 'drizzle-orm';
+import { db } from '@/src/db/client';
+import { customers } from '@/src/db/schema';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { assignTenantToBed } from '@/src/services/tenantAssignment';
 
@@ -17,15 +20,20 @@ export async function assignTenantAction(
 ): Promise<AssignTenantState> {
   try {
     const session = await requireAdminPermission('bookings:write');
-    const gender = formData.get('gender')?.toString();
-    if (gender !== 'male' && gender !== 'female' && gender !== 'other') {
-      return { ok: false, error: 'Select gender.' };
-    }
-
-    const monthlyRaw = formData.get('monthlyRentInr')?.toString()?.trim();
-    const depositRaw = formData.get('depositInr')?.toString()?.trim();
-
     const customerId = formData.get('customerId')?.toString()?.trim() || undefined;
+
+    let gender = formData.get('gender')?.toString();
+    if (customerId) {
+      const [row] = await db
+        .select({ gender: customers.gender })
+        .from(customers)
+        .where(eq(customers.id, customerId))
+        .limit(1);
+      if (row?.gender) gender = row.gender;
+    }
+    if (gender !== 'male' && gender !== 'female' && gender !== 'other') {
+      return { ok: false, error: 'Gender missing from resident profile.' };
+    }
 
     const result = await assignTenantToBed(session, {
       bedId: formData.get('bedId')?.toString() ?? '',
@@ -35,8 +43,6 @@ export async function assignTenantAction(
       email: formData.get('email')?.toString() ?? '',
       phone: formData.get('phone')?.toString() ?? '',
       gender,
-      monthlyRentInr: monthlyRaw ? Number.parseFloat(monthlyRaw) : undefined,
-      depositInr: depositRaw ? Number.parseFloat(depositRaw) : undefined,
       blocksWholeRoom: formData.get('blocksWholeRoom') === 'on',
       notes: formData.get('notes')?.toString(),
     });

@@ -5,7 +5,6 @@ import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { formatDate } from '@/src/lib/dates';
 import { getCustomerVerificationStatus } from '@/src/services/residentAdmin';
-import { recordDepositCollected } from '@/src/services/deposits';
 import { createBooking } from '@/src/services/booking';
 import { clearBedAdminMarks } from '@/src/services/bookingAdminOps';
 import { reconcileOrphanBedReservations } from '@/src/lib/occupancySync';
@@ -21,8 +20,6 @@ export type AssignTenantInput = {
   email: string;
   phone: string;
   gender: 'male' | 'female' | 'other';
-  monthlyRentInr?: number;
-  depositInr?: number;
   blocksWholeRoom?: boolean;
   notes?: string;
 };
@@ -98,15 +95,6 @@ export async function assignTenantToBed(
     }
   }
 
-  const customMonthlyRatePaise =
-    input.monthlyRentInr != null && input.monthlyRentInr >= 0
-      ? Math.round(input.monthlyRentInr * 100)
-      : undefined;
-  const customDepositPaise =
-    input.depositInr != null && input.depositInr >= 0
-      ? Math.round(input.depositInr * 100)
-      : undefined;
-
   const result = await createBooking({
     bedIds: [input.bedId],
     startDate: input.startDate,
@@ -114,8 +102,6 @@ export async function assignTenantToBed(
     durationMode: 'open_ended',
     reservationEndDate: LONG_TERM_RESERVATION_END,
     blocksRoomAvailability: input.blocksWholeRoom === true,
-    customMonthlyRatePaise,
-    customDepositPaise,
     customerId: input.customerId,
     customer: {
       fullName: input.fullName.trim(),
@@ -140,20 +126,6 @@ export async function assignTenantToBed(
     .update(customers)
     .set({ residencyStatus: 'active', updatedAt: new Date() })
     .where(eq(customers.id, result.customerId));
-
-  if (result.depositPaise > 0) {
-    await recordDepositCollected({
-      bookingId: result.bookingId,
-      customerId: result.customerId,
-      amountPaise: result.depositPaise,
-      reason: customDepositPaise != null
-        ? `Deposit recorded on tenant assignment (${bedCtx.bedCode}) — grandfathered amount`
-        : `Deposit recorded on tenant assignment (${bedCtx.bedCode})`,
-      createdByAdminId: session.adminId,
-    }).catch(() => {
-      /* non-fatal if duplicate */
-    });
-  }
 
   const { clearBedInterest } = await import('./bedNoticeInterest');
   await clearBedInterest(input.bedId).catch(() => undefined);

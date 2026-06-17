@@ -6,7 +6,7 @@ import {
   type AssignTenantState,
 } from '@/app/(admin)/admin/bookings/new/actions';
 import { AdminConfirmSubmit } from '@/src/components/admin/AdminConfirmSubmit';
-import { paiseToInr } from '@/src/lib/format';
+import { titleCase } from '@/src/lib/format';
 
 type BedOption = {
   bedId: string;
@@ -70,7 +70,12 @@ export function AssignTenantForm({
 
   return (
     <form id={formId} action={action} className={shellClass}>
-      {prefill ? <input type="hidden" name="customerId" value={prefill.customerId} /> : null}
+      {prefill ? (
+        <>
+          <input type="hidden" name="customerId" value={prefill.customerId} />
+          <input type="hidden" name="gender" value={prefill.gender} />
+        </>
+      ) : null}
 
       {defaultBedMissing ? (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
@@ -78,6 +83,15 @@ export function AssignTenantForm({
           the placeholder booking on the calendar first.
         </p>
       ) : null}
+
+      <div className="rounded-lg border border-sky-500/20 bg-sky-500/10 px-3 py-3 text-sm text-sky-100">
+        <p className="font-semibold">Occupancy only — no money recorded here</p>
+        <p className="mt-1 text-xs leading-relaxed text-sky-100/90">
+          This assigns the tenant to a bed. Record deposits under{' '}
+          <strong>Advance Deposit</strong> or Deposits; rent invoices are generated separately in
+          Billing.
+        </p>
+      </div>
 
       <label className="block text-sm">
         <span className={labelClass}>Bed *</span>
@@ -100,18 +114,18 @@ export function AssignTenantForm({
         </select>
         {selectedBed && selectedBed.monthlyRatePaise > 0 ? (
           <span className="mt-1 block text-xs text-zinc-600">
-            Website room rate: <strong>₹{inrFromPaise(selectedBed.monthlyRatePaise)}/month</strong>
+            Room rate (for future billing):{' '}
+            <strong>₹{inrFromPaise(selectedBed.monthlyRatePaise)}/month</strong>
             {selectedBed.depositPaise > 0 ? (
               <>
                 {' '}
-                · Website deposit: <strong>₹{inrFromPaise(selectedBed.depositPaise)}</strong>
+                · Expected deposit: <strong>₹{inrFromPaise(selectedBed.depositPaise)}</strong>
               </>
             ) : null}
           </span>
         ) : selectedBed ? (
           <span className="mt-1 block text-xs text-amber-700">
-            No rent saved for this bed yet. Enter monthly rent below, or save room rent under PG →
-            Rooms.
+            No rent saved for this bed yet. Set room rent under PG → Rooms before billing.
           </span>
         ) : null}
       </label>
@@ -164,74 +178,27 @@ export function AssignTenantForm({
           defaultValue={prefill?.email ?? ''}
           className={prefill ? roFc : fc}
         />
-        {prefill ? (
+      </label>
+
+      {prefill ? (
+        <div className="block text-sm">
+          <span className={labelClass}>Gender</span>
+          <p className={`mt-1 ${roFc}`}>{titleCase(prefill.gender)}</p>
+          <span className="mt-1 block text-xs text-zinc-500">From resident profile (read-only).</span>
+        </div>
+      ) : (
+        <label className="block text-sm">
+          <span className={labelClass}>Gender *</span>
+          <select name="gender" required defaultValue="male" className={fc}>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="other">Other</option>
+          </select>
           <span className="mt-1 block text-xs text-zinc-500">
-            From website signup — linked to their login.
+            Walk-in only — verified residents use profile gender automatically.
           </span>
-        ) : null}
-      </label>
-
-      <label className="block text-sm">
-        <span className={labelClass}>Gender *</span>
-        <select
-          name="gender"
-          required
-          defaultValue={prefill?.gender ?? 'male'}
-          className={fc}
-        >
-          <option value="male">Male</option>
-          <option value="female">Female</option>
-          <option value="other">Other</option>
-        </select>
-      </label>
-
-      <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-3 text-sm text-sky-950">
-        <p className="font-semibold">Rent & deposit for this tenant</p>
-        <p className="mt-1 text-xs leading-relaxed text-sky-900">
-          Leave monthly rent empty to use the room rate above. If they agreed to a lower deposit
-          before prices changed on the website, enter the amount you actually collected — it
-          overrides the website deposit.
-        </p>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className="block text-sm">
-          <span className={labelClass}>Monthly rent (₹)</span>
-          <input
-            type="number"
-            name="monthlyRentInr"
-            min="0"
-            step="1"
-            placeholder={
-              selectedBed && selectedBed.monthlyRatePaise > 0
-                ? `Leave empty = ₹${inrFromPaise(selectedBed.monthlyRatePaise)}`
-                : 'Required if room has no saved rate'
-            }
-            className={fc}
-          />
         </label>
-        <label className="block text-sm">
-          <span className={labelClass}>Deposit collected (₹)</span>
-          <input
-            type="number"
-            name="depositInr"
-            min="0"
-            step="1"
-            placeholder={
-              selectedBed && selectedBed.depositPaise > 0
-                ? `Leave empty = ₹${inrFromPaise(selectedBed.depositPaise)} (website)`
-                : 'Amount you received'
-            }
-            className={fc}
-          />
-          {selectedBed && selectedBed.depositPaise > 0 ? (
-            <span className="mt-1 block text-xs text-zinc-500">
-              Website default: <strong>₹{inrFromPaise(selectedBed.depositPaise)}</strong>. Enter a
-              lower amount here if that is what you actually collected.
-            </span>
-          ) : null}
-        </label>
-      </div>
+      )}
 
       <label className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-950">
         <input type="checkbox" name="blocksWholeRoom" className="mt-1" />
@@ -267,32 +234,11 @@ export function AssignTenantForm({
           <div className="space-y-2">
             <p>
               Assign <strong>{prefill?.fullName ?? 'tenant'}</strong> to{' '}
-              <strong>{selectedBed?.label ?? 'selected bed'}</strong>. Creates tenancy and updates
-              occupancy immediately. Double-booking is blocked if the bed is taken.
+              <strong>{selectedBed?.label ?? 'selected bed'}</strong>. Updates occupancy only — no
+              deposit or rent is recorded.
             </p>
-            {selectedBed ? (
-              <>
-                <p>
-                  Rent:{' '}
-                  <strong>
-                    {selectedBed.monthlyRatePaise > 0
-                      ? `${paiseToInr(selectedBed.monthlyRatePaise)}/mo (room rate)`
-                      : 'Enter manually below'}
-                  </strong>
-                </p>
-                <p>
-                  Deposit:{' '}
-                  <strong>
-                    {selectedBed.depositPaise > 0
-                      ? paiseToInr(selectedBed.depositPaise)
-                      : 'Enter collected amount'}
-                  </strong>
-                </p>
-              </>
-            ) : null}
             <p className="text-xs text-zinc-500">
-              After assignment you can send WhatsApp: &ldquo;Your bed has been assigned in [PG
-              NAME]&rdquo;
+              Use Advance Deposit or Deposits to record payments after assignment.
             </p>
           </div>
         }

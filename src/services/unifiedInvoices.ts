@@ -490,25 +490,23 @@ export async function cancelUnifiedInvoice(
     if (isCombined || lines.length > 0) {
       for (const line of lines) {
         if (line.sourceTable === 'rent_invoices' && line.sourceId) {
-          if (inv.invoiceType === 'combined') {
-            cascadedSources.push(`skip:rent:${line.sourceId}:combined`);
-          } else {
-            await cancelRent(line.sourceId);
-          }
+          await cancelRent(line.sourceId);
         }
         if (line.sourceTable === 'electricity_invoices' && line.sourceId) {
-          if (inv.invoiceType !== 'combined') {
-            await tx
-              .update(electricityInvoices)
-              .set({ status: 'cancelled', cancelledAt: new Date(), updatedAt: new Date() })
-              .where(
-                and(
-                  eq(electricityInvoices.id, line.sourceId),
-                  inArray(electricityInvoices.status, ['pending']),
-                ),
-              );
-            cascadedSources.push(`cancel:electricity:${line.sourceId}`);
-          }
+          await tx
+            .update(electricityInvoices)
+            .set({
+              status: 'cancelled',
+              cancelledAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(electricityInvoices.id, line.sourceId),
+                inArray(electricityInvoices.status, ['pending']),
+              ),
+            );
+          cascadedSources.push(`cancel:electricity:${line.sourceId}`);
         }
         if (
           line.sourceTable === 'financial_invoices' &&
@@ -581,6 +579,8 @@ export async function cancelUnifiedInvoice(
 
   const { reconcileStaleFinancialInvoices } = await import('@/src/lib/billing/financialMetrics');
   await reconcileStaleFinancialInvoices();
+  const { resolveStaleBillingActionItems } = await import('@/src/services/actionItems');
+  await resolveStaleBillingActionItems().catch(() => undefined);
 
   const afterSummary = await getResidentFinancialSummary(txResult.inv.customerId);
   const afterOutstanding = afterSummary?.totals.outstandingPaise ?? 0;

@@ -62,15 +62,11 @@ export async function updateTenancyAction(
   try {
     const session = await requireAdminPermission('bookings:write');
     const bookingId = formData.get('bookingId')?.toString() ?? '';
-    const monthlyRaw = formData.get('monthlyRentInr')?.toString()?.trim();
-    const depositRaw = formData.get('depositCollectedInr')?.toString()?.trim();
     const newBedId = formData.get('newBedId')?.toString()?.trim();
 
     const result = await updateTenantTenancy(session, {
       bookingId,
       newBedId: newBedId || undefined,
-      monthlyRentInr: monthlyRaw ? Number.parseFloat(monthlyRaw) : undefined,
-      depositCollectedInr: depositRaw ? Number.parseFloat(depositRaw) : undefined,
       blocksWholeRoom: formData.get('blocksWholeRoom') === 'on',
     });
 

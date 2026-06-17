@@ -47,6 +47,7 @@ export type ResidentListRow = {
   roomNumber: string | null;
   bedCode: string | null;
   bookingId: string | null;
+  bookingCode: string | null;
   verificationSource: ResidentVerificationSource;
 };
 
@@ -105,6 +106,7 @@ type ResidentListDbRow = {
   kyc_status: 'pending' | 'approved' | 'rejected';
   created_at: Date;
   booking_id: string | null;
+  booking_code: string | null;
   pg_name: string | null;
   room_number: string | null;
   bed_code: string | null;
@@ -130,6 +132,7 @@ function mapResidentListRow(row: ResidentListDbRow): ResidentListRow {
     kycStatus: row.kyc_status,
     createdAt: row.created_at,
     bookingId: row.booking_id,
+    bookingCode: row.booking_code,
     pgId: row.pg_id,
     pgName: row.pg_name,
     roomNumber: row.room_number,
@@ -162,6 +165,7 @@ const activeTenancyLateralSql = sql`
   LEFT JOIN LATERAL (
     SELECT
       b.id::text AS booking_id,
+      b.booking_code AS booking_code,
       p.name AS pg_name,
       r.room_number,
       bd.bed_code,
@@ -226,6 +230,7 @@ export async function listResidentsForAdmin(session: AdminSession): Promise<Resi
       c.created_at,
       c.residency_status,
       t.booking_id,
+      t.booking_code,
       t.pg_name,
       t.room_number,
       t.bed_code,
@@ -266,6 +271,7 @@ export async function listUnverifiedWebsiteSignupsForAdmin(
       c.created_at,
       c.residency_status,
       t.booking_id,
+      t.booking_code,
       t.pg_name,
       t.room_number,
       t.bed_code,
@@ -317,6 +323,7 @@ export async function searchResidentsForAdmin(
       c.created_at,
       c.residency_status,
       t.booking_id,
+      t.booking_code,
       t.pg_name,
       t.room_number,
       t.bed_code,
@@ -344,6 +351,11 @@ export async function searchResidentsForAdmin(
       AND (
         c.full_name ILIKE ${pattern}
         OR c.email ILIKE ${pattern}
+        OR EXISTS (
+          SELECT 1 FROM bookings bk
+          WHERE bk.customer_id = c.id
+            AND bk.booking_code ILIKE ${pattern}
+        )
         OR (
           ${phoneDigits.length >= 3}
           AND regexp_replace(c.phone, '[^0-9]', '', 'g') LIKE ${`%${phoneDigits}%`}

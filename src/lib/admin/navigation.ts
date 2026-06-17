@@ -31,16 +31,16 @@ export const ADMIN_MODULES: Record<AdminModule, AdminModuleMeta> = {
   revenue: {
     id: 'revenue',
     label: 'Revenue',
-    description: 'Rent, electricity, deposits, extra income, PG-wise charts',
+    description: 'Rent, electricity, deposits, collections, billing tools, and PG-wise charts',
     href: '/admin/revenue',
     sidebar: true,
   },
   collections: {
     id: 'collections',
-    label: 'Collections',
-    description: 'Pending payments, invoices, QR approvals, paid history',
-    href: '/admin/collections',
-    sidebar: true,
+    label: 'Billing',
+    description: 'Invoices, collections, and payment queues (under Revenue)',
+    href: '/admin/revenue/billing',
+    sidebar: false,
   },
   invoices: {
     id: 'invoices',
@@ -160,6 +160,9 @@ export function pathnameToModule(pathname: string): AdminModule | null {
   if (pathname.startsWith('/admin/panel')) return 'panel';
   if (pathname.startsWith('/admin/pricing')) return 'pgs';
   if (pathname.startsWith('/admin/deposits')) return 'deposits';
+  if (pathname.startsWith('/admin/revenue/billing') || pathname.startsWith('/admin/collections')) {
+    return 'revenue';
+  }
   for (const mod of SIDEBAR_MODULES) {
     if (mod.id === 'overview') continue;
     if (pathname === mod.href || pathname.startsWith(`${mod.href}/`)) return mod.id;
