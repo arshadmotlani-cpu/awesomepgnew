@@ -1,4 +1,4 @@
-import { and, inArray, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
   bedReservations,

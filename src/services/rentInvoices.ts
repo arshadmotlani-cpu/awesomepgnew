@@ -71,6 +71,7 @@ import {
   isProductionBookingFilter,
   isProductionCustomerFilter,
   isActiveResidentFilter,
+  collectibleResidentFilters,
 } from '@/src/lib/billing/productionDataFilter';
 import {
   ensureBillingProfileForBooking,

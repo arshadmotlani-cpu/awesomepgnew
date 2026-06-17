@@ -65,7 +65,7 @@ export function needsKycReminder(status: 'pending' | 'approved' | 'rejected'): b
 
 export function assignedResidentsNeedingKyc<
   T extends {
-    tenancyStatus: 'active' | 'unassigned' | 'vacating';
+    tenancyStatus: 'active' | 'unassigned' | 'vacating' | 'vacated' | 'blocked';
     kycStatus: 'pending' | 'approved' | 'rejected';
     phone: string;
   },

@@ -52,6 +52,7 @@ export function DepositRowActions({
       phone={row.customerPhone}
       pgName={row.pgName}
       amountPaise={amount}
+      dueDate="soon"
       roomNumber={row.roomNumber}
     />
   ) : (
