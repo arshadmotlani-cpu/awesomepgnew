@@ -209,6 +209,19 @@ async function buildDepositCategory(
   meta: { pgId: string; pgName: string; roomNumber: string },
 ): Promise<ResidentDepositCategory> {
   const summary = await getDepositSummaryForBooking(bookingId);
+  const hasWalletActivity = (summary?.entries.length ?? 0) > 0;
+
+  // Wallet-only: no ledger rows → zero financial display (ignore booking snapshot).
+  if (!hasWalletActivity) {
+    return {
+      requiredPaise: 0,
+      paidPaise: 0,
+      outstandingPaise: 0,
+      refundablePaise: 0,
+      items: [],
+    };
+  }
+
   const collected = summary?.collectedPaise ?? 0;
   const requiredPaise = depositRequiredPaise;
   const paidPaise = collected;

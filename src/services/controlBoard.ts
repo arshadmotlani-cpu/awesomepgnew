@@ -127,12 +127,12 @@ function buildGlobalCards(input: ControlBoardInput): ControlBoardCard[] {
       category: 'revenue',
     }),
     card('mtd_rent', 'Rent collected', money(s.incomeRentPaise), 'mtd_rent', {
-      hint: `QR ${money(s.incomeRentQrPaise)} · Inv ${money(s.incomeRentInvoicePaise)}`,
+      hint: `Invoices ${money(s.incomeRentInvoicePaise)}`,
       accent: 'emerald',
       category: 'revenue',
     }),
     card('mtd_electricity', 'Electricity collected', money(s.incomeElectricityPaise), 'mtd_electricity', {
-      hint: `QR ${money(s.incomeElectricityQrPaise)} · Inv ${money(s.incomeElectricityInvoicePaise)}`,
+      hint: `Invoices ${money(s.incomeElectricityInvoicePaise)}`,
       accent: 'sky',
       category: 'revenue',
     }),
@@ -142,31 +142,12 @@ function buildGlobalCards(input: ControlBoardInput): ControlBoardCard[] {
       href: `/admin/deposits/collected?month=${input.billingMonth}`,
     }),
     card('extra_income', 'Extra income', money(s.extraIncomePaise), 'extra_income', {
-      hint: 'Late fees + vacating + charges',
+      hint: 'Late fees on paid rent invoices',
       accent: 'orange',
       category: 'revenue',
     }),
     card('late_fees', 'Late fees collected', money(s.lateFeePaise), 'late_fees', {
       accent: 'orange',
-      category: 'revenue',
-    }),
-    card('vacating_deductions', 'Vacating deductions', money(s.vacatingDeductionPaise), 'vacating_deductions', {
-      accent: 'rose',
-      category: 'revenue',
-    }),
-    card('other_charges', 'Other charges', money(s.otherDeductionPaise), 'other_charges', {
-      accent: 'amber',
-      category: 'revenue',
-    }),
-    card('deposit_refunds', 'Deposit refunds', money(s.depositRefundsPaise), 'deposit_refunds', {
-      hint: `${s.depositRefundsCount} resident${s.depositRefundsCount === 1 ? '' : 's'}`,
-      accent: 'rose',
-      category: 'collections',
-      count: s.depositRefundsCount,
-    }),
-    card('expected_rent', 'Expected monthly rent', money(s.expectedMonthlyRentPaise), 'expected_rent', {
-      hint: 'Based on active monthly tenants',
-      accent: 'zinc',
       category: 'revenue',
     }),
   );
@@ -393,10 +374,6 @@ function buildPgCards(input: ControlBoardInput): ControlBoardCard[] {
       card(`${prefix}_occupancy`, `${pg.pgName} · Occupancy`, pct(pg.occupancyPct), `${prefix}_occupancy`, {
         hint: `${pg.occupiedBeds}/${pg.totalBeds} beds`,
         accent: 'violet',
-        category: 'pg',
-      }),
-      card(`${prefix}_expected`, `${pg.pgName} · Expected rent`, money(pg.expectedMonthlyRentPaise), `${prefix}_expected`, {
-        accent: 'zinc',
         category: 'pg',
       }),
     );
