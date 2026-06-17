@@ -1,6 +1,11 @@
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq, ne } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { auditLog, customers, kycSubmissions, type KycValidationReport } from '@/src/db/schema';
+import {
+  OCCUPANCY_PLACEHOLDER_EMAIL,
+  OCCUPANCY_PLACEHOLDER_NAME,
+  OCCUPANCY_PLACEHOLDER_PHONE,
+} from '@/src/lib/occupancySqlFilters';
 import {
   kycCustomerErrorMessage,
   KYC_STORAGE_UNAVAILABLE_MESSAGE,
@@ -256,7 +261,14 @@ export async function listPendingKycSubmissions(): Promise<KycSubmissionListRow[
     .select(kycSubmissionListSelect)
     .from(kycSubmissions)
     .innerJoin(customers, eq(customers.id, kycSubmissions.customerId))
-    .where(eq(kycSubmissions.status, 'pending'))
+    .where(
+      and(
+        eq(kycSubmissions.status, 'pending'),
+        ne(customers.phone, OCCUPANCY_PLACEHOLDER_PHONE),
+        ne(customers.email, OCCUPANCY_PLACEHOLDER_EMAIL),
+        ne(customers.fullName, OCCUPANCY_PLACEHOLDER_NAME),
+      ),
+    )
     .orderBy(desc(kycSubmissions.createdAt));
 }
 

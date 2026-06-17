@@ -116,8 +116,8 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
 
       <Card>
         <CardHeader
-          title="Production financial reset"
-          description="Remove test/spurious revenue and reset to manual-entry-only going forward."
+          title="Financial clean start"
+          description="Wipe all financial data to zero — revenue, deposits, invoices, and payment records."
         />
         <CardBody>
           <ProductionFinancialResetPanel />

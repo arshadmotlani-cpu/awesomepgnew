@@ -15,6 +15,7 @@ import { nextBookingCode, utcYear } from '@/src/lib/bookingCode';
 import { formatDate } from '@/src/lib/dates';
 import {
   OCCUPANCY_PLACEHOLDER_EMAIL,
+  OCCUPANCY_PLACEHOLDER_NAME,
   OCCUPANCY_PLACEHOLDER_PHONE,
 } from '@/src/lib/occupancySqlFilters';
 import { countBookingsInYear } from '@/src/db/queries/customer';
@@ -35,7 +36,7 @@ async function upsertPlaceholderCustomer() {
   const [row] = await db
     .insert(customers)
     .values({
-      fullName: 'Occupancy placeholder',
+      fullName: OCCUPANCY_PLACEHOLDER_NAME,
       email: OCCUPANCY_PLACEHOLDER_EMAIL,
       phone: PLACEHOLDER_PHONE,
       gender: 'other',
@@ -293,4 +294,70 @@ export async function findPgIdsByNamePatterns(
     const rejected = excluded.some((p) => name.includes(p));
     return included && !rejected;
   });
+}
+
+export type PurgeOccupancyPlaceholderResult = {
+  customerId: string | null;
+  bedsReleased: number;
+  bookingsCancelled: number;
+  customerArchived: boolean;
+};
+
+/**
+ * Remove the internal occupancy placeholder from the system entirely:
+ * cancel marker bookings, release beds, archive the shared placeholder customer.
+ */
+export async function purgeOccupancyPlaceholderFromSystem(
+  session: AdminSession,
+): Promise<PurgeOccupancyPlaceholderResult> {
+  const [customer] = await db
+    .select({ id: customers.id })
+    .from(customers)
+    .where(
+      sql`(
+        ${customers.phone} = ${PLACEHOLDER_PHONE}
+        OR ${customers.email} = ${OCCUPANCY_PLACEHOLDER_EMAIL}
+        OR ${customers.fullName} = ${OCCUPANCY_PLACEHOLDER_NAME}
+      )`,
+    )
+    .limit(1);
+
+  const allPgs = await db
+    .select({ id: pgs.id })
+    .from(pgs)
+    .where(isNull(pgs.archivedAt));
+
+  let bedsReleased = 0;
+  let bookingsCancelled = 0;
+  for (const pg of allPgs) {
+    try {
+      const result = await clearPgOccupancyPlaceholders(session, pg.id);
+      bedsReleased += result.bedsReleased;
+      bookingsCancelled += result.bookingsCancelled;
+    } catch {
+      // Scoped admins may not access every PG; super_admin clears all.
+    }
+  }
+
+  let customerArchived = false;
+  if (customer) {
+    const now = new Date();
+    await db
+      .update(customers)
+      .set({
+        archivedAt: now,
+        isTest: true,
+        residencyStatus: 'vacated',
+        updatedAt: now,
+      })
+      .where(eq(customers.id, customer.id));
+    customerArchived = true;
+  }
+
+  return {
+    customerId: customer?.id ?? null,
+    bedsReleased,
+    bookingsCancelled,
+    customerArchived,
+  };
 }

@@ -3,10 +3,10 @@
 import { revalidatePath } from 'next/cache';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import {
-  fixHarishDepositWallet,
-  previewProductionFinancialReset,
-  runProductionFinancialReset,
-} from '@/src/services/productionFinancialReset';
+  previewFullFinancialCleanStart,
+  runFullFinancialCleanStart,
+} from '@/src/services/fullFinancialCleanStart';
+import { fixHarishDepositWallet } from '@/src/services/productionFinancialReset';
 
 export type FinancialResetActionState =
   | { status: 'idle' }
@@ -16,15 +16,15 @@ export type FinancialResetActionState =
 export async function previewFinancialResetAction(): Promise<FinancialResetActionState> {
   try {
     await requireAdminPermission('deposits:write');
-    const preview = await previewProductionFinancialReset();
+    const preview = await previewFullFinancialCleanStart();
     return {
       status: 'ok',
       message:
-        `Would remove ${preview.assignmentLedgerRows} assignment ledger rows (₹${preview.assignmentLedgerPaise / 100}), ` +
-        `cancel ${preview.unpaidRentInvoices} unpaid rent, ` +
-        `${preview.unpaidElectricityInvoices} electricity, ` +
-        `${preview.unpaidFinancialInvoices} financial invoices, ` +
-        `and run test-data cleanup (${preview.testCleanup.testCustomers.length} test customers).`,
+        `Full clean start will wipe: ${preview.depositLedgerRows} ledger rows, ` +
+        `${preview.rentInvoices} rent invoices, ${preview.electricityInvoices} electricity invoices, ` +
+        `${preview.financialInvoices} financial invoices, ${preview.pgPaymentRecords} payment records, ` +
+        `${preview.payments} payments, ${preview.openActionItems} billing action items. ` +
+        `All dashboard KPIs will read ₹0.`,
     };
   } catch (err) {
     return {
@@ -37,19 +37,24 @@ export async function previewFinancialResetAction(): Promise<FinancialResetActio
 export async function runFinancialResetAction(): Promise<FinancialResetActionState> {
   try {
     const session = await requireAdminPermission('deposits:write');
-    const result = await runProductionFinancialReset();
+    const result = await runFullFinancialCleanStart(session);
+
     revalidatePath('/admin');
     revalidatePath('/admin/revenue');
     revalidatePath('/admin/deposits');
     revalidatePath('/admin/overview');
+    revalidatePath('/admin/operations');
+    revalidatePath('/admin/residents');
+    revalidatePath('/admin/requests');
+    revalidatePath('/admin/collections');
+
     return {
       status: 'ok',
       message:
-        `Reset complete. Removed ${result.removedAssignmentLedgerIds.length} assignment ledger rows, ` +
-        `cancelled ${result.cancelledRentInvoiceIds.length} rent + ` +
-        `${result.cancelledElectricityInvoiceIds.length} electricity + ` +
-        `${result.cancelledFinancialInvoiceIds.length} financial invoices. ` +
-        `Test bookings marked: ${result.markedBookingIds.length}.`,
+        `Full financial clean start complete. Cleared ${result.depositLedgerRows} ledger rows, ` +
+        `cancelled ${result.rentInvoices} rent + ${result.electricityInvoices} electricity + ` +
+        `${result.financialInvoices} financial invoices, removed ${result.pgPaymentRecords} payment records, ` +
+        `reset ${result.bookingsReset} bookings. All metrics are now zero — enter real data manually.`,
     };
   } catch (err) {
     return {

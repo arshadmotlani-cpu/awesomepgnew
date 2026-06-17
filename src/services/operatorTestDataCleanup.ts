@@ -32,6 +32,9 @@ function isTestCustomerSql() {
     OR ${customers.fullName} LIKE 'E2E User%'
     OR ${customers.fullName} LIKE 'Verification Bot%'
     OR ${customers.fullName} LIKE 'Phase5%'
+    OR ${customers.phone} = '+910000000001'
+    OR ${customers.email} = 'occupancy@awesomepg.internal'
+    OR ${customers.fullName} = 'Occupancy placeholder'
   )`;
 }
 

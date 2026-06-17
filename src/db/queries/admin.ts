@@ -1,7 +1,12 @@
-import { and, asc, desc, eq, gt, inArray, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, ne, or, sql } from 'drizzle-orm';
 import { db } from '../client';
 import { hasDatabaseUrl } from '@/src/lib/db/env';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
+import {
+  OCCUPANCY_PLACEHOLDER_EMAIL,
+  OCCUPANCY_PLACEHOLDER_NAME,
+  OCCUPANCY_PLACEHOLDER_PHONE,
+} from '@/src/lib/occupancySqlFilters';
 import { collectibleResidentFilters } from '@/src/lib/billing/productionDataFilter';
 import { todayString } from '@/src/lib/dates';
 import { asPlainNumber } from '@/src/lib/format';
@@ -421,6 +426,13 @@ export function listResidents(): Promise<QueryResult<ResidentListRow[]>> {
         createdAt: customers.createdAt,
       })
       .from(customers)
+      .where(
+        and(
+          ne(customers.phone, OCCUPANCY_PLACEHOLDER_PHONE),
+          ne(customers.email, OCCUPANCY_PLACEHOLDER_EMAIL),
+          ne(customers.fullName, OCCUPANCY_PLACEHOLDER_NAME),
+        ),
+      )
       .orderBy(desc(customers.createdAt))
       .limit(100);
   });

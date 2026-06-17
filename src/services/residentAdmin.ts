@@ -25,6 +25,7 @@ import {
   type ResidentVerificationStatus,
 } from '@/src/lib/residentVerification';
 import { assertBookingOperationalGates } from '@/src/lib/occupancyEligibility';
+import { isNotOccupancyPlaceholderCustomerSql } from '@/src/lib/occupancySqlFilters';
 import { formatDate, parseDate } from '@/src/lib/dates';
 import { isBedAvailable } from '@/src/services/availability';
 import { correctDepositCollected, getDepositSummaryForBooking } from '@/src/services/deposits';
@@ -187,6 +188,12 @@ const activeTenancyLateralSql = sql`
       AND br.status = 'active'
       AND br.kind = 'primary'
       AND CURRENT_DATE <@ br.stay_range
+      AND NOT (
+        b.notes ILIKE '%occupancy placeholder%'
+        OR b.notes ILIKE '%Full occupancy marker%'
+        OR b.notes ILIKE '%full occupancy%'
+        OR b.pricing_snapshot::text ILIKE '%Occupancy placeholder%'
+      )
     ORDER BY lower(br.stay_range) DESC
     LIMIT 1
   ) t ON true
@@ -244,6 +251,7 @@ export async function listResidentsForAdmin(session: AdminSession): Promise<Resi
     FROM customers c
     ${activeTenancyLateralSql}
     WHERE c.archived_at IS NULL
+      AND ${isNotOccupancyPlaceholderCustomerSql}
       AND ${customerIsVerifiedSql}
     ORDER BY c.created_at DESC
     LIMIT 200
@@ -285,6 +293,7 @@ export async function listUnverifiedWebsiteSignupsForAdmin(
     FROM customers c
     ${activeTenancyLateralSql}
     WHERE c.archived_at IS NULL
+      AND ${isNotOccupancyPlaceholderCustomerSql}
       AND ${customerIsWebsiteSignupSql}
       AND NOT ${customerIsVerifiedSql}
     ORDER BY
@@ -337,6 +346,7 @@ export async function searchResidentsForAdmin(
     FROM customers c
     ${activeTenancyLateralSql}
     WHERE c.archived_at IS NULL
+      AND ${isNotOccupancyPlaceholderCustomerSql}
       AND (
         ${customerIsVerifiedSql}
         OR EXISTS (

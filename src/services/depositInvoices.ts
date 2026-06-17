@@ -23,6 +23,11 @@ import {
   isProductionBookingFilter,
   isProductionCustomerFilter,
 } from '@/src/lib/billing/productionDataFilter';
+import {
+  OCCUPANCY_PLACEHOLDER_EMAIL,
+  OCCUPANCY_PLACEHOLDER_NAME,
+  OCCUPANCY_PLACEHOLDER_PHONE,
+} from '@/src/lib/occupancySqlFilters';
 
 export type DepositInvoiceStatus =
   | 'collecting'
@@ -240,6 +245,9 @@ async function fetchRawDepositRows(): Promise<RawRow[]> {
       and(
         isProductionBookingFilter(),
         isProductionCustomerFilter(),
+        sql`${customers.phone} <> ${OCCUPANCY_PLACEHOLDER_PHONE}`,
+        sql`${customers.email} <> ${OCCUPANCY_PLACEHOLDER_EMAIL}`,
+        sql`${customers.fullName} <> ${OCCUPANCY_PLACEHOLDER_NAME}`,
         inArray(bookings.status, ['confirmed', 'completed']),
         or(
           gt(bookings.depositPaise, 0),
