@@ -1,10 +1,16 @@
 'use client';
 
-import { useCallback, useMemo, useState, useTransition } from 'react';
+import { useCallback, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { ControlBoardCard } from '@/src/components/admin/ControlBoardCard';
 import { ControlBoardDrawer } from '@/src/components/admin/ControlBoardDrawer';
 import { loadDrillDownAction } from '@/app/(admin)/admin/overview/actions';
+import {
+  createStaleGuard,
+  fetchPanelData,
+  getPanelCache,
+  invalidatePanelCache,
+} from '@/src/lib/admin/panelFetch';
 import type { ControlBoardCard as Card, ControlBoardCategory, ControlBoardDrillDown } from '@/src/lib/controlBoard/types';
 
 const CATEGORY_LABELS: Record<ControlBoardCategory | 'all', string> = {
@@ -26,8 +32,9 @@ type Props = {
 export function ControlBoard({ cards, billingMonth, monthLabel }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
+  const staleGuard = useRef(createStaleGuard());
   const [category, setCategory] = useState<ControlBoardCategory | 'all'>('all');
-  const [loadingKey, setLoadingKey] = useState<string | null>(null);
+  const [activeKey, setActiveKey] = useState<string | null>(null);
   const [drillDown, setDrillDown] = useState<ControlBoardDrillDown | null>(null);
 
   const filtered = useMemo(() => {
@@ -46,18 +53,42 @@ export function ControlBoard({ cards, billingMonth, monthLabel }: Props) {
         router.push(card.href);
         return;
       }
-      setLoadingKey(card.drillDownKey);
+
+      const cacheKey = `drilldown:${card.drillDownKey}:${billingMonth}`;
+      const cached = getPanelCache<ControlBoardDrillDown>(cacheKey);
+      if (cached) {
+        setActiveKey(card.drillDownKey);
+        setDrillDown(cached);
+        return;
+      }
+
+      const version = staleGuard.current.next();
+      setActiveKey(card.drillDownKey);
+      setDrillDown({
+        title: card.label,
+        rows: [],
+        bulkActionKind: 'none',
+        loading: true,
+      });
+
       try {
-        const data = await loadDrillDownAction(card.drillDownKey, billingMonth);
-        if (data) setDrillDown(data);
+        const data = await fetchPanelData(cacheKey, () =>
+          loadDrillDownAction(card.drillDownKey, billingMonth),
+        );
+        if (staleGuard.current.isStale(version)) return;
+        setDrillDown(data ?? null);
+      } catch {
+        if (!staleGuard.current.isStale(version)) setDrillDown(null);
       } finally {
-        setLoadingKey(null);
+        if (!staleGuard.current.isStale(version)) setActiveKey(null);
       }
     },
     [billingMonth, router],
   );
 
   const refresh = useCallback(() => {
+    invalidatePanelCache('drilldown:');
+    invalidatePanelCache('action-detail:');
     startTransition(() => router.refresh());
   }, [router]);
 
@@ -107,7 +138,7 @@ export function ControlBoard({ cards, billingMonth, monthLabel }: Props) {
             hint={c.hint}
             accent={c.accent}
             priority={c.priority}
-            loading={loadingKey === c.drillDownKey}
+            loading={activeKey === c.drillDownKey}
             onClick={() => void openDrillDown(c)}
           />
         ))}
@@ -116,9 +147,16 @@ export function ControlBoard({ cards, billingMonth, monthLabel }: Props) {
       {drillDown ? (
         <ControlBoardDrawer
           drillDown={drillDown}
-          onClose={() => setDrillDown(null)}
-          onUpdated={() => {
+          onClose={() => {
+            staleGuard.current.next();
             setDrillDown(null);
+            setActiveKey(null);
+          }}
+          onUpdated={() => {
+            invalidatePanelCache('drilldown:');
+            invalidatePanelCache('action-detail:');
+            setDrillDown(null);
+            setActiveKey(null);
             refresh();
           }}
         />

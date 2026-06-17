@@ -29,7 +29,7 @@ import type {
 } from '@/src/lib/controlBoard/types';
 import { paiseToInr } from '@/src/lib/format';
 import type { ActionItemRow } from '@/src/services/actionItems';
-import { listOpenActionItems } from '@/src/services/actionItems';
+import { listOpenActionItems, listOpenActionItemsByType } from '@/src/services/actionItems';
 import type { OperationsCenterData } from '@/src/services/operationsCenter';
 import { getOperationsCenterData } from '@/src/services/operationsCenter';
 import type { RevenueCommandCenterData } from '@/src/services/revenueCommandCenter';
@@ -523,8 +523,7 @@ export async function loadControlBoardDrillDown(
 
   if (drillDownKey.startsWith('action_')) {
     const type = drillDownKey.replace('action_', '') as ActionItemRow['type'];
-    const items = await listOpenActionItems(session);
-    const filtered = items.filter((i) => i.type === type);
+    const filtered = await listOpenActionItemsByType(session, type);
     const bulkKind: ControlBoardBulkActionKind =
       type === 'rent_due' ? 'rent' : type === 'electricity_due' ? 'electricity' : type === 'kyc_pending' ? 'kyc' : 'none';
     return drillDown(ACTION_ITEM_GROUP_LABELS[type], filtered.map(rowFromActionItem), {
@@ -537,14 +536,12 @@ export async function loadControlBoardDrillDown(
     case 'mtd_rent':
     case 'paid_rent': {
       const res = await listAdminRentInvoices(
-        drillDownKey === 'paid_rent' || drillDownKey === 'mtd_rent'
+        drillDownKey === 'paid_rent'
           ? { status: 'paid' }
-          : undefined,
+          : { status: 'paid', billingMonth },
       );
       if (!res.ok) return null;
-      const rows = res.data
-        .filter((r) => r.billingMonth === billingMonth || drillDownKey === 'paid_rent')
-        .map(rowFromRentInvoice);
+      const rows = res.data.map(rowFromRentInvoice);
       return drillDown(
         drillDownKey === 'paid_rent' ? 'Rent paid' : 'Rent collected this month',
         rows,

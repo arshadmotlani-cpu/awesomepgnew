@@ -1,8 +1,8 @@
 import { and, desc, eq, or } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { adminUsers, auditLog, customers, pgs } from '@/src/db/schema';
+import { adminUsers, auditLog, customers, paymentLinks, pgs } from '@/src/db/schema';
 import { paymentLinkPublicUrl } from '@/src/lib/billing/paymentLinkUrl';
-import { expireStalePaymentLinks, listRecentPaymentLinks } from '@/src/services/paymentLinks';
+import { expireStalePaymentLinks } from '@/src/services/paymentLinks';
 
 export async function listRentChangeAuditLogs(limit = 100) {
   return db
@@ -56,7 +56,7 @@ export async function listWhatsAppLogs(limit = 100) {
 }
 
 export async function loadAdminPanelData() {
-  await expireStalePaymentLinks(30).catch(() => 0);
+  void expireStalePaymentLinks(30).catch(() => 0);
   const [auditLogs, paymentLinks, admins, whatsappLogs] = await Promise.all([
     listRentChangeAuditLogs(),
     loadPaymentLinksPanel(),
@@ -67,26 +67,22 @@ export async function loadAdminPanelData() {
 }
 
 export async function loadPaymentLinksPanel(limit = 50) {
-  const rows = await listRecentPaymentLinks(limit);
-  const enriched = await Promise.all(
-    rows.map(async (link) => {
-      const [resident] = await db
-        .select({ fullName: customers.fullName })
-        .from(customers)
-        .where(eq(customers.id, link.residentId))
-        .limit(1);
-      const [pg] = await db
-        .select({ name: pgs.name })
-        .from(pgs)
-        .where(eq(pgs.id, link.pgId))
-        .limit(1);
-      return {
-        ...link,
-        residentName: resident?.fullName ?? '—',
-        pgName: pg?.name ?? '—',
-        publicUrl: paymentLinkPublicUrl(link.id),
-      };
-    }),
-  );
-  return enriched;
+  const rows = await db
+    .select({
+      link: paymentLinks,
+      residentName: customers.fullName,
+      pgName: pgs.name,
+    })
+    .from(paymentLinks)
+    .leftJoin(customers, eq(customers.id, paymentLinks.residentId))
+    .leftJoin(pgs, eq(pgs.id, paymentLinks.pgId))
+    .orderBy(desc(paymentLinks.createdAt))
+    .limit(limit);
+
+  return rows.map((row) => ({
+    ...row.link,
+    residentName: row.residentName ?? '—',
+    pgName: row.pgName ?? '—',
+    publicUrl: paymentLinkPublicUrl(row.link.id),
+  }));
 }

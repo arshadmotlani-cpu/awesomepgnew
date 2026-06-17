@@ -34,14 +34,18 @@ export function CollectionsHistoricalPaymentPanel() {
   }
 
   return (
-    <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 lg:col-span-3">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-emerald-300">
-        Create historical payment
-      </h3>
-      <p className="mt-2 max-w-2xl text-xs leading-relaxed text-apg-silver">
-        Record rent, deposit, electricity, or other charges that were already collected before the
-        platform existed. Opens Express Collection on the resident profile — no payment link, no
-        outstanding debt.
+    <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-300 ring-1 ring-emerald-500/30">
+          Payment
+        </span>
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-emerald-300">
+          B · Historical payments
+        </h3>
+      </div>
+      <p className="mt-2 text-xs leading-relaxed text-apg-silver">
+        Backdated entries only — for money collected before the platform existed. Does{' '}
+        <strong className="text-white">not</strong> create invoices or affect billing cycles.
       </p>
       <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
         <label className="block flex-1 text-xs text-apg-silver">

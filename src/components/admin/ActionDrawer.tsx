@@ -1,7 +1,8 @@
 'use client';
 
-import { useActionState, useEffect, useState } from 'react';
+import { useActionState, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { AdminActionDetailSkeleton } from '@/src/components/admin/AdminPanelSkeleton';
 import { WhatsAppIcon } from '@/src/components/admin/AdminKycWhatsAppButton';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import {
@@ -10,6 +11,7 @@ import {
   markActionResolvedAction,
   type ActionCenterActionState,
 } from '@/app/(admin)/admin/actions/actions';
+import { createStaleGuard, fetchPanelData, getPanelCache } from '@/src/lib/admin/panelFetch';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import type { ActionItemDetail } from '@/src/services/actionItems';
 
@@ -22,8 +24,11 @@ type Props = {
 const idle: ActionCenterActionState = { status: 'idle' };
 
 export function ActionDrawer({ actionItemId, onClose, onUpdated }: Props) {
-  const [detail, setDetail] = useState<ActionItemDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+  const staleGuard = useRef(createStaleGuard());
+  const [detail, setDetail] = useState<ActionItemDetail | null>(() =>
+    getPanelCache<ActionItemDetail>(`action-detail:center:${actionItemId}`),
+  );
+  const [loading, setLoading] = useState(() => !getPanelCache<ActionItemDetail>(`action-detail:center:${actionItemId}`));
   const [error, setError] = useState<string | null>(null);
   const [execState, execAction, execPending] = useActionState(
     executeActionItemActionServer,
@@ -35,20 +40,45 @@ export function ActionDrawer({ actionItemId, onClose, onUpdated }: Props) {
   );
   const [generatedQr, setGeneratedQr] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadDetail = useCallback(async (id: string) => {
+    const cacheKey = `action-detail:center:${id}`;
+    const cached = getPanelCache<ActionItemDetail>(cacheKey);
+    if (cached) {
+      setDetail(cached);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
+    const version = staleGuard.current.next();
     setLoading(true);
     setError(null);
-    void loadActionItemDetailAction(actionItemId).then((d) => {
-      if (cancelled) return;
-      if (!d) setError('Action item not found.');
-      else setDetail(d);
-      setLoading(false);
-    });
+    setDetail(null);
+
+    try {
+      const data = await fetchPanelData(cacheKey, () => loadActionItemDetailAction(id));
+      if (staleGuard.current.isStale(version)) return;
+      if (!data) {
+        setError('Action item not found.');
+        setDetail(null);
+      } else {
+        setDetail(data);
+      }
+    } catch {
+      if (!staleGuard.current.isStale(version)) {
+        setError('Could not load action details.');
+      }
+    } finally {
+      if (!staleGuard.current.isStale(version)) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadDetail(actionItemId);
     return () => {
-      cancelled = true;
+      staleGuard.current.next();
     };
-  }, [actionItemId]);
+  }, [actionItemId, loadDetail]);
 
   useEffect(() => {
     if (execState.status === 'ok' && execState.url) {
@@ -103,7 +133,7 @@ export function ActionDrawer({ actionItemId, onClose, onUpdated }: Props) {
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           {loading ? (
-            <p className="text-sm text-apg-silver">Loading details…</p>
+            <AdminActionDetailSkeleton />
           ) : error ? (
             <p className="text-sm text-rose-400">{error}</p>
           ) : detail ? (

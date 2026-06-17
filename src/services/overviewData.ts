@@ -63,12 +63,11 @@ export async function loadOverviewContext(
     timeZone: 'UTC',
   }).format(new Date(`${billingMonth}T00:00:00.000Z`));
 
-  if (opts?.syncActions !== false) {
+  if (opts?.syncActions === true) {
     await syncActionItems(session).catch(() => undefined);
+    const { reconcileStaleFinancialInvoices } = await import('@/src/lib/billing/financialMetrics');
+    await reconcileStaleFinancialInvoices({ billingMonth }).catch(() => undefined);
   }
-
-  const { reconcileStaleFinancialInvoices } = await import('@/src/lib/billing/financialMetrics');
-  await reconcileStaleFinancialInvoices({ billingMonth }).catch(() => undefined);
 
   const [
     summary,

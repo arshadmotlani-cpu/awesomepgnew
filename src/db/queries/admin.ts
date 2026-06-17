@@ -1456,12 +1456,17 @@ export type AdminRentInvoiceRow = {
 };
 
 export function listAdminRentInvoices(
-  filter?: { status?: 'pending' | 'paid' | 'overdue' | 'cancelled'; pgId?: string },
+  filter?: {
+    status?: 'pending' | 'paid' | 'overdue' | 'cancelled';
+    pgId?: string;
+    billingMonth?: string;
+  },
 ): Promise<QueryResult<AdminRentInvoiceRow[]>> {
   return guard(async () => {
     const conditions = [collectibleResidentFilters()];
     if (filter?.status) conditions.push(eq(rentInvoices.status, filter.status));
     if (filter?.pgId) conditions.push(eq(rentInvoices.pgId, filter.pgId));
+    if (filter?.billingMonth) conditions.push(eq(rentInvoices.billingMonth, filter.billingMonth));
     const where = and(...conditions);
 
     const rows = await db

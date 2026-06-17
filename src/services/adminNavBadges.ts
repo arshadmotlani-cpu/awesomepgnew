@@ -1,7 +1,7 @@
 import type { AdminSession } from '@/src/lib/auth/session';
 import type { AdminModule } from '@/src/lib/admin/navigation';
 import {
-  listAdminNotifications,
+  listUnreadNotificationTypesForBadges,
   type AdminNotificationRow,
 } from '@/src/services/adminNotifications';
 
@@ -23,16 +23,16 @@ const TYPE_TO_MODULE: Record<AdminNotificationRow['type'], AdminModule | 'deposi
 /** Sidebar badges — unread notifications only (WhatsApp-style). */
 export async function loadAdminNavBadges(session: AdminSession): Promise<AdminNavBadges> {
   try {
-    const unread = await listAdminNotifications(session, 'unread', 500);
+    const types = await listUnreadNotificationTypesForBadges(session);
     const badges: AdminNavBadges = {};
 
-    for (const n of unread) {
-      const mod = TYPE_TO_MODULE[n.type] ?? 'overview';
+    for (const type of types) {
+      const mod = TYPE_TO_MODULE[type] ?? 'overview';
       badges[mod] = (badges[mod] ?? 0) + 1;
     }
 
-    badges.overview = unread.length;
-    badges.notifications = unread.length;
+    badges.overview = types.length;
+    badges.notifications = types.length;
     return badges;
   } catch {
     return {};

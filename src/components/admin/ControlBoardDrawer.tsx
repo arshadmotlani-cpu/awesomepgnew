@@ -1,7 +1,8 @@
 'use client';
 
-import { useActionState, useEffect, useMemo, useState } from 'react';
+import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { AdminActionDetailSkeleton, AdminDrawerSkeleton } from '@/src/components/admin/AdminPanelSkeleton';
 import { AdminBillingWhatsAppButton } from '@/src/components/admin/AdminBillingWhatsAppButton';
 import { BulkBillingWhatsAppReminder } from '@/src/components/admin/BulkBillingWhatsAppReminder';
 import { WhatsAppIcon } from '@/src/components/admin/AdminKycWhatsAppButton';
@@ -17,6 +18,7 @@ import type { ControlBoardDrillDown, ControlBoardDrillDownRow } from '@/src/lib/
 import type { BillingReminderQueueItem } from '@/src/lib/billing/adminWhatsApp';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import type { ActionItemDetail } from '@/src/services/actionItems';
+import { createStaleGuard, fetchPanelData, getPanelCache } from '@/src/lib/admin/panelFetch';
 
 type Props = {
   drillDown: ControlBoardDrillDown;
@@ -30,6 +32,7 @@ export function ControlBoardDrawer({ drillDown, onClose, onUpdated }: Props) {
   const [selectedActionItemId, setSelectedActionItemId] = useState<string | null>(null);
   const [actionDetail, setActionDetail] = useState<ActionItemDetail | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const actionGuard = useRef(createStaleGuard());
 
   const bulkItems: BillingReminderQueueItem[] = useMemo(() => {
     if (drillDown.bulkActionKind === 'none') return [];
@@ -49,22 +52,39 @@ export function ControlBoardDrawer({ drillDown, onClose, onUpdated }: Props) {
       }));
   }, [drillDown]);
 
-  useEffect(() => {
-    if (!selectedActionItemId) {
-      setActionDetail(null);
+  const loadActionDetail = useCallback(async (actionItemId: string) => {
+    const cacheKey = `action-detail:overview:${actionItemId}`;
+    const cached = getPanelCache<ActionItemDetail>(cacheKey);
+    if (cached) {
+      setActionDetail(cached);
+      setActionLoading(false);
       return;
     }
-    let cancelled = false;
+
+    const version = actionGuard.current.next();
+    setActionDetail(null);
     setActionLoading(true);
-    void loadActionItemDetailOverviewAction(selectedActionItemId).then((d) => {
-      if (cancelled) return;
-      setActionDetail(d);
+
+    try {
+      const data = await fetchPanelData(cacheKey, () =>
+        loadActionItemDetailOverviewAction(actionItemId),
+      );
+      if (actionGuard.current.isStale(version)) return;
+      setActionDetail(data ?? null);
+    } finally {
+      if (!actionGuard.current.isStale(version)) setActionLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!selectedActionItemId) {
+      actionGuard.current.next();
+      setActionDetail(null);
       setActionLoading(false);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedActionItemId]);
+      return;
+    }
+    void loadActionDetail(selectedActionItemId);
+  }, [selectedActionItemId, loadActionDetail]);
 
   return (
     <div
@@ -91,7 +111,9 @@ export function ControlBoardDrawer({ drillDown, onClose, onUpdated }: Props) {
               }}
             />
           ) : selectedActionItemId && actionLoading ? (
-            <p className="text-sm text-apg-silver">Loading action details…</p>
+            <AdminActionDetailSkeleton />
+          ) : drillDown.loading ? (
+            <AdminDrawerSkeleton />
           ) : (
             <DrillDownContent
               drillDown={drillDown}

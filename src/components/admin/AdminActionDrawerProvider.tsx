@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { ActionDrawer } from '@/src/components/admin/ActionDrawer';
+import { invalidatePanelCache } from '@/src/lib/admin/panelFetch';
 
 type AdminActionDrawerContextValue = {
   openActionDrawer: (actionItemId: string) => void;
@@ -34,6 +35,7 @@ export function AdminActionDrawerProvider({ children }: { children: ReactNode })
           actionItemId={actionItemId}
           onClose={closeActionDrawer}
           onUpdated={() => {
+            invalidatePanelCache('action-detail:');
             closeActionDrawer();
             router.refresh();
           }}

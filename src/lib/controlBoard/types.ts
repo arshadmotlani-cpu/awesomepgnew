@@ -60,6 +60,8 @@ export type ControlBoardDrillDown = {
   bulkActionKind: ControlBoardBulkActionKind;
   ledgerHref?: string;
   resolveAllActionItemType?: string;
+  /** Client-only: drawer opened before drill-down data arrives. */
+  loading?: boolean;
 };
 
 export type ControlBoardData = {

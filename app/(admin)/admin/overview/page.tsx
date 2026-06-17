@@ -44,7 +44,7 @@ export default async function OverviewPage({
   const billingMonth = resolveBillingMonth(sp.month);
   const session = await requireAdminSession('/admin/overview');
 
-  const ctx = await loadOverviewContext(session, billingMonth);
+  const ctx = await loadOverviewContext(session, billingMonth, { syncActions: false });
 
   if (!ctx.ok) {
     return (

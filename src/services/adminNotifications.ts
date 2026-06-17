@@ -327,6 +327,39 @@ export async function listAdminNotifications(
   return result;
 }
 
+/** Lightweight badge counts — type column only, no full notification hydration. */
+export async function listUnreadNotificationTypesForBadges(
+  session: AdminSession,
+  limit = 300,
+): Promise<AdminNotificationRow['type'][]> {
+  const rows = await db
+    .select({
+      type: adminNotifications.type,
+      pgId: adminNotifications.pgId,
+      state: adminNotificationStates.state,
+    })
+    .from(adminNotifications)
+    .leftJoin(
+      adminNotificationStates,
+      and(
+        eq(adminNotificationStates.notificationId, adminNotifications.id),
+        eq(adminNotificationStates.adminId, session.adminId),
+      ),
+    )
+    .orderBy(desc(adminNotifications.createdAt))
+    .limit(limit * 2);
+
+  const types: AdminNotificationRow['type'][] = [];
+  for (const row of rows) {
+    if (!sessionCanSeePg(session, row.pgId)) continue;
+    const state = row.state ?? 'unread';
+    if (state !== 'unread') continue;
+    types.push(row.type);
+    if (types.length >= limit) break;
+  }
+  return types;
+}
+
 export async function countUnreadNotifications(session: AdminSession): Promise<number> {
   const rows = await listAdminNotifications(session, 'unread', 500);
   return rows.length;

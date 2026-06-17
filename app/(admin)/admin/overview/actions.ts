@@ -23,6 +23,8 @@ export async function loadDrillDownAction(drillDownKey: string, billingMonth: st
 export async function syncOverviewAction(): Promise<OverviewActionState> {
   const session = await requireAdminSession('/admin/overview');
   await syncActionItems(session);
+  const { reconcileStaleFinancialInvoices } = await import('@/src/lib/billing/financialMetrics');
+  await reconcileStaleFinancialInvoices().catch(() => undefined);
   revalidatePath('/admin/overview');
   revalidatePath('/admin/revenue');
   revalidatePath('/admin/collections');

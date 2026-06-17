@@ -631,6 +631,23 @@ function mapRow(
 }
 
 export async function listOpenActionItems(session: AdminSession): Promise<ActionItemRow[]> {
+  return listOpenActionItemsFiltered(session);
+}
+
+export async function listOpenActionItemsByType(
+  session: AdminSession,
+  type: ActionItemRow['type'],
+): Promise<ActionItemRow[]> {
+  return listOpenActionItemsFiltered(session, type);
+}
+
+async function listOpenActionItemsFiltered(
+  session: AdminSession,
+  type?: ActionItemRow['type'],
+): Promise<ActionItemRow[]> {
+  const conditions = [inArray(actionItems.status, ['open', 'in_progress'])];
+  if (type) conditions.push(eq(actionItems.type, type));
+
   const rows = await db
     .select({
       item: actionItems,
@@ -644,7 +661,7 @@ export async function listOpenActionItems(session: AdminSession): Promise<Action
     .leftJoin(customers, eq(customers.id, actionItems.residentId))
     .leftJoin(beds, eq(beds.id, actionItems.bedId))
     .leftJoin(rooms, eq(rooms.id, actionItems.roomId))
-    .where(inArray(actionItems.status, ['open', 'in_progress']))
+    .where(and(...conditions))
     .orderBy(
       sql`CASE ${actionItems.priority} WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END`,
       desc(actionItems.createdAt),
