@@ -5,10 +5,12 @@ export function DepositWalletSummary({
   wallet,
   bookingId,
   compact = false,
+  title = 'Deposit wallet',
 }: {
   wallet: DepositSummary;
   bookingId?: string;
   compact?: boolean;
+  title?: string;
 }) {
   const balancePaise = wallet.refundableBalancePaise;
 
@@ -23,7 +25,7 @@ export function DepositWalletSummary({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h3 className="text-xs font-semibold uppercase tracking-wide text-sky-200">
-            Deposit wallet
+            {title}
           </h3>
           <p className="mt-0.5 text-[10px] text-apg-silver">
             Computed from deposit_ledger — collected − deducted − refunded

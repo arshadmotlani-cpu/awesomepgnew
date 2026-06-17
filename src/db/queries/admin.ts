@@ -2,6 +2,7 @@ import { and, asc, desc, eq, gt, inArray, or, sql } from 'drizzle-orm';
 import { db } from '../client';
 import { hasDatabaseUrl } from '@/src/lib/db/env';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
+import { collectibleResidentFilters } from '@/src/lib/billing/productionDataFilter';
 import { todayString } from '@/src/lib/dates';
 import { asPlainNumber } from '@/src/lib/format';
 import {
@@ -1050,7 +1051,16 @@ export function getPgBusinessMetrics(
           total: sql<number>`coalesce(sum(${rentInvoices.paidLateFeePaise}), 0)::bigint::int`,
         })
         .from(rentInvoices)
-        .where(and(eq(rentInvoices.status, 'paid'), eq(rentInvoices.billingMonth, billingMonth)))
+        .innerJoin(bookings, eq(bookings.id, rentInvoices.bookingId))
+        .innerJoin(customers, eq(customers.id, rentInvoices.customerId))
+        .where(
+          and(
+            eq(rentInvoices.status, 'paid'),
+            eq(rentInvoices.billingMonth, billingMonth),
+            eq(bookings.isTest, false),
+            eq(customers.isTest, false),
+          ),
+        )
         .groupBy(rentInvoices.pgId),
       db.execute<DepositPgRow>(sql`
         SELECT
@@ -1065,6 +1075,7 @@ export function getPgBusinessMetrics(
           ), 0)::bigint::int AS other_deduction_paise
         FROM deposit_ledger dl
         INNER JOIN bookings bk ON bk.id = dl.booking_id
+        INNER JOIN customers c ON c.id = dl.customer_id
         INNER JOIN LATERAL (
           SELECT f.pg_id
           FROM bed_reservations br
@@ -1078,6 +1089,8 @@ export function getPgBusinessMetrics(
         ) pg ON true
         WHERE dl.created_at >= ${billingMonth}::timestamptz
           AND dl.created_at < (${billingMonth}::date + interval '1 month')::timestamptz
+          AND bk.is_test = false
+          AND c.is_test = false
         GROUP BY pg.pg_id
       `),
     ]);
@@ -1446,10 +1459,10 @@ export function listAdminRentInvoices(
   filter?: { status?: 'pending' | 'paid' | 'overdue' | 'cancelled'; pgId?: string },
 ): Promise<QueryResult<AdminRentInvoiceRow[]>> {
   return guard(async () => {
-    const conditions = [];
+    const conditions = [collectibleResidentFilters()];
     if (filter?.status) conditions.push(eq(rentInvoices.status, filter.status));
     if (filter?.pgId) conditions.push(eq(rentInvoices.pgId, filter.pgId));
-    const where = conditions.length > 0 ? and(...conditions) : undefined;
+    const where = and(...conditions);
 
     const rows = await db
       .select({

@@ -130,6 +130,7 @@ export const bookings = pgTable(
       .default('pending'),
     depositDuePaise: bigint('deposit_due_paise', { mode: 'number' }).notNull().default(0),
     depositDueDate: date('deposit_due_date'),
+    isTest: boolean('is_test').notNull().default(false),
     depositDueApprovedByAdminId: uuid('deposit_due_approved_by_admin_id').references(
       () => adminUsers.id,
       { onDelete: 'set null' },

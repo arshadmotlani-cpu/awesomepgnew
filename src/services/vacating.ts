@@ -31,9 +31,11 @@ import {
   auditLog,
   bedReservations,
   bookings,
+  customers,
   depositLedger,
   electricityInvoices,
   rentInvoices,
+  residentBillingProfiles,
   vacatingRequests,
   type VacatingRequest,
 } from '../db/schema';
@@ -678,6 +680,16 @@ export async function completeVacatingRequest(
         eq(bookings.status, 'confirmed'),
       ),
     );
+
+  await db
+    .update(customers)
+    .set({ residencyStatus: 'vacated', updatedAt: new Date() })
+    .where(eq(customers.id, current.customerId));
+
+  await db
+    .update(residentBillingProfiles)
+    .set({ autoGenerate: false, updatedAt: new Date() })
+    .where(eq(residentBillingProfiles.bookingId, current.bookingId));
 
   await completeBookingReservations(current.bookingId);
   await reconcileBookingOccupancy(current.bookingId);

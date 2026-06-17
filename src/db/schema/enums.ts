@@ -9,6 +9,10 @@ export const kycSubmissionStatusEnum = pgEnum('kyc_submission_status', [
   'approved',
   'rejected',
 ]);
+
+export const residencyStatusEnum = pgEnum('residency_status', ['active', 'vacated', 'blocked']);
+
+export type ResidencyStatus = (typeof residencyStatusEnum.enumValues)[number];
 export const authProviderEnum = pgEnum('auth_provider', ['otp', 'google', 'email']);
 
 export const bedStatusEnum = pgEnum('bed_status', ['available', 'maintenance', 'blocked']);

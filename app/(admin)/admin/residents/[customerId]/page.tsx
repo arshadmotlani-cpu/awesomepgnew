@@ -8,6 +8,7 @@ import { BedAssignmentWhatsAppButton } from '@/src/components/admin/BedAssignmen
 import { EditTenantTenancyForm } from '@/src/components/admin/EditTenantTenancyForm';
 import { RentUpdatedSuccessBanner } from '@/src/components/admin/RentUpdatedSuccessBanner';
 import { FinancialCommandCenter } from '@/src/components/admin/FinancialCommandCenter';
+import { FinalSettlementPanel } from '@/src/components/admin/FinalSettlementPanel';
 import { CreateChargeGeneratorForm } from '@/src/components/admin/CreateChargeGeneratorForm';
 import { ExpressCollectionButton } from '@/src/components/admin/ExpressCollectionButton';
 import { ResidentActionBar } from '@/src/components/admin/ResidentActionBar';
@@ -63,7 +64,7 @@ export default async function ResidentDetailPage({
   ]);
   if (!detail) notFound();
 
-  const { customer, activeTenancy, canArchive } = detail;
+  const { customer, activeTenancy, canArchive, settledTenancy } = detail;
 
   const assignableRows = await listAssignableBeds(session);
   const bedsForAssign = assignableRows.map((b) => ({
@@ -90,16 +91,20 @@ export default async function ResidentDetailPage({
 
   const depositSummary = activeTenancy
     ? await getDepositSummaryForBooking(activeTenancy.bookingId)
-    : null;
+    : settledTenancy
+      ? await getDepositSummaryForBooking(settledTenancy.bookingId)
+      : null;
 
   const latestKyc = await getLatestKycSubmission(customerId);
   const pendingKycSubmissionId =
     latestKyc?.status === 'pending' ? latestKyc.id : null;
 
-  const financialSummary = await getResidentFinancialSummary(customerId);
-  const invoiceHistory = financialSummary
-    ? await listResidentInvoiceHistory(customerId, 20)
-    : [];
+  const financialSummary =
+    customer.residencyStatus === 'vacated' ? null : await getResidentFinancialSummary(customerId);
+  const invoiceHistory =
+    financialSummary && customer.residencyStatus !== 'vacated'
+      ? await listResidentInvoiceHistory(customerId, 20)
+      : [];
 
   const billingDefaults = activeTenancy
     ? await getResidentBillingFormDefaults(customerId, activeTenancy.bookingId)
@@ -226,7 +231,13 @@ export default async function ResidentDetailPage({
         </div>
       ) : null}
 
-      {financialSummary && activeTenancy ? (
+      {settledTenancy && customer.residencyStatus === 'vacated' ? (
+        <FinalSettlementPanel
+          customerName={customer.fullName}
+          settledTenancy={settledTenancy}
+          depositWallet={depositSummary}
+        />
+      ) : financialSummary && activeTenancy ? (
         <>
           <FinancialCommandCenter
             summary={financialSummary}
@@ -431,7 +442,7 @@ export default async function ResidentDetailPage({
           </section>
         )}
 
-        {rentHistory.length > 0 ? (
+        {rentHistory.length > 0 && customer.residencyStatus !== 'vacated' ? (
           <section className={SURFACE}>
             <h2 className="text-sm font-semibold uppercase tracking-wide text-apg-orange">
               Payment history

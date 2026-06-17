@@ -68,6 +68,11 @@ import {
   guardRentStatusTransition,
 } from '@/src/lib/billing/invoiceStateMachine';
 import {
+  isProductionBookingFilter,
+  isProductionCustomerFilter,
+  isActiveResidentFilter,
+} from '@/src/lib/billing/productionDataFilter';
+import {
   ensureBillingProfileForBooking,
 } from '@/src/services/residentBillingProfiles';
 
@@ -373,12 +378,14 @@ export async function listBillingCycleOperations(
       status: rentInvoices.status,
     })
     .from(rentInvoices)
+    .innerJoin(bookings, eq(bookings.id, rentInvoices.bookingId))
     .innerJoin(customers, eq(customers.id, rentInvoices.customerId))
     .innerJoin(pgs, eq(pgs.id, rentInvoices.pgId))
     .innerJoin(beds, eq(beds.id, rentInvoices.bedId))
     .innerJoin(rooms, eq(rooms.id, beds.roomId))
     .where(
       and(
+        collectibleResidentFilters(),
         eq(rentInvoices.isAdhoc, false),
         inArray(rentInvoices.status, ['pending', 'overdue']),
         sql`${rentInvoices.dueDate} >= ${today}::date`,
@@ -410,12 +417,14 @@ export async function listBillingCycleOperations(
       status: rentInvoices.status,
     })
     .from(rentInvoices)
+    .innerJoin(bookings, eq(bookings.id, rentInvoices.bookingId))
     .innerJoin(customers, eq(customers.id, rentInvoices.customerId))
     .innerJoin(pgs, eq(pgs.id, rentInvoices.pgId))
     .innerJoin(beds, eq(beds.id, rentInvoices.bedId))
     .innerJoin(rooms, eq(rooms.id, beds.roomId))
     .where(
       and(
+        collectibleResidentFilters(),
         eq(rentInvoices.isAdhoc, false),
         eq(rentInvoices.billingMonth, currentMonth),
         eq(rentInvoices.status, 'pending'),
@@ -461,10 +470,14 @@ export async function generateRentInvoicesForMonth(
       // select cheap.
     })
     .from(bookings)
+    .innerJoin(customers, eq(customers.id, bookings.customerId))
     .innerJoin(bedReservations, eq(bedReservations.bookingId, bookings.id))
     .where(
       and(
         eq(bookings.status, 'confirmed'),
+        isProductionBookingFilter(),
+        isProductionCustomerFilter(),
+        isActiveResidentFilter(),
         inArray(bookings.durationMode, ['monthly', 'open_ended']),
         eq(bedReservations.status, 'active'),
         sql`${bedReservations.stayRange} && daterange(${monthStartIso}::date, ${monthEndIso}::date, '[)')`,
@@ -1522,6 +1535,9 @@ export async function listRentBillingOverview(
     .where(
       and(
         eq(bookings.status, 'confirmed'),
+        isProductionBookingFilter(),
+        isProductionCustomerFilter(),
+        isActiveResidentFilter(),
         inArray(bookings.durationMode, ['monthly', 'open_ended']),
         eq(bedReservations.status, 'active'),
         eq(bedReservations.kind, 'primary'),

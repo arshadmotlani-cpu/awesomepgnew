@@ -559,6 +559,9 @@ export async function getGlobalFinancialAggregates(
     INNER JOIN pgs p ON p.id = f.pg_id
     WHERE b.status = 'confirmed'
       AND b.duration_mode IN ('monthly', 'open_ended')
+      AND b.is_test = false
+      AND c.is_test = false
+      AND c.residency_status = 'active'
     ORDER BY b.id, br.created_at DESC
   `);
 
@@ -648,7 +651,17 @@ export async function getPortfolioRentStats(): Promise<{
       paidCount: sql<number>`count(*) FILTER (WHERE ${rentInvoices.status} = 'paid')::int`,
       cancelledCount: sql<number>`count(*) FILTER (WHERE ${rentInvoices.status} = 'cancelled')::int`,
     })
-    .from(rentInvoices);
+    .from(rentInvoices)
+    .innerJoin(bookings, eq(bookings.id, rentInvoices.bookingId))
+    .innerJoin(customers, eq(customers.id, rentInvoices.customerId))
+    .where(
+      and(
+        eq(bookings.status, 'confirmed'),
+        eq(bookings.isTest, false),
+        eq(customers.isTest, false),
+        eq(customers.residencyStatus, 'active'),
+      ),
+    );
 
   return {
     pendingCount: Number(counts?.pendingCount ?? 0),
@@ -747,6 +760,9 @@ export async function listOutstandingDepositsFromEngine(
     INNER JOIN pgs p ON p.id = f.pg_id
     WHERE b.status = 'confirmed'
       AND b.duration_mode IN ('monthly', 'open_ended')
+      AND b.is_test = false
+      AND c.is_test = false
+      AND c.residency_status = 'active'
     ORDER BY b.id, br.created_at DESC
   `);
 

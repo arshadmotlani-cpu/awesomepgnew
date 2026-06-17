@@ -6,6 +6,7 @@ import {
   genderEnum,
   idProofTypeEnum,
   kycStatusEnum,
+  residencyStatusEnum,
 } from './enums';
 
 export type CustomerAddress = {
@@ -45,6 +46,8 @@ export const customers = pgTable(
     /** When true, customer must set a password before using the account. */
     mustSetPassword: boolean('must_set_password').notNull().default(false),
     archivedAt: timestamp('archived_at', { withTimezone: true }),
+    residencyStatus: residencyStatusEnum('residency_status').notNull().default('active'),
+    isTest: boolean('is_test').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

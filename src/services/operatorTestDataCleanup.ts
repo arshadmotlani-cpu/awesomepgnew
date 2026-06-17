@@ -1,10 +1,11 @@
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, inArray, isNull, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
   bedReservations,
   bookings,
   customers,
   depositLedger,
+  financialInvoices,
   rentInvoices,
 } from '@/src/db/schema';
 
@@ -14,16 +15,29 @@ const JUNE_2026_START = sql`'2026-06-01'::timestamptz`;
 const JUNE_2026_END = sql`'2026-07-01'::timestamptz`;
 
 export type OperatorTestDataCleanupResult = {
+  markedCustomerIds: string[];
+  markedBookingIds: string[];
   cancelledBookingIds: string[];
   removedDeductionIds: string[];
+  removedLedgerIds: string[];
   removedDeductionPaise: number;
 };
 
-function isTestDeductionFilter() {
+function isTestCustomerSql() {
   return sql`(
     lower(${customers.email}) = ${OPERATOR_EMAIL}
     OR ${customers.email} LIKE '%@example.com'
     OR ${customers.email} LIKE '%@awesomepg.local'
+    OR ${customers.fullName} LIKE 'Phase5.5%'
+    OR ${customers.fullName} LIKE 'E2E User%'
+    OR ${customers.fullName} LIKE 'Verification Bot%'
+    OR ${customers.fullName} LIKE 'Phase5%'
+  )`;
+}
+
+function isTestDeductionFilter() {
+  return sql`(
+    ${isTestCustomerSql()}
     OR ${depositLedger.reason} LIKE '%verify-deposit%'
     OR ${depositLedger.reason} LIKE '%verify%'
     OR ${customers.fullName} LIKE 'Phase5.5%'
@@ -78,24 +92,34 @@ async function listJuneTestPatternDeductions() {
     );
 }
 
-export async function previewOperatorTestDataCleanup() {
-  const [customer] = await db
-    .select({ id: customers.id, fullName: customers.fullName })
+async function listTestCustomers() {
+  return db
+    .select({ id: customers.id, fullName: customers.fullName, email: customers.email })
     .from(customers)
-    .where(sql`lower(${customers.email}) = ${OPERATOR_EMAIL}`)
-    .limit(1);
+    .where(isTestCustomerSql());
+}
 
-  const operatorBookings = customer
-    ? await db
-        .select({
-          id: bookings.id,
-          bookingCode: bookings.bookingCode,
-          status: bookings.status,
-        })
-        .from(bookings)
-        .where(eq(bookings.customerId, customer.id))
-        .orderBy(bookings.createdAt)
-    : [];
+export async function previewOperatorTestDataCleanup() {
+  const testCustomers = await listTestCustomers();
+
+  const operatorBookings =
+    testCustomers.length > 0
+      ? await db
+          .select({
+            id: bookings.id,
+            bookingCode: bookings.bookingCode,
+            status: bookings.status,
+            customerId: bookings.customerId,
+          })
+          .from(bookings)
+          .where(
+            inArray(
+              bookings.customerId,
+              testCustomers.map((c) => c.id),
+            ),
+          )
+          .orderBy(bookings.createdAt)
+      : [];
 
   const [juneOtherDeductions, testPatternDeductions] = await Promise.all([
     listJuneOtherDepositDeductions(),
@@ -118,7 +142,8 @@ export async function previewOperatorTestDataCleanup() {
   );
 
   return {
-    operator: customer,
+    operator: testCustomers.find((c) => c.email.toLowerCase() === OPERATOR_EMAIL) ?? testCustomers[0],
+    testCustomers,
     operatorBookings,
     testDeductions,
     juneOtherDeductionCount: juneOtherDeductions.length,
@@ -129,9 +154,62 @@ export async function previewOperatorTestDataCleanup() {
 
 export async function runOperatorTestDataCleanup(): Promise<OperatorTestDataCleanupResult> {
   const preview = await previewOperatorTestDataCleanup();
+  const testCustomerIds = preview.testCustomers.map((c) => c.id);
+  const testBookingIds = preview.operatorBookings.map((b) => b.id);
   const deductionIds = preview.testDeductions.map((row) => row.id);
 
+  const removedLedgerIds: string[] = [];
+
   await db.transaction(async (tx) => {
+    if (testCustomerIds.length > 0) {
+      await tx
+        .update(customers)
+        .set({ isTest: true, updatedAt: new Date() })
+        .where(inArray(customers.id, testCustomerIds));
+    }
+
+    if (testBookingIds.length > 0) {
+      await tx
+        .update(bookings)
+        .set({ isTest: true, updatedAt: new Date() })
+        .where(inArray(bookings.id, testBookingIds));
+
+      const ledgerRows = await tx
+        .select({ id: depositLedger.id })
+        .from(depositLedger)
+        .where(inArray(depositLedger.bookingId, testBookingIds));
+      if (ledgerRows.length > 0) {
+        const ids = ledgerRows.map((r) => r.id);
+        await tx.delete(depositLedger).where(inArray(depositLedger.id, ids));
+        removedLedgerIds.push(...ids);
+      }
+
+      await tx
+        .update(rentInvoices)
+        .set({ status: 'cancelled', updatedAt: new Date() })
+        .where(
+          and(
+            inArray(rentInvoices.bookingId, testBookingIds),
+            inArray(rentInvoices.status, ['pending', 'overdue', 'payment_in_progress']),
+          ),
+        );
+
+      await tx
+        .update(financialInvoices)
+        .set({ status: 'cancelled', updatedAt: new Date() })
+        .where(
+          and(
+            inArray(financialInvoices.bookingId, testBookingIds),
+            inArray(financialInvoices.status, [
+              'draft',
+              'sent',
+              'overdue',
+              'payment_in_progress',
+            ]),
+          ),
+        );
+    }
+
     if (preview.activeBookingIds.length > 0) {
       await tx
         .update(bedReservations)
@@ -147,28 +225,20 @@ export async function runOperatorTestDataCleanup(): Promise<OperatorTestDataClea
         .update(bookings)
         .set({ status: 'cancelled', updatedAt: new Date() })
         .where(inArray(bookings.id, preview.activeBookingIds));
-
-      await tx
-        .update(rentInvoices)
-        .set({ status: 'cancelled', updatedAt: new Date() })
-        .where(
-          and(
-            inArray(rentInvoices.bookingId, preview.activeBookingIds),
-            inArray(rentInvoices.status, ['pending', 'overdue']),
-          ),
-        );
-
-      await tx.delete(depositLedger).where(inArray(depositLedger.bookingId, preview.activeBookingIds));
     }
 
     if (deductionIds.length > 0) {
       await tx.delete(depositLedger).where(inArray(depositLedger.id, deductionIds));
+      removedLedgerIds.push(...deductionIds);
     }
   });
 
   return {
+    markedCustomerIds: testCustomerIds,
+    markedBookingIds: testBookingIds,
     cancelledBookingIds: preview.activeBookingIds,
     removedDeductionIds: deductionIds,
+    removedLedgerIds,
     removedDeductionPaise: preview.removedDeductionPaise,
   };
 }

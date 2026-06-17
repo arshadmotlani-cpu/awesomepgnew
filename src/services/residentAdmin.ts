@@ -9,8 +9,10 @@ import {
   pgs,
   rooms,
   auditLog,
+  vacatingRequests,
 } from '@/src/db/schema';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
+import type { ResidencyStatus } from '@/src/db/schema/enums';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { BLOCKING_RESERVATION_STATUS_SQL } from '@/src/lib/reservationBlocking';
@@ -39,7 +41,7 @@ export type ResidentListRow = {
   gender: 'male' | 'female' | 'other';
   kycStatus: 'pending' | 'approved' | 'rejected';
   createdAt: Date;
-  tenancyStatus: 'unassigned' | 'active' | 'vacating';
+  tenancyStatus: 'unassigned' | 'active' | 'vacating' | 'vacated' | 'blocked';
   pgId: string | null;
   pgName: string | null;
   roomNumber: string | null;
@@ -54,6 +56,18 @@ export type UnverifiedWebsiteSignupRow = ResidentListRow & {
   hasPendingKycSubmission: boolean;
 };
 
+export type SettledTenancy = {
+  bookingId: string;
+  bookingCode: string;
+  pgId: string;
+  pgName: string;
+  roomNumber: string;
+  bedCode: string;
+  vacatingDate: string | null;
+  deductionPaise: number | null;
+  depositRefundPaise: number | null;
+};
+
 export type ResidentDetail = {
   customer: {
     id: string;
@@ -63,6 +77,7 @@ export type ResidentDetail = {
     gender: 'male' | 'female' | 'other';
     kycStatus: 'pending' | 'approved' | 'rejected';
     createdAt: Date;
+    residencyStatus: ResidencyStatus;
   };
   activeTenancy: {
     bookingId: string;
@@ -77,6 +92,7 @@ export type ResidentDetail = {
     blocksRoomAvailability: boolean;
     moveInDate: string;
   } | null;
+  settledTenancy: SettledTenancy | null;
   canArchive: boolean;
 };
 
@@ -94,6 +110,7 @@ type ResidentListDbRow = {
   bed_code: string | null;
   pg_id: string | null;
   is_vacating: boolean;
+  residency_status: ResidencyStatus;
   is_website_signup: boolean;
   is_verified: boolean;
   verified_via_kyc: boolean;
@@ -117,11 +134,16 @@ function mapResidentListRow(row: ResidentListDbRow): ResidentListRow {
     pgName: row.pg_name,
     roomNumber: row.room_number,
     bedCode: row.bed_code,
-    tenancyStatus: !row.booking_id
-      ? 'unassigned'
-      : row.is_vacating
-        ? 'vacating'
-        : 'active',
+    tenancyStatus:
+      row.residency_status === 'vacated'
+        ? 'vacated'
+        : row.residency_status === 'blocked'
+          ? 'blocked'
+          : !row.booking_id
+            ? 'unassigned'
+            : row.is_vacating
+              ? 'vacating'
+              : 'active',
     verificationSource: verification.verificationSource,
   };
 }
@@ -202,6 +224,7 @@ export async function listResidentsForAdmin(session: AdminSession): Promise<Resi
       c.gender,
       c.kyc_status,
       c.created_at,
+      c.residency_status,
       t.booking_id,
       t.pg_name,
       t.room_number,
@@ -241,6 +264,7 @@ export async function listUnverifiedWebsiteSignupsForAdmin(
       c.gender,
       c.kyc_status,
       c.created_at,
+      c.residency_status,
       t.booking_id,
       t.pg_name,
       t.room_number,
@@ -291,6 +315,7 @@ export async function searchResidentsForAdmin(
       c.gender,
       c.kyc_status,
       c.created_at,
+      c.residency_status,
       t.booking_id,
       t.pg_name,
       t.room_number,
@@ -350,6 +375,7 @@ export async function getResidentDetail(
       kycStatus: customers.kycStatus,
       createdAt: customers.createdAt,
       archivedAt: customers.archivedAt,
+      residencyStatus: customers.residencyStatus,
     })
     .from(customers)
     .where(eq(customers.id, customerId))
@@ -398,6 +424,53 @@ export async function getResidentDetail(
   const monthlyRentPaise =
     snapshot?.perBed?.reduce((acc, b) => acc + (b.monthlyRatePaise ?? 0), 0) ?? 0;
 
+  let settledTenancy: SettledTenancy | null = null;
+  if (!tenancy && customer.residencyStatus === 'vacated') {
+    const [settled] = await db
+      .select({
+        bookingId: bookings.id,
+        bookingCode: bookings.bookingCode,
+        pgId: pgs.id,
+        pgName: pgs.name,
+        roomNumber: rooms.roomNumber,
+        bedCode: beds.bedCode,
+        vacatingDate: vacatingRequests.vacatingDate,
+        deductionPaise: vacatingRequests.deductionPaise,
+        depositRefundPaise: vacatingRequests.depositRefundPaise,
+      })
+      .from(bookings)
+      .innerJoin(vacatingRequests, eq(vacatingRequests.bookingId, bookings.id))
+      .innerJoin(bedReservations, eq(bedReservations.bookingId, bookings.id))
+      .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+      .innerJoin(rooms, eq(rooms.id, beds.roomId))
+      .innerJoin(floors, eq(floors.id, rooms.floorId))
+      .innerJoin(pgs, eq(pgs.id, floors.pgId))
+      .where(
+        and(
+          eq(bookings.customerId, customerId),
+          eq(bookings.status, 'completed'),
+          eq(vacatingRequests.status, 'completed'),
+          eq(bedReservations.kind, 'primary'),
+        ),
+      )
+      .orderBy(desc(vacatingRequests.resolvedAt))
+      .limit(1);
+
+    if (settled && adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, settled.pgId)) {
+      settledTenancy = {
+        bookingId: settled.bookingId,
+        bookingCode: settled.bookingCode,
+        pgId: settled.pgId,
+        pgName: settled.pgName,
+        roomNumber: settled.roomNumber,
+        bedCode: settled.bedCode,
+        vacatingDate: settled.vacatingDate,
+        deductionPaise: settled.deductionPaise,
+        depositRefundPaise: settled.depositRefundPaise,
+      };
+    }
+  }
+
   return {
     customer: {
       id: customer.id,
@@ -407,6 +480,7 @@ export async function getResidentDetail(
       gender: customer.gender,
       kycStatus: customer.kycStatus,
       createdAt: customer.createdAt,
+      residencyStatus: customer.residencyStatus,
     },
     activeTenancy: tenancy
       ? {
@@ -423,7 +497,8 @@ export async function getResidentDetail(
           moveInDate: tenancy.moveInDate,
         }
       : null,
-    canArchive: !tenancy,
+    settledTenancy,
+    canArchive: !tenancy && customer.residencyStatus !== 'vacated',
   };
 }
 

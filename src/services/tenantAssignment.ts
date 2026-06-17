@@ -1,6 +1,6 @@
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { bedPrices, bedReservations, beds, bookings, floors, pgs, rooms } from '@/src/db/schema';
+import { bedPrices, bedReservations, beds, bookings, customers, floors, pgs, rooms } from '@/src/db/schema';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { formatDate } from '@/src/lib/dates';
@@ -135,6 +135,11 @@ export async function assignTenantToBed(
   if (!result.ok) {
     return { ok: false, error: result.message };
   }
+
+  await db
+    .update(customers)
+    .set({ residencyStatus: 'active', updatedAt: new Date() })
+    .where(eq(customers.id, result.customerId));
 
   if (result.depositPaise > 0) {
     await recordDepositCollected({
