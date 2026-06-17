@@ -1,0 +1,43 @@
+import { sql } from 'drizzle-orm';
+import {
+  bigint,
+  boolean,
+  index,
+  pgTable,
+  smallint,
+  text,
+  timestamp,
+  uuid,
+} from 'drizzle-orm/pg-core';
+import { bookings } from './bookings';
+import { customers } from './customers';
+import { pgs } from './pgs';
+
+export const residentBillingProfiles = pgTable(
+  'resident_billing_profiles',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    bookingId: uuid('booking_id')
+      .notNull()
+      .references(() => bookings.id, { onDelete: 'cascade' }),
+    customerId: uuid('customer_id')
+      .notNull()
+      .references(() => customers.id, { onDelete: 'cascade' }),
+    pgId: uuid('pg_id')
+      .notNull()
+      .references(() => pgs.id, { onDelete: 'cascade' }),
+    rentAmountPaise: bigint('rent_amount_paise', { mode: 'number' }).notNull(),
+    billingDay: smallint('billing_day').notNull().default(5),
+    defaultPaymentMethod: text('default_payment_method').notNull().default('upi'),
+    autoGenerate: boolean('auto_generate').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('resident_billing_profiles_pg_idx').on(t.pgId),
+    index('resident_billing_profiles_customer_idx').on(t.customerId),
+  ],
+);
+
+export type ResidentBillingProfile = typeof residentBillingProfiles.$inferSelect;
+export type NewResidentBillingProfile = typeof residentBillingProfiles.$inferInsert;

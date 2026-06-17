@@ -49,4 +49,5 @@ export * from './paymentLinks';
 export * from './financialInvoices';
 export * from './couponRedemptions';
 export * from './residentRequests';
+export * from './residentBillingProfiles';
 export * from './adminNotifications';

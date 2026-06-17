@@ -5,6 +5,7 @@ import {
   recordExpressCollectionAction,
   type ExpressCollectionActionState,
 } from '@/app/(admin)/admin/residents/[customerId]/expressCollectionActions';
+import type { ResidentBillingFormDefaults } from '@/src/services/residentBillingProfiles';
 import {
   EXPRESS_COLLECTION_CHARGE_TYPES,
   EXPRESS_COLLECTION_PAYMENT_METHODS,
@@ -18,6 +19,7 @@ type Props = {
   customerId: string;
   bookingId?: string | null;
   customerName: string;
+  billingDefaults?: ResidentBillingFormDefaults | null;
   defaultOpen?: boolean;
   onClose?: () => void;
   triggerClassName?: string;
@@ -27,6 +29,7 @@ export function ExpressCollectionButton({
   customerId,
   bookingId,
   customerName,
+  billingDefaults,
   defaultOpen = false,
   onClose,
   triggerClassName,
@@ -60,6 +63,11 @@ export function ExpressCollectionButton({
   const needsBillingMonth = chargeType === 'rent' || chargeType === 'electricity';
   const needsTitle = chargeType === 'custom';
   const today = formatDate(new Date());
+  const defaultAmountInr = billingDefaults
+    ? (billingDefaults.rentAmountPaise / 100).toFixed(2)
+    : '';
+  const defaultBillingMonth = billingDefaults?.billingMonth?.slice(0, 7) ?? '';
+  const defaultPaymentMethod = billingDefaults?.defaultPaymentMethod ?? 'cash';
 
   return (
     <>
@@ -91,8 +99,8 @@ export function ExpressCollectionButton({
             <div>
               <h2 className="text-sm font-semibold text-white">Express Collection</h2>
               <p className="mt-1 text-[11px] text-apg-silver">
-                Record money already collected for {customerName}. No payment link or debt is
-                created.
+                Record money already collected for {customerName}. Attaches to the existing monthly
+                invoice — never creates or cancels invoices.
               </p>
             </div>
             <button
@@ -129,6 +137,7 @@ export function ExpressCollectionButton({
                 min="0.01"
                 step="0.01"
                 required
+                defaultValue={defaultAmountInr || undefined}
                 placeholder="3570"
                 className="mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white"
               />
@@ -152,6 +161,7 @@ export function ExpressCollectionButton({
                   type="month"
                   name="billingMonth"
                   required
+                  defaultValue={defaultBillingMonth || undefined}
                   className="mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white"
                 />
               </label>
@@ -161,7 +171,7 @@ export function ExpressCollectionButton({
               Payment method
               <select
                 name="paymentMethod"
-                defaultValue="cash"
+                defaultValue={defaultPaymentMethod}
                 className="mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white"
               >
                 {EXPRESS_COLLECTION_PAYMENT_METHODS.map((m) => (

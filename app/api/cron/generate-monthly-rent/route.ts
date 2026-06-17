@@ -3,6 +3,7 @@ import { env } from '@/src/lib/env';
 import {
   generateRentInvoicesForMonth,
   markOverdueInvoices,
+  expireRentInvoicesPastDue,
 } from '@/src/services/rentInvoices';
 
 export const dynamic = 'force-dynamic';
@@ -62,6 +63,7 @@ async function handle(req: NextRequest) {
   }
 
   const overdue = await markOverdueInvoices();
+  const expired = await expireRentInvoicesPastDue();
 
   return Response.json({
     ok: true,
@@ -69,6 +71,7 @@ async function handle(req: NextRequest) {
     ranGeneration: !!generation,
     generation,
     overdue,
+    expired,
   });
 }
 

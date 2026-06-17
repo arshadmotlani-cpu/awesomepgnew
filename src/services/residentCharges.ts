@@ -19,12 +19,13 @@ import { expressSaleIdempotencyKey } from '@/src/lib/billing/invoiceStateMachine
 import { paymentLinkPublicUrl } from '@/src/lib/billing/paymentLinkUrl';
 import { revalidateFinancialViews } from '@/src/lib/billing/revalidateFinancialViews';
 import { formatDate } from '@/src/lib/dates';
+import { firstOfMonth } from '@/src/services/billing';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { createCustomCharge, type CustomChargeKind } from '@/src/services/customCharges';
 import { recordDepositPaymentFromLink } from '@/src/services/invoicePayment';
 import { createPaymentLink } from '@/src/services/paymentLinks';
-import { createAdhocRentInvoice } from '@/src/services/rentInvoices';
+import { ensureMonthlyRentInvoice } from '@/src/services/rentInvoices';
 import { getResidentFinancialSummary } from '@/src/services/residentFinancialEngine';
 import { createPaymentLinkForInvoice } from '@/src/services/unifiedInvoices';
 import type { ResidentChargeType } from '@/src/lib/billing/chargeGeneratorConstants';
@@ -181,17 +182,23 @@ export async function createResidentCharge(
   }
 
   if (input.chargeType === 'rent_charge') {
-    const invoiceRes = await createAdhocRentInvoice({
+    const billingMonth = firstOfMonth(input.dueDate ?? formatDate(new Date()));
+    const invoiceRes = await ensureMonthlyRentInvoice({
       bookingId: ctx.bookingId,
-      customerId: ctx.customerId,
-      bedId: ctx.bedId,
-      pgId: ctx.pgId,
+      billingMonth,
       amountPaise: input.amountPaise,
-      title,
-      description,
-      dueDate,
     });
     if (!invoiceRes.ok) return { ok: false, error: invoiceRes.error };
+
+    if (invoiceRes.status === 'paid') {
+      return { ok: false, error: 'Monthly rent invoice is already paid for this cycle.' };
+    }
+    if (invoiceRes.status === 'payment_in_progress') {
+      return {
+        ok: false,
+        error: 'Rent payment is already in progress for this invoice.',
+      };
+    }
 
     const linkRes = await createPaymentLink({
       residentId: ctx.customerId,

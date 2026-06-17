@@ -49,10 +49,11 @@ import {
 import type { PricingSnapshot } from '../db/schema/bookings';
 import { adminCanAccessPg } from '../lib/auth/roles';
 import type { AdminSession } from '../lib/auth/session';
-import { addDays, formatDate, parseDate, type DateLike } from '../lib/dates';
+import { addDays, diffDays, formatDate, parseDate, type DateLike } from '../lib/dates';
 import {
   computeLateFee,
   daysOverdue,
+  dueDateForBillingDay,
   dueDateForMonth,
   firstOfMonth,
   monthBounds,
@@ -64,7 +65,11 @@ import {
   isRentInvoiceCancellable,
   isRentInvoicePaymentLocked,
   logInvoiceStateTransition,
+  guardRentStatusTransition,
 } from '@/src/lib/billing/invoiceStateMachine';
+import {
+  ensureBillingProfileForBooking,
+} from '@/src/services/residentBillingProfiles';
 
 const INVOICE_PREFIX = 'RNT';
 
@@ -217,6 +222,216 @@ async function loadStayWindow(
   return { start, end };
 }
 
+/** Days after due_date before a pending/overdue invoice auto-expires (never while paying). */
+export const RENT_INVOICE_EXPIRE_DAYS_AFTER_DUE = 90;
+
+export type EnsureMonthlyRentInvoiceResult =
+  | { ok: true; invoiceId: string; invoiceNumber: string; created: boolean; status: string }
+  | { ok: false; error: string };
+
+/**
+ * Return the canonical monthly rent invoice for a booking/month.
+ * Creates via the idempotent generator when missing — never adhoc.
+ */
+export async function ensureMonthlyRentInvoice(input: {
+  bookingId: string;
+  billingMonth?: DateLike;
+  amountPaise?: number;
+}): Promise<EnsureMonthlyRentInvoiceResult> {
+  const billingMonth = firstOfMonth(input.billingMonth ?? new Date());
+  await ensureBillingProfileForBooking(input.bookingId);
+
+  const [existing] = await db
+    .select({
+      id: rentInvoices.id,
+      invoiceNumber: rentInvoices.invoiceNumber,
+      status: rentInvoices.status,
+      rentPaise: rentInvoices.rentPaise,
+    })
+    .from(rentInvoices)
+    .where(
+      and(
+        eq(rentInvoices.bookingId, input.bookingId),
+        eq(rentInvoices.billingMonth, billingMonth),
+        eq(rentInvoices.isAdhoc, false),
+      ),
+    )
+    .limit(1);
+
+  if (existing) {
+    if (existing.status === 'payment_in_progress') {
+      return {
+        ok: false,
+        error: 'Rent payment is in progress for this month — cannot modify or re-collect.',
+      };
+    }
+    if (existing.status === 'paid') {
+      return {
+        ok: true,
+        invoiceId: existing.id,
+        invoiceNumber: existing.invoiceNumber,
+        created: false,
+        status: existing.status,
+      };
+    }
+    if (existing.status === 'cancelled') {
+      return {
+        ok: false,
+        error: 'Monthly invoice was cancelled. Re-generate from the billing queue first.',
+      };
+    }
+    if (input.amountPaise && input.amountPaise !== existing.rentPaise) {
+      await db
+        .update(rentInvoices)
+        .set({ rentPaise: input.amountPaise, updatedAt: new Date() })
+        .where(eq(rentInvoices.id, existing.id));
+      const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
+      await syncRentInvoiceToUnified(existing.id);
+    }
+    return {
+      ok: true,
+      invoiceId: existing.id,
+      invoiceNumber: existing.invoiceNumber,
+      created: false,
+      status: existing.status,
+    };
+  }
+
+  await generateRentInvoicesForMonth({
+    billingMonth,
+    bookingIds: [input.bookingId],
+    forceAll: true,
+  });
+
+  const [created] = await db
+    .select({
+      id: rentInvoices.id,
+      invoiceNumber: rentInvoices.invoiceNumber,
+      status: rentInvoices.status,
+    })
+    .from(rentInvoices)
+    .where(
+      and(
+        eq(rentInvoices.bookingId, input.bookingId),
+        eq(rentInvoices.billingMonth, billingMonth),
+        eq(rentInvoices.isAdhoc, false),
+      ),
+    )
+    .limit(1);
+
+  if (!created) {
+    return { ok: false, error: 'Could not generate monthly rent invoice for this booking.' };
+  }
+
+  return {
+    ok: true,
+    invoiceId: created.id,
+    invoiceNumber: created.invoiceNumber,
+    created: true,
+    status: created.status,
+  };
+}
+
+export type BillingCycleOperationRow = {
+  invoiceId: string;
+  invoiceNumber: string;
+  customerId: string;
+  customerFullName: string;
+  customerPhone: string;
+  bookingId: string;
+  pgId: string;
+  pgName: string;
+  roomNumber: string;
+  rentPaise: number;
+  dueDate: string;
+  billingMonth: string;
+  status: string;
+  daysUntilDue: number;
+};
+
+/** Invoices due within the next day (operations visibility window). */
+export async function listBillingCycleOperations(
+  asOf: DateLike = formatDate(new Date()),
+): Promise<{ dueSoon: BillingCycleOperationRow[]; generatedPending: BillingCycleOperationRow[] }> {
+  const today = formatDate(parseDate(asOf));
+  const tomorrow = formatDate(addDays(today, 1));
+
+  const rows = await db
+    .select({
+      invoiceId: rentInvoices.id,
+      invoiceNumber: rentInvoices.invoiceNumber,
+      customerId: rentInvoices.customerId,
+      customerFullName: customers.fullName,
+      customerPhone: customers.phone,
+      bookingId: rentInvoices.bookingId,
+      pgId: rentInvoices.pgId,
+      pgName: pgs.name,
+      roomNumber: rooms.roomNumber,
+      rentPaise: rentInvoices.rentPaise,
+      dueDate: rentInvoices.dueDate,
+      billingMonth: rentInvoices.billingMonth,
+      status: rentInvoices.status,
+    })
+    .from(rentInvoices)
+    .innerJoin(customers, eq(customers.id, rentInvoices.customerId))
+    .innerJoin(pgs, eq(pgs.id, rentInvoices.pgId))
+    .innerJoin(beds, eq(beds.id, rentInvoices.bedId))
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
+    .where(
+      and(
+        eq(rentInvoices.isAdhoc, false),
+        inArray(rentInvoices.status, ['pending', 'overdue']),
+        sql`${rentInvoices.dueDate} >= ${today}::date`,
+        sql`${rentInvoices.dueDate} <= ${tomorrow}::date`,
+      ),
+    );
+
+  const dueSoon: BillingCycleOperationRow[] = rows.map((r) => ({
+    ...r,
+    roomNumber: r.roomNumber ?? '',
+    daysUntilDue: diffDays(today, r.dueDate),
+  }));
+
+  const currentMonth = firstOfMonth(today);
+  const generatedRows = await db
+    .select({
+      invoiceId: rentInvoices.id,
+      invoiceNumber: rentInvoices.invoiceNumber,
+      customerId: rentInvoices.customerId,
+      customerFullName: customers.fullName,
+      customerPhone: customers.phone,
+      bookingId: rentInvoices.bookingId,
+      pgId: rentInvoices.pgId,
+      pgName: pgs.name,
+      roomNumber: rooms.roomNumber,
+      rentPaise: rentInvoices.rentPaise,
+      dueDate: rentInvoices.dueDate,
+      billingMonth: rentInvoices.billingMonth,
+      status: rentInvoices.status,
+    })
+    .from(rentInvoices)
+    .innerJoin(customers, eq(customers.id, rentInvoices.customerId))
+    .innerJoin(pgs, eq(pgs.id, rentInvoices.pgId))
+    .innerJoin(beds, eq(beds.id, rentInvoices.bedId))
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
+    .where(
+      and(
+        eq(rentInvoices.isAdhoc, false),
+        eq(rentInvoices.billingMonth, currentMonth),
+        eq(rentInvoices.status, 'pending'),
+        sql`${rentInvoices.dueDate} > ${tomorrow}::date`,
+      ),
+    );
+
+  const generatedPending: BillingCycleOperationRow[] = generatedRows.map((r) => ({
+    ...r,
+    roomNumber: r.roomNumber ?? '',
+    daysUntilDue: diffDays(today, r.dueDate),
+  }));
+
+  return { dueSoon, generatedPending };
+}
+
 // ───────────────────────────────────────────────────────────────────────────
 // generateRentInvoicesForMonth — idempotent
 // ───────────────────────────────────────────────────────────────────────────
@@ -302,12 +517,21 @@ export async function generateRentInvoicesForMonth(
       continue;
     }
 
-    const monthlyRent = monthlyRentFromSnapshot(c.pricingSnapshot);
+    const profile = await ensureBillingProfileForBooking(c.bookingId);
+    if (profile && !profile.autoGenerate) {
+      skipped += 1;
+      continue;
+    }
+
+    const monthlyRent =
+      profile?.rentAmountPaise ?? monthlyRentFromSnapshot(c.pricingSnapshot);
     if (monthlyRent <= 0) {
       // No monthly rate on snapshot — skip (audit log, no invoice).
       skipped += 1;
       continue;
     }
+
+    const billingDay = profile?.billingDay ?? 5;
 
     // Pro-rate against the resident's active window.
     const stay = await loadStayWindow(c.bookingId);
@@ -321,7 +545,7 @@ export async function generateRentInvoicesForMonth(
       continue;
     }
 
-    const calendarDue = formatDate(dueDateForMonth(billingMonth));
+    const calendarDue = formatDate(dueDateForBillingDay(billingMonth, billingDay));
     const dueDate =
       stay.start > calendarDue ? formatDate(addDays(stay.start, 4)) : calendarDue;
 
@@ -468,6 +692,51 @@ export async function markOverdueInvoices(
     );
   }
   return { updated: rows.length, updatedInvoiceIds: rows.map((r) => r.id) };
+}
+
+/**
+ * Expire stale pending/overdue invoices past due + grace window.
+ * Never touches payment_in_progress or paid invoices.
+ */
+export async function expireRentInvoicesPastDue(
+  opts?: { asOf?: DateLike; daysAfterDue?: number },
+): Promise<{ expired: number; expiredInvoiceIds: string[] }> {
+  const today = formatDate(parseDate(opts?.asOf ?? new Date()));
+  const grace = opts?.daysAfterDue ?? RENT_INVOICE_EXPIRE_DAYS_AFTER_DUE;
+  const cutoff = formatDate(addDays(today, -grace));
+
+  const rows = await db
+    .update(rentInvoices)
+    .set({ status: 'expired', updatedAt: new Date() })
+    .where(
+      and(
+        inArray(rentInvoices.status, ['pending', 'overdue']),
+        sql`${rentInvoices.dueDate} < ${cutoff}::date`,
+        isNull(rentInvoices.paymentProofUrl),
+        isNull(rentInvoices.paymentId),
+      ),
+    )
+    .returning({ id: rentInvoices.id });
+
+  for (const row of rows) {
+    logInvoiceStateTransition({
+      invoiceId: row.id,
+      layer: 'rent',
+      previousStatus: 'pending_or_overdue',
+      newStatus: 'expired',
+      source: 'cron',
+    });
+  }
+
+  if (rows.length > 0) {
+    const { syncManyToUnified } = await import('@/src/services/unifiedInvoices');
+    void syncManyToUnified(
+      rows.map((r) => r.id),
+      'rent',
+    );
+  }
+
+  return { expired: rows.length, expiredInvoiceIds: rows.map((r) => r.id) };
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -1375,9 +1644,11 @@ export async function cancelPendingRentInvoicesForMonth(
     .where(
       and(
         eq(rentInvoices.billingMonth, month),
-        inArray(rentInvoices.status, ['pending', 'overdue']),
+        inArray(rentInvoices.status, ['pending', 'overdue', 'expired']),
         eq(rentInvoices.isAdhoc, false),
         isNull(rentInvoices.paymentProofUrl),
+        isNull(rentInvoices.paymentId),
+        sql`${rentInvoices.dueDate} < ${formatDate(new Date())}::date`,
         opts?.pgId ? eq(rentInvoices.pgId, opts.pgId) : sql`TRUE`,
         opts?.bookingIds?.length
           ? inArray(rentInvoices.bookingId, opts.bookingIds)
@@ -1406,6 +1677,15 @@ export async function cancelPendingRentInvoicesForMonth(
         .limit(1);
       if (!rentRow || !isRentInvoiceCancellable(rentRow.status)) {
         errors.push(`${row.rentInvoiceId}: not cancellable (${rentRow?.status ?? 'missing'})`);
+        continue;
+      }
+      if (isRentInvoicePaymentLocked(rentRow.status)) {
+        errors.push(`${row.rentInvoiceId}: payment locked (${rentRow.status})`);
+        continue;
+      }
+      const cancelGuard = guardRentStatusTransition(rentRow.status, 'cancelled');
+      if (!cancelGuard.ok) {
+        errors.push(`${row.rentInvoiceId}: ${cancelGuard.error}`);
         continue;
       }
       const [updated] = await db

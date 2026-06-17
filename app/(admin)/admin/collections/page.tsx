@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { AdminPendingPaymentsPanel } from '@/src/components/admin/AdminPendingPaymentsPanel';
 import { AdminSectionErrorBoundary } from '@/src/components/admin/AdminSectionErrorBoundary';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
+import { BillingCycleOperationsPanel } from '@/src/components/admin/BillingCycleOperationsPanel';
 import { BillingOverviewPanel } from '@/src/components/admin/BillingOverviewPanel';
 import { CollectionsBillingTools } from '@/src/components/admin/CollectionsBillingTools';
 import { ElectricityBulkSendPanel } from '@/src/components/admin/ElectricityBulkSendPanel';
@@ -24,7 +25,7 @@ import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
-import { listRentBillingOverview } from '@/src/services/rentInvoices';
+import { listRentBillingOverview, listBillingCycleOperations } from '@/src/services/rentInvoices';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,7 +56,7 @@ export default async function CollectionsModulePage({
   await ensureAdminPageNotificationsSeen('/admin/collections', '/admin/collections');
   const canGenerateRent = adminHasPermission(session.role, 'rent:write');
   const canSendLinks = adminHasPermission(session.role, 'payments:write');
-  const [pending, rentStats, rentPending, rentPaid, elecPending, pgs, billingOverview] =
+  const [pending, rentStats, rentPending, rentPaid, elecPending, pgs, billingOverview, billingCycleOps] =
     await Promise.all([
     requireAdminPermission('payments:write').then((s) => listPendingPaymentReviews(s)),
     getRentStats(),
@@ -64,6 +65,7 @@ export default async function CollectionsModulePage({
     listAdminElectricityInvoicesForReminders(),
     listPgs(),
     listRentBillingOverview(billingMonth),
+    listBillingCycleOperations(),
   ]);
 
   const pgNameById = new Map(pgs.ok ? pgs.data.map((p) => [p.id, p.name]) : []);
@@ -123,6 +125,11 @@ export default async function CollectionsModulePage({
       {tab === 'billing' ? (
         <>
           <CollectionsBillingTools billingMonth={billingMonth} canGenerateRent={canGenerateRent} />
+          <BillingCycleOperationsPanel
+            dueSoon={billingCycleOps.dueSoon}
+            generatedPending={billingCycleOps.generatedPending}
+            canSendLinks={canSendLinks}
+          />
           <BillingOverviewPanel
             billingMonth={billingMonth}
             rows={billingOverview}

@@ -9,6 +9,8 @@ import {
   isFinancialInvoicePaymentLocked,
   isRentInvoiceCancellable,
   isRentInvoicePaymentLocked,
+  guardFinancialStatusTransition,
+  guardRentStatusTransition,
   mergeFinancialStatusFromRent,
 } from '../../src/lib/billing/invoiceStateMachine';
 
@@ -69,6 +71,20 @@ describe('mergeFinancialStatusFromRent race guard', () => {
       false,
     );
     assert.equal(merged, 'paid');
+  });
+});
+
+describe('invoice state machine — guards', () => {
+  it('guard helpers reject forbidden transitions', () => {
+    assert.deepEqual(guardRentStatusTransition('paid', 'cancelled'), {
+      ok: false,
+      error: 'Invalid rent invoice transition paid → cancelled',
+    });
+    assert.deepEqual(guardRentStatusTransition('pending', 'paid'), { ok: true });
+    assert.deepEqual(guardFinancialStatusTransition('payment_in_progress', 'cancelled'), {
+      ok: false,
+      error: 'Invalid financial invoice transition payment_in_progress → cancelled',
+    });
   });
 });
 

@@ -191,3 +191,25 @@ export function logInvoiceStateTransition(args: {
   };
   console.info('[invoice-state]', JSON.stringify(payload));
 }
+
+export function guardRentStatusTransition(
+  from: string,
+  to: RentInvoiceLifecycleStatus,
+): { ok: true } | { ok: false; error: string } {
+  if (canTransitionRentStatus(from, to)) return { ok: true };
+  return {
+    ok: false,
+    error: `Invalid rent invoice transition ${from} → ${to}`,
+  };
+}
+
+export function guardFinancialStatusTransition(
+  from: FinancialInvoiceStatus | string,
+  to: FinancialInvoiceStatus,
+): { ok: true } | { ok: false; error: string } {
+  if (canTransitionFinancialStatus(from, to)) return { ok: true };
+  return {
+    ok: false,
+    error: `Invalid financial invoice transition ${from} → ${to}`,
+  };
+}

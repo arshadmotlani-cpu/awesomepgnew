@@ -28,6 +28,7 @@ import {
 import { loadBedPrice, computeMonthlyDepositPaise } from '@/src/services/pricing';
 import { getResidentFinancialSummary } from '@/src/services/residentFinancialEngine';
 import { listResidentInvoiceHistory } from '@/src/services/invoiceGeneration';
+import { getResidentBillingFormDefaults } from '@/src/services/residentBillingProfiles';
 
 export const dynamic = 'force-dynamic';
 
@@ -99,6 +100,10 @@ export default async function ResidentDetailPage({
   const invoiceHistory = financialSummary
     ? await listResidentInvoiceHistory(customerId, 20)
     : [];
+
+  const billingDefaults = activeTenancy
+    ? await getResidentBillingFormDefaults(customerId, activeTenancy.bookingId)
+    : null;
 
   const firstOpenRent = financialSummary?.rent.items.find((l) => l.outstandingPaise > 0);
   const firstOpenElec = financialSummary?.electricity.items.find((l) => l.outstandingPaise > 0);
@@ -234,12 +239,14 @@ export default async function ResidentDetailPage({
               customerId={customerId}
               bookingId={activeTenancy.bookingId}
               customerName={customer.fullName}
+              billingDefaults={billingDefaults}
               defaultOpen={sp.expressCollection === '1'}
             />
             <div className="min-w-0 flex-1">
               <CreateChargeGeneratorForm
                 customerId={customerId}
                 bookingId={activeTenancy.bookingId}
+                billingDefaults={billingDefaults}
               />
             </div>
           </div>

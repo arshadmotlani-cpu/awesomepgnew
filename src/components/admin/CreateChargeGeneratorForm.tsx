@@ -27,12 +27,16 @@ const CUSTOM_KINDS = [
 
 const idle: ChargeGeneratorActionState = { status: 'idle' };
 
+import type { ResidentBillingFormDefaults } from '@/src/services/residentBillingProfiles';
+
 export function CreateChargeGeneratorForm({
   customerId,
   bookingId,
+  billingDefaults,
 }: {
   customerId: string;
   bookingId?: string | null;
+  billingDefaults?: ResidentBillingFormDefaults | null;
 }) {
   const [state, formAction, pending] = useActionState(createResidentChargeAction, idle);
   const [chargeType, setChargeType] = useState<string>('additional_deposit');
@@ -52,14 +56,26 @@ export function CreateChargeGeneratorForm({
     }
   }, [chargeType]);
 
+  const defaultAmountInr = billingDefaults
+    ? (billingDefaults.rentAmountPaise / 100).toFixed(2)
+    : '';
+  const defaultDueDate = billingDefaults?.dueDate ?? '';
+
   return (
     <form action={formAction} className="rounded-xl border border-white/10 bg-[#12161C] p-4">
       <input type="hidden" name="customerId" value={customerId} />
       {bookingId ? <input type="hidden" name="bookingId" value={bookingId} /> : null}
+      {billingDefaults?.pendingRentInvoiceId ? (
+        <input
+          type="hidden"
+          name="existingRentInvoiceId"
+          value={billingDefaults.pendingRentInvoiceId}
+        />
+      ) : null}
       <h3 className="text-sm font-semibold text-white">Generate charge</h3>
       <p className="mt-1 text-[11px] text-apg-silver">
-        Creates a payment link with QR and WhatsApp share. Deposit charges update the deposit
-        ledger; rent charges use rent invoicing; custom charges use financial invoices.
+        Attaches to the resident billing profile and existing monthly invoice when available. Creates
+        a payment link with QR and WhatsApp share.
       </p>
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -86,6 +102,8 @@ export function CreateChargeGeneratorForm({
             min="0.01"
             step="0.01"
             required
+            defaultValue={defaultAmountInr || undefined}
+            key={`amount-${defaultAmountInr}-${chargeType}`}
             className="mt-1 w-full rounded-lg border border-white/10 bg-[#1A1F27] px-3 py-2 text-sm text-white"
           />
         </label>
@@ -134,6 +152,8 @@ export function CreateChargeGeneratorForm({
           <input
             type="date"
             name="dueDate"
+            defaultValue={defaultDueDate || undefined}
+            key={`due-${defaultDueDate}`}
             className="mt-1 w-full rounded-lg border border-white/10 bg-[#1A1F27] px-3 py-2 text-sm text-white"
           />
         </label>

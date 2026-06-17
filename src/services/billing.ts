@@ -43,7 +43,20 @@ export function firstOfMonth(date: DateLike): string {
  * so the "days overdue" computation is just `today - dueDate - 1`.
  */
 export function dueDateForMonth(billingMonth: DateLike): Date {
-  return addDays(billingMonth, 4);
+  return dueDateForBillingDay(billingMonth, 5);
+}
+
+/**
+ * Due date for a billing month using a configured billing day (1–28).
+ * Day 5 matches legacy `dueDateForMonth` (1st + 4 days grace).
+ */
+export function dueDateForBillingDay(billingMonth: DateLike, billingDay: number): Date {
+  const { start } = monthBounds(billingMonth);
+  const year = start.getUTCFullYear();
+  const month = start.getUTCMonth();
+  const maxDay = daysInMonth(start);
+  const day = Math.min(Math.max(1, billingDay), maxDay);
+  return new Date(Date.UTC(year, month, day));
 }
 
 /**

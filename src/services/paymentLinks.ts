@@ -387,62 +387,8 @@ export async function expireStalePaymentLinks(maxAgeDays = 30) {
 
     if (!updated) continue;
     expiredCount += 1;
-
-    if (link.rentInvoiceId) {
-      const [rentRow] = await db
-        .select({ status: rentInvoices.status })
-        .from(rentInvoices)
-        .where(eq(rentInvoices.id, link.rentInvoiceId))
-        .limit(1);
-      if (rentRow && (rentRow.status === 'pending' || rentRow.status === 'overdue')) {
-        await db
-          .update(rentInvoices)
-          .set({ status: 'expired', updatedAt: new Date() })
-          .where(
-            and(
-              eq(rentInvoices.id, link.rentInvoiceId),
-              inArray(rentInvoices.status, ['pending', 'overdue']),
-            ),
-          );
-        logInvoiceStateTransition({
-          invoiceId: link.rentInvoiceId,
-          layer: 'rent',
-          previousStatus: rentRow.status,
-          newStatus: 'expired',
-          source: 'cron',
-          meta: { paymentLinkId: link.id },
-        });
-        const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
-        await syncRentInvoiceToUnified(link.rentInvoiceId).catch(() => undefined);
-      }
-    }
-
-    if (link.invoiceId) {
-      const [fi] = await db
-        .select({ status: financialInvoices.status })
-        .from(financialInvoices)
-        .where(eq(financialInvoices.id, link.invoiceId))
-        .limit(1);
-      if (fi && ['draft', 'sent', 'overdue'].includes(fi.status)) {
-        await db
-          .update(financialInvoices)
-          .set({ status: 'expired', updatedAt: new Date() })
-          .where(
-            and(
-              eq(financialInvoices.id, link.invoiceId),
-              inArray(financialInvoices.status, ['draft', 'sent', 'overdue']),
-            ),
-          );
-        logInvoiceStateTransition({
-          invoiceId: link.invoiceId,
-          layer: 'financial',
-          previousStatus: fi.status,
-          newStatus: 'expired',
-          source: 'cron',
-          meta: { paymentLinkId: link.id },
-        });
-      }
-    }
+    // Payment links expire independently — invoice status is managed by billing cron
+    // (overdue / expire sweeps) and must never flip during payment processing.
   }
 
   return expiredCount;

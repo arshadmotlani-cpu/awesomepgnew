@@ -372,6 +372,13 @@
       "when": 1787200000000,
       "tag": "0054_deposit_refund_payout",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1787300000000,
+      "tag": "0055_resident_billing_profiles",
+      "breakpoints": true
     }
   ]
 }

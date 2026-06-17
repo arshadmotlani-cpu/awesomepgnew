@@ -32,7 +32,7 @@ import { dueDateForMonth, firstOfMonth } from '@/src/services/billing';
 import { syncDepositCollectionFromLedger } from '@/src/services/depositCollection';
 import { recordDepositCollected } from '@/src/services/deposits';
 import { recordElectricityPaymentSuccess } from '@/src/services/electricityBilling';
-import { recordRentPaymentSuccess } from '@/src/services/rentInvoices';
+import { recordRentPaymentSuccess, ensureMonthlyRentInvoice } from '@/src/services/rentInvoices';
 
 export type RecordExpressCollectionInput = {
   customerId: string;
@@ -217,82 +217,41 @@ async function recordExpressRent(
   const providerPaymentId = buildProviderPaymentId(input, ctx);
   const rawPayload = buildRawPayload(input);
 
-  let invoiceId: string;
-  let invoiceNumber: string;
+  const ensured = await ensureMonthlyRentInvoice({
+    bookingId: ctx.bookingId,
+    billingMonth,
+    amountPaise: input.amountPaise,
+  });
+  if (!ensured.ok) {
+    return { ok: false, error: ensured.error };
+  }
 
-  const [existing] = await db
-    .select()
-    .from(rentInvoices)
-    .where(
-      and(
-        eq(rentInvoices.bookingId, ctx.bookingId),
-        eq(rentInvoices.billingMonth, billingMonth),
-        eq(rentInvoices.isAdhoc, false),
-      ),
-    )
-    .limit(1);
+  if (ensured.status === 'paid') {
+    return {
+      ok: true,
+      chargeType: 'rent',
+      amountPaise: input.amountPaise,
+      rentInvoiceId: ensured.invoiceId,
+      invoiceNumber: ensured.invoiceNumber,
+      message: 'Rent for this month is already recorded as paid.',
+    };
+  }
 
-  if (existing) {
-    if (existing.status === 'paid') {
-      if (existing.rentPaise === input.amountPaise) {
-        return {
-          ok: true,
-          chargeType: 'rent',
-          amountPaise: input.amountPaise,
-          rentInvoiceId: existing.id,
-          invoiceNumber: existing.invoiceNumber,
-          message: 'Rent for this month is already recorded as paid.',
-        };
-      }
-      return {
-        ok: false,
-        error: `Rent invoice ${existing.invoiceNumber} is already paid with a different amount.`,
-      };
-    }
-    if (existing.rentPaise !== input.amountPaise) {
-      await db
-        .update(rentInvoices)
-        .set({ rentPaise: input.amountPaise, notes: note, updatedAt: new Date() })
-        .where(eq(rentInvoices.id, existing.id));
-    }
-    invoiceId = existing.id;
-    invoiceNumber = existing.invoiceNumber;
-  } else {
-    const dueDate = formatDate(dueDateForMonth(billingMonth));
-    let inserted: { id: string; invoiceNumber: string } | null = null;
-    for (let attempt = 0; attempt < 5; attempt += 1) {
-      const invNum = await nextRentInvoiceNumber(billingMonth, attempt);
-      try {
-        const [row] = await db
-          .insert(rentInvoices)
-          .values({
-            invoiceNumber: invNum,
-            bookingId: ctx.bookingId,
-            customerId: ctx.customerId,
-            bedId: ctx.bedId,
-            pgId: ctx.pgId,
-            billingMonth,
-            dueDate,
-            rentPaise: input.amountPaise,
-            status: 'pending',
-            notes: note,
-            isAdhoc: false,
-          })
-          .returning({ id: rentInvoices.id, invoiceNumber: rentInvoices.invoiceNumber });
-        inserted = row;
-        break;
-      } catch (err) {
-        if (pgErrorCode(err) === '23505') continue;
-        throw err;
-      }
-    }
-    if (!inserted) {
-      return { ok: false, error: 'Could not create rent invoice.' };
-    }
-    invoiceId = inserted.id;
-    invoiceNumber = inserted.invoiceNumber;
-    const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
-    await syncRentInvoiceToUnified(invoiceId);
+  if (ensured.status === 'payment_in_progress') {
+    return {
+      ok: false,
+      error: 'Rent payment is in progress for this month — finish or cancel payment first.',
+    };
+  }
+
+  const invoiceId = ensured.invoiceId;
+  const invoiceNumber = ensured.invoiceNumber;
+
+  if (note) {
+    await db
+      .update(rentInvoices)
+      .set({ notes: note, updatedAt: new Date() })
+      .where(eq(rentInvoices.id, invoiceId));
   }
 
   const payResult = await recordRentPaymentSuccess({
