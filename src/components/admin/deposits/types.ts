@@ -8,10 +8,19 @@ export type DepositTableRow = {
   pgName: string;
   roomNumber: string;
   bedCode: string;
+  /** Required deposit from rent plan. */
+  requiredPaise: number;
+  collectedPaise: number;
+  deductionsPaise: number;
+  refundablePaise: number;
+  invoiceStatus: 'collecting' | 'held' | 'refund_pending' | 'settled';
+  displayStatus: string;
+  isSettled: boolean;
+  isFrozen: boolean;
+  /** Legacy fields */
   depositPaise: number;
   depositDuePaise: number;
   depositCollectionStatus: 'pending' | 'full' | 'partial' | 'overdue' | 'waived';
-  collectedPaise: number;
   deductedPaise: number;
   refundedPaise: number;
   refundableBalancePaise: number;

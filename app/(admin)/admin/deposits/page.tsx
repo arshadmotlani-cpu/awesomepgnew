@@ -3,31 +3,28 @@ import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import { EmptyState } from '@/src/components/admin/EmptyState';
 import { IconCard } from '@/src/components/admin/icons';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
-import { listAdminDepositSummaries } from '@/src/db/queries/admin';
 import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
+import { listDepositInvoiceRecords } from '@/src/services/depositInvoices';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminDepositsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string }>;
+  searchParams: Promise<{ view?: string }>;
 }) {
   const sp = await searchParams;
   await ensureAdminPageNotificationsSeen('/admin/deposits', '/admin/deposits');
-  const dueOnly = sp.filter === 'due';
-  const res = await listAdminDepositSummaries();
-  const { listOutstandingDeposits } = await import('@/src/services/depositCollection');
-  const outstanding = dueOnly ? await listOutstandingDeposits() : [];
-  const outstandingIds = new Set(outstanding.map((r) => r.bookingId));
+  const view = sp.view === 'settled' ? 'settled' : 'active';
 
-  const tableRows =
-    res.ok && dueOnly
-      ? res.data.filter((r) => outstandingIds.has(r.bookingId))
-      : res.ok
-        ? res.data
-        : [];
+  let rows: Awaited<ReturnType<typeof listDepositInvoiceRecords>> = [];
+  let error: string | null = null;
+  try {
+    rows = await listDepositInvoiceRecords({ view });
+  } catch (err) {
+    error = err instanceof Error ? err.message : 'Could not load deposit invoices.';
+  }
 
   return (
     <>
@@ -38,16 +35,20 @@ export default async function AdminDepositsPage({
         ]}
       />
 
-      {!res.ok ? (
-        <DbStatusBanner error={res.error} />
-      ) : res.data.length === 0 ? (
+      {error ? (
+        <DbStatusBanner error={error} />
+      ) : rows.length === 0 ? (
         <EmptyState
           icon={<IconCard />}
-          title="No deposit bookings yet"
-          description="Confirmed bookings with a deposit requirement appear here, even before the first ledger entry."
+          title={view === 'settled' ? 'No settled deposit invoices' : 'No active deposit invoices'}
+          description={
+            view === 'settled'
+              ? 'Completed refund settlements appear here after residents vacate.'
+              : 'Active residents with a deposit requirement appear here as one computed invoice each.'
+          }
         />
       ) : (
-        <DepositManagementPanel rows={tableRows} dueOnly={dueOnly} />
+        <DepositManagementPanel rows={rows} view={view} />
       )}
     </>
   );

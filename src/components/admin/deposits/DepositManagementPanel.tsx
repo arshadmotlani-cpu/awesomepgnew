@@ -2,30 +2,41 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { Badge, toneForStatus } from '@/src/components/admin/Badge';
+import { Badge } from '@/src/components/admin/Badge';
 import { DepositDetailDrawer } from '@/src/components/admin/deposits/DepositDetailDrawer';
 import { DepositRowActions } from '@/src/components/admin/deposits/DepositRowActions';
 import type { DepositTableRow } from '@/src/components/admin/deposits/types';
-import {
-  hasOutstandingDepositDue,
-  labelDepositCollectionStatus,
-} from '@/src/lib/depositCollectionLabels';
 import { paiseToInr } from '@/src/lib/format';
 
 type Props = {
   rows: DepositTableRow[];
-  dueOnly: boolean;
+  view: 'active' | 'settled';
 };
 
-export function DepositManagementPanel({ rows, dueOnly }: Props) {
+function statusTone(status: DepositTableRow['invoiceStatus']) {
+  switch (status) {
+    case 'collecting':
+      return 'amber' as const;
+    case 'held':
+      return 'emerald' as const;
+    case 'refund_pending':
+      return 'sky' as const;
+    case 'settled':
+      return 'zinc' as const;
+    default:
+      return 'zinc' as const;
+  }
+}
+
+export function DepositManagementPanel({ rows, view }: Props) {
   const [selected, setSelected] = useState<DepositTableRow | null>(null);
 
   const totals = useMemo(
     () => ({
-      required: rows.reduce((a, r) => a + Number(r.depositPaise), 0),
-      collected: rows.reduce((a, r) => a + Number(r.collectedPaise), 0),
-      due: rows.reduce((a, r) => a + Number(r.depositDuePaise), 0),
-      refundable: rows.reduce((a, r) => a + Number(r.refundableBalancePaise), 0),
+      required: rows.reduce((a, r) => a + r.requiredPaise, 0),
+      collected: rows.reduce((a, r) => a + r.collectedPaise, 0),
+      deductions: rows.reduce((a, r) => a + r.deductionsPaise, 0),
+      refundable: rows.reduce((a, r) => a + r.refundablePaise, 0),
     }),
     [rows],
   );
@@ -35,60 +46,69 @@ export function DepositManagementPanel({ rows, dueOnly }: Props) {
       <header className="sticky top-0 z-20 -mx-3 border-b border-white/10 bg-[#0B0F14]/95 px-3 py-2 backdrop-blur-sm sm:-mx-4 sm:px-4 lg:-mx-8 lg:px-8">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-base font-semibold tracking-tight text-white sm:text-lg">Deposits</h1>
-          <Link
-            href="/admin/deposits/add"
-            className="shrink-0 rounded-lg bg-[#FF5A1F] px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110 sm:px-4 sm:py-2 sm:text-sm"
-          >
-            Add deposit
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <nav className="flex rounded-lg border border-white/10 p-0.5 text-xs">
+              <Link
+                href="/admin/deposits"
+                className={
+                  'rounded-md px-2.5 py-1 font-medium ' +
+                  (view === 'active' ? 'bg-white/10 text-white' : 'text-apg-silver hover:text-white')
+                }
+              >
+                Active
+              </Link>
+              <Link
+                href="/admin/deposits?view=settled"
+                className={
+                  'rounded-md px-2.5 py-1 font-medium ' +
+                  (view === 'settled' ? 'bg-white/10 text-white' : 'text-apg-silver hover:text-white')
+                }
+              >
+                Settled
+              </Link>
+            </nav>
+            {view === 'active' ? (
+              <Link
+                href="/admin/deposits/add"
+                className="shrink-0 rounded-lg bg-[#FF5A1F] px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110 sm:px-4 sm:py-2 sm:text-sm"
+              >
+                Add deposit
+              </Link>
+            ) : null}
+          </div>
         </div>
 
         <dl className="mt-1.5 flex flex-wrap items-baseline gap-x-4 gap-y-0.5 text-xs">
           <InlineStat label="Required" value={paiseToInr(totals.required)} />
           <InlineStat label="Collected" value={paiseToInr(totals.collected)} accent="emerald" />
-          <InlineStat
-            label="Due"
-            value={paiseToInr(totals.due)}
-            accent={totals.due > 0 ? 'amber' : undefined}
-          />
+          <InlineStat label="Deductions" value={paiseToInr(totals.deductions)} accent="rose" />
           <InlineStat label="Refundable" value={paiseToInr(totals.refundable)} />
         </dl>
 
-        {dueOnly ? (
-          <p className="mt-1.5 text-[11px] text-amber-200/90">
-            Outstanding only ·{' '}
-            <Link href="/admin/deposits" className="font-medium text-white underline">
-              Clear filter
-            </Link>
-          </p>
-        ) : (
-          <p className="mt-1.5 text-[11px] text-apg-silver">
-            <Link href="/admin/deposits?filter=due" className="font-medium text-[#FF5A1F] hover:underline">
-              View outstanding →
-            </Link>
-          </p>
-        )}
+        <p className="mt-1.5 text-[11px] text-apg-silver">
+          {view === 'active'
+            ? 'One invoice per resident — final computed balance only.'
+            : 'Frozen settlement records — vacated or fully refunded.'}
+        </p>
       </header>
 
       {rows.length === 0 ? (
         <p className="mt-4 rounded-xl border border-white/10 bg-[#1A1F27] px-4 py-8 text-center text-sm text-apg-silver">
-          No bookings match this filter.
+          No deposit invoices in this view.
         </p>
       ) : (
         <>
           <div className="mt-3 hidden rounded-xl border border-white/10 bg-[#1A1F27] md:block">
-            <table className="min-w-[960px] w-full text-left text-sm">
+            <table className="min-w-[880px] w-full text-left text-sm">
               <thead className="border-b border-white/10 bg-[#1A1F27]">
                 <tr>
                   <Th>Resident</Th>
-                  <Th>Bed</Th>
+                  <Th>Room / bed</Th>
                   <Th className="text-right">Required</Th>
                   <Th className="text-right">Collected</Th>
-                  <Th className="text-right">Due</Th>
+                  <Th className="text-right">Deductions</Th>
+                  <Th className="text-right">Refundable</Th>
                   <Th>Status</Th>
-                  <Th className="text-right">Deducted</Th>
-                  <Th className="text-right">Refunded</Th>
-                  <Th className="text-right">Balance</Th>
                   <Th className="min-w-[7rem] text-right">Actions</Th>
                 </tr>
               </thead>
@@ -116,33 +136,19 @@ export function DepositManagementPanel({ rows, dueOnly }: Props) {
                       <span className="mx-1 text-white/20">·</span>
                       {r.bedCode}
                     </td>
-                    <AmountCell>{paiseToInr(Number(r.depositPaise))}</AmountCell>
+                    <AmountCell>{paiseToInr(r.requiredPaise)}</AmountCell>
                     <AmountCell className="text-emerald-300">
-                      {paiseToInr(Number(r.collectedPaise))}
+                      {paiseToInr(r.collectedPaise)}
                     </AmountCell>
-                    <AmountCell className="text-amber-200">
-                      {Number(r.depositDuePaise) > 0
-                        ? paiseToInr(Number(r.depositDuePaise))
-                        : '—'}
+                    <AmountCell className="text-rose-300">
+                      {r.deductionsPaise > 0 ? paiseToInr(r.deductionsPaise) : '—'}
+                    </AmountCell>
+                    <AmountCell className="font-medium">
+                      {paiseToInr(r.refundablePaise)}
                     </AmountCell>
                     <td className="px-3 py-2">
-                      <Badge
-                        tone={
-                          hasOutstandingDepositDue(r)
-                            ? 'rose'
-                            : toneForStatus(r.depositCollectionStatus)
-                        }
-                      >
-                        {labelDepositCollectionStatus(r.depositCollectionStatus)}
-                      </Badge>
+                      <Badge tone={statusTone(r.invoiceStatus)}>{r.displayStatus}</Badge>
                     </td>
-                    <AmountCell className="text-rose-300">
-                      {paiseToInr(Number(r.deductedPaise))}
-                    </AmountCell>
-                    <AmountCell>{paiseToInr(Number(r.refundedPaise))}</AmountCell>
-                    <AmountCell className="font-medium">
-                      {paiseToInr(Number(r.refundableBalancePaise))}
-                    </AmountCell>
                     <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                       <div className="hidden xl:block">
                         <DepositRowActions row={r} onOpen={() => setSelected(r)} />
@@ -178,28 +184,16 @@ export function DepositManagementPanel({ rows, dueOnly }: Props) {
                       {r.pgName} · R{r.roomNumber} · {r.bedCode}
                     </p>
                   </div>
-                  <Badge
-                    tone={
-                      hasOutstandingDepositDue(r)
-                        ? 'rose'
-                        : toneForStatus(r.depositCollectionStatus)
-                    }
-                  >
-                    {labelDepositCollectionStatus(r.depositCollectionStatus)}
-                  </Badge>
+                  <Badge tone={statusTone(r.invoiceStatus)}>{r.displayStatus}</Badge>
                 </div>
                 <dl className="mt-2 grid grid-cols-4 gap-1 text-[11px]">
-                  <Metric label="Req" value={paiseToInr(Number(r.depositPaise))} />
-                  <Metric label="Coll" value={paiseToInr(Number(r.collectedPaise))} />
+                  <Metric label="Req" value={paiseToInr(r.requiredPaise)} />
+                  <Metric label="Coll" value={paiseToInr(r.collectedPaise)} />
                   <Metric
-                    label="Due"
-                    value={
-                      Number(r.depositDuePaise) > 0
-                        ? paiseToInr(Number(r.depositDuePaise))
-                        : '—'
-                    }
+                    label="Ded"
+                    value={r.deductionsPaise > 0 ? paiseToInr(r.deductionsPaise) : '—'}
                   />
-                  <Metric label="Bal" value={paiseToInr(Number(r.refundableBalancePaise))} />
+                  <Metric label="Ref" value={paiseToInr(r.refundablePaise)} />
                 </dl>
                 <div className="mt-2 border-t border-white/5 pt-2" onClick={(e) => e.stopPropagation()}>
                   <DepositRowActions row={r} onOpen={() => setSelected(r)} compact />
@@ -224,13 +218,13 @@ function InlineStat({
 }: {
   label: string;
   value: string;
-  accent?: 'emerald' | 'amber';
+  accent?: 'emerald' | 'rose';
 }) {
   const valueClass =
     accent === 'emerald'
       ? 'text-emerald-300'
-      : accent === 'amber'
-        ? 'text-amber-200'
+      : accent === 'rose'
+        ? 'text-rose-300'
         : 'text-white';
 
   return (

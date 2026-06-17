@@ -4,26 +4,34 @@ import { eq, and, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { bedReservations, bookings, customers } from '@/src/db/schema';
 import { PageHeader } from '@/src/components/admin/PageHeader';
-import {
-  TBody,
-  TD,
-  TH,
-  THead,
-  TR,
-  Table,
-} from '@/src/components/admin/Table';
+import { Badge } from '@/src/components/admin/Badge';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
-import { listDepositLedgerEntriesForBooking } from '@/src/db/queries/admin';
+import { getDepositInvoiceForBooking } from '@/src/services/depositInvoices';
 import { DepositAdjustForms } from '@/src/components/admin/DepositAdjustForms';
 import { DepositSettlementPanel } from '@/src/components/admin/DepositSettlementPanel';
 import { DepositRefundNotice } from '@/src/components/customer/DepositRefundNotice';
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
-import { paiseToInr, formatDate, titleCase } from '@/src/lib/format';
+import { paiseToInr } from '@/src/lib/format';
 import { loadBedPrice, securityDepositForMode } from '@/src/services/pricing';
 
 export const dynamic = 'force-dynamic';
 
 type RouteParams = { bookingId: string };
+
+function statusTone(status: string) {
+  switch (status) {
+    case 'collecting':
+      return 'amber' as const;
+    case 'held':
+      return 'emerald' as const;
+    case 'refund_pending':
+      return 'sky' as const;
+    case 'settled':
+      return 'zinc' as const;
+    default:
+      return 'zinc' as const;
+  }
+}
 
 export default async function AdminDepositDetailPage({
   params,
@@ -53,8 +61,15 @@ export default async function AdminDepositDetailPage({
     .limit(1);
   if (!booking) notFound();
 
+  const invoice = await getDepositInvoiceForBooking(bookingId);
   const summary = await getDepositSummaryForBooking(bookingId);
-  const ledger = await listDepositLedgerEntriesForBooking(bookingId);
+
+  const requiredPaise = invoice?.requiredPaise ?? booking.depositPaise;
+  const collectedPaise = invoice?.collectedPaise ?? summary?.collectedPaise ?? 0;
+  const deductionsPaise =
+    invoice?.deductionsPaise ?? (summary?.deductedPaise ?? 0) + (summary?.refundedPaise ?? 0);
+  const refundablePaise = invoice?.refundablePaise ?? summary?.refundableBalancePaise ?? 0;
+  const isFrozen = invoice?.isFrozen ?? false;
 
   const [primaryBed] = await db
     .select({
@@ -85,120 +100,76 @@ export default async function AdminDepositDetailPage({
   return (
     <>
       <PageHeader
-        title={`Deposit — ${booking.customerFullName}`}
-        description={`Booking ${booking.bookingCode} · ${booking.customerPhone}`}
+        title={`Deposit invoice — ${booking.customerFullName}`}
+        description={`${booking.bookingCode} · ${booking.customerPhone}`}
         actions={
           <Link
             href="/admin/deposits"
-            className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
+            className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-apg-silver hover:text-white"
           >
             ← All deposits
           </Link>
         }
       />
-      <div className="mt-4" />
 
       <DepositRefundNotice />
 
-      <p className="mb-4 text-sm">
-        <Link
-          href={`/admin/bookings/${bookingId}`}
-          className="font-medium text-indigo-600 hover:underline"
-        >
-          Open booking → Operations checklist
-        </Link>{' '}
-        to mark dues cleared, deposit refunded, and bed availability.
-      </p>
-
-      <section className="mb-4 mt-4 grid gap-3 sm:grid-cols-4">
-        <Stat label="Booking deposit" value={paiseToInr(booking.depositPaise)} />
-        <Stat label="Collected (ledger)" value={paiseToInr(summary?.collectedPaise ?? 0)} />
-        <Stat
-          label="Deducted (ledger)"
-          value={paiseToInr(summary?.deductedPaise ?? 0)}
-          tone="warn"
-        />
-        <Stat
-          label="Refundable balance"
-          value={paiseToInr(summary?.refundableBalancePaise ?? 0)}
-          tone="strong"
-        />
-      </section>
-
-      <section className="mb-6">
-        <h2 className="mb-2 text-sm font-semibold text-zinc-900">Adjust deposit</h2>
-        <DepositAdjustForms
-          bookingId={bookingId}
-          bookingDepositPaise={booking.depositPaise}
-          ledgerCollectedPaise={summary?.collectedPaise ?? 0}
-          websiteDepositPaise={websiteDepositPaise}
-        />
-        <p className="mt-2 text-[11px] text-zinc-500">
-          Every form below writes one append-only ledger row + an audit-log
-          entry. The DB enforces sign: collected &gt; 0, deducted &amp; refunded &lt; 0.
-        </p>
-      </section>
-
-      {(summary?.refundableBalancePaise ?? 0) > 0 || booking.status === 'completed' ? (
-        <div className="mb-6">
-          <DepositSettlementPanel
-            bookingId={bookingId}
-            customerId={booking.customerId}
-            customerName={booking.customerFullName}
-            customerPhone={booking.customerPhone}
-            depositHeldPaise={summary?.collectedPaise ?? booking.depositPaise}
-            depositPaidPaise={summary?.collectedPaise ?? 0}
-            depositRefundablePaise={summary?.refundableBalancePaise ?? 0}
-          />
+      {invoice ? (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <Badge tone={statusTone(invoice.invoiceStatus)}>{invoice.displayStatus}</Badge>
+          {isFrozen ? <Badge tone="zinc">Frozen · settled</Badge> : null}
         </div>
       ) : null}
 
-      <section>
-        <h2 className="mb-2 text-sm font-semibold text-zinc-900">
-          Ledger history ({ledger.ok ? ledger.data.length : 0} entries)
-        </h2>
-        {ledger.ok ? (
-          <Table>
-            <THead>
-              <TR>
-                <TH>When</TH>
-                <TH>Type</TH>
-                <TH>Reason</TH>
-                <TH>Linked to</TH>
-                <TH className="text-right">Amount</TH>
-              </TR>
-            </THead>
-            <TBody>
-              {ledger.data.length === 0 ? (
-                <TR>
-                  <TD colSpan={5} className="py-4 text-center text-sm text-zinc-500">
-                    No deposit movements yet.
-                  </TD>
-                </TR>
-              ) : (
-                ledger.data.map((row) => (
-                  <TR key={row.id}>
-                    <TD className="text-xs text-zinc-500">{formatDate(row.createdAt)}</TD>
-                    <TD>{titleCase(row.entryKind)}</TD>
-                    <TD className="text-xs">{row.reason}</TD>
-                    <TD className="text-xs text-zinc-500">
-                      {row.relatedPaymentId ? `payment ${row.relatedPaymentId.slice(0, 8)}` : ''}
-                      {row.relatedVacatingId ? `vacating ${row.relatedVacatingId.slice(0, 8)}` : ''}
-                    </TD>
-                    <TD className="text-right tabular-nums font-medium">
-                      {paiseToInr(row.amountPaise)}
-                    </TD>
-                  </TR>
-                ))
-              )}
-            </TBody>
-          </Table>
-        ) : (
-          <p className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">
-            Couldn&apos;t load the deposit ledger.
-          </p>
-        )}
+      <section className="mb-6 grid gap-3 sm:grid-cols-4">
+        <Stat label="Required" value={paiseToInr(requiredPaise)} />
+        <Stat label="Collected" value={paiseToInr(collectedPaise)} tone="emerald" />
+        <Stat
+          label="Deductions"
+          value={deductionsPaise > 0 ? paiseToInr(deductionsPaise) : '—'}
+          tone="warn"
+        />
+        <Stat label="Refundable" value={paiseToInr(refundablePaise)} tone="strong" />
       </section>
+
+      {isFrozen ? (
+        <p className="mb-6 rounded-lg border border-white/10 bg-[#1A1F27] px-4 py-3 text-sm text-apg-silver">
+          This deposit invoice is settled and frozen. The amounts above are the final computed
+          settlement.
+        </p>
+      ) : (
+        <>
+          <section className="mb-6">
+            <h2 className="mb-2 text-sm font-semibold text-white">Adjust deposit</h2>
+            <DepositAdjustForms
+              bookingId={bookingId}
+              bookingDepositPaise={booking.depositPaise}
+              ledgerCollectedPaise={collectedPaise}
+              websiteDepositPaise={websiteDepositPaise}
+            />
+          </section>
+
+          {refundablePaise > 0 || booking.status === 'completed' ? (
+            <div className="mb-6">
+              <DepositSettlementPanel
+                bookingId={bookingId}
+                customerId={booking.customerId}
+                customerName={booking.customerFullName}
+                customerPhone={booking.customerPhone}
+                depositHeldPaise={collectedPaise}
+                depositPaidPaise={collectedPaise}
+                depositRefundablePaise={refundablePaise}
+              />
+            </div>
+          ) : null}
+        </>
+      )}
+
+      <p className="text-sm text-apg-silver">
+        <Link href={`/admin/bookings/${bookingId}`} className="text-[#FF5A1F] hover:underline">
+          Booking operations →
+        </Link>
+      </p>
     </>
   );
 }
@@ -210,20 +181,28 @@ function Stat({
 }: {
   label: string;
   value: string;
-  tone?: 'normal' | 'warn' | 'strong';
+  tone?: 'normal' | 'warn' | 'strong' | 'emerald';
 }) {
   const bg =
     tone === 'warn'
-      ? 'border-rose-200 bg-rose-50'
+      ? 'border-rose-400/30 bg-rose-500/10'
       : tone === 'strong'
-        ? 'border-indigo-200 bg-indigo-50'
-        : 'border-zinc-200 bg-white';
+        ? 'border-emerald-400/30 bg-emerald-500/10'
+        : tone === 'emerald'
+          ? 'border-emerald-400/20 bg-emerald-500/5'
+          : 'border-white/10 bg-[#1A1F27]';
+  const text =
+    tone === 'warn'
+      ? 'text-rose-300'
+      : tone === 'strong'
+        ? 'text-emerald-300'
+        : tone === 'emerald'
+          ? 'text-emerald-300'
+          : 'text-white';
   return (
     <div className={`rounded-lg border p-3 ${bg}`}>
-      <div className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">
-        {label}
-      </div>
-      <div className="mt-1 text-lg font-semibold text-zinc-900">{value}</div>
+      <div className="text-[10px] font-medium uppercase tracking-wide text-apg-silver">{label}</div>
+      <div className={`mt-1 text-lg font-semibold tabular-nums ${text}`}>{value}</div>
     </div>
   );
 }

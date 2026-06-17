@@ -49,7 +49,7 @@ export default async function DepositCollectedPage({
       />
       <PageHeader
         title="Deposit collection detail"
-        description={`Every deposit collected in ${monthLabel} — drill down from Overview → Deposit collected.`}
+        description={`Deposit invoices with collection activity in ${monthLabel}.`}
         actions={
           <div className="flex flex-wrap gap-2">
             <Link
@@ -74,7 +74,7 @@ export default async function DepositCollectedPage({
         <EmptyState
           icon={<IconCard />}
           title="No deposits collected this month"
-          description="Deposit ledger entries for this billing month will appear here."
+          description="Deposit invoices with collection activity this month."
         />
       ) : (
         <>
@@ -178,13 +178,7 @@ export default async function DepositCollectedPage({
                               href={`/admin/deposits/${r.bookingId}`}
                               className="rounded border border-white/10 px-1.5 py-0.5 text-[10px] font-medium text-apg-silver hover:text-white"
                             >
-                              Ledger
-                            </Link>
-                            <Link
-                              href={`/admin/deposits/${r.bookingId}`}
-                              className="rounded border border-white/10 px-1.5 py-0.5 text-[10px] font-medium text-apg-silver hover:text-white"
-                            >
-                              View
+                              Invoice
                             </Link>
                             <FinancialRowActions
                               residentId={r.customerId}

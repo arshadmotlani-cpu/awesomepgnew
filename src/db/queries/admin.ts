@@ -1288,43 +1288,15 @@ export function getDailyCollectionTotals(
   });
 }
 
-/** Deposit collected per PG for a billing month — matches `/admin/deposits` ledger attribution. */
+/** Deposit collected per PG for a billing month — invoice dataset (deduped, production only). */
 export function getDepositCollectedByPgForBillingMonth(
   billingMonthInput?: string,
 ): Promise<QueryResult<DepositCollectedByPgRow[]>> {
   return guard(async () => {
-    const billingMonth = resolveBillingMonth(billingMonthInput);
-    const rows = await db.execute<{ pg_id: string; collected_paise: number }>(sql`
-      SELECT
-        pg.pg_id::text AS pg_id,
-        coalesce(sum(dl.amount_paise), 0)::bigint::int AS collected_paise
-      FROM deposit_ledger dl
-      INNER JOIN bookings bk ON bk.id = dl.booking_id
-      INNER JOIN LATERAL (
-        SELECT f.pg_id
-        FROM bed_reservations br
-        INNER JOIN beds b ON b.id = br.bed_id
-        INNER JOIN rooms r ON r.id = b.room_id
-        INNER JOIN floors f ON f.id = r.floor_id
-        WHERE br.booking_id = bk.id
-          AND br.kind = 'primary'
-        ORDER BY br.created_at DESC
-        LIMIT 1
-      ) pg ON true
-      WHERE dl.entry_kind = 'collected'
-        AND bk.is_test = false
-        AND NOT EXISTS (
-          SELECT 1 FROM customers c2 WHERE c2.id = bk.customer_id AND c2.is_test = true
-        )
-        AND dl.created_at >= ${billingMonth}::timestamptz
-        AND dl.created_at < (${billingMonth}::date + interval '1 month')::timestamptz
-      GROUP BY pg.pg_id
-    `);
-
-    return Array.from(rows).map((r) => ({
-      pgId: r.pg_id,
-      collectedPaise: asPlainNumber(r.collected_paise),
-    }));
+    const { getDepositCollectedByPgForBillingMonthFromInvoices } = await import(
+      '@/src/services/depositInvoices'
+    );
+    return getDepositCollectedByPgForBillingMonthFromInvoices(billingMonthInput);
   });
 }
 
@@ -1882,8 +1854,9 @@ export function listDepositCollectionsForBillingMonth(
     const bookingIds = Array.from(rows).map((r) => r.booking_id);
     if (bookingIds.length === 0) return [];
 
-    const summaries = await listAdminDepositSummaries();
-    if (!summaries.ok) throw new Error(summaries.error);
+    const { listDepositInvoiceRecords } = await import('@/src/services/depositInvoices');
+    const invoices = await listDepositInvoiceRecords({ view: 'all' });
+    const invoiceByBooking = new Map(invoices.map((i) => [i.bookingId, i]));
 
     const monthMap = new Map(
       Array.from(rows).map((r) => [
@@ -1918,18 +1891,35 @@ export function listDepositCollectionsForBillingMonth(
       );
     const adjustSet = new Set(adjustments.map((r) => r.bookingId));
 
-    return summaries.data
-      .filter((s) => monthMap.has(s.bookingId))
-      .map((s) => {
-        const m = monthMap.get(s.bookingId)!;
+    return Array.from(rows)
+      .map((r) => {
+        const inv = invoiceByBooking.get(r.booking_id);
+        if (!inv) return null;
+        const m = monthMap.get(r.booking_id)!;
         return {
-          ...s,
+          bookingId: inv.bookingId,
+          bookingCode: inv.bookingCode,
+          customerId: inv.customerId,
+          customerFullName: inv.customerFullName,
+          customerPhone: inv.customerPhone,
+          pgId: inv.pgId,
+          pgName: inv.pgName,
+          roomNumber: inv.roomNumber,
+          bedCode: inv.bedCode,
+          depositPaise: inv.depositPaise,
+          depositDuePaise: inv.depositDuePaise,
+          depositCollectionStatus: inv.depositCollectionStatus,
+          collectedPaise: inv.collectedPaise,
+          deductedPaise: inv.deductedPaise,
+          refundedPaise: inv.refundedPaise,
+          refundableBalancePaise: inv.refundableBalancePaise,
           collectedThisMonthPaise: m.collectedThisMonthPaise,
           lastCollectedAt: m.lastCollectedAt,
-          hasRefundRequest: refundSet.has(s.bookingId),
-          hasManualAdjustment: adjustSet.has(s.bookingId),
+          hasRefundRequest: refundSet.has(r.booking_id),
+          hasManualAdjustment: adjustSet.has(r.booking_id),
         };
       })
+      .filter((row): row is DepositCollectionDetailRow => row !== null)
       .sort((a, b) => {
         const ta = a.lastCollectedAt?.getTime() ?? 0;
         const tb = b.lastCollectedAt?.getTime() ?? 0;
@@ -1940,60 +1930,11 @@ export function listDepositCollectionsForBillingMonth(
 
 export function listAdminDepositSummaries(): Promise<QueryResult<DepositLedgerSummaryRow[]>> {
   return guard(async () => {
-    return db
-      .select({
-        bookingId: bookings.id,
-        bookingCode: bookings.bookingCode,
-        customerId: bookings.customerId,
-        customerFullName: customers.fullName,
-        customerPhone: customers.phone,
-        pgId: pgs.id,
-        pgName: pgs.name,
-        roomNumber: rooms.roomNumber,
-        bedCode: beds.bedCode,
-        depositPaise: bookings.depositPaise,
-        depositDuePaise: bookings.depositDuePaise,
-        depositCollectionStatus: bookings.depositCollectionStatus,
-        collectedPaise: sql<number>`coalesce(sum(${depositLedger.amountPaise}) FILTER (WHERE ${depositLedger.entryKind} = 'collected'), 0)::bigint`,
-        deductedPaise: sql<number>`coalesce(-sum(${depositLedger.amountPaise}) FILTER (WHERE ${depositLedger.entryKind} = 'deducted'), 0)::bigint`,
-        refundedPaise: sql<number>`coalesce(-sum(${depositLedger.amountPaise}) FILTER (WHERE ${depositLedger.entryKind} = 'refunded'), 0)::bigint`,
-        refundableBalancePaise: sql<number>`coalesce(sum(${depositLedger.amountPaise}), 0)::bigint`,
-      })
-      .from(bookings)
-      .innerJoin(customers, eq(customers.id, bookings.customerId))
-      .innerJoin(
-        bedReservations,
-        and(eq(bedReservations.bookingId, bookings.id), eq(bedReservations.kind, 'primary')),
-      )
-      .innerJoin(beds, eq(beds.id, bedReservations.bedId))
-      .innerJoin(rooms, eq(rooms.id, beds.roomId))
-      .innerJoin(floors, eq(floors.id, rooms.floorId))
-      .innerJoin(pgs, eq(pgs.id, floors.pgId))
-      .leftJoin(depositLedger, eq(depositLedger.bookingId, bookings.id))
-      .where(
-        and(
-          inArray(bookings.status, ['confirmed', 'completed']),
-          or(
-            gt(bookings.depositPaise, 0),
-            sql`exists (select 1 from deposit_ledger dl where dl.booking_id = ${bookings.id})`,
-          ),
-        ),
-      )
-      .groupBy(
-        bookings.id,
-        bookings.bookingCode,
-        bookings.customerId,
-        bookings.depositPaise,
-        bookings.depositDuePaise,
-        bookings.depositCollectionStatus,
-        customers.fullName,
-        customers.phone,
-        pgs.id,
-        pgs.name,
-        rooms.roomNumber,
-        beds.bedCode,
-      )
-      .orderBy(desc(bookings.createdAt));
+    const { listDepositInvoiceRecords, toDepositLedgerSummaryRow } = await import(
+      '@/src/services/depositInvoices'
+    );
+    const invoices = await listDepositInvoiceRecords({ view: 'active' });
+    return invoices.map(toDepositLedgerSummaryRow);
   });
 }
 
