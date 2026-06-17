@@ -276,6 +276,90 @@ async function syncElectricityDue(session: AdminSession): Promise<void> {
   }
 }
 
+async function resolvePgContextForCustomer(
+  customerId: string,
+): Promise<{ pgId: string; pgName: string; roomId: string | null; bedId: string | null; roomNumber: string | null; bedCode: string | null } | null> {
+  const assigned = await db.execute<{
+    pg_id: string;
+    pg_name: string;
+    room_id: string | null;
+    bed_id: string | null;
+    room_number: string | null;
+    bed_code: string | null;
+  }>(sql`
+    SELECT
+      f.pg_id::text AS pg_id,
+      p.name AS pg_name,
+      r.id::text AS room_id,
+      bd.id::text AS bed_id,
+      r.room_number,
+      bd.bed_code
+    FROM bookings b
+    INNER JOIN bed_reservations br
+      ON br.booking_id = b.id
+      AND br.kind = 'primary'
+      AND br.status = 'active'
+      AND CURRENT_DATE <@ br.stay_range
+    INNER JOIN beds bd ON bd.id = br.bed_id
+    INNER JOIN rooms r ON r.id = bd.room_id
+    INNER JOIN floors f ON f.id = r.floor_id
+    INNER JOIN pgs p ON p.id = f.pg_id
+    WHERE b.customer_id = ${customerId}::uuid
+      AND b.status = 'confirmed'
+    ORDER BY lower(br.stay_range) DESC
+    LIMIT 1
+  `);
+  if (assigned[0]?.pg_id) {
+    return {
+      pgId: assigned[0].pg_id,
+      pgName: assigned[0].pg_name,
+      roomId: assigned[0].room_id,
+      bedId: assigned[0].bed_id,
+      roomNumber: assigned[0].room_number,
+      bedCode: assigned[0].bed_code,
+    };
+  }
+
+  const fromBooking = await db.execute<{ pg_id: string; pg_name: string }>(sql`
+    SELECT DISTINCT f.pg_id::text AS pg_id, p.name AS pg_name
+    FROM bookings b
+    INNER JOIN bed_reservations br ON br.booking_id = b.id
+    INNER JOIN beds bd ON bd.id = br.bed_id
+    INNER JOIN rooms r ON r.id = bd.room_id
+    INNER JOIN floors f ON f.id = r.floor_id
+    INNER JOIN pgs p ON p.id = f.pg_id
+    WHERE b.customer_id = ${customerId}::uuid
+    LIMIT 1
+  `);
+  if (fromBooking[0]?.pg_id) {
+    return {
+      pgId: fromBooking[0].pg_id,
+      pgName: fromBooking[0].pg_name,
+      roomId: null,
+      bedId: null,
+      roomNumber: null,
+      bedCode: null,
+    };
+  }
+
+  const [fallbackPg] = await db
+    .select({ id: pgs.id, name: pgs.name })
+    .from(pgs)
+    .where(eq(pgs.isActive, true))
+    .orderBy(pgs.name)
+    .limit(1);
+  if (!fallbackPg) return null;
+
+  return {
+    pgId: fallbackPg.id,
+    pgName: fallbackPg.name,
+    roomId: null,
+    bedId: null,
+    roomNumber: null,
+    bedCode: null,
+  };
+}
+
 async function syncKycPending(session: AdminSession): Promise<void> {
   const rows = await db
     .select({
@@ -307,15 +391,34 @@ async function syncKycPending(session: AdminSession): Promise<void> {
 
   const today = todayString();
   for (const row of rows) {
-    if (!row.pgId) continue;
-    if (!sessionCanAccessPg(session, row.pgId)) continue;
+    let pgId = row.pgId;
+    let pgName = row.pgName;
+    let roomId = row.roomId;
+    let bedId = row.bedId;
+    let roomNumber = row.roomNumber;
+    let bedCode = row.bedCode;
+    let notifyAllAdmins = false;
+
+    if (!pgId) {
+      const resolved = await resolvePgContextForCustomer(row.residentId);
+      if (!resolved) continue;
+      pgId = resolved.pgId;
+      pgName = resolved.pgName;
+      roomId = resolved.roomId;
+      bedId = resolved.bedId;
+      roomNumber = resolved.roomNumber;
+      bedCode = resolved.bedCode;
+      notifyAllAdmins = !resolved.roomId;
+    }
+
+    if (!sessionCanAccessPg(session, pgId)) continue;
     const daysWaiting = Math.max(0, diffDays(formatDate(row.createdAt), today));
     await upsertActionItem({
       type: 'kyc_pending',
-      title: `${row.residentName} · KYC pending`,
-      pgId: row.pgId,
-      roomId: row.roomId,
-      bedId: row.bedId,
+      title: `New KYC uploaded by ${row.residentName}`,
+      pgId,
+      roomId,
+      bedId,
       residentId: row.residentId,
       priority: daysWaiting >= 3 ? 'high' : daysWaiting >= 1 ? 'medium' : 'low',
       sourceKey: `kyc:${row.id}`,
@@ -323,10 +426,11 @@ async function syncKycPending(session: AdminSession): Promise<void> {
         residentName: row.residentName,
         residentPhone: row.residentPhone,
         residentEmail: row.residentEmail,
-        pgName: row.pgName ? formatPgDisplayName(row.pgName) : 'Unassigned',
-        roomNumber: row.roomNumber ?? undefined,
-        bedCode: row.bedCode ?? undefined,
+        pgName: pgName ? formatPgDisplayName(pgName) : 'Unassigned',
+        roomNumber: roomNumber ?? undefined,
+        bedCode: bedCode ?? undefined,
         submissionId: row.id,
+        notifyAllAdmins,
       },
     });
   }
@@ -598,6 +702,13 @@ function cronAdminSession(): AdminSession {
 
 export async function syncActionItemsForCron(): Promise<void> {
   await syncActionItems(cronAdminSession());
+}
+
+/** Notification layer only — use after partial action_item updates. */
+export async function refreshAdminNotificationsFromActionItems(): Promise<void> {
+  const openItems = await listOpenActionItems(cronAdminSession());
+  await syncAdminNotificationsFromActionItems(openItems);
+  await archiveNotificationsWithoutOpenTasks();
 }
 
 function mapRow(

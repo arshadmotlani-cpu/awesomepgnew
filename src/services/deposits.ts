@@ -106,6 +106,9 @@ export async function recordDepositCollected(input: {
     diff: { bookingId: input.bookingId, amountPaise: input.amountPaise },
   });
 
+  const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
+  scheduleAdminNotificationSync();
+
   return { ok: true, entryId: row.id, created: true };
 }
 

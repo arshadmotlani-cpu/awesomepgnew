@@ -447,6 +447,9 @@ export async function submitElectricityPaymentProof(
     })
     .where(eq(electricityInvoices.id, invoiceId));
 
+  const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
+  scheduleAdminNotificationSync();
+
   return { ok: true };
 }
 

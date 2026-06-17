@@ -104,7 +104,7 @@ function typeToModule(type: ActionItem['type']): AdminModule | 'deposits' {
     case 'rent_due':
     case 'electricity_due':
     case 'payment_received':
-      return 'collections';
+      return 'revenue';
     case 'vacating_alert':
     case 'extension_request':
     case 'maintenance_issue':
@@ -127,6 +127,25 @@ async function adminsForPg(pgId: string): Promise<string[]> {
   return rows
     .filter((a) => adminCanAccessPg({ role: a.role, pgScope: a.pgScope }, pgId))
     .map((a) => a.id);
+}
+
+async function seedUnreadForAllActiveAdmins(notificationId: string): Promise<void> {
+  const rows = await db
+    .select({ id: adminUsers.id })
+    .from(adminUsers)
+    .where(eq(adminUsers.isActive, true));
+
+  for (const row of rows) {
+    await db
+      .insert(adminNotificationStates)
+      .values({
+        adminId: row.id,
+        notificationId,
+        state: 'unread',
+        updatedAt: new Date(),
+      })
+      .onConflictDoNothing();
+  }
 }
 
 async function seedUnreadForAdmins(notificationId: string, pgId: string) {
@@ -225,7 +244,12 @@ export async function syncAdminNotificationsFromActionItems(
       .returning({ id: adminNotifications.id });
 
     if (inserted) {
-      await seedUnreadForAdmins(inserted.id, row.pgId);
+      const notifyAllAdmins = meta.notifyAllAdmins === true;
+      if (notifyAllAdmins) {
+        await seedUnreadForAllActiveAdmins(inserted.id);
+      } else {
+        await seedUnreadForAdmins(inserted.id, row.pgId);
+      }
     }
   }
 
@@ -477,6 +501,7 @@ const PATH_NOTIFICATION_TYPES: Array<{ prefix: string; types: ActionItemType[] }
   { prefix: '/admin/vacating', types: ['vacating_alert'] },
   { prefix: '/admin/residents/kyc', types: ['kyc_pending'] },
   { prefix: '/admin/collections', types: ['rent_due', 'electricity_due', 'payment_received'] },
+  { prefix: '/admin/revenue', types: ['rent_due', 'electricity_due', 'payment_received'] },
   {
     prefix: '/admin/deposits',
     types: ['refund_pending', 'deposit_refund_request', 'deposit_collection_due'],

@@ -47,6 +47,9 @@ export type ResidentListRow = {
   pgName: string | null;
   roomNumber: string | null;
   bedCode: string | null;
+  roomId: string | null;
+  bedId: string | null;
+  monthlyRentPaise: number;
   bookingId: string | null;
   bookingCode: string | null;
   verificationSource: ResidentVerificationSource;
@@ -112,6 +115,9 @@ type ResidentListDbRow = {
   room_number: string | null;
   bed_code: string | null;
   pg_id: string | null;
+  room_id: string | null;
+  bed_id: string | null;
+  monthly_rent_paise: number | null;
   is_vacating: boolean;
   residency_status: ResidencyStatus;
   is_website_signup: boolean;
@@ -138,6 +144,9 @@ function mapResidentListRow(row: ResidentListDbRow): ResidentListRow {
     pgName: row.pg_name,
     roomNumber: row.room_number,
     bedCode: row.bed_code,
+    roomId: row.room_id ?? null,
+    bedId: row.bed_id ?? null,
+    monthlyRentPaise: Number(row.monthly_rent_paise ?? 0),
     tenancyStatus:
       row.residency_status === 'vacated'
         ? 'vacated'
@@ -169,8 +178,14 @@ const activeTenancyLateralSql = sql`
       b.booking_code AS booking_code,
       p.name AS pg_name,
       r.room_number,
+      r.id::text AS room_id,
       bd.bed_code,
+      bd.id::text AS bed_id,
       f.pg_id::text AS pg_id,
+      coalesce((
+        SELECT sum((elem->>'monthlyRatePaise')::bigint)
+        FROM jsonb_array_elements(b.pricing_snapshot->'perBed') elem
+      ), 0)::bigint AS monthly_rent_paise,
       EXISTS (
         SELECT 1 FROM vacating_requests vr
         WHERE vr.booking_id = b.id
@@ -241,6 +256,9 @@ export async function listResidentsForAdmin(session: AdminSession): Promise<Resi
       t.pg_name,
       t.room_number,
       t.bed_code,
+      t.room_id,
+      t.bed_id,
+      t.monthly_rent_paise,
       t.pg_id,
       coalesce(t.is_vacating, false) AS is_vacating,
       ${customerVerificationSelectSql},
@@ -283,6 +301,9 @@ export async function listUnverifiedWebsiteSignupsForAdmin(
       t.pg_name,
       t.room_number,
       t.bed_code,
+      t.room_id,
+      t.bed_id,
+      t.monthly_rent_paise,
       t.pg_id,
       coalesce(t.is_vacating, false) AS is_vacating,
       ${customerVerificationSelectSql},
@@ -310,6 +331,25 @@ export async function listUnverifiedWebsiteSignupsForAdmin(
     .map(mapUnverifiedSignupRow);
 }
 
+export async function resolveBookingIdForCustomer(customerId: string): Promise<string | null> {
+  const rows = await db.execute<{ booking_id: string }>(sql`
+    SELECT b.id::text AS booking_id
+    FROM bookings b
+    WHERE b.customer_id = ${customerId}::uuid
+      AND b.is_test = false
+      AND b.status IN ('confirmed', 'pending_payment', 'completed')
+    ORDER BY
+      CASE b.status
+        WHEN 'confirmed' THEN 0
+        WHEN 'pending_payment' THEN 1
+        ELSE 2
+      END,
+      b.created_at DESC
+    LIMIT 1
+  `);
+  return rows[0]?.booking_id ?? null;
+}
+
 export async function searchResidentsForAdmin(
   session: AdminSession,
   query: string,
@@ -320,6 +360,8 @@ export async function searchResidentsForAdmin(
 
   const pattern = `%${q.replace(/[%_\\]/g, '\\$&')}%`;
   const phoneDigits = q.replace(/\D/g, '');
+  const qLower = q.toLowerCase();
+  const namePrefix = `${q.replace(/[%_\\]/g, '\\$&')}%`;
 
   const rows = await db.execute<ResidentListDbRow>(sql`
     SELECT
@@ -336,6 +378,9 @@ export async function searchResidentsForAdmin(
       t.pg_name,
       t.room_number,
       t.bed_code,
+      t.room_id,
+      t.bed_id,
+      t.monthly_rent_paise,
       t.pg_id,
       coalesce(t.is_vacating, false) AS is_vacating,
       ${customerVerificationSelectSql},
@@ -346,21 +391,12 @@ export async function searchResidentsForAdmin(
     FROM customers c
     ${activeTenancyLateralSql}
     WHERE c.archived_at IS NULL
+      AND c.is_test = false
       AND ${isNotOccupancyPlaceholderCustomerSql}
-      AND (
-        ${customerIsVerifiedSql}
-        OR EXISTS (
-          SELECT 1 FROM bookings bx
-          INNER JOIN bed_reservations brx ON brx.booking_id = bx.id
-          WHERE bx.customer_id = c.id
-            AND bx.status = 'confirmed'
-            AND brx.status = 'active'
-            AND brx.kind = 'primary'
-        )
-      )
       AND (
         c.full_name ILIKE ${pattern}
         OR c.email ILIKE ${pattern}
+        OR c.id::text = ${q}
         OR EXISTS (
           SELECT 1 FROM bookings bk
           WHERE bk.customer_id = c.id
@@ -371,7 +407,17 @@ export async function searchResidentsForAdmin(
           AND regexp_replace(c.phone, '[^0-9]', '', 'g') LIKE ${`%${phoneDigits}%`}
         )
       )
-    ORDER BY c.created_at DESC
+    ORDER BY
+      CASE
+        WHEN lower(trim(c.full_name)) = ${qLower} THEN 0
+        WHEN c.full_name ILIKE ${namePrefix} THEN 1
+        WHEN c.full_name ILIKE ${pattern} THEN 2
+        WHEN ${phoneDigits.length >= 3}
+          AND regexp_replace(c.phone, '[^0-9]', '', 'g') LIKE ${`${phoneDigits}%`} THEN 3
+        ELSE 4
+      END,
+      (t.booking_id IS NOT NULL) DESC,
+      c.full_name ASC
     LIMIT ${limit}
   `);
 

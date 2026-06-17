@@ -9,9 +9,9 @@ export type AdminNavBadges = Partial<Record<AdminModule | 'deposits' | 'notifica
 
 const TYPE_TO_MODULE: Record<AdminNotificationRow['type'], AdminModule | 'deposits'> = {
   kyc_pending: 'kyc',
-  rent_due: 'collections',
-  electricity_due: 'collections',
-  payment_received: 'collections',
+  rent_due: 'revenue',
+  electricity_due: 'revenue',
+  payment_received: 'revenue',
   vacating_alert: 'operations',
   extension_request: 'operations',
   maintenance_issue: 'operations',
@@ -29,6 +29,12 @@ export async function loadAdminNavBadges(session: AdminSession): Promise<AdminNa
     for (const type of types) {
       const mod = TYPE_TO_MODULE[type] ?? 'overview';
       badges[mod] = (badges[mod] ?? 0) + 1;
+      if (mod === 'deposits') {
+        badges.residents = (badges.residents ?? 0) + 1;
+      }
+      if (mod === 'operations' && (type === 'vacating_alert' || type === 'extension_request')) {
+        badges.residents = (badges.residents ?? 0) + 1;
+      }
     }
 
     badges.overview = types.length;

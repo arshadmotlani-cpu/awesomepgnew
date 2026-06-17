@@ -10,7 +10,7 @@ type SearchResult = {
   fullName: string;
   email: string;
   phone: string;
-  tenancyStatus: 'unassigned' | 'active';
+  tenancyStatus: 'unassigned' | 'active' | 'vacating' | 'vacated' | 'blocked';
   pgName: string | null;
   roomNumber: string | null;
   bedCode: string | null;
@@ -77,7 +77,7 @@ export function ResidentSearchPicker({
       <div>
         <h3 className="text-sm font-semibold text-zinc-900">Find resident</h3>
         <p className="mt-1 text-sm text-zinc-600">
-          Search verified residents by name or phone — KYC or payment must be approved first.
+          Search all residents by name, phone, or booking code — assigned and unassigned.
         </p>
       </div>
 
@@ -121,8 +121,7 @@ export function ResidentSearchPicker({
 
       {query.trim().length >= 2 && !loading && results.length === 0 && !error ? (
         <p className="text-sm text-zinc-500">
-          No verified resident found. Approve their KYC or payment under Website signups on the
-          Residents page first.
+          No residents match — try another spelling or phone number.
         </p>
       ) : null}
 
@@ -136,10 +135,15 @@ export function ResidentSearchPicker({
                   {r.phone} · {r.email}
                 </p>
                 <p className="mt-1">
-                  {r.tenancyStatus === 'active' && r.pgName ? (
-                    <Badge tone="emerald">
-                      Room {r.roomNumber} · {r.bedCode}
-                    </Badge>
+                  {r.tenancyStatus === 'active' || r.tenancyStatus === 'vacating' ? (
+                    r.pgName ? (
+                      <Badge tone="emerald">
+                        {r.tenancyStatus === 'vacating' ? 'Vacating · ' : ''}
+                        Room {r.roomNumber} · {r.bedCode}
+                      </Badge>
+                    ) : (
+                      <Badge tone="emerald">Occupied</Badge>
+                    )
                   ) : (
                     <Badge tone="amber">Unassigned</Badge>
                   )}
@@ -152,7 +156,7 @@ export function ResidentSearchPicker({
                 >
                   Profile
                 </Link>
-                {r.tenancyStatus === 'active' ? (
+                {r.tenancyStatus === 'active' || r.tenancyStatus === 'vacating' ? (
                   <Link
                     href={`/admin/residents/${r.id}`}
                     className="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-zinc-900"

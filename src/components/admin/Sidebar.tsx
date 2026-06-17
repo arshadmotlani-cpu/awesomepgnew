@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { IconLogo } from './icons';
 import { NAV_SECTIONS } from './navItems';
 import { isModuleActive } from '@/src/lib/admin/navigation';
-import type { AdminNavBadges } from '@/src/services/adminNavBadges';
+import { useAdminNavBadges } from '@/src/components/admin/AdminLiveRefreshProvider';
 
 function isActive(pathname: string, href: string, module: string) {
   if ('module' in { module } && module !== 'overview') {
@@ -20,13 +20,12 @@ function isActive(pathname: string, href: string, module: string) {
 export function Sidebar({
   onNavigate,
   variant = 'docked',
-  badges = {},
 }: {
   onNavigate?: () => void;
   variant?: 'docked' | 'drawer';
-  badges?: AdminNavBadges;
 }) {
   const pathname = usePathname() ?? '/admin';
+  const badges = useAdminNavBadges();
 
   return (
     <nav

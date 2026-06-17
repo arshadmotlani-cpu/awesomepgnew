@@ -3,9 +3,10 @@
 import { revalidatePath } from 'next/cache';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { recordAdvanceDeposit } from '@/src/services/deposits';
+import { resolveBookingIdForCustomer } from '@/src/services/residentAdmin';
 
 export async function recordAdvanceDepositAction(input: {
-  bookingId: string;
+  bookingId?: string | null;
   customerId: string;
   amountInr: number;
   note?: string;
@@ -15,8 +16,17 @@ export async function recordAdvanceDepositAction(input: {
     const amountPaise = Math.round(input.amountInr * 100);
     if (amountPaise <= 0) return { ok: false, error: 'Amount must be greater than zero.' };
 
+    const bookingId =
+      input.bookingId ?? (await resolveBookingIdForCustomer(input.customerId));
+    if (!bookingId) {
+      return {
+        ok: false,
+        error: 'No booking found — create a booking or assign a bed first.',
+      };
+    }
+
     await recordAdvanceDeposit({
-      bookingId: input.bookingId,
+      bookingId,
       customerId: input.customerId,
       amountPaise,
       createdByAdminId: session.adminId,
@@ -25,7 +35,7 @@ export async function recordAdvanceDepositAction(input: {
 
     revalidatePath('/admin/deposits');
     revalidatePath('/admin/deposits/advance');
-    revalidatePath(`/admin/deposits/${input.bookingId}`);
+    revalidatePath(`/admin/deposits/${bookingId}`);
     revalidatePath(`/admin/residents/${input.customerId}`);
     revalidatePath('/admin/revenue');
     return { ok: true };

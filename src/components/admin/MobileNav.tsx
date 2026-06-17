@@ -5,9 +5,8 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { IconClose, IconMenu } from './icons';
 import { Sidebar } from './Sidebar';
-import type { AdminNavBadges } from '@/src/services/adminNavBadges';
 
-export function MobileNav({ badges = {} }: { badges?: AdminNavBadges }) {
+export function MobileNav() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [openedOnPath, setOpenedOnPath] = useState(pathname);
@@ -57,7 +56,7 @@ export function MobileNav({ badges = {} }: { badges?: AdminNavBadges }) {
                 </button>
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom)]">
-                <Sidebar onNavigate={closeMenu} variant="drawer" badges={badges} />
+                <Sidebar onNavigate={closeMenu} variant="drawer" />
               </div>
             </div>
           </div>,

@@ -19,6 +19,7 @@ import {
   storeKycFile,
 } from '@/src/lib/kyc/storage';
 import { stampProfileCompletedAtIfReady } from './profile';
+import { scheduleAdminNotificationSync } from '@/src/services/adminLiveSync';
 import { trackAnalyticsEvent } from './visitorAnalytics';
 import { validateKycImage, type KycImageKind } from './kycValidation';
 
@@ -149,6 +150,8 @@ export async function submitKyc(input: KycUploadInput) {
       submissionId: row.id,
     });
 
+    scheduleAdminNotificationSync();
+
     return { ok: true as const, submissionId: row.id };
   } catch (err) {
     logger.error('KYC submit failed', {
@@ -209,6 +212,8 @@ export async function reviewKycSubmission(args: {
       toStatus: args.decision,
     },
   });
+
+  scheduleAdminNotificationSync();
 
   return { ok: true as const };
 }

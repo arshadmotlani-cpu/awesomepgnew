@@ -1,21 +1,43 @@
 'use server';
 
+import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
+import { assertAdminBookingAccess } from '@/src/lib/auth/pgAccess';
 import { revalidateFinancialViews } from '@/src/lib/billing/revalidateFinancialViews';
-import { recordAdvanceDeposit } from '@/src/services/deposits';
+import { vacatingPenalty } from '@/src/services/billing';
+import type { CustomChargeKind } from '@/src/services/customCharges';
+import { settleDepositRefund } from '@/src/services/depositSettlement';
+import {
+  getDepositSummaryForBooking,
+  recordAdvanceDeposit,
+  recordDepositCollected,
+} from '@/src/services/deposits';
 import { createResidentCharge } from '@/src/services/residentCharges';
 import { ensureMonthlyRentInvoice } from '@/src/services/rentInvoices';
-import type { CustomChargeKind } from '@/src/services/customCharges';
-import { randomUUID } from 'node:crypto';
-import { settleDepositRefund } from '@/src/services/depositSettlement';
-import { getDepositSummaryForBooking } from '@/src/services/deposits';
-import { assertAdminBookingAccess } from '@/src/lib/auth/pgAccess';
-import { recordDepositCollected } from '@/src/services/deposits';
+import {
+  resolveBookingIdForCustomer,
+} from '@/src/services/residentAdmin';
 
 export type QuickActionResult =
   | { ok: true; message: string; href?: string }
   | { ok: false; error: string };
+
+export type ResidentQuickContext = {
+  customerId: string;
+  bookingId: string | null;
+  tenancyStatus: string;
+  monthlyRentPaise: number;
+  roomId: string | null;
+  pgId: string | null;
+  pgName: string | null;
+  roomNumber: string | null;
+  bedCode: string | null;
+  depositCollectedPaise: number;
+  depositRefundablePaise: number;
+  depositDeductedPaise: number;
+  vacatingPenaltyEstimatePaise: number;
+};
 
 const EXPRESS_SALE_TYPES = {
   rent_adjustment: {
@@ -40,19 +62,96 @@ const EXPRESS_SALE_TYPES = {
   },
 };
 
+async function resolveQuickActionBookingId(
+  customerId: string,
+  bookingId?: string | null,
+): Promise<string | null> {
+  if (bookingId) return bookingId;
+  return resolveBookingIdForCustomer(customerId);
+}
+
+export async function getResidentQuickContextAction(
+  customerId: string,
+): Promise<ResidentQuickContext | { error: string }> {
+  try {
+    const session = await requireAdminPermission('deposits:write');
+    const { getResidentDetail } = await import('@/src/services/residentAdmin');
+    const detail = await getResidentDetail(session, customerId);
+    if (!detail) return { error: 'Resident not found.' };
+
+    const bookingId =
+      detail.activeTenancy?.bookingId ?? (await resolveBookingIdForCustomer(customerId));
+
+    let depositCollectedPaise = 0;
+    let depositRefundablePaise = 0;
+    let depositDeductedPaise = 0;
+    if (bookingId) {
+      const summary = await getDepositSummaryForBooking(bookingId);
+      if (summary) {
+        depositCollectedPaise = summary.collectedPaise;
+        depositRefundablePaise = summary.refundableBalancePaise;
+        depositDeductedPaise = summary.deductedPaise;
+      }
+    }
+
+    const monthlyRentPaise = detail.activeTenancy?.monthlyRentPaise ?? 0;
+    const tenancyStatus = detail.activeTenancy
+      ? 'active'
+      : detail.customer.residencyStatus === 'vacated'
+        ? 'vacated'
+        : 'unassigned';
+
+    const { db } = await import('@/src/db/client');
+    const { beds } = await import('@/src/db/schema');
+    const { eq } = await import('drizzle-orm');
+
+    let roomId: string | null = null;
+    if (detail.activeTenancy?.bedId) {
+      const [bed] = await db
+        .select({ roomId: beds.roomId })
+        .from(beds)
+        .where(eq(beds.id, detail.activeTenancy.bedId))
+        .limit(1);
+      roomId = bed?.roomId ?? null;
+    }
+
+    return {
+      customerId,
+      bookingId,
+      tenancyStatus,
+      monthlyRentPaise,
+      roomId,
+      pgId: detail.activeTenancy?.pgId ?? null,
+      pgName: detail.activeTenancy?.pgName ?? null,
+      roomNumber: detail.activeTenancy?.roomNumber ?? null,
+      bedCode: detail.activeTenancy?.bedCode ?? null,
+      depositCollectedPaise,
+      depositRefundablePaise,
+      depositDeductedPaise,
+      vacatingPenaltyEstimatePaise: monthlyRentPaise > 0 ? vacatingPenalty(monthlyRentPaise) : 0,
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Could not load resident.' };
+  }
+}
+
 export async function quickAdvanceDepositAction(input: {
-  bookingId: string;
   customerId: string;
+  bookingId?: string | null;
   amountInr: number;
   note?: string;
 }): Promise<QuickActionResult> {
   try {
     const session = await requireAdminPermission('deposits:write');
+    const bookingId = await resolveQuickActionBookingId(input.customerId, input.bookingId);
+    if (!bookingId) {
+      return { ok: false, error: 'No booking found — assign a bed or create a booking first.' };
+    }
     const amountPaise = Math.round(input.amountInr * 100);
     if (amountPaise <= 0) return { ok: false, error: 'Amount must be greater than zero.' };
 
     await recordAdvanceDeposit({
-      bookingId: input.bookingId,
+      bookingId,
       customerId: input.customerId,
       amountPaise,
       createdByAdminId: session.adminId,
@@ -67,38 +166,32 @@ export async function quickAdvanceDepositAction(input: {
 }
 
 export async function quickOfflineDepositAction(input: {
-  bookingId: string;
+  customerId: string;
+  bookingId?: string | null;
   amountInr: number;
   reason: string;
   paymentMethod?: string;
 }): Promise<QuickActionResult> {
   try {
     const session = await requireAdminPermission('deposits:write');
-    await assertAdminBookingAccess(session, input.bookingId);
+    const bookingId = await resolveQuickActionBookingId(input.customerId, input.bookingId);
+    if (!bookingId) {
+      return { ok: false, error: 'No booking found — assign a bed or create a booking first.' };
+    }
+    await assertAdminBookingAccess(session, bookingId);
     const amountPaise = Math.round(input.amountInr * 100);
     if (amountPaise <= 0) return { ok: false, error: 'Amount must be greater than zero.' };
     if (!input.reason.trim()) return { ok: false, error: 'Reason is required.' };
 
-    const { db } = await import('@/src/db/client');
-    const { bookings } = await import('@/src/db/schema');
-    const { eq } = await import('drizzle-orm');
-    const [row] = await db
-      .select({ customerId: bookings.customerId })
-      .from(bookings)
-      .where(eq(bookings.id, input.bookingId))
-      .limit(1);
-    if (!row) return { ok: false, error: 'Booking not found.' };
-
-    const method = input.paymentMethod?.trim() || 'cash';
     await recordDepositCollected({
-      bookingId: input.bookingId,
-      customerId: row.customerId,
+      bookingId,
+      customerId: input.customerId,
       amountPaise,
-      reason: `admin ${method}: ${input.reason.trim()}`,
+      reason: `admin ${input.paymentMethod?.trim() || 'cash'}: ${input.reason.trim()}`,
       createdByAdminId: session.adminId,
     });
     const { syncDepositCollectionFromLedger } = await import('@/src/services/depositCollection');
-    await syncDepositCollectionFromLedger(input.bookingId);
+    await syncDepositCollectionFromLedger(bookingId);
     revalidateFinancialViews();
     return { ok: true, message: 'Offline deposit recorded in ledger.' };
   } catch (err) {
@@ -107,12 +200,17 @@ export async function quickOfflineDepositAction(input: {
 }
 
 export async function quickCreateRentInvoiceAction(input: {
-  bookingId: string;
+  customerId: string;
+  bookingId?: string | null;
   billingMonth: string;
   amountInr: number;
 }): Promise<QuickActionResult> {
   try {
     await requireAdminPermission('rent:write');
+    const bookingId = await resolveQuickActionBookingId(input.customerId, input.bookingId);
+    if (!bookingId) {
+      return { ok: false, error: 'No booking found — assign a bed before creating rent invoices.' };
+    }
     const amountPaise = Math.round(input.amountInr * 100);
     if (amountPaise <= 0) return { ok: false, error: 'Amount must be greater than zero.' };
     if (!/^\d{4}-\d{2}(-\d{2})?$/.test(input.billingMonth)) {
@@ -121,7 +219,7 @@ export async function quickCreateRentInvoiceAction(input: {
     const month = input.billingMonth.length === 7 ? `${input.billingMonth}-01` : input.billingMonth;
 
     const result = await ensureMonthlyRentInvoice({
-      bookingId: input.bookingId,
+      bookingId,
       billingMonth: month,
       amountPaise,
     });
@@ -143,13 +241,14 @@ export async function quickCreateRentInvoiceAction(input: {
 
 export async function quickExpressSaleAction(input: {
   customerId: string;
-  bookingId?: string;
+  bookingId?: string | null;
   saleType: keyof typeof EXPRESS_SALE_TYPES;
   amountInr: number;
   note?: string;
 }): Promise<QuickActionResult> {
   try {
     const session = await requireAdminPermission('payments:write');
+    const bookingId = await resolveQuickActionBookingId(input.customerId, input.bookingId);
     const amountPaise = Math.round(input.amountInr * 100);
     if (amountPaise <= 0) return { ok: false, error: 'Amount must be greater than zero.' };
 
@@ -159,7 +258,7 @@ export async function quickExpressSaleAction(input: {
 
     const result = await createResidentCharge({
       customerId: input.customerId,
-      bookingId: input.bookingId,
+      bookingId: bookingId ?? undefined,
       chargeType: spec.chargeType,
       title,
       description: note,
@@ -184,37 +283,32 @@ export async function quickExpressSaleAction(input: {
 }
 
 export async function quickRefundSettlementAction(input: {
-  bookingId: string;
+  customerId: string;
+  bookingId?: string | null;
   amountInr: number;
   reason: string;
   refundMethod?: string;
 }): Promise<QuickActionResult> {
   try {
     const session = await requireAdminPermission('deposits:write');
-    await assertAdminBookingAccess(session, input.bookingId);
+    const bookingId = await resolveQuickActionBookingId(input.customerId, input.bookingId);
+    if (!bookingId) {
+      return { ok: false, error: 'No booking found — cannot process refund without a booking.' };
+    }
+    await assertAdminBookingAccess(session, bookingId);
     const amountPaise = Math.round(input.amountInr * 100);
     if (amountPaise <= 0) return { ok: false, error: 'Amount must be greater than zero.' };
     if (!input.reason.trim()) return { ok: false, error: 'Reason is required.' };
 
-    const { db } = await import('@/src/db/client');
-    const { bookings } = await import('@/src/db/schema');
-    const { eq } = await import('drizzle-orm');
-    const [row] = await db
-      .select({ customerId: bookings.customerId })
-      .from(bookings)
-      .where(eq(bookings.id, input.bookingId))
-      .limit(1);
-    if (!row) return { ok: false, error: 'Booking not found.' };
-
-    const summary = await getDepositSummaryForBooking(input.bookingId);
+    const summary = await getDepositSummaryForBooking(bookingId);
     if (!summary || amountPaise > summary.refundableBalancePaise) {
       return { ok: false, error: 'Refund exceeds refundable deposit balance.' };
     }
 
     const settlement = await settleDepositRefund({
-      bookingId: input.bookingId,
-      customerId: row.customerId,
-      idempotencyKey: `quick:${input.bookingId}:${randomUUID()}`,
+      bookingId,
+      customerId: input.customerId,
+      idempotencyKey: `quick:${bookingId}:${randomUUID()}`,
       source: 'manual',
       adminId: session.adminId,
       reason: input.reason.trim(),
@@ -228,7 +322,7 @@ export async function quickRefundSettlementAction(input: {
     if (!settlement.ok) return { ok: false, error: settlement.error };
 
     revalidateFinancialViews();
-    revalidatePath(`/admin/deposits/${input.bookingId}`);
+    revalidatePath(`/admin/deposits/${bookingId}`);
     return { ok: true, message: `Refund ₹${input.amountInr.toLocaleString('en-IN')} recorded.` };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Refund failed.' };

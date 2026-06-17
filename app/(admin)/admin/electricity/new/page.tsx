@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 export default async function NewElectricityBillPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string }>;
+  searchParams: Promise<{ month?: string; roomId?: string }>;
 }) {
   const sp = await searchParams;
   const rooms = await listRoomsForElectricityForm();
@@ -34,7 +34,11 @@ export default async function NewElectricityBillPage({
         </div>
       ) : (
         <div className="mt-4 w-full max-w-2xl">
-          <NewElectricityBillForm rooms={rooms.data} defaultMonth={billingMonth} />
+          <NewElectricityBillForm
+            rooms={rooms.data}
+            defaultMonth={billingMonth}
+            defaultRoomId={sp.roomId}
+          />
         </div>
       )}
     </>

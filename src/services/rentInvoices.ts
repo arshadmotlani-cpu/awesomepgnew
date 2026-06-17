@@ -1342,6 +1342,9 @@ export async function submitRentPaymentProof(
   const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
   await syncRentInvoiceToUnified(invoiceId).catch(() => undefined);
 
+  const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
+  scheduleAdminNotificationSync();
+
   return { ok: true };
 }
 

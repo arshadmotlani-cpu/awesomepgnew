@@ -14,9 +14,11 @@ const idle: ActionState = { status: 'idle' };
 export function NewElectricityBillForm({
   rooms,
   defaultMonth,
+  defaultRoomId,
 }: {
   rooms: RoomPickerRow[];
   defaultMonth: string;
+  defaultRoomId?: string;
 }) {
   const [state, action, pending] = useActionState(createElectricityBillAction, idle);
   const [prevReading, setPrevReading] = useState<string>('');
@@ -24,7 +26,7 @@ export function NewElectricityBillForm({
   const [rateInr, setRateInr] = useState<string>(
     String(DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE / 100),
   );
-  const [roomId, setRoomId] = useState<string>('');
+  const [roomId, setRoomId] = useState<string>(defaultRoomId ?? '');
   const [loadingPrev, setLoadingPrev] = useState(false);
 
   useEffect(() => {

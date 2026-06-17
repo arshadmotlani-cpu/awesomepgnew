@@ -56,4 +56,6 @@ export type ActionItemMetadata = {
   isOverdue?: boolean;
   billingMonth?: string;
   notes?: string;
+  /** When true, all active admins receive an unread state (e.g. unassigned KYC). */
+  notifyAllAdmins?: boolean;
 };

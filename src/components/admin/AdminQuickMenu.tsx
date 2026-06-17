@@ -10,10 +10,11 @@ import {
   quickRefundSettlementAction,
 } from '@/app/(admin)/admin/quick-actions/actions';
 import { QuickActionDialog } from '@/src/components/admin/quickActions/QuickActionDialog';
+import { QuickActionResidentStep } from '@/src/components/admin/quickActions/QuickActionResidentStep';
 import {
-  ResidentQuickSearch,
   type ResidentQuickResult,
 } from '@/src/components/admin/quickActions/ResidentQuickSearch';
+import { paiseToInr } from '@/src/lib/format';
 
 export type QuickActionId =
   | 'advance_deposit'
@@ -138,12 +139,9 @@ function DepositForm({ mode, onDone }: { mode: 'advance' | 'offline'; onDone: ()
   const [success, setSuccess] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  function submit(e: React.FormEvent) {
+  function submit(e: React.FormEvent, ctxBookingId: string | null) {
     e.preventDefault();
-    if (!selected?.bookingId) {
-      setError('Select a tenant with an active booking.');
-      return;
-    }
+    if (!selected) return;
     const amount = Number.parseFloat(amountInr);
     if (!Number.isFinite(amount) || amount <= 0) {
       setError('Enter a valid amount.');
@@ -151,17 +149,16 @@ function DepositForm({ mode, onDone }: { mode: 'advance' | 'offline'; onDone: ()
     }
     setError(null);
     startTransition(async () => {
+      const payload = {
+        customerId: selected.id,
+        bookingId: selected.bookingId ?? ctxBookingId,
+        amountInr: amount,
+      };
       const result =
         mode === 'advance'
-          ? await quickAdvanceDepositAction({
-              bookingId: selected.bookingId!,
-              customerId: selected.id,
-              amountInr: amount,
-              note,
-            })
+          ? await quickAdvanceDepositAction({ ...payload, note })
           : await quickOfflineDepositAction({
-              bookingId: selected.bookingId!,
-              amountInr: amount,
+              ...payload,
               reason: note,
               paymentMethod: method,
             });
@@ -177,51 +174,54 @@ function DepositForm({ mode, onDone }: { mode: 'advance' | 'offline'; onDone: ()
   }
 
   return (
-    <ActionFormShell
-      onSubmit={submit}
-      pending={pending}
-      submitLabel={mode === 'advance' ? 'Record advance deposit' : 'Record offline deposit'}
-      error={error}
-      success={success}
-    >
-      <ResidentQuickSearch selected={selected} onSelect={setSelected} />
-      <label className="block text-xs text-apg-silver">
-        Amount (₹)
-        <input
-          type="number"
-          min="0.01"
-          step="0.01"
-          required
-          value={amountInr}
-          onChange={(e) => setAmountInr(e.target.value)}
-          className="mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white"
-        />
-      </label>
-      {mode === 'offline' ? (
-        <label className="block text-xs text-apg-silver">
-          Payment method
-          <select
-            value={method}
-            onChange={(e) => setMethod(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white"
-          >
-            <option value="cash">Cash</option>
-            <option value="upi">UPI</option>
-            <option value="bank">Bank transfer</option>
-          </select>
-        </label>
-      ) : null}
-      <label className="block text-xs text-apg-silver">
-        {mode === 'advance' ? 'Note (optional)' : 'Reason'}
-        <input
-          type="text"
-          required={mode === 'offline'}
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          className="mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white"
-        />
-      </label>
-    </ActionFormShell>
+    <QuickActionResidentStep selected={selected} onSelect={setSelected}>
+      {({ ctx }) => (
+        <ActionFormShell
+          onSubmit={(e) => submit(e, ctx?.bookingId ?? null)}
+          pending={pending}
+          submitLabel={mode === 'advance' ? 'Record advance deposit' : 'Record offline deposit'}
+          error={error}
+          success={success}
+        >
+          <label className="block text-xs text-apg-silver">
+            Amount (₹)
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              required
+              value={amountInr}
+              onChange={(e) => setAmountInr(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white"
+            />
+          </label>
+          {mode === 'offline' ? (
+            <label className="block text-xs text-apg-silver">
+              Payment method
+              <select
+                value={method}
+                onChange={(e) => setMethod(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white"
+              >
+                <option value="cash">Cash</option>
+                <option value="upi">UPI</option>
+                <option value="bank">Bank transfer</option>
+              </select>
+            </label>
+          ) : null}
+          <label className="block text-xs text-apg-silver">
+            {mode === 'advance' ? 'Note (optional)' : 'Reason'}
+            <input
+              type="text"
+              required={mode === 'offline'}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white"
+            />
+          </label>
+        </ActionFormShell>
+      )}
+    </QuickActionResidentStep>
   );
 }
 
@@ -233,12 +233,9 @@ function RentInvoiceForm({ onDone }: { onDone: () => void }) {
   const [success, setSuccess] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  function submit(e: React.FormEvent) {
+  function submit(e: React.FormEvent, ctxBookingId: string | null) {
     e.preventDefault();
-    if (!selected?.bookingId) {
-      setError('Select a tenant with an active booking.');
-      return;
-    }
+    if (!selected) return;
     const amount = Number.parseFloat(amountInr);
     if (!Number.isFinite(amount) || amount <= 0) {
       setError('Enter a valid amount.');
@@ -247,7 +244,8 @@ function RentInvoiceForm({ onDone }: { onDone: () => void }) {
     setError(null);
     startTransition(async () => {
       const result = await quickCreateRentInvoiceAction({
-        bookingId: selected.bookingId!,
+        customerId: selected.id,
+        bookingId: selected.bookingId ?? ctxBookingId,
         billingMonth,
         amountInr: amount,
       });
@@ -261,14 +259,59 @@ function RentInvoiceForm({ onDone }: { onDone: () => void }) {
   }
 
   return (
+    <QuickActionResidentStep selected={selected} onSelect={setSelected}>
+      {({ ctx }) => (
+        <RentInvoiceFields
+          ctx={ctx}
+          amountInr={amountInr}
+          setAmountInr={setAmountInr}
+          billingMonth={billingMonth}
+          setBillingMonth={setBillingMonth}
+          onSubmit={(e) => submit(e, ctx?.bookingId ?? null)}
+          pending={pending}
+          error={error}
+          success={success}
+        />
+      )}
+    </QuickActionResidentStep>
+  );
+}
+
+function RentInvoiceFields({
+  ctx,
+  amountInr,
+  setAmountInr,
+  billingMonth,
+  setBillingMonth,
+  onSubmit,
+  pending,
+  error,
+  success,
+}: {
+  ctx: import('@/app/(admin)/admin/quick-actions/actions').ResidentQuickContext | null;
+  amountInr: string;
+  setAmountInr: (v: string) => void;
+  billingMonth: string;
+  setBillingMonth: (v: string) => void;
+  onSubmit: (e: React.FormEvent) => void;
+  pending: boolean;
+  error: string | null;
+  success: string | null;
+}) {
+  useEffect(() => {
+    if (ctx && ctx.monthlyRentPaise > 0 && !amountInr) {
+      setAmountInr(String(ctx.monthlyRentPaise / 100));
+    }
+  }, [ctx, amountInr, setAmountInr]);
+
+  return (
     <ActionFormShell
-      onSubmit={submit}
+      onSubmit={onSubmit}
       pending={pending}
       submitLabel="Create rent invoice"
       error={error}
       success={success}
     >
-      <ResidentQuickSearch selected={selected} onSelect={setSelected} />
       <label className="block text-xs text-apg-silver">
         Billing month
         <input
@@ -281,6 +324,11 @@ function RentInvoiceForm({ onDone }: { onDone: () => void }) {
       </label>
       <label className="block text-xs text-apg-silver">
         Rent amount (₹)
+        {ctx && ctx.monthlyRentPaise > 0 ? (
+          <span className="ml-1 text-[10px] text-emerald-300">
+            auto · {paiseToInr(ctx.monthlyRentPaise)}
+          </span>
+        ) : null}
         <input
           type="number"
           min="0.01"
@@ -306,7 +354,7 @@ function ExpressSaleForm({ onDone }: { onDone: () => void }) {
   const [success, setSuccess] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  function submit(e: React.FormEvent) {
+  function submit(e: React.FormEvent, ctxBookingId: string | null) {
     e.preventDefault();
     if (!selected) {
       setError('Select a tenant.');
@@ -321,7 +369,7 @@ function ExpressSaleForm({ onDone }: { onDone: () => void }) {
     startTransition(async () => {
       const result = await quickExpressSaleAction({
         customerId: selected.id,
-        bookingId: selected.bookingId ?? undefined,
+        bookingId: selected.bookingId ?? ctxBookingId,
         saleType,
         amountInr: amount,
         note,
@@ -336,50 +384,96 @@ function ExpressSaleForm({ onDone }: { onDone: () => void }) {
   }
 
   return (
-    <ActionFormShell
-      onSubmit={submit}
-      pending={pending}
-      submitLabel="Create express sale"
-      error={error}
-      success={success}
-    >
-      <ResidentQuickSearch selected={selected} onSelect={setSelected} requireBooking={false} />
-      <label className="block text-xs text-apg-silver">
-        Charge type
-        <select
-          value={saleType}
-          onChange={(e) => setSaleType(e.target.value as typeof saleType)}
-          className="mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white"
+    <QuickActionResidentStep selected={selected} onSelect={setSelected}>
+      {({ ctx }) => (
+        <ActionFormShell
+          onSubmit={(e) => submit(e, ctx?.bookingId ?? null)}
+          pending={pending}
+          submitLabel="Create express sale"
+          error={error}
+          success={success}
         >
-          <option value="rent_adjustment">Rent adjustment</option>
-          <option value="penalty">Penalty</option>
-          <option value="extra_service">Extra service</option>
-          <option value="misc">Misc charge</option>
-        </select>
-      </label>
-      <label className="block text-xs text-apg-silver">
-        Amount (₹)
-        <input
-          type="number"
-          min="0.01"
-          step="0.01"
-          required
-          value={amountInr}
-          onChange={(e) => setAmountInr(e.target.value)}
-          className="mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white"
-        />
-      </label>
-      <label className="block text-xs text-apg-silver">
-        Note (optional)
-        <textarea
-          rows={2}
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="Description shown on invoice"
-          className="mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white"
-        />
-      </label>
-    </ActionFormShell>
+          <label className="block text-xs text-apg-silver">
+            Charge type
+            <select
+              value={saleType}
+              onChange={(e) => setSaleType(e.target.value as typeof saleType)}
+              className="mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white"
+            >
+              <option value="rent_adjustment">Rent adjustment</option>
+              <option value="penalty">Penalty</option>
+              <option value="extra_service">Extra service</option>
+              <option value="misc">Misc charge</option>
+            </select>
+          </label>
+          <label className="block text-xs text-apg-silver">
+            Amount (₹)
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              required
+              value={amountInr}
+              onChange={(e) => setAmountInr(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white"
+            />
+          </label>
+          <label className="block text-xs text-apg-silver">
+            Note (optional)
+            <textarea
+              rows={2}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Description shown on invoice"
+              className="mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white"
+            />
+          </label>
+        </ActionFormShell>
+      )}
+    </QuickActionResidentStep>
+  );
+}
+
+function ElectricityForm({ onDone }: { onDone: () => void }) {
+  const router = useRouter();
+  const [selected, setSelected] = useState<ResidentQuickResult | null>(null);
+
+  return (
+    <QuickActionResidentStep selected={selected} onSelect={setSelected}>
+      {({ ctx }) => {
+        const roomId = selected?.roomId ?? ctx?.roomId ?? null;
+        return (
+          <div className="space-y-3">
+            {roomId ? (
+              <>
+                <p className="text-xs text-apg-silver">
+                  Opens the meter form for{' '}
+                  <span className="text-white">
+                    {ctx?.pgName ?? selected?.pgName} · Room {ctx?.roomNumber ?? selected?.roomNumber}
+                  </span>
+                  . Bills split across room residents automatically.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    router.push(`/admin/electricity/new?roomId=${roomId}`);
+                    onDone();
+                  }}
+                  className="rounded-lg bg-sky-600 px-4 py-2 text-xs font-semibold text-white hover:bg-sky-500"
+                >
+                  Open electricity bill form
+                </button>
+              </>
+            ) : (
+              <p className="text-xs text-amber-200">
+                This resident has no room assignment yet. Assign a bed first, then generate the
+                electricity bill for their room.
+              </p>
+            )}
+          </div>
+        );
+      }}
+    </QuickActionResidentStep>
   );
 }
 
@@ -392,12 +486,9 @@ function RefundForm({ onDone }: { onDone: () => void }) {
   const [success, setSuccess] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  function submit(e: React.FormEvent) {
+  function submit(e: React.FormEvent, ctxBookingId: string | null) {
     e.preventDefault();
-    if (!selected?.bookingId) {
-      setError('Select a tenant with an active booking.');
-      return;
-    }
+    if (!selected) return;
     const amount = Number.parseFloat(amountInr);
     if (!Number.isFinite(amount) || amount <= 0) {
       setError('Enter a valid amount.');
@@ -410,7 +501,8 @@ function RefundForm({ onDone }: { onDone: () => void }) {
     setError(null);
     startTransition(async () => {
       const result = await quickRefundSettlementAction({
-        bookingId: selected.bookingId!,
+        customerId: selected.id,
+        bookingId: selected.bookingId ?? ctxBookingId,
         amountInr: amount,
         reason,
       });
@@ -424,62 +516,113 @@ function RefundForm({ onDone }: { onDone: () => void }) {
   }
 
   return (
-    <div className="space-y-3">
-      <ResidentQuickSearch selected={selected} onSelect={setSelected} />
-      {selected?.bookingId ? (
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => router.push(`/admin/deposits/${selected.bookingId}`)}
-            className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-apg-silver hover:text-white"
-          >
-            Full deposit settlement →
-          </button>
-          <button
-            type="button"
-            onClick={() => router.push('/admin/vacating')}
-            className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-apg-silver hover:text-white"
-          >
-            Vacating queue →
-          </button>
-        </div>
-      ) : null}
-      <ActionFormShell
-        onSubmit={submit}
-        pending={pending}
-        submitLabel="Record deposit refund"
-        error={error}
-        success={success}
-      >
-        <label className="block text-xs text-apg-silver">
-          Refund amount (₹)
-          <input
-            type="number"
-            min="0.01"
-            step="0.01"
-            required
-            value={amountInr}
-            onChange={(e) => setAmountInr(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white"
+    <QuickActionResidentStep selected={selected} onSelect={setSelected}>
+      {({ ctx }) => (
+        <>
+          {(selected?.bookingId ?? ctx?.bookingId) ? (
+            <div className="mb-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  router.push(`/admin/deposits/${selected?.bookingId ?? ctx?.bookingId}`)
+                }
+                className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-apg-silver hover:text-white"
+              >
+                Full deposit settlement →
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push('/admin/vacating')}
+                className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-apg-silver hover:text-white"
+              >
+                Vacating queue →
+              </button>
+            </div>
+          ) : null}
+          <RefundAmountFields
+            ctx={ctx}
+            amountInr={amountInr}
+            setAmountInr={setAmountInr}
+            reason={reason}
+            setReason={setReason}
+            onSubmit={(e) => submit(e, ctx?.bookingId ?? null)}
+            pending={pending}
+            error={error}
+            success={success}
           />
-        </label>
-        <label className="block text-xs text-apg-silver">
-          Reason
-          <input
-            type="text"
-            required
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white"
-          />
-        </label>
-      </ActionFormShell>
-    </div>
+        </>
+      )}
+    </QuickActionResidentStep>
+  );
+}
+
+function RefundAmountFields({
+  ctx,
+  amountInr,
+  setAmountInr,
+  reason,
+  setReason,
+  onSubmit,
+  pending,
+  error,
+  success,
+}: {
+  ctx: import('@/app/(admin)/admin/quick-actions/actions').ResidentQuickContext | null;
+  amountInr: string;
+  setAmountInr: (v: string) => void;
+  reason: string;
+  setReason: (v: string) => void;
+  onSubmit: (e: React.FormEvent) => void;
+  pending: boolean;
+  error: string | null;
+  success: string | null;
+}) {
+  useEffect(() => {
+    if (ctx && ctx.depositRefundablePaise > 0 && !amountInr) {
+      setAmountInr(String(ctx.depositRefundablePaise / 100));
+    }
+  }, [ctx, amountInr, setAmountInr]);
+
+  return (
+    <ActionFormShell
+      onSubmit={onSubmit}
+      pending={pending}
+      submitLabel="Record deposit refund"
+      error={error}
+      success={success}
+    >
+      <label className="block text-xs text-apg-silver">
+        Refund amount (₹)
+        {ctx && ctx.depositRefundablePaise > 0 ? (
+          <span className="ml-1 text-[10px] text-emerald-300">
+            max {paiseToInr(ctx.depositRefundablePaise)}
+          </span>
+        ) : null}
+        <input
+          type="number"
+          min="0.01"
+          step="0.01"
+          required
+          value={amountInr}
+          onChange={(e) => setAmountInr(e.target.value)}
+          className="mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white"
+        />
+      </label>
+      <label className="block text-xs text-apg-silver">
+        Reason
+        <input
+          type="text"
+          required
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          className="mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white"
+        />
+      </label>
+    </ActionFormShell>
   );
 }
 
 export function AdminQuickMenu() {
-  const router = useRouter();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [active, setActive] = useState<QuickActionId | null>(null);
@@ -504,11 +647,6 @@ export function AdminQuickMenu() {
   }
 
   function openAction(id: QuickActionId) {
-    if (id === 'electricity') {
-      setMenuOpen(false);
-      router.push('/admin/electricity/new');
-      return;
-    }
     setMenuOpen(false);
     setActive(id);
   }
@@ -573,6 +711,7 @@ export function AdminQuickMenu() {
           {active === 'advance_deposit' ? <DepositForm mode="advance" onDone={closeDialog} /> : null}
           {active === 'offline_deposit' ? <DepositForm mode="offline" onDone={closeDialog} /> : null}
           {active === 'rent_invoice' ? <RentInvoiceForm onDone={closeDialog} /> : null}
+          {active === 'electricity' ? <ElectricityForm onDone={closeDialog} /> : null}
           {active === 'express_sale' ? <ExpressSaleForm onDone={closeDialog} /> : null}
           {active === 'refund' ? <RefundForm onDone={closeDialog} /> : null}
         </QuickActionDialog>

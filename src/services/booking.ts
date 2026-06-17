@@ -217,6 +217,7 @@ function applyAdminPricingOverrides(
 }
 
 import { siblingBedIdsInRoom } from '@/src/services/tenantAssignmentInternals';
+import { scheduleAdminNotificationSync } from '@/src/services/adminLiveSync';
 
 /**
  * Best-effort error classification for postgres-js errors. We rely on
@@ -630,6 +631,8 @@ export async function createBooking(
       });
 
       await stampProfileCompletedAtIfReady(result.customerId);
+
+      scheduleAdminNotificationSync();
 
       return {
         ok: true,

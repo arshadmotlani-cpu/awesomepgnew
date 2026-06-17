@@ -58,6 +58,7 @@ import { getOpenDepositRefundRequestForBooking } from './residentRequests';
 import { cancelFutureRentInvoices } from './rentInvoices';
 import { cancelElectricityInvoicesForBooking } from './electricityBilling';
 import { recalculateBillingAfterVacatingRestore } from './residentFinancialEngine';
+import { scheduleAdminNotificationSync } from '@/src/services/adminLiveSync';
 
 async function vacatingEmailMeta(bookingId: string) {
   const [row] = await db
@@ -361,6 +362,8 @@ export async function submitVacatingRequest(
       status: 'submitted',
       vacatingDate,
     });
+
+    scheduleAdminNotificationSync();
 
     return {
       ok: true,

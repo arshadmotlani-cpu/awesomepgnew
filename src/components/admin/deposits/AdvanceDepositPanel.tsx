@@ -8,12 +8,35 @@ type SearchResult = {
   id: string;
   fullName: string;
   phone: string;
+  tenancyStatus: 'unassigned' | 'active' | 'vacating' | 'vacated' | 'blocked';
   bookingId: string | null;
   bookingCode?: string | null;
   pgName: string | null;
   roomNumber: string | null;
   bedCode: string | null;
 };
+
+function TenancyBadge({ status }: { status: SearchResult['tenancyStatus'] }) {
+  if (status === 'active' || status === 'vacating') {
+    return (
+      <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-emerald-200">
+        {status === 'vacating' ? 'Vacating' : 'Occupied'}
+      </span>
+    );
+  }
+  if (status === 'unassigned') {
+    return (
+      <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-200">
+        Unassigned
+      </span>
+    );
+  }
+  return (
+    <span className="rounded bg-zinc-500/20 px-1.5 py-0.5 text-[10px] font-medium text-zinc-300">
+      {status}
+    </span>
+  );
+}
 
 export function AdvanceDepositPanel() {
   const router = useRouter();
@@ -36,7 +59,7 @@ export function AdvanceDepositPanel() {
     setError(null);
     try {
       const res = await fetch(
-        `/api/admin/residents/search?q=${encodeURIComponent(q.trim())}&withBooking=1`,
+        `/api/admin/residents/search?q=${encodeURIComponent(q.trim())}`,
         { cache: 'no-store' },
       );
       const json = (await res.json()) as { ok: boolean; data?: SearchResult[] };
@@ -47,10 +70,6 @@ export function AdvanceDepositPanel() {
   }
 
   function onSelect(row: SearchResult) {
-    if (!row.bookingId) {
-      setError('This resident has no active booking. Assign a bed first.');
-      return;
-    }
     setSelected(row);
     setError(null);
     setSuccess(null);
@@ -58,7 +77,7 @@ export function AdvanceDepositPanel() {
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!selected?.bookingId) return;
+    if (!selected) return;
     const amount = Number.parseFloat(amountInr);
     if (!Number.isFinite(amount) || amount <= 0) {
       setError('Enter a valid amount greater than zero.');
@@ -67,7 +86,7 @@ export function AdvanceDepositPanel() {
     setError(null);
     startTransition(async () => {
       const result = await recordAdvanceDepositAction({
-        bookingId: selected.bookingId!,
+        bookingId: selected.bookingId,
         customerId: selected.id,
         amountInr: amount,
         note,
@@ -88,8 +107,8 @@ export function AdvanceDepositPanel() {
       <div className="rounded-xl border border-white/10 bg-[#1A1F27] p-5">
         <h2 className="text-sm font-semibold text-white">Find tenant</h2>
         <p className="mt-1 text-xs text-apg-silver">
-          Search by name, phone, booking ID, or booking code. Only records deposit — does not affect
-          rent, invoices, or bed assignment.
+          Search by name, phone, booking ID, or booking code. Assigned and unassigned residents
+          both appear. Only records deposit — does not affect rent, invoices, or bed assignment.
         </p>
         <input
           type="search"
@@ -115,16 +134,29 @@ export function AdvanceDepositPanel() {
                     (selected?.id === r.id ? 'bg-[#FF5A1F]/10' : '')
                   }
                 >
-                  <span className="font-medium text-white">{r.fullName}</span>
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium text-white">{r.fullName}</span>
+                    <TenancyBadge status={r.tenancyStatus} />
+                  </span>
                   <span className="text-xs text-apg-silver">
                     {r.phone}
                     {r.bookingCode ? ` · ${r.bookingCode}` : ''}
-                    {r.pgName ? ` · ${r.pgName}` : ''}
+                    {r.pgName && r.roomNumber
+                      ? ` · ${r.pgName} · R${r.roomNumber}`
+                      : r.tenancyStatus === 'unassigned'
+                        ? ' · No bed assigned'
+                        : r.pgName
+                          ? ` · ${r.pgName}`
+                          : ''}
                   </span>
                 </button>
               </li>
             ))}
           </ul>
+        ) : query.trim().length >= 2 && !loading ? (
+          <p className="mt-2 text-xs text-apg-silver">
+            No residents match — try another spelling or phone number.
+          </p>
         ) : null}
       </div>
 
@@ -135,11 +167,20 @@ export function AdvanceDepositPanel() {
         >
           <div>
             <p className="text-xs text-apg-silver">Recording for</p>
-            <p className="text-lg font-semibold text-white">{selected.fullName}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-lg font-semibold text-white">{selected.fullName}</p>
+              <TenancyBadge status={selected.tenancyStatus} />
+            </div>
             <p className="text-xs text-apg-silver">
-              {selected.bookingCode ?? selected.bookingId} · {selected.pgName ?? '—'}
+              {selected.bookingCode ?? selected.bookingId ?? 'No booking yet'}
+              {selected.pgName ? ` · ${selected.pgName}` : ''}
               {selected.roomNumber ? ` · R${selected.roomNumber}` : ''}
             </p>
+            {selected.tenancyStatus === 'unassigned' && !selected.bookingId ? (
+              <p className="mt-1 text-xs text-amber-200">
+                No booking on file — create a booking first to record deposit to ledger.
+              </p>
+            ) : null}
           </div>
           <label className="block text-sm">
             <span className="font-medium text-apg-silver">Amount (₹) *</span>

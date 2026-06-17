@@ -21,6 +21,7 @@ import { formatDate, parseDate } from '@/src/lib/dates';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { settleDepositWithDeductions } from '@/src/services/depositSettlement';
 import { syncResidentRequestActionItems } from '@/src/services/residentRequestActions';
+import { refreshAdminNotificationsFromActionItems } from '@/src/services/actionItems';
 import {
   computeRefundDeductions,
   type RefundCompletionInput,
@@ -121,6 +122,7 @@ export async function submitDepositRefundRequest(input: {
     });
 
     await syncResidentRequestActionItems();
+    await refreshAdminNotificationsFromActionItems();
 
     return { ok: true as const, request: row };
   } catch {
@@ -186,6 +188,7 @@ export async function submitDepositDueExtensionRequest(input: {
     });
 
     await syncResidentRequestActionItems();
+    await refreshAdminNotificationsFromActionItems();
 
     return { ok: true as const, request: row };
   } catch {
