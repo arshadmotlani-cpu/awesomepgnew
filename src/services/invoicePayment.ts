@@ -72,6 +72,11 @@ export async function allocateInvoicePayment(input: {
   if (inv.status === 'cancelled' || inv.status === 'refunded') {
     return { ok: false, error: 'Invoice is not payable.' };
   }
+  if (inv.status === 'payment_in_progress' || inv.status === 'processing') {
+    // Allow allocation while proof is being verified.
+  } else if (inv.status === 'paid' || inv.status === 'settled') {
+    return { ok: false, error: 'Invoice is already paid.' };
+  }
 
   const lines = inv.breakdown?.lines ?? [];
   const paidSoFar = inv.breakdown?.paidPaise ?? 0;

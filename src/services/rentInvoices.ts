@@ -31,7 +31,7 @@
  *     "already processed".
  */
 
-import { and, desc, eq, inArray, isNotNull, lte, ne, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, isNull, lte, ne, or, sql } from 'drizzle-orm';
 import { db } from '../db/client';
 import {
   auditLog,
@@ -60,6 +60,11 @@ import {
 } from './billing';
 import type { AnyPaymentProvider } from './bookingLifecycle';
 import type { ProviderName } from './payments';
+import {
+  isRentInvoiceCancellable,
+  isRentInvoicePaymentLocked,
+  logInvoiceStateTransition,
+} from '@/src/lib/billing/invoiceStateMachine';
 
 const INVOICE_PREFIX = 'RNT';
 
@@ -94,7 +99,7 @@ export type RentInvoiceView = RentInvoice & {
   /** rent + late fee - paid. 0 if fully paid. */
   outstandingPaise: number;
   /** Effective UI status — computes overdue dynamically when stored status is `pending`. */
-  effectiveStatus: 'pending' | 'partial' | 'paid' | 'overdue' | 'cancelled';
+  effectiveStatus: 'pending' | 'partial' | 'paid' | 'overdue' | 'cancelled' | 'payment_in_progress' | 'expired';
 };
 
 export type RecordRentPaymentSuccessInput = {
@@ -483,6 +488,7 @@ export async function recordRentPaymentSuccess(
       paidPrincipalPaise: rentInvoices.paidPrincipalPaise,
       paidLateFeePaise: rentInvoices.paidLateFeePaise,
       lateFeeLockedPaise: rentInvoices.lateFeeLockedPaise,
+      paymentId: rentInvoices.paymentId,
     })
     .from(rentInvoices)
     .where(eq(rentInvoices.id, input.invoiceId))
@@ -492,6 +498,18 @@ export async function recordRentPaymentSuccess(
   }
   if (invoice.status === 'cancelled') {
     return { ok: false, reason: 'invoice is cancelled' };
+  }
+  if (isRentInvoicePaymentLocked(invoice.status) && invoice.status !== 'payment_in_progress') {
+    return {
+      ok: true,
+      paymentId: invoice.paymentId ?? '',
+      invoiceId: invoice.id,
+      stateChanged: false,
+    };
+  }
+
+  if (!['pending', 'overdue', 'payment_in_progress'].includes(invoice.status)) {
+    return { ok: false, reason: `invoice is not payable (status=${invoice.status})` };
   }
 
   const provider = (input.offlineProvider ?? input.provider) as AnyPaymentProvider;
@@ -582,8 +600,22 @@ export async function recordRentPaymentSuccess(
           updatedAt: new Date(),
         })
         .where(
-          and(eq(rentInvoices.id, invoice.id), ne(rentInvoices.status, 'cancelled')),
+          and(
+            eq(rentInvoices.id, invoice.id),
+            inArray(rentInvoices.status, ['pending', 'overdue', 'payment_in_progress']),
+          ),
         );
+
+      if (fullyPaid) {
+        logInvoiceStateTransition({
+          invoiceId: invoice.id,
+          layer: 'rent',
+          previousStatus: invoice.status,
+          newStatus: 'paid',
+          source: 'webhook',
+          meta: { providerPaymentId: input.providerPaymentId },
+        });
+      }
 
       await tx.insert(auditLog).values({
         actorType: 'system',
@@ -802,6 +834,31 @@ export function projectInvoice(
       effectiveStatus: 'cancelled',
     };
   }
+  if (invoice.status === 'payment_in_progress') {
+    const lateFee = computeLateFee({
+      rentPaise: invoice.rentPaise,
+      billingMonth: invoice.billingMonth,
+      today: asOf,
+    });
+    const outstandingPaise = Math.max(
+      0,
+      invoice.rentPaise + lateFee - invoice.paidPrincipalPaise - invoice.paidLateFeePaise,
+    );
+    return {
+      ...invoice,
+      accruedLateFeePaise: lateFee,
+      outstandingPaise,
+      effectiveStatus: 'payment_in_progress',
+    };
+  }
+  if (invoice.status === 'expired') {
+    return {
+      ...invoice,
+      accruedLateFeePaise: 0,
+      outstandingPaise: 0,
+      effectiveStatus: 'expired',
+    };
+  }
   const lateFee = computeLateFee({
     rentPaise: invoice.rentPaise,
     billingMonth: invoice.billingMonth,
@@ -924,7 +981,7 @@ export async function createAdhocRentInvoice(input: {
         });
 
       const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
-      void syncRentInvoiceToUnified(row.id);
+      await syncRentInvoiceToUnified(row.id);
 
       return { ok: true, invoiceId: row.id, invoiceNumber: row.invoiceNumber };
     } catch (err) {
@@ -940,25 +997,67 @@ export async function submitRentPaymentProof(
   invoiceId: string,
   paymentProofUrl: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  const [invoice] = await db
-    .select()
-    .from(rentInvoices)
-    .where(eq(rentInvoices.id, invoiceId))
-    .limit(1);
-  if (!invoice || invoice.customerId !== customerId) {
-    return { ok: false, message: 'Invoice not found.' };
-  }
-  if (!['pending', 'overdue'].includes(invoice.status)) {
-    return { ok: false, message: 'This invoice is not awaiting payment.' };
-  }
   if (!paymentProofUrl.trim()) {
     return { ok: false, message: 'Payment photo is required.' };
   }
 
-  await db
-    .update(rentInvoices)
-    .set({ paymentProofUrl: paymentProofUrl.trim(), updatedAt: new Date() })
-    .where(eq(rentInvoices.id, invoiceId));
+  const proofUrl = paymentProofUrl.trim();
+  const idempotencyKey = `rent-proof-submit:${invoiceId}`;
+
+  const result = await db.transaction(async (tx) => {
+    const [invoice] = await tx
+      .select()
+      .from(rentInvoices)
+      .where(eq(rentInvoices.id, invoiceId))
+      .for('update')
+      .limit(1);
+
+    if (!invoice || invoice.customerId !== customerId) {
+      return { ok: false as const, message: 'Invoice not found.' };
+    }
+    if (invoice.status === 'paid') {
+      return { ok: true as const };
+    }
+    if (invoice.status === 'cancelled' || invoice.status === 'expired') {
+      return { ok: false as const, message: 'This invoice is not awaiting payment.' };
+    }
+    if (
+      !['pending', 'overdue', 'payment_in_progress'].includes(invoice.status)
+    ) {
+      return { ok: false as const, message: 'This invoice is not awaiting payment.' };
+    }
+    if (invoice.paymentProofUrl === proofUrl) {
+      return { ok: true as const };
+    }
+
+    const previousStatus = invoice.status;
+    const nextStatus = previousStatus === 'payment_in_progress' ? previousStatus : 'payment_in_progress';
+
+    await tx
+      .update(rentInvoices)
+      .set({
+        paymentProofUrl: proofUrl,
+        status: nextStatus,
+        updatedAt: new Date(),
+      })
+      .where(eq(rentInvoices.id, invoiceId));
+
+    logInvoiceStateTransition({
+      invoiceId,
+      layer: 'rent',
+      previousStatus,
+      newStatus: nextStatus,
+      source: 'user',
+      meta: { idempotencyKey, action: 'payment_proof_uploaded' },
+    });
+
+    return { ok: true as const };
+  });
+
+  if (!result.ok) return result;
+
+  const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
+  await syncRentInvoiceToUnified(invoiceId).catch(() => undefined);
 
   return { ok: true };
 }
@@ -1005,7 +1104,7 @@ export async function approveRentPaymentProof(
   if (!invoice.paymentProofUrl) {
     return { ok: false, message: 'No payment photo uploaded.' };
   }
-  if (!['pending', 'overdue'].includes(invoice.status)) {
+  if (!['pending', 'overdue', 'payment_in_progress'].includes(invoice.status)) {
     return { ok: false, message: 'Invoice is not awaiting payment.' };
   }
 
@@ -1277,6 +1376,8 @@ export async function cancelPendingRentInvoicesForMonth(
       and(
         eq(rentInvoices.billingMonth, month),
         inArray(rentInvoices.status, ['pending', 'overdue']),
+        eq(rentInvoices.isAdhoc, false),
+        isNull(rentInvoices.paymentProofUrl),
         opts?.pgId ? eq(rentInvoices.pgId, opts.pgId) : sql`TRUE`,
         opts?.bookingIds?.length
           ? inArray(rentInvoices.bookingId, opts.bookingIds)
@@ -1298,7 +1399,16 @@ export async function cancelPendingRentInvoicesForMonth(
         continue;
       }
     } else {
-      await db
+      const [rentRow] = await db
+        .select({ status: rentInvoices.status })
+        .from(rentInvoices)
+        .where(eq(rentInvoices.id, row.rentInvoiceId))
+        .limit(1);
+      if (!rentRow || !isRentInvoiceCancellable(rentRow.status)) {
+        errors.push(`${row.rentInvoiceId}: not cancellable (${rentRow?.status ?? 'missing'})`);
+        continue;
+      }
+      const [updated] = await db
         .update(rentInvoices)
         .set({
           status: 'cancelled',
@@ -1306,7 +1416,26 @@ export async function cancelPendingRentInvoicesForMonth(
           cancellationReason: reason,
           updatedAt: new Date(),
         })
-        .where(eq(rentInvoices.id, row.rentInvoiceId));
+        .where(
+          and(
+            eq(rentInvoices.id, row.rentInvoiceId),
+            inArray(rentInvoices.status, ['pending', 'overdue', 'expired']),
+            isNull(rentInvoices.paymentProofUrl),
+          ),
+        )
+        .returning({ id: rentInvoices.id });
+      if (!updated) {
+        errors.push(`${row.rentInvoiceId}: state changed during cancel`);
+        continue;
+      }
+      logInvoiceStateTransition({
+        invoiceId: row.rentInvoiceId,
+        layer: 'rent',
+        previousStatus: rentRow.status,
+        newStatus: 'cancelled',
+        source: 'admin',
+        meta: { reason },
+      });
       const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
       await syncRentInvoiceToUnified(row.rentInvoiceId).catch(() => undefined);
     }

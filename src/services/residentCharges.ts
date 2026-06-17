@@ -15,6 +15,7 @@ import {
   rooms,
 } from '@/src/db/schema';
 import { buildChargeRequestWhatsAppUrl } from '@/src/lib/billing/adminWhatsApp';
+import { expressSaleIdempotencyKey } from '@/src/lib/billing/invoiceStateMachine';
 import { paymentLinkPublicUrl } from '@/src/lib/billing/paymentLinkUrl';
 import { revalidateFinancialViews } from '@/src/lib/billing/revalidateFinancialViews';
 import { formatDate } from '@/src/lib/dates';
@@ -208,8 +209,25 @@ export async function createResidentCharge(
       rentInvoiceId: invoiceRes.invoiceId,
       createdByAdminId: input.actorId,
       chargeRequest: true,
+      idempotencyKey: expressSaleIdempotencyKey({
+        rentInvoiceId: invoiceRes.invoiceId,
+        linkId: invoiceRes.invoiceId,
+      }),
     });
     if (!linkRes.ok) return { ok: false, error: linkRes.message };
+
+    const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
+    const unifiedId = await syncRentInvoiceToUnified(invoiceRes.invoiceId);
+    if (unifiedId) {
+      await db
+        .update(financialInvoices)
+        .set({ paymentLinkId: linkRes.link.id, updatedAt: new Date() })
+        .where(eq(financialInvoices.id, unifiedId));
+      await db
+        .update(paymentLinks)
+        .set({ invoiceId: unifiedId })
+        .where(eq(paymentLinks.id, linkRes.link.id));
+    }
 
     return {
       ok: true,

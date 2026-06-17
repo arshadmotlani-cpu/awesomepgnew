@@ -29,6 +29,8 @@ export const paymentLinks = pgTable(
       onDelete: 'set null',
     }),
     createdByAdminId: uuid('created_by_admin_id'),
+    /** Idempotency key for express-sale / charge-generator links. */
+    idempotencyKey: text('idempotency_key'),
     status: paymentLinkStatusEnum('status').notNull().default('active'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

@@ -7,6 +7,10 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { financialInvoices, rentInvoices } from '@/src/db/schema';
 import {
+  isFinancialInvoicePaymentLocked,
+  logInvoiceStateTransition,
+} from '@/src/lib/billing/invoiceStateMachine';
+import {
   syncElectricityInvoiceToUnified,
   syncRentInvoiceToUnified,
 } from '@/src/services/unifiedInvoices';
@@ -34,16 +38,19 @@ export async function reconcileStaleFinancialInvoices(opts?: {
     ? sql`AND ei.billing_month = ${opts.billingMonth}::date`
     : sql``;
 
-  const driftRent = await db.execute<{ id: string; rent_id: string }>(sql`
-    SELECT fi.id, ri.id AS rent_id
+  const driftRent = await db.execute<{ id: string; rent_id: string; fi_status: string; ri_status: string }>(sql`
+    SELECT fi.id, ri.id AS rent_id, fi.status AS fi_status, ri.status AS ri_status
     FROM financial_invoices fi
     INNER JOIN rent_invoices ri ON fi.source_table = 'rent_invoices' AND fi.source_id = ri.id
     WHERE ri.status = 'cancelled'
-      AND fi.status NOT IN ('cancelled', 'refunded')
+      AND ri.payment_proof_url IS NULL
+      AND ri.payment_id IS NULL
+      AND fi.status NOT IN ('cancelled', 'refunded', 'payment_in_progress', 'processing', 'settled', 'paid', 'partial')
       ${monthFilter}
   `);
 
   for (const row of Array.from(driftRent)) {
+    if (isFinancialInvoicePaymentLocked(row.fi_status)) continue;
     await db
       .update(financialInvoices)
       .set({
@@ -53,6 +60,14 @@ export async function reconcileStaleFinancialInvoices(opts?: {
         updatedAt: new Date(),
       })
       .where(eq(financialInvoices.id, row.id));
+    logInvoiceStateTransition({
+      invoiceId: row.id,
+      layer: 'financial',
+      previousStatus: row.fi_status,
+      newStatus: 'cancelled',
+      source: 'reconcile',
+      meta: { rentInvoiceId: row.rent_id },
+    });
     financialRowsCancelled += 1;
     await syncRentInvoiceToUnified(row.rent_id);
     rentUnifiedSynced += 1;
@@ -86,9 +101,9 @@ export async function reconcileStaleFinancialInvoices(opts?: {
     SELECT ri.id AS rent_id
     FROM rent_invoices ri
     LEFT JOIN financial_invoices fi ON fi.source_table = 'rent_invoices' AND fi.source_id = ri.id
-    WHERE ri.status IN ('pending', 'overdue', 'cancelled')
+    WHERE ri.status IN ('pending', 'overdue', 'payment_in_progress', 'cancelled', 'paid')
       AND fi.id IS NOT NULL
-      AND fi.status IN ('paid', 'sent', 'overdue', 'draft')
+      AND fi.status IN ('paid', 'sent', 'overdue', 'draft', 'payment_in_progress')
       ${monthFilter}
   `);
 

@@ -1,6 +1,6 @@
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { paymentLinks } from '@/src/db/schema';
+import { financialInvoices, paymentLinks, rentInvoices } from '@/src/db/schema';
 import {
   buildBillingWhatsAppUrl,
   buildDepositDueWhatsAppUrl,
@@ -40,6 +40,8 @@ export type CreatePaymentLinkInput = {
   createdByAdminId?: string;
   /** Use charge-request WhatsApp template when title is set. */
   chargeRequest?: boolean;
+  /** Stable idempotency key for express-sale / charge-generator links. */
+  idempotencyKey?: string;
 };
 
 export async function getOrCreatePaymentLink(input: CreatePaymentLinkInput) {
@@ -101,6 +103,23 @@ export async function getOrCreatePaymentLink(input: CreatePaymentLinkInput) {
 }
 
 export async function createPaymentLink(input: CreatePaymentLinkInput) {
+  if (input.idempotencyKey) {
+    const [existingByKey] = await db
+      .select()
+      .from(paymentLinks)
+      .where(eq(paymentLinks.idempotencyKey, input.idempotencyKey))
+      .limit(1);
+    if (existingByKey) {
+      const publicUrl = paymentLinkPublicUrl(existingByKey.id);
+      return {
+        ok: true as const,
+        link: { ...existingByKey, whatsappShareUrl: existingByKey.whatsappShareUrl },
+        upiId: null as string | null,
+        publicUrl,
+      };
+    }
+  }
+
   const qr = await getPgQrForPurpose(input.pgId, input.purpose);
   if (!qr) {
     return { ok: false as const, message: 'No UPI QR configured for this PG.' };
@@ -121,6 +140,7 @@ export async function createPaymentLink(input: CreatePaymentLinkInput) {
       bookingId: input.bookingId ?? null,
       rentInvoiceId: input.rentInvoiceId ?? null,
       createdByAdminId: input.createdByAdminId ?? null,
+      idempotencyKey: input.idempotencyKey ?? null,
     })
     .returning();
 
@@ -322,13 +342,108 @@ export async function expireStalePaymentLinks(maxAgeDays = 30) {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - maxAgeDays);
 
-  const expired = await db
-    .update(paymentLinks)
-    .set({ status: 'expired' })
+  const staleLinks = await db
+    .select({
+      id: paymentLinks.id,
+      rentInvoiceId: paymentLinks.rentInvoiceId,
+      invoiceId: paymentLinks.invoiceId,
+    })
+    .from(paymentLinks)
     .where(
-      and(eq(paymentLinks.status, 'active'), sql`${paymentLinks.createdAt} < ${cutoff}`),
-    )
-    .returning({ id: paymentLinks.id });
+      and(
+        eq(paymentLinks.status, 'active'),
+        sql`${paymentLinks.createdAt} < ${cutoff}`,
+        isNull(paymentLinks.paymentProofUrl),
+      ),
+    );
 
-  return expired.length;
+  let expiredCount = 0;
+  const { logInvoiceStateTransition } = await import('@/src/lib/billing/invoiceStateMachine');
+
+  for (const link of staleLinks) {
+    if (link.rentInvoiceId) {
+      const [rent] = await db
+        .select({ status: rentInvoices.status })
+        .from(rentInvoices)
+        .where(eq(rentInvoices.id, link.rentInvoiceId))
+        .limit(1);
+      if (
+        rent &&
+        (rent.status === 'payment_in_progress' ||
+          rent.status === 'paid' ||
+          rent.status === 'cancelled')
+      ) {
+        continue;
+      }
+    }
+
+    const [updated] = await db
+      .update(paymentLinks)
+      .set({ status: 'expired' })
+      .where(
+        and(eq(paymentLinks.id, link.id), eq(paymentLinks.status, 'active')),
+      )
+      .returning({ id: paymentLinks.id });
+
+    if (!updated) continue;
+    expiredCount += 1;
+
+    if (link.rentInvoiceId) {
+      const [rentRow] = await db
+        .select({ status: rentInvoices.status })
+        .from(rentInvoices)
+        .where(eq(rentInvoices.id, link.rentInvoiceId))
+        .limit(1);
+      if (rentRow && (rentRow.status === 'pending' || rentRow.status === 'overdue')) {
+        await db
+          .update(rentInvoices)
+          .set({ status: 'expired', updatedAt: new Date() })
+          .where(
+            and(
+              eq(rentInvoices.id, link.rentInvoiceId),
+              inArray(rentInvoices.status, ['pending', 'overdue']),
+            ),
+          );
+        logInvoiceStateTransition({
+          invoiceId: link.rentInvoiceId,
+          layer: 'rent',
+          previousStatus: rentRow.status,
+          newStatus: 'expired',
+          source: 'cron',
+          meta: { paymentLinkId: link.id },
+        });
+        const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
+        await syncRentInvoiceToUnified(link.rentInvoiceId).catch(() => undefined);
+      }
+    }
+
+    if (link.invoiceId) {
+      const [fi] = await db
+        .select({ status: financialInvoices.status })
+        .from(financialInvoices)
+        .where(eq(financialInvoices.id, link.invoiceId))
+        .limit(1);
+      if (fi && ['draft', 'sent', 'overdue'].includes(fi.status)) {
+        await db
+          .update(financialInvoices)
+          .set({ status: 'expired', updatedAt: new Date() })
+          .where(
+            and(
+              eq(financialInvoices.id, link.invoiceId),
+              inArray(financialInvoices.status, ['draft', 'sent', 'overdue']),
+            ),
+          );
+        logInvoiceStateTransition({
+          invoiceId: link.invoiceId,
+          layer: 'financial',
+          previousStatus: fi.status,
+          newStatus: 'expired',
+          source: 'cron',
+          meta: { paymentLinkId: link.id },
+        });
+      }
+    }
+  }
+
+  return expiredCount;
 }

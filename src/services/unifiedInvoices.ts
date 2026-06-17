@@ -20,6 +20,14 @@ import type { FinancialInvoice, InvoiceBreakdown } from '@/src/db/schema/financi
 import type { FinancialInvoiceStatus, FinancialInvoiceType } from '@/src/db/schema/enums';
 import { createPaymentLink } from '@/src/services/paymentLinks';
 import { buildInvoiceWhatsAppUrl } from '@/src/lib/billing/invoiceWhatsApp';
+import {
+  FINANCIAL_CANCELLABLE_STATUSES,
+  isFinancialInvoiceCancellable,
+  isRentInvoiceCancellable,
+  logInvoiceStateTransition,
+  mergeFinancialStatusFromRent,
+  rentStatusToUnifiedStatus,
+} from '@/src/lib/billing/invoiceStateMachine';
 
 export const REVENUE_INVOICE_STATUSES = ['paid'] as const;
 
@@ -74,11 +82,7 @@ async function loadBedContext(bedId: string) {
 }
 
 function rentStatusToUnified(status: string, dueDate: string): FinancialInvoiceStatus {
-  if (status === 'paid') return 'paid';
-  if (status === 'cancelled') return 'cancelled';
-  if (status === 'overdue') return 'overdue';
-  if (dueDate < new Date().toISOString().slice(0, 10)) return 'overdue';
-  return 'sent';
+  return rentStatusToUnifiedStatus(status, dueDate);
 }
 
 function elecStatusToUnified(status: string, dueDate: string): FinancialInvoiceStatus {
@@ -101,10 +105,9 @@ export async function syncRentInvoiceToUnified(rentInvoiceId: string): Promise<s
     lateFeePaise: ri.paidLateFeePaise ?? 0,
     lines: [{ kind: 'rent', label: rentLabel, amountPaise: ri.rentPaise }],
   };
-  const status = rentStatusToUnified(ri.status, ri.dueDate);
 
   const [existing] = await db
-    .select({ id: financialInvoices.id })
+    .select({ id: financialInvoices.id, status: financialInvoices.status })
     .from(financialInvoices)
     .where(
       and(
@@ -114,7 +117,24 @@ export async function syncRentInvoiceToUnified(rentInvoiceId: string): Promise<s
     )
     .limit(1);
 
+  const status = mergeFinancialStatusFromRent(
+    existing?.status,
+    ri.status,
+    ri.dueDate,
+    Boolean(ri.paymentProofUrl),
+  );
+
   if (existing) {
+    if (existing.status !== status) {
+      logInvoiceStateTransition({
+        invoiceId: existing.id,
+        layer: 'financial',
+        previousStatus: existing.status,
+        newStatus: status,
+        source: 'system',
+        meta: { rentInvoiceId, trigger: 'syncRentInvoiceToUnified' },
+      });
+    }
     await db
       .update(financialInvoices)
       .set({
@@ -362,13 +382,186 @@ export async function cancelUnifiedInvoice(
     }
   | { ok: false; error: string }
 > {
-  const [inv] = await db
-    .select()
-    .from(financialInvoices)
-    .where(eq(financialInvoices.id, invoiceId))
-    .limit(1);
-  if (!inv) return { ok: false, error: 'Invoice not found.' };
-  if (inv.status === 'cancelled') {
+  const { getResidentFinancialSummary } = await import('@/src/services/residentFinancialEngine');
+  const transitionSource =
+    actor?.type === 'admin' ? ('admin' as const) : ('user' as const);
+
+  const txResult = await db.transaction(async (tx) => {
+    const [inv] = await tx
+      .select()
+      .from(financialInvoices)
+      .where(eq(financialInvoices.id, invoiceId))
+      .for('update')
+      .limit(1);
+
+    if (!inv) return { ok: false as const, error: 'Invoice not found.' };
+    if (inv.status === 'cancelled') {
+      return { ok: true as const, alreadyCancelled: true as const, inv, cascadedSources: [] as string[] };
+    }
+    if (!isFinancialInvoiceCancellable(inv.status)) {
+      return {
+        ok: false as const,
+        error: `Cannot cancel invoice in status "${inv.status}". Only pending or expired invoices can be cancelled.`,
+      };
+    }
+
+    const [updated] = await tx
+      .update(financialInvoices)
+      .set({
+        status: 'cancelled',
+        cancelledAt: new Date(),
+        cancellationReason: reason,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(financialInvoices.id, invoiceId),
+          inArray(financialInvoices.status, [...FINANCIAL_CANCELLABLE_STATUSES]),
+        ),
+      )
+      .returning({ id: financialInvoices.id });
+
+    if (!updated) {
+      return {
+        ok: false as const,
+        error: 'Invoice state changed during cancellation — payment may be in progress.',
+      };
+    }
+
+    logInvoiceStateTransition({
+      invoiceId,
+      layer: 'financial',
+      previousStatus: inv.status,
+      newStatus: 'cancelled',
+      source: transitionSource,
+      meta: { reason },
+    });
+
+    const cascadedSources: string[] = [];
+
+    if (inv.paymentLinkId) {
+      await tx
+        .update(paymentLinks)
+        .set({ status: 'expired' })
+        .where(and(eq(paymentLinks.id, inv.paymentLinkId), eq(paymentLinks.status, 'active')));
+    }
+
+    const lines = inv.breakdown?.lines ?? [];
+    const isCombined = inv.invoiceType === 'combined' || lines.length > 1;
+
+    const cancelRent = async (rentId: string) => {
+      const [rentRow] = await tx
+        .select({ status: rentInvoices.status })
+        .from(rentInvoices)
+        .where(eq(rentInvoices.id, rentId))
+        .for('update')
+        .limit(1);
+      if (!rentRow || !isRentInvoiceCancellable(rentRow.status)) return;
+
+      const [rentUpdated] = await tx
+        .update(rentInvoices)
+        .set({
+          status: 'cancelled',
+          cancelledAt: new Date(),
+          cancellationReason: reason,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(rentInvoices.id, rentId),
+            inArray(rentInvoices.status, ['pending', 'overdue', 'expired']),
+          ),
+        )
+        .returning({ id: rentInvoices.id });
+
+      if (rentUpdated) {
+        logInvoiceStateTransition({
+          invoiceId: rentId,
+          layer: 'rent',
+          previousStatus: rentRow.status,
+          newStatus: 'cancelled',
+          source: transitionSource,
+          meta: { reason, parentFinancialInvoiceId: invoiceId },
+        });
+        cascadedSources.push(`cancel:rent:${rentId}`);
+      }
+    };
+
+    if (isCombined || lines.length > 0) {
+      for (const line of lines) {
+        if (line.sourceTable === 'rent_invoices' && line.sourceId) {
+          if (inv.invoiceType === 'combined') {
+            cascadedSources.push(`skip:rent:${line.sourceId}:combined`);
+          } else {
+            await cancelRent(line.sourceId);
+          }
+        }
+        if (line.sourceTable === 'electricity_invoices' && line.sourceId) {
+          if (inv.invoiceType !== 'combined') {
+            await tx
+              .update(electricityInvoices)
+              .set({ status: 'cancelled', cancelledAt: new Date(), updatedAt: new Date() })
+              .where(
+                and(
+                  eq(electricityInvoices.id, line.sourceId),
+                  inArray(electricityInvoices.status, ['pending']),
+                ),
+              );
+            cascadedSources.push(`cancel:electricity:${line.sourceId}`);
+          }
+        }
+        if (
+          line.sourceTable === 'financial_invoices' &&
+          line.sourceId &&
+          line.sourceId !== inv.id
+        ) {
+          const [nestedUpdated] = await tx
+            .update(financialInvoices)
+            .set({
+              status: 'cancelled',
+              cancelledAt: new Date(),
+              cancellationReason: `Cancelled with parent ${inv.invoiceNumber}`,
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(financialInvoices.id, line.sourceId),
+                inArray(financialInvoices.status, [...FINANCIAL_CANCELLABLE_STATUSES]),
+              ),
+            )
+            .returning({ id: financialInvoices.id });
+          if (nestedUpdated) {
+            cascadedSources.push(`cancel:custom:${line.sourceId}`);
+          }
+        }
+      }
+    } else {
+      if (inv.sourceTable === 'rent_invoices' && inv.sourceId) {
+        await cancelRent(inv.sourceId);
+      }
+      if (inv.sourceTable === 'electricity_invoices' && inv.sourceId) {
+        await tx
+          .update(electricityInvoices)
+          .set({ status: 'cancelled', cancelledAt: new Date(), updatedAt: new Date() })
+          .where(
+            and(
+              eq(electricityInvoices.id, inv.sourceId),
+              inArray(electricityInvoices.status, ['pending']),
+            ),
+          );
+        cascadedSources.push(`cancel:electricity:${inv.sourceId}`);
+      }
+    }
+
+    return { ok: true as const, alreadyCancelled: false as const, inv, cascadedSources };
+  });
+
+  if (!txResult.ok) return txResult;
+
+  const beforeSummary = await getResidentFinancialSummary(txResult.inv.customerId);
+  const beforeOutstanding = beforeSummary?.totals.outstandingPaise ?? 0;
+
+  if (txResult.alreadyCancelled) {
     return {
       ok: true,
       audit: {
@@ -379,122 +572,17 @@ export async function cancelUnifiedInvoice(
       },
     };
   }
-  if (inv.status === 'paid' || inv.status === 'partial') {
-    return { ok: false, error: 'Paid invoices must be refunded, not cancelled.' };
-  }
-
-  const { getResidentFinancialSummary } = await import('@/src/services/residentFinancialEngine');
-  const beforeSummary = await getResidentFinancialSummary(inv.customerId);
-  const beforeOutstanding = beforeSummary?.totals.outstandingPaise ?? 0;
 
   const before = {
-    status: inv.status,
-    amountPaise: inv.amountPaise,
+    status: txResult.inv.status,
+    amountPaise: txResult.inv.amountPaise,
     outstandingPaise: beforeOutstanding,
   };
-  const cascadedSources: string[] = [];
-
-  await db
-    .update(financialInvoices)
-    .set({
-      status: 'cancelled',
-      cancelledAt: new Date(),
-      cancellationReason: reason,
-      updatedAt: new Date(),
-    })
-    .where(eq(financialInvoices.id, invoiceId));
-
-  if (inv.paymentLinkId) {
-    await db
-      .update(paymentLinks)
-      .set({ status: 'expired' })
-      .where(and(eq(paymentLinks.id, inv.paymentLinkId), eq(paymentLinks.status, 'active')));
-  }
-
-  const lines = inv.breakdown?.lines ?? [];
-  const isCombined = inv.invoiceType === 'combined' || lines.length > 1;
-
-  if (isCombined || lines.length > 0) {
-    for (const line of lines) {
-      if (line.sourceTable === 'rent_invoices' && line.sourceId) {
-        if (inv.invoiceType === 'combined') {
-          await syncRentInvoiceToUnified(line.sourceId);
-          cascadedSources.push(`sync:rent:${line.sourceId}`);
-        } else {
-          await db
-            .update(rentInvoices)
-            .set({
-              status: 'cancelled',
-              cancelledAt: new Date(),
-              cancellationReason: reason,
-              updatedAt: new Date(),
-            })
-            .where(eq(rentInvoices.id, line.sourceId));
-          cascadedSources.push(`cancel:rent:${line.sourceId}`);
-        }
-      }
-      if (line.sourceTable === 'electricity_invoices' && line.sourceId) {
-        if (inv.invoiceType === 'combined') {
-          await syncElectricityInvoiceToUnified(line.sourceId);
-          cascadedSources.push(`sync:electricity:${line.sourceId}`);
-        } else {
-          await db
-            .update(electricityInvoices)
-            .set({ status: 'cancelled', cancelledAt: new Date(), updatedAt: new Date() })
-            .where(eq(electricityInvoices.id, line.sourceId));
-          cascadedSources.push(`cancel:electricity:${line.sourceId}`);
-        }
-      }
-      if (
-        line.sourceTable === 'financial_invoices' &&
-        line.sourceId &&
-        line.sourceId !== inv.id
-      ) {
-        const [nested] = await db
-          .select({ status: financialInvoices.status })
-          .from(financialInvoices)
-          .where(eq(financialInvoices.id, line.sourceId))
-          .limit(1);
-        if (nested && nested.status !== 'cancelled' && nested.status !== 'paid') {
-          await db
-            .update(financialInvoices)
-            .set({
-              status: 'cancelled',
-              cancelledAt: new Date(),
-              cancellationReason: `Cancelled with parent ${inv.invoiceNumber}`,
-              updatedAt: new Date(),
-            })
-            .where(eq(financialInvoices.id, line.sourceId));
-          cascadedSources.push(`cancel:custom:${line.sourceId}`);
-        }
-      }
-    }
-  } else {
-    if (inv.sourceTable === 'rent_invoices' && inv.sourceId) {
-      await db
-        .update(rentInvoices)
-        .set({
-          status: 'cancelled',
-          cancelledAt: new Date(),
-          cancellationReason: reason,
-          updatedAt: new Date(),
-        })
-        .where(eq(rentInvoices.id, inv.sourceId));
-      cascadedSources.push(`cancel:rent:${inv.sourceId}`);
-    }
-    if (inv.sourceTable === 'electricity_invoices' && inv.sourceId) {
-      await db
-        .update(electricityInvoices)
-        .set({ status: 'cancelled', cancelledAt: new Date(), updatedAt: new Date() })
-        .where(eq(electricityInvoices.id, inv.sourceId));
-      cascadedSources.push(`cancel:electricity:${inv.sourceId}`);
-    }
-  }
 
   const { reconcileStaleFinancialInvoices } = await import('@/src/lib/billing/financialMetrics');
   await reconcileStaleFinancialInvoices();
 
-  const afterSummary = await getResidentFinancialSummary(inv.customerId);
+  const afterSummary = await getResidentFinancialSummary(txResult.inv.customerId);
   const afterOutstanding = afterSummary?.totals.outstandingPaise ?? 0;
 
   await logInvoiceAudit(
@@ -504,7 +592,7 @@ export async function cancelUnifiedInvoice(
       before,
       after: { status: 'cancelled', reason, outstandingPaise: afterOutstanding },
       differencePaise: afterOutstanding - beforeOutstanding,
-      cascadedSources,
+      cascadedSources: txResult.cascadedSources,
     },
     actor,
   );
@@ -518,7 +606,7 @@ export async function cancelUnifiedInvoice(
       beforeOutstandingPaise: beforeOutstanding,
       afterOutstandingPaise: afterOutstanding,
       differencePaise: afterOutstanding - beforeOutstanding,
-      cascadedSources,
+      cascadedSources: txResult.cascadedSources,
     },
   };
 }
@@ -562,22 +650,54 @@ export async function markUnifiedInvoicePaid(
   paymentId?: string | null,
   actor?: { type: string; id?: string | null },
 ) {
-  const [inv] = await db
-    .select()
-    .from(financialInvoices)
-    .where(eq(financialInvoices.id, invoiceId))
-    .limit(1);
-  if (!inv || inv.status === 'cancelled' || inv.status === 'refunded') return;
+  const result = await db.transaction(async (tx) => {
+    const [inv] = await tx
+      .select()
+      .from(financialInvoices)
+      .where(eq(financialInvoices.id, invoiceId))
+      .for('update')
+      .limit(1);
+    if (!inv || inv.status === 'cancelled' || inv.status === 'refunded' || inv.status === 'paid') {
+      return null;
+    }
 
-  await db
-    .update(financialInvoices)
-    .set({
-      status: 'paid',
-      paidAt: new Date(),
-      paymentId: paymentId ?? inv.paymentId,
-      updatedAt: new Date(),
-    })
-    .where(eq(financialInvoices.id, invoiceId));
+    const [updated] = await tx
+      .update(financialInvoices)
+      .set({
+        status: 'paid',
+        paidAt: new Date(),
+        paymentId: paymentId ?? inv.paymentId,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(financialInvoices.id, invoiceId),
+          inArray(financialInvoices.status, [
+            'draft',
+            'sent',
+            'overdue',
+            'payment_in_progress',
+            'processing',
+            'partial',
+          ]),
+        ),
+      )
+      .returning({ id: financialInvoices.id });
+
+    if (!updated) return null;
+    return { previousStatus: inv.status };
+  });
+
+  if (!result) return;
+
+  logInvoiceStateTransition({
+    invoiceId,
+    layer: 'financial',
+    previousStatus: result.previousStatus,
+    newStatus: 'paid',
+    source: actor?.type === 'admin' ? 'admin' : 'webhook',
+    meta: { paymentId },
+  });
 
   await logInvoiceAudit(invoiceId, 'paid', { paymentId }, actor);
 }

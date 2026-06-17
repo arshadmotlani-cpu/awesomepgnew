@@ -1432,7 +1432,7 @@ export type AdminRentInvoiceRow = {
   paidPrincipalPaise: number;
   paidLateFeePaise: number;
   lateFeeLockedPaise: number | null;
-  status: 'pending' | 'paid' | 'overdue' | 'cancelled';
+  status: 'pending' | 'payment_in_progress' | 'paid' | 'overdue' | 'expired' | 'cancelled';
   paidAt: Date | null;
   createdAt: Date;
   notes: string | null;

@@ -137,8 +137,10 @@ export const auditActorTypeEnum = pgEnum('audit_actor_type', ['customer', 'admin
 
 export const rentInvoiceStatusEnum = pgEnum('rent_invoice_status', [
   'pending',
+  'payment_in_progress',
   'paid',
   'overdue',
+  'expired',
   'cancelled',
 ]);
 
@@ -245,9 +247,13 @@ export const financialInvoiceTypeEnum = pgEnum('financial_invoice_type', [
 export const financialInvoiceStatusEnum = pgEnum('financial_invoice_status', [
   'draft',
   'sent',
+  'payment_in_progress',
+  'processing',
   'paid',
   'partial',
+  'settled',
   'overdue',
+  'expired',
   'cancelled',
   'refunded',
 ]);
