@@ -1,57 +1,17 @@
 /**
- * Checkout electricity — meter delta × rate, split by room monthly occupants.
+ * Checkout electricity — server-side room context + DB lookups.
  */
 
 import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { bedReservations, beds, bookings } from '@/src/db/schema';
-import { DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE } from '@/src/lib/billing/constants';
 import { asPlainNumber } from '@/src/lib/format';
 
-export type CheckoutElectricityCalc = {
-  unitsConsumed: number;
-  totalBillPaise: number;
-  roomOccupants: number;
-  sharePaise: number;
-  ratePerUnitPaise: number;
-};
-
-export function calculateCheckoutElectricity(input: {
-  previousReading: number;
-  currentReading: number;
-  ratePerUnitPaise: number;
-  roomOccupants: number;
-}): { ok: true; calc: CheckoutElectricityCalc } | { ok: false; error: string } {
-  const previous = asPlainNumber(input.previousReading);
-  const current = asPlainNumber(input.currentReading);
-  const rate = asPlainNumber(input.ratePerUnitPaise);
-  const occupants = Math.max(1, Math.floor(asPlainNumber(input.roomOccupants)));
-
-  if (previous < 0 || current < 0) {
-    return { ok: false, error: 'Meter readings cannot be negative.' };
-  }
-  if (current < previous) {
-    return { ok: false, error: 'Current reading must be greater than or equal to previous reading.' };
-  }
-  if (rate <= 0) {
-    return { ok: false, error: 'Rate per unit must be greater than zero.' };
-  }
-
-  const unitsConsumed = current - previous;
-  const totalBillPaise = Math.round(unitsConsumed * rate);
-  const sharePaise = Math.floor(totalBillPaise / occupants);
-
-  return {
-    ok: true,
-    calc: {
-      unitsConsumed,
-      totalBillPaise,
-      roomOccupants: occupants,
-      sharePaise,
-      ratePerUnitPaise: rate,
-    },
-  };
-}
+export type { CheckoutElectricityCalc } from '@/src/lib/checkout/electricitySettlementCalc';
+export {
+  calculateCheckoutElectricity,
+  defaultElectricityRatePaise,
+} from '@/src/lib/checkout/electricitySettlementCalc';
 
 /** Active monthly/open-ended residents in the same room today (minimum 1). */
 export async function resolveRoomMonthlyOccupantCount(bookingId: string): Promise<number> {
@@ -75,10 +35,6 @@ export async function resolveRoomMonthlyOccupantCount(bookingId: string): Promis
       AND CURRENT_DATE <@ br.stay_range
   `);
   return Math.max(1, asPlainNumber(rows[0]?.occupant_count ?? 1));
-}
-
-export function defaultElectricityRatePaise(): number {
-  return DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE;
 }
 
 /** Resolve room id for a booking's primary bed. */

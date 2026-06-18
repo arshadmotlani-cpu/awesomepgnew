@@ -6,7 +6,7 @@ import {
   updateCheckoutElectricityAction,
   type CheckoutSettlementActionState,
 } from '@/app/(admin)/admin/checkout-settlements/actions';
-import { calculateCheckoutElectricity } from '@/src/lib/checkout/electricitySettlement';
+import { calculateCheckoutElectricity } from '@/src/lib/checkout/electricitySettlementCalc';
 import { paiseToInr } from '@/src/lib/format';
 import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement';
 
