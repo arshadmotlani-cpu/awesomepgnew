@@ -1,10 +1,14 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import {
   approveCheckoutSettlement,
+  archiveCheckoutSettlement,
+  deleteCheckoutSettlement,
   markCheckoutRefundPaid,
+  rebuildCheckoutSettlement,
   updateCheckoutSettlementAdminFields,
 } from '@/src/services/checkoutSettlement';
 
@@ -117,4 +121,62 @@ export async function updateCheckoutSettlementFieldsAction(
   }
   revalidateCheckoutPaths(settlementId);
   return { status: 'ok', message: 'Settlement amounts updated.' };
+}
+
+export async function deleteCheckoutSettlementAction(
+  _prev: CheckoutSettlementActionState,
+  formData: FormData,
+): Promise<CheckoutSettlementActionState> {
+  const admin = await requireAdminPermission('deposits:write');
+  const settlementId = String(formData.get('settlementId') ?? '');
+  const confirm = String(formData.get('confirmText') ?? '').trim();
+  if (confirm !== 'DELETE') {
+    return { status: 'error', message: 'Type DELETE to confirm removal.' };
+  }
+
+  const result = await deleteCheckoutSettlement({
+    settlementId,
+    adminId: admin.adminId,
+  });
+  if (!result.ok) {
+    return { status: 'error', message: result.error };
+  }
+  revalidateCheckoutPaths(settlementId);
+  redirect('/admin/checkout-settlements');
+}
+
+export async function rebuildCheckoutSettlementAction(
+  _prev: CheckoutSettlementActionState,
+  formData: FormData,
+): Promise<CheckoutSettlementActionState> {
+  const admin = await requireAdminPermission('deposits:write');
+  const settlementId = String(formData.get('settlementId') ?? '');
+
+  const result = await rebuildCheckoutSettlement({
+    settlementId,
+    adminId: admin.adminId,
+  });
+  if (!result.ok) {
+    return { status: 'error', message: result.error };
+  }
+  revalidateCheckoutPaths(result.settlementId);
+  redirect(`/admin/checkout-settlements/${result.settlementId}`);
+}
+
+export async function archiveCheckoutSettlementAction(
+  _prev: CheckoutSettlementActionState,
+  formData: FormData,
+): Promise<CheckoutSettlementActionState> {
+  const admin = await requireAdminPermission('deposits:write');
+  const settlementId = String(formData.get('settlementId') ?? '');
+
+  const result = await archiveCheckoutSettlement({
+    settlementId,
+    adminId: admin.adminId,
+  });
+  if (!result.ok) {
+    return { status: 'error', message: result.error };
+  }
+  revalidateCheckoutPaths(settlementId);
+  redirect('/admin/checkout-settlements?tab=archived');
 }

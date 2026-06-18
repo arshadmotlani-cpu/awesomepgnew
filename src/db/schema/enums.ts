@@ -17,6 +17,7 @@ export const checkoutSettlementStatusEnum = pgEnum('checkout_settlement_status',
   'refund_pending',
   'refund_paid',
   'completed',
+  'archived',
 ]);
 
 export type CheckoutSettlementStatus =

@@ -16,11 +16,11 @@ import type { RefundDeductionsSnapshot } from '@/src/db/schema/residentRequests'
 import type { AdminSession } from '@/src/lib/auth/session';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import { diffDays } from '@/src/lib/dates';
+import { asPlainNumber } from '@/src/lib/format';
 import {
   DEPOSIT_REFUND_MISSING_DETAILS_MESSAGE,
   validateDepositRefundSubmission,
 } from '@/src/lib/billing/depositRefundRequirements';
-import { computeRefundDeductions } from '@/src/lib/refundDeductions';
 import {
   noticeShortfallDeduction,
   noticeShortfallDays,
@@ -39,7 +39,8 @@ export type CheckoutSettlementListTab =
   | 'awaiting_review'
   | 'approved'
   | 'refund_pending'
-  | 'completed';
+  | 'completed'
+  | 'archived';
 
 const TAB_STATUS: Record<CheckoutSettlementListTab, CheckoutSettlementStatus[]> = {
   awaiting_resident: ['awaiting_resident_details'],
@@ -47,7 +48,13 @@ const TAB_STATUS: Record<CheckoutSettlementListTab, CheckoutSettlementStatus[]> 
   approved: ['approved'],
   refund_pending: ['refund_pending'],
   completed: ['refund_paid', 'completed'],
+  archived: ['archived'],
 };
+
+/** Raw SQL bigint columns arrive as strings — coerce before any arithmetic. */
+function paiseField(value: unknown): number {
+  return asPlainNumber(value);
+}
 
 export type CheckoutSettlementRow = CheckoutSettlement & {
   customerName: string;
@@ -82,40 +89,33 @@ function hasResidentRefundDetails(row: CheckoutSettlement): boolean {
 }
 
 function buildPreview(row: CheckoutSettlement, depositHeldPaise: number) {
-  const noticeDeductionPaise = row.amountsLocked
-    ? row.noticeDeductionPaise
-    : row.noticeDeductionPaise;
-  const electricityDeductionPaise = row.electricitySharePaise;
-  const calc = computeRefundDeductions(depositHeldPaise, {
-    electricityUnitCostPaise: row.electricityUnitRatePaise ?? undefined,
-    electricityUnits: row.electricityUnits ? Number(row.electricityUnits) : undefined,
-    damageChargePaise: row.damageChargePaise,
-    cleaningChargePaise: row.cleaningChargePaise,
-    penaltyChargePaise: noticeDeductionPaise,
-    customChargePaise: row.customChargePaise,
-    customChargeLabel: row.customChargeLabel ?? undefined,
-  });
-  if (row.amountsLocked && row.finalRefundPaise != null) {
-    return {
-      ...calc,
-      noticeDeductionPaise,
-      electricityDeductionPaise,
-      finalRefundPaise: row.finalRefundPaise,
-      penaltyChargePaise: noticeDeductionPaise,
-    };
-  }
+  const held = paiseField(depositHeldPaise);
+  const noticeDeductionPaise = paiseField(row.noticeDeductionPaise);
+  const electricityDeductionPaise = paiseField(row.electricitySharePaise);
+  const damageChargePaise = paiseField(row.damageChargePaise);
+  const cleaningChargePaise = paiseField(row.cleaningChargePaise);
+  const customChargePaise = paiseField(row.customChargePaise);
+
   const totalDeductionsPaise =
     noticeDeductionPaise +
     electricityDeductionPaise +
-    row.damageChargePaise +
-    row.cleaningChargePaise +
-    row.customChargePaise;
-  const finalRefundPaise = Math.max(0, depositHeldPaise - totalDeductionsPaise);
+    damageChargePaise +
+    cleaningChargePaise +
+    customChargePaise;
+  const finalRefundPaise =
+    row.amountsLocked && row.finalRefundPaise != null
+      ? paiseField(row.finalRefundPaise)
+      : Math.max(0, held - totalDeductionsPaise);
+
   return {
-    ...calc,
+    depositHeldPaise: held,
     noticeDeductionPaise,
     electricityDeductionPaise,
+    damageChargePaise,
+    cleaningChargePaise,
     penaltyChargePaise: noticeDeductionPaise,
+    customChargePaise,
+    customChargeLabel: row.customChargeLabel ?? undefined,
     totalDeductionsPaise,
     finalRefundPaise,
   };
@@ -179,28 +179,30 @@ function mapDbSettlement(row: SettlementJoinRow): CheckoutSettlement {
     bookingId: row.booking_id,
     customerId: row.customer_id,
     status: row.status,
-    noticeRequiredDays: row.notice_required_days,
-    noticeGivenDays: row.notice_given_days,
-    noticeShortfallDays: row.notice_shortfall_days,
-    noticeDeductionPaise: row.notice_deduction_paise,
-    monthlyRentPaiseSnapshot: row.monthly_rent_paise_snapshot,
-    depositRequiredPaise: row.deposit_required_paise,
+    noticeRequiredDays: asPlainNumber(row.notice_required_days),
+    noticeGivenDays: asPlainNumber(row.notice_given_days),
+    noticeShortfallDays: asPlainNumber(row.notice_shortfall_days),
+    noticeDeductionPaise: paiseField(row.notice_deduction_paise),
+    monthlyRentPaiseSnapshot: paiseField(row.monthly_rent_paise_snapshot),
+    depositRequiredPaise: paiseField(row.deposit_required_paise),
     electricityMeterPhotoUrl: row.electricity_meter_photo_url,
     electricityUseAverage: row.electricity_use_average,
     electricityPreviousReading: row.electricity_previous_reading,
     electricityCurrentReading: row.electricity_current_reading,
     electricityUnits: row.electricity_units,
     electricityOccupants: row.electricity_occupants,
-    electricityUnitRatePaise: row.electricity_unit_rate_paise,
-    electricitySharePaise: row.electricity_share_paise,
-    damageChargePaise: row.damage_charge_paise,
-    cleaningChargePaise: row.cleaning_charge_paise,
-    customChargePaise: row.custom_charge_paise,
+    electricityUnitRatePaise: row.electricity_unit_rate_paise
+      ? paiseField(row.electricity_unit_rate_paise)
+      : null,
+    electricitySharePaise: paiseField(row.electricity_share_paise),
+    damageChargePaise: paiseField(row.damage_charge_paise),
+    cleaningChargePaise: paiseField(row.cleaning_charge_paise),
+    customChargePaise: paiseField(row.custom_charge_paise),
     customChargeLabel: row.custom_charge_label,
     payoutUpiId: row.payout_upi_id,
     payoutQrUrl: row.payout_qr_url,
     deductionsSnapshot: row.deductions_snapshot,
-    finalRefundPaise: row.final_refund_paise,
+    finalRefundPaise: row.final_refund_paise != null ? paiseField(row.final_refund_paise) : null,
     amountsLocked: row.amounts_locked,
     refundMethod: row.refund_method,
     refundReference: row.refund_reference,
@@ -414,14 +416,14 @@ export async function getCheckoutSettlementDetail(
   }
 
   const wallet = await getDepositSummaryForBooking(row.bookingId);
-  const depositHeld = wallet?.refundableBalancePaise ?? 0;
+  const depositHeld = paiseField(wallet?.refundableBalancePaise ?? 0);
   const settlement = mapDbSettlement(row);
 
   return {
     ...mapJoinRow(row),
-    depositCollectedPaise: wallet?.collectedPaise ?? 0,
-    depositDeductedPaise: wallet?.deductedPaise ?? 0,
-    depositRefundedPaise: wallet?.refundedPaise ?? 0,
+    depositCollectedPaise: paiseField(wallet?.collectedPaise ?? 0),
+    depositDeductedPaise: paiseField(wallet?.deductedPaise ?? 0),
+    depositRefundedPaise: paiseField(wallet?.refundedPaise ?? 0),
     depositRefundablePaise: depositHeld,
     moveInDate: row.move_in_date,
     noticeGivenDate: row.notice_given_date,
@@ -876,17 +878,14 @@ export async function backfillCheckoutSettlementsFromVacating(input?: {
       noticeRequiredDays: VACATING_NOTICE_MIN_DAYS,
       noticeGivenDays: noticeGiven,
       noticeShortfallDays: shortfall,
-      noticeDeductionPaise: snapshot?.penaltyChargePaise ?? noticeDeduction,
+      noticeDeductionPaise: noticeDeduction,
       monthlyRentPaiseSnapshot: row.monthly_rent_paise_snapshot,
       depositRequiredPaise: booking?.depositPaise ?? 0,
-      electricitySharePaise: snapshot?.electricityDeductionPaise ?? 0,
-      electricityUnitRatePaise: snapshot?.electricityUnitCostPaise ?? null,
-      electricityUnits: snapshot?.electricityUnits != null ? String(snapshot.electricityUnits) : null,
-      damageChargePaise: snapshot?.damageChargePaise ?? 0,
-      cleaningChargePaise: snapshot?.cleaningChargePaise ?? 0,
-      customChargePaise: snapshot?.customChargePaise ?? 0,
-      customChargeLabel: snapshot?.customChargeLabel ?? null,
-      deductionsSnapshot: snapshot,
+      electricitySharePaise: 0,
+      damageChargePaise: 0,
+      cleaningChargePaise: 0,
+      customChargePaise: 0,
+      deductionsSnapshot: null,
       finalRefundPaise: row.deposit_refund_paise > 0 ? row.deposit_refund_paise : null,
       payoutUpiId: depositRefundRequest?.payout_upi_id ?? null,
       payoutQrUrl: depositRefundRequest?.payout_qr_url ?? null,
@@ -944,4 +943,115 @@ export async function backfillCheckoutSettlementsFromVacating(input?: {
   }
 
   return { scanned: missing.length, created };
+}
+
+export async function deleteCheckoutSettlement(input: {
+  settlementId: string;
+  adminId: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const [row] = await db
+    .select()
+    .from(checkoutSettlements)
+    .where(eq(checkoutSettlements.id, input.settlementId))
+    .limit(1);
+  if (!row) return { ok: false, error: 'Settlement not found.' };
+  if (row.amountsLocked || row.status === 'refund_paid' || row.status === 'completed') {
+    return {
+      ok: false,
+      error: 'Cannot delete a locked or completed settlement. Archive it instead.',
+    };
+  }
+
+  await db.delete(checkoutSettlements).where(eq(checkoutSettlements.id, input.settlementId));
+  await db.insert(auditLog).values({
+    actorType: 'admin',
+    actorId: input.adminId,
+    entity: 'checkout_settlement',
+    entityId: input.settlementId,
+    action: 'deleted',
+    diff: {
+      vacatingRequestId: row.vacatingRequestId,
+      bookingId: row.bookingId,
+      status: row.status,
+    },
+  });
+  scheduleAdminNotificationSync();
+  return { ok: true };
+}
+
+export async function archiveCheckoutSettlement(input: {
+  settlementId: string;
+  adminId: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const [row] = await db
+    .select()
+    .from(checkoutSettlements)
+    .where(eq(checkoutSettlements.id, input.settlementId))
+    .limit(1);
+  if (!row) return { ok: false, error: 'Settlement not found.' };
+  if (row.status === 'archived') return { ok: true };
+
+  await db
+    .update(checkoutSettlements)
+    .set({ status: 'archived', updatedAt: new Date() })
+    .where(eq(checkoutSettlements.id, input.settlementId));
+
+  await db.insert(auditLog).values({
+    actorType: 'admin',
+    actorId: input.adminId,
+    entity: 'checkout_settlement',
+    entityId: input.settlementId,
+    action: 'archived',
+    diff: { from: row.status, bookingId: row.bookingId },
+  });
+  scheduleAdminNotificationSync();
+  return { ok: true };
+}
+
+export async function rebuildCheckoutSettlement(input: {
+  settlementId: string;
+  adminId: string;
+}): Promise<{ ok: true; settlementId: string } | { ok: false; error: string }> {
+  const [row] = await db
+    .select()
+    .from(checkoutSettlements)
+    .where(eq(checkoutSettlements.id, input.settlementId))
+    .limit(1);
+  if (!row) return { ok: false, error: 'Settlement not found.' };
+  if (row.amountsLocked || row.status === 'refund_paid' || row.status === 'completed') {
+    return {
+      ok: false,
+      error: 'Cannot rebuild a locked or completed settlement.',
+    };
+  }
+
+  const vacatingRequestId = row.vacatingRequestId;
+  const bookingId = row.bookingId;
+
+  await db.delete(checkoutSettlements).where(eq(checkoutSettlements.id, input.settlementId));
+  await db.insert(auditLog).values({
+    actorType: 'admin',
+    actorId: input.adminId,
+    entity: 'checkout_settlement',
+    entityId: input.settlementId,
+    action: 'rebuild_started',
+    diff: { vacatingRequestId, bookingId, previousStatus: row.status },
+  });
+
+  const created = await createCheckoutSettlementFromVacating({ vacatingRequestId });
+  if (!created.ok) {
+    return { ok: false, error: created.error };
+  }
+
+  await db.insert(auditLog).values({
+    actorType: 'admin',
+    actorId: input.adminId,
+    entity: 'checkout_settlement',
+    entityId: created.settlementId,
+    action: 'rebuilt',
+    diff: { vacatingRequestId, bookingId, replacedSettlementId: input.settlementId },
+  });
+
+  scheduleAdminNotificationSync();
+  return { ok: true, settlementId: created.settlementId };
 }

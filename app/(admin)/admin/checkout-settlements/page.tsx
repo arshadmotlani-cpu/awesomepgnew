@@ -16,6 +16,7 @@ const TABS: Array<{ id: CheckoutSettlementListTab; label: string }> = [
   { id: 'awaiting_review', label: 'Awaiting review' },
   { id: 'refund_pending', label: 'Refund pending' },
   { id: 'completed', label: 'Completed' },
+  { id: 'archived', label: 'Archived' },
 ];
 
 export default async function CheckoutSettlementsPage({
