@@ -7,10 +7,7 @@ import {
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { todayString } from '@/src/lib/dates';
-import {
-  bookingHasVerifiedPaymentSql,
-  customerMeetsOccupancyKycPolicySql,
-} from '@/src/lib/occupancySqlFilters';
+import { occupancyReservationCoreSql } from '@/src/lib/occupancySsot';
 
 export type PgBedMapOccupant = {
   customerId: string;
@@ -317,12 +314,7 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
       INNER JOIN bookings bk ON bk.id = br.booking_id
       INNER JOIN customers c ON c.id = bk.customer_id
       WHERE br.bed_id = b.id
-        AND br.status = 'active'
-        AND br.kind = 'primary'
-        AND bk.status = 'confirmed'
-        AND CURRENT_DATE <@ br.stay_range
-        AND ${bookingHasVerifiedPaymentSql}
-        AND ${customerMeetsOccupancyKycPolicySql}
+        AND ${occupancyReservationCoreSql}
       ORDER BY lower(br.stay_range) DESC
       LIMIT 1
     ) occ ON true

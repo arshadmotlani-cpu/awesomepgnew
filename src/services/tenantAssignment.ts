@@ -4,6 +4,7 @@ import { bedPrices, bedReservations, beds, bookings, customers, floors, pgs, roo
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { formatDate } from '@/src/lib/dates';
+import { getActiveTenancyForCustomer } from '@/src/lib/residentActiveTenancy';
 import { getCustomerVerificationStatus } from '@/src/services/residentAdmin';
 import { createBooking } from '@/src/services/booking';
 import { clearBedAdminMarks } from '@/src/services/bookingAdminOps';
@@ -77,21 +78,12 @@ export async function assignTenantToBed(
       };
     }
 
-    const [existing] = await db
-      .select({ id: bookings.id })
-      .from(bookings)
-      .innerJoin(bedReservations, eq(bedReservations.bookingId, bookings.id))
-      .where(
-        and(
-          eq(bookings.customerId, input.customerId),
-          eq(bookings.status, 'confirmed'),
-          eq(bedReservations.status, 'active'),
-          sql`CURRENT_DATE <@ ${bedReservations.stayRange}`,
-        ),
-      )
-      .limit(1);
+    const existing = await getActiveTenancyForCustomer(input.customerId);
     if (existing) {
-      return { ok: false, error: 'This tenant already has an active bed assignment.' };
+      return {
+        ok: false,
+        error: `This resident already occupies ${existing.pgName} · Room ${existing.roomNumber} · ${existing.bedCode}. Open their profile to manage the tenancy.`,
+      };
     }
   }
 

@@ -6,6 +6,7 @@ import { IconSettings } from '@/src/components/admin/icons';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { listPgSettings } from '@/src/db/queries/admin';
 import { amenityLabel } from '@/src/lib/pgAmenities';
+import { OccupancyDiagnosticsPanel } from '@/src/components/admin/OccupancyDiagnosticsPanel';
 import { OperatorTestDataCleanupButton } from '@/src/components/admin/OperatorTestDataCleanupButton';
 import { ProductionFinancialResetPanel } from '@/src/components/admin/ProductionFinancialResetPanel';
 import { titleCase } from '@/src/lib/format';
@@ -113,6 +114,16 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
           })}
         </div>
       )}
+
+      <Card>
+        <CardHeader
+          title="Occupancy diagnostics"
+          description="Compare Residents page vs Bed Map assignment state. Rebuild reconciles reservation lifecycle flags without creating bookings."
+        />
+        <CardBody>
+          <OccupancyDiagnosticsPanel />
+        </CardBody>
+      </Card>
 
       <Card>
         <CardHeader

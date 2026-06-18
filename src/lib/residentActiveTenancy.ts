@@ -7,8 +7,9 @@ import { sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import type { ResidencyStatus } from '@/src/db/schema/enums';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
+import { occupancyReservationCoreSql_b } from '@/src/lib/occupancySsot';
 
-/** Booking notes/snapshot markers for internal occupancy placeholders — never real tenants. */
+/** Booking notes/snapshot markers — used by cleanup tools, not occupancy SSOT. */
 export const isNotOccupancyPlaceholderBookingSql = sql`NOT (
   b.notes ILIKE '%occupancy placeholder%'
   OR b.notes ILIKE '%Full occupancy marker%'
@@ -16,16 +17,8 @@ export const isNotOccupancyPlaceholderBookingSql = sql`NOT (
   OR b.pricing_snapshot::text ILIKE '%Occupancy placeholder%'
 )`;
 
-/**
- * Core active reservation predicate — same SSOT as PG bed map occupant join.
- * Booking alias: `b`, reservation alias: `br`.
- */
-export const activeBedReservationWhereSql = sql`
-  b.status = 'confirmed'
-  AND br.status = 'active'
-  AND br.kind = 'primary'
-  AND CURRENT_DATE <@ br.stay_range
-`;
+/** @deprecated Use occupancyReservationCoreSql_b from occupancySsot.ts */
+export const activeBedReservationWhereSql = occupancyReservationCoreSql_b;
 
 /**
  * Optional active-bed context for a customer row (`c`).
@@ -68,8 +61,7 @@ export const activeTenancyLateralSql = sql`
     INNER JOIN floors f ON f.id = r.floor_id
     INNER JOIN pgs p ON p.id = f.pg_id
     WHERE b.customer_id = c.id
-      AND ${activeBedReservationWhereSql}
-      AND ${isNotOccupancyPlaceholderBookingSql}
+      AND ${occupancyReservationCoreSql_b}
     ORDER BY lower(br.stay_range) DESC
     LIMIT 1
   ) t ON true
@@ -169,8 +161,7 @@ export async function getActiveTenancyForCustomer(
     INNER JOIN floors f ON f.id = r.floor_id
     INNER JOIN pgs p ON p.id = f.pg_id
     WHERE b.customer_id = ${customerId}::uuid
-      AND ${activeBedReservationWhereSql}
-      AND ${isNotOccupancyPlaceholderBookingSql}
+      AND ${occupancyReservationCoreSql_b}
     ORDER BY lower(br.stay_range) DESC
     LIMIT 1
   `);
