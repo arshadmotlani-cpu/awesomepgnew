@@ -124,7 +124,12 @@ export default async function ResidentDetailPage({
   const rentRes = await listAdminRentInvoices();
   const rentHistory = rentRes.ok
     ? rentRes.data
-        .filter((r) => r.customerPhone === customer.phone)
+        .filter(
+          (r) =>
+            r.customerPhone === customer.phone &&
+            r.status !== 'cancelled' &&
+            (!activeTenancy || r.bookingId === activeTenancy.bookingId),
+        )
         .slice(0, 12)
     : [];
 

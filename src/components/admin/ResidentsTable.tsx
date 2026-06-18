@@ -174,7 +174,7 @@ export function ResidentsTable({
                       <Link
                         href={
                           r.tenancyStatus === 'unassigned'
-                            ? `/admin/residents/${r.id}#assign-bed`
+                            ? `/admin/bookings/new?customerId=${r.id}`
                             : `/admin/residents/${r.id}`
                         }
                         className="text-sm font-semibold text-[#FF5A1F] hover:underline"

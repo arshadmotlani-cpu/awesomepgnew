@@ -34,6 +34,7 @@ import type {
   ResidentFinancialTotals,
 } from '@/src/lib/billing/residentFinancialTypes';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
+import { getActiveTenancyForCustomer } from '@/src/lib/residentActiveTenancy';
 import { projectElectricityInvoice } from '@/src/services/electricityBilling';
 import { projectInvoice } from '@/src/services/rentInvoices';
 
@@ -395,37 +396,9 @@ export async function getBookingFinancialSummary(args: {
 export async function getResidentFinancialSummary(
   customerId: string,
 ): Promise<ResidentFinancialSummary | null> {
-  const [row] = await db
-    .select({
-      customerId: customers.id,
-      customerName: customers.fullName,
-      customerPhone: customers.phone,
-      bookingId: bookings.id,
-      bookingCode: bookings.bookingCode,
-      depositPaise: bookings.depositPaise,
-      depositDuePaise: bookings.depositDuePaise,
-      pgId: pgs.id,
-      pgName: pgs.name,
-      roomNumber: rooms.roomNumber,
-    })
-    .from(customers)
-    .innerJoin(bookings, eq(bookings.customerId, customers.id))
-    .innerJoin(bedReservations, eq(bedReservations.bookingId, bookings.id))
-    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
-    .innerJoin(rooms, eq(rooms.id, beds.roomId))
-    .innerJoin(floors, eq(floors.id, rooms.floorId))
-    .innerJoin(pgs, eq(pgs.id, floors.pgId))
-    .where(
-      and(
-        eq(customers.id, customerId),
-        inArray(bookings.status, [...ACTIVE_BOOKING_STATUSES]),
-        eq(bedReservations.kind, 'primary'),
-        eq(bedReservations.status, 'active'),
-      ),
-    )
-    .limit(1);
+  const activeTenancy = await getActiveTenancyForCustomer(customerId);
 
-  if (!row?.bookingId) {
+  if (!activeTenancy) {
     const [customer] = await db
       .select({
         id: customers.id,
@@ -454,17 +427,37 @@ export async function getResidentFinancialSummary(
     };
   }
 
+  const [booking] = await db
+    .select({
+      depositPaise: bookings.depositPaise,
+      depositDuePaise: bookings.depositDuePaise,
+    })
+    .from(bookings)
+    .where(eq(bookings.id, activeTenancy.bookingId))
+    .limit(1);
+
+  const [customer] = await db
+    .select({
+      id: customers.id,
+      fullName: customers.fullName,
+      phone: customers.phone,
+    })
+    .from(customers)
+    .where(eq(customers.id, customerId))
+    .limit(1);
+  if (!customer) return null;
+
   return getBookingFinancialSummary({
-    bookingId: row.bookingId,
-    customerId: row.customerId,
-    customerName: row.customerName,
-    customerPhone: row.customerPhone,
-    bookingCode: row.bookingCode,
-    pgId: row.pgId,
-    pgName: row.pgName,
-    roomNumber: row.roomNumber,
-    depositPaise: row.depositPaise,
-    depositDuePaise: row.depositDuePaise ?? 0,
+    bookingId: activeTenancy.bookingId,
+    customerId: customer.id,
+    customerName: customer.fullName,
+    customerPhone: customer.phone,
+    bookingCode: activeTenancy.bookingCode,
+    pgId: activeTenancy.pgId,
+    pgName: activeTenancy.pgName,
+    roomNumber: activeTenancy.roomNumber,
+    depositPaise: booking?.depositPaise ?? activeTenancy.depositPaise,
+    depositDuePaise: booking?.depositDuePaise ?? 0,
   });
 }
 

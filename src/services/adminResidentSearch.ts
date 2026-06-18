@@ -13,6 +13,11 @@ import type {
   AdminResidentTenancyStatus,
 } from '@/src/lib/admin/residentSearchTypes';
 import { isNotOccupancyPlaceholderCustomerSql } from '@/src/lib/occupancySqlFilters';
+import {
+  activeTenancyLateralSql,
+  deriveTenancyStatus,
+  getActiveTenancyForCustomer,
+} from '@/src/lib/residentActiveTenancy';
 import { logger } from '@/src/lib/logger';
 
 export type { AdminResidentSearchResult };
@@ -29,7 +34,7 @@ type SearchDbRow = {
   phone: string;
   kyc_status: 'pending' | 'approved' | 'rejected';
   gender: 'male' | 'female' | 'other';
-  created_at: Date;
+  created_at: Date | string;
   residency_status: ResidencyStatus | null;
   booking_id: string | null;
   booking_code: string | null;
@@ -84,54 +89,7 @@ const legacyExcludeTestCustomersSql = sql`(
 )`;
 
 /** Optional active-bed context — never filters customers out. */
-const activeTenancyLateralSql = sql`
-  LEFT JOIN LATERAL (
-    SELECT
-      b.id::text AS booking_id,
-      b.booking_code AS booking_code,
-      p.name AS pg_name,
-      r.room_number,
-      r.id::text AS room_id,
-      bd.bed_code,
-      bd.id::text AS bed_id,
-      f.pg_id::text AS pg_id,
-      coalesce((
-        SELECT sum((elem->>'monthlyRatePaise')::bigint)
-        FROM jsonb_array_elements(
-          CASE
-            WHEN jsonb_typeof(b.pricing_snapshot->'perBed') = 'array'
-            THEN b.pricing_snapshot->'perBed'
-            ELSE '[]'::jsonb
-          END
-        ) elem
-      ), 0)::bigint AS monthly_rent_paise,
-      EXISTS (
-        SELECT 1 FROM vacating_requests vr
-        WHERE vr.booking_id = b.id
-          AND vr.status IN ('pending', 'approved')
-      ) AS is_vacating
-    FROM bookings b
-    INNER JOIN bed_reservations br ON br.booking_id = b.id
-    INNER JOIN beds bd ON bd.id = br.bed_id
-    INNER JOIN rooms r ON r.id = bd.room_id
-    INNER JOIN floors f ON f.id = r.floor_id
-    INNER JOIN pgs p ON p.id = f.pg_id
-    WHERE b.customer_id = c.id
-      AND b.status = 'confirmed'
-      AND b.duration_mode IN ('monthly', 'open_ended')
-      AND br.status = 'active'
-      AND br.kind = 'primary'
-      AND CURRENT_DATE <@ br.stay_range
-      AND NOT (
-        b.notes ILIKE '%occupancy placeholder%'
-        OR b.notes ILIKE '%Full occupancy marker%'
-        OR b.notes ILIKE '%full occupancy%'
-        OR b.pricing_snapshot::text ILIKE '%Occupancy placeholder%'
-      )
-    ORDER BY lower(br.stay_range) DESC
-    LIMIT 1
-  ) t ON true
-`;
+const activeTenancyJoinSql = activeTenancyLateralSql;
 
 function matchSql(
   pattern: string,
@@ -181,11 +139,16 @@ function orderSql(
 }
 
 function mapTenancyStatus(row: SearchDbRow): AdminResidentTenancyStatus {
-  if (row.residency_status === 'vacated') return 'vacated';
-  if (row.residency_status === 'blocked') return 'blocked';
-  if (!row.booking_id) return 'unassigned';
-  if (row.is_vacating) return 'vacating';
-  return 'active';
+  return deriveTenancyStatus({
+    residencyStatus: row.residency_status,
+    activeTenancy: row.booking_id
+      ? { bookingId: row.booking_id, isVacating: row.is_vacating }
+      : null,
+  });
+}
+
+function toIsoTimestamp(value: Date | string): string {
+  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
 
 function mapRow(row: SearchDbRow): AdminResidentSearchResult {
@@ -206,7 +169,7 @@ function mapRow(row: SearchDbRow): AdminResidentSearchResult {
     monthlyRentPaise: Number(row.monthly_rent_paise ?? 0),
     bookingId: row.booking_id,
     bookingCode: row.booking_code,
-    createdAt: row.created_at.toISOString(),
+    createdAt: toIsoTimestamp(row.created_at),
   };
 }
 
@@ -292,7 +255,7 @@ async function runSearchQuery(
       t.monthly_rent_paise,
       coalesce(t.is_vacating, false) AS is_vacating
     FROM customers c
-    ${activeTenancyLateralSql}
+    ${activeTenancyJoinSql}
     WHERE c.archived_at IS NULL
       ${testFilter}
       AND ${isNotOccupancyPlaceholderCustomerSql}
@@ -381,6 +344,9 @@ export async function searchResidentsForAdmin(
 export async function resolveBookingIdForCustomer(
   customerId: string,
 ): Promise<string | null> {
+  const active = await getActiveTenancyForCustomer(customerId);
+  if (active) return active.bookingId;
+
   const caps = await getResidentSearchSchemaCapabilities();
   try {
     const rows = await db.execute<{ booking_id: string }>(
@@ -390,12 +356,11 @@ export async function resolveBookingIdForCustomer(
             FROM bookings b
             WHERE b.customer_id = ${customerId}::uuid
               AND b.is_test = false
-              AND b.status IN ('confirmed', 'pending_payment', 'completed')
+              AND b.status IN ('confirmed', 'pending_payment')
             ORDER BY
               CASE b.status
                 WHEN 'confirmed' THEN 0
                 WHEN 'pending_payment' THEN 1
-                ELSE 2
               END,
               b.created_at DESC
             LIMIT 1
@@ -404,12 +369,11 @@ export async function resolveBookingIdForCustomer(
             SELECT b.id::text AS booking_id
             FROM bookings b
             WHERE b.customer_id = ${customerId}::uuid
-              AND b.status IN ('confirmed', 'pending_payment', 'completed')
+              AND b.status IN ('confirmed', 'pending_payment')
             ORDER BY
               CASE b.status
                 WHEN 'confirmed' THEN 0
                 WHEN 'pending_payment' THEN 1
-                ELSE 2
               END,
               b.created_at DESC
             LIMIT 1

@@ -26,6 +26,11 @@ import {
 } from '@/src/lib/residentVerification';
 import { assertBookingOperationalGates } from '@/src/lib/occupancyEligibility';
 import { isNotOccupancyPlaceholderCustomerSql } from '@/src/lib/occupancySqlFilters';
+import {
+  activeTenancyLateralSql,
+  deriveTenancyStatus,
+  getActiveTenancyForCustomer,
+} from '@/src/lib/residentActiveTenancy';
 import { formatDate, parseDate } from '@/src/lib/dates';
 import { isBedAvailable } from '@/src/services/availability';
 import { correctDepositCollected, getDepositSummaryForBooking } from '@/src/services/deposits';
@@ -145,7 +150,7 @@ function mapResidentListRow(row: ResidentListDbRow): ResidentListRow {
     phone: row.phone,
     gender: row.gender,
     kycStatus: row.kyc_status,
-    createdAt: row.created_at,
+    createdAt: row.created_at instanceof Date ? row.created_at : new Date(row.created_at),
     bookingId: row.booking_id,
     bookingCode: row.booking_code,
     pgId: row.pg_id,
@@ -155,16 +160,12 @@ function mapResidentListRow(row: ResidentListDbRow): ResidentListRow {
     roomId: row.room_id ?? null,
     bedId: row.bed_id ?? null,
     monthlyRentPaise: Number(row.monthly_rent_paise ?? 0),
-    tenancyStatus:
-      row.residency_status === 'vacated'
-        ? 'vacated'
-        : row.residency_status === 'blocked'
-          ? 'blocked'
-          : !row.booking_id
-            ? 'unassigned'
-            : row.is_vacating
-              ? 'vacating'
-              : 'active',
+    tenancyStatus: deriveTenancyStatus({
+      residencyStatus: row.residency_status,
+      activeTenancy: row.booking_id
+        ? { bookingId: row.booking_id, isVacating: row.is_vacating }
+        : null,
+    }),
     verificationSource: verification.verificationSource,
   };
 }
@@ -178,49 +179,6 @@ function mapUnverifiedSignupRow(row: ResidentListDbRow): UnverifiedWebsiteSignup
     hasPendingKycSubmission: row.has_pending_kyc_submission,
   };
 }
-
-const activeTenancyLateralSql = sql`
-  LEFT JOIN LATERAL (
-    SELECT
-      b.id::text AS booking_id,
-      b.booking_code AS booking_code,
-      p.name AS pg_name,
-      r.room_number,
-      r.id::text AS room_id,
-      bd.bed_code,
-      bd.id::text AS bed_id,
-      f.pg_id::text AS pg_id,
-      coalesce((
-        SELECT sum((elem->>'monthlyRatePaise')::bigint)
-        FROM jsonb_array_elements(b.pricing_snapshot->'perBed') elem
-      ), 0)::bigint AS monthly_rent_paise,
-      EXISTS (
-        SELECT 1 FROM vacating_requests vr
-        WHERE vr.booking_id = b.id
-          AND vr.status IN ('pending', 'approved')
-      ) AS is_vacating
-    FROM bookings b
-    INNER JOIN bed_reservations br ON br.booking_id = b.id
-    INNER JOIN beds bd ON bd.id = br.bed_id
-    INNER JOIN rooms r ON r.id = bd.room_id
-    INNER JOIN floors f ON f.id = r.floor_id
-    INNER JOIN pgs p ON p.id = f.pg_id
-    WHERE b.customer_id = c.id
-      AND b.status = 'confirmed'
-      AND b.duration_mode IN ('monthly', 'open_ended')
-      AND br.status = 'active'
-      AND br.kind = 'primary'
-      AND CURRENT_DATE <@ br.stay_range
-      AND NOT (
-        b.notes ILIKE '%occupancy placeholder%'
-        OR b.notes ILIKE '%Full occupancy marker%'
-        OR b.notes ILIKE '%full occupancy%'
-        OR b.pricing_snapshot::text ILIKE '%Occupancy placeholder%'
-      )
-    ORDER BY lower(br.stay_range) DESC
-    LIMIT 1
-  ) t ON true
-`;
 
 export async function getCustomerVerificationStatus(
   customerId: string,
@@ -389,49 +347,16 @@ export async function getResidentDetail(
 
   if (!customer || customer.archivedAt) return null;
 
-  const [tenancy] = await db
-    .select({
-      bookingId: bookings.id,
-      bookingCode: bookings.bookingCode,
-      pgId: pgs.id,
-      pgName: pgs.name,
-      roomNumber: rooms.roomNumber,
-      bedId: beds.id,
-      bedCode: beds.bedCode,
-      depositPaise: bookings.depositPaise,
-      pricingSnapshot: bookings.pricingSnapshot,
-      blocksRoomAvailability: bookings.blocksRoomAvailability,
-      moveInDate: sql<string>`to_char(lower(${bedReservations.stayRange}), 'YYYY-MM-DD')`,
-    })
-    .from(bookings)
-    .innerJoin(bedReservations, eq(bedReservations.bookingId, bookings.id))
-    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
-    .innerJoin(rooms, eq(rooms.id, beds.roomId))
-    .innerJoin(floors, eq(floors.id, rooms.floorId))
-    .innerJoin(pgs, eq(pgs.id, floors.pgId))
-    .where(
-      and(
-        eq(bookings.customerId, customerId),
-        eq(bookings.status, 'confirmed'),
-        inArray(bookings.durationMode, ['monthly', 'open_ended']),
-        eq(bedReservations.status, 'active'),
-        eq(bedReservations.kind, 'primary'),
-        sql`CURRENT_DATE <@ ${bedReservations.stayRange}`,
-      ),
-    )
-    .orderBy(desc(bedReservations.createdAt))
-    .limit(1);
-
-  if (tenancy && !adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, tenancy.pgId)) {
+  const activeTenancyRow = await getActiveTenancyForCustomer(customerId);
+  if (
+    activeTenancyRow &&
+    !adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, activeTenancyRow.pgId)
+  ) {
     return null;
   }
 
-  const snapshot = tenancy?.pricingSnapshot as PricingSnapshot | null;
-  const monthlyRentPaise =
-    snapshot?.perBed?.reduce((acc, b) => acc + (b.monthlyRatePaise ?? 0), 0) ?? 0;
-
   let settledTenancy: SettledTenancy | null = null;
-  if (!tenancy && customer.residencyStatus === 'vacated') {
+  if (!activeTenancyRow && customer.residencyStatus === 'vacated') {
     const [settled] = await db
       .select({
         bookingId: bookings.id,
@@ -488,23 +413,23 @@ export async function getResidentDetail(
       createdAt: customer.createdAt,
       residencyStatus: customer.residencyStatus,
     },
-    activeTenancy: tenancy
+    activeTenancy: activeTenancyRow
       ? {
-          bookingId: tenancy.bookingId,
-          bookingCode: tenancy.bookingCode,
-          pgId: tenancy.pgId,
-          pgName: tenancy.pgName,
-          roomNumber: tenancy.roomNumber,
-          bedId: tenancy.bedId,
-          bedCode: tenancy.bedCode,
-          monthlyRentPaise,
-          depositPaise: tenancy.depositPaise,
-          blocksRoomAvailability: tenancy.blocksRoomAvailability,
-          moveInDate: tenancy.moveInDate,
+          bookingId: activeTenancyRow.bookingId,
+          bookingCode: activeTenancyRow.bookingCode,
+          pgId: activeTenancyRow.pgId,
+          pgName: activeTenancyRow.pgName,
+          roomNumber: activeTenancyRow.roomNumber,
+          bedId: activeTenancyRow.bedId,
+          bedCode: activeTenancyRow.bedCode,
+          monthlyRentPaise: activeTenancyRow.monthlyRentPaise,
+          depositPaise: activeTenancyRow.depositPaise,
+          blocksRoomAvailability: activeTenancyRow.blocksRoomAvailability,
+          moveInDate: activeTenancyRow.moveInDate,
         }
       : null,
     settledTenancy,
-    canArchive: !tenancy && customer.residencyStatus !== 'vacated',
+    canArchive: !activeTenancyRow && customer.residencyStatus !== 'vacated',
   };
 }
 
