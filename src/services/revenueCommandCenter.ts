@@ -7,6 +7,7 @@ import {
   getDailyCollectionTotals,
   getDepositCollectedByPgForBillingMonth,
 } from '@/src/db/queries/admin';
+import { getMonthlyRevenuePaise } from '@/src/services/dashboardMetrics';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import type { PendingPaymentReviewItem } from '@/src/services/paymentProofQueue';
@@ -53,21 +54,6 @@ export type RevenueCommandCenterInput = {
     items: Array<{ amountDuePaise: number }>;
   };
 };
-
-function buildMtdBreakdown(
-  summary: BusinessMetricsSummary,
-  depositByPg: Map<string, number>,
-): CollectionBreakdown {
-  const depositPaise = [...depositByPg.values()].reduce((a, v) => a + v, 0);
-  const rentPaise = summary.incomeRentPaise;
-  const electricityPaise = summary.incomeElectricityPaise;
-  return {
-    rentPaise,
-    electricityPaise,
-    depositPaise,
-    totalPaise: rentPaise + electricityPaise + depositPaise,
-  };
-}
 
 function buildByPgRows(
   pgMetrics: PgBusinessMetrics[],
@@ -140,7 +126,13 @@ export async function getRevenueCommandCenterData(
     }
   }
 
-  const mtd = buildMtdBreakdown(input.summary, depositByPg);
+  const mtdMetrics = await getMonthlyRevenuePaise(billingMonth);
+  const mtd: CollectionBreakdown = {
+    rentPaise: mtdMetrics.rentPaise,
+    electricityPaise: mtdMetrics.electricityPaise,
+    depositPaise: mtdMetrics.depositPaise,
+    totalPaise: mtdMetrics.totalPaise,
+  };
   const byPg = buildByPgRows(input.pgMetrics, depositByPg);
 
   const outstanding = buildOutstandingFromSsot(portfolioTotals, pendingPayments);

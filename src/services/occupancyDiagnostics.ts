@@ -155,7 +155,66 @@ export type OccupancyRebuildResult = {
   orphanReservationsClosed: number;
   bookingsReconciled: number;
   residencyStatusSynced: number;
+  residencyStatusDemoted: number;
 };
+
+/** Preview rebuild — counts only, no writes. */
+export async function previewRebuildOccupancyState(): Promise<OccupancyRebuildResult> {
+  const orphanRows = await db.execute<{ id: string }>(sql`
+    SELECT br.id::text AS id
+    FROM bed_reservations br
+    INNER JOIN bookings bk ON bk.id = br.booking_id
+    WHERE br.status IN ('hold', 'active')
+      AND bk.status IN ('completed', 'cancelled', 'refunded')
+  `);
+  const orphanReservationsClosed = Array.isArray(orphanRows) ? orphanRows.length : 0;
+
+  const bookingRows = await db.execute<{ booking_id: string }>(sql`
+    SELECT DISTINCT b.id::text AS booking_id
+    FROM bookings b
+    INNER JOIN bed_reservations br ON br.booking_id = b.id
+    WHERE b.status = 'confirmed'
+      AND br.status IN ('active', 'hold')
+  `);
+  const bookingsReconciled = Array.isArray(bookingRows) ? bookingRows.length : 0;
+
+  const syncRows = await db.execute<{ id: string }>(sql`
+    SELECT c.id::text AS id
+    FROM customers c
+    WHERE c.archived_at IS NULL
+      AND c.residency_status NOT IN ('active', 'blocked')
+      AND EXISTS (
+        SELECT 1
+        FROM bookings b
+        INNER JOIN bed_reservations br ON br.booking_id = b.id
+        WHERE b.customer_id = c.id
+          AND ${occupancyReservationCoreSql_b}
+      )
+  `);
+  const residencyStatusSynced = Array.isArray(syncRows) ? syncRows.length : 0;
+
+  const demoteRows = await db.execute<{ id: string }>(sql`
+    SELECT c.id::text AS id
+    FROM customers c
+    WHERE c.archived_at IS NULL
+      AND c.residency_status = 'active'
+      AND NOT EXISTS (
+        SELECT 1
+        FROM bookings b
+        INNER JOIN bed_reservations br ON br.booking_id = b.id
+        WHERE b.customer_id = c.id
+          AND ${occupancyReservationCoreSql_b}
+      )
+  `);
+  const residencyStatusDemoted = Array.isArray(demoteRows) ? demoteRows.length : 0;
+
+  return {
+    orphanReservationsClosed,
+    bookingsReconciled,
+    residencyStatusSynced,
+    residencyStatusDemoted,
+  };
+}
 
 /** Reconcile reservations and residency flags — does not create bookings or reservations. */
 export async function rebuildOccupancyState(): Promise<OccupancyRebuildResult> {
@@ -191,6 +250,22 @@ export async function rebuildOccupancyState(): Promise<OccupancyRebuildResult> {
   `);
   const residencyStatusSynced = Array.isArray(synced) ? synced.length : 0;
 
+  const demoted = await db.execute<{ id: string }>(sql`
+    UPDATE customers c
+    SET residency_status = 'vacated', updated_at = now()
+    WHERE c.archived_at IS NULL
+      AND c.residency_status = 'active'
+      AND NOT EXISTS (
+        SELECT 1
+        FROM bookings b
+        INNER JOIN bed_reservations br ON br.booking_id = b.id
+        WHERE b.customer_id = c.id
+          AND ${occupancyReservationCoreSql_b}
+      )
+    RETURNING c.id::text AS id
+  `);
+  const residencyStatusDemoted = Array.isArray(demoted) ? demoted.length : 0;
+
   await revalidateOccupancyViews();
   revalidatePath('/admin/residents', 'layout');
   revalidatePath('/admin/pgs', 'layout');
@@ -202,6 +277,7 @@ export async function rebuildOccupancyState(): Promise<OccupancyRebuildResult> {
     orphanReservationsClosed,
     bookingsReconciled,
     residencyStatusSynced,
+    residencyStatusDemoted,
   };
 }
 

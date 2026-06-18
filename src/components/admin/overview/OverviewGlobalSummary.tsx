@@ -14,9 +14,7 @@ import type { OverviewContext } from '@/src/services/overviewData';
 export function OverviewGlobalSummary({ ctx }: { ctx: OverviewContext }) {
   const month = ctx.billingMonth;
 
-  const mtdTotal =
-    ctx.revenue.mtd.totalPaise ||
-    ctx.summary.incomeTotalPaise + (ctx.revenue.mtd.depositPaise ?? 0);
+  const mtdTotal = ctx.revenue.mtd.totalPaise;
 
   return (
     <div className="space-y-10">

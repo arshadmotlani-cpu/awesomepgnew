@@ -17,6 +17,7 @@ import {
   getDepositCollectedByPgForBillingMonth,
   getDashboardStats,
 } from '@/src/db/queries/admin';
+import { getMonthlyRevenuePaise } from '@/src/services/dashboardMetrics';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import { todayString } from '@/src/lib/dates';
 import { VISITOR_SESSION_COOKIE, LIVE_VISITOR_WINDOW_MS } from '@/src/lib/analytics/constants';
@@ -302,10 +303,8 @@ export async function getAdminOverviewKpis(
     .where(
       and(
         eq(bookings.status, 'confirmed'),
-        sql`${bookings.durationMode} IN ('monthly', 'open_ended')`,
         eq(bedReservations.status, 'active'),
-        lte(sql`lower(${bedReservations.stayRange})`, sql`${now.toISOString()}::timestamptz`),
-        sql`upper(${bedReservations.stayRange}) > ${now.toISOString()}::timestamptz`,
+        sql`CURRENT_DATE <@ ${bedReservations.stayRange}`,
       ),
     );
 
@@ -323,19 +322,14 @@ export async function getAdminOverviewKpis(
     .from(bookings)
     .where(eq(bookings.status, 'pending_payment'));
 
-  const [todayRevResult, monthSummary, depositByPg] = await Promise.all([
+  const [todayRevResult, monthRevenue] = await Promise.all([
     getDailyCollectionTotals(),
-    getBusinessMetricsSummary(billingMonth),
-    getDepositCollectedByPgForBillingMonth(billingMonth),
+    getMonthlyRevenuePaise(billingMonth),
   ]);
 
   const todayBreakdown = todayRevResult.ok
     ? todayRevResult.data
     : { rentPaise: 0, electricityPaise: 0, depositPaise: 0, totalPaise: 0 };
-  const monthRent = monthSummary.ok ? monthSummary.data.incomeTotalPaise : 0;
-  const monthDeposits = depositByPg.ok
-    ? depositByPg.data.reduce((a, r) => a + r.collectedPaise, 0)
-    : 0;
 
   return {
     totalVisitorsAllTime: visitorRow?.count ?? 0,
@@ -345,7 +339,7 @@ export async function getAdminOverviewKpis(
     pendingKyc: kycRow?.count ?? 0,
     pendingPayments: pendingPayRow?.count ?? 0,
     todayRevenuePaise: todayBreakdown.totalPaise,
-    monthlyRevenuePaise: monthRent + monthDeposits,
+    monthlyRevenuePaise: monthRevenue.totalPaise,
   };
 }
 

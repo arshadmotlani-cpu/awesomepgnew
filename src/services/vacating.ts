@@ -516,6 +516,18 @@ export async function rejectVacatingRequest(input: {
     note: input.reason,
   });
 
+  try {
+    const { cleanupCheckoutSettlementForVacating } = await import(
+      '@/src/services/checkoutSettlement'
+    );
+    await cleanupCheckoutSettlementForVacating({
+      vacatingRequestId: input.requestId,
+      adminId: input.resolvedByAdminId ?? null,
+    });
+  } catch (err) {
+    console.error('[vacating] checkout settlement cleanup on reject failed', err);
+  }
+
   return { ok: true, request: updated };
 }
 
@@ -562,6 +574,18 @@ export async function cancelVacatingRequestByCustomer(input: {
     vacatingDate: current.vacatingDate,
     note: 'You withdrew your vacating request. Your stay continues as before.',
   });
+
+  try {
+    const { cleanupCheckoutSettlementForVacating } = await import(
+      '@/src/services/checkoutSettlement'
+    );
+    await cleanupCheckoutSettlementForVacating({
+      vacatingRequestId: input.requestId,
+      adminId: null,
+    });
+  } catch (err) {
+    console.error('[vacating] checkout settlement cleanup on customer cancel failed', err);
+  }
 
   return { ok: true, bookingId: current.bookingId };
 }

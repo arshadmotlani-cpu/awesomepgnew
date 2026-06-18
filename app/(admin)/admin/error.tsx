@@ -21,8 +21,8 @@ export default function AdminError({
       </span>
       <h2 className="mt-4 text-lg font-semibold text-white">Overview could not load</h2>
       <p className="mt-2 max-w-md text-sm text-apg-silver">
-        The server hit an error while loading this page. This is usually a temporary database
-        timeout or connection issue — not lost data.
+        {error.message?.trim() ||
+          'The server hit an error while loading this page. This is usually a temporary database timeout or connection issue — not lost data.'}
       </p>
       {error.digest ? (
         <p className="mt-2 text-[11px] text-apg-silver/70">Reference: {error.digest}</p>

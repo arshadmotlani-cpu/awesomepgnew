@@ -1,13 +1,18 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState, useTransition } from 'react';
 import {
   cancelDepositInvoiceAction,
   editDepositSummaryAction,
+  loadCancelDepositPreviewAction,
+  loadRebuildDepositPreviewAction,
   rebuildDepositWalletAction,
   type DepositWalletActionState,
-} from '@/app/(admin)/admin/deposits/[bookingId]/deposit-wallet-actions';
-import type { UnifiedDepositView } from '@/src/services/depositOperations';
+} from '@/app/(admin)/admin/deposits/deposit-wallet-actions';
+import type {
+  DepositWalletPreview,
+  UnifiedDepositView,
+} from '@/src/services/depositOperations';
 import { paiseToInr } from '@/src/lib/format';
 
 const idle: DepositWalletActionState = { status: 'idle' };
@@ -28,6 +33,30 @@ export function DepositWalletAdminPanel({
     cancelDepositInvoiceAction,
     idle,
   );
+
+  const [rebuildPreview, setRebuildPreview] = useState<DepositWalletPreview | null>(null);
+  const [cancelPreview, setCancelPreview] = useState<DepositWalletPreview | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewPending, startPreview] = useTransition();
+
+  function loadPreview(action: 'rebuild' | 'cancel') {
+    setPreviewError(null);
+    startPreview(async () => {
+      const result =
+        action === 'rebuild'
+          ? await loadRebuildDepositPreviewAction(view.bookingId)
+          : await loadCancelDepositPreviewAction(view.bookingId);
+      if ('ok' in result && result.ok === false) {
+        setPreviewError(result.error);
+        if (action === 'rebuild') setRebuildPreview(null);
+        else setCancelPreview(null);
+        return;
+      }
+      const preview = result as DepositWalletPreview;
+      if (action === 'rebuild') setRebuildPreview(preview);
+      else setCancelPreview(preview);
+    });
+  }
 
   return (
     <section className="mt-6 space-y-4 rounded-2xl border border-white/10 bg-[#1A1F27] p-4">
@@ -114,54 +143,141 @@ export function DepositWalletAdminPanel({
             </div>
           </form>
 
-          <div className="flex flex-wrap gap-2">
-            <form action={rebuildAction}>
-              <input type="hidden" name="bookingId" value={view.bookingId} />
+          {previewError ? (
+            <p className="rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+              {previewError}
+            </p>
+          ) : null}
+
+          <div className="space-y-4 rounded-xl border border-white/10 bg-[#12161C] p-3">
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-apg-silver">
+                Rebuild deposit wallet
+              </h3>
+              <p className="mt-1 text-xs text-apg-silver/80">
+                Recalculates due and status from the ledger. Does not create or delete ledger rows.
+              </p>
               <button
-                type="submit"
-                disabled={rebuildPending}
-                className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/5 disabled:opacity-60"
+                type="button"
+                disabled={previewPending}
+                onClick={() => loadPreview('rebuild')}
+                className="mt-2 rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/5 disabled:opacity-60"
               >
-                {rebuildPending ? 'Rebuilding…' : 'Rebuild deposit wallet'}
+                {previewPending ? 'Loading preview…' : 'Preview rebuild'}
               </button>
-            </form>
-            <form action={cancelAction} className="flex flex-wrap items-end gap-2">
-              <input type="hidden" name="bookingId" value={view.bookingId} />
-              <label className="text-xs">
-                <span className="text-apg-silver">Type CANCEL to void invoice</span>
-                <input
-                  name="confirmText"
-                  required
-                  placeholder="CANCEL"
-                  className="apg-admin-field mt-1 block rounded-lg border border-white/10 bg-[#12161C] px-2 py-1 text-white"
-                />
-              </label>
+              {rebuildPreview ? (
+                <PreviewPanel preview={rebuildPreview} />
+              ) : null}
+              <form action={rebuildAction} className="mt-2">
+                <input type="hidden" name="bookingId" value={view.bookingId} />
+                <input type="hidden" name="confirmPreview" value={rebuildPreview ? 'yes' : 'no'} />
+                <button
+                  type="submit"
+                  disabled={rebuildPending || !rebuildPreview}
+                  className="rounded-lg border border-emerald-400/40 px-3 py-2 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/10 disabled:opacity-40"
+                >
+                  {rebuildPending ? 'Rebuilding…' : 'Execute rebuild'}
+                </button>
+              </form>
+              {rebuildState.status === 'ok' ? (
+                <p className="mt-2 text-xs text-emerald-300">{rebuildState.message}</p>
+              ) : null}
+              {rebuildState.status === 'error' ? (
+                <p className="mt-2 text-xs text-rose-300">{rebuildState.message}</p>
+              ) : null}
+            </div>
+
+            <div className="border-t border-white/10 pt-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-apg-silver">
+                Cancel deposit invoice
+              </h3>
+              <p className="mt-1 text-xs text-apg-silver/80">
+                Zeros the deposit obligation and clears refundable wallet balance.
+              </p>
               <button
-                type="submit"
-                disabled={cancelPending}
-                className="rounded-lg border border-rose-400/40 px-3 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-500/10 disabled:opacity-60"
+                type="button"
+                disabled={previewPending}
+                onClick={() => loadPreview('cancel')}
+                className="mt-2 rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/5 disabled:opacity-60"
               >
-                {cancelPending ? 'Cancelling…' : 'Cancel deposit invoice'}
+                {previewPending ? 'Loading preview…' : 'Preview cancel'}
               </button>
-            </form>
+              {cancelPreview ? (
+                <PreviewPanel preview={cancelPreview} />
+              ) : null}
+              <form action={cancelAction} className="mt-2 flex flex-wrap items-end gap-2">
+                <input type="hidden" name="bookingId" value={view.bookingId} />
+                <input type="hidden" name="confirmPreview" value={cancelPreview ? 'yes' : 'no'} />
+                <label className="text-xs">
+                  <span className="text-apg-silver">Type CANCEL to void invoice</span>
+                  <input
+                    name="confirmText"
+                    required
+                    placeholder="CANCEL"
+                    className="apg-admin-field mt-1 block rounded-lg border border-white/10 bg-[#0B0F14] px-2 py-1 text-white"
+                  />
+                </label>
+                <button
+                  type="submit"
+                  disabled={cancelPending || !cancelPreview}
+                  className="rounded-lg border border-rose-400/40 px-3 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-500/10 disabled:opacity-40"
+                >
+                  {cancelPending ? 'Cancelling…' : 'Execute cancel'}
+                </button>
+              </form>
+              {cancelState.status === 'ok' ? (
+                <p className="mt-2 text-xs text-emerald-300">{cancelState.message}</p>
+              ) : null}
+              {cancelState.status === 'error' ? (
+                <p className="mt-2 text-xs text-rose-300">{cancelState.message}</p>
+              ) : null}
+            </div>
           </div>
-          {rebuildState.status === 'ok' ? (
-            <p className="text-xs text-emerald-300">{rebuildState.message}</p>
-          ) : null}
-          {rebuildState.status === 'error' ? (
-            <p className="text-xs text-rose-300">{rebuildState.message}</p>
-          ) : null}
-          {cancelState.status === 'ok' ? (
-            <p className="text-xs text-emerald-300">{cancelState.message}</p>
-          ) : null}
-          {cancelState.status === 'error' ? (
-            <p className="text-xs text-rose-300">{cancelState.message}</p>
-          ) : null}
         </>
       ) : (
         <p className="text-xs text-apg-silver">This deposit is settled and frozen.</p>
       )}
     </section>
+  );
+}
+
+function PreviewPanel({ preview }: { preview: DepositWalletPreview }) {
+  return (
+    <div className="mt-3 rounded-lg border border-sky-400/20 bg-sky-500/5 p-3 text-xs">
+      <p className="font-semibold text-sky-200">Dry run — current vs expected</p>
+      {preview.warnings.map((w) => (
+        <p key={w} className="mt-2 text-amber-100">
+          {w}
+        </p>
+      ))}
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <PreviewColumn title="Current" view={preview.current} />
+        <PreviewColumn title="After action" view={preview.expected} />
+      </div>
+      {preview.willModifyLedger ? (
+        <p className="mt-2 text-amber-100">
+          Ledger will be modified (deduction of {paiseToInr(preview.removesFromWalletPaise)}).
+        </p>
+      ) : (
+        <p className="mt-2 text-apg-silver">No ledger rows will be created or deleted.</p>
+      )}
+    </div>
+  );
+}
+
+function PreviewColumn({ title, view }: { title: string; view: UnifiedDepositView }) {
+  return (
+    <div className="rounded border border-white/10 bg-[#0B0F14] p-2">
+      <p className="mb-1 font-medium text-white">{title}</p>
+      <ul className="space-y-0.5 text-apg-silver">
+        <li>Required: {paiseToInr(view.requiredPaise)}</li>
+        <li>Collected: {paiseToInr(view.collectedPaise)}</li>
+        <li>Deductions: {paiseToInr(view.deductedPaise)}</li>
+        <li>Refunded: {paiseToInr(view.refundedPaise)}</li>
+        <li>Refundable: {paiseToInr(view.refundablePaise)}</li>
+        <li>Due: {paiseToInr(view.depositDuePaise)}</li>
+      </ul>
+    </div>
   );
 }
 

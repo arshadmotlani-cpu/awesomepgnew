@@ -7,6 +7,7 @@ import { PageHeader } from '@/src/components/admin/PageHeader';
 import { listPgSettings } from '@/src/db/queries/admin';
 import { amenityLabel } from '@/src/lib/pgAmenities';
 import { OccupancyDiagnosticsPanel } from '@/src/components/admin/OccupancyDiagnosticsPanel';
+import { SystemRepairPanel } from '@/src/components/admin/SystemRepairPanel';
 import { OperatorTestDataCleanupButton } from '@/src/components/admin/OperatorTestDataCleanupButton';
 import { ProductionFinancialResetPanel } from '@/src/components/admin/ProductionFinancialResetPanel';
 import { titleCase } from '@/src/lib/format';
@@ -114,6 +115,16 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
           })}
         </div>
       )}
+
+      <Card>
+        <CardHeader
+          title="System repair tools"
+          description="Preview, dry run, and execute stabilization repairs. No new tables or schema changes."
+        />
+        <CardBody>
+          <SystemRepairPanel />
+        </CardBody>
+      </Card>
 
       <Card>
         <CardHeader

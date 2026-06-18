@@ -349,6 +349,25 @@ export async function createCheckoutSettlementFromVacating(input: {
     .limit(1);
   if (existing) return { ok: true, settlementId: existing.id };
 
+  const [existingForBooking] = await db
+    .select({ id: checkoutSettlements.id })
+    .from(checkoutSettlements)
+    .where(
+      and(
+        eq(checkoutSettlements.bookingId, vr.bookingId),
+        inArray(checkoutSettlements.status, [
+          'awaiting_resident_details',
+          'awaiting_admin_review',
+          'refund_pending',
+          'approved',
+        ]),
+      ),
+    )
+    .limit(1);
+  if (existingForBooking) {
+    return { ok: true, settlementId: existingForBooking.id };
+  }
+
   const noticeGiven = diffDays(vr.noticeGivenDate, vr.vacatingDate);
   const shortfall = noticeShortfallDays({
     noticeGivenDate: vr.noticeGivenDate,
@@ -764,17 +783,23 @@ export async function updateCheckoutSettlementAdminFields(input: {
     return { ok: false, error: 'Settlement cannot be edited in this status.' };
   }
 
+  const patch: Partial<typeof checkoutSettlements.$inferInsert> = { updatedAt: new Date() };
+  if (input.noticeDeductionPaise !== undefined) {
+    patch.noticeDeductionPaise = input.noticeDeductionPaise;
+  }
+  if (input.damageChargePaise !== undefined) patch.damageChargePaise = input.damageChargePaise;
+  if (input.cleaningChargePaise !== undefined) {
+    patch.cleaningChargePaise = input.cleaningChargePaise;
+  }
+  if (input.customChargePaise !== undefined) patch.customChargePaise = input.customChargePaise;
+  if (input.customChargeLabel !== undefined) patch.customChargeLabel = input.customChargeLabel;
+  if (input.electricitySharePaise !== undefined) {
+    patch.electricitySharePaise = input.electricitySharePaise;
+  }
+
   await db
     .update(checkoutSettlements)
-    .set({
-      noticeDeductionPaise: input.noticeDeductionPaise ?? current.noticeDeductionPaise,
-      damageChargePaise: input.damageChargePaise ?? current.damageChargePaise,
-      cleaningChargePaise: input.cleaningChargePaise ?? current.cleaningChargePaise,
-      customChargePaise: input.customChargePaise ?? current.customChargePaise,
-      customChargeLabel: input.customChargeLabel ?? current.customChargeLabel,
-      electricitySharePaise: input.electricitySharePaise ?? current.electricitySharePaise,
-      updatedAt: new Date(),
-    })
+    .set(patch)
     .where(eq(checkoutSettlements.id, input.settlementId));
 
   return { ok: true };
@@ -1206,6 +1231,46 @@ export async function deleteCheckoutSettlement(input: {
   });
   scheduleAdminNotificationSync();
   return { ok: true };
+}
+
+/** Remove or archive checkout settlement when vacating is rejected/cancelled. */
+export async function cleanupCheckoutSettlementForVacating(input: {
+  vacatingRequestId: string;
+  adminId?: string | null;
+}): Promise<{ removed: boolean; settlementId: string | null; action: 'deleted' | 'archived' | 'none' }> {
+  const [settlement] = await db
+    .select()
+    .from(checkoutSettlements)
+    .where(eq(checkoutSettlements.vacatingRequestId, input.vacatingRequestId))
+    .limit(1);
+  if (!settlement) {
+    return { removed: false, settlementId: null, action: 'none' };
+  }
+
+  if (
+    settlement.amountsLocked ||
+    settlement.status === 'refund_paid' ||
+    settlement.status === 'completed'
+  ) {
+    await archiveCheckoutSettlement({
+      settlementId: settlement.id,
+      adminId: input.adminId ?? 'system',
+    });
+    await db
+      .update(vacatingRequests)
+      .set({ checkoutSettlementSuppressed: true, updatedAt: new Date() })
+      .where(eq(vacatingRequests.id, input.vacatingRequestId));
+    return { removed: true, settlementId: settlement.id, action: 'archived' };
+  }
+
+  const deleted = await deleteCheckoutSettlement({
+    settlementId: settlement.id,
+    adminId: input.adminId ?? 'system',
+  });
+  if (!deleted.ok) {
+    throw new Error(deleted.error);
+  }
+  return { removed: true, settlementId: settlement.id, action: 'deleted' };
 }
 
 export async function archiveCheckoutSettlement(input: {

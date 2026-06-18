@@ -50,7 +50,7 @@ export async function rebuildOccupancyAction(
     revalidatePath('/admin/settings');
     return {
       status: 'ok',
-      message: `Rebuild complete — ${result.orphanReservationsClosed} orphan reservation(s) closed, ${result.bookingsReconciled} booking(s) reconciled, ${result.residencyStatusSynced} residency flag(s) synced.`,
+      message: `Rebuild complete — ${result.orphanReservationsClosed} orphan reservation(s) closed, ${result.bookingsReconciled} booking(s) reconciled, ${result.residencyStatusSynced} residency flag(s) synced, ${result.residencyStatusDemoted} stale active flag(s) demoted.`,
     };
   } catch (err) {
     return {

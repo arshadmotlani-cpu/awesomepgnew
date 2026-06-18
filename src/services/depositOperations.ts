@@ -6,14 +6,13 @@
 import { eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { auditLog, bookings } from '@/src/db/schema';
-import { revalidateFinancialViews } from '@/src/lib/billing/revalidateFinancialViews';
 import { getDepositInvoiceForBooking } from '@/src/services/depositInvoices';
 import {
-  correctDepositCollected,
   getDepositSummaryForBooking,
   type DepositSummary,
 } from '@/src/services/deposits';
 import { syncDepositCollectionFromLedger } from '@/src/services/depositCollection';
+import { applyDepositDeduction } from '@/src/services/depositSettlement';
 
 export type UnifiedDepositView = {
   bookingId: string;
@@ -30,6 +29,17 @@ export type UnifiedDepositView = {
   walletMismatchReason: string | null;
 };
 
+export type DepositWalletPreview = {
+  action: 'rebuild' | 'cancel';
+  current: UnifiedDepositView;
+  expected: UnifiedDepositView;
+  warnings: string[];
+  /** Whether ledger rows will be inserted (always false for rebuild). */
+  willModifyLedger: boolean;
+  /** For cancel: refundable balance removed from wallet via deduction. */
+  removesFromWalletPaise: number;
+};
+
 export function validateWalletFormula(summary: DepositSummary | null): {
   inSync: boolean;
   reason: string | null;
@@ -43,6 +53,40 @@ export function validateWalletFormula(summary: DepositSummary | null): {
     };
   }
   return { inSync: true, reason: null };
+}
+
+function viewFromParts(input: {
+  bookingId: string;
+  customerId: string;
+  booking: {
+    depositPaise: number;
+    depositDuePaise: number;
+    depositCollectionStatus: string;
+  };
+  summary: DepositSummary | null;
+  invoiceStatus: string | null;
+  walletCheck: { inSync: boolean; reason: string | null };
+  mismatchReason?: string | null;
+}): UnifiedDepositView {
+  const collectedPaise = input.summary?.collectedPaise ?? 0;
+  const deductedPaise = input.summary?.deductedPaise ?? 0;
+  const refundedPaise = input.summary?.refundedPaise ?? 0;
+  const refundablePaise = input.summary?.refundableBalancePaise ?? 0;
+
+  return {
+    bookingId: input.bookingId,
+    customerId: input.customerId,
+    requiredPaise: input.booking.depositPaise,
+    collectedPaise,
+    deductedPaise,
+    refundedPaise,
+    refundablePaise,
+    depositDuePaise: input.booking.depositDuePaise,
+    depositCollectionStatus: input.booking.depositCollectionStatus,
+    invoiceStatus: input.invoiceStatus,
+    walletInSync: input.walletCheck.inSync && !input.mismatchReason,
+    walletMismatchReason: input.mismatchReason ?? input.walletCheck.reason,
+  };
 }
 
 export async function getUnifiedDepositView(bookingId: string): Promise<UnifiedDepositView | null> {
@@ -63,59 +107,181 @@ export async function getUnifiedDepositView(bookingId: string): Promise<UnifiedD
   const invoice = await getDepositInvoiceForBooking(bookingId);
   const walletCheck = validateWalletFormula(summary);
 
-  const requiredPaise = invoice?.requiredPaise ?? booking.depositPaise;
-  const collectedPaise = invoice?.collectedPaise ?? summary?.collectedPaise ?? 0;
-  const deductedPaise = summary?.deductedPaise ?? 0;
-  const refundedPaise = summary?.refundedPaise ?? 0;
-  const refundablePaise = invoice?.refundablePaise ?? summary?.refundableBalancePaise ?? 0;
-
-  let mismatchReason = walletCheck.reason;
-  if (requiredPaise > 0 && collectedPaise === 0 && booking.depositDuePaise === 0 && !invoice?.isSettled) {
+  let mismatchReason: string | null = walletCheck.reason;
+  const collectedPaise = summary?.collectedPaise ?? 0;
+  if (
+    booking.depositPaise > 0 &&
+    collectedPaise === 0 &&
+    booking.depositDuePaise === 0 &&
+    !invoice?.isSettled
+  ) {
     mismatchReason =
       mismatchReason ??
-      'Required deposit set but wallet shows zero collected — run Rebuild Deposit Wallet or record collection.';
+      'Required deposit set but wallet shows zero collected — record collection or rebuild wallet.';
   }
 
-  return {
+  return viewFromParts({
     bookingId,
     customerId: booking.customerId,
-    requiredPaise,
-    collectedPaise,
-    deductedPaise,
-    refundedPaise,
-    refundablePaise,
-    depositDuePaise: booking.depositDuePaise,
-    depositCollectionStatus: booking.depositCollectionStatus,
+    booking,
+    summary,
     invoiceStatus: invoice?.displayStatus ?? null,
-    walletInSync: walletCheck.inSync && !mismatchReason,
-    walletMismatchReason: mismatchReason,
+    walletCheck,
+    mismatchReason,
+  });
+}
+
+function expectedAfterRebuild(
+  current: UnifiedDepositView,
+  booking: { depositPaise: number },
+  summary: DepositSummary,
+): UnifiedDepositView {
+  const due = Math.max(0, booking.depositPaise - summary.collectedPaise);
+  let status = current.depositCollectionStatus;
+  if (due <= 0) status = 'full';
+  else if (summary.collectedPaise > 0) status = 'partial';
+
+  return {
+    ...current,
+    collectedPaise: summary.collectedPaise,
+    deductedPaise: summary.deductedPaise,
+    refundedPaise: summary.refundedPaise,
+    refundablePaise: summary.refundableBalancePaise,
+    depositDuePaise: due,
+    depositCollectionStatus: status,
+    walletInSync: true,
+    walletMismatchReason: null,
   };
 }
 
-/** Align ledger collected balance with booking required deposit when they diverge. */
+function expectedAfterCancel(current: UnifiedDepositView): UnifiedDepositView {
+  const removes = current.refundablePaise;
+  return {
+    ...current,
+    requiredPaise: 0,
+    deductedPaise: current.deductedPaise + removes,
+    refundablePaise: 0,
+    depositDuePaise: 0,
+    depositCollectionStatus: 'full',
+    invoiceStatus: 'Cancelled',
+    walletInSync: true,
+    walletMismatchReason: null,
+  };
+}
+
+export async function previewRebuildDepositWallet(
+  bookingId: string,
+): Promise<DepositWalletPreview | { ok: false; error: string }> {
+  const current = await getUnifiedDepositView(bookingId);
+  if (!current) return { ok: false, error: 'Booking not found.' };
+
+  const [booking] = await db
+    .select({ depositPaise: bookings.depositPaise })
+    .from(bookings)
+    .where(eq(bookings.id, bookingId))
+    .limit(1);
+  if (!booking) return { ok: false, error: 'Booking not found.' };
+
+  const summary = await getDepositSummaryForBooking(bookingId);
+  if (!summary) return { ok: false, error: 'Booking not found.' };
+
+  const walletCheck = validateWalletFormula(summary);
+  const warnings: string[] = [];
+  if (!walletCheck.inSync && walletCheck.reason) {
+    warnings.push(`Ledger reconciliation failed: ${walletCheck.reason}`);
+  }
+  if (booking.depositPaise !== summary.collectedPaise) {
+    warnings.push(
+      `Required deposit (₹${(booking.depositPaise / 100).toLocaleString('en-IN')}) differs from ledger collected (₹${(summary.collectedPaise / 100).toLocaleString('en-IN')}). Rebuild syncs due/status only — it does not change required deposit or ledger rows.`,
+    );
+  }
+
+  return {
+    action: 'rebuild',
+    current,
+    expected: expectedAfterRebuild(current, booking, summary),
+    warnings,
+    willModifyLedger: false,
+    removesFromWalletPaise: 0,
+  };
+}
+
+export async function previewCancelDepositInvoice(
+  bookingId: string,
+): Promise<DepositWalletPreview | { ok: false; error: string }> {
+  const current = await getUnifiedDepositView(bookingId);
+  if (!current) return { ok: false, error: 'Booking not found.' };
+
+  const [booking] = await db
+    .select({ depositPaise: bookings.depositPaise })
+    .from(bookings)
+    .where(eq(bookings.id, bookingId))
+    .limit(1);
+  if (!booking) return { ok: false, error: 'Booking not found.' };
+
+  const warnings: string[] = [];
+  if (booking.depositPaise === 0 && current.refundablePaise === 0 && current.collectedPaise === 0) {
+    return { ok: false, error: 'Invoice already cancelled.' };
+  }
+  if (current.refundablePaise > 0) {
+    warnings.push(
+      `This will remove ₹${(current.refundablePaise / 100).toLocaleString('en-IN')} from the resident deposit wallet.`,
+    );
+  }
+
+  return {
+    action: 'cancel',
+    current,
+    expected: expectedAfterCancel(current),
+    warnings,
+    willModifyLedger: current.refundablePaise > 0,
+    removesFromWalletPaise: current.refundablePaise,
+  };
+}
+
+/**
+ * Reconcile booking deposit-due fields from the append-only ledger.
+ * Does not insert, update, or delete ledger rows.
+ */
 export async function rebuildDepositWallet(input: {
   bookingId: string;
   customerId: string;
   adminId: string;
-}): Promise<{ ok: true; targetCollectedPaise: number } | { ok: false; error: string }> {
+}): Promise<
+  | { ok: true; collectedPaise: number; refundablePaise: number; depositDuePaise: number }
+  | { ok: false; error: string }
+> {
   const [booking] = await db
-    .select({ depositPaise: bookings.depositPaise })
+    .select({
+      depositPaise: bookings.depositPaise,
+      depositDuePaise: bookings.depositDuePaise,
+    })
     .from(bookings)
     .where(eq(bookings.id, input.bookingId))
     .limit(1);
   if (!booking) return { ok: false, error: 'Booking not found.' };
 
   const summary = await getDepositSummaryForBooking(input.bookingId);
-  const targetCollectedPaise = summary?.collectedPaise ?? booking.depositPaise;
+  if (!summary) return { ok: false, error: 'Booking not found.' };
 
-  await correctDepositCollected({
-    bookingId: input.bookingId,
-    customerId: input.customerId,
-    targetCollectedPaise,
-    reason: 'Rebuild deposit wallet from unified service',
-    createdByAdminId: input.adminId,
-  });
+  const walletCheck = validateWalletFormula(summary);
+  if (!walletCheck.inSync) {
+    return {
+      ok: false,
+      error: `Ledger reconciliation failed: ${walletCheck.reason ?? 'wallet formula mismatch.'}`,
+    };
+  }
+
   await syncDepositCollectionFromLedger(input.bookingId);
+
+  const [after] = await db
+    .select({
+      depositDuePaise: bookings.depositDuePaise,
+      depositCollectionStatus: bookings.depositCollectionStatus,
+    })
+    .from(bookings)
+    .where(eq(bookings.id, input.bookingId))
+    .limit(1);
 
   await db.insert(auditLog).values({
     actorType: 'admin',
@@ -123,27 +289,71 @@ export async function rebuildDepositWallet(input: {
     entity: 'booking',
     entityId: input.bookingId,
     action: 'deposit_wallet_rebuilt',
-    diff: { targetCollectedPaise },
+    diff: {
+      customerId: input.customerId,
+      collectedPaise: summary.collectedPaise,
+      deductedPaise: summary.deductedPaise,
+      refundedPaise: summary.refundedPaise,
+      refundablePaise: summary.refundableBalancePaise,
+      depositDuePaise: after?.depositDuePaise ?? booking.depositDuePaise,
+      depositCollectionStatus: after?.depositCollectionStatus,
+      ledgerRowCount: summary.entries.length,
+    },
   });
 
-  revalidateFinancialViews();
-  return { ok: true, targetCollectedPaise };
+  return {
+    ok: true,
+    collectedPaise: summary.collectedPaise,
+    refundablePaise: summary.refundableBalancePaise,
+    depositDuePaise: after?.depositDuePaise ?? booking.depositDuePaise,
+  };
 }
 
-/** Cancel deposit obligation — zeros wallet and required deposit. */
+/** Cancel deposit obligation — zeros required deposit and clears refundable wallet balance. */
 export async function cancelDepositInvoice(input: {
   bookingId: string;
   customerId: string;
   adminId: string;
   reason: string;
-}): Promise<{ ok: true } | { ok: false; error: string }> {
-  await correctDepositCollected({
-    bookingId: input.bookingId,
-    customerId: input.customerId,
-    targetCollectedPaise: 0,
-    reason: `Deposit invoice cancelled: ${input.reason}`,
-    createdByAdminId: input.adminId,
-  });
+}): Promise<{ ok: true; removedFromWalletPaise: number } | { ok: false; error: string }> {
+  const [booking] = await db
+    .select({
+      depositPaise: bookings.depositPaise,
+      depositDuePaise: bookings.depositDuePaise,
+    })
+    .from(bookings)
+    .where(eq(bookings.id, input.bookingId))
+    .limit(1);
+  if (!booking) return { ok: false, error: 'Booking not found.' };
+
+  const summary = await getDepositSummaryForBooking(input.bookingId);
+  const refundablePaise = summary?.refundableBalancePaise ?? 0;
+  const collectedPaise = summary?.collectedPaise ?? 0;
+
+  if (booking.depositPaise === 0 && refundablePaise === 0 && collectedPaise === 0) {
+    return { ok: false, error: 'Invoice already cancelled.' };
+  }
+
+  const walletCheck = validateWalletFormula(summary);
+  if (!walletCheck.inSync) {
+    return {
+      ok: false,
+      error: `Ledger reconciliation failed: ${walletCheck.reason ?? 'wallet formula mismatch.'}`,
+    };
+  }
+
+  if (refundablePaise > 0) {
+    const deducted = await applyDepositDeduction({
+      bookingId: input.bookingId,
+      customerId: input.customerId,
+      amountPaise: refundablePaise,
+      reason: `Deposit invoice cancelled: ${input.reason}`,
+      adminId: input.adminId,
+    });
+    if (!deducted.ok) {
+      return { ok: false, error: deducted.error };
+    }
+  }
 
   await db
     .update(bookings)
@@ -155,19 +365,22 @@ export async function cancelDepositInvoice(input: {
     })
     .where(eq(bookings.id, input.bookingId));
 
-  await syncDepositCollectionFromLedger(input.bookingId);
-
   await db.insert(auditLog).values({
     actorType: 'admin',
     actorId: input.adminId,
     entity: 'booking',
     entityId: input.bookingId,
     action: 'deposit_invoice_cancelled',
-    diff: { reason: input.reason },
+    diff: {
+      customerId: input.customerId,
+      reason: input.reason,
+      removedFromWalletPaise: refundablePaise,
+      priorRequiredPaise: booking.depositPaise,
+      priorCollectedPaise: collectedPaise,
+    },
   });
 
-  revalidateFinancialViews();
-  return { ok: true };
+  return { ok: true, removedFromWalletPaise: refundablePaise };
 }
 
 export async function updateDepositSummaryAdmin(input: {
@@ -178,6 +391,8 @@ export async function updateDepositSummaryAdmin(input: {
   collectedPaise?: number;
   reason: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { correctDepositCollected } = await import('@/src/services/deposits');
+
   if (input.requiredPaise != null && input.requiredPaise >= 0) {
     const [booking] = await db
       .select({ depositPaise: bookings.depositPaise, totalPaise: bookings.totalPaise })
@@ -197,14 +412,20 @@ export async function updateDepositSummaryAdmin(input: {
   }
 
   if (input.collectedPaise != null && input.collectedPaise >= 0) {
-    const result = await correctDepositCollected({
-      bookingId: input.bookingId,
-      customerId: input.customerId,
-      targetCollectedPaise: input.collectedPaise,
-      reason: input.reason,
-      createdByAdminId: input.adminId,
-    });
-    void result;
+    try {
+      await correctDepositCollected({
+        bookingId: input.bookingId,
+        customerId: input.customerId,
+        targetCollectedPaise: input.collectedPaise,
+        reason: input.reason,
+        createdByAdminId: input.adminId,
+      });
+    } catch (err) {
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : 'Deposit correction failed.',
+      };
+    }
   }
 
   await syncDepositCollectionFromLedger(input.bookingId);
@@ -222,7 +443,6 @@ export async function updateDepositSummaryAdmin(input: {
     },
   });
 
-  revalidateFinancialViews();
   return { ok: true };
 }
 
@@ -236,17 +456,24 @@ export async function markDepositInvoicePaid(input: {
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   if (input.amountPaise <= 0) return { ok: false, error: 'Amount must be greater than zero.' };
 
+  const { correctDepositCollected } = await import('@/src/services/deposits');
   const summary = await getDepositSummaryForBooking(input.bookingId);
   const target = (summary?.collectedPaise ?? 0) + input.amountPaise;
 
-  await correctDepositCollected({
-    bookingId: input.bookingId,
-    customerId: input.customerId,
-    targetCollectedPaise: target,
-    reason: input.note?.trim() || 'Deposit invoice marked paid',
-    createdByAdminId: input.adminId,
-  });
+  try {
+    await correctDepositCollected({
+      bookingId: input.bookingId,
+      customerId: input.customerId,
+      targetCollectedPaise: target,
+      reason: input.note?.trim() || 'Deposit invoice marked paid',
+      createdByAdminId: input.adminId,
+    });
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Mark paid failed.',
+    };
+  }
   await syncDepositCollectionFromLedger(input.bookingId);
-  revalidateFinancialViews();
   return { ok: true };
 }

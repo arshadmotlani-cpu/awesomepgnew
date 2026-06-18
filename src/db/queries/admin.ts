@@ -9,6 +9,7 @@ import {
 } from '@/src/lib/occupancySqlFilters';
 import { productionInvoiceBookingFilters } from '@/src/lib/billing/invoiceOnlyFinancials';
 import { collectibleResidentFilters } from '@/src/lib/billing/productionDataFilter';
+import { bedOccupiedTodayExistsSql } from '@/src/lib/occupancySsot';
 import { todayString } from '@/src/lib/dates';
 import { asPlainNumber } from '@/src/lib/format';
 import {
@@ -102,20 +103,11 @@ export function getDashboardStats(): Promise<QueryResult<DashboardStats>> {
     const blockedBeds = byStatus.get('blocked') ?? 0;
     const maintenanceBeds = byStatus.get('maintenance') ?? 0;
 
-    // Occupied = beds with an active reservation that covers today.
-    // Important: column references inside `sql` templates must be written
-    // as qualified literals (e.g. `beds.id`) when the surrounding FROM has
-    // more than one table with the same column name. Drizzle's `${col}`
-    // interpolation emits the bare column name, which Postgres then rejects
-    // with "column reference is ambiguous" (42702) — or worse, binds to the
-    // wrong column and silently returns zero.
+    // Occupied = beds with a confirmed primary active reservation covering today (SSOT).
     const [occRow] = await db
-      .select({ count: sql<number>`count(distinct beds.id)::int` })
+      .select({ count: sql<number>`count(distinct ${beds.id})::int` })
       .from(beds)
-      .innerJoin(bedReservations, eq(bedReservations.bedId, beds.id))
-      .where(
-        sql`${bedReservations.status} = 'active' AND CURRENT_DATE <@ ${bedReservations.stayRange}`,
-      );
+      .where(sql`${beds.archivedAt} IS NULL AND ${bedOccupiedTodayExistsSql}`);
 
     const occupiedBeds = occRow?.count ?? 0;
     // Available now means "physically available AND not currently occupied".
@@ -797,20 +789,10 @@ export function getOccupancyByPg(): Promise<QueryResult<OccupancyByPg[]>> {
         // scope. Bare `"id"` is ambiguous.
         totalBeds: sql<number>`count(beds.id)::int`,
         occupiedBeds: sql<number>`count(beds.id) FILTER (
-          WHERE EXISTS (
-            SELECT 1 FROM ${bedReservations} r
-            WHERE r.bed_id = beds.id
-              AND r.status = 'active'
-              AND CURRENT_DATE <@ r.stay_range
-          )
+          WHERE ${bedOccupiedTodayExistsSql}
         )::int`,
         availableBeds: sql<number>`count(beds.id) FILTER (
-          WHERE beds.status = 'available' AND NOT EXISTS (
-            SELECT 1 FROM ${bedReservations} r
-            WHERE r.bed_id = beds.id
-              AND r.status = 'active'
-              AND CURRENT_DATE <@ r.stay_range
-          )
+          WHERE beds.status = 'available' AND NOT (${bedOccupiedTodayExistsSql})
         )::int`,
         blockedBeds: sql<number>`count(beds.id) FILTER (WHERE beds.status = 'blocked')::int`,
         occupancyPct: sql<number>`(
