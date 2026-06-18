@@ -33,6 +33,21 @@ import {
 } from '@/src/services/depositSettlement';
 import { finalizeVacatingOccupancy } from '@/src/services/vacating';
 import { scheduleAdminNotificationSync } from '@/src/services/adminLiveSync';
+import {
+  calculateCheckoutElectricity,
+  defaultElectricityRatePaise,
+  resolveRoomMonthlyOccupantCount,
+} from '@/src/lib/checkout/electricitySettlement';
+
+/** Statuses shown in operational queues (excludes archived). */
+const OPERATIONAL_SETTLEMENT_STATUSES: CheckoutSettlementStatus[] = [
+  'awaiting_resident_details',
+  'awaiting_admin_review',
+  'approved',
+  'refund_pending',
+  'refund_paid',
+  'completed',
+];
 
 export type CheckoutSettlementListTab =
   | 'awaiting_resident'
@@ -73,11 +88,15 @@ export type CheckoutSettlementDetail = CheckoutSettlementRow & {
   depositRefundablePaise: number;
   moveInDate: string | null;
   noticeGivenDate: string;
+  roomMonthlyOccupants: number;
+  electricityTotalBillPaise: number;
   preview: RefundDeductionsSnapshot & {
     finalRefundPaise: number;
     totalDeductionsPaise: number;
     noticeDeductionPaise: number;
     electricityDeductionPaise: number;
+    electricityDeductFromDeposit: boolean;
+    electricitySharePaise: number;
   };
 };
 
@@ -91,7 +110,9 @@ function hasResidentRefundDetails(row: CheckoutSettlement): boolean {
 function buildPreview(row: CheckoutSettlement, depositHeldPaise: number) {
   const held = paiseField(depositHeldPaise);
   const noticeDeductionPaise = paiseField(row.noticeDeductionPaise);
-  const electricityDeductionPaise = paiseField(row.electricitySharePaise);
+  const electricitySharePaise = paiseField(row.electricitySharePaise);
+  const electricityDeductFromDeposit = row.electricityDeductFromDeposit !== false;
+  const electricityDeductionPaise = electricityDeductFromDeposit ? electricitySharePaise : 0;
   const damageChargePaise = paiseField(row.damageChargePaise);
   const cleaningChargePaise = paiseField(row.cleaningChargePaise);
   const customChargePaise = paiseField(row.customChargePaise);
@@ -111,6 +132,8 @@ function buildPreview(row: CheckoutSettlement, depositHeldPaise: number) {
     depositHeldPaise: held,
     noticeDeductionPaise,
     electricityDeductionPaise,
+    electricitySharePaise,
+    electricityDeductFromDeposit,
     damageChargePaise,
     cleaningChargePaise,
     penaltyChargePaise: noticeDeductionPaise,
@@ -141,6 +164,7 @@ type SettlementJoinRow = {
   electricity_occupants: number | null;
   electricity_unit_rate_paise: number | null;
   electricity_share_paise: number;
+  electricity_deduct_from_deposit: boolean;
   damage_charge_paise: number;
   cleaning_charge_paise: number;
   custom_charge_paise: number;
@@ -195,6 +219,7 @@ function mapDbSettlement(row: SettlementJoinRow): CheckoutSettlement {
       ? paiseField(row.electricity_unit_rate_paise)
       : null,
     electricitySharePaise: paiseField(row.electricity_share_paise),
+    electricityDeductFromDeposit: row.electricity_deduct_from_deposit !== false,
     damageChargePaise: paiseField(row.damage_charge_paise),
     cleaningChargePaise: paiseField(row.cleaning_charge_paise),
     customChargePaise: paiseField(row.custom_charge_paise),
@@ -289,6 +314,9 @@ export async function createCheckoutSettlementFromVacating(input: {
     .where(eq(vacatingRequests.id, input.vacatingRequestId))
     .limit(1);
   if (!vr) return { ok: false, error: 'Vacating request not found.' };
+  if (vr.checkoutSettlementSuppressed) {
+    return { ok: false, error: 'Checkout settlement is suppressed for this vacating request.' };
+  }
 
   const [existing] = await db
     .select({ id: checkoutSettlements.id })
@@ -351,8 +379,6 @@ export async function listCheckoutSettlements(
   session: AdminSession,
   tab: CheckoutSettlementListTab,
 ): Promise<CheckoutSettlementRow[]> {
-  await syncMissingCheckoutSettlements();
-
   const statuses = TAB_STATUS[tab];
   const rows = await db.execute<SettlementJoinRow>(sql`
     SELECT
@@ -418,6 +444,25 @@ export async function getCheckoutSettlementDetail(
   const wallet = await getDepositSummaryForBooking(row.bookingId);
   const depositHeld = paiseField(wallet?.refundableBalancePaise ?? 0);
   const settlement = mapDbSettlement(row);
+  const roomMonthlyOccupants = await resolveRoomMonthlyOccupantCount(row.booking_id);
+
+  const prev = settlement.electricityPreviousReading
+    ? Number(settlement.electricityPreviousReading)
+    : null;
+  const cur = settlement.electricityCurrentReading
+    ? Number(settlement.electricityCurrentReading)
+    : null;
+  const rate = settlement.electricityUnitRatePaise ?? defaultElectricityRatePaise();
+  let electricityTotalBillPaise = 0;
+  if (prev != null && cur != null && !Number.isNaN(prev) && !Number.isNaN(cur)) {
+    const bill = calculateCheckoutElectricity({
+      previousReading: prev,
+      currentReading: cur,
+      ratePerUnitPaise: rate,
+      roomOccupants: settlement.electricityOccupants ?? roomMonthlyOccupants,
+    });
+    if (bill.ok) electricityTotalBillPaise = bill.calc.totalBillPaise;
+  }
 
   return {
     ...mapJoinRow(row),
@@ -427,6 +472,8 @@ export async function getCheckoutSettlementDetail(
     depositRefundablePaise: depositHeld,
     moveInDate: row.move_in_date,
     noticeGivenDate: row.notice_given_date,
+    roomMonthlyOccupants,
+    electricityTotalBillPaise,
     preview: buildPreview(settlement, depositHeld),
   };
 }
@@ -524,6 +571,55 @@ export async function submitResidentCheckoutDetails(input: {
   return { ok: true };
 }
 
+export async function updateCheckoutElectricitySettlement(input: {
+  settlementId: string;
+  previousReading: number;
+  currentReading: number;
+  ratePerUnitInr: number;
+  deductFromDeposit: boolean;
+}): Promise<
+  { ok: true; calc: import('@/src/lib/checkout/electricitySettlement').CheckoutElectricityCalc } | { ok: false; error: string }
+> {
+  const [current] = await db
+    .select()
+    .from(checkoutSettlements)
+    .where(eq(checkoutSettlements.id, input.settlementId))
+    .limit(1);
+  if (!current) return { ok: false, error: 'Settlement not found.' };
+  if (current.amountsLocked) {
+    return { ok: false, error: 'Settlement amounts are locked.' };
+  }
+  if (!['awaiting_admin_review', 'awaiting_resident_details'].includes(current.status)) {
+    return { ok: false, error: 'Settlement cannot be edited in this status.' };
+  }
+
+  const roomOccupants = await resolveRoomMonthlyOccupantCount(current.bookingId);
+  const ratePerUnitPaise = Math.round(input.ratePerUnitInr * 100);
+  const computed = calculateCheckoutElectricity({
+    previousReading: input.previousReading,
+    currentReading: input.currentReading,
+    ratePerUnitPaise,
+    roomOccupants,
+  });
+  if (!computed.ok) return computed;
+
+  await db
+    .update(checkoutSettlements)
+    .set({
+      electricityPreviousReading: String(input.previousReading),
+      electricityCurrentReading: String(input.currentReading),
+      electricityUnits: String(computed.calc.unitsConsumed),
+      electricityOccupants: computed.calc.roomOccupants,
+      electricityUnitRatePaise: computed.calc.ratePerUnitPaise,
+      electricitySharePaise: computed.calc.sharePaise,
+      electricityDeductFromDeposit: input.deductFromDeposit,
+      updatedAt: new Date(),
+    })
+    .where(eq(checkoutSettlements.id, input.settlementId));
+
+  return { ok: true, calc: computed.calc };
+}
+
 export async function updateCheckoutSettlementAdminFields(input: {
   settlementId: string;
   noticeDeductionPaise?: number;
@@ -590,7 +686,7 @@ export async function approveCheckoutSettlement(input: {
       reason: `Notice shortfall (${current.noticeShortfallDays} days)`,
     });
   }
-  if (current.electricitySharePaise > 0) {
+  if (current.electricitySharePaise > 0 && current.electricityDeductFromDeposit) {
     deductions.push({
       amountPaise: current.electricitySharePaise,
       reason: 'Electricity share at checkout',
@@ -764,7 +860,12 @@ export async function getCheckoutSettlementIdForVacating(
   const [row] = await db
     .select({ id: checkoutSettlements.id })
     .from(checkoutSettlements)
-    .where(eq(checkoutSettlements.vacatingRequestId, vacatingRequestId))
+    .where(
+      and(
+        eq(checkoutSettlements.vacatingRequestId, vacatingRequestId),
+        inArray(checkoutSettlements.status, OPERATIONAL_SETTLEMENT_STATUSES),
+      ),
+    )
     .limit(1);
   return row?.id ?? null;
 }
@@ -812,6 +913,7 @@ export async function backfillCheckoutSettlementsFromVacating(input?: {
     INNER JOIN customers c ON c.id = vr.customer_id
     LEFT JOIN checkout_settlements cs ON cs.vacating_request_id = vr.id
     WHERE vr.status IN ('approved', 'completed')
+      AND COALESCE(vr.checkout_settlement_suppressed, false) = false
       AND cs.id IS NULL
     ORDER BY vr.created_at ASC
   `);
@@ -963,6 +1065,10 @@ export async function deleteCheckoutSettlement(input: {
   }
 
   await db.delete(checkoutSettlements).where(eq(checkoutSettlements.id, input.settlementId));
+  await db
+    .update(vacatingRequests)
+    .set({ checkoutSettlementSuppressed: true, updatedAt: new Date() })
+    .where(eq(vacatingRequests.id, row.vacatingRequestId));
   await db.insert(auditLog).values({
     actorType: 'admin',
     actorId: input.adminId,
@@ -973,6 +1079,7 @@ export async function deleteCheckoutSettlement(input: {
       vacatingRequestId: row.vacatingRequestId,
       bookingId: row.bookingId,
       status: row.status,
+      checkoutSettlementSuppressed: true,
     },
   });
   scheduleAdminNotificationSync();
@@ -1027,6 +1134,11 @@ export async function rebuildCheckoutSettlement(input: {
 
   const vacatingRequestId = row.vacatingRequestId;
   const bookingId = row.bookingId;
+
+  await db
+    .update(vacatingRequests)
+    .set({ checkoutSettlementSuppressed: false, updatedAt: new Date() })
+    .where(eq(vacatingRequests.id, vacatingRequestId));
 
   await db.delete(checkoutSettlements).where(eq(checkoutSettlements.id, input.settlementId));
   await db.insert(auditLog).values({

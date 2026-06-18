@@ -400,6 +400,13 @@
       "when": 1787700000000,
       "tag": "0059_checkout_settlement_archived",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1787800000000,
+      "tag": "0060_checkout_settlement_suppress_and_electricity",
+      "breakpoints": true
     }
   ]
 }

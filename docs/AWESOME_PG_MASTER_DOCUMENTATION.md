@@ -1072,3 +1072,5 @@ All require `Authorization: Bearer $CRON_SECRET`.
 ---
 
 *End of Awesome PG Master Documentation v1.0*
+
+**Continued in:** [AWESOME_PG_MASTER_DOCUMENTATION_V2.md](./AWESOME_PG_MASTER_DOCUMENTATION_V2.md) — everything built after v1 (Action Center, charge generator, express collection, security hardening, bed overlap, deploy).

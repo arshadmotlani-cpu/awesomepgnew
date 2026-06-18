@@ -9,6 +9,7 @@ import {
   deleteCheckoutSettlement,
   markCheckoutRefundPaid,
   rebuildCheckoutSettlement,
+  updateCheckoutElectricitySettlement,
   updateCheckoutSettlementAdminFields,
 } from '@/src/services/checkoutSettlement';
 
@@ -18,10 +19,12 @@ export type CheckoutSettlementActionState =
   | { status: 'error'; message: string };
 
 function revalidateCheckoutPaths(settlementId?: string) {
-  revalidatePath('/admin/checkout-settlements');
-  revalidatePath('/admin/vacating');
-  revalidatePath('/admin/deposits');
-  revalidatePath('/admin/residents');
+  revalidatePath('/admin/checkout-settlements', 'layout');
+  revalidatePath('/admin/vacating', 'layout');
+  revalidatePath('/admin/deposits', 'layout');
+  revalidatePath('/admin/residents', 'layout');
+  revalidatePath('/admin/overview', 'layout');
+  revalidatePath('/admin/operations', 'layout');
   if (settlementId) {
     revalidatePath(`/admin/checkout-settlements/${settlementId}`);
   }
@@ -121,6 +124,44 @@ export async function updateCheckoutSettlementFieldsAction(
   }
   revalidateCheckoutPaths(settlementId);
   return { status: 'ok', message: 'Settlement amounts updated.' };
+}
+
+export async function updateCheckoutElectricityAction(
+  _prev: CheckoutSettlementActionState,
+  formData: FormData,
+): Promise<CheckoutSettlementActionState> {
+  await requireAdminPermission('deposits:write');
+  const settlementId = String(formData.get('settlementId') ?? '');
+  const previousReading = Number(formData.get('previousReading'));
+  const currentReading = Number(formData.get('currentReading'));
+  const ratePerUnitInr = Number(formData.get('ratePerUnitInr'));
+  const deductFromDeposit = formData.get('deductFromDeposit') === 'on';
+
+  if (
+    !Number.isFinite(previousReading) ||
+    !Number.isFinite(currentReading) ||
+    !Number.isFinite(ratePerUnitInr) ||
+    ratePerUnitInr <= 0
+  ) {
+    return { status: 'error', message: 'Enter valid meter readings and rate per unit.' };
+  }
+
+  const result = await updateCheckoutElectricitySettlement({
+    settlementId,
+    previousReading,
+    currentReading,
+    ratePerUnitInr,
+    deductFromDeposit,
+  });
+  if (!result.ok) {
+    return { status: 'error', message: result.error };
+  }
+
+  revalidateCheckoutPaths(settlementId);
+  return {
+    status: 'ok',
+    message: `Electricity saved — ${result.calc.unitsConsumed} units, resident share ${(result.calc.sharePaise / 100).toFixed(2)} (${result.calc.roomOccupants} in room).`,
+  };
 }
 
 export async function deleteCheckoutSettlementAction(

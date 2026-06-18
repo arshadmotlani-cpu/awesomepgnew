@@ -8,6 +8,7 @@ import {
   updateCheckoutSettlementFieldsAction,
   type CheckoutSettlementActionState,
 } from '@/app/(admin)/admin/checkout-settlements/actions';
+import { CheckoutSettlementElectricitySection } from '@/src/components/admin/CheckoutSettlementElectricitySection';
 import { paiseToInr } from '@/src/lib/format';
 import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement';
 
@@ -68,6 +69,10 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
   const locked = detail.amountsLocked;
   const canApprove = detail.status === 'awaiting_admin_review';
   const canMarkPaid = detail.status === 'refund_pending';
+  const canEditElectricity =
+    !locked &&
+    (detail.status === 'awaiting_admin_review' ||
+      detail.status === 'awaiting_resident_details');
   const preview = detail.preview;
 
   return (
@@ -173,39 +178,8 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
         )}
       </Section>
 
-      <Section title="Electricity settlement">
-        {detail.electricityMeterPhotoUrl ? (
-          <a
-            href={detail.electricityMeterPhotoUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="text-sm font-semibold text-[#FF5A1F] hover:underline"
-          >
-            View meter photo
-          </a>
-        ) : detail.electricityUseAverage ? (
-          <p className="text-sm text-apg-silver">Resident chose average billing fallback.</p>
-        ) : (
-          <p className="text-sm text-amber-200">Awaiting resident electricity details.</p>
-        )}
-        <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-          {detail.electricityUnits ? (
-            <div>
-              <dt className="text-apg-silver">Units</dt>
-              <dd className="text-white">{detail.electricityUnits}</dd>
-            </div>
-          ) : null}
-          {detail.electricityOccupants ? (
-            <div>
-              <dt className="text-apg-silver">Occupants</dt>
-              <dd className="text-white">{detail.electricityOccupants}</dd>
-            </div>
-          ) : null}
-          <div>
-            <dt className="text-apg-silver">Resident share</dt>
-            <dd className="text-white">{paiseToInr(detail.electricitySharePaise)}</dd>
-          </div>
-        </dl>
+      <Section title="Electricity settlement" defaultOpen={canEditElectricity}>
+        <CheckoutSettlementElectricitySection detail={detail} editable={canEditElectricity} />
       </Section>
 
       <Section title="Refund information">
@@ -229,33 +203,43 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
         ) : null}
       </Section>
 
-      <Section title="Final calculation">
+      <Section title="Settlement preview">
         <div className="rounded-xl border border-white/10 bg-[#12161C] p-4 text-sm">
           <div className="flex justify-between py-1">
-            <span className="text-apg-silver">Deposit collected</span>
-            <span className="text-white">{paiseToInr(detail.depositCollectedPaise)}</span>
+            <span className="text-apg-silver">Deposit wallet</span>
+            <span className="text-white">{paiseToInr(detail.depositRefundablePaise)}</span>
           </div>
           <div className="flex justify-between py-1">
             <span className="text-apg-silver">Notice deduction</span>
             <span className="text-rose-300">−{paiseToInr(preview.noticeDeductionPaise)}</span>
           </div>
           <div className="flex justify-between py-1">
-            <span className="text-apg-silver">Electricity</span>
-            <span className="text-rose-300">−{paiseToInr(preview.electricityDeductionPaise)}</span>
+            <span className="text-apg-silver">
+              Electricity
+              {!preview.electricityDeductFromDeposit && preview.electricitySharePaise > 0 ? (
+                <span className="ml-1 text-xs text-amber-300">(not deducted)</span>
+              ) : null}
+            </span>
+            <span className="text-rose-300">
+              −{paiseToInr(preview.electricityDeductFromDeposit ? preview.electricityDeductionPaise : 0)}
+              {!preview.electricityDeductFromDeposit && preview.electricitySharePaise > 0 ? (
+                <span className="ml-2 text-xs font-normal text-apg-silver">
+                  ({paiseToInr(preview.electricitySharePaise)} unpaid)
+                </span>
+              ) : null}
+            </span>
           </div>
           <div className="flex justify-between py-1">
             <span className="text-apg-silver">Damage</span>
-            <span className="text-rose-300">−{paiseToInr(detail.damageChargePaise)}</span>
+            <span className="text-rose-300">−{paiseToInr(preview.damageChargePaise ?? 0)}</span>
           </div>
           <div className="flex justify-between py-1">
-            <span className="text-apg-silver">Custom charges</span>
-            <span className="text-rose-300">−{paiseToInr(detail.customChargePaise)}</span>
+            <span className="text-apg-silver">Other</span>
+            <span className="text-rose-300">
+              −{paiseToInr((preview.cleaningChargePaise ?? 0) + (preview.customChargePaise ?? 0))}
+            </span>
           </div>
-          <div className="mt-2 flex justify-between border-t border-white/10 pt-2 font-semibold">
-            <span className="text-apg-silver">Total deductions</span>
-            <span className="text-rose-300">−{paiseToInr(preview.totalDeductionsPaise)}</span>
-          </div>
-          <div className="mt-2 flex justify-between text-lg font-bold">
+          <div className="mt-2 flex justify-between border-t border-white/10 pt-2 text-lg font-bold">
             <span className="text-white">Final refund</span>
             <span className="text-emerald-300">{paiseToInr(preview.finalRefundPaise)}</span>
           </div>
@@ -266,7 +250,7 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
         <form action={approveAction} className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-5">
           <input type="hidden" name="settlementId" value={detail.id} />
           <input type="hidden" name="noticeDeductionInr" value={(detail.noticeDeductionPaise / 100).toFixed(2)} />
-          <input type="hidden" name="electricityShareInr" value={(detail.electricitySharePaise / 100).toFixed(2)} />
+          <input type="hidden" name="electricityShareInr" value={((preview.electricityDeductFromDeposit ? preview.electricityDeductionPaise : 0) / 100).toFixed(2)} />
           <input type="hidden" name="damageChargeInr" value={(detail.damageChargePaise / 100).toFixed(2)} />
           <input type="hidden" name="cleaningChargeInr" value={(detail.cleaningChargePaise / 100).toFixed(2)} />
           <input type="hidden" name="customChargeInr" value={(detail.customChargePaise / 100).toFixed(2)} />

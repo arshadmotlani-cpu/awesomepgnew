@@ -59,6 +59,10 @@ export const vacatingRequests = pgTable(
       mode: 'number',
     }).notNull(),
     status: vacatingStatusEnum('status').notNull().default('pending'),
+    /** When true, auto-backfill must not recreate checkout_settlements for this vacating row. */
+    checkoutSettlementSuppressed: boolean('checkout_settlement_suppressed')
+      .notNull()
+      .default(false),
     resolvedAt: timestamp('resolved_at', { withTimezone: true }),
     resolvedByAdminId: uuid('resolved_by_admin_id').references(() => adminUsers.id, {
       onDelete: 'set null',
