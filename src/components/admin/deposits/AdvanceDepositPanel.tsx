@@ -53,6 +53,7 @@ export function AdvanceDepositPanel() {
   async function search(q: string) {
     if (q.trim().length < 2) {
       setResults([]);
+      setError(null);
       return;
     }
     setLoading(true);
@@ -62,8 +63,24 @@ export function AdvanceDepositPanel() {
         `/api/admin/residents/search?q=${encodeURIComponent(q.trim())}`,
         { cache: 'no-store' },
       );
-      const json = (await res.json()) as { ok: boolean; data?: SearchResult[] };
-      setResults(json.ok ? (json.data ?? []) : []);
+      let json: { ok: boolean; data?: SearchResult[]; error?: string };
+      try {
+        json = (await res.json()) as typeof json;
+      } catch {
+        setError('Search failed. Invalid server response.');
+        setResults([]);
+        return;
+      }
+      if (!res.ok || !json.ok) {
+        setError(json.error ?? 'Search failed. Check server logs.');
+        setResults([]);
+        return;
+      }
+      setResults(json.data ?? []);
+    } catch (err) {
+      console.error('Advance deposit resident search failed', err);
+      setError('Search failed. Network error — try again.');
+      setResults([]);
     } finally {
       setLoading(false);
     }
@@ -122,6 +139,7 @@ export function AdvanceDepositPanel() {
           className="apg-admin-field mt-3 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white"
         />
         {loading ? <p className="mt-2 text-xs text-apg-silver">Searching…</p> : null}
+        {error ? <p className="mt-2 text-xs text-rose-300">{error}</p> : null}
         {results.length > 0 ? (
           <ul className="mt-3 max-h-48 overflow-y-auto rounded-lg border border-white/10">
             {results.map((r) => (
@@ -153,10 +171,8 @@ export function AdvanceDepositPanel() {
               </li>
             ))}
           </ul>
-        ) : query.trim().length >= 2 && !loading ? (
-          <p className="mt-2 text-xs text-apg-silver">
-            No residents match — try another spelling or phone number.
-          </p>
+        ) : query.trim().length >= 2 && !loading && !error ? (
+          <p className="mt-2 text-xs text-apg-silver">No residents found.</p>
         ) : null}
       </div>
 

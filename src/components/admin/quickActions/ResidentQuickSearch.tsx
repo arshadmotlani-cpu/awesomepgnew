@@ -77,13 +77,14 @@ export function ResidentQuickSearch({
             error?: string;
           };
           if (!res.ok || !json.ok) {
-            setError(json.error ?? 'Search failed.');
+            setError(json.error ?? 'Search failed. Check server logs.');
             setResults([]);
             return;
           }
           setResults(json.data ?? []);
+          setError(null);
         } catch {
-          setError('Search failed.');
+          setError('Search failed. Network error — try again.');
           setResults([]);
         } finally {
           setLoading(false);
@@ -189,9 +190,7 @@ export function ResidentQuickSearch({
           ))}
         </ul>
       ) : query.trim().length >= 2 && !loading && !error ? (
-        <p className="text-xs text-apg-silver">
-          No residents match — try another spelling or phone number.
-        </p>
+        <p className="text-xs text-apg-silver">No residents found.</p>
       ) : null}
     </div>
   );
