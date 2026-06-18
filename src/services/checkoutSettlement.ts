@@ -729,3 +729,182 @@ export async function getCheckoutSettlementIdForVacating(
     .limit(1);
   return row?.id ?? null;
 }
+
+export type BackfillCheckoutSettlementRow = {
+  settlementId: string;
+  vacatingRequestId: string;
+  bookingId: string;
+  customerId: string;
+  customerName: string;
+  vacatingDate: string;
+  status: CheckoutSettlementStatus;
+  noticeDeductionPaise: number;
+  hadDeductionSnapshot: boolean;
+};
+
+/** One-time backfill for vacating requests approved before checkout settlements existed. */
+export async function backfillCheckoutSettlementsFromVacating(input?: {
+  dryRun?: boolean;
+}): Promise<{ scanned: number; created: BackfillCheckoutSettlementRow[] }> {
+  const dryRun = input?.dryRun ?? false;
+
+  const missing = await db.execute<{
+    vacating_request_id: string;
+    booking_id: string;
+    customer_id: string;
+    customer_name: string;
+    vacating_date: string;
+    notice_given_date: string;
+    monthly_rent_paise_snapshot: number;
+    deduction_paise: number;
+    deposit_refund_paise: number;
+  }>(sql`
+    SELECT
+      vr.id AS vacating_request_id,
+      vr.booking_id,
+      vr.customer_id,
+      c.full_name AS customer_name,
+      vr.vacating_date::text AS vacating_date,
+      vr.notice_given_date::text AS notice_given_date,
+      vr.monthly_rent_paise_snapshot,
+      vr.deduction_paise,
+      vr.deposit_refund_paise
+    FROM vacating_requests vr
+    INNER JOIN customers c ON c.id = vr.customer_id
+    LEFT JOIN checkout_settlements cs ON cs.vacating_request_id = vr.id
+    WHERE vr.status IN ('approved', 'completed')
+      AND cs.id IS NULL
+    ORDER BY vr.created_at ASC
+  `);
+
+  const created: BackfillCheckoutSettlementRow[] = [];
+
+  for (const row of missing) {
+    const noticeGiven = diffDays(row.notice_given_date, row.vacating_date);
+    const shortfall = noticeShortfallDays({
+      noticeGivenDate: row.notice_given_date,
+      vacatingDate: row.vacating_date,
+    });
+    const noticeDeduction =
+      row.deduction_paise > 0
+        ? row.deduction_paise
+        : noticeShortfallDeduction(row.monthly_rent_paise_snapshot, shortfall);
+
+    const [depositSettlement] = await db.execute<{ deductions_snapshot: RefundDeductionsSnapshot | null }>(
+      sql`
+        SELECT deductions_snapshot
+        FROM deposit_settlements
+        WHERE booking_id = ${row.booking_id}::uuid
+        ORDER BY created_at DESC
+        LIMIT 1
+      `,
+    );
+
+    const [depositRefundRequest] = await db.execute<{
+      refund_deductions: RefundDeductionsSnapshot | null;
+      payout_upi_id: string | null;
+      payout_qr_url: string | null;
+      meter_reading_photo_url: string | null;
+      use_average_billing_fallback: boolean;
+    }>(sql`
+      SELECT
+        refund_deductions,
+        payout_upi_id,
+        payout_qr_url,
+        meter_reading_photo_url,
+        use_average_billing_fallback
+      FROM resident_requests
+      WHERE booking_id = ${row.booking_id}::uuid
+        AND type = 'deposit_refund'
+      ORDER BY created_at DESC
+      LIMIT 1
+    `);
+
+    const snapshot =
+      depositSettlement?.deductions_snapshot ??
+      depositRefundRequest?.refund_deductions ??
+      null;
+
+    const [booking] = await db
+      .select({ depositPaise: bookings.depositPaise })
+      .from(bookings)
+      .where(eq(bookings.id, row.booking_id))
+      .limit(1);
+
+    const insertValues = {
+      vacatingRequestId: row.vacating_request_id,
+      bookingId: row.booking_id,
+      customerId: row.customer_id,
+      status: 'awaiting_resident_details' as const,
+      noticeRequiredDays: VACATING_NOTICE_MIN_DAYS,
+      noticeGivenDays: noticeGiven,
+      noticeShortfallDays: shortfall,
+      noticeDeductionPaise: snapshot?.penaltyChargePaise ?? noticeDeduction,
+      monthlyRentPaiseSnapshot: row.monthly_rent_paise_snapshot,
+      depositRequiredPaise: booking?.depositPaise ?? 0,
+      electricitySharePaise: snapshot?.electricityDeductionPaise ?? 0,
+      electricityUnitRatePaise: snapshot?.electricityUnitCostPaise ?? null,
+      electricityUnits: snapshot?.electricityUnits != null ? String(snapshot.electricityUnits) : null,
+      damageChargePaise: snapshot?.damageChargePaise ?? 0,
+      cleaningChargePaise: snapshot?.cleaningChargePaise ?? 0,
+      customChargePaise: snapshot?.customChargePaise ?? 0,
+      customChargeLabel: snapshot?.customChargeLabel ?? null,
+      deductionsSnapshot: snapshot,
+      finalRefundPaise: row.deposit_refund_paise > 0 ? row.deposit_refund_paise : null,
+      payoutUpiId: depositRefundRequest?.payout_upi_id ?? null,
+      payoutQrUrl: depositRefundRequest?.payout_qr_url ?? null,
+      electricityMeterPhotoUrl: depositRefundRequest?.meter_reading_photo_url ?? null,
+      electricityUseAverage: depositRefundRequest?.use_average_billing_fallback ?? false,
+    };
+
+    if (dryRun) {
+      created.push({
+        settlementId: '(dry-run)',
+        vacatingRequestId: row.vacating_request_id,
+        bookingId: row.booking_id,
+        customerId: row.customer_id,
+        customerName: row.customer_name,
+        vacatingDate: row.vacating_date,
+        status: 'awaiting_resident_details',
+        noticeDeductionPaise: insertValues.noticeDeductionPaise,
+        hadDeductionSnapshot: snapshot != null,
+      });
+      continue;
+    }
+
+    const [inserted] = await db
+      .insert(checkoutSettlements)
+      .values(insertValues)
+      .returning({ id: checkoutSettlements.id });
+
+    await db.insert(auditLog).values({
+      actorType: 'system',
+      entity: 'checkout_settlement',
+      entityId: inserted.id,
+      action: 'backfilled',
+      diff: {
+        vacatingRequestId: row.vacating_request_id,
+        bookingId: row.booking_id,
+        source: 'backfill-checkout-settlements',
+      },
+    });
+
+    created.push({
+      settlementId: inserted.id,
+      vacatingRequestId: row.vacating_request_id,
+      bookingId: row.booking_id,
+      customerId: row.customer_id,
+      customerName: row.customer_name,
+      vacatingDate: row.vacating_date,
+      status: 'awaiting_resident_details',
+      noticeDeductionPaise: insertValues.noticeDeductionPaise,
+      hadDeductionSnapshot: snapshot != null,
+    });
+  }
+
+  if (!dryRun && created.length > 0) {
+    scheduleAdminNotificationSync();
+  }
+
+  return { scanned: missing.length, created };
+}
