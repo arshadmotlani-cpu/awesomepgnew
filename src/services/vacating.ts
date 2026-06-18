@@ -451,7 +451,16 @@ export async function approveVacatingRequest(input: {
   const { createCheckoutSettlementFromVacating } = await import(
     '@/src/services/checkoutSettlement'
   );
-  await createCheckoutSettlementFromVacating({ vacatingRequestId: updated.id });
+  const settlement = await createCheckoutSettlementFromVacating({
+    vacatingRequestId: updated.id,
+  });
+  if (!settlement.ok) {
+    console.error(
+      '[vacating] checkout settlement not created on approve:',
+      settlement.error,
+      { vacatingRequestId: updated.id, bookingId: updated.bookingId },
+    );
+  }
 
   scheduleAdminNotificationSync();
 

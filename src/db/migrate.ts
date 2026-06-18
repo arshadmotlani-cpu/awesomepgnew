@@ -54,6 +54,15 @@ async function main() {
   }
 
   console.log(applied > 0 ? `✓ Applied ${applied} migration(s)` : '✓ Migrations up to date');
+
+  const { syncMissingCheckoutSettlements } = await import('@/src/services/checkoutSettlement');
+  const backfill = await syncMissingCheckoutSettlements();
+  if (backfill.created > 0) {
+    console.log(
+      `✓ Backfilled ${backfill.created} checkout settlement(s) for legacy vacating approvals`,
+    );
+  }
+
   await bootstrapAdminIfNeeded();
   await close();
 }

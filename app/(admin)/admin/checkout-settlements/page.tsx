@@ -27,7 +27,7 @@ export default async function CheckoutSettlementsPage({
   const sp = await searchParams;
   const tab = TABS.some((t) => t.id === sp.tab)
     ? (sp.tab as CheckoutSettlementListTab)
-    : 'awaiting_review';
+    : 'awaiting_resident';
 
   const rows = await listCheckoutSettlements(session, tab);
 
