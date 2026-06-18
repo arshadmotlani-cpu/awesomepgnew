@@ -1,73 +1,22 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
+import { useAdminResidentSearch } from '@/src/hooks/useAdminResidentSearch';
 import { titleCase } from '@/src/lib/format';
-
-type SearchResult = {
-  id: string;
-  fullName: string;
-  email: string;
-  phone: string;
-  kycStatus: string;
-  tenancyStatus: 'unassigned' | 'active' | 'vacating';
-  pgName: string | null;
-  roomNumber: string | null;
-  bedCode: string | null;
-  bookingId: string | null;
-};
 
 export function KycApprovedDepositSearch() {
   const router = useRouter();
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (query.trim().length < 2) {
-      setResults([]);
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      void (async () => {
-        setLoading(true);
-        setError(null);
-        try {
-          const res = await fetch(
-            `/api/admin/residents/search?q=${encodeURIComponent(query.trim())}&kycApproved=1`,
-            { cache: 'no-store' },
-          );
-          const json = (await res.json()) as {
-            ok: boolean;
-            data?: SearchResult[];
-            error?: string;
-          };
-          if (!res.ok || !json.ok) {
-            setError(json.error ?? 'Search failed.');
-            setResults([]);
-            return;
-          }
-          setResults(json.data ?? []);
-        } catch {
-          setError('Search failed.');
-          setResults([]);
-        } finally {
-          setLoading(false);
-        }
-      })();
-    }, 300);
-    return () => window.clearTimeout(timer);
-  }, [query]);
+  const { query, setQuery, results, loading, error, showEmpty } = useAdminResidentSearch({
+    kycApprovedOnly: true,
+  });
 
   return (
     <div className="w-full space-y-4 rounded-xl border border-white/10 bg-[#1A1F27] p-5">
       <div>
         <h3 className="text-sm font-semibold text-white">Add deposit — verified residents</h3>
         <p className="mt-1 text-sm text-apg-silver">
-          Search by name or phone. Shows verified residents (KYC or payment approved) with an active
-          booking.
+          Search by name or phone. Shows KYC-approved residents — with or without an active bed.
         </p>
       </div>
       <input
@@ -80,10 +29,8 @@ export function KycApprovedDepositSearch() {
       {loading ? <p className="text-xs text-apg-silver">Searching…</p> : null}
       {error ? <p className="text-xs text-rose-300">{error}</p> : null}
       <ul className="divide-y divide-white/5 rounded-lg border border-white/10">
-        {results.length === 0 && query.trim().length >= 2 && !loading ? (
-          <li className="px-3 py-4 text-sm text-apg-silver">
-            No verified residents with an active booking match your search.
-          </li>
+        {showEmpty ? (
+          <li className="px-3 py-4 text-sm text-apg-silver">No residents found.</li>
         ) : null}
         {results.map((r) => (
           <li
@@ -108,7 +55,13 @@ export function KycApprovedDepositSearch() {
                   Add deposit →
                 </button>
               ) : (
-                <span className="text-xs text-apg-silver">No active booking</span>
+                <button
+                  type="button"
+                  onClick={() => router.push(`/admin/residents/${r.id}`)}
+                  className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-apg-silver hover:text-white"
+                >
+                  Open profile
+                </button>
               )}
             </div>
           </li>

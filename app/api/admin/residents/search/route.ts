@@ -1,35 +1,47 @@
 import { NextRequest } from 'next/server';
 import { getAdminSession } from '@/src/lib/auth/session';
-import { adminHasPermission } from '@/src/lib/auth/roles';
+import type { AdminRole } from '@/src/lib/auth/roles';
 import { logger } from '@/src/lib/logger';
+import type { AdminResidentSearchApiResponse } from '@/src/lib/admin/residentSearchTypes';
 import {
-  resolveBookingIdForCustomer,
+  enrichResidentSearchResults,
   searchResidentsForAdmin,
-} from '@/src/services/residentAdmin';
+} from '@/src/services/adminResidentSearch';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const SEARCH_PERMISSIONS = [
-  'bookings:write',
-  'rent:write',
-  'deposits:write',
-  'payments:write',
-  'electricity:write',
-] as const;
-
-function canSearchResidents(role: Parameters<typeof adminHasPermission>[0]): boolean {
-  return SEARCH_PERMISSIONS.some((p) => adminHasPermission(role, p));
+/** Any authenticated admin except read-only viewer may search residents. */
+function canSearchResidents(role: AdminRole): boolean {
+  return role !== 'viewer';
 }
 
 export async function GET(req: NextRequest) {
   const session = await getAdminSession();
-  if (!session || !canSearchResidents(session.role)) {
-    logger.warn('resident search unauthorized', {
-      hasSession: Boolean(session),
-      role: session?.role,
+  if (!session) {
+    return Response.json(
+      {
+        ok: false,
+        code: 'permission_denied',
+        error: 'Permission denied — sign in as an admin to search residents.',
+      } satisfies AdminResidentSearchApiResponse,
+      { status: 401 },
+    );
+  }
+
+  if (!canSearchResidents(session.role)) {
+    logger.warn('resident search permission denied', {
+      adminId: session.adminId,
+      role: session.role,
     });
-    return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+    return Response.json(
+      {
+        ok: false,
+        code: 'permission_denied',
+        error: 'Permission denied — your role cannot search residents.',
+      } satisfies AdminResidentSearchApiResponse,
+      { status: 403 },
+    );
   }
 
   const q = req.nextUrl.searchParams.get('q')?.trim() ?? '';
@@ -43,54 +55,56 @@ export async function GET(req: NextRequest) {
   });
 
   if (q.length < 2) {
-    return Response.json({ ok: true, data: [] });
+    return Response.json({ ok: true, data: [], count: 0 } satisfies AdminResidentSearchApiResponse);
   }
 
   try {
     let data = await searchResidentsForAdmin(session, q, 40);
 
     if (kycApprovedOnly) {
-      data = data.filter((r) => r.kycStatus === 'approved' && Boolean(r.bookingId));
+      data = data.filter((r) => r.kycStatus === 'approved');
     }
 
-    const rows = await Promise.all(
-      data.map(async (r) => {
-        const bookingId = r.bookingId ?? (await resolveBookingIdForCustomer(r.id));
-        return {
-          id: r.id,
-          fullName: r.fullName,
-          email: r.email,
-          phone: r.phone,
-          kycStatus: r.kycStatus,
-          tenancyStatus: r.tenancyStatus,
-          pgId: r.pgId,
-          pgName: r.pgName,
-          roomNumber: r.roomNumber,
-          bedCode: r.bedCode,
-          roomId: r.roomId,
-          bedId: r.bedId,
-          monthlyRentPaise: r.monthlyRentPaise,
-          bookingId,
-          bookingCode: r.bookingCode,
-          createdAt: r.createdAt.toISOString(),
-        };
-      }),
-    );
+    const rows = await enrichResidentSearchResults(data);
+
+    if (kycApprovedOnly) {
+      // KYC deposit add still prefers residents with a booking when available.
+      // Do not exclude unassigned — show all approved KYC matches.
+    }
 
     logger.info('resident search response', {
       query: q,
       count: rows.length,
+      adminId: session.adminId,
     });
 
-    return Response.json({ ok: true, data: rows });
+    return Response.json({
+      ok: true,
+      data: rows,
+      count: rows.length,
+    } satisfies AdminResidentSearchApiResponse);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Search failed.';
+    const pgMessage =
+      err instanceof Error && 'cause' in err && err.cause instanceof Error
+        ? err.cause.message
+        : undefined;
+    const message = err instanceof Error ? err.message : String(err);
+
     logger.error('resident search failed', {
       query: q,
       adminId: session.adminId,
       error: message,
+      pgError: pgMessage,
       stack: err instanceof Error ? err.stack : undefined,
     });
-    return Response.json({ ok: false, error: 'Search failed. Check server logs.' }, { status: 500 });
+
+    return Response.json(
+      {
+        ok: false,
+        code: 'database_error',
+        error: 'Database error — search could not complete. Check server logs.',
+      } satisfies AdminResidentSearchApiResponse,
+      { status: 500 },
+    );
   }
 }

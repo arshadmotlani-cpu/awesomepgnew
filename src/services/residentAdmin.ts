@@ -26,7 +26,6 @@ import {
 } from '@/src/lib/residentVerification';
 import { assertBookingOperationalGates } from '@/src/lib/occupancyEligibility';
 import { isNotOccupancyPlaceholderCustomerSql } from '@/src/lib/occupancySqlFilters';
-import { logger } from '@/src/lib/logger';
 import { formatDate, parseDate } from '@/src/lib/dates';
 import { isBedAvailable } from '@/src/services/availability';
 import { correctDepositCollected, getDepositSummaryForBooking } from '@/src/services/deposits';
@@ -129,33 +128,13 @@ type ResidentListDbRow = {
   has_pending_kyc_submission: boolean;
 };
 
-/** Cached — migration 0056 adds residency_status + is_test. */
-let customerLifecycleColumns: boolean | null = null;
+import {
+  hasCustomerLifecycleColumns,
+  resolveBookingIdForCustomer,
+  searchResidentsForAdmin as searchResidentsCore,
+} from '@/src/services/adminResidentSearch';
 
-export async function hasCustomerLifecycleColumns(): Promise<boolean> {
-  if (customerLifecycleColumns !== null) return customerLifecycleColumns;
-  try {
-    const rows = await db.execute<{ ok: number }>(sql`
-      SELECT 1 AS ok FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'customers'
-        AND column_name = 'residency_status'
-      LIMIT 1
-    `);
-    customerLifecycleColumns = rows.length > 0;
-  } catch {
-    customerLifecycleColumns = false;
-  }
-  return customerLifecycleColumns;
-}
-
-const legacyExcludeTestCustomersSql = sql`(
-  c.email NOT LIKE '%@example.com'
-  AND c.email NOT LIKE '%@awesomepg.local'
-  AND c.full_name NOT LIKE 'E2E User%'
-  AND c.full_name NOT LIKE 'Verification Bot%'
-  AND c.full_name NOT LIKE 'Phase5%'
-)`;
+export { hasCustomerLifecycleColumns, resolveBookingIdForCustomer };
 
 function mapResidentListRow(row: ResidentListDbRow): ResidentListRow {
   const verification = mapVerificationStatus(row);
@@ -360,168 +339,32 @@ export async function listUnverifiedWebsiteSignupsForAdmin(
     .map(mapUnverifiedSignupRow);
 }
 
-export async function resolveBookingIdForCustomer(customerId: string): Promise<string | null> {
-  const lifecycle = await hasCustomerLifecycleColumns();
-  const rows = await db.execute<{ booking_id: string }>(
-    lifecycle
-      ? sql`
-          SELECT b.id::text AS booking_id
-          FROM bookings b
-          WHERE b.customer_id = ${customerId}::uuid
-            AND b.is_test = false
-            AND b.status IN ('confirmed', 'pending_payment', 'completed')
-          ORDER BY
-            CASE b.status
-              WHEN 'confirmed' THEN 0
-              WHEN 'pending_payment' THEN 1
-              ELSE 2
-            END,
-            b.created_at DESC
-          LIMIT 1
-        `
-      : sql`
-          SELECT b.id::text AS booking_id
-          FROM bookings b
-          WHERE b.customer_id = ${customerId}::uuid
-            AND b.status IN ('confirmed', 'pending_payment', 'completed')
-          ORDER BY
-            CASE b.status
-              WHEN 'confirmed' THEN 0
-              WHEN 'pending_payment' THEN 1
-              ELSE 2
-            END,
-            b.created_at DESC
-          LIMIT 1
-        `,
-  );
-  return rows[0]?.booking_id ?? null;
-}
-
-async function executeResidentSearchQuery(
-  q: string,
-  limit: number,
-  lifecycle: boolean,
-): Promise<ResidentListDbRow[]> {
-  const pattern = `%${q.replace(/[%_\\]/g, '\\$&')}%`;
-  const phoneDigits = q.replace(/\D/g, '');
-  const qLower = q.toLowerCase();
-  const namePrefix = `${q.replace(/[%_\\]/g, '\\$&')}%`;
-  const phoneSearchEnabled = phoneDigits.length >= 3;
-
-  const residencySelect = lifecycle
-    ? sql`c.residency_status,`
-    : sql`'active' AS residency_status,`;
-
-  const testFilter = lifecycle ? sql`AND c.is_test = false` : sql`AND ${legacyExcludeTestCustomersSql}`;
-
-  const rows = await db.execute<ResidentListDbRow>(sql`
-    SELECT
-      c.id,
-      c.full_name,
-      c.email,
-      c.phone,
-      c.gender,
-      c.kyc_status,
-      c.created_at,
-      ${residencySelect}
-      t.booking_id,
-      t.booking_code,
-      t.pg_name,
-      t.room_number,
-      t.bed_code,
-      t.room_id,
-      t.bed_id,
-      t.monthly_rent_paise,
-      t.pg_id,
-      coalesce(t.is_vacating, false) AS is_vacating,
-      ${customerVerificationSelectSql},
-      EXISTS (
-        SELECT 1 FROM kyc_submissions ks
-        WHERE ks.customer_id = c.id AND ks.status = 'pending'
-      ) AS has_pending_kyc_submission
-    FROM customers c
-    ${activeTenancyLateralSql}
-    WHERE c.archived_at IS NULL
-      ${testFilter}
-      AND ${isNotOccupancyPlaceholderCustomerSql}
-      AND (
-        c.full_name ILIKE ${pattern}
-        OR c.email ILIKE ${pattern}
-        OR c.id::text = ${q}
-        OR EXISTS (
-          SELECT 1 FROM bookings bk
-          WHERE bk.customer_id = c.id
-            AND bk.booking_code ILIKE ${pattern}
-        )
-        OR (
-          ${phoneSearchEnabled}
-          AND regexp_replace(c.phone, '[^0-9]', '', 'g') LIKE ${`%${phoneDigits}%`}
-        )
-      )
-    ORDER BY
-      CASE
-        WHEN lower(trim(c.full_name)) = ${qLower} THEN 0
-        WHEN c.full_name ILIKE ${namePrefix} THEN 1
-        WHEN c.full_name ILIKE ${pattern} THEN 2
-        WHEN ${phoneSearchEnabled}
-          AND regexp_replace(c.phone, '[^0-9]', '', 'g') LIKE ${`${phoneDigits}%`} THEN 3
-        ELSE 4
-      END,
-      (t.booking_id IS NOT NULL) DESC,
-      c.full_name ASC
-    LIMIT ${limit}
-  `);
-
-  return Array.from(rows);
-}
-
 export async function searchResidentsForAdmin(
   session: AdminSession,
   query: string,
   limit = 20,
 ): Promise<ResidentListRow[]> {
-  const q = query.trim();
-  if (q.length < 2) return [];
-
-  const lifecycle = await hasCustomerLifecycleColumns();
-  if (!lifecycle) {
-    logger.warn('resident search: migration 0056 columns missing — using legacy customer query', {
-      query: q,
-    });
-  }
-
-  let rows: ResidentListDbRow[];
-  try {
-    rows = await executeResidentSearchQuery(q, limit, lifecycle);
-  } catch (err) {
-    logger.error('resident search query failed', {
-      query: q,
-      lifecycle,
-      error: err instanceof Error ? err.message : String(err),
-    });
-    if (lifecycle) {
-      customerLifecycleColumns = false;
-      rows = await executeResidentSearchQuery(q, limit, false);
-    } else {
-      throw err;
-    }
-  }
-
-  const mapped = rows
-    .filter(
-      (row) =>
-        !row.pg_id || adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, row.pg_id),
-    )
-    .map(mapResidentListRow);
-
-  logger.info('resident search completed', {
-    query: q,
-    rawCount: rows.length,
-    resultCount: mapped.length,
-    lifecycle,
-  });
-
-  return mapped;
+  const rows = await searchResidentsCore(session, query, limit);
+  return rows.map((r) => ({
+    id: r.id,
+    fullName: r.fullName,
+    email: r.email,
+    phone: r.phone,
+    gender: r.gender ?? 'other',
+    kycStatus: r.kycStatus,
+    createdAt: new Date(r.createdAt),
+    tenancyStatus: r.tenancyStatus,
+    pgId: r.pgId,
+    pgName: r.pgName,
+    roomNumber: r.roomNumber,
+    bedCode: r.bedCode,
+    roomId: r.roomId,
+    bedId: r.bedId,
+    monthlyRentPaise: r.monthlyRentPaise,
+    bookingId: r.bookingId,
+    bookingCode: r.bookingCode,
+    verificationSource: r.kycStatus === 'approved' ? ('kyc' as const) : null,
+  }));
 }
 
 export async function getResidentDetail(

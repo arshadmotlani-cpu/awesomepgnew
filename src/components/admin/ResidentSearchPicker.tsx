@@ -2,19 +2,8 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
 import { Badge } from '@/src/components/admin/Badge';
-
-type SearchResult = {
-  id: string;
-  fullName: string;
-  email: string;
-  phone: string;
-  tenancyStatus: 'unassigned' | 'active' | 'vacating' | 'vacated' | 'blocked';
-  pgName: string | null;
-  roomNumber: string | null;
-  bedCode: string | null;
-};
+import { useAdminResidentSearch } from '@/src/hooks/useAdminResidentSearch';
 
 export function ResidentSearchPicker({
   selectedCustomerId,
@@ -26,45 +15,8 @@ export function ResidentSearchPicker({
   bedId?: string;
 }) {
   const router = useRouter();
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (query.trim().length < 2) {
-      setResults([]);
-      setError(null);
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      void (async () => {
-        setLoading(true);
-        setError(null);
-        try {
-          const res = await fetch(
-            `/api/admin/residents/search?q=${encodeURIComponent(query.trim())}`,
-            { cache: 'no-store' },
-          );
-          const json = (await res.json()) as { ok: boolean; data?: SearchResult[]; error?: string };
-          if (!res.ok || !json.ok) {
-            setError(json.error ?? 'Search failed.');
-            setResults([]);
-            return;
-          }
-          setResults(json.data ?? []);
-        } catch {
-          setError('Search failed. Try again.');
-          setResults([]);
-        } finally {
-          setLoading(false);
-        }
-      })();
-    }, 300);
-
-    return () => window.clearTimeout(timer);
-  }, [query]);
+  const { query, setQuery, results, loading, error, showEmpty, emptyMessage } =
+    useAdminResidentSearch();
 
   function assignHref(customerId: string) {
     const params = new URLSearchParams({ customerId });
@@ -118,12 +70,7 @@ export function ResidentSearchPicker({
 
       {loading ? <p className="text-sm text-zinc-500">Searching…</p> : null}
       {error ? <p className="text-sm text-rose-600">{error}</p> : null}
-
-      {query.trim().length >= 2 && !loading && results.length === 0 && !error ? (
-        <p className="text-sm text-zinc-500">
-          No residents match — try another spelling or phone number.
-        </p>
-      ) : null}
+      {showEmpty ? <p className="text-sm text-zinc-500">{emptyMessage}</p> : null}
 
       {results.length > 0 ? (
         <ul className="divide-y divide-zinc-100 rounded-lg border border-zinc-200">

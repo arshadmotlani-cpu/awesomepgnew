@@ -3,20 +3,10 @@
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { recordAdvanceDepositAction } from '@/app/(admin)/admin/deposits/advance/actions';
+import { useAdminResidentSearch } from '@/src/hooks/useAdminResidentSearch';
+import type { AdminResidentSearchResult } from '@/src/lib/admin/residentSearchTypes';
 
-type SearchResult = {
-  id: string;
-  fullName: string;
-  phone: string;
-  tenancyStatus: 'unassigned' | 'active' | 'vacating' | 'vacated' | 'blocked';
-  bookingId: string | null;
-  bookingCode?: string | null;
-  pgName: string | null;
-  roomNumber: string | null;
-  bedCode: string | null;
-};
-
-function TenancyBadge({ status }: { status: SearchResult['tenancyStatus'] }) {
+function TenancyBadge({ status }: { status: AdminResidentSearchResult['tenancyStatus'] }) {
   if (status === 'active' || status === 'vacating') {
     return (
       <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-emerald-200">
@@ -40,55 +30,18 @@ function TenancyBadge({ status }: { status: SearchResult['tenancyStatus'] }) {
 
 export function AdvanceDepositPanel() {
   const router = useRouter();
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [selected, setSelected] = useState<SearchResult | null>(null);
+  const { query, setQuery, results, loading, error, showEmpty, emptyMessage } =
+    useAdminResidentSearch({ debounceMs: 250 });
+  const [selected, setSelected] = useState<AdminResidentSearchResult | null>(null);
   const [amountInr, setAmountInr] = useState('');
   const [note, setNote] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  async function search(q: string) {
-    if (q.trim().length < 2) {
-      setResults([]);
-      setError(null);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(
-        `/api/admin/residents/search?q=${encodeURIComponent(q.trim())}`,
-        { cache: 'no-store' },
-      );
-      let json: { ok: boolean; data?: SearchResult[]; error?: string };
-      try {
-        json = (await res.json()) as typeof json;
-      } catch {
-        setError('Search failed. Invalid server response.');
-        setResults([]);
-        return;
-      }
-      if (!res.ok || !json.ok) {
-        setError(json.error ?? 'Search failed. Check server logs.');
-        setResults([]);
-        return;
-      }
-      setResults(json.data ?? []);
-    } catch (err) {
-      console.error('Advance deposit resident search failed', err);
-      setError('Search failed. Network error — try again.');
-      setResults([]);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function onSelect(row: SearchResult) {
+  function onSelect(row: AdminResidentSearchResult) {
     setSelected(row);
-    setError(null);
+    setFormError(null);
     setSuccess(null);
   }
 
@@ -97,10 +50,10 @@ export function AdvanceDepositPanel() {
     if (!selected) return;
     const amount = Number.parseFloat(amountInr);
     if (!Number.isFinite(amount) || amount <= 0) {
-      setError('Enter a valid amount greater than zero.');
+      setFormError('Enter a valid amount greater than zero.');
       return;
     }
-    setError(null);
+    setFormError(null);
     startTransition(async () => {
       const result = await recordAdvanceDepositAction({
         bookingId: selected.bookingId,
@@ -109,7 +62,7 @@ export function AdvanceDepositPanel() {
         note,
       });
       if (!result.ok) {
-        setError(result.error ?? 'Could not record deposit.');
+        setFormError(result.error ?? 'Could not record deposit.');
         return;
       }
       setSuccess(`Recorded ₹${amount.toLocaleString('en-IN')} advance deposit for ${selected.fullName}.`);
@@ -130,11 +83,7 @@ export function AdvanceDepositPanel() {
         <input
           type="search"
           value={query}
-          onChange={(e) => {
-            const v = e.target.value;
-            setQuery(v);
-            void search(v);
-          }}
+          onChange={(e) => setQuery(e.target.value)}
           placeholder="Name, phone, or booking code…"
           className="apg-admin-field mt-3 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white"
         />
@@ -171,8 +120,8 @@ export function AdvanceDepositPanel() {
               </li>
             ))}
           </ul>
-        ) : query.trim().length >= 2 && !loading && !error ? (
-          <p className="mt-2 text-xs text-apg-silver">No residents found.</p>
+        ) : showEmpty ? (
+          <p className="mt-2 text-xs text-apg-silver">{emptyMessage}</p>
         ) : null}
       </div>
 
@@ -220,7 +169,7 @@ export function AdvanceDepositPanel() {
               className="apg-admin-field mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white"
             />
           </label>
-          {error ? <p className="text-sm text-rose-300">{error}</p> : null}
+          {formError ? <p className="text-sm text-rose-300">{formError}</p> : null}
           {success ? <p className="text-sm text-emerald-300">{success}</p> : null}
           <button
             type="submit"

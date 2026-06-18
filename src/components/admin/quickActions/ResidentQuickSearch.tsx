@@ -2,26 +2,12 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useAdminResidentSearch } from '@/src/hooks/useAdminResidentSearch';
+import type { AdminResidentSearchResult } from '@/src/lib/admin/residentSearchTypes';
 
-export type ResidentQuickResult = {
-  id: string;
-  fullName: string;
-  phone: string;
-  email?: string;
-  kycStatus?: string;
-  tenancyStatus: 'unassigned' | 'active' | 'vacating' | 'vacated' | 'blocked';
-  bookingId: string | null;
-  bookingCode?: string | null;
-  pgName: string | null;
-  roomNumber: string | null;
-  bedCode: string | null;
-  roomId: string | null;
-  bedId?: string | null;
-  monthlyRentPaise: number;
-};
+export type { AdminResidentSearchResult as ResidentQuickResult };
 
-function TenancyBadge({ status }: { status: ResidentQuickResult['tenancyStatus'] }) {
+function TenancyBadge({ status }: { status: AdminResidentSearchResult['tenancyStatus'] }) {
   if (status === 'active' || status === 'vacating') {
     return (
       <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-emerald-200">
@@ -47,52 +33,12 @@ export function ResidentQuickSearch({
   onSelect,
   selected,
 }: {
-  onSelect: (row: ResidentQuickResult | null) => void;
-  selected: ResidentQuickResult | null;
+  onSelect: (row: AdminResidentSearchResult | null) => void;
+  selected: AdminResidentSearchResult | null;
 }) {
   const router = useRouter();
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<ResidentQuickResult[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (query.trim().length < 2) {
-      setResults([]);
-      setError(null);
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      void (async () => {
-        setLoading(true);
-        setError(null);
-        try {
-          const res = await fetch(
-            `/api/admin/residents/search?q=${encodeURIComponent(query.trim())}`,
-            { cache: 'no-store' },
-          );
-          const json = (await res.json()) as {
-            ok: boolean;
-            data?: ResidentQuickResult[];
-            error?: string;
-          };
-          if (!res.ok || !json.ok) {
-            setError(json.error ?? 'Search failed. Check server logs.');
-            setResults([]);
-            return;
-          }
-          setResults(json.data ?? []);
-          setError(null);
-        } catch {
-          setError('Search failed. Network error — try again.');
-          setResults([]);
-        } finally {
-          setLoading(false);
-        }
-      })();
-    }, 300);
-    return () => window.clearTimeout(timer);
-  }, [query]);
+  const { query, setQuery, results, loading, error, showEmpty, emptyMessage } =
+    useAdminResidentSearch();
 
   if (selected) {
     return (
@@ -189,8 +135,8 @@ export function ResidentQuickSearch({
             </li>
           ))}
         </ul>
-      ) : query.trim().length >= 2 && !loading && !error ? (
-        <p className="text-xs text-apg-silver">No residents found.</p>
+      ) : showEmpty ? (
+        <p className="text-xs text-apg-silver">{emptyMessage}</p>
       ) : null}
     </div>
   );
