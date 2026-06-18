@@ -130,37 +130,65 @@ export async function updateCheckoutElectricityAction(
   _prev: CheckoutSettlementActionState,
   formData: FormData,
 ): Promise<CheckoutSettlementActionState> {
-  await requireAdminPermission('deposits:write');
+  const admin = await requireAdminPermission('deposits:write');
   const settlementId = String(formData.get('settlementId') ?? '');
-  const previousReading = Number(formData.get('previousReading'));
-  const currentReading = Number(formData.get('currentReading'));
-  const ratePerUnitInr = Number(formData.get('ratePerUnitInr'));
+  const calculationMethod = String(
+    formData.get('calculationMethod') ?? 'meter_reading',
+  ) as 'meter_reading' | 'average_billing' | 'manual_amount';
+  const meterPhotoMissing = formData.get('meterPhotoMissing') === 'on';
   const deductFromDeposit = formData.get('deductFromDeposit') === 'on';
+  const sharingOverride = formData.get('sharingOverride') === 'on';
+  const sharingCountRaw = formData.get('sharingCountOverride');
+  const sharingCountOverride =
+    sharingCountRaw != null && String(sharingCountRaw).trim() !== ''
+      ? Number(sharingCountRaw)
+      : null;
 
-  if (
-    !Number.isFinite(previousReading) ||
-    !Number.isFinite(currentReading) ||
-    !Number.isFinite(ratePerUnitInr) ||
-    ratePerUnitInr <= 0
-  ) {
-    return { status: 'error', message: 'Enter valid meter readings and rate per unit.' };
-  }
+  const previousReading =
+    formData.get('previousReading') != null && String(formData.get('previousReading')).trim() !== ''
+      ? Number(formData.get('previousReading'))
+      : undefined;
+  const currentReading =
+    formData.get('currentReading') != null && String(formData.get('currentReading')).trim() !== ''
+      ? Number(formData.get('currentReading'))
+      : undefined;
+  const ratePerUnitInr =
+    formData.get('ratePerUnitInr') != null && String(formData.get('ratePerUnitInr')).trim() !== ''
+      ? Number(formData.get('ratePerUnitInr'))
+      : undefined;
+  const averageBillInr =
+    formData.get('averageBillInr') != null && String(formData.get('averageBillInr')).trim() !== ''
+      ? Number(formData.get('averageBillInr'))
+      : undefined;
+  const manualChargeInr =
+    formData.get('manualChargeInr') != null && String(formData.get('manualChargeInr')).trim() !== ''
+      ? Number(formData.get('manualChargeInr'))
+      : undefined;
 
   const result = await updateCheckoutElectricitySettlement({
     settlementId,
+    adminId: admin.adminId,
+    calculationMethod,
     previousReading,
     currentReading,
     ratePerUnitInr,
+    averageBillInr,
+    manualChargeInr,
     deductFromDeposit,
+    meterPhotoMissing,
+    sharingOverride,
+    sharingCountOverride,
   });
   if (!result.ok) {
     return { status: 'error', message: result.error };
   }
 
   revalidateCheckoutPaths(settlementId);
+  const unitsLabel =
+    result.calc.unitsConsumed != null ? `${result.calc.unitsConsumed} units, ` : '';
   return {
     status: 'ok',
-    message: `Electricity saved — ${result.calc.unitsConsumed} units, resident share ${(result.calc.sharePaise / 100).toFixed(2)} (${result.calc.roomOccupants} in room).`,
+    message: `Electricity saved — ${unitsLabel}resident share ₹${(result.calc.sharePaise / 100).toFixed(2)} (${result.calc.roomOccupants} sharing).`,
   };
 }
 

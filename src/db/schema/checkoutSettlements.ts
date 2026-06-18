@@ -58,6 +58,14 @@ export const checkoutSettlements = pgTable(
     electricityUnitRatePaise: bigint('electricity_unit_rate_paise', { mode: 'number' }),
     electricitySharePaise: bigint('electricity_share_paise', { mode: 'number' }).notNull().default(0),
     electricityDeductFromDeposit: boolean('electricity_deduct_from_deposit').notNull().default(true),
+    electricityCalculationMethod: text('electricity_calculation_method')
+      .notNull()
+      .default('meter_reading'),
+    autoDetectedSharingCount: integer('auto_detected_sharing_count'),
+    electricitySharingOverride: boolean('electricity_sharing_override').notNull().default(false),
+    averageBillPaise: bigint('average_bill_paise', { mode: 'number' }),
+    manualChargePaise: bigint('manual_charge_paise', { mode: 'number' }),
+    meterPhotoMissing: boolean('meter_photo_missing').notNull().default(false),
     damageChargePaise: bigint('damage_charge_paise', { mode: 'number' }).notNull().default(0),
     cleaningChargePaise: bigint('cleaning_charge_paise', { mode: 'number' }).notNull().default(0),
     customChargePaise: bigint('custom_charge_paise', { mode: 'number' }).notNull().default(0),

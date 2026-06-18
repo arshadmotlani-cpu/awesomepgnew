@@ -224,6 +224,9 @@ export async function correctDepositCollected(input: {
     },
   });
 
+  const { syncDepositCollectionFromLedger } = await import('@/src/services/depositCollection');
+  await syncDepositCollectionFromLedger(input.bookingId);
+
   return { ok: true, previousPaise, targetPaise };
 }
 

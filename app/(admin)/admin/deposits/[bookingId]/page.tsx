@@ -9,10 +9,12 @@ import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { getDepositInvoiceForBooking } from '@/src/services/depositInvoices';
 import { DepositAdjustForms } from '@/src/components/admin/DepositAdjustForms';
 import { DepositSettlementPanel } from '@/src/components/admin/DepositSettlementPanel';
+import { DepositWalletAdminPanel } from '@/src/components/admin/deposits/DepositWalletAdminPanel';
 import { DepositRefundNotice } from '@/src/components/customer/DepositRefundNotice';
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
 import { paiseToInr } from '@/src/lib/format';
 import { loadBedPrice, securityDepositForMode } from '@/src/services/pricing';
+import { getUnifiedDepositView } from '@/src/services/depositOperations';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,6 +65,7 @@ export default async function AdminDepositDetailPage({
 
   const invoice = await getDepositInvoiceForBooking(bookingId);
   const summary = await getDepositSummaryForBooking(bookingId);
+  const unifiedView = await getUnifiedDepositView(bookingId);
 
   const requiredPaise = invoice?.requiredPaise ?? booking.depositPaise;
   const collectedPaise = invoice?.collectedPaise ?? summary?.collectedPaise ?? 0;
@@ -139,6 +142,10 @@ export default async function AdminDepositDetailPage({
         </p>
       ) : (
         <>
+          {unifiedView ? (
+            <DepositWalletAdminPanel view={unifiedView} isFrozen={isFrozen} />
+          ) : null}
+
           <section className="mb-6">
             <h2 className="mb-2 text-sm font-semibold text-white">Adjust deposit</h2>
             <DepositAdjustForms
