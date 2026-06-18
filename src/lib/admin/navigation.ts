@@ -4,6 +4,7 @@ export type AdminModule =
   | 'collections'
   | 'invoices'
   | 'deposits'
+  | 'checkoutSettlements'
   | 'pgs'
   | 'residents'
   | 'kyc'
@@ -54,6 +55,13 @@ export const ADMIN_MODULES: Record<AdminModule, AdminModuleMeta> = {
     label: 'Deposits',
     description: 'Deposit wallets, manual entry, refunds, and ledger',
     href: '/admin/deposits',
+    sidebar: true,
+  },
+  checkoutSettlements: {
+    id: 'checkoutSettlements',
+    label: 'Checkout settlements',
+    description: 'Unified vacating checkout — deposit, electricity, notice deduction, and refund',
+    href: '/admin/checkout-settlements',
     sidebar: true,
   },
   pgs: {

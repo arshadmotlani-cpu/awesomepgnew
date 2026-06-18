@@ -24,14 +24,14 @@ export default async function AdminRequestsPage({
   return (
     <>
       <PageHeader
-        title="Refund requests"
-        description="Deposit refund workflow — wallet balance, deductions, electricity, and payout approval."
+        title="Refund requests (legacy)"
+        description="Deprecated — use Checkout Settlements for all vacating refunds. This page only shows older requests not yet migrated."
         actions={
           <Link
-            href="/admin/overview"
-            className="rounded-lg border border-white/10 px-4 py-2 text-sm text-apg-silver hover:text-white"
+            href="/admin/checkout-settlements"
+            className="rounded-lg bg-[#FF5A1F] px-4 py-2 text-sm font-semibold text-white hover:brightness-110"
           >
-            Overview →
+            Checkout settlements →
           </Link>
         }
       />

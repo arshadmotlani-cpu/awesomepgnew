@@ -159,9 +159,32 @@ export function dailyRateFromMonthly(monthlyRatePaise: number): number {
 /**
  * Fixed 5-day vacating penalty when notice < {@link VACATING_NOTICE_MIN_DAYS} days.
  * `daily * 5` (NOT the full notice shortfall — per explicit spec).
+ * @deprecated Prefer {@link noticeShortfallDeduction} for checkout settlement.
  */
 export function vacatingPenalty(monthlyRatePaise: number): number {
   return dailyRateFromMonthly(monthlyRatePaise) * 5;
+}
+
+/**
+ * Notice shortfall deduction for checkout settlement:
+ * monthlyRent ÷ 30 × shortfallDays
+ */
+export function noticeShortfallDeduction(
+  monthlyRatePaise: number,
+  shortfallDays: number,
+): number {
+  if (shortfallDays <= 0 || monthlyRatePaise <= 0) return 0;
+  return Math.floor((monthlyRatePaise / 30) * shortfallDays);
+}
+
+export function noticeShortfallDays(args: {
+  noticeGivenDate: DateLike;
+  vacatingDate: DateLike;
+  minDays?: number;
+}): number {
+  const min = args.minDays ?? VACATING_NOTICE_MIN_DAYS;
+  const given = diffDays(args.noticeGivenDate, args.vacatingDate);
+  return Math.max(0, min - given);
 }
 
 /**

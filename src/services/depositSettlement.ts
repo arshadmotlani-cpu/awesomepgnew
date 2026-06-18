@@ -17,7 +17,8 @@ export type DepositSettlementSource =
   | 'vacating'
   | 'resident_request'
   | 'admin_panel'
-  | 'manual';
+  | 'manual'
+  | 'checkout';
 
 export type DepositRefundAudit = {
   refundMethod?: string | null;

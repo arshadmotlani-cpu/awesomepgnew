@@ -10,11 +10,11 @@ import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import {
   ApproveVacatingButton,
   CancelVacatingNoticeButton,
-  CompleteVacatingButton,
   RejectVacatingButton,
   UndoVacatingApprovalButton,
   UndoVacatingCompletionButton,
 } from '@/src/components/admin/VacatingActions';
+import { OpenCheckoutSettlementLink } from '@/src/components/admin/OpenCheckoutSettlementLink';
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
 
 const STATUS_FILTERS: Array<{
@@ -49,7 +49,7 @@ export default async function AdminVacatingPage(
     <>
       <PageHeader
         title="Vacating requests"
-        description="Monthly residents filing notice. The 5-day deduction (when notice < 14 days) is computed and snapshotted at submit time; completion writes the deposit ledger and cancels future invoices."
+        description="Monthly residents filing notice. After approval, complete checkout via Checkout Settlements — not from this screen."
       />
       <nav className="mb-4 flex flex-wrap gap-2 text-xs">
         {STATUS_FILTERS.map((f) => (
@@ -143,7 +143,7 @@ export default async function AdminVacatingPage(
                     ) : null}
                     {v.status === 'approved' ? (
                       <>
-                        <CompleteVacatingButton requestId={v.id} />
+                        <OpenCheckoutSettlementLink vacatingRequestId={v.id} />
                         <UndoVacatingApprovalButton requestId={v.id} />
                         <CancelVacatingNoticeButton requestId={v.id} />
                       </>

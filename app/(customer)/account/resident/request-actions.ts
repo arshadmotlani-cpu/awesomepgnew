@@ -42,6 +42,25 @@ export async function submitDepositRefundRequestAction(
   const payoutUpiId = formData.get('payoutUpiId')?.toString()?.trim() || null;
   const useAverageBillingFallback = formData.get('useAverageBillingFallback')?.toString() === '1';
 
+  const { getCheckoutSettlementForCustomer, submitResidentCheckoutDetails } = await import(
+    '@/src/services/checkoutSettlement'
+  );
+  const checkout = await getCheckoutSettlementForCustomer(session.customerId, bookingId);
+  if (checkout) {
+    const checkoutResult = await submitResidentCheckoutDetails({
+      settlementId: checkout.id,
+      customerId: session.customerId,
+      electricityMeterPhotoUrl: meterReadingPhotoUrl,
+      electricityUseAverage: useAverageBillingFallback,
+      payoutUpiId,
+      payoutQrUrl,
+    });
+    if (!checkoutResult.ok) return { ok: false, error: checkoutResult.error };
+    revalidatePath('/account/profile');
+    revalidatePath('/account/resident');
+    return { ok: true };
+  }
+
   const result = await submitDepositRefundRequest({
     customerId: session.customerId,
     bookingId,

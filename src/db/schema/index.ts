@@ -25,6 +25,7 @@ export * from './electricityInvoices';
 export * from './depositLedger';
 export * from './depositSettlements';
 export * from './webhookReplayGuard';
+export * from './checkoutSettlements';
 export * from './vacatingRequests';
 export * from './authSessions';
 export * from './adminPasswordResetTokens';

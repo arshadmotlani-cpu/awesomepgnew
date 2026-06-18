@@ -438,7 +438,7 @@ export async function approveVacatingRequest(input: {
   const depositSummary = await getDepositSummaryForBooking(updated.bookingId);
   const refundNote =
     depositSummary && depositSummary.refundableBalancePaise > 0
-      ? 'To process your deposit refund, open your resident dashboard and submit a deposit refund request with your final electricity meter photo (or average billing fallback) and your UPI ID or QR code for transfer.'
+      ? 'Complete your checkout settlement in the resident dashboard — upload your final electricity meter photo (or choose average billing) and your UPI ID or QR code for refund.'
       : undefined;
   notifyVacatingUpdate({
     customerId: updated.customerId,
@@ -447,6 +447,13 @@ export async function approveVacatingRequest(input: {
     vacatingDate: updated.vacatingDate,
     note: refundNote,
   });
+
+  const { createCheckoutSettlementFromVacating } = await import(
+    '@/src/services/checkoutSettlement'
+  );
+  await createCheckoutSettlementFromVacating({ vacatingRequestId: updated.id });
+
+  scheduleAdminNotificationSync();
 
   return { ok: true, request: updated };
 }
@@ -551,12 +558,133 @@ export async function cancelVacatingRequestByCustomer(input: {
 }
 
 // ───────────────────────────────────────────────────────────────────────────
+// finalizeVacatingOccupancy — occupancy + billing cleanup (no deposit refund)
+// Used by unified Checkout Settlement approval.
+// ───────────────────────────────────────────────────────────────────────────
+
+export async function finalizeVacatingOccupancy(
+  input: CompleteVacatingInput & { depositRefundPaise?: number },
+): Promise<CompleteVacatingResult> {
+  const [current] = await db
+    .select()
+    .from(vacatingRequests)
+    .where(eq(vacatingRequests.id, input.requestId))
+    .limit(1);
+  if (!current) return { ok: false, kind: 'not_found' };
+  if (!['pending', 'approved'].includes(current.status)) {
+    return { ok: false, kind: 'wrong_status', status: current.status };
+  }
+
+  const occupiedToday = await bookingHasActiveStayToday(current.bookingId);
+  const checkoutAlreadyShortened = canCompleteCheckoutWithoutActiveStayToday({
+    vacatingDate: current.vacatingDate,
+    vacatingStatus: current.status as 'pending' | 'approved',
+  });
+
+  if (!occupiedToday && !checkoutAlreadyShortened) {
+    return {
+      ok: false,
+      kind: 'bed_not_occupied',
+      message:
+        'This bed is already vacant — no active stay to complete. Cancel the vacating notice instead.',
+    };
+  }
+
+  const refundablePaise = input.depositRefundPaise ?? 0;
+  const deductionPaise = current.deductionPaise;
+
+  const futureRent = await cancelFutureRentInvoices(
+    current.bookingId,
+    `vacating completed on ${formatDate(parseDate(current.vacatingDate))}`,
+  );
+  const electricity = await cancelElectricityInvoicesForBooking(current.bookingId);
+
+  const [updated] = await db
+    .update(vacatingRequests)
+    .set({
+      status: 'completed',
+      depositRefundPaise: refundablePaise,
+      resolvedAt: new Date(),
+      resolvedByAdminId: input.resolvedByAdminId ?? null,
+      updatedAt: new Date(),
+    })
+    .where(eq(vacatingRequests.id, input.requestId))
+    .returning();
+
+  await db
+    .update(bookings)
+    .set({ status: 'completed', updatedAt: new Date() })
+    .where(and(eq(bookings.id, current.bookingId), eq(bookings.status, 'confirmed')));
+
+  await db
+    .update(customers)
+    .set({ residencyStatus: 'vacated', updatedAt: new Date() })
+    .where(eq(customers.id, current.customerId));
+
+  await db
+    .update(residentBillingProfiles)
+    .set({ autoGenerate: false, updatedAt: new Date() })
+    .where(eq(residentBillingProfiles.bookingId, current.bookingId));
+
+  await completeBookingReservations(current.bookingId);
+  await reconcileBookingOccupancy(current.bookingId);
+
+  await db.insert(auditLog).values({
+    actorType: input.resolvedByAdminId ? 'admin' : 'system',
+    actorId: input.resolvedByAdminId ?? null,
+    entity: 'vacating_request',
+    entityId: updated.id,
+    action: 'completed',
+    diff: {
+      deductionPaise,
+      depositRefundPaise: refundablePaise,
+      futureRentCancelled: futureRent.cancelled,
+      electricityCancelled: electricity.cancelled,
+      viaCheckoutSettlement: true,
+    },
+  });
+
+  const meta = await vacatingEmailMeta(updated.bookingId);
+  const { notifyVacatingUpdate } = await import('@/src/lib/email/notifications');
+  notifyVacatingUpdate({
+    customerId: updated.customerId,
+    bookingCode: meta.bookingCode,
+    status: 'completed',
+    vacatingDate: updated.vacatingDate,
+  });
+
+  scheduleAdminNotificationSync();
+
+  return {
+    ok: true,
+    request: updated,
+    deductionPaise,
+    depositRefundPaise: refundablePaise,
+    futureInvoicesCancelled: futureRent.cancelled,
+    electricityInvoicesCancelled: electricity.cancelled,
+  };
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // completeVacatingRequest — the heavy lifter
 // ───────────────────────────────────────────────────────────────────────────
 
 export async function completeVacatingRequest(
   input: CompleteVacatingInput,
 ): Promise<CompleteVacatingResult> {
+  const { getCheckoutSettlementIdForVacating } = await import(
+    '@/src/services/checkoutSettlement'
+  );
+  const checkoutId = await getCheckoutSettlementIdForVacating(input.requestId);
+  if (checkoutId) {
+    return {
+      ok: false,
+      kind: 'settlement_failed',
+      message:
+        'Use Checkout Settlement to complete this vacating — open Admin → Checkout Settlements.',
+    };
+  }
+
   const [current] = await db
     .select()
     .from(vacatingRequests)

@@ -479,146 +479,24 @@ function ElectricityForm({ onDone }: { onDone: () => void }) {
 
 function RefundForm({ onDone }: { onDone: () => void }) {
   const router = useRouter();
-  const [selected, setSelected] = useState<ResidentQuickResult | null>(null);
-  const [amountInr, setAmountInr] = useState('');
-  const [reason, setReason] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
-
-  function submit(e: React.FormEvent, ctxBookingId: string | null) {
-    e.preventDefault();
-    if (!selected) return;
-    const amount = Number.parseFloat(amountInr);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setError('Enter a valid amount.');
-      return;
-    }
-    if (!reason.trim()) {
-      setError('Reason is required.');
-      return;
-    }
-    setError(null);
-    startTransition(async () => {
-      const result = await quickRefundSettlementAction({
-        customerId: selected.id,
-        bookingId: selected.bookingId ?? ctxBookingId,
-        amountInr: amount,
-        reason,
-      });
-      if (!result.ok) {
-        setError(result.error);
-        return;
-      }
-      setSuccess(result.message);
-      setTimeout(onDone, 1200);
-    });
-  }
-
   return (
-    <QuickActionResidentStep selected={selected} onSelect={setSelected}>
-      {({ ctx }) => (
-        <>
-          {(selected?.bookingId ?? ctx?.bookingId) ? (
-            <div className="mb-3 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() =>
-                  router.push(`/admin/deposits/${selected?.bookingId ?? ctx?.bookingId}`)
-                }
-                className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-apg-silver hover:text-white"
-              >
-                Full deposit settlement →
-              </button>
-              <button
-                type="button"
-                onClick={() => router.push('/admin/vacating')}
-                className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-apg-silver hover:text-white"
-              >
-                Vacating queue →
-              </button>
-            </div>
-          ) : null}
-          <RefundAmountFields
-            ctx={ctx}
-            amountInr={amountInr}
-            setAmountInr={setAmountInr}
-            reason={reason}
-            setReason={setReason}
-            onSubmit={(e) => submit(e, ctx?.bookingId ?? null)}
-            pending={pending}
-            error={error}
-            success={success}
-          />
-        </>
-      )}
-    </QuickActionResidentStep>
-  );
-}
-
-function RefundAmountFields({
-  ctx,
-  amountInr,
-  setAmountInr,
-  reason,
-  setReason,
-  onSubmit,
-  pending,
-  error,
-  success,
-}: {
-  ctx: import('@/app/(admin)/admin/quick-actions/actions').ResidentQuickContext | null;
-  amountInr: string;
-  setAmountInr: (v: string) => void;
-  reason: string;
-  setReason: (v: string) => void;
-  onSubmit: (e: React.FormEvent) => void;
-  pending: boolean;
-  error: string | null;
-  success: string | null;
-}) {
-  useEffect(() => {
-    if (ctx && ctx.depositRefundablePaise > 0 && !amountInr) {
-      setAmountInr(String(ctx.depositRefundablePaise / 100));
-    }
-  }, [ctx, amountInr, setAmountInr]);
-
-  return (
-    <ActionFormShell
-      onSubmit={onSubmit}
-      pending={pending}
-      submitLabel="Record deposit refund"
-      error={error}
-      success={success}
-    >
-      <label className="block text-xs text-apg-silver">
-        Refund amount (₹)
-        {ctx && ctx.depositRefundablePaise > 0 ? (
-          <span className="ml-1 text-[10px] text-emerald-300">
-            max {paiseToInr(ctx.depositRefundablePaise)}
-          </span>
-        ) : null}
-        <input
-          type="number"
-          min="0.01"
-          step="0.01"
-          required
-          value={amountInr}
-          onChange={(e) => setAmountInr(e.target.value)}
-          className="mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white"
-        />
-      </label>
-      <label className="block text-xs text-apg-silver">
-        Reason
-        <input
-          type="text"
-          required
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          className="mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white"
-        />
-      </label>
-    </ActionFormShell>
+    <div className="space-y-4 text-sm">
+      <p className="text-apg-silver">
+        Quick deposit refunds are disabled. All vacating refunds must go through{' '}
+        <strong className="text-white">Checkout Settlements</strong> so notice deduction,
+        electricity, and payout are handled in one audited workflow.
+      </p>
+      <button
+        type="button"
+        onClick={() => {
+          router.push('/admin/checkout-settlements');
+          onDone();
+        }}
+        className="w-full rounded-lg bg-[#FF5A1F] px-4 py-2.5 font-semibold text-white hover:brightness-110"
+      >
+        Open Checkout Settlements
+      </button>
+    </div>
   );
 }
 

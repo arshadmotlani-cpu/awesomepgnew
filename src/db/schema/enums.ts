@@ -10,6 +10,18 @@ export const kycSubmissionStatusEnum = pgEnum('kyc_submission_status', [
   'rejected',
 ]);
 
+export const checkoutSettlementStatusEnum = pgEnum('checkout_settlement_status', [
+  'awaiting_resident_details',
+  'awaiting_admin_review',
+  'approved',
+  'refund_pending',
+  'refund_paid',
+  'completed',
+]);
+
+export type CheckoutSettlementStatus =
+  (typeof checkoutSettlementStatusEnum.enumValues)[number];
+
 export const residencyStatusEnum = pgEnum('residency_status', ['active', 'vacated', 'blocked']);
 
 export type ResidencyStatus = (typeof residencyStatusEnum.enumValues)[number];
