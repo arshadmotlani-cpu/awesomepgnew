@@ -14,9 +14,11 @@ import type {
 } from '@/src/lib/admin/residentSearchTypes';
 import { isNotOccupancyPlaceholderCustomerSql } from '@/src/lib/occupancySqlFilters';
 import {
+  activeBedReservationWhereSql,
   activeTenancyLateralSql,
   deriveTenancyStatus,
   getActiveTenancyForCustomer,
+  isNotOccupancyPlaceholderBookingSql,
 } from '@/src/lib/residentActiveTenancy';
 import { logger } from '@/src/lib/logger';
 
@@ -91,11 +93,34 @@ const legacyExcludeTestCustomersSql = sql`(
 /** Optional active-bed context — never filters customers out. */
 const activeTenancyJoinSql = activeTenancyLateralSql;
 
+/** Match active bed assignment location — works with or without tenancy lateral join. */
+const activeAssignmentLocationMatchSql = (pattern: string) => sql`
+  EXISTS (
+    SELECT 1
+    FROM bookings b
+    INNER JOIN bed_reservations br ON br.booking_id = b.id
+    INNER JOIN beds bd ON bd.id = br.bed_id
+    INNER JOIN rooms r ON r.id = bd.room_id
+    INNER JOIN floors f ON f.id = r.floor_id
+    INNER JOIN pgs p ON p.id = f.pg_id
+    WHERE b.customer_id = c.id
+      AND ${activeBedReservationWhereSql}
+      AND ${isNotOccupancyPlaceholderBookingSql}
+      AND (
+        p.name ILIKE ${pattern}
+        OR r.room_number ILIKE ${pattern}
+        OR bd.bed_code ILIKE ${pattern}
+        OR (r.room_number || ' ' || bd.bed_code) ILIKE ${pattern}
+      )
+  )
+`;
+
 function matchSql(
   pattern: string,
   q: string,
   phoneDigits: string,
   phoneSearchEnabled: boolean,
+  includeLateralMatch: boolean,
 ) {
   return sql`
     (
@@ -111,6 +136,17 @@ function matchSql(
         ${phoneSearchEnabled}
         AND regexp_replace(c.phone, '[^0-9]', '', 'g') LIKE ${`%${phoneDigits}%`}
       )
+      OR ${activeAssignmentLocationMatchSql(pattern)}
+      ${
+        includeLateralMatch
+          ? sql`
+              OR t.pg_name ILIKE ${pattern}
+              OR t.room_number ILIKE ${pattern}
+              OR t.bed_code ILIKE ${pattern}
+              OR (coalesce(t.room_number, '') || ' ' || coalesce(t.bed_code, '')) ILIKE ${pattern}
+            `
+          : sql``
+      }
     )
   `;
 }
@@ -220,7 +256,7 @@ async function runSearchQuery(
       WHERE c.archived_at IS NULL
         ${testFilter}
         AND ${isNotOccupancyPlaceholderCustomerSql}
-        AND ${matchSql(pattern, q, phoneDigits, phoneSearchEnabled)}
+        AND ${matchSql(pattern, q, phoneDigits, phoneSearchEnabled, false)}
       ${orderSql(qLower, namePrefix, pattern, phoneDigits, phoneSearchEnabled, false)}
       LIMIT ${limit}
     `);
@@ -259,7 +295,7 @@ async function runSearchQuery(
     WHERE c.archived_at IS NULL
       ${testFilter}
       AND ${isNotOccupancyPlaceholderCustomerSql}
-      AND ${matchSql(pattern, q, phoneDigits, phoneSearchEnabled)}
+      AND ${matchSql(pattern, q, phoneDigits, phoneSearchEnabled, true)}
     ${orderSql(qLower, namePrefix, pattern, phoneDigits, phoneSearchEnabled, true)}
     LIMIT ${limit}
   `);

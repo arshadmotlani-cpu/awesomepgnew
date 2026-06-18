@@ -17,6 +17,17 @@ export const isNotOccupancyPlaceholderBookingSql = sql`NOT (
 )`;
 
 /**
+ * Core active reservation predicate — same SSOT as PG bed map occupant join.
+ * Booking alias: `b`, reservation alias: `br`.
+ */
+export const activeBedReservationWhereSql = sql`
+  b.status = 'confirmed'
+  AND br.status = 'active'
+  AND br.kind = 'primary'
+  AND CURRENT_DATE <@ br.stay_range
+`;
+
+/**
  * Optional active-bed context for a customer row (`c`).
  * LEFT JOIN LATERAL — never filters customers out.
  */
@@ -57,11 +68,7 @@ export const activeTenancyLateralSql = sql`
     INNER JOIN floors f ON f.id = r.floor_id
     INNER JOIN pgs p ON p.id = f.pg_id
     WHERE b.customer_id = c.id
-      AND b.status = 'confirmed'
-      AND b.duration_mode IN ('monthly', 'open_ended')
-      AND br.status = 'active'
-      AND br.kind = 'primary'
-      AND CURRENT_DATE <@ br.stay_range
+      AND ${activeBedReservationWhereSql}
       AND ${isNotOccupancyPlaceholderBookingSql}
     ORDER BY lower(br.stay_range) DESC
     LIMIT 1
@@ -162,11 +169,7 @@ export async function getActiveTenancyForCustomer(
     INNER JOIN floors f ON f.id = r.floor_id
     INNER JOIN pgs p ON p.id = f.pg_id
     WHERE b.customer_id = ${customerId}::uuid
-      AND b.status = 'confirmed'
-      AND b.duration_mode IN ('monthly', 'open_ended')
-      AND br.status = 'active'
-      AND br.kind = 'primary'
-      AND CURRENT_DATE <@ br.stay_range
+      AND ${activeBedReservationWhereSql}
       AND ${isNotOccupancyPlaceholderBookingSql}
     ORDER BY lower(br.stay_range) DESC
     LIMIT 1
@@ -186,9 +189,11 @@ export function deriveTenancyStatus(input: {
   residencyStatus?: ResidencyStatus | null;
   activeTenancy: Pick<ActiveTenancy, 'bookingId' | 'isVacating'> | null;
 }): ResidentTenancyStatus {
-  if (input.residencyStatus === 'vacated') return 'vacated';
   if (input.residencyStatus === 'blocked') return 'blocked';
-  if (!input.activeTenancy) return 'unassigned';
-  if (input.activeTenancy.isVacating) return 'vacating';
-  return 'active';
+  if (input.activeTenancy) {
+    if (input.activeTenancy.isVacating) return 'vacating';
+    return 'active';
+  }
+  if (input.residencyStatus === 'vacated') return 'vacated';
+  return 'unassigned';
 }

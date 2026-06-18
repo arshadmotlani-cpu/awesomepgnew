@@ -59,13 +59,14 @@ export function ResidentsTable({
       const nameMatch = r.fullName.toLowerCase().includes(q);
       const emailMatch = r.email.toLowerCase().includes(q);
       const phoneMatch = digits.length >= 3 && r.phone.replace(/\D/g, '').includes(digits);
+      const bookingMatch = r.bookingCode?.toLowerCase().includes(q);
       const pgMatch = r.pgName?.toLowerCase().includes(q);
       const bedMatch =
         r.bedCode?.toLowerCase().includes(q) ||
         r.roomNumber?.toLowerCase().includes(q) ||
         `${r.roomNumber ?? ''} ${r.bedCode ?? ''}`.toLowerCase().includes(q);
 
-      return nameMatch || emailMatch || phoneMatch || pgMatch || bedMatch;
+      return nameMatch || emailMatch || phoneMatch || bookingMatch || pgMatch || bedMatch;
     });
   }, [query, residents, statusFilter]);
 
