@@ -48,9 +48,9 @@
 | 1 | **Resident profile** | `/admin/residents/[customerId]` | [p0-01](./phase2/p0-01-resident-profile.md) | ✅ Done |
 | 2 | Deposit detail | `/admin/deposits/[bookingId]` | [p0-02](./phase2/p0-02-deposit-detail.md) | ✅ Done |
 | 3 | Billing | `/admin/revenue/billing` | [p0-03](./phase2/p0-03-billing.md) | ✅ Done |
-| 4 | Checkout / vacating | `/admin/vacating`, `/admin/checkout-settlements/*` | TBD | ⏳ |
-| 5 | Bed assignment | `/admin/pgs/[pgId]/map`, assign flows | TBD | ⏳ |
-| 6 | KYC queue | `/admin/residents/kyc` | TBD | ⏳ |
+| 4 | Checkout / vacating | `/admin/vacating`, `/admin/checkout-settlements/*` | [p0-04](./phase2/p0-04-checkout-vacating.md) | ✅ Done |
+| 5 | Bed assignment | `/admin/pgs/[pgId]/map`, assign flows | [p0-05](./phase2/p0-05-bed-assignment.md) | ✅ Done |
+| 6 | KYC queue | `/admin/residents/kyc` | [p0-06](./phase2/p0-06-kyc-queue.md) | ✅ Done |
 
 ### P1 — Resident-facing
 
@@ -100,7 +100,8 @@
 |----------|------|-------|
 | Phase 1 audit approved | 2026-06-19 | Inventory + risk report |
 | Phase 2 approved with modification | 2026-06-19 | Admin P0 first; public P2 last; per-screen methodology |
+| P0 admin screens complete | 2026-06-19 | All 6 screens — see [p0-admin-complete.md](./phase2/p0-admin-complete.md) |
 
 ---
 
-*Next gate: complete P0-1 Resident profile → review → P0-2 Deposit detail.*
+*Next gate: P1 Resident Home → review → P1 Requests Center.*

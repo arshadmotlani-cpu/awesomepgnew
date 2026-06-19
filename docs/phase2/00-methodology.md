@@ -56,9 +56,9 @@ Design priorities (in order):
 | 1 | Resident profile | `/admin/residents/[customerId]` | [p0-01-resident-profile.md](./p0-01-resident-profile.md) |
 | 2 | Deposit detail | `/admin/deposits/[bookingId]` | TBD |
 | 3 | Billing | `/admin/revenue/billing` | TBD |
-| 4 | Checkout / vacating | `/admin/vacating`, `/admin/checkout-settlements/*` | TBD |
-| 5 | Bed assignment | `/admin/pgs/[pgId]/map`, assign flows | TBD |
-| 6 | KYC queue | `/admin/residents/kyc` | TBD |
+| 4 | Checkout / vacating | `/admin/vacating`, `/admin/checkout-settlements/*` | [p0-04-checkout-vacating.md](./p0-04-checkout-vacating.md) |
+| 5 | Bed assignment | `/admin/pgs/[pgId]/map`, assign flows | [p0-05-bed-assignment.md](./p0-05-bed-assignment.md) |
+| 6 | KYC queue | `/admin/residents/kyc` | [p0-06-kyc-queue.md](./p0-06-kyc-queue.md) |
 
 ### P1
 
