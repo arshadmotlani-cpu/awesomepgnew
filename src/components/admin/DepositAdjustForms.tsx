@@ -1,10 +1,5 @@
 'use client';
 
-/**
- * ADJUST BISECT PHASE 3A — CorrectDepositForm + add/deduct/refund grid.
- * Archive: DepositAdjustForms.full.tsx
- */
-
 import { useActionState } from 'react';
 import {
   addDepositAction,
@@ -15,8 +10,6 @@ import {
   type ActionState,
 } from '@/app/(admin)/admin/deposits/[bookingId]/actions';
 import { paiseToInr, asPlainNumber } from '@/src/lib/format';
-
-const BISECT_PHASE = 3;
 
 type ServerAction = (
   bookingId: string,
@@ -213,12 +206,6 @@ export function DepositAdjustForms({
 }) {
   return (
     <div className="space-y-4">
-      <p
-        data-adjust-bisect={BISECT_PHASE}
-        className="rounded border border-sky-400/40 bg-sky-500/10 px-3 py-1.5 text-xs text-sky-100"
-      >
-        DepositAdjustForms bisect-{BISECT_PHASE} — add/deduct/refund grid
-      </p>
       <CorrectDepositForm
         bookingId={bookingId}
         bookingDepositPaise={bookingDepositPaise}
