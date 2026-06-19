@@ -41,7 +41,7 @@ export async function sendEmailOtp(
       resendAfter: string;
       delivery: { provider: string; messageId?: string };
     }
-  | { ok: false; message: string; retryAfterSeconds?: number }
+  | { ok: false; message: string; retryAfterSeconds?: number; rateLimited?: boolean }
 > {
   const email = normaliseEmail(rawEmail);
   if (!email) {
@@ -91,7 +91,9 @@ export async function sendEmailOtp(
     });
     return {
       ok: false,
-      message: 'Too many code requests for this email. Try again in an hour.',
+      message: 'Too many attempts. Please wait 60 minutes before requesting a new code.',
+      rateLimited: true,
+      retryAfterSeconds: 3600,
     };
   }
 
@@ -108,7 +110,9 @@ export async function sendEmailOtp(
       });
       return {
         ok: false,
-        message: 'Too many code requests from your network. Try again later.',
+        message: 'Too many attempts. Please wait 60 minutes before requesting a new code.',
+        rateLimited: true,
+        retryAfterSeconds: 3600,
       };
     }
   }
@@ -191,7 +195,9 @@ export async function consumeEmailOtpChallengeById(
   challengeId: string,
   rawEmail: string,
   ctx: VerifyOtpContext = {},
-): Promise<{ ok: true; email: string } | { ok: false; message: string }> {
+): Promise<
+  { ok: true; email: string; alreadyConsumed?: boolean } | { ok: false; message: string }
+> {
   const email = normaliseEmail(rawEmail);
   if (!email) {
     return { ok: false, message: 'Invalid email address.' };
@@ -203,7 +209,7 @@ export async function consumeEmailOtpChallengeById(
     .where(eq(emailOtpChallenges.id, challengeId))
     .limit(1);
 
-  if (!challenge || challenge.email !== email || challenge.consumedAt) {
+  if (!challenge || challenge.email !== email) {
     await logOtpAttempt({
       email,
       action: 'verify_fail',
@@ -213,6 +219,10 @@ export async function consumeEmailOtpChallengeById(
       userAgent: ctx.userAgent,
     });
     return { ok: false, message: 'No active code for this email. Request a new one.' };
+  }
+
+  if (challenge.consumedAt) {
+    return { ok: true, email, alreadyConsumed: true };
   }
   if (challenge.expiresAt <= new Date()) {
     await logOtpAttempt({

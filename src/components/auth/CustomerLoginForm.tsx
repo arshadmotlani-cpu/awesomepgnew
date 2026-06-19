@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   authFieldLabelClassName,
   authInputClassName,
@@ -13,6 +13,21 @@ import { INDIAN_MOBILE_LOCAL, formatIndianPhoneDisplay } from '@/src/lib/phone';
 
 type Step = 'credentials' | 'otp' | 'profile' | 'reset-password';
 type OtpPurpose = 'signup' | 'forgot_password';
+type OtpSubmitPhase = 'idle' | 'verifying' | 'success';
+type ProfileSubmitPhase = 'idle' | 'submitting' | 'success' | 'redirecting';
+
+function formatResendWait(seconds: number): string {
+  if (seconds >= 3600) {
+    const mins = Math.ceil(seconds / 60);
+    return `${mins} minute${mins === 1 ? '' : 's'}`;
+  }
+  if (seconds >= 60) {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return secs > 0 ? `${mins}m ${secs}s` : `${mins} minute${mins === 1 ? '' : 's'}`;
+  }
+  return `${seconds}s`;
+}
 
 export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark' }) {
   const router = useRouter();
@@ -32,6 +47,10 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
   const [error, setError] = useState<string | null>(null);
   const [resendSeconds, setResendSeconds] = useState(0);
   const [emailVerified, setEmailVerified] = useState(false);
+  const [otpPhase, setOtpPhase] = useState<OtpSubmitPhase>('idle');
+  const [profilePhase, setProfilePhase] = useState<ProfileSubmitPhase>('idle');
+  const verifyInFlight = useRef(false);
+  const profileInFlight = useRef(false);
 
   const phoneDisplay =
     phone.length === 10 ? formatIndianPhoneDisplay(`+91${phone}`) : phone;
@@ -99,6 +118,10 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
       setError('Enter a valid email address.');
       return;
     }
+    if (resendSeconds > 0) {
+      setError(`Please wait ${formatResendWait(resendSeconds)} before requesting another code.`);
+      return;
+    }
     setPending(true);
     setError(null);
     try {
@@ -112,16 +135,25 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
         message?: string;
         resendAfter?: string;
         retryAfterSeconds?: number;
+        rateLimited?: boolean;
       };
       if (!res.ok || !data.ok) {
         if (data.retryAfterSeconds) {
           setResendSeconds(data.retryAfterSeconds);
+        } else if (data.rateLimited) {
+          setResendSeconds(3600);
         }
-        setError(data.message ?? 'Could not send code.');
+        setError(
+          data.message ??
+            (data.rateLimited
+              ? 'Too many attempts. Please wait 60 minutes before requesting a new code.'
+              : 'Could not send code.'),
+        );
         return;
       }
       applyResendAfter(data.resendAfter);
       setOtpPurpose(purpose);
+      setOtpPhase('idle');
       setStep('otp');
     } finally {
       setPending(false);
@@ -129,10 +161,24 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
   }
 
   async function verifyCode(includeProfile = false) {
+    if (includeProfile) {
+      if (profileInFlight.current || profilePhase !== 'idle') return;
+      profileInFlight.current = true;
+      setProfilePhase('submitting');
+    } else {
+      if (verifyInFlight.current || otpPhase !== 'idle') return;
+      if (emailVerified) {
+        setStep('profile');
+        return;
+      }
+      verifyInFlight.current = true;
+      setOtpPhase('verifying');
+    }
+
     setPending(true);
     setError(null);
     try {
-      if (otpPurpose === 'forgot_password') {
+      if (otpPurpose === 'forgot_password' && !includeProfile) {
         setStep('reset-password');
         return;
       }
@@ -152,30 +198,57 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
         message?: string;
         needsProfile?: boolean;
         emailVerified?: boolean;
+        alreadyVerified?: boolean;
         needsProfileComplete?: boolean;
         mustSetPassword?: boolean;
         needsNewCode?: boolean;
         redirect?: string;
       };
+
       if (data.needsProfile || data.emailVerified) {
+        setOtpPhase('success');
         setEmailVerified(true);
         setStep('profile');
         setError(null);
         return;
       }
+
       if (!res.ok || !data.ok) {
         if (data.needsProfileComplete && data.redirect) {
+          setProfilePhase('redirecting');
           router.replace(data.redirect);
           return;
         }
         if (data.needsNewCode && includeProfile) {
           setStep('otp');
           setEmailVerified(false);
+          setOtpPhase('idle');
           setCode('');
+        }
+        if (includeProfile) {
+          setProfilePhase('idle');
+          profileInFlight.current = false;
+        } else {
+          setOtpPhase('idle');
+          verifyInFlight.current = false;
         }
         setError(data.message ?? 'Verification failed.');
         return;
       }
+
+      if (includeProfile) {
+        setProfilePhase('success');
+        if (data.mustSetPassword) {
+          setProfilePhase('redirecting');
+          router.replace(`/account/set-password?next=${encodeURIComponent(next)}`);
+          return;
+        }
+        setProfilePhase('redirecting');
+        router.replace(next);
+        router.refresh();
+        return;
+      }
+
       if (data.mustSetPassword) {
         router.replace(`/account/set-password?next=${encodeURIComponent(next)}`);
         return;
@@ -184,6 +257,9 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
       router.refresh();
     } finally {
       setPending(false);
+      if (!includeProfile && step === 'otp') {
+        verifyInFlight.current = false;
+      }
     }
   }
 
@@ -218,6 +294,10 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
     setPassword('');
     setCode('');
     setEmailVerified(false);
+    setOtpPhase('idle');
+    setProfilePhase('idle');
+    verifyInFlight.current = false;
+    profileInFlight.current = false;
     setOtpPurpose('signup');
     void sendCode('signup');
   }
@@ -257,6 +337,31 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
   const errorClass = dark
     ? 'rounded-lg bg-rose-500/15 px-3 py-2 text-sm text-rose-200'
     : 'rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700';
+  const successClass = dark
+    ? 'rounded-lg bg-emerald-500/15 px-3 py-2 text-sm text-emerald-200'
+    : 'rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700';
+  const infoClass = dark
+    ? 'rounded-lg bg-apg-orange/10 px-3 py-2 text-sm text-apg-orange'
+    : 'rounded-md bg-indigo-50 px-3 py-2 text-sm text-indigo-700';
+
+  const otpLocked = otpPhase === 'success' || emailVerified;
+  const otpButtonLabel =
+    otpPhase === 'verifying'
+      ? 'Verifying…'
+      : otpPhase === 'success'
+        ? 'Email verified ✓'
+        : otpPurpose === 'forgot_password'
+          ? 'Verify code'
+          : 'Verify & continue';
+  const profileButtonLabel =
+    profilePhase === 'submitting'
+      ? 'Creating account…'
+      : profilePhase === 'success'
+        ? 'Account created ✓'
+        : profilePhase === 'redirecting'
+          ? 'Redirecting…'
+          : 'Continue';
+  const profileLocked = profilePhase !== 'idle';
 
   return (
     <div className={shell}>
@@ -346,16 +451,25 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
               maxLength={6}
               required
               value={code}
+              disabled={otpLocked || pending}
               onChange={(e) => setCode(e.target.value)}
-              className={`${inputClass} font-mono tracking-[0.3em]`}
+              className={`${inputClass} font-mono tracking-[0.3em] disabled:opacity-60`}
             />
           </label>
-          <button type="submit" disabled={pending} className={btnClass}>
-            {pending
-              ? 'Verifying…'
-              : otpPurpose === 'forgot_password'
-                ? 'Verify code'
-                : 'Verify & continue'}
+          {otpPhase === 'success' ? (
+            <p className={successClass}>Email verified. Continue below to finish signing up.</p>
+          ) : null}
+          {resendSeconds > 0 ? (
+            <p className={infoClass}>
+              You can request another code in {formatResendWait(resendSeconds)}.
+            </p>
+          ) : null}
+          <button
+            type="submit"
+            disabled={pending || otpLocked || otpPhase === 'verifying'}
+            className={btnClass}
+          >
+            {otpButtonLabel}
           </button>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <button
@@ -375,7 +489,9 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
               onClick={() => void sendCode(otpPurpose)}
               className={linkAccent}
             >
-              {resendSeconds > 0 ? `Resend in ${resendSeconds}s` : 'Resend code'}
+              {resendSeconds > 0
+                ? `Resend available in ${formatResendWait(resendSeconds)}`
+                : 'Resend code'}
             </button>
           </div>
         </form>
@@ -402,8 +518,9 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
               required
               autoComplete="name"
               value={fullName}
+              disabled={profileLocked}
               onChange={(e) => setFullName(e.target.value)}
-              className={inputClass}
+              className={`${inputClass} disabled:opacity-60`}
             />
           </label>
           <label className="block">
@@ -413,18 +530,28 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
               onChange={setPhone}
               required
               autoComplete="tel"
+              readOnly={profileLocked}
               className="mt-1"
             />
           </label>
           {phone.length === 10 ? (
             <p className="text-xs text-apg-silver">We&apos;ll reach you at {phoneDisplay}.</p>
           ) : null}
+          {profilePhase === 'success' || profilePhase === 'redirecting' ? (
+            <p className={successClass}>
+              {profilePhase === 'redirecting'
+                ? 'Account created. Taking you to create your password…'
+                : 'Account created ✓'}
+            </p>
+          ) : null}
           <button
             type="submit"
-            disabled={pending || !INDIAN_MOBILE_LOCAL.test(phone)}
+            disabled={
+              profileLocked || pending || !INDIAN_MOBILE_LOCAL.test(phone) || !fullName.trim()
+            }
             className={btnClass}
           >
-            {pending ? 'Creating account…' : 'Continue'}
+            {profileButtonLabel}
           </button>
         </form>
       ) : null}
