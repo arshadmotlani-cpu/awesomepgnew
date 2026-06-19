@@ -1,169 +1,142 @@
 import Link from 'next/link';
-import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import { EmptyState } from '@/src/components/admin/EmptyState';
 import { IconDoor } from '@/src/components/admin/icons';
+import { MoveOutAdvancedTools } from '@/src/components/admin/moveOut/MoveOutAdvancedTools';
+import { MoveOutCommandCenter } from '@/src/components/admin/moveOut/MoveOutCommandCenter';
+import { MoveOutPipelineQueue } from '@/src/components/admin/moveOut/MoveOutPipelineQueue';
 import { PageHeader } from '@/src/components/admin/PageHeader';
-import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
-import { VacatingPrimaryActions } from '@/src/components/admin/vacating/VacatingPrimaryActions';
-import { VacatingRowActions } from '@/src/components/admin/vacating/VacatingRowActions';
-import { VacatingSummarySection } from '@/src/components/admin/vacating/VacatingSummarySection';
 import { listAdminVacatingRequests } from '@/src/db/queries/admin';
-import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
+import { requireAdminSession } from '@/src/lib/auth/guards';
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
-import { getCheckoutSettlementIdForVacating } from '@/src/services/checkoutSettlement';
-
-const STATUS_FILTERS: Array<{
-  label: string;
-  value: '' | 'pending' | 'approved' | 'completed' | 'rejected';
-}> = [
-  { label: 'All', value: '' },
-  { label: 'Waiting', value: 'pending' },
-  { label: 'Ready for checkout', value: 'approved' },
-  { label: 'Done', value: 'completed' },
-  { label: 'Declined', value: 'rejected' },
-];
+import {
+  activePipelineItems,
+  buildMoveOutCommandStats,
+  buildMoveOutPipeline,
+} from '@/src/lib/moveOut/moveOutPipeline';
+import {
+  listPipelineCheckoutSettlements,
+} from '@/src/services/checkoutSettlement';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminVacatingPage(props: PageProps<'/admin/vacating'>) {
   const sp = await props.searchParams;
   const readParam = typeof sp.read === 'string' ? sp.read : undefined;
+  const legacy = sp.legacy === '1';
   await ensureAdminPageNotificationsSeen('/admin/vacating', '/admin/vacating', readParam);
 
-  const rawStatus = typeof sp.status === 'string' ? sp.status : '';
-  const status = STATUS_FILTERS.some((f) => f.value === rawStatus)
-    ? (rawStatus as '' | 'pending' | 'approved' | 'completed' | 'rejected')
-    : '';
-  const res = await listAdminVacatingRequests(
-    status ? { status: status as 'pending' | 'approved' | 'completed' | 'rejected' } : undefined,
-  );
+  const session = await requireAdminSession('/admin/vacating');
+  const [vacatingRes, settlements] = await Promise.all([
+    listAdminVacatingRequests(),
+    listPipelineCheckoutSettlements(session),
+  ]);
 
   const settlementHrefByRequest = new Map<string, string>();
-  if (res.ok) {
-    await Promise.all(
-      res.data
-        .filter((v) => v.status === 'approved')
-        .map(async (v) => {
-          const settlementId = await getCheckoutSettlementIdForVacating(v.id);
-          if (settlementId) {
-            settlementHrefByRequest.set(v.id, `/admin/checkout-settlements/${settlementId}`);
-          }
-        }),
+  for (const s of settlements) {
+    settlementHrefByRequest.set(s.vacatingRequestId, `/admin/checkout-settlements/${s.id}`);
+  }
+
+  if (!vacatingRes.ok) {
+    return (
+      <>
+        <PageHeader title="Move-outs" description="Unified move-out pipeline." />
+        <DbStatusBanner error={vacatingRes.error} />
+      </>
     );
   }
 
-  const pendingCount = res.ok ? res.data.filter((v) => v.status === 'pending').length : 0;
-  const approvedCount = res.ok ? res.data.filter((v) => v.status === 'approved').length : 0;
+  const pipeline = buildMoveOutPipeline({
+    vacatingRows: vacatingRes.data.map((v) => ({
+      id: v.id,
+      bookingId: v.bookingId,
+      bookingCode: v.bookingCode,
+      customerId: v.customerId,
+      customerFullName: v.customerFullName,
+      customerPhone: v.customerPhone,
+      pgName: v.pgName,
+      bedCode: v.bedCode,
+      roomNumber: v.roomNumber,
+      noticeGivenDate: v.noticeGivenDate,
+      vacatingDate: v.vacatingDate,
+      noticeCompliant: v.noticeCompliant,
+      status: v.status,
+      resolvedAt: v.resolvedAt,
+      createdAt: v.createdAt,
+    })),
+    settlements: settlements.map((s) => ({
+      id: s.id,
+      vacatingRequestId: s.vacatingRequestId,
+      status: s.status,
+    })),
+  });
+
+  const commandStats = buildMoveOutCommandStats(pipeline);
+  const activeItems = activePipelineItems(pipeline);
+  const completedRecently = pipeline.filter((i) => i.stage === 'bed_released').slice(0, 8);
+
+  if (legacy) {
+    const rawStatus = typeof sp.status === 'string' ? sp.status : '';
+    const filtered = rawStatus
+      ? vacatingRes.data.filter((v) => v.status === rawStatus)
+      : vacatingRes.data;
+
+    return (
+      <>
+        <PageHeader
+          title="Move-outs"
+          description="Legacy table view — use the pipeline for daily work."
+        />
+        <p className="mb-6">
+          <Link href="/admin/vacating" className="text-sm font-semibold text-[#FF5A1F] hover:underline">
+            ← Back to move-out pipeline
+          </Link>
+        </p>
+        <MoveOutAdvancedTools
+          rows={filtered}
+          settlementHrefByRequest={settlementHrefByRequest}
+          defaultOpen
+        />
+      </>
+    );
+  }
 
   return (
     <>
       <PageHeader
-        title="Move-out requests"
-        description="Residents who gave notice to leave. Approve here — finish deposit refund in Checkout settlements."
+        title="Move-outs"
+        description="Where each resident is in the move-out process — one pipeline from notice to bed release."
       />
 
-      {!res.ok ? (
-        <DbStatusBanner error={res.error} />
+      {vacatingRes.data.length === 0 ? (
+        <EmptyState
+          icon={<IconDoor />}
+          title="No move-out requests"
+          description="Residents submit move-out notice from their account."
+        />
       ) : (
         <>
-          <VacatingSummarySection rows={res.data} />
-          <VacatingPrimaryActions pendingCount={pendingCount} approvedCount={approvedCount} />
+          <MoveOutCommandCenter stats={commandStats} />
+          <MoveOutPipelineQueue items={activeItems} />
 
-          <section className="mb-4">
-            <h2 className="mb-3 text-base font-semibold text-white">All requests</h2>
-            <nav className="flex flex-wrap gap-2">
-              {STATUS_FILTERS.map((f) => (
-                <Link
-                  key={f.value || 'all'}
-                  href={f.value ? `/admin/vacating?status=${f.value}` : '/admin/vacating'}
-                  className={
-                    'rounded-full px-3 py-1.5 text-xs font-medium transition ' +
-                    (f.value === status
-                      ? 'bg-[#FF5A1F] text-white'
-                      : 'border border-white/10 text-apg-silver hover:text-white')
-                  }
-                >
-                  {f.label}
-                </Link>
-              ))}
-            </nav>
-          </section>
+          {completedRecently.length > 0 ? (
+            <section className="mb-8">
+              <header className="mb-4 flex flex-wrap items-end justify-between gap-2">
+                <div>
+                  <h2 className="text-lg font-bold text-white">Recently completed</h2>
+                  <p className="mt-1 text-sm text-apg-silver">
+                    Move-outs finished — bed released and checkout closed.
+                  </p>
+                </div>
+              </header>
+              <MoveOutPipelineQueue items={completedRecently} compact />
+            </section>
+          ) : null}
 
-          {res.data.length === 0 ? (
-            <EmptyState
-              icon={<IconDoor />}
-              title="No move-out requests"
-              description="Residents submit move-out notice from their account."
-            />
-          ) : (
-            <div className="overflow-hidden rounded-xl border border-white/10">
-              <Table>
-                <THead>
-                  <TR>
-                    <TH>Submitted</TH>
-                    <TH>Booking</TH>
-                    <TH>Resident</TH>
-                    <TH>Bed</TH>
-                    <TH>Notice date</TH>
-                    <TH>Move-out date</TH>
-                    <TH>14-day notice?</TH>
-                    <TH className="text-right">Fee</TH>
-                    <TH className="text-right">Refund</TH>
-                    <TH>Status</TH>
-                    <TH className="text-right">Actions</TH>
-                  </TR>
-                </THead>
-                <TBody>
-                  {res.data.map((v) => (
-                    <TR key={v.id}>
-                      <TD className="text-xs text-apg-silver">{formatDate(v.createdAt)}</TD>
-                      <TD>
-                        <Link
-                          href={`/admin/bookings/${v.bookingId}`}
-                          className="font-mono text-xs text-[#FF5A1F] hover:underline"
-                        >
-                          {v.bookingCode}
-                        </Link>
-                      </TD>
-                      <TD>
-                        <div className="text-sm font-medium text-white">{v.customerFullName}</div>
-                        <div className="font-mono text-[11px] text-apg-silver">{v.customerPhone}</div>
-                      </TD>
-                      <TD className="text-xs text-apg-silver">
-                        {v.pgName} · {v.roomNumber}/{v.bedCode}
-                      </TD>
-                      <TD className="text-xs text-apg-silver">{formatDate(v.noticeGivenDate)}</TD>
-                      <TD className="text-xs text-apg-silver">{formatDate(v.vacatingDate)}</TD>
-                      <TD>
-                        {v.noticeCompliant ? (
-                          <span className="text-emerald-300">Yes</span>
-                        ) : (
-                          <span className="text-rose-300">No</span>
-                        )}
-                      </TD>
-                      <TD className="text-right tabular-nums text-white">
-                        {paiseToInr(v.deductionPaise)}
-                      </TD>
-                      <TD className="text-right tabular-nums text-white">
-                        {v.status === 'completed' ? paiseToInr(v.depositRefundPaise) : '—'}
-                      </TD>
-                      <TD>
-                        <Badge tone={toneForStatus(v.status)}>{titleCase(v.status)}</Badge>
-                      </TD>
-                      <TD className="text-right">
-                        <VacatingRowActions
-                          requestId={v.id}
-                          status={v.status}
-                          settlementHref={settlementHrefByRequest.get(v.id)}
-                        />
-                      </TD>
-                    </TR>
-                  ))}
-                </TBody>
-              </Table>
-            </div>
-          )}
+          <MoveOutAdvancedTools
+            rows={vacatingRes.data}
+            settlementHrefByRequest={settlementHrefByRequest}
+          />
         </>
       )}
     </>

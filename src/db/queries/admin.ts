@@ -1580,6 +1580,7 @@ export type AdminVacatingRow = {
   id: string;
   bookingId: string;
   bookingCode: string;
+  customerId: string;
   customerFullName: string;
   customerPhone: string;
   pgName: string;
@@ -1606,6 +1607,7 @@ export function listAdminVacatingRequests(filter?: {
         id: vacatingRequests.id,
         bookingId: vacatingRequests.bookingId,
         bookingCode: bookings.bookingCode,
+        customerId: vacatingRequests.customerId,
         customerFullName: customers.fullName,
         customerPhone: customers.phone,
         pgName: pgs.name,

@@ -477,6 +477,59 @@ export async function listCheckoutSettlements(
     .map(mapJoinRow);
 }
 
+/** All operational checkout settlements for the unified move-out pipeline view. */
+export async function listPipelineCheckoutSettlements(
+  session: AdminSession,
+): Promise<CheckoutSettlementRow[]> {
+  const rows = await db.execute<SettlementJoinRow>(sql`
+    SELECT
+      cs.*,
+      c.full_name AS customer_name,
+      c.phone AS customer_phone,
+      b.booking_code AS booking_code,
+      loc.pg_name,
+      loc.pg_id,
+      loc.room_number,
+      loc.room_id,
+      loc.bed_code,
+      vr.vacating_date AS vacating_date,
+      vr.notice_given_date AS notice_given_date,
+      NULL::text AS move_in_date
+    FROM checkout_settlements cs
+    INNER JOIN customers c ON c.id = cs.customer_id
+    INNER JOIN bookings b ON b.id = cs.booking_id
+    INNER JOIN vacating_requests vr ON vr.id = cs.vacating_request_id
+    LEFT JOIN LATERAL (
+      SELECT
+        bd.bed_code,
+        r.id::text AS room_id,
+        r.room_number,
+        p.id::text AS pg_id,
+        p.name AS pg_name
+      FROM bed_reservations br
+      INNER JOIN beds bd ON bd.id = br.bed_id
+      INNER JOIN rooms r ON r.id = bd.room_id
+      INNER JOIN floors f ON f.id = r.floor_id
+      INNER JOIN pgs p ON p.id = f.pg_id
+      WHERE br.booking_id = cs.booking_id
+        AND br.kind = 'primary'
+      ORDER BY br.created_at DESC
+      LIMIT 1
+    ) loc ON true
+    WHERE cs.status IN ${sql.raw(`(${OPERATIONAL_SETTLEMENT_STATUSES.map((s) => `'${s}'`).join(',')})`)}
+    ORDER BY cs.updated_at DESC
+    LIMIT 500
+  `);
+
+  return Array.from(rows)
+    .filter(
+      (r) =>
+        !r.pg_id ||
+        adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, r.pg_id),
+    )
+    .map(mapJoinRow);
+}
+
 export async function getCheckoutSettlementDetail(
   session: AdminSession,
   settlementId: string,

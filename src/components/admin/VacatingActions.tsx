@@ -76,18 +76,25 @@ function MicroForm({
 export function ApproveVacatingButton({
   requestId,
   pgId,
+  className,
+  label = 'Approve',
 }: {
   requestId: string;
   pgId?: string;
+  className?: string;
+  label?: string;
 }) {
   return (
     <MicroForm
       formId={`approve-vacating-${requestId}`}
       requestId={requestId}
       pgId={pgId}
-      label="Approve"
+      label={label}
       action={approveVacatingAction}
-      className="rounded-md bg-indigo-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-indigo-500"
+      className={
+        className ??
+        'rounded-md bg-indigo-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-indigo-500'
+      }
       title="Approve vacating notice?"
       description="The bed will open for website pre-booking from the vacating date. The tenant stays until then."
       confirmLabel="Approve notice"
