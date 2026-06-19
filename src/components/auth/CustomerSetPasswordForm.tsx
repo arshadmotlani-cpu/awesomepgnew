@@ -1,13 +1,22 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   authFieldLabelClassName,
   authInputClassName,
 } from '@/src/components/auth/authFieldStyles';
 import { SignupProgress } from '@/src/components/auth/SignupProgress';
+import {
+  SIGNUP_GENERIC_ERROR_MESSAGE,
+  SIGNUP_REQUEST_TIMEOUT_MS,
+  SIGNUP_TIMEOUT_MESSAGE,
+  SignupRequestTimeoutError,
+  signupFetch,
+} from '@/src/lib/auth/signupFetch';
 import { safeNext } from '@/src/lib/auth/safeNext';
+
+type SubmitPhase = 'idle' | 'saving' | 'success' | 'redirecting';
 
 type Props = {
   email: string;
@@ -21,8 +30,9 @@ export function CustomerSetPasswordForm({ email, theme = 'light' }: Props) {
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [pending, setPending] = useState(false);
+  const [phase, setPhase] = useState<SubmitPhase>('idle');
   const [error, setError] = useState<string | null>(null);
+  const submitInFlight = useRef(false);
 
   const dark = theme === 'dark';
   const shell = dark
@@ -42,27 +52,88 @@ export function CustomerSetPasswordForm({ email, theme = 'light' }: Props) {
   const errorClass = dark
     ? 'rounded-lg bg-rose-500/15 px-3 py-2 text-sm text-rose-200'
     : 'rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700';
+  const successClass = dark
+    ? 'rounded-lg bg-emerald-500/15 px-3 py-2 text-sm text-emerald-200'
+    : 'rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700';
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setPending(true);
+  const locked = phase !== 'idle';
+  const buttonLabel =
+    phase === 'saving'
+      ? 'Saving password…'
+      : phase === 'success'
+        ? 'Password saved ✓'
+        : phase === 'redirecting'
+          ? 'Redirecting…'
+          : 'Save password & continue';
+
+  useEffect(() => {
+    if (phase !== 'saving') return;
+    const watchdog = window.setTimeout(() => {
+      submitInFlight.current = false;
+      setPhase('idle');
+      setError(SIGNUP_TIMEOUT_MESSAGE);
+    }, SIGNUP_REQUEST_TIMEOUT_MS + 2_000);
+    return () => window.clearTimeout(watchdog);
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase !== 'redirecting') return;
+    const fallback = window.setTimeout(() => {
+      if (window.location.pathname.startsWith('/account/set-password')) {
+        window.location.assign(next);
+      }
+    }, 5_000);
+    return () => window.clearTimeout(fallback);
+  }, [phase, next]);
+
+  async function submitPassword() {
+    if (submitInFlight.current || phase !== 'idle') return;
+    submitInFlight.current = true;
+    setPhase('saving');
     setError(null);
+
     try {
-      const res = await fetch('/api/auth/customer/set-password', {
+      const res = await signupFetch('/api/auth/customer/set-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password, confirmPassword }),
       });
-      const data = (await res.json()) as { ok: boolean; message?: string };
+      const data = (await res.json()) as {
+        ok: boolean;
+        message?: string;
+        retryable?: boolean;
+        alreadySet?: boolean;
+      };
+
       if (!res.ok || !data.ok) {
+        submitInFlight.current = false;
+        setPhase('idle');
         setError(data.message ?? 'Could not save password.');
         return;
       }
+
+      setPhase('redirecting');
       router.replace(next);
       router.refresh();
-    } finally {
-      setPending(false);
+      window.setTimeout(() => {
+        if (window.location.pathname.startsWith('/account/set-password')) {
+          window.location.assign(next);
+        }
+      }, 4_000);
+    } catch (err) {
+      submitInFlight.current = false;
+      setPhase('idle');
+      setError(
+        err instanceof SignupRequestTimeoutError
+          ? SIGNUP_TIMEOUT_MESSAGE
+          : SIGNUP_GENERIC_ERROR_MESSAGE,
+      );
     }
+  }
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    await submitPassword();
   }
 
   return (
@@ -84,8 +155,9 @@ export function CustomerSetPasswordForm({ email, theme = 'light' }: Props) {
           minLength={8}
           autoComplete="new-password"
           value={password}
+          disabled={locked}
           onChange={(e) => setPassword(e.target.value)}
-          className={inputClass}
+          className={`${inputClass} disabled:opacity-60`}
         />
         <span className={`mt-1 block text-[11px] ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
           At least 8 characters.
@@ -100,16 +172,28 @@ export function CustomerSetPasswordForm({ email, theme = 'light' }: Props) {
           minLength={8}
           autoComplete="new-password"
           value={confirmPassword}
+          disabled={locked}
           onChange={(e) => setConfirmPassword(e.target.value)}
-          className={inputClass}
+          className={`${inputClass} disabled:opacity-60`}
         />
       </label>
 
-      <button type="submit" disabled={pending} className={btnClass}>
-        {pending ? 'Saving…' : 'Save password & continue'}
+      {phase === 'redirecting' ? (
+        <p className={successClass}>Password saved. Taking you to your account…</p>
+      ) : null}
+
+      <button type="submit" disabled={locked} className={btnClass}>
+        {buttonLabel}
       </button>
 
-      {error ? <p className={errorClass}>{error}</p> : null}
+      {error && phase === 'idle' ? (
+        <>
+          <p className={errorClass}>{error}</p>
+          <button type="button" onClick={() => void submitPassword()} className={btnClass}>
+            Try again
+          </button>
+        </>
+      ) : null}
     </form>
   );
 }

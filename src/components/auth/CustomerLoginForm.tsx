@@ -8,6 +8,13 @@ import {
 } from '@/src/components/auth/authFieldStyles';
 import { IndianPhoneInput } from '@/src/components/customer/IndianPhoneInput';
 import { SignupProgress } from '@/src/components/auth/SignupProgress';
+import {
+  SIGNUP_GENERIC_ERROR_MESSAGE,
+  SIGNUP_REQUEST_TIMEOUT_MS,
+  SIGNUP_TIMEOUT_MESSAGE,
+  SignupRequestTimeoutError,
+  signupFetch,
+} from '@/src/lib/auth/signupFetch';
 import { safeNext } from '@/src/lib/auth/safeNext';
 import { INDIAN_MOBILE_LOCAL, formatIndianPhoneDisplay } from '@/src/lib/phone';
 
@@ -62,6 +69,46 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
     }, 1000);
     return () => window.clearInterval(t);
   }, [resendSeconds]);
+
+  useEffect(() => {
+    if (profilePhase !== 'submitting') return;
+    const watchdog = window.setTimeout(() => {
+      setProfilePhase('idle');
+      profileInFlight.current = false;
+      setPending(false);
+      setError(SIGNUP_TIMEOUT_MESSAGE);
+    }, SIGNUP_REQUEST_TIMEOUT_MS + 2_000);
+    return () => window.clearTimeout(watchdog);
+  }, [profilePhase]);
+
+  useEffect(() => {
+    if (profilePhase !== 'redirecting') return;
+    const redirectUrl = `/account/set-password?next=${encodeURIComponent(next)}`;
+    const fallback = window.setTimeout(() => {
+      if (!window.location.pathname.startsWith('/account/set-password')) {
+        window.location.assign(redirectUrl);
+      }
+    }, 5_000);
+    return () => window.clearTimeout(fallback);
+  }, [profilePhase, next]);
+
+  function resetProfileSubmit() {
+    setProfilePhase('idle');
+    profileInFlight.current = false;
+    setPending(false);
+  }
+
+  function redirectAfterSignup(path: string) {
+    setProfilePhase('redirecting');
+    router.replace(path);
+    window.setTimeout(() => {
+      if (!window.location.pathname.startsWith('/account/set-password') && path.includes('set-password')) {
+        window.location.assign(path);
+      } else if (!path.includes('set-password') && window.location.pathname === '/login') {
+        window.location.assign(path);
+      }
+    }, 4_000);
+  }
 
   function applyResendAfter(iso: string | undefined) {
     if (!iso) return;
@@ -180,10 +227,13 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
     try {
       if (otpPurpose === 'forgot_password' && !includeProfile) {
         setStep('reset-password');
+        setOtpPhase('idle');
+        verifyInFlight.current = false;
+        setPending(false);
         return;
       }
 
-      const res = await fetch('/api/auth/customer/email/verify', {
+      const res = await signupFetch('/api/auth/customer/email/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -192,6 +242,7 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
           ...(includeProfile ? { fullName, phone } : {}),
           ...(includeProfile || emailVerified ? {} : { code }),
         }),
+        timeoutMs: includeProfile ? SIGNUP_REQUEST_TIMEOUT_MS : SIGNUP_REQUEST_TIMEOUT_MS,
       });
       const data = (await res.json()) as {
         ok: boolean;
@@ -202,6 +253,7 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
         needsProfileComplete?: boolean;
         mustSetPassword?: boolean;
         needsNewCode?: boolean;
+        retryable?: boolean;
         redirect?: string;
       };
 
@@ -226,8 +278,7 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
           setCode('');
         }
         if (includeProfile) {
-          setProfilePhase('idle');
-          profileInFlight.current = false;
+          resetProfileSubmit();
         } else {
           setOtpPhase('idle');
           verifyInFlight.current = false;
@@ -239,8 +290,7 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
       if (includeProfile) {
         setProfilePhase('success');
         if (data.mustSetPassword) {
-          setProfilePhase('redirecting');
-          router.replace(`/account/set-password?next=${encodeURIComponent(next)}`);
+          redirectAfterSignup(`/account/set-password?next=${encodeURIComponent(next)}`);
           return;
         }
         setProfilePhase('redirecting');
@@ -255,10 +305,26 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
       }
       router.replace(next);
       router.refresh();
-    } finally {
-      setPending(false);
-      if (!includeProfile && step === 'otp') {
+    } catch (err) {
+      if (includeProfile) {
+        resetProfileSubmit();
+        setError(
+          err instanceof SignupRequestTimeoutError
+            ? SIGNUP_TIMEOUT_MESSAGE
+            : SIGNUP_GENERIC_ERROR_MESSAGE,
+        );
+      } else {
+        setOtpPhase('idle');
         verifyInFlight.current = false;
+        setPending(false);
+        setError(SIGNUP_GENERIC_ERROR_MESSAGE);
+      }
+    } finally {
+      if (!includeProfile) {
+        setPending(false);
+        if (step === 'otp') {
+          verifyInFlight.current = false;
+        }
       }
     }
   }
@@ -553,6 +619,18 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
           >
             {profileButtonLabel}
           </button>
+          {error && step === 'profile' && profilePhase === 'idle' ? (
+            <button
+              type="button"
+              onClick={() => {
+                setError(null);
+                void verifyCode(true);
+              }}
+              className={btnClass}
+            >
+              Try again
+            </button>
+          ) : null}
         </form>
       ) : null}
 
@@ -608,7 +686,7 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
         </form>
       ) : null}
 
-      {error && !(emailVerified && step === 'profile') ? (
+      {error && !(emailVerified && step === 'profile' && profilePhase !== 'idle') ? (
         <p className={errorClass}>{error}</p>
       ) : null}
     </div>

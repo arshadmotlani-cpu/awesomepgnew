@@ -11,8 +11,14 @@ export async function POST(request: Request) {
   if (!session) {
     return NextResponse.json({ ok: false, message: 'Sign in required.' }, { status: 401 });
   }
+
   if (!session.mustSetPassword) {
-    return NextResponse.json({ ok: false, message: 'Password is already set.' }, { status: 400 });
+    return NextResponse.json({
+      ok: true,
+      email: session.email,
+      mustSetPassword: false,
+      alreadySet: true,
+    });
   }
 
   let body: { password?: string; confirmPassword?: string };
@@ -39,17 +45,33 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, message: policyError }, { status: 400 });
   }
 
-  await setCustomerPassword(session.customerId, password);
+  try {
+    await setCustomerPassword(session.customerId, password);
 
-  const [customer] = await db
-    .select({ email: customers.email })
-    .from(customers)
-    .where(eq(customers.id, session.customerId))
-    .limit(1);
+    const [customer] = await db
+      .select({ email: customers.email })
+      .from(customers)
+      .where(eq(customers.id, session.customerId))
+      .limit(1);
 
-  return NextResponse.json({
-    ok: true,
-    email: customer?.email ?? session.email,
-    mustSetPassword: false,
-  });
+    return NextResponse.json({
+      ok: true,
+      email: customer?.email ?? session.email,
+      mustSetPassword: false,
+    });
+  } catch (err) {
+    console.error('[auth/signup/set-password] failed', {
+      customerId: session.customerId,
+      email: session.email,
+      reason: err instanceof Error ? err.message : String(err),
+    });
+    return NextResponse.json(
+      {
+        ok: false,
+        message: 'Could not save your password. Please try again.',
+        retryable: true,
+      },
+      { status: 500 },
+    );
+  }
 }

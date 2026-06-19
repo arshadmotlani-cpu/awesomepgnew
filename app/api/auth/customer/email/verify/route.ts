@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
-import { createCustomerProfile, findCustomerByEmail } from '@/src/lib/auth/customer';
+import {
+  createCustomerProfile,
+  findCustomerByEmail,
+  findCustomerByPhone,
+} from '@/src/lib/auth/customer';
 import {
   consumeEmailOtpChallengeById,
   getActiveEmailOtpChallenge,
@@ -20,6 +24,11 @@ import { isProfileComplete } from '@/src/services/profile';
 function isUniqueViolation(err: unknown): boolean {
   const e = err as { code?: string; cause?: { code?: string } };
   return e?.code === '23505' || e?.cause?.code === '23505';
+}
+
+function signupErrorMessage(err: unknown): string {
+  if (err instanceof Error && err.message) return err.message;
+  return 'We could not finish setting up your account. Please try again.';
 }
 
 async function finishNewSignupSession(args: {
@@ -44,6 +53,29 @@ async function finishNewSignupSession(args: {
   });
 }
 
+async function createSignupCustomer(args: {
+  email: string;
+  fullName: string;
+  phone: string;
+}) {
+  try {
+    return await createCustomerProfile(args);
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      const byEmail = await findCustomerByEmail(args.email);
+      if (byEmail) return byEmail;
+
+      const byPhone = await findCustomerByPhone(args.phone);
+      if (byPhone) {
+        throw new Error(
+          'This mobile number is already linked to another account. Use a different number or sign in with that account.',
+        );
+      }
+    }
+    throw err;
+  }
+}
+
 export async function POST(request: Request) {
   let body: {
     email?: string;
@@ -52,6 +84,7 @@ export async function POST(request: Request) {
     phone?: string;
     next?: string;
   };
+
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -67,127 +100,168 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, message: 'Invalid email address.' }, { status: 400 });
   }
 
-  const existingCustomer = await findCustomerByEmail(email);
-  const fullName = (body.fullName ?? '').trim();
-  const phone = normaliseIndianPhone(body.phone ?? '');
-  const hasProfileFields = Boolean(fullName && phone);
-  const isNewSignupOtpStep = !existingCustomer && !hasProfileFields;
-  const isNewSignupProfileStep = !existingCustomer && hasProfileFields;
+  try {
+    const existingCustomer = await findCustomerByEmail(email);
+    const fullName = (body.fullName ?? '').trim();
+    const phone = normaliseIndianPhone(body.phone ?? '');
+    const hasProfileFields = Boolean(fullName && phone);
+    const isNewSignupOtpStep = !existingCustomer && !hasProfileFields;
+    const isNewSignupProfileStep = !existingCustomer && hasProfileFields;
 
-  if (isNewSignupOtpStep) {
-    const pendingVerification = await readSignupVerificationCookie();
-    if (pendingVerification?.email === email) {
+    if (isNewSignupOtpStep) {
+      const pendingVerification = await readSignupVerificationCookie();
+      if (pendingVerification?.email === email) {
+        return NextResponse.json(
+          {
+            ok: false,
+            needsProfile: true,
+            emailVerified: true,
+            email,
+            alreadyVerified: true,
+          },
+          { status: 200 },
+        );
+      }
+
+      const verified = await verifyEmailOtp(body.email ?? '', body.code ?? '', otpCtx, {
+        consume: false,
+      });
+      if (!verified.ok) {
+        return NextResponse.json(verified, { status: 400 });
+      }
+
+      const challenge = await getActiveEmailOtpChallenge(verified.email);
+      if (challenge) {
+        await issueSignupVerificationCookie(challenge.id, verified.email, challenge.expiresAt);
+      }
       return NextResponse.json(
         {
           ok: false,
           needsProfile: true,
           emailVerified: true,
-          email,
-          alreadyVerified: true,
+          email: verified.email,
         },
         { status: 200 },
       );
     }
 
-    const verified = await verifyEmailOtp(body.email ?? '', body.code ?? '', otpCtx, {
-      consume: false,
-    });
-    if (!verified.ok) {
-      return NextResponse.json(verified, { status: 400 });
-    }
+    if (isNewSignupProfileStep) {
+      if (!fullName || fullName.length < 2) {
+        return NextResponse.json(
+          {
+            ok: false,
+            needsProfile: true,
+            email,
+            message: 'Enter your full name to continue.',
+          },
+          { status: 400 },
+        );
+      }
+      if (!phone) {
+        return NextResponse.json(
+          {
+            ok: false,
+            needsProfile: true,
+            email,
+            message: 'Enter a valid 10-digit mobile number.',
+          },
+          { status: 400 },
+        );
+      }
 
-    const challenge = await getActiveEmailOtpChallenge(verified.email);
-    if (challenge) {
-      await issueSignupVerificationCookie(challenge.id, verified.email, challenge.expiresAt);
-    }
-    return NextResponse.json(
-      {
-        ok: false,
-        needsProfile: true,
-        emailVerified: true,
-        email: verified.email,
-      },
-      { status: 200 },
-    );
-  }
+      const duplicateCustomer = await findCustomerByEmail(email);
+      if (duplicateCustomer) {
+        return finishNewSignupSession({ customer: duplicateCustomer, ip, userAgent });
+      }
 
-  if (isNewSignupProfileStep) {
-    if (!fullName || fullName.length < 2) {
-      return NextResponse.json(
-        {
-          ok: false,
-          needsProfile: true,
-          email,
-          message: 'Enter your full name to continue.',
-        },
-        { status: 400 },
-      );
-    }
-    if (!phone) {
-      return NextResponse.json(
-        {
-          ok: false,
-          needsProfile: true,
-          email,
-          message: 'Enter a valid 10-digit mobile number.',
-        },
-        { status: 400 },
-      );
-    }
+      const signupCookie = await readSignupVerificationCookie();
+      let verified: { ok: true; email: string } | { ok: false; message: string };
 
-    const duplicateCustomer = await findCustomerByEmail(email);
-    if (duplicateCustomer) {
-      return finishNewSignupSession({ customer: duplicateCustomer, ip, userAgent });
-    }
-
-    const signupCookie = await readSignupVerificationCookie();
-    let verified: { ok: true; email: string } | { ok: false; message: string };
-
-    if (signupCookie?.email === email) {
-      verified = await consumeEmailOtpChallengeById(signupCookie.challengeId, email, otpCtx);
-      if (!verified.ok) {
+      if (signupCookie?.email === email) {
+        verified = await consumeEmailOtpChallengeById(signupCookie.challengeId, email, otpCtx);
+        if (!verified.ok) {
+          const recovered = await findCustomerByEmail(email);
+          if (recovered) {
+            return finishNewSignupSession({ customer: recovered, ip, userAgent });
+          }
+        }
+      } else if (body.code?.trim()) {
+        verified = await verifyEmailOtp(body.email ?? '', body.code, otpCtx, { consume: true });
+      } else {
         const recovered = await findCustomerByEmail(email);
         if (recovered) {
           return finishNewSignupSession({ customer: recovered, ip, userAgent });
         }
+        return NextResponse.json(
+          { ok: false, message: SIGNUP_SETUP_EXPIRED_MESSAGE, needsNewCode: true },
+          { status: 400 },
+        );
       }
-    } else if (body.code?.trim()) {
-      verified = await verifyEmailOtp(body.email ?? '', body.code, otpCtx, { consume: true });
-    } else {
-      const recovered = await findCustomerByEmail(email);
-      if (recovered) {
-        return finishNewSignupSession({ customer: recovered, ip, userAgent });
+
+      if (!verified.ok) {
+        const message = verified.message.includes('No active code')
+          ? SIGNUP_SETUP_EXPIRED_MESSAGE
+          : verified.message;
+        return NextResponse.json(
+          { ok: false, message, needsNewCode: true },
+          { status: 400 },
+        );
       }
-      return NextResponse.json(
-        { ok: false, message: SIGNUP_SETUP_EXPIRED_MESSAGE, needsNewCode: true },
-        { status: 400 },
-      );
-    }
 
-    if (!verified.ok) {
-      const message = verified.message.includes('No active code')
-        ? SIGNUP_SETUP_EXPIRED_MESSAGE
-        : verified.message;
-      return NextResponse.json(
-        { ok: false, message, needsNewCode: true },
-        { status: 400 },
-      );
-    }
-
-    let customer;
-    try {
-      customer = await createCustomerProfile({
+      const customer = await createSignupCustomer({
         email: verified.email,
         fullName,
         phone: phone!,
       });
-    } catch (err) {
-      if (isUniqueViolation(err)) {
-        const recovered = await findCustomerByEmail(email);
-        if (!recovered) throw err;
-        return finishNewSignupSession({ customer: recovered, ip, userAgent });
-      }
-      throw err;
+
+      await createCustomerSession({
+        customerId: customer.id,
+        ip,
+        userAgent,
+      });
+      await clearSignupVerificationCookie();
+
+      return NextResponse.json({
+        ok: true,
+        customerId: customer.id,
+        email: customer.email,
+        phone: customer.phone,
+        fullName: customer.fullName,
+        mustSetPassword: !customer.passwordHash || customer.mustSetPassword,
+      });
+    }
+
+    const verified = await verifyEmailOtp(body.email ?? '', body.code ?? '', otpCtx, {
+      consume: Boolean(existingCustomer),
+    });
+
+    if (!verified.ok) {
+      return NextResponse.json(verified, { status: 400 });
+    }
+
+    let customer = existingCustomer;
+    if (!customer) {
+      customer = await createSignupCustomer({
+        email: verified.email,
+        fullName,
+        phone: phone!,
+      });
+    } else if (!isProfileComplete(customer)) {
+      await createCustomerSession({
+        customerId: customer.id,
+        ip,
+        userAgent,
+      });
+      return NextResponse.json(
+        {
+          ok: false,
+          needsProfileComplete: true,
+          email: verified.email,
+          message: 'Complete your resident profile to continue.',
+          redirect: profileRedirectWithNext(body.next),
+        },
+        { status: 400 },
+      );
     }
 
     await createCustomerSession({
@@ -195,7 +269,6 @@ export async function POST(request: Request) {
       ip,
       userAgent,
     });
-    await clearSignupVerificationCookie();
 
     return NextResponse.json({
       ok: true,
@@ -205,53 +278,18 @@ export async function POST(request: Request) {
       fullName: customer.fullName,
       mustSetPassword: !customer.passwordHash || customer.mustSetPassword,
     });
-  }
-
-  const verified = await verifyEmailOtp(body.email ?? '', body.code ?? '', otpCtx, {
-    consume: Boolean(existingCustomer),
-  });
-
-  if (!verified.ok) {
-    return NextResponse.json(verified, { status: 400 });
-  }
-
-  let customer = existingCustomer;
-  if (!customer) {
-    customer = await createCustomerProfile({
-      email: verified.email,
-      fullName,
-      phone: phone!,
-    });
-  } else if (!isProfileComplete(customer)) {
-    await createCustomerSession({
-      customerId: customer.id,
-      ip,
-      userAgent,
+  } catch (err) {
+    console.error('[auth/signup/verify] account creation failed', {
+      email,
+      reason: err instanceof Error ? err.message : String(err),
     });
     return NextResponse.json(
       {
         ok: false,
-        needsProfileComplete: true,
-        email: verified.email,
-        message: 'Complete your resident profile to continue.',
-        redirect: profileRedirectWithNext(body.next),
+        message: signupErrorMessage(err),
+        retryable: true,
       },
-      { status: 400 },
+      { status: 500 },
     );
   }
-
-  await createCustomerSession({
-    customerId: customer.id,
-    ip,
-    userAgent,
-  });
-
-  return NextResponse.json({
-    ok: true,
-    customerId: customer.id,
-    email: customer.email,
-    phone: customer.phone,
-    fullName: customer.fullName,
-    mustSetPassword: !customer.passwordHash || customer.mustSetPassword,
-  });
 }

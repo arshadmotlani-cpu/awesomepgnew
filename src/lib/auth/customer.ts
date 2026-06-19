@@ -16,6 +16,17 @@ export async function findCustomerByEmail(rawEmail: string) {
   return row ?? null;
 }
 
+export async function findCustomerByPhone(rawPhone: string) {
+  const phone = normaliseIndianPhone(rawPhone);
+  if (!phone) return null;
+  const [row] = await db
+    .select()
+    .from(customers)
+    .where(eq(customers.phone, phone))
+    .limit(1);
+  return row ?? null;
+}
+
 export async function createCustomerProfile(args: {
   email: string;
   fullName: string;
