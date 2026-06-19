@@ -79,11 +79,11 @@ export default async function AssignTenantPage({
       />
 
       <PageHeader
-        title={prefill ? `Assign ${prefill.fullName}` : 'Assign tenant'}
+        title={prefill ? `Assign ${prefill.fullName}` : 'Assign to a bed'}
         description={
           prefill
-            ? 'Choose a bed, set rent and deposit — tenant must already be verified (KYC or payment).'
-            : 'Search a verified resident, then assign them to a bed.'
+            ? 'Pick a bed and set rent and security deposit. Resident must be verified first.'
+            : 'Find a verified resident, then choose their bed.'
         }
       />
 
@@ -103,27 +103,26 @@ export default async function AssignTenantPage({
           prefill={prefill}
         />
       ) : (
-        <div className="max-w-xl rounded-xl border border-dashed border-zinc-300 bg-zinc-50 px-5 py-8 text-sm text-zinc-600">
-          <p className="font-semibold text-zinc-800">Step 2: Bed, rent & deposit</p>
+        <div className="max-w-xl rounded-xl border border-dashed border-white/15 bg-[#1A1F27] px-5 py-8 text-sm text-apg-silver">
+          <p className="font-semibold text-white">Step 2: Choose bed, rent & deposit</p>
           <p className="mt-2">
             Search and select a resident above, or open{' '}
             <Link href="/admin/residents" className="font-semibold text-[#FF5A1F] hover:underline">
               Residents
             </Link>{' '}
-            and click <strong>Assign</strong> next to their name. The assignment form appears once
-            someone is selected.
+            and use <strong>Assign to a bed</strong>. The form appears once someone is selected.
           </p>
         </div>
       )}
 
       {prefill ? (
-        <div className="mt-8 max-w-xl rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600">
-          <p className="font-semibold text-zinc-800">After assignment</p>
+        <div className="mt-8 max-w-xl rounded-xl border border-white/10 bg-[#1A1F27] p-4 text-sm text-apg-silver">
+          <p className="font-semibold text-white">After assignment</p>
           <ol className="mt-2 list-decimal space-y-1 pl-5">
-            <li>Rent invoices generate automatically each month.</li>
-            <li>They pay rent + electricity from their resident dashboard or QR collections.</li>
+            <li>Monthly rent bills are created automatically.</li>
+            <li>They pay from their account or via payment links you send.</li>
             <li>
-              Manage them anytime from{' '}
+              Manage them from{' '}
               <Link
                 href={`/admin/residents/${prefill.customerId}`}
                 className="font-semibold text-[#FF5A1F] hover:underline"
