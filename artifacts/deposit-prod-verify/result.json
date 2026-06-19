@@ -1,0 +1,33 @@
+{
+  "status": "FIX VERIFIED",
+  "bookingId": "ad24c0d2-f2d1-4c08-99d1-74487560feb5",
+  "base": "https://www.awesomepg.in",
+  "depositCorrectFormRendered": true,
+  "depositComponentFailed": false,
+  "consoleErrors": [],
+  "pageErrors": [],
+  "valuesAfterSave": {
+    "required": "4,500",
+    "collected": "4,500"
+  },
+  "refreshOk": true,
+  "screenshots": {
+    "beforeSave": "01-before-save.png",
+    "afterSave": "02-after-save.png",
+    "afterRefresh": "03-after-refresh.png"
+  },
+  "pageTextAfterSave": "Awesome PG\n\nAdmin console\n\nPLATFORM\n\nOverview\nRevenue\nInvoices\nDeposits\nCheckout settlements\nPGs\nResidents\nKYC review\nOperations\nAnalytics\nSystem health\nAdmin panel\nNotifications\n\nSETTINGS\n\nPricing\nSettings\nHelp guide\nModule → PG → Resident → Actions\n\nAdmin console\n\nS\n\nSuper Admin\n\nSuper Admin\n\nSign out\nDeposit — Angatra Mandal\n\nAPG-2026-0013 · +917074754939\n\n← All deposits\n\nResident profile → · Booking operations →\n\nDeposits are refundable when you check out with no outstanding dues.\n\n95% of eligible deposits are refunded within 2 hours and may take up to 24 hours.\n\nRefund is blocked until rent, electricity, and other dues are cleared.\n\nSettled\nDEPOSIT SUMMARY\n\nCurrent balance for this booking\n\nSettled\nREQUIRED\n₹4,500\nCOLLECTED\n₹4,500\nREFUNDABLE\n₹9,000\nDEDUCTIONS\n₹0\nREFUNDED\n₹0\nCorrect deposit\n\nUpdate the required or collected deposit amount when records need fixing.\n\nDeposit summary updated everywhere.\n\nRequired deposit (₹)\nCollected deposit (₹)\nReason\nSave corrections\nCollect deposit\n\nRecord cash, UPI, or bank transfer.\n\nAmount (₹)\nPayment method\nCash\nUPI\nBank transfer\nReason\nRecord collection\nCharge against deposit\n\nDamage charge, unpaid rent, etc.\n\nAmount (₹)\nReason\nRecord charge\nRefund deposit\n\nRecord a refund issued back to the resident.\n\nAmount (₹)\nReason\nRecord refund\nAdvanced tools\n\nWallet rebuild, invoice cancel, and ledger reconcile\n\n▾",
+  "pageTextAfterRefresh": "Awesome PG\n\nAdmin console\n\nPLATFORM\n\nOverview\nRevenue\nInvoices\nDeposits\nCheckout settlements\nPGs\nResidents\nKYC review\nOperations\nAnalytics\nSystem health\nAdmin panel\nNotifications\n\nSETTINGS\n\nPricing\nSettings\nHelp guide\nModule → PG → Resident → Actions\n\nAdmin console\n\nS\n\nSuper Admin\n\nSuper Admin\n\nSign out\nDeposit — Angatra Mandal\n\nAPG-2026-0013 · +917074754939\n\n← All deposits\n\nResident profile → · Booking operations →\n\nDeposits are refundable when you check out with no outstanding dues.\n\n95% of eligible deposits are refunded within 2 hours and may take up to 24 hours.\n\nRefund is blocked until rent, electricity, and other dues are cleared.\n\nSettled\nDEPOSIT SUMMARY\n\nCurrent balance for this booking\n\nSettled\nREQUIRED\n₹4,500\nCOLLECTED\n₹4,500\nREFUNDABLE\n₹9,000\nDEDUCTIONS\n₹0\nREFUNDED\n₹0\nCorrect deposit\n\nUpdate the required or collected deposit amount when records need fixing.\n\nDeposit summary updated everywhere.\n\nRequired deposit (₹)\nCollected deposit (₹)\nReason\nSave corrections\nCollect deposit\n\nRecord cash, UPI, or bank transfer.\n\nAmount (₹)\nPayment method\nCash\nUPI\nBank transfer\nReason\nRecord collection\nCharge against deposit\n\nDamage charge, unpaid rent, etc.\n\nAmount (₹)\nReason\nRecord charge\nRefund deposit\n\nRecord a refund issued back to the resident.\n\nAmount (₹)\nReason\nRecord refund\nAdvanced tools\n\nWallet rebuild, invoice cancel, and ledger reconcile\n\n▾",
+  "loginRequired": false,
+  "error": null,
+  "usedChromeCookies": true,
+  "valuesBefore": {
+    "required": "4,500",
+    "collected": "4,500"
+  },
+  "valuesAfterRefresh": {
+    "required": "4,500",
+    "collected": "4,500"
+  },
+  "persisted4500": true
+}

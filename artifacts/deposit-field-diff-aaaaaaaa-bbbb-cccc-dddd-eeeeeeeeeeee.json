@@ -1,0 +1,412 @@
+{
+  "bookingId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+  "generatedAt": "2026-06-19T10:35:37.917Z",
+  "saveResult": {
+    "ok": true
+  },
+  "sections": {
+    "before": {
+      "BOOKING": {
+        "id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        "bookingCode": "E352",
+        "customerId": "11111111-1111-1111-1111-111111111111",
+        "status": "confirmed",
+        "durationMode": "monthly",
+        "expectedCheckoutDate": null,
+        "subtotalPaise": 1000000,
+        "discountPaise": 0,
+        "taxPaise": 0,
+        "totalPaise": 1350000,
+        "depositPaise": 350000,
+        "pricingSnapshot": {
+          "perBed": [],
+          "computedAt": "2026-01-01T00:00:00.000Z"
+        },
+        "notes": null,
+        "createdVia": "admin",
+        "createdByAdminId": null,
+        "cancelledAt": null,
+        "cancellationReason": null,
+        "adminDuesStatus": "unknown",
+        "adminDepositRefundStatus": "unknown",
+        "depositCollectionStatus": "full",
+        "depositDuePaise": 0,
+        "depositDueDate": null,
+        "isTest": false,
+        "depositDueApprovedByAdminId": null,
+        "adminOpsNotes": null,
+        "blocksRoomAvailability": false,
+        "createdAt": "2026-06-19T07:29:16.424Z",
+        "updatedAt": "2026-06-19T10:25:30.945Z"
+      },
+      "CUSTOMER": {
+        "id": "11111111-1111-1111-1111-111111111111",
+        "fullName": "Harish Kumar",
+        "email": "harish@example.com",
+        "phone": "+919876543210",
+        "gender": "male",
+        "dob": null,
+        "idProofType": null,
+        "idProofNumber": null,
+        "idProofImageUrl": null,
+        "address": null,
+        "emergencyContact": null,
+        "kycStatus": "approved",
+        "profileCompletedAt": null,
+        "authProvider": "email",
+        "passwordHash": null,
+        "mustSetPassword": false,
+        "archivedAt": null,
+        "residencyStatus": "active",
+        "isTest": false,
+        "createdAt": "2026-06-18T09:00:24.781Z",
+        "updatedAt": "2026-06-18T09:00:24.781Z"
+      },
+      "LEDGER": [
+        {
+          "id": "d3e9a83a-3787-4715-a3fe-c5b2378343b7",
+          "bookingId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+          "customerId": "11111111-1111-1111-1111-111111111111",
+          "entryKind": "collected",
+          "amountPaise": 350000,
+          "reason": "seed collected",
+          "relatedPaymentId": null,
+          "relatedVacatingId": null,
+          "createdByAdminId": null,
+          "createdAt": "2026-06-19T10:23:30.849Z"
+        }
+      ],
+      "SETTLEMENT": [],
+      "INVOICE": {
+        "bookingId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        "bookingCode": "E352",
+        "customerId": "11111111-1111-1111-1111-111111111111",
+        "customerFullName": "Harish Kumar",
+        "customerPhone": "+919876543210",
+        "pgId": "",
+        "pgName": "",
+        "roomNumber": "",
+        "bedCode": "",
+        "requiredPaise": 350000,
+        "collectedPaise": 350000,
+        "deductionsPaise": 0,
+        "refundablePaise": 350000,
+        "invoiceStatus": "held",
+        "displayStatus": "Held",
+        "isSettled": false,
+        "isFrozen": false,
+        "depositPaise": 350000,
+        "depositDuePaise": 0,
+        "depositCollectionStatus": "full",
+        "deductedPaise": 0,
+        "refundedPaise": 0,
+        "refundableBalancePaise": 350000
+      },
+      "UNIFIED_VIEW": {
+        "raw": {
+          "bookingId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+          "customerId": "11111111-1111-1111-1111-111111111111",
+          "requiredPaise": 350000,
+          "collectedPaise": 350000,
+          "deductedPaise": 0,
+          "refundedPaise": 0,
+          "refundablePaise": 350000,
+          "depositDuePaise": 0,
+          "depositCollectionStatus": "full",
+          "invoiceStatus": "Held",
+          "walletInSync": true,
+          "walletMismatchReason": null
+        },
+        "sanitized": {
+          "bookingId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+          "customerId": "11111111-1111-1111-1111-111111111111",
+          "requiredPaise": 350000,
+          "collectedPaise": 350000,
+          "deductedPaise": 0,
+          "refundedPaise": 0,
+          "refundablePaise": 350000,
+          "depositDuePaise": 0,
+          "depositCollectionStatus": "full",
+          "invoiceStatus": "Held",
+          "walletInSync": true,
+          "walletMismatchReason": null
+        },
+        "walletProps": {
+          "view": {
+            "bookingId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            "customerId": "11111111-1111-1111-1111-111111111111",
+            "requiredPaise": 350000,
+            "collectedPaise": 350000,
+            "deductedPaise": 0,
+            "refundedPaise": 0,
+            "refundablePaise": 350000,
+            "depositDuePaise": 0,
+            "depositCollectionStatus": "full",
+            "invoiceStatus": "Held",
+            "walletInSync": true,
+            "walletMismatchReason": null
+          },
+          "isFrozen": false
+        }
+      },
+      "BED_RESERVATION": null,
+      "PRICING": {
+        "websiteDepositPaise": 0,
+        "bedRate": null,
+        "requiredPaise": 350000,
+        "collectedPaise": 350000,
+        "deductionsPaise": 0,
+        "refundablePaise": 350000,
+        "adjustProps": {
+          "bookingId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+          "bookingDepositPaise": 350000,
+          "ledgerCollectedPaise": 350000,
+          "websiteDepositPaise": 0
+        },
+        "settlementProps": {
+          "bookingId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+          "customerId": "11111111-1111-1111-1111-111111111111",
+          "customerName": "Harish Kumar",
+          "customerPhone": "+919876543210",
+          "depositHeldPaise": 350000,
+          "depositPaidPaise": 350000,
+          "depositRefundablePaise": 350000
+        }
+      },
+      "RAW_SQL_DRIVER": {
+        "deposit_paise": "350000",
+        "deposit_due_paise": "0",
+        "ledger_sum_bigint": "350000",
+        "ledger_sum_plain": "350000"
+      }
+    },
+    "after": {
+      "BOOKING": {
+        "id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        "bookingCode": "E352",
+        "customerId": "11111111-1111-1111-1111-111111111111",
+        "status": "confirmed",
+        "durationMode": "monthly",
+        "expectedCheckoutDate": null,
+        "subtotalPaise": 1000000,
+        "discountPaise": 0,
+        "taxPaise": 0,
+        "totalPaise": 1350000,
+        "depositPaise": 350000,
+        "pricingSnapshot": {
+          "perBed": [],
+          "computedAt": "2026-01-01T00:00:00.000Z"
+        },
+        "notes": null,
+        "createdVia": "admin",
+        "createdByAdminId": null,
+        "cancelledAt": null,
+        "cancellationReason": null,
+        "adminDuesStatus": "unknown",
+        "adminDepositRefundStatus": "unknown",
+        "depositCollectionStatus": "full",
+        "depositDuePaise": 0,
+        "depositDueDate": null,
+        "isTest": false,
+        "depositDueApprovedByAdminId": null,
+        "adminOpsNotes": null,
+        "blocksRoomAvailability": false,
+        "createdAt": "2026-06-19T07:29:16.424Z",
+        "updatedAt": "2026-06-19T10:35:37.885Z"
+      },
+      "CUSTOMER": {
+        "id": "11111111-1111-1111-1111-111111111111",
+        "fullName": "Harish Kumar",
+        "email": "harish@example.com",
+        "phone": "+919876543210",
+        "gender": "male",
+        "dob": null,
+        "idProofType": null,
+        "idProofNumber": null,
+        "idProofImageUrl": null,
+        "address": null,
+        "emergencyContact": null,
+        "kycStatus": "approved",
+        "profileCompletedAt": null,
+        "authProvider": "email",
+        "passwordHash": null,
+        "mustSetPassword": false,
+        "archivedAt": null,
+        "residencyStatus": "active",
+        "isTest": false,
+        "createdAt": "2026-06-18T09:00:24.781Z",
+        "updatedAt": "2026-06-18T09:00:24.781Z"
+      },
+      "LEDGER": [
+        {
+          "id": "d3e9a83a-3787-4715-a3fe-c5b2378343b7",
+          "bookingId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+          "customerId": "11111111-1111-1111-1111-111111111111",
+          "entryKind": "collected",
+          "amountPaise": 350000,
+          "reason": "seed collected",
+          "relatedPaymentId": null,
+          "relatedVacatingId": null,
+          "createdByAdminId": null,
+          "createdAt": "2026-06-19T10:23:30.849Z"
+        }
+      ],
+      "SETTLEMENT": [],
+      "INVOICE": {
+        "bookingId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        "bookingCode": "E352",
+        "customerId": "11111111-1111-1111-1111-111111111111",
+        "customerFullName": "Harish Kumar",
+        "customerPhone": "+919876543210",
+        "pgId": "",
+        "pgName": "",
+        "roomNumber": "",
+        "bedCode": "",
+        "requiredPaise": 350000,
+        "collectedPaise": 350000,
+        "deductionsPaise": 0,
+        "refundablePaise": 350000,
+        "invoiceStatus": "held",
+        "displayStatus": "Held",
+        "isSettled": false,
+        "isFrozen": false,
+        "depositPaise": 350000,
+        "depositDuePaise": 0,
+        "depositCollectionStatus": "full",
+        "deductedPaise": 0,
+        "refundedPaise": 0,
+        "refundableBalancePaise": 350000
+      },
+      "UNIFIED_VIEW": {
+        "raw": {
+          "bookingId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+          "customerId": "11111111-1111-1111-1111-111111111111",
+          "requiredPaise": 350000,
+          "collectedPaise": 350000,
+          "deductedPaise": 0,
+          "refundedPaise": 0,
+          "refundablePaise": 350000,
+          "depositDuePaise": 0,
+          "depositCollectionStatus": "full",
+          "invoiceStatus": "Held",
+          "walletInSync": true,
+          "walletMismatchReason": null
+        },
+        "sanitized": {
+          "bookingId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+          "customerId": "11111111-1111-1111-1111-111111111111",
+          "requiredPaise": 350000,
+          "collectedPaise": 350000,
+          "deductedPaise": 0,
+          "refundedPaise": 0,
+          "refundablePaise": 350000,
+          "depositDuePaise": 0,
+          "depositCollectionStatus": "full",
+          "invoiceStatus": "Held",
+          "walletInSync": true,
+          "walletMismatchReason": null
+        },
+        "walletProps": {
+          "view": {
+            "bookingId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            "customerId": "11111111-1111-1111-1111-111111111111",
+            "requiredPaise": 350000,
+            "collectedPaise": 350000,
+            "deductedPaise": 0,
+            "refundedPaise": 0,
+            "refundablePaise": 350000,
+            "depositDuePaise": 0,
+            "depositCollectionStatus": "full",
+            "invoiceStatus": "Held",
+            "walletInSync": true,
+            "walletMismatchReason": null
+          },
+          "isFrozen": false
+        }
+      },
+      "BED_RESERVATION": null,
+      "PRICING": {
+        "websiteDepositPaise": 0,
+        "bedRate": null,
+        "requiredPaise": 350000,
+        "collectedPaise": 350000,
+        "deductionsPaise": 0,
+        "refundablePaise": 350000,
+        "adjustProps": {
+          "bookingId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+          "bookingDepositPaise": 350000,
+          "ledgerCollectedPaise": 350000,
+          "websiteDepositPaise": 0
+        },
+        "settlementProps": {
+          "bookingId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+          "customerId": "11111111-1111-1111-1111-111111111111",
+          "customerName": "Harish Kumar",
+          "customerPhone": "+919876543210",
+          "depositHeldPaise": 350000,
+          "depositPaidPaise": 350000,
+          "depositRefundablePaise": 350000
+        }
+      },
+      "RAW_SQL_DRIVER": {
+        "deposit_paise": "350000",
+        "deposit_due_paise": "0",
+        "ledger_sum_bigint": "350000",
+        "ledger_sum_plain": "350000"
+      }
+    }
+  },
+  "fieldCount": {
+    "before": 143,
+    "after": 143
+  },
+  "changedFields": [
+    {
+      "section": "BOOKING",
+      "field": "BOOKING.updatedAt",
+      "type": "Date",
+      "value": "2026-06-19T10:25:30.945Z",
+      "nullable": false,
+      "jsonSerializable": true,
+      "phase": "before",
+      "otherValue": "2026-06-19T10:35:37.885Z",
+      "otherType": "Date",
+      "consumedBy": [
+        "PageHeader",
+        "DepositAdjustForms",
+        "page links"
+      ]
+    }
+  ],
+  "nonJsonSerializableFields": [],
+  "firstChange": {
+    "field": "BOOKING.updatedAt",
+    "before": {
+      "type": "Date",
+      "value": "2026-06-19T10:25:30.945Z"
+    },
+    "after": {
+      "type": "Date",
+      "value": "2026-06-19T10:35:37.885Z"
+    },
+    "consumedBy": [
+      "PageHeader",
+      "DepositAdjustForms",
+      "page links"
+    ]
+  },
+  "rawSqlDriverTypes": {
+    "before": {
+      "deposit_paise": "350000",
+      "deposit_due_paise": "0",
+      "ledger_sum_bigint": "350000",
+      "ledger_sum_plain": "350000"
+    },
+    "after": {
+      "deposit_paise": "350000",
+      "deposit_due_paise": "0",
+      "ledger_sum_bigint": "350000",
+      "ledger_sum_plain": "350000"
+    }
+  }
+}

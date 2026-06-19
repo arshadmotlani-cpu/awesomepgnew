@@ -1,510 +1,452 @@
-# Awesome PG — Customer-Facing Feature Inventory (Phase 0)
+# Awesome PG — Feature Inventory (Phase 1 Audit)
 
 **Generated:** 2026-06-19  
-**Scope:** Public website + customer/resident dashboard only. Admin panel excluded.  
-**Purpose:** Mandatory audit before UX redesign. Reference for every page implementation in Phase 2.  
-**Companion docs:** `awesome-pg-ux-redesign-spec.md`, `awesome-pg-cursor-implementation-prompt.md`
+**Scope:** Full platform — admin, customer/resident, API, cron, permissions, financial flows  
+**Purpose:** Mandatory audit before UX redesign. **No business logic, financial logic, or permissions were modified to produce this document.**  
+**Companion:** [AWESOME_PG_MASTER_DOCUMENTATION_V2.md](./AWESOME_PG_MASTER_DOCUMENTATION_V2.md)
 
 ---
 
-## 0. How to read this document
+## 0. How to use this document
 
-| Column / label | Meaning |
-|----------------|---------|
-| **Route** | Next.js App Router path |
-| **Data source** | Service, query, or API — resolve to real file at implementation time |
-| **Writes** | Server action or API that mutates data |
-| **Tables** | PostgreSQL tables read/written (via Drizzle schema) |
-| **DO NOT MODIFY** | Business logic / calculations — presentation layer only |
-| **Gap vs spec** | Feature in UX spec but missing, partial, or different in codebase |
+| Section | Contents |
+|---------|----------|
+| §1 | Route inventory (admin, customer, API, redirects) |
+| §2 | Admin permissions & roles |
+| §3 | Workflow maps (booking, deposit, KYC, vacating, billing) |
+| §4 | Financial calculation inventory (read-only reference) |
+| §5 | Duplicate / overlapping screens |
+| §6 | Screens with >5 primary actions |
+| §7 | Jargon & label issues |
+| §8 | Resident simplification opportunities |
+| §9 | Key file index |
 
-**Redesign rule:** Wrap existing data-fetching and mutations in new UI. Do not duplicate or re-implement business logic.
-
----
-
-## 1. Architecture snapshot (current state)
-
-### 1.1 Route groups
-
-| Group | Path prefix | Layout | Auth |
-|-------|-------------|--------|------|
-| Marketing home | `/` | Own shell (`LandingPage`) | Public |
-| Customer site | `app/(customer)/` | `SiteHeader`, `SiteFooter`, analytics | Mixed |
-| Login | `/login` | Own shell | Public |
-| Admin | `app/(admin)/` | **Out of scope** | Admin |
-
-### 1.2 Account model (important for redesign)
-
-There is **no separate `/resident` app** or `/dashboard` route. Customer account is unified:
-
-| Concept in UX spec | Actual route / pattern |
-|--------------------|-------------------------|
-| Application Dashboard | `/account/profile` + `?section=identity` (KYC) + booking detail |
-| Resident Hub | `/account/profile?section=resident` |
-| Resident Home | `ResidentAreaSection` component (same URL) |
-| Wallet / Payments | Embedded in `ResidentAreaSection` + dedicated pay sub-routes |
-| KYC | `/account/profile?section=identity` (legacy `/account/kyc` redirects) |
-
-**Navigation helper:** `src/lib/accountNavigation.ts` — `accountProfileHref('profile' | 'identity' | 'resident')`
-
-### 1.3 Properties (PGs)
-
-Properties are rows in `pgs` table (slug-based URLs). Spec names map to DB records:
-
-| Spec name | Typical slug (from tests/scripts) | Notes |
-|-----------|-------------------------------------|-------|
-| Shantinagar PG | `shantinagar-awesome-pg` | Verify slug in prod DB |
-| Central PG | `central-awesome-pg` | |
-| Central PG Female | Clone / separate `pgs` row | `scripts/clone-pg.ts` |
-| Trimurti Nagar PG | Name contains "Trimurti" | Verify slug in prod DB |
-
-**Public PG data:** `listPublicPgs()`, `getPgBySlug()`, `listRoomsForPg()`, `getRoomDetail()` — `src/db/queries/customer.ts`
-
-### 1.4 Live availability / occupancy (customer display)
-
-| Display | Authoritative source | File |
-|---------|---------------------|------|
-| PG browse availability counts | Customer queries on beds + reservations | `src/db/queries/customer.ts` |
-| Bed map states | `CustomerBedMap`, `getPgBedMap` patterns (admin SSOT: `occupancySsot.ts`) | `src/components/customer/CustomerBedMap.tsx` |
-| Bed availability for dates | `GET /api/beds/[bedId]/availability` | `src/services/availability.ts` |
-
-**DO NOT MODIFY:** Occupancy SSOT predicates in `src/lib/occupancySsot.ts`, reservation blocking in `src/lib/reservationBlocking.ts`.
+**Redesign rule (Phase 2+):** Change presentation only unless explicitly approved. SSOT services listed in §4 must not be reimplemented in UI.
 
 ---
 
-## 2. Complete route inventory (27 customer page routes)
+## 1. Route inventory
 
-### 2.1 Public — marketing & browse
+### 1.1 Customer / public routes
 
-| Route | File | Purpose | Data sources | User actions | Key components |
-|-------|------|---------|--------------|--------------|----------------|
-| `/` | `app/page.tsx` | Marketing landing | Static | Navigate | `LandingPage`, `SiteHeader`, `SiteFooter` |
-| `/pgs` | `app/(customer)/pgs/page.tsx` | PG list + search | `listPublicPgs()` | Browse, optional payment modal | `PgBrowseList`, `PgCard` |
-| `/pgs/[pgSlug]` | `app/(customer)/pgs/[pgSlug]/page.tsx` | PG detail + bed map | `getPgBySlug`, `listRoomsForPg` | Select bed → room flow | `CustomerBedMap`, `PgImageGallery`, `AmenityList` |
-| `/pgs/[pgSlug]/rooms/[roomId]` | `app/(customer)/pgs/.../rooms/[roomId]/page.tsx` | Room + bed picker | `getRoomDetail`, `getRoomActivityStats` | Date/bed select | `BedSelector`, `RoomDetailInsights` |
-| `/guide` | `app/(customer)/guide/page.tsx` | How-to guides | Static guides lib | Tab switch | `CustomerGuideTabs` |
+| Route | Purpose | Auth |
+|-------|---------|------|
+| `/` | Marketing landing | Public |
+| `/login` | Customer login | Public |
+| `/pgs` | Browse PGs | Public |
+| `/pgs/compare` | Compare PGs | Public |
+| `/pgs/[pgSlug]` | PG detail | Public |
+| `/pgs/[pgSlug]/rooms/[roomId]` | Room / bed selection | Public |
+| `/about`, `/guide`, `/enquiry` | Marketing / help | Public |
+| `/booking/new` | Cart & confirm booking | Session (middleware) |
+| `/booking/[bookingCode]` | Booking detail | Session |
+| `/booking/[bookingCode]/pay` | Initial UPI checkout | Session |
+| `/booking/[bookingCode]/payment-success` | Post-payment | Session |
+| `/booking/[bookingCode]/extend` | **Redirect** — extend retired | Session |
+| `/booking/[bookingCode]/extend/[extensionId]/pay` | Legacy extension pay | Session |
+| `/reserve/new` | Bed reserve flow | Page guard |
+| `/pay/[linkId]` | Payment link (rent/elec/deposit) | Page guard |
+| `/account/profile` | Unified account hub (profile / KYC / resident) | Session |
+| `/account/bookings` | All bookings list | Session |
+| `/account/favorites` | Saved PGs (localStorage) | Session |
+| `/account/change-password`, `/account/set-password` | Password | Session |
+| `/account/payments/[paymentId]/receipt` | Receipt | Session |
+| `/account/resident/request-vacating/[bookingId]` | Vacating notice form | Session |
+| `/account/resident/history/[bookingId]` | Payment history | Session |
+| `/account/resident/pay-rent/[invoiceId]` | Rent UPI proof | Session |
+| `/account/resident/pay-electricity/[invoiceId]` | Electricity UPI proof | Session |
+| `/account/resident/pay-ps4/[membershipId]` | PS4 add-on pay | Session |
+| `/account/resident/ps4/new` | PS4 subscribe | Session |
 
-**Gap vs spec:** No `/compare`, `/about`, `/enquiry`, dedicated Reviews/Nearby/Floor Explorer routes. Floor/room/bed exploration is partial via PG detail + room detail + bed map.
+**Redirect aliases (canonical target):**
 
-### 2.2 Authentication
+| Alias | Redirects to |
+|-------|----------------|
+| `/account/kyc` | `/account/profile?section=identity` |
+| `/account/resident` | `/account/profile?section=resident&tab=home` |
+| `/account/wallet` | `?section=resident&tab=wallet` |
+| `/account/payments` | `?section=resident&tab=payments` |
 
-| Route | File | Purpose | API endpoints |
-|-------|------|---------|---------------|
-| `/login` | `app/login/page.tsx` | Sign in / OTP signup | `POST /api/auth/customer/login`, `/email/send`, `/email/verify`, `/forgot-password` |
-| `/account/set-password` | `app/(customer)/account/set-password/page.tsx` | First-time password | `POST /api/auth/customer/set-password` |
-| `/account/change-password` | `app/(customer)/account/change-password/page.tsx` | Change password | `POST /api/auth/customer/change-password` |
+**Resident hub tabs** (`src/lib/accountNavigation.ts`): `home`, `wallet`, `payments`, `requests`, `room`, `vacating`, `notifications`, `referrals`, `concierge`.
 
-**Guards:** `requireCustomerSession()` — `src/lib/auth/guards.ts`  
-**Tables:** `customers`, `auth_sessions`
-
-### 2.3 Booking & reserve flow
-
-| Route | File | Purpose | Data / services | Server actions |
-|-------|------|---------|-----------------|----------------|
-| `/booking/new` | `app/(customer)/booking/new/page.tsx` | Cart + create booking | `getBedsForCart`, `quoteBookingPrice`, `getCustomerDepositCredit` | `createBookingAction`, `previewDateCouponAction` |
-| `/reserve/new` | `app/(customer)/reserve/new/page.tsx` | 50% bed reserve | `quoteBedReserve`, `getBedsForCart` | `createBedReserveAction` |
-| `/booking/[bookingCode]` | `app/(customer)/booking/[bookingCode]/page.tsx` | Booking status | `getBookingByCode`, KYC, briefing | `cancelBookingAction` |
-| `/booking/[bookingCode]/pay` | `.../pay/page.tsx` | Checkout payment | Booking + payment categories + QR | Client → `/api/payment-record/booking` |
-| `/booking/[bookingCode]/payment-success` | `.../payment-success/page.tsx` | Post-payment poll | `getPaymentForCustomer` | Poll `/api/payments/razorpay/status` |
-| `/booking/.../extend` | `.../extend/page.tsx` | **Redirect only** | — | Redirect to booking detail |
-| `/booking/.../extend/[id]/pay` | `.../extend/[id]/pay/page.tsx` | Extension payment | `getExtensionDetail` | `cancelPendingExtensionAction` |
-
-**Query params (multi-step flow, not separate routes):**
-
-- `/booking/new?bed=&start=&end=&mode=` — bed selection carried via URL
-- `/reserve/new?bed=&start=&checkIn=`
-
-**Gap vs spec:** Spec describes 5 named steps (Choose PG → Room → Bed → Preview → Confirm). Current flow is **query-param driven** across PG detail → room → `/booking/new`, not a dedicated stepper route tree.
-
-**DO NOT MODIFY:** `src/services/booking.ts`, `src/services/pricing.ts`, `src/services/bookingLifecycle.ts`, `src/lib/billing/partialDepositCheckout.ts`
-
-### 2.4 Payment links
-
-| Route | File | Purpose | Actions |
-|-------|------|---------|---------|
-| `/pay/[linkId]` | `app/(customer)/pay/[linkId]/page.tsx` | Admin-issued pay link | `submitPaymentLinkProofAction` |
-
-**Tables:** `payment_links`, `pgs`, `bookings`  
-**Services:** `src/services/paymentLinks.ts`, `src/services/residentCharges.ts`
-
-### 2.5 Account hub
-
-| Route | File | Purpose | Notes |
-|-------|------|---------|-------|
-| `/account/profile` | `app/(customer)/account/profile/page.tsx` | **Main hub** | `?section=profile\|identity\|resident` |
-| `/account/bookings` | `app/(customer)/account/bookings/page.tsx` | All bookings list | `listBookingsForCustomer` |
-| `/account/kyc` | `.../kyc/page.tsx` | Redirect | → `?section=identity` |
-| `/account/resident` | `.../resident/page.tsx` | Redirect | → `?section=resident` |
-| `/account/payments/[id]/receipt` | `.../receipt/page.tsx` | Payment receipt | Read-only |
-
-**Missing route:** `/account` index (some redirects target `/account?error=...` with no page).
+**Middleware** (`middleware.ts`): protects `/booking/*`, `/account/*`, `/pgs/*` — **not** `/reserve/*` or `/pay/*` (page-level guards only).
 
 ---
 
-## 3. Resident sub-routes (auth required)
+### 1.2 Admin routes (~73 paths)
 
-| Route | File | Purpose | Proof API |
-|-------|------|---------|-----------|
-| `/account/resident/pay-rent/[invoiceId]` | `pay-rent/[invoiceId]/page.tsx` | Pay rent | `POST /api/rent-invoice/[id]/payment-proof` |
-| `/account/resident/pay-electricity/[invoiceId]` | `pay-electricity/[invoiceId]/page.tsx` | Pay electricity | `POST /api/electricity-invoice/[id]/payment-proof` |
-| `/account/resident/pay-ps4/[membershipId]` | `pay-ps4/[membershipId]/page.tsx` | PS4 membership | `POST /api/playstation/membership/[id]/payment-proof` |
-| `/account/resident/ps4/new` | `ps4/new/page.tsx` | Subscribe PS4 | `subscribePs4Action` |
-| `/account/resident/history/[bookingId]` | `history/[bookingId]/page.tsx` | Payment history | Read-only |
-| `/account/resident/request-vacating/[bookingId]` | `request-vacating/[bookingId]/page.tsx` | Vacating notice | `submitVacatingAction` |
+#### Entry & overview
 
-**Gap vs spec:** PS4 add-on exists but is not in UX spec. Spec "Payments → Invoices view/download" is partial (receipt page exists; no unified invoice PDF hub).
+| Route | Purpose |
+|-------|---------|
+| `/admin` | → `/admin/overview` |
+| `/admin/overview` | KPI control board, sync actions, notifications |
+| `/admin/dashboard`, `/admin/actions`, `/admin/occupancy` | Legacy redirects |
+| `/admin/overview/analytics` | → `/admin/analytics` |
+| `/admin/overview/health` | → `/admin/system` |
+| `/admin/overview/operations` | → `/admin/operations` |
+| `/admin/overview/revenue` | → `/admin/revenue` |
+| `/admin/overview/pg/[pgId]` | Legacy PG drill redirect |
 
----
+#### Revenue & billing
 
-## 4. Customer API routes (by domain)
+| Route | Purpose |
+|-------|---------|
+| `/admin/revenue` | Month-scoped revenue charts, PG table |
+| `/admin/revenue/billing` | **Canonical billing hub** (5 tabs) |
+| `/admin/revenue/pg/[pgId]` | PG resident financial index |
+| `/admin/revenue/pg/[pgId]/resident/[residentId]` | Per-resident revenue drill-down |
+| `/admin/collections` | → `/admin/revenue/billing` |
+| `/admin/collections/pg/...` | Legacy collections drill paths |
+| `/admin/rent` | → billing `?tab=rent` |
+| `/admin/payments` | → billing `?tab=approvals` |
+| `/admin/invoices` | Unified invoice registry |
+| `/admin/invoices/[invoiceId]` | Invoice detail + actions |
+| `/admin/invoices/[invoiceId]/print` | Printable invoice |
 
-### 4.1 Auth
+#### Deposits & checkout
 
-| Method | Path | Role |
-|--------|------|------|
-| POST | `/api/auth/customer/login` | Email/password login |
-| POST | `/api/auth/customer/set-password` | First password |
-| POST | `/api/auth/customer/change-password` | Change password |
-| POST | `/api/auth/customer/email/send` | OTP send |
-| POST | `/api/auth/customer/email/verify` | OTP verify |
-| POST | `/api/auth/customer/forgot-password` | Reset password |
-| POST | `/api/auth/logout` | Sign out |
+| Route | Purpose |
+|-------|---------|
+| `/admin/deposits` | Active/settled deposit invoice table |
+| `/admin/deposits/add` | Search resident → record offline deposit |
+| `/admin/deposits/advance` | Advance deposit (no bed assignment) |
+| `/admin/deposits/collected` | Month-scoped deposit collected report |
+| `/admin/deposits/[bookingId]` | Per-booking ledger, correct, settle, advanced tools |
+| `/admin/checkout-settlements` | Vacating checkout queue (5 status tabs) |
+| `/admin/checkout-settlements/[id]` | Settlement review + refund |
 
-### 4.2 Beds & booking
+#### Residents, bookings, KYC
 
-| Method | Path | Role |
-|--------|------|------|
-| GET | `/api/beds/[bedId]/availability` | Date availability |
-| POST | `/api/beds/[bedId]/interest` | Express interest |
-| GET | `/api/beds/[bedId]/reserve-quote` | Reserve fee quote |
-| POST | `/api/payment-record/booking` | Booking checkout record |
-| GET | `/api/payments/razorpay/status` | Payment poll |
+| Route | Purpose |
+|-------|---------|
+| `/admin/residents` | Verified tenants + unverified signups |
+| `/admin/residents/[customerId]` | **Resident hub** — financial command center |
+| `/admin/residents/kyc` | KYC queues |
+| `/admin/residents/kyc/[submissionId]` | Single submission review |
+| `/admin/kyc/*` | → `/admin/residents/kyc/*` |
+| `/admin/bookings` | All bookings |
+| `/admin/bookings/new` | Assign tenant |
+| `/admin/bookings/[bookingId]` | Cancel, offline pay, extensions, ops |
+| `/admin/extensions` | → `/admin/bookings` |
 
-### 4.3 Resident billing proofs
+#### Operations & vacating
 
-| Method | Path | Service |
-|--------|------|---------|
-| POST | `/api/rent-invoice/[id]/payment-proof` | `submitRentPaymentProof` |
-| POST | `/api/electricity-invoice/[id]/payment-proof` | `submitElectricityPaymentProof` |
-| POST | `/api/stay-extension/[id]/payment-proof` | Extension proof |
-| POST | `/api/playstation/membership/[id]/payment-proof` | PS4 proof |
+| Route | Purpose |
+|-------|---------|
+| `/admin/operations` | Action center, refund requests, occupancy |
+| `/admin/operations/pg/.../resident/...` | PG operations drill-down |
+| `/admin/vacating` | Vacating notice approve/reject |
+| `/admin/requests` | **Deprecated** — legacy refund requests |
 
-### 4.4 KYC & misc
+#### Electricity & inventory
 
-| Method | Path | Role |
-|--------|------|------|
-| GET | `/api/kyc/documents/[submissionId]/[kind]` | View KYC doc (owner/admin) |
-| GET | `/api/pg/[id]/payment-categories` | PG UPI QR categories |
-| GET/POST | `/api/analytics/*` | Visitor analytics |
+| Route | Purpose |
+|-------|---------|
+| `/admin/electricity` | → billing `?tab=electricity` |
+| `/admin/electricity/new` | Create room electricity bill |
+| `/admin/pgs`, `/admin/pgs/new`, `/admin/pgs/[pgId]/listing` | PG CRUD |
+| `/admin/pgs/[pgId]/map` | Bed map (assign, vacate, flags) |
+| `/admin/pgs/[pgId]/rooms` | Room/bed inventory |
+| `/admin/pgs/[pgId]/collections` | PG-scoped payment proof queue |
+| `/admin/rooms`, `/admin/beds`, `/admin/floors` | → `/admin/pgs` |
 
----
+#### System, panel, misc
 
-## 5. Server actions (customer-facing)
-
-| File | Actions | Guard |
-|------|---------|-------|
-| `app/(customer)/booking/new/actions.ts` | `createBookingAction` | Session + bed/cart validation |
-| `app/(customer)/booking/new/couponActions.ts` | `previewDateCouponAction` | Session |
-| `app/(customer)/booking/[bookingCode]/actions.ts` | `cancelBookingAction` | `requireCustomerOwnsBookingCode` |
-| `app/(customer)/reserve/new/actions.ts` | `createBedReserveAction` | Session |
-| `app/(customer)/account/profile/actions.ts` | `updateProfileAction` | Session |
-| `app/(customer)/account/kyc/actions.ts` | `submitKycAction` | Session + profile complete |
-| `app/(customer)/account/resident/actions.ts` | `submitVacatingAction`, `cancelVacatingAction` | Owns booking |
-| `app/(customer)/account/resident/request-actions.ts` | Deposit refund, meter/QR upload, stay extension | Session |
-| `app/(customer)/account/resident/deposit-actions.ts` | `submitDepositDueExtensionRequestAction` | Session |
-| `app/(customer)/account/resident/ps4/new/actions.ts` | `subscribePs4Action` | Active tenant |
-| `app/(customer)/pay/actions.ts` | Payment link proof | Link ownership |
-
-**Gap vs spec:** `submitStayExtensionRequestAction` exists but **has no UI wired**.
-
----
-
-## 6. Permission & session model (customer)
-
-| Check | File | Behavior |
-|-------|------|----------|
-| Session required | `requireCustomerSession(next?, opts?)` | Redirect `/login` or `/account/set-password` |
-| Owns booking | `requireCustomerOwnsBooking(session, bookingId)` | Throws if mismatch |
-| Owns booking code | `requireCustomerOwnsBookingCode(session, code)` | Throws if mismatch |
-| Resident section gate | `customerHasConfirmedBooking()` | Hides resident area if no confirmed booking |
-| Active tenant (PS4) | `isActiveTenant()` | PS4 subscribe guard |
-| Profile complete | `isProfileComplete()`, `canCheckIn()` | KYC/booking gates |
-
-**DO NOT MODIFY:** `src/lib/auth/guards.ts`, `src/lib/auth/session.ts`, role logic.
-
----
-
-## 7. Database tables — customer-facing flows
-
-### 7.1 Core inventory & booking
-
-| Table | Schema file | Customer use |
-|-------|-------------|--------------|
-| `pgs`, `floors`, `rooms`, `beds`, `bed_prices` | `pgs.ts`, `beds.ts`, etc. | Browse, pricing, bed map |
-| `bookings` | `bookings.ts` | Booking detail, deposit fields, pricing snapshot |
-| `bed_reservations` | `bedReservations.ts` | Occupancy / stay range |
-| `bed_reserve_holds` | `bedReserveHolds.ts` | Reserve-with-payment flow |
-| `stay_extensions` | `stayExtensions.ts` | Extension pay (legacy path) |
-| `customers` | `customers.ts` | Profile, KYC status, residency |
-
-### 7.2 KYC
-
-| Table | Customer use |
-|-------|--------------|
-| `kyc_submissions` | Upload + status |
-| `customers.kyc_status` | Profile-level status |
-
-### 7.3 Deposits & wallet
-
-| Table | Customer use |
-|-------|--------------|
-| `deposit_ledger` | Wallet balance SSOT |
-| `deposit_settlements` | Refund settlement records |
-| `bookings.deposit_*` | Required/due/status caches |
-| `payment_links` | Deposit due payment links |
-| `financial_invoices` | Unified invoice mirror |
-
-### 7.4 Rent & electricity
-
-| Table | Customer use |
-|-------|--------------|
-| `rent_invoices` | Monthly rent |
-| `electricity_invoices`, `electricity_bills` | Room electricity share |
-| `resident_billing_profiles` | Billing metadata |
-| `meter_logs` | Check-in meter guidance |
-| `payments` | All payment records |
-
-### 7.5 Vacating & checkout
-
-| Table | Customer use |
-|-------|--------------|
-| `vacating_requests` | Notice submission |
-| `checkout_settlements` | Unified checkout (admin-driven; customer submits refund details) |
-| `resident_requests` | Deposit refund / extension requests |
-
-### 7.6 Other
-
-| Table | Customer use |
-|-------|--------------|
-| `playstation_memberships` | PS4 add-on |
-| `email_delivery_log` | Email notifications (backend) |
-| `auth_sessions` | Sessions |
-
-**Admin-only (customer reads indirect):** `admin_notifications`, `action_items` — not customer UI.
+| Route | Purpose |
+|-------|---------|
+| `/admin/analytics` | Visitor funnel (no finance) |
+| `/admin/system` | Integrations, migrations, monitoring |
+| `/admin/system/financial-audit` | Cross-module reconciliation |
+| `/admin/system/bed-audit` | Bed/reservation mismatch repair |
+| `/admin/system/health-report` | Full health audit |
+| `/admin/system/pricing-health` | Pricing consistency |
+| `/admin/system/recalculate-financial` | Recalculation tool |
+| `/admin/panel` | Rent audit, links, WhatsApp log, coupons, permissions |
+| `/admin/monitoring`, `/admin/deployments`, `/admin/emails` | Ops tooling |
+| `/admin/playstation` | PS4 membership maintenance |
+| `/admin/notifications` | Admin notification inbox |
+| `/admin/pricing` | Pricing center (bed rates) |
+| `/admin/settings` | Read-only PG config + repair tools |
+| `/admin/guide` | Searchable admin help |
 
 ---
 
-## 8. State machines (DO NOT MODIFY transitions)
+### 1.3 API routes (57)
 
-### 8.1 KYC
+| Group | Routes | Purpose |
+|-------|--------|---------|
+| Auth | `/api/auth/customer/*`, `/api/auth/admin/*`, `/api/auth/logout` | Login, password, OTP |
+| Beds | `/api/beds/[bedId]/availability`, `interest`, `reserve-quote` | Availability & reserve |
+| Payments | `/api/payment-record/*`, `/api/payments/razorpay/*` | QR proofs, Razorpay |
+| Proofs | `/api/rent-invoice/.../payment-proof`, electricity, extension, PS4, booking | Upload payment screenshots |
+| Webhooks | `/api/webhooks/razorpay`, `mock`, `vercel` | Payment & deploy events |
+| Admin | `/api/admin/deposits/.../correct-summary`, residents search, proofs, KYC PDF, notifications, live, analytics, health, monitoring, deployments | Admin operations |
+| Analytics | `/api/analytics/track`, `event`, `heartbeat` | Customer tracking |
+| Health | `/api/health` | Public probe |
+
+---
+
+### 1.4 Cron / automation
+
+| Route | Schedule | Financial impact |
+|-------|----------|------------------|
+| `/api/cron/generate-monthly-rent` | Daily 02:00 UTC | Rent overdue + invoice generation |
+| `/api/cron/release-holds` | Daily 04:00 UTC | Cancel expired holds |
+| `/api/cron/expire-bed-reserves` | Daily 04:30 UTC | Expire bed reserves |
+| `/api/cron/automation` | Daily 06:00 UTC | WhatsApp + action item sync |
+| `/api/cron/bootstrap-admin` | Manual | First admin |
+| `/api/cron/deploy-watchdog` | Manual/webhook | Deploy stability |
+| `/api/cron/mark-pg-occupancy`, `clear-pg-occupancy` | Manual | Occupancy placeholders |
+
+---
+
+## 2. Permissions & roles
+
+**Source:** `src/lib/auth/roles.ts`, `src/lib/auth/guards.ts`
+
+| Permission | Roles | Gates |
+|------------|-------|-------|
+| `pgs:write` | super_admin, pg_manager | PG CRUD, bed map, rooms, PG collections |
+| `bookings:write` | super_admin, pg_manager | Assign tenant, residents, booking ops, archive |
+| `extensions:write` | super_admin, pg_manager | Extension request/cancel |
+| `rent:write` | super_admin, accountant | Generate rent invoices, overdue, cancel pending |
+| `electricity:write` | super_admin, accountant | Create electricity bills |
+| `deposits:write` | super_admin, accountant | All deposit ledger, checkout settlements, financial reset |
+| `vacating:write` | super_admin, pg_manager, accountant | Vacating approve/reject/complete |
+| `payments:write` | super_admin, accountant | Proof approval, payment links, express collection, invoices |
+| `payments:override` | super_admin only | Override offline payment validation |
+| `kyc:write` | super_admin, pg_manager | Approve/reject KYC |
+
+**PG scope:** Non–`super_admin` roles require `pgScope` membership (`adminCanAccessPg`).
+
+**Navigation gap:** Sidebar shows all modules for any logged-in admin; permission checks occur at page/action level only (`src/components/admin/navItems.ts`, `src/lib/admin/navigation.ts`).
+
+---
+
+## 3. Workflow maps
+
+### 3.1 Customer booking flow
 
 ```
-submitKyc → kyc_submissions.status = pending, customers.kyc_status = pending
-Admin review → approved | rejected (updates customers.kyc_status)
-Re-submit allowed after rejected
+Browse PG → Room → Bed → /booking/new (cart)
+  → createBookingAction → /booking/[code]/pay (UPI + proof)
+  → webhook confirm → /payment-success or /booking/[code]
+  → KYC if not approved → bed assignment (admin)
 ```
 
-**Enums:** `kyc_status`, `kyc_submission_status` — `pending | approved | rejected`  
-**Services:** `src/services/kyc.ts`, `src/services/kycEligibility.ts`
+**Key files:** `app/(customer)/booking/new/`, `BookingCheckoutExperience.tsx`, `src/services/booking.ts`, `src/services/bookingLifecycle.ts`
 
-### 8.2 Booking
+**Alternate:** `/reserve/new` → reserve booking → same pay path.
 
-**Enum:** `booking_status` — includes `pending_payment`, `confirmed`, `completed`, `cancelled`, etc.  
-**Service:** `src/services/bookingLifecycle.ts` (payment success, cancel, holds)
-
-### 8.3 Deposit wallet lifecycle
-
-```
-collected (+) → held in ledger
-deducted (-)  → checkout/vacating/admin deductions
-refunded (-)  → settlement payout
-refundable    = sum(deposit_ledger.amount_paise)
-```
-
-**Enums:** `deposit_entry_kind`: `collected | deducted | refunded`  
-**Enums:** `deposit_collection_status`: `pending | full | partial | overdue | waived`  
-**Services:** `deposits.ts`, `depositSettlement.ts`, `depositCollection.ts`, `depositCredit.ts`
-
-### 8.4 Vacating & checkout
-
-**Vacating:** `pending → approved → completed` (also `rejected`; customer can cancel pending)  
-**Checkout settlement:** `awaiting_resident_details → awaiting_admin_review → refund_pending → refund_paid → completed` (+ `archived`)  
-**Resident requests:** `submitted → under_review → approved | rejected → completed`
-
-**Customer paths:**
-
-1. `submitVacatingRequest` → `vacating_requests`
-2. `submitDepositRefundRequestAction` → `resident_requests` + optionally `checkout_settlements`
-3. Admin completes → ledger + invoice cancellation (customer sees status in UI)
-
-**DO NOT MODIFY:** `src/services/vacating.ts`, `src/services/checkoutSettlement.ts`, `src/services/billing.ts` (notice/penalty)
-
-### 8.5 Rent / electricity invoices
-
-**Rent:** `rent_invoice_status` — `pending | payment_in_progress | paid | overdue | expired | cancelled`  
-**Electricity:** `electricity_invoice_status` — `pending | paid | cancelled` (overdue computed in projection)
+**Retired:** Extend stay (`canExtend = false`; `/extend` redirects).
 
 ---
 
-## 9. Financial calculations (DO NOT MODIFY)
+### 3.2 KYC flow
 
-| Domain | Files |
-|--------|-------|
-| Pricing / deposit at quote | `src/services/pricing.ts` |
-| Booking payment split | `src/services/depositCollection.ts` — `breakdownBookingPayment`, `splitBookingPayment` |
-| Partial deposit checkout | `src/lib/billing/partialDepositCheckout.ts` |
-| Rent late fees / proration | `src/services/billing.ts` |
-| Rent invoice projection | `src/services/rentInvoices.ts` — `projectInvoice()` |
-| Electricity split / late fee | `src/services/billing.ts`, `electricityBilling.ts` |
-| Deposit credit at rebooking | `src/services/depositCredit.ts` |
-| Refund deductions | `src/lib/refundDeductions.ts` |
-| Checkout electricity | `src/lib/checkout/electricitySettlementCalc.ts` |
-| Resident financial SSOT (display) | `src/services/residentFinancialEngine.ts` |
-| Money display | `src/lib/format.ts` — `paiseToInr`, `asPlainNumber` |
-| Invoice state machine | `src/lib/billing/invoiceStateMachine.ts` |
+| State | `customers.kyc_status` | Submission | UI |
+|-------|------------------------|------------|-----|
+| Not started | `pending` (default) | none | Complete identity verification |
+| Under review | `pending` | `pending` | Documents under review |
+| Approved | `approved` | `approved` | Verified — check-in allowed |
+| Rejected | `rejected` | `rejected` | Resubmit |
+
+**Transitions:** `src/services/kyc.ts` (`submitKyc`, `reviewKycSubmission`)  
+**Check-in gate:** `canCheckIn()` = KYC approved (`src/services/profile.ts`)  
+**UI:** `/account/profile?section=identity`, `KycIdentitySection.tsx`
 
 ---
 
-## 10. Integrations (customer-touching)
+### 3.3 Deposit flow (admin + resident)
 
-| Integration | Customer touchpoint | Files |
-|-------------|---------------------|-------|
-| **Razorpay** | Booking pay + poll | `src/services/payments.ts`, `/api/webhooks/razorpay`, `/api/payments/razorpay/*` |
-| **UPI QR + screenshot proof** | Rent, electricity, booking, payment links | `*PaymentProofForm.tsx`, proof API routes |
-| **Email (Resend/SMTP)** | Booking confirm, payment receipt, rent/electricity reminders, vacating updates | `src/lib/email/notifications.ts` |
-| **WhatsApp** | Admin-shared payment link URLs (not push inbox) | `src/lib/billing/adminWhatsApp.ts`, `invoiceWhatsApp.ts` |
-| **Blob/KYC storage** | KYC uploads, payment screenshots | `src/lib/kyc/storage.ts`, blob upload helpers |
-| **Visitor analytics** | Page views, events | `src/services/visitorAnalytics.ts`, `/api/analytics/*` |
-| **CockroachAI / Roachie** | Guided tour, resident briefing (proto concierge) | `src/components/cockroach/*`, `RoachieResidentBriefing` |
+**Collection:** Checkout pay → `recordDepositCollected` → `deposit_ledger`  
+**Partial deposit:** `deposit_collection_status` = partial/overdue; pay later via link  
+**Admin correction:** `DepositCorrectForm` → `POST /api/admin/deposits/[bookingId]/correct-summary`  
+**Admin views:** List (`depositInvoices.ts`), detail (`loadDepositPageData.ts`)  
+**Settlement:** Checkout settlement → `depositSettlement.ts` → ledger deductions/refund  
+**Resident:** `DepositDueSection`, `DepositWalletSection`, `DepositRefundRequestForm`
 
-**Gap vs spec:** No dedicated AI Concierge chat product. Roachie/CockroachAI is partial (tours + briefings, not full Q&A wallet/rent bot).
+**Status layers (do not collapse in UI redesign):**
 
----
-
-## 11. Component map (existing → spec mapping)
-
-| UX spec component | Existing component(s) | Route |
-|-------------------|----------------------|-------|
-| Hero / Home | `LandingPage` | `/` |
-| PGCard / PG showcase | `PgCard`, `PgBrowseList` | `/pgs` |
-| BedMapGrid | `CustomerBedMap` | PG detail |
-| BedPicker | `BedSelector`, `BedBookingPanel` | Room detail |
-| BookingStepper | `CheckoutProgressStepper`, `BookingCartForm` | `/booking/new`, pay |
-| StatusTrackerVertical | **Partial** — KYC pills, booking status, no unified tracker | profile / booking |
-| WalletBalanceHero | `DepositWalletSection`, `ResidentFinancialSummaryPanel` | `?section=resident` |
-| PayRentCTA | Links in `ResidentAreaSection` | → pay-rent |
-| PayElectricityCTA | Links in `ResidentAreaSection` | → pay-electricity |
-| VacatingJourneyTimeline | **Partial** — `VacatingRequestForm`, `DepositRefundNotice` | request-vacating + resident |
-| RequestTypeTile (×10) | **Only 3 DB types** — refund, due extension, stay extension (1 unwired) | `ResidentRequestForms` |
-| Referrals | **Not implemented** | — |
-| NotificationCenter | **Not implemented** (email only) | — |
-| AI Concierge | **Partial** — `CockroachAI`, `RoachieResidentBriefing` | layout + resident |
-
-Full component directory: `src/components/customer/` (65 files), `src/components/customer/account/`, `src/components/customer/checkout/`, `src/components/customer/marketing/`
+| Layer | Values | Source |
+|-------|--------|--------|
+| Booking collection | pending, full, partial, overdue, waived | `bookings.deposit_collection_status` |
+| Deposit invoice | collecting, held, refund_pending, settled | `depositInvoices.ts` |
+| Admin refund flag | unknown, pending, refunded, blocked, not_applicable | `bookings.admin_deposit_refund_status` |
 
 ---
 
-## 12. Interlinking graph (must preserve)
+### 3.4 Vacating & checkout settlement
 
-```
-Public browse
-  /pgs → /pgs/[slug] → /pgs/[slug]/rooms/[id] → /booking/new → /booking/[code]/pay
-                                                      ↓
-Account /profile?section=identity (KYC)
-                                                      ↓
-/booking/[code] (confirmed) → /account/profile?section=resident
-                                                      ↓
-        ┌─────────────────────────────────────────────┼──────────────────────────┐
-        ↓                     ↓                       ↓                          ↓
- pay-rent/[id]      pay-electricity/[id]    request-vacating/[id]        /pay/[linkId]
-        ↓                     ↓                       ↓                          ↓
-   rent_invoices      electricity_invoices    vacating_requests          payment_links
-        └─────────────────────┴───────────────────────┴──────────────────────────┘
-                                      ↓
-                            deposit_ledger (wallet SSOT)
-                                      ↓
-                         checkout_settlements / deposit_settlements
-                                      ↓
-                              resident_requests (refund)
-```
+**Resident:**
+1. Submit notice → `/account/resident/request-vacating/[bookingId]`
+2. Timeline: `VacatingJourneyTimeline` (7 stages)
+3. After approval → deposit refund request (meter + UPI)
 
-**Rules for redesign:**
+**Admin:**
+1. `/admin/vacating` — approve/reject notice
+2. `/admin/checkout-settlements/[id]` — electricity, charges, approve refund
+3. `markCheckoutRefundPaid` → `settleDepositRefund`
 
-- Same numbers everywhere (wallet, invoices, deposit due) — single fetch per page, pass props down.
-- Do not introduce a second wallet calculation in client components.
-- Pay sub-routes must continue to accept same invoice/membership IDs.
-- Vacating + refund forms must still call same server actions.
+**Legacy:** `/admin/requests` deprecated; `completeVacatingRequest` pre-unified path still in code.
 
 ---
 
-## 13. Gap analysis — UX spec vs codebase
+### 3.5 Admin billing flow
 
-| Spec feature | Status | Notes |
-|--------------|--------|-------|
-| 5-step booking routes | **Partial** | Same flow via PG → room → `/booking/new` + pay; add stepper UI only |
-| Compare PGs | **Missing** | Build new presentation; data from `listPublicPgs()` |
-| Favorites | **Missing** | Would need new backend — **flag before building** |
-| Enquiry / Schedule visit | **Missing** | Would need new backend — **flag** |
-| Reviews / Nearby | **Missing** | No tables found — **flag** |
-| Floor Explorer (dedicated) | **Partial** | Room list on PG page |
-| Application Dashboard (dedicated) | **Partial** | Profile + KYC + booking pages |
-| Resident Hub (separate app) | **Partial** | Single URL `?section=resident`; redesign can add `/resident/*` aliases as redirects |
-| Wallet (dedicated route) | **Partial** | Section in profile; can add `/account/wallet` → redirect |
-| Requests Center (10 types) | **Missing / partial** | Only 3 `resident_request_type` values; maintenance/complaint/etc. not in schema |
-| Referrals | **Missing** | No code |
-| Notification Center (in-app) | **Missing** | Email only |
-| AI Concierge (full chat) | **Partial** | Roachie/CockroachAI |
-| Mobile bottom nav | **Missing** | Desktop header nav today |
-| Move-in unlock moment | **Missing** | Design-only; trigger when `customerHasConfirmedBooking` + deposit paid |
+**Canonical URL:** `/admin/revenue/billing`
+
+| Tab | Workflow |
+|-----|----------|
+| Billing queue | Outstanding items across rent/elec/deposit |
+| Approvals | QR payment proof approve/reject |
+| Rent | Generate invoices, bulk send, WhatsApp |
+| Electricity | Send bills, proof approval |
+| Paid | History |
+
+**Quick actions:** `app/(admin)/admin/quick-actions/` — advance deposit, express collection, refund settlement.
 
 ---
 
-## 14. Page-by-page pre-implementation checklist (template)
+### 3.6 Assign tenant (multiple entry points)
 
-For each page in Phase 2, complete before coding:
+Same underlying flow from:
+- `/admin/bookings/new`
+- `/admin/residents` header
+- Resident profile assign form
+- Bed map assign
 
-- [ ] Route confirmed in Section 2
-- [ ] Data sources listed in Sections 4–7
-- [ ] Server actions / APIs unchanged
-- [ ] Tables documented
-- [ ] DO NOT MODIFY calc files identified
-- [ ] Dependent pages / links listed
-- [ ] Gap vs spec noted (build UI-only vs flag backend need)
-- [ ] Mobile layout + reduced-motion plan
-- [ ] Analytics hooks preserved (`trackAnalyticsEvent`, visitor tracker)
+**Action:** `assignTenantAction` (`bookings:write`)
 
 ---
 
-## 15. Phase 0 sign-off
+## 4. Financial calculation inventory (reference only)
 
-| Item | Status |
-|------|--------|
-| All customer routes enumerated | ✅ 27 page routes + API routes |
-| Tables touched by customer flows | ✅ Section 7 |
-| Server actions / APIs mapped | ✅ Sections 4–5 |
-| Permission checks documented | ✅ Section 6 |
-| Financial calculations listed (no modify) | ✅ Section 9 |
-| KYC state machine | ✅ Section 8.1 |
-| Wallet / deposit lifecycle | ✅ Section 8.3 |
-| Vacating / checkout flow | ✅ Section 8.4 |
-| Integrations | ✅ Section 10 |
-| Spec gaps documented | ✅ Section 13 |
-| Interlinking preserved | ✅ Section 12 |
+**SSOT for resident display:** `src/services/residentFinancialEngine.ts`  
+**SSOT for deposit money:** `deposit_ledger` via `src/services/deposits.ts`  
+**SSOT for admin deposit view:** `src/services/depositInvoices.ts`, `depositOperations.ts`
 
-**Next step (Phase 1):** Design tokens + shared primitives per `awesome-pg-ux-redesign-spec.md` Sections 3–6. **Do not start page rebuilds until Phase 1 primitives exist.**
+| Module | Path | Computes |
+|--------|------|----------|
+| Pricing | `src/services/pricing.ts` | Quotes by duration mode, security deposit |
+| Billing policy | `src/services/billing.ts` | Late fees, pro-ration, vacating penalty, elec split |
+| Rent invoices | `src/services/rentInvoices.ts` | Monthly rent, overdue |
+| Electricity | `src/services/electricityBilling.ts` | Room bill split |
+| Deposits | `src/services/deposits.ts` | Ledger collected/deducted/refunded |
+| Deposit collection | `src/services/depositCollection.ts` | Rent vs deposit split, due sync |
+| Deposit settlement | `src/services/depositSettlement.ts` | Refunds, canonical deductions |
+| Checkout settlement | `src/services/checkoutSettlement.ts` | Vacating final refund |
+| Cancellation | `src/services/cancellationPolicy.ts` | Refund tiers (snapshotted) |
+| Coupons | `src/lib/dateCoupon.ts` | 10% off rent subtotal only |
+| Unified invoices | `src/services/unifiedInvoices.ts` | `financial_invoices` registry |
+| Express collection | `src/services/expressCollection.ts` | Offline already-collected money |
+
+**Display-only (not ledger):** `src/lib/deposits/unifiedDepositView.ts` — effective collected/refundable caps for admin UI.
 
 ---
 
-## Appendix A — Key file index
+## 5. Duplicate & overlapping screens
 
-| Area | Path |
-|------|------|
-| Customer queries | `src/db/queries/customer.ts` |
-| Account navigation | `src/lib/accountNavigation.ts` |
-| Auth guards | `src/lib/auth/guards.ts` |
-| Resident hub UI | `src/components/customer/account/ResidentAreaSection.tsx` |
-| Deposit wallet UI | `src/components/customer/account/DepositWalletSection.tsx` |
-| Financial summary UI | `src/components/customer/account/ResidentFinancialSummaryPanel.tsx` |
-| Enum registry | `src/db/schema/enums.ts` |
-| Schema index | `src/db/schema/index.ts` |
-| Customer layout | `app/(customer)/layout.tsx` |
+| Overlap | Routes | Issue |
+|---------|--------|-------|
+| Billing hub fragmentation | `/admin/collections`, `/admin/rent`, `/admin/electricity`, `/admin/payments` | All redirect to `/admin/revenue/billing`; mental model split across 4 sidebar memories |
+| Deposits vs billing vs invoices | `/admin/deposits`, billing deposit queue, `/admin/invoices`, `/admin/deposits/collected` | Same money in 4 admin surfaces |
+| Resident financial drill-down | `/admin/residents/[id]`, `/admin/revenue/pg/.../resident/...`, `/admin/collections/pg/...`, `/admin/operations/pg/...` | Same `PgResidentIndex` pattern × 4 modules |
+| Vacating vs checkout vs requests | `/admin/vacating`, `/admin/checkout-settlements`, `/admin/requests` | Requests deprecated but linked; two-step vacating→settlement |
+| KYC paths | `/admin/kyc/*` vs `/admin/residents/kyc/*` | Legacy redirects |
+| PG proof approval | Global billing approvals tab vs `/admin/pgs/[pgId]/collections` | Duplicate approval queues |
+| Assign tenant | Bookings new, residents list, profile, bed map | 4 entry points, same form |
+| Customer account aliases | `/account/kyc`, `/account/resident`, `/account/wallet`, `/account/payments` | 4 URLs → 1 profile with query params |
+| Resident vacating | Vacating tab + Requests tab + Home tab forms | Same vacating/refund in 3 places |
+| Revenue vs overview | `/admin/revenue` vs `/admin/overview` | Both show financial KPIs at different depth |
+| Customer bookings vs resident hub | `/account/bookings` vs resident home | Short-stay vs monthly split confuses residents |
+
+---
+
+## 6. Screens with >5 primary actions
+
+Primary actions = main CTAs that mutate state or open workflows (excludes nav, breadcrumbs, table row links, filter tabs).
+
+| Screen | ~Count | Examples |
+|--------|--------|----------|
+| **`/admin/residents/[customerId]`** | **15+** | Express collection, charge generator, 9 invoice presets, WhatsApp ×4, edit rent/deposit, KYC verify, archive |
+| **`/admin/revenue/billing`** (billing tab) | **8+** | Generate all/due, mark overdue, bulk send, per-row send/WhatsApp |
+| **`/admin/deposits/[bookingId]`** | **7+** | Correct, add/deduct/refund, settle, reconcile, advanced tools |
+| **`/admin/checkout-settlements/[id]`** | **6+** | Approve, mark paid, save, rebuild, archive, delete |
+| **`/admin/bookings/[bookingId]`** | **5–6** | Cancel, offline pay, extension, ops panel |
+| **Resident Home** (`tab=home`) | **10+** | Pay deposit, extend deposit, PS4, vacating, refund, per-invoice Pay ×N |
+| **Booking detail** (pending) | **6+** | Pay, KYC, cancel, extension pay, navigation |
+| **Requests tab** | **10 cards** | Only 2 wired in-app; rest WhatsApp |
+
+---
+
+## 7. Jargon & confusing labels
+
+### Admin
+
+| Term | Where | Risk |
+|------|-------|------|
+| SSOT | Internal docs, some UI copy | Operator confusion |
+| Ledger / wallet / invoice | Deposits module | Three words for related but distinct concepts |
+| Collecting / held / settled | Deposit status | Overlaps booking `deposit_collection_status` |
+| Checkout settlement | Vacating flow | Not “checkout” in customer sense |
+| Express collection | Billing | Sounds like shipping |
+| Historical payment | Paid tab | Means offline already collected |
+| Action items / sync | Overview | Ops jargon |
+| pg scope | Permissions | Hidden from most UI |
+| Adjusted (`waived` label) | Deposit collection | Admin correction vs resident waiver |
+
+### Customer / resident
+
+| Term | Where | Risk |
+|------|-------|------|
+| KYC | Identity tab | Acronym without plain-language lead |
+| Open-ended | Stay duration | Technical |
+| Duration modes | daily/weekly/monthly/fixed_stay/reserve | `reserve` especially opaque |
+| Deposit wallet / credit | Wallet tab | vs “security deposit balance” |
+| Checkout settlement | Vacating timeline | Admin term on resident UI |
+| Principal / accrued late fee | Invoice tables | Accounting jargon |
+| “Same totals as your PG admin sees” | Financial summary | Breaks resident mental model |
+| Admin dues / refund not reviewed | Status pills | Back-office labels exposed |
+| Proof submitted | Invoice status | Informal |
+| X ways split | Electricity invoice | Unclear occupant split |
+
+---
+
+## 8. Resident simplification opportunities (presentation only)
+
+1. **Single “What to do now” card** on Home — max 3 CTAs; invoices behind “View all bills” (`ResidentAreaSection.tsx` is ~800 lines).
+2. **Unify mobile/desktop nav** — 9 desktop tabs vs 5 mobile; mobile “Profile” icon opens `room` tab, not account profile.
+3. **Remove extend dead ends** — hide legacy extension UI; single “Contact support to extend” message.
+4. **One vacating path** — Vacating tab only; remove duplicate refund form on Home when no approved vacating.
+5. **Requests tab trim** — show 2 wired flows + one WhatsApp card (not 10 similar cards).
+6. **Plain-language status** — replace admin ops pills on resident UI.
+7. **KYC states** — “Not started” vs “Waiting for review” instead of bare `pending`.
+8. **One checkout stepper** — merge `BookingFlowStepper` + `CheckoutProgressStepper` on pay page.
+9. **Default home for monthly residents** — resident tab after first confirmed booking.
+10. **Shared pay component** — rent, electricity, deposit due, booking pay share UPI+proof pattern.
+11. **Link `/guide`** from KYC, vacating policy, deposit refund forms.
+12. **Middleware** — add `/reserve/*` and `/pay/*` for consistent login redirect.
+
+---
+
+## 9. Key file index
+
+| Area | Files |
+|------|-------|
+| Admin nav | `src/lib/admin/navigation.ts`, `src/components/admin/navItems.ts` |
+| Permissions | `src/lib/auth/roles.ts`, `src/lib/auth/guards.ts` |
+| Customer nav | `src/lib/accountNavigation.ts` |
+| Booking | `src/services/booking.ts`, `src/services/bookingLifecycle.ts` |
+| Deposits | `src/services/deposits.ts`, `depositInvoices.ts`, `depositOperations.ts`, `depositSettlement.ts` |
+| Vacating | `src/services/vacating.ts`, `checkoutSettlement.ts` |
+| KYC | `src/services/kyc.ts`, `src/db/schema/enums.ts` |
+| Resident UI | `src/components/customer/account/ResidentAreaSection.tsx`, `ResidentHubShell.tsx` |
+| Admin resident | `app/(admin)/admin/residents/[customerId]/page.tsx` |
+| Billing hub | `app/(admin)/admin/revenue/billing/page.tsx` |
+| Financial SSOT | `src/services/residentFinancialEngine.ts` |
+
+---
+
+*End of Phase 1 feature inventory. Do not begin design system or page redesign until `redesign-roadmap.md` is approved.*
