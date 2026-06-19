@@ -82,6 +82,7 @@ export type CheckoutSettlementRow = CheckoutSettlement & {
   bookingCode: string;
   pgName: string;
   roomNumber: string;
+  roomId: string | null;
   bedCode: string;
   vacatingDate: string;
 };
@@ -207,6 +208,7 @@ type SettlementJoinRow = {
   pg_name: string;
   pg_id: string;
   room_number: string;
+  room_id: string | null;
   bed_code: string;
   vacating_date: string;
   notice_given_date: string;
@@ -274,6 +276,7 @@ function mapJoinRow(row: SettlementJoinRow): CheckoutSettlementRow {
     bookingCode: row.booking_code,
     pgName: row.pg_name ?? '—',
     roomNumber: row.room_number ?? '—',
+    roomId: row.room_id ?? null,
     bedCode: row.bed_code ?? '—',
     vacatingDate: row.vacating_date,
   };
@@ -291,6 +294,7 @@ async function loadSettlementRow(
       loc.pg_name,
       loc.pg_id,
       loc.room_number,
+      loc.room_id,
       loc.bed_code,
       vr.vacating_date AS vacating_date,
       vr.notice_given_date AS notice_given_date,
@@ -308,6 +312,7 @@ async function loadSettlementRow(
     LEFT JOIN LATERAL (
       SELECT
         bd.bed_code,
+        r.id::text AS room_id,
         r.room_number,
         p.id::text AS pg_id,
         p.name AS pg_name
@@ -432,6 +437,7 @@ export async function listCheckoutSettlements(
       loc.pg_name,
       loc.pg_id,
       loc.room_number,
+      loc.room_id,
       loc.bed_code,
       vr.vacating_date AS vacating_date,
       vr.notice_given_date AS notice_given_date,
@@ -443,6 +449,7 @@ export async function listCheckoutSettlements(
     LEFT JOIN LATERAL (
       SELECT
         bd.bed_code,
+        r.id::text AS room_id,
         r.room_number,
         p.id::text AS pg_id,
         p.name AS pg_name
@@ -1253,44 +1260,55 @@ export async function deleteCheckoutSettlement(input: {
   return { ok: true };
 }
 
-/** Remove or archive checkout settlement when vacating is rejected/cancelled. */
+/** Remove or archive all checkout settlements for a vacating request. */
 export async function cleanupCheckoutSettlementForVacating(input: {
   vacatingRequestId: string;
   adminId?: string | null;
 }): Promise<{ removed: boolean; settlementId: string | null; action: 'deleted' | 'archived' | 'none' }> {
-  const [settlement] = await db
+  const settlements = await db
     .select()
     .from(checkoutSettlements)
     .where(eq(checkoutSettlements.vacatingRequestId, input.vacatingRequestId))
-    .limit(1);
-  if (!settlement) {
+    .orderBy(sql`${checkoutSettlements.updatedAt} DESC`);
+  if (settlements.length === 0) {
     return { removed: false, settlementId: null, action: 'none' };
   }
 
-  if (
-    settlement.amountsLocked ||
-    settlement.status === 'refund_paid' ||
-    settlement.status === 'completed'
-  ) {
-    await archiveCheckoutSettlement({
+  let lastAction: 'deleted' | 'archived' = 'deleted';
+  let lastId: string | null = null;
+
+  for (const settlement of settlements) {
+    if (
+      settlement.amountsLocked ||
+      settlement.status === 'refund_paid' ||
+      settlement.status === 'completed'
+    ) {
+      await archiveCheckoutSettlement({
+        settlementId: settlement.id,
+        adminId: input.adminId ?? 'system',
+      });
+      lastAction = 'archived';
+      lastId = settlement.id;
+      continue;
+    }
+
+    const deleted = await deleteCheckoutSettlement({
       settlementId: settlement.id,
       adminId: input.adminId ?? 'system',
     });
-    await db
-      .update(vacatingRequests)
-      .set({ checkoutSettlementSuppressed: true, updatedAt: new Date() })
-      .where(eq(vacatingRequests.id, input.vacatingRequestId));
-    return { removed: true, settlementId: settlement.id, action: 'archived' };
+    if (!deleted.ok) {
+      throw new Error(deleted.error);
+    }
+    lastAction = 'deleted';
+    lastId = settlement.id;
   }
 
-  const deleted = await deleteCheckoutSettlement({
-    settlementId: settlement.id,
-    adminId: input.adminId ?? 'system',
-  });
-  if (!deleted.ok) {
-    throw new Error(deleted.error);
-  }
-  return { removed: true, settlementId: settlement.id, action: 'deleted' };
+  await db
+    .update(vacatingRequests)
+    .set({ checkoutSettlementSuppressed: true, updatedAt: new Date() })
+    .where(eq(vacatingRequests.id, input.vacatingRequestId));
+
+  return { removed: true, settlementId: lastId, action: lastAction };
 }
 
 export async function archiveCheckoutSettlement(input: {

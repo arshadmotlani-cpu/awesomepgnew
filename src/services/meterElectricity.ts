@@ -112,6 +112,16 @@ export async function estimateMonthlyUnits(roomId: string, billingMonth: string)
   return Math.round(avg * 100) / 100;
 }
 
+/** Average monthly room bill in paise from recent electricity bills or meter logs. */
+export async function estimateRoomAverageBillPaise(
+  roomId: string,
+  ratePerUnitPaise: number,
+): Promise<number> {
+  const units = await estimateMonthlyUnits(roomId, new Date().toISOString().slice(0, 7));
+  if (units <= 0) return 0;
+  return Math.round(units * ratePerUnitPaise);
+}
+
 export async function createBillFromMeterLogs(
   session: AdminSession,
   input: {

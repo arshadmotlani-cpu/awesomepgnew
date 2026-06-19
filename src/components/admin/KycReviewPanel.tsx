@@ -1,5 +1,9 @@
 import Link from 'next/link';
 import { AdminKycStatusWithWhatsApp } from '@/src/components/admin/AdminKycWhatsAppButton';
+import {
+  AadhaarPdfDownloadButton,
+  BulkAadhaarPdfDownloadButton,
+} from '@/src/components/admin/AadhaarPdfDownloadButton';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { EmptyState } from '@/src/components/admin/EmptyState';
 import { IconCheckCircle } from '@/src/components/admin/icons';
@@ -154,6 +158,10 @@ export function KycPendingQueue({ rows }: { rows: KycSubmissionListRow[] }) {
   );
 }
 
+export function KycApprovedDocumentsHeaderActions() {
+  return <BulkAadhaarPdfDownloadButton className="px-3 py-1.5 text-xs" />;
+}
+
 export function KycApprovedDocuments({ rows }: { rows: KycSubmissionListRow[] }) {
   if (rows.length === 0) {
     return (
@@ -186,12 +194,21 @@ export function KycApprovedDocuments({ rows }: { rows: KycSubmissionListRow[] })
                 {r.reviewedAt ? <span>· Approved {formatDateTime(r.reviewedAt)}</span> : null}
               </div>
             </div>
-            <Link
-              href={moduleKycVerifyHref(r.id)}
-              className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-apg-silver hover:text-white"
-            >
-              Open full view →
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href={moduleKycVerifyHref(r.id)}
+                className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-apg-silver hover:text-white"
+              >
+                Open full view →
+              </Link>
+              <AadhaarPdfDownloadButton
+                kycId={r.id}
+                status={r.status}
+                aadhaarFrontPath={r.aadhaarFrontPath}
+                aadhaarBackPath={r.aadhaarBackPath}
+                className="px-3 py-1.5 text-xs"
+              />
+            </div>
           </div>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-3">

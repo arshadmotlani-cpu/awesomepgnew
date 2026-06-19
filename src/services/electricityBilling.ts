@@ -326,6 +326,7 @@ export async function createElectricityBill(
         eq(bookings.status, 'confirmed'),
         inArray(bookings.durationMode, ['monthly', 'open_ended']),
         sql`bed_reservations.status = 'active'`,
+        sql`bed_reservations.kind = 'primary'`,
         sql`bed_reservations.stay_range && daterange(${monthStartIso}::date, ${monthEndIso}::date, '[)')`,
       ),
     );

@@ -247,6 +247,8 @@ const kycSubmissionListSelect = {
   customerName: customers.fullName,
   customerPhone: customers.phone,
   customerEmail: customers.email,
+  aadhaarFrontPath: kycSubmissions.aadhaarFrontPath,
+  aadhaarBackPath: kycSubmissions.aadhaarBackPath,
 };
 
 export type KycSubmissionListRow = {
@@ -259,6 +261,8 @@ export type KycSubmissionListRow = {
   customerName: string;
   customerPhone: string;
   customerEmail: string;
+  aadhaarFrontPath: string;
+  aadhaarBackPath: string;
 };
 
 export async function listPendingKycSubmissions(): Promise<KycSubmissionListRow[]> {

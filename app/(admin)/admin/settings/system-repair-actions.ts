@@ -4,11 +4,12 @@ import { revalidatePath } from 'next/cache';
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import {
   auditOccupancyMismatches,
-  previewRebuildOccupancyState,
-  rebuildOccupancyState,
+  executeOccupancyRepair,
+  previewOccupancyRepair,
   summarizeOccupancyAudit,
   type OccupancyAuditRow,
-  type OccupancyRebuildResult,
+  type OccupancyRepairExecuteResult,
+  type OccupancyRepairPreview,
 } from '@/src/services/occupancyDiagnostics';
 import {
   executeCheckoutSettlementRepair,
@@ -51,12 +52,13 @@ function revalidateAllAdminViews() {
 }
 
 export async function previewOccupancyRepairAction(): Promise<SystemRepairActionState> {
-  await requireAdminSession('/admin/settings');
+  const session = await requireAdminSession('/admin/settings');
   try {
-    const preview = await previewRebuildOccupancyState();
+    const preview: OccupancyRepairPreview = await previewOccupancyRepair(session);
+    const r = preview.rebuild;
     return {
       status: 'ok',
-      message: `Dry run — would close ${preview.orphanReservationsClosed} orphan reservation(s), reconcile ${preview.bookingsReconciled} booking(s), sync ${preview.residencyStatusSynced} residency flag(s), demote ${preview.residencyStatusDemoted} stale active flag(s).`,
+      message: `Preview — mismatches ${preview.mismatchCountBefore}, bed audit issues ${preview.bedAuditIssueCount}. Would close ${r.orphanReservationsClosed} orphan reservation(s), reconcile ${r.bookingsReconciled} booking(s), sync ${r.residencyStatusSynced} residency flag(s), demote ${r.residencyStatusDemoted} stale active flag(s).`,
       preview,
     };
   } catch (err) {
@@ -64,14 +66,24 @@ export async function previewOccupancyRepairAction(): Promise<SystemRepairAction
   }
 }
 
-export async function executeOccupancyRepairAction(): Promise<SystemRepairActionState> {
-  await requireAdminSession('/admin/settings');
+export async function executeOccupancyRepairAction(
+  dryRun = false,
+): Promise<SystemRepairActionState> {
+  const session = await requireAdminSession('/admin/settings');
   try {
-    const result: OccupancyRebuildResult = await rebuildOccupancyState();
+    if (dryRun) {
+      const preview = await previewOccupancyRepair(session);
+      return {
+        status: 'ok',
+        message: `Dry run — ${preview.mismatchCountBefore} mismatch(es) would be addressed by rebuild (no writes).`,
+        preview,
+      };
+    }
+    const result: OccupancyRepairExecuteResult = await executeOccupancyRepair(session);
     revalidateAllAdminViews();
     return {
       status: 'ok',
-      message: `Repair complete — ${result.orphanReservationsClosed} orphan reservation(s) closed, ${result.bookingsReconciled} booking(s) reconciled, ${result.residencyStatusSynced} promoted, ${result.residencyStatusDemoted} demoted.`,
+      message: `Execute — mismatches ${result.mismatchCountBefore} → ${result.mismatchCountAfter} (repaired ${result.repairedCount}, remaining ${result.remainingCount}). Closed ${result.orphanReservationsClosed} orphan reservation(s), reconciled ${result.bookingsReconciled} booking(s), synced ${result.residencyStatusSynced} residency flag(s), demoted ${result.residencyStatusDemoted}. Bed audit issues ${result.bedAuditIssueCountBefore} → ${result.bedAuditIssueCountAfter}.`,
       result,
     };
   } catch (err) {
@@ -139,7 +151,7 @@ export async function previewCheckoutRepairAction(): Promise<SystemRepairActionS
     const preview: CheckoutSettlementRepairPreview = await previewCheckoutSettlementRepair();
     return {
       status: 'ok',
-      message: `Dry run — ${preview.rows.length} settlement issue(s): ${preview.orphanCount} orphan(s), ${preview.duplicateCount} duplicate(s).`,
+      message: `Preview — ${preview.issueCount} issue(s): ${preview.orphanCount} orphan(s), ${preview.duplicateCount} booking duplicate(s), ${preview.duplicateVacatingCount} vacating duplicate(s), ${preview.archivedOnActiveCount} archived-on-active.`,
       preview,
     };
   } catch (err) {
@@ -160,8 +172,8 @@ export async function executeCheckoutRepairAction(
     return {
       status: 'ok',
       message: dryRun
-        ? `Dry run — would remove ${result.removed}, archive ${result.archived}, skip ${result.skipped}.`
-        : `Repair complete — removed ${result.removed}, archived ${result.archived}, skipped ${result.skipped}, failed ${result.failed.length}.`,
+        ? `Dry run — would remove ${result.removed}, archive ${result.archived}, rebuild ${result.rebuilt}, skip ${result.skipped}. Issues ${result.issueCountBefore} → ${result.issueCountAfter}.`
+        : `Execute — issues ${result.issueCountBefore} → ${result.issueCountAfter} (repaired ${result.repairedCount}, remaining ${result.remainingCount}). Removed ${result.removed}, archived ${result.archived}, rebuilt ${result.rebuilt}, skipped ${result.skipped}, failed ${result.failed.length}.`,
       result,
     };
   } catch (err) {

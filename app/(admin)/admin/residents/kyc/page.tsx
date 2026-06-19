@@ -1,6 +1,7 @@
 import { KycStorageWarning } from '@/src/components/admin/KycStorageWarning';
 import {
   KycApprovedDocuments,
+  KycApprovedDocumentsHeaderActions,
   KycPendingQueue,
   KycReviewTabs,
   type KycReviewTabId,
@@ -72,9 +73,12 @@ export default async function ResidentsKycPage({
 
         {showApproved ? (
           <section id="approved">
-            <h2 className="mb-3 text-sm font-semibold text-white">
-              Approved documents ({approvedRows.length})
-            </h2>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold text-white">
+                Approved documents ({approvedRows.length})
+              </h2>
+              {approvedRows.length > 0 ? <KycApprovedDocumentsHeaderActions /> : null}
+            </div>
             <KycApprovedDocuments rows={approvedRows} />
           </section>
         ) : null}

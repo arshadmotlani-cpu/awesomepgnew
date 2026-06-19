@@ -28,9 +28,12 @@ export function CheckoutSettlementElectricitySection({
   const router = useRouter();
   const [state, action, pending] = useActionState(updateCheckoutElectricityAction, idle);
 
-  const [method, setMethod] = useState<ElectricityCalculationMethod>(
-    (detail.electricityCalculationMethod as ElectricityCalculationMethod) ?? 'meter_reading',
-  );
+  const [method, setMethod] = useState<ElectricityCalculationMethod>(() => {
+    if (detail.electricityUseAverage && detail.electricityCalculationMethod === 'meter_reading') {
+      return 'average_billing';
+    }
+    return (detail.electricityCalculationMethod as ElectricityCalculationMethod) ?? 'meter_reading';
+  });
   const [meterPhotoMissing, setMeterPhotoMissing] = useState(
     detail.meterPhotoMissing || (!detail.electricityMeterPhotoUrl && !detail.electricityUseAverage),
   );
@@ -62,6 +65,49 @@ export function CheckoutSettlementElectricitySection({
   const [deductFromDeposit, setDeductFromDeposit] = useState(
     detail.electricityDeductFromDeposit !== false,
   );
+  const [roomDataHint, setRoomDataHint] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!editable || !detail.roomId) return;
+    let cancelled = false;
+    void fetch(`/api/admin/rooms/${detail.roomId}/last-electricity-reading`)
+      .then((res) => res.json())
+      .then((body: { ok?: boolean; data?: { previousReadingUnits?: number; ratePerUnitPaise?: number; estimatedAverageBillPaise?: number } }) => {
+        if (cancelled || !body.ok || !body.data) return;
+        const d = body.data;
+        if (!previousReading && d.previousReadingUnits != null && d.previousReadingUnits > 0) {
+          setPreviousReading(String(d.previousReadingUnits));
+        }
+        if (d.ratePerUnitPaise != null && ratePerUnitInr === '16') {
+          setRatePerUnitInr((d.ratePerUnitPaise / 100).toFixed(2));
+        }
+        if (
+          detail.electricityUseAverage &&
+          !averageBillInr &&
+          d.estimatedAverageBillPaise != null &&
+          d.estimatedAverageBillPaise > 0
+        ) {
+          setAverageBillInr((d.estimatedAverageBillPaise / 100).toFixed(2));
+          setMethod('average_billing');
+        }
+        setRoomDataHint(
+          d.estimatedAverageBillPaise
+            ? `Room history loaded — suggested average bill ₹${(d.estimatedAverageBillPaise / 100).toFixed(0)}`
+            : 'Room meter history loaded',
+        );
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- prefetch once per room
+  }, [detail.roomId, editable]);
+
+  useEffect(() => {
+    if (meterPhotoMissing && method === 'meter_reading') {
+      setMethod('average_billing');
+    }
+  }, [meterPhotoMissing, method]);
 
   useEffect(() => {
     if (state.status === 'ok') router.refresh();
@@ -142,6 +188,7 @@ export function CheckoutSettlementElectricitySection({
       ) : (
         <p className="text-sm text-apg-silver">Awaiting resident meter photo or admin settlement.</p>
       )}
+      {roomDataHint ? <p className="text-xs text-sky-200">{roomDataHint}</p> : null}
 
       <section className="rounded-xl border border-white/10 bg-[#12161C] p-4 text-sm">
         <h4 className="font-semibold text-white">Sharing detection</h4>
@@ -276,18 +323,36 @@ export function CheckoutSettlementElectricitySection({
           ) : null}
 
           {method === 'average_billing' ? (
-            <label className="block text-sm">
-              <span className="text-apg-silver">Average room electricity bill (₹)</span>
-              <input
-                name="averageBillInr"
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={averageBillInr}
-                onChange={(e) => setAverageBillInr(e.target.value)}
-                className="apg-admin-field mt-1 block w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-white"
-              />
-            </label>
+            <div className="space-y-2">
+              <label className="block text-sm">
+                <span className="text-apg-silver">Average room electricity bill (₹)</span>
+                <input
+                  name="averageBillInr"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={averageBillInr}
+                  onChange={(e) => setAverageBillInr(e.target.value)}
+                  className="apg-admin-field mt-1 block w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-white"
+                />
+              </label>
+              {detail.roomId ? (
+                <button
+                  type="button"
+                  className="rounded-lg border border-sky-400/40 px-3 py-1.5 text-xs font-semibold text-sky-200 hover:bg-sky-500/10"
+                  onClick={() => {
+                    void fetch(`/api/admin/rooms/${detail.roomId}/last-electricity-reading`)
+                      .then((res) => res.json())
+                      .then((body: { ok?: boolean; data?: { estimatedAverageBillPaise?: number } }) => {
+                        if (!body.ok || !body.data?.estimatedAverageBillPaise) return;
+                        setAverageBillInr((body.data.estimatedAverageBillPaise / 100).toFixed(2));
+                      });
+                  }}
+                >
+                  Suggest room average from history
+                </button>
+              ) : null}
+            </div>
           ) : null}
 
           {method === 'manual_amount' ? (
@@ -346,8 +411,10 @@ export function CheckoutSettlementElectricitySection({
           <dd className="text-white">{paiseToInr(previewTotalBillPaise)}</dd>
         </div>
         <div>
-          <dt className="text-apg-silver">Sharing count used</dt>
-          <dd className="text-white">{occupants}</dd>
+          <dt className="text-apg-silver">Occupants (detected / used)</dt>
+          <dd className="text-white">
+            {detail.roomOccupancy.autoDetectedCount} detected · {occupants} used
+          </dd>
         </div>
         <div>
           <dt className="text-apg-silver">Resident share</dt>

@@ -5,6 +5,7 @@ import { db } from '@/src/db/client';
 import { customers } from '@/src/db/schema';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { KycReviewActions } from '@/src/components/admin/KycReviewActions';
+import { AadhaarPdfDownloadButton } from '@/src/components/admin/AadhaarPdfDownloadButton';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { getKycSubmission } from '@/src/services/kyc';
@@ -112,15 +113,24 @@ export default async function ResidentsKycVerifyPage({
         {sub.status === 'pending' ? (
           <KycReviewActions submissionId={submissionId} />
         ) : (
-          <div className={`${SURFACE} p-4 text-sm text-apg-silver`}>
-            This submission was {sub.status}
-            {sub.reviewedAt ? ` on ${formatDateTime(sub.reviewedAt)}` : ''}.
+          <div className={`${SURFACE} space-y-4 p-4 text-sm text-apg-silver`}>
+            <p>
+              This submission was {sub.status}
+              {sub.reviewedAt ? ` on ${formatDateTime(sub.reviewedAt)}` : ''}.
+            </p>
             {sub.rejectionReason ? (
-              <p className="mt-2 text-rose-300">Reason: {sub.rejectionReason}</p>
+              <p className="text-rose-300">Reason: {sub.rejectionReason}</p>
             ) : null}
+            <AadhaarPdfDownloadButton
+              kycId={submissionId}
+              status={sub.status}
+              aadhaarFrontPath={sub.aadhaarFrontPath}
+              aadhaarBackPath={sub.aadhaarBackPath}
+              className="w-full"
+            />
             <Link
               href={moduleKycVerifyHref(submissionId)}
-              className="mt-3 inline-block text-[#FF5A1F] hover:underline"
+              className="inline-block text-[#FF5A1F] hover:underline"
             >
               Refresh
             </Link>

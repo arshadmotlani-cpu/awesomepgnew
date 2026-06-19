@@ -16,16 +16,7 @@ export function isProductionBookingFilter(): SQL {
 
 /** Active resident = has a live bed assignment today (occupancy SSOT). */
 export function isActiveResidentFilter(): SQL {
-  return sql`EXISTS (
-    SELECT 1
-    FROM bookings b
-    INNER JOIN bed_reservations br ON br.booking_id = b.id
-    WHERE b.customer_id = ${customers.id}
-      AND b.status = 'confirmed'
-      AND br.status = 'active'
-      AND br.kind = 'primary'
-      AND CURRENT_DATE <@ br.stay_range
-  )`;
+  return sql`${customerOccupiedTodayExistsSql}`;
 }
 
 /** Active, non-test residents with confirmed bookings — collections / billing queue. */

@@ -26,6 +26,7 @@
  */
 
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { occupancyReservationCoreSql_b } from '@/src/lib/occupancySsot';
 import { db } from '../db/client';
 import {
   auditLog,
@@ -185,18 +186,16 @@ async function shortenBookingReservationsToDate(bookingId: string, endDate: stri
 const LONG_TERM_END = '2099-01-01';
 
 async function bookingHasActiveStayToday(bookingId: string): Promise<boolean> {
-  const [row] = await db
-    .select({ id: bedReservations.id })
-    .from(bedReservations)
-    .where(
-      and(
-        eq(bedReservations.bookingId, bookingId),
-        sql`${bedReservations.status} IN ('active', 'hold')`,
-        sql`CURRENT_DATE <@ ${bedReservations.stayRange}`,
-      ),
-    )
-    .limit(1);
-  return Boolean(row);
+  const rows = await db.execute<{ occupied: boolean }>(sql`
+    SELECT EXISTS (
+      SELECT 1
+      FROM bookings b
+      INNER JOIN bed_reservations br ON br.booking_id = b.id
+      WHERE b.id = ${bookingId}::uuid
+        AND ${occupancyReservationCoreSql_b}
+    ) AS occupied
+  `);
+  return Boolean(rows[0]?.occupied);
 }
 
 async function restoreOpenEndedStay(

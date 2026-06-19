@@ -1,5 +1,5 @@
 /**
- * Admin occupancy audit and repair — compares Residents vs Bed Map SSOT.
+ * Admin occupancy audit and repair — bed_reservations SSOT.
  */
 
 import { sql } from 'drizzle-orm';
@@ -10,9 +10,14 @@ import type { AdminSession } from '@/src/lib/auth/session';
 import { isNotOccupancyPlaceholderCustomerSql } from '@/src/lib/occupancySqlFilters';
 import { revalidateOccupancyViews } from '@/src/lib/occupancyRevalidate';
 import { reconcileBookingOccupancy, reconcileOrphanBedReservations } from '@/src/lib/occupancySync';
-import { occupancyReservationCoreSql_b, adminAssignedReservationSql_b } from '@/src/lib/occupancySsot';
+import {
+  occupancyReservationCoreSql_b,
+  adminAssignedReservationSql_b,
+  bedOccupiedTodayExistsSql,
+} from '@/src/lib/occupancySsot';
 import { deriveTenancyStatus } from '@/src/lib/residentActiveTenancy';
 import { customerIsVerifiedSql } from '@/src/lib/residentVerification';
+import { runBedAudit, type BedAuditIssue } from '@/src/services/bedAudit';
 
 export type OccupancyAuditRow = {
   residentName: string;
@@ -24,6 +29,31 @@ export type OccupancyAuditRow = {
   bedMapStatus: 'assigned' | 'unassigned';
   mismatch: boolean;
   mismatchReason: string | null;
+};
+
+export type OccupancyRebuildResult = {
+  orphanReservationsClosed: number;
+  bookingsReconciled: number;
+  residencyStatusSynced: number;
+  residencyStatusDemoted: number;
+};
+
+export type OccupancyRepairPreview = {
+  mismatchCountBefore: number;
+  residentMismatchRows: OccupancyAuditRow[];
+  bedAuditIssues: BedAuditIssue[];
+  bedAuditIssueCount: number;
+  rebuild: OccupancyRebuildResult;
+  summary: ReturnType<typeof summarizeOccupancyAudit>;
+};
+
+export type OccupancyRepairExecuteResult = OccupancyRebuildResult & {
+  mismatchCountBefore: number;
+  mismatchCountAfter: number;
+  repairedCount: number;
+  remainingCount: number;
+  bedAuditIssueCountBefore: number;
+  bedAuditIssueCountAfter: number;
 };
 
 type AuditDbRow = {
@@ -38,6 +68,7 @@ type AuditDbRow = {
   bed_code: string | null;
   is_vacating: boolean;
   has_placeholder_booking_notes: boolean;
+  occupied_today: boolean;
 };
 
 export async function auditOccupancyMismatches(
@@ -48,14 +79,15 @@ export async function auditOccupancyMismatches(
       c.id::text AS customer_id,
       c.full_name,
       c.residency_status::text AS residency_status,
-      ssot.booking_id,
-      ssot.bed_reservation_id,
-      ssot.pg_id,
-      ssot.pg_name,
-      ssot.room_number,
-      ssot.bed_code,
-      coalesce(ssot.is_vacating, false) AS is_vacating,
-      coalesce(ssot.has_placeholder_booking_notes, false) AS has_placeholder_booking_notes
+      assigned.booking_id,
+      assigned.bed_reservation_id,
+      assigned.pg_id,
+      assigned.pg_name,
+      assigned.room_number,
+      assigned.bed_code,
+      coalesce(assigned.is_vacating, false) AS is_vacating,
+      coalesce(assigned.has_placeholder_booking_notes, false) AS has_placeholder_booking_notes,
+      coalesce(today.booking_id IS NOT NULL, false) AS occupied_today
     FROM customers c
     LEFT JOIN LATERAL (
       SELECT
@@ -84,9 +116,19 @@ export async function auditOccupancyMismatches(
       INNER JOIN pgs p ON p.id = f.pg_id
       WHERE b.customer_id = c.id
         AND ${adminAssignedReservationSql_b}
-      ORDER BY lower(br.stay_range) DESC
+      ORDER BY
+        (CURRENT_DATE <@ br.stay_range) DESC,
+        lower(br.stay_range) DESC
       LIMIT 1
-    ) ssot ON true
+    ) assigned ON true
+    LEFT JOIN LATERAL (
+      SELECT b.id::text AS booking_id
+      FROM bookings b
+      INNER JOIN bed_reservations br ON br.booking_id = b.id
+      WHERE b.customer_id = c.id
+        AND ${occupancyReservationCoreSql_b}
+      LIMIT 1
+    ) today ON true
     WHERE c.archived_at IS NULL
       AND ${isNotOccupancyPlaceholderCustomerSql}
       AND ${customerIsVerifiedSql}
@@ -100,7 +142,8 @@ export async function auditOccupancyMismatches(
         adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, row.pg_id),
     )
     .map((row) => {
-      const ssotAssigned = row.booking_id != null;
+      const residentsAssigned = row.booking_id != null;
+      const occupiedToday = row.occupied_today;
       const derived = deriveTenancyStatus({
         residencyStatus: row.residency_status as 'active' | 'vacated' | 'blocked',
         activeTenancy: row.booking_id
@@ -117,18 +160,25 @@ export async function auditOccupancyMismatches(
               ? 'vacated'
               : 'unassigned';
 
-      const bedMapStatus: 'assigned' | 'unassigned' = ssotAssigned ? 'assigned' : 'unassigned';
+      const bedMapStatus: 'assigned' | 'unassigned' =
+        residentsAssigned || occupiedToday ? 'assigned' : 'unassigned';
       const residentsShowsAssigned =
         residentsPageStatus === 'assigned' || residentsPageStatus === 'vacating';
-      const mismatch = ssotAssigned !== residentsShowsAssigned;
 
+      let mismatch = false;
       let mismatchReason: string | null = null;
-      if (mismatch && ssotAssigned && !residentsShowsAssigned) {
+
+      if (occupiedToday && !residentsShowsAssigned) {
+        mismatch = true;
+        mismatchReason = 'Bed occupied today but Residents shows unassigned';
+      } else if (residentsShowsAssigned && !residentsAssigned) {
+        mismatch = true;
+        mismatchReason = 'Residents shows assigned but no primary reservation (today or upcoming)';
+      } else if (residentsAssigned && !residentsShowsAssigned) {
+        mismatch = true;
         mismatchReason = row.has_placeholder_booking_notes
-          ? 'Booking still has occupancy-placeholder notes (legacy mismatch)'
-          : 'Residents page missed SSOT reservation';
-      } else if (mismatch && !ssotAssigned && residentsShowsAssigned) {
-        mismatchReason = 'Residents shows assigned but SSOT reservation missing';
+          ? 'Reservation exists but booking has occupancy-placeholder markers'
+          : 'Reservation exists but Residents tenancy status is not assigned';
       }
 
       const bedLabel =
@@ -151,12 +201,25 @@ export async function auditOccupancyMismatches(
     .filter((row) => row.mismatch || row.bedMapStatus === 'assigned');
 }
 
-export type OccupancyRebuildResult = {
-  orphanReservationsClosed: number;
-  bookingsReconciled: number;
-  residencyStatusSynced: number;
-  residencyStatusDemoted: number;
-};
+export async function previewOccupancyRepair(
+  session: AdminSession,
+): Promise<OccupancyRepairPreview> {
+  const [residentMismatchRows, bedAuditReport, rebuild] = await Promise.all([
+    auditOccupancyMismatches(session),
+    runBedAudit(),
+    previewRebuildOccupancyState(),
+  ]);
+  const bedAuditIssues = bedAuditReport.issues;
+  const summary = summarizeOccupancyAudit(residentMismatchRows);
+  return {
+    mismatchCountBefore: summary.mismatchCount,
+    residentMismatchRows,
+    bedAuditIssues,
+    bedAuditIssueCount: bedAuditIssues.length,
+    rebuild,
+    summary,
+  };
+}
 
 /** Preview rebuild — counts only, no writes. */
 export async function previewRebuildOccupancyState(): Promise<OccupancyRebuildResult> {
@@ -188,7 +251,7 @@ export async function previewRebuildOccupancyState(): Promise<OccupancyRebuildRe
         FROM bookings b
         INNER JOIN bed_reservations br ON br.booking_id = b.id
         WHERE b.customer_id = c.id
-          AND ${occupancyReservationCoreSql_b}
+          AND ${adminAssignedReservationSql_b}
       )
   `);
   const residencyStatusSynced = Array.isArray(syncRows) ? syncRows.length : 0;
@@ -203,7 +266,7 @@ export async function previewRebuildOccupancyState(): Promise<OccupancyRebuildRe
         FROM bookings b
         INNER JOIN bed_reservations br ON br.booking_id = b.id
         WHERE b.customer_id = c.id
-          AND ${occupancyReservationCoreSql_b}
+          AND ${adminAssignedReservationSql_b}
       )
   `);
   const residencyStatusDemoted = Array.isArray(demoteRows) ? demoteRows.length : 0;
@@ -244,7 +307,7 @@ export async function rebuildOccupancyState(): Promise<OccupancyRebuildResult> {
         FROM bookings b
         INNER JOIN bed_reservations br ON br.booking_id = b.id
         WHERE b.customer_id = c.id
-          AND ${occupancyReservationCoreSql_b}
+          AND ${adminAssignedReservationSql_b}
       )
     RETURNING c.id::text AS id
   `);
@@ -260,7 +323,7 @@ export async function rebuildOccupancyState(): Promise<OccupancyRebuildResult> {
         FROM bookings b
         INNER JOIN bed_reservations br ON br.booking_id = b.id
         WHERE b.customer_id = c.id
-          AND ${occupancyReservationCoreSql_b}
+          AND ${adminAssignedReservationSql_b}
       )
     RETURNING c.id::text AS id
   `);
@@ -281,11 +344,32 @@ export async function rebuildOccupancyState(): Promise<OccupancyRebuildResult> {
   };
 }
 
+export async function executeOccupancyRepair(
+  session: AdminSession,
+): Promise<OccupancyRepairExecuteResult> {
+  const before = await previewOccupancyRepair(session);
+  const rebuild = await rebuildOccupancyState();
+  const afterRows = await auditOccupancyMismatches(session);
+  const afterBedIssues = (await runBedAudit()).issues;
+  const afterSummary = summarizeOccupancyAudit(afterRows);
+
+  return {
+    ...rebuild,
+    mismatchCountBefore: before.mismatchCountBefore,
+    mismatchCountAfter: afterSummary.mismatchCount,
+    repairedCount: Math.max(0, before.mismatchCountBefore - afterSummary.mismatchCount),
+    remainingCount: afterSummary.mismatchCount,
+    bedAuditIssueCountBefore: before.bedAuditIssueCount,
+    bedAuditIssueCountAfter: afterBedIssues.length,
+  };
+}
+
 export function summarizeOccupancyAudit(rows: OccupancyAuditRow[]): {
   totalScanned: number;
   mismatchCount: number;
   bedMapAssignedCount: number;
   residentsUnassignedCount: number;
+  occupiedTodayUnassignedCount: number;
 } {
   const mismatches = rows.filter((r) => r.mismatch);
   return {
@@ -295,5 +379,19 @@ export function summarizeOccupancyAudit(rows: OccupancyAuditRow[]): {
     residentsUnassignedCount: rows.filter(
       (r) => r.bedMapStatus === 'assigned' && r.residentsPageStatus === 'unassigned',
     ).length,
+    occupiedTodayUnassignedCount: rows.filter((r) =>
+      Boolean(r.mismatchReason?.includes('Bed occupied today')),
+    ).length,
   };
+}
+
+/** Dashboard vs bed-map occupied bed count — must match SSOT. */
+export async function countOccupiedBedsSsot(): Promise<number> {
+  const rows = await db.execute<{ count: number }>(sql`
+    SELECT count(*)::int AS count
+    FROM beds
+    WHERE beds.archived_at IS NULL
+      AND ${bedOccupiedTodayExistsSql}
+  `);
+  return rows[0]?.count ?? 0;
 }

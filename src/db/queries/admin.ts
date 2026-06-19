@@ -798,12 +798,7 @@ export function getOccupancyByPg(): Promise<QueryResult<OccupancyByPg[]>> {
         occupancyPct: sql<number>`(
           CASE WHEN count(beds.id) = 0 THEN 0
           ELSE round(100.0 * count(beds.id) FILTER (
-            WHERE EXISTS (
-              SELECT 1 FROM ${bedReservations} r
-              WHERE r.bed_id = beds.id
-                AND r.status = 'active'
-                AND CURRENT_DATE <@ r.stay_range
-            )
+            WHERE ${bedOccupiedTodayExistsSql}
           ) / count(beds.id), 1)
           END
         )::float`,
@@ -1168,22 +1163,12 @@ export function getOccupancyByFloor(): Promise<QueryResult<OccupancyByFloor[]>> 
         floorLabel: sql<string>`coalesce(${floors.label}, 'Floor ' || ${floors.floorNumber})`,
         totalBeds: sql<number>`count(beds.id)::int`,
         occupiedBeds: sql<number>`count(beds.id) FILTER (
-          WHERE EXISTS (
-            SELECT 1 FROM ${bedReservations} r
-            WHERE r.bed_id = beds.id
-              AND r.status = 'active'
-              AND CURRENT_DATE <@ r.stay_range
-          )
+          WHERE ${bedOccupiedTodayExistsSql}
         )::int`,
         occupancyPct: sql<number>`(
           CASE WHEN count(beds.id) = 0 THEN 0
           ELSE round(100.0 * count(beds.id) FILTER (
-            WHERE EXISTS (
-              SELECT 1 FROM ${bedReservations} r
-              WHERE r.bed_id = beds.id
-                AND r.status = 'active'
-                AND CURRENT_DATE <@ r.stay_range
-            )
+            WHERE ${bedOccupiedTodayExistsSql}
           ) / count(beds.id), 1)
           END
         )::float`,

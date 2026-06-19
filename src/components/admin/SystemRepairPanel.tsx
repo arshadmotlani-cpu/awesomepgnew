@@ -53,8 +53,8 @@ export function SystemRepairPanel() {
         error={errors.occupancy}
         onAudit={() => run('occupancy', auditOccupancyRepairAction, 'message')}
         onPreview={() => run('occupancy', previewOccupancyRepairAction, 'preview')}
-        onDryRun={() => run('occupancy', previewOccupancyRepairAction, 'preview')}
-        onExecute={() => run('occupancy', executeOccupancyRepairAction, 'message')}
+        onDryRun={() => run('occupancy', () => executeOccupancyRepairAction(true), 'preview')}
+        onExecute={() => run('occupancy', () => executeOccupancyRepairAction(false), 'message')}
         auditLabel="Audit"
       />
 

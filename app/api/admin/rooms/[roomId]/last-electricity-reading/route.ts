@@ -5,6 +5,7 @@ import { electricityBills, meterLogs } from '@/src/db/schema';
 import { getAdminSession } from '@/src/lib/auth/session';
 import { adminHasPermission } from '@/src/lib/auth/roles';
 import { DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE } from '@/src/lib/billing/constants';
+import { estimateRoomAverageBillPaise } from '@/src/services/meterElectricity';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -45,11 +46,15 @@ export async function GET(
         ? Number(lastMeter.units)
         : 0;
 
+  const ratePaise = lastBill?.ratePerUnitPaise ?? DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE;
+  const estimatedAverageBillPaise = await estimateRoomAverageBillPaise(roomId, ratePaise);
+
   return Response.json({
     ok: true,
     data: {
       previousReadingUnits,
-      ratePerUnitPaise: lastBill?.ratePerUnitPaise ?? DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE,
+      ratePerUnitPaise: ratePaise,
+      estimatedAverageBillPaise,
       lastBillingMonth: lastBill?.billingMonth ?? null,
     },
   });

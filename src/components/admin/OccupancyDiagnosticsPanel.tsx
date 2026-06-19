@@ -3,7 +3,8 @@
 import { useActionState } from 'react';
 import {
   auditOccupancyAction,
-  rebuildOccupancyAction,
+  executeOccupancyDiagnosticsAction,
+  previewOccupancyDiagnosticsAction,
   type OccupancyDiagnosticsActionState,
 } from '@/app/(admin)/admin/settings/occupancy-diagnostics-actions';
 
@@ -11,13 +12,37 @@ const idle: OccupancyDiagnosticsActionState = { status: 'idle' };
 
 export function OccupancyDiagnosticsPanel() {
   const [auditState, auditAction, auditPending] = useActionState(auditOccupancyAction, idle);
-  const [rebuildState, rebuildAction, rebuildPending] = useActionState(
-    rebuildOccupancyAction,
+  const [previewState, previewAction, previewPending] = useActionState(
+    previewOccupancyDiagnosticsAction,
+    idle,
+  );
+  const [executeState, executeAction, executePending] = useActionState(
+    executeOccupancyDiagnosticsAction,
+    idle,
+  );
+  const [dryRunState, dryRunAction, dryRunPending] = useActionState(
+    executeOccupancyDiagnosticsAction,
     idle,
   );
 
   const rows = auditState.status === 'ok' ? auditState.audit ?? [] : [];
   const mismatches = rows.filter((r) => r.mismatch);
+  const repairMessage =
+    executeState.status === 'ok'
+      ? executeState.message
+      : dryRunState.status === 'ok'
+        ? dryRunState.message
+        : previewState.status === 'ok'
+          ? previewState.message
+          : null;
+  const repairError =
+    executeState.status === 'error'
+      ? executeState.message
+      : dryRunState.status === 'error'
+        ? dryRunState.message
+        : previewState.status === 'error'
+          ? previewState.message
+          : null;
 
   return (
     <div className="space-y-6">
@@ -31,13 +56,33 @@ export function OccupancyDiagnosticsPanel() {
             {auditPending ? 'Auditing…' : 'Audit Occupancy'}
           </button>
         </form>
-        <form action={rebuildAction}>
+        <form action={previewAction}>
           <button
             type="submit"
-            disabled={rebuildPending}
+            disabled={previewPending}
+            className="rounded-lg border border-white/10 bg-[#12161C] px-4 py-2 text-sm font-semibold text-white hover:bg-white/5 disabled:opacity-60"
+          >
+            {previewPending ? 'Previewing…' : 'Preview Repair'}
+          </button>
+        </form>
+        <form action={dryRunAction}>
+          <input type="hidden" name="dryRun" value="true" />
+          <button
+            type="submit"
+            disabled={dryRunPending}
+            className="rounded-lg border border-sky-400/30 px-4 py-2 text-sm font-semibold text-sky-200 hover:bg-sky-500/10 disabled:opacity-60"
+          >
+            {dryRunPending ? 'Dry running…' : 'Dry Run'}
+          </button>
+        </form>
+        <form action={executeAction}>
+          <input type="hidden" name="dryRun" value="false" />
+          <button
+            type="submit"
+            disabled={executePending}
             className="rounded-lg bg-[#FF5A1F] px-4 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-60"
           >
-            {rebuildPending ? 'Rebuilding…' : 'Rebuild Resident Occupancy From Bed Reservations'}
+            {executePending ? 'Executing…' : 'Execute Repair'}
           </button>
         </form>
       </div>
@@ -48,12 +93,8 @@ export function OccupancyDiagnosticsPanel() {
       {auditState.status === 'error' ? (
         <p className="text-sm text-rose-300">{auditState.message}</p>
       ) : null}
-      {rebuildState.status === 'ok' ? (
-        <p className="text-sm text-emerald-300">{rebuildState.message}</p>
-      ) : null}
-      {rebuildState.status === 'error' ? (
-        <p className="text-sm text-rose-300">{rebuildState.message}</p>
-      ) : null}
+      {repairMessage ? <p className="text-sm text-emerald-300">{repairMessage}</p> : null}
+      {repairError ? <p className="text-sm text-rose-300">{repairError}</p> : null}
 
       {rows.length > 0 ? (
         <div className="overflow-x-auto rounded-xl border border-white/10">

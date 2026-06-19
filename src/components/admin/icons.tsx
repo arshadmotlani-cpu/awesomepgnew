@@ -163,3 +163,11 @@ export const IconLogo = (props: IconProps) => (
     <path d="M3 10.5 12 4l9 6.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" />
   </svg>
 );
+
+export const IconDownload = (props: IconProps) => (
+  <svg {...base(props)}>
+    <path d="M12 3v12" />
+    <path d="m7 10 5 5 5-5" />
+    <path d="M5 21h14" />
+  </svg>
+);
