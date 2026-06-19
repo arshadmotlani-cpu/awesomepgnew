@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import {
   submitDepositRefundRequestAction,
   uploadDepositRefundQrAction,
@@ -13,9 +13,11 @@ const idle: RequestActionState = { ok: false };
 export function DepositRefundRequestForm({
   bookingId,
   refundableBalancePaise,
+  onSubmitted,
 }: {
   bookingId: string;
   refundableBalancePaise: number;
+  onSubmitted?: () => void;
 }) {
   const [state, formAction, pending] = useActionState(submitDepositRefundRequestAction, idle);
   const [useAverageBilling, setUseAverageBilling] = useState(false);
@@ -29,6 +31,10 @@ export function DepositRefundRequestForm({
   const hasPayout = Boolean(payoutUpiId.trim() || qrUrl);
   const hasMeter = Boolean(useAverageBilling || meterUrl);
   const canSubmit = hasMeter && hasPayout && refundableBalancePaise > 0;
+
+  useEffect(() => {
+    if (state.ok) onSubmitted?.();
+  }, [state.ok, onSubmitted]);
 
   async function handleMeterFile(file: File | null) {
     if (!file) return;

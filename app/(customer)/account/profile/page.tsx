@@ -173,7 +173,14 @@ export default async function ProfilePage(
             customerId={session.customerId}
             residentName={session.fullName || customer.fullName}
           />
-          <ResidentAreaSection customerId={session.customerId} activeTab={residentTab} />
+          <ResidentAreaSection
+            customerId={session.customerId}
+            activeTab={residentTab}
+            requestsQuery={{
+              requestId: typeof sp.request === 'string' ? sp.request : undefined,
+              make: sp.make === '1',
+            }}
+          />
         </>
       ) : null}
     </main>

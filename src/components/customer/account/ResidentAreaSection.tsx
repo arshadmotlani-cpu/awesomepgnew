@@ -31,7 +31,6 @@ import {
 import { buildBriefingInputForBooking } from '@/src/lib/cockroach/briefingFromBooking';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import { DepositDueSection } from '@/src/components/customer/account/DepositDueSection';
-import { ResidentRequestForms } from '@/src/components/customer/account/ResidentRequestForms';
 import { getCustomerDepositCredit } from '@/src/services/depositCredit';
 import { ensureDepositDuePaymentLink } from '@/src/services/depositCollection';
 import { paymentLinkPublicUrl } from '@/src/lib/billing/paymentLinkUrl';
@@ -40,7 +39,8 @@ import { listOpenRequestsForCustomer } from '@/src/services/residentRequests';
 import { MyRoomPanel } from '@/src/components/customer/account/MyRoomPanel';
 import { NotificationCenterPanel } from '@/src/components/customer/account/NotificationCenterPanel';
 import { ReferralsPanel } from '@/src/components/customer/account/ReferralsPanel';
-import { RequestsCenter } from '@/src/components/customer/account/RequestsCenter';
+import { RequestsHome } from '@/src/components/customer/account/resident/requests/RequestsHome';
+import { requestTypeLabel, type ActiveRequestItem } from '@/src/lib/residents/requestCenter';
 import { ResidentConciergeChat } from '@/src/components/customer/account/ResidentConciergeChat';
 import { ResidentHubShell } from '@/src/components/customer/account/ResidentHubShell';
 import { VacatingJourneyTimeline } from '@/src/components/customer/account/VacatingJourneyTimeline';
@@ -97,9 +97,14 @@ function StatusPill({
 export async function ResidentAreaSection({
   customerId,
   activeTab = 'home',
+  requestsQuery = {},
 }: {
   customerId: string;
   activeTab?: ResidentTab;
+  requestsQuery?: {
+    requestId?: string;
+    make?: boolean;
+  };
 }) {
   const session = await getCustomerSession();
   if (!session || session.customerId !== customerId) {
@@ -369,6 +374,33 @@ export async function ResidentAreaSection({
     ? `/account/resident/history/${primaryBooking.bookingId}`
     : null;
 
+  const activeRequests: ActiveRequestItem[] = [];
+  for (const r of openRequests) {
+    activeRequests.push({
+      id: r.id,
+      type: r.type,
+      typeLabel: requestTypeLabel(r.type),
+      status: r.status,
+      createdAt: r.createdAt,
+      adminNotes: r.adminNotes,
+    });
+  }
+  if (primaryVacating && ['pending', 'approved'].includes(primaryVacating.status)) {
+    activeRequests.unshift({
+      id: `vacating-${primaryVacating.id}`,
+      type: 'vacating',
+      typeLabel: requestTypeLabel('vacating'),
+      status: primaryVacating.status,
+      createdAt: primaryVacating.createdAt,
+      isVacating: true,
+    });
+  }
+
+  const hasDepositDue = depositDueCards.some((c) => c.depositDuePaise > 0);
+  const roomLabel = primaryBooking
+    ? `${primaryBooking.booking.pgName} · R${primaryBooking.booking.roomNumber}`
+    : '';
+
   return (
     <ResidentHubShell activeTab={activeTab}>
       {activeTab === 'notifications' ? (
@@ -395,23 +427,14 @@ export async function ResidentAreaSection({
         />
       ) : null}
       {activeTab === 'requests' && primaryBooking ? (
-        <RequestsCenter
+        <RequestsHome
           bookingId={primaryBooking.bookingId}
-          openRequestTypes={openRequests.map((r) =>
-            r.type === 'deposit_refund' ? 'deposit_refund' : r.type,
-          )}
-          openRequests={openRequests.map((r) => ({
-            id: r.id,
-            type: r.type,
-            status: r.status,
-          }))}
-          moreContent={
-            <ResidentRequestForms
-              bookingId={primaryBooking.bookingId}
-              refundableBalancePaise={primaryBooking.deposit?.refundableBalancePaise ?? 0}
-              hasOpenVacating={hasOpenVacating}
-            />
-          }
+          roomLabel={roomLabel}
+          refundableBalancePaise={primaryBooking.deposit?.refundableBalancePaise ?? 0}
+          hasDepositDue={hasDepositDue}
+          activeRequests={activeRequests}
+          selectedRequestId={requestsQuery.requestId ?? null}
+          startMake={requestsQuery.make ?? false}
         />
       ) : null}
 
