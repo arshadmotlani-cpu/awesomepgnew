@@ -34,10 +34,15 @@ function statusTone(status: string) {
 
 export default async function AdminDepositDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<RouteParams>;
+  searchParams: Promise<{ saved?: string; depositError?: string }>;
 }) {
   const { bookingId } = await params;
+  const query = await searchParams;
+  const saved = query.saved === '1';
+  const depositError = query.depositError ? decodeURIComponent(query.depositError) : null;
 
   try {
     await ensureAdminPageNotificationsSeen(
@@ -152,7 +157,11 @@ export default async function AdminDepositDetailPage({
         </p>
       ) : walletProps ? (
         <>
-          <DepositCorrectForm view={jsonSafe(clientSafeDepositView(walletProps.view))} />
+          <DepositCorrectForm
+            view={jsonSafe(clientSafeDepositView(walletProps.view))}
+            saved={saved}
+            errorMessage={depositError}
+          />
           {!isFrozen && adjustProps ? (
             <DepositAdjustForms bookingId={adjustProps.bookingId} />
           ) : null}

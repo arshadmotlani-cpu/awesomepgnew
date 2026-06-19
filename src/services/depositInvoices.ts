@@ -110,12 +110,24 @@ function displayStatusFor(row: {
   }
 }
 
+function invoicePaise(value: unknown, field: string): number {
+  return guardDepositPaise(value, field);
+}
+
 function toInvoiceRecord(
   row: RawRow,
   flags: { hasRefundRequest: boolean; hasSettlement: boolean },
 ): DepositInvoiceRecord {
-  const deductionsPaise = row.deductedPaise + row.refundedPaise;
-  const refundablePaise = Math.max(0, row.refundableBalancePaise);
+  const depositPaise = invoicePaise(row.depositPaise, 'invoice.depositPaise');
+  const depositDuePaise = invoicePaise(row.depositDuePaise, 'invoice.depositDuePaise');
+  const collectedPaise = invoicePaise(row.collectedPaise, 'invoice.collectedPaise');
+  const deductedPaise = invoicePaise(row.deductedPaise, 'invoice.deductedPaise');
+  const refundedPaise = invoicePaise(row.refundedPaise, 'invoice.refundedPaise');
+  const deductionsPaise = deductedPaise + refundedPaise;
+  const refundablePaise = Math.max(
+    0,
+    invoicePaise(row.refundableBalancePaise, 'invoice.refundableBalancePaise'),
+  );
 
   let invoiceStatus: DepositInvoiceStatus;
   const isSettled =
@@ -128,7 +140,7 @@ function toInvoiceRecord(
     invoiceStatus = 'settled';
   } else if (flags.hasRefundRequest) {
     invoiceStatus = 'refund_pending';
-  } else if (row.depositDuePaise > 0 || row.collectedPaise < row.depositPaise) {
+  } else if (depositDuePaise > 0 || collectedPaise < depositPaise) {
     invoiceStatus = 'collecting';
   } else if (refundablePaise > 0) {
     invoiceStatus = 'held';
@@ -146,23 +158,23 @@ function toInvoiceRecord(
     pgName: row.pgName,
     roomNumber: row.roomNumber,
     bedCode: row.bedCode,
-    requiredPaise: row.depositPaise,
-    collectedPaise: row.collectedPaise,
+    requiredPaise: depositPaise,
+    collectedPaise,
     deductionsPaise,
     refundablePaise,
     invoiceStatus,
     displayStatus: displayStatusFor({
       invoiceStatus,
       depositCollectionStatus: row.depositCollectionStatus,
-      depositDuePaise: row.depositDuePaise,
+      depositDuePaise,
     }),
     isSettled,
     isFrozen: isSettled,
-    depositPaise: row.depositPaise,
-    depositDuePaise: row.depositDuePaise,
+    depositPaise,
+    depositDuePaise,
     depositCollectionStatus: row.depositCollectionStatus,
-    deductedPaise: row.deductedPaise,
-    refundedPaise: row.refundedPaise,
+    deductedPaise,
+    refundedPaise,
     refundableBalancePaise: refundablePaise,
   };
 }

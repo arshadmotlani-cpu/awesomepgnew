@@ -132,7 +132,10 @@ export async function adjustDepositCollectedBalance(input: {
   reason: string;
   createdByAdminId: string;
 }): Promise<{ ok: true; ledgerDelta: number } | { ok: false; error: string }> {
-  const targetCollectedPaise = coerceNonNegativePaise(input.targetCollectedPaise);
+  const targetCollectedPaise = guardDepositPaise(
+    input.targetCollectedPaise,
+    'adjustDepositCollectedBalance.targetCollectedPaise',
+  );
   if (!Number.isFinite(targetCollectedPaise)) {
     return { ok: false, error: 'Collected amount must be a valid number.' };
   }
@@ -145,7 +148,10 @@ export async function adjustDepositCollectedBalance(input: {
   });
 
   const summary = await getDepositSummaryForBooking(input.bookingId);
-  const ledgerCollectedPaise = summary?.collectedPaise ?? 0;
+  const ledgerCollectedPaise = guardDepositPaise(
+    summary?.collectedPaise ?? 0,
+    'adjustDepositCollectedBalance.ledgerCollectedPaise',
+  );
   const ledgerDelta = targetCollectedPaise - ledgerCollectedPaise;
 
   if (ledgerDelta > 0) {
@@ -372,10 +378,13 @@ export async function getDepositSummaryForBooking(
     const summary = {
       bookingId,
       customerId: booking.customerId,
-      collectedPaise: collected,
-      deductedPaise: deducted,
-      refundedPaise: refunded,
-      refundableBalancePaise: collected - deducted - refunded,
+      collectedPaise: guardDepositPaise(collected, 'summary.collectedPaise'),
+      deductedPaise: guardDepositPaise(deducted, 'summary.deductedPaise'),
+      refundedPaise: guardDepositPaise(refunded, 'summary.refundedPaise'),
+      refundableBalancePaise: guardDepositPaise(
+        collected - deducted - refunded,
+        'summary.refundableBalancePaise',
+      ),
       entries,
     };
 

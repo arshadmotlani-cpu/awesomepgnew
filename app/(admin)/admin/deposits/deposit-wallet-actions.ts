@@ -1,7 +1,6 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
 import { isRedirectError } from 'next/dist/client/components/redirect-error';
 import { eq } from 'drizzle-orm';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
@@ -188,7 +187,10 @@ async function editDepositSummaryCore(formData: FormData): Promise<DepositWallet
 
     revalidateDepositViews(bookingId);
 
-    redirect(`/admin/deposits/${bookingId}`);
+    return {
+      status: 'ok',
+      message: 'Deposit summary updated everywhere.',
+    };
   } catch (err) {
     if (isRedirectError(err)) throw err;
     await logDepositWalletFailure({
@@ -211,6 +213,19 @@ export async function editDepositSummaryAction(
   formData: FormData,
 ): Promise<DepositWalletActionState> {
   return editDepositSummaryCore(formData);
+}
+
+/** Plain form action — full document navigation, avoids useActionState soft RSC refresh. */
+export async function editDepositSummaryFormAction(formData: FormData): Promise<void> {
+  const bookingId = String(formData.get('bookingId') ?? '');
+  const result = await editDepositSummaryCore(formData);
+  const { redirect } = await import('next/navigation');
+  if (result.status === 'error') {
+    redirect(
+      `/admin/deposits/${bookingId}?depositError=${encodeURIComponent(result.message)}`,
+    );
+  }
+  redirect(`/admin/deposits/${bookingId}?saved=1`);
 }
 
 export async function rebuildDepositWalletAction(

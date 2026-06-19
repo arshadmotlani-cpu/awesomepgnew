@@ -470,101 +470,109 @@ export async function updateDepositSummaryAdmin(input: {
   collectedPaise?: number;
   reason: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
-  const requiredCheck = validatePaiseInput('Required deposit', input.requiredPaise);
-  if (!requiredCheck.ok) return requiredCheck;
-  const collectedCheck = validatePaiseInput('Collected deposit', input.collectedPaise);
-  if (!collectedCheck.ok) return collectedCheck;
+  try {
+    const requiredCheck = validatePaiseInput('Required deposit', input.requiredPaise);
+    if (!requiredCheck.ok) return requiredCheck;
+    const collectedCheck = validatePaiseInput('Collected deposit', input.collectedPaise);
+    if (!collectedCheck.ok) return collectedCheck;
 
-  const requiredPaise = requiredCheck.paise;
-  const collectedPaise = collectedCheck.paise;
+    const requiredPaise = requiredCheck.paise;
+    const collectedPaise = collectedCheck.paise;
 
-  console.info('[deposit-ops] updateDepositSummaryAdmin start', {
-    bookingId: input.bookingId,
-    customerId: input.customerId,
-    adminId: input.adminId,
-    requiredPaise,
-    collectedPaise,
-    reason: input.reason,
-  });
-
-  const [booking] = await db
-    .select({
-      depositPaise: bookings.depositPaise,
-      totalPaise: bookings.totalPaise,
-      bookingCode: bookings.bookingCode,
-    })
-    .from(bookings)
-    .where(eq(bookings.id, input.bookingId))
-    .limit(1);
-  if (!booking) return { ok: false, error: 'Booking not found.' };
-
-  const priorRequired = guardDepositPaise(booking.depositPaise, 'updateDepositSummary.priorRequired');
-  const priorTotal = guardDepositPaise(booking.totalPaise, 'updateDepositSummary.priorTotal');
-
-  // Ledger first — never mutate required deposit until collected adjustment succeeds.
-  if (collectedPaise != null) {
-    const adjusted = await adjustDepositCollectedBalance({
+    console.info('[deposit-ops] updateDepositSummaryAdmin start', {
       bookingId: input.bookingId,
       customerId: input.customerId,
-      targetCollectedPaise: collectedPaise,
-      reason: input.reason,
-      createdByAdminId: input.adminId,
-    });
-    if (!adjusted.ok) {
-      console.error('[deposit-ops] updateDepositSummaryAdmin ledger adjust failed', {
-        bookingId: input.bookingId,
-        customerId: input.customerId,
-        collectedPaise,
-        error: adjusted.error,
-      });
-      return { ok: false, error: adjusted.error };
-    }
-  }
-
-  if (requiredPaise != null) {
-    const newTotalPaise = priorTotal - priorRequired + requiredPaise;
-    if (!Number.isFinite(newTotalPaise) || newTotalPaise < 0) {
-      return {
-        ok: false,
-        error: 'Deposit correction would produce an invalid booking total.',
-      };
-    }
-
-    await db
-      .update(bookings)
-      .set({
-        depositPaise: requiredPaise,
-        totalPaise: newTotalPaise,
-        updatedAt: new Date(),
-      })
-      .where(eq(bookings.id, input.bookingId));
-  }
-
-  await syncDepositCollectionFromLedger(input.bookingId);
-
-  await db.insert(auditLog).values({
-    actorType: 'admin',
-    actorId: input.adminId,
-    entity: 'booking',
-    entityId: input.bookingId,
-    action: 'deposit_summary_updated',
-    diff: {
-      priorRequiredPaise: priorRequired,
-      priorTotalPaise: priorTotal,
+      adminId: input.adminId,
       requiredPaise,
       collectedPaise,
       reason: input.reason,
-    },
-  });
+    });
 
-  console.info('[deposit-ops] updateDepositSummaryAdmin ok', {
-    bookingId: input.bookingId,
-    customerId: input.customerId,
-    requiredPaise,
-    collectedPaise,
-  });
+    const [booking] = await db
+      .select({
+        depositPaise: bookings.depositPaise,
+        totalPaise: bookings.totalPaise,
+        bookingCode: bookings.bookingCode,
+      })
+      .from(bookings)
+      .where(eq(bookings.id, input.bookingId))
+      .limit(1);
+    if (!booking) return { ok: false, error: 'Booking not found.' };
 
-  return { ok: true };
+    const priorRequired = guardDepositPaise(booking.depositPaise, 'updateDepositSummary.priorRequired');
+    const priorTotal = guardDepositPaise(booking.totalPaise, 'updateDepositSummary.priorTotal');
+
+    // Update required deposit before ledger collected adjustment when both change.
+    if (requiredPaise != null) {
+      const newTotalPaise = priorTotal - priorRequired + requiredPaise;
+      if (!Number.isFinite(newTotalPaise) || newTotalPaise < 0) {
+        return {
+          ok: false,
+          error: 'Deposit correction would produce an invalid booking total.',
+        };
+      }
+
+      await db
+        .update(bookings)
+        .set({
+          depositPaise: requiredPaise,
+          totalPaise: newTotalPaise,
+          updatedAt: new Date(),
+        })
+        .where(eq(bookings.id, input.bookingId));
+    }
+
+    if (collectedPaise != null) {
+      const adjusted = await adjustDepositCollectedBalance({
+        bookingId: input.bookingId,
+        customerId: input.customerId,
+        targetCollectedPaise: collectedPaise,
+        reason: input.reason,
+        createdByAdminId: input.adminId,
+      });
+      if (!adjusted.ok) {
+        console.error('[deposit-ops] updateDepositSummaryAdmin ledger adjust failed', {
+          bookingId: input.bookingId,
+          customerId: input.customerId,
+          collectedPaise,
+          error: adjusted.error,
+        });
+        return { ok: false, error: adjusted.error };
+      }
+    }
+
+    await syncDepositCollectionFromLedger(input.bookingId);
+
+    await db.insert(auditLog).values({
+      actorType: 'admin',
+      actorId: input.adminId,
+      entity: 'booking',
+      entityId: input.bookingId,
+      action: 'deposit_summary_updated',
+      diff: {
+        priorRequiredPaise: priorRequired,
+        priorTotalPaise: priorTotal,
+        requiredPaise,
+        collectedPaise,
+        reason: input.reason,
+      },
+    });
+
+    console.info('[deposit-ops] updateDepositSummaryAdmin ok', {
+      bookingId: input.bookingId,
+      customerId: input.customerId,
+      requiredPaise,
+      collectedPaise,
+    });
+
+    return { ok: true };
+  } catch (err) {
+    console.error('[deposit-ops] updateDepositSummaryAdmin failed', input.bookingId, err);
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Deposit update failed.',
+    };
+  }
 }
 
 /** Record deposit collection via unified path (invoice paid / mark paid). */
