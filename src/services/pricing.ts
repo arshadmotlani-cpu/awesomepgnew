@@ -22,6 +22,7 @@ import { and, asc, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import { db } from '../db/client';
 import { bedPrices } from '../db/schema';
 import { addMonths, diffDays, formatDate, isBefore, parseDate, type DateLike } from '../lib/dates';
+import { coerceNonNegativePaise } from '../lib/format';
 import { computeLowestFixedStayRent } from '../lib/pricing/fixedStayOptimizer';
 import type { FixedStayPricingStrategy } from '../lib/pricing/types';
 
@@ -41,29 +42,62 @@ export type RateSnapshot = {
   effectiveTo: string | null;
 };
 
+function coerceRateSnapshot(row: {
+  id: string;
+  dailyRatePaise: unknown;
+  weeklyRatePaise: unknown;
+  monthlyRatePaise: unknown;
+  securityDepositPaise: unknown;
+  dailySecurityDepositPaise: unknown;
+  weeklySecurityDepositPaise: unknown;
+  monthlySecurityDepositPaise: unknown;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+}): RateSnapshot {
+  return {
+    bedPriceId: row.id,
+    dailyRatePaise: coerceNonNegativePaise(row.dailyRatePaise),
+    weeklyRatePaise: coerceNonNegativePaise(row.weeklyRatePaise),
+    monthlyRatePaise: coerceNonNegativePaise(row.monthlyRatePaise),
+    securityDepositPaise: coerceNonNegativePaise(row.securityDepositPaise),
+    dailySecurityDepositPaise: coerceNonNegativePaise(row.dailySecurityDepositPaise),
+    weeklySecurityDepositPaise: coerceNonNegativePaise(row.weeklySecurityDepositPaise),
+    monthlySecurityDepositPaise: coerceNonNegativePaise(row.monthlySecurityDepositPaise),
+    effectiveFrom: row.effectiveFrom,
+    effectiveTo: row.effectiveTo,
+  };
+}
+
 export function securityDepositForMode(rate: RateSnapshot, durationMode: PricingMode): number {
   if (durationMode === 'open_ended' || durationMode === 'monthly') {
     return computeMonthlyDepositPaise(rate);
   }
   if (durationMode === 'daily') {
-    return rate.dailySecurityDepositPaise > 0
-      ? rate.dailySecurityDepositPaise
-      : rate.securityDepositPaise;
+    return coerceNonNegativePaise(
+      coerceNonNegativePaise(rate.dailySecurityDepositPaise) > 0
+        ? rate.dailySecurityDepositPaise
+        : rate.securityDepositPaise,
+    );
   }
   if (durationMode === 'weekly') {
-    return rate.weeklySecurityDepositPaise > 0
-      ? rate.weeklySecurityDepositPaise
-      : rate.securityDepositPaise;
+    return coerceNonNegativePaise(
+      coerceNonNegativePaise(rate.weeklySecurityDepositPaise) > 0
+        ? rate.weeklySecurityDepositPaise
+        : rate.securityDepositPaise,
+    );
   }
-  return rate.monthlySecurityDepositPaise > 0
-    ? rate.monthlySecurityDepositPaise
-    : rate.securityDepositPaise;
+  return coerceNonNegativePaise(
+    coerceNonNegativePaise(rate.monthlySecurityDepositPaise) > 0
+      ? rate.monthlySecurityDepositPaise
+      : rate.securityDepositPaise,
+  );
 }
 
 /** Monthly / open-ended stays: deposit = 2 × monthly rent. */
 export function computeMonthlyDepositPaise(rate: RateSnapshot): number {
-  requirePositiveRate(rate.monthlyRatePaise, 'monthly');
-  return rate.monthlyRatePaise * 2;
+  const monthly = coerceNonNegativePaise(rate.monthlyRatePaise);
+  requirePositiveRate(monthly, 'monthly');
+  return monthly * 2;
 }
 
 /** Fixed-date stays: deposit = 50% of booking subtotal (rent only, not deposit). */
@@ -394,18 +428,7 @@ export async function loadBedPrice(
     .limit(1);
 
   if (!row) return null;
-  return {
-    bedPriceId: row.id,
-    dailyRatePaise: row.dailyRatePaise,
-    weeklyRatePaise: row.weeklyRatePaise,
-    monthlyRatePaise: row.monthlyRatePaise,
-    securityDepositPaise: row.securityDepositPaise,
-    dailySecurityDepositPaise: row.dailySecurityDepositPaise,
-    weeklySecurityDepositPaise: row.weeklySecurityDepositPaise,
-    monthlySecurityDepositPaise: row.monthlySecurityDepositPaise,
-    effectiveFrom: row.effectiveFrom,
-    effectiveTo: row.effectiveTo,
-  };
+  return coerceRateSnapshot(row);
 }
 
 /** Latest configured price row for a bed (ignores move-in date). Admin fallback. */
@@ -430,18 +453,7 @@ export async function loadLatestBedPrice(bedId: string): Promise<RateSnapshot | 
     .limit(1);
 
   if (!row) return null;
-  return {
-    bedPriceId: row.id,
-    dailyRatePaise: row.dailyRatePaise,
-    weeklyRatePaise: row.weeklyRatePaise,
-    monthlyRatePaise: row.monthlyRatePaise,
-    securityDepositPaise: row.securityDepositPaise,
-    dailySecurityDepositPaise: row.dailySecurityDepositPaise,
-    weeklySecurityDepositPaise: row.weeklySecurityDepositPaise,
-    monthlySecurityDepositPaise: row.monthlySecurityDepositPaise,
-    effectiveFrom: row.effectiveFrom,
-    effectiveTo: row.effectiveTo,
-  };
+  return coerceRateSnapshot(row);
 }
 
 function syntheticAdminRate(args: {

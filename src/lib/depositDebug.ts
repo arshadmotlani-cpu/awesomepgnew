@@ -24,14 +24,25 @@ function serializeError(error: unknown) {
   return error;
 }
 
+function jsonReplacer(_key: string, value: unknown) {
+  if (typeof value === 'bigint') return Number(value);
+  if (value instanceof Date) return value.toISOString();
+  return value;
+}
+
 export function logDepositDebug(snapshot: DepositDebugSnapshot) {
   const payload = {
     ...snapshot,
     error: snapshot.error != null ? serializeError(snapshot.error) : undefined,
   };
-  if (snapshot.error != null) {
-    console.error('[DEPOSIT_DEBUG]', payload);
-  } else {
-    console.error('[DEPOSIT_DEBUG]', payload);
+  try {
+    JSON.stringify(payload, jsonReplacer);
+  } catch (serializeErr) {
+    console.error('[DEPOSIT_DEBUG] payload not JSON-safe', {
+      phase: snapshot.phase,
+      bookingId: snapshot.bookingId,
+      serializeErr,
+    });
   }
+  console.error('[DEPOSIT_DEBUG]', payload);
 }

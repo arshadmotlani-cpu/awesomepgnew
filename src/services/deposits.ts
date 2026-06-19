@@ -33,6 +33,7 @@ import {
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import { coerceNonNegativePaise, asPlainNumber } from '@/src/lib/format';
 import { logDepositDebug } from '@/src/lib/depositDebug';
+import { logDepositPageSection } from '@/src/lib/depositPageDebug';
 import { applyDepositDeduction } from '@/src/services/depositSettlement';
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -48,6 +49,13 @@ export type DepositSummary = {
   refundableBalancePaise: number; // collected - deducted - refunded
   entries: DepositLedgerEntry[];
 };
+
+function sanitizeLedgerEntries(entries: DepositLedgerEntry[]): DepositLedgerEntry[] {
+  return entries.map((entry) => ({
+    ...entry,
+    amountPaise: asPlainNumber(entry.amountPaise),
+  }));
+}
 
 // ───────────────────────────────────────────────────────────────────────────
 // Writers
@@ -335,18 +343,25 @@ export async function getDepositSummaryForBooking(
   bookingId: string,
 ): Promise<DepositSummary | null> {
   try {
+    logDepositPageSection('getDepositSummaryForBooking', bookingId, { phase: 'start' });
+
     const [booking] = await db
-      .select({ customerId: bookings.customerId })
+      .select({ customerId: bookings.customerId, depositPaise: bookings.depositPaise })
       .from(bookings)
       .where(eq(bookings.id, bookingId))
       .limit(1);
-    if (!booking) return null;
+    if (!booking) {
+      logDepositPageSection('getDepositSummaryForBooking', bookingId, { phase: 'missing_booking' });
+      return null;
+    }
 
-    const entries = await db
-      .select()
-      .from(depositLedger)
-      .where(eq(depositLedger.bookingId, bookingId))
-      .orderBy(depositLedger.createdAt);
+    const entries = sanitizeLedgerEntries(
+      await db
+        .select()
+        .from(depositLedger)
+        .where(eq(depositLedger.bookingId, bookingId))
+        .orderBy(depositLedger.createdAt),
+    );
 
     let collected = 0;
     let deducted = 0;
@@ -368,6 +383,17 @@ export async function getDepositSummaryForBooking(
       entries,
     };
 
+    logDepositPageSection('getDepositSummaryForBooking', bookingId, {
+      customerId: booking.customerId,
+      deposit_paise: coerceNonNegativePaise(booking.depositPaise),
+      requiredPaise: coerceNonNegativePaise(booking.depositPaise),
+      collectedPaise: collected,
+      deductedPaise: deducted,
+      refundedPaise: refunded,
+      refundableBalancePaise: summary.refundableBalancePaise,
+      ledgerRowCount: entries.length,
+    });
+
     logDepositDebug({
       phase: 'getDepositSummaryForBooking:ok',
       bookingId,
@@ -386,6 +412,7 @@ export async function getDepositSummaryForBooking(
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const stack = err instanceof Error ? err.stack : undefined;
+    console.error('[DEPOSIT_PAGE_SECTION_FAILED]', 'getDepositSummaryForBooking', bookingId, err);
     console.error('[deposits] getDepositSummaryForBooking failed', {
       bookingId,
       message,

@@ -10,7 +10,6 @@ import {
   beds,
   bookings,
   customers,
-  depositLedger,
   depositSettlements,
   floors,
   pgs,
@@ -23,6 +22,7 @@ import {
   isProductionBookingFilter,
   isProductionCustomerFilter,
 } from '@/src/lib/billing/productionDataFilter';
+import { logDepositPageSection } from '@/src/lib/depositPageDebug';
 import {
   OCCUPANCY_PLACEHOLDER_EMAIL,
   OCCUPANCY_PLACEHOLDER_NAME,
@@ -233,10 +233,29 @@ async function fetchRawDepositRows(options?: { bookingId?: string }): Promise<Ra
       depositPaise: bookings.depositPaise,
       depositDuePaise: bookings.depositDuePaise,
       depositCollectionStatus: bookings.depositCollectionStatus,
-      collectedPaise: sql<number>`coalesce(sum(${depositLedger.amountPaise}) FILTER (WHERE ${depositLedger.entryKind} = 'collected'), 0)::bigint`,
-      deductedPaise: sql<number>`coalesce(-sum(${depositLedger.amountPaise}) FILTER (WHERE ${depositLedger.entryKind} = 'deducted'), 0)::bigint`,
-      refundedPaise: sql<number>`coalesce(-sum(${depositLedger.amountPaise}) FILTER (WHERE ${depositLedger.entryKind} = 'refunded'), 0)::bigint`,
-      refundableBalancePaise: sql<number>`greatest(coalesce(sum(${depositLedger.amountPaise}), 0), 0)::bigint`,
+      collectedPaise: sql<number>`(
+        select coalesce(sum(dl.amount_paise), 0)
+        from deposit_ledger dl
+        where dl.booking_id = ${bookings.id}
+          and dl.entry_kind = 'collected'
+      )::bigint`,
+      deductedPaise: sql<number>`(
+        select coalesce(-sum(dl.amount_paise), 0)
+        from deposit_ledger dl
+        where dl.booking_id = ${bookings.id}
+          and dl.entry_kind = 'deducted'
+      )::bigint`,
+      refundedPaise: sql<number>`(
+        select coalesce(-sum(dl.amount_paise), 0)
+        from deposit_ledger dl
+        where dl.booking_id = ${bookings.id}
+          and dl.entry_kind = 'refunded'
+      )::bigint`,
+      refundableBalancePaise: sql<number>`(
+        select greatest(coalesce(sum(dl.amount_paise), 0), 0)
+        from deposit_ledger dl
+        where dl.booking_id = ${bookings.id}
+      )::bigint`,
       hasActiveReservation: sql<boolean>`exists (
         select 1 from bed_reservations br
         where br.booking_id = ${bookings.id}
@@ -256,26 +275,7 @@ async function fetchRawDepositRows(options?: { bookingId?: string }): Promise<Ra
     .leftJoin(rooms, eq(rooms.id, beds.roomId))
     .leftJoin(floors, eq(floors.id, rooms.floorId))
     .leftJoin(pgs, eq(pgs.id, floors.pgId))
-    .leftJoin(depositLedger, eq(depositLedger.bookingId, bookings.id))
     .where(and(...filters))
-    .groupBy(
-      bookings.id,
-      bookings.bookingCode,
-      bookings.status,
-      bookings.createdAt,
-      bookings.customerId,
-      bookings.depositPaise,
-      bookings.depositDuePaise,
-      bookings.depositCollectionStatus,
-      bookings.adminDepositRefundStatus,
-      customers.fullName,
-      customers.phone,
-      customers.residencyStatus,
-      pgs.id,
-      pgs.name,
-      rooms.roomNumber,
-      beds.bedCode,
-    )
     .orderBy(desc(bookings.createdAt));
 
   return rows.map((r) => ({
@@ -363,15 +363,35 @@ export async function listDepositInvoiceRecords(options?: {
 export async function getDepositInvoiceForBooking(
   bookingId: string,
 ): Promise<DepositInvoiceRecord | null> {
-  const rows = await fetchRawDepositRows({ bookingId });
-  const row = rows.find((r) => r.bookingId === bookingId) ?? rows[0];
-  if (!row) return null;
+  try {
+    logDepositPageSection('getDepositInvoiceForBooking', bookingId, { phase: 'start' });
+    const rows = await fetchRawDepositRows({ bookingId });
+    const row = rows.find((r) => r.bookingId === bookingId) ?? rows[0];
+    if (!row) {
+      logDepositPageSection('getDepositInvoiceForBooking', bookingId, { phase: 'not_found' });
+      return null;
+    }
 
-  const { refundRequests, settlements } = await loadRefundFlags([bookingId]);
-  return toInvoiceRecord(row, {
-    hasRefundRequest: refundRequests.has(bookingId),
-    hasSettlement: settlements.has(bookingId),
-  });
+    const { refundRequests, settlements } = await loadRefundFlags([bookingId]);
+    const invoice = toInvoiceRecord(row, {
+      hasRefundRequest: refundRequests.has(bookingId),
+      hasSettlement: settlements.has(bookingId),
+    });
+    logDepositPageSection('getDepositInvoiceForBooking', bookingId, {
+      customerId: row.customerId,
+      deposit_paise: row.depositPaise,
+      requiredPaise: row.depositPaise,
+      collectedPaise: row.collectedPaise,
+      deductedPaise: row.deductedPaise,
+      refundedPaise: row.refundedPaise,
+      refundablePaise: row.refundableBalancePaise,
+      invoiceStatus: invoice.invoiceStatus,
+    });
+    return invoice;
+  } catch (err) {
+    console.error('[DEPOSIT_PAGE_SECTION_FAILED]', 'getDepositInvoiceForBooking', bookingId, err);
+    throw err;
+  }
 }
 
 /** PG-level deposit collected in a billing month — invoice dataset only (deduped residents). */

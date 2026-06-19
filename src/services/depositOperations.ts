@@ -8,6 +8,7 @@ import { db } from '@/src/db/client';
 import { auditLog, bookings } from '@/src/db/schema';
 import { coerceNonNegativePaise } from '@/src/lib/format';
 import { logDepositDebug } from '@/src/lib/depositDebug';
+import { logDepositPageSection } from '@/src/lib/depositPageDebug';
 import { getDepositInvoiceForBooking } from '@/src/services/depositInvoices';
 import {
   adjustDepositCollectedBalance,
@@ -124,6 +125,8 @@ function viewFromParts(input: {
 
 export async function getUnifiedDepositView(bookingId: string): Promise<UnifiedDepositView | null> {
   try {
+    logDepositPageSection('getUnifiedDepositView', bookingId, { phase: 'start' });
+
     const [booking] = await db
       .select({
         id: bookings.id,
@@ -135,7 +138,10 @@ export async function getUnifiedDepositView(bookingId: string): Promise<UnifiedD
       .from(bookings)
       .where(eq(bookings.id, bookingId))
       .limit(1);
-    if (!booking) return null;
+    if (!booking) {
+      logDepositPageSection('getUnifiedDepositView', bookingId, { phase: 'missing_booking' });
+      return null;
+    }
 
     const summary = await getDepositSummaryForBooking(bookingId);
     const invoice = await getDepositInvoiceForBooking(bookingId);
@@ -155,7 +161,7 @@ export async function getUnifiedDepositView(bookingId: string): Promise<UnifiedD
         'Required deposit set but wallet shows zero collected — record collection or rebuild wallet.';
     }
 
-    return viewFromParts({
+    const view = viewFromParts({
       bookingId,
       customerId: booking.customerId,
       booking,
@@ -164,7 +170,22 @@ export async function getUnifiedDepositView(bookingId: string): Promise<UnifiedD
       walletCheck,
       mismatchReason,
     });
+
+    logDepositPageSection('getUnifiedDepositView', bookingId, {
+      customerId: booking.customerId,
+      deposit_paise: requiredPaise,
+      requiredPaise: view.requiredPaise,
+      collectedPaise: view.collectedPaise,
+      deductedPaise: view.deductedPaise,
+      refundedPaise: view.refundedPaise,
+      refundablePaise: view.refundablePaise,
+      depositDuePaise: view.depositDuePaise,
+      walletInSync: view.walletInSync,
+    });
+
+    return view;
   } catch (err) {
+    console.error('[DEPOSIT_PAGE_SECTION_FAILED]', 'getUnifiedDepositView', bookingId, err);
     const message = err instanceof Error ? err.message : String(err);
     const stack = err instanceof Error ? err.stack : undefined;
     console.error('[deposit-ops] getUnifiedDepositView failed', {

@@ -69,8 +69,29 @@ async function main() {
   try {
     const view = await getUnifiedDepositView(bookingId);
     console.log(JSON.stringify(view, null, 2));
+    if (view) {
+      JSON.stringify(view);
+      console.log('unifiedView JSON serialization: OK');
+    }
   } catch (err) {
     console.error('FAILED', err);
+    if (err instanceof Error) {
+      console.error('stack:', err.stack);
+    }
+  }
+
+  console.log('\n=== RSC client prop simulation ===');
+  try {
+    const { sanitizeUnifiedDepositView } = await import('../src/services/depositOperations');
+    const { assertJsonSerializable } = await import('../src/lib/depositPageDebug');
+    const view = await getUnifiedDepositView(bookingId);
+    if (view) {
+      const clean = sanitizeUnifiedDepositView(view);
+      assertJsonSerializable('client_props_wallet', bookingId, { view: clean, isFrozen: false });
+      console.log('client wallet props: OK');
+    }
+  } catch (err) {
+    console.error('RSC PROP SIMULATION FAILED', err);
   }
 
   await closeDb();
