@@ -37,10 +37,8 @@ export function KycReviewActions({ submissionId }: { submissionId: string }) {
             : null;
 
   return (
-    <div className={`${SURFACE} space-y-4 p-5`}>
-      <h3 className="text-sm font-semibold uppercase tracking-wide text-apg-orange">
-        Verify &amp; decide
-      </h3>
+    <div id="review-decision" className={`${SURFACE} space-y-4 p-5`}>
+      <h3 className="text-sm font-semibold text-white">Approve or reject</h3>
       <p className="text-sm text-apg-silver">
         Check photos match the resident. Approve to clear them for check-in.
       </p>

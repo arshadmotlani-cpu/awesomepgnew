@@ -1,11 +1,13 @@
 import { KycStorageWarning } from '@/src/components/admin/KycStorageWarning';
 import {
   KycApprovedDocuments,
-  KycApprovedDocumentsHeaderActions,
   KycPendingQueue,
   KycReviewTabs,
   type KycReviewTabId,
 } from '@/src/components/admin/KycReviewPanel';
+import { KycPrimaryActions } from '@/src/components/admin/kyc/KycPrimaryActions';
+import { KycQueueAdvancedTools } from '@/src/components/admin/kyc/KycQueueAdvancedTools';
+import { KycSummarySection } from '@/src/components/admin/kyc/KycSummarySection';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import {
@@ -41,22 +43,23 @@ export default async function ResidentsKycPage({
         items={[
           { label: 'Overview', href: moduleHref('overview') },
           { label: ADMIN_MODULES.residents.label, href: moduleHref('residents') },
-          { label: 'KYC review' },
+          { label: 'Identity checks' },
         ]}
       />
       <PageHeader
-        title="KYC review"
-        description="Pending submissions need Verify → approve. Approved documents stay below with photos on file."
+        title="Identity checks"
+        description="Review Aadhaar and selfie uploads before residents can check in."
       />
 
       <div className="mb-6">
         <KycStorageWarning />
       </div>
 
+      <KycSummarySection pendingCount={pendingRows.length} approvedCount={approvedRows.length} />
+      <KycPrimaryActions pendingRows={pendingRows} pendingCount={pendingRows.length} />
+
       <KycReviewTabs
         activeTab={tab === 'all' ? 'pending' : tab}
-        pendingCount={pendingRows.length}
-        approvedCount={approvedRows.length}
         showAllTab
         allActive={tab === 'all'}
       />
@@ -64,25 +67,20 @@ export default async function ResidentsKycPage({
       <div className="space-y-10">
         {showPending ? (
           <section id="pending">
-            <h2 className="mb-3 text-sm font-semibold text-white">
-              Pending approval ({pendingRows.length})
-            </h2>
+            <h2 className="mb-3 text-base font-semibold text-white">Needs review</h2>
             <KycPendingQueue rows={pendingRows} />
           </section>
         ) : null}
 
         {showApproved ? (
           <section id="approved">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-sm font-semibold text-white">
-                Approved documents ({approvedRows.length})
-              </h2>
-              {approvedRows.length > 0 ? <KycApprovedDocumentsHeaderActions /> : null}
-            </div>
+            <h2 className="mb-3 text-base font-semibold text-white">Approved on file</h2>
             <KycApprovedDocuments rows={approvedRows} />
           </section>
         ) : null}
       </div>
+
+      <KycQueueAdvancedTools approvedRows={approvedRows} />
     </>
   );
 }

@@ -3,19 +3,18 @@ import { notFound } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { customers } from '@/src/db/schema';
-import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { KycReviewActions } from '@/src/components/admin/KycReviewActions';
-import { AadhaarPdfDownloadButton } from '@/src/components/admin/AadhaarPdfDownloadButton';
+import { KycVerifyAdvancedTools } from '@/src/components/admin/kyc/KycVerifyAdvancedTools';
+import { KycVerifyPrimaryActions } from '@/src/components/admin/kyc/KycVerifyPrimaryActions';
+import { KycVerifySummarySection } from '@/src/components/admin/kyc/KycVerifySummarySection';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { getKycSubmission } from '@/src/services/kyc';
 import {
   ADMIN_MODULES,
   moduleHref,
-  moduleKycVerifyHref,
 } from '@/src/lib/admin/navigation';
 import { KYC_DOCUMENT_LABELS, kycDocumentUrl } from '@/src/lib/kyc/documentUrls';
-import { formatDateTime, titleCase } from '@/src/lib/format';
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
 
 export const dynamic = 'force-dynamic';
@@ -49,6 +48,7 @@ export default async function ResidentsKycVerifyPage({
     .limit(1);
 
   const residentName = customer?.fullName ?? 'Resident';
+  const isPending = sub.status === 'pending';
 
   return (
     <>
@@ -56,43 +56,29 @@ export default async function ResidentsKycVerifyPage({
         items={[
           { label: 'Overview', href: moduleHref('overview') },
           { label: ADMIN_MODULES.residents.label, href: moduleHref('residents') },
-          { label: 'KYC review', href: moduleHref('kyc') },
+          { label: 'Identity checks', href: moduleHref('kyc') },
           { label: residentName },
         ]}
       />
 
       <PageHeader
-        title={`Verify — ${residentName}`}
+        title={`Review — ${residentName}`}
         description={
           customer
             ? `${customer.phone} · ${customer.email}`
             : sub.customerId
         }
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href={moduleHref('kyc')}
-              className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-apg-silver hover:text-white"
-            >
-              ← KYC queue
-            </Link>
-            <Link
-              href={`/admin/residents/${sub.customerId}`}
-              className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-apg-silver hover:text-white"
-            >
-              Resident profile
-            </Link>
-          </div>
-        }
       />
 
-      <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
-        <Badge tone={toneForStatus(sub.status)}>{titleCase(sub.status)}</Badge>
-        <span className="text-apg-silver">Submitted {formatDateTime(sub.createdAt)}</span>
-        {customer ? (
-          <span className="text-apg-silver">Account KYC: {titleCase(customer.kycStatus)}</span>
-        ) : null}
-      </div>
+      <KycVerifySummarySection
+        submissionStatus={sub.status}
+        submittedAt={sub.createdAt}
+        accountKycStatus={customer?.kycStatus}
+        reviewedAt={sub.reviewedAt}
+        rejectionReason={sub.rejectionReason}
+      />
+
+      <KycVerifyPrimaryActions customerId={sub.customerId} isPending={isPending} />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <section className="grid gap-4 sm:grid-cols-3">
@@ -110,44 +96,32 @@ export default async function ResidentsKycVerifyPage({
           />
         </section>
 
-        {sub.status === 'pending' ? (
+        {isPending ? (
           <KycReviewActions submissionId={submissionId} />
         ) : (
-          <div className={`${SURFACE} space-y-4 p-4 text-sm text-apg-silver`}>
+          <div className={`${SURFACE} space-y-3 p-4 text-sm text-apg-silver`}>
+            <p className="font-semibold text-white">Already decided</p>
             <p>
-              This submission was {sub.status}
-              {sub.reviewedAt ? ` on ${formatDateTime(sub.reviewedAt)}` : ''}.
+              This submission was reviewed
+              {sub.reviewedAt ? '.' : ' — open Advanced tools below for the PDF.'}
             </p>
-            {sub.rejectionReason ? (
-              <p className="text-rose-300">Reason: {sub.rejectionReason}</p>
-            ) : null}
-            <AadhaarPdfDownloadButton
-              kycId={submissionId}
-              status={sub.status}
-              aadhaarFrontPath={sub.aadhaarFrontPath}
-              aadhaarBackPath={sub.aadhaarBackPath}
-              className="w-full"
-            />
             <Link
-              href={moduleKycVerifyHref(submissionId)}
-              className="inline-block text-[#FF5A1F] hover:underline"
+              href={`/admin/residents/${sub.customerId}`}
+              className="inline-flex rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/5"
             >
-              Refresh
+              Open resident profile
             </Link>
           </div>
         )}
       </div>
 
-      {sub.validationReport ? (
-        <details className={`${SURFACE} mt-6 p-4 text-xs text-apg-silver`}>
-          <summary className="cursor-pointer font-semibold text-white">
-            Auto-validation report
-          </summary>
-          <pre className="mt-2 overflow-x-auto whitespace-pre-wrap">
-            {JSON.stringify(sub.validationReport, null, 2)}
-          </pre>
-        </details>
-      ) : null}
+      <KycVerifyAdvancedTools
+        submissionId={submissionId}
+        status={sub.status}
+        aadhaarFrontPath={sub.aadhaarFrontPath}
+        aadhaarBackPath={sub.aadhaarBackPath}
+        validationReport={sub.validationReport}
+      />
     </>
   );
 }

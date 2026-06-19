@@ -1,9 +1,5 @@
 import Link from 'next/link';
 import { AdminKycStatusWithWhatsApp } from '@/src/components/admin/AdminKycWhatsAppButton';
-import {
-  AadhaarPdfDownloadButton,
-  BulkAadhaarPdfDownloadButton,
-} from '@/src/components/admin/AadhaarPdfDownloadButton';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { EmptyState } from '@/src/components/admin/EmptyState';
 import { IconCheckCircle } from '@/src/components/admin/icons';
@@ -20,41 +16,32 @@ const SURFACE = 'overflow-hidden rounded-xl border border-white/10 bg-[#1A1F27]'
 const DOC_KINDS: KycDocumentKind[] = ['aadhaar_front', 'aadhaar_back', 'selfie'];
 
 export const KYC_REVIEW_TABS = [
-  { id: 'pending', label: 'Pending approval' },
-  { id: 'approved', label: 'Approved documents' },
+  { id: 'pending', label: 'Needs review' },
+  { id: 'approved', label: 'Approved on file' },
 ] as const;
 
 export type KycReviewTabId = (typeof KYC_REVIEW_TABS)[number]['id'];
 
 export function KycReviewTabs({
   activeTab,
-  pendingCount,
-  approvedCount,
   showAllTab = false,
   allActive = false,
 }: {
   activeTab: KycReviewTabId;
-  pendingCount: number;
-  approvedCount: number;
   showAllTab?: boolean;
   allActive?: boolean;
 }) {
-  const counts: Record<KycReviewTabId, number> = {
-    pending: pendingCount,
-    approved: approvedCount,
-  };
-
   return (
     <div className="mb-6 flex flex-wrap gap-2">
       {showAllTab ? (
-        <TabPill href="/admin/residents/kyc" active={allActive} label={`All (${pendingCount + approvedCount})`} />
+        <TabPill href="/admin/residents/kyc" active={allActive} label="All submissions" />
       ) : null}
       {KYC_REVIEW_TABS.map((t) => (
         <TabPill
           key={t.id}
           href={`/admin/residents/kyc?tab=${t.id}`}
           active={!allActive && activeTab === t.id}
-          label={`${t.label} (${counts[t.id]})`}
+          label={t.label}
         />
       ))}
     </div>
@@ -146,7 +133,7 @@ export function KycPendingQueue({ rows }: { rows: KycSubmissionListRow[] }) {
                     href={moduleKycVerifyHref(r.id)}
                     className="inline-flex rounded-lg bg-[#FF5A1F] px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110"
                   >
-                    Verify →
+                    Review documents
                   </Link>
                 </td>
               </tr>
@@ -156,10 +143,6 @@ export function KycPendingQueue({ rows }: { rows: KycSubmissionListRow[] }) {
       </div>
     </div>
   );
-}
-
-export function KycApprovedDocumentsHeaderActions() {
-  return <BulkAadhaarPdfDownloadButton className="px-3 py-1.5 text-xs" />;
 }
 
 export function KycApprovedDocuments({ rows }: { rows: KycSubmissionListRow[] }) {
@@ -199,15 +182,8 @@ export function KycApprovedDocuments({ rows }: { rows: KycSubmissionListRow[] })
                 href={moduleKycVerifyHref(r.id)}
                 className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-apg-silver hover:text-white"
               >
-                Open full view →
+                Open full view
               </Link>
-              <AadhaarPdfDownloadButton
-                kycId={r.id}
-                status={r.status}
-                aadhaarFrontPath={r.aadhaarFrontPath}
-                aadhaarBackPath={r.aadhaarBackPath}
-                className="px-3 py-1.5 text-xs"
-              />
             </div>
           </div>
 
