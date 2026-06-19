@@ -312,7 +312,12 @@ export async function loadDepositPageData(bookingId: string): Promise<DepositPag
       }
     }
 
-    const walletProps = unifiedView ? { view: unifiedView, isFrozen } : null;
+    const walletProps = unifiedView
+      ? jsonSafe({
+          view: sanitizeUnifiedDepositView(unifiedView),
+          isFrozen,
+        })
+      : null;
     const adjustProps = {
       bookingId,
       bookingDepositPaise: coerceNonNegativePaise(booking.depositPaise),

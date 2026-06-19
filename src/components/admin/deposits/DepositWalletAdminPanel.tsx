@@ -14,9 +14,24 @@ import type {
   DepositWalletPreview,
   UnifiedDepositView,
 } from '@/src/services/depositOperations';
-import { paiseToInr, asPlainNumber } from '@/src/lib/format';
+import { sanitizeUnifiedDepositView } from '@/src/services/depositOperations';
+import { paiseToInr, asPlainNumber, coerceNonNegativePaise } from '@/src/lib/format';
 
 const idle: DepositWalletActionState = { status: 'idle' };
+
+function safeDepositView(view: UnifiedDepositView): UnifiedDepositView {
+  return sanitizeUnifiedDepositView(view);
+}
+
+function safeDepositPreview(preview: DepositWalletPreview): DepositWalletPreview {
+  return {
+    ...preview,
+    current: sanitizeUnifiedDepositView(preview.current),
+    expected: sanitizeUnifiedDepositView(preview.expected),
+    removesFromWalletPaise: coerceNonNegativePaise(preview.removesFromWalletPaise),
+    warnings: Array.isArray(preview.warnings) ? preview.warnings : [],
+  };
+}
 
 export function DepositWalletAdminPanel({
   view,
@@ -25,6 +40,7 @@ export function DepositWalletAdminPanel({
   view: UnifiedDepositView;
   isFrozen: boolean;
 }) {
+  const v = safeDepositView(view);
   const [editState, editAction, editPending] = useActionState(editDepositSummaryAction, idle);
   const [editNoRevalState, editNoRevalAction, editNoRevalPending] = useActionState(
     editDepositSummaryNoRevalidateAction,
@@ -49,15 +65,15 @@ export function DepositWalletAdminPanel({
     startPreview(async () => {
       const result =
         action === 'rebuild'
-          ? await loadRebuildDepositPreviewAction(view.bookingId)
-          : await loadCancelDepositPreviewAction(view.bookingId);
+          ? await loadRebuildDepositPreviewAction(v.bookingId)
+          : await loadCancelDepositPreviewAction(v.bookingId);
       if ('ok' in result && result.ok === false) {
         setPreviewError(result.error);
         if (action === 'rebuild') setRebuildPreview(null);
         else setCancelPreview(null);
         return;
       }
-      const preview = result as DepositWalletPreview;
+      const preview = safeDepositPreview(result as DepositWalletPreview);
       if (action === 'rebuild') setRebuildPreview(preview);
       else setCancelPreview(preview);
     });
@@ -74,32 +90,32 @@ export function DepositWalletAdminPanel({
             Unified view — ledger is source of truth for collected, deducted, and refundable.
           </p>
         </div>
-        {view.invoiceStatus ? (
+        {v.invoiceStatus ? (
           <span className="rounded-full border border-white/10 px-2 py-0.5 text-xs text-apg-silver">
-            {view.invoiceStatus}
+            {v.invoiceStatus}
           </span>
         ) : null}
       </div>
 
-      {!view.walletInSync && view.walletMismatchReason ? (
+      {!v.walletInSync && v.walletMismatchReason ? (
         <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-          Deposit wallet out of sync. {view.walletMismatchReason}
+          Deposit wallet out of sync. {v.walletMismatchReason}
         </div>
       ) : null}
 
       <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
-        <Stat label="Required" value={paiseToInr(view.requiredPaise)} />
-        <Stat label="Collected" value={paiseToInr(view.collectedPaise)} accent="emerald" />
-        <Stat label="Refundable" value={paiseToInr(view.refundablePaise)} accent="strong" />
-        <Stat label="Deductions" value={paiseToInr(view.deductedPaise)} />
-        <Stat label="Refunded" value={paiseToInr(view.refundedPaise)} />
-        <Stat label="Due" value={paiseToInr(view.depositDuePaise)} />
+        <Stat label="Required" value={paiseToInr(v.requiredPaise)} />
+        <Stat label="Collected" value={paiseToInr(v.collectedPaise)} accent="emerald" />
+        <Stat label="Refundable" value={paiseToInr(v.refundablePaise)} accent="strong" />
+        <Stat label="Deductions" value={paiseToInr(v.deductedPaise)} />
+        <Stat label="Refunded" value={paiseToInr(v.refundedPaise)} />
+        <Stat label="Due" value={paiseToInr(v.depositDuePaise)} />
       </dl>
 
       {!isFrozen ? (
         <>
           <form action={editAction} className="grid gap-3 rounded-xl border border-white/10 bg-[#12161C] p-3 sm:grid-cols-2">
-            <input type="hidden" name="bookingId" value={view.bookingId} />
+            <input type="hidden" name="bookingId" value={v.bookingId} />
             <label className="text-sm">
               <span className="text-apg-silver">Required deposit (₹)</span>
               <input
@@ -107,7 +123,7 @@ export function DepositWalletAdminPanel({
                 type="number"
                 min="0"
                 step="1"
-                placeholder={(asPlainNumber(view.requiredPaise) / 100).toString()}
+                placeholder={(asPlainNumber(v.requiredPaise) / 100).toString()}
                 className="apg-admin-field mt-1 w-full rounded-lg border border-white/10 bg-[#0B0F14] px-3 py-2 text-white"
               />
             </label>
@@ -118,7 +134,7 @@ export function DepositWalletAdminPanel({
                 type="number"
                 min="0"
                 step="1"
-                placeholder={(asPlainNumber(view.collectedPaise) / 100).toString()}
+                placeholder={(asPlainNumber(v.collectedPaise) / 100).toString()}
                 className="apg-admin-field mt-1 w-full rounded-lg border border-white/10 bg-[#0B0F14] px-3 py-2 text-white"
               />
             </label>
@@ -188,7 +204,7 @@ export function DepositWalletAdminPanel({
                 <PreviewPanel preview={rebuildPreview} />
               ) : null}
               <form action={rebuildAction} className="mt-2">
-                <input type="hidden" name="bookingId" value={view.bookingId} />
+                <input type="hidden" name="bookingId" value={v.bookingId} />
                 <input type="hidden" name="confirmPreview" value={rebuildPreview ? 'yes' : 'no'} />
                 <button
                   type="submit"
@@ -225,7 +241,7 @@ export function DepositWalletAdminPanel({
                 <PreviewPanel preview={cancelPreview} />
               ) : null}
               <form action={cancelAction} className="mt-2 flex flex-wrap items-end gap-2">
-                <input type="hidden" name="bookingId" value={view.bookingId} />
+                <input type="hidden" name="bookingId" value={v.bookingId} />
                 <input type="hidden" name="confirmPreview" value={cancelPreview ? 'yes' : 'no'} />
                 <label className="text-xs">
                   <span className="text-apg-silver">Type CANCEL to void invoice</span>
@@ -285,16 +301,17 @@ function PreviewPanel({ preview }: { preview: DepositWalletPreview }) {
 }
 
 function PreviewColumn({ title, view }: { title: string; view: UnifiedDepositView }) {
+  const v = safeDepositView(view);
   return (
     <div className="rounded border border-white/10 bg-[#0B0F14] p-2">
       <p className="mb-1 font-medium text-white">{title}</p>
       <ul className="space-y-0.5 text-apg-silver">
-        <li>Required: {paiseToInr(view.requiredPaise)}</li>
-        <li>Collected: {paiseToInr(view.collectedPaise)}</li>
-        <li>Deductions: {paiseToInr(view.deductedPaise)}</li>
-        <li>Refunded: {paiseToInr(view.refundedPaise)}</li>
-        <li>Refundable: {paiseToInr(view.refundablePaise)}</li>
-        <li>Due: {paiseToInr(view.depositDuePaise)}</li>
+        <li>Required: {paiseToInr(v.requiredPaise)}</li>
+        <li>Collected: {paiseToInr(v.collectedPaise)}</li>
+        <li>Deductions: {paiseToInr(v.deductedPaise)}</li>
+        <li>Refunded: {paiseToInr(v.refundedPaise)}</li>
+        <li>Refundable: {paiseToInr(v.refundablePaise)}</li>
+        <li>Due: {paiseToInr(v.depositDuePaise)}</li>
       </ul>
     </div>
   );
