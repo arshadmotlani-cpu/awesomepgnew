@@ -13,7 +13,7 @@ import type {
   AdminResidentTenancyStatus,
 } from '@/src/lib/admin/residentSearchTypes';
 import { isNotOccupancyPlaceholderCustomerSql } from '@/src/lib/occupancySqlFilters';
-import { occupancyReservationCoreSql_b } from '@/src/lib/occupancySsot';
+import { occupancyReservationCoreSql_b, adminAssignedReservationSql_b } from '@/src/lib/occupancySsot';
 import {
   activeTenancyLateralSql,
   deriveTenancyStatus,
@@ -103,7 +103,7 @@ const activeAssignmentLocationMatchSql = (pattern: string) => sql`
     INNER JOIN floors f ON f.id = r.floor_id
     INNER JOIN pgs p ON p.id = f.pg_id
     WHERE b.customer_id = c.id
-      AND ${occupancyReservationCoreSql_b}
+      AND ${adminAssignedReservationSql_b}
       AND (
         p.name ILIKE ${pattern}
         OR r.room_number ILIKE ${pattern}

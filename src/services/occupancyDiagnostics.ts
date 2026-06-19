@@ -10,7 +10,7 @@ import type { AdminSession } from '@/src/lib/auth/session';
 import { isNotOccupancyPlaceholderCustomerSql } from '@/src/lib/occupancySqlFilters';
 import { revalidateOccupancyViews } from '@/src/lib/occupancyRevalidate';
 import { reconcileBookingOccupancy, reconcileOrphanBedReservations } from '@/src/lib/occupancySync';
-import { occupancyReservationCoreSql_b } from '@/src/lib/occupancySsot';
+import { occupancyReservationCoreSql_b, adminAssignedReservationSql_b } from '@/src/lib/occupancySsot';
 import { deriveTenancyStatus } from '@/src/lib/residentActiveTenancy';
 import { customerIsVerifiedSql } from '@/src/lib/residentVerification';
 
@@ -83,7 +83,7 @@ export async function auditOccupancyMismatches(
       INNER JOIN floors f ON f.id = r.floor_id
       INNER JOIN pgs p ON p.id = f.pg_id
       WHERE b.customer_id = c.id
-        AND ${occupancyReservationCoreSql_b}
+        AND ${adminAssignedReservationSql_b}
       ORDER BY lower(br.stay_range) DESC
       LIMIT 1
     ) ssot ON true

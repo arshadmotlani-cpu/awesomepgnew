@@ -29,6 +29,22 @@ export const occupancyReservationCoreSql_b = sql`
 `;
 
 /**
+ * Admin residents UI — assigned today OR upcoming confirmed primary move-in.
+ * Matches bed map `occ` + `res` laterals so Residents does not show "Assign bed"
+ * when the bed map already shows a reservation.
+ */
+export const adminAssignedReservationSql_b = sql`
+  b.status = 'confirmed'
+  AND br.status = 'active'
+  AND br.kind = 'primary'
+  AND b.duration_mode IN ('monthly', 'open_ended')
+  AND (
+    CURRENT_DATE <@ br.stay_range
+    OR lower(br.stay_range) > CURRENT_DATE
+  )
+`;
+
+/**
  * EXISTS filter for a bed row aliased as `beds` — occupied today per SSOT.
  * Use in dashboard occupancy counts and availability filters.
  */

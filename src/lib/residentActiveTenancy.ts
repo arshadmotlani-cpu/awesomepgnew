@@ -7,7 +7,7 @@ import { sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import type { ResidencyStatus } from '@/src/db/schema/enums';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
-import { occupancyReservationCoreSql_b } from '@/src/lib/occupancySsot';
+import { occupancyReservationCoreSql_b, adminAssignedReservationSql_b } from '@/src/lib/occupancySsot';
 
 /** Booking notes/snapshot markers — used by cleanup tools, not occupancy SSOT. */
 export const isNotOccupancyPlaceholderBookingSql = sql`NOT (
@@ -61,8 +61,10 @@ export const activeTenancyLateralSql = sql`
     INNER JOIN floors f ON f.id = r.floor_id
     INNER JOIN pgs p ON p.id = f.pg_id
     WHERE b.customer_id = c.id
-      AND ${occupancyReservationCoreSql_b}
-    ORDER BY lower(br.stay_range) DESC
+      AND ${adminAssignedReservationSql_b}
+    ORDER BY
+      (CURRENT_DATE <@ br.stay_range) DESC,
+      lower(br.stay_range) DESC
     LIMIT 1
   ) t ON true
 `;
@@ -161,8 +163,10 @@ export async function getActiveTenancyForCustomer(
     INNER JOIN floors f ON f.id = r.floor_id
     INNER JOIN pgs p ON p.id = f.pg_id
     WHERE b.customer_id = ${customerId}::uuid
-      AND ${occupancyReservationCoreSql_b}
-    ORDER BY lower(br.stay_range) DESC
+      AND ${adminAssignedReservationSql_b}
+    ORDER BY
+      (CURRENT_DATE <@ br.stay_range) DESC,
+      lower(br.stay_range) DESC
     LIMIT 1
   `);
   const row = rows[0];

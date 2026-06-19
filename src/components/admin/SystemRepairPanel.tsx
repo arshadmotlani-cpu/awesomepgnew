@@ -45,8 +45,8 @@ export function SystemRepairPanel() {
   return (
     <div className="space-y-6">
       <RepairTool
-        title="Repair Occupancy"
-        description="Align Residents, bed map, dashboard occupancy, and billing filters from bed_reservations SSOT."
+        title="Rebuild Resident Occupancy From Bed Reservations"
+        description="Align Residents, bed map, dashboard occupancy, and billing filters from bed_reservations SSOT. Preview before execute."
         pending={pending}
         previewText={previews.occupancy}
         message={messages.occupancy}

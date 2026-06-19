@@ -37,7 +37,7 @@ export function OccupancyDiagnosticsPanel() {
             disabled={rebuildPending}
             className="rounded-lg bg-[#FF5A1F] px-4 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-60"
           >
-            {rebuildPending ? 'Rebuilding…' : 'Rebuild Occupancy State'}
+            {rebuildPending ? 'Rebuilding…' : 'Rebuild Resident Occupancy From Bed Reservations'}
           </button>
         </form>
       </div>
