@@ -2,7 +2,7 @@ import { strict as assert } from 'node:assert';
 import test from 'node:test';
 import { asPlainNumber, coerceNonNegativePaise, paiseToInr } from '../../src/lib/format';
 import { jsonSafe } from '../../src/lib/depositPageDebug';
-import { effectiveDepositCollectedPaise } from '../../src/lib/deposits/unifiedDepositView';
+import { depositAdminDisplayAmounts, effectiveDepositCollectedPaise } from '../../src/lib/deposits/unifiedDepositView';
 import { sanitizeUnifiedDepositView } from '../../src/services/depositOperations';
 
 test('jsonSafe handles undefined without throwing', () => {
@@ -36,6 +36,36 @@ test('effectiveDepositCollectedPaise keeps gross when deposit still due', () => 
     }),
     900000,
   );
+});
+
+test('depositAdminDisplayAmounts hides collection adjustment from deductions', () => {
+  const display = depositAdminDisplayAmounts({
+    grossCollectedPaise: 6150000,
+    grossDeductedPaise: 900000,
+    grossRefundedPaise: 0,
+    grossRefundableBalancePaise: 5250000,
+    requiredPaise: 5250000,
+    depositDuePaise: 0,
+  });
+  assert.equal(display.requiredPaise, 5250000);
+  assert.equal(display.collectedPaise, 5250000);
+  assert.equal(display.deductedPaise, 0);
+  assert.equal(display.deductionsPaise, 0);
+  assert.equal(display.refundablePaise, 5250000);
+});
+
+test('depositAdminDisplayAmounts keeps real deductions after collection adjustment', () => {
+  const display = depositAdminDisplayAmounts({
+    grossCollectedPaise: 900000,
+    grossDeductedPaise: 450000,
+    grossRefundedPaise: 0,
+    grossRefundableBalancePaise: 450000,
+    requiredPaise: 450000,
+    depositDuePaise: 0,
+  });
+  assert.equal(display.collectedPaise, 450000);
+  assert.equal(display.deductedPaise, 0);
+  assert.equal(display.deductionsPaise, 0);
 });
 
 test('coerceNonNegativePaise rejects NaN and negative values', () => {

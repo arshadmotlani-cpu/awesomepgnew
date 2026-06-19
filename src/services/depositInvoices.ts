@@ -23,6 +23,7 @@ import {
   isProductionCustomerFilter,
 } from '@/src/lib/billing/productionDataFilter';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
+import { depositAdminDisplayAmounts } from '@/src/lib/deposits/unifiedDepositView';
 import {
   OCCUPANCY_PLACEHOLDER_EMAIL,
   OCCUPANCY_PLACEHOLDER_NAME,
@@ -120,14 +121,30 @@ function toInvoiceRecord(
 ): DepositInvoiceRecord {
   const depositPaise = invoicePaise(row.depositPaise, 'invoice.depositPaise');
   const depositDuePaise = invoicePaise(row.depositDuePaise, 'invoice.depositDuePaise');
-  const collectedPaise = invoicePaise(row.collectedPaise, 'invoice.collectedPaise');
-  const deductedPaise = invoicePaise(row.deductedPaise, 'invoice.deductedPaise');
-  const refundedPaise = invoicePaise(row.refundedPaise, 'invoice.refundedPaise');
-  const deductionsPaise = deductedPaise + refundedPaise;
-  const refundablePaise = Math.max(
-    0,
-    invoicePaise(row.refundableBalancePaise, 'invoice.refundableBalancePaise'),
+  const grossCollectedPaise = invoicePaise(row.collectedPaise, 'invoice.collectedPaise');
+  const grossDeductedPaise = invoicePaise(row.deductedPaise, 'invoice.deductedPaise');
+  const grossRefundedPaise = invoicePaise(row.refundedPaise, 'invoice.refundedPaise');
+  const grossRefundableBalancePaise = invoicePaise(
+    row.refundableBalancePaise,
+    'invoice.refundableBalancePaise',
   );
+
+  const display = depositAdminDisplayAmounts({
+    grossCollectedPaise,
+    grossDeductedPaise,
+    grossRefundedPaise,
+    grossRefundableBalancePaise,
+    requiredPaise: depositPaise,
+    depositDuePaise,
+  });
+
+  const {
+    collectedPaise,
+    deductedPaise,
+    refundedPaise,
+    deductionsPaise,
+    refundablePaise,
+  } = display;
 
   let invoiceStatus: DepositInvoiceStatus;
   const isSettled =
@@ -140,7 +157,7 @@ function toInvoiceRecord(
     invoiceStatus = 'settled';
   } else if (flags.hasRefundRequest) {
     invoiceStatus = 'refund_pending';
-  } else if (depositDuePaise > 0 || collectedPaise < depositPaise) {
+  } else if (depositDuePaise > 0 || grossCollectedPaise < depositPaise) {
     invoiceStatus = 'collecting';
   } else if (refundablePaise > 0) {
     invoiceStatus = 'held';

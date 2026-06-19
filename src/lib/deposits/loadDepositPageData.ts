@@ -8,7 +8,7 @@ import { bedReservations, bookings, customers } from '@/src/db/schema';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { getDepositInvoiceForBooking } from '@/src/services/depositInvoices';
 import { getUnifiedDepositView, sanitizeUnifiedDepositView } from '@/src/services/depositOperations';
-import { clientSafeDepositView, effectiveDepositCollectedPaise, effectiveDepositRefundablePaise } from '@/src/lib/deposits/unifiedDepositView';
+import { clientSafeDepositView, depositAdminDisplayAmounts } from '@/src/lib/deposits/unifiedDepositView';
 import { loadBedPrice, securityDepositForMode } from '@/src/services/pricing';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import { jsonSafe } from '@/src/lib/depositPageDebug';
@@ -125,24 +125,27 @@ export async function loadDepositPageData(bookingId: string): Promise<DepositPag
       invoice?.collectedPaise ?? summary?.collectedPaise ?? 0,
       'grossCollectedPaise',
     );
+    const grossDeductedPaise = guardDepositPaise(summary?.deductedPaise ?? 0, 'grossDeductedPaise');
+    const grossRefundedPaise = guardDepositPaise(summary?.refundedPaise ?? 0, 'grossRefundedPaise');
+    const grossRefundableBalancePaise = guardDepositPaise(
+      invoice?.refundablePaise ?? summary?.refundableBalancePaise ?? 0,
+      'grossRefundableBalancePaise',
+    );
     const depositDuePaise = guardDepositPaise(
       unifiedView?.depositDuePaise ?? booking.depositDuePaise,
       'depositDuePaise',
     );
-    const collectedPaise = effectiveDepositCollectedPaise({
+    const display = depositAdminDisplayAmounts({
       grossCollectedPaise,
+      grossDeductedPaise,
+      grossRefundedPaise,
+      grossRefundableBalancePaise,
       requiredPaise,
       depositDuePaise,
     });
-    const deductionsPaise = guardDepositPaise(
-      invoice?.deductionsPaise ?? (summary?.deductedPaise ?? 0) + (summary?.refundedPaise ?? 0),
-      'deductionsPaise',
-    );
-    const refundablePaise = effectiveDepositRefundablePaise({
-      refundableBalancePaise: invoice?.refundablePaise ?? summary?.refundableBalancePaise ?? 0,
-      requiredPaise,
-      depositDuePaise,
-    });
+    const collectedPaise = display.collectedPaise;
+    const deductionsPaise = display.deductionsPaise;
+    const refundablePaise = display.refundablePaise;
     const isFrozen = invoice?.isFrozen ?? false;
 
     let hasPrimaryBedReservation = false;

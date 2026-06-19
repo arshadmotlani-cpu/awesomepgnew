@@ -64,6 +64,65 @@ export function effectiveDepositRefundablePaise(input: {
   return refundable;
 }
 
+export type DepositAdminDisplayAmounts = {
+  requiredPaise: number;
+  collectedPaise: number;
+  deductedPaise: number;
+  refundedPaise: number;
+  deductionsPaise: number;
+  refundablePaise: number;
+};
+
+/**
+ * Admin UI amounts — hide ledger-only collection adjustments from "Deductions"
+ * and cap collected/refundable to required when the deposit is fully paid.
+ */
+export function depositAdminDisplayAmounts(input: {
+  grossCollectedPaise: unknown;
+  grossDeductedPaise: unknown;
+  grossRefundedPaise: unknown;
+  grossRefundableBalancePaise: unknown;
+  requiredPaise: unknown;
+  depositDuePaise: unknown;
+}): DepositAdminDisplayAmounts {
+  const requiredPaise = guardDepositPaise(input.requiredPaise, 'display.requiredPaise');
+  const depositDuePaise = guardDepositPaise(input.depositDuePaise, 'display.depositDuePaise');
+  const grossCollectedPaise = guardDepositPaise(
+    input.grossCollectedPaise,
+    'display.grossCollectedPaise',
+  );
+  const grossDeductedPaise = guardDepositPaise(input.grossDeductedPaise, 'display.grossDeductedPaise');
+  const grossRefundedPaise = guardDepositPaise(input.grossRefundedPaise, 'display.grossRefundedPaise');
+  const grossRefundableBalancePaise = guardDepositPaise(
+    input.grossRefundableBalancePaise,
+    'display.grossRefundableBalancePaise',
+  );
+
+  const collectedPaise = effectiveDepositCollectedPaise({
+    grossCollectedPaise,
+    requiredPaise,
+    depositDuePaise,
+  });
+  const collectedAdjustmentPaise = Math.max(0, grossCollectedPaise - collectedPaise);
+  const deductedPaise = Math.max(0, grossDeductedPaise - collectedAdjustmentPaise);
+  const refundedPaise = grossRefundedPaise;
+  const deductionsPaise = deductedPaise + refundedPaise;
+  const refundablePaise = effectiveDepositRefundablePaise({
+    refundableBalancePaise: grossRefundableBalancePaise,
+    requiredPaise,
+    depositDuePaise,
+  });
+
+  return {
+    requiredPaise,
+    collectedPaise,
+    deductedPaise,
+    refundedPaise,
+    deductionsPaise,
+    refundablePaise,
+  };
+}
+
 export function emptyUnifiedDepositView(): UnifiedDepositView {
   return {
     bookingId: '',

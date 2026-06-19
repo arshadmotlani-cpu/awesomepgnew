@@ -8,8 +8,7 @@ import { db } from '@/src/db/client';
 import { auditLog, bookings } from '@/src/db/schema';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import {
-  effectiveDepositCollectedPaise,
-  effectiveDepositRefundablePaise,
+  depositAdminDisplayAmounts,
   sanitizeDepositWalletPreview,
   sanitizeUnifiedDepositView,
   type DepositWalletPreview,
@@ -80,26 +79,25 @@ function viewFromParts(input: {
     input.summary?.collectedPaise ?? 0,
     'viewFromParts.grossCollectedPaise',
   );
+  const grossDeductedPaise = guardDepositPaise(
+    input.summary?.deductedPaise ?? 0,
+    'viewFromParts.grossDeductedPaise',
+  );
+  const grossRefundedPaise = guardDepositPaise(
+    input.summary?.refundedPaise ?? 0,
+    'viewFromParts.refundedPaise',
+  );
   const requiredPaise = guardDepositPaise(input.booking.depositPaise, 'viewFromParts.requiredPaise');
   const depositDuePaise = guardDepositPaise(
     input.booking.depositDuePaise,
     'viewFromParts.depositDuePaise',
   );
-  const collectedPaise = effectiveDepositCollectedPaise({
+
+  const display = depositAdminDisplayAmounts({
     grossCollectedPaise,
-    requiredPaise,
-    depositDuePaise,
-  });
-  const deductedPaise = guardDepositPaise(
-    input.summary?.deductedPaise ?? 0,
-    'viewFromParts.deductedPaise',
-  );
-  const refundedPaise = guardDepositPaise(
-    input.summary?.refundedPaise ?? 0,
-    'viewFromParts.refundedPaise',
-  );
-  const refundablePaise = effectiveDepositRefundablePaise({
-    refundableBalancePaise: input.summary?.refundableBalancePaise ?? 0,
+    grossDeductedPaise,
+    grossRefundedPaise,
+    grossRefundableBalancePaise: input.summary?.refundableBalancePaise ?? 0,
     requiredPaise,
     depositDuePaise,
   });
@@ -107,11 +105,11 @@ function viewFromParts(input: {
   return sanitizeUnifiedDepositView({
     bookingId: input.bookingId,
     customerId: input.customerId,
-    requiredPaise,
-    collectedPaise,
-    deductedPaise,
-    refundedPaise,
-    refundablePaise,
+    requiredPaise: display.requiredPaise,
+    collectedPaise: display.collectedPaise,
+    deductedPaise: display.deductedPaise,
+    refundedPaise: display.refundedPaise,
+    refundablePaise: display.refundablePaise,
     depositDuePaise,
     depositCollectionStatus: input.booking.depositCollectionStatus,
     invoiceStatus: input.invoiceStatus,
