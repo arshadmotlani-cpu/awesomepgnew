@@ -4,19 +4,19 @@ import type { DepositCreditSummary } from '@/src/services/depositCredit';
 export function DepositWalletSection({ wallet }: { wallet: DepositCreditSummary }) {
   return (
     <section className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-5 ring-1 ring-indigo-100">
-      <h3 className="text-sm font-semibold uppercase tracking-wide text-indigo-900">
-        Deposit wallet / credit
+      <h3 className="text-sm font-semibold text-indigo-900">
+        Security deposit balance
       </h3>
       <p className="mt-1 text-xs text-indigo-800/80">
-        Your deposit is held as credit — only the difference is charged on rebooking or extension.
+        Money you paid as deposit — held until checkout, then refunded minus any charges.
       </p>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <WalletStat label="Total paid" value={paiseToInr(wallet.totalCollectedPaise)} />
-        <WalletStat label="Currently held" value={paiseToInr(wallet.totalHeldPaise)} />
-        <WalletStat label="Used" value={paiseToInr(wallet.totalUsedPaise)} />
-        <WalletStat label="Refunded" value={paiseToInr(wallet.totalRefundedPaise)} />
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <WalletStat label="Total paid in" value={paiseToInr(wallet.totalCollectedPaise)} />
+        <WalletStat label="Held for you" value={paiseToInr(wallet.totalHeldPaise)} />
+        <WalletStat label="Used on charges" value={paiseToInr(wallet.totalUsedPaise)} />
+        <WalletStat label="Sent back to you" value={paiseToInr(wallet.totalRefundedPaise)} />
         <WalletStat
-          label="Available credit"
+          label="Credit you can use"
           value={paiseToInr(wallet.availableCreditPaise)}
           highlight
         />
