@@ -2,20 +2,36 @@
 
 import { useActionState } from 'react';
 import { AdminAdvancedToolsSection } from '@/src/components/admin/AdminAdvancedToolsSection';
+import { BillingOverviewPanel } from '@/src/components/admin/BillingOverviewPanel';
+import { BillingPrimaryActions } from '@/src/components/admin/billing/BillingPrimaryActions';
 import { CollectionsBillingTools } from '@/src/components/admin/CollectionsBillingTools';
 import {
   cancelPendingInvoicesAction,
   type ActionState,
 } from '@/app/(admin)/admin/rent/actions';
+import type { RentBillingOverviewRow, BillingCycleOperationRow } from '@/src/services/rentInvoices';
 
 const idle: ActionState = { status: 'idle' };
 
 export function BillingAdvancedTools({
   billingMonth,
   canGenerateRent,
+  canSendLinks,
+  billingOverview,
+  billingCycleOps,
+  pendingApprovalCount,
+  needsBillCount,
 }: {
   billingMonth: string;
   canGenerateRent: boolean;
+  canSendLinks: boolean;
+  billingOverview: RentBillingOverviewRow[];
+  billingCycleOps: {
+    dueSoon: BillingCycleOperationRow[];
+    generatedPending: BillingCycleOperationRow[];
+  };
+  pendingApprovalCount: number;
+  needsBillCount: number;
 }) {
   const [cancelState, cancelAction, cancelPending] = useActionState(
     cancelPendingInvoicesAction,
@@ -26,9 +42,25 @@ export function BillingAdvancedTools({
   return (
     <AdminAdvancedToolsSection
       title="Advanced tools"
-      description="Force bill creation, undo mistakes, record historical payments, and other rarely used actions."
+      description="Create bills, full billing queue, bulk tools, and rarely used actions."
       defaultOpen={false}
     >
+      <BillingPrimaryActions
+        billingMonth={billingMonth}
+        canGenerateRent={canGenerateRent}
+        pendingApprovalCount={pendingApprovalCount}
+        needsBillCount={needsBillCount}
+      />
+
+      <BillingOverviewPanel
+        billingMonth={billingMonth}
+        rows={billingOverview}
+        canGenerateRent={canGenerateRent}
+        canSendLinks={canSendLinks}
+        dueSoon={billingCycleOps.dueSoon}
+        generatedPending={billingCycleOps.generatedPending}
+      />
+
       <CollectionsBillingTools billingMonth={billingMonth} canGenerateRent={canGenerateRent} />
 
       {canGenerateRent ? (

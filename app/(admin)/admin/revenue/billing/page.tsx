@@ -2,11 +2,10 @@ import Link from 'next/link';
 import { AdminPendingPaymentsPanel } from '@/src/components/admin/AdminPendingPaymentsPanel';
 import { AdminSectionErrorBoundary } from '@/src/components/admin/AdminSectionErrorBoundary';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
-import { BillingOverviewPanel } from '@/src/components/admin/BillingOverviewPanel';
 import { BillingAdvancedTools } from '@/src/components/admin/billing/BillingAdvancedTools';
-import { BillingPrimaryActions } from '@/src/components/admin/billing/BillingPrimaryActions';
-import { BillingRecentTransactions } from '@/src/components/admin/billing/BillingRecentTransactions';
-import { BillingSummarySection } from '@/src/components/admin/billing/BillingSummarySection';
+import { BillingRecentCollections } from '@/src/components/admin/billing/BillingRecentCollections';
+import { CollectionsActionQueue } from '@/src/components/admin/billing/CollectionsActionQueue';
+import { CollectionsCommandCenter } from '@/src/components/admin/billing/CollectionsCommandCenter';
 import { ElectricityBulkSendPanel } from '@/src/components/admin/ElectricityBulkSendPanel';
 import { RentInvoicesBulkSendBar } from '@/src/components/admin/RentInvoicesBulkSendBar';
 import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
@@ -15,7 +14,6 @@ import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
 import {
-  getRentStats,
   listAdminElectricityInvoicesForReminders,
   listAdminRentInvoices,
   listPgs,
@@ -26,9 +24,14 @@ import { ADMIN_MODULES, moduleHref, modulePgHref } from '@/src/lib/admin/navigat
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
 import { isRentBillingOverviewActionable } from '@/src/lib/billing/rentBillingOverview';
+import {
+  buildCollectionsCommandStats,
+  buildCollectionsQueue,
+} from '@/src/lib/billing/collectionsQueue';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
 import { listRentBillingOverview, listBillingCycleOperations } from '@/src/services/rentInvoices';
+import type { AdminRentInvoiceRow } from '@/src/db/queries/admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,6 +42,25 @@ const TABS = [
   { id: 'electricity', label: 'Electricity bills' },
   { id: 'paid', label: 'Recent payments' },
 ] as const;
+
+function mergeUnpaidRent(
+  pending: AdminRentInvoiceRow[],
+  overdue: AdminRentInvoiceRow[],
+): AdminRentInvoiceRow[] {
+  const byId = new Map<string, AdminRentInvoiceRow>();
+  for (const row of [...pending, ...overdue]) {
+    byId.set(row.id, row);
+  }
+  return [...byId.values()];
+}
+
+function sortRecentCollections(rows: AdminRentInvoiceRow[]): AdminRentInvoiceRow[] {
+  return [...rows].sort((a, b) => {
+    const aTime = a.paidAt?.getTime() ?? 0;
+    const bTime = b.paidAt?.getTime() ?? 0;
+    return bTime - aTime;
+  });
+}
 
 function collectionsTabHref(tab: string, billingMonth: string) {
   const params = new URLSearchParams({ tab });
@@ -59,17 +81,37 @@ export default async function CollectionsModulePage({
   await ensureAdminPageNotificationsSeen('/admin/revenue/billing', '/admin/revenue/billing');
   const canGenerateRent = adminHasPermission(session.role, 'rent:write');
   const canSendLinks = adminHasPermission(session.role, 'payments:write');
-  const [pending, rentStats, rentPending, rentPaid, elecPending, pgs, billingOverview, billingCycleOps] =
+  const [pending, rentPending, rentOverdue, rentPaid, elecPending, pgs, billingOverview, billingCycleOps] =
     await Promise.all([
     requireAdminPermission('payments:write').then((s) => listPendingPaymentReviews(s)),
-    getRentStats(),
     listAdminRentInvoices({ status: 'pending' }),
+    listAdminRentInvoices({ status: 'overdue' }),
     listAdminRentInvoices({ status: 'paid' }),
     listAdminElectricityInvoicesForReminders(),
     listPgs(),
     listRentBillingOverview(billingMonth),
     listBillingCycleOperations(),
   ]);
+
+  const allUnpaidRent = mergeUnpaidRent(
+    rentPending.ok ? rentPending.data : [],
+    rentOverdue.ok ? rentOverdue.data : [],
+  );
+  const allUnpaidElectricity = elecPending.ok ? elecPending.data : [];
+
+  const collectionsQueue = buildCollectionsQueue({
+    rentRows: allUnpaidRent,
+    electricityRows: allUnpaidElectricity,
+  });
+
+  const collectionsStats = buildCollectionsCommandStats({
+    queue: collectionsQueue,
+    allUnpaidRent,
+    allUnpaidElectricity,
+    paidTodayRows: rentPaid.ok ? rentPaid.data : [],
+  });
+
+  const recentCollections = sortRecentCollections(rentPaid.ok ? rentPaid.data : []);
 
   const pgNameById = new Map(pgs.ok ? pgs.data.map((p) => [p.id, p.name]) : []);
 
@@ -88,7 +130,7 @@ export default async function CollectionsModulePage({
       />
       <PageHeader
         title="Billing"
-        description="Create bills, track what residents owe, and record payments received."
+        description="Who owes money, how overdue, and who to contact next — sorted for collections."
       />
       <p className="mb-6 text-sm text-apg-silver">
         <Link href="/admin/invoices" className="font-semibold text-[#FF5A1F] hover:underline">
@@ -122,33 +164,21 @@ export default async function CollectionsModulePage({
 
       {tab === 'billing' ? (
         <>
-          {rentStats.ok ? (
-            <BillingSummarySection stats={rentStats.data} billingMonth={billingMonth} />
-          ) : null}
-
-          <BillingPrimaryActions
+          <CollectionsCommandCenter stats={collectionsStats} />
+          <CollectionsActionQueue items={collectionsQueue} />
+          <BillingRecentCollections
+            rows={recentCollections}
+            error={rentPaid.ok ? null : rentPaid.error ?? null}
+          />
+          <BillingAdvancedTools
             billingMonth={billingMonth}
             canGenerateRent={canGenerateRent}
+            canSendLinks={canSendLinks}
+            billingOverview={billingOverview}
+            billingCycleOps={billingCycleOps}
             pendingApprovalCount={pending.length}
             needsBillCount={needsBillCount}
           />
-
-          <BillingOverviewPanel
-            billingMonth={billingMonth}
-            rows={billingOverview}
-            canGenerateRent={canGenerateRent}
-            canSendLinks={canSendLinks}
-            dueSoon={billingCycleOps.dueSoon}
-            generatedPending={billingCycleOps.generatedPending}
-          />
-
-          {rentPaid.ok ? (
-            <BillingRecentTransactions rows={rentPaid.data} error={null} />
-          ) : (
-            <BillingRecentTransactions rows={[]} error={rentPaid.error ?? null} />
-          )}
-
-          <BillingAdvancedTools billingMonth={billingMonth} canGenerateRent={canGenerateRent} />
         </>
       ) : null}
 
