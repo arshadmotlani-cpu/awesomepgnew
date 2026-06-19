@@ -205,6 +205,7 @@ export type CustomerPgDetail = {
   amenities: Record<string, unknown>;
   description: string | null;
   images: string[];
+  videos: string[];
 };
 
 export function getPgBySlug(
@@ -225,6 +226,7 @@ export function getPgBySlug(
         amenities: pgs.amenities,
         description: pgs.description,
         images: pgs.images,
+        videos: pgs.videos,
       })
       .from(pgs)
       .where(and(eq(pgs.slug, slug), sql`${pgs.archivedAt} IS NULL`))
@@ -234,6 +236,7 @@ export function getPgBySlug(
       ...row,
       amenities: (row.amenities ?? {}) as Record<string, unknown>,
       images: Array.isArray(row.images) ? (row.images as string[]) : [],
+      videos: Array.isArray(row.videos) ? (row.videos as string[]) : [],
     };
   });
 }

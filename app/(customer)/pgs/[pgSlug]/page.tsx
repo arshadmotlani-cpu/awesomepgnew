@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation';
 import { AmenityList } from '@/src/components/customer/AmenityList';
 import { PgRoomWorldSection } from '@/src/components/world/PgRoomWorldSection';
 import { PgFilteredBedMapSection } from '@/src/components/world/PgFilteredBedMapSection';
+import { resolveRoomMedia } from '@/src/lib/roomWorld/roomMedia';
+import type { RoomTheaterRoom } from '@/src/components/world/RoomTheater';
 import { BookingFlowStepper } from '@/src/components/customer/checkout/BookingFlowStepper';
 import { GenderBadge } from '@/src/components/customer/GenderBadge';
 import { StickyBookCta } from '@/src/components/customer/marketing/StickyBookCta';
@@ -78,6 +80,27 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
     0,
   );
   const fullyOccupied = totalBeds > 0 && availableBeds === 0;
+
+  const pgImages = pg.images ?? [];
+  const pgVideos = pg.videos ?? [];
+  const theaterRooms: RoomTheaterRoom[] = roomList.map((room, index) => {
+    const bedRoom = bedMapRooms.find((r) => r.roomId === room.roomId);
+    const media = resolveRoomMedia({ roomIndex: index, pgImages, pgVideos });
+    return {
+      roomId: room.roomId,
+      roomNumber: room.roomNumber,
+      roomType: room.roomType,
+      floorNumber: room.floorNumber,
+      floorLabel: room.floorLabel,
+      capacity: room.capacity,
+      hasAc: room.hasAc,
+      availableBeds: room.availableBeds,
+      totalBeds: room.totalBeds,
+      beds: bedRoom?.beds ?? [],
+      imageUrl: media.imageUrl,
+      videoUrl: media.videoUrl,
+    };
+  });
 
   void trackAnalyticsEvent({
     eventType: 'pg_viewed',
@@ -156,7 +179,7 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
 
       <section className="mt-8" id="room-world" data-roachie-tour="room-world">
         {roomsResult.ok ? (
-          <PgRoomWorldSection pgId={pg.id} pgSlug={pg.slug} rooms={roomList} />
+          <PgRoomWorldSection pgId={pg.id} pgSlug={pg.slug} rooms={theaterRooms} />
         ) : null}
       </section>
 

@@ -9,6 +9,9 @@ export { SpatialPgGrid, SpatialPgHeader } from '@/src/components/world/SpatialPg
 export { SpatialRoomGrid } from '@/src/components/world/SpatialRoomGrid';
 export { PgRoomWorldSection } from '@/src/components/world/PgRoomWorldSection';
 export { PgFilteredBedMapSection } from '@/src/components/world/PgFilteredBedMapSection';
+export { RoomTheater, type RoomTheaterRoom } from '@/src/components/world/RoomTheater';
+export { RoomTheaterVideo } from '@/src/components/world/RoomTheaterVideo';
+export { GlitchTransition } from '@/src/components/world/GlitchTransition';
 export { RoomDetailFlowShell, RoomBedMapCta } from '@/src/components/world/RoomDetailFlowShell';
 export { RoomNodeCard, type RoomNodeData } from '@/src/components/world/RoomNodeCard';
 export { RoomLightLayer } from '@/src/components/world/RoomLightLayer';
