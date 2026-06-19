@@ -372,6 +372,18 @@ export async function ResidentAreaSection({
           openRequestTypes={openRequests.map((r) =>
             r.type === 'deposit_refund' ? 'deposit_refund' : r.type,
           )}
+          openRequests={openRequests.map((r) => ({
+            id: r.id,
+            type: r.type,
+            status: r.status,
+          }))}
+          moreContent={
+            <ResidentRequestForms
+              bookingId={primaryBooking.bookingId}
+              refundableBalancePaise={primaryBooking.deposit?.refundableBalancePaise ?? 0}
+              hasOpenVacating={hasOpenVacating}
+            />
+          }
         />
       ) : null}
 
@@ -396,7 +408,6 @@ export async function ResidentAreaSection({
 
       {(activeTab === 'wallet' ||
         activeTab === 'payments' ||
-        activeTab === 'requests' ||
         activeTab === 'vacating') && (
     <section className="space-y-6">
 
@@ -503,14 +514,6 @@ export async function ResidentAreaSection({
                     </p>
                   </div>
                 </header>
-
-                {(activeTab === 'requests') ? (
-                <ResidentRequestForms
-                  bookingId={d.bookingId}
-                  refundableBalancePaise={deposit?.refundableBalancePaise ?? 0}
-                  hasOpenVacating={Boolean(vacating && ['pending', 'approved'].includes(vacating.status))}
-                />
-                ) : null}
 
                 {(activeTab === 'payments') ? (
                 <div className="flex flex-wrap gap-2 text-xs">
