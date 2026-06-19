@@ -31,7 +31,6 @@ import { buildBriefingInputForBooking } from '@/src/lib/cockroach/briefingFromBo
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import { DepositWalletSection } from '@/src/components/customer/account/DepositWalletSection';
 import { DepositDueSection } from '@/src/components/customer/account/DepositDueSection';
-import { ResidentFinancialSummaryPanel } from '@/src/components/customer/account/ResidentFinancialSummaryPanel';
 import { ResidentRequestForms } from '@/src/components/customer/account/ResidentRequestForms';
 import { getCustomerDepositCredit } from '@/src/services/depositCredit';
 import { ensureDepositDuePaymentLink } from '@/src/services/depositCollection';
@@ -50,7 +49,18 @@ import type { ResidentTab } from '@/src/lib/accountNavigation';
 import { listCustomerEmailNotifications } from '@/src/db/queries/customerNotifications';
 import { getLatestCheckoutSettlementStatusForCustomer } from '@/src/services/checkoutSettlement';
 import { getLatestKycSubmission } from '@/src/services/kyc';
+import {
+  ResidentWalletPrimaryActions,
+  ResidentWalletSummary,
+} from '@/src/components/customer/account/resident/ResidentWalletPanel';
+import {
+  ResidentBillsList,
+  ResidentPaymentsPrimaryActions,
+  ResidentPaymentsSummary,
+  type PaymentDueRow,
+} from '@/src/components/customer/account/resident/ResidentPaymentsPanel';
 import { ResidentHomePanel } from '@/src/components/customer/account/resident/ResidentHomePanel';
+import { ResidentMoreSection } from '@/src/components/customer/account/resident/ResidentMoreSection';
 import type { UpcomingPaymentRow } from '@/src/components/customer/account/resident/ResidentUpcomingPayments';
 
 const RENT_STATUS_TONE: Record<string, string> = {
@@ -341,6 +351,17 @@ export async function ResidentAreaSection({
     }
   }
 
+  const paymentBillRows: PaymentDueRow[] = homeUpcoming.map((r) => ({
+    key: r.key,
+    label: r.label,
+    amountPaise: r.amountPaise,
+    dueDate: r.dueDate,
+    href: r.href,
+    status: r.status,
+  }));
+  const firstPayHref = paymentBillRows.find((r) => r.href)?.href ?? null;
+  const nextDueDate = paymentBillRows[0]?.dueDate ?? null;
+
   return (
     <ResidentHubShell activeTab={activeTab}>
       {activeTab === 'notifications' ? (
@@ -406,16 +427,43 @@ export async function ResidentAreaSection({
         />
       ) : null}
 
+      {activeTab === 'wallet' && financialSummary && primaryBooking ? (
+        <div className="space-y-6">
+          <ResidentWalletSummary
+            financialSummary={financialSummary}
+            wallet={depositWallet}
+            refundStatusLabel={titleCase(
+              primaryBooking.booking.adminDepositRefundStatus.replace(/_/g, ' '),
+            )}
+          />
+          <ResidentWalletPrimaryActions
+            amountDuePaise={financialSummary.totals.outstandingPaise}
+          />
+        </div>
+      ) : null}
+
+      {activeTab === 'payments' && financialSummary && primaryBooking ? (
+        <div className="space-y-6">
+          <ResidentPaymentsSummary
+            totalDuePaise={financialSummary.totals.outstandingPaise}
+            billCount={paymentBillRows.length}
+            nextDueDate={nextDueDate}
+          />
+          <ResidentPaymentsPrimaryActions
+            firstPayHref={firstPayHref}
+            totalDuePaise={financialSummary.totals.outstandingPaise}
+            historyHref={`/account/resident/history/${primaryBooking.bookingId}`}
+          />
+          <ResidentBillsList rows={paymentBillRows} />
+        </div>
+      ) : null}
+
       {(activeTab === 'wallet' ||
         activeTab === 'payments' ||
         activeTab === 'vacating') && (
     <section className="space-y-6">
 
       {activeTab === 'vacating' ? <DepositRefundNotice /> : null}
-
-      {activeTab === 'wallet' && financialSummary ? (
-        <ResidentFinancialSummaryPanel summary={financialSummary} />
-      ) : null}
 
       {(activeTab === 'wallet' || activeTab === 'payments') &&
         depositDueCards.map((card) => (
@@ -516,17 +564,7 @@ export async function ResidentAreaSection({
                 </header>
 
                 {(activeTab === 'payments') ? (
-                <div className="flex flex-wrap gap-2 text-xs">
-                  <Link
-                    href={`/account/resident/history/${d.bookingId}`}
-                    className="inline-flex items-center rounded-md border border-zinc-300 bg-white px-2.5 py-1 font-medium text-zinc-700 hover:bg-zinc-50"
-                  >
-                    Payment history →
-                  </Link>
-                </div>
-                ) : null}
-
-                {(activeTab === 'payments') ? (
+                <ResidentMoreSection title="Full bill tables" description="Detailed rent and electricity invoices.">
                 <details open={projectedRent.some((r) => r.effectiveStatus !== 'paid')}>
                   <summary className="cursor-pointer text-sm font-medium text-zinc-900">
                     Rent invoices ({projectedRent.length})
@@ -596,9 +634,7 @@ export async function ResidentAreaSection({
                     </table>
                   </div>
                 </details>
-                ) : null}
 
-                {(activeTab === 'payments') ? (
                 <details open={projectedElectricity.some((p) => p.effectiveStatus !== 'paid' && p.effectiveStatus !== 'cancelled')}>
                   <summary className="cursor-pointer text-sm font-medium text-zinc-900">
                     Electricity invoices ({electricityRows.length})
@@ -674,9 +710,11 @@ export async function ResidentAreaSection({
                     </table>
                   </div>
                 </details>
+                </ResidentMoreSection>
                 ) : null}
 
                 {activeTab === 'wallet' ? (
+                <ResidentMoreSection title="Deposit activity" description="Every deposit payment, charge, and refund.">
                 <details>
                   <summary className="cursor-pointer text-sm font-medium text-zinc-900">
                     Deposit ledger ({deposit?.entries.length ?? 0} entries)
@@ -718,6 +756,7 @@ export async function ResidentAreaSection({
                     </table>
                   </div>
                 </details>
+                </ResidentMoreSection>
                 ) : null}
 
                 {activeTab === 'vacating' ? (
