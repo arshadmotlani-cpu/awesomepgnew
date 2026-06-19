@@ -1334,6 +1334,73 @@ body {
   background: rgba(255, 90, 31, 0.4);
 }
 
+/* PG DNA Floor Flow — vertical spatial spine */
+.dna-floor-flow {
+  position: relative;
+}
+
+.dna-spine-viewport {
+  max-height: min(72vh, 640px);
+  scroll-snap-type: y proximity;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dna-spine-track {
+  perspective: 900px;
+  perspective-origin: 50% 50%;
+  transform-style: preserve-3d;
+}
+
+.dna-spine-slot {
+  scroll-snap-align: center;
+  scroll-margin: 28vh 0;
+}
+
+.dna-spine-item {
+  transform-style: preserve-3d;
+  transition:
+    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.28s ease;
+  will-change: transform, opacity;
+}
+
+.dna-building-map {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 90, 31, 0.35) transparent;
+}
+
+.dna-building-map::-webkit-scrollbar {
+  height: 4px;
+}
+
+.dna-building-map::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background: rgba(255, 90, 31, 0.4);
+}
+
+.dna-room-sheet {
+  animation: dna-sheet-in 0.28s ease;
+}
+
+@keyframes dna-sheet-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dna-spine-item {
+    transition: none;
+  }
+
+  .dna-room-sheet {
+    animation: none;
+  }
+}
+
 /* PG floating city */
 .world-pg-grid {
   perspective: 1000px;

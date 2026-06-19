@@ -1,35 +1,26 @@
 'use client';
 
 import { Suspense } from 'react';
-import { RoomTheater, type RoomTheaterRoom } from '@/src/components/world/RoomTheater';
+import { PgDnaFloorFlow } from '@/src/components/world/PgDnaFloorFlow';
+import type { PgSpineRoom } from '@/src/lib/roomWorld/pgSpineRoom';
 import { useRoomWorldUrlSync } from '@/src/lib/roomWorld/roomWorldFlow';
-import { useRoomStore } from '@/src/stores/useRoomStore';
 
 type Props = {
   pgId: string;
   pgSlug: string;
-  rooms: RoomTheaterRoom[];
+  rooms: PgSpineRoom[];
 };
 
 function PgRoomWorldInner({ pgId, pgSlug, rooms }: Props) {
   useRoomWorldUrlSync(pgId, pgSlug);
-  const selectedRoomId = useRoomStore((s) => s.selectedRoomId);
-
-  return (
-    <RoomTheater
-      pgId={pgId}
-      pgSlug={pgSlug}
-      rooms={rooms}
-      initialRoomId={selectedRoomId}
-    />
-  );
+  return <PgDnaFloorFlow pgId={pgId} pgSlug={pgSlug} rooms={rooms} />;
 }
 
 export function PgRoomWorldSection(props: Props) {
   return (
     <Suspense
       fallback={
-        <RoomTheater {...props} initialRoomId={null} />
+        <div className="h-64 animate-pulse rounded-2xl border border-white/10 apg-glass-light" />
       }
     >
       <PgRoomWorldInner {...props} />

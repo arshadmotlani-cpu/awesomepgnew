@@ -7,9 +7,15 @@ export { BookingCheckoutWorld } from '@/src/components/world/BookingCheckoutWorl
 export { SpatialLandingPage } from '@/src/components/world/SpatialLandingPage';
 export { SpatialPgGrid, SpatialPgHeader } from '@/src/components/world/SpatialPgExplorer';
 export { SpatialRoomGrid } from '@/src/components/world/SpatialRoomGrid';
+export { PgDnaFloorFlow } from '@/src/components/world/PgDnaFloorFlow';
+export { DnaSpineRoomCard } from '@/src/components/world/DnaSpineRoomCard';
+export { DnaFloorRail } from '@/src/components/world/DnaFloorRail';
+export { RoomDetailSheet } from '@/src/components/world/RoomDetailSheet';
+export type { PgSpineRoom, RoomTheaterRoom } from '@/src/lib/roomWorld/pgSpineRoom';
 export { PgRoomWorldSection } from '@/src/components/world/PgRoomWorldSection';
 export { PgFilteredBedMapSection } from '@/src/components/world/PgFilteredBedMapSection';
-export { RoomTheater, type RoomTheaterRoom } from '@/src/components/world/RoomTheater';
+/** @deprecated Replaced by PgDnaFloorFlow — kept for reference. */
+export { RoomTheater } from '@/src/components/world/RoomTheater';
 export { RoomTheaterVideo } from '@/src/components/world/RoomTheaterVideo';
 export { GlitchTransition } from '@/src/components/world/GlitchTransition';
 export { RoomDetailFlowShell, RoomBedMapCta } from '@/src/components/world/RoomDetailFlowShell';

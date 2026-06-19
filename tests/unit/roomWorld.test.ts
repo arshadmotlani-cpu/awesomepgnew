@@ -9,6 +9,14 @@ import {
   orderRoomsForTheater,
   prevRoomIndex,
 } from '../../src/lib/roomWorld/roomTheaterNav';
+import {
+  floorShortLabel,
+  groupRoomsByFloor,
+  occupancyRatio,
+  roomAvailabilityLabel,
+  spineTransformForOffset,
+  spineVisualOffset,
+} from '../../src/lib/roomWorld/dnaSpineLayout';
 
 describe('checkout QR routing', () => {
   it('uses electricity QR for fixed stays', () => {
@@ -86,5 +94,71 @@ describe('room visual seed', () => {
     const b = getRoomVisualSeed('room-abc-123');
     assert.deepEqual(a, b);
     assert.ok(a.seed >= 0 && a.seed < 7);
+  });
+});
+
+describe('dna spine layout', () => {
+  const rooms = [
+    {
+      roomId: 'a',
+      roomNumber: '101',
+      roomType: 'standard',
+      floorNumber: 0,
+      floorLabel: 'Ground Floor',
+      capacity: 4,
+      hasAc: true,
+      availableBeds: 2,
+      totalBeds: 4,
+      beds: [],
+    },
+    {
+      roomId: 'b',
+      roomNumber: '201',
+      roomType: 'standard',
+      floorNumber: 1,
+      floorLabel: 'Floor 1',
+      capacity: 3,
+      hasAc: false,
+      availableBeds: 0,
+      totalBeds: 3,
+      beds: [],
+    },
+  ];
+
+  it('groups rooms by floor with short labels', () => {
+    const groups = groupRoomsByFloor(rooms);
+    assert.equal(groups.length, 2);
+    assert.equal(groups[0]!.shortLabel, 'G');
+    assert.equal(groups[1]!.shortLabel, '1F');
+  });
+
+  it('clamps spine visual offset', () => {
+    assert.equal(spineVisualOffset(10, 0), 3);
+    assert.equal(spineVisualOffset(-5, 0), -3);
+    assert.equal(spineVisualOffset(2, 2), 0);
+  });
+
+  it('applies 3D depth for above/below active room', () => {
+    const above = spineTransformForOffset(-1, false);
+    const below = spineTransformForOffset(1, false);
+    assert.ok(above.rotateX < 0);
+    assert.ok(below.rotateX > 0);
+    assert.ok(above.translateZ < 0);
+    assert.ok(below.translateZ > 0);
+  });
+
+  it('labels availability from bed counts', () => {
+    assert.equal(roomAvailabilityLabel(rooms[0]!), '2 free');
+    assert.equal(roomAvailabilityLabel(rooms[1]!), 'Full');
+  });
+
+  it('computes occupancy ratio', () => {
+    assert.equal(occupancyRatio(rooms[0]!), 0.5);
+    assert.equal(occupancyRatio(rooms[1]!), 0);
+  });
+
+  it('formats ground floor short label', () => {
+    assert.equal(floorShortLabel(0, 'Ground Floor'), 'G');
+    assert.equal(floorShortLabel(2, 'Floor 2'), '2F');
   });
 });

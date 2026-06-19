@@ -4,7 +4,7 @@ import { AmenityList } from '@/src/components/customer/AmenityList';
 import { PgRoomWorldSection } from '@/src/components/world/PgRoomWorldSection';
 import { PgFilteredBedMapSection } from '@/src/components/world/PgFilteredBedMapSection';
 import { resolveRoomMedia } from '@/src/lib/roomWorld/roomMedia';
-import type { RoomTheaterRoom } from '@/src/components/world/RoomTheater';
+import type { PgSpineRoom } from '@/src/lib/roomWorld/pgSpineRoom';
 import { BookingFlowStepper } from '@/src/components/customer/checkout/BookingFlowStepper';
 import { GenderBadge } from '@/src/components/customer/GenderBadge';
 import { StickyBookCta } from '@/src/components/customer/marketing/StickyBookCta';
@@ -83,7 +83,7 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
 
   const pgImages = pg.images ?? [];
   const pgVideos = pg.videos ?? [];
-  const theaterRooms: RoomTheaterRoom[] = roomList.map((room, index) => {
+  const spineRooms: PgSpineRoom[] = roomList.map((room, index) => {
     const bedRoom = bedMapRooms.find((r) => r.roomId === room.roomId);
     const media = resolveRoomMedia({ roomIndex: index, pgImages, pgVideos });
     return {
@@ -179,7 +179,7 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
 
       <section className="mt-8" id="room-world" data-roachie-tour="room-world">
         {roomsResult.ok ? (
-          <PgRoomWorldSection pgId={pg.id} pgSlug={pg.slug} rooms={theaterRooms} />
+          <PgRoomWorldSection pgId={pg.id} pgSlug={pg.slug} rooms={spineRooms} />
         ) : null}
       </section>
 
