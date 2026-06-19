@@ -7,13 +7,7 @@ import { notifyVerificationCode } from '@/src/lib/email/notifications';
 import { env } from '@/src/lib/env';
 import { safeEqual, sha256 } from './crypto';
 import { logOtpAttempt } from './otpAttemptLog';
-import {
-  countOtpSendsForEmail,
-  countOtpSendsForIp,
-  latestOtpSendForEmail,
-  resendAvailableAt,
-  secondsUntilResend,
-} from './otpRateLimit';
+import { latestOtpSendForEmail, resendAvailableAt, secondsUntilResend } from './otpRateLimit';
 
 const MAX_VERIFY_ATTEMPTS = 5;
 
@@ -58,7 +52,6 @@ export async function sendEmailOtp(
   }
 
   const now = new Date();
-  const hourAgo = new Date(now.getTime() - 60 * 60_000);
 
   const lastSent = await latestOtpSendForEmail(email);
   if (lastSent) {
@@ -76,44 +69,6 @@ export async function sendEmailOtp(
         ok: false,
         message: `Wait ${wait} seconds before requesting another code.`,
         retryAfterSeconds: wait,
-      };
-    }
-  }
-
-  const emailSends = await countOtpSendsForEmail(email, hourAgo);
-  if (emailSends >= env.AUTH_OTP_MAX_SENDS_PER_HOUR) {
-    await logOtpAttempt({
-      email,
-      action: 'send',
-      success: false,
-      reason: 'email_rate_limit',
-      ip: ctx.ip,
-      userAgent: ctx.userAgent,
-    });
-    return {
-      ok: false,
-      message: 'Too many attempts. Please wait 60 minutes before requesting a new code.',
-      rateLimited: true,
-      retryAfterSeconds: 3600,
-    };
-  }
-
-  if (ctx.ip) {
-    const ipSends = await countOtpSendsForIp(ctx.ip, hourAgo);
-    if (ipSends >= env.AUTH_OTP_MAX_SENDS_PER_IP_HOUR) {
-      await logOtpAttempt({
-        email,
-        action: 'send',
-        success: false,
-        reason: 'ip_rate_limit',
-        ip: ctx.ip,
-        userAgent: ctx.userAgent,
-      });
-      return {
-        ok: false,
-        message: 'Too many attempts. Please wait 60 minutes before requesting a new code.',
-        rateLimited: true,
-        retryAfterSeconds: 3600,
       };
     }
   }
