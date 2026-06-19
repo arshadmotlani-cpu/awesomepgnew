@@ -2,6 +2,7 @@ import Link from 'next/link';
 import {
   getVacatingForBooking,
   listElectricityInvoicesForBooking,
+  listPaymentsForBooking,
   listRentInvoicesForBooking,
   listResidentBookingsForCustomer,
   type ResidentBookingRow,
@@ -29,7 +30,6 @@ import {
 } from '@/src/services/playstationMembership';
 import { buildBriefingInputForBooking } from '@/src/lib/cockroach/briefingFromBooking';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
-import { DepositWalletSection } from '@/src/components/customer/account/DepositWalletSection';
 import { DepositDueSection } from '@/src/components/customer/account/DepositDueSection';
 import { ResidentRequestForms } from '@/src/components/customer/account/ResidentRequestForms';
 import { getCustomerDepositCredit } from '@/src/services/depositCredit';
@@ -49,14 +49,10 @@ import type { ResidentTab } from '@/src/lib/accountNavigation';
 import { listCustomerEmailNotifications } from '@/src/db/queries/customerNotifications';
 import { getLatestCheckoutSettlementStatusForCustomer } from '@/src/services/checkoutSettlement';
 import { getLatestKycSubmission } from '@/src/services/kyc';
+import { buildWalletLedger } from '@/src/lib/residents/walletLedger';
+import { ResidentWalletView } from '@/src/components/customer/account/resident/ResidentWalletView';
+import { ResidentPaymentsHub } from '@/src/components/customer/account/resident/ResidentPaymentsHub';
 import {
-  ResidentWalletPrimaryActions,
-  ResidentWalletSummary,
-} from '@/src/components/customer/account/resident/ResidentWalletPanel';
-import {
-  ResidentBillsList,
-  ResidentPaymentsPrimaryActions,
-  ResidentPaymentsSummary,
   type PaymentDueRow,
 } from '@/src/components/customer/account/resident/ResidentPaymentsPanel';
 import { ResidentHomePanel } from '@/src/components/customer/account/resident/ResidentHomePanel';
@@ -362,6 +358,17 @@ export async function ResidentAreaSection({
   const firstPayHref = paymentBillRows.find((r) => r.href)?.href ?? null;
   const nextDueDate = paymentBillRows[0]?.dueDate ?? null;
 
+  const paymentHistoryRes = primaryBooking
+    ? await listPaymentsForBooking(primaryBooking.bookingId)
+    : null;
+  const walletLedgerEntries = buildWalletLedger({
+    depositEntries: primaryBooking?.deposit?.entries ?? [],
+    payments: paymentHistoryRes?.ok ? paymentHistoryRes.data : [],
+  });
+  const historyHref = primaryBooking
+    ? `/account/resident/history/${primaryBooking.bookingId}`
+    : null;
+
   return (
     <ResidentHubShell activeTab={activeTab}>
       {activeTab === 'notifications' ? (
@@ -421,6 +428,24 @@ export async function ResidentAreaSection({
           firstUnpaidRentId={firstUnpaidRentId}
           firstUnpaidElectricityId={firstUnpaidElectricityId}
           hasOpenVacating={hasOpenVacating}
+          vacatingStatus={primaryVacating?.status ?? null}
+          checkoutStatus={checkoutByBooking.get(primaryBooking.bookingId) ?? null}
+          settlementLines={
+            primaryVacating
+              ? [
+                  {
+                    label: 'Notice period deduction',
+                    amountPaise: primaryVacating.deductionPaise,
+                    tone: 'deduction' as const,
+                  },
+                  {
+                    label: 'Refund issued',
+                    amountPaise: primaryVacating.depositRefundPaise,
+                    tone: 'credit' as const,
+                  },
+                ]
+              : []
+          }
           residentBriefing={residentBriefing}
           ps4Membership={ps4Membership}
           tenantActive={tenantActive}
@@ -428,51 +453,29 @@ export async function ResidentAreaSection({
       ) : null}
 
       {activeTab === 'wallet' && financialSummary && primaryBooking ? (
-        <div className="space-y-6">
-          <ResidentWalletSummary
-            financialSummary={financialSummary}
-            wallet={depositWallet}
-            refundStatusLabel={titleCase(
-              primaryBooking.booking.adminDepositRefundStatus.replace(/_/g, ' '),
-            )}
-          />
-          <ResidentWalletPrimaryActions
-            amountDuePaise={financialSummary.totals.outstandingPaise}
-          />
-        </div>
+        <ResidentWalletView
+          amountDuePaise={financialSummary.totals.outstandingPaise}
+          depositHeldPaise={depositWallet.totalHeldPaise}
+          ledgerEntries={walletLedgerEntries}
+          firstUnpaidRentId={firstUnpaidRentId}
+          firstUnpaidElectricityId={firstUnpaidElectricityId}
+          historyHref={historyHref}
+        />
       ) : null}
 
       {activeTab === 'payments' && financialSummary && primaryBooking ? (
-        <div className="space-y-6">
-          <ResidentPaymentsSummary
-            totalDuePaise={financialSummary.totals.outstandingPaise}
-            billCount={paymentBillRows.length}
-            nextDueDate={nextDueDate}
-          />
-          <ResidentPaymentsPrimaryActions
-            firstPayHref={firstPayHref}
-            totalDuePaise={financialSummary.totals.outstandingPaise}
-            historyHref={`/account/resident/history/${primaryBooking.bookingId}`}
-          />
-          <ResidentBillsList rows={paymentBillRows} />
-        </div>
+        <ResidentPaymentsHub billRows={paymentBillRows} historyHref={historyHref} />
       ) : null}
 
-      {(activeTab === 'wallet' ||
-        activeTab === 'payments' ||
-        activeTab === 'vacating') && (
+      {(activeTab === 'payments' || activeTab === 'vacating') && (
     <section className="space-y-6">
 
       {activeTab === 'vacating' ? <DepositRefundNotice /> : null}
 
-      {(activeTab === 'wallet' || activeTab === 'payments') &&
+      {activeTab === 'payments' &&
         depositDueCards.map((card) => (
           <DepositDueSection key={`deposit-due-${card.bookingId}`} {...card} />
         ))}
-
-      {activeTab === 'wallet' && depositWallet.totalCollectedPaise > 0 ? (
-        <DepositWalletSection wallet={depositWallet} />
-      ) : null}
 
       {bookings.ok === false ? (
         <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700 ring-1 ring-inset ring-rose-200">
@@ -705,52 +708,6 @@ export async function ResidentAreaSection({
                             </tr>
                             );
                           })
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </details>
-                </ResidentMoreSection>
-                ) : null}
-
-                {activeTab === 'wallet' ? (
-                <ResidentMoreSection title="Deposit activity" description="Every deposit payment, charge, and refund.">
-                <details>
-                  <summary className="cursor-pointer text-sm font-medium text-zinc-900">
-                    Deposit ledger ({deposit?.entries.length ?? 0} entries)
-                  </summary>
-                  <div className="mt-2 overflow-hidden rounded-lg border border-zinc-200">
-                    <table className="min-w-full divide-y divide-zinc-200 text-sm">
-                      <thead className={ACCOUNT_TABLE_HEAD}>
-                        <tr>
-                          <th className="px-3 py-2">Date</th>
-                          <th className="px-3 py-2">Type</th>
-                          <th className="px-3 py-2">Reason</th>
-                          <th className="px-3 py-2 text-right">Amount</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-zinc-100 bg-white">
-                        {(deposit?.entries.length ?? 0) === 0 ? (
-                          <tr>
-                            <td colSpan={4} className="px-3 py-4 text-center text-zinc-500">
-                              No deposit entries yet.
-                            </td>
-                          </tr>
-                        ) : (
-                          deposit?.entries.map((entry) => (
-                            <tr key={entry.id}>
-                              <td className="px-3 py-2 text-xs">
-                                {formatDate(entry.createdAt)}
-                              </td>
-                              <td className="px-3 py-2">{titleCase(entry.entryKind)}</td>
-                              <td className="px-3 py-2 text-xs text-zinc-600">
-                                {entry.reason}
-                              </td>
-                              <td className="px-3 py-2 text-right font-medium">
-                                {paiseToInr(entry.amountPaise)}
-                              </td>
-                            </tr>
-                          ))
                         )}
                       </tbody>
                     </table>

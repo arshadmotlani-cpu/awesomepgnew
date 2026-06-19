@@ -15,15 +15,17 @@ import {
   DEFAULT_RENT_DEPOSIT_QR_PATH,
   DEFAULT_RENT_DEPOSIT_UPI_ID,
 } from '@/src/lib/payments/defaultQr';
-import { RentPaymentProofForm } from '@/src/components/customer/RentPaymentProofForm';
-import { ACCOUNT_RESIDENT_HREF } from '@/src/lib/accountNavigation';
+import { ResidentPayRentClient } from '@/src/components/customer/account/resident/ResidentPayRentClient';
+import {
+  InvoiceBreakdownRow,
+} from '@/src/components/customer/account/resident/ResidentPaymentsHub';
+import { StatusChip } from '@/src/components/customer/design-system';
+import { ApgCard } from '@/src/components/customer/design-system';
+import { residentTabHref } from '@/src/lib/accountNavigation';
 import {
   ACCOUNT_BACK_LINK,
-  ACCOUNT_LABEL,
   ACCOUNT_PAGE_SUBTITLE,
   ACCOUNT_PAGE_TITLE,
-  ACCOUNT_SURFACE_PADDED,
-  ACCOUNT_VALUE,
 } from '@/src/components/customer/accountStyles';
 import { ensureDefaultPaymentCategoriesForPg, getRentDepositBookingCategory } from '@/src/services/pgPaymentDefaults';
 import { formatDate, paiseToInr } from '@/src/lib/format';
@@ -33,6 +35,13 @@ import { requireCustomerSession } from '@/src/lib/auth/guards';
 export const dynamic = 'force-dynamic';
 
 type RouteParams = { invoiceId: string };
+
+const STATUS_TONE: Record<string, string> = {
+  pending: 'bg-amber-50 text-amber-800 ring-amber-200',
+  overdue: 'bg-rose-50 text-rose-800 ring-rose-200',
+  paid: 'bg-emerald-50 text-emerald-800 ring-emerald-200',
+  processing: 'bg-sky-50 text-sky-800 ring-sky-200',
+};
 
 export default async function PayRentPage({
   params,
@@ -50,26 +59,26 @@ export default async function PayRentPage({
       bookingCode: bookings.bookingCode,
       customerId: rentInvoices.customerId,
       customerFullName: customers.fullName,
-      customerPhone: customers.phone,
       pgName: pgs.name,
       bedCode: beds.bedCode,
       roomNumber: rooms.roomNumber,
       billingMonth: rentInvoices.billingMonth,
       dueDate: rentInvoices.dueDate,
       rentPaise: rentInvoices.rentPaise,
+      status: rentInvoices.status,
+      paidAt: rentInvoices.paidAt,
+      paymentProofUrl: rentInvoices.paymentProofUrl,
+      notes: rentInvoices.notes,
+      pgId: rentInvoices.pgId,
+      cancelledAt: rentInvoices.cancelledAt,
+      cancellationReason: rentInvoices.cancellationReason,
+      customerPhone: customers.phone,
       paidPrincipalPaise: rentInvoices.paidPrincipalPaise,
       paidLateFeePaise: rentInvoices.paidLateFeePaise,
       lateFeeLockedPaise: rentInvoices.lateFeeLockedPaise,
-      status: rentInvoices.status,
-      paidAt: rentInvoices.paidAt,
       paymentId: rentInvoices.paymentId,
-      paymentProofUrl: rentInvoices.paymentProofUrl,
-      cancelledAt: rentInvoices.cancelledAt,
-      cancellationReason: rentInvoices.cancellationReason,
-      notes: rentInvoices.notes,
       isAdhoc: rentInvoices.isAdhoc,
       bedId: rentInvoices.bedId,
-      pgId: rentInvoices.pgId,
       createdAt: rentInvoices.createdAt,
       updatedAt: rentInvoices.updatedAt,
     })
@@ -85,6 +94,9 @@ export default async function PayRentPage({
   if (!row || row.customerId !== session.customerId) notFound();
 
   const projected = projectInvoice(row);
+  const amountLabel = paiseToInr(projected.outstandingPaise);
+  const periodLabel = formatDate(row.billingMonth);
+  const backHref = residentTabHref('payments');
 
   await ensureDefaultPaymentCategoriesForPg(row.pgId);
   const rentCategory = await getRentDepositBookingCategory(row.pgId);
@@ -92,58 +104,53 @@ export default async function PayRentPage({
   return (
     <div className="mx-auto w-full max-w-xl space-y-5 px-4 py-10 sm:px-6">
       <header>
-        <Link href={ACCOUNT_RESIDENT_HREF} className={ACCOUNT_BACK_LINK}>
-          ← Back to resident area
+        <Link href={backHref} className={ACCOUNT_BACK_LINK}>
+          ← Back to payments
         </Link>
-        <h1 className={`mt-2 ${ACCOUNT_PAGE_TITLE}`}>Pay rent</h1>
+        <h1 className={`mt-2 ${ACCOUNT_PAGE_TITLE}`}>Rent invoice</h1>
         <p className={`font-mono ${ACCOUNT_PAGE_SUBTITLE}`}>{row.invoiceNumber}</p>
       </header>
 
-      <section className={`${ACCOUNT_SURFACE_PADDED} space-y-3`}>
-        <dl className="grid grid-cols-2 gap-2 text-sm">
-          <dt className={ACCOUNT_LABEL}>Resident</dt>
-          <dd className={`text-right ${ACCOUNT_VALUE}`}>{row.customerFullName}</dd>
-          <dt className={ACCOUNT_LABEL}>Bed</dt>
-          <dd className={`text-right ${ACCOUNT_VALUE}`}>
-            {row.pgName} · Room {row.roomNumber} · Bed {row.bedCode}
-          </dd>
-          <dt className={ACCOUNT_LABEL}>Billing month</dt>
-          <dd className={`text-right ${ACCOUNT_VALUE}`}>{formatDate(row.billingMonth)}</dd>
-          <dt className={ACCOUNT_LABEL}>Due date</dt>
-          <dd className={`text-right ${ACCOUNT_VALUE}`}>{formatDate(row.dueDate)}</dd>
-          <dt className={ACCOUNT_LABEL}>Rent</dt>
-          <dd className="text-right text-zinc-900">{paiseToInr(row.rentPaise)}</dd>
-          <dt className={ACCOUNT_LABEL}>Late fee accrued</dt>
-          <dd className="text-right text-zinc-900">{paiseToInr(projected.accruedLateFeePaise)}</dd>
-          <dt className="text-base font-semibold text-zinc-900">Total due</dt>
-          <dd className="text-right text-base font-semibold text-zinc-900">
-            {paiseToInr(projected.outstandingPaise)}
-          </dd>
+      <ApgCard tier="account" className="p-5">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-zinc-900">Step 1 — Review</h2>
+          <StatusChip status={projected.effectiveStatus} toneMap={STATUS_TONE} />
+        </div>
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
+          <InvoiceBreakdownRow label="Period" value={periodLabel} />
+          <InvoiceBreakdownRow label="Due date" value={formatDate(row.dueDate)} />
+          <InvoiceBreakdownRow label="Room / bed" value={`R${row.roomNumber} · ${row.bedCode}`} />
+          <InvoiceBreakdownRow label="Rent" value={paiseToInr(row.rentPaise)} />
+          <InvoiceBreakdownRow
+            label="Late fee"
+            value={paiseToInr(projected.accruedLateFeePaise)}
+            tone={projected.accruedLateFeePaise > 0 ? 'danger' : undefined}
+          />
+          <InvoiceBreakdownRow label="Total to pay" value={amountLabel} emphasis />
         </dl>
-
         {row.notes ? (
-          <p className="rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
-            {row.notes}
-          </p>
+          <p className="mt-3 rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-600">{row.notes}</p>
         ) : null}
-      </section>
+      </ApgCard>
 
       {row.status === 'paid' ? (
-        <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700 ring-1 ring-inset ring-emerald-200">
-          This invoice is already paid. Paid on {formatDate(row.paidAt)}.
-        </p>
+        <ApgCard tier="account" className="p-5 text-sm text-emerald-800">
+          This invoice is already paid on {formatDate(row.paidAt)}.
+        </ApgCard>
       ) : row.status === 'cancelled' ? (
-        <p className="rounded-md bg-zinc-100 px-3 py-2 text-sm text-zinc-700 ring-1 ring-inset ring-zinc-200">
-          This invoice has been cancelled — no payment required.
-        </p>
+        <ApgCard tier="account" className="p-5 text-sm text-zinc-700">
+          This invoice was cancelled — no payment needed.
+        </ApgCard>
       ) : (
-        <RentPaymentProofForm
+        <ResidentPayRentClient
           invoiceId={row.id}
-          amountLabel={paiseToInr(projected.outstandingPaise)}
-          uploadScreenshot={uploadPaymentScreenshotAction}
-          existingProofUrl={row.paymentProofUrl}
+          amountLabel={amountLabel}
+          confirmMessage={`You are paying ${amountLabel} for rent for ${periodLabel}. Pay the exact amount via UPI, then upload your payment screenshot for verification.`}
           qrImageUrl={rentCategory?.qrCodeImageUrl ?? DEFAULT_RENT_DEPOSIT_QR_PATH}
           upiId={rentCategory?.upiId ?? DEFAULT_RENT_DEPOSIT_UPI_ID}
+          existingProofUrl={row.paymentProofUrl}
+          uploadScreenshot={uploadPaymentScreenshotAction}
+          backHref={backHref}
         />
       )}
     </div>

@@ -5,3 +5,6 @@ export type { TimelineStage } from './StatusTimeline';
 export { CountUpNumber } from './CountUpNumber';
 export { BedStateTile } from './BedStateTile';
 export type { BedVisualState } from './BedStateTile';
+export { ConsoleLedger } from './ConsoleLedger';
+export type { ConsoleLedgerEntry } from './ConsoleLedger';
+export { ConfirmationGate } from './ConfirmationGate';
