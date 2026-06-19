@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import {
+  AuthPhoneConflictError,
   findCustomerByEmail,
   findCustomerByPhone,
   isAccountComplete,
   isIncompleteSignup,
+  resolvePhoneConflictForRecovery,
 } from '@/src/lib/auth/customer';
 import { authLog } from '@/src/lib/auth/authLog';
 import { verifyEmailOtp } from '@/src/lib/auth/otp';
@@ -70,17 +72,24 @@ async function handleProfileStep(args: {
   }
 
   const phoneOwner = await findCustomerByPhone(phone);
-  if (phoneOwner && isAccountComplete(phoneOwner) && phoneOwner.email !== email) {
-    return NextResponse.json(
-      {
-        ok: false,
-        needsProfile: true,
-        email,
-        message:
-          'This mobile number is already linked to another account. Use a different number or sign in with that account.',
-      },
-      { status: 400 },
-    );
+  if (phoneOwner && phoneOwner.email !== email) {
+    try {
+      await resolvePhoneConflictForRecovery(email, phone);
+    } catch (err) {
+      if (err instanceof AuthPhoneConflictError) {
+        return NextResponse.json(
+          {
+            ok: false,
+            needsProfile: true,
+            email,
+            phoneLinkedTo: err.linkedEmail,
+            message: `This mobile number belongs to ${err.linkedEmail}. Recover that account instead, or use a different number.`,
+          },
+          { status: 409 },
+        );
+      }
+      throw err;
+    }
   }
 
   let sessionId = await readSignupSessionCookie();

@@ -69,6 +69,7 @@ export function CustomerLoginForm({
   const [otpPhase, setOtpPhase] = useState<OtpSubmitPhase>('idle');
   const [profilePhase, setProfilePhase] = useState<ProfileSubmitPhase>('idle');
   const [recoveryOtpVerified, setRecoveryOtpVerified] = useState(false);
+  const [phoneLinkedEmail, setPhoneLinkedEmail] = useState<string | null>(null);
   const verifyInFlight = useRef(false);
   const profileInFlight = useRef(false);
 
@@ -258,11 +259,13 @@ export function CustomerLoginForm({
     }
   }
 
-  async function sendCode(purpose: OtpPurpose = otpPurpose) {
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+  async function sendCode(purpose: OtpPurpose = otpPurpose, overrideEmail?: string) {
+    const targetEmail = (overrideEmail ?? email).trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(targetEmail)) {
       setError('Enter a valid email address.');
       return;
     }
+    if (overrideEmail) setEmail(targetEmail);
     if (resendSeconds > 0) {
       setError(`Please wait ${formatResendWait(resendSeconds)} before requesting another code.`);
       return;
@@ -275,7 +278,7 @@ export function CustomerLoginForm({
       const res = await fetch('/api/auth/customer/email/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), purpose }),
+        body: JSON.stringify({ email: targetEmail, purpose }),
       });
       const data = (await res.json()) as {
         ok: boolean;
@@ -364,8 +367,18 @@ export function CustomerLoginForm({
           message?: string;
           needsNewCode?: boolean;
           needsLogin?: boolean;
+          phoneLinkedTo?: string;
         };
         if (!res.ok || !data.ok) {
+          if (data.phoneLinkedTo) {
+            resetProfileSubmit();
+            setPhoneLinkedEmail(data.phoneLinkedTo);
+            setError(
+              data.message ??
+                `This mobile belongs to ${data.phoneLinkedTo}. Recover that email instead, or use a different number.`,
+            );
+            return;
+          }
           if (data.needsLogin) {
             resetProfileSubmit();
             await resetToLogin(data.message);
@@ -385,6 +398,7 @@ export function CustomerLoginForm({
         }
         setProfilePhase('success');
         finishProfileSubmit();
+        setPhoneLinkedEmail(null);
         setStep('reset-password');
         setError(null);
         return;
@@ -918,6 +932,25 @@ export function CustomerLoginForm({
               className={btnClass}
             >
               Try again
+            </button>
+          ) : null}
+          {phoneLinkedEmail && step === 'profile' ? (
+            <button
+              type="button"
+              onClick={() => {
+                const linked = phoneLinkedEmail;
+                setPhoneLinkedEmail(null);
+                setFullName('');
+                setPhone('');
+                setCode('');
+                setRecoveryOtpVerified(false);
+                setError(null);
+                setOtpPurpose('forgot_password');
+                void sendCode('forgot_password', linked);
+              }}
+              className={btnClass}
+            >
+              Recover {phoneLinkedEmail} instead
             </button>
           ) : null}
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-3">

@@ -1,9 +1,56 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { customers } from '@/src/db/schema';
+import { bookings, customers } from '@/src/db/schema';
 import { normaliseEmail } from '@/src/lib/email/address';
 import { normaliseIndianPhone } from '@/src/lib/phone';
 import { profileFieldsSatisfied } from '@/src/services/profile';
+
+export class AuthPhoneConflictError extends Error {
+  readonly linkedEmail: string;
+
+  constructor(linkedEmail: string) {
+    super('This mobile number is already linked to another account.');
+    this.name = 'AuthPhoneConflictError';
+    this.linkedEmail = linkedEmail;
+  }
+}
+
+async function customerHasActivity(customerId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(bookings)
+    .where(eq(bookings.customerId, customerId));
+  return (row?.count ?? 0) > 0;
+}
+
+/** Free unique phone/email slots from duplicate incomplete signups during verified recovery. */
+async function archiveStaleCustomerForRecovery(row: { id: string; email: string }) {
+  const now = new Date();
+  const tag = row.id.slice(0, 8);
+  await db
+    .update(customers)
+    .set({
+      archivedAt: now,
+      phone: `+91archived-${tag}${now.getTime().toString(36)}`,
+      email: `${row.email}.archived.${tag}`,
+      updatedAt: now,
+    })
+    .where(eq(customers.id, row.id));
+}
+
+export async function resolvePhoneConflictForRecovery(recoveringEmail: string, phone: string) {
+  const phoneOwner = await findCustomerByPhone(phone);
+  if (!phoneOwner || phoneOwner.archivedAt || phoneOwner.email === recoveringEmail) {
+    return;
+  }
+
+  if (isIncompleteSignup(phoneOwner) || !(await customerHasActivity(phoneOwner.id))) {
+    await archiveStaleCustomerForRecovery(phoneOwner);
+    return;
+  }
+
+  throw new AuthPhoneConflictError(phoneOwner.email);
+}
 
 export async function findCustomerByEmail(rawEmail: string) {
   const email = normaliseEmail(rawEmail);
@@ -74,12 +121,7 @@ export async function upsertRecoveryCustomerProfile(args: {
   const fullName = args.fullName.trim();
   if (fullName.length < 2) throw new Error('Enter your full name to continue.');
 
-  const phoneOwner = await findCustomerByPhone(phone);
-  if (phoneOwner && isAccountComplete(phoneOwner) && phoneOwner.email !== email) {
-    throw new Error(
-      'This mobile number is already linked to another account. Use a different number or sign in with that account.',
-    );
-  }
+  await resolvePhoneConflictForRecovery(email, phone);
 
   const existing = await findCustomerByEmail(email);
   if (existing?.archivedAt) {

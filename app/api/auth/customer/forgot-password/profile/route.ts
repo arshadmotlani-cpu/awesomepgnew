@@ -3,6 +3,7 @@ import {
   findCustomerByEmail,
   isAccountComplete,
   upsertRecoveryCustomerProfile,
+  AuthPhoneConflictError,
 } from '@/src/lib/auth/customer';
 import { isRecoveryVerifiedForEmail } from '@/src/lib/auth/recoverySession';
 import {
@@ -97,6 +98,16 @@ export async function POST(request: Request) {
       needsPassword: true,
     });
   } catch (err) {
+    if (err instanceof AuthPhoneConflictError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          phoneLinkedTo: err.linkedEmail,
+          message: `This mobile number belongs to ${err.linkedEmail}. Recover that account instead, or use a different number.`,
+        },
+        { status: 409 },
+      );
+    }
     console.error('[auth/forgot-password/profile] failed', {
       email,
       reason: err instanceof Error ? err.message : String(err),
