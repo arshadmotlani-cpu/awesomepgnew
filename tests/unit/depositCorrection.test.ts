@@ -1,7 +1,42 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
 import { asPlainNumber, coerceNonNegativePaise, paiseToInr } from '../../src/lib/format';
+import { jsonSafe } from '../../src/lib/depositPageDebug';
+import { effectiveDepositCollectedPaise } from '../../src/lib/deposits/unifiedDepositView';
 import { sanitizeUnifiedDepositView } from '../../src/services/depositOperations';
+
+test('jsonSafe handles undefined without throwing', () => {
+  assert.equal(jsonSafe(undefined), undefined);
+  assert.doesNotThrow(() => jsonSafe(undefined));
+});
+
+test('jsonSafe serializes bigint paise for RSC props', () => {
+  const out = jsonSafe({ amount: 900000n });
+  assert.equal(out.amount, 900000);
+  assert.doesNotThrow(() => JSON.stringify(out));
+});
+
+test('effectiveDepositCollectedPaise caps gross to required when fully paid', () => {
+  assert.equal(
+    effectiveDepositCollectedPaise({
+      grossCollectedPaise: 900000,
+      requiredPaise: 450000,
+      depositDuePaise: 0,
+    }),
+    450000,
+  );
+});
+
+test('effectiveDepositCollectedPaise keeps gross when deposit still due', () => {
+  assert.equal(
+    effectiveDepositCollectedPaise({
+      grossCollectedPaise: 900000,
+      requiredPaise: 900000,
+      depositDuePaise: 450000,
+    }),
+    900000,
+  );
+});
 
 test('coerceNonNegativePaise rejects NaN and negative values', () => {
   assert.equal(coerceNonNegativePaise(NaN), 0);

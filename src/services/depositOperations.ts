@@ -8,6 +8,7 @@ import { db } from '@/src/db/client';
 import { auditLog, bookings } from '@/src/db/schema';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import {
+  effectiveDepositCollectedPaise,
   sanitizeDepositWalletPreview,
   sanitizeUnifiedDepositView,
   type DepositWalletPreview,
@@ -74,10 +75,20 @@ function viewFromParts(input: {
   walletCheck: { inSync: boolean; reason: string | null };
   mismatchReason?: string | null;
 }): UnifiedDepositView {
-  const collectedPaise = guardDepositPaise(
+  const grossCollectedPaise = guardDepositPaise(
     input.summary?.collectedPaise ?? 0,
-    'viewFromParts.collectedPaise',
+    'viewFromParts.grossCollectedPaise',
   );
+  const requiredPaise = guardDepositPaise(input.booking.depositPaise, 'viewFromParts.requiredPaise');
+  const depositDuePaise = guardDepositPaise(
+    input.booking.depositDuePaise,
+    'viewFromParts.depositDuePaise',
+  );
+  const collectedPaise = effectiveDepositCollectedPaise({
+    grossCollectedPaise,
+    requiredPaise,
+    depositDuePaise,
+  });
   const deductedPaise = guardDepositPaise(
     input.summary?.deductedPaise ?? 0,
     'viewFromParts.deductedPaise',
@@ -94,12 +105,12 @@ function viewFromParts(input: {
   return sanitizeUnifiedDepositView({
     bookingId: input.bookingId,
     customerId: input.customerId,
-    requiredPaise: guardDepositPaise(input.booking.depositPaise, 'viewFromParts.requiredPaise'),
+    requiredPaise,
     collectedPaise,
     deductedPaise,
     refundedPaise,
     refundablePaise,
-    depositDuePaise: guardDepositPaise(input.booking.depositDuePaise, 'viewFromParts.depositDuePaise'),
+    depositDuePaise,
     depositCollectionStatus: input.booking.depositCollectionStatus,
     invoiceStatus: input.invoiceStatus,
     walletInSync: input.walletCheck.inSync && !input.mismatchReason,
@@ -156,11 +167,10 @@ export async function getUnifiedDepositView(bookingId: string): Promise<UnifiedD
       mismatchReason,
     });
 
-    const safeView = sanitizeUnifiedDepositView(view);
-    return safeView;
+    return sanitizeUnifiedDepositView(view);
   } catch (err) {
     console.error('[deposit-ops] getUnifiedDepositView failed', bookingId, err);
-    throw err;
+    return null;
   }
 }
 
@@ -531,8 +541,6 @@ export async function updateDepositSummaryAdmin(input: {
   }
 
   await syncDepositCollectionFromLedger(input.bookingId);
-
-  await getUnifiedDepositView(input.bookingId);
 
   await db.insert(auditLog).values({
     actorType: 'admin',

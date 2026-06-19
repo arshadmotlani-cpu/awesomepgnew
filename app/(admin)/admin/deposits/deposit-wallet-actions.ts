@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { isRedirectError } from 'next/dist/client/components/redirect-error';
 import { eq } from 'drizzle-orm';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
@@ -187,10 +188,7 @@ async function editDepositSummaryCore(formData: FormData): Promise<DepositWallet
 
     revalidateDepositViews(bookingId);
 
-    return {
-      status: 'ok',
-      message: 'Deposit summary updated everywhere.',
-    };
+    redirect(`/admin/deposits/${bookingId}`);
   } catch (err) {
     if (isRedirectError(err)) throw err;
     await logDepositWalletFailure({

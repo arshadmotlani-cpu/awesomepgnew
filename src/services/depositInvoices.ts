@@ -381,7 +381,7 @@ export async function getDepositInvoiceForBooking(
     return invoice;
   } catch (err) {
     console.error('[DEPOSIT_PAGE_SECTION_FAILED]', 'getDepositInvoiceForBooking', bookingId, err);
-    throw err;
+    return null;
   }
 }
 

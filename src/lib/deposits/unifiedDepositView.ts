@@ -31,6 +31,24 @@ export type DepositWalletPreview = {
   removesFromWalletPaise: number;
 };
 
+/**
+ * Admin-facing collected amount — after a downward correction the ledger still
+ * sums gross collected entries; cap to required when fully paid.
+ */
+export function effectiveDepositCollectedPaise(input: {
+  grossCollectedPaise: unknown;
+  requiredPaise: unknown;
+  depositDuePaise: unknown;
+}): number {
+  const gross = guardDepositPaise(input.grossCollectedPaise, 'grossCollectedPaise');
+  const required = guardDepositPaise(input.requiredPaise, 'requiredPaise');
+  const due = guardDepositPaise(input.depositDuePaise, 'depositDuePaise');
+  if (due <= 0 && required > 0 && gross > required) {
+    return required;
+  }
+  return gross;
+}
+
 export function emptyUnifiedDepositView(): UnifiedDepositView {
   return {
     bookingId: '',
