@@ -112,6 +112,65 @@ export async function recordDepositCollected(input: {
   return { ok: true, entryId: row.id, created: true };
 }
 
+/**
+ * Adjust ledger collected balance to target without mutating bookings.deposit_paise
+ * (required deposit). Use for admin wallet corrections.
+ */
+export async function adjustDepositCollectedBalance(input: {
+  bookingId: string;
+  customerId: string;
+  targetCollectedPaise: number;
+  reason: string;
+  createdByAdminId: string;
+}): Promise<{ ok: true; ledgerDelta: number } | { ok: false; error: string }> {
+  if (input.targetCollectedPaise < 0) {
+    return { ok: false, error: 'Collected amount cannot be negative.' };
+  }
+
+  const summary = await getDepositSummaryForBooking(input.bookingId);
+  const ledgerCollectedPaise = summary?.collectedPaise ?? 0;
+  const ledgerDelta = input.targetCollectedPaise - ledgerCollectedPaise;
+
+  if (ledgerDelta > 0) {
+    await recordDepositCollected({
+      bookingId: input.bookingId,
+      customerId: input.customerId,
+      amountPaise: ledgerDelta,
+      reason: input.reason,
+      createdByAdminId: input.createdByAdminId,
+    });
+  } else if (ledgerDelta < 0) {
+    const deducted = await applyDepositDeduction({
+      bookingId: input.bookingId,
+      customerId: input.customerId,
+      amountPaise: -ledgerDelta,
+      reason: input.reason,
+      adminId: input.createdByAdminId,
+    });
+    if (!deducted.ok) {
+      return { ok: false, error: deducted.error };
+    }
+  }
+
+  if (ledgerDelta !== 0) {
+    await db.insert(auditLog).values({
+      actorType: 'admin',
+      actorId: input.createdByAdminId,
+      entity: 'booking',
+      entityId: input.bookingId,
+      action: 'deposit_collected_adjusted',
+      diff: {
+        ledgerCollectedPaise,
+        targetCollectedPaise: input.targetCollectedPaise,
+        ledgerDelta,
+        reason: input.reason,
+      },
+    });
+  }
+
+  return { ok: true, ledgerDelta };
+}
+
 /** Record an advance/offline deposit payment — separate from bed assignment. */
 export async function recordAdvanceDeposit(input: {
   bookingId: string;

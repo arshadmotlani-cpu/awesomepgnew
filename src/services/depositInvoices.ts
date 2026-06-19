@@ -198,7 +198,23 @@ function dedupeByCustomer(rows: RawRow[]): RawRow[] {
   return Array.from(byCustomer.values()).map(pickCanonicalBooking);
 }
 
-async function fetchRawDepositRows(): Promise<RawRow[]> {
+async function fetchRawDepositRows(options?: { bookingId?: string }): Promise<RawRow[]> {
+  const filters = [
+    isProductionBookingFilter(),
+    isProductionCustomerFilter(),
+    sql`${customers.phone} <> ${OCCUPANCY_PLACEHOLDER_PHONE}`,
+    sql`${customers.email} <> ${OCCUPANCY_PLACEHOLDER_EMAIL}`,
+    sql`${customers.fullName} <> ${OCCUPANCY_PLACEHOLDER_NAME}`,
+    inArray(bookings.status, ['confirmed', 'completed']),
+    or(
+      gt(bookings.depositPaise, 0),
+      sql`exists (select 1 from deposit_ledger dl where dl.booking_id = ${bookings.id})`,
+    ),
+  ];
+  if (options?.bookingId) {
+    filters.push(eq(bookings.id, options.bookingId));
+  }
+
   const rows = await db
     .select({
       bookingId: bookings.id,
@@ -232,29 +248,16 @@ async function fetchRawDepositRows(): Promise<RawRow[]> {
     })
     .from(bookings)
     .innerJoin(customers, eq(customers.id, bookings.customerId))
-    .innerJoin(
+    .leftJoin(
       bedReservations,
       and(eq(bedReservations.bookingId, bookings.id), eq(bedReservations.kind, 'primary')),
     )
-    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
-    .innerJoin(rooms, eq(rooms.id, beds.roomId))
-    .innerJoin(floors, eq(floors.id, rooms.floorId))
-    .innerJoin(pgs, eq(pgs.id, floors.pgId))
+    .leftJoin(beds, eq(beds.id, bedReservations.bedId))
+    .leftJoin(rooms, eq(rooms.id, beds.roomId))
+    .leftJoin(floors, eq(floors.id, rooms.floorId))
+    .leftJoin(pgs, eq(pgs.id, floors.pgId))
     .leftJoin(depositLedger, eq(depositLedger.bookingId, bookings.id))
-    .where(
-      and(
-        isProductionBookingFilter(),
-        isProductionCustomerFilter(),
-        sql`${customers.phone} <> ${OCCUPANCY_PLACEHOLDER_PHONE}`,
-        sql`${customers.email} <> ${OCCUPANCY_PLACEHOLDER_EMAIL}`,
-        sql`${customers.fullName} <> ${OCCUPANCY_PLACEHOLDER_NAME}`,
-        inArray(bookings.status, ['confirmed', 'completed']),
-        or(
-          gt(bookings.depositPaise, 0),
-          sql`exists (select 1 from deposit_ledger dl where dl.booking_id = ${bookings.id})`,
-        ),
-      ),
-    )
+    .where(and(...filters))
     .groupBy(
       bookings.id,
       bookings.bookingCode,
@@ -277,6 +280,10 @@ async function fetchRawDepositRows(): Promise<RawRow[]> {
 
   return rows.map((r) => ({
     ...r,
+    pgId: r.pgId ?? '',
+    pgName: r.pgName ?? '',
+    roomNumber: r.roomNumber ?? '',
+    bedCode: r.bedCode ?? '',
     collectedPaise: Number(r.collectedPaise),
     deductedPaise: Number(r.deductedPaise),
     refundedPaise: Number(r.refundedPaise),
@@ -354,8 +361,15 @@ export async function listDepositInvoiceRecords(options?: {
 export async function getDepositInvoiceForBooking(
   bookingId: string,
 ): Promise<DepositInvoiceRecord | null> {
-  const all = await listDepositInvoiceRecords({ view: 'all' });
-  return all.find((r) => r.bookingId === bookingId) ?? null;
+  const rows = await fetchRawDepositRows({ bookingId });
+  const row = rows.find((r) => r.bookingId === bookingId) ?? rows[0];
+  if (!row) return null;
+
+  const { refundRequests, settlements } = await loadRefundFlags([bookingId]);
+  return toInvoiceRecord(row, {
+    hasRefundRequest: refundRequests.has(bookingId),
+    hasSettlement: settlements.has(bookingId),
+  });
 }
 
 /** PG-level deposit collected in a billing month — invoice dataset only (deduped residents). */

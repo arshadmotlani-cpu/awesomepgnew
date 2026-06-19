@@ -8,6 +8,7 @@ import { db } from '@/src/db/client';
 import { auditLog, bookings } from '@/src/db/schema';
 import { getDepositInvoiceForBooking } from '@/src/services/depositInvoices';
 import {
+  adjustDepositCollectedBalance,
   getDepositSummaryForBooking,
   type DepositSummary,
 } from '@/src/services/deposits';
@@ -391,16 +392,29 @@ export async function updateDepositSummaryAdmin(input: {
   collectedPaise?: number;
   reason: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { correctDepositCollected } = await import('@/src/services/deposits');
+  const [booking] = await db
+    .select({
+      depositPaise: bookings.depositPaise,
+      totalPaise: bookings.totalPaise,
+    })
+    .from(bookings)
+    .where(eq(bookings.id, input.bookingId))
+    .limit(1);
+  if (!booking) return { ok: false, error: 'Booking not found.' };
+
+  // Ledger first — never mutate required deposit until collected adjustment succeeds.
+  if (input.collectedPaise != null && input.collectedPaise >= 0) {
+    const adjusted = await adjustDepositCollectedBalance({
+      bookingId: input.bookingId,
+      customerId: input.customerId,
+      targetCollectedPaise: input.collectedPaise,
+      reason: input.reason,
+      createdByAdminId: input.adminId,
+    });
+    if (!adjusted.ok) return { ok: false, error: adjusted.error };
+  }
 
   if (input.requiredPaise != null && input.requiredPaise >= 0) {
-    const [booking] = await db
-      .select({ depositPaise: bookings.depositPaise, totalPaise: bookings.totalPaise })
-      .from(bookings)
-      .where(eq(bookings.id, input.bookingId))
-      .limit(1);
-    if (!booking) return { ok: false, error: 'Booking not found.' };
-
     await db
       .update(bookings)
       .set({
@@ -409,23 +423,6 @@ export async function updateDepositSummaryAdmin(input: {
         updatedAt: new Date(),
       })
       .where(eq(bookings.id, input.bookingId));
-  }
-
-  if (input.collectedPaise != null && input.collectedPaise >= 0) {
-    try {
-      await correctDepositCollected({
-        bookingId: input.bookingId,
-        customerId: input.customerId,
-        targetCollectedPaise: input.collectedPaise,
-        reason: input.reason,
-        createdByAdminId: input.adminId,
-      });
-    } catch (err) {
-      return {
-        ok: false,
-        error: err instanceof Error ? err.message : 'Deposit correction failed.',
-      };
-    }
   }
 
   await syncDepositCollectionFromLedger(input.bookingId);

@@ -173,6 +173,14 @@ export async function editDepositSummaryAction(
     });
     if (!result.ok) return { status: 'error', message: result.error };
 
+    console.info('[deposit-wallet] edit_summary ok', {
+      bookingId,
+      bookingCode,
+      customerId,
+      requiredPaise,
+      collectedPaise,
+    });
+
     revalidateDepositViews(bookingId);
     return { status: 'ok', message: 'Deposit summary updated everywhere.' };
   } catch (err) {

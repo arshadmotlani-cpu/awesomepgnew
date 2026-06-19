@@ -12,9 +12,10 @@ import { DepositSettlementPanel } from '@/src/components/admin/DepositSettlement
 import { DepositWalletAdminPanel } from '@/src/components/admin/deposits/DepositWalletAdminPanel';
 import { DepositRefundNotice } from '@/src/components/customer/DepositRefundNotice';
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
-import { paiseToInr } from '@/src/lib/format';
+import { paiseToInr, asPlainNumber } from '@/src/lib/format';
 import { loadBedPrice, securityDepositForMode } from '@/src/services/pricing';
 import { getUnifiedDepositView } from '@/src/services/depositOperations';
+import { logger } from '@/src/lib/logger';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,17 +36,7 @@ function statusTone(status: string) {
   }
 }
 
-export default async function AdminDepositDetailPage({
-  params,
-}: {
-  params: Promise<RouteParams>;
-}) {
-  const { bookingId } = await params;
-  await ensureAdminPageNotificationsSeen(
-    `/admin/deposits/${bookingId}`,
-    `/admin/deposits/${bookingId}`,
-  );
-
+async function loadDepositDetailData(bookingId: string) {
   const [booking] = await db
     .select({
       id: bookings.id,
@@ -61,17 +52,50 @@ export default async function AdminDepositDetailPage({
     .innerJoin(customers, eq(customers.id, bookings.customerId))
     .where(eq(bookings.id, bookingId))
     .limit(1);
-  if (!booking) notFound();
+  if (!booking) return null;
 
-  const invoice = await getDepositInvoiceForBooking(bookingId);
-  const summary = await getDepositSummaryForBooking(bookingId);
-  const unifiedView = await getUnifiedDepositView(bookingId);
+  let invoice = null;
+  let summary = null;
+  let unifiedView = null;
+  let loadError: string | null = null;
 
-  const requiredPaise = invoice?.requiredPaise ?? booking.depositPaise;
-  const collectedPaise = invoice?.collectedPaise ?? summary?.collectedPaise ?? 0;
-  const deductionsPaise =
-    invoice?.deductionsPaise ?? (summary?.deductedPaise ?? 0) + (summary?.refundedPaise ?? 0);
-  const refundablePaise = invoice?.refundablePaise ?? summary?.refundableBalancePaise ?? 0;
+  try {
+    invoice = await getDepositInvoiceForBooking(bookingId);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[deposit-detail] getDepositInvoiceForBooking failed', { bookingId, message, err });
+    logger.error('deposit_detail_invoice_load_failed', { bookingId, message });
+    loadError = loadError ?? `Deposit invoice could not be loaded: ${message}`;
+  }
+
+  try {
+    summary = await getDepositSummaryForBooking(bookingId);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[deposit-detail] getDepositSummaryForBooking failed', { bookingId, message, err });
+    logger.error('deposit_detail_summary_load_failed', { bookingId, message });
+    loadError = loadError ?? `Deposit wallet summary could not be loaded: ${message}`;
+  }
+
+  try {
+    unifiedView = await getUnifiedDepositView(bookingId);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[deposit-detail] getUnifiedDepositView failed', { bookingId, message, err });
+    logger.error('deposit_detail_unified_view_failed', { bookingId, message });
+    loadError = loadError ?? `Deposit wallet view could not be loaded: ${message}`;
+  }
+
+  const requiredPaise = asPlainNumber(invoice?.requiredPaise ?? booking.depositPaise);
+  const collectedPaise = asPlainNumber(
+    invoice?.collectedPaise ?? summary?.collectedPaise ?? 0,
+  );
+  const deductionsPaise = asPlainNumber(
+    invoice?.deductionsPaise ?? (summary?.deductedPaise ?? 0) + (summary?.refundedPaise ?? 0),
+  );
+  const refundablePaise = asPlainNumber(
+    invoice?.refundablePaise ?? summary?.refundableBalancePaise ?? 0,
+  );
   const isFrozen = invoice?.isFrozen ?? false;
 
   const [primaryBed] = await db
@@ -90,15 +114,75 @@ export default async function AdminDepositDetailPage({
     .limit(1);
 
   let websiteDepositPaise = 0;
-  if (primaryBed) {
-    const bedRate = await loadBedPrice(primaryBed.bedId, primaryBed.moveInDate);
-    if (bedRate) {
-      websiteDepositPaise = securityDepositForMode(
-        bedRate,
-        booking.durationMode === 'open_ended' ? 'open_ended' : 'monthly',
-      );
+  if (primaryBed?.bedId && primaryBed.moveInDate) {
+    try {
+      const bedRate = await loadBedPrice(primaryBed.bedId, primaryBed.moveInDate);
+      if (bedRate) {
+        websiteDepositPaise = securityDepositForMode(
+          bedRate,
+          booking.durationMode === 'open_ended' ? 'open_ended' : 'monthly',
+        );
+      }
+    } catch (err) {
+      console.error('[deposit-detail] loadBedPrice failed', { bookingId, err });
     }
   }
+
+  return {
+    booking,
+    invoice,
+    unifiedView,
+    requiredPaise,
+    collectedPaise,
+    deductionsPaise,
+    refundablePaise,
+    isFrozen,
+    websiteDepositPaise,
+    loadError,
+  };
+}
+
+export default async function AdminDepositDetailPage({
+  params,
+}: {
+  params: Promise<RouteParams>;
+}) {
+  const { bookingId } = await params;
+
+  try {
+    await ensureAdminPageNotificationsSeen(
+      `/admin/deposits/${bookingId}`,
+      `/admin/deposits/${bookingId}`,
+    );
+  } catch (err) {
+    console.error('[deposit-detail] ensureAdminPageNotificationsSeen failed', { bookingId, err });
+  }
+
+  let data;
+  try {
+    data = await loadDepositDetailData(bookingId);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? err.stack : undefined;
+    console.error('[deposit-detail] page load failed', { bookingId, message, stack });
+    logger.error('deposit_detail_page_load_failed', { bookingId, message, stack });
+    throw err;
+  }
+
+  if (!data) notFound();
+
+  const {
+    booking,
+    invoice,
+    unifiedView,
+    requiredPaise,
+    collectedPaise,
+    deductionsPaise,
+    refundablePaise,
+    isFrozen,
+    websiteDepositPaise,
+    loadError,
+  } = data;
 
   return (
     <>
@@ -114,6 +198,12 @@ export default async function AdminDepositDetailPage({
           </Link>
         }
       />
+
+      {loadError ? (
+        <div className="mb-4 rounded-lg border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+          {loadError} Showing booking data where available.
+        </div>
+      ) : null}
 
       <DepositRefundNotice />
 
@@ -150,7 +240,7 @@ export default async function AdminDepositDetailPage({
             <h2 className="mb-2 text-sm font-semibold text-white">Adjust deposit</h2>
             <DepositAdjustForms
               bookingId={bookingId}
-              bookingDepositPaise={booking.depositPaise}
+              bookingDepositPaise={asPlainNumber(booking.depositPaise)}
               ledgerCollectedPaise={collectedPaise}
               websiteDepositPaise={websiteDepositPaise}
             />
