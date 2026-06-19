@@ -38,16 +38,20 @@ function formatResendWait(seconds: number): string {
 
 export function CustomerLoginForm({
   theme = 'light',
+  signupMode = false,
   initialEmail,
   initialMessage,
 }: {
   theme?: 'light' | 'dark';
+  /** Only true on /login?signup=1 — otherwise sign-in only. */
+  signupMode?: boolean;
   initialEmail?: string;
   initialMessage?: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = safeNext(searchParams.get('next'));
+  const allowSignupFlow = signupMode;
 
   const [step, setStep] = useState<Step>('credentials');
   const [otpPurpose, setOtpPurpose] = useState<OtpPurpose>('signup');
@@ -112,72 +116,30 @@ export function CustomerLoginForm({
   }, [profilePhase, next]);
 
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch('/api/auth/customer/signup/status', { credentials: 'same-origin' });
-        if (cancelled) return;
+    if (!allowSignupFlow && step !== 'credentials' && step !== 'reset-password') {
+      setStep('credentials');
+      setEmailVerified(false);
+      setOtpPhase('idle');
+      setProfilePhase('idle');
+    }
+  }, [allowSignupFlow, step]);
 
-        if (!res.ok) {
-          await fetch('/api/auth/customer/signup/reset', {
-            method: 'POST',
-            credentials: 'same-origin',
-          });
-          setStep('credentials');
-          return;
-        }
+  const signupAutoSendDone = useRef(false);
+  useEffect(() => {
+    if (!allowSignupFlow) return;
+    const paramEmail = searchParams.get('email')?.trim();
+    if (paramEmail) setEmail(paramEmail);
+  }, [allowSignupFlow, searchParams]);
 
-        const data = (await res.json()) as {
-          ok?: boolean;
-          email?: string;
-          step?: 'OTP' | 'PROFILE' | 'PASSWORD' | 'COMPLETED';
-          needsProfile?: boolean;
-          needsPassword?: boolean;
-          needsLogin?: boolean;
-          shouldSignup?: boolean;
-        };
-
-        if (data.needsLogin || data.step === 'COMPLETED') {
-          if (data.email) setEmail(data.email);
-          setStep('credentials');
-          await fetch('/api/auth/customer/signup/reset', {
-            method: 'POST',
-            credentials: 'same-origin',
-          });
-          setError('You already have an account. Sign in with your password or use Forgot password.');
-          return;
-        }
-
-        if (!data.ok || !data.email) return;
-
-        if (data.needsPassword && data.step === 'PASSWORD') {
-          router.replace(`/account/set-password?next=${encodeURIComponent(next)}`);
-          return;
-        }
-
-        // Never auto-resume OTP or profile on /login — clear stale mid-signup state.
-        if (data.needsProfile || data.step === 'PROFILE' || data.step === 'OTP') {
-          if (data.email) setEmail(data.email);
-          await fetch('/api/auth/customer/signup/reset', {
-            method: 'POST',
-            credentials: 'same-origin',
-          });
-          setStep('credentials');
-          setEmailVerified(false);
-          setOtpPhase('idle');
-          setProfilePhase('idle');
-          setError(
-            'Sign in with your password below. New here? Use “Sign up with email code” after entering your email.',
-          );
-        }
-      } catch {
-        setStep('credentials');
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [next, router]);
+  useEffect(() => {
+    if (!allowSignupFlow || signupAutoSendDone.current) return;
+    const target = (searchParams.get('email') ?? email).trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target)) return;
+    signupAutoSendDone.current = true;
+    setEmail(target);
+    setOtpPurpose('signup');
+    void sendCode('signup');
+  }, [allowSignupFlow, searchParams, email]);
 
   async function resetToLogin(message?: string) {
     try {
@@ -202,6 +164,7 @@ export function CustomerLoginForm({
     setNewPassword('');
     setConfirmPassword('');
     if (message) setError(message);
+    router.replace(`/login?next=${encodeURIComponent(next)}`);
   }
 
   function resetVerifyState() {
@@ -527,13 +490,26 @@ export function CustomerLoginForm({
         ok: boolean;
         message?: string;
         needsCompleteSignup?: boolean;
+        useSetPassword?: boolean;
       };
       if (!res.ok || !data.ok) {
-        if (data.needsCompleteSignup) {
-          setError(
-            data.message ??
-              'No password on this account yet. Finish signup with an email code, or sign in if you already set a password.',
-          );
+        if (data.useSetPassword || data.needsCompleteSignup) {
+          const setRes = await signupFetch('/api/auth/customer/set-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: email.trim(),
+              password: newPassword,
+              confirmPassword,
+            }),
+          });
+          const setData = (await setRes.json()) as { ok: boolean; message?: string };
+          if (setRes.ok && setData.ok) {
+            router.replace(next);
+            router.refresh();
+            return;
+          }
+          setError(setData.message ?? 'Could not save password.');
           return;
         }
         setError(data.message ?? 'Could not reset password.');
@@ -552,15 +528,6 @@ export function CustomerLoginForm({
       return;
     }
     setError(null);
-    setPassword('');
-    setCode('');
-    setEmailVerified(false);
-    setOtpPhase('idle');
-    setProfilePhase('idle');
-    verifyInFlight.current = false;
-    profileInFlight.current = false;
-    setOtpPurpose('signup');
-
     try {
       const lookup = await fetch(
         `/api/auth/customer/email/lookup?email=${encodeURIComponent(email.trim())}`,
@@ -577,10 +544,13 @@ export function CustomerLoginForm({
         }
       }
     } catch {
-      /* proceed with signup send */
+      /* continue */
     }
-
-    void sendCode('signup');
+    const q = new URLSearchParams();
+    q.set('signup', '1');
+    q.set('next', next);
+    q.set('email', email.trim());
+    router.push(`/login?${q.toString()}`);
   }
 
   function startForgotPassword() {
@@ -702,11 +672,11 @@ export function CustomerLoginForm({
         </form>
       ) : null}
 
-      {step === 'otp' && otpPurpose === 'signup' ? (
+      {allowSignupFlow && step === 'otp' && otpPurpose === 'signup' ? (
         <SignupProgress current="otp" theme={theme} />
       ) : null}
 
-      {step === 'otp' ? (
+      {allowSignupFlow && step === 'otp' ? (
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -778,7 +748,7 @@ export function CustomerLoginForm({
         </form>
       ) : null}
 
-      {step === 'profile' ? (
+      {allowSignupFlow && step === 'profile' ? (
         <form
           onSubmit={(e) => {
             e.preventDefault();

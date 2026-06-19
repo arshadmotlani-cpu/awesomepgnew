@@ -31,36 +31,18 @@ export async function POST(request: Request) {
   if (purpose === 'forgot_password') {
     if (!customer || customer.archivedAt) {
       const pendingSignup = await getActiveSignupSessionForEmail(body.email ?? '');
-      if (pendingSignup) {
+      if (!pendingSignup) {
         return NextResponse.json(
           {
             ok: false,
-            needsCompleteSignup: true,
-            message: 'No password set yet. Finish signup or use Sign in if you already have a password.',
+            message: 'No account found for this email. Sign up if you are new here.',
           },
           { status: 400 },
         );
       }
-      return NextResponse.json(
-        {
-          ok: false,
-          message: 'No account found for this email. Sign up if you are new here.',
-        },
-        { status: 400 },
-      );
+      // Pending signup only — allow OTP to set password via set-password route.
     }
-    if (isIncompleteSignup(customer)) {
-      return NextResponse.json(
-        {
-          ok: false,
-          needsCompleteSignup: true,
-          needsLogin: false,
-          message:
-            'This account has no password yet. Finish signup with an email code, or contact support if you believe this is an error.',
-        },
-        { status: 400 },
-      );
-    }
+    // Incomplete accounts: allow OTP to set or reset password (same flow).
   }
 
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null;
@@ -73,12 +55,18 @@ export async function POST(request: Request) {
     });
   }
 
+  const settingFirstPassword =
+    purpose === 'forgot_password' &&
+    ((customer && isIncompleteSignup(customer)) ||
+      !(customer && !customer.archivedAt));
+
   return NextResponse.json({
     ok: true,
     email: result.email,
     expiresAt: result.expiresAt.toISOString(),
     resendAfter: result.resendAfter,
     delivery: result.delivery,
+    settingFirstPassword,
     ...(purpose === 'signup' && customer && isIncompleteSignup(customer)
       ? { needsCompleteSignup: true, resumeSignup: true }
       : {}),

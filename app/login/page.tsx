@@ -5,7 +5,7 @@ import { SiteFooter } from '@/src/components/customer/SiteFooter';
 import { SiteHeader } from '@/src/components/customer/SiteHeader';
 import { WhatsAppSupportButton } from '@/src/components/customer/WhatsAppSupportButton';
 import { CustomerLoginForm } from '@/src/components/auth/CustomerLoginForm';
-import { clearStaleSignupSessionForLogin } from '@/src/lib/auth/loginBootstrap';
+import { bootstrapLoginPage } from '@/src/lib/auth/loginBootstrap';
 
 export const metadata = {
   title: 'Sign in',
@@ -14,8 +14,16 @@ export const metadata = {
 
 export const dynamic = 'force-dynamic';
 
-export default async function LoginPage() {
-  const clearedEmail = await clearStaleSignupSessionForLogin();
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ signup?: string; email?: string }>;
+}) {
+  const params = await searchParams;
+  const signupMode = params.signup === '1';
+  const boot = signupMode
+    ? { email: params.email?.trim() || undefined }
+    : await bootstrapLoginPage();
 
   return (
     <div className="apg-aurora apg-grid-overlay flex min-h-screen flex-col bg-apg-charcoal text-[#f4f6f8]">
@@ -34,12 +42,9 @@ export default async function LoginPage() {
             <Suspense fallback={<p className="text-sm text-apg-silver">Loading…</p>}>
               <CustomerLoginForm
                 theme="dark"
-                initialEmail={clearedEmail ?? undefined}
-                initialMessage={
-                  clearedEmail
-                    ? 'You already have an account. Sign in with your password or use Forgot password.'
-                    : undefined
-                }
+                signupMode={signupMode}
+                initialEmail={boot.email}
+                initialMessage={boot.message}
               />
             </Suspense>
           </div>

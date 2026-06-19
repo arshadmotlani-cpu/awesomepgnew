@@ -1,6 +1,15 @@
 import { NextResponse } from 'next/server';
-import { findCustomerByEmail, setCustomerPassword } from '@/src/lib/auth/customer';
-import { getActiveSignupSessionForEmail } from '@/src/lib/auth/signupSession';
+import {
+  commitSignupCustomer,
+  findCustomerByEmail,
+  isAccountComplete,
+  setCustomerPassword,
+} from '@/src/lib/auth/customer';
+import {
+  completeSignupSession,
+  getActiveSignupSessionForEmail,
+  readSignupSessionFromRequest,
+} from '@/src/lib/auth/signupSession';
 import { verifyEmailOtp } from '@/src/lib/auth/otp';
 import { validateCustomerPassword } from '@/src/lib/auth/password';
 import { createCustomerSession } from '@/src/lib/auth/session';
@@ -39,45 +48,66 @@ export async function POST(request: Request) {
   const userAgent = request.headers.get('user-agent');
   const otpCtx = { ip, userAgent };
 
-  const customer = await findCustomerByEmail(body.email ?? '');
-  if (!customer || customer.archivedAt) {
-    const pendingSignup = await getActiveSignupSessionForEmail(body.email ?? '');
-    if (pendingSignup) {
-      return NextResponse.json(
-        {
-          ok: false,
-          needsCompleteSignup: true,
-          message: 'Finish signing up first — verify your email, then create a password.',
-        },
-        { status: 400 },
-      );
-    }
-    return NextResponse.json({ ok: false, message: 'No account found for this email.' }, { status: 400 });
-  }
-
-  if (!customer.passwordHash || customer.mustSetPassword) {
-    return NextResponse.json(
-      {
-        ok: false,
-        needsCompleteSignup: true,
-        message: 'Complete your signup by creating a password first.',
-      },
-      { status: 400 },
-    );
-  }
-
   const verified = await verifyEmailOtp(body.email ?? '', body.code ?? '', otpCtx, { consume: true });
   if (!verified.ok) {
     return NextResponse.json(verified, { status: 400 });
   }
 
-  await setCustomerPassword(customer.id, password);
-  await createCustomerSession({ customerId: customer.id, ip, userAgent });
+  const customer = await findCustomerByEmail(body.email ?? '');
+  const signupSession =
+    (await readSignupSessionFromRequest()) ??
+    (await getActiveSignupSessionForEmail(body.email ?? ''));
 
-  return NextResponse.json({
-    ok: true,
-    customerId: customer.id,
-    email: customer.email,
-    mustSetPassword: false,
-  });
+  if (!customer || customer.archivedAt) {
+    if (signupSession?.profileSubmitted) {
+      const committed = await commitSignupCustomer({
+        email: signupSession.email,
+        fullName: signupSession.fullName ?? '',
+        phone: signupSession.phone ?? '',
+        password,
+      });
+      await completeSignupSession(signupSession.id);
+      await createCustomerSession({ customerId: committed.id, ip, userAgent });
+      return NextResponse.json({
+        ok: true,
+        customerId: committed.id,
+        email: committed.email,
+        mustSetPassword: false,
+      });
+    }
+    return NextResponse.json(
+      {
+        ok: false,
+        useSetPassword: true,
+        message: 'Complete your profile first, then set a password.',
+      },
+      { status: 400 },
+    );
+  }
+
+  if (!customer.passwordHash || customer.mustSetPassword) {
+    await setCustomerPassword(customer.id, password);
+    await createCustomerSession({ customerId: customer.id, ip, userAgent });
+    if (signupSession) await completeSignupSession(signupSession.id);
+    return NextResponse.json({
+      ok: true,
+      customerId: customer.id,
+      email: customer.email,
+      mustSetPassword: false,
+      firstPasswordSet: true,
+    });
+  }
+
+  if (isAccountComplete(customer)) {
+    await setCustomerPassword(customer.id, password);
+    await createCustomerSession({ customerId: customer.id, ip, userAgent });
+    return NextResponse.json({
+      ok: true,
+      customerId: customer.id,
+      email: customer.email,
+      mustSetPassword: false,
+    });
+  }
+
+  return NextResponse.json({ ok: false, message: 'Could not reset password.' }, { status: 400 });
 }
