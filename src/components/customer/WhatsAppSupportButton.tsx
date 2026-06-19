@@ -1,7 +1,9 @@
+import { siteWhatsAppUrl } from '@/src/lib/siteContact';
+
 export function WhatsAppSupportButton() {
   return (
     <a
-      href="https://wa.link/k31pwv"
+      href={siteWhatsAppUrl()}
       target="_blank"
       rel="noopener noreferrer"
       data-roachie-tour="support"

@@ -2,8 +2,7 @@
 
 import { useMemo } from 'react';
 import { ApgCard } from '@/src/components/customer/design-system';
-
-const WHATSAPP_BASE = 'https://wa.link/k31pwv';
+import { siteWhatsAppUrl } from '@/src/lib/siteContact';
 
 type Props = {
   customerId: string;
@@ -20,9 +19,7 @@ export function ReferralsPanel({ customerId, customerName }: Props) {
       ? `${window.location.origin}/pgs?ref=${code}`
       : `https://awesomepg.in/pgs?ref=${code}`;
 
-  const shareText = encodeURIComponent(
-    `${customerName.split(' ')[0]} invited you to Awesome PG — premium beds, transparent billing. Book with code ${code}: ${shareUrl}`,
-  );
+  const shareMessage = `${customerName.split(' ')[0]} invited you to Awesome PG — premium beds, transparent billing. Book with code ${code}: ${shareUrl}`;
 
   return (
     <ApgCard tier="account" className="p-6">
@@ -46,7 +43,7 @@ export function ReferralsPanel({ customerId, customerName }: Props) {
             Copy link
           </button>
           <a
-            href={`${WHATSAPP_BASE}?text=${shareText}`}
+            href={siteWhatsAppUrl(shareMessage)}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex min-h-[44px] items-center rounded-lg border border-zinc-300 px-4 text-sm font-semibold text-zinc-800"

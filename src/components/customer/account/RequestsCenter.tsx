@@ -4,8 +4,7 @@ import Link from 'next/link';
 import { ApgCard } from '@/src/components/customer/design-system';
 import { StatusChip } from '@/src/components/customer/design-system';
 import { residentTabHref } from '@/src/lib/accountNavigation';
-
-const WHATSAPP = 'https://wa.link/k31pwv';
+import { siteWhatsAppUrl } from '@/src/lib/siteContact';
 
 export type RequestTypeDef = {
   id: string;
@@ -106,9 +105,7 @@ export function RequestsCenter({ bookingId, openRequestTypes = [] }: Props) {
           href = residentTabHref('vacating');
         }
         const hasOpen = openRequestTypes.includes(req.id);
-        const waHref = req.whatsappMessage
-          ? `${WHATSAPP}?text=${encodeURIComponent(req.whatsappMessage)}`
-          : null;
+        const waHref = req.whatsappMessage ? siteWhatsAppUrl(req.whatsappMessage) : null;
 
         return (
           <ApgCard key={req.id} tier="account" className="p-4">

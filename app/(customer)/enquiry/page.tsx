@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ApgCard } from '@/src/components/customer/design-system/ApgCard';
+import { siteWhatsAppUrl } from '@/src/lib/siteContact';
 
 export const metadata = { title: 'Schedule a visit' };
 
@@ -17,7 +18,9 @@ export default function EnquiryPage() {
           (single/double/triple). A dedicated enquiry form is coming soon.
         </p>
         <a
-          href="https://wa.me/919876543210"
+          href={siteWhatsAppUrl(
+            'Hi Awesome PG, I would like to schedule a visit. PG: … Move-in: … Sharing: …',
+          )}
           className="apg-glow-btn inline-flex min-h-[44px] w-full items-center justify-center rounded-xl bg-apg-orange text-sm font-semibold text-white"
         >
           Chat on WhatsApp
