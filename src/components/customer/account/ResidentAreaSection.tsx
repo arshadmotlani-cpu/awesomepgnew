@@ -15,10 +15,8 @@ import { getCustomerById } from '@/src/services/profile';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import { DepositRefundNotice } from '@/src/components/customer/DepositRefundNotice';
 import { CancelVacatingForm } from '@/src/components/customer/CancelVacatingForm';
-import { MyServicesPanel } from '@/src/components/customer/MyServicesPanel';
 import {
   ACCOUNT_LINK_IN_SURFACE,
-  ACCOUNT_LINK_ON_DARK,
   ACCOUNT_SURFACE,
   ACCOUNT_SURFACE_PADDED,
   ACCOUNT_SURFACE_PRIMARY_BTN,
@@ -29,14 +27,8 @@ import {
   getMembershipForDashboard,
   isActiveTenant,
 } from '@/src/services/playstationMembership';
-import {
-  labelAdminDepositRefundStatus,
-  labelAdminDuesStatus,
-} from '@/src/lib/bookingAdminOpsLabels';
-import { RoachieResidentBriefing } from '@/src/components/cockroach/RoachieResidentBriefing';
 import { buildBriefingInputForBooking } from '@/src/lib/cockroach/briefingFromBooking';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
-import { accountProfileHref } from '@/src/lib/accountNavigation';
 import { DepositWalletSection } from '@/src/components/customer/account/DepositWalletSection';
 import { DepositDueSection } from '@/src/components/customer/account/DepositDueSection';
 import { ResidentFinancialSummaryPanel } from '@/src/components/customer/account/ResidentFinancialSummaryPanel';
@@ -57,6 +49,9 @@ import type { ConciergeContext } from '@/src/lib/concierge/answers';
 import type { ResidentTab } from '@/src/lib/accountNavigation';
 import { listCustomerEmailNotifications } from '@/src/db/queries/customerNotifications';
 import { getLatestCheckoutSettlementStatusForCustomer } from '@/src/services/checkoutSettlement';
+import { getLatestKycSubmission } from '@/src/services/kyc';
+import { ResidentHomePanel } from '@/src/components/customer/account/resident/ResidentHomePanel';
+import type { UpcomingPaymentRow } from '@/src/components/customer/account/resident/ResidentUpcomingPayments';
 
 const RENT_STATUS_TONE: Record<string, string> = {
   pending: 'bg-amber-50 text-amber-700 ring-amber-200',
@@ -247,6 +242,105 @@ export async function ResidentAreaSection({
         }
       : null;
 
+  const latestKyc = await getLatestKycSubmission(session.customerId);
+  const documentsSubmitted =
+    customer?.kycStatus === 'pending' &&
+    latestKyc != null &&
+    latestKyc.status === 'pending';
+
+  const primaryDepositCard = depositDueCards[0];
+  const primaryVacating =
+    primaryBooking?.vacating.ok ? primaryBooking.vacating.data : null;
+  const hasOpenVacating = Boolean(
+    primaryVacating && ['pending', 'approved'].includes(primaryVacating.status),
+  );
+
+  let homeUpcoming: UpcomingPaymentRow[] = [];
+  let firstUnpaidRentId: string | null = null;
+  let firstUnpaidElectricityId: string | null = null;
+
+  if (primaryBooking) {
+    const rentRows = primaryBooking.rent.ok ? primaryBooking.rent.data : [];
+    const electricityRows = primaryBooking.electricity.ok ? primaryBooking.electricity.data : [];
+    const projectedRent = rentRows.map((r) =>
+      projectInvoice({
+        ...r,
+        cancelledAt: null,
+        cancellationReason: null,
+        customerId: primaryBooking.booking.customerId,
+        bedId: '',
+        pgId: primaryBooking.booking.pgId,
+        paymentId: null,
+        paymentProofUrl: null,
+        isAdhoc: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }),
+    );
+    const projectedElectricity = electricityRows.map((e) =>
+      projectElectricityInvoice({
+        id: e.id,
+        invoiceNumber: e.invoiceNumber,
+        electricityBillId: e.electricityBillId,
+        bookingId: e.bookingId,
+        customerId: primaryBooking.booking.customerId,
+        bedId: '',
+        billingMonth: e.billingMonth,
+        dueDate: e.dueDate,
+        amountPaise: e.amountPaise,
+        paidPaise: e.paidPaise,
+        lateFeeLockedPaise: e.lateFeeLockedPaise,
+        status: e.status,
+        paymentId: null,
+        paidAt: e.paidAt,
+        paymentProofUrl: null,
+        unitsShare: null,
+        activeDays: null,
+        cancelledAt: null,
+        createdAt: e.createdAt,
+        updatedAt: e.updatedAt,
+      }),
+    );
+
+    for (const r of projectedRent) {
+      if (r.effectiveStatus === 'pending' || r.effectiveStatus === 'overdue') {
+        if (!firstUnpaidRentId) firstUnpaidRentId = r.id;
+        homeUpcoming.push({
+          key: `rent-${r.id}`,
+          label: `Rent · ${formatDate(r.billingMonth)}`,
+          amountPaise: r.outstandingPaise,
+          dueDate: r.dueDate,
+          href: `/account/resident/pay-rent/${r.id}`,
+          status: titleCase(r.effectiveStatus),
+        });
+      }
+    }
+    projectedElectricity.forEach((p, i) => {
+      const e = electricityRows[i];
+      if (p.effectiveStatus === 'pending' || p.effectiveStatus === 'overdue') {
+        if (!firstUnpaidElectricityId) firstUnpaidElectricityId = e.id;
+        homeUpcoming.push({
+          key: `elec-${e.id}`,
+          label: `Electricity · ${formatDate(e.billingMonth)}`,
+          amountPaise: p.outstandingPaise,
+          dueDate: e.dueDate,
+          href: `/account/resident/pay-electricity/${e.id}`,
+          status: titleCase(p.effectiveStatus),
+        });
+      }
+    });
+    if (primaryDepositCard && primaryDepositCard.depositDuePaise > 0) {
+      homeUpcoming.unshift({
+        key: 'deposit-due',
+        label: 'Security deposit',
+        amountPaise: primaryDepositCard.depositDuePaise,
+        dueDate: primaryDepositCard.depositDueDate,
+        href: primaryDepositCard.paymentLinkUrl,
+        status: titleCase(primaryDepositCard.depositCollectionStatus.replace(/_/g, ' ')),
+      });
+    }
+  }
+
   return (
     <ResidentHubShell activeTab={activeTab}>
       {activeTab === 'notifications' ? (
@@ -281,51 +375,44 @@ export async function ResidentAreaSection({
         />
       ) : null}
 
-      {(activeTab === 'home' ||
-        activeTab === 'wallet' ||
+      {activeTab === 'home' && primaryBooking && financialSummary && customer ? (
+        <ResidentHomePanel
+          booking={primaryBooking.booking}
+          financialSummary={financialSummary}
+          kycStatus={customer.kycStatus}
+          documentsSubmitted={documentsSubmitted}
+          openRequests={openRequests}
+          depositDuePaise={primaryDepositCard?.depositDuePaise ?? 0}
+          depositPaymentLinkUrl={primaryDepositCard?.paymentLinkUrl ?? null}
+          upcomingPayments={homeUpcoming}
+          firstUnpaidRentId={firstUnpaidRentId}
+          firstUnpaidElectricityId={firstUnpaidElectricityId}
+          hasOpenVacating={hasOpenVacating}
+          residentBriefing={residentBriefing}
+          ps4Membership={ps4Membership}
+          tenantActive={tenantActive}
+        />
+      ) : null}
+
+      {(activeTab === 'wallet' ||
         activeTab === 'payments' ||
         activeTab === 'requests' ||
         activeTab === 'vacating') && (
     <section className="space-y-6">
-      {activeTab === 'home' && residentBriefing ? (
-        <RoachieResidentBriefing
-          sessionKey="resident-dashboard-briefing-v1"
-          {...residentBriefing}
-        />
-      ) : null}
 
-      {activeTab === 'home' ? (
-      <p className="text-sm text-apg-silver">
-        Monthly and open-ended stays — rent, electricity, deposit, and vacating. Short stays stay
-        under{' '}
-        <Link className={ACCOUNT_LINK_ON_DARK} href="/account/bookings">
-          My bookings
-        </Link>
-        . Complete identity verification under{' '}
-        <Link className={ACCOUNT_LINK_ON_DARK} href={accountProfileHref('identity')}>
-          Identity (KYC)
-        </Link>
-        .
-      </p>
-      ) : null}
+      {activeTab === 'vacating' ? <DepositRefundNotice /> : null}
 
-      {(activeTab === 'home' || activeTab === 'vacating') ? <DepositRefundNotice /> : null}
-
-      {(activeTab === 'home' || activeTab === 'wallet') && financialSummary ? (
+      {activeTab === 'wallet' && financialSummary ? (
         <ResidentFinancialSummaryPanel summary={financialSummary} />
       ) : null}
 
-      {(activeTab === 'home' || activeTab === 'wallet' || activeTab === 'payments') &&
+      {(activeTab === 'wallet' || activeTab === 'payments') &&
         depositDueCards.map((card) => (
-        <DepositDueSection key={`deposit-due-${card.bookingId}`} {...card} />
-      ))}
+          <DepositDueSection key={`deposit-due-${card.bookingId}`} {...card} />
+        ))}
 
-      {(activeTab === 'home' || activeTab === 'wallet') && depositWallet.totalCollectedPaise > 0 ? (
+      {activeTab === 'wallet' && depositWallet.totalCollectedPaise > 0 ? (
         <DepositWalletSection wallet={depositWallet} />
-      ) : null}
-
-      {activeTab === 'home' ? (
-      <MyServicesPanel membership={ps4Membership} isActiveTenant={tenantActive} />
       ) : null}
 
       {bookings.ok === false ? (
@@ -363,10 +450,6 @@ export async function ResidentAreaSection({
                 updatedAt: new Date(),
               }),
             );
-            const totalRentOutstanding = projectedRent.reduce(
-              (acc, r) => acc + r.outstandingPaise,
-              0,
-            );
             const projectedElectricity = electricityRows.map((e) =>
               projectElectricityInvoice({
                 id: e.id,
@@ -391,16 +474,6 @@ export async function ResidentAreaSection({
                 updatedAt: e.updatedAt,
               }),
             );
-            const totalElectricityOutstanding = projectedElectricity.reduce(
-              (acc, p) => acc + p.outstandingPaise,
-              0,
-            );
-            const lateFees =
-              projectedRent.reduce((acc, r) => acc + r.accruedLateFeePaise, 0) +
-              projectedElectricity.reduce(
-                (acc, p) => acc + p.accruedLateFeePaise,
-                0,
-              );
             const deposit = d.deposit;
             const vacating = d.vacating.ok ? d.vacating.data : null;
             return (
@@ -431,35 +504,7 @@ export async function ResidentAreaSection({
                   </div>
                 </header>
 
-                {/* Top-line summary */}
-                {(activeTab === 'home') ? (
-                <div className="grid gap-3 sm:grid-cols-4">
-                  <Card label="Rent due" value={paiseToInr(totalRentOutstanding)} />
-                  <Card label="Electricity due" value={paiseToInr(totalElectricityOutstanding)} />
-                  <Card label="Late fees" value={paiseToInr(lateFees)} />
-                  <Card
-                    label="Deposit balance"
-                    value={paiseToInr(deposit?.refundableBalancePaise ?? 0)}
-                  />
-                </div>
-                ) : null}
-
-                {(activeTab === 'home') ? (
-                <div className="flex flex-wrap gap-2 text-xs">
-                  <span className="rounded-full bg-zinc-100 px-2.5 py-1 font-medium text-zinc-700 ring-1 ring-zinc-200">
-                    {labelAdminDuesStatus(booking.adminDuesStatus)}
-                  </span>
-                  <span className="rounded-full bg-indigo-50 px-2.5 py-1 font-medium text-indigo-800 ring-1 ring-indigo-200">
-                    {labelAdminDepositRefundStatus(booking.adminDepositRefundStatus)}
-                  </span>
-                  {totalRentOutstanding + totalElectricityOutstanding + lateFees === 0 &&
-                  booking.adminDuesStatus === 'unknown' ? (
-                    <span className="text-zinc-600">No open invoices in the system.</span>
-                  ) : null}
-                </div>
-                ) : null}
-
-                {(activeTab === 'home' || activeTab === 'requests') ? (
+                {(activeTab === 'requests') ? (
                 <ResidentRequestForms
                   bookingId={d.bookingId}
                   refundableBalancePaise={deposit?.refundableBalancePaise ?? 0}
@@ -467,23 +512,7 @@ export async function ResidentAreaSection({
                 />
                 ) : null}
 
-                {(activeTab === 'home') && openRequests.filter((r) => r.bookingId === d.bookingId).length > 0 ? (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                    <p className="font-semibold">Open requests</p>
-                    <ul className="mt-1 list-inside list-disc">
-                      {openRequests
-                        .filter((r) => r.bookingId === d.bookingId)
-                        .map((r) => (
-                          <li key={r.id}>
-                            {r.type === 'deposit_refund' ? 'Deposit refund' : 'Stay extension'} —{' '}
-                            {r.status.replace('_', ' ')}
-                          </li>
-                        ))}
-                    </ul>
-                  </div>
-                ) : null}
-
-                {(activeTab === 'home' || activeTab === 'payments') ? (
+                {(activeTab === 'payments') ? (
                 <div className="flex flex-wrap gap-2 text-xs">
                   <Link
                     href={`/account/resident/history/${d.bookingId}`}
@@ -494,47 +523,7 @@ export async function ResidentAreaSection({
                 </div>
                 ) : null}
 
-                {activeTab === 'home' && d.roomElectricity?.latestBill ? (
-                  <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4 text-sm">
-                    <h3 className="font-medium text-indigo-900">Room electricity (Room {booking.roomNumber})</h3>
-                    {d.roomElectricity.latestBill.isEstimated ? (
-                      <p className="mt-1 text-xs text-amber-800">
-                        Estimated bill (pending meter update)
-                      </p>
-                    ) : null}
-                    <dl className="mt-2 grid gap-1 text-xs sm:grid-cols-2">
-                      <div>
-                        <dt className="text-indigo-700">Room consumption</dt>
-                        <dd className="font-semibold text-zinc-900">
-                          {d.roomElectricity.latestBill.unitsConsumed} units ·{' '}
-                          {paiseToInr(d.roomElectricity.latestBill.totalPaise)}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-indigo-700">Meter readings</dt>
-                        <dd className="font-semibold text-zinc-900">
-                          {d.roomElectricity.latestBill.previousReadingUnits} →{' '}
-                          {d.roomElectricity.latestBill.currentReadingUnits}
-                        </dd>
-                      </div>
-                    </dl>
-                    {d.roomElectricity.invoices.length > 0 ? (
-                      <ul className="mt-2 space-y-1 text-xs text-indigo-800">
-                        {d.roomElectricity.invoices.map((inv) => (
-                          <li key={inv.id}>
-                            Share {inv.unitsShare ?? '—'} units · {paiseToInr(inv.amountPaise)} ·{' '}
-                            {inv.status}
-                            {inv.paymentProofUrl && inv.status === 'pending'
-                              ? ' · proof submitted'
-                              : ''}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                {(activeTab === 'home' || activeTab === 'payments') ? (
+                {(activeTab === 'payments') ? (
                 <details open={projectedRent.some((r) => r.effectiveStatus !== 'paid')}>
                   <summary className="cursor-pointer text-sm font-medium text-zinc-900">
                     Rent invoices ({projectedRent.length})
@@ -606,7 +595,7 @@ export async function ResidentAreaSection({
                 </details>
                 ) : null}
 
-                {(activeTab === 'home' || activeTab === 'payments') ? (
+                {(activeTab === 'payments') ? (
                 <details open={projectedElectricity.some((p) => p.effectiveStatus !== 'paid' && p.effectiveStatus !== 'cancelled')}>
                   <summary className="cursor-pointer text-sm font-medium text-zinc-900">
                     Electricity invoices ({electricityRows.length})
@@ -684,7 +673,7 @@ export async function ResidentAreaSection({
                 </details>
                 ) : null}
 
-                {(activeTab === 'home' || activeTab === 'wallet') ? (
+                {activeTab === 'wallet' ? (
                 <details>
                   <summary className="cursor-pointer text-sm font-medium text-zinc-900">
                     Deposit ledger ({deposit?.entries.length ?? 0} entries)
@@ -728,7 +717,7 @@ export async function ResidentAreaSection({
                 </details>
                 ) : null}
 
-                {(activeTab === 'home' || activeTab === 'vacating') ? (
+                {activeTab === 'vacating' ? (
                 <>
                 <VacatingJourneyTimeline
                   vacatingStatus={vacating?.status ?? null}
@@ -817,16 +806,5 @@ export async function ResidentAreaSection({
     </section>
       )}
     </ResidentHubShell>
-  );
-}
-
-function Card({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
-      <div className="text-[10px] font-medium uppercase tracking-wide text-zinc-600">
-        {label}
-      </div>
-      <div className="mt-1 text-base font-semibold text-zinc-900">{value}</div>
-    </div>
   );
 }
