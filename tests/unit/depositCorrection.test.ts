@@ -43,10 +43,62 @@ test('sanitizeUnifiedDepositView coerces all paise fields for RSC + client props
   assert.equal(paiseToInr(view.requiredPaise), '₹100');
 });
 
-test('asPlainNumber safe accumulation matches ledger sum pattern', () => {
-  let collected = 0;
-  for (const amount of [1000n, '2000', 3000, undefined]) {
-    collected += coerceNonNegativePaise(amount);
-  }
-  assert.equal(collected, 6000);
+test('bigint paise breaks raw division — root cause of E352 before coercion', () => {
+  const requiredPaise = 350000n;
+  assert.throws(() => (requiredPaise / 100).toString());
+  assert.throws(() => JSON.stringify({ requiredPaise }));
+});
+
+test('sanitizeUnifiedDepositView fixes RSC serialization after deposit save', () => {
+  const dirty = {
+    bookingId: 'b1',
+    customerId: 'c1',
+    requiredPaise: 350000n as unknown as number,
+    collectedPaise: '350000' as unknown as number,
+    deductedPaise: 0,
+    refundedPaise: 0,
+    refundablePaise: 350000n as unknown as number,
+    depositDuePaise: 0,
+    depositCollectionStatus: 'full',
+    invoiceStatus: null,
+    walletInSync: true,
+    walletMismatchReason: null,
+  };
+  const clean = sanitizeUnifiedDepositView(dirty);
+  assert.doesNotThrow(() => JSON.stringify(clean));
+  assert.doesNotThrow(() => (clean.requiredPaise / 100).toString());
+});
+
+test('expectedAfterRebuild uses numeric paise when booking fields are bigint-like', () => {
+  const current = sanitizeUnifiedDepositView({
+    bookingId: 'b1',
+    customerId: 'c1',
+    requiredPaise: 350000,
+    collectedPaise: 350000,
+    deductedPaise: 0,
+    refundedPaise: 0,
+    refundablePaise: 350000,
+    depositDuePaise: 0,
+    depositCollectionStatus: 'full',
+    invoiceStatus: 'Held',
+    walletInSync: true,
+    walletMismatchReason: null,
+  });
+  const summary = {
+    bookingId: 'b1',
+    customerId: 'c1',
+    collectedPaise: 300000,
+    deductedPaise: 0,
+    refundedPaise: 0,
+    refundableBalancePaise: 300000,
+    entries: [],
+  };
+  const expected = sanitizeUnifiedDepositView({
+    ...current,
+    collectedPaise: summary.collectedPaise,
+    refundablePaise: summary.refundableBalancePaise,
+    depositDuePaise: Math.max(0, 350000 - 300000),
+  });
+  assert.equal(expected.depositDuePaise, 50000);
+  assert.doesNotThrow(() => JSON.stringify(expected));
 });

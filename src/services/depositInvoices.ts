@@ -284,6 +284,8 @@ async function fetchRawDepositRows(options?: { bookingId?: string }): Promise<Ra
     pgName: r.pgName ?? '',
     roomNumber: r.roomNumber ?? '',
     bedCode: r.bedCode ?? '',
+    depositPaise: Number(r.depositPaise),
+    depositDuePaise: Number(r.depositDuePaise),
     collectedPaise: Number(r.collectedPaise),
     deductedPaise: Number(r.deductedPaise),
     refundedPaise: Number(r.refundedPaise),

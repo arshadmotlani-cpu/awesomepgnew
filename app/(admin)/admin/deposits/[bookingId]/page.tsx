@@ -16,6 +16,7 @@ import { paiseToInr, asPlainNumber } from '@/src/lib/format';
 import { loadBedPrice, securityDepositForMode } from '@/src/services/pricing';
 import { getUnifiedDepositView, sanitizeUnifiedDepositView } from '@/src/services/depositOperations';
 import { logger } from '@/src/lib/logger';
+import { logDepositDebug } from '@/src/lib/depositDebug';
 
 export const dynamic = 'force-dynamic';
 
@@ -157,6 +158,7 @@ async function loadDepositDetailData(bookingId: string) {
 
     return {
       booking,
+      customerId: booking.customerId,
       invoice,
       unifiedView,
       requiredPaise,
@@ -172,8 +174,26 @@ async function loadDepositDetailData(bookingId: string) {
     const stack = err instanceof Error ? err.stack : undefined;
     console.error('[deposit-detail] loadDepositDetailData failed', { bookingId, message, stack });
     logger.error('deposit_detail_loader_failed', { bookingId, message, stack });
+    logDepositDebug({
+      phase: 'loadDepositDetailData:error',
+      actionName: 'loadDepositDetailData',
+      bookingId,
+      error: err,
+    });
+    let customerId: string | null = null;
+    try {
+      const [row] = await db
+        .select({ customerId: bookings.customerId })
+        .from(bookings)
+        .where(eq(bookings.id, bookingId))
+        .limit(1);
+      customerId = row?.customerId ?? null;
+    } catch (lookupErr) {
+      console.error('[deposit-detail] customer lookup failed', { bookingId, lookupErr });
+    }
     return {
       booking: null,
+      customerId,
       invoice: null,
       unifiedView: null,
       requiredPaise: 0,
@@ -211,7 +231,31 @@ export default async function AdminDepositDetailPage({
         <>
           <PageHeader title="Deposit invoice" description="Could not load deposit details." />
           <div className="rounded-lg border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
-            {data.loadError}
+            <p>{data.loadError}</p>
+            <p className="mt-2 text-xs text-rose-200/80">
+              Check server logs for <code className="text-rose-100">[DEPOSIT_DEBUG]</code> and{' '}
+              <code className="text-rose-100">[deposit-detail]</code> entries for booking{' '}
+              {bookingId}.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              {data.customerId ? (
+                <Link
+                  href={`/admin/residents/${data.customerId}`}
+                  className="text-sm font-semibold text-[#FF5A1F] hover:underline"
+                >
+                  Open resident profile →
+                </Link>
+              ) : null}
+              <Link
+                href={`/admin/bookings/${bookingId}`}
+                className="text-sm font-semibold text-[#FF5A1F] hover:underline"
+              >
+                Booking operations →
+              </Link>
+              <Link href="/admin/deposits" className="text-sm text-apg-silver hover:text-white">
+                ← All deposits
+              </Link>
+            </div>
           </div>
         </>
       );
@@ -221,6 +265,7 @@ export default async function AdminDepositDetailPage({
 
   const {
     booking,
+    customerId,
     invoice,
     unifiedView,
     requiredPaise,
@@ -311,6 +356,10 @@ export default async function AdminDepositDetailPage({
       )}
 
       <p className="text-sm text-apg-silver">
+        <Link href={`/admin/residents/${customerId}`} className="text-[#FF5A1F] hover:underline">
+          Resident profile →
+        </Link>
+        {' · '}
         <Link href={`/admin/bookings/${bookingId}`} className="text-[#FF5A1F] hover:underline">
           Booking operations →
         </Link>

@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { auditLog, bookings } from '@/src/db/schema';
 import { coerceNonNegativePaise } from '@/src/lib/format';
+import { logDepositDebug } from '@/src/lib/depositDebug';
 import { getDepositInvoiceForBooking } from '@/src/services/depositInvoices';
 import {
   adjustDepositCollectedBalance,
@@ -180,37 +181,42 @@ function expectedAfterRebuild(
   booking: { depositPaise: number },
   summary: DepositSummary,
 ): UnifiedDepositView {
-  const due = Math.max(0, booking.depositPaise - summary.collectedPaise);
+  const required = coerceNonNegativePaise(booking.depositPaise);
+  const collected = coerceNonNegativePaise(summary.collectedPaise);
+  const deducted = coerceNonNegativePaise(summary.deductedPaise);
+  const refunded = coerceNonNegativePaise(summary.refundedPaise);
+  const refundable = coerceNonNegativePaise(summary.refundableBalancePaise);
+  const due = Math.max(0, required - collected);
   let status = current.depositCollectionStatus;
   if (due <= 0) status = 'full';
-  else if (summary.collectedPaise > 0) status = 'partial';
+  else if (collected > 0) status = 'partial';
 
-  return {
+  return sanitizeUnifiedDepositView({
     ...current,
-    collectedPaise: summary.collectedPaise,
-    deductedPaise: summary.deductedPaise,
-    refundedPaise: summary.refundedPaise,
-    refundablePaise: summary.refundableBalancePaise,
+    collectedPaise: collected,
+    deductedPaise: deducted,
+    refundedPaise: refunded,
+    refundablePaise: refundable,
     depositDuePaise: due,
     depositCollectionStatus: status,
     walletInSync: true,
     walletMismatchReason: null,
-  };
+  });
 }
 
 function expectedAfterCancel(current: UnifiedDepositView): UnifiedDepositView {
-  const removes = current.refundablePaise;
-  return {
+  const removes = coerceNonNegativePaise(current.refundablePaise);
+  return sanitizeUnifiedDepositView({
     ...current,
     requiredPaise: 0,
-    deductedPaise: current.deductedPaise + removes,
+    deductedPaise: coerceNonNegativePaise(current.deductedPaise) + removes,
     refundablePaise: 0,
     depositDuePaise: 0,
     depositCollectionStatus: 'full',
     invoiceStatus: 'Cancelled',
     walletInSync: true,
     walletMismatchReason: null,
-  };
+  });
 }
 
 export async function previewRebuildDepositWallet(
@@ -234,16 +240,18 @@ export async function previewRebuildDepositWallet(
   if (!walletCheck.inSync && walletCheck.reason) {
     warnings.push(`Ledger reconciliation failed: ${walletCheck.reason}`);
   }
-  if (booking.depositPaise !== summary.collectedPaise) {
+  const required = coerceNonNegativePaise(booking.depositPaise);
+  const collected = coerceNonNegativePaise(summary.collectedPaise);
+  if (required !== collected) {
     warnings.push(
-      `Required deposit (₹${(booking.depositPaise / 100).toLocaleString('en-IN')}) differs from ledger collected (₹${(summary.collectedPaise / 100).toLocaleString('en-IN')}). Rebuild syncs due/status only — it does not change required deposit or ledger rows.`,
+      `Required deposit (₹${(required / 100).toLocaleString('en-IN')}) differs from ledger collected (₹${(collected / 100).toLocaleString('en-IN')}). Rebuild syncs due/status only — it does not change required deposit or ledger rows.`,
     );
   }
 
   return {
     action: 'rebuild',
-    current,
-    expected: sanitizeUnifiedDepositView(expectedAfterRebuild(current, booking, summary)),
+    current: sanitizeUnifiedDepositView(current),
+    expected: expectedAfterRebuild(current, booking, summary),
     warnings,
     willModifyLedger: false,
     removesFromWalletPaise: 0,
@@ -268,18 +276,19 @@ export async function previewCancelDepositInvoice(
     return { ok: false, error: 'Invoice already cancelled.' };
   }
   if (current.refundablePaise > 0) {
+    const refundable = coerceNonNegativePaise(current.refundablePaise);
     warnings.push(
-      `This will remove ₹${(current.refundablePaise / 100).toLocaleString('en-IN')} from the resident deposit wallet.`,
+      `This will remove ₹${(refundable / 100).toLocaleString('en-IN')} from the resident deposit wallet.`,
     );
   }
 
   return {
     action: 'cancel',
-    current,
-    expected: sanitizeUnifiedDepositView(expectedAfterCancel(current)),
+    current: sanitizeUnifiedDepositView(current),
+    expected: expectedAfterCancel(current),
     warnings,
-    willModifyLedger: current.refundablePaise > 0,
-    removesFromWalletPaise: current.refundablePaise,
+    willModifyLedger: coerceNonNegativePaise(current.refundablePaise) > 0,
+    removesFromWalletPaise: coerceNonNegativePaise(current.refundablePaise),
   };
 }
 
@@ -465,6 +474,13 @@ export async function updateDepositSummaryAdmin(input: {
     collectedPaise,
     reason: input.reason,
   });
+  logDepositDebug({
+    phase: 'updateDepositSummaryAdmin:start',
+    bookingId: input.bookingId,
+    residentId: input.customerId,
+    requiredDeposit: requiredPaise,
+    collectedDeposit: collectedPaise,
+  });
 
   const [booking] = await db
     .select({
@@ -516,6 +532,14 @@ export async function updateDepositSummaryAdmin(input: {
         updatedAt: new Date(),
       })
       .where(eq(bookings.id, input.bookingId));
+    logDepositDebug({
+      phase: 'updateDepositSummaryAdmin:booking_updated',
+      bookingId: input.bookingId,
+      residentId: input.customerId,
+      requiredDeposit: requiredPaise,
+      collectedDeposit: collectedPaise,
+      wallet: { priorRequired, priorTotal, newTotalPaise },
+    });
   }
 
   await syncDepositCollectionFromLedger(input.bookingId);
@@ -540,6 +564,13 @@ export async function updateDepositSummaryAdmin(input: {
     customerId: input.customerId,
     requiredPaise,
     collectedPaise,
+  });
+  logDepositDebug({
+    phase: 'updateDepositSummaryAdmin:ok',
+    bookingId: input.bookingId,
+    residentId: input.customerId,
+    requiredDeposit: requiredPaise,
+    collectedDeposit: collectedPaise,
   });
 
   return { ok: true };

@@ -19,6 +19,7 @@ import {
   type DepositWalletPreview,
 } from '@/src/services/depositOperations';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
+import { logDepositDebug } from '@/src/lib/depositDebug';
 
 export type DepositWalletActionState =
   | { status: 'idle' }
@@ -133,9 +134,19 @@ async function verifyDepositReload(bookingId: string, customerId: string) {
 }
 
 function revalidateDepositViews(bookingId: string) {
+  logDepositDebug({
+    phase: 'revalidateDepositViews:before',
+    actionName: 'revalidateDepositViews',
+    bookingId,
+  });
   revalidateFinancialViews();
   revalidatePath(`/admin/deposits/${bookingId}`);
   revalidatePath('/admin/deposits');
+  logDepositDebug({
+    phase: 'revalidateDepositViews:after',
+    actionName: 'revalidateDepositViews',
+    bookingId,
+  });
 }
 
 export async function loadRebuildDepositPreviewAction(
@@ -213,6 +224,14 @@ export async function editDepositSummaryAction(
       collectedPaise,
       reason,
     });
+    logDepositDebug({
+      phase: 'editDepositSummaryAction:before_update',
+      actionName: 'editDepositSummaryAction',
+      bookingId,
+      residentId: customerId,
+      requiredDeposit: requiredPaise,
+      collectedDeposit: collectedPaise,
+    });
 
     const result = await updateDepositSummaryAdmin({
       bookingId,
@@ -224,6 +243,15 @@ export async function editDepositSummaryAction(
     });
     if (!result.ok) return { status: 'error', message: result.error };
 
+    logDepositDebug({
+      phase: 'editDepositSummaryAction:after_update',
+      actionName: 'editDepositSummaryAction',
+      bookingId,
+      residentId: customerId,
+      requiredDeposit: requiredPaise,
+      collectedDeposit: collectedPaise,
+    });
+
     console.info('[deposit-wallet] edit_summary ok', {
       bookingId,
       bookingCode,
@@ -234,9 +262,26 @@ export async function editDepositSummaryAction(
 
     revalidateDepositViews(bookingId);
     await verifyDepositReload(bookingId, customerId);
+    logDepositDebug({
+      phase: 'editDepositSummaryAction:ok',
+      bookingId,
+      residentId: customerId,
+      actionName: 'editDepositSummaryAction',
+      requiredDeposit: requiredPaise,
+      collectedDeposit: collectedPaise,
+    });
     return { status: 'ok', message: 'Deposit summary updated everywhere.' };
   } catch (err) {
     if (isRedirectError(err)) throw err;
+    logDepositDebug({
+      phase: 'editDepositSummaryAction:error',
+      actionName: 'editDepositSummaryAction',
+      bookingId,
+      residentId: customerId,
+      requiredDeposit: undefined,
+      collectedDeposit: undefined,
+      error: err,
+    });
     await logDepositWalletFailure({
       action: 'edit_summary',
       bookingId,

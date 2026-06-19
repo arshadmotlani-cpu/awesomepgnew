@@ -32,6 +32,7 @@ import {
 } from '../db/schema';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import { coerceNonNegativePaise, asPlainNumber } from '@/src/lib/format';
+import { logDepositDebug } from '@/src/lib/depositDebug';
 import { applyDepositDeduction } from '@/src/services/depositSettlement';
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -367,6 +368,20 @@ export async function getDepositSummaryForBooking(
       entries,
     };
 
+    logDepositDebug({
+      phase: 'getDepositSummaryForBooking:ok',
+      bookingId,
+      residentId: booking.customerId,
+      requiredDeposit: undefined,
+      collectedDeposit: collected,
+      wallet: {
+        deductedPaise: deducted,
+        refundedPaise: refunded,
+        refundableBalancePaise: summary.refundableBalancePaise,
+      },
+      ledger: { rowCount: entries.length },
+    });
+
     return summary;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -375,6 +390,11 @@ export async function getDepositSummaryForBooking(
       bookingId,
       message,
       stack,
+    });
+    logDepositDebug({
+      phase: 'getDepositSummaryForBooking:error',
+      bookingId,
+      error: err,
     });
     throw err;
   }

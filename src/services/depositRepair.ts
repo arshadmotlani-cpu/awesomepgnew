@@ -5,6 +5,7 @@
 import { eq, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { auditLog, bookings } from '@/src/db/schema';
+import { coerceNonNegativePaise } from '@/src/lib/format';
 import { syncDepositCollectionFromLedger } from '@/src/services/depositCollection';
 import {
   getDepositSummaryForBooking,
@@ -61,14 +62,16 @@ function issuesForBooking(
   if (!walletCheck.inSync && walletCheck.reason) {
     issues.push(walletCheck.reason);
   }
-  const collected = summary?.collectedPaise ?? 0;
-  const expectedDue = Math.max(0, booking.depositPaise - collected);
-  if (booking.depositPaise > 0 && booking.depositDuePaise !== expectedDue) {
+  const collected = coerceNonNegativePaise(summary?.collectedPaise ?? 0);
+  const required = coerceNonNegativePaise(booking.depositPaise);
+  const due = coerceNonNegativePaise(booking.depositDuePaise);
+  const expectedDue = Math.max(0, required - collected);
+  if (required > 0 && due !== expectedDue) {
     issues.push(
-      `Deposit due mismatch — booking shows ₹${(booking.depositDuePaise / 100).toLocaleString('en-IN')} but ledger implies ₹${(expectedDue / 100).toLocaleString('en-IN')}.`,
+      `Deposit due mismatch — booking shows ₹${(due / 100).toLocaleString('en-IN')} but ledger implies ₹${(expectedDue / 100).toLocaleString('en-IN')}.`,
     );
   }
-  if (booking.depositPaise > 0 && collected === 0 && booking.depositDuePaise === 0) {
+  if (required > 0 && collected === 0 && due === 0) {
     issues.push('Required deposit set but wallet shows zero collected and zero due.');
   }
   return issues;
