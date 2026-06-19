@@ -61,6 +61,56 @@ export async function createCustomerProfile(args: {
   return row;
 }
 
+/** Account recovery — write profile straight to customers (no signup_sessions dependency). */
+export async function upsertRecoveryCustomerProfile(args: {
+  email: string;
+  fullName: string;
+  phone: string;
+}) {
+  const email = normaliseEmail(args.email);
+  if (!email) throw new Error('Invalid email address.');
+  const phone = normaliseIndianPhone(args.phone);
+  if (!phone) throw new Error('Enter a valid 10-digit mobile number.');
+  const fullName = args.fullName.trim();
+  if (fullName.length < 2) throw new Error('Enter your full name to continue.');
+
+  const phoneOwner = await findCustomerByPhone(phone);
+  if (phoneOwner && isAccountComplete(phoneOwner) && phoneOwner.email !== email) {
+    throw new Error(
+      'This mobile number is already linked to another account. Use a different number or sign in with that account.',
+    );
+  }
+
+  const existing = await findCustomerByEmail(email);
+  if (existing?.archivedAt) {
+    throw new Error('This account is archived. Contact support for help.');
+  }
+
+  if (existing && isAccountComplete(existing)) {
+    throw new Error('This email already has an account. Sign in with your password.');
+  }
+
+  const now = new Date();
+  const profileCompletedAt = profileFieldsSatisfied({ fullName, email, phone }) ? now : null;
+
+  if (existing) {
+    const [row] = await db
+      .update(customers)
+      .set({
+        fullName,
+        phone,
+        profileCompletedAt: profileCompletedAt ?? existing.profileCompletedAt,
+        mustSetPassword: true,
+        updatedAt: now,
+      })
+      .where(eq(customers.id, existing.id))
+      .returning();
+    return row;
+  }
+
+  return createCustomerProfile({ email, fullName, phone: args.phone });
+}
+
 export async function setCustomerPassword(customerId: string, password: string): Promise<void> {
   const { hashPassword } = await import('@/src/lib/auth/crypto');
   const passwordHash = hashPassword(password);

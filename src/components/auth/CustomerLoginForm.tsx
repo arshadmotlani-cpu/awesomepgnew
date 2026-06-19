@@ -348,6 +348,48 @@ export function CustomerLoginForm({
     setPending(true);
     setError(null);
     try {
+      if (otpPurpose === 'forgot_password' && includeProfile) {
+        const res = await signupFetch('/api/auth/customer/forgot-password/profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: email.trim(),
+            fullName: fullName.trim(),
+            phone,
+          }),
+          timeoutMs: SIGNUP_REQUEST_TIMEOUT_MS,
+        });
+        const data = (await res.json()) as {
+          ok: boolean;
+          message?: string;
+          needsNewCode?: boolean;
+          needsLogin?: boolean;
+        };
+        if (!res.ok || !data.ok) {
+          if (data.needsLogin) {
+            resetProfileSubmit();
+            await resetToLogin(data.message);
+            return;
+          }
+          if (data.needsNewCode) {
+            resetProfileSubmit();
+            setStep('otp');
+            setRecoveryOtpVerified(false);
+            setCode('');
+            setError(data.message ?? 'Request a new code and try again.');
+            return;
+          }
+          resetProfileSubmit();
+          setError(data.message ?? 'Could not save your profile. Try again.');
+          return;
+        }
+        setProfilePhase('success');
+        finishProfileSubmit();
+        setStep('reset-password');
+        setError(null);
+        return;
+      }
+
       if (otpPurpose === 'forgot_password' && !includeProfile) {
         const res = await signupFetch('/api/auth/customer/forgot-password/verify', {
           method: 'POST',

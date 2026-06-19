@@ -11,6 +11,7 @@ import {
   readSignupSessionFromRequest,
 } from '@/src/lib/auth/signupSession';
 import { normaliseEmail } from '@/src/lib/email/address';
+import { issueRecoveryCookie } from '@/src/lib/auth/recoverySession';
 
 export type ForgotPasswordNextStep = 'profile' | 'password';
 
@@ -37,14 +38,24 @@ export async function POST(request: Request) {
     return NextResponse.json(verified, { status: 400 });
   }
 
+  await issueRecoveryCookie(email);
+
+  let session: Awaited<ReturnType<typeof getActiveSignupSessionForEmail>> = null;
   try {
-    let session =
+    session =
       (await readSignupSessionFromRequest()) ?? (await getActiveSignupSessionForEmail(email));
     if (!session?.otpVerified) {
       session = await markSignupOtpVerified(email);
     }
     await issueSignupSessionCookie(session.id, session.expiresAt);
+  } catch (err) {
+    console.warn('[auth/forgot-password/verify] signup session optional', {
+      email,
+      reason: err instanceof Error ? err.message : String(err),
+    });
+  }
 
+  try {
     const customer = await findCustomerByEmail(email);
     if (customer && !customer.archivedAt) {
       const hasProfile = Boolean(customer.fullName?.trim() && customer.phone?.trim());
@@ -57,7 +68,7 @@ export async function POST(request: Request) {
       }
     }
 
-    if (session.profileSubmitted && session.fullName && session.phone) {
+    if (session?.profileSubmitted && session.fullName && session.phone) {
       return NextResponse.json({
         ok: true,
         nextStep: 'password' satisfies ForgotPasswordNextStep,
@@ -71,8 +82,8 @@ export async function POST(request: Request) {
       ok: true,
       nextStep: 'profile' satisfies ForgotPasswordNextStep,
       email,
-      fullName: session.fullName ?? customer?.fullName ?? '',
-      phone: session.phone ?? customer?.phone?.replace(/^\+91/, '') ?? '',
+      fullName: session?.fullName ?? customer?.fullName ?? '',
+      phone: session?.phone ?? customer?.phone?.replace(/^\+91/, '') ?? '',
     });
   } catch (err) {
     console.error('[auth/forgot-password/verify] failed', {

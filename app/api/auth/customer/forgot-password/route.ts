@@ -14,6 +14,10 @@ import { verifyEmailOtp } from '@/src/lib/auth/otp';
 import { validateCustomerPassword } from '@/src/lib/auth/password';
 import { createCustomerSession } from '@/src/lib/auth/session';
 import { normaliseEmail } from '@/src/lib/email/address';
+import {
+  clearRecoveryCookie,
+  isRecoveryVerifiedForEmail,
+} from '@/src/lib/auth/recoverySession';
 
 export async function POST(request: Request) {
   let body: {
@@ -68,14 +72,17 @@ export async function POST(request: Request) {
     (await getActiveSignupSessionForEmail(email));
 
   if (!signupSession?.otpVerified && !body.code?.trim()) {
-    return NextResponse.json(
-      {
-        ok: false,
-        message: 'Your verification expired. Request a new code and try again.',
-        needsNewCode: true,
-      },
-      { status: 401 },
-    );
+    const recoveryOk = await isRecoveryVerifiedForEmail(email);
+    if (!recoveryOk) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: 'Your verification expired. Request a new code and try again.',
+          needsNewCode: true,
+        },
+        { status: 401 },
+      );
+    }
   }
 
   const profileReady =
@@ -104,6 +111,7 @@ export async function POST(request: Request) {
         await setCustomerPassword(customer.id, password);
       }
       if (signupSession) await completeSignupSession(signupSession.id);
+      await clearRecoveryCookie();
       await createCustomerSession({ customerId: customer.id, ip, userAgent });
       return NextResponse.json({
         ok: true,
@@ -121,6 +129,7 @@ export async function POST(request: Request) {
         password,
       });
       await completeSignupSession(signupSession.id);
+      await clearRecoveryCookie();
       await createCustomerSession({ customerId: committed.id, ip, userAgent });
       return NextResponse.json({
         ok: true,
