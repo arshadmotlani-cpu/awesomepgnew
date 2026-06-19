@@ -1,22 +1,19 @@
 'use client';
 
 /**
- * ADJUST BISECT PHASE 1 — server-action imports + useActionState hooks, minimal JSX.
- * Phase 0 OK. Phase 2 will add CorrectDepositForm. Phase 3 add/deduct/refund grid.
- * Archive: DepositAdjustForms.full.tsx
+ * ADJUST BISECT PHASE 2 — CorrectDepositForm (paiseToInr + defaultValue path).
+ * Phase 3 will add add/deduct/refund grid. Archive: DepositAdjustForms.full.tsx
  */
 
 import { useActionState } from 'react';
 import {
-  addDepositAction,
-  deductDepositAction,
-  refundDepositAction,
   correctDepositAction,
   initialActionState,
 } from '@/app/(admin)/admin/deposits/[bookingId]/actions';
+import { paiseToInr, asPlainNumber } from '@/src/lib/format';
 
 const FILE = 'src/components/admin/DepositAdjustForms.tsx';
-const BISECT_PHASE = 1;
+const BISECT_PHASE = 2;
 
 function adjustLog(tag: string, extra?: Record<string, unknown>) {
   const payload = {
@@ -41,30 +38,119 @@ function adjustLog(tag: string, extra?: Record<string, unknown>) {
 }
 
 adjustLog('[ADJUST_MODULE_0]', { phase: 'module_eval_start' });
+adjustLog('[ADJUST_MODULE_1]', { phase: 'after_imports', paiseToInr: typeof paiseToInr });
 
-adjustLog('[ADJUST_MODULE_1]', {
-  phase: 'after_server_action_imports',
-  correctDepositAction: typeof correctDepositAction,
-  addDepositAction: typeof addDepositAction,
-});
+function CorrectDepositForm({
+  bookingId,
+  bookingDepositPaise,
+  ledgerCollectedPaise,
+  websiteDepositPaise,
+}: {
+  bookingId: string;
+  bookingDepositPaise: number;
+  ledgerCollectedPaise: number;
+  websiteDepositPaise: number;
+}) {
+  const bound = correctDepositAction.bind(null, bookingId);
+  const [state, runAction, pending] = useActionState(bound, initialActionState);
 
-/** Mount all hooks used by the full component without rendering form JSX. */
-function AdjustHooksProbe({ bookingId }: { bookingId: string }) {
-  adjustLog('[ADJUST_STEP_1]', { phase: 'hooks_probe_start', bookingId });
+  adjustLog('[ADJUST_STEP_1]', {
+    phase: 'CorrectDepositForm_render',
+    bookingDepositPaise,
+    bookingDepositPaiseType: typeof bookingDepositPaise,
+    ledgerCollectedPaise,
+    ledgerCollectedPaiseType: typeof ledgerCollectedPaise,
+  });
 
-  useActionState(correctDepositAction.bind(null, bookingId), initialActionState);
-  adjustLog('[ADJUST_STEP_2]', { hook: 'correctDepositAction' });
+  let bookingDepositLabel: string;
+  let ledgerCollectedLabel: string;
+  let websiteDepositLabel: string | null = null;
+  let defaultValueInr: number;
 
-  useActionState(addDepositAction.bind(null, bookingId), initialActionState);
-  adjustLog('[ADJUST_STEP_3]', { hook: 'addDepositAction' });
+  try {
+    adjustLog('[ADJUST_STEP_2]', { fn: 'paiseToInr', variable: 'bookingDepositPaise' });
+    bookingDepositLabel = paiseToInr(bookingDepositPaise);
+    adjustLog('[ADJUST_STEP_3]', { fn: 'paiseToInr', variable: 'ledgerCollectedPaise' });
+    ledgerCollectedLabel = paiseToInr(ledgerCollectedPaise);
+    if (websiteDepositPaise > 0) {
+      adjustLog('[ADJUST_STEP_4]', { fn: 'paiseToInr', variable: 'websiteDepositPaise' });
+      websiteDepositLabel = paiseToInr(websiteDepositPaise);
+    }
+    adjustLog('[ADJUST_STEP_5]', { fn: 'asPlainNumber/defaultValue', variable: 'bookingDepositPaise' });
+    defaultValueInr = Math.round(asPlainNumber(bookingDepositPaise) / 100);
+    adjustLog('[ADJUST_STEP_5_ok]', { defaultValueInr });
+  } catch (err) {
+    adjustLog('[ADJUST_STEP_FAILED]', {
+      message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+    });
+    throw err;
+  }
 
-  useActionState(deductDepositAction.bind(null, bookingId), initialActionState);
-  adjustLog('[ADJUST_STEP_4]', { hook: 'deductDepositAction' });
-
-  useActionState(refundDepositAction.bind(null, bookingId), initialActionState);
-  adjustLog('[ADJUST_STEP_5]', { hook: 'refundDepositAction' });
-
-  return null;
+  return (
+    <form
+      action={runAction}
+      className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/50 p-4 shadow-sm"
+    >
+      <div>
+        <h3 className="text-sm font-semibold text-indigo-900">Set / correct deposit collected</h3>
+        <p className="mt-1 text-[11px] text-indigo-900/80">
+          Sets the booking deposit and reconciles the ledger to this total. Use for grandfathered
+          amounts or fixing a wrong entry after assignment.
+        </p>
+        <p className="mt-1 text-[11px] text-zinc-600">
+          Current booking deposit: <strong>{bookingDepositLabel}</strong>
+          {' · '}
+          Ledger collected: <strong>{ledgerCollectedLabel}</strong>
+          {websiteDepositLabel ? (
+            <>
+              {' · '}
+              Website default: <strong>{websiteDepositLabel}</strong>
+            </>
+          ) : null}
+        </p>
+      </div>
+      <label className="block">
+        <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+          Total deposit collected (₹)
+        </span>
+        <input
+          type="number"
+          name="amountInr"
+          min="0"
+          step="1"
+          required
+          defaultValue={defaultValueInr}
+          className="mt-1 block w-full max-w-xs rounded-md border border-zinc-300 px-2.5 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        />
+      </label>
+      <label className="block">
+        <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+          Reason
+        </span>
+        <input
+          type="text"
+          name="reason"
+          required
+          maxLength={200}
+          placeholder="e.g. grandfathered deposit before price increase"
+          className="mt-1 block w-full rounded-md border border-zinc-300 px-2.5 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        />
+      </label>
+      <button
+        type="submit"
+        disabled={pending}
+        className="rounded-md bg-indigo-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-800 disabled:bg-indigo-300"
+      >
+        {pending ? 'Saving…' : 'Set deposit & reconcile ledger'}
+      </button>
+      {state.status === 'ok' ? (
+        <p className="rounded bg-emerald-50 px-2 py-1 text-xs text-emerald-700">{state.message}</p>
+      ) : state.status === 'error' ? (
+        <p className="rounded bg-rose-50 px-2 py-1 text-xs text-rose-700">{state.message}</p>
+      ) : null}
+    </form>
+  );
 }
 
 export function DepositAdjustForms(props: {
@@ -81,15 +167,20 @@ export function DepositAdjustForms(props: {
   });
 
   return (
-    <>
-      <AdjustHooksProbe bookingId={props.bookingId} />
-      <div
+    <div className="space-y-4">
+      <p
         data-adjust-bisect={BISECT_PHASE}
-        className="rounded-lg border border-sky-400/40 bg-sky-500/10 px-4 py-3 text-sm text-sky-100"
+        className="rounded border border-sky-400/40 bg-sky-500/10 px-3 py-1.5 text-xs text-sky-100"
       >
-        DepositAdjustForms minimal render (bisect-{BISECT_PHASE} — hooks only)
-      </div>
-    </>
+        DepositAdjustForms bisect-{BISECT_PHASE} — CorrectDepositForm
+      </p>
+      <CorrectDepositForm
+        bookingId={props.bookingId}
+        bookingDepositPaise={props.bookingDepositPaise}
+        ledgerCollectedPaise={props.ledgerCollectedPaise}
+        websiteDepositPaise={props.websiteDepositPaise ?? 0}
+      />
+    </div>
   );
 }
 

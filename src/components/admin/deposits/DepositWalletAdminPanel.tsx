@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * WALLET BISECT PHASE 1 — server-action imports + hooks, minimal JSX.
- * Phase 0 OK. Phase 2+ restore UI sections from DepositWalletAdminPanel.full.tsx
+ * WALLET BISECT PHASE 2 — header + stats grid (paiseToInr path).
+ * Phase 3 will add edit form. Archive: DepositWalletAdminPanel.full.tsx
  */
 
 import { useActionState, useState, useTransition } from 'react';
@@ -15,10 +15,14 @@ import {
   rebuildDepositWalletAction,
   type DepositWalletActionState,
 } from '@/app/(admin)/admin/deposits/deposit-wallet-actions';
-import type { UnifiedDepositView } from '@/src/lib/deposits/unifiedDepositView';
+import {
+  sanitizeUnifiedDepositView,
+  type UnifiedDepositView,
+} from '@/src/lib/deposits/unifiedDepositView';
+import { paiseToInr } from '@/src/lib/format';
 
 const FILE = 'src/components/admin/deposits/DepositWalletAdminPanel.tsx';
-const BISECT_PHASE = 1;
+const BISECT_PHASE = 2;
 const idle: DepositWalletActionState = { status: 'idle' };
 
 function bisectLog(tag: string, extra?: Record<string, unknown>) {
@@ -44,61 +48,126 @@ function bisectLog(tag: string, extra?: Record<string, unknown>) {
 }
 
 bisectLog('[WALLET_MODULE_0]', { phase: 'module_eval_start' });
-
-bisectLog('[WALLET_MODULE_1]', {
-  phase: 'after_server_action_imports',
-  editDepositSummaryAction: typeof editDepositSummaryAction,
-  rebuildDepositWalletAction: typeof rebuildDepositWalletAction,
-});
+bisectLog('[WALLET_MODULE_1]', { phase: 'after_imports', paiseToInr: typeof paiseToInr });
 
 function WalletHooksProbe({ bookingId }: { bookingId: string }) {
-  bisectLog('[WALLET_STEP_1]', { phase: 'hooks_probe_start', bookingId });
-
   useActionState(editDepositSummaryAction, idle);
-  bisectLog('[WALLET_STEP_2]', { hook: 'editDepositSummaryAction' });
-
   useActionState(editDepositSummaryNoRevalidateAction, idle);
-  bisectLog('[WALLET_STEP_3]', { hook: 'editDepositSummaryNoRevalidateAction' });
-
   useActionState(rebuildDepositWalletAction, idle);
-  bisectLog('[WALLET_STEP_4]', { hook: 'rebuildDepositWalletAction' });
-
   useActionState(cancelDepositInvoiceAction, idle);
-  bisectLog('[WALLET_STEP_5]', { hook: 'cancelDepositInvoiceAction' });
-
   useState<null>(null);
   useState<null>(null);
   useState<string | null>(null);
   useTransition();
-  bisectLog('[WALLET_STEP_6]', { hooks: 'preview state + transition' });
-
   void loadRebuildDepositPreviewAction;
   void loadCancelDepositPreviewAction;
-  bisectLog('[WALLET_STEP_7]', { hooks: 'preview actions referenced' });
-
+  void bookingId;
   return null;
+}
+
+function Stat({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent?: 'emerald' | 'strong';
+}) {
+  const cls =
+    accent === 'emerald'
+      ? 'text-emerald-300'
+      : accent === 'strong'
+        ? 'text-white font-semibold'
+        : 'text-white';
+  return (
+    <div className="rounded-lg border border-white/10 bg-[#12161C] p-3">
+      <dt className="text-[10px] uppercase tracking-wide text-apg-silver">{label}</dt>
+      <dd className={`mt-1 text-sm tabular-nums ${cls}`}>{value}</dd>
+    </div>
+  );
 }
 
 export function DepositWalletAdminPanel(props: {
   view: UnifiedDepositView;
   isFrozen: boolean;
 }) {
-  bisectLog('[WALLET_MODULE_2]', {
-    phase: 'function_entry',
-    bookingId: props.view?.bookingId ?? null,
-    isFrozen: props.isFrozen,
-  });
+  bisectLog('[WALLET_MODULE_2]', { phase: 'function_entry', bookingId: props.view?.bookingId });
+
+  const v = sanitizeUnifiedDepositView(props.view);
+
+  bisectLog('[WALLET_STEP_8]', { phase: 'header_stats_start' });
+
+  let requiredLabel: string;
+  let collectedLabel: string;
+  let refundableLabel: string;
+  let deductedLabel: string;
+  let refundedLabel: string;
+  let dueLabel: string;
+
+  try {
+    bisectLog('[WALLET_STEP_10_required]', { variable: 'v.requiredPaise', type: typeof v.requiredPaise });
+    requiredLabel = paiseToInr(v.requiredPaise);
+    bisectLog('[WALLET_STEP_10_collected]', { variable: 'v.collectedPaise' });
+    collectedLabel = paiseToInr(v.collectedPaise);
+    bisectLog('[WALLET_STEP_10_refundable]', { variable: 'v.refundablePaise' });
+    refundableLabel = paiseToInr(v.refundablePaise);
+    bisectLog('[WALLET_STEP_10_deductions]', { variable: 'v.deductedPaise' });
+    deductedLabel = paiseToInr(v.deductedPaise);
+    bisectLog('[WALLET_STEP_10_refunded]', { variable: 'v.refundedPaise' });
+    refundedLabel = paiseToInr(v.refundedPaise);
+    bisectLog('[WALLET_STEP_10_due]', { variable: 'v.depositDuePaise' });
+    dueLabel = paiseToInr(v.depositDuePaise);
+    bisectLog('[WALLET_STEP_10_ok]', { phase: 'all_paiseToInr_ok' });
+  } catch (err) {
+    bisectLog('[WALLET_STEP_FAILED]', {
+      message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+    });
+    throw err;
+  }
 
   return (
-    <>
-      <WalletHooksProbe bookingId={props.view.bookingId} />
-      <div
+    <section className="mt-6 space-y-4 rounded-2xl border border-white/10 bg-[#1A1F27] p-4">
+      <WalletHooksProbe bookingId={v.bookingId} />
+      <p
         data-wallet-bisect={BISECT_PHASE}
-        className="mt-6 rounded-lg border border-sky-400/40 bg-sky-500/10 px-4 py-3 text-sm text-sky-100"
+        className="rounded border border-sky-400/40 bg-sky-500/10 px-3 py-1.5 text-xs text-sky-100"
       >
-        Wallet panel minimal render (bisect-{BISECT_PHASE} — hooks only)
+        Wallet panel bisect-{BISECT_PHASE} — header + stats
+      </p>
+
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-apg-orange">
+            Deposit wallet
+          </h2>
+          <p className="mt-1 text-xs text-apg-silver">
+            Unified view — ledger is source of truth for collected, deducted, and refundable.
+          </p>
+        </div>
+        {v.invoiceStatus ? (
+          <span className="rounded-full border border-white/10 px-2 py-0.5 text-xs text-apg-silver">
+            {v.invoiceStatus}
+          </span>
+        ) : null}
       </div>
-    </>
+
+      {!v.walletInSync && v.walletMismatchReason ? (
+        <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+          Deposit wallet out of sync. {v.walletMismatchReason}
+        </div>
+      ) : null}
+
+      <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+        <Stat label="Required" value={requiredLabel} />
+        <Stat label="Collected" value={collectedLabel} accent="emerald" />
+        <Stat label="Refundable" value={refundableLabel} accent="strong" />
+        <Stat label="Deductions" value={deductedLabel} />
+        <Stat label="Refunded" value={refundedLabel} />
+        <Stat label="Due" value={dueLabel} />
+      </dl>
+    </section>
   );
 }
 
