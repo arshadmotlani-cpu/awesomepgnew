@@ -280,7 +280,7 @@ export default async function AdminDepositDetailPage({
             walletProps,
           )}
         >
-          <DepositWalletAdminPanel {...walletProps} />
+          <DepositWalletAdminPanel {...jsonSafe(walletProps)} />
         </DepositComponentBoundary>
       );
     } else {

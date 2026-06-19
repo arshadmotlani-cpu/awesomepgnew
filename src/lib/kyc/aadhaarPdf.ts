@@ -1,5 +1,4 @@
 import { PDFDocument, StandardFonts, rgb, type PDFImage, type PDFPage } from 'pdf-lib';
-import sharp from 'sharp';
 import { loadKycImageBytes } from '@/src/lib/kyc/loadKycImageBytes';
 import type { KycSubmissionAdminContext } from '@/src/services/kycAdminAccess';
 
@@ -63,6 +62,7 @@ async function embedImage(
   if (normalizedMime === 'image/jpeg' || normalizedMime === 'image/jpg') {
     return pdfDoc.embedJpg(buffer);
   }
+  const { default: sharp } = await import('sharp');
   const jpeg = await sharp(buffer).jpeg({ quality: 95 }).toBuffer();
   return pdfDoc.embedJpg(jpeg);
 }

@@ -23,6 +23,7 @@ import {
   isProductionCustomerFilter,
 } from '@/src/lib/billing/productionDataFilter';
 import { logDepositPageSection } from '@/src/lib/depositPageDebug';
+import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import {
   OCCUPANCY_PLACEHOLDER_EMAIL,
   OCCUPANCY_PLACEHOLDER_NAME,
@@ -284,12 +285,15 @@ async function fetchRawDepositRows(options?: { bookingId?: string }): Promise<Ra
     pgName: r.pgName ?? '',
     roomNumber: r.roomNumber ?? '',
     bedCode: r.bedCode ?? '',
-    depositPaise: Number(r.depositPaise),
-    depositDuePaise: Number(r.depositDuePaise),
-    collectedPaise: Number(r.collectedPaise),
-    deductedPaise: Number(r.deductedPaise),
-    refundedPaise: Number(r.refundedPaise),
-    refundableBalancePaise: Number(r.refundableBalancePaise),
+    depositPaise: guardDepositPaise(r.depositPaise, 'rawRow.depositPaise'),
+    depositDuePaise: guardDepositPaise(r.depositDuePaise, 'rawRow.depositDuePaise'),
+    collectedPaise: guardDepositPaise(r.collectedPaise, 'rawRow.collectedPaise'),
+    deductedPaise: guardDepositPaise(r.deductedPaise, 'rawRow.deductedPaise'),
+    refundedPaise: guardDepositPaise(r.refundedPaise, 'rawRow.refundedPaise'),
+    refundableBalancePaise: guardDepositPaise(
+      r.refundableBalancePaise,
+      'rawRow.refundableBalancePaise',
+    ),
     hasActiveReservation: Boolean(r.hasActiveReservation),
   }));
 }

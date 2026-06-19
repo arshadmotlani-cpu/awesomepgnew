@@ -32,6 +32,7 @@ import {
 } from '../db/schema';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import { coerceNonNegativePaise, asPlainNumber } from '@/src/lib/format';
+import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import { logDepositDebug } from '@/src/lib/depositDebug';
 import { logDepositPageSection } from '@/src/lib/depositPageDebug';
 import { applyDepositDeduction } from '@/src/services/depositSettlement';
@@ -51,9 +52,9 @@ export type DepositSummary = {
 };
 
 function sanitizeLedgerEntries(entries: DepositLedgerEntry[]): DepositLedgerEntry[] {
-  return entries.map((entry) => ({
+  return entries.map((entry, i) => ({
     ...entry,
-    amountPaise: asPlainNumber(entry.amountPaise),
+    amountPaise: guardDepositPaise(entry.amountPaise, `ledger[${i}].amountPaise`),
   }));
 }
 

@@ -9,7 +9,7 @@ import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { getDepositInvoiceForBooking } from '@/src/services/depositInvoices';
 import { getUnifiedDepositView, sanitizeUnifiedDepositView } from '@/src/services/depositOperations';
 import { loadBedPrice, securityDepositForMode } from '@/src/services/pricing';
-import { coerceNonNegativePaise } from '@/src/lib/format';
+import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import { findUnsafeFields, jsonSafe, type UnsafeField } from '@/src/lib/depositPageDebug';
 import {
   auditSerialization,
@@ -266,15 +266,18 @@ export async function loadDepositPageData(bookingId: string): Promise<DepositPag
       loadError = loadError ?? `unifiedView: ${err instanceof Error ? err.message : String(err)}`;
     }
 
-    const requiredPaise = coerceNonNegativePaise(invoice?.requiredPaise ?? booking.depositPaise);
-    const collectedPaise = coerceNonNegativePaise(
+    const requiredPaise = guardDepositPaise(invoice?.requiredPaise ?? booking.depositPaise, 'requiredPaise');
+    const collectedPaise = guardDepositPaise(
       invoice?.collectedPaise ?? summary?.collectedPaise ?? 0,
+      'collectedPaise',
     );
-    const deductionsPaise = coerceNonNegativePaise(
+    const deductionsPaise = guardDepositPaise(
       invoice?.deductionsPaise ?? (summary?.deductedPaise ?? 0) + (summary?.refundedPaise ?? 0),
+      'deductionsPaise',
     );
-    const refundablePaise = coerceNonNegativePaise(
+    const refundablePaise = guardDepositPaise(
       invoice?.refundablePaise ?? summary?.refundableBalancePaise ?? 0,
+      'refundablePaise',
     );
     const isFrozen = invoice?.isFrozen ?? false;
 
@@ -300,11 +303,12 @@ export async function loadDepositPageData(bookingId: string): Promise<DepositPag
       try {
         const bedRate = await loadBedPrice(primaryBed.bedId, primaryBed.moveInDate);
         if (bedRate) {
-          websiteDepositPaise = coerceNonNegativePaise(
+          websiteDepositPaise = guardDepositPaise(
             securityDepositForMode(
               bedRate,
               booking.durationMode === 'open_ended' ? 'open_ended' : 'monthly',
             ),
+            'websiteDepositPaise',
           );
         }
       } catch (err) {
@@ -318,15 +322,15 @@ export async function loadDepositPageData(bookingId: string): Promise<DepositPag
           isFrozen,
         })
       : null;
-    const adjustProps = {
+    const adjustProps = jsonSafe({
       bookingId,
-      bookingDepositPaise: coerceNonNegativePaise(booking.depositPaise),
+      bookingDepositPaise: guardDepositPaise(booking.depositPaise, 'booking.depositPaise'),
       ledgerCollectedPaise: collectedPaise,
-      websiteDepositPaise: coerceNonNegativePaise(websiteDepositPaise),
-    };
+      websiteDepositPaise: guardDepositPaise(websiteDepositPaise, 'websiteDepositPaise'),
+    });
     const settlementProps =
       refundablePaise > 0 || booking.status === 'completed'
-        ? {
+        ? jsonSafe({
             bookingId,
             customerId: booking.customerId,
             customerName: booking.customerFullName ?? '',
@@ -334,7 +338,7 @@ export async function loadDepositPageData(bookingId: string): Promise<DepositPag
             depositHeldPaise: collectedPaise,
             depositPaidPaise: collectedPaise,
             depositRefundablePaise: refundablePaise,
-          }
+          })
         : null;
 
     logPropInspection('walletProps', bookingId, walletProps);
@@ -342,7 +346,10 @@ export async function loadDepositPageData(bookingId: string): Promise<DepositPag
     logPropInspection('settlementProps', bookingId, settlementProps);
 
     const result = {
-      booking,
+      booking: {
+        ...booking,
+        depositPaise: guardDepositPaise(booking.depositPaise, 'booking.depositPaise'),
+      },
       customerId: booking.customerId,
       invoice,
       summary,

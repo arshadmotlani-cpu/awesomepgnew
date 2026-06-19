@@ -13,24 +13,44 @@ import {
 import type {
   DepositWalletPreview,
   UnifiedDepositView,
-} from '@/src/services/depositOperations';
-import { sanitizeUnifiedDepositView } from '@/src/services/depositOperations';
-import { paiseToInr, asPlainNumber, coerceNonNegativePaise } from '@/src/lib/format';
+} from '@/src/lib/deposits/unifiedDepositView';
+import {
+  sanitizeDepositWalletPreview,
+  sanitizeUnifiedDepositView,
+} from '@/src/lib/deposits/unifiedDepositView';
+import { paiseToInr, asPlainNumber } from '@/src/lib/format';
 
 const idle: DepositWalletActionState = { status: 'idle' };
 
-function safeDepositView(view: UnifiedDepositView): UnifiedDepositView {
-  return sanitizeUnifiedDepositView(view);
+const DEPOSIT_VIEW_PAISE_FIELDS = [
+  'requiredPaise',
+  'collectedPaise',
+  'deductedPaise',
+  'refundedPaise',
+  'refundablePaise',
+  'depositDuePaise',
+] as const;
+
+function guardWalletPanelProps(props: {
+  view: UnifiedDepositView;
+  isFrozen: boolean;
+}): { view: UnifiedDepositView; isFrozen: boolean } {
+  const view = { ...props.view };
+  for (const field of DEPOSIT_VIEW_PAISE_FIELDS) {
+    const raw = view[field];
+    if (typeof raw === 'bigint') {
+      console.error('[BIGINT_LEAK]', `view.${field}`, raw);
+      (view as Record<string, unknown>)[field] = Number(raw);
+    }
+  }
+  return {
+    view: sanitizeUnifiedDepositView(view),
+    isFrozen: Boolean(props.isFrozen),
+  };
 }
 
 function safeDepositPreview(preview: DepositWalletPreview): DepositWalletPreview {
-  return {
-    ...preview,
-    current: sanitizeUnifiedDepositView(preview.current),
-    expected: sanitizeUnifiedDepositView(preview.expected),
-    removesFromWalletPaise: coerceNonNegativePaise(preview.removesFromWalletPaise),
-    warnings: Array.isArray(preview.warnings) ? preview.warnings : [],
-  };
+  return sanitizeDepositWalletPreview(preview);
 }
 
 export function DepositWalletAdminPanel({
@@ -40,7 +60,7 @@ export function DepositWalletAdminPanel({
   view: UnifiedDepositView;
   isFrozen: boolean;
 }) {
-  const v = safeDepositView(view);
+  const { view: v, isFrozen: frozen } = guardWalletPanelProps({ view, isFrozen });
   const [editState, editAction, editPending] = useActionState(editDepositSummaryAction, idle);
   const [editNoRevalState, editNoRevalAction, editNoRevalPending] = useActionState(
     editDepositSummaryNoRevalidateAction,
@@ -112,7 +132,7 @@ export function DepositWalletAdminPanel({
         <Stat label="Due" value={paiseToInr(v.depositDuePaise)} />
       </dl>
 
-      {!isFrozen ? (
+      {!frozen ? (
         <>
           <form action={editAction} className="grid gap-3 rounded-xl border border-white/10 bg-[#12161C] p-3 sm:grid-cols-2">
             <input type="hidden" name="bookingId" value={v.bookingId} />
@@ -301,7 +321,7 @@ function PreviewPanel({ preview }: { preview: DepositWalletPreview }) {
 }
 
 function PreviewColumn({ title, view }: { title: string; view: UnifiedDepositView }) {
-  const v = safeDepositView(view);
+  const v = sanitizeUnifiedDepositView(view);
   return (
     <div className="rounded border border-white/10 bg-[#0B0F14] p-2">
       <p className="mb-1 font-medium text-white">{title}</p>
