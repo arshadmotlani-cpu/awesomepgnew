@@ -30,7 +30,7 @@ export async function POST(request: Request) {
           ok: false,
           needsCompleteSignup: true,
           message:
-            'This signup is in progress. Verify your email and create a password to finish.',
+            'This account is not finished yet. Use Forgot password — we will email you a code to complete setup.',
         },
         { status: 400 },
       );
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
         ok: false,
         needsCompleteSignup: true,
         message:
-          'This account is not finished yet. Verify your email and create a password to complete signup.',
+          'No password on this account yet. Use Forgot password — we will email you a code to finish setup.',
       },
       { status: 400 },
     );

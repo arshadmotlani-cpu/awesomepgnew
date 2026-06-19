@@ -68,6 +68,7 @@ export function CustomerLoginForm({
   const [emailVerified, setEmailVerified] = useState(false);
   const [otpPhase, setOtpPhase] = useState<OtpSubmitPhase>('idle');
   const [profilePhase, setProfilePhase] = useState<ProfileSubmitPhase>('idle');
+  const [recoveryOtpVerified, setRecoveryOtpVerified] = useState(false);
   const verifyInFlight = useRef(false);
   const profileInFlight = useRef(false);
 
@@ -117,16 +118,19 @@ export function CustomerLoginForm({
 
   useEffect(() => {
     const forgotOtp = step === 'otp' && otpPurpose === 'forgot_password';
+    const recoveryProfile = step === 'profile' && otpPurpose === 'forgot_password';
     if (
       !allowSignupFlow &&
       step !== 'credentials' &&
       step !== 'reset-password' &&
-      !forgotOtp
+      !forgotOtp &&
+      !recoveryProfile
     ) {
       setStep('credentials');
       setEmailVerified(false);
       setOtpPhase('idle');
       setProfilePhase('idle');
+      setRecoveryOtpVerified(false);
     }
   }, [allowSignupFlow, step, otpPurpose]);
 
@@ -169,6 +173,7 @@ export function CustomerLoginForm({
     setPhone('');
     setNewPassword('');
     setConfirmPassword('');
+    setRecoveryOtpVerified(false);
     if (message) setError(message);
     router.replace(`/login?next=${encodeURIComponent(next)}`);
   }
@@ -231,7 +236,7 @@ export function CustomerLoginForm({
         if (data.needsCompleteSignup) {
           setError(
             data.message ??
-              'Signup is not finished for this email. Use “Sign up with email code” below if you were registering, or contact support.',
+              'This account is not finished yet. Tap Forgot password — we will email you a code to complete setup.',
           );
           return;
         }
@@ -344,6 +349,34 @@ export function CustomerLoginForm({
     setError(null);
     try {
       if (otpPurpose === 'forgot_password' && !includeProfile) {
+        const res = await signupFetch('/api/auth/customer/forgot-password/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email.trim(), code }),
+        });
+        const data = (await res.json()) as {
+          ok: boolean;
+          message?: string;
+          nextStep?: 'profile' | 'password';
+          fullName?: string;
+          phone?: string;
+        };
+        if (!res.ok || !data.ok) {
+          resetVerifyState();
+          setError(data.message ?? 'Verification failed.');
+          return;
+        }
+        setRecoveryOtpVerified(true);
+        setOtpPhase('success');
+        if (data.fullName) setFullName(data.fullName);
+        if (data.phone) setPhone(data.phone.replace(/^\+91/, ''));
+        if (data.nextStep === 'profile') {
+          setEmailVerified(true);
+          setStep('profile');
+          setError(null);
+          resetVerifyState();
+          return;
+        }
         setStep('reset-password');
         resetVerifyState();
         return;
@@ -412,6 +445,11 @@ export function CustomerLoginForm({
       if (data.needsPassword && includeProfile) {
         setProfilePhase('success');
         finishProfileSubmit();
+        if (otpPurpose === 'forgot_password') {
+          setStep('reset-password');
+          setError(null);
+          return;
+        }
         redirectAfterSignup(`/account/set-password?next=${encodeURIComponent(next)}`);
         return;
       }
@@ -441,6 +479,11 @@ export function CustomerLoginForm({
       if (includeProfile) {
         setProfilePhase('success');
         finishProfileSubmit();
+        if (otpPurpose === 'forgot_password') {
+          setStep('reset-password');
+          setError(null);
+          return;
+        }
         if (data.mustSetPassword || data.needsPassword) {
           redirectAfterSignup(`/account/set-password?next=${encodeURIComponent(next)}`);
           return;
@@ -482,47 +525,49 @@ export function CustomerLoginForm({
     setPending(true);
     setError(null);
     try {
-      const res = await fetch('/api/auth/customer/forgot-password', {
+      const res = await signupFetch('/api/auth/customer/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: email.trim(),
-          code,
           password: newPassword,
           confirmPassword,
+          ...(recoveryOtpVerified ? {} : { code }),
         }),
       });
       const data = (await res.json()) as {
         ok: boolean;
         message?: string;
-        needsCompleteSignup?: boolean;
-        useSetPassword?: boolean;
+        needsProfile?: boolean;
+        needsNewCode?: boolean;
       };
       if (!res.ok || !data.ok) {
-        if (data.useSetPassword || data.needsCompleteSignup) {
-          const setRes = await signupFetch('/api/auth/customer/set-password', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email: email.trim(),
-              password: newPassword,
-              confirmPassword,
-            }),
-          });
-          const setData = (await setRes.json()) as { ok: boolean; message?: string };
-          if (setRes.ok && setData.ok) {
-            router.replace(next);
-            router.refresh();
-            return;
-          }
-          setError(setData.message ?? 'Could not save password.');
+        if (data.needsProfile) {
+          setStep('profile');
+          setOtpPurpose('forgot_password');
+          setEmailVerified(true);
+          setRecoveryOtpVerified(true);
+          setError(data.message ?? 'Complete your profile, then choose a password.');
           return;
         }
-        setError(data.message ?? 'Could not reset password.');
+        if (data.needsNewCode) {
+          setStep('otp');
+          setRecoveryOtpVerified(false);
+          setCode('');
+          setError(data.message ?? 'Request a new code and try again.');
+          return;
+        }
+        setError(data.message ?? 'Could not save password.');
         return;
       }
       router.replace(next);
       router.refresh();
+    } catch (err) {
+      setError(
+        err instanceof SignupRequestTimeoutError
+          ? SIGNUP_TIMEOUT_MESSAGE
+          : SIGNUP_GENERIC_ERROR_MESSAGE,
+      );
     } finally {
       setPending(false);
     }
@@ -563,6 +608,7 @@ export function CustomerLoginForm({
     setError(null);
     setPassword('');
     setCode('');
+    setRecoveryOtpVerified(false);
     setOtpPurpose('forgot_password');
     if (!email.trim()) {
       setError('Enter your email above, then tap forgot password.');
@@ -754,7 +800,7 @@ export function CustomerLoginForm({
         </form>
       ) : null}
 
-      {allowSignupFlow && step === 'profile' ? (
+      {(allowSignupFlow || otpPurpose === 'forgot_password') && step === 'profile' ? (
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -762,11 +808,21 @@ export function CustomerLoginForm({
           }}
           className="space-y-3"
         >
-          <SignupProgress current="profile" theme={theme} />
+          {allowSignupFlow ? <SignupProgress current="profile" theme={theme} /> : null}
           <p className={mutedText}>
-            First time here with{' '}
-            <strong className={dark ? 'text-white' : 'text-zinc-900'}>{email.trim()}</strong>. Tell
-            us a bit about you, then you&apos;ll choose a password.
+            {otpPurpose === 'forgot_password' ? (
+              <>
+                Almost done for{' '}
+                <strong className={dark ? 'text-white' : 'text-zinc-900'}>{email.trim()}</strong>.
+                Confirm your name and mobile, then choose a password.
+              </>
+            ) : (
+              <>
+                First time here with{' '}
+                <strong className={dark ? 'text-white' : 'text-zinc-900'}>{email.trim()}</strong>.
+                Tell us a bit about you, then you&apos;ll choose a password.
+              </>
+            )}
           </p>
           <label className="block">
             <span className={labelClass}>Full name</span>
@@ -885,6 +941,19 @@ export function CustomerLoginForm({
           <button type="submit" disabled={pending} className={btnClass}>
             {pending ? 'Saving…' : 'Save password & sign in'}
           </button>
+          {recoveryOtpVerified ? (
+            <button
+              type="button"
+              onClick={() => {
+                setStep('profile');
+                setOtpPurpose('forgot_password');
+                setError(null);
+              }}
+              className={linkAccent}
+            >
+              Add name &amp; mobile first
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => setStep('otp')}

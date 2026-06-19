@@ -13,6 +13,7 @@ import {
 import { verifyEmailOtp } from '@/src/lib/auth/otp';
 import { validateCustomerPassword } from '@/src/lib/auth/password';
 import { createCustomerSession } from '@/src/lib/auth/session';
+import { normaliseEmail } from '@/src/lib/email/address';
 
 export async function POST(request: Request) {
   let body: {
@@ -25,6 +26,11 @@ export async function POST(request: Request) {
     body = (await request.json()) as typeof body;
   } catch {
     return NextResponse.json({ ok: false, message: 'Invalid JSON body.' }, { status: 400 });
+  }
+
+  const email = normaliseEmail(body.email ?? '');
+  if (!email) {
+    return NextResponse.json({ ok: false, message: 'Invalid email address.' }, { status: 400 });
   }
 
   const password = body.password ?? '';
@@ -48,17 +54,65 @@ export async function POST(request: Request) {
   const userAgent = request.headers.get('user-agent');
   const otpCtx = { ip, userAgent };
 
-  const verified = await verifyEmailOtp(body.email ?? '', body.code ?? '', otpCtx, { consume: true });
-  if (!verified.ok) {
-    return NextResponse.json(verified, { status: 400 });
+  // Legacy: code sent with password (single step). Prefer /forgot-password/verify first.
+  if (body.code?.trim()) {
+    const verified = await verifyEmailOtp(email, body.code, otpCtx, { consume: true });
+    if (!verified.ok) {
+      return NextResponse.json(verified, { status: 400 });
+    }
   }
 
-  const customer = await findCustomerByEmail(body.email ?? '');
+  const customer = await findCustomerByEmail(email);
   const signupSession =
     (await readSignupSessionFromRequest()) ??
-    (await getActiveSignupSessionForEmail(body.email ?? ''));
+    (await getActiveSignupSessionForEmail(email));
 
-  if (!customer || customer.archivedAt) {
+  if (!signupSession?.otpVerified && !body.code?.trim()) {
+    return NextResponse.json(
+      {
+        ok: false,
+        message: 'Your verification expired. Request a new code and try again.',
+        needsNewCode: true,
+      },
+      { status: 401 },
+    );
+  }
+
+  const profileReady =
+    (signupSession?.profileSubmitted && signupSession.fullName && signupSession.phone) ||
+    (customer &&
+      !customer.archivedAt &&
+      Boolean(customer.fullName?.trim() && customer.phone?.trim()));
+
+  if (!profileReady) {
+    return NextResponse.json(
+      {
+        ok: false,
+        needsProfile: true,
+        email,
+        message: 'Tell us your name and mobile number first, then choose a password.',
+      },
+      { status: 400 },
+    );
+  }
+
+  try {
+    if (customer && !customer.archivedAt) {
+      if (isAccountComplete(customer) || customer.passwordHash) {
+        await setCustomerPassword(customer.id, password);
+      } else {
+        await setCustomerPassword(customer.id, password);
+      }
+      if (signupSession) await completeSignupSession(signupSession.id);
+      await createCustomerSession({ customerId: customer.id, ip, userAgent });
+      return NextResponse.json({
+        ok: true,
+        customerId: customer.id,
+        email: customer.email,
+        mustSetPassword: false,
+      });
+    }
+
     if (signupSession?.profileSubmitted) {
       const committed = await commitSignupCustomer({
         email: signupSession.email,
@@ -75,39 +129,31 @@ export async function POST(request: Request) {
         mustSetPassword: false,
       });
     }
+
     return NextResponse.json(
       {
         ok: false,
-        useSetPassword: true,
-        message: 'Complete your profile first, then set a password.',
+        needsProfile: true,
+        email,
+        message: 'Tell us your name and mobile number first, then choose a password.',
       },
       { status: 400 },
     );
-  }
-
-  if (!customer.passwordHash || customer.mustSetPassword) {
-    await setCustomerPassword(customer.id, password);
-    await createCustomerSession({ customerId: customer.id, ip, userAgent });
-    if (signupSession) await completeSignupSession(signupSession.id);
-    return NextResponse.json({
-      ok: true,
-      customerId: customer.id,
-      email: customer.email,
-      mustSetPassword: false,
-      firstPasswordSet: true,
+  } catch (err) {
+    console.error('[auth/forgot-password] failed', {
+      email,
+      reason: err instanceof Error ? err.message : String(err),
     });
+    return NextResponse.json(
+      {
+        ok: false,
+        message:
+          err instanceof Error && err.message
+            ? err.message
+            : 'Could not save your password. Please try again.',
+        retryable: true,
+      },
+      { status: 500 },
+    );
   }
-
-  if (isAccountComplete(customer)) {
-    await setCustomerPassword(customer.id, password);
-    await createCustomerSession({ customerId: customer.id, ip, userAgent });
-    return NextResponse.json({
-      ok: true,
-      customerId: customer.id,
-      email: customer.email,
-      mustSetPassword: false,
-    });
-  }
-
-  return NextResponse.json({ ok: false, message: 'Could not reset password.' }, { status: 400 });
 }

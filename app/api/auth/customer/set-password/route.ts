@@ -3,6 +3,7 @@ import {
   commitSignupCustomer,
   findCustomerByEmail,
   isAccountComplete,
+  isIncompleteSignup,
   setCustomerPassword,
 } from '@/src/lib/auth/customer';
 import { authLog } from '@/src/lib/auth/authLog';
@@ -50,6 +51,27 @@ export async function POST(request: Request) {
     const email = normaliseEmail(body.email);
     if (email) {
       signupSession = await getActiveSignupSessionForEmail(email);
+      const existing = await findCustomerByEmail(email);
+      if (
+        !signupSession &&
+        existing &&
+        !existing.archivedAt &&
+        isIncompleteSignup(existing) &&
+        existing.fullName?.trim() &&
+        existing.phone?.trim()
+      ) {
+        await setCustomerPassword(existing.id, password);
+        await createCustomerSession({
+          customerId: existing.id,
+          ip,
+          userAgent,
+        });
+        return NextResponse.json({
+          ok: true,
+          email: existing.email,
+          mustSetPassword: false,
+        });
+      }
     }
   }
 
