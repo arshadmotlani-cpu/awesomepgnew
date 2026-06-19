@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { findCustomerByEmail, setCustomerPassword } from '@/src/lib/auth/customer';
+import { getActiveSignupSessionForEmail } from '@/src/lib/auth/signupSession';
 import { verifyEmailOtp } from '@/src/lib/auth/otp';
 import { validateCustomerPassword } from '@/src/lib/auth/password';
 import { createCustomerSession } from '@/src/lib/auth/session';
@@ -40,6 +41,17 @@ export async function POST(request: Request) {
 
   const customer = await findCustomerByEmail(body.email ?? '');
   if (!customer || customer.archivedAt) {
+    const pendingSignup = await getActiveSignupSessionForEmail(body.email ?? '');
+    if (pendingSignup) {
+      return NextResponse.json(
+        {
+          ok: false,
+          needsCompleteSignup: true,
+          message: 'Finish signing up first — verify your email, then create a password.',
+        },
+        { status: 400 },
+      );
+    }
     return NextResponse.json({ ok: false, message: 'No account found for this email.' }, { status: 400 });
   }
 

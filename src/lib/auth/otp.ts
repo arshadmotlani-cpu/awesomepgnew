@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto';
 import { desc, eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { emailOtpChallenges } from '@/src/db/schema';
@@ -17,7 +18,7 @@ import {
 const MAX_VERIFY_ATTEMPTS = 5;
 
 function generateOtpCode(): string {
-  return String(Math.floor(100_000 + Math.random() * 900_000));
+  return String(randomInt(100_000, 1_000_000));
 }
 
 export type SendOtpContext = {

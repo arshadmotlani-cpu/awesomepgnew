@@ -12,6 +12,20 @@ export const SIGNUP_SESSION_TTL_MS = 48 * 60 * 60_000;
 
 export type SignupSessionStatus = 'pending' | 'completed' | 'expired';
 
+/** Public signup funnel step — SignupSession is the source of truth. */
+export type SignupStep = 'OTP' | 'PROFILE' | 'PASSWORD' | 'COMPLETED';
+
+export function resolveSignupStep(
+  row: SignupSessionRow | null,
+  opts?: { accountComplete?: boolean },
+): SignupStep {
+  if (opts?.accountComplete || row?.status === 'completed') return 'COMPLETED';
+  if (!row) return 'OTP';
+  if (!row.otpVerified) return 'OTP';
+  if (!row.profileSubmitted) return 'PROFILE';
+  return 'PASSWORD';
+}
+
 function signPayload(payload: string): string {
   return createHmac('sha256', env.AUTH_SECRET).update(payload).digest('base64url');
 }
@@ -163,12 +177,22 @@ export async function submitSignupProfile(args: {
     throw new Error('Verify your email with a one-time code first.');
   }
 
+  const fullName = args.fullName.trim();
+  const phone = args.phone;
+  if (
+    session.profileSubmitted &&
+    session.fullName === fullName &&
+    session.phone === phone
+  ) {
+    return session;
+  }
+
   const expiresAt = sessionExpiry();
   const [updated] = await db
     .update(signupSessions)
     .set({
-      fullName: args.fullName.trim(),
-      phone: args.phone,
+      fullName,
+      phone,
       profileSubmitted: true,
       expiresAt,
       updatedAt: new Date(),
@@ -202,5 +226,6 @@ export function signupSessionPublicState(row: SignupSessionRow) {
     phone: row.phone,
     status: row.status,
     expiresAt: row.expiresAt.toISOString(),
+    step: resolveSignupStep(row),
   };
 }

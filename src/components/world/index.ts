@@ -7,6 +7,9 @@ export { BookingCheckoutWorld } from '@/src/components/world/BookingCheckoutWorl
 export { SpatialLandingPage } from '@/src/components/world/SpatialLandingPage';
 export { SpatialPgGrid, SpatialPgHeader } from '@/src/components/world/SpatialPgExplorer';
 export { SpatialRoomGrid } from '@/src/components/world/SpatialRoomGrid';
+export { PgRoomWorldSection } from '@/src/components/world/PgRoomWorldSection';
+export { PgFilteredBedMapSection } from '@/src/components/world/PgFilteredBedMapSection';
+export { RoomDetailFlowShell, RoomBedMapCta } from '@/src/components/world/RoomDetailFlowShell';
 export { RoomNodeCard, type RoomNodeData } from '@/src/components/world/RoomNodeCard';
 export { RoomLightLayer } from '@/src/components/world/RoomLightLayer';
 export { BedDnaGrid, BedDnaRipple } from '@/src/components/world/BedDnaGrid';

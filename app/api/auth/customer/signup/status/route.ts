@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { findCustomerByEmail, isAccountComplete, isIncompleteSignup } from '@/src/lib/auth/customer';
+import { authLog } from '@/src/lib/auth/authLog';
 import {
   getActiveSignupSessionForEmail,
   readSignupSessionFromRequest,
+  resolveSignupStep,
   signupSessionPublicState,
 } from '@/src/lib/auth/signupSession';
 import { getCustomerSession } from '@/src/lib/auth/session';
@@ -16,6 +18,12 @@ export async function GET(request: Request) {
 
   const signupSession = await readSignupSessionFromRequest();
   if (signupSession) {
+    authLog('signup_session_resumed', {
+      email: signupSession.email,
+      sessionId: signupSession.id,
+      step: resolveSignupStep(signupSession),
+      source: 'cookie',
+    });
     return NextResponse.json({
       ok: true,
       source: 'signup_session',
@@ -28,6 +36,12 @@ export async function GET(request: Request) {
   if (email) {
     const active = await getActiveSignupSessionForEmail(email);
     if (active) {
+      authLog('signup_session_resumed', {
+        email: active.email,
+        sessionId: active.id,
+        step: resolveSignupStep(active),
+        source: 'email_lookup',
+      });
       return NextResponse.json({
         ok: true,
         source: 'signup_session',
@@ -42,6 +56,7 @@ export async function GET(request: Request) {
       return NextResponse.json({
         ok: true,
         source: 'legacy_incomplete',
+        step: 'PASSWORD',
         email: customer.email,
         needsPassword: true,
         legacyIncomplete: true,
@@ -51,6 +66,7 @@ export async function GET(request: Request) {
       return NextResponse.json({
         ok: true,
         source: 'complete_account',
+        step: 'COMPLETED',
         email: customer.email,
         needsLogin: true,
       });
@@ -62,6 +78,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       ok: true,
       source: 'customer_session',
+      step: 'PASSWORD',
       email: customerSession.email,
       needsPassword: true,
       legacyIncomplete: true,

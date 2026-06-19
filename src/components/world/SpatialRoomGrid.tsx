@@ -9,12 +9,12 @@ import { WORLD_EASE } from '@/src/components/world/worldMotion';
 
 type Props = {
   rooms: RoomNodeData[];
+  pgId: string;
   pgSlug: string;
-  /** Highlight a room node (e.g. from URL hash). */
   selectedRoomId?: string | null;
 };
 
-export function SpatialRoomGrid({ rooms, pgSlug, selectedRoomId = null }: Props) {
+export function SpatialRoomGrid({ rooms, pgId, pgSlug, selectedRoomId = null }: Props) {
   const reduced = useReducedMotion();
 
   const floors = useMemo(() => {
@@ -108,6 +108,7 @@ export function SpatialRoomGrid({ rooms, pgSlug, selectedRoomId = null }: Props)
                   >
                     <RoomNodeCard
                       room={room}
+                      pgId={pgId}
                       pgSlug={pgSlug}
                       index={idx}
                       isSelected={selectedRoomId === room.roomId}

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { findCustomerByEmail } from '@/src/lib/auth/customer';
+import { getActiveSignupSessionForEmail } from '@/src/lib/auth/signupSession';
 import { verifyPassword } from '@/src/lib/auth/crypto';
 import { createCustomerSession } from '@/src/lib/auth/session';
 
@@ -22,6 +23,18 @@ export async function POST(request: Request) {
 
   const customer = await findCustomerByEmail(email);
   if (!customer || customer.archivedAt) {
+    const pendingSignup = await getActiveSignupSessionForEmail(email);
+    if (pendingSignup) {
+      return NextResponse.json(
+        {
+          ok: false,
+          needsCompleteSignup: true,
+          message:
+            'This signup is in progress. Verify your email and create a password to finish.',
+        },
+        { status: 400 },
+      );
+    }
     return NextResponse.json({ ok: false, message: 'Invalid email or password.' }, { status: 401 });
   }
 

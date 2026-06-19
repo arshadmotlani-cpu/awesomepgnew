@@ -5,6 +5,7 @@ import {
   isAccountComplete,
   isIncompleteSignup,
 } from '@/src/lib/auth/customer';
+import { authLog } from '@/src/lib/auth/authLog';
 import { verifyEmailOtp } from '@/src/lib/auth/otp';
 import { profileRedirectWithNext } from '@/src/lib/auth/safeNext';
 import {
@@ -86,8 +87,15 @@ async function handleProfileStep(args: {
           : verified.message;
         return NextResponse.json({ ok: false, message, needsNewCode: true }, { status: 400 });
       }
+      const hadSession = Boolean(session);
       session = await markSignupOtpVerified(verified.email);
       sessionId = session.id;
+      authLog(hadSession ? 'signup_session_resumed' : 'signup_session_created', {
+        email: session.email,
+        sessionId: session.id,
+        step: 'PROFILE',
+      });
+      authLog('otp_verified', { email: session.email, sessionId: session.id });
     } else {
       return NextResponse.json(
         { ok: false, message: SIGNUP_SETUP_EXPIRED_MESSAGE, needsNewCode: true },
@@ -96,10 +104,36 @@ async function handleProfileStep(args: {
     }
   }
 
-  const updated =
-    session.profileSubmitted && session.fullName === fullName && session.phone === phone
-      ? session
-      : await submitSignupProfile({ sessionId: session.id, fullName, phone });
+  if (
+    session.profileSubmitted &&
+    session.fullName === fullName &&
+    session.phone === phone
+  ) {
+    authLog('duplicate_submission_blocked', {
+      email: session.email,
+      sessionId: session.id,
+      step: 'PASSWORD',
+    });
+    await issueSignupSessionCookie(session.id, session.expiresAt);
+    await clearSignupVerificationCookie();
+    return NextResponse.json({
+      ok: true,
+      needsPassword: true,
+      email: session.email,
+      fullName: session.fullName,
+      phone: session.phone,
+      signupSession: signupSessionPublicState(session),
+      alreadySubmitted: true,
+    });
+  }
+
+  const updated = await submitSignupProfile({ sessionId: session.id, fullName, phone });
+
+  authLog('profile_saved', {
+    email: updated.email,
+    sessionId: updated.id,
+    step: 'PASSWORD',
+  });
 
   await issueSignupSessionCookie(updated.id, updated.expiresAt);
   await clearSignupVerificationCookie();
@@ -207,6 +241,12 @@ export async function POST(request: Request) {
         await issueSignupSessionCookie(pendingSession.id, pendingSession.expiresAt);
       }
 
+      authLog('signup_session_resumed', {
+        email: pendingSession.email,
+        sessionId: pendingSession.id,
+        step: pendingSession.profileSubmitted ? 'PASSWORD' : 'PROFILE',
+      });
+
       if (pendingSession.profileSubmitted) {
         return NextResponse.json({
           ok: true,
@@ -215,6 +255,7 @@ export async function POST(request: Request) {
           fullName: pendingSession.fullName,
           phone: pendingSession.phone,
           signupSession: signupSessionPublicState(pendingSession),
+          alreadyVerified: true,
         });
       }
 
@@ -266,6 +307,13 @@ export async function POST(request: Request) {
     const session = await markSignupOtpVerified(verified.email);
     await issueSignupSessionCookie(session.id, session.expiresAt);
     await clearSignupVerificationCookie();
+
+    authLog('signup_session_created', {
+      email: session.email,
+      sessionId: session.id,
+      step: 'PROFILE',
+    });
+    authLog('otp_verified', { email: session.email, sessionId: session.id });
 
     return NextResponse.json(
       {

@@ -71,6 +71,17 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
   }, [resendSeconds]);
 
   useEffect(() => {
+    if (otpPhase !== 'verifying') return;
+    const watchdog = window.setTimeout(() => {
+      verifyInFlight.current = false;
+      setOtpPhase('idle');
+      setPending(false);
+      setError(SIGNUP_TIMEOUT_MESSAGE);
+    }, SIGNUP_REQUEST_TIMEOUT_MS + 2_000);
+    return () => window.clearTimeout(watchdog);
+  }, [otpPhase]);
+
+  useEffect(() => {
     if (profilePhase !== 'submitting') return;
     const watchdog = window.setTimeout(() => {
       setProfilePhase('idle');
@@ -101,6 +112,7 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
         const data = (await res.json()) as {
           ok?: boolean;
           email?: string;
+          step?: 'OTP' | 'PROFILE' | 'PASSWORD' | 'COMPLETED';
           needsProfile?: boolean;
           needsPassword?: boolean;
           fullName?: string;
@@ -108,16 +120,21 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
         };
         if (!data.ok || !data.email) return;
         setEmail(data.email);
-        if (data.needsPassword) {
+        const step = data.step ?? (data.needsPassword ? 'PASSWORD' : data.needsProfile ? 'PROFILE' : 'OTP');
+        if (step === 'PASSWORD' || data.needsPassword) {
           router.replace(`/account/set-password?next=${encodeURIComponent(next)}`);
           return;
         }
-        if (data.needsProfile) {
+        if (step === 'PROFILE' || data.needsProfile) {
           setEmailVerified(true);
           setOtpPhase('success');
           setStep('profile');
           if (data.fullName) setFullName(data.fullName);
           if (data.phone) setPhone(data.phone.replace(/^\+91/, ''));
+          return;
+        }
+        if (step === 'OTP') {
+          setStep('otp');
         }
       } catch {
         /* resume is best-effort */
@@ -127,6 +144,12 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
       cancelled = true;
     };
   }, [next, router]);
+
+  function resetVerifyState() {
+    verifyInFlight.current = false;
+    setOtpPhase('idle');
+    setPending(false);
+  }
 
   function resetProfileSubmit() {
     setProfilePhase('idle');
@@ -205,6 +228,8 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
       setError(`Please wait ${formatResendWait(resendSeconds)} before requesting another code.`);
       return;
     }
+    const previousStep = step;
+    const wasVerified = emailVerified;
     setPending(true);
     setError(null);
     try {
@@ -229,15 +254,24 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
         setError(
           data.message ??
             (data.rateLimited
-              ? 'Too many attempts. Please wait 60 minutes before requesting a new code.'
+              ? 'Too many attempts. Please wait before requesting a new code.'
               : 'Could not send code.'),
         );
+        if (previousStep === 'otp' || previousStep === 'profile') {
+          setStep(previousStep);
+          setEmailVerified(wasVerified);
+          if (wasVerified) setOtpPhase('success');
+        }
         return;
       }
       applyResendAfter(data.resendAfter);
       setOtpPurpose(purpose);
-      setOtpPhase('idle');
-      setStep('otp');
+      if (!wasVerified) {
+        setOtpPhase('idle');
+      }
+      if (step !== 'profile') {
+        setStep('otp');
+      }
     } finally {
       setPending(false);
     }
@@ -268,9 +302,7 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
     try {
       if (otpPurpose === 'forgot_password' && !includeProfile) {
         setStep('reset-password');
-        setOtpPhase('idle');
-        verifyInFlight.current = false;
-        setPending(false);
+        resetVerifyState();
         return;
       }
 
@@ -302,13 +334,13 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
       };
 
       if (data.needsPassword && !includeProfile) {
-        finishProfileSubmit();
+        resetVerifyState();
         redirectAfterSignup(`/account/set-password?next=${encodeURIComponent(next)}`);
         return;
       }
 
       if (data.legacyIncomplete && data.mustSetPassword && !includeProfile) {
-        finishProfileSubmit();
+        resetVerifyState();
         redirectAfterSignup(`/account/set-password?next=${encodeURIComponent(next)}`);
         return;
       }
@@ -319,7 +351,7 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
         setStep('profile');
         setError(null);
         if (includeProfile) finishProfileSubmit();
-        else verifyInFlight.current = false;
+        else resetVerifyState();
         return;
       }
 
@@ -345,8 +377,7 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
         if (includeProfile) {
           resetProfileSubmit();
         } else {
-          setOtpPhase('idle');
-          verifyInFlight.current = false;
+          resetVerifyState();
         }
         setError(data.message ?? 'Verification failed.');
         return;
@@ -366,11 +397,11 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
       }
 
       if (data.mustSetPassword) {
-        verifyInFlight.current = false;
+        resetVerifyState();
         router.replace(`/account/set-password?next=${encodeURIComponent(next)}`);
         return;
       }
-      verifyInFlight.current = false;
+      resetVerifyState();
       router.replace(next);
       router.refresh();
     } catch (err) {
@@ -382,16 +413,12 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
             : SIGNUP_GENERIC_ERROR_MESSAGE,
         );
       } else {
-        setOtpPhase('idle');
-        verifyInFlight.current = false;
-        setPending(false);
-        setError(SIGNUP_GENERIC_ERROR_MESSAGE);
-      }
-    } finally {
-      if (includeProfile) {
-        setPending(false);
-      } else {
-        setPending(false);
+        resetVerifyState();
+        setError(
+          err instanceof SignupRequestTimeoutError
+            ? SIGNUP_TIMEOUT_MESSAGE
+            : SIGNUP_GENERIC_ERROR_MESSAGE,
+        );
       }
     }
   }

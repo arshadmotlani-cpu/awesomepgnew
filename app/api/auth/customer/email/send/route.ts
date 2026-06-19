@@ -60,5 +60,8 @@ export async function POST(request: Request) {
     expiresAt: result.expiresAt.toISOString(),
     resendAfter: result.resendAfter,
     delivery: result.delivery,
+    ...(purpose === 'signup' && customer && isIncompleteSignup(customer)
+      ? { needsCompleteSignup: true, resumeSignup: true }
+      : {}),
   });
 }

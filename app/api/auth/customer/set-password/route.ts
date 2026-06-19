@@ -5,6 +5,7 @@ import {
   isAccountComplete,
   setCustomerPassword,
 } from '@/src/lib/auth/customer';
+import { authLog } from '@/src/lib/auth/authLog';
 import { validateCustomerPassword } from '@/src/lib/auth/password';
 import {
   completeSignupSession,
@@ -56,6 +57,11 @@ export async function POST(request: Request) {
     if (signupSession?.otpVerified && signupSession.profileSubmitted) {
       const existingComplete = await findCustomerByEmail(signupSession.email);
       if (existingComplete && isAccountComplete(existingComplete)) {
+        authLog('duplicate_submission_blocked', {
+          email: existingComplete.email,
+          sessionId: signupSession.id,
+          step: 'COMPLETED',
+        });
         await completeSignupSession(signupSession.id);
         await createCustomerSession({
           customerId: existingComplete.id,
@@ -84,6 +90,12 @@ export async function POST(request: Request) {
         userAgent,
       });
 
+      authLog('password_committed', {
+        email: customer.email,
+        sessionId: signupSession.id,
+        step: 'COMPLETED',
+      });
+
       return NextResponse.json({
         ok: true,
         email: customer.email,
@@ -94,6 +106,11 @@ export async function POST(request: Request) {
     if (customerSession?.mustSetPassword) {
       const existing = await findCustomerByEmail(customerSession.email);
       if (existing && isAccountComplete(existing)) {
+        authLog('duplicate_submission_blocked', {
+          email: existing.email,
+          step: 'COMPLETED',
+          source: 'legacy_incomplete',
+        });
         return NextResponse.json({
           ok: true,
           email: existing.email,
@@ -103,6 +120,11 @@ export async function POST(request: Request) {
       }
 
       await setCustomerPassword(customerSession.customerId, password);
+      authLog('password_committed', {
+        email: customerSession.email,
+        step: 'COMPLETED',
+        source: 'legacy_incomplete',
+      });
       return NextResponse.json({
         ok: true,
         email: customerSession.email,

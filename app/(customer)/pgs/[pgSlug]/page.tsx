@@ -1,15 +1,13 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AmenityList } from '@/src/components/customer/AmenityList';
-import { SpatialRoomGrid } from '@/src/components/world/SpatialRoomGrid';
+import { PgRoomWorldSection } from '@/src/components/world/PgRoomWorldSection';
+import { PgFilteredBedMapSection } from '@/src/components/world/PgFilteredBedMapSection';
 import { BookingFlowStepper } from '@/src/components/customer/checkout/BookingFlowStepper';
 import { GenderBadge } from '@/src/components/customer/GenderBadge';
 import { StickyBookCta } from '@/src/components/customer/marketing/StickyBookCta';
 import { PgImageGallery } from '@/src/components/customer/PgImageGallery';
-import {
-  CustomerBedMap,
-  type CustomerRoomBedMap,
-} from '@/src/components/customer/CustomerBedMap';
+import type { CustomerRoomBedMap } from '@/src/components/customer/CustomerBedMap';
 import { AnalyticsMountEvent } from '@/src/components/analytics/AnalyticsMountEvent';
 import { PgTrustSection } from '@/src/components/customer/PgTrustSection';
 import { nearbyForCity, reviewsForPg } from '@/src/lib/marketing/pgTrustContent';
@@ -158,15 +156,15 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
 
       <section className="mt-8" id="room-world" data-roachie-tour="room-world">
         {roomsResult.ok ? (
-          <SpatialRoomGrid rooms={roomList} pgSlug={pg.slug} />
+          <PgRoomWorldSection pgId={pg.id} pgSlug={pg.slug} rooms={roomList} />
         ) : null}
       </section>
 
       <section className="mt-8" id="pg-beds" data-roachie-tour="pg-beds">
         <div className="mb-5">
-          <h2 className="text-xl font-semibold text-white">Rooms & beds</h2>
+          <h2 className="text-xl font-semibold text-white">Bed map</h2>
           <p className="text-sm text-apg-silver">
-            Tap any bed for rent, availability, and booking. Orange = notice (someone leaving soon).
+            After choosing a room, pick your bed here. Orange = notice (someone leaving soon).
           </p>
         </div>
 
@@ -177,10 +175,10 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
             No rooms have been added to this PG yet.
           </p>
         ) : (
-          <CustomerBedMap rooms={bedMapRooms} />
+          <PgFilteredBedMapSection pgSlug={pg.slug} rooms={bedMapRooms} />
         )}
       </section>
-      <StickyBookCta href={`#pg-beds`} label="Check availability & book" />
+      <StickyBookCta href="#pg-beds" label="Choose a room, then pick your bed" />
 
       <PgTrustSection
         reviews={reviewsForPg(pg.slug)}

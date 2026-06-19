@@ -1,9 +1,15 @@
 'use client';
 
 import Image from 'next/image';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { motion, useReducedMotion } from 'framer-motion';
 import { paiseToInr } from '@/src/lib/format';
+import {
+  getRoomVisualSeed,
+  resolveRoomNodeState,
+  type RoomNodeState,
+} from '@/src/lib/roomWorld/roomVisualSeed';
+import { useRoomStore } from '@/src/stores/useRoomStore';
 import type { CustomerRoomCard } from '@/src/db/queries/customer';
 import { WorldLayer } from '@/src/components/world/WorldLayer';
 import { WORLD_EASE } from '@/src/components/world/worldMotion';
@@ -15,6 +21,7 @@ export type RoomNodeData = CustomerRoomCard & {
 
 type Props = {
   room: RoomNodeData;
+  pgId: string;
   pgSlug: string;
   index?: number;
   isSelected?: boolean;
@@ -24,20 +31,29 @@ function sharingLabel(capacity: number): string {
   return `${capacity}-sharing`;
 }
 
-function placeholderHue(roomId: string): number {
-  let hash = 0;
-  for (let i = 0; i < roomId.length; i += 1) {
-    hash = roomId.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return Math.abs(hash) % 360;
-}
+const STATE_BORDER: Record<RoomNodeState, string> = {
+  available: 'border-white/10 hover:border-apg-orange/40',
+  selected: 'world-room-node--selected border-apg-cyan/50',
+  locked: 'border-white/5 opacity-75 hover:border-white/15',
+};
 
-export function RoomNodeCard({ room, pgSlug, index = 0, isSelected = false }: Props) {
+export function RoomNodeCard({
+  room,
+  pgId,
+  pgSlug,
+  index = 0,
+  isSelected = false,
+}: Props) {
+  const router = useRouter();
   const reduced = useReducedMotion();
-  const href = `/pgs/${pgSlug}/rooms/${room.roomId}`;
+  const setSelectedPg = useRoomStore((s) => s.setSelectedPg);
+  const setSelectedRoom = useRoomStore((s) => s.setSelectedRoom);
+  const setSelectedFloor = useRoomStore((s) => s.setSelectedFloor);
+
   const allBooked = room.availableBeds === 0 && room.totalBeds > 0;
   const hasImage = Boolean(room.imageUrl);
-  const hue = placeholderHue(room.roomId);
+  const visual = getRoomVisualSeed(room.roomId);
+  const nodeState = resolveRoomNodeState({ isSelected, allBooked });
   const depth = (index % 3) as 0 | 1 | 2;
   const float = !reduced && index % 2 === 0;
 
@@ -53,6 +69,15 @@ export function RoomNodeCard({ room, pgSlug, index = 0, isSelected = false }: Pr
   const pricePeriod =
     room.monthlyRatePaise > 0 ? '/mo' : room.weeklyRatePaise > 0 ? '/wk' : '/day';
 
+  function handleSelect() {
+    setSelectedPg(pgId, pgSlug);
+    setSelectedRoom(room.roomId, room.floorNumber);
+    setSelectedFloor(room.floorNumber);
+    router.push(
+      `/pgs/${pgSlug}/rooms/${room.roomId}?floor=${room.floorNumber}`,
+    );
+  }
+
   return (
     <WorldLayer depth={depth} float={float} className="world-room-node-wrap h-full">
       <motion.div
@@ -64,7 +89,7 @@ export function RoomNodeCard({ room, pgSlug, index = 0, isSelected = false }: Pr
           ease: WORLD_EASE.cinematic,
         }}
         whileHover={
-          reduced
+          reduced || nodeState === 'locked'
             ? undefined
             : {
                 scale: 1.04,
@@ -82,17 +107,22 @@ export function RoomNodeCard({ room, pgSlug, index = 0, isSelected = false }: Pr
         }
         className="h-full"
       >
-        <Link
-          href={href}
+        <button
+          type="button"
+          onClick={handleSelect}
           data-roachie-focus="room-pick"
-          aria-current={isSelected ? 'page' : undefined}
+          aria-current={isSelected ? 'true' : undefined}
+          aria-label={`Select room ${room.roomNumber}, ${sharingLabel(room.capacity)}, ${room.hasAc ? 'AC' : 'Non-AC'}`}
           className={
-            'world-room-node group relative flex h-full flex-col overflow-hidden rounded-2xl border apg-glass ' +
-            (isSelected
-              ? 'world-room-node--selected border-apg-cyan/50'
-              : 'border-white/10 hover:border-apg-orange/40') +
-            (allBooked ? ' opacity-80' : '')
+            'world-room-node group relative flex h-full w-full flex-col overflow-hidden rounded-2xl border apg-glass text-left ' +
+            STATE_BORDER[nodeState]
           }
+          style={{
+            boxShadow:
+              nodeState === 'selected'
+                ? `0 0 ${24 * visual.glowIntensity}px ${visual.glowColor}`
+                : undefined,
+          }}
         >
           {!reduced ? (
             <span
@@ -124,17 +154,44 @@ export function RoomNodeCard({ room, pgSlug, index = 0, isSelected = false }: Pr
                 'world-room-node-placeholder absolute inset-0 flex flex-col items-center justify-center ' +
                 (hasImage ? 'opacity-0' : 'opacity-100')
               }
-              style={{
-                background: `linear-gradient(145deg, hsla(${hue}, 55%, 18%, 0.95) 0%, hsla(${(hue + 40) % 360}, 45%, 12%, 0.98) 55%, rgba(8, 12, 22, 1) 100%)`,
-              }}
+              style={{ background: visual.gradient }}
             >
-              <div className="world-room-node-noise absolute inset-0 opacity-40" aria-hidden />
-              <div className="relative z-10 flex flex-col items-center gap-1.5 px-3 text-center">
-                <span className="rounded-full border border-dashed border-white/20 bg-black/20 px-2.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-white/50">
-                  Image slot
+              <div
+                className="world-room-node-noise absolute inset-0"
+                style={{ opacity: visual.noiseOpacity }}
+                aria-hidden
+              />
+              <div
+                className="world-room-node-pattern absolute inset-0 opacity-30"
+                style={{
+                  backgroundSize: `${visual.patternScale}px ${visual.patternScale}px`,
+                  backgroundImage: `radial-gradient(hsla(${visual.accentHue}, 70%, 60%, 0.15) 1px, transparent 1px)`,
+                }}
+                aria-hidden
+              />
+              <div
+                className="pointer-events-none absolute inset-0"
+                style={{
+                  background: `radial-gradient(circle at 30% 20%, ${visual.glowColor}, transparent 55%)`,
+                }}
+                aria-hidden
+              />
+              <div className="relative z-10 flex flex-col items-center gap-2 px-3 text-center">
+                <span
+                  className="rounded-full px-2.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.22em]"
+                  style={{
+                    color: `hsla(${visual.accentHue}, 80%, 75%, 0.85)`,
+                    border: `1px solid hsla(${visual.accentHue}, 50%, 50%, 0.35)`,
+                    background: 'rgba(0,0,0,0.25)',
+                  }}
+                >
+                  Node {visual.seed + 1}
                 </span>
-                <span className="text-2xl font-semibold tabular-nums text-white/90">
+                <span className="text-3xl font-semibold tabular-nums text-white/95">
                   {room.roomNumber}
+                </span>
+                <span className="text-[10px] uppercase tracking-wider text-white/45">
+                  {room.floorLabel}
                 </span>
               </div>
             </div>
@@ -175,18 +232,18 @@ export function RoomNodeCard({ room, pgSlug, index = 0, isSelected = false }: Pr
                 </p>
               </div>
               <span className="text-xs font-semibold text-apg-cyan transition-transform group-hover:translate-x-0.5 group-hover:text-apg-orange">
-                Enter →
+                {nodeState === 'selected' ? 'Selected ✓' : 'Enter →'}
               </span>
             </div>
           </div>
 
-          {isSelected ? (
+          {nodeState === 'selected' ? (
             <span
               className="world-room-node-aura pointer-events-none absolute -inset-px rounded-2xl"
               aria-hidden
             />
           ) : null}
-        </Link>
+        </button>
       </motion.div>
     </WorldLayer>
   );

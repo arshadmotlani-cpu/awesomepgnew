@@ -9,12 +9,7 @@ import {
   requireCustomerOwnsBookingCode,
   requireCustomerSession,
 } from '@/src/lib/auth/guards';
-import {
-  DEFAULT_ELECTRICITY_DAILY_QR_PATH,
-  DEFAULT_ELECTRICITY_DAILY_UPI_ID,
-  DEFAULT_RENT_DEPOSIT_QR_PATH,
-  DEFAULT_RENT_DEPOSIT_UPI_ID,
-} from '@/src/lib/payments/defaultQr';
+import { resolveBookingCheckoutQr } from '@/src/lib/payments/checkoutQr';
 import { paiseToInr as formatPaise } from '@/src/lib/format';
 import { PS4_ADDON_LABEL, PS4_PLANS } from '@/src/lib/playstation/plans';
 import { getCustomerById, isProfileComplete } from '@/src/services/profile';
@@ -78,13 +73,12 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
     Math.max(0, booking.depositPaise - depositCreditAppliedPaise);
   const checkoutTotalPaise = booking.totalPaise + ps4Paise;
   const totalLabel = formatPaise(checkoutTotalPaise);
-  const usePs4Qr = ps4Paise > 0;
-  const qrImageUrl = usePs4Qr
-    ? (elecCategory?.qrCodeImageUrl ?? DEFAULT_ELECTRICITY_DAILY_QR_PATH)
-    : (rentCategory?.qrCodeImageUrl ?? DEFAULT_RENT_DEPOSIT_QR_PATH);
-  const upiId = usePs4Qr
-    ? (elecCategory?.upiId ?? DEFAULT_ELECTRICITY_DAILY_UPI_ID)
-    : (rentCategory?.upiId ?? DEFAULT_RENT_DEPOSIT_UPI_ID);
+  const { qrImageUrl, upiId } = resolveBookingCheckoutQr({
+    durationMode: booking.durationMode,
+    hasPs4Addon: ps4Paise > 0,
+    rentCategory,
+    electricityCategory: elecCategory,
+  });
   const ps4PlanLabel = pendingPs4 ? PS4_PLANS[pendingPs4.plan].label : null;
 
   const bedsLabel = booking.reservations

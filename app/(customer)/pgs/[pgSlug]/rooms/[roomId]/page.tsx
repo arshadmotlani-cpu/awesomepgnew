@@ -10,6 +10,7 @@ import { StickyBookCta } from '@/src/components/customer/marketing/StickyBookCta
 import { CountUpNumber } from '@/src/components/customer/design-system';
 import { RoomDetailInsights } from '@/src/components/customer/RoomDetailInsights';
 import { AnalyticsMountEvent } from '@/src/components/analytics/AnalyticsMountEvent';
+import { RoomDetailFlowShell, RoomBedMapCta } from '@/src/components/world/RoomDetailFlowShell';
 import { getRoomDetail } from '@/src/db/queries/customer';
 import { getCustomerSession } from '@/src/lib/auth/session';
 import { displayMonthlyDepositPaise } from '@/src/lib/customerDepositDisplay';
@@ -87,6 +88,12 @@ export default async function RoomDetailPage(
   const rateSample = beds.find((b) => b.monthlyRatePaise > 0) ?? beds[0];
 
   return (
+    <RoomDetailFlowShell
+      pgId={room.pgId}
+      pgSlug={room.pgSlug}
+      roomId={room.roomId}
+      floorNumber={room.floorNumber}
+    >
     <div className="apg-aurora mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
       <AnalyticsMountEvent
         eventType="room_viewed"
@@ -159,6 +166,8 @@ export default async function RoomDetailPage(
         activity={activity}
       />
 
+      <RoomBedMapCta roomNumber={room.roomNumber} />
+
       <section className="mt-8" id="bed-selector">
         <h2 className="mb-4 text-lg font-semibold text-white">Pick your bed, then choose dates</h2>
         {beds.length === 0 ? (
@@ -175,5 +184,6 @@ export default async function RoomDetailPage(
       </section>
       <StickyBookCta href="#bed-selector" label="Pick a bed to continue" />
     </div>
+    </RoomDetailFlowShell>
   );
 }

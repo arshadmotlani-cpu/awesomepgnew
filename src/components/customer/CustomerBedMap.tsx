@@ -85,7 +85,14 @@ function RoomBedCard({
   );
 }
 
-export function CustomerBedMap({ rooms }: { rooms: CustomerRoomBedMap[] }) {
+export function CustomerBedMap({
+  rooms,
+  filterRoomId,
+}: {
+  rooms: CustomerRoomBedMap[];
+  /** When set, only render beds for this room (Room World flow). */
+  filterRoomId?: string | null;
+}) {
   const [selectedBedId, setSelectedBedId] = useState<string | null>(null);
   const [panelBeds, setPanelBeds] = useState<BedSelectorBed[]>([]);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -104,24 +111,29 @@ export function CustomerBedMap({ rooms }: { rooms: CustomerRoomBedMap[] }) {
     [interestOverrides],
   );
 
+  const visibleRooms = useMemo(() => {
+    if (!filterRoomId) return rooms;
+    return rooms.filter((r) => r.roomId === filterRoomId);
+  }, [rooms, filterRoomId]);
+
   const floors = useMemo(() => {
     const map = new Map<number, { label: string; rooms: CustomerRoomBedMap[] }>();
-    for (const room of rooms) {
+    for (const room of visibleRooms) {
       const cur = map.get(room.floorNumber) ?? { label: room.floorLabel, rooms: [] };
       cur.rooms.push(room);
       map.set(room.floorNumber, cur);
     }
     return [...map.entries()].sort(([a], [b]) => a - b);
-  }, [rooms]);
+  }, [visibleRooms]);
 
   const selectedBed = useMemo(() => {
     if (!selectedBedId) return null;
-    for (const room of rooms) {
+    for (const room of visibleRooms) {
       const bed = room.beds.find((b) => b.bedId === selectedBedId);
       if (bed) return { bed: mergeBed(bed), room };
     }
     return null;
-  }, [rooms, selectedBedId, mergeBed]);
+  }, [visibleRooms, selectedBedId, mergeBed]);
 
   const handleNoticeInterestUpdate = useCallback((bedId: string, count: number) => {
     setInterestOverrides((prev) => ({ ...prev, [bedId]: count }));
