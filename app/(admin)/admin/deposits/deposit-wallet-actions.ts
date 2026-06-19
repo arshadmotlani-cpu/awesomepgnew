@@ -6,6 +6,11 @@ import { eq } from 'drizzle-orm';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { assertAdminBookingAccess } from '@/src/lib/auth/pgAccess';
 import { revalidateFinancialViews } from '@/src/lib/billing/revalidateFinancialViews';
+import { loadDepositPageData } from '@/src/lib/deposits/loadDepositPageData';
+import {
+  logPostSaveWalletState,
+  logWalletPropsAtCheckpoint,
+} from '@/src/lib/deposits/postSaveWalletStateLog';
 import { db } from '@/src/db/client';
 import { auditLog, bookings } from '@/src/db/schema';
 import { logger } from '@/src/lib/logger';
@@ -118,9 +123,12 @@ function parseInrFieldToPaise(raw: string, label: string): number | undefined | 
 
 async function verifyDepositReload(bookingId: string, customerId: string) {
   try {
-    const [summary, view] = await Promise.all([
+    const [summary, view, pageData] = await Promise.all([
       getDepositSummaryForBooking(bookingId),
-      getUnifiedDepositView(bookingId),
+      getUnifiedDepositView(bookingId, {
+        postSaveCheckpoint: 'editDepositSummaryAction:after_getUnifiedDepositView',
+      }),
+      loadDepositPageData(bookingId),
     ]);
     logDepositTrace('loadDepositDetailData', bookingId, {
       phase: 'post_save_reload_ok',
@@ -128,6 +136,16 @@ async function verifyDepositReload(bookingId: string, customerId: string) {
       collectedPaise: summary?.collectedPaise,
       requiredPaise: view?.requiredPaise,
       refundablePaise: view?.refundablePaise,
+    });
+    logWalletPropsAtCheckpoint(
+      'editDepositSummaryAction:after_loadDepositPageData',
+      bookingId,
+      pageData.walletProps,
+    );
+    logPostSaveWalletState('editDepositSummaryAction:after_revalidate', bookingId, {
+      customerId,
+      hasWalletProps: Boolean(pageData.walletProps),
+      loadError: pageData.loadError,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -260,6 +278,13 @@ async function editDepositSummaryCore(
       reason,
     });
     if (!result.ok) return { status: 'error', message: result.error };
+
+    logPostSaveWalletState('editDepositSummaryAction:after_updateDepositSummaryAdmin', bookingId, {
+      customerId,
+      requiredPaise: requiredPaise ?? null,
+      collectedPaise: collectedPaise ?? null,
+      ok: true,
+    });
 
     logDepositDebug({
       phase: `${actionName}:after_update`,

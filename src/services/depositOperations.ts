@@ -8,6 +8,11 @@ import { db } from '@/src/db/client';
 import { auditLog, bookings } from '@/src/db/schema';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import {
+  inspectPaiseValue,
+  logUnifiedDepositViewAtCheckpoint,
+  logPostSaveWalletState,
+} from '@/src/lib/deposits/postSaveWalletStateLog';
+import {
   sanitizeDepositWalletPreview,
   sanitizeUnifiedDepositView,
   type DepositWalletPreview,
@@ -113,7 +118,10 @@ function viewFromParts(input: {
   });
 }
 
-export async function getUnifiedDepositView(bookingId: string): Promise<UnifiedDepositView | null> {
+export async function getUnifiedDepositView(
+  bookingId: string,
+  opts?: { postSaveCheckpoint?: string },
+): Promise<UnifiedDepositView | null> {
   try {
     logDepositPageSection('getUnifiedDepositView', bookingId, { phase: 'start' });
 
@@ -178,6 +186,23 @@ export async function getUnifiedDepositView(bookingId: string): Promise<UnifiedD
       depositDuePaise: safeView.depositDuePaise,
       walletInSync: safeView.walletInSync,
     });
+
+    if (opts?.postSaveCheckpoint) {
+      logUnifiedDepositViewAtCheckpoint(opts.postSaveCheckpoint, bookingId, safeView, {
+        rawBooking: {
+          depositPaise: inspectPaiseValue(booking.depositPaise),
+          depositDuePaise: inspectPaiseValue(booking.depositDuePaise),
+        },
+        rawSummary: summary
+          ? {
+              collectedPaise: inspectPaiseValue(summary.collectedPaise),
+              deductedPaise: inspectPaiseValue(summary.deductedPaise),
+              refundedPaise: inspectPaiseValue(summary.refundedPaise),
+              refundableBalancePaise: inspectPaiseValue(summary.refundableBalancePaise),
+            }
+          : null,
+      });
+    }
 
     return safeView;
   } catch (err) {
@@ -590,6 +615,10 @@ export async function updateDepositSummaryAdmin(input: {
 
   await syncDepositCollectionFromLedger(input.bookingId);
 
+  await getUnifiedDepositView(input.bookingId, {
+    postSaveCheckpoint: 'updateDepositSummaryAdmin:after_syncDepositCollectionFromLedger',
+  });
+
   logDepositSaveAfterSync(invCtx, { bookingId: input.bookingId });
 
   await db.insert(auditLog).values({
@@ -619,6 +648,11 @@ export async function updateDepositSummaryAdmin(input: {
     residentId: input.customerId,
     requiredDeposit: requiredPaise,
     collectedDeposit: collectedPaise,
+  });
+
+  logPostSaveWalletState('updateDepositSummaryAdmin:complete', input.bookingId, {
+    requiredPaise: inspectPaiseValue(requiredPaise),
+    collectedPaise: inspectPaiseValue(collectedPaise),
   });
 
   return { ok: true };

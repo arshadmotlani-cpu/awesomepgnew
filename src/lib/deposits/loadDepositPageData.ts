@@ -10,6 +10,7 @@ import { getDepositInvoiceForBooking } from '@/src/services/depositInvoices';
 import { getUnifiedDepositView, sanitizeUnifiedDepositView } from '@/src/services/depositOperations';
 import { loadBedPrice, securityDepositForMode } from '@/src/services/pricing';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
+import { logWalletPropsAtCheckpoint } from '@/src/lib/deposits/postSaveWalletStateLog';
 import { findUnsafeFields, jsonSafe, type UnsafeField } from '@/src/lib/depositPageDebug';
 import {
   auditSerialization,
@@ -322,6 +323,8 @@ export async function loadDepositPageData(bookingId: string): Promise<DepositPag
           isFrozen,
         })
       : null;
+
+    logWalletPropsAtCheckpoint('loadDepositPageData:walletProps', bookingId, walletProps);
     const adjustProps = jsonSafe({
       bookingId,
       bookingDepositPaise: guardDepositPaise(booking.depositPaise, 'booking.depositPaise'),

@@ -19,6 +19,7 @@ import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import type { DepositCollectionStatus } from '@/src/db/schema/enums';
 import { formatDate } from '@/src/lib/dates';
 import { coerceNonNegativePaise } from '@/src/lib/format';
+import { inspectPaiseValue, logPostSaveWalletState } from '@/src/lib/deposits/postSaveWalletStateLog';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 
 export type BookingPaymentBreakdown = {
@@ -177,6 +178,20 @@ export async function syncDepositCollectionFromLedger(bookingId: string): Promis
       updatedAt: new Date(),
     })
     .where(eq(bookings.id, bookingId));
+
+  logPostSaveWalletState('syncDepositCollectionFromLedger:after', bookingId, {
+    bookingRow: {
+      depositPaise: inspectPaiseValue(booking.depositPaise),
+      depositDuePaise: inspectPaiseValue(booking.depositDuePaise),
+    },
+    summaryCollected: inspectPaiseValue(summary?.collectedPaise),
+    computed: {
+      collected: inspectPaiseValue(collected),
+      required: inspectPaiseValue(required),
+      due: inspectPaiseValue(due),
+    },
+    status,
+  });
 
   if (wasOutstanding && due <= 0 && status === 'full') {
     const [ctx] = await db

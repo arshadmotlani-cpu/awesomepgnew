@@ -11,6 +11,7 @@ import { DepositRefundNotice } from '@/src/components/customer/DepositRefundNoti
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
 import { paiseToInr } from '@/src/lib/format';
 import { loadDepositPageData } from '@/src/lib/deposits/loadDepositPageData';
+import { logWalletPropsAtCheckpoint } from '@/src/lib/deposits/postSaveWalletStateLog';
 import { jsonSafe } from '@/src/lib/depositPageDebug';
 import {
   logDepositComponentFailed,
@@ -271,6 +272,11 @@ export default async function AdminDepositDetailPage({
         </p>
       );
     } else if (walletProps) {
+      logWalletPropsAtCheckpoint(
+        'page:DepositWalletAdminPanel_props',
+        bookingId,
+        walletProps,
+      );
       walletSection = (
         <DepositComponentBoundary
           {...boundaryProps(
