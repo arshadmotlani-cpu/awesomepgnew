@@ -23,6 +23,7 @@ import {
   isProductionCustomerFilter,
 } from '@/src/lib/billing/productionDataFilter';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
+import { DEPOSIT_COLLECTION_ADJUSTMENT_SQL_PATTERN } from '@/src/lib/deposits/constants';
 import { depositAdminDisplayAmounts } from '@/src/lib/deposits/unifiedDepositView';
 import {
   OCCUPANCY_PLACEHOLDER_EMAIL,
@@ -84,6 +85,7 @@ type RawRow = {
   depositCollectionStatus: DepositCollectionStatus;
   collectedPaise: number;
   deductedPaise: number;
+  collectionAdjustmentPaise: number;
   refundedPaise: number;
   refundableBalancePaise: number;
   hasActiveReservation: boolean;
@@ -136,6 +138,7 @@ function toInvoiceRecord(
     grossRefundableBalancePaise,
     requiredPaise: depositPaise,
     depositDuePaise,
+    taggedCollectionAdjustmentPaise: row.collectionAdjustmentPaise,
   });
 
   const {
@@ -274,6 +277,13 @@ async function fetchRawDepositRows(options?: { bookingId?: string }): Promise<Ra
         where dl.booking_id = ${bookings.id}
           and dl.entry_kind = 'deducted'
       )::bigint`,
+      collectionAdjustmentPaise: sql<number>`(
+        select coalesce(-sum(dl.amount_paise), 0)
+        from deposit_ledger dl
+        where dl.booking_id = ${bookings.id}
+          and dl.entry_kind = 'deducted'
+          and dl.reason like ${DEPOSIT_COLLECTION_ADJUSTMENT_SQL_PATTERN}
+      )::bigint`,
       refundedPaise: sql<number>`(
         select coalesce(-sum(dl.amount_paise), 0)
         from deposit_ledger dl
@@ -317,6 +327,10 @@ async function fetchRawDepositRows(options?: { bookingId?: string }): Promise<Ra
     depositDuePaise: guardDepositPaise(r.depositDuePaise, 'rawRow.depositDuePaise'),
     collectedPaise: guardDepositPaise(r.collectedPaise, 'rawRow.collectedPaise'),
     deductedPaise: guardDepositPaise(r.deductedPaise, 'rawRow.deductedPaise'),
+    collectionAdjustmentPaise: guardDepositPaise(
+      r.collectionAdjustmentPaise,
+      'rawRow.collectionAdjustmentPaise',
+    ),
     refundedPaise: guardDepositPaise(r.refundedPaise, 'rawRow.refundedPaise'),
     refundableBalancePaise: guardDepositPaise(
       r.refundableBalancePaise,

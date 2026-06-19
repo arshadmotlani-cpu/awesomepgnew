@@ -54,7 +54,7 @@ test('depositAdminDisplayAmounts hides collection adjustment from deductions', (
   assert.equal(display.refundablePaise, 5250000);
 });
 
-test('depositAdminDisplayAmounts keeps real deductions after collection adjustment', () => {
+test('depositAdminDisplayAmounts hides legacy untagged adjustment when wallet net equals required', () => {
   const display = depositAdminDisplayAmounts({
     grossCollectedPaise: 900000,
     grossDeductedPaise: 450000,
@@ -62,10 +62,23 @@ test('depositAdminDisplayAmounts keeps real deductions after collection adjustme
     grossRefundableBalancePaise: 450000,
     requiredPaise: 450000,
     depositDuePaise: 0,
+    taggedCollectionAdjustmentPaise: 0,
   });
-  assert.equal(display.collectedPaise, 450000);
   assert.equal(display.deductedPaise, 0);
   assert.equal(display.deductionsPaise, 0);
+});
+
+test('depositAdminDisplayAmounts excludes tagged collection adjustment rows', () => {
+  const display = depositAdminDisplayAmounts({
+    grossCollectedPaise: 900000,
+    grossDeductedPaise: 450000,
+    grossRefundedPaise: 0,
+    grossRefundableBalancePaise: 450000,
+    requiredPaise: 450000,
+    depositDuePaise: 0,
+    taggedCollectionAdjustmentPaise: 450000,
+  });
+  assert.equal(display.deductedPaise, 0);
 });
 
 test('coerceNonNegativePaise rejects NaN and negative values', () => {

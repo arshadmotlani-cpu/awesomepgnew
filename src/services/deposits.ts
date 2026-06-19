@@ -33,6 +33,7 @@ import {
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import { coerceNonNegativePaise, asPlainNumber } from '@/src/lib/format';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
+import { depositCollectionAdjustmentReason } from '@/src/lib/deposits/constants';
 import { applyDepositDeduction } from '@/src/services/depositSettlement';
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -167,7 +168,7 @@ export async function adjustDepositCollectedBalance(input: {
       bookingId: input.bookingId,
       customerId: input.customerId,
       amountPaise: -ledgerDelta,
-      reason: input.reason,
+      reason: depositCollectionAdjustmentReason(input.reason),
       adminId: input.createdByAdminId,
     });
     if (!deducted.ok) {
@@ -303,7 +304,7 @@ export async function correctDepositCollected(input: {
       bookingId: input.bookingId,
       customerId: input.customerId,
       amountPaise: -ledgerDelta,
-      reason: input.reason,
+      reason: depositCollectionAdjustmentReason(input.reason),
       adminId: input.createdByAdminId,
     });
     if (!deducted.ok) {

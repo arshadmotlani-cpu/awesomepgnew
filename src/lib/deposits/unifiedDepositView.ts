@@ -84,6 +84,8 @@ export function depositAdminDisplayAmounts(input: {
   grossRefundableBalancePaise: unknown;
   requiredPaise: unknown;
   depositDuePaise: unknown;
+  /** Tagged ledger rows from admin collected-balance corrections. */
+  taggedCollectionAdjustmentPaise?: unknown;
 }): DepositAdminDisplayAmounts {
   const requiredPaise = guardDepositPaise(input.requiredPaise, 'display.requiredPaise');
   const depositDuePaise = guardDepositPaise(input.depositDuePaise, 'display.depositDuePaise');
@@ -97,14 +99,31 @@ export function depositAdminDisplayAmounts(input: {
     input.grossRefundableBalancePaise,
     'display.grossRefundableBalancePaise',
   );
+  const taggedCollectionAdjustmentPaise = guardDepositPaise(
+    input.taggedCollectionAdjustmentPaise ?? 0,
+    'display.taggedCollectionAdjustmentPaise',
+  );
 
   const collectedPaise = effectiveDepositCollectedPaise({
     grossCollectedPaise,
     requiredPaise,
     depositDuePaise,
   });
-  const collectedAdjustmentPaise = Math.max(0, grossCollectedPaise - collectedPaise);
-  const deductedPaise = Math.max(0, grossDeductedPaise - collectedAdjustmentPaise);
+
+  const untaggedDeductedPaise = Math.max(0, grossDeductedPaise - taggedCollectionAdjustmentPaise);
+  let legacyCollectionAdjustmentPaise = 0;
+  if (depositDuePaise <= 0 && requiredPaise > 0 && untaggedDeductedPaise > 0) {
+    const excessCollectedPaise = Math.max(0, grossCollectedPaise - requiredPaise);
+    if (grossRefundableBalancePaise === requiredPaise) {
+      legacyCollectionAdjustmentPaise = untaggedDeductedPaise;
+    } else {
+      legacyCollectionAdjustmentPaise = Math.min(untaggedDeductedPaise, excessCollectedPaise);
+    }
+  }
+
+  const totalCollectionAdjustmentPaise =
+    taggedCollectionAdjustmentPaise + legacyCollectionAdjustmentPaise;
+  const deductedPaise = Math.max(0, grossDeductedPaise - totalCollectionAdjustmentPaise);
   const refundedPaise = grossRefundedPaise;
   const deductionsPaise = deductedPaise + refundedPaise;
   const refundablePaise = effectiveDepositRefundablePaise({
