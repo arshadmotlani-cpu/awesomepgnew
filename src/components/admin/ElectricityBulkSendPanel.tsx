@@ -108,9 +108,9 @@ export function ElectricityBulkSendPanel({ rows, canSendLinks, billingMonth }: P
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#1A1F27] p-4">
         <div>
-          <h2 className="text-sm font-semibold text-white">Electricity invoices</h2>
+          <h2 className="text-sm font-semibold text-white">Electricity bills</h2>
           <p className="mt-1 text-xs text-apg-silver">
-            {rows.length} pending invoice{rows.length === 1 ? '' : 's'} from room meter readings.
+            {rows.length} unpaid bill{rows.length === 1 ? '' : 's'} from room meter readings.
             Create bills at{' '}
             <Link href={`/admin/electricity/new${billingMonth ? `?month=${billingMonth.slice(0, 7)}` : ''}`} className="text-[#FF5A1F] hover:underline">
               New electricity bill
@@ -158,7 +158,7 @@ export function ElectricityBulkSendPanel({ rows, canSendLinks, billingMonth }: P
           </table>
         </div>
         {filtered.length === 0 ? (
-          <p className="px-4 py-8 text-center text-sm text-apg-silver">No electricity invoices match.</p>
+          <p className="px-4 py-8 text-center text-sm text-apg-silver">No electricity bills match.</p>
         ) : null}
       </div>
 

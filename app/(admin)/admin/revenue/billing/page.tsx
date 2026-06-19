@@ -2,9 +2,11 @@ import Link from 'next/link';
 import { AdminPendingPaymentsPanel } from '@/src/components/admin/AdminPendingPaymentsPanel';
 import { AdminSectionErrorBoundary } from '@/src/components/admin/AdminSectionErrorBoundary';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
-import { BillingCycleOperationsPanel } from '@/src/components/admin/BillingCycleOperationsPanel';
 import { BillingOverviewPanel } from '@/src/components/admin/BillingOverviewPanel';
-import { CollectionsBillingTools } from '@/src/components/admin/CollectionsBillingTools';
+import { BillingAdvancedTools } from '@/src/components/admin/billing/BillingAdvancedTools';
+import { BillingPrimaryActions } from '@/src/components/admin/billing/BillingPrimaryActions';
+import { BillingRecentTransactions } from '@/src/components/admin/billing/BillingRecentTransactions';
+import { BillingSummarySection } from '@/src/components/admin/billing/BillingSummarySection';
 import { ElectricityBulkSendPanel } from '@/src/components/admin/ElectricityBulkSendPanel';
 import { RentInvoicesBulkSendBar } from '@/src/components/admin/RentInvoicesBulkSendBar';
 import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
@@ -23,6 +25,7 @@ import { adminHasPermission } from '@/src/lib/auth/roles';
 import { ADMIN_MODULES, moduleHref, modulePgHref } from '@/src/lib/admin/navigation';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
+import { isRentBillingOverviewActionable } from '@/src/lib/billing/rentBillingOverview';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
 import { listRentBillingOverview, listBillingCycleOperations } from '@/src/services/rentInvoices';
@@ -30,11 +33,11 @@ import { listRentBillingOverview, listBillingCycleOperations } from '@/src/servi
 export const dynamic = 'force-dynamic';
 
 const TABS = [
-  { id: 'billing', label: 'Billing queue' },
-  { id: 'approvals', label: 'Approval queue' },
-  { id: 'rent', label: 'Rent invoices' },
-  { id: 'electricity', label: 'Electricity' },
-  { id: 'paid', label: 'Paid history' },
+  { id: 'billing', label: 'Need attention' },
+  { id: 'approvals', label: 'Payment proofs' },
+  { id: 'rent', label: 'Rent bills' },
+  { id: 'electricity', label: 'Electricity bills' },
+  { id: 'paid', label: 'Recent payments' },
 ] as const;
 
 function collectionsTabHref(tab: string, billingMonth: string) {
@@ -70,41 +73,30 @@ export default async function CollectionsModulePage({
 
   const pgNameById = new Map(pgs.ok ? pgs.data.map((p) => [p.id, p.name]) : []);
 
+  const needsBillCount = billingOverview.filter(
+    (r) => isRentBillingOverviewActionable(r) && r.isDueForGeneration,
+  ).length;
+
   return (
     <>
       <ModuleBreadcrumbs
         items={[
           { label: 'Overview', href: moduleHref('overview') },
           { label: ADMIN_MODULES.revenue.label, href: moduleHref('revenue') },
-          { label: 'Billing & collections' },
+          { label: 'Billing' },
         ]}
       />
       <PageHeader
-        title="Billing & collections"
-        description="Invoicing, payment queues, and collection tools. Invoice = money owed; Payment = money received."
+        title="Billing"
+        description="Create bills, track what residents owe, and record payments received."
       />
-      <p className="mb-4 text-sm text-apg-silver">
+      <p className="mb-6 text-sm text-apg-silver">
         <Link href="/admin/invoices" className="font-semibold text-[#FF5A1F] hover:underline">
-          Open Invoices →
-        </Link>{' '}
-        — single source of truth (paid − cancelled − refunded). Cancelled and refunded invoices are excluded from revenue.
+          All invoices
+        </Link>
+        {' — '}
+        full list of bills. Paid and cancelled bills are excluded from amount due totals.
       </p>
-
-      {rentStats.ok ? (
-        <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {[
-            ['Pending rent', rentStats.data.pendingCount],
-            ['Overdue', rentStats.data.overdueCount],
-            ['Paid', rentStats.data.paidCount],
-            ['Outstanding', paiseToInr(rentStats.data.outstandingPaise)],
-          ].map(([label, val]) => (
-            <div key={String(label)} className="rounded-xl border border-white/10 bg-[#1A1F27] p-4">
-              <p className="text-[10px] uppercase text-apg-silver">{label}</p>
-              <p className="mt-2 text-xl font-semibold text-white">{val}</p>
-            </div>
-          ))}
-        </div>
-      ) : null}
 
       <div className="mb-6 flex flex-wrap gap-2">
         {TABS.map((t) => (
@@ -119,33 +111,59 @@ export default async function CollectionsModulePage({
             }
           >
             {t.label}
+            {t.id === 'approvals' && pending.length > 0 ? (
+              <span className="ml-1.5 rounded-full bg-white/20 px-1.5 py-0.5 text-[10px]">
+                {pending.length}
+              </span>
+            ) : null}
           </Link>
         ))}
       </div>
 
       {tab === 'billing' ? (
         <>
-          <CollectionsBillingTools billingMonth={billingMonth} canGenerateRent={canGenerateRent} />
-          <BillingCycleOperationsPanel
-            dueSoon={billingCycleOps.dueSoon}
-            generatedPending={billingCycleOps.generatedPending}
-            canSendLinks={canSendLinks}
+          {rentStats.ok ? (
+            <BillingSummarySection stats={rentStats.data} billingMonth={billingMonth} />
+          ) : null}
+
+          <BillingPrimaryActions
+            billingMonth={billingMonth}
+            canGenerateRent={canGenerateRent}
+            pendingApprovalCount={pending.length}
+            needsBillCount={needsBillCount}
           />
+
           <BillingOverviewPanel
             billingMonth={billingMonth}
             rows={billingOverview}
             canGenerateRent={canGenerateRent}
             canSendLinks={canSendLinks}
+            dueSoon={billingCycleOps.dueSoon}
+            generatedPending={billingCycleOps.generatedPending}
           />
+
+          {rentPaid.ok ? (
+            <BillingRecentTransactions rows={rentPaid.data} error={null} />
+          ) : (
+            <BillingRecentTransactions rows={[]} error={rentPaid.error ?? null} />
+          )}
+
+          <BillingAdvancedTools billingMonth={billingMonth} canGenerateRent={canGenerateRent} />
         </>
       ) : null}
 
       {tab === 'approvals' ? (
-        <AdminSectionErrorBoundary title="Approval queue">
+        <AdminSectionErrorBoundary title="Payment proofs">
           <section className="space-y-3">
-            <h2 className="text-sm font-semibold text-white">
-              Awaiting approval ({pending.length})
-            </h2>
+            <header>
+              <h2 className="text-base font-semibold text-white">Payment proofs</h2>
+              <p className="mt-1 text-sm text-apg-silver">
+                Residents submitted payment screenshots — approve or reject each one.
+              </p>
+            </header>
+            <h3 className="text-sm font-medium text-apg-silver">
+              Awaiting review ({pending.length})
+            </h3>
             <AdminPendingPaymentsPanel items={pending} />
           </section>
         </AdminSectionErrorBoundary>
@@ -153,6 +171,12 @@ export default async function CollectionsModulePage({
 
       {tab === 'rent' ? (
         <>
+          <header className="mb-4">
+            <h2 className="text-base font-semibold text-white">Rent bills</h2>
+            <p className="mt-1 text-sm text-apg-silver">
+              Unpaid rent bills — send payment links or open a resident profile.
+            </p>
+          </header>
           <RentInvoicesBulkSendBar
             canSendLinks={canSendLinks}
             rows={
@@ -173,7 +197,7 @@ export default async function CollectionsModulePage({
             }
           />
           <InvoiceTable
-            title="Pending rent invoices"
+            title="Unpaid rent bills"
             error={rentPending.ok ? null : rentPending.error}
             rows={rentPending.ok ? rentPending.data : []}
             pgNameById={pgNameById}
@@ -183,6 +207,12 @@ export default async function CollectionsModulePage({
 
       {tab === 'electricity' ? (
         <>
+          <header className="mb-4">
+            <h2 className="text-base font-semibold text-white">Electricity bills</h2>
+            <p className="mt-1 text-sm text-apg-silver">
+              Room meter bills split among residents — send payment links from here.
+            </p>
+          </header>
           <ElectricityBulkSendPanel
             rows={
               elecPending.ok
@@ -204,7 +234,7 @@ export default async function CollectionsModulePage({
             billingMonth={billingMonth}
           />
           <InvoiceTable
-            title="Pending electricity invoices"
+            title="Unpaid electricity bills"
             error={elecPending.ok ? null : elecPending.error}
             rows={elecPending.ok ? elecPending.data : []}
             pgNameById={pgNameById}
@@ -214,12 +244,18 @@ export default async function CollectionsModulePage({
       ) : null}
 
       {tab === 'paid' ? (
-        <InvoiceTable
-          title="Recently paid rent"
-          error={rentPaid.ok ? null : rentPaid.error}
-          rows={rentPaid.ok ? rentPaid.data.slice(0, 50) : []}
-          pgNameById={pgNameById}
-        />
+        <>
+          <header className="mb-4">
+            <h2 className="text-base font-semibold text-white">Recent payments</h2>
+            <p className="mt-1 text-sm text-apg-silver">Rent bills marked as paid.</p>
+          </header>
+          <InvoiceTable
+            title="Paid rent bills"
+            error={rentPaid.ok ? null : rentPaid.error}
+            rows={rentPaid.ok ? rentPaid.data.slice(0, 50) : []}
+            pgNameById={pgNameById}
+          />
+        </>
       ) : null}
     </>
   );
@@ -265,8 +301,8 @@ function InvoiceTable({
             <TR>
               <TH>Resident</TH>
               <TH>PG · room</TH>
-              <TH className="text-right">Amount</TH>
-              <TH>Due</TH>
+              <TH className="text-right">Amount due</TH>
+              <TH>Due date</TH>
               <TH>Status</TH>
               <TH className="text-right">Actions</TH>
             </TR>

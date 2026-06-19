@@ -37,26 +37,26 @@ export function CollectionsBillingTools({
       <section className="rounded-xl border border-white/10 bg-[#1A1F27] p-5">
         <div className="flex flex-wrap items-center gap-2">
           <ModuleBadge kind="invoice" />
-          <h2 className="text-sm font-semibold text-white">Invoicing (system generated)</h2>
+          <h2 className="text-sm font-semibold text-white">Create bills (system)</h2>
         </div>
         <p className="mt-2 max-w-3xl text-sm text-apg-silver">
-          Creates <strong className="text-white">invoices</strong> — amounts residents owe. No money
-          is recorded here. Rent is per <strong className="text-white">tenant</strong>; electricity
+          Creates <strong className="text-white">bills</strong> — amounts residents owe. No money is
+          recorded here. Rent is per <strong className="text-white">resident</strong>; electricity
           is per <strong className="text-white">room</strong> then split automatically.
         </p>
 
         <div className="mt-5 grid gap-4 lg:grid-cols-2">
           <div className="rounded-xl border border-white/10 bg-[#12161D]/60 p-4">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-sky-300">
-              A · Rent invoices
+              A · Rent bills
             </h3>
             <p className="mt-2 text-xs leading-relaxed text-apg-silver">
-              Generated automatically per <strong className="text-white">tenant</strong> from
-              check-in date and billing month. Cron runs on the 1st if configured.
+              Created automatically per <strong className="text-white">resident</strong> from
+              move-in date and billing month.
             </p>
             <ul className="mt-3 space-y-1 text-xs text-apg-silver">
-              <li>· One invoice per tenant per billing month</li>
-              <li>· Based on booking check-in — not per room</li>
+              <li>· One bill per resident per month</li>
+              <li>· Based on booking move-in — not per room</li>
             </ul>
             <div className="mt-4 space-y-3">
               <CollectionsMonthPicker billingMonth={billingMonth} />
@@ -76,24 +76,24 @@ export function CollectionsBillingTools({
                 href={`/admin/revenue/billing?tab=billing&month=${monthLabel}-01`}
                 className="inline-flex items-center justify-center rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-apg-silver hover:text-white"
               >
-                View rent invoice queue →
+                View bills needing attention →
               </Link>
               <Link
                 href={`/admin/revenue/billing?tab=rent`}
                 className="inline-flex items-center justify-center rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-apg-silver hover:text-white"
               >
-                All rent invoices →
+                All rent bills →
               </Link>
             </div>
             <p className="mt-3 text-[11px] text-apg-silver">
-              Undo / regenerate mistakes from the <strong className="text-white">Billing queue</strong>{' '}
-              tab below for <span className="text-white">{monthLabel}</span>.
+              Undo mistakes from <strong className="text-white">Advanced tools</strong> below for{' '}
+              <span className="text-white">{monthLabel}</span>.
             </p>
           </div>
 
           <div className="rounded-xl border border-white/10 bg-[#12161D]/60 p-4">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-sky-300">
-              B · Electricity invoices
+              B · Electricity bills
             </h3>
             <p className="mt-2 text-xs leading-relaxed text-apg-silver">
               Always <strong className="text-white">room-based</strong>. Enter a meter reading for
@@ -103,7 +103,7 @@ export function CollectionsBillingTools({
             <ol className="mt-3 list-decimal space-y-1 pl-4 text-xs text-apg-silver">
               <li>Select room</li>
               <li>Enter meter reading</li>
-              <li>System splits &amp; generates per-tenant invoices</li>
+              <li>System splits &amp; creates per-resident bills</li>
             </ol>
             <div className="mt-4 flex flex-col gap-2">
               <Link
@@ -122,7 +122,7 @@ export function CollectionsBillingTools({
                 href={`/admin/revenue/billing?tab=electricity&month=${monthLabel}-01`}
                 className="inline-flex items-center justify-center rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-apg-silver hover:text-white"
               >
-                Electricity invoice queue →
+                Electricity bill queue →
               </Link>
             </div>
           </div>
@@ -132,11 +132,11 @@ export function CollectionsBillingTools({
       <section className="rounded-xl border border-white/10 bg-[#1A1F27] p-5">
         <div className="flex flex-wrap items-center gap-2">
           <ModuleBadge kind="payment" />
-          <h2 className="text-sm font-semibold text-white">Payments &amp; collections (manual + tracking)</h2>
+          <h2 className="text-sm font-semibold text-white">Payments &amp; collections (manual)</h2>
         </div>
         <p className="mt-2 max-w-3xl text-sm text-apg-silver">
-          Records <strong className="text-white">payments</strong> — money already received or
-          refunded. Does not create invoices or change billing cycles.
+          Records <strong className="text-white">payments</strong> — money already received. Does not
+          create bills or change billing cycles.
         </p>
 
         <div className="mt-5 grid gap-4 lg:grid-cols-2">
@@ -165,7 +165,7 @@ export function CollectionsBillingTools({
                 href="/admin/deposits?filter=due"
                 className="inline-flex items-center justify-center rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-apg-silver hover:text-white"
               >
-                Outstanding deposits →
+                Unpaid security deposits →
               </Link>
             </div>
           </div>

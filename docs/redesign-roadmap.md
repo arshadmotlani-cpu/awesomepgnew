@@ -47,7 +47,7 @@
 |---|--------|----------|-------|-----------|
 | 1 | **Resident profile** | `/admin/residents/[customerId]` | [p0-01](./phase2/p0-01-resident-profile.md) | ✅ Done |
 | 2 | Deposit detail | `/admin/deposits/[bookingId]` | [p0-02](./phase2/p0-02-deposit-detail.md) | ✅ Done |
-| 3 | Billing | `/admin/revenue/billing` | TBD | ⏳ |
+| 3 | Billing | `/admin/revenue/billing` | [p0-03](./phase2/p0-03-billing.md) | ✅ Done |
 | 4 | Checkout / vacating | `/admin/vacating`, `/admin/checkout-settlements/*` | TBD | ⏳ |
 | 5 | Bed assignment | `/admin/pgs/[pgId]/map`, assign flows | TBD | ⏳ |
 | 6 | KYC queue | `/admin/residents/kyc` | TBD | ⏳ |

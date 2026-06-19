@@ -90,7 +90,7 @@ export function RentInvoicesBulkSendBar({
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
         <p className="text-sm text-emerald-100">
-          {rows.length} pending rent invoice{rows.length === 1 ? '' : 's'} — send payment links via
+          {rows.length} unpaid rent bill{rows.length === 1 ? '' : 's'} — send payment links via
           WhatsApp.
         </p>
         <button

@@ -5,8 +5,6 @@ import Link from 'next/link';
 import { Badge } from '@/src/components/admin/Badge';
 import { WhatsAppIcon } from '@/src/components/admin/AdminKycWhatsAppButton';
 import {
-  cancelPendingInvoicesAction,
-  generateDueInvoicesAction,
   generateInvoicesAction,
   type ActionState,
 } from '@/app/(admin)/admin/rent/actions';
@@ -15,6 +13,7 @@ import { buildBillingWhatsAppUrl, openWhatsAppUrl } from '@/src/lib/billing/admi
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import { isRentBillingOverviewActionable } from '@/src/lib/billing/rentBillingOverview';
 import type { RentBillingOverviewRow } from '@/src/services/rentInvoices';
+import type { BillingCycleOperationRow } from '@/src/services/rentInvoices';
 
 const idle: ActionState = { status: 'idle' };
 
@@ -23,6 +22,8 @@ type Props = {
   rows: RentBillingOverviewRow[];
   canGenerateRent: boolean;
   canSendLinks: boolean;
+  dueSoon?: BillingCycleOperationRow[];
+  generatedPending?: BillingCycleOperationRow[];
 };
 
 export function BillingOverviewPanel({
@@ -30,13 +31,10 @@ export function BillingOverviewPanel({
   rows,
   canGenerateRent,
   canSendLinks,
+  dueSoon = [],
+  generatedPending = [],
 }: Props) {
   const [query, setQuery] = useState('');
-  const [genState, genAction, genPending] = useActionState(generateDueInvoicesAction, idle);
-  const [cancelState, cancelAction, cancelPending] = useActionState(
-    cancelPendingInvoicesAction,
-    idle,
-  );
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkIndex, setBulkIndex] = useState(0);
   const [bulkQueue, setBulkQueue] = useState<RentBillingOverviewRow[]>([]);
@@ -66,19 +64,12 @@ export function BillingOverviewPanel({
     [actionableRows],
   );
 
-  const stats = useMemo(
-    () => ({
-      needsBill: actionableRows.filter((r) => r.isDueForGeneration).length,
-      waitingCheckIn: actionableRows.filter(
-        (r) => r.invoiceStatus === 'none' && !r.isDueForGeneration,
-      ).length,
-      depositDue: actionableRows.filter((r) => r.depositDuePaise > 0).length,
-      generatedElsewhere: rows.filter(
-        (r) => r.invoiceStatus !== 'none' && r.depositDuePaise <= 0,
-      ).length,
-    }),
-    [rows, actionableRows],
+  const generatedElsewhere = useMemo(
+    () => rows.filter((r) => r.invoiceStatus !== 'none' && r.depositDuePaise <= 0).length,
+    [rows],
   );
+
+  const rentTabHref = `/admin/revenue/billing?tab=rent&month=${billingMonth}`;
 
   const sendOne = useCallback(
     async (row: RentBillingOverviewRow) => {
@@ -140,77 +131,69 @@ export function BillingOverviewPanel({
     setBulkIndex(nextIndex);
   }
 
-  const rentTabHref = `/admin/collections?tab=rent&month=${billingMonth}`;
-
   return (
-    <section className="space-y-4">
-      <p className="text-sm text-apg-silver">
-        Tenants who still need a bill generated or have deposit due. Generated rent invoices are on
-        the{' '}
-        <Link href={rentTabHref} className="font-semibold text-[#FF5A1F] hover:underline">
-          Rent invoices
-        </Link>{' '}
-        tab — nothing here to dismiss one-by-one.
-      </p>
+    <section className="mb-8">
+      <header className="mb-4">
+        <h2 className="text-base font-semibold text-white">Bills needing attention</h2>
+        <p className="mt-1 text-sm text-apg-silver">
+          Residents who still need a bill created or have security deposit due. Bills already created
+          are on the{' '}
+          <Link href={rentTabHref} className="font-semibold text-[#FF5A1F] hover:underline">
+            Rent bills
+          </Link>{' '}
+          tab.
+        </p>
+      </header>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {[
-          ['Needs bill generated', stats.needsBill],
-          ['Waiting for check-in', stats.waitingCheckIn],
-          ['Deposit due', stats.depositDue],
-          ['Invoices (Rent tab)', stats.generatedElsewhere],
-        ].map(([label, val]) => (
-          <div key={String(label)} className="rounded-xl border border-white/10 bg-[#1A1F27] p-4">
-            <p className="text-[10px] uppercase text-apg-silver">{label}</p>
-            <p className="mt-2 text-xl font-semibold text-white">{val}</p>
-          </div>
-        ))}
-      </div>
+      {dueSoon.length > 0 ? (
+        <div className="mb-4 rounded-xl border border-amber-400/25 bg-amber-500/10 p-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-amber-200">Due within 24 hours</p>
+          <ul className="mt-2 space-y-2">
+            {dueSoon.map((r) => (
+              <li
+                key={r.invoiceId}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-xs"
+              >
+                <span className="text-white">
+                  {r.customerFullName} · {r.pgName} · {r.invoiceNumber}
+                </span>
+                <span className="text-apg-silver">
+                  {paiseToInr(r.rentPaise)} · due {formatDate(r.dueDate)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
-      {canGenerateRent ? (
-        <div className="flex flex-wrap items-end gap-3 rounded-xl border border-white/10 bg-[#1A1F27] p-4">
-          <form action={genAction} className="inline-flex flex-col gap-1">
-            <input type="hidden" name="billingMonth" value={billingMonth} />
-            <button
-              type="submit"
-              disabled={genPending}
-              className="rounded-lg bg-[#FF5A1F] px-3 py-2 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-50"
-            >
-              {genPending ? 'Running…' : 'Auto-generate due (check-in aware)'}
-            </button>
-            {genState.status === 'ok' ? (
-              <span className="text-[11px] text-emerald-300">{genState.message}</span>
-            ) : genState.status === 'error' ? (
-              <span className="text-[11px] text-rose-300">{genState.message}</span>
-            ) : null}
-          </form>
-          <form action={cancelAction} className="inline-flex flex-col gap-1">
-            <input type="hidden" name="billingMonth" value={billingMonth} />
-            <button
-              type="submit"
-              disabled={cancelPending}
-              className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-500/20 disabled:opacity-50"
-            >
-              {cancelPending ? 'Cancelling…' : 'Undo pending invoices this month'}
-            </button>
-            {cancelState.status === 'ok' ? (
-              <span className="text-[11px] text-emerald-300">{cancelState.message}</span>
-            ) : cancelState.status === 'error' ? (
-              <span className="text-[11px] text-rose-300">{cancelState.message}</span>
-            ) : null}
-          </form>
-          <p className="text-xs text-apg-silver">
-            Auto-generate skips tenants whose check-in is still in the future. Undo cancels
-            pending/overdue invoices only (not paid).
+      {generatedPending.length > 0 ? (
+        <div className="mb-4 rounded-xl border border-white/10 bg-[#1A1F27] p-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-apg-silver">
+            Created — not yet due
           </p>
+          <ul className="mt-2 space-y-2">
+            {generatedPending.slice(0, 6).map((r) => (
+              <li
+                key={r.invoiceId}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-xs"
+              >
+                <span className="text-white">
+                  {r.customerFullName} · {r.invoiceNumber}
+                </span>
+                <span className="text-apg-silver">
+                  {paiseToInr(r.rentPaise)} · due {formatDate(r.dueDate)}
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
       ) : null}
 
       {canSendLinks && pendingSend.length > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
           <p className="text-sm text-emerald-100">
-            {pendingSend.length} tenant{pendingSend.length === 1 ? '' : 's'} with remaining deposit
-            due.
+            {pendingSend.length} resident{pendingSend.length === 1 ? '' : 's'} with security deposit
+            still due.
           </p>
           <button
             type="button"
@@ -229,7 +212,7 @@ export function BillingOverviewPanel({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search name, phone, PG, bed, booking code…"
-          className="apg-admin-field w-full rounded-lg border border-white/10 bg-[#12161D] px-3 py-2 text-sm text-white"
+          className="apg-admin-field mb-4 w-full rounded-lg border border-white/10 bg-[#12161D] px-3 py-2 text-sm text-white"
         />
       ) : null}
 
@@ -238,16 +221,16 @@ export function BillingOverviewPanel({
           <div className="px-4 py-12 text-center">
             <p className="text-sm font-medium text-white">Nothing needs your attention here</p>
             <p className="mt-2 text-xs text-apg-silver">
-              {stats.generatedElsewhere > 0
-                ? `${stats.generatedElsewhere} rent invoice(s) for this month are on the Rent invoices tab.`
-                : 'No tenants waiting for billing this month.'}
+              {generatedElsewhere > 0
+                ? `${generatedElsewhere} rent bill(s) for this month are on the Rent bills tab.`
+                : 'No residents waiting for billing this month.'}
             </p>
-            {stats.generatedElsewhere > 0 ? (
+            {generatedElsewhere > 0 ? (
               <Link
                 href={rentTabHref}
                 className="mt-4 inline-block text-sm font-semibold text-[#FF5A1F] hover:underline"
               >
-                Open Rent invoices →
+                Open rent bills →
               </Link>
             ) : null}
           </div>
@@ -260,7 +243,7 @@ export function BillingOverviewPanel({
                     Resident
                   </th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-apg-silver">
-                    Check-in
+                    Move-in
                   </th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-apg-silver">
                     Bed
@@ -374,7 +357,7 @@ function OverviewRow({
         ) : row.depositDuePaise > 0 ? (
           <Badge tone="amber">Deposit due</Badge>
         ) : (
-          <Badge tone="zinc">Check-in later</Badge>
+          <Badge tone="zinc">Move-in later</Badge>
         )}
       </td>
       <td className="px-4 py-3 text-right">
@@ -388,7 +371,7 @@ function OverviewRow({
                 disabled={genPending}
                 className="text-xs font-semibold text-[#FF5A1F] hover:underline disabled:opacity-50"
               >
-                Generate
+                Create bill
               </button>
             </form>
           ) : null}
@@ -406,11 +389,11 @@ function OverviewRow({
               className="inline-flex items-center gap-1 text-xs text-[#25D366] hover:underline"
             >
               <WhatsAppIcon className="h-3 w-3" />
-              Send deposit
+              Send deposit link
             </button>
           ) : null}
           {genState.status === 'ok' ? (
-            <span className="text-[10px] text-emerald-300">Generated</span>
+            <span className="text-[10px] text-emerald-300">Bill created</span>
           ) : null}
           {sendErr ? <span className="text-[10px] text-rose-300">{sendErr}</span> : null}
         </div>

@@ -26,7 +26,7 @@ export function GenerateInvoicesButton({
         disabled={pending}
         className="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-apg-silver hover:text-white disabled:opacity-50"
       >
-        {pending ? 'Generating…' : forceAll ? `Force all for ${billingMonth.slice(0, 7)}` : `Generate rent for ${billingMonth.slice(0, 7)}`}
+        {pending ? 'Generating…' : forceAll ? `Create all bills for ${billingMonth.slice(0, 7)}` : `Create bills for ${billingMonth.slice(0, 7)}`}
       </button>
       {state.status === 'ok' ? (
         <span className="text-[11px] text-emerald-300">{state.message}</span>
@@ -46,7 +46,7 @@ export function MarkOverdueButton() {
         disabled={pending}
         className="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-apg-silver hover:text-white disabled:opacity-50"
       >
-        {pending ? 'Sweeping…' : 'Mark overdue'}
+        {pending ? 'Updating…' : 'Mark unpaid bills overdue'}
       </button>
       {state.status === 'ok' ? (
         <span className="text-[11px] text-emerald-300">{state.message}</span>
