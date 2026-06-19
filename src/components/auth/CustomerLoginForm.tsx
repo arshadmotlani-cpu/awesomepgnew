@@ -7,6 +7,7 @@ import {
   authInputClassName,
 } from '@/src/components/auth/authFieldStyles';
 import { IndianPhoneInput } from '@/src/components/customer/IndianPhoneInput';
+import { SignupProgress } from '@/src/components/auth/SignupProgress';
 import { safeNext } from '@/src/lib/auth/safeNext';
 import { INDIAN_MOBILE_LOCAL, formatIndianPhoneDisplay } from '@/src/lib/phone';
 
@@ -30,6 +31,7 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resendSeconds, setResendSeconds] = useState(0);
+  const [emailVerified, setEmailVerified] = useState(false);
 
   const phoneDisplay =
     phone.length === 10 ? formatIndianPhoneDisplay(`+91${phone}`) : phone;
@@ -140,28 +142,36 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: email.trim(),
-          code,
           next,
           ...(includeProfile ? { fullName, phone } : {}),
+          ...(includeProfile || emailVerified ? {} : { code }),
         }),
       });
       const data = (await res.json()) as {
         ok: boolean;
         message?: string;
         needsProfile?: boolean;
+        emailVerified?: boolean;
         needsProfileComplete?: boolean;
         mustSetPassword?: boolean;
+        needsNewCode?: boolean;
         redirect?: string;
       };
+      if (data.needsProfile || data.emailVerified) {
+        setEmailVerified(true);
+        setStep('profile');
+        setError(null);
+        return;
+      }
       if (!res.ok || !data.ok) {
         if (data.needsProfileComplete && data.redirect) {
           router.replace(data.redirect);
           return;
         }
-        if (data.needsProfile) {
-          setStep('profile');
-          setError(data.message ?? 'Complete your profile.');
-          return;
+        if (data.needsNewCode && includeProfile) {
+          setStep('otp');
+          setEmailVerified(false);
+          setCode('');
         }
         setError(data.message ?? 'Verification failed.');
         return;
@@ -207,6 +217,7 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
     setError(null);
     setPassword('');
     setCode('');
+    setEmailVerified(false);
     setOtpPurpose('signup');
     void sendCode('signup');
   }
@@ -305,6 +316,10 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
         </form>
       ) : null}
 
+      {step === 'otp' && otpPurpose === 'signup' ? (
+        <SignupProgress current="otp" theme={theme} />
+      ) : null}
+
       {step === 'otp' ? (
         <form
           onSubmit={(e) => {
@@ -374,6 +389,7 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
           }}
           className="space-y-3"
         >
+          <SignupProgress current="profile" theme={theme} />
           <p className={mutedText}>
             First time here with{' '}
             <strong className={dark ? 'text-white' : 'text-zinc-900'}>{email.trim()}</strong>. Tell
@@ -465,7 +481,9 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
         </form>
       ) : null}
 
-      {error ? <p className={errorClass}>{error}</p> : null}
+      {error && !(emailVerified && step === 'profile') ? (
+        <p className={errorClass}>{error}</p>
+      ) : null}
     </div>
   );
 }

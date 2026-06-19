@@ -168,9 +168,79 @@ export async function sendEmailOtp(
 }
 
 export type VerifyOtpOptions = {
-  /** When false, a valid code is accepted but not marked consumed (signup profile step). */
+  /** When false, a valid code is accepted but not marked consumed (signup OTP step). */
   consume?: boolean;
 };
+
+export async function getActiveEmailOtpChallenge(email: string) {
+  const normalised = normaliseEmail(email);
+  if (!normalised) return null;
+  const [challenge] = await db
+    .select()
+    .from(emailOtpChallenges)
+    .where(eq(emailOtpChallenges.email, normalised))
+    .orderBy(desc(emailOtpChallenges.createdAt))
+    .limit(1);
+  if (!challenge || challenge.consumedAt || challenge.expiresAt <= new Date()) {
+    return null;
+  }
+  return challenge;
+}
+
+export async function consumeEmailOtpChallengeById(
+  challengeId: string,
+  rawEmail: string,
+  ctx: VerifyOtpContext = {},
+): Promise<{ ok: true; email: string } | { ok: false; message: string }> {
+  const email = normaliseEmail(rawEmail);
+  if (!email) {
+    return { ok: false, message: 'Invalid email address.' };
+  }
+
+  const [challenge] = await db
+    .select()
+    .from(emailOtpChallenges)
+    .where(eq(emailOtpChallenges.id, challengeId))
+    .limit(1);
+
+  if (!challenge || challenge.email !== email || challenge.consumedAt) {
+    await logOtpAttempt({
+      email,
+      action: 'verify_fail',
+      success: false,
+      reason: 'no_active_challenge',
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+    });
+    return { ok: false, message: 'No active code for this email. Request a new one.' };
+  }
+  if (challenge.expiresAt <= new Date()) {
+    await logOtpAttempt({
+      email,
+      action: 'verify_fail',
+      success: false,
+      reason: 'expired',
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+    });
+    return { ok: false, message: 'Code expired. Request a new one.' };
+  }
+
+  await db
+    .update(emailOtpChallenges)
+    .set({ consumedAt: new Date() })
+    .where(eq(emailOtpChallenges.id, challenge.id));
+
+  await logOtpAttempt({
+    email,
+    action: 'verify_success',
+    success: true,
+    ip: ctx.ip,
+    userAgent: ctx.userAgent,
+  });
+
+  return { ok: true, email };
+}
 
 export async function verifyEmailOtp(
   rawEmail: string,

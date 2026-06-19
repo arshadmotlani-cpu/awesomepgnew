@@ -6,6 +6,7 @@ import {
   authFieldLabelClassName,
   authInputClassName,
 } from '@/src/components/auth/authFieldStyles';
+import { SignupProgress } from '@/src/components/auth/SignupProgress';
 import { safeNext } from '@/src/lib/auth/safeNext';
 
 type Props = {
@@ -66,6 +67,7 @@ export function CustomerSetPasswordForm({ email, theme = 'light' }: Props) {
 
   return (
     <form onSubmit={onSubmit} className={shell}>
+      <SignupProgress current="password" theme={theme} />
       <div>
         <h1 className={titleClass}>Create your password</h1>
         <p className={subClass}>

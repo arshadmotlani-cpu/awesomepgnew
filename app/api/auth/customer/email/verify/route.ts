@@ -1,8 +1,19 @@
 import { NextResponse } from 'next/server';
 import { createCustomerProfile, findCustomerByEmail } from '@/src/lib/auth/customer';
-import { verifyEmailOtp } from '@/src/lib/auth/otp';
+import {
+  consumeEmailOtpChallengeById,
+  getActiveEmailOtpChallenge,
+  verifyEmailOtp,
+} from '@/src/lib/auth/otp';
 import { profileRedirectWithNext } from '@/src/lib/auth/safeNext';
+import {
+  clearSignupVerificationCookie,
+  issueSignupVerificationCookie,
+  readSignupVerificationCookie,
+  SIGNUP_SETUP_EXPIRED_MESSAGE,
+} from '@/src/lib/auth/signupVerification';
 import { createCustomerSession } from '@/src/lib/auth/session';
+import { normaliseEmail } from '@/src/lib/email/address';
 import { normaliseIndianPhone } from '@/src/lib/phone';
 import { isProfileComplete } from '@/src/services/profile';
 
@@ -24,34 +35,28 @@ export async function POST(request: Request) {
   const userAgent = request.headers.get('user-agent');
   const otpCtx = { ip, userAgent };
 
-  const existingCustomer = await findCustomerByEmail(body.email ?? '');
-  const isSignupProfileStep = Boolean(
-    !existingCustomer &&
-      (body.fullName ?? '').trim() &&
-      (body.phone ?? '').trim(),
-  );
-
-  const verified = await verifyEmailOtp(
-    body.email ?? '',
-    body.code ?? '',
-    otpCtx,
-    { consume: existingCustomer ? true : isSignupProfileStep },
-  );
-  if (!verified.ok) {
-    return NextResponse.json(verified, { status: 400 });
+  const email = normaliseEmail(body.email ?? '');
+  if (!email) {
+    return NextResponse.json({ ok: false, message: 'Invalid email address.' }, { status: 400 });
   }
 
-  let customer = existingCustomer;
-  if (!customer) {
-    const fullName = (body.fullName ?? '').trim();
-    const phone = normaliseIndianPhone(body.phone ?? '');
+  const existingCustomer = await findCustomerByEmail(email);
+  const fullName = (body.fullName ?? '').trim();
+  const phone = normaliseIndianPhone(body.phone ?? '');
+  const hasProfileFields = Boolean(fullName && phone);
+  const isNewSignupOtpStep = !existingCustomer && !hasProfileFields;
+  const isNewSignupProfileStep = !existingCustomer && hasProfileFields;
+
+  let verified: { ok: true; email: string } | { ok: false; message: string };
+
+  if (isNewSignupProfileStep) {
     if (!fullName || fullName.length < 2) {
       return NextResponse.json(
         {
           ok: false,
           needsProfile: true,
-          email: verified.email,
-          message: 'Complete your profile to continue.',
+          email,
+          message: 'Enter your full name to continue.',
         },
         { status: 400 },
       );
@@ -61,16 +66,65 @@ export async function POST(request: Request) {
         {
           ok: false,
           needsProfile: true,
-          email: verified.email,
+          email,
           message: 'Enter a valid 10-digit mobile number.',
         },
         { status: 400 },
       );
     }
+
+    const signupCookie = await readSignupVerificationCookie();
+    if (signupCookie?.email === email) {
+      verified = await consumeEmailOtpChallengeById(signupCookie.challengeId, email, otpCtx);
+      if (verified.ok) {
+        await clearSignupVerificationCookie();
+      }
+    } else if (body.code?.trim()) {
+      verified = await verifyEmailOtp(body.email ?? '', body.code, otpCtx, { consume: true });
+    } else {
+      return NextResponse.json(
+        { ok: false, message: SIGNUP_SETUP_EXPIRED_MESSAGE, needsNewCode: true },
+        { status: 400 },
+      );
+    }
+  } else {
+    verified = await verifyEmailOtp(body.email ?? '', body.code ?? '', otpCtx, {
+      consume: existingCustomer ? true : false,
+    });
+    if (verified.ok && isNewSignupOtpStep) {
+      const challenge = await getActiveEmailOtpChallenge(verified.email);
+      if (challenge) {
+        await issueSignupVerificationCookie(challenge.id, verified.email, challenge.expiresAt);
+      }
+      return NextResponse.json(
+        {
+          ok: false,
+          needsProfile: true,
+          emailVerified: true,
+          email: verified.email,
+        },
+        { status: 200 },
+      );
+    }
+  }
+
+  if (!verified.ok) {
+    const message =
+      isNewSignupProfileStep && verified.message.includes('No active code')
+        ? SIGNUP_SETUP_EXPIRED_MESSAGE
+        : verified.message;
+    return NextResponse.json(
+      { ok: false, message, needsNewCode: isNewSignupProfileStep },
+      { status: 400 },
+    );
+  }
+
+  let customer = existingCustomer;
+  if (!customer) {
     customer = await createCustomerProfile({
       email: verified.email,
       fullName,
-      phone,
+      phone: phone!,
     });
   } else if (!isProfileComplete(customer)) {
     await createCustomerSession({
