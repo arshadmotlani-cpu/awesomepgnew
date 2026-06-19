@@ -13,7 +13,7 @@ import type {
   DepositWalletPreview,
   UnifiedDepositView,
 } from '@/src/services/depositOperations';
-import { paiseToInr } from '@/src/lib/format';
+import { paiseToInr, asPlainNumber } from '@/src/lib/format';
 
 const idle: DepositWalletActionState = { status: 'idle' };
 
@@ -102,7 +102,7 @@ export function DepositWalletAdminPanel({
                 type="number"
                 min="0"
                 step="1"
-                placeholder={(view.requiredPaise / 100).toString()}
+                placeholder={(asPlainNumber(view.requiredPaise) / 100).toString()}
                 className="apg-admin-field mt-1 w-full rounded-lg border border-white/10 bg-[#0B0F14] px-3 py-2 text-white"
               />
             </label>
@@ -113,7 +113,7 @@ export function DepositWalletAdminPanel({
                 type="number"
                 min="0"
                 step="1"
-                placeholder={(view.collectedPaise / 100).toString()}
+                placeholder={(asPlainNumber(view.collectedPaise) / 100).toString()}
                 className="apg-admin-field mt-1 w-full rounded-lg border border-white/10 bg-[#0B0F14] px-3 py-2 text-white"
               />
             </label>

@@ -31,6 +31,7 @@ import {
   type DepositLedgerEntry,
 } from '../db/schema';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
+import { coerceNonNegativePaise, asPlainNumber } from '@/src/lib/format';
 import { applyDepositDeduction } from '@/src/services/depositSettlement';
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -123,13 +124,21 @@ export async function adjustDepositCollectedBalance(input: {
   reason: string;
   createdByAdminId: string;
 }): Promise<{ ok: true; ledgerDelta: number } | { ok: false; error: string }> {
-  if (input.targetCollectedPaise < 0) {
-    return { ok: false, error: 'Collected amount cannot be negative.' };
+  const targetCollectedPaise = coerceNonNegativePaise(input.targetCollectedPaise);
+  if (!Number.isFinite(targetCollectedPaise)) {
+    return { ok: false, error: 'Collected amount must be a valid number.' };
   }
+
+  console.info('[deposits] adjustDepositCollectedBalance start', {
+    bookingId: input.bookingId,
+    customerId: input.customerId,
+    targetCollectedPaise,
+    adminId: input.createdByAdminId,
+  });
 
   const summary = await getDepositSummaryForBooking(input.bookingId);
   const ledgerCollectedPaise = summary?.collectedPaise ?? 0;
-  const ledgerDelta = input.targetCollectedPaise - ledgerCollectedPaise;
+  const ledgerDelta = targetCollectedPaise - ledgerCollectedPaise;
 
   if (ledgerDelta > 0) {
     await recordDepositCollected({
@@ -161,12 +170,20 @@ export async function adjustDepositCollectedBalance(input: {
       action: 'deposit_collected_adjusted',
       diff: {
         ledgerCollectedPaise,
-        targetCollectedPaise: input.targetCollectedPaise,
+        targetCollectedPaise,
         ledgerDelta,
         reason: input.reason,
       },
     });
   }
+
+  console.info('[deposits] adjustDepositCollectedBalance ok', {
+    bookingId: input.bookingId,
+    customerId: input.customerId,
+    ledgerCollectedPaise,
+    targetCollectedPaise,
+    ledgerDelta,
+  });
 
   return { ok: true, ledgerDelta };
 }
@@ -203,9 +220,17 @@ export async function correctDepositCollected(input: {
   reason: string;
   createdByAdminId: string;
 }): Promise<{ ok: true; previousPaise: number; targetPaise: number }> {
-  if (input.targetCollectedPaise < 0) {
-    throw new Error('correctDepositCollected: targetCollectedPaise must be >= 0');
+  const targetPaise = coerceNonNegativePaise(input.targetCollectedPaise);
+  if (!Number.isFinite(targetPaise)) {
+    throw new Error('correctDepositCollected: targetCollectedPaise must be a valid number');
   }
+
+  console.info('[deposits] correctDepositCollected start', {
+    bookingId: input.bookingId,
+    customerId: input.customerId,
+    targetPaise,
+    adminId: input.createdByAdminId,
+  });
 
   const [booking] = await db
     .select({
@@ -221,32 +246,36 @@ export async function correctDepositCollected(input: {
 
   const summary = await getDepositSummaryForBooking(input.bookingId);
   const ledgerCollectedPaise = summary?.collectedPaise ?? 0;
-  const previousPaise = booking.depositPaise;
-  const targetPaise = input.targetCollectedPaise;
+  const previousPaise = coerceNonNegativePaise(booking.depositPaise);
+  const target = targetPaise;
 
   const snapshot = (booking.pricingSnapshot ?? { perBed: [], computedAt: new Date().toISOString() }) as PricingSnapshot;
   if (snapshot.perBed.length > 0) {
-    const perBedDeposit = Math.floor(targetPaise / snapshot.perBed.length);
-    const remainder = targetPaise - perBedDeposit * snapshot.perBed.length;
+    const perBedDeposit = Math.floor(target / snapshot.perBed.length);
+    const remainder = target - perBedDeposit * snapshot.perBed.length;
     snapshot.perBed = snapshot.perBed.map((bed, index) => ({
       ...bed,
       securityDepositPaise: perBedDeposit + (index === 0 ? remainder : 0),
     }));
   }
 
-  const newTotalPaise = booking.totalPaise - previousPaise + targetPaise;
+  const priorTotal = coerceNonNegativePaise(booking.totalPaise);
+  const newTotalPaise = priorTotal - previousPaise + target;
+  if (!Number.isFinite(newTotalPaise) || newTotalPaise < 0) {
+    throw new Error('correctDepositCollected: booking total would become invalid');
+  }
 
   await db
     .update(bookings)
     .set({
-      depositPaise: targetPaise,
+      depositPaise: target,
       totalPaise: newTotalPaise,
       pricingSnapshot: snapshot,
       updatedAt: new Date(),
     })
     .where(eq(bookings.id, input.bookingId));
 
-  const ledgerDelta = targetPaise - ledgerCollectedPaise;
+  const ledgerDelta = target - ledgerCollectedPaise;
   if (ledgerDelta > 0) {
     await recordDepositCollected({
       bookingId: input.bookingId,
@@ -286,7 +315,15 @@ export async function correctDepositCollected(input: {
   const { syncDepositCollectionFromLedger } = await import('@/src/services/depositCollection');
   await syncDepositCollectionFromLedger(input.bookingId);
 
-  return { ok: true, previousPaise, targetPaise };
+  console.info('[deposits] correctDepositCollected ok', {
+    bookingId: input.bookingId,
+    customerId: input.customerId,
+    previousPaise,
+    targetPaise: target,
+    ledgerDelta,
+  });
+
+  return { ok: true, previousPaise, targetPaise: target };
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -296,37 +333,51 @@ export async function correctDepositCollected(input: {
 export async function getDepositSummaryForBooking(
   bookingId: string,
 ): Promise<DepositSummary | null> {
-  const [booking] = await db
-    .select({ customerId: bookings.customerId })
-    .from(bookings)
-    .where(eq(bookings.id, bookingId))
-    .limit(1);
-  if (!booking) return null;
+  try {
+    const [booking] = await db
+      .select({ customerId: bookings.customerId })
+      .from(bookings)
+      .where(eq(bookings.id, bookingId))
+      .limit(1);
+    if (!booking) return null;
 
-  const entries = await db
-    .select()
-    .from(depositLedger)
-    .where(eq(depositLedger.bookingId, bookingId))
-    .orderBy(depositLedger.createdAt);
+    const entries = await db
+      .select()
+      .from(depositLedger)
+      .where(eq(depositLedger.bookingId, bookingId))
+      .orderBy(depositLedger.createdAt);
 
-  let collected = 0;
-  let deducted = 0;
-  let refunded = 0;
-  for (const e of entries) {
-    if (e.entryKind === 'collected') collected += e.amountPaise;
-    else if (e.entryKind === 'deducted') deducted += -e.amountPaise;
-    else if (e.entryKind === 'refunded') refunded += -e.amountPaise;
+    let collected = 0;
+    let deducted = 0;
+    let refunded = 0;
+    for (const e of entries) {
+      const amount = asPlainNumber(e.amountPaise);
+      if (e.entryKind === 'collected') collected += coerceNonNegativePaise(amount);
+      else if (e.entryKind === 'deducted') deducted += coerceNonNegativePaise(-amount);
+      else if (e.entryKind === 'refunded') refunded += coerceNonNegativePaise(-amount);
+    }
+
+    const summary = {
+      bookingId,
+      customerId: booking.customerId,
+      collectedPaise: collected,
+      deductedPaise: deducted,
+      refundedPaise: refunded,
+      refundableBalancePaise: collected - deducted - refunded,
+      entries,
+    };
+
+    return summary;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? err.stack : undefined;
+    console.error('[deposits] getDepositSummaryForBooking failed', {
+      bookingId,
+      message,
+      stack,
+    });
+    throw err;
   }
-
-  return {
-    bookingId,
-    customerId: booking.customerId,
-    collectedPaise: collected,
-    deductedPaise: deducted,
-    refundedPaise: refunded,
-    refundableBalancePaise: collected - deducted - refunded,
-    entries,
-  };
 }
 
 // ───────────────────────────────────────────────────────────────────────────

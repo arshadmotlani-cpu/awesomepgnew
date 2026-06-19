@@ -18,6 +18,7 @@ import {
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import type { DepositCollectionStatus } from '@/src/db/schema/enums';
 import { formatDate } from '@/src/lib/dates';
+import { coerceNonNegativePaise } from '@/src/lib/format';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 
 export type BookingPaymentBreakdown = {
@@ -148,11 +149,12 @@ export async function syncDepositCollectionFromLedger(bookingId: string): Promis
     .from(bookings)
     .where(eq(bookings.id, bookingId))
     .limit(1);
-  if (!booking || booking.depositPaise <= 0) return;
+  if (!booking || coerceNonNegativePaise(booking.depositPaise) <= 0) return;
 
   const summary = await getDepositSummaryForBooking(bookingId);
-  const collected = summary?.collectedPaise ?? 0;
-  const due = Math.max(0, booking.depositPaise - collected);
+  const collected = coerceNonNegativePaise(summary?.collectedPaise ?? 0);
+  const required = coerceNonNegativePaise(booking.depositPaise);
+  const due = Math.max(0, required - collected);
 
   let status: DepositCollectionStatus = booking.depositCollectionStatus;
   const wasOutstanding = ['partial', 'overdue'].includes(booking.depositCollectionStatus);

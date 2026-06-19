@@ -19,6 +19,11 @@ export function asPlainNumber(value: unknown): number {
   return 0;
 }
 
+/** Paise amounts for ledger/booking math — never negative, never NaN/bigint. */
+export function coerceNonNegativePaise(value: unknown): number {
+  return Math.max(0, Math.round(asPlainNumber(value)));
+}
+
 export function paiseToInr(paise: number | bigint | string | null | undefined): string {
   return inrFormatter.format(asPlainNumber(paise) / 100);
 }

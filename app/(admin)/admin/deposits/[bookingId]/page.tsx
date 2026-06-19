@@ -14,7 +14,7 @@ import { DepositRefundNotice } from '@/src/components/customer/DepositRefundNoti
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
 import { paiseToInr, asPlainNumber } from '@/src/lib/format';
 import { loadBedPrice, securityDepositForMode } from '@/src/services/pricing';
-import { getUnifiedDepositView } from '@/src/services/depositOperations';
+import { getUnifiedDepositView, sanitizeUnifiedDepositView } from '@/src/services/depositOperations';
 import { logger } from '@/src/lib/logger';
 
 export const dynamic = 'force-dynamic';
@@ -37,109 +37,154 @@ function statusTone(status: string) {
 }
 
 async function loadDepositDetailData(bookingId: string) {
-  const [booking] = await db
-    .select({
-      id: bookings.id,
-      bookingCode: bookings.bookingCode,
-      durationMode: bookings.durationMode,
-      status: bookings.status,
-      depositPaise: bookings.depositPaise,
-      customerId: bookings.customerId,
-      customerFullName: customers.fullName,
-      customerPhone: customers.phone,
-    })
-    .from(bookings)
-    .innerJoin(customers, eq(customers.id, bookings.customerId))
-    .where(eq(bookings.id, bookingId))
-    .limit(1);
-  if (!booking) return null;
-
-  let invoice = null;
-  let summary = null;
-  let unifiedView = null;
-  let loadError: string | null = null;
-
   try {
-    invoice = await getDepositInvoiceForBooking(bookingId);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error('[deposit-detail] getDepositInvoiceForBooking failed', { bookingId, message, err });
-    logger.error('deposit_detail_invoice_load_failed', { bookingId, message });
-    loadError = loadError ?? `Deposit invoice could not be loaded: ${message}`;
-  }
+    const [booking] = await db
+      .select({
+        id: bookings.id,
+        bookingCode: bookings.bookingCode,
+        durationMode: bookings.durationMode,
+        status: bookings.status,
+        depositPaise: bookings.depositPaise,
+        customerId: bookings.customerId,
+        customerFullName: customers.fullName,
+        customerPhone: customers.phone,
+      })
+      .from(bookings)
+      .innerJoin(customers, eq(customers.id, bookings.customerId))
+      .where(eq(bookings.id, bookingId))
+      .limit(1);
+    if (!booking) return null;
 
-  try {
-    summary = await getDepositSummaryForBooking(bookingId);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error('[deposit-detail] getDepositSummaryForBooking failed', { bookingId, message, err });
-    logger.error('deposit_detail_summary_load_failed', { bookingId, message });
-    loadError = loadError ?? `Deposit wallet summary could not be loaded: ${message}`;
-  }
+    let invoice = null;
+    let summary = null;
+    let unifiedView = null;
+    let loadError: string | null = null;
 
-  try {
-    unifiedView = await getUnifiedDepositView(bookingId);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error('[deposit-detail] getUnifiedDepositView failed', { bookingId, message, err });
-    logger.error('deposit_detail_unified_view_failed', { bookingId, message });
-    loadError = loadError ?? `Deposit wallet view could not be loaded: ${message}`;
-  }
-
-  const requiredPaise = asPlainNumber(invoice?.requiredPaise ?? booking.depositPaise);
-  const collectedPaise = asPlainNumber(
-    invoice?.collectedPaise ?? summary?.collectedPaise ?? 0,
-  );
-  const deductionsPaise = asPlainNumber(
-    invoice?.deductionsPaise ?? (summary?.deductedPaise ?? 0) + (summary?.refundedPaise ?? 0),
-  );
-  const refundablePaise = asPlainNumber(
-    invoice?.refundablePaise ?? summary?.refundableBalancePaise ?? 0,
-  );
-  const isFrozen = invoice?.isFrozen ?? false;
-
-  const [primaryBed] = await db
-    .select({
-      bedId: bedReservations.bedId,
-      moveInDate: sql<string>`to_char(lower(${bedReservations.stayRange}), 'YYYY-MM-DD')`,
-    })
-    .from(bedReservations)
-    .where(
-      and(
-        eq(bedReservations.bookingId, bookingId),
-        eq(bedReservations.kind, 'primary'),
-        eq(bedReservations.status, 'active'),
-      ),
-    )
-    .limit(1);
-
-  let websiteDepositPaise = 0;
-  if (primaryBed?.bedId && primaryBed.moveInDate) {
     try {
-      const bedRate = await loadBedPrice(primaryBed.bedId, primaryBed.moveInDate);
-      if (bedRate) {
-        websiteDepositPaise = securityDepositForMode(
-          bedRate,
-          booking.durationMode === 'open_ended' ? 'open_ended' : 'monthly',
-        );
-      }
+      invoice = await getDepositInvoiceForBooking(bookingId);
     } catch (err) {
-      console.error('[deposit-detail] loadBedPrice failed', { bookingId, err });
+      const message = err instanceof Error ? err.message : String(err);
+      const stack = err instanceof Error ? err.stack : undefined;
+      console.error('[deposit-detail] getDepositInvoiceForBooking failed', {
+        bookingId,
+        customerId: booking.customerId,
+        message,
+        stack,
+      });
+      logger.error('deposit_detail_invoice_load_failed', { bookingId, message, stack });
+      loadError = loadError ?? `Deposit invoice could not be loaded: ${message}`;
     }
-  }
 
-  return {
-    booking,
-    invoice,
-    unifiedView,
-    requiredPaise,
-    collectedPaise,
-    deductionsPaise,
-    refundablePaise,
-    isFrozen,
-    websiteDepositPaise,
-    loadError,
-  };
+    try {
+      summary = await getDepositSummaryForBooking(bookingId);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const stack = err instanceof Error ? err.stack : undefined;
+      console.error('[deposit-detail] getDepositSummaryForBooking failed', {
+        bookingId,
+        customerId: booking.customerId,
+        message,
+        stack,
+      });
+      logger.error('deposit_detail_summary_load_failed', { bookingId, message, stack });
+      loadError = loadError ?? `Deposit wallet summary could not be loaded: ${message}`;
+    }
+
+    try {
+      const rawView = await getUnifiedDepositView(bookingId);
+      unifiedView = rawView ? sanitizeUnifiedDepositView(rawView) : null;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const stack = err instanceof Error ? err.stack : undefined;
+      console.error('[deposit-detail] getUnifiedDepositView failed', {
+        bookingId,
+        customerId: booking.customerId,
+        message,
+        stack,
+      });
+      logger.error('deposit_detail_unified_view_failed', { bookingId, message, stack });
+      loadError = loadError ?? `Deposit wallet view could not be loaded: ${message}`;
+    }
+
+    const requiredPaise = asPlainNumber(invoice?.requiredPaise ?? booking.depositPaise);
+    const collectedPaise = asPlainNumber(
+      invoice?.collectedPaise ?? summary?.collectedPaise ?? 0,
+    );
+    const deductionsPaise = asPlainNumber(
+      invoice?.deductionsPaise ?? (summary?.deductedPaise ?? 0) + (summary?.refundedPaise ?? 0),
+    );
+    const refundablePaise = asPlainNumber(
+      invoice?.refundablePaise ?? summary?.refundableBalancePaise ?? 0,
+    );
+    const isFrozen = invoice?.isFrozen ?? false;
+
+    let primaryBed: { bedId: string; moveInDate: string } | undefined;
+    try {
+      const [row] = await db
+        .select({
+          bedId: bedReservations.bedId,
+          moveInDate: sql<string>`to_char(lower(${bedReservations.stayRange}), 'YYYY-MM-DD')`,
+        })
+        .from(bedReservations)
+        .where(
+          and(
+            eq(bedReservations.bookingId, bookingId),
+            eq(bedReservations.kind, 'primary'),
+            eq(bedReservations.status, 'active'),
+          ),
+        )
+        .limit(1);
+      primaryBed = row;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('[deposit-detail] primary bed query failed', { bookingId, message });
+    }
+
+    let websiteDepositPaise = 0;
+    if (primaryBed?.bedId && primaryBed.moveInDate) {
+      try {
+        const bedRate = await loadBedPrice(primaryBed.bedId, primaryBed.moveInDate);
+        if (bedRate) {
+          websiteDepositPaise = securityDepositForMode(
+            bedRate,
+            booking.durationMode === 'open_ended' ? 'open_ended' : 'monthly',
+          );
+        }
+      } catch (err) {
+        console.error('[deposit-detail] loadBedPrice failed', { bookingId, err });
+      }
+    }
+
+    return {
+      booking,
+      invoice,
+      unifiedView,
+      requiredPaise,
+      collectedPaise,
+      deductionsPaise,
+      refundablePaise,
+      isFrozen,
+      websiteDepositPaise,
+      loadError,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? err.stack : undefined;
+    console.error('[deposit-detail] loadDepositDetailData failed', { bookingId, message, stack });
+    logger.error('deposit_detail_loader_failed', { bookingId, message, stack });
+    return {
+      booking: null,
+      invoice: null,
+      unifiedView: null,
+      requiredPaise: 0,
+      collectedPaise: 0,
+      deductionsPaise: 0,
+      refundablePaise: 0,
+      isFrozen: false,
+      websiteDepositPaise: 0,
+      loadError: `Deposit details could not load: ${message}`,
+    };
+  }
 }
 
 export default async function AdminDepositDetailPage({
@@ -158,18 +203,21 @@ export default async function AdminDepositDetailPage({
     console.error('[deposit-detail] ensureAdminPageNotificationsSeen failed', { bookingId, err });
   }
 
-  let data;
-  try {
-    data = await loadDepositDetailData(bookingId);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    const stack = err instanceof Error ? err.stack : undefined;
-    console.error('[deposit-detail] page load failed', { bookingId, message, stack });
-    logger.error('deposit_detail_page_load_failed', { bookingId, message, stack });
-    throw err;
-  }
+  const data = await loadDepositDetailData(bookingId);
 
-  if (!data) notFound();
+  if (!data?.booking) {
+    if (data?.loadError) {
+      return (
+        <>
+          <PageHeader title="Deposit invoice" description="Could not load deposit details." />
+          <div className="rounded-lg border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+            {data.loadError}
+          </div>
+        </>
+      );
+    }
+    notFound();
+  }
 
   const {
     booking,

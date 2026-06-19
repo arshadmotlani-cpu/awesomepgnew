@@ -6,6 +6,7 @@
 import { eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { auditLog, bookings } from '@/src/db/schema';
+import { coerceNonNegativePaise } from '@/src/lib/format';
 import { getDepositInvoiceForBooking } from '@/src/services/depositInvoices';
 import {
   adjustDepositCollectedBalance,
@@ -41,16 +42,46 @@ export type DepositWalletPreview = {
   removesFromWalletPaise: number;
 };
 
+export function sanitizeUnifiedDepositView(view: UnifiedDepositView): UnifiedDepositView {
+  return {
+    ...view,
+    requiredPaise: coerceNonNegativePaise(view.requiredPaise),
+    collectedPaise: coerceNonNegativePaise(view.collectedPaise),
+    deductedPaise: coerceNonNegativePaise(view.deductedPaise),
+    refundedPaise: coerceNonNegativePaise(view.refundedPaise),
+    refundablePaise: coerceNonNegativePaise(view.refundablePaise),
+    depositDuePaise: coerceNonNegativePaise(view.depositDuePaise),
+  };
+}
+
+function validatePaiseInput(
+  label: string,
+  value: number | undefined,
+): { ok: true; paise: number | undefined } | { ok: false; error: string } {
+  if (value == null) return { ok: true, paise: undefined };
+  if (!Number.isFinite(value)) {
+    return { ok: false, error: `${label} must be a valid number.` };
+  }
+  if (value < 0) {
+    return { ok: false, error: `${label} cannot be negative.` };
+  }
+  return { ok: true, paise: Math.round(value) };
+}
+
 export function validateWalletFormula(summary: DepositSummary | null): {
   inSync: boolean;
   reason: string | null;
 } {
   if (!summary) return { inSync: true, reason: null };
-  const expected = summary.collectedPaise - summary.deductedPaise - summary.refundedPaise;
-  if (expected !== summary.refundableBalancePaise) {
+  const collected = coerceNonNegativePaise(summary.collectedPaise);
+  const deducted = coerceNonNegativePaise(summary.deductedPaise);
+  const refunded = coerceNonNegativePaise(summary.refundedPaise);
+  const refundable = coerceNonNegativePaise(summary.refundableBalancePaise);
+  const expected = collected - deducted - refunded;
+  if (expected !== refundable) {
     return {
       inSync: false,
-      reason: `Wallet balance ${summary.refundableBalancePaise} ≠ collected − deductions − refunds (${expected}).`,
+      reason: `Wallet balance ${refundable} ≠ collected − deductions − refunds (${expected}).`,
     };
   }
   return { inSync: true, reason: null };
@@ -69,67 +100,79 @@ function viewFromParts(input: {
   walletCheck: { inSync: boolean; reason: string | null };
   mismatchReason?: string | null;
 }): UnifiedDepositView {
-  const collectedPaise = input.summary?.collectedPaise ?? 0;
-  const deductedPaise = input.summary?.deductedPaise ?? 0;
-  const refundedPaise = input.summary?.refundedPaise ?? 0;
-  const refundablePaise = input.summary?.refundableBalancePaise ?? 0;
+  const collectedPaise = coerceNonNegativePaise(input.summary?.collectedPaise ?? 0);
+  const deductedPaise = coerceNonNegativePaise(input.summary?.deductedPaise ?? 0);
+  const refundedPaise = coerceNonNegativePaise(input.summary?.refundedPaise ?? 0);
+  const refundablePaise = coerceNonNegativePaise(input.summary?.refundableBalancePaise ?? 0);
 
-  return {
+  return sanitizeUnifiedDepositView({
     bookingId: input.bookingId,
     customerId: input.customerId,
-    requiredPaise: input.booking.depositPaise,
+    requiredPaise: coerceNonNegativePaise(input.booking.depositPaise),
     collectedPaise,
     deductedPaise,
     refundedPaise,
     refundablePaise,
-    depositDuePaise: input.booking.depositDuePaise,
+    depositDuePaise: coerceNonNegativePaise(input.booking.depositDuePaise),
     depositCollectionStatus: input.booking.depositCollectionStatus,
     invoiceStatus: input.invoiceStatus,
     walletInSync: input.walletCheck.inSync && !input.mismatchReason,
     walletMismatchReason: input.mismatchReason ?? input.walletCheck.reason,
-  };
+  });
 }
 
 export async function getUnifiedDepositView(bookingId: string): Promise<UnifiedDepositView | null> {
-  const [booking] = await db
-    .select({
-      id: bookings.id,
-      customerId: bookings.customerId,
-      depositPaise: bookings.depositPaise,
-      depositDuePaise: bookings.depositDuePaise,
-      depositCollectionStatus: bookings.depositCollectionStatus,
-    })
-    .from(bookings)
-    .where(eq(bookings.id, bookingId))
-    .limit(1);
-  if (!booking) return null;
+  try {
+    const [booking] = await db
+      .select({
+        id: bookings.id,
+        customerId: bookings.customerId,
+        depositPaise: bookings.depositPaise,
+        depositDuePaise: bookings.depositDuePaise,
+        depositCollectionStatus: bookings.depositCollectionStatus,
+      })
+      .from(bookings)
+      .where(eq(bookings.id, bookingId))
+      .limit(1);
+    if (!booking) return null;
 
-  const summary = await getDepositSummaryForBooking(bookingId);
-  const invoice = await getDepositInvoiceForBooking(bookingId);
-  const walletCheck = validateWalletFormula(summary);
+    const summary = await getDepositSummaryForBooking(bookingId);
+    const invoice = await getDepositInvoiceForBooking(bookingId);
+    const walletCheck = validateWalletFormula(summary);
 
-  let mismatchReason: string | null = walletCheck.reason;
-  const collectedPaise = summary?.collectedPaise ?? 0;
-  if (
-    booking.depositPaise > 0 &&
-    collectedPaise === 0 &&
-    booking.depositDuePaise === 0 &&
-    !invoice?.isSettled
-  ) {
-    mismatchReason =
-      mismatchReason ??
-      'Required deposit set but wallet shows zero collected — record collection or rebuild wallet.';
+    let mismatchReason: string | null = walletCheck.reason;
+    const collectedPaise = coerceNonNegativePaise(summary?.collectedPaise ?? 0);
+    const requiredPaise = coerceNonNegativePaise(booking.depositPaise);
+    if (
+      requiredPaise > 0 &&
+      collectedPaise === 0 &&
+      coerceNonNegativePaise(booking.depositDuePaise) === 0 &&
+      !invoice?.isSettled
+    ) {
+      mismatchReason =
+        mismatchReason ??
+        'Required deposit set but wallet shows zero collected — record collection or rebuild wallet.';
+    }
+
+    return viewFromParts({
+      bookingId,
+      customerId: booking.customerId,
+      booking,
+      summary,
+      invoiceStatus: invoice?.displayStatus ?? null,
+      walletCheck,
+      mismatchReason,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? err.stack : undefined;
+    console.error('[deposit-ops] getUnifiedDepositView failed', {
+      bookingId,
+      message,
+      stack,
+    });
+    throw err;
   }
-
-  return viewFromParts({
-    bookingId,
-    customerId: booking.customerId,
-    booking,
-    summary,
-    invoiceStatus: invoice?.displayStatus ?? null,
-    walletCheck,
-    mismatchReason,
-  });
 }
 
 function expectedAfterRebuild(
@@ -200,7 +243,7 @@ export async function previewRebuildDepositWallet(
   return {
     action: 'rebuild',
     current,
-    expected: expectedAfterRebuild(current, booking, summary),
+    expected: sanitizeUnifiedDepositView(expectedAfterRebuild(current, booking, summary)),
     warnings,
     willModifyLedger: false,
     removesFromWalletPaise: 0,
@@ -233,7 +276,7 @@ export async function previewCancelDepositInvoice(
   return {
     action: 'cancel',
     current,
-    expected: expectedAfterCancel(current),
+    expected: sanitizeUnifiedDepositView(expectedAfterCancel(current)),
     warnings,
     willModifyLedger: current.refundablePaise > 0,
     removesFromWalletPaise: current.refundablePaise,
@@ -252,6 +295,12 @@ export async function rebuildDepositWallet(input: {
   | { ok: true; collectedPaise: number; refundablePaise: number; depositDuePaise: number }
   | { ok: false; error: string }
 > {
+  console.info('[deposit-ops] rebuildDepositWallet start', {
+    bookingId: input.bookingId,
+    customerId: input.customerId,
+    adminId: input.adminId,
+  });
+
   const [booking] = await db
     .select({
       depositPaise: bookings.depositPaise,
@@ -284,6 +333,19 @@ export async function rebuildDepositWallet(input: {
     .where(eq(bookings.id, input.bookingId))
     .limit(1);
 
+  const result = {
+    ok: true as const,
+    collectedPaise: coerceNonNegativePaise(summary.collectedPaise),
+    refundablePaise: coerceNonNegativePaise(summary.refundableBalancePaise),
+    depositDuePaise: coerceNonNegativePaise(after?.depositDuePaise ?? booking.depositDuePaise),
+  };
+
+  console.info('[deposit-ops] rebuildDepositWallet ok', {
+    bookingId: input.bookingId,
+    customerId: input.customerId,
+    ...result,
+  });
+
   await db.insert(auditLog).values({
     actorType: 'admin',
     actorId: input.adminId,
@@ -302,12 +364,7 @@ export async function rebuildDepositWallet(input: {
     },
   });
 
-  return {
-    ok: true,
-    collectedPaise: summary.collectedPaise,
-    refundablePaise: summary.refundableBalancePaise,
-    depositDuePaise: after?.depositDuePaise ?? booking.depositDuePaise,
-  };
+  return result;
 }
 
 /** Cancel deposit obligation — zeros required deposit and clears refundable wallet balance. */
@@ -392,6 +449,23 @@ export async function updateDepositSummaryAdmin(input: {
   collectedPaise?: number;
   reason: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
+  const requiredCheck = validatePaiseInput('Required deposit', input.requiredPaise);
+  if (!requiredCheck.ok) return requiredCheck;
+  const collectedCheck = validatePaiseInput('Collected deposit', input.collectedPaise);
+  if (!collectedCheck.ok) return collectedCheck;
+
+  const requiredPaise = requiredCheck.paise;
+  const collectedPaise = collectedCheck.paise;
+
+  console.info('[deposit-ops] updateDepositSummaryAdmin start', {
+    bookingId: input.bookingId,
+    customerId: input.customerId,
+    adminId: input.adminId,
+    requiredPaise,
+    collectedPaise,
+    reason: input.reason,
+  });
+
   const [booking] = await db
     .select({
       depositPaise: bookings.depositPaise,
@@ -402,24 +476,43 @@ export async function updateDepositSummaryAdmin(input: {
     .limit(1);
   if (!booking) return { ok: false, error: 'Booking not found.' };
 
+  const priorRequired = coerceNonNegativePaise(booking.depositPaise);
+  const priorTotal = coerceNonNegativePaise(booking.totalPaise);
+
   // Ledger first — never mutate required deposit until collected adjustment succeeds.
-  if (input.collectedPaise != null && input.collectedPaise >= 0) {
+  if (collectedPaise != null) {
     const adjusted = await adjustDepositCollectedBalance({
       bookingId: input.bookingId,
       customerId: input.customerId,
-      targetCollectedPaise: input.collectedPaise,
+      targetCollectedPaise: collectedPaise,
       reason: input.reason,
       createdByAdminId: input.adminId,
     });
-    if (!adjusted.ok) return { ok: false, error: adjusted.error };
+    if (!adjusted.ok) {
+      console.error('[deposit-ops] updateDepositSummaryAdmin ledger adjust failed', {
+        bookingId: input.bookingId,
+        customerId: input.customerId,
+        collectedPaise,
+        error: adjusted.error,
+      });
+      return { ok: false, error: adjusted.error };
+    }
   }
 
-  if (input.requiredPaise != null && input.requiredPaise >= 0) {
+  if (requiredPaise != null) {
+    const newTotalPaise = priorTotal - priorRequired + requiredPaise;
+    if (!Number.isFinite(newTotalPaise) || newTotalPaise < 0) {
+      return {
+        ok: false,
+        error: 'Deposit correction would produce an invalid booking total.',
+      };
+    }
+
     await db
       .update(bookings)
       .set({
-        depositPaise: input.requiredPaise,
-        totalPaise: booking.totalPaise - booking.depositPaise + input.requiredPaise,
+        depositPaise: requiredPaise,
+        totalPaise: newTotalPaise,
         updatedAt: new Date(),
       })
       .where(eq(bookings.id, input.bookingId));
@@ -434,10 +527,19 @@ export async function updateDepositSummaryAdmin(input: {
     entityId: input.bookingId,
     action: 'deposit_summary_updated',
     diff: {
-      requiredPaise: input.requiredPaise,
-      collectedPaise: input.collectedPaise,
+      priorRequiredPaise: priorRequired,
+      priorTotalPaise: priorTotal,
+      requiredPaise,
+      collectedPaise,
       reason: input.reason,
     },
+  });
+
+  console.info('[deposit-ops] updateDepositSummaryAdmin ok', {
+    bookingId: input.bookingId,
+    customerId: input.customerId,
+    requiredPaise,
+    collectedPaise,
   });
 
   return { ok: true };

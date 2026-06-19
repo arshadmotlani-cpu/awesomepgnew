@@ -15,8 +15,10 @@ import {
   previewRebuildDepositWallet,
   rebuildDepositWallet,
   updateDepositSummaryAdmin,
+  getUnifiedDepositView,
   type DepositWalletPreview,
 } from '@/src/services/depositOperations';
+import { getDepositSummaryForBooking } from '@/src/services/deposits';
 
 export type DepositWalletActionState =
   | { status: 'idle' }
@@ -92,6 +94,44 @@ async function logDepositWalletFailure(input: {
   }
 }
 
+function parseInrFieldToPaise(raw: string, label: string): number | undefined | { error: string } {
+  const trimmed = raw.trim();
+  if (trimmed === '') return undefined;
+  const inr = Number(trimmed);
+  if (!Number.isFinite(inr)) {
+    return { error: `${label} must be a valid number.` };
+  }
+  if (inr < 0) {
+    return { error: `${label} cannot be negative.` };
+  }
+  return Math.round(inr * 100);
+}
+
+async function verifyDepositReload(bookingId: string, customerId: string) {
+  try {
+    const [summary, view] = await Promise.all([
+      getDepositSummaryForBooking(bookingId),
+      getUnifiedDepositView(bookingId),
+    ]);
+    console.info('[deposit-wallet] post-save reload ok', {
+      bookingId,
+      customerId,
+      collectedPaise: summary?.collectedPaise,
+      requiredPaise: view?.requiredPaise,
+      refundablePaise: view?.refundablePaise,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? err.stack : undefined;
+    console.error('[deposit-wallet] post-save reload failed', {
+      bookingId,
+      customerId,
+      message,
+      stack,
+    });
+  }
+}
+
 function revalidateDepositViews(bookingId: string) {
   revalidateFinancialViews();
   revalidatePath(`/admin/deposits/${bookingId}`);
@@ -148,20 +188,31 @@ export async function editDepositSummaryAction(
     const reason = String(formData.get('reason') ?? '').trim();
     if (!reason) return { status: 'error', message: 'Reason is required.' };
 
-    const requiredRaw = String(formData.get('requiredInr') ?? '').trim();
-    const collectedRaw = String(formData.get('collectedInr') ?? '').trim();
-    const requiredPaise =
-      requiredRaw !== '' && Number.isFinite(Number(requiredRaw))
-        ? Math.round(Number(requiredRaw) * 100)
-        : undefined;
-    const collectedPaise =
-      collectedRaw !== '' && Number.isFinite(Number(collectedRaw))
-        ? Math.round(Number(collectedRaw) * 100)
-        : undefined;
+    const requiredRaw = String(formData.get('requiredInr') ?? '');
+    const collectedRaw = String(formData.get('collectedInr') ?? '');
+    const requiredParsed = parseInrFieldToPaise(requiredRaw, 'Required deposit');
+    if (typeof requiredParsed === 'object' && 'error' in requiredParsed) {
+      return { status: 'error', message: requiredParsed.error };
+    }
+    const collectedParsed = parseInrFieldToPaise(collectedRaw, 'Collected deposit');
+    if (typeof collectedParsed === 'object' && 'error' in collectedParsed) {
+      return { status: 'error', message: collectedParsed.error };
+    }
+    const requiredPaise = requiredParsed;
+    const collectedPaise = collectedParsed;
 
     if (requiredPaise == null && collectedPaise == null) {
       return { status: 'error', message: 'Enter required and/or collected amount to update.' };
     }
+
+    console.info('[deposit-wallet] edit_summary start', {
+      bookingId,
+      bookingCode,
+      customerId,
+      requiredPaise,
+      collectedPaise,
+      reason,
+    });
 
     const result = await updateDepositSummaryAdmin({
       bookingId,
@@ -182,6 +233,7 @@ export async function editDepositSummaryAction(
     });
 
     revalidateDepositViews(bookingId);
+    await verifyDepositReload(bookingId, customerId);
     return { status: 'ok', message: 'Deposit summary updated everywhere.' };
   } catch (err) {
     if (isRedirectError(err)) throw err;
