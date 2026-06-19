@@ -1,5 +1,7 @@
 export const CUSTOMER_SESSION_COOKIE = 'apg_customer_session';
 export const ADMIN_SESSION_COOKIE = 'apg_admin_session';
+/** Temporary signup state cookie — user row is created only after password is set. */
+export const SIGNUP_SESSION_COOKIE = 'apg_signup_session';
 
 export const PUBLIC_PATHS = new Set([
   '/',
@@ -11,6 +13,8 @@ export const PUBLIC_PATHS = new Set([
   '/api/availability',
   '/api/auth/customer/email/send',
   '/api/auth/customer/email/verify',
+  '/api/auth/customer/signup/status',
+  '/api/auth/customer/set-password',
   '/api/auth/admin/login',
   '/api/auth/admin/forgot-password',
   '/api/auth/admin/reset-password',

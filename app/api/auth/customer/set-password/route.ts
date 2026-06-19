@@ -1,26 +1,18 @@
-import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
-import { db } from '@/src/db/client';
-import { customers } from '@/src/db/schema';
-import { setCustomerPassword } from '@/src/lib/auth/customer';
+import {
+  commitSignupCustomer,
+  findCustomerByEmail,
+  isAccountComplete,
+  setCustomerPassword,
+} from '@/src/lib/auth/customer';
 import { validateCustomerPassword } from '@/src/lib/auth/password';
-import { getCustomerSession } from '@/src/lib/auth/session';
+import {
+  completeSignupSession,
+  readSignupSessionFromRequest,
+} from '@/src/lib/auth/signupSession';
+import { createCustomerSession, getCustomerSession } from '@/src/lib/auth/session';
 
 export async function POST(request: Request) {
-  const session = await getCustomerSession();
-  if (!session) {
-    return NextResponse.json({ ok: false, message: 'Sign in required.' }, { status: 401 });
-  }
-
-  if (!session.mustSetPassword) {
-    return NextResponse.json({
-      ok: true,
-      email: session.email,
-      mustSetPassword: false,
-      alreadySet: true,
-    });
-  }
-
   let body: { password?: string; confirmPassword?: string };
   try {
     body = (await request.json()) as typeof body;
@@ -45,30 +37,103 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, message: policyError }, { status: 400 });
   }
 
-  try {
-    await setCustomerPassword(session.customerId, password);
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null;
+  const userAgent = request.headers.get('user-agent');
 
-    const [customer] = await db
-      .select({ email: customers.email })
-      .from(customers)
-      .where(eq(customers.id, session.customerId))
-      .limit(1);
+  const customerSession = await getCustomerSession();
+  const signupSession = await readSignupSessionFromRequest();
+
+  try {
+    // Legacy incomplete account: customer session, no password yet.
+    if (customerSession?.mustSetPassword && !signupSession?.profileSubmitted) {
+      const existing = await findCustomerByEmail(customerSession.email);
+      if (existing && isAccountComplete(existing)) {
+        return NextResponse.json({
+          ok: true,
+          email: existing.email,
+          mustSetPassword: false,
+          alreadySet: true,
+        });
+      }
+
+      await setCustomerPassword(customerSession.customerId, password);
+      return NextResponse.json({
+        ok: true,
+        email: customerSession.email,
+        mustSetPassword: false,
+      });
+    }
+
+    // New signup: commit user ONLY at password step.
+    if (!signupSession) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: 'Signup session expired. Please verify your email and try again.',
+          needsSignup: true,
+        },
+        { status: 401 },
+      );
+    }
+
+    if (!signupSession.otpVerified || !signupSession.profileSubmitted) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: 'Complete your profile before creating a password.',
+          needsProfile: !signupSession.profileSubmitted,
+        },
+        { status: 400 },
+      );
+    }
+
+    const existingComplete = await findCustomerByEmail(signupSession.email);
+    if (existingComplete && isAccountComplete(existingComplete)) {
+      await completeSignupSession(signupSession.id);
+      await createCustomerSession({
+        customerId: existingComplete.id,
+        ip,
+        userAgent,
+      });
+      return NextResponse.json({
+        ok: true,
+        email: existingComplete.email,
+        mustSetPassword: false,
+        alreadySet: true,
+      });
+    }
+
+    const customer = await commitSignupCustomer({
+      email: signupSession.email,
+      fullName: signupSession.fullName ?? '',
+      phone: signupSession.phone ?? '',
+      password,
+    });
+
+    await completeSignupSession(signupSession.id);
+    await createCustomerSession({
+      customerId: customer.id,
+      ip,
+      userAgent,
+    });
 
     return NextResponse.json({
       ok: true,
-      email: customer?.email ?? session.email,
+      email: customer.email,
       mustSetPassword: false,
     });
   } catch (err) {
     console.error('[auth/signup/set-password] failed', {
-      customerId: session.customerId,
-      email: session.email,
+      email: signupSession?.email ?? customerSession?.email,
       reason: err instanceof Error ? err.message : String(err),
     });
     return NextResponse.json(
       {
         ok: false,
-        message: 'Could not save your password. Please try again.',
+        message:
+          err instanceof Error && err.message
+            ? err.message
+            : 'Could not save your password. Please try again.',
         retryable: true,
       },
       { status: 500 },

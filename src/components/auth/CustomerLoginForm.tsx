@@ -136,13 +136,13 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
       const data = (await res.json()) as {
         ok: boolean;
         message?: string;
-        needsPasswordSetup?: boolean;
+        needsCompleteSignup?: boolean;
         mustSetPassword?: boolean;
       };
       if (!res.ok || !data.ok) {
-        if (data.needsPasswordSetup) {
+        if (data.needsCompleteSignup) {
           setOtpPurpose('signup');
-          setError('Verify your email with a one-time code to set a password.');
+          setError('Complete your signup — verify your email, then create a password.');
           await sendCode('signup');
           return;
         }
@@ -251,7 +251,9 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
         emailVerified?: boolean;
         alreadyVerified?: boolean;
         needsProfileComplete?: boolean;
+        needsPassword?: boolean;
         mustSetPassword?: boolean;
+        legacyIncomplete?: boolean;
         needsNewCode?: boolean;
         retryable?: boolean;
         redirect?: string;
@@ -262,6 +264,12 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
         setEmailVerified(true);
         setStep('profile');
         setError(null);
+        return;
+      }
+
+      if (data.needsPassword && includeProfile) {
+        setProfilePhase('success');
+        redirectAfterSignup(`/account/set-password?next=${encodeURIComponent(next)}`);
         return;
       }
 
@@ -289,7 +297,7 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
 
       if (includeProfile) {
         setProfilePhase('success');
-        if (data.mustSetPassword) {
+        if (data.mustSetPassword || data.needsPassword) {
           redirectAfterSignup(`/account/set-password?next=${encodeURIComponent(next)}`);
           return;
         }
@@ -343,8 +351,19 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
           confirmPassword,
         }),
       });
-      const data = (await res.json()) as { ok: boolean; message?: string };
+      const data = (await res.json()) as {
+        ok: boolean;
+        message?: string;
+        needsCompleteSignup?: boolean;
+      };
       if (!res.ok || !data.ok) {
+        if (data.needsCompleteSignup) {
+          setOtpPurpose('signup');
+          setStep('otp');
+          setError('Complete your signup — verify your email, then create a password.');
+          await sendCode('signup');
+          return;
+        }
         setError(data.message ?? 'Could not reset password.');
         return;
       }
@@ -421,9 +440,9 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
           : 'Verify & continue';
   const profileButtonLabel =
     profilePhase === 'submitting'
-      ? 'Creating account…'
+      ? 'Saving profile…'
       : profilePhase === 'success'
-        ? 'Account created ✓'
+        ? 'Profile saved ✓'
         : profilePhase === 'redirecting'
           ? 'Redirecting…'
           : 'Continue';
@@ -606,8 +625,8 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
           {profilePhase === 'success' || profilePhase === 'redirecting' ? (
             <p className={successClass}>
               {profilePhase === 'redirecting'
-                ? 'Account created. Taking you to create your password…'
-                : 'Account created ✓'}
+                ? 'Profile saved. Taking you to create your password…'
+                : 'Profile saved ✓'}
             </p>
           ) : null}
           <button

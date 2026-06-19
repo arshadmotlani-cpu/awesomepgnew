@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { findCustomerByEmail } from '@/src/lib/auth/customer';
+import { findCustomerByEmail, isAccountComplete } from '@/src/lib/auth/customer';
 import { sendEmailOtp } from '@/src/lib/auth/otp';
 
 export type OtpPurpose = 'signup' | 'forgot_password';
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   const purpose: OtpPurpose = body.purpose === 'forgot_password' ? 'forgot_password' : 'signup';
   const customer = await findCustomerByEmail(body.email ?? '');
 
-  if (purpose === 'signup' && customer?.passwordHash) {
+  if (purpose === 'signup' && customer && isAccountComplete(customer)) {
     return NextResponse.json(
       {
         ok: false,

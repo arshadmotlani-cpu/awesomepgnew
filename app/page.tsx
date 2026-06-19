@@ -2,7 +2,8 @@ import { VisitorAnalyticsTrackerBoundary } from '@/src/components/analytics/Visi
 import { SiteFooter } from '@/src/components/customer/SiteFooter';
 import { SiteHeader } from '@/src/components/customer/SiteHeader';
 import { WhatsAppSupportButton } from '@/src/components/customer/WhatsAppSupportButton';
-import { LandingPage } from '@/src/components/customer/marketing/LandingPage';
+import { SpatialLandingPage } from '@/src/components/world/SpatialLandingPage';
+import { WorldShell } from '@/src/components/world';
 import { listPublicPgs } from '@/src/db/queries/customer';
 
 export const metadata = {
@@ -23,11 +24,13 @@ export default async function Home() {
     <div className="apg-customer-shell flex min-h-screen flex-col bg-apg-charcoal">
       <SiteHeader />
       <main className="flex-1">
-        <LandingPage
-          availableBeds={availableBeds}
-          totalBeds={totalBeds}
-          pgCount={pgs.length}
-        />
+        <WorldShell>
+          <SpatialLandingPage
+            availableBeds={availableBeds}
+            totalBeds={totalBeds}
+            pgCount={pgs.length}
+          />
+        </WorldShell>
       </main>
       <SiteFooter />
       <WhatsAppSupportButton />

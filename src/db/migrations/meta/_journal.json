@@ -414,6 +414,13 @@
       "when": 1787900000000,
       "tag": "0061_checkout_electricity_methods",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1788000000000,
+      "tag": "0062_signup_sessions",
+      "breakpoints": true
     }
   ]
 }

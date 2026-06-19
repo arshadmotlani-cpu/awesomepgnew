@@ -1,8 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { MotionPgGrid, MotionPgGridItem } from '@/src/components/customer/MotionReveal';
-import { PgCard, type PgCardData } from '@/src/components/customer/PgCard';
+import { SpatialPgGrid } from '@/src/components/world/SpatialPgExplorer';
+import type { PgCardData } from '@/src/components/customer/PgCard';
 
 export function PgBrowseList({
   pgs,
@@ -43,13 +43,7 @@ export function PgBrowseList({
           No PGs match &ldquo;{query}&rdquo;. Try a different city or name.
         </p>
       ) : (
-        <MotionPgGrid>
-          {filtered.map((pg) => (
-            <MotionPgGridItem key={pg.id}>
-              <PgCard pg={pg} uploadScreenshot={uploadScreenshot} />
-            </MotionPgGridItem>
-          ))}
-        </MotionPgGrid>
+        <SpatialPgGrid pgs={filtered} uploadScreenshot={uploadScreenshot} />
       )}
     </div>
   );

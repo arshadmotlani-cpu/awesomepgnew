@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { ResidentControlShell } from '@/src/components/world/ResidentControlShell';
 import {
   RESIDENT_BOTTOM_NAV,
   type ResidentTab,
@@ -14,7 +15,8 @@ type Props = {
 
 export function ResidentHubShell({ activeTab, children }: Props) {
   return (
-    <div className="apg-resident-hub-main">
+    <ResidentControlShell>
+      <div className="apg-resident-hub-main">
       <nav
         className="mb-4 hidden flex-wrap gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1 md:flex"
         aria-label="Resident hub"
@@ -72,7 +74,8 @@ export function ResidentHubShell({ activeTab, children }: Props) {
           ))}
         </ul>
       </nav>
-    </div>
+      </div>
+    </ResidentControlShell>
   );
 }
 

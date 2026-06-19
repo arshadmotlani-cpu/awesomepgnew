@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, useCallback } from 'react';
+import { BedDnaGrid, BedDnaRipple } from '@/src/components/world/BedDnaGrid';
 import { dispatchRoachieReminder } from '@/src/lib/cockroach/roachieReminders';
 import { displayMonthlyDepositPaise } from '@/src/lib/customerDepositDisplay';
 import { BookingEducationBar } from './BookingEducationBar';
@@ -57,6 +58,7 @@ export function BedSelector({ beds, theme = 'light', roomLabel = 'This room' }: 
   }>({});
   const [reservePanelBed, setReservePanelBed] = useState<BedSelectorBed | null>(null);
   const [interestOverrides, setInterestOverrides] = useState<Record<string, number>>({});
+  const [rippleBedId, setRippleBedId] = useState<string | null>(null);
 
   const mergeBed = useCallback(
     (bed: BedSelectorBed): BedSelectorBed => {
@@ -95,24 +97,29 @@ export function BedSelector({ beds, theme = 'light', roomLabel = 'This room' }: 
   return (
     <>
       <div className="space-y-4">
-        <div
-          className="grid grid-cols-[repeat(auto-fill,minmax(7rem,1fr))] gap-3"
-          data-roachie-focus="bed-pick"
-          data-roachie-tour="bed-grid"
-        >
+        <BedDnaGrid>
           {beds.map((bed) => {
             const tourRole = tourRoles.get(bed.bedId) ?? null;
             return (
-              <div key={bed.bedId} {...(tourRole ? { 'data-roachie-tour': tourRole } : {})}>
+              <div
+                key={bed.bedId}
+                className="relative"
+                {...(tourRole ? { 'data-roachie-tour': tourRole } : {})}
+              >
                 <CustomerBedTile
                   bed={mergeBed(bed)}
                   isSelected={selected.has(bed.bedId)}
-                  onSelect={() => setDetailBedId(bed.bedId)}
+                  onSelect={() => {
+                    setDetailBedId(bed.bedId);
+                    setRippleBedId(bed.bedId);
+                    window.setTimeout(() => setRippleBedId(null), 650);
+                  }}
                 />
+                <BedDnaRipple active={rippleBedId === bed.bedId} />
               </div>
             );
           })}
-        </div>
+        </BedDnaGrid>
 
         <RoachieTourDemoBeds
           showNotice={![...tourRoles.values()].includes('bed-notice')}

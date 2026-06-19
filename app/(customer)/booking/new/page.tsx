@@ -3,6 +3,7 @@ import {
   BookingCartForm,
   type CartLineItem,
 } from '@/src/components/customer/BookingCartForm';
+import { BookingCheckoutWorld } from '@/src/components/world/BookingCheckoutWorld';
 import { BookingNewHeader } from '@/src/components/customer/checkout/BookingNewHeader';
 import { getBedsForCart } from '@/src/db/queries/customer';
 import { normalizeBrowseStay } from '@/src/lib/dateDefaults';
@@ -189,28 +190,28 @@ export default async function NewBookingPage(
   const checkoutTiming = start > todayString() ? 'future_start' : 'available_now';
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
-      <nav className="text-xs text-zinc-500">
-        <Link href="/pgs" className="hover:text-indigo-600">
+    <BookingCheckoutWorld>
+      <nav className="text-xs text-apg-muted">
+        <Link href="/pgs" className="hover:text-apg-cyan">
           PGs
         </Link>{' '}
         ·{' '}
         <Link
           href={`/pgs/${pg.pgSlug}?start=${start}&end=${end}&mode=${mode}`}
-          className="hover:text-indigo-600"
+          className="hover:text-apg-cyan"
         >
           {pg.pgName}
         </Link>{' '}
-        · <span className="text-zinc-700">Confirm booking</span>
+        · <span className="text-apg-silver">Confirm booking</span>
       </nav>
 
       <header className="mt-3 mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 sm:text-3xl">
+        <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
           Confirm your booking
         </h1>
-        <p className="mt-1 text-sm text-zinc-500">
+        <p className="mt-1 text-sm text-apg-silver">
           Review the {bedIds.length} bed{bedIds.length === 1 ? '' : 's'} you
-          selected at <span className="font-medium text-zinc-700">{pg.pgName}</span>,
+          selected at <span className="font-medium text-white">{pg.pgName}</span>,
           enter your details, and continue to payment.
         </p>
       </header>
@@ -218,14 +219,14 @@ export default async function NewBookingPage(
       <BookingNewHeader />
 
       {!profileComplete ? (
-        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <div className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
           <p className="font-semibold">Complete your profile before booking.</p>
           <p className="mt-1">
             We need your full name, email, and mobile number.
           </p>
           <Link
             href={profileNextUrl}
-            className="mt-2 inline-block font-semibold text-indigo-700 hover:underline"
+            className="mt-2 inline-block font-semibold text-apg-cyan hover:underline"
           >
             Go to profile →
           </Link>
@@ -233,7 +234,7 @@ export default async function NewBookingPage(
       ) : null}
 
       {quoteError ? (
-        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+        <div className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
           <p className="font-semibold">Couldn&apos;t compute a price quote.</p>
           <p className="mt-1">{quoteError}</p>
         </div>
@@ -262,28 +263,28 @@ export default async function NewBookingPage(
       />
 
       {/* Selected beds quick-reference */}
-      <section className="mt-8 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
-        <h2 className="text-sm font-semibold text-zinc-900">Selected beds</h2>
+      <section className="mt-8 apg-glass rounded-xl p-5">
+        <h2 className="text-sm font-semibold text-white">Selected beds</h2>
         <ul className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {cartBeds.map((b) => (
             <li
               key={b.bedId}
-              className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs"
+              className="rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs"
             >
-              <div className="font-semibold text-zinc-900">{b.bedCode}</div>
-              <div className="text-zinc-500">
+              <div className="font-semibold text-white">{b.bedCode}</div>
+              <div className="text-apg-muted">
                 Room {b.roomNumber} · {b.floorLabel}
               </div>
-              <div className="text-zinc-500">{b.roomType}</div>
+              <div className="text-apg-muted">{b.roomType}</div>
             </li>
           ))}
         </ul>
-        <p className="mt-3 text-[11px] text-zinc-500">
+        <p className="mt-3 text-[11px] text-apg-muted">
           Subtotal computed at the {mode.replace('_', '-')} rate. Deposit is fully
           refundable on check-out. All amounts are in Indian Rupees (₹).
         </p>
       </section>
-    </div>
+    </BookingCheckoutWorld>
   );
 }
 

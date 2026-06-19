@@ -25,12 +25,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, message: 'Invalid email or password.' }, { status: 401 });
   }
 
-  if (!customer.passwordHash) {
+  if (!customer.passwordHash || customer.mustSetPassword) {
     return NextResponse.json(
       {
         ok: false,
-        needsPasswordSetup: true,
-        message: 'Verify your email once to set a password for this account.',
+        needsCompleteSignup: true,
+        message:
+          'This account is not finished yet. Verify your email and create a password to complete signup.',
       },
       { status: 400 },
     );

@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { normaliseEmail } from '@/src/lib/email/address';
 import { env } from '@/src/lib/env';
 
+/** @deprecated Use SignupSession model — kept for legacy cookie cleanup only. */
 export const SIGNUP_VERIFICATION_COOKIE = 'apg_signup_verified';
 
 export type SignupVerification = {

@@ -879,6 +879,261 @@ body {
   }
 }
 
+/* ── World engine — spatial motion & depth (presentation only) ── */
+
+.world-shell {
+  position: relative;
+  isolation: isolate;
+}
+
+.world-layer {
+  position: relative;
+  will-change: transform;
+}
+
+.world-depth-0 {
+  transform: translateZ(0);
+}
+
+.world-depth-1 {
+  transform: translateZ(20px);
+}
+
+.world-depth-2 {
+  transform: translateZ(40px);
+}
+
+.world-section {
+  position: relative;
+}
+
+.world-entry {
+  perspective: 1200px;
+}
+
+.world-hero-glow {
+  background: radial-gradient(
+    circle,
+    rgba(255, 90, 31, 0.35) 0%,
+    rgba(34, 211, 238, 0.15) 45%,
+    transparent 70%
+  );
+}
+
+.world-float-card {
+  transition:
+    border-color var(--apg-motion-standard) ease,
+    box-shadow var(--apg-motion-standard) ease,
+    transform var(--apg-motion-standard) var(--apg-ease-reveal);
+}
+
+.world-float-card:hover {
+  box-shadow:
+    0 20px 56px rgba(0, 0, 0, 0.5),
+    0 0 32px rgba(34, 211, 238, 0.08);
+}
+
+.world-cta {
+  transform: translateZ(0);
+}
+
+.apg-pulse-live {
+  animation: apg-pulse-live 2s ease-in-out infinite;
+}
+
+@keyframes apg-pulse-live {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(255, 90, 31, 0.5);
+  }
+  50% {
+    opacity: 0.75;
+    box-shadow: 0 0 0 6px rgba(255, 90, 31, 0);
+  }
+}
+
+/* Ambient depth field */
+.world-ambient {
+  contain: strict;
+}
+
+.world-ambient-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.35;
+}
+
+.world-ambient-orb-a {
+  top: -10%;
+  left: -5%;
+  width: 55vw;
+  height: 55vw;
+  max-width: 520px;
+  max-height: 520px;
+  background: rgba(255, 90, 31, 0.22);
+  animation: world-orb-drift-a 28s ease-in-out infinite;
+}
+
+.world-ambient-orb-b {
+  top: 30%;
+  right: -8%;
+  width: 45vw;
+  height: 45vw;
+  max-width: 420px;
+  max-height: 420px;
+  background: rgba(34, 211, 238, 0.14);
+  animation: world-orb-drift-b 34s ease-in-out infinite;
+}
+
+.world-ambient-orb-c {
+  bottom: -5%;
+  left: 35%;
+  width: 40vw;
+  height: 40vw;
+  max-width: 380px;
+  max-height: 380px;
+  background: rgba(167, 139, 250, 0.12);
+  animation: world-orb-drift-c 40s ease-in-out infinite;
+}
+
+@keyframes world-orb-drift-a {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(3%, 4%) scale(1.06);
+  }
+}
+
+@keyframes world-orb-drift-b {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(-4%, 2%) scale(1.04);
+  }
+}
+
+@keyframes world-orb-drift-c {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(2%, -3%) scale(1.05);
+  }
+}
+
+.world-ambient-particles {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+  opacity: 0.5;
+  animation: world-particles-drift 60s linear infinite;
+}
+
+@keyframes world-particles-drift {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 48px 48px;
+  }
+}
+
+/* PG floating city */
+.world-pg-grid {
+  perspective: 1000px;
+}
+
+.world-pg-block {
+  transform-style: preserve-3d;
+}
+
+/* Bed DNA grid */
+.world-bed-dna {
+  position: relative;
+}
+
+.world-bed-dna::before {
+  content: '';
+  pointer-events: none;
+  position: absolute;
+  inset: -8px;
+  border-radius: 1rem;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(34, 211, 238, 0.06) 0%,
+    transparent 70%
+  );
+  animation: world-dna-breathe 5s ease-in-out infinite;
+}
+
+@keyframes world-dna-breathe {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.75;
+    transform: scale(1.01);
+  }
+}
+
+/* Booking descent tunnel */
+.world-booking-tunnel {
+  padding-top: 0.25rem;
+}
+
+.world-booking-depth {
+  border-radius: 9999px;
+}
+
+.world-booking-convergence {
+  position: relative;
+}
+
+/* Resident control core */
+.world-control-core {
+  min-height: 100%;
+}
+
+.world-control-module {
+  border: 1px solid rgba(176, 183, 195, 0.14);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+}
+
+@media (max-width: 640px) {
+  .world-depth-1,
+  .world-depth-2 {
+    transform: none;
+  }
+
+  .world-pg-block:hover {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .world-ambient,
+  .world-ambient-orb,
+  .world-ambient-particles,
+  .world-bed-dna::before,
+  .apg-pulse-live {
+    animation: none !important;
+  }
+
+  .world-float-card {
+    transition: none;
+  }
+}
+
 @media (max-width: 640px) {
   .roachie-target-highlight {
     scroll-margin-block: 10vh;

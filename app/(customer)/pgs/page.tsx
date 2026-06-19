@@ -2,7 +2,7 @@ import { uploadPaymentScreenshotAction } from '@/app/(admin)/admin/pgs/payment-a
 import { listPublicPgs, type CustomerPgListRow } from '@/src/db/queries/customer';
 import { isPaymentScreenshotUploadAvailable } from '@/src/lib/payments/screenshotUpload';
 import { EmptyPgList } from '@/src/components/customer/EmptyPgList';
-import { MotionReveal } from '@/src/components/customer/MotionReveal';
+import { SpatialPgHeader } from '@/src/components/world/SpatialPgExplorer';
 import { PgBrowseList } from '@/src/components/customer/PgBrowseList';
 import { ElectricityMeterNotice } from '@/src/components/customer/ElectricityMeterNotice';
 import { logServerRequest } from '@/src/lib/monitoring/logServerRequest';
@@ -69,8 +69,8 @@ export default async function PgListPage() {
           <div className="mb-6">
             <ElectricityMeterNotice />
           </div>
-          <MotionReveal>
-            <header className="mb-8">
+          <SpatialPgHeader>
+            <header>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-apg-cyan">
                 Discover
               </p>
@@ -83,7 +83,7 @@ export default async function PgListPage() {
                 each property.
               </p>
             </header>
-          </MotionReveal>
+          </SpatialPgHeader>
 
           {pgs.length === 0 ? (
             <EmptyPgList />

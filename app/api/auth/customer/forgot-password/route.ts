@@ -43,6 +43,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, message: 'No account found for this email.' }, { status: 400 });
   }
 
+  if (!customer.passwordHash || customer.mustSetPassword) {
+    return NextResponse.json(
+      {
+        ok: false,
+        needsCompleteSignup: true,
+        message: 'Complete your signup by creating a password first.',
+      },
+      { status: 400 },
+    );
+  }
+
   const verified = await verifyEmailOtp(body.email ?? '', body.code ?? '', otpCtx, { consume: true });
   if (!verified.ok) {
     return NextResponse.json(verified, { status: 400 });

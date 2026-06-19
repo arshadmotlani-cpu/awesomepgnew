@@ -31,6 +31,7 @@ export * from './authSessions';
 export * from './adminPasswordResetTokens';
 export * from './emailOtpChallenges';
 export * from './emailOtpAttemptLog';
+export * from './signupSessions';
 export * from './kycSubmissions';
 export * from './appLogs';
 export * from './systemHealth';

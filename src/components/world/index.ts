@@ -1,0 +1,13 @@
+export { WorldShell } from '@/src/components/world/WorldShell';
+export { WorldMotionProvider, useWorldScroll } from '@/src/components/world/WorldMotionProvider';
+export { useParallaxDepth } from '@/src/components/world/useParallaxDepth';
+export { WorldLayer } from '@/src/components/world/WorldLayer';
+export { WorldSection } from '@/src/components/world/WorldSection';
+export { BookingCheckoutWorld } from '@/src/components/world/BookingCheckoutWorld';
+export { SpatialLandingPage } from '@/src/components/world/SpatialLandingPage';
+export { SpatialPgGrid, SpatialPgHeader } from '@/src/components/world/SpatialPgExplorer';
+export { BedDnaGrid, BedDnaRipple } from '@/src/components/world/BedDnaGrid';
+export { BookingTunnel, BookingConvergence } from '@/src/components/world/BookingTunnel';
+export { ResidentControlShell, ResidentControlModule } from '@/src/components/world/ResidentControlShell';
+export { AmbientWorldLayer } from '@/src/components/world/AmbientWorldLayer';
+export * from '@/src/components/world/worldMotion';

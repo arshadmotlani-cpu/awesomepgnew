@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server';
 import {
   ADMIN_SESSION_COOKIE,
   CUSTOMER_SESSION_COOKIE,
+  SIGNUP_SESSION_COOKIE,
 } from '@/src/lib/auth/constants';
 
 function needsCustomerAuth(pathname: string): boolean {
@@ -39,7 +40,10 @@ export function middleware(request: NextRequest) {
 
   if (needsCustomerAuth(pathname)) {
     const token = request.cookies.get(CUSTOMER_SESSION_COOKIE)?.value;
-    if (!token) {
+    const signupSession = request.cookies.get(SIGNUP_SESSION_COOKIE)?.value;
+    const allowSignupPassword =
+      pathname === '/account/set-password' && Boolean(signupSession);
+    if (!token && !allowSignupPassword) {
       const login = new URL('/login', request.url);
       login.searchParams.set('next', `${pathname}${request.nextUrl.search}`);
       return NextResponse.redirect(login);

@@ -1,80 +1,29 @@
 import { NextResponse } from 'next/server';
 import {
-  createCustomerProfile,
   findCustomerByEmail,
   findCustomerByPhone,
+  isAccountComplete,
+  isIncompleteSignup,
 } from '@/src/lib/auth/customer';
-import {
-  consumeEmailOtpChallengeById,
-  getActiveEmailOtpChallenge,
-  verifyEmailOtp,
-} from '@/src/lib/auth/otp';
+import { verifyEmailOtp } from '@/src/lib/auth/otp';
 import { profileRedirectWithNext } from '@/src/lib/auth/safeNext';
 import {
   clearSignupVerificationCookie,
-  issueSignupVerificationCookie,
-  readSignupVerificationCookie,
   SIGNUP_SETUP_EXPIRED_MESSAGE,
 } from '@/src/lib/auth/signupVerification';
+import {
+  getActiveSignupSessionForEmail,
+  getSignupSessionById,
+  issueSignupSessionCookie,
+  markSignupOtpVerified,
+  readSignupSessionCookie,
+  signupSessionPublicState,
+  submitSignupProfile,
+} from '@/src/lib/auth/signupSession';
 import { createCustomerSession } from '@/src/lib/auth/session';
 import { normaliseEmail } from '@/src/lib/email/address';
 import { normaliseIndianPhone } from '@/src/lib/phone';
 import { isProfileComplete } from '@/src/services/profile';
-
-function isUniqueViolation(err: unknown): boolean {
-  const e = err as { code?: string; cause?: { code?: string } };
-  return e?.code === '23505' || e?.cause?.code === '23505';
-}
-
-function signupErrorMessage(err: unknown): string {
-  if (err instanceof Error && err.message) return err.message;
-  return 'We could not finish setting up your account. Please try again.';
-}
-
-async function finishNewSignupSession(args: {
-  customer: NonNullable<Awaited<ReturnType<typeof findCustomerByEmail>>>;
-  ip: string | null;
-  userAgent: string | null;
-}) {
-  await createCustomerSession({
-    customerId: args.customer.id,
-    ip: args.ip,
-    userAgent: args.userAgent,
-  });
-  await clearSignupVerificationCookie();
-  return NextResponse.json({
-    ok: true,
-    customerId: args.customer.id,
-    email: args.customer.email,
-    phone: args.customer.phone,
-    fullName: args.customer.fullName,
-    mustSetPassword: !args.customer.passwordHash || args.customer.mustSetPassword,
-    alreadyComplete: true,
-  });
-}
-
-async function createSignupCustomer(args: {
-  email: string;
-  fullName: string;
-  phone: string;
-}) {
-  try {
-    return await createCustomerProfile(args);
-  } catch (err) {
-    if (isUniqueViolation(err)) {
-      const byEmail = await findCustomerByEmail(args.email);
-      if (byEmail) return byEmail;
-
-      const byPhone = await findCustomerByPhone(args.phone);
-      if (byPhone) {
-        throw new Error(
-          'This mobile number is already linked to another account. Use a different number or sign in with that account.',
-        );
-      }
-    }
-    throw err;
-  }
-}
 
 export async function POST(request: Request) {
   let body: {
@@ -100,60 +49,87 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, message: 'Invalid email address.' }, { status: 400 });
   }
 
+  const fullName = (body.fullName ?? '').trim();
+  const phone = normaliseIndianPhone(body.phone ?? '');
+  const hasProfileFields = Boolean(fullName && phone);
+  const existingCustomer = await findCustomerByEmail(email);
+
   try {
-    const existingCustomer = await findCustomerByEmail(email);
-    const fullName = (body.fullName ?? '').trim();
-    const phone = normaliseIndianPhone(body.phone ?? '');
-    const hasProfileFields = Boolean(fullName && phone);
-    const isNewSignupOtpStep = !existingCustomer && !hasProfileFields;
-    const isNewSignupProfileStep = !existingCustomer && hasProfileFields;
-
-    if (isNewSignupOtpStep) {
-      const pendingVerification = await readSignupVerificationCookie();
-      if (pendingVerification?.email === email) {
-        return NextResponse.json(
-          {
-            ok: false,
-            needsProfile: true,
-            emailVerified: true,
-            email,
-            alreadyVerified: true,
-          },
-          { status: 200 },
-        );
-      }
-
+    // ── Existing complete account: verify OTP and sign in ──
+    if (existingCustomer && isAccountComplete(existingCustomer)) {
       const verified = await verifyEmailOtp(body.email ?? '', body.code ?? '', otpCtx, {
-        consume: false,
+        consume: true,
       });
       if (!verified.ok) {
         return NextResponse.json(verified, { status: 400 });
       }
 
-      const challenge = await getActiveEmailOtpChallenge(verified.email);
-      if (challenge) {
-        await issueSignupVerificationCookie(challenge.id, verified.email, challenge.expiresAt);
-      }
-      return NextResponse.json(
-        {
-          ok: false,
-          needsProfile: true,
-          emailVerified: true,
-          email: verified.email,
-        },
-        { status: 200 },
-      );
-    }
-
-    if (isNewSignupProfileStep) {
-      if (!fullName || fullName.length < 2) {
+      if (!isProfileComplete(existingCustomer)) {
+        await createCustomerSession({
+          customerId: existingCustomer.id,
+          ip,
+          userAgent,
+        });
         return NextResponse.json(
           {
             ok: false,
-            needsProfile: true,
-            email,
-            message: 'Enter your full name to continue.',
+            needsProfileComplete: true,
+            email: verified.email,
+            message: 'Complete your resident profile to continue.',
+            redirect: profileRedirectWithNext(body.next),
           },
+          { status: 400 },
+        );
+      }
+
+      await createCustomerSession({
+        customerId: existingCustomer.id,
+        ip,
+        userAgent,
+      });
+      await clearSignupVerificationCookie();
+
+      return NextResponse.json({
+        ok: true,
+        customerId: existingCustomer.id,
+        email: existingCustomer.email,
+        phone: existingCustomer.phone,
+        fullName: existingCustomer.fullName,
+        mustSetPassword: false,
+      });
+    }
+
+    // ── Legacy incomplete account (user row exists, no password) ──
+    if (existingCustomer && isIncompleteSignup(existingCustomer)) {
+      const verified = await verifyEmailOtp(body.email ?? '', body.code ?? '', otpCtx, {
+        consume: true,
+      });
+      if (!verified.ok) {
+        return NextResponse.json(verified, { status: 400 });
+      }
+
+      await createCustomerSession({
+        customerId: existingCustomer.id,
+        ip,
+        userAgent,
+      });
+      await clearSignupVerificationCookie();
+
+      return NextResponse.json({
+        ok: true,
+        email: existingCustomer.email,
+        mustSetPassword: true,
+        needsPassword: true,
+        legacyIncomplete: true,
+        message: 'Complete your signup by creating a password.',
+      });
+    }
+
+    // ── New signup: profile step (session only — no user creation) ──
+    if (hasProfileFields) {
+      if (fullName.length < 2) {
+        return NextResponse.json(
+          { ok: false, needsProfile: true, email, message: 'Enter your full name to continue.' },
           { status: 400 },
         );
       }
@@ -169,124 +145,128 @@ export async function POST(request: Request) {
         );
       }
 
-      const duplicateCustomer = await findCustomerByEmail(email);
-      if (duplicateCustomer) {
-        return finishNewSignupSession({ customer: duplicateCustomer, ip, userAgent });
+      const phoneOwner = await findCustomerByPhone(phone);
+      if (phoneOwner && isAccountComplete(phoneOwner) && phoneOwner.email !== email) {
+        return NextResponse.json(
+          {
+            ok: false,
+            needsProfile: true,
+            email,
+            message:
+              'This mobile number is already linked to another account. Use a different number or sign in with that account.',
+          },
+          { status: 400 },
+        );
       }
 
-      const signupCookie = await readSignupVerificationCookie();
-      let verified: { ok: true; email: string } | { ok: false; message: string };
+      let sessionId = await readSignupSessionCookie();
+      let session = sessionId ? await getSignupSessionById(sessionId) : null;
 
-      if (signupCookie?.email === email) {
-        verified = await consumeEmailOtpChallengeById(signupCookie.challengeId, email, otpCtx);
-        if (!verified.ok) {
-          const recovered = await findCustomerByEmail(email);
-          if (recovered) {
-            return finishNewSignupSession({ customer: recovered, ip, userAgent });
+      if (!session || session.email !== email) {
+        const active = await getActiveSignupSessionForEmail(email);
+        if (active?.otpVerified) {
+          session = active;
+          sessionId = active.id;
+        }
+      }
+
+      if (!session?.otpVerified) {
+        if (body.code?.trim()) {
+          const verified = await verifyEmailOtp(body.email ?? '', body.code, otpCtx, {
+            consume: true,
+          });
+          if (!verified.ok) {
+            const message = verified.message.includes('No active code')
+              ? SIGNUP_SETUP_EXPIRED_MESSAGE
+              : verified.message;
+            return NextResponse.json(
+              { ok: false, message, needsNewCode: true },
+              { status: 400 },
+            );
           }
+          session = await markSignupOtpVerified(verified.email);
+          sessionId = session.id;
+        } else {
+          return NextResponse.json(
+            { ok: false, message: SIGNUP_SETUP_EXPIRED_MESSAGE, needsNewCode: true },
+            { status: 400 },
+          );
         }
-      } else if (body.code?.trim()) {
-        verified = await verifyEmailOtp(body.email ?? '', body.code, otpCtx, { consume: true });
-      } else {
-        const recovered = await findCustomerByEmail(email);
-        if (recovered) {
-          return finishNewSignupSession({ customer: recovered, ip, userAgent });
-        }
-        return NextResponse.json(
-          { ok: false, message: SIGNUP_SETUP_EXPIRED_MESSAGE, needsNewCode: true },
-          { status: 400 },
-        );
       }
 
-      if (!verified.ok) {
-        const message = verified.message.includes('No active code')
-          ? SIGNUP_SETUP_EXPIRED_MESSAGE
-          : verified.message;
-        return NextResponse.json(
-          { ok: false, message, needsNewCode: true },
-          { status: 400 },
-        );
-      }
+      const updated =
+        session.profileSubmitted &&
+        session.fullName === fullName &&
+        session.phone === phone
+          ? session
+          : await submitSignupProfile({ sessionId: session.id, fullName, phone });
 
-      const customer = await createSignupCustomer({
-        email: verified.email,
-        fullName,
-        phone: phone!,
-      });
-
-      await createCustomerSession({
-        customerId: customer.id,
-        ip,
-        userAgent,
-      });
+      await issueSignupSessionCookie(updated.id, updated.expiresAt);
       await clearSignupVerificationCookie();
 
       return NextResponse.json({
         ok: true,
-        customerId: customer.id,
-        email: customer.email,
-        phone: customer.phone,
-        fullName: customer.fullName,
-        mustSetPassword: !customer.passwordHash || customer.mustSetPassword,
+        needsPassword: true,
+        email: updated.email,
+        fullName: updated.fullName,
+        phone: updated.phone,
+        signupSession: signupSessionPublicState(updated),
       });
     }
 
-    const verified = await verifyEmailOtp(body.email ?? '', body.code ?? '', otpCtx, {
-      consume: Boolean(existingCustomer),
-    });
+    // ── New signup: OTP step (session only — no user creation) ──
+    const pendingSession = await getActiveSignupSessionForEmail(email);
+    if (pendingSession?.otpVerified) {
+      const cookieSessionId = await readSignupSessionCookie();
+      if (cookieSessionId !== pendingSession.id) {
+        await issueSignupSessionCookie(pendingSession.id, pendingSession.expiresAt);
+      }
+      return NextResponse.json(
+        {
+          ok: false,
+          needsProfile: true,
+          emailVerified: true,
+          email,
+          alreadyVerified: true,
+          signupSession: signupSessionPublicState(pendingSession),
+        },
+        { status: 200 },
+      );
+    }
 
+    const verified = await verifyEmailOtp(body.email ?? '', body.code ?? '', otpCtx, {
+      consume: true,
+    });
     if (!verified.ok) {
       return NextResponse.json(verified, { status: 400 });
     }
 
-    let customer = existingCustomer;
-    if (!customer) {
-      customer = await createSignupCustomer({
+    const session = await markSignupOtpVerified(verified.email);
+    await issueSignupSessionCookie(session.id, session.expiresAt);
+    await clearSignupVerificationCookie();
+
+    return NextResponse.json(
+      {
+        ok: false,
+        needsProfile: true,
+        emailVerified: true,
         email: verified.email,
-        fullName,
-        phone: phone!,
-      });
-    } else if (!isProfileComplete(customer)) {
-      await createCustomerSession({
-        customerId: customer.id,
-        ip,
-        userAgent,
-      });
-      return NextResponse.json(
-        {
-          ok: false,
-          needsProfileComplete: true,
-          email: verified.email,
-          message: 'Complete your resident profile to continue.',
-          redirect: profileRedirectWithNext(body.next),
-        },
-        { status: 400 },
-      );
-    }
-
-    await createCustomerSession({
-      customerId: customer.id,
-      ip,
-      userAgent,
-    });
-
-    return NextResponse.json({
-      ok: true,
-      customerId: customer.id,
-      email: customer.email,
-      phone: customer.phone,
-      fullName: customer.fullName,
-      mustSetPassword: !customer.passwordHash || customer.mustSetPassword,
-    });
+        signupSession: signupSessionPublicState(session),
+      },
+      { status: 200 },
+    );
   } catch (err) {
-    console.error('[auth/signup/verify] account creation failed', {
+    console.error('[auth/signup/verify] failed', {
       email,
       reason: err instanceof Error ? err.message : String(err),
     });
     return NextResponse.json(
       {
         ok: false,
-        message: signupErrorMessage(err),
+        message:
+          err instanceof Error && err.message
+            ? err.message
+            : 'We could not finish setting up your account. Please try again.',
         retryable: true,
       },
       { status: 500 },
