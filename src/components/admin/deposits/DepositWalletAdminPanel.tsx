@@ -1,18 +1,25 @@
 'use client';
 
 /**
- * WALLET BISECT PHASE 0 — minimal render, no hooks, no server-action imports.
- * If this crashes → problem is type import chain or parent boundary/props.
- * If this works → reintroduce imports/sections in later bisect commits.
- *
- * Known-bad commits: b013ea7 (full diagnostics), 75d0de9 (bigint fix + full UI)
- * Known-good parent page: page-level cards render; only this panel failed.
+ * WALLET BISECT PHASE 1 — server-action imports + hooks, minimal JSX.
+ * Phase 0 OK. Phase 2+ restore UI sections from DepositWalletAdminPanel.full.tsx
  */
 
+import { useActionState, useState, useTransition } from 'react';
+import {
+  cancelDepositInvoiceAction,
+  editDepositSummaryAction,
+  editDepositSummaryNoRevalidateAction,
+  loadCancelDepositPreviewAction,
+  loadRebuildDepositPreviewAction,
+  rebuildDepositWalletAction,
+  type DepositWalletActionState,
+} from '@/app/(admin)/admin/deposits/deposit-wallet-actions';
 import type { UnifiedDepositView } from '@/src/lib/deposits/unifiedDepositView';
 
 const FILE = 'src/components/admin/deposits/DepositWalletAdminPanel.tsx';
-const BISECT_PHASE = 0;
+const BISECT_PHASE = 1;
+const idle: DepositWalletActionState = { status: 'idle' };
 
 function bisectLog(tag: string, extra?: Record<string, unknown>) {
   const payload = {
@@ -39,9 +46,38 @@ function bisectLog(tag: string, extra?: Record<string, unknown>) {
 bisectLog('[WALLET_MODULE_0]', { phase: 'module_eval_start' });
 
 bisectLog('[WALLET_MODULE_1]', {
-  phase: 'after_type_import',
-  unifiedDepositViewType: 'type-only',
+  phase: 'after_server_action_imports',
+  editDepositSummaryAction: typeof editDepositSummaryAction,
+  rebuildDepositWalletAction: typeof rebuildDepositWalletAction,
 });
+
+function WalletHooksProbe({ bookingId }: { bookingId: string }) {
+  bisectLog('[WALLET_STEP_1]', { phase: 'hooks_probe_start', bookingId });
+
+  useActionState(editDepositSummaryAction, idle);
+  bisectLog('[WALLET_STEP_2]', { hook: 'editDepositSummaryAction' });
+
+  useActionState(editDepositSummaryNoRevalidateAction, idle);
+  bisectLog('[WALLET_STEP_3]', { hook: 'editDepositSummaryNoRevalidateAction' });
+
+  useActionState(rebuildDepositWalletAction, idle);
+  bisectLog('[WALLET_STEP_4]', { hook: 'rebuildDepositWalletAction' });
+
+  useActionState(cancelDepositInvoiceAction, idle);
+  bisectLog('[WALLET_STEP_5]', { hook: 'cancelDepositInvoiceAction' });
+
+  useState<null>(null);
+  useState<null>(null);
+  useState<string | null>(null);
+  useTransition();
+  bisectLog('[WALLET_STEP_6]', { hooks: 'preview state + transition' });
+
+  void loadRebuildDepositPreviewAction;
+  void loadCancelDepositPreviewAction;
+  bisectLog('[WALLET_STEP_7]', { hooks: 'preview actions referenced' });
+
+  return null;
+}
 
 export function DepositWalletAdminPanel(props: {
   view: UnifiedDepositView;
@@ -54,12 +90,15 @@ export function DepositWalletAdminPanel(props: {
   });
 
   return (
-    <div
-      data-wallet-bisect={BISECT_PHASE}
-      className="mt-6 rounded-lg border border-emerald-400/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100"
-    >
-      Wallet panel minimal render (bisect-{BISECT_PHASE})
-    </div>
+    <>
+      <WalletHooksProbe bookingId={props.view.bookingId} />
+      <div
+        data-wallet-bisect={BISECT_PHASE}
+        className="mt-6 rounded-lg border border-sky-400/40 bg-sky-500/10 px-4 py-3 text-sm text-sky-100"
+      >
+        Wallet panel minimal render (bisect-{BISECT_PHASE} — hooks only)
+      </div>
+    </>
   );
 }
 
