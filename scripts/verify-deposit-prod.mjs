@@ -161,8 +161,9 @@ async function main() {
     const saveBtn = correctSection.getByRole('button', { name: /save corrections/i });
     await saveBtn.click();
 
+    await page.waitForURL(/\/admin\/deposits\/.*(?:saved=1|depositError=)/, { timeout: 90000 }).catch(() => undefined);
     await page.waitForLoadState('domcontentloaded', { timeout: 90000 }).catch(() => undefined);
-    await page.waitForTimeout(4000);
+    await page.waitForTimeout(2000);
 
     await page.screenshot({ path: join(OUT, '02-after-save.png'), fullPage: true });
     result.screenshots.afterSave = '02-after-save.png';

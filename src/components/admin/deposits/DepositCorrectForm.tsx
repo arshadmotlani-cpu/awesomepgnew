@@ -1,6 +1,5 @@
 'use client';
 
-import { editDepositSummaryFormAction } from '@/app/(admin)/admin/deposits/deposit-wallet-actions';
 import {
   sanitizeUnifiedDepositView,
   type UnifiedDepositView,
@@ -49,7 +48,8 @@ export function DepositCorrectForm({
       ) : null}
 
       <form
-        action={editDepositSummaryFormAction}
+        action={`/api/admin/deposits/${v.bookingId}/correct-summary`}
+        method="POST"
         className="mt-4 grid gap-3 rounded-xl border border-white/10 bg-[#12161C] p-4 sm:grid-cols-2"
       >
         <input type="hidden" name="bookingId" value={v.bookingId} />

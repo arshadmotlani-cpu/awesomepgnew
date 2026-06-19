@@ -19,6 +19,7 @@ import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import type { DepositCollectionStatus } from '@/src/db/schema/enums';
 import { formatDate } from '@/src/lib/dates';
 import { coerceNonNegativePaise } from '@/src/lib/format';
+import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 
 export type BookingPaymentBreakdown = {
@@ -152,8 +153,8 @@ export async function syncDepositCollectionFromLedger(bookingId: string): Promis
   if (!booking || coerceNonNegativePaise(booking.depositPaise) <= 0) return;
 
   const summary = await getDepositSummaryForBooking(bookingId);
-  const collected = coerceNonNegativePaise(summary?.collectedPaise ?? 0);
-  const required = coerceNonNegativePaise(booking.depositPaise);
+  const collected = guardDepositPaise(summary?.collectedPaise ?? 0, 'syncDepositCollection.collected');
+  const required = guardDepositPaise(booking.depositPaise, 'syncDepositCollection.required');
   const due = Math.max(0, required - collected);
 
   let status: DepositCollectionStatus = booking.depositCollectionStatus;
