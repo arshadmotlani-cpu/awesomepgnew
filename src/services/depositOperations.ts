@@ -9,6 +9,7 @@ import { auditLog, bookings } from '@/src/db/schema';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import {
   effectiveDepositCollectedPaise,
+  effectiveDepositRefundablePaise,
   sanitizeDepositWalletPreview,
   sanitizeUnifiedDepositView,
   type DepositWalletPreview,
@@ -97,10 +98,11 @@ function viewFromParts(input: {
     input.summary?.refundedPaise ?? 0,
     'viewFromParts.refundedPaise',
   );
-  const refundablePaise = guardDepositPaise(
-    input.summary?.refundableBalancePaise ?? 0,
-    'viewFromParts.refundablePaise',
-  );
+  const refundablePaise = effectiveDepositRefundablePaise({
+    refundableBalancePaise: input.summary?.refundableBalancePaise ?? 0,
+    requiredPaise,
+    depositDuePaise,
+  });
 
   return sanitizeUnifiedDepositView({
     bookingId: input.bookingId,

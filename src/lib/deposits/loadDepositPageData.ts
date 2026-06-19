@@ -8,7 +8,7 @@ import { bedReservations, bookings, customers } from '@/src/db/schema';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { getDepositInvoiceForBooking } from '@/src/services/depositInvoices';
 import { getUnifiedDepositView, sanitizeUnifiedDepositView } from '@/src/services/depositOperations';
-import { clientSafeDepositView, effectiveDepositCollectedPaise } from '@/src/lib/deposits/unifiedDepositView';
+import { clientSafeDepositView, effectiveDepositCollectedPaise, effectiveDepositRefundablePaise } from '@/src/lib/deposits/unifiedDepositView';
 import { loadBedPrice, securityDepositForMode } from '@/src/services/pricing';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import { jsonSafe } from '@/src/lib/depositPageDebug';
@@ -138,10 +138,11 @@ export async function loadDepositPageData(bookingId: string): Promise<DepositPag
       invoice?.deductionsPaise ?? (summary?.deductedPaise ?? 0) + (summary?.refundedPaise ?? 0),
       'deductionsPaise',
     );
-    const refundablePaise = guardDepositPaise(
-      invoice?.refundablePaise ?? summary?.refundableBalancePaise ?? 0,
-      'refundablePaise',
-    );
+    const refundablePaise = effectiveDepositRefundablePaise({
+      refundableBalancePaise: invoice?.refundablePaise ?? summary?.refundableBalancePaise ?? 0,
+      requiredPaise,
+      depositDuePaise,
+    });
     const isFrozen = invoice?.isFrozen ?? false;
 
     let hasPrimaryBedReservation = false;
@@ -200,7 +201,7 @@ export async function loadDepositPageData(bookingId: string): Promise<DepositPag
             customerId: booking.customerId,
             customerName: booking.customerFullName ?? '',
             customerPhone: booking.customerPhone ?? '',
-            depositHeldPaise: collectedPaise,
+            depositHeldPaise: refundablePaise,
             depositPaidPaise: collectedPaise,
             depositRefundablePaise: refundablePaise,
           })

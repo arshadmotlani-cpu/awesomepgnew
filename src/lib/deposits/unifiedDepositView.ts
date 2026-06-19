@@ -49,6 +49,21 @@ export function effectiveDepositCollectedPaise(input: {
   return gross;
 }
 
+/** Cap refundable display when gross ledger balance exceeds corrected required deposit. */
+export function effectiveDepositRefundablePaise(input: {
+  refundableBalancePaise: unknown;
+  requiredPaise: unknown;
+  depositDuePaise: unknown;
+}): number {
+  const refundable = guardDepositPaise(input.refundableBalancePaise, 'refundableBalancePaise');
+  const required = guardDepositPaise(input.requiredPaise, 'requiredPaise');
+  const due = guardDepositPaise(input.depositDuePaise, 'depositDuePaise');
+  if (due <= 0 && required > 0 && refundable > required) {
+    return required;
+  }
+  return refundable;
+}
+
 export function emptyUnifiedDepositView(): UnifiedDepositView {
   return {
     bookingId: '',
