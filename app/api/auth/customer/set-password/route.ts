@@ -8,12 +8,14 @@ import {
 import { validateCustomerPassword } from '@/src/lib/auth/password';
 import {
   completeSignupSession,
+  getActiveSignupSessionForEmail,
   readSignupSessionFromRequest,
 } from '@/src/lib/auth/signupSession';
 import { createCustomerSession, getCustomerSession } from '@/src/lib/auth/session';
+import { normaliseEmail } from '@/src/lib/email/address';
 
 export async function POST(request: Request) {
-  let body: { password?: string; confirmPassword?: string };
+  let body: { password?: string; confirmPassword?: string; email?: string };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -41,11 +43,55 @@ export async function POST(request: Request) {
   const userAgent = request.headers.get('user-agent');
 
   const customerSession = await getCustomerSession();
-  const signupSession = await readSignupSessionFromRequest();
+  let signupSession = await readSignupSessionFromRequest();
+
+  if (!signupSession && body.email) {
+    const email = normaliseEmail(body.email);
+    if (email) {
+      signupSession = await getActiveSignupSessionForEmail(email);
+    }
+  }
 
   try {
-    // Legacy incomplete account: customer session, no password yet.
-    if (customerSession?.mustSetPassword && !signupSession?.profileSubmitted) {
+    if (signupSession?.otpVerified && signupSession.profileSubmitted) {
+      const existingComplete = await findCustomerByEmail(signupSession.email);
+      if (existingComplete && isAccountComplete(existingComplete)) {
+        await completeSignupSession(signupSession.id);
+        await createCustomerSession({
+          customerId: existingComplete.id,
+          ip,
+          userAgent,
+        });
+        return NextResponse.json({
+          ok: true,
+          email: existingComplete.email,
+          mustSetPassword: false,
+          alreadySet: true,
+        });
+      }
+
+      const customer = await commitSignupCustomer({
+        email: signupSession.email,
+        fullName: signupSession.fullName ?? '',
+        phone: signupSession.phone ?? '',
+        password,
+      });
+
+      await completeSignupSession(signupSession.id);
+      await createCustomerSession({
+        customerId: customer.id,
+        ip,
+        userAgent,
+      });
+
+      return NextResponse.json({
+        ok: true,
+        email: customer.email,
+        mustSetPassword: false,
+      });
+    }
+
+    if (customerSession?.mustSetPassword) {
       const existing = await findCustomerByEmail(customerSession.email);
       if (existing && isAccountComplete(existing)) {
         return NextResponse.json({
@@ -64,7 +110,6 @@ export async function POST(request: Request) {
       });
     }
 
-    // New signup: commit user ONLY at password step.
     if (!signupSession) {
       return NextResponse.json(
         {
@@ -76,55 +121,17 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!signupSession.otpVerified || !signupSession.profileSubmitted) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: 'Complete your profile before creating a password.',
-          needsProfile: !signupSession.profileSubmitted,
-        },
-        { status: 400 },
-      );
-    }
-
-    const existingComplete = await findCustomerByEmail(signupSession.email);
-    if (existingComplete && isAccountComplete(existingComplete)) {
-      await completeSignupSession(signupSession.id);
-      await createCustomerSession({
-        customerId: existingComplete.id,
-        ip,
-        userAgent,
-      });
-      return NextResponse.json({
-        ok: true,
-        email: existingComplete.email,
-        mustSetPassword: false,
-        alreadySet: true,
-      });
-    }
-
-    const customer = await commitSignupCustomer({
-      email: signupSession.email,
-      fullName: signupSession.fullName ?? '',
-      phone: signupSession.phone ?? '',
-      password,
-    });
-
-    await completeSignupSession(signupSession.id);
-    await createCustomerSession({
-      customerId: customer.id,
-      ip,
-      userAgent,
-    });
-
-    return NextResponse.json({
-      ok: true,
-      email: customer.email,
-      mustSetPassword: false,
-    });
+    return NextResponse.json(
+      {
+        ok: false,
+        message: 'Complete your profile before creating a password.',
+        needsProfile: !signupSession.profileSubmitted,
+      },
+      { status: 400 },
+    );
   } catch (err) {
     console.error('[auth/signup/set-password] failed', {
-      email: signupSession?.email ?? customerSession?.email,
+      email: signupSession?.email ?? customerSession?.email ?? body.email,
       reason: err instanceof Error ? err.message : String(err),
     });
     return NextResponse.json(

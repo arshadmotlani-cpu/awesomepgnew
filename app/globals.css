@@ -958,6 +958,15 @@ body {
   contain: strict;
 }
 
+.world-ambient-static {
+  contain: strict;
+}
+
+.world-ambient-static-orb {
+  animation: none !important;
+  opacity: 0.28;
+}
+
 .world-ambient-orb {
   position: absolute;
   border-radius: 50%;

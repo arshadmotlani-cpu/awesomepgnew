@@ -105,7 +105,7 @@ export async function commitSignupCustomer(args: {
 
   const existingByEmail = await findCustomerByEmail(email);
   if (existingByEmail && isAccountComplete(existingByEmail)) {
-    throw new Error('This email already has an account. Sign in or use forgot password.');
+    return existingByEmail;
   }
 
   const existingByPhone = await findCustomerByPhone(phone);

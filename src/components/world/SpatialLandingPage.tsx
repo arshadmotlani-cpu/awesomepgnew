@@ -71,7 +71,7 @@ export function SpatialLandingPage({
   const reduced = useReducedMotion();
 
   return (
-    <div className="apg-landing apg-aurora apg-grid-overlay world-entry overflow-hidden">
+    <div className="world-entry overflow-hidden">
       {/* Phase C — Hero sky layer */}
       <WorldSection id="hero" checkpoint className="relative mx-auto flex w-full max-w-6xl flex-col items-center px-4 pb-20 pt-16 text-center sm:px-6 sm:pt-24">
         <WorldLayer depth={0} className="absolute inset-0 -z-10 opacity-60">

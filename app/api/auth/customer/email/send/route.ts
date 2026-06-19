@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { findCustomerByEmail, isAccountComplete } from '@/src/lib/auth/customer';
+import { findCustomerByEmail, isAccountComplete, isIncompleteSignup } from '@/src/lib/auth/customer';
 import { sendEmailOtp } from '@/src/lib/auth/otp';
 
 export type OtpPurpose = 'signup' | 'forgot_password';
@@ -29,6 +29,16 @@ export async function POST(request: Request) {
     if (!customer || customer.archivedAt) {
       return NextResponse.json(
         { ok: false, message: 'No account found for this email.' },
+        { status: 400 },
+      );
+    }
+    if (isIncompleteSignup(customer)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          needsCompleteSignup: true,
+          message: 'Finish signing up first — verify your email, then create a password.',
+        },
         { status: 400 },
       );
     }

@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, message: 'Invalid email or password.' }, { status: 401 });
   }
 
-  if (!customer.passwordHash || customer.mustSetPassword) {
+  if (!customer.passwordHash) {
     return NextResponse.json(
       {
         ok: false,

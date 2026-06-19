@@ -92,6 +92,42 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
     return () => window.clearTimeout(fallback);
   }, [profilePhase, next]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/auth/customer/signup/status', { credentials: 'same-origin' });
+        if (!res.ok || cancelled) return;
+        const data = (await res.json()) as {
+          ok?: boolean;
+          email?: string;
+          needsProfile?: boolean;
+          needsPassword?: boolean;
+          fullName?: string;
+          phone?: string;
+        };
+        if (!data.ok || !data.email) return;
+        setEmail(data.email);
+        if (data.needsPassword) {
+          router.replace(`/account/set-password?next=${encodeURIComponent(next)}`);
+          return;
+        }
+        if (data.needsProfile) {
+          setEmailVerified(true);
+          setOtpPhase('success');
+          setStep('profile');
+          if (data.fullName) setFullName(data.fullName);
+          if (data.phone) setPhone(data.phone.replace(/^\+91/, ''));
+        }
+      } catch {
+        /* resume is best-effort */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [next, router]);
+
   function resetProfileSubmit() {
     setProfilePhase('idle');
     profileInFlight.current = false;
@@ -207,6 +243,11 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
     }
   }
 
+  function finishProfileSubmit() {
+    profileInFlight.current = false;
+    setPending(false);
+  }
+
   async function verifyCode(includeProfile = false) {
     if (includeProfile) {
       if (profileInFlight.current || profilePhase !== 'idle') return;
@@ -255,20 +296,36 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
         mustSetPassword?: boolean;
         legacyIncomplete?: boolean;
         needsNewCode?: boolean;
+        needsSignup?: boolean;
         retryable?: boolean;
         redirect?: string;
       };
+
+      if (data.needsPassword && !includeProfile) {
+        finishProfileSubmit();
+        redirectAfterSignup(`/account/set-password?next=${encodeURIComponent(next)}`);
+        return;
+      }
+
+      if (data.legacyIncomplete && data.mustSetPassword && !includeProfile) {
+        finishProfileSubmit();
+        redirectAfterSignup(`/account/set-password?next=${encodeURIComponent(next)}`);
+        return;
+      }
 
       if (data.needsProfile || data.emailVerified) {
         setOtpPhase('success');
         setEmailVerified(true);
         setStep('profile');
         setError(null);
+        if (includeProfile) finishProfileSubmit();
+        else verifyInFlight.current = false;
         return;
       }
 
       if (data.needsPassword && includeProfile) {
         setProfilePhase('success');
+        finishProfileSubmit();
         redirectAfterSignup(`/account/set-password?next=${encodeURIComponent(next)}`);
         return;
       }
@@ -297,6 +354,7 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
 
       if (includeProfile) {
         setProfilePhase('success');
+        finishProfileSubmit();
         if (data.mustSetPassword || data.needsPassword) {
           redirectAfterSignup(`/account/set-password?next=${encodeURIComponent(next)}`);
           return;
@@ -308,9 +366,11 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
       }
 
       if (data.mustSetPassword) {
+        verifyInFlight.current = false;
         router.replace(`/account/set-password?next=${encodeURIComponent(next)}`);
         return;
       }
+      verifyInFlight.current = false;
       router.replace(next);
       router.refresh();
     } catch (err) {
@@ -328,11 +388,10 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
         setError(SIGNUP_GENERIC_ERROR_MESSAGE);
       }
     } finally {
-      if (!includeProfile) {
+      if (includeProfile) {
         setPending(false);
-        if (step === 'otp') {
-          verifyInFlight.current = false;
-        }
+      } else {
+        setPending(false);
       }
     }
   }

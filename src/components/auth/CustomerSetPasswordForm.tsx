@@ -96,18 +96,27 @@ export function CustomerSetPasswordForm({ email, theme = 'light' }: Props) {
       const res = await signupFetch('/api/auth/customer/set-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password, confirmPassword }),
+        body: JSON.stringify({ password, confirmPassword, email }),
       });
       const data = (await res.json()) as {
         ok: boolean;
         message?: string;
         retryable?: boolean;
         alreadySet?: boolean;
+        needsSignup?: boolean;
+        needsProfile?: boolean;
       };
 
       if (!res.ok || !data.ok) {
         submitInFlight.current = false;
         setPhase('idle');
+        if (data.needsSignup || data.needsProfile) {
+          setError(data.message ?? 'Please complete signup from the beginning.');
+          window.setTimeout(() => {
+            window.location.assign(`/login?next=${encodeURIComponent(next)}`);
+          }, 2500);
+          return;
+        }
         setError(data.message ?? 'Could not save password.');
         return;
       }

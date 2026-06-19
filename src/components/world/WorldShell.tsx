@@ -1,15 +1,50 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { AmbientWorldLayer } from '@/src/components/world/AmbientWorldLayer';
 import { WorldMotionProvider } from '@/src/components/world/WorldMotionProvider';
 
-/** Wraps customer-facing experiences with scroll camera + ambient depth. */
+type BoundaryProps = { children: ReactNode };
+
+type BoundaryState = { motionFailed: boolean };
+
+/** Keeps spatial chrome visible even if motion layer throws. */
+class WorldMotionBoundary extends Component<BoundaryProps, BoundaryState> {
+  state: BoundaryState = { motionFailed: false };
+
+  static getDerivedStateFromError(): BoundaryState {
+    return { motionFailed: true };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('[WorldShell] motion layer error — rendering static fallback', error, info.componentStack);
+  }
+
+  render() {
+    if (this.state.motionFailed) {
+      return (
+        <>
+          <div className="world-ambient-static pointer-events-none fixed inset-0 -z-10" aria-hidden />
+          <div className="world-shell relative">{this.props.children}</div>
+        </>
+      );
+    }
+    return (
+      <>
+        <AmbientWorldLayer />
+        <div className="world-shell relative">{this.props.children}</div>
+      </>
+    );
+  }
+}
+
+/** Public homepage / customer spatial wrapper — always renders aurora + grid. */
 export function WorldShell({ children }: { children: ReactNode }) {
   return (
-    <WorldMotionProvider>
-      <AmbientWorldLayer />
-      <div className="world-shell relative">{children}</div>
-    </WorldMotionProvider>
+    <div className="apg-landing apg-aurora apg-grid-overlay world-entry relative min-h-full overflow-hidden">
+      <WorldMotionProvider>
+        <WorldMotionBoundary>{children}</WorldMotionBoundary>
+      </WorldMotionProvider>
+    </div>
   );
 }

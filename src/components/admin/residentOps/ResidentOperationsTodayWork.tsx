@@ -1,35 +1,50 @@
 import Link from 'next/link';
 import type { TodayWorkItem } from '@/src/lib/residents/residentOperationsDashboard';
+import {
+  OpsPanel,
+  OpsSection,
+  TODAY_WORK_ICONS,
+} from '@/src/components/admin/residentOps/residentOpsUi';
 
 export function ResidentOperationsTodayWork({ items }: { items: TodayWorkItem[] }) {
   if (items.length === 0) {
     return (
-      <section className="mb-8 rounded-xl border border-white/10 bg-[#1A1F27] px-5 py-4">
-        <h2 className="text-sm font-semibold text-white">Today&apos;s work</h2>
-        <p className="mt-2 text-sm text-apg-silver">No scheduled move-ins, move-outs, or due bills today.</p>
-      </section>
+      <OpsSection title="Today&apos;s work">
+        <OpsPanel className="px-5 py-5">
+          <p className="text-sm text-apg-silver">No scheduled move-ins, move-outs, or due bills today.</p>
+        </OpsPanel>
+      </OpsSection>
     );
   }
 
   return (
-    <section className="mb-8">
-      <header className="mb-4">
-        <h2 className="text-lg font-bold text-white">Today&apos;s work</h2>
-        <p className="mt-1 text-sm text-apg-silver">Your manager task list for today.</p>
-      </header>
-      <ul className="space-y-2">
-        {items.map((item) => (
-          <li key={item.id}>
+    <OpsSection
+      title="Today's work"
+      description="Your manager task list for today."
+    >
+      <OpsPanel className="divide-y divide-white/5">
+        {items.map((item) => {
+          const Icon = TODAY_WORK_ICONS[item.id] ?? TODAY_WORK_ICONS['move-in']!;
+          return (
             <Link
+              key={item.id}
               href={item.href}
-              className="flex items-center justify-between rounded-xl border border-white/10 bg-[#1A1F27] px-4 py-3 transition hover:border-[#FF5A1F]/40 hover:bg-white/[0.03]"
+              className="group flex items-center gap-4 px-5 py-4 transition hover:bg-white/[0.03]"
             >
-              <span className="text-sm font-medium text-white">{item.label}</span>
-              <span className="text-xs font-semibold text-[#FF5A1F]">Go →</span>
+              <span
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FF5A1F]/12 text-[#FF5A1F] transition group-hover:bg-[#FF5A1F]/20"
+                aria-hidden
+              >
+                <Icon width={20} height={20} />
+              </span>
+              <span className="flex-1 text-sm font-medium text-white">{item.label}</span>
+              <span className="text-sm font-semibold text-[#FF5A1F] transition group-hover:translate-x-0.5">
+                Go →
+              </span>
             </Link>
-          </li>
-        ))}
-      </ul>
-    </section>
+          );
+        })}
+      </OpsPanel>
+    </OpsSection>
   );
 }

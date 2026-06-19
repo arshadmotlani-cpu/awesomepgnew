@@ -25,6 +25,95 @@ import { normaliseEmail } from '@/src/lib/email/address';
 import { normaliseIndianPhone } from '@/src/lib/phone';
 import { isProfileComplete } from '@/src/services/profile';
 
+async function handleProfileStep(args: {
+  email: string;
+  fullName: string;
+  phone: string;
+  code?: string;
+  otpCtx: { ip: string | null; userAgent: string | null };
+}) {
+  const { email, fullName, phone, code, otpCtx } = args;
+
+  if (fullName.length < 2) {
+    return NextResponse.json(
+      { ok: false, needsProfile: true, email, message: 'Enter your full name to continue.' },
+      { status: 400 },
+    );
+  }
+  if (!phone) {
+    return NextResponse.json(
+      {
+        ok: false,
+        needsProfile: true,
+        email,
+        message: 'Enter a valid 10-digit mobile number.',
+      },
+      { status: 400 },
+    );
+  }
+
+  const phoneOwner = await findCustomerByPhone(phone);
+  if (phoneOwner && isAccountComplete(phoneOwner) && phoneOwner.email !== email) {
+    return NextResponse.json(
+      {
+        ok: false,
+        needsProfile: true,
+        email,
+        message:
+          'This mobile number is already linked to another account. Use a different number or sign in with that account.',
+      },
+      { status: 400 },
+    );
+  }
+
+  let sessionId = await readSignupSessionCookie();
+  let session = sessionId ? await getSignupSessionById(sessionId) : null;
+
+  if (!session || session.email !== email) {
+    const active = await getActiveSignupSessionForEmail(email);
+    if (active?.otpVerified) {
+      session = active;
+      sessionId = active.id;
+    }
+  }
+
+  if (!session?.otpVerified) {
+    if (code?.trim()) {
+      const verified = await verifyEmailOtp(email, code, otpCtx, { consume: true });
+      if (!verified.ok) {
+        const message = verified.message.includes('No active code')
+          ? SIGNUP_SETUP_EXPIRED_MESSAGE
+          : verified.message;
+        return NextResponse.json({ ok: false, message, needsNewCode: true }, { status: 400 });
+      }
+      session = await markSignupOtpVerified(verified.email);
+      sessionId = session.id;
+    } else {
+      return NextResponse.json(
+        { ok: false, message: SIGNUP_SETUP_EXPIRED_MESSAGE, needsNewCode: true },
+        { status: 400 },
+      );
+    }
+  }
+
+  const updated =
+    session.profileSubmitted && session.fullName === fullName && session.phone === phone
+      ? session
+      : await submitSignupProfile({ sessionId: session.id, fullName, phone });
+
+  await issueSignupSessionCookie(updated.id, updated.expiresAt);
+  await clearSignupVerificationCookie();
+
+  return NextResponse.json({
+    ok: true,
+    needsPassword: true,
+    email: updated.email,
+    fullName: updated.fullName,
+    phone: updated.phone,
+    signupSession: signupSessionPublicState(updated),
+  });
+}
+
 export async function POST(request: Request) {
   let body: {
     email?: string;
@@ -55,7 +144,18 @@ export async function POST(request: Request) {
   const existingCustomer = await findCustomerByEmail(email);
 
   try {
-    // ── Existing complete account: verify OTP and sign in ──
+    // ── Profile step FIRST (SignupSession only — never blocked by legacy partial rows) ──
+    if (hasProfileFields) {
+      return handleProfileStep({
+        email,
+        fullName,
+        phone: phone!,
+        code: body.code,
+        otpCtx,
+      });
+    }
+
+    // ── Existing complete account: OTP sign-in ──
     if (existingCustomer && isAccountComplete(existingCustomer)) {
       const verified = await verifyEmailOtp(body.email ?? '', body.code ?? '', otpCtx, {
         consume: true,
@@ -99,11 +199,41 @@ export async function POST(request: Request) {
       });
     }
 
-    // ── Legacy incomplete account (user row exists, no password) ──
-    if (existingCustomer && isIncompleteSignup(existingCustomer)) {
-      const verified = await verifyEmailOtp(body.email ?? '', body.code ?? '', otpCtx, {
-        consume: true,
-      });
+    // ── Resume: OTP already verified for this email ──
+    const pendingSession = await getActiveSignupSessionForEmail(email);
+    if (pendingSession?.otpVerified) {
+      const cookieSessionId = await readSignupSessionCookie();
+      if (cookieSessionId !== pendingSession.id) {
+        await issueSignupSessionCookie(pendingSession.id, pendingSession.expiresAt);
+      }
+
+      if (pendingSession.profileSubmitted) {
+        return NextResponse.json({
+          ok: true,
+          needsPassword: true,
+          email: pendingSession.email,
+          fullName: pendingSession.fullName,
+          phone: pendingSession.phone,
+          signupSession: signupSessionPublicState(pendingSession),
+        });
+      }
+
+      return NextResponse.json(
+        {
+          ok: false,
+          needsProfile: true,
+          emailVerified: true,
+          email,
+          alreadyVerified: true,
+          signupSession: signupSessionPublicState(pendingSession),
+        },
+        { status: 200 },
+      );
+    }
+
+    // ── Legacy incomplete account: OTP-only step (must have code) ──
+    if (existingCustomer && isIncompleteSignup(existingCustomer) && body.code?.trim()) {
+      const verified = await verifyEmailOtp(body.email ?? '', body.code, otpCtx, { consume: true });
       if (!verified.ok) {
         return NextResponse.json(verified, { status: 400 });
       }
@@ -125,115 +255,7 @@ export async function POST(request: Request) {
       });
     }
 
-    // ── New signup: profile step (session only — no user creation) ──
-    if (hasProfileFields) {
-      if (fullName.length < 2) {
-        return NextResponse.json(
-          { ok: false, needsProfile: true, email, message: 'Enter your full name to continue.' },
-          { status: 400 },
-        );
-      }
-      if (!phone) {
-        return NextResponse.json(
-          {
-            ok: false,
-            needsProfile: true,
-            email,
-            message: 'Enter a valid 10-digit mobile number.',
-          },
-          { status: 400 },
-        );
-      }
-
-      const phoneOwner = await findCustomerByPhone(phone);
-      if (phoneOwner && isAccountComplete(phoneOwner) && phoneOwner.email !== email) {
-        return NextResponse.json(
-          {
-            ok: false,
-            needsProfile: true,
-            email,
-            message:
-              'This mobile number is already linked to another account. Use a different number or sign in with that account.',
-          },
-          { status: 400 },
-        );
-      }
-
-      let sessionId = await readSignupSessionCookie();
-      let session = sessionId ? await getSignupSessionById(sessionId) : null;
-
-      if (!session || session.email !== email) {
-        const active = await getActiveSignupSessionForEmail(email);
-        if (active?.otpVerified) {
-          session = active;
-          sessionId = active.id;
-        }
-      }
-
-      if (!session?.otpVerified) {
-        if (body.code?.trim()) {
-          const verified = await verifyEmailOtp(body.email ?? '', body.code, otpCtx, {
-            consume: true,
-          });
-          if (!verified.ok) {
-            const message = verified.message.includes('No active code')
-              ? SIGNUP_SETUP_EXPIRED_MESSAGE
-              : verified.message;
-            return NextResponse.json(
-              { ok: false, message, needsNewCode: true },
-              { status: 400 },
-            );
-          }
-          session = await markSignupOtpVerified(verified.email);
-          sessionId = session.id;
-        } else {
-          return NextResponse.json(
-            { ok: false, message: SIGNUP_SETUP_EXPIRED_MESSAGE, needsNewCode: true },
-            { status: 400 },
-          );
-        }
-      }
-
-      const updated =
-        session.profileSubmitted &&
-        session.fullName === fullName &&
-        session.phone === phone
-          ? session
-          : await submitSignupProfile({ sessionId: session.id, fullName, phone });
-
-      await issueSignupSessionCookie(updated.id, updated.expiresAt);
-      await clearSignupVerificationCookie();
-
-      return NextResponse.json({
-        ok: true,
-        needsPassword: true,
-        email: updated.email,
-        fullName: updated.fullName,
-        phone: updated.phone,
-        signupSession: signupSessionPublicState(updated),
-      });
-    }
-
-    // ── New signup: OTP step (session only — no user creation) ──
-    const pendingSession = await getActiveSignupSessionForEmail(email);
-    if (pendingSession?.otpVerified) {
-      const cookieSessionId = await readSignupSessionCookie();
-      if (cookieSessionId !== pendingSession.id) {
-        await issueSignupSessionCookie(pendingSession.id, pendingSession.expiresAt);
-      }
-      return NextResponse.json(
-        {
-          ok: false,
-          needsProfile: true,
-          emailVerified: true,
-          email,
-          alreadyVerified: true,
-          signupSession: signupSessionPublicState(pendingSession),
-        },
-        { status: 200 },
-      );
-    }
-
+    // ── New signup: OTP verification → SignupSession only ──
     const verified = await verifyEmailOtp(body.email ?? '', body.code ?? '', otpCtx, {
       consume: true,
     });
@@ -260,16 +282,23 @@ export async function POST(request: Request) {
       email,
       reason: err instanceof Error ? err.message : String(err),
     });
+    const message =
+      err instanceof Error && err.message
+        ? err.message
+        : 'We could not finish setting up your account. Please try again.';
+    const isMissingTable =
+      message.includes('signup_sessions') ||
+      message.includes('relation') ||
+      message.includes('does not exist');
     return NextResponse.json(
       {
         ok: false,
-        message:
-          err instanceof Error && err.message
-            ? err.message
-            : 'We could not finish setting up your account. Please try again.',
+        message: isMissingTable
+          ? 'Signup is temporarily unavailable. Please try again shortly or contact support.'
+          : message,
         retryable: true,
       },
-      { status: 500 },
+      { status: isMissingTable ? 503 : 500 },
     );
   }
 }

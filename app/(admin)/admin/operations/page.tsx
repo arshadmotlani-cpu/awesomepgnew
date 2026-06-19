@@ -90,38 +90,40 @@ export default async function OperationsModulePage({
         description="Which residents need your attention right now — one queue, one next action."
       />
 
-      <AdminSectionErrorBoundary title="Attention command center">
-        <ResidentOperationsAttentionCenter
-          buckets={dashboard.buckets}
-          activeFilter={activeFilter}
-        />
-      </AdminSectionErrorBoundary>
+      <div className="mt-8">
+        <AdminSectionErrorBoundary title="Attention command center">
+          <ResidentOperationsAttentionCenter
+            buckets={dashboard.buckets}
+            activeFilter={activeFilter}
+          />
+        </AdminSectionErrorBoundary>
 
-      <AdminSectionErrorBoundary title="Priority action queue">
-        <ResidentOperationsQueue
-          items={filteredQueue}
-          selectedResidentId={selectedResidentId}
-          filterQuery={filterQuery}
-        />
-      </AdminSectionErrorBoundary>
+        <AdminSectionErrorBoundary title="Priority action queue">
+          <ResidentOperationsQueue
+            items={filteredQueue}
+            selectedResidentId={selectedResidentId}
+            filterQuery={filterQuery}
+          />
+        </AdminSectionErrorBoundary>
 
-      <AdminSectionErrorBoundary title="Today's work">
-        <ResidentOperationsTodayWork items={dashboard.todayWork} />
-      </AdminSectionErrorBoundary>
+        <AdminSectionErrorBoundary title="Today's work">
+          <ResidentOperationsTodayWork items={dashboard.todayWork} />
+        </AdminSectionErrorBoundary>
 
-      <AdminSectionErrorBoundary title="Resident timeline">
-        <ResidentOperationsTimeline resident={selectedResident} clearHref={clearTimelineHref} />
-      </AdminSectionErrorBoundary>
+        <AdminSectionErrorBoundary title="Resident timeline">
+          <ResidentOperationsTimeline resident={selectedResident} clearHref={clearTimelineHref} />
+        </AdminSectionErrorBoundary>
 
-      <AdminSectionErrorBoundary title="Advanced tools">
-        <ResidentOperationsAdvancedTools
-          session={session}
-          billingMonth={billingMonth}
-          operations={overviewCtx.data.operations}
-          actionItems={overviewCtx.data.actionItems}
-          occupancy={occupancy.ok ? occupancy.data : []}
-        />
-      </AdminSectionErrorBoundary>
+        <AdminSectionErrorBoundary title="Advanced tools">
+          <ResidentOperationsAdvancedTools
+            session={session}
+            billingMonth={billingMonth}
+            operations={overviewCtx.data.operations}
+            actionItems={overviewCtx.data.actionItems}
+            occupancy={occupancy.ok ? occupancy.data : []}
+          />
+        </AdminSectionErrorBoundary>
+      </div>
     </>
   );
 }

@@ -19,6 +19,7 @@ export async function signupFetch(
   try {
     return await fetch(input, {
       ...fetchInit,
+      credentials: fetchInit.credentials ?? 'same-origin',
       signal: controller.signal,
     });
   } catch (err) {
