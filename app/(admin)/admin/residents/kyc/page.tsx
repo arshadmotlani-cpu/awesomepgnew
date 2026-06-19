@@ -1,20 +1,13 @@
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { KycApprovedDocuments } from '@/src/components/admin/KycReviewPanel';
 import { KycStorageWarning } from '@/src/components/admin/KycStorageWarning';
-import {
-  KycApprovedDocuments,
-  KycPendingQueue,
-  KycReviewTabs,
-  type KycReviewTabId,
-} from '@/src/components/admin/KycReviewPanel';
-import { KycPrimaryActions } from '@/src/components/admin/kyc/KycPrimaryActions';
-import { KycQueueAdvancedTools } from '@/src/components/admin/kyc/KycQueueAdvancedTools';
-import { KycSummarySection } from '@/src/components/admin/kyc/KycSummarySection';
-import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
-import { PageHeader } from '@/src/components/admin/PageHeader';
+import { EmptyState } from '@/src/components/admin/EmptyState';
+import { IconCheckCircle } from '@/src/components/admin/icons';
 import {
   listApprovedKycSubmissions,
   listPendingKycSubmissions,
 } from '@/src/services/kyc';
-import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
 
 export const dynamic = 'force-dynamic';
@@ -22,65 +15,49 @@ export const dynamic = 'force-dynamic';
 export default async function ResidentsKycPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ archive?: string }>;
 }) {
   const sp = await searchParams;
   await ensureAdminPageNotificationsSeen('/admin/residents/kyc', '/admin/residents/kyc');
-  const tab: KycReviewTabId | 'all' =
-    sp.tab === 'approved' ? 'approved' : sp.tab === 'pending' ? 'pending' : 'all';
 
-  const [pendingRows, approvedRows] = await Promise.all([
+  const [pending, approvedRows] = await Promise.all([
     listPendingKycSubmissions(),
     listApprovedKycSubmissions(),
   ]);
 
-  const showPending = tab === 'all' || tab === 'pending';
-  const showApproved = tab === 'all' || tab === 'approved';
+  if (sp.archive === '1') {
+    return (
+      <>
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <h1 className="text-lg font-bold text-white">Approved identity documents</h1>
+          <Link href="/admin/residents/kyc" className="text-sm font-semibold text-[#FF5A1F] hover:underline">
+            ← Review queue
+          </Link>
+        </div>
+        <KycApprovedDocuments rows={approvedRows} />
+      </>
+    );
+  }
 
-  return (
-    <>
-      <ModuleBreadcrumbs
-        items={[
-          { label: 'Overview', href: moduleHref('overview') },
-          { label: ADMIN_MODULES.residents.label, href: moduleHref('residents') },
-          { label: 'Identity checks' },
-        ]}
-      />
-      <PageHeader
-        title="Identity checks"
-        description="Review Aadhaar and selfie uploads before residents can check in."
-      />
-
-      <div className="mb-6">
+  if (pending.length === 0) {
+    return (
+      <>
         <KycStorageWarning />
-      </div>
-
-      <KycSummarySection pendingCount={pendingRows.length} approvedCount={approvedRows.length} />
-      <KycPrimaryActions pendingRows={pendingRows} pendingCount={pendingRows.length} />
-
-      <KycReviewTabs
-        activeTab={tab === 'all' ? 'pending' : tab}
-        showAllTab
-        allActive={tab === 'all'}
-      />
-
-      <div className="space-y-10">
-        {showPending ? (
-          <section id="pending">
-            <h2 className="mb-3 text-base font-semibold text-white">Needs review</h2>
-            <KycPendingQueue rows={pendingRows} />
-          </section>
+        <EmptyState
+          icon={<IconCheckCircle />}
+          title="No pending identity reviews"
+          description="New submissions open here automatically when residents upload from Account → Identity (KYC)."
+        />
+        {approvedRows.length > 0 ? (
+          <p className="mt-6 text-center text-sm text-apg-silver">
+            <Link href="/admin/residents/kyc?archive=1" className="font-semibold text-[#FF5A1F] hover:underline">
+              View {approvedRows.length} approved on file →
+            </Link>
+          </p>
         ) : null}
+      </>
+    );
+  }
 
-        {showApproved ? (
-          <section id="approved">
-            <h2 className="mb-3 text-base font-semibold text-white">Approved on file</h2>
-            <KycApprovedDocuments rows={approvedRows} />
-          </section>
-        ) : null}
-      </div>
-
-      <KycQueueAdvancedTools approvedRows={approvedRows} />
-    </>
-  );
+  redirect(`/admin/residents/kyc/${pending[0]!.id}`);
 }

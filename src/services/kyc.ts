@@ -1,6 +1,6 @@
 import { and, desc, eq, ne } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { auditLog, customers, kycSubmissions, type KycValidationReport } from '@/src/db/schema';
+import { auditLog, customers, kycSubmissions, type KycSubmission, type KycValidationReport } from '@/src/db/schema';
 import {
   OCCUPANCY_PLACEHOLDER_EMAIL,
   OCCUPANCY_PLACEHOLDER_NAME,
@@ -278,7 +278,99 @@ export async function listPendingKycSubmissions(): Promise<KycSubmissionListRow[
         ne(customers.fullName, OCCUPANCY_PLACEHOLDER_NAME),
       ),
     )
-    .orderBy(desc(kycSubmissions.createdAt));
+    .orderBy(kycSubmissions.createdAt);
+}
+
+/** FIFO — next pending submission after the current one (or first if none specified). */
+export async function getNextPendingKycSubmissionId(
+  afterSubmissionId?: string,
+): Promise<string | null> {
+  const pending = await listPendingKycSubmissions();
+  if (pending.length === 0) return null;
+  if (!afterSubmissionId) return pending[0]!.id;
+  const idx = pending.findIndex((p) => p.id === afterSubmissionId);
+  if (idx === -1) return pending[0]!.id;
+  return pending[idx + 1]?.id ?? null;
+}
+
+export type KycReviewContext = {
+  submission: KycSubmission;
+  customer: {
+    id: string;
+    fullName: string;
+    phone: string;
+    email: string;
+    kycStatus: string;
+  };
+  booking: {
+    id: string;
+    bookingCode: string;
+    pgName: string;
+    roomNumber: string;
+    bedCode: string;
+    status: string;
+  } | null;
+  queuePosition: number;
+  queueTotal: number;
+};
+
+export async function getKycReviewContext(submissionId: string): Promise<KycReviewContext | null> {
+  const sub = await getKycSubmission(submissionId);
+  if (!sub) return null;
+
+  const [customer] = await db
+    .select({
+      id: customers.id,
+      fullName: customers.fullName,
+      phone: customers.phone,
+      email: customers.email,
+      kycStatus: customers.kycStatus,
+    })
+    .from(customers)
+    .where(eq(customers.id, sub.customerId))
+    .limit(1);
+  if (!customer) return null;
+
+  let booking: KycReviewContext['booking'] = null;
+  if (sub.bookingId) {
+    const { bookings, bedReservations, beds, rooms, floors, pgs } = await import('@/src/db/schema');
+    const [row] = await db
+      .select({
+        id: bookings.id,
+        bookingCode: bookings.bookingCode,
+        status: bookings.status,
+        pgName: pgs.name,
+        roomNumber: rooms.roomNumber,
+        bedCode: beds.bedCode,
+      })
+      .from(bookings)
+      .innerJoin(bedReservations, and(
+        eq(bedReservations.bookingId, bookings.id),
+        eq(bedReservations.kind, 'primary'),
+      ))
+      .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+      .innerJoin(rooms, eq(rooms.id, beds.roomId))
+      .innerJoin(floors, eq(floors.id, rooms.floorId))
+      .innerJoin(pgs, eq(pgs.id, floors.pgId))
+      .where(eq(bookings.id, sub.bookingId))
+      .limit(1);
+    if (row) booking = row;
+  }
+
+  const pending = await listPendingKycSubmissions();
+  const queuePosition =
+    sub.status === 'pending'
+      ? Math.max(1, pending.findIndex((p) => p.id === submissionId) + 1)
+      : 0;
+  const queueTotal = pending.length;
+
+  return {
+    submission: sub,
+    customer,
+    booking,
+    queuePosition,
+    queueTotal,
+  };
 }
 
 export async function listApprovedKycSubmissions(

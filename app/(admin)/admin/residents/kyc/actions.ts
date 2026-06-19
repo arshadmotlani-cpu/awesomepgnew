@@ -2,11 +2,11 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
-import { reviewKycSubmission } from '@/src/services/kyc';
+import { getNextPendingKycSubmissionId, reviewKycSubmission } from '@/src/services/kyc';
 
 export type KycReviewActionState =
   | { status: 'idle' }
-  | { status: 'ok'; message: string }
+  | { status: 'ok'; message: string; nextSubmissionId: string | null }
   | { status: 'error'; message: string };
 
 const KYC_PATHS = ['/admin/residents/kyc', '/admin/kyc'] as const;
@@ -34,7 +34,12 @@ export async function approveKycAction(
     return { status: 'error', message: result.message };
   }
   revalidateKyc(submissionId);
-  return { status: 'ok', message: 'KYC approved.' };
+  const nextSubmissionId = await getNextPendingKycSubmissionId(submissionId);
+  return {
+    status: 'ok',
+    message: nextSubmissionId ? 'Approved — opening next review.' : 'Approved — queue complete.',
+    nextSubmissionId,
+  };
 }
 
 export async function rejectKycAction(
@@ -54,5 +59,29 @@ export async function rejectKycAction(
     return { status: 'error', message: result.message };
   }
   revalidateKyc(submissionId);
-  return { status: 'ok', message: 'KYC rejected.' };
+  const nextSubmissionId = await getNextPendingKycSubmissionId(submissionId);
+  return {
+    status: 'ok',
+    message: nextSubmissionId
+      ? 'Correction requested — opening next review.'
+      : 'Correction requested — queue complete.',
+    nextSubmissionId,
+  };
+}
+
+export async function skipToNextKycAction(
+  _prev: KycReviewActionState,
+  formData: FormData,
+): Promise<KycReviewActionState> {
+  await requireAdminPermission('kyc:write');
+  const submissionId = String(formData.get('submissionId') ?? '');
+  const nextSubmissionId = await getNextPendingKycSubmissionId(submissionId);
+  if (!nextSubmissionId || nextSubmissionId === submissionId) {
+    return { status: 'error', message: 'No other pending submission in queue.' };
+  }
+  return {
+    status: 'ok',
+    message: 'Skipped to next.',
+    nextSubmissionId,
+  };
 }
