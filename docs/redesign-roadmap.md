@@ -56,11 +56,11 @@
 
 | # | Screen | Route(s) | Status |
 |---|--------|----------|--------|
-| 1 | Resident Home | `/account/profile?section=resident&tab=home` | ⏳ |
-| 2 | Requests Center | `tab=requests` | ⏳ |
-| 3 | Wallet | `tab=wallet` | ⏳ |
-| 4 | Payments | `tab=payments` | ⏳ |
-| 5 | Application Dashboard | `/account/bookings`, booking detail | ⏳ |
+| 1 | Resident Home | `/account/profile?section=resident&tab=home` | [p1-01](./phase2/p1-01-resident-home.md) | ✅ Done |
+| 2 | Requests Center | `tab=requests` | [p1-02](./phase2/p1-02-requests-center.md) | ✅ Done |
+| 3 | Wallet | `tab=wallet` | [p1-03](./phase2/p1-03-wallet.md) | ✅ Done |
+| 4 | Payments | `tab=payments` | [p1-04](./phase2/p1-04-payments.md) | ✅ Done |
+| 5 | Application Dashboard | `/account/bookings`, booking detail | [p1-05](./phase2/p1-05-application-dashboard.md) | ✅ Done |
 
 ### P2 — Public website (last)
 
@@ -101,7 +101,8 @@
 | Phase 1 audit approved | 2026-06-19 | Inventory + risk report |
 | Phase 2 approved with modification | 2026-06-19 | Admin P0 first; public P2 last; per-screen methodology |
 | P0 admin screens complete | 2026-06-19 | All 6 screens — see [p0-admin-complete.md](./phase2/p0-admin-complete.md) |
+| P1 resident screens complete | 2026-06-19 | All 5 screens — see [p1-resident-complete.md](./phase2/p1-resident-complete.md) |
 
 ---
 
-*Next gate: P1 Resident Home → review → P1 Requests Center.*
+*Next gate: P2 Public Home (blocked until resident P1 sign-off).*

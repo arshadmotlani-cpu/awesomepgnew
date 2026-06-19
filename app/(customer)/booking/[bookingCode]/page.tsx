@@ -14,6 +14,8 @@ import { canCheckIn, getCustomerById } from '@/src/services/profile';
 import { getLatestKycSubmission } from '@/src/services/kyc';
 import { RoachieResidentBriefing } from '@/src/components/cockroach/RoachieResidentBriefing';
 import { buildBriefingInputForBooking } from '@/src/lib/cockroach/briefingFromBooking';
+import { ApplicationBookingPrimaryActions } from '@/src/components/customer/account/resident/ApplicationBookingPrimaryActions';
+import { accountProfileHref, residentTabHref } from '@/src/lib/accountNavigation';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 
 export const dynamic = 'force-dynamic';
@@ -243,27 +245,22 @@ export default async function BookingConfirmationPage(
             {tone.label}
           </span>
           <span className="text-zinc-500">Booked {formatDateTime(b.createdAt)}</span>
-          {isPending ? (
-            <Link
-              href={`/booking/${b.bookingCode}/pay`}
-              className="ml-auto inline-flex items-center rounded-md bg-indigo-600 px-3 py-1 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700"
-            >
-              Pay now →
-            </Link>
-          ) : null}
-          {canExtend ? (
-            <Link
-              href={`/booking/${b.bookingCode}/extend`}
-              className="ml-auto inline-flex items-center rounded-md border border-indigo-300 bg-white px-3 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-50"
-            >
-              Extend stay →
-            </Link>
-          ) : null}
         </div>
       </div>
 
+      <div className="mt-6">
+        <ApplicationBookingPrimaryActions
+          bookingCode={b.bookingCode}
+          status={b.status}
+          payHref={isPending ? `/booking/${b.bookingCode}/pay` : null}
+          identityHref={accountProfileHref('identity', { booking: b.bookingCode })}
+          showIdentity={Boolean(customer && !checkInAllowed && b.status === 'confirmed')}
+          residentHomeHref={residentTabHref('home')}
+        />
+      </div>
+
       <section className="mt-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
-        <h2 className="text-sm font-semibold text-zinc-900">Booking at a glance</h2>
+        <h2 className="text-base font-semibold text-zinc-900">Booking summary</h2>
         <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
           <SummaryRow term="Booking code" value={b.bookingCode} mono />
           <SummaryRow term="PG name" value={b.pg.name} />
