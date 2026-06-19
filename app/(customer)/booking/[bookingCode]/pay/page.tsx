@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { uploadPaymentScreenshotAction } from '@/app/(admin)/admin/pgs/payment-actions';
 import { BookingCheckoutExperience } from '@/src/components/customer/checkout/BookingCheckoutExperience';
+import { BookingFlowStepper } from '@/src/components/customer/checkout/BookingFlowStepper';
 import { CheckoutProgressStepper } from '@/src/components/customer/checkout/CheckoutProgressStepper';
 import { getBookingByCode } from '@/src/db/queries/customer';
 import {
@@ -105,7 +106,8 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
           </span>
         </div>
 
-        <div className="mt-8">
+        <div className="mt-8 space-y-4">
+          <BookingFlowStepper activeStep="confirm" />
           <CheckoutProgressStepper activeStep="payment" />
         </div>
 

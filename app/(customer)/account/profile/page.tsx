@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ProfileForm } from '@/src/components/customer/ProfileForm';
 import { AccountSectionNav } from '@/src/components/customer/account/AccountSectionNav';
+import { ApplicationStatusTracker } from '@/src/components/customer/account/ApplicationStatusTracker';
 import { KycIdentitySection } from '@/src/components/customer/account/KycIdentitySection';
 import { ProfilePhoto } from '@/src/components/customer/account/ProfilePhoto';
 import { ResidentAreaSection } from '@/src/components/customer/account/ResidentAreaSection';
@@ -11,7 +12,7 @@ import {
 } from '@/src/components/customer/accountStyles';
 import { customerHasConfirmedBooking } from '@/src/db/queries/customer';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
-import { parseAccountSection, accountProfileHref } from '@/src/lib/accountNavigation';
+import { parseAccountSection, parseResidentTab, accountProfileHref } from '@/src/lib/accountNavigation';
 import { formatIndianPhoneDisplay, indianLocalFromE164 } from '@/src/lib/phone';
 import { getCustomerById, isProfileComplete, canCheckIn } from '@/src/services/profile';
 import { getLatestKycSubmission } from '@/src/services/kyc';
@@ -40,6 +41,7 @@ export default async function ProfilePage(
   const bookingCode = typeof sp.booking === 'string' ? sp.booking : undefined;
   const submitted = sp.submitted === '1';
   let section = parseAccountSection(typeof sp.section === 'string' ? sp.section : undefined);
+  const residentTab = parseResidentTab(typeof sp.tab === 'string' ? sp.tab : undefined);
 
   const confirmed = await customerHasConfirmedBooking(session.customerId);
   const showResident = confirmed.ok && confirmed.data;
@@ -95,6 +97,18 @@ export default async function ProfilePage(
         showResident={showResident}
         bookingCode={bookingCode}
       />
+
+      {!showResident && section !== 'resident' ? (
+        <div className="mt-6">
+          <ApplicationStatusTracker
+            profileComplete={complete}
+            kycStatus={customer.kycStatus}
+            hasConfirmedBooking={showResident}
+            depositPaid={showResident}
+            isResident={showResident}
+          />
+        </div>
+      ) : null}
 
       {section === 'profile' ? (
         <section className="mt-6 space-y-4">
@@ -153,7 +167,7 @@ export default async function ProfilePage(
       ) : null}
 
       {section === 'resident' && showResident ? (
-        <ResidentAreaSection customerId={session.customerId} />
+        <ResidentAreaSection customerId={session.customerId} activeTab={residentTab} />
       ) : null}
     </main>
   );

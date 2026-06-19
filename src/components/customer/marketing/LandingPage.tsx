@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { motion } from 'framer-motion';
+import { LiveAvailabilityStrip } from '@/src/components/customer/marketing/LiveAvailabilityStrip';
+import { ApgCard } from '@/src/components/customer/design-system';
 
 type LifestyleItem = {
   emoji: string;
@@ -53,7 +55,17 @@ const STEPS = [
   { n: '04', title: 'Live awesome', body: 'Rent, AC electricity, and community — all in one place.' },
 ];
 
-export function LandingPage() {
+type Props = {
+  availableBeds?: number;
+  totalBeds?: number;
+  pgCount?: number;
+};
+
+export function LandingPage({
+  availableBeds = 0,
+  totalBeds = 0,
+  pgCount = 4,
+}: Props) {
   return (
     <div className="apg-landing apg-aurora apg-grid-overlay overflow-hidden">
       {/* Hero */}
@@ -94,22 +106,28 @@ export function LandingPage() {
           </div>
         </motion.div>
 
+        <LiveAvailabilityStrip
+          availableBeds={availableBeds}
+          totalBeds={totalBeds}
+          pgCount={pgCount}
+        />
+
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.15 }}
-          className="mt-16 grid w-full max-w-4xl grid-cols-2 gap-3 sm:grid-cols-4"
+          className="mt-10 grid w-full max-w-4xl grid-cols-2 gap-3 sm:grid-cols-4"
         >
           {[
-            { label: 'Bed-first booking', sub: 'Your exact bed, locked' },
-            { label: 'Social living', sub: 'Game · chill · connect' },
-            { label: 'Resident perks', sub: 'Gym & farmhouse (soon)' },
-            { label: 'Transparent bills', sub: 'Rent · AC power · deposit' },
+            { label: 'Stay cool 24/7', sub: 'AC rooms · split billing only for usage' },
+            { label: 'Unlimited high-speed WiFi', sub: 'Work, stream, game — no caps' },
+            { label: 'Daily cleaning & laundry', sub: 'Fresh sheets weekly · free laundry' },
+            { label: 'Transparent bills', sub: 'Rent · AC power · deposit — no surprises' },
           ].map((s) => (
-            <div key={s.label} className="apg-glass rounded-2xl px-4 py-4 text-left">
+            <ApgCard key={s.label} tier="card" className="px-4 py-4 text-left">
               <p className="text-sm font-semibold text-white">{s.label}</p>
               <p className="mt-1 text-xs text-apg-silver">{s.sub}</p>
-            </div>
+            </ApgCard>
           ))}
         </motion.div>
       </section>

@@ -3,6 +3,7 @@ import {
   BookingCartForm,
   type CartLineItem,
 } from '@/src/components/customer/BookingCartForm';
+import { BookingNewHeader } from '@/src/components/customer/checkout/BookingNewHeader';
 import { getBedsForCart } from '@/src/db/queries/customer';
 import { normalizeBrowseStay } from '@/src/lib/dateDefaults';
 import { todayString } from '@/src/lib/dates';
@@ -213,6 +214,8 @@ export default async function NewBookingPage(
           enter your details, and continue to payment.
         </p>
       </header>
+
+      <BookingNewHeader />
 
       {!profileComplete ? (
         <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">

@@ -47,6 +47,8 @@ For every existing customer-facing page, answer before touching it:
 
 **Status:** ✅ Completed — see [`feature-inventory.md`](./feature-inventory.md)
 
+**Phase 1–3 status:** ✅ Design system, resident hub shell, P0/P1/P2 customer UX implemented (presentation layer only). Backend-gated features (referrals, full notification inbox, 7 unwired request types) use honest placeholders.
+
 ---
 
 ## PHASE 1 — DESIGN SYSTEM SETUP

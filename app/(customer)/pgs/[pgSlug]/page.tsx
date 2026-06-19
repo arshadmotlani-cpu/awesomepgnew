@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AmenityList } from '@/src/components/customer/AmenityList';
+import { FloorExplorer } from '@/src/components/customer/FloorExplorer';
 import { GenderBadge } from '@/src/components/customer/GenderBadge';
+import { StickyBookCta } from '@/src/components/customer/marketing/StickyBookCta';
 import { PgImageGallery } from '@/src/components/customer/PgImageGallery';
 import {
   CustomerBedMap,
@@ -76,6 +78,28 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
   );
   const fullyOccupied = totalBeds > 0 && availableBeds === 0;
 
+  const floorMap = new Map<
+    number,
+    { floorLabel: string; floorNumber: number; roomCount: number; availableBeds: number; totalBeds: number }
+  >();
+  for (const room of bedMapRooms) {
+    const key = room.floorNumber ?? 0;
+    const existing = floorMap.get(key) ?? {
+      floorLabel: room.floorLabel ?? `Floor ${key}`,
+      floorNumber: key,
+      roomCount: 0,
+      availableBeds: 0,
+      totalBeds: 0,
+    };
+    existing.roomCount += 1;
+    existing.totalBeds += room.beds.length;
+    existing.availableBeds += room.beds.filter(
+      (b) => b.isAvailableNow && b.status === 'available',
+    ).length;
+    floorMap.set(key, existing);
+  }
+  const floors = [...floorMap.values()].sort((a, b) => a.floorNumber - b.floorNumber);
+
   void trackAnalyticsEvent({
     eventType: 'pg_viewed',
     metadata: { pgSlug: pg.slug, pgId: pg.id },
@@ -147,7 +171,11 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
         </section>
       ) : null}
 
-      <section className="mt-8" data-roachie-tour="pg-beds">
+      <section className="mt-8">
+        <FloorExplorer floors={floors} pgSlug={pg.slug} />
+      </section>
+
+      <section className="mt-8" id="pg-beds" data-roachie-tour="pg-beds">
         <div className="mb-5">
           <h2 className="text-xl font-semibold text-white">Rooms & beds</h2>
           <p className="text-sm text-apg-silver">
@@ -165,6 +193,7 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
           <CustomerBedMap rooms={bedMapRooms} />
         )}
       </section>
+      <StickyBookCta href={`#pg-beds`} label="Check availability & book" />
     </div>
   );
 }

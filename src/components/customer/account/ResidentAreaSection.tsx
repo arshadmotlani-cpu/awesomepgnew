@@ -46,6 +46,13 @@ import { ensureDepositDuePaymentLink } from '@/src/services/depositCollection';
 import { paymentLinkPublicUrl } from '@/src/lib/billing/paymentLinkUrl';
 import { getLatestPaymentLinkForResident } from '@/src/services/paymentLinks';
 import { listOpenRequestsForCustomer } from '@/src/services/residentRequests';
+import { ConciergePanel } from '@/src/components/customer/account/ConciergePanel';
+import { NotificationCenterPanel } from '@/src/components/customer/account/NotificationCenterPanel';
+import { ReferralsPanel } from '@/src/components/customer/account/ReferralsPanel';
+import { RequestsCenter } from '@/src/components/customer/account/RequestsCenter';
+import { ResidentHubShell } from '@/src/components/customer/account/ResidentHubShell';
+import { VacatingJourneyTimeline } from '@/src/components/customer/account/VacatingJourneyTimeline';
+import type { ResidentTab } from '@/src/lib/accountNavigation';
 
 const RENT_STATUS_TONE: Record<string, string> = {
   pending: 'bg-amber-50 text-amber-700 ring-amber-200',
@@ -82,7 +89,13 @@ function StatusPill({
  * Resident billing dashboard — rent, electricity, deposit, vacating.
  * Rendered inside the unified account profile (`/account/profile?section=resident`).
  */
-export async function ResidentAreaSection({ customerId }: { customerId: string }) {
+export async function ResidentAreaSection({
+  customerId,
+  activeTab = 'home',
+}: {
+  customerId: string;
+  activeTab?: ResidentTab;
+}) {
   const session = await getCustomerSession();
   if (!session || session.customerId !== customerId) {
     return null;
@@ -202,14 +215,39 @@ export async function ResidentAreaSection({ customerId }: { customerId: string }
       : null;
 
   return (
-    <section className="mt-6 space-y-6">
-      {residentBriefing ? (
+    <ResidentHubShell activeTab={activeTab}>
+      {activeTab === 'notifications' ? (
+        <NotificationCenterPanel email={customer?.email} />
+      ) : null}
+      {activeTab === 'referrals' ? <ReferralsPanel /> : null}
+      {activeTab === 'concierge' ? (
+        <ConciergePanel residentName={session.fullName || customer?.fullName} />
+      ) : null}
+      {activeTab === 'requests' && primaryBooking ? (
+        <RequestsCenter
+          bookingId={primaryBooking.bookingId}
+          bookingCode={primaryBooking.bookingCode}
+          openRequestTypes={openRequests.map((r) =>
+            r.type === 'deposit_refund' ? 'deposit_refund' : 'late_checkout',
+          )}
+        />
+      ) : null}
+
+      {(activeTab === 'home' ||
+        activeTab === 'wallet' ||
+        activeTab === 'payments' ||
+        activeTab === 'requests' ||
+        activeTab === 'room' ||
+        activeTab === 'vacating') && (
+    <section className="space-y-6">
+      {activeTab === 'home' && residentBriefing ? (
         <RoachieResidentBriefing
           sessionKey="resident-dashboard-briefing-v1"
           {...residentBriefing}
         />
       ) : null}
 
+      {activeTab === 'home' ? (
       <p className="text-sm text-apg-silver">
         Monthly and open-ended stays — rent, electricity, deposit, and vacating. Short stays stay
         under{' '}
@@ -222,22 +260,26 @@ export async function ResidentAreaSection({ customerId }: { customerId: string }
         </Link>
         .
       </p>
+      ) : null}
 
-      <DepositRefundNotice />
+      {(activeTab === 'home' || activeTab === 'vacating') ? <DepositRefundNotice /> : null}
 
-      {financialSummary ? (
+      {(activeTab === 'home' || activeTab === 'wallet') && financialSummary ? (
         <ResidentFinancialSummaryPanel summary={financialSummary} />
       ) : null}
 
-      {depositDueCards.map((card) => (
+      {(activeTab === 'home' || activeTab === 'wallet' || activeTab === 'payments') &&
+        depositDueCards.map((card) => (
         <DepositDueSection key={`deposit-due-${card.bookingId}`} {...card} />
       ))}
 
-      {depositWallet.totalCollectedPaise > 0 ? (
+      {(activeTab === 'home' || activeTab === 'wallet') && depositWallet.totalCollectedPaise > 0 ? (
         <DepositWalletSection wallet={depositWallet} />
       ) : null}
 
+      {(activeTab === 'home' || activeTab === 'room') ? (
       <MyServicesPanel membership={ps4Membership} isActiveTenant={tenantActive} />
+      ) : null}
 
       {bookings.ok === false ? (
         <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700 ring-1 ring-inset ring-rose-200">
@@ -343,6 +385,7 @@ export async function ResidentAreaSection({ customerId }: { customerId: string }
                 </header>
 
                 {/* Top-line summary */}
+                {(activeTab === 'home') ? (
                 <div className="grid gap-3 sm:grid-cols-4">
                   <Card label="Rent due" value={paiseToInr(totalRentOutstanding)} />
                   <Card label="Electricity due" value={paiseToInr(totalElectricityOutstanding)} />
@@ -352,7 +395,9 @@ export async function ResidentAreaSection({ customerId }: { customerId: string }
                     value={paiseToInr(deposit?.refundableBalancePaise ?? 0)}
                   />
                 </div>
+                ) : null}
 
+                {(activeTab === 'home') ? (
                 <div className="flex flex-wrap gap-2 text-xs">
                   <span className="rounded-full bg-zinc-100 px-2.5 py-1 font-medium text-zinc-700 ring-1 ring-zinc-200">
                     {labelAdminDuesStatus(booking.adminDuesStatus)}
@@ -365,14 +410,17 @@ export async function ResidentAreaSection({ customerId }: { customerId: string }
                     <span className="text-zinc-600">No open invoices in the system.</span>
                   ) : null}
                 </div>
+                ) : null}
 
+                {(activeTab === 'home' || activeTab === 'requests') ? (
                 <ResidentRequestForms
                   bookingId={d.bookingId}
                   refundableBalancePaise={deposit?.refundableBalancePaise ?? 0}
                   hasOpenVacating={Boolean(vacating && ['pending', 'approved'].includes(vacating.status))}
                 />
+                ) : null}
 
-                {openRequests.filter((r) => r.bookingId === d.bookingId).length > 0 ? (
+                {(activeTab === 'home') && openRequests.filter((r) => r.bookingId === d.bookingId).length > 0 ? (
                   <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                     <p className="font-semibold">Open requests</p>
                     <ul className="mt-1 list-inside list-disc">
@@ -388,6 +436,7 @@ export async function ResidentAreaSection({ customerId }: { customerId: string }
                   </div>
                 ) : null}
 
+                {(activeTab === 'home' || activeTab === 'payments') ? (
                 <div className="flex flex-wrap gap-2 text-xs">
                   <Link
                     href={`/account/resident/history/${d.bookingId}`}
@@ -396,8 +445,9 @@ export async function ResidentAreaSection({ customerId }: { customerId: string }
                     Payment history →
                   </Link>
                 </div>
+                ) : null}
 
-                {d.roomElectricity?.latestBill ? (
+                {(activeTab === 'home' || activeTab === 'room') && d.roomElectricity?.latestBill ? (
                   <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4 text-sm">
                     <h3 className="font-medium text-indigo-900">Room electricity (Room {booking.roomNumber})</h3>
                     {d.roomElectricity.latestBill.isEstimated ? (
@@ -437,7 +487,7 @@ export async function ResidentAreaSection({ customerId }: { customerId: string }
                   </div>
                 ) : null}
 
-                {/* Rent invoices */}
+                {(activeTab === 'home' || activeTab === 'payments') ? (
                 <details open={projectedRent.some((r) => r.effectiveStatus !== 'paid')}>
                   <summary className="cursor-pointer text-sm font-medium text-zinc-900">
                     Rent invoices ({projectedRent.length})
@@ -507,8 +557,9 @@ export async function ResidentAreaSection({ customerId }: { customerId: string }
                     </table>
                   </div>
                 </details>
+                ) : null}
 
-                {/* Electricity invoices */}
+                {(activeTab === 'home' || activeTab === 'payments') ? (
                 <details open={projectedElectricity.some((p) => p.effectiveStatus !== 'paid' && p.effectiveStatus !== 'cancelled')}>
                   <summary className="cursor-pointer text-sm font-medium text-zinc-900">
                     Electricity invoices ({electricityRows.length})
@@ -584,8 +635,9 @@ export async function ResidentAreaSection({ customerId }: { customerId: string }
                     </table>
                   </div>
                 </details>
+                ) : null}
 
-                {/* Deposit ledger */}
+                {(activeTab === 'home' || activeTab === 'wallet') ? (
                 <details>
                   <summary className="cursor-pointer text-sm font-medium text-zinc-900">
                     Deposit ledger ({deposit?.entries.length ?? 0} entries)
@@ -627,8 +679,30 @@ export async function ResidentAreaSection({ customerId }: { customerId: string }
                     </table>
                   </div>
                 </details>
+                ) : null}
 
-                {/* Vacating */}
+                {(activeTab === 'home' || activeTab === 'vacating') ? (
+                <>
+                <VacatingJourneyTimeline
+                  vacatingStatus={vacating?.status ?? null}
+                  checkoutStatus={null}
+                  settlementLines={
+                    vacating
+                      ? [
+                          {
+                            label: 'Notice period deduction',
+                            amountPaise: vacating.deductionPaise,
+                            tone: 'deduction',
+                          },
+                          {
+                            label: 'Refund issued',
+                            amountPaise: vacating.depositRefundPaise,
+                            tone: 'credit',
+                          },
+                        ]
+                      : []
+                  }
+                />
                 <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <h3 className="text-sm font-medium text-zinc-900">Vacating</h3>
@@ -687,11 +761,15 @@ export async function ResidentAreaSection({ customerId }: { customerId: string }
                     </Link>
                   ) : null}
                 </div>
+                </>
+                ) : null}
               </section>
             );
           })
         : null}
     </section>
+      )}
+    </ResidentHubShell>
   );
 }
 
