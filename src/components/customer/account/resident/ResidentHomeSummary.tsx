@@ -30,6 +30,7 @@ export function ResidentHomeSummary({
   kycStatus,
   documentsSubmitted,
   openRequestCount,
+  compact = false,
 }: {
   pgName: string;
   roomNumber: string;
@@ -42,13 +43,14 @@ export function ResidentHomeSummary({
   kycStatus: string;
   documentsSubmitted: boolean;
   openRequestCount: number;
+  compact?: boolean;
 }) {
   const amountDue = financialSummary.totals.outstandingPaise;
   const idLabel = identityLabel(kycStatus, documentsSubmitted);
 
   return (
     <section className={`${ACCOUNT_SURFACE} p-5`}>
-      <header className="mb-4">
+      <header className={compact ? '' : 'mb-4'}>
         <h2 className="text-base font-semibold text-zinc-900">Your stay</h2>
         <p className="mt-1 text-sm text-zinc-600">
           {pgName} · Room {roomNumber} · Bed {bedCode}
@@ -64,7 +66,8 @@ export function ResidentHomeSummary({
         </p>
       </header>
 
-      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {!compact ? (
+      <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <SummaryCard
           label="Amount due"
           value={paiseToInr(amountDue)}
@@ -84,6 +87,7 @@ export function ResidentHomeSummary({
           value={openRequestCount === 0 ? 'None' : String(openRequestCount)}
         />
       </dl>
+      ) : null}
 
       {financialSummary.deposit.refundablePaise > 0 ? (
         <p className="mt-3 text-xs text-zinc-600">

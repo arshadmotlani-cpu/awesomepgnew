@@ -97,19 +97,20 @@ export function ResidentPaymentsPrimaryActions({
   );
 }
 
-export function ResidentBillsList({ rows }: { rows: PaymentDueRow[] }) {
+export function ResidentBillsList({
+  rows,
+  title = 'Your bills',
+}: {
+  rows: PaymentDueRow[];
+  title?: string;
+}) {
   if (rows.length === 0) {
-    return (
-      <section className={`${ACCOUNT_SURFACE} p-5`}>
-        <h2 className="text-base font-semibold text-zinc-900">Your bills</h2>
-        <p className="mt-2 text-sm text-zinc-600">No unpaid bills. Rent bills appear on the 1st of each month.</p>
-      </section>
-    );
+    return null;
   }
 
   return (
     <section className={`${ACCOUNT_SURFACE} p-5`}>
-      <h2 className="text-base font-semibold text-zinc-900">Your bills</h2>
+      <h2 className="text-base font-semibold text-zinc-900">{title}</h2>
       <ul className="mt-4 divide-y divide-zinc-200">
         {rows.map((row) => (
           <li key={row.key} className="flex flex-wrap items-center justify-between gap-2 py-3 first:pt-0">
