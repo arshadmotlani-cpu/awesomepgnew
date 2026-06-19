@@ -14,8 +14,6 @@ import { projectElectricityInvoice } from '@/src/services/electricityBilling';
 import { getCustomerSession } from '@/src/lib/auth/session';
 import { getCustomerById } from '@/src/services/profile';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
-import { DepositRefundNotice } from '@/src/components/customer/DepositRefundNotice';
-import { CancelVacatingForm } from '@/src/components/customer/CancelVacatingForm';
 import {
   ACCOUNT_LINK_IN_SURFACE,
   ACCOUNT_SURFACE,
@@ -40,10 +38,10 @@ import { MyRoomPanel } from '@/src/components/customer/account/MyRoomPanel';
 import { NotificationCenterPanel } from '@/src/components/customer/account/NotificationCenterPanel';
 import { ReferralsPanel } from '@/src/components/customer/account/ReferralsPanel';
 import { RequestsHome } from '@/src/components/customer/account/resident/requests/RequestsHome';
+import { VacatingHome } from '@/src/components/customer/account/resident/vacating/VacatingHome';
 import { requestTypeLabel, type ActiveRequestItem } from '@/src/lib/residents/requestCenter';
 import { ResidentConciergeChat } from '@/src/components/customer/account/ResidentConciergeChat';
 import { ResidentHubShell } from '@/src/components/customer/account/ResidentHubShell';
-import { VacatingJourneyTimeline } from '@/src/components/customer/account/VacatingJourneyTimeline';
 import type { ConciergeContext } from '@/src/lib/concierge/answers';
 import type { ResidentTab } from '@/src/lib/accountNavigation';
 import { listCustomerEmailNotifications } from '@/src/db/queries/customerNotifications';
@@ -64,13 +62,6 @@ const RENT_STATUS_TONE: Record<string, string> = {
   overdue: 'bg-rose-50 text-rose-700 ring-rose-200',
   paid: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
   cancelled: 'bg-zinc-100 text-zinc-700 ring-zinc-200',
-};
-
-const VACATING_TONE: Record<string, string> = {
-  pending: 'bg-amber-50 text-amber-700 ring-amber-200',
-  approved: 'bg-indigo-50 text-indigo-700 ring-indigo-200',
-  completed: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  rejected: 'bg-rose-50 text-rose-700 ring-rose-200',
 };
 
 function StatusPill({
@@ -438,6 +429,16 @@ export async function ResidentAreaSection({
         />
       ) : null}
 
+      {activeTab === 'vacating' && primaryBooking ? (
+        <VacatingHome
+          bookingId={primaryBooking.bookingId}
+          bookingCode={primaryBooking.bookingCode}
+          roomLabel={roomLabel}
+          vacating={primaryVacating}
+          checkoutStatus={checkoutByBooking.get(primaryBooking.bookingId) ?? null}
+        />
+      ) : null}
+
       {activeTab === 'home' && primaryBooking && financialSummary && customer ? (
         <ResidentHomePanel
           booking={primaryBooking.booking}
@@ -490,10 +491,8 @@ export async function ResidentAreaSection({
         <ResidentPaymentsHub billRows={paymentBillRows} historyHref={historyHref} />
       ) : null}
 
-      {(activeTab === 'payments' || activeTab === 'vacating') && (
+      {activeTab === 'payments' && (
     <section className="space-y-6">
-
-      {activeTab === 'vacating' ? <DepositRefundNotice /> : null}
 
       {activeTab === 'payments' &&
         depositDueCards.map((card) => (
@@ -560,7 +559,6 @@ export async function ResidentAreaSection({
               }),
             );
             const deposit = d.deposit;
-            const vacating = d.vacating.ok ? d.vacating.data : null;
             return (
               <section
                 key={d.bookingId}
@@ -737,89 +735,6 @@ export async function ResidentAreaSection({
                   </div>
                 </details>
                 </ResidentMoreSection>
-                ) : null}
-
-                {activeTab === 'vacating' ? (
-                <>
-                <VacatingJourneyTimeline
-                  vacatingStatus={vacating?.status ?? null}
-                  checkoutStatus={checkoutByBooking.get(d.bookingId) ?? null}
-                  settlementLines={
-                    vacating
-                      ? [
-                          {
-                            label: 'Notice period deduction',
-                            amountPaise: vacating.deductionPaise,
-                            tone: 'deduction',
-                          },
-                          {
-                            label: 'Refund issued',
-                            amountPaise: vacating.depositRefundPaise,
-                            tone: 'credit',
-                          },
-                        ]
-                      : []
-                  }
-                />
-                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <h3 className="text-sm font-medium text-zinc-900">Vacating</h3>
-                    {vacating ? (
-                      <StatusPill status={vacating.status} tones={VACATING_TONE} />
-                    ) : (
-                      <span className="text-xs font-medium text-zinc-600">No request on file</span>
-                    )}
-                  </div>
-                  {vacating ? (
-                    <dl className="mt-2 grid gap-x-4 gap-y-1 text-xs sm:grid-cols-2">
-                      <div>
-                        <dt className="text-zinc-600">Notice given</dt>
-                        <dd className="font-semibold text-zinc-900">
-                          {formatDate(vacating.noticeGivenDate)}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-zinc-600">Vacating date</dt>
-                        <dd className="font-semibold text-zinc-900">{formatDate(vacating.vacatingDate)}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-zinc-600">Notice ≥ 14 days?</dt>
-                        <dd className="font-semibold text-zinc-900">
-                          {vacating.noticeCompliant ? 'Yes — no deduction' : 'No — 5-day penalty applies'}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-zinc-600">Deposit deduction</dt>
-                        <dd className="font-semibold text-zinc-900">
-                          {paiseToInr(vacating.deductionPaise)}
-                        </dd>
-                      </div>
-                      {vacating.status === 'completed' ? (
-                        <div>
-                          <dt className="text-zinc-600">Refund issued</dt>
-                          <dd className="font-semibold text-zinc-900">
-                            {paiseToInr(vacating.depositRefundPaise)}
-                          </dd>
-                        </div>
-                      ) : null}
-                    </dl>
-                  ) : null}
-                  {vacating?.status === 'pending' ? (
-                    <CancelVacatingForm
-                      requestId={vacating.id}
-                      bookingId={d.bookingId}
-                    />
-                  ) : null}
-                  {!vacating ? (
-                    <Link
-                      href={`/account/resident/request-vacating/${d.bookingId}`}
-                      className={`mt-3 ${ACCOUNT_SURFACE_PRIMARY_BTN} px-3 py-1.5 text-xs`}
-                    >
-                      Submit vacating request →
-                    </Link>
-                  ) : null}
-                </div>
-                </>
                 ) : null}
               </section>
             );
