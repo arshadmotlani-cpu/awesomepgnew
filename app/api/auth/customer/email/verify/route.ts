@@ -38,7 +38,7 @@ async function handleProfileStep(args: {
   const { email, fullName, phone, code, otpCtx } = args;
 
   const existingSnapshot = await resolveCustomerAuthSnapshot(email);
-  if (existingSnapshot?.kind === 'existing_complete') {
+  if (existingSnapshot?.shouldLogin) {
     await clearSignupSessionCookie();
     return NextResponse.json(
       {

@@ -74,6 +74,14 @@ export async function setCustomerPassword(customerId: string, password: string):
     .where(eq(customers.id, customerId));
 }
 
+/** Can use email + password on the login form. */
+export function canSignInWithPassword(customer: {
+  passwordHash: string | null;
+  archivedAt?: Date | null;
+}): boolean {
+  return Boolean(customer.passwordHash) && !customer.archivedAt;
+}
+
 /** A real account requires a password — partial rows without one are incomplete. */
 export function isAccountComplete(customer: {
   passwordHash: string | null;

@@ -36,14 +36,22 @@ function formatResendWait(seconds: number): string {
   return `${seconds}s`;
 }
 
-export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark' }) {
+export function CustomerLoginForm({
+  theme = 'light',
+  initialEmail,
+  initialMessage,
+}: {
+  theme?: 'light' | 'dark';
+  initialEmail?: string;
+  initialMessage?: string;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = safeNext(searchParams.get('next'));
 
   const [step, setStep] = useState<Step>('credentials');
   const [otpPurpose, setOtpPurpose] = useState<OtpPurpose>('signup');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(initialEmail ?? '');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -51,7 +59,7 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialMessage ?? null);
   const [resendSeconds, setResendSeconds] = useState(0);
   const [emailVerified, setEmailVerified] = useState(false);
   const [otpPhase, setOtpPhase] = useState<OtpSubmitPhase>('idle');
@@ -109,7 +117,15 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
       try {
         const res = await fetch('/api/auth/customer/signup/status', { credentials: 'same-origin' });
         if (cancelled) return;
-        if (!res.ok) return;
+
+        if (!res.ok) {
+          await fetch('/api/auth/customer/signup/reset', {
+            method: 'POST',
+            credentials: 'same-origin',
+          });
+          setStep('credentials');
+          return;
+        }
 
         const data = (await res.json()) as {
           ok?: boolean;
@@ -119,43 +135,43 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
           needsPassword?: boolean;
           needsLogin?: boolean;
           shouldSignup?: boolean;
-          fullName?: string;
-          phone?: string;
         };
 
         if (data.needsLogin || data.step === 'COMPLETED') {
           if (data.email) setEmail(data.email);
           setStep('credentials');
+          await fetch('/api/auth/customer/signup/reset', {
+            method: 'POST',
+            credentials: 'same-origin',
+          });
           setError('You already have an account. Sign in with your password or use Forgot password.');
           return;
         }
 
-        if (!data.ok || !data.email || !data.shouldSignup) return;
+        if (!data.ok || !data.email) return;
 
-        setEmail(data.email);
-        const resumeStep =
-          data.step ?? (data.needsPassword ? 'PASSWORD' : data.needsProfile ? 'PROFILE' : 'OTP');
-
-        if (resumeStep === 'PASSWORD' || data.needsPassword) {
+        if (data.needsPassword && data.step === 'PASSWORD') {
           router.replace(`/account/set-password?next=${encodeURIComponent(next)}`);
           return;
         }
 
-        if (resumeStep === 'PROFILE' || data.needsProfile) {
-          setEmailVerified(true);
-          setOtpPhase('success');
-          setStep('profile');
-          if (data.fullName) setFullName(data.fullName);
-          if (data.phone) setPhone(data.phone.replace(/^\+91/, ''));
-          return;
-        }
-
-        if (resumeStep === 'OTP') {
-          setOtpPurpose('signup');
-          setStep('otp');
+        // Never auto-resume OTP or profile on /login — clear stale mid-signup state.
+        if (data.needsProfile || data.step === 'PROFILE' || data.step === 'OTP') {
+          if (data.email) setEmail(data.email);
+          await fetch('/api/auth/customer/signup/reset', {
+            method: 'POST',
+            credentials: 'same-origin',
+          });
+          setStep('credentials');
+          setEmailVerified(false);
+          setOtpPhase('idle');
+          setProfilePhase('idle');
+          setError(
+            'Sign in with your password below. New here? Use “Sign up with email code” after entering your email.',
+          );
         }
       } catch {
-        /* resume is best-effort — stay on login */
+        setStep('credentials');
       }
     })();
     return () => {

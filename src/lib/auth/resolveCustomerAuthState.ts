@@ -1,5 +1,6 @@
 import {
   findCustomerByEmail,
+  canSignInWithPassword,
   isAccountComplete,
   isIncompleteSignup,
 } from '@/src/lib/auth/customer';
@@ -28,9 +29,9 @@ export async function resolveCustomerAuthSnapshot(
   if (!email) return null;
 
   const customer = await findCustomerByEmail(email);
-  if (customer && !customer.archivedAt && isAccountComplete(customer)) {
+  if (customer && !customer.archivedAt && canSignInWithPassword(customer)) {
     return {
-      kind: 'existing_complete',
+      kind: isAccountComplete(customer) ? 'existing_complete' : 'existing_incomplete',
       email: customer.email,
       shouldLogin: true,
       shouldSignup: false,
@@ -64,9 +65,9 @@ export async function resolveCustomerAuthSnapshot(
   };
 }
 
-/** Ambiguous or existing complete → login. Never force profile for complete accounts. */
+/** Ambiguous or any existing password → login. Never force profile for those users. */
 export function preferLoginScreen(snapshot: CustomerAuthSnapshot | null): boolean {
   if (!snapshot) return true;
-  if (snapshot.kind === 'existing_complete') return true;
+  if (snapshot.shouldLogin) return true;
   return false;
 }

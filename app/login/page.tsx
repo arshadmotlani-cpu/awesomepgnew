@@ -5,13 +5,18 @@ import { SiteFooter } from '@/src/components/customer/SiteFooter';
 import { SiteHeader } from '@/src/components/customer/SiteHeader';
 import { WhatsAppSupportButton } from '@/src/components/customer/WhatsAppSupportButton';
 import { CustomerLoginForm } from '@/src/components/auth/CustomerLoginForm';
+import { clearStaleSignupSessionForLogin } from '@/src/lib/auth/loginBootstrap';
 
 export const metadata = {
   title: 'Sign in',
   description: 'Sign in to Awesome PG — book beds, pay rent, and manage your resident life.',
 };
 
-export default function LoginPage() {
+export const dynamic = 'force-dynamic';
+
+export default async function LoginPage() {
+  const clearedEmail = await clearStaleSignupSessionForLogin();
+
   return (
     <div className="apg-aurora apg-grid-overlay flex min-h-screen flex-col bg-apg-charcoal text-[#f4f6f8]">
       <SiteHeader />
@@ -27,7 +32,15 @@ export default function LoginPage() {
           </p>
           <div className="mt-6">
             <Suspense fallback={<p className="text-sm text-apg-silver">Loading…</p>}>
-              <CustomerLoginForm theme="dark" />
+              <CustomerLoginForm
+                theme="dark"
+                initialEmail={clearedEmail ?? undefined}
+                initialMessage={
+                  clearedEmail
+                    ? 'You already have an account. Sign in with your password or use Forgot password.'
+                    : undefined
+                }
+              />
             </Suspense>
           </div>
         </div>

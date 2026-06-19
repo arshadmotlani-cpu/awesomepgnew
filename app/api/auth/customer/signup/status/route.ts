@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { findCustomerByEmail, isAccountComplete, isIncompleteSignup } from '@/src/lib/auth/customer';
+import { findCustomerByEmail, isAccountComplete, isIncompleteSignup, canSignInWithPassword } from '@/src/lib/auth/customer';
 import { authLog } from '@/src/lib/auth/authLog';
 import { preferLoginScreen, resolveCustomerAuthSnapshot } from '@/src/lib/auth/resolveCustomerAuthState';
 import {
@@ -30,6 +30,12 @@ export async function GET(request: Request) {
 
   const signupSession = await readSignupSessionFromRequest();
   if (signupSession) {
+    const customer = await findCustomerByEmail(signupSession.email);
+    if (customer && canSignInWithPassword(customer)) {
+      await clearSignupSessionCookie();
+      return loginFallback(signupSession.email, 'complete_account');
+    }
+
     const snapshot = await resolveCustomerAuthSnapshot(signupSession.email);
     if (preferLoginScreen(snapshot)) {
       await clearSignupSessionCookie();

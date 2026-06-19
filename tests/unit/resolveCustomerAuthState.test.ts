@@ -19,6 +19,18 @@ describe('preferLoginScreen', () => {
     );
   });
 
+  it('requires login when account has a password', () => {
+    assert.equal(
+      preferLoginScreen({
+        kind: 'existing_incomplete',
+        email: 'a@b.com',
+        shouldLogin: true,
+        shouldSignup: false,
+      }),
+      true,
+    );
+  });
+
   it('allows signup for new emails', () => {
     assert.equal(
       preferLoginScreen({
