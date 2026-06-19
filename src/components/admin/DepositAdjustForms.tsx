@@ -17,7 +17,8 @@ type ServerAction = (
   formData: FormData,
 ) => Promise<ActionState>;
 
-function CorrectDepositForm({
+/** Ledger reconcile — for Advanced Tools only. */
+export function DepositLedgerReconcileForm({
   bookingId,
   bookingDepositPaise,
   ledgerCollectedPaise,
@@ -33,68 +34,63 @@ function CorrectDepositForm({
   const defaultValueInr = Math.round(asPlainNumber(bookingDepositPaise) / 100);
 
   return (
-    <form
-      action={runAction}
-      className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/50 p-4 shadow-sm"
-    >
-      <div>
-        <h3 className="text-sm font-semibold text-indigo-900">Set / correct deposit collected</h3>
-        <p className="mt-1 text-[11px] text-indigo-900/80">
-          Sets the booking deposit and reconciles the ledger to this total. Use for grandfathered
-          amounts or fixing a wrong entry after assignment.
-        </p>
-        <p className="mt-1 text-[11px] text-zinc-600">
-          Current booking deposit: <strong>{paiseToInr(bookingDepositPaise)}</strong>
-          {' · '}
-          Ledger collected: <strong>{paiseToInr(ledgerCollectedPaise)}</strong>
-          {websiteDepositPaise > 0 ? (
-            <>
-              {' · '}
-              Website default: <strong>{paiseToInr(websiteDepositPaise)}</strong>
-            </>
-          ) : null}
-        </p>
-      </div>
-      <label className="block">
-        <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-          Total deposit collected (₹)
-        </span>
-        <input
-          type="number"
-          name="amountInr"
-          min="0"
-          step="1"
-          required
-          defaultValue={defaultValueInr}
-          className="mt-1 block w-full max-w-xs rounded-md border border-zinc-300 px-2.5 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-        />
-      </label>
-      <label className="block">
-        <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-          Reason
-        </span>
-        <input
-          type="text"
-          name="reason"
-          required
-          maxLength={200}
-          placeholder="e.g. grandfathered deposit before price increase"
-          className="mt-1 block w-full rounded-md border border-zinc-300 px-2.5 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-        />
-      </label>
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded-md bg-indigo-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-800 disabled:bg-indigo-300"
-      >
-        {pending ? 'Saving…' : 'Set deposit & reconcile ledger'}
-      </button>
-      {state.status === 'ok' ? (
-        <p className="rounded bg-emerald-50 px-2 py-1 text-xs text-emerald-700">{state.message}</p>
-      ) : state.status === 'error' ? (
-        <p className="rounded bg-rose-50 px-2 py-1 text-xs text-rose-700">{state.message}</p>
-      ) : null}
-    </form>
+    <div className="rounded-xl border border-white/10 bg-[#12161C] p-4">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-apg-silver">
+        Reconcile ledger to booking deposit
+      </h3>
+      <p className="mt-1 text-xs text-apg-silver/80">
+        Sets the booking deposit and reconciles the ledger to this total. Use for grandfathered
+        amounts or fixing a wrong entry after assignment.
+      </p>
+      <p className="mt-2 text-xs text-apg-silver">
+        Booking deposit: <strong className="text-white">{paiseToInr(bookingDepositPaise)}</strong>
+        {' · '}
+        Ledger collected: <strong className="text-white">{paiseToInr(ledgerCollectedPaise)}</strong>
+        {websiteDepositPaise > 0 ? (
+          <>
+            {' · '}
+            Website default: <strong className="text-white">{paiseToInr(websiteDepositPaise)}</strong>
+          </>
+        ) : null}
+      </p>
+      <form action={runAction} className="mt-3 space-y-3">
+        <label className="block text-sm">
+          <span className="text-apg-silver">Total deposit collected (₹)</span>
+          <input
+            type="number"
+            name="amountInr"
+            min="0"
+            step="1"
+            required
+            defaultValue={defaultValueInr}
+            className="apg-admin-field mt-1 block w-full max-w-xs rounded-lg border border-white/10 bg-[#0B0F14] px-3 py-2 text-white"
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="text-apg-silver">Reason</span>
+          <input
+            type="text"
+            name="reason"
+            required
+            maxLength={200}
+            placeholder="e.g. grandfathered deposit before price increase"
+            className="apg-admin-field mt-1 block w-full rounded-lg border border-white/10 bg-[#0B0F14] px-3 py-2 text-white"
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={pending}
+          className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/5 disabled:opacity-60"
+        >
+          {pending ? 'Saving…' : 'Set deposit & reconcile ledger'}
+        </button>
+        {state.status === 'ok' ? (
+          <p className="text-xs text-emerald-300">{state.message}</p>
+        ) : state.status === 'error' ? (
+          <p className="text-xs text-rose-300">{state.message}</p>
+        ) : null}
+      </form>
+    </div>
   );
 }
 
@@ -121,41 +117,37 @@ function DepositForm({
   const [state, runAction, pending] = useActionState(bound, initialActionState);
   const headerColor =
     accent === 'positive'
-      ? 'text-emerald-700'
+      ? 'text-emerald-300'
       : accent === 'warn'
-        ? 'text-rose-700'
-        : 'text-zinc-700';
+        ? 'text-rose-300'
+        : 'text-white';
 
   return (
     <form
       action={runAction}
-      className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm"
+      className="space-y-3 rounded-xl border border-white/10 bg-[#1A1F27] p-4"
     >
       <div>
         <h3 className={`text-sm font-semibold ${headerColor}`}>{title}</h3>
-        <p className="mt-1 text-[11px] text-zinc-500">{helper}</p>
+        <p className="mt-1 text-xs text-apg-silver">{helper}</p>
       </div>
-      <label className="block">
-        <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-          Amount (₹)
-        </span>
+      <label className="block text-sm">
+        <span className="text-apg-silver">Amount (₹)</span>
         <input
           type="number"
           name="amountInr"
           min={minAmount}
           step="0.01"
           required
-          className="mt-1 block w-full rounded-md border border-zinc-300 px-2.5 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          className="apg-admin-field mt-1 block w-full rounded-lg border border-white/10 bg-[#0B0F14] px-3 py-2 text-white"
         />
       </label>
       {showPaymentMethod ? (
-        <label className="block">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-            Payment method
-          </span>
+        <label className="block text-sm">
+          <span className="text-apg-silver">Payment method</span>
           <select
             name="paymentMethod"
-            className="mt-1 block w-full rounded-md border border-zinc-300 px-2.5 py-1.5 text-sm"
+            className="apg-admin-field mt-1 block w-full rounded-lg border border-white/10 bg-[#0B0F14] px-3 py-2 text-white"
             defaultValue="cash"
           >
             <option value="cash">Cash</option>
@@ -164,30 +156,28 @@ function DepositForm({
           </select>
         </label>
       ) : null}
-      <label className="block">
-        <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-          Reason
-        </span>
+      <label className="block text-sm">
+        <span className="text-apg-silver">Reason</span>
         <input
           type="text"
           name="reason"
           required
           maxLength={200}
           placeholder="e.g. broken cupboard"
-          className="mt-1 block w-full rounded-md border border-zinc-300 px-2.5 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          className="apg-admin-field mt-1 block w-full rounded-lg border border-white/10 bg-[#0B0F14] px-3 py-2 text-white"
         />
       </label>
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:bg-zinc-400"
+        className="w-full rounded-lg bg-[#FF5A1F] px-3 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-60"
       >
         {pending ? 'Saving…' : submitLabel}
       </button>
       {state.status === 'ok' ? (
-        <p className="rounded bg-emerald-50 px-2 py-1 text-xs text-emerald-700">{state.message}</p>
+        <p className="text-xs text-emerald-300">{state.message}</p>
       ) : state.status === 'error' ? (
-        <p className="rounded bg-rose-50 px-2 py-1 text-xs text-rose-700">{state.message}</p>
+        <p className="text-xs text-rose-300">{state.message}</p>
       ) : null}
     </form>
   );
@@ -195,53 +185,42 @@ function DepositForm({
 
 export function DepositAdjustForms({
   bookingId,
-  bookingDepositPaise,
-  ledgerCollectedPaise,
-  websiteDepositPaise,
 }: {
   bookingId: string;
-  bookingDepositPaise: number;
-  ledgerCollectedPaise: number;
+  bookingDepositPaise?: number;
+  ledgerCollectedPaise?: number;
   websiteDepositPaise?: number;
 }) {
   return (
-    <div className="space-y-4">
-      <CorrectDepositForm
+    <div className="mb-6 grid gap-4 sm:grid-cols-3">
+      <DepositForm
+        title="Collect deposit"
+        helper="Record cash, UPI, or bank transfer."
         bookingId={bookingId}
-        bookingDepositPaise={bookingDepositPaise}
-        ledgerCollectedPaise={ledgerCollectedPaise}
-        websiteDepositPaise={websiteDepositPaise ?? 0}
+        action={addDepositAction}
+        submitLabel="Record collection"
+        accent="positive"
+        minAmount="0.01"
+        showPaymentMethod
       />
-      <div className="grid gap-4 sm:grid-cols-3">
-        <DepositForm
-          title="Add deposit"
-          helper="Record cash, UPI, or bank transfer. Updates wallet, reports, and revenue."
-          bookingId={bookingId}
-          action={addDepositAction}
-          submitLabel="Add to ledger"
-          accent="positive"
-          minAmount="0.01"
-          showPaymentMethod
-        />
-        <DepositForm
-          title="Deduct"
-          helper="Damage charge, unpaid rent, etc. Reason becomes the audit-log entry."
-          bookingId={bookingId}
-          action={deductDepositAction}
-          submitLabel="Record deduction"
-          accent="warn"
-          minAmount="0.01"
-        />
-        <DepositForm
-          title="Refund"
-          helper="Record a deposit refund issued back to the resident."
-          bookingId={bookingId}
-          action={refundDepositAction}
-          submitLabel="Record refund"
-          accent="neutral"
-          minAmount="0.01"
-        />
-      </div>
+      <DepositForm
+        title="Charge against deposit"
+        helper="Damage charge, unpaid rent, etc."
+        bookingId={bookingId}
+        action={deductDepositAction}
+        submitLabel="Record charge"
+        accent="warn"
+        minAmount="0.01"
+      />
+      <DepositForm
+        title="Refund deposit"
+        helper="Record a refund issued back to the resident."
+        bookingId={bookingId}
+        action={refundDepositAction}
+        submitLabel="Record refund"
+        accent="neutral"
+        minAmount="0.01"
+      />
     </div>
   );
 }

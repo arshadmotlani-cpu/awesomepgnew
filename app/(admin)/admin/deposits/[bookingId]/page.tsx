@@ -5,13 +5,13 @@ import { PageHeader } from '@/src/components/admin/PageHeader';
 import { Badge } from '@/src/components/admin/Badge';
 import { DepositAdjustForms } from '@/src/components/admin/DepositAdjustForms';
 import { DepositSettlementPanel } from '@/src/components/admin/DepositSettlementPanel';
-import { DepositWalletAdminPanel } from '@/src/components/admin/deposits/DepositWalletAdminPanel';
+import { DepositAdvancedTools } from '@/src/components/admin/deposits/DepositAdvancedTools';
+import { DepositCorrectForm } from '@/src/components/admin/deposits/DepositCorrectForm';
+import { DepositSummaryCard } from '@/src/components/admin/deposits/DepositSummaryCard';
 import { DepositComponentBoundary } from '@/src/components/admin/deposits/DepositComponentBoundary';
 import { DepositRefundNotice } from '@/src/components/customer/DepositRefundNotice';
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
-import { paiseToInr } from '@/src/lib/format';
 import { loadDepositPageData } from '@/src/lib/deposits/loadDepositPageData';
-import { logWalletPropsAtCheckpoint } from '@/src/lib/deposits/postSaveWalletStateLog';
 import { jsonSafe } from '@/src/lib/depositPageDebug';
 import {
   logDepositComponentFailed,
@@ -109,11 +109,6 @@ export default async function AdminDepositDetailPage({
           <PageHeader title="Deposit invoice" description="Could not load deposit details." />
           <div className="rounded-lg border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
             <p>{data.loadError}</p>
-            <p className="mt-2 text-xs text-rose-200/80">
-              Check Vercel logs for <code className="text-rose-100">[DEPOSIT_PAGE_LOAD_FAILED]</code>{' '}
-              and <code className="text-rose-100">[DEPOSIT_COMPONENT_FAILED]</code> for booking{' '}
-              {bookingId}.
-            </p>
             <div className="mt-4 flex flex-wrap gap-3">
               {data.customerId ? (
                 <Link
@@ -132,12 +127,6 @@ export default async function AdminDepositDetailPage({
               <Link href="/admin/deposits" className="text-sm text-apg-silver hover:text-white">
                 ← All deposits
               </Link>
-              <Link
-                href={`/admin/debug/deposit/${bookingId}`}
-                className="text-sm font-semibold text-sky-300 hover:underline"
-              >
-                Debug page →
-              </Link>
             </div>
           </div>
         </>
@@ -151,12 +140,7 @@ export default async function AdminDepositDetailPage({
     customerId,
     invoice,
     unifiedView,
-    requiredPaise,
-    collectedPaise,
-    deductionsPaise,
-    refundablePaise,
     isFrozen,
-    websiteDepositPaise,
     loadError,
     walletProps,
     adjustProps,
@@ -181,13 +165,18 @@ export default async function AdminDepositDetailPage({
     loadError,
   });
 
+  const syncWarning =
+    unifiedView && !unifiedView.walletInSync && unifiedView.walletMismatchReason
+      ? unifiedView.walletMismatchReason
+      : null;
+
   const bookingSection = renderServerComponent(
     { ...ctx, component: 'PageHeader' },
     snapshot,
     () => (
       <>
         <PageHeader
-          title={`Deposit invoice — ${booking.customerFullName}`}
+          title={`Deposit — ${booking.customerFullName}`}
           description={`${booking.bookingCode} · ${booking.customerPhone}`}
           actions={
             <Link
@@ -203,20 +192,13 @@ export default async function AdminDepositDetailPage({
             {loadError} Showing booking data where available.
           </div>
         ) : null}
-        <p className="text-sm text-apg-silver">
+        <p className="mb-4 text-sm text-apg-silver">
           <Link href={`/admin/residents/${customerId}`} className="text-[#FF5A1F] hover:underline">
             Resident profile →
           </Link>
           {' · '}
           <Link href={`/admin/bookings/${bookingId}`} className="text-[#FF5A1F] hover:underline">
             Booking operations →
-          </Link>
-          {' · '}
-          <Link
-            href={`/admin/debug/deposit/${bookingId}`}
-            className="text-sky-300 hover:underline"
-          >
-            Debug page →
           </Link>
         </p>
       </>
@@ -240,59 +222,69 @@ export default async function AdminDepositDetailPage({
           <Badge tone={statusTone(invoice.invoiceStatus)}>{invoice.displayStatus}</Badge>
           {isFrozen ? <Badge tone="zinc">Frozen · settled</Badge> : null}
         </div>
-      ) : (
-        <p className="mb-4 text-xs text-apg-silver">No deposit invoice record (missing or filtered).</p>
-      ),
+      ) : null,
   );
 
-  const pricingSection = renderServerComponent(
-    { ...ctx, component: 'PricingStatGrid' },
-    jsonSafe({ requiredPaise, collectedPaise, deductionsPaise, refundablePaise }),
-    () => (
-      <section className="mb-6 grid gap-3 sm:grid-cols-4">
-        <DepositStat ctx={ctx} label="Required" value={paiseToInr(requiredPaise)} />
-        <DepositStat ctx={ctx} label="Collected" value={paiseToInr(collectedPaise)} tone="emerald" />
-        <DepositStat
-          ctx={ctx}
-          label="Deductions"
-          value={deductionsPaise > 0 ? paiseToInr(deductionsPaise) : '—'}
-          tone="warn"
+  let summarySection: ReactNode = null;
+  if (unifiedView && !shouldSkipDepositSection(skip, 'wallet')) {
+    summarySection = (
+      <DepositComponentBoundary
+        {...boundaryProps(
+          ctx,
+          'DepositSummaryCard',
+          'src/components/admin/deposits/DepositSummaryCard.tsx',
+          { view: unifiedView },
+        )}
+      >
+        <DepositSummaryCard
+          view={jsonSafe(unifiedView)}
+          invoiceStatus={invoice?.displayStatus ?? unifiedView.invoiceStatus}
+          syncWarning={syncWarning}
         />
-        <DepositStat ctx={ctx} label="Refundable" value={paiseToInr(refundablePaise)} tone="strong" />
-      </section>
-    ),
-  );
+      </DepositComponentBoundary>
+    );
+  }
 
-  let walletSection: ReactNode = null;
+  let correctSection: ReactNode = null;
+  let advancedSection: ReactNode = null;
   if (!shouldSkipDepositSection(skip, 'wallet')) {
     if (isFrozen) {
-      walletSection = (
+      correctSection = (
         <p className="mb-6 rounded-lg border border-white/10 bg-[#1A1F27] px-4 py-3 text-sm text-apg-silver">
           This deposit invoice is settled and frozen.
         </p>
       );
     } else if (walletProps) {
-      logWalletPropsAtCheckpoint(
-        'page:DepositWalletAdminPanel_props',
-        bookingId,
-        walletProps,
-      );
-      walletSection = (
+      correctSection = (
         <DepositComponentBoundary
           {...boundaryProps(
             ctx,
-            'DepositWalletAdminPanel',
-            'src/components/admin/deposits/DepositWalletAdminPanel.tsx',
+            'DepositCorrectForm',
+            'src/components/admin/deposits/DepositCorrectForm.tsx',
             walletProps,
           )}
         >
-          <DepositWalletAdminPanel {...jsonSafe(walletProps)} />
+          <DepositCorrectForm view={jsonSafe(walletProps.view)} />
         </DepositComponentBoundary>
       );
-    } else {
-      walletSection = (
-        <p className="mb-4 text-xs text-amber-200">Wallet section skipped — unified view is null.</p>
-      );
+      if (adjustProps) {
+        advancedSection = (
+          <DepositComponentBoundary
+            {...boundaryProps(
+              ctx,
+              'DepositAdvancedTools',
+              'src/components/admin/deposits/DepositAdvancedTools.tsx',
+              { view: walletProps.view, adjustProps },
+            )}
+          >
+            <DepositAdvancedTools
+              view={jsonSafe(walletProps.view)}
+              bookingId={bookingId}
+              adjustProps={jsonSafe(adjustProps)}
+            />
+          </DepositComponentBoundary>
+        );
+      }
     }
   }
 
@@ -307,10 +299,7 @@ export default async function AdminDepositDetailPage({
           adjustProps,
         )}
       >
-        <section className="mb-6">
-          <h2 className="mb-2 text-sm font-semibold text-white">Adjust deposit</h2>
-          <DepositAdjustForms {...adjustProps} />
-        </section>
+        <DepositAdjustForms bookingId={adjustProps.bookingId} />
       </DepositComponentBoundary>
     );
   }
@@ -343,49 +332,11 @@ export default async function AdminDepositDetailPage({
       {bookingSection}
       {refundsSection}
       {invoiceSection}
-      {pricingSection}
-      {walletSection}
+      {summarySection}
+      {correctSection}
       {adjustmentsSection}
       {settlementSection}
+      {advancedSection}
     </>
-  );
-}
-
-function DepositStat({
-  ctx,
-  label,
-  value,
-  tone = 'normal',
-}: {
-  ctx: DepositInvestigationContext;
-  label: string;
-  value: string;
-  tone?: 'normal' | 'warn' | 'strong' | 'emerald';
-}) {
-  logDepositComponentRender(
-    { ...ctx, component: `Stat.${label}` },
-    { label, value, tone },
-  );
-  const bg =
-    tone === 'warn'
-      ? 'border-rose-400/30 bg-rose-500/10'
-      : tone === 'strong'
-        ? 'border-emerald-400/30 bg-emerald-500/10'
-        : tone === 'emerald'
-          ? 'border-emerald-400/20 bg-emerald-500/5'
-          : 'border-white/10 bg-[#1A1F27]';
-  const text =
-    tone === 'warn'
-      ? 'text-rose-300'
-      : tone === 'strong'
-        ? 'text-emerald-300'
-        : tone === 'emerald'
-          ? 'text-emerald-300'
-          : 'text-white';
-  return (
-    <div className={`rounded-lg border p-3 ${bg}`}>
-      <div className="text-[10px] font-medium uppercase tracking-wide text-apg-silver">{label}</div>
-      <div className={`mt-1 text-lg font-semibold tabular-nums ${text}`}>{value}</div>
-    </div>
   );
 }
