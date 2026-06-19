@@ -3,14 +3,16 @@
 import Link from 'next/link';
 import { ApgCard } from '@/src/components/customer/design-system';
 import { StatusChip } from '@/src/components/customer/design-system';
-import { accountProfileHref } from '@/src/lib/accountNavigation';
 import { residentTabHref } from '@/src/lib/accountNavigation';
+
+const WHATSAPP = 'https://wa.link/k31pwv';
 
 export type RequestTypeDef = {
   id: string;
   title: string;
   description: string;
   href?: string;
+  whatsappMessage?: string;
   wired: boolean;
   status?: string;
 };
@@ -27,24 +29,28 @@ const REQUEST_TYPES: RequestTypeDef[] = [
     title: 'Room change',
     description: 'Request a move to another room in your PG.',
     wired: false,
+    whatsappMessage: 'Hi, I would like to request a room change at Awesome PG.',
   },
   {
     id: 'bed_change',
     title: 'Bed change',
     description: 'Switch to a different bed in your room.',
     wired: false,
+    whatsappMessage: 'Hi, I would like to request a bed change at Awesome PG.',
   },
   {
     id: 'maintenance',
     title: 'Maintenance',
     description: 'Report repairs — AC, plumbing, furniture.',
     wired: false,
+    whatsappMessage: 'Hi, I need maintenance help at Awesome PG (please describe the issue).',
   },
   {
     id: 'complaint',
     title: 'Complaint',
     description: 'Raise an issue with roommates or facilities.',
     wired: false,
+    whatsappMessage: 'Hi, I would like to file a complaint at Awesome PG.',
   },
   {
     id: 'deposit_refund',
@@ -57,34 +63,39 @@ const REQUEST_TYPES: RequestTypeDef[] = [
     title: 'Weekend leave',
     description: 'Register an approved away period.',
     wired: false,
+    whatsappMessage: 'Hi, I would like to register a weekend leave at Awesome PG.',
   },
   {
     id: 'visitor',
     title: 'Visitor',
     description: 'Pre-register a guest visit.',
     wired: false,
+    whatsappMessage: 'Hi, I would like to pre-register a visitor at Awesome PG.',
   },
   {
     id: 'early_move_in',
     title: 'Early move-in',
     description: 'Request check-in before your booked date.',
     wired: false,
+    whatsappMessage: 'Hi, I would like to request an early move-in at Awesome PG.',
   },
   {
     id: 'late_checkout',
-    title: 'Late checkout',
-    description: 'Extend your stay beyond notice period.',
-    wired: true,
+    title: 'Late checkout / stay extension',
+    description:
+      'Stay extensions via resident requests are disabled — cancel vacating to continue, or contact support.',
+    wired: false,
+    whatsappMessage:
+      'Hi, I need help extending my stay / late checkout at Awesome PG.',
   },
 ];
 
 type Props = {
   bookingId?: string;
-  bookingCode?: string;
   openRequestTypes?: string[];
 };
 
-export function RequestsCenter({ bookingId, bookingCode, openRequestTypes = [] }: Props) {
+export function RequestsCenter({ bookingId, openRequestTypes = [] }: Props) {
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       {REQUEST_TYPES.map((req) => {
@@ -93,10 +104,11 @@ export function RequestsCenter({ bookingId, bookingCode, openRequestTypes = [] }
           href = `/account/resident/request-vacating/${bookingId}`;
         } else if (req.id === 'deposit_refund') {
           href = residentTabHref('vacating');
-        } else if (req.id === 'late_checkout') {
-          href = accountProfileHref('resident', { tab: 'requests' });
         }
         const hasOpen = openRequestTypes.includes(req.id);
+        const waHref = req.whatsappMessage
+          ? `${WHATSAPP}?text=${encodeURIComponent(req.whatsappMessage)}`
+          : null;
 
         return (
           <ApgCard key={req.id} tier="account" className="p-4">
@@ -105,7 +117,7 @@ export function RequestsCenter({ bookingId, bookingCode, openRequestTypes = [] }
               {hasOpen ? <StatusChip status="under_review" /> : null}
               {!req.wired ? (
                 <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold text-zinc-500 ring-1 ring-zinc-200">
-                  Soon
+                  Via support
                 </span>
               ) : null}
             </div>
@@ -117,11 +129,16 @@ export function RequestsCenter({ bookingId, bookingCode, openRequestTypes = [] }
               >
                 Open request →
               </Link>
-            ) : (
-              <p className="mt-3 text-xs text-zinc-400">
-                Contact support via WhatsApp for now — in-app form coming soon.
-              </p>
-            )}
+            ) : waHref ? (
+              <a
+                href={waHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3 inline-flex min-h-[44px] items-center text-xs font-semibold text-emerald-700 hover:text-emerald-600"
+              >
+                Message support on WhatsApp →
+              </a>
+            ) : null}
           </ApgCard>
         );
       })}

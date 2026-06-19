@@ -10,6 +10,8 @@ import { customerBookableFromDate } from '@/src/lib/dates';
 import { displayMonthlyDepositPaise } from '@/src/lib/customerDepositDisplay';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import type { BedSelectorBed } from './customerBedTypes';
+import { BedStateTile, type BedVisualState } from '@/src/components/customer/design-system';
+import type { BedAvailabilityKind } from '@/src/lib/bedAvailabilityState';
 
 function bedAvailability(bed: BedSelectorBed) {
   return deriveCustomerBedAvailabilityView({
@@ -38,6 +40,23 @@ export function canBookBed(bed: BedSelectorBed): boolean {
   );
 }
 
+function visualStateForKind(kind: BedAvailabilityKind, selected?: boolean): BedVisualState {
+  if (selected) return 'selected';
+  switch (kind) {
+    case 'open_now':
+    case 'pre_bookable':
+      return 'available';
+    case 'notice':
+      return 'notice';
+    case 'reserved':
+    case 'booked':
+    case 'hold_interest':
+      return 'reserved';
+    default:
+      return 'occupied';
+  }
+}
+
 export function CustomerBedTile({
   bed,
   isSelected,
@@ -49,26 +68,18 @@ export function CustomerBedTile({
 }) {
   const availability = bedAvailability(bed);
   const bookable = canBookBed(bed);
-  const kindClass = CUSTOMER_BED_KIND_CLASS[availability.kind];
+  const state = visualStateForKind(availability.kind, isSelected);
 
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={`relative box-border flex min-h-[108px] w-full min-w-0 max-w-full flex-col items-center justify-center rounded-xl border-2 px-2 py-3 text-center transition focus:outline-none focus-visible:ring-2 focus-visible:ring-apg-orange ${
-        isSelected
-          ? 'border-apg-orange ring-2 ring-inset ring-apg-orange/35'
-          : bookable || availability.kind === 'notice'
-            ? kindClass
-            : `${kindClass} opacity-80`
-      }`}
-    >
-      <span className="text-sm font-bold uppercase tracking-wide text-white">{bed.bedCode}</span>
-      <span className="mt-1.5 text-[11px] font-semibold leading-snug">{availability.label}</span>
-      {availability.sublabel ? (
-        <span className="mt-1 px-1 text-[10px] leading-snug opacity-90">{availability.sublabel}</span>
-      ) : null}
-    </button>
+    <BedStateTile
+      bedCode={bed.bedCode}
+      label={availability.label}
+      sublabel={availability.sublabel}
+      state={state}
+      selected={isSelected}
+      disabled={!bookable && availability.kind !== 'notice' && !isSelected}
+      onSelect={onSelect}
+    />
   );
 }
 

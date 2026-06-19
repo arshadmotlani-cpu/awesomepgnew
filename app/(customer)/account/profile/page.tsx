@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ProfileForm } from '@/src/components/customer/ProfileForm';
 import { AccountSectionNav } from '@/src/components/customer/account/AccountSectionNav';
 import { ApplicationStatusTracker } from '@/src/components/customer/account/ApplicationStatusTracker';
+import { ResidentUnlockCelebration } from '@/src/components/customer/account/ResidentUnlockCelebration';
 import { KycIdentitySection } from '@/src/components/customer/account/KycIdentitySection';
 import { ProfilePhoto } from '@/src/components/customer/account/ProfilePhoto';
 import { ResidentAreaSection } from '@/src/components/customer/account/ResidentAreaSection';
@@ -167,7 +168,13 @@ export default async function ProfilePage(
       ) : null}
 
       {section === 'resident' && showResident ? (
-        <ResidentAreaSection customerId={session.customerId} activeTab={residentTab} />
+        <>
+          <ResidentUnlockCelebration
+            customerId={session.customerId}
+            residentName={session.fullName || customer.fullName}
+          />
+          <ResidentAreaSection customerId={session.customerId} activeTab={residentTab} />
+        </>
       ) : null}
     </main>
   );

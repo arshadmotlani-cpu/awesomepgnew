@@ -1,60 +1,70 @@
 'use client';
 
 import { ApgCard } from '@/src/components/customer/design-system';
+import { StatusChip } from '@/src/components/customer/design-system';
+import { formatDate } from '@/src/lib/format';
+import type { CustomerEmailNotification } from '@/src/db/queries/customerNotifications';
 
 type Props = {
   email?: string | null;
+  notifications: CustomerEmailNotification[];
 };
 
-const NOTIFICATION_CATEGORIES = [
-  {
-    type: 'payment',
-    title: 'Payment updates',
-    description: 'Rent, electricity, and deposit receipts are sent to your email when processed.',
-    icon: '💳',
-  },
-  {
-    type: 'kyc',
-    title: 'KYC & verification',
-    description: 'Approval or resubmission requests arrive by email.',
-    icon: '🪪',
-  },
-  {
-    type: 'vacating',
-    title: 'Vacating & refunds',
-    description: 'Notice approval and refund status updates via email.',
-    icon: '📦',
-  },
-  {
-    type: 'booking',
-    title: 'Booking & check-in',
-    description: 'Booking confirmations and check-in reminders.',
-    icon: '🛏️',
-  },
-];
+const KIND_ICON: Record<string, string> = {
+  rent_reminder: '💳',
+  electricity_reminder: '⚡',
+  booking_confirmation: '🛏️',
+  kyc: '🪪',
+  vacating: '📦',
+  payment_receipt: '✅',
+};
 
-export function NotificationCenterPanel({ email }: Props) {
+function iconForKind(kind: string): string {
+  for (const [key, icon] of Object.entries(KIND_ICON)) {
+    if (kind.includes(key)) return icon;
+  }
+  return '📧';
+}
+
+export function NotificationCenterPanel({ email, notifications }: Props) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-apg-silver">
-        In-app notification center is rolling out. Today, updates go to{' '}
+        Updates for{' '}
         <span className="font-medium text-white">{email ?? 'your registered email'}</span>.
+        {notifications.length === 0
+          ? ' No delivery log entries yet — they appear here when emails are sent.'
+          : null}
       </p>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {NOTIFICATION_CATEGORIES.map((cat) => (
-          <ApgCard key={cat.type} tier="account" className="p-4">
-            <div className="flex gap-3">
-              <span className="text-2xl" aria-hidden>
-                {cat.icon}
-              </span>
-              <div>
-                <h3 className="text-sm font-semibold text-zinc-900">{cat.title}</h3>
-                <p className="mt-1 text-xs text-zinc-600">{cat.description}</p>
-              </div>
-            </div>
-          </ApgCard>
-        ))}
-      </div>
+      {notifications.length > 0 ? (
+        <ul className="space-y-2">
+          {notifications.map((n) => (
+            <li key={n.id}>
+              <ApgCard tier="account" className="flex gap-3 p-4">
+                <span className="text-xl" aria-hidden>
+                  {iconForKind(n.notificationKind)}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-semibold text-zinc-900">{n.subject}</p>
+                    <StatusChip
+                      status={n.status}
+                      toneMap={{
+                        sent: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+                        failed: 'bg-rose-50 text-rose-700 ring-rose-200',
+                        skipped: 'bg-zinc-100 text-zinc-600 ring-zinc-200',
+                      }}
+                    />
+                  </div>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    {n.notificationKind.replace(/_/g, ' ')} · {formatDate(n.createdAt)}
+                  </p>
+                </div>
+              </ApgCard>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }

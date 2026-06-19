@@ -1,10 +1,13 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { headers } from 'next/headers';
+import { BookingFlowStepper } from '@/src/components/customer/checkout/BookingFlowStepper';
 import {
   BedSelector,
   type BedSelectorBed,
 } from '@/src/components/customer/BedSelector';
+import { StickyBookCta } from '@/src/components/customer/marketing/StickyBookCta';
+import { CountUpNumber } from '@/src/components/customer/design-system';
 import { RoomDetailInsights } from '@/src/components/customer/RoomDetailInsights';
 import { AnalyticsMountEvent } from '@/src/components/analytics/AnalyticsMountEvent';
 import { getRoomDetail } from '@/src/db/queries/customer';
@@ -118,9 +121,27 @@ export default async function RoomDetailPage(
           </p>
         </div>
         <span className="self-start rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-200 sm:self-end">
-          {availableNowCount} free now · {bookableCount} of {beds.length} bookable
+          <CountUpNumber value={availableNowCount} /> free now · {bookableCount} of {beds.length}{' '}
+          bookable
         </span>
       </header>
+
+      <div className="mt-6 rounded-xl border border-white/10 apg-glass-light p-4">
+        <BookingFlowStepper activeStep="bed" />
+      </div>
+
+      <div
+        className="mt-6 perspective-[1200px]"
+        aria-hidden
+      >
+        <div className="apg-glass-light mx-auto max-w-md rotate-y-[-2deg] rounded-2xl border border-white/10 p-6 shadow-xl transition-transform hover:rotate-y-0 motion-reduce:transform-none">
+          <p className="text-xs font-semibold uppercase tracking-wider text-apg-orange">Room preview</p>
+          <p className="mt-2 text-lg font-semibold text-white">
+            Room {room.roomNumber} · {room.hasAc ? 'AC' : 'Non-AC'} · {room.capacity}-sharing
+          </p>
+          <p className="mt-1 text-sm text-apg-silver">{room.floorLabel}</p>
+        </div>
+      </div>
 
       <RoomDetailInsights
         roomType={room.roomType}
@@ -138,7 +159,7 @@ export default async function RoomDetailPage(
         activity={activity}
       />
 
-      <section className="mt-8">
+      <section className="mt-8" id="bed-selector">
         <h2 className="mb-4 text-lg font-semibold text-white">Pick your bed, then choose dates</h2>
         {beds.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-white/10 apg-glass-light p-8 text-center text-sm text-apg-silver">
@@ -152,6 +173,7 @@ export default async function RoomDetailPage(
           />
         )}
       </section>
+      <StickyBookCta href="#bed-selector" label="Pick a bed to continue" />
     </div>
   );
 }

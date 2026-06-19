@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AmenityList } from '@/src/components/customer/AmenityList';
 import { FloorExplorer } from '@/src/components/customer/FloorExplorer';
+import { BookingFlowStepper } from '@/src/components/customer/checkout/BookingFlowStepper';
 import { GenderBadge } from '@/src/components/customer/GenderBadge';
 import { StickyBookCta } from '@/src/components/customer/marketing/StickyBookCta';
 import { PgImageGallery } from '@/src/components/customer/PgImageGallery';
@@ -10,6 +11,8 @@ import {
   type CustomerRoomBedMap,
 } from '@/src/components/customer/CustomerBedMap';
 import { AnalyticsMountEvent } from '@/src/components/analytics/AnalyticsMountEvent';
+import { PgTrustSection } from '@/src/components/customer/PgTrustSection';
+import { nearbyForCity, reviewsForPg } from '@/src/lib/marketing/pgTrustContent';
 import { getPgBySlug, getRoomDetail, listRoomsForPg } from '@/src/db/queries/customer';
 import { ElectricityMeterNotice } from '@/src/components/customer/ElectricityMeterNotice';
 import { trackAnalyticsEvent } from '@/src/services/visitorAnalytics';
@@ -171,6 +174,10 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
         </section>
       ) : null}
 
+      <div className="mt-6 rounded-xl border border-white/10 apg-glass-light p-4">
+        <BookingFlowStepper activeStep="room" />
+      </div>
+
       <section className="mt-8">
         <FloorExplorer floors={floors} pgSlug={pg.slug} />
       </section>
@@ -194,6 +201,11 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
         )}
       </section>
       <StickyBookCta href={`#pg-beds`} label="Check availability & book" />
+
+      <PgTrustSection
+        reviews={reviewsForPg(pg.slug)}
+        nearby={nearbyForCity(pg.city)}
+      />
     </div>
   );
 }

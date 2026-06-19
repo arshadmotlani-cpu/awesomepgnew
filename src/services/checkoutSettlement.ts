@@ -555,6 +555,26 @@ export async function getCheckoutSettlementForCustomer(
   return row ?? null;
 }
 
+/** Latest checkout settlement status for resident vacating timeline (any non-archived row). */
+export async function getLatestCheckoutSettlementStatusForCustomer(
+  customerId: string,
+  bookingId: string,
+): Promise<string | null> {
+  const [row] = await db
+    .select({ status: checkoutSettlements.status })
+    .from(checkoutSettlements)
+    .where(
+      and(
+        eq(checkoutSettlements.customerId, customerId),
+        eq(checkoutSettlements.bookingId, bookingId),
+        sql`${checkoutSettlements.status} <> 'archived'`,
+      ),
+    )
+    .orderBy(desc(checkoutSettlements.updatedAt))
+    .limit(1);
+  return row?.status ?? null;
+}
+
 export async function submitResidentCheckoutDetails(input: {
   settlementId: string;
   customerId: string;

@@ -46,13 +46,17 @@ import { ensureDepositDuePaymentLink } from '@/src/services/depositCollection';
 import { paymentLinkPublicUrl } from '@/src/lib/billing/paymentLinkUrl';
 import { getLatestPaymentLinkForResident } from '@/src/services/paymentLinks';
 import { listOpenRequestsForCustomer } from '@/src/services/residentRequests';
-import { ConciergePanel } from '@/src/components/customer/account/ConciergePanel';
+import { MyRoomPanel } from '@/src/components/customer/account/MyRoomPanel';
 import { NotificationCenterPanel } from '@/src/components/customer/account/NotificationCenterPanel';
 import { ReferralsPanel } from '@/src/components/customer/account/ReferralsPanel';
 import { RequestsCenter } from '@/src/components/customer/account/RequestsCenter';
+import { ResidentConciergeChat } from '@/src/components/customer/account/ResidentConciergeChat';
 import { ResidentHubShell } from '@/src/components/customer/account/ResidentHubShell';
 import { VacatingJourneyTimeline } from '@/src/components/customer/account/VacatingJourneyTimeline';
+import type { ConciergeContext } from '@/src/lib/concierge/answers';
 import type { ResidentTab } from '@/src/lib/accountNavigation';
+import { listCustomerEmailNotifications } from '@/src/db/queries/customerNotifications';
+import { getLatestCheckoutSettlementStatusForCustomer } from '@/src/services/checkoutSettlement';
 
 const RENT_STATUS_TONE: Record<string, string> = {
   pending: 'bg-amber-50 text-amber-700 ring-amber-200',
@@ -103,6 +107,8 @@ export async function ResidentAreaSection({
   const customer = await getCustomerById(session.customerId);
   const depositWallet = await getCustomerDepositCredit(session.customerId);
   const openRequests = await listOpenRequestsForCustomer(session.customerId);
+  const emailNotifications = await listCustomerEmailNotifications(session.customerId);
+  const notifications = emailNotifications.ok ? emailNotifications.data : [];
   const bookings = await listResidentBookingsForCustomer(session.customerId);
   const tenantActive = await isActiveTenant(session.customerId);
   const ps4Membership = tenantActive ? await getMembershipForDashboard(session.customerId) : null;
@@ -214,21 +220,63 @@ export async function ResidentAreaSection({
         })
       : null;
 
+  const checkoutByBooking = new Map<string, string>();
+  for (const d of detail) {
+    const status = await getLatestCheckoutSettlementStatusForCustomer(
+      session.customerId,
+      d.bookingId,
+    );
+    if (status) checkoutByBooking.set(d.bookingId, status);
+  }
+
+  const conciergeContext: ConciergeContext | null =
+    primaryBooking && financialSummary
+      ? {
+          residentName: session.fullName || customer?.fullName || 'Resident',
+          pgName: primaryBooking.booking.pgName,
+          roomNumber: primaryBooking.booking.roomNumber,
+          bedCode: primaryBooking.booking.bedCode,
+          rentDuePaise: financialSummary.rent.outstandingPaise,
+          electricityDuePaise: financialSummary.electricity.outstandingPaise,
+          depositBalancePaise: financialSummary.deposit.refundablePaise,
+          depositDuePaise: financialSummary.deposit.outstandingPaise,
+          vacatingStatus:
+            primaryBooking.vacating.ok && primaryBooking.vacating.data
+              ? primaryBooking.vacating.data.status
+              : null,
+        }
+      : null;
+
   return (
     <ResidentHubShell activeTab={activeTab}>
       {activeTab === 'notifications' ? (
-        <NotificationCenterPanel email={customer?.email} />
+        <NotificationCenterPanel email={customer?.email} notifications={notifications} />
       ) : null}
-      {activeTab === 'referrals' ? <ReferralsPanel /> : null}
-      {activeTab === 'concierge' ? (
-        <ConciergePanel residentName={session.fullName || customer?.fullName} />
+      {activeTab === 'referrals' ? (
+        <ReferralsPanel
+          customerId={session.customerId}
+          customerName={session.fullName || customer?.fullName || 'Resident'}
+        />
+      ) : null}
+      {activeTab === 'concierge' && conciergeContext ? (
+        <ResidentConciergeChat context={conciergeContext} />
+      ) : null}
+      {activeTab === 'room' && primaryBooking ? (
+        <MyRoomPanel
+          pgName={primaryBooking.booking.pgName}
+          roomNumber={primaryBooking.booking.roomNumber}
+          bedCode={primaryBooking.booking.bedCode}
+          monthlyRentPaise={primaryBooking.booking.monthlyRentPaise}
+          checkInDate={primaryBooking.booking.checkInDate}
+          expectedCheckoutDate={primaryBooking.booking.expectedCheckoutDate}
+          capacity={4}
+        />
       ) : null}
       {activeTab === 'requests' && primaryBooking ? (
         <RequestsCenter
           bookingId={primaryBooking.bookingId}
-          bookingCode={primaryBooking.bookingCode}
           openRequestTypes={openRequests.map((r) =>
-            r.type === 'deposit_refund' ? 'deposit_refund' : 'late_checkout',
+            r.type === 'deposit_refund' ? 'deposit_refund' : r.type,
           )}
         />
       ) : null}
@@ -237,7 +285,6 @@ export async function ResidentAreaSection({
         activeTab === 'wallet' ||
         activeTab === 'payments' ||
         activeTab === 'requests' ||
-        activeTab === 'room' ||
         activeTab === 'vacating') && (
     <section className="space-y-6">
       {activeTab === 'home' && residentBriefing ? (
@@ -277,7 +324,7 @@ export async function ResidentAreaSection({
         <DepositWalletSection wallet={depositWallet} />
       ) : null}
 
-      {(activeTab === 'home' || activeTab === 'room') ? (
+      {activeTab === 'home' ? (
       <MyServicesPanel membership={ps4Membership} isActiveTenant={tenantActive} />
       ) : null}
 
@@ -447,7 +494,7 @@ export async function ResidentAreaSection({
                 </div>
                 ) : null}
 
-                {(activeTab === 'home' || activeTab === 'room') && d.roomElectricity?.latestBill ? (
+                {activeTab === 'home' && d.roomElectricity?.latestBill ? (
                   <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4 text-sm">
                     <h3 className="font-medium text-indigo-900">Room electricity (Room {booking.roomNumber})</h3>
                     {d.roomElectricity.latestBill.isEstimated ? (
@@ -685,7 +732,7 @@ export async function ResidentAreaSection({
                 <>
                 <VacatingJourneyTimeline
                   vacatingStatus={vacating?.status ?? null}
-                  checkoutStatus={null}
+                  checkoutStatus={checkoutByBooking.get(d.bookingId) ?? null}
                   settlementLines={
                     vacating
                       ? [

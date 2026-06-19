@@ -6,6 +6,7 @@ import { defaultBrowseStayQuery } from '@/src/lib/dateDefaults';
 import { paiseToInr } from '@/src/lib/format';
 import { AmenityList } from './AmenityList';
 import { GenderBadge } from './GenderBadge';
+import { PgFavoriteButton } from './PgFavoriteButton';
 import { PgPaymentsPanel } from './PgPaymentsPanel';
 
 export type PgCardData = {
@@ -61,6 +62,7 @@ export function PgCard({
               ? 'Fully occupied · no beds'
               : `${pg.availableBeds} of ${pg.totalBeds} beds free today`}
           </div>
+          <PgFavoriteButton pgSlug={pg.slug} pgName={pg.name} />
         </div>
 
         <div className="flex flex-1 flex-col gap-3 p-4">

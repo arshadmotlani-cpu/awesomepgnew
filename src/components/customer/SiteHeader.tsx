@@ -69,6 +69,16 @@ export async function SiteHeader({ theme = 'dark' }: { theme?: 'dark' | 'light' 
           >
             Trust
           </Link>
+          <Link
+            href="/account/favorites"
+            className={
+              light
+                ? 'hidden rounded-lg px-3 py-2 transition-colors hover:bg-slate-100 hover:text-slate-900 sm:inline'
+                : 'hidden rounded-lg px-3 py-2 transition-colors hover:bg-white/5 hover:text-white sm:inline'
+            }
+          >
+            Favorites
+          </Link>
           {session ? (
             <>
               <Link
