@@ -17,7 +17,7 @@ const idle: CheckoutSettlementActionState = { status: 'idle' };
 function Section({
   title,
   children,
-  defaultOpen = true,
+  defaultOpen = false,
 }: {
   title: string;
   children: React.ReactNode;
@@ -26,13 +26,13 @@ function Section({
   return (
     <details
       open={defaultOpen}
-      className="rounded-2xl border border-white/10 bg-[#1A1F27] group"
+      className="group rounded-2xl border border-white/10 bg-[#1A1F27]"
     >
-      <summary className="cursor-pointer list-none px-5 py-4 text-sm font-semibold uppercase tracking-wide text-apg-orange marker:content-none">
+      <summary className="cursor-pointer list-none px-5 py-4 text-sm font-semibold text-white marker:content-none">
         <span className="flex items-center justify-between">
           {title}
           <span className="text-xs font-normal text-apg-silver group-open:rotate-180 transition-transform">
-            ▼
+            ▾
           </span>
         </span>
       </summary>
@@ -71,13 +71,12 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
   const canMarkPaid = detail.status === 'refund_pending';
   const canEditElectricity =
     !locked &&
-    (detail.status === 'awaiting_admin_review' ||
-      detail.status === 'awaiting_resident_details');
+    (detail.status === 'awaiting_admin_review' || detail.status === 'awaiting_resident_details');
   const preview = detail.preview;
 
   return (
     <div className="space-y-4">
-      <Section title="Resident information">
+      <Section title="Resident details" defaultOpen={false}>
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
           <div>
             <dt className="text-apg-silver">Name</dt>
@@ -92,7 +91,7 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
             <dd className="font-mono text-white">{detail.bookingCode}</dd>
           </div>
           <div>
-            <dt className="text-apg-silver">PG · Room · Bed</dt>
+            <dt className="text-apg-silver">Bed</dt>
             <dd className="text-white">
               {detail.pgName} · R{detail.roomNumber} · {detail.bedCode}
             </dd>
@@ -102,58 +101,31 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
             <dd className="text-white">{detail.moveInDate ?? '—'}</dd>
           </div>
           <div>
-            <dt className="text-apg-silver">Vacating date</dt>
+            <dt className="text-apg-silver">Move-out date</dt>
             <dd className="text-white">{detail.vacatingDate}</dd>
           </div>
           <div>
             <dt className="text-apg-silver">Notice given</dt>
             <dd className="text-white">
-              {detail.noticeGivenDays} days (required {detail.noticeRequiredDays})
+              {detail.noticeGivenDays} days (needed {detail.noticeRequiredDays})
             </dd>
           </div>
           <div>
-            <dt className="text-apg-silver">Shortfall</dt>
+            <dt className="text-apg-silver">Days short</dt>
             <dd className="text-white">{detail.noticeShortfallDays} days</dd>
           </div>
         </dl>
       </Section>
 
-      <Section title="Deposit wallet">
-        <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
-          <div>
-            <dt className="text-apg-silver">Required</dt>
-            <dd className="text-white">{paiseToInr(detail.depositRequiredPaise)}</dd>
-          </div>
-          <div>
-            <dt className="text-apg-silver">Collected</dt>
-            <dd className="text-white">{paiseToInr(detail.depositCollectedPaise)}</dd>
-          </div>
-          <div>
-            <dt className="text-apg-silver">Deducted</dt>
-            <dd className="text-white">{paiseToInr(detail.depositDeductedPaise)}</dd>
-          </div>
-          <div>
-            <dt className="text-apg-silver">Refunded</dt>
-            <dd className="text-white">{paiseToInr(detail.depositRefundedPaise)}</dd>
-          </div>
-          <div className="sm:col-span-2">
-            <dt className="text-apg-silver">Current refundable balance</dt>
-            <dd className="text-lg font-semibold text-emerald-300">
-              {paiseToInr(detail.depositRefundablePaise)}
-            </dd>
-          </div>
-        </dl>
-      </Section>
-
-      <Section title="Notice deduction" defaultOpen={!locked}>
+      <Section title="Notice fee" defaultOpen={canApprove && !locked}>
         <p className="text-xs text-apg-silver">
-          Formula: monthly rent ÷ 30 × shortfall days ({detail.noticeShortfallDays} days)
+          Monthly rent ÷ 30 × {detail.noticeShortfallDays} days short of required notice
         </p>
         {!locked && canApprove ? (
           <form action={saveAction} className="mt-3 flex flex-wrap items-end gap-3">
             <input type="hidden" name="settlementId" value={detail.id} />
             <label className="text-sm">
-              <span className="text-apg-silver">Notice deduction (₹)</span>
+              <span className="text-apg-silver">Notice fee (₹)</span>
               <input
                 name="noticeDeductionInr"
                 type="number"
@@ -168,7 +140,7 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
               disabled={savePending}
               className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/5"
             >
-              {savePending ? 'Saving…' : 'Save amounts'}
+              {savePending ? 'Saving…' : 'Save fee'}
             </button>
           </form>
         ) : (
@@ -178,11 +150,11 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
         )}
       </Section>
 
-      <Section title="Electricity settlement" defaultOpen={canEditElectricity}>
+      <Section title="Electricity" defaultOpen={canEditElectricity}>
         <CheckoutSettlementElectricitySection detail={detail} editable={canEditElectricity} />
       </Section>
 
-      <Section title="Refund information">
+      <Section title="Refund payment details" defaultOpen={canMarkPaid}>
         {detail.payoutUpiId ? (
           <p className="text-sm text-white">
             UPI: <span className="font-mono">{detail.payoutUpiId}</span>
@@ -199,18 +171,19 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
           </a>
         ) : null}
         {!detail.payoutUpiId && !detail.payoutQrUrl ? (
-          <p className="text-sm text-amber-200">Awaiting UPI ID or QR from resident.</p>
+          <p className="text-sm text-amber-200">Waiting for UPI ID or QR from resident.</p>
         ) : null}
       </Section>
 
-      <Section title="Settlement preview">
-        <div className="rounded-xl border border-white/10 bg-[#12161C] p-4 text-sm">
+      <section className="rounded-2xl border border-white/10 bg-[#1A1F27] p-5">
+        <h3 className="text-sm font-semibold text-white">Refund breakdown</h3>
+        <div className="mt-3 rounded-xl border border-white/10 bg-[#12161C] p-4 text-sm">
           <div className="flex justify-between py-1">
-            <span className="text-apg-silver">Deposit wallet</span>
+            <span className="text-apg-silver">Deposit balance</span>
             <span className="text-white">{paiseToInr(detail.depositRefundablePaise)}</span>
           </div>
           <div className="flex justify-between py-1">
-            <span className="text-apg-silver">Notice deduction</span>
+            <span className="text-apg-silver">Notice fee</span>
             <span className="text-rose-300">−{paiseToInr(preview.noticeDeductionPaise)}</span>
           </div>
           <div className="flex justify-between py-1">
@@ -234,7 +207,7 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
             <span className="text-rose-300">−{paiseToInr(preview.damageChargePaise ?? 0)}</span>
           </div>
           <div className="flex justify-between py-1">
-            <span className="text-apg-silver">Other</span>
+            <span className="text-apg-silver">Other charges</span>
             <span className="text-rose-300">
               −{paiseToInr((preview.cleaningChargePaise ?? 0) + (preview.customChargePaise ?? 0))}
             </span>
@@ -244,10 +217,14 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
             <span className="text-emerald-300">{paiseToInr(preview.finalRefundPaise)}</span>
           </div>
         </div>
-      </Section>
+      </section>
 
       {canApprove ? (
-        <form action={approveAction} className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-5">
+        <form
+          id="approve-settlement"
+          action={approveAction}
+          className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-5"
+        >
           <input type="hidden" name="settlementId" value={detail.id} />
           <input type="hidden" name="noticeDeductionInr" value={(detail.noticeDeductionPaise / 100).toFixed(2)} />
           <input
@@ -265,17 +242,17 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
           <input type="hidden" name="damageChargeInr" value={(detail.damageChargePaise / 100).toFixed(2)} />
           <input type="hidden" name="cleaningChargeInr" value={(detail.cleaningChargePaise / 100).toFixed(2)} />
           <input type="hidden" name="customChargeInr" value={(detail.customChargePaise / 100).toFixed(2)} />
-          <h3 className="text-sm font-semibold text-emerald-100">Approve settlement</h3>
+          <h3 className="text-sm font-semibold text-emerald-100">Approve refund amount</h3>
           <p className="mt-1 text-xs text-emerald-200/90">
-            Writes all deductions to the deposit ledger, completes vacating, frees the bed, and locks
-            the final refund amount. Does not mark refund as paid.
+            Records all deductions, completes move-out, frees the bed, and locks the refund amount. Does
+            not mark the refund as sent yet.
           </p>
           <button
             type="submit"
             disabled={approvePending}
             className="mt-4 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-60"
           >
-            {approvePending ? 'Approving…' : 'Approve settlement'}
+            {approvePending ? 'Approving…' : 'Approve refund amount'}
           </button>
           {approveState.status === 'error' ? (
             <p className="mt-2 text-xs text-rose-300">{approveState.message}</p>
@@ -287,11 +264,15 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
       ) : null}
 
       {canMarkPaid ? (
-        <form action={refundAction} className="rounded-2xl border border-sky-400/30 bg-sky-500/10 p-5 space-y-3">
+        <form
+          id="mark-refund-paid"
+          action={refundAction}
+          className="space-y-3 rounded-2xl border border-sky-400/30 bg-sky-500/10 p-5"
+        >
           <input type="hidden" name="settlementId" value={detail.id} />
-          <h3 className="text-sm font-semibold text-sky-100">Mark refund paid</h3>
+          <h3 className="text-sm font-semibold text-sky-100">Mark refund sent</h3>
           <label className="block text-sm">
-            <span className="text-apg-silver">UPI reference / transaction number *</span>
+            <span className="text-apg-silver">UPI reference or transaction number *</span>
             <input
               name="refundReference"
               required
@@ -299,7 +280,7 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
             />
           </label>
           <label className="block text-sm">
-            <span className="text-apg-silver">Method</span>
+            <span className="text-apg-silver">How paid</span>
             <input
               name="refundMethod"
               placeholder="UPI / bank transfer"
@@ -318,7 +299,7 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
             disabled={refundPending}
             className="rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-500 disabled:opacity-60"
           >
-            {refundPending ? 'Recording…' : 'Mark refund paid'}
+            {refundPending ? 'Recording…' : 'Mark refund sent'}
           </button>
           {refundState.status === 'error' ? (
             <p className="text-xs text-rose-300">{refundState.message}</p>
@@ -328,7 +309,7 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
 
       {detail.status === 'completed' ? (
         <p className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-          Settlement completed
+          Checkout complete
           {detail.refundReference ? ` · Ref: ${detail.refundReference}` : ''}
         </p>
       ) : null}
