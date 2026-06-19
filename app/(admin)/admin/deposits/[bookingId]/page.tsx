@@ -12,10 +12,7 @@ import { DepositComponentBoundary } from '@/src/components/admin/deposits/Deposi
 import { DepositRefundNotice } from '@/src/components/customer/DepositRefundNotice';
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
 import { loadDepositPageData } from '@/src/lib/deposits/loadDepositPageData';
-import {
-  inspectUnifiedDepositViewFields,
-  inspectWalletProps,
-} from '@/src/lib/deposits/postSaveWalletStateLog';
+import { clientSafeDepositView } from '@/src/lib/deposits/unifiedDepositView';
 import { jsonSafe } from '@/src/lib/depositPageDebug';
 import {
   logDepositComponentFailed,
@@ -241,7 +238,7 @@ export default async function AdminDepositDetailPage({
         )}
       >
         <DepositSummaryCard
-          view={jsonSafe(unifiedView)}
+          view={jsonSafe(clientSafeDepositView(unifiedView))}
           invoiceStatus={invoice?.displayStatus ?? unifiedView.invoiceStatus}
           syncWarning={syncWarning}
         />
@@ -259,14 +256,7 @@ export default async function AdminDepositDetailPage({
         </p>
       );
     } else if (walletProps) {
-      const correctFormView = jsonSafe(walletProps.view);
-      console.error('[DEPOSIT_CORRECT_FORM_SERVER_PROPS]', jsonSafe({
-        bookingId,
-        bookingCode: booking.bookingCode,
-        walletPropsInspection: inspectWalletProps(walletProps),
-        correctFormViewFieldTypes: inspectUnifiedDepositViewFields(correctFormView),
-        unifiedViewFieldTypes: inspectUnifiedDepositViewFields(unifiedView),
-      }));
+      const correctFormView = jsonSafe(clientSafeDepositView(walletProps.view));
       correctSection = (
         <DepositComponentBoundary
           {...boundaryProps(
@@ -290,7 +280,7 @@ export default async function AdminDepositDetailPage({
             )}
           >
             <DepositAdvancedTools
-              view={jsonSafe(walletProps.view)}
+              view={jsonSafe(clientSafeDepositView(walletProps.view))}
               bookingId={bookingId}
               adjustProps={jsonSafe(adjustProps)}
             />

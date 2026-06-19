@@ -19,6 +19,16 @@ test('deposit wallet placeholder math fails on bigint without coercion', () => {
   assert.equal((safe / 100).toString(), '1250');
 });
 
+test('sanitizeUnifiedDepositView returns safe empty view for null/undefined input', () => {
+  for (const input of [null, undefined]) {
+    const view = sanitizeUnifiedDepositView(input);
+    assert.equal(view.bookingId, '');
+    assert.equal(view.requiredPaise, 0);
+    assert.equal(view.collectedPaise, 0);
+    assert.doesNotThrow(() => JSON.stringify(view));
+  }
+});
+
 test('sanitizeUnifiedDepositView coerces all paise fields for RSC + client props', () => {
   const view = sanitizeUnifiedDepositView({
     bookingId: 'b1',

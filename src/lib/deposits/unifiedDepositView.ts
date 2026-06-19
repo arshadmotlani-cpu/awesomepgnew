@@ -31,10 +31,33 @@ export type DepositWalletPreview = {
   removesFromWalletPaise: number;
 };
 
-export function sanitizeUnifiedDepositView(view: UnifiedDepositView): UnifiedDepositView {
+export function emptyUnifiedDepositView(): UnifiedDepositView {
   return {
-    bookingId: String(view.bookingId),
-    customerId: String(view.customerId),
+    bookingId: '',
+    customerId: '',
+    requiredPaise: 0,
+    collectedPaise: 0,
+    deductedPaise: 0,
+    refundedPaise: 0,
+    refundablePaise: 0,
+    depositDuePaise: 0,
+    depositCollectionStatus: '',
+    invoiceStatus: null,
+    walletInSync: false,
+    walletMismatchReason: null,
+  };
+}
+
+export function sanitizeUnifiedDepositView(
+  view?: Partial<UnifiedDepositView> | null,
+): UnifiedDepositView {
+  if (!view || typeof view !== 'object') {
+    return emptyUnifiedDepositView();
+  }
+
+  return {
+    bookingId: String(view.bookingId ?? ''),
+    customerId: String(view.customerId ?? ''),
     requiredPaise: guardDepositPaise(view.requiredPaise, 'view.requiredPaise'),
     collectedPaise: guardDepositPaise(view.collectedPaise, 'view.collectedPaise'),
     deductedPaise: guardDepositPaise(view.deductedPaise, 'view.deductedPaise'),
@@ -49,9 +72,23 @@ export function sanitizeUnifiedDepositView(view: UnifiedDepositView): UnifiedDep
   };
 }
 
-export function sanitizeDepositWalletPreview(preview: DepositWalletPreview): DepositWalletPreview {
+export function sanitizeDepositWalletPreview(
+  preview?: Partial<DepositWalletPreview> | null,
+): DepositWalletPreview {
+  if (!preview || typeof preview !== 'object') {
+    const empty = emptyUnifiedDepositView();
+    return {
+      action: 'rebuild',
+      current: empty,
+      expected: empty,
+      warnings: [],
+      willModifyLedger: false,
+      removesFromWalletPaise: 0,
+    };
+  }
+
   return {
-    action: preview.action,
+    action: preview.action === 'cancel' ? 'cancel' : 'rebuild',
     current: sanitizeUnifiedDepositView(preview.current),
     expected: sanitizeUnifiedDepositView(preview.expected),
     warnings: Array.isArray(preview.warnings) ? preview.warnings.map(String) : [],
@@ -61,4 +98,11 @@ export function sanitizeDepositWalletPreview(preview: DepositWalletPreview): Dep
       'preview.removesFromWalletPaise',
     ),
   };
+}
+
+/** Safe payload for RSC → client deposit view props. */
+export function clientSafeDepositView(
+  view?: Partial<UnifiedDepositView> | null,
+): UnifiedDepositView {
+  return sanitizeUnifiedDepositView(view);
 }

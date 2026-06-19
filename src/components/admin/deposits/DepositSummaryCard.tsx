@@ -7,11 +7,15 @@ export function DepositSummaryCard({
   invoiceStatus,
   syncWarning,
 }: {
-  view: UnifiedDepositView;
+  view?: Partial<UnifiedDepositView> | null;
   invoiceStatus?: string | null;
   syncWarning?: string | null;
 }) {
   const v = sanitizeUnifiedDepositView(view);
+
+  if (!view || !v.bookingId) {
+    return null;
+  }
 
   return (
     <section className="mb-6 rounded-2xl border border-white/10 bg-[#1A1F27] p-5">

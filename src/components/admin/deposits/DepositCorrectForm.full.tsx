@@ -5,6 +5,7 @@ import {
   editDepositSummaryAction,
   type DepositWalletActionState,
 } from '@/app/(admin)/admin/deposits/deposit-wallet-actions';
+import { Card, CardBody } from '@/src/components/admin/Card';
 import {
   sanitizeUnifiedDepositView,
   type UnifiedDepositView,
@@ -13,9 +14,24 @@ import { asPlainNumber } from '@/src/lib/format';
 
 const idle: DepositWalletActionState = { status: 'idle' };
 
-export function DepositCorrectForm({ view }: { view: UnifiedDepositView }) {
-  const v = sanitizeUnifiedDepositView(view);
+export function DepositCorrectForm({
+  view,
+}: {
+  view?: Partial<UnifiedDepositView> | null;
+}) {
   const [state, action, pending] = useActionState(editDepositSummaryAction, idle);
+  const v = sanitizeUnifiedDepositView(view);
+
+  if (!view || !v.bookingId) {
+    return (
+      <Card className="mb-6 border-white/10 bg-[#1A1F27] text-apg-silver shadow-none">
+        <CardBody>
+          <p className="text-sm text-white">Deposit data unavailable.</p>
+          <p className="mt-1 text-xs text-apg-silver">Reload the page to refresh deposit details.</p>
+        </CardBody>
+      </Card>
+    );
+  }
 
   const requiredPlaceholder = (asPlainNumber(v.requiredPaise) / 100).toString();
   const collectedPlaceholder = (asPlainNumber(v.collectedPaise) / 100).toString();
