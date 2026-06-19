@@ -66,7 +66,7 @@ export function EmptyBedPrimaryActions({ pgId, bed }: { pgId: string; bed: PgBed
       <nav className="grid gap-2">
         {!bed.manualReservedCheckIn ? (
           <Link href={`/admin/bookings/new?bedId=${bed.bedId}`} className={PRIMARY}>
-            Assign resident to this bed
+            Assign bed
             <span aria-hidden>→</span>
           </Link>
         ) : null}

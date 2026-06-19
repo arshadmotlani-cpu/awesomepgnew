@@ -62,7 +62,7 @@ export default async function OperationsModulePage({
 
       <div className="mb-6 flex flex-wrap gap-2">
         {[
-          ['Residents & bed assignment', moduleHref('residents')],
+          ['Bed assignment', '/admin/beds'],
           ['KYC review', moduleHref('kyc')],
           ['Vacating', '/admin/vacating'],
           ['Refund requests', '/admin/requests'],

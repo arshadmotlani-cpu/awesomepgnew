@@ -60,10 +60,10 @@ export default async function ResidentsPage({
               Assign tenant
             </Link>
             <Link
-              href="/admin/pgs"
+              href="/admin/beds"
               className="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-apg-silver hover:text-white"
             >
-              PG bed maps
+              Bed assignment
             </Link>
           </div>
         }

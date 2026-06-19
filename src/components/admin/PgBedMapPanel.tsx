@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { AdminKycStatusWithWhatsApp } from '@/src/components/admin/AdminKycWhatsAppButton';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { BedDetailAdvancedTools } from '@/src/components/admin/bedmap/BedDetailAdvancedTools';
+import { BedInlineAssignForm } from '@/src/components/admin/bedmap/BedInlineAssignForm';
 import {
   BedDetailPrimaryActions,
   EmptyBedPrimaryActions,
@@ -21,6 +22,17 @@ import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 
 type BedOption = { bedId: string; label: string };
 
+type InlineAssignContext = {
+  customerId: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  gender: 'male' | 'female' | 'other';
+  beds: Array<{ bedId: string; label: string; monthlyRatePaise: number; depositPaise: number }>;
+  defaultStartDate: string;
+  bedId: string;
+};
+
 type SelectedContext = {
   bed: PgBedMapBed;
   room: PgBedMapRoom;
@@ -28,7 +40,7 @@ type SelectedContext = {
 };
 
 const SURFACE = 'rounded-2xl border border-white/10 bg-[#1A1F27]';
-const LEGEND = [
+const LEGEND_FULL = [
   { label: 'Open now', className: 'border-emerald-400/60 bg-emerald-500/15' },
   { label: 'Pre-book', className: 'border-sky-400/50 bg-sky-500/12' },
   { label: 'Move-out notice', className: 'border-orange-400/55 bg-orange-500/12' },
@@ -39,16 +51,26 @@ const LEGEND = [
   { label: 'Maintenance', className: 'border-amber-400/50 bg-amber-500/12' },
 ];
 
+const COMMAND_LEGEND = [
+  { label: 'Available', className: 'border-emerald-400/60 bg-emerald-500/15' },
+  { label: 'Occupied', className: 'border-zinc-500/50 bg-zinc-700/40' },
+  { label: 'Releasing soon', className: 'border-orange-400/55 bg-orange-500/12' },
+  { label: 'Reserved', className: 'border-violet-400/55 bg-violet-500/15' },
+  { label: 'Selected', className: 'border-[#FF5A1F] bg-[#FF5A1F]/20' },
+];
+
 function BedDetailPanel({
   ctx,
   pgId,
   moveBedOptions,
   onClose,
+  inlineAssign,
 }: {
   ctx: SelectedContext;
   pgId: string;
   moveBedOptions: BedOption[];
   onClose: () => void;
+  inlineAssign?: InlineAssignContext | null;
 }) {
   const { bed, room, floor } = ctx;
   const person = bed.occupant ?? bed.reserved;
@@ -122,6 +144,20 @@ function BedDetailPanel({
                   : 'This bed is open. Assign a resident or mark it reserved/occupied.'}
             </p>
             <EmptyBedPrimaryActions pgId={pgId} bed={bed} />
+            {inlineAssign && inlineAssign.bedId === bed.bedId ? (
+              <BedInlineAssignForm
+                beds={inlineAssign.beds}
+                bedId={inlineAssign.bedId}
+                defaultStartDate={inlineAssign.defaultStartDate}
+                prefill={{
+                  customerId: inlineAssign.customerId,
+                  fullName: inlineAssign.fullName,
+                  email: inlineAssign.email,
+                  phone: inlineAssign.phone,
+                  gender: inlineAssign.gender,
+                }}
+              />
+            ) : null}
             <BedDetailAdvancedTools
               bed={bed}
               room={room}
@@ -201,11 +237,19 @@ function RoomCard({
 export function PgBedMapPanel({
   map,
   moveBedOptions,
+  hideSummary = false,
+  commandCenterMode = false,
+  initialSelectedBedId = null,
+  inlineAssign = null,
 }: {
   map: PgBedMap;
   moveBedOptions: BedOption[];
+  hideSummary?: boolean;
+  commandCenterMode?: boolean;
+  initialSelectedBedId?: string | null;
+  inlineAssign?: InlineAssignContext | null;
 }) {
-  const [selectedBedId, setSelectedBedId] = useState<string | null>(null);
+  const [selectedBedId, setSelectedBedId] = useState<string | null>(initialSelectedBedId);
 
   function selectBed(bedId: string) {
     setSelectedBedId(bedId);
@@ -236,10 +280,10 @@ export function PgBedMapPanel({
 
   return (
     <div className="space-y-5">
-      <BedMapSummarySection summary={map.summary} />
+      {!hideSummary ? <BedMapSummarySection summary={map.summary} /> : null}
 
       <div className="flex flex-wrap gap-3 text-[11px] text-apg-silver">
-        {LEGEND.map((item) => (
+        {(commandCenterMode ? COMMAND_LEGEND : LEGEND_FULL).map((item) => (
           <span key={item.label} className="inline-flex items-center gap-1.5">
             <span className={`h-3 w-5 rounded border ${item.className}`} />
             {item.label}
@@ -275,6 +319,7 @@ export function PgBedMapPanel({
               pgId={map.pgId}
               moveBedOptions={moveBedOptions}
               onClose={() => setSelectedBedId(null)}
+              inlineAssign={inlineAssign}
             />
           ) : (
             <div className={`${SURFACE} border-dashed px-4 py-10 text-center text-sm text-apg-silver`}>
