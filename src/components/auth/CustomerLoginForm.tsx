@@ -108,24 +108,40 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
     void (async () => {
       try {
         const res = await fetch('/api/auth/customer/signup/status', { credentials: 'same-origin' });
-        if (!res.ok || cancelled) return;
+        if (cancelled) return;
+        if (!res.ok) return;
+
         const data = (await res.json()) as {
           ok?: boolean;
           email?: string;
           step?: 'OTP' | 'PROFILE' | 'PASSWORD' | 'COMPLETED';
           needsProfile?: boolean;
           needsPassword?: boolean;
+          needsLogin?: boolean;
+          shouldSignup?: boolean;
           fullName?: string;
           phone?: string;
         };
-        if (!data.ok || !data.email) return;
+
+        if (data.needsLogin || data.step === 'COMPLETED') {
+          if (data.email) setEmail(data.email);
+          setStep('credentials');
+          setError('You already have an account. Sign in with your password or use Forgot password.');
+          return;
+        }
+
+        if (!data.ok || !data.email || !data.shouldSignup) return;
+
         setEmail(data.email);
-        const step = data.step ?? (data.needsPassword ? 'PASSWORD' : data.needsProfile ? 'PROFILE' : 'OTP');
-        if (step === 'PASSWORD' || data.needsPassword) {
+        const resumeStep =
+          data.step ?? (data.needsPassword ? 'PASSWORD' : data.needsProfile ? 'PROFILE' : 'OTP');
+
+        if (resumeStep === 'PASSWORD' || data.needsPassword) {
           router.replace(`/account/set-password?next=${encodeURIComponent(next)}`);
           return;
         }
-        if (step === 'PROFILE' || data.needsProfile) {
+
+        if (resumeStep === 'PROFILE' || data.needsProfile) {
           setEmailVerified(true);
           setOtpPhase('success');
           setStep('profile');
@@ -133,17 +149,44 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
           if (data.phone) setPhone(data.phone.replace(/^\+91/, ''));
           return;
         }
-        if (step === 'OTP') {
+
+        if (resumeStep === 'OTP') {
+          setOtpPurpose('signup');
           setStep('otp');
         }
       } catch {
-        /* resume is best-effort */
+        /* resume is best-effort — stay on login */
       }
     })();
     return () => {
       cancelled = true;
     };
   }, [next, router]);
+
+  async function resetToLogin(message?: string) {
+    try {
+      await fetch('/api/auth/customer/signup/reset', {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+    } catch {
+      /* best-effort */
+    }
+    setStep('credentials');
+    setOtpPurpose('signup');
+    setCode('');
+    setEmailVerified(false);
+    setOtpPhase('idle');
+    setProfilePhase('idle');
+    verifyInFlight.current = false;
+    profileInFlight.current = false;
+    setPending(false);
+    setFullName('');
+    setPhone('');
+    setNewPassword('');
+    setConfirmPassword('');
+    if (message) setError(message);
+  }
 
   function resetVerifyState() {
     verifyInFlight.current = false;
@@ -197,12 +240,18 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
         message?: string;
         needsCompleteSignup?: boolean;
         mustSetPassword?: boolean;
+        accountExists?: boolean;
       };
       if (!res.ok || !data.ok) {
         if (data.needsCompleteSignup) {
-          setOtpPurpose('signup');
-          setError('Complete your signup — verify your email, then create a password.');
-          await sendCode('signup');
+          setError(
+            data.message ??
+              'Signup is not finished for this email. Use “Sign up with email code” below if you were registering, or contact support.',
+          );
+          return;
+        }
+        if (data.accountExists) {
+          setError(data.message ?? 'Incorrect password. Try again or use Forgot password.');
           return;
         }
         setError(data.message ?? 'Sign in failed.');
@@ -244,8 +293,17 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
         resendAfter?: string;
         retryAfterSeconds?: number;
         rateLimited?: boolean;
+        needsLogin?: boolean;
+        accountExists?: boolean;
       };
       if (!res.ok || !data.ok) {
+        if (data.needsLogin || data.accountExists) {
+          await resetToLogin(
+            data.message ??
+              'This email already has an account. Sign in with your password or use Forgot password.',
+          );
+          return;
+        }
         if (data.retryAfterSeconds) {
           setResendSeconds(data.retryAfterSeconds);
         } else if (data.rateLimited) {
@@ -329,9 +387,20 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
         legacyIncomplete?: boolean;
         needsNewCode?: boolean;
         needsSignup?: boolean;
+        needsLogin?: boolean;
         retryable?: boolean;
         redirect?: string;
       };
+
+      if (data.needsLogin) {
+        if (includeProfile) resetProfileSubmit();
+        else resetVerifyState();
+        await resetToLogin(
+          data.message ??
+            'This email already has an account. Sign in with your password or use Forgot password.',
+        );
+        return;
+      }
 
       if (data.needsPassword && !includeProfile) {
         resetVerifyState();
@@ -373,13 +442,14 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
           setEmailVerified(false);
           setOtpPhase('idle');
           setCode('');
-        }
-        if (includeProfile) {
+          setError(data.message ?? 'Your verification expired. Enter a new code, then try again.');
+        } else if (includeProfile) {
           resetProfileSubmit();
+          setError(data.message ?? 'Could not save your profile. Try again.');
         } else {
           resetVerifyState();
+          setError(data.message ?? 'Verification failed.');
         }
-        setError(data.message ?? 'Verification failed.');
         return;
       }
 
@@ -444,10 +514,10 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
       };
       if (!res.ok || !data.ok) {
         if (data.needsCompleteSignup) {
-          setOtpPurpose('signup');
-          setStep('otp');
-          setError('Complete your signup — verify your email, then create a password.');
-          await sendCode('signup');
+          setError(
+            data.message ??
+              'No password on this account yet. Finish signup with an email code, or sign in if you already set a password.',
+          );
           return;
         }
         setError(data.message ?? 'Could not reset password.');
@@ -460,7 +530,11 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
     }
   }
 
-  function startSignup() {
+  async function startSignup() {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError('Enter your email above first, then tap Sign up.');
+      return;
+    }
     setError(null);
     setPassword('');
     setCode('');
@@ -470,6 +544,26 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
     verifyInFlight.current = false;
     profileInFlight.current = false;
     setOtpPurpose('signup');
+
+    try {
+      const lookup = await fetch(
+        `/api/auth/customer/email/lookup?email=${encodeURIComponent(email.trim())}`,
+        { credentials: 'same-origin' },
+      );
+      if (lookup.ok) {
+        const info = (await lookup.json()) as { shouldLogin?: boolean; message?: string | null };
+        if (info.shouldLogin) {
+          await resetToLogin(
+            info.message ??
+              'This email already has an account. Sign in with your password or use Forgot password.',
+          );
+          return;
+        }
+      }
+    } catch {
+      /* proceed with signup send */
+    }
+
     void sendCode('signup');
   }
 
@@ -736,6 +830,24 @@ export function CustomerLoginForm({ theme = 'light' }: { theme?: 'light' | 'dark
               Try again
             </button>
           ) : null}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-3">
+            <button
+              type="button"
+              onClick={() => void resetToLogin()}
+              className={linkMuted}
+            >
+              ← Sign in instead
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                void resetToLogin().then(() => startForgotPassword());
+              }}
+              className={linkAccent}
+            >
+              Forgot password
+            </button>
+          </div>
         </form>
       ) : null}
 

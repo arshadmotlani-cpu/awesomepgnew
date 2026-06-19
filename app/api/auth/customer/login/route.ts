@@ -51,7 +51,14 @@ export async function POST(request: Request) {
   }
 
   if (!verifyPassword(password, customer.passwordHash)) {
-    return NextResponse.json({ ok: false, message: 'Invalid email or password.' }, { status: 401 });
+    return NextResponse.json(
+      {
+        ok: false,
+        accountExists: true,
+        message: 'Incorrect password. Try again or use Forgot password.',
+      },
+      { status: 401 },
+    );
   }
 
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null;

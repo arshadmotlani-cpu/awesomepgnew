@@ -13,6 +13,7 @@ import {
   SIGNUP_SETUP_EXPIRED_MESSAGE,
 } from '@/src/lib/auth/signupVerification';
 import {
+  clearSignupSessionCookie,
   getActiveSignupSessionForEmail,
   getSignupSessionById,
   issueSignupSessionCookie,
@@ -21,6 +22,7 @@ import {
   signupSessionPublicState,
   submitSignupProfile,
 } from '@/src/lib/auth/signupSession';
+import { resolveCustomerAuthSnapshot } from '@/src/lib/auth/resolveCustomerAuthState';
 import { createCustomerSession } from '@/src/lib/auth/session';
 import { normaliseEmail } from '@/src/lib/email/address';
 import { normaliseIndianPhone } from '@/src/lib/phone';
@@ -34,6 +36,20 @@ async function handleProfileStep(args: {
   otpCtx: { ip: string | null; userAgent: string | null };
 }) {
   const { email, fullName, phone, code, otpCtx } = args;
+
+  const existingSnapshot = await resolveCustomerAuthSnapshot(email);
+  if (existingSnapshot?.kind === 'existing_complete') {
+    await clearSignupSessionCookie();
+    return NextResponse.json(
+      {
+        ok: false,
+        needsLogin: true,
+        email,
+        message: 'This email already has an account. Sign in with your password or use Forgot password.',
+      },
+      { status: 400 },
+    );
+  }
 
   if (fullName.length < 2) {
     return NextResponse.json(
@@ -236,6 +252,19 @@ export async function POST(request: Request) {
     // ── Resume: OTP already verified for this email ──
     const pendingSession = await getActiveSignupSessionForEmail(email);
     if (pendingSession?.otpVerified) {
+      if (existingCustomer && isAccountComplete(existingCustomer)) {
+        await clearSignupSessionCookie();
+        return NextResponse.json(
+          {
+            ok: false,
+            needsLogin: true,
+            email,
+            message: 'This email already has an account. Sign in with your password.',
+          },
+          { status: 400 },
+        );
+      }
+
       const cookieSessionId = await readSignupSessionCookie();
       if (cookieSessionId !== pendingSession.id) {
         await issueSignupSessionCookie(pendingSession.id, pendingSession.expiresAt);

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { findCustomerByEmail, isAccountComplete, isIncompleteSignup } from '@/src/lib/auth/customer';
+import { getActiveSignupSessionForEmail } from '@/src/lib/auth/signupSession';
 import { sendEmailOtp } from '@/src/lib/auth/otp';
 
 export type OtpPurpose = 'signup' | 'forgot_password';
@@ -19,7 +20,9 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         ok: false,
-        message: 'This email already has an account. Sign in with your password or use forgot password.',
+        needsLogin: true,
+        accountExists: true,
+        message: 'This email already has an account. Sign in with your password or use Forgot password.',
       },
       { status: 400 },
     );
@@ -27,8 +30,22 @@ export async function POST(request: Request) {
 
   if (purpose === 'forgot_password') {
     if (!customer || customer.archivedAt) {
+      const pendingSignup = await getActiveSignupSessionForEmail(body.email ?? '');
+      if (pendingSignup) {
+        return NextResponse.json(
+          {
+            ok: false,
+            needsCompleteSignup: true,
+            message: 'No password set yet. Finish signup or use Sign in if you already have a password.',
+          },
+          { status: 400 },
+        );
+      }
       return NextResponse.json(
-        { ok: false, message: 'No account found for this email.' },
+        {
+          ok: false,
+          message: 'No account found for this email. Sign up if you are new here.',
+        },
         { status: 400 },
       );
     }
@@ -37,7 +54,9 @@ export async function POST(request: Request) {
         {
           ok: false,
           needsCompleteSignup: true,
-          message: 'Finish signing up first — verify your email, then create a password.',
+          needsLogin: false,
+          message:
+            'This account has no password yet. Finish signup with an email code, or contact support if you believe this is an error.',
         },
         { status: 400 },
       );
