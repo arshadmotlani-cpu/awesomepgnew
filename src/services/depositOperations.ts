@@ -9,6 +9,10 @@ import { auditLog, bookings } from '@/src/db/schema';
 import { coerceNonNegativePaise } from '@/src/lib/format';
 import { logDepositDebug } from '@/src/lib/depositDebug';
 import { logDepositPageSection } from '@/src/lib/depositPageDebug';
+import {
+  logDepositSaveAfterSync,
+  logDepositSaveAfterUpdate,
+} from '@/src/lib/depositInvestigation';
 import { getDepositInvoiceForBooking } from '@/src/services/depositInvoices';
 import {
   adjustDepositCollectedBalance,
@@ -507,11 +511,19 @@ export async function updateDepositSummaryAdmin(input: {
     .select({
       depositPaise: bookings.depositPaise,
       totalPaise: bookings.totalPaise,
+      bookingCode: bookings.bookingCode,
     })
     .from(bookings)
     .where(eq(bookings.id, input.bookingId))
     .limit(1);
   if (!booking) return { ok: false, error: 'Booking not found.' };
+
+  const invCtx = {
+    bookingId: input.bookingId,
+    bookingCode: booking.bookingCode,
+    customerId: input.customerId,
+    component: 'updateDepositSummaryAdmin',
+  };
 
   const priorRequired = coerceNonNegativePaise(booking.depositPaise);
   const priorTotal = coerceNonNegativePaise(booking.totalPaise);
@@ -563,7 +575,16 @@ export async function updateDepositSummaryAdmin(input: {
     });
   }
 
+  logDepositSaveAfterUpdate(invCtx, {
+    requiredPaise: requiredPaise ?? null,
+    collectedPaise: collectedPaise ?? null,
+    priorRequired,
+    priorTotal,
+  });
+
   await syncDepositCollectionFromLedger(input.bookingId);
+
+  logDepositSaveAfterSync(invCtx, { bookingId: input.bookingId });
 
   await db.insert(auditLog).values({
     actorType: 'admin',

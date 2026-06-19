@@ -16,15 +16,24 @@ export default function DepositDetailError({
   const bookingId = typeof params?.bookingId === 'string' ? params.bookingId : null;
 
   useEffect(() => {
-    console.error('[deposit-detail] error boundary', {
+    const payload = {
+      section: 'error_boundary',
       bookingId,
-      message: error.message,
+      error: error.message,
       stack: error.stack,
       digest: error.digest,
       name: error.name,
       cause: error.cause,
-      error,
-    });
+      surface: 'client',
+    };
+    console.error('[DEPOSIT_RENDER_FAILED]', payload);
+    console.error('[deposit-detail] error boundary', payload);
+    void fetch('/api/admin/deposit-render-log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      keepalive: true,
+    }).catch(() => undefined);
   }, [error, bookingId]);
 
   const detail =

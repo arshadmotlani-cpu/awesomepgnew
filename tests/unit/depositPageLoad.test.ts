@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
-import { assertJsonSerializable, jsonSafe } from '../../src/lib/depositPageDebug';
+import { assertJsonSerializable, findUnsafeFields, jsonSafe } from '../../src/lib/depositPageDebug';
 import { securityDepositForMode, type RateSnapshot } from '../../src/services/pricing';
 import { sanitizeUnifiedDepositView } from '../../src/services/depositOperations';
 
@@ -39,9 +39,21 @@ test('assertJsonSerializable rejects bigint in unified deposit view props', () =
   assert.doesNotThrow(() => assertJsonSerializable('client_props_wallet', 'b1', { view: dirty, isFrozen: false }));
 
   const broken = { ...dirty, collectedPaise: 350000n as unknown as number };
-  assert.throws(() =>
-    assertJsonSerializable('client_props_wallet', 'b1', { view: broken, isFrozen: false }),
+  assert.throws(
+    () => assertJsonSerializable('client_props_wallet', 'b1', { view: broken, isFrozen: false }),
+    /RSC-unsafe value in client_props_wallet.*collectedPaise type=bigint/,
   );
+});
+
+test('findUnsafeFields reports exact field path for bigint', () => {
+  const fields = findUnsafeFields({
+    websiteDepositPaise: 9000n,
+    nested: { amount: 100 },
+  });
+  assert.equal(fields.length, 1);
+  assert.equal(fields[0].path, 'websiteDepositPaise');
+  assert.equal(fields[0].type, 'bigint');
+  assert.equal(fields[0].value, '9000n');
 });
 
 test('jsonSafe converts bigint ledger snapshots for logging', () => {

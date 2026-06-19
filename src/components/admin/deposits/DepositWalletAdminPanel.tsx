@@ -4,6 +4,7 @@ import { useActionState, useState, useTransition } from 'react';
 import {
   cancelDepositInvoiceAction,
   editDepositSummaryAction,
+  editDepositSummaryNoRevalidateAction,
   loadCancelDepositPreviewAction,
   loadRebuildDepositPreviewAction,
   rebuildDepositWalletAction,
@@ -25,6 +26,10 @@ export function DepositWalletAdminPanel({
   isFrozen: boolean;
 }) {
   const [editState, editAction, editPending] = useActionState(editDepositSummaryAction, idle);
+  const [editNoRevalState, editNoRevalAction, editNoRevalPending] = useActionState(
+    editDepositSummaryNoRevalidateAction,
+    idle,
+  );
   const [rebuildState, rebuildAction, rebuildPending] = useActionState(
     rebuildDepositWalletAction,
     idle,
@@ -126,19 +131,33 @@ export function DepositWalletAdminPanel({
                 className="apg-admin-field mt-1 w-full rounded-lg border border-white/10 bg-[#0B0F14] px-3 py-2 text-white"
               />
             </label>
-            <div className="sm:col-span-2">
+            <div className="sm:col-span-2 flex flex-wrap items-center gap-2">
               <button
                 type="submit"
-                disabled={editPending}
+                disabled={editPending || editNoRevalPending}
                 className="rounded-lg bg-[#FF5A1F] px-4 py-2 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-60"
               >
                 {editPending ? 'Saving…' : 'Save deposit corrections'}
               </button>
+              <button
+                type="submit"
+                formAction={editNoRevalAction}
+                disabled={editPending || editNoRevalPending}
+                className="rounded-lg border border-amber-400/50 px-4 py-2 text-xs font-semibold text-amber-200 hover:bg-amber-500/10 disabled:opacity-60"
+              >
+                {editNoRevalPending ? 'Saving…' : 'Save deposit corrections (no revalidate)'}
+              </button>
               {editState.status === 'ok' ? (
-                <p className="mt-2 text-xs text-emerald-300">{editState.message}</p>
+                <p className="w-full text-xs text-emerald-300">{editState.message}</p>
               ) : null}
               {editState.status === 'error' ? (
-                <p className="mt-2 text-xs text-rose-300">{editState.message}</p>
+                <p className="w-full text-xs text-rose-300">{editState.message}</p>
+              ) : null}
+              {editNoRevalState.status === 'ok' ? (
+                <p className="w-full text-xs text-emerald-300">{editNoRevalState.message}</p>
+              ) : null}
+              {editNoRevalState.status === 'error' ? (
+                <p className="w-full text-xs text-rose-300">{editNoRevalState.message}</p>
               ) : null}
             </div>
           </form>

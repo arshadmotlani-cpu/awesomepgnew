@@ -9,7 +9,7 @@ import {
   initialActionState,
   type ActionState,
 } from '@/app/(admin)/admin/deposits/[bookingId]/actions';
-import { paiseToInr } from '@/src/lib/format';
+import { paiseToInr, asPlainNumber } from '@/src/lib/format';
 
 /**
  * Deposit-ledger forms for the admin per-booking deposit page.
@@ -120,7 +120,7 @@ function CorrectDepositForm({
           min="0"
           step="1"
           required
-          defaultValue={Math.round(bookingDepositPaise / 100)}
+          defaultValue={Math.round(asPlainNumber(bookingDepositPaise) / 100)}
           className="mt-1 block w-full max-w-xs rounded-md border border-zinc-300 px-2.5 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
         />
       </label>

@@ -20,6 +20,14 @@ import {
 } from '@/src/services/depositOperations';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { logDepositDebug } from '@/src/lib/depositDebug';
+import { logDepositTrace } from '@/src/lib/depositPageDebug';
+import {
+  logDepositSaveAfterRevalidate,
+  logDepositSaveFailed,
+  logDepositSaveStart,
+  logDepositServerActionCaught,
+  type DepositInvestigationContext,
+} from '@/src/lib/depositInvestigation';
 
 export type DepositWalletActionState =
   | { status: 'idle' }
@@ -114,8 +122,8 @@ async function verifyDepositReload(bookingId: string, customerId: string) {
       getDepositSummaryForBooking(bookingId),
       getUnifiedDepositView(bookingId),
     ]);
-    console.info('[deposit-wallet] post-save reload ok', {
-      bookingId,
+    logDepositTrace('loadDepositDetailData', bookingId, {
+      phase: 'post_save_reload_ok',
       customerId,
       collectedPaise: summary?.collectedPaise,
       requiredPaise: view?.requiredPaise,
@@ -124,16 +132,16 @@ async function verifyDepositReload(bookingId: string, customerId: string) {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const stack = err instanceof Error ? err.stack : undefined;
-    console.error('[deposit-wallet] post-save reload failed', {
-      bookingId,
+    logDepositTrace('loadDepositDetailData', bookingId, {
+      phase: 'post_save_reload_failed',
       customerId,
-      message,
+      error: message,
       stack,
     });
   }
 }
 
-function revalidateDepositViews(bookingId: string) {
+function revalidateDepositViews(bookingId: string, ctx: DepositInvestigationContext) {
   logDepositDebug({
     phase: 'revalidateDepositViews:before',
     actionName: 'revalidateDepositViews',
@@ -142,6 +150,7 @@ function revalidateDepositViews(bookingId: string) {
   revalidateFinancialViews();
   revalidatePath(`/admin/deposits/${bookingId}`);
   revalidatePath('/admin/deposits');
+  logDepositSaveAfterRevalidate(ctx, { paths: [`/admin/deposits/${bookingId}`, '/admin/deposits'] });
   logDepositDebug({
     phase: 'revalidateDepositViews:after',
     actionName: 'revalidateDepositViews',
@@ -179,14 +188,17 @@ export async function loadCancelDepositPreviewAction(
   }
 }
 
-export async function editDepositSummaryAction(
-  _prev: DepositWalletActionState,
+async function editDepositSummaryCore(
   formData: FormData,
+  options: { skipRevalidate?: boolean },
 ): Promise<DepositWalletActionState> {
   let admin;
   let bookingId = '';
   let bookingCode: string | null = null;
   let customerId: string | null = null;
+  const actionName = options.skipRevalidate
+    ? 'editDepositSummaryNoRevalidateAction'
+    : 'editDepositSummaryAction';
   try {
     admin = await requireAdminPermission('deposits:write');
     bookingId = String(formData.get('bookingId') ?? '');
@@ -216,17 +228,23 @@ export async function editDepositSummaryAction(
       return { status: 'error', message: 'Enter required and/or collected amount to update.' };
     }
 
-    console.info('[deposit-wallet] edit_summary start', {
+    const invCtx: DepositInvestigationContext = {
       bookingId,
       bookingCode,
       customerId,
-      requiredPaise,
-      collectedPaise,
+      component: actionName,
+    };
+
+    logDepositSaveStart(invCtx, {
+      requiredPaise: requiredPaise ?? null,
+      collectedPaise: collectedPaise ?? null,
       reason,
+      skipRevalidate: Boolean(options.skipRevalidate),
     });
+
     logDepositDebug({
-      phase: 'editDepositSummaryAction:before_update',
-      actionName: 'editDepositSummaryAction',
+      phase: `${actionName}:before_update`,
+      actionName,
       bookingId,
       residentId: customerId,
       requiredDeposit: requiredPaise,
@@ -244,46 +262,55 @@ export async function editDepositSummaryAction(
     if (!result.ok) return { status: 'error', message: result.error };
 
     logDepositDebug({
-      phase: 'editDepositSummaryAction:after_update',
-      actionName: 'editDepositSummaryAction',
+      phase: `${actionName}:after_update`,
+      actionName,
       bookingId,
       residentId: customerId,
       requiredDeposit: requiredPaise,
       collectedDeposit: collectedPaise,
     });
 
-    console.info('[deposit-wallet] edit_summary ok', {
+    if (!options.skipRevalidate) {
+      revalidateDepositViews(bookingId, invCtx);
+      await verifyDepositReload(bookingId, customerId);
+    }
+
+    logDepositDebug({
+      phase: `${actionName}:ok`,
+      bookingId,
+      residentId: customerId,
+      actionName,
+      requiredDeposit: requiredPaise,
+      collectedDeposit: collectedPaise,
+    });
+
+    return {
+      status: 'ok',
+      message: options.skipRevalidate
+        ? 'Deposit saved (no revalidate — page not reloaded).'
+        : 'Deposit summary updated everywhere.',
+    };
+  } catch (err) {
+    if (isRedirectError(err)) {
+      logDepositServerActionCaught(actionName, bookingId, err, { kind: 'redirect' });
+      throw err;
+    }
+    const invCtx: DepositInvestigationContext = {
       bookingId,
       bookingCode,
       customerId,
-      requiredPaise,
-      collectedPaise,
-    });
-
-    revalidateDepositViews(bookingId);
-    await verifyDepositReload(bookingId, customerId);
+      component: actionName,
+    };
+    logDepositSaveFailed(invCtx, err);
     logDepositDebug({
-      phase: 'editDepositSummaryAction:ok',
+      phase: `${actionName}:error`,
+      actionName,
       bookingId,
       residentId: customerId,
-      actionName: 'editDepositSummaryAction',
-      requiredDeposit: requiredPaise,
-      collectedDeposit: collectedPaise,
-    });
-    return { status: 'ok', message: 'Deposit summary updated everywhere.' };
-  } catch (err) {
-    if (isRedirectError(err)) throw err;
-    logDepositDebug({
-      phase: 'editDepositSummaryAction:error',
-      actionName: 'editDepositSummaryAction',
-      bookingId,
-      residentId: customerId,
-      requiredDeposit: undefined,
-      collectedDeposit: undefined,
       error: err,
     });
     await logDepositWalletFailure({
-      action: 'edit_summary',
+      action: options.skipRevalidate ? 'edit_summary_no_revalidate' : 'edit_summary',
       bookingId,
       customerId,
       bookingCode,
@@ -295,6 +322,21 @@ export async function editDepositSummaryAction(
       message: err instanceof Error ? err.message : 'Update failed.',
     };
   }
+}
+
+export async function editDepositSummaryAction(
+  _prev: DepositWalletActionState,
+  formData: FormData,
+): Promise<DepositWalletActionState> {
+  return editDepositSummaryCore(formData, { skipRevalidate: false });
+}
+
+/** Diagnostic: same save path but skips revalidatePath to isolate reload crashes. */
+export async function editDepositSummaryNoRevalidateAction(
+  _prev: DepositWalletActionState,
+  formData: FormData,
+): Promise<DepositWalletActionState> {
+  return editDepositSummaryCore(formData, { skipRevalidate: true });
 }
 
 export async function rebuildDepositWalletAction(
@@ -326,7 +368,12 @@ export async function rebuildDepositWalletAction(
     });
     if (!result.ok) return { status: 'error', message: result.error };
 
-    revalidateDepositViews(bookingId);
+    revalidateDepositViews(bookingId, {
+      bookingId,
+      bookingCode,
+      customerId,
+      component: 'rebuildDepositWalletAction',
+    });
     return {
       status: 'ok',
       message: `Wallet rebuilt from ledger — collected ₹${(result.collectedPaise / 100).toLocaleString('en-IN')}, refundable ₹${(result.refundablePaise / 100).toLocaleString('en-IN')}, due ₹${(result.depositDuePaise / 100).toLocaleString('en-IN')}.`,
@@ -382,7 +429,12 @@ export async function cancelDepositInvoiceAction(
     });
     if (!result.ok) return { status: 'error', message: result.error };
 
-    revalidateDepositViews(bookingId);
+    revalidateDepositViews(bookingId, {
+      bookingId,
+      bookingCode,
+      customerId,
+      component: 'rebuildDepositWalletAction',
+    });
     const removed =
       result.removedFromWalletPaise > 0
         ? ` Removed ₹${(result.removedFromWalletPaise / 100).toLocaleString('en-IN')} from wallet.`

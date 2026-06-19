@@ -1,27 +1,26 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { eq, and, sql } from 'drizzle-orm';
-import { db } from '@/src/db/client';
-import { bedReservations, bookings, customers } from '@/src/db/schema';
+import type { ReactNode } from 'react';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { Badge } from '@/src/components/admin/Badge';
-import { getDepositSummaryForBooking } from '@/src/services/deposits';
-import { getDepositInvoiceForBooking } from '@/src/services/depositInvoices';
 import { DepositAdjustForms } from '@/src/components/admin/DepositAdjustForms';
 import { DepositSettlementPanel } from '@/src/components/admin/DepositSettlementPanel';
 import { DepositWalletAdminPanel } from '@/src/components/admin/deposits/DepositWalletAdminPanel';
+import { DepositComponentBoundary } from '@/src/components/admin/deposits/DepositComponentBoundary';
 import { DepositRefundNotice } from '@/src/components/customer/DepositRefundNotice';
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
-import { paiseToInr, asPlainNumber, coerceNonNegativePaise } from '@/src/lib/format';
-import { loadBedPrice, securityDepositForMode } from '@/src/services/pricing';
-import { getUnifiedDepositView, sanitizeUnifiedDepositView } from '@/src/services/depositOperations';
-import { logger } from '@/src/lib/logger';
-import { logDepositDebug } from '@/src/lib/depositDebug';
+import { paiseToInr } from '@/src/lib/format';
+import { loadDepositPageData } from '@/src/lib/deposits/loadDepositPageData';
+import { jsonSafe } from '@/src/lib/depositPageDebug';
 import {
-  assertJsonSerializable,
-  logDepositPageSection,
-  type DepositPageSection,
-} from '@/src/lib/depositPageDebug';
+  logDepositComponentFailed,
+  logDepositComponentRender,
+  type DepositInvestigationContext,
+} from '@/src/lib/depositInvestigation';
+import {
+  parseDepositSkipFlags,
+  shouldSkipDepositSection,
+} from '@/src/lib/depositRenderTrace';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,252 +41,54 @@ function statusTone(status: string) {
   }
 }
 
-async function runSection<T>(
-  section: DepositPageSection,
-  bookingId: string,
-  fn: () => Promise<T>,
-): Promise<T> {
+function renderServerComponent(
+  ctx: DepositInvestigationContext,
+  data: Record<string, unknown>,
+  render: () => ReactNode,
+): ReactNode {
   try {
-    return await fn();
+    logDepositComponentRender(ctx, data);
+    return render();
   } catch (error) {
-    console.error('[DEPOSIT_PAGE_SECTION_FAILED]', section, bookingId, error);
-    throw error;
+    logDepositComponentFailed(ctx, error, data);
+    const message = error instanceof Error ? error.message : String(error);
+    const stack = error instanceof Error ? error.stack : undefined;
+    return (
+      <div className="my-4 rounded-lg border border-rose-400/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+        <p className="font-semibold">[DEPOSIT_COMPONENT_FAILED] {ctx.component}</p>
+        <p className="mt-1 text-xs">{message}</p>
+        {stack ? (
+          <pre className="mt-2 max-h-32 overflow-auto text-[10px] text-rose-200/80">{stack}</pre>
+        ) : null}
+      </div>
+    );
   }
 }
 
-async function loadDepositDetailData(bookingId: string) {
-  try {
-    logDepositPageSection('loadDepositDetailData', bookingId, { phase: 'start' });
-
-    const booking = await runSection('booking_query', bookingId, async () => {
-      const [row] = await db
-        .select({
-          id: bookings.id,
-          bookingCode: bookings.bookingCode,
-          durationMode: bookings.durationMode,
-          status: bookings.status,
-          depositPaise: bookings.depositPaise,
-          customerId: bookings.customerId,
-          customerFullName: customers.fullName,
-          customerPhone: customers.phone,
-        })
-        .from(bookings)
-        .innerJoin(customers, eq(customers.id, bookings.customerId))
-        .where(eq(bookings.id, bookingId))
-        .limit(1);
-      if (!row) return null;
-      logDepositPageSection('customer_join', bookingId, {
-        customerId: row.customerId,
-        deposit_paise: coerceNonNegativePaise(row.depositPaise),
-        bookingCode: row.bookingCode,
-      });
-      return row;
-    });
-
-    if (!booking) return null;
-
-    let invoice = null;
-    let summary = null;
-    let unifiedView = null;
-    let loadError: string | null = null;
-
-    try {
-      invoice = await runSection('getDepositInvoiceForBooking', bookingId, () =>
-        getDepositInvoiceForBooking(bookingId),
-      );
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      const stack = err instanceof Error ? err.stack : undefined;
-      console.error('[deposit-detail] getDepositInvoiceForBooking failed', {
-        bookingId,
-        customerId: booking.customerId,
-        message,
-        stack,
-      });
-      logger.error('deposit_detail_invoice_load_failed', { bookingId, message, stack });
-      loadError = loadError ?? `Deposit invoice could not be loaded: ${message}`;
-    }
-
-    try {
-      summary = await runSection('getDepositSummaryForBooking', bookingId, () =>
-        getDepositSummaryForBooking(bookingId),
-      );
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      const stack = err instanceof Error ? err.stack : undefined;
-      console.error('[deposit-detail] getDepositSummaryForBooking failed', {
-        bookingId,
-        customerId: booking.customerId,
-        message,
-        stack,
-      });
-      logger.error('deposit_detail_summary_load_failed', { bookingId, message, stack });
-      loadError = loadError ?? `Deposit wallet summary could not be loaded: ${message}`;
-    }
-
-    try {
-      unifiedView = await runSection('getUnifiedDepositView', bookingId, async () => {
-        const rawView = await getUnifiedDepositView(bookingId);
-        if (!rawView) return null;
-        const clean = sanitizeUnifiedDepositView(rawView);
-        assertJsonSerializable('sanitize_unified_view', bookingId, clean);
-        return clean;
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      const stack = err instanceof Error ? err.stack : undefined;
-      console.error('[deposit-detail] getUnifiedDepositView failed', {
-        bookingId,
-        customerId: booking.customerId,
-        message,
-        stack,
-      });
-      logger.error('deposit_detail_unified_view_failed', { bookingId, message, stack });
-      loadError = loadError ?? `Deposit wallet view could not be loaded: ${message}`;
-    }
-
-    let requiredPaise = 0;
-    let collectedPaise = 0;
-    let deductionsPaise = 0;
-    let refundablePaise = 0;
-    let isFrozen = false;
-
-    try {
-      requiredPaise = coerceNonNegativePaise(invoice?.requiredPaise ?? booking.depositPaise);
-      collectedPaise = coerceNonNegativePaise(
-        invoice?.collectedPaise ?? summary?.collectedPaise ?? 0,
-      );
-      deductionsPaise = coerceNonNegativePaise(
-        invoice?.deductionsPaise ?? (summary?.deductedPaise ?? 0) + (summary?.refundedPaise ?? 0),
-      );
-      refundablePaise = coerceNonNegativePaise(
-        invoice?.refundablePaise ?? summary?.refundableBalancePaise ?? 0,
-      );
-      isFrozen = invoice?.isFrozen ?? false;
-      logDepositPageSection('compute_totals', bookingId, {
-        customerId: booking.customerId,
-        deposit_paise: coerceNonNegativePaise(booking.depositPaise),
-        requiredPaise,
-        collectedPaise,
-        deductedPaise: coerceNonNegativePaise(summary?.deductedPaise ?? 0),
-        refundedPaise: coerceNonNegativePaise(summary?.refundedPaise ?? 0),
-        deductionsPaise,
-        refundablePaise,
-      });
-    } catch (err) {
-      console.error('[DEPOSIT_PAGE_SECTION_FAILED]', 'compute_totals', bookingId, err);
-      throw err;
-    }
-
-    let primaryBed: { bedId: string; moveInDate: string } | undefined;
-    try {
-      primaryBed = await runSection('primary_bed_query', bookingId, async () => {
-        const [row] = await db
-          .select({
-            bedId: bedReservations.bedId,
-            moveInDate: sql<string>`to_char(lower(${bedReservations.stayRange}), 'YYYY-MM-DD')`,
-          })
-          .from(bedReservations)
-          .where(
-            and(
-              eq(bedReservations.bookingId, bookingId),
-              eq(bedReservations.kind, 'primary'),
-              eq(bedReservations.status, 'active'),
-            ),
-          )
-          .limit(1);
-        return row;
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error('[deposit-detail] primary bed query failed', { bookingId, message });
-    }
-
-    let websiteDepositPaise = 0;
-    if (primaryBed?.bedId && primaryBed.moveInDate) {
-      try {
-        websiteDepositPaise = await runSection('loadBedPrice', bookingId, async () => {
-          const bedRate = await loadBedPrice(primaryBed!.bedId, primaryBed!.moveInDate);
-          if (!bedRate) return 0;
-          return coerceNonNegativePaise(
-            securityDepositForMode(
-              bedRate,
-              booking.durationMode === 'open_ended' ? 'open_ended' : 'monthly',
-            ),
-          );
-        });
-      } catch (err) {
-        console.error('[deposit-detail] loadBedPrice failed', { bookingId, err });
-      }
-    }
-
-    logDepositPageSection('loadDepositDetailData', bookingId, {
-      phase: 'ok',
-      customerId: booking.customerId,
-      loadError,
-      hasInvoice: Boolean(invoice),
-      hasSummary: Boolean(summary),
-      hasUnifiedView: Boolean(unifiedView),
-    });
-
-    return {
-      booking,
-      customerId: booking.customerId,
-      invoice,
-      unifiedView,
-      requiredPaise,
-      collectedPaise,
-      deductionsPaise,
-      refundablePaise,
-      isFrozen,
-      websiteDepositPaise,
-      loadError,
-    };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    const stack = err instanceof Error ? err.stack : undefined;
-    console.error('[DEPOSIT_PAGE_SECTION_FAILED]', 'loadDepositDetailData', bookingId, err);
-    console.error('[deposit-detail] loadDepositDetailData failed', { bookingId, message, stack });
-    logger.error('deposit_detail_loader_failed', { bookingId, message, stack });
-    logDepositDebug({
-      phase: 'loadDepositDetailData:error',
-      actionName: 'loadDepositDetailData',
-      bookingId,
-      error: err,
-    });
-    let customerId: string | null = null;
-    try {
-      const [row] = await db
-        .select({ customerId: bookings.customerId })
-        .from(bookings)
-        .where(eq(bookings.id, bookingId))
-        .limit(1);
-      customerId = row?.customerId ?? null;
-    } catch (lookupErr) {
-      console.error('[deposit-detail] customer lookup failed', { bookingId, lookupErr });
-    }
-    return {
-      booking: null,
-      customerId,
-      invoice: null,
-      unifiedView: null,
-      requiredPaise: 0,
-      collectedPaise: 0,
-      deductionsPaise: 0,
-      refundablePaise: 0,
-      isFrozen: false,
-      websiteDepositPaise: 0,
-      loadError: `Deposit details could not load: ${message}`,
-    };
-  }
+function boundaryProps(
+  ctx: DepositInvestigationContext,
+  component: string,
+  sourceFile: string,
+  data?: Record<string, unknown>,
+) {
+  return {
+    ...ctx,
+    component,
+    sourceFile,
+    data: data ? jsonSafe(data) : undefined,
+  };
 }
 
 export default async function AdminDepositDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<RouteParams>;
+  searchParams: Promise<{ depositSkip?: string }>;
 }) {
   const { bookingId } = await params;
+  const sp = await searchParams;
+  const skip = parseDepositSkipFlags(sp.depositSkip);
 
   try {
     await ensureAdminPageNotificationsSeen(
@@ -298,7 +99,7 @@ export default async function AdminDepositDetailPage({
     console.error('[deposit-detail] ensureAdminPageNotificationsSeen failed', { bookingId, err });
   }
 
-  const data = await loadDepositDetailData(bookingId);
+  const data = await loadDepositPageData(bookingId);
 
   if (!data?.booking) {
     if (data?.loadError) {
@@ -308,9 +109,9 @@ export default async function AdminDepositDetailPage({
           <div className="rounded-lg border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
             <p>{data.loadError}</p>
             <p className="mt-2 text-xs text-rose-200/80">
-              Check server logs for <code className="text-rose-100">[DEPOSIT_PAGE]</code>,{' '}
-              <code className="text-rose-100">[DEPOSIT_PAGE_SECTION_FAILED]</code>, and{' '}
-              <code className="text-rose-100">[DEPOSIT_DEBUG]</code> for booking {bookingId}.
+              Check Vercel logs for <code className="text-rose-100">[DEPOSIT_PAGE_LOAD_FAILED]</code>{' '}
+              and <code className="text-rose-100">[DEPOSIT_COMPONENT_FAILED]</code> for booking{' '}
+              {bookingId}.
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
               {data.customerId ? (
@@ -329,6 +130,12 @@ export default async function AdminDepositDetailPage({
               </Link>
               <Link href="/admin/deposits" className="text-sm text-apg-silver hover:text-white">
                 ← All deposits
+              </Link>
+              <Link
+                href={`/admin/debug/deposit/${bookingId}`}
+                className="text-sm font-semibold text-sky-300 hover:underline"
+              >
+                Debug page →
               </Link>
             </div>
           </div>
@@ -350,129 +157,209 @@ export default async function AdminDepositDetailPage({
     isFrozen,
     websiteDepositPaise,
     loadError,
+    walletProps,
+    adjustProps,
+    settlementProps,
   } = data;
 
-  const walletProps = unifiedView
-    ? (() => {
-        const props = { view: unifiedView, isFrozen };
-        assertJsonSerializable('client_props_wallet', bookingId, props);
-        return props;
-      })()
-    : null;
+  const ctx: DepositInvestigationContext = {
+    bookingId,
+    bookingCode: booking.bookingCode,
+    customerId: booking.customerId,
+  };
 
-  const adjustProps = (() => {
-    const props = {
-      bookingId,
-      bookingDepositPaise: coerceNonNegativePaise(booking.depositPaise),
-      ledgerCollectedPaise: collectedPaise,
-      websiteDepositPaise: coerceNonNegativePaise(websiteDepositPaise),
-    };
-    assertJsonSerializable('client_props_adjust', bookingId, props);
-    return props;
-  })();
+  const snapshot = jsonSafe({
+    bookingCode: booking.bookingCode,
+    customerId: booking.customerId,
+    hasInvoice: Boolean(invoice),
+    hasUnifiedView: Boolean(unifiedView),
+    hasWalletProps: Boolean(walletProps),
+    hasAdjustProps: Boolean(adjustProps),
+    hasSettlementProps: Boolean(settlementProps),
+    isFrozen,
+    loadError,
+  });
 
-  const settlementProps =
-    refundablePaise > 0 || booking.status === 'completed'
-      ? (() => {
-          const props = {
-            bookingId,
-            customerId: booking.customerId,
-            customerName: booking.customerFullName ?? '',
-            customerPhone: booking.customerPhone ?? '',
-            depositHeldPaise: collectedPaise,
-            depositPaidPaise: collectedPaise,
-            depositRefundablePaise: refundablePaise,
-          };
-          assertJsonSerializable('client_props_settlement', bookingId, props);
-          return props;
-        })()
-      : null;
-
-  return (
-    <>
-      <PageHeader
-        title={`Deposit invoice — ${booking.customerFullName}`}
-        description={`${booking.bookingCode} · ${booking.customerPhone}`}
-        actions={
-          <Link
-            href="/admin/deposits"
-            className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-apg-silver hover:text-white"
-          >
-            ← All deposits
+  const bookingSection = renderServerComponent(
+    { ...ctx, component: 'PageHeader' },
+    snapshot,
+    () => (
+      <>
+        <PageHeader
+          title={`Deposit invoice — ${booking.customerFullName}`}
+          description={`${booking.bookingCode} · ${booking.customerPhone}`}
+          actions={
+            <Link
+              href="/admin/deposits"
+              className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-apg-silver hover:text-white"
+            >
+              ← All deposits
+            </Link>
+          }
+        />
+        {loadError ? (
+          <div className="mb-4 rounded-lg border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+            {loadError} Showing booking data where available.
+          </div>
+        ) : null}
+        <p className="text-sm text-apg-silver">
+          <Link href={`/admin/residents/${customerId}`} className="text-[#FF5A1F] hover:underline">
+            Resident profile →
           </Link>
-        }
-      />
+          {' · '}
+          <Link href={`/admin/bookings/${bookingId}`} className="text-[#FF5A1F] hover:underline">
+            Booking operations →
+          </Link>
+          {' · '}
+          <Link
+            href={`/admin/debug/deposit/${bookingId}`}
+            className="text-sky-300 hover:underline"
+          >
+            Debug page →
+          </Link>
+        </p>
+      </>
+    ),
+  );
 
-      {loadError ? (
-        <div className="mb-4 rounded-lg border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-          {loadError} Showing booking data where available.
-        </div>
-      ) : null}
-
+  const refundsSection = (
+    <DepositComponentBoundary
+      {...boundaryProps(ctx, 'DepositRefundNotice', 'src/components/customer/DepositRefundNotice.tsx')}
+    >
       <DepositRefundNotice />
+    </DepositComponentBoundary>
+  );
 
-      {invoice ? (
+  const invoiceSection = renderServerComponent(
+    { ...ctx, component: 'InvoiceBadge' },
+    jsonSafe({ invoice: invoice ?? null }),
+    () =>
+      invoice ? (
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <Badge tone={statusTone(invoice.invoiceStatus)}>{invoice.displayStatus}</Badge>
           {isFrozen ? <Badge tone="zinc">Frozen · settled</Badge> : null}
         </div>
-      ) : null}
+      ) : (
+        <p className="mb-4 text-xs text-apg-silver">No deposit invoice record (missing or filtered).</p>
+      ),
+  );
 
+  const pricingSection = renderServerComponent(
+    { ...ctx, component: 'PricingStatGrid' },
+    jsonSafe({ requiredPaise, collectedPaise, deductionsPaise, refundablePaise }),
+    () => (
       <section className="mb-6 grid gap-3 sm:grid-cols-4">
-        <Stat label="Required" value={paiseToInr(requiredPaise)} />
-        <Stat label="Collected" value={paiseToInr(collectedPaise)} tone="emerald" />
-        <Stat
+        <DepositStat ctx={ctx} label="Required" value={paiseToInr(requiredPaise)} />
+        <DepositStat ctx={ctx} label="Collected" value={paiseToInr(collectedPaise)} tone="emerald" />
+        <DepositStat
+          ctx={ctx}
           label="Deductions"
           value={deductionsPaise > 0 ? paiseToInr(deductionsPaise) : '—'}
           tone="warn"
         />
-        <Stat label="Refundable" value={paiseToInr(refundablePaise)} tone="strong" />
+        <DepositStat ctx={ctx} label="Refundable" value={paiseToInr(refundablePaise)} tone="strong" />
       </section>
+    ),
+  );
 
-      {isFrozen ? (
+  let walletSection: ReactNode = null;
+  if (!shouldSkipDepositSection(skip, 'wallet')) {
+    if (isFrozen) {
+      walletSection = (
         <p className="mb-6 rounded-lg border border-white/10 bg-[#1A1F27] px-4 py-3 text-sm text-apg-silver">
-          This deposit invoice is settled and frozen. The amounts above are the final computed
-          settlement.
+          This deposit invoice is settled and frozen.
         </p>
-      ) : (
-        <>
-          {walletProps ? <DepositWalletAdminPanel {...walletProps} /> : null}
+      );
+    } else if (walletProps) {
+      walletSection = (
+        <DepositComponentBoundary
+          {...boundaryProps(
+            ctx,
+            'DepositWalletAdminPanel',
+            'src/components/admin/deposits/DepositWalletAdminPanel.tsx',
+            walletProps,
+          )}
+        >
+          <DepositWalletAdminPanel {...walletProps} />
+        </DepositComponentBoundary>
+      );
+    } else {
+      walletSection = (
+        <p className="mb-4 text-xs text-amber-200">Wallet section skipped — unified view is null.</p>
+      );
+    }
+  }
 
-          <section className="mb-6">
-            <h2 className="mb-2 text-sm font-semibold text-white">Adjust deposit</h2>
-            <DepositAdjustForms {...adjustProps} />
-          </section>
+  let adjustmentsSection: ReactNode = null;
+  if (!isFrozen && !shouldSkipDepositSection(skip, 'adjustments') && adjustProps) {
+    adjustmentsSection = (
+      <DepositComponentBoundary
+        {...boundaryProps(
+          ctx,
+          'DepositAdjustForms',
+          'src/components/admin/DepositAdjustForms.tsx',
+          adjustProps,
+        )}
+      >
+        <section className="mb-6">
+          <h2 className="mb-2 text-sm font-semibold text-white">Adjust deposit</h2>
+          <DepositAdjustForms {...adjustProps} />
+        </section>
+      </DepositComponentBoundary>
+    );
+  }
 
-          {settlementProps ? (
-            <div className="mb-6">
-              <DepositSettlementPanel {...settlementProps} />
-            </div>
-          ) : null}
-        </>
-      )}
+  let settlementSection: ReactNode = null;
+  if (!isFrozen && !shouldSkipDepositSection(skip, 'settlement') && settlementProps) {
+    settlementSection = (
+      <DepositComponentBoundary
+        {...boundaryProps(
+          ctx,
+          'DepositSettlementPanel',
+          'src/components/admin/DepositSettlementPanel.tsx',
+          settlementProps,
+        )}
+      >
+        <div className="mb-6">
+          <DepositSettlementPanel {...settlementProps} />
+        </div>
+      </DepositComponentBoundary>
+    );
+  }
 
-      <p className="text-sm text-apg-silver">
-        <Link href={`/admin/residents/${customerId}`} className="text-[#FF5A1F] hover:underline">
-          Resident profile →
-        </Link>
-        {' · '}
-        <Link href={`/admin/bookings/${bookingId}`} className="text-[#FF5A1F] hover:underline">
-          Booking operations →
-        </Link>
-      </p>
+  return (
+    <>
+      {skip.size > 0 ? (
+        <div className="mb-4 rounded-lg border border-sky-400/30 bg-sky-500/10 px-3 py-2 text-xs text-sky-100">
+          Diagnostic mode — skipped sections: {Array.from(skip).join(', ') || 'none'}
+        </div>
+      ) : null}
+      {bookingSection}
+      {refundsSection}
+      {invoiceSection}
+      {pricingSection}
+      {walletSection}
+      {adjustmentsSection}
+      {settlementSection}
     </>
   );
 }
 
-function Stat({
+function DepositStat({
+  ctx,
   label,
   value,
   tone = 'normal',
 }: {
+  ctx: DepositInvestigationContext;
   label: string;
   value: string;
   tone?: 'normal' | 'warn' | 'strong' | 'emerald';
 }) {
+  logDepositComponentRender(
+    { ...ctx, component: `Stat.${label}` },
+    { label, value, tone },
+  );
   const bg =
     tone === 'warn'
       ? 'border-rose-400/30 bg-rose-500/10'

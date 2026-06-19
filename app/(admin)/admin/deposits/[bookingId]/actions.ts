@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { isRedirectError } from 'next/dist/client/components/redirect-error';
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
