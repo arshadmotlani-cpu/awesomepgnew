@@ -300,9 +300,9 @@ export function FinancialCommandCenter({
     <section className="mb-8 rounded-2xl border border-[#FF5A1F]/25 bg-[#1A1F27] p-4 ring-1 ring-[#FF5A1F]/10">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold text-white">Financial Command Center</h2>
+          <h2 className="text-sm font-semibold text-white">Billing breakdown</h2>
           <p className="text-[10px] text-apg-silver">
-            SSOT · Required · Paid · Outstanding — amounts from engine only
+            Amounts from your records — rent, deposit, and electricity
           </p>
         </div>
       </div>
@@ -359,11 +359,10 @@ export function FinancialCommandCenter({
       {summary.totals.outstandingPaise > 0 ? (
         <div className="mb-4 rounded-xl border border-white/10 bg-[#12161C] p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-[#FF5A1F]">
-            Combined invoice builder
+            Combined invoice
           </p>
           <p className="mt-1 text-[10px] text-apg-silver">
-            Select categories or use a preset — SSOT prevents duplicate debt; this creates one
-            collection invoice.
+            Pick what to include in one bill. Duplicate charges are prevented automatically.
           </p>
 
           <div className="mt-3 flex flex-wrap gap-2">

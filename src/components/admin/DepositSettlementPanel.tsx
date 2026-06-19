@@ -6,6 +6,7 @@ import {
   processDepositSettlementAction,
   type DepositSettlementState,
 } from '@/app/(admin)/admin/deposits/[bookingId]/settlementActions';
+import { DepositDetailSection } from '@/src/components/admin/deposits/DepositDetailSection';
 import { computeRefundDeductions } from '@/src/lib/refundDeductions';
 import { paiseToInr } from '@/src/lib/format';
 
@@ -52,28 +53,15 @@ export function DepositSettlementPanel({
   );
 
   return (
-    <section className="rounded-2xl border border-[#FF5A1F]/25 bg-[#1A1F27] p-5">
-      <h2 className="text-sm font-semibold text-white">Deposit settlement</h2>
-      <p className="mt-1 text-xs text-apg-silver">
-        {customerName} · {customerPhone}
-      </p>
-
-      <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
-        <div>
-          <dt className="text-apg-silver">Deposit held</dt>
-          <dd className="font-semibold text-white">{paiseToInr(depositHeldPaise)}</dd>
-        </div>
-        <div>
-          <dt className="text-apg-silver">Deposit paid</dt>
-          <dd className="font-semibold text-emerald-300">{paiseToInr(depositPaidPaise)}</dd>
-        </div>
-        <div>
-          <dt className="text-apg-silver">Refundable</dt>
-          <dd className="font-semibold text-sky-300">{paiseToInr(depositRefundablePaise)}</dd>
-        </div>
-      </dl>
-
-      <form action={action} className="mt-4 space-y-4 rounded-xl border border-white/10 bg-[#12161C] p-4">
+    <DepositDetailSection
+      id="deposit-settlement"
+      title="Deposit settlement"
+      description={`Calculate and approve the final refund for ${customerName}. Amounts at the top of this page show the current balance.`}
+    >
+      <form
+        action={action}
+        className="space-y-4 rounded-2xl border border-white/10 bg-[#1A1F27] p-5"
+      >
         <input type="hidden" name="bookingId" value={bookingId} />
         <input type="hidden" name="customerId" value={customerId} />
         <input type="hidden" name="electricityUnitCostInr" value={elecRate} />
@@ -83,10 +71,20 @@ export function DepositSettlementPanel({
         <input type="hidden" name="otherInr" value={other} />
         <input type="hidden" name="otherLabel" value={otherLabel} />
 
-        <p className="text-xs font-semibold uppercase tracking-wide text-[#FF5A1F]">Adjustments</p>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <p className="text-xs text-apg-silver">
+          {customerName} · {customerPhone}
+        </p>
+
+        <div>
+          <p className="text-sm font-medium text-white">Deductions before refund</p>
+          <p className="mt-0.5 text-xs text-apg-silver">
+            Enter any final electricity, damage, penalty, or other charges.
+          </p>
+        </div>
+
+        <div className="grid gap-3 rounded-xl border border-white/10 bg-[#12161C] p-4 sm:grid-cols-2">
           <label className="text-xs text-apg-silver">
-            Electricity rate (₹/unit)
+            Electricity rate (₹ per unit)
             <input
               type="number"
               step="0.01"
@@ -139,20 +137,21 @@ export function DepositSettlementPanel({
             />
           </label>
           <label className="text-xs text-apg-silver">
-            Other label
+            Other charge label
             <input
               type="text"
               value={otherLabel}
               onChange={(e) => setOtherLabel(e.target.value)}
+              placeholder="e.g. Cleaning fee"
               className="mt-1 w-full rounded-lg border border-white/10 bg-[#1A1F27] px-3 py-2 text-sm text-white"
             />
           </label>
         </div>
 
-        <div className="rounded-lg border border-white/10 bg-[#0B0F14] p-3 text-sm">
-          <p className="font-semibold text-white">Refund calculation</p>
+        <div className="rounded-lg border border-white/10 bg-[#12161C] p-4 text-sm">
+          <p className="font-semibold text-white">Refund after deductions</p>
           <ul className="mt-2 space-y-1 text-xs text-apg-silver">
-            <li>Deposit held: {paiseToInr(held)}</li>
+            <li>Starting balance: {paiseToInr(held)}</li>
             {preview.electricityDeductionPaise ? (
               <li>− Electricity: {paiseToInr(preview.electricityDeductionPaise)}</li>
             ) : null}
@@ -168,8 +167,12 @@ export function DepositSettlementPanel({
               </li>
             ) : null}
           </ul>
-          <p className="mt-2 border-t border-white/10 pt-2 font-semibold text-emerald-300">
+          <p className="mt-3 border-t border-white/10 pt-3 text-base font-semibold text-emerald-300">
             Final refund: {paiseToInr(preview.finalRefundPaise)}
+          </p>
+          <p className="mt-1 text-[11px] text-apg-silver">
+            Collected so far: {paiseToInr(depositPaidPaise)} · Refundable before deductions:{' '}
+            {paiseToInr(depositRefundablePaise)}
           </p>
         </div>
 
@@ -179,7 +182,7 @@ export function DepositSettlementPanel({
             name="decision"
             value="approve"
             disabled={pending}
-            className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
           >
             Approve refund
           </button>
@@ -188,19 +191,19 @@ export function DepositSettlementPanel({
             name="decision"
             value="reject"
             disabled={pending}
-            className="rounded-lg border border-rose-400/40 px-4 py-2 text-xs font-semibold text-rose-300 hover:bg-rose-500/10 disabled:opacity-50"
+            className="rounded-lg border border-rose-400/40 px-4 py-2 text-sm font-semibold text-rose-300 hover:bg-rose-500/10 disabled:opacity-50"
           >
             Reject refund
           </button>
         </div>
 
         {state.status === 'ok' ? (
-          <p className="text-xs text-emerald-300">{state.message}</p>
+          <p className="text-sm text-emerald-300">{state.message}</p>
         ) : null}
         {state.status === 'error' ? (
-          <p className="text-xs text-rose-300">{state.message}</p>
+          <p className="text-sm text-rose-300">{state.message}</p>
         ) : null}
       </form>
-    </section>
+    </DepositDetailSection>
   );
 }

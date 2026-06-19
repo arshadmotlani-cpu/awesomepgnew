@@ -1,22 +1,19 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AdminKycStatusWithWhatsApp } from '@/src/components/admin/AdminKycWhatsAppButton';
-import { ArchiveResidentButton } from '@/src/components/admin/ArchiveResidentButton';
 import { AssignTenantForm } from '@/src/components/admin/AssignTenantForm';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { BedAssignmentWhatsAppButton } from '@/src/components/admin/BedAssignmentWhatsAppButton';
 import { EditTenantTenancyForm } from '@/src/components/admin/EditTenantTenancyForm';
 import { RentUpdatedSuccessBanner } from '@/src/components/admin/RentUpdatedSuccessBanner';
-import { FinancialCommandCenter } from '@/src/components/admin/FinancialCommandCenter';
 import { FinalSettlementPanel } from '@/src/components/admin/FinalSettlementPanel';
-import { CreateChargeGeneratorForm } from '@/src/components/admin/CreateChargeGeneratorForm';
-import { ExpressCollectionButton } from '@/src/components/admin/ExpressCollectionButton';
-import { ResidentActionBar } from '@/src/components/admin/ResidentActionBar';
+import { ResidentProfileAdvancedTools } from '@/src/components/admin/residents/ResidentProfileAdvancedTools';
+import { ResidentProfilePrimaryActions } from '@/src/components/admin/residents/ResidentProfilePrimaryActions';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { listAdminRentInvoices } from '@/src/db/queries/admin';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
-import { ADMIN_MODULES, moduleHref, moduleKycVerifyHref } from '@/src/lib/admin/navigation';
+import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
 import { isExpressCollectionNote } from '@/src/lib/billing/expressCollectionConstants';
 import { formatDate, formatDateTime, paiseToInr, titleCase } from '@/src/lib/format';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
@@ -26,7 +23,6 @@ import {
   defaultTenantStartDate,
   listAssignableBeds,
 } from '@/src/services/tenantAssignment';
-import { loadBedPrice, computeMonthlyDepositPaise } from '@/src/services/pricing';
 import { getResidentFinancialSummary } from '@/src/services/residentFinancialEngine';
 import { listResidentInvoiceHistory } from '@/src/services/invoiceGeneration';
 import { getResidentBillingFormDefaults } from '@/src/services/residentBillingProfiles';
@@ -35,6 +31,49 @@ export const dynamic = 'force-dynamic';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SURFACE = 'rounded-2xl border border-white/10 bg-[#1A1F27] p-4';
+
+function pickPrimaryOutstandingBill(
+  financialSummary: Awaited<ReturnType<typeof getResidentFinancialSummary>>,
+  firstOpenRent: { outstandingPaise: number; dueDate?: string | null; status?: string } | undefined,
+  firstOpenElec: { outstandingPaise: number; dueDate?: string | null; status?: string } | undefined,
+) {
+  if (!financialSummary) return null;
+  const rentPaise = firstOpenRent?.outstandingPaise ?? 0;
+  const depositPaise = financialSummary.deposit.outstandingPaise;
+  const elecPaise = firstOpenElec?.outstandingPaise ?? 0;
+
+  if (rentPaise > 0) {
+    return {
+      kind: 'rent' as const,
+      amountPaise: rentPaise,
+      dueDate: firstOpenRent?.dueDate ?? undefined,
+      isOverdue: firstOpenRent?.status === 'overdue',
+    };
+  }
+  if (depositPaise > 0) {
+    return { kind: 'deposit' as const, amountPaise: depositPaise };
+  }
+  if (elecPaise > 0) {
+    return {
+      kind: 'electricity' as const,
+      amountPaise: elecPaise,
+      dueDate: firstOpenElec?.dueDate ?? undefined,
+      isOverdue: firstOpenElec?.status === 'overdue',
+    };
+  }
+  return null;
+}
+
+function residentContextLine(
+  customer: { fullName: string; residencyStatus: string },
+  activeTenancy: { pgName: string; roomNumber: string; bedCode: string } | null,
+) {
+  if (customer.residencyStatus === 'vacated') return `${customer.fullName} — moved out`;
+  if (activeTenancy) {
+    return `${customer.fullName} — living at ${activeTenancy.pgName}, Room ${activeTenancy.roomNumber}, Bed ${activeTenancy.bedCode}`;
+  }
+  return `${customer.fullName} — no bed assigned yet`;
+}
 
 export default async function ResidentDetailPage({
   params,
@@ -113,14 +152,6 @@ export default async function ResidentDetailPage({
   const firstOpenRent = financialSummary?.rent.items.find((l) => l.outstandingPaise > 0);
   const firstOpenElec = financialSummary?.electricity.items.find((l) => l.outstandingPaise > 0);
 
-  let websiteDepositPaise = 0;
-  if (activeTenancy) {
-    const bedRate = await loadBedPrice(activeTenancy.bedId, activeTenancy.moveInDate);
-    if (bedRate) {
-      websiteDepositPaise = computeMonthlyDepositPaise(bedRate);
-    }
-  }
-
   const rentRes = await listAdminRentInvoices();
   const rentHistory = rentRes.ok
     ? rentRes.data
@@ -145,40 +176,30 @@ export default async function ResidentDetailPage({
 
       <PageHeader
         title={customer.fullName}
-        description="Bed assignment, rent, deposit, KYC, and payment history."
-        actions={
-          activeTenancy ? (
-            <Link
-              href={`/admin/pgs/${activeTenancy.pgId}/map`}
-              className="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-apg-silver hover:text-white"
-            >
-              PG bed map
-            </Link>
-          ) : null
-        }
+        description={residentContextLine(customer, activeTenancy)}
       />
 
       {verification && !verification.isVerified ? (
         <div className="mb-6 rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
           <p className="font-semibold">Not verified yet</p>
           <p className="mt-1">
-            This person is in <strong>Website signups</strong> until you approve their{' '}
+            Approve their{' '}
             <Link href="/admin/residents/kyc" className="font-semibold text-[#FF5A1F] hover:underline">
-              KYC
+              identity documents
             </Link>{' '}
-            or a{' '}
-            <Link href="/admin/collections" className="font-semibold text-[#FF5A1F] hover:underline">
+            or confirm a{' '}
+            <Link href="/admin/revenue/billing" className="font-semibold text-[#FF5A1F] hover:underline">
               payment
-            </Link>
-            . Bed assignment is blocked until then.
+            </Link>{' '}
+            before assigning a bed.
             {activeTenancy ? (
               <>
                 {' '}
-                They currently occupy{' '}
+                They are currently on{' '}
                 <strong>
                   Room {activeTenancy.roomNumber} · {activeTenancy.bedCode}
                 </strong>{' '}
-                — remove or reassign from the bed map if this was accidental.
+                — use the bed map to reassign if this was a mistake.
               </>
             ) : null}
           </p>
@@ -214,15 +235,15 @@ export default async function ResidentDetailPage({
 
       {sp.saved === '1' ? (
         <div className="mb-6 rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-          Assignment and rent saved — all modules synced.
+          Bed and rent saved. Billing modules are updated.
         </div>
       ) : null}
 
       {sp.assigned === '1' && activeTenancy ? (
         <div className="mb-6 rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-          <p className="font-semibold">Tenant assigned successfully</p>
+          <p className="font-semibold">Bed assigned</p>
           <p className="mt-1">
-            Bed, rent, and deposit are saved. Monthly rent invoices will generate from move-in.
+            Rent and security deposit are set. Monthly rent bills will start from move-in date.
           </p>
           <div className="mt-3">
             <BedAssignmentWhatsAppButton
@@ -242,126 +263,145 @@ export default async function ResidentDetailPage({
           settledTenancy={settledTenancy}
           depositWallet={depositSummary}
         />
-      ) : financialSummary && activeTenancy ? (
-        <>
-          <FinancialCommandCenter
-            summary={financialSummary}
-            invoiceHistory={invoiceHistory}
-            depositWallet={depositSummary}
-            bookingId={activeTenancy.bookingId}
-          />
-          <div className="mb-8 flex flex-wrap items-center gap-3">
-            <ExpressCollectionButton
-              customerId={customerId}
-              bookingId={activeTenancy.bookingId}
-              customerName={customer.fullName}
-              billingDefaults={billingDefaults}
-              defaultOpen={sp.expressCollection === '1'}
-            />
-            <div className="min-w-0 flex-1">
-              <CreateChargeGeneratorForm
-                customerId={customerId}
-                bookingId={activeTenancy.bookingId}
-                billingDefaults={billingDefaults}
-              />
-            </div>
-          </div>
-        </>
       ) : null}
 
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className={SURFACE}>
-          <p className="text-xs font-medium uppercase tracking-wide text-apg-silver">Status</p>
-          <p className="mt-1">
-            {activeTenancy ? (
-              <Badge tone="emerald">
-                Room {activeTenancy.roomNumber} · {activeTenancy.bedCode}
-              </Badge>
-            ) : (
-              <Badge tone="amber">No bed assigned</Badge>
-            )}
-          </p>
-          {activeTenancy ? (
-            <p className="mt-2 text-xs text-apg-silver">{activeTenancy.pgName}</p>
-          ) : null}
-        </div>
-        <div className={SURFACE}>
-          <p className="text-xs font-medium uppercase tracking-wide text-apg-silver">Contact</p>
-          <p className="mt-1 text-sm text-white">{customer.phone}</p>
-          <p className="text-sm text-apg-silver">{customer.email}</p>
-        </div>
-        <div className={SURFACE}>
-          <p className="text-xs font-medium uppercase tracking-wide text-apg-silver">KYC</p>
-          <p className="mt-1">
-            <AdminKycStatusWithWhatsApp
-              kycStatus={customer.kycStatus}
-              phone={customer.phone}
-              customerName={customer.fullName}
-              badge={
-                <Badge tone={toneForStatus(customer.kycStatus)}>
-                  {titleCase(customer.kycStatus)}
-                </Badge>
-              }
-            />
-          </p>
-          {pendingKycSubmissionId ? (
-            <Link
-              href={moduleKycVerifyHref(pendingKycSubmissionId)}
-              className="mt-3 inline-flex rounded-lg bg-[#FF5A1F] px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110"
-            >
-              Verify KYC →
-            </Link>
-          ) : null}
-        </div>
-        <div className={SURFACE}>
-          <p className="text-xs font-medium uppercase tracking-wide text-apg-silver">Deposit</p>
-          {activeTenancy && depositSummary ? (
-            <>
-              <p className="mt-1 text-sm text-white">
-                {paiseToInr(depositSummary.collectedPaise)} collected
+      {customer.residencyStatus !== 'vacated' ? (
+        <>
+          <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className={SURFACE}>
+              <p className="text-xs font-medium uppercase tracking-wide text-apg-silver">Current bed</p>
+              <p className="mt-1">
+                {activeTenancy ? (
+                  <Badge tone="emerald">
+                    Room {activeTenancy.roomNumber} · {activeTenancy.bedCode}
+                  </Badge>
+                ) : (
+                  <Badge tone="amber">No bed assigned</Badge>
+                )}
               </p>
-              <p className="text-xs text-apg-silver">
-                Balance {paiseToInr(depositSummary.refundableBalancePaise)}
+              {activeTenancy ? (
+                <p className="mt-2 text-xs text-apg-silver">{activeTenancy.pgName}</p>
+              ) : null}
+            </div>
+            <div className={SURFACE}>
+              <p className="text-xs font-medium uppercase tracking-wide text-apg-silver">Contact</p>
+              <p className="mt-1 text-sm text-white">{customer.phone}</p>
+              <p className="text-sm text-apg-silver">{customer.email}</p>
+            </div>
+            <div className={SURFACE}>
+              <p className="text-xs font-medium uppercase tracking-wide text-apg-silver">Identity</p>
+              <p className="mt-1">
+                <AdminKycStatusWithWhatsApp
+                  kycStatus={customer.kycStatus}
+                  phone={customer.phone}
+                  customerName={customer.fullName}
+                  badge={
+                    <Badge tone={toneForStatus(customer.kycStatus)}>
+                      {customer.kycStatus === 'pending'
+                        ? 'Needs review'
+                        : customer.kycStatus === 'approved'
+                          ? 'Approved'
+                          : 'Rejected'}
+                    </Badge>
+                  }
+                />
               </p>
-            </>
-          ) : (
-            <p className="mt-1 text-sm text-apg-silver">—</p>
-          )}
-        </div>
-      </div>
+            </div>
+            <div className={SURFACE}>
+              <p className="text-xs font-medium uppercase tracking-wide text-apg-silver">
+                Security deposit
+              </p>
+              {activeTenancy && depositSummary ? (
+                <>
+                  <p className="mt-1 text-sm text-white">
+                    {paiseToInr(depositSummary.collectedPaise)} collected
+                  </p>
+                  <p className="text-xs text-apg-silver">
+                    Refundable {paiseToInr(depositSummary.refundableBalancePaise)}
+                  </p>
+                </>
+              ) : (
+                <p className="mt-1 text-sm text-apg-silver">—</p>
+              )}
+            </div>
+          </div>
 
-      {activeTenancy ? (
-        <div className="mb-8">
-          <ResidentActionBar
-            customerId={customerId}
-            customerName={customer.fullName}
-            phone={customer.phone}
-            kycStatus={customer.kycStatus}
-            pgId={activeTenancy.pgId}
-            pgName={activeTenancy.pgName}
-            roomNumber={activeTenancy.roomNumber}
-            bookingId={activeTenancy.bookingId}
-            monthlyRentPaise={activeTenancy.monthlyRentPaise}
-            pendingRentPaise={firstOpenRent?.outstandingPaise ?? financialSummary?.rent.outstandingPaise}
-            rentDueDate={firstOpenRent?.dueDate ?? undefined}
-            rentOverdue={firstOpenRent?.status === 'overdue'}
-            depositDuePaise={financialSummary?.deposit.outstandingPaise}
-            depositCollectionStatus={financialSummary?.deposit.outstandingPaise ? 'partial' : undefined}
-            depositRefundablePaise={financialSummary?.deposit.refundablePaise}
-            pendingElectricityPaise={firstOpenElec?.outstandingPaise}
-            electricityBasePaise={firstOpenElec?.requiredPaise}
-            electricityDueDate={firstOpenElec?.dueDate ?? undefined}
-            electricityOverdue={firstOpenElec?.status === 'overdue'}
-            electricityInvoiceNumber={firstOpenElec?.invoiceNumber ?? undefined}
-          />
-        </div>
+          {activeTenancy ? (
+            <ResidentProfilePrimaryActions
+              customerId={customerId}
+              customerName={customer.fullName}
+              phone={customer.phone}
+              kycStatus={customer.kycStatus}
+              pendingKycSubmissionId={pendingKycSubmissionId}
+              pgId={activeTenancy.pgId}
+              pgName={activeTenancy.pgName}
+              roomNumber={activeTenancy.roomNumber}
+              bookingId={activeTenancy.bookingId}
+              bookingCode={activeTenancy.bookingCode}
+              billingDefaults={billingDefaults}
+              outstanding={pickPrimaryOutstandingBill(financialSummary, firstOpenRent, firstOpenElec)}
+              totalOutstandingPaise={financialSummary?.totals.outstandingPaise ?? 0}
+              expressCollectionDefaultOpen={sp.expressCollection === '1'}
+            />
+          ) : verification?.isVerified ? (
+            <ResidentProfilePrimaryActions
+              customerId={customerId}
+              customerName={customer.fullName}
+              phone={customer.phone}
+              kycStatus={customer.kycStatus}
+              pendingKycSubmissionId={pendingKycSubmissionId}
+            />
+          ) : null}
+
+          {financialSummary && activeTenancy ? (
+            <ResidentProfileAdvancedTools
+              customerId={customerId}
+              customerName={customer.fullName}
+              phone={customer.phone}
+              kycStatus={customer.kycStatus}
+              canArchive={canArchive}
+              financialSummary={financialSummary}
+              invoiceHistory={invoiceHistory}
+              depositWallet={depositSummary}
+              bookingId={activeTenancy.bookingId}
+              billingDefaults={billingDefaults}
+              actionBar={{
+                pgId: activeTenancy.pgId,
+                pgName: activeTenancy.pgName,
+                roomNumber: activeTenancy.roomNumber,
+                monthlyRentPaise: activeTenancy.monthlyRentPaise,
+                pendingRentPaise: firstOpenRent?.outstandingPaise ?? financialSummary.rent.outstandingPaise,
+                rentDueDate: firstOpenRent?.dueDate ?? undefined,
+                rentOverdue: firstOpenRent?.status === 'overdue',
+                depositDuePaise: financialSummary.deposit.outstandingPaise,
+                depositCollectionStatus: financialSummary.deposit.outstandingPaise ? 'partial' : undefined,
+                depositRefundablePaise: financialSummary.deposit.refundablePaise,
+                pendingElectricityPaise: firstOpenElec?.outstandingPaise,
+                electricityBasePaise: firstOpenElec?.requiredPaise,
+                electricityDueDate: firstOpenElec?.dueDate ?? undefined,
+                electricityOverdue: firstOpenElec?.status === 'overdue',
+                electricityInvoiceNumber: firstOpenElec?.invoiceNumber ?? undefined,
+              }}
+            />
+          ) : canArchive ? (
+            <ResidentProfileAdvancedTools
+              customerId={customerId}
+              customerName={customer.fullName}
+              phone={customer.phone}
+              kycStatus={customer.kycStatus}
+              canArchive={canArchive}
+              invoiceHistory={[]}
+            />
+          ) : null}
+        </>
       ) : null}
 
       <div className="space-y-8">
         {activeTenancy ? (
           <>
             <section className={`${SURFACE} text-sm text-apg-silver`}>
-              <p>
+              <p className="text-xs font-medium uppercase tracking-wide text-apg-silver">Stay details</p>
+              <p className="mt-2">
                 <strong className="text-white">{activeTenancy.pgName}</strong> · Booking{' '}
                 <Link
                   href={`/admin/bookings/${activeTenancy.bookingId}`}
@@ -371,28 +411,27 @@ export default async function ResidentDetailPage({
                 </Link>
               </p>
               <p className="mt-1">
-                Move-in {activeTenancy.moveInDate} · Rent{' '}
-                {paiseToInr(activeTenancy.monthlyRentPaise)}/mo · Joined{' '}
-                {formatDateTime(customer.createdAt)}
+                Move-in {activeTenancy.moveInDate} · Rent {paiseToInr(activeTenancy.monthlyRentPaise)}/mo
+                · Joined {formatDateTime(customer.createdAt)}
               </p>
               <div className="mt-3 flex flex-wrap gap-3">
                 <Link
                   href={`/admin/bookings/${activeTenancy.bookingId}`}
                   className="text-sm font-semibold text-[#FF5A1F] hover:underline"
                 >
-                  Rent & electricity
+                  Rent & electricity bills
                 </Link>
                 <Link
                   href={`/admin/deposits/${activeTenancy.bookingId}`}
                   className="text-sm font-semibold text-[#FF5A1F] hover:underline"
                 >
-                  Deposit ledger
+                  Security deposit
                 </Link>
                 <Link
                   href={`/admin/pgs/${activeTenancy.pgId}/map`}
                   className="text-sm font-semibold text-[#FF5A1F] hover:underline"
                 >
-                  Bed map
+                  PG bed map
                 </Link>
               </div>
             </section>
@@ -412,11 +451,9 @@ export default async function ResidentDetailPage({
           </>
         ) : verification?.isVerified ? (
           <section id="assign-bed" className="scroll-mt-6">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-apg-orange">
-              Assign to bed
-            </h2>
+            <h2 className="mb-3 text-sm font-semibold text-white">Assign to a bed</h2>
             <p className="mb-4 max-w-xl text-sm text-apg-silver">
-              Select PG, room, and bed below. Tenancy and occupancy update immediately.
+              Pick a PG, room, and bed. Rent and occupancy update as soon as you save.
             </p>
             <AssignTenantForm
               beds={bedsForAssign}
@@ -433,21 +470,16 @@ export default async function ResidentDetailPage({
           </section>
         ) : (
           <section id="assign-bed" className={`${SURFACE} scroll-mt-6`}>
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-apg-orange">
-              Assign to bed
-            </h2>
+            <h2 className="text-sm font-semibold text-white">Assign to a bed</h2>
             <p className="mt-2 text-sm text-apg-silver">
-              Approve KYC or a payment first — then this person moves to verified Residents and
-              bed assignment unlocks.
+              Approve identity documents or confirm a payment first — then bed assignment unlocks.
             </p>
           </section>
         )}
 
         {rentHistory.length > 0 && customer.residencyStatus !== 'vacated' ? (
           <section className={SURFACE}>
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-apg-orange">
-              Payment history
-            </h2>
+            <h2 className="text-sm font-semibold text-white">Rent payment history</h2>
             <div className="mt-3 overflow-x-auto">
               <table className="min-w-full text-left text-sm">
                 <thead>
@@ -490,15 +522,6 @@ export default async function ResidentDetailPage({
           </section>
         ) : null}
       </div>
-
-      {canArchive ? (
-        <div className="mt-10 border-t border-white/10 pt-8">
-          <p className="mb-3 text-sm text-apg-silver">
-            Remove signup-only accounts from the residents list. Does not delete their login.
-          </p>
-          <ArchiveResidentButton customerId={customer.id} customerName={customer.fullName} />
-        </div>
-      ) : null}
     </>
   );
 }

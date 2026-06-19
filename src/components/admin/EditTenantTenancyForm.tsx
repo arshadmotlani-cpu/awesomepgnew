@@ -65,14 +65,13 @@ export function EditTenantTenancyForm({
       <input type="hidden" name="customerPhone" value={customerPhone} />
 
       <div>
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-apg-orange">
-          Reassign bed
-        </h3>
+        <h3 className="text-sm font-semibold text-white">Change bed or room</h3>
         <p className="mt-1 text-sm text-apg-silver">
           Current: <strong className="text-white">{currentRoomLabel}</strong>
         </p>
         <p className="mt-2 text-xs text-apg-silver">
-          Occupancy mapping only. Change rent or record deposits from Billing / Deposits modules.
+          This only updates which bed they occupy. Change rent or deposit from Billing or Security
+          deposit pages.
         </p>
       </div>
 

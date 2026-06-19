@@ -5,6 +5,7 @@ import {
   type UnifiedDepositView,
 } from '@/src/lib/deposits/unifiedDepositView';
 import { asPlainNumber } from '@/src/lib/format';
+import { DepositDetailSection } from '@/src/components/admin/deposits/DepositDetailSection';
 
 export function DepositCorrectForm({
   view,
@@ -19,10 +20,12 @@ export function DepositCorrectForm({
 
   if (!view || !v.bookingId) {
     return (
-      <div className="mb-6 rounded-2xl border border-white/10 bg-[#1A1F27] p-5 text-apg-silver shadow-none">
-        <p className="text-sm text-white">Deposit data unavailable.</p>
-        <p className="mt-1 text-xs text-apg-silver">Reload the page to refresh deposit details.</p>
-      </div>
+      <DepositDetailSection title="Correct deposit" description="Deposit data could not be loaded.">
+        <div className="rounded-2xl border border-white/10 bg-[#1A1F27] p-5 text-apg-silver">
+          <p className="text-sm text-white">Deposit data unavailable.</p>
+          <p className="mt-1 text-xs">Reload the page to try again.</p>
+        </div>
+      </DepositDetailSection>
     );
   }
 
@@ -30,19 +33,18 @@ export function DepositCorrectForm({
   const collectedPlaceholder = (asPlainNumber(v.collectedPaise) / 100).toString();
 
   return (
-    <section className="mb-6 rounded-2xl border border-white/10 bg-[#1A1F27] p-5">
-      <h2 className="text-sm font-semibold text-white">Correct deposit</h2>
-      <p className="mt-1 text-xs text-apg-silver">
-        Update the required or collected deposit amount when records need fixing.
-      </p>
-
+    <DepositDetailSection
+      id="correct-deposit"
+      title="Correct deposit"
+      description="Fix the required or collected amount when records are wrong. You must enter a reason."
+    >
       {saved ? (
-        <p className="mt-3 rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
-          Deposit summary updated everywhere.
+        <p className="mb-4 rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
+          Changes saved. Totals are updated across billing and deposits.
         </p>
       ) : null}
       {errorMessage ? (
-        <p className="mt-3 rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+        <p className="mb-4 rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
           {errorMessage}
         </p>
       ) : null}
@@ -50,7 +52,7 @@ export function DepositCorrectForm({
       <form
         action={`/api/admin/deposits/${v.bookingId}/correct-summary`}
         method="POST"
-        className="mt-4 grid gap-3 rounded-xl border border-white/10 bg-[#12161C] p-4 sm:grid-cols-2"
+        className="grid gap-4 rounded-2xl border border-white/10 bg-[#1A1F27] p-5 sm:grid-cols-2"
       >
         <input type="hidden" name="bookingId" value={v.bookingId} />
         <label className="text-sm">
@@ -80,7 +82,7 @@ export function DepositCorrectForm({
           <input
             name="reason"
             required
-            placeholder="Why are you correcting this deposit?"
+            placeholder="Why are you changing this deposit?"
             className="apg-admin-field mt-1 w-full rounded-lg border border-white/10 bg-[#0B0F14] px-3 py-2 text-white"
           />
         </label>
@@ -89,10 +91,10 @@ export function DepositCorrectForm({
             type="submit"
             className="rounded-lg bg-[#FF5A1F] px-4 py-2 text-sm font-semibold text-white hover:brightness-110"
           >
-            Save corrections
+            Save changes
           </button>
         </div>
       </form>
-    </section>
+    </DepositDetailSection>
   );
 }

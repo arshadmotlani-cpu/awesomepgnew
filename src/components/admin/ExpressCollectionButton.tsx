@@ -23,6 +23,7 @@ type Props = {
   defaultOpen?: boolean;
   onClose?: () => void;
   triggerClassName?: string;
+  triggerLabel?: string;
 };
 
 export function ExpressCollectionButton({
@@ -33,6 +34,7 @@ export function ExpressCollectionButton({
   defaultOpen = false,
   onClose,
   triggerClassName,
+  triggerLabel = 'Record payment received',
 }: Props) {
   const [open, setOpen] = useState(defaultOpen);
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -79,7 +81,7 @@ export function ExpressCollectionButton({
           'rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/20'
         }
       >
-        Express Collection
+        {triggerLabel}
       </button>
 
       <dialog
@@ -97,10 +99,10 @@ export function ExpressCollectionButton({
 
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-sm font-semibold text-white">Express Collection</h2>
+              <h2 className="text-sm font-semibold text-white">Record payment received</h2>
               <p className="mt-1 text-[11px] text-apg-silver">
-                Record money already collected for {customerName}. Attaches to the existing monthly
-                invoice — never creates or cancels invoices.
+                Use this when {customerName} already paid you (cash, UPI, or bank transfer). The
+                amount is attached to their existing bill — it does not create a new invoice.
               </p>
             </div>
             <button

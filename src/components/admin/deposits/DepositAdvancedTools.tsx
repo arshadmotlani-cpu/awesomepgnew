@@ -8,6 +8,7 @@ import {
   rebuildDepositWalletAction,
   type DepositWalletActionState,
 } from '@/app/(admin)/admin/deposits/deposit-wallet-actions';
+import { AdminAdvancedToolsSection } from '@/src/components/admin/AdminAdvancedToolsSection';
 import { DepositLedgerReconcileForm } from '@/src/components/admin/DepositAdjustForms';
 import {
   sanitizeDepositWalletPreview,
@@ -35,26 +36,14 @@ export function DepositAdvancedTools({
   const v = sanitizeUnifiedDepositView(view);
 
   return (
-    <details className="group mb-6 rounded-2xl border border-white/10 bg-[#1A1F27]">
-      <summary className="cursor-pointer list-none px-5 py-4 marker:content-none [&::-webkit-details-marker]:hidden">
-        <div className="flex items-center justify-between gap-2">
-          <div>
-            <h2 className="text-sm font-semibold text-apg-silver">Advanced tools</h2>
-            <p className="mt-0.5 text-xs text-apg-silver/70">
-              Wallet rebuild, invoice cancel, and ledger reconcile
-            </p>
-          </div>
-          <span className="text-apg-silver transition group-open:rotate-180" aria-hidden>
-            ▾
-          </span>
-        </div>
-      </summary>
-
-      <div className="space-y-4 border-t border-white/10 px-5 py-4">
-        <WalletAdvancedActions view={v} />
-        <DepositLedgerReconcileForm bookingId={bookingId} {...adjustProps} />
-      </div>
-    </details>
+    <AdminAdvancedToolsSection
+      title="Advanced tools"
+      description="Rebuild wallet, cancel invoice, or reconcile ledger — use only when you know what you need."
+      defaultOpen={false}
+    >
+      <WalletAdvancedActions view={v} />
+      <DepositLedgerReconcileForm bookingId={bookingId} {...adjustProps} />
+    </AdminAdvancedToolsSection>
   );
 }
 
@@ -92,30 +81,28 @@ function WalletAdvancedActions({ view }: { view: UnifiedDepositView }) {
   }
 
   return (
-    <div className="space-y-4 rounded-xl border border-white/10 bg-[#12161C] p-4">
+    <div className="space-y-6">
       {previewError ? (
         <p className="rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
           {previewError}
         </p>
       ) : null}
 
-      <div>
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-apg-silver">
-          Rebuild deposit wallet
-        </h3>
-        <p className="mt-1 text-xs text-apg-silver/80">
-          Recalculates due and status from the ledger. Does not create or delete ledger rows.
+      <div className="rounded-xl border border-white/10 bg-[#12161C] p-4">
+        <h3 className="text-sm font-semibold text-white">Rebuild deposit wallet</h3>
+        <p className="mt-1 text-xs text-apg-silver">
+          Recalculates amounts from the ledger. Does not add or remove ledger entries.
         </p>
         <button
           type="button"
           disabled={previewPending}
           onClick={() => loadPreview('rebuild')}
-          className="mt-2 rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/5 disabled:opacity-60"
+          className="mt-3 rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/5 disabled:opacity-60"
         >
           {previewPending ? 'Loading preview…' : 'Preview rebuild'}
         </button>
         {rebuildPreview ? <PreviewPanel preview={rebuildPreview} /> : null}
-        <form action={rebuildAction} className="mt-2">
+        <form action={rebuildAction} className="mt-3">
           <input type="hidden" name="bookingId" value={view.bookingId} />
           <input type="hidden" name="confirmPreview" value={rebuildPreview ? 'yes' : 'no'} />
           <button
@@ -123,7 +110,7 @@ function WalletAdvancedActions({ view }: { view: UnifiedDepositView }) {
             disabled={rebuildPending || !rebuildPreview}
             className="rounded-lg border border-emerald-400/40 px-3 py-2 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/10 disabled:opacity-40"
           >
-            {rebuildPending ? 'Rebuilding…' : 'Execute rebuild'}
+            {rebuildPending ? 'Rebuilding…' : 'Run rebuild'}
           </button>
         </form>
         {rebuildState.status === 'ok' ? (
@@ -134,27 +121,26 @@ function WalletAdvancedActions({ view }: { view: UnifiedDepositView }) {
         ) : null}
       </div>
 
-      <div className="border-t border-white/10 pt-4">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-apg-silver">
-          Cancel deposit invoice
-        </h3>
-        <p className="mt-1 text-xs text-apg-silver/80">
-          Zeros the deposit obligation and clears refundable wallet balance.
+      <div className="rounded-xl border border-white/10 bg-[#12161C] p-4">
+        <h3 className="text-sm font-semibold text-white">Cancel deposit invoice</h3>
+        <p className="mt-1 text-xs text-apg-silver">
+          Clears the deposit obligation and zeroes the refundable balance. This cannot be undone
+          lightly.
         </p>
         <button
           type="button"
           disabled={previewPending}
           onClick={() => loadPreview('cancel')}
-          className="mt-2 rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/5 disabled:opacity-60"
+          className="mt-3 rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/5 disabled:opacity-60"
         >
           {previewPending ? 'Loading preview…' : 'Preview cancel'}
         </button>
         {cancelPreview ? <PreviewPanel preview={cancelPreview} /> : null}
-        <form action={cancelAction} className="mt-2 flex flex-wrap items-end gap-2">
+        <form action={cancelAction} className="mt-3 flex flex-wrap items-end gap-2">
           <input type="hidden" name="bookingId" value={view.bookingId} />
           <input type="hidden" name="confirmPreview" value={cancelPreview ? 'yes' : 'no'} />
           <label className="text-xs">
-            <span className="text-apg-silver">Type CANCEL to void invoice</span>
+            <span className="text-apg-silver">Type CANCEL to confirm</span>
             <input
               name="confirmText"
               required
@@ -167,7 +153,7 @@ function WalletAdvancedActions({ view }: { view: UnifiedDepositView }) {
             disabled={cancelPending || !cancelPreview}
             className="rounded-lg border border-rose-400/40 px-3 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-500/10 disabled:opacity-40"
           >
-            {cancelPending ? 'Cancelling…' : 'Execute cancel'}
+            {cancelPending ? 'Cancelling…' : 'Cancel invoice'}
           </button>
         </form>
         {cancelState.status === 'ok' ? (
@@ -185,7 +171,7 @@ function PreviewPanel({ preview }: { preview: DepositWalletPreview }) {
   const sanitized = sanitizeDepositWalletPreview(preview);
   return (
     <div className="mt-3 rounded-lg border border-sky-400/20 bg-sky-500/5 p-3 text-xs">
-      <p className="font-semibold text-sky-200">Dry run — current vs expected</p>
+      <p className="font-semibold text-sky-200">Preview — current vs after action</p>
       {sanitized.warnings.map((w) => (
         <p key={w} className="mt-2 text-amber-100">
           {w}
@@ -197,10 +183,10 @@ function PreviewPanel({ preview }: { preview: DepositWalletPreview }) {
       </div>
       {sanitized.willModifyLedger ? (
         <p className="mt-2 text-amber-100">
-          Ledger will be modified (deduction of {paiseToInr(sanitized.removesFromWalletPaise)}).
+          Ledger will change (deduction of {paiseToInr(sanitized.removesFromWalletPaise)}).
         </p>
       ) : (
-        <p className="mt-2 text-apg-silver">No ledger rows will be created or deleted.</p>
+        <p className="mt-2 text-apg-silver">No ledger entries will be added or removed.</p>
       )}
     </div>
   );

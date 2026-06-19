@@ -192,10 +192,10 @@ export function DepositAdjustForms({
   websiteDepositPaise?: number;
 }) {
   return (
-    <div className="mb-6 grid gap-4 sm:grid-cols-3">
+    <div className="grid gap-4 sm:grid-cols-3">
       <DepositForm
         title="Collect deposit"
-        helper="Record cash, UPI, or bank transfer."
+        helper="Record cash, UPI, or bank transfer received from the resident."
         bookingId={bookingId}
         action={addDepositAction}
         submitLabel="Record collection"
@@ -205,7 +205,7 @@ export function DepositAdjustForms({
       />
       <DepositForm
         title="Charge against deposit"
-        helper="Damage charge, unpaid rent, etc."
+        helper="Deduct for damage, unpaid rent, or other agreed charges."
         bookingId={bookingId}
         action={deductDepositAction}
         submitLabel="Record charge"
@@ -214,7 +214,7 @@ export function DepositAdjustForms({
       />
       <DepositForm
         title="Refund deposit"
-        helper="Record a refund issued back to the resident."
+        helper="Record money returned to the resident."
         bookingId={bookingId}
         action={refundDepositAction}
         submitLabel="Record refund"

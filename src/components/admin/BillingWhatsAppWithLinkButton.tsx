@@ -12,6 +12,10 @@ type Props = BillingWhatsAppInput & {
   residentId: string;
   pgId: string;
   disabled?: boolean;
+  /** Override default compact WhatsApp button styling (e.g. primary action row). */
+  className?: string;
+  /** Override button label (default: WhatsApp). */
+  label?: string;
 };
 
 /**
@@ -21,6 +25,8 @@ export function BillingWhatsAppWithLinkButton({
   residentId,
   pgId,
   disabled,
+  className,
+  label = 'WhatsApp',
   ...billing
 }: Props) {
   const [pending, startTransition] = useTransition();
@@ -54,16 +60,19 @@ export function BillingWhatsAppWithLinkButton({
     });
   }
 
+  const defaultClass =
+    'inline-flex items-center gap-1 rounded-md border border-[#25D366]/40 bg-[#25D366]/10 px-2 py-1 text-[11px] font-medium text-[#25D366] hover:bg-[#25D366]/20 disabled:opacity-50';
+
   return (
     <button
       type="button"
       disabled={disabled || pending || billing.amountPaise <= 0}
       onClick={onClick}
-      className="inline-flex items-center gap-1 rounded-md border border-[#25D366]/40 bg-[#25D366]/10 px-2 py-1 text-[11px] font-medium text-[#25D366] hover:bg-[#25D366]/20 disabled:opacity-50"
+      className={className ?? defaultClass}
       title={`WhatsApp ${billing.customerName} with payment link`}
     >
-      <WhatsAppIcon className="h-3.5 w-3.5" />
-      {pending ? 'Opening…' : 'WhatsApp'}
+      <WhatsAppIcon className="h-3.5 w-3.5 shrink-0" />
+      {pending ? 'Opening…' : label}
     </button>
   );
 }

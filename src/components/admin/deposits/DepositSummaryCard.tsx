@@ -1,15 +1,33 @@
+import { Badge } from '@/src/components/admin/Badge';
 import { paiseToInr } from '@/src/lib/format';
 import type { UnifiedDepositView } from '@/src/lib/deposits/unifiedDepositView';
 import { sanitizeUnifiedDepositView } from '@/src/lib/deposits/unifiedDepositView';
+
+function statusTone(status: string) {
+  switch (status) {
+    case 'collecting':
+      return 'amber' as const;
+    case 'held':
+      return 'emerald' as const;
+    case 'refund_pending':
+      return 'sky' as const;
+    case 'settled':
+      return 'zinc' as const;
+    default:
+      return 'zinc' as const;
+  }
+}
 
 export function DepositSummaryCard({
   view,
   invoiceStatus,
   syncWarning,
+  isFrozen,
 }: {
   view?: Partial<UnifiedDepositView> | null;
   invoiceStatus?: string | null;
   syncWarning?: string | null;
+  isFrozen?: boolean;
 }) {
   const v = sanitizeUnifiedDepositView(view);
 
@@ -17,34 +35,29 @@ export function DepositSummaryCard({
     return null;
   }
 
-  return (
-    <section className="mb-6 rounded-2xl border border-white/10 bg-[#1A1F27] p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-apg-orange">
-            Deposit summary
-          </h2>
-          <p className="mt-1 text-xs text-apg-silver">Current balance for this booking</p>
-        </div>
-        {invoiceStatus ? (
-          <span className="rounded-full border border-white/10 px-2.5 py-0.5 text-xs text-apg-silver">
-            {invoiceStatus}
-          </span>
-        ) : null}
-      </div>
+  const statusLabel = isFrozen ? 'Settled · closed' : (invoiceStatus ?? 'Unknown');
 
+  return (
+    <section className="rounded-2xl border border-white/10 bg-[#1A1F27] p-5">
       {syncWarning ? (
-        <div className="mt-3 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-          {syncWarning}
+        <div className="mb-4 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+          <p className="font-medium">Wallet may be out of sync</p>
+          <p className="mt-0.5 text-xs text-amber-200/90">{syncWarning}</p>
         </div>
       ) : null}
 
-      <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <SummaryStat label="Required" value={paiseToInr(v.requiredPaise)} />
-        <SummaryStat label="Collected" value={paiseToInr(v.collectedPaise)} accent="emerald" />
-        <SummaryStat label="Refundable" value={paiseToInr(v.refundablePaise)} accent="strong" />
-        <SummaryStat label="Deductions" value={paiseToInr(v.deductedPaise)} />
-        <SummaryStat label="Refunded" value={paiseToInr(v.refundedPaise)} />
+      <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <SummaryStat label="Required deposit" value={paiseToInr(v.requiredPaise)} />
+        <SummaryStat label="Collected deposit" value={paiseToInr(v.collectedPaise)} accent="emerald" />
+        <SummaryStat label="Refundable deposit" value={paiseToInr(v.refundablePaise)} accent="strong" />
+        <div className="rounded-lg border border-white/10 bg-[#12161C] p-3">
+          <dt className="text-[10px] font-medium uppercase tracking-wide text-apg-silver">
+            Deposit status
+          </dt>
+          <dd className="mt-2">
+            <Badge tone={isFrozen ? 'zinc' : statusTone(v.invoiceStatus ?? '')}>{statusLabel}</Badge>
+          </dd>
+        </div>
       </dl>
     </section>
   );

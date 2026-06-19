@@ -94,10 +94,10 @@ export function ResidentActionBar(props: ResidentActionBarProps) {
   return (
     <div className="rounded-2xl border border-[#FF5A1F]/30 bg-[#1A1F27] p-4 ring-1 ring-[#FF5A1F]/10">
       <p className="text-xs font-semibold uppercase tracking-wide text-apg-orange">
-        Resident actions
+        Billing by category
       </p>
       <p className="mt-1 text-[11px] text-apg-silver">
-        WhatsApp opens with the payment link included — no separate link step.
+        Send a WhatsApp message with a payment link for rent, deposit, or electricity.
       </p>
 
       <div className="mt-2">
@@ -138,7 +138,7 @@ export function ResidentActionBar(props: ResidentActionBarProps) {
             ) : null
           }
           editHref="#edit-tenancy"
-          editLabel="Edit"
+          editLabel="Change rent"
         >
           {canBill && rentAmountPaise > 0 ? (
             <BillingWhatsAppWithLinkButton
@@ -173,6 +173,7 @@ export function ResidentActionBar(props: ResidentActionBarProps) {
             ) : null
           }
           editHref={props.bookingId ? `/admin/deposits/${props.bookingId}` : undefined}
+          editLabel="View deposit"
         >
           {canBill && depositBillPaise > 0 ? (
             <BillingWhatsAppWithLinkButton
