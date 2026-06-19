@@ -6,11 +6,6 @@ import { eq } from 'drizzle-orm';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { assertAdminBookingAccess } from '@/src/lib/auth/pgAccess';
 import { revalidateFinancialViews } from '@/src/lib/billing/revalidateFinancialViews';
-import { loadDepositPageData } from '@/src/lib/deposits/loadDepositPageData';
-import {
-  logPostSaveWalletState,
-  logWalletPropsAtCheckpoint,
-} from '@/src/lib/deposits/postSaveWalletStateLog';
 import { db } from '@/src/db/client';
 import { auditLog, bookings } from '@/src/db/schema';
 import { logger } from '@/src/lib/logger';
@@ -20,19 +15,8 @@ import {
   previewRebuildDepositWallet,
   rebuildDepositWallet,
   updateDepositSummaryAdmin,
-  getUnifiedDepositView,
   type DepositWalletPreview,
 } from '@/src/services/depositOperations';
-import { getDepositSummaryForBooking } from '@/src/services/deposits';
-import { logDepositDebug } from '@/src/lib/depositDebug';
-import { logDepositTrace } from '@/src/lib/depositPageDebug';
-import {
-  logDepositSaveAfterRevalidate,
-  logDepositSaveFailed,
-  logDepositSaveStart,
-  logDepositServerActionCaught,
-  type DepositInvestigationContext,
-} from '@/src/lib/depositInvestigation';
 
 export type DepositWalletActionState =
   | { status: 'idle' }
@@ -121,59 +105,10 @@ function parseInrFieldToPaise(raw: string, label: string): number | undefined | 
   return Math.round(inr * 100);
 }
 
-async function verifyDepositReload(bookingId: string, customerId: string) {
-  try {
-    const [summary, view, pageData] = await Promise.all([
-      getDepositSummaryForBooking(bookingId),
-      getUnifiedDepositView(bookingId, {
-        postSaveCheckpoint: 'editDepositSummaryAction:after_getUnifiedDepositView',
-      }),
-      loadDepositPageData(bookingId),
-    ]);
-    logDepositTrace('loadDepositDetailData', bookingId, {
-      phase: 'post_save_reload_ok',
-      customerId,
-      collectedPaise: summary?.collectedPaise,
-      requiredPaise: view?.requiredPaise,
-      refundablePaise: view?.refundablePaise,
-    });
-    logWalletPropsAtCheckpoint(
-      'editDepositSummaryAction:after_loadDepositPageData',
-      bookingId,
-      pageData.walletProps,
-    );
-    logPostSaveWalletState('editDepositSummaryAction:after_revalidate', bookingId, {
-      customerId,
-      hasWalletProps: Boolean(pageData.walletProps),
-      loadError: pageData.loadError,
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    const stack = err instanceof Error ? err.stack : undefined;
-    logDepositTrace('loadDepositDetailData', bookingId, {
-      phase: 'post_save_reload_failed',
-      customerId,
-      error: message,
-      stack,
-    });
-  }
-}
-
-function revalidateDepositViews(bookingId: string, ctx: DepositInvestigationContext) {
-  logDepositDebug({
-    phase: 'revalidateDepositViews:before',
-    actionName: 'revalidateDepositViews',
-    bookingId,
-  });
+function revalidateDepositViews(bookingId: string) {
   revalidateFinancialViews();
   revalidatePath(`/admin/deposits/${bookingId}`);
   revalidatePath('/admin/deposits');
-  logDepositSaveAfterRevalidate(ctx, { paths: [`/admin/deposits/${bookingId}`, '/admin/deposits'] });
-  logDepositDebug({
-    phase: 'revalidateDepositViews:after',
-    actionName: 'revalidateDepositViews',
-    bookingId,
-  });
 }
 
 export async function loadRebuildDepositPreviewAction(
@@ -206,17 +141,11 @@ export async function loadCancelDepositPreviewAction(
   }
 }
 
-async function editDepositSummaryCore(
-  formData: FormData,
-  options: { skipRevalidate?: boolean },
-): Promise<DepositWalletActionState> {
+async function editDepositSummaryCore(formData: FormData): Promise<DepositWalletActionState> {
   let admin;
   let bookingId = '';
   let bookingCode: string | null = null;
   let customerId: string | null = null;
-  const actionName = options.skipRevalidate
-    ? 'editDepositSummaryNoRevalidateAction'
-    : 'editDepositSummaryAction';
   try {
     admin = await requireAdminPermission('deposits:write');
     bookingId = String(formData.get('bookingId') ?? '');
@@ -246,29 +175,6 @@ async function editDepositSummaryCore(
       return { status: 'error', message: 'Enter required and/or collected amount to update.' };
     }
 
-    const invCtx: DepositInvestigationContext = {
-      bookingId,
-      bookingCode,
-      customerId,
-      component: actionName,
-    };
-
-    logDepositSaveStart(invCtx, {
-      requiredPaise: requiredPaise ?? null,
-      collectedPaise: collectedPaise ?? null,
-      reason,
-      skipRevalidate: Boolean(options.skipRevalidate),
-    });
-
-    logDepositDebug({
-      phase: `${actionName}:before_update`,
-      actionName,
-      bookingId,
-      residentId: customerId,
-      requiredDeposit: requiredPaise,
-      collectedDeposit: collectedPaise,
-    });
-
     const result = await updateDepositSummaryAdmin({
       bookingId,
       customerId,
@@ -279,63 +185,16 @@ async function editDepositSummaryCore(
     });
     if (!result.ok) return { status: 'error', message: result.error };
 
-    logPostSaveWalletState('editDepositSummaryAction:after_updateDepositSummaryAdmin', bookingId, {
-      customerId,
-      requiredPaise: requiredPaise ?? null,
-      collectedPaise: collectedPaise ?? null,
-      ok: true,
-    });
-
-    logDepositDebug({
-      phase: `${actionName}:after_update`,
-      actionName,
-      bookingId,
-      residentId: customerId,
-      requiredDeposit: requiredPaise,
-      collectedDeposit: collectedPaise,
-    });
-
-    if (!options.skipRevalidate) {
-      revalidateDepositViews(bookingId, invCtx);
-      await verifyDepositReload(bookingId, customerId);
-    }
-
-    logDepositDebug({
-      phase: `${actionName}:ok`,
-      bookingId,
-      residentId: customerId,
-      actionName,
-      requiredDeposit: requiredPaise,
-      collectedDeposit: collectedPaise,
-    });
+    revalidateDepositViews(bookingId);
 
     return {
       status: 'ok',
-      message: options.skipRevalidate
-        ? 'Deposit saved (no revalidate — page not reloaded).'
-        : 'Deposit summary updated everywhere.',
+      message: 'Deposit summary updated everywhere.',
     };
   } catch (err) {
-    if (isRedirectError(err)) {
-      logDepositServerActionCaught(actionName, bookingId, err, { kind: 'redirect' });
-      throw err;
-    }
-    const invCtx: DepositInvestigationContext = {
-      bookingId,
-      bookingCode,
-      customerId,
-      component: actionName,
-    };
-    logDepositSaveFailed(invCtx, err);
-    logDepositDebug({
-      phase: `${actionName}:error`,
-      actionName,
-      bookingId,
-      residentId: customerId,
-      error: err,
-    });
+    if (isRedirectError(err)) throw err;
     await logDepositWalletFailure({
-      action: options.skipRevalidate ? 'edit_summary_no_revalidate' : 'edit_summary',
+      action: 'edit_summary',
       bookingId,
       customerId,
       bookingCode,
@@ -353,15 +212,7 @@ export async function editDepositSummaryAction(
   _prev: DepositWalletActionState,
   formData: FormData,
 ): Promise<DepositWalletActionState> {
-  return editDepositSummaryCore(formData, { skipRevalidate: false });
-}
-
-/** Diagnostic: same save path but skips revalidatePath to isolate reload crashes. */
-export async function editDepositSummaryNoRevalidateAction(
-  _prev: DepositWalletActionState,
-  formData: FormData,
-): Promise<DepositWalletActionState> {
-  return editDepositSummaryCore(formData, { skipRevalidate: true });
+  return editDepositSummaryCore(formData);
 }
 
 export async function rebuildDepositWalletAction(
@@ -393,12 +244,7 @@ export async function rebuildDepositWalletAction(
     });
     if (!result.ok) return { status: 'error', message: result.error };
 
-    revalidateDepositViews(bookingId, {
-      bookingId,
-      bookingCode,
-      customerId,
-      component: 'rebuildDepositWalletAction',
-    });
+    revalidateDepositViews(bookingId);
     return {
       status: 'ok',
       message: `Wallet rebuilt from ledger — collected ₹${(result.collectedPaise / 100).toLocaleString('en-IN')}, refundable ₹${(result.refundablePaise / 100).toLocaleString('en-IN')}, due ₹${(result.depositDuePaise / 100).toLocaleString('en-IN')}.`,
@@ -454,12 +300,7 @@ export async function cancelDepositInvoiceAction(
     });
     if (!result.ok) return { status: 'error', message: result.error };
 
-    revalidateDepositViews(bookingId, {
-      bookingId,
-      bookingCode,
-      customerId,
-      component: 'rebuildDepositWalletAction',
-    });
+    revalidateDepositViews(bookingId);
     const removed =
       result.removedFromWalletPaise > 0
         ? ` Removed ₹${(result.removedFromWalletPaise / 100).toLocaleString('en-IN')} from wallet.`

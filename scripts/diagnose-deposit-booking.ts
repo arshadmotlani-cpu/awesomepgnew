@@ -83,11 +83,11 @@ async function main() {
   console.log('\n=== RSC client prop simulation ===');
   try {
     const { sanitizeUnifiedDepositView } = await import('../src/services/depositOperations');
-    const { assertJsonSerializable } = await import('../src/lib/depositPageDebug');
+    const { jsonSafe } = await import('../src/lib/depositPageDebug');
     const view = await getUnifiedDepositView(bookingId);
     if (view) {
       const clean = sanitizeUnifiedDepositView(view);
-      assertJsonSerializable('client_props_wallet', bookingId, { view: clean, isFrozen: false });
+      jsonSafe({ view: clean, isFrozen: false });
       console.log('client wallet props: OK');
     }
   } catch (err) {

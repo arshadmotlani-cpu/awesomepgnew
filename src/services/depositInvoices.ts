@@ -22,7 +22,6 @@ import {
   isProductionBookingFilter,
   isProductionCustomerFilter,
 } from '@/src/lib/billing/productionDataFilter';
-import { logDepositPageSection } from '@/src/lib/depositPageDebug';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import {
   OCCUPANCY_PLACEHOLDER_EMAIL,
@@ -368,11 +367,9 @@ export async function getDepositInvoiceForBooking(
   bookingId: string,
 ): Promise<DepositInvoiceRecord | null> {
   try {
-    logDepositPageSection('getDepositInvoiceForBooking', bookingId, { phase: 'start' });
     const rows = await fetchRawDepositRows({ bookingId });
     const row = rows.find((r) => r.bookingId === bookingId) ?? rows[0];
     if (!row) {
-      logDepositPageSection('getDepositInvoiceForBooking', bookingId, { phase: 'not_found' });
       return null;
     }
 
@@ -380,16 +377,6 @@ export async function getDepositInvoiceForBooking(
     const invoice = toInvoiceRecord(row, {
       hasRefundRequest: refundRequests.has(bookingId),
       hasSettlement: settlements.has(bookingId),
-    });
-    logDepositPageSection('getDepositInvoiceForBooking', bookingId, {
-      customerId: row.customerId,
-      deposit_paise: row.depositPaise,
-      requiredPaise: row.depositPaise,
-      collectedPaise: row.collectedPaise,
-      deductedPaise: row.deductedPaise,
-      refundedPaise: row.refundedPaise,
-      refundablePaise: row.refundableBalancePaise,
-      invoiceStatus: invoice.invoiceStatus,
     });
     return invoice;
   } catch (err) {

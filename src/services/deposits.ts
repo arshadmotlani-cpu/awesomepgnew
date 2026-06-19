@@ -33,8 +33,6 @@ import {
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import { coerceNonNegativePaise, asPlainNumber } from '@/src/lib/format';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
-import { logDepositDebug } from '@/src/lib/depositDebug';
-import { logDepositPageSection } from '@/src/lib/depositPageDebug';
 import { applyDepositDeduction } from '@/src/services/depositSettlement';
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -344,15 +342,12 @@ export async function getDepositSummaryForBooking(
   bookingId: string,
 ): Promise<DepositSummary | null> {
   try {
-    logDepositPageSection('getDepositSummaryForBooking', bookingId, { phase: 'start' });
-
     const [booking] = await db
       .select({ customerId: bookings.customerId, depositPaise: bookings.depositPaise })
       .from(bookings)
       .where(eq(bookings.id, bookingId))
       .limit(1);
     if (!booking) {
-      logDepositPageSection('getDepositSummaryForBooking', bookingId, { phase: 'missing_booking' });
       return null;
     }
 
@@ -384,46 +379,9 @@ export async function getDepositSummaryForBooking(
       entries,
     };
 
-    logDepositPageSection('getDepositSummaryForBooking', bookingId, {
-      customerId: booking.customerId,
-      deposit_paise: coerceNonNegativePaise(booking.depositPaise),
-      requiredPaise: coerceNonNegativePaise(booking.depositPaise),
-      collectedPaise: collected,
-      deductedPaise: deducted,
-      refundedPaise: refunded,
-      refundableBalancePaise: summary.refundableBalancePaise,
-      ledgerRowCount: entries.length,
-    });
-
-    logDepositDebug({
-      phase: 'getDepositSummaryForBooking:ok',
-      bookingId,
-      residentId: booking.customerId,
-      requiredDeposit: undefined,
-      collectedDeposit: collected,
-      wallet: {
-        deductedPaise: deducted,
-        refundedPaise: refunded,
-        refundableBalancePaise: summary.refundableBalancePaise,
-      },
-      ledger: { rowCount: entries.length },
-    });
-
     return summary;
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    const stack = err instanceof Error ? err.stack : undefined;
-    console.error('[DEPOSIT_PAGE_SECTION_FAILED]', 'getDepositSummaryForBooking', bookingId, err);
-    console.error('[deposits] getDepositSummaryForBooking failed', {
-      bookingId,
-      message,
-      stack,
-    });
-    logDepositDebug({
-      phase: 'getDepositSummaryForBooking:error',
-      bookingId,
-      error: err,
-    });
+    console.error('[deposits] getDepositSummaryForBooking failed', bookingId, err);
     throw err;
   }
 }

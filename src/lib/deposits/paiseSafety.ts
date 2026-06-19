@@ -4,18 +4,16 @@
 
 import { asPlainNumber, coerceNonNegativePaise } from '@/src/lib/format';
 
-/** Coerce paise; log if driver returned bigint (production Neon/postgres.js). */
-export function guardDepositPaise(value: unknown, fieldName: string): number {
+/** Coerce paise to a finite non-negative number for UI and RSC. */
+export function guardDepositPaise(value: unknown, _fieldName?: string): number {
   if (typeof value === 'bigint') {
-    console.error('[BIGINT_LEAK]', fieldName, value);
     return Number(value);
   }
   return coerceNonNegativePaise(value);
 }
 
-export function guardPlainPaise(value: unknown, fieldName: string): number {
+export function guardPlainPaise(value: unknown, _fieldName?: string): number {
   if (typeof value === 'bigint') {
-    console.error('[BIGINT_LEAK]', fieldName, value);
     return Number(value);
   }
   return asPlainNumber(value);

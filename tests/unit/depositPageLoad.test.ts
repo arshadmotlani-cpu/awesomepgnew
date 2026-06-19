@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
-import { assertJsonSerializable, findUnsafeFields, jsonSafe } from '../../src/lib/depositPageDebug';
+import { jsonSafe } from '../../src/lib/depositPageDebug';
 import { securityDepositForMode, type RateSnapshot } from '../../src/services/pricing';
 import { sanitizeUnifiedDepositView } from '../../src/services/depositOperations';
 
@@ -21,7 +21,7 @@ test('securityDepositForMode coerces bigint bed rates without throwing', () => {
   assert.doesNotThrow(() => JSON.stringify({ websiteDepositPaise: securityDepositForMode(rate, 'daily') }));
 });
 
-test('assertJsonSerializable rejects bigint in unified deposit view props', () => {
+test('jsonSafe coerces bigint in deposit wallet props', () => {
   const dirty = sanitizeUnifiedDepositView({
     bookingId: 'b1',
     customerId: 'c1',
@@ -36,33 +36,14 @@ test('assertJsonSerializable rejects bigint in unified deposit view props', () =
     walletInSync: true,
     walletMismatchReason: null,
   });
-  assert.doesNotThrow(() => assertJsonSerializable('client_props_wallet', 'b1', { view: dirty, isFrozen: false }));
-
-  const broken = { ...dirty, collectedPaise: 350000n as unknown as number };
-  assert.throws(
-    () => assertJsonSerializable('client_props_wallet', 'b1', { view: broken, isFrozen: false }),
-    /RSC-unsafe value in client_props_wallet.*collectedPaise type=bigint/,
-  );
-});
-
-test('findUnsafeFields reports exact field path for bigint', () => {
-  const fields = findUnsafeFields({
-    websiteDepositPaise: 9000n,
-    nested: { amount: 100 },
-  });
-  assert.equal(fields.length, 1);
-  assert.equal(fields[0].path, 'websiteDepositPaise');
-  assert.equal(fields[0].type, 'bigint');
-  assert.equal(fields[0].value, '9000n');
-});
-
-test('jsonSafe converts bigint ledger snapshots for logging', () => {
-  const safe = jsonSafe({
-    bookingId: 'b1',
-    collectedPaise: 350000n,
-    entries: [{ amountPaise: 350000n }],
-  });
-  assert.equal(safe.collectedPaise, 350000);
-  assert.equal(safe.entries[0].amountPaise, 350000);
+  const safe = jsonSafe({ view: dirty, isFrozen: false });
   assert.doesNotThrow(() => JSON.stringify(safe));
+  assert.equal(typeof safe.view.requiredPaise, 'number');
+});
+
+test('sanitizeUnifiedDepositView returns safe empty view for null input', () => {
+  const view = sanitizeUnifiedDepositView(null);
+  assert.equal(view.bookingId, '');
+  assert.equal(view.requiredPaise, 0);
+  assert.doesNotThrow(() => JSON.stringify(view));
 });

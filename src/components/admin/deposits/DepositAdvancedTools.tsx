@@ -1,10 +1,8 @@
 'use client';
 
-import Link from 'next/link';
 import { useActionState, useState, useTransition } from 'react';
 import {
   cancelDepositInvoiceAction,
-  editDepositSummaryNoRevalidateAction,
   loadCancelDepositPreviewAction,
   loadRebuildDepositPreviewAction,
   rebuildDepositWalletAction,
@@ -43,7 +41,7 @@ export function DepositAdvancedTools({
           <div>
             <h2 className="text-sm font-semibold text-apg-silver">Advanced tools</h2>
             <p className="mt-0.5 text-xs text-apg-silver/70">
-              Wallet rebuild, invoice cancel, ledger reconcile, and debug
+              Wallet rebuild, invoice cancel, and ledger reconcile
             </p>
           </div>
           <span className="text-apg-silver transition group-open:rotate-180" aria-hidden>
@@ -55,15 +53,6 @@ export function DepositAdvancedTools({
       <div className="space-y-4 border-t border-white/10 px-5 py-4">
         <WalletAdvancedActions view={v} />
         <DepositLedgerReconcileForm bookingId={bookingId} {...adjustProps} />
-        <NoRevalidateSaveForm view={v} />
-        <p className="text-xs text-apg-silver/70">
-          <Link
-            href={`/admin/debug/deposit/${bookingId}`}
-            className="text-sky-300 hover:underline"
-          >
-            Open deposit debug page →
-          </Link>
-        </p>
       </div>
     </details>
   );
@@ -188,59 +177,6 @@ function WalletAdvancedActions({ view }: { view: UnifiedDepositView }) {
           <p className="mt-2 text-xs text-rose-300">{cancelState.message}</p>
         ) : null}
       </div>
-    </div>
-  );
-}
-
-function NoRevalidateSaveForm({ view }: { view: UnifiedDepositView }) {
-  const [state, action, pending] = useActionState(editDepositSummaryNoRevalidateAction, idle);
-
-  return (
-    <div className="rounded-xl border border-amber-400/20 bg-amber-500/5 p-4">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-amber-200/90">
-        Save without reload (debug)
-      </h3>
-      <p className="mt-1 text-xs text-apg-silver/80">
-        Same correction form but skips page refresh — for support only.
-      </p>
-      <form action={action} className="mt-3 grid gap-2 sm:grid-cols-2">
-        <input type="hidden" name="bookingId" value={view.bookingId} />
-        <input
-          name="requiredInr"
-          type="number"
-          min="0"
-          step="1"
-          placeholder="Required ₹"
-          className="apg-admin-field rounded-lg border border-white/10 bg-[#0B0F14] px-3 py-2 text-sm text-white"
-        />
-        <input
-          name="collectedInr"
-          type="number"
-          min="0"
-          step="1"
-          placeholder="Collected ₹"
-          className="apg-admin-field rounded-lg border border-white/10 bg-[#0B0F14] px-3 py-2 text-sm text-white"
-        />
-        <input
-          name="reason"
-          required
-          placeholder="Reason"
-          className="apg-admin-field sm:col-span-2 rounded-lg border border-white/10 bg-[#0B0F14] px-3 py-2 text-sm text-white"
-        />
-        <button
-          type="submit"
-          disabled={pending}
-          className="sm:col-span-2 w-fit rounded-lg border border-amber-400/50 px-3 py-2 text-xs font-semibold text-amber-200 hover:bg-amber-500/10 disabled:opacity-60"
-        >
-          {pending ? 'Saving…' : 'Save without reload'}
-        </button>
-        {state.status === 'ok' ? (
-          <p className="sm:col-span-2 text-xs text-emerald-300">{state.message}</p>
-        ) : null}
-        {state.status === 'error' ? (
-          <p className="sm:col-span-2 text-xs text-rose-300">{state.message}</p>
-        ) : null}
-      </form>
     </div>
   );
 }

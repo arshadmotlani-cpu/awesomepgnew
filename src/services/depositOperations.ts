@@ -8,11 +8,6 @@ import { db } from '@/src/db/client';
 import { auditLog, bookings } from '@/src/db/schema';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import {
-  inspectPaiseValue,
-  logUnifiedDepositViewAtCheckpoint,
-  logPostSaveWalletState,
-} from '@/src/lib/deposits/postSaveWalletStateLog';
-import {
   sanitizeDepositWalletPreview,
   sanitizeUnifiedDepositView,
   type DepositWalletPreview,
@@ -20,12 +15,6 @@ import {
 } from '@/src/lib/deposits/unifiedDepositView';
 export type { DepositWalletPreview, UnifiedDepositView };
 export { sanitizeDepositWalletPreview, sanitizeUnifiedDepositView };
-import { logDepositDebug } from '@/src/lib/depositDebug';
-import { logDepositPageSection } from '@/src/lib/depositPageDebug';
-import {
-  logDepositSaveAfterSync,
-  logDepositSaveAfterUpdate,
-} from '@/src/lib/depositInvestigation';
 import { getDepositInvoiceForBooking } from '@/src/services/depositInvoices';
 import {
   adjustDepositCollectedBalance,
@@ -118,13 +107,8 @@ function viewFromParts(input: {
   });
 }
 
-export async function getUnifiedDepositView(
-  bookingId: string,
-  opts?: { postSaveCheckpoint?: string },
-): Promise<UnifiedDepositView | null> {
+export async function getUnifiedDepositView(bookingId: string): Promise<UnifiedDepositView | null> {
   try {
-    logDepositPageSection('getUnifiedDepositView', bookingId, { phase: 'start' });
-
     const [booking] = await db
       .select({
         id: bookings.id,
@@ -137,7 +121,6 @@ export async function getUnifiedDepositView(
       .where(eq(bookings.id, bookingId))
       .limit(1);
     if (!booking) {
-      logDepositPageSection('getUnifiedDepositView', bookingId, { phase: 'missing_booking' });
       return null;
     }
 
@@ -174,46 +157,9 @@ export async function getUnifiedDepositView(
     });
 
     const safeView = sanitizeUnifiedDepositView(view);
-
-    logDepositPageSection('getUnifiedDepositView', bookingId, {
-      customerId: booking.customerId,
-      deposit_paise: safeView.requiredPaise,
-      requiredPaise: safeView.requiredPaise,
-      collectedPaise: safeView.collectedPaise,
-      deductedPaise: safeView.deductedPaise,
-      refundedPaise: safeView.refundedPaise,
-      refundablePaise: safeView.refundablePaise,
-      depositDuePaise: safeView.depositDuePaise,
-      walletInSync: safeView.walletInSync,
-    });
-
-    if (opts?.postSaveCheckpoint) {
-      logUnifiedDepositViewAtCheckpoint(opts.postSaveCheckpoint, bookingId, safeView, {
-        rawBooking: {
-          depositPaise: inspectPaiseValue(booking.depositPaise),
-          depositDuePaise: inspectPaiseValue(booking.depositDuePaise),
-        },
-        rawSummary: summary
-          ? {
-              collectedPaise: inspectPaiseValue(summary.collectedPaise),
-              deductedPaise: inspectPaiseValue(summary.deductedPaise),
-              refundedPaise: inspectPaiseValue(summary.refundedPaise),
-              refundableBalancePaise: inspectPaiseValue(summary.refundableBalancePaise),
-            }
-          : null,
-      });
-    }
-
     return safeView;
   } catch (err) {
-    console.error('[DEPOSIT_PAGE_SECTION_FAILED]', 'getUnifiedDepositView', bookingId, err);
-    const message = err instanceof Error ? err.message : String(err);
-    const stack = err instanceof Error ? err.stack : undefined;
-    console.error('[deposit-ops] getUnifiedDepositView failed', {
-      bookingId,
-      message,
-      stack,
-    });
+    console.error('[deposit-ops] getUnifiedDepositView failed', bookingId, err);
     throw err;
   }
 }
@@ -530,13 +476,6 @@ export async function updateDepositSummaryAdmin(input: {
     collectedPaise,
     reason: input.reason,
   });
-  logDepositDebug({
-    phase: 'updateDepositSummaryAdmin:start',
-    bookingId: input.bookingId,
-    residentId: input.customerId,
-    requiredDeposit: requiredPaise,
-    collectedDeposit: collectedPaise,
-  });
 
   const [booking] = await db
     .select({
@@ -548,13 +487,6 @@ export async function updateDepositSummaryAdmin(input: {
     .where(eq(bookings.id, input.bookingId))
     .limit(1);
   if (!booking) return { ok: false, error: 'Booking not found.' };
-
-  const invCtx = {
-    bookingId: input.bookingId,
-    bookingCode: booking.bookingCode,
-    customerId: input.customerId,
-    component: 'updateDepositSummaryAdmin',
-  };
 
   const priorRequired = guardDepositPaise(booking.depositPaise, 'updateDepositSummary.priorRequired');
   const priorTotal = guardDepositPaise(booking.totalPaise, 'updateDepositSummary.priorTotal');
@@ -596,30 +528,11 @@ export async function updateDepositSummaryAdmin(input: {
         updatedAt: new Date(),
       })
       .where(eq(bookings.id, input.bookingId));
-    logDepositDebug({
-      phase: 'updateDepositSummaryAdmin:booking_updated',
-      bookingId: input.bookingId,
-      residentId: input.customerId,
-      requiredDeposit: requiredPaise,
-      collectedDeposit: collectedPaise,
-      wallet: { priorRequired, priorTotal, newTotalPaise },
-    });
   }
-
-  logDepositSaveAfterUpdate(invCtx, {
-    requiredPaise: requiredPaise ?? null,
-    collectedPaise: collectedPaise ?? null,
-    priorRequired,
-    priorTotal,
-  });
 
   await syncDepositCollectionFromLedger(input.bookingId);
 
-  await getUnifiedDepositView(input.bookingId, {
-    postSaveCheckpoint: 'updateDepositSummaryAdmin:after_syncDepositCollectionFromLedger',
-  });
-
-  logDepositSaveAfterSync(invCtx, { bookingId: input.bookingId });
+  await getUnifiedDepositView(input.bookingId);
 
   await db.insert(auditLog).values({
     actorType: 'admin',
@@ -641,18 +554,6 @@ export async function updateDepositSummaryAdmin(input: {
     customerId: input.customerId,
     requiredPaise,
     collectedPaise,
-  });
-  logDepositDebug({
-    phase: 'updateDepositSummaryAdmin:ok',
-    bookingId: input.bookingId,
-    residentId: input.customerId,
-    requiredDeposit: requiredPaise,
-    collectedDeposit: collectedPaise,
-  });
-
-  logPostSaveWalletState('updateDepositSummaryAdmin:complete', input.bookingId, {
-    requiredPaise: inspectPaiseValue(requiredPaise),
-    collectedPaise: inspectPaiseValue(collectedPaise),
   });
 
   return { ok: true };

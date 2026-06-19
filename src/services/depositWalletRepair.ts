@@ -6,7 +6,6 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { bookings, depositSettlements } from '@/src/db/schema';
 import { coerceNonNegativePaise } from '@/src/lib/format';
-import { logDepositDebug } from '@/src/lib/depositDebug';
 import { syncDepositCollectionFromLedger } from '@/src/services/depositCollection';
 import {
   getDepositSummaryForBooking,
@@ -168,17 +167,6 @@ export async function repairDepositWallet(
     walletFormulaInSync: walletCheck.inSync,
   };
 
-  logDepositDebug({
-    phase: 'repairDepositWallet:audit',
-    actionName: 'repairDepositWallet',
-    bookingId,
-    residentId: booking.customerId,
-    requiredDeposit: report.booking.depositPaise,
-    collectedDeposit: report.ledger.collectedPaise,
-    wallet: report.ledger,
-    ledger: { rowCount: report.ledger.rowCount, issues: report.issues },
-  });
-
   let syncOk = false;
   let syncError: string | null = null;
   const executed = Boolean(options?.execute);
@@ -192,13 +180,6 @@ export async function repairDepositWallet(
         syncOk = true;
       } catch (err) {
         syncError = err instanceof Error ? err.message : String(err);
-        logDepositDebug({
-          phase: 'repairDepositWallet:sync_failed',
-          actionName: 'repairDepositWallet',
-          bookingId,
-          residentId: booking.customerId,
-          error: err,
-        });
       }
     }
   }
