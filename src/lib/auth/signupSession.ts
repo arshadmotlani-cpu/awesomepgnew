@@ -94,18 +94,23 @@ export function isSignupSessionActive(row: SignupSessionRow): boolean {
 }
 
 export async function getSignupSessionById(sessionId: string): Promise<SignupSessionRow | null> {
-  const [row] = await db
-    .select()
-    .from(signupSessions)
-    .where(
-      and(
-        eq(signupSessions.id, sessionId),
-        eq(signupSessions.status, 'pending'),
-        gt(signupSessions.expiresAt, new Date()),
-      ),
-    )
-    .limit(1);
-  return row ?? null;
+  try {
+    const [row] = await db
+      .select()
+      .from(signupSessions)
+      .where(
+        and(
+          eq(signupSessions.id, sessionId),
+          eq(signupSessions.status, 'pending'),
+          gt(signupSessions.expiresAt, new Date()),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  } catch (err) {
+    console.error('[signupSession] getSignupSessionById failed', err);
+    return null;
+  }
 }
 
 export async function getActiveSignupSessionForEmail(
@@ -113,19 +118,24 @@ export async function getActiveSignupSessionForEmail(
 ): Promise<SignupSessionRow | null> {
   const normalised = normaliseEmail(email);
   if (!normalised) return null;
-  const [row] = await db
-    .select()
-    .from(signupSessions)
-    .where(
-      and(
-        eq(signupSessions.email, normalised),
-        eq(signupSessions.status, 'pending'),
-        gt(signupSessions.expiresAt, new Date()),
-      ),
-    )
-    .orderBy(desc(signupSessions.updatedAt))
-    .limit(1);
-  return row ?? null;
+  try {
+    const [row] = await db
+      .select()
+      .from(signupSessions)
+      .where(
+        and(
+          eq(signupSessions.email, normalised),
+          eq(signupSessions.status, 'pending'),
+          gt(signupSessions.expiresAt, new Date()),
+        ),
+      )
+      .orderBy(desc(signupSessions.updatedAt))
+      .limit(1);
+    return row ?? null;
+  } catch (err) {
+    console.error('[signupSession] getActiveSignupSessionForEmail failed', err);
+    return null;
+  }
 }
 
 /** OTP verified — create or refresh pending signup session. Idempotent per email. */

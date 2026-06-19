@@ -116,13 +116,19 @@ export function CustomerLoginForm({
   }, [profilePhase, next]);
 
   useEffect(() => {
-    if (!allowSignupFlow && step !== 'credentials' && step !== 'reset-password') {
+    const forgotOtp = step === 'otp' && otpPurpose === 'forgot_password';
+    if (
+      !allowSignupFlow &&
+      step !== 'credentials' &&
+      step !== 'reset-password' &&
+      !forgotOtp
+    ) {
       setStep('credentials');
       setEmailVerified(false);
       setOtpPhase('idle');
       setProfilePhase('idle');
     }
-  }, [allowSignupFlow, step]);
+  }, [allowSignupFlow, step, otpPurpose]);
 
   const signupAutoSendDone = useRef(false);
   useEffect(() => {
@@ -676,7 +682,7 @@ export function CustomerLoginForm({
         <SignupProgress current="otp" theme={theme} />
       ) : null}
 
-      {allowSignupFlow && step === 'otp' ? (
+      {step === 'otp' && (allowSignupFlow || otpPurpose === 'forgot_password') ? (
         <form
           onSubmit={(e) => {
             e.preventDefault();
