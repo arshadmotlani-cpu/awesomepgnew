@@ -4,9 +4,6 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { bookings, customers } from '@/src/db/schema';
 import { VacatingRequestForm } from '@/src/components/customer/VacatingRequestForm';
-import { vacatingPenalty } from '@/src/services/billing';
-import type { PricingSnapshot } from '@/src/db/schema/bookings';
-import { paiseToInr } from '@/src/lib/format';
 import {
   ACCOUNT_BACK_LINK,
   ACCOUNT_PAGE_SUBTITLE,
@@ -32,7 +29,6 @@ export default async function RequestVacatingPage({
     .select({
       id: bookings.id,
       bookingCode: bookings.bookingCode,
-      pricingSnapshot: bookings.pricingSnapshot,
       durationMode: bookings.durationMode,
       status: bookings.status,
       customerFullName: customers.fullName,
@@ -43,10 +39,30 @@ export default async function RequestVacatingPage({
     .limit(1);
   if (!row) notFound();
 
-  const snapshot = row.pricingSnapshot as PricingSnapshot | null;
-  const monthlyRent =
-    snapshot?.perBed.reduce((acc, b) => acc + (b.monthlyRatePaise ?? 0), 0) ?? 0;
-  const penalty = vacatingPenalty(monthlyRent);
+  const isMonthlyResidency =
+    row.durationMode === 'monthly' || row.durationMode === 'open_ended';
+  if (row.status !== 'confirmed' || !isMonthlyResidency) {
+    return (
+      <div className="mx-auto w-full max-w-xl space-y-5 px-4 py-10 sm:px-6">
+        <header>
+          <Link href={ACCOUNT_RESIDENT_HREF} className={ACCOUNT_BACK_LINK}>
+            ← Back to resident area
+          </Link>
+          <h1 className={`mt-2 ${ACCOUNT_PAGE_TITLE}`}>Request vacate</h1>
+        </header>
+        <p className="rounded-xl border border-zinc-200 bg-white p-4 text-sm text-zinc-700">
+          Move-out requests apply to ongoing monthly stays. Open your booking page for short-stay
+          details or contact your PG manager.
+        </p>
+        <Link
+          href={`/booking/${row.bookingCode}`}
+          className="inline-flex text-sm font-semibold text-indigo-600 hover:text-indigo-500"
+        >
+          View booking →
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto w-full max-w-xl space-y-5 px-4 py-10 sm:px-6">
@@ -54,28 +70,22 @@ export default async function RequestVacatingPage({
         <Link href={ACCOUNT_RESIDENT_HREF} className={ACCOUNT_BACK_LINK}>
           ← Back to resident area
         </Link>
-        <h1 className={`mt-2 ${ACCOUNT_PAGE_TITLE}`}>Submit vacating request</h1>
+        <h1 className={`mt-2 ${ACCOUNT_PAGE_TITLE}`}>Request vacate</h1>
         <p className={ACCOUNT_PAGE_SUBTITLE}>
           Booking <span className="font-mono text-white">{row.bookingCode}</span> ·{' '}
           {row.customerFullName}
         </p>
       </header>
 
-      <section className="rounded-xl border border-zinc-200 bg-amber-50 p-4 text-sm text-amber-900 ring-1 ring-inset ring-amber-200">
-        <p className="font-medium">Notice policy</p>
-        <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs">
-          <li>
-            <strong>≥ 14 days notice:</strong> no deposit deduction.
-          </li>
-          <li>
-            <strong>&lt; 14 days notice:</strong> fixed 5-day rent deduction —{' '}
-            {paiseToInr(penalty)} (5 × monthly rent / 30). No additional
-            shortfall recovery.
-          </li>
-        </ul>
+      <section className="rounded-xl border border-zinc-200 bg-white p-4 text-sm text-zinc-700">
+        <p>
+          Choose your vacate date and upload room + electricity meter photos. Your request stays{' '}
+          <strong>pending admin approval</strong> until the office reviews it. Refund and final
+          settlement are calculated only after approval.
+        </p>
       </section>
 
-      <VacatingRequestForm bookingId={bookingId} monthlyRentPaise={monthlyRent} />
+      <VacatingRequestForm bookingId={bookingId} />
     </div>
   );
 }

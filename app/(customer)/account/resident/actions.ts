@@ -6,6 +6,8 @@ import { getCustomerSession } from '@/src/lib/auth/session';
 import { requireCustomerOwnsBooking } from '@/src/lib/auth/guards';
 import { submitVacatingRequest, cancelVacatingRequestByCustomer } from '@/src/services/vacating';
 import { accountProfileHref } from '@/src/lib/accountNavigation';
+import { uploadPaymentScreenshot } from '@/src/lib/payments/screenshotUpload';
+import { encodeVacatingRequestNotes } from '@/src/lib/vacating/requestNotes';
 
 export type VacatingActionState =
   | { status: 'idle' }
@@ -26,6 +28,15 @@ async function verifySessionOwnership(bookingId: string): Promise<
   }
 }
 
+export async function uploadVacatingProofAction(formData: FormData): Promise<string> {
+  const session = await getCustomerSession();
+  if (!session) throw new Error('Sign in required.');
+
+  const file = formData.get('file');
+  if (!(file instanceof File)) throw new Error('No file provided.');
+  return uploadPaymentScreenshot(file);
+}
+
 export async function submitVacatingAction(
   _prev: VacatingActionState,
   formData: FormData,
@@ -33,18 +44,32 @@ export async function submitVacatingAction(
   const bookingId = String(formData.get('bookingId') ?? '');
   const vacatingDate = String(formData.get('vacatingDate') ?? '');
   const notes = String(formData.get('notes') ?? '');
+  const roomPhotoUrl = String(formData.get('roomPhotoUrl') ?? '').trim();
+  const meterPhotoUrl = String(formData.get('meterPhotoUrl') ?? '').trim();
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(vacatingDate)) {
     return { status: 'error', message: 'Vacating date must be YYYY-MM-DD.' };
+  }
+  if (!roomPhotoUrl || !meterPhotoUrl) {
+    return {
+      status: 'error',
+      message: 'Upload both room condition and electricity meter photos before submitting.',
+    };
   }
 
   const ownership = await verifySessionOwnership(bookingId);
   if (!ownership.ok) return { status: 'error', message: ownership.message };
 
+  const encodedNotes = encodeVacatingRequestNotes({
+    roomPhotoUrl,
+    meterPhotoUrl,
+    residentNotes: notes || undefined,
+  });
+
   const result = await submitVacatingRequest({
     bookingId,
     vacatingDate,
-    notes: notes || null,
+    notes: encodedNotes,
   });
   if (!result.ok) {
     if (result.kind === 'already_exists') {
@@ -63,6 +88,8 @@ export async function submitVacatingAction(
     };
   }
   revalidatePath('/account/profile');
+  revalidatePath('/account/resident');
+  revalidatePath('/account/bookings');
   redirect(accountProfileHref('resident'));
 }
 

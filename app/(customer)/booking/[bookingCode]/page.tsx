@@ -8,7 +8,8 @@ import {
 import { parseDaterange } from '@/src/services/availability';
 import { formatDate as formatDateUtc } from '@/src/lib/dates';
 import { formatDate, formatDateTime, paiseToInr, titleCase } from '@/src/lib/format';
-import { CancelBookingForm } from '@/src/components/customer/CancelBookingForm';
+import { BookingRequestVacateSection } from '@/src/components/customer/BookingRequestVacateSection';
+import { getVacatingForBooking } from '@/src/db/queries/customer';
 import { KycCheckInBanner } from '@/src/components/customer/KycCheckInBanner';
 import { canCheckIn, getCustomerById } from '@/src/services/profile';
 import { getLatestKycSubmission } from '@/src/services/kyc';
@@ -144,7 +145,7 @@ export default async function BookingConfirmationPage(
   const bannerCopy = isPending
     ? 'Your beds are held for you. Complete payment to confirm the stay — if the hold lapses, the beds are released.'
     : isCancelled
-      ? 'This booking is no longer active. Any applicable refund has been queued per the cancellation policy.'
+      ? 'This booking is no longer active. Contact your PG if you have questions about settlement.'
       : `Your stay at ${b.pg.name} is locked in. The operator will reach out with check-in instructions.`;
   const bannerClasses = isPending
     ? 'border-amber-200 from-amber-50 to-white'
@@ -162,17 +163,15 @@ export default async function BookingConfirmationPage(
       ? 'text-rose-700'
       : 'text-emerald-700';
 
-  // Customers may cancel any booking that is still pending or confirmed.
-  // Once cancelled / refunded / completed, the action button disappears.
-  const canCancel = b.status === 'pending_payment' || b.status === 'confirmed';
-
   // Extend stay retired — to continue living, cancel vacating notice instead.
   const canExtend = false;
 
-  // Load extensions for the booking — we render them as a "stay history"
-  // strip even when there are zero (the section just gets hidden).
+  // Hotel-style cancellation removed — ongoing residents use Request Vacate.
   const extsResult = await listExtensionsForBooking(b.id);
   const extensions = extsResult.ok ? extsResult.data : [];
+
+  const vacatingRes = await getVacatingForBooking(b.id);
+  const vacating = vacatingRes.ok ? vacatingRes.data : null;
 
   const briefing = await buildBriefingInputForBooking({
     customerId: session.customerId,
@@ -441,29 +440,13 @@ export default async function BookingConfirmationPage(
         </section>
       ) : null}
 
-      {/* Cancellation surface — only when the booking can still be cancelled. */}
-      {canCancel ? (
-        <section className="mt-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-zinc-900">Cancel this booking</h2>
-          {b.pricingSnapshot?.cancellationPolicy ? (
-            <p className="mt-2 text-xs text-zinc-500">
-              Policy in effect at booking time:
-              {' '}full refund of rent if cancelled at least{' '}
-              <strong>{b.pricingSnapshot.cancellationPolicy.fullRefundUntilHrsBefore}h</strong>{' '}
-              before check-in;{' '}
-              <strong>{b.pricingSnapshot.cancellationPolicy.partialRefundPct}%</strong>{' '}
-              refund of rent if cancelled at least{' '}
-              <strong>{b.pricingSnapshot.cancellationPolicy.partialRefundUntilHrsBefore}h</strong>{' '}
-              before. Deposit is refunded{' '}
-              <strong>{b.pricingSnapshot.cancellationPolicy.depositRefundPct}%</strong>{' '}
-              in all cases.
-            </p>
-          ) : null}
-          <div className="mt-3">
-            <CancelBookingForm bookingCode={b.bookingCode} />
-          </div>
-        </section>
-      ) : null}
+      <BookingRequestVacateSection
+        bookingId={b.id}
+        bookingCode={b.bookingCode}
+        durationMode={b.durationMode}
+        status={b.status}
+        vacating={vacating}
+      />
 
       <div className="mt-8 flex flex-col items-stretch gap-3 sm:flex-row">
         <Link

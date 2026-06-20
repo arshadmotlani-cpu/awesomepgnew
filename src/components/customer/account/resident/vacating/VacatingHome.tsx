@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { ApgCard } from '@/src/components/customer/design-system';
 import { StatusTimeline } from '@/src/components/customer/design-system';
 import { CancelVacatingForm } from '@/src/components/customer/CancelVacatingForm';
-import { DepositRefundNotice } from '@/src/components/customer/DepositRefundNotice';
 import {
   buildVacatingSettlementLines,
   vacatingNextStep,
@@ -74,12 +73,11 @@ export function VacatingHome({
 
       {!vacating ? (
         <>
-          <DepositRefundNotice variant="compact" />
           <Link
             href={`/account/resident/request-vacating/${bookingId}`}
             className={PRIMARY_BTN}
           >
-            Give move-out notice
+            Request vacate
           </Link>
         </>
       ) : (
@@ -110,15 +108,7 @@ export function VacatingHome({
                 <dt className="text-zinc-600">Move-out date</dt>
                 <dd className="font-medium text-zinc-900">{formatDate(vacating.vacatingDate)}</dd>
               </div>
-              <div>
-                <dt className="text-zinc-600">14-day notice met?</dt>
-                <dd className="font-medium text-zinc-900">
-                  {vacating.noticeCompliant
-                    ? 'Yes — no short-notice deduction'
-                    : 'No — 5-day rent deduction applies'}
-                </dd>
-              </div>
-              {vacating.deductionPaise > 0 ? (
+              {vacating.status === 'completed' && vacating.deductionPaise > 0 ? (
                 <div>
                   <dt className="text-zinc-600">Deduction</dt>
                   <dd className="font-medium text-rose-700">{paiseToInr(vacating.deductionPaise)}</dd>

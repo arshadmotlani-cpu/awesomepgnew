@@ -18,13 +18,13 @@ export type VacatingStage = {
 export const VACATING_JOURNEY_STAGES: VacatingStage[] = [
   {
     id: 'request',
-    label: 'Give move-out notice',
-    residentHint: 'Tell us when you plan to leave.',
+    label: 'Request vacate',
+    residentHint: 'Choose your vacate date and upload required photos.',
   },
   {
     id: 'notice',
-    label: 'Notice review',
-    residentHint: 'We check your notice period meets policy.',
+    label: 'Admin review',
+    residentHint: 'Waiting for admin approval of your vacate request.',
   },
   {
     id: 'electricity',
@@ -70,7 +70,7 @@ export function vacatingStageIndex(
 export function vacatingStatusLabel(status: VacatingForBookingRow['status'] | null): string {
   switch (status) {
     case 'pending':
-      return 'Waiting for review';
+      return 'Pending admin approval';
     case 'approved':
       return 'Notice approved';
     case 'completed':
@@ -90,15 +90,15 @@ export function vacatingNextStep(args: {
 
   if (!vacating) {
     return {
-      headline: 'Plan your move-out',
-      detail: 'Submit a move-out notice at least 14 days before you leave to avoid a deposit deduction.',
+      headline: 'Request vacate',
+      detail: 'Submit your vacate date with room and electricity meter photos. Admin approves before settlement.',
     };
   }
 
   if (vacating.status === 'pending') {
     return {
-      headline: 'We received your notice',
-      detail: 'Our team is reviewing your move-out date. You can withdraw the request until it is approved.',
+      headline: 'Vacate request submitted',
+      detail: 'Pending admin approval. Refund and final charges are calculated only after the office reviews your request.',
     };
   }
 
@@ -153,16 +153,16 @@ export type SettlementLine = {
 export function buildVacatingSettlementLines(
   vacating: VacatingForBookingRow | null,
 ): SettlementLine[] {
-  if (!vacating) return [];
+  if (!vacating || vacating.status !== 'completed') return [];
   const lines: SettlementLine[] = [];
   if (vacating.deductionPaise > 0) {
     lines.push({
-      label: vacating.noticeCompliant ? 'Other deductions' : 'Short-notice deduction (5 days rent)',
+      label: vacating.noticeCompliant ? 'Deductions' : 'Short-notice deduction',
       amountPaise: vacating.deductionPaise,
       tone: 'deduction',
     });
   }
-  if (vacating.status === 'completed' && vacating.depositRefundPaise > 0) {
+  if (vacating.depositRefundPaise > 0) {
     lines.push({
       label: 'Deposit refund',
       amountPaise: vacating.depositRefundPaise,
