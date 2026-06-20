@@ -1,42 +1,18 @@
 import Link from 'next/link';
-import { AccountHeaderBar } from '@/src/components/customer/account/v2/AccountHeaderBar';
-import {
-  AccountModuleNav,
-  AccountSectionScrollSync,
-} from '@/src/components/customer/account/v2/AccountModuleNav';
-import { ProfileModule } from '@/src/components/customer/account/v2/ProfileModule';
-import { ResidencyJourneyModule } from '@/src/components/customer/account/v2/ResidencyJourneyModule';
-import { BillingOverviewModule } from '@/src/components/customer/account/v2/BillingOverviewModule';
-import { InvoiceListModule } from '@/src/components/customer/account/v2/InvoiceListModule';
-import { DepositRefundModule } from '@/src/components/customer/account/v2/DepositRefundModule';
+import { SimpleAccountHub } from '@/src/components/customer/simple/SimpleAccountHub';
 import { DocumentsModule } from '@/src/components/customer/account/v2/DocumentsModule';
-import { ResidentToolsModule } from '@/src/components/customer/account/v2/ResidentToolsModule';
 import { ResidentAreaSection } from '@/src/components/customer/account/ResidentAreaSection';
-import { ResidentUnlockCelebration } from '@/src/components/customer/account/ResidentUnlockCelebration';
-import { KycCheckInBanner } from '@/src/components/customer/KycCheckInBanner';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
 import {
   parseAccountSection,
   parseResidentTab,
 } from '@/src/lib/accountNavigation';
 import { formatIndianPhoneDisplay, indianLocalFromE164 } from '@/src/lib/phone';
-import { canCheckIn } from '@/src/services/profile';
-import { getLatestKycSubmission } from '@/src/services/kyc';
 import { loadResidentAccountContext } from '@/src/services/residentAccountContext';
 
 export const dynamic = 'force-dynamic';
 
 export const metadata = { title: 'My Account' };
-
-function legacyScrollTarget(section: string, tab: string): string | null {
-  if (section === 'identity') return 'documents';
-  if (section === 'profile') return 'profile';
-  if (section === 'resident') {
-    if (tab === 'wallet' || tab === 'payments') return tab === 'wallet' ? 'deposit' : 'invoices';
-    if (tab === 'home') return 'billing';
-  }
-  return null;
-}
 
 export default async function ProfilePage(
   props: PageProps<'/account/profile'>,
@@ -59,25 +35,13 @@ export default async function ProfilePage(
   const section = parseAccountSection(typeof sp.section === 'string' ? sp.section : undefined);
   const residentTab = parseResidentTab(typeof sp.tab === 'string' ? sp.tab : undefined);
 
-  const latestKyc = await getLatestKycSubmission(session.customerId);
-  const documentsSubmitted =
-    ctx.customer.kycStatus === 'pending' &&
-    latestKyc != null &&
-    latestKyc.status === 'pending';
-  const checkInAllowed = canCheckIn(ctx.customer);
-
   const legacyTabActive = section === 'resident' && residentTab !== 'home';
-  const scrollTarget = legacyScrollTarget(section, residentTab);
 
   if (legacyTabActive && ctx.hasConfirmedBooking) {
     return (
       <main className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6">
         <nav className="apg-account-nav mb-4 text-xs">
-          <Link href="/account/bookings">My bookings</Link>
-          <span className="mx-1">/</span>
-          <Link href="/account/profile">My account</Link>
-          <span className="mx-1">/</span>
-          <span aria-current="page">Resident</span>
+          <Link href="/account/profile">← My account</Link>
         </nav>
         <ResidentAreaSection
           customerId={session.customerId}
@@ -91,83 +55,38 @@ export default async function ProfilePage(
     );
   }
 
-  return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6">
-      <AccountSectionScrollSync targetId={scrollTarget} />
+  const bookingStatus =
+    ctx.hasConfirmedBooking || ctx.isActiveStay ? 'Active' : ('Not booked yet' as const);
 
+  return (
+    <main className="mx-auto w-full max-w-lg px-4 py-10 sm:px-6">
       <nav className="apg-account-nav mb-4 text-xs">
         <Link href="/account/bookings">My bookings</Link>
         <span className="mx-1">/</span>
         <span aria-current="page">My account</span>
       </nav>
 
-      <div className="space-y-6">
-        <AccountHeaderBar
-          fullName={session.fullName || ctx.customer.fullName}
-          phoneDisplay={formatIndianPhoneDisplay(session.phone)}
-          residentStatusLabel={ctx.journey.residentStatusLabel}
-        />
+      <SimpleAccountHub
+        fullName={ctx.customer.fullName}
+        email={ctx.customer.email}
+        phoneLocal={indianLocalFromE164(ctx.customer.phone) ?? ''}
+        phoneDisplay={formatIndianPhoneDisplay(session.phone)}
+        bookingStatus={bookingStatus}
+        profileComplete={ctx.profileComplete}
+        next={next}
+        invoices={ctx.invoices.filter((inv) => inv.payHref != null).slice(0, 2)}
+        customerPhone={ctx.customer.phone}
+      />
 
-        {!checkInAllowed ? (
-          <KycCheckInBanner
-            kycStatus={ctx.customer.kycStatus}
-            bookingCode={bookingCode}
-            documentsSubmitted={documentsSubmitted}
-          />
-        ) : null}
-
-        <AccountModuleNav showBilling={ctx.hasConfirmedBooking} />
-
-        {ctx.hasConfirmedBooking ? (
-          <ResidentUnlockCelebration
+      {section === 'identity' ? (
+        <div className="mt-8">
+          <DocumentsModule
             customerId={session.customerId}
-            residentName={session.fullName || ctx.customer.fullName}
+            bookingCode={bookingCode}
+            submitted={submitted}
           />
-        ) : null}
-
-        <ProfileModule
-          fullName={ctx.customer.fullName}
-          email={ctx.customer.email}
-          phoneLocal={indianLocalFromE164(ctx.customer.phone) ?? ''}
-          profileComplete={ctx.profileComplete}
-          next={next}
-        />
-
-        <ResidencyJourneyModule journey={ctx.journey} />
-
-        {ctx.financialSummary ? (
-          <>
-            <BillingOverviewModule
-              summary={ctx.financialSummary}
-              pgName={ctx.financialSummary.pgName}
-              roomNumber={ctx.financialSummary.roomNumber}
-            />
-            <InvoiceListModule
-              invoices={ctx.invoices}
-              customerName={ctx.customer.fullName}
-              customerPhone={ctx.customer.phone}
-            />
-            {ctx.primaryBooking ? (
-              <DepositRefundModule
-                bookingId={ctx.primaryBooking.bookingId}
-                depositPaidPaise={ctx.depositPaidPaise}
-                depositHeldPaise={ctx.depositHeldPaise}
-                depositRefundablePaise={ctx.depositRefundablePaise}
-                depositOutstandingPaise={ctx.depositOutstandingPaise}
-                depositStatusLabel={ctx.depositStatusLabel}
-                showRefundForm={ctx.customer.residencyStatus === 'vacated' || ctx.journey.steps.find((s) => s.id === 'active_stay')?.status === 'done'}
-              />
-            ) : null}
-            <ResidentToolsModule bookingCode={ctx.primaryBooking?.bookingCode ?? bookingCode} />
-          </>
-        ) : null}
-
-        <DocumentsModule
-          customerId={session.customerId}
-          bookingCode={bookingCode}
-          submitted={submitted}
-        />
-      </div>
+        </div>
+      ) : null}
     </main>
   );
 }

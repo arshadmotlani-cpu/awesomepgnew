@@ -1,20 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { AmenityList } from '@/src/components/customer/AmenityList';
-import { PgRoomWorldSection } from '@/src/components/world/PgRoomWorldSection';
-import { PgFilteredBedMapSection } from '@/src/components/world/PgFilteredBedMapSection';
-import { resolveRoomMedia } from '@/src/lib/roomWorld/roomMedia';
-import type { PgSpineRoom } from '@/src/lib/roomWorld/pgSpineRoom';
-import { BookingFlowStepper } from '@/src/components/customer/checkout/BookingFlowStepper';
-import { GenderBadge } from '@/src/components/customer/GenderBadge';
-import { StickyBookCta } from '@/src/components/customer/marketing/StickyBookCta';
-import { PgImageGallery } from '@/src/components/customer/PgImageGallery';
+import { SimplePgBookingFlow } from '@/src/components/customer/simple/SimplePgBookingFlow';
 import type { CustomerRoomBedMap } from '@/src/components/customer/CustomerBedMap';
 import { AnalyticsMountEvent } from '@/src/components/analytics/AnalyticsMountEvent';
-import { PgTrustSection } from '@/src/components/customer/PgTrustSection';
-import { nearbyForCity, reviewsForPg } from '@/src/lib/marketing/pgTrustContent';
 import { getPgBySlug, getRoomDetail, listRoomsForPg } from '@/src/db/queries/customer';
-import { ElectricityMeterNotice } from '@/src/components/customer/ElectricityMeterNotice';
 import { trackAnalyticsEvent } from '@/src/services/visitorAnalytics';
 
 export const dynamic = 'force-dynamic';
@@ -26,8 +15,8 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
 
   if (!pgResult.ok) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
-        <ErrorState message={pgResult.error} />
+      <div className="mx-auto max-w-lg px-4 py-12 sm:px-6">
+        <p className="text-sm text-rose-200">Could not load this PG. Please try again.</p>
       </div>
     );
   }
@@ -81,141 +70,27 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
   );
   const fullyOccupied = totalBeds > 0 && availableBeds === 0;
 
-  const pgImages = pg.images ?? [];
-  const pgVideos = pg.videos ?? [];
-  const spineRooms: PgSpineRoom[] = roomList.map((room, index) => {
-    const bedRoom = bedMapRooms.find((r) => r.roomId === room.roomId);
-    const media = resolveRoomMedia({ roomIndex: index, pgImages, pgVideos });
-    return {
-      roomId: room.roomId,
-      roomNumber: room.roomNumber,
-      roomType: room.roomType,
-      floorNumber: room.floorNumber,
-      floorLabel: room.floorLabel,
-      capacity: room.capacity,
-      hasAc: room.hasAc,
-      availableBeds: room.availableBeds,
-      totalBeds: room.totalBeds,
-      beds: bedRoom?.beds ?? [],
-      imageUrl: media.imageUrl,
-      videoUrl: media.videoUrl,
-    };
-  });
-
   void trackAnalyticsEvent({
     eventType: 'pg_viewed',
     metadata: { pgSlug: pg.slug, pgId: pg.id },
   });
 
   return (
-    <div className="apg-aurora mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
+    <div className="apg-aurora mx-auto w-full max-w-2xl px-4 py-8 sm:px-6">
       <AnalyticsMountEvent eventType="pg_viewed" metadata={{ pgSlug: pg.slug, pgId: pg.id }} />
-      <nav className="mb-4 text-xs text-apg-silver">
+      <nav className="mb-6 text-xs text-apg-silver">
         <Link href="/pgs" className="hover:text-apg-orange">
-          Browse PGs
+          ← All PGs
         </Link>
-        <span className="mx-2 opacity-40">/</span>
-        <span className="text-white">{pg.name}</span>
       </nav>
 
-      <div className="mb-6">
-        <ElectricityMeterNotice />
-      </div>
-
-      <section className="overflow-hidden rounded-3xl border border-white/10 apg-glass">
-        <div className="relative p-4 sm:p-6">
-          <div className="absolute left-6 top-6 z-10">
-            <GenderBadge policy={pg.genderPolicy} />
-          </div>
-          <PgImageGallery images={pg.images} name={pg.name} />
-        </div>
-        <div className="grid grid-cols-1 gap-6 border-t border-white/5 p-5 sm:grid-cols-[1.6fr_1fr] sm:p-6">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-4xl">
-              {pg.name}
-            </h1>
-            <p className="mt-2 text-sm text-apg-silver">
-              {pg.addressLine1}
-              {pg.addressLine2 ? `, ${pg.addressLine2}` : ''} · {pg.city}, {pg.state}{' '}
-              {pg.pincode}
-            </p>
-            {pg.description ? (
-              <p className="mt-4 max-w-2xl text-sm leading-relaxed text-apg-silver/90">
-                {pg.description}
-              </p>
-            ) : (
-              <p className="mt-4 text-sm text-apg-silver/70">
-                Premium PG living with daily cleaning, free laundry, high-speed WiFi, and bed-first
-                booking.
-              </p>
-            )}
-            <div className="mt-4 flex flex-wrap gap-3 text-xs text-apg-silver">
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                {availableBeds} of {totalBeds} beds free right now
-              </span>
-            </div>
-          </div>
-          <div className="self-start rounded-2xl border border-white/10 apg-glass-light p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-apg-orange">
-              Amenities
-            </p>
-            <div className="mt-3">
-              <AmenityList amenities={pg.amenities} variant="dark" />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {fullyOccupied ? (
-        <section className="mt-6 rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-          <strong>Fully occupied today</strong> — all beds are taken right now. Notice-period beds
-          may still be pre-bookable; tap any bed for details.
-        </section>
-      ) : null}
-
-      <div className="mt-6 rounded-xl border border-white/10 apg-glass-light p-4">
-        <BookingFlowStepper activeStep="room" />
-      </div>
-
-      <section className="mt-8" id="room-world" data-roachie-tour="room-world">
-        {roomsResult.ok ? (
-          <PgRoomWorldSection pgId={pg.id} pgSlug={pg.slug} rooms={spineRooms} />
-        ) : null}
-      </section>
-
-      <section className="mt-8" id="pg-beds" data-roachie-tour="pg-beds">
-        <div className="mb-5">
-          <h2 className="text-xl font-semibold text-white">Bed map</h2>
-          <p className="text-sm text-apg-silver">
-            After choosing a room, pick your bed here. Orange = notice (someone leaving soon).
-          </p>
-        </div>
-
-        {!roomsResult.ok ? (
-          <ErrorState message={roomsResult.error} />
-        ) : bedMapRooms.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-white/10 apg-glass-light p-8 text-center text-sm text-apg-silver">
-            No rooms have been added to this PG yet.
-          </p>
-        ) : (
-          <PgFilteredBedMapSection pgSlug={pg.slug} rooms={bedMapRooms} />
-        )}
-      </section>
-      <StickyBookCta href="#pg-beds" label="Choose a room, then pick your bed" />
-
-      <PgTrustSection
-        reviews={reviewsForPg(pg.slug)}
-        nearby={nearbyForCity(pg.city)}
+      <SimplePgBookingFlow
+        pgName={pg.name}
+        images={pg.images ?? []}
+        rooms={roomList}
+        bedMapRooms={bedMapRooms}
+        fullyOccupied={fullyOccupied}
       />
-    </div>
-  );
-}
-
-function ErrorState({ message }: { message: string }) {
-  return (
-    <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-5 text-sm text-amber-100">
-      <p className="font-semibold">Couldn&apos;t reach the database.</p>
-      <p className="mt-1">{message}</p>
     </div>
   );
 }

@@ -3,12 +3,11 @@ import {
   BookingCartForm,
   type CartLineItem,
 } from '@/src/components/customer/BookingCartForm';
-import { BookingCheckoutWorld } from '@/src/components/world/BookingCheckoutWorld';
-import { BookingNewHeader } from '@/src/components/customer/checkout/BookingNewHeader';
+import { SimplePriceSummary } from '@/src/components/customer/simple/SimplePriceSummary';
+import { SimpleStayRules } from '@/src/components/customer/simple/SimpleStayRules';
 import { getBedsForCart } from '@/src/db/queries/customer';
 import { normalizeBrowseStay } from '@/src/lib/dateDefaults';
 import { todayString } from '@/src/lib/dates';
-import { paiseToInr } from '@/src/lib/format';
 import { quoteBookingPrice } from '@/src/services/pricing';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
 import { getCustomerById, isProfileComplete } from '@/src/services/profile';
@@ -17,9 +16,7 @@ import {
   getCustomerDepositCredit,
 } from '@/src/services/depositCredit';
 
-export const metadata = {
-  title: 'Confirm your booking',
-};
+export const metadata = { title: 'Pay for your room' };
 
 export const dynamic = 'force-dynamic';
 
@@ -48,9 +45,7 @@ function bookingReturnPath(sp: SearchParams): string {
   return qs ? `/booking/new?${qs}` : '/booking/new';
 }
 
-export default async function NewBookingPage(
-  props: PageProps<'/booking/new'>,
-) {
+export default async function NewBookingPage(props: PageProps<'/booking/new'>) {
   const sp = (await props.searchParams) as SearchParams;
   const session = await requireCustomerSession(bookingReturnPath(sp));
   const customer = await getCustomerById(session.customerId);
@@ -71,46 +66,17 @@ export default async function NewBookingPage(
   const { start, end, mode } = stay;
 
   const cartBedsResult = await getBedsForCart(bedIds);
-  if (!cartBedsResult.ok) {
-    return (
-      <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">
-          <p className="font-semibold">Couldn&apos;t load your selected beds.</p>
-          <p className="mt-1">{cartBedsResult.error}</p>
-        </div>
-      </div>
-    );
-  }
-  if (cartBedsResult.data.length === 0) {
+  if (!cartBedsResult.ok || cartBedsResult.data.length === 0) {
     return <Empty />;
   }
   const cartBeds = cartBedsResult.data;
 
-  // Block carts that mix beds from multiple PGs — gender policy / billing
-  // context only makes sense within a single PG. (In practice this won't
-  // happen via the UI, but a hand-typed URL could.)
   const pgIds = new Set(cartBeds.map((b) => b.pgId));
   if (pgIds.size > 1) {
-    return (
-      <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700">
-          <p className="font-semibold">Beds from multiple PGs in one cart.</p>
-          <p className="mt-1">
-            Awesome PG only supports booking beds from one property at a time.
-            Go back and pick again.
-          </p>
-          <Link
-            href="/pgs"
-            className="mt-3 inline-block text-sm font-semibold text-indigo-600 hover:underline"
-          >
-            Back to PG list
-          </Link>
-        </div>
-      </div>
-    );
+    return <Empty />;
   }
 
-  const pg = cartBeds[0];
+  const pg = cartBeds[0]!;
 
   const profileReturnParams = new URLSearchParams();
   profileReturnParams.set('start', start);
@@ -119,8 +85,6 @@ export default async function NewBookingPage(
   for (const id of bedIds) profileReturnParams.append('bed', id);
   const profileNextUrl = `/account/profile?next=${encodeURIComponent(`/booking/new?${profileReturnParams.toString()}`)}`;
 
-  // Live price quote. Wrap in try/catch so a missing price row surfaces as a
-  // friendly UI message rather than a 500.
   let lineItems: CartLineItem[] = [];
   let subtotalPaise = 0;
   let depositPaise = 0;
@@ -129,7 +93,6 @@ export default async function NewBookingPage(
   let totalPaise = 0;
   let quoteError: string | null = null;
   let breakdownLineItems: import('@/src/services/pricing').LineItem[] = [];
-  let lowestPriceApplied = false;
 
   try {
     const quote = await quoteBookingPrice({
@@ -149,158 +112,101 @@ export default async function NewBookingPage(
     breakdownLineItems = quote.perBed.flatMap((q) =>
       q.lineItems.filter((li) => li.kind !== 'deposit'),
     );
-    lowestPriceApplied = quote.perBed.some((q) => q.lowestPriceApplied);
     lineItems = quote.perBed.map((q) => {
       const bedMeta = cartBeds.find((c) => c.bedId === q.bedId);
-      const bedLabel = bedMeta
-        ? `Bed ${bedMeta.bedCode} · Room ${bedMeta.roomNumber}`
-        : `Bed ${q.bedId.slice(0, 8)}…`;
-      const unitsLabel =
-        mode === 'daily'
-          ? `${q.units} night${q.units === 1 ? '' : 's'}`
-          : mode === 'weekly'
-            ? `${q.units} week${q.units === 1 ? '' : 's'}`
-            : mode === 'monthly'
-              ? `${q.units} month${q.units === 1 ? '' : 's'}${
-                  q.lineItems.some((li) => li.kind === 'pro_rata_days')
-                    ? ' + pro-rata days'
-                    : ''
-                }`
-              : mode === 'fixed_stay'
-                ? `${q.nights ?? 0} night${q.nights === 1 ? '' : 's'} (lowest price)`
-                : '1 month upfront (open-ended)';
+      const bedLabel = bedMeta ? `Your room at ${pg.pgName}` : 'Your room';
       return {
         bedId: q.bedId,
         label: bedLabel,
-        // Per-bed line shows RENT only (this bed's contribution to Subtotal).
-        // The deposit is broken out separately below so the visible ledger
-        // reads: per-bed lines → Subtotal → Refundable deposit → Total.
-        // Without this the per-bed lines would silently include deposit and
-        // visually mis-match the "Subtotal" row beneath them.
         lineTotalPaise: q.subtotalPaise,
-        unitsLabel,
+        unitsLabel: 'your stay',
       };
     });
   } catch (err) {
     quoteError = err instanceof Error ? err.message : String(err);
   }
 
-  // Customer is in the booking flow with beds selected — eligible for PS4 add-on.
-  const showPs4Addon = profileComplete && !quoteError;
   const checkoutTiming = start > todayString() ? 'future_start' : 'available_now';
+  const depositDueNow = additionalDepositDuePaise ?? Math.max(0, depositPaise - depositCreditAppliedPaise);
 
   return (
-    <BookingCheckoutWorld>
-      <nav className="text-xs text-apg-muted">
-        <Link href="/pgs" className="hover:text-apg-cyan">
-          PGs
-        </Link>{' '}
-        ·{' '}
-        <Link
-          href={`/pgs/${pg.pgSlug}?start=${start}&end=${end}&mode=${mode}`}
-          className="hover:text-apg-cyan"
-        >
-          {pg.pgName}
-        </Link>{' '}
-        · <span className="text-apg-silver">Confirm booking</span>
+    <main className="apg-aurora mx-auto max-w-lg px-4 py-10 sm:px-6">
+      <nav className="mb-4 text-xs text-apg-silver">
+        <Link href={`/pgs/${pg.pgSlug}`} className="hover:text-apg-orange">
+          ← Back
+        </Link>
       </nav>
 
-      <header className="mt-3 mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
-          Confirm your booking
-        </h1>
-        <p className="mt-1 text-sm text-apg-silver">
-          Review the {bedIds.length} bed{bedIds.length === 1 ? '' : 's'} you
-          selected at <span className="font-medium text-white">{pg.pgName}</span>,
-          enter your details, and continue to payment.
-        </p>
-      </header>
+      <h1 className="text-2xl font-bold text-white">Almost done!</h1>
+      <p className="mt-2 text-base text-apg-silver">
+        Check the price below, then tap continue to pay.
+      </p>
 
-      <BookingNewHeader />
+      <div className="mt-5">
+        <SimpleStayRules />
+      </div>
 
       {!profileComplete ? (
-        <div className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
-          <p className="font-semibold">Complete your profile before booking.</p>
-          <p className="mt-1">
-            We need your full name, email, and mobile number.
-          </p>
-          <Link
-            href={profileNextUrl}
-            className="mt-2 inline-block font-semibold text-apg-cyan hover:underline"
-          >
+        <div className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+          <p className="font-semibold">First, add your name and phone.</p>
+          <Link href={profileNextUrl} className="mt-2 inline-block font-bold text-apg-cyan">
             Go to profile →
           </Link>
         </div>
       ) : null}
 
       {quoteError ? (
-        <div className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
-          <p className="font-semibold">Couldn&apos;t compute a price quote.</p>
-          <p className="mt-1">{quoteError}</p>
+        <div className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+          {quoteError}
         </div>
-      ) : null}
+      ) : (
+        <div className="mt-6">
+          <SimplePriceSummary
+            rentPaise={subtotalPaise}
+            depositPaise={depositDueNow}
+            totalPaise={totalPaise}
+          />
+        </div>
+      )}
 
-      <BookingCartForm
-        bedIds={bedIds}
-        startDate={start}
-        endDate={mode === 'open_ended' ? null : end}
-        durationMode={mode}
-        lineItems={lineItems}
-        subtotalPaise={subtotalPaise}
-        depositPaise={depositPaise}
-        depositCreditAppliedPaise={depositCreditAppliedPaise}
-        additionalDepositDuePaise={additionalDepositDuePaise}
-        totalPaise={totalPaise}
-        defaultCustomer={{
-          fullName: session.fullName,
-          email: session.email,
-          phone: session.phone,
-        }}
-        showPs4Addon={showPs4Addon}
-        checkoutTiming={checkoutTiming}
-        breakdownLineItems={breakdownLineItems}
-        lowestPriceApplied={lowestPriceApplied}
-      />
-
-      {/* Selected beds quick-reference */}
-      <section className="mt-8 apg-glass rounded-xl p-5">
-        <h2 className="text-sm font-semibold text-white">Selected beds</h2>
-        <ul className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {cartBeds.map((b) => (
-            <li
-              key={b.bedId}
-              className="rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs"
-            >
-              <div className="font-semibold text-white">{b.bedCode}</div>
-              <div className="text-apg-muted">
-                Room {b.roomNumber} · {b.floorLabel}
-              </div>
-              <div className="text-apg-muted">{b.roomType}</div>
-            </li>
-          ))}
-        </ul>
-        <p className="mt-3 text-[11px] text-apg-muted">
-          Subtotal computed at the {mode.replace('_', '-')} rate. Deposit is fully
-          refundable on check-out. All amounts are in Indian Rupees (₹).
-        </p>
-      </section>
-    </BookingCheckoutWorld>
+      <div className="mt-6 rounded-2xl border border-white/10 apg-glass-light p-4">
+        <BookingCartForm
+          bedIds={bedIds}
+          startDate={start}
+          endDate={mode === 'open_ended' ? null : end}
+          durationMode={mode}
+          lineItems={lineItems}
+          subtotalPaise={subtotalPaise}
+          depositPaise={depositPaise}
+          depositCreditAppliedPaise={depositCreditAppliedPaise}
+          additionalDepositDuePaise={additionalDepositDuePaise}
+          totalPaise={totalPaise}
+          defaultCustomer={{
+            fullName: session.fullName,
+            email: session.email,
+            phone: session.phone,
+          }}
+          showPs4Addon={false}
+          checkoutTiming={checkoutTiming}
+          breakdownLineItems={breakdownLineItems}
+          simpleCheckout
+        />
+      </div>
+    </main>
   );
 }
 
 function Empty() {
   return (
-    <div className="mx-auto max-w-3xl px-4 py-16 text-center sm:px-6">
-      <h1 className="text-xl font-semibold text-zinc-900">Your cart is empty.</h1>
-      <p className="mt-2 text-sm text-zinc-500">
-        Pick a PG, choose your dates, and select one or more beds to continue.
-      </p>
+    <main className="mx-auto max-w-lg px-4 py-16 text-center sm:px-6">
+      <h1 className="text-xl font-bold text-white">No room picked yet.</h1>
+      <p className="mt-2 text-sm text-apg-silver">Go back and tap Book a Room.</p>
       <Link
         href="/pgs"
-        className="mt-5 inline-flex items-center justify-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
+        className="mt-6 inline-flex min-h-[48px] items-center justify-center rounded-xl bg-apg-orange px-6 text-sm font-bold text-white"
       >
         Browse PGs
       </Link>
-    </div>
+    </main>
   );
 }

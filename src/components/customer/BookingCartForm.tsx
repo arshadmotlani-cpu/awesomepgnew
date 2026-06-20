@@ -52,6 +52,8 @@ type Props = {
   showPs4Addon?: boolean;
   /** Whether check-in is today/soon (direct book) or a future date (pre-book). */
   checkoutTiming?: 'available_now' | 'future_start';
+  /** Simplified checkout — hides duplicate pricing and jargon. */
+  simpleCheckout?: boolean;
 };
 
 const INITIAL_STATE: BookingActionState = { status: 'idle' };
@@ -72,6 +74,7 @@ export function BookingCartForm({
   checkoutTiming = 'available_now',
   breakdownLineItems = [],
   lowestPriceApplied,
+  simpleCheckout = false,
 }: Props) {
   const [state, formAction, isPending] = useActionState(
     createBookingAction,
@@ -113,6 +116,77 @@ export function BookingCartForm({
   const stepHint = isPreBook
     ? `You're pre-booking for check-in on ${formatDate(startDate)}. Next: pay via UPI QR and upload proof — admin confirms once verified.`
     : 'This bed is available now — you are booking it directly (not pre-booking). Next: pay rent + deposit via UPI QR and upload proof for admin approval.';
+
+  if (simpleCheckout) {
+    return (
+      <form action={formAction} className="space-y-4">
+        <input type="hidden" name="startDate" value={startDate} />
+        {endDate ? <input type="hidden" name="endDate" value={endDate} /> : null}
+        <input type="hidden" name="durationMode" value={durationMode} />
+        {bedIds.map((id) => (
+          <input key={id} type="hidden" name="bedId" value={id} />
+        ))}
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field
+            label="Your name"
+            name="fullName"
+            required
+            autoComplete="name"
+            defaultValue={defaultCustomer?.fullName}
+          />
+          <label className="flex flex-col gap-1 text-xs font-medium text-zinc-700">
+            Phone
+            <IndianPhoneInput
+              value={phoneLocal}
+              onChange={setPhoneLocal}
+              name="phone"
+              required
+              readOnly={phoneLocked}
+            />
+          </label>
+          <Field
+            label="Email"
+            name="email"
+            type="email"
+            required
+            autoComplete="email"
+            defaultValue={defaultCustomer?.email}
+          />
+          <label className="flex flex-col gap-1 text-xs font-medium text-zinc-700">
+            Gender
+            <select
+              name="gender"
+              required
+              defaultValue=""
+              className="h-9 rounded-md border border-zinc-300 bg-white px-2 text-sm text-zinc-900"
+            >
+              <option value="" disabled>
+                Pick one
+              </option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+        </div>
+
+        {state.status === 'error' ? (
+          <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+            {state.message}
+          </div>
+        ) : null}
+
+        <button
+          type="submit"
+          disabled={isPending}
+          className="flex min-h-[52px] w-full items-center justify-center rounded-xl bg-apg-orange text-base font-bold text-white hover:brightness-110 disabled:opacity-40"
+        >
+          {isPending ? 'Please wait…' : 'Continue to Pay'}
+        </button>
+      </form>
+    );
+  }
 
   return (
     <form
