@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useState } from 'react';
+import { MobileBottomSheet } from '@/src/components/customer/block/MobileBottomSheet';
 import {
   CUSTOMER_BED_KIND_CLASS,
   deriveCustomerBedAvailabilityView,
@@ -147,6 +148,7 @@ export function CustomerBedDetailSheet({
   onPreBook,
   onReserve,
   onNoticeInterestUpdate,
+  presentation = 'center',
 }: {
   bed: BedSelectorBed;
   roomLabel: string;
@@ -155,8 +157,10 @@ export function CustomerBedDetailSheet({
   onPreBook: () => void;
   onReserve: () => void;
   onNoticeInterestUpdate?: (bedId: string, count: number) => void;
+  presentation?: 'center' | 'bottomSheet';
 }) {
   const sheetRootId = useId().replace(/:/g, '');
+  const titleId = `${sheetRootId}-title`;
   const [noticeCount, setNoticeCount] = useState(bed.noticeInterestCount ?? 0);
 
   useEffect(() => {
@@ -176,12 +180,13 @@ export function CustomerBedDetailSheet({
   const opensDate = isNotice ? bed.vacatingDate : isFuturePreBook ? bookableFrom : null;
 
   useEffect(() => {
+    if (presentation === 'bottomSheet') return;
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, presentation]);
 
   useEffect(() => {
     if (!isNotice && !isAvailable) return;
@@ -196,39 +201,30 @@ export function CustomerBedDetailSheet({
       .catch(() => undefined);
   }, [bed.bedId, isNotice, isAvailable, onNoticeInterestUpdate]);
 
-  return (
+  const body = (
     <>
-      <div
-        className="fixed inset-0 z-[99950] flex items-end justify-center bg-black/60 p-4 sm:items-center"
-        onClick={onClose}
-        role="presentation"
-      >
-        <div
-          id={sheetRootId}
-          className="relative max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-white/10 bg-[#1A1F27] p-5 shadow-2xl"
-          role="dialog"
-          aria-modal
-          data-roachie-tour="bed-detail-sheet"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-apg-orange">
-                {roomLabel}
-              </p>
-              <h2 className="text-xl font-semibold text-white">Bed {bed.bedCode}</h2>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg px-2 py-1 text-apg-silver hover:bg-white/5 hover:text-white"
-              aria-label="Close"
-            >
-              ✕
-            </button>
-          </div>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-wider text-apg-muted">
+            {roomLabel}
+          </p>
+          <h2 id={titleId} className="text-lg font-semibold text-white">
+            Bed {bed.bedCode}
+          </h2>
+        </div>
+        {presentation === 'center' ? (
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg px-2 py-1 text-apg-silver hover:bg-white/5 hover:text-white"
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        ) : null}
+      </div>
 
-          <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+      <div className="mt-4 rounded-[14px] border border-white/10 bg-white/[0.03] px-4 py-3">
             <p className="text-sm font-semibold text-white">{availability.label}</p>
             {availability.sublabel ? (
               <p className="mt-1 text-xs text-apg-silver">{availability.sublabel}</p>
@@ -373,9 +369,40 @@ export function CustomerBedDetailSheet({
               ) : null}
             </div>
           ) : null}
-        </div>
-      </div>
     </>
+  );
+
+  if (presentation === 'bottomSheet') {
+    return (
+      <MobileBottomSheet open onClose={onClose} ariaLabelledBy={titleId}>
+        <div
+          id={sheetRootId}
+          className="max-h-[calc(88vh-2.5rem)] overflow-y-auto overscroll-contain px-5 pb-8 pt-0"
+          data-roachie-tour="bed-detail-sheet"
+        >
+          {body}
+        </div>
+      </MobileBottomSheet>
+    );
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[99950] flex items-end justify-center bg-black/60 p-4 sm:items-center"
+      onClick={onClose}
+      role="presentation"
+    >
+      <div
+        id={sheetRootId}
+        className="relative max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-white/10 bg-[#1A1F27] p-5 shadow-2xl"
+        role="dialog"
+        aria-modal
+        data-roachie-tour="bed-detail-sheet"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {body}
+      </div>
+    </div>
   );
 }
 

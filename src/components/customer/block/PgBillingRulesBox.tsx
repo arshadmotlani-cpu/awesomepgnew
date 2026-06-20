@@ -11,12 +11,12 @@ export function PgBillingRulesBox({ className = '' }: { className?: string }) {
   return (
     <aside
       className={
-        'rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-apg-silver ' +
+        'rounded-[16px] border border-white/10 bg-white/[0.03] px-4 py-4 text-xs text-apg-muted shadow-sm ' +
         className
       }
     >
-      <p className="font-semibold text-white">Stay rules</p>
-      <ul className="mt-2 list-disc space-y-1 pl-5">
+      <p className="text-[13px] font-semibold text-white">Stay rules</p>
+      <ul className="mt-2 space-y-1">
         {RULES.map((rule) => (
           <li key={rule}>{rule}</li>
         ))}

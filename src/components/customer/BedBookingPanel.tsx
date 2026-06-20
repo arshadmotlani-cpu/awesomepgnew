@@ -23,6 +23,7 @@ import { STAY_CHECK_IN_TIME, STAY_CHECK_OUT_TIME } from '@/src/lib/residents/sta
 import type { PricingMode } from '@/src/services/pricing';
 import type { BedSelectorBed } from './BedSelector';
 import { StayDateRangePicker, type StayDateSummary } from './StayDateRangePicker';
+import { MobileBottomSheet } from '@/src/components/customer/block/MobileBottomSheet';
 
 export type BedTimelineResponse = {
   bedId: string;
@@ -47,6 +48,7 @@ type Props = {
   onClose: () => void;
   shortStayOnly?: boolean;
   reserveCheckInDate?: string;
+  presentation?: 'center' | 'bottomSheet';
 };
 
 type StayIntent = 'fixed' | 'indefinite';
@@ -75,6 +77,7 @@ export function BedBookingPanel({
   onClose,
   shortStayOnly = false,
   reserveCheckInDate,
+  presentation = 'center',
 }: Props) {
   const dark = theme === 'dark';
   const router = useRouter();
@@ -280,32 +283,40 @@ export function BedBookingPanel({
     ? 'rounded-lg border border-white/15 px-4 py-2.5 text-sm font-medium text-apg-silver hover:border-white/30 hover:text-white'
     : 'rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-50';
 
-  return (
+  const panelInner = (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="bed-booking-title"
+      className={
+        presentation === 'bottomSheet'
+          ? 'flex max-h-[calc(88vh-2.5rem)] flex-col overflow-hidden'
+          : `w-full max-w-lg max-h-[90vh] overflow-y-auto ${shell}`
+      }
     >
-      <div className={`w-full max-w-lg max-h-[90vh] overflow-y-auto ${shell}`}>
-        <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-white/10 bg-inherit px-4 py-4 sm:px-5">
-          <div>
-            <h2
-              id="bed-booking-title"
-              className={`text-lg font-semibold ${dark ? 'text-white' : 'text-zinc-900'}`}
-            >
-              Book {beds.length === 1 ? `bed ${beds[0]!.bedCode}` : `${beds.length} beds`}
-            </h2>
-            <p className={`mt-0.5 text-xs ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
-              Pick your dates — we automatically apply the lowest available price.
-            </p>
-          </div>
+      <div className="sticky top-0 z-10 flex shrink-0 items-start justify-between gap-3 border-b border-white/10 bg-[#161b22] px-4 py-4 sm:px-5">
+        <div>
+          <h2
+            id="bed-booking-title"
+            className={`text-lg font-semibold ${dark ? 'text-white' : 'text-zinc-900'}`}
+          >
+            Book {beds.length === 1 ? `bed ${beds[0]!.bedCode}` : `${beds.length} beds`}
+          </h2>
+          <p className={`mt-0.5 text-xs ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
+            Pick your dates — we automatically apply the lowest available price.
+          </p>
+        </div>
+        {presentation === 'center' ? (
           <button type="button" onClick={onClose} className={btnGhost} aria-label="Close">
             ✕
           </button>
-        </div>
+        ) : null}
+      </div>
 
-        <div className="space-y-4 px-4 py-4 sm:px-5">
+      <div
+        className={
+          presentation === 'bottomSheet'
+            ? 'min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5'
+            : 'space-y-4 px-4 py-4 sm:px-5'
+        }
+      >
           {loading ? (
             <p className={`text-sm ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
               Loading bed availability…
@@ -556,7 +567,11 @@ export function BedBookingPanel({
           )}
         </div>
 
-        <div className="sticky bottom-0 flex flex-col-reverse gap-2 border-t border-white/10 bg-inherit px-4 py-4 sm:flex-row sm:justify-end sm:px-5">
+        <div
+          className={
+            'sticky bottom-0 flex shrink-0 flex-col-reverse gap-2 border-t border-white/10 bg-[#161b22] px-4 py-4 sm:flex-row sm:justify-end sm:px-5'
+          }
+        >
           <button type="button" onClick={onClose} className={btnGhost}>
             Cancel
           </button>
@@ -570,6 +585,24 @@ export function BedBookingPanel({
           </button>
         </div>
       </div>
+  );
+
+  if (presentation === 'bottomSheet') {
+    return (
+      <MobileBottomSheet open onClose={onClose} ariaLabelledBy="bed-booking-title">
+        {panelInner}
+      </MobileBottomSheet>
+    );
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="bed-booking-title"
+    >
+      {panelInner}
     </div>
   );
 }

@@ -79,7 +79,7 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
     .join(', ');
 
   return (
-    <div className="apg-aurora mx-auto w-full max-w-4xl px-4 py-8 sm:px-6">
+    <div className="apg-aurora mx-auto w-full max-w-lg px-4 py-6 sm:px-5">
       <AnalyticsMountEvent eventType="pg_viewed" metadata={{ pgSlug: pg.slug, pgId: pg.id }} />
       <nav className="mb-6 text-xs text-apg-silver">
         <Link href="/pgs" className="hover:text-apg-orange">
