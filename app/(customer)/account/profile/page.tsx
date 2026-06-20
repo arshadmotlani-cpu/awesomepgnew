@@ -7,6 +7,11 @@ import {
   parseAccountSection,
   parseResidentTab,
 } from '@/src/lib/accountNavigation';
+
+function parseTab(value: string | undefined): 'profile' | 'stay' | 'payments' | 'invoices' {
+  if (value === 'stay' || value === 'payments' || value === 'invoices') return value;
+  return 'profile';
+}
 import { formatIndianPhoneDisplay, indianLocalFromE164 } from '@/src/lib/phone';
 import { loadResidentAccountContext } from '@/src/services/residentAccountContext';
 
@@ -58,6 +63,8 @@ export default async function ProfilePage(
   const bookingStatus =
     ctx.hasConfirmedBooking || ctx.isActiveStay ? 'Active' : ('Not booked yet' as const);
 
+  const hubTab = parseTab(typeof sp.tab === 'string' ? sp.tab : undefined);
+
   return (
     <main className="mx-auto w-full max-w-lg px-4 py-10 sm:px-6">
       <nav className="apg-account-nav mb-4 text-xs">
@@ -73,9 +80,14 @@ export default async function ProfilePage(
         phoneDisplay={formatIndianPhoneDisplay(session.phone)}
         bookingStatus={bookingStatus}
         profileComplete={ctx.profileComplete}
+        isActiveStay={ctx.isActiveStay}
+        initialTab={hubTab}
         next={next}
-        invoices={ctx.invoices.filter((inv) => inv.payHref != null).slice(0, 2)}
+        invoices={ctx.invoices}
         customerPhone={ctx.customer.phone}
+        primaryBooking={ctx.primaryBooking}
+        financialSummary={ctx.financialSummary}
+        depositStatusLabel={ctx.depositStatusLabel}
       />
 
       {section === 'identity' ? (

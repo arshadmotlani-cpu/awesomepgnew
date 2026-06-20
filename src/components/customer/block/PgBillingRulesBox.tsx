@@ -3,7 +3,7 @@ import { STAY_CHECK_IN_TIME, STAY_CHECK_OUT_TIME } from '@/src/lib/residents/sta
 const RULES = [
   `Check-in: ${STAY_CHECK_IN_TIME}`,
   `Check-out: ${STAY_CHECK_OUT_TIME} next day`,
-  'Billing is per full 24-hour cycle',
+  'Billing cycle: 11 AM → 11 AM',
   'Late check-in still counts as a full cycle',
 ];
 

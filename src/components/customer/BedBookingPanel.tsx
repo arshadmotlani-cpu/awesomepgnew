@@ -6,7 +6,6 @@ import { trackClientEvent } from '@/src/lib/analytics/client';
 import { addDays, diffDays, formatDate, parseDate, todayString } from '@/src/lib/dates';
 import {
   defaultCheckOutDate,
-  VACATING_NOTICE_MIN_DAYS,
 } from '@/src/lib/dateDefaults';
 import { formatDate as formatDisplayDate, paiseToInr } from '@/src/lib/format';
 import {
@@ -20,6 +19,7 @@ import {
 import { reserveBufferDate } from '@/src/lib/bedReservePolicy';
 import { displayMonthlyDepositPaise } from '@/src/lib/customerDepositDisplay';
 import { previewLowestFixedStayRent } from '@/src/lib/pricing/fixedStayOptimizer';
+import { STAY_CHECK_IN_TIME, STAY_CHECK_OUT_TIME } from '@/src/lib/residents/stayBillingRules';
 import type { PricingMode } from '@/src/services/pricing';
 import type { BedSelectorBed } from './BedSelector';
 import { StayDateRangePicker, type StayDateSummary } from './StayDateRangePicker';
@@ -194,6 +194,13 @@ export function BedBookingPanel({
       totalDuePaise: accommodationPaise + depositPaise,
     };
   }, [intent, fixedNights, beds]);
+
+  const openEndedSummary = useMemo(() => {
+    if (intent !== 'indefinite' || beds.length === 0) return null;
+    const rentPaise = beds.reduce((sum, bed) => sum + bed.monthlyRatePaise, 0);
+    const depositPaise = beds.reduce((sum, bed) => sum + displayMonthlyDepositPaise(bed), 0);
+    return { rentPaise, depositPaise, totalPaise: rentPaise + depositPaise };
+  }, [intent, beds]);
 
   function handleStartChange(value: string) {
     setStart(value);
@@ -376,7 +383,7 @@ export function BedBookingPanel({
               ) : null}
 
               <fieldset className="space-y-2">
-                <legend className={`${label} mb-1`}>How long are you staying?</legend>
+                <legend className={`${label} mb-1`}>Choose how you want to stay</legend>
                 <div className={`grid grid-cols-1 gap-2 ${shortStayOnly ? '' : 'sm:grid-cols-2'}`}>
                   {!shortStayOnly ? (
                     <label
@@ -384,12 +391,12 @@ export function BedBookingPanel({
                         dark
                           ? `rounded-xl border px-3 py-2.5 text-left ${
                               intent === 'indefinite'
-                                ? 'border-apg-orange/50 bg-apg-orange/10'
+                                ? 'border-emerald-400/50 bg-emerald-500/10'
                                 : 'border-white/10 bg-white/5'
                             }`
                           : `rounded-lg border px-3 py-2.5 text-left ${
                               intent === 'indefinite'
-                                ? 'border-indigo-500 bg-indigo-50'
+                                ? 'border-emerald-500 bg-emerald-50'
                                 : 'border-zinc-200 bg-white'
                             }`
                       }
@@ -401,10 +408,10 @@ export function BedBookingPanel({
                         className="sr-only"
                       />
                       <span className={`text-sm font-semibold ${dark ? 'text-white' : 'text-zinc-900'}`}>
-                        Live without checkout
+                        Continue living
                       </span>
                       <span className={`mt-0.5 block text-xs ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
-                        Monthly billing · {VACATING_NOTICE_MIN_DAYS} days notice to leave
+                        Stay as long as you want · monthly billing · no checkout date
                       </span>
                     </label>
                   ) : null}
@@ -413,12 +420,12 @@ export function BedBookingPanel({
                       dark
                         ? `rounded-xl border px-3 py-2.5 text-left ${
                             intent === 'fixed'
-                              ? 'border-apg-orange/50 bg-apg-orange/10'
+                              ? 'border-sky-400/50 bg-sky-500/10'
                               : 'border-white/10 bg-white/5'
                           }`
                         : `rounded-lg border px-3 py-2.5 text-left ${
                             intent === 'fixed'
-                              ? 'border-indigo-500 bg-indigo-50'
+                              ? 'border-sky-500 bg-sky-50'
                               : 'border-zinc-200 bg-white'
                           }`
                     }
@@ -433,7 +440,7 @@ export function BedBookingPanel({
                       Fixed stay
                     </span>
                     <span className={`mt-0.5 block text-xs ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
-                      Check-in and check-out only — lowest price calculated automatically
+                      Choose check-in &amp; check-out — perfect for short stays
                     </span>
                   </label>
                 </div>
@@ -467,19 +474,63 @@ export function BedBookingPanel({
                   }
                 >
                   <p className={`text-xs font-semibold uppercase tracking-wide ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
-                    Your stay
+                    Price breakdown
                   </p>
-                  <p className={`mt-1 text-sm font-semibold ${dark ? 'text-white' : 'text-zinc-900'}`}>
-                    {formatDisplayDate(start)} → {formatDisplayDate(end)} · {fixedNights} night
-                    {fixedNights === 1 ? '' : 's'}
+                  <dl className={`mt-3 space-y-2 text-sm ${dark ? 'text-apg-silver' : 'text-zinc-600'}`}>
+                    <div className="flex justify-between gap-2">
+                      <dt>Rent</dt>
+                      <dd className="font-medium text-apg-orange">{paiseToInr(staySummary.accommodationPaise)}</dd>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <dt>Electricity</dt>
+                      <dd className="text-xs">Est. based on usage</dd>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <dt>Deposit</dt>
+                      <dd className={`font-medium ${dark ? 'text-white' : 'text-zinc-900'}`}>{paiseToInr(staySummary.depositPaise)}</dd>
+                    </div>
+                  </dl>
+                  <p className={`mt-3 text-base font-bold ${dark ? 'text-white' : 'text-zinc-900'}`}>
+                    Total today:{' '}
+                    <span className="text-apg-orange">{paiseToInr(staySummary.totalDuePaise)}</span>
                   </p>
-                  <p className={`mt-2 text-xs ${dark ? 'text-apg-silver' : 'text-zinc-600'}`}>
-                    Accommodation {paiseToInr(staySummary.accommodationPaise)} + deposit{' '}
-                    {paiseToInr(staySummary.depositPaise)} ≈{' '}
-                    <span className="font-semibold text-apg-orange">
-                      {paiseToInr(staySummary.totalDuePaise)}
-                    </span>{' '}
-                    due at checkout
+                  <p className={`mt-2 text-[11px] ${dark ? 'text-apg-muted' : 'text-zinc-500'}`}>
+                    Billing cycle: {STAY_CHECK_IN_TIME} → {STAY_CHECK_OUT_TIME} next day
+                  </p>
+                </div>
+              ) : null}
+
+              {intent === 'indefinite' && openEndedSummary ? (
+                <div
+                  className={
+                    dark
+                      ? 'rounded-xl border border-white/10 bg-white/5 p-4'
+                      : 'rounded-xl border border-zinc-200 bg-zinc-50 p-4'
+                  }
+                >
+                  <p className={`text-xs font-semibold uppercase tracking-wide ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
+                    Price breakdown
+                  </p>
+                  <dl className={`mt-3 space-y-2 text-sm ${dark ? 'text-apg-silver' : 'text-zinc-600'}`}>
+                    <div className="flex justify-between gap-2">
+                      <dt>Rent</dt>
+                      <dd className="font-medium text-apg-orange">{paiseToInr(openEndedSummary.rentPaise)}/mo</dd>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <dt>Electricity</dt>
+                      <dd className="text-xs">Est. based on usage</dd>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <dt>Deposit</dt>
+                      <dd className={`font-medium ${dark ? 'text-white' : 'text-zinc-900'}`}>{paiseToInr(openEndedSummary.depositPaise)}</dd>
+                    </div>
+                  </dl>
+                  <p className={`mt-3 text-base font-bold ${dark ? 'text-white' : 'text-zinc-900'}`}>
+                    Total today:{' '}
+                    <span className="text-apg-orange">{paiseToInr(openEndedSummary.totalPaise)}</span>
+                  </p>
+                  <p className={`mt-2 text-[11px] ${dark ? 'text-apg-muted' : 'text-zinc-500'}`}>
+                    Billing cycle: {STAY_CHECK_IN_TIME} → {STAY_CHECK_OUT_TIME} next day
                   </p>
                 </div>
               ) : null}
@@ -515,7 +566,7 @@ export function BedBookingPanel({
             onClick={validateAndContinue}
             className={btnPrimary}
           >
-            Continue to booking →
+            Reserve bed →
           </button>
         </div>
       </div>

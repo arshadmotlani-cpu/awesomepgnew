@@ -1,12 +1,18 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
-import Image from 'next/image';
 import { BedBookingPanel } from '@/src/components/customer/BedBookingPanel';
+import { BedReservePanel } from '@/src/components/customer/BedReservePanel';
 import { PgBillingRulesBox } from '@/src/components/customer/block/PgBillingRulesBox';
+import { PgMobileHero } from '@/src/components/customer/block/PgMobileHero';
+import { PgRoomTypeCards } from '@/src/components/customer/block/PgRoomTypeCards';
 import type { CustomerRoomBedMap } from '@/src/components/customer/CustomerBedMap';
+import {
+  CUSTOMER_BED_KIND_CLASS,
+  CustomerBedDetailSheet,
+  CustomerBedTile,
+} from '@/src/components/customer/customerBedUi';
 import type { BedSelectorBed } from '@/src/components/customer/customerBedTypes';
-import { canBookBed } from '@/src/components/customer/customerBedUi';
 import {
   lowestDailyRatePaise,
   roomCategoryFromCapacity,
@@ -14,65 +20,35 @@ import {
   type SimpleRoomCategoryId,
 } from '@/src/lib/booking/simpleRoomCategory';
 import type { CustomerRoomCard } from '@/src/db/queries/customer';
-import { paiseToInr } from '@/src/lib/format';
+import { dispatchRoachieReminder } from '@/src/lib/cockroach/roachieReminders';
+import type { BedAvailabilityKind } from '@/src/lib/bedAvailabilityState';
 
 type Props = {
   pgName: string;
   locationLine: string;
   images: string[];
+  amenities: Record<string, unknown>;
   rooms: CustomerRoomCard[];
   bedMapRooms: CustomerRoomBedMap[];
 };
 
-const CATEGORY_ORDER: SimpleRoomCategoryId[] = ['single', 'shared', 'dormitory'];
+const LEGEND: { label: string; kind: BedAvailabilityKind }[] = [
+  { label: 'Available', kind: 'open_now' },
+  { label: 'Notice', kind: 'notice' },
+  { label: 'Reserved', kind: 'reserved' },
+  { label: 'Occupied', kind: 'occupied' },
+];
 
 function categoryLabel(id: SimpleRoomCategoryId): string {
-  if (id === 'shared') return 'Sharing Room';
+  if (id === 'shared') return 'Shared Room';
   return SIMPLE_CATEGORY_META[id].title;
 }
 
 function roomOccupancy(room: CustomerRoomBedMap) {
   const total = room.beds.length;
-  const available = room.beds.filter((b) => b.isAvailableNow && b.status === 'available').length;
-  const filled = total - available;
-  const status = available === 0 ? 'Full' : 'Available';
-  return { filled, total, available, status };
-}
-
-function BlockBedSlot({
-  bed,
-  selected,
-  onSelect,
-}: {
-  bed: BedSelectorBed;
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  const bookable = canBookBed(bed);
-  const occupied = !bookable && bed.status !== 'maintenance';
-
-  return (
-    <button
-      type="button"
-      disabled={!bookable}
-      onClick={onSelect}
-      className={
-        'flex min-h-[3.25rem] min-w-[3.25rem] flex-col items-center justify-center rounded-xl border px-2 py-2 text-center text-xs font-bold transition ' +
-        (selected
-          ? 'border-apg-orange bg-apg-orange/20 text-white ring-2 ring-apg-orange'
-          : bookable
-            ? 'border-emerald-500/50 bg-emerald-500/15 text-emerald-100 hover:border-emerald-400'
-            : 'cursor-not-allowed border-rose-500/40 bg-rose-500/10 text-rose-200 opacity-90')
-      }
-      aria-pressed={selected}
-      aria-label={`Bed ${bed.bedCode}, ${occupied ? 'occupied' : bookable ? 'available' : 'locked'}`}
-    >
-      <span>{bed.bedCode}</span>
-      <span className="mt-0.5 text-[9px] font-semibold uppercase tracking-wide opacity-90">
-        {selected ? 'Selected' : bookable ? 'Free' : occupied ? 'Taken' : 'Locked'}
-      </span>
-    </button>
-  );
+  const open = room.beds.filter((b) => b.isAvailableNow && b.status === 'available').length;
+  const filled = total - open;
+  return { filled, total, status: open === 0 ? 'Full' : 'Available' };
 }
 
 function BlockRoomCard({
@@ -80,65 +56,80 @@ function BlockRoomCard({
   categoryId,
   selectedBedId,
   onSelectBed,
+  mergeBed,
 }: {
   room: CustomerRoomBedMap;
   categoryId: SimpleRoomCategoryId;
   selectedBedId: string | null;
   onSelectBed: (bedId: string) => void;
+  mergeBed: (bed: BedSelectorBed) => BedSelectorBed;
 }) {
   const occ = roomOccupancy(room);
 
   return (
-    <article className="rounded-2xl border border-white/10 apg-glass-light p-5">
-      <div className="flex flex-wrap items-start justify-between gap-2">
+    <article className="overflow-hidden rounded-2xl border border-white/10 apg-glass-light">
+      <div className="flex items-start justify-between gap-3 p-4">
         <div>
-          <h3 className="text-lg font-bold text-white">Room {room.roomNumber}</h3>
-          <p className="text-sm text-apg-silver">{categoryLabel(categoryId)}</p>
-        </div>
-        <div className="text-right text-sm">
-          <p className="font-semibold text-white">
-            {occ.filled}/{occ.total} occupied
-          </p>
-          <p
-            className={
-              'font-bold ' + (occ.status === 'Available' ? 'text-emerald-300' : 'text-rose-300')
-            }
-          >
-            {occ.status}
+          <h3 className="text-lg font-bold text-white">
+            Room {room.roomNumber}{' '}
+            <span className="text-sm font-normal text-apg-silver">({categoryLabel(categoryId)})</span>
+          </h3>
+          <p className="mt-1 text-sm text-apg-silver">
+            Occupancy: {occ.filled} / {occ.total}
           </p>
         </div>
+        <p
+          className={
+            'text-sm font-bold ' + (occ.status === 'Available' ? 'text-emerald-300' : 'text-rose-300')
+          }
+        >
+          {occ.status}
+        </p>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-2">
-        {room.beds.map((bed) => (
-          <BlockBedSlot
-            key={bed.bedId}
-            bed={bed}
-            selected={selectedBedId === bed.bedId}
-            onSelect={() => {
-              if (canBookBed(bed)) onSelectBed(bed.bedId);
-            }}
-          />
-        ))}
+      <div className="border-t border-white/5 px-4 pb-4 pt-3">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-apg-silver">
+          Beds — tap one to book
+        </p>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(7rem,1fr))]">
+          {room.beds.map((bed) => {
+            const viewBed = mergeBed(bed);
+            return (
+              <CustomerBedTile
+                key={bed.bedId}
+                bed={viewBed}
+                isSelected={selectedBedId === bed.bedId}
+                onSelect={() => onSelectBed(bed.bedId)}
+              />
+            );
+          })}
+        </div>
       </div>
     </article>
   );
 }
 
-/** Block-based PG booking — rooms, beds, one clear path to pay. */
+/** Mobile-first PG booking — Airbnb clarity × hostel bed logic. */
 export function PgBlockBooking({
   pgName,
   locationLine,
   images,
+  amenities,
   rooms,
   bedMapRooms,
 }: Props) {
   const [categoryFilter, setCategoryFilter] = useState<SimpleRoomCategoryId | 'all'>('all');
   const [selectedBedId, setSelectedBedId] = useState<string | null>(null);
-  const [bookingOpen, setBookingOpen] = useState(false);
+  const [panelBeds, setPanelBeds] = useState<BedSelectorBed[]>([]);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [panelOptions, setPanelOptions] = useState<{
+    shortStayOnly?: boolean;
+    reserveCheckIn?: string;
+  }>({});
+  const [reservePanelBed, setReservePanelBed] = useState<BedSelectorBed | null>(null);
+  const [interestOverrides, setInterestOverrides] = useState<Record<string, number>>({});
 
   const startingPrice = lowestDailyRatePaise(rooms);
-  const heroImage = images[0] ?? null;
 
   const bedRoomById = useMemo(
     () => new Map(bedMapRooms.map((r) => [r.roomId, r])),
@@ -150,14 +141,12 @@ export function PgBlockBooking({
       .map((room) => {
         const bedRoom = bedRoomById.get(room.roomId);
         if (!bedRoom || bedRoom.beds.length === 0) return null;
-        const categoryId = roomCategoryFromCapacity(room.capacity);
-        return { room: bedRoom, categoryId, dailyRatePaise: room.dailyRatePaise };
+        return {
+          room: bedRoom,
+          categoryId: roomCategoryFromCapacity(room.capacity),
+        };
       })
-      .filter(Boolean) as Array<{
-      room: CustomerRoomBedMap;
-      categoryId: SimpleRoomCategoryId;
-      dailyRatePaise: number;
-    }>;
+      .filter(Boolean) as Array<{ room: CustomerRoomBedMap; categoryId: SimpleRoomCategoryId }>;
   }, [rooms, bedRoomById]);
 
   const filteredRooms = useMemo(() => {
@@ -165,102 +154,93 @@ export function PgBlockBooking({
     return roomCards.filter((r) => r.categoryId === categoryFilter);
   }, [roomCards, categoryFilter]);
 
+  const mergeBed = useCallback(
+    (bed: BedSelectorBed): BedSelectorBed => {
+      const count = interestOverrides[bed.bedId];
+      return count !== undefined ? { ...bed, noticeInterestCount: count } : bed;
+    },
+    [interestOverrides],
+  );
+
   const selectedBed = useMemo(() => {
     if (!selectedBedId) return null;
     for (const { room } of roomCards) {
       const bed = room.beds.find((b) => b.bedId === selectedBedId);
-      if (bed) return bed;
+      if (bed) return { bed: mergeBed(bed), room };
     }
     return null;
-  }, [roomCards, selectedBedId]);
+  }, [roomCards, selectedBedId, mergeBed]);
 
   const scrollToRooms = useCallback(() => {
     document.getElementById('pg-room-blocks')?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
-  const categoriesPresent = useMemo(() => {
-    const set = new Set(roomCards.map((r) => r.categoryId));
-    return CATEGORY_ORDER.filter((c) => set.has(c));
-  }, [roomCards]);
+  const pickCategory = useCallback((id: SimpleRoomCategoryId) => {
+    setCategoryFilter(id);
+    scrollToRooms();
+  }, [scrollToRooms]);
+
+  const openPanel = useCallback(
+    (bed: BedSelectorBed, options?: { shortStayOnly?: boolean; reserveCheckIn?: string }) => {
+      setPanelOptions(options ?? {});
+      setPanelBeds([bed]);
+      setPanelOpen(true);
+      setSelectedBedId(null);
+    },
+    [],
+  );
+
+  const handleNoticeInterestUpdate = useCallback((bedId: string, count: number) => {
+    setInterestOverrides((prev) => ({ ...prev, [bedId]: count }));
+  }, []);
 
   return (
     <>
-      <header className="overflow-hidden rounded-3xl border border-white/10 apg-glass">
-        {heroImage ? (
-          <div className="relative aspect-[16/9] w-full">
-            <Image src={heroImage} alt="" fill className="object-cover" priority sizes="100vw" />
-          </div>
-        ) : (
-          <div className="flex aspect-[16/9] items-center justify-center bg-white/5 text-apg-muted">
-            {pgName}
-          </div>
-        )}
-        <div className="p-5 sm:p-6">
-          <h1 className="text-3xl font-bold text-white sm:text-4xl">{pgName}</h1>
-          <p className="mt-2 text-base text-apg-silver">{locationLine}</p>
-          {startingPrice > 0 ? (
-            <p className="mt-4 text-2xl font-bold text-apg-orange sm:text-3xl">
-              From {paiseToInr(startingPrice)}/day
-            </p>
-          ) : null}
-          <button
-            type="button"
-            onClick={scrollToRooms}
-            className="mt-6 flex min-h-[52px] w-full items-center justify-center rounded-2xl bg-apg-orange text-lg font-bold text-white hover:brightness-110 sm:w-auto sm:px-10"
-          >
-            View Rooms
-          </button>
-        </div>
-      </header>
+      <PgMobileHero
+        pgName={pgName}
+        locationLine={locationLine}
+        images={images}
+        startingDailyPaise={startingPrice}
+        amenities={amenities}
+        onViewRooms={scrollToRooms}
+      />
 
-      <div className="mt-6">
-        <PgBillingRulesBox />
+      <PgRoomTypeCards rooms={rooms} active={categoryFilter} onSelect={pickCategory} />
+
+      <div className="mt-4 flex flex-wrap gap-2 text-[10px] text-apg-silver">
+        {LEGEND.map((item) => (
+          <span key={item.kind} className="inline-flex items-center gap-1">
+            <span
+              className={`inline-block h-3 w-4 rounded border ${CUSTOMER_BED_KIND_CLASS[item.kind].split(' ').slice(0, 2).join(' ')}`}
+            />
+            {item.label}
+          </span>
+        ))}
+        <span className="text-apg-muted">· 🔵 = selected</span>
       </div>
 
-      {categoriesPresent.length > 0 ? (
-        <div className="mt-6 flex flex-wrap gap-2">
+      <section id="pg-room-blocks" className="mt-6 scroll-mt-4 pb-28">
+        <h2 className="text-lg font-bold text-white">Rooms</h2>
+        <p className="mt-1 text-sm text-apg-silver">
+          Tap a bed for dates, interest count &amp; booking
+        </p>
+
+        {categoryFilter !== 'all' ? (
           <button
             type="button"
             onClick={() => setCategoryFilter('all')}
-            className={
-              'rounded-full px-4 py-2 text-sm font-semibold ' +
-              (categoryFilter === 'all'
-                ? 'bg-apg-orange text-white'
-                : 'border border-white/15 text-apg-silver hover:text-white')
-            }
+            className="mt-3 text-xs font-semibold text-apg-cyan"
           >
-            All rooms
+            Show all room types
           </button>
-          {categoriesPresent.map((id) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setCategoryFilter(id)}
-              className={
-                'rounded-full px-4 py-2 text-sm font-semibold ' +
-                (categoryFilter === id
-                  ? 'bg-apg-orange text-white'
-                  : 'border border-white/15 text-apg-silver hover:text-white')
-              }
-            >
-              {categoryLabel(id)}
-            </button>
-          ))}
-        </div>
-      ) : null}
-
-      <section id="pg-room-blocks" className="mt-8 scroll-mt-6">
-        <h2 className="text-xl font-bold text-white">Pick a room and bed</h2>
-        <p className="mt-1 text-sm text-apg-silver">
-          Green = free · Red = taken · Tap one bed, then continue.
-        </p>
+        ) : null}
 
         {filteredRooms.length === 0 ? (
           <p className="mt-6 rounded-2xl border border-dashed border-white/10 p-8 text-center text-sm text-apg-silver">
             No rooms in this category right now.
           </p>
         ) : (
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          <div className="mt-4 space-y-3">
             {filteredRooms.map(({ room, categoryId }) => (
               <BlockRoomCard
                 key={room.roomId}
@@ -268,29 +248,50 @@ export function PgBlockBooking({
                 categoryId={categoryId}
                 selectedBedId={selectedBedId}
                 onSelectBed={setSelectedBedId}
+                mergeBed={mergeBed}
               />
             ))}
           </div>
         )}
       </section>
 
+      <div className="mt-8 pb-8">
+        <PgBillingRulesBox />
+      </div>
+
       {selectedBed ? (
-        <div className="sticky bottom-4 z-20 mt-8">
-          <button
-            type="button"
-            onClick={() => setBookingOpen(true)}
-            className="flex min-h-[56px] w-full items-center justify-center rounded-2xl bg-apg-orange text-lg font-bold text-white shadow-lg apg-glow-btn hover:brightness-110"
-          >
-            Continue to Booking
-          </button>
-          <p className="mt-2 text-center text-xs text-apg-muted">
-            Bed {selectedBed.bedCode} selected
-          </p>
-        </div>
+        <CustomerBedDetailSheet
+          bed={selectedBed.bed}
+          roomLabel={`Room ${selectedBed.room.roomNumber} · ${categoryLabel(
+            roomCategoryFromCapacity(selectedBed.room.capacity),
+          )}`}
+          onClose={() => setSelectedBedId(null)}
+          onBook={(options) => openPanel(selectedBed.bed, options)}
+          onPreBook={() => {
+            dispatchRoachieReminder('pre-book');
+            openPanel(selectedBed.bed);
+          }}
+          onReserve={() => {
+            dispatchRoachieReminder('reserve');
+            setReservePanelBed(selectedBed.bed);
+            setSelectedBedId(null);
+          }}
+          onNoticeInterestUpdate={handleNoticeInterestUpdate}
+        />
       ) : null}
 
-      {bookingOpen && selectedBed ? (
-        <BedBookingPanel beds={[selectedBed]} theme="dark" onClose={() => setBookingOpen(false)} />
+      {panelOpen && panelBeds.length > 0 ? (
+        <BedBookingPanel
+          beds={panelBeds}
+          theme="dark"
+          onClose={() => setPanelOpen(false)}
+          shortStayOnly={panelOptions.shortStayOnly}
+          reserveCheckInDate={panelOptions.reserveCheckIn}
+        />
+      ) : null}
+
+      {reservePanelBed ? (
+        <BedReservePanel bed={reservePanelBed} onClose={() => setReservePanelBed(null)} />
       ) : null}
     </>
   );

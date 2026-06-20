@@ -340,7 +340,7 @@ export function CustomerBedDetailSheet({
                   onClick={() => onBook()}
                   className="w-full rounded-lg bg-apg-orange py-2.5 text-sm font-semibold text-white apg-glow-btn hover:brightness-110"
                 >
-                  Book this bed
+                  Choose stay &amp; reserve bed
                 </button>
               )}
               {showReserve ? (

@@ -10,6 +10,7 @@ type Props = {
   customerName: string;
   customerPhone: string;
   stayDaysLabel?: string | null;
+  variant?: 'light' | 'dark';
 };
 
 /** One invoice — big text, no jargon. */
@@ -18,39 +19,48 @@ export function SimpleInvoiceCard({
   customerName,
   customerPhone,
   stayDaysLabel,
+  variant = 'light',
 }: Props) {
+  const dark = variant === 'dark';
+  const shell = dark
+    ? 'rounded-2xl border border-white/10 apg-glass-light p-5'
+    : 'rounded-2xl border border-zinc-200 bg-white p-5';
+  const title = dark ? 'text-white' : 'text-zinc-900';
+  const muted = dark ? 'text-apg-silver' : 'text-zinc-600';
+  const value = dark ? 'text-white' : 'text-zinc-900';
+
   return (
-    <div className="rounded-2xl border border-zinc-200 bg-white p-5">
+    <div className={shell}>
       {stayDaysLabel ? (
-        <p className="text-lg font-bold text-zinc-900">You stayed for {stayDaysLabel}</p>
+        <p className={`text-lg font-bold ${title}`}>You stayed for {stayDaysLabel}</p>
       ) : (
-        <p className="text-lg font-bold text-zinc-900">{invoice.label}</p>
+        <p className={`text-lg font-bold ${title}`}>{invoice.label}</p>
       )}
 
-      <dl className="mt-4 space-y-3 text-base">
+      <dl className={`mt-4 space-y-3 text-base`}>
         {invoice.rentPaise > 0 ? (
           <div className="flex justify-between">
-            <dt className="text-zinc-600">Rent</dt>
-            <dd className="font-semibold text-zinc-900">{paiseToInr(invoice.rentPaise)}</dd>
+            <dt className={muted}>Rent</dt>
+            <dd className={`font-semibold ${value}`}>{paiseToInr(invoice.rentPaise)}</dd>
           </div>
         ) : null}
         {invoice.electricityPaise > 0 ? (
           <div className="flex justify-between">
-            <dt className="text-zinc-600">Electricity</dt>
-            <dd className="font-semibold text-zinc-900">{paiseToInr(invoice.electricityPaise)}</dd>
+            <dt className={muted}>Electricity</dt>
+            <dd className={`font-semibold ${value}`}>{paiseToInr(invoice.electricityPaise)}</dd>
           </div>
         ) : null}
         {invoice.depositPaidPaise > 0 ? (
           <div className="flex justify-between">
-            <dt className="text-zinc-600">Deposit</dt>
-            <dd className="font-semibold text-zinc-900">{paiseToInr(invoice.depositPaidPaise)}</dd>
+            <dt className={muted}>Deposit</dt>
+            <dd className={`font-semibold ${value}`}>{paiseToInr(invoice.depositPaidPaise)}</dd>
           </div>
         ) : null}
       </dl>
 
-      <p className="mt-4 text-sm text-zinc-500">
+      <p className={`mt-4 text-sm ${dark ? 'text-apg-muted' : 'text-zinc-500'}`}>
         Final amount:{' '}
-        <span className="text-xl font-bold text-zinc-900">{paiseToInr(invoice.finalAmountPaise)}</span>
+        <span className={`text-xl font-bold ${value}`}>{paiseToInr(invoice.finalAmountPaise)}</span>
       </p>
 
       <div className="mt-4 flex flex-wrap gap-2">

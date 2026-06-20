@@ -91,6 +91,7 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
         pgName={pg.name}
         locationLine={locationLine}
         images={pg.images ?? []}
+        amenities={(pg.amenities ?? {}) as Record<string, unknown>}
         rooms={roomList}
         bedMapRooms={bedMapRooms}
       />
