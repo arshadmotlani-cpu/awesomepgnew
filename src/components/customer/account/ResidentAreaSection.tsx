@@ -95,6 +95,7 @@ export async function ResidentAreaSection({
   requestsQuery?: {
     requestId?: string;
     make?: boolean;
+    category?: import('@/src/lib/residents/requestCenter').RequestCategoryId;
   };
 }) {
   const session = await getCustomerSession();
@@ -426,6 +427,8 @@ export async function ResidentAreaSection({
           activeRequests={activeRequests}
           selectedRequestId={requestsQuery.requestId ?? null}
           startMake={requestsQuery.make ?? false}
+          initialCategory={requestsQuery.category ?? null}
+          vacating={primaryVacating}
         />
       ) : null}
 
@@ -436,6 +439,7 @@ export async function ResidentAreaSection({
           roomLabel={roomLabel}
           vacating={primaryVacating}
           checkoutStatus={checkoutByBooking.get(primaryBooking.bookingId) ?? null}
+          depositHeldPaise={financialSummary?.deposit.refundablePaise ?? 0}
         />
       ) : null}
 

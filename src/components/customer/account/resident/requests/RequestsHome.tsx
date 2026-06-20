@@ -11,8 +11,11 @@ import { RequestDetailView } from '@/src/components/customer/account/resident/re
 import {
   REQUEST_CATEGORIES,
   type ActiveRequestItem,
+  type RequestCategoryId,
 } from '@/src/lib/residents/requestCenter';
 import { accountProfileHref, residentTabHref } from '@/src/lib/accountNavigation';
+import { getDepositRefundEligibility } from '@/src/lib/vacating/depositRefundEligibility';
+import type { VacatingForBookingRow } from '@/src/db/queries/customer';
 
 const PRIMARY_BTN =
   'flex w-full min-h-[52px] items-center justify-center rounded-xl bg-[#FF5A1F] px-6 py-3.5 text-base font-semibold text-white hover:brightness-110';
@@ -25,7 +28,8 @@ type Props = {
   activeRequests: ActiveRequestItem[];
   selectedRequestId: string | null;
   startMake: boolean;
-  initialCategory?: import('@/src/lib/residents/requestCenter').RequestCategoryId | null;
+  initialCategory?: RequestCategoryId | null;
+  vacating: VacatingForBookingRow | null;
 };
 
 export function RequestsHome({
@@ -37,10 +41,16 @@ export function RequestsHome({
   selectedRequestId,
   startMake,
   initialCategory = null,
+  vacating,
 }: Props) {
   const router = useRouter();
   const [making, setMaking] = useState(startMake);
   const [makeCategory, setMakeCategory] = useState(initialCategory);
+
+  const refundEligibility = useMemo(
+    () => getDepositRefundEligibility({ vacating }),
+    [vacating],
+  );
 
   const selected = useMemo(
     () => activeRequests.find((r) => r.id === selectedRequestId) ?? null,
@@ -58,11 +68,44 @@ export function RequestsHome({
     router.push(residentTabHref('requests'));
   }
 
+  function selectCategory(id: RequestCategoryId) {
+    const cat = REQUEST_CATEGORIES.find((c) => c.id === id);
+    if (!cat) return;
+    if (cat.wired === 'vacating') {
+      router.push(`/account/resident/request-vacating/${bookingId}`);
+      return;
+    }
+    if (cat.wired === 'deposit_refund' && !refundEligibility.canRequestRefund) {
+      return;
+    }
+    setMakeCategory(id);
+    setMaking(true);
+  }
+
   if (selected) {
     return <RequestDetailView request={selected} onBack={closeDetail} />;
   }
 
   if (making) {
+    if (makeCategory === 'deposit_refund' && !refundEligibility.canRequestRefund) {
+      return (
+        <ApgCard tier="account" className="p-5">
+          <p className="text-sm font-medium text-zinc-900">Deposit refund locked</p>
+          <p className="mt-2 text-sm text-zinc-600">{refundEligibility.lockReason}</p>
+          <button
+            type="button"
+            onClick={() => {
+              setMaking(false);
+              setMakeCategory(null);
+            }}
+            className="mt-4 text-sm font-semibold text-indigo-600 hover:text-indigo-500"
+          >
+            ← Back
+          </button>
+        </ApgCard>
+      );
+    }
+
     return (
       <RequestsMakeFlow
         bookingId={bookingId}
@@ -70,6 +113,7 @@ export function RequestsHome({
         refundableBalancePaise={refundableBalancePaise}
         hasDepositDue={hasDepositDue}
         initialCategory={makeCategory}
+        vacating={vacating}
         onClose={() => {
           setMaking(false);
           setMakeCategory(null);
@@ -116,14 +160,11 @@ export function RequestsHome({
               key={cat.id}
               title={cat.title}
               description={cat.description}
-              onSelect={() => {
-                if (cat.wired === 'vacating') {
-                  router.push(`/account/resident/request-vacating/${bookingId}`);
-                  return;
-                }
-                setMakeCategory(cat.id);
-                setMaking(true);
-              }}
+              disabled={cat.id === 'deposit_refund' && !refundEligibility.canRequestRefund}
+              lockReason={
+                cat.id === 'deposit_refund' ? refundEligibility.lockReason : null
+              }
+              onSelect={() => selectCategory(cat.id)}
             />
           ))}
         </div>
@@ -136,10 +177,11 @@ export function RequestsHome({
               key={cat.id}
               title={cat.title}
               description={cat.description}
-              onSelect={() => {
-                setMakeCategory(cat.id);
-                setMaking(true);
-              }}
+              disabled={cat.wired === 'deposit_refund' && !refundEligibility.canRequestRefund}
+              lockReason={
+                cat.wired === 'deposit_refund' ? refundEligibility.lockReason : null
+              }
+              onSelect={() => selectCategory(cat.id)}
             />
           ))}
         </div>
@@ -158,19 +200,27 @@ function CategoryCard({
   title,
   description,
   onSelect,
+  disabled = false,
+  lockReason,
 }: {
   title: string;
   description: string;
   onSelect: () => void;
+  disabled?: boolean;
+  lockReason?: string | null;
 }) {
   return (
     <button
       type="button"
       onClick={onSelect}
-      className="rounded-xl border border-zinc-200 bg-white p-4 text-left hover:border-[#FF5A1F]/30 hover:bg-zinc-50"
+      disabled={disabled}
+      className="rounded-xl border border-zinc-200 bg-white p-4 text-left hover:border-[#FF5A1F]/30 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
     >
       <p className="text-sm font-semibold text-zinc-900">{title}</p>
       <p className="mt-1 text-xs text-zinc-600">{description}</p>
+      {disabled && lockReason ? (
+        <p className="mt-2 text-[10px] leading-relaxed text-zinc-500">{lockReason}</p>
+      ) : null}
     </button>
   );
 }

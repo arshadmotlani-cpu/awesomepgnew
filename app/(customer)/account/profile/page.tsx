@@ -54,6 +54,10 @@ export default async function ProfilePage(
           requestsQuery={{
             requestId: typeof sp.request === 'string' ? sp.request : undefined,
             make: sp.make === '1',
+            category:
+              typeof sp.category === 'string'
+                ? (sp.category as import('@/src/lib/residents/requestCenter').RequestCategoryId)
+                : undefined,
           }}
         />
       </main>

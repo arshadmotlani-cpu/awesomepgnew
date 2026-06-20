@@ -11,11 +11,16 @@ import {
   vacatingStatusLabel,
   VACATING_JOURNEY_STAGES,
 } from '@/src/lib/residents/vacatingJourney';
+import { getDepositRefundEligibility } from '@/src/lib/vacating/depositRefundEligibility';
+import { accountProfileHref } from '@/src/lib/accountNavigation';
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 
 const PRIMARY_BTN =
   'flex w-full min-h-[52px] items-center justify-center rounded-xl bg-[#FF5A1F] px-6 py-3.5 text-base font-semibold text-white hover:brightness-110';
+
+const SECONDARY_BTN =
+  'flex w-full min-h-[52px] items-center justify-center rounded-xl border border-zinc-300 bg-white px-6 py-3.5 text-base font-semibold text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50';
 
 const STATUS_TONE: Record<string, string> = {
   pending: 'bg-amber-50 text-amber-700 ring-amber-200',
@@ -31,6 +36,7 @@ type Props = {
   roomLabel: string;
   vacating: VacatingForBookingRow | null;
   checkoutStatus: string | null;
+  depositHeldPaise: number;
 };
 
 export function VacatingHome({
@@ -39,15 +45,23 @@ export function VacatingHome({
   roomLabel,
   vacating,
   checkoutStatus,
+  depositHeldPaise,
 }: Props) {
   const activeIndex = vacatingStageIndex(vacating?.status ?? null, checkoutStatus);
   const nextStep = vacatingNextStep({ vacating, checkoutStatus });
   const settlementLines = buildVacatingSettlementLines(vacating);
+  const refundEligibility = getDepositRefundEligibility({ vacating });
 
   const timelineStages = VACATING_JOURNEY_STAGES.map((s) => ({
     id: s.id,
     label: s.label,
   }));
+
+  const refundHref = accountProfileHref('resident', {
+    tab: 'requests',
+    make: '1',
+    category: 'deposit_refund',
+  });
 
   return (
     <div className="space-y-4 pb-2">
@@ -72,14 +86,9 @@ export function VacatingHome({
       </ApgCard>
 
       {!vacating ? (
-        <>
-          <Link
-            href={`/account/resident/request-vacating/${bookingId}`}
-            className={PRIMARY_BTN}
-          >
-            Request vacate
-          </Link>
-        </>
+        <Link href={`/account/resident/request-vacating/${bookingId}`} className={PRIMARY_BTN}>
+          Request vacate
+        </Link>
       ) : (
         <>
           <ApgCard tier="account" className="p-5">
@@ -98,14 +107,14 @@ export function VacatingHome({
           </ApgCard>
 
           <ApgCard tier="account" className="p-5">
-            <h3 className="text-sm font-semibold text-zinc-900">Notice details</h3>
+            <h3 className="text-sm font-semibold text-zinc-900">Vacate details</h3>
             <dl className="mt-3 grid gap-x-4 gap-y-2 text-sm sm:grid-cols-2">
               <div>
-                <dt className="text-zinc-600">Notice submitted</dt>
+                <dt className="text-zinc-600">Request submitted</dt>
                 <dd className="font-medium text-zinc-900">{formatDate(vacating.noticeGivenDate)}</dd>
               </div>
               <div>
-                <dt className="text-zinc-600">Move-out date</dt>
+                <dt className="text-zinc-600">Vacate date</dt>
                 <dd className="font-medium text-zinc-900">{formatDate(vacating.vacatingDate)}</dd>
               </div>
               {vacating.status === 'completed' && vacating.deductionPaise > 0 ? (
@@ -125,9 +134,31 @@ export function VacatingHome({
             </dl>
           </ApgCard>
 
+          <ApgCard tier="account" className="p-5">
+            <h3 className="text-sm font-semibold text-zinc-900">Deposit refund</h3>
+            <p className="mt-1 text-xs text-zinc-600">
+              Deposit held · {paiseToInr(depositHeldPaise)}. Refund is a separate step after vacate
+              approval and your vacate date.
+            </p>
+            {refundEligibility.canRequestRefund ? (
+              <Link href={refundHref} className={`${PRIMARY_BTN} mt-4`}>
+                Request deposit refund
+              </Link>
+            ) : (
+              <>
+                <button type="button" disabled className={`${SECONDARY_BTN} mt-4`}>
+                  Request deposit refund
+                </button>
+                {refundEligibility.lockReason ? (
+                  <p className="mt-2 text-xs text-zinc-500">{refundEligibility.lockReason}</p>
+                ) : null}
+              </>
+            )}
+          </ApgCard>
+
           {settlementLines.length > 0 ? (
             <ApgCard tier="account" className="p-5">
-              <h3 className="text-sm font-semibold text-zinc-900">Refund breakdown</h3>
+              <h3 className="text-sm font-semibold text-zinc-900">Final settlement</h3>
               <ul className="mt-3 space-y-2">
                 {settlementLines.map((line) => (
                   <li key={line.label} className="flex items-center justify-between text-sm">

@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { bookings, customers } from '@/src/db/schema';
+import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import { VacatingRequestForm } from '@/src/components/customer/VacatingRequestForm';
 import {
   ACCOUNT_BACK_LINK,
@@ -11,6 +12,7 @@ import {
 } from '@/src/components/customer/accountStyles';
 import { ACCOUNT_RESIDENT_HREF } from '@/src/lib/accountNavigation';
 import { requireCustomerOwnsBooking, requireCustomerSession } from '@/src/lib/auth/guards';
+import { getDepositSummaryForBooking } from '@/src/services/deposits';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +33,7 @@ export default async function RequestVacatingPage({
       bookingCode: bookings.bookingCode,
       durationMode: bookings.durationMode,
       status: bookings.status,
+      pricingSnapshot: bookings.pricingSnapshot,
       customerFullName: customers.fullName,
     })
     .from(bookings)
@@ -64,6 +67,12 @@ export default async function RequestVacatingPage({
     );
   }
 
+  const snapshot = row.pricingSnapshot as PricingSnapshot | null;
+  const monthlyRentPaise =
+    snapshot?.perBed.reduce((acc, bed) => acc + (bed.monthlyRatePaise ?? 0), 0) ?? 0;
+  const depositSummary = await getDepositSummaryForBooking(bookingId);
+  const depositHeldPaise = depositSummary?.refundableBalancePaise ?? 0;
+
   return (
     <div className="mx-auto w-full max-w-xl space-y-5 px-4 py-10 sm:px-6">
       <header>
@@ -77,15 +86,11 @@ export default async function RequestVacatingPage({
         </p>
       </header>
 
-      <section className="rounded-xl border border-zinc-200 bg-white p-4 text-sm text-zinc-700">
-        <p>
-          Choose your vacate date and upload room + electricity meter photos. Your request stays{' '}
-          <strong>pending admin approval</strong> until the office reviews it. Refund and final
-          settlement are calculated only after approval.
-        </p>
-      </section>
-
-      <VacatingRequestForm bookingId={bookingId} />
+      <VacatingRequestForm
+        bookingId={bookingId}
+        depositHeldPaise={depositHeldPaise}
+        monthlyRentPaise={monthlyRentPaise}
+      />
     </div>
   );
 }

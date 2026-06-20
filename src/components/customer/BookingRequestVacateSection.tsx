@@ -40,7 +40,7 @@ export function BookingRequestVacateSection({
             {vacating.status === 'pending'
               ? 'Your request is waiting for admin approval. Refund and final settlement are calculated only after approval.'
               : vacating.status === 'approved'
-                ? 'Approved — we will confirm electricity and deposit settlement before your move-out date.'
+                ? 'Vacate approved — deposit refund unlocks on your vacate date.'
                 : vacating.status === 'completed'
                   ? 'Move-out complete. See your resident area for final settlement details.'
                   : 'See your resident area for request details.'}
@@ -55,8 +55,8 @@ export function BookingRequestVacateSection({
       ) : (
         <div className="mt-3 space-y-3 text-sm">
           <p className="text-zinc-600">
-            To leave this PG, submit a vacate request with your move-out date and required room
-            photos. Admin reviews before any refund is processed.
+            To leave this PG, submit a vacate request with your move-out date. Deposit refund is a
+            separate step after admin approval and your vacate date.
           </p>
           <Link
             href={`/account/resident/request-vacating/${bookingId}`}

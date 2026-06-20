@@ -59,17 +59,17 @@ export const REQUEST_CATEGORIES: RequestCategory[] = [
   },
   {
     id: 'vacating',
-    title: 'Move-out notice',
-    description: 'Tell us when you plan to leave so checkout can begin.',
+    title: 'Request vacate',
+    description: 'Choose your vacate date for admin approval.',
     confirmSentence: () =>
-      'You will submit a formal move-out notice. This starts checkout and your deposit refund process.',
+      'You will submit a vacate request. Deposit refund is a separate step after approval and your vacate date.',
     wired: 'vacating',
     primaryVisible: true,
   },
   {
     id: 'deposit_refund',
-    title: 'Deposit refund details',
-    description: 'Share meter photo and UPI after move-out is approved.',
+    title: 'Request deposit refund',
+    description: 'Upload meter photo and QR after vacate is approved and your vacate date arrives.',
     confirmSentence: () =>
       'You are submitting deposit refund details. Admin will verify and send your refund.',
     wired: 'deposit_refund',

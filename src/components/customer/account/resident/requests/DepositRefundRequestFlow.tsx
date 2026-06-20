@@ -10,11 +10,13 @@ import { paiseToInr } from '@/src/lib/format';
 export function DepositRefundRequestFlow({
   bookingId,
   refundableBalancePaise,
+  estimatedDeductionPaise = 0,
   onDone,
   onBack,
 }: {
   bookingId: string;
   refundableBalancePaise: number;
+  estimatedDeductionPaise?: number;
   onDone: () => void;
   onBack: () => void;
 }) {
@@ -24,9 +26,9 @@ export function DepositRefundRequestFlow({
   if (submitted) {
     return (
       <RequestSuccessState
-        title="Refund details submitted"
-        statusLabel="Submitted"
-        nextStep="Admin will verify your meter reading and send your refund to your UPI. Track progress in Active requests."
+        title="Refund review pending"
+        statusLabel="Pending admin review"
+        nextStep="Admin will verify your meter reading, calculate final electricity, and process your deposit refund."
         primaryHref={residentTabHref('requests')}
         primaryLabel="Back to requests"
       />
@@ -69,6 +71,7 @@ export function DepositRefundRequestFlow({
       <DepositRefundRequestForm
         bookingId={bookingId}
         refundableBalancePaise={refundableBalancePaise}
+        estimatedDeductionPaise={estimatedDeductionPaise}
         onSubmitted={() => setSubmitted(true)}
       />
     </div>

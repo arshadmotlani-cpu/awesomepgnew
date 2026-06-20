@@ -7,30 +7,29 @@ import {
   uploadDepositRefundMeterAction,
   type RequestActionState,
 } from '@/app/(customer)/account/resident/request-actions';
+import { paiseToInr } from '@/src/lib/format';
 
 const idle: RequestActionState = { ok: false };
 
 export function DepositRefundRequestForm({
   bookingId,
   refundableBalancePaise,
+  estimatedDeductionPaise = 0,
   onSubmitted,
 }: {
   bookingId: string;
   refundableBalancePaise: number;
+  estimatedDeductionPaise?: number;
   onSubmitted?: () => void;
 }) {
   const [state, formAction, pending] = useActionState(submitDepositRefundRequestAction, idle);
-  const [useAverageBilling, setUseAverageBilling] = useState(false);
   const [meterUrl, setMeterUrl] = useState('');
   const [qrUrl, setQrUrl] = useState('');
-  const [payoutUpiId, setPayoutUpiId] = useState('');
   const [uploadingMeter, setUploadingMeter] = useState(false);
   const [uploadingQr, setUploadingQr] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  const hasPayout = Boolean(payoutUpiId.trim() || qrUrl);
-  const hasMeter = Boolean(useAverageBilling || meterUrl);
-  const canSubmit = hasMeter && hasPayout && refundableBalancePaise > 0;
+  const canSubmit = Boolean(meterUrl && qrUrl && refundableBalancePaise > 0);
 
   useEffect(() => {
     if (state.ok) onSubmitted?.();
@@ -45,7 +44,6 @@ export function DepositRefundRequestForm({
       fd.set('file', file);
       const url = await uploadDepositRefundMeterAction(fd);
       setMeterUrl(url);
-      setUseAverageBilling(false);
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : 'Upload failed.');
     } finally {
@@ -74,98 +72,63 @@ export function DepositRefundRequestForm({
       <input type="hidden" name="bookingId" value={bookingId} />
       <input type="hidden" name="meterReadingPhotoUrl" value={meterUrl} />
       <input type="hidden" name="payoutQrUrl" value={qrUrl} />
-      <input type="hidden" name="useAverageBillingFallback" value={useAverageBilling ? '1' : '0'} />
+      <input type="hidden" name="useAverageBillingFallback" value="0" />
 
       <h4 className="text-sm font-semibold text-zinc-900">Request deposit refund</h4>
-      <p className="mt-1 text-xs text-zinc-600">
-        Wallet balance: ₹{(refundableBalancePaise / 100).toLocaleString('en-IN')}. Admin calculates
-        final electricity and deductions, then transfers to your UPI account.
+
+      <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+        <div>
+          <dt className="text-xs text-zinc-500">Deposit held</dt>
+          <dd className="font-semibold text-zinc-900">{paiseToInr(refundableBalancePaise)}</dd>
+        </div>
+        {estimatedDeductionPaise > 0 ? (
+          <div>
+            <dt className="text-xs text-zinc-500">Estimated deductions</dt>
+            <dd className="font-semibold text-rose-700">{paiseToInr(estimatedDeductionPaise)}</dd>
+          </div>
+        ) : null}
+      </dl>
+
+      <p className="mt-3 text-xs leading-relaxed text-zinc-600">
+        Final electricity charges will be calculated after meter verification and deducted from
+        your refundable deposit balance.
       </p>
 
       <div className="mt-4 space-y-4">
-        <fieldset className="space-y-2">
-          <legend className="text-xs font-semibold text-zinc-800">
-            Final electricity meter reading <span className="text-rose-600">*</span>
-          </legend>
-          <label className="flex items-start gap-2 text-xs text-zinc-700">
-            <input
-              type="checkbox"
-              checked={useAverageBilling}
-              onChange={(e) => {
-                setUseAverageBilling(e.target.checked);
-                if (e.target.checked) setMeterUrl('');
-              }}
-              className="mt-0.5"
-            />
-            <span>
-              Use average billing fallback (no meter photo available — admin will apply room average)
-            </span>
-          </label>
-          {!useAverageBilling ? (
-            <div className="space-y-2">
-              <input
-                type="file"
-                accept="image/*"
-                disabled={uploadingMeter}
-                onChange={(e) => void handleMeterFile(e.target.files?.[0] ?? null)}
-                className="block w-full text-xs text-zinc-600"
-              />
-              {meterUrl ? (
-                <p className="text-xs text-emerald-700">Meter photo uploaded.</p>
-              ) : (
-                <p className="text-xs text-zinc-500">Upload a clear photo of the final meter reading.</p>
-              )}
-            </div>
-          ) : null}
-        </fieldset>
-
-        <fieldset className="space-y-2">
-          <legend className="text-xs font-semibold text-zinc-800">
-            Payout method <span className="text-rose-600">*</span>
-          </legend>
-          <label className="block text-xs text-zinc-700">
-            UPI ID
-            <input
-              type="text"
-              name="payoutUpiId"
-              value={payoutUpiId}
-              onChange={(e) => setPayoutUpiId(e.target.value)}
-              placeholder="name@upi"
-              className="mt-1 w-full rounded-md border border-zinc-300 px-2 py-1.5 text-sm"
-            />
-          </label>
-          <p className="text-center text-[10px] text-zinc-400">— OR —</p>
-          <label className="block text-xs text-zinc-700">
-            UPI QR code image
-            <input
-              type="file"
-              accept="image/*"
-              disabled={uploadingQr}
-              onChange={(e) => void handleQrFile(e.target.files?.[0] ?? null)}
-              className="mt-1 block w-full text-xs text-zinc-600"
-            />
-          </label>
-          {qrUrl ? <p className="text-xs text-emerald-700">QR code uploaded.</p> : null}
-          <p className="text-xs text-zinc-500">Provide at least one payout method.</p>
-        </fieldset>
-
-        <label className="block text-xs font-medium text-zinc-700">
-          Notes (optional)
-          <textarea
-            name="notes"
-            rows={2}
-            className="mt-1 w-full rounded-md border border-zinc-300 px-2 py-1.5 text-sm"
-            placeholder="Any extra context for admin…"
+        <label className="block">
+          <span className="text-xs font-semibold text-zinc-800">
+            Electricity meter photo <span className="text-rose-600">*</span>
+          </span>
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            disabled={uploadingMeter}
+            onChange={(e) => void handleMeterFile(e.target.files?.[0] ?? null)}
+            className="mt-1 block w-full text-xs text-zinc-600"
           />
+          {meterUrl ? <p className="mt-1 text-xs text-emerald-700">Meter photo uploaded.</p> : null}
+        </label>
+
+        <label className="block">
+          <span className="text-xs font-semibold text-zinc-800">
+            QR code for refund payment <span className="text-rose-600">*</span>
+          </span>
+          <input
+            type="file"
+            accept="image/*"
+            disabled={uploadingQr}
+            onChange={(e) => void handleQrFile(e.target.files?.[0] ?? null)}
+            className="mt-1 block w-full text-xs text-zinc-600"
+          />
+          {qrUrl ? <p className="mt-1 text-xs text-emerald-700">QR code uploaded.</p> : null}
         </label>
       </div>
 
       {uploadError ? <p className="mt-2 text-xs text-rose-600">{uploadError}</p> : null}
       {state.error ? <p className="mt-2 text-xs text-rose-600">{state.error}</p> : null}
       {state.ok ? (
-        <p className="mt-2 text-xs text-emerald-700">
-          Refund request submitted — admin will review and process within 24 hours after dues clear.
-        </p>
+        <p className="mt-2 text-xs text-emerald-700">Refund review pending — admin will verify and process.</p>
       ) : null}
 
       <button
@@ -175,11 +138,6 @@ export function DepositRefundRequestForm({
       >
         {pending ? 'Submitting…' : 'Submit refund request'}
       </button>
-      {!canSubmit && refundableBalancePaise > 0 ? (
-        <p className="mt-2 text-[10px] text-zinc-500">
-          Complete meter evidence and payout method before submitting.
-        </p>
-      ) : null}
     </form>
   );
 }

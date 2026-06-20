@@ -1,30 +1,34 @@
 'use client';
 
 import { DepositRefundRequestForm } from '@/src/components/customer/account/DepositRefundRequestForm';
+import { getDepositRefundEligibility } from '@/src/lib/vacating/depositRefundEligibility';
+import type { VacatingForBookingRow } from '@/src/db/queries/customer';
 
 export function ResidentRequestForms({
   bookingId,
   refundableBalancePaise,
-  hasOpenVacating,
+  vacating,
 }: {
   bookingId: string;
   refundableBalancePaise: number;
-  hasOpenVacating: boolean;
+  vacating: VacatingForBookingRow | null;
 }) {
-  return (
-    <div className="grid gap-4">
-      {hasOpenVacating ? (
-        <div className="rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
-          You have a vacating notice on file. After admin approves vacating, submit the refund
-          request below with your <strong>final meter photo</strong> (or average billing fallback)
-          and <strong>UPI ID or QR</strong> so we can process your deposit refund.
-        </div>
-      ) : null}
+  const eligibility = getDepositRefundEligibility({ vacating });
 
-      <DepositRefundRequestForm
-        bookingId={bookingId}
-        refundableBalancePaise={refundableBalancePaise}
-      />
-    </div>
+  if (!eligibility.canRequestRefund) {
+    return (
+      <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-700">
+        <p className="font-medium text-zinc-900">Deposit refund locked</p>
+        <p className="mt-1 text-xs">{eligibility.lockReason}</p>
+      </div>
+    );
+  }
+
+  return (
+    <DepositRefundRequestForm
+      bookingId={bookingId}
+      refundableBalancePaise={refundableBalancePaise}
+      estimatedDeductionPaise={vacating?.deductionPaise ?? 0}
+    />
   );
 }

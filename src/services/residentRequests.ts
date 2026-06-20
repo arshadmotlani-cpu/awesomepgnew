@@ -19,6 +19,8 @@ import {
 import type { AdminSession } from '@/src/lib/auth/session';
 import { formatDate, parseDate } from '@/src/lib/dates';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
+import { getDepositRefundEligibility } from '@/src/lib/vacating/depositRefundEligibility';
+import { getVacatingForBooking } from '@/src/db/queries/customer';
 import { settleDepositWithDeductions } from '@/src/services/depositSettlement';
 import { syncResidentRequestActionItems } from '@/src/services/residentRequestActions';
 import { refreshAdminNotificationsFromActionItems } from '@/src/services/actionItems';
@@ -92,6 +94,17 @@ export async function submitDepositRefundRequest(input: {
   const summary = await getDepositSummaryForBooking(input.bookingId);
   if (!summary || summary.refundableBalancePaise <= 0) {
     return { ok: false as const, error: 'No refundable deposit balance on this booking.' };
+  }
+
+  const vacatingRes = await getVacatingForBooking(input.bookingId);
+  const refundEligibility = getDepositRefundEligibility({
+    vacating: vacatingRes.ok ? vacatingRes.data : null,
+  });
+  if (!refundEligibility.canRequestRefund) {
+    return {
+      ok: false as const,
+      error: refundEligibility.lockReason ?? 'Deposit refund is not available yet.',
+    };
   }
 
   try {

@@ -72,7 +72,7 @@ export function vacatingStatusLabel(status: VacatingForBookingRow['status'] | nu
     case 'pending':
       return 'Pending admin approval';
     case 'approved':
-      return 'Notice approved';
+      return 'Vacate approved';
     case 'completed':
       return 'Move-out complete';
     case 'rejected':
@@ -112,8 +112,8 @@ export function vacatingNextStep(args: {
   if (vacating.status === 'approved') {
     if (checkoutStatus === 'awaiting_resident_details') {
       return {
-        headline: 'Confirm refund details',
-        detail: 'Share your bank or UPI details so we can send your deposit refund.',
+        headline: 'Vacate approved',
+        detail: 'Your vacate date is confirmed. Deposit refund unlocks on your vacate date.',
       };
     }
     if (
@@ -126,8 +126,8 @@ export function vacatingNextStep(args: {
       };
     }
     return {
-      headline: 'Notice approved',
-      detail: 'We will settle electricity and your deposit before your move-out date.',
+      headline: 'Vacate approved',
+      detail: 'Deposit refund unlocks on your vacate date. Final settlement happens after move-out.',
     };
   }
 

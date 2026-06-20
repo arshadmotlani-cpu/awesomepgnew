@@ -13,6 +13,8 @@ import { RequestSuccessState } from '@/src/components/customer/account/resident/
 import { DepositRefundRequestFlow } from '@/src/components/customer/account/resident/requests/DepositRefundRequestFlow';
 import { DepositExtensionRequestFlow } from '@/src/components/customer/account/resident/requests/DepositExtensionRequestFlow';
 import { residentTabHref } from '@/src/lib/accountNavigation';
+import type { VacatingForBookingRow } from '@/src/db/queries/customer';
+import { getDepositRefundEligibility } from '@/src/lib/vacating/depositRefundEligibility';
 
 type Step = 'select' | 'form' | 'confirm' | 'success';
 
@@ -23,6 +25,7 @@ type Props = {
   hasDepositDue: boolean;
   onClose: () => void;
   initialCategory?: RequestCategoryId | null;
+  vacating: VacatingForBookingRow | null;
 };
 
 export function RequestsMakeFlow({
@@ -32,8 +35,10 @@ export function RequestsMakeFlow({
   hasDepositDue,
   onClose,
   initialCategory = null,
+  vacating,
 }: Props) {
   const router = useRouter();
+  const refundEligibility = getDepositRefundEligibility({ vacating });
   const [step, setStep] = useState<Step>(
     initialCategory &&
       getCategoryById(initialCategory)?.wired !== 'deposit_refund' &&
@@ -47,10 +52,22 @@ export function RequestsMakeFlow({
   const category = categoryId ? getCategoryById(categoryId) : null;
 
   if (category?.wired === 'deposit_refund') {
+    if (!refundEligibility.canRequestRefund) {
+      return (
+        <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-5">
+          <p className="text-sm font-medium text-zinc-900">Deposit refund locked</p>
+          <p className="text-sm text-zinc-600">{refundEligibility.lockReason}</p>
+          <button type="button" onClick={onClose} className="text-sm font-semibold text-indigo-600">
+            ← Back
+          </button>
+        </div>
+      );
+    }
     return (
       <DepositRefundRequestFlow
         bookingId={bookingId}
         refundableBalancePaise={refundableBalancePaise}
+        estimatedDeductionPaise={vacating?.deductionPaise ?? 0}
         onDone={onClose}
         onBack={onClose}
       />
