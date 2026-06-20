@@ -1339,6 +1339,7 @@ body {
   position: relative;
 }
 
+/* v2 viewport (legacy cards) */
 .dna-spine-viewport {
   max-height: min(72vh, 640px);
   scroll-snap-type: y proximity;
@@ -1362,6 +1363,37 @@ body {
     transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
     opacity 0.28s ease;
   will-change: transform, opacity;
+}
+
+/* v3 physics spine — continuous inertia, no snap */
+.dna-spine-v3-viewport {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: auto;
+}
+
+.dna-spine-v3-field {
+  perspective: 1600px;
+  perspective-origin: 50% 42%;
+  transform-style: preserve-3d;
+}
+
+.dna-spine-v3-card {
+  transform-style: preserve-3d;
+  will-change: transform, opacity;
+}
+
+.dna-spine-v3-floor-band {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.03) 0%,
+    transparent 12%,
+    transparent 88%,
+    rgba(255, 255, 255, 0.02) 100%
+  );
+}
+
+.dna-floor-overlay {
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.35));
 }
 
 .dna-building-map {
@@ -1392,7 +1424,8 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dna-spine-item {
+  .dna-spine-item,
+  .dna-spine-v3-card {
     transition: none;
   }
 

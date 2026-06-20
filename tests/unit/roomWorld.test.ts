@@ -17,6 +17,13 @@ import {
   spineTransformForOffset,
   spineVisualOffset,
 } from '../../src/lib/roomWorld/dnaSpineLayout';
+import {
+  buildFloorBoundaries,
+  fractionalActiveIndex,
+  getFloorBoundaryAtIndex,
+  getFloorFromIndex,
+  getFloorRange,
+} from '../../src/lib/roomWorld/floorEngine';
 
 describe('checkout QR routing', () => {
   it('uses electricity QR for fixed stays', () => {
@@ -160,5 +167,35 @@ describe('dna spine layout', () => {
   it('formats ground floor short label', () => {
     assert.equal(floorShortLabel(0, 'Ground Floor'), 'G');
     assert.equal(floorShortLabel(2, 'Floor 2'), '2F');
+  });
+});
+
+describe('dna floor engine v3', () => {
+  it('maps index to generic floor bands', () => {
+    assert.equal(getFloorFromIndex(7, 6), 1);
+    assert.deepEqual(getFloorRange(1, 6), { start: 6, end: 11 });
+  });
+
+  it('builds real PG floor boundaries', () => {
+    const bounds = buildFloorBoundaries([
+      {
+        floorNumber: 0,
+        floorLabel: 'Ground',
+        shortLabel: 'G',
+        rooms: [{ roomId: 'a' }, { roomId: 'b' }] as never[],
+      },
+      {
+        floorNumber: 1,
+        floorLabel: 'Floor 1',
+        shortLabel: '1F',
+        rooms: [{ roomId: 'c' }] as never[],
+      },
+    ]);
+    assert.equal(bounds[1]!.startIndex, 2);
+    assert.equal(getFloorBoundaryAtIndex(2, bounds)?.shortLabel, '1F');
+  });
+
+  it('computes fractional active index for continuous scroll', () => {
+    assert.equal(fractionalActiveIndex(100, 400, 128, 48), 1.96875);
   });
 });
