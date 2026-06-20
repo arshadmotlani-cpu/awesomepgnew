@@ -14,6 +14,8 @@ export type MonthlyRevenueMetrics = {
   electricityPaise: number;
   rentAndElectricityPaise: number;
   depositPaise: number;
+  depositRefundedPaise: number;
+  netInflowPaise: number;
   totalPaise: number;
 };
 
@@ -21,9 +23,12 @@ export async function getMonthlyRevenuePaise(
   billingMonthInput?: string,
 ): Promise<MonthlyRevenueMetrics> {
   const billingMonth = resolveBillingMonth(billingMonthInput);
-  const [monthSummary, depositByPg] = await Promise.all([
+  const [monthSummary, depositByPg, depositMetrics] = await Promise.all([
     getBusinessMetricsSummary(billingMonth),
     getDepositCollectedByPgForBillingMonth(billingMonth),
+    import('@/src/services/depositLedgerMetrics').then((m) =>
+      m.getDepositPortfolioMetrics(billingMonth),
+    ),
   ]);
 
   const rentPaise = monthSummary.ok ? monthSummary.data.incomeRentPaise : 0;
@@ -31,7 +36,11 @@ export async function getMonthlyRevenuePaise(
   const rentAndElectricityPaise = monthSummary.ok ? monthSummary.data.incomeTotalPaise : 0;
   const depositPaise = depositByPg.ok
     ? depositByPg.data.reduce((a, r) => a + r.collectedPaise, 0)
-    : 0;
+    : depositMetrics.collectedMtdPaise;
+  const depositRefundedPaise = monthSummary.ok
+    ? monthSummary.data.depositRefundsPaise
+    : depositMetrics.refundedMtdPaise;
+  const netInflowPaise = rentPaise + depositPaise - depositRefundedPaise;
 
   return {
     billingMonth,
@@ -39,6 +48,8 @@ export async function getMonthlyRevenuePaise(
     electricityPaise,
     rentAndElectricityPaise,
     depositPaise,
+    depositRefundedPaise,
+    netInflowPaise,
     totalPaise: rentAndElectricityPaise + depositPaise,
   };
 }

@@ -9,7 +9,7 @@ import type { ResidentBookingRow } from '@/src/db/queries/customer';
 import type { ResidentFinancialSummary } from '@/src/lib/billing/residentFinancialTypes';
 import { formatStayDateTime } from '@/src/lib/residents/stayBillingRules';
 import { paiseToInr } from '@/src/lib/format';
-import type { ResidentInvoiceCard } from '@/src/services/residentAccountContext';
+import type { ResidentInvoiceCard, RentPaymentHistoryRow } from '@/src/services/residentAccountContext';
 
 type TabId = 'profile' | 'stay' | 'payments' | 'invoices';
 
@@ -35,6 +35,7 @@ type Props = {
   primaryBooking: ResidentBookingRow | null;
   financialSummary: ResidentFinancialSummary | null;
   depositStatusLabel: string;
+  rentPaymentHistory: RentPaymentHistoryRow[];
 };
 
 export function SimpleAccountHub({
@@ -52,6 +53,7 @@ export function SimpleAccountHub({
   primaryBooking,
   financialSummary,
   depositStatusLabel,
+  rentPaymentHistory,
 }: Props) {
   const [tab, setTab] = useState<TabId>(initialTab);
 
@@ -256,15 +258,29 @@ export function SimpleAccountHub({
                   </dt>
                   <dd className="mt-1 text-xl font-bold text-white">
                     {paiseToInr(financialSummary.deposit.paidPaise)}
-                    <span className="ml-1 text-xs font-normal text-apg-silver">held</span>
                   </dd>
-                  <p className="mt-1 text-xs text-apg-muted">{depositStatusLabel}</p>
-                  {financialSummary.deposit.refundablePaise > 0 ? (
-                    <p className="mt-1 text-xs text-emerald-200">
-                      Refundable: {paiseToInr(financialSummary.deposit.refundablePaise)}
-                    </p>
-                  ) : null}
+                  <p className="mt-1 text-xs text-apg-muted">
+                    Status: {depositStatusLabel}
+                    {financialSummary.deposit.refundablePaise > 0
+                      ? ` · Refundable ${paiseToInr(financialSummary.deposit.refundablePaise)}`
+                      : ''}
+                  </p>
                 </div>
+                {rentPaymentHistory.length > 0 ? (
+                  <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-apg-muted">
+                      Rent paid
+                    </dt>
+                    <ul className="mt-3 space-y-2">
+                      {rentPaymentHistory.map((row) => (
+                        <li key={row.id} className="flex justify-between gap-3 text-sm">
+                          <span className="text-apg-silver">{row.label}</span>
+                          <span className="font-medium text-white">{paiseToInr(row.paidPaise)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
                 {financialSummary.totals.outstandingPaise > 0 ? (
                   <div className="rounded-xl border border-apg-orange/30 bg-apg-orange/10 p-4">
                     <dt className="text-xs font-semibold uppercase tracking-wide text-apg-orange">

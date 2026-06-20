@@ -276,6 +276,7 @@ async function fetchRawDepositRows(options?: { bookingId?: string }): Promise<Ra
         from deposit_ledger dl
         where dl.booking_id = ${bookings.id}
           and dl.entry_kind = 'deducted'
+          and dl.reason not like ${DEPOSIT_COLLECTION_ADJUSTMENT_SQL_PATTERN}
       )::bigint`,
       collectionAdjustmentPaise: sql<number>`(
         select coalesce(-sum(dl.amount_paise), 0)

@@ -20,7 +20,7 @@ import { diffDays } from '@/src/lib/dates';
 
 export type ResidentInvoiceCard = {
   id: string;
-  kind: 'rent' | 'electricity';
+  kind: 'rent' | 'electricity' | 'deposit';
   invoiceNumber: string;
   label: string;
   stayDurationLabel: string | null;
@@ -36,6 +36,14 @@ export type ResidentInvoiceCard = {
   paymentLinkUrl: string | null;
 };
 
+export type RentPaymentHistoryRow = {
+  id: string;
+  label: string;
+  paidPaise: number;
+  paidAt: string | null;
+  status: string;
+};
+
 export type ResidentAccountContext = {
   customer: NonNullable<Awaited<ReturnType<typeof getCustomerById>>>;
   profileComplete: boolean;
@@ -45,6 +53,7 @@ export type ResidentAccountContext = {
   financialSummary: ResidentFinancialSummary | null;
   journey: ResidencyJourneyState;
   invoices: ResidentInvoiceCard[];
+  rentPaymentHistory: RentPaymentHistoryRow[];
   depositStatusLabel: string;
   depositPaidPaise: number;
   depositHeldPaise: number;
@@ -57,10 +66,13 @@ function depositStatusLabel(input: {
   requiredPaise: number;
   refundablePaise: number;
   outstandingPaise: number;
+  refundedPaise?: number;
 }): string {
   if (input.outstandingPaise > 0) return 'Partially paid';
-  if (input.refundablePaise > 0 && input.refundablePaise < input.paidPaise) return 'Partially used';
-  if (input.paidPaise > 0) return 'Held';
+  if ((input.refundedPaise ?? 0) > 0 && input.refundablePaise === 0) return 'Refunded';
+  if (input.refundablePaise > 0 && input.refundablePaise < input.paidPaise) return 'Adjusted';
+  if (input.refundablePaise > 0) return 'Held';
+  if (input.paidPaise > 0) return 'Settled';
   return 'Pending';
 }
 
@@ -103,6 +115,8 @@ export async function loadResidentAccountContext(
   });
 
   const invoices: ResidentInvoiceCard[] = [];
+  const rentPaymentHistory: RentPaymentHistoryRow[] = [];
+  let ledgerRefundedPaise = 0;
   if (primaryBooking) {
     const [rentRes, elecRes, depositSummary] = await Promise.all([
       listRentInvoicesForBooking(primaryBooking.bookingId),
@@ -110,7 +124,11 @@ export async function loadResidentAccountContext(
       getDepositSummaryForBooking(primaryBooking.bookingId),
     ]);
 
-    const depositPaidPaise = depositSummary?.collectedPaise ?? 0;
+    const depositPaidPaise =
+      depositSummary?.collectedPaise ??
+      Math.max(0, primaryBooking.depositPaise - (primaryBooking.depositDuePaise ?? 0));
+    const depositRefundedPaise = depositSummary?.refundedPaise ?? 0;
+    ledgerRefundedPaise = depositRefundedPaise;
     const checkInLabel = formatStayDateTime(primaryBooking.checkInDate, 'check-in');
     const checkOutLabel = primaryBooking.expectedCheckoutDate
       ? formatStayDateTime(primaryBooking.expectedCheckoutDate, 'check-out')
@@ -162,6 +180,15 @@ export async function loadResidentAccountContext(
               : null,
           paymentLinkUrl: null,
         });
+        if (inv.status === 'paid') {
+          rentPaymentHistory.push({
+            id: inv.id,
+            label: `Rent · ${inv.billingMonth.slice(0, 7)}`,
+            paidPaise: inv.paidPrincipalPaise + inv.paidLateFeePaise,
+            paidAt: inv.paidAt?.toISOString() ?? null,
+            status: inv.status,
+          });
+        }
       }
     }
 
@@ -213,7 +240,30 @@ export async function loadResidentAccountContext(
       }
     }
 
-    void depositPaidPaise;
+    if (depositPaidPaise > 0 || primaryBooking.depositPaise > 0) {
+      invoices.push({
+        id: `deposit-${primaryBooking.bookingId}`,
+        kind: 'deposit',
+        invoiceNumber: `DEP-${primaryBooking.bookingCode}`,
+        label: 'Security deposit',
+        stayDurationLabel,
+        checkInLabel,
+        checkOutLabel,
+        rentPaise: 0,
+        electricityPaise: 0,
+        depositPaidPaise,
+        finalAmountPaise: depositPaidPaise,
+        status:
+          depositRefundedPaise > 0 && (depositSummary?.refundableBalancePaise ?? 0) === 0
+            ? 'refunded'
+            : depositPaidPaise >= primaryBooking.depositPaise
+              ? 'held'
+              : 'partial',
+        dueDate: primaryBooking.checkInDate,
+        payHref: null,
+        paymentLinkUrl: null,
+      });
+    }
   }
 
   const latestRentLink = hasConfirmedBooking
@@ -236,12 +286,16 @@ export async function loadResidentAccountContext(
     financialSummary,
     journey,
     invoices: invoices.sort((a, b) => (b.dueDate ?? '').localeCompare(a.dueDate ?? '')),
+    rentPaymentHistory: rentPaymentHistory.sort((a, b) =>
+      (b.paidAt ?? '').localeCompare(a.paidAt ?? ''),
+    ),
     depositStatusLabel: financialSummary
       ? depositStatusLabel({
           paidPaise: financialSummary.deposit.paidPaise,
           requiredPaise: financialSummary.deposit.requiredPaise,
           refundablePaise: financialSummary.deposit.refundablePaise,
           outstandingPaise: financialSummary.deposit.outstandingPaise,
+          refundedPaise: ledgerRefundedPaise,
         })
       : 'Pending',
     depositPaidPaise: financialSummary?.deposit.paidPaise ?? 0,

@@ -33,7 +33,7 @@ import {
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import { coerceNonNegativePaise, asPlainNumber } from '@/src/lib/format';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
-import { depositCollectionAdjustmentReason } from '@/src/lib/deposits/constants';
+import { DEPOSIT_COLLECTION_ADJUSTMENT_PREFIX, depositCollectionAdjustmentReason } from '@/src/lib/deposits/constants';
 import { applyDepositDeduction } from '@/src/services/depositSettlement';
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -45,6 +45,8 @@ export type DepositSummary = {
   customerId: string;
   collectedPaise: number;
   deductedPaise: number; // positive number representing total deductions
+  /** Resident charges only — excludes admin collection-balance corrections. */
+  residentDeductedPaise: number;
   refundedPaise: number; // positive number representing total refunds
   refundableBalancePaise: number; // collected - deducted - refunded
   entries: DepositLedgerEntry[];
@@ -369,11 +371,17 @@ export async function getDepositSummaryForBooking(
     let collected = 0;
     let deducted = 0;
     let refunded = 0;
+    let residentDeducted = 0;
     for (const e of entries) {
       const amount = asPlainNumber(e.amountPaise);
       if (e.entryKind === 'collected') collected += coerceNonNegativePaise(amount);
-      else if (e.entryKind === 'deducted') deducted += coerceNonNegativePaise(-amount);
-      else if (e.entryKind === 'refunded') refunded += coerceNonNegativePaise(-amount);
+      else if (e.entryKind === 'deducted') {
+        const abs = coerceNonNegativePaise(-amount);
+        deducted += abs;
+        if (!e.reason.startsWith(DEPOSIT_COLLECTION_ADJUSTMENT_PREFIX)) {
+          residentDeducted += abs;
+        }
+      } else if (e.entryKind === 'refunded') refunded += coerceNonNegativePaise(-amount);
     }
 
     const summary = {
@@ -382,6 +390,7 @@ export async function getDepositSummaryForBooking(
       collectedPaise: guardDepositPaise(collected, 'summary.collectedPaise'),
       deductedPaise: guardDepositPaise(deducted, 'summary.deductedPaise'),
       refundedPaise: guardDepositPaise(refunded, 'summary.refundedPaise'),
+      residentDeductedPaise: guardDepositPaise(residentDeducted, 'summary.residentDeductedPaise'),
       refundableBalancePaise: guardDepositPaise(
         collected - deducted - refunded,
         'summary.refundableBalancePaise',

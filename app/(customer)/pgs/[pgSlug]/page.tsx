@@ -4,6 +4,7 @@ import { PgBlockBooking } from '@/src/components/customer/block/PgBlockBooking';
 import type { CustomerRoomBedMap } from '@/src/components/customer/CustomerBedMap';
 import { AnalyticsMountEvent } from '@/src/components/analytics/AnalyticsMountEvent';
 import { getPgBySlug, getRoomDetail, listRoomsForPg } from '@/src/db/queries/customer';
+import { buildSingleSharedSummaries } from '@/src/lib/booking/pgRoomTypeSummaries';
 import { trackAnalyticsEvent } from '@/src/services/visitorAnalytics';
 
 export const dynamic = 'force-dynamic';
@@ -27,6 +28,7 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
 
   const roomsResult = await listRoomsForPg(pg.id);
   const roomList = roomsResult.ok ? roomsResult.data : [];
+  const roomTypeSummaries = buildSingleSharedSummaries(roomList);
 
   const roomDetails = (
     await Promise.all(roomList.map((r) => getRoomDetail(pg.slug, r.roomId)))
@@ -94,6 +96,7 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
         amenities={(pg.amenities ?? {}) as Record<string, unknown>}
         rooms={roomList}
         bedMapRooms={bedMapRooms}
+        roomTypeSummaries={roomTypeSummaries}
       />
     </div>
   );

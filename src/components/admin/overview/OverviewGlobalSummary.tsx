@@ -112,6 +112,38 @@ export function OverviewGlobalSummary({ ctx }: { ctx: OverviewContext }) {
             accent="emerald"
           />
           <ClickableOverviewCard
+            href={`/admin/deposits/collected?month=${month}`}
+            label="Deposits collected (MTD)"
+            value={paiseToInr(ctx.depositPortfolio.collectedMtdPaise)}
+            hint="From deposit ledger"
+            icon={<IconCard />}
+            accent="orange"
+          />
+          <ClickableOverviewCard
+            href={moduleHref('deposits', month)}
+            label="Deposits held"
+            value={paiseToInr(ctx.depositPortfolio.heldPaise)}
+            hint="Active liability — refundable balances"
+            icon={<IconCard />}
+            accent="amber"
+          />
+          <ClickableOverviewCard
+            href={moduleHref('revenue', month)}
+            label="Deposits refunded (MTD)"
+            value={paiseToInr(ctx.depositPortfolio.refundedMtdPaise)}
+            hint="Cash returned this month"
+            icon={<IconChart />}
+            accent="rose"
+          />
+          <ClickableOverviewCard
+            href={moduleHref('revenue', month)}
+            label="Net inflow (MTD)"
+            value={paiseToInr(ctx.revenue.mtd.netInflowPaise)}
+            hint="Rent + deposits collected − refunds"
+            icon={<IconChart />}
+            accent="emerald"
+          />
+          <ClickableOverviewCard
             href={moduleHref('revenue', month)}
             label="Electricity collected"
             value={paiseToInr(ctx.summary.incomeElectricityPaise)}

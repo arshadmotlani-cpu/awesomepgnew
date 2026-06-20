@@ -4,21 +4,21 @@ import { useCallback, useMemo, useState } from 'react';
 import { BedBookingPanel } from '@/src/components/customer/BedBookingPanel';
 import { BedReservePanel } from '@/src/components/customer/BedReservePanel';
 import { PgBillingRulesBox } from '@/src/components/customer/block/PgBillingRulesBox';
-import { PgCompactBedSlot } from '@/src/components/customer/block/PgCompactBedSlot';
 import { PgMobileHero } from '@/src/components/customer/block/PgMobileHero';
 import { PgRoomTypeCards } from '@/src/components/customer/block/PgRoomTypeCards';
-import {
-  matchesPgCategoryFilter,
-  pgDisplayCategory,
-  PG_CATEGORY_META,
-  type PgDisplayCategory,
-} from '@/src/components/customer/block/pgDisplayCategory';
 import type { CustomerRoomBedMap } from '@/src/components/customer/CustomerBedMap';
-import { CustomerBedDetailSheet } from '@/src/components/customer/customerBedUi';
+import {
+  CUSTOMER_BED_KIND_CLASS,
+  CustomerBedDetailSheet,
+  CustomerBedTile,
+} from '@/src/components/customer/customerBedUi';
 import type { BedSelectorBed } from '@/src/components/customer/customerBedTypes';
+import type { PgRoomTypeSummary } from '@/src/lib/booking/pgRoomTypeSummaries';
+import { pgRoomTypeFilterKey } from '@/src/lib/booking/pgRoomTypeSummaries';
 import { lowestDailyRatePaise } from '@/src/lib/booking/simpleRoomCategory';
 import type { CustomerRoomCard } from '@/src/db/queries/customer';
 import { dispatchRoachieReminder } from '@/src/lib/cockroach/roachieReminders';
+import type { BedAvailabilityKind } from '@/src/lib/bedAvailabilityState';
 
 type Props = {
   pgName: string;
@@ -27,57 +27,59 @@ type Props = {
   amenities: Record<string, unknown>;
   rooms: CustomerRoomCard[];
   bedMapRooms: CustomerRoomBedMap[];
+  roomTypeSummaries: PgRoomTypeSummary[];
 };
 
-function roomOccupancy(room: CustomerRoomBedMap) {
-  const total = room.beds.length;
-  const open = room.beds.filter((b) => b.isAvailableNow && b.status === 'available').length;
-  const filled = total - open;
-  return { filled, total, status: open === 0 ? 'Full' : 'Available' };
-}
+const LEGEND: { label: string; kind: BedAvailabilityKind }[] = [
+  { label: 'Available', kind: 'open_now' },
+  { label: 'Notice', kind: 'notice' },
+  { label: 'Reserved', kind: 'reserved' },
+  { label: 'Occupied', kind: 'occupied' },
+];
+
+type PgRoomRow = {
+  bedRoom: CustomerRoomBedMap;
+  roomCard: CustomerRoomCard;
+};
 
 function BlockRoomCard({
-  room,
+  row,
   selectedBedId,
   onSelectBed,
   mergeBed,
 }: {
-  room: CustomerRoomBedMap;
+  row: PgRoomRow;
   selectedBedId: string | null;
   onSelectBed: (bedId: string) => void;
   mergeBed: (bed: BedSelectorBed) => BedSelectorBed;
 }) {
-  const occ = roomOccupancy(room);
+  const { bedRoom, roomCard } = row;
 
   return (
     <article className="overflow-hidden rounded-[16px] border border-white/10 bg-white/[0.03] shadow-sm">
-      <div className="flex items-center justify-between gap-3 px-4 py-3.5">
+      <div className="flex items-start justify-between gap-3 px-4 py-3.5">
         <div>
-          <h3 className="text-[17px] font-semibold text-white">Room {room.roomNumber}</h3>
-          <p className="mt-0.5 text-xs text-apg-muted">
-            {occ.filled}/{occ.total} occupied
+          <h3 className="text-[17px] font-semibold text-white">
+            Room {roomCard.roomNumber}
+          </h3>
+          <p className="mt-0.5 text-xs text-apg-muted">{roomCard.roomType}</p>
+          <p className="mt-1 text-xs text-apg-silver">
+            Occupancy: {roomCard.availableBeds}/{roomCard.totalBeds}
           </p>
         </div>
-        <span
-          className={
-            'rounded-full px-2.5 py-1 text-[11px] font-semibold ' +
-            (occ.status === 'Available'
-              ? 'bg-emerald-500/15 text-emerald-200'
-              : 'bg-white/8 text-apg-silver')
-          }
-        >
-          {occ.status}
+        <span className="shrink-0 text-xs text-apg-muted">
+          {roomCard.availableBeds > 0 ? `${roomCard.availableBeds} open` : '—'}
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-2.5 border-t border-white/5 px-4 pb-4 pt-3">
-        {room.beds.map((bed) => {
+      <div className="grid grid-cols-2 gap-2.5 border-t border-white/5 px-4 pb-4 pt-3 sm:grid-cols-[repeat(auto-fill,minmax(7rem,1fr))]">
+        {bedRoom.beds.map((bed) => {
           const viewBed = mergeBed(bed);
           return (
-            <PgCompactBedSlot
+            <CustomerBedTile
               key={bed.bedId}
               bed={viewBed}
-              selected={selectedBedId === bed.bedId}
+              isSelected={selectedBedId === bed.bedId}
               onSelect={() => onSelectBed(bed.bedId)}
             />
           );
@@ -87,7 +89,7 @@ function BlockRoomCard({
   );
 }
 
-/** Mobile-first PG booking — Airbnb clarity × hostel bed logic. */
+/** Bed-centric PG booking — renders API room + bed payloads only. */
 export function PgBlockBooking({
   pgName,
   locationLine,
@@ -95,8 +97,9 @@ export function PgBlockBooking({
   amenities,
   rooms,
   bedMapRooms,
+  roomTypeSummaries,
 }: Props) {
-  const [categoryFilter, setCategoryFilter] = useState<PgDisplayCategory | 'all'>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string | 'all'>('all');
   const [selectedBedId, setSelectedBedId] = useState<string | null>(null);
   const [panelBeds, setPanelBeds] = useState<BedSelectorBed[]>([]);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -109,25 +112,23 @@ export function PgBlockBooking({
 
   const startingPrice = lowestDailyRatePaise(rooms);
 
-  const bedRoomById = useMemo(
-    () => new Map(bedMapRooms.map((r) => [r.roomId, r])),
-    [bedMapRooms],
-  );
-
-  const roomCards = useMemo(() => {
-    return rooms
-      .map((room) => {
-        const bedRoom = bedRoomById.get(room.roomId);
-        if (!bedRoom || bedRoom.beds.length === 0) return null;
-        return { room: bedRoom, capacity: room.capacity };
+  const roomRows = useMemo((): PgRoomRow[] => {
+    const cardById = new Map(rooms.map((r) => [r.roomId, r]));
+    return bedMapRooms
+      .map((bedRoom) => {
+        const roomCard = cardById.get(bedRoom.roomId);
+        if (!roomCard || bedRoom.beds.length === 0) return null;
+        return { bedRoom, roomCard };
       })
-      .filter(Boolean) as Array<{ room: CustomerRoomBedMap; capacity: number }>;
-  }, [rooms, bedRoomById]);
+      .filter(Boolean) as PgRoomRow[];
+  }, [rooms, bedMapRooms]);
 
   const filteredRooms = useMemo(() => {
-    if (categoryFilter === 'all') return roomCards;
-    return roomCards.filter((r) => matchesPgCategoryFilter(r.capacity, categoryFilter));
-  }, [roomCards, categoryFilter]);
+    if (categoryFilter === 'all') return roomRows;
+    return roomRows.filter(
+      (row) => pgRoomTypeFilterKey(row.roomCard.roomType, row.roomCard.capacity) === categoryFilter,
+    );
+  }, [roomRows, categoryFilter]);
 
   const mergeBed = useCallback(
     (bed: BedSelectorBed): BedSelectorBed => {
@@ -139,20 +140,20 @@ export function PgBlockBooking({
 
   const selectedBed = useMemo(() => {
     if (!selectedBedId) return null;
-    for (const { room } of roomCards) {
-      const bed = room.beds.find((b) => b.bedId === selectedBedId);
-      if (bed) return { bed: mergeBed(bed), room };
+    for (const { bedRoom, roomCard } of roomRows) {
+      const bed = bedRoom.beds.find((b) => b.bedId === selectedBedId);
+      if (bed) return { bed: mergeBed(bed), bedRoom, roomCard };
     }
     return null;
-  }, [roomCards, selectedBedId, mergeBed]);
+  }, [roomRows, selectedBedId, mergeBed]);
 
   const scrollToRooms = useCallback(() => {
     document.getElementById('pg-room-blocks')?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
   const pickCategory = useCallback(
-    (id: PgDisplayCategory) => {
-      setCategoryFilter(id);
+    (roomTypeKey: string) => {
+      setCategoryFilter(roomTypeKey);
       scrollToRooms();
     },
     [scrollToRooms],
@@ -172,10 +173,6 @@ export function PgBlockBooking({
     setInterestOverrides((prev) => ({ ...prev, [bedId]: count }));
   }, []);
 
-  const categoryLabel = selectedBed
-    ? PG_CATEGORY_META[pgDisplayCategory(selectedBed.room.capacity)].title
-    : '';
-
   return (
     <>
       <PgMobileHero
@@ -187,21 +184,22 @@ export function PgBlockBooking({
         onViewRooms={scrollToRooms}
       />
 
-      <PgRoomTypeCards rooms={rooms} active={categoryFilter} onSelect={pickCategory} />
+      <PgRoomTypeCards
+        summaries={roomTypeSummaries}
+        active={categoryFilter}
+        onSelect={pickCategory}
+      />
 
-      <div className="mt-4 flex flex-wrap gap-3 text-[11px] text-apg-muted">
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded-[4px] border border-emerald-500/40 bg-emerald-500/20" />
-          Available
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded-[4px] border border-white/10 bg-white/[0.06]" />
-          Occupied
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded-[4px] border border-sky-400/50 bg-sky-500/25" />
-          Selected
-        </span>
+      <div className="mt-4 flex flex-wrap gap-2 text-[10px] text-apg-silver">
+        {LEGEND.map((item) => (
+          <span key={item.kind} className="inline-flex items-center gap-1">
+            <span
+              className={`inline-block h-3 w-4 rounded border ${CUSTOMER_BED_KIND_CLASS[item.kind].split(' ').slice(0, 2).join(' ')}`}
+            />
+            {item.label}
+          </span>
+        ))}
+        <span className="text-apg-muted">· 🔵 = selected</span>
       </div>
 
       <section id="pg-room-blocks" className="mt-5 scroll-mt-4 pb-24">
@@ -223,10 +221,10 @@ export function PgBlockBooking({
           </p>
         ) : (
           <div className="mt-3 flex flex-col gap-3">
-            {filteredRooms.map(({ room }) => (
+            {filteredRooms.map((row) => (
               <BlockRoomCard
-                key={room.roomId}
-                room={room}
+                key={row.bedRoom.roomId}
+                row={row}
                 selectedBedId={selectedBedId}
                 onSelectBed={setSelectedBedId}
                 mergeBed={mergeBed}
@@ -244,7 +242,7 @@ export function PgBlockBooking({
         <CustomerBedDetailSheet
           presentation="bottomSheet"
           bed={selectedBed.bed}
-          roomLabel={`Room ${selectedBed.room.roomNumber} · ${categoryLabel}`}
+          roomLabel={`Room ${selectedBed.bedRoom.roomNumber} · ${selectedBed.roomCard.roomType}`}
           onClose={() => setSelectedBedId(null)}
           onBook={(options) => openPanel(selectedBed.bed, options)}
           onPreBook={() => {

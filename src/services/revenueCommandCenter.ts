@@ -8,6 +8,7 @@ import {
   getDepositCollectedByPgForBillingMonth,
 } from '@/src/db/queries/admin';
 import { getMonthlyRevenuePaise } from '@/src/services/dashboardMetrics';
+import type { DepositPortfolioMetrics } from '@/src/services/depositLedgerMetrics';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import type { PendingPaymentReviewItem } from '@/src/services/paymentProofQueue';
@@ -39,7 +40,11 @@ export type OutstandingMoneySummary = {
 export type RevenueCommandCenterData = {
   billingMonth: string;
   today: CollectionBreakdown;
-  mtd: CollectionBreakdown;
+  mtd: CollectionBreakdown & {
+    depositRefundedPaise: number;
+    netInflowPaise: number;
+  };
+  depositPortfolio: DepositPortfolioMetrics;
   byPg: RevenueByPgRow[];
   outstanding: OutstandingMoneySummary;
 };
@@ -106,12 +111,16 @@ export async function getRevenueCommandCenterData(
 ): Promise<RevenueCommandCenterData> {
   const billingMonth = resolveBillingMonth(input.billingMonth);
 
-  const [todayResult, depositRows, pendingPayments, portfolioTotals] = await Promise.all([
+  const [todayResult, depositRows, pendingPayments, portfolioTotals, depositPortfolio] =
+    await Promise.all([
     getDailyCollectionTotals(),
     getDepositCollectedByPgForBillingMonth(billingMonth),
     listPendingPaymentReviews(input.session),
     import('@/src/services/residentFinancialEngine').then((m) =>
       m.getPortfolioFinancialTotals(input.session),
+    ),
+    import('@/src/services/depositLedgerMetrics').then((m) =>
+      m.getDepositPortfolioMetrics(billingMonth),
     ),
   ]);
 
@@ -127,11 +136,13 @@ export async function getRevenueCommandCenterData(
   }
 
   const mtdMetrics = await getMonthlyRevenuePaise(billingMonth);
-  const mtd: CollectionBreakdown = {
+  const mtd = {
     rentPaise: mtdMetrics.rentPaise,
     electricityPaise: mtdMetrics.electricityPaise,
     depositPaise: mtdMetrics.depositPaise,
     totalPaise: mtdMetrics.totalPaise,
+    depositRefundedPaise: mtdMetrics.depositRefundedPaise,
+    netInflowPaise: mtdMetrics.netInflowPaise,
   };
   const byPg = buildByPgRows(input.pgMetrics, depositByPg);
 
@@ -141,6 +152,7 @@ export async function getRevenueCommandCenterData(
     billingMonth,
     today,
     mtd,
+    depositPortfolio,
     byPg,
     outstanding,
   };

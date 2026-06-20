@@ -88,6 +88,7 @@ export default async function ProfilePage(
         primaryBooking={ctx.primaryBooking}
         financialSummary={ctx.financialSummary}
         depositStatusLabel={ctx.depositStatusLabel}
+        rentPaymentHistory={ctx.rentPaymentHistory}
       />
 
       {section === 'identity' ? (

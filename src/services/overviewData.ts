@@ -24,6 +24,7 @@ import {
   getVisitorCountSummary,
 } from '@/src/services/visitorAnalytics';
 import type { GlobalFinancialAggregates } from '@/src/lib/billing/residentFinancialTypes';
+import type { DepositPortfolioMetrics } from '@/src/services/depositLedgerMetrics';
 
 export type OverviewContext = {
   billingMonth: string;
@@ -31,6 +32,7 @@ export type OverviewContext = {
   summary: BusinessMetricsSummary;
   pgMetrics: PgBusinessMetrics[];
   revenue: NonNullable<Awaited<ReturnType<typeof getRevenueCommandCenterData>>>;
+  depositPortfolio: DepositPortfolioMetrics;
   financialAggregates: GlobalFinancialAggregates;
   dashboard: DashboardStats | null;
   rentStats: RentStats | null;
@@ -149,16 +151,28 @@ export async function loadOverviewContext(
   }
 
   const { getGlobalFinancialAggregates } = await import('@/src/services/residentFinancialEngine');
-  const financialAggregates = await getGlobalFinancialAggregates(session).catch(() => ({
-    asOf: new Date().toISOString(),
-    rent: { requiredPaise: 0, paidPaise: 0, outstandingPaise: 0 },
-    deposit: { requiredPaise: 0, paidPaise: 0, outstandingPaise: 0 },
-    electricity: { requiredPaise: 0, paidPaise: 0, outstandingPaise: 0 },
-    other: { requiredPaise: 0, paidPaise: 0, outstandingPaise: 0 },
-    totals: { requiredPaise: 0, paidPaise: 0, outstandingPaise: 0 },
-    pendingRentInvoiceCount: 0,
-    pendingElectricityInvoiceCount: 0,
-  }));
+  const { getDepositPortfolioMetrics } = await import('@/src/services/depositLedgerMetrics');
+  const [financialAggregates, depositPortfolio] = await Promise.all([
+    getGlobalFinancialAggregates(session).catch(() => ({
+      asOf: new Date().toISOString(),
+      rent: { requiredPaise: 0, paidPaise: 0, outstandingPaise: 0 },
+      deposit: { requiredPaise: 0, paidPaise: 0, outstandingPaise: 0 },
+      electricity: { requiredPaise: 0, paidPaise: 0, outstandingPaise: 0 },
+      other: { requiredPaise: 0, paidPaise: 0, outstandingPaise: 0 },
+      totals: { requiredPaise: 0, paidPaise: 0, outstandingPaise: 0 },
+      pendingRentInvoiceCount: 0,
+      pendingElectricityInvoiceCount: 0,
+    })),
+    getDepositPortfolioMetrics(billingMonth).catch(() => ({
+      billingMonth,
+      collectedAllTimePaise: 0,
+      collectedMtdPaise: 0,
+      heldPaise: 0,
+      refundedAllTimePaise: 0,
+      refundedMtdPaise: 0,
+      residentDeductionsPaise: 0,
+    })),
+  ]);
 
   void depositByPg; // reserved for future MTD deposit reconciliation per PG
 
@@ -177,6 +191,7 @@ export async function loadOverviewContext(
       summary: summary.data,
       pgMetrics: metrics.data,
       revenue,
+      depositPortfolio,
       financialAggregates,
       dashboard: dashboard.ok ? dashboard.data : null,
       rentStats: rentStats.ok ? rentStats.data : null,

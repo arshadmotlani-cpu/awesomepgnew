@@ -1019,7 +1019,12 @@ export function getBusinessMetricsSummary(
 ): Promise<QueryResult<BusinessMetricsSummary>> {
   return guard(async () => {
     const billingMonth = resolveBillingMonth(billingMonthInput);
-    const rows = await getPgBusinessMetrics(billingMonth);
+    const [rows, depositRefunds] = await Promise.all([
+      getPgBusinessMetrics(billingMonth),
+      import('@/src/services/depositLedgerMetrics').then((m) =>
+        m.getDepositRefundsForBillingMonth(billingMonth),
+      ),
+    ]);
     if (!rows.ok) throw new Error(rows.error);
 
     const totalBeds = rows.data.reduce((a, r) => a + r.totalBeds, 0);
@@ -1048,8 +1053,8 @@ export function getBusinessMetricsSummary(
       lateFeePaise: rows.data.reduce((a, r) => a + r.lateFeePaise, 0),
       vacatingDeductionPaise: rows.data.reduce((a, r) => a + r.vacatingDeductionPaise, 0),
       otherDeductionPaise: rows.data.reduce((a, r) => a + r.otherDeductionPaise, 0),
-      depositRefundsCount: rows.data.reduce((a, r) => a + r.depositRefundsCount, 0),
-      depositRefundsPaise: rows.data.reduce((a, r) => a + r.depositRefundsPaise, 0),
+      depositRefundsCount: depositRefunds.count,
+      depositRefundsPaise: depositRefunds.paise,
     });
   });
 }
@@ -1133,15 +1138,15 @@ export function getDailyCollectionTotals(
   });
 }
 
-/** Deposit collected per PG for a billing month — invoice dataset (deduped, production only). */
+/** Deposit collected per PG for a billing month — deposit_ledger only (production). */
 export function getDepositCollectedByPgForBillingMonth(
   billingMonthInput?: string,
 ): Promise<QueryResult<DepositCollectedByPgRow[]>> {
   return guard(async () => {
-    const { getDepositCollectedByPgForBillingMonthFromInvoices } = await import(
-      '@/src/services/depositInvoices'
+    const { getDepositCollectedByPgFromLedger } = await import(
+      '@/src/services/depositLedgerMetrics'
     );
-    return getDepositCollectedByPgForBillingMonthFromInvoices(billingMonthInput);
+    return getDepositCollectedByPgFromLedger(billingMonthInput);
   });
 }
 

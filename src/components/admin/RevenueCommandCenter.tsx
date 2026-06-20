@@ -18,7 +18,7 @@ export function RevenueCommandCenter({
   monthLabel: string;
   pgHref?: (pgId: string) => string;
 }) {
-  const { today, mtd, byPg, outstanding } = data;
+  const { today, mtd, byPg, outstanding, depositPortfolio } = data;
 
   return (
     <section className="space-y-6">
@@ -99,6 +99,44 @@ export function RevenueCommandCenter({
             hint="Rent + electricity + deposits"
             icon={<IconCard />}
             accent="indigo"
+          />
+        </div>
+      </div>
+
+      <div>
+        <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-apg-silver">
+          Deposit ledger · {monthLabel}
+        </p>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <OverviewStatCard
+            label="Deposits collected (MTD)"
+            value={paiseToInr(mtd.depositPaise)}
+            hint="Ledger collected entries this month"
+            icon={<IconCard />}
+            accent="orange"
+            href={`/admin/deposits/collected?month=${data.billingMonth}`}
+          />
+          <OverviewStatCard
+            label="Deposits refunded (MTD)"
+            value={paiseToInr(mtd.depositRefundedPaise)}
+            hint="Ledger refund entries this month"
+            icon={<IconChart />}
+            accent="rose"
+          />
+          <OverviewStatCard
+            label="Deposits held (liability)"
+            value={paiseToInr(depositPortfolio.heldPaise)}
+            hint="Current refundable balances"
+            icon={<IconCard />}
+            accent="amber"
+            href="/admin/deposits"
+          />
+          <OverviewStatCard
+            label="Net inflow (MTD)"
+            value={paiseToInr(mtd.netInflowPaise)}
+            hint="Rent + deposits collected − refunds"
+            icon={<IconChart />}
+            accent="emerald"
           />
         </div>
       </div>

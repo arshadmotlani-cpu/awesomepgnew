@@ -210,24 +210,19 @@ async function buildDepositCategory(
   meta: { pgId: string; pgName: string; roomNumber: string },
 ): Promise<ResidentDepositCategory> {
   const summary = await getDepositSummaryForBooking(bookingId);
-  const hasWalletActivity = (summary?.entries.length ?? 0) > 0;
+  const hasLedger = (summary?.entries.length ?? 0) > 0;
 
-  // Wallet-only: no ledger rows → zero financial display (ignore booking snapshot).
-  if (!hasWalletActivity) {
-    return {
-      requiredPaise: 0,
-      paidPaise: 0,
-      outstandingPaise: 0,
-      refundablePaise: 0,
-      items: [],
-    };
-  }
-
-  const collected = summary?.collectedPaise ?? 0;
   const requiredPaise = depositRequiredPaise;
-  const paidPaise = collected;
   const outstandingPaise = Math.max(0, depositDuePaise);
-  const refundablePaise = summary?.refundableBalancePaise ?? 0;
+
+  /** Booking columns are stored snapshots when ledger has not been written yet. */
+  const bookingCollectedPaise = Math.max(0, depositRequiredPaise - depositDuePaise);
+
+  const collectedFromLedger = summary?.collectedPaise ?? 0;
+  const refundableFromLedger = summary?.refundableBalancePaise ?? 0;
+
+  const paidPaise = hasLedger ? collectedFromLedger : bookingCollectedPaise;
+  const refundablePaise = hasLedger ? refundableFromLedger : bookingCollectedPaise;
 
   const items: ResidentFinancialLineItem[] = [];
   if (outstandingPaise > 0) {
@@ -235,10 +230,23 @@ async function buildDepositCategory(
       id: `deposit-due-${bookingId}`,
       kind: 'deposit',
       label: 'Deposit remaining',
-      requiredPaise: requiredPaise,
+      requiredPaise,
       paidPaise,
       outstandingPaise,
       status: 'due',
+      pgId: meta.pgId,
+      pgName: meta.pgName,
+      roomNumber: meta.roomNumber,
+    });
+  } else if (paidPaise > 0) {
+    items.push({
+      id: `deposit-held-${bookingId}`,
+      kind: 'deposit',
+      label: 'Security deposit',
+      requiredPaise,
+      paidPaise,
+      outstandingPaise: 0,
+      status: refundablePaise > 0 ? 'held' : 'settled',
       pgId: meta.pgId,
       pgName: meta.pgName,
       roomNumber: meta.roomNumber,
