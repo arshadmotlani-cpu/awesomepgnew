@@ -8,6 +8,12 @@ import { revalidateFinancialViews } from '@/src/lib/billing/revalidateFinancialV
 import { vacatingPenalty } from '@/src/services/billing';
 import type { CustomChargeKind } from '@/src/services/customCharges';
 import { settleDepositRefund } from '@/src/services/depositSettlement';
+import { getCustomerDepositCredit } from '@/src/services/depositCredit';
+import {
+  executeExpressWalkInSale,
+  type ExpressWalkInPaymentMethod,
+  type ExpressWalkInStayType,
+} from '@/src/services/expressWalkInSale';
 import {
   getDepositSummaryForBooking,
   recordAdvanceDeposit,
@@ -20,7 +26,14 @@ import {
 } from '@/src/services/residentAdmin';
 
 export type QuickActionResult =
-  | { ok: true; message: string; href?: string }
+  | {
+      ok: true;
+      message: string;
+      href?: string;
+      bookingId?: string;
+      customerId?: string;
+      paymentLinkUrl?: string;
+    }
   | { ok: false; error: string };
 
 export type ResidentQuickContext = {
@@ -326,5 +339,226 @@ export async function quickRefundSettlementAction(input: {
     return { ok: true, message: `Refund ₹${input.amountInr.toLocaleString('en-IN')} recorded.` };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Refund failed.' };
+  }
+}
+
+export type ExpressWalkInBedOption = {
+  bedId: string;
+  label: string;
+  pgId: string;
+  pgName: string;
+  roomNumber: string;
+  bedCode: string;
+  monthlyRatePaise: number;
+  depositPaise: number;
+};
+
+export type ExpressWalkInLookupResult =
+  | {
+      found: true;
+      customerId: string;
+      fullName: string;
+      email: string;
+      phone: string;
+      gender: 'male' | 'female' | 'other';
+      kycStatus: string;
+      tenancyStatus: 'active' | 'unassigned' | 'vacated';
+      walletCreditPaise: number;
+    }
+  | { found: false };
+
+function isPlaceholderWalkInEmail(email: string): boolean {
+  return email.startsWith('walkin+') && email.endsWith('@residents.awesomepg.in');
+}
+
+export async function lookupExpressWalkInCustomerAction(
+  query: string,
+): Promise<ExpressWalkInLookupResult | { error: string }> {
+  try {
+    const session = await requireAdminPermission('bookings:write');
+    const trimmed = query.trim();
+    if (trimmed.length < 3) {
+      return { error: 'Enter at least 3 characters.' };
+    }
+
+    const { findCustomerByPhone } = await import('@/src/lib/auth/customer');
+    let customer = await findCustomerByPhone(trimmed);
+
+    if (!customer) {
+      const { searchResidentsForAdmin } = await import('@/src/services/adminResidentSearch');
+      const results = await searchResidentsForAdmin(session, trimmed, 5);
+      if (results.length === 1) {
+        const { db } = await import('@/src/db/client');
+        const { customers } = await import('@/src/db/schema');
+        const { eq } = await import('drizzle-orm');
+        customer =
+          (
+            await db.select().from(customers).where(eq(customers.id, results[0]!.id)).limit(1)
+          )[0] ?? null;
+      }
+    }
+
+    if (!customer || customer.archivedAt) {
+      return { found: false };
+    }
+
+    const { getResidentDetail } = await import('@/src/services/residentAdmin');
+    const detail = await getResidentDetail(session, customer.id);
+    const wallet = await getCustomerDepositCredit(customer.id);
+
+    return {
+      found: true,
+      customerId: customer.id,
+      fullName: customer.fullName,
+      email: isPlaceholderWalkInEmail(customer.email) ? '' : customer.email,
+      phone: customer.phone,
+      gender: customer.gender,
+      kycStatus: customer.kycStatus,
+      tenancyStatus: detail?.activeTenancy
+        ? 'active'
+        : customer.residencyStatus === 'vacated'
+          ? 'vacated'
+          : 'unassigned',
+      walletCreditPaise: wallet.availableCreditPaise,
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Lookup failed.' };
+  }
+}
+
+export async function listExpressWalkInBedsAction(
+  checkInDate: string,
+): Promise<{ ok: true; beds: ExpressWalkInBedOption[] } | { ok: false; error: string }> {
+  try {
+    const session = await requireAdminPermission('bookings:write');
+    const { listAssignableBeds } = await import('@/src/services/tenantAssignment');
+    const rows = await listAssignableBeds(session, checkInDate);
+    return {
+      ok: true,
+      beds: rows.map((r) => ({
+        bedId: r.bedId,
+        pgId: r.pgId,
+        pgName: r.pgName,
+        roomNumber: r.roomNumber,
+        bedCode: r.bedCode,
+        label: `${r.pgName} · Room ${r.roomNumber} · ${r.bedCode}`,
+        monthlyRatePaise: r.monthlyRatePaise,
+        depositPaise: r.depositPaise,
+      })),
+    };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not load beds.' };
+  }
+}
+
+export async function expressWalkInSaleAction(input: {
+  customerId?: string;
+  fullName: string;
+  phone: string;
+  email?: string;
+  gender: 'male' | 'female' | 'other';
+  adminVerifiedKyc?: boolean;
+  bedId: string;
+  checkInDate: string;
+  stayType: ExpressWalkInStayType;
+  checkOutDate?: string | null;
+  blocksWholeRoom?: boolean;
+  rentAmountInr: number;
+  depositRequiredInr: number;
+  depositPaidInr: number;
+  rentPaidInr?: number;
+  walletCreditInr?: number;
+  paymentMethod: ExpressWalkInPaymentMethod;
+  notes?: string;
+}): Promise<QuickActionResult> {
+  try {
+    const session = await requireAdminPermission('bookings:write');
+    await requireAdminPermission('payments:write');
+
+    if (input.stayType === 'fixed' && !input.checkOutDate?.trim()) {
+      return { ok: false, error: 'Check-out date is required for fixed stays.' };
+    }
+
+    const toPaise = (inr: number) => Math.round(inr * 100);
+
+    const result = await executeExpressWalkInSale(session, {
+      customerId: input.customerId,
+      fullName: input.fullName.trim(),
+      phone: input.phone.trim(),
+      email: input.email?.trim(),
+      gender: input.gender,
+      adminVerifiedKyc: input.adminVerifiedKyc,
+      bedId: input.bedId,
+      checkInDate: input.checkInDate,
+      stayType: input.stayType,
+      checkOutDate: input.checkOutDate ?? null,
+      blocksWholeRoom: input.blocksWholeRoom,
+      rentAmountPaise: toPaise(input.rentAmountInr),
+      depositRequiredPaise: toPaise(input.depositRequiredInr),
+      depositPaidPaise: toPaise(input.depositPaidInr),
+      rentPaidPaise: toPaise(input.rentPaidInr ?? 0),
+      walletCreditPaise: toPaise(input.walletCreditInr ?? 0),
+      paymentMethod: input.paymentMethod,
+      notes: input.notes,
+    });
+
+    if (!result.ok) {
+      return { ok: false, error: result.error };
+    }
+
+    revalidatePath('/admin/residents');
+    revalidatePath('/admin/bookings');
+    revalidatePath('/admin/deposits');
+    revalidateFinancialViews();
+
+    return {
+      ok: true,
+      message: result.message,
+      customerId: result.customerId,
+      bookingId: result.bookingId,
+      href: `/admin/residents/${result.customerId}?walkIn=1&booking=${result.bookingCode}`,
+    };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Booking failed.' };
+  }
+}
+
+export async function requestRemainingDepositAction(input: {
+  customerId: string;
+  bookingId?: string;
+  amountInr: number;
+}): Promise<QuickActionResult> {
+  try {
+    const session = await requireAdminPermission('payments:write');
+    const bookingId =
+      input.bookingId ?? (await resolveBookingIdForCustomer(input.customerId));
+    if (!bookingId) {
+      return { ok: false, error: 'No booking found for deposit link.' };
+    }
+    const amountPaise = Math.round(input.amountInr * 100);
+    if (amountPaise <= 0) {
+      return { ok: false, error: 'Amount must be greater than zero.' };
+    }
+
+    const result = await createResidentCharge({
+      customerId: input.customerId,
+      bookingId,
+      chargeType: 'additional_deposit',
+      title: 'Security deposit — remaining balance',
+      description: 'Pending deposit balance from express booking.',
+      amountPaise,
+      actorId: session.adminId,
+    });
+    if (!result.ok) return { ok: false, error: result.error };
+
+    revalidateFinancialViews();
+    return {
+      ok: true,
+      message: 'Deposit payment link created.',
+      paymentLinkUrl: result.paymentLinkUrl,
+      bookingId,
+    };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not create deposit link.' };
   }
 }

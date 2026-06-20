@@ -5,11 +5,11 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import {
   quickAdvanceDepositAction,
   quickCreateRentInvoiceAction,
-  quickExpressSaleAction,
   quickOfflineDepositAction,
   quickRefundSettlementAction,
 } from '@/app/(admin)/admin/quick-actions/actions';
 import { QuickActionDialog } from '@/src/components/admin/quickActions/QuickActionDialog';
+import { ExpressBookingConsole } from '@/src/components/admin/quickActions/ExpressBookingConsole';
 import { QuickActionResidentStep } from '@/src/components/admin/quickActions/QuickActionResidentStep';
 import {
   type ResidentQuickResult,
@@ -62,9 +62,9 @@ const ACTIONS: Array<{
   },
   {
     id: 'express_sale',
-    label: 'Express Sale',
-    description: 'Instant ad-hoc charge',
-    accent: 'border-[#FF5A1F]/40 bg-[#FF5A1F]/10 hover:bg-[#FF5A1F]/20',
+    label: 'Express Booking',
+    description: 'Walk-in booking console',
+    accent: 'border-[#FF5A1F]/40 bg-[#FF5A1F]/10 hover:bg-[#FF5A1F]/20 col-span-2',
   },
 ];
 
@@ -90,8 +90,8 @@ const DIALOG_META: Record<QuickActionId, { title: string; description: string }>
     description: 'Quick deposit refund or jump to full settlement workflow.',
   },
   express_sale: {
-    title: 'Express Sale',
-    description: 'POS-style ad-hoc charge — instant invoice linked to tenant.',
+    title: 'Express Booking',
+    description: 'Create a booking like the resident flow — bed, stay type, rent, and deposit in one place.',
   },
 };
 
@@ -344,94 +344,7 @@ function RentInvoiceFields({
 }
 
 function ExpressSaleForm({ onDone }: { onDone: () => void }) {
-  const [selected, setSelected] = useState<ResidentQuickResult | null>(null);
-  const [saleType, setSaleType] = useState<
-    'rent_adjustment' | 'penalty' | 'extra_service' | 'misc'
-  >('misc');
-  const [amountInr, setAmountInr] = useState('');
-  const [note, setNote] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
-
-  function submit(e: React.FormEvent, ctxBookingId: string | null) {
-    e.preventDefault();
-    if (!selected) {
-      setError('Select a tenant.');
-      return;
-    }
-    const amount = Number.parseFloat(amountInr);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setError('Enter a valid amount.');
-      return;
-    }
-    setError(null);
-    startTransition(async () => {
-      const result = await quickExpressSaleAction({
-        customerId: selected.id,
-        bookingId: selected.bookingId ?? ctxBookingId,
-        saleType,
-        amountInr: amount,
-        note,
-      });
-      if (!result.ok) {
-        setError(result.error);
-        return;
-      }
-      setSuccess(result.message);
-      setTimeout(onDone, 1500);
-    });
-  }
-
-  return (
-    <QuickActionResidentStep selected={selected} onSelect={setSelected}>
-      {({ ctx }) => (
-        <ActionFormShell
-          onSubmit={(e) => submit(e, ctx?.bookingId ?? null)}
-          pending={pending}
-          submitLabel="Create express sale"
-          error={error}
-          success={success}
-        >
-          <label className="block text-xs text-apg-silver">
-            Charge type
-            <select
-              value={saleType}
-              onChange={(e) => setSaleType(e.target.value as typeof saleType)}
-              className="mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white"
-            >
-              <option value="rent_adjustment">Rent adjustment</option>
-              <option value="penalty">Penalty</option>
-              <option value="extra_service">Extra service</option>
-              <option value="misc">Misc charge</option>
-            </select>
-          </label>
-          <label className="block text-xs text-apg-silver">
-            Amount (₹)
-            <input
-              type="number"
-              min="0.01"
-              step="0.01"
-              required
-              value={amountInr}
-              onChange={(e) => setAmountInr(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white"
-            />
-          </label>
-          <label className="block text-xs text-apg-silver">
-            Note (optional)
-            <textarea
-              rows={2}
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Description shown on invoice"
-              className="mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white"
-            />
-          </label>
-        </ActionFormShell>
-      )}
-    </QuickActionResidentStep>
-  );
+  return <ExpressBookingConsole onDone={onDone} />;
 }
 
 function ElectricityForm({ onDone }: { onDone: () => void }) {
@@ -585,6 +498,7 @@ export function AdminQuickMenu() {
           title={meta.title}
           description={meta.description}
           onClose={closeDialog}
+          wide={active === 'express_sale'}
         >
           {active === 'advance_deposit' ? <DepositForm mode="advance" onDone={closeDialog} /> : null}
           {active === 'offline_deposit' ? <DepositForm mode="offline" onDone={closeDialog} /> : null}

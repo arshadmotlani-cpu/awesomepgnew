@@ -109,6 +109,12 @@ export function ResidentProfilePrimaryActions({
       label: bookingCode ? `View booking ${bookingCode}` : 'View booking',
     });
     candidates.push({
+      key: 'request-vacate',
+      kind: 'link',
+      href: `/admin/pgs/${pgId}/map`,
+      label: 'Request vacate',
+    });
+    candidates.push({
       key: 'bed-map',
       kind: 'link',
       href: `/admin/pgs/${pgId}/map`,

@@ -7,12 +7,14 @@ export function QuickActionDialog({
   title,
   description,
   onClose,
+  wide,
   children,
 }: {
   open: boolean;
   title: string;
   description?: string;
   onClose: () => void;
+  wide?: boolean;
   children: React.ReactNode;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -27,7 +29,7 @@ export function QuickActionDialog({
   return (
     <dialog
       ref={dialogRef}
-      className="w-full max-w-lg rounded-2xl border border-white/10 bg-[#1A1F27] p-0 text-white shadow-2xl backdrop:bg-black/60"
+      className={`w-full ${wide ? 'max-w-2xl' : 'max-w-lg'} rounded-2xl border border-white/10 bg-[#1A1F27] p-0 text-white shadow-2xl backdrop:bg-black/60`}
       onClose={onClose}
     >
       <div className="p-5">
