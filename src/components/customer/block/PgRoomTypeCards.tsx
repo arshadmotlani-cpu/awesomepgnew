@@ -10,11 +10,21 @@ import { paiseToInr } from '@/src/lib/format';
 
 const ORDER: PgDisplayCategory[] = ['single', 'shared'];
 
-function lowestMonthly(rooms: CustomerRoomCard[], id: PgDisplayCategory): number {
+function monthlyRange(
+  rooms: CustomerRoomCard[],
+  id: PgDisplayCategory,
+): { min: number; max: number } {
   const rates = rooms
     .filter((r) => pgDisplayCategory(r.capacity) === id && r.monthlyRatePaise > 0)
     .map((r) => r.monthlyRatePaise);
-  return rates.length > 0 ? Math.min(...rates) : 0;
+  if (rates.length === 0) return { min: 0, max: 0 };
+  return { min: Math.min(...rates), max: Math.max(...rates) };
+}
+
+function formatPriceRange(min: number, max: number): string | null {
+  if (min <= 0 && max <= 0) return null;
+  if (min === max || max <= 0) return `${paiseToInr(min || max)} / month`;
+  return `${paiseToInr(min)} – ${paiseToInr(max)} / month`;
 }
 
 type Props = {
@@ -30,12 +40,13 @@ export function PgRoomTypeCards({ rooms, active, onSelect }: Props) {
   if (present.length === 0) return null;
 
   return (
-    <section className="mt-6 px-0">
+    <section className="mt-6">
       <h2 className="text-[17px] font-semibold text-white">Room types</h2>
-      <ul className="mt-3 flex flex-col gap-3">
+      <ul className="mt-3 flex flex-col gap-2.5">
         {present.map((id) => {
           const meta = PG_CATEGORY_META[id];
-          const monthly = lowestMonthly(rooms, id);
+          const { min, max } = monthlyRange(rooms, id);
+          const priceLabel = formatPriceRange(min, max);
           const selected = active === id;
           return (
             <li key={id}>
@@ -43,28 +54,24 @@ export function PgRoomTypeCards({ rooms, active, onSelect }: Props) {
                 type="button"
                 onClick={() => onSelect(id)}
                 className={
-                  'flex w-full items-center gap-3 rounded-[16px] border p-4 text-left shadow-sm transition ' +
+                  'flex w-full items-center justify-between gap-3 rounded-[14px] border px-4 py-3.5 text-left transition ' +
                   (selected
                     ? 'border-apg-orange/45 bg-apg-orange/[0.08]'
                     : 'border-white/10 bg-white/[0.03] hover:border-white/20')
                 }
               >
-                <span
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-white/[0.06] text-xl"
-                  aria-hidden
-                >
-                  {meta.icon}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[16px] font-semibold text-white">{meta.title}</p>
-                  <p className="mt-0.5 text-xs text-apg-muted">{meta.description}</p>
-                  {monthly > 0 ? (
-                    <p className="mt-1.5 text-sm font-semibold text-apg-orange">
-                      {paiseToInr(monthly)}/mo
-                    </p>
+                <div className="min-w-0">
+                  <p className="text-[15px] font-semibold text-white">
+                    <span className="mr-1.5" aria-hidden>
+                      {meta.icon}
+                    </span>
+                    {meta.title}
+                  </p>
+                  {priceLabel ? (
+                    <p className="mt-1 text-sm font-medium text-apg-orange">{priceLabel}</p>
                   ) : null}
                 </div>
-                <span className="shrink-0 rounded-[12px] bg-apg-orange px-3.5 py-2 text-[13px] font-semibold text-white">
+                <span className="shrink-0 rounded-[10px] bg-apg-orange px-3 py-1.5 text-[13px] font-semibold text-white">
                   Select
                 </span>
               </button>

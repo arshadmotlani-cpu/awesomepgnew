@@ -9,6 +9,7 @@ import {
   requireCustomerOwnsBookingCode,
   requireCustomerSession,
 } from '@/src/lib/auth/guards';
+import { diffDays, parseDate } from '@/src/lib/dates';
 import { resolveBookingCheckoutQr } from '@/src/lib/payments/checkoutQr';
 import { paiseToInr as formatPaise } from '@/src/lib/format';
 import { PS4_ADDON_LABEL, PS4_PLANS } from '@/src/lib/playstation/plans';
@@ -23,6 +24,11 @@ import { getPendingBookingPaymentRecord } from '@/src/services/qrPayments';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 
 export const dynamic = 'force-dynamic';
+
+function checkInFromStayRange(stayRange: string): string | null {
+  const match = stayRange.match(/^\["(\d{4}-\d{2}-\d{2})/);
+  return match?.[1] ?? null;
+}
 
 export default async function PayPage(props: PageProps<'/booking/[bookingCode]/pay'>) {
   const { bookingCode } = await props.params;
@@ -81,13 +87,24 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
   });
   const ps4PlanLabel = pendingPs4 ? PS4_PLANS[pendingPs4.plan].label : null;
 
+  const primaryReservation = booking.reservations[0];
+  const roomNumber = primaryReservation?.roomNumber ?? null;
+  const bedCode = primaryReservation?.bedCode ?? null;
+  const checkInDate = primaryReservation
+    ? checkInFromStayRange(primaryReservation.stayRange)
+    : null;
+  const stayNights =
+    checkInDate && booking.expectedCheckoutDate
+      ? diffDays(parseDate(checkInDate), parseDate(booking.expectedCheckoutDate))
+      : null;
+
   const bedsLabel = booking.reservations
     .map((r) => `${r.bedCode} (Room ${r.roomNumber})`)
     .join(', ');
 
   return (
     <div className="apg-aurora apg-grid-overlay min-h-full">
-      <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-10">
+      <main className="mx-auto max-w-lg px-4 py-6 sm:px-5 sm:py-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Link
             href="/account/bookings"
@@ -100,19 +117,23 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
           </span>
         </div>
 
-        <div className="mt-8 space-y-4">
+        <div className="mt-6 space-y-4">
           <BookingFlowStepper activeStep="confirm" />
           <CheckoutProgressStepper activeStep="payment" />
         </div>
 
-        <div className="mt-8">
+        <div className="mt-6">
           <BookingCheckoutExperience
             bookingCode={booking.bookingCode}
             pgName={booking.pg.name}
+            roomNumber={roomNumber ?? undefined}
+            bedCode={bedCode ?? undefined}
             bedsLabel={bedsLabel}
             isReserveBooking={isReserveBooking}
             durationMode={booking.durationMode}
             expectedCheckoutDate={booking.expectedCheckoutDate}
+            checkInDate={checkInDate}
+            stayNights={stayNights}
             reserveStart={booking.reserveStart}
             reserveCheckIn={booking.reserveCheckIn ?? booking.expectedCheckoutDate}
             subtotalPaise={booking.subtotalPaise}

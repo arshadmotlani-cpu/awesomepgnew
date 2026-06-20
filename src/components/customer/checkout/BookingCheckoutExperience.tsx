@@ -1,26 +1,29 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useId, useRef, useState } from 'react';
+import { useCallback, useId, useRef, useState, type ReactNode } from 'react';
 import { mirrorClientEventToPostHog } from '@/src/lib/analytics/client';
 import { customerPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import { paiseToInr } from '@/src/lib/format';
 import {
-  checkoutTotalWithOneMonthDeposit,
-  oneMonthDepositPaise,
-} from '@/src/lib/billing/partialDepositCheckout';
-import { CheckoutDepositAccordion } from './CheckoutDepositAccordion';
-import { CheckoutProgressStepper } from './CheckoutProgressStepper';
+  formatStayDateTime,
+  STAY_CHECK_OUT_TIME,
+} from '@/src/lib/residents/stayBillingRules';
 
 type SubmitResult = { ok: boolean; message?: string };
 
 export type BookingCheckoutExperienceProps = {
   bookingCode: string;
   pgName: string;
-  bedsLabel: string;
+  roomNumber?: string;
+  bedCode?: string;
+  /** @deprecated Prefer roomNumber + bedCode */
+  bedsLabel?: string;
   isReserveBooking: boolean;
   durationMode: string;
   expectedCheckoutDate: string | null;
+  checkInDate?: string | null;
+  stayNights?: number | null;
   reserveStart?: string | null;
   reserveCheckIn?: string | null;
   subtotalPaise: number;
@@ -34,25 +37,50 @@ export type BookingCheckoutExperienceProps = {
   membershipAmountPaise?: number;
   membershipLabel?: string | null;
   existingProofRecordId?: string | null;
+  /** Kept for API compat — not shown in the customer breakdown. */
   discountPaise?: number;
   depositCreditAppliedPaise?: number;
   additionalDepositDuePaise?: number;
 };
 
-const PIPELINE = [
-  { step: 1, label: 'Scan QR' },
-  { step: 2, label: 'Pay exact amount' },
-  { step: 3, label: 'Take screenshot' },
-  { step: 4, label: 'Upload proof' },
+const STEPS = [
+  { n: 1, label: 'Scan QR' },
+  { n: 2, label: 'Pay exact amount' },
+  { n: 3, label: 'Upload screenshot' },
+  { n: 4, label: 'Submit' },
 ] as const;
+
+function stayTypeLabel(mode: string, isReserve: boolean): string {
+  if (isReserve) return 'Reserve hold';
+  if (mode === 'open_ended') return 'Continue living';
+  if (mode === 'fixed_stay') return 'Fixed stay';
+  return mode.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function rentLineLabel(
+  isReserve: boolean,
+  nights: number | null | undefined,
+  mode: string,
+): string {
+  if (isReserve) return 'Reserve fee (50% rent)';
+  if (nights != null && nights > 0) {
+    return `Rent (${nights} day${nights === 1 ? '' : 's'})`;
+  }
+  if (mode === 'open_ended') return 'Monthly rent';
+  return 'Rent';
+}
 
 export function BookingCheckoutExperience({
   bookingCode,
   pgName,
+  roomNumber,
+  bedCode,
   bedsLabel,
   isReserveBooking,
   durationMode,
   expectedCheckoutDate,
+  checkInDate,
+  stayNights,
   reserveStart,
   reserveCheckIn,
   subtotalPaise,
@@ -67,12 +95,8 @@ export function BookingCheckoutExperience({
   membershipLabel,
   existingProofRecordId,
   discountPaise = 0,
-  depositCreditAppliedPaise = 0,
-  additionalDepositDuePaise,
 }: BookingCheckoutExperienceProps) {
-  const galleryInputId = useId();
-  const cameraInputId = useId();
-  const filesInputId = useId();
+  const uploadInputId = useId();
 
   const [screenshotUrl, setScreenshotUrl] = useState('');
   const [fileName, setFileName] = useState<string | null>(null);
@@ -82,23 +106,19 @@ export function BookingCheckoutExperience({
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(Boolean(existingProofRecordId));
   const [copied, setCopied] = useState(false);
-  const [dragOver, setDragOver] = useState(false);
-  const [payOneMonthDeposit, setPayOneMonthDeposit] = useState(false);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const hasScreenshot = Boolean(screenshotUrl);
-  const depositDueNowPaise =
-    additionalDepositDuePaise ?? Math.max(0, depositPaise - depositCreditAppliedPaise);
-  const oneMonthDeposit =
-    !isReserveBooking && depositCreditAppliedPaise === 0
-      ? oneMonthDepositPaise(depositPaise, subtotalPaise)
-      : null;
-  const payNowPaise =
-    payOneMonthDeposit && oneMonthDeposit != null
-      ? checkoutTotalWithOneMonthDeposit(totalPaise, depositPaise, oneMonthDeposit)
-      : totalPaise;
+  const rentPaise = Math.max(0, subtotalPaise - discountPaise);
+  const depositLinePaise = isReserveBooking ? 0 : depositPaise;
+  const payNowPaise = totalPaise;
   const payNowLabel = paiseToInr(payNowPaise);
+  const hasScreenshot = Boolean(screenshotUrl);
   const canSubmit = hasScreenshot && !uploading && !pending;
+
+  const bedDisplay =
+    roomNumber && bedCode
+      ? `${bedCode} · Room ${roomNumber}`
+      : bedsLabel ?? '—';
 
   const onFile = useCallback(
     async (file: File | null) => {
@@ -175,7 +195,7 @@ export function BookingCheckoutExperience({
           transactionRef: transactionRef || undefined,
           membershipId,
           membershipAmountPaise,
-          partialDepositRequested: payOneMonthDeposit && oneMonthDeposit != null,
+          partialDepositRequested: false,
         }),
       });
       const data = (await res.json()) as SubmitResult;
@@ -195,10 +215,10 @@ export function BookingCheckoutExperience({
   if (existingProofRecordId && !screenshotUrl) {
     return (
       <div className="space-y-4">
-        <div className="apg-glass rounded-2xl border border-amber-500/30 bg-amber-500/10 px-5 py-4 text-sm text-amber-100">
+        <div className="rounded-[16px] border border-amber-500/30 bg-amber-500/10 px-5 py-4 text-sm text-amber-100">
           Payment proof received — booking{' '}
-          <span className="font-mono font-semibold text-white">{bookingCode}</span> is confirmed
-          once admin verifies your UPI payment (usually within a few hours).
+          <span className="font-mono font-semibold text-white">{bookingCode}</span> is confirmed once
+          admin verifies your UPI payment (usually within a few hours).
         </div>
         <a
           href={customerPaymentProofViewUrl('booking', existingProofRecordId)}
@@ -220,8 +240,8 @@ export function BookingCheckoutExperience({
 
   if (done) {
     return (
-      <div className="apg-glass rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-5 py-4 text-sm text-emerald-100">
-        <p className="font-semibold text-white">Payment submitted for approval</p>
+      <div className="rounded-[16px] border border-emerald-500/30 bg-emerald-500/10 px-5 py-4 text-sm text-emerald-100">
+        <p className="font-semibold text-white">Payment submitted</p>
         <p className="mt-2">
           We received your proof for {totalLabel}. An admin will verify your UPI payment and confirm
           booking {bookingCode}.
@@ -237,344 +257,220 @@ export function BookingCheckoutExperience({
   }
 
   return (
-    <form onSubmit={onSubmit} className="pb-28">
-      {/* Section 1 — Booking confirmation */}
-      <section className="apg-glass rounded-2xl p-6 sm:p-8">
-        <div className="flex items-start gap-3">
-          <span className="text-2xl" aria-hidden>
-            👑
-          </span>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight text-white sm:text-2xl">
-              {isReserveBooking ? 'Complete your reserve payment' : 'Complete your payment'}
-            </h1>
-            <p className="mt-2 text-sm leading-relaxed text-apg-silver">
-              {isReserveBooking
-                ? 'Your bed is temporarily reserved while we verify payment. The reserve fee is non-refundable.'
-                : 'Your bed is temporarily reserved while we verify payment. Scan, pay the exact total, then upload your screenshot.'}
-            </p>
-          </div>
-        </div>
-        <dl className="mt-6 grid gap-3 text-sm sm:grid-cols-3">
-          <div className="rounded-xl apg-glass-light px-4 py-3">
-            <dt className="text-xs font-medium uppercase tracking-wide text-apg-muted">
-              Booking ID
-            </dt>
-            <dd className="mt-1 font-mono font-semibold text-white">{bookingCode}</dd>
-          </div>
-          <div className="rounded-xl apg-glass-light px-4 py-3">
-            <dt className="text-xs font-medium uppercase tracking-wide text-apg-muted">PG</dt>
-            <dd className="mt-1 font-semibold text-white">{pgName}</dd>
-          </div>
-          <div className="rounded-xl apg-glass-light px-4 py-3">
-            <dt className="text-xs font-medium uppercase tracking-wide text-apg-muted">Bed</dt>
-            <dd className="mt-1 font-semibold text-white">{bedsLabel}</dd>
-          </div>
+    <form onSubmit={onSubmit} className="space-y-5 pb-28">
+      {/* Total payment summary */}
+      <section className="rounded-[16px] border border-white/10 bg-white/[0.03] p-5 shadow-sm">
+        <h1 className="text-[22px] font-bold text-white">
+          {isReserveBooking ? 'Complete reserve payment' : 'Complete payment'}
+        </h1>
+        <p className="mt-1 text-xs text-apg-muted">
+          Pay the exact total below, then upload your UPI screenshot.
+        </p>
+
+        <dl className="mt-5 space-y-2.5 text-sm">
+          <Row label="Booking ID" value={bookingCode} mono />
+          <Row label="PG" value={pgName} />
+          <Row label="Room" value={roomNumber ?? '—'} />
+          <Row label="Bed" value={bedCode ?? bedDisplay} />
+          <Row label="Stay type" value={stayTypeLabel(durationMode, isReserveBooking)} />
+          {checkInDate && !isReserveBooking ? (
+            <Row label="Check-in" value={formatStayDateTime(checkInDate, 'check-in')} />
+          ) : null}
+          {!isReserveBooking && expectedCheckoutDate ? (
+            <Row
+              label="Check-out"
+              value={formatStayDateTime(expectedCheckoutDate, 'check-out')}
+            />
+          ) : null}
+          {isReserveBooking ? (
+            <>
+              <Row label="Reserve from" value={reserveStart ?? '—'} />
+              <Row label="Check-in" value={reserveCheckIn ?? '—'} />
+            </>
+          ) : null}
         </dl>
-        {!isReserveBooking ? (
-          <p className="mt-4 text-xs text-apg-muted">
-            {titleCaseDuration(durationMode)} · Check-out{' '}
-            {expectedCheckoutDate ?? 'Open-ended'}
-          </p>
-        ) : (
-          <p className="mt-4 text-xs text-apg-muted">
-            Reserve from {reserveStart ?? '—'} · Check-in {reserveCheckIn ?? '—'}
-          </p>
-        )}
       </section>
 
-      {/* Section 2 & 3 — Hero pay area */}
-      <section className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-2">
-        <div className="apg-glass rounded-2xl p-6 sm:p-8">
-          <p className="text-xs font-semibold uppercase tracking-widest text-apg-muted">
-            Total due
-          </p>
-          <p className="mt-2 text-5xl font-bold tracking-tight text-apg-orange sm:text-6xl">
-            {payNowLabel}
-          </p>
-          {payOneMonthDeposit && oneMonthDeposit != null ? (
-            <p className="mt-2 text-xs text-amber-200">
-              Paying {paiseToInr(oneMonthDeposit)} deposit now — remaining{' '}
-              {paiseToInr(depositPaise - oneMonthDeposit)} due next month with rent.
-            </p>
-          ) : null}
-          <p className="mt-6 text-sm font-semibold text-white">Includes</p>
-          <ul className="mt-3 space-y-2 text-sm text-apg-silver">
-            <li className="flex justify-between gap-4">
-              <span>
-                {isReserveBooking ? 'Reserve fee (50% rent)' : 'Rent'}
-              </span>
-              <span className="font-medium text-white">{paiseToInr(subtotalPaise)}</span>
-            </li>
-            {!isReserveBooking ? (
-              <>
-                {discountPaise > 0 ? (
-                  <li className="flex justify-between gap-4 text-emerald-300">
-                    <span>Promo discount</span>
-                    <span className="font-medium">−{paiseToInr(discountPaise)}</span>
-                  </li>
-                ) : null}
-                <li className="flex justify-between gap-4">
-                  <span>Refundable deposit</span>
-                  <span className="font-medium text-white">
-                    {payOneMonthDeposit && oneMonthDeposit != null
-                      ? paiseToInr(oneMonthDeposit)
-                      : paiseToInr(depositPaise)}
-                  </span>
-                </li>
-                {payOneMonthDeposit && oneMonthDeposit != null ? (
-                  <li className="flex justify-between gap-4 text-xs text-apg-muted">
-                    <span>Remaining deposit (next month)</span>
-                    <span>{paiseToInr(depositPaise - oneMonthDeposit)}</span>
-                  </li>
-                ) : null}
-                {depositCreditAppliedPaise > 0 ? (
-                  <>
-                    <li className="flex justify-between gap-4 text-emerald-300">
-                      <span>Deposit credit used</span>
-                      <span className="font-medium">−{paiseToInr(depositCreditAppliedPaise)}</span>
-                    </li>
-                    <li className="flex justify-between gap-4">
-                      <span>Additional deposit due</span>
-                      <span className="font-medium text-white">{paiseToInr(depositDueNowPaise)}</span>
-                    </li>
-                  </>
-                ) : null}
-              </>
-            ) : (
-              <li className="flex justify-between gap-4">
-                <span>Deposit now</span>
-                <span className="font-medium text-white">₹0 — at check-in</span>
-              </li>
-            )}
-            {membershipLabel && membershipAmountPaise ? (
-              <li className="flex justify-between gap-4">
-                <span>{membershipLabel} PS4 add-on</span>
-                <span className="font-medium text-white">{paiseToInr(membershipAmountPaise)}</span>
-              </li>
-            ) : null}
-          </ul>
-        </div>
-
-        <div className="apg-glass flex flex-col items-center rounded-2xl p-6 sm:p-8">
-          <p className="text-sm font-bold uppercase tracking-widest text-white">Scan &amp; pay</p>
-          <div className="mt-4 rounded-2xl border border-white/10 bg-white p-4 shadow-[0_0_40px_rgba(255,90,31,0.12)]">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={qrImageUrl}
-              alt="UPI QR code — scan to pay"
-              className="mx-auto h-auto w-full max-w-[280px] object-contain sm:max-w-[320px]"
-            />
+      {/* Breakdown */}
+      <section className="rounded-[16px] border border-white/10 bg-white/[0.03] p-5 shadow-sm">
+        <h2 className="text-[15px] font-semibold text-white">Breakdown</h2>
+        <dl className="mt-4 space-y-3 text-sm">
+          <div className="flex justify-between gap-4">
+            <dt className="text-apg-silver">{rentLineLabel(isReserveBooking, stayNights, durationMode)}</dt>
+            <dd className="font-semibold text-white">{paiseToInr(rentPaise)}</dd>
           </div>
-          <button
-            type="button"
-            onClick={() => void downloadQr()}
-            className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-apg-orange hover:underline"
-          >
-            <span aria-hidden>📥</span> Download QR code
-          </button>
-          {upiId ? (
-            <div className="mt-4 flex w-full max-w-sm flex-wrap items-center justify-center gap-2 rounded-xl apg-glass-light px-4 py-3">
-              <code className="truncate text-sm font-semibold text-white">{upiId}</code>
-              <button
-                type="button"
-                onClick={() => void copyUpi()}
-                className={
-                  'shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold transition ' +
-                  (copied
-                    ? 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40'
-                    : 'bg-apg-orange text-white apg-glow-btn hover:brightness-110')
-                }
-              >
-                {copied ? '✓ UPI ID copied' : '📋 Copy'}
-              </button>
+          {!isReserveBooking && depositLinePaise > 0 ? (
+            <div className="flex justify-between gap-4">
+              <dt className="text-apg-silver">Refundable deposit</dt>
+              <dd className="font-semibold text-white">{paiseToInr(depositLinePaise)}</dd>
             </div>
           ) : null}
-          <p className="mt-3 text-center text-[11px] text-apg-muted">
-            Pay the exact amount shown · Open GPay / PhonePe after downloading QR
-          </p>
+          {membershipLabel && membershipAmountPaise ? (
+            <div className="flex justify-between gap-4">
+              <dt className="text-apg-silver">{membershipLabel}</dt>
+              <dd className="font-semibold text-white">{paiseToInr(membershipAmountPaise)}</dd>
+            </div>
+          ) : null}
+        </dl>
+        {!isReserveBooking && depositLinePaise > 0 ? (
+          <p className="mt-3 text-xs text-apg-muted">Refundable deposit included · not part of rent</p>
+        ) : null}
+
+        <div className="mt-5 rounded-[14px] bg-apg-orange/10 px-4 py-4 ring-1 ring-apg-orange/25">
+          <p className="text-xs font-medium uppercase tracking-wide text-apg-orange">Total to pay today</p>
+          <p className="mt-1 text-3xl font-bold text-white">{payNowLabel}</p>
         </div>
       </section>
 
-      {/* Section 4 — Pipeline */}
-      <section className="mt-8 apg-glass rounded-2xl px-4 py-5 sm:px-6">
-        <ol className="flex flex-wrap items-center justify-center gap-2 text-xs font-semibold sm:gap-0 sm:text-sm">
-          {PIPELINE.map((item, i) => (
-            <li key={item.step} className="flex items-center">
-              <span className="rounded-full bg-apg-orange/15 px-3 py-1.5 text-apg-orange ring-1 ring-apg-orange/30">
-                {item.step}.{' '}
-                {item.step === 2 ? `Pay ${payNowLabel}` : item.label}
-              </span>
-              {i < PIPELINE.length - 1 ? (
-                <span className="mx-2 hidden text-apg-muted sm:inline" aria-hidden>
-                  ───➔
-                </span>
-              ) : null}
-            </li>
-          ))}
-        </ol>
+      {/* Rules */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <InfoBox emoji="💡" title="Deposit info">
+          <ul className="list-inside list-disc space-y-1">
+            <li>Deposit is fully refundable after checkout</li>
+            <li>It is not part of rent</li>
+            <li>Held for safety and damage protection</li>
+          </ul>
+        </InfoBox>
+        <InfoBox emoji="⚡" title="Electricity">
+          <ul className="list-inside list-disc space-y-1">
+            <li>Electricity is included in rent</li>
+            <li>AC usage may be charged separately if applicable</li>
+            <li>No hidden charges</li>
+          </ul>
+        </InfoBox>
+      </div>
+
+      <InfoBox emoji="⏰" title="Checkout rule">
+        <ul className="list-inside list-disc space-y-1">
+          <li>Checkout time: {STAY_CHECK_OUT_TIME}</li>
+          <li>If the bed is not vacated after {STAY_CHECK_OUT_TIME}, an extra full-day charge applies</li>
+        </ul>
+      </InfoBox>
+
+      {/* QR */}
+      <section className="rounded-[16px] border border-white/10 bg-white/[0.03] p-5 text-center shadow-sm">
+        <p className="text-sm font-semibold text-white">Scan &amp; pay {payNowLabel}</p>
+        <div className="mx-auto mt-4 max-w-[280px] rounded-[14px] border border-white/10 bg-white p-3 shadow-sm">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={qrImageUrl} alt="UPI QR code" className="mx-auto w-full object-contain" />
+        </div>
+        <button
+          type="button"
+          onClick={() => void downloadQr()}
+          className="mt-3 text-sm font-semibold text-apg-orange hover:underline"
+        >
+          Download QR
+        </button>
+        {upiId ? (
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+            <code className="text-sm font-semibold text-white">{upiId}</code>
+            <button
+              type="button"
+              onClick={() => void copyUpi()}
+              className="rounded-lg bg-apg-orange px-3 py-1.5 text-xs font-bold text-white"
+            >
+              {copied ? 'Copied' : 'Copy UPI'}
+            </button>
+          </div>
+        ) : null}
       </section>
 
-      {/* Section 5 & 6 — Upload */}
-      <section className="mt-8 space-y-4">
-        <div
+      {/* Steps */}
+      <ol className="flex flex-wrap justify-center gap-2 text-[11px] font-semibold text-apg-silver">
+        {STEPS.map((s) => (
+          <li
+            key={s.n}
+            className="rounded-full bg-white/[0.06] px-3 py-1.5 ring-1 ring-white/10"
+          >
+            {s.n}. {s.n === 2 ? `Pay ${payNowLabel}` : s.label}
+          </li>
+        ))}
+      </ol>
+
+      {/* Single upload */}
+      <section className="rounded-[16px] border border-white/10 bg-white/[0.03] p-5 shadow-sm">
+        <p className="text-sm font-semibold text-white">Upload payment screenshot</p>
+        <input
+          id={uploadInputId}
+          type="file"
+          accept="image/*,.heic,.heif"
+          capture="environment"
+          className="sr-only"
+          onChange={(e) => void onFile(e.target.files?.[0] ?? null)}
+        />
+        <label
+          htmlFor={uploadInputId}
           className={
-            'apg-glass rounded-2xl border-2 border-dashed p-8 text-center transition ' +
-            (dragOver
-              ? 'border-apg-orange/60 bg-apg-orange/5'
-              : hasScreenshot
-                ? 'border-emerald-500/40 bg-emerald-500/5'
-                : 'border-white/15 hover:border-apg-orange/40')
+            'mt-3 flex min-h-[120px] cursor-pointer flex-col items-center justify-center gap-2 rounded-[14px] border-2 border-dashed px-4 py-6 text-center transition ' +
+            (hasScreenshot
+              ? 'border-emerald-500/40 bg-emerald-500/10'
+              : 'border-white/15 hover:border-apg-orange/40 hover:bg-apg-orange/5')
           }
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragOver(true);
-          }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDragOver(false);
-            const file = e.dataTransfer.files[0];
-            void onFile(file ?? null);
-          }}
         >
           {uploading ? (
-            <p className="text-sm font-medium text-apg-silver">Uploading…</p>
+            <span className="text-sm text-apg-silver">Uploading…</span>
           ) : hasScreenshot ? (
             <>
-              <p className="text-lg font-bold text-emerald-300">Screenshot ready</p>
-              {fileName ? (
-                <p className="mt-1 truncate text-xs text-apg-muted">{fileName}</p>
-              ) : null}
-              {screenshotUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={screenshotUrl}
-                  alt="Payment screenshot preview"
-                  className="mx-auto mt-4 max-h-44 rounded-lg border border-white/10 object-contain"
-                />
-              ) : null}
+              <span className="text-sm font-semibold text-emerald-300">Screenshot ready</span>
+              {fileName ? <span className="max-w-full truncate text-xs text-apg-muted">{fileName}</span> : null}
+              <span className="text-xs text-apg-muted">Tap to replace</span>
             </>
           ) : (
             <>
-              <p className="text-base font-bold text-white">Drag &amp; drop payment screenshot here</p>
-              <p className="mt-1 text-sm text-apg-muted">or use one of the options below</p>
+              <span className="text-2xl" aria-hidden>
+                📷
+              </span>
+              <span className="text-sm font-semibold text-white">Tap to upload screenshot</span>
+              <span className="text-xs text-apg-muted">Photo from gallery or camera</span>
             </>
           )}
+        </label>
+        {screenshotUrl && !uploading ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={screenshotUrl}
+            alt="Payment screenshot preview"
+            className="mx-auto mt-3 max-h-40 rounded-lg border border-white/10 object-contain"
+          />
+        ) : null}
 
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-            <input
-              id={cameraInputId}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="sr-only"
-              onChange={(e) => void onFile(e.target.files?.[0] ?? null)}
-            />
-            <input
-              id={galleryInputId}
-              type="file"
-              accept="image/*,.heic,.heif"
-              className="sr-only"
-              onChange={(e) => void onFile(e.target.files?.[0] ?? null)}
-            />
-            <input
-              id={filesInputId}
-              type="file"
-              accept="image/*,.heic,.heif"
-              className="sr-only"
-              onChange={(e) => void onFile(e.target.files?.[0] ?? null)}
-            />
-            <label
-              htmlFor={cameraInputId}
-              className="cursor-pointer rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:border-apg-orange/50 hover:bg-apg-orange/10"
-            >
-              📸 Camera
-            </label>
-            <label
-              htmlFor={galleryInputId}
-              className="cursor-pointer rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:border-apg-orange/50 hover:bg-apg-orange/10"
-            >
-              🖼️ Gallery
-            </label>
-            <label
-              htmlFor={filesInputId}
-              className="cursor-pointer rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:border-apg-orange/50 hover:bg-apg-orange/10"
-            >
-              📄 Files
-            </label>
-          </div>
-        </div>
-
-        <label className="block apg-glass rounded-2xl px-5 py-4">
-          <span className="text-sm font-medium text-apg-silver">
-            UPI reference number{' '}
-            <span className="text-apg-muted">(optional — helps faster approval)</span>
-          </span>
+        <label className="mt-4 block">
+          <span className="text-xs text-apg-muted">UPI reference (optional)</span>
           <input
             type="text"
             value={transactionRef}
             onChange={(e) => setTransactionRef(e.target.value)}
             placeholder="e.g. 123456789012"
-            className="apg-input-dark mt-2 w-full rounded-xl px-4 py-3 text-sm text-white"
+            className="apg-input-dark mt-1.5 w-full rounded-[12px] px-3 py-2.5 text-sm text-white"
           />
         </label>
       </section>
 
-      {/* Section 8 — Deposit accordion + partial option */}
-      {!isReserveBooking && depositPaise > 0 ? (
-        <div className="mt-8 space-y-4">
-          {oneMonthDeposit != null ? (
-            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-5 py-4">
-              <input
-                type="checkbox"
-                checked={payOneMonthDeposit}
-                onChange={(e) => setPayOneMonthDeposit(e.target.checked)}
-                className="mt-1 h-4 w-4 rounded border-white/20"
-              />
-              <span className="text-sm leading-relaxed text-amber-50">
-                <span className="font-semibold text-white">Pay one month&apos;s deposit now</span>
-                <span className="mt-1 block text-xs text-amber-100/90">
-                  Pay {paiseToInr(oneMonthDeposit)} deposit today instead of the full{' '}
-                  {paiseToInr(depositPaise)}. The remaining {paiseToInr(depositPaise - oneMonthDeposit)}{' '}
-                  will be due with next month&apos;s rent (admin approval required for move-in).
-                </span>
-              </span>
-            </label>
-          ) : null}
-          <CheckoutDepositAccordion depositPaise={depositPaise} />
-        </div>
-      ) : isReserveBooking ? (
-        <section className="mt-8 apg-glass rounded-2xl px-5 py-4 text-sm text-rose-200/90">
-          Reserve fee is non-refundable and not credited toward future rent or deposit.
-        </section>
+      {isReserveBooking ? (
+        <p className="rounded-[14px] border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-xs text-rose-100">
+          Reserve fee is non-refundable and is separate from rent and deposit.
+        </p>
       ) : null}
 
       {error ? (
-        <p className="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+        <p className="rounded-[14px] border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
           {error}
         </p>
       ) : null}
 
-      {/* Section 7 — Sticky submit */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-apg-charcoal/95 px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-xl">
-        <div className="mx-auto max-w-3xl">
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#0a0f18]/95 px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-xl">
+        <div className="mx-auto max-w-lg">
           <button
             type="submit"
             disabled={!canSubmit}
             className={
-              'flex w-full items-center justify-center gap-2 rounded-xl px-4 py-4 text-base font-bold transition ' +
+              'flex w-full min-h-[48px] items-center justify-center rounded-[14px] text-base font-bold transition ' +
               (canSubmit
-                ? 'bg-apg-orange text-white apg-glow-btn hover:brightness-110'
-                : 'cursor-not-allowed bg-white/10 text-apg-muted opacity-50')
+                ? 'bg-apg-orange text-white hover:brightness-105'
+                : 'cursor-not-allowed bg-white/10 text-apg-muted')
             }
           >
-            <span aria-hidden>🔒</span>
-            {pending
-              ? 'Submitting…'
-              : hasScreenshot
-                ? 'Submit payment for approval'
-                : 'Submit payment for approval (upload screenshot first)'}
+            {pending ? 'Submitting…' : hasScreenshot ? 'Submit payment' : 'Upload screenshot to continue'}
           </button>
         </div>
       </div>
@@ -582,6 +478,39 @@ export function BookingCheckoutExperience({
   );
 }
 
-function titleCaseDuration(mode: string): string {
-  return mode.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+function Row({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="flex justify-between gap-4">
+      <dt className="text-apg-muted">{label}</dt>
+      <dd className={`text-right font-medium text-white ${mono ? 'font-mono text-xs' : ''}`}>{value}</dd>
+    </div>
+  );
+}
+
+function InfoBox({
+  emoji,
+  title,
+  children,
+}: {
+  emoji: string;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="rounded-[14px] border border-white/10 bg-white/[0.03] px-4 py-3 text-xs leading-relaxed text-apg-silver">
+      <p className="font-semibold text-white">
+        <span aria-hidden>{emoji} </span>
+        {title}
+      </p>
+      <div className="mt-2">{children}</div>
+    </div>
+  );
 }

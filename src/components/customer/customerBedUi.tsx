@@ -377,7 +377,7 @@ export function CustomerBedDetailSheet({
       <MobileBottomSheet open onClose={onClose} ariaLabelledBy={titleId}>
         <div
           id={sheetRootId}
-          className="max-h-[calc(88vh-2.5rem)] overflow-y-auto overscroll-contain px-5 pb-8 pt-0"
+          className="max-h-[calc(min(88vh,100dvh)-2.5rem)] overflow-y-auto overscroll-contain px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-0 sm:max-h-[min(80vh,640px)]"
           data-roachie-tour="bed-detail-sheet"
         >
           {body}

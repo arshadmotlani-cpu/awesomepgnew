@@ -16,18 +16,13 @@ export function matchesPgCategoryFilter(
   return pgDisplayCategory(capacity) === filter;
 }
 
-export const PG_CATEGORY_META: Record<
-  PgDisplayCategory,
-  { title: string; description: string; icon: string }
-> = {
+export const PG_CATEGORY_META: Record<PgDisplayCategory, { title: string; icon: string }> = {
   single: {
     title: 'Single Room',
-    description: 'Private room',
     icon: '🛏',
   },
   shared: {
     title: 'Shared Room',
-    description: '2–4 people per room',
     icon: '👥',
   },
 };
