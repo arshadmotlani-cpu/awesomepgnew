@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { getCustomerSession } from '@/src/lib/auth/session';
 import { uploadPaymentScreenshot } from '@/src/lib/payments/screenshotUpload';
+import { revalidateVacatingLifecycleForBooking } from '@/src/lib/vacating/revalidateVacatingViews';
 import {
   submitDepositRefundRequest,
   submitStayExtensionRequest,
@@ -58,6 +59,7 @@ export async function submitDepositRefundRequestAction(
     if (!checkoutResult.ok) return { ok: false, error: checkoutResult.error };
     revalidatePath('/account/profile');
     revalidatePath('/account/resident');
+    await revalidateVacatingLifecycleForBooking(bookingId, session.customerId);
     return { ok: true };
   }
 
@@ -75,6 +77,7 @@ export async function submitDepositRefundRequestAction(
 
   revalidatePath('/account/profile');
   revalidatePath('/account/resident');
+  await revalidateVacatingLifecycleForBooking(bookingId, session.customerId);
   return { ok: true };
 }
 

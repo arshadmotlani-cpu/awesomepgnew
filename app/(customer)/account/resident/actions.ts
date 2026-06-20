@@ -6,6 +6,7 @@ import { getCustomerSession } from '@/src/lib/auth/session';
 import { requireCustomerOwnsBooking } from '@/src/lib/auth/guards';
 import { submitVacatingRequest, cancelVacatingRequestByCustomer } from '@/src/services/vacating';
 import { accountProfileHref } from '@/src/lib/accountNavigation';
+import { revalidateVacatingLifecycleForBooking } from '@/src/lib/vacating/revalidateVacatingViews';
 
 export type VacatingActionState =
   | { status: 'idle' }
@@ -65,6 +66,7 @@ export async function submitVacatingAction(
   revalidatePath('/account/profile');
   revalidatePath('/account/resident');
   revalidatePath('/account/bookings');
+  await revalidateVacatingLifecycleForBooking(bookingId, ownership.customer.id);
   redirect(accountProfileHref('resident', { tab: 'vacating' }));
 }
 
@@ -107,5 +109,6 @@ export async function cancelVacatingAction(
   }
 
   revalidatePath('/account/profile');
+  await revalidateVacatingLifecycleForBooking(bookingId, ownership.customer.id);
   redirect(accountProfileHref('resident', { tab: 'vacating' }));
 }

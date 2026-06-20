@@ -1,13 +1,14 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { assertAdminResidentRequestAccess } from '@/src/lib/auth/pgAccess';
 import { assertAdminBookingAccess } from '@/src/lib/auth/pgAccess';
 import { adminReviewResidentRequest } from '@/src/services/residentRequests';
 import { calculateRefundElectricityForBooking } from '@/src/services/refundElectricity';
 import { syncActionItems } from '@/src/services/actionItems';
+import { revalidateVacatingLifecycleForBooking } from '@/src/lib/vacating/revalidateVacatingViews';
 
 export type ReviewRequestState = { ok: boolean; error?: string };
 
@@ -68,9 +69,10 @@ export async function reviewResidentRequestAction(
   if (!result.ok) return { ok: false, error: result.error };
 
   await syncActionItems(session).catch(() => undefined);
-  revalidatePath('/admin/requests');
-  revalidatePath('/admin/overview');
-  revalidatePath('/admin/deposits');
+  await revalidateVacatingLifecycleForBooking(
+    result.request.bookingId,
+    result.request.customerId,
+  );
   redirect('/admin/requests?reviewed=1');
 }
 

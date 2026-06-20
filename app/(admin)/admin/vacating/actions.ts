@@ -1,7 +1,10 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
+import {
+  revalidateVacatingLifecycleForBooking,
+  revalidateVacatingLifecycleViews,
+} from '@/src/lib/vacating/revalidateVacatingViews';
 import {
   assertAdminBookingAccess,
   assertAdminVacatingRequestAccess,
@@ -20,13 +23,6 @@ export type ActionState =
   | { status: 'idle' }
   | { status: 'ok'; message: string }
   | { status: 'error'; message: string };
-
-function revalidateVacatingPaths() {
-  revalidatePath('/admin/vacating');
-  revalidatePath('/admin/deposits');
-  revalidatePath('/admin/rent');
-  revalidatePath('/admin/pgs');
-}
 
 function completeErrorMessage(kind: string, message?: string): string {
   if (kind === 'bed_not_occupied') {
@@ -62,7 +58,10 @@ export async function approveVacatingAction(
   if (!result.ok) {
     return { status: 'error', message: `Failed: ${result.kind}` };
   }
-  revalidateVacatingPaths();
+  await revalidateVacatingLifecycleForBooking(
+    result.request.bookingId,
+    result.request.customerId,
+  );
   return { status: 'ok', message: 'Approved.' };
 }
 
@@ -89,7 +88,10 @@ export async function rejectVacatingAction(
   if (!result.ok) {
     return { status: 'error', message: `Failed: ${result.kind}` };
   }
-  revalidateVacatingPaths();
+  await revalidateVacatingLifecycleForBooking(
+    result.request.bookingId,
+    result.request.customerId,
+  );
   return { status: 'ok', message: 'Rejected.' };
 }
 
@@ -117,7 +119,10 @@ export async function completeVacatingAction(
     }
     return { status: 'error', message: completeErrorMessage(result.kind) };
   }
-  revalidateVacatingPaths();
+  await revalidateVacatingLifecycleForBooking(
+    result.request.bookingId,
+    result.request.customerId,
+  );
   return {
     status: 'ok',
     message: `Completed: deduction ${result.deductionPaise}p, refund ${result.depositRefundPaise}p, ${result.futureInvoicesCancelled} future rent invoices cancelled, ${result.electricityInvoicesCancelled} electricity invoices cancelled.`,
@@ -149,8 +154,11 @@ export async function undoVacatingCompletionAction(
     }
     return { status: 'error', message: `Undo failed: ${result.kind}` };
   }
-  revalidateVacatingPaths();
-  if (pgId) revalidatePath(`/admin/pgs/${pgId}/map`);
+  await revalidateVacatingLifecycleForBooking(
+    result.request.bookingId,
+    result.request.customerId,
+  );
+  if (pgId) revalidateVacatingLifecycleViews({ pgId });
   return {
     status: 'ok',
     message: 'Vacating completion undone — booking and bed restored.',
@@ -179,8 +187,8 @@ export async function cancelVacatingNoticeAction(
   if (!result.ok) {
     return { status: 'error', message: `Cancel failed: ${result.kind}` };
   }
-  revalidateVacatingPaths();
-  if (pgId) revalidatePath(`/admin/pgs/${pgId}/map`);
+  await revalidateVacatingLifecycleForBooking(result.bookingId);
+  if (pgId) revalidateVacatingLifecycleViews({ pgId });
   return { status: 'ok', message: 'Vacating notice removed.' };
 }
 
@@ -206,8 +214,11 @@ export async function undoVacatingApprovalAction(
   if (!result.ok) {
     return { status: 'error', message: `Undo failed: ${result.kind}` };
   }
-  revalidateVacatingPaths();
-  if (pgId) revalidatePath(`/admin/pgs/${pgId}/map`);
+  await revalidateVacatingLifecycleForBooking(
+    result.request.bookingId,
+    result.request.customerId,
+  );
+  if (pgId) revalidateVacatingLifecycleViews({ pgId });
   return { status: 'ok', message: 'Approval undone — notice is pending again.' };
 }
 
@@ -234,8 +245,6 @@ export async function extendVacatingDateAction(
   if (!result.ok) {
     return { status: 'error', message: result.message };
   }
-  revalidateVacatingPaths();
-  revalidatePath('/admin/overview');
-  revalidatePath('/admin/operations');
+  await revalidateVacatingLifecycleForBooking(bookingId);
   return { status: 'ok', message: 'Vacate / end date updated — occupancy and revenue synced.' };
 }

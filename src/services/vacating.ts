@@ -527,6 +527,8 @@ export async function rejectVacatingRequest(input: {
     console.error('[vacating] checkout settlement cleanup on reject failed', err);
   }
 
+  scheduleAdminNotificationSync();
+
   return { ok: true, request: updated };
 }
 
@@ -585,6 +587,8 @@ export async function cancelVacatingRequestByCustomer(input: {
   } catch (err) {
     console.error('[vacating] checkout settlement cleanup on customer cancel failed', err);
   }
+
+  scheduleAdminNotificationSync();
 
   return { ok: true, bookingId: current.bookingId };
 }
@@ -883,6 +887,8 @@ export async function completeVacatingRequest(
     vacatingDate: updated.vacatingDate,
   });
 
+  scheduleAdminNotificationSync();
+
   return {
     ok: true,
     request: updated,
@@ -1042,6 +1048,8 @@ export async function revertVacatingCompletion(input: {
     diff: { restoredStatus: restoreStatus },
   });
 
+  scheduleAdminNotificationSync();
+
   return { ok: true, request: updated };
 }
 
@@ -1085,6 +1093,8 @@ export async function adminWithdrawVacatingRequest(input: {
       vacatingDate: current.vacatingDate,
     },
   });
+
+  scheduleAdminNotificationSync();
 
   return { ok: true, bookingId: current.bookingId };
 }
@@ -1131,6 +1141,8 @@ export async function revertVacatingApproval(input: {
     action: 'approval_reverted',
     diff: { from: 'approved', to: 'pending' },
   });
+
+  scheduleAdminNotificationSync();
 
   return { ok: true, request: updated };
 }
@@ -1205,6 +1217,8 @@ export async function extendVacatingDate(input: {
         fromExtensionRequest: input.fromExtensionRequest ?? false,
       },
     });
+
+    scheduleAdminNotificationSync();
 
     return { ok: true, requestId: updated.id };
   }
