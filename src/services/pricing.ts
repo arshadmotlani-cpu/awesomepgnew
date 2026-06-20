@@ -524,8 +524,26 @@ export async function quoteAdminTenantAssignment(
     });
 
     if (input.customMonthlyRatePaise != null && input.customMonthlyRatePaise > 0) {
-      quote.rate.monthlyRatePaise = input.customMonthlyRatePaise;
-      quote.subtotalPaise = input.customMonthlyRatePaise * Math.max(1, quote.units);
+      if (input.durationMode === 'monthly' || input.durationMode === 'open_ended') {
+        quote.rate.monthlyRatePaise = input.customMonthlyRatePaise;
+        quote.subtotalPaise = input.customMonthlyRatePaise * Math.max(1, quote.units);
+      } else if (input.durationMode === 'fixed_stay' || input.durationMode === 'daily') {
+        const nights = quote.nights ?? quote.units;
+        quote.subtotalPaise = input.customMonthlyRatePaise;
+        if (nights > 0) {
+          const unitPricePaise = Math.round(input.customMonthlyRatePaise / nights);
+          quote.units = nights;
+          quote.lineItems = [
+            {
+              kind: 'daily_nights',
+              description: `${nights} day${nights === 1 ? '' : 's'} @ daily rate`,
+              units: nights,
+              unitPricePaise,
+              amountPaise: input.customMonthlyRatePaise,
+            },
+          ];
+        }
+      }
     }
 
     if (input.customDepositPaise != null) {

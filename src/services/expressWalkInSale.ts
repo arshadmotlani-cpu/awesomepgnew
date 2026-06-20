@@ -8,7 +8,7 @@ import { db } from '@/src/db/client';
 import { beds, customers, floors, pgs, rooms } from '@/src/db/schema';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
-import { formatDate } from '@/src/lib/dates';
+import { diffDays, formatDate } from '@/src/lib/dates';
 import {
   DEPOSIT_REFUND_RULE_COPY,
   STAY_TIMING_RULE_COPY,
@@ -71,10 +71,24 @@ function invoiceNotes(input: ExpressWalkInSaleInput, walletApplied: number): str
   const lines = [
     `Express walk-in · ${input.stayType === 'fixed' ? 'Fixed stay' : 'Continue living'}`,
     `Check-in ${input.checkInDate}${input.stayType === 'fixed' && input.checkOutDate ? ` · Check-out ${input.checkOutDate}` : ''}`,
+  ];
+  if (input.stayType === 'fixed' && input.checkOutDate) {
+    const days = diffDays(input.checkInDate, input.checkOutDate);
+    const dailyRatePaise =
+      days > 0 && input.rentAmountPaise > 0
+        ? Math.round(input.rentAmountPaise / days)
+        : 0;
+    lines.push(
+      `${days} day${days === 1 ? '' : 's'} · ₹${(dailyRatePaise / 100).toLocaleString('en-IN')}/day · Rent ₹${(input.rentAmountPaise / 100).toLocaleString('en-IN')}`,
+    );
+  } else if (input.rentAmountPaise > 0) {
+    lines.push(`Monthly rent ₹${(input.rentAmountPaise / 100).toLocaleString('en-IN')}`);
+  }
+  lines.push(
     STAY_TIMING_RULE_COPY,
     'Electricity included in rent. AC usage may be charged separately when enabled.',
     DEPOSIT_REFUND_RULE_COPY,
-  ];
+  );
   if (walletApplied > 0) {
     lines.push(`Wallet credit applied: ₹${(walletApplied / 100).toLocaleString('en-IN')}`);
   }
@@ -164,7 +178,7 @@ export async function executeExpressWalkInSale(
     walletCreditApplied = Math.min(walletCreditRequested, wallet.availableCreditPaise);
   }
 
-  const durationMode = input.stayType === 'continue' ? 'open_ended' : 'monthly';
+  const durationMode = input.stayType === 'continue' ? 'open_ended' : 'fixed_stay';
   const endDate = input.stayType === 'continue' ? null : input.checkOutDate ?? null;
 
   const bookingResult = await createBooking({

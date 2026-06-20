@@ -350,7 +350,15 @@ export type ExpressWalkInBedOption = {
   roomNumber: string;
   bedCode: string;
   monthlyRatePaise: number;
+  dailyRatePaise: number;
   depositPaise: number;
+};
+
+export type ExpressWalkInSearchHit = {
+  customerId: string;
+  fullName: string;
+  phone: string;
+  statusLabel: 'Resident' | 'New';
 };
 
 export type ExpressWalkInLookupResult =
@@ -371,9 +379,9 @@ function isPlaceholderWalkInEmail(email: string): boolean {
   return email.startsWith('walkin+') && email.endsWith('@residents.awesomepg.in');
 }
 
-export async function lookupExpressWalkInCustomerAction(
+export async function searchExpressWalkInCustomersAction(
   query: string,
-): Promise<ExpressWalkInLookupResult | { error: string }> {
+): Promise<{ ok: true; results: ExpressWalkInSearchHit[] } | { error: string }> {
   try {
     const session = await requireAdminPermission('bookings:write');
     const trimmed = query.trim();
@@ -381,22 +389,46 @@ export async function lookupExpressWalkInCustomerAction(
       return { error: 'Enter at least 3 characters.' };
     }
 
-    const { findCustomerByPhone } = await import('@/src/lib/auth/customer');
-    let customer = await findCustomerByPhone(trimmed);
+    const { searchResidentsForAdmin } = await import('@/src/services/adminResidentSearch');
+    const rows = await searchResidentsForAdmin(session, trimmed, 10);
+    const seen = new Set<string>();
+    const results: ExpressWalkInSearchHit[] = [];
 
-    if (!customer) {
-      const { searchResidentsForAdmin } = await import('@/src/services/adminResidentSearch');
-      const results = await searchResidentsForAdmin(session, trimmed, 5);
-      if (results.length === 1) {
-        const { db } = await import('@/src/db/client');
-        const { customers } = await import('@/src/db/schema');
-        const { eq } = await import('drizzle-orm');
-        customer =
-          (
-            await db.select().from(customers).where(eq(customers.id, results[0]!.id)).limit(1)
-          )[0] ?? null;
-      }
+    for (const row of rows) {
+      if (seen.has(row.id)) continue;
+      seen.add(row.id);
+      const statusLabel =
+        row.tenancyStatus === 'active' || row.tenancyStatus === 'vacating'
+          ? 'Resident'
+          : 'New';
+      results.push({
+        customerId: row.id,
+        fullName: row.fullName,
+        phone: row.phone,
+        statusLabel,
+      });
     }
+
+    return { ok: true, results };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Search failed.' };
+  }
+}
+
+export async function getExpressWalkInCustomerAction(
+  customerId: string,
+): Promise<ExpressWalkInLookupResult | { error: string }> {
+  try {
+    const session = await requireAdminPermission('bookings:write');
+    const { db } = await import('@/src/db/client');
+    const { customers } = await import('@/src/db/schema');
+    const { eq } = await import('drizzle-orm');
+
+    const [customer] = await db
+      .select()
+      .from(customers)
+      .where(eq(customers.id, customerId))
+      .limit(1);
 
     if (!customer || customer.archivedAt) {
       return { found: false };
@@ -422,8 +454,18 @@ export async function lookupExpressWalkInCustomerAction(
       walletCreditPaise: wallet.availableCreditPaise,
     };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Lookup failed.' };
+    return { error: err instanceof Error ? err.message : 'Could not load resident.' };
   }
+}
+
+/** @deprecated Use searchExpressWalkInCustomersAction — never auto-selects. */
+export async function lookupExpressWalkInCustomerAction(
+  query: string,
+): Promise<ExpressWalkInLookupResult | { error: string }> {
+  const search = await searchExpressWalkInCustomersAction(query);
+  if ('error' in search) return search;
+  if (search.results.length === 0) return { found: false };
+  return getExpressWalkInCustomerAction(search.results[0]!.customerId);
 }
 
 export async function listExpressWalkInBedsAction(
@@ -443,6 +485,7 @@ export async function listExpressWalkInBedsAction(
         bedCode: r.bedCode,
         label: `${r.pgName} · Room ${r.roomNumber} · ${r.bedCode}`,
         monthlyRatePaise: r.monthlyRatePaise,
+        dailyRatePaise: r.dailyRatePaise,
         depositPaise: r.depositPaise,
       })),
     };
@@ -477,6 +520,9 @@ export async function expressWalkInSaleAction(input: {
 
     if (input.stayType === 'fixed' && !input.checkOutDate?.trim()) {
       return { ok: false, error: 'Check-out date is required for fixed stays.' };
+    }
+    if (input.stayType === 'fixed' && input.rentAmountInr <= 0) {
+      return { ok: false, error: 'Enter rent for the fixed stay (days × daily rate).' };
     }
 
     const toPaise = (inr: number) => Math.round(inr * 100);

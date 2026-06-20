@@ -145,6 +145,13 @@ export async function listAssignableBeds(session: AdminSession, startDate?: stri
           AND (bp.effective_to IS NULL OR bp.effective_to > CURRENT_DATE)
         ORDER BY bp.effective_from DESC LIMIT 1
       ), 0)`,
+      dailyRatePaise: sql<number>`coalesce((
+        SELECT bp.daily_rate_paise::bigint::int FROM ${bedPrices} bp
+        WHERE bp.bed_id = ${beds.id}
+          AND bp.effective_from <= CURRENT_DATE
+          AND (bp.effective_to IS NULL OR bp.effective_to > CURRENT_DATE)
+        ORDER BY bp.effective_from DESC LIMIT 1
+      ), 0)`,
       depositPaise: sql<number>`coalesce((
         SELECT coalesce(
           nullif(bp.monthly_security_deposit_paise, 0),

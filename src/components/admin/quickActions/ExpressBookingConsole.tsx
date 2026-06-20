@@ -4,13 +4,16 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import {
   expressWalkInSaleAction,
+  getExpressWalkInCustomerAction,
   listExpressWalkInBedsAction,
-  lookupExpressWalkInCustomerAction,
   requestRemainingDepositAction,
+  searchExpressWalkInCustomersAction,
   type ExpressWalkInBedOption,
   type ExpressWalkInLookupResult,
+  type ExpressWalkInSearchHit,
 } from '@/app/(admin)/admin/quick-actions/actions';
 import { paiseToInr } from '@/src/lib/format';
+import { diffDays } from '@/src/lib/dates';
 import {
   STAY_CHECK_IN_TIME,
   STAY_CHECK_OUT_TIME,
@@ -32,6 +35,22 @@ function inrToNumber(value: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function computeFixedStayRentInr(
+  checkInDate: string,
+  checkOutDate: string,
+  dailyRatePaise: number,
+): number | null {
+  if (!checkInDate || !checkOutDate || dailyRatePaise <= 0) return null;
+  const days = diffDays(checkInDate, checkOutDate);
+  if (days <= 0) return null;
+  return (days * dailyRatePaise) / 100;
+}
+
+function computeFixedStayDays(checkInDate: string, checkOutDate: string): number {
+  if (!checkInDate || !checkOutDate) return 0;
+  return Math.max(0, diffDays(checkInDate, checkOutDate));
+}
+
 function buildWhatsAppUrl(phone: string, text: string): string {
   const digits = phone.replace(/\D/g, '');
   const normalized = digits.length === 10 ? `91${digits}` : digits;
@@ -42,9 +61,11 @@ type FoundResident = ExpressWalkInLookupResult & { found: true };
 
 export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [lookup, setLookup] = useState<ExpressWalkInLookupResult | null>(null);
+  const [searchResults, setSearchResults] = useState<ExpressWalkInSearchHit[]>([]);
+  const [searchCompleted, setSearchCompleted] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [searching, startSearch] = useTransition();
+  const [loadingCustomer, startLoadCustomer] = useTransition();
 
   const [customerId, setCustomerId] = useState<string | undefined>();
   const [fullName, setFullName] = useState('');
@@ -65,6 +86,7 @@ export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
   const [bedId, setBedId] = useState('');
 
   const [rentAmountInr, setRentAmountInr] = useState('');
+  const [rentManuallyEdited, setRentManuallyEdited] = useState(false);
   const [depositRequiredInr, setDepositRequiredInr] = useState('');
   const [depositPaidInr, setDepositPaidInr] = useState('');
   const [rentPaidInr, setRentPaidInr] = useState('');
@@ -105,6 +127,16 @@ export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
   const depositPaid = inrToNumber(depositPaidInr);
   const rentPaid = inrToNumber(rentPaidInr);
   const rentAmount = inrToNumber(rentAmountInr);
+
+  const fixedStayDays =
+    stayType === 'fixed' ? computeFixedStayDays(checkInDate, checkOutDate) : 0;
+  const fixedDailyRateInr =
+    fixedStayDays > 0 && rentAmount > 0
+      ? rentAmount / fixedStayDays
+      : selectedBed && selectedBed.dailyRatePaise > 0
+        ? selectedBed.dailyRatePaise / 100
+        : 0;
+
   const pendingDeposit = Math.max(0, depositRequired - depositPaid - (useWalletCredit ? inrToNumber(walletCreditInr) : 0));
   const totalPaid = depositPaid + rentPaid;
 
@@ -118,14 +150,31 @@ export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
 
   useEffect(() => {
     if (!selectedBed) return;
-    if (!rentAmountInr && selectedBed.monthlyRatePaise > 0) {
-      setRentAmountInr(String(selectedBed.monthlyRatePaise / 100));
-    }
     if (!depositRequiredInr && selectedBed.depositPaise > 0) {
       setDepositRequiredInr(String(selectedBed.depositPaise / 100));
       if (!depositPaidInr) setDepositPaidInr(String(selectedBed.depositPaise / 100));
     }
-  }, [selectedBed, rentAmountInr, depositRequiredInr, depositPaidInr]);
+  }, [selectedBed, depositRequiredInr, depositPaidInr]);
+
+  useEffect(() => {
+    if (rentManuallyEdited || !selectedBed) return;
+    if (stayType === 'continue') {
+      if (selectedBed.monthlyRatePaise > 0) {
+        setRentAmountInr(String(selectedBed.monthlyRatePaise / 100));
+      }
+      return;
+    }
+    if (stayType === 'fixed' && checkOutDate) {
+      const total = computeFixedStayRentInr(
+        checkInDate,
+        checkOutDate,
+        selectedBed.dailyRatePaise,
+      );
+      if (total != null) {
+        setRentAmountInr(String(total));
+      }
+    }
+  }, [selectedBed, stayType, checkInDate, checkOutDate, rentManuallyEdited]);
 
   useEffect(() => {
     if (pendingDeposit > 0) setPaymentStatus('partial');
@@ -133,16 +182,19 @@ export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
   }, [pendingDeposit, depositPaid, rentPaid]);
 
   function resetUser() {
-    setLookup(null);
     setCustomerId(undefined);
     setFullName('');
     setPhone('');
     setEmail('');
     setSearchQuery('');
+    setSearchResults([]);
+    setSearchCompleted(false);
     setIsNewResident(true);
     setWalletAvailablePaise(0);
     setWalletCreditInr('');
     setUseWalletCredit(false);
+    setRentAmountInr('');
+    setRentManuallyEdited(false);
   }
 
   function applyFound(data: FoundResident) {
@@ -152,7 +204,8 @@ export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
     setEmail(data.email);
     setGender(data.gender);
     setIsNewResident(false);
-    setLookup(data);
+    setSearchResults([]);
+    setSearchCompleted(false);
     setWalletAvailablePaise(data.walletCreditPaise);
     if (data.walletCreditPaise > 0) {
       setUseWalletCredit(true);
@@ -162,8 +215,23 @@ export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
 
   function runSearch() {
     setLookupError(null);
+    setSearchResults([]);
+    setSearchCompleted(false);
     startSearch(async () => {
-      const res = await lookupExpressWalkInCustomerAction(searchQuery);
+      const res = await searchExpressWalkInCustomersAction(searchQuery);
+      if ('error' in res) {
+        setLookupError(res.error);
+        return;
+      }
+      setSearchResults(res.results);
+      setSearchCompleted(true);
+    });
+  }
+
+  function selectExistingResident(hit: ExpressWalkInSearchHit) {
+    setLookupError(null);
+    startLoadCustomer(async () => {
+      const res = await getExpressWalkInCustomerAction(hit.customerId);
       if ('error' in res) {
         setLookupError(res.error);
         return;
@@ -171,13 +239,27 @@ export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
       if (res.found) {
         applyFound(res);
       } else {
-        resetUser();
-        const digits = searchQuery.replace(/\D/g, '');
-        if (digits.length >= 10) setPhone(searchQuery.trim());
-        setFullName(searchQuery.trim());
-        setIsNewResident(true);
+        setLookupError('Resident not found.');
       }
     });
+  }
+
+  function createNewResidentFromSearch() {
+    const trimmed = searchQuery.trim();
+    setCustomerId(undefined);
+    setEmail('');
+    setSearchResults([]);
+    setSearchCompleted(false);
+    setWalletAvailablePaise(0);
+    setWalletCreditInr('');
+    setUseWalletCredit(false);
+    setRentAmountInr('');
+    setRentManuallyEdited(false);
+    const digits = trimmed.replace(/\D/g, '');
+    if (digits.length >= 10) setPhone(trimmed);
+    else setPhone('');
+    setFullName(trimmed);
+    setIsNewResident(true);
   }
 
   function submitBooking() {
@@ -250,6 +332,18 @@ export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
           </span>
         </div>
       ) : null}
+      {stayType === 'fixed' && fixedStayDays > 0 ? (
+        <>
+          <div className="flex justify-between">
+            <span className="text-apg-silver">Days</span>
+            <span className="text-white">{fixedStayDays}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-apg-silver">Daily rate</span>
+            <span className="text-white">₹{fixedDailyRateInr.toLocaleString('en-IN')}</span>
+          </div>
+        </>
+      ) : null}
       {selectedBed ? (
         <div className="flex justify-between">
           <span className="text-apg-silver">Bed</span>
@@ -257,7 +351,9 @@ export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
         </div>
       ) : null}
       <div className="flex justify-between pt-2">
-        <span className="text-apg-silver">Rent</span>
+        <span className="text-apg-silver">
+          {stayType === 'fixed' ? 'Total rent' : 'Rent'}
+        </span>
         <span className="font-medium text-white">₹{rentAmount.toLocaleString('en-IN')}</span>
       </div>
       <div className="flex justify-between">
@@ -291,7 +387,9 @@ export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
     const waText = [
       `Booking ${success.bookingCode}`,
       fullName,
-      stayType === 'fixed' ? `Fixed stay · ${checkInDate} → ${checkOutDate}` : `Continue living from ${checkInDate}`,
+      stayType === 'fixed'
+        ? `Fixed stay · ${checkInDate} → ${checkOutDate} · ${fixedStayDays} days · ₹${fixedDailyRateInr.toLocaleString('en-IN')}/day`
+        : `Continue living from ${checkInDate}`,
       `Rent ₹${rentAmount.toLocaleString('en-IN')}`,
       `Deposit paid ₹${depositPaid.toLocaleString('en-IN')}`,
       pendingDeposit > 0 ? `Pending deposit ₹${pendingDeposit.toLocaleString('en-IN')}` : null,
@@ -350,12 +448,16 @@ export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
       {!hasIdentity ? (
         <div className={sectionClass}>
           <p className="text-xs font-semibold uppercase tracking-wide text-apg-muted">Find resident</p>
-          <p className="mt-1 text-xs text-apg-silver">Phone or name — existing profiles open pre-filled.</p>
+          <p className="mt-1 text-xs text-apg-silver">Search by phone or name — pick a result to continue.</p>
           <div className="mt-3 flex gap-2">
             <input
               type="search"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setSearchResults([]);
+                setSearchCompleted(false);
+              }}
               placeholder="+91… or full name"
               className={inputClass}
               autoFocus
@@ -370,6 +472,35 @@ export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
             </button>
           </div>
           {lookupError ? <p className="mt-2 text-xs text-rose-300">{lookupError}</p> : null}
+          {searchResults.length > 0 ? (
+            <ul className="mt-3 max-h-48 space-y-1 overflow-y-auto rounded-xl border border-white/10">
+              {searchResults.map((hit) => (
+                <li key={hit.customerId}>
+                  <button
+                    type="button"
+                    disabled={loadingCustomer}
+                    onClick={() => selectExistingResident(hit)}
+                    className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm hover:bg-white/5 disabled:opacity-50"
+                  >
+                    <span>
+                      <span className="font-medium text-white">{hit.fullName}</span>
+                      <span className="mt-0.5 block text-xs text-apg-silver">{hit.phone}</span>
+                    </span>
+                    <span className="shrink-0 text-xs text-apg-muted">{hit.statusLabel}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {searchCompleted && searchResults.length === 0 ? (
+            <button
+              type="button"
+              onClick={createNewResidentFromSearch}
+              className="mt-3 w-full rounded-xl border border-dashed border-white/15 px-3 py-2.5 text-left text-sm text-apg-silver hover:border-white/25 hover:text-white"
+            >
+              Create new resident with “{searchQuery.trim()}”
+            </button>
+          ) : null}
         </div>
       ) : null}
 
@@ -446,7 +577,10 @@ export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <button
                 type="button"
-                onClick={() => setStayType('fixed')}
+                onClick={() => {
+                  setStayType('fixed');
+                  setRentManuallyEdited(false);
+                }}
                 className={`rounded-xl border p-4 text-left transition ${
                   stayType === 'fixed'
                     ? 'border-[#FF5A1F]/50 bg-[#FF5A1F]/10'
@@ -458,7 +592,10 @@ export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
               </button>
               <button
                 type="button"
-                onClick={() => setStayType('continue')}
+                onClick={() => {
+                  setStayType('continue');
+                  setRentManuallyEdited(false);
+                }}
                 className={`rounded-xl border p-4 text-left transition ${
                   stayType === 'continue'
                     ? 'border-[#FF5A1F]/50 bg-[#FF5A1F]/10'
@@ -500,7 +637,7 @@ export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
               </label>
               <label className="block text-xs text-apg-silver">
                 Bed
-                <select value={bedId} onChange={(e) => setBedId(e.target.value)} className={inputClass} required>
+                <select value={bedId} onChange={(e) => { setRentManuallyEdited(false); setBedId(e.target.value); }} className={inputClass} required>
                   <option value="">Select bed…</option>
                   {filteredBeds.map((b) => (
                     <option key={b.bedId} value={b.bedId}>{b.label}</option>
@@ -508,6 +645,14 @@ export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
                 </select>
               </label>
             </div>
+            {selectedBed && stayType === 'fixed' && selectedBed.dailyRatePaise > 0 ? (
+              <p className="mt-2 text-xs text-apg-silver">
+                Daily rate · {paiseToInr(selectedBed.dailyRatePaise)}
+                {fixedStayDays > 0
+                  ? ` · ${fixedStayDays} days = ₹${rentAmount.toLocaleString('en-IN')}`
+                  : null}
+              </p>
+            ) : null}
             {selectedBed && selectedBed.depositPaise > 0 ? (
               <p className="mt-2 text-xs text-apg-silver">
                 Suggested deposit for this bed · {paiseToInr(selectedBed.depositPaise)}
@@ -525,7 +670,15 @@ export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <label className="block text-xs text-apg-silver">
                 Rent amount (₹)
-                <input value={rentAmountInr} onChange={(e) => setRentAmountInr(e.target.value)} className={inputClass} inputMode="decimal" />
+                <input
+                  value={rentAmountInr}
+                  onChange={(e) => {
+                    setRentManuallyEdited(true);
+                    setRentAmountInr(e.target.value);
+                  }}
+                  className={inputClass}
+                  inputMode="decimal"
+                />
               </label>
               <label className="block text-xs text-apg-silver">
                 Deposit required (₹)
