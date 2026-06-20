@@ -46,6 +46,7 @@ test('depositAdminDisplayAmounts hides collection adjustment from deductions', (
     grossRefundableBalancePaise: 5250000,
     requiredPaise: 5250000,
     depositDuePaise: 0,
+    taggedCollectionAdjustmentPaise: 900000,
   });
   assert.equal(display.requiredPaise, 5250000);
   assert.equal(display.collectedPaise, 5250000);
@@ -54,7 +55,7 @@ test('depositAdminDisplayAmounts hides collection adjustment from deductions', (
   assert.equal(display.refundablePaise, 5250000);
 });
 
-test('depositAdminDisplayAmounts hides legacy untagged adjustment when wallet net equals required', () => {
+test('depositAdminDisplayAmounts hides legacy untagged adjustment when tagged amount provided', () => {
   const display = depositAdminDisplayAmounts({
     grossCollectedPaise: 900000,
     grossDeductedPaise: 450000,
@@ -62,7 +63,7 @@ test('depositAdminDisplayAmounts hides legacy untagged adjustment when wallet ne
     grossRefundableBalancePaise: 450000,
     requiredPaise: 450000,
     depositDuePaise: 0,
-    taggedCollectionAdjustmentPaise: 0,
+    taggedCollectionAdjustmentPaise: 450000,
   });
   assert.equal(display.deductedPaise, 0);
   assert.equal(display.deductionsPaise, 0);

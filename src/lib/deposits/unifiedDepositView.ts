@@ -110,20 +110,8 @@ export function depositAdminDisplayAmounts(input: {
     depositDuePaise,
   });
 
-  const untaggedDeductedPaise = Math.max(0, grossDeductedPaise - taggedCollectionAdjustmentPaise);
-  let legacyCollectionAdjustmentPaise = 0;
-  if (depositDuePaise <= 0 && requiredPaise > 0 && untaggedDeductedPaise > 0) {
-    const excessCollectedPaise = Math.max(0, grossCollectedPaise - requiredPaise);
-    if (grossRefundableBalancePaise === requiredPaise) {
-      legacyCollectionAdjustmentPaise = untaggedDeductedPaise;
-    } else {
-      legacyCollectionAdjustmentPaise = Math.min(untaggedDeductedPaise, excessCollectedPaise);
-    }
-  }
-
-  const totalCollectionAdjustmentPaise =
-    taggedCollectionAdjustmentPaise + legacyCollectionAdjustmentPaise;
-  const deductedPaise = Math.max(0, grossDeductedPaise - totalCollectionAdjustmentPaise);
+  // grossDeductedPaise from SQL excludes collection-balance corrections; no UI heuristics.
+  const deductedPaise = Math.max(0, grossDeductedPaise - taggedCollectionAdjustmentPaise);
   const refundedPaise = grossRefundedPaise;
   const deductionsPaise = deductedPaise + refundedPaise;
   const refundablePaise = effectiveDepositRefundablePaise({

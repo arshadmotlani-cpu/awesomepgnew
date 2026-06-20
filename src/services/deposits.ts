@@ -28,12 +28,17 @@ import {
   auditLog,
   bookings,
   depositLedger,
+  payments,
   type DepositLedgerEntry,
 } from '../db/schema';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import { coerceNonNegativePaise, asPlainNumber } from '@/src/lib/format';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
-import { DEPOSIT_COLLECTION_ADJUSTMENT_PREFIX, depositCollectionAdjustmentReason } from '@/src/lib/deposits/constants';
+import {
+  DEPOSIT_COLLECTION_ADJUSTMENT_PREFIX,
+  depositCollectionAdjustmentReason,
+  isDepositCollectionAdjustmentReason,
+} from '@/src/lib/deposits/constants';
 import { applyDepositDeduction } from '@/src/services/depositSettlement';
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -369,7 +374,7 @@ export async function getDepositSummaryForBooking(
     );
 
     let collected = 0;
-    let deducted = 0;
+    let ledgerDeducted = 0;
     let refunded = 0;
     let residentDeducted = 0;
     for (const e of entries) {
@@ -377,22 +382,38 @@ export async function getDepositSummaryForBooking(
       if (e.entryKind === 'collected') collected += coerceNonNegativePaise(amount);
       else if (e.entryKind === 'deducted') {
         const abs = coerceNonNegativePaise(-amount);
-        deducted += abs;
-        if (!e.reason.startsWith(DEPOSIT_COLLECTION_ADJUSTMENT_PREFIX)) {
+        ledgerDeducted += abs;
+        if (!isDepositCollectionAdjustmentReason(e.reason)) {
           residentDeducted += abs;
         }
       } else if (e.entryKind === 'refunded') refunded += coerceNonNegativePaise(-amount);
+    }
+
+    if (entries.length === 0 && collected === 0) {
+      const [paymentRow] = await db
+        .select({
+          total: sql<number>`coalesce(sum(${payments.amountPaise}), 0)::bigint::int`,
+        })
+        .from(payments)
+        .where(
+          and(
+            eq(payments.bookingId, bookingId),
+            eq(payments.purpose, 'deposit'),
+            eq(payments.status, 'succeeded'),
+          ),
+        );
+      collected = coerceNonNegativePaise(asPlainNumber(paymentRow?.total));
     }
 
     const summary = {
       bookingId,
       customerId: booking.customerId,
       collectedPaise: guardDepositPaise(collected, 'summary.collectedPaise'),
-      deductedPaise: guardDepositPaise(deducted, 'summary.deductedPaise'),
+      deductedPaise: guardDepositPaise(residentDeducted, 'summary.deductedPaise'),
       refundedPaise: guardDepositPaise(refunded, 'summary.refundedPaise'),
       residentDeductedPaise: guardDepositPaise(residentDeducted, 'summary.residentDeductedPaise'),
       refundableBalancePaise: guardDepositPaise(
-        collected - deducted - refunded,
+        collected - ledgerDeducted - refunded,
         'summary.refundableBalancePaise',
       ),
       entries,

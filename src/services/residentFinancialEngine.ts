@@ -210,19 +210,17 @@ async function buildDepositCategory(
   meta: { pgId: string; pgName: string; roomNumber: string },
 ): Promise<ResidentDepositCategory> {
   const summary = await getDepositSummaryForBooking(bookingId);
-  const hasLedger = (summary?.entries.length ?? 0) > 0;
 
   const requiredPaise = depositRequiredPaise;
   const outstandingPaise = Math.max(0, depositDuePaise);
-
-  /** Booking columns are stored snapshots when ledger has not been written yet. */
   const bookingCollectedPaise = Math.max(0, depositRequiredPaise - depositDuePaise);
 
-  const collectedFromLedger = summary?.collectedPaise ?? 0;
-  const refundableFromLedger = summary?.refundableBalancePaise ?? 0;
-
-  const paidPaise = hasLedger ? collectedFromLedger : bookingCollectedPaise;
-  const refundablePaise = hasLedger ? refundableFromLedger : bookingCollectedPaise;
+  const collectedFromRecords = summary?.collectedPaise ?? 0;
+  const paidPaise = collectedFromRecords > 0 ? collectedFromRecords : bookingCollectedPaise;
+  const refundablePaise =
+    summary != null && summary.entries.length > 0
+      ? summary.refundableBalancePaise
+      : bookingCollectedPaise;
 
   const items: ResidentFinancialLineItem[] = [];
   if (outstandingPaise > 0) {
