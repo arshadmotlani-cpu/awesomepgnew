@@ -18,7 +18,9 @@ import {
   STAY_CHECK_IN_TIME,
   STAY_CHECK_OUT_TIME,
   STAY_TIMING_RULE_COPY,
+  formatStayDateTime,
 } from '@/src/lib/residents/stayBillingRules';
+import { buildExpressWalkInWhatsAppUrl } from '@/src/lib/billing/expressWalkInWhatsApp';
 
 function defaultCheckInDate(): string {
   const now = new Date();
@@ -100,12 +102,14 @@ export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
 
   const [submitting, startSubmit] = useTransition();
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [success, setSuccess] = useState<{
     message: string;
     href: string;
     bookingCode: string;
     customerId: string;
     bookingId?: string;
+    whatsAppUrl?: string | null;
   } | null>(null);
   const [depositLinkUrl, setDepositLinkUrl] = useState<string | null>(null);
   const [requestingDeposit, startDepositRequest] = useTransition();
@@ -286,14 +290,39 @@ export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
       });
       if (!res.ok) {
         setSubmitError(res.error);
+        setConfirmOpen(false);
         return;
       }
+      const whatsAppUrl =
+        res.pgName && res.roomNumber && res.bedCode
+          ? buildExpressWalkInWhatsAppUrl({
+              residentName: fullName,
+              phone,
+              pgName: res.pgName,
+              roomNumber: res.roomNumber,
+              bedCode: res.bedCode,
+              checkInDate,
+              checkOutDate: stayType === 'fixed' ? checkOutDate : null,
+              stayType,
+              bookingCode: res.bookingCode ?? '',
+              rentAmountPaise: Math.round(rentAmount * 100),
+              depositRequiredPaise: Math.round(depositRequired * 100),
+              depositPaidPaise: res.depositRecordedPaise ?? Math.round(depositPaid * 100),
+              rentPaidPaise: res.rentRecordedPaise ?? Math.round(rentPaid * 100),
+              balanceDuePaise: res.balanceDuePaise ?? Math.round(pendingDeposit * 100),
+              paymentMethod,
+              bookingStatus: 'Confirmed',
+              rentInvoiceNumber: res.rentInvoiceNumber,
+            })
+          : null;
+      setConfirmOpen(false);
       setSuccess({
         message: res.message,
         href: res.href ?? `/admin/residents/${res.customerId ?? customerId}`,
-        bookingCode: res.href?.split('booking=')[1] ?? '',
+        bookingCode: res.bookingCode ?? '',
         customerId: res.customerId ?? customerId ?? '',
         bookingId: res.bookingId,
+        whatsAppUrl,
       });
     });
   }
@@ -313,6 +342,10 @@ export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
   const invoicePreview = (
     <div className="space-y-3 text-sm">
       <div className="flex justify-between border-b border-white/10 pb-2">
+        <span className="text-apg-silver">Resident</span>
+        <span className="font-medium text-white">{fullName || '—'}</span>
+      </div>
+      <div className="flex justify-between border-b border-white/10 pb-2">
         <span className="text-apg-silver">Stay type</span>
         <span className="font-medium text-white">
           {stayType === 'fixed' ? 'Fixed stay' : 'Continue living'}
@@ -320,16 +353,12 @@ export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
       </div>
       <div className="flex justify-between">
         <span className="text-apg-silver">Check-in</span>
-        <span className="text-white">
-          {checkInDate} · {STAY_CHECK_IN_TIME}
-        </span>
+        <span className="text-white">{formatStayDateTime(checkInDate, 'check-in')}</span>
       </div>
       {stayType === 'fixed' && checkOutDate ? (
         <div className="flex justify-between">
-          <span className="text-apg-silver">Check-out</span>
-          <span className="text-white">
-            {checkOutDate} · {STAY_CHECK_OUT_TIME}
-          </span>
+          <span className="text-apg-silver">Checkout</span>
+          <span className="text-white">{formatStayDateTime(checkOutDate, 'check-out')}</span>
         </div>
       ) : null}
       {stayType === 'fixed' && fixedStayDays > 0 ? (
@@ -362,10 +391,15 @@ export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
       </div>
       {pendingDeposit > 0 ? (
         <div className="flex justify-between rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2">
-          <span className="text-amber-100">Pending deposit</span>
+          <span className="text-amber-100">Balance due</span>
           <span className="font-semibold text-amber-50">₹{pendingDeposit.toLocaleString('en-IN')}</span>
         </div>
-      ) : null}
+      ) : (
+        <div className="flex justify-between">
+          <span className="text-apg-silver">Balance due</span>
+          <span className="text-white">₹0</span>
+        </div>
+      )}
       {useWalletCredit && inrToNumber(walletCreditInr) > 0 ? (
         <div className="flex justify-between text-apg-silver">
           <span>Wallet credit applied</span>
@@ -384,39 +418,37 @@ export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
   );
 
   if (success) {
-    const waText = [
-      `Booking ${success.bookingCode}`,
-      fullName,
-      stayType === 'fixed'
-        ? `Fixed stay · ${checkInDate} → ${checkOutDate} · ${fixedStayDays} days · ₹${fixedDailyRateInr.toLocaleString('en-IN')}/day`
-        : `Continue living from ${checkInDate}`,
-      `Rent ₹${rentAmount.toLocaleString('en-IN')}`,
-      `Deposit paid ₹${depositPaid.toLocaleString('en-IN')}`,
-      pendingDeposit > 0 ? `Pending deposit ₹${pendingDeposit.toLocaleString('en-IN')}` : null,
-      `Total paid ₹${totalPaid.toLocaleString('en-IN')}`,
-    ]
-      .filter(Boolean)
-      .join('\n');
-
     return (
       <div className="space-y-4">
         <div className={sectionClass}>
           <p className="text-sm font-medium text-white">Booking created</p>
           <p className="mt-1 text-xs text-apg-silver">{success.message}</p>
+          <p className="mt-1 text-xs text-apg-silver">Booking code · {success.bookingCode}</p>
         </div>
         {invoicePreview}
         <div className="flex flex-wrap gap-2">
           <Link href={success.href} className="rounded-xl bg-[#FF5A1F] px-4 py-2.5 text-sm font-semibold text-white" onClick={onDone}>
             Open profile
           </Link>
-          <a
-            href={buildWhatsAppUrl(phone, waText)}
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-xl border border-white/15 px-4 py-2.5 text-sm font-medium text-white hover:bg-white/5"
-          >
-            Send WhatsApp invoice
-          </a>
+          {success.whatsAppUrl ? (
+            <a
+              href={success.whatsAppUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-2.5 text-sm font-medium text-emerald-100 hover:bg-emerald-500/20"
+            >
+              Share on WhatsApp
+            </a>
+          ) : (
+            <a
+              href={buildWhatsAppUrl(phone, `Booking ${success.bookingCode} confirmed.`)}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-xl border border-white/15 px-4 py-2.5 text-sm font-medium text-white hover:bg-white/5"
+            >
+              Share on WhatsApp
+            </a>
+          )}
           {pendingDeposit > 0 ? (
             <button
               type="button"
@@ -742,14 +774,41 @@ export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
               </label>
             </div>
             {submitError ? <p className="mt-3 text-xs text-rose-300">{submitError}</p> : null}
-            <button
-              type="button"
-              disabled={submitting || !bedId || (stayType === 'fixed' && !checkOutDate)}
-              onClick={submitBooking}
-              className="mt-4 w-full rounded-xl bg-[#FF5A1F] py-3 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-40"
-            >
-              {submitting ? 'Creating booking…' : 'Create booking & generate invoice'}
-            </button>
+            {confirmOpen ? (
+              <div className="mt-4 space-y-3 rounded-xl border border-[#FF5A1F]/30 bg-[#FF5A1F]/5 p-4">
+                <p className="text-sm font-medium text-white">Confirm invoice creation</p>
+                <p className="text-xs text-apg-silver">
+                  Review the summary above. If anything fails, the system rolls back — no partial booking or bed assignment.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={submitting}
+                    onClick={submitBooking}
+                    className="flex-1 rounded-xl bg-[#FF5A1F] py-2.5 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-40"
+                  >
+                    {submitting ? 'Creating…' : 'Confirm & create invoice'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={submitting}
+                    onClick={() => setConfirmOpen(false)}
+                    className="rounded-xl border border-white/15 px-4 py-2.5 text-sm text-apg-silver hover:text-white"
+                  >
+                    Back
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                disabled={submitting || !bedId || (stayType === 'fixed' && !checkOutDate)}
+                onClick={() => setConfirmOpen(true)}
+                className="mt-4 w-full rounded-xl bg-[#FF5A1F] py-3 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-40"
+              >
+                Review & create invoice
+              </button>
+            )}
           </div>
         </>
       ) : null}

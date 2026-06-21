@@ -31,8 +31,16 @@ export type QuickActionResult =
       message: string;
       href?: string;
       bookingId?: string;
+      bookingCode?: string;
       customerId?: string;
       paymentLinkUrl?: string;
+      rentInvoiceNumber?: string | null;
+      pgName?: string;
+      roomNumber?: string;
+      bedCode?: string;
+      balanceDuePaise?: number;
+      depositRecordedPaise?: number;
+      rentRecordedPaise?: number;
     }
   | { ok: false; error: string };
 
@@ -562,6 +570,14 @@ export async function expressWalkInSaleAction(input: {
       message: result.message,
       customerId: result.customerId,
       bookingId: result.bookingId,
+      bookingCode: result.bookingCode,
+      rentInvoiceNumber: result.rentInvoiceNumber,
+      pgName: result.pgName,
+      roomNumber: result.roomNumber,
+      bedCode: result.bedCode,
+      balanceDuePaise: result.balanceDuePaise,
+      depositRecordedPaise: result.depositRecordedPaise,
+      rentRecordedPaise: result.rentRecordedPaise,
       href: `/admin/residents/${result.customerId}?walkIn=1&booking=${result.bookingCode}`,
     };
   } catch (err) {

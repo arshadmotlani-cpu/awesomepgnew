@@ -9,6 +9,32 @@ function MoneyCell({ paise }: { paise: number }) {
   return <span className="font-medium text-emerald-300">{paiseToInr(paise)}</span>;
 }
 
+function DepositRevenueCell({
+  paise,
+  paidCount,
+  pendingCount,
+  href,
+}: {
+  paise: number;
+  paidCount: number;
+  pendingCount: number;
+  href: string;
+}) {
+  if (paise === 0 && paidCount === 0 && pendingCount === 0) {
+    return <span className="text-apg-silver">—</span>;
+  }
+  return (
+    <Link href={href} className="group block rounded-lg px-1 py-0.5 hover:bg-white/5">
+      <span className="font-medium text-emerald-300 group-hover:text-emerald-200">
+        {paiseToInr(paise)}
+      </span>
+      <span className="mt-0.5 block text-[10px] text-apg-silver group-hover:text-white">
+        {paidCount} paid · {pendingCount} pending
+      </span>
+    </Link>
+  );
+}
+
 export function RevenueCommandCenter({
   data,
   monthLabel,
@@ -19,6 +45,8 @@ export function RevenueCommandCenter({
   pgHref?: (pgId: string) => string;
 }) {
   const { today, mtd, byPg, outstanding, depositPortfolio } = data;
+  const totalDepositPaid = byPg.reduce((a, r) => a + r.depositPaidCount, 0);
+  const totalDepositPending = byPg.reduce((a, r) => a + r.depositPendingCount, 0);
 
   return (
     <section className="space-y-6">
@@ -88,7 +116,7 @@ export function RevenueCommandCenter({
           <OverviewStatCard
             label="Deposit revenue"
             value={paiseToInr(mtd.depositPaise)}
-            hint="Deposit ledger collected this month"
+            hint={`${totalDepositPaid} paid · ${totalDepositPending} pending · assigned residents`}
             icon={<IconCard />}
             accent="orange"
             href={`/admin/deposits/collected?month=${data.billingMonth}`}
@@ -180,7 +208,12 @@ export function RevenueCommandCenter({
                       <MoneyCell paise={row.electricityRevenuePaise} />
                     </td>
                     <td className="px-4 py-3">
-                      <MoneyCell paise={row.depositRevenuePaise} />
+                      <DepositRevenueCell
+                        paise={row.depositRevenuePaise}
+                        paidCount={row.depositPaidCount}
+                        pendingCount={row.depositPendingCount}
+                        href={`/admin/deposits/collected?pgId=${row.pgId}&month=${data.billingMonth}`}
+                      />
                     </td>
                     <td className="px-4 py-3 font-semibold text-white">
                       {paiseToInr(row.totalRevenuePaise)}

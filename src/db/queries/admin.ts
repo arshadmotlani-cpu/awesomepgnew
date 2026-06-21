@@ -12,6 +12,7 @@ import { collectibleResidentFilters } from '@/src/lib/billing/productionDataFilt
 import { bedOccupiedTodayExistsSql } from '@/src/lib/occupancySsot';
 import { todayString } from '@/src/lib/dates';
 import { asPlainNumber } from '@/src/lib/format';
+import { sanitizeAdminQueryError } from '@/src/lib/admin/productionDbError';
 import {
   beds,
   bedPrices,
@@ -45,14 +46,17 @@ async function guard<T>(fn: () => Promise<T>): Promise<QueryResult<T>> {
   if (!hasDatabaseUrl()) {
     return {
       ok: false,
-      error: 'DATABASE_URL is not set. Add it to your environment and restart.',
+      error: sanitizeAdminQueryError(
+        'DATABASE_URL is not set. Add it to your environment and restart.',
+      ),
     };
   }
   try {
     return { ok: true, data: await fn() };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: message };
+    console.error('[admin query]', message);
+    return { ok: false, error: sanitizeAdminQueryError(message) };
   }
 }
 
@@ -1696,10 +1700,6 @@ export function listDepositCollectionsForBillingMonth(
     const bookingIds = Array.from(rows).map((r) => r.booking_id);
     if (bookingIds.length === 0) return [];
 
-    const { listDepositInvoiceRecords } = await import('@/src/services/depositInvoices');
-    const invoices = await listDepositInvoiceRecords({ view: 'all' });
-    const invoiceByBooking = new Map(invoices.map((i) => [i.bookingId, i]));
-
     const monthMap = new Map(
       Array.from(rows).map((r) => [
         r.booking_id,
@@ -1709,6 +1709,53 @@ export function listDepositCollectionsForBillingMonth(
         },
       ]),
     );
+
+    const bookingRows = await db
+      .select({
+        bookingId: bookings.id,
+        bookingCode: bookings.bookingCode,
+        customerId: bookings.customerId,
+        customerFullName: customers.fullName,
+        customerPhone: customers.phone,
+        pgId: pgs.id,
+        pgName: pgs.name,
+        roomNumber: rooms.roomNumber,
+        bedCode: beds.bedCode,
+        depositPaise: bookings.depositPaise,
+        depositDuePaise: bookings.depositDuePaise,
+        depositCollectionStatus: bookings.depositCollectionStatus,
+        collectedPaise: sql<number>`(
+          SELECT coalesce(sum(dl.amount_paise), 0)::bigint
+          FROM deposit_ledger dl
+          WHERE dl.booking_id = ${bookings.id} AND dl.entry_kind = 'collected'
+        )`,
+        deductedPaise: sql<number>`(
+          SELECT coalesce(-sum(dl.amount_paise), 0)::bigint
+          FROM deposit_ledger dl
+          WHERE dl.booking_id = ${bookings.id} AND dl.entry_kind = 'deducted'
+        )`,
+        refundedPaise: sql<number>`(
+          SELECT coalesce(-sum(dl.amount_paise), 0)::bigint
+          FROM deposit_ledger dl
+          WHERE dl.booking_id = ${bookings.id} AND dl.entry_kind = 'refunded'
+        )`,
+        refundableBalancePaise: sql<number>`(
+          SELECT greatest(coalesce(sum(dl.amount_paise), 0), 0)::bigint
+          FROM deposit_ledger dl
+          WHERE dl.booking_id = ${bookings.id}
+        )`,
+      })
+      .from(bookings)
+      .innerJoin(customers, eq(customers.id, bookings.customerId))
+      .leftJoin(
+        bedReservations,
+        and(eq(bedReservations.bookingId, bookings.id), eq(bedReservations.kind, 'primary')),
+      )
+      .leftJoin(beds, eq(beds.id, bedReservations.bedId))
+      .leftJoin(rooms, eq(rooms.id, beds.roomId))
+      .leftJoin(floors, eq(floors.id, rooms.floorId))
+      .leftJoin(pgs, eq(pgs.id, floors.pgId))
+      .where(inArray(bookings.id, bookingIds));
 
     const refundRequests = await db
       .selectDistinct({ bookingId: vacatingRequests.bookingId })
@@ -1733,32 +1780,31 @@ export function listDepositCollectionsForBillingMonth(
       );
     const adjustSet = new Set(adjustments.map((r) => r.bookingId));
 
-    return Array.from(rows)
-      .map((r) => {
-        const inv = invoiceByBooking.get(r.booking_id);
-        if (!inv) return null;
-        const m = monthMap.get(r.booking_id)!;
+    return bookingRows
+      .map((inv) => {
+        const m = monthMap.get(inv.bookingId);
+        if (!m) return null;
         return {
           bookingId: inv.bookingId,
           bookingCode: inv.bookingCode,
           customerId: inv.customerId,
           customerFullName: inv.customerFullName,
           customerPhone: inv.customerPhone,
-          pgId: inv.pgId,
-          pgName: inv.pgName,
-          roomNumber: inv.roomNumber,
-          bedCode: inv.bedCode,
-          depositPaise: inv.depositPaise,
-          depositDuePaise: inv.depositDuePaise,
+          pgId: inv.pgId ?? '',
+          pgName: inv.pgName ?? '—',
+          roomNumber: inv.roomNumber ?? '—',
+          bedCode: inv.bedCode ?? '—',
+          depositPaise: Number(inv.depositPaise),
+          depositDuePaise: Number(inv.depositDuePaise),
           depositCollectionStatus: inv.depositCollectionStatus,
-          collectedPaise: inv.collectedPaise,
-          deductedPaise: inv.deductedPaise,
-          refundedPaise: inv.refundedPaise,
-          refundableBalancePaise: inv.refundableBalancePaise,
+          collectedPaise: Number(inv.collectedPaise),
+          deductedPaise: Number(inv.deductedPaise),
+          refundedPaise: Number(inv.refundedPaise),
+          refundableBalancePaise: Number(inv.refundableBalancePaise),
           collectedThisMonthPaise: m.collectedThisMonthPaise,
           lastCollectedAt: m.lastCollectedAt,
-          hasRefundRequest: refundSet.has(r.booking_id),
-          hasManualAdjustment: adjustSet.has(r.booking_id),
+          hasRefundRequest: refundSet.has(inv.bookingId),
+          hasManualAdjustment: adjustSet.has(inv.bookingId),
         };
       })
       .filter((row): row is DepositCollectionDetailRow => row !== null)

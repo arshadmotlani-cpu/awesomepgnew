@@ -23,6 +23,7 @@ import { recordExpressCollection } from '@/src/services/expressCollection';
 import { clearBedInterest } from '@/src/services/bedNoticeInterest';
 import { isBedAvailable } from '@/src/services/availability';
 import { reconcileOrphanBedReservations } from '@/src/lib/occupancySync';
+import { rollbackExpressWalkInSale } from '@/src/services/expressWalkInRollback';
 
 const LONG_TERM_RESERVATION_END = '2099-01-01';
 
@@ -64,6 +65,11 @@ export type ExpressWalkInSaleResult =
       walletCreditAppliedPaise: number;
       depositRecordedPaise: number;
       rentRecordedPaise: number;
+      rentInvoiceNumber?: string | null;
+      pgName: string;
+      roomNumber: string;
+      bedCode: string;
+      balanceDuePaise: number;
     }
   | { ok: false; error: string };
 
@@ -136,7 +142,12 @@ export async function executeExpressWalkInSale(
   }
 
   const [bedCtx] = await db
-    .select({ pgId: pgs.id })
+    .select({
+      pgId: pgs.id,
+      pgName: pgs.name,
+      roomNumber: rooms.roomNumber,
+      bedCode: beds.bedCode,
+    })
     .from(beds)
     .innerJoin(rooms, eq(rooms.id, beds.roomId))
     .innerJoin(floors, eq(floors.id, rooms.floorId))
@@ -207,6 +218,22 @@ export async function executeExpressWalkInSale(
   }
 
   const { bookingId, bookingCode } = bookingResult;
+  const rollbackCtx = {
+    bookingId,
+    bookingCode,
+    customerId,
+    adminId: session.adminId,
+  };
+
+  async function failAfterBooking(error: string): Promise<ExpressWalkInSaleResult> {
+    await rollbackExpressWalkInSale({
+      ...rollbackCtx,
+      reason: `[rollback] ${error}`,
+    }).catch((err) => {
+      console.error('[expressWalkInSale] rollback failed after partial create', err);
+    });
+    return { ok: false, error };
+  }
 
   if (walletCreditApplied > 0) {
     const credit = await applyDepositCreditToBooking({
@@ -215,7 +242,7 @@ export async function executeExpressWalkInSale(
       creditPaise: walletCreditApplied,
     });
     if (!credit.ok) {
-      return { ok: false, error: credit.error };
+      return failAfterBooking(credit.error);
     }
   }
 
@@ -223,6 +250,7 @@ export async function executeExpressWalkInSale(
   const collectionNotes = invoiceNotes(input, walletCreditApplied);
   let depositRecordedPaise = 0;
   let rentRecordedPaise = 0;
+  let rentInvoiceNumber: string | null = null;
 
   const cashDepositPaise = Math.max(0, input.depositPaidPaise);
   if (cashDepositPaise > 0) {
@@ -238,7 +266,7 @@ export async function executeExpressWalkInSale(
       actorId: session.adminId,
     });
     if (!dep.ok) {
-      return { ok: false, error: dep.error };
+      return failAfterBooking(dep.error);
     }
     depositRecordedPaise = cashDepositPaise;
   }
@@ -259,24 +287,35 @@ export async function executeExpressWalkInSale(
       actorId: session.adminId,
     });
     if (!rent.ok) {
-      return { ok: false, error: rent.error };
+      return failAfterBooking(rent.error);
     }
     rentRecordedPaise = rentPaid;
+    rentInvoiceNumber = rent.invoiceNumber ?? null;
   }
 
-  await syncDepositCollectionFromLedger(bookingId);
+  try {
+    await syncDepositCollectionFromLedger(bookingId);
 
-  await db
-    .update(customers)
-    .set({ residencyStatus: 'active', updatedAt: new Date() })
-    .where(eq(customers.id, customerId));
+    await db
+      .update(customers)
+      .set({ residencyStatus: 'active', updatedAt: new Date() })
+      .where(eq(customers.id, customerId));
 
-  await clearBedInterest(input.bedId).catch(() => undefined);
-  const { reconcileBookingOccupancy } = await import('@/src/lib/occupancySync');
-  await reconcileBookingOccupancy(bookingId);
+    await clearBedInterest(input.bedId).catch(() => undefined);
+    const { reconcileBookingOccupancy } = await import('@/src/lib/occupancySync');
+    await reconcileBookingOccupancy(bookingId);
 
-  const { revalidateFinancialViews } = await import('@/src/lib/billing/revalidateFinancialViews');
-  revalidateFinancialViews();
+    const { revalidateFinancialViews } = await import('@/src/lib/billing/revalidateFinancialViews');
+    revalidateFinancialViews();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Finalization failed.';
+    return failAfterBooking(message);
+  }
+
+  const balanceDuePaise = Math.max(
+    0,
+    input.depositRequiredPaise - depositRecordedPaise - walletCreditApplied,
+  );
 
   return {
     ok: true,
@@ -286,6 +325,11 @@ export async function executeExpressWalkInSale(
     walletCreditAppliedPaise: walletCreditApplied,
     depositRecordedPaise,
     rentRecordedPaise,
+    rentInvoiceNumber,
+    pgName: bedCtx.pgName,
+    roomNumber: bedCtx.roomNumber,
+    bedCode: bedCtx.bedCode,
+    balanceDuePaise,
     message: `Walk-in booking ${bookingCode} created. Bed locked · deposit and rent recorded from ledger.`,
   };
 }

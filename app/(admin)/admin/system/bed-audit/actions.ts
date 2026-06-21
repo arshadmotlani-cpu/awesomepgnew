@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import { repairBedAuditIssue, runBedAudit, type BedAuditIssue } from '@/src/services/bedAudit';
+import { runGhostBookingAudit } from '@/src/services/ghostBookingAudit';
 
 export async function repairBedIssueAction(formData: FormData) {
   const session = await requireAdminSession('/admin/system/bed-audit');
@@ -39,5 +40,7 @@ export async function repairBedIssueAction(formData: FormData) {
 
 export async function loadBedAuditReport() {
   await requireAdminSession('/admin/system/bed-audit');
-  return runBedAudit();
+  const bedAudit = await runBedAudit();
+  const ghostAudit = await runGhostBookingAudit(bedAudit.issues.length);
+  return { bedAudit, ghostAudit };
 }

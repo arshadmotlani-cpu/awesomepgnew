@@ -24,5 +24,5 @@ export function formatStayDateTime(dateYmd: string, kind: 'check-in' | 'check-ou
     month: 'short',
     year: 'numeric',
   });
-  return `${formatted} ${label}`;
+  return `${formatted}, ${label}`;
 }

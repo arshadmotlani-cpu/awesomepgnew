@@ -597,6 +597,19 @@ export async function cancelUnifiedInvoice(
     actor,
   );
 
+  const { reverseBookingEffectsIfInvoiceVoided } = await import(
+    '@/src/services/invoiceLifecycleReversal'
+  );
+  await reverseBookingEffectsIfInvoiceVoided({
+    invoiceId,
+    bookingId: txResult.inv.bookingId,
+    customerId: txResult.inv.customerId,
+    reason,
+    actorId: actor?.id ?? null,
+  }).catch((err) => {
+    console.error('[cancelUnifiedInvoice] booking reversal failed', err);
+  });
+
   const { revalidateFinancialViews } = await import('@/src/lib/billing/revalidateFinancialViews');
   revalidateFinancialViews();
 

@@ -23,6 +23,8 @@ export type RevenueByPgRow = {
   rentRevenuePaise: number;
   electricityRevenuePaise: number;
   depositRevenuePaise: number;
+  depositPaidCount: number;
+  depositPendingCount: number;
   totalRevenuePaise: number;
 };
 
@@ -63,10 +65,12 @@ export type RevenueCommandCenterInput = {
 function buildByPgRows(
   pgMetrics: PgBusinessMetrics[],
   depositByPg: Map<string, number>,
+  depositCountsByPg: Map<string, { paid: number; pending: number }>,
 ): RevenueByPgRow[] {
   return pgMetrics
     .map((row) => {
       const depositRevenuePaise = depositByPg.get(row.pgId) ?? 0;
+      const counts = depositCountsByPg.get(row.pgId) ?? { paid: 0, pending: 0 };
       const rentRevenuePaise = row.incomeRentPaise;
       const electricityRevenuePaise = row.incomeElectricityPaise;
       return {
@@ -78,6 +82,8 @@ function buildByPgRows(
         rentRevenuePaise,
         electricityRevenuePaise,
         depositRevenuePaise,
+        depositPaidCount: counts.paid,
+        depositPendingCount: counts.pending,
         totalRevenuePaise:
           rentRevenuePaise + electricityRevenuePaise + depositRevenuePaise,
       };
@@ -111,10 +117,13 @@ export async function getRevenueCommandCenterData(
 ): Promise<RevenueCommandCenterData> {
   const billingMonth = resolveBillingMonth(input.billingMonth);
 
-  const [todayResult, depositRows, pendingPayments, portfolioTotals, depositPortfolio] =
+  const [todayResult, depositRows, depositSummaries, pendingPayments, portfolioTotals, depositPortfolio] =
     await Promise.all([
     getDailyCollectionTotals(),
     getDepositCollectedByPgForBillingMonth(billingMonth),
+    import('@/src/services/pgDepositCollection').then((m) =>
+      m.getAllPgDepositCollectionSummaries(billingMonth),
+    ),
     listPendingPaymentReviews(input.session),
     import('@/src/services/residentFinancialEngine').then((m) =>
       m.getPortfolioFinancialTotals(input.session),
@@ -135,6 +144,17 @@ export async function getRevenueCommandCenterData(
     }
   }
 
+  const depositCountsByPg = new Map<string, { paid: number; pending: number }>();
+  for (const row of depositSummaries) {
+    depositCountsByPg.set(row.pgId, {
+      paid: row.depositPaidCount,
+      pending: row.depositPendingCount,
+    });
+    if (!depositByPg.has(row.pgId)) {
+      depositByPg.set(row.pgId, row.depositCollectedMtdPaise);
+    }
+  }
+
   const mtdMetrics = await getMonthlyRevenuePaise(billingMonth);
   const mtd = {
     rentPaise: mtdMetrics.rentPaise,
@@ -144,7 +164,7 @@ export async function getRevenueCommandCenterData(
     depositRefundedPaise: mtdMetrics.depositRefundedPaise,
     netInflowPaise: mtdMetrics.netInflowPaise,
   };
-  const byPg = buildByPgRows(input.pgMetrics, depositByPg);
+  const byPg = buildByPgRows(input.pgMetrics, depositByPg, depositCountsByPg);
 
   const outstanding = buildOutstandingFromSsot(portfolioTotals, pendingPayments);
 
