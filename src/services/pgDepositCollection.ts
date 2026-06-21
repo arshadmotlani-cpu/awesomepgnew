@@ -26,7 +26,6 @@ import {
   OCCUPANCY_PLACEHOLDER_NAME,
   OCCUPANCY_PLACEHOLDER_PHONE,
 } from '@/src/lib/occupancySqlFilters';
-import { occupancyReservationCoreSql_b } from '@/src/lib/occupancySsot';
 
 export type PgDepositResidentRow = {
   customerId: string;
@@ -75,7 +74,7 @@ const assignedResidentFilters = and(
   eq(customers.residencyStatus, 'active'),
   eq(bedReservations.kind, 'primary'),
   eq(bedReservations.status, 'active'),
-  occupancyReservationCoreSql_b,
+  sql`CURRENT_DATE <@ ${bedReservations.stayRange}`,
 );
 
 type AssignedRow = {
