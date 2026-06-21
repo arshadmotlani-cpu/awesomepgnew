@@ -13,6 +13,8 @@ import {
   undoVacatingCompletionAction,
   type ActionState,
 } from '@/app/(admin)/admin/vacating/actions';
+import { ApproveVacatingPreview } from '@/src/components/admin/vacating/ApproveVacatingPreview';
+import type { VacatingApprovalPreview } from '@/src/lib/vacating/approvalPreview';
 
 const idle: ActionState = { status: 'idle' };
 
@@ -29,6 +31,7 @@ function MicroForm({
   confirmLabel,
   tone = 'default',
   extraFields,
+  dialogSize,
 }: {
   formId: string;
   requestId: string;
@@ -42,6 +45,7 @@ function MicroForm({
   confirmLabel: string;
   tone?: 'default' | 'danger';
   extraFields?: ReactNode;
+  dialogSize?: 'default' | 'wide';
 }) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState(action, idle);
@@ -62,6 +66,7 @@ function MicroForm({
         confirmLabel={confirmLabel}
         tone={tone}
         pending={pending}
+        dialogSize={dialogSize}
         className={className + ' disabled:opacity-50'}
       >
         {pending ? pendingLabel ?? '…' : label}
@@ -78,11 +83,13 @@ export function ApproveVacatingButton({
   pgId,
   className,
   label = 'Approve',
+  preview,
 }: {
   requestId: string;
   pgId?: string;
   className?: string;
   label?: string;
+  preview?: VacatingApprovalPreview;
 }) {
   return (
     <MicroForm
@@ -95,9 +102,16 @@ export function ApproveVacatingButton({
         className ??
         'rounded-md bg-indigo-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-indigo-500'
       }
-      title="Approve vacating notice?"
-      description="The bed will open for website pre-booking from the vacating date. The tenant stays until then."
+      title="Approve move-out notice?"
+      description={
+        preview ? (
+          <ApproveVacatingPreview preview={preview} />
+        ) : (
+          'The bed will open for website pre-booking from the vacating date. The tenant stays until then.'
+        )
+      }
       confirmLabel="Approve notice"
+      dialogSize={preview ? 'wide' : 'default'}
     />
   );
 }

@@ -9,10 +9,12 @@ import type { AdminVacatingRow } from '@/src/db/queries/admin';
 export function MoveOutAdvancedTools({
   rows,
   settlementHrefByRequest,
+  depositHeldByBooking,
   defaultOpen = false,
 }: {
   rows: AdminVacatingRow[];
   settlementHrefByRequest: Map<string, string>;
+  depositHeldByBooking?: Map<string, number>;
   defaultOpen?: boolean;
 }) {
   return (
@@ -102,6 +104,8 @@ export function MoveOutAdvancedTools({
                       requestId={v.id}
                       status={v.status}
                       settlementHref={settlementHrefByRequest.get(v.id)}
+                      depositHeldPaise={depositHeldByBooking?.get(v.bookingId) ?? 0}
+                      row={v}
                     />
                   </TD>
                 </TR>

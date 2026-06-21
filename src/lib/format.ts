@@ -28,15 +28,27 @@ export function paiseToInr(paise: number | bigint | string | null | undefined): 
   return inrFormatter.format(asPlainNumber(paise) / 100);
 }
 
+const ISO_DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+function parseDisplayDate(value: string | Date): Date {
+  if (value instanceof Date) return value;
+  if (ISO_DATE_ONLY.test(value)) return new Date(`${value}T00:00:00.000Z`);
+  return new Date(value);
+}
+
 export function formatDate(value: string | Date | null | undefined): string {
   if (!value) return '—';
-  const date = typeof value === 'string' ? new Date(value) : value;
+  const date = parseDisplayDate(value);
   if (Number.isNaN(date.getTime())) return '—';
-  return new Intl.DateTimeFormat('en-IN', {
-    day: '2-digit',
-    month: 'short',
+  const opts: Intl.DateTimeFormatOptions = {
+    day: 'numeric',
+    month: 'long',
     year: 'numeric',
-  }).format(date);
+  };
+  if (typeof value === 'string' && ISO_DATE_ONLY.test(value)) {
+    opts.timeZone = 'UTC';
+  }
+  return new Intl.DateTimeFormat('en-IN', opts).format(date);
 }
 
 /** ISO YYYY-MM-DD → DD/MM/YYYY for checkout-cap user messages. */
@@ -48,11 +60,11 @@ export function formatDateDdMmYyyy(iso: string): string {
 
 export function formatDateTime(value: string | Date | null | undefined): string {
   if (!value) return '—';
-  const date = typeof value === 'string' ? new Date(value) : value;
+  const date = parseDisplayDate(value);
   if (Number.isNaN(date.getTime())) return '—';
   return new Intl.DateTimeFormat('en-IN', {
-    day: '2-digit',
-    month: 'short',
+    day: 'numeric',
+    month: 'long',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',

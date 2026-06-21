@@ -4,7 +4,7 @@ import { PageHeader } from '@/src/components/admin/PageHeader';
 import { CheckoutSettlementsPrimaryActions } from '@/src/components/admin/checkout/CheckoutSettlementsPrimaryActions';
 import { CheckoutSettlementsSummary } from '@/src/components/admin/checkout/CheckoutSettlementsSummary';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
-import { titleCase } from '@/src/lib/format';
+import { formatDate, titleCase } from '@/src/lib/format';
 import {
   listCheckoutSettlements,
   type CheckoutSettlementListTab,
@@ -88,7 +88,7 @@ export default async function CheckoutSettlementsPage({
                   <td className="px-4 py-3 text-apg-silver">
                     {r.pgName} · R{r.roomNumber} · {r.bedCode}
                   </td>
-                  <td className="px-4 py-3 text-apg-silver">{r.vacatingDate}</td>
+                  <td className="px-4 py-3 text-apg-silver">{formatDate(r.vacatingDate)}</td>
                   <td className="px-4 py-3">
                     <Badge tone="amber">{plainStatus(r.status)}</Badge>
                   </td>

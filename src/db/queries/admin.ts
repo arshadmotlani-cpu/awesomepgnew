@@ -1604,6 +1604,7 @@ export type AdminVacatingRow = {
   status: 'pending' | 'approved' | 'completed' | 'rejected';
   resolvedAt: Date | null;
   createdAt: Date;
+  updatedAt: Date;
 };
 
 export function listAdminVacatingRequests(filter?: {
@@ -1631,6 +1632,7 @@ export function listAdminVacatingRequests(filter?: {
         status: vacatingRequests.status,
         resolvedAt: vacatingRequests.resolvedAt,
         createdAt: vacatingRequests.createdAt,
+        updatedAt: vacatingRequests.updatedAt,
       })
       .from(vacatingRequests)
       .innerJoin(bookings, eq(bookings.id, vacatingRequests.bookingId))

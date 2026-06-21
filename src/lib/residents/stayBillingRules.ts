@@ -21,7 +21,7 @@ export function formatStayDateTime(dateYmd: string, kind: 'check-in' | 'check-ou
   const d = new Date(`${dateYmd}T12:00:00`);
   const formatted = d.toLocaleDateString('en-IN', {
     day: 'numeric',
-    month: 'short',
+    month: 'long',
     year: 'numeric',
   });
   return `${formatted}, ${label}`;

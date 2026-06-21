@@ -12,6 +12,7 @@ type Props = {
   cancelLabel?: string;
   tone?: AdminConfirmTone;
   pending?: boolean;
+  size?: 'default' | 'wide';
   onConfirm: () => void;
   onCancel: () => void;
 };
@@ -24,6 +25,7 @@ export function AdminConfirmDialog({
   cancelLabel = 'Cancel',
   tone = 'default',
   pending = false,
+  size = 'default',
   onConfirm,
   onCancel,
 }: Props) {
@@ -55,7 +57,10 @@ export function AdminConfirmDialog({
         role="dialog"
         aria-modal
         aria-labelledby="admin-confirm-title"
-        className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl"
+        className={
+          'w-full rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl ' +
+          (size === 'wide' ? 'max-w-lg' : 'max-w-md')
+        }
       >
         <h2 id="admin-confirm-title" className="text-lg font-semibold text-zinc-900">
           {title}

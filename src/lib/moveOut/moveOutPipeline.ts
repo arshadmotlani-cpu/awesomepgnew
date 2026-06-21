@@ -1,5 +1,7 @@
 import { formatDate } from '@/src/lib/dates';
 import type { CheckoutSettlementStatus } from '@/src/db/schema/enums';
+import type { MoveOutUrgency, VacatingBedStatus } from '@/src/lib/vacating/approvalPreview';
+import { moveOutDaysRemaining, moveOutUrgency } from '@/src/lib/vacating/approvalPreview';
 
 export const MOVE_OUT_STAGES = [
   { id: 'requested', label: 'Requested move-out' },
@@ -39,6 +41,14 @@ export type MoveOutPipelineItem = {
   sortPriority: number;
   resolvedAt: Date | null;
   createdAt: Date;
+  updatedAt: Date;
+  deductionPaise: number;
+  depositHeldPaise: number;
+  estimatedRefundPaise: number;
+  daysRemaining: number;
+  urgency: MoveOutUrgency;
+  bedStatus: VacatingBedStatus;
+  stageTimestamps: Partial<Record<MoveOutStageId, Date>>;
 };
 
 export type MoveOutCommandStats = {
@@ -65,12 +75,19 @@ type VacatingInput = {
   status: 'pending' | 'approved' | 'completed' | 'rejected';
   resolvedAt: Date | null;
   createdAt: Date;
+  updatedAt: Date;
+  deductionPaise: number;
+  depositHeldPaise: number;
 };
 
 type SettlementInput = {
   id: string;
   vacatingRequestId: string;
   status: CheckoutSettlementStatus;
+  createdAt: Date;
+  updatedAt: Date;
+  approvedAt: Date | null;
+  refundPaidAt: Date | null;
 };
 
 const STAGE_INDEX: Record<MoveOutStageId, number> = {
@@ -191,6 +208,52 @@ function stageMeta(
   };
 }
 
+function buildStageTimestamps(
+  vacating: VacatingInput,
+  settlement: SettlementInput | null,
+): Partial<Record<MoveOutStageId, Date>> {
+  const ts: Partial<Record<MoveOutStageId, Date>> = {
+    requested: vacating.createdAt,
+  };
+
+  if (vacating.status === 'approved' || vacating.status === 'completed') {
+    ts.notice_verified = settlement?.createdAt ?? vacating.updatedAt;
+  }
+
+  if (settlement) {
+    ts.room_inspection = settlement.createdAt;
+
+    if (
+      settlement.status === 'awaiting_admin_review' ||
+      settlement.status === 'refund_pending' ||
+      settlement.status === 'refund_paid' ||
+      settlement.status === 'completed'
+    ) {
+      ts.charges_calculated = settlement.updatedAt;
+    }
+
+    if (settlement.approvedAt) {
+      ts.deposit_approved = settlement.approvedAt;
+    }
+
+    if (settlement.refundPaidAt) {
+      ts.refund_processed = settlement.refundPaidAt;
+    }
+  }
+
+  if (vacating.status === 'completed' && vacating.resolvedAt) {
+    ts.bed_released = vacating.resolvedAt;
+  }
+
+  return ts;
+}
+
+function deriveBedStatus(vacating: VacatingInput): VacatingBedStatus {
+  if (vacating.status === 'completed') return 'Available';
+  if (vacating.status === 'approved') return 'Scheduled for Release';
+  return 'Occupied';
+}
+
 export function buildMoveOutPipeline(input: {
   vacatingRows: VacatingInput[];
   settlements: SettlementInput[];
@@ -206,6 +269,9 @@ export function buildMoveOutPipeline(input: {
 
     const settlement = settlementByVacating.get(v.id) ?? null;
     const derived = deriveMoveOutStage(v, settlement);
+    const depositHeldPaise = v.depositHeldPaise;
+    const estimatedRefundPaise = Math.max(0, depositHeldPaise - v.deductionPaise);
+    const daysRemaining = moveOutDaysRemaining(v.vacatingDate);
 
     items.push({
       id: v.id,
@@ -226,6 +292,14 @@ export function buildMoveOutPipeline(input: {
       settlementStatus: settlement?.status ?? null,
       resolvedAt: v.resolvedAt,
       createdAt: v.createdAt,
+      updatedAt: v.updatedAt,
+      deductionPaise: v.deductionPaise,
+      depositHeldPaise,
+      estimatedRefundPaise,
+      daysRemaining,
+      urgency: moveOutUrgency(daysRemaining),
+      bedStatus: deriveBedStatus(v),
+      stageTimestamps: buildStageTimestamps(v, settlement),
       ...derived,
     });
   }
@@ -238,8 +312,11 @@ function sortPipeline(a: MoveOutPipelineItem, b: MoveOutPipelineItem): number {
   const completedB = b.stage === 'bed_released' ? 1 : 0;
   if (completedA !== completedB) return completedA - completedB;
 
+  const dateCmp = a.vacatingDate.localeCompare(b.vacatingDate);
+  if (dateCmp !== 0) return dateCmp;
+
   if (a.sortPriority !== b.sortPriority) return a.sortPriority - b.sortPriority;
-  return a.vacatingDate.localeCompare(b.vacatingDate);
+  return a.createdAt.getTime() - b.createdAt.getTime();
 }
 
 export function buildMoveOutCommandStats(items: MoveOutPipelineItem[]): MoveOutCommandStats {

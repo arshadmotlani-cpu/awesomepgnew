@@ -12,7 +12,7 @@ function relativeTime(iso: string): string {
   if (mins < 60) return `${mins}m ago`;
   const hours = Math.floor(mins / 60);
   if (hours < 24) return hours === 1 ? 'Today' : `${hours}h ago`;
-  return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'long' });
 }
 
 export function AdminNotificationCenter({ initialUnread = 0 }: { initialUnread?: number }) {

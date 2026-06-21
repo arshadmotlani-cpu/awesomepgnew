@@ -17,6 +17,7 @@ import {
 import {
   listPipelineCheckoutSettlements,
 } from '@/src/services/checkoutSettlement';
+import { getDepositSummaryForBooking } from '@/src/services/deposits';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,6 +47,15 @@ export default async function AdminVacatingPage(props: PageProps<'/admin/vacatin
     );
   }
 
+  const bookingIds = [...new Set(vacatingRes.data.map((v) => v.bookingId))];
+  const depositHeldByBooking = new Map<string, number>();
+  await Promise.all(
+    bookingIds.map(async (bookingId) => {
+      const summary = await getDepositSummaryForBooking(bookingId);
+      depositHeldByBooking.set(bookingId, summary?.refundableBalancePaise ?? 0);
+    }),
+  );
+
   const pipeline = buildMoveOutPipeline({
     vacatingRows: vacatingRes.data.map((v) => ({
       id: v.id,
@@ -63,11 +73,18 @@ export default async function AdminVacatingPage(props: PageProps<'/admin/vacatin
       status: v.status,
       resolvedAt: v.resolvedAt,
       createdAt: v.createdAt,
+      updatedAt: v.updatedAt,
+      deductionPaise: v.deductionPaise,
+      depositHeldPaise: depositHeldByBooking.get(v.bookingId) ?? 0,
     })),
     settlements: settlements.map((s) => ({
       id: s.id,
       vacatingRequestId: s.vacatingRequestId,
       status: s.status,
+      createdAt: s.createdAt,
+      updatedAt: s.updatedAt,
+      approvedAt: s.approvedAt,
+      refundPaidAt: s.refundPaidAt,
     })),
   });
 
@@ -95,6 +112,7 @@ export default async function AdminVacatingPage(props: PageProps<'/admin/vacatin
         <MoveOutAdvancedTools
           rows={filtered}
           settlementHrefByRequest={settlementHrefByRequest}
+          depositHeldByBooking={depositHeldByBooking}
           defaultOpen
         />
       </>
@@ -136,6 +154,7 @@ export default async function AdminVacatingPage(props: PageProps<'/admin/vacatin
           <MoveOutAdvancedTools
             rows={vacatingRes.data}
             settlementHrefByRequest={settlementHrefByRequest}
+            depositHeldByBooking={depositHeldByBooking}
           />
         </>
       )}

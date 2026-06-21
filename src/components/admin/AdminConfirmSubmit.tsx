@@ -15,6 +15,7 @@ type Props = {
   children: ReactNode;
   /** Optional extra validation before opening the dialog (e.g. required fields). */
   beforeConfirm?: () => boolean;
+  dialogSize?: 'default' | 'wide';
 };
 
 export function AdminConfirmSubmit({
@@ -28,6 +29,7 @@ export function AdminConfirmSubmit({
   className,
   children,
   beforeConfirm,
+  dialogSize,
 }: Props) {
   const [open, setOpen] = useState(false);
 
@@ -54,6 +56,7 @@ export function AdminConfirmSubmit({
         confirmLabel={confirmLabel}
         tone={tone}
         pending={pending}
+        size={dialogSize}
         onCancel={() => setOpen(false)}
         onConfirm={submitForm}
       />

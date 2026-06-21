@@ -6,19 +6,32 @@ import {
   UndoVacatingApprovalButton,
   UndoVacatingCompletionButton,
 } from '@/src/components/admin/VacatingActions';
+import type { AdminVacatingRow } from '@/src/db/queries/admin';
+import { buildVacatingApprovalPreview } from '@/src/lib/vacating/approvalPreview';
 
 export function VacatingRowActions({
   requestId,
   status,
   settlementHref,
+  depositHeldPaise = 0,
+  row,
 }: {
   requestId: string;
   status: string;
   settlementHref?: string | null;
+  depositHeldPaise?: number;
+  row?: AdminVacatingRow;
 }) {
+  const approvalPreview =
+    status === 'pending' && row
+      ? buildVacatingApprovalPreview(row, depositHeldPaise)
+      : undefined;
+
   return (
     <div className="flex flex-col items-end gap-2">
-      {status === 'pending' ? <ApproveVacatingButton requestId={requestId} /> : null}
+      {status === 'pending' ? (
+        <ApproveVacatingButton requestId={requestId} preview={approvalPreview} />
+      ) : null}
       {status === 'approved' ? (
         settlementHref ? (
           <Link
