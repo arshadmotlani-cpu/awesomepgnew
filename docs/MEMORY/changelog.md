@@ -12,6 +12,7 @@
 - **Live AI brain system** — `docs/.cursor/rules.md`, `scripts/brain-sync.sh`, `MEMORY/bugs.md`, `MEMORY/changelog.md`
 - **Vault pushed to GitHub** — `git@github.com:arshadmotlani-cpu/awesomepg-docs.git` (`30e661d`)
 - **MEMORY/SYSTEM/PROJECT layout** — auto-structured memory architecture enforced
+- **BUG fixes shipped** — VAC-CRASH-02, VAC-DATE-01, EXP-INV-01, SEARCH-01 → [[BUGS]] · [[CHANGELOG]]
 
 ## 2026-06-21
 
@@ -70,5 +71,23 @@ Reason: The AI memory / intelligence automation layer is being extended — cogn
 Files:
 - scripts/brain-agent.sh
 - scripts/brain-semantic.sh
+
+---
+
+<!-- SEMANTIC_2026-06-21T20:59:03Z -->
+---
+Time: 2026-06-21T20:59:03Z
+Type: MIXED
+Impact: HIGH
+Reason: Move-out and checkout documentation is evolving — likely reflecting vacating ops or refund workflow changes.
+Files:
+- AI_SYSTEM_PROMPT.md
+- BUGS.md
+- Billing.md
+- CHANGELOG.md
+- Checkout Settlements.md
+- MEMORY/bugs.md
+- MEMORY/changelog.md
+- Vacating.md
 
 ---

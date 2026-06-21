@@ -92,3 +92,20 @@
 - `INTELLIGENCE.md`
 - `MEMORY/active_memory.md`
 
+
+<!-- INTEL_2026-06-21T20:59:03Z -->
+### 2026-06-21T20:59:03Z
+
+- **Types:**  · REFACTOR ·  · BUG ·  · FEATURE ·  · TASK ·  · DECISION ·  · INSIGHT · 
+- **Primary:** BUG
+- **Summary:** 8 files changed, 328 insertions(+), 6 deletions(-)
+- **Files:**
+- `AI_SYSTEM_PROMPT.md`
+- `BUGS.md`
+- `Billing.md`
+- `CHANGELOG.md`
+- `Checkout Settlements.md`
+- `MEMORY/bugs.md`
+- `MEMORY/changelog.md`
+- `Vacating.md`
+

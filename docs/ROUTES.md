@@ -234,3 +234,6 @@ See [[DECISIONS#Operations as action hub]].
 ## Related
 
 [[features]] · [[DATABASE]] · [[ARCHITECTURE]] · [[AI_CONTEXT]]
+
+<!-- DOC_SYNC_TOUCH_2026-06-21 -->
+> **2026-06-21 21:03:08 UTC** — Code changed in: Routes, Vacating, Billing. Manual review recommended.

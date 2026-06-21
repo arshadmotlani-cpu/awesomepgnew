@@ -393,8 +393,8 @@ export async function searchExpressWalkInCustomersAction(
   try {
     const session = await requireAdminPermission('bookings:write');
     const trimmed = query.trim();
-    if (trimmed.length < 3) {
-      return { error: 'Enter at least 3 characters.' };
+    if (trimmed.length < 2) {
+      return { error: 'Enter at least 2 characters.' };
     }
 
     const { searchResidentsForAdmin } = await import('@/src/services/adminResidentSearch');

@@ -5,6 +5,7 @@
 import { and, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
+  bedReservations,
   beds,
   bookings,
   customers,
@@ -12,6 +13,7 @@ import {
   electricityBills,
   electricityInvoices,
   financialInvoices,
+  floors,
   invoiceAuditEvents,
   paymentLinks,
   pgs,
@@ -22,6 +24,7 @@ import type { FinancialInvoice, InvoiceBreakdown } from '@/src/db/schema/financi
 import type { FinancialInvoiceStatus, FinancialInvoiceType } from '@/src/db/schema/enums';
 import { createPaymentLink } from '@/src/services/paymentLinks';
 import { buildInvoiceWhatsAppUrl } from '@/src/lib/billing/invoiceWhatsApp';
+import { formatDate } from '@/src/lib/dates';
 import {
   FINANCIAL_CANCELLABLE_STATUSES,
   isFinancialInvoiceCancellable,
@@ -242,21 +245,145 @@ export async function enrichExpressWalkInUnifiedBreakdown(
     .where(eq(financialInvoices.id, financialInvoiceId));
 }
 
-export async function requireRentUnifiedInvoice(bookingId: string): Promise<string> {
-  const [rent] = await db
-    .select({ id: rentInvoices.id })
-    .from(rentInvoices)
-    .where(eq(rentInvoices.bookingId, bookingId))
-    .limit(1);
-  if (!rent) {
+export async function requireRentUnifiedInvoice(
+  bookingId: string,
+  rentInvoiceId?: string | null,
+): Promise<string> {
+  let targetRentInvoiceId = rentInvoiceId ?? null;
+
+  if (!targetRentInvoiceId) {
+    const rows = await db
+      .select({ id: rentInvoices.id })
+      .from(rentInvoices)
+      .where(eq(rentInvoices.bookingId, bookingId))
+      .orderBy(desc(rentInvoices.createdAt))
+      .limit(1);
+    targetRentInvoiceId = rows[0]?.id ?? null;
+  }
+
+  if (!targetRentInvoiceId) {
     throw new Error('Rent invoice missing after express collection.');
   }
-  const unifiedId = await syncRentInvoiceToUnified(rent.id);
+
+  const unifiedId = await syncRentInvoiceToUnified(targetRentInvoiceId);
   if (!unifiedId) {
     throw new Error('Unified invoice sync failed.');
   }
   await enrichExpressWalkInUnifiedBreakdown(bookingId, unifiedId);
   return unifiedId;
+}
+
+async function nextExpressWalkInInvoiceNumber(): Promise<string> {
+  const today = formatDate(new Date()).replace(/-/g, '');
+  const prefix = `INV-${today}-`;
+  const rows = await db.execute<{ c: number }>(sql`
+    SELECT count(*)::int AS c FROM financial_invoices
+    WHERE invoice_number LIKE ${prefix + '%'}
+  `);
+  const seq = Number(rows[0]?.c ?? 0) + 1;
+  return `${prefix}${String(seq).padStart(4, '0')}`;
+}
+
+/** Mirror deposit-only express walk-in sales into financial_invoices. */
+export async function ensureExpressWalkInDepositFinancialInvoice(
+  bookingId: string,
+  depositRecordedPaise: number,
+): Promise<string | null> {
+  if (depositRecordedPaise <= 0) return null;
+
+  const [existing] = await db
+    .select({ id: financialInvoices.id })
+    .from(financialInvoices)
+    .where(
+      and(
+        eq(financialInvoices.bookingId, bookingId),
+        inArray(financialInvoices.invoiceType, ['combined', 'deposit']),
+      ),
+    )
+    .orderBy(desc(financialInvoices.createdAt))
+    .limit(1);
+  if (existing) return existing.id;
+
+  const [ctx] = await db
+    .select({
+      customerId: bookings.customerId,
+      pgId: pgs.id,
+      bedId: beds.id,
+      roomNumber: rooms.roomNumber,
+      bedCode: beds.bedCode,
+      depositPaise: bookings.depositPaise,
+      depositDuePaise: bookings.depositDuePaise,
+      notes: bookings.notes,
+    })
+    .from(bookings)
+    .innerJoin(
+      bedReservations,
+      and(eq(bedReservations.bookingId, bookings.id), eq(bedReservations.kind, 'primary')),
+    )
+    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
+    .innerJoin(floors, eq(floors.id, rooms.floorId))
+    .innerJoin(pgs, eq(pgs.id, floors.pgId))
+    .where(eq(bookings.id, bookingId))
+    .limit(1);
+
+  if (!ctx?.pgId || !ctx.bedId) {
+    throw new Error('Booking bed context missing for express walk-in deposit invoice.');
+  }
+
+  const breakdown: InvoiceBreakdown = {
+    depositPaise: depositRecordedPaise,
+    depositRequiredPaise: ctx.depositPaise,
+    depositOutstandingPaise: Math.max(0, ctx.depositDuePaise ?? 0),
+    paidPaise: depositRecordedPaise,
+    lines: [{ kind: 'deposit', label: 'Deposit collected', amountPaise: depositRecordedPaise }],
+  };
+
+  const invoiceNumber = await nextExpressWalkInInvoiceNumber();
+  const [row] = await db
+    .insert(financialInvoices)
+    .values({
+      invoiceNumber,
+      invoiceType: 'combined',
+      customerId: ctx.customerId,
+      bookingId,
+      pgId: ctx.pgId,
+      bedId: ctx.bedId,
+      roomNumber: ctx.roomNumber,
+      bedCode: ctx.bedCode,
+      amountPaise: depositRecordedPaise,
+      breakdown,
+      status: 'paid',
+      dueDate: formatDate(new Date()),
+      paidAt: new Date(),
+      sentAt: new Date(),
+      notes: ctx.notes,
+    })
+    .returning({ id: financialInvoices.id });
+
+  await logInvoiceAudit(row.id, 'created', { source: 'express_walk_in_deposit', bookingId });
+  return row.id;
+}
+
+/** Ensure express walk-in payments appear in financial_invoices (rent, deposit, or both). */
+export async function finalizeExpressWalkInFinancialInvoice(input: {
+  bookingId: string;
+  rentInvoiceId?: string | null;
+  depositRecordedPaise: number;
+  rentRecordedPaise: number;
+}): Promise<string> {
+  if (input.rentRecordedPaise > 0) {
+    return requireRentUnifiedInvoice(input.bookingId, input.rentInvoiceId);
+  }
+
+  const depositOnlyId = await ensureExpressWalkInDepositFinancialInvoice(
+    input.bookingId,
+    input.depositRecordedPaise,
+  );
+  if (!depositOnlyId) {
+    throw new Error('No payment recorded — financial invoice was not created.');
+  }
+  return depositOnlyId;
 }
 
 export async function syncElectricityInvoiceToUnified(

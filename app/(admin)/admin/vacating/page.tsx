@@ -16,6 +16,9 @@ import {
   toClientMoveOutPipelineItem,
 } from '@/src/lib/moveOut/moveOutPipeline';
 import {
+  toMoveOutAdvancedToolsRow,
+} from '@/src/lib/moveOut/moveOutAdvancedToolsProps';
+import {
   listPipelineCheckoutSettlements,
 } from '@/src/services/checkoutSettlement';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
@@ -34,10 +37,9 @@ export default async function AdminVacatingPage(props: PageProps<'/admin/vacatin
     listPipelineCheckoutSettlements(session),
   ]);
 
-  const settlementHrefByRequest = new Map<string, string>();
-  for (const s of settlements) {
-    settlementHrefByRequest.set(s.vacatingRequestId, `/admin/checkout-settlements/${s.id}`);
-  }
+  const settlementHrefByRequest = Object.fromEntries(
+    settlements.map((s) => [s.vacatingRequestId, `/admin/checkout-settlements/${s.id}`]),
+  );
 
   if (!vacatingRes.ok) {
     return (
@@ -49,12 +51,17 @@ export default async function AdminVacatingPage(props: PageProps<'/admin/vacatin
   }
 
   const bookingIds = [...new Set(vacatingRes.data.map((v) => v.bookingId))];
-  const depositHeldByBooking = new Map<string, number>();
-  await Promise.all(
-    bookingIds.map(async (bookingId) => {
-      const summary = await getDepositSummaryForBooking(bookingId);
-      depositHeldByBooking.set(bookingId, summary?.refundableBalancePaise ?? 0);
-    }),
+  const depositHeldByBooking = Object.fromEntries(
+    await Promise.all(
+      bookingIds.map(async (bookingId) => {
+        const summary = await getDepositSummaryForBooking(bookingId);
+        return [bookingId, summary?.refundableBalancePaise ?? 0] as const;
+      }),
+    ),
+  );
+
+  const advancedToolRows = vacatingRes.data.map((v) =>
+    toMoveOutAdvancedToolsRow(v, depositHeldByBooking[v.bookingId] ?? 0),
   );
 
   const pipeline = buildMoveOutPipeline({
@@ -76,7 +83,7 @@ export default async function AdminVacatingPage(props: PageProps<'/admin/vacatin
       createdAt: v.createdAt,
       updatedAt: v.updatedAt,
       deductionPaise: v.deductionPaise,
-      depositHeldPaise: depositHeldByBooking.get(v.bookingId) ?? 0,
+      depositHeldPaise: depositHeldByBooking[v.bookingId] ?? 0,
     })),
     settlements: settlements.map((s) => ({
       id: s.id,
@@ -98,9 +105,6 @@ export default async function AdminVacatingPage(props: PageProps<'/admin/vacatin
 
   if (legacy) {
     const rawStatus = typeof sp.status === 'string' ? sp.status : '';
-    const filtered = rawStatus
-      ? vacatingRes.data.filter((v) => v.status === rawStatus)
-      : vacatingRes.data;
 
     return (
       <>
@@ -114,7 +118,11 @@ export default async function AdminVacatingPage(props: PageProps<'/admin/vacatin
           </Link>
         </p>
         <MoveOutAdvancedTools
-          rows={filtered}
+          rows={
+            rawStatus
+              ? advancedToolRows.filter((v) => v.status === rawStatus)
+              : advancedToolRows
+          }
           settlementHrefByRequest={settlementHrefByRequest}
           depositHeldByBooking={depositHeldByBooking}
           defaultOpen
@@ -156,7 +164,7 @@ export default async function AdminVacatingPage(props: PageProps<'/admin/vacatin
           ) : null}
 
           <MoveOutAdvancedTools
-            rows={vacatingRes.data}
+            rows={advancedToolRows}
             settlementHrefByRequest={settlementHrefByRequest}
             depositHeldByBooking={depositHeldByBooking}
           />

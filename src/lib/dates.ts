@@ -58,6 +58,18 @@ export function diffDays(start: DateLike, end: DateLike): number {
   return Math.round((e.getTime() - s.getTime()) / MS_PER_DAY);
 }
 
+/** Like diffDays but returns null instead of throwing on invalid/missing input. */
+export function tryDiffDays(start: DateLike | null | undefined, end: DateLike | null | undefined): number | null {
+  if (start == null || end == null) return null;
+  if (typeof start === 'string' && !ISO_DATE_RE.test(start.trim())) return null;
+  if (typeof end === 'string' && !ISO_DATE_RE.test(end.trim())) return null;
+  try {
+    return diffDays(start, end);
+  } catch {
+    return null;
+  }
+}
+
 export function addDays(date: DateLike, days: number): Date {
   const d = parseDate(date);
   return new Date(d.getTime() + days * MS_PER_DAY);

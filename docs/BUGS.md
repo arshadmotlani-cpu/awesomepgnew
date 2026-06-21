@@ -14,11 +14,53 @@
 | RES-LIST-01 | Low | `listResidentsForAdmin` LIMIT 200 may omit older vacated residents in ops timeline | Open resident profile directly by ID |
 | VAC-SAME-01 | Low | Same-day vacating approve shortens `[start,today)` excluding today — completion must not shorten before move-out day | See `vacatingCheckout.test.ts`; use complete flow same day |
 
-*No critical production bugs open after `d4c01c6` deploy.*
-
 ---
 
 ## Resolved bugs
+
+### VAC-CRASH-02 — `/admin/vacating` Map + Date props to client actions
+
+| | |
+|---|---|
+| **Severity** | Critical |
+| **Symptom** | Move-outs page / advanced tools crash — non-serializable `Map` props and `AdminVacatingRow` `Date` fields crossing client boundary via `VacatingRowActions` |
+| **Root cause** | `MoveOutAdvancedTools` passed `Map` props; `VacatingRowActions` (client) received rows with `Date` instances |
+| **Fix** | Serialize rows via `toMoveOutAdvancedToolsRow()`; use `Record<string, …>` for settlement/deposit maps; precompute `approvalPreview` on server |
+
+---
+
+### VAC-DATE-01 — Vacating checkout date picker client crash
+
+| | |
+|---|---|
+| **Severity** | High |
+| **Symptom** | Black screen when selecting vacating/checkout date with invalid or empty input |
+| **Root cause** | `diffDays` / `moveOutDaysRemaining` threw on invalid dates; deposit preview had no guard |
+| **Fix** | `tryDiffDays()` helper; safe guards in `approvalPreview`, `depositRefundEligibility`; controlled date defaults in vacating forms |
+
+---
+
+### EXP-INV-01 — Express walk-in “Review & create invoice” missing unified invoice
+
+| | |
+|---|---|
+| **Severity** | High |
+| **Symptom** | Click fails or invoice missing from `/admin/invoices` and resident profile after express walk-in |
+| **Root cause** | Rent unified sync used ambiguous `limit(1)` lookup; deposit-only sales never mirrored to `financial_invoices` |
+| **Fix** | `finalizeExpressWalkInFinancialInvoice()` passes `rentInvoiceId`; deposit-only creates combined financial invoice |
+
+---
+
+### SEARCH-01 — Admin resident search too strict for partial match
+
+| | |
+|---|---|
+| **Severity** | Medium |
+| **Symptom** | Substring name/phone search blocked until 3 characters |
+| **Root cause** | Express walk-in and phone SQL gate used 3-char minimum |
+| **Fix** | Central search + express walk-in + residents table filter use 2-char / 2-digit minimum with `ILIKE %pattern%` |
+
+---
 
 ### VAC-CRASH-01 — `/admin/vacating` page crash
 

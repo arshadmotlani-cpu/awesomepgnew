@@ -47,8 +47,10 @@ Full diagram: [[WORKFLOWS#Vacating]]
 | `/admin/vacating` | **Canonical** move-out pipeline |
 | `/admin/checkout-settlements`, `/admin/checkout-settlements/[id]` | Refund (post-approve) |
 | `/admin/operations` | Move-out queue entries |
-| `/account/resident/request-vacating/[bookingId]` | Resident notice |
+| `/account/resident/request-vacating/[bookingId]` | Resident notice — date defaults to today or booking checkout |
 | `/account/profile?section=resident&tab=vacating` | Resident vacating tab |
+
+**Date entry UX (2026-06-22):** Resident and admin vacating forms pre-fill the date picker from `expected_checkout_date` when set (otherwise today + notice period for residents, notice-compliant default for admin). Invalid dates never crash preview UI — `tryDiffDays()` returns safe fallbacks.
 
 See [[ROUTES#Operations & Vacating]] · [[ROUTES#Where to act]]
 
@@ -86,4 +88,4 @@ See [[DATABASE#Move-out — Vacating]]
 
 [[Checkout Settlements]] · [[Deposits]] · [[Billing]] · [[Residents]] · [[Operations]] · [[Beds]]
 
-See also [[BUGS#VAC-CRASH-01]] · [[BUGS#VAC-RENT-01]] (resolved)
+See also [[BUGS#VAC-CRASH-01]] · [[BUGS#VAC-CRASH-02]] · [[BUGS#VAC-DATE-01]] · [[BUGS#VAC-RENT-01]] (resolved)

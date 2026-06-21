@@ -5,6 +5,23 @@
 
 ---
 
+## 2026-06-22
+
+### Fixed
+- **VAC-CRASH-02** — Move-outs advanced tools: serialize `Map`/`Date` props before client boundary [[BUGS#VAC-CRASH-02]]
+- **VAC-DATE-01** — Vacating date pickers: `tryDiffDays` guards + default to today / `expected_checkout_date` [[BUGS#VAC-DATE-01]]
+- **EXP-INV-01** — Express walk-in invoice mirror for rent + deposit-only sales via `finalizeExpressWalkInFinancialInvoice` [[BUGS#EXP-INV-01]]
+- **SEARCH-01** — Admin resident substring search (2-char / 2-digit phone) [[BUGS#SEARCH-01]]
+
+### Changed
+- Vacating forms default checkout/vacate date to today or booking `expected_checkout_date` when set
+- Express walk-in check-in defaults to today; fixed-stay checkout auto-fills +30 nights
+
+### Added
+- Unit tests: `moveOutPipeline.test.ts`, `adminResidentSearch.test.ts`, `expressWalkInInvoice.test.ts`
+
+---
+
 ## 2026-06-21
 
 ### Added
@@ -91,19 +108,27 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-21 18:33:10 UTC
+### Pending pre-commit sync · 2026-06-21 21:03:08 UTC
 
-**Areas touched:** [[Vacating]]
+**Areas touched:** [[ROUTES]], [[Vacating]], [[Billing]]
 
 **Docs flagged for review:**
+- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `CURRENT_STATE.md` — review for accuracy
 - `DECISIONS.md` — review for accuracy
-- `FEATURES.md` — review for accuracy
-- `WORKFLOWS.md` — review for accuracy
+- `PROJECT/features.md` — review for accuracy
+- `ROUTES.md` — review for accuracy
+- `SYSTEM/CURRENT_STATE.md` — review for accuracy
+- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (1):**
-- `src/services/vacating.ts`
+**Staged code files (7):**
+- `app/(admin)/admin/quick-actions/actions.ts`
+- `app/(admin)/admin/vacating/page.tsx`
+- `app/(customer)/account/resident/request-vacating/[bookingId]/page.tsx`
+- `src/lib/moveOut/moveOutAdvancedToolsProps.ts`
+- `src/lib/vacating/approvalPreview.ts`
+- `src/lib/vacating/depositRefundEligibility.ts`
+- `src/services/unifiedInvoices.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

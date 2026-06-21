@@ -34,6 +34,7 @@ export default async function RequestVacatingPage({
       durationMode: bookings.durationMode,
       status: bookings.status,
       pricingSnapshot: bookings.pricingSnapshot,
+      expectedCheckoutDate: bookings.expectedCheckoutDate,
       customerFullName: customers.fullName,
     })
     .from(bookings)
@@ -90,6 +91,7 @@ export default async function RequestVacatingPage({
         bookingId={bookingId}
         depositHeldPaise={depositHeldPaise}
         monthlyRentPaise={monthlyRentPaise}
+        expectedCheckoutDate={row.expectedCheckoutDate}
       />
     </div>
   );

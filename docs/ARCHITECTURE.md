@@ -288,3 +288,6 @@ flowchart TB
 - Routes: [[ROUTES]]
 
 [[AI_CONTEXT]] · [[DATABASE]] · [[WORKFLOWS]]
+
+<!-- DOC_SYNC_TOUCH_2026-06-21 -->
+> **2026-06-21 21:03:08 UTC** — Code changed in: Routes, Vacating, Billing. Manual review recommended.

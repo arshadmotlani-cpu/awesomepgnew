@@ -220,7 +220,7 @@ async function runSearchQuery(
   const phoneDigits = q.replace(/\D/g, '');
   const qLower = q.toLowerCase();
   const namePrefix = `${q.replace(/[%_\\]/g, '\\$&')}%`;
-  const phoneSearchEnabled = phoneDigits.length >= 3;
+  const phoneSearchEnabled = phoneDigits.length >= 2;
 
   if (tier === 'minimal') {
     const residencySelect =

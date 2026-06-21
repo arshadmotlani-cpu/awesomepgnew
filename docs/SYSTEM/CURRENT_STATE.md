@@ -102,3 +102,6 @@ See [[BUGS]] for full list. Highlights:
 > **Staged code files:** 6  
 > **Action:** Review [[CHANGELOG#Pending pre-commit sync · 2026-06-21]] (Pending section) before push.
 <!-- DOC_SYNC_STATE_END -->
+
+<!-- DOC_SYNC_TOUCH_2026-06-21 -->
+> **2026-06-21 21:03:08 UTC** — Code changed in: Routes, Vacating, Billing. Manual review recommended.

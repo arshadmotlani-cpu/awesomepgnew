@@ -251,6 +251,7 @@ export async function executeExpressWalkInSale(
   let depositRecordedPaise = 0;
   let rentRecordedPaise = 0;
   let rentInvoiceNumber: string | null = null;
+  let rentInvoiceId: string | null = null;
 
   const cashDepositPaise = Math.max(0, input.depositPaidPaise);
   if (cashDepositPaise > 0) {
@@ -291,12 +292,21 @@ export async function executeExpressWalkInSale(
     }
     rentRecordedPaise = rentPaid;
     rentInvoiceNumber = rent.invoiceNumber ?? null;
+    rentInvoiceId = rent.rentInvoiceId ?? null;
+  }
 
+  if (depositRecordedPaise > 0 || rentRecordedPaise > 0) {
     try {
-      const { requireRentUnifiedInvoice } = await import('@/src/services/unifiedInvoices');
-      await requireRentUnifiedInvoice(bookingId);
+      const { finalizeExpressWalkInFinancialInvoice } = await import('@/src/services/unifiedInvoices');
+      await finalizeExpressWalkInFinancialInvoice({
+        bookingId,
+        rentInvoiceId,
+        depositRecordedPaise,
+        rentRecordedPaise,
+      });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Invoice sync failed after rent collection.';
+      const message =
+        err instanceof Error ? err.message : 'Invoice sync failed after express collection.';
       return failAfterBooking(message);
     }
   }

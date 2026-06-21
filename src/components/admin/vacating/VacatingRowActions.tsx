@@ -1,3 +1,5 @@
+'use client';
+
 import Link from 'next/link';
 import {
   ApproveVacatingButton,
@@ -6,27 +8,21 @@ import {
   UndoVacatingApprovalButton,
   UndoVacatingCompletionButton,
 } from '@/src/components/admin/VacatingActions';
-import type { AdminVacatingRow } from '@/src/db/queries/admin';
-import { buildVacatingApprovalPreview } from '@/src/lib/vacating/approvalPreview';
+import type { VacatingApprovalPreview } from '@/src/lib/vacating/approvalPreview';
 
 export function VacatingRowActions({
   requestId,
   status,
   settlementHref,
-  depositHeldPaise = 0,
-  row,
+  depositHeldPaise: _depositHeldPaise = 0,
+  approvalPreview,
 }: {
   requestId: string;
   status: string;
   settlementHref?: string | null;
   depositHeldPaise?: number;
-  row?: AdminVacatingRow;
+  approvalPreview?: VacatingApprovalPreview;
 }) {
-  const approvalPreview =
-    status === 'pending' && row
-      ? buildVacatingApprovalPreview(row, depositHeldPaise)
-      : undefined;
-
   return (
     <div className="flex flex-col items-end gap-2">
       {status === 'pending' ? (

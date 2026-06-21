@@ -6,7 +6,7 @@ import {
   type VacatingActionState,
 } from '@/app/(customer)/account/resident/actions';
 import { defaultVacatingDate } from '@/src/lib/dateDefaults';
-import { todayString } from '@/src/lib/dates';
+import { isOpenEndedStayEnd, todayString } from '@/src/lib/dates';
 import { paiseToInr } from '@/src/lib/format';
 import { estimateVacateDepositPreview } from '@/src/lib/vacating/depositRefundEligibility';
 import { ACCOUNT_SURFACE_PRIMARY_BTN } from '@/src/components/customer/accountStyles';
@@ -17,13 +17,21 @@ export function VacatingRequestForm({
   bookingId,
   depositHeldPaise,
   monthlyRentPaise,
+  expectedCheckoutDate,
 }: {
   bookingId: string;
   depositHeldPaise: number;
   monthlyRentPaise: number;
+  expectedCheckoutDate?: string | null;
 }) {
+  const initialDate =
+    expectedCheckoutDate && !isOpenEndedStayEnd(expectedCheckoutDate)
+      ? expectedCheckoutDate >= todayString()
+        ? expectedCheckoutDate
+        : todayString()
+      : defaultVacatingDate();
   const [state, action, pending] = useActionState(submitVacatingAction, idleState);
-  const [vacatingDate, setVacatingDate] = useState(defaultVacatingDate);
+  const [vacatingDate, setVacatingDate] = useState(initialDate);
 
   const preview = useMemo(
     () =>

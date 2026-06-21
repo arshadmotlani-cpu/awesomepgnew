@@ -78,6 +78,18 @@ See [[DATABASE#Billing — Billing]]
 - [[DECISIONS#residentFinancialEngine as money SSOT]]
 - [[DECISIONS#Unified financial_invoices registry]]
 - [[DECISIONS#Payment proof vs Razorpay]]
+- [[DECISIONS#Client Date serialization]]
+
+## Express walk-in invoices (2026-06-22)
+
+Express walk-in sales call `finalizeExpressWalkInFinancialInvoice()` after collection:
+
+| Payment recorded | `financial_invoices` path |
+|------------------|---------------------------|
+| Rent (+ optional deposit) | Sync rent invoice by explicit `rentInvoiceId`, enrich breakdown with deposit |
+| Deposit only | Insert `combined` financial invoice with deposit line |
+
+Invoices appear in `/admin/invoices` and on the resident profile after `revalidateFinancialViews()`.
 - [[DECISIONS#Vacating checkout rent sync]]
 - [[DECISIONS#Half-open stay ranges]] — pro-ration math
 - [[DECISIONS#Pricing snapshot immutability]]

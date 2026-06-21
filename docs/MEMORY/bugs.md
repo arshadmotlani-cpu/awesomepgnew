@@ -7,9 +7,14 @@
 
 ---
 
-## Open
-
 ## 2026-06-22
+
+- **VAC-CRASH-02** — Map + Date props crashed move-outs advanced tools → serialized via `toMoveOutAdvancedToolsRow` ([[BUGS#VAC-CRASH-02]])
+- **VAC-DATE-01** — Vacating date picker crash on invalid input → `tryDiffDays` + form defaults ([[BUGS#VAC-DATE-01]])
+- **EXP-INV-01** — Express walk-in invoice missing → `finalizeExpressWalkInFinancialInvoice` ([[BUGS#EXP-INV-01]])
+- **SEARCH-01** — Partial resident search blocked at 3 chars → 2-char / 2-digit phone ([[BUGS#SEARCH-01]])
+
+## Open
 
 - **OPS-UX-01** — Duplicate vacating/deposit/refund CTAs across admin UI → use [[Operations]] only ([[BUGS#OPS-UX-01]])
 - **OPS-UX-02** — Legacy route bookmarks still in use → see [[ROUTES#Legacy redirects]]
@@ -81,4 +86,21 @@
 - `.gitignore`
 - `INTELLIGENCE.md`
 - `MEMORY/active_memory.md`
+
+
+<!-- INTEL_2026-06-21T20:59:03Z -->
+### 2026-06-21T20:59:03Z
+
+- **Types:**  · REFACTOR ·  · BUG ·  · FEATURE ·  · TASK ·  · DECISION ·  · INSIGHT · 
+- **Primary:** BUG
+- **Summary:** 8 files changed, 328 insertions(+), 6 deletions(-)
+- **Files:**
+- `AI_SYSTEM_PROMPT.md`
+- `BUGS.md`
+- `Billing.md`
+- `CHANGELOG.md`
+- `Checkout Settlements.md`
+- `MEMORY/bugs.md`
+- `MEMORY/changelog.md`
+- `Vacating.md`
 

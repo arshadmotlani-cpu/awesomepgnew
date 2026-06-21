@@ -13,7 +13,8 @@ import {
   type ExpressWalkInSearchHit,
 } from '@/app/(admin)/admin/quick-actions/actions';
 import { paiseToInr } from '@/src/lib/format';
-import { diffDays } from '@/src/lib/dates';
+import { diffDays, todayString } from '@/src/lib/dates';
+import { defaultCheckOutDate } from '@/src/lib/dateDefaults';
 import {
   STAY_CHECK_IN_TIME,
   STAY_CHECK_OUT_TIME,
@@ -23,8 +24,7 @@ import {
 import { buildExpressWalkInWhatsAppUrl } from '@/src/lib/billing/expressWalkInWhatsApp';
 
 function defaultCheckInDate(): string {
-  const now = new Date();
-  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-01`;
+  return todayString();
 }
 
 const inputClass =
@@ -143,6 +143,12 @@ export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
 
   const pendingDeposit = Math.max(0, depositRequired - depositPaid - (useWalletCredit ? inrToNumber(walletCreditInr) : 0));
   const totalPaid = depositPaid + rentPaid;
+
+  useEffect(() => {
+    if (stayType === 'fixed' && !checkOutDate) {
+      setCheckOutDate(defaultCheckOutDate(checkInDate));
+    }
+  }, [stayType, checkInDate, checkOutDate]);
 
   useEffect(() => {
     setBedsLoading(true);
@@ -505,7 +511,7 @@ export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
             />
             <button
               type="button"
-              disabled={searchQuery.trim().length < 3 || searching}
+              disabled={searchQuery.trim().length < 2 || searching}
               onClick={runSearch}
               className="shrink-0 rounded-xl bg-[#FF5A1F] px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
             >
@@ -655,7 +661,14 @@ export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
               {stayType === 'fixed' ? (
                 <label className="block text-xs text-apg-silver">
                   Check-out · {STAY_CHECK_OUT_TIME}
-                  <input type="date" value={checkOutDate} onChange={(e) => setCheckOutDate(e.target.value)} className={inputClass} required />
+                  <input
+                    type="date"
+                    value={checkOutDate}
+                    min={checkInDate}
+                    onChange={(e) => setCheckOutDate(e.target.value)}
+                    className={inputClass}
+                    required
+                  />
                 </label>
               ) : null}
             </div>

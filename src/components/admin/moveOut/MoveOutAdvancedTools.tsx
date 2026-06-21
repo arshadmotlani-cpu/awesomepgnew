@@ -4,17 +4,17 @@ import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
 import { VacatingRowActions } from '@/src/components/admin/vacating/VacatingRowActions';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
-import type { AdminVacatingRow } from '@/src/db/queries/admin';
+import type { MoveOutAdvancedToolsRow } from '@/src/lib/moveOut/moveOutAdvancedToolsProps';
 
 export function MoveOutAdvancedTools({
   rows,
   settlementHrefByRequest,
-  depositHeldByBooking,
+  depositHeldByBooking = {},
   defaultOpen = false,
 }: {
-  rows: AdminVacatingRow[];
-  settlementHrefByRequest: Map<string, string>;
-  depositHeldByBooking?: Map<string, number>;
+  rows: MoveOutAdvancedToolsRow[];
+  settlementHrefByRequest: Record<string, string>;
+  depositHeldByBooking?: Record<string, number>;
   defaultOpen?: boolean;
 }) {
   return (
@@ -103,9 +103,9 @@ export function MoveOutAdvancedTools({
                     <VacatingRowActions
                       requestId={v.id}
                       status={v.status}
-                      settlementHref={settlementHrefByRequest.get(v.id)}
-                      depositHeldPaise={depositHeldByBooking?.get(v.bookingId) ?? 0}
-                      row={v}
+                      settlementHref={settlementHrefByRequest[v.id]}
+                      depositHeldPaise={depositHeldByBooking[v.bookingId] ?? 0}
+                      approvalPreview={v.approvalPreview}
                     />
                   </TD>
                 </TR>

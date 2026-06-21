@@ -62,3 +62,5 @@ See [[DATABASE#Move-out — Vacating]]
 ## Related hubs
 
 [[Vacating]] · [[Deposits]] · [[Billing]] · [[Electricity]] · [[Operations]] · [[Residents]]
+
+**Client safety:** Pipeline and advanced-tools tables serialize dates on the server (`toClientMoveOutPipelineItem`, `toMoveOutAdvancedToolsRow`) — never pass `Map` or `Date` to client action components.

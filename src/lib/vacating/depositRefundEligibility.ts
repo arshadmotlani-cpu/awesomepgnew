@@ -1,4 +1,4 @@
-import { diffDays, todayString } from '@/src/lib/dates';
+import { todayString, tryDiffDays } from '@/src/lib/dates';
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
 import { VACATING_NOTICE_MIN_DAYS, vacatingPenalty } from '@/src/services/billing';
 
@@ -61,7 +61,15 @@ export function estimateVacateDepositPreview(args: {
   noticeGivenDate?: string;
 }) {
   const noticeGivenDate = args.noticeGivenDate ?? todayString();
-  const daysUntilVacate = diffDays(noticeGivenDate, args.vacatingDate);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(args.vacatingDate)) {
+    return {
+      daysUntilVacate: 0,
+      earlyVacate: false,
+      estimatedDeductionPaise: 0,
+      estimatedRefundablePaise: args.depositHeldPaise,
+    };
+  }
+  const daysUntilVacate = tryDiffDays(noticeGivenDate, args.vacatingDate) ?? 0;
   const earlyVacate = daysUntilVacate < VACATING_NOTICE_MIN_DAYS;
   const estimatedDeductionPaise = earlyVacate ? vacatingPenalty(args.monthlyRentPaise) : 0;
   const estimatedRefundablePaise = Math.max(

@@ -1,31 +1,51 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useActionState, useEffect, useId } from 'react';
+import { useActionState, useEffect, useId, useMemo, useState } from 'react';
 import { AdminConfirmSubmit } from '@/src/components/admin/AdminConfirmSubmit';
 import {
   submitAdminVacatingAction,
   type MapActionState,
 } from '@/app/(admin)/admin/pgs/[pgId]/map/actions';
+import { defaultVacatingDate } from '@/src/lib/dateDefaults';
+import { isOpenEndedStayEnd, todayString } from '@/src/lib/dates';
 import { paiseToInr } from '@/src/lib/format';
 import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
+
+function resolveDefaultVacatingDate(expectedCheckoutDate?: string | null): string {
+  if (expectedCheckoutDate && !isOpenEndedStayEnd(expectedCheckoutDate)) {
+    return expectedCheckoutDate >= todayString() ? expectedCheckoutDate : todayString();
+  }
+  return defaultVacatingDate();
+}
 
 export function AdminVacatingSubmitForm({
   pgId,
   bookingId,
   monthlyRentPaise,
   hasExistingVacating,
+  expectedCheckoutDate,
 }: {
   pgId: string;
   bookingId: string;
   monthlyRentPaise: number;
   hasExistingVacating: boolean;
+  expectedCheckoutDate?: string | null;
 }) {
   const router = useRouter();
   const formId = useId().replace(/:/g, '');
+  const initialVacatingDate = useMemo(
+    () => resolveDefaultVacatingDate(expectedCheckoutDate),
+    [expectedCheckoutDate],
+  );
+  const [vacatingDate, setVacatingDate] = useState(initialVacatingDate);
   const [state, action, pending] = useActionState(submitAdminVacatingAction, {
     ok: false,
   } satisfies MapActionState);
+
+  useEffect(() => {
+    setVacatingDate(initialVacatingDate);
+  }, [initialVacatingDate]);
 
   useEffect(() => {
     if (state.ok) router.refresh();
@@ -52,6 +72,9 @@ export function AdminVacatingSubmitForm({
           type="date"
           name="vacatingDate"
           required
+          min={todayString()}
+          value={vacatingDate}
+          onChange={(e) => setVacatingDate(e.target.value)}
           className="apg-admin-field mt-1 w-full rounded-lg border border-white/10 px-3 py-2 text-sm"
         />
       </label>

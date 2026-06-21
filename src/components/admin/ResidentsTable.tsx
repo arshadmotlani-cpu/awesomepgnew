@@ -84,7 +84,7 @@ export function ResidentsTable({
 
       const nameMatch = r.fullName.toLowerCase().includes(q);
       const emailMatch = r.email.toLowerCase().includes(q);
-      const phoneMatch = digits.length >= 3 && r.phone.replace(/\D/g, '').includes(digits);
+      const phoneMatch = digits.length >= 2 && r.phone.replace(/\D/g, '').includes(digits);
       const bookingMatch = r.bookingCode?.toLowerCase().includes(q);
       const pgMatch = r.pgName?.toLowerCase().includes(q);
       const bedMatch =

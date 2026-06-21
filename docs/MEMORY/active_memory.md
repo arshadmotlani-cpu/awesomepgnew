@@ -67,33 +67,36 @@ See [[tasks]] for full task log. Current:
 <!-- AGENT_STATUS_START -->
 ## Agent status
 
-> **Last run:** 2026-06-21T20:03:44Z  
+> **Last run:** 2026-06-21T20:59:03Z  
 > **Primary type:** BUG  
-> **All types:**  · REFACTOR ·  · BUG ·  · TASK ·  · DECISION ·  · INSIGHT ·  · FEATURE ·   
-> **Files:** 3
+> **All types:**  · REFACTOR ·  · BUG ·  · FEATURE ·  · TASK ·  · DECISION ·  · INSIGHT ·   
+> **Files:** 8
 
 <!-- AGENT_STATUS_END -->
 
 
 
+
 <!-- INTELLIGENCE_DELTAS_START -->
-### 2026-06-21T20:03:44Z — review recommended
+### 2026-06-21T20:59:03Z — review recommended
 
 - **Signal:** BUG change in project state files
 - **Action:** Verify Current Focus / Blockers / Priorities still accurate
-- **Trigger files:** .gitignore,INTELLIGENCE.md,MEMORY/active_memory.md
+- **Trigger files:** AI_SYSTEM_PROMPT.md,BUGS.md,Billing.md,CHANGELOG.md,Checkout,Settlements.md,MEMORY/bugs.md,MEMORY/changelog.md,Vacating.md
 
 <!-- INTELLIGENCE_DELTAS_END -->
+
 
 
 <!-- SEMANTIC_STATE_START -->
 ## Semantic State
 
-> **Last analyzed:** 2026-06-21T20:04:15Z
+> **Last analyzed:** 2026-06-21T20:59:03Z
 
-- **Current system intent:** The AI memory / intelligence automation layer is being extended — cognition pipeline or MEMORY structure changed.
+- **Current system intent:** Move-out and checkout documentation is evolving — likely reflecting vacating ops or refund workflow changes.
 - **Dominant change type:** MIXED (see changelog)
-- **System momentum:** HIGH (7 vault commits in 24h)
+- **System momentum:** HIGH (8 vault commits in 24h)
 - **Risk level:** LOW
 
 <!-- SEMANTIC_STATE_END -->
+
