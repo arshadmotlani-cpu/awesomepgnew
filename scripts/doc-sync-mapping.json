@@ -1,0 +1,137 @@
+{
+  "$schema": "./doc-sync-mapping.schema.json",
+  "rules": [
+    {
+      "id": "database",
+      "label": "Database",
+      "wiki": "DATABASE",
+      "patterns": ["src/db/schema/", "src/db/migrations/"],
+      "docs": ["DATABASE.md"]
+    },
+    {
+      "id": "routes",
+      "label": "Routes",
+      "wiki": "ROUTES",
+      "patterns": ["app/"],
+      "docs": ["ROUTES.md"]
+    },
+    {
+      "id": "billing",
+      "label": "Billing",
+      "wiki": "Billing",
+      "patterns": [
+        "src/services/rentInvoices.ts",
+        "src/services/billing.ts",
+        "src/services/unifiedInvoices.ts",
+        "src/services/residentFinancialEngine.ts",
+        "src/lib/billing/"
+      ],
+      "docs": ["FEATURES.md", "WORKFLOWS.md", "ARCHITECTURE.md"]
+    },
+    {
+      "id": "vacating",
+      "label": "Vacating",
+      "wiki": "Vacating",
+      "patterns": [
+        "src/services/vacating.ts",
+        "src/services/vacatingCheckoutBilling.ts",
+        "src/services/checkoutSettlement.ts",
+        "src/lib/moveOut/",
+        "src/lib/vacating/",
+        "app/(admin)/admin/vacating/",
+        "app/(admin)/admin/checkout-settlements/"
+      ],
+      "docs": ["FEATURES.md", "WORKFLOWS.md", "DECISIONS.md"]
+    },
+    {
+      "id": "deposits",
+      "label": "Deposits",
+      "wiki": "Deposits",
+      "patterns": [
+        "src/services/deposits.ts",
+        "src/services/depositOperations.ts",
+        "app/(admin)/admin/deposits/"
+      ],
+      "docs": ["FEATURES.md", "WORKFLOWS.md"]
+    },
+    {
+      "id": "electricity",
+      "label": "Electricity",
+      "wiki": "Electricity",
+      "patterns": [
+        "src/services/electricityBilling.ts",
+        "src/services/meterElectricity.ts",
+        "app/(admin)/admin/electricity/"
+      ],
+      "docs": ["FEATURES.md", "WORKFLOWS.md"]
+    },
+    {
+      "id": "bed-assignment",
+      "label": "Bed Assignment",
+      "wiki": "Bed Assignment",
+      "patterns": [
+        "src/lib/occupancySsot.ts",
+        "src/lib/occupancyRevalidate.ts",
+        "src/lib/residentActiveTenancy.ts",
+        "src/lib/residentBedAssignment.ts",
+        "src/services/pgBedMap.ts",
+        "app/(admin)/admin/pgs/",
+        "app/(admin)/admin/beds/"
+      ],
+      "docs": ["FEATURES.md", "WORKFLOWS.md", "DECISIONS.md"]
+    },
+    {
+      "id": "kyc",
+      "label": "KYC",
+      "wiki": "KYC",
+      "patterns": ["src/services/kyc.ts", "app/(admin)/admin/residents/kyc/", "src/lib/kyc/"],
+      "docs": ["FEATURES.md", "WORKFLOWS.md"]
+    },
+    {
+      "id": "residents",
+      "label": "Residents",
+      "wiki": "Residents",
+      "patterns": [
+        "src/services/residentAdmin.ts",
+        "src/services/residentOperationsDashboard.ts",
+        "src/lib/residents/",
+        "app/(admin)/admin/residents/",
+        "app/(admin)/admin/operations/"
+      ],
+      "docs": ["FEATURES.md", "WORKFLOWS.md", "CURRENT_STATE.md"]
+    },
+    {
+      "id": "action-center",
+      "label": "Action Center",
+      "wiki": "Action Center",
+      "patterns": [
+        "src/services/actionItems.ts",
+        "src/services/actionExecution.ts",
+        "src/services/paymentLinks.ts",
+        "app/(admin)/admin/actions/",
+        "app/(admin)/admin/overview/"
+      ],
+      "docs": ["FEATURES.md", "ARCHITECTURE.md"]
+    },
+    {
+      "id": "bookings",
+      "label": "Bookings",
+      "wiki": "Bookings",
+      "patterns": [
+        "src/services/bookingLifecycle.ts",
+        "src/services/booking",
+        "app/(customer)/booking/",
+        "app/(admin)/admin/bookings/"
+      ],
+      "docs": ["FEATURES.md", "WORKFLOWS.md"]
+    },
+    {
+      "id": "auth",
+      "label": "Auth",
+      "wiki": "Auth",
+      "patterns": ["src/lib/auth/", "middleware.ts", "app/login/", "app/admin/login/"],
+      "docs": ["ARCHITECTURE.md"]
+    }
+  ],
+  "alwaysUpdate": ["CHANGELOG.md", "CURRENT_STATE.md"]
+}

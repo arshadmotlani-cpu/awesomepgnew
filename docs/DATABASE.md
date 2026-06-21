@@ -1,0 +1,276 @@
+# Database
+
+> PostgreSQL schema via Drizzle ORM. Source: `src/db/schema/`.  
+> Migrations: `src/db/migrations/`. Deep reference: [[AWESOME_PG_MASTER_DOCUMENTATION_V2]].
+
+Cross-links: [[ARCHITECTURE]] · [[WORKFLOWS]] · [[Billing]] · [[Vacating]] · [[Deposits]] · [[Bed Assignment]]
+
+---
+
+## Entity relationship (core)
+
+```mermaid
+erDiagram
+  pgs ||--o{ floors : has
+  floors ||--o{ rooms : has
+  rooms ||--o{ beds : has
+  customers ||--o{ bookings : makes
+  bookings ||--o{ bed_reservations : occupies
+  beds ||--o{ bed_reservations : reserved_on
+  bookings ||--o{ rent_invoices : billed
+  bookings ||--o{ electricity_invoices : billed
+  bookings ||--o{ deposit_ledger : wallet
+  bookings ||--o| vacating_requests : move_out
+  vacating_requests ||--o| checkout_settlements : refund
+  bookings ||--o{ payments : pays
+  financial_invoices }o--|| rent_invoices : mirrors
+```
+
+---
+
+## Inventory & property
+
+### `pgs`
+
+| Field | Notes |
+|-------|-------|
+| `id`, `slug`, `name` | Property identity |
+| `gender_policy` | male / female / coed |
+| `archived_at` | Soft delete |
+
+**Relations:** `floors` → `rooms` → `beds`
+
+### `floors`, `rooms`, `beds`
+
+| Table | Key fields |
+|-------|------------|
+| `rooms` | `room_number`, `room_type_id`, `capacity` |
+| `beds` | `bed_code`, `status` (available / maintenance / blocked) |
+| `bed_prices` | Rate tiers per bed (daily/weekly/monthly/deposit) |
+
+**Constraint:** GiST EXCLUDE on `bed_reservations` prevents overlapping active/hold reservations on same bed — see [[DECISIONS#Half-open stay ranges]].
+
+---
+
+## People & auth
+
+### `customers`
+
+| Field | Notes |
+|-------|-------|
+| `kyc_status` | pending / approved / rejected |
+| `residency_status` | active / vacated / blocked |
+| `phone`, `email` | Login identity |
+
+### `admin_users`
+
+| Field | Notes |
+|-------|-------|
+| `role` | super_admin, accountant, manager, etc. |
+| `pg_scope` | JSON array — PG access for non–super-admins |
+
+### `auth_sessions`, `kyc_submissions`
+
+- Sessions: customer + admin cookie auth
+- KYC: document URLs, submission status — [[KYC]]
+
+---
+
+## Bookings & occupancy
+
+### `bookings`
+
+| Field | Notes |
+|-------|-------|
+| `booking_code` | Public reference |
+| `customer_id` | FK → customers |
+| `status` | draft → confirmed → completed / cancelled |
+| `duration_mode` | daily, weekly, monthly, open_ended, fixed_stay, reserve |
+| `pricing_snapshot` | JSONB frozen at checkout — **never mutate for billing history** |
+| `deposit_paise`, `deposit_due_paise` | Required vs outstanding |
+| `deposit_collection_status` | pending / full / partial / overdue / waived |
+| `expected_checkout_date` | Shortened on vacating approve |
+
+### `bed_reservations`
+
+| Field | Notes |
+|-------|-------|
+| `stay_range` | **`daterange [check_in, check_out)`** half-open |
+| `kind` | primary / extension |
+| `status` | hold / active / cancelled / completed |
+| `booking_id`, `bed_id` | FKs |
+
+**SSOT for occupancy:** [[Bed Assignment]] queries use `occupancySsot.ts` + this table.
+
+### `bed_reserve_holds`, `stay_extensions`
+
+- Short-term reserve flow and extension audit (inventory in `bed_reservations` kind=extension)
+
+---
+
+## Billing — [[Billing]]
+
+### `rent_invoices`
+
+| Field | Notes |
+|-------|-------|
+| `billing_month` | First of month |
+| `rent_paise` | Pro-rated amount |
+| `due_date` | Typically 5th of month |
+| `status` | pending / overdue / paid / cancelled |
+| `booking_id` | UNIQUE with billing_month (non-adhoc) |
+
+**Unique:** `(booking_id, billing_month)` for standard monthly invoices.
+
+### `resident_billing_profiles`
+
+| Field | Notes |
+|-------|-------|
+| `billing_day` | Synced from check-in (default 5) |
+
+### `electricity_bills` + `electricity_invoices`
+
+| Table | Role |
+|-------|------|
+| `electricity_bills` | Room-level meter reading for a month |
+| `electricity_invoices` | Per-booking share of bill |
+| `meter_logs` | Raw meter photos/readings |
+
+### `financial_invoices`
+
+Unified registry linking rent, electricity, deposit, custom, PS4 — see `unifiedInvoices.ts`.
+
+### `payment_links`
+
+| Field | Notes |
+|-------|-------|
+| `status` | active → paid / expired |
+| `purpose` | rent / electricity / deposit |
+
+---
+
+## Deposits — [[Deposits]]
+
+### `deposit_ledger`
+
+Append-only wallet entries:
+
+| `entry_type` | Meaning |
+|--------------|---------|
+| collected | Money received |
+| deducted | Notice penalty, electricity, damage |
+| refunded | Payout to resident |
+| adjustment | Admin correction |
+
+**SSOT:** `getDepositSummaryForBooking()` — do not sum manually in UI.
+
+### `deposit_settlements`
+
+Admin settlement records linked from checkout.
+
+---
+
+## Move-out — [[Vacating]]
+
+### `vacating_requests`
+
+| Field | Notes |
+|-------|-------|
+| `notice_given_date`, `vacating_date` | Notice period |
+| `notice_compliant` | ≥14 days |
+| `deduction_paise` | Snapshotted 5-day penalty if non-compliant |
+| `monthly_rent_paise_snapshot` | Frozen for penalty calc |
+| `status` | pending → approved → completed / rejected |
+
+**Unique:** one row per `booking_id` (open request).
+
+### `checkout_settlements`
+
+| Field | Notes |
+|-------|-------|
+| `vacating_request_id` | FK |
+| `status` | awaiting_resident_details → awaiting_admin_review → refund_pending → refund_paid / completed |
+| `electricity_*` | Meter, average, manual charge fields |
+| `final_refund_paise` | Locked on approve |
+| `payout_upi_id`, `payout_qr_url` | Resident refund details |
+
+### `resident_requests`
+
+Legacy + deposit refund request payloads (meter photo, UPI).
+
+---
+
+## Operations
+
+### `action_items`
+
+| Field | Notes |
+|-------|-------|
+| `source_key` | Idempotent sync key (UNIQUE) |
+| `type` | rent_due, electricity_due, kyc_pending, vacating, etc. |
+| `status` | open / resolved |
+
+### `admin_notifications`
+
+Mirrored operator inbox.
+
+### `audit_log`
+
+Append-only: entity, action, diff JSON — all financial mutations.
+
+---
+
+## Payments
+
+### `payments`
+
+| Field | Notes |
+|-------|-------|
+| `purpose` | booking, rent, electricity, deposit, refund, … |
+| `provider` | razorpay, upi_manual, cash, … |
+| `status` | initiated → succeeded / failed |
+
+**Unique:** `(provider, provider_payment_id)` when set.
+
+---
+
+## Analytics & system
+
+| Tables | Purpose |
+|--------|---------|
+| `visitor_sessions`, `site_page_views`, `site_analytics_events` | Traffic |
+| `app_logs`, `system_health`, `deployments` | Ops |
+| `automation_events`, `automation_actions` | Cron audit |
+| `playstation_memberss`, `membership_transactions` | PS4 add-on |
+| `coupon_redemptions` | Promo codes |
+| `webhook_replay_guard` | Razorpay idempotency |
+
+---
+
+## Critical constraints (never break)
+
+1. **`bed_reservations` GiST EXCLUDE** — no double booking
+2. **`vacating_requests` UNIQUE(booking_id)** — one open notice
+3. **`rent_invoices` UNIQUE(booking_id, billing_month)** — one rent bill per month
+4. **`action_items` UNIQUE(source_key)** — sync idempotency
+5. **Half-open `stay_range`** — proration and occupancy math depend on `[start, end)`
+
+---
+
+## Schema file index
+
+| Domain | Files |
+|--------|-------|
+| Inventory | `pgs.ts`, `floors.ts`, `rooms.ts`, `beds.ts`, `bedPrices.ts`, `roomTypes.ts` |
+| Booking | `bookings.ts`, `bedReservations.ts`, `stayExtensions.ts` |
+| Billing | `rentInvoices.ts`, `electricityBills.ts`, `electricityInvoices.ts`, `financialInvoices.ts`, `residentBillingProfiles.ts` |
+| Money | `payments.ts`, `depositLedger.ts`, `depositSettlements.ts`, `paymentLinks.ts` |
+| Move-out | `vacatingRequests.ts`, `checkoutSettlements.ts`, `residentRequests.ts` |
+| Ops | `actionItems.ts`, `adminNotifications.ts`, `auditLog.ts` |
+| Enums | `enums.ts` — all PostgreSQL enums |
+
+---
+
+## Related
+
+[[ROUTES]] · [[ARCHITECTURE]] · [[FEATURES]] · [[AI_CONTEXT]]

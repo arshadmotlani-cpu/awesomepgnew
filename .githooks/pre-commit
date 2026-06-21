@@ -1,0 +1,12 @@
+#!/bin/sh
+# Awesome PG — sync /docs before commit when staged code maps to brain docs.
+set -e
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+if ! command -v npx >/dev/null 2>&1; then
+  echo "[docs-sync] npx not found — skipping doc sync" >&2
+  exit 0
+fi
+
+npx tsx scripts/sync-docs-pre-commit.ts
