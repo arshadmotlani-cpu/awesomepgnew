@@ -89,7 +89,7 @@ export function PgIncomeDonutChart({
       <div className="mb-4">
         <h2 className="text-sm font-semibold text-white">Income by PG</h2>
         <p className="text-xs text-apg-silver">
-          Rent + electricity collected · {monthLabel}
+          Rent + electricity + deposits · {monthLabel}
         </p>
       </div>
       <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start">

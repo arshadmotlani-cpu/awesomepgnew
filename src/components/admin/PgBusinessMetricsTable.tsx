@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { BusinessMetricsSummary, PgBusinessMetrics } from '@/src/db/queries/admin';
 import { paiseToInr } from '@/src/lib/format';
+import type { RevenueByPgRow } from '@/src/services/revenueCommandCenter';
 
 function Money({ paise, tone }: { paise: number; tone: 'in' | 'out' | 'charge' }) {
   if (paise === 0) return <span className="text-apg-silver">—</span>;
@@ -90,11 +91,16 @@ export function PgBusinessMetricsTable({
   rows,
   totals,
   pgHref = (pgId) => `/admin/revenue/pg/${pgId}`,
+  revenueByPg,
+  billingMonth,
 }: {
   rows: PgBusinessMetrics[];
   totals?: BusinessMetricsSummary;
   pgHref?: (pgId: string) => string;
+  revenueByPg?: RevenueByPgRow[];
+  billingMonth?: string;
 }) {
+  const depositMap = new Map(revenueByPg?.map((r) => [r.pgId, r]) ?? []);
   if (rows.length === 0) {
     return <p className="text-sm text-apg-silver">No PG listings yet.</p>;
   }
@@ -108,12 +114,19 @@ export function PgBusinessMetricsTable({
             <th className="px-4 py-3">Occupancy</th>
             <th className="px-4 py-3">Rent (invoices)</th>
             <th className="px-4 py-3">Electricity (invoices)</th>
+            <th className="px-4 py-3">Deposit revenue</th>
             <th className="px-4 py-3">Late fees</th>
             <th className="px-4 py-3">Total revenue</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-white/5 text-apg-silver">
-          {rows.map((row) => (
+          {rows.map((row) => {
+            const dep = depositMap.get(row.pgId);
+            const depositPaise = dep?.depositRevenuePaise ?? 0;
+            const grandTotal =
+              row.incomeRentPaise + row.incomeElectricityPaise + depositPaise + row.lateFeePaise;
+            const monthQs = billingMonth ? `?month=${billingMonth.slice(0, 7)}` : '';
+            return (
             <tr key={row.pgId} className="hover:bg-white/[0.02]">
               <td className="px-4 py-3">
                 <Link
@@ -133,13 +146,25 @@ export function PgBusinessMetricsTable({
                 <InvoiceCell paise={row.incomeElectricityPaise} />
               </td>
               <td className="px-4 py-3">
+                {depositPaise > 0 ? (
+                  <Link
+                    href={`/admin/deposits/collected?pgId=${row.pgId}${monthQs}`}
+                    className="font-medium text-emerald-300 hover:text-emerald-200"
+                  >
+                    {paiseToInr(depositPaise)}
+                  </Link>
+                ) : (
+                  <span className="text-apg-silver">—</span>
+                )}
+              </td>
+              <td className="px-4 py-3">
                 <Money paise={row.lateFeePaise} tone="charge" />
               </td>
               <td className="px-4 py-3 font-semibold text-white">
-                {paiseToInr(row.incomeTotalPaise + row.lateFeePaise)}
+                {paiseToInr(grandTotal)}
               </td>
             </tr>
-          ))}
+          );})}
         </tbody>
         {totals ? (
           <tfoot className="border-t border-white/10 bg-white/[0.03] text-sm font-semibold text-white">
@@ -154,10 +179,20 @@ export function PgBusinessMetricsTable({
                 <InvoiceCell paise={totals.incomeElectricityPaise} />
               </td>
               <td className="px-4 py-3">
+                <InvoiceCell
+                  paise={revenueByPg?.reduce((a, r) => a + r.depositRevenuePaise, 0) ?? 0}
+                />
+              </td>
+              <td className="px-4 py-3">
                 <Money paise={totals.lateFeePaise} tone="charge" />
               </td>
               <td className="px-4 py-3">
-                {paiseToInr(totals.incomeTotalPaise + totals.extraIncomePaise)}
+                {paiseToInr(
+                  totals.incomeRentPaise +
+                    totals.incomeElectricityPaise +
+                    totals.lateFeePaise +
+                    (revenueByPg?.reduce((a, r) => a + r.depositRevenuePaise, 0) ?? 0),
+                )}
               </td>
             </tr>
           </tfoot>

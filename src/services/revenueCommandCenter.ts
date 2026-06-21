@@ -23,6 +23,7 @@ export type RevenueByPgRow = {
   rentRevenuePaise: number;
   electricityRevenuePaise: number;
   depositRevenuePaise: number;
+  lateFeePaise: number;
   depositPaidCount: number;
   depositPendingCount: number;
   totalRevenuePaise: number;
@@ -73,6 +74,7 @@ function buildByPgRows(
       const counts = depositCountsByPg.get(row.pgId) ?? { paid: 0, pending: 0 };
       const rentRevenuePaise = row.incomeRentPaise;
       const electricityRevenuePaise = row.incomeElectricityPaise;
+      const lateFeePaise = row.lateFeePaise;
       return {
         pgId: row.pgId,
         pgName: row.pgName,
@@ -82,10 +84,11 @@ function buildByPgRows(
         rentRevenuePaise,
         electricityRevenuePaise,
         depositRevenuePaise,
+        lateFeePaise,
         depositPaidCount: counts.paid,
         depositPendingCount: counts.pending,
         totalRevenuePaise:
-          rentRevenuePaise + electricityRevenuePaise + depositRevenuePaise,
+          rentRevenuePaise + electricityRevenuePaise + depositRevenuePaise + lateFeePaise,
       };
     })
     .sort((a, b) => b.totalRevenuePaise - a.totalRevenuePaise);

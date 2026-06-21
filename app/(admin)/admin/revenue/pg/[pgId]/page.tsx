@@ -2,19 +2,18 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
-import { OverviewMonthPicker } from '@/src/components/admin/OverviewMonthPicker';
+import { OverviewMonthNav } from '@/src/components/admin/OverviewMonthNav';
 import { PageHeader } from '@/src/components/admin/PageHeader';
-import { PgResidentIndex } from '@/src/components/admin/modules/PgResidentIndex';
-import {
-  listAdminDepositSummaries,
-  listAdminElectricityInvoicesForReminders,
-  listAdminRentInvoices,
-  listPgs,
-} from '@/src/db/queries/admin';
+import { PgRevenueResidentTable } from '@/src/components/admin/PgRevenueResidentTable';
+import { RevenueLiveRefresh } from '@/src/components/admin/RevenueLiveRefresh';
+import { listPgs } from '@/src/db/queries/admin';
 import { requireAdminSession } from '@/src/lib/auth/guards';
-import { ADMIN_MODULES, moduleHref, modulePgHref } from '@/src/lib/admin/navigation';
+import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
+import { formatBillingMonthLabel } from '@/src/lib/billing/monthNavigation';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import { paiseToInr } from '@/src/lib/format';
+import { getPgDepositCollectionDetail } from '@/src/services/pgDepositCollection';
+import { getPgRevenueResidentRows } from '@/src/services/pgRevenueResidents';
 import { loadOverviewContext } from '@/src/services/overviewData';
 
 export const dynamic = 'force-dynamic';
@@ -28,6 +27,7 @@ export default async function RevenuePgPage({
 }) {
   const { pgId } = await params;
   const billingMonth = resolveBillingMonth((await searchParams).month);
+  const monthLabel = formatBillingMonthLabel(billingMonth);
   await requireAdminSession('/admin/revenue');
 
   const pgs = await listPgs();
@@ -36,85 +36,65 @@ export default async function RevenuePgPage({
   if (!pg) notFound();
 
   const session = await requireAdminSession('/admin/revenue');
-  const ctx = await loadOverviewContext(session, billingMonth, { syncActions: false });
-  const pgMetrics = ctx.ok ? ctx.data.pgMetrics.find((m) => m.pgId === pgId) : null;
-
-  const [rentRes, elecRes, depositRes] = await Promise.all([
-    listAdminRentInvoices({ pgId }),
-    listAdminElectricityInvoicesForReminders({ pgId }),
-    listAdminDepositSummaries(),
+  const [ctx, depositDetail, residentRows] = await Promise.all([
+    loadOverviewContext(session, billingMonth, { syncActions: false }),
+    getPgDepositCollectionDetail(pgId, billingMonth),
+    getPgRevenueResidentRows(pgId, billingMonth),
   ]);
 
-  const elecByPhone = new Map<string, number>();
-  if (elecRes.ok) {
-    for (const e of elecRes.data) {
-      elecByPhone.set(e.customerPhone, (elecByPhone.get(e.customerPhone) ?? 0) + e.amountPaise);
-    }
-  }
-
-  const depositByPhone = new Map<string, number>();
-  if (depositRes.ok) {
-    for (const d of depositRes.data.filter((x) => x.pgName === pg.name)) {
-      depositByPhone.set(d.customerPhone, d.collectedPaise);
-    }
-  }
+  const pgRow = ctx.ok ? ctx.data.revenue.byPg.find((m) => m.pgId === pgId) : null;
 
   return (
     <>
+      <RevenueLiveRefresh billingMonth={billingMonth} />
       <ModuleBreadcrumbs
         items={[
           { label: 'Overview', href: moduleHref('overview', billingMonth) },
-          { label: ADMIN_MODULES.revenue.label, href: moduleHref('revenue', billingMonth) },
+          { label: ADMIN_MODULES.revenue.label, href: `/admin/revenue?month=${billingMonth.slice(0, 7)}` },
           { label: pg.name },
         ]}
       />
       <PageHeader
         title={pg.name}
-        description="Level 2 — PG revenue summary and resident index."
+        description={`Collection breakdown · ${monthLabel}`}
         actions={
-          <div className="flex gap-2">
-            <OverviewMonthPicker billingMonth={billingMonth} />
+          <div className="flex flex-wrap gap-2">
+            <OverviewMonthNav billingMonth={billingMonth} />
             <Link
-              href={`/admin/pgs/${pgId}/collections`}
+              href={`/admin/deposits/collected?pgId=${pgId}&month=${billingMonth}`}
               className="rounded-lg border border-white/10 px-3 py-2 text-xs text-apg-silver hover:text-white"
             >
-              PG settings →
+              Deposit details →
             </Link>
           </div>
         }
       />
 
-      {pgMetrics ? (
-        <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {pgRow ? (
+        <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-7">
           {[
-            ['Rent', pgMetrics.incomeRentPaise],
-            ['Electricity', pgMetrics.incomeElectricityPaise],
-            ['Total in', pgMetrics.incomeTotalPaise],
-            ['Occupancy', null],
-          ].map(([label, paise]) => (
+            ['Occupancy', `${pgRow.occupancyPct}% · ${pgRow.occupiedBeds}/${pgRow.totalBeds}`],
+            ['Rent revenue', paiseToInr(pgRow.rentRevenuePaise)],
+            ['Electricity', paiseToInr(pgRow.electricityRevenuePaise)],
+            ['Deposit revenue', paiseToInr(pgRow.depositRevenuePaise)],
+            ['Late fees', paiseToInr(pgRow.lateFeePaise)],
+            ['Total revenue', paiseToInr(pgRow.totalRevenuePaise)],
+            [
+              'Deposits',
+              depositDetail
+                ? `${depositDetail.stats.depositPaidCount} paid · ${depositDetail.stats.depositPendingCount} pending`
+                : '—',
+            ],
+          ].map(([label, val]) => (
             <div key={String(label)} className="rounded-xl border border-white/10 bg-[#1A1F27] p-4">
               <p className="text-[10px] uppercase text-apg-silver">{label}</p>
-              <p className="mt-2 text-xl font-semibold text-white">
-                {label === 'Occupancy'
-                  ? `${pgMetrics.occupancyPct}%`
-                  : paiseToInr(paise as number)}
-              </p>
+              <p className="mt-2 text-lg font-semibold text-white">{val}</p>
             </div>
           ))}
         </div>
       ) : null}
 
-      {!rentRes.ok ? <DbStatusBanner error={rentRes.error} /> : null}
-
-      <PgResidentIndex
-        module="revenue"
-        pgId={pgId}
-        billingMonth={billingMonth}
-        pgName={pg.name}
-        rentInvoices={rentRes.ok ? rentRes.data : []}
-        electricityByPhone={elecByPhone}
-        depositPaiseByPhone={depositByPhone}
-      />
+      <PgRevenueResidentTable rows={residentRows} billingMonth={billingMonth} pgId={pgId} />
     </>
   );
 }

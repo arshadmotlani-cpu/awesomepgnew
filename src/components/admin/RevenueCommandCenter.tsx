@@ -4,9 +4,10 @@ import { IconCard, IconChart } from '@/src/components/admin/icons';
 import { paiseToInr } from '@/src/lib/format';
 import type { RevenueCommandCenterData } from '@/src/services/revenueCommandCenter';
 
-function MoneyCell({ paise }: { paise: number }) {
+function MoneyCell({ paise, tone }: { paise: number; tone?: 'charge' }) {
   if (paise === 0) return <span className="text-apg-silver">—</span>;
-  return <span className="font-medium text-emerald-300">{paiseToInr(paise)}</span>;
+  const cls = tone === 'charge' ? 'text-amber-300' : 'text-emerald-300';
+  return <span className={`font-medium ${cls}`}>{paiseToInr(paise)}</span>;
 }
 
 function DepositRevenueCell({
@@ -47,6 +48,16 @@ export function RevenueCommandCenter({
   const { today, mtd, byPg, outstanding, depositPortfolio } = data;
   const totalDepositPaid = byPg.reduce((a, r) => a + r.depositPaidCount, 0);
   const totalDepositPending = byPg.reduce((a, r) => a + r.depositPendingCount, 0);
+  const pgTotals = byPg.reduce(
+    (acc, row) => ({
+      rent: acc.rent + row.rentRevenuePaise,
+      electricity: acc.electricity + row.electricityRevenuePaise,
+      deposit: acc.deposit + row.depositRevenuePaise,
+      lateFees: acc.lateFees + row.lateFeePaise,
+      total: acc.total + row.totalRevenuePaise,
+    }),
+    { rent: 0, electricity: 0, deposit: 0, lateFees: 0, total: 0 },
+  );
 
   return (
     <section className="space-y-6">
@@ -179,11 +190,12 @@ export function RevenueCommandCenter({
             <table className="min-w-full text-sm">
               <thead className="text-left text-[11px] uppercase tracking-wide text-apg-silver">
                 <tr className="border-b border-white/10">
-                  <th className="px-4 py-3">PG name</th>
+                  <th className="px-4 py-3">PG</th>
                   <th className="px-4 py-3">Occupancy</th>
                   <th className="px-4 py-3">Rent revenue</th>
                   <th className="px-4 py-3">Electricity revenue</th>
                   <th className="px-4 py-3">Deposit revenue</th>
+                  <th className="px-4 py-3">Late fees</th>
                   <th className="px-4 py-3">Total revenue</th>
                 </tr>
               </thead>
@@ -215,12 +227,35 @@ export function RevenueCommandCenter({
                         href={`/admin/deposits/collected?pgId=${row.pgId}&month=${data.billingMonth}`}
                       />
                     </td>
+                    <td className="px-4 py-3">
+                      <MoneyCell paise={row.lateFeePaise} tone="charge" />
+                    </td>
                     <td className="px-4 py-3 font-semibold text-white">
                       {paiseToInr(row.totalRevenuePaise)}
                     </td>
                   </tr>
                 ))}
               </tbody>
+              <tfoot className="border-t border-white/10 bg-white/[0.03] text-sm font-semibold text-white">
+                <tr>
+                  <td className="px-4 py-3" colSpan={2}>
+                    All PGs
+                  </td>
+                  <td className="px-4 py-3">
+                    <MoneyCell paise={pgTotals.rent} />
+                  </td>
+                  <td className="px-4 py-3">
+                    <MoneyCell paise={pgTotals.electricity} />
+                  </td>
+                  <td className="px-4 py-3">
+                    <MoneyCell paise={pgTotals.deposit} />
+                  </td>
+                  <td className="px-4 py-3">
+                    <MoneyCell paise={pgTotals.lateFees} tone="charge" />
+                  </td>
+                  <td className="px-4 py-3">{paiseToInr(pgTotals.total)}</td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </div>
