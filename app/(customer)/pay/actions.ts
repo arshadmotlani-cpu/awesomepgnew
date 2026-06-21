@@ -1,40 +1,11 @@
 'use server';
 
-import { eq } from 'drizzle-orm';
-import { db } from '@/src/db/client';
-import { paymentLinks } from '@/src/db/schema';
-import { getCustomerSession } from '@/src/lib/auth/session';
+import { assertActivePaymentLink } from '@/src/lib/billing/paymentLinkAccess';
 import { uploadPaymentScreenshot } from '@/src/lib/payments/screenshotUpload';
 import { submitDepositLinkPaymentProof } from '@/src/services/residentCharges';
 import { submitRentPaymentProof } from '@/src/services/rentInvoices';
 
-export type PaymentLinkAuthError = { ok: false; status: 401 | 403; message: string };
-
-async function assertPaymentLinkResidentAccess(
-  linkId: string,
-): Promise<
-  | { ok: true; link: typeof paymentLinks.$inferSelect }
-  | PaymentLinkAuthError
-> {
-  const session = await getCustomerSession();
-  if (!session) {
-    return { ok: false, status: 401, message: 'Sign in required.' };
-  }
-
-  const [link] = await db
-    .select()
-    .from(paymentLinks)
-    .where(eq(paymentLinks.id, linkId))
-    .limit(1);
-  if (!link || link.status !== 'active') {
-    return { ok: false, status: 403, message: 'Payment link not found or expired.' };
-  }
-  if (link.residentId !== session.customerId) {
-    return { ok: false, status: 403, message: 'This payment link belongs to another resident.' };
-  }
-
-  return { ok: true, link };
-}
+export type PaymentLinkAuthError = { ok: false; status: 401 | 403 | 404; message: string };
 
 export async function uploadPaymentLinkScreenshotAction(
   formData: FormData,
@@ -42,7 +13,7 @@ export async function uploadPaymentLinkScreenshotAction(
   const linkId = String(formData.get('linkId') ?? '');
   if (!linkId) throw new Error('Missing payment link.');
 
-  const access = await assertPaymentLinkResidentAccess(linkId);
+  const access = await assertActivePaymentLink(linkId);
   if (!access.ok) {
     throw new Error(access.message);
   }
@@ -55,8 +26,8 @@ export async function uploadPaymentLinkScreenshotAction(
 export async function submitPaymentLinkProofAction(
   linkId: string,
   paymentProofUrl: string,
-): Promise<{ ok: true } | { ok: false; message: string; status?: 401 | 403 }> {
-  const access = await assertPaymentLinkResidentAccess(linkId);
+): Promise<{ ok: true } | { ok: false; message: string; status?: 401 | 403 | 404 }> {
+  const access = await assertActivePaymentLink(linkId);
   if (!access.ok) {
     return { ok: false, message: access.message, status: access.status };
   }

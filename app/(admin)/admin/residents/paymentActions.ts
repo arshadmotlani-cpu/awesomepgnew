@@ -7,7 +7,7 @@ import { getOrCreatePaymentLink } from '@/src/services/paymentLinks';
 export async function generatePaymentLinkAction(
   formData: FormData,
 ): Promise<
-  | { ok: true; publicUrl: string; whatsappShareUrl: string | null; linkId: string }
+  | { ok: true; publicUrl: string; whatsappShareUrl: string | null; linkId: string; reused?: boolean }
   | { ok: false; message: string }
 > {
   await requireAdminPermission('payments:write');
@@ -21,6 +21,7 @@ export async function generatePaymentLinkAction(
   const purpose = (formData.get('purpose') as 'rent' | 'electricity' | 'deposit') ?? 'rent';
   const rentComponentPaise = Number(formData.get('rentPaise') ?? 0);
   const depositComponentPaise = Number(formData.get('depositDuePaise') ?? 0);
+  const bookingId = formData.get('bookingId')?.toString()?.trim() || undefined;
 
   if (!residentId || !pgId || amountPaise <= 0) {
     return { ok: false, message: 'Missing resident, PG, or amount.' };
@@ -34,6 +35,7 @@ export async function generatePaymentLinkAction(
     residentPhone,
     amountPaise,
     purpose,
+    bookingId,
     roomNumber: formData.get('roomNumber')?.toString(),
     dueDate: formData.get('dueDate')?.toString(),
     isOverdue: formData.get('isOverdue') === '1',
@@ -51,5 +53,6 @@ export async function generatePaymentLinkAction(
     publicUrl: result.publicUrl,
     whatsappShareUrl: result.link.whatsappShareUrl,
     linkId: result.link.id,
+    reused: result.reused,
   };
 }

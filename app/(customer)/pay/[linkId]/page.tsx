@@ -1,12 +1,11 @@
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { desc, eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { bookings, pgs } from '@/src/db/schema';
-import { requireCustomerSession } from '@/src/lib/auth/guards';
 import { paiseToInr, titleCase } from '@/src/lib/format';
+import { assertActivePaymentLink } from '@/src/lib/billing/paymentLinkAccess';
 import { PaymentLinkProofForm } from '@/src/components/customer/PaymentLinkProofForm';
-import { getPaymentLinkById } from '@/src/services/paymentLinks';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,13 +15,24 @@ export default async function PaymentLinkPage({
   params: Promise<{ linkId: string }>;
 }) {
   const { linkId } = await params;
-  const session = await requireCustomerSession(`/pay/${linkId}`);
-
-  const link = await getPaymentLinkById(linkId);
-  if (!link || link.status === 'expired') notFound();
-  if (link.residentId !== session.customerId) {
-    redirect('/account?error=payment_link_forbidden');
+  const access = await assertActivePaymentLink(linkId);
+  if (!access.ok) {
+    if (access.status === 404) notFound();
+    return (
+      <main className="mx-auto min-h-screen max-w-lg bg-zinc-950 px-4 py-10 text-white">
+        <p className="text-xs uppercase tracking-wide text-zinc-500">Awesome PG · Payment</p>
+        <h1 className="mt-2 text-2xl font-semibold">Payment link unavailable</h1>
+        <p className="mt-3 text-sm text-zinc-400">{access.message}</p>
+        <p className="mt-8 text-center text-xs text-zinc-600">
+          <Link href="/login" className="underline hover:text-zinc-400">
+            Sign in to your account
+          </Link>
+        </p>
+      </main>
+    );
   }
+
+  const link = access.link;
 
   const [pg] = await db
     .select({ name: pgs.name })
@@ -133,8 +143,8 @@ export default async function PaymentLinkPage({
       )}
 
       <p className="mt-8 text-center text-xs text-zinc-600">
-        <Link href="/account" className="underline hover:text-zinc-400">
-          Go to my account
+        <Link href="/login" className="underline hover:text-zinc-400">
+          Sign in to your resident account
         </Link>
       </p>
     </main>

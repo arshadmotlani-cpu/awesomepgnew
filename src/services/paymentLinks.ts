@@ -61,7 +61,17 @@ export async function getOrCreatePaymentLink(input: CreatePaymentLinkInput) {
     .limit(1);
 
   if (existing) {
-    const publicUrl = paymentLinkPublicUrl(existing.id);
+    if (input.bookingId && !existing.bookingId && input.purpose === 'deposit') {
+      await db
+        .update(paymentLinks)
+        .set({ bookingId: input.bookingId })
+        .where(eq(paymentLinks.id, existing.id));
+    }
+    const linkRow =
+      input.bookingId && !existing.bookingId && input.purpose === 'deposit'
+        ? { ...existing, bookingId: input.bookingId }
+        : existing;
+    const publicUrl = paymentLinkPublicUrl(linkRow.id);
     const whatsappShareUrl =
       existing.whatsappShareUrl ??
       (input.purpose === 'rent' || input.purpose === 'electricity'
@@ -90,7 +100,7 @@ export async function getOrCreatePaymentLink(input: CreatePaymentLinkInput) {
 
     return {
       ok: true as const,
-      link: { ...existing, whatsappShareUrl },
+      link: { ...linkRow, whatsappShareUrl },
       upiId: null as string | null,
       publicUrl,
       reused: true as const,

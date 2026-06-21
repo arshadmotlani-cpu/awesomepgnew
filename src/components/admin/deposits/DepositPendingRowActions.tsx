@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { generatePaymentLinkAction } from '@/app/(admin)/admin/residents/paymentActions';
 import { WhatsAppIcon } from '@/src/components/admin/AdminKycWhatsAppButton';
+import { PaymentLinkResultDialog } from '@/src/components/admin/PaymentLinkResultDialog';
 import { buildDepositCollectionWhatsAppUrl } from '@/src/lib/billing/depositCollectionWhatsApp';
 import type { DepositCollectionStatus } from '@/src/lib/deposits/depositCollectionStatus';
 import type { PgDepositResidentRow } from '@/src/services/pgDepositCollection';
@@ -18,64 +19,75 @@ type Props = {
   depositStatus: DepositCollectionStatus;
 };
 
+type CreatedLinkState = {
+  publicUrl: string;
+  reused?: boolean;
+};
+
 export function DepositPendingRowActions({ pgId, pgName, resident, depositStatus }: Props) {
   const [pending, startTransition] = useTransition();
+  const [createdLink, setCreatedLink] = useState<CreatedLinkState | null>(null);
   const isMissing = depositStatus === 'requirement_missing';
   const canCollect = !isMissing && resident.outstandingPaise > 0;
 
-  function generateDepositInvoice() {
-    if (isMissing) return;
-    if (resident.outstandingPaise <= 0) return;
-    startTransition(async () => {
-      const fd = new FormData();
-      fd.set('residentId', resident.customerId);
-      fd.set('pgId', pgId);
-      fd.set('pgName', pgName);
-      fd.set('residentName', resident.customerName);
-      fd.set('residentPhone', resident.phone);
-      fd.set('amountPaise', String(resident.outstandingPaise));
-      fd.set('purpose', 'deposit');
-      fd.set('roomNumber', resident.roomNumber);
+  function depositLinkFormData(): FormData {
+    const fd = new FormData();
+    fd.set('residentId', resident.customerId);
+    fd.set('pgId', pgId);
+    fd.set('pgName', pgName);
+    fd.set('residentName', resident.customerName);
+    fd.set('residentPhone', resident.phone);
+    fd.set('amountPaise', String(resident.outstandingPaise));
+    fd.set('purpose', 'deposit');
+    fd.set('roomNumber', resident.roomNumber);
+    fd.set('bookingId', resident.bookingId);
+    return fd;
+  }
 
-      const res = await generatePaymentLinkAction(fd);
+  function generateDepositInvoice() {
+    if (isMissing || resident.outstandingPaise <= 0) return;
+    startTransition(async () => {
+      const res = await generatePaymentLinkAction(depositLinkFormData());
       if (!res.ok) {
         window.alert(res.message);
         return;
       }
-      window.open(res.publicUrl, '_blank', 'noopener,noreferrer');
+      setCreatedLink({ publicUrl: res.publicUrl, reused: res.reused });
     });
   }
 
-  function sendWhatsAppPaymentRequest(reminderOnly = false) {
+  function sendDepositReminder() {
+    if (isMissing || resident.outstandingPaise <= 0) return;
+    const href = buildDepositCollectionWhatsAppUrl({
+      residentName: resident.customerName,
+      phone: resident.phone,
+      pgName,
+      roomNumber: resident.roomNumber,
+      bedCode: resident.bedCode,
+      depositDuePaise: resident.outstandingPaise,
+    });
+    if (href) window.open(href, '_blank', 'noopener,noreferrer');
+    else window.alert('Could not open WhatsApp — check the resident phone number.');
+  }
+
+  function sendWhatsAppPaymentRequest() {
     if (isMissing || resident.outstandingPaise <= 0) return;
     startTransition(async () => {
-      const fd = new FormData();
-      fd.set('residentId', resident.customerId);
-      fd.set('pgId', pgId);
-      fd.set('pgName', pgName);
-      fd.set('residentName', resident.customerName);
-      fd.set('residentPhone', resident.phone);
-      fd.set('amountPaise', String(resident.outstandingPaise));
-      fd.set('purpose', 'deposit');
-      fd.set('roomNumber', resident.roomNumber);
-
-      const res = await generatePaymentLinkAction(fd);
+      const res = await generatePaymentLinkAction(depositLinkFormData());
       if (!res.ok) {
         window.alert(res.message);
         return;
       }
 
-      const href =
-        res.whatsappShareUrl ??
-        buildDepositCollectionWhatsAppUrl({
-          residentName: resident.customerName,
-          phone: resident.phone,
-          pgName,
-          roomNumber: resident.roomNumber,
-          bedCode: resident.bedCode,
-          depositDuePaise: resident.outstandingPaise,
-          paymentLinkUrl: reminderOnly ? undefined : res.publicUrl,
-        });
+      const href = buildDepositCollectionWhatsAppUrl({
+        residentName: resident.customerName,
+        phone: resident.phone,
+        pgName,
+        roomNumber: resident.roomNumber,
+        bedCode: resident.bedCode,
+        depositDuePaise: resident.outstandingPaise,
+        paymentLinkUrl: res.publicUrl,
+      });
 
       if (href) window.open(href, '_blank', 'noopener,noreferrer');
       else window.alert('Could not open WhatsApp — check the resident phone number.');
@@ -83,44 +95,58 @@ export function DepositPendingRowActions({ pgId, pgName, resident, depositStatus
   }
 
   return (
-    <div className="flex flex-wrap justify-end gap-1">
-      <Link href={`/admin/residents/${resident.customerId}`} className={BTN}>
-        View resident
-      </Link>
-
-      {isMissing ? (
-        <Link href={`/admin/deposits/${resident.bookingId}`} className={`${BTN} border-amber-400/40 text-amber-200`}>
-          Set deposit requirement
+    <>
+      <div className="flex flex-wrap justify-end gap-1">
+        <Link href={`/admin/residents/${resident.customerId}`} className={BTN}>
+          View resident
         </Link>
-      ) : (
-        <>
-          <button
-            type="button"
-            disabled={pending || !canCollect}
-            onClick={generateDepositInvoice}
-            className={BTN}
+
+        {isMissing ? (
+          <Link
+            href={`/admin/deposits/${resident.bookingId}`}
+            className={`${BTN} border-amber-400/40 text-amber-200`}
           >
-            {pending ? '…' : 'Generate deposit invoice'}
-          </button>
-          <button
-            type="button"
-            disabled={pending || !canCollect}
-            onClick={() => sendWhatsAppPaymentRequest(true)}
-            className={BTN}
-          >
-            {pending ? '…' : 'Send deposit reminder'}
-          </button>
-          <button
-            type="button"
-            disabled={pending || !canCollect}
-            onClick={() => sendWhatsAppPaymentRequest(false)}
-            className={`${BTN} border-[#25D366]/40 text-[#25D366]`}
-          >
-            <WhatsAppIcon className="h-3 w-3" />
-            {pending ? '…' : 'Send WhatsApp payment request'}
-          </button>
-        </>
-      )}
-    </div>
+            Set deposit requirement
+          </Link>
+        ) : (
+          <>
+            <button
+              type="button"
+              disabled={pending || !canCollect}
+              onClick={generateDepositInvoice}
+              className={BTN}
+            >
+              {pending ? '…' : 'Generate deposit invoice'}
+            </button>
+            <button
+              type="button"
+              disabled={pending || !canCollect}
+              onClick={sendDepositReminder}
+              className={BTN}
+            >
+              Send deposit reminder
+            </button>
+            <button
+              type="button"
+              disabled={pending || !canCollect}
+              onClick={sendWhatsAppPaymentRequest}
+              className={`${BTN} border-[#25D366]/40 text-[#25D366]`}
+            >
+              <WhatsAppIcon className="h-3 w-3" />
+              {pending ? '…' : 'Send WhatsApp payment request'}
+            </button>
+          </>
+        )}
+      </div>
+
+      <PaymentLinkResultDialog
+        open={createdLink != null}
+        onClose={() => setCreatedLink(null)}
+        residentName={resident.customerName}
+        amountPaise={resident.outstandingPaise}
+        publicUrl={createdLink?.publicUrl ?? ''}
+        reused={createdLink?.reused}
+      />
+    </>
   );
 }
