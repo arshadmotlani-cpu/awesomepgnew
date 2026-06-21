@@ -44,7 +44,7 @@ async function main() {
       FROM financial_invoices fi
       JOIN customers c ON c.id = fi.customer_id
       WHERE regexp_replace(c.phone, '[^0-9]', '', 'g') LIKE ${'%' + digits + '%'}
-        AND fi.status IN ('paid', 'sent', 'overdue', 'partial')
+        AND fi.status IN ('paid', 'sent', 'overdue', 'partial', 'refunded')
       ORDER BY fi.created_at DESC
       LIMIT 1
     `);

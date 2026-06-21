@@ -11,12 +11,14 @@ import {
   customers,
   depositLedger,
   financialInvoices,
+  payments,
   rentInvoices,
 } from '@/src/db/schema';
 import { reconcileBookingOccupancy } from '@/src/lib/occupancySync';
 import { getActiveTenancyForCustomer } from '@/src/lib/residentActiveTenancy';
 import { cancelBooking } from '@/src/services/bookingLifecycle';
-import { adjustDepositCollectedBalance } from '@/src/services/deposits';
+import { syncDepositCollectionFromLedger } from '@/src/services/depositCollection';
+import { adjustDepositCollectedBalance, getDepositSummaryForBooking } from '@/src/services/deposits';
 import { applyDepositDeduction } from '@/src/services/depositSettlement';
 import { cancelUnifiedInvoice, refundUnifiedInvoice } from '@/src/services/unifiedInvoices';
 
@@ -38,15 +40,49 @@ export async function rollbackExpressWalkInSale(
     '[system] Express walk-in rolled back — invoice creation failed mid-flight';
 
   try {
-    await adjustDepositCollectedBalance({
+    const adjusted = await adjustDepositCollectedBalance({
       bookingId: input.bookingId,
       customerId: input.customerId,
       targetCollectedPaise: 0,
       reason,
       createdByAdminId: input.adminId,
     });
+    if (!adjusted.ok) {
+      return { ok: false, error: adjusted.error };
+    }
   } catch (err) {
     console.error('[expressWalkInRollback] deposit reversal failed', err);
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Deposit reversal failed.',
+    };
+  }
+
+  await db
+    .update(payments)
+    .set({ status: 'refunded', updatedAt: new Date() })
+    .where(
+      and(
+        eq(payments.bookingId, input.bookingId),
+        eq(payments.purpose, 'deposit'),
+        eq(payments.status, 'succeeded'),
+      ),
+    );
+
+  await syncDepositCollectionFromLedger(input.bookingId).catch((err) => {
+    console.error('[expressWalkInRollback] deposit sync failed', err);
+  });
+
+  const depositSummary = await getDepositSummaryForBooking(input.bookingId);
+  if ((depositSummary?.refundableBalancePaise ?? 0) <= 0) {
+    await db
+      .update(bookings)
+      .set({
+        depositDuePaise: 0,
+        depositCollectionStatus: 'waived',
+        updatedAt: new Date(),
+      })
+      .where(eq(bookings.id, input.bookingId));
   }
 
   const creditRows = await db

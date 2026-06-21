@@ -1124,7 +1124,7 @@ export type ResidentBookingRow = {
   bedCode: string;
   roomId: string;
   roomNumber: string;
-  durationMode: 'monthly' | 'open_ended';
+  durationMode: 'monthly' | 'open_ended' | 'fixed_stay';
   status: 'confirmed' | 'completed' | 'cancelled' | 'refunded' | 'draft' | 'pending_payment';
   checkInDate: string; // YYYY-MM-DD
   expectedCheckoutDate: string | null;
@@ -1197,7 +1197,7 @@ export function listResidentBookingsForCustomer(
       .where(
         and(
           eq(bookings.customerId, customerId),
-          inArray(bookings.durationMode, ['monthly', 'open_ended']),
+          inArray(bookings.durationMode, ['monthly', 'open_ended', 'fixed_stay']),
           inArray(bookings.status, ['confirmed', 'completed']),
         ),
       )
@@ -1221,7 +1221,7 @@ export function listResidentBookingsForCustomer(
         bedCode: r.bedCode,
         roomId: r.roomId,
         roomNumber: r.roomNumber,
-        durationMode: r.durationMode as 'monthly' | 'open_ended',
+        durationMode: r.durationMode as 'monthly' | 'open_ended' | 'fixed_stay',
         status: r.status,
         checkInDate: r.checkInDate,
         expectedCheckoutDate: r.expectedCheckoutDate,

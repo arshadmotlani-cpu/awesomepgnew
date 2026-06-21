@@ -269,11 +269,12 @@ async function buildDepositCategory(
   const bookingCollectedPaise = Math.max(0, depositRequiredPaise - depositDuePaise);
 
   const collectedFromRecords = summary?.collectedPaise ?? 0;
-  const paidPaise = collectedFromRecords > 0 ? collectedFromRecords : bookingCollectedPaise;
-  const refundablePaise =
+  const netHeldPaise =
     summary != null && summary.entries.length > 0
-      ? summary.refundableBalancePaise
-      : bookingCollectedPaise;
+      ? Math.max(0, summary.refundableBalancePaise)
+      : Math.max(0, bookingCollectedPaise);
+  const paidPaise = netHeldPaise;
+  const refundablePaise = netHeldPaise;
 
   const items: ResidentFinancialLineItem[] = [];
   if (outstandingPaise > 0) {

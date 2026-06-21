@@ -257,7 +257,11 @@ export function SimpleAccountHub({
                     Deposit
                   </dt>
                   <dd className="mt-1 text-xl font-bold text-white">
-                    {paiseToInr(financialSummary.deposit.paidPaise)}
+                    {paiseToInr(
+                      financialSummary.deposit.refundablePaise > 0
+                        ? financialSummary.deposit.refundablePaise
+                        : financialSummary.deposit.paidPaise,
+                    )}
                   </dd>
                   <p className="mt-1 text-xs text-apg-muted">
                     Status: {depositStatusLabel}

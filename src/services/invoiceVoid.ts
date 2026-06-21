@@ -8,6 +8,7 @@ import { bookings, customers } from '@/src/db/schema';
 import { getActiveTenancyForCustomer } from '@/src/lib/residentActiveTenancy';
 import { revalidateFinancialViews } from '@/src/lib/billing/revalidateFinancialViews';
 import { rollbackExpressWalkInSale } from '@/src/services/expressWalkInRollback';
+import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import {
   cancelUnifiedInvoice,
   getUnifiedInvoiceDetail,
@@ -31,6 +32,52 @@ async function archiveCustomerIfNoTenancy(customerId: string): Promise<boolean> 
   return true;
 }
 
+async function expressWalkInNeedsCleanup(input: {
+  bookingId: string;
+  createdVia: string | null;
+  bookingStatus: string | null;
+}): Promise<boolean> {
+  if (input.createdVia !== 'admin') return false;
+  if (input.bookingStatus === 'confirmed') return true;
+
+  const summary = await getDepositSummaryForBooking(input.bookingId);
+  return (summary?.refundableBalancePaise ?? 0) > 0 || (summary?.collectedPaise ?? 0) > 0;
+}
+
+async function runExpressWalkInCleanup(input: {
+  bookingId: string;
+  bookingCode: string;
+  customerId: string;
+  adminId: string;
+  reason: string;
+  archiveCustomer: boolean;
+}): Promise<VoidInvoiceResult> {
+  const rolled = await rollbackExpressWalkInSale({
+    bookingId: input.bookingId,
+    bookingCode: input.bookingCode,
+    customerId: input.customerId,
+    adminId: input.adminId,
+    reason: input.reason,
+  });
+  if (!rolled.ok) {
+    return { ok: false, error: rolled.error };
+  }
+
+  let archivedCustomer = false;
+  if (input.archiveCustomer) {
+    archivedCustomer = await archiveCustomerIfNoTenancy(input.customerId);
+  }
+
+  revalidateFinancialViews();
+  return {
+    ok: true,
+    archivedCustomer,
+    message: archivedCustomer
+      ? 'Express sale voided — booking cancelled, deposits cleared, resident removed from admin lists.'
+      : 'Express sale voided — booking cancelled and deposits cleared.',
+  };
+}
+
 /** Undo express walk-in or standard invoice — booking freed, deposits zeroed, resident hidden when safe. */
 export async function voidInvoiceCompletely(
   invoiceId: string,
@@ -41,12 +88,9 @@ export async function voidInvoiceCompletely(
   const detail = await getUnifiedInvoiceDetail(invoiceId);
   if (!detail) return { ok: false, error: 'Invoice not found.' };
 
-  if (detail.status === 'cancelled' || detail.status === 'refunded') {
-    return { ok: false, error: 'Invoice is already voided.' };
-  }
-
   let bookingCode: string | null = null;
   let createdVia: string | null = null;
+  let bookingStatus: string | null = null;
   if (detail.bookingId) {
     const [booking] = await db
       .select({
@@ -59,6 +103,30 @@ export async function voidInvoiceCompletely(
       .limit(1);
     bookingCode = booking?.bookingCode ?? null;
     createdVia = booking?.createdVia ?? null;
+    bookingStatus = booking?.status ?? null;
+  }
+
+  if (detail.status === 'cancelled' || detail.status === 'refunded') {
+    if (
+      detail.bookingId &&
+      bookingCode &&
+      actor.id &&
+      (await expressWalkInNeedsCleanup({
+        bookingId: detail.bookingId,
+        createdVia,
+        bookingStatus,
+      }))
+    ) {
+      return runExpressWalkInCleanup({
+        bookingId: detail.bookingId,
+        bookingCode,
+        customerId: detail.customerId,
+        adminId: actor.id,
+        reason: `[void invoice repair] ${reason}`,
+        archiveCustomer: options?.archiveCustomer !== false,
+      });
+    }
+    return { ok: false, error: 'Invoice is already voided.' };
   }
 
   const isAdminWalkIn =
@@ -68,30 +136,14 @@ export async function voidInvoiceCompletely(
     detail.status === 'paid';
 
   if (isAdminWalkIn && detail.bookingId && bookingCode && actor.id) {
-    const rolled = await rollbackExpressWalkInSale({
+    return runExpressWalkInCleanup({
       bookingId: detail.bookingId,
       bookingCode,
       customerId: detail.customerId,
       adminId: actor.id,
       reason: `[void invoice] ${reason}`,
+      archiveCustomer: options?.archiveCustomer !== false,
     });
-    if (!rolled.ok) {
-      return { ok: false, error: rolled.error };
-    }
-
-    let archivedCustomer = false;
-    if (options?.archiveCustomer !== false) {
-      archivedCustomer = await archiveCustomerIfNoTenancy(detail.customerId);
-    }
-
-    revalidateFinancialViews();
-    return {
-      ok: true,
-      archivedCustomer,
-      message: archivedCustomer
-        ? 'Express sale voided — booking cancelled, deposits cleared, resident removed from admin lists.'
-        : 'Express sale voided — booking cancelled and deposits cleared.',
-    };
   }
 
   if (detail.status === 'paid' || detail.status === 'partial') {
@@ -170,14 +222,21 @@ export async function getInvoiceVoidCapabilities(invoiceId: string): Promise<{
   const canRefund = detail.status === 'paid' || detail.status === 'partial';
   const canVoidExpressSale =
     createdVia === 'admin' &&
-    (detail.status === 'paid' || detail.status === 'partial' || canCancel);
+    (detail.status === 'paid' ||
+      detail.status === 'partial' ||
+      canCancel ||
+      (detail.status === 'refunded' && Boolean(detail.bookingId)));
+
+  const canVoidCompletely =
+    detail.status !== 'cancelled' &&
+    (detail.status !== 'refunded' ||
+      (createdVia === 'admin' && Boolean(detail.bookingId)));
 
   return {
     canVoidExpressSale,
     canCancel,
     canRefund,
-    canVoidCompletely:
-      detail.status !== 'cancelled' && detail.status !== 'refunded',
+    canVoidCompletely,
     bookingCode,
   };
 }

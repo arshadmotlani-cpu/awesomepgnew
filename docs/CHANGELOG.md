@@ -125,7 +125,7 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-21 21:52:58 UTC
+### Pending pre-commit sync · 2026-06-21 22:03:20 UTC
 
 **Areas touched:** [[Billing]]
 
@@ -136,12 +136,8 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (5):**
-- `src/lib/billing/invoiceHrefMap.ts`
-- `src/lib/billing/invoiceNumbering.server.ts`
-- `src/lib/billing/invoiceNumbering.ts`
-- `src/lib/billing/invoiceRoutes.ts`
-- `src/services/unifiedInvoices.ts`
+**Staged code files (1):**
+- `src/services/residentFinancialEngine.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

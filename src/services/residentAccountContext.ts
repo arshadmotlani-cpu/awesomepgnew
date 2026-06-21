@@ -22,7 +22,7 @@ import { paymentLinkPublicUrl } from '@/src/lib/billing/paymentLinkUrl';
 import { batchLookupFinancialInvoiceIds } from '@/src/lib/billing/invoiceNumbering.server';
 import { invoiceDetailHref } from '@/src/lib/billing/invoiceRoutes';
 import { getLatestPaymentLinkForResident } from '@/src/services/paymentLinks';
-import { diffDays } from '@/src/lib/dates';
+import { diffDays, formatDate } from '@/src/lib/dates';
 
 export type ResidentInvoiceCard = {
   id: string;
@@ -142,9 +142,11 @@ export async function loadResidentAccountContext(
         .then((rows) => rows[0] ?? null),
     ]);
 
-    const depositPaidPaise =
-      depositSummary?.collectedPaise ??
-      Math.max(0, primaryBooking.depositPaise - (primaryBooking.depositDuePaise ?? 0));
+    const depositNetHeldPaise =
+      depositSummary != null && depositSummary.entries.length > 0
+        ? Math.max(0, depositSummary.refundableBalancePaise)
+        : Math.max(0, primaryBooking.depositPaise - (primaryBooking.depositDuePaise ?? 0));
+    const depositPaidPaise = depositNetHeldPaise;
     const depositRefundedPaise = depositSummary?.refundedPaise ?? 0;
     ledgerRefundedPaise = depositRefundedPaise;
     const checkInLabel = formatStayDateTime(primaryBooking.checkInDate, 'check-in');
@@ -160,6 +162,7 @@ export async function loadResidentAccountContext(
 
     if (rentRes.ok) {
       for (const inv of rentRes.data) {
+        if (inv.status === 'cancelled') continue;
         const projected = projectInvoice({
           ...inv,
           cancelledAt: null,
@@ -202,7 +205,9 @@ export async function loadResidentAccountContext(
         if (inv.status === 'paid') {
           rentPaymentHistory.push({
             id: inv.id,
-            label: `Rent · ${inv.billingMonth.slice(0, 7)}`,
+            label: inv.paidAt
+              ? `Rent · paid ${formatDate(inv.paidAt)}`
+              : `Rent · ${inv.billingMonth.slice(0, 7)}`,
             paidPaise: inv.paidPrincipalPaise + inv.paidLateFeePaise,
             paidAt: inv.paidAt?.toISOString() ?? null,
             status: inv.status,
@@ -290,7 +295,7 @@ export async function loadResidentAccountContext(
       }
     }
 
-    if (depositPaidPaise > 0 || primaryBooking.depositPaise > 0) {
+    if (depositPaidPaise > 0) {
       invoices.push({
         id: `deposit-${primaryBooking.bookingId}`,
         kind: 'deposit',
@@ -365,8 +370,8 @@ export async function loadResidentAccountContext(
           refundedPaise: ledgerRefundedPaise,
         })
       : 'Pending',
-    depositPaidPaise: financialSummary?.deposit.paidPaise ?? 0,
-    depositHeldPaise: financialSummary?.deposit.paidPaise ?? 0,
+    depositPaidPaise: financialSummary?.deposit.refundablePaise ?? 0,
+    depositHeldPaise: financialSummary?.deposit.refundablePaise ?? 0,
     depositRefundablePaise: financialSummary?.deposit.refundablePaise ?? 0,
     depositOutstandingPaise: financialSummary?.deposit.outstandingPaise ?? 0,
   };
