@@ -58,7 +58,10 @@ import {
 import { getOpenDepositRefundRequestForBooking } from './residentRequests';
 import { cancelFutureRentInvoices } from './rentInvoices';
 import { cancelElectricityInvoicesForBooking } from './electricityBilling';
-import { recalculateBillingAfterVacatingRestore } from './residentFinancialEngine';
+import {
+  restoreRentBillingAfterVacatingCancel,
+  syncVacatingCheckoutRentBilling,
+} from './vacatingCheckoutBilling';
 import { scheduleAdminNotificationSync } from '@/src/services/adminLiveSync';
 
 async function vacatingEmailMeta(bookingId: string) {
@@ -68,6 +71,43 @@ async function vacatingEmailMeta(bookingId: string) {
     .where(eq(bookings.id, bookingId))
     .limit(1);
   return { bookingCode: row?.bookingCode ?? bookingId };
+}
+
+async function syncCheckoutRentForVacating(input: {
+  bookingId: string;
+  vacatingDate: string;
+  actorId?: string | null;
+  actorType?: 'admin' | 'system';
+  context: string;
+}) {
+  try {
+    const result = await syncVacatingCheckoutRentBilling({
+      bookingId: input.bookingId,
+      vacatingDate: input.vacatingDate,
+      actorId: input.actorId,
+      actorType: input.actorType,
+    });
+    if ('ok' in result && result.ok === false) {
+      console.warn(`[vacating] checkout rent sync skipped (${input.context}):`, result.error);
+    }
+  } catch (err) {
+    console.error(`[vacating] checkout rent sync failed (${input.context}):`, err);
+  }
+}
+
+async function restoreCheckoutRentAfterVacatingCancel(input: {
+  bookingId: string;
+  adminId?: string | null;
+  context: string;
+}) {
+  try {
+    await restoreRentBillingAfterVacatingCancel({
+      bookingId: input.bookingId,
+      adminId: input.adminId,
+    });
+  } catch (err) {
+    console.error(`[vacating] checkout rent restore failed (${input.context}):`, err);
+  }
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -345,6 +385,14 @@ export async function submitVacatingRequest(
       request = updated;
     }
 
+    await syncCheckoutRentForVacating({
+      bookingId: booking.id,
+      vacatingDate,
+      actorId: input.resolvedByAdminId ?? null,
+      actorType: input.resolvedByAdminId ? 'admin' : 'system',
+      context: 'submit',
+    });
+
     if (input.openBedForBookingFromVacatingDate) {
       const approved = await approveVacatingRequest({
         requestId: request.id,
@@ -422,6 +470,14 @@ export async function approveVacatingRequest(input: {
   if (shouldShortenStayOnVacatingApproval(updated.vacatingDate)) {
     await shortenBookingReservationsToDate(updated.bookingId, updated.vacatingDate);
   }
+
+  await syncCheckoutRentForVacating({
+    bookingId: updated.bookingId,
+    vacatingDate: updated.vacatingDate,
+    actorId: input.resolvedByAdminId ?? null,
+    actorType: input.resolvedByAdminId ? 'admin' : 'system',
+    context: 'approve',
+  });
 
   await db.insert(auditLog).values({
     actorType: input.resolvedByAdminId ? 'admin' : 'system',
@@ -527,6 +583,12 @@ export async function rejectVacatingRequest(input: {
     console.error('[vacating] checkout settlement cleanup on reject failed', err);
   }
 
+  await restoreCheckoutRentAfterVacatingCancel({
+    bookingId: updated.bookingId,
+    adminId: input.resolvedByAdminId ?? null,
+    context: 'reject',
+  });
+
   scheduleAdminNotificationSync();
 
   return { ok: true, request: updated };
@@ -587,6 +649,11 @@ export async function cancelVacatingRequestByCustomer(input: {
   } catch (err) {
     console.error('[vacating] checkout settlement cleanup on customer cancel failed', err);
   }
+
+  await restoreCheckoutRentAfterVacatingCancel({
+    bookingId: current.bookingId,
+    context: 'customer_cancel',
+  });
 
   scheduleAdminNotificationSync();
 
@@ -1073,11 +1140,13 @@ export async function adminWithdrawVacatingRequest(input: {
     if (!restored.ok) {
       return { ok: false, kind: 'cannot_restore', message: restored.reason };
     }
-    await recalculateBillingAfterVacatingRestore({
-      bookingId: current.bookingId,
-      adminId: input.resolvedByAdminId,
-    });
   }
+
+  await restoreCheckoutRentAfterVacatingCancel({
+    bookingId: current.bookingId,
+    adminId: input.resolvedByAdminId ?? null,
+    context: 'withdraw',
+  });
 
   await db.delete(vacatingRequests).where(eq(vacatingRequests.id, current.id));
 
@@ -1118,9 +1187,10 @@ export async function revertVacatingApproval(input: {
   if (!restored.ok) {
     return { ok: false, kind: 'cannot_restore', message: restored.reason };
   }
-  await recalculateBillingAfterVacatingRestore({
+  await restoreCheckoutRentAfterVacatingCancel({
     bookingId: current.bookingId,
-    adminId: input.resolvedByAdminId,
+    adminId: input.resolvedByAdminId ?? null,
+    context: 'revert_approval',
   });
 
   const [updated] = await db

@@ -188,6 +188,19 @@ test('prorateForMonth: open-ended (far-future end) → full month', () => {
   assert.equal(r.isFullMonth, true);
 });
 
+test('prorateForMonth: vacating move-out Jul 5 bills 5 days of July', () => {
+  const monthly = 15_000_00;
+  const r = prorateForMonth({
+    monthlyRatePaise: monthly,
+    billingMonth: '2026-07-01',
+    activeStart: '2026-06-01',
+    activeEnd: '2026-07-06',
+  });
+  assert.equal(r.daysActive, 5);
+  assert.equal(r.isFullMonth, false);
+  assert.equal(r.amountPaise, Math.floor((monthly * 5) / 31));
+});
+
 // ───────────────────────────────────────────────────────────────────────────
 // formatInr (cosmetic but called in many UIs)
 // ───────────────────────────────────────────────────────────────────────────

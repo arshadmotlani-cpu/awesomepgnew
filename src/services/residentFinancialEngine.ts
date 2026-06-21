@@ -19,6 +19,7 @@ import {
   rentInvoices,
   rooms,
   beds,
+  vacatingRequests,
 } from '@/src/db/schema';
 import type { RentInvoice } from '@/src/db/schema/rentInvoices';
 import type { ElectricityInvoice } from '@/src/db/schema/electricityInvoices';
@@ -37,6 +38,7 @@ import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { getActiveTenancyForCustomer } from '@/src/lib/residentActiveTenancy';
 import { projectElectricityInvoice } from '@/src/services/electricityBilling';
 import { projectInvoice } from '@/src/services/rentInvoices';
+import { firstOfMonth } from '@/src/services/billing';
 
 const ACTIVE_BOOKING_STATUSES = ['confirmed'] as const;
 
@@ -164,6 +166,57 @@ function buildElectricityCategory(
 
   items.sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''));
   return { requiredPaise, paidPaise, outstandingPaise, items };
+}
+
+/** Placeholder rows for checkout-month electricity before the final bill is generated. */
+function appendVacatingElectricityPlaceholders(
+  category: ResidentFinancialCategory,
+  input: {
+    vacatingDate: string;
+    invoices: ElectricityInvoice[];
+    meta: { pgId: string; pgName: string; roomNumber: string };
+  },
+): ResidentFinancialCategory {
+  const checkoutMonth = firstOfMonth(input.vacatingDate);
+  const hasCheckoutMonthInvoice = input.invoices.some(
+    (inv) =>
+      inv.status !== 'cancelled' &&
+      firstOfMonth(inv.billingMonth) === checkoutMonth,
+  );
+  if (hasCheckoutMonthInvoice) return category;
+
+  const monthLabel = checkoutMonth.slice(0, 7);
+  category.items.push({
+    id: `elec-checkout-pending-${checkoutMonth}`,
+    kind: 'electricity',
+    label: `Electricity · ${monthLabel} (final bill at checkout)`,
+    requiredPaise: 0,
+    paidPaise: 0,
+    outstandingPaise: 0,
+    dueDate: input.vacatingDate,
+    status: 'due_at_checkout',
+    pgId: input.meta.pgId,
+    pgName: input.meta.pgName,
+    roomNumber: input.meta.roomNumber,
+  });
+  category.items.sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''));
+  return category;
+}
+
+async function loadOpenVacatingForBooking(bookingId: string) {
+  const [row] = await db
+    .select({
+      vacatingDate: vacatingRequests.vacatingDate,
+    })
+    .from(vacatingRequests)
+    .where(
+      and(
+        eq(vacatingRequests.bookingId, bookingId),
+        inArray(vacatingRequests.status, ['pending', 'approved']),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
 }
 
 async function loadFinancialInvoiceIds(bookingId: string) {
@@ -353,19 +406,27 @@ export async function getBookingFinancialSummary(args: {
   depositPaise: number;
   depositDuePaise: number;
 }): Promise<ResidentFinancialSummary> {
-  const [rentRows, elecRows, finIds] = await Promise.all([
+  const [rentRows, elecRows, finIds, openVacating] = await Promise.all([
     db.select().from(rentInvoices).where(eq(rentInvoices.bookingId, args.bookingId)),
     db
       .select()
       .from(electricityInvoices)
       .where(eq(electricityInvoices.bookingId, args.bookingId)),
     loadFinancialInvoiceIds(args.bookingId),
+    loadOpenVacatingForBooking(args.bookingId),
   ]);
 
   const meta = { pgId: args.pgId, pgName: args.pgName, roomNumber: args.roomNumber };
 
   const rent = buildRentCategory(rentRows, finIds.rent, meta);
-  const electricity = buildElectricityCategory(elecRows, finIds.elec, meta);
+  let electricity = buildElectricityCategory(elecRows, finIds.elec, meta);
+  if (openVacating) {
+    electricity = appendVacatingElectricityPlaceholders(electricity, {
+      vacatingDate: openVacating.vacatingDate,
+      invoices: elecRows,
+      meta,
+    });
+  }
   const deposit = await buildDepositCategory(
     args.bookingId,
     args.depositPaise,

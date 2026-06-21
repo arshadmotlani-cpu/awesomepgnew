@@ -1,3 +1,6 @@
+import { and, eq, inArray } from 'drizzle-orm';
+import { db } from '@/src/db/client';
+import { vacatingRequests } from '@/src/db/schema';
 import {
   listElectricityInvoicesForBooking,
   listRentInvoicesForBooking,
@@ -5,6 +8,7 @@ import {
   customerHasConfirmedBooking,
   type ResidentBookingRow,
 } from '@/src/db/queries/customer';
+import { firstOfMonth } from '@/src/services/billing';
 import { getActiveTenancyForCustomer } from '@/src/lib/residentActiveTenancy';
 import type { ResidentFinancialSummary } from '@/src/lib/billing/residentFinancialTypes';
 import { deriveResidencyJourney, type ResidencyJourneyState } from '@/src/lib/residents/residencyJourney';
@@ -118,10 +122,21 @@ export async function loadResidentAccountContext(
   const rentPaymentHistory: RentPaymentHistoryRow[] = [];
   let ledgerRefundedPaise = 0;
   if (primaryBooking) {
-    const [rentRes, elecRes, depositSummary] = await Promise.all([
+    const [rentRes, elecRes, depositSummary, openVacating] = await Promise.all([
       listRentInvoicesForBooking(primaryBooking.bookingId),
       listElectricityInvoicesForBooking(primaryBooking.bookingId),
       getDepositSummaryForBooking(primaryBooking.bookingId),
+      db
+        .select({ vacatingDate: vacatingRequests.vacatingDate })
+        .from(vacatingRequests)
+        .where(
+          and(
+            eq(vacatingRequests.bookingId, primaryBooking.bookingId),
+            inArray(vacatingRequests.status, ['pending', 'approved']),
+          ),
+        )
+        .limit(1)
+        .then((rows) => rows[0] ?? null),
     ]);
 
     const depositPaidPaise =
@@ -235,6 +250,35 @@ export async function loadResidentAccountContext(
             projected.outstandingPaise > 0
               ? `/account/resident/pay-electricity/${inv.id}`
               : null,
+          paymentLinkUrl: null,
+        });
+      }
+    }
+
+    if (openVacating && elecRes.ok) {
+      const checkoutMonth = firstOfMonth(openVacating.vacatingDate);
+      const hasCheckoutMonthInvoice = elecRes.data.some(
+        (inv) =>
+          inv.status !== 'cancelled' &&
+          firstOfMonth(inv.billingMonth) === checkoutMonth,
+      );
+      if (!hasCheckoutMonthInvoice) {
+        const monthLabel = checkoutMonth.slice(0, 7);
+        invoices.push({
+          id: `elec-checkout-pending-${checkoutMonth}`,
+          kind: 'electricity',
+          invoiceNumber: 'Pending',
+          label: `Electricity · ${monthLabel} (final bill at checkout)`,
+          stayDurationLabel,
+          checkInLabel,
+          checkOutLabel: formatStayDateTime(openVacating.vacatingDate, 'check-out'),
+          rentPaise: 0,
+          electricityPaise: 0,
+          depositPaidPaise: 0,
+          finalAmountPaise: 0,
+          status: 'due_at_checkout',
+          dueDate: openVacating.vacatingDate,
+          payHref: null,
           paymentLinkUrl: null,
         });
       }
