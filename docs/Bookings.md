@@ -21,7 +21,7 @@ A **booking** is the commercial contract linking a `customer` to a PG stay: dura
 - Express / walk-in via [[Residents]]
 - Duration modes: daily, weekly, monthly, open_ended, fixed_stay, reserve
 
-See [[FEATURES#PG discovery & booking]] · [[FEATURES#Assign tenant / booking]]
+See [[features#PG discovery & booking]] · [[features#Assign tenant / booking]]
 
 ---
 

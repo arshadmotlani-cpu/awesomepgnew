@@ -103,10 +103,11 @@ From [[CURRENT_STATE]]:
 | # | Document | Purpose |
 |---|----------|---------|
 | 1 | [[START_HERE]] | This file — always start here |
-| 2 | [[AI_CONTEXT]] | Rules, SSOT map, quick reference |
+| 2 | [[active_memory]] | Live focus + top priorities |
+| 3 | [[AI_CONTEXT]] | Rules, SSOT map, memory classification |
 | 3 | [[CURRENT_STATE]] | Priorities, completed systems, debt |
 | 4 | [[HANDOVER]] | Paste-ready brief for any AI session |
-| 5 | [[FEATURES]] | Full feature inventory |
+| 5 | [[features]] | Full feature inventory |
 | 6 | [[WORKFLOWS]] | Step-by-step business processes |
 | 7 | [[ROUTES]] | Every app route |
 | 8 | [[DATABASE]] | Tables, relationships, constraints |
@@ -150,12 +151,28 @@ From [[CURRENT_STATE]]:
 
 ### After completing a task
 
-1. Append [[CHANGELOG]] with date, commits, and areas touched.
-2. Update [[CURRENT_STATE]] if priorities or status changed.
-3. Move bug entries in [[BUGS]] (open → resolved).
-4. Add [[DECISIONS]] entry for architectural choices.
-5. Update domain hub + [[FEATURES]] / [[ROUTES]] / [[DATABASE]] if surface area changed.
-6. Pre-commit hook runs `scripts/sync-docs-pre-commit.ts` automatically on staged code.
+1. **Classify into MEMORY/** — [[tasks]], [[decisions]], [[insights]], or [[mistakes]] as appropriate; update [[active_memory]] if focus shifted.
+2. Append [[CHANGELOG]] with date, commits, and areas touched.
+3. Update [[CURRENT_STATE]] if priorities or status changed.
+4. Move bug entries in [[BUGS]] (open → resolved).
+5. Add [[DECISIONS]] entry for architectural choices (+ one line in [[decisions]]).
+6. Update domain hub + [[features]] / [[ROUTES]] / [[DATABASE]] if surface area changed.
+7. Pre-commit hook runs `scripts/sync-docs-pre-commit.ts` automatically on staged code.
+
+### Memory classification (required)
+
+**Any new information must be classified before being written.**
+
+| Type | File |
+|------|------|
+| Actionable | [[tasks]] |
+| Idea | [[ideas]] |
+| Decision | [[decisions]] (+ [[DECISIONS]] if ADR) |
+| Insight | [[insights]] |
+| Mistake | [[mistakes]] |
+| Focus shift | [[active_memory]] |
+
+Never dump unstructured notes into SYSTEM/ or PROJECT/ files.
 
 ### Where to act (admin)
 
@@ -177,6 +194,6 @@ Copy [[HANDOVER]] into the chat, or say: *"Read `docs/START_HERE.md` and follow 
 
 ## Related
 
-[[README]] · [[AI_CONTEXT]] · [[HANDOVER]] · [[CURRENT_STATE]] · [[ARCHITECTURE]] · [[FEATURES]] · [[WORKFLOWS]]
+[[README]] · [[AI_CONTEXT]] · [[HANDOVER]] · [[CURRENT_STATE]] · [[ARCHITECTURE]] · [[features]] · [[WORKFLOWS]]
 
 *Last updated: 2026-06-21*

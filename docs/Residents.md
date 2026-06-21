@@ -2,7 +2,7 @@
 
 > Domain hub — verified tenants and per-resident admin command center.
 
-Cross-links: [[START_HERE]] · [[FEATURES#Residents directory]] · [[WORKFLOWS#Resident Onboarding]]
+Cross-links: [[START_HERE]] · [[features#Residents directory]] · [[WORKFLOWS#Resident Onboarding]]
 
 ---
 
@@ -25,7 +25,7 @@ Manage **confirmed tenants** after booking: financial summary, express collectio
 - [[Deposits]] wallet view per booking
 - [[Billing]] outstanding rent/electricity (via financial engine)
 
-See [[FEATURES#Residents directory]] and [[FEATURES#Resident hub]].
+See [[features#Residents directory]] and [[features#Resident hub]].
 
 ---
 

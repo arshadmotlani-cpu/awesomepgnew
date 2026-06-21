@@ -1,0 +1,8 @@
+.obsidian/
+.DS_Store
+*.tmp
+.auto-sync.lock
+.brain.lock
+.brain-last-classify
+.brain-last-semantic
+.brain-momentum

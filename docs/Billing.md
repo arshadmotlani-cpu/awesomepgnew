@@ -2,7 +2,7 @@
 
 > Domain hub — rent, electricity billing, payment proof approvals, and revenue operations.
 
-Cross-links: [[START_HERE]] · [[FEATURES#Billing hub]] · [[WORKFLOWS#Billing]]
+Cross-links: [[START_HERE]] · [[features#Billing hub]] · [[WORKFLOWS#Billing]]
 
 ---
 
@@ -25,7 +25,7 @@ Generate, track, and collect **monthly rent** and **electricity** charges for ac
 - Late fee calculation (1%/day from 6th)
 - Checkout-month pro-ration on [[Vacating]] notice
 
-See [[FEATURES#Billing hub]] · [[FEATURES#Electricity]] · [[FEATURES#Invoices]]
+See [[features#Billing hub]] · [[features#Electricity]] · [[features#Invoices]]
 
 ---
 

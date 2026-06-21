@@ -21,7 +21,7 @@ Cross-links: [[START_HERE]] · [[Vacating]] · [[WORKFLOWS#Refund Processing]]
 - Resident meter + UPI submission (gated by vacate date)
 - Status machine: `awaiting_resident_details` → … → `refund_paid` / `completed`
 
-See [[FEATURES#Checkout Settlements]]
+See [[features#Checkout Settlements]]
 
 ---
 

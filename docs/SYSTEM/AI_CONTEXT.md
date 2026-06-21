@@ -6,6 +6,61 @@
 
 ---
 
+## Vault brain rules (AI-readable knowledge system)
+
+This folder (`/Users/aashumotlani/awesomepg/docs`) is a **structured, Git-backed second brain** — the single source of truth for AI tools (Cursor, ChatGPT, Claude, Obsidian).
+
+| Rule | Meaning |
+|------|---------|
+| **Markdown is SSOT** | All knowledge lives in `.md` files here. Code comments and chat history are not authoritative. |
+| **Single responsibility** | Each file covers one domain or doc type (e.g. [[features]] = inventory, [[WORKFLOWS]] = processes). Do not merge unrelated topics into one file. |
+| **Incremental updates** | Append and edit sections in place. Never bulk-delete or rewrite entire files without explicit approval. |
+| **Preserve history** | [[CHANGELOG]] and [[DECISIONS]] are append-only. Move bugs open → resolved in [[BUGS]]; do not erase entries. |
+| **Wiki-link graph** | Connect notes with `[[Note Name]]` so Obsidian graph and AI link-following stay consistent. |
+| **Read order** | [[START_HERE]] → this file → [[CURRENT_STATE]] → domain hub → detail doc. |
+| **Code ↔ docs sync** | App repo pre-commit flags brain docs; vault syncs via `./scripts/brain-sync.sh` → GitHub |
+| **Clarity for agents** | Use headings, tables, and bullet lists. Prefer explicit routes, table names, and service file paths over vague prose. |
+
+**Entry point for any AI:** [[START_HERE]]
+
+---
+
+## Memory classification (required)
+
+**Any new information must be classified before being written** to SYSTEM/, PROJECT/, or domain hub files.
+
+| Type | File | Example |
+|------|------|---------|
+| Live focus / top priorities | [[active_memory]] | Current sprint focus |
+| Actionable work | [[tasks]] | "Verify deploy in production" |
+| Strategic idea (not yet decided) | [[ideas]] | "Inline approve from ops queue" |
+| Decision made | [[decisions]] | "Use Git-backed vault sync" |
+| Lesson / insight | [[insights]] | "Date objects crash RSC clients" |
+| Bug / problem | [[bugs]] | "Ops queue missing customerId" |
+| Mistake / failure | [[mistakes]] | "Duplicate billing math in UI" |
+| Vault / brain update | [[changelog]] | "Live brain system installed" |
+
+**After meaningful edits:** run `./scripts/brain-sync.sh` (see `.cursor/rules.md`).
+
+**Rules:**
+
+1. **No raw dumping** — never add unstructured thoughts to random files.
+2. **Append only** in MEMORY/ — never delete history.
+3. **Update [[active_memory]]** when focus, top 5 priorities, or constraints change.
+4. **Formal ADRs** still go to [[DECISIONS]]; log a one-line summary in [[decisions]] and cross-link.
+5. **SYSTEM/** and **PROJECT/** are stable references — update only when system truth changes, not for transient notes.
+
+```
+docs/
+├── MEMORY/     ← classify new info here first
+├── SYSTEM/     ← AI_CONTEXT, CURRENT_STATE, WORKFLOWS
+├── PROJECT/    ← features, roadmap
+├── START_HERE.md, HANDOVER.md
+└── domain hubs (Residents.md, Billing.md, …)
+```
+
+---
+
 ## Project overview
 
 **Awesome PG** is a production SaaS for managing paying-guest (PG) accommodations in India. It covers public booking, resident billing (rent + electricity + deposit), KYC, bed inventory, vacating/checkout, and admin operations across multiple properties.
@@ -146,7 +201,7 @@ Routes index: [[ROUTES]].
 
 - [[START_HERE]] — single AI entry point
 - [[CURRENT_STATE]] — priorities, bugs, debt
-- [[FEATURES]] — feature inventory
+- [[features]] — feature inventory
 - [[WORKFLOWS]] — step-by-step flows
 - [[DATABASE]] — tables & relationships
 - [[ROUTES]] — all routes

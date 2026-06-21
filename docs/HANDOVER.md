@@ -127,7 +127,7 @@ Billing math tests: `tests/unit/billing.test.ts`
 |------|---------|
 | [[AI_CONTEXT]] | AI onboarding |
 | [[CURRENT_STATE]] | Priorities + debt |
-| [[FEATURES]] | Feature inventory |
+| [[features]] | Feature inventory |
 | [[WORKFLOWS]] | Step-by-step flows |
 | [[DATABASE]] | Tables + relations |
 | [[ROUTES]] | All routes |

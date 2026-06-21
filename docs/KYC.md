@@ -2,7 +2,7 @@
 
 > Domain hub — identity verification (Aadhaar + selfie) before bed assignment.
 
-Cross-links: [[START_HERE]] · [[FEATURES#KYC review]] · [[WORKFLOWS#KYC Approval]]
+Cross-links: [[START_HERE]] · [[features#KYC review]] · [[WORKFLOWS#KYC Approval]]
 
 ---
 
@@ -21,7 +21,7 @@ Verify resident identity for **website signups** before admin can assign a bed. 
 - [[Operations]] KYC pending action items
 - Gate for [[Bed Assignment]] on website bookings
 
-See [[FEATURES#KYC review]]
+See [[features#KYC review]]
 
 ---
 

@@ -3,7 +3,7 @@
 > All application routes as of **2026-06-21**. Canonical paths marked **bold**.  
 > Source: `app/**/page.tsx`, `feature-inventory.md`, `src/lib/admin/navigation.ts`.
 
-Cross-links: [[FEATURES]] · [[ARCHITECTURE]] · [[Operations]] · [[Billing]] · [[Vacating]]
+Cross-links: [[features]] · [[ARCHITECTURE]] · [[Operations]] · [[Billing]] · [[Vacating]]
 
 ---
 
@@ -233,4 +233,4 @@ See [[DECISIONS#Operations as action hub]].
 
 ## Related
 
-[[FEATURES]] · [[DATABASE]] · [[ARCHITECTURE]] · [[AI_CONTEXT]]
+[[features]] · [[DATABASE]] · [[ARCHITECTURE]] · [[AI_CONTEXT]]

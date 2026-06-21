@@ -1,6 +1,6 @@
 # Workflows
 
-> Step-by-step business flows. Cross-ref: [[FEATURES]] · [[DATABASE]] · [[ARCHITECTURE]] · [[DECISIONS]] · [[BUGS]] · [[CHANGELOG]]
+> Step-by-step business flows. Cross-ref: [[features]] · [[DATABASE]] · [[ARCHITECTURE]] · [[DECISIONS]] · [[BUGS]] · [[CHANGELOG]]
 
 ---
 
@@ -163,7 +163,7 @@ flowchart TD
 
 ## Related
 
-[[FEATURES]] · [[Vacating]] · [[Billing]] · [[KYC]] · [[Bed Assignment]] · [[DATABASE]]
+[[features]] · [[Vacating]] · [[Billing]] · [[KYC]] · [[Bed Assignment]] · [[DATABASE]]
 
 <!-- DOC_SYNC_TOUCH_2026-06-21 -->
 > **2026-06-21 18:33:10 UTC** — Code changed in: Vacating. Manual review recommended.

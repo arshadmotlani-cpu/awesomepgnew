@@ -27,7 +27,7 @@ Cross-links: [[ARCHITECTURE]] · [[WORKFLOWS]] · [[AI_CONTEXT]] · [[BUGS]]
 | **Decision** | All resident outstanding/required/paid figures flow through `residentFinancialEngine.ts` |
 | **Reason** | Eliminated inconsistent totals across profile, revenue, operations, WhatsApp |
 | **Impact** | UI must call `getResidentFinancialSummary()` / `getBookingFinancialSummary()` — no inline SUM queries |
-| **See** | [[ARCHITECTURE#Financial core]], [[FEATURES#Residents]] |
+| **See** | [[ARCHITECTURE#Financial core]], [[features#Residents]] |
 
 ---
 
@@ -87,7 +87,7 @@ Cross-links: [[ARCHITECTURE]] · [[WORKFLOWS]] · [[AI_CONTEXT]] · [[BUGS]]
 | **Decision** | All move-out refunds flow through `checkout_settlements` linked to `vacating_requests` |
 | **Reason** | Single admin surface for electricity + notice deduction + deposit payout |
 | **Impact** | Deprecated `/admin/requests` for new work; use `/admin/checkout-settlements/[id]` |
-| **See** | [[FEATURES#Checkout Settlements]] |
+| **See** | [[features#Checkout Settlements]] |
 
 ---
 
@@ -159,7 +159,7 @@ Cross-links: [[ARCHITECTURE]] · [[WORKFLOWS]] · [[AI_CONTEXT]] · [[BUGS]]
 | **Decision** | `action_items.source_key` UNIQUE — sync upserts, never duplicates |
 | **Reason** | Safe to run cron + manual sync repeatedly |
 | **Impact** | `actionItems.syncActionItems()` |
-| **See** | [[FEATURES#Action Center]] |
+| **See** | [[features#Action Center]] |
 
 ---
 

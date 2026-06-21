@@ -26,7 +26,7 @@
         "src/services/residentFinancialEngine.ts",
         "src/lib/billing/"
       ],
-      "docs": ["FEATURES.md", "WORKFLOWS.md", "ARCHITECTURE.md"]
+      "docs": ["PROJECT/features.md", "SYSTEM/WORKFLOWS.md", "ARCHITECTURE.md"]
     },
     {
       "id": "vacating",
@@ -41,7 +41,7 @@
         "app/(admin)/admin/vacating/",
         "app/(admin)/admin/checkout-settlements/"
       ],
-      "docs": ["FEATURES.md", "WORKFLOWS.md", "DECISIONS.md"]
+      "docs": ["PROJECT/features.md", "SYSTEM/WORKFLOWS.md", "DECISIONS.md"]
     },
     {
       "id": "deposits",
@@ -52,7 +52,7 @@
         "src/services/depositOperations.ts",
         "app/(admin)/admin/deposits/"
       ],
-      "docs": ["FEATURES.md", "WORKFLOWS.md"]
+      "docs": ["PROJECT/features.md", "SYSTEM/WORKFLOWS.md"]
     },
     {
       "id": "electricity",
@@ -63,7 +63,7 @@
         "src/services/meterElectricity.ts",
         "app/(admin)/admin/electricity/"
       ],
-      "docs": ["FEATURES.md", "WORKFLOWS.md"]
+      "docs": ["PROJECT/features.md", "SYSTEM/WORKFLOWS.md"]
     },
     {
       "id": "bed-assignment",
@@ -78,14 +78,14 @@
         "app/(admin)/admin/pgs/",
         "app/(admin)/admin/beds/"
       ],
-      "docs": ["FEATURES.md", "WORKFLOWS.md", "DECISIONS.md"]
+      "docs": ["PROJECT/features.md", "SYSTEM/WORKFLOWS.md", "DECISIONS.md"]
     },
     {
       "id": "kyc",
       "label": "KYC",
       "wiki": "KYC",
       "patterns": ["src/services/kyc.ts", "app/(admin)/admin/residents/kyc/", "src/lib/kyc/"],
-      "docs": ["FEATURES.md", "WORKFLOWS.md"]
+      "docs": ["PROJECT/features.md", "SYSTEM/WORKFLOWS.md"]
     },
     {
       "id": "residents",
@@ -98,7 +98,7 @@
         "app/(admin)/admin/residents/",
         "app/(admin)/admin/operations/"
       ],
-      "docs": ["FEATURES.md", "WORKFLOWS.md", "CURRENT_STATE.md"]
+      "docs": ["PROJECT/features.md", "SYSTEM/WORKFLOWS.md", "SYSTEM/CURRENT_STATE.md"]
     },
     {
       "id": "action-center",
@@ -111,7 +111,7 @@
         "app/(admin)/admin/actions/",
         "app/(admin)/admin/overview/"
       ],
-      "docs": ["FEATURES.md", "ARCHITECTURE.md"]
+      "docs": ["PROJECT/features.md", "ARCHITECTURE.md"]
     },
     {
       "id": "bookings",
@@ -123,7 +123,7 @@
         "app/(customer)/booking/",
         "app/(admin)/admin/bookings/"
       ],
-      "docs": ["FEATURES.md", "WORKFLOWS.md"]
+      "docs": ["PROJECT/features.md", "SYSTEM/WORKFLOWS.md"]
     },
     {
       "id": "auth",
@@ -133,5 +133,5 @@
       "docs": ["ARCHITECTURE.md"]
     }
   ],
-  "alwaysUpdate": ["CHANGELOG.md", "CURRENT_STATE.md"]
+  "alwaysUpdate": ["CHANGELOG.md", "SYSTEM/CURRENT_STATE.md"]
 }

@@ -20,7 +20,7 @@ Cross-links: [[START_HERE]] · [[Billing]] · [[DECISIONS#Unified financial_invo
 - Mirrors rent, electricity, deposit, custom charges
 - Cancel/refund through unified layer
 
-See [[FEATURES#Invoices (unified)]]
+See [[features#Invoices (unified)]]
 
 ---
 

@@ -2,7 +2,7 @@
 
 > Domain hub — room inventory within a PG property (capacity, type, beds).
 
-Cross-links: [[START_HERE]] · [[FEATURES#PG / room / bed CRUD]] · [[DATABASE#Inventory & property]]
+Cross-links: [[START_HERE]] · [[features#PG / room / bed CRUD]] · [[DATABASE#Inventory & property]]
 
 ---
 
@@ -22,7 +22,7 @@ Define **room units** inside each PG: room number, type, capacity, and contained
 - [[Electricity]] — meter readings at room level
 - Pricing tiers via `bed_prices` on individual beds
 
-See [[FEATURES#PG / room / bed CRUD]]
+See [[features#PG / room / bed CRUD]]
 
 ---
 

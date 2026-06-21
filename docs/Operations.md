@@ -2,7 +2,7 @@
 
 > Domain hub — the single priority queue where operators act on rent, KYC, beds, move-outs, and refunds.
 
-Cross-links: [[START_HERE]] · [[FEATURES#Operations center]] · [[DECISIONS#Operations as action hub]]
+Cross-links: [[START_HERE]] · [[features#Operations center]] · [[DECISIONS#Operations as action hub]]
 
 ---
 
@@ -23,7 +23,7 @@ Cross-links: [[START_HERE]] · [[FEATURES#Operations center]] · [[DECISIONS#Ope
 - Checkout settlement deep links when vacate approved
 - [[Notifications]] admin feed mirror
 
-See [[FEATURES#Operations center]] · [[FEATURES#Action Center]]
+See [[features#Operations center]] · [[features#Action Center]]
 
 ---
 

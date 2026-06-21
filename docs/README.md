@@ -5,15 +5,30 @@
 
 ---
 
+## Memory architecture (auto-structured)
+
+All new information must be **classified into MEMORY/** before writing elsewhere.
+
+| Folder | Role |
+|--------|------|
+| `MEMORY/` | [[active_memory]], [[tasks]], [[ideas]], [[decisions]], [[insights]], [[mistakes]] — append-only |
+| `SYSTEM/` | [[AI_CONTEXT]], [[CURRENT_STATE]], [[WORKFLOWS]] — stable system truth |
+| `PROJECT/` | [[features]], [[roadmap]] — product inventory & direction |
+
+See [[AI_CONTEXT#Memory classification (required)]].
+
+---
+
 ## Core documents (maintain with every code change)
 
 | Note | Purpose |
 |------|---------|
 | [[START_HERE]] | **Single AI entry point** — read first |
-| [[AI_CONTEXT]] | Rules, SSOT map, quick reference |
+| [[active_memory]] | Live focus + top 5 priorities |
+| [[AI_CONTEXT]] | Rules, SSOT map, memory classification |
 | [[HANDOVER]] | Paste-ready summary for any AI |
 | [[CURRENT_STATE]] | Priorities, completed, bugs, debt |
-| [[FEATURES]] | Full feature inventory |
+| [[features]] | Full feature inventory |
 | [[WORKFLOWS]] | Business process steps |
 | [[DATABASE]] | Tables, relationships, constraints |
 | [[ROUTES]] | All app routes by module |
@@ -57,15 +72,14 @@
 ## Graph clusters (how notes connect)
 
 ```
-AI_CONTEXT ──┬── ARCHITECTURE ── DATABASE
-             ├── WORKFLOWS ── FEATURES
-             ├── ROUTES
-             ├── CURRENT_STATE ── BUGS ── CHANGELOG
-             └── DECISIONS
-
-Residents ── KYC ── Bed Assignment
-Billing ── Electricity ── Invoices ── Deposits
-Vacating ── Checkout Settlements ── Operations
+START_HERE ── MEMORY/active_memory ── SYSTEM/AI_CONTEXT
+     │              ├── tasks · ideas · decisions
+     │              └── insights · mistakes
+     ├── SYSTEM/WORKFLOWS ── features (PROJECT/)
+     ├── ARCHITECTURE ── DATABASE
+     ├── ROUTES
+     ├── CURRENT_STATE ── BUGS ── CHANGELOG
+     └── DECISIONS
 ```
 
 ---
@@ -80,6 +94,38 @@ Vacating ── Checkout Settlements ── Operations
 | `risk-report.md` | Financial risk inventory |
 | `redesign-roadmap.md` | Phase 2 UX roadmap |
 | `phase2/` | P0/P1 module completion checklists |
+
+---
+
+## Live brain sync (MEMORY engine)
+
+| Script | Role |
+|--------|------|
+| `.cursor/rules.md` | Cursor memory engine rules (classify → MEMORY → git) |
+| `scripts/brain-sync.sh` | Commit `brain: auto memory sync` + push |
+| `scripts/brain-watch.sh` | fswatch → brain-sync on every change |
+| `scripts/auto-sync.sh` | Alias-style sync (same safe behavior) |
+
+```bash
+# After editing MEMORY/ or any vault file
+./scripts/brain-sync.sh
+
+# True live loop (background)
+./scripts/brain-watch.sh
+```
+
+**GitHub:** https://github.com/arshadmotlani-cpu/awesomepg-docs
+
+---
+
+## Vault Git (standalone knowledge repo)
+
+This folder is its own Git repository for syncing the AI brain independently of the app codebase.
+
+| Path | Role |
+|------|------|
+| `/Users/aashumotlani/awesomepg/docs` | Vault root — open this in Obsidian |
+| `MEMORY/` | Classified append-only memory (8 files) |
 
 ---
 
@@ -102,7 +148,7 @@ Mapping lives in `scripts/doc-sync-mapping.json` (path patterns → brain docs).
 1. **Any code change** → update [[CHANGELOG]] + affected domain docs + [[CURRENT_STATE]] if priority shifts (pre-commit helps with 1)
 2. **Architectural choice** → append [[DECISIONS]]
 3. **Bug fix** → move entry in [[BUGS]]
-4. **New route/feature** → [[ROUTES]] + [[FEATURES]]
+4. **New route/feature** → [[ROUTES]] + [[features]]
 5. **Schema migration** → [[DATABASE]]
 6. Use `[[Wiki Links]]` so Obsidian graph stays connected
 
@@ -126,21 +172,14 @@ Mapping lives in `scripts/doc-sync-mapping.json` (path patterns → brain docs).
 
 ```
 docs/
+├── MEMORY/                ← classify new info here first
+├── SYSTEM/                ← AI_CONTEXT, CURRENT_STATE, WORKFLOWS
+├── PROJECT/               ← features, roadmap
 ├── README.md              ← Obsidian vault index
 ├── START_HERE.md          ← AI entry point (read first)
-├── AI_CONTEXT.md
 ├── HANDOVER.md
-├── CURRENT_STATE.md
-├── FEATURES.md
-├── WORKFLOWS.md
-├── DATABASE.md
-├── ROUTES.md
-├── ARCHITECTURE.md
-├── DECISIONS.md
-├── BUGS.md
-├── CHANGELOG.md
-├── Residents.md … Operations.md  ← domain hubs
-└── (Bed Assignment.md, etc.)
+├── DATABASE.md · ROUTES.md · ARCHITECTURE.md · …
+└── Residents.md … Operations.md  ← domain hubs
 ```
 
 ---

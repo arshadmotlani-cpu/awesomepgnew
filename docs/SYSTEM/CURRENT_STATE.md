@@ -91,7 +91,7 @@ See [[BUGS]] for full list. Highlights:
 
 ## Related
 
-[[README]] · [[AI_CONTEXT]] · [[FEATURES]] · [[ARCHITECTURE]] · [[ROUTES]] · [[BUGS]] · [[CHANGELOG]] · [[HANDOVER]]
+[[README]] · [[AI_CONTEXT]] · [[features]] · [[ARCHITECTURE]] · [[ROUTES]] · [[BUGS]] · [[CHANGELOG]] · [[HANDOVER]]
 
 <!-- DOC_SYNC_STATE_START -->
 ## Automated doc sync

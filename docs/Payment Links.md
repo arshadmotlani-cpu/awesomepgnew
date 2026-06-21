@@ -20,7 +20,7 @@ Admins create **one-time or reusable payment links** residents open to pay via U
 - Public pay — `/pay/[linkId]`
 - Used in [[WORKFLOWS#Billing]] collection flow
 
-See [[FEATURES#Payment links (public)]] · [[FEATURES#Payment Links (admin)]]
+See [[features#Payment links (public)]] · [[features#Payment Links (admin)]]
 
 ---
 

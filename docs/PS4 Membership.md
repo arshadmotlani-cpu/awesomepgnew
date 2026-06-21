@@ -2,7 +2,7 @@
 
 > Domain hub — optional PlayStation 4 membership add-on for residents.
 
-Cross-links: [[START_HERE]] · [[FEATURES#PS4 membership]]
+Cross-links: [[START_HERE]] · [[features#PS4 membership]]
 
 ---
 
@@ -12,7 +12,7 @@ Residents subscribe to **PS4 membership** as an add-on; admins manage membership
 
 **Entry:** `/admin/playstation`, `/account/resident/ps4/new`, `/account/resident/pay-ps4/[membershipId]`
 
-See [[FEATURES#PS4 membership]]
+See [[features#PS4 membership]]
 
 ---
 

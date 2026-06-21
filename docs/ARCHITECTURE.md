@@ -284,7 +284,7 @@ flowchart TB
 
 - Deep product spec: [[AWESOME_PG_MASTER_DOCUMENTATION_V2]]
 - Legacy v1: [[AWESOME_PG_MASTER_DOCUMENTATION]]
-- Feature list: [[FEATURES]]
+- Feature list: [[features]]
 - Routes: [[ROUTES]]
 
 [[AI_CONTEXT]] · [[DATABASE]] · [[WORKFLOWS]]

@@ -2,7 +2,7 @@
 
 > Domain hub — security deposit wallet, collection, deductions, and refund ledger.
 
-Cross-links: [[START_HERE]] · [[FEATURES#Deposits]] · [[WORKFLOWS#Deposit Collection]]
+Cross-links: [[START_HERE]] · [[features#Deposits]] · [[WORKFLOWS#Deposit Collection]]
 
 ---
 
@@ -23,7 +23,7 @@ Track **security deposits** per booking: required amount, collection at checkout
 - Refund via [[Checkout Settlements]]
 - Express collection on [[Residents]] profile
 
-See [[FEATURES#Deposits]]
+See [[features#Deposits]]
 
 ---
 

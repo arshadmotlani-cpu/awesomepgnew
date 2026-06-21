@@ -24,7 +24,7 @@ Cross-links: [[START_HERE]] · [[Beds]] · [[WORKFLOWS#Bed Assignment]]
 - Future assignment filter (monthly / open_ended modes)
 - SSOT alignment (`88a16e8`)
 
-See [[FEATURES#Bed Assignment / bed map]]
+See [[features#Bed Assignment / bed map]]
 
 ---
 

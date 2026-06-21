@@ -23,6 +23,9 @@
 # misc
 .DS_Store
 *.pem
+.auto-sync.lock
+.brain.lock
+.obsidian/
 
 # debug
 npm-debug.log*

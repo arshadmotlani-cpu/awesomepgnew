@@ -1,0 +1,38 @@
+---
+description: Live AI brain — classify into MEMORY/, update active_memory, run brain-sync
+globs:
+  - docs/**
+alwaysApply: true
+---
+
+# Awesome PG — Live AI brain (MEMORY engine)
+
+Vault: `/Users/aashumotlani/awesomepg/docs` · Rules: `docs/.cursor/rules.md`
+
+## Classify before writing
+
+| Type | File |
+|------|------|
+| Live focus, blockers, priorities | `docs/MEMORY/active_memory.md` |
+| Actionable work | `docs/MEMORY/tasks.md` |
+| Strategic idea | `docs/MEMORY/ideas.md` |
+| Decision made | `docs/MEMORY/decisions.md` |
+| Insight / lesson | `docs/MEMORY/insights.md` |
+| Bug / problem | `docs/MEMORY/bugs.md` |
+| Mistake / failure | `docs/MEMORY/mistakes.md` |
+| Vault update | `docs/MEMORY/changelog.md` |
+
+Formal registries: `docs/BUGS.md`, `docs/CHANGELOG.md`, `docs/DECISIONS.md` — cross-link from MEMORY.
+
+## After meaningful vault edits
+
+1. Append to the correct MEMORY file (never delete history)
+2. Update `active_memory.md` if focus, blockers, or priorities changed
+3. Append one line to `MEMORY/changelog.md`
+4. Run: `cd docs && ./scripts/brain-sync.sh`
+
+## Do not
+
+- Dump unstructured notes into SYSTEM/ or PROJECT/
+- Overwrite or delete MEMORY history
+- Force-push the vault repo

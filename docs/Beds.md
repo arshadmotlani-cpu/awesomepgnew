@@ -24,7 +24,7 @@ A **bed** is the smallest bookable inventory unit. Each bed belongs to a [[Rooms
 - GiST EXCLUDE overlap prevention on reservations
 - SSOT alignment fix (`88a16e8`) — map vs residents list
 
-See [[FEATURES#Bed Assignment / bed map]]
+See [[features#Bed Assignment / bed map]]
 
 ---
 

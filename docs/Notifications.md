@@ -23,7 +23,7 @@ Keep operators and residents informed about **actionable events**: rent overdue,
 - Email: vacating updates, billing reminders (automation cron)
 - WhatsApp / payment link execution from action items
 
-See [[FEATURES#Action Center]] · [[WORKFLOWS#Notifications]]
+See [[features#Action Center]] · [[WORKFLOWS#Notifications]]
 
 ---
 

@@ -21,7 +21,7 @@ Admin records **room-level meter readings**; system splits cost among active mon
 - Tab in [[Billing]] hub
 - Checkout placeholder until meter reading ([[WORKFLOWS#Billing]])
 
-See [[FEATURES#Electricity]]
+See [[features#Electricity]]
 
 ---
 

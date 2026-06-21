@@ -2,7 +2,7 @@
 
 > Domain hub — admin traffic and usage analytics (non-financial).
 
-Cross-links: [[START_HERE]] · [[FEATURES#Analytics]]
+Cross-links: [[START_HERE]] · [[features#Analytics]]
 
 ---
 
@@ -12,7 +12,7 @@ Cross-links: [[START_HERE]] · [[FEATURES#Analytics]]
 
 **Entry:** `/admin/analytics`
 
-See [[FEATURES#Analytics]] · [[ARCHITECTURE#Admin modules]]
+See [[features#Analytics]] · [[ARCHITECTURE#Admin modules]]
 
 ---
 

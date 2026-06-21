@@ -2,7 +2,7 @@
 
 > Domain hub — move-out notice, approval, checkout-month rent, and handoff to refund settlement.
 
-Cross-links: [[START_HERE]] · [[FEATURES#Vacating pipeline]] · [[WORKFLOWS#Vacating]]
+Cross-links: [[START_HERE]] · [[features#Vacating pipeline]] · [[WORKFLOWS#Vacating]]
 
 ---
 
@@ -23,7 +23,7 @@ Manage the **move-out lifecycle**: resident files notice → admin approves → 
 - Resident timeline (meter/refund locked until vacate date)
 - Rich approve dialog + pipeline table (urgency, deposits, timestamps)
 
-See [[FEATURES#Vacating pipeline]] · [[FEATURES#Request vacate]] · [[FEATURES#Deposit refund request]]
+See [[features#Vacating pipeline]] · [[features#Request vacate]] · [[features#Deposit refund request]]
 
 ---
 

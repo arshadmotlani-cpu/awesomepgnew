@@ -20,7 +20,7 @@ Derive **actionable tasks** from live database state (`syncActionItems()`), dedu
 - Types: rent_due, electricity_due, kyc_pending, vacating, payment_proof, etc.
 - Action Drawer on `/admin/operations`
 
-See [[FEATURES#Action Center]]
+See [[features#Action Center]]
 
 ---
 

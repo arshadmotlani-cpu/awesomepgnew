@@ -273,4 +273,4 @@ Append-only: entity, action, diff JSON — all financial mutations.
 
 ## Related
 
-[[ROUTES]] · [[ARCHITECTURE]] · [[FEATURES]] · [[AI_CONTEXT]]
+[[ROUTES]] · [[ARCHITECTURE]] · [[features]] · [[AI_CONTEXT]]

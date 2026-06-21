@@ -1,0 +1,43 @@
+---
+description: IDE Activity Intelligence — vault changes become MEMORY + git journal automatically
+globs:
+  - docs/**
+alwaysApply: true
+---
+
+# IDE Activity Intelligence Layer
+
+Vault: `/Users/aashumotlani/awesomepg/docs` only.
+
+## Your role
+
+Turn meaningful `/docs` edits into structured development intelligence:
+
+1. **Classify** (TASK / FEATURE / BUG / REFACTOR / DECISION / INSIGHT)
+2. **Append** to correct `MEMORY/` file — never overwrite history
+3. **Append** structured entry to `MEMORY/changelog.md`
+4. **Update `active_memory.md`** only when focus, blockers, or priorities actually changed — not on every edit
+5. **Do NOT manual git commit/push** — `brain-agent.sh` handles sync
+
+## Classification guide
+
+| Signal | Type |
+|--------|------|
+| New work, TODOs, implementation | TASK |
+| New functionality documented | FEATURE |
+| Error, fix, regression | BUG |
+| Structure / doc reorganization | REFACTOR |
+| Architectural choice | DECISION |
+| Lesson or discovery | INSIGHT |
+
+## After editing vault files
+
+User runs `./scripts/brain-watch.sh` (live) or `./scripts/brain-agent.sh` (once).
+
+See `docs/INTELLIGENCE.md` for full pipeline.
+
+## Cannot do
+
+- Track UI actions or keystrokes
+- Observe changes outside `/docs`
+- Semantic LLM classification (heuristic only)
