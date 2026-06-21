@@ -6,7 +6,9 @@ import { and, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
   beds,
+  bookings,
   customers,
+  depositLedger,
   electricityBills,
   electricityInvoices,
   financialInvoices,
@@ -184,6 +186,77 @@ export async function syncRentInvoiceToUnified(rentInvoiceId: string): Promise<s
 
   await logInvoiceAudit(row.id, 'created', { source: 'rent_invoices', rentInvoiceId });
   return row.id;
+}
+
+/** Attach deposit collected + booking context to express walk-in unified invoices. */
+export async function enrichExpressWalkInUnifiedBreakdown(
+  bookingId: string,
+  financialInvoiceId: string,
+): Promise<void> {
+  const [booking] = await db
+    .select({
+      depositPaise: bookings.depositPaise,
+      depositDuePaise: bookings.depositDuePaise,
+      notes: bookings.notes,
+    })
+    .from(bookings)
+    .where(eq(bookings.id, bookingId))
+    .limit(1);
+  if (!booking) return;
+
+  const [collected] = await db
+    .select({
+      total: sql<number>`coalesce(sum(${depositLedger.amountPaise}), 0)::bigint::int`,
+    })
+    .from(depositLedger)
+    .where(and(eq(depositLedger.bookingId, bookingId), eq(depositLedger.entryKind, 'collected')));
+
+  const depositCollectedPaise = Number(collected?.total ?? 0);
+  const depositOutstandingPaise = Math.max(0, booking.depositDuePaise ?? 0);
+
+  const [inv] = await db
+    .select({ breakdown: financialInvoices.breakdown, amountPaise: financialInvoices.amountPaise })
+    .from(financialInvoices)
+    .where(eq(financialInvoices.id, financialInvoiceId))
+    .limit(1);
+  if (!inv) return;
+
+  const breakdown: InvoiceBreakdown = {
+    ...(inv.breakdown ?? {}),
+    rentPaise: inv.breakdown?.rentPaise ?? inv.amountPaise,
+    depositPaise: depositCollectedPaise,
+    depositRequiredPaise: booking.depositPaise,
+    depositOutstandingPaise,
+    paidPaise: (inv.breakdown?.rentPaise ?? inv.amountPaise) + depositCollectedPaise,
+    lines: [
+      ...(inv.breakdown?.lines ?? [{ kind: 'rent', label: 'Rent', amountPaise: inv.amountPaise }]),
+      ...(depositCollectedPaise > 0
+        ? [{ kind: 'deposit' as const, label: 'Deposit collected', amountPaise: depositCollectedPaise }]
+        : []),
+    ],
+  };
+
+  await db
+    .update(financialInvoices)
+    .set({ breakdown, notes: booking.notes, updatedAt: new Date() })
+    .where(eq(financialInvoices.id, financialInvoiceId));
+}
+
+export async function requireRentUnifiedInvoice(bookingId: string): Promise<string> {
+  const [rent] = await db
+    .select({ id: rentInvoices.id })
+    .from(rentInvoices)
+    .where(eq(rentInvoices.bookingId, bookingId))
+    .limit(1);
+  if (!rent) {
+    throw new Error('Rent invoice missing after express collection.');
+  }
+  const unifiedId = await syncRentInvoiceToUnified(rent.id);
+  if (!unifiedId) {
+    throw new Error('Unified invoice sync failed.');
+  }
+  await enrichExpressWalkInUnifiedBreakdown(bookingId, unifiedId);
+  return unifiedId;
 }
 
 export async function syncElectricityInvoiceToUnified(

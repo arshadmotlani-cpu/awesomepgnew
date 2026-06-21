@@ -185,6 +185,15 @@ export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
     else if (depositPaid > 0 || rentPaid > 0) setPaymentStatus('paid');
   }, [pendingDeposit, depositPaid, rentPaid]);
 
+  useEffect(() => {
+    if (paymentStatus === 'paid' && rentAmount > 0) {
+      setRentPaidInr((prev) => {
+        if (prev.trim()) return prev;
+        return rentAmountInr;
+      });
+    }
+  }, [paymentStatus, rentAmount, rentAmountInr]);
+
   function resetUser() {
     setCustomerId(undefined);
     setFullName('');

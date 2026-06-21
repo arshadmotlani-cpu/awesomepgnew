@@ -291,6 +291,14 @@ export async function executeExpressWalkInSale(
     }
     rentRecordedPaise = rentPaid;
     rentInvoiceNumber = rent.invoiceNumber ?? null;
+
+    try {
+      const { requireRentUnifiedInvoice } = await import('@/src/services/unifiedInvoices');
+      await requireRentUnifiedInvoice(bookingId);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Invoice sync failed after rent collection.';
+      return failAfterBooking(message);
+    }
   }
 
   try {

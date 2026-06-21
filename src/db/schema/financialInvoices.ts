@@ -22,6 +22,8 @@ export type InvoiceBreakdown = {
   rentPaise?: number;
   electricityPaise?: number;
   depositPaise?: number;
+  depositRequiredPaise?: number;
+  depositOutstandingPaise?: number;
   ps4Paise?: number;
   otherPaise?: number;
   lateFeePaise?: number;

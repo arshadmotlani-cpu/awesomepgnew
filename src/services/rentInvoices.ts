@@ -40,6 +40,7 @@ import {
   bookings,
   customers,
   financialInvoices,
+  floors,
   payments,
   pgs,
   rentInvoices,
@@ -235,6 +236,126 @@ export type EnsureMonthlyRentInvoiceResult =
   | { ok: true; invoiceId: string; invoiceNumber: string; created: boolean; status: string }
   | { ok: false; error: string };
 
+async function ensureFixedStayRentInvoice(input: {
+  bookingId: string;
+  billingMonth: string;
+  amountPaise?: number;
+}): Promise<EnsureMonthlyRentInvoiceResult> {
+  const [existing] = await db
+    .select({
+      id: rentInvoices.id,
+      invoiceNumber: rentInvoices.invoiceNumber,
+      status: rentInvoices.status,
+      rentPaise: rentInvoices.rentPaise,
+    })
+    .from(rentInvoices)
+    .where(
+      and(
+        eq(rentInvoices.bookingId, input.bookingId),
+        eq(rentInvoices.billingMonth, input.billingMonth),
+      ),
+    )
+    .limit(1);
+
+  if (existing) {
+    if (existing.status === 'payment_in_progress') {
+      return {
+        ok: false,
+        error: 'Rent payment is in progress for this month — cannot modify or re-collect.',
+      };
+    }
+    if (existing.status === 'paid') {
+      return {
+        ok: true,
+        invoiceId: existing.id,
+        invoiceNumber: existing.invoiceNumber,
+        created: false,
+        status: existing.status,
+      };
+    }
+    if (existing.status === 'cancelled') {
+      return {
+        ok: false,
+        error: 'Rent invoice was cancelled. Re-generate from the billing queue first.',
+      };
+    }
+    if (input.amountPaise && input.amountPaise !== existing.rentPaise) {
+      await db
+        .update(rentInvoices)
+        .set({ rentPaise: input.amountPaise, updatedAt: new Date() })
+        .where(eq(rentInvoices.id, existing.id));
+      const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
+      await syncRentInvoiceToUnified(existing.id);
+    }
+    return {
+      ok: true,
+      invoiceId: existing.id,
+      invoiceNumber: existing.invoiceNumber,
+      created: false,
+      status: existing.status,
+    };
+  }
+
+  const [ctx] = await db
+    .select({
+      customerId: bookings.customerId,
+      bedId: bedReservations.bedId,
+      pgId: pgs.id,
+      totalPaise: bookings.totalPaise,
+      depositPaise: bookings.depositPaise,
+      stayStart: sql<string>`to_char(lower(${bedReservations.stayRange}), 'YYYY-MM-DD')`,
+    })
+    .from(bookings)
+    .innerJoin(
+      bedReservations,
+      and(eq(bedReservations.bookingId, bookings.id), eq(bedReservations.kind, 'primary')),
+    )
+    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
+    .innerJoin(floors, eq(floors.id, rooms.floorId))
+    .innerJoin(pgs, eq(pgs.id, floors.pgId))
+    .where(eq(bookings.id, input.bookingId))
+    .limit(1);
+
+  if (!ctx?.bedId || !ctx.pgId) {
+    return { ok: false, error: 'Booking bed context missing for fixed-stay rent invoice.' };
+  }
+
+  const amountPaise =
+    input.amountPaise ?? Math.max(0, ctx.totalPaise - ctx.depositPaise);
+  if (amountPaise <= 0) {
+    return { ok: false, error: 'Fixed-stay rent amount must be greater than zero.' };
+  }
+
+  const created = await createAdhocRentInvoice({
+    bookingId: input.bookingId,
+    customerId: ctx.customerId,
+    bedId: ctx.bedId,
+    pgId: ctx.pgId,
+    amountPaise,
+    title: 'Fixed stay rent',
+    dueDate: ctx.stayStart,
+  });
+
+  if (!created.ok) {
+    return { ok: false, error: created.error };
+  }
+
+  const [row] = await db
+    .select({ status: rentInvoices.status })
+    .from(rentInvoices)
+    .where(eq(rentInvoices.id, created.invoiceId))
+    .limit(1);
+
+  return {
+    ok: true,
+    invoiceId: created.invoiceId,
+    invoiceNumber: created.invoiceNumber,
+    created: true,
+    status: row?.status ?? 'pending',
+  };
+}
+
 /**
  * Return the canonical monthly rent invoice for a booking/month.
  * Creates via the idempotent generator when missing — never adhoc.
@@ -246,6 +367,20 @@ export async function ensureMonthlyRentInvoice(input: {
 }): Promise<EnsureMonthlyRentInvoiceResult> {
   const billingMonth = firstOfMonth(input.billingMonth ?? new Date());
   await ensureBillingProfileForBooking(input.bookingId);
+
+  const [bookingMeta] = await db
+    .select({ durationMode: bookings.durationMode })
+    .from(bookings)
+    .where(eq(bookings.id, input.bookingId))
+    .limit(1);
+
+  if (bookingMeta?.durationMode === 'fixed_stay') {
+    return ensureFixedStayRentInvoice({
+      bookingId: input.bookingId,
+      billingMonth,
+      amountPaise: input.amountPaise,
+    });
+  }
 
   const [existing] = await db
     .select({
@@ -837,10 +972,12 @@ export async function recordRentPaymentSuccess(
     };
   }
 
-  const lateFee = computeLateFee({
-    rentPaise: invoice.rentPaise,
-    billingMonth: invoice.billingMonth,
-  });
+  const lateFee = input.historical
+    ? 0
+    : computeLateFee({
+        rentPaise: invoice.rentPaise,
+        billingMonth: invoice.billingMonth,
+      });
 
   let remaining = input.amountPaise;
   const lateOwed = Math.max(0, lateFee - invoice.paidLateFeePaise);
@@ -965,7 +1102,10 @@ export async function recordRentPaymentSuccess(
     }
 
     const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
-    void syncRentInvoiceToUnified(invoice.id);
+    const unifiedId = await syncRentInvoiceToUnified(invoice.id);
+    if (!unifiedId) {
+      return { ok: false, reason: 'Unified invoice sync failed after rent payment.' };
+    }
 
     return {
       ok: true,

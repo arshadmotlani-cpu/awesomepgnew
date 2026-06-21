@@ -97,6 +97,21 @@ export async function reconcileStaleFinancialInvoices(opts?: {
     elecUnifiedSynced += 1;
   }
 
+  const orphanMissingUnified = await db.execute<{ rent_id: string }>(sql`
+    SELECT ri.id AS rent_id
+    FROM rent_invoices ri
+    LEFT JOIN financial_invoices fi ON fi.source_table = 'rent_invoices' AND fi.source_id = ri.id
+    WHERE fi.id IS NULL
+      AND ri.status IN ('pending', 'overdue', 'payment_in_progress', 'paid', 'partial')
+      ${monthFilter}
+  `);
+
+  for (const row of Array.from(orphanMissingUnified)) {
+    await syncRentInvoiceToUnified(row.rent_id);
+    financialRowsFixed += 1;
+    rentUnifiedSynced += 1;
+  }
+
   const orphanPaidRent = await db.execute<{ rent_id: string }>(sql`
     SELECT ri.id AS rent_id
     FROM rent_invoices ri
