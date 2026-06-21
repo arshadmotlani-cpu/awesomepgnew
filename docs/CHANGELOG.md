@@ -8,6 +8,8 @@
 ## 2026-06-22
 
 ### Fixed
+- **BROWSE-OVERLAP-01** — Browse PG cards stacked/overlapped on mobile: removed parallax/float transforms from listing grid [[BUGS#BROWSE-OVERLAP-01]]
+- **VAC-PASTDUE-01** — Past-due vacating notices now show overdue bed labels + daily admin action items via cron [[BUGS#VAC-PASTDUE-01]]
 - **VAC-CRASH-02** — Move-outs advanced tools: serialize `Map`/`Date` props before client boundary [[BUGS#VAC-CRASH-02]]
 - **VAC-DATE-01** — Vacating date pickers: `tryDiffDays` guards + default to today / `expected_checkout_date` [[BUGS#VAC-DATE-01]]
 - **EXP-INV-01** — Express walk-in invoice mirror for rent + deposit-only sales via `finalizeExpressWalkInFinancialInvoice` [[BUGS#EXP-INV-01]]
@@ -18,7 +20,7 @@
 - Express walk-in check-in defaults to today; fixed-stay checkout auto-fills +30 nights
 
 ### Added
-- Unit tests: `moveOutPipeline.test.ts`, `adminResidentSearch.test.ts`, `expressWalkInInvoice.test.ts`
+- Unit tests: `moveOutPipeline.test.ts`, `adminResidentSearch.test.ts`, `expressWalkInInvoice.test.ts`, `pgBrowseLayout.test.ts`, `vacatingPastDue.test.ts`
 
 ---
 
@@ -108,27 +110,20 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-21 21:03:08 UTC
+### Pending pre-commit sync · 2026-06-21 21:08:59 UTC
 
-**Areas touched:** [[ROUTES]], [[Vacating]], [[Billing]]
+**Areas touched:** [[ROUTES]], [[Action Center]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DECISIONS.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
-- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (7):**
-- `app/(admin)/admin/quick-actions/actions.ts`
-- `app/(admin)/admin/vacating/page.tsx`
-- `app/(customer)/account/resident/request-vacating/[bookingId]/page.tsx`
-- `src/lib/moveOut/moveOutAdvancedToolsProps.ts`
-- `src/lib/vacating/approvalPreview.ts`
-- `src/lib/vacating/depositRefundEligibility.ts`
-- `src/services/unifiedInvoices.ts`
+**Staged code files (2):**
+- `app/api/cron/automation/route.ts`
+- `src/services/actionItems.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

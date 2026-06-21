@@ -6,6 +6,7 @@ import {
   bedReservations,
   bookings,
   customers,
+  checkoutSettlements,
   depositLedger,
   electricityInvoices,
   floors,
@@ -29,6 +30,7 @@ import { projectElectricityInvoice } from '@/src/services/electricityBilling';
 import { projectInvoice } from '@/src/services/rentInvoices';
 import { syncResidentRequestActionItems } from '@/src/services/residentRequestActions';
 import { syncAdminNotificationsFromActionItems } from '@/src/services/adminNotifications';
+import { resolveStaleVacatingActionItems } from '@/src/services/vacatingPastDue';
 import { diffDays, formatDate } from '@/src/lib/dates';
 
 export type ActionItemRow = {
@@ -452,7 +454,9 @@ async function syncVacatingAlerts(session: AdminSession): Promise<void> {
       roomNumber: rooms.roomNumber,
       bedCode: beds.bedCode,
       vacatingDate: vacatingRequests.vacatingDate,
+      vacatingStatus: vacatingRequests.status,
       bookingId: vacatingRequests.bookingId,
+      settlementId: checkoutSettlements.id,
     })
     .from(vacatingRequests)
     .innerJoin(bookings, eq(bookings.id, vacatingRequests.bookingId))
@@ -465,20 +469,32 @@ async function syncVacatingAlerts(session: AdminSession): Promise<void> {
     .innerJoin(rooms, eq(rooms.id, beds.roomId))
     .innerJoin(floors, eq(floors.id, rooms.floorId))
     .innerJoin(pgs, eq(pgs.id, floors.pgId))
+    .leftJoin(
+      checkoutSettlements,
+      eq(checkoutSettlements.vacatingRequestId, vacatingRequests.id),
+    )
     .where(inArray(vacatingRequests.status, ['pending', 'approved']));
 
   for (const row of rows) {
     if (!sessionCanAccessPg(session, row.pgId)) continue;
     const daysRemaining = diffDays(today, row.vacatingDate);
+    const isPastDue = daysRemaining < 0;
+    const daysPastDue = isPastDue ? Math.abs(daysRemaining) : 0;
+    const title = isPastDue
+      ? row.vacatingStatus === 'approved'
+        ? `${row.residentName} · Move-out overdue (${daysPastDue}d) · complete checkout`
+        : `${row.residentName} · Notice expired (${daysPastDue}d) · approve move-out`
+      : `${row.residentName} · Vacating ${row.vacatingDate}`;
+
     await upsertActionItem({
       type: 'vacating_alert',
-      title: `${row.residentName} · Vacating ${row.vacatingDate}`,
+      title,
       pgId: row.pgId,
       roomId: row.roomId,
       bedId: row.bedId,
       residentId: row.residentId,
       dueDate: row.vacatingDate,
-      priority: daysRemaining <= 3 ? 'high' : daysRemaining <= 7 ? 'medium' : 'low',
+      priority: isPastDue ? 'high' : daysRemaining <= 3 ? 'high' : daysRemaining <= 7 ? 'medium' : 'low',
       sourceKey: `vacating:${row.id}`,
       metadata: {
         residentName: row.residentName,
@@ -489,6 +505,9 @@ async function syncVacatingAlerts(session: AdminSession): Promise<void> {
         bedCode: row.bedCode,
         bookingId: row.bookingId,
         vacatingRequestId: row.id,
+        settlementId: row.settlementId ?? undefined,
+        isPastDue,
+        daysPastDue: isPastDue ? daysPastDue : undefined,
       },
     });
   }
@@ -668,6 +687,7 @@ async function syncDepositCollectionDue(session: AdminSession): Promise<void> {
 
 export async function syncActionItems(session: AdminSession): Promise<void> {
   await resolveStaleBillingActionItems();
+  await resolveStaleVacatingActionItems();
   await Promise.all([
     syncRentDue(session),
     syncElectricityDue(session),
@@ -915,10 +935,16 @@ export async function getActionItemDetail(
     });
   }
   if (base.type === 'vacating_alert') {
+    const settlementId =
+      typeof meta.settlementId === 'string' && meta.settlementId.length > 0
+        ? meta.settlementId
+        : null;
     availableActions.push({
       type: 'view_ledger',
-      label: 'Vacating queue',
-      href: '/admin/vacating',
+      label: settlementId ? 'Open checkout settlement' : 'Vacating queue',
+      href: settlementId
+        ? `/admin/checkout-settlements/${settlementId}`
+        : '/admin/vacating',
     });
   }
   if (base.type === 'refund_pending' && meta.bookingId) {

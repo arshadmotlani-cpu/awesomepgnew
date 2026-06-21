@@ -6,7 +6,7 @@ import { PgCard, type PgCardData } from '@/src/components/customer/PgCard';
 import { WorldLayer } from '@/src/components/world';
 import { WORLD_EASE } from '@/src/components/world/worldMotion';
 
-/** Phase D — floating city grid for PG listings. */
+/** Browse listing grid — normal document flow (no parallax / float transforms). */
 export function SpatialPgGrid({
   pgs,
   uploadScreenshot,
@@ -17,50 +17,27 @@ export function SpatialPgGrid({
   const reduced = useReducedMotion();
 
   return (
-    <motion.ul
-      initial="hidden"
-      animate="show"
-      variants={{
-        hidden: {},
-        show: { transition: { staggerChildren: 0.08 } },
-      }}
-      className="world-pg-grid grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3"
-    >
+    <ul className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
       {pgs.map((pg, i) => (
-        <motion.li
-          key={pg.id}
-          variants={{
-            hidden: reduced ? {} : { opacity: 0, y: 28, rotateX: 8 },
-            show: {
-              opacity: 1,
-              y: 0,
-              rotateX: 0,
-              transition: { duration: 0.55, ease: WORLD_EASE.cinematic },
-            },
-          }}
-          className="world-pg-block"
-          style={{ perspective: reduced ? undefined : '800px' }}
-        >
-          <WorldLayer depth={i % 3 === 0 ? 2 : 1} float={i % 2 === 0}>
+        <li key={pg.id} className="min-w-0">
+          {reduced ? (
+            <PgCard pg={pg} uploadScreenshot={uploadScreenshot} />
+          ) : (
             <motion.div
-              whileHover={
-                reduced
-                  ? undefined
-                  : {
-                      y: -8,
-                      rotateY: 2,
-                      rotateX: -2,
-                      transition: { type: 'spring', stiffness: 280, damping: 22 },
-                    }
-              }
-              className="world-float-card apg-elev-floating overflow-hidden rounded-2xl"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{
+                duration: 0.35,
+                delay: Math.min(i * 0.05, 0.25),
+                ease: WORLD_EASE.reveal,
+              }}
             >
               <PgCard pg={pg} uploadScreenshot={uploadScreenshot} />
             </motion.div>
-          </WorldLayer>
-        </motion.li>
+          )}
+        </li>
       ))}
-    </motion.ul>
+    </ul>
   );
 }
 

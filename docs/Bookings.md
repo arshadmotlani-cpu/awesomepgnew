@@ -45,6 +45,14 @@ See [[ROUTES#Booking]]
 
 ---
 
+## Public browse listing
+
+| Route | Component | Notes |
+|-------|-----------|-------|
+| `/pgs` | `PgBrowseList` → `SpatialPgGrid` | Normal CSS grid stack (2026-06-22 fix — no parallax overlap) |
+
+---
+
 ## Related database entities
 
 `bookings`, `bed_reservations`, `payments`, `pricing_snapshot` JSONB

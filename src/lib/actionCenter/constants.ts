@@ -50,6 +50,9 @@ export type ActionItemMetadata = {
   invoiceId?: string;
   submissionId?: string;
   vacatingRequestId?: string;
+  settlementId?: string;
+  isPastDue?: boolean;
+  daysPastDue?: number;
   paymentReviewKey?: string;
   requestId?: string;
   requestStatus?: string;

@@ -52,6 +52,8 @@ Full diagram: [[WORKFLOWS#Vacating]]
 
 **Date entry UX (2026-06-22):** Resident and admin vacating forms pre-fill the date picker from `expected_checkout_date` when set (otherwise today + notice period for residents, notice-compliant default for admin). Invalid dates never crash preview UI — `tryDiffDays()` returns safe fallbacks.
 
+**Past-due move-outs (2026-06-22):** When vacate date passes, the bed **does not** auto-release for new bookings until checkout settlement completes ([[DECISIONS#Checkout settlements as refund SSOT]]). UI switches to “Move-out overdue” / “checkout pending”; daily cron (`processVacatingPastDueDaily`) upserts high-priority `vacating_alert` action items with settlement deep links.
+
 See [[ROUTES#Operations & Vacating]] · [[ROUTES#Where to act]]
 
 ---

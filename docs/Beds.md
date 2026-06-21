@@ -51,6 +51,18 @@ See [[ROUTES#Inventory & Bed Assignment]]
 
 ---
 
+## Bed status after vacate date
+
+| State | Public/admin label | Bookable? |
+|-------|-------------------|-----------|
+| Notice filed, date in future | “Notice period” / “Pre-book from {date}” | Pre-book only (approved) |
+| Notice approved, **date passed** | “Move-out overdue” / “checkout pending” | **No** — until settlement completes |
+| Checkout settlement completed | Bed released | Yes |
+
+Labels: `bedAvailabilityState.ts`. Daily overdue alerts: `vacatingPastDue.ts` + `/api/cron/automation`.
+
+---
+
 ## Related database entities
 
 | Table | Role |

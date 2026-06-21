@@ -18,6 +18,28 @@
 
 ## Resolved bugs
 
+### BROWSE-OVERLAP-01 — PG listing cards overlap on `/pgs` browse (mobile)
+
+| | |
+|---|---|
+| **Severity** | High |
+| **Symptom** | PG cards visually stacked on top of each other with large gaps — especially on mobile |
+| **Root cause** | `SpatialPgGrid` wrapped each card in `WorldLayer` with scroll parallax + infinite float `translateY` transforms and staggered `rotateX`. CSS transforms do not affect layout box size, so cards overlapped while the grid reserved too little vertical space |
+| **Fix** | Replaced spatial/parallax grid with a normal CSS grid (`grid-cols-1 gap-6`); optional opacity-only entrance animation. Hero images already use `aspect-[16/9]` |
+
+---
+
+### VAC-PASTDUE-01 — Bed status stale after vacate date passes
+
+| | |
+|---|---|
+| **Severity** | High |
+| **Symptom** | Approved vacating with vacate date 18 Jun still shows “notice period” on 22 Jun; no admin signal |
+| **Root cause** | By design beds stay occupied until checkout settlement completes ([[DECISIONS#Checkout settlements as refund SSOT]]), but UI labels never switched to “overdue” and `syncVacatingAlerts` used the same title/priority for past-due rows. Daily cron (`/api/cron/automation`) already runs `syncActionItemsForCron` but did not distinguish overdue move-outs |
+| **Fix** | `bedAvailabilityState.ts` past-due copy; `syncVacatingAlerts` high-priority overdue titles + settlement link; `processVacatingPastDueDaily()` in daily cron; `resolveStaleVacatingActionItems()` when request completes |
+
+---
+
 ### VAC-CRASH-02 — `/admin/vacating` Map + Date props to client actions
 
 | | |

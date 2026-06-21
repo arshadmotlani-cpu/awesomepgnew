@@ -55,6 +55,17 @@ test('notice period still wins over open-ended stay end', () => {
   assert.equal(view.label, 'Notice period');
 });
 
+test('past-due approved vacating shows move-out overdue label', () => {
+  const view = deriveCustomerBedAvailabilityView({
+    bedStatus: 'available',
+    isAvailableNow: false,
+    vacatingDate: '2026-06-18',
+    vacatingStatus: 'approved',
+    reservedFrom: null,
+  });
+  assert.equal(view.label, 'Move-out overdue');
+});
+
 test('manual occupied shows Occupied on admin and customer maps', () => {
   const admin = deriveBedAvailabilityView({
     bedStatus: 'available',

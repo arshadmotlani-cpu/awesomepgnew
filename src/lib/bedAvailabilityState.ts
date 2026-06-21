@@ -1,7 +1,11 @@
 /** Shared bed availability labels for admin map + customer bed picker. */
 
-import { customerBookableFromDate, isOpenEndedStayEnd } from '@/src/lib/dates';
+import { customerBookableFromDate, isOpenEndedStayEnd, todayString } from '@/src/lib/dates';
 import { reserveBufferDate } from '@/src/lib/bedReservePolicy';
+
+function isVacatingPastDue(vacatingDate: string, today = todayString()): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(vacatingDate) && vacatingDate < today;
+}
 export type BedAvailabilityKind =
   | 'open_now'
   | 'pre_bookable'
@@ -75,6 +79,13 @@ export function deriveBedAvailabilityView(input: {
 
   if (input.isOccupiedToday) {
     if (input.vacatingDate && input.vacatingStatus === 'approved') {
+      if (isVacatingPastDue(input.vacatingDate)) {
+        return {
+          kind: 'notice',
+          label: input.occupantFirstName ?? 'Occupied',
+          sublabel: `Move-out overdue · complete checkout settlement`,
+        };
+      }
       return {
         kind: 'pre_bookable',
         label: input.occupantFirstName ?? 'Occupied',
@@ -83,6 +94,15 @@ export function deriveBedAvailabilityView(input: {
     }
     if (input.vacatingDate && input.vacatingStatus === 'pending') {
       const interest = input.noticeInterestCount ?? 0;
+      if (isVacatingPastDue(input.vacatingDate)) {
+        return {
+          kind: 'notice',
+          label: input.occupantFirstName ?? 'Occupied',
+          sublabel:
+            `Notice expired ${formatShortDate(input.vacatingDate)} · approve move-out` +
+            (interest > 0 ? ` · ${interest} interested` : ''),
+        };
+      }
       return {
         kind: 'notice',
         label: input.occupantFirstName ?? 'Occupied',
@@ -185,13 +205,17 @@ export function deriveCustomerBedAvailabilityView(input: {
 
   if (isNotice && input.vacatingDate) {
     const interest = input.noticeInterestCount ?? 0;
-    const leaveLabel =
-      input.vacatingStatus === 'approved'
+    const pastDue = isVacatingPastDue(input.vacatingDate);
+    const leaveLabel = pastDue
+      ? input.vacatingStatus === 'approved'
+        ? `Move-out was ${formatShortDate(input.vacatingDate)} · checkout pending`
+        : `Notice expired ${formatShortDate(input.vacatingDate)} · admin review needed`
+      : input.vacatingStatus === 'approved'
         ? `Available from ${formatShortDate(input.vacatingDate)}`
         : `Leaving ${formatShortDate(input.vacatingDate)}`;
     return {
       kind: 'notice',
-      label: 'Notice period',
+      label: pastDue ? 'Move-out overdue' : 'Notice period',
       sublabel:
         interest > 0
           ? `${leaveLabel} · ${interest} interested`

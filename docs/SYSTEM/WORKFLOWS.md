@@ -120,6 +120,8 @@ flowchart TD
 1. `completeVacatingRequest` — deposit ledger entries, booking `completed`, customer `vacated`.
 2. Cancel future rent/electricity invoices.
 
+**Past vacate date (before complete):** Bed stays occupied and not bookable until checkout settlement finishes ([[DECISIONS#Checkout settlements as refund SSOT]]). UI shows “move-out overdue”; daily cron upserts high-priority `vacating_alert` action items (`vacatingPastDue.ts`).
+
 ### Cancel / reject / withdraw
 
 - `restoreRentBillingAfterVacatingCancel` — uncancels vacating-cancelled invoices, recalculates amounts.
