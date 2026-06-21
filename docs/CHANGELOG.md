@@ -125,32 +125,22 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-21 21:45:09 UTC
+### Pending pre-commit sync · 2026-06-21 21:52:58 UTC
 
-**Areas touched:** [[ROUTES]], [[Billing]]
+**Areas touched:** [[Billing]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
-- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (14):**
-- `app/(admin)/admin/collections/pg/[pgId]/resident/[residentId]/page.tsx`
-- `app/(admin)/admin/invoices/[invoiceId]/page.tsx`
-- `app/(admin)/admin/invoices/[invoiceId]/print/page.tsx`
-- `app/(admin)/admin/invoices/actions.ts`
-- `app/(admin)/admin/invoices/page.tsx`
-- `app/(admin)/admin/operations/pg/[pgId]/resident/[residentId]/page.tsx`
-- `app/(admin)/admin/revenue/pg/[pgId]/resident/[residentId]/page.tsx`
-- `app/(customer)/account/resident/invoices/[invoiceId]/page.tsx`
-- `src/lib/billing/invoiceDocumentModel.ts`
+**Staged code files (5):**
 - `src/lib/billing/invoiceHrefMap.ts`
+- `src/lib/billing/invoiceNumbering.server.ts`
 - `src/lib/billing/invoiceNumbering.ts`
 - `src/lib/billing/invoiceRoutes.ts`
-- `src/lib/billing/sendInvoiceOnWhatsApp.ts`
 - `src/services/unifiedInvoices.ts`
 
 **Changed:**

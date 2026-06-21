@@ -9,7 +9,7 @@ import { financialInvoices } from '@/src/db/schema';
 import type { InvoiceBreakdown } from '@/src/db/schema/financialInvoices';
 import type { FinancialInvoiceType } from '@/src/db/schema/enums';
 import { formatDate } from '@/src/lib/dates';
-import { nextFinancialInvoiceNumber } from '@/src/lib/billing/invoiceNumbering';
+import { nextFinancialInvoiceNumber } from '@/src/lib/billing/invoiceNumbering.server';
 import type { ResidentFinancialLineItem, ResidentFinancialSummary } from '@/src/lib/billing/residentFinancialTypes';
 import { getResidentFinancialSummary } from '@/src/services/residentFinancialEngine';
 import { createPaymentLinkForInvoice } from '@/src/services/unifiedInvoices';

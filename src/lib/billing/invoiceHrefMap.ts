@@ -1,7 +1,7 @@
 import {
   batchLookupFinancialInvoiceIds,
   type FinancialInvoiceSourceRef,
-} from '@/src/lib/billing/invoiceNumbering';
+} from '@/src/lib/billing/invoiceNumbering.server';
 import { invoiceDetailHref } from '@/src/lib/billing/invoiceRoutes';
 
 /** Build admin href map for rent/electricity source rows. */
@@ -14,12 +14,4 @@ export async function buildAdminInvoiceHrefMap(
     hrefs[key] = invoiceDetailHref(id, 'admin');
   }
   return hrefs;
-}
-
-export function invoiceHrefFromMap(
-  map: Record<string, string>,
-  sourceTable: string,
-  sourceId: string,
-): string | undefined {
-  return map[`${sourceTable}:${sourceId}`];
 }

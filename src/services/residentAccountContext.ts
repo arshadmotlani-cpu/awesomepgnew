@@ -19,7 +19,7 @@ import { getResidentFinancialSummary } from '@/src/services/residentFinancialEng
 import { projectInvoice } from '@/src/services/rentInvoices';
 import { getCustomerById, isProfileComplete } from '@/src/services/profile';
 import { paymentLinkPublicUrl } from '@/src/lib/billing/paymentLinkUrl';
-import { batchLookupFinancialInvoiceIds } from '@/src/lib/billing/invoiceNumbering';
+import { batchLookupFinancialInvoiceIds } from '@/src/lib/billing/invoiceNumbering.server';
 import { invoiceDetailHref } from '@/src/lib/billing/invoiceRoutes';
 import { getLatestPaymentLinkForResident } from '@/src/services/paymentLinks';
 import { diffDays } from '@/src/lib/dates';

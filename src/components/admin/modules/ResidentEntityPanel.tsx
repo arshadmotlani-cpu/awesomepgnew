@@ -9,7 +9,7 @@ import type {
   AdminElectricityInvoiceReminderRow,
   AdminRentInvoiceRow,
 } from '@/src/db/queries/admin';
-import { invoiceHrefFromMap } from '@/src/lib/billing/invoiceHrefMap';
+import { invoiceHrefFromMap } from '@/src/lib/billing/invoiceRoutes';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 
 type DepositRow = {

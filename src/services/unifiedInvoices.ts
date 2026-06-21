@@ -24,7 +24,7 @@ import type { FinancialInvoice, InvoiceBreakdown } from '@/src/db/schema/financi
 import type { FinancialInvoiceStatus, FinancialInvoiceType } from '@/src/db/schema/enums';
 import { createPaymentLink } from '@/src/services/paymentLinks';
 import { buildInvoiceWhatsAppUrl } from '@/src/lib/billing/invoiceWhatsApp';
-import { nextFinancialInvoiceNumber } from '@/src/lib/billing/invoiceNumbering';
+import { nextFinancialInvoiceNumber } from '@/src/lib/billing/invoiceNumbering.server';
 import { formatDate } from '@/src/lib/dates';
 import {
   FINANCIAL_CANCELLABLE_STATUSES,

@@ -27,7 +27,7 @@ import {
   type ExpressCollectionPaymentMethod,
 } from '@/src/lib/billing/expressCollectionConstants';
 import { revalidateFinancialViews } from '@/src/lib/billing/revalidateFinancialViews';
-import { nextFinancialInvoiceNumber } from '@/src/lib/billing/invoiceNumbering';
+import { nextFinancialInvoiceNumber } from '@/src/lib/billing/invoiceNumbering.server';
 import { formatDate, parseDate } from '@/src/lib/dates';
 import { dueDateForMonth, firstOfMonth } from '@/src/services/billing';
 import { syncDepositCollectionFromLedger } from '@/src/services/depositCollection';

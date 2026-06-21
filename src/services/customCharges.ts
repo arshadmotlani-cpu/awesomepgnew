@@ -8,7 +8,7 @@ import type { FinancialInvoiceType } from '@/src/db/schema/enums';
 import type { InvoiceBreakdown } from '@/src/db/schema/financialInvoices';
 import { formatDate } from '@/src/lib/dates';
 import { revalidateFinancialViews } from '@/src/lib/billing/revalidateFinancialViews';
-import { nextFinancialInvoiceNumber } from '@/src/lib/billing/invoiceNumbering';
+import { nextFinancialInvoiceNumber } from '@/src/lib/billing/invoiceNumbering.server';
 import { getResidentFinancialSummary } from '@/src/services/residentFinancialEngine';
 import { createPaymentLinkForInvoice } from '@/src/services/unifiedInvoices';
 
