@@ -22,7 +22,7 @@
  * is provided so the operator can do it once.
  */
 
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { db } from '../db/client';
 import {
   auditLog,
@@ -484,4 +484,161 @@ export async function backfillDepositCollectedRows(): Promise<{
     bookingIds.push(c.id);
   }
   return { inserted: bookingIds.length, bookingIds };
+}
+
+export type ReconcileDepositLedgerPlan = {
+  bookingId: string;
+  bookingCode: string | null;
+  requiredPaise: number;
+  targetCollectedPaise: number;
+  ledgerBefore: Array<{ id: string; entryKind: string; amountPaise: number; reason: string }>;
+  deleteIds: string[];
+  willInsertCollectedPaise: number;
+};
+
+/** Remove duplicate/erroneous ledger rows and leave one collected entry at target. */
+export async function planReconcileDepositLedger(input: {
+  bookingId: string;
+  targetCollectedPaise: number;
+  targetRequiredPaise?: number;
+}): Promise<ReconcileDepositLedgerPlan | null> {
+  const [booking] = await db
+    .select({
+      id: bookings.id,
+      bookingCode: bookings.bookingCode,
+      depositPaise: bookings.depositPaise,
+      customerId: bookings.customerId,
+    })
+    .from(bookings)
+    .where(eq(bookings.id, input.bookingId))
+    .limit(1);
+  if (!booking) return null;
+
+  const entries = await db
+    .select()
+    .from(depositLedger)
+    .where(eq(depositLedger.bookingId, input.bookingId))
+    .orderBy(depositLedger.createdAt);
+
+  const targetCollected = guardDepositPaise(
+    input.targetCollectedPaise,
+    'planReconcileDepositLedger.targetCollectedPaise',
+  );
+  const required = guardDepositPaise(
+    input.targetRequiredPaise ?? booking.depositPaise,
+    'planReconcileDepositLedger.requiredPaise',
+  );
+
+  return {
+    bookingId: booking.id,
+    bookingCode: booking.bookingCode,
+    requiredPaise: required,
+    targetCollectedPaise: targetCollected,
+    ledgerBefore: entries.map((e) => ({
+      id: e.id,
+      entryKind: e.entryKind,
+      amountPaise: e.amountPaise,
+      reason: e.reason,
+    })),
+    deleteIds: entries.map((e) => e.id),
+    willInsertCollectedPaise: targetCollected,
+  };
+}
+
+export async function executeReconcileDepositLedger(input: {
+  bookingId: string;
+  customerId: string;
+  targetCollectedPaise: number;
+  targetRequiredPaise?: number;
+  adminId: string;
+  reason: string;
+}): Promise<
+  | { ok: true; plan: ReconcileDepositLedgerPlan; newCollectedEntryId: string }
+  | { ok: false; error: string; plan?: ReconcileDepositLedgerPlan | null }
+> {
+  const plan = await planReconcileDepositLedger({
+    bookingId: input.bookingId,
+    targetCollectedPaise: input.targetCollectedPaise,
+    targetRequiredPaise: input.targetRequiredPaise,
+  });
+  if (!plan) return { ok: false, error: 'Booking not found.', plan: null };
+
+  if (plan.deleteIds.length === 0 && plan.willInsertCollectedPaise === 0) {
+    return { ok: false, error: 'Nothing to reconcile.', plan };
+  }
+
+  try {
+    await db.transaction(async (tx) => {
+      if (plan.deleteIds.length > 0) {
+        await tx.delete(depositLedger).where(inArray(depositLedger.id, plan.deleteIds));
+      }
+      if (plan.willInsertCollectedPaise > 0) {
+        await tx.insert(depositLedger).values({
+          bookingId: input.bookingId,
+          customerId: input.customerId,
+          entryKind: 'collected',
+          amountPaise: plan.willInsertCollectedPaise,
+          reason: input.reason,
+          createdByAdminId: input.adminId,
+        });
+      }
+
+      const required = plan.requiredPaise;
+      await tx
+        .update(bookings)
+        .set({
+          depositPaise: required,
+          depositDuePaise: Math.max(0, required - plan.willInsertCollectedPaise),
+          depositCollectionStatus:
+            plan.willInsertCollectedPaise >= required
+              ? 'full'
+              : plan.willInsertCollectedPaise > 0
+                ? 'partial'
+                : 'pending',
+          updatedAt: new Date(),
+        })
+        .where(eq(bookings.id, input.bookingId));
+    });
+
+    const { syncDepositCollectionFromLedger } = await import('@/src/services/depositCollection');
+    await syncDepositCollectionFromLedger(input.bookingId);
+
+    await db.insert(auditLog).values({
+      actorType: 'admin',
+      actorId: input.adminId,
+      entity: 'booking',
+      entityId: input.bookingId,
+      action: 'deposit_ledger_reconciled',
+      diff: {
+        deletedLedgerIds: plan.deleteIds,
+        targetCollectedPaise: plan.willInsertCollectedPaise,
+        requiredPaise: plan.requiredPaise,
+        reason: input.reason,
+      },
+    });
+
+    const [created] = await db
+      .select({ id: depositLedger.id })
+      .from(depositLedger)
+      .where(
+        and(
+          eq(depositLedger.bookingId, input.bookingId),
+          eq(depositLedger.entryKind, 'collected'),
+        ),
+      )
+      .orderBy(depositLedger.createdAt)
+      .limit(1);
+
+    return {
+      ok: true,
+      plan,
+      newCollectedEntryId: created?.id ?? '',
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+      plan,
+    };
+  }
 }

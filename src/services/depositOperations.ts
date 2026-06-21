@@ -18,7 +18,7 @@ export type { DepositWalletPreview, UnifiedDepositView };
 export { sanitizeDepositWalletPreview, sanitizeUnifiedDepositView };
 import { getDepositInvoiceForBooking } from '@/src/services/depositInvoices';
 import {
-  adjustDepositCollectedBalance,
+  executeReconcileDepositLedger,
   getDepositSummaryForBooking,
   type DepositSummary,
 } from '@/src/services/deposits';
@@ -523,21 +523,26 @@ export async function updateDepositSummaryAdmin(input: {
     }
 
     if (collectedPaise != null) {
-      const adjusted = await adjustDepositCollectedBalance({
+      const targetRequiredPaise =
+        requiredPaise != null
+          ? requiredPaise
+          : guardDepositPaise(booking.depositPaise, 'updateDepositSummary.targetRequiredPaise');
+      const reconciled = await executeReconcileDepositLedger({
         bookingId: input.bookingId,
         customerId: input.customerId,
         targetCollectedPaise: collectedPaise,
+        targetRequiredPaise,
+        adminId: input.adminId,
         reason: input.reason,
-        createdByAdminId: input.adminId,
       });
-      if (!adjusted.ok) {
-        console.error('[deposit-ops] updateDepositSummaryAdmin ledger adjust failed', {
+      if (!reconciled.ok) {
+        console.error('[deposit-ops] updateDepositSummaryAdmin ledger reconcile failed', {
           bookingId: input.bookingId,
           customerId: input.customerId,
           collectedPaise,
-          error: adjusted.error,
+          error: reconciled.error,
         });
-        return { ok: false, error: adjusted.error };
+        return { ok: false, error: reconciled.error };
       }
     }
 

@@ -26,6 +26,7 @@ import {
   depositOutstandingPaise,
   type DepositCollectionStatus,
 } from '@/src/lib/deposits/depositCollectionStatus';
+import { effectiveDepositCollectedPaise } from '@/src/lib/deposits/unifiedDepositView';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import {
@@ -138,6 +139,11 @@ function toResidentRow(row: AssignedRow): PgDepositResidentRow {
     depositDuePaise: row.depositDuePaise,
     paidAmountPaise: row.paidAmountPaise,
   });
+  const displayCollectedPaise = effectiveDepositCollectedPaise({
+    grossCollectedPaise: row.paidAmountPaise,
+    requiredPaise: row.requiredDepositPaise,
+    depositDuePaise: row.depositDuePaise,
+  });
   const outstandingPaise = depositOutstandingPaise({
     requiredDepositPaise: row.requiredDepositPaise,
     depositDuePaise: row.depositDuePaise,
@@ -155,7 +161,7 @@ function toResidentRow(row: AssignedRow): PgDepositResidentRow {
     roomNumber: row.roomNumber,
     bedCode: row.bedCode,
     requiredDepositPaise: row.requiredDepositPaise,
-    paidAmountPaise: row.paidAmountPaise,
+    paidAmountPaise: displayCollectedPaise,
     outstandingPaise,
     depositStatus,
     paymentDate: row.lastPaymentAt,

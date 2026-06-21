@@ -38,6 +38,20 @@ test('effectiveDepositCollectedPaise keeps gross when deposit still due', () => 
   );
 });
 
+test('depositAdminDisplayAmounts caps refundable when duplicate collected rows inflate ledger', () => {
+  const display = depositAdminDisplayAmounts({
+    grossCollectedPaise: 900000,
+    grossDeductedPaise: 0,
+    grossRefundedPaise: 0,
+    grossRefundableBalancePaise: 900000,
+    requiredPaise: 450000,
+    depositDuePaise: 0,
+  });
+  assert.equal(display.collectedPaise, 450000);
+  assert.equal(display.refundablePaise, 450000);
+  assert.equal(display.deductedPaise, 0);
+});
+
 test('depositAdminDisplayAmounts hides collection adjustment from deductions', () => {
   const display = depositAdminDisplayAmounts({
     grossCollectedPaise: 6150000,

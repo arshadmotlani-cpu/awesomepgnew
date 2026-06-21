@@ -9,7 +9,7 @@ import { assertAdminBookingAccess } from '@/src/lib/auth/pgAccess';
 import { revalidateFinancialViews } from '@/src/lib/billing/revalidateFinancialViews';
 import {
   recordDepositCollected,
-  correctDepositCollected,
+  executeReconcileDepositLedger,
   getDepositSummaryForBooking,
 } from '@/src/services/deposits';
 import { applyDepositDeduction, settleDepositRefund } from '@/src/services/depositSettlement';
@@ -210,18 +210,23 @@ export async function correctDepositAction(
   const customerId = await resolveCustomerId(bookingId);
   if (!customerId) return { status: 'error', message: 'Booking not found.' };
   try {
-    const result = await correctDepositCollected({
+    const result = await executeReconcileDepositLedger({
       bookingId,
       customerId,
       targetCollectedPaise: amountPaise,
-      reason: `admin correction: ${reason}`,
-      createdByAdminId: admin.adminId,
+      adminId: admin.adminId,
+      reason: `admin ledger reconcile: ${reason}`,
     });
+    if (!result.ok) {
+      return { status: 'error', message: result.error };
+    }
     revalidateFinancialViews();
     revalidatePath(`/admin/bookings/${bookingId}`);
+    revalidatePath(`/admin/deposits/${bookingId}`);
+    const deleted = result.plan.deleteIds.length;
     return {
       status: 'ok',
-      message: `Deposit set to ₹${(result.targetPaise / 100).toLocaleString('en-IN')} (was ₹${(result.previousPaise / 100).toLocaleString('en-IN')}).`,
+      message: `Ledger reconciled to ₹${(amountPaise / 100).toLocaleString('en-IN')} (${deleted} old row${deleted === 1 ? '' : 's'} removed, 1 collection recorded).`,
     };
   } catch (err) {
     return {

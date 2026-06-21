@@ -39,8 +39,8 @@ export function DepositLedgerReconcileForm({
         Reconcile ledger to booking deposit
       </h3>
       <p className="mt-1 text-xs text-apg-silver/80">
-        Sets the booking deposit and reconciles the ledger to this total. Use for grandfathered
-        amounts or fixing a wrong entry after assignment.
+        Removes all existing deposit ledger rows (collections, deductions, refunds) and records one
+        clean collection at the amount you enter. Use to fix duplicate entries or erroneous charges.
       </p>
       <p className="mt-2 text-xs text-apg-silver">
         Booking deposit: <strong className="text-white">{paiseToInr(bookingDepositPaise)}</strong>

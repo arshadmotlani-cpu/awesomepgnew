@@ -54,14 +54,25 @@ export function effectiveDepositRefundablePaise(input: {
   refundableBalancePaise: unknown;
   requiredPaise: unknown;
   depositDuePaise: unknown;
+  /** When set, refundable never exceeds displayed collected (fixes duplicate ledger rows). */
+  effectiveCollectedPaise?: unknown;
 }): number {
   const refundable = guardDepositPaise(input.refundableBalancePaise, 'refundableBalancePaise');
   const required = guardDepositPaise(input.requiredPaise, 'requiredPaise');
   const due = guardDepositPaise(input.depositDuePaise, 'depositDuePaise');
+  const collected =
+    input.effectiveCollectedPaise != null
+      ? guardDepositPaise(input.effectiveCollectedPaise, 'effectiveCollectedPaise')
+      : null;
+
+  let cap = refundable;
   if (due <= 0 && required > 0 && refundable > required) {
-    return required;
+    cap = required;
   }
-  return refundable;
+  if (collected != null && collected >= 0) {
+    cap = Math.min(cap, collected);
+  }
+  return cap;
 }
 
 export type DepositAdminDisplayAmounts = {
@@ -118,6 +129,7 @@ export function depositAdminDisplayAmounts(input: {
     refundableBalancePaise: grossRefundableBalancePaise,
     requiredPaise,
     depositDuePaise,
+    effectiveCollectedPaise: collectedPaise,
   });
 
   return {
