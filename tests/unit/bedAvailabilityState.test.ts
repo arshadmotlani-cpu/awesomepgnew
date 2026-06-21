@@ -39,7 +39,7 @@ test('finite checkout still shows Available soon', () => {
   });
   assert.equal(view.kind, 'pre_bookable');
   assert.equal(view.label, 'Available soon');
-  assert.match(view.sublabel ?? '', /Aug 2027/);
+  assert.match(view.sublabel ?? '', /August 2027/);
 });
 
 test('notice period still wins over open-ended stay end', () => {

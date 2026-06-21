@@ -1,4 +1,5 @@
 import { requireAdminSession } from '@/src/lib/auth/guards';
+import { isResidentBedAssignable } from '@/src/lib/residentBedAssignment';
 import { buildCollectionsQueue } from '@/src/lib/billing/collectionsQueue';
 import { todayString } from '@/src/lib/dates';
 import { buildResidentOperationsDashboard } from '@/src/lib/residents/residentOperationsDashboard';
@@ -64,7 +65,7 @@ export async function loadResidentOperationsDashboard(session: AdminSession) {
   const rentOverdue = collectionsQueue.filter((q) => q.priority === 'overdue');
   const rentsDueToday = collectionsQueue.filter((q) => q.priority === 'due_today');
 
-  const unassignedResidents = residents.filter((r) => r.tenancyStatus === 'unassigned');
+  const unassignedResidents = residents.filter((r) => isResidentBedAssignable(r));
 
   const vacatingRows =
     vacatingRes.ok

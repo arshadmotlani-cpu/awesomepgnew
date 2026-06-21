@@ -174,6 +174,7 @@ function mapResidentListRow(row: ResidentListDbRow): ResidentListRow {
       activeTenancy: row.booking_id
         ? { bookingId: row.booking_id, isVacating: row.is_vacating }
         : null,
+      bedId: row.bed_id,
     }),
     verificationSource: verification.verificationSource,
   };

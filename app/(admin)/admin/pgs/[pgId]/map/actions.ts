@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { assertAdminBookingAccess } from '@/src/lib/auth/pgAccess';
+import { revalidateOccupancyViews } from '@/src/lib/occupancyRevalidate';
 import {
   revalidateVacatingLifecycleForBooking,
   revalidateVacatingLifecycleViews,
@@ -55,9 +56,7 @@ export async function submitAdminVacatingAction(
       return { ok: false, error: `Could not submit (${result.kind}).` };
     }
 
-    revalidatePath(`/admin/pgs/${pgId}/map`);
-    await revalidateVacatingLifecycleForBooking(bookingId);
-    if (pgId) revalidateVacatingLifecycleViews({ pgId });
+    revalidateOccupancyViews(pgId);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -77,9 +76,7 @@ export async function shiftToReservationAction(
     const result = await shiftBookingToReservation(session, { bookingId, moveInDate });
     if (!result.ok) return result;
 
-    revalidatePath('/admin/residents');
-    revalidatePath('/admin/bookings');
-    if (pgId) revalidatePath(`/admin/pgs/${pgId}/map`);
+    revalidateOccupancyViews(pgId);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -98,9 +95,7 @@ export async function activateReservationAction(
     const result = await activateReservationNow(session, { bookingId });
     if (!result.ok) return result;
 
-    revalidatePath('/admin/residents');
-    revalidatePath('/admin/bookings');
-    if (pgId) revalidatePath(`/admin/pgs/${pgId}/map`);
+    revalidateOccupancyViews(pgId);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -118,8 +113,7 @@ export async function setBedManualOccupiedAction(
     const result = await setBedManualOccupied(session, bedId, occupied);
     if (!result.ok) return result;
 
-    revalidatePath('/admin/pgs');
-    revalidatePath(`/admin/pgs/${pgId}/map`);
+    revalidateOccupancyViews(pgId);
     revalidatePath('/pgs');
     return { ok: true };
   } catch (err) {
@@ -139,8 +133,7 @@ export async function setBedManualReservedAction(
     const result = await setBedManualReserved(session, bedId, checkInDate, reserveStart);
     if (!result.ok) return result;
 
-    revalidatePath('/admin/pgs');
-    revalidatePath(`/admin/pgs/${pgId}/map`);
+    revalidateOccupancyViews(pgId);
     revalidatePath('/pgs');
     return { ok: true };
   } catch (err) {
@@ -158,8 +151,7 @@ export async function clearBedManualReservedAction(
     const result = await clearBedManualReserved(session, bedId);
     if (!result.ok) return result;
 
-    revalidatePath('/admin/pgs');
-    revalidatePath(`/admin/pgs/${pgId}/map`);
+    revalidateOccupancyViews(pgId);
     revalidatePath('/pgs');
     return { ok: true };
   } catch (err) {
@@ -193,7 +185,7 @@ export async function removeTenantFromBedAction(
 
     await revalidateVacatingLifecycleForBooking(bookingId);
     if (pgId) revalidateVacatingLifecycleViews({ pgId });
-    return { ok: true };
+    revalidateOccupancyViews(pgId);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };

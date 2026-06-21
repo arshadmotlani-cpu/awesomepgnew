@@ -173,20 +173,24 @@ export async function getActiveTenancyForCustomer(
   return row ? mapActiveTenancyRow(row) : null;
 }
 
-export type ResidentTenancyStatus =
-  | 'unassigned'
-  | 'active'
-  | 'vacating'
-  | 'vacated'
-  | 'blocked';
+import type { ResidentTenancyStatus } from '@/src/lib/residentBedAssignment';
+export type { ResidentTenancyStatus, ResidentBedContext } from '@/src/lib/residentBedAssignment';
+export {
+  assignedBedShortLabel,
+  isResidentBedAssignable,
+  isResidentBedAssigned,
+  viewBedAdminHref,
+} from '@/src/lib/residentBedAssignment';
 
 export function deriveTenancyStatus(input: {
   residencyStatus?: ResidencyStatus | null;
   activeTenancy: Pick<ActiveTenancy, 'bookingId' | 'isVacating'> | null;
+  bedId?: string | null;
 }): ResidentTenancyStatus {
   if (input.residencyStatus === 'blocked') return 'blocked';
-  if (input.activeTenancy) {
-    if (input.activeTenancy.isVacating) return 'vacating';
+  const hasReservation = Boolean(input.activeTenancy?.bookingId) || Boolean(input.bedId);
+  if (hasReservation) {
+    if (input.activeTenancy?.isVacating) return 'vacating';
     return 'active';
   }
   if (input.residencyStatus === 'vacated') return 'vacated';

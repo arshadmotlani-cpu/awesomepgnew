@@ -4,6 +4,11 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Badge } from '@/src/components/admin/Badge';
 import { useAdminResidentSearch } from '@/src/hooks/useAdminResidentSearch';
+import {
+  isResidentBedAssignable,
+  isResidentBedAssigned,
+  viewBedAdminHref,
+} from '@/src/lib/residentBedAssignment';
 
 export function ResidentSearchPicker({
   selectedCustomerId,
@@ -82,14 +87,14 @@ export function ResidentSearchPicker({
                   {r.phone} · {r.email}
                 </p>
                 <p className="mt-1">
-                  {r.tenancyStatus === 'active' || r.tenancyStatus === 'vacating' ? (
+                  {isResidentBedAssigned(r) ? (
                     r.pgName ? (
                       <Badge tone="emerald">
                         {r.tenancyStatus === 'vacating' ? 'Vacating · ' : ''}
                         Room {r.roomNumber} · {r.bedCode}
                       </Badge>
                     ) : (
-                      <Badge tone="emerald">Occupied</Badge>
+                      <Badge tone="emerald">Assigned</Badge>
                     )
                   ) : (
                     <Badge tone="amber">Unassigned</Badge>
@@ -103,14 +108,24 @@ export function ResidentSearchPicker({
                 >
                   Profile
                 </Link>
-                {r.tenancyStatus === 'active' || r.tenancyStatus === 'vacating' ? (
-                  <Link
-                    href={`/admin/residents/${r.id}`}
-                    className="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-zinc-900"
-                  >
-                    Manage
-                  </Link>
-                ) : (
+                {isResidentBedAssigned(r) ? (
+                  <>
+                    {viewBedAdminHref(r) ? (
+                      <Link
+                        href={viewBedAdminHref(r)!}
+                        className="rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
+                      >
+                        View bed
+                      </Link>
+                    ) : null}
+                    <Link
+                      href={`/admin/residents/${r.id}`}
+                      className="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-zinc-900"
+                    >
+                      Manage
+                    </Link>
+                  </>
+                ) : isResidentBedAssignable(r) ? (
                   <button
                     type="button"
                     onClick={() => router.push(assignHref(r.id))}
@@ -118,7 +133,7 @@ export function ResidentSearchPicker({
                   >
                     Assign bed
                   </button>
-                )}
+                ) : null}
               </div>
             </li>
           ))}

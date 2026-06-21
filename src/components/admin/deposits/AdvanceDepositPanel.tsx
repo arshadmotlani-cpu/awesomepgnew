@@ -5,16 +5,20 @@ import { useState, useTransition } from 'react';
 import { recordAdvanceDepositAction } from '@/app/(admin)/admin/deposits/advance/actions';
 import { useAdminResidentSearch } from '@/src/hooks/useAdminResidentSearch';
 import type { AdminResidentSearchResult } from '@/src/lib/admin/residentSearchTypes';
+import {
+  isResidentBedAssignable,
+  isResidentBedAssigned,
+} from '@/src/lib/residentBedAssignment';
 
-function TenancyBadge({ status }: { status: AdminResidentSearchResult['tenancyStatus'] }) {
-  if (status === 'active' || status === 'vacating') {
+function TenancyBadge({ row }: { row: AdminResidentSearchResult }) {
+  if (isResidentBedAssigned(row)) {
     return (
       <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-emerald-200">
-        {status === 'vacating' ? 'Vacating' : 'Occupied'}
+        {row.tenancyStatus === 'vacating' ? 'Vacating' : 'Assigned'}
       </span>
     );
   }
-  if (status === 'unassigned') {
+  if (row.tenancyStatus === 'unassigned') {
     return (
       <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-200">
         Unassigned
@@ -23,7 +27,7 @@ function TenancyBadge({ status }: { status: AdminResidentSearchResult['tenancySt
   }
   return (
     <span className="rounded bg-zinc-500/20 px-1.5 py-0.5 text-[10px] font-medium text-zinc-300">
-      {status}
+      {row.tenancyStatus}
     </span>
   );
 }
@@ -103,14 +107,14 @@ export function AdvanceDepositPanel() {
                 >
                   <span className="flex flex-wrap items-center gap-2">
                     <span className="font-medium text-white">{r.fullName}</span>
-                    <TenancyBadge status={r.tenancyStatus} />
+                    <TenancyBadge row={r} />
                   </span>
                   <span className="text-xs text-apg-silver">
                     {r.phone}
                     {r.bookingCode ? ` · ${r.bookingCode}` : ''}
                     {r.pgName && r.roomNumber
                       ? ` · ${r.pgName} · R${r.roomNumber}`
-                      : r.tenancyStatus === 'unassigned'
+                      : isResidentBedAssignable(r)
                         ? ' · No bed assigned'
                         : r.pgName
                           ? ` · ${r.pgName}`
@@ -134,14 +138,14 @@ export function AdvanceDepositPanel() {
             <p className="text-xs text-apg-silver">Recording for</p>
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-lg font-semibold text-white">{selected.fullName}</p>
-              <TenancyBadge status={selected.tenancyStatus} />
+              <TenancyBadge row={selected} />
             </div>
             <p className="text-xs text-apg-silver">
               {selected.bookingCode ?? selected.bookingId ?? 'No booking yet'}
               {selected.pgName ? ` · ${selected.pgName}` : ''}
               {selected.roomNumber ? ` · R${selected.roomNumber}` : ''}
             </p>
-            {selected.tenancyStatus === 'unassigned' && !selected.bookingId ? (
+            {isResidentBedAssignable(selected) && !selected.bookingId ? (
               <p className="mt-1 text-xs text-amber-200">
                 No booking on file — create a booking first to record deposit to ledger.
               </p>

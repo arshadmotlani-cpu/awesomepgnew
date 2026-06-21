@@ -8,6 +8,7 @@ import { ResidentsTable } from '@/src/components/admin/ResidentsTable';
 import { UnverifiedWebsiteSignupsTable } from '@/src/components/admin/UnverifiedWebsiteSignupsTable';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
+import { isResidentBedAssignable } from '@/src/lib/residentBedAssignment';
 import {
   listResidentsForAdmin,
   listUnverifiedWebsiteSignupsForAdmin,
@@ -38,7 +39,7 @@ export default async function ResidentsPage({
     );
   }
 
-  const unassignedCount = residents.filter((r) => r.tenancyStatus === 'unassigned').length;
+  const unassignedCount = residents.filter((r) => isResidentBedAssignable(r)).length;
 
   return (
     <>

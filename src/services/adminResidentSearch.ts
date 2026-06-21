@@ -178,6 +178,7 @@ function mapTenancyStatus(row: SearchDbRow): AdminResidentTenancyStatus {
     activeTenancy: row.booking_id
       ? { bookingId: row.booking_id, isVacating: row.is_vacating }
       : null,
+    bedId: row.bed_id,
   });
 }
 
@@ -428,9 +429,25 @@ export async function enrichResidentSearchResults(
 ): Promise<AdminResidentSearchResult[]> {
   return Promise.all(
     rows.map(async (row) => {
-      if (row.bookingId) return row;
-      const bookingId = await resolveBookingIdForCustomer(row.id);
-      return bookingId ? { ...row, bookingId } : row;
+      if (row.bedId && row.bookingId) return row;
+      const active = await getActiveTenancyForCustomer(row.id);
+      if (!active) return row;
+      return {
+        ...row,
+        bookingId: active.bookingId,
+        bookingCode: active.bookingCode,
+        pgId: active.pgId,
+        pgName: active.pgName,
+        roomNumber: active.roomNumber,
+        bedCode: active.bedCode,
+        bedId: active.bedId,
+        monthlyRentPaise: active.monthlyRentPaise,
+        tenancyStatus: deriveTenancyStatus({
+          residencyStatus: row.tenancyStatus === 'vacated' ? 'vacated' : 'active',
+          activeTenancy: { bookingId: active.bookingId, isVacating: active.isVacating },
+          bedId: active.bedId,
+        }),
+      };
     }),
   );
 }

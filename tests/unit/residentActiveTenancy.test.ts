@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { deriveTenancyStatus } from '@/src/lib/residentActiveTenancy';
+import {
+  isResidentBedAssigned,
+  isResidentBedAssignable,
+} from '@/src/lib/residentBedAssignment';
 
 test('deriveTenancyStatus prioritizes active reservation over vacated residency flag', () => {
   assert.equal(
@@ -39,5 +43,37 @@ test('deriveTenancyStatus returns vacated when residency is vacated and no activ
       activeTenancy: null,
     }),
     'vacated',
+  );
+});
+
+test('isResidentBedAssigned uses bedId + bookingId as canonical assignment', () => {
+  assert.equal(
+    isResidentBedAssigned({
+      tenancyStatus: 'unassigned',
+      bedId: 'bed-1',
+      bookingId: 'booking-1',
+    }),
+    true,
+  );
+});
+
+test('isResidentBedAssignable is false when bed is assigned', () => {
+  assert.equal(
+    isResidentBedAssignable({
+      tenancyStatus: 'active',
+      bedId: 'bed-1',
+      bookingId: 'booking-1',
+    }),
+    false,
+  );
+});
+
+test('deriveTenancyStatus treats bedId as assigned even without booking id in status input', () => {
+  assert.equal(
+    deriveTenancyStatus({
+      activeTenancy: null,
+      bedId: 'bed-1',
+    }),
+    'active',
   );
 });

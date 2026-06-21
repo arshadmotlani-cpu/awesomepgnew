@@ -7,6 +7,12 @@ import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { AdminKycStatusWithWhatsApp } from '@/src/components/admin/AdminKycWhatsAppButton';
 import { BulkKycWhatsAppReminder } from '@/src/components/admin/BulkKycWhatsAppReminder';
 import { formatDate, formatDateTime, titleCase } from '@/src/lib/format';
+import {
+  assignedBedShortLabel,
+  isResidentBedAssignable,
+  isResidentBedAssigned,
+  viewBedAdminHref,
+} from '@/src/lib/residentBedAssignment';
 import type { ResidentListRow } from '@/src/services/residentAdmin';
 
 type StatusFilter = 'all' | 'active' | 'unassigned' | 'vacating' | 'kyc_pending';
@@ -20,6 +26,20 @@ const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
 ];
 
 function statusBadge(r: ResidentListRow) {
+  if (isResidentBedAssigned(r)) {
+    const label = assignedBedShortLabel(r);
+    return (
+      <span className="text-sm text-white">
+        {r.pgName ?? 'Assigned'}
+        {label ? ` · ${label}` : ''}
+        {r.tenancyStatus === 'vacating' ? (
+          <span className="ml-2 inline-flex rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-medium text-amber-100">
+            Vacating
+          </span>
+        ) : null}
+      </span>
+    );
+  }
   if (r.tenancyStatus === 'unassigned') {
     return <Badge tone="amber">Unassigned</Badge>;
   }
@@ -53,8 +73,8 @@ export function ResidentsTable({
     const digits = query.replace(/\D/g, '');
 
     return residents.filter((r) => {
-      if (statusFilter === 'active' && r.tenancyStatus !== 'active') return false;
-      if (statusFilter === 'unassigned' && r.tenancyStatus !== 'unassigned') return false;
+      if (statusFilter === 'active' && !isResidentBedAssigned(r)) return false;
+      if (statusFilter === 'unassigned' && !isResidentBedAssignable(r)) return false;
       if (statusFilter === 'vacating' && r.tenancyStatus !== 'vacating') return false;
       if (statusFilter === 'kyc_pending' && r.kycStatus !== 'pending') return false;
 
@@ -204,16 +224,31 @@ export function ResidentsTable({
                       />
                     </td>
                     <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                      <Link
-                        href={
-                          r.tenancyStatus === 'unassigned'
-                            ? `/admin/bookings/new?customerId=${r.id}`
-                            : `/admin/residents/${r.id}`
-                        }
-                        className="text-sm font-semibold text-[#FF5A1F] hover:underline"
-                      >
-                        {r.tenancyStatus === 'unassigned' ? 'Assign bed' : 'Manage'}
-                      </Link>
+                      {isResidentBedAssignable(r) ? (
+                        <Link
+                          href={`/admin/bookings/new?customerId=${r.id}`}
+                          className="text-sm font-semibold text-[#FF5A1F] hover:underline"
+                        >
+                          Assign bed
+                        </Link>
+                      ) : (
+                        <div className="flex flex-col items-end gap-1">
+                          {viewBedAdminHref(r) ? (
+                            <Link
+                              href={viewBedAdminHref(r)!}
+                              className="text-sm font-semibold text-[#FF5A1F] hover:underline"
+                            >
+                              View bed
+                            </Link>
+                          ) : null}
+                          <Link
+                            href={`/admin/residents/${r.id}`}
+                            className="text-xs text-apg-silver hover:text-white"
+                          >
+                            Manage
+                          </Link>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}

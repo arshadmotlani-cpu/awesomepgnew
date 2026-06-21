@@ -30,17 +30,18 @@ export const occupancyReservationCoreSql_b = sql`
 
 /**
  * Admin residents UI — assigned today OR upcoming confirmed primary move-in.
- * Matches bed map `occ` + `res` laterals so Residents does not show "Assign bed"
- * when the bed map already shows a reservation.
+ * Matches bed map `occ` (today, any duration) + `res` (future monthly/open_ended).
  */
 export const adminAssignedReservationSql_b = sql`
   b.status = 'confirmed'
   AND br.status = 'active'
   AND br.kind = 'primary'
-  AND b.duration_mode IN ('monthly', 'open_ended')
   AND (
     CURRENT_DATE <@ br.stay_range
-    OR lower(br.stay_range) > CURRENT_DATE
+    OR (
+      lower(br.stay_range) > CURRENT_DATE
+      AND b.duration_mode IN ('monthly', 'open_ended')
+    )
   )
 `;
 

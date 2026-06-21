@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
+import { revalidateOccupancyViews } from '@/src/lib/occupancyRevalidate';
 import { syncActionItems } from '@/src/services/actionItems';
 import { createPaymentLink } from '@/src/services/paymentLinks';
 import { archiveResident, updateBookingMoveInDate, updateRentDueDateOverride, updateTenantTenancy } from '@/src/services/residentAdmin';
@@ -19,6 +20,7 @@ const SYNC_PATHS = [
 ] as const;
 
 function revalidateOperationalPaths(customerId?: string, bookingId?: string, pgId?: string) {
+  revalidateOccupancyViews(pgId);
   for (const path of SYNC_PATHS) {
     revalidatePath(path);
   }

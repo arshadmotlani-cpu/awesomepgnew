@@ -1,5 +1,6 @@
 import { addDays, diffDays, formatDate } from '@/src/lib/dates';
 import { formatDate as formatDisplayDate } from '@/src/lib/format';
+import { isResidentBedAssignable } from '@/src/lib/residentBedAssignment';
 import type { OccupancyByPg } from '@/src/db/queries/admin';
 import type { PgBedMap, PgBedMapBed, PgBedMapRoom } from '@/src/services/pgBedMap';
 import type { ResidentListRow, UnverifiedWebsiteSignupRow } from '@/src/services/residentAdmin';
@@ -245,7 +246,7 @@ export function buildBedAssignmentCommand(input: {
 
   const queue: BedAssignmentQueueItem[] = [];
 
-  for (const r of input.residents.filter((x) => x.tenancyStatus === 'unassigned')) {
+  for (const r of input.residents.filter((x) => isResidentBedAssignable(x))) {
     const rec = recommendBedForResident(r.pgName, input.assignable, input.maps);
     queue.push({
       id: `wait-${r.id}`,

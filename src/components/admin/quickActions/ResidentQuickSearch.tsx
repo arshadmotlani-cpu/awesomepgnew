@@ -4,18 +4,23 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAdminResidentSearch } from '@/src/hooks/useAdminResidentSearch';
 import type { AdminResidentSearchResult } from '@/src/lib/admin/residentSearchTypes';
+import {
+  isResidentBedAssignable,
+  isResidentBedAssigned,
+  viewBedAdminHref,
+} from '@/src/lib/residentBedAssignment';
 
 export type { AdminResidentSearchResult as ResidentQuickResult };
 
-function TenancyBadge({ status }: { status: AdminResidentSearchResult['tenancyStatus'] }) {
-  if (status === 'active' || status === 'vacating') {
+function TenancyBadge({ row }: { row: AdminResidentSearchResult }) {
+  if (isResidentBedAssigned(row)) {
     return (
       <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-emerald-200">
-        {status === 'vacating' ? 'Vacating' : 'Occupied'}
+        {row.tenancyStatus === 'vacating' ? 'Vacating' : 'Assigned'}
       </span>
     );
   }
-  if (status === 'unassigned') {
+  if (row.tenancyStatus === 'unassigned') {
     return (
       <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-200">
         Unassigned
@@ -24,7 +29,7 @@ function TenancyBadge({ status }: { status: AdminResidentSearchResult['tenancySt
   }
   return (
     <span className="rounded bg-zinc-500/20 px-1.5 py-0.5 text-[10px] font-medium text-zinc-300">
-      {status}
+      {row.tenancyStatus}
     </span>
   );
 }
@@ -47,7 +52,7 @@ export function ResidentQuickSearch({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <p className="font-semibold text-white">{selected.fullName}</p>
-              <TenancyBadge status={selected.tenancyStatus} />
+              <TenancyBadge row={selected} />
             </div>
             <p className="mt-1 text-xs text-apg-silver">
               {selected.phone}
@@ -67,7 +72,7 @@ export function ResidentQuickSearch({
             Change
           </button>
         </div>
-        {selected.tenancyStatus === 'unassigned' ? (
+        {isResidentBedAssignable(selected) ? (
           <div className="mt-2 flex flex-wrap gap-2">
             <button
               type="button"
@@ -81,6 +86,23 @@ export function ResidentQuickSearch({
               className="rounded-md border border-white/10 px-2.5 py-1 text-[10px] text-apg-silver hover:text-white"
             >
               Profile
+            </Link>
+          </div>
+        ) : isResidentBedAssigned(selected) ? (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {viewBedAdminHref(selected) ? (
+              <Link
+                href={viewBedAdminHref(selected)!}
+                className="rounded-md border border-white/10 px-2.5 py-1 text-[10px] font-medium text-white hover:bg-white/5"
+              >
+                View bed
+              </Link>
+            ) : null}
+            <Link
+              href={`/admin/residents/${selected.id}`}
+              className="rounded-md border border-white/10 px-2.5 py-1 text-[10px] text-apg-silver hover:text-white"
+            >
+              Manage
             </Link>
           </div>
         ) : null}
@@ -114,16 +136,18 @@ export function ResidentQuickSearch({
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-sm font-medium text-white">{r.fullName}</p>
-                  <TenancyBadge status={r.tenancyStatus} />
+                  <TenancyBadge row={r} />
                 </div>
                 <p className="text-[11px] text-apg-silver">
                   {r.phone}
                   {r.pgName && r.roomNumber
                     ? ` · ${r.pgName} · R${r.roomNumber}`
-                    : ' · No bed assigned'}
+                    : isResidentBedAssigned(r)
+                      ? ' · Bed assigned'
+                      : ' · No bed assigned'}
                 </p>
               </button>
-              {r.tenancyStatus === 'unassigned' ? (
+              {isResidentBedAssignable(r) ? (
                 <button
                   type="button"
                   onClick={() => router.push(`/admin/bookings/new?customerId=${r.id}`)}

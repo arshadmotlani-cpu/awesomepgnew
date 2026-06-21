@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { customers } from '@/src/db/schema';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
+import { revalidateOccupancyViews } from '@/src/lib/occupancyRevalidate';
 import { assignTenantToBed } from '@/src/services/tenantAssignment';
 
 export type AssignTenantState = {
@@ -49,9 +50,8 @@ export async function assignTenantAction(
 
     if (!result.ok) return { ok: false, error: result.error };
 
-    revalidatePath('/admin/bookings');
+    revalidateOccupancyViews();
     revalidatePath('/pgs');
-    revalidatePath('/admin/residents');
     if (customerId) {
       revalidatePath(`/admin/residents/${customerId}`);
       redirect(`/admin/residents/${customerId}?assigned=1`);
