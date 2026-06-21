@@ -7,6 +7,8 @@ import {
   customers,
   floors,
   pgs,
+  rentInvoices,
+  residentBillingProfiles,
   rooms,
   auditLog,
   vacatingRequests,
@@ -38,6 +40,7 @@ import {
   recalculatePendingRentInvoicesForBooking,
   recalculateRentAfterMoveInChange,
 } from '@/src/services/rentInvoices';
+import { billingDayFromMoveIn } from '@/src/services/billing';
 import { siblingBedIdsInRoom } from '@/src/services/tenantAssignmentInternals';
 
 const LONG_TERM_END = '2099-01-01';
@@ -875,4 +878,87 @@ export async function updateBookingMoveInDate(
     invoicesUpdated: rentResult.updatedCount,
     billingDay: rentResult.billingDay,
   };
+}
+
+/** Override next rent due date — updates billing day and earliest open invoice with audit. */
+export async function updateRentDueDateOverride(
+  session: AdminSession,
+  input: { bookingId: string; nextDueDate: string; reason: string },
+): Promise<{ ok: true; billingDay: number } | { ok: false; error: string }> {
+  const nextDueDate = formatDate(parseDate(input.nextDueDate));
+  const reason = input.reason.trim();
+  if (!reason) return { ok: false, error: 'Reason is required.' };
+
+  const billingDay = billingDayFromMoveIn(nextDueDate);
+
+  const [ctx] = await db
+    .select({
+      pgId: pgs.id,
+      customerId: bookings.customerId,
+    })
+    .from(bookings)
+    .innerJoin(bedReservations, eq(bedReservations.bookingId, bookings.id))
+    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
+    .innerJoin(floors, eq(floors.id, rooms.floorId))
+    .innerJoin(pgs, eq(pgs.id, floors.pgId))
+    .where(
+      and(
+        eq(bookings.id, input.bookingId),
+        eq(bedReservations.kind, 'primary'),
+        eq(bedReservations.status, 'active'),
+      ),
+    )
+    .limit(1);
+
+  if (!ctx) return { ok: false, error: 'Booking not found.' };
+  if (!adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, ctx.pgId)) {
+    return { ok: false, error: 'Access denied.' };
+  }
+
+  const { ensureBillingProfileForBooking } = await import('@/src/services/residentBillingProfiles');
+  await ensureBillingProfileForBooking(input.bookingId);
+
+  await db
+    .update(residentBillingProfiles)
+    .set({ billingDay, updatedAt: new Date() })
+    .where(eq(residentBillingProfiles.bookingId, input.bookingId));
+
+  const [openInv] = await db
+    .select({ id: rentInvoices.id, dueDate: rentInvoices.dueDate })
+    .from(rentInvoices)
+    .where(
+      and(
+        eq(rentInvoices.bookingId, input.bookingId),
+        eq(rentInvoices.isAdhoc, false),
+        inArray(rentInvoices.status, ['pending', 'overdue']),
+      ),
+    )
+    .orderBy(rentInvoices.dueDate)
+    .limit(1);
+
+  if (openInv && openInv.dueDate !== nextDueDate) {
+    await db
+      .update(rentInvoices)
+      .set({ dueDate: nextDueDate, updatedAt: new Date() })
+      .where(eq(rentInvoices.id, openInv.id));
+  }
+
+  await db.insert(auditLog).values({
+    actorType: 'admin',
+    actorId: session.adminId,
+    entity: 'booking',
+    entityId: input.bookingId,
+    action: 'rent_due_date_overridden',
+    diff: {
+      customerId: ctx.customerId,
+      nextDueDate,
+      billingDay,
+      priorDueDate: openInv?.dueDate ?? null,
+      invoiceId: openInv?.id ?? null,
+      reason,
+    },
+  });
+
+  return { ok: true, billingDay };
 }

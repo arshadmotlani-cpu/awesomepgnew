@@ -5,6 +5,8 @@ import { AssignTenantForm } from '@/src/components/admin/AssignTenantForm';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { BedAssignmentWhatsAppButton } from '@/src/components/admin/BedAssignmentWhatsAppButton';
 import { EditMoveInDateForm } from '@/src/components/admin/EditMoveInDateForm';
+import { EditRentDueDateForm } from '@/src/components/admin/EditRentDueDateForm';
+import { ResidentFinancialScheduleCard } from '@/src/components/admin/residents/ResidentFinancialScheduleCard';
 import { EditTenantTenancyForm } from '@/src/components/admin/EditTenantTenancyForm';
 import { RentUpdatedSuccessBanner } from '@/src/components/admin/RentUpdatedSuccessBanner';
 import { FinalSettlementPanel } from '@/src/components/admin/FinalSettlementPanel';
@@ -354,6 +356,15 @@ export default async function ResidentDetailPage({
             />
           ) : null}
 
+          {activeTenancy && billingDefaults ? (
+            <ResidentFinancialScheduleCard
+              billingDefaults={billingDefaults}
+              financialSummary={financialSummary}
+              depositSummary={depositSummary}
+              moveInDate={activeTenancy.moveInDate}
+            />
+          ) : null}
+
           {financialSummary && activeTenancy ? (
             <ResidentProfileAdvancedTools
               customerId={customerId}
@@ -442,6 +453,15 @@ export default async function ResidentDetailPage({
               customerId={customerId}
               currentMoveInDate={activeTenancy.moveInDate}
             />
+
+            {billingDefaults ? (
+              <EditRentDueDateForm
+                bookingId={activeTenancy.bookingId}
+                customerId={customerId}
+                currentNextDueDate={billingDefaults.dueDate}
+                billingDay={billingDefaults.billingDay}
+              />
+            ) : null}
 
             <section id="edit-tenancy">
             <EditTenantTenancyForm

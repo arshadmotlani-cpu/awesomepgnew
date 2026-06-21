@@ -125,6 +125,9 @@ export async function assignTenantToBed(
   const { reconcileBookingOccupancy } = await import('@/src/lib/occupancySync');
   await reconcileBookingOccupancy(result.bookingId);
 
+  const { ensureBillingProfileForBooking } = await import('@/src/services/residentBillingProfiles');
+  await ensureBillingProfileForBooking(result.bookingId).catch(() => undefined);
+
   return { ok: true, bookingId: result.bookingId, bookingCode: result.bookingCode };
 }
 

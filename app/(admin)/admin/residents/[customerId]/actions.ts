@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { syncActionItems } from '@/src/services/actionItems';
 import { createPaymentLink } from '@/src/services/paymentLinks';
-import { archiveResident, updateBookingMoveInDate, updateTenantTenancy } from '@/src/services/residentAdmin';
+import { archiveResident, updateBookingMoveInDate, updateRentDueDateOverride, updateTenantTenancy } from '@/src/services/residentAdmin';
 
 const SYNC_PATHS = [
   '/admin/residents',
@@ -61,6 +61,42 @@ export type UpdateMoveInState = {
   invoicesUpdated?: number;
   billingDay?: number;
 };
+
+export type UpdateRentDueState = {
+  ok: boolean;
+  error?: string;
+  billingDay?: number;
+};
+
+export async function updateRentDueDateAction(
+  _prev: UpdateRentDueState,
+  formData: FormData,
+): Promise<UpdateRentDueState> {
+  try {
+    const session = await requireAdminPermission('bookings:write');
+    const bookingId = formData.get('bookingId')?.toString() ?? '';
+    const customerId = formData.get('customerId')?.toString() ?? '';
+    const nextDueDate = formData.get('nextDueDate')?.toString()?.trim() ?? '';
+    const reason = formData.get('reason')?.toString()?.trim() ?? '';
+
+    if (!bookingId || !nextDueDate || !reason) {
+      return { ok: false, error: 'Due date and reason are required.' };
+    }
+
+    const result = await updateRentDueDateOverride(session, { bookingId, nextDueDate, reason });
+    if (!result.ok) return result;
+
+    revalidateOperationalPaths(customerId, bookingId);
+    revalidatePath('/admin/revenue/billing');
+    revalidatePath('/admin/revenue/rent-due');
+    revalidatePath('/admin/deposits/collected');
+    await syncActionItems(session).catch(() => undefined);
+
+    return { ok: true, billingDay: result.billingDay };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not update due date.' };
+  }
+}
 
 export async function updateMoveInDateAction(
   _prev: UpdateMoveInState,

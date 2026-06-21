@@ -2,20 +2,18 @@ import Link from 'next/link';
 import { Badge } from '@/src/components/admin/Badge';
 import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import { EmptyState } from '@/src/components/admin/EmptyState';
-import { DepositPendingRowActions } from '@/src/components/admin/deposits/DepositPendingRowActions';
+import { DepositCollectedResidentTable } from '@/src/components/admin/deposits/DepositCollectedResidentTable';
 import { IconCard } from '@/src/components/admin/icons';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { OverviewMonthPicker } from '@/src/components/admin/OverviewMonthPicker';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
-import { depositStatusLabel } from '@/src/lib/deposits/depositCollectionStatus';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
-import { formatDate, paiseToInr } from '@/src/lib/format';
+import { paiseToInr } from '@/src/lib/format';
 import {
   getAllPgDepositCollectionSummaries,
   getPgDepositCollectionDetail,
-  type PgDepositResidentRow,
 } from '@/src/services/pgDepositCollection';
 
 export const dynamic = 'force-dynamic';
@@ -79,6 +77,12 @@ export default async function DepositCollectedPage({
           actions={
             <div className="flex flex-wrap items-center gap-2">
               <Link
+                href="/admin/revenue/rent-due"
+                className="rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-white hover:bg-white/5"
+              >
+                Upcoming rent due
+              </Link>
+              <Link
                 href="/admin/deposits/audit"
                 className="rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-white hover:bg-white/5"
               >
@@ -119,7 +123,7 @@ export default async function DepositCollectedPage({
           {paidResidents.length === 0 ? (
             <p className="text-sm text-apg-silver">No assigned residents with deposit fully paid.</p>
           ) : (
-            <ResidentTable rows={paidResidents} mode="paid" pgId={detail.pgId} pgName={detail.pgName} />
+            <DepositCollectedResidentTable rows={paidResidents} mode="paid" pgId={detail.pgId} pgName={detail.pgName} />
           )}
         </section>
 
@@ -135,7 +139,7 @@ export default async function DepositCollectedPage({
               All assigned residents have a deposit requirement and have paid in full.
             </p>
           ) : (
-            <ResidentTable
+            <DepositCollectedResidentTable
               rows={actionRequired}
               mode="action"
               pgId={detail.pgId}
@@ -288,129 +292,6 @@ function StatCard({
     <div className={`rounded-xl border p-4 ${border}`}>
       <p className="text-[10px] font-medium uppercase tracking-wide text-apg-silver">{label}</p>
       <p className="mt-1 text-xl font-semibold text-white">{value}</p>
-    </div>
-  );
-}
-
-function statusTone(status: PgDepositResidentRow['depositStatus']) {
-  switch (status) {
-    case 'paid':
-      return 'emerald' as const;
-    case 'pending':
-      return 'amber' as const;
-    case 'requirement_missing':
-      return 'violet' as const;
-  }
-}
-
-function ResidentTable({
-  rows,
-  mode,
-  pgId,
-  pgName,
-}: {
-  rows: PgDepositResidentRow[];
-  mode: 'paid' | 'action';
-  pgId: string;
-  pgName: string;
-}) {
-  return (
-    <div className="overflow-hidden rounded-xl border border-white/10 bg-[#1A1F27]">
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-left text-sm">
-          <thead className="border-b border-white/10 bg-white/[0.03]">
-            <tr>
-              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-apg-silver">
-                Resident
-              </th>
-              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-apg-silver">
-                Room / bed
-              </th>
-              {mode === 'action' ? (
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-apg-silver">
-                  Status
-                </th>
-              ) : null}
-              <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-apg-silver">
-                Required
-              </th>
-              {mode === 'paid' ? (
-                <>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-apg-silver">
-                    Paid
-                  </th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-apg-silver">
-                    Payment date
-                  </th>
-                </>
-              ) : (
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-apg-silver">
-                  Outstanding
-                </th>
-              )}
-              {mode === 'action' ? (
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-apg-silver">
-                  Actions
-                </th>
-              ) : null}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/5">
-            {rows.map((r) => (
-              <tr key={r.bookingId} className="transition hover:bg-white/[0.03]">
-                <td className="px-4 py-3">
-                  <Link
-                    href={`/admin/residents/${r.customerId}`}
-                    className="font-medium text-white hover:text-[#FF5A1F]"
-                  >
-                    {r.customerName}
-                  </Link>
-                  <div className="text-[11px] text-apg-silver">{r.phone}</div>
-                </td>
-                <td className="px-4 py-3 text-xs text-apg-silver">
-                  Room {r.roomNumber} · {r.bedCode}
-                </td>
-                {mode === 'action' ? (
-                  <td className="px-4 py-3">
-                    <Badge tone={statusTone(r.depositStatus)}>
-                      {depositStatusLabel(r.depositStatus)}
-                    </Badge>
-                  </td>
-                ) : null}
-                <td className="px-4 py-3 text-right tabular-nums text-white">
-                  {r.requiredDepositPaise > 0 ? paiseToInr(r.requiredDepositPaise) : '—'}
-                </td>
-                {mode === 'paid' ? (
-                  <>
-                    <td className="px-4 py-3 text-right tabular-nums text-emerald-300">
-                      {paiseToInr(r.paidAmountPaise)}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-apg-silver">
-                      {r.paymentDate ? formatDate(r.paymentDate) : '—'}
-                    </td>
-                  </>
-                ) : (
-                  <td className="px-4 py-3 text-right tabular-nums text-amber-200">
-                    {r.depositStatus === 'requirement_missing'
-                      ? '—'
-                      : paiseToInr(r.outstandingPaise)}
-                  </td>
-                )}
-                {mode === 'action' ? (
-                  <td className="px-4 py-3">
-                    <DepositPendingRowActions
-                      pgId={pgId}
-                      pgName={pgName}
-                      resident={r}
-                      depositStatus={r.depositStatus}
-                    />
-                  </td>
-                ) : null}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }

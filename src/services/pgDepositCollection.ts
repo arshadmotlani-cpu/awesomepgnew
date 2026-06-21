@@ -14,6 +14,7 @@ import {
   customers,
   floors,
   pgs,
+  residentBillingProfiles,
   rooms,
 } from '@/src/db/schema';
 import {
@@ -27,6 +28,12 @@ import {
   type DepositCollectionStatus,
 } from '@/src/lib/deposits/depositCollectionStatus';
 import { effectiveDepositCollectedPaise } from '@/src/lib/deposits/unifiedDepositView';
+import { sortByRoomBed } from '@/src/lib/billing/roomBedSort';
+import {
+  buildRentBillingTimeline,
+  computeNextRentDueDate,
+  type RentBillingTimeline,
+} from '@/src/services/billing';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import {
@@ -52,6 +59,11 @@ export type PgDepositResidentRow = {
   outstandingPaise: number;
   depositStatus: DepositCollectionStatus;
   paymentDate: Date | null;
+  moveInDate: string;
+  billingDay: number;
+  monthlyRentPaise: number;
+  nextRentDueDate: string;
+  billingTimeline: RentBillingTimeline;
 };
 
 export type PgDepositCollectionDetail = {
@@ -109,6 +121,13 @@ type AssignedRow = {
   depositDuePaise: number;
   paidAmountPaise: number;
   lastPaymentAt: Date | null;
+  moveInDate: string;
+  billingDay: number;
+  monthlyRentPaise: number;
+  openRentDueDate: string | null;
+  openRentBillingMonth: string | null;
+  lastInvoiceDate: string | null;
+  lastRentPaymentDate: string | null;
 };
 
 function normalizeAssignedRow(
@@ -130,6 +149,13 @@ function normalizeAssignedRow(
     depositDuePaise: guardDepositPaise(r.depositDuePaise, 'depositDuePaise'),
     paidAmountPaise: guardDepositPaise(r.paidAmountPaise, 'paidAmountPaise'),
     lastPaymentAt: r.lastPaymentAt,
+    moveInDate: r.moveInDate,
+    billingDay: r.billingDay,
+    monthlyRentPaise: guardDepositPaise(r.monthlyRentPaise, 'monthlyRentPaise'),
+    openRentDueDate: r.openRentDueDate,
+    openRentBillingMonth: r.openRentBillingMonth,
+    lastInvoiceDate: r.lastInvoiceDate,
+    lastRentPaymentDate: r.lastRentPaymentDate,
   };
 }
 
@@ -150,6 +176,22 @@ function toResidentRow(row: AssignedRow): PgDepositResidentRow {
     paidAmountPaise: row.paidAmountPaise,
   });
 
+  const nextRentDueDate = computeNextRentDueDate({
+    moveInDate: row.moveInDate,
+    billingDay: row.billingDay,
+    openInvoiceDueDate: row.openRentDueDate,
+  });
+
+  const billingTimeline = buildRentBillingTimeline({
+    moveInDate: row.moveInDate,
+    billingDay: row.billingDay,
+    monthlyRentPaise: row.monthlyRentPaise,
+    openInvoiceDueDate: row.openRentDueDate,
+    openInvoiceBillingMonth: row.openRentBillingMonth,
+    lastInvoiceDate: row.lastInvoiceDate,
+    lastPaymentDate: row.lastRentPaymentDate,
+  });
+
   return {
     customerId: row.customerId,
     customerName: row.customerName,
@@ -165,17 +207,63 @@ function toResidentRow(row: AssignedRow): PgDepositResidentRow {
     outstandingPaise,
     depositStatus,
     paymentDate: row.lastPaymentAt,
+    moveInDate: row.moveInDate,
+    billingDay: row.billingDay,
+    monthlyRentPaise: row.monthlyRentPaise,
+    nextRentDueDate,
+    billingTimeline,
   };
 }
 
+function sortResidentRows(rows: PgDepositResidentRow[]): PgDepositResidentRow[] {
+  return sortByRoomBed(rows);
+}
+
 function partitionResidents(rows: PgDepositResidentRow[]) {
-  const paidResidents = rows.filter((r) => r.depositStatus === 'paid');
-  const pendingResidents = rows.filter((r) => r.depositStatus === 'pending');
-  const requirementMissingResidents = rows.filter(
-    (r) => r.depositStatus === 'requirement_missing',
+  const paidResidents = sortResidentRows(rows.filter((r) => r.depositStatus === 'paid'));
+  const pendingResidents = sortResidentRows(rows.filter((r) => r.depositStatus === 'pending'));
+  const requirementMissingResidents = sortResidentRows(
+    rows.filter((r) => r.depositStatus === 'requirement_missing'),
   );
   return { paidResidents, pendingResidents, requirementMissingResidents };
 }
+
+const assignedBillingSelect = {
+  moveInDate: sql<string>`to_char(lower(${bedReservations.stayRange}), 'YYYY-MM-DD')`,
+  billingDay: sql<number>`coalesce(${residentBillingProfiles.billingDay}, 5)::int`,
+  monthlyRentPaise: sql<number>`coalesce(${residentBillingProfiles.rentAmountPaise}, 0)::bigint::int`,
+  openRentDueDate: sql<string | null>`(
+    SELECT ri.due_date::text
+    FROM rent_invoices ri
+    WHERE ri.booking_id = ${bookings.id}
+      AND ri.is_adhoc = false
+      AND ri.status IN ('pending', 'overdue')
+    ORDER BY ri.due_date ASC
+    LIMIT 1
+  )`,
+  openRentBillingMonth: sql<string | null>`(
+    SELECT ri.billing_month::text
+    FROM rent_invoices ri
+    WHERE ri.booking_id = ${bookings.id}
+      AND ri.is_adhoc = false
+      AND ri.status IN ('pending', 'overdue')
+    ORDER BY ri.due_date ASC
+    LIMIT 1
+  )`,
+  lastInvoiceDate: sql<string | null>`(
+    SELECT to_char(max(ri.created_at), 'YYYY-MM-DD')
+    FROM rent_invoices ri
+    WHERE ri.booking_id = ${bookings.id}
+      AND ri.is_adhoc = false
+  )`,
+  lastRentPaymentDate: sql<string | null>`(
+    SELECT to_char(max(ri.paid_at), 'YYYY-MM-DD')
+    FROM rent_invoices ri
+    WHERE ri.booking_id = ${bookings.id}
+      AND ri.status = 'paid'
+      AND ri.is_adhoc = false
+  )`,
+};
 
 async function loadAssignedResidentsForPg(pgId: string): Promise<AssignedRow[]> {
   const [pg] = await db
@@ -208,6 +296,7 @@ async function loadAssignedResidentsForPg(pgId: string): Promise<AssignedRow[]> 
         WHERE dl.booking_id = ${bookings.id}
           AND dl.entry_kind = 'collected'
       )`,
+      ...assignedBillingSelect,
     })
     .from(bookings)
     .innerJoin(customers, eq(customers.id, bookings.customerId))
@@ -216,8 +305,9 @@ async function loadAssignedResidentsForPg(pgId: string): Promise<AssignedRow[]> 
     .innerJoin(rooms, eq(rooms.id, beds.roomId))
     .innerJoin(floors, eq(floors.id, rooms.floorId))
     .innerJoin(pgs, eq(pgs.id, floors.pgId))
+    .leftJoin(residentBillingProfiles, eq(residentBillingProfiles.bookingId, bookings.id))
     .where(and(eq(pgs.id, pgId), assignedResidentFilters))
-    .orderBy(customers.fullName);
+    .orderBy(rooms.roomNumber, beds.bedCode);
 
   return rows.map((r) => normalizeAssignedRow(r, pg.id, pg.name));
 }
@@ -248,6 +338,7 @@ async function loadAllAssignedResidents(): Promise<AssignedRow[]> {
         WHERE dl.booking_id = ${bookings.id}
           AND dl.entry_kind = 'collected'
       )`,
+      ...assignedBillingSelect,
     })
     .from(bookings)
     .innerJoin(customers, eq(customers.id, bookings.customerId))
@@ -256,8 +347,9 @@ async function loadAllAssignedResidents(): Promise<AssignedRow[]> {
     .innerJoin(rooms, eq(rooms.id, beds.roomId))
     .innerJoin(floors, eq(floors.id, rooms.floorId))
     .innerJoin(pgs, eq(pgs.id, floors.pgId))
+    .leftJoin(residentBillingProfiles, eq(residentBillingProfiles.bookingId, bookings.id))
     .where(and(sql`${pgs.archivedAt} IS NULL`, assignedResidentFilters))
-    .orderBy(pgs.name, customers.fullName);
+    .orderBy(pgs.name, rooms.roomNumber, beds.bedCode);
 
   return rows.map((r) => normalizeAssignedRow(r, r.pgId, r.pgName));
 }

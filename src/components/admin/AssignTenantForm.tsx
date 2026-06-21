@@ -6,7 +6,11 @@ import {
   type AssignTenantState,
 } from '@/app/(admin)/admin/bookings/new/actions';
 import { AdminConfirmSubmit } from '@/src/components/admin/AdminConfirmSubmit';
-import { titleCase } from '@/src/lib/format';
+import { titleCase, paiseToInr } from '@/src/lib/format';
+import {
+  billingDayFromMoveIn,
+  computeNextRentDueDate,
+} from '@/src/services/billing';
 
 type BedOption = {
   bedId: string;
@@ -51,6 +55,29 @@ export function AssignTenantForm({
     ok: false,
   } satisfies AssignTenantState);
   const [selectedBedId, setSelectedBedId] = useState(defaultBedId ?? beds[0]?.bedId ?? '');
+  const [startDate, setStartDate] = useState(defaultStartDate);
+
+  const selectedBed = useMemo(
+    () => beds.find((b) => b.bedId === selectedBedId) ?? null,
+    [beds, selectedBedId],
+  );
+
+  const assignmentPreview = useMemo(() => {
+    if (!selectedBed || !startDate) return null;
+    const billingDay = billingDayFromMoveIn(startDate);
+    const nextRentDue = computeNextRentDueDate({
+      moveInDate: startDate,
+      billingDay,
+    });
+    return {
+      checkInDate: startDate,
+      checkoutDate: null as string | null,
+      billingDay,
+      nextRentDue,
+      depositRequiredPaise: selectedBed.depositPaise,
+      monthlyRentPaise: selectedBed.monthlyRatePaise,
+    };
+  }, [selectedBed, startDate]);
 
   const fc = theme === 'dark' ? fieldClass : lightFieldClass;
   const roFc = theme === 'dark' ? readOnlyFieldClass : lightReadOnlyFieldClass;
@@ -59,11 +86,6 @@ export function AssignTenantForm({
       ? 'max-w-xl space-y-4 rounded-2xl border border-white/10 bg-[#1A1F27] p-6'
       : 'max-w-xl space-y-4 rounded-xl border border-zinc-200 bg-white p-6';
   const labelClass = theme === 'dark' ? 'font-medium text-apg-silver' : 'font-medium text-zinc-700';
-
-  const selectedBed = useMemo(
-    () => beds.find((b) => b.bedId === selectedBedId) ?? null,
-    [beds, selectedBedId],
-  );
 
   const defaultBedMissing =
     !!defaultBedId && !beds.some((b) => b.bedId === defaultBedId);
@@ -136,7 +158,8 @@ export function AssignTenantForm({
           type="date"
           name="startDate"
           required
-          defaultValue={defaultStartDate}
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
           className={fc}
         />
         <span className={`mt-1 block text-xs ${theme === 'dark' ? 'text-apg-silver' : 'text-zinc-500'}`}>
@@ -212,6 +235,52 @@ export function AssignTenantForm({
         <span className={labelClass}>Notes</span>
         <textarea name="notes" rows={2} className={fc} placeholder="Optional internal note…" />
       </label>
+
+      {assignmentPreview ? (
+        <div
+          className={
+            theme === 'dark'
+              ? 'rounded-xl border border-emerald-400/25 bg-emerald-500/10 p-4 text-sm'
+              : 'rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950'
+          }
+        >
+          <p className="font-semibold">Assignment preview — verify before confirming</p>
+          <dl className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+            <div>
+              <dt className="opacity-70">Check-in date</dt>
+              <dd className="font-medium">{assignmentPreview.checkInDate}</dd>
+            </div>
+            <div>
+              <dt className="opacity-70">Checkout date</dt>
+              <dd className="font-medium">Open-ended</dd>
+            </div>
+            <div>
+              <dt className="opacity-70">Rent due day</dt>
+              <dd className="font-medium">{assignmentPreview.billingDay} of each month</dd>
+            </div>
+            <div>
+              <dt className="opacity-70">First rent due</dt>
+              <dd className="font-medium">{assignmentPreview.nextRentDue}</dd>
+            </div>
+            <div>
+              <dt className="opacity-70">Deposit required</dt>
+              <dd className="font-medium">
+                {assignmentPreview.depositRequiredPaise > 0
+                  ? paiseToInr(assignmentPreview.depositRequiredPaise)
+                  : '—'}
+              </dd>
+            </div>
+            <div>
+              <dt className="opacity-70">Monthly rent</dt>
+              <dd className="font-medium">
+                {assignmentPreview.monthlyRentPaise > 0
+                  ? `${paiseToInr(assignmentPreview.monthlyRentPaise)}/mo`
+                  : '—'}
+              </dd>
+            </div>
+          </dl>
+        </div>
+      ) : null}
 
       {state.error ? (
         <div

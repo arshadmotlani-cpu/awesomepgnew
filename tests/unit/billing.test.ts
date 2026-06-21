@@ -11,6 +11,7 @@ import {
   ELECTRICITY_GRACE_DAYS,
   computeElectricityLateFee,
   computeLateFee,
+  computeNextRentDueDate,
   dailyRateFromMonthly,
   daysInMonth,
   daysOverdue,
@@ -254,5 +255,35 @@ test('computeElectricityLateFee: 0 for zero or negative amounts', () => {
   assert.equal(
     computeElectricityLateFee({ amountPaise: -100, dueDate: '2026-07-04', today: '2026-08-01' }),
     0,
+  );
+});
+
+test('computeNextRentDueDate uses open invoice when present', () => {
+  assert.equal(
+    computeNextRentDueDate({
+      moveInDate: '2026-06-01',
+      billingDay: 1,
+      openInvoiceDueDate: '2026-06-23',
+    }),
+    '2026-06-23',
+  );
+});
+
+test('computeNextRentDueDate projects from billing day after check-in', () => {
+  assert.equal(
+    computeNextRentDueDate({
+      moveInDate: '2026-06-15',
+      billingDay: 15,
+      today: '2026-06-10',
+    }),
+    '2026-06-15',
+  );
+  assert.equal(
+    computeNextRentDueDate({
+      moveInDate: '2026-06-15',
+      billingDay: 15,
+      today: '2026-06-20',
+    }),
+    '2026-07-15',
   );
 });

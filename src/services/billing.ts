@@ -318,3 +318,99 @@ export function formatInr(paise: number): string {
   const rupeesStr = rupees.toLocaleString('en-IN');
   return `${sign}₹${rupeesStr}.${remainder.toString().padStart(2, '0')}`;
 }
+
+/** Rent due date for a billing month — applies move-in grace when check-in is after calendar due. */
+export function rentDueDateForMonth(args: {
+  billingMonth: DateLike;
+  billingDay: number;
+  moveInDate: DateLike;
+}): string {
+  const calendarDue = formatDate(dueDateForBillingDay(args.billingMonth, args.billingDay));
+  const moveIn = formatDate(parseDate(args.moveInDate));
+  return moveIn > calendarDue ? formatDate(addDays(moveIn, 4)) : calendarDue;
+}
+
+/**
+ * Next rent due date — prefers earliest open invoice, else projects from billing day + move-in.
+ */
+export function computeNextRentDueDate(args: {
+  moveInDate: string;
+  billingDay: number;
+  today?: DateLike;
+  openInvoiceDueDate?: string | null;
+}): string {
+  if (args.openInvoiceDueDate) {
+    return formatDate(parseDate(args.openInvoiceDueDate));
+  }
+
+  const today = formatDate(parseDate(args.today ?? new Date()));
+  const billingDay = Math.min(Math.max(1, args.billingDay), 31);
+  const moveIn = formatDate(parseDate(args.moveInDate));
+
+  for (let offset = 0; offset < 24; offset += 1) {
+    const monthStart = firstOfMonth(addMonths(parseDate(today), offset));
+    const due = rentDueDateForMonth({
+      billingMonth: monthStart,
+      billingDay,
+      moveInDate: moveIn,
+    });
+    if (due >= today) return due;
+  }
+
+  const fallbackMonth = firstOfMonth(addMonths(parseDate(today), 1));
+  return rentDueDateForMonth({
+    billingMonth: fallbackMonth,
+    billingDay,
+    moveInDate: moveIn,
+  });
+}
+
+export type RentBillingTimeline = {
+  checkInDate: string;
+  billingCycleLabel: string;
+  rentCycleStart: string;
+  currentBillingPeriod: string;
+  nextInvoiceDate: string;
+  nextDueDate: string;
+  billingDay: number;
+  monthlyRentPaise: number;
+  lastInvoiceDate: string | null;
+  lastPaymentDate: string | null;
+};
+
+export function buildRentBillingTimeline(args: {
+  moveInDate: string;
+  billingDay: number;
+  monthlyRentPaise: number;
+  today?: DateLike;
+  openInvoiceDueDate?: string | null;
+  openInvoiceBillingMonth?: string | null;
+  lastInvoiceDate?: string | null;
+  lastPaymentDate?: string | null;
+}): RentBillingTimeline {
+  const today = formatDate(parseDate(args.today ?? new Date()));
+  const billingDay = Math.min(Math.max(1, args.billingDay), 31);
+  const nextDueDate = computeNextRentDueDate({
+    moveInDate: args.moveInDate,
+    billingDay,
+    today,
+    openInvoiceDueDate: args.openInvoiceDueDate,
+  });
+
+  const currentBillingPeriod = args.openInvoiceBillingMonth
+    ? args.openInvoiceBillingMonth.slice(0, 7)
+    : firstOfMonth(today).slice(0, 7);
+
+  return {
+    checkInDate: formatDate(parseDate(args.moveInDate)),
+    billingCycleLabel: 'Monthly',
+    rentCycleStart: formatDate(parseDate(args.moveInDate)),
+    currentBillingPeriod,
+    nextInvoiceDate: nextDueDate,
+    nextDueDate,
+    billingDay,
+    monthlyRentPaise: args.monthlyRentPaise,
+    lastInvoiceDate: args.lastInvoiceDate ?? null,
+    lastPaymentDate: args.lastPaymentDate ?? null,
+  };
+}
