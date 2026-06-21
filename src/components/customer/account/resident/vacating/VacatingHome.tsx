@@ -47,7 +47,11 @@ export function VacatingHome({
   checkoutStatus,
   depositHeldPaise,
 }: Props) {
-  const activeIndex = vacatingStageIndex(vacating?.status ?? null, checkoutStatus);
+  const activeIndex = vacatingStageIndex(
+    vacating?.status ?? null,
+    checkoutStatus,
+    vacating?.vacatingDate ?? null,
+  );
   const nextStep = vacatingNextStep({ vacating, checkoutStatus });
   const settlementLines = buildVacatingSettlementLines(vacating);
   const refundEligibility = getDepositRefundEligibility({ vacating });

@@ -1,4 +1,5 @@
 import { AdminSectionErrorBoundary } from '@/src/components/admin/AdminSectionErrorBoundary';
+import { ScrollToHash } from '@/src/components/admin/ScrollToHash';
 import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
@@ -79,6 +80,7 @@ export default async function OperationsModulePage({
 
   return (
     <>
+      <ScrollToHash hash="#timeline" />
       <ModuleBreadcrumbs
         items={[
           { label: 'Overview', href: moduleHref('overview', billingMonth) },

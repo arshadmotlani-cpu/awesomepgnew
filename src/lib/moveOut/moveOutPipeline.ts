@@ -51,6 +51,33 @@ export type MoveOutPipelineItem = {
   stageTimestamps: Partial<Record<MoveOutStageId, Date>>;
 };
 
+/** JSON-safe shape for client components (no Date instances). */
+export type MoveOutPipelineItemClient = Omit<
+  MoveOutPipelineItem,
+  'createdAt' | 'updatedAt' | 'resolvedAt' | 'stageTimestamps'
+> & {
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt: string | null;
+  stageTimestamps: Partial<Record<MoveOutStageId, string>>;
+};
+
+export function toClientMoveOutPipelineItem(item: MoveOutPipelineItem): MoveOutPipelineItemClient {
+  const stageTimestamps: Partial<Record<MoveOutStageId, string>> = {};
+  for (const [key, value] of Object.entries(item.stageTimestamps) as Array<
+    [MoveOutStageId, Date | undefined]
+  >) {
+    if (value) stageTimestamps[key] = value.toISOString();
+  }
+  return {
+    ...item,
+    createdAt: item.createdAt.toISOString(),
+    updatedAt: item.updatedAt.toISOString(),
+    resolvedAt: item.resolvedAt?.toISOString() ?? null,
+    stageTimestamps,
+  };
+}
+
 export type MoveOutCommandStats = {
   awaitingInspection: number;
   awaitingCharges: number;

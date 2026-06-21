@@ -125,6 +125,7 @@ export function buildResidentOperationsDashboard(input: {
     status: string;
     vacatingDate: string;
     bookingId: string;
+    settlementId?: string | null;
   }>;
   checkoutRefunds: CheckoutSettlementRow[];
   depositRefunds: Array<{
@@ -347,8 +348,13 @@ export function buildResidentOperationsDashboard(input: {
           : `Move-out approved · checkout in progress`,
       nextAction:
         v.status === 'pending' ? 'Approve move-out notice' : 'Complete checkout settlement',
-      primaryActionLabel: v.status === 'pending' ? 'Continue move-out' : 'Continue move-out',
-      primaryHref: '/admin/vacating',
+      primaryActionLabel: v.status === 'pending' ? 'Approve move-out' : 'Open checkout',
+      primaryHref:
+        v.status === 'pending'
+          ? '/admin/vacating'
+          : v.settlementId
+            ? `/admin/checkout-settlements/${v.settlementId}`
+            : '/admin/checkout-settlements',
       sortPriority: v.status === 'pending' ? 0 : diffDays(today, v.vacatingDate),
       bookingId: v.bookingId,
       kycSubmissionId: null,

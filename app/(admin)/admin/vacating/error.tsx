@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { IconAlertTriangle } from '@/src/components/admin/icons';
 
-export default function AdminError({
+export default function VacatingError({
   error,
   reset,
 }: {
@@ -11,7 +11,7 @@ export default function AdminError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error('[admin] page error', error);
+    console.error('[admin/vacating] page error', error);
   }, [error]);
 
   return (
@@ -19,10 +19,10 @@ export default function AdminError({
       <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/15 text-rose-300">
         <IconAlertTriangle width={24} height={24} />
       </span>
-      <h2 className="mt-4 text-lg font-semibold text-white">This page could not load</h2>
+      <h2 className="mt-4 text-lg font-semibold text-white">Move-outs could not load</h2>
       <p className="mt-2 max-w-md text-sm text-apg-silver">
         {error.message?.trim() ||
-          'The server hit an error while loading this page. This is usually a temporary database timeout or connection issue — not lost data.'}
+          'The move-out pipeline hit a server error. Try reload — your data is still in the database.'}
       </p>
       {error.digest ? (
         <p className="mt-2 text-[11px] text-apg-silver/70">Reference: {error.digest}</p>

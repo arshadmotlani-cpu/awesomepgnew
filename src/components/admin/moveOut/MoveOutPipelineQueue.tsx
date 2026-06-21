@@ -12,21 +12,22 @@ import { formatDate, formatDateTime, paiseToInr } from '@/src/lib/format';
 import { diffDays } from '@/src/lib/dates';
 import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
 import type { VacatingApprovalPreview } from '@/src/lib/vacating/approvalPreview';
+import type { MoveOutUrgency } from '@/src/lib/vacating/approvalPreview';
 import {
   MOVE_OUT_STAGES,
-  type MoveOutPipelineItem,
+  type MoveOutPipelineItemClient,
 } from '@/src/lib/moveOut/moveOutPipeline';
 
 const PRIMARY =
   'inline-flex min-h-[36px] items-center justify-center rounded-lg bg-[#FF5A1F] px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110';
 
-const URGENCY_ROW_CLASS: Record<MoveOutPipelineItem['urgency'], string> = {
+const URGENCY_ROW_CLASS: Record<MoveOutUrgency, string> = {
   high: 'bg-rose-500/[0.07] ring-1 ring-inset ring-rose-400/25',
   medium: 'bg-amber-500/[0.06] ring-1 ring-inset ring-amber-400/20',
   normal: '',
 };
 
-const URGENCY_BADGE_CLASS: Record<MoveOutPipelineItem['urgency'], string> = {
+const URGENCY_BADGE_CLASS: Record<MoveOutUrgency, string> = {
   high: 'bg-rose-500/20 text-rose-100 ring-rose-400/40',
   medium: 'bg-amber-500/15 text-amber-100 ring-amber-400/30',
   normal: 'bg-white/5 text-apg-silver ring-white/10',
@@ -36,7 +37,7 @@ export function MoveOutPipelineQueue({
   items,
   compact,
 }: {
-  items: MoveOutPipelineItem[];
+  items: MoveOutPipelineItemClient[];
   compact?: boolean;
 }) {
   if (items.length === 0) {
@@ -89,7 +90,7 @@ export function MoveOutPipelineQueue({
   );
 }
 
-function PipelineRow({ row, compact }: { row: MoveOutPipelineItem; compact?: boolean }) {
+function PipelineRow({ row, compact }: { row: MoveOutPipelineItemClient; compact?: boolean }) {
   const isComplete = row.stage === 'bed_released';
   const urgencyClass = isComplete ? '' : URGENCY_ROW_CLASS[row.urgency];
   const daysLabel =
@@ -160,7 +161,7 @@ function PipelineRow({ row, compact }: { row: MoveOutPipelineItem; compact?: boo
   );
 }
 
-function StageTimeline({ row }: { row: MoveOutPipelineItem }) {
+function StageTimeline({ row }: { row: MoveOutPipelineItemClient }) {
   return (
     <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
       {MOVE_OUT_STAGES.map((stage, index) => {
@@ -218,7 +219,7 @@ function PipelineProgress({ stageIndex }: { stageIndex: number }) {
   );
 }
 
-function pipelineApprovalPreview(row: MoveOutPipelineItem): VacatingApprovalPreview {
+function pipelineApprovalPreview(row: MoveOutPipelineItemClient): VacatingApprovalPreview {
   const noticeCompletedDays = Math.max(0, diffDays(row.noticeGivenDate, row.vacatingDate));
   return {
     residentName: row.customerFullName,
@@ -236,7 +237,7 @@ function pipelineApprovalPreview(row: MoveOutPipelineItem): VacatingApprovalPrev
   };
 }
 
-function MoveOutPipelineRowActions({ row }: { row: MoveOutPipelineItem }) {
+function MoveOutPipelineRowActions({ row }: { row: MoveOutPipelineItemClient }) {
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
       {row.continueKind === 'approve' ? (

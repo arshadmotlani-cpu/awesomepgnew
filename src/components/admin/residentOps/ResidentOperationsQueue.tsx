@@ -81,7 +81,7 @@ export function ResidentOperationsQueue({
                         <ResidentAvatar name={row.residentName} />
                         {row.customerId ? (
                           <Link
-                            href={`?${filterQuery}resident=${row.customerId}#timeline`}
+                            href={`/admin/operations?${filterQuery}resident=${row.customerId}#timeline`}
                             className="font-semibold text-white hover:text-[#FF5A1F]"
                           >
                             {row.residentName}
@@ -149,7 +149,7 @@ function QueueRowActions({
           ) : null}
           {row.customerId ? (
             <Link
-              href={`?${filterQuery}resident=${row.customerId}#timeline`}
+              href={`/admin/operations?${filterQuery}resident=${row.customerId}#timeline`}
               className="block px-4 py-2.5 text-xs text-apg-silver hover:bg-white/5 hover:text-white"
             >
               View lifecycle timeline

@@ -13,6 +13,7 @@ import {
   activePipelineItems,
   buildMoveOutCommandStats,
   buildMoveOutPipeline,
+  toClientMoveOutPipelineItem,
 } from '@/src/lib/moveOut/moveOutPipeline';
 import {
   listPipelineCheckoutSettlements,
@@ -89,8 +90,11 @@ export default async function AdminVacatingPage(props: PageProps<'/admin/vacatin
   });
 
   const commandStats = buildMoveOutCommandStats(pipeline);
-  const activeItems = activePipelineItems(pipeline);
-  const completedRecently = pipeline.filter((i) => i.stage === 'bed_released').slice(0, 8);
+  const activeItems = activePipelineItems(pipeline).map(toClientMoveOutPipelineItem);
+  const completedRecently = pipeline
+    .filter((i) => i.stage === 'bed_released')
+    .slice(0, 8)
+    .map(toClientMoveOutPipelineItem);
 
   if (legacy) {
     const rawStatus = typeof sp.status === 'string' ? sp.status : '';

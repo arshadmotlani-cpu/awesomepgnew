@@ -1,4 +1,6 @@
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
+import { todayString } from '@/src/lib/dates';
+import { formatDate } from '@/src/lib/format';
 
 export type VacatingStageId =
   | 'request'
@@ -56,10 +58,19 @@ export const VACATING_JOURNEY_STAGES: VacatingStage[] = [
 export function vacatingStageIndex(
   vacatingStatus: string | null,
   checkoutStatus: string | null,
+  vacatingDate?: string | null,
+  today?: string,
 ): number {
+  const todayStr = today ?? todayString();
+
   if (checkoutStatus === 'completed' || checkoutStatus === 'archived') return 6;
   if (checkoutStatus === 'refund_paid') return 5;
   if (checkoutStatus === 'refund_pending' || checkoutStatus === 'awaiting_admin_review') return 4;
+
+  if (vacatingStatus === 'approved' && vacatingDate && todayStr < vacatingDate) {
+    return 2;
+  }
+
   if (checkoutStatus === 'awaiting_resident_details') return 3;
   if (vacatingStatus === 'approved') return 2;
   if (vacatingStatus === 'pending') return 1;
@@ -110,10 +121,17 @@ export function vacatingNextStep(args: {
   }
 
   if (vacating.status === 'approved') {
+    const today = todayString();
+    if (today < vacating.vacatingDate) {
+      return {
+        headline: 'Vacate approved',
+        detail: `Your move-out on ${formatDate(vacating.vacatingDate)} is confirmed. Deposit refund and meter photo unlock on that date.`,
+      };
+    }
     if (checkoutStatus === 'awaiting_resident_details') {
       return {
         headline: 'Vacate approved',
-        detail: 'Your vacate date is confirmed. Deposit refund unlocks on your vacate date.',
+        detail: 'Submit your final electricity meter photo and UPI details for deposit refund.',
       };
     }
     if (

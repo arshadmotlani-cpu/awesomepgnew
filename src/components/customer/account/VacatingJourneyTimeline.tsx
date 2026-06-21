@@ -2,6 +2,7 @@
 
 import { StatusTimeline, type TimelineStage } from '@/src/components/customer/design-system';
 import { ApgCard } from '@/src/components/customer/design-system';
+import { vacatingStageIndex } from '@/src/lib/residents/vacatingJourney';
 import { paiseToInr } from '@/src/lib/format';
 
 const VACATING_STAGES: TimelineStage[] = [
@@ -23,26 +24,17 @@ type SettlementLine = {
 type Props = {
   vacatingStatus: string | null;
   checkoutStatus: string | null;
+  vacatingDate?: string | null;
   settlementLines?: SettlementLine[];
 };
-
-function vacatingStageIndex(vacatingStatus: string | null, checkoutStatus: string | null): number {
-  if (checkoutStatus === 'completed' || checkoutStatus === 'archived') return 6;
-  if (checkoutStatus === 'refund_paid') return 5;
-  if (checkoutStatus === 'refund_pending' || checkoutStatus === 'awaiting_admin_review') return 4;
-  if (checkoutStatus === 'awaiting_resident_details') return 3;
-  if (vacatingStatus === 'approved') return 2;
-  if (vacatingStatus === 'pending') return 1;
-  if (vacatingStatus === 'completed') return 6;
-  return 0;
-}
 
 export function VacatingJourneyTimeline({
   vacatingStatus,
   checkoutStatus,
+  vacatingDate = null,
   settlementLines = [],
 }: Props) {
-  const activeIndex = vacatingStageIndex(vacatingStatus, checkoutStatus);
+  const activeIndex = vacatingStageIndex(vacatingStatus, checkoutStatus, vacatingDate);
 
   return (
     <ApgCard tier="account" className="p-5">

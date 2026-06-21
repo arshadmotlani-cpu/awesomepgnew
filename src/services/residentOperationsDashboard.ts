@@ -67,13 +67,17 @@ export async function loadResidentOperationsDashboard(session: AdminSession) {
 
   const unassignedResidents = residents.filter((r) => isResidentBedAssignable(r));
 
+  const settlementByVacatingId = new Map(
+    checkoutSettlements.map((s) => [s.vacatingRequestId, s.id]),
+  );
+
   const vacatingRows =
     vacatingRes.ok
       ? vacatingRes.data
           .filter((v) => v.status === 'pending' || v.status === 'approved')
           .map((v) => ({
             id: v.id,
-            customerId: '',
+            customerId: v.customerId,
             customerFullName: v.customerFullName,
             pgName: v.pgName,
             roomNumber: v.roomNumber,
@@ -81,13 +85,16 @@ export async function loadResidentOperationsDashboard(session: AdminSession) {
             status: v.status,
             vacatingDate: v.vacatingDate,
             bookingId: v.bookingId,
+            settlementId: settlementByVacatingId.get(v.id) ?? null,
           }))
       : [];
 
   const residentByBooking = new Map(residents.map((r) => [r.bookingId, r]));
   for (const v of vacatingRows) {
-    const match = residentByBooking.get(v.bookingId);
-    if (match) v.customerId = match.id;
+    if (!v.customerId) {
+      const match = residentByBooking.get(v.bookingId);
+      if (match) v.customerId = match.id;
+    }
   }
 
   const checkoutRefunds = checkoutSettlements.filter((s) => s.status === 'refund_pending');
@@ -141,6 +148,35 @@ export async function loadResidentOperationsDashboard(session: AdminSession) {
   });
 
   const residentIndex = new Map(residents.map((r) => [r.id, r]));
+
+  if (vacatingRes.ok) {
+    for (const v of vacatingRes.data) {
+      if (!['pending', 'approved'].includes(v.status)) continue;
+      if (residentIndex.has(v.customerId)) continue;
+      residentIndex.set(v.customerId, {
+        id: v.customerId,
+        fullName: v.customerFullName,
+        email: '',
+        phone: v.customerPhone,
+        gender: 'other',
+        kycStatus: 'pending',
+        createdAt: v.createdAt,
+        tenancyStatus: 'vacating',
+        pgId: null,
+        pgName: v.pgName,
+        roomNumber: v.roomNumber,
+        bedCode: v.bedCode,
+        roomId: null,
+        bedId: null,
+        monthlyRentPaise: 0,
+        bookingId: v.bookingId,
+        bookingCode: v.bookingCode,
+        moveInDate: null,
+        verificationSource: 'kyc',
+      });
+    }
+  }
+
   for (const q of dashboard.queue) {
     if (q.customerId && !residentIndex.has(q.customerId)) {
       const partial = {
