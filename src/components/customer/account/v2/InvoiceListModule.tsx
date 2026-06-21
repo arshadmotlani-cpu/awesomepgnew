@@ -40,7 +40,13 @@ export function InvoiceListModule({ invoices, customerName, customerPhone }: Pro
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <p className="text-sm font-semibold text-zinc-900">Invoice #{inv.invoiceNumber}</p>
+                  {inv.detailHref ? (
+                    <Link href={inv.detailHref} className="text-sm font-semibold text-zinc-900 hover:text-apg-orange">
+                      Invoice #{inv.invoiceNumber}
+                    </Link>
+                  ) : (
+                    <p className="text-sm font-semibold text-zinc-900">Invoice #{inv.invoiceNumber}</p>
+                  )}
                   <p className="text-xs text-zinc-500">{inv.label}</p>
                 </div>
                 <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold uppercase ring-1 ring-zinc-200 text-zinc-700">

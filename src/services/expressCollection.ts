@@ -27,6 +27,7 @@ import {
   type ExpressCollectionPaymentMethod,
 } from '@/src/lib/billing/expressCollectionConstants';
 import { revalidateFinancialViews } from '@/src/lib/billing/revalidateFinancialViews';
+import { nextFinancialInvoiceNumber } from '@/src/lib/billing/invoiceNumbering';
 import { formatDate, parseDate } from '@/src/lib/dates';
 import { dueDateForMonth, firstOfMonth } from '@/src/services/billing';
 import { syncDepositCollectionFromLedger } from '@/src/services/depositCollection';
@@ -109,17 +110,6 @@ async function nextElectricityInvoiceNumber(billingMonth: string, attempt = 0): 
     WHERE billing_month = ${firstOfMonth(billingMonth)}
   `);
   const seq = Number((Array.from(row ? [row] : [])[0] as { c: number } | undefined)?.c ?? 0) + 1 + attempt;
-  return `${prefix}${String(seq).padStart(4, '0')}`;
-}
-
-async function nextFinancialInvoiceNumber(): Promise<string> {
-  const today = formatDate(new Date()).replace(/-/g, '');
-  const prefix = `INV-${today}-`;
-  const [row] = await db.execute<{ c: number }>(sql`
-    SELECT count(*)::int AS c FROM financial_invoices
-    WHERE invoice_number LIKE ${prefix + '%'}
-  `);
-  const seq = Number((Array.from(row ? [row] : [])[0] as { c: number } | undefined)?.c ?? 0) + 1;
   return `${prefix}${String(seq).padStart(4, '0')}`;
 }
 
@@ -525,7 +515,7 @@ async function recordExpressFinancialCharge(
   const note = [EXPRESS_COLLECTION_NOTE_PREFIX, input.notes].filter(Boolean).join(' · ');
   const billingMonth = input.billingMonth ? firstOfMonth(input.billingMonth) : null;
 
-  const invoiceNumber = await nextFinancialInvoiceNumber();
+  const invoiceNumber = await nextFinancialInvoiceNumber({ pgId: ctx.pgId });
   const breakdown = {
     otherPaise: invoiceType === 'custom' ? input.amountPaise : 0,
     ps4Paise: invoiceType === 'ps4' ? input.amountPaise : 0,

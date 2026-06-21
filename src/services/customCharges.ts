@@ -8,6 +8,7 @@ import type { FinancialInvoiceType } from '@/src/db/schema/enums';
 import type { InvoiceBreakdown } from '@/src/db/schema/financialInvoices';
 import { formatDate } from '@/src/lib/dates';
 import { revalidateFinancialViews } from '@/src/lib/billing/revalidateFinancialViews';
+import { nextFinancialInvoiceNumber } from '@/src/lib/billing/invoiceNumbering';
 import { getResidentFinancialSummary } from '@/src/services/residentFinancialEngine';
 import { createPaymentLinkForInvoice } from '@/src/services/unifiedInvoices';
 
@@ -42,18 +43,6 @@ export type CreateCustomChargeInput = {
 export type CreateCustomChargeResult =
   | { ok: true; invoiceId: string; invoiceNumber: string; amountPaise: number }
   | { ok: false; error: string };
-
-async function nextInvoiceNumber(): Promise<string> {
-  const { sql } = await import('drizzle-orm');
-  const today = formatDate(new Date()).replace(/-/g, '');
-  const prefix = `INV-${today}-`;
-  const [row] = await db.execute<{ c: number }>(sql`
-    SELECT count(*)::int AS c FROM financial_invoices
-    WHERE invoice_number LIKE ${prefix + '%'}
-  `);
-  const seq = Number((Array.from(row ? [row] : [])[0] as { c: number } | undefined)?.c ?? 0) + 1;
-  return `${prefix}${String(seq).padStart(4, '0')}`;
-}
 
 /** Create a custom charge invoice — appears in SSOT other/outstanding. */
 export async function createCustomCharge(
@@ -90,7 +79,7 @@ export async function createCustomCharge(
     ],
   };
 
-  const invoiceNumber = await nextInvoiceNumber();
+  const invoiceNumber = await nextFinancialInvoiceNumber({ pgId: summary.pgId });
   const dueDate = input.dueDate ?? formatDate(new Date());
 
   const [row] = await db

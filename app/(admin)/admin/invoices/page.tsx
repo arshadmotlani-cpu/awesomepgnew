@@ -1,16 +1,15 @@
 import Link from 'next/link';
-import { Badge, toneForStatus } from '@/src/components/admin/Badge';
+import { AdminInvoiceListRow } from '@/src/components/admin/AdminInvoiceListRow';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
 import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
-import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
+import { formatDate, paiseToInr } from '@/src/lib/format';
 import {
   getInvoiceStats,
   listUnifiedInvoices,
   type InvoiceListFilters,
 } from '@/src/services/unifiedInvoices';
-import type { FinancialInvoiceStatus } from '@/src/db/schema/enums';
 
 export const dynamic = 'force-dynamic';
 
@@ -132,35 +131,7 @@ export default async function InvoicesPage({
               </TD>
             </TR>
           ) : (
-            invoices.map((inv) => (
-              <TR key={inv.id}>
-                <TD>
-                  <Link
-                    href={`/admin/invoices/${inv.id}`}
-                    className="font-medium text-[#FF5A1F] hover:underline"
-                  >
-                    {inv.invoiceNumber}
-                  </Link>
-                </TD>
-                <TD>
-                  <div>{inv.customerName}</div>
-                  <div className="text-xs text-apg-silver">{inv.customerPhone}</div>
-                </TD>
-                <TD>{inv.pgName}</TD>
-                <TD>{inv.roomNumber ?? '—'}</TD>
-                <TD>{inv.bedCode ?? '—'}</TD>
-                <TD>{titleCase(inv.invoiceType.replace('_', ' '))}</TD>
-                <TD className="text-right">{paiseToInr(inv.amountPaise)}</TD>
-                <TD>
-                  <Badge tone={toneForStatus(inv.status as FinancialInvoiceStatus)}>
-                    {titleCase(inv.status)}
-                  </Badge>
-                </TD>
-                <TD>{formatDate(inv.createdAt)}</TD>
-                <TD>{inv.dueDate ? formatDate(inv.dueDate) : '—'}</TD>
-                <TD>{inv.paidAt ? formatDate(inv.paidAt) : '—'}</TD>
-              </TR>
-            ))
+            invoices.map((inv) => <AdminInvoiceListRow key={inv.id} inv={inv} />)
           )}
         </TBody>
       </Table>

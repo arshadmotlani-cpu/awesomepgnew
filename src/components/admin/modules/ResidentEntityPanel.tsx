@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { AdminBillingWhatsAppButton } from '@/src/components/admin/AdminBillingWhatsAppButton';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
@@ -8,8 +9,8 @@ import type {
   AdminElectricityInvoiceReminderRow,
   AdminRentInvoiceRow,
 } from '@/src/db/queries/admin';
+import { invoiceHrefFromMap } from '@/src/lib/billing/invoiceHrefMap';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
-import Link from 'next/link';
 
 type DepositRow = {
   bookingId: string;
@@ -26,6 +27,7 @@ export function ResidentEntityPanel({
   deposits,
   module,
   pgId,
+  invoiceHrefMap = {},
 }: {
   residentName: string;
   phone: string;
@@ -35,6 +37,7 @@ export function ResidentEntityPanel({
   deposits: DepositRow[];
   module: 'revenue' | 'collections' | 'operations';
   pgId: string;
+  invoiceHrefMap?: Record<string, string>;
 }) {
   return (
     <div className="space-y-8">
@@ -57,6 +60,7 @@ export function ResidentEntityPanel({
       <InvoiceSection title="Rent invoices" empty="No rent invoices." rows={rentInvoices.map((r) => ({
         key: r.id,
         meta: r.invoiceNumber,
+        invoiceHref: invoiceHrefFromMap(invoiceHrefMap, 'rent_invoices', r.id),
         amount: r.rentPaise,
         status: r.status,
         date: formatDate(r.dueDate),
@@ -82,6 +86,7 @@ export function ResidentEntityPanel({
         rows={electricityInvoices.map((r) => ({
           key: r.id,
           meta: r.invoiceNumber,
+          invoiceHref: invoiceHrefFromMap(invoiceHrefMap, 'electricity_invoices', r.id),
           amount: r.amountPaise,
           status: r.isOverdue ? 'overdue' : 'pending',
           date: formatDate(r.dueDate),
@@ -136,6 +141,7 @@ function InvoiceSection({
   rows: Array<{
     key: string;
     meta: string;
+    invoiceHref?: string;
     amount: number;
     status: string;
     date: string;
@@ -168,7 +174,15 @@ function InvoiceSection({
           <TBody>
             {rows.map((r) => (
               <TR key={r.key}>
-                <TD className="text-sm text-white">{r.meta}</TD>
+                <TD className="text-sm text-white">
+                  {r.invoiceHref ? (
+                    <Link href={r.invoiceHref} className="font-medium text-[#FF5A1F] hover:underline">
+                      {r.meta}
+                    </Link>
+                  ) : (
+                    r.meta
+                  )}
+                </TD>
                 <TD className="text-xs text-apg-silver">{r.date}</TD>
                 <TD className="text-right tabular-nums">{paiseToInr(r.amount)}</TD>
                 <TD>

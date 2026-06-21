@@ -140,6 +140,14 @@ erDiagram
 
 Unified registry linking rent, electricity, deposit, custom, PS4 — see `unifiedInvoices.ts`.
 
+| Field | Notes |
+|-------|-------|
+| `invoice_number` | Unique. New inserts: `INV-{YEAR}-{PG_CODE}-{SEQ}`. Rent mirrors may use `RNT-*` from source |
+| `breakdown` | JSONB line items + component paise |
+| `source_table` / `source_id` | Link to rent/electricity source when mirrored |
+
+Numbering SSOT: `src/lib/billing/invoiceNumbering.ts` — see [[Invoices#Invoice numbering (2026-06-22)]]
+
 ### `payment_links`
 
 | Field | Notes |

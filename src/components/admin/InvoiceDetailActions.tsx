@@ -1,12 +1,9 @@
 'use client';
 
-import { useActionState, useEffect } from 'react';
-import Link from 'next/link';
+import { useActionState, useEffect, useState } from 'react';
 import {
   cancelInvoiceAction,
-  invoicePaymentLinkAction,
   invoiceWhatsAppAction,
-  refundInvoiceAction,
   voidInvoiceCompletelyAction,
   type InvoiceActionState,
 } from '@/app/(admin)/admin/invoices/actions';
@@ -18,7 +15,6 @@ const initial: InvoiceActionState = { status: 'idle' };
 type Props = {
   invoiceId: string;
   status: FinancialInvoiceStatus;
-  existingPaymentUrl?: string | null;
   canVoidExpressSale?: boolean;
   bookingCode?: string | null;
 };
@@ -26,32 +22,33 @@ type Props = {
 export function InvoiceDetailActions({
   invoiceId,
   status,
-  existingPaymentUrl,
   canVoidExpressSale = false,
   bookingCode,
 }: Props) {
   const [cancelState, cancelFormAction, cancelPending] = useActionState(cancelInvoiceAction, initial);
-  const [refundState, refundFormAction, refundPending] = useActionState(refundInvoiceAction, initial);
   const [voidState, voidFormAction, voidPending] = useActionState(voidInvoiceCompletelyAction, initial);
-  const [linkState, linkFormAction, linkPending] = useActionState(invoicePaymentLinkAction, initial);
   const [waState, waFormAction, waPending] = useActionState(invoiceWhatsAppAction, initial);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
-  const paymentUrl =
-    linkState.status === 'ok' && linkState.paymentUrl
-      ? linkState.paymentUrl
-      : existingPaymentUrl ?? null;
-  const whatsappUrl =
-    waState.status === 'ok' && waState.whatsappUrl ? waState.whatsappUrl : null;
+  const whatsappUrl = waState.status === 'ok' && waState.whatsappUrl ? waState.whatsappUrl : null;
 
   useEffect(() => {
     if (whatsappUrl) window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
   }, [whatsappUrl]);
 
   const canCancel =
-    !canVoidExpressSale &&
-    (status === 'sent' || status === 'overdue' || status === 'draft');
-  const canRefund = !canVoidExpressSale && status === 'paid';
-  const canPay = status !== 'paid' && status !== 'cancelled' && status !== 'refunded';
+    status !== 'paid' &&
+    status !== 'refunded' &&
+    status !== 'cancelled' &&
+    (status === 'sent' || status === 'overdue' || status === 'draft' || status === 'expired');
+
+  const cancelBlockedReason =
+    status === 'paid'
+      ? 'Paid invoices cannot be cancelled — use refund or advanced void for express sales.'
+      : status === 'refunded' || status === 'cancelled'
+        ? `Invoice is already ${status}.`
+        : null;
 
   const feedback =
     voidState.status === 'ok'
@@ -62,124 +59,110 @@ export function InvoiceDetailActions({
           ? cancelState.message
           : cancelState.status === 'error'
             ? cancelState.message
-            : refundState.status === 'ok'
-              ? refundState.message
-              : refundState.status === 'error'
-                ? refundState.message
-                : linkState.status === 'ok'
-                  ? linkState.message
-                  : linkState.status === 'error'
-                    ? linkState.message
-                    : waState.status === 'error'
-                      ? waState.message
-                      : null;
+            : waState.status === 'error'
+              ? waState.message
+              : null;
 
   return (
     <div className="space-y-4">
-      {canVoidExpressSale ? (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
-          <p className="text-sm font-medium text-amber-100">Express walk-in sale</p>
-          <p className="mt-1 text-xs text-amber-200/90">
-            Void removes this invoice, cancels booking {bookingCode ? `(${bookingCode})` : ''},
-            clears deposit wallet entries, frees the bed, and archives the resident profile.
-          </p>
-          <form action={voidFormAction} className="mt-3 flex flex-wrap items-end gap-2">
-            <input type="hidden" name="invoiceId" value={invoiceId} />
-            <input
-              name="reason"
-              required
-              placeholder="Why void this sale?"
-              className="min-w-[220px] flex-1 rounded-lg border border-white/10 bg-[#12161D] px-3 py-2 text-sm text-white"
-            />
-            <button
-              type="submit"
-              disabled={voidPending}
-              className="rounded-lg border border-red-500/50 bg-red-500/15 px-3 py-2 text-sm font-semibold text-red-100 hover:bg-red-500/25 disabled:opacity-50"
-            >
-              {voidPending ? 'Voiding…' : 'Void sale & remove all traces'}
-            </button>
-          </form>
-        </div>
-      ) : null}
-
       <div className="flex flex-wrap gap-2">
-        {canPay ? (
-          <>
-            <form action={linkFormAction}>
-              <input type="hidden" name="invoiceId" value={invoiceId} />
-              <button
-                type="submit"
-                disabled={linkPending}
-                className="rounded-lg border border-white/10 px-3 py-2 text-sm font-medium text-white hover:bg-white/5 disabled:opacity-50"
-              >
-                {linkPending ? 'Creating…' : 'Generate payment link'}
-              </button>
-            </form>
-            <form action={waFormAction}>
-              <input type="hidden" name="invoiceId" value={invoiceId} />
-              <button
-                type="submit"
-                disabled={waPending}
-                className="inline-flex items-center gap-2 rounded-lg bg-[#25D366] px-3 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50"
-              >
-                <WhatsAppIcon className="h-4 w-4" />
-                {waPending ? 'Opening…' : 'WhatsApp'}
-              </button>
-            </form>
-          </>
-        ) : null}
+        <form action={waFormAction}>
+          <input type="hidden" name="invoiceId" value={invoiceId} />
+          <button
+            type="submit"
+            disabled={waPending}
+            className="inline-flex items-center gap-2 rounded-lg bg-[#25D366] px-4 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50"
+          >
+            <WhatsAppIcon className="h-4 w-4" />
+            {waPending ? 'Opening…' : 'Send on WhatsApp'}
+          </button>
+        </form>
+
         {canCancel ? (
-          <form action={cancelFormAction} className="flex flex-wrap items-end gap-2">
-            <input type="hidden" name="invoiceId" value={invoiceId} />
-            <input
-              name="reason"
-              placeholder="Cancellation reason"
-              className="rounded-lg border border-white/10 bg-[#12161D] px-3 py-2 text-sm text-white"
-            />
+          showCancelConfirm ? (
+            <form action={cancelFormAction} className="flex flex-wrap items-end gap-2 rounded-xl border border-red-500/30 bg-red-500/5 p-3">
+              <input type="hidden" name="invoiceId" value={invoiceId} />
+              <div className="w-full">
+                <p className="text-xs font-medium text-red-100">Cancel this invoice?</p>
+                <p className="mt-1 text-[11px] text-red-200/80">
+                  This cannot be undone. Outstanding balances will update automatically.
+                </p>
+              </div>
+              <input
+                name="reason"
+                required
+                placeholder="Cancellation reason"
+                className="min-w-[200px] flex-1 rounded-lg border border-white/10 bg-[#12161D] px-3 py-2 text-sm text-white"
+              />
+              <button
+                type="submit"
+                disabled={cancelPending}
+                className="rounded-lg border border-red-500/50 bg-red-500/15 px-3 py-2 text-sm font-semibold text-red-100 hover:bg-red-500/25 disabled:opacity-50"
+              >
+                {cancelPending ? 'Cancelling…' : 'Confirm cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCancelConfirm(false)}
+                className="rounded-lg border border-white/10 px-3 py-2 text-sm text-apg-silver hover:text-white"
+              >
+                Back
+              </button>
+            </form>
+          ) : (
             <button
-              type="submit"
-              disabled={cancelPending}
-              className="rounded-lg border border-red-500/40 px-3 py-2 text-sm font-medium text-red-300 hover:bg-red-500/10 disabled:opacity-50"
+              type="button"
+              onClick={() => setShowCancelConfirm(true)}
+              className="rounded-lg border border-red-500/40 px-4 py-2 text-sm font-medium text-red-300 hover:bg-red-500/10"
             >
               Cancel invoice
             </button>
-          </form>
-        ) : null}
-        {canRefund ? (
-          <form action={refundFormAction} className="flex flex-wrap items-end gap-2">
-            <input type="hidden" name="invoiceId" value={invoiceId} />
-            <input
-              name="reason"
-              placeholder="Refund reason"
-              className="rounded-lg border border-white/10 bg-[#12161D] px-3 py-2 text-sm text-white"
-            />
-            <button
-              type="submit"
-              disabled={refundPending}
-              className="rounded-lg border border-amber-500/40 px-3 py-2 text-sm font-medium text-amber-200 hover:bg-amber-500/10 disabled:opacity-50"
-            >
-              Refund invoice
-            </button>
-          </form>
+          )
+        ) : cancelBlockedReason ? (
+          <p className="self-center text-xs text-apg-silver">{cancelBlockedReason}</p>
         ) : null}
       </div>
 
-      {paymentUrl ? (
-        <div className="rounded-xl border border-white/10 bg-[#1A1F27] p-4">
-          <p className="text-xs uppercase text-apg-silver">Payment link</p>
-          <Link
-            href={paymentUrl}
-            target="_blank"
-            className="mt-1 block break-all text-sm text-[#FF5A1F] hover:underline"
-          >
-            {paymentUrl}
-          </Link>
-        </div>
+      {canVoidExpressSale ? (
+        <details
+          open={advancedOpen}
+          onToggle={(e) => setAdvancedOpen((e.target as HTMLDetailsElement).open)}
+          className="rounded-xl border border-white/10 bg-[#12161C]"
+        >
+          <summary className="cursor-pointer px-4 py-3 text-xs font-semibold uppercase tracking-wide text-apg-silver hover:text-white">
+            Advanced
+          </summary>
+          <div className="border-t border-white/10 p-4">
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+              <p className="text-sm font-medium text-amber-100">Express walk-in — void sale</p>
+              <p className="mt-1 text-xs text-amber-200/90">
+                Void removes this invoice, cancels booking {bookingCode ? `(${bookingCode})` : ''},
+                clears deposit wallet entries, frees the bed, and archives the resident profile.
+              </p>
+              <form action={voidFormAction} className="mt-3 flex flex-wrap items-end gap-2">
+                <input type="hidden" name="invoiceId" value={invoiceId} />
+                <input
+                  name="reason"
+                  required
+                  placeholder="Why void this sale?"
+                  className="min-w-[220px] flex-1 rounded-lg border border-white/10 bg-[#12161D] px-3 py-2 text-sm text-white"
+                />
+                <button
+                  type="submit"
+                  disabled={voidPending}
+                  className="rounded-lg border border-red-500/50 bg-red-500/15 px-3 py-2 text-sm font-semibold text-red-100 hover:bg-red-500/25 disabled:opacity-50"
+                >
+                  {voidPending ? 'Voiding…' : 'Void sale & remove all traces'}
+                </button>
+              </form>
+            </div>
+          </div>
+        </details>
       ) : null}
 
       {feedback ? (
         <p
-          className={`text-sm ${feedback.includes('Could not') || feedback.includes('Missing') || feedback.includes('must') || feedback.includes('Only') || feedback.includes('already') ? 'text-red-300' : 'text-emerald-300'}`}
+          className={`text-sm ${feedback.includes('Could not') || feedback.includes('Missing') || feedback.includes('must') || feedback.includes('Only') || feedback.includes('already') || feedback.includes('cannot') ? 'text-red-300' : 'text-emerald-300'}`}
         >
           {feedback}
         </p>

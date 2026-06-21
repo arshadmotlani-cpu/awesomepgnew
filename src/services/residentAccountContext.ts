@@ -19,6 +19,8 @@ import { getResidentFinancialSummary } from '@/src/services/residentFinancialEng
 import { projectInvoice } from '@/src/services/rentInvoices';
 import { getCustomerById, isProfileComplete } from '@/src/services/profile';
 import { paymentLinkPublicUrl } from '@/src/lib/billing/paymentLinkUrl';
+import { batchLookupFinancialInvoiceIds } from '@/src/lib/billing/invoiceNumbering';
+import { invoiceDetailHref } from '@/src/lib/billing/invoiceRoutes';
 import { getLatestPaymentLinkForResident } from '@/src/services/paymentLinks';
 import { diffDays } from '@/src/lib/dates';
 
@@ -37,6 +39,7 @@ export type ResidentInvoiceCard = {
   status: string;
   dueDate: string | null;
   payHref: string | null;
+  detailHref: string | null;
   paymentLinkUrl: string | null;
 };
 
@@ -193,6 +196,7 @@ export async function loadResidentAccountContext(
             projected.outstandingPaise > 0
               ? `/account/resident/pay-rent/${inv.id}`
               : null,
+          detailHref: null,
           paymentLinkUrl: null,
         });
         if (inv.status === 'paid') {
@@ -250,6 +254,7 @@ export async function loadResidentAccountContext(
             projected.outstandingPaise > 0
               ? `/account/resident/pay-electricity/${inv.id}`
               : null,
+          detailHref: null,
           paymentLinkUrl: null,
         });
       }
@@ -279,6 +284,7 @@ export async function loadResidentAccountContext(
           status: 'due_at_checkout',
           dueDate: openVacating.vacatingDate,
           payHref: null,
+          detailHref: null,
           paymentLinkUrl: null,
         });
       }
@@ -305,8 +311,25 @@ export async function loadResidentAccountContext(
               : 'partial',
         dueDate: primaryBooking.checkInDate,
         payHref: null,
+        detailHref: null,
         paymentLinkUrl: null,
       });
+    }
+
+    const fiMap = await batchLookupFinancialInvoiceIds(
+      invoices
+        .filter((inv) => inv.kind === 'rent' || inv.kind === 'electricity')
+        .map((inv) => ({
+          sourceTable: inv.kind === 'rent' ? 'rent_invoices' : 'electricity_invoices',
+          sourceId: inv.id,
+        })),
+    );
+    for (const inv of invoices) {
+      if (inv.kind === 'rent' || inv.kind === 'electricity') {
+        const table = inv.kind === 'rent' ? 'rent_invoices' : 'electricity_invoices';
+        const fiId = fiMap[`${table}:${inv.id}`];
+        inv.detailHref = fiId ? invoiceDetailHref(fiId, 'resident') : null;
+      }
     }
   }
 

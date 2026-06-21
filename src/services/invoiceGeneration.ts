@@ -3,12 +3,13 @@
  * Never computes rent/deposit/electricity independently.
  */
 
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { financialInvoices } from '@/src/db/schema';
 import type { InvoiceBreakdown } from '@/src/db/schema/financialInvoices';
 import type { FinancialInvoiceType } from '@/src/db/schema/enums';
 import { formatDate } from '@/src/lib/dates';
+import { nextFinancialInvoiceNumber } from '@/src/lib/billing/invoiceNumbering';
 import type { ResidentFinancialLineItem, ResidentFinancialSummary } from '@/src/lib/billing/residentFinancialTypes';
 import { getResidentFinancialSummary } from '@/src/services/residentFinancialEngine';
 import { createPaymentLinkForInvoice } from '@/src/services/unifiedInvoices';
@@ -116,15 +117,8 @@ function buildBreakdown(items: ResidentFinancialLineItem[]): {
   return { breakdown, totalPaise };
 }
 
-async function nextInvoiceNumber(): Promise<string> {
-  const today = formatDate(new Date()).replace(/-/g, '');
-  const prefix = `INV-${today}-`;
-  const [row] = await db.execute<{ c: number }>(sql`
-    SELECT count(*)::int AS c FROM financial_invoices
-    WHERE invoice_number LIKE ${prefix + '%'}
-  `);
-  const seq = Number((Array.from(row ? [row] : [])[0] as { c: number } | undefined)?.c ?? 0) + 1;
-  return `${prefix}${String(seq).padStart(4, '0')}`;
+async function nextInvoiceNumber(pgId: string): Promise<string> {
+  return nextFinancialInvoiceNumber({ pgId });
 }
 
 function mapInvoiceType(kind: GenerateInvoiceKind): FinancialInvoiceType {
@@ -200,7 +194,7 @@ export async function generateInvoiceFromSsot(
     }
   }
 
-  const invoiceNumber = await nextInvoiceNumber();
+  const invoiceNumber = await nextInvoiceNumber(summary.pgId);
   const dueDate = formatDate(new Date());
   const invoiceType = mapInvoiceType(input.kind);
 

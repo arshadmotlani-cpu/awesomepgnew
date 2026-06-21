@@ -175,6 +175,18 @@ Cross-links: [[ARCHITECTURE]] · [[WORKFLOWS]] · [[AI_CONTEXT]] · [[BUGS]]
 
 ---
 
+## Financial invoice numbering scheme
+
+| | |
+|---|---|
+| **Date** | 2026-06-22 |
+| **Decision** | New `financial_invoices` inserts use `INV-{YEAR}-{PROPERTY_CODE}-{SEQUENCE}` (per PG, per calendar year). Rent-synced unified rows keep source `RNT-*` numbers. |
+| **Reason** | Professional tax invoices need stable, human-readable IDs scoped by property and year |
+| **Impact** | `invoiceNumbering.ts`; express walk-in, custom charges, invoice generation, express collection |
+| **See** | [[Invoices#Invoice numbering (2026-06-22)]], `src/lib/billing/invoiceNumbering.ts` |
+
+---
+
 ## Related
 
 [[ARCHITECTURE]] · [[WORKFLOWS]] · [[CHANGELOG]] · [[CURRENT_STATE]]

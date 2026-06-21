@@ -8,9 +8,11 @@ import {
   createPaymentLinkForInvoice,
   refundUnifiedInvoice,
 } from '@/src/services/unifiedInvoices';
-import { buildInvoiceWhatsAppUrl } from '@/src/lib/billing/invoiceWhatsApp';
-import { paymentLinkPublicUrl } from '@/src/lib/billing/paymentLinkUrl';
-import { getUnifiedInvoiceDetail } from '@/src/services/unifiedInvoices';
+import { getInvoiceDocumentDetail } from '@/src/lib/billing/invoiceDocumentModel';
+import {
+  buildInvoicePublicUrl,
+  buildInvoiceWhatsAppSendPayload,
+} from '@/src/lib/billing/sendInvoiceOnWhatsApp';
 import { voidInvoiceCompletely } from '@/src/services/invoiceVoid';
 
 export type InvoiceActionState =
@@ -21,6 +23,7 @@ export type InvoiceActionState =
 function revalidateInvoice(invoiceId: string) {
   revalidatePath('/admin/invoices');
   revalidatePath(`/admin/invoices/${invoiceId}`);
+  revalidatePath(`/account/resident/invoices/${invoiceId}`);
   revalidatePath('/admin/overview');
   revalidatePath('/admin/revenue');
   revalidatePath('/admin/collections');
@@ -162,28 +165,34 @@ export async function invoiceWhatsAppAction(
 
     await assertAdminFinancialInvoiceAccess(session, invoiceId);
 
-    const detail = await getUnifiedInvoiceDetail(invoiceId);
+    let detail = await getInvoiceDocumentDetail(invoiceId);
     if (!detail) return { status: 'error', message: 'Invoice not found.' };
 
-    let paymentUrl = detail.paymentLink ? paymentLinkPublicUrl(detail.paymentLink.id) : undefined;
-    if (!paymentUrl && detail.status !== 'paid' && detail.status !== 'cancelled') {
+    if (
+      !detail.payment.paymentLinkUrl &&
+      detail.status !== 'paid' &&
+      detail.status !== 'cancelled' &&
+      detail.status !== 'refunded'
+    ) {
       const link = await createPaymentLinkForInvoice(invoiceId);
-      if (link.ok) paymentUrl = link.publicUrl;
+      if (link.ok) {
+        detail = (await getInvoiceDocumentDetail(invoiceId)) ?? detail;
+      }
     }
 
-    const whatsappUrl = buildInvoiceWhatsAppUrl({
-      customerName: detail.customerName,
-      customerPhone: detail.customerPhone,
-      invoiceNumber: detail.invoiceNumber,
-      amountPaise: detail.amountPaise,
-      paymentLinkUrl: paymentUrl,
-    });
+    const publicInvoiceUrl = buildInvoicePublicUrl(invoiceId, 'resident');
+    const payload = buildInvoiceWhatsAppSendPayload(detail, publicInvoiceUrl);
 
-    if (!whatsappUrl) {
+    if (!payload.whatsappUrl) {
       return { status: 'error', message: 'Resident phone number is missing or invalid.' };
     }
 
-    return { status: 'ok', message: 'WhatsApp message ready.', whatsappUrl, paymentUrl };
+    return {
+      status: 'ok',
+      message: 'WhatsApp message ready.',
+      whatsappUrl: payload.whatsappUrl,
+      paymentUrl: detail.payment.paymentLinkUrl ?? undefined,
+    };
   } catch (err) {
     return {
       status: 'error',

@@ -5,6 +5,21 @@
 
 ---
 
+## 2026-06-22 (continued)
+
+### Added
+- Professional Tax Invoice redesign: `InvoiceDocument`, `invoiceDocumentModel`, resident `/account/resident/invoices/[id]`
+- Invoice numbering `INV-{YEAR}-{PG}-{SEQ}` via `invoiceNumbering.ts` for new financial inserts
+- WhatsApp send abstraction `sendInvoiceOnWhatsApp.ts` with resident invoice page link
+- Unit tests: `invoiceNumbering`, `invoiceDocumentModel`, `invoiceRoutes`; extended `invoiceVoid.test.ts`
+
+### Changed
+- Admin invoice detail: Cancel + WhatsApp only; express void moved to Advanced collapsible
+- Admin invoice list: entire row clickable
+- Invoice links in ResidentEntityPanel, ResidentFinancialSummaryCard, InvoiceListModule
+
+---
+
 ## 2026-06-22
 
 ### Fixed
@@ -110,9 +125,9 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-21 21:26:01 UTC
+### Pending pre-commit sync · 2026-06-21 21:45:09 UTC
 
-**Areas touched:** [[ROUTES]], [[Residents]], [[Billing]]
+**Areas touched:** [[ROUTES]], [[Billing]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
@@ -122,10 +137,20 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (4):**
+**Staged code files (14):**
+- `app/(admin)/admin/collections/pg/[pgId]/resident/[residentId]/page.tsx`
 - `app/(admin)/admin/invoices/[invoiceId]/page.tsx`
+- `app/(admin)/admin/invoices/[invoiceId]/print/page.tsx`
 - `app/(admin)/admin/invoices/actions.ts`
-- `src/services/residentAdmin.ts`
+- `app/(admin)/admin/invoices/page.tsx`
+- `app/(admin)/admin/operations/pg/[pgId]/resident/[residentId]/page.tsx`
+- `app/(admin)/admin/revenue/pg/[pgId]/resident/[residentId]/page.tsx`
+- `app/(customer)/account/resident/invoices/[invoiceId]/page.tsx`
+- `src/lib/billing/invoiceDocumentModel.ts`
+- `src/lib/billing/invoiceHrefMap.ts`
+- `src/lib/billing/invoiceNumbering.ts`
+- `src/lib/billing/invoiceRoutes.ts`
+- `src/lib/billing/sendInvoiceOnWhatsApp.ts`
 - `src/services/unifiedInvoices.ts`
 
 **Changed:**

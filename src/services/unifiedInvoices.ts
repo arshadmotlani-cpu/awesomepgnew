@@ -24,6 +24,7 @@ import type { FinancialInvoice, InvoiceBreakdown } from '@/src/db/schema/financi
 import type { FinancialInvoiceStatus, FinancialInvoiceType } from '@/src/db/schema/enums';
 import { createPaymentLink } from '@/src/services/paymentLinks';
 import { buildInvoiceWhatsAppUrl } from '@/src/lib/billing/invoiceWhatsApp';
+import { nextFinancialInvoiceNumber } from '@/src/lib/billing/invoiceNumbering';
 import { formatDate } from '@/src/lib/dates';
 import {
   FINANCIAL_CANCELLABLE_STATUSES,
@@ -273,17 +274,6 @@ export async function requireRentUnifiedInvoice(
   return unifiedId;
 }
 
-async function nextExpressWalkInInvoiceNumber(): Promise<string> {
-  const today = formatDate(new Date()).replace(/-/g, '');
-  const prefix = `INV-${today}-`;
-  const rows = await db.execute<{ c: number }>(sql`
-    SELECT count(*)::int AS c FROM financial_invoices
-    WHERE invoice_number LIKE ${prefix + '%'}
-  `);
-  const seq = Number(rows[0]?.c ?? 0) + 1;
-  return `${prefix}${String(seq).padStart(4, '0')}`;
-}
-
 /** Mirror deposit-only express walk-in sales into financial_invoices. */
 export async function ensureExpressWalkInDepositFinancialInvoice(
   bookingId: string,
@@ -339,7 +329,7 @@ export async function ensureExpressWalkInDepositFinancialInvoice(
     lines: [{ kind: 'deposit', label: 'Deposit collected', amountPaise: depositRecordedPaise }],
   };
 
-  const invoiceNumber = await nextExpressWalkInInvoiceNumber();
+  const invoiceNumber = await nextFinancialInvoiceNumber({ pgId: ctx.pgId });
   const [row] = await db
     .insert(financialInvoices)
     .values({

@@ -94,7 +94,16 @@ function DrilldownPanel({
               <div>
                 <p className="text-xs font-medium text-white">{item.label}</p>
                 {item.invoiceNumber ? (
-                  <p className="text-[10px] text-apg-silver">{item.invoiceNumber}</p>
+                  item.financialInvoiceId ? (
+                    <Link
+                      href={`/admin/invoices/${item.financialInvoiceId}`}
+                      className="text-[10px] text-[#FF5A1F] hover:underline"
+                    >
+                      {item.invoiceNumber}
+                    </Link>
+                  ) : (
+                    <p className="text-[10px] text-apg-silver">{item.invoiceNumber}</p>
+                  )
                 ) : null}
                 {item.dueDate ? (
                   <p className="text-[10px] text-apg-silver">Due {item.dueDate}</p>

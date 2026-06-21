@@ -11,6 +11,7 @@ import {
 } from '@/src/db/queries/admin';
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import { ADMIN_MODULES, moduleHref, modulePgHref } from '@/src/lib/admin/navigation';
+import { buildAdminInvoiceHrefMap } from '@/src/lib/billing/invoiceHrefMap';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 
 export const dynamic = 'force-dynamic';
@@ -54,6 +55,11 @@ export default async function RevenueResidentPage({
   const residentName = rentRows[0]?.customerFullName ?? elecRows[0]?.customerFullName ?? phone;
   if (rentRows.length === 0 && elecRows.length === 0 && deposits.length === 0) notFound();
 
+  const invoiceHrefMap = await buildAdminInvoiceHrefMap([
+    ...rentRows.map((r) => ({ sourceTable: 'rent_invoices', sourceId: r.id })),
+    ...elecRows.map((r) => ({ sourceTable: 'electricity_invoices', sourceId: r.id })),
+  ]);
+
   return (
     <>
       <ModuleBreadcrumbs
@@ -78,6 +84,7 @@ export default async function RevenueResidentPage({
         deposits={deposits}
         module="operations"
         pgId={pgId}
+        invoiceHrefMap={invoiceHrefMap}
       />
     </>
   );
