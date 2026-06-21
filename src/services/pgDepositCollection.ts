@@ -1,15 +1,17 @@
 /**
  * PG-level deposit collection — assigned residents only (occupancy SSOT).
+ *
+ * Required deposit = `bookings.deposit_paise` (set at booking / bed assignment from
+ * pricing snapshot — not live PG or bed price lookup).
  */
 
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
   bedReservations,
   beds,
   bookings,
   customers,
-  depositLedger,
   floors,
   pgs,
   rooms,
@@ -19,6 +21,11 @@ import {
   isProductionCustomerFilter,
 } from '@/src/lib/billing/productionDataFilter';
 import { DEPOSIT_COLLECTION_ADJUSTMENT_SQL_PATTERN } from '@/src/lib/deposits/constants';
+import {
+  classifyDepositCollection,
+  depositOutstandingPaise,
+  type DepositCollectionStatus,
+} from '@/src/lib/deposits/depositCollectionStatus';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import {
@@ -27,17 +34,22 @@ import {
   OCCUPANCY_PLACEHOLDER_PHONE,
 } from '@/src/lib/occupancySqlFilters';
 
+export type { DepositCollectionStatus };
+
 export type PgDepositResidentRow = {
   customerId: string;
   customerName: string;
   phone: string;
   bookingId: string;
   bookingCode: string;
+  pgId: string;
+  pgName: string;
   roomNumber: string;
   bedCode: string;
   requiredDepositPaise: number;
   paidAmountPaise: number;
   outstandingPaise: number;
+  depositStatus: DepositCollectionStatus;
   paymentDate: Date | null;
 };
 
@@ -50,10 +62,12 @@ export type PgDepositCollectionDetail = {
     assignedResidents: number;
     depositPaidCount: number;
     depositPendingCount: number;
+    depositRequirementMissingCount: number;
     depositCollectedMtdPaise: number;
   };
   paidResidents: PgDepositResidentRow[];
   pendingResidents: PgDepositResidentRow[];
+  requirementMissingResidents: PgDepositResidentRow[];
 };
 
 export type PgDepositCollectionSummary = {
@@ -62,7 +76,10 @@ export type PgDepositCollectionSummary = {
   depositCollectedMtdPaise: number;
   depositPaidCount: number;
   depositPendingCount: number;
+  depositRequirementMissingCount: number;
 };
+
+export type DepositCollectionAuditRow = PgDepositResidentRow;
 
 const assignedResidentFilters = and(
   isProductionBookingFilter(),
@@ -78,6 +95,8 @@ const assignedResidentFilters = and(
 );
 
 type AssignedRow = {
+  pgId: string;
+  pgName: string;
   customerId: string;
   customerName: string;
   phone: string;
@@ -91,7 +110,75 @@ type AssignedRow = {
   lastPaymentAt: Date | null;
 };
 
+function normalizeAssignedRow(
+  r: Omit<AssignedRow, 'pgId' | 'pgName'> & { pgId?: string; pgName?: string },
+  pgId: string,
+  pgName: string,
+): AssignedRow {
+  return {
+    pgId,
+    pgName,
+    customerId: r.customerId,
+    customerName: r.customerName,
+    phone: r.phone,
+    bookingId: r.bookingId,
+    bookingCode: r.bookingCode,
+    roomNumber: r.roomNumber,
+    bedCode: r.bedCode,
+    requiredDepositPaise: guardDepositPaise(r.requiredDepositPaise, 'requiredDepositPaise'),
+    depositDuePaise: guardDepositPaise(r.depositDuePaise, 'depositDuePaise'),
+    paidAmountPaise: guardDepositPaise(r.paidAmountPaise, 'paidAmountPaise'),
+    lastPaymentAt: r.lastPaymentAt,
+  };
+}
+
+function toResidentRow(row: AssignedRow): PgDepositResidentRow {
+  const depositStatus = classifyDepositCollection({
+    requiredDepositPaise: row.requiredDepositPaise,
+    depositDuePaise: row.depositDuePaise,
+    paidAmountPaise: row.paidAmountPaise,
+  });
+  const outstandingPaise = depositOutstandingPaise({
+    requiredDepositPaise: row.requiredDepositPaise,
+    depositDuePaise: row.depositDuePaise,
+    paidAmountPaise: row.paidAmountPaise,
+  });
+
+  return {
+    customerId: row.customerId,
+    customerName: row.customerName,
+    phone: row.phone,
+    bookingId: row.bookingId,
+    bookingCode: row.bookingCode,
+    pgId: row.pgId,
+    pgName: row.pgName,
+    roomNumber: row.roomNumber,
+    bedCode: row.bedCode,
+    requiredDepositPaise: row.requiredDepositPaise,
+    paidAmountPaise: row.paidAmountPaise,
+    outstandingPaise,
+    depositStatus,
+    paymentDate: row.lastPaymentAt,
+  };
+}
+
+function partitionResidents(rows: PgDepositResidentRow[]) {
+  const paidResidents = rows.filter((r) => r.depositStatus === 'paid');
+  const pendingResidents = rows.filter((r) => r.depositStatus === 'pending');
+  const requirementMissingResidents = rows.filter(
+    (r) => r.depositStatus === 'requirement_missing',
+  );
+  return { paidResidents, pendingResidents, requirementMissingResidents };
+}
+
 async function loadAssignedResidentsForPg(pgId: string): Promise<AssignedRow[]> {
+  const [pg] = await db
+    .select({ id: pgs.id, name: pgs.name })
+    .from(pgs)
+    .where(eq(pgs.id, pgId))
+    .limit(1);
+  if (!pg) return [];
+
   const rows = await db
     .select({
       customerId: customers.id,
@@ -126,35 +213,47 @@ async function loadAssignedResidentsForPg(pgId: string): Promise<AssignedRow[]> 
     .where(and(eq(pgs.id, pgId), assignedResidentFilters))
     .orderBy(customers.fullName);
 
-  return rows.map((r) => ({
-    ...r,
-    requiredDepositPaise: guardDepositPaise(r.requiredDepositPaise, 'requiredDepositPaise'),
-    depositDuePaise: guardDepositPaise(r.depositDuePaise, 'depositDuePaise'),
-    paidAmountPaise: guardDepositPaise(r.paidAmountPaise, 'paidAmountPaise'),
-  }));
+  return rows.map((r) => normalizeAssignedRow(r, pg.id, pg.name));
 }
 
-function isDepositFullyPaid(row: AssignedRow): boolean {
-  if (row.requiredDepositPaise <= 0) return true;
-  if (row.depositDuePaise > 0) return false;
-  return row.paidAmountPaise >= row.requiredDepositPaise;
-}
+async function loadAllAssignedResidents(): Promise<AssignedRow[]> {
+  const rows = await db
+    .select({
+      pgId: pgs.id,
+      pgName: pgs.name,
+      customerId: customers.id,
+      customerName: customers.fullName,
+      phone: customers.phone,
+      bookingId: bookings.id,
+      bookingCode: bookings.bookingCode,
+      roomNumber: rooms.roomNumber,
+      bedCode: beds.bedCode,
+      requiredDepositPaise: bookings.depositPaise,
+      depositDuePaise: bookings.depositDuePaise,
+      paidAmountPaise: sql<number>`(
+        SELECT coalesce(sum(dl.amount_paise), 0)::bigint
+        FROM deposit_ledger dl
+        WHERE dl.booking_id = ${bookings.id}
+          AND dl.entry_kind = 'collected'
+      )`,
+      lastPaymentAt: sql<Date | null>`(
+        SELECT max(dl.created_at)
+        FROM deposit_ledger dl
+        WHERE dl.booking_id = ${bookings.id}
+          AND dl.entry_kind = 'collected'
+      )`,
+    })
+    .from(bookings)
+    .innerJoin(customers, eq(customers.id, bookings.customerId))
+    .innerJoin(bedReservations, eq(bedReservations.bookingId, bookings.id))
+    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
+    .innerJoin(floors, eq(floors.id, rooms.floorId))
+    .innerJoin(pgs, eq(pgs.id, floors.pgId))
+    .where(and(sql`${pgs.archivedAt} IS NULL`, assignedResidentFilters))
+    .orderBy(pgs.name, customers.fullName);
 
-function toResidentRow(row: AssignedRow): PgDepositResidentRow {
-  const outstandingPaise = Math.max(0, row.depositDuePaise || row.requiredDepositPaise - row.paidAmountPaise);
-  return {
-    customerId: row.customerId,
-    customerName: row.customerName,
-    phone: row.phone,
-    bookingId: row.bookingId,
-    bookingCode: row.bookingCode,
-    roomNumber: row.roomNumber,
-    bedCode: row.bedCode,
-    requiredDepositPaise: row.requiredDepositPaise,
-    paidAmountPaise: row.paidAmountPaise,
-    outstandingPaise,
-    paymentDate: row.lastPaymentAt,
-  };
+  return rows.map((r) => normalizeAssignedRow(r, r.pgId, r.pgName));
 }
 
 async function depositCollectedMtdForPg(pgId: string, billingMonth: string): Promise<number> {
@@ -195,9 +294,9 @@ export async function getPgDepositCollectionDetail(
     .innerJoin(floors, eq(floors.id, rooms.floorId))
     .where(and(eq(floors.pgId, pgId), sql`${beds.archivedAt} IS NULL`));
 
-  const assigned = await loadAssignedResidentsForPg(pgId);
-  const paidResidents = assigned.filter(isDepositFullyPaid).map(toResidentRow);
-  const pendingResidents = assigned.filter((r) => !isDepositFullyPaid(r)).map(toResidentRow);
+  const assigned = (await loadAssignedResidentsForPg(pgId)).map(toResidentRow);
+  const { paidResidents, pendingResidents, requirementMissingResidents } =
+    partitionResidents(assigned);
   const depositCollectedMtdPaise = await depositCollectedMtdForPg(pgId, billingMonth);
 
   return {
@@ -209,55 +308,13 @@ export async function getPgDepositCollectionDetail(
       assignedResidents: assigned.length,
       depositPaidCount: paidResidents.length,
       depositPendingCount: pendingResidents.length,
+      depositRequirementMissingCount: requirementMissingResidents.length,
       depositCollectedMtdPaise,
     },
     paidResidents,
     pendingResidents,
+    requirementMissingResidents,
   };
-}
-
-async function loadAllAssignedResidents(): Promise<(AssignedRow & { pgId: string; pgName: string })[]> {
-  const rows = await db
-    .select({
-      pgId: pgs.id,
-      pgName: pgs.name,
-      customerId: customers.id,
-      customerName: customers.fullName,
-      phone: customers.phone,
-      bookingId: bookings.id,
-      bookingCode: bookings.bookingCode,
-      roomNumber: rooms.roomNumber,
-      bedCode: beds.bedCode,
-      requiredDepositPaise: bookings.depositPaise,
-      depositDuePaise: bookings.depositDuePaise,
-      paidAmountPaise: sql<number>`(
-        SELECT coalesce(sum(dl.amount_paise), 0)::bigint
-        FROM deposit_ledger dl
-        WHERE dl.booking_id = ${bookings.id}
-          AND dl.entry_kind = 'collected'
-      )`,
-      lastPaymentAt: sql<Date | null>`(
-        SELECT max(dl.created_at)
-        FROM deposit_ledger dl
-        WHERE dl.booking_id = ${bookings.id}
-          AND dl.entry_kind = 'collected'
-      )`,
-    })
-    .from(bookings)
-    .innerJoin(customers, eq(customers.id, bookings.customerId))
-    .innerJoin(bedReservations, eq(bedReservations.bookingId, bookings.id))
-    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
-    .innerJoin(rooms, eq(rooms.id, beds.roomId))
-    .innerJoin(floors, eq(floors.id, rooms.floorId))
-    .innerJoin(pgs, eq(pgs.id, floors.pgId))
-    .where(and(sql`${pgs.archivedAt} IS NULL`, assignedResidentFilters));
-
-  return rows.map((r) => ({
-    ...r,
-    requiredDepositPaise: guardDepositPaise(r.requiredDepositPaise, 'requiredDepositPaise'),
-    depositDuePaise: guardDepositPaise(r.depositDuePaise, 'depositDuePaise'),
-    paidAmountPaise: guardDepositPaise(r.paidAmountPaise, 'paidAmountPaise'),
-  }));
 }
 
 /** Summaries for all PGs — used on revenue page deposit columns. */
@@ -272,30 +329,40 @@ export async function getAllPgDepositCollectionSummaries(
     .where(sql`${pgs.archivedAt} IS NULL`)
     .orderBy(pgs.name);
 
-  const assigned = await loadAllAssignedResidents();
+  const assigned = (await loadAllAssignedResidents()).map(toResidentRow);
   const mtdByPg = await getDepositCollectedMtdByPgIds(
     pgRows.map((p) => p.pgId),
     billingMonth,
   );
 
-  const byPg = new Map<string, { paid: number; pending: number }>();
+  const byPg = new Map<
+    string,
+    { paid: number; pending: number; requirementMissing: number }
+  >();
   for (const row of assigned) {
-    const bucket = byPg.get(row.pgId) ?? { paid: 0, pending: 0 };
-    if (isDepositFullyPaid(row)) bucket.paid += 1;
-    else bucket.pending += 1;
+    const bucket = byPg.get(row.pgId) ?? { paid: 0, pending: 0, requirementMissing: 0 };
+    if (row.depositStatus === 'paid') bucket.paid += 1;
+    else if (row.depositStatus === 'pending') bucket.pending += 1;
+    else bucket.requirementMissing += 1;
     byPg.set(row.pgId, bucket);
   }
 
   return pgRows.map((pg) => {
-    const counts = byPg.get(pg.pgId) ?? { paid: 0, pending: 0 };
+    const counts = byPg.get(pg.pgId) ?? { paid: 0, pending: 0, requirementMissing: 0 };
     return {
       pgId: pg.pgId,
       pgName: pg.pgName,
       depositCollectedMtdPaise: mtdByPg.get(pg.pgId) ?? 0,
       depositPaidCount: counts.paid,
       depositPendingCount: counts.pending,
+      depositRequirementMissingCount: counts.requirementMissing,
     };
   });
+}
+
+/** All assigned residents — audit report for configuration errors. */
+export async function getDepositCollectionAuditReport(): Promise<DepositCollectionAuditRow[]> {
+  return (await loadAllAssignedResidents()).map(toResidentRow);
 }
 
 /** Ledger MTD collected for bookings at pgIds (batch). */

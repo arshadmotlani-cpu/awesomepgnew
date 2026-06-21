@@ -26,6 +26,7 @@ export type RevenueByPgRow = {
   lateFeePaise: number;
   depositPaidCount: number;
   depositPendingCount: number;
+  depositRequirementMissingCount: number;
   totalRevenuePaise: number;
 };
 
@@ -66,12 +67,16 @@ export type RevenueCommandCenterInput = {
 function buildByPgRows(
   pgMetrics: PgBusinessMetrics[],
   depositByPg: Map<string, number>,
-  depositCountsByPg: Map<string, { paid: number; pending: number }>,
+  depositCountsByPg: Map<string, { paid: number; pending: number; requirementMissing: number }>,
 ): RevenueByPgRow[] {
   return pgMetrics
     .map((row) => {
       const depositRevenuePaise = depositByPg.get(row.pgId) ?? 0;
-      const counts = depositCountsByPg.get(row.pgId) ?? { paid: 0, pending: 0 };
+      const counts = depositCountsByPg.get(row.pgId) ?? {
+        paid: 0,
+        pending: 0,
+        requirementMissing: 0,
+      };
       const rentRevenuePaise = row.incomeRentPaise;
       const electricityRevenuePaise = row.incomeElectricityPaise;
       const lateFeePaise = row.lateFeePaise;
@@ -87,6 +92,7 @@ function buildByPgRows(
         lateFeePaise,
         depositPaidCount: counts.paid,
         depositPendingCount: counts.pending,
+        depositRequirementMissingCount: counts.requirementMissing,
         totalRevenuePaise:
           rentRevenuePaise + electricityRevenuePaise + depositRevenuePaise + lateFeePaise,
       };
@@ -147,11 +153,15 @@ export async function getRevenueCommandCenterData(
     }
   }
 
-  const depositCountsByPg = new Map<string, { paid: number; pending: number }>();
+  const depositCountsByPg = new Map<
+    string,
+    { paid: number; pending: number; requirementMissing: number }
+  >();
   for (const row of depositSummaries) {
     depositCountsByPg.set(row.pgId, {
       paid: row.depositPaidCount,
       pending: row.depositPendingCount,
+      requirementMissing: row.depositRequirementMissingCount,
     });
     if (!depositByPg.has(row.pgId)) {
       depositByPg.set(row.pgId, row.depositCollectedMtdPaise);

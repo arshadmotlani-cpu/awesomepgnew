@@ -76,6 +76,7 @@ import {
 } from '@/src/lib/billing/productionDataFilter';
 import {
   ensureBillingProfileForBooking,
+  syncBillingDayFromCheckIn,
 } from '@/src/services/residentBillingProfiles';
 
 const INVOICE_PREFIX = 'RNT';
@@ -1623,6 +1624,63 @@ export async function recalculatePendingRentInvoicesForBooking(args: {
   }
 
   return { updatedCount: invoiceChanges.length, invoiceChanges };
+}
+
+/** After a check-in date change — sync billing day, pro-rate amounts, and due dates. */
+export async function recalculateRentAfterMoveInChange(args: {
+  bookingId: string;
+  adminId: string;
+}): Promise<{ updatedCount: number; billingDay: number }> {
+  const [booking] = await db
+    .select({ pricingSnapshot: bookings.pricingSnapshot })
+    .from(bookings)
+    .where(eq(bookings.id, args.bookingId))
+    .limit(1);
+  if (!booking) return { updatedCount: 0, billingDay: 5 };
+
+  const snapshot = booking.pricingSnapshot as PricingSnapshot | null;
+  const billingDay = await syncBillingDayFromCheckIn(args.bookingId);
+  if (!snapshot) return { updatedCount: 0, billingDay };
+
+  const amountResult = await recalculatePendingRentInvoicesForBooking({
+    bookingId: args.bookingId,
+    pricingSnapshot: snapshot,
+    adminId: args.adminId,
+  });
+
+  const stay = await loadStayWindow(args.bookingId);
+  if (!stay) {
+    return { updatedCount: amountResult.updatedCount, billingDay };
+  }
+
+  const pending = await db
+    .select({ id: rentInvoices.id, billingMonth: rentInvoices.billingMonth, dueDate: rentInvoices.dueDate })
+    .from(rentInvoices)
+    .where(
+      and(
+        eq(rentInvoices.bookingId, args.bookingId),
+        inArray(rentInvoices.status, ['pending', 'overdue']),
+      ),
+    );
+
+  let dueDateUpdates = 0;
+  const now = new Date();
+  for (const inv of pending) {
+    const calendarDue = formatDate(dueDateForBillingDay(inv.billingMonth, billingDay));
+    const dueDate =
+      stay.start > calendarDue ? formatDate(addDays(stay.start, 4)) : calendarDue;
+    if (dueDate === inv.dueDate) continue;
+    await db
+      .update(rentInvoices)
+      .set({ dueDate, updatedAt: now })
+      .where(eq(rentInvoices.id, inv.id));
+    dueDateUpdates += 1;
+  }
+
+  return {
+    updatedCount: amountResult.updatedCount + dueDateUpdates,
+    billingDay,
+  };
 }
 
 // ───────────────────────────────────────────────────────────────────────────

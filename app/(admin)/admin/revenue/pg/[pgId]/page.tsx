@@ -82,7 +82,7 @@ export default async function RevenuePgPage({
             [
               'Deposits',
               depositDetail
-                ? `${depositDetail.stats.depositPaidCount} paid · ${depositDetail.stats.depositPendingCount} pending`
+                ? `${depositDetail.stats.depositPaidCount} paid · ${depositDetail.stats.depositPendingCount} pending · ${depositDetail.stats.depositRequirementMissingCount} missing req.`
                 : '—',
             ],
           ].map(([label, val]) => (

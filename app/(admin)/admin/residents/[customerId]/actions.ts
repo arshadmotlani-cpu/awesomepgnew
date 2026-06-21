@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { syncActionItems } from '@/src/services/actionItems';
 import { createPaymentLink } from '@/src/services/paymentLinks';
-import { archiveResident, updateTenantTenancy } from '@/src/services/residentAdmin';
+import { archiveResident, updateBookingMoveInDate, updateTenantTenancy } from '@/src/services/residentAdmin';
 
 const SYNC_PATHS = [
   '/admin/residents',
@@ -54,6 +54,45 @@ export type UpdateTenancyState = {
   customerName?: string;
   customerPhone?: string;
 };
+
+export type UpdateMoveInState = {
+  ok: boolean;
+  error?: string;
+  invoicesUpdated?: number;
+  billingDay?: number;
+};
+
+export async function updateMoveInDateAction(
+  _prev: UpdateMoveInState,
+  formData: FormData,
+): Promise<UpdateMoveInState> {
+  try {
+    const session = await requireAdminPermission('bookings:write');
+    const bookingId = formData.get('bookingId')?.toString() ?? '';
+    const customerId = formData.get('customerId')?.toString() ?? '';
+    const moveInDate = formData.get('moveInDate')?.toString()?.trim() ?? '';
+
+    if (!bookingId || !moveInDate) {
+      return { ok: false, error: 'Booking and check-in date are required.' };
+    }
+
+    const result = await updateBookingMoveInDate(session, { bookingId, moveInDate });
+    if (!result.ok) return result;
+
+    revalidateOperationalPaths(customerId, bookingId);
+    revalidatePath('/admin/revenue/billing');
+    revalidatePath('/admin/invoices');
+    await syncActionItems(session).catch(() => undefined);
+
+    return {
+      ok: true,
+      invoicesUpdated: result.invoicesUpdated,
+      billingDay: result.billingDay,
+    };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not update check-in.' };
+  }
+}
 
 export async function updateTenancyAction(
   _prev: UpdateTenancyState,

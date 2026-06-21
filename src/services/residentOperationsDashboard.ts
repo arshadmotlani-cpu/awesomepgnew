@@ -160,6 +160,7 @@ export async function loadResidentOperationsDashboard(session: AdminSession) {
         monthlyRentPaise: 0,
         bookingId: q.bookingId,
         bookingCode: null,
+        moveInDate: null,
         verificationSource: 'kyc' as const,
       };
       residentIndex.set(q.customerId, partial);

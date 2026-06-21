@@ -1,12 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { AdminKycStatusWithWhatsApp } from '@/src/components/admin/AdminKycWhatsAppButton';
 import { BulkKycWhatsAppReminder } from '@/src/components/admin/BulkKycWhatsAppReminder';
-import { formatDateTime, titleCase } from '@/src/lib/format';
+import { formatDate, formatDateTime, titleCase } from '@/src/lib/format';
 import type { ResidentListRow } from '@/src/services/residentAdmin';
 
 type StatusFilter = 'all' | 'active' | 'unassigned' | 'vacating' | 'kyc_pending';
@@ -36,12 +36,16 @@ function statusBadge(r: ResidentListRow) {
 export function ResidentsTable({
   residents,
   initialQuery = '',
+  initialMoveInDate = '',
 }: {
   residents: ResidentListRow[];
   initialQuery?: string;
+  initialMoveInDate?: string;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [query, setQuery] = useState(initialQuery);
+  const [moveInDate, setMoveInDate] = useState(initialMoveInDate);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   const filtered = useMemo(() => {
@@ -53,6 +57,8 @@ export function ResidentsTable({
       if (statusFilter === 'unassigned' && r.tenancyStatus !== 'unassigned') return false;
       if (statusFilter === 'vacating' && r.tenancyStatus !== 'vacating') return false;
       if (statusFilter === 'kyc_pending' && r.kycStatus !== 'pending') return false;
+
+      if (moveInDate && r.moveInDate !== moveInDate) return false;
 
       if (!q) return true;
 
@@ -68,7 +74,15 @@ export function ResidentsTable({
 
       return nameMatch || emailMatch || phoneMatch || bookingMatch || pgMatch || bedMatch;
     });
-  }, [query, residents, statusFilter]);
+  }, [query, residents, statusFilter, moveInDate]);
+
+  function applyMoveInFilter(date: string) {
+    setMoveInDate(date);
+    const params = new URLSearchParams(searchParams.toString());
+    if (date) params.set('moveIn', date);
+    else params.delete('moveIn');
+    router.replace(`/admin/residents${params.toString() ? `?${params.toString()}` : ''}`);
+  }
 
   return (
     <div className="space-y-4">
@@ -92,7 +106,7 @@ export function ResidentsTable({
       </div>
 
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <label className="block min-w-0 flex-1 basis-full text-sm sm:basis-auto">
+        <label className="block min-w-0 flex-1 basis-full text-sm sm:basis-auto sm:max-w-xs">
           <span className="font-medium text-apg-silver">Search</span>
           <input
             type="search"
@@ -102,6 +116,24 @@ export function ResidentsTable({
             className="apg-admin-field mt-1 w-full rounded-lg border border-white/10 bg-[#1A1F27] px-3 py-2 text-sm text-white"
           />
         </label>
+        <label className="block text-sm sm:max-w-[11rem]">
+          <span className="font-medium text-apg-silver">Check-in date</span>
+          <input
+            type="date"
+            value={moveInDate}
+            onChange={(e) => applyMoveInFilter(e.target.value)}
+            className="apg-admin-field mt-1 w-full rounded-lg border border-white/10 bg-[#1A1F27] px-3 py-2 text-sm text-white"
+          />
+        </label>
+        {moveInDate ? (
+          <button
+            type="button"
+            onClick={() => applyMoveInFilter('')}
+            className="rounded-lg border border-white/10 px-3 py-2 text-xs text-apg-silver hover:text-white"
+          >
+            Clear date
+          </button>
+        ) : null}
         <p className="text-sm text-apg-silver">
           Showing {filtered.length} of {residents.length}
         </p>
@@ -124,6 +156,9 @@ export function ResidentsTable({
                     PG / bed
                   </th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-apg-silver">
+                    Check-in
+                  </th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-apg-silver">
                     Phone
                   </th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-apg-silver">
@@ -131,9 +166,6 @@ export function ResidentsTable({
                   </th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-apg-silver">
                     KYC
-                  </th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-apg-silver">
-                    Joined
                   </th>
                   <th className="px-4 py-3" />
                 </tr>
@@ -150,6 +182,9 @@ export function ResidentsTable({
                       <p className="text-xs text-apg-silver">{r.email}</p>
                     </td>
                     <td className="px-4 py-3">{statusBadge(r)}</td>
+                    <td className="px-4 py-3 text-apg-silver">
+                      {r.moveInDate ? formatDate(r.moveInDate) : '—'}
+                    </td>
                     <td className="px-4 py-3 text-apg-silver">{r.phone}</td>
                     <td className="px-4 py-3">
                       <Badge tone={r.verificationSource === 'kyc' ? 'emerald' : 'sky'}>
@@ -167,9 +202,6 @@ export function ResidentsTable({
                           </Badge>
                         }
                       />
-                    </td>
-                    <td className="px-4 py-3 text-apg-silver">
-                      {formatDateTime(new Date(r.createdAt))}
                     </td>
                     <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <Link

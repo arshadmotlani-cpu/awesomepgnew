@@ -2,10 +2,12 @@ import Link from 'next/link';
 import { AdminPendingPaymentsPanel } from '@/src/components/admin/AdminPendingPaymentsPanel';
 import { AdminSectionErrorBoundary } from '@/src/components/admin/AdminSectionErrorBoundary';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
+import { BillingWorkflowGuide } from '@/src/components/admin/billing/BillingWorkflowGuide';
 import { BillingAdvancedTools } from '@/src/components/admin/billing/BillingAdvancedTools';
 import { BillingRecentCollections } from '@/src/components/admin/billing/BillingRecentCollections';
 import { CollectionsActionQueue } from '@/src/components/admin/billing/CollectionsActionQueue';
 import { CollectionsCommandCenter } from '@/src/components/admin/billing/CollectionsCommandCenter';
+import { ElectricityRoomsPendingPanel } from '@/src/components/admin/ElectricityRoomsPendingPanel';
 import { ElectricityBulkSendPanel } from '@/src/components/admin/ElectricityBulkSendPanel';
 import { RentInvoicesBulkSendBar } from '@/src/components/admin/RentInvoicesBulkSendBar';
 import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
@@ -31,6 +33,7 @@ import {
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
 import { listRentBillingOverview, listBillingCycleOperations } from '@/src/services/rentInvoices';
+import { listRoomsMissingElectricityBill } from '@/src/services/electricityBilling';
 import type { AdminRentInvoiceRow } from '@/src/db/queries/admin';
 
 export const dynamic = 'force-dynamic';
@@ -68,6 +71,13 @@ function collectionsTabHref(tab: string, billingMonth: string) {
   return `/admin/revenue/billing?${params.toString()}`;
 }
 
+function isLastDayOfMonth(date: Date): boolean {
+  const y = date.getUTCFullYear();
+  const m = date.getUTCMonth();
+  const lastDay = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  return date.getUTCDate() === lastDay;
+}
+
 export default async function CollectionsModulePage({
   searchParams,
 }: {
@@ -81,7 +91,7 @@ export default async function CollectionsModulePage({
   await ensureAdminPageNotificationsSeen('/admin/revenue/billing', '/admin/revenue/billing');
   const canGenerateRent = adminHasPermission(session.role, 'rent:write');
   const canSendLinks = adminHasPermission(session.role, 'payments:write');
-  const [pending, rentPending, rentOverdue, rentPaid, elecPending, pgs, billingOverview, billingCycleOps] =
+  const [pending, rentPending, rentOverdue, rentPaid, elecPending, pgs, billingOverview, billingCycleOps, roomsMissingElectricity] =
     await Promise.all([
     requireAdminPermission('payments:write').then((s) => listPendingPaymentReviews(s)),
     listAdminRentInvoices({ status: 'pending' }),
@@ -91,6 +101,7 @@ export default async function CollectionsModulePage({
     listPgs(),
     listRentBillingOverview(billingMonth),
     listBillingCycleOperations(),
+    listRoomsMissingElectricityBill(billingMonth),
   ]);
 
   const allUnpaidRent = mergeUnpaidRent(
@@ -118,6 +129,11 @@ export default async function CollectionsModulePage({
   const needsBillCount = billingOverview.filter(
     (r) => isRentBillingOverviewActionable(r) && r.isDueForGeneration,
   ).length;
+
+  const today = new Date();
+  const currentMonth = `${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, '0')}-01`;
+  const isMonthEnd =
+    billingMonth.slice(0, 7) === currentMonth.slice(0, 7) && isLastDayOfMonth(today);
 
   return (
     <>
@@ -161,6 +177,16 @@ export default async function CollectionsModulePage({
           </Link>
         ))}
       </div>
+
+      <BillingWorkflowGuide
+        billingMonth={billingMonth}
+        tab={tab}
+        needsBillCount={needsBillCount}
+        unpaidRentCount={allUnpaidRent.length}
+        unpaidElectricityCount={allUnpaidElectricity.length}
+        roomsMissingElectricity={roomsMissingElectricity.length}
+        isMonthEnd={isMonthEnd}
+      />
 
       {tab === 'billing' ? (
         <>
@@ -240,9 +266,14 @@ export default async function CollectionsModulePage({
           <header className="mb-4">
             <h2 className="text-base font-semibold text-white">Electricity bills</h2>
             <p className="mt-1 text-sm text-apg-silver">
-              Room meter bills split among residents — send payment links from here.
+              Room meter bills split among residents — create bills from meter readings, then send
+              payment links from here.
             </p>
           </header>
+          <ElectricityRoomsPendingPanel
+            rooms={roomsMissingElectricity}
+            billingMonth={billingMonth}
+          />
           <ElectricityBulkSendPanel
             rows={
               elecPending.ok

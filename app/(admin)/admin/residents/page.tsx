@@ -18,7 +18,7 @@ export const dynamic = 'force-dynamic';
 export default async function ResidentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ search?: string }>;
+  searchParams: Promise<{ search?: string; moveIn?: string }>;
 }) {
   const sp = await searchParams;
   let residents;
@@ -83,7 +83,11 @@ export default async function ResidentsPage({
           description="Approve KYC or a payment for website signups below — they move here once verified."
         />
       ) : (
-        <ResidentsTable residents={residents} initialQuery={sp.search ?? ''} />
+        <ResidentsTable
+          residents={residents}
+          initialQuery={sp.search ?? ''}
+          initialMoveInDate={sp.moveIn ?? ''}
+        />
       )}
 
       <div className="mt-12">

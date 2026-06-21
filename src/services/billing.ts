@@ -36,6 +36,12 @@ export function firstOfMonth(date: DateLike): string {
   return formatDate(monthBounds(date).start);
 }
 
+/** Day-of-month (1–31) from a move-in / check-in date — used as rent due day. */
+export function billingDayFromMoveIn(moveInDate: DateLike): number {
+  const day = parseDate(moveInDate).getUTCDate();
+  return Math.min(Math.max(1, day), 31);
+}
+
 /**
  * Due date for a billing month. Per spec, rent is due on the 1st with a
  * grace period through the 5th; late fees start accruing on the 6th.

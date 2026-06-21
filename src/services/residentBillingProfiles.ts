@@ -15,8 +15,9 @@ import {
   type ResidentBillingProfile,
 } from '@/src/db/schema';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
-import { dueDateForBillingDay, firstOfMonth } from '@/src/services/billing';
+import { billingDayFromMoveIn, dueDateForBillingDay, firstOfMonth } from '@/src/services/billing';
 import { formatDate } from '@/src/lib/dates';
+import { sql } from 'drizzle-orm';
 
 function monthlyRentFromSnapshot(snapshot: PricingSnapshot | null): number {
   if (!snapshot || !Array.isArray(snapshot.perBed)) return 0;
@@ -34,8 +35,25 @@ export type ResidentBillingFormDefaults = {
   pendingInvoiceStatus: string | null;
 };
 
-function defaultBillingDay(): number {
-  return 5;
+async function billingDayForBooking(bookingId: string): Promise<number> {
+  const [stay] = await db
+    .select({
+      moveIn: sql<string>`to_char(lower(${bedReservations.stayRange}), 'YYYY-MM-DD')`,
+    })
+    .from(bedReservations)
+    .where(and(eq(bedReservations.bookingId, bookingId), eq(bedReservations.status, 'active')))
+    .limit(1);
+  return stay?.moveIn ? billingDayFromMoveIn(stay.moveIn) : 5;
+}
+
+/** Sync billing day from the resident's check-in date. */
+export async function syncBillingDayFromCheckIn(bookingId: string): Promise<number> {
+  const billingDay = await billingDayForBooking(bookingId);
+  await db
+    .update(residentBillingProfiles)
+    .set({ billingDay, updatedAt: new Date() })
+    .where(eq(residentBillingProfiles.bookingId, bookingId));
+  return billingDay;
 }
 
 export async function getBillingProfileForBooking(
@@ -80,12 +98,15 @@ export async function ensureBillingProfileForBooking(
 
   if (!pgRow) return null;
 
+  const billingDay = await billingDayForBooking(bookingId);
+
   const existing = await getBillingProfileForBooking(bookingId);
   if (existing) {
     const [updated] = await db
       .update(residentBillingProfiles)
       .set({
         rentAmountPaise,
+        billingDay,
         updatedAt: new Date(),
       })
       .where(eq(residentBillingProfiles.id, existing.id))
@@ -100,7 +121,7 @@ export async function ensureBillingProfileForBooking(
       customerId: booking.customerId,
       pgId: pgRow.pgId,
       rentAmountPaise,
-      billingDay: defaultBillingDay(),
+      billingDay,
       defaultPaymentMethod: 'upi',
       autoGenerate: true,
     })

@@ -4,6 +4,7 @@ import { AdminKycStatusWithWhatsApp } from '@/src/components/admin/AdminKycWhats
 import { AssignTenantForm } from '@/src/components/admin/AssignTenantForm';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { BedAssignmentWhatsAppButton } from '@/src/components/admin/BedAssignmentWhatsAppButton';
+import { EditMoveInDateForm } from '@/src/components/admin/EditMoveInDateForm';
 import { EditTenantTenancyForm } from '@/src/components/admin/EditTenantTenancyForm';
 import { RentUpdatedSuccessBanner } from '@/src/components/admin/RentUpdatedSuccessBanner';
 import { FinalSettlementPanel } from '@/src/components/admin/FinalSettlementPanel';
@@ -435,6 +436,12 @@ export default async function ResidentDetailPage({
                 </Link>
               </div>
             </section>
+
+            <EditMoveInDateForm
+              bookingId={activeTenancy.bookingId}
+              customerId={customerId}
+              currentMoveInDate={activeTenancy.moveInDate}
+            />
 
             <section id="edit-tenancy">
             <EditTenantTenancyForm

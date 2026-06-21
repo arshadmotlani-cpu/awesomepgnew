@@ -14,14 +14,16 @@ function DepositRevenueCell({
   paise,
   paidCount,
   pendingCount,
+  missingCount,
   href,
 }: {
   paise: number;
   paidCount: number;
   pendingCount: number;
+  missingCount: number;
   href: string;
 }) {
-  if (paise === 0 && paidCount === 0 && pendingCount === 0) {
+  if (paise === 0 && paidCount === 0 && pendingCount === 0 && missingCount === 0) {
     return <span className="text-apg-silver">—</span>;
   }
   return (
@@ -31,6 +33,7 @@ function DepositRevenueCell({
       </span>
       <span className="mt-0.5 block text-[10px] text-apg-silver group-hover:text-white">
         {paidCount} paid · {pendingCount} pending
+        {missingCount > 0 ? ` · ${missingCount} missing req.` : ''}
       </span>
     </Link>
   );
@@ -224,6 +227,7 @@ export function RevenueCommandCenter({
                         paise={row.depositRevenuePaise}
                         paidCount={row.depositPaidCount}
                         pendingCount={row.depositPendingCount}
+                        missingCount={row.depositRequirementMissingCount}
                         href={`/admin/deposits/collected?pgId=${row.pgId}&month=${data.billingMonth}`}
                       />
                     </td>

@@ -5,6 +5,7 @@ import { useTransition } from 'react';
 import { generatePaymentLinkAction } from '@/app/(admin)/admin/residents/paymentActions';
 import { WhatsAppIcon } from '@/src/components/admin/AdminKycWhatsAppButton';
 import { buildDepositCollectionWhatsAppUrl } from '@/src/lib/billing/depositCollectionWhatsApp';
+import type { DepositCollectionStatus } from '@/src/lib/deposits/depositCollectionStatus';
 import type { PgDepositResidentRow } from '@/src/services/pgDepositCollection';
 
 const BTN =
@@ -14,12 +15,16 @@ type Props = {
   pgId: string;
   pgName: string;
   resident: PgDepositResidentRow;
+  depositStatus: DepositCollectionStatus;
 };
 
-export function DepositPendingRowActions({ pgId, pgName, resident }: Props) {
+export function DepositPendingRowActions({ pgId, pgName, resident, depositStatus }: Props) {
   const [pending, startTransition] = useTransition();
+  const isMissing = depositStatus === 'requirement_missing';
+  const canCollect = !isMissing && resident.outstandingPaise > 0;
 
-  function createInvoice() {
+  function generateDepositInvoice() {
+    if (isMissing) return;
     if (resident.outstandingPaise <= 0) return;
     startTransition(async () => {
       const fd = new FormData();
@@ -41,8 +46,8 @@ export function DepositPendingRowActions({ pgId, pgName, resident }: Props) {
     });
   }
 
-  function sendWhatsAppReminder() {
-    if (resident.outstandingPaise <= 0) return;
+  function sendWhatsAppPaymentRequest(reminderOnly = false) {
+    if (isMissing || resident.outstandingPaise <= 0) return;
     startTransition(async () => {
       const fd = new FormData();
       fd.set('residentId', resident.customerId);
@@ -69,7 +74,7 @@ export function DepositPendingRowActions({ pgId, pgName, resident }: Props) {
           roomNumber: resident.roomNumber,
           bedCode: resident.bedCode,
           depositDuePaise: resident.outstandingPaise,
-          paymentLinkUrl: res.publicUrl,
+          paymentLinkUrl: reminderOnly ? undefined : res.publicUrl,
         });
 
       if (href) window.open(href, '_blank', 'noopener,noreferrer');
@@ -82,18 +87,40 @@ export function DepositPendingRowActions({ pgId, pgName, resident }: Props) {
       <Link href={`/admin/residents/${resident.customerId}`} className={BTN}>
         View resident
       </Link>
-      <button type="button" disabled={pending || resident.outstandingPaise <= 0} onClick={createInvoice} className={BTN}>
-        {pending ? '…' : 'Create deposit invoice'}
-      </button>
-      <button
-        type="button"
-        disabled={pending || resident.outstandingPaise <= 0}
-        onClick={sendWhatsAppReminder}
-        className={`${BTN} border-[#25D366]/40 text-[#25D366]`}
-      >
-        <WhatsAppIcon className="h-3 w-3" />
-        {pending ? '…' : 'Send WhatsApp reminder'}
-      </button>
+
+      {isMissing ? (
+        <Link href={`/admin/deposits/${resident.bookingId}`} className={`${BTN} border-amber-400/40 text-amber-200`}>
+          Set deposit requirement
+        </Link>
+      ) : (
+        <>
+          <button
+            type="button"
+            disabled={pending || !canCollect}
+            onClick={generateDepositInvoice}
+            className={BTN}
+          >
+            {pending ? '…' : 'Generate deposit invoice'}
+          </button>
+          <button
+            type="button"
+            disabled={pending || !canCollect}
+            onClick={() => sendWhatsAppPaymentRequest(true)}
+            className={BTN}
+          >
+            {pending ? '…' : 'Send deposit reminder'}
+          </button>
+          <button
+            type="button"
+            disabled={pending || !canCollect}
+            onClick={() => sendWhatsAppPaymentRequest(false)}
+            className={`${BTN} border-[#25D366]/40 text-[#25D366]`}
+          >
+            <WhatsAppIcon className="h-3 w-3" />
+            {pending ? '…' : 'Send WhatsApp payment request'}
+          </button>
+        </>
+      )}
     </div>
   );
 }

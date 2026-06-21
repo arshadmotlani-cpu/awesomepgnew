@@ -34,7 +34,10 @@ import {
 import { formatDate, parseDate } from '@/src/lib/dates';
 import { isBedAvailable } from '@/src/services/availability';
 import { correctDepositCollected, getDepositSummaryForBooking } from '@/src/services/deposits';
-import { recalculatePendingRentInvoicesForBooking } from '@/src/services/rentInvoices';
+import {
+  recalculatePendingRentInvoicesForBooking,
+  recalculateRentAfterMoveInChange,
+} from '@/src/services/rentInvoices';
 import { siblingBedIdsInRoom } from '@/src/services/tenantAssignmentInternals';
 
 const LONG_TERM_END = '2099-01-01';
@@ -57,6 +60,7 @@ export type ResidentListRow = {
   monthlyRentPaise: number;
   bookingId: string | null;
   bookingCode: string | null;
+  moveInDate: string | null;
   verificationSource: ResidentVerificationSource;
 };
 
@@ -123,6 +127,7 @@ type ResidentListDbRow = {
   room_id: string | null;
   bed_id: string | null;
   monthly_rent_paise: number | null;
+  move_in_date: string | null;
   is_vacating: boolean;
   residency_status?: ResidencyStatus;
   is_website_signup: boolean;
@@ -160,6 +165,7 @@ function mapResidentListRow(row: ResidentListDbRow): ResidentListRow {
     roomId: row.room_id ?? null,
     bedId: row.bed_id ?? null,
     monthlyRentPaise: Number(row.monthly_rent_paise ?? 0),
+    moveInDate: row.move_in_date ?? null,
     tenancyStatus: deriveTenancyStatus({
       residencyStatus: row.residency_status,
       activeTenancy: row.booking_id
@@ -225,6 +231,7 @@ export async function listResidentsForAdmin(session: AdminSession): Promise<Resi
       t.room_id,
       t.bed_id,
       t.monthly_rent_paise,
+      t.move_in_date,
       t.pg_id,
       coalesce(t.is_vacating, false) AS is_vacating,
       ${customerVerificationSelectSql},
@@ -270,6 +277,7 @@ export async function listUnverifiedWebsiteSignupsForAdmin(
       t.room_id,
       t.bed_id,
       t.monthly_rent_paise,
+      t.move_in_date,
       t.pg_id,
       coalesce(t.is_vacating, false) AS is_vacating,
       ${customerVerificationSelectSql},
@@ -321,6 +329,7 @@ export async function searchResidentsForAdmin(
     monthlyRentPaise: r.monthlyRentPaise,
     bookingId: r.bookingId,
     bookingCode: r.bookingCode,
+    moveInDate: null,
     verificationSource: r.kycStatus === 'approved' ? ('kyc' as const) : null,
   }));
 }
@@ -761,4 +770,109 @@ export async function activateReservationNow(
   await clearBedAdminMarks(ctx.bedId);
 
   return { ok: true };
+}
+
+/** Correct check-in date for an active tenant — recalculates open rent bills. */
+export async function updateBookingMoveInDate(
+  session: AdminSession,
+  input: { bookingId: string; moveInDate: string },
+): Promise<{ ok: true; invoicesUpdated: number; billingDay: number } | { ok: false; error: string }> {
+  const moveInDate = formatDate(parseDate(input.moveInDate));
+  const today = formatDate(new Date());
+
+  if (moveInDate > today) {
+    return {
+      ok: false,
+      error: 'For a future move-in, use PG bed map → Shift to reservation instead.',
+    };
+  }
+
+  const [ctx] = await db
+    .select({
+      pgId: pgs.id,
+      bedId: beds.id,
+      customerId: bookings.customerId,
+      currentStart: sql<string>`to_char(lower(${bedReservations.stayRange}), 'YYYY-MM-DD')`,
+      currentUpper: sql<string | null>`to_char(upper(${bedReservations.stayRange}), 'YYYY-MM-DD')`,
+    })
+    .from(bedReservations)
+    .innerJoin(bookings, eq(bookings.id, bedReservations.bookingId))
+    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
+    .innerJoin(floors, eq(floors.id, rooms.floorId))
+    .innerJoin(pgs, eq(pgs.id, floors.pgId))
+    .where(
+      and(
+        eq(bedReservations.bookingId, input.bookingId),
+        eq(bedReservations.kind, 'primary'),
+        eq(bedReservations.status, 'active'),
+      ),
+    )
+    .limit(1);
+
+  if (!ctx) return { ok: false, error: 'No active bed assignment found.' };
+  if (!adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, ctx.pgId)) {
+    return { ok: false, error: 'Access denied.' };
+  }
+  if (ctx.currentStart === moveInDate) {
+    return { ok: false, error: 'Check-in date is already set to that day.' };
+  }
+
+  const stayEnd = ctx.currentUpper ?? LONG_TERM_END;
+
+  const [conflict] = await db
+    .select({ id: bedReservations.id })
+    .from(bedReservations)
+    .innerJoin(bookings, eq(bookings.id, bedReservations.bookingId))
+    .where(
+      and(
+        eq(bedReservations.bedId, ctx.bedId),
+        sql`${bedReservations.status} IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
+        sql`${bedReservations.stayRange} && daterange(${moveInDate}::date, ${stayEnd}::date, '[)')`,
+        sql`${bedReservations.bookingId} <> ${input.bookingId}`,
+      ),
+    )
+    .limit(1);
+  if (conflict) {
+    return { ok: false, error: 'Bed is occupied by another booking for that date range.' };
+  }
+
+  await db.execute(sql`
+    UPDATE bed_reservations
+    SET
+      stay_range = daterange(${moveInDate}::date, ${stayEnd}::date, '[)'),
+      updated_at = now()
+    WHERE booking_id = ${input.bookingId}
+      AND status = 'active'
+  `);
+
+  const rentResult = await recalculateRentAfterMoveInChange({
+    bookingId: input.bookingId,
+    adminId: session.adminId,
+  });
+
+  await db.insert(auditLog).values({
+    actorType: 'admin',
+    actorId: session.adminId,
+    entity: 'booking',
+    entityId: input.bookingId,
+    action: 'move_in_updated',
+    diff: {
+      customerId: ctx.customerId,
+      pgId: ctx.pgId,
+      fromMoveInDate: ctx.currentStart,
+      toMoveInDate: moveInDate,
+      invoicesUpdated: rentResult.updatedCount,
+      billingDay: rentResult.billingDay,
+    },
+  });
+
+  const { reconcileBookingOccupancy } = await import('@/src/lib/occupancySync');
+  await reconcileBookingOccupancy(input.bookingId);
+
+  return {
+    ok: true,
+    invoicesUpdated: rentResult.updatedCount,
+    billingDay: rentResult.billingDay,
+  };
 }
