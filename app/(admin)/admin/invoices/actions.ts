@@ -11,6 +11,7 @@ import {
 import { buildInvoiceWhatsAppUrl } from '@/src/lib/billing/invoiceWhatsApp';
 import { paymentLinkPublicUrl } from '@/src/lib/billing/paymentLinkUrl';
 import { getUnifiedInvoiceDetail } from '@/src/services/unifiedInvoices';
+import { voidInvoiceCompletely } from '@/src/services/invoiceVoid';
 
 export type InvoiceActionState =
   | { status: 'idle' }
@@ -23,6 +24,8 @@ function revalidateInvoice(invoiceId: string) {
   revalidatePath('/admin/overview');
   revalidatePath('/admin/revenue');
   revalidatePath('/admin/collections');
+  revalidatePath('/admin/residents');
+  revalidatePath('/admin/operations');
 }
 
 export async function cancelInvoiceAction(
@@ -57,6 +60,36 @@ export async function cancelInvoiceAction(
     return {
       status: 'error',
       message: err instanceof Error ? err.message : 'Could not cancel invoice.',
+    };
+  }
+}
+
+export async function voidInvoiceCompletelyAction(
+  _prev: InvoiceActionState,
+  formData: FormData,
+): Promise<InvoiceActionState> {
+  try {
+    const session = await requireAdminPermission('payments:write');
+    const invoiceId = String(formData.get('invoiceId') ?? '');
+    const reason = String(formData.get('reason') ?? 'Voided by admin — remove all traces').trim();
+    if (!invoiceId) return { status: 'error', message: 'Missing invoice ID.' };
+    if (!reason) return { status: 'error', message: 'Enter a reason.' };
+
+    await assertAdminFinancialInvoiceAccess(session, invoiceId);
+
+    const result = await voidInvoiceCompletely(invoiceId, reason, {
+      type: 'admin',
+      id: session.adminId,
+    }, { archiveCustomer: true });
+
+    if (!result.ok) return { status: 'error', message: result.error };
+
+    revalidateInvoice(invoiceId);
+    return { status: 'ok', message: result.message };
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : 'Could not void invoice.',
     };
   }
 }

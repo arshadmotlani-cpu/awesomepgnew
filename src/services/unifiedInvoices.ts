@@ -855,6 +855,35 @@ export async function refundUnifiedInvoice(
   await reverseInvoicePaymentAllocation(inv);
 
   await logInvoiceAudit(invoiceId, 'refunded', { before, after: { status: 'refunded', reason } }, actor);
+
+  if (inv.sourceTable === 'rent_invoices' && inv.sourceId) {
+    await db
+      .update(rentInvoices)
+      .set({
+        status: 'cancelled',
+        cancelledAt: new Date(),
+        cancellationReason: reason,
+        updatedAt: new Date(),
+      })
+      .where(eq(rentInvoices.id, inv.sourceId));
+  }
+
+  const { reverseBookingEffectsIfInvoiceVoided } = await import(
+    '@/src/services/invoiceLifecycleReversal'
+  );
+  await reverseBookingEffectsIfInvoiceVoided({
+    invoiceId,
+    bookingId: inv.bookingId,
+    customerId: inv.customerId,
+    reason,
+    actorId: actor?.id ?? null,
+  }).catch((err) => {
+    console.error('[refundUnifiedInvoice] booking reversal failed', err);
+  });
+
+  const { revalidateFinancialViews } = await import('@/src/lib/billing/revalidateFinancialViews');
+  revalidateFinancialViews();
+
   return { ok: true };
 }
 

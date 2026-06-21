@@ -7,6 +7,7 @@ import {
   invoicePaymentLinkAction,
   invoiceWhatsAppAction,
   refundInvoiceAction,
+  voidInvoiceCompletelyAction,
   type InvoiceActionState,
 } from '@/app/(admin)/admin/invoices/actions';
 import { WhatsAppIcon } from '@/src/components/admin/AdminKycWhatsAppButton';
@@ -18,11 +19,20 @@ type Props = {
   invoiceId: string;
   status: FinancialInvoiceStatus;
   existingPaymentUrl?: string | null;
+  canVoidExpressSale?: boolean;
+  bookingCode?: string | null;
 };
 
-export function InvoiceDetailActions({ invoiceId, status, existingPaymentUrl }: Props) {
+export function InvoiceDetailActions({
+  invoiceId,
+  status,
+  existingPaymentUrl,
+  canVoidExpressSale = false,
+  bookingCode,
+}: Props) {
   const [cancelState, cancelFormAction, cancelPending] = useActionState(cancelInvoiceAction, initial);
   const [refundState, refundFormAction, refundPending] = useActionState(refundInvoiceAction, initial);
+  const [voidState, voidFormAction, voidPending] = useActionState(voidInvoiceCompletelyAction, initial);
   const [linkState, linkFormAction, linkPending] = useActionState(invoicePaymentLinkAction, initial);
   const [waState, waFormAction, waPending] = useActionState(invoiceWhatsAppAction, initial);
 
@@ -37,29 +47,61 @@ export function InvoiceDetailActions({ invoiceId, status, existingPaymentUrl }: 
     if (whatsappUrl) window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
   }, [whatsappUrl]);
 
-  const canCancel = status === 'sent' || status === 'overdue' || status === 'draft';
-  const canRefund = status === 'paid';
+  const canCancel =
+    !canVoidExpressSale &&
+    (status === 'sent' || status === 'overdue' || status === 'draft');
+  const canRefund = !canVoidExpressSale && status === 'paid';
   const canPay = status !== 'paid' && status !== 'cancelled' && status !== 'refunded';
 
   const feedback =
-    cancelState.status === 'ok'
-      ? cancelState.message
-      : cancelState.status === 'error'
-        ? cancelState.message
-        : refundState.status === 'ok'
-          ? refundState.message
-          : refundState.status === 'error'
-            ? refundState.message
-            : linkState.status === 'ok'
-              ? linkState.message
-              : linkState.status === 'error'
-                ? linkState.message
-                : waState.status === 'error'
-                  ? waState.message
-                  : null;
+    voidState.status === 'ok'
+      ? voidState.message
+      : voidState.status === 'error'
+        ? voidState.message
+        : cancelState.status === 'ok'
+          ? cancelState.message
+          : cancelState.status === 'error'
+            ? cancelState.message
+            : refundState.status === 'ok'
+              ? refundState.message
+              : refundState.status === 'error'
+                ? refundState.message
+                : linkState.status === 'ok'
+                  ? linkState.message
+                  : linkState.status === 'error'
+                    ? linkState.message
+                    : waState.status === 'error'
+                      ? waState.message
+                      : null;
 
   return (
     <div className="space-y-4">
+      {canVoidExpressSale ? (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+          <p className="text-sm font-medium text-amber-100">Express walk-in sale</p>
+          <p className="mt-1 text-xs text-amber-200/90">
+            Void removes this invoice, cancels booking {bookingCode ? `(${bookingCode})` : ''},
+            clears deposit wallet entries, frees the bed, and archives the resident profile.
+          </p>
+          <form action={voidFormAction} className="mt-3 flex flex-wrap items-end gap-2">
+            <input type="hidden" name="invoiceId" value={invoiceId} />
+            <input
+              name="reason"
+              required
+              placeholder="Why void this sale?"
+              className="min-w-[220px] flex-1 rounded-lg border border-white/10 bg-[#12161D] px-3 py-2 text-sm text-white"
+            />
+            <button
+              type="submit"
+              disabled={voidPending}
+              className="rounded-lg border border-red-500/50 bg-red-500/15 px-3 py-2 text-sm font-semibold text-red-100 hover:bg-red-500/25 disabled:opacity-50"
+            >
+              {voidPending ? 'Voiding…' : 'Void sale & remove all traces'}
+            </button>
+          </form>
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap gap-2">
         {canPay ? (
           <>
@@ -137,7 +179,7 @@ export function InvoiceDetailActions({ invoiceId, status, existingPaymentUrl }: 
 
       {feedback ? (
         <p
-          className={`text-sm ${feedback.includes('Could not') || feedback.includes('Missing') || feedback.includes('must') || feedback.includes('Only') ? 'text-red-300' : 'text-emerald-300'}`}
+          className={`text-sm ${feedback.includes('Could not') || feedback.includes('Missing') || feedback.includes('must') || feedback.includes('Only') || feedback.includes('already') ? 'text-red-300' : 'text-emerald-300'}`}
         >
           {feedback}
         </p>

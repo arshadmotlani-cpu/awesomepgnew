@@ -110,9 +110,9 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-21 21:08:59 UTC
+### Pending pre-commit sync · 2026-06-21 21:26:01 UTC
 
-**Areas touched:** [[ROUTES]], [[Action Center]]
+**Areas touched:** [[ROUTES]], [[Residents]], [[Billing]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
@@ -120,10 +120,13 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
+- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (2):**
-- `app/api/cron/automation/route.ts`
-- `src/services/actionItems.ts`
+**Staged code files (4):**
+- `app/(admin)/admin/invoices/[invoiceId]/page.tsx`
+- `app/(admin)/admin/invoices/actions.ts`
+- `src/services/residentAdmin.ts`
+- `src/services/unifiedInvoices.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

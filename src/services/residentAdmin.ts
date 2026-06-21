@@ -442,7 +442,7 @@ export async function getResidentDetail(
         }
       : null,
     settledTenancy,
-    canArchive: !activeTenancyRow && customer.residencyStatus !== 'vacated',
+    canArchive: !activeTenancyRow,
   };
 }
 

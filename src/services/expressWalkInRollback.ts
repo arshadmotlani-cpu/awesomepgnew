@@ -9,6 +9,7 @@ import {
   bedReservations,
   bookings,
   customers,
+  depositLedger,
   financialInvoices,
   rentInvoices,
 } from '@/src/db/schema';
@@ -16,7 +17,10 @@ import { reconcileBookingOccupancy } from '@/src/lib/occupancySync';
 import { getActiveTenancyForCustomer } from '@/src/lib/residentActiveTenancy';
 import { cancelBooking } from '@/src/services/bookingLifecycle';
 import { adjustDepositCollectedBalance } from '@/src/services/deposits';
+import { applyDepositDeduction } from '@/src/services/depositSettlement';
 import { cancelUnifiedInvoice, refundUnifiedInvoice } from '@/src/services/unifiedInvoices';
+
+const DEPOSIT_CREDIT_REASON = 'Deposit credit applied from prior stay wallet';
 
 export type ExpressWalkInRollbackInput = {
   bookingId: string;
@@ -43,6 +47,26 @@ export async function rollbackExpressWalkInSale(
     });
   } catch (err) {
     console.error('[expressWalkInRollback] deposit reversal failed', err);
+  }
+
+  const creditRows = await db
+    .select({ id: depositLedger.id, amountPaise: depositLedger.amountPaise })
+    .from(depositLedger)
+    .where(
+      and(
+        eq(depositLedger.bookingId, input.bookingId),
+        eq(depositLedger.entryKind, 'collected'),
+        eq(depositLedger.reason, DEPOSIT_CREDIT_REASON),
+      ),
+    );
+  for (const row of creditRows) {
+    await applyDepositDeduction({
+      bookingId: input.bookingId,
+      customerId: input.customerId,
+      amountPaise: row.amountPaise,
+      reason: `${reason} — reverse wallet credit`,
+      adminId: input.adminId,
+    }).catch(() => undefined);
   }
 
   const rentRows = await db

@@ -10,6 +10,7 @@ import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
 import { paymentLinkPublicUrl } from '@/src/lib/billing/paymentLinkUrl';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import { getUnifiedInvoiceDetail } from '@/src/services/unifiedInvoices';
+import { getInvoiceVoidCapabilities } from '@/src/services/invoiceVoid';
 import type { FinancialInvoiceStatus } from '@/src/db/schema/enums';
 
 export const dynamic = 'force-dynamic';
@@ -22,6 +23,7 @@ export default async function InvoiceDetailPage({
   const { invoiceId } = await params;
   const detail = await getUnifiedInvoiceDetail(invoiceId);
   if (!detail) notFound();
+  const voidCaps = await getInvoiceVoidCapabilities(invoiceId);
 
   const breakdown = detail.breakdown ?? {};
   const paymentUrl = detail.paymentLink ? paymentLinkPublicUrl(detail.paymentLink.id) : null;
@@ -107,6 +109,8 @@ export default async function InvoiceDetailPage({
           invoiceId={detail.id}
           status={detail.status}
           existingPaymentUrl={paymentUrl}
+          canVoidExpressSale={voidCaps.canVoidExpressSale}
+          bookingCode={voidCaps.bookingCode}
         />
       </section>
 
