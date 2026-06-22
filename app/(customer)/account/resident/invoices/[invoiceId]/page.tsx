@@ -1,10 +1,12 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { InvoiceDocument } from '@/src/components/billing/InvoiceDocument';
 import {
   assertCustomerOwnsFinancialInvoice,
   getInvoiceDocumentDetail,
 } from '@/src/lib/billing/invoiceDocumentModel';
+import { resolveFinancialInvoiceRef } from '@/src/lib/billing/resolveFinancialInvoiceRef';
+import { isFinancialInvoiceUuid } from '@/src/lib/billing/resolveFinancialInvoiceRef';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
 import { residentTabHref } from '@/src/lib/accountNavigation';
 import {
@@ -20,9 +22,17 @@ export default async function ResidentInvoiceDetailPage({
 }: {
   params: Promise<{ invoiceId: string }>;
 }) {
-  const { invoiceId } = await params;
+  const { invoiceId: ref } = await params;
+  const resolved = await resolveFinancialInvoiceRef(ref);
+  if (!resolved) notFound();
+
+  const invoiceId = resolved.id;
   const returnPath = `/account/resident/invoices/${invoiceId}`;
   const session = await requireCustomerSession(returnPath);
+
+  if (ref !== invoiceId && !isFinancialInvoiceUuid(ref)) {
+    redirect(returnPath);
+  }
 
   const owns = await assertCustomerOwnsFinancialInvoice(session.customerId, invoiceId);
   if (!owns) notFound();

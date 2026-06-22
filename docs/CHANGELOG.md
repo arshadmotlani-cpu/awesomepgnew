@@ -125,17 +125,25 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-22 00:18:56 UTC
+### Pending pre-commit sync · 2026-06-22 00:25:15 UTC
 
-**Areas touched:** [[ROUTES]]
+**Areas touched:** [[ROUTES]], [[Auth]], [[Billing]]
 
 **Docs flagged for review:**
+- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
+- `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
+- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (1):**
-- `app/(admin)/admin/invoices/page.tsx`
+**Staged code files (6):**
+- `app/(admin)/admin/invoices/actions.ts`
+- `app/(customer)/account/resident/invoices/[invoiceId]/page.tsx`
+- `app/(customer)/resident/invoices/[ref]/page.tsx`
+- `middleware.ts`
+- `src/lib/billing/resolveFinancialInvoiceRef.ts`
+- `src/lib/billing/sendInvoiceOnWhatsApp.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

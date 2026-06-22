@@ -180,7 +180,12 @@ export async function invoiceWhatsAppAction(
       }
     }
 
-    const publicInvoiceUrl = buildInvoicePublicUrl(invoiceId, 'resident');
+    const publicInvoiceUrl = buildInvoicePublicUrl(
+      invoiceId,
+      'resident',
+      undefined,
+      detail.invoiceNumber,
+    );
     const payload = buildInvoiceWhatsAppSendPayload(detail, publicInvoiceUrl);
 
     if (!payload.whatsappUrl) {

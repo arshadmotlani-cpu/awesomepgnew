@@ -22,8 +22,13 @@ export function buildInvoicePublicUrl(
   invoiceId: string,
   audience: 'admin' | 'resident',
   baseUrl?: string,
+  invoiceNumber?: string | null,
 ): string {
   const origin = resolveAppBaseUrl(baseUrl);
+  const ref = (invoiceNumber ?? invoiceId).trim();
+  if (audience === 'resident') {
+    return `${origin}/resident/invoices/${encodeURIComponent(ref)}`;
+  }
   return `${origin}${invoiceDetailHref(invoiceId, audience)}`;
 }
 

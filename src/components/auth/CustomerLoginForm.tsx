@@ -15,7 +15,7 @@ import {
   SignupRequestTimeoutError,
   signupFetch,
 } from '@/src/lib/auth/signupFetch';
-import { safeNext } from '@/src/lib/auth/safeNext';
+import { redirectAfterAuth, safeNext } from '@/src/lib/auth/safeNext';
 import { INDIAN_MOBILE_LOCAL, formatIndianPhoneDisplay } from '@/src/lib/phone';
 
 type Step = 'credentials' | 'otp' | 'profile' | 'reset-password';
@@ -224,6 +224,7 @@ export function CustomerLoginForm({
       const res = await fetch('/api/auth/customer/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({ email: email.trim(), password }),
       });
       const data = (await res.json()) as {
@@ -252,8 +253,7 @@ export function CustomerLoginForm({
         router.replace(`/account/set-password?next=${encodeURIComponent(next)}`);
         return;
       }
-      router.replace(next);
-      router.refresh();
+      redirectAfterAuth(next);
     } finally {
       setPending(false);
     }
@@ -545,8 +545,7 @@ export function CustomerLoginForm({
           return;
         }
         setProfilePhase('redirecting');
-        router.replace(next);
-        router.refresh();
+        redirectAfterAuth(next);
         return;
       }
 
@@ -556,8 +555,7 @@ export function CustomerLoginForm({
         return;
       }
       resetVerifyState();
-      router.replace(next);
-      router.refresh();
+      redirectAfterAuth(next);
     } catch (err) {
       if (includeProfile) {
         resetProfileSubmit();
@@ -616,8 +614,7 @@ export function CustomerLoginForm({
         setError(data.message ?? 'Could not save password.');
         return;
       }
-      router.replace(next);
-      router.refresh();
+      redirectAfterAuth(next);
     } catch (err) {
       setError(
         err instanceof SignupRequestTimeoutError
