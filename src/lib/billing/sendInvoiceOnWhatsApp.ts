@@ -1,4 +1,4 @@
-import { publicSiteBaseUrl } from '@/src/lib/kyc/adminWhatsApp';
+import { getPublicCustomerBaseUrl } from '@/src/lib/appUrl';
 import { whatsAppPhoneDigits } from '@/src/lib/kyc/adminWhatsApp';
 import { paiseToInr } from '@/src/lib/format';
 import type { InvoiceDocumentModel } from '@/src/lib/billing/invoiceDocumentModel';
@@ -11,23 +11,23 @@ export type InvoiceWhatsAppSendPayload = {
 };
 
 export function resolveAppBaseUrl(baseUrl?: string): string {
-  const fromEnv =
-    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-    process.env.NEXT_PUBLIC_BASE_URL?.trim() ||
-    baseUrl;
-  return (fromEnv ?? publicSiteBaseUrl()).replace(/\/$/, '');
+  if (baseUrl?.trim()) return baseUrl.trim().replace(/\/$/, '');
+  return getPublicCustomerBaseUrl();
+}
+
+/** Permanent resident share path — always uses the invoice UUID. */
+export function residentInvoiceSharePath(invoiceId: string): string {
+  return `/resident/invoices/${invoiceId.trim()}`;
 }
 
 export function buildInvoicePublicUrl(
   invoiceId: string,
   audience: 'admin' | 'resident',
   baseUrl?: string,
-  invoiceNumber?: string | null,
 ): string {
   const origin = resolveAppBaseUrl(baseUrl);
-  const ref = (invoiceNumber ?? invoiceId).trim();
   if (audience === 'resident') {
-    return `${origin}/resident/invoices/${encodeURIComponent(ref)}`;
+    return `${origin}${residentInvoiceSharePath(invoiceId)}`;
   }
   return `${origin}${invoiceDetailHref(invoiceId, audience)}`;
 }

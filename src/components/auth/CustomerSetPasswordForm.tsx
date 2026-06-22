@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import {
   authFieldLabelClassName,
@@ -14,7 +14,7 @@ import {
   SignupRequestTimeoutError,
   signupFetch,
 } from '@/src/lib/auth/signupFetch';
-import { safeNext } from '@/src/lib/auth/safeNext';
+import { redirectAfterAuth, safeNext } from '@/src/lib/auth/safeNext';
 
 type SubmitPhase = 'idle' | 'saving' | 'success' | 'redirecting';
 
@@ -24,7 +24,6 @@ type Props = {
 };
 
 export function CustomerSetPasswordForm({ email, theme = 'light' }: Props) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const next = safeNext(searchParams.get('next'));
 
@@ -122,13 +121,7 @@ export function CustomerSetPasswordForm({ email, theme = 'light' }: Props) {
       }
 
       setPhase('redirecting');
-      router.replace(next);
-      router.refresh();
-      window.setTimeout(() => {
-        if (window.location.pathname.startsWith('/account/set-password')) {
-          window.location.assign(next);
-        }
-      }, 4_000);
+      redirectAfterAuth(next);
     } catch (err) {
       submitInFlight.current = false;
       setPhase('idle');

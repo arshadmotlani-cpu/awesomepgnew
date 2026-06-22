@@ -11,6 +11,19 @@ export function getAppBaseUrl(): string {
   return 'http://localhost:3000';
 }
 
+/**
+ * Customer-facing origin for WhatsApp / SMS deep links.
+ * Never falls back to VERCEL_URL — preview domains must not be shared with residents.
+ */
+export function getPublicCustomerBaseUrl(): string {
+  const explicit =
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    process.env.NEXT_PUBLIC_BASE_URL?.trim() ||
+    process.env.WATCHDOG_BASE_URL?.trim();
+  if (explicit) return explicit.replace(/\/$/, '');
+  return 'http://localhost:3000';
+}
+
 /** Mask an email for display, e.g. `ops@awesomepg.in` → `o**@awesomepg.in`. */
 export function maskEmail(email: string): string {
   const trimmed = email.trim();

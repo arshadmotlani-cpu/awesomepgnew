@@ -125,7 +125,7 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-22 00:25:15 UTC
+### Pending pre-commit sync · 2026-06-22 00:42:18 UTC
 
 **Areas touched:** [[ROUTES]], [[Auth]], [[Billing]]
 

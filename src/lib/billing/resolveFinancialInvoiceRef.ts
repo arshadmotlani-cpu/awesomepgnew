@@ -9,11 +9,20 @@ export function isFinancialInvoiceUuid(ref: string): boolean {
   return UUID_RE.test(ref.trim());
 }
 
+function normalizeInvoiceRef(raw: string): string {
+  const trimmed = raw.trim();
+  try {
+    return decodeURIComponent(trimmed);
+  } catch {
+    return trimmed;
+  }
+}
+
 /** Resolve financial invoice by primary key or human-readable invoice number (INV-*, RNT-*). */
 export async function resolveFinancialInvoiceRef(
   ref: string,
 ): Promise<{ id: string; invoiceNumber: string } | null> {
-  const trimmed = ref.trim();
+  const trimmed = normalizeInvoiceRef(ref);
   if (!trimmed) return null;
 
   const [row] = await db
