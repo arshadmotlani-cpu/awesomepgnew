@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { AdminInvoiceListRow } from '@/src/components/admin/AdminInvoiceListRow';
+import { AdminInvoiceMobileList } from '@/src/components/admin/AdminInvoiceMobileList';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
@@ -75,21 +76,23 @@ export default async function InvoicesPage({
         ))}
       </div>
 
-      <form method="get" className="mb-4 flex flex-wrap gap-2">
-        {status !== 'all' ? <input type="hidden" name="status" value={status} /> : null}
-        <input
-          name="q"
-          defaultValue={search}
-          placeholder="Search resident, phone, invoice #, PG…"
-          className="min-w-[240px] flex-1 rounded-lg border border-white/10 bg-[#12161D] px-3 py-2 text-sm text-white"
-        />
-        <button
-          type="submit"
-          className="rounded-lg bg-[#FF5A1F] px-4 py-2 text-sm font-semibold text-white hover:brightness-110"
-        >
-          Search
-        </button>
-      </form>
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <form method="get" className="flex min-w-0 flex-1 flex-wrap gap-2">
+          {status !== 'all' ? <input type="hidden" name="status" value={status} /> : null}
+          <input
+            name="q"
+            defaultValue={search}
+            placeholder="Search resident, phone, invoice #, PG…"
+            className="min-w-0 flex-1 rounded-lg border border-white/10 bg-[#12161D] px-3 py-2.5 text-base text-white sm:min-w-[240px] sm:text-sm"
+          />
+          <button
+            type="submit"
+            className="min-h-11 rounded-lg bg-[#FF5A1F] px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110"
+          >
+            Search
+          </button>
+        </form>
+      </div>
 
       <div className="mb-6 flex flex-wrap gap-2">
         {STATUS_TABS.map((t) => (
@@ -107,34 +110,38 @@ export default async function InvoicesPage({
         ))}
       </div>
 
-      <Table>
-        <THead>
-          <TR>
-            <TH>Invoice #</TH>
-            <TH>Resident</TH>
-            <TH>PG</TH>
-            <TH>Room</TH>
-            <TH>Bed</TH>
-            <TH>Type</TH>
-            <TH className="text-right">Amount</TH>
-            <TH>Status</TH>
-            <TH>Created</TH>
-            <TH>Due</TH>
-            <TH>Paid</TH>
-          </TR>
-        </THead>
-        <TBody>
-          {invoices.length === 0 ? (
+      <AdminInvoiceMobileList invoices={invoices} />
+
+      <div className="hidden lg:block">
+        <Table>
+          <THead>
             <TR>
-              <TD colSpan={11} className="py-8 text-center text-apg-silver">
-                No invoices match this filter.
-              </TD>
+              <TH>Invoice #</TH>
+              <TH>Resident</TH>
+              <TH>PG</TH>
+              <TH>Room</TH>
+              <TH>Bed</TH>
+              <TH>Type</TH>
+              <TH className="text-right">Amount</TH>
+              <TH>Status</TH>
+              <TH>Created</TH>
+              <TH>Due</TH>
+              <TH>Paid</TH>
             </TR>
-          ) : (
-            invoices.map((inv) => <AdminInvoiceListRow key={inv.id} inv={inv} />)
-          )}
-        </TBody>
-      </Table>
+          </THead>
+          <TBody>
+            {invoices.length === 0 ? (
+              <TR>
+                <TD colSpan={11} className="py-8 text-center text-apg-silver">
+                  No invoices match this filter.
+                </TD>
+              </TR>
+            ) : (
+              invoices.map((inv) => <AdminInvoiceListRow key={inv.id} inv={inv} />)
+            )}
+          </TBody>
+        </Table>
+      </div>
     </>
   );
 }
