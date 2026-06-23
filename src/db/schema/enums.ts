@@ -229,6 +229,8 @@ export const actionItemTypeEnum = pgEnum('action_item_type', [
   'deposit_refund_request',
   'extension_request',
   'deposit_collection_due',
+  'fixed_stay_checkout_due',
+  'refund_request_submitted',
 ]);
 
 export const actionItemStatusEnum = pgEnum('action_item_status', [

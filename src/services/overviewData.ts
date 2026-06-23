@@ -12,7 +12,7 @@ import {
 } from '@/src/db/queries/admin';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import type { AdminSession } from '@/src/lib/auth/session';
-import { listOpenActionItems, syncActionItems } from '@/src/services/actionItems';
+import { listOpenActionItems, listOldestPendingActionItems, syncActionItems } from '@/src/services/actionItems';
 import {
   listAdminNotifications,
 } from '@/src/services/adminNotifications';
@@ -40,6 +40,7 @@ export type OverviewContext = {
   overviewKpis: Awaited<ReturnType<typeof getAdminOverviewKpis>>;
   operations: Awaited<ReturnType<typeof getOperationsCenterData>> | null;
   actionItems: Awaited<ReturnType<typeof listOpenActionItems>>;
+  oldestPendingActions: Awaited<ReturnType<typeof listOldestPendingActionItems>>;
   systemHealth: Awaited<ReturnType<typeof getSystemHealthSnapshot>>;
   sentryUrl: string | null;
   pgCount: number;
@@ -177,6 +178,7 @@ export async function loadOverviewContext(
   void depositByPg; // reserved for future MTD deposit reconciliation per PG
 
   const pendingActionsCount = actionItems.length;
+  const oldestPendingActions = await listOldestPendingActionItems(session, 5).catch(() => []);
   const unreadNotifications = await listAdminNotifications(session, 'unread', 20).catch(() => []);
   const unreadNotificationsCount = unreadNotifications.length;
   const vacatingAlertsCount = operations?.leavingSoon.count ?? 0;
@@ -199,6 +201,7 @@ export async function loadOverviewContext(
       overviewKpis,
       operations,
       actionItems,
+      oldestPendingActions,
       systemHealth,
       sentryUrl: getSentryDashboardUrl(),
       pgCount: pgs.ok ? pgs.data.length : metrics.data.length,

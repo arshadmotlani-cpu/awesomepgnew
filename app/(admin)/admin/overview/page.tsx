@@ -7,6 +7,7 @@ import { SyncActionsButton } from '@/src/components/admin/SyncActionsButton';
 import { UnreadNotificationsPanel } from '@/src/components/admin/UnreadNotificationsPanel';
 import { OutstandingDepositsPanel } from '@/src/components/admin/overview/OutstandingDepositsPanel';
 import { OverviewGlobalSummary } from '@/src/components/admin/overview/OverviewGlobalSummary';
+import { PendingActionItemsOverview } from '@/src/components/admin/overview/PendingActionItemsOverview';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import { buildControlBoardData } from '@/src/services/controlBoard';
@@ -96,6 +97,9 @@ export default async function OverviewPage({
         </div>
         <div className="mb-8">
           <OutstandingDepositsPanel rows={ctx.data.outstandingDeposits} />
+        </div>
+        <div className="mb-8">
+          <PendingActionItemsOverview items={ctx.data.oldestPendingActions} />
         </div>
         <OverviewGlobalSummary ctx={ctx.data} />
       </AdminSectionErrorBoundary>

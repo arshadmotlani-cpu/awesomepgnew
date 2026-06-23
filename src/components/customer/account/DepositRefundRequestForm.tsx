@@ -29,7 +29,10 @@ export function DepositRefundRequestForm({
   const [uploadingQr, setUploadingQr] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  const canSubmit = Boolean(meterUrl && qrUrl && refundableBalancePaise > 0);
+  const [useAverage, setUseAverage] = useState(false);
+  const canSubmit = Boolean(
+    (meterUrl || useAverage) && qrUrl && refundableBalancePaise > 0,
+  );
 
   useEffect(() => {
     if (state.ok) onSubmitted?.();
@@ -72,27 +75,45 @@ export function DepositRefundRequestForm({
       <input type="hidden" name="bookingId" value={bookingId} />
       <input type="hidden" name="meterReadingPhotoUrl" value={meterUrl} />
       <input type="hidden" name="payoutQrUrl" value={qrUrl} />
-      <input type="hidden" name="useAverageBillingFallback" value="0" />
 
       <h4 className="text-sm font-semibold text-zinc-900">Request deposit refund</h4>
 
       <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
         <div>
-          <dt className="text-xs text-zinc-500">Deposit held</dt>
+          <dt className="text-xs text-zinc-500">Deposit paid</dt>
           <dd className="font-semibold text-zinc-900">{paiseToInr(refundableBalancePaise)}</dd>
         </div>
         {estimatedDeductionPaise > 0 ? (
-          <div>
-            <dt className="text-xs text-zinc-500">Estimated deductions</dt>
-            <dd className="font-semibold text-rose-700">{paiseToInr(estimatedDeductionPaise)}</dd>
-          </div>
+          <>
+            <div>
+              <dt className="text-xs text-zinc-500">Notice penalty (est.)</dt>
+              <dd className="font-semibold text-rose-700">{paiseToInr(estimatedDeductionPaise)}</dd>
+            </div>
+            <div className="sm:col-span-2">
+              <dt className="text-xs text-zinc-500">Est. refundable after deductions</dt>
+              <dd className="font-semibold text-emerald-800">
+                {paiseToInr(Math.max(0, refundableBalancePaise - estimatedDeductionPaise))}
+              </dd>
+            </div>
+          </>
         ) : null}
       </dl>
 
       <p className="mt-3 text-xs leading-relaxed text-zinc-600">
         Final electricity charges will be calculated after meter verification and deducted from
-        your refundable deposit balance.
+        your refundable deposit balance. Use average billing only if meter photo is unavailable.
       </p>
+
+      <label className="mt-3 flex items-center gap-2 text-xs text-zinc-700">
+        <input
+          type="checkbox"
+          name="useAverageBillingFallback"
+          value="1"
+          checked={useAverage}
+          onChange={(e) => setUseAverage(e.target.checked)}
+        />
+        Use property average electricity bill (no meter photo)
+      </label>
 
       <div className="mt-4 space-y-4">
         <label className="block">

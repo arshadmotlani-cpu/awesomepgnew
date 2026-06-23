@@ -504,12 +504,29 @@ const PATH_NOTIFICATION_TYPES: Array<{ prefix: string; types: ActionItemType[] }
   { prefix: '/admin/revenue', types: ['rent_due', 'electricity_due', 'payment_received'] },
   {
     prefix: '/admin/deposits',
-    types: ['refund_pending', 'deposit_refund_request', 'deposit_collection_due'],
+    types: [
+      'refund_pending',
+      'deposit_refund_request',
+      'refund_request_submitted',
+      'deposit_collection_due',
+    ],
   },
-  { prefix: '/admin/requests', types: ['deposit_refund_request', 'extension_request'] },
+  {
+    prefix: '/admin/requests',
+    types: ['deposit_refund_request', 'refund_request_submitted', 'extension_request'],
+  },
   {
     prefix: '/admin/operations',
-    types: ['vacating_alert', 'extension_request', 'maintenance_issue'],
+    types: [
+      'vacating_alert',
+      'fixed_stay_checkout_due',
+      'extension_request',
+      'maintenance_issue',
+    ],
+  },
+  {
+    prefix: '/admin/checkout-settlements',
+    types: ['fixed_stay_checkout_due', 'refund_request_submitted', 'vacating_alert'],
   },
   { prefix: '/admin/electricity', types: ['electricity_due'] },
   { prefix: '/admin/rent', types: ['rent_due'] },

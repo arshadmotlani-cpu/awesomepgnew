@@ -1,57 +1,67 @@
 import { todayString, tryDiffDays } from '@/src/lib/dates';
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
+import {
+  computeDepositRefundUnlockState,
+  depositRefundEligibilityFromUnlock,
+  type DepositRefundUnlockResult,
+} from '@/src/lib/billing/depositRefundUnlock';
 import { VACATING_NOTICE_MIN_DAYS, vacatingPenalty } from '@/src/services/billing';
 
 export type DepositRefundEligibility = {
   canRequestRefund: boolean;
   lockReason: string | null;
+  unlockState?: DepositRefundUnlockResult['state'];
 };
 
 export function getDepositRefundEligibility(args: {
   vacating: VacatingForBookingRow | null;
   today?: string;
+  booking?: {
+    status: string;
+    durationMode: string;
+    expectedCheckoutDate: string | null;
+    createdAt: Date;
+  } | null;
+  settlement?: { status: string } | null;
+  residentRequest?: { status: string } | null;
+  monthlyRentPaise?: number;
 }): DepositRefundEligibility {
-  const today = args.today ?? todayString();
-  const vacating = args.vacating;
+  if (args.booking) {
+    const unlock = computeDepositRefundUnlockState({
+      booking: args.booking,
+      vacating: args.vacating,
+      settlement: args.settlement ?? null,
+      residentRequest: args.residentRequest ?? null,
+      monthlyRentPaise: args.monthlyRentPaise,
+      today: args.today,
+    });
+    return { ...depositRefundEligibilityFromUnlock(unlock), unlockState: unlock.state };
+  }
 
+  const vacating = args.vacating;
   if (!vacating) {
     return {
       canRequestRefund: false,
       lockReason:
         'Submit a vacate request and wait for admin approval before requesting a deposit refund.',
+      unlockState: 'locked',
     };
   }
 
-  if (vacating.status === 'pending') {
-    return {
-      canRequestRefund: false,
-      lockReason:
-        'Deposit refund unlocks after admin approves your vacate request and your vacate date arrives.',
-    };
-  }
-
-  if (vacating.status === 'rejected') {
-    return {
-      canRequestRefund: false,
-      lockReason: 'Your vacate request was not approved. Contact the office for help.',
-    };
-  }
-
-  if (vacating.status !== 'approved' && vacating.status !== 'completed') {
-    return {
-      canRequestRefund: false,
-      lockReason: 'Vacate request must be approved first.',
-    };
-  }
-
-  if (today < vacating.vacatingDate) {
-    return {
-      canRequestRefund: false,
-      lockReason: `Deposit refund unlocks on your vacate date (${vacating.vacatingDate}).`,
-    };
-  }
-
-  return { canRequestRefund: true, lockReason: null };
+  const unlock = computeDepositRefundUnlockState({
+    booking: {
+      status: 'confirmed',
+      durationMode: 'monthly',
+      expectedCheckoutDate: vacating.vacatingDate,
+      createdAt: vacating.createdAt,
+    },
+    vacating,
+    settlement: args.settlement ?? null,
+    residentRequest: args.residentRequest ?? null,
+    monthlyRentPaise: args.monthlyRentPaise ?? vacating.monthlyRentPaiseSnapshot,
+    today: args.today,
+  });
+  return { ...depositRefundEligibilityFromUnlock(unlock), unlockState: unlock.state };
 }
 
 export function estimateVacateDepositPreview(args: {

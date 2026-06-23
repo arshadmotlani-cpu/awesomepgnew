@@ -7,7 +7,7 @@ import {
 
 export type AdminNavBadges = Partial<Record<AdminModule | 'deposits' | 'notifications', number>>;
 
-const TYPE_TO_MODULE: Record<AdminNotificationRow['type'], AdminModule | 'deposits'> = {
+export const TYPE_TO_MODULE: Record<AdminNotificationRow['type'], AdminModule | 'deposits'> = {
   kyc_pending: 'kyc',
   rent_due: 'revenue',
   electricity_due: 'revenue',
@@ -18,6 +18,8 @@ const TYPE_TO_MODULE: Record<AdminNotificationRow['type'], AdminModule | 'deposi
   refund_pending: 'deposits',
   deposit_refund_request: 'deposits',
   deposit_collection_due: 'deposits',
+  fixed_stay_checkout_due: 'operations',
+  refund_request_submitted: 'deposits',
 };
 
 /** Sidebar badges — unread notifications only (WhatsApp-style). */

@@ -30,6 +30,12 @@ type Props = {
   startMake: boolean;
   initialCategory?: RequestCategoryId | null;
   vacating: VacatingForBookingRow | null;
+  bookingStatus?: string;
+  durationMode?: string;
+  expectedCheckoutDate?: string | null;
+  bookingCreatedAt?: Date;
+  checkoutSettlementStatus?: string | null;
+  monthlyRentPaise?: number;
 };
 
 export function RequestsHome({
@@ -42,14 +48,41 @@ export function RequestsHome({
   startMake,
   initialCategory = null,
   vacating,
+  bookingStatus = 'confirmed',
+  durationMode = 'monthly',
+  expectedCheckoutDate = null,
+  bookingCreatedAt,
+  checkoutSettlementStatus = null,
+  monthlyRentPaise = 0,
 }: Props) {
   const router = useRouter();
   const [making, setMaking] = useState(startMake);
   const [makeCategory, setMakeCategory] = useState(initialCategory);
 
   const refundEligibility = useMemo(
-    () => getDepositRefundEligibility({ vacating }),
-    [vacating],
+    () =>
+      getDepositRefundEligibility({
+        vacating,
+        booking: bookingCreatedAt
+          ? {
+              status: bookingStatus,
+              durationMode,
+              expectedCheckoutDate,
+              createdAt: bookingCreatedAt,
+            }
+          : null,
+        settlement: checkoutSettlementStatus ? { status: checkoutSettlementStatus } : null,
+        monthlyRentPaise,
+      }),
+    [
+      vacating,
+      bookingStatus,
+      durationMode,
+      expectedCheckoutDate,
+      bookingCreatedAt,
+      checkoutSettlementStatus,
+      monthlyRentPaise,
+    ],
   );
 
   const selected = useMemo(
@@ -124,6 +157,23 @@ export function RequestsHome({
 
   return (
     <div className="space-y-4 pb-2">
+      {refundEligibility.canRequestRefund && refundableBalancePaise > 0 ? (
+        <ApgCard tier="account" className="border-emerald-200 bg-emerald-50/80 p-5">
+          <p className="text-sm font-semibold text-emerald-900">Request deposit refund</p>
+          <p className="mt-1 text-xs text-emerald-800">
+            Your checkout is complete. Submit your final meter photo and UPI details to receive your
+            deposit refund.
+          </p>
+          <button
+            type="button"
+            onClick={() => selectCategory('deposit_refund')}
+            className="mt-3 w-full rounded-xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-600"
+          >
+            Request deposit refund
+          </button>
+        </ApgCard>
+      ) : null}
+
       <button type="button" onClick={() => setMaking(true)} className={PRIMARY_BTN}>
         Make a request
       </button>

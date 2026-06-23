@@ -1,5 +1,6 @@
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
 import { todayString } from '@/src/lib/dates';
+import { fixedStayRefundUnlockLabel, isPastFixedStayCheckout } from '@/src/lib/dates/ist';
 import { formatDate } from '@/src/lib/format';
 
 export type VacatingStageId =
@@ -96,8 +97,39 @@ export function vacatingStatusLabel(status: VacatingForBookingRow['status'] | nu
 export function vacatingNextStep(args: {
   vacating: VacatingForBookingRow | null;
   checkoutStatus: string | null;
+  durationMode?: string;
+  expectedCheckoutDate?: string | null;
 }): { headline: string; detail: string } {
-  const { vacating, checkoutStatus } = args;
+  const { vacating, checkoutStatus, durationMode, expectedCheckoutDate } = args;
+  const fixedStay = durationMode && ['fixed_stay', 'daily', 'weekly'].includes(durationMode);
+
+  if (fixedStay && expectedCheckoutDate) {
+    if (checkoutStatus === 'awaiting_resident_details') {
+      return {
+        headline: 'Request deposit refund',
+        detail:
+          'Your stay checkout is complete. Submit your final electricity meter photo and UPI details for deposit refund.',
+      };
+    }
+    if (!isPastFixedStayCheckout(expectedCheckoutDate)) {
+      return {
+        headline: 'Stay in progress',
+        detail: fixedStayRefundUnlockLabel(expectedCheckoutDate),
+      };
+    }
+    if (checkoutStatus === 'awaiting_admin_review' || checkoutStatus === 'refund_pending') {
+      return {
+        headline: 'Refund in progress',
+        detail: 'We are finalising your deposit refund. No action needed from you right now.',
+      };
+    }
+    if (checkoutStatus === 'refund_paid' || checkoutStatus === 'completed') {
+      return {
+        headline: 'Refund complete',
+        detail: 'Your stay is closed. Check your payment history for the refund receipt.',
+      };
+    }
+  }
 
   if (!vacating) {
     return {

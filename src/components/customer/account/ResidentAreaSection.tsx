@@ -429,6 +429,12 @@ export async function ResidentAreaSection({
           startMake={requestsQuery.make ?? false}
           initialCategory={requestsQuery.category ?? null}
           vacating={primaryVacating}
+          bookingStatus={primaryBooking.booking.status}
+          durationMode={primaryBooking.booking.durationMode}
+          expectedCheckoutDate={primaryBooking.booking.expectedCheckoutDate}
+          bookingCreatedAt={primaryBooking.booking.createdAt}
+          checkoutSettlementStatus={checkoutByBooking.get(primaryBooking.bookingId) ?? null}
+          monthlyRentPaise={primaryBooking.booking.monthlyRentPaise}
         />
       ) : null}
 

@@ -5,6 +5,21 @@
 
 ---
 
+## 2026-06-23 (fixed-stay expiry + refund unlock)
+
+### Fixed
+- **FIXED-STAY-EXPIRE-01** — Confirmed fixed-stay/daily/weekly bookings stayed `confirmed` past checkout; no cron completed them at 11 AM IST [[BUGS#FIXED-STAY-EXPIRE-01]]
+
+### Added
+- `fixedStayAutoExpiry.ts` — IST checkout boundary, batch expiry, checkout settlement + bed release
+- Hourly cron `/api/cron/expire-fixed-stays` + `scripts/expire-fixed-stays-now.ts`
+- `depositRefundUnlock.ts` — unified locked/unlocked/submitted/approved/paid/rejected states
+- Action item types `fixed_stay_checkout_due`, `refund_request_submitted`; overview top-5 oldest pending
+- `pgs.average_electricity_bill_paise` for checkout average fallback
+- Unit tests: `fixedStayAutoExpiry`, `depositRefundUnlock`, `actionItemPersistence`
+
+---
+
 ## 2026-06-23 (financial audit)
 
 ### Added
@@ -166,21 +181,33 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-23 12:20:26 UTC
+### Pending pre-commit sync · 2026-06-23 12:41:05 UTC
 
-**Areas touched:** [[ROUTES]], [[Billing]]
+**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Residents]], [[Vacating]], [[Action Center]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
+- `DATABASE.md` — review for accuracy
+- `DECISIONS.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (2):**
-- `app/api/cron/financial-reconciliation/route.ts`
-- `src/services/residentFinancialEngine.ts`
+**Staged code files (12):**
+- `app/(admin)/admin/overview/page.tsx`
+- `app/api/cron/expire-fixed-stays/route.ts`
+- `src/db/migrations/0063_fixed_stay_expiry_action_items.sql`
+- `src/db/migrations/meta/_journal.json`
+- `src/db/schema/enums.ts`
+- `src/db/schema/pgs.ts`
+- `src/lib/billing/depositRefundUnlock.ts`
+- `src/lib/residents/vacatingJourney.ts`
+- `src/lib/vacating/depositRefundEligibility.ts`
+- `src/services/actionItems.ts`
+- `src/services/checkoutSettlement.ts`
+- `src/services/vacating.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

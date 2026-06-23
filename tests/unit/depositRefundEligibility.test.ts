@@ -23,7 +23,7 @@ test('deposit refund locked before vacate date even when approved', () => {
     today: '2026-06-02',
   });
   assert.equal(result.canRequestRefund, false);
-  assert.match(result.lockReason ?? '', /2026-06-10/);
+  assert.match(result.lockReason ?? '', /11:00 AM/);
 });
 
 test('deposit refund unlocks on vacate date when approved', () => {

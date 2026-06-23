@@ -65,6 +65,8 @@ Optional `suggestedCheckIn` prefills rebooking extension check-in (prior checkou
 
 **Checkout totals (2026-06-23):** All booking screens use `computeNewBookingCheckoutTotals()` — rent + deposit due now − wallet credit + prior stay outstanding. Fixed-stay hybrid pricing shows week + remainder day lines via `BookingPriceBreakdown`. Prior balances snapshotted in `pricing_snapshot.priorOutstanding`.
 
+**Fixed-stay lifecycle (2026-06-23):** Bookings with `duration_mode` in `fixed_stay` / `daily` / `weekly` auto-complete at 11 AM IST on checkout date (`fixedStayAutoExpiry.ts`). Deposit refund unlocks via `depositRefundUnlock.ts` after expiry completes the booking.
+
 See [[BUGS#BOOK-DATE-01]] for mobile Edit z-index fix.
 
 ---

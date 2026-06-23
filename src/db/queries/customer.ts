@@ -1124,10 +1124,11 @@ export type ResidentBookingRow = {
   bedCode: string;
   roomId: string;
   roomNumber: string;
-  durationMode: 'monthly' | 'open_ended' | 'fixed_stay';
+  durationMode: 'monthly' | 'open_ended' | 'fixed_stay' | 'daily' | 'weekly';
   status: 'confirmed' | 'completed' | 'cancelled' | 'refunded' | 'draft' | 'pending_payment';
   checkInDate: string; // YYYY-MM-DD
   expectedCheckoutDate: string | null;
+  createdAt: Date;
   monthlyRentPaise: number;
   depositPaise: number;
   adminDuesStatus: 'unknown' | 'cleared' | 'has_dues';
@@ -1183,6 +1184,7 @@ export function listResidentBookingsForCustomer(
         depositCollectionStatus: bookings.depositCollectionStatus,
         depositDuePaise: bookings.depositDuePaise,
         depositDueDate: bookings.depositDueDate,
+        createdAt: bookings.createdAt,
       })
       .from(bookings)
       .innerJoin(customers, eq(customers.id, bookings.customerId))
@@ -1197,7 +1199,7 @@ export function listResidentBookingsForCustomer(
       .where(
         and(
           eq(bookings.customerId, customerId),
-          inArray(bookings.durationMode, ['monthly', 'open_ended', 'fixed_stay']),
+          inArray(bookings.durationMode, ['monthly', 'open_ended', 'fixed_stay', 'daily', 'weekly']),
           inArray(bookings.status, ['confirmed', 'completed']),
         ),
       )
@@ -1221,10 +1223,11 @@ export function listResidentBookingsForCustomer(
         bedCode: r.bedCode,
         roomId: r.roomId,
         roomNumber: r.roomNumber,
-        durationMode: r.durationMode as 'monthly' | 'open_ended' | 'fixed_stay',
+        durationMode: r.durationMode as ResidentBookingRow['durationMode'],
         status: r.status,
         checkInDate: r.checkInDate,
         expectedCheckoutDate: r.expectedCheckoutDate,
+        createdAt: r.createdAt,
         monthlyRentPaise,
         depositPaise: r.depositPaise,
         adminDuesStatus: r.adminDuesStatus,

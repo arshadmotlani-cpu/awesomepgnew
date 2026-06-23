@@ -28,7 +28,9 @@ export async function syncResidentRequestActionItems(): Promise<void> {
   for (const row of rows) {
     const type =
       row.type === 'deposit_refund'
-        ? 'deposit_refund_request'
+        ? row.status === 'submitted'
+          ? 'refund_request_submitted'
+          : 'deposit_refund_request'
         : row.type === 'deposit_due_extension'
           ? 'extension_request'
           : 'extension_request';
@@ -88,7 +90,11 @@ export async function syncResidentRequestActionItems(): Promise<void> {
     .from(actionItems)
     .where(
       and(
-        inArray(actionItems.type, ['deposit_refund_request', 'extension_request']),
+        inArray(actionItems.type, [
+          'deposit_refund_request',
+          'refund_request_submitted',
+          'extension_request',
+        ]),
         inArray(actionItems.status, ['open', 'in_progress']),
       ),
     );

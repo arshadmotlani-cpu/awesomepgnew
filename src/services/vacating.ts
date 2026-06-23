@@ -273,7 +273,7 @@ async function restoreOpenEndedStay(
   return { ok: true };
 }
 
-async function completeBookingReservations(bookingId: string) {
+export async function completeBookingReservations(bookingId: string) {
   await db
     .update(bedReservations)
     .set({ status: 'completed', updatedAt: new Date() })

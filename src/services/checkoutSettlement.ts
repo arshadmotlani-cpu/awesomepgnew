@@ -703,6 +703,14 @@ export async function submitResidentCheckoutDetails(input: {
     .where(eq(checkoutSettlements.id, input.settlementId));
 
   scheduleAdminNotificationSync();
+  const { resolveFixedStayCheckoutForBooking } = await import(
+    '@/src/services/fixedStayActionItems'
+  );
+  await resolveFixedStayCheckoutForBooking(current.bookingId);
+  const { refreshAdminNotificationsFromActionItems } = await import(
+    '@/src/services/actionItems'
+  );
+  await refreshAdminNotificationsFromActionItems().catch(() => undefined);
   return { ok: true };
 }
 

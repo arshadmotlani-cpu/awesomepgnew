@@ -31,6 +31,7 @@ import { projectInvoice } from '@/src/services/rentInvoices';
 import { syncResidentRequestActionItems } from '@/src/services/residentRequestActions';
 import { syncAdminNotificationsFromActionItems } from '@/src/services/adminNotifications';
 import { resolveStaleVacatingActionItems } from '@/src/services/vacatingPastDue';
+import { resolveFixedStayCheckoutActionItems } from '@/src/services/fixedStayActionItems';
 import { diffDays, formatDate } from '@/src/lib/dates';
 
 export type ActionItemRow = {
@@ -688,6 +689,7 @@ async function syncDepositCollectionDue(session: AdminSession): Promise<void> {
 export async function syncActionItems(session: AdminSession): Promise<void> {
   await resolveStaleBillingActionItems();
   await resolveStaleVacatingActionItems();
+  await resolveFixedStayCheckoutActionItems();
   await Promise.all([
     syncRentDue(session),
     syncElectricityDue(session),
@@ -770,6 +772,22 @@ export async function listOpenActionItemsByType(
   type: ActionItemRow['type'],
 ): Promise<ActionItemRow[]> {
   return listOpenActionItemsFiltered(session, type);
+}
+
+/** Top N oldest open action items (for overview queue). */
+export async function listOldestPendingActionItems(
+  session: AdminSession,
+  limit = 5,
+): Promise<Array<ActionItemRow & { ageDays: number }>> {
+  const today = todayString();
+  const items = await listOpenActionItemsFiltered(session);
+  return items
+    .map((item) => ({
+      ...item,
+      ageDays: Math.max(0, diffDays(formatDate(item.createdAt), today)),
+    }))
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+    .slice(0, limit);
 }
 
 async function listOpenActionItemsFiltered(
@@ -954,8 +972,23 @@ export async function getActionItemDetail(
       href: `/admin/deposits/${meta.bookingId}`,
     });
   }
+  if (base.type === 'fixed_stay_checkout_due') {
+    const settlementId =
+      typeof meta.settlementId === 'string' && meta.settlementId.length > 0
+        ? meta.settlementId
+        : null;
+    availableActions.push({
+      type: 'view_ledger',
+      label: settlementId ? 'Open checkout settlement' : 'Checkout settlements',
+      href: settlementId
+        ? `/admin/checkout-settlements/${settlementId}`
+        : '/admin/checkout-settlements?tab=awaiting_resident',
+    });
+  }
   if (
-    (base.type === 'deposit_refund_request' || base.type === 'extension_request') &&
+    (base.type === 'deposit_refund_request' ||
+      base.type === 'refund_request_submitted' ||
+      base.type === 'extension_request') &&
     meta.requestId
   ) {
     availableActions.push({

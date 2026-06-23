@@ -421,6 +421,13 @@
       "when": 1788000000000,
       "tag": "0062_signup_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1788100000000,
+      "tag": "0063_fixed_stay_expiry_action_items",
+      "breakpoints": true
     }
   ]
 }

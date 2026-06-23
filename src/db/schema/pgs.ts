@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { boolean, jsonb, numeric, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, jsonb, numeric, pgTable, text, timestamp, uuid, bigint } from 'drizzle-orm/pg-core';
 import { adminUsers } from './adminUsers';
 import { genderPolicyEnum } from './enums';
 
@@ -77,6 +77,8 @@ export const pgs = pgTable('pgs', {
   contactPhone: text('contact_phone'),
   contactEmail: text('contact_email'),
   hasPaymentEnabled: boolean('has_payment_enabled').notNull().default(false),
+  /** Default average room electricity bill (paise) when meter history is unavailable. */
+  averageElectricityBillPaise: bigint('average_electricity_bill_paise', { mode: 'number' }),
   ownerId: uuid('owner_id').references(() => adminUsers.id, { onDelete: 'set null' }),
   isActive: boolean('is_active').notNull().default(true),
   archivedAt: timestamp('archived_at', { withTimezone: true }),
