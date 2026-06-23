@@ -50,6 +50,7 @@ import { getLatestKycSubmission } from '@/src/services/kyc';
 import { buildWalletLedger } from '@/src/lib/residents/walletLedger';
 import { ResidentWalletView } from '@/src/components/customer/account/resident/ResidentWalletView';
 import { ResidentPaymentsHub } from '@/src/components/customer/account/resident/ResidentPaymentsHub';
+import type { PaidHistoryRow } from '@/src/components/customer/account/resident/ResidentPaymentsHub';
 import {
   type PaymentDueRow,
 } from '@/src/components/customer/account/resident/ResidentPaymentsPanel';
@@ -366,6 +367,32 @@ export async function ResidentAreaSection({
     ? `/account/resident/history/${primaryBooking.bookingId}`
     : null;
 
+  const PAID_PURPOSE_LABEL: Record<string, string> = {
+    rent: 'Rent payment',
+    electricity: 'Electricity payment',
+    deposit: 'Security deposit',
+    refund: 'Refund received',
+    booking: 'Booking payment',
+    extension: 'Stay extension',
+  };
+  const paidHistory: PaidHistoryRow[] =
+    paymentHistoryRes?.ok
+      ? paymentHistoryRes.data
+          .filter((p) => p.status === 'succeeded')
+          .slice(0, 8)
+          .map((p) => ({
+            id: p.id,
+            label: PAID_PURPOSE_LABEL[p.purpose] ?? titleCase(p.purpose),
+            amountPaise: p.amountPaise,
+            paidAt: p.paidAt
+              ? formatDate(
+                  typeof p.paidAt === 'string' ? p.paidAt : p.paidAt.toISOString().slice(0, 10),
+                )
+              : null,
+            status: 'paid',
+          }))
+      : [];
+
   const activeRequests: ActiveRequestItem[] = [];
   for (const r of openRequests) {
     activeRequests.push({
@@ -499,7 +526,11 @@ export async function ResidentAreaSection({
       ) : null}
 
       {activeTab === 'payments' && financialSummary && primaryBooking ? (
-        <ResidentPaymentsHub billRows={paymentBillRows} historyHref={historyHref} />
+        <ResidentPaymentsHub
+          billRows={paymentBillRows}
+          paidHistory={paidHistory}
+          historyHref={historyHref}
+        />
       ) : null}
 
       {activeTab === 'payments' && (

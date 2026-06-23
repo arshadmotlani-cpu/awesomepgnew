@@ -7,6 +7,14 @@ import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import { residentTabHref } from '@/src/lib/accountNavigation';
 import type { PaymentDueRow } from '@/src/components/customer/account/resident/ResidentPaymentsPanel';
 
+export type PaidHistoryRow = {
+  id: string;
+  label: string;
+  amountPaise: number;
+  paidAt: string | null;
+  status: string;
+};
+
 const BILL_STATUS_TONE: Record<string, string> = {
   pending: 'bg-amber-50 text-amber-800 ring-amber-200',
   overdue: 'bg-rose-50 text-rose-800 ring-rose-200',
@@ -31,32 +39,45 @@ function primaryPayAction(rows: PaymentDueRow[]): { href: string; label: string 
 
 export function ResidentPaymentsHub({
   billRows,
+  paidHistory,
   historyHref,
 }: {
   billRows: PaymentDueRow[];
+  paidHistory: PaidHistoryRow[];
   historyHref: string | null;
 }) {
   const dueRows = billRows.filter((r) => r.href);
   const totalDue = dueRows.reduce((s, r) => s + r.amountPaise, 0);
   const primary = primaryPayAction(dueRows);
-  const nextBill = dueRows[0] ?? null;
+  const payFirst = dueRows[0] ?? null;
 
   return (
     <div className="space-y-4 pb-2">
-      <ApgCard tier="account" className="p-5">
-        <h2 className="text-base font-semibold text-zinc-900">What you owe</h2>
-        <p className="mt-3 text-3xl font-bold tabular-nums text-zinc-900">
-          {paiseToInr(totalDue)}
-        </p>
-        {nextBill ? (
-          <p className="mt-1 text-sm text-zinc-600">
-            Next: {nextBill.label}
-            {nextBill.dueDate ? ` · due ${formatDate(nextBill.dueDate)}` : ''}
-          </p>
-        ) : (
+      {payFirst ? (
+        <ApgCard tier="account" className="overflow-hidden p-0">
+          <div className="border-b border-[#FF5A1F]/15 bg-gradient-to-br from-[#FF5A1F]/10 via-white to-white px-5 py-6">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#FF5A1F]">
+              Pay this first
+            </p>
+            <p className="mt-2 text-xl font-bold text-zinc-900">{payFirst.label}</p>
+            <p className="mt-1 text-3xl font-bold tabular-nums text-zinc-900">
+              {paiseToInr(payFirst.amountPaise)}
+            </p>
+            {payFirst.dueDate ? (
+              <p className="mt-2 text-sm text-zinc-600">
+                Due {formatDate(payFirst.dueDate)}
+                {payFirst.status.toLowerCase().includes('overdue') ? ' · overdue' : ''}
+              </p>
+            ) : null}
+          </div>
+        </ApgCard>
+      ) : (
+        <ApgCard tier="account" className="p-5">
+          <h2 className="text-base font-semibold text-zinc-900">What you owe</h2>
+          <p className="mt-3 text-3xl font-bold tabular-nums text-emerald-700">₹0</p>
           <p className="mt-1 text-sm text-zinc-600">No bills waiting right now.</p>
-        )}
-      </ApgCard>
+        </ApgCard>
+      )}
 
       {primary ? (
         <Link href={primary.href} className={PRIMARY_BTN}>
@@ -68,14 +89,11 @@ export function ResidentPaymentsHub({
         </Link>
       )}
 
-      {dueRows.length > 0 ? (
+      {dueRows.length > 1 ? (
         <ApgCard tier="account" className="p-5">
-          <h2 className="text-base font-semibold text-zinc-900">Bills waiting</h2>
-          <p className="mt-1 text-sm text-zinc-600">
-            Tap a bill to review the full breakdown before you pay.
-          </p>
-          <ul className="mt-4 divide-y divide-zinc-100">
-            {dueRows.map((row) => (
+          <h2 className="text-base font-semibold text-zinc-900">Other bills waiting</h2>
+          <ul className="mt-3 divide-y divide-zinc-100">
+            {dueRows.slice(1).map((row) => (
               <li key={row.key}>
                 <Link
                   href={row.href!}
@@ -83,18 +101,37 @@ export function ResidentPaymentsHub({
                 >
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-zinc-900">{row.label}</p>
-                    <p className="text-xs text-zinc-500">
-                      {row.dueDate ? `Due ${formatDate(row.dueDate)}` : 'Due soon'}
-                    </p>
+                    {row.dueDate ? (
+                      <p className="text-xs text-zinc-500">Due {formatDate(row.dueDate)}</p>
+                    ) : null}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold tabular-nums">{paiseToInr(row.amountPaise)}</span>
-                    <StatusChip
-                      status={row.status.toLowerCase().replace(/\s+/g, '_')}
-                      toneMap={BILL_STATUS_TONE}
-                    />
-                  </div>
+                  <span className="text-sm font-semibold tabular-nums">{paiseToInr(row.amountPaise)}</span>
                 </Link>
+              </li>
+            ))}
+          </ul>
+        </ApgCard>
+      ) : null}
+
+      {paidHistory.length > 0 ? (
+        <ApgCard tier="account" className="p-5">
+          <h2 className="text-base font-semibold text-zinc-900">Paid history</h2>
+          <p className="mt-1 text-sm text-zinc-600">Recent payments we have recorded.</p>
+          <ul className="mt-4 divide-y divide-zinc-100">
+            {paidHistory.map((row) => (
+              <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
+                <div>
+                  <p className="text-sm font-medium text-zinc-900">{row.label}</p>
+                  <p className="text-xs text-zinc-500">
+                    {row.paidAt ? formatDate(row.paidAt) : 'Date pending'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold tabular-nums text-emerald-700">
+                    {paiseToInr(row.amountPaise)}
+                  </span>
+                  <StatusChip status={row.status} toneMap={BILL_STATUS_TONE} />
+                </div>
               </li>
             ))}
           </ul>
