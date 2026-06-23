@@ -35,6 +35,23 @@ MOCK_WEBHOOK_SECRET=...
 | Local | `npm run build` |
 | Vercel | `vercel-build` → `npm run db:migrate && next build` |
 
+## Post-deploy ops (production DB + crons)
+
+Neon-linked `DATABASE_URL` values are **not** exported by `vercel env pull` — use Neon dashboard or Vercel runtime.
+
+```bash
+# Trigger deployed crons (needs CRON_SECRET from Vercel → Settings → Environment Variables)
+CRON_SECRET=… npx tsx scripts/post-deploy-ops.ts
+
+# Direct DB (paste DATABASE_URL from Neon, or run in Vercel → Deployments → … → Functions shell)
+npx tsx scripts/expire-fixed-stays-now.ts          # backfill overdue fixed stays
+npx tsx scripts/audit-financials.ts                # full integrity scan → audit-output-*.json
+npx tsx scripts/repair-financials.ts --dry-run     # preview auto-repairs
+npx tsx scripts/repair-financials.ts               # apply safe repairs (append-only ledger)
+```
+
+After deploy, run **expire-fixed-stays** once so bookings past 11 AM IST checkout complete immediately (hourly cron is the ongoing safety net).
+
 ## Post-deploy smoke (~10 min)
 
 | Flow | Steps |

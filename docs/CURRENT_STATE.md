@@ -5,9 +5,9 @@
 <!-- DOC_SYNC_STATE_START -->
 ## Automated doc sync
 
-> **Last sync:** 2026-06-23 12:41:05 UTC  
-> **Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Residents]], [[Vacating]], [[Action Center]]  
-> **Docs flagged:** ARCHITECTURE.md, CHANGELOG.md, DATABASE.md, DECISIONS.md, PROJECT/features.md, ROUTES.md, SYSTEM/CURRENT_STATE.md, SYSTEM/WORKFLOWS.md  
-> **Staged code files:** 31  
-> **Action:** Review [[CHANGELOG#Pending pre-commit sync · 2026-06-23]] (Pending section) before push.
+> **Last sync:** 2026-06-23 (post-deploy ops)  
+> **Shipped:** Fixed-stay 11 AM IST auto-expiry (`d0a0e13`), deposit refund unlock, persistent action items, financial audit/reconciliation  
+> **Tests:** 526 pass · build OK · production deploy ~27m ago  
+> **Ops pending (needs Neon DATABASE_URL or Vercel runtime):** `expire-fixed-stays-now`, `audit-financials`, `repair-financials --dry-run`  
+> **Run:** `CRON_SECRET=… npx tsx scripts/post-deploy-ops.ts` after each deploy
 <!-- DOC_SYNC_STATE_END -->
