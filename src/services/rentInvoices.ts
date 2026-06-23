@@ -1570,6 +1570,38 @@ export async function approveRentPaymentProof(
   return { ok: true };
 }
 
+export async function rejectRentPaymentProof(
+  session: AdminSession,
+  invoiceId: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const [invoice] = await db
+    .select()
+    .from(rentInvoices)
+    .where(eq(rentInvoices.id, invoiceId))
+    .limit(1);
+  if (!invoice) return { ok: false, message: 'Invoice not found.' };
+  if (!adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, invoice.pgId)) {
+    return { ok: false, message: 'Access denied.' };
+  }
+  if (!invoice.paymentProofUrl) {
+    return { ok: false, message: 'No payment photo uploaded.' };
+  }
+
+  const projected = projectInvoice({ ...invoice, status: 'pending', paymentProofUrl: null });
+  const nextStatus = projected.effectiveStatus === 'overdue' ? 'overdue' : 'pending';
+
+  await db
+    .update(rentInvoices)
+    .set({
+      paymentProofUrl: null,
+      status: nextStatus,
+      updatedAt: new Date(),
+    })
+    .where(eq(rentInvoices.id, invoiceId));
+
+  return { ok: true };
+}
+
 // ───────────────────────────────────────────────────────────────────────────
 // Admin rent edit — recalculate open invoices from booking snapshot
 // ───────────────────────────────────────────────────────────────────────────

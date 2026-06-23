@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { AdminSectionErrorBoundary } from '@/src/components/admin/AdminSectionErrorBoundary';
 import { ScrollToHash } from '@/src/components/admin/ScrollToHash';
 import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
@@ -91,6 +92,28 @@ export default async function OperationsModulePage({
         title="Resident operations"
         description="Which residents need your attention right now — one queue, one next action."
       />
+
+      {(() => {
+        const paymentReviews = dashboard.buckets.find((b) => b.id === 'payment_proof');
+        if (!paymentReviews || paymentReviews.count === 0) return null;
+        return (
+          <Link
+            href="/admin/operations/payment-reviews"
+            className="mt-6 flex items-center justify-between gap-4 rounded-2xl border border-[#FF5A1F]/35 bg-[#FF5A1F]/10 px-5 py-4 transition hover:bg-[#FF5A1F]/15"
+          >
+            <div>
+              <p className="text-sm font-semibold text-white">Payment reviews</p>
+              <p className="mt-1 text-sm text-apg-silver">
+                {paymentReviews.count} screenshot{paymentReviews.count === 1 ? '' : 's'} awaiting
+                verification — booking, rent, deposit, electricity, and more.
+              </p>
+            </div>
+            <span className="shrink-0 rounded-full bg-[#FF5A1F] px-3 py-1 text-sm font-bold text-white">
+              {paymentReviews.count}
+            </span>
+          </Link>
+        );
+      })()}
 
       <div className="mt-8">
         <AdminSectionErrorBoundary title="Attention command center">

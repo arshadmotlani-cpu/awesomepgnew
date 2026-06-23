@@ -448,6 +448,33 @@ export async function approveDepositLinkPaymentProof(
   return { ok: true };
 }
 
+export async function rejectDepositLinkPaymentProof(
+  session: AdminSession,
+  linkId: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const [link] = await db
+    .select()
+    .from(paymentLinks)
+    .where(eq(paymentLinks.id, linkId))
+    .limit(1);
+  if (!link) return { ok: false, message: 'Payment link not found.' };
+  if (!adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, link.pgId)) {
+    return { ok: false, message: 'Access denied.' };
+  }
+  if (!link.paymentProofUrl) {
+    return { ok: false, message: 'No payment photo uploaded.' };
+  }
+
+  await db
+    .update(paymentLinks)
+    .set({
+      paymentProofUrl: null,
+    })
+    .where(eq(paymentLinks.id, linkId));
+
+  return { ok: true };
+}
+
 export function chargePaymentLinkPublicUrl(linkId: string): string {
   return paymentLinkPublicUrl(linkId);
 }

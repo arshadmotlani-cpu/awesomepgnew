@@ -196,29 +196,29 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-23 16:03:39 UTC
+### Pending pre-commit sync · 2026-06-23 17:49:55 UTC
 
-**Areas touched:** [[ROUTES]], [[Billing]], [[Bed Assignment]], [[Vacating]], [[Residents]]
+**Areas touched:** [[ROUTES]], [[Residents]], [[Action Center]], [[Electricity]], [[Billing]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DECISIONS.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (9):**
-- `app/(admin)/admin/invoices/page.tsx`
-- `app/(admin)/admin/overview/page.tsx`
-- `src/lib/billing/dayNavigation.ts`
-- `src/lib/residentActiveTenancy.ts`
-- `src/lib/residentBedAssignment.ts`
-- `src/lib/vacating/loadAdminVacatingPageData.ts`
-- `src/services/checkoutSettlement.ts`
-- `src/services/residentAdmin.ts`
-- `src/services/residentOperationsDashboard.ts`
+**Staged code files (10):**
+- `app/(admin)/admin/collections/page.tsx`
+- `app/(admin)/admin/operations/page.tsx`
+- `app/(admin)/admin/operations/payment-reviews/page.tsx`
+- `app/(admin)/admin/payments/actions.ts`
+- `app/(admin)/admin/payments/page.tsx`
+- `app/(admin)/admin/revenue/billing/page.tsx`
+- `src/lib/residents/residentOperationsDashboard.ts`
+- `src/services/actionItems.ts`
+- `src/services/meterElectricity.ts`
+- `src/services/rentInvoices.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { AdminPendingPaymentsPanel } from '@/src/components/admin/AdminPendingPaymentsPanel';
+import { redirect } from 'next/navigation';
 import { AdminSectionErrorBoundary } from '@/src/components/admin/AdminSectionErrorBoundary';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { BillingWorkflowGuide } from '@/src/components/admin/billing/BillingWorkflowGuide';
@@ -20,7 +20,7 @@ import {
   listAdminRentInvoices,
   listPgs,
 } from '@/src/db/queries/admin';
-import { requireAdminPermission, requireAdminSession } from '@/src/lib/auth/guards';
+import { requireAdminSession } from '@/src/lib/auth/guards';
 import { adminHasPermission } from '@/src/lib/auth/roles';
 import { ADMIN_MODULES, moduleHref, modulePgHref } from '@/src/lib/admin/navigation';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
@@ -31,7 +31,6 @@ import {
   buildCollectionsQueue,
 } from '@/src/lib/billing/collectionsQueue';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
-import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
 import { listRentBillingOverview, listBillingCycleOperations } from '@/src/services/rentInvoices';
 import { listRoomsMissingElectricityBill } from '@/src/services/electricityBilling';
 import type { AdminRentInvoiceRow } from '@/src/db/queries/admin';
@@ -40,7 +39,6 @@ export const dynamic = 'force-dynamic';
 
 const TABS = [
   { id: 'billing', label: 'Need attention' },
-  { id: 'approvals', label: 'Payment proofs' },
   { id: 'rent', label: 'Rent bills' },
   { id: 'electricity', label: 'Electricity bills' },
   { id: 'paid', label: 'Recent payments' },
@@ -84,6 +82,9 @@ export default async function CollectionsModulePage({
   searchParams: Promise<{ tab?: string; month?: string }>;
 }) {
   const sp = await searchParams;
+  if (sp.tab === 'approvals') {
+    redirect('/admin/operations/payment-reviews');
+  }
   const tab = TABS.some((t) => t.id === sp.tab) ? sp.tab! : 'billing';
   const billingMonth = resolveBillingMonth(sp.month);
 
@@ -91,9 +92,8 @@ export default async function CollectionsModulePage({
   await ensureAdminPageNotificationsSeen('/admin/revenue/billing', '/admin/revenue/billing');
   const canGenerateRent = adminHasPermission(session.role, 'rent:write');
   const canSendLinks = adminHasPermission(session.role, 'payments:write');
-  const [pending, rentPending, rentOverdue, rentPaid, elecPending, pgs, billingOverview, billingCycleOps, roomsMissingElectricity] =
+  const [rentPending, rentOverdue, rentPaid, elecPending, pgs, billingOverview, billingCycleOps, roomsMissingElectricity] =
     await Promise.all([
-    requireAdminPermission('payments:write').then((s) => listPendingPaymentReviews(s)),
     listAdminRentInvoices({ status: 'pending' }),
     listAdminRentInvoices({ status: 'overdue' }),
     listAdminRentInvoices({ status: 'paid' }),
@@ -169,11 +169,6 @@ export default async function CollectionsModulePage({
             }
           >
             {t.label}
-            {t.id === 'approvals' && pending.length > 0 ? (
-              <span className="ml-1.5 rounded-full bg-white/20 px-1.5 py-0.5 text-[10px]">
-                {pending.length}
-              </span>
-            ) : null}
           </Link>
         ))}
       </div>
@@ -202,27 +197,9 @@ export default async function CollectionsModulePage({
             canSendLinks={canSendLinks}
             billingOverview={billingOverview}
             billingCycleOps={billingCycleOps}
-            pendingApprovalCount={pending.length}
             needsBillCount={needsBillCount}
           />
         </>
-      ) : null}
-
-      {tab === 'approvals' ? (
-        <AdminSectionErrorBoundary title="Payment proofs">
-          <section className="space-y-3">
-            <header>
-              <h2 className="text-base font-semibold text-white">Payment proofs</h2>
-              <p className="mt-1 text-sm text-apg-silver">
-                Residents submitted payment screenshots — approve or reject each one.
-              </p>
-            </header>
-            <h3 className="text-sm font-medium text-apg-silver">
-              Awaiting review ({pending.length})
-            </h3>
-            <AdminPendingPaymentsPanel items={pending} />
-          </section>
-        </AdminSectionErrorBoundary>
       ) : null}
 
       {tab === 'rent' ? (

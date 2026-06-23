@@ -269,7 +269,7 @@ export function RevenueCommandCenter({
         <div>
           <h3 className="text-sm font-semibold text-white">Outstanding money</h3>
           <p className="text-xs text-apg-silver">
-            Unpaid invoices and payment proofs awaiting approval
+            Unpaid invoices — screenshot review is under Operations → Payment reviews
           </p>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -291,8 +291,8 @@ export function RevenueCommandCenter({
             label="Pending payment approvals"
             count={outstanding.pendingPaymentApprovals}
             amountPaise={outstanding.pendingPaymentApprovalsPaise}
-            href="/admin/payments"
-            linkLabel="Collections queue →"
+            href="/admin/operations/payment-reviews"
+            linkLabel="Operations payment reviews →"
           />
           <div className="rounded-xl border border-[#FF5A1F]/30 bg-[#FF5A1F]/5 p-4">
             <p className="text-[10px] font-medium uppercase tracking-wide text-orange-300">

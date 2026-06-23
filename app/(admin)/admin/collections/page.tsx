@@ -9,6 +9,9 @@ export default async function CollectionsRedirectPage({
   searchParams: Promise<{ tab?: string; month?: string }>;
 }) {
   const sp = await searchParams;
+  if (sp.tab === 'approvals') {
+    redirect('/admin/operations/payment-reviews');
+  }
   const params = new URLSearchParams();
   if (sp.tab) params.set('tab', sp.tab);
   if (sp.month) params.set('month', sp.month);

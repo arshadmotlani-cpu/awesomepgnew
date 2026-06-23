@@ -88,7 +88,7 @@ export const ADMIN_MODULES: Record<AdminModule, AdminModuleMeta> = {
   operations: {
     id: 'operations',
     label: 'Operations',
-    description: 'Beds, vacating, KYC, and occupancy — assign residents from Residents',
+    description: 'Resident ops, payment screenshot review, beds, vacating, and KYC',
     href: '/admin/operations',
     sidebar: true,
   },

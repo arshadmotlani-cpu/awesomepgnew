@@ -19,7 +19,6 @@ export function BillingAdvancedTools({
   canSendLinks,
   billingOverview,
   billingCycleOps,
-  pendingApprovalCount,
   needsBillCount,
 }: {
   billingMonth: string;
@@ -30,7 +29,6 @@ export function BillingAdvancedTools({
     dueSoon: BillingCycleOperationRow[];
     generatedPending: BillingCycleOperationRow[];
   };
-  pendingApprovalCount: number;
   needsBillCount: number;
 }) {
   const [cancelState, cancelAction, cancelPending] = useActionState(
@@ -48,7 +46,6 @@ export function BillingAdvancedTools({
       <BillingPrimaryActions
         billingMonth={billingMonth}
         canGenerateRent={canGenerateRent}
-        pendingApprovalCount={pendingApprovalCount}
         needsBillCount={needsBillCount}
       />
 

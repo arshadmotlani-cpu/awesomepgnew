@@ -976,7 +976,7 @@ export async function getActionItemDetail(
     availableActions.push({
       type: 'view_ledger',
       label: 'Review payment',
-      href: '/admin/payments',
+      href: '/admin/operations/payment-reviews',
     });
   }
   if (base.type === 'kyc_pending' && meta.submissionId) {

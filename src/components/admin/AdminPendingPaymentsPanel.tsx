@@ -13,17 +13,10 @@ import {
 } from '@/app/(admin)/admin/payments/actions';
 import { PaymentScreenshotPreview } from '@/src/components/admin/PaymentScreenshotPreview';
 import { adminPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
-import type { PendingPaymentReviewItem } from '@/src/services/paymentProofQueue';
+import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 import { paiseToInr } from '@/src/lib/format';
 
-const KIND_LABEL: Record<PendingPaymentReviewItem['kind'], string> = {
-  qr: 'QR collection',
-  rent: 'Rent invoice',
-  electricity: 'Electricity',
-  extension: 'Extension',
-  deposit_link: 'Additional deposit',
-};
-
+/** @deprecated Use OperationsPaymentReviewsPanel — kept for PG collections inline review. */
 export function AdminPendingPaymentsPanel({
   items,
 }: {
@@ -138,7 +131,7 @@ export function AdminPendingPaymentsPanel({
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900">
-                  {KIND_LABEL[item.kind]}
+                  {item.paymentTypeLabel}
                 </span>
                 <span className="text-xs text-zinc-500">{item.pgName}</span>
               </div>

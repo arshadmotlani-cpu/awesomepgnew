@@ -529,3 +529,40 @@ export async function approveElectricityPaymentProof(
   if (!result.ok) return { ok: false, message: result.reason };
   return { ok: true };
 }
+
+export async function rejectElectricityPaymentProof(
+  session: AdminSession,
+  invoiceId: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const [invoice] = await db
+    .select()
+    .from(electricityInvoices)
+    .where(eq(electricityInvoices.id, invoiceId))
+    .limit(1);
+  if (!invoice) return { ok: false, message: 'Invoice not found.' };
+
+  const [pgRow] = await db
+    .select({ pgId: electricityBills.pgId })
+    .from(electricityBills)
+    .where(eq(electricityBills.id, invoice.electricityBillId))
+    .limit(1);
+  if (
+    !pgRow ||
+    !adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, pgRow.pgId)
+  ) {
+    return { ok: false, message: 'Access denied.' };
+  }
+  if (!invoice.paymentProofUrl) {
+    return { ok: false, message: 'No payment proof uploaded.' };
+  }
+
+  await db
+    .update(electricityInvoices)
+    .set({
+      paymentProofUrl: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(electricityInvoices.id, invoiceId));
+
+  return { ok: true };
+}

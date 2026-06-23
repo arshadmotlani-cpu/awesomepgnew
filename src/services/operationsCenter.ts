@@ -449,7 +449,7 @@ export function buildOperationsTasks(
       priority: paymentApprovalPriority(),
       pgName: p.pgName,
       label: `Approve payment — ${p.title}`,
-      href: '/admin/payments',
+      href: '/admin/operations/payment-reviews',
     });
   }
 

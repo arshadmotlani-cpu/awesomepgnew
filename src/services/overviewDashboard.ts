@@ -235,13 +235,13 @@ export function buildOverviewDashboard(ctx: OverviewContext): OverviewDashboardD
       title: 'PAYMENTS & APPROVALS',
       metrics: [
         countMetric('pending_payments', 'Pending Payments', kpis.pendingPayments, {
-          href: '/admin/payments',
+          href: '/admin/operations/payment-reviews',
         }),
         countMetric('payments_to_review', 'Payments To Review', ops?.pendingPayments.count ?? 0, {
-          href: '/admin/payments',
+          href: '/admin/operations/payment-reviews',
         }),
         countMetric('payment_approvals', 'Payment Approvals', out.pendingPaymentApprovals, {
-          href: '/admin/payments',
+          href: '/admin/operations/payment-reviews',
           hint:
             out.pendingPaymentApprovalsPaise > 0
               ? `₹${(out.pendingPaymentApprovalsPaise / 100).toLocaleString('en-IN')} awaiting review`
@@ -360,10 +360,10 @@ export function buildOverviewDashboard(ctx: OverviewContext): OverviewDashboardD
       href: '/admin/vacating',
     }),
     countMetric('alert_pending_payments', 'Pending Payments', kpis.pendingPayments, {
-      href: '/admin/payments',
+      href: '/admin/operations/payment-reviews',
     }),
     countMetric('alert_payments_review', 'Payments To Review', ops?.pendingPayments.count ?? 0, {
-      href: '/admin/payments',
+      href: '/admin/operations/payment-reviews',
     }),
     countMetric('alert_kyc', 'KYC Pending', ops?.pendingKyc.count ?? kpis.pendingKyc, {
       href: '/admin/residents/kyc',

@@ -413,6 +413,7 @@ export async function listOwnerPayments(
       categoryName: pgPaymentCategories.name,
       customerId: pgPaymentRecords.customerId,
       customerName: customers.fullName,
+      customerPhone: customers.phone,
       customerEmail: customers.email,
       amountPaise: pgPaymentRecords.amountPaise,
       month: pgPaymentRecords.month,
@@ -469,6 +470,11 @@ export async function reviewPaymentRecord(
   status: 'approved' | 'rejected',
   opts?: {
     partialDeposit?: { depositDueDate: string };
+    reviewMeta?: {
+      overpaymentDisposition?: string;
+      reviewNotes?: string;
+      approvalNotes?: string;
+    };
   },
 ) {
   const [record] = await db
@@ -498,6 +504,7 @@ export async function reviewPaymentRecord(
           pgPaymentRecordId: recordId,
           category: RENT_DEPOSIT_BOOKING_CATEGORY_NAME,
           partialDeposit: opts?.partialDeposit ?? null,
+          operationsReview: opts?.reviewMeta ?? null,
         },
         partialDeposit: opts?.partialDeposit
           ? {

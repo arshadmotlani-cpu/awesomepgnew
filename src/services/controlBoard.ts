@@ -655,9 +655,11 @@ export async function loadControlBoardDrillDown(
         pgName: p.pgName,
         amountPaise: p.amountPaise,
         status: 'pending review',
-        href: '/admin/payments',
+        href: '/admin/operations/payment-reviews',
       }));
-      return drillDown('Payments to review', rows, { ledgerHref: '/admin/payments' });
+      return drillDown('Payments to review', rows, {
+        ledgerHref: '/admin/operations/payment-reviews',
+      });
     }
     case 'ops_leaving': {
       const ops = await getOperationsCenterData(session);

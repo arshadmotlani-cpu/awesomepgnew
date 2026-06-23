@@ -17,7 +17,6 @@ const SECONDARY =
 type Props = {
   billingMonth: string;
   canGenerateRent: boolean;
-  pendingApprovalCount: number;
   needsBillCount: number;
 };
 
@@ -29,7 +28,6 @@ function tabHref(tab: string, billingMonth: string) {
 export function BillingPrimaryActions({
   billingMonth,
   canGenerateRent,
-  pendingApprovalCount,
   needsBillCount,
 }: Props) {
   const [genState, genAction, genPending] = useActionState(generateDueInvoicesAction, idle);
@@ -46,23 +44,12 @@ export function BillingPrimaryActions({
     actions.push({ key: 'create-bills', kind: 'form' });
   }
 
-  if (pendingApprovalCount > 0) {
-    actions.push({
-      key: 'approvals',
-      kind: 'link',
-      href: tabHref('approvals', billingMonth),
-      label: 'Review payment proofs',
-      primary: true,
-      badge: pendingApprovalCount,
-    });
-  }
-
   actions.push({
     key: 'rent',
     kind: 'link',
     href: tabHref('rent', billingMonth),
     label: 'Open rent bills',
-    primary: pendingApprovalCount === 0,
+    primary: true,
   });
 
   actions.push({
@@ -86,6 +73,13 @@ export function BillingPrimaryActions({
     label: 'All invoices',
   });
 
+  actions.push({
+    key: 'payment-reviews',
+    kind: 'link',
+    href: '/admin/operations/payment-reviews',
+    label: 'Payment reviews (Operations)',
+  });
+
   const visible = actions.slice(0, 5);
 
   return (
@@ -94,9 +88,7 @@ export function BillingPrimaryActions({
       <p className="mt-1 text-sm text-apg-silver">
         {needsBillCount > 0
           ? `${needsBillCount} resident${needsBillCount === 1 ? '' : 's'} still need a bill for ${monthLabel}.`
-          : pendingApprovalCount > 0
-            ? `${pendingApprovalCount} payment proof${pendingApprovalCount === 1 ? '' : 's'} waiting for your review.`
-            : 'Create bills, send payment links, or review proofs — start with the most urgent item.'}
+          : 'Create bills, send payment links, or review collections — payment screenshot review lives under Operations.'}
       </p>
 
       {genState.status === 'ok' ? (

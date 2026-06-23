@@ -257,7 +257,7 @@ export function buildResidentOperationsDashboard(input: {
       issue: 'Payment screenshot awaiting approval',
       nextAction: 'Verify proof and approve or reject',
       primaryActionLabel: 'Review payment',
-      primaryHref: '/admin/revenue/billing?tab=approvals',
+      primaryHref: '/admin/operations/payment-reviews',
       sortPriority: 0,
       bookingId: null,
       kycSubmissionId: null,
