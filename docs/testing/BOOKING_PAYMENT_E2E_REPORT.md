@@ -11,13 +11,19 @@
 
 | Field | Value |
 |-------|-------|
-| **BOOKING PAYMENT** | **NOT VERIFIED PASS** |
-| **E2E run** | **FAIL / BLOCKED** |
-| **Staging DB** | Not available in agent environment |
+| **BOOKING PAYMENT** | **CODE PASS / E2E BLOCKED** |
+| **Code fixes** | PASS — offline path, overpayment disposition, rejection audit (commit `cd822da`) |
+| **E2E verification** | **BLOCKED** — cannot run against migration-current staging |
+| **Staging DB** | `DATABASE_URL` unavailable in agent environment |
 | **Local DB attempt** | Schema drift — `bookings.stay_type` column missing |
 | **Screenshots** | N/A — service-layer script only (no Playwright/browser harness) |
 
-> Booking Payment cannot be marked **VERIFIED PASS** until the three scenarios pass against a migration-current staging database.
+> **PAUSED:** No further Booking Payment work until a migration-current staging database is available. Do not mark **VERIFIED PASS** until E2E scenarios pass.
+
+### E2E blockers (recorded)
+
+1. Staging `DATABASE_URL` unavailable in workspace / agent shell
+2. Local Postgres schema drift (`stay_type` column missing on `bookings`)
 
 ---
 

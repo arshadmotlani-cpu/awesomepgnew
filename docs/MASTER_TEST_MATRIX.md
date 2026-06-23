@@ -23,7 +23,7 @@
 | # | Workflow | Status | Blocker |
 |---|----------|--------|---------|
 | 1 | Booking | NOT TESTED | No DB integration test for concurrent holds |
-| 2 | Booking Payment | **FAIL** | `recordOfflinePaymentAction` bypass |
+| 2 | Booking Payment | **CODE PASS / E2E BLOCKED** | Staging DB unavailable; fixes landed in `cd822da` |
 | 3 | Payment Proof Approval | NOT TESTED | Multi-kind queue E2E |
 | 4 | Revenue | NOT TESTED | Cron batch E2E |
 | 5 | Invoices | NOT TESTED | Unified sync reconciliation |
@@ -62,20 +62,20 @@
 
 ## 2. Booking Payment
 
-**STATUS:** FAIL
+**STATUS:** CODE PASS / E2E BLOCKED (paused — staging DB unavailable)
 
 | ID | Test case | Expected behavior | Actual behavior (audit) | Screens | Services | Tables |
 |----|-----------|-------------------|---------------------------|---------|----------|--------|
 | BP-01 | QR proof submit | `pending_approval`, hold extended | Verified | `/booking/[code]/pay` | `qrPayments.ts` | `pg_payment_records`, `bookings` |
 | BP-02 | Admin approve QR | `recordPaymentSuccess`, deposit ledger, active reservation | Canonical path verified | `/admin/operations/payment-reviews` | `bookingLifecycle.ts`, `deposits.ts` | `payments`, `deposit_ledger`, `bookings` |
-| BP-03 | Admin offline payment | Same as BP-02 | **FAIL:** direct DB writes, skips lifecycle | `/admin/bookings/[bookingId]` | `recordOfflinePaymentAction` | `payments`, `bookings` — **no deposit_ledger** |
+| BP-03 | Admin offline payment | Same as BP-02 | **Fixed** — routes through `recordPaymentSuccess` (`cd822da`) | `/admin/bookings/[bookingId]` | `recordPaymentSuccess` | full downstream |
 | BP-04 | Razorpay webhook | `recordPaymentSuccess` idempotent | Webhook code exists | — | `paymentVerification.ts` | `payments` |
 | BP-05 | Customer Razorpay UI | Pay via Razorpay on booking page | **NOT TESTED:** UI is QR-only | `/booking/[code]/pay` | — | — |
 | BP-06 | Partial deposit approve | Partial ledger + gating | Path exists | payment-reviews | `depositCollection.ts` | `deposit_ledger` |
 | BP-07 | Prior outstanding allocation | Applied on confirm | Only via `recordPaymentSuccess` | payment-reviews | `bookingPriorOutstanding.ts` | `payments` |
 | BP-08 | Admin deposit transfer at checkout | Credit if `adminTransferred` | Gated in totals + lifecycle | `/admin/deposits/[bookingId]` | `depositCredit.ts` | `deposit_ledger`, snapshot |
 
-**Blocker:** BP-03 must be fixed or disabled before closing this workflow.
+**E2E blockers:** staging `DATABASE_URL` unavailable; local schema drift (`stay_type` missing). See [`testing/BOOKING_PAYMENT_E2E_REPORT.md`](./testing/BOOKING_PAYMENT_E2E_REPORT.md).
 
 ---
 
@@ -124,7 +124,7 @@
 
 ## 6. Deposits
 
-**STATUS:** PASS
+**STATUS:** AUDIT COMPLETE / E2E NOT RUN — see [`testing/DEPOSIT_VERIFICATION.md`](./testing/DEPOSIT_VERIFICATION.md)
 
 | ID | Test case | Expected behavior | Actual behavior (audit) | Screens | Services | Tables |
 |----|-----------|-------------------|---------------------------|---------|----------|--------|
@@ -346,8 +346,8 @@ Use this when permanently closing a topic:
 **Suggested close order:**
 
 1. **Booking** — B-01 to B-06  
-2. **Booking Payment** — fix BP-03 first  
-3. **Deposits + Deposit Transfers** — D-01 to D-06, DT-01 to DT-04  
+2. **Booking Payment** — CODE PASS / E2E BLOCKED (staging DB)  
+3. **Deposits + Deposit Transfers** — audit complete; E2E pending (D-01 to D-06, DT-01 to DT-04)  
 4. **Payment Proof** — PP-01 to PP-06  
 5. **Revenue + Rent Billing** — RV + RB  
 6. **Invoices** — INV-01 to INV-05  
