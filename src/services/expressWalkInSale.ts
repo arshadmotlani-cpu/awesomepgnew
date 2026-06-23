@@ -75,7 +75,7 @@ export type ExpressWalkInSaleResult =
 
 function invoiceNotes(input: ExpressWalkInSaleInput, walletApplied: number): string {
   const lines = [
-    `Express walk-in · ${input.stayType === 'fixed' ? 'Fixed stay' : 'Continue living'}`,
+    `Express walk-in · ${input.stayType === 'fixed' ? 'Fixed-Date Stay' : 'Monthly Stay'}`,
     `Check-in ${input.checkInDate}${input.stayType === 'fixed' && input.checkOutDate ? ` · Check-out ${input.checkOutDate}` : ''}`,
   ];
   if (input.stayType === 'fixed' && input.checkOutDate) {

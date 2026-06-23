@@ -49,10 +49,10 @@ export async function applyPricingAdjustmentAction(input: {
       dailyRatePaise: daily,
       weeklyRatePaise: weekly,
       monthlyRatePaise: monthly,
-      securityDepositPaise: monthly * 2,
+      securityDepositPaise: 0,
       dailySecurityDepositPaise: sample.dailyDepositPaise,
       weeklySecurityDepositPaise: sample.weeklyDepositPaise,
-      monthlySecurityDepositPaise: monthly * 2,
+      monthlySecurityDepositPaise: 0,
       effectiveFrom: '2026-01-01',
       effectiveTo: null,
     }) : sample.monthlyDepositPaise;

@@ -1,5 +1,6 @@
 import type { RoomActivityStats } from '@/src/services/roomActivity';
 import { paiseToInr } from '@/src/lib/format';
+import { MONTHLY_STAY_DEPOSIT_REFERENCE_LABEL } from '@/src/lib/customerDepositDisplay';
 import { sharingLabelForDisplay } from '@/src/lib/roomDisplay';
 
 type RoomRates = {
@@ -88,8 +89,8 @@ export function RoomDetailInsights({
         ) : null}
         {rates.monthlyDepositPaise > 0 ? (
           <InsightItem
-            label="Deposit"
-            value={`${paiseToInr(rates.monthlyDepositPaise)} refundable deposit per bed`}
+            label={MONTHLY_STAY_DEPOSIT_REFERENCE_LABEL}
+            value={`${paiseToInr(rates.monthlyDepositPaise)} per bed (monthly stay)`}
           />
         ) : null}
         {rates.weeklyRatePaise > 0 ? (

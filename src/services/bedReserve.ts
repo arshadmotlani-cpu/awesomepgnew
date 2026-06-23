@@ -528,7 +528,9 @@ export async function reserveBlocksLongStay(
   endDate: DateLike | null,
   durationMode: PricingMode | 'open_ended',
 ): Promise<boolean> {
-  if (durationMode === 'daily' || durationMode === 'weekly') return false;
+  if (durationMode === 'fixed_stay' || durationMode === 'daily' || durationMode === 'weekly') {
+    return false;
+  }
 
   const reserve = await getEffectiveReserveForBed(bedId);
   if (!reserve) return false;

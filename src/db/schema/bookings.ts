@@ -14,13 +14,24 @@ import {
 import { adminUsers } from './adminUsers';
 import { customers } from './customers';
 import type { PricingLineItem } from '@/src/lib/pricing/types';
-import { bookingStatusEnum, createdViaEnum, durationModeEnum, adminDepositRefundStatusEnum, adminDuesStatusEnum, depositCollectionStatusEnum } from './enums';
+import {
+  bookingStatusEnum,
+  createdViaEnum,
+  durationModeEnum,
+  stayTypeEnum,
+  adminDepositRefundStatusEnum,
+  adminDuesStatusEnum,
+  depositCollectionStatusEnum,
+} from './enums';
+import type { StayType } from './enums';
 
 /**
  * Per-bed pricing snapshot stored on the booking so historical totals stay
  * stable when bed_prices change.
  */
 export type PricingSnapshot = {
+  /** User-facing stay category at booking time. */
+  stayType?: StayType;
   perBed: Array<{
     bedId: string;
     dailyRatePaise: number;
@@ -121,6 +132,7 @@ export const bookings = pgTable(
       .references(() => customers.id, { onDelete: 'restrict' }),
     status: bookingStatusEnum('status').notNull().default('draft'),
     durationMode: durationModeEnum('duration_mode').notNull(),
+    stayType: stayTypeEnum('stay_type').notNull().default('monthly_stay'),
     expectedCheckoutDate: date('expected_checkout_date'),
     subtotalPaise: bigint('subtotal_paise', { mode: 'number' }).notNull().default(0),
     discountPaise: bigint('discount_paise', { mode: 'number' }).notNull().default(0),

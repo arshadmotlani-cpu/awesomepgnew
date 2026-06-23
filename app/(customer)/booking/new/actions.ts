@@ -4,6 +4,11 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { createBooking } from '@/src/services/booking';
 import type { PricingMode } from '@/src/services/pricing';
+import {
+  stayTypeFromPricingMode,
+  validateFixedDateStay,
+  type StayType,
+} from '@/src/lib/stayType';
 import { createPendingMembershipForBooking } from '@/src/services/playstationMembership';
 import { isPs4PlanId } from '@/src/lib/playstation/plans';
 import { getCustomerSession } from '@/src/lib/auth/session';
@@ -26,11 +31,11 @@ export type BookingActionState =
   | { status: 'error'; message: string; conflictBedIds?: string[] };
 
 const VALID_MODES: ReadonlySet<PricingMode> = new Set([
-  'daily',
-  'weekly',
-  'monthly',
   'open_ended',
   'fixed_stay',
+  'monthly',
+  'daily',
+  'weekly',
 ]);
 const VALID_GENDERS = new Set(['male', 'female', 'other']);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -70,7 +75,12 @@ export async function createBookingAction(
   const bedIds = getAll(formData, 'bedId');
   const startDate = getString(formData, 'startDate');
   const endDateRaw = getString(formData, 'endDate');
-  const durationMode = getString(formData, 'durationMode') as PricingMode;
+  const durationModeRaw = getString(formData, 'durationMode') as PricingMode;
+  const stayTypeRaw = getString(formData, 'stayType');
+  let durationMode = durationModeRaw;
+  if (stayTypeRaw === 'monthly_stay') durationMode = 'open_ended';
+  if (stayTypeRaw === 'fixed_date_stay') durationMode = 'fixed_stay';
+  if (durationMode === 'daily' || durationMode === 'weekly') durationMode = 'fixed_stay';
   const fullName = getString(formData, 'fullName');
   const email = getString(formData, 'email');
   const phone = getString(formData, 'phone');
@@ -88,12 +98,18 @@ export async function createBookingAction(
   if (!ISO_DATE_RE.test(startDate)) {
     return { status: 'error', message: 'Check-in date is missing or invalid.' };
   }
-  if (!VALID_MODES.has(durationMode)) {
+  if (!VALID_MODES.has(durationModeRaw) && !['monthly_stay', 'fixed_date_stay'].includes(stayTypeRaw)) {
     return { status: 'error', message: 'Pick a stay type.' };
   }
   const endDate = durationMode === 'open_ended' ? null : endDateRaw;
   if (durationMode !== 'open_ended' && !ISO_DATE_RE.test(endDateRaw)) {
     return { status: 'error', message: 'Check-out date is missing or invalid.' };
+  }
+  if (durationMode === 'fixed_stay') {
+    const fixedErr = validateFixedDateStay(startDate, endDateRaw);
+    if (fixedErr) {
+      return { status: 'error', message: fixedErr };
+    }
   }
   if (!fullName || fullName.length < 2) {
     return { status: 'error', message: 'Enter your full name.' };

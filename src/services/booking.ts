@@ -43,6 +43,11 @@ import type { PricingSnapshot } from '../db/schema/bookings';
 import { applyDateCouponToRentSubtotal } from '../lib/dateCoupon';
 import { env } from '../lib/env';
 import { formatDate, parseDate, type DateLike } from '../lib/dates';
+import {
+  stayTypeFromPricingMode,
+  validateFixedDateStay,
+  type StayType,
+} from '../lib/stayType';
 import { nextBookingCode, utcYear } from '../lib/bookingCode';
 import { stampProfileCompletedAtIfReady } from './profile';
 import { isBedAvailable, validateBedStayRange } from './availability';
@@ -162,6 +167,7 @@ function buildSnapshot(
     q.lineItems.filter((li) => li.kind !== 'deposit'),
   );
   return {
+    stayType: stayTypeFromPricingMode(quote.durationMode),
     perBed: quote.perBed.map((q) => ({
       bedId: q.bedId,
       dailyRatePaise: q.rate.dailyRatePaise,
@@ -277,15 +283,29 @@ export async function createBooking(
       message: 'Duplicate beds in the cart.',
     };
   }
+
+  const isAdminCreated = input.createdVia === 'admin';
+
   if (input.durationMode !== 'open_ended' && !input.endDate) {
     return {
       ok: false,
       kind: 'validation',
-      message: 'End date is required for daily/weekly/monthly stays.',
+      message: 'Check-out date is required for fixed-date stays.',
     };
   }
 
-  const isAdminCreated = input.createdVia === 'admin';
+  if (
+    !isAdminCreated &&
+    (input.durationMode === 'daily' || input.durationMode === 'weekly')
+  ) {
+    return {
+      ok: false,
+      kind: 'validation',
+      message: 'Short stays use Fixed-Date Stay — pick check-in and check-out dates.',
+    };
+  }
+
+  const bookingStayType: StayType = stayTypeFromPricingMode(input.durationMode);
 
   const startDate = parseDate(input.startDate);
   const endDate = input.endDate ? parseDate(input.endDate) : null;
@@ -295,6 +315,16 @@ export async function createBooking(
       kind: 'validation',
       message: 'End date must be after start date.',
     };
+  }
+
+  if (!isAdminCreated && input.durationMode === 'fixed_stay' && endDate) {
+    const fixedErr = validateFixedDateStay(
+      formatDate(startDate),
+      formatDate(endDate),
+    );
+    if (fixedErr) {
+      return { ok: false, kind: 'validation', message: fixedErr };
+    }
   }
 
   // Checkout cap: stay must fit inside a single free window per bed.
@@ -378,7 +408,7 @@ export async function createBooking(
           ok: false,
           kind: 'unavailable_bed',
           message:
-            'This bed is reserved for a future tenant — only daily or weekly stays are allowed until their check-in.',
+            'This bed is reserved for a future tenant — only fixed-date stays are allowed until their check-in.',
           conflictBedIds: [bedId],
         };
       }
@@ -585,6 +615,7 @@ export async function createBooking(
             customerId: customer.id,
             status: bookingStatus,
             durationMode: input.durationMode,
+            stayType: bookingStayType,
             expectedCheckoutDate:
               input.durationMode === 'open_ended' || !endDate
                 ? null

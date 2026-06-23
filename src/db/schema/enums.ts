@@ -49,6 +49,11 @@ export const durationModeEnum = pgEnum('duration_mode', [
   'reserve',
 ]);
 
+/** User-facing stay category — residents never pick daily/weekly plans. */
+export const stayTypeEnum = pgEnum('stay_type', ['monthly_stay', 'fixed_date_stay']);
+
+export type StayType = (typeof stayTypeEnum.enumValues)[number];
+
 export const bedReserveStatusEnum = pgEnum('bed_reserve_status', [
   'pending_payment',
   'active',

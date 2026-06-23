@@ -30,13 +30,16 @@ import {
 } from '@/src/services/profile';
 
 describe('1 — New resident booking URL + pricing mode mapping', () => {
-  it('BedBookingPanel maps monthly plan to open_ended checkout params', () => {
+  it('BedBookingPanel maps monthly stay to open_ended and fixed-date to fixed_stay', () => {
     const src = readFileSync(
       join(process.cwd(), 'src/components/customer/BedBookingPanel.tsx'),
       'utf8',
     );
-    assert.match(src, /const mode: PricingMode = intent === 'indefinite' \? 'open_ended' : 'fixed_stay'/);
-    assert.match(src, /plan === 'monthly' \? 'indefinite' : 'fixed'/);
+    assert.match(src, /pricingModeFromStayType/);
+    assert.match(src, /monthly_stay/);
+    assert.match(src, /fixed_date_stay/);
+    assert.doesNotMatch(src, /title: 'Weekly'/);
+    assert.doesNotMatch(src, /title: 'Daily'/);
   });
 
   it('normalizeBrowseStay falls back invalid dates and keeps fixed_stay mode', () => {

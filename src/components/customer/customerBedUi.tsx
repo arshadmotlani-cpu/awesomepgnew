@@ -8,7 +8,10 @@ import {
 } from '@/src/lib/bedAvailabilityState';
 import { reserveBufferDate } from '@/src/lib/bedReservePolicy';
 import { customerBookableFromDate } from '@/src/lib/dates';
-import { displayMonthlyDepositPaise } from '@/src/lib/customerDepositDisplay';
+import {
+  displayMonthlyDepositPaise,
+  MONTHLY_STAY_DEPOSIT_REFERENCE_LABEL,
+} from '@/src/lib/customerDepositDisplay';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import type { BedSelectorBed } from './customerBedTypes';
 import { BedStateTile, type BedVisualState } from '@/src/components/customer/design-system';
@@ -101,11 +104,11 @@ function BedPricingDetails({
     <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
       {shortStayOnly ? (
         <>
-          <dt className="text-apg-silver">Daily from</dt>
+          <dt className="text-apg-silver">Short stays from</dt>
           <dd className="text-right font-medium text-white">
-            {bed.dailyRatePaise > 0 ? paiseToInr(bed.dailyRatePaise) : '—'}
+            {bed.dailyRatePaise > 0 ? `${paiseToInr(bed.dailyRatePaise)}/day` : '—'}
           </dd>
-          <dt className="text-apg-silver">Weekly from</dt>
+          <dt className="text-apg-silver">Weekly rate (calc)</dt>
           <dd className="text-right font-medium text-white">
             {bed.weeklyRatePaise > 0 ? paiseToInr(bed.weeklyRatePaise) : '—'}
           </dd>
@@ -118,7 +121,7 @@ function BedPricingDetails({
           </dd>
           {deposit > 0 ? (
             <>
-              <dt className="text-apg-silver">Deposit</dt>
+              <dt className="text-apg-silver">{MONTHLY_STAY_DEPOSIT_REFERENCE_LABEL}</dt>
               <dd className="text-right text-white">{paiseToInr(deposit)}</dd>
             </>
           ) : null}
@@ -259,7 +262,7 @@ export function CustomerBedDetailSheet({
                 <strong className="text-white">{formatDate(reserveCheckIn)}</strong>.
               </p>
               <p className="mt-2 text-xs leading-relaxed text-apg-silver">
-                Until then, you can book a <strong className="text-white">daily or weekly</strong>{' '}
+                Until then, you can book a <strong className="text-white">fixed-date stay</strong>{' '}
                 stay if you need the bed sooner. Your checkout must be on or before{' '}
                 <strong className="text-white">{formatDate(reserveLastStay)}</strong> (one day is
                 kept free for cleaning before the holder arrives).
@@ -291,7 +294,7 @@ export function CustomerBedDetailSheet({
                 }
                 className="w-full rounded-lg bg-apg-orange py-2.5 text-sm font-semibold text-white apg-glow-btn hover:brightness-110"
               >
-                Book daily or weekly stay
+                Book fixed-date stay
               </button>
               <button
                 type="button"

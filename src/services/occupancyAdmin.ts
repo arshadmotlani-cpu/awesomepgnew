@@ -107,6 +107,7 @@ export async function markPgFullyOccupied(
         customerId: customer.id,
         status: 'confirmed',
         durationMode: 'monthly',
+        stayType: 'monthly_stay',
         subtotalPaise: 0,
         discountPaise: 0,
         taxPaise: 0,

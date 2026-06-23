@@ -212,6 +212,12 @@ test('open_ended: nights is null when no endDate', () => {
   assert.equal(q.nights, null);
 });
 
+test('open_ended: deposit is 2 weeks rent when includeDeposit=true', () => {
+  const q = quote({ startDate: '2026-06-01', endDate: null, durationMode: 'open_ended', includeDeposit: true });
+  assert.equal(q.depositPaise, 7_00_000);
+  assert.match(q.lineItems.find((li) => li.kind === 'deposit')?.description ?? '', /2 weeks/i);
+});
+
 // ───────────────────────────────────────────────────────────────────────────
 // Deposit
 // ───────────────────────────────────────────────────────────────────────────

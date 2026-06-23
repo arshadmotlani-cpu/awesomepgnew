@@ -259,7 +259,7 @@ export async function ResidentAreaSection({
     primaryVacating && ['pending', 'approved'].includes(primaryVacating.status),
   );
 
-  let homeUpcoming: UpcomingPaymentRow[] = [];
+  const homeUpcoming: UpcomingPaymentRow[] = [];
   let firstUnpaidRentId: string | null = null;
   let firstUnpaidElectricityId: string | null = null;
 

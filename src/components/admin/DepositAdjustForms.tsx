@@ -49,7 +49,8 @@ export function DepositLedgerReconcileForm({
         {websiteDepositPaise > 0 ? (
           <>
             {' · '}
-            Website default: <strong className="text-white">{paiseToInr(websiteDepositPaise)}</strong>
+            Reference rate (current bed pricing):{' '}
+            <strong className="text-white">{paiseToInr(websiteDepositPaise)}</strong>
           </>
         ) : null}
       </p>

@@ -620,7 +620,7 @@ export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
 
           {/* Stay mode */}
           <div className={sectionClass}>
-            <p className="text-xs font-semibold uppercase tracking-wide text-apg-muted">Booking mode</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-apg-muted">Stay type</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <button
                 type="button"
@@ -634,8 +634,8 @@ export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
                     : 'border-white/10 hover:border-white/20'
                 }`}
               >
-                <p className="font-semibold text-white">Fixed stay</p>
-                <p className="mt-1 text-xs text-apg-silver">Check-in and check-out required · short stays</p>
+                <p className="font-semibold text-white">Fixed-Date Stay</p>
+                <p className="mt-1 text-xs text-apg-silver">Check-in + check-out · up to 30 nights · auto-priced</p>
               </button>
               <button
                 type="button"
@@ -649,8 +649,8 @@ export function ExpressBookingConsole({ onDone }: { onDone: () => void }) {
                     : 'border-white/10 hover:border-white/20'
                 }`}
               >
-                <p className="font-semibold text-white">Continue living</p>
-                <p className="mt-1 text-xs text-apg-silver">Monthly recurring · no checkout date</p>
+                <p className="font-semibold text-white">Monthly Stay</p>
+                <p className="mt-1 text-xs text-apg-silver">Long-term · monthly billing · move-out on request</p>
               </button>
             </div>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">

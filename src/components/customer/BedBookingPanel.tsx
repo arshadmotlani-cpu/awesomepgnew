@@ -13,15 +13,22 @@ import {
   maxCheckoutForAllBeds,
 } from '@/src/lib/bedStayOverlap';
 import { reserveBufferDate } from '@/src/lib/bedReservePolicy';
-import { displayMonthlyDepositPaise } from '@/src/lib/customerDepositDisplay';
 import { computeNewBookingCheckoutTotals } from '@/src/lib/billing/bookingCheckoutTotals';
 import { previewFixedStayQuote } from '@/src/lib/pricing/fixedStayOptimizer';
 import type { PricingLineItem } from '@/src/lib/pricing/types';
-import type { PricingMode } from '@/src/services/pricing';
+import {
+  defaultFixedDateCheckOut,
+  FIXED_DATE_MAX_NIGHTS,
+  pricingModeFromStayType,
+  stayTypeLabel,
+  validateFixedDateStay,
+  type StayType,
+} from '@/src/lib/stayType';
 import type { BedSelectorBed } from './BedSelector';
 import { StayDateRangePicker, type StayDateSummary } from './StayDateRangePicker';
 import { MobileBottomSheet } from '@/src/components/customer/block/MobileBottomSheet';
 import { BookingPriceBreakdown } from '@/src/components/customer/BookingPriceBreakdown';
+import { VACATING_NOTICE_MIN_DAYS } from '@/src/lib/dateDefaults';
 
 export type BedTimelineResponse = {
   bedId: string;
@@ -51,41 +58,28 @@ type Props = {
   presentation?: 'center' | 'bottomSheet';
 };
 
-type WizardStep = 'plan' | 'dates' | 'review';
-type StayPlan = 'monthly' | 'weekly' | 'daily';
-type StayIntent = 'fixed' | 'indefinite';
+type WizardStep = 'stayType' | 'dates' | 'review';
+
+type ServerBookingQuote = {
+  subtotalPaise: number;
+  depositPaise: number;
+  totalPaise: number;
+  perBed: Array<{
+    bedId: string;
+    subtotalPaise: number;
+    depositPaise: number;
+    lineItems: PricingLineItem[];
+    nights: number | null;
+  }>;
+};
 
 function estimateFixedStaySubtotal(bed: BedSelectorBed, nights: number): number {
   return previewFixedStayQuote(nights, bed.dailyRatePaise, bed.weeklyRatePaise).subtotalPaise;
 }
 
-function fixedStayRentLines(bed: BedSelectorBed, nights: number): PricingLineItem[] {
-  return previewFixedStayQuote(nights, bed.dailyRatePaise, bed.weeklyRatePaise).lineItems;
-}
-
-function depositPreview(bed: BedSelectorBed, mode: PricingMode, nights: number): number {
-  if (mode === 'open_ended') {
-    return displayMonthlyDepositPaise(bed);
-  }
-  if (mode === 'fixed_stay' && nights > 0) {
-    return Math.ceil(estimateFixedStaySubtotal(bed, nights) * 0.5);
-  }
-  return bed.securityDepositPaise;
-}
-
-function planToIntent(plan: StayPlan): StayIntent {
-  return plan === 'monthly' ? 'indefinite' : 'fixed';
-}
-
-function defaultEndForPlan(start: string, plan: StayPlan): string {
-  if (plan === 'monthly') return defaultCheckOutDate(start);
-  if (plan === 'weekly') return formatDate(addDays(parseDate(start), 7));
-  return formatDate(addDays(parseDate(start), 1));
-}
-
 /**
- * Modal panel for picking stay dates after selecting bed(s). Fetches per-bed
- * availability timelines and validates checkout caps before navigation.
+ * Modal panel for picking stay type and dates after selecting bed(s).
+ * Flow: Choose stay type → Select dates → Review price → Submit booking.
  */
 export function BedBookingPanel({
   beds,
@@ -101,16 +95,27 @@ export function BedBookingPanel({
   const today = todayString();
   const reserveLastStay = reserveCheckInDate ? reserveBufferDate(reserveCheckInDate) : null;
 
-  const [step, setStep] = useState<WizardStep>('plan');
-  const [plan, setPlan] = useState<StayPlan>(shortStayOnly ? 'weekly' : 'monthly');
+  const [step, setStep] = useState<WizardStep>('stayType');
+  const [stayType, setStayType] = useState<StayType>(
+    shortStayOnly ? 'fixed_date_stay' : 'monthly_stay',
+  );
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [timelines, setTimelines] = useState<BedTimelineResponse[]>([]);
 
-  const intent = planToIntent(plan);
   const [start, setStart] = useState(today);
-  const [end, setEnd] = useState(() => defaultEndForPlan(today, shortStayOnly ? 'weekly' : 'monthly'));
+  const [end, setEnd] = useState(() =>
+    shortStayOnly ? defaultFixedDateCheckOut(today) : defaultCheckOutDate(today),
+  );
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [serverQuote, setServerQuote] = useState<ServerBookingQuote | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
+
+  const isMonthly = stayType === 'monthly_stay';
+  const mode = pricingModeFromStayType(stayType);
+  const fixedNights =
+    !isMonthly && end > start ? diffDays(parseDate(start), parseDate(end)) : 0;
 
   const loadTimelines = useCallback(async () => {
     setLoading(true);
@@ -138,13 +143,17 @@ export function BedBookingPanel({
         .map((t) => t.earliestCheckIn)
         .filter((d): d is string => Boolean(d))
         .sort()[0];
-      const initialPlan = shortStayOnly ? 'weekly' : 'monthly';
+      const initialStayType: StayType = shortStayOnly ? 'fixed_date_stay' : 'monthly_stay';
       let initialStart = earliest ?? today;
       if (suggestedCheckIn && suggestedCheckIn >= initialStart) {
         initialStart = suggestedCheckIn;
       }
       setStart(initialStart);
-      setEnd(defaultEndForPlan(initialStart, initialPlan));
+      setEnd(
+        initialStayType === 'fixed_date_stay'
+          ? defaultFixedDateCheckOut(initialStart)
+          : defaultCheckOutDate(initialStart),
+      );
     } catch (err) {
       setFetchError(err instanceof Error ? err.message : 'Failed to load availability');
     } finally {
@@ -165,16 +174,19 @@ export function BedBookingPanel({
 
   const maxCheckout = useMemo(() => {
     const cap = maxCheckoutForAllBeds(start, reservationsByBed, horizonEnd);
-    if (shortStayOnly && reserveLastStay) {
-      if (!cap) return reserveLastStay;
-      return cap < reserveLastStay ? cap : reserveLastStay;
+    const bookingWindowEnd = formatDate(addDays(parseDate(today), FIXED_DATE_MAX_NIGHTS));
+    let effectiveCap = cap;
+    if (!isMonthly) {
+      if (!effectiveCap || bookingWindowEnd < effectiveCap) {
+        effectiveCap = bookingWindowEnd;
+      }
     }
-    return cap;
-  }, [start, reservationsByBed, horizonEnd, shortStayOnly, reserveLastStay]);
-
-  const mode: PricingMode = intent === 'indefinite' ? 'open_ended' : 'fixed_stay';
-  const fixedNights =
-    intent === 'fixed' && end > start ? diffDays(parseDate(start), parseDate(end)) : 0;
+    if (shortStayOnly && reserveLastStay) {
+      if (!effectiveCap) return reserveLastStay;
+      return effectiveCap < reserveLastStay ? effectiveCap : reserveLastStay;
+    }
+    return effectiveCap;
+  }, [start, reservationsByBed, horizonEnd, shortStayOnly, reserveLastStay, isMonthly, today]);
 
   const availabilityEnd = useMemo(() => defaultCheckOutDate(start), [start]);
 
@@ -183,87 +195,137 @@ export function BedBookingPanel({
     [timelines],
   );
 
+  const fixedDateError = useMemo(() => {
+    if (isMonthly || end <= start) return null;
+    return validateFixedDateStay(start, end, today);
+  }, [isMonthly, start, end, today]);
+
   const stayRangeConflict = useMemo((): string | null => {
-    const checkout = intent === 'indefinite' ? availabilityEnd : end;
+    const checkout = isMonthly ? availabilityEnd : end;
     if (checkout <= start) return null;
 
     if (!isStayRangeAvailableForAllBeds(start, checkout, reservationsByBed)) {
       return 'The selected dates overlap an existing reservation for one or more beds.';
     }
 
-    if (intent === 'fixed') {
+    if (!isMonthly) {
       const cap = maxCheckoutForAllBeds(start, reservationsByBed, horizonEnd);
       if (cap && end > cap) return checkoutCapMessage(cap);
     }
 
     return null;
-  }, [intent, start, end, availabilityEnd, reservationsByBed, horizonEnd]);
+  }, [isMonthly, start, end, availabilityEnd, reservationsByBed, horizonEnd]);
+
+  const canFetchQuote =
+    beds.length > 0 &&
+    !loading &&
+    !fetchError &&
+    !stayRangeConflict &&
+    !fixedDateError &&
+    (isMonthly || fixedNights > 0);
+
+  useEffect(() => {
+    if (!canFetchQuote) {
+      setServerQuote(null);
+      setQuoteError(null);
+      return;
+    }
+
+    let cancelled = false;
+    setQuoteLoading(true);
+    setQuoteError(null);
+
+    void fetch('/api/booking/quote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        bedIds: beds.map((b) => b.bedId),
+        startDate: start,
+        endDate: isMonthly ? null : end,
+        stayType,
+      }),
+    })
+      .then(async (res) => res.json())
+      .then((data: { ok?: boolean; quote?: ServerBookingQuote; error?: string }) => {
+        if (cancelled) return;
+        if (!data.ok || !data.quote) {
+          setServerQuote(null);
+          setQuoteError(data.error ?? 'Could not load price.');
+          return;
+        }
+        setServerQuote(data.quote);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setServerQuote(null);
+          setQuoteError('Could not load price.');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setQuoteLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [canFetchQuote, beds, start, end, isMonthly, stayType, stayRangeConflict, fixedDateError, loading, fetchError]);
+
+  const checkoutFromQuote = useMemo(() => {
+    if (!serverQuote) return null;
+    return computeNewBookingCheckoutTotals({
+      rentSubtotalPaise: serverQuote.subtotalPaise,
+      depositRequiredPaise: serverQuote.depositPaise,
+    });
+  }, [serverQuote]);
 
   const staySummary = useMemo((): StayDateSummary | null => {
-    if (intent !== 'fixed' || fixedNights <= 0 || beds.length === 0) return null;
-    const primary = beds[0]!;
-    const accommodationPaise = beds.reduce(
-      (sum, bed) => sum + estimateFixedStaySubtotal(bed, fixedNights),
-      0,
+    if (isMonthly || fixedNights <= 0 || !serverQuote || !checkoutFromQuote) return null;
+    const rentLineItems = serverQuote.perBed.flatMap((b) =>
+      b.lineItems.filter((li) => li.kind !== 'deposit'),
     );
-    const depositPaise = beds.reduce(
-      (sum, bed) => sum + depositPreview(bed, 'fixed_stay', fixedNights),
-      0,
-    );
-    const rentLineItems = beds.flatMap((bed) => fixedStayRentLines(bed, fixedNights));
-    const totals = computeNewBookingCheckoutTotals({
-      rentSubtotalPaise: accommodationPaise,
-      depositRequiredPaise: depositPaise,
-    });
     return {
       nights: fixedNights,
-      dailyRatePaise: primary.dailyRatePaise,
-      accommodationPaise,
-      depositPaise,
-      depositDueNowPaise: totals.depositDueNowPaise,
-      totalDuePaise: totals.totalToCollectTodayPaise,
+      dailyRatePaise: beds[0]?.dailyRatePaise ?? 0,
+      accommodationPaise: serverQuote.subtotalPaise,
+      depositPaise: serverQuote.depositPaise,
+      depositDueNowPaise: checkoutFromQuote.depositDueNowPaise,
+      totalDuePaise: checkoutFromQuote.totalToCollectTodayPaise,
       rentLineItems,
     };
-  }, [intent, fixedNights, beds]);
+  }, [isMonthly, fixedNights, beds, serverQuote, checkoutFromQuote]);
 
-  const openEndedCheckout = useMemo(() => {
-    if (intent !== 'indefinite' || beds.length === 0) return null;
-    const rentPaise = beds.reduce((sum, bed) => sum + bed.monthlyRatePaise, 0);
-    const depositPaise = beds.reduce((sum, bed) => sum + displayMonthlyDepositPaise(bed), 0);
-    return computeNewBookingCheckoutTotals({
-      rentSubtotalPaise: rentPaise,
-      depositRequiredPaise: depositPaise,
-    });
-  }, [intent, beds]);
+  const monthlyCheckout = useMemo(() => {
+    if (!isMonthly || !serverQuote || !checkoutFromQuote) return null;
+    return checkoutFromQuote;
+  }, [isMonthly, serverQuote, checkoutFromQuote]);
 
   const durationHint = useMemo(() => {
-    if (intent === 'indefinite') {
+    if (isMonthly) {
       const rentPaise = beds.reduce((sum, bed) => sum + bed.monthlyRatePaise, 0);
-      return `Monthly · ${paiseToInr(rentPaise)}/mo`;
+      return `Monthly Stay · ${paiseToInr(rentPaise)}/mo · ${VACATING_NOTICE_MIN_DAYS}-day notice to leave`;
     }
-    const nights = fixedNights > 0 ? fixedNights : plan === 'weekly' ? 7 : 1;
+    const nights = fixedNights > 0 ? fixedNights : 7;
     const rentPaise = beds.reduce(
       (sum, bed) => sum + estimateFixedStaySubtotal(bed, nights),
       0,
     );
-    return `${nights} night${nights === 1 ? '' : 's'} · ${paiseToInr(rentPaise)}`;
-  }, [intent, fixedNights, plan, beds]);
+    return `Fixed-Date Stay · ${nights} night${nights === 1 ? '' : 's'} · ${paiseToInr(rentPaise)} total`;
+  }, [isMonthly, fixedNights, beds]);
 
-  function handlePlanSelect(next: StayPlan) {
-    setPlan(next);
+  function handleStayTypeSelect(next: StayType) {
+    setStayType(next);
     setValidationError(null);
-    const nextIntent = planToIntent(next);
-    if (nextIntent === 'fixed') {
-      setEnd(defaultEndForPlan(start, next));
+    if (next === 'fixed_date_stay') {
+      setEnd(defaultFixedDateCheckOut(start));
     }
   }
 
   function handleStartChange(value: string) {
     setStart(value);
     setValidationError(null);
-    if (intent === 'fixed') {
-      const cap = maxCheckoutForAllBeds(value, reservationsByBed, horizonEnd);
-      const preferred = defaultEndForPlan(value, plan);
+    if (!isMonthly) {
+      const cap = maxCheckout;
+      const preferred = defaultFixedDateCheckOut(value);
       if (cap && preferred > cap) {
         setEnd(formatDate(addDays(parseDate(cap), -1)));
       } else if (end <= value) {
@@ -291,11 +353,19 @@ export function BedBookingPanel({
       return;
     }
 
-    const checkout = intent === 'indefinite' ? availabilityEnd : end;
+    const checkout = isMonthly ? availabilityEnd : end;
 
-    if (intent === 'fixed' && end <= start) {
+    if (!isMonthly && end <= start) {
       setValidationError('Check-out must be after check-in.');
       return;
+    }
+
+    if (!isMonthly) {
+      const fixedErr = validateFixedDateStay(start, end, today);
+      if (fixedErr) {
+        setValidationError(fixedErr);
+        return;
+      }
     }
 
     if (!isStayRangeAvailableForAllBeds(start, checkout, reservationsByBed)) {
@@ -303,8 +373,8 @@ export function BedBookingPanel({
       return;
     }
 
-    if (intent === 'fixed') {
-      const cap = maxCheckoutForAllBeds(start, reservationsByBed, horizonEnd);
+    if (!isMonthly) {
+      const cap = maxCheckout;
       if (!cap || end > cap) {
         setValidationError(
           cap ? checkoutCapMessage(cap) : 'Invalid stay dates for the selected beds.',
@@ -313,12 +383,22 @@ export function BedBookingPanel({
       }
     }
 
+    if (quoteLoading) {
+      setValidationError('Price is still loading. Please wait a moment.');
+      return;
+    }
+    if (quoteError || !serverQuote) {
+      setValidationError(quoteError ?? 'Could not load price. Adjust dates and try again.');
+      return;
+    }
+
     const params = new URLSearchParams();
     params.set('start', start);
     params.set('end', checkout);
+    params.set('stayType', stayType);
     params.set('mode', mode);
     for (const bed of beds) params.append('bed', bed.bedId);
-    void trackClientEvent('bed_selected', { bedCount: beds.length });
+    void trackClientEvent('bed_selected', { bedCount: beds.length, stayType });
     router.push(`/booking/new?${params.toString()}`);
   }
 
@@ -333,55 +413,37 @@ export function BedBookingPanel({
     ? 'rounded-lg border border-white/15 px-4 py-2.5 text-sm font-medium text-apg-silver hover:border-white/30 hover:text-white'
     : 'rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-50';
 
-  type PlanCard = {
-    id: StayPlan;
+  type StayTypeCard = {
+    id: StayType;
     title: string;
     subtitle: string;
     priceLabel: string;
-    depositLabel: string;
   };
 
-  const planCards: PlanCard[] = useMemo(() => {
+  const stayTypeCards: StayTypeCard[] = useMemo(() => {
     const primary = beds[0];
     if (!primary) return [];
-    const weeklyRent = estimateFixedStaySubtotal(primary, 7);
-    const dailyRent = estimateFixedStaySubtotal(primary, 1);
+    const sampleNights = 7;
+    const fixedRent = estimateFixedStaySubtotal(primary, sampleNights);
     const monthlyRent = primary.monthlyRatePaise;
-    const cards: PlanCard[] = [];
+    const cards: StayTypeCard[] = [];
     if (!shortStayOnly) {
       cards.push({
-        id: 'monthly',
-        title: 'Monthly',
-        subtitle: 'Stay as long as you want · monthly billing',
+        id: 'monthly_stay',
+        title: stayTypeLabel('monthly_stay'),
+        subtitle: 'Long-term · check-in only · monthly billing until you request move-out',
         priceLabel: monthlyRent > 0 ? `${paiseToInr(monthlyRent)}/mo` : '—',
-        depositLabel:
-          displayMonthlyDepositPaise(primary) > 0
-            ? `${paiseToInr(displayMonthlyDepositPaise(primary))} deposit (2× rent)`
-            : 'No deposit',
       });
     }
-    cards.push(
-      {
-        id: 'weekly',
-        title: 'Weekly',
-        subtitle: 'Fixed stay · 7 nights by default',
-        priceLabel: weeklyRent > 0 ? `${paiseToInr(weeklyRent)}/wk` : '—',
-        depositLabel:
-          depositPreview(primary, 'fixed_stay', 7) > 0
-            ? `~${paiseToInr(depositPreview(primary, 'fixed_stay', 7))} deposit (50%)`
-            : 'No deposit',
-      },
-      {
-        id: 'daily',
-        title: 'Daily',
-        subtitle: 'Fixed stay · 1 night by default',
-        priceLabel: dailyRent > 0 ? `${paiseToInr(dailyRent)}/day` : '—',
-        depositLabel:
-          depositPreview(primary, 'fixed_stay', 1) > 0
-            ? `~${paiseToInr(depositPreview(primary, 'fixed_stay', 1))} deposit (50%)`
-            : 'No deposit',
-      },
-    );
+    cards.push({
+      id: 'fixed_date_stay',
+      title: stayTypeLabel('fixed_date_stay'),
+      subtitle: `Temporary stay · pick check-in and check-out · up to ${FIXED_DATE_MAX_NIGHTS} nights`,
+      priceLabel:
+        fixedRent > 0
+          ? `e.g. ${paiseToInr(fixedRent)} for ${sampleNights} nights`
+          : '—',
+    });
     return cards;
   }, [beds, shortStayOnly]);
 
@@ -402,10 +464,10 @@ export function BedBookingPanel({
             Book {beds.length === 1 ? `bed ${beds[0]!.bedCode}` : `${beds.length} beds`}
           </h2>
           <p className={`mt-0.5 text-xs ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
-            {step === 'plan'
+            {step === 'stayType'
               ? 'How long are you planning to stay?'
               : step === 'dates'
-                ? 'Pick your check-in and check-out'
+                ? 'Pick your dates'
                 : 'Review before you confirm'}
           </p>
         </div>
@@ -433,19 +495,18 @@ export function BedBookingPanel({
           </div>
         ) : (
           <>
-            {step === 'plan' ? (
+            {step === 'stayType' ? (
               <fieldset className="space-y-3">
-                <legend className={`${label} mb-1`}>How long are you planning to stay?</legend>
+                <legend className={`${label} mb-1`}>Stay type</legend>
                 <div className="grid grid-cols-1 gap-3">
-                  {planCards.map((card) => {
-                    const selected = plan === card.id;
-                    const highlight =
-                      card.id === 'monthly' && !shortStayOnly && selected;
+                  {stayTypeCards.map((card) => {
+                    const selected = stayType === card.id;
+                    const highlight = card.id === 'monthly_stay' && !shortStayOnly && selected;
                     return (
                       <button
                         key={card.id}
                         type="button"
-                        onClick={() => handlePlanSelect(card.id)}
+                        onClick={() => handleStayTypeSelect(card.id)}
                         className={
                           dark
                             ? `rounded-xl border px-4 py-3 text-left transition ${
@@ -478,9 +539,6 @@ export function BedBookingPanel({
                         </div>
                         <p className={`mt-1 text-xs ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
                           {card.subtitle}
-                        </p>
-                        <p className={`mt-1 text-[11px] ${dark ? 'text-apg-muted' : 'text-zinc-400'}`}>
-                          {card.depositLabel}
                         </p>
                       </button>
                     );
@@ -532,7 +590,7 @@ export function BedBookingPanel({
                 <StayDateRangePicker
                   theme={dark ? 'dark' : 'light'}
                   checkIn={start}
-                  checkOut={intent === 'fixed' ? end : null}
+                  checkOut={!isMonthly ? end : null}
                   onCheckInChange={handleStartChange}
                   onCheckOutChange={(d) => {
                     setEnd(d);
@@ -540,7 +598,7 @@ export function BedBookingPanel({
                   }}
                   minCheckIn={timelines[0]?.earliestCheckIn ?? today}
                   maxCheckOut={maxCheckout ?? undefined}
-                  showCheckOut={intent === 'fixed'}
+                  showCheckOut={!isMonthly}
                   disabled={loading || Boolean(fetchError)}
                   horizonEnd={horizonEnd}
                   reservationsByBed={reservationsByBed}
@@ -548,7 +606,7 @@ export function BedBookingPanel({
                   summary={staySummary}
                 />
 
-                {intent === 'fixed' && staySummary ? (
+                {!isMonthly && staySummary ? (
                   <BookingPriceBreakdown
                     theme={dark ? 'dark' : 'light'}
                     compact
@@ -563,7 +621,19 @@ export function BedBookingPanel({
                   />
                 ) : null}
 
-                {intent === 'fixed' && stayRangeConflict ? (
+                {quoteLoading ? (
+                  <p className={`text-sm ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
+                    Loading price…
+                  </p>
+                ) : null}
+
+                {quoteError ? (
+                  <p className="rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+                    {quoteError}
+                  </p>
+                ) : null}
+
+                {(fixedDateError || stayRangeConflict) ? (
                   <p
                     className={
                       dark
@@ -571,42 +641,56 @@ export function BedBookingPanel({
                         : 'rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900'
                     }
                   >
-                    {stayRangeConflict}
+                    {fixedDateError ?? stayRangeConflict}
                   </p>
                 ) : null}
               </>
             ) : null}
 
             {step === 'review' ? (
+              <>
+              {quoteLoading ? (
+                <p className={`text-sm ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
+                  Loading price…
+                </p>
+              ) : null}
+
+              {quoteError ? (
+                <p className="rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+                  {quoteError}
+                </p>
+              ) : null}
+
               <BookingPriceBreakdown
                 theme={dark ? 'dark' : 'light'}
                 rentLineItems={staySummary?.rentLineItems}
                 rentSubtotalPaise={
-                  intent === 'fixed' && staySummary
+                  !isMonthly && staySummary
                     ? staySummary.accommodationPaise
-                    : openEndedCheckout?.rentDuePaise ?? 0
+                    : monthlyCheckout?.rentDuePaise ?? 0
                 }
                 depositRequiredPaise={
-                  intent === 'fixed' && staySummary
+                  !isMonthly && staySummary
                     ? staySummary.depositPaise
-                    : openEndedCheckout?.depositRequiredPaise ?? 0
+                    : monthlyCheckout?.depositRequiredPaise ?? 0
                 }
                 depositDueNowPaise={
-                  intent === 'fixed' && staySummary
+                  !isMonthly && staySummary
                     ? staySummary.depositDueNowPaise
-                    : openEndedCheckout?.depositDueNowPaise ?? 0
+                    : monthlyCheckout?.depositDueNowPaise ?? 0
                 }
                 newBookingTotalPaise={
-                  intent === 'fixed' && staySummary
+                  !isMonthly && staySummary
                     ? staySummary.accommodationPaise + staySummary.depositDueNowPaise
-                    : openEndedCheckout?.newBookingTotalPaise ?? 0
+                    : monthlyCheckout?.newBookingTotalPaise ?? 0
                 }
                 totalToCollectTodayPaise={
-                  intent === 'fixed' && staySummary
+                  !isMonthly && staySummary
                     ? staySummary.totalDuePaise
-                    : openEndedCheckout?.totalToCollectTodayPaise ?? 0
+                    : monthlyCheckout?.totalToCollectTodayPaise ?? 0
                 }
               />
+              </>
             ) : null}
 
             {validationError ? (
@@ -640,7 +724,7 @@ export function BedBookingPanel({
           </button>
         )}
 
-        {step === 'plan' ? (
+        {step === 'stayType' ? (
           <button
             type="button"
             disabled={loading || Boolean(fetchError)}
@@ -654,7 +738,15 @@ export function BedBookingPanel({
         {step === 'dates' ? (
           <button
             type="button"
-            disabled={loading || Boolean(fetchError) || Boolean(stayRangeConflict)}
+            disabled={
+              loading ||
+              Boolean(fetchError) ||
+              Boolean(stayRangeConflict) ||
+              Boolean(fixedDateError) ||
+              quoteLoading ||
+              Boolean(quoteError) ||
+              !serverQuote
+            }
             onClick={() => {
               setValidationError(null);
               setStep('review');
@@ -668,7 +760,13 @@ export function BedBookingPanel({
         {step === 'review' ? (
           <button
             type="button"
-            disabled={loading || Boolean(fetchError)}
+            disabled={
+              loading ||
+              Boolean(fetchError) ||
+              quoteLoading ||
+              Boolean(quoteError) ||
+              !serverQuote
+            }
             onClick={validateAndContinue}
             className={btnPrimary}
           >

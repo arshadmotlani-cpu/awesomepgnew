@@ -27,7 +27,7 @@ export type PricingPathAudit = {
 export const PRICING_PATH_AUDITS: PricingPathAudit[] = [
   {
     path: 'Open-ended stay',
-    formula: 'rent = 1 × monthlyRate; deposit = 2 × monthlyRate',
+    formula: 'rent = 1 × monthlyRate; deposit = ceil(monthlyRate / 2)',
     inputs: ['monthlyRatePaise', 'startDate'],
     output: 'subtotalPaise, depositPaise, totalPaise',
     edgeCases: [
@@ -38,7 +38,7 @@ export const PRICING_PATH_AUDITS: PricingPathAudit[] = [
   {
     path: 'Monthly stay',
     formula:
-      'rent = wholeMonths × monthlyRate + remainderDays × dailyRate (or monthly/30); deposit = 2 × monthlyRate',
+      'rent = wholeMonths × monthlyRate + remainderDays × dailyRate (or monthly/30); deposit = ceil(monthlyRate / 2)',
     inputs: ['startDate', 'endDate', 'monthlyRatePaise', 'dailyRatePaise'],
     output: 'subtotalPaise with monthly_cycle + pro_rata_days line items',
     edgeCases: [
@@ -81,7 +81,7 @@ export const PRICING_PATH_AUDITS: PricingPathAudit[] = [
   },
   {
     path: 'Deposit (monthly / open-ended)',
-    formula: 'deposit = 2 × monthlyRatePaise',
+    formula: 'deposit = ceil(monthlyRate / 2) — two weeks rent',
     inputs: ['monthlyRatePaise'],
     output: 'depositPaise independent of stay length',
     edgeCases: ['Rent change triggers deposit delta via pricing propagation service.'],
@@ -180,9 +180,9 @@ export function runPricingSelfChecks(sampleRate: RateSnapshot): PricingSelfCheck
 
   const monthlyDep = computeMonthlyDepositPaise(sampleRate);
   checks.push({
-    name: 'monthly_deposit_2x_rent',
-    pass: monthlyDep === sampleRate.monthlyRatePaise * 2,
-    detail: `deposit ${monthlyDep} = 2 × ${sampleRate.monthlyRatePaise}`,
+    name: 'monthly_deposit_2_weeks_rent',
+    pass: monthlyDep === Math.ceil(sampleRate.monthlyRatePaise / 2),
+    detail: `deposit ${monthlyDep} = 2 weeks (½ × ${sampleRate.monthlyRatePaise})`,
   });
 
   const fixedDep = computeFixedStayDepositPaise(289_000);

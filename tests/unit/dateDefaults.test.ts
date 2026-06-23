@@ -14,7 +14,18 @@ test('normalizeBrowseStay fills missing params with today and +30 nights', () =>
   assert.match(stay.start, /^\d{4}-\d{2}-\d{2}$/);
   assert.match(stay.end, /^\d{4}-\d{2}-\d{2}$/);
   assert.equal(stay.mode, 'open_ended');
+  assert.equal(stay.stayType, 'monthly_stay');
   assert.ok(stay.end > stay.start);
+});
+
+test('normalizeBrowseStay maps stayType fixed_date_stay to fixed_stay mode', () => {
+  const stay = normalizeBrowseStay({
+    start: '2026-07-10',
+    end: '2026-07-17',
+    stayType: 'fixed_date_stay',
+  });
+  assert.equal(stay.mode, 'fixed_stay');
+  assert.equal(stay.stayType, 'fixed_date_stay');
 });
 
 test('defaultExtensionUntilDate is strictly after current checkout', () => {

@@ -3,7 +3,7 @@ export function oneMonthDepositPaise(depositPaise: number, rentSubtotalPaise: nu
   if (depositPaise <= 0 || rentSubtotalPaise <= 0) return null;
   const half = Math.floor(depositPaise / 2);
   if (half <= 0 || half >= depositPaise) return null;
-  // Offer when deposit is at least one month's rent (typical 2× monthly deposit).
+  // Offer when deposit is at least half of first month's rent (2-week deposit on monthly stay).
   if (depositPaise < rentSubtotalPaise) return null;
   return half;
 }

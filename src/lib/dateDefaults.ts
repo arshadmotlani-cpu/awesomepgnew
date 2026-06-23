@@ -4,6 +4,13 @@
  */
 import { addDays, formatDate, parseDate, todayString, type DateLike } from './dates';
 import type { PricingMode } from '@/src/services/pricing';
+import {
+  FIXED_DATE_MAX_NIGHTS,
+  parseStayTypeParam,
+  pricingModeFromStayType,
+  stayTypeFromPricingMode,
+  type StayType,
+} from '@/src/lib/stayType';
 import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
 
 export const DEFAULT_STAY_NIGHTS = 30;
@@ -22,12 +29,14 @@ export type BrowseStayParams = {
   start?: string;
   end?: string;
   mode?: string;
+  stayType?: string;
 };
 
 export type NormalizedStay = {
   start: string;
   end: string;
   mode: PricingMode;
+  stayType: StayType;
 };
 
 /** Default check-out for a new stay starting on `start` (30 nights). */
@@ -78,9 +87,20 @@ export function normalizeBrowseStay(sp: BrowseStayParams): NormalizedStay {
 
   let start = sp.start ?? today;
   let end = sp.end ?? fallbackEnd;
-  let mode: PricingMode = VALID_MODES.has(sp.mode as PricingMode)
-    ? (sp.mode as PricingMode)
-    : 'open_ended';
+
+  const parsedStayType = parseStayTypeParam(sp.stayType);
+  let mode: PricingMode;
+  if (parsedStayType) {
+    mode = pricingModeFromStayType(parsedStayType);
+  } else if (VALID_MODES.has(sp.mode as PricingMode)) {
+    mode = sp.mode as PricingMode;
+    if (mode === 'daily' || mode === 'weekly') {
+      mode = 'fixed_stay';
+    }
+  } else {
+    mode = 'open_ended';
+  }
+  const stayType = parsedStayType ?? stayTypeFromPricingMode(mode);
 
   try {
     parseDate(start);
@@ -98,18 +118,18 @@ export function normalizeBrowseStay(sp: BrowseStayParams): NormalizedStay {
   if (mode === 'open_ended') {
     end = defaultCheckOutDate(start);
   }
-  return { start, end, mode };
+  if (stayType === 'fixed_date_stay' && mode !== 'fixed_stay') {
+    mode = 'fixed_stay';
+  }
+  return { start, end, mode, stayType };
 }
 
 /** Human-readable browse summary for PG availability headers. */
 export function formatBrowseStaySummary(stay: NormalizedStay): string {
-  if (stay.mode === 'open_ended') {
-    return `${stay.start} · live without checkout (${VACATING_NOTICE_MIN_DAYS} days notice to leave)`;
+  if (stay.stayType === 'monthly_stay' || stay.mode === 'open_ended') {
+    return `${stay.start} · Monthly stay (${VACATING_NOTICE_MIN_DAYS} days notice to leave)`;
   }
-  if (stay.mode === 'fixed_stay') {
-    return `${stay.start} → ${stay.end} · fixed stay`;
-  }
-  return `${stay.start} → ${stay.end}`;
+  return `${stay.start} → ${stay.end} · fixed-date stay (up to ${FIXED_DATE_MAX_NIGHTS} nights)`;
 }
 
 /** Query string fragment for default PG browse dates (today → +30 days, monthly). */

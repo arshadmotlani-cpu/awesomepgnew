@@ -141,7 +141,8 @@ export function AssignTenantForm({
             {selectedBed.depositPaise > 0 ? (
               <>
                 {' '}
-                · Expected deposit: <strong>₹{inrFromPaise(selectedBed.depositPaise)}</strong>
+                · Expected deposit (quote):{' '}
+                <strong>₹{inrFromPaise(selectedBed.depositPaise)}</strong>
               </>
             ) : null}
           </span>

@@ -17,7 +17,7 @@ test('securityDepositForMode coerces bigint bed rates without throwing', () => {
     effectiveFrom: '2026-01-01',
     effectiveTo: null,
   } satisfies RateSnapshot;
-  assert.equal(securityDepositForMode(rate, 'monthly'), 300000);
+  assert.equal(securityDepositForMode(rate, 'monthly'), 75000);
   assert.doesNotThrow(() => JSON.stringify({ websiteDepositPaise: securityDepositForMode(rate, 'daily') }));
 });
 

@@ -16,6 +16,7 @@ import {
 } from '@/src/lib/billing/partialDepositCheckout';
 import { PS4_ADDON_LABEL, PS4_PLANS, type Ps4PlanId } from '@/src/lib/playstation/plans';
 import { VACATING_NOTICE_MIN_DAYS } from '@/src/lib/dateDefaults';
+import { stayTypeFromPricingMode } from '@/src/lib/stayType';
 import { formatDate } from '@/src/lib/format';
 import type { BookingActionState } from '@/app/(customer)/booking/new/actions';
 import { createBookingAction } from '@/app/(customer)/booking/new/actions';
@@ -123,6 +124,7 @@ export function BookingCartForm({
         <input type="hidden" name="startDate" value={startDate} />
         {endDate ? <input type="hidden" name="endDate" value={endDate} /> : null}
         <input type="hidden" name="durationMode" value={durationMode} />
+        <input type="hidden" name="stayType" value={stayTypeFromPricingMode(durationMode)} />
         {bedIds.map((id) => (
           <input key={id} type="hidden" name="bedId" value={id} />
         ))}

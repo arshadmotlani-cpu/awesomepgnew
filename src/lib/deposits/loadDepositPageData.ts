@@ -9,7 +9,7 @@ import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { getDepositInvoiceForBooking } from '@/src/services/depositInvoices';
 import { getUnifiedDepositView, sanitizeUnifiedDepositView } from '@/src/services/depositOperations';
 import { clientSafeDepositView, depositAdminDisplayAmounts } from '@/src/lib/deposits/unifiedDepositView';
-import { loadBedPrice, securityDepositForMode } from '@/src/services/pricing';
+import { loadBedPrice, computeMonthlyDepositPaise } from '@/src/services/pricing';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import { jsonSafe } from '@/src/lib/depositPageDebug';
 
@@ -171,10 +171,7 @@ export async function loadDepositPageData(bookingId: string): Promise<DepositPag
         const bedRate = await loadBedPrice(primaryBed.bedId, primaryBed.moveInDate);
         if (bedRate) {
           websiteDepositPaise = guardDepositPaise(
-            securityDepositForMode(
-              bedRate,
-              booking.durationMode === 'open_ended' ? 'open_ended' : 'monthly',
-            ),
+            computeMonthlyDepositPaise(bedRate),
             'websiteDepositPaise',
           );
         }

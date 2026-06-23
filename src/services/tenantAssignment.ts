@@ -4,6 +4,7 @@ import { bedPrices, bedReservations, beds, bookings, customers, floors, pgs, roo
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { formatDate } from '@/src/lib/dates';
+import { quoteMonthlyBedDepositPaise } from '@/src/lib/booking/publicQuote';
 import { getActiveTenancyForCustomer } from '@/src/lib/residentActiveTenancy';
 import { getCustomerVerificationStatus } from '@/src/services/residentAdmin';
 import { createBooking } from '@/src/services/booking';
@@ -155,16 +156,6 @@ export async function listAssignableBeds(session: AdminSession, startDate?: stri
           AND (bp.effective_to IS NULL OR bp.effective_to > CURRENT_DATE)
         ORDER BY bp.effective_from DESC LIMIT 1
       ), 0)`,
-      depositPaise: sql<number>`coalesce((
-        SELECT coalesce(
-          nullif(bp.monthly_security_deposit_paise, 0),
-          bp.security_deposit_paise
-        )::bigint::int FROM ${bedPrices} bp
-        WHERE bp.bed_id = ${beds.id}
-          AND bp.effective_from <= CURRENT_DATE
-          AND (bp.effective_to IS NULL OR bp.effective_to > CURRENT_DATE)
-        ORDER BY bp.effective_from DESC LIMIT 1
-      ), 0)`,
     })
     .from(beds)
     .innerJoin(rooms, eq(rooms.id, beds.roomId))
@@ -177,7 +168,7 @@ export async function listAssignableBeds(session: AdminSession, startDate?: stri
     adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, row.pgId),
   );
 
-  const available: typeof allowed = [];
+  const available: Array<(typeof allowed)[number] & { depositPaise: number }> = [];
   for (const row of allowed) {
     const ok = await isBedAvailable(
       {
@@ -187,7 +178,15 @@ export async function listAssignableBeds(session: AdminSession, startDate?: stri
       },
       { ignoreManualOccupied: true },
     );
-    if (ok) available.push(row);
+    if (!ok) continue;
+
+    let depositPaise = 0;
+    try {
+      depositPaise = await quoteMonthlyBedDepositPaise(row.bedId, from);
+    } catch {
+      depositPaise = 0;
+    }
+    available.push({ ...row, depositPaise });
   }
   return available;
 }

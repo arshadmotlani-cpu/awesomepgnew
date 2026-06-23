@@ -20,4 +20,6 @@ export type BedSelectorBed = {
   dailySecurityDepositPaise: number;
   weeklySecurityDepositPaise: number;
   monthlySecurityDepositPaise: number;
+  /** Monthly-stay reference deposit from quote engine (pre-booking display only). */
+  quotedMonthlyDepositPaise?: number;
 };

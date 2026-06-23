@@ -217,7 +217,7 @@ export function PricingCenter({
                       {bed.monthlyDepositPaise
                         ? paiseToInr(bed.monthlyDepositPaise)
                         : bed.monthlyRatePaise
-                          ? paiseToInr(bed.monthlyRatePaise * 2)
+                          ? paiseToInr(Math.ceil(bed.monthlyRatePaise / 2))
                           : '—'}
                     </dd>
                   </div>

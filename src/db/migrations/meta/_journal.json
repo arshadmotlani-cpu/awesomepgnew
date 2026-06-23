@@ -451,10 +451,10 @@
       "breakpoints": true
     },
     {
-      "idx": 67,
+      "idx": 68,
       "version": "7",
-      "when": 1788500000000,
-      "tag": "0067_booking_pending_approval_backfill",
+      "when": 1788600000000,
+      "tag": "0068_stay_type",
       "breakpoints": true
     }
   ]

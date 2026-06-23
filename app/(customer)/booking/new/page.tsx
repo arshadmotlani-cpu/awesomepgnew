@@ -26,6 +26,7 @@ type SearchParams = {
   start?: string;
   end?: string;
   mode?: string;
+  stayType?: string;
   bed?: string | string[];
 };
 
@@ -41,6 +42,7 @@ function bookingReturnPath(sp: SearchParams): string {
   const params = new URLSearchParams();
   if (sp.start) params.set('start', sp.start);
   if (sp.end) params.set('end', sp.end);
+  if (sp.stayType) params.set('stayType', sp.stayType);
   if (sp.mode) params.set('mode', sp.mode);
   for (const id of asArray(sp.bed)) params.append('bed', id);
   const qs = params.toString();
@@ -64,8 +66,9 @@ export default async function NewBookingPage(props: PageProps<'/booking/new'>) {
     start: sp.start,
     end: sp.end,
     mode: sp.mode,
+    stayType: sp.stayType,
   });
-  const { start, end, mode } = stay;
+  const { start, end, mode, stayType } = stay;
 
   const cartBedsResult = await getBedsForCart(bedIds);
   if (!cartBedsResult.ok || cartBedsResult.data.length === 0) {
@@ -83,6 +86,7 @@ export default async function NewBookingPage(props: PageProps<'/booking/new'>) {
   const profileReturnParams = new URLSearchParams();
   profileReturnParams.set('start', start);
   profileReturnParams.set('end', end);
+  profileReturnParams.set('stayType', stayType);
   profileReturnParams.set('mode', mode);
   for (const id of bedIds) profileReturnParams.append('bed', id);
   const profileNextUrl = `/account/profile?next=${encodeURIComponent(`/booking/new?${profileReturnParams.toString()}`)}`;

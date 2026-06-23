@@ -24,6 +24,10 @@ import { bedPrices } from '../db/schema';
 import { addMonths, diffDays, formatDate, isBefore, parseDate, type DateLike } from '../lib/dates';
 import { coerceNonNegativePaise } from '../lib/format';
 import { computeLowestFixedStayRent } from '../lib/pricing/fixedStayOptimizer';
+import {
+  computeFixedStayDepositPaise as fixedStayDepositFromRules,
+  computeMonthlyDepositPaise as monthlyDepositFromRules,
+} from '../lib/pricing/depositRules';
 import type { FixedStayPricingStrategy } from '../lib/pricing/types';
 
 export type PricingMode = 'daily' | 'weekly' | 'monthly' | 'open_ended' | 'fixed_stay';
@@ -93,17 +97,16 @@ export function securityDepositForMode(rate: RateSnapshot, durationMode: Pricing
   );
 }
 
-/** Monthly / open-ended stays: deposit = 2 × monthly rent. */
+/** Monthly / open-ended stays: deposit = 2 weeks rent (half of one month). */
 export function computeMonthlyDepositPaise(rate: RateSnapshot): number {
   const monthly = coerceNonNegativePaise(rate.monthlyRatePaise);
   requirePositiveRate(monthly, 'monthly');
-  return monthly * 2;
+  return monthlyDepositFromRules({ monthlyRatePaise: monthly });
 }
 
 /** Fixed-date stays: deposit = 50% of booking subtotal (rent only, not deposit). */
 export function computeFixedStayDepositPaise(subtotalPaise: number): number {
-  if (subtotalPaise <= 0) return 0;
-  return Math.ceil(subtotalPaise * 0.5);
+  return fixedStayDepositFromRules(subtotalPaise);
 }
 
 export function computeRequiredDepositPaise(
@@ -343,7 +346,7 @@ export function computePriceBreakdown(input: ComputePriceInput): PriceQuote {
   if (depositPaise > 0) {
     const depositLabel =
       durationMode === 'open_ended' || durationMode === 'monthly'
-        ? 'Refundable security deposit (2 months rent)'
+        ? 'Refundable security deposit (2 weeks rent)'
         : durationMode === 'fixed_stay'
           ? 'Refundable security deposit (50% of booking)'
           : 'Refundable security deposit';

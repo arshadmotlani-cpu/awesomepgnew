@@ -13,6 +13,7 @@ import { AnalyticsMountEvent } from '@/src/components/analytics/AnalyticsMountEv
 import { RoomDetailFlowShell, RoomBedMapCta } from '@/src/components/world/RoomDetailFlowShell';
 import { getRoomDetail } from '@/src/db/queries/customer';
 import { getCustomerSession } from '@/src/lib/auth/session';
+import { enrichBedsWithQuotedMonthlyDeposit } from '@/src/lib/booking/publicQuote';
 import { displayMonthlyDepositPaise } from '@/src/lib/customerDepositDisplay';
 import { getRoomActivityStats, recordRoomPageView } from '@/src/services/roomActivity';
 import { trackAnalyticsEvent } from '@/src/services/visitorAnalytics';
@@ -80,12 +81,18 @@ export default async function RoomDetailPage(
     monthlySecurityDepositPaise: b.monthlySecurityDepositPaise,
   }));
 
-  const availableNowCount = beds.filter((b) => b.status === 'available' && b.isAvailableNow).length;
-  const bookableCount = beds.filter(
+  const bedsWithQuotedDeposit = await enrichBedsWithQuotedMonthlyDeposit(beds);
+  const bedsForSelector: BedSelectorBed[] = bedsWithQuotedDeposit.map((b) => ({
+    ...b,
+    quotedMonthlyDepositPaise: b.quotedMonthlyDepositPaise,
+  }));
+
+  const availableNowCount = bedsForSelector.filter((b) => b.status === 'available' && b.isAvailableNow).length;
+  const bookableCount = bedsForSelector.filter(
     (b) => b.status === 'available' && (b.isAvailableNow || b.nextAvailableDate),
   ).length;
 
-  const rateSample = beds.find((b) => b.monthlyRatePaise > 0) ?? beds[0];
+  const rateSample = bedsForSelector.find((b) => b.monthlyRatePaise > 0) ?? bedsForSelector[0];
 
   return (
     <RoomDetailFlowShell
@@ -128,7 +135,7 @@ export default async function RoomDetailPage(
           </p>
         </div>
         <span className="self-start rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-200 sm:self-end">
-          <CountUpNumber value={availableNowCount} /> free now · {bookableCount} of {beds.length}{' '}
+          <CountUpNumber value={availableNowCount} /> free now · {bookableCount} of {bedsForSelector.length}{' '}
           bookable
         </span>
       </header>
@@ -170,13 +177,13 @@ export default async function RoomDetailPage(
 
       <section className="mt-8" id="bed-selector">
         <h2 className="mb-4 text-lg font-semibold text-white">Pick your bed, then choose dates</h2>
-        {beds.length === 0 ? (
+        {bedsForSelector.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-white/10 apg-glass-light p-8 text-center text-sm text-apg-silver">
             This room has no beds configured yet.
           </p>
         ) : (
           <BedSelector
-            beds={beds}
+            beds={bedsForSelector}
             theme="dark"
             roomLabel={`${room.floorLabel} · Room ${room.roomNumber}`}
           />

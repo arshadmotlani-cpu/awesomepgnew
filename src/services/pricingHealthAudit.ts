@@ -84,7 +84,7 @@ export async function runPricingHealthAudit(): Promise<PricingHealthReport> {
     name: 'Deposit calculations',
     pass: depositChecks.every((c) => c.pass),
     summary: depositChecks.every((c) => c.pass)
-      ? 'Monthly 2× rent and fixed 50% deposit rules verified.'
+      ? 'Monthly 2-week deposit and fixed 50% deposit rules verified.'
       : 'Deposit rule mismatch detected.',
     details: depositChecks.filter((c) => !c.pass).map((c) => c.detail),
   });
@@ -92,7 +92,7 @@ export async function runPricingHealthAudit(): Promise<PricingHealthReport> {
   sections.push({
     name: 'Open-ended pricing',
     pass: selfChecks.find((c) => c.name === 'open_ended_line_items_match_subtotal')?.pass ?? false,
-    summary: 'First month upfront + 2× monthly deposit.',
+    summary: 'First month upfront + 2-week (half-month) deposit.',
     details: [],
   });
 
