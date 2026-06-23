@@ -50,7 +50,7 @@ export async function submitAdminVacatingAction(
 
     if (!result.ok) {
       if (result.kind === 'already_exists') {
-        return { ok: false, error: 'A vacating request already exists for this booking.' };
+        return { ok: false, error: 'An active move-out request already exists for this booking.' };
       }
       if (result.kind === 'invalid_input') return { ok: false, error: result.message };
       return { ok: false, error: `Could not submit (${result.kind}).` };

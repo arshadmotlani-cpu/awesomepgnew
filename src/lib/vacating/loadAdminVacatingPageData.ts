@@ -6,12 +6,14 @@ import type { MoveOutAdvancedToolsRow } from '@/src/lib/moveOut/moveOutAdvancedT
 import { toMoveOutAdvancedToolsRow } from '@/src/lib/moveOut/moveOutAdvancedToolsProps';
 import {
   activePipelineItems,
-  buildMoveOutCommandStats,
   buildMoveOutPipeline,
   toClientMoveOutPipelineItem,
-  type MoveOutCommandStats,
   type MoveOutPipelineItemClient,
 } from '@/src/lib/moveOut/moveOutPipeline';
+import {
+  buildMoveOutCommandStats,
+  type MoveOutCommandStats,
+} from '@/src/lib/moveOut/moveOutPipelineUi';
 import {
   listPipelineCheckoutSettlements,
   type CheckoutSettlementRow,
@@ -176,7 +178,17 @@ export async function loadAdminVacatingPageData(session: AdminSession): Promise<
       advancedToolRows,
       activeItems,
       completedRecently,
-      commandStats: buildMoveOutCommandStats(pipeline),
+      commandStats: buildMoveOutCommandStats(
+        pipeline
+          .map((item) => {
+            try {
+              return toClientMoveOutPipelineItem(item);
+            } catch {
+              return null;
+            }
+          })
+          .filter((item): item is MoveOutPipelineItemClient => item != null),
+      ),
       rowErrors,
       settlementsLoadError,
     },

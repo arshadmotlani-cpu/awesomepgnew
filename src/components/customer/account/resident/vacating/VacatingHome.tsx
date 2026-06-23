@@ -55,6 +55,9 @@ export function VacatingHome({
   const nextStep = vacatingNextStep({ vacating, checkoutStatus });
   const settlementLines = buildVacatingSettlementLines(vacating);
   const refundEligibility = getDepositRefundEligibility({ vacating });
+  const isRejected = vacating?.status === 'rejected';
+  const isActiveVacating =
+    vacating != null && ['pending', 'approved'].includes(vacating.status);
 
   const timelineStages = VACATING_JOURNEY_STAGES.map((s) => ({
     id: s.id,
@@ -93,6 +96,24 @@ export function VacatingHome({
         <Link href={`/account/resident/request-vacating/${bookingId}`} className={PRIMARY_BTN}>
           Request vacate
         </Link>
+      ) : isRejected ? (
+        <>
+          <ApgCard tier="account" className="border-rose-200 bg-rose-50/60 p-5">
+            <p className="text-sm font-semibold text-rose-900">Request rejected by management.</p>
+            {vacating.notes?.trim() ? (
+              <p className="mt-2 text-sm text-rose-800">
+                Reason: <span className="font-medium">{vacating.notes.trim()}</span>
+              </p>
+            ) : null}
+            <p className="mt-2 text-xs text-rose-700">
+              Your previous move-out date is no longer active. Submit a new request when you are
+              ready.
+            </p>
+          </ApgCard>
+          <Link href={`/account/resident/request-vacating/${bookingId}`} className={PRIMARY_BTN}>
+            Submit new request
+          </Link>
+        </>
       ) : (
         <>
           <ApgCard tier="account" className="p-5">
@@ -185,7 +206,7 @@ export function VacatingHome({
             </ApgCard>
           ) : null}
 
-          {vacating.status === 'pending' ? (
+          {isActiveVacating && vacating.status === 'pending' ? (
             <CancelVacatingForm requestId={vacating.id} bookingId={bookingId} />
           ) : null}
         </>

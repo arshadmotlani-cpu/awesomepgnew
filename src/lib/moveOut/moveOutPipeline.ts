@@ -44,6 +44,7 @@ export type MoveOutPipelineItem = {
   createdAt: Date;
   updatedAt: Date;
   deductionPaise: number;
+  electricityDeductionPaise: number;
   depositHeldPaise: number;
   estimatedRefundPaise: number;
   daysRemaining: number;
@@ -74,6 +75,7 @@ export function toClientMoveOutPipelineItem(item: MoveOutPipelineItem): MoveOutP
   return {
     ...item,
     deductionPaise: guardDepositPaise(item.deductionPaise),
+    electricityDeductionPaise: guardDepositPaise(item.electricityDeductionPaise),
     depositHeldPaise: guardDepositPaise(item.depositHeldPaise),
     estimatedRefundPaise: guardDepositPaise(item.estimatedRefundPaise),
     createdAt: toIsoTimestampSafe(item.createdAt) ?? '',
@@ -82,14 +84,6 @@ export function toClientMoveOutPipelineItem(item: MoveOutPipelineItem): MoveOutP
     stageTimestamps,
   };
 }
-
-export type MoveOutCommandStats = {
-  awaitingInspection: number;
-  awaitingCharges: number;
-  awaitingRefund: number;
-  readyToClose: number;
-  completedThisMonth: number;
-};
 
 type VacatingInput = {
   id: string;
@@ -339,6 +333,10 @@ export function buildMoveOutPipeline(input: {
     const deductionPaise = guardDepositPaise(
       settlement?.noticeDeductionPaise ?? v.deductionPaise,
     );
+    const electricityDeductionPaise =
+      settlement?.electricityDeductFromDeposit === false
+        ? 0
+        : guardDepositPaise(settlement?.electricitySharePaise ?? 0);
     const estimatedRefundPaise = computeEstimatedRefundPaise(v, settlement);
     const daysRemaining = moveOutDaysRemaining(v.vacatingDate);
 
@@ -363,6 +361,7 @@ export function buildMoveOutPipeline(input: {
       createdAt: v.createdAt,
       updatedAt: v.updatedAt,
       deductionPaise,
+      electricityDeductionPaise,
       depositHeldPaise,
       estimatedRefundPaise,
       daysRemaining,
@@ -391,40 +390,6 @@ function sortPipeline(a: MoveOutPipelineItem, b: MoveOutPipelineItem): number {
 
   if (a.sortPriority !== b.sortPriority) return a.sortPriority - b.sortPriority;
   return a.createdAt.getTime() - b.createdAt.getTime();
-}
-
-export function buildMoveOutCommandStats(items: MoveOutPipelineItem[]): MoveOutCommandStats {
-  const monthStart = formatDate(new Date()).slice(0, 7);
-
-  let awaitingInspection = 0;
-  let awaitingCharges = 0;
-  let awaitingRefund = 0;
-  let readyToClose = 0;
-  let completedThisMonth = 0;
-
-  for (const item of items) {
-    if (item.stage === 'room_inspection') awaitingInspection += 1;
-    if (item.stage === 'charges_calculated') awaitingCharges += 1;
-    if (item.stage === 'deposit_approved') awaitingRefund += 1;
-    if (item.stage === 'requested') readyToClose += 1;
-
-    if (item.stage === 'bed_released' && item.resolvedAt) {
-      try {
-        const resolvedMonth = formatDate(item.resolvedAt).slice(0, 7);
-        if (resolvedMonth === monthStart) completedThisMonth += 1;
-      } catch {
-        /* ignore invalid resolvedAt */
-      }
-    }
-  }
-
-  return {
-    awaitingInspection,
-    awaitingCharges,
-    awaitingRefund,
-    readyToClose,
-    completedThisMonth,
-  };
 }
 
 export function activePipelineItems(items: MoveOutPipelineItem[]): MoveOutPipelineItem[] {

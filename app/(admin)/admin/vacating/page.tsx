@@ -3,8 +3,7 @@ import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import { EmptyState } from '@/src/components/admin/EmptyState';
 import { IconDoor } from '@/src/components/admin/icons';
 import { MoveOutAdvancedTools } from '@/src/components/admin/moveOut/MoveOutAdvancedTools';
-import { MoveOutCommandCenter } from '@/src/components/admin/moveOut/MoveOutCommandCenter';
-import { MoveOutPipelineQueue } from '@/src/components/admin/moveOut/MoveOutPipelineQueue';
+import { MoveOutWorkflowPanel } from '@/src/components/admin/moveOut/MoveOutWorkflowPanel';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
@@ -120,22 +119,11 @@ export default async function AdminVacatingPage(props: PageProps<'/admin/vacatin
         />
       ) : (
         <>
-          <MoveOutCommandCenter stats={commandStats} />
-          <MoveOutPipelineQueue items={activeItems} />
-
-          {completedRecently.length > 0 ? (
-            <section className="mb-8">
-              <header className="mb-4 flex flex-wrap items-end justify-between gap-2">
-                <div>
-                  <h2 className="text-lg font-bold text-white">Recently completed</h2>
-                  <p className="mt-1 text-sm text-apg-silver">
-                    Move-outs finished — bed released and checkout closed.
-                  </p>
-                </div>
-              </header>
-              <MoveOutPipelineQueue items={completedRecently} compact />
-            </section>
-          ) : null}
+          <MoveOutWorkflowPanel
+            activeItems={activeItems}
+            completedRecently={completedRecently}
+            commandStats={commandStats}
+          />
 
           <MoveOutAdvancedTools
             rows={advancedToolRows}

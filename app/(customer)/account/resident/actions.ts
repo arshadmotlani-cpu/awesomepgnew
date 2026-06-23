@@ -52,7 +52,7 @@ export async function submitVacatingAction(
       return {
         status: 'error',
         message:
-          'A vacating request is already on file for this booking. Open your resident area to withdraw it if you submitted by mistake.',
+          'A move-out request is already waiting for admin review. Open the Move-out tab to check status or withdraw it.',
       };
     }
     if (result.kind === 'invalid_input') {

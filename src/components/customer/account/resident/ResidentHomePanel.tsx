@@ -67,7 +67,7 @@ export function ResidentHomePanel({
   const status = deriveResidentHomeStatus({
     kycStatus,
     documentsSubmitted,
-    hasMoveOutInProgress: hasOpenVacating || Boolean(vacatingStatus),
+    hasMoveOutInProgress: hasOpenVacating,
     vacatingStatus,
     checkoutStatus,
     totalDuePaise: financialSummary.totals.outstandingPaise,
@@ -87,7 +87,7 @@ export function ResidentHomePanel({
     firstUnpaidRentId,
     firstUnpaidElectricityId,
     firstPayment,
-    hasMoveOutInProgress: hasOpenVacating || Boolean(vacatingStatus),
+    hasMoveOutInProgress: hasOpenVacating,
     openRequestCount: bookingRequests.length,
   });
 

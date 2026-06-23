@@ -24,6 +24,7 @@ import { recordPaymentSuccess } from '../src/services/bookingLifecycle';
 import {
   approveVacatingRequest,
   completeVacatingRequest,
+  rejectVacatingRequest,
   submitVacatingRequest,
 } from '../src/services/vacating';
 import { getDepositSummaryForBooking } from '../src/services/deposits';
@@ -180,6 +181,35 @@ async function main() {
   if (replayComplete.ok) fail('expected wrong_status on re-complete', replayComplete);
   if (replayComplete.kind !== 'wrong_status') fail(`expected wrong_status, got ${replayComplete.kind}`);
   ok('re-completing a completed request is rejected');
+
+  // ──────────────────────────────────────────────────────────────────
+  // Scenario D — admin reject → resident can resubmit (0064 partial unique)
+  // ──────────────────────────────────────────────────────────────────
+  console.log('\n[D] REJECT then RESUBMIT');
+  const d = await freshMonthlyBooking('Phase5.5 VacBotReject', '+919999000803');
+  const first = await submitVacatingRequest({
+    bookingId: d.bookingId,
+    noticeGivenDate: fmt(today),
+    vacatingDate: fmt(new Date(today.getTime() + 10 * 86400_000)),
+  });
+  if (!first.ok) fail('first submit failed', first);
+
+  const rejected = await rejectVacatingRequest({
+    requestId: first.request.id,
+    reason: 'Need longer notice period',
+  });
+  if (!rejected.ok) fail('reject failed', rejected);
+
+  const resubmit = await submitVacatingRequest({
+    bookingId: d.bookingId,
+    noticeGivenDate: fmt(today),
+    vacatingDate: fmt(new Date(today.getTime() + 30 * 86400_000)),
+  });
+  if (!resubmit.ok) fail('resubmit after reject failed', resubmit);
+  if (resubmit.request.id === first.request.id) {
+    fail('expected a new vacating row after resubmit');
+  }
+  ok('resubmit after admin reject succeeds');
 
   console.log('\nAll vacating-deduction assertions passed.');
 }

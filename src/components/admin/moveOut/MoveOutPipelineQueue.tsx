@@ -1,13 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { ApproveVacatingButton } from '@/src/components/admin/VacatingActions';
+import { useMemo, useState } from 'react';
 import {
+  ApproveVacatingButton,
   CancelVacatingNoticeButton,
   RejectVacatingButton,
   UndoVacatingApprovalButton,
 } from '@/src/components/admin/VacatingActions';
-import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
 import { formatDate, formatDateTime, paiseToInr } from '@/src/lib/format';
 import { tryDiffDays, normalizeIsoDateOnly } from '@/src/lib/dates';
 import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
@@ -17,31 +17,62 @@ import {
   MOVE_OUT_STAGES,
   type MoveOutPipelineItemClient,
 } from '@/src/lib/moveOut/moveOutPipeline';
+import {
+  moveOutHeroSubtitle,
+  moveOutHeroTitle,
+  moveOutIsZeroRefundCheckout,
+  moveOutMatchesFilter,
+  moveOutOverdueDays,
+  moveOutPrimaryActionLabel,
+  partitionMoveOutItems,
+  type MoveOutFilterBucket,
+} from '@/src/lib/moveOut/moveOutPipelineUi';
 
 const PRIMARY =
   'inline-flex min-h-[36px] items-center justify-center rounded-lg bg-[#FF5A1F] px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110';
 
-const URGENCY_ROW_CLASS: Record<MoveOutUrgency, string> = {
-  high: 'bg-rose-500/[0.07] ring-1 ring-inset ring-rose-400/25',
-  medium: 'bg-amber-500/[0.06] ring-1 ring-inset ring-amber-400/20',
-  normal: '',
-};
+const LINK =
+  'text-xs font-medium text-apg-silver underline-offset-2 hover:text-white hover:underline';
 
-const URGENCY_BADGE_CLASS: Record<MoveOutUrgency, string> = {
-  high: 'bg-rose-500/20 text-rose-100 ring-rose-400/40',
-  medium: 'bg-amber-500/15 text-amber-100 ring-amber-400/30',
-  normal: 'bg-white/5 text-apg-silver ring-white/10',
+const URGENCY_RING: Record<MoveOutUrgency, string> = {
+  high: 'ring-rose-400/30',
+  medium: 'ring-amber-400/25',
+  normal: 'ring-white/10',
 };
 
 export function MoveOutPipelineQueue({
   items,
-  compact,
+  filter = 'all',
+  completedSection,
 }: {
   items: MoveOutPipelineItemClient[];
-  compact?: boolean;
+  filter?: MoveOutFilterBucket;
+  /** When true, render as a completed-only section (no overdue split). */
+  completedSection?: boolean;
 }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const filtered = useMemo(
+    () => items.filter((item) => moveOutMatchesFilter(item, filter)),
+    [items, filter],
+  );
+
+  const { overdue, active } = useMemo(() => {
+    if (completedSection || filter === 'completed') {
+      return { overdue: [] as MoveOutPipelineItemClient[], active: filtered };
+    }
+    if (filter === 'overdue') {
+      return { overdue: filtered, active: [] as MoveOutPipelineItemClient[] };
+    }
+    const partitioned = partitionMoveOutItems(filtered);
+    if (filter !== 'all') {
+      return { overdue: partitioned.overdue, active: partitioned.active };
+    }
+    return partitioned;
+  }, [filtered, filter, completedSection]);
+
   if (items.length === 0) {
-    if (compact) return null;
+    if (completedSection) return null;
     return (
       <section className="mb-8 rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-8 text-center">
         <h2 className="text-lg font-semibold text-emerald-100">No active move-outs</h2>
@@ -53,111 +84,335 @@ export function MoveOutPipelineQueue({
     );
   }
 
+  if (filtered.length === 0) {
+    return (
+      <section className="mb-8 rounded-xl border border-white/10 bg-[#1A1F27] p-8 text-center">
+        <p className="text-sm text-apg-silver">No move-outs match this filter.</p>
+      </section>
+    );
+  }
+
   return (
-    <section className="mb-8">
-      {!compact ? (
-        <header className="mb-4">
-          <h2 className="text-lg font-bold text-white">Move-out pipeline</h2>
-          <p className="mt-1 text-sm text-apg-silver">
-            Sorted by earliest move-out date — review deposit and notice before approving.
-          </p>
-        </header>
+    <section className="mb-8 space-y-6">
+      {!completedSection && overdue.length > 0 ? (
+        <div>
+          <SectionHeader title="Overdue" count={overdue.length} tone="overdue" />
+          <div className="space-y-2">
+            {overdue.map((row) => (
+              <MoveOutCard
+                key={row.id}
+                row={row}
+                expanded={expandedId === row.id}
+                onToggle={() => setExpandedId((id) => (id === row.id ? null : row.id))}
+                showOverdueMeta
+              />
+            ))}
+          </div>
+        </div>
       ) : null}
 
-      <div className="overflow-hidden rounded-xl border border-white/10">
-        <Table>
-          <THead>
-            <TR>
-              <TH>Resident</TH>
-              <TH>Room / bed</TH>
-              <TH>Move-out date</TH>
-              <TH>Days remaining</TH>
-              <TH className="text-right">Deposit held</TH>
-              <TH className="text-right">{compact ? 'Final refund' : 'Expected refund'}</TH>
-              <TH>Current stage</TH>
-              <TH>Next action</TH>
-              <TH className="text-right">Action</TH>
-            </TR>
-          </THead>
-          <TBody>
-            {items.map((row) => (
-              <PipelineRow key={row.id} row={row} compact={compact} />
+      {active.length > 0 ? (
+        <div>
+          {!completedSection ? (
+            <SectionHeader
+              title={completedSection ? 'Recently completed' : 'Move-outs'}
+              count={active.length}
+            />
+          ) : null}
+          <div className="space-y-2">
+            {active.map((row) => (
+              <MoveOutCard
+                key={row.id}
+                row={row}
+                expanded={expandedId === row.id}
+                onToggle={() => setExpandedId((id) => (id === row.id ? null : row.id))}
+              />
             ))}
-          </TBody>
-        </Table>
-      </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
 
-function PipelineRow({ row, compact }: { row: MoveOutPipelineItemClient; compact?: boolean }) {
+function SectionHeader({
+  title,
+  count,
+  tone,
+}: {
+  title: string;
+  count: number;
+  tone?: 'overdue';
+}) {
+  return (
+    <header className="mb-3 flex items-baseline gap-2">
+      <h3
+        className={
+          'text-sm font-bold uppercase tracking-wide ' +
+          (tone === 'overdue' ? 'text-rose-200' : 'text-white')
+        }
+      >
+        {title}
+      </h3>
+      <span className="text-sm font-semibold text-apg-silver">({count})</span>
+    </header>
+  );
+}
+
+function MoveOutCard({
+  row,
+  expanded,
+  onToggle,
+  showOverdueMeta,
+}: {
+  row: MoveOutPipelineItemClient;
+  expanded: boolean;
+  onToggle: () => void;
+  showOverdueMeta?: boolean;
+}) {
+  const actionLabel = moveOutPrimaryActionLabel(row);
   const isComplete = row.stage === 'bed_released';
-  const urgencyClass = isComplete ? '' : URGENCY_ROW_CLASS[row.urgency];
-  const daysLabel =
-    row.daysRemaining < 0
-      ? 'Overdue'
-      : row.daysRemaining === 0
-        ? 'Today'
-        : `${row.daysRemaining} day${row.daysRemaining === 1 ? '' : 's'}`;
+  const overdueDays = moveOutOverdueDays(row);
 
   return (
-    <>
-      <TR className={urgencyClass}>
-        <TD>
-          <Link
-            href={`/admin/residents/${row.customerId}`}
-            className="font-medium text-white hover:text-[#FF5A1F]"
-          >
-            {row.customerFullName}
-          </Link>
-          <p className="font-mono text-[11px] text-apg-silver">{row.customerPhone}</p>
-          {!compact ? (
-            <p className="text-[10px] text-apg-silver/80">{row.bookingCode}</p>
-          ) : null}
-        </TD>
-        <TD className="text-xs text-apg-silver">
-          {row.roomNumber} · {row.bedCode}
-          <p className="text-[10px] text-apg-silver/80">{row.pgName}</p>
-          <p className="mt-1 text-[10px] text-apg-silver/70">Bed: {row.bedStatus}</p>
-        </TD>
-        <TD className="text-xs text-white">{formatDate(row.vacatingDate)}</TD>
-        <TD>
-          {isComplete ? (
-            <span className="text-xs text-apg-silver">—</span>
+    <article
+      className={
+        'overflow-hidden rounded-xl border bg-[#1A1F27] ring-1 ring-inset ' +
+        URGENCY_RING[row.urgency]
+      }
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full px-4 py-3 text-left hover:bg-white/[0.02]"
+        aria-expanded={expanded}
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-white">
+              {row.customerFullName}
+              <span className="mx-1.5 text-apg-silver/60">•</span>
+              <span className="font-normal text-apg-silver">
+                {row.roomNumber}-{row.bedCode}
+              </span>
+              <span className="mx-1.5 text-apg-silver/60">•</span>
+              <span
+                className={
+                  row.estimatedRefundPaise === 0 ? 'text-apg-silver' : 'text-emerald-200/90'
+                }
+              >
+                Refund {paiseToInr(row.estimatedRefundPaise)}
+              </span>
+            </p>
+            {showOverdueMeta ? (
+              <p className="mt-1 text-xs text-rose-200/90">
+                {formatDate(row.vacatingDate)}
+                {overdueDays > 0 ? ` · ${overdueDays} day${overdueDays === 1 ? '' : 's'} overdue` : ''}
+              </p>
+            ) : null}
+            {!isComplete ? (
+              <p className="mt-1.5 text-xs text-apg-silver">
+                <span className="font-semibold uppercase tracking-wide text-apg-silver/80">
+                  Next:
+                </span>{' '}
+                {moveOutHeroTitle(row)}
+              </p>
+            ) : null}
+          </div>
+          <div className="flex shrink-0 items-center gap-2" onClick={(e) => e.stopPropagation()}>
+            {!expanded ? <MoveOutPrimaryButton row={row} label={actionLabel} /> : null}
+            <span className="text-apg-silver/60">{expanded ? '▴' : '▾'}</span>
+          </div>
+        </div>
+        <FinancialSummary row={row} className="mt-3" />
+      </button>
+
+      {expanded ? (
+        <div className="border-t border-white/10 px-4 pb-4 pt-3">
+          {!isComplete ? (
+            <NextActionHero row={row} actionLabel={actionLabel} />
           ) : (
-            <span
-              className={
-                'inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1 ' +
-                URGENCY_BADGE_CLASS[row.urgency]
-              }
-            >
-              {daysLabel}
-            </span>
+            <div className="mb-4 rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-200/80">
+                Move-out complete
+              </p>
+              <p className="mt-1 text-sm text-emerald-100">Bed released and checkout closed.</p>
+            </div>
           )}
-        </TD>
-        <TD className="text-right tabular-nums text-xs text-white">
-          {paiseToInr(row.depositHeldPaise)}
-        </TD>
-        <TD className="text-right tabular-nums text-xs text-emerald-200/90">
-          {paiseToInr(row.estimatedRefundPaise)}
-        </TD>
-        <TD>
-          <StageBadge stageIndex={row.stageIndex} label={row.stageLabel} />
-          <PipelineProgress stageIndex={row.stageIndex} />
-        </TD>
-        <TD className="max-w-[200px] text-xs text-apg-silver">{row.nextAction}</TD>
-        <TD className="text-right">
-          <MoveOutPipelineRowActions row={row} />
-        </TD>
-      </TR>
-      {!compact ? (
-        <TR className={urgencyClass}>
-          <TD colSpan={9} className="border-t border-white/5 bg-black/20 px-4 py-3">
+
+          <div className="mb-4">
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-apg-silver">
+              Progress
+            </p>
+            <StageProgress stageIndex={row.stageIndex} />
             <StageTimeline row={row} />
-          </TD>
-        </TR>
+          </div>
+
+          <DirectLinks row={row} />
+          <DangerActions row={row} />
+        </div>
       ) : null}
-    </>
+    </article>
+  );
+}
+
+function FinancialSummary({
+  row,
+  className = '',
+}: {
+  row: MoveOutPipelineItemClient;
+  className?: string;
+}) {
+  return (
+    <dl
+      className={
+        'flex flex-wrap gap-x-4 gap-y-1 text-xs tabular-nums ' + className
+      }
+    >
+      <div>
+        <dt className="inline text-apg-silver">Deposit </dt>
+        <dd className="inline text-white">{paiseToInr(row.depositHeldPaise)}</dd>
+      </div>
+      {row.deductionPaise > 0 ? (
+        <div>
+          <dt className="inline text-apg-silver">Notice </dt>
+          <dd className="inline text-rose-200/90">-{paiseToInr(row.deductionPaise)}</dd>
+        </div>
+      ) : null}
+      {row.electricityDeductionPaise > 0 ? (
+        <div>
+          <dt className="inline text-apg-silver">Electricity </dt>
+          <dd className="inline text-rose-200/90">-{paiseToInr(row.electricityDeductionPaise)}</dd>
+        </div>
+      ) : null}
+      <div>
+        <dt className="inline text-apg-silver">Refund </dt>
+        <dd
+          className={
+            'inline ' + (row.estimatedRefundPaise === 0 ? 'text-apg-silver' : 'text-emerald-200/90')
+          }
+        >
+          {paiseToInr(row.estimatedRefundPaise)}
+        </dd>
+      </div>
+    </dl>
+  );
+}
+
+function NextActionHero({ row, actionLabel }: { row: MoveOutPipelineItemClient; actionLabel: string }) {
+  const zeroRefund = moveOutIsZeroRefundCheckout(row);
+
+  return (
+    <div
+      className={
+        'mb-4 rounded-xl border px-4 py-4 ' +
+        (zeroRefund
+          ? 'border-[#FF5A1F]/40 bg-[#FF5A1F]/10'
+          : 'border-white/15 bg-black/25')
+      }
+    >
+      <p className="text-[10px] font-bold uppercase tracking-widest text-apg-silver">Next action</p>
+      <p className="mt-1 text-lg font-bold uppercase tracking-tight text-white">
+        {moveOutHeroTitle(row)}
+      </p>
+      <p className="mt-1 text-sm text-apg-silver">{moveOutHeroSubtitle(row)}</p>
+      <div className="mt-4">
+        <MoveOutPrimaryButton row={row} label={actionLabel} prominent />
+      </div>
+    </div>
+  );
+}
+
+function MoveOutPrimaryButton({
+  row,
+  label,
+  prominent,
+}: {
+  row: MoveOutPipelineItemClient;
+  label: string;
+  prominent?: boolean;
+}) {
+  const className = prominent ? PRIMARY + ' px-5 py-2.5 text-sm' : PRIMARY;
+
+  if (row.continueKind === 'approve') {
+    return (
+      <ApproveVacatingButton
+        requestId={row.vacatingRequestId}
+        className={className}
+        label={label}
+        preview={pipelineApprovalPreview(row)}
+      />
+    );
+  }
+
+  if (row.continueHref) {
+    return (
+      <Link href={row.continueHref} className={className}>
+        {label}
+      </Link>
+    );
+  }
+
+  return null;
+}
+
+function DirectLinks({ row }: { row: MoveOutPipelineItemClient }) {
+  return (
+    <nav className="mb-3 flex flex-wrap gap-x-4 gap-y-1 border-b border-white/10 pb-3">
+      {row.settlementId ? (
+        <Link href={`/admin/checkout-settlements/${row.settlementId}`} className={LINK}>
+          View settlement
+        </Link>
+      ) : null}
+      <Link href={`/admin/residents/${row.customerId}`} className={LINK}>
+        Resident
+      </Link>
+      <Link href={`/admin/deposits/${row.bookingId}`} className={LINK}>
+        Deposit
+      </Link>
+    </nav>
+  );
+}
+
+function DangerActions({ row }: { row: MoveOutPipelineItemClient }) {
+  const showPending = row.vacatingStatus === 'pending';
+  const showApproved = row.vacatingStatus === 'approved';
+
+  if (!showPending && !showApproved) return null;
+
+  return (
+    <details className="group">
+      <summary className="cursor-pointer list-none text-xs font-medium text-rose-300/80 hover:text-rose-200 marker:content-none [&::-webkit-details-marker]:hidden">
+        Danger actions ▾
+      </summary>
+      <div className="mt-2 flex flex-wrap gap-2 rounded-lg border border-rose-400/20 bg-rose-500/5 p-3">
+        {showPending ? (
+          <>
+            <RejectVacatingButton requestId={row.vacatingRequestId} />
+            <CancelVacatingNoticeButton requestId={row.vacatingRequestId} />
+          </>
+        ) : null}
+        {showApproved ? (
+          <>
+            <UndoVacatingApprovalButton requestId={row.vacatingRequestId} />
+            <CancelVacatingNoticeButton requestId={row.vacatingRequestId} />
+          </>
+        ) : null}
+      </div>
+    </details>
+  );
+}
+
+function StageProgress({ stageIndex }: { stageIndex: number }) {
+  return (
+    <div className="mb-3 flex gap-0.5">
+      {MOVE_OUT_STAGES.map((_, i) => (
+        <span
+          key={i}
+          className={'h-1.5 flex-1 rounded-full ' + (i <= stageIndex ? 'bg-[#FF5A1F]' : 'bg-white/10')}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -187,38 +442,6 @@ function StageTimeline({ row }: { row: MoveOutPipelineItemClient }) {
   );
 }
 
-function StageBadge({ stageIndex, label }: { stageIndex: number; label: string }) {
-  const tone =
-    stageIndex <= 1
-      ? 'bg-sky-500/20 text-sky-100 ring-sky-400/30'
-      : stageIndex <= 3
-        ? 'bg-amber-500/15 text-amber-100 ring-amber-400/30'
-        : stageIndex <= 5
-          ? 'bg-[#FF5A1F]/20 text-orange-100 ring-[#FF5A1F]/40'
-          : 'bg-emerald-500/15 text-emerald-100 ring-emerald-400/30';
-
-  return (
-    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${tone}`}>
-      {label}
-    </span>
-  );
-}
-
-function PipelineProgress({ stageIndex }: { stageIndex: number }) {
-  return (
-    <div className="mt-2 flex gap-0.5">
-      {MOVE_OUT_STAGES.map((_, i) => (
-        <span
-          key={i}
-          className={
-            'h-1 flex-1 rounded-full ' + (i <= stageIndex ? 'bg-[#FF5A1F]' : 'bg-white/10')
-          }
-        />
-      ))}
-    </div>
-  );
-}
-
 function pipelineApprovalPreview(row: MoveOutPipelineItemClient): VacatingApprovalPreview {
   const noticeGivenDate = normalizeIsoDateOnly(row.noticeGivenDate);
   const moveOutDate = normalizeIsoDateOnly(row.vacatingDate);
@@ -237,76 +460,4 @@ function pipelineApprovalPreview(row: MoveOutPipelineItemClient): VacatingApprov
     estimatedRefundPaise: row.estimatedRefundPaise,
     bedStatus: row.bedStatus,
   };
-}
-
-function MoveOutPipelineRowActions({ row }: { row: MoveOutPipelineItemClient }) {
-  return (
-    <div className="flex flex-wrap items-center justify-end gap-2">
-      {row.continueKind === 'approve' ? (
-        <ApproveVacatingButton
-          requestId={row.vacatingRequestId}
-          className={PRIMARY}
-          label="Continue"
-          preview={pipelineApprovalPreview(row)}
-        />
-      ) : row.continueHref ? (
-        <Link
-          href={row.continueHref}
-          className={
-            row.continueKind === 'view'
-              ? 'inline-flex min-h-[36px] items-center justify-center rounded-lg border border-white/15 px-3 py-1.5 text-xs font-medium text-apg-silver hover:bg-white/5 hover:text-white'
-              : PRIMARY
-          }
-        >
-          {row.continueKind === 'view' ? 'View settlement' : 'Continue'}
-        </Link>
-      ) : null}
-
-      <details className="relative inline-block text-left">
-        <summary className="cursor-pointer list-none rounded-lg border border-white/15 px-3 py-1.5 text-xs font-medium text-apg-silver hover:bg-white/5 hover:text-white marker:content-none [&::-webkit-details-marker]:hidden">
-          More ▾
-        </summary>
-        <div className="absolute right-0 z-20 mt-1 min-w-[180px] rounded-lg border border-white/10 bg-[#1A1F27] py-1 shadow-xl">
-          {row.settlementId ? (
-            <Link
-              href={`/admin/checkout-settlements/${row.settlementId}`}
-              className="block px-3 py-2 text-xs text-apg-silver hover:bg-white/5 hover:text-white"
-            >
-              Open checkout settlement
-            </Link>
-          ) : null}
-          <Link
-            href={`/admin/residents/${row.customerId}`}
-            className="block px-3 py-2 text-xs text-apg-silver hover:bg-white/5 hover:text-white"
-          >
-            Resident profile
-          </Link>
-          <Link
-            href={`/admin/bookings/${row.bookingId}`}
-            className="block px-3 py-2 text-xs text-apg-silver hover:bg-white/5 hover:text-white"
-          >
-            Booking details
-          </Link>
-          <Link
-            href={`/admin/deposits/${row.bookingId}`}
-            className="block px-3 py-2 text-xs text-apg-silver hover:bg-white/5 hover:text-white"
-          >
-            Security deposit
-          </Link>
-          {row.vacatingStatus === 'pending' ? (
-            <div className="border-t border-white/10 px-2 py-2">
-              <RejectVacatingButton requestId={row.vacatingRequestId} />
-              <CancelVacatingNoticeButton requestId={row.vacatingRequestId} />
-            </div>
-          ) : null}
-          {row.vacatingStatus === 'approved' ? (
-            <div className="border-t border-white/10 px-2 py-2">
-              <UndoVacatingApprovalButton requestId={row.vacatingRequestId} />
-              <CancelVacatingNoticeButton requestId={row.vacatingRequestId} />
-            </div>
-          ) : null}
-        </div>
-      </details>
-    </div>
-  );
 }

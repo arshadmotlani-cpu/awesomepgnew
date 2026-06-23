@@ -157,9 +157,12 @@ export function vacatingNextStep(args: {
   }
 
   if (vacating.status === 'rejected') {
+    const reason = vacating.notes?.trim();
     return {
-      headline: 'Notice was not approved',
-      detail: 'Contact support if you need to change your move-out date or resubmit.',
+      headline: 'Request rejected by management.',
+      detail: reason
+        ? `Reason: ${reason}. Submit a new request with an updated vacate date.`
+        : 'Submit a new move-out request with an updated vacate date.',
     };
   }
 

@@ -1,52 +1,122 @@
-import type { MoveOutCommandStats } from '@/src/lib/moveOut/moveOutPipeline';
+'use client';
 
-export function MoveOutCommandCenter({ stats }: { stats: MoveOutCommandStats }) {
+import type { MoveOutCommandStats, MoveOutFilterBucket } from '@/src/lib/moveOut/moveOutPipelineUi';
+import { MOVE_OUT_FILTER_BUCKETS } from '@/src/lib/moveOut/moveOutPipelineUi';
+
+export function MoveOutCommandCenter({
+  stats,
+  activeFilter,
+  onFilterChange,
+}: {
+  stats: MoveOutCommandStats;
+  activeFilter: MoveOutFilterBucket;
+  onFilterChange: (filter: MoveOutFilterBucket) => void;
+}) {
+  const countFor = (id: MoveOutFilterBucket): number => {
+    switch (id) {
+      case 'needs_action':
+        return stats.needsAction;
+      case 'waiting_resident':
+        return stats.waitingResident;
+      case 'overdue':
+        return stats.overdue;
+      case 'refunds_to_send':
+        return stats.refundsToSend;
+      case 'completed':
+        return stats.completed;
+      default:
+        return 0;
+    }
+  };
+
   return (
     <section className="mb-8">
       <header className="mb-4">
         <h2 className="text-xl font-bold text-white">Move-out command center</h2>
         <p className="mt-1 text-sm text-apg-silver">
-          Where each move-out is stuck — start with approvals and refunds that need you.
+          Operator task buckets — filter the queue by what needs you today.
         </p>
       </header>
-      <dl className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <MetricCard label="Awaiting inspection" count={stats.awaitingInspection} accent="inspection" />
-        <MetricCard label="Awaiting charges" count={stats.awaitingCharges} accent="charges" />
-        <MetricCard label="Awaiting refund" count={stats.awaitingRefund} accent="refund" />
-        <MetricCard label="Ready to close" count={stats.readyToClose} accent="ready" />
-        <MetricCard label="Completed this month" count={stats.completedThisMonth} accent="done" />
-      </dl>
+      <div className="flex flex-wrap gap-2">
+        <FilterTab
+          label="All active"
+          count={stats.needsAction + stats.waitingResident + stats.overdue + stats.refundsToSend}
+          active={activeFilter === 'all'}
+          onClick={() => onFilterChange('all')}
+        />
+        {MOVE_OUT_FILTER_BUCKETS.map((bucket) => (
+          <FilterTab
+            key={bucket.id}
+            label={bucket.label}
+            count={countFor(bucket.id)}
+            active={activeFilter === bucket.id}
+            onClick={() => onFilterChange(bucket.id)}
+            accent={bucketAccent(bucket.id)}
+          />
+        ))}
+      </div>
     </section>
   );
 }
 
-function MetricCard({
+function bucketAccent(
+  id: MoveOutFilterBucket,
+): 'action' | 'wait' | 'overdue' | 'refund' | 'done' | undefined {
+  switch (id) {
+    case 'needs_action':
+      return 'action';
+    case 'waiting_resident':
+      return 'wait';
+    case 'overdue':
+      return 'overdue';
+    case 'refunds_to_send':
+      return 'refund';
+    case 'completed':
+      return 'done';
+    default:
+      return undefined;
+  }
+}
+
+function FilterTab({
   label,
   count,
+  active,
+  onClick,
   accent,
 }: {
   label: string;
   count: number;
-  accent?: 'inspection' | 'charges' | 'refund' | 'ready' | 'done';
+  active: boolean;
+  onClick: () => void;
+  accent?: 'action' | 'wait' | 'overdue' | 'refund' | 'done';
 }) {
-  const countClass =
-    accent === 'refund'
+  const countTone =
+    accent === 'overdue'
       ? 'text-rose-300'
-      : accent === 'ready'
-        ? 'text-[#FF5A1F]'
+      : accent === 'refund'
+        ? 'text-amber-200'
         : accent === 'done'
           ? 'text-emerald-300'
-          : accent === 'charges'
-            ? 'text-amber-200'
+          : accent === 'action'
+            ? 'text-[#FF5A1F]'
             : 'text-white';
 
   return (
-    <div className="rounded-xl border border-white/10 bg-[#1A1F27] p-4">
-      <dt className="text-[10px] font-semibold uppercase tracking-wide text-apg-silver">{label}</dt>
-      <dd className={`mt-2 text-2xl font-bold tabular-nums ${countClass}`}>{count}</dd>
-      <dd className="mt-1 text-xs text-apg-silver">
-        resident{count === 1 ? '' : 's'}
-      </dd>
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        'rounded-xl border px-4 py-3 text-left transition ' +
+        (active
+          ? 'border-[#FF5A1F]/50 bg-[#FF5A1F]/10 ring-1 ring-[#FF5A1F]/30'
+          : 'border-white/10 bg-[#1A1F27] hover:border-white/20 hover:bg-white/[0.03]')
+      }
+    >
+      <span className="block text-[10px] font-semibold uppercase tracking-wide text-apg-silver">
+        {label}
+      </span>
+      <span className={`mt-1 block text-2xl font-bold tabular-nums ${countTone}`}>{count}</span>
+    </button>
   );
 }

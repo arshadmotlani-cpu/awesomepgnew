@@ -1369,6 +1369,10 @@ export function getVacatingForBooking(
       .select()
       .from(vacatingRequests)
       .where(eq(vacatingRequests.bookingId, bookingId))
+      .orderBy(
+        sql`CASE WHEN ${vacatingRequests.status} IN ('pending', 'approved') THEN 0 ELSE 1 END`,
+        desc(vacatingRequests.createdAt),
+      )
       .limit(1);
     return row ?? null;
   });

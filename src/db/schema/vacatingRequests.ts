@@ -31,10 +31,8 @@ import { vacatingStatusEnum } from './enums';
  *   pending   → completed (admin can skip approval and complete in one go)
  *   *         → rejected/cancelled — late changes allowed pre-completion
  *
- * UNIQUE (booking_id) means only ONE outstanding request per booking;
- * once a request is `completed` or `rejected` the operator must
- * explicitly delete it before another can be filed (rare edge case —
- * mostly the booking is `completed` by that point).
+ * Partial UNIQUE (booking_id) WHERE status IN ('pending','approved') —
+ * only active notices block a resubmit; rejected/completed rows are history.
  */
 export const vacatingRequests = pgTable(
   'vacating_requests',
@@ -72,7 +70,9 @@ export const vacatingRequests = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    uniqueIndex('vacating_requests_one_open_per_booking').on(t.bookingId),
+    uniqueIndex('vacating_requests_one_active_per_booking')
+      .on(t.bookingId)
+      .where(sql`${t.status} IN ('pending', 'approved')`),
     index('vacating_requests_booking_idx').on(t.bookingId),
     index('vacating_requests_status_idx').on(t.status),
   ],

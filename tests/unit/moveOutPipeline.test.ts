@@ -113,5 +113,7 @@ test('buildMoveOutPipeline uses settlement electricity and locked final refund',
   });
   assert.ok(item);
   assert.equal(item.estimatedRefundPaise, 0);
+  assert.equal(item.electricityDeductionPaise, 90500);
+  assert.equal(item.deductionPaise, 59500);
   assert.equal(item.continueKind, 'view');
 });

@@ -63,6 +63,7 @@ import {
   syncVacatingCheckoutRentBilling,
 } from './vacatingCheckoutBilling';
 import { scheduleAdminNotificationSync } from '@/src/services/adminLiveSync';
+import { ACTIVE_VACATING_STATUSES } from '@/src/lib/vacating/activeRequestPolicy';
 
 async function vacatingEmailMeta(bookingId: string) {
   const [row] = await db
@@ -331,6 +332,20 @@ export async function submitVacatingRequest(
   const deduction =
     input.waiveDeduction || noticeCompliant ? 0 : vacatingPenalty(monthlyRent);
 
+  const [activeRequest] = await db
+    .select({ id: vacatingRequests.id })
+    .from(vacatingRequests)
+    .where(
+      and(
+        eq(vacatingRequests.bookingId, booking.id),
+        inArray(vacatingRequests.status, [...ACTIVE_VACATING_STATUSES]),
+      ),
+    )
+    .limit(1);
+  if (activeRequest) {
+    return { ok: false, kind: 'already_exists', existingRequestId: activeRequest.id };
+  }
+
   try {
     const [row] = await db
       .insert(vacatingRequests)
@@ -420,12 +435,17 @@ export async function submitVacatingRequest(
       deductionPaise: request.deductionPaise,
     };
   } catch (err) {
-    // Duplicate UNIQUE(booking_id) — already a vacating request open.
+    // Race: partial UNIQUE(booking_id) WHERE status IN ('pending','approved').
     if (pgErrorCode(err) === '23505') {
       const [existing] = await db
         .select({ id: vacatingRequests.id })
         .from(vacatingRequests)
-        .where(eq(vacatingRequests.bookingId, booking.id))
+        .where(
+          and(
+            eq(vacatingRequests.bookingId, booking.id),
+            inArray(vacatingRequests.status, [...ACTIVE_VACATING_STATUSES]),
+          ),
+        )
         .limit(1);
       if (existing) {
         return { ok: false, kind: 'already_exists', existingRequestId: existing.id };
