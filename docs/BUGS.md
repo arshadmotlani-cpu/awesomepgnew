@@ -13,6 +13,7 @@
 | OPS-UX-02 | Low | Legacy routes (`/admin/requests`, `/admin/collections`) still linked in old bookmarks | Use canonical routes in [[ROUTES]] |
 | RES-LIST-01 | Low | `listResidentsForAdmin` LIMIT 200 may omit older vacated residents in ops timeline | Open resident profile directly by ID |
 | VAC-SAME-01 | Low | Same-day vacating approve shortens `[start,today)` excluding today — completion must not shorten before move-out day | See `vacatingCheckout.test.ts`; use complete flow same day |
+| FIN-AUDIT-01 | Low | Historical invoices may have `amountPaise` ≠ line sum or unreconciled payments | Run `npx tsx scripts/audit-financials.ts` then `repair-financials.ts --dry-run` |
 
 ---
 

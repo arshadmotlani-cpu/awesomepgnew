@@ -27,6 +27,10 @@
     {
       "path": "/api/cron/automation",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/financial-reconciliation",
+      "schedule": "30 6 * * *"
     }
   ]
 }

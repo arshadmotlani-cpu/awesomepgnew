@@ -10,7 +10,16 @@ Cross-links: [[START_HERE]] · [[Billing]] · [[DECISIONS#Unified financial_invo
 
 **Single admin surface** to view, cancel, and share all invoice types via `financial_invoices` mirror. Professional **Tax Invoice** document at `/admin/invoices/[invoiceId]` and resident read-only mirror at `/account/resident/invoices/[invoiceId]`.
 
-**SSOT:** `unifiedInvoices.ts`, `invoiceDocumentModel.ts`, `financial_invoices` table
+**SSOT:** `unifiedInvoices.ts`, `invoiceDocumentModel.ts`, `financial_invoices` table, `financialIntegrityAudit.ts`
+
+## Integrity audit (2026-06-23)
+
+Unified invoices are validated by the financial audit engine:
+
+- `breakdown.lines` is SSOT for line amounts; `amountPaise` must match line sum
+- Empty lines on non-cancelled invoices flagged as `INVOICE_EMPTY`
+- Safe auto-repair syncs `amountPaise` from lines and reconciles succeeded payments
+- Deposit shortfall repairs create new `deposit` financial invoices with explicit audit trail (`invoice_audit_events` + `audit_log`)
 
 ---
 

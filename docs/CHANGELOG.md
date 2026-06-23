@@ -5,6 +5,17 @@
 
 ---
 
+## 2026-06-23 (financial audit)
+
+### Added
+- **Financial audit engine** — 8-check customer scan (`financialIntegrityAudit.ts`), CLI scripts `audit-financials.ts` / `repair-financials.ts`
+- **Daily reconciliation cron** — `/api/cron/financial-reconciliation` at 06:30 UTC; `audit_log` + action items for manual review
+- **Admin health** — smoke check for last reconciliation run + issue counts
+- **Resident outstanding** — "All paid up" when zero; live query via `getLiveOutstandingBalance()`
+- `AUDIT_REPORT.md`, unit tests for audit/repair/reconciliation
+
+---
+
 ## 2026-06-23 (continued)
 
 ### Fixed
@@ -155,17 +166,21 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-23 09:59:37 UTC
+### Pending pre-commit sync · 2026-06-23 12:20:26 UTC
 
-**Areas touched:** [[DATABASE]]
+**Areas touched:** [[ROUTES]], [[Billing]]
 
 **Docs flagged for review:**
+- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DATABASE.md` — review for accuracy
+- `PROJECT/features.md` — review for accuracy
+- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
+- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (1):**
-- `src/db/schema/bookings.ts`
+**Staged code files (2):**
+- `app/api/cron/financial-reconciliation/route.ts`
+- `src/services/residentFinancialEngine.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

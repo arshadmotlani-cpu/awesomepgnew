@@ -208,7 +208,11 @@ export function ResidentFinancialSummaryCard({ summary }: Props) {
         </div>
         <div className="text-right">
           <p className="text-[10px] uppercase text-apg-silver">Grand outstanding</p>
-          <p className="text-lg font-bold text-white">{paiseToInr(summary.totals.outstandingPaise)}</p>
+          {summary.totals.outstandingPaise <= 0 ? (
+            <p className="text-lg font-bold text-emerald-400">All paid up</p>
+          ) : (
+            <p className="text-lg font-bold text-white">{paiseToInr(summary.totals.outstandingPaise)}</p>
+          )}
         </div>
       </div>
 

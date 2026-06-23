@@ -898,3 +898,6 @@ export async function listOutstandingDepositsFromEngine(
   }
   return filtered;
 }
+
+/** Live outstanding — open invoices + deposit shortfall not on invoice. Re-export for profile UIs. */
+export { getLiveOutstandingBalance } from '@/src/services/financialIntegrityAudit';

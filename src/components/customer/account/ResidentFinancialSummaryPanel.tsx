@@ -71,12 +71,16 @@ export function ResidentFinancialSummaryPanel({ summary }: Props) {
         ) : null}
       </div>
       <div className="mt-4 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2">
-        <p className="text-xs text-indigo-800">
-          Grand outstanding:{' '}
-          <span className="text-base font-bold text-indigo-950">
-            {paiseToInr(summary.totals.outstandingPaise)}
-          </span>
-        </p>
+        {summary.totals.outstandingPaise <= 0 ? (
+          <p className="text-sm font-semibold text-emerald-800">All paid up — no outstanding balance.</p>
+        ) : (
+          <p className="text-xs text-indigo-800">
+            Grand outstanding:{' '}
+            <span className="text-base font-bold text-indigo-950">
+              {paiseToInr(summary.totals.outstandingPaise)}
+            </span>
+          </p>
+        )}
       </div>
     </section>
   );

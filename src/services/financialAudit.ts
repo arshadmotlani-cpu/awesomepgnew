@@ -165,6 +165,26 @@ export type FinancialRecalcResult = {
   engineTotals: Awaited<ReturnType<typeof getGlobalFinancialAggregates>>;
 };
 
+/** Re-export full customer integrity audit (8 checks) for scripts + cron. */
+export {
+  runFinancialIntegrityAudit,
+  getLiveOutstandingBalance,
+  getLastReconciliationRun,
+  sumBreakdownLines,
+  computeFinancialInvoiceOutstanding,
+  depositShortfallOnOpenInvoices,
+  checkInvoiceEmpty,
+  checkInvoiceTotalMismatch,
+  checkDuplicateInvoices,
+  FINANCIAL_INTEGRITY_CHECK_TYPES,
+} from '@/src/services/financialIntegrityAudit';
+export type {
+  FinancialIntegrityCheckType,
+  FinancialIntegrityIssue,
+  FinancialIntegrityAuditReport,
+  FinancialIntegrityAuditSummary,
+} from '@/src/services/financialIntegrityAudit';
+
 /** Emergency rebuild — reconcile unified invoices, mark overdue deposits, refresh aggregates. */
 export async function recalculateAllFinancialSummaries(opts?: {
   billingMonth?: string;

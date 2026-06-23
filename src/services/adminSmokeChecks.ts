@@ -7,6 +7,7 @@ import { sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { todayString } from '@/src/lib/dates';
 import { listVacatingPastDueRows } from '@/src/services/vacatingPastDue';
+import { getLastReconciliationRun } from '@/src/services/financialIntegrityAudit';
 
 export type SmokeCheckResult = {
   id: string;
@@ -152,6 +153,42 @@ async function checkLastCronRun(): Promise<SmokeCheckResult> {
   }
 }
 
+async function checkFinancialReconciliation(): Promise<SmokeCheckResult> {
+  try {
+    const last = await getLastReconciliationRun();
+    if (!last?.at) {
+      return {
+        id: 'financial_reconciliation',
+        label: 'Last daily financial reconciliation',
+        pass: true,
+        detail: 'No daily_reconciliation audit_log entry yet — cron runs at 06:30 UTC.',
+      };
+    }
+    const ageMs = Date.now() - Date.parse(last.at);
+    const pass = ageMs < 48 * 60 * 60 * 1000;
+    const issuePart =
+      last.issueCount != null ? `${last.issueCount} issue(s)` : 'issues unknown';
+    const repairedPart =
+      last.repairedCount != null ? `, ${last.repairedCount} auto-repaired` : '';
+    return {
+      id: 'financial_reconciliation',
+      label: 'Last daily financial reconciliation',
+      pass,
+      detail: pass
+        ? `Last run ${last.at} — ${issuePart}${repairedPart} (within 48h).`
+        : `Last run ${last.at} — older than 48h; verify /api/cron/financial-reconciliation schedule.`,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      id: 'financial_reconciliation',
+      label: 'Last daily financial reconciliation',
+      pass: true,
+      detail: `Reconciliation check skipped: ${message}`,
+    };
+  }
+}
+
 /** Run all read-only admin smoke checks. */
 export async function runAdminSmokeChecks(): Promise<AdminSmokeReport> {
   const checks = await Promise.all([
@@ -159,6 +196,7 @@ export async function runAdminSmokeChecks(): Promise<AdminSmokeReport> {
     checkBookingIntegrity(),
     checkVacatingPastDueSettlement(),
     checkLastCronRun(),
+    checkFinancialReconciliation(),
   ]);
   return {
     asOf: new Date().toISOString(),

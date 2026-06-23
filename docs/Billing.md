@@ -12,7 +12,19 @@ Generate, track, and collect **monthly rent** and **electricity** charges for ac
 
 **New booking checkout (2026-06-23):** `bookingCheckoutTotals.ts` is the SSOT for “total to collect today” = new rent + deposit due − wallet credit + **prior stay outstanding** (`bookingPriorOutstanding.ts`). Payment splits new-booking rent/deposit first; remainder applies to prior deposit dues via append-only ledger rows.
 
-**SSOT:** `rentInvoices.ts`, `billing.ts`, `electricityBilling.ts`, `meterElectricity.ts`, `residentFinancialEngine.ts`, `vacatingCheckoutBilling.ts`
+**SSOT:** `rentInvoices.ts`, `billing.ts`, `electricityBilling.ts`, `meterElectricity.ts`, `residentFinancialEngine.ts`, `vacatingCheckoutBilling.ts`, `financialIntegrityAudit.ts`, `financialRepair.ts`
+
+## Financial audit & reconciliation (2026-06-23)
+
+Daily integrity scan across all customers — 8 checks (deposit shortfall, empty invoices, total mismatch, unreconciled payments, negative ledger, missing rent, duplicates, unsurfaced outstanding).
+
+| Tool | Usage |
+|------|-------|
+| `scripts/audit-financials.ts` | Read-only scan → `audit-output-{timestamp}.json` |
+| `scripts/repair-financials.ts` | Auto-repair safe issues (`--dry-run` first) |
+| `/api/cron/financial-reconciliation` | Daily cron (06:30 UTC) — audit + repair + action items |
+
+See [[AUDIT_REPORT]] at repo root. Deposit ledger remains **append-only** — repairs INSERT corrective invoice rows only, never UPDATE/DELETE ledger entries.
 
 ---
 
