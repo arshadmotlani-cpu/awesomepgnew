@@ -17,7 +17,7 @@ import {
   isCheckOutAvailableForReservations,
   type ReservationSpan,
 } from '@/src/lib/bedStayOverlap';
-import { formatDate as formatDisplayDate, paiseToInr } from '@/src/lib/format';
+import { formatDate as formatDisplayDate, formatDateDdMmYyyy, paiseToInr } from '@/src/lib/format';
 import type { PricingLineItem } from '@/src/lib/pricing/types';
 import {
   formatRentLineLabel,

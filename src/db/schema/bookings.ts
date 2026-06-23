@@ -13,6 +13,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { adminUsers } from './adminUsers';
 import { customers } from './customers';
+import type { PricingLineItem } from '@/src/lib/pricing/types';
 import { bookingStatusEnum, createdViaEnum, durationModeEnum, adminDepositRefundStatusEnum, adminDuesStatusEnum, depositCollectionStatusEnum } from './enums';
 
 /**
@@ -82,13 +83,7 @@ export type PricingSnapshot = {
     }>;
   };
   /** Rent line items (excludes deposit) snapshotted for checkout display. */
-  rentLineItems?: Array<{
-    kind: string;
-    description: string;
-    units: number;
-    unitPricePaise: number;
-    amountPaise: number;
-  }>;
+  rentLineItems?: PricingLineItem[];
   /**
    * Phase 5 — append-only log of paid extensions stamped onto the booking
    * for historical record. The actual inventory rows live in
