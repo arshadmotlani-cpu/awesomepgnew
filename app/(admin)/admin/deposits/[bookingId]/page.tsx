@@ -10,6 +10,8 @@ import { DepositSummaryCard } from '@/src/components/admin/deposits/DepositSumma
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
 import { jsonSafe } from '@/src/lib/depositPageDebug';
 import { loadDepositPageData } from '@/src/lib/deposits/loadDepositPageData';
+import { DepositWorkflowHeader } from '@/src/components/admin/deposits/DepositWorkflowHeader';
+import { buildDepositWorkflowPresentation } from '@/src/lib/deposits/depositWorkflowPresentation';
 import { clientSafeDepositView } from '@/src/lib/deposits/unifiedDepositView';
 
 export const dynamic = 'force-dynamic';
@@ -89,6 +91,15 @@ export default async function AdminDepositDetailPage({
       ? unifiedView.walletMismatchReason
       : null;
 
+  const workflow = unifiedView
+    ? buildDepositWorkflowPresentation({
+        view: clientSafeDepositView(unifiedView),
+        invoiceStatus: invoice?.displayStatus ?? unifiedView.invoiceStatus,
+        isFrozen,
+        syncWarning,
+      })
+    : null;
+
   return (
     <>
       <PageHeader
@@ -103,6 +114,8 @@ export default async function AdminDepositDetailPage({
           </Link>
         }
       />
+
+      {workflow ? <DepositWorkflowHeader workflow={workflow} /> : null}
 
       {loadError ? (
         <div className="mb-6 rounded-lg border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">

@@ -2,6 +2,7 @@ import { AdminSectionErrorBoundary } from '@/src/components/admin/AdminSectionEr
 import { ScrollToHash } from '@/src/components/admin/ScrollToHash';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
+import { OperationsHomeHero } from '@/src/components/admin/residentOps/residents/OperationsHomeHero';
 import { ResidentsBlockedPanel } from '@/src/components/admin/residentOps/residents/ResidentsBlockedPanel';
 import { ResidentsJourneyStatusPanel } from '@/src/components/admin/residentOps/residents/ResidentsJourneyStatusPanel';
 import { ResidentsOperationsActionQueue } from '@/src/components/admin/residentOps/residents/ResidentsOperationsActionQueue';
@@ -39,9 +40,18 @@ export default async function ResidentOperationsResidentsPage({
         ]}
       />
       <PageHeader
-        title="Resident operations"
-        description="Who needs attention right now — one dashboard for beds, KYC, payments, move-outs, and collections."
+        title="Operations"
+        description="What needs your attention — one action at a time."
       />
+
+      <div className="mt-6">
+        <AdminSectionErrorBoundary title="Next action">
+          <OperationsHomeHero
+            nextItem={data.nextQueueItem}
+            queueCount={data.allQueueCount}
+          />
+        </AdminSectionErrorBoundary>
+      </div>
 
       <div className="mt-8 space-y-2">
         <AdminSectionErrorBoundary title="Operations command center">

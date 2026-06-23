@@ -196,7 +196,7 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-23 17:57:53 UTC
+### Pending pre-commit sync · 2026-06-23 18:07:12 UTC
 
 **Areas touched:** [[ROUTES]], [[Residents]]
 
@@ -207,10 +207,12 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (3):**
+**Staged code files (5):**
+- `app/(admin)/admin/deposits/[bookingId]/page.tsx`
 - `app/(admin)/admin/operations/page.tsx`
 - `app/(admin)/admin/operations/residents/page.tsx`
-- `src/lib/residents/residentOperationsResidentsView.ts`
+- `app/(admin)/admin/residents/[customerId]/page.tsx`
+- `src/lib/residents/resident360Workflow.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

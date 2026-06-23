@@ -10,8 +10,11 @@ import { ResidentFinancialScheduleCard } from '@/src/components/admin/residents/
 import { EditTenantTenancyForm } from '@/src/components/admin/EditTenantTenancyForm';
 import { RentUpdatedSuccessBanner } from '@/src/components/admin/RentUpdatedSuccessBanner';
 import { FinalSettlementPanel } from '@/src/components/admin/FinalSettlementPanel';
+import { Resident360WorkflowBar } from '@/src/components/admin/residents/Resident360WorkflowBar';
+import { ResidentInlineOpenBills } from '@/src/components/admin/residents/ResidentInlineOpenBills';
 import { ResidentProfileAdvancedTools } from '@/src/components/admin/residents/ResidentProfileAdvancedTools';
 import { ResidentProfilePrimaryActions } from '@/src/components/admin/residents/ResidentProfilePrimaryActions';
+import { buildResident360Workflow } from '@/src/lib/residents/resident360Workflow';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { listAdminRentInvoices } from '@/src/db/queries/admin';
@@ -155,6 +158,18 @@ export default async function ResidentDetailPage({
   const firstOpenRent = financialSummary?.rent.items.find((l) => l.outstandingPaise > 0);
   const firstOpenElec = financialSummary?.electricity.items.find((l) => l.outstandingPaise > 0);
 
+  const resident360 = buildResident360Workflow({
+    customerId,
+    customerName: customer.fullName,
+    kycStatus: customer.kycStatus,
+    pendingKycSubmissionId,
+    hasActiveTenancy: Boolean(activeTenancy),
+    hasBed: Boolean(activeTenancy?.bedId),
+    bookingId: activeTenancy?.bookingId ?? settledTenancy?.bookingId ?? null,
+    financialSummary,
+    residencyStatus: customer.residencyStatus,
+  });
+
   const rentRes = await listAdminRentInvoices();
   const rentHistory = rentRes.ok
     ? rentRes.data
@@ -181,6 +196,8 @@ export default async function ResidentDetailPage({
         title={customer.fullName}
         description={residentContextLine(customer, activeTenancy)}
       />
+
+      <Resident360WorkflowBar workflow={resident360} />
 
       {verification && !verification.isVerified ? (
         <div className="mb-6 rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
@@ -328,6 +345,20 @@ export default async function ResidentDetailPage({
               )}
             </div>
           </div>
+
+          {activeTenancy && financialSummary && billingDefaults ? (
+            <ResidentInlineOpenBills
+              customerId={customerId}
+              customerName={customer.fullName}
+              phone={customer.phone}
+              pgId={activeTenancy.pgId}
+              pgName={activeTenancy.pgName}
+              roomNumber={activeTenancy.roomNumber}
+              bookingId={activeTenancy.bookingId}
+              billingDefaults={billingDefaults}
+              financialSummary={financialSummary}
+            />
+          ) : null}
 
           {activeTenancy ? (
             <ResidentProfilePrimaryActions

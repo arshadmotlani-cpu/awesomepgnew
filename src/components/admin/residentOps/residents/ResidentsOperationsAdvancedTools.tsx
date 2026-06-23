@@ -20,7 +20,6 @@ export function ResidentsOperationsAdvancedTools() {
           ['Deposits', moduleHref('deposits')],
           ['Checkout settlements', moduleHref('checkoutSettlements')],
           ['Bookings', '/admin/bookings'],
-          ['Legacy operations', '/admin/operations'],
         ].map(([label, href]) => (
           <Link
             key={href}

@@ -113,6 +113,7 @@ export async function loadResidentOperationsResidentsPage(
     commandCards: view.commandCards,
     queue: filteredQueue,
     allQueueCount: view.queue.length,
+    nextQueueItem: view.queue[0] ?? null,
     journeyCounts: view.journeyCounts,
     blockedResidents: view.blockedResidents,
     recentActivity: view.recentActivity,

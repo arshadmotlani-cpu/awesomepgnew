@@ -36,7 +36,8 @@ export function DepositAdvancedTools({
   const v = sanitizeUnifiedDepositView(view);
 
   return (
-    <AdminAdvancedToolsSection
+    <div id="deposit-advanced">
+      <AdminAdvancedToolsSection
       title="Advanced tools"
       description="Rebuild wallet, cancel invoice, or reconcile ledger — use only when you know what you need."
       defaultOpen={false}
@@ -44,6 +45,7 @@ export function DepositAdvancedTools({
       <WalletAdvancedActions view={v} />
       <DepositLedgerReconcileForm bookingId={bookingId} {...adjustProps} />
     </AdminAdvancedToolsSection>
+    </div>
   );
 }
 
