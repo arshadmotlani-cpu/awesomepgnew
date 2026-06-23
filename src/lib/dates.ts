@@ -58,6 +58,16 @@ export function diffDays(start: DateLike, end: DateLike): number {
   return Math.round((e.getTime() - s.getTime()) / MS_PER_DAY);
 }
 
+/** Normalize ISO timestamps or date strings to YYYY-MM-DD for display + date math. */
+export function normalizeIsoDateOnly(value: string | null | undefined): string {
+  if (!value) return '';
+  const trimmed = value.trim();
+  if (ISO_DATE_RE.test(trimmed)) return trimmed;
+  const datePart = trimmed.slice(0, 10);
+  if (ISO_DATE_RE.test(datePart)) return datePart;
+  return trimmed;
+}
+
 /** Like diffDays but returns null instead of throwing on invalid/missing input. */
 export function tryDiffDays(start: DateLike | null | undefined, end: DateLike | null | undefined): number | null {
   if (start == null || end == null) return null;

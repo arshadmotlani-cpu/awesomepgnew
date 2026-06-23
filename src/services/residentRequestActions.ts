@@ -107,4 +107,17 @@ export async function syncResidentRequestActionItems(): Promise<void> {
         .where(eq(actionItems.sourceKey, item.sourceKey));
     }
   }
+
+  /** Checkout settlements own vacating refunds — clear stale legacy resident-request badges. */
+  await db.execute(sql`
+    UPDATE action_items ai
+    SET status = 'resolved', updated_at = now()
+    WHERE ai.type IN ('refund_request_submitted', 'deposit_refund_request')
+      AND ai.status IN ('open', 'in_progress')
+      AND EXISTS (
+        SELECT 1 FROM checkout_settlements cs
+        WHERE cs.booking_id::text = ai.metadata->>'bookingId'
+          AND cs.status NOT IN ('archived', 'completed', 'refund_paid')
+      )
+  `);
 }

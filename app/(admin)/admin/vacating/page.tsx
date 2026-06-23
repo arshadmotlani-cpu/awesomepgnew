@@ -54,8 +54,13 @@ export default async function AdminVacatingPage(props: PageProps<'/admin/vacatin
   const depositHeldByBooking = Object.fromEntries(
     await Promise.all(
       bookingIds.map(async (bookingId) => {
-        const summary = await getDepositSummaryForBooking(bookingId);
-        return [bookingId, summary?.refundableBalancePaise ?? 0] as const;
+        try {
+          const summary = await getDepositSummaryForBooking(bookingId);
+          return [bookingId, summary?.refundableBalancePaise ?? 0] as const;
+        } catch (err) {
+          console.error('[admin/vacating] deposit summary failed', bookingId, err);
+          return [bookingId, 0] as const;
+        }
       }),
     ),
   );

@@ -32,7 +32,7 @@ import { syncResidentRequestActionItems } from '@/src/services/residentRequestAc
 import { syncAdminNotificationsFromActionItems } from '@/src/services/adminNotifications';
 import { resolveStaleVacatingActionItems } from '@/src/services/vacatingPastDue';
 import { resolveFixedStayCheckoutActionItems } from '@/src/services/fixedStayActionItems';
-import { diffDays, formatDate } from '@/src/lib/dates';
+import { diffDays, formatDate, tryDiffDays } from '@/src/lib/dates';
 
 export type ActionItemRow = {
   id: string;
@@ -477,8 +477,8 @@ async function syncVacatingAlerts(session: AdminSession): Promise<void> {
     .where(inArray(vacatingRequests.status, ['pending', 'approved']));
 
   for (const row of rows) {
-    if (!sessionCanAccessPg(session, row.pgId)) continue;
-    const daysRemaining = diffDays(today, row.vacatingDate);
+    if (!row.pgId || !sessionCanAccessPg(session, row.pgId)) continue;
+    const daysRemaining = tryDiffDays(today, row.vacatingDate) ?? 0;
     const isPastDue = daysRemaining < 0;
     const daysPastDue = isPastDue ? Math.abs(daysRemaining) : 0;
     const title = isPastDue

@@ -1,4 +1,6 @@
 import type { AdminVacatingRow } from '@/src/db/queries/admin';
+import { normalizeIsoDateOnly } from '@/src/lib/dates';
+import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import { buildVacatingApprovalPreview } from '@/src/lib/vacating/approvalPreview';
 import type { VacatingApprovalPreview } from '@/src/lib/vacating/approvalPreview';
 
@@ -22,6 +24,11 @@ export function toMoveOutAdvancedToolsRow(
 
   return {
     ...row,
+    noticeGivenDate: normalizeIsoDateOnly(row.noticeGivenDate),
+    vacatingDate: normalizeIsoDateOnly(row.vacatingDate),
+    deductionPaise: guardDepositPaise(row.deductionPaise),
+    depositRefundPaise: guardDepositPaise(row.depositRefundPaise),
+    monthlyRentPaiseSnapshot: guardDepositPaise(row.monthlyRentPaiseSnapshot),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     resolvedAt: row.resolvedAt?.toISOString() ?? null,

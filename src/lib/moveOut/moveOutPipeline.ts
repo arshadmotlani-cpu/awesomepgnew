@@ -1,4 +1,4 @@
-import { formatDate } from '@/src/lib/dates';
+import { formatDate, normalizeIsoDateOnly } from '@/src/lib/dates';
 import type { CheckoutSettlementStatus } from '@/src/db/schema/enums';
 import type { MoveOutUrgency, VacatingBedStatus } from '@/src/lib/vacating/approvalPreview';
 import { moveOutDaysRemaining, moveOutUrgency } from '@/src/lib/vacating/approvalPreview';
@@ -311,8 +311,8 @@ export function buildMoveOutPipeline(input: {
       pgName: v.pgName,
       roomNumber: v.roomNumber,
       bedCode: v.bedCode,
-      vacatingDate: v.vacatingDate,
-      noticeGivenDate: v.noticeGivenDate,
+      vacatingDate: normalizeIsoDateOnly(v.vacatingDate),
+      noticeGivenDate: normalizeIsoDateOnly(v.noticeGivenDate),
       noticeCompliant: v.noticeCompliant,
       vacatingStatus: v.status,
       settlementId: settlement?.id ?? null,
@@ -334,12 +334,17 @@ export function buildMoveOutPipeline(input: {
   return items.sort(sortPipeline);
 }
 
+function pipelineDateKey(value: string): string {
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  return '9999-12-31';
+}
+
 function sortPipeline(a: MoveOutPipelineItem, b: MoveOutPipelineItem): number {
   const completedA = a.stage === 'bed_released' ? 1 : 0;
   const completedB = b.stage === 'bed_released' ? 1 : 0;
   if (completedA !== completedB) return completedA - completedB;
 
-  const dateCmp = a.vacatingDate.localeCompare(b.vacatingDate);
+  const dateCmp = pipelineDateKey(a.vacatingDate).localeCompare(pipelineDateKey(b.vacatingDate));
   if (dateCmp !== 0) return dateCmp;
 
   if (a.sortPriority !== b.sortPriority) return a.sortPriority - b.sortPriority;
@@ -362,8 +367,12 @@ export function buildMoveOutCommandStats(items: MoveOutPipelineItem[]): MoveOutC
     if (item.stage === 'requested') readyToClose += 1;
 
     if (item.stage === 'bed_released' && item.resolvedAt) {
-      const resolvedMonth = formatDate(item.resolvedAt).slice(0, 7);
-      if (resolvedMonth === monthStart) completedThisMonth += 1;
+      try {
+        const resolvedMonth = formatDate(item.resolvedAt).slice(0, 7);
+        if (resolvedMonth === monthStart) completedThisMonth += 1;
+      } catch {
+        /* ignore invalid resolvedAt */
+      }
     }
   }
 

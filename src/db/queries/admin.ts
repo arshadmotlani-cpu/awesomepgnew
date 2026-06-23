@@ -10,7 +10,8 @@ import {
 import { productionInvoiceBookingFilters } from '@/src/lib/billing/invoiceOnlyFinancials';
 import { collectibleResidentFilters } from '@/src/lib/billing/productionDataFilter';
 import { bedOccupiedTodayExistsSql } from '@/src/lib/occupancySsot';
-import { todayString } from '@/src/lib/dates';
+import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
+import { normalizeIsoDateOnly, todayString } from '@/src/lib/dates';
 import { asPlainNumber } from '@/src/lib/format';
 import { sanitizeAdminQueryError } from '@/src/lib/admin/productionDbError';
 import {
@@ -1611,42 +1612,92 @@ export function listAdminVacatingRequests(filter?: {
   status?: 'pending' | 'approved' | 'completed' | 'rejected';
 }): Promise<QueryResult<AdminVacatingRow[]>> {
   return guard(async () => {
-    const where = filter?.status ? eq(vacatingRequests.status, filter.status) : undefined;
-    return db
-      .select({
-        id: vacatingRequests.id,
-        bookingId: vacatingRequests.bookingId,
-        bookingCode: bookings.bookingCode,
-        customerId: vacatingRequests.customerId,
-        customerFullName: customers.fullName,
-        customerPhone: customers.phone,
-        pgName: pgs.name,
-        bedCode: beds.bedCode,
-        roomNumber: rooms.roomNumber,
-        noticeGivenDate: vacatingRequests.noticeGivenDate,
-        vacatingDate: vacatingRequests.vacatingDate,
-        noticeCompliant: vacatingRequests.noticeCompliant,
-        deductionPaise: vacatingRequests.deductionPaise,
-        depositRefundPaise: vacatingRequests.depositRefundPaise,
-        monthlyRentPaiseSnapshot: vacatingRequests.monthlyRentPaiseSnapshot,
-        status: vacatingRequests.status,
-        resolvedAt: vacatingRequests.resolvedAt,
-        createdAt: vacatingRequests.createdAt,
-        updatedAt: vacatingRequests.updatedAt,
-      })
-      .from(vacatingRequests)
-      .innerJoin(bookings, eq(bookings.id, vacatingRequests.bookingId))
-      .innerJoin(customers, eq(customers.id, vacatingRequests.customerId))
-      .innerJoin(bedReservations, and(
-        eq(bedReservations.bookingId, bookings.id),
-        eq(bedReservations.kind, 'primary'),
-      ))
-      .innerJoin(beds, eq(beds.id, bedReservations.bedId))
-      .innerJoin(rooms, eq(rooms.id, beds.roomId))
-      .innerJoin(floors, eq(floors.id, rooms.floorId))
-      .innerJoin(pgs, eq(pgs.id, floors.pgId))
-      .where(where)
-      .orderBy(desc(vacatingRequests.createdAt));
+    /** Latest primary bed location — LEFT JOIN so vacating rows survive cancelled/completed reservations. */
+    const rows = await db.execute<{
+      id: string;
+      booking_id: string;
+      booking_code: string;
+      customer_id: string;
+      customer_full_name: string;
+      customer_phone: string;
+      pg_name: string | null;
+      bed_code: string | null;
+      room_number: string | null;
+      notice_given_date: string;
+      vacating_date: string;
+      notice_compliant: boolean;
+      deduction_paise: number;
+      deposit_refund_paise: number;
+      monthly_rent_paise_snapshot: number;
+      status: AdminVacatingRow['status'];
+      resolved_at: Date | null;
+      created_at: Date;
+      updated_at: Date;
+    }>(sql`
+      SELECT
+        vr.id,
+        vr.booking_id,
+        b.booking_code,
+        vr.customer_id,
+        c.full_name AS customer_full_name,
+        c.phone AS customer_phone,
+        loc.pg_name,
+        loc.bed_code,
+        loc.room_number,
+        vr.notice_given_date::text AS notice_given_date,
+        vr.vacating_date::text AS vacating_date,
+        vr.notice_compliant,
+        vr.deduction_paise::bigint::int AS deduction_paise,
+        vr.deposit_refund_paise::bigint::int AS deposit_refund_paise,
+        vr.monthly_rent_paise_snapshot::bigint::int AS monthly_rent_paise_snapshot,
+        vr.status,
+        vr.resolved_at,
+        vr.created_at,
+        vr.updated_at
+      FROM vacating_requests vr
+      INNER JOIN bookings b ON b.id = vr.booking_id
+      INNER JOIN customers c ON c.id = vr.customer_id
+      LEFT JOIN LATERAL (
+        SELECT p.name AS pg_name, r.room_number, bd.bed_code
+        FROM bed_reservations br
+        INNER JOIN beds bd ON bd.id = br.bed_id
+        INNER JOIN rooms r ON r.id = bd.room_id
+        INNER JOIN floors f ON f.id = r.floor_id
+        INNER JOIN pgs p ON p.id = f.pg_id
+        WHERE br.booking_id = vr.booking_id AND br.kind = 'primary'
+        ORDER BY
+          CASE
+            WHEN br.status IN ('hold', 'active') AND CURRENT_DATE <@ br.stay_range THEN 0
+            ELSE 1
+          END,
+          br.created_at DESC
+        LIMIT 1
+      ) loc ON true
+      ${filter?.status ? sql`WHERE vr.status = ${filter.status}` : sql``}
+      ORDER BY vr.created_at DESC
+    `);
+
+    return Array.from(rows).map((r) => ({
+      id: r.id,
+      bookingId: r.booking_id,
+      bookingCode: r.booking_code,
+      customerId: r.customer_id,
+      customerFullName: r.customer_full_name,
+      customerPhone: r.customer_phone,
+      pgName: r.pg_name ?? '—',
+      bedCode: r.bed_code ?? '—',
+      roomNumber: r.room_number ?? '—',
+      noticeGivenDate: normalizeIsoDateOnly(r.notice_given_date),
+      vacatingDate: normalizeIsoDateOnly(r.vacating_date),
+      noticeCompliant: r.notice_compliant,
+      deductionPaise: guardDepositPaise(r.deduction_paise),
+      depositRefundPaise: guardDepositPaise(r.deposit_refund_paise),
+      monthlyRentPaiseSnapshot: guardDepositPaise(r.monthly_rent_paise_snapshot),
+      status: r.status,
+      resolvedAt: r.resolved_at,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    }));
   });
 }
 

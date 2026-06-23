@@ -1,4 +1,4 @@
-import { tryDiffDays } from '@/src/lib/dates';
+import { normalizeIsoDateOnly, tryDiffDays } from '@/src/lib/dates';
 import type { AdminVacatingRow } from '@/src/db/queries/admin';
 import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
 
@@ -31,7 +31,9 @@ export function buildVacatingApprovalPreview(
   row: AdminVacatingRow,
   depositHeldPaise: number,
 ): VacatingApprovalPreview {
-  const noticeSpan = tryDiffDays(row.noticeGivenDate, row.vacatingDate);
+  const noticeGivenDate = normalizeIsoDateOnly(row.noticeGivenDate);
+  const vacatingDate = normalizeIsoDateOnly(row.vacatingDate);
+  const noticeSpan = tryDiffDays(noticeGivenDate, vacatingDate);
   const noticeCompletedDays = Math.max(0, noticeSpan ?? 0);
   const estimatedDeductionPaise = row.deductionPaise;
   const estimatedRefundPaise = Math.max(0, depositHeldPaise - estimatedDeductionPaise);
@@ -41,8 +43,8 @@ export function buildVacatingApprovalPreview(
     pgName: row.pgName,
     roomNumber: row.roomNumber,
     bedCode: row.bedCode,
-    noticeSubmittedDate: row.noticeGivenDate,
-    moveOutDate: row.vacatingDate,
+    noticeSubmittedDate: noticeGivenDate,
+    moveOutDate: vacatingDate,
     noticeRequiredDays: VACATING_NOTICE_MIN_DAYS,
     noticeCompletedDays,
     depositHeldPaise,
@@ -63,5 +65,5 @@ export function moveOutUrgency(daysRemaining: number): MoveOutUrgency {
 
 export function moveOutDaysRemaining(vacatingDate: string, today?: string): number {
   const ref = today ?? new Date().toISOString().slice(0, 10);
-  return tryDiffDays(ref, vacatingDate) ?? 0;
+  return tryDiffDays(ref, normalizeIsoDateOnly(vacatingDate)) ?? 0;
 }

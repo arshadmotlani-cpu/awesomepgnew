@@ -7,6 +7,17 @@
 
 ## Open bugs
 
+### VAC-B5-01 — Room 203 B5 vacating invisible / admin vacating crash
+
+| | |
+|---|---|
+| **Severity** | Critical |
+| **Symptom** | Harish (203 B5): vacating + checkout visible in ops, `/admin/vacating` crashes, refund badge but empty legacy refund list |
+| **Root cause** | (1) `listAdminVacatingRequests` INNER JOIN on `primary` bed_reservation dropped rows after bed release; (2) `getDepositSummaryForBooking` threw on corrupt ledger and crashed page load; (3) refund counter from checkout settlements + action_items but list only queried `resident_requests`; stale `refund_request_submitted` badges |
+| **Fix** | LEFT JOIN LATERAL bed location in vacating list; deposit summary returns null on error; RefundRequestsOpsPanel shows checkout settlements; resolve stale refund action items when checkout settlement active; `scripts/investigate-bed-203-b5.ts` + `repair-bed-203-b5-lifecycle.ts` |
+
+---
+
 | ID | Severity | Summary | Workaround |
 |----|----------|---------|------------|
 | OPS-UX-01 | Medium | Duplicate vacating/deposit/refund actions across profile, bed map, overview | Use [[Operations]] + `/admin/vacating` + checkout settlements only ([[DECISIONS#Operations as action hub]]) |

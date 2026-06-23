@@ -3,33 +3,34 @@ import { DepositWalletSummary } from '@/src/components/admin/DepositWalletSummar
 import { Badge } from '@/src/components/admin/Badge';
 import { paiseToInr, titleCase } from '@/src/lib/format';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
-import { listPendingResidentRequestsForAdmin } from '@/src/services/residentRequests';
+import { listAdminRefundQueue } from '@/src/services/adminRefundQueue';
 import type { AdminSession } from '@/src/lib/auth/session';
 
 export async function RefundRequestsOpsPanel({ session }: { session: AdminSession }) {
-  const requests = (await listPendingResidentRequestsForAdmin(session)).filter(
-    (r) => r.type === 'deposit_refund',
-  );
+  const items = await listAdminRefundQueue(session);
 
-  if (requests.length === 0) {
+  if (items.length === 0) {
     return (
       <section className="rounded-xl border border-white/10 bg-[#1A1F27] p-5">
         <h2 className="text-sm font-semibold text-white">Refund requests</h2>
         <p className="mt-2 text-sm text-apg-silver">No open deposit refund requests.</p>
         <Link
-          href="/admin/requests"
+          href="/admin/checkout-settlements"
           className="mt-3 inline-block text-sm font-medium text-[#FF5A1F] hover:underline"
         >
-          Open refund queue →
+          Open checkout settlements →
         </Link>
       </section>
     );
   }
 
   const enriched = await Promise.all(
-    requests.map(async (r) => ({
-      ...r,
-      wallet: await getDepositSummaryForBooking(r.bookingId),
+    items.map(async (item) => ({
+      ...item,
+      wallet:
+        item.source === 'resident_request'
+          ? await getDepositSummaryForBooking(item.bookingId)
+          : null,
     })),
   );
 
@@ -39,37 +40,44 @@ export async function RefundRequestsOpsPanel({ session }: { session: AdminSessio
         <div>
           <h2 className="text-sm font-semibold text-white">Refund requests</h2>
           <p className="text-xs text-apg-silver">
-            Deposit wallet refunds — review, approve, and complete payout
+            Checkout settlements (SSOT) plus legacy resident requests
           </p>
         </div>
         <Link
-          href="/admin/requests"
+          href="/admin/checkout-settlements?tab=refund_pending"
           className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-apg-silver hover:text-white"
         >
-          Full queue →
+          Checkout queue →
         </Link>
       </div>
 
       <div className="space-y-3">
         {enriched.map((r) => (
           <article
-            key={r.id}
-            className="rounded-xl border border-white/10 bg-[#1A1F27] p-4"
+            key={`${r.source}-${r.id}`}
+            className={
+              'rounded-xl border p-4 ' +
+              (r.source === 'checkout_settlement'
+                ? 'border-[#FF5A1F]/30 bg-[#FF5A1F]/5'
+                : 'border-white/10 bg-[#1A1F27]')
+            }
           >
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <p className="font-medium text-white">{r.customerName}</p>
                 <p className="text-xs text-apg-silver">
-                  {r.pgName} · {r.customerPhone}
+                  {r.pgName} · {r.roomNumber}/{r.bedCode}
                 </p>
                 <p className="mt-1 font-mono text-[10px] text-apg-silver">
-                  Booking {r.bookingCode ?? r.bookingId.slice(0, 8)}
+                  Booking {r.bookingCode}
                 </p>
               </div>
-              <Badge tone={r.status === 'approved' ? 'emerald' : 'amber'}>
-                {titleCase(r.status)}
+              <Badge tone={r.status.includes('pending') || r.status === 'submitted' ? 'amber' : 'emerald'}>
+                {titleCase(r.status.replace(/_/g, ' '))}
               </Badge>
             </div>
+
+            <p className="mt-2 text-xs text-apg-silver">{r.label}</p>
 
             {r.wallet ? (
               <div className="mt-3">
@@ -81,10 +89,10 @@ export async function RefundRequestsOpsPanel({ session }: { session: AdminSessio
             ) : null}
 
             <Link
-              href="/admin/requests"
+              href={r.href}
               className="mt-3 inline-flex rounded-lg bg-[#FF5A1F] px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110"
             >
-              Review & approve →
+              {r.source === 'checkout_settlement' ? 'Open checkout settlement →' : 'Review legacy request →'}
             </Link>
           </article>
         ))}

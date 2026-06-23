@@ -422,7 +422,7 @@ export async function getDepositSummaryForBooking(
     return summary;
   } catch (err) {
     console.error('[deposits] getDepositSummaryForBooking failed', bookingId, err);
-    throw err;
+    return null;
   }
 }
 

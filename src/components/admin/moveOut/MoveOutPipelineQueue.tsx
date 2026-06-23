@@ -9,7 +9,7 @@ import {
 } from '@/src/components/admin/VacatingActions';
 import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
 import { formatDate, formatDateTime, paiseToInr } from '@/src/lib/format';
-import { diffDays } from '@/src/lib/dates';
+import { tryDiffDays, normalizeIsoDateOnly } from '@/src/lib/dates';
 import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
 import type { VacatingApprovalPreview } from '@/src/lib/vacating/approvalPreview';
 import type { MoveOutUrgency } from '@/src/lib/vacating/approvalPreview';
@@ -220,14 +220,16 @@ function PipelineProgress({ stageIndex }: { stageIndex: number }) {
 }
 
 function pipelineApprovalPreview(row: MoveOutPipelineItemClient): VacatingApprovalPreview {
-  const noticeCompletedDays = Math.max(0, diffDays(row.noticeGivenDate, row.vacatingDate));
+  const noticeGivenDate = normalizeIsoDateOnly(row.noticeGivenDate);
+  const moveOutDate = normalizeIsoDateOnly(row.vacatingDate);
+  const noticeCompletedDays = Math.max(0, tryDiffDays(noticeGivenDate, moveOutDate) ?? 0);
   return {
     residentName: row.customerFullName,
     pgName: row.pgName,
     roomNumber: row.roomNumber,
     bedCode: row.bedCode,
-    noticeSubmittedDate: row.noticeGivenDate,
-    moveOutDate: row.vacatingDate,
+    noticeSubmittedDate: noticeGivenDate,
+    moveOutDate,
     noticeRequiredDays: VACATING_NOTICE_MIN_DAYS,
     noticeCompletedDays,
     depositHeldPaise: row.depositHeldPaise,
