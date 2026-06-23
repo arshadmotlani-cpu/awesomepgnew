@@ -298,7 +298,7 @@
 | Area | Limitation |
 |------|------------|
 | **Half-open ranges** | Vacating date stored as inclusive move-out day but `stay_range` upper bound is exclusive — document carefully when debugging days |
-| **Single vacating request** | UNIQUE on `booking_id` — must complete/reject before new notice |
+| **Single active vacating request** | Partial unique on `booking_id` for `pending`/`approved` only — rejected/completed history does not block a new notice |
 | **Resident list cap** | 200 residents in admin list query |
 | **Manual UPI** | Proof approval required — no auto-reconciliation with bank statements |
 | **Electricity at checkout** | Final bill amount unknown until meter reading or average — placeholder shown before generation ([[WORKFLOWS#Billing]]) |
