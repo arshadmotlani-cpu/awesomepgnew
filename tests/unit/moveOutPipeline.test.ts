@@ -83,3 +83,35 @@ test('estimateVacateDepositPreview handles empty vacating date without throwing'
   assert.equal(preview.earlyVacate, false);
   assert.equal(preview.estimatedRefundablePaise, 100000);
 });
+
+test('buildMoveOutPipeline uses settlement electricity and locked final refund', () => {
+  const [item] = buildMoveOutPipeline({
+    vacatingRows: [
+      {
+        ...baseVacatingRow,
+        status: 'completed',
+        deductionPaise: 59500,
+        depositHeldPaise: 150000,
+      },
+    ],
+    settlements: [
+      {
+        id: 'cs-1',
+        vacatingRequestId: 'vr-1',
+        status: 'completed',
+        createdAt: new Date('2026-06-15T10:00:00.000Z'),
+        updatedAt: new Date('2026-06-18T10:00:00.000Z'),
+        approvedAt: new Date('2026-06-18T10:00:00.000Z'),
+        refundPaidAt: new Date('2026-06-18T10:00:00.000Z'),
+        noticeDeductionPaise: 59500,
+        electricitySharePaise: 90500,
+        electricityDeductFromDeposit: true,
+        finalRefundPaise: 0,
+        amountsLocked: true,
+      },
+    ],
+  });
+  assert.ok(item);
+  assert.equal(item.estimatedRefundPaise, 0);
+  assert.equal(item.continueKind, 'view');
+});

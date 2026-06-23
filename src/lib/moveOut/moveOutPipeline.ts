@@ -120,7 +120,41 @@ type SettlementInput = {
   updatedAt: Date;
   approvedAt: Date | null;
   refundPaidAt: Date | null;
+  noticeDeductionPaise?: number;
+  electricitySharePaise?: number;
+  electricityDeductFromDeposit?: boolean;
+  finalRefundPaise?: number | null;
+  amountsLocked?: boolean;
 };
+
+function computeEstimatedRefundPaise(
+  vacating: VacatingInput,
+  settlement: SettlementInput | null,
+): number {
+  if (settlement?.amountsLocked && settlement.finalRefundPaise != null) {
+    return guardDepositPaise(settlement.finalRefundPaise);
+  }
+  if (
+    settlement &&
+    (settlement.status === 'completed' ||
+      settlement.status === 'refund_paid' ||
+      settlement.status === 'refund_pending')
+  ) {
+    if (settlement.finalRefundPaise != null) {
+      return guardDepositPaise(settlement.finalRefundPaise);
+    }
+  }
+
+  const depositHeld = guardDepositPaise(vacating.depositHeldPaise);
+  const noticePaise = guardDepositPaise(
+    settlement?.noticeDeductionPaise ?? vacating.deductionPaise,
+  );
+  const electricityPaise =
+    settlement?.electricityDeductFromDeposit === false
+      ? 0
+      : guardDepositPaise(settlement?.electricitySharePaise ?? 0);
+  return Math.max(0, depositHeld - noticePaise - electricityPaise);
+}
 
 const STAGE_INDEX: Record<MoveOutStageId, number> = {
   requested: 0,
@@ -302,8 +336,10 @@ export function buildMoveOutPipeline(input: {
     const settlement = settlementByVacating.get(v.id) ?? null;
     const derived = deriveMoveOutStage(v, settlement);
     const depositHeldPaise = guardDepositPaise(v.depositHeldPaise);
-    const deductionPaise = guardDepositPaise(v.deductionPaise);
-    const estimatedRefundPaise = Math.max(0, depositHeldPaise - deductionPaise);
+    const deductionPaise = guardDepositPaise(
+      settlement?.noticeDeductionPaise ?? v.deductionPaise,
+    );
+    const estimatedRefundPaise = computeEstimatedRefundPaise(v, settlement);
     const daysRemaining = moveOutDaysRemaining(v.vacatingDate);
 
     items.push({

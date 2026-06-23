@@ -73,7 +73,7 @@ export function MoveOutPipelineQueue({
               <TH>Move-out date</TH>
               <TH>Days remaining</TH>
               <TH className="text-right">Deposit held</TH>
-              <TH className="text-right">Expected refund</TH>
+              <TH className="text-right">{compact ? 'Final refund' : 'Expected refund'}</TH>
               <TH>Current stage</TH>
               <TH>Next action</TH>
               <TH className="text-right">Action</TH>
@@ -250,8 +250,15 @@ function MoveOutPipelineRowActions({ row }: { row: MoveOutPipelineItemClient }) 
           preview={pipelineApprovalPreview(row)}
         />
       ) : row.continueHref ? (
-        <Link href={row.continueHref} className={PRIMARY}>
-          Continue
+        <Link
+          href={row.continueHref}
+          className={
+            row.continueKind === 'view'
+              ? 'inline-flex min-h-[36px] items-center justify-center rounded-lg border border-white/15 px-3 py-1.5 text-xs font-medium text-apg-silver hover:bg-white/5 hover:text-white'
+              : PRIMARY
+          }
+        >
+          {row.continueKind === 'view' ? 'View settlement' : 'Continue'}
         </Link>
       ) : null}
 

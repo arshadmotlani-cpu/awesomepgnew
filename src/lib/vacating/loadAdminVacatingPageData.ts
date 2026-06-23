@@ -128,6 +128,11 @@ export async function loadAdminVacatingPageData(session: AdminSession): Promise<
       updatedAt: s.updatedAt,
       approvedAt: s.approvedAt,
       refundPaidAt: s.refundPaidAt,
+      noticeDeductionPaise: s.noticeDeductionPaise,
+      electricitySharePaise: s.electricitySharePaise,
+      electricityDeductFromDeposit: s.electricityDeductFromDeposit,
+      finalRefundPaise: s.finalRefundPaise,
+      amountsLocked: s.amountsLocked,
     })),
   });
 
