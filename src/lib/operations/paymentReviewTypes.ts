@@ -16,7 +16,7 @@ export type PaymentReviewBookingDetails = {
   depositRequiredPaise: number | null;
 };
 
-export type OverpaymentDisposition = 'wallet_credit' | 'future_adjustment' | 'refund_later';
+export type OverpaymentDisposition = 'wallet_credit' | 'future_adjustment' | 'refund_later' | 'refund';
 
 export type PendingPaymentReviewItem = {
   key: string;

@@ -1,13 +1,18 @@
 'use server';
 
+import { randomUUID } from 'crypto';
 import { revalidatePath } from 'next/cache';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { auditLog, bookings, payments, stayExtensions } from '@/src/db/schema';
+import { bookings, stayExtensions } from '@/src/db/schema';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { assertAdminBookingAccess, assertAdminBookingCodeAccess } from '@/src/lib/auth/pgAccess';
 import { adminHasPermission } from '@/src/lib/auth/roles';
-import { cancelBooking, recordExtensionPaymentSuccess } from '@/src/services/bookingLifecycle';
+import {
+  cancelBooking,
+  recordExtensionPaymentSuccess,
+  recordPaymentSuccess,
+} from '@/src/services/bookingLifecycle';
 import {
   cancelPendingExtension,
   requestExtension,
@@ -79,11 +84,9 @@ export async function adminCancelBookingAction(
 
 /**
  * Record an offline payment (cash / UPI / bank transfer) against a
- * pending_payment booking. This is the admin's escape hatch for walk-ins
- * and customers who paid out-of-band. It writes a `payments` row directly
- * AND flips the booking + reservations to confirmed/active in a single
- * transaction — same end state as a Razorpay capture, just without a
- * provider_payment_id.
+ * pending_payment booking. Routes through recordPaymentSuccess() so
+ * deposit ledger, prior outstanding, notifications, and conflict checks
+ * match the QR approval path.
  */
 export async function recordOfflinePaymentAction(
   _prev: AdminRecordPaymentState,
@@ -108,9 +111,8 @@ export async function recordOfflinePaymentAction(
   const reference = String(formData.get('reference') ?? '').trim() || null;
   const amountOverrideReason = String(formData.get('amountOverrideReason') ?? '').trim();
 
-  let bookingAccess;
   try {
-    bookingAccess = await assertAdminBookingCodeAccess(admin, bookingCode);
+    await assertAdminBookingCodeAccess(admin, bookingCode);
   } catch (err) {
     return {
       status: 'error',
@@ -146,72 +148,32 @@ export async function recordOfflinePaymentAction(
     }
   }
 
-  let paymentId = '';
-  await db.transaction(async (tx) => {
-    const [row] = await tx
-      .insert(payments)
-      .values({
-        bookingId: b.id,
-        purpose: 'booking',
-        provider,
-        // Offline payments don't have an external id; use the reference text
-        // when provided so the operator can search by receipt number.
-        providerPaymentId: reference,
-        providerOrderId: null,
-        amountPaise,
-        currency: 'INR',
-        status: 'succeeded',
-        rawPayload: {
-          recordedBy: 'admin',
-          reference,
-          amountOverrideReason:
-            willConfirmBooking && amountPaise !== b.totalPaise ? amountOverrideReason : undefined,
-        },
-        paidAt: new Date(),
-      })
-      .returning({ id: payments.id });
-    paymentId = row.id;
+  const providerPaymentId =
+    reference && reference.length > 0
+      ? `offline_${reference.replace(/\s+/g, '_').slice(0, 120)}`
+      : `offline_${randomUUID()}`;
 
-    // If this is the booking-confirming payment, flip the reservations + booking.
-    // Scope to kind='primary' so an offline payment recorded against the
-    // primary booking can't silently activate a Phase-5 extension that
-    // hasn't been paid for yet.
-    if (b.status !== 'confirmed') {
-      const { bedReservations } = await import('@/src/db/schema');
-      await tx
-        .update(bedReservations)
-        .set({ status: 'active', holdExpiresAt: null, updatedAt: new Date() })
-        .where(
-          and(
-            eq(bedReservations.bookingId, b.id),
-            eq(bedReservations.status, 'hold'),
-            eq(bedReservations.kind, 'primary'),
-          ),
-        );
-      await tx
-        .update(bookings)
-        .set({ status: 'confirmed', updatedAt: new Date() })
-        .where(eq(bookings.id, b.id));
-    }
-
-    await tx.insert(auditLog).values({
-      actorType: 'admin',
-      actorId: admin.adminId,
-      entity: 'payment',
-      entityId: row.id,
-      action: 'record_offline_payment',
-      diff: {
-        bookingCode,
-        provider,
-        amountPaise,
-        reference,
-        expectedTotalPaise: b.totalPaise,
-        amountOverrideReason:
-          willConfirmBooking && amountPaise !== b.totalPaise ? amountOverrideReason : undefined,
-        pgId: bookingAccess.pgId,
-      },
-    });
+  const result = await recordPaymentSuccess({
+    provider,
+    providerPaymentId,
+    providerOrderId: reference,
+    amountPaise,
+    bookingCode,
+    recordedByAdminId: admin.adminId,
+    rawPayload: {
+      recordedBy: 'admin',
+      reference,
+      adminAmountOverrideReason:
+        willConfirmBooking && amountPaise !== b.totalPaise ? amountOverrideReason : undefined,
+    },
   });
+
+  if (!result.ok) {
+    return {
+      status: 'error',
+      message: result.reason ?? 'Could not record payment for this booking.',
+    };
+  }
 
   revalidatePath('/admin');
   revalidatePath('/admin/bookings');
@@ -219,7 +181,7 @@ export async function recordOfflinePaymentAction(
   revalidatePath(`/admin/bookings/${b.id}`);
   revalidatePath(`/booking/${bookingCode}`);
 
-  return { status: 'success', paymentId, amountPaise };
+  return { status: 'success', paymentId: result.paymentId, amountPaise };
 }
 
 // ───────────────────────────────────────────────────────────────────────────

@@ -488,12 +488,53 @@ export async function reviewPaymentRecord(
 
   if (status === 'approved' && record.bookingId) {
     const [booking] = await db
-      .select({ bookingCode: bookings.bookingCode, status: bookings.status })
+      .select({
+        bookingCode: bookings.bookingCode,
+        status: bookings.status,
+        subtotalPaise: bookings.subtotalPaise,
+        discountPaise: bookings.discountPaise,
+        depositPaise: bookings.depositPaise,
+        totalPaise: bookings.totalPaise,
+        pricingSnapshot: bookings.pricingSnapshot,
+      })
       .from(bookings)
       .where(eq(bookings.id, record.bookingId))
       .limit(1);
     if (booking?.status === 'pending_payment' || booking?.status === 'pending_approval') {
       const { recordPaymentSuccess } = await import('./bookingLifecycle');
+      const {
+        computeBookingCheckoutOverpaymentPaise,
+        normalizeOverpaymentDisposition,
+      } = await import('./bookingOverpayment');
+
+      let overpayment:
+        | {
+            excessPaise: number;
+            disposition: 'wallet_credit' | 'future_adjustment' | 'refund' | 'refund_later';
+            approvedByAdminId: string;
+          }
+        | undefined;
+
+      const excessPaise = computeBookingCheckoutOverpaymentPaise({
+        booking,
+        amountPaise: record.amountPaise,
+      });
+      if (excessPaise > 0) {
+        const disposition = normalizeOverpaymentDisposition(
+          opts?.reviewMeta?.overpaymentDisposition,
+        );
+        if (!disposition) {
+          throw new Error(
+            `Payment exceeds checkout total by ₹${(excessPaise / 100).toFixed(0)}. Select an overpayment disposition before approving.`,
+          );
+        }
+        overpayment = {
+          excessPaise,
+          disposition,
+          approvedByAdminId: session.adminId,
+        };
+      }
+
       const paymentResult = await recordPaymentSuccess({
         provider: 'upi_manual',
         providerPaymentId: `qr_record_${recordId}`,
@@ -512,6 +553,7 @@ export async function reviewPaymentRecord(
               approvedByAdminId: session.adminId,
             }
           : undefined,
+        overpayment,
       });
       if (!paymentResult.ok) {
         throw new Error(
@@ -519,16 +561,23 @@ export async function reviewPaymentRecord(
             'Could not confirm booking — the bed may already be taken by another approved payment.',
         );
       }
-      const { activatePendingMembershipForBooking } = await import('./playstationMembership');
-      await activatePendingMembershipForBooking(record.bookingId);
     }
   }
 
   if (status === 'rejected' && record.bookingId) {
+    const [booking] = await db
+      .select({ bookingCode: bookings.bookingCode, customerId: bookings.customerId })
+      .from(bookings)
+      .where(eq(bookings.id, record.bookingId))
+      .limit(1);
     const { cleanupRejectedBookingRequest } = await import('@/src/lib/bookingApproval');
     await cleanupRejectedBookingRequest({
       bookingId: record.bookingId,
       reason: 'payment proof rejected by admin',
+      rejectedByAdminId: session.adminId,
+      pgPaymentRecordId: recordId,
+      customerId: booking?.customerId ?? record.customerId,
+      bookingCode: booking?.bookingCode ?? null,
     });
   }
 
@@ -542,42 +591,12 @@ export async function reviewPaymentRecord(
     })
     .where(eq(pgPaymentRecords.id, recordId));
 
-  if (status === 'approved' && record.bookingId) {
+  if (status === 'approved') {
     const { trackAnalyticsEvent } = await import('./visitorAnalytics');
     void trackAnalyticsEvent({
       eventType: 'booking_approved',
       metadata: { bookingId: record.bookingId, pgId: record.pgId },
     });
-  }
-
-  if (status === 'approved') {
-    const { customers, pgs } = await import('@/src/db/schema');
-    const { eq } = await import('drizzle-orm');
-    const customerId = record.customerId;
-    if (customerId) {
-      const [ctx] = await db
-        .select({
-          customerName: customers.fullName,
-          pgName: pgs.name,
-        })
-        .from(customers)
-        .innerJoin(pgs, eq(pgs.id, record.pgId))
-        .where(eq(customers.id, customerId))
-        .limit(1);
-      if (ctx) {
-        const { emitPaymentReceivedAutomation } = await import('./automationEngine');
-        void emitPaymentReceivedAutomation({
-          pgId: record.pgId,
-          customerId,
-          bookingId: record.bookingId,
-          paymentId: `qr_${recordId}`,
-          amountPaise: record.amountPaise,
-          pgName: ctx.pgName,
-          customerName: ctx.customerName,
-          paymentPurpose: 'collections',
-        });
-      }
-    }
   }
 }
 

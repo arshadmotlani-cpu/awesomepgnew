@@ -222,6 +222,69 @@ export function notifyExtensionUpdate(args: {
   });
 }
 
+export function notifyBookingOverpaymentWalletCredit(args: {
+  customerId: string;
+  bookingCode: string;
+  excessPaise: number;
+}): void {
+  queueTenantNotification({
+    customerId: args.customerId,
+    notificationKind: 'overpayment_wallet_credit',
+    subject: `Wallet credit — ${args.bookingCode}`,
+    text:
+      `Your booking ${args.bookingCode} is confirmed.\n` +
+      `${paiseToInr(args.excessPaise)} has been added to your deposit wallet as credit from an overpayment.`,
+  });
+}
+
+export function notifyPaymentProofRejected(args: {
+  customerId: string;
+  bookingCode: string;
+  reason?: string;
+}): void {
+  queueTenantNotification({
+    customerId: args.customerId,
+    notificationKind: 'payment_proof_rejected',
+    subject: `Payment not approved — ${args.bookingCode}`,
+    text:
+      `We could not approve the payment proof submitted for booking ${args.bookingCode}.\n` +
+      `The booking has been cancelled and the bed hold released.\n` +
+      (args.reason ? `\nNote: ${args.reason}\n` : '\n') +
+      `\nYou may submit a new booking or contact the PG office if you believe this was a mistake.`,
+  });
+}
+
+export function notifyBookingOverpaymentRefundPending(args: {
+  customerId: string;
+  bookingCode: string;
+  excessPaise: number;
+}): void {
+  queueTenantNotification({
+    customerId: args.customerId,
+    notificationKind: 'overpayment_refund_pending',
+    subject: `Overpayment refund — ${args.bookingCode}`,
+    text:
+      `Your booking ${args.bookingCode} is confirmed.\n` +
+      `We received ${paiseToInr(args.excessPaise)} above the checkout total.\n` +
+      `This excess is queued for refund to you. Our team will process it shortly.`,
+  });
+}
+
+export function notifyBookingOverpaymentFutureCredit(args: {
+  customerId: string;
+  bookingCode: string;
+  excessPaise: number;
+}): void {
+  queueTenantNotification({
+    customerId: args.customerId,
+    notificationKind: 'overpayment_future_credit',
+    subject: `Booking credit on file — ${args.bookingCode}`,
+    text:
+      `Your booking ${args.bookingCode} is confirmed.\n` +
+      `${paiseToInr(args.excessPaise)} has been recorded as credit toward your future rent invoices.`,
+  });
+}
+
 export type EmailDeliveryMeta = {
   provider: 'resend' | 'smtp' | 'log';
   messageId?: string;

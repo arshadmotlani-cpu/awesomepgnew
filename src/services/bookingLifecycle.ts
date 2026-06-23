@@ -76,6 +76,14 @@ export type RecordPaymentSuccessInput = {
     depositDueDate: string;
     approvedByAdminId: string;
   };
+  /** Admin who recorded an offline payment — used for audit attribution. */
+  recordedByAdminId?: string;
+  /** Overpayment after rent/deposit/prior allocation (admin-selected disposition). */
+  overpayment?: {
+    excessPaise: number;
+    disposition: 'wallet_credit' | 'future_adjustment' | 'refund' | 'refund_later';
+    approvedByAdminId?: string;
+  };
 };
 
 export type RecordPaymentSuccessResult =
@@ -247,6 +255,11 @@ export async function recordPaymentSuccess(
     return { ok: false, reason: `no booking with code "${input.bookingCode}"` };
   }
 
+  const wasAwaitingConfirm =
+    booking.status === 'pending_payment' ||
+    booking.status === 'pending_approval' ||
+    booking.status === 'draft';
+
   const isReserveBooking = booking.durationMode === 'reserve';
 
   if (!isReserveBooking && booking.depositPaise > 0) {
@@ -360,8 +373,8 @@ export async function recordPaymentSuccess(
       }
 
       await tx.insert(auditLog).values({
-        actorType: 'system',
-        actorId: null,
+        actorType: input.recordedByAdminId ? 'admin' : 'system',
+        actorId: input.recordedByAdminId ?? null,
         entity: 'booking',
         entityId: booking.id,
         action: 'payment_succeeded',
@@ -371,8 +384,11 @@ export async function recordPaymentSuccess(
           amountPaise: input.amountPaise,
           reservationsFlipped: flippedCount,
           fromStatus: booking.status,
-          toStatus: 'confirmed',
+          toStatus: wasAwaitingConfirm ? 'confirmed' : booking.status,
           reserveBooking: isReserveBooking,
+          adminAmountOverrideReason: input.rawPayload
+            ? (input.rawPayload as { adminAmountOverrideReason?: string }).adminAmountOverrideReason
+            : undefined,
         },
       });
 
@@ -386,7 +402,10 @@ export async function recordPaymentSuccess(
       } catch (reserveErr) {
         console.error('bed reserve activation failed:', reserveErr);
       }
-    } else if (booking.durationMode === 'monthly' || booking.durationMode === 'open_ended') {
+    } else if (
+      wasAwaitingConfirm &&
+      (booking.durationMode === 'monthly' || booking.durationMode === 'open_ended')
+    ) {
       try {
         const { clearBedAdminMarks } = await import('./bookingAdminOps');
         const assignedBeds = await db
@@ -406,7 +425,7 @@ export async function recordPaymentSuccess(
       }
     }
 
-    if (!isReserveBooking && booking.depositPaise > 0) {
+    if (!isReserveBooking && booking.depositPaise > 0 && wasAwaitingConfirm) {
       try {
         const snapshot = booking.pricingSnapshot as PricingSnapshot | null;
         const creditApplied =
@@ -462,6 +481,7 @@ export async function recordPaymentSuccess(
           await applyFullDepositOnConfirm(booking.id);
         }
 
+        let priorOutstandingAppliedPaise = 0;
         const priorOutstanding = snapshot?.priorOutstanding;
         if (priorOutstanding && priorOutstanding.totalPaise > 0 && split) {
           const bookingPaymentPaise = Math.max(
@@ -471,6 +491,7 @@ export async function recordPaymentSuccess(
           const newBookingPaid = split.rentPaisePaid + split.depositPaisePaid;
           const priorSlice = Math.max(0, bookingPaymentPaise - newBookingPaid);
           if (priorSlice > 0) {
+            priorOutstandingAppliedPaise = priorSlice;
             const { applyPriorOutstandingFromCheckoutPayment } = await import(
               './bookingPriorOutstanding'
             );
@@ -482,16 +503,61 @@ export async function recordPaymentSuccess(
             });
           }
         }
+
+        const overpaymentInput = input.overpayment;
+        if (overpaymentInput && overpaymentInput.excessPaise > 0) {
+          const { applyBookingOverpaymentDisposition } = await import('./bookingOverpayment');
+          await applyBookingOverpaymentDisposition({
+            bookingId: booking.id,
+            bookingCode: booking.bookingCode,
+            customerId: booking.customerId,
+            paymentId: result.paymentId,
+            excessPaise: overpaymentInput.excessPaise,
+            disposition: overpaymentInput.disposition,
+            approvedByAdminId:
+              overpaymentInput.approvedByAdminId ?? input.recordedByAdminId ?? null,
+          });
+        } else if (!overpaymentInput) {
+          const { computeBookingCheckoutOverpaymentPaise } = await import('./bookingOverpayment');
+          const excessPaise = computeBookingCheckoutOverpaymentPaise({
+            booking,
+            amountPaise: input.amountPaise,
+            membershipAmountPaise: input.membershipAmountPaise,
+            priorOutstandingAppliedPaise,
+          });
+          if (excessPaise > 0) {
+            console.warn(
+              `booking ${booking.bookingCode}: overpayment ${excessPaise} paise with no disposition — stored on payment only`,
+            );
+          }
+        }
       } catch (depositErr) {
-        // Log + continue; the operator can backfill from the admin
-        // deposits page if this ever fires.
         console.error('deposit ledger mirror failed:', depositErr);
+      }
+    } else if (!isReserveBooking && wasAwaitingConfirm && booking.depositPaise <= 0) {
+      const overpaymentInput = input.overpayment;
+      if (overpaymentInput && overpaymentInput.excessPaise > 0) {
+        try {
+          const { applyBookingOverpaymentDisposition } = await import('./bookingOverpayment');
+          await applyBookingOverpaymentDisposition({
+            bookingId: booking.id,
+            bookingCode: booking.bookingCode,
+            customerId: booking.customerId,
+            paymentId: result.paymentId,
+            excessPaise: overpaymentInput.excessPaise,
+            disposition: overpaymentInput.disposition,
+            approvedByAdminId:
+              overpaymentInput.approvedByAdminId ?? input.recordedByAdminId ?? null,
+          });
+        } catch (overpayErr) {
+          console.error('overpayment disposition failed:', overpayErr);
+        }
       }
     }
 
     try {
       const { clearBedInterestForBooking } = await import('./bedNoticeInterest');
-      if (!isReserveBooking) {
+      if (!isReserveBooking && wasAwaitingConfirm) {
         await clearBedInterestForBooking(booking.id);
       }
     } catch (interestErr) {
@@ -500,7 +566,7 @@ export async function recordPaymentSuccess(
 
     try {
       const { activatePendingMembershipForBooking } = await import('./playstationMembership');
-      if (!isReserveBooking) {
+      if (!isReserveBooking && wasAwaitingConfirm) {
         await activatePendingMembershipForBooking(booking.id);
       }
     } catch (ps4Err) {
@@ -510,11 +576,13 @@ export async function recordPaymentSuccess(
     const { notifyBookingConfirmed, notifyPaymentReceipt } = await import(
       '@/src/lib/email/notifications'
     );
-    notifyBookingConfirmed({
-      customerId: booking.customerId,
-      bookingCode: booking.bookingCode,
-      totalPaise: input.amountPaise,
-    });
+    if (wasAwaitingConfirm) {
+      notifyBookingConfirmed({
+        customerId: booking.customerId,
+        bookingCode: booking.bookingCode,
+        totalPaise: input.amountPaise,
+      });
+    }
     notifyPaymentReceipt({
       customerId: booking.customerId,
       purpose: 'booking',
@@ -522,9 +590,49 @@ export async function recordPaymentSuccess(
       reference: booking.bookingCode,
     });
 
+    if (wasAwaitingConfirm && !isReserveBooking) {
+      try {
+        const { bedReservations, customers, floors, pgs, rooms, beds } = await import(
+          '@/src/db/schema'
+        );
+        const [ctx] = await db
+          .select({
+            customerName: customers.fullName,
+            pgId: pgs.id,
+            pgName: pgs.name,
+          })
+          .from(bookings)
+          .innerJoin(customers, eq(customers.id, bookings.customerId))
+          .innerJoin(bedReservations, eq(bedReservations.bookingId, bookings.id))
+          .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+          .innerJoin(rooms, eq(rooms.id, beds.roomId))
+          .innerJoin(floors, eq(floors.id, rooms.floorId))
+          .innerJoin(pgs, eq(pgs.id, floors.pgId))
+          .where(
+            and(eq(bookings.id, booking.id), eq(bedReservations.kind, 'primary')),
+          )
+          .limit(1);
+        if (ctx) {
+          const { emitPaymentReceivedAutomation } = await import('./automationEngine');
+          void emitPaymentReceivedAutomation({
+            pgId: ctx.pgId,
+            customerId: booking.customerId,
+            bookingId: booking.id,
+            paymentId: result.paymentId,
+            amountPaise: input.amountPaise,
+            pgName: ctx.pgName,
+            customerName: ctx.customerName,
+            paymentPurpose: 'booking_checkout',
+          });
+        }
+      } catch (automationErr) {
+        console.error('payment received automation failed:', automationErr);
+      }
+    }
+
     const { trackAnalyticsEvent } = await import('./visitorAnalytics');
     void trackAnalyticsEvent({ eventType: 'payment_completed' });
-    if (!isReserveBooking) {
+    if (!isReserveBooking && wasAwaitingConfirm) {
       const today = new Date().toISOString().slice(0, 10);
       const [stayRow] = await db
         .select({

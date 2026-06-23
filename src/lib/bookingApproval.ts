@@ -11,7 +11,7 @@
 
 import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { bedReservations, bookings, pgPaymentRecords, rentInvoices } from '@/src/db/schema';
+import { auditLog, bedReservations, bookings, pgPaymentRecords, rentInvoices } from '@/src/db/schema';
 
 export type BookingApprovalPhase =
   | 'awaiting_payment'
@@ -87,6 +87,10 @@ export async function markBookingAwaitingApproval(bookingId: string): Promise<vo
 export async function cleanupRejectedBookingRequest(input: {
   bookingId: string;
   reason: string;
+  rejectedByAdminId?: string;
+  pgPaymentRecordId?: string;
+  customerId?: string | null;
+  bookingCode?: string | null;
 }): Promise<void> {
   await db.transaction(async (tx) => {
     await tx
@@ -130,5 +134,27 @@ export async function cleanupRejectedBookingRequest(input: {
           inArray(rentInvoices.status, ['pending', 'overdue', 'payment_in_progress']),
         ),
       );
+
+    await tx.insert(auditLog).values({
+      actorType: input.rejectedByAdminId ? 'admin' : 'system',
+      actorId: input.rejectedByAdminId ?? null,
+      entity: 'booking',
+      entityId: input.bookingId,
+      action: 'payment_proof_rejected',
+      diff: {
+        reason: input.reason,
+        pgPaymentRecordId: input.pgPaymentRecordId ?? null,
+        bookingCode: input.bookingCode ?? null,
+      },
+    });
   });
+
+  if (input.customerId && input.bookingCode) {
+    const { notifyPaymentProofRejected } = await import('@/src/lib/email/notifications');
+    notifyPaymentProofRejected({
+      customerId: input.customerId,
+      bookingCode: input.bookingCode,
+      reason: input.reason,
+    });
+  }
 }

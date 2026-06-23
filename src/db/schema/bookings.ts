@@ -100,6 +100,14 @@ export type PricingSnapshot = {
       kind: 'deposit' | 'rent' | 'electricity' | 'other';
     }>;
   };
+  /** Credits from checkout overpayment or admin adjustments — applied to future billing. */
+  checkoutCredits?: Array<{
+    amountPaise: number;
+    kind: 'future_rent_adjustment' | 'refund_pending';
+    relatedPaymentId?: string;
+    createdAt: string;
+    note?: string;
+  }>;
   /** Rent line items (excludes deposit) snapshotted for checkout display. */
   rentLineItems?: PricingLineItem[];
   /**
