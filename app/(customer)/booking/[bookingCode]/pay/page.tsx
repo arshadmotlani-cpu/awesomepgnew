@@ -22,6 +22,7 @@ import {
 import { getPendingMembershipForBooking } from '@/src/services/playstationMembership';
 import { getPendingBookingPaymentRecord } from '@/src/services/qrPayments';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
+import { resolveBookingDepositCreditAppliedPaise } from '@/src/lib/billing/bookingCheckoutTotals';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,10 +72,12 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
   const pendingPayment = await getPendingBookingPaymentRecord(booking.id, session.customerId);
   const ps4Paise = pendingPs4?.amountPaise ?? 0;
   const snapshot = booking.pricingSnapshot as PricingSnapshot | null;
-  const depositCreditAppliedPaise = snapshot?.depositCredit?.appliedPaise ?? 0;
+  const depositCreditAppliedPaise = resolveBookingDepositCreditAppliedPaise(snapshot?.depositCredit);
   const additionalDepositDuePaise =
-    snapshot?.depositCredit?.additionalDuePaise ??
-    Math.max(0, booking.depositPaise - depositCreditAppliedPaise);
+    snapshot?.depositCredit?.adminTransferred === true
+      ? (snapshot.depositCredit.additionalDuePaise ??
+        Math.max(0, booking.depositPaise - depositCreditAppliedPaise))
+      : booking.depositPaise;
   const priorOutstandingItems = snapshot?.priorOutstanding?.items ?? [];
   const rentLineItems = snapshot?.rentLineItems ?? [];
   const checkoutTotalPaise = booking.totalPaise + ps4Paise;

@@ -11,6 +11,7 @@ import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRe
 import { jsonSafe } from '@/src/lib/depositPageDebug';
 import { loadDepositPageData } from '@/src/lib/deposits/loadDepositPageData';
 import { DepositWorkflowHeader } from '@/src/components/admin/deposits/DepositWorkflowHeader';
+import { TransferOldDepositPanel } from '@/src/components/admin/deposits/TransferOldDepositPanel';
 import { buildDepositWorkflowPresentation } from '@/src/lib/deposits/depositWorkflowPresentation';
 import { clientSafeDepositView } from '@/src/lib/deposits/unifiedDepositView';
 
@@ -144,6 +145,15 @@ export default async function AdminDepositDetailPage({
             syncWarning={syncWarning}
             isFrozen={isFrozen}
           />
+        </DepositDetailSection>
+      ) : null}
+
+      {!isFrozen ? (
+        <DepositDetailSection
+          title="Transfer old deposit"
+          description="Admin-only — apply refundable deposit from a prior booking to this one. Never done automatically for customer bookings."
+        >
+          <TransferOldDepositPanel targetBookingId={bookingId} />
         </DepositDetailSection>
       ) : null}
 

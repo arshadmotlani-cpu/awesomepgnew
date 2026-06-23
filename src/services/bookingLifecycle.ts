@@ -409,7 +409,10 @@ export async function recordPaymentSuccess(
     if (!isReserveBooking && booking.depositPaise > 0) {
       try {
         const snapshot = booking.pricingSnapshot as PricingSnapshot | null;
-        const creditApplied = snapshot?.depositCredit?.appliedPaise ?? 0;
+        const creditApplied =
+          snapshot?.depositCredit?.adminTransferred === true
+            ? (snapshot.depositCredit.appliedPaise ?? 0)
+            : 0;
         const {
           validateBookingPayment,
           applyPartialDepositOnConfirm,
@@ -424,12 +427,13 @@ export async function recordPaymentSuccess(
         const split = validation.ok ? validation.split : null;
         const depositPaisePaid = split?.depositPaisePaid ?? Math.max(0, booking.depositPaise - creditApplied);
 
-        if (creditApplied > 0) {
+        if (creditApplied > 0 && snapshot?.depositCredit?.adminTransferred === true) {
           const { applyDepositCreditToBooking } = await import('./depositCredit');
           const creditResult = await applyDepositCreditToBooking({
             customerId: booking.customerId,
             targetBookingId: booking.id,
             creditPaise: creditApplied,
+            sourceBookingId: snapshot.depositCredit.sourceBookingId,
           });
           if (!creditResult.ok) {
             console.error('deposit credit transfer failed:', creditResult.error);

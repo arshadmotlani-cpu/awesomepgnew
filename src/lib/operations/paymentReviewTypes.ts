@@ -1,4 +1,5 @@
 import type { getQrBookingPaymentReview } from '@/src/services/qrPayments';
+import type { PriorBookingDepositInfo } from '@/src/services/depositCredit';
 
 export type PaymentReviewExpectedLine = {
   label: string;
@@ -45,4 +46,6 @@ export type PendingPaymentReviewItem = {
   canReject: boolean;
   bookingDetails?: PaymentReviewBookingDetails;
   bookingPaymentReview?: Awaited<ReturnType<typeof getQrBookingPaymentReview>>;
+  /** Informational only — prior booking refundable deposits (does not reduce expected due). */
+  priorBookingDeposits?: PriorBookingDepositInfo[];
 };

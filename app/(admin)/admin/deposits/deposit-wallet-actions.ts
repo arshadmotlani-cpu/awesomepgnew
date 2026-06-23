@@ -17,6 +17,7 @@ import {
   updateDepositSummaryAdmin,
   type DepositWalletPreview,
 } from '@/src/services/depositOperations';
+import { getCustomerDepositCredit } from '@/src/services/depositCredit';
 
 export type DepositWalletActionState =
   | { status: 'idle' }
@@ -109,6 +110,131 @@ function revalidateDepositViews(bookingId: string) {
   revalidateFinancialViews();
   revalidatePath(`/admin/deposits/${bookingId}`);
   revalidatePath('/admin/deposits');
+  revalidatePath('/admin/operations/payment-reviews');
+}
+
+export async function loadTransferOldDepositSourcesAction(
+  targetBookingId: string,
+): Promise<
+  | {
+      ok: true;
+      targetBookingCode: string | null;
+      depositRequiredPaise: number;
+      creditAlreadyAppliedPaise: number;
+      sources: Array<{
+        bookingId: string;
+        bookingCode: string | null;
+        availablePaise: number;
+      }>;
+    }
+  | { ok: false; error: string }
+> {
+  try {
+    const admin = await requireAdminPermission('deposits:write');
+    await assertAdminBookingAccess(admin, targetBookingId);
+
+    const [target] = await db
+      .select({
+        customerId: bookings.customerId,
+        bookingCode: bookings.bookingCode,
+        depositPaise: bookings.depositPaise,
+        pricingSnapshot: bookings.pricingSnapshot,
+      })
+      .from(bookings)
+      .where(eq(bookings.id, targetBookingId))
+      .limit(1);
+    if (!target) return { ok: false, error: 'Booking not found.' };
+
+    const snapshot = target.pricingSnapshot as import('@/src/db/schema/bookings').PricingSnapshot | null;
+    const creditAlreadyAppliedPaise = snapshot?.depositCredit?.adminTransferred
+      ? (snapshot.depositCredit.appliedPaise ?? 0)
+      : 0;
+
+    const wallet = await getCustomerDepositCredit(target.customerId);
+    const sources = wallet.byBooking
+      .filter((b) => b.bookingId !== targetBookingId && b.availablePaise > 0)
+      .map((b) => ({
+        bookingId: b.bookingId,
+        bookingCode: null as string | null,
+        availablePaise: b.availablePaise,
+      }));
+
+    const codes = await db
+      .select({ id: bookings.id, bookingCode: bookings.bookingCode })
+      .from(bookings)
+      .where(eq(bookings.customerId, target.customerId));
+    const codeById = new Map(codes.map((c) => [c.id, c.bookingCode]));
+
+    return {
+      ok: true,
+      targetBookingCode: target.bookingCode,
+      depositRequiredPaise: target.depositPaise,
+      creditAlreadyAppliedPaise,
+      sources: sources.map((s) => ({
+        ...s,
+        bookingCode: codeById.get(s.bookingId) ?? null,
+      })),
+    };
+  } catch (err) {
+    if (isRedirectError(err)) throw err;
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not load sources.' };
+  }
+}
+
+export async function transferOldDepositAction(
+  _prev: DepositWalletActionState,
+  formData: FormData,
+): Promise<DepositWalletActionState> {
+  let admin;
+  let bookingId = '';
+  try {
+    admin = await requireAdminPermission('deposits:write');
+    bookingId = String(formData.get('targetBookingId') ?? '');
+    const sourceBookingId = String(formData.get('sourceBookingId') ?? '');
+    const reason = String(formData.get('reason') ?? '').trim();
+    const amountInr = String(formData.get('amountInr') ?? '').trim();
+
+    if (!reason) return { status: 'error', message: 'Reason is required.' };
+    if (!sourceBookingId) return { status: 'error', message: 'Select a source booking.' };
+
+    const amountParsed = parseInrFieldToPaise(amountInr, 'Transfer amount');
+    if (typeof amountParsed === 'object' && 'error' in amountParsed) {
+      return { status: 'error', message: amountParsed.error };
+    }
+    if (amountParsed == null || amountParsed <= 0) {
+      return { status: 'error', message: 'Enter a transfer amount.' };
+    }
+
+    await assertAdminBookingAccess(admin, bookingId);
+
+    const { transferOldDepositAdmin } = await import('@/src/services/depositCredit');
+    const result = await transferOldDepositAdmin({
+      targetBookingId: bookingId,
+      sourceBookingId,
+      creditPaise: amountParsed,
+      adminId: admin.adminId,
+      reason,
+    });
+    if (!result.ok) return { status: 'error', message: result.error };
+
+    revalidateDepositViews(bookingId);
+    return {
+      status: 'ok',
+      message: `Transferred ₹${(result.creditAppliedPaise / 100).toLocaleString('en-IN')} from prior booking deposit.`,
+    };
+  } catch (err) {
+    if (isRedirectError(err)) throw err;
+    await logDepositWalletFailure({
+      action: 'transfer_old_deposit',
+      bookingId,
+      adminId: admin?.adminId,
+      error: err,
+    });
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : 'Transfer failed.',
+    };
+  }
 }
 
 export async function loadRebuildDepositPreviewAction(

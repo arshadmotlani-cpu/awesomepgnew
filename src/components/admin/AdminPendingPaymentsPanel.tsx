@@ -14,6 +14,7 @@ import {
 import { PaymentScreenshotPreview } from '@/src/components/admin/PaymentScreenshotPreview';
 import { adminPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
+import { PriorBookingDepositsInfoBlock } from '@/src/components/admin/PriorBookingDepositsInfoBlock';
 import { paiseToInr } from '@/src/lib/format';
 
 /** @deprecated Use OperationsPaymentReviewsPanel — kept for PG collections inline review. */
@@ -176,6 +177,15 @@ export function AdminPendingPaymentsPanel({
                     </dd>
                   </div>
                 </dl>
+              ) : null}
+
+              {item.priorBookingDeposits?.length ? (
+                <div className="mt-3">
+                  <PriorBookingDepositsInfoBlock
+                    deposits={item.priorBookingDeposits}
+                    variant="light"
+                  />
+                </div>
               ) : null}
 
               <div className="mt-3 flex flex-wrap gap-2">

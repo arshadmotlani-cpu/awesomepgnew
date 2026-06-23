@@ -13,10 +13,6 @@ import { computeNewBookingCheckoutTotals } from '@/src/lib/billing/bookingChecko
 import { quoteBookingPrice } from '@/src/services/pricing';
 import { getCustomerPriorOutstandingForCheckout } from '@/src/services/bookingPriorOutstanding';
 import { getCustomerSession } from '@/src/lib/auth/session';
-import {
-  computeDepositDue,
-  getCustomerDepositCredit,
-} from '@/src/services/depositCredit';
 
 export const metadata = { title: 'Complete your booking' };
 
@@ -96,15 +92,11 @@ export default async function NewBookingPage(props: PageProps<'/booking/new'>) {
       });
       subtotalPaise = quote.subtotalPaise;
       depositPaise = quote.depositPaise;
-      const wallet = await getCustomerDepositCredit(session.customerId);
-      const depositDue = computeDepositDue(depositPaise, wallet.availableCreditPaise);
-      depositCreditAppliedPaise = depositDue.creditAppliedPaise;
-      additionalDepositDuePaise = depositDue.additionalDuePaise;
+      additionalDepositDuePaise = depositPaise;
       priorOutstanding = await getCustomerPriorOutstandingForCheckout(session.customerId);
       checkoutTotals = computeNewBookingCheckoutTotals({
         rentSubtotalPaise: subtotalPaise,
         depositRequiredPaise: depositPaise,
-        depositCreditAppliedPaise,
         priorOutstanding,
       });
       totalPaise = checkoutTotals.totalToCollectTodayPaise;

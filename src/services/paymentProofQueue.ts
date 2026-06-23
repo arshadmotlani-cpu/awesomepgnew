@@ -110,6 +110,7 @@ function buildQrReviewItem(
   p: Awaited<ReturnType<typeof listOwnerPayments>>[number],
   bookingPaymentReview: Awaited<ReturnType<typeof getQrBookingPaymentReview>> | null,
   bookingDetails: PaymentReviewBookingDetails | null,
+  priorBookingDeposits: import('@/src/services/depositCredit').PriorBookingDepositInfo[] = [],
 ): PendingPaymentReviewItem {
   const isBookingCheckout = Boolean(p.bookingCode);
   const paymentTypeLabel = isBookingCheckout
@@ -187,6 +188,8 @@ function buildQrReviewItem(
     canReject: true,
     bookingDetails: bookingDetails ?? undefined,
     bookingPaymentReview: bookingPaymentReview ?? undefined,
+    priorBookingDeposits:
+      priorBookingDeposits.length > 0 ? priorBookingDeposits : undefined,
   };
 }
 
@@ -424,13 +427,20 @@ export async function listPendingPaymentReviews(
   const items: PendingPaymentReviewItem[] = [];
 
   const qrRows = await listOwnerPayments(session, { status: 'pending' });
+  const { listPriorBookingDepositsForReview } = await import('@/src/services/depositCredit');
   for (const p of qrRows) {
     const isBookingCheckout = Boolean(p.bookingCode);
     const bookingPaymentReview =
       isBookingCheckout && p.bookingId ? await getQrBookingPaymentReview(p.id) : null;
     const bookingDetails =
       p.bookingId ? await loadBookingReviewDetails(p.bookingId) : null;
-    items.push(buildQrReviewItem(p, bookingPaymentReview, bookingDetails));
+    const priorBookingDeposits =
+      isBookingCheckout && p.customerId
+        ? await listPriorBookingDepositsForReview(p.customerId, p.bookingId)
+        : [];
+    items.push(
+      buildQrReviewItem(p, bookingPaymentReview, bookingDetails, priorBookingDeposits),
+    );
   }
 
   const pgRows = await db

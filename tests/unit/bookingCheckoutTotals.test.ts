@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   breakdownBookingCheckoutPayment,
   computeNewBookingCheckoutTotals,
+  resolveBookingDepositCreditAppliedPaise,
 } from '../../src/lib/billing/bookingCheckoutTotals';
 import { computePriceBreakdown } from '../../src/services/pricing';
 import { shouldShowHybridRentBreakdown } from '../../src/lib/pricing/formatRentLines';
@@ -117,5 +118,35 @@ describe('booking checkout totals SSOT', () => {
     assert.equal(breakdown.rentDuePaise, 190_000);
     assert.equal(breakdown.depositCashDuePaise, 95_000);
     assert.equal(breakdown.bookingTotalDuePaise, 301_500);
+  });
+
+  it('ignores auto deposit credit without adminTransferred flag', () => {
+    assert.equal(
+      resolveBookingDepositCreditAppliedPaise({ appliedPaise: 16_500 }),
+      0,
+    );
+    const breakdown = breakdownBookingCheckoutPayment({
+      subtotalPaise: 190_000,
+      discountPaise: 0,
+      depositPaise: 95_000,
+      pricingSnapshot: {
+        depositCredit: { appliedPaise: 16_500 },
+      },
+    });
+    assert.equal(breakdown.depositCashDuePaise, 95_000);
+    assert.equal(breakdown.creditAppliedPaise, 0);
+  });
+
+  it('honors admin-transferred deposit credit only', () => {
+    const breakdown = breakdownBookingCheckoutPayment({
+      subtotalPaise: 190_000,
+      discountPaise: 0,
+      depositPaise: 95_000,
+      pricingSnapshot: {
+        depositCredit: { appliedPaise: 16_500, adminTransferred: true },
+      },
+    });
+    assert.equal(breakdown.depositCashDuePaise, 78_500);
+    assert.equal(breakdown.creditAppliedPaise, 16_500);
   });
 });

@@ -75,12 +75,19 @@ export type PricingSnapshot = {
     discountPaise: number;
     appliedAt: string;
   };
-  /** Deposit wallet credit applied at checkout — reduces cash/UPI due now. */
+  /**
+   * Admin-explicit deposit transfer from a prior booking — reduces cash/UPI due now.
+   * Never set automatically at customer checkout; only via admin "Transfer old deposit".
+   */
   depositCredit?: {
     requiredPaise: number;
     appliedPaise: number;
     additionalDuePaise: number;
     appliedAt: string;
+    adminTransferred?: boolean;
+    sourceBookingId?: string;
+    sourceBookingCode?: string;
+    transferredByAdminId?: string;
   };
   /** Prior stay balance included in checkout total (display + payment collection). */
   priorOutstanding?: {

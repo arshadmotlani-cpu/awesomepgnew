@@ -211,6 +211,7 @@ export async function executeExpressWalkInSale(
     notes: invoiceNotes(input, walletCreditApplied),
     createdVia: 'admin',
     createdByAdminId: session.adminId,
+    depositCreditAppliedPaise: walletCreditApplied > 0 ? walletCreditApplied : undefined,
   });
 
   if (!bookingResult.ok) {

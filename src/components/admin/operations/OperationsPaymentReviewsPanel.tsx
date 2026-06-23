@@ -20,6 +20,7 @@ import { PaymentScreenshotPreview } from '@/src/components/admin/PaymentScreensh
 import { OPS_ORANGE, OPS_PANEL } from '@/src/components/admin/residentOps/residentOpsUi';
 import { adminPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import type { OverpaymentDisposition, PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
+import { PriorBookingDepositsInfoBlock } from '@/src/components/admin/PriorBookingDepositsInfoBlock';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 
 const OVERPAYMENT_OPTIONS: Array<{ value: OverpaymentDisposition; label: string }> = [
@@ -284,6 +285,15 @@ export function OperationsPaymentReviewsPanel({
                         }
                       />
                     </dl>
+                  </div>
+                ) : null}
+
+                {item.priorBookingDeposits?.length ? (
+                  <div className="mt-4">
+                    <PriorBookingDepositsInfoBlock
+                      deposits={item.priorBookingDeposits}
+                      variant="dark"
+                    />
                   </div>
                 ) : null}
 

@@ -107,6 +107,11 @@ export type CreateBookingInput = {
   customDepositPaise?: number;
   /** Customer checkout: DDMMYY date coupon — 10% off rent only. */
   couponCode?: string;
+  /**
+   * Admin only: deposit credit transferred from a prior booking wallet.
+   * Customer bookings never auto-apply cross-booking deposit credit.
+   */
+  depositCreditAppliedPaise?: number;
 };
 
 export type CreateBookingSuccess = {
@@ -502,14 +507,14 @@ export async function createBooking(
     dateCoupon = couponResult.coupon ?? undefined;
   }
 
+  // Booking deposits are booking-scoped. Cross-booking wallet credit is never
+  // auto-applied — only when an admin explicitly passes depositCreditAppliedPaise.
   let depositCreditAppliedPaise = 0;
-  if (!isAdminCreated && input.customerId) {
-    const { getCustomerDepositCredit, computeDepositDue } = await import('./depositCredit');
-    const wallet = await getCustomerDepositCredit(input.customerId);
-    depositCreditAppliedPaise = computeDepositDue(
+  if (isAdminCreated && (input.depositCreditAppliedPaise ?? 0) > 0) {
+    depositCreditAppliedPaise = Math.min(
       quote.depositPaise,
-      wallet.availableCreditPaise,
-    ).creditAppliedPaise;
+      Math.max(0, input.depositCreditAppliedPaise ?? 0),
+    );
   }
   const additionalDepositDuePaise = quote.depositPaise - depositCreditAppliedPaise;
 
@@ -530,12 +535,14 @@ export async function createBooking(
   });
   const totalPaise = checkoutTotals.totalToCollectTodayPaise;
   const snapshot = buildSnapshot(quote, input.notes, dateCoupon);
-  if (depositCreditAppliedPaise > 0) {
+  if (depositCreditAppliedPaise > 0 && isAdminCreated) {
     snapshot.depositCredit = {
       requiredPaise: quote.depositPaise,
       appliedPaise: depositCreditAppliedPaise,
       additionalDuePaise: additionalDepositDuePaise,
       appliedAt: new Date().toISOString(),
+      adminTransferred: true,
+      transferredByAdminId: input.createdByAdminId,
     };
   }
   if (priorOutstanding.totalPaise > 0) {

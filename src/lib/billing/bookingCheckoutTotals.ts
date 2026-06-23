@@ -55,13 +55,24 @@ export function computeNewBookingCheckoutTotals(input: {
   };
 }
 
+/** Credit applied only when admin explicitly transferred deposit from a prior booking. */
+export function resolveBookingDepositCreditAppliedPaise(
+  depositCredit?: {
+    appliedPaise?: number;
+    adminTransferred?: boolean;
+  } | null,
+): number {
+  if (!depositCredit?.adminTransferred) return 0;
+  return Math.max(0, depositCredit.appliedPaise ?? 0);
+}
+
 /** Payment breakdown for a persisted booking row + optional prior-outstanding snapshot. */
 export function breakdownBookingCheckoutPayment(booking: {
   subtotalPaise: number;
   discountPaise: number;
   depositPaise: number;
   pricingSnapshot?: {
-    depositCredit?: { appliedPaise?: number };
+    depositCredit?: { appliedPaise?: number; adminTransferred?: boolean };
     priorOutstanding?: PriorOutstandingBalance;
   } | null;
 }): {
@@ -71,7 +82,9 @@ export function breakdownBookingCheckoutPayment(booking: {
   priorOutstandingPaise: number;
   bookingTotalDuePaise: number;
 } {
-  const creditAppliedPaise = booking.pricingSnapshot?.depositCredit?.appliedPaise ?? 0;
+  const creditAppliedPaise = resolveBookingDepositCreditAppliedPaise(
+    booking.pricingSnapshot?.depositCredit,
+  );
   const depositCashDuePaise = Math.max(0, booking.depositPaise - creditAppliedPaise);
   const rentDuePaise = Math.max(0, booking.subtotalPaise - booking.discountPaise);
   const priorOutstandingPaise = Math.max(
