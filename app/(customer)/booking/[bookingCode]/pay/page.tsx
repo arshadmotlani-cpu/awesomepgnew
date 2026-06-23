@@ -59,7 +59,7 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
     redirect(`/account/profile?next=${encodeURIComponent(`/booking/${bookingCode}/pay`)}`);
   }
 
-  if (booking.status !== 'pending_payment') {
+  if (booking.status !== 'pending_payment' && booking.status !== 'pending_approval') {
     if (booking.status === 'confirmed') {
       redirect(`/booking/${booking.bookingCode}/payment-success`);
     }

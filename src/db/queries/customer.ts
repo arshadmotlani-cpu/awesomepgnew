@@ -1125,7 +1125,7 @@ export type ResidentBookingRow = {
   roomId: string;
   roomNumber: string;
   durationMode: 'monthly' | 'open_ended' | 'fixed_stay' | 'daily' | 'weekly';
-  status: 'confirmed' | 'completed' | 'cancelled' | 'refunded' | 'draft' | 'pending_payment';
+  status: 'confirmed' | 'completed' | 'cancelled' | 'refunded' | 'draft' | 'pending_payment' | 'pending_approval';
   checkInDate: string; // YYYY-MM-DD
   expectedCheckoutDate: string | null;
   createdAt: Date;

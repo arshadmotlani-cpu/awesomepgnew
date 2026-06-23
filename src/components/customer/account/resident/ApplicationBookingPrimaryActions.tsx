@@ -20,7 +20,7 @@ export function ApplicationBookingPrimaryActions({
   showIdentity: boolean;
   residentHomeHref: string;
 }) {
-  const isPending = status === 'pending_payment';
+  const isPending = status === 'pending_payment' || status === 'pending_approval';
   const isConfirmed = status === 'confirmed';
 
   return (
@@ -28,7 +28,9 @@ export function ApplicationBookingPrimaryActions({
       <h2 className="text-base font-semibold text-zinc-900">What to do next</h2>
       <p className="mt-1 text-sm text-zinc-600">
         {isPending
-          ? 'Complete payment to lock in your bed. Then upload identity documents before check-in.'
+          ? status === 'pending_approval'
+            ? 'Your payment proof is with the office for review. Upload identity documents while you wait.'
+            : 'Complete payment to lock in your bed. Then upload identity documents before check-in.'
           : isConfirmed
             ? showIdentity
               ? 'Payment is done. Finish identity check so we can approve check-in.'

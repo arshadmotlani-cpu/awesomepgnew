@@ -90,9 +90,11 @@ export async function buildBriefingInputForBooking(args: {
     paymentLabel:
       booking.status === 'confirmed'
         ? 'Paid'
-        : booking.status === 'pending_payment'
-          ? 'Awaiting payment'
-          : titleCase(booking.status),
+        : booking.status === 'pending_approval'
+          ? 'Under admin review'
+          : booking.status === 'pending_payment'
+            ? 'Awaiting payment'
+            : titleCase(booking.status),
     monthlyRentLabel: monthlyRentPaise > 0 ? paiseToInr(monthlyRentPaise) : undefined,
     kycLabel,
     isActiveResident: tenantActive,

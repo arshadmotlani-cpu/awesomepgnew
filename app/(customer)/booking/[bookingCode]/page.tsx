@@ -16,7 +16,10 @@ import { getLatestKycSubmission } from '@/src/services/kyc';
 import { RoachieResidentBriefing } from '@/src/components/cockroach/RoachieResidentBriefing';
 import { buildBriefingInputForBooking } from '@/src/lib/cockroach/briefingFromBooking';
 import { ApplicationBookingPrimaryActions } from '@/src/components/customer/account/resident/ApplicationBookingPrimaryActions';
+import { AwaitingBookingApprovalPanel } from '@/src/components/customer/account/resident/AwaitingBookingApprovalPanel';
 import { accountProfileHref, residentTabHref } from '@/src/lib/accountNavigation';
+import { deriveBookingApprovalPhase } from '@/src/lib/bookingApproval';
+import { getPendingBookingPaymentRecord } from '@/src/services/qrPayments';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 
 export const dynamic = 'force-dynamic';
@@ -33,6 +36,12 @@ const STATUS_TONE: Record<string, { bg: string; text: string; ring: string; labe
     text: 'text-amber-700',
     ring: 'ring-amber-200',
     label: 'Pending payment',
+  },
+  pending_approval: {
+    bg: 'bg-amber-50',
+    text: 'text-amber-700',
+    ring: 'ring-amber-200',
+    label: 'Awaiting approval',
   },
   draft: {
     bg: 'bg-zinc-100',
@@ -107,9 +116,11 @@ export default async function BookingConfirmationPage(
   const paymentStatusLabel =
     b.status === 'confirmed'
       ? 'Paid'
-      : b.status === 'pending_payment'
-        ? 'Awaiting payment'
-        : titleCase(b.status);
+      : b.status === 'pending_approval'
+        ? 'Under admin review'
+        : b.status === 'pending_payment'
+          ? 'Awaiting payment'
+          : titleCase(b.status);
 
   const kycStatusLabel = !customer
     ? '—'
@@ -132,21 +143,30 @@ export default async function BookingConfirmationPage(
   const checkIn = stayRange?.lower ? formatDateUtc(stayRange.lower) : '—';
   const checkOut = stayRange?.upper ? formatDateUtc(stayRange.upper) : '—';
 
-  // Banner copy + colour adapt to the booking status. Phase 4 introduces
-  // pending_payment / cancelled / refunded as fully reachable user-facing
-  // states; the confirmation page needs to render them all.
-  const isPending = b.status === 'pending_payment';
+  const pendingPayment = await getPendingBookingPaymentRecord(b.id, session.customerId);
+  const approvalPhase = deriveBookingApprovalPhase({
+    status: b.status,
+    hasPendingPaymentProof: Boolean(pendingPayment),
+  });
+  const isAwaitingApproval = approvalPhase === 'awaiting_admin_approval';
+  const isPendingPayment = approvalPhase === 'awaiting_payment';
+  const isPending = isPendingPayment || isAwaitingApproval;
   const isCancelled = b.status === 'cancelled' || b.status === 'refunded';
-  const bannerHeadline = isPending
-    ? 'Booking awaiting payment'
-    : isCancelled
-      ? `Booking ${b.status === 'refunded' ? 'refunded' : 'cancelled'}`
-      : 'Booking confirmed';
-  const bannerCopy = isPending
-    ? 'Your beds are held for you. Complete payment to confirm the stay — if the hold lapses, the beds are released.'
-    : isCancelled
-      ? 'This booking is no longer active. Contact your PG if you have questions about settlement.'
-      : `Your stay at ${b.pg.name} is locked in. The operator will reach out with check-in instructions.`;
+  const isConfirmed = b.status === 'confirmed';
+  const bannerHeadline = isAwaitingApproval
+    ? 'Awaiting booking approval'
+    : isPendingPayment
+      ? 'Booking awaiting payment'
+      : isCancelled
+        ? `Booking ${b.status === 'refunded' ? 'refunded' : 'cancelled'}`
+        : 'Booking confirmed';
+  const bannerCopy = isAwaitingApproval
+    ? 'Payment proof received. The office will verify your UPI payment and documents before confirming your stay.'
+    : isPendingPayment
+      ? 'Your beds are held for you. Complete payment to confirm the stay — if the hold lapses, the beds are released.'
+      : isCancelled
+        ? 'This booking is no longer active. Contact your PG if you have questions about settlement.'
+        : `Your stay at ${b.pg.name} is locked in. The operator will reach out with check-in instructions.`;
   const bannerClasses = isPending
     ? 'border-amber-200 from-amber-50 to-white'
     : isCancelled
@@ -173,33 +193,37 @@ export default async function BookingConfirmationPage(
   const vacatingRes = await getVacatingForBooking(b.id);
   const vacating = vacatingRes.ok ? vacatingRes.data : null;
 
-  const briefing = await buildBriefingInputForBooking({
-    customerId: session.customerId,
-    residentName: session.fullName || b.customer.fullName,
-    kycLabel: kycStatusLabel,
-    booking: {
-      bookingId: b.id,
-      bookingCode: b.bookingCode,
-      pgName: b.pg.name,
-      durationMode: b.durationMode,
-      status: b.status,
-      expectedCheckoutDate: b.expectedCheckoutDate,
-      pricingSnapshot: b.pricingSnapshot as PricingSnapshot | null,
-      reservations: b.reservations.map((r) => ({
-        roomNumber: r.roomNumber,
-        bedCode: r.bedCode,
-        stayRange: r.stayRange,
-      })),
-      customerFullName: b.customer.fullName,
-    },
-  });
+  const briefing = isConfirmed
+    ? await buildBriefingInputForBooking({
+        customerId: session.customerId,
+        residentName: session.fullName || b.customer.fullName,
+        kycLabel: kycStatusLabel,
+        booking: {
+          bookingId: b.id,
+          bookingCode: b.bookingCode,
+          pgName: b.pg.name,
+          durationMode: b.durationMode,
+          status: b.status,
+          expectedCheckoutDate: b.expectedCheckoutDate,
+          pricingSnapshot: b.pricingSnapshot as PricingSnapshot | null,
+          reservations: b.reservations.map((r) => ({
+            roomNumber: r.roomNumber,
+            bedCode: r.bedCode,
+            stayRange: r.stayRange,
+          })),
+          customerFullName: b.customer.fullName,
+        },
+      })
+    : null;
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
-      <RoachieResidentBriefing
-        sessionKey={`booking-${b.bookingCode}-briefing-v1`}
-        {...briefing}
-      />
+      {briefing ? (
+        <RoachieResidentBriefing
+          sessionKey={`booking-${b.bookingCode}-briefing-v1`}
+          {...briefing}
+        />
+      ) : null}
       {b.status === 'confirmed' && customer && !checkInAllowed ? (
         <KycCheckInBanner
           kycStatus={customer.kycStatus}
@@ -248,14 +272,23 @@ export default async function BookingConfirmationPage(
       </div>
 
       <div className="mt-6">
-        <ApplicationBookingPrimaryActions
-          bookingCode={b.bookingCode}
-          status={b.status}
-          payHref={isPending ? `/booking/${b.bookingCode}/pay` : null}
-          identityHref={accountProfileHref('identity', { booking: b.bookingCode })}
-          showIdentity={Boolean(customer && !checkInAllowed && b.status === 'confirmed')}
-          residentHomeHref={residentTabHref('home')}
-        />
+        {isAwaitingApproval ? (
+          <AwaitingBookingApprovalPanel
+            bookingCode={b.bookingCode}
+            paymentProofRecordId={pendingPayment?.id}
+            kycStatusLabel={kycStatusLabel}
+            documentsSubmitted={documentsSubmitted}
+          />
+        ) : (
+          <ApplicationBookingPrimaryActions
+            bookingCode={b.bookingCode}
+            status={b.status}
+            payHref={isPendingPayment ? `/booking/${b.bookingCode}/pay` : null}
+            identityHref={accountProfileHref('identity', { booking: b.bookingCode })}
+            showIdentity={Boolean(customer && !checkInAllowed && isConfirmed)}
+            residentHomeHref={residentTabHref('home')}
+          />
+        )}
       </div>
 
       <section className="mt-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
@@ -372,9 +405,12 @@ export default async function BookingConfirmationPage(
         </section>
       ) : null}
 
-      {/* Charges */}
+      {/* Charges — quote only; hidden while admin review is in progress */}
+      {!isAwaitingApproval ? (
       <section className="mt-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
-        <h2 className="text-sm font-semibold text-zinc-900">Charges</h2>
+        <h2 className="text-sm font-semibold text-zinc-900">
+          {isConfirmed ? 'Charges' : 'Quoted charges (not billed yet)'}
+        </h2>
         {b.pricingSnapshot?.perBed?.length ? (
           <ul className="mt-3 space-y-2 text-sm">
             {b.pricingSnapshot.perBed.map((line, i) => (
@@ -401,7 +437,7 @@ export default async function BookingConfirmationPage(
           <Row term="Refundable deposit" value={paiseToInr(b.depositPaise)} />
         </dl>
         <div className="mt-3 flex items-center justify-between rounded-md bg-zinc-900 px-3 py-2 text-white">
-          <span className="text-sm font-medium">Total paid</span>
+          <span className="text-sm font-medium">{isConfirmed ? 'Total paid' : 'Total due at checkout'}</span>
           <span className="text-base font-semibold">
             {paiseToInr(b.totalPaise)}
           </span>
@@ -412,6 +448,7 @@ export default async function BookingConfirmationPage(
           </p>
         ) : null}
       </section>
+      ) : null}
 
       {/* Customer + PG */}
       <section className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">

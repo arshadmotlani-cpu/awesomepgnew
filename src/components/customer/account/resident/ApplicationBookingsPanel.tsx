@@ -11,6 +11,7 @@ import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 
 const STATUS_TONE: Record<string, string> = {
   pending_payment: 'bg-amber-50 text-amber-700 ring-amber-200',
+  pending_approval: 'bg-amber-50 text-amber-700 ring-amber-200',
   confirmed: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
   cancelled: 'bg-rose-50 text-rose-700 ring-rose-200',
   refunded: 'bg-zinc-100 text-zinc-700 ring-zinc-200',
@@ -36,6 +37,7 @@ function plainDuration(mode: string): string {
 
 export function ApplicationBookingsList({
   rows,
+  showResidentHome = false,
 }: {
   rows: Array<{
     id: string;
@@ -48,6 +50,7 @@ export function ApplicationBookingsList({
     discountPaise: number;
     status: string;
   }>;
+  showResidentHome?: boolean;
 }) {
   if (rows.length === 0) {
     return (
@@ -74,12 +77,14 @@ export function ApplicationBookingsList({
           >
             Open latest booking
           </Link>
-          <Link
-            href={residentTabHref('home')}
-            className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-zinc-800 hover:bg-zinc-50"
-          >
-            Resident home
-          </Link>
+          {showResidentHome ? (
+            <Link
+              href={residentTabHref('home')}
+              className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-zinc-800 hover:bg-zinc-50"
+            >
+              Resident home
+            </Link>
+          ) : null}
         </div>
       </section>
 

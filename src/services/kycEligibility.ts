@@ -30,13 +30,14 @@ export async function getCustomerKycUploadContext(
     .where(
       and(
         eq(bookings.customerId, customerId),
-        inArray(bookings.status, ['pending_payment', 'confirmed']),
+        inArray(bookings.status, ['pending_payment', 'pending_approval', 'confirmed']),
       ),
     )
     .orderBy(sql`CASE WHEN ${bookings.status} = 'confirmed' THEN 0 ELSE 1 END`)
     .limit(1);
 
-  const hasPendingPaymentBooking = bookingRow?.status === 'pending_payment';
+  const hasPendingPaymentBooking =
+    bookingRow?.status === 'pending_payment' || bookingRow?.status === 'pending_approval';
   const hasConfirmedBooking = bookingRow?.status === 'confirmed';
 
   const [tenancyRow] = await db

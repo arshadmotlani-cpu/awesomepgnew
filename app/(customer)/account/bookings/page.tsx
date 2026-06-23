@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { listBookingsForCustomer } from '@/src/db/queries/customer';
+import { customerHasConfirmedBooking, listBookingsForCustomer } from '@/src/db/queries/customer';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
 import { formatIndianPhoneDisplay } from '@/src/lib/phone';
 import { LogoutButton } from '@/src/components/auth/LogoutButton';
@@ -17,6 +17,8 @@ export default async function AccountBookingsPage() {
   const session = await requireCustomerSession('/account/bookings');
   const bookings = await listBookingsForCustomer(session.customerId);
   const rows = bookings.ok ? bookings.data : [];
+  const confirmed = await customerHasConfirmedBooking(session.customerId);
+  const hasConfirmedBooking = confirmed.ok && confirmed.data;
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-10 sm:px-6">
@@ -38,14 +40,20 @@ export default async function AccountBookingsPage() {
           Couldn&apos;t reach the database.
         </p>
       ) : (
-        <ApplicationBookingsList rows={rows} />
+        <ApplicationBookingsList rows={rows} showResidentHome={hasConfirmedBooking} />
       )}
 
       <p className="text-sm text-apg-silver">
-        Monthly stay?{' '}
-        <Link href={residentTabHref('home')} className={ACCOUNT_LINK_ON_DARK}>
-          Open resident home →
-        </Link>
+        {hasConfirmedBooking ? (
+          <>
+            Monthly stay?{' '}
+            <Link href={residentTabHref('home')} className={ACCOUNT_LINK_ON_DARK}>
+              Open resident home →
+            </Link>
+          </>
+        ) : (
+          <>Resident billing unlocks after the office approves your booking.</>
+        )}
       </p>
     </div>
   );

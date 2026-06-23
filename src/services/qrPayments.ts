@@ -248,7 +248,7 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
 
   if (!booking) throw new Error('Booking not found.');
   if (booking.customerId !== input.customerId) throw new Error('Access denied.');
-  if (booking.status !== 'pending_payment') {
+  if (booking.status !== 'pending_payment' && booking.status !== 'pending_approval') {
     throw new Error('This booking is not awaiting payment.');
   }
 
@@ -315,6 +315,9 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
       transactionRef: input.transactionRef,
     });
   }
+
+  const { markBookingAwaitingApproval } = await import('@/src/lib/bookingApproval');
+  await markBookingAwaitingApproval(booking.id);
 
   const { trackAnalyticsEvent } = await import('./visitorAnalytics');
   void trackAnalyticsEvent({
@@ -483,7 +486,7 @@ export async function reviewPaymentRecord(
       .from(bookings)
       .where(eq(bookings.id, record.bookingId))
       .limit(1);
-    if (booking?.status === 'pending_payment') {
+    if (booking?.status === 'pending_payment' || booking?.status === 'pending_approval') {
       const { recordPaymentSuccess } = await import('./bookingLifecycle');
       const paymentResult = await recordPaymentSuccess({
         provider: 'upi_manual',
@@ -512,6 +515,14 @@ export async function reviewPaymentRecord(
       const { activatePendingMembershipForBooking } = await import('./playstationMembership');
       await activatePendingMembershipForBooking(record.bookingId);
     }
+  }
+
+  if (status === 'rejected' && record.bookingId) {
+    const { cleanupRejectedBookingRequest } = await import('@/src/lib/bookingApproval');
+    await cleanupRejectedBookingRequest({
+      bookingId: record.bookingId,
+      reason: 'payment proof rejected by admin',
+    });
   }
 
   await db

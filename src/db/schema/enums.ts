@@ -33,6 +33,8 @@ export const bedStatusEnum = pgEnum('bed_status', ['available', 'maintenance', '
 export const bookingStatusEnum = pgEnum('booking_status', [
   'draft',
   'pending_payment',
+  /** UPI proof submitted — awaiting admin review before resident activation. */
+  'pending_approval',
   'confirmed',
   'cancelled',
   'completed',

@@ -275,7 +275,9 @@ export async function recordPaymentSuccess(
 
   if (
     !isReserveBooking &&
-    (booking.status === 'pending_payment' || booking.status === 'draft')
+    (booking.status === 'pending_payment' ||
+      booking.status === 'pending_approval' ||
+      booking.status === 'draft')
   ) {
     const conflictReason = await bookingActivationConflicts(booking.id);
     if (conflictReason) {
@@ -346,7 +348,11 @@ export async function recordPaymentSuccess(
       // Flip the booking itself if it was awaiting payment. We do NOT flip
       // already-`confirmed` bookings (defensive: admins might have manually
       // confirmed).
-      if (booking.status === 'pending_payment' || booking.status === 'draft') {
+      if (
+        booking.status === 'pending_payment' ||
+        booking.status === 'pending_approval' ||
+        booking.status === 'draft'
+      ) {
         await tx
           .update(bookings)
           .set({ status: 'confirmed', updatedAt: new Date() })
@@ -649,7 +655,11 @@ export async function recordPaymentFailure(
             eq(bedReservations.kind, 'primary'),
           ),
         );
-      if (booking.status === 'pending_payment' || booking.status === 'draft') {
+      if (
+        booking.status === 'pending_payment' ||
+        booking.status === 'pending_approval' ||
+        booking.status === 'draft'
+      ) {
         await tx
           .update(bookings)
           .set({
@@ -674,7 +684,9 @@ export async function recordPaymentFailure(
           reason: input.reason,
           fromStatus: booking.status,
           toStatus:
-            booking.status === 'pending_payment' || booking.status === 'draft'
+            booking.status === 'pending_payment' ||
+            booking.status === 'pending_approval' ||
+            booking.status === 'draft'
               ? 'cancelled'
               : booking.status,
         },
@@ -944,7 +956,7 @@ export async function releaseExpiredHolds(
           .where(
             and(
               eq(bookings.id, bookingId),
-              inArray(bookings.status, ['draft', 'pending_payment']),
+              inArray(bookings.status, ['draft', 'pending_payment', 'pending_approval']),
             ),
           )
           .returning({ code: bookings.bookingCode });
@@ -1416,7 +1428,8 @@ export async function cancelBooking(
   // For pending_payment cancellations there is no money to refund — the
   // customer hasn't paid yet. We override the computation to zero in that
   // case but keep the breakdown for the audit log.
-  const noMoneyMoved = b.status === 'pending_payment';
+  const noMoneyMoved =
+    b.status === 'pending_payment' || b.status === 'pending_approval';
 
   // Find the original successful booking payment so we can refund against it
   // when there's money to return.
