@@ -1,0 +1,47 @@
+{
+  "bookingCode": "APG-2026-0016",
+  "base": "https://www.awesomepg.in",
+  "screenshots": {
+    "01-checkout-settlements-list": "public/assets/prod-verify-harish-2026-06-23/01-checkout-settlements-list.png",
+    "01b-tab-completed": "public/assets/prod-verify-harish-2026-06-23/01b-tab-completed.png",
+    "03-settlement-detail-before": "public/assets/prod-verify-harish-2026-06-23/03-settlement-detail-before.png",
+    "04-settlement-already-complete": "public/assets/prod-verify-harish-2026-06-23/04-settlement-already-complete.png",
+    "05-deposits-ledger": "public/assets/prod-verify-harish-2026-06-23/05-deposits-ledger.png",
+    "06-bed-map": "public/assets/prod-verify-harish-2026-06-23/06-bed-map.png",
+    "07-awaiting-resident-queue": "public/assets/prod-verify-harish-2026-06-23/07-awaiting-resident-queue.png",
+    "07b-awaiting-review-queue": "public/assets/prod-verify-harish-2026-06-23/07b-awaiting-review-queue.png",
+    "08-refund-pending-queue": "public/assets/prod-verify-harish-2026-06-23/08-refund-pending-queue.png",
+    "08b-completed-queue": "public/assets/prod-verify-harish-2026-06-23/08b-completed-queue.png",
+    "09-vacating-queue": "public/assets/prod-verify-harish-2026-06-23/09-vacating-queue.png"
+  },
+  "checklist": {
+    "A_adminSession": "PASS",
+    "B_settlementAmounts": "FAIL",
+    "C_completeCheckout": "PASS",
+    "D_depositLedger": "FAIL",
+    "E_bed203B5": "FAIL",
+    "F_queuesAndResidentView": "PASS"
+  },
+  "blockers": [
+    "Amount mismatch: {\"deposit\":\"1500\",\"notice\":\"595\",\"electricity\":\"1500\",\"refund\":\"0\"}"
+  ],
+  "amountsFound": {
+    "deposit": "1500",
+    "notice": "595",
+    "electricity": "1500",
+    "refund": "0"
+  },
+  "settlementId": "ce057827-df2a-4e39-acb9-0947fb05ee64",
+  "settlementUrl": "/admin/checkout-settlements/ce057827-df2a-4e39-acb9-0947fb05ee64",
+  "completeCheckoutClicked": false,
+  "loginRequired": false,
+  "statusBefore": "Done",
+  "statusAfter": "completed",
+  "queueChecks": {
+    "awaiting_resident": false,
+    "awaiting_review": false,
+    "refund_pending": false,
+    "completed": true,
+    "vacating": true
+  }
+}
