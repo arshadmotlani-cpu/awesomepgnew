@@ -55,14 +55,8 @@ export default async function ResidentsPage({
         actions={
           <div className="flex flex-wrap gap-2">
             <Link
-              href="/admin/bookings/new"
-              className="rounded-lg bg-[#FF5A1F] px-4 py-2 text-sm font-semibold text-white hover:brightness-110"
-            >
-              Assign tenant
-            </Link>
-            <Link
               href="/admin/beds"
-              className="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-apg-silver hover:text-white"
+              className="rounded-lg bg-[#FF5A1F] px-4 py-2 text-sm font-semibold text-white hover:brightness-110"
             >
               Bed assignment
             </Link>

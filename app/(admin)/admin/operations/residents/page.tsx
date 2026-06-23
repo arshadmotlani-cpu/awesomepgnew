@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation';
 import { AdminSectionErrorBoundary } from '@/src/components/admin/AdminSectionErrorBoundary';
 import { ScrollToHash } from '@/src/components/admin/ScrollToHash';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
@@ -22,6 +23,10 @@ export default async function ResidentOperationsResidentsPage({
   searchParams: Promise<{ filter?: string }>;
 }) {
   const params = await searchParams;
+  if (params.filter === 'payment_proof') {
+    redirect('/admin/operations/payment-reviews');
+  }
+
   await ensureAdminPageNotificationsSeen(
     '/admin/operations/residents',
     '/admin/operations/residents',

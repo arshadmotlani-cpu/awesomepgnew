@@ -37,7 +37,7 @@ export function ResidentsOperationsActionQueue({
     <OpsSection
       id="queue"
       title="Action queue"
-      description="One resident per row — payment proofs first, then KYC, beds, move-outs, and collections."
+      description="One resident per row — KYC, beds, move-outs, and collections."
     >
       <OpsPanel className="overflow-hidden">
         <div className="overflow-x-auto">
@@ -144,12 +144,6 @@ function QueueRowActions({ row }: { row: ResidentsQueueRow }) {
               KYC workspace
             </Link>
           ) : null}
-          <Link
-            href="/admin/operations/payment-reviews"
-            className="block px-4 py-2.5 text-xs text-apg-silver hover:bg-white/5 hover:text-white"
-          >
-            Payment reviews
-          </Link>
         </div>
       </details>
     </div>

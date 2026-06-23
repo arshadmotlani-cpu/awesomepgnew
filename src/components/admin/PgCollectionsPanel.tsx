@@ -1,16 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useId, useState } from 'react';
+import Link from 'next/link';
 import { ImageFileInput } from '@/src/components/shared/ImageFileInput';
-import { approveElectricityProofAction } from '@/app/(admin)/admin/pgs/electricity-actions';
-import { approveRentProofAction } from '@/app/(admin)/admin/payments/actions';
 import {
   createPaymentCategoryAction,
   togglePgPaymentsAction,
   uploadQrImageAction,
 } from '@/app/(admin)/admin/pgs/payment-actions';
-import { PaymentScreenshotPreview } from '@/src/components/admin/PaymentScreenshotPreview';
-import { adminPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import { paiseToInr } from '@/src/lib/format';
 
 type Category = {
@@ -139,33 +136,6 @@ export function PgCollectionsPanel({
     await load();
   }
 
-  async function onReviewQr(id: string, status: 'approved' | 'rejected') {
-    await fetch(`/api/payment-record/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
-    });
-    await load();
-  }
-
-  async function onApproveElectricity(invoiceId: string) {
-    setBusy(true);
-    await approveElectricityProofAction(invoiceId, pgId);
-    setBusy(false);
-    window.location.reload();
-  }
-
-  async function onApproveRent(invoiceId: string) {
-    setBusy(true);
-    const result = await approveRentProofAction(invoiceId, pgId);
-    setBusy(false);
-    if (!result.ok) {
-      setError(result.message ?? 'Approval failed.');
-      return;
-    }
-    window.location.reload();
-  }
-
   const pendingQr = qrPayments.filter((p) => p.status === 'pending');
   const pendingCount = pendingQr.length + electricityProofs.length + rentProofs.length;
 
@@ -178,8 +148,12 @@ export function PgCollectionsPanel({
         <h2 className="text-lg font-semibold text-white">Collections — rent & electricity</h2>
         <p className="text-sm text-zinc-400">
           Tenants pay on <strong className="text-zinc-300">/pgs</strong> by scanning your QR (rent)
-          or from their resident dashboard (electricity invoice + screenshot). You approve
-          submissions here.
+          or from their resident dashboard (electricity invoice + screenshot). Approve payment
+          screenshots in{' '}
+          <Link href="/admin/operations/payment-reviews" className="text-[#FF5A1F] hover:underline">
+            Operations → Payment Reviews
+          </Link>
+          .
         </p>
       </header>
 
@@ -324,115 +298,21 @@ export function PgCollectionsPanel({
         </h3>
         {pendingCount === 0 ? (
           <p className="mt-2 text-sm text-zinc-500">
-            No pending rent or electricity payments. Submissions appear here when tenants pay via QR
-            or upload invoice screenshots.
+            No pending rent or electricity payments. Submissions appear when tenants pay via QR or
+            upload invoice screenshots.
           </p>
         ) : (
-          <ul className="mt-3 space-y-3">
-            {rentProofs.map((p) => (
-              <li
-                key={p.invoiceId}
-                className="rounded-xl border border-emerald-900/40 bg-emerald-950/20 p-3 text-sm"
-              >
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-                  {p.paymentProofUrl ? (
-                    <PaymentScreenshotPreview
-                      url={p.paymentProofUrl}
-                      viewHref={adminPaymentProofViewUrl('rent', p.invoiceId)}
-                      alt={`${p.invoiceNumber} rent proof`}
-                    />
-                  ) : null}
-                  <div className="min-w-0 flex-1">
-                    <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-xs text-emerald-300">
-                      Rent invoice
-                    </span>
-                    <p className="mt-1 font-medium text-white">
-                      {p.customerName} · {p.invoiceNumber}
-                    </p>
-                    <p className="text-zinc-400">
-                      Room {p.roomNumber} · {p.bedCode} · {p.billingMonth.slice(0, 7)} ·{' '}
-                      {paiseToInr(p.rentPaise)}
-                    </p>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void onApproveRent(p.invoiceId)}
-                      className="mt-2 rounded bg-emerald-600 px-3 py-1 text-xs text-white"
-                    >
-                      Approve & mark paid
-                    </button>
-                  </div>
-                </div>
-              </li>
-            ))}
-            {electricityProofs.map((p) => (
-              <li key={p.invoiceId} className="rounded-xl border border-indigo-900/40 bg-indigo-950/20 p-3 text-sm">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-                  {p.paymentProofUrl ? (
-                    <PaymentScreenshotPreview
-                      url={p.paymentProofUrl}
-                      viewHref={adminPaymentProofViewUrl('electricity', p.invoiceId)}
-                      alt={`${p.invoiceNumber} electricity proof`}
-                    />
-                  ) : null}
-                  <div className="min-w-0 flex-1">
-                    <span className="rounded bg-indigo-500/20 px-1.5 py-0.5 text-xs text-indigo-300">
-                      Electricity
-                    </span>
-                    <p className="mt-1 font-medium text-white">
-                      {p.invoiceNumber} · Room {p.roomNumber}
-                    </p>
-                    <p className="text-zinc-400">{paiseToInr(p.amountPaise)}</p>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void onApproveElectricity(p.invoiceId)}
-                      className="mt-2 rounded bg-emerald-600 px-3 py-1 text-xs text-white"
-                    >
-                      Approve & mark paid
-                    </button>
-                  </div>
-                </div>
-              </li>
-            ))}
-            {pendingQr.map((p) => (
-              <li key={p.id} className="rounded-xl border border-zinc-800 p-3 text-sm">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-                  <PaymentScreenshotPreview
-                    url={p.paymentScreenshotUrl}
-                    viewHref={adminPaymentProofViewUrl('qr', p.id)}
-                    alt={`${p.customerName} QR payment proof`}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <span className="rounded bg-zinc-700 px-1.5 py-0.5 text-xs text-zinc-300">
-                      {p.categoryName}
-                    </span>
-                    <p className="mt-1 font-medium text-white">{p.customerName}</p>
-                    <p className="text-zinc-400">
-                      {paiseToInr(p.amountPaise)}
-                      {p.month ? ` · ${p.month}` : ''}
-                    </p>
-                    <div className="mt-2 flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void onReviewQr(p.id, 'approved')}
-                        className="rounded bg-emerald-600 px-2 py-1 text-xs text-white"
-                      >
-                        Approve
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void onReviewQr(p.id, 'rejected')}
-                        className="rounded bg-rose-600 px-2 py-1 text-xs text-white"
-                      >
-                        Reject
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <div className="mt-3 rounded-xl border border-amber-900/40 bg-amber-950/20 p-4 text-sm">
+            <p className="text-zinc-200">
+              {pendingCount} payment proof{pendingCount === 1 ? '' : 's'} awaiting review.
+            </p>
+            <Link
+              href="/admin/operations/payment-reviews"
+              className="mt-3 inline-flex rounded-lg bg-[#FF5A1F] px-4 py-2 text-xs font-semibold text-white hover:brightness-110"
+            >
+              Review in Payment Reviews →
+            </Link>
+          </div>
         )}
       </div>
 

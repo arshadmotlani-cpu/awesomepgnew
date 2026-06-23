@@ -1,7 +1,5 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { AdminKycStatusWithWhatsApp } from '@/src/components/admin/AdminKycWhatsAppButton';
-import { AssignTenantForm } from '@/src/components/admin/AssignTenantForm';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { BedAssignmentWhatsAppButton } from '@/src/components/admin/BedAssignmentWhatsAppButton';
 import { EditMoveInDateForm } from '@/src/components/admin/EditMoveInDateForm';
@@ -13,7 +11,6 @@ import { FinalSettlementPanel } from '@/src/components/admin/FinalSettlementPane
 import { Resident360WorkflowBar } from '@/src/components/admin/residents/Resident360WorkflowBar';
 import { ResidentInlineOpenBills } from '@/src/components/admin/residents/ResidentInlineOpenBills';
 import { ResidentProfileAdvancedTools } from '@/src/components/admin/residents/ResidentProfileAdvancedTools';
-import { ResidentProfilePrimaryActions } from '@/src/components/admin/residents/ResidentProfilePrimaryActions';
 import { buildResident360Workflow } from '@/src/lib/residents/resident360Workflow';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
@@ -25,10 +22,7 @@ import { formatDate, formatDateTime, paiseToInr, titleCase } from '@/src/lib/for
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { getLatestKycSubmission } from '@/src/services/kyc';
 import { getResidentDetail, getCustomerVerificationStatus } from '@/src/services/residentAdmin';
-import {
-  defaultTenantStartDate,
-  listAssignableBeds,
-} from '@/src/services/tenantAssignment';
+import { listAssignableBeds } from '@/src/services/tenantAssignment';
 import { getResidentFinancialSummary } from '@/src/services/residentFinancialEngine';
 import { listResidentInvoiceHistory } from '@/src/services/invoiceGeneration';
 import { getResidentBillingFormDefaults } from '@/src/services/residentBillingProfiles';
@@ -37,38 +31,6 @@ export const dynamic = 'force-dynamic';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SURFACE = 'rounded-2xl border border-white/10 bg-[#1A1F27] p-4';
-
-function pickPrimaryOutstandingBill(
-  financialSummary: Awaited<ReturnType<typeof getResidentFinancialSummary>>,
-  firstOpenRent: { outstandingPaise: number; dueDate?: string | null; status?: string } | undefined,
-  firstOpenElec: { outstandingPaise: number; dueDate?: string | null; status?: string } | undefined,
-) {
-  if (!financialSummary) return null;
-  const rentPaise = firstOpenRent?.outstandingPaise ?? 0;
-  const depositPaise = financialSummary.deposit.outstandingPaise;
-  const elecPaise = firstOpenElec?.outstandingPaise ?? 0;
-
-  if (rentPaise > 0) {
-    return {
-      kind: 'rent' as const,
-      amountPaise: rentPaise,
-      dueDate: firstOpenRent?.dueDate ?? undefined,
-      isOverdue: firstOpenRent?.status === 'overdue',
-    };
-  }
-  if (depositPaise > 0) {
-    return { kind: 'deposit' as const, amountPaise: depositPaise };
-  }
-  if (elecPaise > 0) {
-    return {
-      kind: 'electricity' as const,
-      amountPaise: elecPaise,
-      dueDate: firstOpenElec?.dueDate ?? undefined,
-      isOverdue: firstOpenElec?.status === 'overdue',
-    };
-  }
-  return null;
-}
 
 function residentContextLine(
   customer: { fullName: string; residencyStatus: string },
@@ -112,13 +74,6 @@ export default async function ResidentDetailPage({
   const { customer, activeTenancy, canArchive, settledTenancy } = detail;
 
   const assignableRows = await listAssignableBeds(session);
-  const bedsForAssign = assignableRows.map((b) => ({
-    bedId: b.bedId,
-    label: `${b.pgName} · Room ${b.roomNumber} · ${b.bedCode}${b.manualOccupied ? ' · marked occupied' : ''}`,
-    monthlyRatePaise: b.monthlyRatePaise,
-    depositPaise: b.depositPaise,
-  }));
-
   const bedOptions = assignableRows.map((b) => ({
     bedId: b.bedId,
     label: `${b.pgName} · Room ${b.roomNumber} · ${b.bedCode}${b.manualOccupied ? ' · marked occupied' : ''}`,
@@ -154,9 +109,6 @@ export default async function ResidentDetailPage({
   const billingDefaults = activeTenancy
     ? await getResidentBillingFormDefaults(customerId, activeTenancy.bookingId)
     : null;
-
-  const firstOpenRent = financialSummary?.rent.items.find((l) => l.outstandingPaise > 0);
-  const firstOpenElec = financialSummary?.electricity.items.find((l) => l.outstandingPaise > 0);
 
   const resident360 = buildResident360Workflow({
     customerId,
@@ -287,65 +239,6 @@ export default async function ResidentDetailPage({
 
       {customer.residencyStatus !== 'vacated' ? (
         <>
-          <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className={SURFACE}>
-              <p className="text-xs font-medium uppercase tracking-wide text-apg-silver">Current bed</p>
-              <p className="mt-1">
-                {activeTenancy ? (
-                  <Badge tone="emerald">
-                    Room {activeTenancy.roomNumber} · {activeTenancy.bedCode}
-                  </Badge>
-                ) : (
-                  <Badge tone="amber">No bed assigned</Badge>
-                )}
-              </p>
-              {activeTenancy ? (
-                <p className="mt-2 text-xs text-apg-silver">{activeTenancy.pgName}</p>
-              ) : null}
-            </div>
-            <div className={SURFACE}>
-              <p className="text-xs font-medium uppercase tracking-wide text-apg-silver">Contact</p>
-              <p className="mt-1 text-sm text-white">{customer.phone}</p>
-              <p className="text-sm text-apg-silver">{customer.email}</p>
-            </div>
-            <div className={SURFACE}>
-              <p className="text-xs font-medium uppercase tracking-wide text-apg-silver">Identity</p>
-              <p className="mt-1">
-                <AdminKycStatusWithWhatsApp
-                  kycStatus={customer.kycStatus}
-                  phone={customer.phone}
-                  customerName={customer.fullName}
-                  badge={
-                    <Badge tone={toneForStatus(customer.kycStatus)}>
-                      {customer.kycStatus === 'pending'
-                        ? 'Needs review'
-                        : customer.kycStatus === 'approved'
-                          ? 'Approved'
-                          : 'Rejected'}
-                    </Badge>
-                  }
-                />
-              </p>
-            </div>
-            <div className={SURFACE}>
-              <p className="text-xs font-medium uppercase tracking-wide text-apg-silver">
-                Security deposit
-              </p>
-              {activeTenancy && depositSummary ? (
-                <>
-                  <p className="mt-1 text-sm text-white">
-                    {paiseToInr(depositSummary.collectedPaise)} collected
-                  </p>
-                  <p className="text-xs text-apg-silver">
-                    Refundable {paiseToInr(depositSummary.refundableBalancePaise)}
-                  </p>
-                </>
-              ) : (
-                <p className="mt-1 text-sm text-apg-silver">—</p>
-              )}
-            </div>
-          </div>
-
           {activeTenancy && financialSummary && billingDefaults ? (
             <ResidentInlineOpenBills
               customerId={customerId}
@@ -357,33 +250,6 @@ export default async function ResidentDetailPage({
               bookingId={activeTenancy.bookingId}
               billingDefaults={billingDefaults}
               financialSummary={financialSummary}
-            />
-          ) : null}
-
-          {activeTenancy ? (
-            <ResidentProfilePrimaryActions
-              customerId={customerId}
-              customerName={customer.fullName}
-              phone={customer.phone}
-              kycStatus={customer.kycStatus}
-              pendingKycSubmissionId={pendingKycSubmissionId}
-              pgId={activeTenancy.pgId}
-              pgName={activeTenancy.pgName}
-              roomNumber={activeTenancy.roomNumber}
-              bookingId={activeTenancy.bookingId}
-              bookingCode={activeTenancy.bookingCode}
-              billingDefaults={billingDefaults}
-              outstanding={pickPrimaryOutstandingBill(financialSummary, firstOpenRent, firstOpenElec)}
-              totalOutstandingPaise={financialSummary?.totals.outstandingPaise ?? 0}
-              expressCollectionDefaultOpen={sp.expressCollection === '1'}
-            />
-          ) : verification?.isVerified ? (
-            <ResidentProfilePrimaryActions
-              customerId={customerId}
-              customerName={customer.fullName}
-              phone={customer.phone}
-              kycStatus={customer.kycStatus}
-              pendingKycSubmissionId={pendingKycSubmissionId}
             />
           ) : null}
 
@@ -408,23 +274,6 @@ export default async function ResidentDetailPage({
               depositWallet={depositSummary}
               bookingId={activeTenancy.bookingId}
               billingDefaults={billingDefaults}
-              actionBar={{
-                pgId: activeTenancy.pgId,
-                pgName: activeTenancy.pgName,
-                roomNumber: activeTenancy.roomNumber,
-                monthlyRentPaise: activeTenancy.monthlyRentPaise,
-                pendingRentPaise: firstOpenRent?.outstandingPaise ?? financialSummary.rent.outstandingPaise,
-                rentDueDate: firstOpenRent?.dueDate ?? undefined,
-                rentOverdue: firstOpenRent?.status === 'overdue',
-                depositDuePaise: financialSummary.deposit.outstandingPaise,
-                depositCollectionStatus: financialSummary.deposit.outstandingPaise ? 'partial' : undefined,
-                depositRefundablePaise: financialSummary.deposit.refundablePaise,
-                pendingElectricityPaise: firstOpenElec?.outstandingPaise,
-                electricityBasePaise: firstOpenElec?.requiredPaise,
-                electricityDueDate: firstOpenElec?.dueDate ?? undefined,
-                electricityOverdue: firstOpenElec?.status === 'overdue',
-                electricityInvoiceNumber: firstOpenElec?.invoiceNumber ?? undefined,
-              }}
             />
           ) : canArchive ? (
             <ResidentProfileAdvancedTools
@@ -508,23 +357,18 @@ export default async function ResidentDetailPage({
             </section>
           </>
         ) : verification?.isVerified ? (
-          <section id="assign-bed" className="scroll-mt-6">
-            <h2 className="mb-3 text-sm font-semibold text-white">Assign to a bed</h2>
-            <p className="mb-4 max-w-xl text-sm text-apg-silver">
-              Pick a PG, room, and bed. Rent and occupancy update as soon as you save.
+          <section id="assign-bed" className={`${SURFACE} scroll-mt-6`}>
+            <h2 className="text-sm font-semibold text-white">Assign to a bed</h2>
+            <p className="mt-2 max-w-xl text-sm text-apg-silver">
+              Use the bed assignment command center to pick a PG, room, and bed. Rent and occupancy
+              update as soon as you save.
             </p>
-            <AssignTenantForm
-              beds={bedsForAssign}
-              defaultStartDate={defaultTenantStartDate()}
-              prefill={{
-                customerId: customer.id,
-                fullName: customer.fullName,
-                email: customer.email,
-                phone: customer.phone,
-                gender: customer.gender,
-              }}
-              theme="dark"
-            />
+            <Link
+              href={`/admin/beds?customerId=${customerId}`}
+              className="mt-4 inline-flex rounded-lg bg-[#FF5A1F] px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110"
+            >
+              Open bed assignment →
+            </Link>
           </section>
         ) : (
           <section id="assign-bed" className={`${SURFACE} scroll-mt-6`}>

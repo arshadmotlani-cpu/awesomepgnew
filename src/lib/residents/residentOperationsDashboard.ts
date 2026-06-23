@@ -105,11 +105,6 @@ export function lifecycleStageIndex(stage: ResidentLifecycleStage): number {
   return LIFECYCLE_STAGES.findIndex((s) => s.id === stage);
 }
 
-function parseNameFromPaymentTitle(title: string): string {
-  const idx = title.indexOf(' · ');
-  return idx > 0 ? title.slice(0, idx) : title;
-}
-
 export function buildResidentOperationsDashboard(input: {
   rentOverdue: CollectionQueueItem[];
   paymentProofs: PendingPaymentReviewItem[];
@@ -243,29 +238,6 @@ export function buildResidentOperationsDashboard(input: {
     });
   }
 
-  for (const p of input.paymentProofs) {
-    const name = parseNameFromPaymentTitle(p.title);
-    queue.push({
-      id: `pay-${p.key}`,
-      category: 'payment_proof',
-      filterBucket: 'payment_proof',
-      customerId: '',
-      residentName: name,
-      pgName: p.pgName,
-      roomNumber: null,
-      bedCode: null,
-      issue: 'Payment screenshot awaiting approval',
-      nextAction: 'Verify proof and approve or reject',
-      primaryActionLabel: 'Review payment',
-      primaryHref: '/admin/operations/payment-reviews',
-      sortPriority: 0,
-      bookingId: null,
-      kycSubmissionId: null,
-      tenancyStatus: null,
-      kycStatus: null,
-    });
-  }
-
   for (const req of input.residentRequests.filter((r) => r.type !== 'deposit_refund')) {
     queue.push({
       id: `req-${req.id}`,
@@ -351,7 +323,7 @@ export function buildResidentOperationsDashboard(input: {
       primaryActionLabel: v.status === 'pending' ? 'Approve move-out' : 'Open checkout',
       primaryHref:
         v.status === 'pending'
-          ? `/admin/vacating?legacy=1&status=pending`
+          ? '/admin/vacating?status=pending'
           : v.settlementId
             ? `/admin/checkout-settlements/${v.settlementId}`
             : '/admin/checkout-settlements',

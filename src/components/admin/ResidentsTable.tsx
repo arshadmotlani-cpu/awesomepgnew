@@ -226,7 +226,7 @@ export function ResidentsTable({
                     <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       {isResidentBedAssignable(r) ? (
                         <Link
-                          href={`/admin/bookings/new?customerId=${r.id}`}
+                          href={`/admin/beds?customerId=${r.id}`}
                           className="text-sm font-semibold text-[#FF5A1F] hover:underline"
                         >
                           Assign bed

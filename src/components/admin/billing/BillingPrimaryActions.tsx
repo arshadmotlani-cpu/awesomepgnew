@@ -73,13 +73,6 @@ export function BillingPrimaryActions({
     label: 'All invoices',
   });
 
-  actions.push({
-    key: 'payment-reviews',
-    kind: 'link',
-    href: '/admin/operations/payment-reviews',
-    label: 'Payment reviews (Operations)',
-  });
-
   const visible = actions.slice(0, 5);
 
   return (
@@ -88,7 +81,7 @@ export function BillingPrimaryActions({
       <p className="mt-1 text-sm text-apg-silver">
         {needsBillCount > 0
           ? `${needsBillCount} resident${needsBillCount === 1 ? '' : 's'} still need a bill for ${monthLabel}.`
-          : 'Create bills, send payment links, or review collections — payment screenshot review lives under Operations.'}
+          : 'Create bills, send payment links, or review collections.'}
       </p>
 
       {genState.status === 'ok' ? (

@@ -7,6 +7,10 @@ import type {
 } from '@/src/lib/residents/residentOperationsResidentsView';
 import { OPS_ORANGE, OpsSection } from '@/src/components/admin/residentOps/residentOpsUi';
 
+const EXTERNAL_CARD_HREF: Partial<Record<ResidentsCommandFilter, string>> = {
+  payment_proof: '/admin/operations/payment-reviews',
+};
+
 export function ResidentsOperationsCommandCenter({
   cards,
   activeFilter,
@@ -23,12 +27,15 @@ export function ResidentsOperationsCommandCenter({
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
         {cards.map((card) => {
           const isActive = activeFilter === card.id;
+          const externalHref = EXTERNAL_CARD_HREF[card.id];
           const href =
-            isActive && card.count > 0
-              ? '/admin/operations/residents#queue'
-              : card.count > 0
-                ? `/admin/operations/residents?filter=${card.id}#queue`
-                : undefined;
+            externalHref && card.count > 0
+              ? externalHref
+              : isActive && card.count > 0
+                ? '/admin/operations/residents#queue'
+                : card.count > 0
+                  ? `/admin/operations/residents?filter=${card.id}#queue`
+                  : undefined;
 
           const inner = (
             <>

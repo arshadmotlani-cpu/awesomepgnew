@@ -50,7 +50,7 @@ export function buildResident360Workflow(input: {
       nextAction: 'Assign an open bed to complete move-in.',
       primaryAction: {
         label: 'Assign bed',
-        href: `#assign-bed`,
+        href: `/admin/beds?customerId=${input.customerId}`,
       },
     };
   }
@@ -113,6 +113,9 @@ export function buildResident360Workflow(input: {
   return {
     stateLine: `${input.customerName} — onboarding in progress`,
     nextAction: 'Complete verification and bed assignment.',
-    primaryAction: { label: 'Assign bed', href: '#assign-bed' },
+    primaryAction: {
+      label: 'Assign bed',
+      href: `/admin/beds?customerId=${input.customerId}`,
+    },
   };
 }
