@@ -441,72 +441,106 @@ async function syncKycPending(session: AdminSession): Promise<void> {
 
 async function syncVacatingAlerts(session: AdminSession): Promise<void> {
   const today = todayString();
-  const rows = await db
-    .select({
-      id: vacatingRequests.id,
-      pgId: pgs.id,
-      pgName: pgs.name,
-      residentId: vacatingRequests.customerId,
-      residentName: customers.fullName,
-      residentPhone: customers.phone,
-      residentEmail: customers.email,
-      roomId: rooms.id,
-      bedId: beds.id,
-      roomNumber: rooms.roomNumber,
-      bedCode: beds.bedCode,
-      vacatingDate: vacatingRequests.vacatingDate,
-      vacatingStatus: vacatingRequests.status,
-      bookingId: vacatingRequests.bookingId,
-      settlementId: checkoutSettlements.id,
-    })
-    .from(vacatingRequests)
-    .innerJoin(bookings, eq(bookings.id, vacatingRequests.bookingId))
-    .innerJoin(customers, eq(customers.id, vacatingRequests.customerId))
-    .innerJoin(
-      bedReservations,
-      and(eq(bedReservations.bookingId, bookings.id), eq(bedReservations.kind, 'primary')),
-    )
-    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
-    .innerJoin(rooms, eq(rooms.id, beds.roomId))
-    .innerJoin(floors, eq(floors.id, rooms.floorId))
-    .innerJoin(pgs, eq(pgs.id, floors.pgId))
-    .leftJoin(
-      checkoutSettlements,
-      eq(checkoutSettlements.vacatingRequestId, vacatingRequests.id),
-    )
-    .where(inArray(vacatingRequests.status, ['pending', 'approved']));
+  /** LEFT JOIN bed location — INNER JOIN dropped pending rows when primary reservation was missing. */
+  const rows = await db.execute<{
+    id: string;
+    pg_id: string | null;
+    pg_name: string | null;
+    resident_id: string;
+    resident_name: string;
+    resident_phone: string | null;
+    resident_email: string | null;
+    room_id: string | null;
+    bed_id: string | null;
+    room_number: string | null;
+    bed_code: string | null;
+    vacating_date: string;
+    vacating_status: 'pending' | 'approved';
+    booking_id: string;
+    settlement_id: string | null;
+  }>(sql`
+    SELECT
+      vr.id,
+      loc.pg_id,
+      loc.pg_name,
+      vr.customer_id AS resident_id,
+      c.full_name AS resident_name,
+      c.phone AS resident_phone,
+      c.email AS resident_email,
+      loc.room_id,
+      loc.bed_id,
+      loc.room_number,
+      loc.bed_code,
+      vr.vacating_date::text AS vacating_date,
+      vr.status AS vacating_status,
+      vr.booking_id,
+      cs.id AS settlement_id
+    FROM vacating_requests vr
+    INNER JOIN bookings b ON b.id = vr.booking_id
+    INNER JOIN customers c ON c.id = vr.customer_id
+    LEFT JOIN LATERAL (
+      SELECT
+        p.id AS pg_id,
+        p.name AS pg_name,
+        r.id AS room_id,
+        bd.id AS bed_id,
+        r.room_number,
+        bd.bed_code
+      FROM bed_reservations br
+      INNER JOIN beds bd ON bd.id = br.bed_id
+      INNER JOIN rooms r ON r.id = bd.room_id
+      INNER JOIN floors f ON f.id = r.floor_id
+      INNER JOIN pgs p ON p.id = f.pg_id
+      WHERE br.booking_id = vr.booking_id AND br.kind = 'primary'
+      ORDER BY
+        CASE
+          WHEN br.status IN ('hold', 'active') AND CURRENT_DATE <@ br.stay_range THEN 0
+          ELSE 1
+        END,
+        br.created_at DESC
+      LIMIT 1
+    ) loc ON true
+    LEFT JOIN checkout_settlements cs ON cs.vacating_request_id = vr.id
+    WHERE vr.status IN ('pending', 'approved')
+  `);
 
   for (const row of rows) {
-    if (!row.pgId || !sessionCanAccessPg(session, row.pgId)) continue;
-    const daysRemaining = tryDiffDays(today, row.vacatingDate) ?? 0;
+    if (row.pg_id && !sessionCanAccessPg(session, row.pg_id)) continue;
+    if (!row.pg_id) {
+      console.warn('[syncVacatingAlerts] skip vacating row without PG context', row.id, row.booking_id);
+      continue;
+    }
+    const daysRemaining = tryDiffDays(today, row.vacating_date) ?? 0;
     const isPastDue = daysRemaining < 0;
     const daysPastDue = isPastDue ? Math.abs(daysRemaining) : 0;
     const title = isPastDue
-      ? row.vacatingStatus === 'approved'
-        ? `${row.residentName} · Move-out overdue (${daysPastDue}d) · complete checkout`
-        : `${row.residentName} · Notice expired (${daysPastDue}d) · approve move-out`
-      : `${row.residentName} · Vacating ${row.vacatingDate}`;
+      ? row.vacating_status === 'approved'
+        ? `${row.resident_name} · Move-out overdue (${daysPastDue}d) · complete checkout`
+        : `${row.resident_name} · Notice expired (${daysPastDue}d) · approve move-out`
+      : row.vacating_status === 'pending'
+        ? `${row.resident_name} · Approve move-out notice · ${row.vacating_date}`
+        : `${row.resident_name} · Vacating ${row.vacating_date}`;
 
     await upsertActionItem({
       type: 'vacating_alert',
       title,
-      pgId: row.pgId,
-      roomId: row.roomId,
-      bedId: row.bedId,
-      residentId: row.residentId,
-      dueDate: row.vacatingDate,
+      pgId: row.pg_id,
+      roomId: row.room_id,
+      bedId: row.bed_id,
+      residentId: row.resident_id,
+      dueDate: row.vacating_date,
       priority: isPastDue ? 'high' : daysRemaining <= 3 ? 'high' : daysRemaining <= 7 ? 'medium' : 'low',
       sourceKey: `vacating:${row.id}`,
       metadata: {
-        residentName: row.residentName,
-        residentPhone: row.residentPhone,
-        residentEmail: row.residentEmail,
-        pgName: formatPgDisplayName(row.pgName),
-        roomNumber: row.roomNumber,
-        bedCode: row.bedCode,
-        bookingId: row.bookingId,
+        residentName: row.resident_name,
+        residentPhone: row.resident_phone ?? undefined,
+        residentEmail: row.resident_email ?? undefined,
+        pgName: row.pg_name ? formatPgDisplayName(row.pg_name) : undefined,
+        roomNumber: row.room_number ?? undefined,
+        bedCode: row.bed_code ?? undefined,
+        bookingId: row.booking_id,
         vacatingRequestId: row.id,
-        settlementId: row.settlementId ?? undefined,
+        settlementId: row.settlement_id ?? undefined,
         isPastDue,
         daysPastDue: isPastDue ? daysPastDue : undefined,
       },

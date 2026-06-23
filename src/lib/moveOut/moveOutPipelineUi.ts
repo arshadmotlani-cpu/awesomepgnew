@@ -14,6 +14,7 @@ export type MoveOutCommandStats = {
   overdue: number;
   refundsToSend: number;
   completed: number;
+  pendingApproval: number;
 };
 
 export const MOVE_OUT_FILTER_BUCKETS: Array<{
@@ -73,6 +74,7 @@ export function buildMoveOutCommandStats(items: MoveOutPipelineItemClient[]): Mo
   let overdue = 0;
   let refundsToSend = 0;
   let completed = 0;
+  let pendingApproval = 0;
 
   for (const item of items) {
     const buckets = moveOutItemBuckets(item);
@@ -81,9 +83,16 @@ export function buildMoveOutCommandStats(items: MoveOutPipelineItemClient[]): Mo
     if (buckets.includes('overdue')) overdue += 1;
     if (buckets.includes('refunds_to_send')) refundsToSend += 1;
     if (buckets.includes('completed')) completed += 1;
+    if (item.vacatingStatus === 'pending') pendingApproval += 1;
   }
 
-  return { needsAction, waitingResident, overdue, refundsToSend, completed };
+  return { needsAction, waitingResident, overdue, refundsToSend, completed, pendingApproval };
+}
+
+export function moveOutPendingApprovalItems(
+  items: MoveOutPipelineItemClient[],
+): MoveOutPipelineItemClient[] {
+  return items.filter((item) => item.vacatingStatus === 'pending');
 }
 
 export function moveOutPrimaryActionLabel(item: MoveOutPipelineItemClient): string {

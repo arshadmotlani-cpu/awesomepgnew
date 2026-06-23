@@ -8,6 +8,7 @@ import { PageHeader } from '@/src/components/admin/PageHeader';
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
 import { loadAdminVacatingPageData } from '@/src/lib/vacating/loadAdminVacatingPageData';
+import { syncActionItems } from '@/src/services/actionItems';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,6 +51,9 @@ export default async function AdminVacatingPage(props: PageProps<'/admin/vacatin
   await ensureAdminPageNotificationsSeen('/admin/vacating', '/admin/vacating', readParam);
 
   const session = await requireAdminSession('/admin/vacating');
+  await syncActionItems(session).catch((err) => {
+    console.error('[admin/vacating] action item sync failed', err);
+  });
   const { vacatingRes, data } = await loadAdminVacatingPageData(session);
 
   if (!vacatingRes.ok || !data) {
@@ -110,6 +114,22 @@ export default async function AdminVacatingPage(props: PageProps<'/admin/vacatin
       />
 
       <VacatingPartialLoadBanner rowErrors={rowErrors} settlementsLoadError={settlementsLoadError} />
+
+      {vacatingRows.length > 0 && activeItems.length === 0 ? (
+        <div className="mb-6 rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+          <p className="font-semibold">
+            {vacatingRows.length} move-out record{vacatingRows.length === 1 ? '' : 's'} in database
+            but none loaded in the pipeline.
+          </p>
+          <p className="mt-1 text-xs text-rose-200/90">
+            Open{' '}
+            <Link href="/admin/vacating?legacy=1" className="underline">
+              legacy table view
+            </Link>{' '}
+            or check row errors above. Pending notices may still appear under Operations.
+          </p>
+        </div>
+      ) : null}
 
       {vacatingRows.length === 0 ? (
         <EmptyState

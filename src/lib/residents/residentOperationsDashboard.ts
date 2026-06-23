@@ -351,7 +351,7 @@ export function buildResidentOperationsDashboard(input: {
       primaryActionLabel: v.status === 'pending' ? 'Approve move-out' : 'Open checkout',
       primaryHref:
         v.status === 'pending'
-          ? '/admin/vacating'
+          ? `/admin/vacating?legacy=1&status=pending`
           : v.settlementId
             ? `/admin/checkout-settlements/${v.settlementId}`
             : '/admin/checkout-settlements',

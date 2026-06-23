@@ -35,6 +35,11 @@ export function MoveOutCommandCenter({
         <h2 className="text-xl font-bold text-white">Move-out command center</h2>
         <p className="mt-1 text-sm text-apg-silver">
           Operator task buckets — filter the queue by what needs you today.
+          {stats.pendingApproval > 0 ? (
+            <span className="ml-1 text-amber-200">
+              {stats.pendingApproval} awaiting move-out approval.
+            </span>
+          ) : null}
         </p>
       </header>
       <div className="flex flex-wrap gap-2">

@@ -23,6 +23,7 @@ import {
   moveOutIsZeroRefundCheckout,
   moveOutMatchesFilter,
   moveOutOverdueDays,
+  moveOutPendingApprovalItems,
   moveOutPrimaryActionLabel,
   partitionMoveOutItems,
   type MoveOutFilterBucket,
@@ -57,18 +58,32 @@ export function MoveOutPipelineQueue({
     [items, filter],
   );
 
-  const { overdue, active } = useMemo(() => {
+  const { overdue, active, pendingApproval } = useMemo(() => {
     if (completedSection || filter === 'completed') {
-      return { overdue: [] as MoveOutPipelineItemClient[], active: filtered };
+      return {
+        overdue: [] as MoveOutPipelineItemClient[],
+        active: filtered,
+        pendingApproval: [] as MoveOutPipelineItemClient[],
+      };
     }
     if (filter === 'overdue') {
-      return { overdue: filtered, active: [] as MoveOutPipelineItemClient[] };
+      return {
+        overdue: filtered,
+        active: [] as MoveOutPipelineItemClient[],
+        pendingApproval: [] as MoveOutPipelineItemClient[],
+      };
     }
-    const partitioned = partitionMoveOutItems(filtered);
-    if (filter !== 'all') {
-      return { overdue: partitioned.overdue, active: partitioned.active };
+    const pending = moveOutPendingApprovalItems(filtered);
+    const pendingIds = new Set(pending.map((p) => p.id));
+    const partitioned = partitionMoveOutItems(filtered.filter((i) => !pendingIds.has(i.id)));
+    if (filter !== 'all' && filter !== 'needs_action') {
+      return { overdue: partitioned.overdue, active: partitioned.active, pendingApproval: [] };
     }
-    return partitioned;
+    return {
+      overdue: partitioned.overdue,
+      active: partitioned.active,
+      pendingApproval: pending,
+    };
   }, [filtered, filter, completedSection]);
 
   if (items.length === 0) {
@@ -94,6 +109,22 @@ export function MoveOutPipelineQueue({
 
   return (
     <section className="mb-8 space-y-6">
+      {!completedSection && pendingApproval.length > 0 ? (
+        <div>
+          <SectionHeader title="Awaiting approval" count={pendingApproval.length} tone="pending" />
+          <div className="space-y-2">
+            {pendingApproval.map((row) => (
+              <MoveOutCard
+                key={row.id}
+                row={row}
+                expanded={expandedId === row.id}
+                onToggle={() => setExpandedId((id) => (id === row.id ? null : row.id))}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {!completedSection && overdue.length > 0 ? (
         <div>
           <SectionHeader title="Overdue" count={overdue.length} tone="overdue" />
@@ -142,14 +173,18 @@ function SectionHeader({
 }: {
   title: string;
   count: number;
-  tone?: 'overdue';
+  tone?: 'overdue' | 'pending';
 }) {
   return (
     <header className="mb-3 flex items-baseline gap-2">
       <h3
         className={
           'text-sm font-bold uppercase tracking-wide ' +
-          (tone === 'overdue' ? 'text-rose-200' : 'text-white')
+          (tone === 'overdue'
+            ? 'text-rose-200'
+            : tone === 'pending'
+              ? 'text-amber-200'
+              : 'text-white')
         }
       >
         {title}

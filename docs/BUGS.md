@@ -276,10 +276,11 @@
 
 | | |
 |---|---|
-| **Status** | Expected — not a bug |
-| **Situation** | Move-out notice filed; Operations shows "Approve move-out notice" |
-| **Cause** | Admin clicked Continue before `d4c01c6` fix — vacating page crashed, approval never completed |
-| **Action** | After deploy: `/admin/vacating` → Continue → confirm approve |
+| **Status** | Expected — resident submitted; admin must approve at `/admin/vacating` |
+| **Situation** | Move-out notice filed for Room 204 B2, Shanti Nagar; resident sees pending status; admin reports empty queue |
+| **Cause** | (1) Admin searched **Checkout settlements** (post-approval only) instead of **Move-outs**. (2) `syncVacatingAlerts` used INNER JOIN on `bed_reservations` — dropped action items when bed link missing. (3) `/admin/vacating` did not run `syncActionItems` on load. (4) Wrong filter tab (e.g. Waiting Resident) hides pending notices |
+| **Action** | `/admin/vacating` → **Awaiting approval** section → Approve move-out. Run `npx tsx scripts/investigate-atif-204-b2.ts` on production DB for IDs |
+| **Fix** | `syncVacatingAlerts` LEFT JOIN LATERAL; pinned pending section; action sync on vacating page load |
 
 ---
 
