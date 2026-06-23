@@ -13,6 +13,9 @@ export function safeAdminNext(raw: string | null | undefined, fallback = '/admin
 
 /** Full navigation so Set-Cookie is applied before the next request (mobile Safari). */
 export function redirectAfterAuth(url: string): void {
+  if (typeof window !== 'undefined') {
+    console.info('[auth] redirect_after_auth', JSON.stringify({ next: url }));
+  }
   window.location.assign(url);
 }
 

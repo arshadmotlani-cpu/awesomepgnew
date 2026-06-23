@@ -22,6 +22,13 @@ function needsAdminAuth(pathname: string): boolean {
   return true;
 }
 
+function residentInvoiceRef(pathname: string): string | null {
+  const prefix = '/resident/invoices/';
+  if (!pathname.startsWith(prefix)) return null;
+  const ref = pathname.slice(prefix.length).split('/')[0]?.trim();
+  return ref || null;
+}
+
 function attachMonitoringHeaders(request: NextRequest): Headers {
   const requestHeaders = new Headers(request.headers);
   if (!requestHeaders.get('x-request-id')) {
@@ -40,16 +47,50 @@ export function middleware(request: NextRequest) {
   const requestHeaders = attachMonitoringHeaders(request);
 
   if (needsCustomerAuth(pathname)) {
-    const token = request.cookies.get(CUSTOMER_SESSION_COOKIE)?.value;
+    const customerToken = request.cookies.get(CUSTOMER_SESSION_COOKIE)?.value;
+    const adminToken = request.cookies.get(ADMIN_SESSION_COOKIE)?.value;
     const signupSession = request.cookies.get(SIGNUP_SESSION_COOKIE)?.value;
     const allowSignupPassword =
       pathname === '/account/set-password' && Boolean(signupSession);
-    if (!token && !allowSignupPassword) {
+
+    if (!customerToken && !allowSignupPassword) {
+      const invoiceRef = residentInvoiceRef(pathname);
+
+      // Admin-only session on a resident share link → admin invoice page (not customer login).
+      if (invoiceRef && adminToken) {
+        console.warn(
+          '[middleware] resident_invoice_admin_session_redirect',
+          JSON.stringify({
+            pathname,
+            reason: 'admin_session_not_customer_session',
+            invoiceRef,
+            redirectTo: `/admin/invoices/${invoiceRef}`,
+          }),
+        );
+        const adminInvoice = new URL(`/admin/invoices/${invoiceRef}`, request.url);
+        return NextResponse.redirect(adminInvoice);
+      }
+
+      console.warn(
+        '[middleware] customer_auth_redirect',
+        JSON.stringify({
+          pathname,
+          reason: adminToken ? 'missing_customer_session' : 'no_session',
+          hasAdminSession: Boolean(adminToken),
+          hasCustomerSession: false,
+          hasSignupSession: Boolean(signupSession),
+        }),
+      );
+
       const login = new URL('/login', request.url);
       login.searchParams.set('next', `${pathname}${request.nextUrl.search}`);
       return NextResponse.redirect(login);
     }
+
     requestHeaders.set('x-user-id', 'customer');
+    if (customerToken) {
+      requestHeaders.set('x-session-kind', 'customer');
+    }
   }
 
   if (needsAdminAuth(pathname)) {
@@ -60,6 +101,7 @@ export function middleware(request: NextRequest) {
       return NextResponse.redirect(login);
     }
     requestHeaders.set('x-user-id', 'admin');
+    requestHeaders.set('x-session-kind', 'admin');
   }
 
   const response = NextResponse.next({

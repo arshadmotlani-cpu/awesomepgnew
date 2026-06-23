@@ -19,6 +19,7 @@ import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
 import { parseDaterange } from '@/src/services/availability';
 import { formatDate, titleCase } from '@/src/lib/format';
 import { getUnifiedInvoiceDetail } from '@/src/services/unifiedInvoices';
+import { assertCustomerOwnsFinancialInvoiceDetailed } from '@/src/lib/billing/residentInvoiceAccess';
 
 export type InvoiceDocumentLineItem = {
   kind: string;
@@ -424,10 +425,6 @@ export async function assertCustomerOwnsFinancialInvoice(
   customerId: string,
   invoiceId: string,
 ): Promise<boolean> {
-  const [row] = await db
-    .select({ customerId: financialInvoices.customerId })
-    .from(financialInvoices)
-    .where(eq(financialInvoices.id, invoiceId))
-    .limit(1);
-  return row?.customerId === customerId;
+  const result = await assertCustomerOwnsFinancialInvoiceDetailed(customerId, invoiceId);
+  return result.owns;
 }

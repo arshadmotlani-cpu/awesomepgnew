@@ -1,6 +1,7 @@
 import { cache } from 'react';
 import { cookies } from 'next/headers';
-import { and, eq, gt } from 'drizzle-orm';
+import { and, eq, gt, isNull } from 'drizzle-orm';
+import { logger } from '@/src/lib/logger';
 import { db } from '@/src/db/client';
 import { adminUsers, authSessions, customers } from '@/src/db/schema';
 import { env } from '@/src/lib/env';
@@ -201,11 +202,19 @@ export const getCustomerSession = cache(async (): Promise<CustomerSession | null
         fullName: customers.fullName,
         email: customers.email,
         mustSetPassword: customers.mustSetPassword,
+        archivedAt: customers.archivedAt,
       })
       .from(customers)
-      .where(eq(customers.id, base.subjectId))
+      .where(and(eq(customers.id, base.subjectId), isNull(customers.archivedAt)))
       .limit(1);
-    if (!customer) return null;
+    if (!customer) {
+      logger.warn('customer_session_rejected', {
+        reason: 'customer_missing_or_archived',
+        subjectId: base.subjectId,
+        sessionId: base.sessionId,
+      });
+      return null;
+    }
     return {
       kind: 'customer',
       sessionId: base.sessionId,

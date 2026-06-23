@@ -1,16 +1,17 @@
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { InvoiceDocument } from '@/src/components/billing/InvoiceDocument';
-import {
-  assertCustomerOwnsFinancialInvoice,
-  getInvoiceDocumentDetail,
-} from '@/src/lib/billing/invoiceDocumentModel';
+import { getInvoiceDocumentDetail } from '@/src/lib/billing/invoiceDocumentModel';
 import {
   isFinancialInvoiceUuid,
   resolveFinancialInvoiceRef,
 } from '@/src/lib/billing/resolveFinancialInvoiceRef';
+import {
+  checkResidentInvoiceAccess,
+  logResidentInvoiceAccess,
+} from '@/src/lib/billing/residentInvoiceAccess';
 import { residentInvoiceSharePath } from '@/src/lib/billing/sendInvoiceOnWhatsApp';
-import { requireCustomerSession } from '@/src/lib/auth/guards';
+import { getCustomerSession } from '@/src/lib/auth/session';
 import { residentTabHref } from '@/src/lib/accountNavigation';
 import {
   ACCOUNT_BACK_LINK,
@@ -19,23 +20,59 @@ import {
 } from '@/src/components/customer/accountStyles';
 
 export async function ResidentInvoiceDetailView({ ref }: { ref: string }) {
+  const session = await getCustomerSession();
+  const access = await checkResidentInvoiceAccess(ref, session);
+
+  if (!access.ok) {
+    logResidentInvoiceAccess(access, { route: '/resident/invoices/[ref]' });
+
+    if (
+      access.reason === 'unauthorized_no_session' ||
+      access.reason === 'unauthorized_must_set_password'
+    ) {
+      const sharePath = access.invoiceId
+        ? residentInvoiceSharePath(access.invoiceId)
+        : `/resident/invoices/${ref.trim()}`;
+      if (access.reason === 'unauthorized_must_set_password') {
+        redirect(`/account/set-password?next=${encodeURIComponent(sharePath)}`);
+      }
+      redirect(`/login?next=${encodeURIComponent(sharePath)}`);
+    }
+
+    notFound();
+  }
+
+  logResidentInvoiceAccess(access, { route: '/resident/invoices/[ref]' });
+
+  const invoiceId = access.invoiceId;
+  const sharePath = residentInvoiceSharePath(invoiceId);
+
+  const normalizedRef = ref.trim();
   const resolved = await resolveFinancialInvoiceRef(ref);
   if (!resolved) notFound();
 
-  const invoiceId = resolved.id;
-  const sharePath = residentInvoiceSharePath(invoiceId);
-  const session = await requireCustomerSession(sharePath);
-
-  const normalizedRef = ref.trim();
   if (normalizedRef !== invoiceId && !isFinancialInvoiceUuid(normalizedRef)) {
     redirect(sharePath);
   }
 
-  const owns = await assertCustomerOwnsFinancialInvoice(session.customerId, invoiceId);
-  if (!owns) notFound();
-
   const document = await getInvoiceDocumentDetail(invoiceId);
-  if (!document) notFound();
+  if (!document) {
+    logResidentInvoiceAccess(
+      {
+        ok: false,
+        reason: 'document_load_failed',
+        ref,
+        invoiceId,
+        invoiceNumber: access.invoiceNumber,
+        invoiceStatus: access.invoiceStatus,
+        invoiceCustomerId: access.invoiceCustomerId,
+        sessionCustomerId: access.sessionCustomerId,
+        sessionKind: 'customer',
+      },
+      { route: '/resident/invoices/[ref]' },
+    );
+    notFound();
+  }
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">

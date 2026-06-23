@@ -3,6 +3,7 @@ import { findCustomerByEmail } from '@/src/lib/auth/customer';
 import { getActiveSignupSessionForEmail } from '@/src/lib/auth/signupSession';
 import { verifyPassword } from '@/src/lib/auth/crypto';
 import { createCustomerSession } from '@/src/lib/auth/session';
+import { logger } from '@/src/lib/logger';
 
 export async function POST(request: Request) {
   let body: { email?: string; password?: string };
@@ -64,6 +65,12 @@ export async function POST(request: Request) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null;
   const userAgent = request.headers.get('user-agent');
   await createCustomerSession({ customerId: customer.id, ip, userAgent });
+
+  logger.info('customer_login_success', {
+    customerId: customer.id,
+    sessionKind: 'customer',
+    mustSetPassword: customer.mustSetPassword,
+  });
 
   return NextResponse.json({
     ok: true,
