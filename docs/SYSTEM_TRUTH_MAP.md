@@ -1,9 +1,35 @@
 # Awesome PG — System Truth Map
 
-**Purpose:** Verification audit of every major financial and resident workflow.  
-**Method:** Static code trace only (routes → actions → services → schema). No runtime tests were executed in this audit.  
+**Purpose:** Complete operational map of every major workflow before further feature development.  
+**Method:** Static code trace only (entry screens → routes → actions → services → schema). No runtime E2E in this audit.  
 **Date:** 13 June 2026  
-**Build:** `main` passes TypeScript production build at time of audit.
+**Build:** `main` passes TypeScript production build at time of audit.  
+**Companions:** [`SYSTEM_GRAPH.md`](./SYSTEM_GRAPH.md) · [`MASTER_TEST_MATRIX.md`](./MASTER_TEST_MATRIX.md)
+
+---
+
+## Workflow index (18)
+
+| # | Workflow | Section | SSOT |
+|---|----------|---------|------|
+| 1 | Booking | §1 | `createBooking()` · `bed_reservations` |
+| 2 | Booking Payment | §2 | `recordPaymentSuccess()` |
+| 3 | Payment Proof Approval | §6 | `paymentProofQueue.ts` → kind-specific `record*Success` |
+| 4 | Revenue | §7 | `generateRentInvoicesForMonth()` · `revenueCommandCenter.ts` (read) |
+| 5 | Invoices | §14 | `financial_invoices` · `invoiceDocumentModel.ts` |
+| 6 | Deposits | §3 | `deposit_ledger` · `deposits.ts` |
+| 7 | Deposit Transfers | §16 | `transferOldDepositAdmin()` · `depositCredit.ts` |
+| 8 | Rent Billing | §4 | `rent_invoices` · `rentInvoices.ts` |
+| 9 | Electricity Billing | §5 | `electricity_bills` + `electricity_invoices` |
+| 10 | KYC | §8 | `kyc_submissions` · `kyc.ts` |
+| 11 | Bed Assignment | §9 | `bed_reservations` GiST · `tenantAssignment.ts` |
+| 12 | Resident Lifecycle | §10 | `residencyJourney.ts` · `residentFinancialEngine.ts` |
+| 13 | Requests | §17 | `resident_requests` · `residentRequests.ts` |
+| 14 | Vacating | §11 | `vacating_requests` · `vacating.ts` |
+| 15 | Checkout Settlement | §12 | `checkout_settlements` · `checkoutSettlement.ts` |
+| 16 | Refunds | §13 | `settleDepositRefund()` · `refundUnifiedInvoice()` |
+| 17 | Wallet | §15 | `getDepositSummaryForBooking()` · `buildWalletLedger()` |
+| 18 | Notifications | §18 | `email_delivery_log` · `sendEmail()` hooks |
 
 ---
 
@@ -904,6 +930,253 @@ InvoiceDocument.tsx
 
 ---
 
+## 16. Deposit Transfers
+
+| Field | Detail |
+|-------|--------|
+| **Status** | **VERIFIED** (admin-only path) · **NEEDS TEST** (E2E transfer + new booking checkout) |
+
+### Trigger
+
+| Actor | Trigger | Entry |
+|-------|---------|-------|
+| Admin | Transfer prior booking deposit to new booking | `TransferOldDepositPanel` on `/admin/deposits/[bookingId]` |
+| Admin | Explicit credit on walk-in/assign | `depositCreditAppliedPaise` param on assign/walk-in |
+
+**Not a trigger:** Customer booking checkout — auto cross-booking credit was removed (deposit isolation fix).
+
+### Entry screens
+
+| Surface | Route |
+|---------|-------|
+| Admin deposit detail | `/admin/deposits/[bookingId]` — Transfer Old Deposit panel |
+| Admin booking detail | `/admin/bookings/[bookingId]` — deposit summary (read) |
+| Customer pay page | `/booking/[bookingCode]/pay` — shows prior deposits **informationally only** on payment review cards |
+
+### Routes & actions
+
+- `transferOldDepositAction` — `app/(admin)/admin/deposits/deposit-wallet-actions.ts`
+- `applyDepositCreditToBooking()` — called from `recordPaymentSuccess()` when snapshot has `adminTransferred`
+
+### Services called
+
+| Service | File | Role |
+|---------|------|------|
+| `transferOldDepositAdmin()` | `src/services/depositCredit.ts` | Deduct source booking ledger + collect on target + stamp snapshot |
+| `applyDepositDeduction()` | `src/services/depositSettlement.ts` | Source booking deduction entry |
+| `recordDepositCollected()` | `src/services/deposits.ts` | Target booking collection entry |
+| `computeNewBookingCheckoutTotals()` | `src/lib/billing/bookingCheckoutTotals.ts` | Credit applied only if `depositCredit.adminTransferred` |
+
+### Database tables touched
+
+`deposit_ledger`, `bookings.pricing_snapshot`, `audit_log`, optional `payments` (if bundled in checkout)
+
+### Dependencies
+
+- Source booking must have refundable balance (`getDepositSummaryForBooking`)
+- Target booking typically `pending_payment` or awaiting deposit
+- Requires admin `deposits:write`
+
+### Impacts
+
+| Domain | Impact |
+|--------|--------|
+| **Financial** | Moves liability between bookings; no revenue recognition |
+| **Invoice** | May reduce deposit-due on target booking |
+| **Revenue** | None |
+| **Occupancy** | None |
+| **Resident** | Lower checkout amount on target after transfer |
+| **Admin** | Audit log + deposit detail panels on both bookings |
+
+### SSOT
+
+Cross-booking deposit credit is valid **only** when `pricing_snapshot.depositCredit.adminTransferred === true`. Ledger entries on both bookings are authoritative for money movement.
+
+---
+
+## 17. Requests
+
+| Field | Detail |
+|-------|--------|
+| **Status** | **VERIFIED** · **NEEDS TEST** (dedup vs checkout settlement) · **DUPLICATE** with Checkout Settlement for deposit refunds |
+
+### Request types
+
+| Type | Resident submit | Admin review | Canonical alternative |
+|------|-----------------|--------------|---------------------|
+| `deposit_refund` | Resident hub / vacating flow | `/admin/requests` | **Checkout settlement** (preferred) |
+| `stay_extension` | Extension request UI | `/admin/requests` | `/admin/extensions` + extension pay flow |
+
+### Entry screens
+
+| Actor | Screen | Route |
+|-------|--------|-------|
+| Resident | Open requests list | `/account/profile?section=resident` (home tab) |
+| Resident | Deposit refund submit | Vacating / wallet CTAs → `submitDepositRefundRequest()` |
+| Admin | Request queue | `/admin/requests` |
+| Admin | Operations dashboard | `/admin/operations/residents` — request counts |
+| Admin | Action center | `/admin/actions` — synced `action_items` |
+
+### Server actions
+
+- `reviewResidentRequestAction` — `app/(admin)/admin/requests/actions.ts`
+- Customer submit — `app/(customer)/account/resident/request-actions.ts`, vacating actions
+
+### Services called
+
+| Service | File |
+|---------|------|
+| `submitDepositRefundRequest()`, `adminReviewResidentRequest()` | `src/services/residentRequests.ts` |
+| `syncResidentRequestActionItems()` | `src/services/residentRequestActions.ts` |
+| `settleDepositWithDeductions()` | `src/services/depositSettlement.ts` (on complete) |
+| `calculateRefundElectricityForBooking()` | `src/services/refundElectricity.ts` |
+| Dedup | `src/services/adminRefundQueue.ts` |
+
+### Database tables touched
+
+`resident_requests`, `action_items`, `deposit_ledger`, `deposit_settlements`, `checkout_settlements`, `audit_log`
+
+### Dependencies
+
+- Deposit refund requests gated by `getDepositRefundEligibility()` (vacating state)
+- `adminRefundQueue` skips legacy requests when checkout settlement exists
+
+### Impacts
+
+| Domain | Impact |
+|--------|--------|
+| **Financial** | Legacy complete → `settleDepositWithDeductions()` |
+| **Invoice** | Electricity deductions may create adjustment invoices |
+| **Revenue** | Deduction charges may affect revenue categories |
+| **Occupancy** | Legacy path may not finalize vacating occupancy — checkout is canonical |
+| **Resident** | Request status on home tab |
+| **Admin** | Sidebar badges via `action_items` sync |
+
+### SSOT
+
+`resident_requests` for request **state**; deposit money still `deposit_ledger`. For move-out refunds, **`checkout_settlements` workflow is canonical** — legacy requests are fallback only.
+
+---
+
+## 18. Notifications
+
+| Field | Detail |
+|-------|--------|
+| **Status** | **VERIFIED** (email log + admin inbox) · **UNKNOWN** (delivery rates in prod) · **NEEDS TEST** (cron reminder batches) |
+
+### Channels
+
+| Channel | SSOT | UI |
+|---------|------|-----|
+| Email | `email_delivery_log` | Resident `NotificationCenterPanel` (`?tab=notifications`) |
+| Admin in-app | `admin_notifications` + `action_items` | `AdminNotificationCenter`, `/admin/notifications` |
+| Timeline | Derived events | Admin resident timeline |
+
+### Entry screens
+
+| Actor | Route |
+|-------|-------|
+| Resident | `/account/profile?section=resident&tab=notifications` |
+| Admin | `/admin/notifications` |
+| Admin | Header bell → `/api/admin/notifications` |
+
+### Trigger hooks (representative)
+
+| Event | Hook |
+|-------|------|
+| Booking confirmed | `notifyBookingConfirmed` — `src/lib/email/notifications.ts` |
+| Payment receipt | `notifyPaymentReceipt` |
+| Rent reminder | Cron automation → `notifyRentReminder` |
+| Electricity reminder | `electricityBilling.ts` |
+| Vacating update | `notifyVacatingUpdate` |
+| OTP | `notifyVerificationCode` — `src/lib/auth/otp.ts` |
+| Action items sync | `refreshAdminNotificationsFromActionItems()` |
+
+### Services called
+
+| Service | File |
+|---------|------|
+| `sendEmail()`, `sendEmailAsync()` | `src/lib/email/send.ts` |
+| Notification templates | `src/lib/email/notifications.ts` |
+| `listCustomerEmailNotifications()` | `src/db/queries/customerNotifications.ts` |
+| Admin API | `app/api/admin/notifications/route.ts` |
+| Health audit | `src/services/systemHealthAudit.ts` — notification integrity |
+
+### Database tables touched
+
+`email_delivery_log`, `admin_notifications`, `action_items` (indirect)
+
+### Impacts
+
+| Domain | Impact |
+|--------|--------|
+| **Financial** | None (informational) |
+| **Invoice** | Invoice share emails reference `financial_invoices` links |
+| **Revenue** | Reminders drive payment collection indirectly |
+| **Occupancy** | None |
+| **Resident** | Email history tab; no push/SMS in codebase |
+| **Admin** | Unread badges; stale href detection in health audit |
+
+### SSOT
+
+Delivered email record: `email_delivery_log`. Admin actionable alerts: `action_items` → `admin_notifications`. Notifications do **not** drive financial state — they reflect it.
+
+---
+
+## System verification audit
+
+### Duplicate workflows
+
+| Duplicate | Paths | Risk | Recommendation for verification |
+|-----------|-------|------|--------------------------------|
+| Deposit refund | Checkout settlement vs `/admin/requests` | Double refund if both completed | Verify dedup in `adminRefundQueue`; close legacy path after checkout verified |
+| Booking payment confirm | QR proof → `recordPaymentSuccess` vs `recordOfflinePaymentAction` | Missing deposit ledger on offline | **Fix or disable offline path** before closing Booking Payment topic |
+| Revenue views | `/admin/revenue`, `/admin/overview/revenue`, `/admin/collections` | Same KPIs, different filters | Pick one SSOT screen for manual verification |
+| Resident admin profile | `/admin/residents/[id]`, `/admin/operations/pg/.../resident/...`, `/admin/revenue/pg/.../resident/...`, `/admin/collections/pg/.../resident/...` | Same resident data, 4 entry URLs | Document which panel is canonical for each action |
+| KYC review | `/admin/kyc` vs `/admin/residents/kyc` | Two admin KYC routes | Confirm redirect/canonical route |
+| Electricity admin | `/admin/electricity` redirects to `/admin/collections?tab=electricity` | Alias only | Low risk |
+| Invoice detail | `/account/resident/invoices/[id]` redirects to `/resident/invoices/[ref]` | Alias | Low risk |
+
+### Dead code / unused routes (static audit)
+
+| Item | Evidence | Severity |
+|------|----------|----------|
+| `/admin/payments` | Redirects to payment-reviews | Alias — not dead |
+| `/admin/electricity` | Redirect to collections tab | Alias |
+| `/account/wallet` | Redirect to resident hub wallet tab | Alias |
+| `/account/kyc` | Redirect to profile identity section | Alias |
+| `/booking/[code]/extend` | Redirect with `extend_removed=1` | **Likely dead feature surface** |
+| `/admin/overview/analytics` | Redirect to `/admin/analytics` | Alias |
+| Razorpay on booking pay page | Webhook exists; UI QR-only | **Partially dead integration** |
+| `completeVacatingRequest()` | Blocked when checkout exists | Intentionally deprecated path |
+
+### Screens showing same data from different places
+
+| Data | Surfaces | SSOT loader |
+|------|----------|-------------|
+| Resident outstanding | Resident hub payments tab, wallet tab, admin resident profile, operations dashboard, revenue command center | `getResidentFinancialSummary()` |
+| Deposit balance | Admin deposits detail, resident wallet, payment review prior-deposit info, checkout settlement | `getDepositSummaryForBooking()` |
+| Pending proofs | Payment reviews, revenue billing tab, action center | `listPendingPaymentReviews()` |
+| Rent due | Revenue rent-due, resident payments hub, action items | `rent_invoices` + RFE |
+| Invoice document | Admin invoice detail, shared `/resident/invoices/[ref]`, WhatsApp link | `invoiceDocumentModel.ts` |
+
+### Financial calculation inconsistency risks
+
+| # | Risk | Where | Mitigation to verify |
+|---|------|-------|---------------------|
+| F1 | Offline payment bypasses ledger | `recordOfflinePaymentAction` | Route all admin confirms through `recordPaymentSuccess` |
+| F2 | Deposit ledger error swallowed | `bookingLifecycle.ts` catch on `recordDepositCollected` | Confirm booking should not confirm if ledger fails |
+| F3 | Unified invoice async sync | `syncRentInvoiceToUnified` fire-and-forget on generate | Reconcile `rent_invoices` vs `financial_invoices` after batch |
+| F4 | Stale `pricing_snapshot` vs live bed price | Booking uses snapshot; repricing admin tools | Verify snapshot at payment time matches quote |
+| F5 | Cross-booking deposit without admin transfer | Removed at customer checkout — verify no other auto-credit paths | Grep + E2E new booking after prior deposit |
+| F6 | Legacy refund + checkout both open | `adminRefundQueue` dedup | E2E vacating → checkout only |
+| F7 | Partial deposit vs full confirm | `approvePartialQrPaymentAction` vs full approve | Verify occupancy gates match `deposit_collection_status` |
+| F8 | Electricity split rounding | `splitElectricity()` per occupant | Multi-occupant room manual check |
+| F9 | Prior outstanding allocation | `bookingPriorOutstanding.ts` on confirm only | Offline path skips — see F1 |
+| F10 | Invoice refund vs deposit refund | `refundUnifiedInvoice` vs `settleDepositRefund` | Ensure same booking cannot double-refund |
+
+---
+
 ## Cross-workflow dependency matrix
 
 | From → To | Link |
@@ -975,6 +1248,8 @@ InvoiceDocument.tsx
 
 ## Related documentation
 
+- [`SYSTEM_GRAPH.md`](./SYSTEM_GRAPH.md) — Mermaid workflow connection diagrams
+- [`MASTER_TEST_MATRIX.md`](./MASTER_TEST_MATRIX.md) — PASS/FAIL/NOT TESTED verification matrix
 - `docs/SYSTEM/WORKFLOWS.md` — narrative workflow docs
 - `docs/h10-regression-report.md` — resident nav regression audit
 - `docs/Billing.md`, `docs/Deposits.md`, `docs/Electricity.md`, `docs/Invoices.md`
