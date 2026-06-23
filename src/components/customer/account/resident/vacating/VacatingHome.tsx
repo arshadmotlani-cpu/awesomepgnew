@@ -11,6 +11,11 @@ import {
   vacatingStatusLabel,
   VACATING_JOURNEY_STAGES,
 } from '@/src/lib/residents/vacatingJourney';
+import {
+  currentStageLabel,
+  estimateRefundPaise,
+  expectedCompletionLabel,
+} from '@/src/lib/residents/vacatingPresentation';
 import { getDepositRefundEligibility } from '@/src/lib/vacating/depositRefundEligibility';
 import { accountProfileHref } from '@/src/lib/accountNavigation';
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
@@ -52,8 +57,19 @@ export function VacatingHome({
     checkoutStatus,
     vacating?.vacatingDate ?? null,
   );
-  const nextStep = vacatingNextStep({ vacating, checkoutStatus });
+  const nextStep = vacatingNextStep({
+    vacating,
+    checkoutStatus,
+    estimatedFinalRefundPaise: estimateRefundPaise(depositHeldPaise, vacating),
+  });
   const settlementLines = buildVacatingSettlementLines(vacating);
+  const refundEstimate = estimateRefundPaise(depositHeldPaise, vacating);
+  const completionLabel = expectedCompletionLabel({ vacating, checkoutStatus });
+  const stageLabel = currentStageLabel(
+    vacating?.status ?? null,
+    checkoutStatus,
+    vacating?.vacatingDate ?? null,
+  );
   const refundEligibility = getDepositRefundEligibility({ vacating });
   const isRejected = vacating?.status === 'rejected';
   const isActiveVacating =
@@ -72,24 +88,46 @@ export function VacatingHome({
 
   return (
     <div className="space-y-4 pb-2">
-      <ApgCard tier="account" className="p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Move-out</p>
-            <h2 className="mt-1 text-lg font-semibold text-zinc-900">{nextStep.headline}</h2>
-            <p className="mt-1 text-sm text-zinc-600">{nextStep.detail}</p>
-            <p className="mt-2 text-xs text-zinc-500">
-              {roomLabel} · Booking {bookingCode}
-            </p>
+      <ApgCard tier="account" className="overflow-hidden p-0">
+        <div className="border-b border-indigo-200/60 bg-gradient-to-br from-indigo-50/80 via-white to-white px-5 py-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">
+                Current stage · {stageLabel}
+              </p>
+              <h2 className="mt-2 text-xl font-bold text-zinc-900">{nextStep.headline}</h2>
+              <p className="mt-1 text-sm text-zinc-600">{nextStep.detail}</p>
+              <p className="mt-2 text-xs text-zinc-500">
+                {roomLabel} · Booking {bookingCode}
+              </p>
+            </div>
+            <span
+              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${
+                STATUS_TONE[vacating?.status ?? 'none'] ?? STATUS_TONE.none
+              }`}
+            >
+              {vacatingStatusLabel(vacating?.status ?? null)}
+            </span>
           </div>
-          <span
-            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${
-              STATUS_TONE[vacating?.status ?? 'none'] ?? STATUS_TONE.none
-            }`}
-          >
-            {vacatingStatusLabel(vacating?.status ?? null)}
-          </span>
         </div>
+        {(refundEstimate != null || completionLabel) && (
+          <dl className="grid grid-cols-2 gap-px bg-zinc-100">
+            {refundEstimate != null ? (
+              <div className="bg-white px-4 py-3">
+                <dt className="text-[10px] font-medium uppercase text-zinc-500">Refund estimate</dt>
+                <dd className="mt-1 text-lg font-bold tabular-nums text-emerald-700">
+                  {paiseToInr(refundEstimate)}
+                </dd>
+              </div>
+            ) : null}
+            {completionLabel ? (
+              <div className={`bg-white px-4 py-3 ${refundEstimate == null ? 'col-span-2' : ''}`}>
+                <dt className="text-[10px] font-medium uppercase text-zinc-500">Expected completion</dt>
+                <dd className="mt-1 text-sm font-medium text-zinc-900">{completionLabel}</dd>
+              </div>
+            ) : null}
+          </dl>
+        )}
       </ApgCard>
 
       {!vacating ? (
