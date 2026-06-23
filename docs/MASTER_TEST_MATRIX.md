@@ -27,8 +27,8 @@
 | 3 | Payment Proof Approval | NOT TESTED | Multi-kind queue E2E |
 | 4 | Revenue | NOT TESTED | Cron batch E2E |
 | 5 | Invoices | NOT TESTED | Unified sync reconciliation |
-| 6 | Deposits | PASS | Unit tests on ledger SSOT |
-| 7 | Deposit Transfers | NOT TESTED | Admin transfer E2E |
+| 6 | Deposits | **FAIL** (DR-01–DR-04) | Risk verification — see [`testing/DEPOSIT_RISK_VERIFICATION.md`](./testing/DEPOSIT_RISK_VERIFICATION.md) |
+| 7 | Deposit Transfers | **FAIL** (DR-04) | Express walk-in credit lacks transfer audit |
 | 8 | Rent Billing | PASS | Unit tests; sync E2E missing |
 | 9 | Electricity Billing | NOT TESTED | Multi-occupant split E2E |
 | 10 | KYC | PASS | Unit tests on validation |
@@ -124,29 +124,35 @@
 
 ## 6. Deposits
 
-**STATUS:** AUDIT COMPLETE / E2E NOT RUN — see [`testing/DEPOSIT_VERIFICATION.md`](./testing/DEPOSIT_VERIFICATION.md)
+**STATUS:** FAIL — risk verification complete (static); E2E not run  
+**Risk report:** [`testing/DEPOSIT_RISK_VERIFICATION.md`](./testing/DEPOSIT_RISK_VERIFICATION.md) · [`testing/DEPOSIT_VERIFICATION.md`](./testing/DEPOSIT_VERIFICATION.md)
 
 | ID | Test case | Expected behavior | Actual behavior (audit) | Screens | Services | Tables |
 |----|-----------|-------------------|---------------------------|---------|----------|--------|
-| D-01 | Ledger on booking confirm | `collected` entry | Via `recordDepositCollected` | — | `deposits.ts` | `deposit_ledger` |
+| D-01 | Ledger on booking confirm | `collected` entry | Via `recordDepositCollected` — **DR-03:** may be skipped silently | — | `deposits.ts` | `deposit_ledger` |
 | D-02 | Balance formula | collected − deducted − refunded | Unit tested | `/admin/deposits/[bookingId]` | `deposits.ts` | `deposit_ledger` |
 | D-03 | Admin add deposit | New collected entry | Action exists | deposit detail | `deposits.ts` | `deposit_ledger` |
 | D-04 | Admin deduct | Deduction entry | Action exists | deposit detail | `depositSettlement.ts` | `deposit_ledger` |
 | D-05 | Deposit due link pay | Proof → ledger | Deposit link flow | `/pay/[linkId]` | `depositCollection.ts` | `payment_links`, `deposit_ledger` |
 | D-06 | Partial collection status | Gates move-in | `deposit_collection_status` | resident hub | `depositCollection.ts` | `bookings` |
+| DR-01 | Cancel booking refund | Ledger `refunded` matches `payments` refund | **FAIL** — cancel skips ledger | cancel forms, deposit detail | `cancelBooking` | `payments` only |
+| DR-02 | Single canonical refund path | Checkout settlement only at move-out | **FAIL** — 8 paths; legacy active | checkout, requests, deposits | `depositSettlement.ts` | `deposit_ledger`, `deposit_settlements` |
+| DR-03 | Fail-closed on ledger error | Confirm rolls back if ledger fails | **FAIL** — catch swallows; returns ok | payment-reviews | `recordPaymentSuccess` | `bookings`, `deposit_ledger` |
+| DR-04 | Transfer audit trail | Source booking in snapshot + audit_log | **FAIL** for express walk-in | quick-actions, deposits | `expressWalkInSale.ts` | `deposit_ledger`, snapshot |
 
 ---
 
 ## 7. Deposit Transfers
 
-**STATUS:** NOT TESTED
+**STATUS:** FAIL (DR-04) — admin panel transfer OK; express walk-in unaudited  
+**Risk report:** [`testing/DEPOSIT_RISK_VERIFICATION.md`](./testing/DEPOSIT_RISK_VERIFICATION.md) § DR-04
 
 | ID | Test case | Expected behavior | Actual behavior (audit) | Screens | Services | Tables |
 |----|-----------|-------------------|---------------------------|---------|----------|--------|
 | DT-01 | Admin transfer old → new | Source deducted, target collected, snapshot stamped | Code verified | `/admin/deposits/[bookingId]` | `transferOldDepositAdmin()` | `deposit_ledger`, snapshot |
 | DT-02 | Customer cannot auto-transfer | No credit without admin | Verified removed | `/booking/new` | `booking.ts` | — |
 | DT-03 | Checkout uses transferred credit | Lower pay amount | `adminTransferred` gate | `/booking/[code]/pay` | `bookingCheckoutTotals.ts` | snapshot |
-| DT-04 | Audit log on transfer | Admin action logged | In service | admin deposits | `depositCredit.ts` | `audit_log` |
+| DT-04 | Audit log on transfer | Admin action logged | In service for DT-01; **missing for express walk-in (DR-04)** | admin deposits, quick-actions | `depositCredit.ts` | `audit_log` |
 
 ---
 
@@ -347,7 +353,7 @@ Use this when permanently closing a topic:
 
 1. **Booking** — B-01 to B-06  
 2. **Booking Payment** — CODE PASS / E2E BLOCKED (staging DB)  
-3. **Deposits + Deposit Transfers** — audit complete; E2E pending (D-01 to D-06, DT-01 to DT-04)  
+3. **Deposits + Deposit Transfers** — DR-01–DR-04 verified FAIL (static); E2E when DB available  
 4. **Payment Proof** — PP-01 to PP-06  
 5. **Revenue + Rent Billing** — RV + RB  
 6. **Invoices** — INV-01 to INV-05  
