@@ -16,6 +16,7 @@ import {
   logAdminNavRouteStart,
   type AdminNavTiming,
 } from '@/src/lib/admin/navInstrumentation';
+import { pathnameToModule } from '@/src/lib/admin/navigation';
 
 type AdminNavLinkProps = {
   href: string;
