@@ -166,6 +166,7 @@ export function pathnameToModule(pathname: string): AdminModule | null {
     return 'residents';
   }
   if (pathname.startsWith('/admin/panel')) return 'panel';
+  if (pathname.startsWith('/admin/uploads')) return 'system';
   if (pathname.startsWith('/admin/pricing')) return 'pgs';
   if (pathname.startsWith('/admin/deposits')) return 'deposits';
   if (pathname.startsWith('/admin/revenue/billing') || pathname.startsWith('/admin/collections')) {

@@ -6,9 +6,14 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
   auditLog,
+  bedReservations,
+  beds,
   bookings,
   checkoutSettlements,
   type CheckoutSettlement,
+  floors,
+  pgs,
+  rooms,
   vacatingRequests,
 } from '@/src/db/schema';
 import type { CheckoutSettlementStatus } from '@/src/db/schema/enums';
@@ -715,6 +720,42 @@ export async function submitResidentCheckoutDetails(input: {
       updatedAt: new Date(),
     })
     .where(eq(checkoutSettlements.id, input.settlementId));
+
+  const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
+  const [pgRow] = await db
+    .select({ pgId: pgs.id })
+    .from(bookings)
+    .innerJoin(
+      bedReservations,
+      and(eq(bedReservations.bookingId, bookings.id), eq(bedReservations.kind, 'primary')),
+    )
+    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
+    .innerJoin(floors, eq(floors.id, rooms.floorId))
+    .innerJoin(pgs, eq(pgs.id, floors.pgId))
+    .where(eq(bookings.id, current.bookingId))
+    .limit(1);
+  const pgId = pgRow?.pgId ?? null;
+  if (input.electricityMeterPhotoUrl?.trim()) {
+    await linkResidentUpload({
+      storagePath: input.electricityMeterPhotoUrl.trim(),
+      adminQueue: 'checkout_settlements',
+      linkedEntity: 'checkout_settlement',
+      linkedEntityId: input.settlementId,
+      bookingId: current.bookingId,
+      pgId,
+    }).catch(() => undefined);
+  }
+  if (input.payoutQrUrl?.trim()) {
+    await linkResidentUpload({
+      storagePath: input.payoutQrUrl.trim(),
+      adminQueue: 'checkout_settlements',
+      linkedEntity: 'checkout_settlement',
+      linkedEntityId: input.settlementId,
+      bookingId: current.bookingId,
+      pgId,
+    }).catch(() => undefined);
+  }
 
   scheduleAdminNotificationSync();
   const { resolveFixedStayCheckoutForBooking } = await import(

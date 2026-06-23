@@ -114,6 +114,12 @@ export default async function SystemHealthModulePage() {
             >
               System health report →
             </Link>
+            <Link
+              href="/admin/uploads"
+              className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-sm font-medium text-rose-200 hover:bg-rose-500/20"
+            >
+              Recent resident uploads →
+            </Link>
           </div>
         </section>
 

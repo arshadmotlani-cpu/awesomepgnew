@@ -345,6 +345,16 @@ export async function submitDepositLinkPaymentProof(
     .set({ paymentProofUrl: paymentProofUrl.trim() })
     .where(eq(paymentLinks.id, linkId));
 
+  const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
+  await linkResidentUpload({
+    storagePath: paymentProofUrl.trim(),
+    adminQueue: 'collections',
+    linkedEntity: 'payment_link',
+    linkedEntityId: linkId,
+    bookingId: link.bookingId,
+    pgId: link.pgId,
+  }).catch(() => undefined);
+
   return { ok: true };
 }
 

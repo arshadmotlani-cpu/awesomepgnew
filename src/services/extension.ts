@@ -593,6 +593,15 @@ export async function submitExtensionPaymentProof(
     })
     .where(eq(stayExtensions.id, extensionId));
 
+  const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
+  await linkResidentUpload({
+    storagePath: paymentProofUrl.trim(),
+    adminQueue: 'extensions',
+    linkedEntity: 'stay_extension',
+    linkedEntityId: extensionId,
+    bookingId: ext.bookingId,
+  }).catch(() => undefined);
+
   return { ok: true };
 }
 

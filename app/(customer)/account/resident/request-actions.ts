@@ -17,7 +17,12 @@ export async function uploadDepositRefundMeterAction(formData: FormData): Promis
 
   const file = formData.get('file');
   if (!(file instanceof File)) throw new Error('No file provided.');
-  return uploadPaymentScreenshot(file);
+  const bookingId = formData.get('bookingId')?.toString() || null;
+  return uploadPaymentScreenshot(file, {
+    customerId: session.customerId,
+    uploadType: 'meter_photo',
+    bookingId,
+  });
 }
 
 export async function uploadDepositRefundQrAction(formData: FormData): Promise<string> {
@@ -26,7 +31,12 @@ export async function uploadDepositRefundQrAction(formData: FormData): Promise<s
 
   const file = formData.get('file');
   if (!(file instanceof File)) throw new Error('No file provided.');
-  return uploadPaymentScreenshot(file);
+  const bookingId = formData.get('bookingId')?.toString() || null;
+  return uploadPaymentScreenshot(file, {
+    customerId: session.customerId,
+    uploadType: 'refund_qr',
+    bookingId,
+  });
 }
 
 export async function submitDepositRefundRequestAction(

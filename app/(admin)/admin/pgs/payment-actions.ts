@@ -74,5 +74,21 @@ export async function uploadPaymentScreenshotAction(formData: FormData): Promise
   if (!session) throw new Error('Sign in required.');
   const file = formData.get('file');
   if (!(file instanceof File)) throw new Error('No file provided.');
-  return uploadPaymentScreenshot(file);
+  const uploadTypeRaw = formData.get('uploadType')?.toString();
+  const uploadType =
+    uploadTypeRaw === 'booking_payment' ||
+    uploadTypeRaw === 'electricity_payment' ||
+    uploadTypeRaw === 'extension_payment' ||
+    uploadTypeRaw === 'deposit_link' ||
+    uploadTypeRaw === 'ps4_payment'
+      ? uploadTypeRaw
+      : 'payment_proof';
+  const bookingId = formData.get('bookingId')?.toString() || null;
+  const pgId = formData.get('pgId')?.toString() || null;
+  return uploadPaymentScreenshot(file, {
+    customerId: session.customerId,
+    uploadType,
+    bookingId,
+    pgId,
+  });
 }

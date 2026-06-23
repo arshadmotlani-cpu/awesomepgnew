@@ -212,6 +212,16 @@ export async function submitPaymentRecord(input: SubmitPaymentInput) {
     })
     .returning();
 
+  const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
+  await linkResidentUpload({
+    storagePath: input.paymentScreenshotUrl.trim(),
+    adminQueue: 'collections',
+    linkedEntity: 'pg_payment_record',
+    linkedEntityId: row.id,
+    bookingId: input.bookingId ?? null,
+    pgId: input.pgId,
+  }).catch(() => undefined);
+
   return row;
 }
 
@@ -272,6 +282,16 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
       bookingId: booking.id,
     })
     .returning();
+
+  const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
+  await linkResidentUpload({
+    storagePath: input.paymentScreenshotUrl.trim(),
+    adminQueue: 'collections',
+    linkedEntity: 'pg_payment_record',
+    linkedEntityId: row.id,
+    bookingId: booking.id,
+    pgId: booking.pgId,
+  }).catch(() => undefined);
 
   // Keep the booking alive while admin reviews proof — holds no longer block
   // the public calendar, but we still cancel abandoned checkouts via cron.

@@ -1480,6 +1480,25 @@ export async function submitRentPaymentProof(
 
   if (!result.ok) return result;
 
+  const [invoiceMeta] = await db
+    .select({
+      pgId: rentInvoices.pgId,
+      bookingId: rentInvoices.bookingId,
+    })
+    .from(rentInvoices)
+    .where(eq(rentInvoices.id, invoiceId))
+    .limit(1);
+
+  const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
+  await linkResidentUpload({
+    storagePath: proofUrl,
+    adminQueue: 'collections',
+    linkedEntity: 'rent_invoice',
+    linkedEntityId: invoiceId,
+    bookingId: invoiceMeta?.bookingId ?? null,
+    pgId: invoiceMeta?.pgId ?? null,
+  }).catch(() => undefined);
+
   const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
   await syncRentInvoiceToUnified(invoiceId).catch(() => undefined);
 

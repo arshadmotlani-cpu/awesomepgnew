@@ -145,6 +145,33 @@ export async function submitKyc(input: KycUploadInput) {
       },
     });
 
+    const { recordKycUploadsLinked } = await import('@/src/services/residentUploadEvents');
+    let kycPgId: string | null = null;
+    if (input.bookingId) {
+      const { bookings, bedReservations, beds, rooms, floors, pgs } = await import('@/src/db/schema');
+      const [pgRow] = await db
+        .select({ pgId: pgs.id })
+        .from(bookings)
+        .innerJoin(bedReservations, and(
+          eq(bedReservations.bookingId, bookings.id),
+          eq(bedReservations.kind, 'primary'),
+        ))
+        .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+        .innerJoin(rooms, eq(rooms.id, beds.roomId))
+        .innerJoin(floors, eq(floors.id, rooms.floorId))
+        .innerJoin(pgs, eq(pgs.id, floors.pgId))
+        .where(eq(bookings.id, input.bookingId))
+        .limit(1);
+      kycPgId = pgRow?.pgId ?? null;
+    }
+    await recordKycUploadsLinked({
+      customerId: input.customerId,
+      bookingId: input.bookingId ?? null,
+      pgId: kycPgId,
+      submissionId: row.id,
+      paths: [aadhaarFront.storagePath, aadhaarBack.storagePath, selfie.storagePath],
+    }).catch(() => undefined);
+
     logger.info('KYC submit ok', {
       customerId: input.customerId,
       submissionId: row.id,

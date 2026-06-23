@@ -457,6 +457,21 @@ export async function submitElectricityPaymentProof(
     })
     .where(eq(electricityInvoices.id, invoiceId));
 
+  const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
+  const [pgRow] = await db
+    .select({ pgId: electricityBills.pgId })
+    .from(electricityBills)
+    .where(eq(electricityBills.id, invoice.electricityBillId))
+    .limit(1);
+  await linkResidentUpload({
+    storagePath: paymentProofUrl.trim(),
+    adminQueue: 'collections',
+    linkedEntity: 'electricity_invoice',
+    linkedEntityId: invoiceId,
+    bookingId: invoice.bookingId,
+    pgId: pgRow?.pgId ?? null,
+  }).catch(() => undefined);
+
   const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
   scheduleAdminNotificationSync();
 

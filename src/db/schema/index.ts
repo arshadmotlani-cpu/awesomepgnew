@@ -53,3 +53,4 @@ export * from './couponRedemptions';
 export * from './residentRequests';
 export * from './residentBillingProfiles';
 export * from './adminNotifications';
+export * from './residentUploadEvents';

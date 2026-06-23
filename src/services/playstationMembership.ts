@@ -331,6 +331,15 @@ export async function submitMembershipPaymentProof(input: {
     paymentProofUrl: input.paymentProofUrl,
     transactionRef: input.transactionRef,
   });
+
+  const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
+  await linkResidentUpload({
+    storagePath: input.paymentProofUrl.trim(),
+    adminQueue: 'playstation',
+    linkedEntity: 'playstation_membership',
+    linkedEntityId: input.membershipId,
+    pgId: membership.pgId,
+  }).catch(() => undefined);
 }
 
 export async function activateMembership(membershipId: string, adminId?: string) {

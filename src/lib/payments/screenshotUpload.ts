@@ -1,5 +1,9 @@
 import sharp from 'sharp';
 import { isBlobPrivateConfigured, uploadPrivate } from '@/src/lib/storage/blob';
+import {
+  recordResidentUpload,
+  type ResidentUploadTraceInput,
+} from '@/src/services/residentUploadEvents';
 
 /** Keep compressed proofs under ~450 KB before Blob upload. */
 const MAX_PROOF_BYTES = 450_000;
@@ -31,7 +35,10 @@ async function compressProof(file: File): Promise<{ buffer: Buffer; mime: string
  * Store payment proof screenshots in Blob private storage on Vercel/production.
  * Local dev without Blob falls back to compressed data URLs for convenience.
  */
-export async function uploadPaymentScreenshot(file: File): Promise<string> {
+export async function uploadPaymentScreenshot(
+  file: File,
+  trace?: ResidentUploadTraceInput,
+): Promise<string> {
   if (!(file instanceof File)) throw new Error('No file provided.');
   if (!file.type.startsWith('image/')) {
     throw new Error('Only screenshot images are allowed.');
@@ -41,6 +48,9 @@ export async function uploadPaymentScreenshot(file: File): Promise<string> {
     const { buffer, mime } = await compressProof(file);
     const pathname = `payments/proofs/${Date.now()}-${Math.random().toString(36).slice(2, 10)}.jpg`;
     const stored = await uploadPrivate(pathname, buffer, mime);
+    if (trace) {
+      await recordResidentUpload({ ...trace, storagePath: stored.url }).catch(() => undefined);
+    }
     return stored.url;
   }
 
@@ -51,7 +61,11 @@ export async function uploadPaymentScreenshot(file: File): Promise<string> {
   }
 
   const { buffer } = await compressProof(file);
-  return `data:image/jpeg;base64,${buffer.toString('base64')}`;
+  const dataUrl = `data:image/jpeg;base64,${buffer.toString('base64')}`;
+  if (trace) {
+    await recordResidentUpload({ ...trace, storagePath: dataUrl }).catch(() => undefined);
+  }
+  return dataUrl;
 }
 
 export function isPaymentScreenshotUploadAvailable(): boolean {

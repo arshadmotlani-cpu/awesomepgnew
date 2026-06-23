@@ -46,6 +46,7 @@ export function DepositRefundRequestForm({
     try {
       const fd = new FormData();
       fd.set('file', file);
+      fd.set('bookingId', bookingId);
       const url = await uploadDepositRefundMeterAction(fd);
       setMeterUrl(url);
     } catch (err) {
@@ -62,6 +63,7 @@ export function DepositRefundRequestForm({
     try {
       const fd = new FormData();
       fd.set('file', file);
+      fd.set('bookingId', bookingId);
       const url = await uploadDepositRefundQrAction(fd);
       setQrUrl(url);
     } catch (err) {

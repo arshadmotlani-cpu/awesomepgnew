@@ -134,6 +134,28 @@ export async function submitDepositRefundRequest(input: {
       diff: { bookingId: input.bookingId, amountPaise: summary.refundableBalancePaise },
     });
 
+    const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
+    if (input.meterReadingPhotoUrl?.trim()) {
+      await linkResidentUpload({
+        storagePath: input.meterReadingPhotoUrl.trim(),
+        adminQueue: 'requests',
+        linkedEntity: 'resident_request',
+        linkedEntityId: row.id,
+        bookingId: input.bookingId,
+        pgId: ctx.pgId,
+      }).catch(() => undefined);
+    }
+    if (input.payoutQrUrl?.trim()) {
+      await linkResidentUpload({
+        storagePath: input.payoutQrUrl.trim(),
+        adminQueue: 'requests',
+        linkedEntity: 'resident_request',
+        linkedEntityId: row.id,
+        bookingId: input.bookingId,
+        pgId: ctx.pgId,
+      }).catch(() => undefined);
+    }
+
     await syncResidentRequestActionItems();
     await refreshAdminNotificationsFromActionItems();
 
