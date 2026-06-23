@@ -13,6 +13,7 @@ import {
   type KycActionState,
 } from '@/app/(customer)/account/kyc/actions';
 import { prepareKycImageForUpload } from '@/src/lib/kyc/clientImagePrep';
+import { ImageFileInput } from '@/src/components/shared/ImageFileInput';
 import { KYC_STORAGE_UNAVAILABLE_MESSAGE } from '@/src/lib/kyc/errors';
 import {
   KYC_FILE_TOO_LARGE_MESSAGE,
@@ -264,14 +265,12 @@ function KycPhotoUploadField({
             : 'cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/70 active:bg-indigo-100/60')
         }
       >
-        <input
+        <ImageFileInput
           id={inputId}
-          type="file"
-          accept="image/*"
           aria-labelledby={`${inputId}-label`}
-          className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
           disabled={disabled || preparing}
-          onChange={(e) => void onFileChange(e.target.files?.[0])}
+          inputClassName="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+          onFileSelected={(file) => void onFileChange(file)}
         />
 
         <div className="pointer-events-none flex min-h-[5.5rem] items-center gap-4 px-4 py-4">

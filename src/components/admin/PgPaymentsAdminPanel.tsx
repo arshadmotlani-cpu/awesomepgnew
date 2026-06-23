@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
+import { ImageFileInput, ImageFileInputInline } from '@/src/components/shared/ImageFileInput';
 import {
   createPaymentCategoryAction,
   togglePgPaymentsAction,
@@ -40,6 +41,7 @@ export function PgPaymentsAdminPanel({
   pgId: string;
   hasPaymentEnabled: boolean;
 }) {
+  const qrUploadInputId = useId();
   const [enabled, setEnabled] = useState(hasPaymentEnabled);
   const [categories, setCategories] = useState<Category[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -189,12 +191,15 @@ export function PgPaymentsAdminPanel({
         <label className="text-sm sm:col-span-2">
           <span className="text-zinc-400">QR code image *</span>
           <div className="mt-1 flex flex-wrap items-center gap-3">
-            <label className="cursor-pointer rounded-lg border border-dashed border-zinc-600 px-3 py-2 text-sm text-zinc-400">
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => void onUploadQr(e.target.files?.[0] ?? null)}
+            <label
+              htmlFor={qrUploadInputId}
+              className="cursor-pointer rounded-lg border border-dashed border-zinc-600 px-3 py-2 text-sm text-zinc-400"
+            >
+              <ImageFileInput
+                id={qrUploadInputId}
+                inputClassName="hidden"
+                disabled={uploading}
+                onFileSelected={(file) => void onUploadQr(file ?? null)}
               />
               {uploading ? 'Uploading…' : 'Upload QR image'}
             </label>
@@ -229,12 +234,9 @@ export function PgPaymentsAdminPanel({
                   {cat.upiId ? <p className="text-xs text-zinc-400">{cat.upiId}</p> : null}
                   <label className="mt-2 block text-xs text-zinc-500">
                     Replace QR
-                    <input
-                      type="file"
-                      accept="image/*"
+                    <ImageFileInputInline
                       className="mt-1 block text-xs"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
+                      onFileSelected={async (file) => {
                         if (!file) return;
                         const fd = new FormData();
                         fd.append('file', file);

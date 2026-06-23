@@ -6,6 +6,7 @@ import 'dotenv/config';
 import { eq } from 'drizzle-orm';
 import { createClient, closeDb } from '../src/db/client';
 import { authSessions, customers } from '../src/db/schema';
+import { IMAGE_UPLOAD_ACCEPT } from '../src/lib/uploads/fileInputPolicy';
 import { randomToken, sha256 } from '../src/lib/auth/crypto';
 
 const BASE = process.env.VERIFY_BASE_URL ?? 'http://localhost:3000';
@@ -63,10 +64,13 @@ async function main() {
   }
 
   const [front, back, selfie] = inputs;
+  const acceptOk = (accept?: string) =>
+    accept === IMAGE_UPLOAD_ACCEPT || accept === 'image/*' || (accept?.includes('image/*') ?? false);
+
   const checks: Array<[string, boolean]> = [
-    ['Aadhaar front accept=image/*', front.accept === 'image/*'],
-    ['Aadhaar back accept=image/*', back.accept === 'image/*'],
-    ['Selfie accept=image/*', selfie.accept === 'image/*'],
+    ['Aadhaar front accept allows images', acceptOk(front.accept)],
+    ['Aadhaar back accept allows images', acceptOk(back.accept)],
+    ['Selfie accept allows images', acceptOk(selfie.accept)],
     ['Selfie has no capture (gallery allowed)', !selfie.capture],
     ['Aadhaar front has no capture', !front.capture],
     ['Aadhaar back has no capture', !back.capture],

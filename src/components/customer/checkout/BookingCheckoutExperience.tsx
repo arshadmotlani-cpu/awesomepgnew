@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useId, useRef, useState, type ReactNode } from 'react';
 import { mirrorClientEventToPostHog } from '@/src/lib/analytics/client';
+import { ImageFileInput } from '@/src/components/shared/ImageFileInput';
 import { customerPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import { paiseToInr } from '@/src/lib/format';
 import type { PriorOutstandingItem } from '@/src/lib/billing/bookingCheckoutTotals';
@@ -456,13 +457,11 @@ export function BookingCheckoutExperience({
       {/* Single upload */}
       <section className="rounded-[16px] border border-white/10 bg-white/[0.03] p-5 shadow-sm">
         <p className="text-sm font-semibold text-white">Upload payment screenshot</p>
-        <input
+        <ImageFileInput
           id={uploadInputId}
-          type="file"
-          accept="image/*,.heic,.heif"
-          capture="environment"
-          className="sr-only"
-          onChange={(e) => void onFile(e.target.files?.[0] ?? null)}
+          inputClassName="sr-only"
+          disabled={uploading}
+          onFileSelected={(file) => void onFile(file ?? null)}
         />
         <label
           htmlFor={uploadInputId}

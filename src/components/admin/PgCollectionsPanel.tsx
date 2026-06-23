@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
+import { ImageFileInput } from '@/src/components/shared/ImageFileInput';
 import { approveElectricityProofAction } from '@/app/(admin)/admin/pgs/electricity-actions';
 import { approveRentProofAction } from '@/app/(admin)/admin/payments/actions';
 import {
@@ -64,6 +65,7 @@ export function PgCollectionsPanel({
   electricityProofs: ElectricityProof[];
   rentProofs?: RentProof[];
 }) {
+  const qrUploadInputId = useId();
   const [enabled, setEnabled] = useState(hasPaymentEnabled);
   const [categories, setCategories] = useState<Category[]>([]);
   const [qrPayments, setQrPayments] = useState<QrPayment[]>([]);
@@ -273,12 +275,15 @@ export function PgCollectionsPanel({
           <label className="block text-sm">
             <span className="text-zinc-400">QR image (upload once, then add categories)</span>
             <div className="mt-1 flex flex-wrap items-center gap-3">
-              <label className="cursor-pointer rounded-lg border border-dashed border-zinc-600 px-3 py-2 text-sm text-zinc-400">
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => void onUploadQr(e.target.files?.[0] ?? null)}
+              <label
+                htmlFor={qrUploadInputId}
+                className="cursor-pointer rounded-lg border border-dashed border-zinc-600 px-3 py-2 text-sm text-zinc-400"
+              >
+                <ImageFileInput
+                  id={qrUploadInputId}
+                  inputClassName="hidden"
+                  disabled={uploading}
+                  onFileSelected={(file) => void onUploadQr(file ?? null)}
                 />
                 {uploading ? 'Uploading…' : 'Upload QR'}
               </label>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useId, useState } from 'react';
+import { ImageFileInput } from '@/src/components/shared/ImageFileInput';
 import { isDataProofUrl } from '@/src/lib/payments/proofResponse';
 
 type SubmitResult = { ok: boolean; message?: string };
@@ -183,12 +184,10 @@ export function UpiPaymentProofForm({
           Step 2 — Upload payment screenshot <span className="text-[#FF5A1F]">*</span>
         </p>
 
-        <input
+        <ImageFileInput
           id={inputId}
-          type="file"
-          accept="image/*,.heic,.heif"
-          className="sr-only"
-          onChange={(e) => void onFile(e.target.files?.[0] ?? null)}
+          inputClassName="sr-only"
+          onFileSelected={(file) => void onFile(file ?? null)}
         />
 
         <label

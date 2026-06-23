@@ -1,7 +1,8 @@
 'use client';
 
 import { Reorder, useDragControls } from 'framer-motion';
-import { useState } from 'react';
+import { useId, useState } from 'react';
+import { ImageFileInput } from '@/src/components/shared/ImageFileInput';
 
 type Props = {
   name?: string;
@@ -47,6 +48,7 @@ function ReorderItem({
 }
 
 export function ImageGalleryEditor({ name = 'images', initialImages, onUpload }: Props) {
+  const uploadInputId = useId();
   const [images, setImages] = useState<string[]>(initialImages);
   const [urlInput, setUrlInput] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -105,12 +107,15 @@ export function ImageGalleryEditor({ name = 'images', initialImages, onUpload }:
       </div>
 
       {onUpload ? (
-        <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[#FF5A1F]/40 bg-[#FF5A1F]/10 px-4 py-2 text-sm font-medium text-[#FF5A1F] hover:bg-[#FF5A1F]/20">
-          <input
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => void handleFile(e.target.files?.[0] ?? null)}
+        <label
+          htmlFor={uploadInputId}
+          className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[#FF5A1F]/40 bg-[#FF5A1F]/10 px-4 py-2 text-sm font-medium text-[#FF5A1F] hover:bg-[#FF5A1F]/20"
+        >
+          <ImageFileInput
+            id={uploadInputId}
+            inputClassName="hidden"
+            disabled={uploading}
+            onFileSelected={(file) => void handleFile(file ?? null)}
           />
           {uploading ? 'Uploading photo…' : '+ Upload photo'}
         </label>

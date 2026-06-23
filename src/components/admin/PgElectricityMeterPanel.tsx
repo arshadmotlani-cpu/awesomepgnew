@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { ImageFileInputInline } from '@/src/components/shared/ImageFileInput';
 import {
   addRoomElectricityPrepaidAction,
   approveElectricityProofAction,
@@ -337,11 +338,9 @@ function RoomMeterCard({
         {!useEstimate && blobUploadConfigured ? (
           <label className="text-sm sm:col-span-2">
             <span className="text-zinc-400">Meter photo</span>
-            <input
-              type="file"
-              accept="image/*"
+            <ImageFileInputInline
               className="mt-1 block w-full text-sm text-zinc-400"
-              onChange={(e) => onFile(e.target.files?.[0] ?? null)}
+              onFileSelected={(file) => onFile(file ?? null)}
             />
             {uploading ? <span className="text-xs text-zinc-500">Uploading…</span> : null}
             {meterUrl ? <span className="text-xs text-emerald-400">Photo uploaded</span> : null}

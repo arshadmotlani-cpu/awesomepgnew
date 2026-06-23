@@ -49,6 +49,17 @@
 
 ---
 
+### UPLOAD-CAP-01 — Mobile upload shows camera only (no gallery / screenshots)
+
+| | |
+|---|---|
+| **Severity** | Critical |
+| **Symptom** | On Android/iPhone, photo upload flows showed only **Camera** — no Photo Gallery, Photos Library, Screenshots, or Files |
+| **Root cause** | `capture="environment"` on `<input type="file">` in checkout and deposit-refund flows; 12+ pages each had their own file input with no shared enforcement; KYC was fixed separately so regressions reappeared on other pages after deploys |
+| **Fix** | `ImageFileInput` + `fileInputPolicy.ts` (never sets `capture`); migrated KYC, checkout proof, UPI proof, deposit meter, admin QR/meter/gallery uploads; `scripts/lint-image-uploads.ts` + `tests/unit/fileInputPolicy.test.ts` scan `app/` + `src/` on every `npm test` |
+
+---
+
 ## Resolved bugs
 
 ### BOOK-OUTST-01 — Prior stay outstanding not included in new booking payment

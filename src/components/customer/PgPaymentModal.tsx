@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
+import { ImageFileInput } from '@/src/components/shared/ImageFileInput';
 
 type Category = {
   id: string;
@@ -26,6 +27,7 @@ export function PgPaymentModal({
   onSubmitted,
   uploadScreenshot,
 }: Props) {
+  const screenshotInputId = useId();
   const isRent = /rent/i.test(category.name);
   const [amount, setAmount] = useState('');
   const [month, setMonth] = useState('');
@@ -184,12 +186,15 @@ export function PgPaymentModal({
 
           <div>
             <span className="text-sm text-apg-silver">Payment screenshot *</span>
-            <label className="mt-1 flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-white/20 px-3 py-3 text-sm text-apg-silver hover:border-[#FF5A1F]/50">
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => void onFile(e.target.files?.[0] ?? null)}
+            <label
+              htmlFor={screenshotInputId}
+              className="mt-1 flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-white/20 px-3 py-3 text-sm text-apg-silver hover:border-[#FF5A1F]/50"
+            >
+              <ImageFileInput
+                id={screenshotInputId}
+                inputClassName="hidden"
+                disabled={uploading}
+                onFileSelected={(file) => void onFile(file ?? null)}
               />
               {uploading ? 'Uploading…' : screenshotUrl ? 'Screenshot uploaded ✓' : 'Upload screenshot'}
             </label>

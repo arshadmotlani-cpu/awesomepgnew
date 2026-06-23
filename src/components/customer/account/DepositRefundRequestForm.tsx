@@ -7,6 +7,7 @@ import {
   uploadDepositRefundMeterAction,
   type RequestActionState,
 } from '@/app/(customer)/account/resident/request-actions';
+import { ImageFileInputInline } from '@/src/components/shared/ImageFileInput';
 import { paiseToInr } from '@/src/lib/format';
 
 const idle: RequestActionState = { ok: false };
@@ -120,12 +121,9 @@ export function DepositRefundRequestForm({
           <span className="text-xs font-semibold text-zinc-800">
             Electricity meter photo <span className="text-rose-600">*</span>
           </span>
-          <input
-            type="file"
-            accept="image/*"
-            capture="environment"
+          <ImageFileInputInline
             disabled={uploadingMeter}
-            onChange={(e) => void handleMeterFile(e.target.files?.[0] ?? null)}
+            onFileSelected={(file) => void handleMeterFile(file ?? null)}
             className="mt-1 block w-full text-xs text-zinc-600"
           />
           {meterUrl ? <p className="mt-1 text-xs text-emerald-700">Meter photo uploaded.</p> : null}
@@ -135,11 +133,9 @@ export function DepositRefundRequestForm({
           <span className="text-xs font-semibold text-zinc-800">
             QR code for refund payment <span className="text-rose-600">*</span>
           </span>
-          <input
-            type="file"
-            accept="image/*"
+          <ImageFileInputInline
             disabled={uploadingQr}
-            onChange={(e) => void handleQrFile(e.target.files?.[0] ?? null)}
+            onFileSelected={(file) => void handleQrFile(file ?? null)}
             className="mt-1 block w-full text-xs text-zinc-600"
           />
           {qrUrl ? <p className="mt-1 text-xs text-emerald-700">QR code uploaded.</p> : null}

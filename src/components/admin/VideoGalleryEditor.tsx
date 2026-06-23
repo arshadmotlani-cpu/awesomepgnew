@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { ImageFileInput } from '@/src/components/shared/ImageFileInput';
 
 type Props = {
   name?: string;
@@ -80,11 +81,10 @@ export function VideoGalleryEditor({ name = 'videos', initialVideos, onUpload }:
 
       {onUpload ? (
         <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-zinc-400">
-          <input
-            type="file"
+          <ImageFileInput
+            inputClassName="hidden"
             accept="video/*"
-            className="hidden"
-            onChange={(e) => void onFile(e.target.files?.[0] ?? null)}
+            onFileSelected={(file) => void onFile(file ?? null)}
           />
           {uploading ? 'Uploading video…' : 'Upload video file'}
         </label>
