@@ -282,3 +282,6 @@ Append-only: entity, action, diff JSON — all financial mutations.
 ## Related
 
 [[ROUTES]] · [[ARCHITECTURE]] · [[features]] · [[AI_CONTEXT]]
+
+<!-- DOC_SYNC_TOUCH_2026-06-23 -->
+> **2026-06-23 09:38:53 UTC** — Code changed in: Routes, Database, Billing, Bookings. Manual review recommended.

@@ -14,12 +14,14 @@ import {
 } from '@/src/lib/bedStayOverlap';
 import { reserveBufferDate } from '@/src/lib/bedReservePolicy';
 import { displayMonthlyDepositPaise } from '@/src/lib/customerDepositDisplay';
-import { previewLowestFixedStayRent } from '@/src/lib/pricing/fixedStayOptimizer';
-import { STAY_CHECK_IN_TIME, STAY_CHECK_OUT_TIME } from '@/src/lib/residents/stayBillingRules';
+import { computeNewBookingCheckoutTotals } from '@/src/lib/billing/bookingCheckoutTotals';
+import { previewFixedStayQuote } from '@/src/lib/pricing/fixedStayOptimizer';
+import type { PricingLineItem } from '@/src/lib/pricing/types';
 import type { PricingMode } from '@/src/services/pricing';
 import type { BedSelectorBed } from './BedSelector';
 import { StayDateRangePicker, type StayDateSummary } from './StayDateRangePicker';
 import { MobileBottomSheet } from '@/src/components/customer/block/MobileBottomSheet';
+import { BookingPriceBreakdown } from '@/src/components/customer/BookingPriceBreakdown';
 
 export type BedTimelineResponse = {
   bedId: string;
@@ -54,7 +56,11 @@ type StayPlan = 'monthly' | 'weekly' | 'daily';
 type StayIntent = 'fixed' | 'indefinite';
 
 function estimateFixedStaySubtotal(bed: BedSelectorBed, nights: number): number {
-  return previewLowestFixedStayRent(nights, bed.dailyRatePaise, bed.weeklyRatePaise);
+  return previewFixedStayQuote(nights, bed.dailyRatePaise, bed.weeklyRatePaise).subtotalPaise;
+}
+
+function fixedStayRentLines(bed: BedSelectorBed, nights: number): PricingLineItem[] {
+  return previewFixedStayQuote(nights, bed.dailyRatePaise, bed.weeklyRatePaise).lineItems;
 }
 
 function depositPreview(bed: BedSelectorBed, mode: PricingMode, nights: number): number {
@@ -204,20 +210,30 @@ export function BedBookingPanel({
       (sum, bed) => sum + depositPreview(bed, 'fixed_stay', fixedNights),
       0,
     );
+    const rentLineItems = beds.flatMap((bed) => fixedStayRentLines(bed, fixedNights));
+    const totals = computeNewBookingCheckoutTotals({
+      rentSubtotalPaise: accommodationPaise,
+      depositRequiredPaise: depositPaise,
+    });
     return {
       nights: fixedNights,
       dailyRatePaise: primary.dailyRatePaise,
       accommodationPaise,
       depositPaise,
-      totalDuePaise: accommodationPaise + depositPaise,
+      depositDueNowPaise: totals.depositDueNowPaise,
+      totalDuePaise: totals.totalToCollectTodayPaise,
+      rentLineItems,
     };
   }, [intent, fixedNights, beds]);
 
-  const openEndedSummary = useMemo(() => {
+  const openEndedCheckout = useMemo(() => {
     if (intent !== 'indefinite' || beds.length === 0) return null;
     const rentPaise = beds.reduce((sum, bed) => sum + bed.monthlyRatePaise, 0);
     const depositPaise = beds.reduce((sum, bed) => sum + displayMonthlyDepositPaise(bed), 0);
-    return { rentPaise, depositPaise, totalPaise: rentPaise + depositPaise };
+    return computeNewBookingCheckoutTotals({
+      rentSubtotalPaise: rentPaise,
+      depositRequiredPaise: depositPaise,
+    });
   }, [intent, beds]);
 
   const durationHint = useMemo(() => {
@@ -532,6 +548,21 @@ export function BedBookingPanel({
                   summary={staySummary}
                 />
 
+                {intent === 'fixed' && staySummary ? (
+                  <BookingPriceBreakdown
+                    theme={dark ? 'dark' : 'light'}
+                    compact
+                    rentLineItems={staySummary.rentLineItems}
+                    rentSubtotalPaise={staySummary.accommodationPaise}
+                    depositRequiredPaise={staySummary.depositPaise}
+                    depositDueNowPaise={staySummary.depositDueNowPaise}
+                    newBookingTotalPaise={
+                      staySummary.accommodationPaise + staySummary.depositDueNowPaise
+                    }
+                    totalToCollectTodayPaise={staySummary.totalDuePaise}
+                  />
+                ) : null}
+
                 {intent === 'fixed' && stayRangeConflict ? (
                   <p
                     className={
@@ -547,100 +578,35 @@ export function BedBookingPanel({
             ) : null}
 
             {step === 'review' ? (
-              <div
-                className={
-                  dark
-                    ? 'rounded-xl border border-white/10 bg-white/5 p-4'
-                    : 'rounded-xl border border-zinc-200 bg-zinc-50 p-4'
+              <BookingPriceBreakdown
+                theme={dark ? 'dark' : 'light'}
+                rentLineItems={staySummary?.rentLineItems}
+                rentSubtotalPaise={
+                  intent === 'fixed' && staySummary
+                    ? staySummary.accommodationPaise
+                    : openEndedCheckout?.rentDuePaise ?? 0
                 }
-              >
-                <p
-                  className={`text-xs font-semibold uppercase tracking-wide ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}
-                >
-                  Booking summary
-                </p>
-                <dl className={`mt-3 space-y-2 text-sm ${dark ? 'text-apg-silver' : 'text-zinc-600'}`}>
-                  <div className="flex justify-between gap-2">
-                    <dt>Bed{beds.length > 1 ? 's' : ''}</dt>
-                    <dd className={`font-medium ${dark ? 'text-white' : 'text-zinc-900'}`}>
-                      {beds.map((b) => b.bedCode).join(', ')}
-                    </dd>
-                  </div>
-                  <div className="flex justify-between gap-2">
-                    <dt>Plan</dt>
-                    <dd className={`font-medium capitalize ${dark ? 'text-white' : 'text-zinc-900'}`}>
-                      {plan}
-                    </dd>
-                  </div>
-                  <div className="flex justify-between gap-2">
-                    <dt>Check-in</dt>
-                    <dd className={`font-medium ${dark ? 'text-white' : 'text-zinc-900'}`}>
-                      {formatDisplayDate(start)}
-                    </dd>
-                  </div>
-                  {intent === 'fixed' ? (
-                    <div className="flex justify-between gap-2">
-                      <dt>Check-out</dt>
-                      <dd className={`font-medium ${dark ? 'text-white' : 'text-zinc-900'}`}>
-                        {formatDisplayDate(end)}
-                      </dd>
-                    </div>
-                  ) : null}
-                  <div className="flex justify-between gap-2">
-                    <dt>Duration</dt>
-                    <dd className={`font-medium ${dark ? 'text-white' : 'text-zinc-900'}`}>
-                      {intent === 'fixed'
-                        ? `${fixedNights} night${fixedNights === 1 ? '' : 's'}`
-                        : 'Open-ended (monthly billing)'}
-                    </dd>
-                  </div>
-                  {intent === 'fixed' && staySummary ? (
-                    <>
-                      <div className="flex justify-between gap-2">
-                        <dt>Rent</dt>
-                        <dd className="font-medium text-apg-orange">
-                          {paiseToInr(staySummary.accommodationPaise)}
-                        </dd>
-                      </div>
-                      <div className="flex justify-between gap-2">
-                        <dt>Deposit</dt>
-                        <dd className={`font-medium ${dark ? 'text-white' : 'text-zinc-900'}`}>
-                          {paiseToInr(staySummary.depositPaise)}
-                        </dd>
-                      </div>
-                    </>
-                  ) : null}
-                  {intent === 'indefinite' && openEndedSummary ? (
-                    <>
-                      <div className="flex justify-between gap-2">
-                        <dt>Rent</dt>
-                        <dd className="font-medium text-apg-orange">
-                          {paiseToInr(openEndedSummary.rentPaise)}/mo
-                        </dd>
-                      </div>
-                      <div className="flex justify-between gap-2">
-                        <dt>Deposit</dt>
-                        <dd className={`font-medium ${dark ? 'text-white' : 'text-zinc-900'}`}>
-                          {paiseToInr(openEndedSummary.depositPaise)}
-                        </dd>
-                      </div>
-                    </>
-                  ) : null}
-                </dl>
-                <p className={`mt-4 text-base font-bold ${dark ? 'text-white' : 'text-zinc-900'}`}>
-                  Total due now:{' '}
-                  <span className="text-apg-orange">
-                    {paiseToInr(
-                      intent === 'fixed' && staySummary
-                        ? staySummary.totalDuePaise
-                        : openEndedSummary?.totalPaise ?? 0,
-                    )}
-                  </span>
-                </p>
-                <p className={`mt-2 text-[11px] ${dark ? 'text-apg-muted' : 'text-zinc-500'}`}>
-                  Billing cycle: {STAY_CHECK_IN_TIME} → {STAY_CHECK_OUT_TIME} next day
-                </p>
-              </div>
+                depositRequiredPaise={
+                  intent === 'fixed' && staySummary
+                    ? staySummary.depositPaise
+                    : openEndedCheckout?.depositRequiredPaise ?? 0
+                }
+                depositDueNowPaise={
+                  intent === 'fixed' && staySummary
+                    ? staySummary.depositDueNowPaise
+                    : openEndedCheckout?.depositDueNowPaise ?? 0
+                }
+                newBookingTotalPaise={
+                  intent === 'fixed' && staySummary
+                    ? staySummary.accommodationPaise + staySummary.depositDueNowPaise
+                    : openEndedCheckout?.newBookingTotalPaise ?? 0
+                }
+                totalToCollectTodayPaise={
+                  intent === 'fixed' && staySummary
+                    ? staySummary.totalDuePaise
+                    : openEndedCheckout?.totalToCollectTodayPaise ?? 0
+                }
+              />
             ) : null}
 
             {validationError ? (

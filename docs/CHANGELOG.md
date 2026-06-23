@@ -5,6 +5,20 @@
 
 ---
 
+## 2026-06-23 (continued)
+
+### Fixed
+- **BOOK-TOTAL-01** — Booking checkout showed rent as “Total to pay today” without deposit: `breakdownBookingPayment` derived rent from `totalPaise − deposit` instead of `subtotalPaise`; UI now uses `computeNewBookingCheckoutTotals` SSOT [[BUGS#BOOK-TOTAL-01]]
+- **BOOK-HYBRID-01** — Fixed-stay hybrid pricing (week + remainder days) hidden in booking UI; rent line items now shown on plan/dates/review and pay screens [[BUGS#BOOK-HYBRID-01]]
+- **BOOK-OUTST-01** — Prior stay outstanding balance (deposit due, unpaid invoices) now included in new booking checkout total and collected on payment [[BUGS#BOOK-OUTST-01]]
+
+### Added
+- `src/lib/billing/bookingCheckoutTotals.ts` — rent + deposit − credit + prior outstanding SSOT
+- `src/services/bookingPriorOutstanding.ts`, `BookingPriceBreakdown` component
+- `tests/unit/bookingCheckoutTotals.test.ts` (3/7/10/14-day pricing + outstanding cases)
+
+---
+
 ## 2026-06-23
 
 ### Fixed
@@ -141,18 +155,27 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-23 07:55:13 UTC
+### Pending pre-commit sync · 2026-06-23 09:38:53 UTC
 
-**Areas touched:** [[ROUTES]]
+**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Bookings]]
 
 **Docs flagged for review:**
+- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
+- `DATABASE.md` — review for accuracy
+- `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
+- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (2):**
-- `app/(admin)/admin/health/page.tsx`
-- `app/api/admin/smoke-checks/route.ts`
+**Staged code files (7):**
+- `app/(customer)/booking/[bookingCode]/pay/page.tsx`
+- `app/(customer)/booking/new/page.tsx`
+- `src/db/schema/bookings.ts`
+- `src/lib/billing/bookingCheckoutTotals.ts`
+- `src/services/booking.ts`
+- `src/services/bookingLifecycle.ts`
+- `src/services/bookingPriorOutstanding.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

@@ -18,6 +18,39 @@
 
 ## Resolved bugs
 
+### BOOK-OUTST-01 — Prior stay outstanding not included in new booking payment
+
+| | |
+|---|---|
+| **Severity** | High |
+| **Symptom** | Resident with deposit balance due on a prior booking could start a new stay but checkout total ignored the outstanding amount |
+| **Root cause** | Checkout totals only summed new-booking rent + deposit; no query of `getBookingFinancialSummary` / deposit due on prior bookings |
+| **Fix** | `getCustomerPriorOutstandingForCheckout()` snapshotted on booking create; included in `totalToCollectToday`; prior deposit slice allocated via append-only `recordDepositCollected` on payment |
+
+---
+
+### BOOK-HYBRID-01 — Hybrid fixed-stay rent breakdown hidden in booking UI
+
+| | |
+|---|---|
+| **Severity** | Medium |
+| **Symptom** | 10-day stay showed ₹1,900 rent only (weekly) without the extra 3 daily days |
+| **Root cause** | Client preview used `previewLowestFixedStayRent()` (subtotal only); UI never rendered `computeLowestFixedStayRent` line items |
+| **Fix** | `previewFixedStayQuote()` + `BookingPriceBreakdown` with week/day lines; `rentLineItems` snapshotted on booking |
+
+---
+
+### BOOK-TOTAL-01 — Deposit excluded from “Total to pay today”
+
+| | |
+|---|---|
+| **Severity** | High |
+| **Symptom** | Rent ₹1,900 + deposit ₹950 displayed, but total showed ₹1,900 |
+| **Root cause** | `breakdownBookingPayment()` computed `rentDue = totalPaise − depositCashDue` so when `booking.totalPaise` omitted deposit (or deposit credit zeroed cash due), UI showed full deposit line but total matched rent only; checkout components also trusted inconsistent props |
+| **Fix** | `computeNewBookingCheckoutTotals()` / `breakdownBookingCheckoutPayment()` — total = rent + deposit due now + prior outstanding; all booking flow screens use shared breakdown |
+
+---
+
 ### BOOK-DATE-01 — Mobile Edit on stay date picker does nothing
 
 | | |

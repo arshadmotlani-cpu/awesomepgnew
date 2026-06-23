@@ -3,12 +3,14 @@ import {
   BookingCartForm,
   type CartLineItem,
 } from '@/src/components/customer/BookingCartForm';
-import { SimplePriceSummary } from '@/src/components/customer/simple/SimplePriceSummary';
+import { BookingPriceBreakdown } from '@/src/components/customer/BookingPriceBreakdown';
 import { SimpleStayRules } from '@/src/components/customer/simple/SimpleStayRules';
 import { getBedsForCart } from '@/src/db/queries/customer';
 import { normalizeBrowseStay } from '@/src/lib/dateDefaults';
 import { todayString } from '@/src/lib/dates';
+import { computeNewBookingCheckoutTotals } from '@/src/lib/billing/bookingCheckoutTotals';
 import { quoteBookingPrice } from '@/src/services/pricing';
+import { getCustomerPriorOutstandingForCheckout } from '@/src/services/bookingPriorOutstanding';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
 import { getCustomerById, isProfileComplete } from '@/src/services/profile';
 import {
@@ -93,6 +95,8 @@ export default async function NewBookingPage(props: PageProps<'/booking/new'>) {
   let totalPaise = 0;
   let quoteError: string | null = null;
   let breakdownLineItems: import('@/src/services/pricing').LineItem[] = [];
+  let checkoutTotals: ReturnType<typeof computeNewBookingCheckoutTotals> | null = null;
+  let priorOutstanding = { totalPaise: 0, items: [] as import('@/src/lib/billing/bookingCheckoutTotals').PriorOutstandingItem[] };
 
   try {
     const quote = await quoteBookingPrice({
@@ -108,7 +112,14 @@ export default async function NewBookingPage(props: PageProps<'/booking/new'>) {
     const depositDue = computeDepositDue(depositPaise, wallet.availableCreditPaise);
     depositCreditAppliedPaise = depositDue.creditAppliedPaise;
     additionalDepositDuePaise = depositDue.additionalDuePaise;
-    totalPaise = subtotalPaise + additionalDepositDuePaise;
+    priorOutstanding = await getCustomerPriorOutstandingForCheckout(session.customerId);
+    checkoutTotals = computeNewBookingCheckoutTotals({
+      rentSubtotalPaise: subtotalPaise,
+      depositRequiredPaise: depositPaise,
+      depositCreditAppliedPaise,
+      priorOutstanding,
+    });
+    totalPaise = checkoutTotals.totalToCollectTodayPaise;
     breakdownLineItems = quote.perBed.flatMap((q) =>
       q.lineItems.filter((li) => li.kind !== 'deposit'),
     );
@@ -127,7 +138,6 @@ export default async function NewBookingPage(props: PageProps<'/booking/new'>) {
   }
 
   const checkoutTiming = start > todayString() ? 'future_start' : 'available_now';
-  const depositDueNow = additionalDepositDuePaise ?? Math.max(0, depositPaise - depositCreditAppliedPaise);
 
   return (
     <main className="apg-aurora mx-auto max-w-lg px-4 py-10 sm:px-6">
@@ -161,11 +171,19 @@ export default async function NewBookingPage(props: PageProps<'/booking/new'>) {
         </div>
       ) : (
         <div className="mt-6">
-          <SimplePriceSummary
-            rentPaise={subtotalPaise}
-            depositPaise={depositDueNow}
-            totalPaise={totalPaise}
-          />
+          {checkoutTotals ? (
+            <BookingPriceBreakdown
+              theme="dark"
+              rentLineItems={breakdownLineItems}
+              rentSubtotalPaise={subtotalPaise}
+              depositRequiredPaise={depositPaise}
+              depositDueNowPaise={checkoutTotals.depositDueNowPaise}
+              depositCreditAppliedPaise={depositCreditAppliedPaise}
+              priorOutstandingItems={priorOutstanding.items}
+              newBookingTotalPaise={checkoutTotals.newBookingTotalPaise}
+              totalToCollectTodayPaise={checkoutTotals.totalToCollectTodayPaise}
+            />
+          ) : null}
         </div>
       )}
 

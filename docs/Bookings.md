@@ -63,6 +63,8 @@ See [[ROUTES#Booking]]
 
 Optional `suggestedCheckIn` prefills rebooking extension check-in (prior checkout + 1 day). Validation (`validateAndContinue`) unchanged.
 
+**Checkout totals (2026-06-23):** All booking screens use `computeNewBookingCheckoutTotals()` — rent + deposit due now − wallet credit + prior stay outstanding. Fixed-stay hybrid pricing shows week + remainder day lines via `BookingPriceBreakdown`. Prior balances snapshotted in `pricing_snapshot.priorOutstanding`.
+
 See [[BUGS#BOOK-DATE-01]] for mobile Edit z-index fix.
 
 ---

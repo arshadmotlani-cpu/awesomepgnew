@@ -10,6 +10,8 @@ Cross-links: [[START_HERE]] · [[features#Billing hub]] · [[WORKFLOWS#Billing]]
 
 Generate, track, and collect **monthly rent** and **electricity** charges for active residents. Support Razorpay auto-capture, UPI manual proof upload, late fees, pro-ration, and vacating checkout-month adjustments. All outstanding figures flow through [[DECISIONS#residentFinancialEngine as money SSOT]].
 
+**New booking checkout (2026-06-23):** `bookingCheckoutTotals.ts` is the SSOT for “total to collect today” = new rent + deposit due − wallet credit + **prior stay outstanding** (`bookingPriorOutstanding.ts`). Payment splits new-booking rent/deposit first; remainder applies to prior deposit dues via append-only ledger rows.
+
 **SSOT:** `rentInvoices.ts`, `billing.ts`, `electricityBilling.ts`, `meterElectricity.ts`, `residentFinancialEngine.ts`, `vacatingCheckoutBilling.ts`
 
 ---

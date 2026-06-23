@@ -77,6 +77,8 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
   const additionalDepositDuePaise =
     snapshot?.depositCredit?.additionalDuePaise ??
     Math.max(0, booking.depositPaise - depositCreditAppliedPaise);
+  const priorOutstandingItems = snapshot?.priorOutstanding?.items ?? [];
+  const rentLineItems = snapshot?.rentLineItems ?? [];
   const checkoutTotalPaise = booking.totalPaise + ps4Paise;
   const totalLabel = formatPaise(checkoutTotalPaise);
   const { qrImageUrl, upiId } = resolveBookingCheckoutQr({
@@ -140,6 +142,8 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
             depositPaise={booking.depositPaise}
             depositCreditAppliedPaise={depositCreditAppliedPaise}
             additionalDepositDuePaise={additionalDepositDuePaise}
+            priorOutstandingItems={priorOutstandingItems}
+            rentLineItems={rentLineItems}
             discountPaise={booking.discountPaise}
             totalPaise={checkoutTotalPaise}
             totalLabel={totalLabel}

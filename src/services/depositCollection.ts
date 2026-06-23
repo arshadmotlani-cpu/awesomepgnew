@@ -20,6 +20,7 @@ import type { DepositCollectionStatus } from '@/src/db/schema/enums';
 import { formatDate } from '@/src/lib/dates';
 import { coerceNonNegativePaise } from '@/src/lib/format';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
+import { breakdownBookingCheckoutPayment } from '@/src/lib/billing/bookingCheckoutTotals';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 
 export type BookingPaymentBreakdown = {
@@ -44,14 +45,12 @@ export function breakdownBookingPayment(booking: {
   totalPaise: number;
   pricingSnapshot?: PricingSnapshot | null;
 }): BookingPaymentBreakdown {
-  const creditAppliedPaise = booking.pricingSnapshot?.depositCredit?.appliedPaise ?? 0;
-  const depositCashDuePaise = Math.max(0, booking.depositPaise - creditAppliedPaise);
-  const rentDuePaise = Math.max(0, booking.totalPaise - depositCashDuePaise);
+  const breakdown = breakdownBookingCheckoutPayment(booking);
   return {
-    rentDuePaise,
-    depositCashDuePaise,
-    creditAppliedPaise,
-    bookingTotalDuePaise: booking.totalPaise,
+    rentDuePaise: breakdown.rentDuePaise,
+    depositCashDuePaise: breakdown.depositCashDuePaise,
+    creditAppliedPaise: breakdown.creditAppliedPaise,
+    bookingTotalDuePaise: breakdown.bookingTotalDuePaise,
   };
 }
 
@@ -112,10 +111,11 @@ export function validateBookingPayment(input: {
   }
 
   if (!input.allowPartialDeposit) {
-    if (bookingPaymentPaise < input.booking.totalPaise) {
+    const expectedTotal = split.bookingTotalDuePaise;
+    if (bookingPaymentPaise < expectedTotal) {
       return {
         ok: false,
-        reason: `Payment is short by ₹${((input.booking.totalPaise - bookingPaymentPaise) / 100).toFixed(0)}. Full checkout total is required unless admin approves partial deposit.`,
+        reason: `Payment is short by ₹${((expectedTotal - bookingPaymentPaise) / 100).toFixed(0)}. Full checkout total is required unless admin approves partial deposit.`,
       };
     }
     return { ok: true, split };

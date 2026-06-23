@@ -451,6 +451,27 @@ export async function recordPaymentSuccess(
         } else if (split?.isFullPayment || depositPaisePaid + creditApplied >= booking.depositPaise) {
           await applyFullDepositOnConfirm(booking.id);
         }
+
+        const priorOutstanding = snapshot?.priorOutstanding;
+        if (priorOutstanding && priorOutstanding.totalPaise > 0 && split) {
+          const bookingPaymentPaise = Math.max(
+            0,
+            input.amountPaise - (input.membershipAmountPaise ?? 0),
+          );
+          const newBookingPaid = split.rentPaisePaid + split.depositPaisePaid;
+          const priorSlice = Math.max(0, bookingPaymentPaise - newBookingPaid);
+          if (priorSlice > 0) {
+            const { applyPriorOutstandingFromCheckoutPayment } = await import(
+              './bookingPriorOutstanding'
+            );
+            await applyPriorOutstandingFromCheckoutPayment({
+              customerId: booking.customerId,
+              priorOutstanding,
+              amountPaise: priorSlice,
+              relatedPaymentId: result.paymentId,
+            });
+          }
+        }
       } catch (depositErr) {
         // Log + continue; the operator can backfill from the admin
         // deposits page if this ever fires.

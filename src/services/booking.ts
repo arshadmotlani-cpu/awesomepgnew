@@ -158,6 +158,9 @@ function buildSnapshot(
   notes?: string,
   dateCoupon?: PricingSnapshot['dateCoupon'],
 ): PricingSnapshot {
+  const rentLineItems = quote.perBed.flatMap((q) =>
+    q.lineItems.filter((li) => li.kind !== 'deposit'),
+  );
   return {
     perBed: quote.perBed.map((q) => ({
       bedId: q.bedId,
@@ -173,6 +176,7 @@ function buildSnapshot(
     notes,
     cancellationPolicy: { ...DEFAULT_POLICY },
     dateCoupon,
+    rentLineItems,
   };
 }
 
@@ -218,6 +222,9 @@ function applyAdminPricingOverrides(
 
 import { siblingBedIdsInRoom } from '@/src/services/tenantAssignmentInternals';
 import { scheduleAdminNotificationSync } from '@/src/services/adminLiveSync';
+import { computeNewBookingCheckoutTotals } from '@/src/lib/billing/bookingCheckoutTotals';
+import type { PriorOutstandingItem } from '@/src/lib/billing/bookingCheckoutTotals';
+import { getCustomerPriorOutstandingForCheckout } from '@/src/services/bookingPriorOutstanding';
 
 /**
  * Best-effort error classification for postgres-js errors. We rely on
@@ -475,7 +482,23 @@ export async function createBooking(
     ).creditAppliedPaise;
   }
   const additionalDepositDuePaise = quote.depositPaise - depositCreditAppliedPaise;
-  const totalPaise = quote.subtotalPaise - discountPaise + additionalDepositDuePaise;
+
+  let priorOutstanding: { totalPaise: number; items: PriorOutstandingItem[] } = {
+    totalPaise: 0,
+    items: [],
+  };
+  if (!isAdminCreated && input.customerId) {
+    priorOutstanding = await getCustomerPriorOutstandingForCheckout(input.customerId);
+  }
+
+  const checkoutTotals = computeNewBookingCheckoutTotals({
+    rentSubtotalPaise: quote.subtotalPaise,
+    depositRequiredPaise: quote.depositPaise,
+    depositCreditAppliedPaise,
+    discountPaise,
+    priorOutstanding,
+  });
+  const totalPaise = checkoutTotals.totalToCollectTodayPaise;
   const snapshot = buildSnapshot(quote, input.notes, dateCoupon);
   if (depositCreditAppliedPaise > 0) {
     snapshot.depositCredit = {
@@ -484,6 +507,9 @@ export async function createBooking(
       additionalDuePaise: additionalDepositDuePaise,
       appliedAt: new Date().toISOString(),
     };
+  }
+  if (priorOutstanding.totalPaise > 0) {
+    snapshot.priorOutstanding = priorOutstanding;
   }
 
   // 5. Retry loop over booking_code collisions. The COUNT-based sequence

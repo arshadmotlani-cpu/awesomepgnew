@@ -174,3 +174,21 @@ export function previewLowestFixedStayRent(
   if (nights <= 0) return 0;
   return computeLowestFixedStayRent({ nights, dailyRatePaise, weeklyRatePaise }).subtotalPaise;
 }
+
+/** Client-side preview with full rent line items for checkout UI. */
+export function previewFixedStayQuote(
+  nights: number,
+  dailyRatePaise: number,
+  weeklyRatePaise: number,
+): LowestFixedStayQuote {
+  if (nights <= 0) {
+    return {
+      subtotalPaise: 0,
+      lineItems: [],
+      strategy: 'weeks_plus_days',
+      lowestPriceApplied: false,
+      units: 0,
+    };
+  }
+  return computeLowestFixedStayRent({ nights, dailyRatePaise, weeklyRatePaise });
+}

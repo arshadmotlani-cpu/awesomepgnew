@@ -17,7 +17,13 @@ import {
   isCheckOutAvailableForReservations,
   type ReservationSpan,
 } from '@/src/lib/bedStayOverlap';
-import { formatDate as formatDisplayDate, formatDateDdMmYyyy, paiseToInr } from '@/src/lib/format';
+import { formatDate as formatDisplayDate, paiseToInr } from '@/src/lib/format';
+import type { PricingLineItem } from '@/src/lib/pricing/types';
+import {
+  formatRentLineLabel,
+  rentLineItemsOnly,
+  shouldShowHybridRentBreakdown,
+} from '@/src/lib/pricing/formatRentLines';
 import {
   classifyDayAvailability,
   isInStayRange,
@@ -31,7 +37,9 @@ export type StayDateSummary = {
   dailyRatePaise: number;
   accommodationPaise: number;
   depositPaise: number;
+  depositDueNowPaise: number;
   totalDuePaise: number;
+  rentLineItems?: PricingLineItem[];
 };
 
 type Props = {
@@ -309,15 +317,26 @@ function SummaryCard({
         {summary && nights > 0 ? (
           <>
             <div className={`my-2 border-t ${dark ? 'border-white/10' : 'border-zinc-200'}`} />
+            {summary.rentLineItems && shouldShowHybridRentBreakdown(summary.rentLineItems) ? (
+              <ul className="space-y-1 text-xs">
+                {rentLineItemsOnly(summary.rentLineItems).map((li, i) => (
+                  <li key={`${li.kind}-${i}`} className={dark ? 'text-apg-silver' : 'text-zinc-600'}>
+                    {formatRentLineLabel(li)}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
             <div className="flex justify-between gap-4 text-xs">
               <span className={dark ? 'text-apg-silver' : 'text-zinc-600'}>
-                Rate · {paiseToInr(summary.dailyRatePaise)}/day
+                {summary.rentLineItems && shouldShowHybridRentBreakdown(summary.rentLineItems)
+                  ? 'Rent subtotal'
+                  : `Rate · ${paiseToInr(summary.dailyRatePaise)}/day`}
               </span>
               <span>{paiseToInr(summary.accommodationPaise)}</span>
             </div>
             <div className="flex justify-between gap-4 text-xs">
-              <span className={dark ? 'text-apg-silver' : 'text-zinc-600'}>Deposit (est.)</span>
-              <span>{paiseToInr(summary.depositPaise)}</span>
+              <span className={dark ? 'text-apg-silver' : 'text-zinc-600'}>Deposit (50%)</span>
+              <span>{paiseToInr(summary.depositDueNowPaise ?? summary.depositPaise)}</span>
             </div>
             <div className="flex justify-between gap-4 font-semibold">
               <span>Total due (est.)</span>

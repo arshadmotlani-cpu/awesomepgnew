@@ -70,6 +70,25 @@ export type PricingSnapshot = {
     additionalDuePaise: number;
     appliedAt: string;
   };
+  /** Prior stay balance included in checkout total (display + payment collection). */
+  priorOutstanding?: {
+    totalPaise: number;
+    items: Array<{
+      label: string;
+      amountPaise: number;
+      bookingId?: string;
+      bookingCode?: string;
+      kind: 'deposit' | 'rent' | 'electricity' | 'other';
+    }>;
+  };
+  /** Rent line items (excludes deposit) snapshotted for checkout display. */
+  rentLineItems?: Array<{
+    kind: string;
+    description: string;
+    units: number;
+    unitPricePaise: number;
+    amountPaise: number;
+  }>;
   /**
    * Phase 5 — append-only log of paid extensions stamped onto the booking
    * for historical record. The actual inventory rows live in
