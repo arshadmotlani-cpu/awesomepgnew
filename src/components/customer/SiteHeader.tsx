@@ -92,14 +92,14 @@ export async function SiteHeader({ theme = 'dark' }: { theme?: 'dark' | 'light' 
                 Bookings
               </Link>
               <Link
-                href="/account/profile"
+                href="/account/resident"
                 className={
                   light
                     ? 'rounded-lg px-3 py-2 transition-colors hover:bg-slate-100 hover:text-slate-900'
                     : 'rounded-lg px-3 py-2 transition-colors hover:bg-white/5 hover:text-white'
                 }
               >
-                Profile
+                My stay
               </Link>
               <LogoutButton scope="customer" label="Sign out" tone={light ? 'light' : 'dark'} />
             </>

@@ -1,28 +1,39 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { SimpleAccountHub } from '@/src/components/customer/simple/SimpleAccountHub';
 import { ApplicationStatusTracker } from '@/src/components/customer/account/ApplicationStatusTracker';
 import { DocumentsModule } from '@/src/components/customer/account/v2/DocumentsModule';
 import { ResidentAreaSection } from '@/src/components/customer/account/ResidentAreaSection';
+import { ResidentPageHeader } from '@/src/components/customer/account/resident/ResidentPageHeader';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
 import {
   parseAccountSection,
   parseResidentTab,
+  type ResidentTab,
+  residentTabHref,
 } from '@/src/lib/accountNavigation';
+import { residentTabMeta } from '@/src/lib/residentNavigation';
+import { formatIndianPhoneDisplay, indianLocalFromE164 } from '@/src/lib/phone';
+import { loadResidentAccountContext } from '@/src/services/residentAccountContext';
 
-function parseTab(value: string | undefined): 'profile' | 'stay' | 'payments' | 'invoices' {
+function parseLegacyHubTab(
+  value: string | undefined,
+): 'profile' | 'stay' | 'payments' | 'invoices' {
   if (value === 'stay' || value === 'payments' || value === 'invoices') return value;
   return 'profile';
 }
-import { formatIndianPhoneDisplay, indianLocalFromE164 } from '@/src/lib/phone';
-import { loadResidentAccountContext } from '@/src/services/residentAccountContext';
+
+function residentTabFromLegacy(tab: string | undefined): ResidentTab {
+  if (tab === 'payments' || tab === 'invoices') return 'payments';
+  if (tab === 'stay') return 'home';
+  return parseResidentTab(tab);
+}
 
 export const dynamic = 'force-dynamic';
 
 export const metadata = { title: 'My Account' };
 
-export default async function ProfilePage(
-  props: PageProps<'/account/profile'>,
-) {
+export default async function ProfilePage(props: PageProps<'/account/profile'>) {
   const session = await requireCustomerSession('/account/profile');
   const ctx = await loadResidentAccountContext(session.customerId);
 
@@ -39,16 +50,37 @@ export default async function ProfilePage(
   const bookingCode = typeof sp.booking === 'string' ? sp.booking : undefined;
   const submitted = sp.submitted === '1';
   const section = parseAccountSection(typeof sp.section === 'string' ? sp.section : undefined);
-  const residentTab = parseResidentTab(typeof sp.tab === 'string' ? sp.tab : undefined);
+  const tabParam = typeof sp.tab === 'string' ? sp.tab : undefined;
+  const residentTab = residentTabFromLegacy(tabParam);
+  const explicitSettings = sp.settings === '1';
 
-  const legacyTabActive = section === 'resident' && ctx.hasConfirmedBooking;
-
-  if (legacyTabActive) {
+  if (section === 'identity') {
     return (
       <main className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6">
         <nav className="apg-account-nav mb-4 text-xs">
-          <Link href="/account/profile">← My account</Link>
+          <Link href={ctx.hasConfirmedBooking ? residentTabHref('home') : '/account/profile'}>
+            ← {ctx.hasConfirmedBooking ? 'Your stay' : 'My account'}
+          </Link>
         </nav>
+        <DocumentsModule
+          customerId={session.customerId}
+          bookingCode={bookingCode}
+          submitted={submitted}
+        />
+      </main>
+    );
+  }
+
+  if (ctx.hasConfirmedBooking && section === 'profile' && !explicitSettings) {
+    redirect(residentTabHref(residentTab));
+  }
+
+  if (ctx.hasConfirmedBooking && section === 'resident') {
+    return (
+      <main className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6">
+        <div className="hidden md:block">
+          <ResidentPageHeader meta={residentTabMeta(residentTab)} />
+        </div>
         <ResidentAreaSection
           customerId={session.customerId}
           activeTab={residentTab}
@@ -68,17 +100,25 @@ export default async function ProfilePage(
   const bookingStatus =
     ctx.hasConfirmedBooking || ctx.isActiveStay ? 'Active' : ('Not booked yet' as const);
 
-  const hubTab = parseTab(typeof sp.tab === 'string' ? sp.tab : undefined);
+  const hubTab = parseLegacyHubTab(tabParam);
 
   return (
     <main className="mx-auto w-full max-w-lg px-4 py-10 sm:px-6">
       <nav className="apg-account-nav mb-4 text-xs">
         <Link href="/account/bookings">My bookings</Link>
         <span className="mx-1">/</span>
-        <span aria-current="page">My account</span>
+        <span aria-current="page">Account settings</span>
       </nav>
 
-      {!ctx.hasConfirmedBooking && section !== 'identity' ? (
+      {ctx.hasConfirmedBooking ? (
+        <p className="mb-6 rounded-xl border border-apg-orange/30 bg-apg-orange/10 px-4 py-3 text-sm text-apg-silver">
+          <Link href={residentTabHref('home')} className="font-semibold text-apg-orange hover:underline">
+            ← Back to your stay
+          </Link>
+        </p>
+      ) : null}
+
+      {!ctx.hasConfirmedBooking ? (
         <div className="mb-8">
           <ApplicationStatusTracker
             profileComplete={ctx.profileComplete}
@@ -107,16 +147,6 @@ export default async function ProfilePage(
         depositStatusLabel={ctx.depositStatusLabel}
         rentPaymentHistory={ctx.rentPaymentHistory}
       />
-
-      {section === 'identity' ? (
-        <div className="mt-8">
-          <DocumentsModule
-            customerId={session.customerId}
-            bookingCode={bookingCode}
-            submitted={submitted}
-          />
-        </div>
-      ) : null}
     </main>
   );
 }

@@ -1,0 +1,133 @@
+{
+  "capturedAt": "2026-06-23T20:00:34.854Z",
+  "baseUrl": "http://localhost:3000",
+  "hasAuth": false,
+  "shots": [
+    {
+      "route": "login",
+      "viewport": "390",
+      "url": "http://localhost:3000/login",
+      "status": 500,
+      "file": "after/login-390.png"
+    },
+    {
+      "route": "login",
+      "viewport": "768",
+      "url": "http://localhost:3000/login",
+      "status": 500,
+      "file": "after/login-768.png"
+    },
+    {
+      "route": "login",
+      "viewport": "1280",
+      "url": "http://localhost:3000/login",
+      "status": 500,
+      "file": "after/login-1280.png"
+    },
+    {
+      "route": "resident-home",
+      "viewport": "390",
+      "url": "http://localhost:3000/account/profile?section=resident&tab=home",
+      "status": 500,
+      "file": "after/resident-home-390.png"
+    },
+    {
+      "route": "resident-home",
+      "viewport": "768",
+      "url": "http://localhost:3000/account/profile?section=resident&tab=home",
+      "status": 500,
+      "file": "after/resident-home-768.png"
+    },
+    {
+      "route": "resident-home",
+      "viewport": "1280",
+      "url": "http://localhost:3000/account/profile?section=resident&tab=home",
+      "status": 500,
+      "file": "after/resident-home-1280.png"
+    },
+    {
+      "route": "resident-payments",
+      "viewport": "390",
+      "url": "http://localhost:3000/account/profile?section=resident&tab=payments",
+      "status": 500,
+      "file": "after/resident-payments-390.png"
+    },
+    {
+      "route": "resident-payments",
+      "viewport": "768",
+      "url": "http://localhost:3000/account/profile?section=resident&tab=payments",
+      "status": 500,
+      "file": "after/resident-payments-768.png"
+    },
+    {
+      "route": "resident-payments",
+      "viewport": "1280",
+      "url": "http://localhost:3000/account/profile?section=resident&tab=payments",
+      "status": 500,
+      "file": "after/resident-payments-1280.png"
+    },
+    {
+      "route": "resident-wallet",
+      "viewport": "390",
+      "url": "http://localhost:3000/account/profile?section=resident&tab=wallet",
+      "status": 500,
+      "file": "after/resident-wallet-390.png"
+    },
+    {
+      "route": "resident-wallet",
+      "viewport": "768",
+      "url": "http://localhost:3000/account/profile?section=resident&tab=wallet",
+      "status": 500,
+      "file": "after/resident-wallet-768.png"
+    },
+    {
+      "route": "resident-wallet",
+      "viewport": "1280",
+      "url": "http://localhost:3000/account/profile?section=resident&tab=wallet",
+      "status": 500,
+      "file": "after/resident-wallet-1280.png"
+    },
+    {
+      "route": "resident-requests",
+      "viewport": "390",
+      "url": "http://localhost:3000/account/profile?section=resident&tab=requests",
+      "status": 500,
+      "file": "after/resident-requests-390.png"
+    },
+    {
+      "route": "resident-requests",
+      "viewport": "768",
+      "url": "http://localhost:3000/account/profile?section=resident&tab=requests",
+      "status": 500,
+      "file": "after/resident-requests-768.png"
+    },
+    {
+      "route": "resident-requests",
+      "viewport": "1280",
+      "url": "http://localhost:3000/account/profile?section=resident&tab=requests",
+      "status": 500,
+      "file": "after/resident-requests-1280.png"
+    },
+    {
+      "route": "bookings",
+      "viewport": "390",
+      "url": "http://localhost:3000/account/bookings",
+      "status": 500,
+      "file": "after/bookings-390.png"
+    },
+    {
+      "route": "bookings",
+      "viewport": "768",
+      "url": "http://localhost:3000/account/bookings",
+      "status": 500,
+      "file": "after/bookings-768.png"
+    },
+    {
+      "route": "bookings",
+      "viewport": "1280",
+      "url": "http://localhost:3000/account/bookings",
+      "status": 500,
+      "file": "after/bookings-1280.png"
+    }
+  ]
+}

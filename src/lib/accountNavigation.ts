@@ -58,7 +58,7 @@ export const ACCOUNT_RESIDENT_HREF = accountProfileHref('resident');
 export const RESIDENT_BOTTOM_NAV: { tab: ResidentTab; label: string; icon: string }[] = [
   { tab: 'home', label: 'Home', icon: '🏠' },
   { tab: 'wallet', label: 'Wallet', icon: '💳' },
+  { tab: 'payments', label: 'Payments', icon: '💰' },
   { tab: 'requests', label: 'Requests', icon: '📋' },
   { tab: 'concierge', label: 'Concierge', icon: '💬' },
-  { tab: 'room', label: 'Profile', icon: '👤' },
 ];

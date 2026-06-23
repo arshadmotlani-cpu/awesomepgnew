@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import {
   getVacatingForBooking,
   listElectricityInvoicesForBooking,
@@ -14,13 +13,6 @@ import { projectElectricityInvoice } from '@/src/services/electricityBilling';
 import { getCustomerSession } from '@/src/lib/auth/session';
 import { getCustomerById } from '@/src/services/profile';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
-import {
-  ACCOUNT_LINK_IN_SURFACE,
-  ACCOUNT_SURFACE,
-  ACCOUNT_SURFACE_PADDED,
-  ACCOUNT_SURFACE_PRIMARY_BTN,
-  ACCOUNT_TABLE_HEAD,
-} from '@/src/components/customer/accountStyles';
 import { getRoomElectricityForCustomer } from '@/src/services/meterElectricity';
 import {
   getMembershipForDashboard,
@@ -28,7 +20,6 @@ import {
 } from '@/src/services/playstationMembership';
 import { buildBriefingInputForBooking } from '@/src/lib/cockroach/briefingFromBooking';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
-import { DepositDueSection } from '@/src/components/customer/account/DepositDueSection';
 import { getCustomerDepositCredit } from '@/src/services/depositCredit';
 import { ensureDepositDuePaymentLink } from '@/src/services/depositCollection';
 import { paymentLinkPublicUrl } from '@/src/lib/billing/paymentLinkUrl';
@@ -55,32 +46,7 @@ import {
   type PaymentDueRow,
 } from '@/src/components/customer/account/resident/ResidentPaymentsPanel';
 import { ResidentHomePanel } from '@/src/components/customer/account/resident/ResidentHomePanel';
-import { ResidentMoreSection } from '@/src/components/customer/account/resident/ResidentMoreSection';
 import type { UpcomingPaymentRow } from '@/src/components/customer/account/resident/ResidentUpcomingPayments';
-
-const RENT_STATUS_TONE: Record<string, string> = {
-  pending: 'bg-amber-50 text-amber-700 ring-amber-200',
-  overdue: 'bg-rose-50 text-rose-700 ring-rose-200',
-  paid: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  cancelled: 'bg-zinc-100 text-zinc-700 ring-zinc-200',
-};
-
-function StatusPill({
-  status,
-  tones,
-}: {
-  status: string;
-  tones: Record<string, string>;
-}) {
-  const tone = tones[status] ?? 'bg-zinc-100 text-zinc-700 ring-zinc-200';
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${tone}`}
-    >
-      {titleCase(status)}
-    </span>
-  );
-}
 
 /**
  * Resident billing dashboard — rent, electricity, deposit, vacating.
@@ -532,258 +498,6 @@ export async function ResidentAreaSection({
           historyHref={historyHref}
         />
       ) : null}
-
-      {activeTab === 'payments' && (
-    <section className="space-y-6">
-
-      {activeTab === 'payments' &&
-        depositDueCards.map((card) => (
-          <DepositDueSection key={`deposit-due-${card.bookingId}`} {...card} />
-        ))}
-
-      {bookings.ok === false ? (
-        <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700 ring-1 ring-inset ring-rose-200">
-          Couldn&apos;t reach the database.
-        </p>
-      ) : null}
-
-      {bookings.ok && uniqueBookings.length === 0 ? (
-        <div className={`${ACCOUNT_SURFACE} p-8 text-center text-sm text-zinc-600`}>
-          <p className="font-medium text-zinc-700">No monthly bookings found.</p>
-          <p className="mt-1">
-            The resident dashboard only lists monthly + open-ended stays.
-          </p>
-        </div>
-      ) : null}
-
-      {bookings.ok && detail.length > 0
-        ? detail.map((d) => {
-            const booking = d.booking;
-            const rentRows = d.rent.ok ? d.rent.data : [];
-            const electricityRows = d.electricity.ok ? d.electricity.data : [];
-            const projectedRent = rentRows.map((r) =>
-              projectInvoice({
-                ...r,
-                cancelledAt: null,
-                cancellationReason: null,
-                customerId: booking.customerId,
-                bedId: '',
-                pgId: booking.pgId,
-                paymentId: null,
-                paymentProofUrl: null,
-                isAdhoc: false,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-              }),
-            );
-            const projectedElectricity = electricityRows.map((e) =>
-              projectElectricityInvoice({
-                id: e.id,
-                invoiceNumber: e.invoiceNumber,
-                electricityBillId: e.electricityBillId,
-                bookingId: e.bookingId,
-                customerId: booking.customerId,
-                bedId: '',
-                billingMonth: e.billingMonth,
-                dueDate: e.dueDate,
-                amountPaise: e.amountPaise,
-                paidPaise: e.paidPaise,
-                lateFeeLockedPaise: e.lateFeeLockedPaise,
-                status: e.status,
-                paymentId: null,
-                paidAt: e.paidAt,
-                paymentProofUrl: null,
-                unitsShare: null,
-                activeDays: null,
-                cancelledAt: null,
-                createdAt: e.createdAt,
-                updatedAt: e.updatedAt,
-              }),
-            );
-            const deposit = d.deposit;
-            return (
-              <section
-                key={d.bookingId}
-                className={`${ACCOUNT_SURFACE_PADDED} space-y-4`}
-              >
-                <header className="flex flex-wrap items-baseline justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-semibold text-zinc-900">
-                      {booking.pgName} · Room {booking.roomNumber} · Bed{' '}
-                      {booking.bedCode}
-                    </h2>
-                    <p className="text-xs text-zinc-600">
-                      Booking{' '}
-                      <Link
-                        href={`/booking/${booking.bookingCode}`}
-                        className={`font-mono font-medium ${ACCOUNT_LINK_IN_SURFACE}`}
-                      >
-                        {booking.bookingCode}
-                      </Link>
-                      {' · '}Check-in {formatDate(booking.checkInDate)}
-                      {booking.expectedCheckoutDate
-                        ? ` · Expected ${formatDate(booking.expectedCheckoutDate)}`
-                        : ' · open-ended'}
-                      {' · '}Monthly rent {paiseToInr(booking.monthlyRentPaise)}
-                    </p>
-                  </div>
-                </header>
-
-                {(activeTab === 'payments') ? (
-                <ResidentMoreSection title="Full bill tables" description="Detailed rent and electricity invoices.">
-                <details open={projectedRent.some((r) => r.effectiveStatus !== 'paid')}>
-                  <summary className="cursor-pointer text-sm font-medium text-zinc-900">
-                    Rent invoices ({projectedRent.length})
-                  </summary>
-                  <div className="mt-2 overflow-hidden rounded-lg border border-zinc-200">
-                    <table className="min-w-full divide-y divide-zinc-200 text-sm">
-                      <thead className={ACCOUNT_TABLE_HEAD}>
-                        <tr>
-                          <th className="px-3 py-2">Invoice</th>
-                          <th className="px-3 py-2">Month</th>
-                          <th className="px-3 py-2">Due</th>
-                          <th className="px-3 py-2">Rent</th>
-                          <th className="px-3 py-2">Late fee</th>
-                          <th className="px-3 py-2">Total due</th>
-                          <th className="px-3 py-2">Status</th>
-                          <th className="px-3 py-2 text-right">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-zinc-100 bg-white">
-                        {projectedRent.length === 0 ? (
-                          <tr>
-                            <td
-                              colSpan={8}
-                              className="px-3 py-4 text-center text-zinc-500"
-                            >
-                              No rent invoices yet. They&apos;ll appear on the 1st of each month.
-                            </td>
-                          </tr>
-                        ) : (
-                          projectedRent.map((r) => (
-                            <tr key={r.id}>
-                              <td className="px-3 py-2 font-mono text-xs text-zinc-700">
-                                {r.invoiceNumber}
-                              </td>
-                              <td className="px-3 py-2">
-                                {formatDate(r.billingMonth)}
-                              </td>
-                              <td className="px-3 py-2">{formatDate(r.dueDate)}</td>
-                              <td className="px-3 py-2">{paiseToInr(r.rentPaise)}</td>
-                              <td className="px-3 py-2">
-                                {paiseToInr(r.accruedLateFeePaise)}
-                              </td>
-                              <td className="px-3 py-2 font-medium">
-                                {paiseToInr(r.outstandingPaise)}
-                              </td>
-                              <td className="px-3 py-2">
-                                <StatusPill
-                                  status={r.effectiveStatus}
-                                  tones={RENT_STATUS_TONE}
-                                />
-                              </td>
-                              <td className="px-3 py-2 text-right">
-                                {r.effectiveStatus === 'pending' ||
-                                r.effectiveStatus === 'overdue' ? (
-                                  <Link
-                                    href={`/account/resident/pay-rent/${r.id}`}
-                                    className="text-sm font-medium text-indigo-600 hover:text-indigo-500"
-                                  >
-                                    Pay →
-                                  </Link>
-                                ) : null}
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </details>
-
-                <details open={projectedElectricity.some((p) => p.effectiveStatus !== 'paid' && p.effectiveStatus !== 'cancelled')}>
-                  <summary className="cursor-pointer text-sm font-medium text-zinc-900">
-                    Electricity invoices ({electricityRows.length})
-                  </summary>
-                  <div className="mt-2 overflow-hidden rounded-lg border border-zinc-200">
-                    <table className="min-w-full divide-y divide-zinc-200 text-sm">
-                      <thead className={ACCOUNT_TABLE_HEAD}>
-                        <tr>
-                          <th className="px-3 py-2">Invoice</th>
-                          <th className="px-3 py-2">Month</th>
-                          <th className="px-3 py-2">Due</th>
-                          <th className="px-3 py-2">Units</th>
-                          <th className="px-3 py-2">Bill total</th>
-                          <th className="px-3 py-2">Split</th>
-                          <th className="px-3 py-2">Principal</th>
-                          <th className="px-3 py-2">Late fee</th>
-                          <th className="px-3 py-2">Total due</th>
-                          <th className="px-3 py-2">Status</th>
-                          <th className="px-3 py-2 text-right">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-zinc-100 bg-white">
-                        {electricityRows.length === 0 ? (
-                          <tr>
-                            <td
-                              colSpan={11}
-                              className="px-3 py-4 text-center text-zinc-500"
-                            >
-                              No electricity invoices yet.
-                            </td>
-                          </tr>
-                        ) : (
-                          electricityRows.map((e, i) => {
-                            const p = projectedElectricity[i];
-                            return (
-                            <tr key={e.id}>
-                              <td className="px-3 py-2 font-mono text-xs text-zinc-700">
-                                {e.invoiceNumber}
-                              </td>
-                              <td className="px-3 py-2">{formatDate(e.billingMonth)}</td>
-                              <td className="px-3 py-2">{formatDate(e.dueDate)}</td>
-                              <td className="px-3 py-2">{e.unitsConsumed}</td>
-                              <td className="px-3 py-2">{paiseToInr(e.totalPaise)}</td>
-                              <td className="px-3 py-2">{e.monthlyOccupantCount} ways</td>
-                              <td className="px-3 py-2">{paiseToInr(e.amountPaise)}</td>
-                              <td className="px-3 py-2">
-                                {paiseToInr(p.accruedLateFeePaise)}
-                              </td>
-                              <td className="px-3 py-2 font-medium">
-                                {e.status === 'paid'
-                                  ? paiseToInr(e.paidPaise)
-                                  : paiseToInr(p.outstandingPaise)}
-                              </td>
-                              <td className="px-3 py-2">
-                                <StatusPill status={p.effectiveStatus} tones={RENT_STATUS_TONE} />
-                              </td>
-                              <td className="px-3 py-2 text-right">
-                                {p.effectiveStatus === 'pending' ||
-                                p.effectiveStatus === 'overdue' ? (
-                                  <Link
-                                    href={`/account/resident/pay-electricity/${e.id}`}
-                                    className="text-sm font-medium text-indigo-600 hover:text-indigo-500"
-                                  >
-                                    Pay →
-                                  </Link>
-                                ) : null}
-                              </td>
-                            </tr>
-                            );
-                          })
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </details>
-                </ResidentMoreSection>
-                ) : null}
-              </section>
-            );
-          })
-        : null}
-    </section>
-      )}
     </ResidentHubShell>
   );
 }

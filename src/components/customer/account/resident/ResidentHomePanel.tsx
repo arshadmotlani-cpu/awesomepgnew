@@ -142,7 +142,7 @@ export function ResidentHomePanel({
         <DepositRefundNotice />
         <MyServicesPanel membership={ps4Membership} isActiveTenant={tenantActive} />
         <p className="text-xs text-zinc-600">
-          Bills, wallet, and move-out tools are in the tabs below —{' '}
+          Use the navigation bar for{' '}
           <Link href={residentTabHref('payments')} className="font-semibold text-indigo-700">
             Payments
           </Link>
@@ -150,7 +150,7 @@ export function ResidentHomePanel({
           <Link href={residentTabHref('wallet')} className="font-semibold text-indigo-700">
             Wallet
           </Link>
-          ,{' '}
+          , and{' '}
           <Link href={residentTabHref('vacating')} className="font-semibold text-indigo-700">
             Move-out
           </Link>

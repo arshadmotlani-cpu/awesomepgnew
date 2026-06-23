@@ -177,6 +177,20 @@ body {
   }
 }
 
+.apg-resident-subpage {
+  overflow-x: clip;
+}
+
+.apg-resident-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.apg-resident-hub-main .apg-card-account,
+.apg-resident-subpage .apg-card-account {
+  max-width: 100%;
+}
+
 .apg-sticky-cta {
   position: fixed;
   bottom: 0;

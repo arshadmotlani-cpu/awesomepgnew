@@ -196,25 +196,18 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-23 19:42:08 UTC
+### Pending pre-commit sync · 2026-06-23 20:00:56 UTC
 
-**Areas touched:** [[ROUTES]], [[Auth]]
+**Areas touched:** [[ROUTES]]
 
 **Docs flagged for review:**
-- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 
-**Staged code files (8):**
-- `app/(customer)/booking/[bookingCode]/pay/page.tsx`
-- `app/(customer)/booking/[bookingCode]/payment-success/page.tsx`
-- `app/(customer)/booking/new/page.tsx`
-- `app/(customer)/pgs/[pgSlug]/page.tsx`
-- `app/(customer)/pgs/[pgSlug]/rooms/[roomId]/page.tsx`
-- `app/api/auth/customer/booking/otp/send/route.ts`
-- `app/api/auth/customer/booking/otp/verify/route.ts`
-- `src/lib/auth/bookingOtp.ts`
+**Staged code files (2):**
+- `app/(customer)/account/profile/page.tsx`
+- `app/globals.css`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed
