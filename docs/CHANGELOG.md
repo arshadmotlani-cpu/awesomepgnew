@@ -184,32 +184,13 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 
 ---
 
+## 2026-06-23 (Vercel deploy fix)
+
+### Fixed
+- **DEPLOY-BLOCK-01** — Production deploys failed silently after `d0a0e13`: hourly cron `0 * * * *` is not allowed on Vercel Hobby (daily only). Removed from `vercel.json`; fixed-stay expiry now runs inside daily `/api/cron/automation` (06:00 UTC). Manual `/api/cron/expire-fixed-stays` retained for backfill.
+
+---
+
 ## Related
 
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
-
-<!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-23 12:54:35 UTC
-
-**Areas touched:** [[ROUTES]]
-
-**Docs flagged for review:**
-- `CHANGELOG.md` — review for accuracy
-- `ROUTES.md` — review for accuracy
-- `SYSTEM/CURRENT_STATE.md` — review for accuracy
-
-**Staged code files (1):**
-- `app/api/cron/automation/route.ts`
-
-**Changed:**
-- _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed
-
-**Fixed:**
-- _(none — fill in if this commit fixes a bug)_
-
-**Added:**
-- _(none — fill in if this commit adds a feature)_
-
-**Removed:**
-- _(none)_
-<!-- DOC_SYNC_PENDING_END -->
