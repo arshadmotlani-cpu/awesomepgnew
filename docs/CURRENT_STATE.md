@@ -5,9 +5,9 @@
 <!-- DOC_SYNC_STATE_START -->
 ## Automated doc sync
 
-> **Last sync:** 2026-06-23 12:20:26 UTC  
-> **Areas touched:** [[ROUTES]], [[Billing]]  
-> **Docs flagged:** ARCHITECTURE.md, CHANGELOG.md, PROJECT/features.md, ROUTES.md, SYSTEM/CURRENT_STATE.md, SYSTEM/WORKFLOWS.md  
-> **Staged code files:** 16  
+> **Last sync:** 2026-06-23 12:41:05 UTC  
+> **Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Residents]], [[Vacating]], [[Action Center]]  
+> **Docs flagged:** ARCHITECTURE.md, CHANGELOG.md, DATABASE.md, DECISIONS.md, PROJECT/features.md, ROUTES.md, SYSTEM/CURRENT_STATE.md, SYSTEM/WORKFLOWS.md  
+> **Staged code files:** 31  
 > **Action:** Review [[CHANGELOG#Pending pre-commit sync · 2026-06-23]] (Pending section) before push.
 <!-- DOC_SYNC_STATE_END -->
