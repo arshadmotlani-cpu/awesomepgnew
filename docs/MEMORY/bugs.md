@@ -9,6 +9,7 @@
 
 ## 2026-06-23
 
+- **NAV-SB-01** — Admin sidebar clicks ignored / required double-click → periodic `router.refresh()` in `AdminLiveRefreshProvider` raced Link navigation and re-suspended dynamic layout; removed 30s refresh, added optimistic active state + nav timing logs
 - **VAC-B5-01** — Shanti Nagar 203-B5: `/admin/vacating` crash (ISO date + bigint RSC boundary); refund badge vs empty `/admin/requests` (checkout SSOT vs legacy table) → [[BUGS#VAC-B5-01]]
 
 ## 2026-06-22
@@ -28,6 +29,8 @@
 ---
 
 ## Resolved (memory log)
+
+- **NAV-SB-01** (2026-06-23) — Admin sidebar unreliable navigation: removed 30s `router.refresh()` timer; `AdminNavLink` + optimistic active path + slow-nav console warnings >200ms
 
 ## 2026-06-21
 

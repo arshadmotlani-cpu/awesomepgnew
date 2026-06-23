@@ -9,11 +9,9 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { useRouter } from 'next/navigation';
 import type { AdminNavBadges } from '@/src/services/adminNavBadges';
 
 const BADGE_POLL_MS = 20_000;
-const PAGE_REFRESH_MS = 30_000;
 
 const AdminBadgesContext = createContext<AdminNavBadges>({});
 
@@ -21,6 +19,11 @@ export function useAdminNavBadges(): AdminNavBadges {
   return useContext(AdminBadgesContext);
 }
 
+/**
+ * Polls sidebar badge counts client-side only.
+ * Does not call router.refresh() — that raced with Link navigation and blocked clicks
+ * while the dynamic admin layout re-suspended.
+ */
 export function AdminLiveRefreshProvider({
   initialBadges,
   children,
@@ -28,7 +31,6 @@ export function AdminLiveRefreshProvider({
   initialBadges: AdminNavBadges;
   children: ReactNode;
 }) {
-  const router = useRouter();
   const [badges, setBadges] = useState<AdminNavBadges>(initialBadges);
 
   const pollBadges = useCallback(async () => {
@@ -71,18 +73,13 @@ export function AdminLiveRefreshProvider({
       if (document.visibilityState === 'visible') void pollBadges();
     }, BADGE_POLL_MS);
 
-    const refreshTimer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') router.refresh();
-    }, PAGE_REFRESH_MS);
-
     document.addEventListener('visibilitychange', onVisible);
 
     return () => {
       window.clearInterval(badgeTimer);
-      window.clearInterval(refreshTimer);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [pollBadges, router]);
+  }, [pollBadges]);
 
   const value = useMemo(() => badges, [badges]);
 

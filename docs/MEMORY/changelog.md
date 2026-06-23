@@ -9,6 +9,7 @@
 
 ## 2026-06-23
 
+- **NAV-SB-01** — Fix admin sidebar navigation: drop periodic layout refresh race, optimistic active state, nav timing instrumentation → [[BUGS#NAV-SB-01]]
 - **BOOK-DATE-01** — StayDateRangePicker z-index + 44px Edit target; BedBookingPanel 3-step wizard → [[BUGS#BOOK-DATE-01]] · [[Bookings]] · [[CHANGELOG]]
 - **VAC-B5-01** — Room 203 B5 vacating crash + refund badge/list mismatch → [[BUGS#VAC-B5-01]] · `scripts/investigate-bed-203-b5.ts` · `scripts/repair-bed-203-b5.ts`
 - **Regression net** — `criticalJourneys.test.ts`, Playwright smoke, CI workflow, `/admin/health` smoke checks, `DEPLOYMENT_CHECKLIST.md`

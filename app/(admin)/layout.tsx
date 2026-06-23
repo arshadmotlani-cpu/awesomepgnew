@@ -18,7 +18,7 @@ export default async function AdminGroupLayout({ children }: { children: ReactNo
   return (
     <AdminLiveRefreshProvider initialBadges={badges}>
       <div className="apg-admin-shell flex h-[100dvh] w-full max-w-[100vw] overflow-hidden bg-[#0B0F14] text-[#f4f6f8]">
-        <aside className="hidden h-full shrink-0 lg:block lg:w-64">
+        <aside className="relative z-20 hidden h-full shrink-0 lg:block lg:w-64">
           <Sidebar />
         </aside>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">

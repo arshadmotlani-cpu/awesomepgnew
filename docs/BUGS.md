@@ -28,6 +28,17 @@
 
 ---
 
+### NAV-SB-01 — Admin sidebar navigation unreliable (double-click / no-op)
+
+| | |
+|---|---|
+| **Severity** | High |
+| **Symptom** | Sidebar items (Operations, KYC, PGs, Checkout Settlements, Residents, etc.) often ignored first click; navigation felt delayed |
+| **Root cause** | `AdminLiveRefreshProvider` called `router.refresh()` every 30s, re-executing the dynamic admin layout (`requireAdminSession` + badge load) and racing client `Link` navigations |
+| **Fix** | Removed periodic `router.refresh()` (badge poll remains client-side); `AdminNavLink` with prefetch + optimistic active state; nav timing logs warn when click→route or click→visible exceeds 200ms; sidebar `z-20` stacking |
+
+---
+
 ## Resolved bugs
 
 ### BOOK-OUTST-01 — Prior stay outstanding not included in new booking payment
