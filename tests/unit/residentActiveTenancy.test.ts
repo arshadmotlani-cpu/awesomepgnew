@@ -36,6 +36,17 @@ test('deriveTenancyStatus returns unassigned only when no active reservation exi
   );
 });
 
+test('deriveTenancyStatus infers vacated for completed former resident without active bed', () => {
+  assert.equal(
+    deriveTenancyStatus({
+      residencyStatus: 'active',
+      activeTenancy: null,
+      hasCompletedTenancy: true,
+    }),
+    'vacated',
+  );
+});
+
 test('deriveTenancyStatus returns vacated when residency is vacated and no active reservation', () => {
   assert.equal(
     deriveTenancyStatus({

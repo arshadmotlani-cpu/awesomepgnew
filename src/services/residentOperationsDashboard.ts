@@ -1,5 +1,5 @@
 import { requireAdminSession } from '@/src/lib/auth/guards';
-import { isResidentBedAssignable } from '@/src/lib/residentBedAssignment';
+import { isResidentBedAssignmentEligible } from '@/src/lib/residentBedAssignment';
 import { buildCollectionsQueue } from '@/src/lib/billing/collectionsQueue';
 import { todayString } from '@/src/lib/dates';
 import { buildResidentOperationsDashboard } from '@/src/lib/residents/residentOperationsDashboard';
@@ -65,7 +65,13 @@ export async function loadResidentOperationsDashboard(session: AdminSession) {
   const rentOverdue = collectionsQueue.filter((q) => q.priority === 'overdue');
   const rentsDueToday = collectionsQueue.filter((q) => q.priority === 'due_today');
 
-  const unassignedResidents = residents.filter((r) => isResidentBedAssignable(r));
+  const unassignedResidents = residents
+    .filter((r) => isResidentBedAssignmentEligible(r))
+    .map((r) => ({
+      ...r,
+      bookingId: r.onboardingBookingId ?? r.bookingId,
+      bookingCode: r.onboardingBookingCode ?? r.bookingCode,
+    }));
 
   const settlementByVacatingId = new Map(
     checkoutSettlements.map((s) => [s.vacatingRequestId, s.id]),
@@ -173,6 +179,10 @@ export async function loadResidentOperationsDashboard(session: AdminSession) {
         bookingCode: v.bookingCode,
         moveInDate: null,
         verificationSource: 'kyc',
+        onboardingBookingId: null,
+        onboardingBookingStatus: null,
+        onboardingBookingCode: null,
+        onboardingPaymentApproved: false,
       });
     }
   }
@@ -199,6 +209,10 @@ export async function loadResidentOperationsDashboard(session: AdminSession) {
         bookingCode: null,
         moveInDate: null,
         verificationSource: 'kyc' as const,
+        onboardingBookingId: null,
+        onboardingBookingStatus: null,
+        onboardingBookingCode: null,
+        onboardingPaymentApproved: false,
       };
       residentIndex.set(q.customerId, partial);
     }

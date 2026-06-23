@@ -24,6 +24,50 @@ export const activeBedReservationWhereSql = occupancyReservationCoreSql_b;
  * Optional active-bed context for a customer row (`c`).
  * LEFT JOIN LATERAL — never filters customers out.
  */
+/**
+ * Latest onboarding booking awaiting bed assignment — confirmed or payment-approved
+ * pending_approval, with no active/upcoming primary reservation yet.
+ */
+export const onboardingBedAssignmentLateralSql = sql`
+  LEFT JOIN LATERAL (
+    SELECT
+      b.id::text AS onboarding_booking_id,
+      b.booking_code AS onboarding_booking_code,
+      b.status AS onboarding_booking_status,
+      (
+        b.created_via = 'admin'
+        OR EXISTS (
+          SELECT 1 FROM payments p
+          WHERE p.booking_id = b.id
+            AND p.status = 'succeeded'
+            AND p.amount_paise > 0
+        )
+        OR EXISTS (
+          SELECT 1 FROM deposit_ledger dl
+          WHERE dl.booking_id = b.id AND dl.entry_kind = 'collected'
+        )
+      ) AS onboarding_payment_approved
+    FROM bookings b
+    WHERE b.customer_id = c.id
+      AND b.status IN ('confirmed', 'pending_approval')
+      AND NOT EXISTS (
+        SELECT 1 FROM bed_reservations br
+        WHERE br.booking_id = b.id
+          AND br.kind = 'primary'
+          AND br.status = 'active'
+          AND (
+            CURRENT_DATE <@ br.stay_range
+            OR (
+              lower(br.stay_range) > CURRENT_DATE
+              AND b.duration_mode IN ('monthly', 'open_ended')
+            )
+          )
+      )
+    ORDER BY (b.status = 'confirmed') DESC, b.created_at DESC
+    LIMIT 1
+  ) ob ON true
+`;
+
 export const activeTenancyLateralSql = sql`
   LEFT JOIN LATERAL (
     SELECT
@@ -177,6 +221,8 @@ import type { ResidentTenancyStatus } from '@/src/lib/residentBedAssignment';
 export type { ResidentTenancyStatus, ResidentBedContext } from '@/src/lib/residentBedAssignment';
 export {
   assignedBedShortLabel,
+  isOnboardingBookingEligibleForBedAssignment,
+  isResidentBedAssignmentEligible,
   isResidentBedAssignable,
   isResidentBedAssigned,
   viewBedAdminHref,
@@ -186,6 +232,8 @@ export function deriveTenancyStatus(input: {
   residencyStatus?: ResidencyStatus | null;
   activeTenancy: Pick<ActiveTenancy, 'bookingId' | 'isVacating'> | null;
   bedId?: string | null;
+  /** Former resident — completed booking, no active bed. */
+  hasCompletedTenancy?: boolean;
 }): ResidentTenancyStatus {
   if (input.residencyStatus === 'blocked') return 'blocked';
   const hasReservation = Boolean(input.activeTenancy?.bookingId) || Boolean(input.bedId);
@@ -194,5 +242,6 @@ export function deriveTenancyStatus(input: {
     return 'active';
   }
   if (input.residencyStatus === 'vacated') return 'vacated';
+  if (input.hasCompletedTenancy) return 'vacated';
   return 'unassigned';
 }

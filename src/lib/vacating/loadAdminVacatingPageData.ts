@@ -16,6 +16,7 @@ import {
 } from '@/src/lib/moveOut/moveOutPipelineUi';
 import {
   listPipelineCheckoutSettlements,
+  syncMissingCheckoutSettlements,
   type CheckoutSettlementRow,
 } from '@/src/services/checkoutSettlement';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
@@ -73,6 +74,7 @@ export async function loadAdminVacatingPageData(session: AdminSession): Promise<
   let settlements: CheckoutSettlementRow[] = [];
   let settlementsLoadError: string | null = null;
   try {
+    await syncMissingCheckoutSettlements().catch(() => undefined);
     settlements = await listPipelineCheckoutSettlements(session);
   } catch (err) {
     settlementsLoadError = err instanceof Error ? err.message : String(err);

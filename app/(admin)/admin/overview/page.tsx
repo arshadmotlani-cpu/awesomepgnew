@@ -1,17 +1,16 @@
 import { AdminSectionErrorBoundary } from '@/src/components/admin/AdminSectionErrorBoundary';
-import { ControlBoard } from '@/src/components/admin/ControlBoard';
 import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import { OverviewMonthPicker } from '@/src/components/admin/OverviewMonthPicker';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { SyncActionsButton } from '@/src/components/admin/SyncActionsButton';
 import { UnreadNotificationsPanel } from '@/src/components/admin/UnreadNotificationsPanel';
 import { OutstandingDepositsPanel } from '@/src/components/admin/overview/OutstandingDepositsPanel';
-import { OverviewGlobalSummary } from '@/src/components/admin/overview/OverviewGlobalSummary';
+import { OverviewDashboard } from '@/src/components/admin/overview/OverviewDashboard';
 import { PendingActionItemsOverview } from '@/src/components/admin/overview/PendingActionItemsOverview';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import { requireAdminSession } from '@/src/lib/auth/guards';
-import { buildControlBoardData } from '@/src/services/controlBoard';
 import { runOperatorTestDataCleanup } from '@/src/services/operatorTestDataCleanup';
+import { buildOverviewDashboard } from '@/src/services/overviewDashboard';
 import { loadOverviewContext } from '@/src/services/overviewData';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -56,26 +55,13 @@ export default async function OverviewPage({
     );
   }
 
-  const controlBoard = buildControlBoardData({
-    billingMonth: ctx.data.billingMonth,
-    monthLabel: ctx.data.monthLabel,
-    summary: ctx.data.summary,
-    pgMetrics: ctx.data.pgMetrics,
-    revenue: ctx.data.revenue,
-    operations: ctx.data.operations,
-    dashboard: ctx.data.dashboard,
-    rentStats: ctx.data.rentStats,
-    overviewKpis: ctx.data.overviewKpis,
-    visitors: ctx.data.visitors,
-    actionItems: ctx.data.actionItems,
-    depositByPg: new Map(),
-  });
+  const dashboard = buildOverviewDashboard(ctx.data);
 
   return (
     <>
       <PageHeader
-        title="Overview"
-        description="Layer 1 — global KPIs only. Each metric opens a dedicated module route."
+        title="Overview Dashboard"
+        description="Money, collections, occupancy, and operations — each metric links to its module."
         actions={
           <div className="flex items-center gap-2">
             <SyncActionsButton />
@@ -101,21 +87,7 @@ export default async function OverviewPage({
         <div className="mb-8">
           <PendingActionItemsOverview items={ctx.data.oldestPendingActions} />
         </div>
-        <OverviewGlobalSummary ctx={ctx.data} />
-      </AdminSectionErrorBoundary>
-
-      <AdminSectionErrorBoundary title="Control board">
-        <section className="mt-10">
-          <h2 className="mb-1 text-sm font-semibold text-white">Control board</h2>
-          <p className="mb-4 text-xs text-apg-silver">
-            Live metrics — click any card to drill down and act (WhatsApp, payment links, bulk reminders).
-          </p>
-          <ControlBoard
-            cards={controlBoard.cards}
-            billingMonth={ctx.data.billingMonth}
-            monthLabel={ctx.data.monthLabel}
-          />
-        </section>
+        <OverviewDashboard data={dashboard} />
       </AdminSectionErrorBoundary>
     </>
   );

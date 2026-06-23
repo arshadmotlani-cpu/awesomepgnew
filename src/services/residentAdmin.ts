@@ -32,6 +32,7 @@ import {
   activeTenancyLateralSql,
   deriveTenancyStatus,
   getActiveTenancyForCustomer,
+  onboardingBedAssignmentLateralSql,
 } from '@/src/lib/residentActiveTenancy';
 import { formatDate, parseDate } from '@/src/lib/dates';
 import { isBedAvailable } from '@/src/services/availability';
@@ -65,6 +66,10 @@ export type ResidentListRow = {
   bookingCode: string | null;
   moveInDate: string | null;
   verificationSource: ResidentVerificationSource;
+  onboardingBookingId: string | null;
+  onboardingBookingStatus: string | null;
+  onboardingBookingCode: string | null;
+  onboardingPaymentApproved: boolean;
 };
 
 export type UnverifiedWebsiteSignupRow = ResidentListRow & {
@@ -139,6 +144,11 @@ type ResidentListDbRow = {
   verified_via_payment: boolean;
   has_pending_payment: boolean;
   has_pending_kyc_submission: boolean;
+  onboarding_booking_id: string | null;
+  onboarding_booking_code: string | null;
+  onboarding_booking_status: string | null;
+  onboarding_payment_approved: boolean;
+  has_completed_booking: boolean;
 };
 
 import {
@@ -175,8 +185,13 @@ function mapResidentListRow(row: ResidentListDbRow): ResidentListRow {
         ? { bookingId: row.booking_id, isVacating: row.is_vacating }
         : null,
       bedId: row.bed_id,
+      hasCompletedTenancy: row.has_completed_booking,
     }),
     verificationSource: verification.verificationSource,
+    onboardingBookingId: row.onboarding_booking_id,
+    onboardingBookingStatus: row.onboarding_booking_status,
+    onboardingBookingCode: row.onboarding_booking_code,
+    onboardingPaymentApproved: row.onboarding_payment_approved,
   };
 }
 
@@ -242,9 +257,18 @@ export async function listResidentsForAdmin(session: AdminSession): Promise<Resi
       EXISTS (
         SELECT 1 FROM kyc_submissions ks
         WHERE ks.customer_id = c.id AND ks.status = 'pending'
-      ) AS has_pending_kyc_submission
+      ) AS has_pending_kyc_submission,
+      ob.onboarding_booking_id,
+      ob.onboarding_booking_code,
+      ob.onboarding_booking_status,
+      coalesce(ob.onboarding_payment_approved, false) AS onboarding_payment_approved,
+      EXISTS (
+        SELECT 1 FROM bookings b_done
+        WHERE b_done.customer_id = c.id AND b_done.status = 'completed'
+      ) AS has_completed_booking
     FROM customers c
     ${activeTenancyLateralSql}
+    ${onboardingBedAssignmentLateralSql}
     WHERE c.archived_at IS NULL
       AND ${isNotOccupancyPlaceholderCustomerSql}
       AND ${customerIsVerifiedSql}
@@ -288,9 +312,15 @@ export async function listUnverifiedWebsiteSignupsForAdmin(
       EXISTS (
         SELECT 1 FROM kyc_submissions ks
         WHERE ks.customer_id = c.id AND ks.status = 'pending'
-      ) AS has_pending_kyc_submission
+      ) AS has_pending_kyc_submission,
+      ob.onboarding_booking_id,
+      ob.onboarding_booking_code,
+      ob.onboarding_booking_status,
+      coalesce(ob.onboarding_payment_approved, false) AS onboarding_payment_approved,
+      false AS has_completed_booking
     FROM customers c
     ${activeTenancyLateralSql}
+    ${onboardingBedAssignmentLateralSql}
     WHERE c.archived_at IS NULL
       AND ${isNotOccupancyPlaceholderCustomerSql}
       AND ${customerIsWebsiteSignupSql}
@@ -335,6 +365,10 @@ export async function searchResidentsForAdmin(
     bookingCode: r.bookingCode,
     moveInDate: null,
     verificationSource: r.kycStatus === 'approved' ? ('kyc' as const) : null,
+    onboardingBookingId: null,
+    onboardingBookingStatus: null,
+    onboardingBookingCode: null,
+    onboardingPaymentApproved: false,
   }));
 }
 

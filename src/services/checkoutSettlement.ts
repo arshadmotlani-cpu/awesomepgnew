@@ -123,6 +123,55 @@ export function hasCheckoutElectricityEvidence(row: CheckoutSettlement): boolean
   );
 }
 
+export type CheckoutSettlementDeductionInput = {
+  noticeDeductionPaise: number;
+  noticeShortfallDays: number;
+  electricitySharePaise: number;
+  electricityDeductFromDeposit: boolean;
+  damageChargePaise: number;
+  cleaningChargePaise: number;
+  customChargePaise: number;
+  customChargeLabel?: string | null;
+};
+
+/** Deduction rows written to deposit_ledger at checkout approval. */
+export function buildCheckoutSettlementDeductionPlan(
+  row: CheckoutSettlementDeductionInput,
+): Array<{ amountPaise: number; reason: string }> {
+  const deductions: Array<{ amountPaise: number; reason: string }> = [];
+  if (row.noticeDeductionPaise > 0) {
+    deductions.push({
+      amountPaise: row.noticeDeductionPaise,
+      reason: `Notice shortfall (${row.noticeShortfallDays} days)`,
+    });
+  }
+  if (row.electricitySharePaise > 0 && row.electricityDeductFromDeposit) {
+    deductions.push({
+      amountPaise: row.electricitySharePaise,
+      reason: 'Electricity share at checkout',
+    });
+  }
+  if (row.damageChargePaise > 0) {
+    deductions.push({ amountPaise: row.damageChargePaise, reason: 'Damage charge' });
+  }
+  if (row.cleaningChargePaise > 0) {
+    deductions.push({ amountPaise: row.cleaningChargePaise, reason: 'Cleaning charge' });
+  }
+  if (row.customChargePaise > 0) {
+    deductions.push({
+      amountPaise: row.customChargePaise,
+      reason: row.customChargeLabel ?? 'Custom charge',
+    });
+  }
+  return deductions;
+}
+
+export function checkoutSettlementRequiresLedgerDeductions(
+  row: CheckoutSettlementDeductionInput,
+): boolean {
+  return buildCheckoutSettlementDeductionPlan(row).length > 0;
+}
+
 function hasResidentRefundDetails(
   row: CheckoutSettlement,
   expectedRefundPaise: number,
@@ -979,31 +1028,16 @@ export async function approveCheckoutSettlement(input: {
     return { ok: false, error: DEPOSIT_REFUND_MISSING_DETAILS_MESSAGE };
   }
 
-  const deductions: Array<{ amountPaise: number; reason: string }> = [];
-  if (current.noticeDeductionPaise > 0) {
-    deductions.push({
-      amountPaise: current.noticeDeductionPaise,
-      reason: `Notice shortfall (${current.noticeShortfallDays} days)`,
-    });
-  }
-  if (current.electricitySharePaise > 0 && current.electricityDeductFromDeposit) {
-    deductions.push({
-      amountPaise: current.electricitySharePaise,
-      reason: 'Electricity share at checkout',
-    });
-  }
-  if (current.damageChargePaise > 0) {
-    deductions.push({ amountPaise: current.damageChargePaise, reason: 'Damage charge' });
-  }
-  if (current.cleaningChargePaise > 0) {
-    deductions.push({ amountPaise: current.cleaningChargePaise, reason: 'Cleaning charge' });
-  }
-  if (current.customChargePaise > 0) {
-    deductions.push({
-      amountPaise: current.customChargePaise,
-      reason: current.customChargeLabel ?? 'Custom charge',
-    });
-  }
+  const deductions = buildCheckoutSettlementDeductionPlan({
+    noticeDeductionPaise: current.noticeDeductionPaise,
+    noticeShortfallDays: current.noticeShortfallDays,
+    electricitySharePaise: current.electricitySharePaise,
+    electricityDeductFromDeposit: current.electricityDeductFromDeposit !== false,
+    damageChargePaise: current.damageChargePaise,
+    cleaningChargePaise: current.cleaningChargePaise,
+    customChargePaise: current.customChargePaise,
+    customChargeLabel: current.customChargeLabel,
+  });
 
   try {
     await db.transaction(async (tx) => {
@@ -1115,6 +1149,16 @@ export async function markCheckoutRefundPaid(input: {
 
   const refundPaise = current.finalRefundPaise;
   const idempotencyKey = `checkout:${current.id}`;
+
+  const wallet = await getDepositSummaryForBooking(current.bookingId);
+  const ledgerBalance = wallet?.refundableBalancePaise ?? 0;
+  if (refundPaise > ledgerBalance) {
+    return {
+      ok: false,
+      error:
+        'Deposit deductions were not applied to the ledger — approve checkout settlement before marking refund paid.',
+    };
+  }
 
   if (refundPaise > 0) {
     const settled = await settleDepositRefund({

@@ -1,52 +1,23 @@
-import Link from 'next/link';
-import { AdminInvoiceListRow } from '@/src/components/admin/AdminInvoiceListRow';
-import { AdminInvoiceMobileList } from '@/src/components/admin/AdminInvoiceMobileList';
+import { Suspense } from 'react';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
+import { InvoiceDailySummary } from '@/src/components/admin/InvoiceDailySummary';
+import { InvoiceDayList, InvoiceFinancialTimeline } from '@/src/components/admin/InvoiceFinancialTimeline';
+import { InvoiceDayNav } from '@/src/components/admin/InvoiceDayNav';
 import { PageHeader } from '@/src/components/admin/PageHeader';
-import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
 import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
-import { formatDate, paiseToInr } from '@/src/lib/format';
-import {
-  getInvoiceStats,
-  listUnifiedInvoices,
-  type InvoiceListFilters,
-} from '@/src/services/unifiedInvoices';
+import { resolveSelectedDay } from '@/src/lib/billing/dayNavigation';
+import { getInvoiceCommandCenterData } from '@/src/services/invoiceCommandCenter';
 
 export const dynamic = 'force-dynamic';
-
-const STATUS_TABS: Array<{ id: InvoiceListFilters['status']; label: string }> = [
-  { id: 'all', label: 'All' },
-  { id: 'paid', label: 'Paid' },
-  { id: 'partial', label: 'Partial' },
-  { id: 'pending', label: 'Pending' },
-  { id: 'overdue', label: 'Overdue' },
-  { id: 'cancelled', label: 'Cancelled' },
-  { id: 'refunded', label: 'Refunded' },
-];
-
-function tabHref(status: InvoiceListFilters['status'], search?: string) {
-  const params = new URLSearchParams();
-  if (status && status !== 'all') params.set('status', status);
-  if (search?.trim()) params.set('q', search.trim());
-  const qs = params.toString();
-  return qs ? `/admin/invoices?${qs}` : '/admin/invoices';
-}
 
 export default async function InvoicesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string }>;
+  searchParams: Promise<{ date?: string }>;
 }) {
   const sp = await searchParams;
-  const status = STATUS_TABS.some((t) => t.id === sp.status)
-    ? (sp.status as InvoiceListFilters['status'])
-    : 'all';
-  const search = sp.q?.trim() ?? '';
-
-  const [invoices, stats] = await Promise.all([
-    listUnifiedInvoices({ status, search: search || undefined, limit: 300 }),
-    getInvoiceStats(),
-  ]);
+  const selectedDate = resolveSelectedDay(sp.date);
+  const data = await getInvoiceCommandCenterData(selectedDate);
 
   return (
     <>
@@ -57,91 +28,35 @@ export default async function InvoicesPage({
         ]}
       />
       <PageHeader
-        title="Invoices"
-        description="Single source of truth for billing and collections. Revenue = paid − cancelled − refunded."
+        title="Invoice Command Center"
+        description="Daily financial source of truth — collections, deductions, invoices, and timeline for the selected day."
+        actions={
+          <Suspense fallback={null}>
+            <InvoiceDayNav selectedDate={selectedDate} />
+          </Suspense>
+        }
       />
 
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
-        {[
-          ['Net revenue', paiseToInr(stats.netRevenuePaise)],
-          ['Paid', stats.paidCount],
-          ['Pending', stats.pendingCount],
-          ['Overdue', stats.overdueCount],
-          ['Cancelled / Refunded', `${stats.cancelledCount} / ${stats.refundedCount}`],
-        ].map(([label, val]) => (
-          <div key={String(label)} className="rounded-xl border border-white/10 bg-[#1A1F27] p-4">
-            <p className="text-[10px] uppercase text-apg-silver">{label}</p>
-            <p className="mt-2 text-xl font-semibold text-white">{val}</p>
-          </div>
-        ))}
-      </div>
+      <section className="mb-8">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-apg-silver">
+          Daily summary · {selectedDate}
+        </h2>
+        <InvoiceDailySummary summary={data.summary} />
+      </section>
 
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-        <form method="get" className="flex min-w-0 flex-1 flex-wrap gap-2">
-          {status !== 'all' ? <input type="hidden" name="status" value={status} /> : null}
-          <input
-            name="q"
-            defaultValue={search}
-            placeholder="Search resident, phone, invoice #, PG…"
-            className="min-w-0 flex-1 rounded-lg border border-white/10 bg-[#12161D] px-3 py-2.5 text-base text-white sm:min-w-[240px] sm:text-sm"
-          />
-          <button
-            type="submit"
-            className="min-h-11 rounded-lg bg-[#FF5A1F] px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110"
-          >
-            Search
-          </button>
-        </form>
-      </div>
+      <section className="mb-8">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-apg-silver">
+          Financial timeline
+        </h2>
+        <InvoiceFinancialTimeline events={data.timeline} />
+      </section>
 
-      <div className="mb-6 flex flex-wrap gap-2">
-        {STATUS_TABS.map((t) => (
-          <Link
-            key={t.id}
-            href={tabHref(t.id, search)}
-            className={`rounded-full px-3 py-1 text-xs font-medium ${
-              status === t.id
-                ? 'bg-[#FF5A1F] text-white'
-                : 'border border-white/10 text-apg-silver hover:text-white'
-            }`}
-          >
-            {t.label}
-          </Link>
-        ))}
-      </div>
-
-      <AdminInvoiceMobileList invoices={invoices} />
-
-      <div className="hidden lg:block">
-        <Table>
-          <THead>
-            <TR>
-              <TH>Invoice #</TH>
-              <TH>Resident</TH>
-              <TH>PG</TH>
-              <TH>Room</TH>
-              <TH>Bed</TH>
-              <TH>Type</TH>
-              <TH className="text-right">Amount</TH>
-              <TH>Status</TH>
-              <TH>Created</TH>
-              <TH>Due</TH>
-              <TH>Paid</TH>
-            </TR>
-          </THead>
-          <TBody>
-            {invoices.length === 0 ? (
-              <TR>
-                <TD colSpan={11} className="py-8 text-center text-apg-silver">
-                  No invoices match this filter.
-                </TD>
-              </TR>
-            ) : (
-              invoices.map((inv) => <AdminInvoiceListRow key={inv.id} inv={inv} />)
-            )}
-          </TBody>
-        </Table>
-      </div>
+      <section>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-apg-silver">
+          Invoices for this day
+        </h2>
+        <InvoiceDayList invoices={data.invoicesForDay} selectedDate={selectedDate} />
+      </section>
     </>
   );
 }
