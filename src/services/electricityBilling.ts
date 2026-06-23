@@ -568,7 +568,7 @@ export async function createElectricityBill(
     }
 
     const { syncManyToUnified } = await import('@/src/services/unifiedInvoices');
-    void syncManyToUnified(result.invoiceIds, 'electricity');
+    await syncManyToUnified(result.invoiceIds, 'electricity');
 
     return {
       ok: true,
@@ -719,7 +719,7 @@ export async function recordElectricityPaymentSuccess(
     }
 
     const { syncElectricityInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
-    void syncElectricityInvoiceToUnified(invoice.id);
+    await syncElectricityInvoiceToUnified(invoice.id);
 
     return { ok: true, paymentId: result.paymentId, invoiceId: invoice.id, stateChanged: true };
   } catch (err) {
@@ -827,7 +827,7 @@ export async function cancelElectricityInvoicesForBooking(
     .returning({ id: electricityInvoices.id });
   if (rows.length > 0) {
     const { syncManyToUnified } = await import('@/src/services/unifiedInvoices');
-    void syncManyToUnified(
+    await syncManyToUnified(
       rows.map((r) => r.id),
       'electricity',
     );

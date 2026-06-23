@@ -317,6 +317,10 @@ export async function quickRefundSettlementAction(input: {
       return { ok: false, error: 'No booking found — cannot process refund without a booking.' };
     }
     await assertAdminBookingAccess(session, bookingId);
+    const legacyGuard = await import('@/src/lib/deposits/depositRefundGuard').then((m) =>
+      m.assertLegacyDepositRefundAllowed(bookingId),
+    );
+    if (!legacyGuard.ok) return { ok: false, error: legacyGuard.error };
     const amountPaise = Math.round(input.amountInr * 100);
     if (amountPaise <= 0) return { ok: false, error: 'Amount must be greater than zero.' };
     if (!input.reason.trim()) return { ok: false, error: 'Reason is required.' };

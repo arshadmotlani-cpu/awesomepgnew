@@ -53,6 +53,13 @@ export async function processDepositSettlementAction(
       return { status: 'error', message: 'Select approve or reject.' };
     }
 
+    const legacyGuard = await import('@/src/lib/deposits/depositRefundGuard').then((m) =>
+      m.assertLegacyDepositRefundAllowed(bookingId),
+    );
+    if (!legacyGuard.ok) {
+      return { status: 'error', message: legacyGuard.error };
+    }
+
     const refundCompletion = {
       electricityUnitCostPaise: parseInrField(formData, 'electricityUnitCostInr'),
       electricityUnits: parseInt(String(formData.get('electricityUnits') ?? '0'), 10) || 0,

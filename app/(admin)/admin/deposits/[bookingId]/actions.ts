@@ -160,6 +160,10 @@ export async function refundDepositAction(
   if (!reason) return { status: 'error', message: 'Reason is required.' };
   const customerId = await resolveCustomerId(bookingId);
   if (!customerId) return { status: 'error', message: 'Booking not found.' };
+  const legacyGuard = await import('@/src/lib/deposits/depositRefundGuard').then((m) =>
+    m.assertLegacyDepositRefundAllowed(bookingId),
+  );
+  if (!legacyGuard.ok) return { status: 'error', message: legacyGuard.error };
   try {
     const settlement = await settleDepositRefund({
       bookingId,

@@ -49,6 +49,7 @@ import {
   type RefundComputation,
 } from './cancellationPolicy';
 import { markExpiredExtensions } from './extension';
+import { env } from '@/src/lib/env';
 
 // ───────────────────────────────────────────────────────────────────────────
 // Types
@@ -224,6 +225,222 @@ async function earliestCheckIn(bookingId: string): Promise<Date | null> {
     .filter((d): d is Date => d != null && !Number.isNaN(d.getTime()));
   if (dates.length === 0) return null;
   return new Date(Math.min(...dates.map((d) => d.getTime())));
+}
+
+/**
+ * DR-03 — Financial mirror phase (fail-closed).
+ *
+ * Transaction boundaries for `recordPaymentSuccess`:
+ *   Phase A (single db.transaction): payment insert, booking → confirmed,
+ *     primary reservations hold → active, payment_succeeded audit.
+ *   Phase B (this function, must succeed or Phase A is compensated):
+ *     deposit ledger, deposit credit transfer, partial/full collection status,
+ *     prior outstanding allocation, overpayment disposition.
+ *   Phase C (best-effort after Phase B): notifications, automation, PS4, analytics.
+ */
+async function applyBookingPaymentFinancialMirrors(input: {
+  booking: {
+    id: string;
+    customerId: string;
+    bookingCode: string;
+    subtotalPaise: number;
+    discountPaise: number;
+    depositPaise: number;
+    totalPaise: number;
+    pricingSnapshot: PricingSnapshot | null;
+  };
+  paymentId: string;
+  recordPaymentSuccessInput: RecordPaymentSuccessInput;
+}): Promise<void> {
+  const { booking, paymentId, recordPaymentSuccessInput: payInput } = input;
+  const snapshot = booking.pricingSnapshot as PricingSnapshot | null;
+  const creditApplied =
+    snapshot?.depositCredit?.adminTransferred === true
+      ? (snapshot.depositCredit.appliedPaise ?? 0)
+      : 0;
+
+  const {
+    validateBookingPayment,
+    applyPartialDepositOnConfirm,
+    applyFullDepositOnConfirm,
+  } = await import('./depositCollection');
+  const validation = validateBookingPayment({
+    booking,
+    amountPaise: payInput.amountPaise,
+    membershipAmountPaise: payInput.membershipAmountPaise,
+    allowPartialDeposit: Boolean(payInput.partialDeposit),
+  });
+  const split = validation.ok ? validation.split : null;
+  const depositPaisePaid =
+    split?.depositPaisePaid ?? Math.max(0, booking.depositPaise - creditApplied);
+
+  if (creditApplied > 0 && snapshot?.depositCredit?.adminTransferred === true) {
+    const { applyDepositCreditToBooking } = await import('./depositCredit');
+    const creditResult = await applyDepositCreditToBooking({
+      customerId: booking.customerId,
+      targetBookingId: booking.id,
+      creditPaise: creditApplied,
+      sourceBookingId: snapshot.depositCredit.sourceBookingId,
+    });
+    if (!creditResult.ok) {
+      throw new Error(`Deposit credit transfer failed: ${creditResult.error}`);
+    }
+  }
+
+  if (depositPaisePaid > 0) {
+    const { recordDepositCollected } = await import('./deposits');
+    await recordDepositCollected({
+      bookingId: booking.id,
+      customerId: booking.customerId,
+      amountPaise: depositPaisePaid,
+      reason: `deposit captured with payment ${payInput.providerPaymentId}`,
+      relatedPaymentId: paymentId,
+    });
+  }
+
+  if (payInput.partialDeposit && split && split.depositDuePaise > 0) {
+    await applyPartialDepositOnConfirm({
+      bookingId: booking.id,
+      depositDuePaise: split.depositDuePaise,
+      depositDueDate: payInput.partialDeposit.depositDueDate,
+      approvedByAdminId: payInput.partialDeposit.approvedByAdminId,
+    });
+  } else if (
+    split?.isFullPayment ||
+    depositPaisePaid + creditApplied >= booking.depositPaise
+  ) {
+    await applyFullDepositOnConfirm(booking.id);
+  }
+
+  let priorOutstandingAppliedPaise = 0;
+  const priorOutstanding = snapshot?.priorOutstanding;
+  if (priorOutstanding && priorOutstanding.totalPaise > 0 && split) {
+    const bookingPaymentPaise = Math.max(
+      0,
+      payInput.amountPaise - (payInput.membershipAmountPaise ?? 0),
+    );
+    const newBookingPaid = split.rentPaisePaid + split.depositPaisePaid;
+    const priorSlice = Math.max(0, bookingPaymentPaise - newBookingPaid);
+    if (priorSlice > 0) {
+      priorOutstandingAppliedPaise = priorSlice;
+      const { applyPriorOutstandingFromCheckoutPayment } = await import(
+        './bookingPriorOutstanding'
+      );
+      await applyPriorOutstandingFromCheckoutPayment({
+        customerId: booking.customerId,
+        priorOutstanding,
+        amountPaise: priorSlice,
+        relatedPaymentId: paymentId,
+      });
+    }
+  }
+
+  const overpaymentInput = payInput.overpayment;
+  if (overpaymentInput && overpaymentInput.excessPaise > 0) {
+    const { applyBookingOverpaymentDisposition } = await import('./bookingOverpayment');
+    await applyBookingOverpaymentDisposition({
+      bookingId: booking.id,
+      bookingCode: booking.bookingCode,
+      customerId: booking.customerId,
+      paymentId,
+      excessPaise: overpaymentInput.excessPaise,
+      disposition: overpaymentInput.disposition,
+      approvedByAdminId:
+        overpaymentInput.approvedByAdminId ?? payInput.recordedByAdminId ?? null,
+    });
+  } else if (!overpaymentInput) {
+    const { computeBookingCheckoutOverpaymentPaise } = await import('./bookingOverpayment');
+    const excessPaise = computeBookingCheckoutOverpaymentPaise({
+      booking,
+      amountPaise: payInput.amountPaise,
+      membershipAmountPaise: payInput.membershipAmountPaise,
+      priorOutstandingAppliedPaise,
+    });
+    if (excessPaise > 0) {
+      throw new Error(
+        `Overpayment of ${excessPaise} paise requires admin disposition before confirm`,
+      );
+    }
+  }
+}
+
+async function applyZeroDepositOverpaymentMirror(input: {
+  booking: { id: string; bookingCode: string; customerId: string };
+  paymentId: string;
+  overpayment: NonNullable<RecordPaymentSuccessInput['overpayment']>;
+  recordedByAdminId?: string | null;
+}): Promise<void> {
+  const { applyBookingOverpaymentDisposition } = await import('./bookingOverpayment');
+  await applyBookingOverpaymentDisposition({
+    bookingId: input.booking.id,
+    bookingCode: input.booking.bookingCode,
+    customerId: input.booking.customerId,
+    paymentId: input.paymentId,
+    excessPaise: input.overpayment.excessPaise,
+    disposition: input.overpayment.disposition,
+    approvedByAdminId: input.overpayment.approvedByAdminId ?? input.recordedByAdminId ?? null,
+  });
+}
+
+/** Reverts Phase A when Phase B financial mirrors fail (DR-03). */
+async function compensateFailedBookingPaymentConfirm(input: {
+  bookingId: string;
+  paymentId: string;
+  priorBookingStatus: string;
+  wasAwaitingConfirm: boolean;
+  isReserveBooking: boolean;
+  reason: string;
+  recordedByAdminId?: string | null;
+}): Promise<void> {
+  const holdExpiresAt =
+    input.wasAwaitingConfirm && input.priorBookingStatus === 'pending_payment'
+      ? new Date(Date.now() + env.BOOKING_HOLD_MINUTES * 60 * 1000)
+      : null;
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(payments)
+      .set({ status: 'failed', updatedAt: new Date() })
+      .where(eq(payments.id, input.paymentId));
+
+    if (input.wasAwaitingConfirm && !input.isReserveBooking) {
+      await tx
+        .update(bookings)
+        .set({
+          status: input.priorBookingStatus as 'pending_payment' | 'pending_approval' | 'draft' | 'confirmed',
+          updatedAt: new Date(),
+        })
+        .where(eq(bookings.id, input.bookingId));
+
+      await tx
+        .update(bedReservations)
+        .set({
+          status: 'hold',
+          holdExpiresAt,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(bedReservations.bookingId, input.bookingId),
+            eq(bedReservations.status, 'active'),
+            eq(bedReservations.kind, 'primary'),
+          ),
+        );
+    }
+
+    await tx.insert(auditLog).values({
+      actorType: input.recordedByAdminId ? 'admin' : 'system',
+      actorId: input.recordedByAdminId ?? null,
+      entity: 'booking',
+      entityId: input.bookingId,
+      action: 'payment_confirm_compensated',
+      diff: {
+        paymentId: input.paymentId,
+        reason: input.reason,
+        priorBookingStatus: input.priorBookingStatus,
+      },
+    });
+  });
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -427,130 +644,49 @@ export async function recordPaymentSuccess(
 
     if (!isReserveBooking && booking.depositPaise > 0 && wasAwaitingConfirm) {
       try {
-        const snapshot = booking.pricingSnapshot as PricingSnapshot | null;
-        const creditApplied =
-          snapshot?.depositCredit?.adminTransferred === true
-            ? (snapshot.depositCredit.appliedPaise ?? 0)
-            : 0;
-        const {
-          validateBookingPayment,
-          applyPartialDepositOnConfirm,
-          applyFullDepositOnConfirm,
-        } = await import('./depositCollection');
-        const validation = validateBookingPayment({
+        await applyBookingPaymentFinancialMirrors({
           booking,
-          amountPaise: input.amountPaise,
-          membershipAmountPaise: input.membershipAmountPaise,
-          allowPartialDeposit: Boolean(input.partialDeposit),
+          paymentId: result.paymentId,
+          recordPaymentSuccessInput: input,
         });
-        const split = validation.ok ? validation.split : null;
-        const depositPaisePaid = split?.depositPaisePaid ?? Math.max(0, booking.depositPaise - creditApplied);
-
-        if (creditApplied > 0 && snapshot?.depositCredit?.adminTransferred === true) {
-          const { applyDepositCreditToBooking } = await import('./depositCredit');
-          const creditResult = await applyDepositCreditToBooking({
-            customerId: booking.customerId,
-            targetBookingId: booking.id,
-            creditPaise: creditApplied,
-            sourceBookingId: snapshot.depositCredit.sourceBookingId,
-          });
-          if (!creditResult.ok) {
-            console.error('deposit credit transfer failed:', creditResult.error);
-          }
-        }
-
-        if (depositPaisePaid > 0) {
-          const { recordDepositCollected } = await import('./deposits');
-          await recordDepositCollected({
-            bookingId: booking.id,
-            customerId: booking.customerId,
-            amountPaise: depositPaisePaid,
-            reason: `deposit captured with payment ${input.providerPaymentId}`,
-            relatedPaymentId: result.paymentId,
-          });
-        }
-
-        if (input.partialDeposit && split && split.depositDuePaise > 0) {
-          await applyPartialDepositOnConfirm({
-            bookingId: booking.id,
-            depositDuePaise: split.depositDuePaise,
-            depositDueDate: input.partialDeposit.depositDueDate,
-            approvedByAdminId: input.partialDeposit.approvedByAdminId,
-          });
-        } else if (split?.isFullPayment || depositPaisePaid + creditApplied >= booking.depositPaise) {
-          await applyFullDepositOnConfirm(booking.id);
-        }
-
-        let priorOutstandingAppliedPaise = 0;
-        const priorOutstanding = snapshot?.priorOutstanding;
-        if (priorOutstanding && priorOutstanding.totalPaise > 0 && split) {
-          const bookingPaymentPaise = Math.max(
-            0,
-            input.amountPaise - (input.membershipAmountPaise ?? 0),
-          );
-          const newBookingPaid = split.rentPaisePaid + split.depositPaisePaid;
-          const priorSlice = Math.max(0, bookingPaymentPaise - newBookingPaid);
-          if (priorSlice > 0) {
-            priorOutstandingAppliedPaise = priorSlice;
-            const { applyPriorOutstandingFromCheckoutPayment } = await import(
-              './bookingPriorOutstanding'
-            );
-            await applyPriorOutstandingFromCheckoutPayment({
-              customerId: booking.customerId,
-              priorOutstanding,
-              amountPaise: priorSlice,
-              relatedPaymentId: result.paymentId,
-            });
-          }
-        }
-
-        const overpaymentInput = input.overpayment;
-        if (overpaymentInput && overpaymentInput.excessPaise > 0) {
-          const { applyBookingOverpaymentDisposition } = await import('./bookingOverpayment');
-          await applyBookingOverpaymentDisposition({
-            bookingId: booking.id,
-            bookingCode: booking.bookingCode,
-            customerId: booking.customerId,
-            paymentId: result.paymentId,
-            excessPaise: overpaymentInput.excessPaise,
-            disposition: overpaymentInput.disposition,
-            approvedByAdminId:
-              overpaymentInput.approvedByAdminId ?? input.recordedByAdminId ?? null,
-          });
-        } else if (!overpaymentInput) {
-          const { computeBookingCheckoutOverpaymentPaise } = await import('./bookingOverpayment');
-          const excessPaise = computeBookingCheckoutOverpaymentPaise({
-            booking,
-            amountPaise: input.amountPaise,
-            membershipAmountPaise: input.membershipAmountPaise,
-            priorOutstandingAppliedPaise,
-          });
-          if (excessPaise > 0) {
-            console.warn(
-              `booking ${booking.bookingCode}: overpayment ${excessPaise} paise with no disposition — stored on payment only`,
-            );
-          }
-        }
-      } catch (depositErr) {
-        console.error('deposit ledger mirror failed:', depositErr);
+      } catch (mirrorErr) {
+        const reason =
+          mirrorErr instanceof Error ? mirrorErr.message : 'Deposit ledger mirror failed';
+        console.error('deposit ledger mirror failed:', mirrorErr);
+        await compensateFailedBookingPaymentConfirm({
+          bookingId: booking.id,
+          paymentId: result.paymentId,
+          priorBookingStatus: booking.status,
+          wasAwaitingConfirm,
+          isReserveBooking,
+          reason,
+          recordedByAdminId: input.recordedByAdminId,
+        });
+        return { ok: false, reason };
       }
     } else if (!isReserveBooking && wasAwaitingConfirm && booking.depositPaise <= 0) {
       const overpaymentInput = input.overpayment;
       if (overpaymentInput && overpaymentInput.excessPaise > 0) {
         try {
-          const { applyBookingOverpaymentDisposition } = await import('./bookingOverpayment');
-          await applyBookingOverpaymentDisposition({
-            bookingId: booking.id,
-            bookingCode: booking.bookingCode,
-            customerId: booking.customerId,
+          await applyZeroDepositOverpaymentMirror({
+            booking,
             paymentId: result.paymentId,
-            excessPaise: overpaymentInput.excessPaise,
-            disposition: overpaymentInput.disposition,
-            approvedByAdminId:
-              overpaymentInput.approvedByAdminId ?? input.recordedByAdminId ?? null,
+            overpayment: overpaymentInput,
+            recordedByAdminId: input.recordedByAdminId,
           });
         } catch (overpayErr) {
-          console.error('overpayment disposition failed:', overpayErr);
+          const reason =
+            overpayErr instanceof Error ? overpayErr.message : 'Overpayment disposition failed';
+          await compensateFailedBookingPaymentConfirm({
+            bookingId: booking.id,
+            paymentId: result.paymentId,
+            priorBookingStatus: booking.status,
+            wasAwaitingConfirm,
+            isReserveBooking,
+            reason,
+            recordedByAdminId: input.recordedByAdminId,
+          });
+          return { ok: false, reason };
         }
       }
     }
@@ -1504,6 +1640,7 @@ export async function cancelBooking(
   const [b] = await db
     .select({
       id: bookings.id,
+      customerId: bookings.customerId,
       status: bookings.status,
       bookingCode: bookings.bookingCode,
       subtotalPaise: bookings.subtotalPaise,
@@ -1678,6 +1815,34 @@ export async function cancelBooking(
       },
     });
   });
+
+  if (!noMoneyMoved && refund.depositRefundPaise > 0 && refundPaymentId) {
+    const { getDepositSummaryForBooking } = await import('./deposits');
+    const { settleDepositRefund } = await import('./depositSettlement');
+    const summary = await getDepositSummaryForBooking(b.id);
+    const ledgerRefundPaise = Math.min(
+      refund.depositRefundPaise,
+      summary?.refundableBalancePaise ?? 0,
+    );
+    if (ledgerRefundPaise > 0) {
+      const settled = await settleDepositRefund({
+        bookingId: b.id,
+        customerId: b.customerId,
+        idempotencyKey: `cancel:${b.id}:${refundPaymentId}`,
+        source: 'manual',
+        sourceId: refundPaymentId,
+        reason: `Booking cancellation: ${input.reason}`,
+        refundPaise: ledgerRefundPaise,
+        markBookingRefunded: ledgerRefundPaise >= (summary?.refundableBalancePaise ?? 0),
+      });
+      if (!settled.ok) {
+        return {
+          ok: false,
+          reason: `Booking cancelled but deposit ledger refund failed: ${settled.error}`,
+        };
+      }
+    }
+  }
 
   const { reconcileBookingOccupancy } = await import('../lib/occupancySync');
   await reconcileBookingOccupancy(b.id);

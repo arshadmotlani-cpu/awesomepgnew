@@ -831,45 +831,54 @@ export async function refundUnifiedInvoice(
 
   const before = { status: inv.status, amountPaise: inv.amountPaise };
 
-  await db
-    .update(financialInvoices)
-    .set({
-      status: 'refunded',
-      refundedAt: new Date(),
-      refundReason: reason,
-      updatedAt: new Date(),
-    })
-    .where(eq(financialInvoices.id, invoiceId));
+  try {
+    const { reverseInvoicePaymentAllocation } = await import('@/src/services/invoicePayment');
+    await reverseInvoicePaymentAllocation(inv);
 
-  const { reverseInvoicePaymentAllocation } = await import('@/src/services/invoicePayment');
-  await reverseInvoicePaymentAllocation(inv);
+    if (inv.sourceTable === 'rent_invoices' && inv.sourceId) {
+      await db
+        .update(rentInvoices)
+        .set({
+          status: 'cancelled',
+          cancelledAt: new Date(),
+          cancellationReason: reason,
+          updatedAt: new Date(),
+        })
+        .where(eq(rentInvoices.id, inv.sourceId));
+    }
 
-  await logInvoiceAudit(invoiceId, 'refunded', { before, after: { status: 'refunded', reason } }, actor);
+    const { reverseBookingEffectsIfInvoiceVoided } = await import(
+      '@/src/services/invoiceLifecycleReversal'
+    );
+    await reverseBookingEffectsIfInvoiceVoided({
+      invoiceId,
+      bookingId: inv.bookingId,
+      customerId: inv.customerId,
+      reason,
+      actorId: actor?.id ?? null,
+    });
 
-  if (inv.sourceTable === 'rent_invoices' && inv.sourceId) {
     await db
-      .update(rentInvoices)
+      .update(financialInvoices)
       .set({
-        status: 'cancelled',
-        cancelledAt: new Date(),
-        cancellationReason: reason,
+        status: 'refunded',
+        refundedAt: new Date(),
+        refundReason: reason,
         updatedAt: new Date(),
       })
-      .where(eq(rentInvoices.id, inv.sourceId));
-  }
+      .where(eq(financialInvoices.id, invoiceId));
 
-  const { reverseBookingEffectsIfInvoiceVoided } = await import(
-    '@/src/services/invoiceLifecycleReversal'
-  );
-  await reverseBookingEffectsIfInvoiceVoided({
-    invoiceId,
-    bookingId: inv.bookingId,
-    customerId: inv.customerId,
-    reason,
-    actorId: actor?.id ?? null,
-  }).catch((err) => {
-    console.error('[refundUnifiedInvoice] booking reversal failed', err);
-  });
+    await logInvoiceAudit(
+      invoiceId,
+      'refunded',
+      { before, after: { status: 'refunded', reason } },
+      actor,
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Invoice refund reversal failed';
+    console.error('[refundUnifiedInvoice] failed', err);
+    return { ok: false, error: message };
+  }
 
   const { revalidateFinancialViews } = await import('@/src/lib/billing/revalidateFinancialViews');
   revalidateFinancialViews();

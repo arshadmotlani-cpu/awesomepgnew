@@ -174,12 +174,15 @@ export async function reverseInvoicePaymentAllocation(inv: FinancialInvoice): Pr
         .where(eq(electricityInvoices.id, line.sourceId));
     } else if (line.kind === 'deposit' && inv.bookingId) {
       const { applyDepositDeduction } = await import('@/src/services/depositSettlement');
-      await applyDepositDeduction({
+      const deducted = await applyDepositDeduction({
         bookingId: inv.bookingId,
         customerId: inv.customerId,
         amountPaise: line.amountPaise,
         reason: `Invoice refund reversal ${inv.invoiceNumber}`,
-      }).catch(() => undefined);
+      });
+      if (!deducted.ok) {
+        throw new Error(deducted.error);
+      }
     }
   }
 

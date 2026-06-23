@@ -350,6 +350,13 @@ export async function adminReviewResidentRequest(input: {
         return { ok: false as const, error: DEPOSIT_REFUND_MISSING_DETAILS_MESSAGE };
       }
 
+      const legacyGuard = await import('@/src/lib/deposits/depositRefundGuard').then((m) =>
+        m.assertLegacyDepositRefundAllowed(current.bookingId),
+      );
+      if (!legacyGuard.ok) {
+        return { ok: false as const, error: legacyGuard.error };
+      }
+
       const settlement = await settleDepositWithDeductions({
         bookingId: current.bookingId,
         customerId: current.customerId,

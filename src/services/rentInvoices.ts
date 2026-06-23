@@ -767,7 +767,7 @@ export async function generateRentInvoicesForMonth(
       created += 1;
       invoiceIds.push(inserted.id);
       const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
-      void syncRentInvoiceToUnified(inserted.id);
+      await syncRentInvoiceToUnified(inserted.id);
       await db.insert(auditLog).values({
         actorType: 'system',
         actorId: null,
@@ -836,7 +836,7 @@ export async function markOverdueInvoices(
       })),
     );
     const { syncManyToUnified } = await import('@/src/services/unifiedInvoices');
-    void syncManyToUnified(
+    await syncManyToUnified(
       rows.map((r) => r.id),
       'rent',
     );
@@ -880,7 +880,7 @@ export async function expireRentInvoicesPastDue(
 
   if (rows.length > 0) {
     const { syncManyToUnified } = await import('@/src/services/unifiedInvoices');
-    void syncManyToUnified(
+    await syncManyToUnified(
       rows.map((r) => r.id),
       'rent',
     );
@@ -1347,7 +1347,7 @@ export async function cancelFutureRentInvoices(
       })),
     );
     const { syncManyToUnified } = await import('@/src/services/unifiedInvoices');
-    void syncManyToUnified(
+    await syncManyToUnified(
       rows.map((r) => r.id),
       'rent',
     );
@@ -1500,7 +1500,7 @@ export async function submitRentPaymentProof(
   }).catch(() => undefined);
 
   const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
-  await syncRentInvoiceToUnified(invoiceId).catch(() => undefined);
+  await syncRentInvoiceToUnified(invoiceId);
 
   const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
   scheduleAdminNotificationSync();
@@ -1986,7 +1986,7 @@ export async function cancelPendingRentInvoicesForMonth(
         meta: { reason },
       });
       const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
-      await syncRentInvoiceToUnified(row.rentInvoiceId).catch(() => undefined);
+      await syncRentInvoiceToUnified(row.rentInvoiceId);
     }
     cancelled += 1;
   }

@@ -891,6 +891,12 @@ export async function completeVacatingRequest(
     }
     refundablePaise = 0;
   } else {
+    const legacyGuard = await import('@/src/lib/deposits/depositRefundGuard').then((m) =>
+      m.assertLegacyDepositRefundAllowed(current.bookingId),
+    );
+    if (!legacyGuard.ok) {
+      return { ok: false, kind: 'settlement_failed', message: legacyGuard.error };
+    }
     const settlement = await settleVacatingDepositRefund({
       requestId: current.id,
       bookingId: current.bookingId,

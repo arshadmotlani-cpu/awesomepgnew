@@ -78,7 +78,7 @@ export async function cancelRentInvoicesAfterCheckoutMonth(
       })),
     );
     const { syncManyToUnified } = await import('@/src/services/unifiedInvoices');
-    void syncManyToUnified(
+    await syncManyToUnified(
       rows.map((r) => r.id),
       'rent',
     );
@@ -333,7 +333,7 @@ export async function restoreRentBillingAfterVacatingCancel(args: {
 
   if (uncancelledRows.length > 0) {
     const { syncManyToUnified } = await import('@/src/services/unifiedInvoices');
-    void syncManyToUnified(
+    await syncManyToUnified(
       uncancelledRows.map((r) => r.id),
       'rent',
     );
