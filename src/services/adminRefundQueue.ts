@@ -39,8 +39,8 @@ export type AdminRefundQueueItem =
     };
 
 const CHECKOUT_REFUND_TABS = [
-  'awaiting_resident_details',
-  'awaiting_admin_review',
+  'awaiting_resident',
+  'awaiting_review',
   'refund_pending',
 ] as const;
 

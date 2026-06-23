@@ -19,16 +19,22 @@ export function toMoveOutAdvancedToolsRow(
   row: AdminVacatingRow,
   depositHeldPaise: number,
 ): MoveOutAdvancedToolsRow {
-  const approvalPreview =
-    row.status === 'pending' ? buildVacatingApprovalPreview(row, depositHeldPaise) : undefined;
-
-  return {
+  const normalizedRow: AdminVacatingRow = {
     ...row,
     noticeGivenDate: normalizeIsoDateOnly(row.noticeGivenDate),
     vacatingDate: normalizeIsoDateOnly(row.vacatingDate),
     deductionPaise: guardDepositPaise(row.deductionPaise),
     depositRefundPaise: guardDepositPaise(row.depositRefundPaise),
     monthlyRentPaiseSnapshot: guardDepositPaise(row.monthlyRentPaiseSnapshot),
+  };
+
+  const approvalPreview =
+    normalizedRow.status === 'pending'
+      ? buildVacatingApprovalPreview(normalizedRow, guardDepositPaise(depositHeldPaise))
+      : undefined;
+
+  return {
+    ...normalizedRow,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     resolvedAt: row.resolvedAt?.toISOString() ?? null,

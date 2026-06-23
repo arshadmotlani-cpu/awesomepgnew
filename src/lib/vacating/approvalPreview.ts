@@ -1,4 +1,5 @@
 import { normalizeIsoDateOnly, tryDiffDays } from '@/src/lib/dates';
+import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import type { AdminVacatingRow } from '@/src/db/queries/admin';
 import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
 
@@ -35,8 +36,9 @@ export function buildVacatingApprovalPreview(
   const vacatingDate = normalizeIsoDateOnly(row.vacatingDate);
   const noticeSpan = tryDiffDays(noticeGivenDate, vacatingDate);
   const noticeCompletedDays = Math.max(0, noticeSpan ?? 0);
-  const estimatedDeductionPaise = row.deductionPaise;
-  const estimatedRefundPaise = Math.max(0, depositHeldPaise - estimatedDeductionPaise);
+  const estimatedDeductionPaise = guardDepositPaise(row.deductionPaise);
+  const held = guardDepositPaise(depositHeldPaise);
+  const estimatedRefundPaise = Math.max(0, held - estimatedDeductionPaise);
 
   return {
     residentName: row.customerFullName,
@@ -47,7 +49,7 @@ export function buildVacatingApprovalPreview(
     moveOutDate: vacatingDate,
     noticeRequiredDays: VACATING_NOTICE_MIN_DAYS,
     noticeCompletedDays,
-    depositHeldPaise,
+    depositHeldPaise: held,
     estimatedDeductionPaise,
     estimatedRefundPaise,
     bedStatus: vacatingBedStatus(row.status),

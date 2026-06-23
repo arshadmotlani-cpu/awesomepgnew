@@ -107,6 +107,17 @@
 
 ---
 
+### VAC-B5-01 — Room 203 B5 move-out crash + refund badge mismatch
+
+| | |
+|---|---|
+| **Severity** | Critical |
+| **Symptom** | Shanti Nagar 203-B5: vacating + checkout pending in UI; `/admin/vacating` crashes; refund sidebar badge > 0 but `/admin/requests` empty |
+| **Root cause** | (1) Client `MoveOutPipelineQueue` used raw `diffDays` on ISO timestamp dates from Postgres; bigint paise could cross RSC boundary. (2) `listAdminVacatingRequests` lateral bed pick did not prefer today's active primary reservation. (3) `/admin/requests` listed legacy `resident_requests` only while badges counted checkout-settlement `refund_pending` / `refund_request_submitted` action items. |
+| **Fix** | `normalizeIsoDateOnly` + `tryDiffDays` in pipeline/approval paths; coerce paise in `toMoveOutAdvancedToolsRow`; prefer active primary bed in vacating query; unified refund queue on `/admin/requests`; `scripts/investigate-bed-203-b5.ts` + `scripts/repair-bed-203-b5.ts` |
+
+---
+
 ### VAC-CRASH-02 — `/admin/vacating` Map + Date props to client actions
 
 | | |

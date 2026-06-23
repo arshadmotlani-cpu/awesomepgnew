@@ -5,8 +5,9 @@
 <!-- DOC_SYNC_STATE_START -->
 ## Automated doc sync
 
-> **Last sync:** 2026-06-23 (deploy live)  
-> **Production:** `829adbc` deployed · https://www.awesomepg.in  
-> **Fix:** Removed hourly cron (Hobby plan block); fixed-stay expiry in daily automation cron  
-> **Tests:** 526 pass
+> **Last sync:** 2026-06-23 13:16:58 UTC  
+> **Areas touched:** [[ROUTES]], [[Vacating]], [[Action Center]], [[Deposits]]  
+> **Docs flagged:** ARCHITECTURE.md, CHANGELOG.md, DECISIONS.md, PROJECT/features.md, ROUTES.md, SYSTEM/CURRENT_STATE.md, SYSTEM/WORKFLOWS.md  
+> **Staged code files:** 15  
+> **Action:** Review [[CHANGELOG#Pending pre-commit sync · 2026-06-23]] (Pending section) before push.
 <!-- DOC_SYNC_STATE_END -->

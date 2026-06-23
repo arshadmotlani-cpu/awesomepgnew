@@ -7,6 +7,10 @@
 
 ---
 
+## 2026-06-23
+
+- **VAC-B5-01** — Shanti Nagar 203-B5: `/admin/vacating` crash (ISO date + bigint RSC boundary); refund badge vs empty `/admin/requests` (checkout SSOT vs legacy table) → [[BUGS#VAC-B5-01]]
+
 ## 2026-06-22
 
 - **VAC-CRASH-02** — Map + Date props crashed move-outs advanced tools → serialized via `toMoveOutAdvancedToolsRow` ([[BUGS#VAC-CRASH-02]])
