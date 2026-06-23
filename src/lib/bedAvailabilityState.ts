@@ -89,7 +89,7 @@ export function deriveBedAvailabilityView(input: {
       return {
         kind: 'pre_bookable',
         label: input.occupantFirstName ?? 'Occupied',
-        sublabel: `Pre-book from ${formatShortDate(input.vacatingDate)}`,
+        sublabel: `Hold from ${formatShortDate(input.vacatingDate)}`,
       };
     }
     if (input.vacatingDate && input.vacatingStatus === 'pending') {
@@ -145,7 +145,7 @@ export function deriveBedAvailabilityView(input: {
   if (from) {
     return {
       kind: 'pre_bookable',
-      label: 'Pre-book',
+      label: 'Hold',
       sublabel: `From ${formatShortDate(from)}`,
     };
   }
@@ -183,7 +183,7 @@ export function deriveCustomerBedAvailabilityView(input: {
     const bufferIso = reserveBufferDate(checkIn);
     return {
       kind: 'reserved',
-      label: 'Reserved',
+      label: 'Held',
       sublabel: `Short stays until ${formatShortDate(bufferIso)} · holder moves in ${formatShortDate(checkIn)}`,
     };
   }

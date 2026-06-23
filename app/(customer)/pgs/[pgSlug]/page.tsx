@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PgBlockBooking } from '@/src/components/customer/block/PgBlockBooking';
+import { BookingFunnelShell } from '@/src/components/customer/checkout/BookingFunnelShell';
 import type { CustomerRoomBedMap } from '@/src/components/customer/CustomerBedMap';
 import { AnalyticsMountEvent } from '@/src/components/analytics/AnalyticsMountEvent';
 import { getPgBySlug, getRoomDetail, listRoomsForPg } from '@/src/db/queries/customer';
@@ -89,15 +90,21 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
         </Link>
       </nav>
 
-      <PgBlockBooking
-        pgName={pg.name}
-        locationLine={locationLine}
-        images={pg.images ?? []}
-        amenities={(pg.amenities ?? {}) as Record<string, unknown>}
-        rooms={roomList}
-        bedMapRooms={bedMapRooms}
-        roomTypeSummaries={roomTypeSummaries}
-      />
+      <BookingFunnelShell
+        activeStep="pg"
+        initialSummary={{ pgSlug: pg.slug, pgName: pg.name }}
+      >
+        <PgBlockBooking
+          pgSlug={pg.slug}
+          pgName={pg.name}
+          locationLine={locationLine}
+          images={pg.images ?? []}
+          amenities={(pg.amenities ?? {}) as Record<string, unknown>}
+          rooms={roomList}
+          bedMapRooms={bedMapRooms}
+          roomTypeSummaries={roomTypeSummaries}
+        />
+      </BookingFunnelShell>
     </div>
   );
 }

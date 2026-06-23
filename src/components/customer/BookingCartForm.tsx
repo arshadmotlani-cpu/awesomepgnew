@@ -18,6 +18,7 @@ import { PS4_ADDON_LABEL, PS4_PLANS, type Ps4PlanId } from '@/src/lib/playstatio
 import { VACATING_NOTICE_MIN_DAYS } from '@/src/lib/dateDefaults';
 import { stayTypeFromPricingMode } from '@/src/lib/stayType';
 import { formatDate } from '@/src/lib/format';
+import { BOOK_BED_ACTION, HOLD_THIS_BED } from '@/src/lib/booking/bookingFunnelLabels';
 import type { BookingActionState } from '@/app/(customer)/booking/new/actions';
 import { createBookingAction } from '@/app/(customer)/booking/new/actions';
 
@@ -110,13 +111,11 @@ export function BookingCartForm({
       : bookingTotalPaise + ps4Paise;
 
   const isPreBook = checkoutTiming === 'future_start';
-  const submitLabel = isPreBook
-    ? 'Pre-book & continue to payment'
-    : 'Book bed & continue to payment';
-  const pendingLabel = isPreBook ? 'Pre-booking…' : 'Booking your bed…';
+  const submitLabel = isPreBook ? `${HOLD_THIS_BED} & continue to payment` : `${BOOK_BED_ACTION} & continue to payment`;
+  const pendingLabel = isPreBook ? 'Holding your bed…' : 'Booking your bed…';
   const stepHint = isPreBook
-    ? `You're pre-booking for check-in on ${formatDate(startDate)}. Next: pay via UPI QR and upload proof — admin confirms once verified.`
-    : 'This bed is available now — you are booking it directly (not pre-booking). Next: pay rent + deposit via UPI QR and upload proof for admin approval.';
+    ? `You're holding this bed for check-in on ${formatDate(startDate)}. Next: pay via UPI QR and upload proof — admin confirms once verified.`
+    : 'This bed is available now. Next: pay rent + deposit via UPI QR and upload proof for admin approval.';
 
   if (simpleCheckout) {
     return (
@@ -436,8 +435,7 @@ export function BookingCartForm({
           {isPending ? pendingLabel : submitLabel}
         </button>
         <p className="mt-2 text-center text-[11px] text-zinc-500">
-          Your bed is held briefly while you complete payment — separate from &quot;Reserve
-          Bed&quot; on the room page (that is an optional half-rent hold before move-in).
+          Your bed is held briefly while you complete payment.
         </p>
       </aside>
     </form>

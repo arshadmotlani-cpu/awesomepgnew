@@ -6,6 +6,7 @@ import { MobileBottomSheet } from '@/src/components/customer/block/MobileBottomS
 import { addDays, formatDate, todayString } from '@/src/lib/dates';
 import { RESERVE_MAX_PERIOD_DAYS, RESERVE_MIN_PERIOD_DAYS } from '@/src/lib/bedReservePolicy';
 import { formatDate as formatDisplayDate, paiseToInr } from '@/src/lib/format';
+import { HOLD_THIS_BED } from '@/src/lib/booking/bookingFunnelLabels';
 import type { BedSelectorBed } from './customerBedTypes';
 
 type Props = {
@@ -79,7 +80,7 @@ export function BedReservePanel({
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[11px] font-medium uppercase tracking-wider text-apg-muted">
-            Reserve bed · 50% rent
+            {HOLD_THIS_BED} · 50% rent
           </p>
           <h2 id={titleId} className="text-lg font-semibold text-white">
             Bed {bed.bedCode}
@@ -104,7 +105,7 @@ export function BedReservePanel({
 
       <div className="mt-4 space-y-3">
         <label className="block text-xs text-apg-silver">
-          Reserve starts
+          Hold starts
           <input
             type="date"
             min={minStart}
@@ -136,7 +137,7 @@ export function BedReservePanel({
             <dd className="text-white">{paiseToInr(quote.monthlyRatePaise)}</dd>
           </div>
           <div className="mt-2 flex justify-between font-semibold">
-            <dt className="text-white">Reserve fee (50%)</dt>
+            <dt className="text-white">Hold fee (50%)</dt>
             <dd className="text-apg-orange">{paiseToInr(quote.feePaise)}</dd>
           </div>
           <div className="mt-2 flex justify-between text-xs">

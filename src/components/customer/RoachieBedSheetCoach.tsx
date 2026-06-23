@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import { RoachieSpotlight } from '@/src/components/cockroach/RoachieSpotlight';
 import { COCKROACH_AI_NAME } from '@/src/lib/cockroach/branding';
 import { MASCOT_IMAGES } from '@/src/lib/cockroach/mascotAssets';
+import { BOOK_THIS_BED, HOLD_THIS_BED } from '@/src/lib/booking/bookingFunnelLabels';
 import { formatDate } from '@/src/lib/format';
 
 type CoachStep = {
@@ -29,27 +30,26 @@ function buildSteps(root: HTMLElement, opensDate?: string | null): CoachStep[] {
   if (root.querySelector('[data-roachie-bed-action="pre-book"]')) {
     steps.push({
       targetSelector: '[data-roachie-bed-action="pre-book"]',
-      label: 'Pre-book',
-      message: `Pre-book means you plan to check in on ${opensLabel} — the day this bed opens and the current guest leaves.`,
+      label: HOLD_THIS_BED,
+      message: `${HOLD_THIS_BED} means you plan to check in on ${opensLabel} — when this bed opens and the current guest leaves.`,
     });
   }
 
   if (root.querySelector('[data-roachie-bed-action="book"]')) {
     steps.push({
       targetSelector: '[data-roachie-bed-action="book"]',
-      label: 'Book now',
-      message:
-        'Book this bed if you are moving in on your selected dates right away — the bed is free now.',
+      label: BOOK_THIS_BED,
+      message: `${BOOK_THIS_BED} if you are moving in on your selected dates right away — the bed is free now.`,
     });
   }
 
   if (root.querySelector('[data-roachie-bed-action="reserve"]')) {
     steps.push({
       targetSelector: '[data-roachie-bed-action="reserve"]',
-      label: 'Reserve',
+      label: `${HOLD_THIS_BED} (50% rent)`,
       message: opensDate
-        ? `Reserve (50% rent) means you are NOT checking in on ${opensLabel}. You hold the bed for yourself now; when you reach Nagpur you pick your actual move-in day.`
-        : 'Reserve (50% rent) holds this bed at half rent until you arrive in Nagpur and choose your check-in day — different from booking today.',
+        ? `${HOLD_THIS_BED} (50% rent) means you are not checking in on ${opensLabel}. You hold the bed now and pick your move-in day when you arrive.`
+        : `${HOLD_THIS_BED} (50% rent) holds this bed at half rent until you choose your check-in day.`,
     });
   }
 

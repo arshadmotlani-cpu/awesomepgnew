@@ -1,9 +1,9 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BedBookingPanel } from '@/src/components/customer/BedBookingPanel';
 import { BedReservePanel } from '@/src/components/customer/BedReservePanel';
-import { PgBillingRulesBox } from '@/src/components/customer/block/PgBillingRulesBox';
+import { useBookingFunnel } from '@/src/components/customer/checkout/BookingFunnelShell';
 import { PgMobileHero } from '@/src/components/customer/block/PgMobileHero';
 import { PgRoomTypeCards } from '@/src/components/customer/block/PgRoomTypeCards';
 import type { CustomerRoomBedMap } from '@/src/components/customer/CustomerBedMap';
@@ -13,14 +13,15 @@ import {
   CustomerBedTile,
 } from '@/src/components/customer/customerBedUi';
 import type { BedSelectorBed } from '@/src/components/customer/customerBedTypes';
+import { bookingFunnelStartingRentLabel } from '@/src/lib/booking/bookingFunnelPricing';
 import type { PgRoomTypeSummary } from '@/src/lib/booking/pgRoomTypeSummaries';
 import { pgRoomTypeFilterKey } from '@/src/lib/booking/pgRoomTypeSummaries';
-import { lowestDailyRatePaise } from '@/src/lib/booking/simpleRoomCategory';
 import type { CustomerRoomCard } from '@/src/db/queries/customer';
 import { dispatchRoachieReminder } from '@/src/lib/cockroach/roachieReminders';
 import type { BedAvailabilityKind } from '@/src/lib/bedAvailabilityState';
 
 type Props = {
+  pgSlug: string;
   pgName: string;
   locationLine: string;
   images: string[];
@@ -33,7 +34,7 @@ type Props = {
 const LEGEND: { label: string; kind: BedAvailabilityKind }[] = [
   { label: 'Available', kind: 'open_now' },
   { label: 'Notice', kind: 'notice' },
-  { label: 'Reserved', kind: 'reserved' },
+  { label: 'Held', kind: 'reserved' },
   { label: 'Occupied', kind: 'occupied' },
 ];
 
@@ -91,6 +92,7 @@ function BlockRoomCard({
 
 /** Bed-centric PG booking — renders API room + bed payloads only. */
 export function PgBlockBooking({
+  pgSlug,
   pgName,
   locationLine,
   images,
@@ -110,7 +112,8 @@ export function PgBlockBooking({
   const [reservePanelBed, setReservePanelBed] = useState<BedSelectorBed | null>(null);
   const [interestOverrides, setInterestOverrides] = useState<Record<string, number>>({});
 
-  const startingPrice = lowestDailyRatePaise(rooms);
+  const funnel = useBookingFunnel();
+  const startingRentLabel = bookingFunnelStartingRentLabel(rooms);
 
   const roomRows = useMemo((): PgRoomRow[] => {
     const cardById = new Map(rooms.map((r) => [r.roomId, r]));
@@ -173,13 +176,38 @@ export function PgBlockBooking({
     setInterestOverrides((prev) => ({ ...prev, [bedId]: count }));
   }, []);
 
+  useEffect(() => {
+    if (!funnel) return;
+    if (panelOpen) {
+      funnel.setActiveStep('bed');
+    } else if (selectedBedId) {
+      funnel.setActiveStep('bed');
+    } else {
+      funnel.setActiveStep(null);
+    }
+  }, [funnel, panelOpen, selectedBedId]);
+
+  useEffect(() => {
+    if (!funnel || !selectedBed) return;
+    funnel.patchSummary({
+      pgSlug,
+      pgName,
+      roomId: selectedBed.bedRoom.roomId,
+      roomNumber: selectedBed.bedRoom.roomNumber,
+      bedId: selectedBed.bed.bedId,
+      bedCode: selectedBed.bed.bedCode,
+      rentPaise: selectedBed.bed.monthlyRatePaise,
+      depositPaise: selectedBed.bed.monthlySecurityDepositPaise ?? selectedBed.bed.securityDepositPaise,
+    });
+  }, [funnel, pgSlug, pgName, selectedBed]);
+
   return (
     <>
       <PgMobileHero
         pgName={pgName}
         locationLine={locationLine}
         images={images}
-        startingDailyPaise={startingPrice}
+        startingRentLabel={startingRentLabel}
         amenities={amenities}
         onViewRooms={scrollToRooms}
       />
@@ -233,10 +261,6 @@ export function PgBlockBooking({
           </div>
         )}
       </section>
-
-      <div className="mt-6 pb-10">
-        <PgBillingRulesBox />
-      </div>
 
       {selectedBed ? (
         <CustomerBedDetailSheet

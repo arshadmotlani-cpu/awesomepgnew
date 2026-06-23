@@ -3,13 +3,13 @@
 import { useRef } from 'react';
 import Image from 'next/image';
 import { AmenityList } from '@/src/components/customer/AmenityList';
-import { paiseToInr } from '@/src/lib/format';
 
 type Props = {
   pgName: string;
   locationLine: string;
   images: string[];
-  startingDailyPaise: number;
+  /** e.g. "₹12,000/mo" — booking funnel uses monthly rent consistently. */
+  startingRentLabel?: string | null;
   amenities: Record<string, unknown>;
   onViewRooms: () => void;
 };
@@ -18,7 +18,7 @@ export function PgMobileHero({
   pgName,
   locationLine,
   images,
-  startingDailyPaise,
+  startingRentLabel,
   amenities,
   onViewRooms,
 }: Props) {
@@ -61,10 +61,9 @@ export function PgMobileHero({
           {pgName}
         </h1>
         <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-apg-muted">{locationLine}</p>
-        {startingDailyPaise > 0 ? (
+        {startingRentLabel ? (
           <p className="mt-4 text-lg font-bold text-apg-orange">
-            From <span className="text-xl">{paiseToInr(startingDailyPaise)}</span>
-            <span className="text-sm font-semibold text-apg-silver">/day</span>
+            From <span className="text-xl">{startingRentLabel}</span>
           </p>
         ) : null}
 

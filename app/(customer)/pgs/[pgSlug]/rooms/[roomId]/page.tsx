@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { headers } from 'next/headers';
-import { BookingFlowStepper } from '@/src/components/customer/checkout/BookingFlowStepper';
+import { BookingFunnelShell } from '@/src/components/customer/checkout/BookingFunnelShell';
 import {
   BedSelector,
   type BedSelectorBed,
@@ -102,6 +102,16 @@ export default async function RoomDetailPage(
       floorNumber={room.floorNumber}
     >
     <div className="apg-aurora mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
+      <BookingFunnelShell
+        activeStep="room"
+        initialSummary={{
+          pgSlug: room.pgSlug,
+          pgName: room.pgName,
+          roomId: room.roomId,
+          roomNumber: room.roomNumber,
+          rentPaise: rateSample?.monthlyRatePaise,
+        }}
+      >
       <AnalyticsMountEvent
         eventType="room_viewed"
         metadata={{ roomId: room.roomId, pgSlug: room.pgSlug }}
@@ -139,10 +149,6 @@ export default async function RoomDetailPage(
           bookable
         </span>
       </header>
-
-      <div className="mt-6 rounded-xl border border-white/10 apg-glass-light p-4">
-        <BookingFlowStepper activeStep="bed" />
-      </div>
 
       <div
         className="mt-6 perspective-[1200px]"
@@ -190,6 +196,7 @@ export default async function RoomDetailPage(
         )}
       </section>
       <StickyBookCta href="#bed-selector" label="Pick a bed to continue" />
+      </BookingFunnelShell>
     </div>
     </RoomDetailFlowShell>
   );

@@ -6,6 +6,7 @@ import { trackClientEvent } from '@/src/lib/analytics/client';
 import { addDays, diffDays, formatDate, parseDate, todayString } from '@/src/lib/dates';
 import { defaultCheckOutDate } from '@/src/lib/dateDefaults';
 import { formatDate as formatDisplayDate, paiseToInr } from '@/src/lib/format';
+import { formatBookingRentPaise } from '@/src/lib/booking/bookingFunnelPricing';
 import { checkoutCapMessage } from '@/src/lib/bedAvailabilityWindows';
 import {
   isCheckInAvailableForReservations,
@@ -27,7 +28,7 @@ import {
 import type { BedSelectorBed } from './BedSelector';
 import { StayDateRangePicker, type StayDateSummary } from './StayDateRangePicker';
 import { MobileBottomSheet } from '@/src/components/customer/block/MobileBottomSheet';
-import { BookingPriceBreakdown } from '@/src/components/customer/BookingPriceBreakdown';
+import { useBookingFunnel } from '@/src/components/customer/checkout/BookingFunnelShell';
 import { VACATING_NOTICE_MIN_DAYS } from '@/src/lib/dateDefaults';
 
 export type BedTimelineResponse = {
@@ -92,6 +93,7 @@ export function BedBookingPanel({
 }: Props) {
   const dark = theme === 'dark';
   const router = useRouter();
+  const funnel = useBookingFunnel();
   const today = todayString();
   const reserveLastStay = reserveCheckInDate ? reserveBufferDate(reserveCheckInDate) : null;
 
@@ -299,6 +301,22 @@ export function BedBookingPanel({
     return checkoutFromQuote;
   }, [isMonthly, serverQuote, checkoutFromQuote]);
 
+  useEffect(() => {
+    if (!funnel) return;
+    funnel.setActiveStep('bed');
+    const bed = beds[0];
+    if (!bed) return;
+    funnel.patchSummary({
+      bedId: bed.bedId,
+      bedCode: bed.bedCode,
+      stayType,
+      moveInDate: start,
+      rentPaise: serverQuote?.subtotalPaise ?? bed.monthlyRatePaise,
+      depositPaise: serverQuote?.depositPaise,
+      totalDuePaise: checkoutFromQuote?.totalToCollectTodayPaise,
+    });
+  }, [funnel, beds, stayType, start, serverQuote, checkoutFromQuote]);
+
   const durationHint = useMemo(() => {
     if (isMonthly) {
       const rentPaise = beds.reduce((sum, bed) => sum + bed.monthlyRatePaise, 0);
@@ -432,7 +450,7 @@ export function BedBookingPanel({
         id: 'monthly_stay',
         title: stayTypeLabel('monthly_stay'),
         subtitle: 'Long-term · check-in only · monthly billing until you request move-out',
-        priceLabel: monthlyRent > 0 ? `${paiseToInr(monthlyRent)}/mo` : '—',
+        priceLabel: monthlyRent > 0 ? formatBookingRentPaise(monthlyRent) : '—',
       });
     }
     cards.push({
@@ -606,21 +624,6 @@ export function BedBookingPanel({
                   summary={staySummary}
                 />
 
-                {!isMonthly && staySummary ? (
-                  <BookingPriceBreakdown
-                    theme={dark ? 'dark' : 'light'}
-                    compact
-                    rentLineItems={staySummary.rentLineItems}
-                    rentSubtotalPaise={staySummary.accommodationPaise}
-                    depositRequiredPaise={staySummary.depositPaise}
-                    depositDueNowPaise={staySummary.depositDueNowPaise}
-                    newBookingTotalPaise={
-                      staySummary.accommodationPaise + staySummary.depositDueNowPaise
-                    }
-                    totalToCollectTodayPaise={staySummary.totalDuePaise}
-                  />
-                ) : null}
-
                 {quoteLoading ? (
                   <p className={`text-sm ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
                     Loading price…
@@ -659,37 +662,15 @@ export function BedBookingPanel({
                 <p className="rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
                   {quoteError}
                 </p>
+              ) : checkoutFromQuote ? (
+                <p className={`text-sm ${dark ? 'text-apg-silver' : 'text-zinc-600'}`}>
+                  Total due today:{' '}
+                  <strong className={dark ? 'text-white' : 'text-zinc-900'}>
+                    {paiseToInr(checkoutFromQuote.totalToCollectTodayPaise)}
+                  </strong>
+                  . See the booking summary for the full breakdown.
+                </p>
               ) : null}
-
-              <BookingPriceBreakdown
-                theme={dark ? 'dark' : 'light'}
-                rentLineItems={staySummary?.rentLineItems}
-                rentSubtotalPaise={
-                  !isMonthly && staySummary
-                    ? staySummary.accommodationPaise
-                    : monthlyCheckout?.rentDuePaise ?? 0
-                }
-                depositRequiredPaise={
-                  !isMonthly && staySummary
-                    ? staySummary.depositPaise
-                    : monthlyCheckout?.depositRequiredPaise ?? 0
-                }
-                depositDueNowPaise={
-                  !isMonthly && staySummary
-                    ? staySummary.depositDueNowPaise
-                    : monthlyCheckout?.depositDueNowPaise ?? 0
-                }
-                newBookingTotalPaise={
-                  !isMonthly && staySummary
-                    ? staySummary.accommodationPaise + staySummary.depositDueNowPaise
-                    : monthlyCheckout?.newBookingTotalPaise ?? 0
-                }
-                totalToCollectTodayPaise={
-                  !isMonthly && staySummary
-                    ? staySummary.totalDuePaise
-                    : monthlyCheckout?.totalToCollectTodayPaise ?? 0
-                }
-              />
               </>
             ) : null}
 

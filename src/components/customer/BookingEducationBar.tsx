@@ -1,5 +1,6 @@
 'use client';
 
+import { HOLD_THIS_BED } from '@/src/lib/booking/bookingFunnelLabels';
 import { paiseToInr } from '@/src/lib/format';
 import { TOUR_EXAMPLE_DATES } from '@/src/lib/cockroach/onboardingSteps';
 import { dispatchRoachieReminder } from '@/src/lib/cockroach/roachieReminders';
@@ -47,7 +48,7 @@ export function BookingEducationBar({
             }
             onClick={() => dispatchRoachieReminder('pre-book')}
           >
-            Pre-Book
+            {HOLD_THIS_BED}
           </button>
           <button
             type="button"
@@ -59,7 +60,7 @@ export function BookingEducationBar({
             }
             onClick={() => dispatchRoachieReminder('reserve')}
           >
-            Reserve early (50% rent)
+            {HOLD_THIS_BED} (50% rent)
           </button>
         </div>
       </div>

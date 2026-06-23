@@ -2,8 +2,8 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { uploadPaymentScreenshotAction } from '@/app/(admin)/admin/pgs/payment-actions';
 import { BookingCheckoutExperience } from '@/src/components/customer/checkout/BookingCheckoutExperience';
-import { BookingFlowStepper } from '@/src/components/customer/checkout/BookingFlowStepper';
-import { CheckoutProgressStepper } from '@/src/components/customer/checkout/CheckoutProgressStepper';
+import { BookingFunnelShell } from '@/src/components/customer/checkout/BookingFunnelShell';
+import { BookingInlineAuth } from '@/src/components/customer/checkout/BookingInlineAuth';
 import { getBookingByCode } from '@/src/db/queries/customer';
 import {
   requireCustomerOwnsBookingCode,
@@ -55,9 +55,7 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
   const booking = result.data;
   const isReserveBooking = booking.durationMode === 'reserve';
   const customer = await getCustomerById(session.customerId);
-  if (!customer || !isProfileComplete(customer)) {
-    redirect(`/account/profile?next=${encodeURIComponent(`/booking/${bookingCode}/pay`)}`);
-  }
+  const profileComplete = customer ? isProfileComplete(customer) : false;
 
   if (booking.status !== 'pending_payment' && booking.status !== 'pending_approval') {
     if (booking.status === 'confirmed') {
@@ -104,57 +102,73 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
     .map((r) => `${r.bedCode} (Room ${r.roomNumber})`)
     .join(', ');
 
+  const summary = {
+    pgSlug: booking.pg.slug,
+    pgName: booking.pg.name,
+    roomNumber: roomNumber ?? undefined,
+    bedCode: bedCode ?? undefined,
+    stayType: booking.durationMode,
+    moveInDate: checkInDate ?? undefined,
+    rentPaise: booking.subtotalPaise,
+    depositPaise: booking.depositPaise,
+    totalDuePaise: checkoutTotalPaise,
+  };
+
   return (
     <div className="apg-aurora apg-grid-overlay min-h-full">
-      <main className="mx-auto max-w-lg px-4 py-6 sm:px-5 sm:py-8">
+      <main className="mx-auto max-w-5xl px-4 py-6 sm:px-5 sm:py-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Link
-            href="/account/bookings"
+            href={`/booking/${bookingCode}`}
             className="text-sm font-medium text-apg-silver transition hover:text-apg-orange"
           >
-            ← Back to bookings
+            ← Back to booking
           </Link>
           <span className="rounded-full bg-apg-orange/15 px-3 py-1 text-xs font-semibold text-apg-orange ring-1 ring-apg-orange/30">
             Payment pending
           </span>
         </div>
 
-        <div className="mt-6 space-y-4">
-          <BookingFlowStepper activeStep="confirm" />
-          <CheckoutProgressStepper activeStep="payment" />
-        </div>
-
         <div className="mt-6">
-          <BookingCheckoutExperience
-            bookingCode={booking.bookingCode}
-            pgName={booking.pg.name}
-            roomNumber={roomNumber ?? undefined}
-            bedCode={bedCode ?? undefined}
-            bedsLabel={bedsLabel}
-            isReserveBooking={isReserveBooking}
-            durationMode={booking.durationMode}
-            expectedCheckoutDate={booking.expectedCheckoutDate}
-            checkInDate={checkInDate}
-            stayNights={stayNights}
-            reserveStart={booking.reserveStart}
-            reserveCheckIn={booking.reserveCheckIn ?? booking.expectedCheckoutDate}
-            subtotalPaise={booking.subtotalPaise}
-            depositPaise={booking.depositPaise}
-            depositCreditAppliedPaise={depositCreditAppliedPaise}
-            additionalDepositDuePaise={additionalDepositDuePaise}
-            priorOutstandingItems={priorOutstandingItems}
-            rentLineItems={rentLineItems}
-            discountPaise={booking.discountPaise}
-            totalPaise={checkoutTotalPaise}
-            totalLabel={totalLabel}
-            qrImageUrl={qrImageUrl}
-            upiId={upiId}
-            uploadScreenshot={uploadPaymentScreenshotAction}
-            membershipId={pendingPs4?.id}
-            membershipAmountPaise={ps4Paise > 0 ? ps4Paise : undefined}
-            membershipLabel={ps4PlanLabel}
-            existingProofRecordId={pendingPayment?.id}
-          />
+          <BookingFunnelShell activeStep="payment" initialSummary={summary}>
+            {!profileComplete ? (
+              <div className="mb-5">
+                <BookingInlineAuth />
+              </div>
+            ) : (
+            <BookingCheckoutExperience
+              bookingCode={booking.bookingCode}
+              pgName={booking.pg.name}
+              roomNumber={roomNumber ?? undefined}
+              bedCode={bedCode ?? undefined}
+              bedsLabel={bedsLabel}
+              isReserveBooking={isReserveBooking}
+              durationMode={booking.durationMode}
+              expectedCheckoutDate={booking.expectedCheckoutDate}
+              checkInDate={checkInDate}
+              stayNights={stayNights}
+              reserveStart={booking.reserveStart}
+              reserveCheckIn={booking.reserveCheckIn ?? booking.expectedCheckoutDate}
+              subtotalPaise={booking.subtotalPaise}
+              depositPaise={booking.depositPaise}
+              depositCreditAppliedPaise={depositCreditAppliedPaise}
+              additionalDepositDuePaise={additionalDepositDuePaise}
+              priorOutstandingItems={priorOutstandingItems}
+              rentLineItems={rentLineItems}
+              discountPaise={booking.discountPaise}
+              totalPaise={checkoutTotalPaise}
+              totalLabel={totalLabel}
+              qrImageUrl={qrImageUrl}
+              upiId={upiId}
+              uploadScreenshot={uploadPaymentScreenshotAction}
+              membershipId={pendingPs4?.id}
+              membershipAmountPaise={ps4Paise > 0 ? ps4Paise : undefined}
+              membershipLabel={ps4PlanLabel}
+              existingProofRecordId={pendingPayment?.id}
+              compactLayout
+            />
+            )}
+          </BookingFunnelShell>
         </div>
       </main>
     </div>

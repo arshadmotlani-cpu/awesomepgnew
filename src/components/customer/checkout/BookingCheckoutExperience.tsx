@@ -52,6 +52,8 @@ export type BookingCheckoutExperienceProps = {
   additionalDepositDuePaise?: number;
   priorOutstandingItems?: PriorOutstandingItem[];
   rentLineItems?: PricingLineItem[];
+  /** When true, booking + price details live in BookingSummaryRail only. */
+  compactLayout?: boolean;
 };
 
 const STEPS = [
@@ -110,6 +112,7 @@ export function BookingCheckoutExperience({
   additionalDepositDuePaise,
   priorOutstandingItems = [],
   rentLineItems = [],
+  compactLayout = false,
 }: BookingCheckoutExperienceProps) {
   const uploadInputId = useId();
 
@@ -288,6 +291,8 @@ export function BookingCheckoutExperience({
 
   return (
     <form onSubmit={onSubmit} className="space-y-5 pb-28">
+      {!compactLayout ? (
+      <>
       {/* Total payment summary */}
       <section className="rounded-[16px] border border-white/10 bg-white/[0.03] p-5 shadow-sm">
         <h1 className="text-[22px] font-bold text-white">
@@ -388,7 +393,26 @@ export function BookingCheckoutExperience({
           <p className="mt-1 text-3xl font-bold text-white">{payNowLabel}</p>
         </div>
       </section>
+      </>
+      ) : (
+        <section className="rounded-[16px] border border-white/10 bg-white/[0.03] p-5 shadow-sm">
+          <h1 className="text-[22px] font-bold text-white">
+            {isReserveBooking ? 'Complete hold payment' : 'Complete payment'}
+          </h1>
+          <p className="mt-1 text-xs text-apg-muted">
+            Pay the exact total in your booking summary, then upload your UPI screenshot.
+          </p>
+          <div className="mt-5 rounded-[14px] bg-apg-orange/10 px-4 py-4 ring-1 ring-apg-orange/25">
+            <p className="text-xs font-medium uppercase tracking-wide text-apg-orange">
+              {hasPrior ? 'Total to collect today' : 'Total to pay today'}
+            </p>
+            <p className="mt-1 text-3xl font-bold text-white">{payNowLabel}</p>
+          </div>
+        </section>
+      )}
 
+      {!compactLayout ? (
+      <>
       {/* Rules */}
       <div className="grid gap-3 sm:grid-cols-2">
         <InfoBox emoji="💡" title="Deposit info">
@@ -413,6 +437,9 @@ export function BookingCheckoutExperience({
           <li>If the bed is not vacated after {STAY_CHECK_OUT_TIME}, an extra full-day charge applies</li>
         </ul>
       </InfoBox>
+
+      </>
+      ) : null}
 
       {/* QR */}
       <section className="rounded-[16px] border border-white/10 bg-white/[0.03] p-5 text-center shadow-sm">

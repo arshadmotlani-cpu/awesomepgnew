@@ -5,6 +5,7 @@ import { MobileBottomSheet } from '@/src/components/customer/block/MobileBottomS
 import {
   CUSTOMER_BED_KIND_CLASS,
   deriveCustomerBedAvailabilityView,
+  type BedAvailabilityKind,
 } from '@/src/lib/bedAvailabilityState';
 import { reserveBufferDate } from '@/src/lib/bedReservePolicy';
 import { customerBookableFromDate } from '@/src/lib/dates';
@@ -13,9 +14,10 @@ import {
   MONTHLY_STAY_DEPOSIT_REFERENCE_LABEL,
 } from '@/src/lib/customerDepositDisplay';
 import { formatDate, paiseToInr } from '@/src/lib/format';
+import { formatBookingRentPaise } from '@/src/lib/booking/bookingFunnelPricing';
 import type { BedSelectorBed } from './customerBedTypes';
 import { BedStateTile, type BedVisualState } from '@/src/components/customer/design-system';
-import type { BedAvailabilityKind } from '@/src/lib/bedAvailabilityState';
+import { BOOK_THIS_BED, HOLD_THIS_BED } from '@/src/lib/booking/bookingFunnelLabels';
 
 function bedAvailability(bed: BedSelectorBed) {
   return deriveCustomerBedAvailabilityView({
@@ -117,7 +119,7 @@ function BedPricingDetails({
         <>
           <dt className="text-apg-silver">Rent</dt>
           <dd className="text-right font-medium text-white">
-            {rate > 0 ? `${paiseToInr(rate)}/mo` : '—'}
+            {rate > 0 ? formatBookingRentPaise(rate) : '—'}
           </dd>
           {deposit > 0 ? (
             <>
@@ -248,7 +250,7 @@ export function CustomerBedDetailSheet({
           <p className="mt-2 text-xs font-medium text-orange-200">
             {noticeCount > 0
               ? `${noticeCount} ${noticeCount === 1 ? 'person is' : 'people are'} interested in this bed`
-              : 'Someone is still living here — you can pre-book or reserve for when they leave.'}
+              : 'Someone is still living here — you can hold this bed for when they leave.'}
           </p>
         ) : null}
       </div>
@@ -312,7 +314,7 @@ export function CustomerBedDetailSheet({
                 onClick={onPreBook}
                 className="w-full rounded-lg bg-apg-orange py-2.5 text-sm font-semibold text-white apg-glow-btn hover:brightness-110"
               >
-                Pre-book — check in when bed opens
+                {HOLD_THIS_BED}
               </button>
               {showReserve ? (
                 <button
@@ -321,14 +323,13 @@ export function CustomerBedDetailSheet({
                   onClick={onReserve}
                   className="w-full rounded-lg border border-apg-orange/40 bg-apg-orange/10 py-2.5 text-sm font-semibold text-white hover:bg-apg-orange/20"
                 >
-                  Reserve early (50% rent) — move in when you reach Nagpur
+                  {HOLD_THIS_BED} (50% rent)
                 </button>
               ) : null}
               <p className="text-xs leading-relaxed text-apg-silver">
-                <strong className="text-white">Pre-book</strong> — you plan to move in when this bed
-                opens{opensDate ? ` (${formatDate(opensDate)})` : ''}.{' '}
-                <strong className="text-white">Reserve</strong> — hold the bed now at 50% rent and
-                pick your check-in day when you reach Nagpur.
+                <strong className="text-white">{HOLD_THIS_BED}</strong> — plan your move-in when this
+                bed opens{opensDate ? ` (${formatDate(opensDate)})` : ''}. Pay 50% rent to hold it
+                longer if you are not ready to move in yet.
               </p>
             </div>
           ) : showBookActions ? (
@@ -340,7 +341,7 @@ export function CustomerBedDetailSheet({
                   onClick={onPreBook}
                   className="w-full rounded-lg bg-sky-600 py-2.5 text-sm font-semibold text-white hover:bg-sky-500"
                 >
-                  Pre-book this bed
+                  {HOLD_THIS_BED}
                 </button>
               ) : (
                 <button
@@ -349,7 +350,7 @@ export function CustomerBedDetailSheet({
                   onClick={() => onBook()}
                   className="w-full rounded-lg bg-apg-orange py-2.5 text-sm font-semibold text-white apg-glow-btn hover:brightness-110"
                 >
-                  Reserve this bed
+                  {BOOK_THIS_BED}
                 </button>
               )}
               {showReserve ? (
@@ -359,23 +360,22 @@ export function CustomerBedDetailSheet({
                   onClick={onReserve}
                   className="w-full rounded-lg border border-apg-orange/40 bg-apg-orange/10 py-2.5 text-sm font-semibold text-white hover:bg-apg-orange/20"
                 >
-                  Reserve early (50% rent)
+                  {HOLD_THIS_BED} (50% rent)
                 </button>
               ) : null}
               {showReserve ? (
                 <p className="text-xs leading-relaxed text-apg-silver">
                   {isFuturePreBook ? (
                     <>
-                      <strong className="text-white">Pre-book</strong> — move in when the bed opens
-                      {opensDate ? ` (${formatDate(opensDate)})` : ''}.{' '}
-                      <strong className="text-white">Reserve</strong> — hold it now at 50% rent and
-                      choose check-in when you arrive.
+                      <strong className="text-white">{HOLD_THIS_BED}</strong> — move in when the bed
+                      opens{opensDate ? ` (${formatDate(opensDate)})` : ''}. Pay 50% rent to secure
+                      it sooner.
                     </>
                   ) : (
                     <>
-                      <strong className="text-white">Book</strong> — move in on your selected dates
-                      now. <strong className="text-white">Reserve</strong> — hold the bed at 50% rent
-                      and pick your check-in day when you reach Nagpur.
+                      <strong className="text-white">{BOOK_THIS_BED}</strong> — move in on your
+                      selected dates. <strong className="text-white">{HOLD_THIS_BED}</strong> — pay
+                      50% rent now and pick check-in when you arrive.
                     </>
                   )}
                 </p>
