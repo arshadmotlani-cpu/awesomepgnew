@@ -66,6 +66,12 @@ export default async function ResidentsPage({
             >
               Bed assignment
             </Link>
+            <Link
+              href="/admin/residents/timeline"
+              className="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-apg-silver hover:text-white"
+            >
+              Resident timeline
+            </Link>
           </div>
         }
       />
