@@ -1,6 +1,7 @@
 # Awesome PG — Master Test Matrix
 
 **Purpose:** One workflow at a time verification checklist. Close each topic permanently before moving to the next.  
+**Financial domain fast-track:** See **[`testing/FINANCIAL_DOMAIN_REPORT.md`](./testing/FINANCIAL_DOMAIN_REPORT.md)** for consolidated PASS/FAIL/NOT VERIFIED status, unified matrix, and P0–P2 repair backlog (Booking Payment through Wallet Credits).  
 **Verification order (recommended):** Booking → Payments → Deposits → Revenue → KYC → Vacating  
 **Date:** 13 June 2026  
 **Method:** Status reflects **automated test + static audit** at time of writing. Full E2E on staging DB not yet executed in this pass.  
@@ -351,16 +352,12 @@ Use this when permanently closing a topic:
 
 **Suggested close order:**
 
-1. **Booking** — B-01 to B-06  
-2. **Booking Payment** — CODE PASS / E2E BLOCKED (staging DB)  
-3. **Deposits + Deposit Transfers** — DR-01–DR-04 verified FAIL (static); E2E when DB available  
+1. **Financial domain P0 backlog** — see [`testing/FINANCIAL_DOMAIN_REPORT.md`](./testing/FINANCIAL_DOMAIN_REPORT.md) (DR-03 → DR-01 → sync → invoice refund → DR-02)  
+2. **Booking** — B-01 to B-06  
+3. **Booking Payment** — E2E when staging DB available  
 4. **Payment Proof** — PP-01 to PP-06  
-5. **Revenue + Rent Billing** — RV + RB  
-6. **Invoices** — INV-01 to INV-05  
-7. **Electricity** — EB-01 to EB-05  
-8. **KYC + Bed Assignment + Lifecycle**  
-9. **Vacating + Checkout + Refunds + Requests**  
-10. **Wallet + Notifications**
+5. **KYC + Bed Assignment + Lifecycle**  
+6. **Vacating + Notifications**
 
 ---
 
