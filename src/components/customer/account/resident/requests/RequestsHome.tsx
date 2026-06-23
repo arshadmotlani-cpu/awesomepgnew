@@ -9,16 +9,16 @@ import { ResidentMoreSection } from '@/src/components/customer/account/resident/
 import { RequestsMakeFlow } from '@/src/components/customer/account/resident/requests/RequestsMakeFlow';
 import { RequestDetailView } from '@/src/components/customer/account/resident/requests/RequestDetailView';
 import {
+  nextStepForRequest,
   REQUEST_CATEGORIES,
+  REQUEST_TIMELINE_STAGES,
+  requestStatusToTimelineIndex,
   type ActiveRequestItem,
   type RequestCategoryId,
 } from '@/src/lib/residents/requestCenter';
 import { accountProfileHref, residentTabHref } from '@/src/lib/accountNavigation';
 import { getDepositRefundEligibility } from '@/src/lib/vacating/depositRefundEligibility';
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
-
-const PRIMARY_BTN =
-  'flex w-full min-h-[52px] items-center justify-center rounded-xl bg-[#FF5A1F] px-6 py-3.5 text-base font-semibold text-white hover:brightness-110';
 
 type Props = {
   bookingId: string;
@@ -157,6 +157,14 @@ export function RequestsHome({
 
   return (
     <div className="space-y-4 pb-2">
+      <ApgCard tier="account" className="p-5">
+        <h2 className="text-lg font-semibold text-zinc-900">Requests center</h2>
+        <p className="mt-1 text-sm text-zinc-600">
+          Tell us what you need — maintenance, room change, move-out, and more. Every request has a
+          status tracker so you know what happens next.
+        </p>
+      </ApgCard>
+
       {refundEligibility.canRequestRefund && refundableBalancePaise > 0 ? (
         <ApgCard tier="account" className="border-emerald-200 bg-emerald-50/80 p-5">
           <p className="text-sm font-semibold text-emerald-900">Request deposit refund</p>
@@ -174,37 +182,42 @@ export function RequestsHome({
         </ApgCard>
       ) : null}
 
-      <button type="button" onClick={() => setMaking(true)} className={PRIMARY_BTN}>
-        Make a request
-      </button>
-
       {activeRequests.length > 0 ? (
         <ApgCard tier="account" className="p-5">
-          <h2 className="text-sm font-semibold text-zinc-900">Active requests</h2>
-          <p className="mt-1 text-xs text-zinc-600">Tap to see progress and next steps.</p>
-          <ul className="mt-3 space-y-2">
-            {activeRequests.slice(0, 3).map((r) => (
-              <li key={r.id}>
-                <button
-                  type="button"
-                  onClick={() => openDetail(r.id)}
-                  className="flex w-full flex-wrap items-center justify-between gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-left hover:border-[#FF5A1F]/30"
-                >
-                  <span className="text-sm font-medium text-zinc-900">{r.typeLabel}</span>
-                  <StatusChip status={r.status} />
-                </button>
-              </li>
-            ))}
+          <h2 className="text-sm font-semibold text-zinc-900">Open requests</h2>
+          <p className="mt-1 text-xs text-zinc-600">Tap to see full progress and next steps.</p>
+          <ul className="mt-3 space-y-3">
+            {activeRequests.slice(0, 5).map((r) => {
+              const stepIndex = requestStatusToTimelineIndex(r.status);
+              return (
+                <li key={r.id}>
+                  <button
+                    type="button"
+                    onClick={() => openDetail(r.id)}
+                    className="w-full rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-left hover:border-[#FF5A1F]/30"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-sm font-semibold text-zinc-900">{r.typeLabel}</span>
+                      <StatusChip status={r.status} />
+                    </div>
+                    <p className="mt-2 text-xs text-zinc-600">
+                      {nextStepForRequest(r.status, r.type)}
+                    </p>
+                    <p className="mt-2 text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+                      Step {stepIndex + 1} of {REQUEST_TIMELINE_STAGES.length}
+                    </p>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
-          {activeRequests.length > 3 ? (
-            <p className="mt-2 text-xs text-zinc-500">+{activeRequests.length - 3} more open</p>
-          ) : null}
         </ApgCard>
       ) : null}
 
       <section>
-        <h2 className="mb-2 text-sm font-semibold text-zinc-900">Request types</h2>
-        <div className="grid gap-2 sm:grid-cols-2">
+        <h2 className="mb-2 text-sm font-semibold text-zinc-900">Start a request</h2>
+        <p className="mb-3 text-xs text-zinc-600">Pick a category — we guide you through each step.</p>
+        <div className="grid gap-3 sm:grid-cols-2">
           {visibleCategories.map((cat) => (
             <CategoryCard
               key={cat.id}
@@ -264,10 +277,10 @@ function CategoryCard({
       type="button"
       onClick={onSelect}
       disabled={disabled}
-      className="rounded-xl border border-zinc-200 bg-white p-4 text-left hover:border-[#FF5A1F]/30 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+      className="rounded-xl border border-zinc-200 bg-white p-4 text-left shadow-sm transition hover:border-[#FF5A1F]/35 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
     >
       <p className="text-sm font-semibold text-zinc-900">{title}</p>
-      <p className="mt-1 text-xs text-zinc-600">{description}</p>
+      <p className="mt-1.5 text-xs leading-relaxed text-zinc-600">{description}</p>
       {disabled && lockReason ? (
         <p className="mt-2 text-[10px] leading-relaxed text-zinc-500">{lockReason}</p>
       ) : null}
