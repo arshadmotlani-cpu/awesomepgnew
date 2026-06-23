@@ -68,6 +68,21 @@ export function normalizeIsoDateOnly(value: string | null | undefined): string {
   return trimmed;
 }
 
+/** Coerce Date | ISO string to ISO timestamp for RSC/client props — never throws. */
+export function toIsoTimestampSafe(value: unknown): string | null {
+  if (value == null) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const d = new Date(trimmed);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  }
+  return null;
+}
+
 /** Like diffDays but returns null instead of throwing on invalid/missing input. */
 export function tryDiffDays(start: DateLike | null | undefined, end: DateLike | null | undefined): number | null {
   if (start == null || end == null) return null;

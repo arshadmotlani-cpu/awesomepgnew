@@ -1,5 +1,5 @@
 import type { AdminVacatingRow } from '@/src/db/queries/admin';
-import { normalizeIsoDateOnly } from '@/src/lib/dates';
+import { normalizeIsoDateOnly, toIsoTimestampSafe } from '@/src/lib/dates';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import { buildVacatingApprovalPreview } from '@/src/lib/vacating/approvalPreview';
 import type { VacatingApprovalPreview } from '@/src/lib/vacating/approvalPreview';
@@ -35,9 +35,9 @@ export function toMoveOutAdvancedToolsRow(
 
   return {
     ...normalizedRow,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-    resolvedAt: row.resolvedAt?.toISOString() ?? null,
+    createdAt: toIsoTimestampSafe(row.createdAt) ?? '',
+    updatedAt: toIsoTimestampSafe(row.updatedAt) ?? '',
+    resolvedAt: toIsoTimestampSafe(row.resolvedAt),
     approvalPreview,
   };
 }

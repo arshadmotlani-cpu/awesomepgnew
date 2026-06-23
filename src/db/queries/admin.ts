@@ -1677,27 +1677,36 @@ export function listAdminVacatingRequests(filter?: {
       ORDER BY vr.created_at DESC
     `);
 
-    return Array.from(rows).map((r) => ({
-      id: r.id,
-      bookingId: r.booking_id,
-      bookingCode: r.booking_code,
-      customerId: r.customer_id,
-      customerFullName: r.customer_full_name,
-      customerPhone: r.customer_phone,
-      pgName: r.pg_name ?? '—',
-      bedCode: r.bed_code ?? '—',
-      roomNumber: r.room_number ?? '—',
-      noticeGivenDate: normalizeIsoDateOnly(r.notice_given_date),
-      vacatingDate: normalizeIsoDateOnly(r.vacating_date),
-      noticeCompliant: r.notice_compliant,
-      deductionPaise: guardDepositPaise(r.deduction_paise),
-      depositRefundPaise: guardDepositPaise(r.deposit_refund_paise),
-      monthlyRentPaiseSnapshot: guardDepositPaise(r.monthly_rent_paise_snapshot),
-      status: r.status,
-      resolvedAt: r.resolved_at,
-      createdAt: r.created_at,
-      updatedAt: r.updated_at,
-    }));
+    return Array.from(rows).flatMap((r) => {
+      try {
+        return [
+          {
+            id: r.id,
+            bookingId: r.booking_id,
+            bookingCode: r.booking_code,
+            customerId: r.customer_id,
+            customerFullName: r.customer_full_name,
+            customerPhone: r.customer_phone,
+            pgName: r.pg_name ?? '—',
+            bedCode: r.bed_code ?? '—',
+            roomNumber: r.room_number ?? '—',
+            noticeGivenDate: normalizeIsoDateOnly(r.notice_given_date),
+            vacatingDate: normalizeIsoDateOnly(r.vacating_date),
+            noticeCompliant: r.notice_compliant,
+            deductionPaise: guardDepositPaise(r.deduction_paise),
+            depositRefundPaise: guardDepositPaise(r.deposit_refund_paise),
+            monthlyRentPaiseSnapshot: guardDepositPaise(r.monthly_rent_paise_snapshot),
+            status: r.status,
+            resolvedAt: r.resolved_at,
+            createdAt: r.created_at,
+            updatedAt: r.updated_at,
+          },
+        ];
+      } catch (err) {
+        console.error('[listAdminVacatingRequests] skip row', r.id, r.booking_id, err);
+        return [];
+      }
+    });
   });
 }
 

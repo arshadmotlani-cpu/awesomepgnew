@@ -1,4 +1,5 @@
-import { formatDate, normalizeIsoDateOnly } from '@/src/lib/dates';
+import { formatDate, normalizeIsoDateOnly, toIsoTimestampSafe } from '@/src/lib/dates';
+import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import type { CheckoutSettlementStatus } from '@/src/db/schema/enums';
 import type { MoveOutUrgency, VacatingBedStatus } from '@/src/lib/vacating/approvalPreview';
 import { moveOutDaysRemaining, moveOutUrgency } from '@/src/lib/vacating/approvalPreview';
@@ -67,13 +68,17 @@ export function toClientMoveOutPipelineItem(item: MoveOutPipelineItem): MoveOutP
   for (const [key, value] of Object.entries(item.stageTimestamps) as Array<
     [MoveOutStageId, Date | undefined]
   >) {
-    if (value) stageTimestamps[key] = value.toISOString();
+    const iso = toIsoTimestampSafe(value);
+    if (iso) stageTimestamps[key] = iso;
   }
   return {
     ...item,
-    createdAt: item.createdAt.toISOString(),
-    updatedAt: item.updatedAt.toISOString(),
-    resolvedAt: item.resolvedAt?.toISOString() ?? null,
+    deductionPaise: guardDepositPaise(item.deductionPaise),
+    depositHeldPaise: guardDepositPaise(item.depositHeldPaise),
+    estimatedRefundPaise: guardDepositPaise(item.estimatedRefundPaise),
+    createdAt: toIsoTimestampSafe(item.createdAt) ?? '',
+    updatedAt: toIsoTimestampSafe(item.updatedAt) ?? '',
+    resolvedAt: toIsoTimestampSafe(item.resolvedAt),
     stageTimestamps,
   };
 }
@@ -296,8 +301,9 @@ export function buildMoveOutPipeline(input: {
 
     const settlement = settlementByVacating.get(v.id) ?? null;
     const derived = deriveMoveOutStage(v, settlement);
-    const depositHeldPaise = v.depositHeldPaise;
-    const estimatedRefundPaise = Math.max(0, depositHeldPaise - v.deductionPaise);
+    const depositHeldPaise = guardDepositPaise(v.depositHeldPaise);
+    const deductionPaise = guardDepositPaise(v.deductionPaise);
+    const estimatedRefundPaise = Math.max(0, depositHeldPaise - deductionPaise);
     const daysRemaining = moveOutDaysRemaining(v.vacatingDate);
 
     items.push({
@@ -320,7 +326,7 @@ export function buildMoveOutPipeline(input: {
       resolvedAt: v.resolvedAt,
       createdAt: v.createdAt,
       updatedAt: v.updatedAt,
-      deductionPaise: v.deductionPaise,
+      deductionPaise,
       depositHeldPaise,
       estimatedRefundPaise,
       daysRemaining,
