@@ -26,27 +26,34 @@ export function ResidentHomeStatusCard({
   expectedCheckoutDate: string | null;
 }) {
   return (
-    <ApgCard tier="account" className="p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <StatusChip status={status.chipLabel} toneMap={HOME_CHIP_TONE} />
-          <h1 className="mt-3 text-xl font-bold tracking-tight text-zinc-900 sm:text-2xl">
-            {status.headline}
-          </h1>
-          <p className="mt-1 text-sm text-zinc-600">{status.subline}</p>
+    <ApgCard tier="account" className="overflow-hidden p-0">
+      <div className="border-b border-[#FF5A1F]/15 bg-gradient-to-br from-[#FF5A1F]/8 via-white to-white px-5 py-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#FF5A1F]">
+              Your stay
+            </p>
+            <StatusChip status={status.chipLabel} toneMap={HOME_CHIP_TONE} />
+            <h1 className="mt-3 text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">
+              {status.headline}
+            </h1>
+            <p className="mt-2 text-sm leading-relaxed text-zinc-600">{status.subline}</p>
+          </div>
         </div>
       </div>
-      <p className="mt-4 text-xs text-zinc-500">
-        Booking{' '}
-        <Link
-          href={`/booking/${bookingCode}`}
-          className="font-mono font-medium text-indigo-700 hover:text-indigo-600"
-        >
-          {bookingCode}
-        </Link>
-        {' · '}Moved in {formatDate(checkInDate)}
-        {expectedCheckoutDate ? ` · Leaving ${formatDate(expectedCheckoutDate)}` : ''}
-      </p>
+      <div className="px-5 py-4">
+        <p className="text-xs text-zinc-500">
+          Booking{' '}
+          <Link
+            href={`/booking/${bookingCode}`}
+            className="font-mono font-medium text-indigo-700 hover:text-indigo-600"
+          >
+            {bookingCode}
+          </Link>
+          {' · '}Moved in {formatDate(checkInDate)}
+          {expectedCheckoutDate ? ` · Leaving ${formatDate(expectedCheckoutDate)}` : ''}
+        </p>
+      </div>
     </ApgCard>
   );
 }

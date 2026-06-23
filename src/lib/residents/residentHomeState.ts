@@ -214,3 +214,31 @@ export function requestTypeLabel(type: string): string {
       return 'Request';
   }
 }
+
+export function deriveAdminWaitingMessage(input: {
+  kycStatus: string;
+  documentsSubmitted: boolean;
+  vacatingStatus: string | null;
+  checkoutStatus: string | null;
+  openRequests: Array<{ status: string }>;
+}): string | null {
+  if (input.kycStatus !== 'approved' && input.documentsSubmitted) {
+    return 'Our team is reviewing your identity documents — usually 1–2 working days.';
+  }
+  if (input.vacatingStatus === 'pending') {
+    return 'Waiting for the office to approve your move-out date.';
+  }
+  if (
+    input.checkoutStatus === 'awaiting_admin_review' ||
+    input.checkoutStatus === 'refund_pending'
+  ) {
+    return 'We are reviewing your checkout and deposit refund.';
+  }
+  const pendingRequest = input.openRequests.find(
+    (r) => r.status === 'pending' || r.status === 'submitted',
+  );
+  if (pendingRequest) {
+    return 'You have a request waiting on the office. We will notify you when it updates.';
+  }
+  return null;
+}

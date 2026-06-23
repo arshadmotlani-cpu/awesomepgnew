@@ -5,6 +5,8 @@ import { RoachieResidentBriefing } from '@/src/components/cockroach/RoachieResid
 import type { buildBriefingInputForBooking } from '@/src/lib/cockroach/briefingFromBooking';
 import { residentTabHref } from '@/src/lib/accountNavigation';
 import { ResidentHomeActiveRequests } from '@/src/components/customer/account/resident/ResidentHomeActiveRequests';
+import { ResidentHomeAdminWaiting } from '@/src/components/customer/account/resident/ResidentHomeAdminWaiting';
+import { ResidentHomeMoveOutStatus } from '@/src/components/customer/account/resident/ResidentHomeMoveOutStatus';
 import { ResidentHomeNextPayment } from '@/src/components/customer/account/resident/ResidentHomeNextPayment';
 import { ResidentHomePrimaryAction } from '@/src/components/customer/account/resident/ResidentHomePrimaryAction';
 import { ResidentHomeStatusCard } from '@/src/components/customer/account/resident/ResidentHomeStatusCard';
@@ -39,6 +41,7 @@ export function ResidentHomePanel({
   hasOpenVacating,
   vacatingStatus,
   checkoutStatus,
+  vacatingDate,
   residentBriefing,
   ps4Membership,
   tenantActive,
@@ -56,6 +59,7 @@ export function ResidentHomePanel({
   hasOpenVacating: boolean;
   vacatingStatus: string | null;
   checkoutStatus: string | null;
+  vacatingDate: string | null;
   settlementLines: Array<{ label: string; amountPaise: number; tone?: 'deduction' | 'credit' | 'neutral' }>;
   residentBriefing: BriefingProps | null;
   ps4Membership: PlaystationMembership | null;
@@ -109,9 +113,25 @@ export function ResidentHomePanel({
 
       <ResidentHomePrimaryAction action={primaryAction} />
 
+      <ResidentHomeAdminWaiting
+        kycStatus={kycStatus}
+        documentsSubmitted={documentsSubmitted}
+        vacatingStatus={vacatingStatus}
+        checkoutStatus={checkoutStatus}
+        openRequests={bookingRequests}
+      />
+
       <ResidentHomeWhatNext message={whatNext} />
 
       <ResidentHomeNextPayment payment={firstPayment} />
+
+      {(hasOpenVacating || vacatingStatus || checkoutStatus) && (
+        <ResidentHomeMoveOutStatus
+          vacatingStatus={vacatingStatus}
+          checkoutStatus={checkoutStatus}
+          vacatingDate={vacatingDate}
+        />
+      )}
 
       <ResidentHomeActiveRequests requests={bookingRequests} />
 

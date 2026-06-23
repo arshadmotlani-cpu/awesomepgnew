@@ -40,9 +40,9 @@ export default async function ProfilePage(
   const section = parseAccountSection(typeof sp.section === 'string' ? sp.section : undefined);
   const residentTab = parseResidentTab(typeof sp.tab === 'string' ? sp.tab : undefined);
 
-  const legacyTabActive = section === 'resident' && residentTab !== 'home';
+  const legacyTabActive = section === 'resident' && ctx.hasConfirmedBooking;
 
-  if (legacyTabActive && ctx.hasConfirmedBooking) {
+  if (legacyTabActive) {
     return (
       <main className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6">
         <nav className="apg-account-nav mb-4 text-xs">

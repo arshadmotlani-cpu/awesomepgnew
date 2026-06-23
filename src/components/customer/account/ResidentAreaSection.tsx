@@ -464,6 +464,7 @@ export async function ResidentAreaSection({
           hasOpenVacating={hasOpenVacating}
           vacatingStatus={primaryVacating?.status ?? null}
           checkoutStatus={checkoutByBooking.get(primaryBooking.bookingId) ?? null}
+          vacatingDate={primaryVacating?.vacatingDate ?? null}
           settlementLines={
             primaryVacating
               ? [
