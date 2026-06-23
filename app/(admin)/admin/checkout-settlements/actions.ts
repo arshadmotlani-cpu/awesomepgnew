@@ -69,10 +69,11 @@ export async function approveCheckoutSettlementAction(
     return { status: 'error', message: result.error };
   }
   revalidateCheckoutPaths(settlementId);
-  return {
-    status: 'ok',
-    message: `Settlement approved. Final refund: ₹${(result.finalRefundPaise / 100).toFixed(2)}`,
-  };
+  const msg =
+    result.finalRefundPaise <= 0
+      ? 'Checkout completed. Deposit fully applied to deductions — no refund due.'
+      : `Settlement approved. Final refund: ₹${(result.finalRefundPaise / 100).toFixed(2)}`;
+  return { status: 'ok', message: msg };
 }
 
 export async function markCheckoutRefundPaidAction(

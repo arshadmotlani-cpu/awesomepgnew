@@ -99,12 +99,23 @@ export function vacatingNextStep(args: {
   checkoutStatus: string | null;
   durationMode?: string;
   expectedCheckoutDate?: string | null;
+  estimatedFinalRefundPaise?: number | null;
 }): { headline: string; detail: string } {
-  const { vacating, checkoutStatus, durationMode, expectedCheckoutDate } = args;
+  const { vacating, checkoutStatus, durationMode, expectedCheckoutDate, estimatedFinalRefundPaise } =
+    args;
+  const zeroRefundDue =
+    estimatedFinalRefundPaise != null && estimatedFinalRefundPaise <= 0;
   const fixedStay = durationMode && ['fixed_stay', 'daily', 'weekly'].includes(durationMode);
 
   if (fixedStay && expectedCheckoutDate) {
     if (checkoutStatus === 'awaiting_resident_details') {
+      if (zeroRefundDue) {
+        return {
+          headline: 'Checkout in progress',
+          detail:
+            'Your deposit covers notice and electricity charges — no refund is due. We will close your checkout once admin finalises the settlement.',
+        };
+      }
       return {
         headline: 'Request deposit refund',
         detail:
@@ -161,6 +172,13 @@ export function vacatingNextStep(args: {
       };
     }
     if (checkoutStatus === 'awaiting_resident_details') {
+      if (zeroRefundDue) {
+        return {
+          headline: 'Vacate approved',
+          detail:
+            'Deductions use your full deposit — no refund is due. Admin will complete checkout shortly.',
+        };
+      }
       return {
         headline: 'Vacate approved',
         detail: 'Submit your final electricity meter photo and UPI details for deposit refund.',

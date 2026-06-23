@@ -28,7 +28,17 @@
 
 ---
 
-### NAV-SB-01 — Admin sidebar navigation unreliable (double-click / no-op)
+### CHK-ZERO-01 — Zero-refund checkout stuck on “Waiting on resident” / UPI
+
+| | |
+|---|---|
+| **Severity** | High |
+| **Symptom** | Harish 203 B5: deposit ₹1,500 fully consumed by notice ₹595 + electricity ₹905 (refund ₹0), but checkout still `awaiting_resident_details`, deposit shows held, UPI requested |
+| **Root cause** | Checkout workflow always required UPI + resident submit even when `finalRefundPaise <= 0`; deductions only written to `deposit_ledger` at admin approve; status never auto-completed for zero balance |
+| **Fix** | Skip payout validation when refund ≤ 0; admin **Complete checkout** from `awaiting_resident_details` when electricity settled; approve writes deductions + marks `completed` directly; `scripts/audit-harish-checkout.ts` |
+
+---
+
 
 | | |
 |---|---|

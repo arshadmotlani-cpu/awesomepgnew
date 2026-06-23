@@ -108,15 +108,23 @@ export type CheckoutSettlementDetail = CheckoutSettlementRow & {
   };
 };
 
-function hasResidentRefundDetails(row: CheckoutSettlement): boolean {
-  const hasElectricity =
+export function hasCheckoutElectricityEvidence(row: CheckoutSettlement): boolean {
+  return (
     Boolean(row.electricityMeterPhotoUrl) ||
     row.electricityUseAverage ||
     row.meterPhotoMissing ||
     row.electricitySharePaise > 0 ||
-    row.electricityCalculationMethod !== 'meter_reading';
-  const hasPayout = Boolean(row.payoutUpiId?.trim()) || Boolean(row.payoutQrUrl?.trim());
-  return hasElectricity && hasPayout;
+    row.electricityCalculationMethod !== 'meter_reading'
+  );
+}
+
+function hasResidentRefundDetails(
+  row: CheckoutSettlement,
+  expectedRefundPaise: number,
+): boolean {
+  if (!hasCheckoutElectricityEvidence(row)) return false;
+  if (expectedRefundPaise <= 0) return true;
+  return Boolean(row.payoutUpiId?.trim()) || Boolean(row.payoutQrUrl?.trim());
 }
 
 function buildPreview(row: CheckoutSettlement, depositHeldPaise: number) {
@@ -665,15 +673,21 @@ export async function submitResidentCheckoutDetails(input: {
     ...current,
     electricityMeterPhotoUrl: input.electricityMeterPhotoUrl ?? current.electricityMeterPhotoUrl,
     electricityUseAverage: input.electricityUseAverage ?? current.electricityUseAverage,
+    electricitySharePaise: input.electricitySharePaise ?? current.electricitySharePaise,
     payoutUpiId: input.payoutUpiId ?? current.payoutUpiId,
     payoutQrUrl: input.payoutQrUrl ?? current.payoutQrUrl,
   };
-  const validation = validateDepositRefundSubmission({
-    meterReadingPhotoUrl: draft.electricityMeterPhotoUrl,
-    useAverageBillingFallback: draft.electricityUseAverage,
-    payoutUpiId: draft.payoutUpiId,
-    payoutQrUrl: draft.payoutQrUrl,
-  });
+  const wallet = await getDepositSummaryForBooking(current.bookingId);
+  const preview = buildPreview(draft, wallet?.refundableBalancePaise ?? 0);
+  const validation = validateDepositRefundSubmission(
+    {
+      meterReadingPhotoUrl: draft.electricityMeterPhotoUrl,
+      useAverageBillingFallback: draft.electricityUseAverage,
+      payoutUpiId: draft.payoutUpiId,
+      payoutQrUrl: draft.payoutQrUrl,
+    },
+    { expectedRefundPaise: preview.finalRefundPaise },
+  );
   if (!validation.ok) {
     return { ok: false, error: DEPOSIT_REFUND_MISSING_DETAILS_MESSAGE };
   }
@@ -903,16 +917,26 @@ export async function approveCheckoutSettlement(input: {
     .where(eq(checkoutSettlements.id, input.settlementId))
     .limit(1);
   if (!current) return { ok: false, error: 'Settlement not found.' };
-  if (current.status !== 'awaiting_admin_review') {
-    return { ok: false, error: 'Settlement must be awaiting admin review.' };
-  }
-  if (!hasResidentRefundDetails(current)) {
-    return { ok: false, error: DEPOSIT_REFUND_MISSING_DETAILS_MESSAGE };
-  }
 
   const wallet = await getDepositSummaryForBooking(current.bookingId);
   const depositHeld = wallet?.refundableBalancePaise ?? 0;
   const preview = buildPreview(current, depositHeld);
+  const zeroRefund = preview.finalRefundPaise <= 0;
+
+  const allowedStatuses: CheckoutSettlementStatus[] = zeroRefund
+    ? ['awaiting_admin_review', 'awaiting_resident_details']
+    : ['awaiting_admin_review'];
+  if (!allowedStatuses.includes(current.status)) {
+    return {
+      ok: false,
+      error: zeroRefund
+        ? 'Settlement must be awaiting review or resident details.'
+        : 'Settlement must be awaiting admin review.',
+    };
+  }
+  if (!hasResidentRefundDetails(current, preview.finalRefundPaise)) {
+    return { ok: false, error: DEPOSIT_REFUND_MISSING_DETAILS_MESSAGE };
+  }
 
   const deductions: Array<{ amountPaise: number; reason: string }> = [];
   if (current.noticeDeductionPaise > 0) {
@@ -982,15 +1006,38 @@ export async function approveCheckoutSettlement(input: {
   await db
     .update(checkoutSettlements)
     .set({
-      status: 'refund_pending',
+      status: finalRefundPaise <= 0 ? 'completed' : 'refund_pending',
       amountsLocked: true,
       finalRefundPaise,
       deductionsSnapshot: preview,
       approvedAt: new Date(),
       approvedByAdminId: input.adminId,
+      ...(finalRefundPaise <= 0
+        ? {
+            refundNotes: 'Deposit fully applied to deductions — no payout due.',
+            refundPaidAt: new Date(),
+            refundPaidByAdminId: input.adminId,
+            refundReference: 'zero-balance-settlement',
+          }
+        : {}),
       updatedAt: new Date(),
     })
     .where(eq(checkoutSettlements.id, input.settlementId));
+
+  if (finalRefundPaise <= 0) {
+    await db
+      .update(bookings)
+      .set({ adminDepositRefundStatus: 'refunded', updatedAt: new Date() })
+      .where(eq(bookings.id, current.bookingId));
+    const { syncResidentRequestActionItems } = await import(
+      '@/src/services/residentRequestActions'
+    );
+    await syncResidentRequestActionItems();
+    const { refreshAdminNotificationsFromActionItems } = await import(
+      '@/src/services/actionItems'
+    );
+    await refreshAdminNotificationsFromActionItems().catch(() => undefined);
+  }
 
   await db.insert(auditLog).values({
     actorType: 'admin',

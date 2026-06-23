@@ -66,13 +66,21 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
     }
   }, [approveState.status, refundState.status, saveState.status, router]);
 
+  const preview = detail.preview;
   const locked = detail.amountsLocked;
-  const canApprove = detail.status === 'awaiting_admin_review';
-  const canMarkPaid = detail.status === 'refund_pending';
+  const zeroRefund = preview.finalRefundPaise <= 0;
+  const electricityReady =
+    preview.electricityDeductionPaise > 0 ||
+    detail.meterPhotoMissing ||
+    Boolean(detail.electricityMeterPhotoUrl) ||
+    detail.electricityUseAverage;
+  const canApprove =
+    detail.status === 'awaiting_admin_review' ||
+    (zeroRefund && detail.status === 'awaiting_resident_details' && electricityReady);
+  const canMarkPaid = detail.status === 'refund_pending' && !zeroRefund;
   const canEditElectricity =
     !locked &&
     (detail.status === 'awaiting_admin_review' || detail.status === 'awaiting_resident_details');
-  const preview = detail.preview;
 
   return (
     <div className="space-y-4">
@@ -171,7 +179,13 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
           </a>
         ) : null}
         {!detail.payoutUpiId && !detail.payoutQrUrl ? (
-          <p className="text-sm text-amber-200">Waiting for UPI ID or QR from resident.</p>
+          zeroRefund ? (
+            <p className="text-sm text-emerald-200">
+              No refund due — deposit fully applied to deductions. UPI details not required.
+            </p>
+          ) : (
+            <p className="text-sm text-amber-200">Waiting for UPI ID or QR from resident.</p>
+          )
         ) : null}
       </Section>
 
@@ -242,17 +256,24 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
           <input type="hidden" name="damageChargeInr" value={(detail.damageChargePaise / 100).toFixed(2)} />
           <input type="hidden" name="cleaningChargeInr" value={(detail.cleaningChargePaise / 100).toFixed(2)} />
           <input type="hidden" name="customChargeInr" value={(detail.customChargePaise / 100).toFixed(2)} />
-          <h3 className="text-sm font-semibold text-emerald-100">Approve refund amount</h3>
+          <h3 className="text-sm font-semibold text-emerald-100">
+            {zeroRefund ? 'Complete checkout (no refund due)' : 'Approve refund amount'}
+          </h3>
           <p className="mt-1 text-xs text-emerald-200/90">
-            Records all deductions, completes move-out, frees the bed, and locks the refund amount. Does
-            not mark the refund as sent yet.
+            {zeroRefund
+              ? 'Records all deductions, completes move-out, frees the bed, and closes checkout — no payout step.'
+              : 'Records all deductions, completes move-out, frees the bed, and locks the refund amount. Does not mark the refund as sent yet.'}
           </p>
           <button
             type="submit"
             disabled={approvePending}
             className="mt-4 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-60"
           >
-            {approvePending ? 'Approving…' : 'Approve refund amount'}
+            {approvePending
+              ? 'Processing…'
+              : zeroRefund
+                ? 'Complete checkout'
+                : 'Approve refund amount'}
           </button>
           {approveState.status === 'error' ? (
             <p className="mt-2 text-xs text-rose-300">{approveState.message}</p>

@@ -23,23 +23,33 @@ export function hasPayoutMethod(fields: DepositRefundSubmissionFields): boolean 
   return Boolean(upi || qr);
 }
 
+/** When final refund is zero, payout details are not required. */
+export function checkoutRequiresPayout(expectedRefundPaise: number): boolean {
+  return expectedRefundPaise > 0;
+}
+
 export function validateDepositRefundSubmission(
   fields: DepositRefundSubmissionFields,
+  options?: { expectedRefundPaise?: number },
 ): DepositRefundValidationResult {
   const missing: string[] = [];
+  const needsPayout = checkoutRequiresPayout(options?.expectedRefundPaise ?? 1);
 
   if (!hasMeterEvidence(fields)) {
     missing.push('meter_reading_photo_or_average_fallback');
   }
-  if (!hasPayoutMethod(fields)) {
+  if (needsPayout && !hasPayoutMethod(fields)) {
     missing.push('payout_upi_or_qr');
   }
 
   if (missing.length > 0) {
+    const payoutHint = needsPayout
+      ? ' and a UPI ID or QR code for payout'
+      : '';
     return {
       ok: false,
       error:
-        'Deposit refund requires a final electricity meter photo (or average billing fallback) and a UPI ID or QR code for payout.',
+        `Deposit refund requires a final electricity meter photo (or average billing fallback)${payoutHint}.`,
       missing,
     };
   }
