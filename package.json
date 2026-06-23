@@ -15,6 +15,7 @@
     "db:reset": "tsx src/db/reset.ts",
     "db:studio": "drizzle-kit studio",
     "test": "node --import tsx --test 'tests/unit/**/*.test.ts' 'tests/integration/**/*.test.ts'",
+    "test:e2e": "playwright test",
     "prepare": "bash scripts/install-git-hooks.sh",
     "docs:sync": "tsx scripts/sync-docs-pre-commit.ts",
     "docs:check": "tsx scripts/sync-docs-pre-commit.ts --check",

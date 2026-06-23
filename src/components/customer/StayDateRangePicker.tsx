@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { LAYER_Z } from '@/src/lib/ui/layerZIndex';
 import {
   addDays,
   addMonths,
@@ -462,9 +463,15 @@ export function StayDateRangePicker({
     ],
   );
 
-  const triggerBtn = dark
-    ? 'group flex w-full items-center gap-4 rounded-2xl border border-white/15 bg-white/5 px-4 py-4 text-left transition hover:border-apg-orange/50 hover:bg-white/[0.08] focus:outline-none focus:ring-2 focus:ring-apg-orange/40 disabled:opacity-50'
-    : 'group flex w-full items-center gap-4 rounded-2xl border border-zinc-200 bg-white px-4 py-4 text-left shadow-sm transition hover:border-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-400/30 disabled:opacity-50';
+  const triggerShell = dark
+    ? 'flex w-full items-center gap-2 rounded-2xl border border-white/15 bg-white/5 transition hover:border-apg-orange/50 hover:bg-white/[0.08] focus-within:ring-2 focus-within:ring-apg-orange/40 disabled:opacity-50'
+    : 'flex w-full items-center gap-2 rounded-2xl border border-zinc-200 bg-white shadow-sm transition hover:border-orange-300 focus-within:ring-2 focus-within:ring-orange-400/30 disabled:opacity-50';
+  const triggerMain = dark
+    ? 'flex min-h-[44px] min-w-0 flex-1 items-center gap-4 px-4 py-3 text-left focus:outline-none disabled:cursor-not-allowed'
+    : 'flex min-h-[44px] min-w-0 flex-1 items-center gap-4 px-4 py-3 text-left focus:outline-none disabled:cursor-not-allowed';
+  const editBtn = dark
+    ? 'mr-2 flex h-11 min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border border-white/15 px-3 text-sm font-semibold text-apg-silver hover:border-apg-orange/40 hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-apg-orange/40 disabled:cursor-not-allowed disabled:opacity-50'
+    : 'mr-2 flex h-11 min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border border-zinc-200 px-3 text-sm font-semibold text-zinc-600 hover:border-orange-300 hover:bg-orange-50 focus:outline-none focus:ring-2 focus:ring-orange-400/30 disabled:cursor-not-allowed disabled:opacity-50';
 
   const modalShell = dark
     ? 'flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-[#12151c] shadow-2xl sm:max-h-[90vh] sm:max-w-[720px] sm:rounded-2xl'
@@ -480,64 +487,77 @@ export function StayDateRangePicker({
 
   return (
     <>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => setOpen(true)}
-        className={triggerBtn}
-        aria-label="Select stay dates"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-      >
-        <span
-          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
-            dark ? 'bg-apg-orange/15 text-apg-orange' : 'bg-orange-50 text-orange-600'
-          }`}
+      <div className={triggerShell}>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => setOpen(true)}
+          className={triggerMain}
+          aria-label="Select stay dates"
+          aria-haspopup="dialog"
+          aria-expanded={open}
         >
-          <CalendarIcon />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className={`block text-[10px] font-bold uppercase tracking-wider ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
-            {showCheckOut ? 'Stay dates' : 'Move-in date'}
+          <span
+            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
+              dark ? 'bg-apg-orange/15 text-apg-orange' : 'bg-orange-50 text-orange-600'
+            }`}
+          >
+            <CalendarIcon />
           </span>
-          <span className={`mt-0.5 block truncate text-base font-semibold ${dark ? 'text-white' : 'text-zinc-900'}`}>
-            {showCheckOut ? (
-              displayEnd && displayStart ? (
-                <>
-                  {formatDateDdMmYyyy(displayStart)} → {formatDateDdMmYyyy(displayEnd)}
-                </>
+          <span className="min-w-0 flex-1">
+            <span className={`block text-[10px] font-bold uppercase tracking-wider ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
+              {showCheckOut ? 'Stay dates' : 'Move-in date'}
+            </span>
+            <span className={`mt-0.5 block truncate text-base font-semibold ${dark ? 'text-white' : 'text-zinc-900'}`}>
+              {showCheckOut ? (
+                displayEnd && displayStart ? (
+                  <>
+                    {formatDateDdMmYyyy(displayStart)} → {formatDateDdMmYyyy(displayEnd)}
+                  </>
+                ) : displayStart ? (
+                  formatDateDdMmYyyy(displayStart)
+                ) : (
+                  'Select your stay'
+                )
               ) : displayStart ? (
                 formatDateDdMmYyyy(displayStart)
               ) : (
-                'Select your stay'
-              )
-            ) : displayStart ? (
-              formatDateDdMmYyyy(displayStart)
-            ) : (
-              'Select move-in date'
-            )}
-          </span>
-          {showCheckOut && nights > 0 ? (
-            <span className={`mt-0.5 block text-xs font-medium ${dark ? 'text-apg-orange' : 'text-orange-600'}`}>
-              {nights} night{nights === 1 ? '' : 's'}
+                'Select move-in date'
+              )}
             </span>
-          ) : null}
-        </span>
-        <span className={`shrink-0 text-sm font-medium ${dark ? 'text-apg-silver group-hover:text-white' : 'text-zinc-500'}`}>
+            {showCheckOut && nights > 0 ? (
+              <span className={`mt-0.5 block text-xs font-medium ${dark ? 'text-apg-orange' : 'text-orange-600'}`}>
+                {nights} night{nights === 1 ? '' : 's'}
+              </span>
+            ) : null}
+          </span>
+        </button>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => setOpen(true)}
+          className={editBtn}
+          aria-label="Edit stay dates"
+        >
           Edit
-        </span>
-      </button>
+        </button>
+      </div>
 
       {portalReady && open
         ? createPortal(
             <div
-              className="fixed inset-0 z-[100] flex flex-col justify-end bg-black/75 sm:items-center sm:justify-center sm:p-4"
+              className="fixed inset-0 flex flex-col justify-end bg-black/75 sm:items-center sm:justify-center sm:p-4"
+              style={{ zIndex: LAYER_Z.nestedOverlay }}
               role="dialog"
               aria-modal="true"
               aria-label="Choose stay dates"
               onClick={() => setOpen(false)}
             >
-              <div className={modalShell} onClick={(e) => e.stopPropagation()}>
+              <div
+                className={modalShell}
+                style={{ zIndex: LAYER_Z.nestedDialog, position: 'relative' }}
+                onClick={(e) => e.stopPropagation()}
+              >
                 {/* Header */}
                 <div className={`shrink-0 border-b px-4 py-4 sm:px-6 ${dark ? 'border-white/10' : 'border-zinc-200'}`}>
                   <div className="flex items-start justify-between gap-3">

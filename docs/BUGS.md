@@ -18,6 +18,17 @@
 
 ## Resolved bugs
 
+### BOOK-DATE-01 — Mobile Edit on stay date picker does nothing
+
+| | |
+|---|---|
+| **Severity** | High |
+| **Symptom** | Tapping **Edit** on the stay date field inside `BedBookingPanel` (bottom sheet) appeared to do nothing on mobile |
+| **Root cause** | `StayDateRangePicker` calendar portal used default/low z-index while `MobileBottomSheet` panel sits at `99999`, so the modal opened behind the sheet |
+| **Fix** | Shared `src/lib/ui/layerZIndex.ts` (`LAYER_Z.nestedOverlay` / `nestedDialog` > `bottomSheetPanel`); separate 44×44px Edit button |
+
+---
+
 ### BROWSE-OVERLAP-01 — PG listing cards overlap on `/pgs` browse (mobile)
 
 | | |

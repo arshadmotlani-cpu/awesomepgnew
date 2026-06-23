@@ -7,6 +7,11 @@
 
 ---
 
+## 2026-06-23
+
+- **BOOK-DATE-01** — StayDateRangePicker z-index + 44px Edit target; BedBookingPanel 3-step wizard → [[BUGS#BOOK-DATE-01]] · [[Bookings]] · [[CHANGELOG]]
+- **Regression net** — `criticalJourneys.test.ts`, Playwright smoke, CI workflow, `/admin/health` smoke checks, `DEPLOYMENT_CHECKLIST.md`
+
 ## 2026-06-22
 
 - **Live AI brain system** — `docs/.cursor/rules.md`, `scripts/brain-sync.sh`, `MEMORY/bugs.md`, `MEMORY/changelog.md`

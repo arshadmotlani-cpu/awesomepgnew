@@ -224,21 +224,31 @@ export function CustomerBedDetailSheet({
         ) : null}
       </div>
 
-      <div className="mt-4 rounded-[14px] border border-white/10 bg-white/[0.03] px-4 py-3">
-            <p className="text-sm font-semibold text-white">{availability.label}</p>
-            {availability.sublabel ? (
-              <p className="mt-1 text-xs text-apg-silver">{availability.sublabel}</p>
-            ) : null}
-            {isNotice || (isAvailable && noticeCount > 0) ? (
-              <p className="mt-2 text-xs font-medium text-orange-200">
-                {noticeCount > 0
-                  ? `${noticeCount} ${noticeCount === 1 ? 'person is' : 'people are'} interested in this bed`
-                  : isNotice
-                    ? 'Someone is still living here — you can pre-book or reserve for when they leave.'
-                    : null}
-              </p>
-            ) : null}
-          </div>
+      <div
+        className={`mt-4 rounded-[14px] border px-4 py-3 ${
+          availability.kind === 'open_now'
+            ? 'border-emerald-400/40 bg-emerald-500/10'
+            : 'border-white/10 bg-white/[0.03]'
+        }`}
+      >
+        {availability.kind === 'open_now' ? (
+          <p className="mb-2 inline-flex items-center gap-2 text-xs font-semibold text-emerald-300">
+            <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
+            Available now
+          </p>
+        ) : null}
+        <p className="text-sm font-semibold text-white">{availability.label}</p>
+        {availability.sublabel ? (
+          <p className="mt-1 text-xs text-apg-silver">{availability.sublabel}</p>
+        ) : null}
+        {isNotice ? (
+          <p className="mt-2 text-xs font-medium text-orange-200">
+            {noticeCount > 0
+              ? `${noticeCount} ${noticeCount === 1 ? 'person is' : 'people are'} interested in this bed`
+              : 'Someone is still living here — you can pre-book or reserve for when they leave.'}
+          </p>
+        ) : null}
+      </div>
 
           {isReserved && reserveCheckIn && reserveLastStay ? (
             <div className="mt-4 rounded-xl border border-violet-400/30 bg-violet-500/10 px-4 py-3 text-sm">
@@ -336,7 +346,7 @@ export function CustomerBedDetailSheet({
                   onClick={() => onBook()}
                   className="w-full rounded-lg bg-apg-orange py-2.5 text-sm font-semibold text-white apg-glow-btn hover:brightness-110"
                 >
-                  Choose stay &amp; reserve bed
+                  Reserve this bed
                 </button>
               )}
               {showReserve ? (

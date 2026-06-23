@@ -3,6 +3,7 @@
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { LAYER_Z } from '@/src/lib/ui/layerZIndex';
 
 type Props = {
   open: boolean;
@@ -12,8 +13,8 @@ type Props = {
   panelClassName?: string;
 };
 
-const OVERLAY_Z = 99990;
-const PANEL_Z = 99999;
+const OVERLAY_Z = LAYER_Z.bottomSheetOverlay;
+const PANEL_Z = LAYER_Z.bottomSheetPanel;
 
 /** Focus-trapped overlay sheet — portaled to body so it never renders off-screen. */
 export function MobileBottomSheet({

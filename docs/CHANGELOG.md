@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-06-23
+
+### Fixed
+- **BOOK-DATE-01** — Mobile bed booking: Edit on `StayDateRangePicker` appeared dead because calendar portal rendered behind `MobileBottomSheet` (z-index 99999). Shared `LAYER_Z` constants nest picker at 100000+ [[BUGS#BOOK-DATE-01]]
+
+### Changed
+- `BedBookingPanel` — 3-step wizard (plan → dates → review); `CustomerBedDetailSheet` green “Available now” + single **Reserve this bed** CTA
+- `StayDateRangePicker` — separate 44×44px Edit touch target; nested modal uses `LAYER_Z`
+
+### Added
+- `tests/unit/layerZIndex.test.ts`, `tests/integration/criticalJourneys.test.ts`, Playwright smoke (`npm run test:e2e`)
+- Admin health page `/admin/health` + `GET /api/admin/smoke-checks`
+- CI workflow `.github/workflows/ci.yml`, root `DEPLOYMENT_CHECKLIST.md`
+
+---
+
 ## 2026-06-22 (continued)
 
 ### Added
@@ -125,25 +141,18 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-23 07:25:58 UTC
+### Pending pre-commit sync · 2026-06-23 07:55:13 UTC
 
-**Areas touched:** [[ROUTES]], [[Auth]], [[Billing]]
+**Areas touched:** [[ROUTES]]
 
 **Docs flagged for review:**
-- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
-- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (6):**
-- `app/api/auth/customer/login/route.ts`
-- `middleware.ts`
-- `src/lib/auth/safeNext.ts`
-- `src/lib/auth/session.ts`
-- `src/lib/billing/invoiceDocumentModel.ts`
-- `src/lib/billing/residentInvoiceAccess.ts`
+**Staged code files (2):**
+- `app/(admin)/admin/health/page.tsx`
+- `app/api/admin/smoke-checks/route.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

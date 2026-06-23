@@ -245,7 +245,10 @@ test('P0-2 mobile layout classes present for bottom sheet + iPhone/Android width
   assert.match(src, /justify-end/);
   assert.match(src, /rounded-t-3xl/);
   assert.match(src, /92dvh/);
-  assert.match(src, /z-\[100\]/);
+  assert.match(src, /LAYER_Z\.nestedOverlay/);
+  assert.match(src, /LAYER_Z\.nestedDialog/);
+  assert.match(src, /min-h-\[44px\]/);
+  assert.match(src, /Edit stay dates/);
   assert.match(src, /sm:items-center/);
   assert.match(src, /sm:max-w-\[720px\]/);
 });
