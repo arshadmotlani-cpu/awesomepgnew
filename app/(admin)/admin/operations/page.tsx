@@ -115,6 +115,13 @@ export default async function OperationsModulePage({
         );
       })()}
 
+      <Link
+        href="/admin/operations/residents"
+        className="mt-4 inline-flex text-sm font-medium text-[#FF5A1F] hover:underline"
+      >
+        Open resident operations dashboard →
+      </Link>
+
       <div className="mt-8">
         <AdminSectionErrorBoundary title="Attention command center">
           <ResidentOperationsAttentionCenter
