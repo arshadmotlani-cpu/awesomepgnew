@@ -196,19 +196,19 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-23 15:38:24 UTC
+### Pending pre-commit sync · 2026-06-23 15:44:21 UTC
 
-**Areas touched:** [[ROUTES]]
+**Areas touched:** [[DATABASE]]
 
 **Docs flagged for review:**
 - `CHANGELOG.md` — review for accuracy
-- `ROUTES.md` — review for accuracy
+- `DATABASE.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 
 **Staged code files (3):**
-- `app/(admin)/admin/residents/page.tsx`
-- `app/(admin)/admin/residents/timeline/page.tsx`
-- `app/(admin)/admin/system/page.tsx`
+- `src/db/migrations/0066_booking_pending_approval.sql`
+- `src/db/migrations/0067_booking_pending_approval_backfill.sql`
+- `src/db/migrations/meta/_journal.json`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

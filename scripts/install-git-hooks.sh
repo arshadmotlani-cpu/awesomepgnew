@@ -8,6 +8,17 @@ cd "$ROOT"
 chmod +x .githooks/pre-commit
 chmod +x scripts/install-git-hooks.sh 2>/dev/null || true
 
+# Skip on Vercel/CI — no local git config needed in deploy environments.
+if [ -n "${VERCEL:-}" ] || [ -n "${CI:-}" ]; then
+  echo "[hooks] Skipping git hook install (CI/Vercel)"
+  exit 0
+fi
+
+if [ ! -d .git ]; then
+  echo "[hooks] Skipping git hook install (not a git repo)"
+  exit 0
+fi
+
 # Use project-local hooks directory
 git config core.hooksPath .githooks
 

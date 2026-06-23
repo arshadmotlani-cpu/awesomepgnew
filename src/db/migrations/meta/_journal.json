@@ -449,6 +449,13 @@
       "when": 1788400000000,
       "tag": "0066_booking_pending_approval",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1788500000000,
+      "tag": "0067_booking_pending_approval_backfill",
+      "breakpoints": true
     }
   ]
 }

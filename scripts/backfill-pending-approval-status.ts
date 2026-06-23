@@ -1,6 +1,6 @@
 /**
  * One-shot backfill: move bookings with pending UPI proof to pending_approval.
- * Migration 0066 runs the same SQL on deploy; use this for manual verification.
+ * Migration 0066 adds the enum; 0067 backfills rows. Use this for manual verification only.
  *
  *   npx tsx scripts/backfill-pending-approval-status.ts
  */
