@@ -31,10 +31,6 @@
     {
       "path": "/api/cron/financial-reconciliation",
       "schedule": "30 6 * * *"
-    },
-    {
-      "path": "/api/cron/expire-fixed-stays",
-      "schedule": "0 * * * *"
     }
   ]
 }

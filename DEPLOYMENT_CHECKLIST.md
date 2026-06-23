@@ -50,7 +50,7 @@ npx tsx scripts/repair-financials.ts --dry-run     # preview auto-repairs
 npx tsx scripts/repair-financials.ts               # apply safe repairs (append-only ledger)
 ```
 
-After deploy, run **expire-fixed-stays** once so bookings past 11 AM IST checkout complete immediately (hourly cron is the ongoing safety net).
+After deploy, run **expire-fixed-stays** once so bookings past 11 AM IST checkout complete immediately (daily automation cron at 06:00 UTC is the ongoing safety net; manual route remains for backfill).
 
 ## Post-deploy smoke (~10 min)
 

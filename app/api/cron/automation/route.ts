@@ -4,6 +4,7 @@ import {
   detectAutomationEvents,
   processQueuedAutomationActions,
 } from '@/src/services/automationEngine';
+import { processFixedStayAutoExpiryBatch } from '@/src/services/fixedStayAutoExpiry';
 import { processVacatingPastDueDaily } from '@/src/services/vacatingPastDue';
 
 export const dynamic = 'force-dynamic';
@@ -29,6 +30,7 @@ async function handle(req: NextRequest) {
   const detected = await detectAutomationEvents();
   const processed = await processQueuedAutomationActions(100);
   const vacatingPastDue = await processVacatingPastDueDaily();
+  const fixedStayExpiry = await processFixedStayAutoExpiryBatch();
 
   return Response.json({
     ok: true,
@@ -36,6 +38,7 @@ async function handle(req: NextRequest) {
     processed,
     actionItemsSynced: true,
     vacatingPastDue,
+    fixedStayExpiry,
     at: new Date().toISOString(),
   });
 }

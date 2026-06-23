@@ -59,7 +59,7 @@
 | **Severity** | High |
 | **Symptom** | Daily/weekly/fixed_stay bookings stayed `confirmed` indefinitely after checkout date; beds remained occupied; deposit refund never unlocked |
 | **Root cause** | No cron/job for fixed-stay auto-completion at 11 AM IST — only `vacatingPastDue`, `release-holds`, etc. |
-| **Fix** | `fixedStayAutoExpiry.ts` + hourly `/api/cron/expire-fixed-stays`; completes booking, releases bed, creates checkout settlement + `fixed_stay_checkout_due` action item |
+| **Fix** | `fixedStayAutoExpiry.ts` + daily automation cron (06:00 UTC) + manual `/api/cron/expire-fixed-stays`; completes booking, releases bed, creates checkout settlement + `fixed_stay_checkout_due` action item |
 
 ---
 

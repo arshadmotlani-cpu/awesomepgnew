@@ -54,7 +54,7 @@ Full diagram: [[WORKFLOWS#Vacating]]
 
 **Past-due move-outs (2026-06-22):** When vacate date passes, the bed **does not** auto-release for new bookings until checkout settlement completes ([[DECISIONS#Checkout settlements as refund SSOT]]). UI switches to “Move-out overdue” / “checkout pending”; daily cron (`processVacatingPastDueDaily`) upserts high-priority `vacating_alert` action items with settlement deep links.
 
-**Fixed-stay auto-expiry (2026-06-23):** Short stays (`fixed_stay`, `daily`, `weekly`) auto-complete at **11:00 AM IST** on `expected_checkout_date` via hourly cron (`expire-fixed-stays`). Bed is released immediately; checkout settlement opens in `awaiting_resident_details` for deposit refund. System vacating row + `fixed_stay_checkout_due` action item created. See `fixedStayAutoExpiry.ts`.
+**Fixed-stay auto-expiry (2026-06-23):** Short stays (`fixed_stay`, `daily`, `weekly`) auto-complete at **11:00 AM IST** on `expected_checkout_date` via daily automation cron (06:00 UTC ≈ 11:30 IST; manual `/api/cron/expire-fixed-stays` for backfill). Bed is released immediately; checkout settlement opens in `awaiting_resident_details` for deposit refund. System vacating row + `fixed_stay_checkout_due` action item created. See `fixedStayAutoExpiry.ts`.
 
 **Deposit refund unlock (2026-06-23):** Unified unlock via `depositRefundUnlock.ts` — fixed stays unlock after 11 AM checkout; monthly stays after approved vacate date. Resident requests tab shows prominent “Request deposit refund” when unlocked.
 
