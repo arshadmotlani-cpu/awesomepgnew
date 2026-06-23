@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { SimpleAccountHub } from '@/src/components/customer/simple/SimpleAccountHub';
+import { ApplicationStatusTracker } from '@/src/components/customer/account/ApplicationStatusTracker';
 import { DocumentsModule } from '@/src/components/customer/account/v2/DocumentsModule';
 import { ResidentAreaSection } from '@/src/components/customer/account/ResidentAreaSection';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
@@ -76,6 +77,18 @@ export default async function ProfilePage(
         <span className="mx-1">/</span>
         <span aria-current="page">My account</span>
       </nav>
+
+      {!ctx.hasConfirmedBooking && section !== 'identity' ? (
+        <div className="mb-8">
+          <ApplicationStatusTracker
+            profileComplete={ctx.profileComplete}
+            kycStatus={ctx.customer.kycStatus}
+            hasConfirmedBooking={ctx.hasConfirmedBooking}
+            depositPaid={ctx.depositOutstandingPaise === 0 && ctx.depositPaidPaise > 0}
+            isResident={ctx.isActiveStay}
+          />
+        </div>
+      ) : null}
 
       <SimpleAccountHub
         fullName={ctx.customer.fullName}

@@ -8,14 +8,19 @@ import {
   ACCOUNT_PAGE_SUBTITLE,
   ACCOUNT_PAGE_TITLE,
 } from '@/src/components/customer/account/resident/ApplicationBookingsPanel';
+import { ApplicationStatusTracker } from '@/src/components/customer/account/ApplicationStatusTracker';
 import { ACCOUNT_LINK_ON_DARK } from '@/src/components/customer/accountStyles';
 import { residentTabHref } from '@/src/lib/accountNavigation';
+import { loadResidentAccountContext } from '@/src/services/residentAccountContext';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AccountBookingsPage() {
   const session = await requireCustomerSession('/account/bookings');
-  const bookings = await listBookingsForCustomer(session.customerId);
+  const [bookings, ctx] = await Promise.all([
+    listBookingsForCustomer(session.customerId),
+    loadResidentAccountContext(session.customerId),
+  ]);
   const rows = bookings.ok ? bookings.data : [];
   const confirmed = await customerHasConfirmedBooking(session.customerId);
   const hasConfirmedBooking = confirmed.ok && confirmed.data;
@@ -34,6 +39,16 @@ export default async function AccountBookingsPage() {
         </div>
         <LogoutButton scope="customer" tone="dark" />
       </header>
+
+      {ctx ? (
+        <ApplicationStatusTracker
+          profileComplete={ctx.profileComplete}
+          kycStatus={ctx.customer.kycStatus}
+          hasConfirmedBooking={ctx.hasConfirmedBooking}
+          depositPaid={ctx.depositOutstandingPaise === 0 && ctx.depositPaidPaise > 0}
+          isResident={ctx.isActiveStay}
+        />
+      ) : null}
 
       {bookings.ok === false ? (
         <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700 ring-1 ring-inset ring-rose-200">
