@@ -340,7 +340,7 @@ export async function transferOldDepositAdmin(input: {
     .where(eq(bookings.id, input.targetBookingId))
     .limit(1);
   if (!target) return { ok: false, error: 'Target booking not found.' };
-  if (!['pending_payment', 'confirmed'].includes(target.status)) {
+  if (!['pending_payment', 'pending_approval', 'confirmed'].includes(target.status)) {
     return { ok: false, error: 'Deposit transfer is only allowed on active bookings.' };
   }
 
