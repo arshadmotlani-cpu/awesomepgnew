@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, or, isNull } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
   bedReservations,
@@ -17,7 +17,7 @@ import {
   computeBookingRentPaisePaid,
   ensureBookingRentInvoiceForExistingPayment,
 } from '@/src/services/bookingPaymentInvoices';
-import { getInvoiceCommandCenterData } from '@/src/services/invoiceCommandCenter';
+import { getInvoiceCommandCenterData, type InvoiceDailySummary } from '@/src/services/invoiceCommandCenter';
 import { loadResidentAccountContext } from '@/src/services/residentAccountContext';
 import { syncRentInvoiceToUnified } from '@/src/services/unifiedInvoices';
 
@@ -57,7 +57,10 @@ export type BookingRentAuditRow = {
   billingMonth: string;
   residentRentHistoryPaise: number;
   commandCenterRentPaise: number | null;
+  commandCenterTodayRentPaise: number | null;
   commandCenterDate: string | null;
+  commandCenterToday: string | null;
+  commandCenterPaymentDaySummary: InvoiceDailySummary | null;
   checks: {
     q1_rentInvoiceExists: boolean;
     q2_financialInvoiceExists: boolean;
@@ -192,11 +195,19 @@ export async function auditBookingRentInvoice(
     rentHistory.reduce((a, h) => a + h.paidPaise, 0);
 
   let commandCenterRentPaise: number | null = null;
+  let commandCenterTodayRentPaise: number | null = null;
+  let commandCenterPaymentDaySummary: InvoiceDailySummary | null = null;
+  const today = new Date().toISOString().slice(0, 10);
   try {
-    const cc = await getInvoiceCommandCenterData(paymentDate);
-    commandCenterRentPaise = cc.summary.rentCollectedPaise;
+    const ccPaymentDay = await getInvoiceCommandCenterData(paymentDate);
+    commandCenterRentPaise = ccPaymentDay.summary.rentCollectedPaise;
+    commandCenterPaymentDaySummary = ccPaymentDay.summary;
+    const ccToday = await getInvoiceCommandCenterData(today);
+    commandCenterTodayRentPaise = ccToday.summary.rentCollectedPaise;
   } catch {
     commandCenterRentPaise = null;
+    commandCenterTodayRentPaise = null;
+    commandCenterPaymentDaySummary = null;
   }
 
   const linkedRent = succeeded
@@ -240,9 +251,79 @@ export async function auditBookingRentInvoice(
     billingMonth,
     residentRentHistoryPaise,
     commandCenterRentPaise,
+    commandCenterTodayRentPaise,
     commandCenterDate: paymentDate,
+    commandCenterToday: today,
+    commandCenterPaymentDaySummary,
     checks,
   };
+}
+
+async function reconcileRentInvoiceTimestamps(bookingCode: string): Promise<Record<string, unknown>> {
+  const [booking] = await db
+    .select({ id: bookings.id })
+    .from(bookings)
+    .where(eq(bookings.bookingCode, bookingCode))
+    .limit(1);
+  if (!booking) return { bookingCode, error: 'not found' };
+
+  const pays = await db
+    .select({ id: payments.id, paidAt: payments.paidAt })
+    .from(payments)
+    .where(
+      and(
+        eq(payments.bookingId, booking.id),
+        eq(payments.purpose, 'booking'),
+        eq(payments.status, 'succeeded'),
+      ),
+    );
+
+  const fixes: unknown[] = [];
+  for (const pay of pays) {
+    if (!pay.paidAt) continue;
+    const [rentInv] = await db
+      .select({ id: rentInvoices.id, paidAt: rentInvoices.paidAt, paymentId: rentInvoices.paymentId })
+      .from(rentInvoices)
+      .where(
+        and(
+          eq(rentInvoices.bookingId, booking.id),
+          eq(rentInvoices.status, 'paid'),
+          or(eq(rentInvoices.paymentId, pay.id), isNull(rentInvoices.paymentId)),
+        ),
+      )
+      .limit(1);
+    if (!rentInv) continue;
+
+    const paymentDay = pay.paidAt.toISOString().slice(0, 10);
+    const rentPaidDay = rentInv.paidAt?.toISOString().slice(0, 10) ?? null;
+    const needsPaidAt = rentPaidDay !== paymentDay;
+    const needsPaymentLink = rentInv.paymentId !== pay.id;
+
+    if (needsPaidAt || needsPaymentLink) {
+      await db
+        .update(rentInvoices)
+        .set({
+          paidAt: pay.paidAt,
+          paymentId: pay.id,
+          updatedAt: new Date(),
+        })
+        .where(eq(rentInvoices.id, rentInv.id));
+      await syncRentInvoiceToUnified(rentInv.id);
+      fixes.push({
+        rentInvoiceId: rentInv.id,
+        paymentId: pay.id,
+        paymentDay,
+        previousRentPaidDay: rentPaidDay,
+        needsPaidAt,
+        needsPaymentLink,
+      });
+    } else {
+      await syncRentInvoiceToUnified(rentInv.id);
+      fixes.push({ rentInvoiceId: rentInv.id, action: 'sync only' });
+    }
+  }
+
+  return { bookingCode, fixes };
 }
 
 async function repairBookingRentInvoice(bookingCode: string): Promise<Record<string, unknown>> {
@@ -340,23 +421,33 @@ export async function runBookingRentInvoiceAuditRepair(input: {
   const repairResults: unknown[] = [];
   if (input.execute) {
     for (const code of input.bookingCodes) {
-      const needsRepair = auditBefore.find((a) => a.bookingCode === code);
-      if (
-        needsRepair?.payment &&
-        needsRepair.depositHeldPaise > 0 &&
-        !needsRepair.rentInvoiceLinkedToPayment
-      ) {
+      const auditRow = auditBefore.find((a) => a.bookingCode === code);
+      const shouldCreateOrLink =
+        auditRow?.payment &&
+        auditRow.depositHeldPaise > 0 &&
+        (!auditRow.rentInvoiceLinkedToPayment ||
+          !auditRow.financialInvoiceLinked ||
+          (auditRow.allocation?.rentPaise ?? 0) > (auditRow.commandCenterRentPaise ?? 0));
+
+      if (shouldCreateOrLink) {
         repairResults.push(await repairBookingRentInvoice(code));
-      } else if (needsRepair && !needsRepair.financialInvoiceLinked) {
-        for (const ri of needsRepair.rentInvoices) {
-          await syncRentInvoiceToUnified(ri.id);
+      }
+
+      const reconcile = await reconcileRentInvoiceTimestamps(code);
+      if (reconcile.fixes && Array.isArray(reconcile.fixes) && reconcile.fixes.length > 0) {
+        repairResults.push(reconcile);
+      } else if (!shouldCreateOrLink) {
+        if (auditRow && !auditRow.financialInvoiceLinked) {
+          for (const ri of auditRow.rentInvoices) {
+            await syncRentInvoiceToUnified(ri.id);
+          }
+          repairResults.push({ bookingCode: code, action: 'synced financial invoices only' });
+        } else {
+          repairResults.push({
+            bookingCode: code,
+            action: 'skipped — already linked or no payment',
+          });
         }
-        repairResults.push({ bookingCode: code, action: 'synced financial invoices only' });
-      } else {
-        repairResults.push({
-          bookingCode: code,
-          action: 'skipped — already linked or no payment',
-        });
       }
     }
   }

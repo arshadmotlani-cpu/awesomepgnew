@@ -196,19 +196,17 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-24 11:28:41 UTC
+### Pending pre-commit sync · 2026-06-24 11:52:58 UTC
 
-**Areas touched:** [[ROUTES]], [[Bookings]]
+**Areas touched:** [[Bookings]]
 
 **Docs flagged for review:**
 - `CHANGELOG.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
-- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (2):**
-- `app/api/cron/repair-booking-rent-invoices/route.ts`
+**Staged code files (1):**
 - `src/services/bookingRentInvoiceRepair.ts`
 
 **Changed:**
