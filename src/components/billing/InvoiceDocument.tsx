@@ -284,7 +284,7 @@ export function InvoiceDocument({ document: doc, variant = 'admin', className = 
             Allocation
           </h3>
           <dl className="mt-2 space-y-2 text-sm">
-            {doc.bookingPaymentSummary.allocationLines.map((line) => (
+            {(doc.bookingPaymentSummary?.allocationLines ?? []).map((line) => (
               <div key={line.key} className="flex justify-between gap-4">
                 <dt className={muted}>{line.label}</dt>
                 <dd className="tabular-nums">{paiseToInr(line.amountPaise)}</dd>

@@ -70,6 +70,7 @@ export const financialInvoices = pgTable(
     refundedAt: timestamp('refunded_at', { withTimezone: true }),
     cancellationReason: text('cancellation_reason'),
     refundReason: text('refund_reason'),
+    shareToken: text('share_token'),
     notes: text('notes'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -79,6 +80,9 @@ export const financialInvoices = pgTable(
     uniqueIndex('financial_invoices_source_unique')
       .on(t.sourceTable, t.sourceId)
       .where(sql`${t.sourceTable} IS NOT NULL AND ${t.sourceId} IS NOT NULL`),
+    uniqueIndex('financial_invoices_share_token_unique')
+      .on(t.shareToken)
+      .where(sql`${t.shareToken} IS NOT NULL`),
     index('financial_invoices_status_idx').on(t.status, t.createdAt),
     index('financial_invoices_pg_idx').on(t.pgId, t.billingMonth),
     index('financial_invoices_customer_idx').on(t.customerId),

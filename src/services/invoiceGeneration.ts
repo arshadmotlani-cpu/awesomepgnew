@@ -13,6 +13,7 @@ import { nextFinancialInvoiceNumber } from '@/src/lib/billing/invoiceNumbering.s
 import type { ResidentFinancialLineItem, ResidentFinancialSummary } from '@/src/lib/billing/residentFinancialTypes';
 import { getResidentFinancialSummary } from '@/src/services/residentFinancialEngine';
 import { createPaymentLinkForInvoice } from '@/src/services/unifiedInvoices';
+import { createInvoiceShareToken } from '@/src/lib/billing/invoiceShareToken';
 
 export type GenerateInvoiceKind =
   | 'rent'
@@ -214,6 +215,7 @@ export async function generateInvoiceFromSsot(
       dueDate,
       sentAt: new Date(),
       notes: input.notes ?? null,
+      shareToken: createInvoiceShareToken(),
     })
     .returning({ id: financialInvoices.id });
 

@@ -27,6 +27,7 @@ import {
   type ExpressCollectionPaymentMethod,
 } from '@/src/lib/billing/expressCollectionConstants';
 import { revalidateFinancialViews } from '@/src/lib/billing/revalidateFinancialViews';
+import { createInvoiceShareToken } from '@/src/lib/billing/invoiceShareToken';
 import { nextFinancialInvoiceNumber } from '@/src/lib/billing/invoiceNumbering.server';
 import { formatDate, parseDate } from '@/src/lib/dates';
 import { dueDateForMonth, firstOfMonth } from '@/src/services/billing';
@@ -546,6 +547,7 @@ async function recordExpressFinancialCharge(
       billingMonth,
       sentAt: paidAt,
       notes: note,
+      shareToken: createInvoiceShareToken(),
     })
     .returning({ id: financialInvoices.id });
 

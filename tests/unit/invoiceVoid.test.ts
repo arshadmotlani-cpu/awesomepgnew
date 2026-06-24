@@ -31,9 +31,9 @@ test('WhatsApp payload includes public invoice URL', () => {
       lineItems: [{ kind: 'rent', label: 'Rent', subtitle: null, period: null, amountPaise: 500000 }],
       payment: { paymentReference: null, paidAt: null, paymentLinkUrl: null, paymentLinkId: null },
     },
-    'https://awesomepg.in/account/resident/invoices/inv-1',
+    'https://www.awesomepg.in/i/abc123sharetoken',
   );
   assert.match(payload.message, /INV-2026-SHA-0001/);
-  assert.match(payload.message, /https:\/\/awesomepg\.in\/account\/resident\/invoices\/inv-1/);
+  assert.match(payload.message, /https:\/\/www\.awesomepg\.in\/i\/abc123sharetoken/);
   assert.ok(payload.whatsappUrl?.includes('wa.me'));
 });

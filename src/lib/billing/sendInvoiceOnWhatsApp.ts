@@ -3,6 +3,10 @@ import { whatsAppPhoneDigits } from '@/src/lib/kyc/adminWhatsApp';
 import { paiseToInr } from '@/src/lib/format';
 import type { InvoiceDocumentModel } from '@/src/lib/billing/invoiceDocumentModel';
 import { invoiceDetailHref } from '@/src/lib/billing/invoiceRoutes';
+import {
+  ensureInvoiceShareToken,
+  invoicePublicSharePath,
+} from '@/src/lib/billing/invoiceShareToken';
 
 export type InvoiceWhatsAppSendPayload = {
   message: string;
@@ -15,23 +19,36 @@ export function resolveAppBaseUrl(baseUrl?: string): string {
   return getAppUrl();
 }
 
-/** Permanent resident share path — always uses the invoice UUID. */
-export function residentInvoiceSharePath(invoiceId: string): string {
+/**
+ * @deprecated External sharing must use `/i/{shareToken}` — call ensureInvoiceShareToken first.
+ * Kept for legacy redirects only.
+ */
+export function legacyResidentInvoiceSharePath(invoiceId: string): string {
   return `/resident/invoices/${invoiceId.trim()}`;
 }
 
-export function buildInvoicePublicUrl(
+/** Public share path — requires share token, never invoice UUID. */
+export function buildInvoicePublicSharePath(shareToken: string): string {
+  return invoicePublicSharePath(shareToken);
+}
+
+export function buildInvoicePublicUrl(shareToken: string, baseUrl?: string): string {
+  const path = buildInvoicePublicSharePath(shareToken);
+  return baseUrl?.trim()
+    ? `${resolveAppBaseUrl(baseUrl)}${path}`
+    : appAbsoluteUrl(path);
+}
+
+export async function buildInvoicePublicUrlForInvoice(
   invoiceId: string,
-  audience: 'admin' | 'resident',
   baseUrl?: string,
-): string {
-  if (audience === 'resident') {
-    const path = residentInvoiceSharePath(invoiceId);
-    return baseUrl?.trim()
-      ? `${resolveAppBaseUrl(baseUrl)}${path}`
-      : appAbsoluteUrl(path);
-  }
-  const path = invoiceDetailHref(invoiceId, audience);
+): Promise<string> {
+  const shareToken = await ensureInvoiceShareToken(invoiceId);
+  return buildInvoicePublicUrl(shareToken, baseUrl);
+}
+
+export function buildInvoiceAdminUrl(invoiceId: string, baseUrl?: string): string {
+  const path = invoiceDetailHref(invoiceId, 'admin');
   return baseUrl?.trim() ? `${resolveAppBaseUrl(baseUrl)}${path}` : appAbsoluteUrl(path);
 }
 

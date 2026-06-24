@@ -15,7 +15,7 @@ import {
 import { deriveCustomerBedAvailabilityView } from '@/src/lib/bedAvailabilityState';
 import {
   buildInvoicePublicUrl,
-  residentInvoiceSharePath,
+  legacyResidentInvoiceSharePath,
 } from '@/src/lib/billing/sendInvoiceOnWhatsApp';
 import { CANONICAL_PRODUCTION_URL, getAppUrl } from '@/src/lib/url';
 import {
@@ -127,15 +127,16 @@ describe('3 — Vacating past-due and checkout settlement paths', () => {
 });
 
 describe('4 — Invoice sharing deep links', () => {
-  const invoiceId = '550e8400-e29b-41d4-a716-446655440000';
+  const shareToken = 'abc123sharetoken';
 
-  it('residentInvoiceSharePath is stable permanent path', () => {
-    assert.equal(residentInvoiceSharePath(invoiceId), `/resident/invoices/${invoiceId}`);
+  it('legacyResidentInvoiceSharePath redirects to public token URL', () => {
+    const invoiceId = '550e8400-e29b-41d4-a716-446655440000';
+    assert.equal(legacyResidentInvoiceSharePath(invoiceId), `/resident/invoices/${invoiceId}`);
   });
 
-  it('buildInvoicePublicUrl uses public customer base + resident path', () => {
-    const url = buildInvoicePublicUrl(invoiceId, 'resident', 'https://awesomepg.in');
-    assert.equal(url, `https://awesomepg.in/resident/invoices/${invoiceId}`);
+  it('buildInvoicePublicUrl uses /i/{shareToken} only', () => {
+    const url = buildInvoicePublicUrl(shareToken, 'https://awesomepg.in');
+    assert.equal(url, `https://awesomepg.in/i/${shareToken}`);
   });
 
   it('getAppUrl on Vercel production is canonical www', () => {

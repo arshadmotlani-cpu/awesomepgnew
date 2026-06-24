@@ -11,6 +11,7 @@ import { revalidateFinancialViews } from '@/src/lib/billing/revalidateFinancialV
 import { nextFinancialInvoiceNumber } from '@/src/lib/billing/invoiceNumbering.server';
 import { getResidentFinancialSummary } from '@/src/services/residentFinancialEngine';
 import { createPaymentLinkForInvoice } from '@/src/services/unifiedInvoices';
+import { createInvoiceShareToken } from '@/src/lib/billing/invoiceShareToken';
 
 export type CustomChargeKind =
   | 'damage'
@@ -97,6 +98,7 @@ export async function createCustomCharge(
       dueDate,
       sentAt: new Date(),
       notes,
+      shareToken: createInvoiceShareToken(),
     })
     .returning({ id: financialInvoices.id });
 

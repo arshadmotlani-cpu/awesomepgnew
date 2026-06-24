@@ -4,9 +4,11 @@ import {
   isFinancialInvoiceUuid,
 } from '../../src/lib/billing/resolveFinancialInvoiceRef';
 import {
+  buildInvoicePublicSharePath,
   buildInvoicePublicUrl,
-  residentInvoiceSharePath,
+  legacyResidentInvoiceSharePath,
 } from '../../src/lib/billing/sendInvoiceOnWhatsApp';
+import { invoicePublicSharePath } from '../../src/lib/billing/invoiceShareToken';
 import { invoiceDetailHref } from '../../src/lib/billing/invoiceRoutes';
 import { safeNext } from '../../src/lib/auth/safeNext';
 import { CANONICAL_PRODUCTION_URL, getAppUrl } from '../../src/lib/url';
@@ -22,29 +24,35 @@ test('isFinancialInvoiceUuid rejects invoice numbers', () => {
   assert.equal(isFinancialInvoiceUuid('INV-2026-AMB-0142'), false);
 });
 
-test('buildInvoicePublicUrl resident share always uses invoice uuid', () => {
-  const id = '550e8400-e29b-41d4-a716-446655440000';
-  const url = buildInvoicePublicUrl(id, 'resident', CANONICAL_PRODUCTION_URL);
-  assert.equal(url, `${CANONICAL_PRODUCTION_URL}/resident/invoices/${id}`);
+test('buildInvoicePublicUrl uses /i/{shareToken} only', () => {
+  const token = 'abc123sharetoken';
+  const url = buildInvoicePublicUrl(token, CANONICAL_PRODUCTION_URL);
+  assert.equal(url, `${CANONICAL_PRODUCTION_URL}/i/${token}`);
 });
 
-test('residentInvoiceSharePath is stable permanent path', () => {
-  const id = '550e8400-e29b-41d4-a716-446655440000';
-  assert.equal(residentInvoiceSharePath(id), `/resident/invoices/${id}`);
+test('invoicePublicSharePath never exposes invoice uuid', () => {
+  const token = 'abc123sharetoken';
+  assert.equal(invoicePublicSharePath(token), `/i/${token}`);
+  assert.equal(buildInvoicePublicSharePath(token), `/i/${token}`);
 });
 
-test('safeNext preserves resident invoice deep link', () => {
+test('legacy resident path kept for redirects only', () => {
+  const id = '550e8400-e29b-41d4-a716-446655440000';
+  assert.equal(legacyResidentInvoiceSharePath(id), `/resident/invoices/${id}`);
+});
+
+test('safeNext preserves public invoice share path', () => {
+  const path = '/i/abc123sharetoken';
+  assert.equal(safeNext(path), path);
+});
+
+test('safeNext preserves legacy resident invoice redirect alias', () => {
   const path = '/resident/invoices/550e8400-e29b-41d4-a716-446655440000';
   assert.equal(safeNext(path), path);
 });
 
-test('safeNext preserves legacy account invoice deep link', () => {
+test('safeNext preserves account invoice path', () => {
   const path = '/account/resident/invoices/550e8400-e29b-41d4-a716-446655440000';
-  assert.equal(safeNext(path), path);
-});
-
-test('safeNext preserves share alias with invoice number', () => {
-  const path = '/resident/invoices/INV-2026-AMB-0142';
   assert.equal(safeNext(path), path);
 });
 

@@ -10,7 +10,7 @@ import {
 } from '@/src/services/unifiedInvoices';
 import { getInvoiceDocumentDetail } from '@/src/lib/billing/invoiceDocumentModel';
 import {
-  buildInvoicePublicUrl,
+  buildInvoicePublicUrlForInvoice,
   buildInvoiceWhatsAppSendPayload,
 } from '@/src/lib/billing/sendInvoiceOnWhatsApp';
 import { voidInvoiceCompletely } from '@/src/services/invoiceVoid';
@@ -180,7 +180,7 @@ export async function invoiceWhatsAppAction(
       }
     }
 
-    const publicInvoiceUrl = buildInvoicePublicUrl(invoiceId, 'resident');
+    const publicInvoiceUrl = await buildInvoicePublicUrlForInvoice(invoiceId);
     const payload = buildInvoiceWhatsAppSendPayload(detail, publicInvoiceUrl);
 
     if (!payload.whatsappUrl) {

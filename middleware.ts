@@ -10,7 +10,6 @@ function needsCustomerAuth(pathname: string): boolean {
   if (pathname === '/booking/new') return true;
   if (pathname.startsWith('/booking/')) return true;
   if (pathname.startsWith('/account/')) return true;
-  if (pathname.startsWith('/resident/invoices/')) return true;
   return false;
 }
 

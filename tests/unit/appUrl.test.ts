@@ -68,13 +68,10 @@ test('getAppUrl returns localhost in development', () => {
   );
 });
 
-test('appAbsoluteUrl builds invoice share path on production', () => {
+test('appAbsoluteUrl builds public invoice share path on production', () => {
   withEnv({ VERCEL_ENV: 'production' }, () => {
-    const url = appAbsoluteUrl('/resident/invoices/550e8400-e29b-41d4-a716-446655440000');
-    assert.equal(
-      url,
-      `${CANONICAL_PRODUCTION_URL}/resident/invoices/550e8400-e29b-41d4-a716-446655440000`,
-    );
+    const url = appAbsoluteUrl('/i/abc123sharetoken');
+    assert.equal(url, `${CANONICAL_PRODUCTION_URL}/i/abc123sharetoken`);
   });
 });
 

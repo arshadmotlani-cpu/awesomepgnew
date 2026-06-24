@@ -17,6 +17,7 @@ import {
 } from '@/src/services/financialIntegrityAudit';
 import { getResidentFinancialSummary } from '@/src/services/residentFinancialEngine';
 import { createPaymentLinkForInvoice } from '@/src/services/unifiedInvoices';
+import { createInvoiceShareToken } from '@/src/lib/billing/invoiceShareToken';
 
 export type RepairAction = {
   checkType: string;
@@ -208,6 +209,7 @@ async function repairDepositShortfallNotInvoiced(
       dueDate: formatDate(new Date()),
       sentAt: new Date(),
       notes: `${label} — auto-created by financial audit repair`,
+      shareToken: createInvoiceShareToken(),
     })
     .returning({ id: financialInvoices.id });
 

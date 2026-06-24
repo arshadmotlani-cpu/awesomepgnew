@@ -10,7 +10,7 @@ import {
   checkResidentInvoiceAccess,
   logResidentInvoiceAccess,
 } from '@/src/lib/billing/residentInvoiceAccess';
-import { residentInvoiceSharePath } from '@/src/lib/billing/sendInvoiceOnWhatsApp';
+import { legacyResidentInvoiceSharePath } from '@/src/lib/billing/sendInvoiceOnWhatsApp';
 import { getCustomerSession } from '@/src/lib/auth/session';
 import { residentTabHref } from '@/src/lib/accountNavigation';
 import {
@@ -31,7 +31,7 @@ export async function ResidentInvoiceDetailView({ ref }: { ref: string }) {
       access.reason === 'unauthorized_must_set_password'
     ) {
       const sharePath = access.invoiceId
-        ? residentInvoiceSharePath(access.invoiceId)
+        ? legacyResidentInvoiceSharePath(access.invoiceId)
         : `/resident/invoices/${ref.trim()}`;
       if (access.reason === 'unauthorized_must_set_password') {
         redirect(`/account/set-password?next=${encodeURIComponent(sharePath)}`);
@@ -45,7 +45,7 @@ export async function ResidentInvoiceDetailView({ ref }: { ref: string }) {
   logResidentInvoiceAccess(access, { route: '/resident/invoices/[ref]' });
 
   const invoiceId = access.invoiceId;
-  const sharePath = residentInvoiceSharePath(invoiceId);
+  const sharePath = legacyResidentInvoiceSharePath(invoiceId);
 
   const normalizedRef = ref.trim();
   const resolved = await resolveFinancialInvoiceRef(ref);

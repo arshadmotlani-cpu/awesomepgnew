@@ -23,6 +23,7 @@ import {
 import type { FinancialInvoice, InvoiceBreakdown } from '@/src/db/schema/financialInvoices';
 import type { FinancialInvoiceStatus, FinancialInvoiceType } from '@/src/db/schema/enums';
 import { createPaymentLink } from '@/src/services/paymentLinks';
+import { createInvoiceShareToken } from '@/src/lib/billing/invoiceShareToken';
 import { buildInvoiceWhatsAppUrl } from '@/src/lib/billing/invoiceWhatsApp';
 import { nextFinancialInvoiceNumber } from '@/src/lib/billing/invoiceNumbering.server';
 import { formatDate } from '@/src/lib/dates';
@@ -185,6 +186,7 @@ export async function syncRentInvoiceToUnified(rentInvoiceId: string): Promise<s
       cancelledAt: ri.cancelledAt,
       cancellationReason: ri.cancellationReason,
       notes: ri.notes,
+      shareToken: createInvoiceShareToken(),
     })
     .returning({ id: financialInvoices.id });
 
@@ -348,6 +350,7 @@ export async function ensureExpressWalkInDepositFinancialInvoice(
       paidAt: new Date(),
       sentAt: new Date(),
       notes: ctx.notes,
+      shareToken: createInvoiceShareToken(),
     })
     .returning({ id: financialInvoices.id });
 
@@ -456,6 +459,7 @@ export async function syncElectricityInvoiceToUnified(
       paidAt: ei.paidAt,
       sentAt: ei.createdAt,
       cancelledAt: ei.cancelledAt,
+      shareToken: createInvoiceShareToken(),
     })
     .returning({ id: financialInvoices.id });
 
