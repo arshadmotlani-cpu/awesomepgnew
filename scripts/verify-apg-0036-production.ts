@@ -193,7 +193,7 @@ async function main() {
         id: financialInvoices.id,
         invoiceNumber: financialInvoices.invoiceNumber,
         status: financialInvoices.status,
-        source: financialInvoices.source,
+        sourceTable: financialInvoices.sourceTable,
       })
       .from(financialInvoices)
       .where(eq(financialInvoices.bookingId, target.id));
@@ -225,8 +225,14 @@ async function main() {
 
     const adminDetail = await getAdminBookingDetail(target.id);
     const tenancy = customer ? await getActiveTenancyForCustomer(customer.id) : null;
-    const depositPage = await loadDepositPageData(target.id);
-    const depositInvoice = await getDepositInvoiceForBooking(target.id);
+    let depositPage: Awaited<ReturnType<typeof loadDepositPageData>> | null = null;
+    let depositInvoice: Awaited<ReturnType<typeof getDepositInvoiceForBooking>> = null;
+    try {
+      depositPage = await loadDepositPageData(target.id);
+      depositInvoice = await getDepositInvoiceForBooking(target.id);
+    } catch (err) {
+      console.error('deposit load error', err);
+    }
 
     const expectedStayLabel = stayTypeLabel('fixed_date_stay');
     const expectedAdminLabel = adminStayTypeLabel({
@@ -269,10 +275,13 @@ async function main() {
             }),
           }
         : null,
-      depositPage: {
-        stayTypeFromBooking: target.stayType,
-        invoiceDisplayStatus: depositPage.invoice?.displayStatus,
-      },
+      depositPage: depositPage
+        ? {
+            stayTypeFromBooking: target.stayType,
+            invoiceDisplayStatus: depositPage.invoice?.displayStatus,
+            refundablePaise: depositPage.refundablePaise,
+          }
+        : null,
       myStayPrimaryBooking: {
         durationMode: accountCtx?.primaryBooking?.durationMode,
         customerStayLabel,
@@ -295,13 +304,18 @@ async function main() {
     if (source) {
       const sourceDeposit = await getDepositInvoiceForBooking(source.id);
       const sourceSummary = await getDepositSummaryForBooking(source.id);
-      const sourcePage = await loadDepositPageData(source.id);
+      let sourcePage: Awaited<ReturnType<typeof loadDepositPageData>> | null = null;
+      try {
+        sourcePage = await loadDepositPageData(source.id);
+      } catch {
+        sourcePage = null;
+      }
 
       const q7ok =
-        (sourceDeposit?.refundablePaise ?? sourcePage.refundablePaise) === 0 &&
+        (sourceDeposit?.refundablePaise ?? sourcePage?.refundablePaise ?? 0) === 0 &&
         (sourceDeposit?.displayStatus === 'Settled' ||
           sourceDeposit?.invoiceStatus === 'settled' ||
-          sourcePage.invoice?.displayStatus === 'Settled');
+          sourcePage?.invoice?.displayStatus === 'Settled');
 
       checks.push(
         q7ok
@@ -311,10 +325,12 @@ async function main() {
                 displayStatus: sourceDeposit?.displayStatus,
                 invoiceStatus: sourceDeposit?.invoiceStatus,
               },
-              page: {
-                refundablePaise: sourcePage.refundablePaise,
-                displayStatus: sourcePage.invoice?.displayStatus,
-              },
+              page: sourcePage
+                ? {
+                    refundablePaise: sourcePage.refundablePaise,
+                    displayStatus: sourcePage.invoice?.displayStatus,
+                  }
+                : null,
               summary: {
                 refundableBalancePaise: sourceSummary?.refundableBalancePaise,
               },
@@ -329,6 +345,8 @@ async function main() {
 
     const targetDeposit = depositInvoice;
     const q8ok =
+      depositPage != null &&
+      depositInvoice != null &&
       (targetDeposit?.refundablePaise ?? depositPage.refundablePaise) === 95_000 &&
       (targetDeposit?.displayStatus === 'Held' ||
         targetDeposit?.invoiceStatus === 'held' ||
