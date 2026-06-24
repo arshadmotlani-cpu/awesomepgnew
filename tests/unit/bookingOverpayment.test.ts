@@ -38,21 +38,23 @@ describe('booking overpayment', () => {
     assert.equal(excess, 10_000);
   });
 
-  it('computeBookingCheckoutOverpaymentPaise subtracts prior outstanding applied', () => {
+  it('computeBookingCheckoutOverpaymentPaise accounts for prior outstanding in snapshot', () => {
     const excess = computeBookingCheckoutOverpaymentPaise({
       booking: {
-        ...BOOKING,
-        totalPaise: 200_000,
+        subtotalPaise: 190_000,
+        discountPaise: 0,
+        depositPaise: 95_000,
+        totalPaise: 268_500,
         pricingSnapshot: {
+          depositCredit: { appliedPaise: 33_000, adminTransferred: true },
           priorOutstanding: {
-            totalPaise: 50_000,
-            items: [{ label: 'Prior deposit', amountPaise: 50_000, kind: 'deposit' }],
+            totalPaise: 16_500,
+            items: [{ label: 'Deposit due', amountPaise: 16_500, kind: 'deposit' }],
           },
         },
       },
-      amountPaise: 210_000,
-      priorOutstandingAppliedPaise: 50_000,
+      amountPaise: 268_500,
     });
-    assert.equal(excess, 10_000);
+    assert.equal(excess, 0);
   });
 });

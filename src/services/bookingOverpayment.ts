@@ -42,8 +42,17 @@ export function computeBookingCheckoutOverpaymentPaise(input: {
     input.amountPaise - (input.membershipAmountPaise ?? 0),
   );
   const split = splitBookingPayment(input.booking, bookingPaymentPaise);
-  const allocated =
-    split.rentPaisePaid + split.depositPaisePaid + (input.priorOutstandingAppliedPaise ?? 0);
+  const priorOutstandingPaise = Math.max(
+    0,
+    input.booking.pricingSnapshot?.priorOutstanding?.totalPaise ?? 0,
+  );
+  const priorAllocatedPaise =
+    input.priorOutstandingAppliedPaise ??
+    Math.min(
+      priorOutstandingPaise,
+      Math.max(0, bookingPaymentPaise - split.rentPaisePaid - split.depositPaisePaid),
+    );
+  const allocated = split.rentPaisePaid + split.depositPaisePaid + priorAllocatedPaise;
   return Math.max(0, bookingPaymentPaise - allocated);
 }
 
