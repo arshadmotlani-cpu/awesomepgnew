@@ -67,6 +67,7 @@ import {
   isRentInvoicePaymentLocked,
   logInvoiceStateTransition,
   guardRentStatusTransition,
+  type InvoiceTransitionSource,
 } from '@/src/lib/billing/invoiceStateMachine';
 import {
   isProductionBookingFilter,
@@ -898,7 +899,7 @@ export async function markRentInvoicePaidFromExistingPayment(input: {
   paymentId: string;
   principalPaise: number;
   paidAt?: Date;
-  source?: string;
+  source?: InvoiceTransitionSource;
   meta?: Record<string, unknown>;
 }): Promise<
   | { ok: true; invoiceId: string; stateChanged: boolean }
@@ -970,7 +971,7 @@ export async function markRentInvoicePaidFromExistingPayment(input: {
       layer: 'rent',
       previousStatus: invoice.status,
       newStatus: 'paid',
-      source: input.source ?? 'booking_payment',
+      source: input.source ?? 'webhook',
       meta: { paymentId: input.paymentId, ...input.meta },
     });
   }

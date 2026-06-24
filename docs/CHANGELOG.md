@@ -196,26 +196,18 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-24 09:55:58 UTC
+### Pending pre-commit sync · 2026-06-24 10:03:11 UTC
 
-**Areas touched:** [[ROUTES]], [[Billing]], [[Bookings]]
+**Areas touched:** [[Bookings]], [[Billing]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
-- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (9):**
-- `app/(customer)/booking/new/page.tsx`
-- `app/(customer)/dev/booking-funnel-ui/page.tsx`
-- `app/(customer)/pgs/[pgSlug]/page.tsx`
-- `app/(customer)/pgs/[pgSlug]/rooms/[roomId]/page.tsx`
-- `app/page.tsx`
-- `src/lib/billing/invoiceOnlyFinancials.ts`
-- `src/services/bookingLifecycle.ts`
+**Staged code files (2):**
 - `src/services/bookingPaymentInvoices.ts`
 - `src/services/rentInvoices.ts`
 

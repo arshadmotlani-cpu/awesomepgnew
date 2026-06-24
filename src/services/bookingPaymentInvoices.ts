@@ -20,7 +20,8 @@ import {
   stayExtensions,
 } from '@/src/db/schema';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
-import { firstOfMonth, formatDate } from '@/src/lib/dates';
+import { formatDate } from '@/src/lib/dates';
+import { firstOfMonth } from '@/src/services/billing';
 import { splitBookingPayment } from '@/src/services/depositCollection';
 import {
   createAdhocRentInvoice,
@@ -162,7 +163,7 @@ export async function applyBookingRentInvoiceOnPaymentSuccess(input: {
     paymentId: input.paymentId,
     principalPaise: rentPaisePaid,
     paidAt: input.paidAt,
-    source: input.source ?? 'webhook',
+    source: input.source === 'backfill' ? 'system' : 'webhook',
     meta: {
       bookingCode: input.booking.bookingCode,
       providerPaymentId: input.providerPaymentId,
@@ -234,7 +235,7 @@ export async function applyExtensionRentInvoiceOnPaymentSuccess(input: {
     paymentId: input.paymentId,
     principalPaise: input.amountPaise,
     paidAt: input.paidAt,
-    source: input.source ?? 'webhook',
+    source: input.source === 'backfill' ? 'system' : 'webhook',
     meta: { extensionId: input.extensionId },
   });
 
@@ -297,7 +298,7 @@ export async function ensureBookingRentInvoiceForExistingPayment(
       booking,
       paymentId: payment.id,
       paymentAmountPaise: payment.amountPaise,
-      providerPaymentId: payment.providerPaymentId,
+      providerPaymentId: payment.providerPaymentId ?? payment.id,
       paidAt: payment.paidAt ?? undefined,
       source: 'backfill',
     });
