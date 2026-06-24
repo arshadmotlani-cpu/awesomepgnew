@@ -183,12 +183,35 @@ export function PaymentExplanationBlock({
                 {paiseToInr(explanation.afterApproval.rentCollectedPaise)}
               </dd>
             </div>
+            {explanation.afterApproval.depositTransferredPaise > 0 ? (
+              <div className="flex justify-between gap-3">
+                <dt className="text-apg-silver">
+                  Deposit transferred
+                  {explanation.afterApproval.depositTransferSourceBookingCode ? (
+                    <span className="mt-0.5 block text-xs font-normal text-apg-silver/80">
+                      from {explanation.afterApproval.depositTransferSourceBookingCode}
+                    </span>
+                  ) : null}
+                </dt>
+                <dd className="font-medium tabular-nums text-sky-300">
+                  {paiseToInr(explanation.afterApproval.depositTransferredPaise)}
+                </dd>
+              </div>
+            ) : null}
             <div className="flex justify-between gap-3">
-              <dt className="text-apg-silver">Deposit collected</dt>
+              <dt className="text-apg-silver">Deposit paid now</dt>
               <dd className="font-medium tabular-nums text-white">
                 {paiseToInr(explanation.afterApproval.depositCollectedPaise)}
               </dd>
             </div>
+            {explanation.afterApproval.totalDepositHeldPaise > 0 ? (
+              <div className="flex justify-between gap-3 rounded-lg bg-white/5 px-2 py-1.5">
+                <dt className="font-medium text-white">Total deposit held</dt>
+                <dd className="font-semibold tabular-nums text-emerald-300">
+                  {paiseToInr(explanation.afterApproval.totalDepositHeldPaise)}
+                </dd>
+              </div>
+            ) : null}
             {explanation.afterApproval.previousBalanceCollectedPaise > 0 ? (
               <div className="flex justify-between gap-3">
                 <dt className="text-apg-silver">Previous balance collected</dt>

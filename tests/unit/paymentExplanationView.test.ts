@@ -44,19 +44,19 @@ describe('buildBookingPaymentExplanation', () => {
     assert.equal(view.newBookingLines[0]?.label, 'Rent for stay');
     assert.equal(view.newBookingLines[0]?.amountPaise, 190_000);
 
-    assert.equal(view.depositCalculationLines[0]?.label, 'Deposit required for booking');
+    assert.equal(view.depositCalculationLines[0]?.label, 'Deposit required');
     assert.equal(view.depositCalculationLines[0]?.amountPaise, 95_000);
-    assert.equal(view.depositCalculationLines[1]?.label, 'Less refundable deposit available');
+    assert.equal(view.depositCalculationLines[1]?.label, 'Deposit transferred');
     assert.equal(view.depositCalculationLines[1]?.amountPaise, 33_000);
     assert.equal(view.depositCalculationLines[1]?.bookingCode, 'APG-2026-0032');
-    assert.equal(view.depositCalculationLines[2]?.label, 'Deposit due now');
+    assert.equal(view.depositCalculationLines[2]?.label, 'Deposit paid now');
     assert.equal(view.depositCalculationLines[2]?.amountPaise, 62_000);
-    assert.equal(view.depositCalculationLines[3]?.label, 'Outstanding balance from previous booking');
-    assert.equal(view.depositCalculationLines[3]?.amountPaise, 16_500);
+    assert.equal(view.depositCalculationLines[3]?.label, 'Total deposit held');
+    assert.equal(view.depositCalculationLines[3]?.amountPaise, 95_000);
 
     assert.deepEqual(
       view.calculationLines.map((line) => line.label),
-      ['Rent', 'Deposit due now', 'Previous outstanding'],
+      ['Rent', 'Deposit paid now', 'Previous outstanding'],
     );
     assert.equal(view.calculationLines[0]?.amountPaise, 190_000);
     assert.equal(view.calculationLines[1]?.amountPaise, 62_000);
@@ -70,12 +70,12 @@ describe('buildBookingPaymentExplanation', () => {
     assert.equal(view.totalExpectedPaise, 268_500);
     assert.equal(view.resultLabel, '✓ Fully settled');
 
-    assert.equal(view.netDepositPosition?.refundableDepositsPaise, 33_000);
-    assert.equal(view.netDepositPosition?.outstandingDepositsPaise, 16_500);
-    assert.equal(view.netDepositPosition?.netLabel, '+₹165 refundable');
-
+    assert.equal(view.netDepositPosition, null);
     assert.equal(view.afterApproval?.rentCollectedPaise, 190_000);
     assert.equal(view.afterApproval?.depositCollectedPaise, 62_000);
+    assert.equal(view.afterApproval?.depositTransferredPaise, 33_000);
+    assert.equal(view.afterApproval?.depositTransferSourceBookingCode, 'APG-2026-0032');
+    assert.equal(view.afterApproval?.totalDepositHeldPaise, 95_000);
     assert.equal(view.afterApproval?.previousBalanceCollectedPaise, 16_500);
     assert.equal(view.financialTrace.length, 2);
   });
@@ -104,7 +104,7 @@ describe('buildBookingPaymentExplanation', () => {
       view.calculationLines.map((line) => [line.label, line.amountPaise]),
       [
         ['Rent', 190_000],
-        ['Deposit due now', 95_000],
+        ['Deposit paid now', 95_000],
       ],
     );
     assert.equal(

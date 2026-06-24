@@ -6,7 +6,7 @@
     "dev": "tsx src/db/startupMigrationGate.ts && next dev",
     "db:status": "tsx src/db/migrationStatus.ts",
     "build": "next build",
-    "vercel-build": "npm run db:migrate && next build",
+    "vercel-build": "npm run db:migrate && bash scripts/vercel-build-repair.sh && next build",
     "start": "next start",
     "lint": "eslint",
     "db:generate": "drizzle-kit generate",

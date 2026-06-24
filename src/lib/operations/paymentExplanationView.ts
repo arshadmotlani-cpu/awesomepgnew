@@ -28,7 +28,13 @@ export type PaymentFinancialTraceEntry = {
 
 export type PaymentAfterApprovalPreview = {
   rentCollectedPaise: number;
+  /** Cash deposit portion from this payment. */
   depositCollectedPaise: number;
+  /** Admin-transferred deposit credit applied to this booking. */
+  depositTransferredPaise: number;
+  depositTransferSourceBookingCode?: string | null;
+  /** Cash + transferred deposit credited to this booking. */
+  totalDepositHeldPaise: number;
   previousBalanceCollectedPaise: number;
   remainingDepositLiabilityPaise: number;
   remainingDepositLiabilitySource?: string;
@@ -180,7 +186,7 @@ export function buildBookingPaymentExplanation(input: {
   const depositCalculationLines: PaymentExplanationLine[] = [
     {
       key: 'deposit-required',
-      label: 'Deposit required for booking',
+      label: 'Deposit required',
       amountPaise: requiredDepositPaise,
     },
   ];
@@ -188,27 +194,25 @@ export function buildBookingPaymentExplanation(input: {
   if (depositCreditAppliedPaise > 0) {
     depositCalculationLines.push({
       key: 'deposit-credit',
-      label: 'Less refundable deposit available',
+      label: 'Deposit transferred',
       amountPaise: depositCreditAppliedPaise,
       bookingCode: depositCreditSourceBookingCode,
-      amountPrefix: '−',
-      isDeduction: true,
     });
-  }
-
-  depositCalculationLines.push({
-    key: 'deposit-due-now',
-    label: 'Deposit due now',
-    amountPaise: depositCashDuePaise,
-  });
-
-  for (const item of priorOutstandingItems.filter((row) => row.kind === 'deposit')) {
     depositCalculationLines.push({
-      key: `prior-deposit-${item.bookingId ?? item.bookingCode ?? item.label}`,
-      label: 'Outstanding balance from previous booking',
-      amountPaise: item.amountPaise,
-      bookingCode: item.bookingCode,
-      amountPrefix: '+',
+      key: 'deposit-due-now',
+      label: 'Deposit paid now',
+      amountPaise: depositCashDuePaise,
+    });
+    depositCalculationLines.push({
+      key: 'deposit-held-total',
+      label: 'Total deposit held',
+      amountPaise: requiredDepositPaise,
+    });
+  } else {
+    depositCalculationLines.push({
+      key: 'deposit-due-now',
+      label: 'Deposit paid now',
+      amountPaise: depositCashDuePaise,
     });
   }
 
@@ -220,7 +224,7 @@ export function buildBookingPaymentExplanation(input: {
     },
     {
       key: 'deposit-due-now',
-      label: 'Deposit due now',
+      label: 'Deposit paid now',
       amountPaise: depositCashDuePaise,
     },
   ];
@@ -240,19 +244,12 @@ export function buildBookingPaymentExplanation(input: {
     Math.max(0, received - review.rentPaisePaid - review.depositPaisePaid),
   );
 
-  const refundableStillHeld = priorBookingDeposits.filter(
-    (d) => d.refundablePaise > 0 && d.status === 'pending_refund',
+  const remainingDepositLiabilityPaise = review.depositDuePaise;
+
+  const residentBalanceDuePaise = Math.max(
+    0,
+    review.depositDuePaise + (review.bookingTotalDuePaise - received),
   );
-  const primaryRefundable = refundableStillHeld.sort((a, b) => b.refundablePaise - a.refundablePaise)[0];
-
-  const remainingDepositLiabilityPaise =
-    review.depositDuePaise > 0
-      ? review.depositDuePaise
-      : primaryRefundable?.refundablePaise ?? 0;
-
-  const residentBalanceDuePaise =
-    review.depositDuePaise +
-    Math.max(0, review.bookingTotalDuePaise - received);
 
   let resultLabel: string;
   let resultTone: PaymentExplanationView['resultTone'];
@@ -314,10 +311,12 @@ export function buildBookingPaymentExplanation(input: {
     newBookingLines,
     depositCalculationLines,
     netDepositPosition:
-      netDepositPosition.refundableDepositsPaise > 0 ||
-      netDepositPosition.outstandingDepositsPaise > 0
-        ? netDepositPosition
-        : null,
+      depositCreditAppliedPaise > 0
+        ? null
+        : netDepositPosition.refundableDepositsPaise > 0 ||
+            netDepositPosition.outstandingDepositsPaise > 0
+          ? netDepositPosition
+          : null,
     calculationLines,
     totalExpectedPaise: review.bookingTotalDuePaise,
     customerPaidPaise: received,
@@ -326,14 +325,13 @@ export function buildBookingPaymentExplanation(input: {
     afterApproval: {
       rentCollectedPaise: review.rentPaisePaid,
       depositCollectedPaise: review.depositPaisePaid,
+      depositTransferredPaise: depositCreditAppliedPaise,
+      depositTransferSourceBookingCode: depositCreditSourceBookingCode,
+      totalDepositHeldPaise: review.depositPaisePaid + depositCreditAppliedPaise,
       previousBalanceCollectedPaise: priorBalanceCollectedPaise,
       remainingDepositLiabilityPaise,
       remainingDepositLiabilitySource:
-        review.depositDuePaise > 0
-          ? 'This booking'
-          : primaryRefundable?.bookingCode
-            ? `refundable from ${primaryRefundable.bookingCode}`
-            : undefined,
+        review.depositDuePaise > 0 ? 'This booking' : undefined,
       residentBalanceDuePaise,
     },
     financialTrace,

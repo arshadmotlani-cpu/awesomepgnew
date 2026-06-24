@@ -196,29 +196,17 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-23 22:47:42 UTC
+### Pending pre-commit sync · 2026-06-24 07:05:49 UTC
 
-**Areas touched:** [[ROUTES]], [[Bookings]], [[Electricity]], [[Billing]], [[Vacating]]
+**Areas touched:** [[ROUTES]]
 
 **Docs flagged for review:**
-- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DECISIONS.md` — review for accuracy
-- `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
-- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (9):**
-- `app/(admin)/admin/deposits/[bookingId]/actions.ts`
-- `app/(admin)/admin/deposits/[bookingId]/settlementActions.ts`
-- `app/(admin)/admin/quick-actions/actions.ts`
-- `src/services/bookingLifecycle.ts`
-- `src/services/electricityBilling.ts`
-- `src/services/rentInvoices.ts`
-- `src/services/unifiedInvoices.ts`
-- `src/services/vacating.ts`
-- `src/services/vacatingCheckoutBilling.ts`
+**Staged code files (1):**
+- `app/api/cron/repair-apg-2026-0036/route.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed
