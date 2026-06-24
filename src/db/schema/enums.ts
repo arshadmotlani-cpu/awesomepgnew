@@ -310,6 +310,29 @@ export const adminNotificationStateEnum = pgEnum('admin_notification_state', [
   'archived',
 ]);
 
+export const unresolvedActionTypeEnum = pgEnum('unresolved_action_type', [
+  'kyc_review',
+  'payment_proof_review',
+  'bed_assignment',
+  'move_out_approval',
+  'checkout_settlement',
+  'deposit_refund_approval',
+  'invoice_review',
+  'room_transfer_approval',
+  'maintenance_approval',
+]);
+
+export const unresolvedActionStatusEnum = pgEnum('unresolved_action_status', [
+  'OPEN',
+  'CLOSED',
+]);
+
+export const unresolvedActionPriorityEnum = pgEnum('unresolved_action_priority', [
+  'low',
+  'medium',
+  'high',
+]);
+
 export type ActionItemType = (typeof actionItemTypeEnum.enumValues)[number];
 export type ActionItemStatus = (typeof actionItemStatusEnum.enumValues)[number];
 export type ActionItemPriority = (typeof actionItemPriorityEnum.enumValues)[number];
@@ -318,3 +341,6 @@ export type PaymentLinkPurpose = (typeof paymentLinkPurposeEnum.enumValues)[numb
 export type PaymentLinkStatus = (typeof paymentLinkStatusEnum.enumValues)[number];
 export type FinancialInvoiceType = (typeof financialInvoiceTypeEnum.enumValues)[number];
 export type FinancialInvoiceStatus = (typeof financialInvoiceStatusEnum.enumValues)[number];
+export type UnresolvedActionType = (typeof unresolvedActionTypeEnum.enumValues)[number];
+export type UnresolvedActionStatus = (typeof unresolvedActionStatusEnum.enumValues)[number];
+export type UnresolvedActionPriority = (typeof unresolvedActionPriorityEnum.enumValues)[number];

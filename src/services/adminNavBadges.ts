@@ -1,46 +1,38 @@
 import type { AdminSession } from '@/src/lib/auth/session';
 import type { AdminModule } from '@/src/lib/admin/navigation';
 import {
-  listUnreadNotificationTypesForBadges,
-  type AdminNotificationRow,
-} from '@/src/services/adminNotifications';
+  getOpenActionsCount,
+  type UnresolvedBadgeBucket,
+} from '@/src/services/unresolvedActions';
 
-export type AdminNavBadges = Partial<Record<AdminModule | 'deposits' | 'notifications', number>>;
+/** Sidebar badge keys — all module counts from unresolved_actions SSOT. */
+export type AdminNavBadges = Partial<
+  Record<AdminModule | 'payments' | 'notifications', number>
+>;
 
-export const TYPE_TO_MODULE: Record<AdminNotificationRow['type'], AdminModule | 'deposits'> = {
-  kyc_pending: 'kyc',
-  rent_due: 'revenue',
-  electricity_due: 'revenue',
-  payment_received: 'operations',
-  vacating_alert: 'operations',
-  extension_request: 'operations',
-  maintenance_issue: 'operations',
-  refund_pending: 'deposits',
-  deposit_refund_request: 'deposits',
-  deposit_collection_due: 'deposits',
-  fixed_stay_checkout_due: 'operations',
-  refund_request_submitted: 'deposits',
+const BUCKET_TO_NAV: Record<UnresolvedBadgeBucket, keyof AdminNavBadges> = {
+  operations: 'operations',
+  payments: 'payments',
+  kyc: 'kyc',
+  checkout: 'checkoutSettlements',
 };
 
-/** Sidebar badges — unread notifications only (WhatsApp-style). */
+/** Sidebar badges — open unresolved_actions only (notifications bell is separate). */
 export async function loadAdminNavBadges(session: AdminSession): Promise<AdminNavBadges> {
   try {
-    const types = await listUnreadNotificationTypesForBadges(session);
     const badges: AdminNavBadges = {};
+    const buckets: UnresolvedBadgeBucket[] = ['operations', 'payments', 'kyc', 'checkout'];
+    let total = 0;
 
-    for (const type of types) {
-      const mod = TYPE_TO_MODULE[type] ?? 'overview';
-      badges[mod] = (badges[mod] ?? 0) + 1;
-      if (mod === 'deposits') {
-        badges.residents = (badges.residents ?? 0) + 1;
-      }
-      if (mod === 'operations' && (type === 'vacating_alert' || type === 'extension_request')) {
-        badges.residents = (badges.residents ?? 0) + 1;
+    for (const bucket of buckets) {
+      const count = await getOpenActionsCount(session, bucket);
+      if (count > 0) {
+        badges[BUCKET_TO_NAV[bucket]] = count;
+        total += count;
       }
     }
 
-    badges.overview = types.length;
-    badges.notifications = types.length;
+    badges.overview = total;
     return badges;
   } catch {
     return {};

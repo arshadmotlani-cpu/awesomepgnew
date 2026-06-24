@@ -6,6 +6,7 @@ import { AdminLiveRefreshProvider } from '@/src/components/admin/AdminLiveRefres
 import { AdminActionDrawerProvider } from '@/src/components/admin/AdminActionDrawerProvider';
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import { loadAdminNavBadges } from '@/src/services/adminNavBadges';
+import { syncActionItems } from '@/src/services/actionItems';
 
 export const metadata: Metadata = {
   title: 'Admin · Awesome PG',
@@ -14,6 +15,7 @@ export const metadata: Metadata = {
 
 export default async function AdminGroupLayout({ children }: { children: ReactNode }) {
   const session = await requireAdminSession('/admin');
+  await syncActionItems(session).catch(() => undefined);
   const badges = await loadAdminNavBadges(session);
   return (
     <AdminLiveRefreshProvider initialBadges={badges}>

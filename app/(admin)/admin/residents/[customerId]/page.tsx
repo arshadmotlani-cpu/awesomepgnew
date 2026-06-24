@@ -12,6 +12,12 @@ import { Resident360WorkflowBar } from '@/src/components/admin/residents/Residen
 import { ResidentInlineOpenBills } from '@/src/components/admin/residents/ResidentInlineOpenBills';
 import { ResidentProfileAdvancedTools } from '@/src/components/admin/residents/ResidentProfileAdvancedTools';
 import { buildResident360Workflow } from '@/src/lib/residents/resident360Workflow';
+import {
+  mapUnresolvedActionRow,
+  pickPrimaryUnresolvedAction,
+} from '@/src/lib/residents/residentUnresolvedActions';
+import { syncActionItems } from '@/src/services/actionItems';
+import { getOpenActionsForResident } from '@/src/services/unresolvedActions';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { listAdminRentInvoices } from '@/src/db/queries/admin';
@@ -67,9 +73,11 @@ export default async function ResidentDetailPage({
   if (!UUID_RE.test(customerId)) notFound();
 
   const session = await requireAdminPermission('bookings:write');
-  const [detail, verification] = await Promise.all([
+  await syncActionItems(session).catch(() => undefined);
+  const [detail, verification, openUnresolvedRows] = await Promise.all([
     getResidentDetail(session, customerId),
     getCustomerVerificationStatus(customerId),
+    getOpenActionsForResident(customerId),
   ]);
   if (!detail) notFound();
 
@@ -112,6 +120,10 @@ export default async function ResidentDetailPage({
     ? await getResidentBillingFormDefaults(customerId, activeTenancy.bookingId)
     : null;
 
+  const primaryUnresolved = pickPrimaryUnresolvedAction(
+    openUnresolvedRows.map(mapUnresolvedActionRow),
+  );
+
   const resident360 = buildResident360Workflow({
     customerId,
     customerName: customer.fullName,
@@ -122,6 +134,7 @@ export default async function ResidentDetailPage({
     bookingId: activeTenancy?.bookingId ?? settledTenancy?.bookingId ?? null,
     financialSummary,
     residencyStatus: customer.residencyStatus,
+    primaryUnresolved,
   });
 
   const rentRes = await listAdminRentInvoices();

@@ -20,7 +20,10 @@ export async function GET() {
 
   return NextResponse.json({
     ok: true,
-    badges: { ...badges, overview: unreadCount, notifications: unreadCount },
+    badges: {
+      ...badges,
+      notifications: unreadCount,
+    },
     unreadCount,
     syncedAt: new Date().toISOString(),
   });

@@ -32,6 +32,11 @@ import { syncResidentRequestActionItems } from '@/src/services/residentRequestAc
 import { syncAdminNotificationsFromActionItems } from '@/src/services/adminNotifications';
 import { resolveStaleVacatingActionItems } from '@/src/services/vacatingPastDue';
 import { resolveFixedStayCheckoutActionItems } from '@/src/services/fixedStayActionItems';
+import {
+  resolveStaleKycActionItems,
+  syncUnresolvedActionsFromDomain,
+} from '@/src/services/unresolvedActionSync';
+import { resolveAction } from '@/src/services/unresolvedActions';
 import { diffDays, formatDate, tryDiffDays } from '@/src/lib/dates';
 
 export type ActionItemRow = {
@@ -637,20 +642,42 @@ async function syncRefundsPending(session: AdminSession): Promise<void> {
 
 async function syncPaymentReviews(session: AdminSession): Promise<void> {
   const items = await listPendingPaymentReviews(session);
+  const activeKeys = new Set<string>();
   for (const item of items) {
+    const sourceKey = `payment_review:${item.key}`;
+    activeKeys.add(sourceKey);
     await upsertActionItem({
       type: 'payment_received',
       title: item.title,
       pgId: item.pgId,
       amount: item.amountPaise,
       priority: 'high',
-      sourceKey: `payment_review:${item.key}`,
+      sourceKey,
       metadata: {
         pgName: formatPgDisplayName(item.pgName),
         paymentReviewKey: item.key,
         notes: item.subtitle,
       },
     });
+  }
+
+  const stale = await db
+    .select({ sourceKey: actionItems.sourceKey })
+    .from(actionItems)
+    .where(
+      and(
+        eq(actionItems.type, 'payment_received'),
+        inArray(actionItems.status, ['open', 'in_progress']),
+      ),
+    );
+
+  for (const row of stale) {
+    if (!activeKeys.has(row.sourceKey)) {
+      await db
+        .update(actionItems)
+        .set({ status: 'resolved', updatedAt: new Date() })
+        .where(eq(actionItems.sourceKey, row.sourceKey));
+    }
   }
 }
 
@@ -722,6 +749,7 @@ async function syncDepositCollectionDue(session: AdminSession): Promise<void> {
 
 export async function syncActionItems(session: AdminSession): Promise<void> {
   await resolveStaleBillingActionItems();
+  await resolveStaleKycActionItems();
   await resolveStaleVacatingActionItems();
   await resolveFixedStayCheckoutActionItems();
   await Promise.all([
@@ -738,6 +766,7 @@ export async function syncActionItems(session: AdminSession): Promise<void> {
   const openItems = await listOpenActionItems(session);
   await syncAdminNotificationsFromActionItems(openItems);
   await archiveNotificationsWithoutOpenTasks();
+  await syncUnresolvedActionsFromDomain(session);
 }
 
 /** Unscoped super-admin session for cron jobs that sync all PGs. */
@@ -1050,7 +1079,7 @@ export async function updateActionItemStatus(
   status: 'open' | 'in_progress' | 'resolved',
 ): Promise<{ ok: boolean; message?: string }> {
   const [existing] = await db
-    .select({ pgId: actionItems.pgId })
+    .select({ pgId: actionItems.pgId, sourceKey: actionItems.sourceKey })
     .from(actionItems)
     .where(eq(actionItems.id, actionItemId))
     .limit(1);
@@ -1063,6 +1092,10 @@ export async function updateActionItemStatus(
     .update(actionItems)
     .set({ status, updatedAt: new Date() })
     .where(eq(actionItems.id, actionItemId));
+
+  if (status === 'resolved') {
+    await resolveAction({ sourceKey: `unresolved:${existing.sourceKey}` });
+  }
 
   return { ok: true };
 }

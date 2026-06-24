@@ -3,6 +3,7 @@ import { paiseToInr } from '@/src/lib/format';
 import {
   buildKycReviewAction,
   isKycReviewRequired,
+  type ResidentUnresolvedAction,
 } from '@/src/lib/residents/residentUnresolvedActions';
 
 export type Resident360Workflow = {
@@ -24,8 +25,18 @@ export function buildResident360Workflow(input: {
   bookingId: string | null;
   financialSummary: ResidentFinancialSummary | null;
   residencyStatus: string;
+  primaryUnresolved?: ResidentUnresolvedAction | null;
 }): Resident360Workflow {
   const { financialSummary } = input;
+
+  if (input.primaryUnresolved) {
+    const action = input.primaryUnresolved;
+    return {
+      stateLine: action.stateLine ?? `${input.customerName} — action required`,
+      nextAction: action.nextAction ?? 'Complete the admin step below.',
+      primaryAction: { label: action.label, href: action.href },
+    };
+  }
 
   if (input.residencyStatus === 'vacated') {
     return {

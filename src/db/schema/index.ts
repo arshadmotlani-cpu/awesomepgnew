@@ -47,6 +47,7 @@ export * from './membershipTransactions';
 export * from './automationEvents';
 export * from './automationActions';
 export * from './actionItems';
+export * from './unresolvedActions';
 export * from './paymentLinks';
 export * from './financialInvoices';
 export * from './couponRedemptions';

@@ -47,4 +47,22 @@ describe('resident360Workflow KYC SSOT', () => {
         !workflow.stateLine.includes('identity review required'),
     );
   });
+
+  it('prefers primaryUnresolved from SSOT over heuristics', () => {
+    const workflow = buildResident360Workflow({
+      ...base,
+      pendingKycSubmissionId: 'sub-1',
+      primaryUnresolved: {
+        kind: 'payment_review',
+        sourceKey: 'unresolved:payment_review:x',
+        label: 'Review payment proof',
+        href: '/admin/operations/payment-reviews',
+        stateLine: 'Payment proof pending',
+        nextAction: 'Approve or reject the proof.',
+        priority: 'high',
+      },
+    });
+    assert.equal(workflow.primaryAction?.label, 'Review payment proof');
+    assert.ok(!workflow.stateLine.includes('identity review required'));
+  });
 });

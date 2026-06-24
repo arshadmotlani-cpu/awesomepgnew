@@ -4,7 +4,7 @@
  */
 import { and, eq, ilike, or, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { actionItems, adminNotifications, customers, kycSubmissions } from '@/src/db/schema';
+import { actionItems, adminNotifications, customers, kycSubmissions, unresolvedActions } from '@/src/db/schema';
 import { buildResident360Workflow } from '@/src/lib/residents/resident360Workflow';
 import {
   buildKycReviewAction,
@@ -19,6 +19,8 @@ import { syncActionItemsForCron } from '@/src/services/actionItems';
 
 export type ActionSurfaceCheck = {
   kycQueue: boolean;
+  /** SSOT — open row in unresolved_actions */
+  openUnresolvedAction: boolean;
   openActionItem: boolean;
   notification: boolean;
   profileWarning: boolean;
@@ -78,18 +80,24 @@ function cronSession(): AdminSession {
   };
 }
 
-async function loadOpenActionAndNotificationKeys(): Promise<{
+async function loadSurfaceKeys(): Promise<{
+  unresolvedKeys: Set<string>;
   actionKeys: Set<string>;
   notificationKeys: Set<string>;
 }> {
-  const [openActions, openNotifs] = await Promise.all([
+  const [openUnresolved, openActions, openNotifs] = await Promise.all([
     db
-      .select({ sourceKey: actionItems.sourceKey, residentId: actionItems.residentId })
+      .select({ sourceKey: unresolvedActions.sourceKey })
+      .from(unresolvedActions)
+      .where(eq(unresolvedActions.status, 'OPEN')),
+    db
+      .select({ sourceKey: actionItems.sourceKey })
       .from(actionItems)
       .where(eq(actionItems.status, 'open')),
     db.select({ sourceKey: adminNotifications.sourceKey }).from(adminNotifications),
   ]);
   return {
+    unresolvedKeys: new Set(openUnresolved.map((r) => r.sourceKey)),
     actionKeys: new Set(openActions.map((r) => r.sourceKey)),
     notificationKeys: new Set(openNotifs.map((r) => r.sourceKey)),
   };
@@ -107,7 +115,7 @@ export async function runKycVisibilityAudit(opts?: {
     listPendingKycSubmissions(),
     listPendingPaymentReviews(session),
     listResidentsForAdmin(session),
-    loadOpenActionAndNotificationKeys(),
+    loadSurfaceKeys(),
   ]);
 
   const pendingKycIds = new Set(pendingKyc.map((k) => k.id));
@@ -117,6 +125,7 @@ export async function runKycVisibilityAudit(opts?: {
 
   for (const k of pendingKyc) {
     const sourceKey = `kyc:${k.id}`;
+    const unresolvedKey = `unresolved:${sourceKey}`;
     const resident = residentById.get(k.customerId);
     const workflow = buildResident360Workflow({
       customerId: k.customerId,
@@ -132,14 +141,14 @@ export async function runKycVisibilityAudit(opts?: {
 
     const surfaces: ActionSurfaceCheck = {
       kycQueue: pendingKycIds.has(k.id),
+      openUnresolvedAction: keys.unresolvedKeys.has(unresolvedKey),
       openActionItem: keys.actionKeys.has(sourceKey),
       notification: keys.notificationKeys.has(sourceKey),
       profileWarning: workflow.stateLine.includes('identity review required'),
     };
     const gaps: string[] = [];
     if (!surfaces.kycQueue) gaps.push('missing_kyc_queue');
-    if (!surfaces.openActionItem) gaps.push('missing_action_item');
-    if (!surfaces.notification) gaps.push('missing_notification');
+    if (!surfaces.openUnresolvedAction) gaps.push('missing_unresolved_action');
     if (!surfaces.profileWarning) gaps.push('missing_profile_warning');
 
     actionAudits.push({
@@ -156,6 +165,7 @@ export async function runKycVisibilityAudit(opts?: {
 
   for (const p of paymentReviews) {
     const sourceKey = `payment_review:${p.key}`;
+    const unresolvedKey = `unresolved:${sourceKey}`;
     actionAudits.push({
       customerId: p.customerId ?? '',
       customerName: p.residentName,
@@ -163,21 +173,20 @@ export async function runKycVisibilityAudit(opts?: {
       sourceKey,
       surfaces: {
         kycQueue: false,
+        openUnresolvedAction: keys.unresolvedKeys.has(unresolvedKey),
         openActionItem: keys.actionKeys.has(sourceKey),
         notification: keys.notificationKeys.has(sourceKey),
         profileWarning: false,
       },
-      pass:
-        keys.actionKeys.has(sourceKey) && keys.notificationKeys.has(sourceKey),
+      pass: keys.unresolvedKeys.has(unresolvedKey),
       gaps: [
-        ...(!keys.actionKeys.has(sourceKey) ? ['missing_action_item'] : []),
-        ...(!keys.notificationKeys.has(sourceKey) ? ['missing_notification'] : []),
+        ...(!keys.unresolvedKeys.has(unresolvedKey) ? ['missing_unresolved_action'] : []),
       ],
     });
   }
 
   for (const r of residents.filter((x) => isResidentBedAssignable(x))) {
-    const sourceKey = `bed_unassigned:${r.id}`;
+    const sourceKey = `bed_assignment:${r.id}`;
     actionAudits.push({
       customerId: r.id,
       customerName: r.fullName,
@@ -185,47 +194,48 @@ export async function runKycVisibilityAudit(opts?: {
       sourceKey,
       surfaces: {
         kycQueue: false,
-        openActionItem: keys.actionKeys.has(sourceKey),
-        notification: keys.notificationKeys.has(sourceKey),
+        openUnresolvedAction: keys.unresolvedKeys.has(sourceKey),
+        openActionItem: keys.actionKeys.has(`bed_unassigned:${r.id}`),
+        notification: keys.notificationKeys.has(`bed_unassigned:${r.id}`),
+        profileWarning: false,
+      },
+      pass: keys.unresolvedKeys.has(sourceKey),
+      gaps: [
+        ...(!keys.unresolvedKeys.has(sourceKey) ? ['missing_unresolved_action'] : []),
+      ],
+    });
+  }
+
+  const checkoutUnresolved = await db
+    .select({
+      sourceKey: unresolvedActions.sourceKey,
+      residentId: unresolvedActions.residentId,
+      label: unresolvedActions.label,
+    })
+    .from(unresolvedActions)
+    .where(
+      and(
+        eq(unresolvedActions.status, 'OPEN'),
+        eq(unresolvedActions.actionType, 'checkout_settlement'),
+      ),
+    );
+
+  for (const c of checkoutUnresolved) {
+    const actionSourceKey = c.sourceKey.replace(/^unresolved:/, '');
+    actionAudits.push({
+      customerId: c.residentId ?? '',
+      customerName: c.label?.split('·')[0]?.trim() ?? 'Resident',
+      kind: 'checkout',
+      sourceKey: actionSourceKey,
+      surfaces: {
+        kycQueue: false,
+        openUnresolvedAction: true,
+        openActionItem: keys.actionKeys.has(actionSourceKey),
+        notification: keys.notificationKeys.has(actionSourceKey),
         profileWarning: false,
       },
       pass: true,
       gaps: [],
-    });
-  }
-
-  const checkoutRows = await db
-    .select({
-      sourceKey: actionItems.sourceKey,
-      residentId: actionItems.residentId,
-      title: actionItems.title,
-    })
-    .from(actionItems)
-    .where(
-      and(
-        eq(actionItems.status, 'open'),
-        eq(actionItems.type, 'fixed_stay_checkout_due'),
-      ),
-    );
-
-  for (const c of checkoutRows) {
-    actionAudits.push({
-      customerId: c.residentId ?? '',
-      customerName: c.title.split('·')[0]?.trim() ?? 'Resident',
-      kind: 'checkout',
-      sourceKey: c.sourceKey,
-      surfaces: {
-        kycQueue: false,
-        openActionItem: keys.actionKeys.has(c.sourceKey),
-        notification: keys.notificationKeys.has(c.sourceKey),
-        profileWarning: false,
-      },
-      pass:
-        keys.actionKeys.has(c.sourceKey) && keys.notificationKeys.has(c.sourceKey),
-      gaps: [
-        ...(!keys.actionKeys.has(c.sourceKey) ? ['missing_action_item'] : []),
-        ...(!keys.notificationKeys.has(c.sourceKey) ? ['missing_notification'] : []),
-      ],
     });
   }
 
@@ -347,12 +357,14 @@ export async function runKycVisibilityAudit(opts?: {
       surfaces: pendingId
         ? {
             kycQueue: pendingKycIds.has(pendingId),
-            openActionItem: keys.actionKeys.has(kycAction!.sourceKey),
-            notification: keys.notificationKeys.has(kycAction!.sourceKey),
+            openUnresolvedAction: keys.unresolvedKeys.has(kycAction!.sourceKey),
+            openActionItem: keys.actionKeys.has(`kyc:${pendingId}`),
+            notification: keys.notificationKeys.has(`kyc:${pendingId}`),
             profileWarning: isKycReviewRequired({ pendingKycSubmissionId: pendingId }),
           }
         : {
             kycQueue: false,
+            openUnresolvedAction: false,
             openActionItem: false,
             notification: false,
             profileWarning: isKycReviewRequired({ pendingKycSubmissionId: pendingId }),
@@ -382,7 +394,7 @@ export async function runKycVisibilityAudit(opts?: {
       legacyFalsePositives: legacyFalsePositives.length,
       paymentReviewOpen: paymentReviews.length,
       bedAssignmentOpen: residents.filter((r) => isResidentBedAssignable(r)).length,
-      checkoutOpen: checkoutRows.length,
+      checkoutOpen: checkoutUnresolved.length,
     },
   };
 }

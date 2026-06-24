@@ -13,7 +13,7 @@ import {
   IconSettings,
   IconUsers,
 } from './icons';
-import { SIDEBAR_MODULES, type AdminModule } from '@/src/lib/admin/navigation';
+import { ADMIN_MODULES, SIDEBAR_MODULES, type AdminModule } from '@/src/lib/admin/navigation';
 import type { AdminNavBadges } from '@/src/services/adminNavBadges';
 
 const MODULE_ICONS: Record<AdminModule, ComponentType<SVGProps<SVGSVGElement>>> = {
@@ -48,12 +48,24 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     title: 'Platform',
     items: [
-      ...SIDEBAR_MODULES.map((mod) => ({
+      ...SIDEBAR_MODULES.filter((mod) => mod.id !== 'operations').map((mod) => ({
         href: mod.href,
         label: mod.label,
         icon: MODULE_ICONS[mod.id],
         module: mod.id,
       })),
+      {
+        href: '/admin/operations/residents',
+        label: ADMIN_MODULES.operations.label,
+        icon: MODULE_ICONS.operations,
+        module: 'operations' as const,
+      },
+      {
+        href: '/admin/operations/payment-reviews',
+        label: 'Payment reviews',
+        icon: IconCard,
+        badgeKey: 'payments' as const,
+      },
       {
         href: '/admin/notifications',
         label: 'Notifications',

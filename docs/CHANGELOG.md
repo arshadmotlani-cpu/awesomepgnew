@@ -236,28 +236,31 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-24 12:56:53 UTC
+### Pending pre-commit sync · 2026-06-24 15:32:35 UTC
 
-**Areas touched:** [[ROUTES]], [[Auth]], [[Billing]], [[KYC]], [[Bookings]]
+**Areas touched:** [[ROUTES]], [[DATABASE]], [[Residents]], [[Action Center]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
+- `DATABASE.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (9):**
-- `app/(admin)/admin/invoices/[invoiceId]/page.tsx`
-- `src/lib/auth/adminPasswordReset.ts`
-- `src/lib/billing/invoiceDocumentModel.ts`
-- `src/lib/billing/invoiceDueDate.ts`
-- `src/lib/billing/paymentLinkUrl.ts`
-- `src/lib/billing/sendInvoiceOnWhatsApp.ts`
-- `src/lib/kyc/adminWhatsApp.ts`
-- `src/services/bookingPaymentFinancialProjection.ts`
-- `src/services/rentInvoices.ts`
+**Staged code files (11):**
+- `app/(admin)/admin/residents/[customerId]/page.tsx`
+- `app/(admin)/layout.tsx`
+- `app/api/admin/live/route.ts`
+- `src/db/migrations/0070_unresolved_actions.sql`
+- `src/db/migrations/meta/_journal.json`
+- `src/db/schema/enums.ts`
+- `src/db/schema/index.ts`
+- `src/db/schema/unresolvedActions.ts`
+- `src/lib/residents/resident360Workflow.ts`
+- `src/lib/residents/residentUnresolvedActions.ts`
+- `src/services/actionItems.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed
