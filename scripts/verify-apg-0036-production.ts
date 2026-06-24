@@ -20,11 +20,13 @@ import {
 import { getAdminBookingDetail } from '../src/db/queries/admin';
 import { listResidentBookingsForCustomer } from '../src/db/queries/customer';
 import { loadDepositPageData } from '../src/lib/deposits/loadDepositPageData';
+import { allocateBookingCheckoutPayment } from '../src/lib/billing/bookingPaymentAllocation';
 import { adminStayTypeLabel, stayTypeLabel, stayTypeFromPricingMode } from '../src/lib/stayType';
 import { getDepositInvoiceForBooking } from '../src/services/depositInvoices';
 import { getActiveTenancyForCustomer } from '../src/lib/residentActiveTenancy';
 import { loadResidentAccountContext } from '../src/services/residentAccountContext';
 import { getDepositSummaryForBooking } from '../src/services/deposits';
+import { getInvoiceCommandCenterData } from '../src/services/invoiceCommandCenter';
 
 const TARGET = 'APG-2026-0036';
 const SOURCE = 'APG-2026-0032';
@@ -184,7 +186,14 @@ async function main() {
     );
 
     const rentInvs = await db
-      .select({ id: rentInvoices.id, invoiceNumber: rentInvoices.invoiceNumber, status: rentInvoices.status })
+      .select({
+        id: rentInvoices.id,
+        invoiceNumber: rentInvoices.invoiceNumber,
+        status: rentInvoices.status,
+        rentPaise: rentInvoices.rentPaise,
+        paidPrincipalPaise: rentInvoices.paidPrincipalPaise,
+        paymentId: rentInvoices.paymentId,
+      })
       .from(rentInvoices)
       .where(eq(rentInvoices.bookingId, target.id));
 
@@ -204,22 +213,60 @@ async function main() {
       ...finInvs.map((i) => ({ type: 'financial_invoice', id: i.id, number: i.invoiceNumber })),
     ];
 
-    // Q5
+    const succeededBookingPayment = bookingPayments.find(
+      (p) => p.status === 'succeeded' && p.purpose === 'booking',
+    );
+    const paymentAllocation = succeededBookingPayment
+      ? allocateBookingCheckoutPayment(target, succeededBookingPayment.amountPaise)
+      : null;
+
+    const paidRentInvoice = rentInvs.find((i) => i.status === 'paid');
+    const q5ok =
+      paidRentInvoice != null &&
+      paidRentInvoice.paidPrincipalPaise === 190_000 &&
+      paymentAllocation?.rentPaise === 190_000;
+
+    // Q5 — fixed-date booking payment must produce a paid rent invoice
     checks.push(
-      invoiceIds.length === 0
-        ? pass('Q5', 'Was any invoice generated?', {
-            generated: false,
-            invoiceIds: [],
-            residentInvoiceCards: residentInvoices.length,
+      q5ok
+        ? pass('Q5', 'Does APG-2026-0036 have a paid rent invoice for ₹1,900?', {
+            rentInvoice: paidRentInvoice,
+            paymentAllocation,
+            financialInvoices: finInvs,
           })
-        : fail('Q5', 'Was any invoice generated? (expected none for fixed-date checkout)', {
-            generated: true,
-            invoiceIds,
+        : fail('Q5', 'Does APG-2026-0036 have a paid rent invoice for ₹1,900?', {
+            rentInvoices: rentInvs,
+            paymentAllocation,
+            financialInvoices: finInvs,
             residentInvoiceCards: residentInvoices.map((i) => ({
               id: i.id,
               kind: i.kind,
               invoiceNumber: i.invoiceNumber,
             })),
+          }),
+    );
+
+    const paymentDate = succeededBookingPayment?.paidAt
+      ? succeededBookingPayment.paidAt.toISOString().slice(0, 10)
+      : target.createdAt.toISOString().slice(0, 10);
+    const commandCenter = await getInvoiceCommandCenterData(paymentDate);
+    const q10ok =
+      commandCenter.summary.rentCollectedPaise >= 190_000 &&
+      commandCenter.summary.depositCashCollectedPaise >= 62_000 &&
+      commandCenter.summary.depositTransfersPaise >= 33_000 &&
+      commandCenter.summary.priorDepositSettledPaise >= 16_500 &&
+      commandCenter.summary.bookingPaymentsUninvoicedPaise === 0;
+
+    checks.push(
+      q10ok
+        ? pass('Q10', 'Does Invoice Command Center show rent/deposit breakdown (not reservation bucket)?', {
+            paymentDate,
+            summary: commandCenter.summary,
+          })
+        : fail('Q10', 'Does Invoice Command Center show rent/deposit breakdown (not reservation bucket)?', {
+            paymentDate,
+            summary: commandCenter.summary,
+            paymentAllocation,
           }),
     );
 

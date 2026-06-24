@@ -3,8 +3,11 @@ import { formatDate, paiseToInr } from '@/src/lib/format';
 import type { FinancialTimelineEvent } from '@/src/services/invoiceCommandCenter';
 
 const EVENT_LABELS: Record<FinancialTimelineEvent['eventType'], string> = {
-  reservation_payment: 'Reservation',
-  deposit_collected: 'Deposit',
+  booking_rent_collected: 'Booking rent',
+  booking_payment_uninvoiced: 'Rent not invoiced',
+  deposit_collected: 'Deposit cash',
+  deposit_transfer: 'Deposit transfer',
+  prior_deposit_settled: 'Prior deposit',
   rent_paid: 'Rent',
   electricity_paid: 'Electricity',
   checkout_deduction: 'Checkout',

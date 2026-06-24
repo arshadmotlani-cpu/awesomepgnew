@@ -81,7 +81,7 @@ export function computeDepositDue(requiredPaise: number, availableCreditPaise: n
   };
 }
 
-const DEPOSIT_CREDIT_REASON = 'Deposit credit applied from prior stay wallet';
+export const DEPOSIT_CREDIT_REASON = 'Deposit credit applied from prior stay wallet';
 
 /**
  * Move deposit credit from prior confirmed bookings onto a new booking.

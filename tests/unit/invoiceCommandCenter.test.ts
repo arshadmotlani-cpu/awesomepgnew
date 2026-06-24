@@ -8,15 +8,14 @@ import {
 } from '@/src/lib/billing/dayNavigation';
 import { computeInvoiceDailyNetRevenue } from '@/src/services/invoiceCommandCenter';
 
-test('computeInvoiceDailyNetRevenue sums inflows minus refunds', () => {
+test('computeInvoiceDailyNetRevenue sums invoice-first inflows minus refunds', () => {
   const net = computeInvoiceDailyNetRevenue({
-    rentCollectedPaise: 50_000,
-    reservationPaymentsPaise: 150_000,
-    depositsCollectedPaise: 100_000,
+    rentCollectedPaise: 190_000,
+    depositsCollectedPaise: 111_500,
     electricityCollectedPaise: 12_000,
     refundsPaidPaise: 25_000,
   });
-  assert.equal(net, 287_000);
+  assert.equal(net, 288_500);
 });
 
 test('resolveSelectedDay caps future dates at today', () => {

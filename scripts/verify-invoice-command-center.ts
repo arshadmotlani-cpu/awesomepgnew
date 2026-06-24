@@ -14,12 +14,18 @@ async function main() {
 
   console.log(`Invoice Command Center — ${selectedDate}\n`);
   console.log('Daily summary:');
-  console.log(`  Rent collected:        ${paiseToInr(data.summary.rentCollectedPaise)}`);
-  console.log(`  Reservation payments:  ${paiseToInr(data.summary.reservationPaymentsPaise)}`);
-  console.log(`  Deposits collected:    ${paiseToInr(data.summary.depositsCollectedPaise)}`);
-  console.log(`  Checkout deductions:   ${paiseToInr(data.summary.checkoutDeductionsPaise)}`);
-  console.log(`  Refunds paid:          ${paiseToInr(data.summary.refundsPaidPaise)}`);
-  console.log(`  Net revenue:           ${paiseToInr(data.summary.netRevenuePaise)}`);
+  console.log(`  Rent collected:              ${paiseToInr(data.summary.rentCollectedPaise)}`);
+  console.log(`  Electricity collected:       ${paiseToInr(data.summary.electricityCollectedPaise)}`);
+  console.log(`  Deposits collected (ledger): ${paiseToInr(data.summary.depositsCollectedPaise)}`);
+  console.log(`  Deposit cash collected:      ${paiseToInr(data.summary.depositCashCollectedPaise)}`);
+  console.log(`  Deposit transfers:           ${paiseToInr(data.summary.depositTransfersPaise)}`);
+  console.log(`  Prior deposit settled:       ${paiseToInr(data.summary.priorDepositSettledPaise)}`);
+  console.log(
+    `  Booking rent not invoiced:     ${paiseToInr(data.summary.bookingPaymentsUninvoicedPaise)}`,
+  );
+  console.log(`  Checkout deductions:         ${paiseToInr(data.summary.checkoutDeductionsPaise)}`);
+  console.log(`  Refunds paid:                ${paiseToInr(data.summary.refundsPaidPaise)}`);
+  console.log(`  Net inflow:                  ${paiseToInr(data.summary.netRevenuePaise)}`);
   console.log(`  Invoices generated:    ${data.summary.invoicesGeneratedCount}`);
   console.log(`  Invoices paid:         ${data.summary.invoicesPaidCount}`);
   console.log(`  Invoices pending:      ${data.summary.invoicesPendingCount}`);

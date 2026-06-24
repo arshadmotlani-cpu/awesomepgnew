@@ -196,31 +196,22 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-24 10:27:18 UTC
+### Pending pre-commit sync · 2026-06-24 11:09:41 UTC
 
-**Areas touched:** [[ROUTES]], [[Billing]], [[Vacating]], [[Residents]]
+**Areas touched:** [[ROUTES]], [[Billing]], [[Bookings]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DECISIONS.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (11):**
-- `app/(admin)/admin/bookings/page.tsx`
-- `app/(customer)/booking/[bookingCode]/page.tsx`
-- `src/lib/billing/checkoutRefundPreview.ts`
-- `src/lib/billing/depositRefundUnlock.ts`
-- `src/lib/moveOut/moveOutPipeline.ts`
-- `src/lib/moveOut/moveOutPipelineUi.ts`
-- `src/lib/residents/residentOperationsResidentsView.ts`
-- `src/lib/vacating/depositRefundEligibility.ts`
-- `src/services/billing.ts`
-- `src/services/checkoutSettlement.ts`
-- `src/services/vacating.ts`
+**Staged code files (3):**
+- `app/(admin)/admin/bookings/[bookingId]/page.tsx`
+- `src/lib/billing/bookingPaymentAllocation.ts`
+- `src/services/bookingPaymentInvoices.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

@@ -32,6 +32,7 @@ import {
   stayExtensions,
   vacatingRequests,
 } from '../schema';
+import type { PricingSnapshot } from '../schema/bookings';
 
 /**
  * All admin read queries return a discriminated union so pages can render a
@@ -475,6 +476,8 @@ export type AdminBookingDetail = {
   subtotalPaise: number;
   depositPaise: number;
   totalPaise: number;
+  discountPaise: number;
+  pricingSnapshot: PricingSnapshot | null;
   notes: string | null;
   adminDuesStatus: 'unknown' | 'cleared' | 'has_dues';
   adminDepositRefundStatus:
@@ -551,6 +554,8 @@ export function getAdminBookingDetail(
         subtotalPaise: bookings.subtotalPaise,
         depositPaise: bookings.depositPaise,
         totalPaise: bookings.totalPaise,
+        discountPaise: bookings.discountPaise,
+        pricingSnapshot: bookings.pricingSnapshot,
         notes: bookings.notes,
         adminDuesStatus: bookings.adminDuesStatus,
         adminDepositRefundStatus: bookings.adminDepositRefundStatus,
@@ -637,6 +642,8 @@ export function getAdminBookingDetail(
       subtotalPaise: b.subtotalPaise,
       depositPaise: b.depositPaise,
       totalPaise: b.totalPaise,
+      discountPaise: b.discountPaise,
+      pricingSnapshot: b.pricingSnapshot,
       notes: b.notes,
       adminDuesStatus: b.adminDuesStatus,
       adminDepositRefundStatus: b.adminDepositRefundStatus,

@@ -21,6 +21,8 @@ import {
 } from '@/src/db/queries/customer';
 import { formatDate, formatDateTime, paiseToInr, titleCase } from '@/src/lib/format';
 import { adminStayTypeLabel, isMonthlyStayType } from '@/src/lib/stayType';
+import { allocateBookingCheckoutPayment } from '@/src/lib/billing/bookingPaymentAllocation';
+import { buildAdminInvoiceHrefMap } from '@/src/lib/billing/invoiceHrefMap';
 import { diffDays, parseDate } from '@/src/lib/dates';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { projectElectricityInvoice } from '@/src/services/electricityBilling';
@@ -56,6 +58,25 @@ export default async function AdminBookingDetailPage(
     listElectricityInvoicesForBooking(bookingId),
     getDepositSummaryForBooking(bookingId),
   ]);
+  const rentInvoiceHrefMap =
+    rentInvoices.ok && rentInvoices.data.length > 0
+      ? await buildAdminInvoiceHrefMap(
+          rentInvoices.data.map((inv) => ({
+            sourceTable: 'rent_invoices' as const,
+            sourceId: inv.id,
+          })),
+        )
+      : ({} as Record<string, string>);
+  const bookingCheckout = {
+    subtotalPaise: b.subtotalPaise,
+    discountPaise: b.discountPaise,
+    depositPaise: b.depositPaise,
+    totalPaise: b.totalPaise,
+    pricingSnapshot: b.pricingSnapshot,
+  };
+  const succeededBookingPayments = b.payments.filter(
+    (p) => p.status === 'succeeded' && p.purpose === 'booking',
+  );
   const computedRentDues =
     rentInvoices.ok === true
       ? rentInvoices.data.reduce((acc, inv) => {
@@ -371,6 +392,98 @@ export default async function AdminBookingDetailPage(
               </dd>
             </dl>
           </div>
+
+          {succeededBookingPayments.length > 0 ? (
+            <div className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
+              <h2 className="text-sm font-semibold text-zinc-900">Checkout payment allocation</h2>
+              <p className="mt-1 text-xs text-zinc-500">
+                How each succeeded booking payment is split into rent, deposit cash, and prior balances.
+              </p>
+              <Table>
+                <THead>
+                  <TR>
+                    <TH>When</TH>
+                    <TH className="text-right">Total</TH>
+                    <TH className="text-right">Rent</TH>
+                    <TH className="text-right">Deposit cash</TH>
+                    <TH className="text-right">Prior deposit</TH>
+                    <TH className="text-right">Transfer credit</TH>
+                  </TR>
+                </THead>
+                <TBody>
+                  {succeededBookingPayments.map((p) => {
+                    const allocation = allocateBookingCheckoutPayment(
+                      bookingCheckout,
+                      p.amountPaise,
+                    );
+                    return (
+                      <TR key={p.id}>
+                        <TD className="text-xs text-zinc-700">
+                          {formatDateTime(p.paidAt ?? p.createdAt)}
+                        </TD>
+                        <TD className="text-right tabular-nums">{paiseToInr(p.amountPaise)}</TD>
+                        <TD className="text-right tabular-nums">{paiseToInr(allocation.rentPaise)}</TD>
+                        <TD className="text-right tabular-nums">
+                          {paiseToInr(allocation.depositCashPaise)}
+                        </TD>
+                        <TD className="text-right tabular-nums">
+                          {paiseToInr(allocation.priorOutstandingPaise)}
+                        </TD>
+                        <TD className="text-right tabular-nums text-zinc-500">
+                          {allocation.depositTransferCreditPaise > 0
+                            ? paiseToInr(allocation.depositTransferCreditPaise)
+                            : '—'}
+                        </TD>
+                      </TR>
+                    );
+                  })}
+                </TBody>
+              </Table>
+            </div>
+          ) : null}
+
+          {rentInvoices.ok && rentInvoices.data.length > 0 ? (
+            <div className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
+              <h2 className="text-sm font-semibold text-zinc-900">Rent invoices</h2>
+              <Table>
+                <THead>
+                  <TR>
+                    <TH>Invoice #</TH>
+                    <TH>Period</TH>
+                    <TH>Status</TH>
+                    <TH className="text-right">Rent</TH>
+                    <TH className="text-right">Paid</TH>
+                  </TR>
+                </THead>
+                <TBody>
+                  {rentInvoices.data.map((inv) => {
+                    const href = rentInvoiceHrefMap[inv.id];
+                    return (
+                      <TR key={inv.id}>
+                        <TD className="font-mono text-sm">
+                          {href ? (
+                            <Link href={href} className="text-indigo-600 hover:underline">
+                              {inv.invoiceNumber}
+                            </Link>
+                          ) : (
+                            inv.invoiceNumber
+                          )}
+                        </TD>
+                        <TD className="text-xs text-zinc-600">{inv.billingMonth.slice(0, 7)}</TD>
+                        <TD>
+                          <Badge tone={toneForStatus(inv.status)}>{titleCase(inv.status)}</Badge>
+                        </TD>
+                        <TD className="text-right tabular-nums">{paiseToInr(inv.rentPaise)}</TD>
+                        <TD className="text-right tabular-nums">
+                          {paiseToInr(inv.paidPrincipalPaise + inv.paidLateFeePaise)}
+                        </TD>
+                      </TR>
+                    );
+                  })}
+                </TBody>
+              </Table>
+            </div>
+          ) : null}
         </section>
 
         <aside className="space-y-5">

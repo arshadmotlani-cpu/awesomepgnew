@@ -19,3 +19,7 @@ if [ "${REPAIR_APG_0036_EXECUTE:-}" = "1" ]; then
   echo "Running APG-2026-0036 repair…"
   npx tsx scripts/final-repair-apg-2026-0036.ts --execute
 fi
+if [ "${BACKFILL_BOOKING_RENT_INVOICES:-}" = "1" ]; then
+  echo "Backfilling booking rent invoices…"
+  npx tsx scripts/backfill-booking-rent-invoices.ts --execute || true
+fi

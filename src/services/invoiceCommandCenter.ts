@@ -13,18 +13,28 @@ import {
   financialInvoices,
   payments,
   pgPaymentRecords,
+  rentInvoices,
 } from '@/src/db/schema';
 import { resolveSelectedDay } from '@/src/lib/billing/dayNavigation';
 import { invoiceDetailHref } from '@/src/lib/billing/invoiceRoutes';
+import { allocateBookingCheckoutPayment } from '@/src/lib/billing/bookingPaymentAllocation';
 import { asPlainNumber } from '@/src/lib/format';
 import { hasDatabaseUrl } from '@/src/lib/db/env';
 import { getDailyCollectionTotals } from '@/src/db/queries/admin';
+import { DEPOSIT_CREDIT_REASON } from '@/src/services/depositCredit';
+
+const PRIOR_DEPOSIT_SETTLED_REASON = 'Prior stay balance collected with new booking checkout';
 
 export type InvoiceDailySummary = {
   selectedDate: string;
   rentCollectedPaise: number;
-  reservationPaymentsPaise: number;
+  electricityCollectedPaise: number;
   depositsCollectedPaise: number;
+  depositCashCollectedPaise: number;
+  depositTransfersPaise: number;
+  priorDepositSettledPaise: number;
+  /** Booking rent not yet on a paid rent invoice — ops alert only, not revenue. */
+  bookingPaymentsUninvoicedPaise: number;
   checkoutDeductionsPaise: number;
   refundsPaidPaise: number;
   netRevenuePaise: number;
@@ -34,8 +44,11 @@ export type InvoiceDailySummary = {
 };
 
 export type FinancialTimelineEventType =
-  | 'reservation_payment'
+  | 'booking_rent_collected'
+  | 'booking_payment_uninvoiced'
   | 'deposit_collected'
+  | 'deposit_transfer'
+  | 'prior_deposit_settled'
   | 'rent_paid'
   | 'electricity_paid'
   | 'checkout_deduction'
@@ -84,19 +97,17 @@ const OPEN_INVOICE_STATUSES = [
   'processing',
 ] as const;
 
-/** Pure net inflow for a calendar day — unit-testable. */
+/** Pure net inflow for a calendar day — invoice-first (no gross booking payment bucket). */
 export function computeInvoiceDailyNetRevenue(input: {
   rentCollectedPaise: number;
-  reservationPaymentsPaise: number;
-  depositsCollectedPaise: number;
   electricityCollectedPaise?: number;
+  depositsCollectedPaise: number;
   refundsPaidPaise: number;
 }): number {
   return (
     input.rentCollectedPaise +
-    input.reservationPaymentsPaise +
-    input.depositsCollectedPaise +
-    (input.electricityCollectedPaise ?? 0) -
+    (input.electricityCollectedPaise ?? 0) +
+    input.depositsCollectedPaise -
     input.refundsPaidPaise
   );
 }
@@ -110,8 +121,12 @@ export async function getInvoiceDailySummary(dateInput?: string): Promise<Invoic
   const zero: InvoiceDailySummary = {
     selectedDate,
     rentCollectedPaise: 0,
-    reservationPaymentsPaise: 0,
+    electricityCollectedPaise: 0,
     depositsCollectedPaise: 0,
+    depositCashCollectedPaise: 0,
+    depositTransfersPaise: 0,
+    priorDepositSettledPaise: 0,
+    bookingPaymentsUninvoicedPaise: 0,
     checkoutDeductionsPaise: 0,
     refundsPaidPaise: 0,
     netRevenuePaise: 0,
@@ -129,7 +144,10 @@ export async function getInvoiceDailySummary(dateInput?: string): Promise<Invoic
   );
 
   const [
-    reservationRow,
+    uninvoicedBookingRow,
+    depositCashRow,
+    depositTransferRow,
+    priorSettledRow,
     checkoutDeductionRow,
     refundRow,
     invoiceGeneratedRow,
@@ -138,7 +156,13 @@ export async function getInvoiceDailySummary(dateInput?: string): Promise<Invoic
   ] = await Promise.all([
     db
       .select({
-        total: sql<number>`coalesce(sum(${payments.amountPaise}), 0)::bigint::int`,
+        paymentId: payments.id,
+        amountPaise: payments.amountPaise,
+        subtotalPaise: bookings.subtotalPaise,
+        discountPaise: bookings.discountPaise,
+        depositPaise: bookings.depositPaise,
+        totalPaise: bookings.totalPaise,
+        pricingSnapshot: bookings.pricingSnapshot,
       })
       .from(payments)
       .innerJoin(bookings, eq(bookings.id, payments.bookingId))
@@ -146,8 +170,62 @@ export async function getInvoiceDailySummary(dateInput?: string): Promise<Invoic
       .where(
         and(
           eq(payments.status, 'succeeded'),
-          inArray(payments.purpose, ['booking', 'bed_reserve']),
+          eq(payments.purpose, 'booking'),
           sql`${payments.paidAt}::date = ${selectedDate}::date`,
+          eq(bookings.isTest, false),
+          eq(customers.isTest, false),
+          sql`NOT EXISTS (
+            SELECT 1 FROM rent_invoices ri
+            WHERE ri.booking_id = ${bookings.id}
+              AND ri.payment_id = ${payments.id}
+              AND ri.status = 'paid'
+          )`,
+        ),
+      ),
+    db
+      .select({
+        total: sql<number>`coalesce(sum(${depositLedger.amountPaise}), 0)::bigint::int`,
+      })
+      .from(depositLedger)
+      .innerJoin(bookings, eq(bookings.id, depositLedger.bookingId))
+      .innerJoin(customers, eq(customers.id, depositLedger.customerId))
+      .where(
+        and(
+          eq(depositLedger.entryKind, 'collected'),
+          sql`${depositLedger.reason} LIKE 'deposit captured with payment%'`,
+          sql`${depositLedger.createdAt}::date = ${selectedDate}::date`,
+          eq(bookings.isTest, false),
+          eq(customers.isTest, false),
+        ),
+      ),
+    db
+      .select({
+        total: sql<number>`coalesce(sum(${depositLedger.amountPaise}), 0)::bigint::int`,
+      })
+      .from(depositLedger)
+      .innerJoin(bookings, eq(bookings.id, depositLedger.bookingId))
+      .innerJoin(customers, eq(customers.id, depositLedger.customerId))
+      .where(
+        and(
+          eq(depositLedger.entryKind, 'collected'),
+          eq(depositLedger.reason, DEPOSIT_CREDIT_REASON),
+          sql`${depositLedger.createdAt}::date = ${selectedDate}::date`,
+          eq(bookings.isTest, false),
+          eq(customers.isTest, false),
+        ),
+      ),
+    db
+      .select({
+        total: sql<number>`coalesce(sum(${depositLedger.amountPaise}), 0)::bigint::int`,
+      })
+      .from(depositLedger)
+      .innerJoin(bookings, eq(bookings.id, depositLedger.bookingId))
+      .innerJoin(customers, eq(customers.id, depositLedger.customerId))
+      .where(
+        and(
+          eq(depositLedger.entryKind, 'collected'),
+          eq(depositLedger.reason, PRIOR_DEPOSIT_SETTLED_REASON),
+          sql`${depositLedger.createdAt}::date = ${selectedDate}::date`,
           eq(bookings.isTest, false),
           eq(customers.isTest, false),
         ),
@@ -222,22 +300,40 @@ export async function getInvoiceDailySummary(dateInput?: string): Promise<Invoic
   const rentCollectedPaise = collections.ok ? collections.data.rentPaise : 0;
   const electricityCollectedPaise = collections.ok ? collections.data.electricityPaise : 0;
   const depositsCollectedPaise = collections.ok ? collections.data.depositPaise : 0;
-  const reservationPaymentsPaise = asPlainNumber(reservationRow[0]?.total);
+  const depositCashCollectedPaise = asPlainNumber(depositCashRow[0]?.total);
+  const depositTransfersPaise = asPlainNumber(depositTransferRow[0]?.total);
+  const priorDepositSettledPaise = asPlainNumber(priorSettledRow[0]?.total);
+  const bookingPaymentsUninvoicedPaise = uninvoicedBookingRow.reduce((sum, row) => {
+    const allocation = allocateBookingCheckoutPayment(
+      {
+        subtotalPaise: row.subtotalPaise,
+        discountPaise: row.discountPaise,
+        depositPaise: row.depositPaise,
+        totalPaise: row.totalPaise,
+        pricingSnapshot: row.pricingSnapshot,
+      },
+      row.amountPaise,
+    );
+    return sum + allocation.rentPaise;
+  }, 0);
   const checkoutDeductionsPaise = asPlainNumber(checkoutDeductionRow[0]?.total);
   const refundsPaidPaise = asPlainNumber(refundRow[0]?.total);
 
   return {
     selectedDate,
     rentCollectedPaise,
-    reservationPaymentsPaise,
+    electricityCollectedPaise,
     depositsCollectedPaise,
+    depositCashCollectedPaise,
+    depositTransfersPaise,
+    priorDepositSettledPaise,
+    bookingPaymentsUninvoicedPaise,
     checkoutDeductionsPaise,
     refundsPaidPaise,
     netRevenuePaise: computeInvoiceDailyNetRevenue({
       rentCollectedPaise,
-      reservationPaymentsPaise,
-      depositsCollectedPaise,
       electricityCollectedPaise,
+      depositsCollectedPaise,
       refundsPaidPaise,
     }),
     invoicesGeneratedCount: invoiceGeneratedRow[0]?.count ?? 0,
@@ -260,7 +356,7 @@ export async function getFinancialTimelineForDate(
   const events: FinancialTimelineEvent[] = [];
 
   const [
-    reservationPayments,
+    bookingPayments,
     depositEntries,
     paidInvoices,
     generatedInvoices,
@@ -275,10 +371,33 @@ export async function getFinancialTimelineForDate(
         purpose: payments.purpose,
         customerId: bookings.customerId,
         customerName: customers.fullName,
+        bookingCode: bookings.bookingCode,
+        subtotalPaise: bookings.subtotalPaise,
+        discountPaise: bookings.discountPaise,
+        depositPaise: bookings.depositPaise,
+        totalPaise: bookings.totalPaise,
+        pricingSnapshot: bookings.pricingSnapshot,
+        rentInvoiceId: rentInvoices.id,
+        financialInvoiceId: financialInvoices.id,
+        invoiceNumber: financialInvoices.invoiceNumber,
       })
       .from(payments)
       .innerJoin(bookings, eq(bookings.id, payments.bookingId))
       .innerJoin(customers, eq(customers.id, bookings.customerId))
+      .leftJoin(
+        rentInvoices,
+        and(
+          eq(rentInvoices.paymentId, payments.id),
+          eq(rentInvoices.status, 'paid'),
+        ),
+      )
+      .leftJoin(
+        financialInvoices,
+        and(
+          eq(financialInvoices.sourceTable, 'rent_invoices'),
+          eq(financialInvoices.sourceId, rentInvoices.id),
+        ),
+      )
       .where(
         and(
           eq(payments.status, 'succeeded'),
@@ -388,14 +507,57 @@ export async function getFinancialTimelineForDate(
       .orderBy(desc(pgPaymentRecords.reviewedAt)),
   ]);
 
-  for (const row of reservationPayments) {
+  for (const row of bookingPayments) {
     if (!row.paidAt) continue;
+    if (row.purpose === 'booking') {
+      const allocation = allocateBookingCheckoutPayment(
+        {
+          subtotalPaise: row.subtotalPaise,
+          discountPaise: row.discountPaise,
+          depositPaise: row.depositPaise,
+          totalPaise: row.totalPaise,
+          pricingSnapshot: row.pricingSnapshot,
+        },
+        row.amountPaise,
+      );
+      if (row.rentInvoiceId && allocation.rentPaise > 0) {
+        events.push({
+          id: `booking-rent-${row.id}`,
+          occurredAt: row.paidAt.toISOString(),
+          eventType: 'booking_rent_collected',
+          label: `Booking rent · ${row.bookingCode}`,
+          amountPaise: allocation.rentPaise,
+          customerId: row.customerId,
+          customerName: row.customerName,
+          invoiceId: row.financialInvoiceId,
+          invoiceNumber: row.invoiceNumber,
+          residentHref: residentAdminHref(row.customerId),
+          invoiceHref: row.financialInvoiceId
+            ? invoiceDetailHref(row.financialInvoiceId, 'admin')
+            : null,
+        });
+      } else if (allocation.rentPaise > 0) {
+        events.push({
+          id: `booking-uninvoiced-${row.id}`,
+          occurredAt: row.paidAt.toISOString(),
+          eventType: 'booking_payment_uninvoiced',
+          label: `Booking rent pending invoice · ${row.bookingCode}`,
+          amountPaise: allocation.rentPaise,
+          customerId: row.customerId,
+          customerName: row.customerName,
+          invoiceId: null,
+          invoiceNumber: null,
+          residentHref: residentAdminHref(row.customerId),
+          invoiceHref: null,
+        });
+      }
+      continue;
+    }
     events.push({
-      id: `payment-${row.id}`,
+      id: `reserve-${row.id}`,
       occurredAt: row.paidAt.toISOString(),
-      eventType: 'reservation_payment',
-      label:
-        row.purpose === 'bed_reserve' ? 'Reservation payment approved' : 'Booking payment approved',
+      eventType: 'booking_payment_uninvoiced',
+      label: 'Reservation payment approved',
       amountPaise: row.amountPaise,
       customerId: row.customerId,
       customerName: row.customerName,
@@ -409,19 +571,49 @@ export async function getFinancialTimelineForDate(
   for (const row of depositEntries) {
     const absAmount = Math.abs(row.amountPaise);
     if (row.entryKind === 'collected') {
-      events.push({
-        id: `deposit-${row.id}`,
-        occurredAt: row.createdAt.toISOString(),
-        eventType: 'deposit_collected',
-        label: row.reason || 'Deposit collected',
-        amountPaise: absAmount,
-        customerId: row.customerId,
-        customerName: row.customerName,
-        invoiceId: null,
-        invoiceNumber: null,
-        residentHref: residentAdminHref(row.customerId),
-        invoiceHref: null,
-      });
+      if (row.reason === DEPOSIT_CREDIT_REASON) {
+        events.push({
+          id: `deposit-transfer-${row.id}`,
+          occurredAt: row.createdAt.toISOString(),
+          eventType: 'deposit_transfer',
+          label: row.reason,
+          amountPaise: absAmount,
+          customerId: row.customerId,
+          customerName: row.customerName,
+          invoiceId: null,
+          invoiceNumber: null,
+          residentHref: residentAdminHref(row.customerId),
+          invoiceHref: null,
+        });
+      } else if (row.reason === PRIOR_DEPOSIT_SETTLED_REASON) {
+        events.push({
+          id: `prior-deposit-${row.id}`,
+          occurredAt: row.createdAt.toISOString(),
+          eventType: 'prior_deposit_settled',
+          label: row.reason,
+          amountPaise: absAmount,
+          customerId: row.customerId,
+          customerName: row.customerName,
+          invoiceId: null,
+          invoiceNumber: null,
+          residentHref: residentAdminHref(row.customerId),
+          invoiceHref: null,
+        });
+      } else {
+        events.push({
+          id: `deposit-${row.id}`,
+          occurredAt: row.createdAt.toISOString(),
+          eventType: 'deposit_collected',
+          label: row.reason || 'Deposit collected',
+          amountPaise: absAmount,
+          customerId: row.customerId,
+          customerName: row.customerName,
+          invoiceId: null,
+          invoiceNumber: null,
+          residentHref: residentAdminHref(row.customerId),
+          invoiceHref: null,
+        });
+      }
     } else if (row.entryKind === 'deducted') {
       const isNotice = /notice/i.test(row.reason ?? '');
       events.push({
@@ -513,7 +705,7 @@ export async function getFinancialTimelineForDate(
     events.push({
       id: `qr-${row.id}`,
       occurredAt: row.reviewedAt.toISOString(),
-      eventType: 'reservation_payment',
+      eventType: 'booking_payment_uninvoiced',
       label: 'QR payment proof approved',
       amountPaise: row.amountPaise,
       customerId: row.customerId,

@@ -12,9 +12,19 @@ import { createClient } from '../src/db/client';
 import { discoverBookingRentInvoiceGaps } from '../src/services/bookingPaymentInvoices';
 import { paiseToInr } from '../src/lib/format';
 
-for (const file of ['.env.production.local', '.env.prod', '.env.local', '.env']) {
+for (const file of [
+  '.env.production.local',
+  '.env.prod',
+  '.env.local',
+  '.env',
+  '.env.repair.local',
+  '.env.vercel.prod.live',
+]) {
   const path = join(process.cwd(), file);
-  if (existsSync(path)) config({ path, override: true });
+  if (existsSync(path)) config({ path, override: false });
+}
+if (existsSync(join(process.cwd(), '.env.vercel.pull.tmp'))) {
+  config({ path: join(process.cwd(), '.env.vercel.pull.tmp'), override: true });
 }
 
 async function main() {

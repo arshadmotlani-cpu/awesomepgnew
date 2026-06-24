@@ -22,7 +22,7 @@ import {
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import { formatDate } from '@/src/lib/dates';
 import { firstOfMonth } from '@/src/services/billing';
-import { splitBookingPayment } from '@/src/services/depositCollection';
+import { allocateBookingCheckoutPayment } from '@/src/lib/billing/bookingPaymentAllocation';
 import {
   createAdhocRentInvoice,
   ensureMonthlyRentInvoice,
@@ -51,8 +51,7 @@ export function computeBookingRentPaisePaid(input: {
     0,
     input.paymentAmountPaise - (input.membershipAmountPaise ?? 0),
   );
-  const split = splitBookingPayment(input.booking, bookingPaymentPaise);
-  return Math.max(0, split.rentPaisePaid);
+  return allocateBookingCheckoutPayment(input.booking, bookingPaymentPaise).rentPaise;
 }
 
 async function primaryStayStartDate(bookingId: string): Promise<string | null> {
@@ -381,7 +380,11 @@ export async function discoverBookingRentInvoiceGaps(): Promise<BookingRentInvoi
     payment_id: string;
     payment_amount_paise: number;
     paid_at: string | null;
-    estimated_rent_paise: number;
+    subtotal_paise: number;
+    discount_paise: number;
+    deposit_paise: number;
+    total_paise: number;
+    pricing_snapshot: PricingSnapshot | null;
     customer_id: string;
     is_test: boolean;
   }>(sql`
@@ -392,7 +395,11 @@ export async function discoverBookingRentInvoiceGaps(): Promise<BookingRentInvoi
       p.id AS payment_id,
       p.amount_paise::bigint::int AS payment_amount_paise,
       p.paid_at::text AS paid_at,
-      GREATEST(0, b.subtotal_paise - b.discount_paise)::bigint::int AS estimated_rent_paise,
+      b.subtotal_paise::bigint::int AS subtotal_paise,
+      b.discount_paise::bigint::int AS discount_paise,
+      b.deposit_paise::bigint::int AS deposit_paise,
+      b.total_paise::bigint::int AS total_paise,
+      b.pricing_snapshot AS pricing_snapshot,
       b.customer_id,
       c.is_test
     FROM payments p
@@ -402,7 +409,6 @@ export async function discoverBookingRentInvoiceGaps(): Promise<BookingRentInvoi
       AND p.status = 'succeeded'
       AND b.duration_mode <> 'reserve'
       AND b.status IN ('confirmed', 'completed', 'cancelled')
-      AND GREATEST(0, b.subtotal_paise - b.discount_paise) > 0
       AND NOT EXISTS (
         SELECT 1 FROM rent_invoices ri
         WHERE ri.booking_id = b.id
@@ -445,17 +451,36 @@ export async function discoverBookingRentInvoiceGaps(): Promise<BookingRentInvoi
     ORDER BY p.paid_at DESC NULLS LAST
   `);
 
-  const bookingGaps: BookingRentInvoiceGapRow[] = bookingRows.map((r) => ({
-    bookingId: r.booking_id,
-    bookingCode: r.booking_code,
-    durationMode: r.duration_mode,
-    paymentId: r.payment_id,
-    paymentAmountPaise: r.payment_amount_paise,
-    paidAt: r.paid_at,
-    estimatedRentPaise: r.estimated_rent_paise,
-    customerId: r.customer_id,
-    isTest: r.is_test,
-  }));
+  const bookingGaps: BookingRentInvoiceGapRow[] = bookingRows
+    .map((r) => {
+      const booking = {
+        id: r.booking_id,
+        customerId: r.customer_id,
+        bookingCode: r.booking_code,
+        durationMode: r.duration_mode,
+        subtotalPaise: r.subtotal_paise,
+        discountPaise: r.discount_paise,
+        depositPaise: r.deposit_paise,
+        totalPaise: r.total_paise,
+        pricingSnapshot: r.pricing_snapshot,
+      };
+      const estimatedRentPaise = computeBookingRentPaisePaid({
+        booking,
+        paymentAmountPaise: r.payment_amount_paise,
+      });
+      return {
+        bookingId: r.booking_id,
+        bookingCode: r.booking_code,
+        durationMode: r.duration_mode,
+        paymentId: r.payment_id,
+        paymentAmountPaise: r.payment_amount_paise,
+        paidAt: r.paid_at,
+        estimatedRentPaise,
+        customerId: r.customer_id,
+        isTest: r.is_test,
+      };
+    })
+    .filter((r) => r.estimatedRentPaise > 0);
 
   const extensionGaps: ExtensionRentInvoiceGapRow[] = extensionRows.map((r) => ({
     extensionId: r.extension_id,
