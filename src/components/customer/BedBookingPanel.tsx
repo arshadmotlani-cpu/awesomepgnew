@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { trackClientEvent } from '@/src/lib/analytics/client';
 import { addDays, diffDays, formatDate, parseDate, todayString } from '@/src/lib/dates';
 import { defaultCheckOutDate } from '@/src/lib/dateDefaults';
-import { formatDate as formatDisplayDate } from '@/src/lib/format';
+import { formatDate as formatDisplayDate, paiseToInr } from '@/src/lib/format';
 import { formatBookingRentPaise, formatBookingNightlyRentPaise } from '@/src/lib/booking/bookingFunnelPricing';
 import { checkoutCapMessage } from '@/src/lib/bedAvailabilityWindows';
 import {
