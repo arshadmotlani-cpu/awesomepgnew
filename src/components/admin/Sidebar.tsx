@@ -3,8 +3,9 @@
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { IconLogo } from './icons';
-import { NAV_SECTIONS } from './navItems';
 import { AdminNavLink } from '@/src/components/admin/AdminNavLink';
+import { useSidebarLayoutItems } from '@/src/components/admin/sidebar/SidebarLayoutProvider';
+import { SIDEBAR_MODULE_REGISTRY } from '@/src/lib/admin/sidebarModules';
 import { isModuleActive } from '@/src/lib/admin/navigation';
 import { useAdminNavBadges } from '@/src/components/admin/AdminLiveRefreshProvider';
 
@@ -17,6 +18,7 @@ export function Sidebar({
 }) {
   const pathname = usePathname() ?? '/admin';
   const badges = useAdminNavBadges();
+  const layoutItems = useSidebarLayoutItems();
   const [optimisticHref, setOptimisticHref] = useState<string | null>(null);
 
   useEffect(() => {
@@ -35,6 +37,35 @@ export function Sidebar({
     },
     [onNavigate],
   );
+
+  const pinnedItems = layoutItems.filter((item) => item.pinned);
+  const regularItems = layoutItems.filter((item) => !item.pinned);
+
+  function renderItem(item: (typeof layoutItems)[number]) {
+    const def = SIDEBAR_MODULE_REGISTRY[item.key];
+    const Icon = def.icon;
+    const active = item.module
+      ? isModuleActive(activePath, item.module)
+      : activePath === item.href || activePath.startsWith(`${item.href}/`);
+    const badgeCount = item.badgeKey
+      ? badges[item.badgeKey]
+      : item.module
+        ? badges[item.module]
+        : undefined;
+
+    return (
+      <li key={item.key}>
+        <AdminNavLink
+          href={item.href}
+          label={item.pinned ? `⭐ ${item.label}` : item.label}
+          icon={Icon}
+          active={active}
+          badgeCount={badgeCount}
+          onNavigateStart={handleNavigateStart}
+        />
+      </li>
+    );
+  }
 
   return (
     <nav
@@ -67,41 +98,29 @@ export function Sidebar({
       )}
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-6">
-        {NAV_SECTIONS.map((section) => (
-          <div key={section.title} className="mt-4">
-            <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-apg-silver/70">
-              {section.title}
+        {pinnedItems.length > 0 ? (
+          <div className="mt-2">
+            <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-amber-400/80">
+              Pinned
             </p>
-            <ul className="space-y-0.5">
-              {section.items.map(({ href, label, icon, module, badgeKey }) => {
-                const active = module
-                  ? isModuleActive(activePath, module)
-                  : activePath === href || activePath.startsWith(`${href}/`);
-                const badgeCount = badgeKey
-                  ? badges[badgeKey]
-                  : module
-                    ? badges[module]
-                    : undefined;
-                return (
-                  <li key={href}>
-                    <AdminNavLink
-                      href={href}
-                      label={label}
-                      icon={icon}
-                      active={active}
-                      badgeCount={badgeCount}
-                      onNavigateStart={handleNavigateStart}
-                    />
-                  </li>
-                );
-              })}
-            </ul>
+            <ul className="space-y-0.5">{pinnedItems.map(renderItem)}</ul>
           </div>
-        ))}
+        ) : null}
+
+        <div className={pinnedItems.length > 0 ? 'mt-4' : 'mt-2'}>
+          {pinnedItems.length > 0 && regularItems.length > 0 ? (
+            <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-apg-silver/70">
+              Navigation
+            </p>
+          ) : null}
+          <ul className="space-y-0.5">{regularItems.map(renderItem)}</ul>
+        </div>
       </div>
 
       <div className="border-t border-white/5 px-5 py-3 text-[11px] leading-relaxed text-apg-silver/60">
-        Module → PG → Resident → Actions
+        <a href="/admin/settings/sidebar-layout" className="hover:text-apg-orange">
+          Customize sidebar →
+        </a>
       </div>
     </nav>
   );

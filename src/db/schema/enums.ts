@@ -344,3 +344,7 @@ export type FinancialInvoiceStatus = (typeof financialInvoiceStatusEnum.enumValu
 export type UnresolvedActionType = (typeof unresolvedActionTypeEnum.enumValues)[number];
 export type UnresolvedActionStatus = (typeof unresolvedActionStatusEnum.enumValues)[number];
 export type UnresolvedActionPriority = (typeof unresolvedActionPriorityEnum.enumValues)[number];
+
+export const sidebarLayoutTypeEnum = pgEnum('sidebar_layout_type', ['global', 'personal']);
+
+export type SidebarLayoutType = (typeof sidebarLayoutTypeEnum.enumValues)[number];

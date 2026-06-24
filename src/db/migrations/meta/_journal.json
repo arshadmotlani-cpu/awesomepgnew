@@ -477,6 +477,13 @@
       "when": 1788900000000,
       "tag": "0071_financial_invoice_share_token",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1789000000000,
+      "tag": "0072_sidebar_layouts",
+      "breakpoints": true
     }
   ]
 }

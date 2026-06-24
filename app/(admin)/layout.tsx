@@ -4,8 +4,10 @@ import { Sidebar } from '@/src/components/admin/Sidebar';
 import { AdminTopNav } from '@/src/components/admin/AdminTopNav';
 import { AdminLiveRefreshProvider } from '@/src/components/admin/AdminLiveRefreshProvider';
 import { AdminActionDrawerProvider } from '@/src/components/admin/AdminActionDrawerProvider';
+import { SidebarLayoutProvider } from '@/src/components/admin/sidebar/SidebarLayoutProvider';
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import { loadAdminNavBadges } from '@/src/services/adminNavBadges';
+import { getResolvedSidebarLayout } from '@/src/services/sidebarLayouts';
 import { syncActionItems } from '@/src/services/actionItems';
 
 export const metadata: Metadata = {
@@ -16,9 +18,23 @@ export const metadata: Metadata = {
 export default async function AdminGroupLayout({ children }: { children: ReactNode }) {
   const session = await requireAdminSession('/admin');
   await syncActionItems(session).catch(() => undefined);
-  const badges = await loadAdminNavBadges(session);
+  const [badges, sidebarLayout] = await Promise.all([
+    loadAdminNavBadges(session),
+    getResolvedSidebarLayout(session),
+  ]);
+  const sidebarNavItems = sidebarLayout.visibleItems.map((item) => ({
+    key: item.key,
+    label: item.label,
+    href: item.href,
+    module: item.module,
+    badgeKey: item.badgeKey,
+    sortOrder: item.sortOrder,
+    hidden: item.hidden,
+    pinned: item.pinned,
+  }));
   return (
     <AdminLiveRefreshProvider initialBadges={badges}>
+      <SidebarLayoutProvider items={sidebarNavItems}>
       <div className="apg-admin-shell flex h-[100dvh] w-full max-w-[100vw] overflow-hidden bg-[#0B0F14] text-[#f4f6f8]">
         <aside className="relative z-20 hidden h-full shrink-0 lg:block lg:w-64">
           <Sidebar />
@@ -32,6 +48,7 @@ export default async function AdminGroupLayout({ children }: { children: ReactNo
           </main>
         </div>
       </div>
+      </SidebarLayoutProvider>
     </AdminLiveRefreshProvider>
   );
 }

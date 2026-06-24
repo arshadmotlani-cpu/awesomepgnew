@@ -118,6 +118,21 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
 
       <Card>
         <CardHeader
+          title="Sidebar layout"
+          description="Reorder, pin, hide, and reset admin navigation modules. Personal and global layouts supported."
+        />
+        <CardBody>
+          <a
+            href="/admin/settings/sidebar-layout"
+            className="inline-flex rounded-lg bg-apg-orange px-4 py-2 text-sm font-semibold text-white hover:bg-apg-orange/90"
+          >
+            Manage sidebar layout →
+          </a>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader
           title="System repair tools"
           description="Preview, dry run, and execute stabilization repairs. No new tables or schema changes."
         />
