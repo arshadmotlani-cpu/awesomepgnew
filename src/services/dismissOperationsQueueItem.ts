@@ -11,6 +11,11 @@ import {
   unresolvedActions,
 } from '@/src/db/schema';
 import type { ResidentOpsQueueCategory } from '@/src/lib/residents/residentOperationsDashboard';
+import {
+  parseDomainIdsFromQueueItemId,
+  recordOperationsQueueDismissal,
+} from '@/src/services/operationsQueueDismissals';
+import { repairOperationsQueueSourceOnDismiss } from '@/src/services/terminalCheckoutOperationsRepair';
 import { resolveAction } from '@/src/services/unresolvedActions';
 import { refreshAdminNotificationsFromActionItems } from '@/src/services/actionItems';
 
@@ -27,7 +32,18 @@ export type DismissOperationsQueueInput = {
 };
 
 export type DismissOperationsQueueResult =
-  | { ok: true; actionItemsClosed: number; unresolvedClosed: number; notificationsArchived: number }
+  | {
+      ok: true;
+      actionItemsClosed: number;
+      unresolvedClosed: number;
+      notificationsArchived: number;
+      domainRepaired: {
+        staleSettlementsCompleted: number;
+        vacatingCompleted: number;
+        bookingsRefundFlagFixed: number;
+      };
+      dismissalRecorded: boolean;
+    }
   | { ok: false; error: string };
 
 function sourceKeysForDismiss(input: DismissOperationsQueueInput): string[] {
@@ -67,7 +83,58 @@ function sourceKeysForDismiss(input: DismissOperationsQueueInput): string[] {
 export async function dismissOperationsQueueItem(
   input: DismissOperationsQueueInput,
 ): Promise<DismissOperationsQueueResult> {
-  const sourceKeys = sourceKeysForDismiss(input);
+  if (!input.customerId) {
+    return { ok: false, error: 'Cannot dismiss queue item without a resident id.' };
+  }
+
+  const parsed = parseDomainIdsFromQueueItemId(input.queueItemId);
+  const bookingId = input.bookingId ?? parsed.bookingId;
+  const vacatingRequestId = input.vacatingRequestId ?? parsed.vacatingRequestId;
+  const settlementId = parsed.settlementId;
+
+  const domainRepaired = await repairOperationsQueueSourceOnDismiss({
+    customerId: input.customerId,
+    bookingId,
+    vacatingRequestId,
+    settlementId,
+  });
+
+  if (vacatingRequestId) {
+    await db.execute(sql`
+      UPDATE vacating_requests
+      SET
+        status = 'completed',
+        resolved_at = COALESCE(resolved_at, now()),
+        updated_at = now()
+      WHERE id = ${vacatingRequestId}::uuid
+        AND status IN ('pending', 'approved')
+    `);
+  }
+
+  if (bookingId && (input.category === 'refund' || input.category === 'move_out')) {
+    await db.execute(sql`
+      UPDATE bookings
+      SET admin_deposit_refund_status = 'refunded', updated_at = now()
+      WHERE id = ${bookingId}::uuid
+        AND admin_deposit_refund_status = 'pending'
+    `);
+  }
+
+  await recordOperationsQueueDismissal({
+    adminId: input.adminId,
+    queueItemId: input.queueItemId,
+    category: input.category,
+    customerId: input.customerId,
+    bookingId,
+    vacatingRequestId,
+    settlementId,
+  });
+
+  const sourceKeys = sourceKeysForDismiss({
+    ...input,
+    bookingId,
+    vacatingRequestId,
+  });
   const actionSourceKeys = [...new Set(sourceKeys.filter((k) => !k.startsWith('unresolved:')))];
   const unresolvedSourceKeys = actionSourceKeys.map((k) => `unresolved:${k}`);
 
@@ -90,24 +157,22 @@ export async function dismissOperationsQueueItem(
   for (const key of unresolvedSourceKeys) {
     unresolvedClosed += await resolveAction({ sourceKey: key });
   }
-  if (input.customerId) {
-    const residentRows = await db
-      .select({ sourceKey: unresolvedActions.sourceKey })
-      .from(unresolvedActions)
-      .where(
-        and(
-          eq(unresolvedActions.residentId, input.customerId),
-          eq(unresolvedActions.status, 'OPEN'),
-          inArray(unresolvedActions.actionType, [
-            'move_out_approval',
-            'checkout_settlement',
-            'deposit_refund_approval',
-          ]),
-        ),
-      );
-    for (const row of residentRows) {
-      unresolvedClosed += await resolveAction({ sourceKey: row.sourceKey });
-    }
+  const residentRows = await db
+    .select({ sourceKey: unresolvedActions.sourceKey })
+    .from(unresolvedActions)
+    .where(
+      and(
+        eq(unresolvedActions.residentId, input.customerId),
+        eq(unresolvedActions.status, 'OPEN'),
+        inArray(unresolvedActions.actionType, [
+          'move_out_approval',
+          'checkout_settlement',
+          'deposit_refund_approval',
+        ]),
+      ),
+    );
+  for (const row of residentRows) {
+    unresolvedClosed += await resolveAction({ sourceKey: row.sourceKey });
   }
 
   let notificationsArchived = 0;
@@ -127,7 +192,7 @@ export async function dismissOperationsQueueItem(
     }
   }
 
-  const entityId = input.customerId ?? input.bookingId ?? input.vacatingRequestId;
+  const entityId = input.customerId ?? bookingId ?? vacatingRequestId;
   if (entityId) {
     await db.insert(auditLog).values({
       actorType: 'admin',
@@ -143,6 +208,10 @@ export async function dismissOperationsQueueItem(
         actionItemsClosed,
         unresolvedClosed,
         notificationsArchived,
+        domainRepaired,
+        bookingId,
+        vacatingRequestId,
+        settlementId,
       },
     });
   }
@@ -154,5 +223,7 @@ export async function dismissOperationsQueueItem(
     actionItemsClosed,
     unresolvedClosed,
     notificationsArchived,
+    domainRepaired,
+    dismissalRecorded: true,
   };
 }

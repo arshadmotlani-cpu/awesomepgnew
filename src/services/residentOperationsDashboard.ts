@@ -15,7 +15,14 @@ import { listResidentsForAdmin } from '@/src/services/residentAdmin';
 import { listPendingResidentRequestsForAdmin } from '@/src/services/residentRequests';
 import { listPipelineCheckoutSettlements } from '@/src/services/checkoutSettlement';
 import { getOperationsCenterData } from '@/src/services/operationsCenter';
-import { isTerminalCheckoutSettlement } from '@/src/lib/residents/checkoutOpsQueueCopy';
+import {
+  isStaleZeroRefundSettlement,
+  isTerminalCheckoutSettlement,
+} from '@/src/lib/residents/checkoutOpsQueueCopy';
+import {
+  isDismissedFromOperationsQueue,
+  loadOperationsQueueDismissalIndex,
+} from '@/src/services/operationsQueueDismissals';
 import type { AdminSession } from '@/src/lib/auth/session';
 
 function mergeUnpaidRent(pending: AdminRentInvoiceRow[], overdue: AdminRentInvoiceRow[]) {
@@ -40,6 +47,7 @@ export async function loadResidentOperationsDashboard(session: AdminSession) {
     checkoutSettlements,
     residentRequests,
     opsCenter,
+    dismissalIndex,
   ] = await Promise.all([
     listAdminRentInvoices({ status: 'pending' }),
     listAdminRentInvoices({ status: 'overdue' }),
@@ -51,6 +59,7 @@ export async function loadResidentOperationsDashboard(session: AdminSession) {
     listPipelineCheckoutSettlements(session),
     listPendingResidentRequestsForAdmin(session),
     getOperationsCenterData(session),
+    loadOperationsQueueDismissalIndex(),
   ]);
 
   const allUnpaidRent = mergeUnpaidRent(
@@ -82,10 +91,17 @@ export async function loadResidentOperationsDashboard(session: AdminSession) {
     vacatingRes.ok
       ? vacatingRes.data
           .filter((v) => v.status === 'pending' || v.status === 'approved')
+          .filter((v) => !isDismissedFromOperationsQueue(dismissalIndex, {
+            customerId: v.customerId,
+            bookingId: v.bookingId,
+            vacatingRequestId: v.id,
+          }))
           .filter((v) => {
             const settlement = settlementByVacatingId.get(v.id);
             if (!settlement) return true;
-            return !isTerminalCheckoutSettlement(settlement.status);
+            if (isTerminalCheckoutSettlement(settlement.status)) return false;
+            if (isStaleZeroRefundSettlement(settlement)) return false;
+            return true;
           })
           .map((v) => {
             const settlement = settlementByVacatingId.get(v.id);
@@ -114,9 +130,26 @@ export async function loadResidentOperationsDashboard(session: AdminSession) {
     }
   }
 
-  const checkoutRefunds = checkoutSettlements.filter((s) => s.status === 'refund_pending');
+  const checkoutRefunds = checkoutSettlements.filter(
+    (s) =>
+      s.status === 'refund_pending' &&
+      !isStaleZeroRefundSettlement(s) &&
+      !isDismissedFromOperationsQueue(dismissalIndex, {
+        customerId: s.customerId,
+        bookingId: s.bookingId,
+        settlementId: s.id,
+        vacatingRequestId: s.vacatingRequestId,
+      }),
+  );
 
-  const depositRefunds = opsCenter.refundsPending.items.map((r) => {
+  const depositRefunds = opsCenter.refundsPending.items
+    .filter(
+      (r) =>
+        !isDismissedFromOperationsQueue(dismissalIndex, {
+          bookingId: r.bookingId,
+        }),
+    )
+    .map((r) => {
     const resident = residents.find((x) => x.bookingId === r.bookingId);
     return {
       bookingId: r.bookingId,
@@ -143,14 +176,41 @@ export async function loadResidentOperationsDashboard(session: AdminSession) {
     }));
 
   const dashboard = buildResidentOperationsDashboard({
-    rentOverdue,
-    paymentProofs,
-    kycPending,
-    unassignedResidents,
+    rentOverdue: rentOverdue.filter(
+      (r) =>
+        !r.customerId ||
+        !isDismissedFromOperationsQueue(dismissalIndex, {
+          customerId: r.customerId,
+          bookingId: r.bookingId ?? undefined,
+        }),
+    ),
+    paymentProofs: paymentProofs.filter(
+      (p) =>
+        !p.customerId ||
+        !isDismissedFromOperationsQueue(dismissalIndex, { customerId: p.customerId }),
+    ),
+    kycPending: kycPending.filter(
+      (k) =>
+        !isDismissedFromOperationsQueue(dismissalIndex, {
+          customerId: k.customerId,
+          bookingId: k.bookingId ?? undefined,
+        }),
+    ),
+    unassignedResidents: unassignedResidents.filter(
+      (r) => !isDismissedFromOperationsQueue(dismissalIndex, { customerId: r.id, bookingId: r.bookingId }),
+    ),
     vacatingRows: vacatingRows.filter((v) => v.customerId),
     checkoutRefunds,
     depositRefunds,
-    residentRequests: residentRequests.map((r) => ({
+    residentRequests: residentRequests
+      .filter(
+        (r) =>
+          !isDismissedFromOperationsQueue(dismissalIndex, {
+            customerId: r.customerId,
+            bookingId: r.bookingId,
+          }),
+      )
+      .map((r) => ({
       id: r.id,
       type: r.type,
       customerId: r.customerId,
@@ -235,6 +295,7 @@ export async function loadResidentOperationsDashboard(session: AdminSession) {
     ...dashboard,
     residentsById: residentIndex,
     allResidents: residents,
+    dismissalIndex,
   };
 }
 

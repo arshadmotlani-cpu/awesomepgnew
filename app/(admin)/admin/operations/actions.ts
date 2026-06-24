@@ -44,10 +44,12 @@ export async function dismissOperationsQueueItemAction(
     revalidatePath('/admin/operations');
     revalidatePath('/admin/operations/residents');
     revalidatePath('/admin/overview');
+    revalidatePath('/admin/checkout-settlements');
+    revalidatePath('/admin/actions');
 
     return {
       status: 'ok',
-      message: `Dismissed ${residentName} from Operations (${result.actionItemsClosed} action items, ${result.unresolvedClosed} unresolved, ${result.notificationsArchived} notifications archived).`,
+      message: `Dismissed ${residentName} from Operations (${result.actionItemsClosed} action items, ${result.unresolvedClosed} unresolved, ${result.notificationsArchived} notifications archived, domain rows repaired).`,
     };
   } catch (err) {
     return {

@@ -90,3 +90,11 @@ export function isTerminalCheckoutSettlement(
 ): boolean {
   return status === 'completed' || status === 'refund_paid';
 }
+
+/** ₹0 refund still marked refund_pending — stale pipeline row, not real work. */
+export function isStaleZeroRefundSettlement(input: {
+  status: CheckoutSettlementStatus | string | null | undefined;
+  finalRefundPaise?: number | null;
+}): boolean {
+  return input.status === 'refund_pending' && (input.finalRefundPaise ?? 0) <= 0;
+}

@@ -19,6 +19,10 @@ import { listOwnerPayments } from '@/src/services/qrPayments';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
 import { listPipelineCheckoutSettlements } from '@/src/services/checkoutSettlement';
 import { loadResidentOperationsDashboard } from '@/src/services/residentOperationsDashboard';
+import { isStaleZeroRefundSettlement } from '@/src/lib/residents/checkoutOpsQueueCopy';
+import {
+  isDismissedFromOperationsQueue,
+} from '@/src/services/operationsQueueDismissals';
 
 const NOISE_ENTITIES = new Set(['whatsapp_message', 'app_log', 'visitor_event']);
 
@@ -80,7 +84,18 @@ export async function loadResidentOperationsResidentsPage(
     electricityRows: elecPending.ok ? elecPending.data : [],
   });
   const rentOverdue = collectionsQueue.filter((q) => q.priority === 'overdue');
-  const checkoutRefunds = checkoutSettlements.filter((s) => s.status === 'refund_pending');
+  const dismissalIndex = dashboard.dismissalIndex;
+  const checkoutRefunds = checkoutSettlements.filter(
+    (s) =>
+      s.status === 'refund_pending' &&
+      !isStaleZeroRefundSettlement(s) &&
+      !isDismissedFromOperationsQueue(dismissalIndex, {
+        customerId: s.customerId,
+        bookingId: s.bookingId,
+        settlementId: s.id,
+        vacatingRequestId: s.vacatingRequestId,
+      }),
+  );
   const vacatingPendingCustomerIds =
     vacatingRes.ok
       ? vacatingRes.data.filter((v) => v.status === 'pending').map((v) => v.customerId).filter(Boolean)

@@ -34,6 +34,10 @@ import {
 import { dedupeOpsTasks, type OpsTaskInput } from '@/src/lib/operationsCenterAudit';
 import { projectElectricityInvoice } from '@/src/services/electricityBilling';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
+import {
+  isDismissedFromOperationsQueue,
+  loadOperationsQueueDismissalIndex,
+} from '@/src/services/operationsQueueDismissals';
 
 export type OpsTask = OpsTaskInput;
 
@@ -278,7 +282,7 @@ async function listPendingDepositRefunds(session: AdminSession) {
         sql`NOT EXISTS (
           SELECT 1 FROM checkout_settlements cs
           WHERE cs.booking_id = ${bookings.id}
-            AND cs.status IN ('completed', 'refund_paid')
+            AND cs.status IN ('completed', 'refund_paid', 'refund_pending')
             AND COALESCE(cs.final_refund_paise, 0) <= 0
         )`,
       ),
@@ -483,6 +487,7 @@ export async function getOperationsCenterData(
     refunds,
     electricityItems,
     ps4RenewalItems,
+    dismissalIndex,
   ] = await Promise.all([
     listPendingPaymentReviews(session),
     listPendingKycWithPg(session),
@@ -491,7 +496,15 @@ export async function getOperationsCenterData(
     listPendingDepositRefunds(session),
     listOutstandingElectricity(session),
     listPs4RenewalsForOps(session, today),
+    loadOperationsQueueDismissalIndex(),
   ]);
+
+  const visibleVacatingRows = vacatingRows.filter(
+    (v) => !isDismissedFromOperationsQueue(dismissalIndex, { vacatingRequestId: v.id }),
+  );
+  const visibleRefunds = refunds.filter(
+    (r) => !isDismissedFromOperationsQueue(dismissalIndex, { bookingId: r.bookingId }),
+  );
 
   const pendingPaymentRows = paymentItems.map((p) => ({
     key: p.key,
@@ -500,7 +513,7 @@ export async function getOperationsCenterData(
     amountPaise: p.amountPaise,
   }));
 
-  const leavingSoonItems = vacatingRows.map((v) => {
+  const leavingSoonItems = visibleVacatingRows.map((v) => {
     const daysRemaining = diffDays(today, v.vacatingDate);
     return {
       id: v.id,
@@ -532,7 +545,7 @@ export async function getOperationsCenterData(
     leavingSoon: { count: leavingSoonItems.length, items: leavingSoonItems },
     bedsReleasingSoon: { count: bedsReleasingItems.length, items: bedsReleasingItems },
     upcomingReservations: { count: reservations.length, items: reservations },
-    refundsPending: { count: refunds.length, items: refunds },
+    refundsPending: { count: visibleRefunds.length, items: visibleRefunds },
     electricityPending: { count: electricityItems.length, items: electricityItems },
     ps4Renewals: { count: ps4RenewalItems.length, items: ps4RenewalItems },
   };

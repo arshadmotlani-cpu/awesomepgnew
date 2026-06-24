@@ -236,19 +236,28 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-24 20:12:54 UTC
+### Pending pre-commit sync · 2026-06-24 20:19:01 UTC
 
-**Areas touched:** [[ROUTES]]
+**Areas touched:** [[ROUTES]], [[DATABASE]], [[Residents]], [[Action Center]]
 
 **Docs flagged for review:**
+- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
+- `DATABASE.md` — review for accuracy
+- `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
+- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (3):**
-- `app/(admin)/admin/actions/sidebarLayout.ts`
-- `app/(admin)/admin/settings/page.tsx`
-- `app/(admin)/layout.tsx`
+**Staged code files (8):**
+- `app/(admin)/admin/operations/actions.ts`
+- `src/db/migrations/0073_operations_queue_dismissals.sql`
+- `src/db/migrations/meta/_journal.json`
+- `src/db/schema/index.ts`
+- `src/db/schema/operationsQueueDismissals.ts`
+- `src/lib/residents/checkoutOpsQueueCopy.ts`
+- `src/services/actionItems.ts`
+- `src/services/residentOperationsDashboard.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

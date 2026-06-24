@@ -37,6 +37,10 @@ import { resolveStaleKycActionItems,
   syncUnresolvedActionsFromDomain,
 } from '@/src/services/unresolvedActionSync';
 import { repairTerminalCheckoutOperations } from '@/src/services/terminalCheckoutOperationsRepair';
+import {
+  isDismissedFromOperationsQueue,
+  loadOperationsQueueDismissalIndex,
+} from '@/src/services/operationsQueueDismissals';
 import { resolveAction } from '@/src/services/unresolvedActions';
 import { diffDays, formatDate, tryDiffDays } from '@/src/lib/dates';
 
@@ -603,7 +607,7 @@ async function syncRefundsPending(session: AdminSession): Promise<void> {
         sql`NOT EXISTS (
           SELECT 1 FROM checkout_settlements cs
           WHERE cs.booking_id = ${bookings.id}
-            AND cs.status IN ('completed', 'refund_paid')
+            AND cs.status IN ('completed', 'refund_paid', 'refund_pending')
             AND COALESCE(cs.final_refund_paise, 0) <= 0
         )`,
       ),
@@ -695,7 +699,7 @@ export async function resolveStaleRefundAndCheckoutActionItems(): Promise<{ reso
         OR EXISTS (
           SELECT 1 FROM checkout_settlements cs
           WHERE cs.booking_id::text = ai.metadata->>'bookingId'
-            AND cs.status IN ('completed', 'refund_paid')
+            AND cs.status IN ('completed', 'refund_paid', 'refund_pending')
             AND COALESCE(cs.final_refund_paise, 0) <= 0
         )
       )
@@ -711,7 +715,7 @@ export async function resolveStaleRefundAndCheckoutActionItems(): Promise<{ reso
         SELECT 1
         FROM checkout_settlements cs
         INNER JOIN vacating_requests vr ON vr.id = cs.vacating_request_id
-        WHERE cs.status IN ('completed', 'refund_paid')
+        WHERE cs.status IN ('completed', 'refund_paid', 'refund_pending')
           AND COALESCE(cs.final_refund_paise, 0) <= 0
           AND (
             ai.source_key = 'vacating:' || vr.id::text
@@ -947,6 +951,8 @@ async function listOpenActionItemsFiltered(
   const conditions = [inArray(actionItems.status, ['open', 'in_progress'])];
   if (type) conditions.push(eq(actionItems.type, type));
 
+  const dismissalIndex = await loadOperationsQueueDismissalIndex();
+
   const rows = await db
     .select({
       item: actionItems,
@@ -968,6 +974,14 @@ async function listOpenActionItemsFiltered(
 
   return rows
     .filter((r) => sessionCanAccessPg(session, r.item.pgId))
+    .filter(
+      (r) =>
+        !r.item.residentId ||
+        !isDismissedFromOperationsQueue(dismissalIndex, {
+          customerId: r.item.residentId,
+          bookingId: (r.item.metadata as ActionItemMetadata).bookingId ?? undefined,
+        }),
+    )
     .map((r) =>
       mapRow({
         ...r.item,
