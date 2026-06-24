@@ -19,6 +19,10 @@ if [ "${REPAIR_APG_0036_EXECUTE:-}" = "1" ]; then
   echo "Running APG-2026-0036 repair…"
   npx tsx scripts/final-repair-apg-2026-0036.ts --execute
 fi
+if [ "${VERIFY_FINANCIAL_CHAIN_0035_0036:-}" = "1" ]; then
+  echo "P0 financial chain verification (0035/0036)…"
+  npx tsx scripts/verify-financial-chain-0035-0036.ts --execute || true
+fi
 if [ "${AUDIT_BOOKING_RENT_0035_0036:-}" = "1" ]; then
   echo "Auditing APG-2026-0035 / 0036 booking rent invoices (read-only)…"
   npx tsx scripts/audit-repair-booking-rent-0035-0036.ts || true
