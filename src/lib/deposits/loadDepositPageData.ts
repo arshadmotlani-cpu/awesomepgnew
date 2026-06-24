@@ -122,13 +122,13 @@ export async function loadDepositPageData(bookingId: string): Promise<DepositPag
 
     const requiredPaise = guardDepositPaise(invoice?.requiredPaise ?? booking.depositPaise, 'requiredPaise');
     const grossCollectedPaise = guardDepositPaise(
-      invoice?.collectedPaise ?? summary?.collectedPaise ?? 0,
+      summary?.collectedPaise ?? invoice?.collectedPaise ?? 0,
       'grossCollectedPaise',
     );
     const grossDeductedPaise = guardDepositPaise(summary?.deductedPaise ?? 0, 'grossDeductedPaise');
     const grossRefundedPaise = guardDepositPaise(summary?.refundedPaise ?? 0, 'grossRefundedPaise');
     const grossRefundableBalancePaise = guardDepositPaise(
-      invoice?.refundablePaise ?? summary?.refundableBalancePaise ?? 0,
+      summary?.refundableBalancePaise ?? invoice?.refundablePaise ?? 0,
       'grossRefundableBalancePaise',
     );
     const depositDuePaise = guardDepositPaise(

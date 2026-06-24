@@ -33,7 +33,7 @@ import {
 } from '../db/schema';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import { coerceNonNegativePaise, asPlainNumber } from '@/src/lib/format';
-import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
+import { guardDepositPaise, guardPlainPaise } from '@/src/lib/deposits/paiseSafety';
 import {
   DEPOSIT_COLLECTION_ADJUSTMENT_PREFIX,
   depositCollectionAdjustmentReason,
@@ -57,10 +57,15 @@ export type DepositSummary = {
   entries: DepositLedgerEntry[];
 };
 
+/** Preserve signed paise for deducted/refunded rows — guardDepositPaise strips negatives. */
+function ledgerEntryAmountPaise(value: unknown, field: string): number {
+  return guardPlainPaise(value, field);
+}
+
 function sanitizeLedgerEntries(entries: DepositLedgerEntry[]): DepositLedgerEntry[] {
   return entries.map((entry, i) => ({
     ...entry,
-    amountPaise: guardDepositPaise(entry.amountPaise, `ledger[${i}].amountPaise`),
+    amountPaise: ledgerEntryAmountPaise(entry.amountPaise, `ledger[${i}].amountPaise`),
   }));
 }
 
@@ -377,8 +382,10 @@ export async function getDepositSummaryForBooking(
     let ledgerDeducted = 0;
     let refunded = 0;
     let residentDeducted = 0;
+    let ledgerBalance = 0;
     for (const e of entries) {
-      const amount = asPlainNumber(e.amountPaise);
+      const amount = ledgerEntryAmountPaise(e.amountPaise, 'summary.ledgerEntry.amountPaise');
+      ledgerBalance += amount;
       if (e.entryKind === 'collected') collected += coerceNonNegativePaise(amount);
       else if (e.entryKind === 'deducted') {
         const abs = coerceNonNegativePaise(-amount);
@@ -413,7 +420,7 @@ export async function getDepositSummaryForBooking(
       refundedPaise: guardDepositPaise(refunded, 'summary.refundedPaise'),
       residentDeductedPaise: guardDepositPaise(residentDeducted, 'summary.residentDeductedPaise'),
       refundableBalancePaise: guardDepositPaise(
-        collected - ledgerDeducted - refunded,
+        Math.max(0, ledgerBalance),
         'summary.refundableBalancePaise',
       ),
       entries,

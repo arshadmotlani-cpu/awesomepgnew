@@ -6,7 +6,7 @@
 import { eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { auditLog, bookings } from '@/src/db/schema';
-import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
+import { guardDepositPaise, guardPlainPaise } from '@/src/lib/deposits/paiseSafety';
 import {
   depositAdminDisplayAmounts,
   sanitizeDepositWalletPreview,
@@ -45,14 +45,28 @@ export function validateWalletFormula(summary: DepositSummary | null): {
   reason: string | null;
 } {
   if (!summary) return { inSync: true, reason: null };
-  const collected = guardDepositPaise(summary.collectedPaise, 'validateWalletFormula.collectedPaise');
-  const deducted = guardDepositPaise(summary.deductedPaise, 'validateWalletFormula.deductedPaise');
-  const refunded = guardDepositPaise(summary.refundedPaise, 'validateWalletFormula.refundedPaise');
   const refundable = guardDepositPaise(
     summary.refundableBalancePaise,
     'validateWalletFormula.refundablePaise',
   );
-  const expected = collected - deducted - refunded;
+  if (summary.entries.length > 0) {
+    const balance = summary.entries.reduce(
+      (sum, entry) => sum + guardPlainPaise(entry.amountPaise, 'validateWalletFormula.entry'),
+      0,
+    );
+    const expected = guardDepositPaise(Math.max(0, balance), 'validateWalletFormula.expected');
+    if (expected !== refundable) {
+      return {
+        inSync: false,
+        reason: `Wallet balance ${refundable} ≠ ledger sum (${expected}).`,
+      };
+    }
+    return { inSync: true, reason: null };
+  }
+  const collected = guardDepositPaise(summary.collectedPaise, 'validateWalletFormula.collectedPaise');
+  const deducted = guardDepositPaise(summary.deductedPaise, 'validateWalletFormula.deductedPaise');
+  const refunded = guardDepositPaise(summary.refundedPaise, 'validateWalletFormula.refundedPaise');
+  const expected = Math.max(0, collected - deducted - refunded);
   if (expected !== refundable) {
     return {
       inSync: false,
