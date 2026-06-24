@@ -4,6 +4,10 @@ import Link from 'next/link';
 import { BillingWhatsAppWithLinkButton } from '@/src/components/admin/BillingWhatsAppWithLinkButton';
 import { ExpressCollectionButton } from '@/src/components/admin/ExpressCollectionButton';
 import type { ResidentBillingFormDefaults } from '@/src/services/residentBillingProfiles';
+import {
+  isKycReviewRequired,
+  kycReviewHref,
+} from '@/src/lib/residents/residentUnresolvedActions';
 
 const PRIMARY =
   'inline-flex items-center justify-center rounded-lg bg-[#FF5A1F] px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110';
@@ -34,11 +38,6 @@ type Props = {
   expressCollectionDefaultOpen?: boolean;
 };
 
-function kycReviewHref(customerId: string, submissionId?: string | null) {
-  if (submissionId) return `/admin/residents/kyc/${submissionId}`;
-  return `/admin/kyc?customer=${customerId}`;
-}
-
 export function ResidentProfilePrimaryActions({
   customerId,
   customerName,
@@ -56,7 +55,9 @@ export function ResidentProfilePrimaryActions({
   expressCollectionDefaultOpen,
 }: Props) {
   const canBill = Boolean(pgId && pgName && bookingId);
-  const needsKycReview = kycStatus === 'pending' || Boolean(pendingKycSubmissionId);
+  const needsKycReview = isKycReviewRequired({
+    pendingKycSubmissionId: pendingKycSubmissionId ?? null,
+  });
 
   type ActionItem =
     | { key: string; kind: 'link'; href: string; label: string; primary?: boolean }

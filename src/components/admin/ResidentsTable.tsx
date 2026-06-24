@@ -76,7 +76,7 @@ export function ResidentsTable({
       if (statusFilter === 'active' && !isResidentBedAssigned(r)) return false;
       if (statusFilter === 'unassigned' && !isResidentBedAssignable(r)) return false;
       if (statusFilter === 'vacating' && r.tenancyStatus !== 'vacating') return false;
-      if (statusFilter === 'kyc_pending' && r.kycStatus !== 'pending') return false;
+      if (statusFilter === 'kyc_pending' && !r.hasPendingKycSubmission) return false;
 
       if (moveInDate && r.moveInDate !== moveInDate) return false;
 

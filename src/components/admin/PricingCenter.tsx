@@ -41,7 +41,6 @@ export function PricingCenter({
   const [tierPreset, setTierPreset] = useState('all');
   const [adjMode, setAdjMode] = useState<AdjustmentMode>('percent');
   const [adjValue, setAdjValue] = useState('5');
-  const [notifyResident, setNotifyResident] = useState(true);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +62,6 @@ export function PricingCenter({
       tiers,
       mode: adjMode,
       value: adjMode === 'percent' ? Number(adjValue) : Math.round(Number(adjValue) * 100),
-      notifyResident,
     });
     setPending(false);
     if (!result.ok) {
@@ -83,8 +81,8 @@ export function PricingCenter({
       <header>
         <h1 className="text-2xl font-semibold text-zinc-900">Pricing Center</h1>
         <p className="mt-1 text-sm text-zinc-500">
-          Adjust daily, weekly, and monthly rates. Changes propagate to booking pages, resident
-          dashboards, invoices, and deposit requirements immediately.
+          Adjust daily, weekly, and monthly rates per room. Changes apply to future bookings only —
+          existing residents keep their booking pricing snapshot.
         </p>
       </header>
 
@@ -164,14 +162,6 @@ export function PricingCenter({
               className="h-10 w-32 rounded-lg border border-zinc-300 px-3 text-sm"
               placeholder={adjMode === 'percent' ? '5' : '100'}
             />
-          </label>
-          <label className="flex items-center gap-2 text-sm text-zinc-700">
-            <input
-              type="checkbox"
-              checked={notifyResident}
-              onChange={(e) => setNotifyResident(e.target.checked)}
-            />
-            Automatically notify resident of deposit adjustments
           </label>
           <button
             type="button"

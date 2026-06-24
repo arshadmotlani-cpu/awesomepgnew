@@ -70,6 +70,7 @@ export type ResidentListRow = {
   onboardingBookingStatus: string | null;
   onboardingBookingCode: string | null;
   onboardingPaymentApproved: boolean;
+  hasPendingKycSubmission: boolean;
 };
 
 export type UnverifiedWebsiteSignupRow = ResidentListRow & {
@@ -195,6 +196,7 @@ function mapResidentListRow(row: ResidentListDbRow): ResidentListRow {
     onboardingBookingStatus: row.onboarding_booking_status,
     onboardingBookingCode: row.onboarding_booking_code,
     onboardingPaymentApproved: row.onboarding_payment_approved,
+    hasPendingKycSubmission: row.has_pending_kyc_submission,
   };
 }
 
@@ -372,6 +374,7 @@ export async function searchResidentsForAdmin(
     onboardingBookingStatus: null,
     onboardingBookingCode: null,
     onboardingPaymentApproved: false,
+    hasPendingKycSubmission: false,
   }));
 }
 

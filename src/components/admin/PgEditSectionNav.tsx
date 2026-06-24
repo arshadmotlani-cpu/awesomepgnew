@@ -20,6 +20,11 @@ const SECTIONS = [
     desc: 'Beds, rent, meter',
   },
   {
+    slug: 'pricing',
+    label: 'Pricing',
+    desc: 'Bulk rent & deposit',
+  },
+  {
     slug: 'collections',
     label: '3. Collections',
     desc: 'QR payments',

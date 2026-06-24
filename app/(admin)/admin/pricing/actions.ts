@@ -21,7 +21,6 @@ export async function applyPricingAdjustmentAction(input: {
   tiers: RateTier[];
   mode: 'percent' | 'fixed';
   value: number;
-  notifyResident: boolean;
 }): Promise<{ ok: true; message: string } | { ok: false; error: string }> {
   const session = await requireAdminSession();
   try {
@@ -66,15 +65,13 @@ export async function applyPricingAdjustmentAction(input: {
       monthlyDepositPaise: monthlyDeposit,
     };
 
-    await updateRoomBedPricing(session, input.pgId, input.roomId, pricing, {
-      notifyResident: input.notifyResident,
-    });
+    await updateRoomBedPricing(session, input.pgId, input.roomId, pricing);
 
     revalidatePath('/admin/pricing');
 
     return {
       ok: true,
-      message: `Rates updated for ${roomBeds.length} bed(s). Deposit requirements synced for active tenants.`,
+      message: `Rates updated for ${roomBeds.length} bed(s). Future bookings use new prices; existing residents unchanged.`,
     };
   } catch (err) {
     return {

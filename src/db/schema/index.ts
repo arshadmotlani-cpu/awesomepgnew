@@ -54,3 +54,4 @@ export * from './residentRequests';
 export * from './residentBillingProfiles';
 export * from './adminNotifications';
 export * from './residentUploadEvents';
+export * from './pgPriceRevisions';

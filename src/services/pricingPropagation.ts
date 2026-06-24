@@ -1,6 +1,9 @@
 /**
  * When bed rent changes, sync deposit requirements and pending rent invoices
  * for active tenants on affected beds.
+ *
+ * @deprecated Default pricing updates must NOT call this — existing bookings use
+ * frozen pricing_snapshot. Opt-in only via updateRoomBedPricing({ affectExistingTenants: true }).
  */
 
 import { and, eq, inArray, sql } from 'drizzle-orm';

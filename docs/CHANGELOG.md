@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-06-24 (bulk PG pricing management)
+
+### Added
+- **PG Pricing tab** — `/admin/pgs/[pgId]/pricing` bulk rent/deposit % updates with preview + `UPDATE` confirmation
+- `bulkPgPricing.ts` — preview/apply, `pg_price_revisions` audit history, financial fingerprint safety check
+- `pgInventoryPricing.writeBedPriceVersion()` — time-versioned `bed_prices` writes without touching bookings
+- `pgPricingSafetyAudit.ts` — SHA256 fingerprints for bookings, invoices, deposit ledger, checkout settlements
+- Migration `0069_pg_price_revisions.sql`
+- Unit tests `bulkPgPricing.test.ts`; script `verify-pg-pricing-safety.ts`
+
+### Fixed
+- **Pricing propagation** — `updateRoomBedPricing` no longer retroactively mutates active tenant bookings/invoices by default (`propagatePricingChangeForBeds` opt-in only via `affectExistingTenants: true`)
+- **Pricing Center** — copy updated: future bookings only; removed resident deposit auto-notify on room rate change
+
+---
+
 ## 2026-06-23 (fixed-stay expiry + refund unlock)
 
 ### Fixed
@@ -196,18 +212,30 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-24 11:59:12 UTC
+### Pending pre-commit sync · 2026-06-24 12:38:11 UTC
 
-**Areas touched:** [[Bookings]]
+**Areas touched:** [[ROUTES]], [[DATABASE]], [[Residents]]
 
 **Docs flagged for review:**
 - `CHANGELOG.md` — review for accuracy
+- `DATABASE.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
+- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (1):**
-- `src/services/bookingRentInvoiceRepair.ts`
+**Staged code files (11):**
+- `app/(admin)/admin/pgs/[pgId]/pricing/page.tsx`
+- `app/(admin)/admin/pgs/pricing-actions.ts`
+- `app/(admin)/admin/pricing/actions.ts`
+- `src/db/migrations/0069_pg_price_revisions.sql`
+- `src/db/migrations/meta/_journal.json`
+- `src/db/schema/index.ts`
+- `src/db/schema/pgPriceRevisions.ts`
+- `src/lib/residents/resident360Workflow.ts`
+- `src/lib/residents/residentUnresolvedActions.ts`
+- `src/services/residentAdmin.ts`
+- `src/services/residentOperationsDashboard.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

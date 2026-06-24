@@ -13,17 +13,12 @@ import {
 } from '@/src/db/schema';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
+import { monthStartFor, writeBedPriceVersion } from '@/src/services/pgInventoryPricing';
 
 function assertPgAccess(session: AdminSession, pgId: string) {
   if (!adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, pgId)) {
     throw new Error('You do not have access to this PG.');
   }
-}
-
-/** First calendar day of the month containing `dateIso` (YYYY-MM-DD). */
-function monthStartFor(dateIso: string): string {
-  const d = parseDate(dateIso);
-  return formatDate(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)));
 }
 
 export type PgInventoryBedRow = {
@@ -331,7 +326,7 @@ export async function updateRoomBedPricing(
   pgId: string,
   roomId: string,
   input: BedPricingInput,
-  opts?: { notifyResident?: boolean },
+  opts?: { affectExistingTenants?: boolean },
 ): Promise<void> {
   assertPgAccess(session, pgId);
 
@@ -365,71 +360,32 @@ export async function updateRoomBedPricing(
   const today = todayString();
   const monthStart = monthStartFor(today);
   const monthlyDep = input.monthlyDepositPaise;
-  const priceValues = {
-    dailyRatePaise: input.dailyRatePaise,
-    weeklyRatePaise: input.weeklyRatePaise,
-    monthlyRatePaise: input.monthlyRatePaise,
-    securityDepositPaise: monthlyDep,
-    dailySecurityDepositPaise: input.dailyDepositPaise,
-    weeklySecurityDepositPaise: input.weeklyDepositPaise,
-    monthlySecurityDepositPaise: monthlyDep,
-  };
 
   for (const { bedId } of roomBeds) {
-    const [active] = await db
-      .select()
-      .from(bedPrices)
-      .where(
-        and(
-          eq(bedPrices.bedId, bedId),
-          sql`${bedPrices.effectiveFrom} <= ${today}::date`,
-          or(
-            isNull(bedPrices.effectiveTo),
-            sql`${bedPrices.effectiveTo} > ${today}::date`,
-          ),
-        ),
-      )
-      .orderBy(desc(bedPrices.effectiveFrom))
-      .limit(1);
-
-    if (active) {
-      if (active.effectiveFrom < monthStart) {
-        await db
-          .update(bedPrices)
-          .set({ effectiveTo: monthStart, updatedAt: new Date() })
-          .where(eq(bedPrices.id, active.id));
-        await db.insert(bedPrices).values({
-          bedId,
-          ...priceValues,
-          effectiveFrom: monthStart,
-        });
-      } else {
-        await db
-          .update(bedPrices)
-          .set({
-            ...priceValues,
-            effectiveFrom: monthStart,
-            effectiveTo: null,
-            updatedAt: new Date(),
-          })
-          .where(eq(bedPrices.id, active.id));
-      }
-    } else {
-      await db.insert(bedPrices).values({
+    await writeBedPriceVersion(
+      {
         bedId,
-        ...priceValues,
-        effectiveFrom: monthStart,
-      });
-    }
+        dailyRatePaise: input.dailyRatePaise,
+        weeklyRatePaise: input.weeklyRatePaise,
+        monthlyRatePaise: input.monthlyRatePaise,
+        securityDepositPaise: monthlyDep,
+        dailySecurityDepositPaise: input.dailyDepositPaise,
+        weeklySecurityDepositPaise: input.weeklyDepositPaise,
+        monthlySecurityDepositPaise: monthlyDep,
+      },
+      monthStart,
+    );
   }
 
   const bedIdList = roomBeds.map((b) => b.bedId);
-  const { propagatePricingChangeForBeds } = await import('@/src/services/pricingPropagation');
   const { revalidatePricingViews } = await import('@/src/lib/pricingRevalidate');
   const [pgRow] = await db.select({ slug: pgs.slug }).from(pgs).where(eq(pgs.id, pgId)).limit(1);
-  await propagatePricingChangeForBeds(session, pgId, bedIdList, {
-    notifyResident: opts?.notifyResident,
-  });
+
+  if (opts?.affectExistingTenants === true) {
+    const { propagatePricingChangeForBeds } = await import('@/src/services/pricingPropagation');
+    await propagatePricingChangeForBeds(session, pgId, bedIdList, { notifyResident: false });
+  }
+
   revalidatePricingViews(pgRow?.slug);
 }
 

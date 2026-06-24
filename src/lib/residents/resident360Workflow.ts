@@ -1,5 +1,9 @@
 import type { ResidentFinancialSummary } from '@/src/lib/billing/residentFinancialTypes';
 import { paiseToInr } from '@/src/lib/format';
+import {
+  buildKycReviewAction,
+  isKycReviewRequired,
+} from '@/src/lib/residents/residentUnresolvedActions';
 
 export type Resident360Workflow = {
   stateLine: string;
@@ -33,14 +37,16 @@ export function buildResident360Workflow(input: {
     };
   }
 
-  if (input.kycStatus === 'pending' || input.pendingKycSubmissionId) {
-    const href = input.pendingKycSubmissionId
-      ? `/admin/residents/kyc/${input.pendingKycSubmissionId}`
-      : `/admin/residents/kyc?customer=${input.customerId}`;
+  if (isKycReviewRequired({ pendingKycSubmissionId: input.pendingKycSubmissionId })) {
+    const kyc = buildKycReviewAction({
+      customerId: input.customerId,
+      customerName: input.customerName,
+      pendingKycSubmissionId: input.pendingKycSubmissionId!,
+    });
     return {
-      stateLine: `${input.customerName} — identity review required`,
-      nextAction: 'Approve or reject Aadhaar and selfie before bed assignment.',
-      primaryAction: { label: 'Review KYC', href },
+      stateLine: kyc.stateLine!,
+      nextAction: kyc.nextAction!,
+      primaryAction: { label: kyc.label, href: kyc.href },
     };
   }
 

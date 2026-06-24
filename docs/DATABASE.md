@@ -285,3 +285,6 @@ Append-only: entity, action, diff JSON — all financial mutations.
 
 <!-- DOC_SYNC_TOUCH_2026-06-23 -->
 > **2026-06-23 09:38:53 UTC** — Code changed in: Routes, Database, Billing, Bookings. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-06-24 -->
+> **2026-06-24 12:38:11 UTC** — Code changed in: Routes, Database, Residents. Manual review recommended.
