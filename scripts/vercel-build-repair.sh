@@ -23,3 +23,7 @@ if [ "${BACKFILL_BOOKING_RENT_INVOICES:-}" = "1" ]; then
   echo "Backfilling booking rent invoices…"
   npx tsx scripts/backfill-booking-rent-invoices.ts --execute || true
 fi
+if [ "${REPAIR_BOOKING_RENT_0035_0036:-}" = "1" ]; then
+  echo "Auditing + repairing APG-2026-0035 / 0036 booking rent invoices…"
+  npx tsx scripts/audit-repair-booking-rent-0035-0036.ts --execute || true
+fi
