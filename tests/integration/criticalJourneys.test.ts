@@ -17,7 +17,7 @@ import {
   buildInvoicePublicUrl,
   residentInvoiceSharePath,
 } from '@/src/lib/billing/sendInvoiceOnWhatsApp';
-import { getPublicCustomerBaseUrl } from '@/src/lib/appUrl';
+import { CANONICAL_PRODUCTION_URL, getAppUrl } from '@/src/lib/url';
 import {
   canTransitionFinancialStatus,
   canTransitionRentStatus,
@@ -138,14 +138,18 @@ describe('4 — Invoice sharing deep links', () => {
     assert.equal(url, `https://awesomepg.in/resident/invoices/${invoiceId}`);
   });
 
-  it('getPublicCustomerBaseUrl prefers NEXT_PUBLIC_APP_URL over VERCEL_URL', () => {
-    const prev = process.env.NEXT_PUBLIC_APP_URL;
+  it('getAppUrl on Vercel production is canonical www', () => {
+    const prevEnv = process.env.VERCEL_ENV;
+    const prevApp = process.env.NEXT_PUBLIC_APP_URL;
     try {
-      process.env.NEXT_PUBLIC_APP_URL = 'https://awesomepg.in';
-      assert.equal(getPublicCustomerBaseUrl(), 'https://awesomepg.in');
+      process.env.VERCEL_ENV = 'production';
+      delete process.env.NEXT_PUBLIC_APP_URL;
+      assert.equal(getAppUrl(), CANONICAL_PRODUCTION_URL);
     } finally {
-      if (prev === undefined) delete process.env.NEXT_PUBLIC_APP_URL;
-      else process.env.NEXT_PUBLIC_APP_URL = prev;
+      if (prevEnv === undefined) delete process.env.VERCEL_ENV;
+      else process.env.VERCEL_ENV = prevEnv;
+      if (prevApp === undefined) delete process.env.NEXT_PUBLIC_APP_URL;
+      else process.env.NEXT_PUBLIC_APP_URL = prevApp;
     }
   });
 });

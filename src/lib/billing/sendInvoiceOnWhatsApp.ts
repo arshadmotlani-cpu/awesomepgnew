@@ -1,4 +1,4 @@
-import { getPublicCustomerBaseUrl } from '@/src/lib/appUrl';
+import { appAbsoluteUrl, getAppUrl } from '@/src/lib/url';
 import { whatsAppPhoneDigits } from '@/src/lib/kyc/adminWhatsApp';
 import { paiseToInr } from '@/src/lib/format';
 import type { InvoiceDocumentModel } from '@/src/lib/billing/invoiceDocumentModel';
@@ -12,7 +12,7 @@ export type InvoiceWhatsAppSendPayload = {
 
 export function resolveAppBaseUrl(baseUrl?: string): string {
   if (baseUrl?.trim()) return baseUrl.trim().replace(/\/$/, '');
-  return getPublicCustomerBaseUrl();
+  return getAppUrl();
 }
 
 /** Permanent resident share path — always uses the invoice UUID. */
@@ -25,11 +25,14 @@ export function buildInvoicePublicUrl(
   audience: 'admin' | 'resident',
   baseUrl?: string,
 ): string {
-  const origin = resolveAppBaseUrl(baseUrl);
   if (audience === 'resident') {
-    return `${origin}${residentInvoiceSharePath(invoiceId)}`;
+    const path = residentInvoiceSharePath(invoiceId);
+    return baseUrl?.trim()
+      ? `${resolveAppBaseUrl(baseUrl)}${path}`
+      : appAbsoluteUrl(path);
   }
-  return `${origin}${invoiceDetailHref(invoiceId, audience)}`;
+  const path = invoiceDetailHref(invoiceId, audience);
+  return baseUrl?.trim() ? `${resolveAppBaseUrl(baseUrl)}${path}` : appAbsoluteUrl(path);
 }
 
 export function buildInvoiceWhatsAppSendPayload(

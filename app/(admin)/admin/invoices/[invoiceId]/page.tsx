@@ -57,6 +57,52 @@ export default async function InvoiceDetailPage({
         <InvoiceDocument document={document} variant="admin" />
       </div>
 
+      <section className="mb-6 rounded-xl border border-white/10 bg-[#1A1F27] p-5">
+        <h2 className="mb-3 text-sm font-semibold text-white">Related records</h2>
+        <ul className="flex flex-wrap gap-3 text-sm">
+          {document.relatedLinks.bookingHref && document.bookingCode ? (
+            <li>
+              <Link
+                href={document.relatedLinks.bookingHref}
+                className="text-[#FF5A1F] hover:underline"
+              >
+                Booking {document.bookingCode}
+              </Link>
+            </li>
+          ) : null}
+          {document.relatedLinks.residentHref ? (
+            <li>
+              <Link
+                href={document.relatedLinks.residentHref}
+                className="text-[#FF5A1F] hover:underline"
+              >
+                Resident profile
+              </Link>
+            </li>
+          ) : null}
+          {document.relatedLinks.depositHref ? (
+            <li>
+              <Link
+                href={document.relatedLinks.depositHref}
+                className="text-[#FF5A1F] hover:underline"
+              >
+                Deposit page
+              </Link>
+            </li>
+          ) : null}
+          {document.relatedLinks.paymentHref ? (
+            <li>
+              <Link
+                href={document.relatedLinks.paymentHref}
+                className="text-[#FF5A1F] hover:underline"
+              >
+                Payment record
+              </Link>
+            </li>
+          ) : null}
+        </ul>
+      </section>
+
       <section className="rounded-xl border border-white/10 bg-[#1A1F27] p-5">
         <h2 className="mb-4 text-sm font-semibold text-white">Actions</h2>
         <InvoiceDetailActions

@@ -1,28 +1,19 @@
-/** Canonical public base URL for email links and callbacks. */
-export function getAppBaseUrl(): string {
-  const explicit =
-    process.env.NEXT_PUBLIC_BASE_URL?.trim() ||
-    process.env.WATCHDOG_BASE_URL?.trim();
-  if (explicit) return explicit.replace(/\/$/, '');
-
-  const vercelUrl = process.env.VERCEL_URL?.trim();
-  if (vercelUrl) return `https://${vercelUrl}`;
-
-  return 'http://localhost:3000';
-}
-
 /**
- * Customer-facing origin for WhatsApp / SMS deep links.
- * Never falls back to VERCEL_URL — preview domains must not be shared with residents.
+ * @deprecated Import from `@/src/lib/url` — kept for existing call sites.
  */
-export function getPublicCustomerBaseUrl(): string {
-  const explicit =
-    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-    process.env.NEXT_PUBLIC_BASE_URL?.trim() ||
-    process.env.WATCHDOG_BASE_URL?.trim();
-  if (explicit) return explicit.replace(/\/$/, '');
-  return 'http://localhost:3000';
-}
+import {
+  appAbsoluteUrl,
+  CANONICAL_PRODUCTION_URL,
+  getAppUrl,
+} from '@/src/lib/url';
+
+export { CANONICAL_PRODUCTION_URL, appAbsoluteUrl, getAppUrl };
+
+/** @deprecated Use getAppUrl() */
+export const getAppBaseUrl = getAppUrl;
+
+/** @deprecated Use getAppUrl() */
+export const getPublicCustomerBaseUrl = getAppUrl;
 
 /** Mask an email for display, e.g. `ops@awesomepg.in` → `o**@awesomepg.in`. */
 export function maskEmail(email: string): string {

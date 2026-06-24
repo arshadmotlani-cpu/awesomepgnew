@@ -24,11 +24,8 @@ function hasAuthSecret(): boolean {
 }
 
 function hasBaseUrl(): boolean {
-  return Boolean(
-    process.env.NEXT_PUBLIC_BASE_URL?.trim() ||
-      process.env.VERCEL_URL?.trim() ||
-      process.env.NEXT_PUBLIC_VERCEL_URL?.trim(),
-  );
+  // getAppUrl() always resolves (production canonical, preview VERCEL_URL, dev localhost).
+  return true;
 }
 
 /** Non-throwing runtime env validation — never crashes the app. */
@@ -39,11 +36,6 @@ export function checkRequiredEnv(): EnvCheckResult {
   if (!hasDatabaseUrl()) {
     missing.push('DATABASE_URL|POSTGRES_URL|POSTGRES_PRISMA_URL');
     degradedFeatures.push('database', 'bookings', 'admin-data');
-  }
-
-  if (!hasBaseUrl()) {
-    missing.push('NEXT_PUBLIC_BASE_URL');
-    degradedFeatures.push('absolute-links', 'email-callbacks');
   }
 
   if (isProduction() && !hasAuthSecret()) {

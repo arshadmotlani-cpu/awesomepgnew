@@ -79,6 +79,10 @@ import {
   ensureBillingProfileForBooking,
   syncBillingDayFromCheckIn,
 } from '@/src/services/residentBillingProfiles';
+import {
+  clampDueDateOnOrAfterIssueDate,
+  resolveRentInvoiceDueDate,
+} from '@/src/lib/billing/invoiceDueDate';
 
 const INVOICE_PREFIX = 'RNT';
 
@@ -336,7 +340,10 @@ async function ensureFixedStayRentInvoice(input: {
     pgId: ctx.pgId,
     amountPaise,
     title: 'Fixed stay rent',
-    dueDate: ctx.stayStart,
+    dueDate: resolveRentInvoiceDueDate({
+      stayStart: ctx.stayStart,
+      issueDate: new Date(),
+    }),
   });
 
   if (!created.ok) {
@@ -1481,7 +1488,10 @@ export async function createAdhocRentInvoice(input: {
   }
 
   const billingMonth = firstOfMonth(formatDate(new Date()));
-  const dueDate = input.dueDate ?? formatDate(new Date());
+  const dueDate = resolveRentInvoiceDueDate({
+    explicitDueDate: input.dueDate,
+    issueDate: new Date(),
+  });
   const notes = input.description?.trim()
     ? `${input.title.trim()} — ${input.description.trim()}`
     : input.title.trim();
@@ -2108,6 +2118,38 @@ export async function cancelPendingRentInvoicesForMonth(
   }
 
   return { cancelled, errors };
+}
+
+/** Backfill rent/financial invoices where due_date precedes created_at (issue date). */
+export async function repairRentInvoiceDueDatesBeforeIssue(): Promise<{
+  repairedRentInvoiceIds: string[];
+}> {
+  const rows = await db
+    .select({
+      id: rentInvoices.id,
+      dueDate: rentInvoices.dueDate,
+      createdAt: rentInvoices.createdAt,
+    })
+    .from(rentInvoices)
+    .where(sql`${rentInvoices.dueDate} < ${rentInvoices.createdAt}::date`);
+
+  const repairedRentInvoiceIds: string[] = [];
+  const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
+
+  for (const row of rows) {
+    const issueDate = formatDate(row.createdAt);
+    const dueDate = clampDueDateOnOrAfterIssueDate(row.dueDate, issueDate);
+    if (dueDate === row.dueDate) continue;
+
+    await db
+      .update(rentInvoices)
+      .set({ dueDate, updatedAt: new Date() })
+      .where(eq(rentInvoices.id, row.id));
+    await syncRentInvoiceToUnified(row.id);
+    repairedRentInvoiceIds.push(row.id);
+  }
+
+  return { repairedRentInvoiceIds };
 }
 
 // Pseudonyms to keep imports tidy in tests.

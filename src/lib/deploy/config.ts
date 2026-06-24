@@ -1,13 +1,8 @@
+import { getAppUrl } from '@/src/lib/url';
+
+/** @deprecated Use getAppUrl() from `@/src/lib/url`. */
 export function getWatchdogBaseUrl(): string {
-  const explicit =
-    process.env.WATCHDOG_BASE_URL?.trim() ||
-    process.env.NEXT_PUBLIC_BASE_URL?.trim();
-  if (explicit) return explicit.replace(/\/$/, '');
-
-  const vercelUrl = process.env.VERCEL_URL?.trim();
-  if (vercelUrl) return `https://${vercelUrl}`;
-
-  return 'http://localhost:3000';
+  return getAppUrl();
 }
 
 export function getVercelApiConfig(): {

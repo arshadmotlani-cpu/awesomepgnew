@@ -1,5 +1,5 @@
 import { accountProfileHref } from '@/src/lib/accountNavigation';
-import { getWatchdogBaseUrl } from '@/src/lib/deploy/config';
+import { clientAppBaseUrl, getAppUrl } from '@/src/lib/url';
 import { normaliseIndianPhone } from '@/src/lib/phone';
 
 export type KycWhatsAppPromptInput = {
@@ -45,18 +45,12 @@ export function buildKycWhatsAppUrl(input: KycWhatsAppPromptInput): string | nul
 
 /** Server-side default public origin for admin pages. */
 export function publicSiteBaseUrl(): string {
-  return getWatchdogBaseUrl();
+  return getAppUrl();
 }
 
-/**
- * Public site origin safe to use in client components (admin WhatsApp links).
- * Prefer the live browser origin so KYC URLs always match awesomepg.in.
- */
+/** Public site origin for client share links (WhatsApp, referrals). */
 export function clientPublicSiteBaseUrl(): string {
-  if (typeof window !== 'undefined' && window.location?.origin) {
-    return window.location.origin.replace(/\/$/, '');
-  }
-  return publicSiteBaseUrl();
+  return clientAppBaseUrl();
 }
 
 export function needsKycReminder(status: 'pending' | 'approved' | 'rejected'): boolean {

@@ -18,8 +18,14 @@ import { paymentLinkPublicUrl } from '@/src/lib/billing/paymentLinkUrl';
 import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
 import { parseDaterange } from '@/src/services/availability';
 import { formatDate, titleCase } from '@/src/lib/format';
+import { formatDate as formatIsoDate } from '@/src/lib/dates';
 import { getUnifiedInvoiceDetail } from '@/src/services/unifiedInvoices';
 import { assertCustomerOwnsFinancialInvoiceDetailed } from '@/src/lib/billing/residentInvoiceAccess';
+import { clampDueDateOnOrAfterIssueDate } from '@/src/lib/billing/invoiceDueDate';
+import {
+  loadBookingPaymentFinancialStory,
+  type BookingPaymentFinancialStory,
+} from '@/src/services/bookingPaymentFinancialProjection';
 
 export type InvoiceDocumentLineItem = {
   kind: string;
@@ -58,10 +64,19 @@ export type InvoiceDocumentTotals = {
 };
 
 export type InvoiceDocumentPayment = {
+  paymentId: string | null;
   paymentReference: string | null;
   paidAt: string | null;
   paymentLinkUrl: string | null;
   paymentLinkId: string | null;
+};
+
+export type InvoiceDocumentRelatedLinks = {
+  bookingHref: string | null;
+  residentHref: string | null;
+  depositHref: string | null;
+  paymentHref: string | null;
+  sourceRentInvoiceId: string | null;
 };
 
 export type InvoiceDocumentModel = {
@@ -84,6 +99,8 @@ export type InvoiceDocumentModel = {
   lineItems: InvoiceDocumentLineItem[];
   totals: InvoiceDocumentTotals;
   payment: InvoiceDocumentPayment;
+  bookingPaymentSummary: BookingPaymentFinancialStory | null;
+  relatedLinks: InvoiceDocumentRelatedLinks;
   dueDate: string | null;
   billingMonth: string | null;
   issuedAt: string;
@@ -376,6 +393,35 @@ export async function getInvoiceDocumentDetail(
     lineItems,
   });
 
+  const issuedAtIso = formatIsoDate(base.createdAt);
+  const issuedAt = formatDate(base.createdAt);
+  const dueDate =
+    base.dueDate != null
+      ? clampDueDateOnOrAfterIssueDate(base.dueDate, issuedAtIso)
+      : null;
+
+  const bookingPaymentSummary =
+    base.bookingId && base.invoiceType === 'rent'
+      ? await loadBookingPaymentFinancialStory({
+          bookingId: base.bookingId,
+          paymentId: base.paymentId,
+        })
+      : null;
+
+  const relatedLinks: InvoiceDocumentRelatedLinks = {
+    bookingHref: base.bookingId ? `/admin/bookings/${base.bookingId}` : null,
+    residentHref: `/admin/residents/${base.customerId}`,
+    depositHref: base.bookingId ? `/admin/deposits/${base.bookingId}` : null,
+    paymentHref:
+      base.bookingId && base.paymentId
+        ? `/admin/bookings/${base.bookingId}?paymentId=${base.paymentId}`
+        : base.bookingId
+          ? `/admin/bookings/${base.bookingId}`
+          : null,
+    sourceRentInvoiceId:
+      base.sourceTable === 'rent_invoices' && base.sourceId ? base.sourceId : null,
+  };
+
   const letterhead: InvoiceDocumentLetterhead = {
     businessName: 'Awesome PG',
     pgName: base.pgName,
@@ -405,6 +451,7 @@ export async function getInvoiceDocumentDetail(
     lineItems,
     totals,
     payment: {
+      paymentId: base.paymentId ?? null,
       paymentReference,
       paidAt: base.paidAt ? formatDate(base.paidAt) : null,
       paymentLinkUrl:
@@ -413,9 +460,11 @@ export async function getInvoiceDocumentDetail(
           : null,
       paymentLinkId: base.paymentLink?.id ?? null,
     },
-    dueDate: base.dueDate,
+    bookingPaymentSummary,
+    relatedLinks,
+    dueDate,
     billingMonth: base.billingMonth,
-    issuedAt: formatDate(base.createdAt),
+    issuedAt,
     notes: base.notes,
     cancellationReason: base.cancellationReason,
   };

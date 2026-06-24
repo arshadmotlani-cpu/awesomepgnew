@@ -2,7 +2,8 @@ import { and, desc, eq, gt, gte, isNull, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { adminPasswordResetTokens, adminUsers } from '@/src/db/schema';
 import { sendEmail } from '@/src/lib/email/send';
-import { getAppBaseUrl, maskEmail } from '@/src/lib/appUrl';
+import { maskEmail } from '@/src/lib/appUrl';
+import { appAbsoluteUrl } from '@/src/lib/url';
 import { env } from '@/src/lib/env';
 import { hashPassword, randomToken, sha256 } from './crypto';
 import { validateAdminPassword } from './password';
@@ -119,7 +120,9 @@ export async function requestAdminPasswordReset(args: {
     expiresAt: resetTokenExpiry(),
   });
 
-  const resetUrl = `${getAppBaseUrl()}/admin/reset-password?token=${encodeURIComponent(token)}`;
+  const resetUrl = appAbsoluteUrl(
+    `/admin/reset-password?token=${encodeURIComponent(token)}`,
+  );
   const minutes = env.AUTH_ADMIN_RESET_TOKEN_MINUTES;
 
   const sendResult = await sendEmail({

@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { ApgCard } from '@/src/components/customer/design-system';
 import { siteWhatsAppUrl } from '@/src/lib/siteContact';
+import { clientAppAbsoluteUrl } from '@/src/lib/url';
 
 type Props = {
   customerId: string;
@@ -14,10 +15,10 @@ export function ReferralsPanel({ customerId, customerName }: Props) {
     () => customerId.replace(/-/g, '').slice(0, 8).toUpperCase(),
     [customerId],
   );
-  const shareUrl =
-    typeof window !== 'undefined'
-      ? `${window.location.origin}/pgs?ref=${code}`
-      : `https://awesomepg.in/pgs?ref=${code}`;
+  const shareUrl = useMemo(
+    () => clientAppAbsoluteUrl(`/pgs?ref=${code}`),
+    [code],
+  );
 
   const shareMessage = `${customerName.split(' ')[0]} invited you to Awesome PG — premium beds, transparent billing. Book with code ${code}: ${shareUrl}`;
 

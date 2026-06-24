@@ -5,6 +5,30 @@
 
 ---
 
+## 2026-06-24 (URL consistency SSOT)
+
+### Added
+- `src/lib/url.ts` — `getAppUrl()`, `appAbsoluteUrl()`, `clientAppBaseUrl()` (production → `https://www.awesomepg.in`, preview → Vercel URL, dev → localhost)
+
+### Fixed
+- Invoice share, payment link, WhatsApp, KYC, referral, and password-reset links no longer fall back to `localhost:3000` or unset `NEXT_PUBLIC_APP_URL` on Vercel production
+
+---
+
+## 2026-06-24 (invoice + booking financial consistency)
+
+### Added
+- **Booking payment summary on rent invoices** — full checkout allocation (rent, deposit transfer, deposit collected, prior balance) + current deposit held from SSOT
+- `bookingPaymentFinancialProjection.ts` — shared financial story for invoice, verification, and surfaces
+- `invoiceFinancialSurfaceVerification.ts` — multi-surface deposit/allocation consistency checks for APG-0035/0036
+- Invoice detail cross-links: booking, resident, deposit, payment
+- `invoiceDueDate.ts` + `repairRentInvoiceDueDatesBeforeIssue()` — due date never before issue date
+
+### Fixed
+- Fixed-stay rent invoices created with `dueDate < issuedAt` when payment landed after check-in
+
+---
+
 ## 2026-06-24 (bulk PG pricing management)
 
 ### Added
@@ -212,30 +236,28 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-24 12:38:11 UTC
+### Pending pre-commit sync · 2026-06-24 12:56:53 UTC
 
-**Areas touched:** [[ROUTES]], [[DATABASE]], [[Residents]]
+**Areas touched:** [[ROUTES]], [[Auth]], [[Billing]], [[KYC]], [[Bookings]]
 
 **Docs flagged for review:**
+- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DATABASE.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (11):**
-- `app/(admin)/admin/pgs/[pgId]/pricing/page.tsx`
-- `app/(admin)/admin/pgs/pricing-actions.ts`
-- `app/(admin)/admin/pricing/actions.ts`
-- `src/db/migrations/0069_pg_price_revisions.sql`
-- `src/db/migrations/meta/_journal.json`
-- `src/db/schema/index.ts`
-- `src/db/schema/pgPriceRevisions.ts`
-- `src/lib/residents/resident360Workflow.ts`
-- `src/lib/residents/residentUnresolvedActions.ts`
-- `src/services/residentAdmin.ts`
-- `src/services/residentOperationsDashboard.ts`
+**Staged code files (9):**
+- `app/(admin)/admin/invoices/[invoiceId]/page.tsx`
+- `src/lib/auth/adminPasswordReset.ts`
+- `src/lib/billing/invoiceDocumentModel.ts`
+- `src/lib/billing/invoiceDueDate.ts`
+- `src/lib/billing/paymentLinkUrl.ts`
+- `src/lib/billing/sendInvoiceOnWhatsApp.ts`
+- `src/lib/kyc/adminWhatsApp.ts`
+- `src/services/bookingPaymentFinancialProjection.ts`
+- `src/services/rentInvoices.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

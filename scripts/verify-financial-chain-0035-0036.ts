@@ -14,6 +14,7 @@ import {
   FINANCIAL_CHAIN_BOOKING_CODES,
   runFinancialChainVerification,
 } from '../src/services/financialChainVerification';
+import { runInvoiceFinancialSurfaceVerification } from '../src/services/invoiceFinancialSurfaceVerification';
 
 loadScriptEnv();
 
@@ -31,6 +32,11 @@ async function main() {
     const report = await runFinancialChainVerification({
       bookingCodes: [...FINANCIAL_CHAIN_BOOKING_CODES],
       execute,
+    });
+
+    const surfaceReport = await runInvoiceFinancialSurfaceVerification({
+      bookingCodes: [...FINANCIAL_CHAIN_BOOKING_CODES],
+      executeDueDateRepair: execute,
     });
 
     for (const b of report.bookings) {
@@ -62,11 +68,35 @@ async function main() {
       console.log(JSON.stringify(report.repairActions, null, 2));
     }
 
+    console.log('\n--- INVOICE SURFACE CONSISTENCY ---');
+    for (const s of surfaceReport.surfaces) {
+      console.log(`\n${s.bookingCode}: ${s.overallPass ? 'PASS' : 'FAIL'}`);
+      console.log(`  Deposit held (ledger): ${paiseToInr(s.depositHeldPaise)}`);
+      console.log(`  Surfaces match: ${s.depositSurfacesMatch ? 'yes' : 'no'}`);
+      console.log(
+        `  Deposit page / invoice / resident: ${paiseToInr(s.depositSurfaces.depositPage)} / ${s.depositSurfaces.invoiceStory != null ? paiseToInr(s.depositSurfaces.invoiceStory) : '—'} / ${s.depositSurfaces.residentWallet != null ? paiseToInr(s.depositSurfaces.residentWallet) : '—'}`,
+      );
+      console.log(`  Booking payment summary on invoice: ${s.invoiceShowsBookingPaymentSummary}`);
+      console.log(`  Allocation matches checkout: ${s.allocationMatchesCheckout}`);
+      console.log(`  Due date valid: ${s.invoiceDueDateValid}`);
+      if (s.bookingPaymentSummary) {
+        console.log(
+          `  Payment ${paiseToInr(s.bookingPaymentSummary.totalPaymentPaise)} → rent ${paiseToInr(s.bookingPaymentSummary.rentPaise)}`,
+        );
+      }
+    }
+    if (surfaceReport.dueDateRepair) {
+      console.log(
+        `\nDue date repairs: ${surfaceReport.dueDateRepair.repairedRentInvoiceIds.length} invoice(s)`,
+      );
+    }
+    console.log(`\nSURFACE OVERALL: ${surfaceReport.overallPass ? 'PASS' : 'FAIL'}`);
+
     console.log('\n--- FULL REPORT JSON ---');
     console.log(JSON.stringify(report, null, 2));
-    console.log(`\nOVERALL: ${report.overallPass ? 'PASS' : 'FAIL'}`);
+    console.log(`\nOVERALL: ${report.overallPass && surfaceReport.overallPass ? 'PASS' : 'FAIL'}`);
 
-    if (!report.overallPass) process.exit(1);
+    if (!report.overallPass || !surfaceReport.overallPass) process.exit(1);
   } finally {
     await close();
   }

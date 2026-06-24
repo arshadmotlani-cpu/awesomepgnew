@@ -9,7 +9,7 @@ import {
 } from '../../src/lib/billing/sendInvoiceOnWhatsApp';
 import { invoiceDetailHref } from '../../src/lib/billing/invoiceRoutes';
 import { safeNext } from '../../src/lib/auth/safeNext';
-import { getPublicCustomerBaseUrl } from '../../src/lib/appUrl';
+import { CANONICAL_PRODUCTION_URL, getAppUrl } from '../../src/lib/url';
 
 test('isFinancialInvoiceUuid accepts canonical uuid', () => {
   assert.equal(
@@ -24,8 +24,8 @@ test('isFinancialInvoiceUuid rejects invoice numbers', () => {
 
 test('buildInvoicePublicUrl resident share always uses invoice uuid', () => {
   const id = '550e8400-e29b-41d4-a716-446655440000';
-  const url = buildInvoicePublicUrl(id, 'resident', 'https://awesomepg.in');
-  assert.equal(url, `https://awesomepg.in/resident/invoices/${id}`);
+  const url = buildInvoicePublicUrl(id, 'resident', CANONICAL_PRODUCTION_URL);
+  assert.equal(url, `${CANONICAL_PRODUCTION_URL}/resident/invoices/${id}`);
 });
 
 test('residentInvoiceSharePath is stable permanent path', () => {
@@ -55,27 +55,21 @@ test('invoiceDetailHref resident canonical path unchanged', () => {
   );
 });
 
-test('getPublicCustomerBaseUrl never uses VERCEL_URL', () => {
-  const prevApp = process.env.NEXT_PUBLIC_APP_URL;
-  const prevBase = process.env.NEXT_PUBLIC_BASE_URL;
-  const prevWatch = process.env.WATCHDOG_BASE_URL;
+test('getAppUrl on Vercel production is always canonical www', () => {
+  const prevEnv = process.env.VERCEL_ENV;
   const prevVercel = process.env.VERCEL_URL;
+  const prevApp = process.env.NEXT_PUBLIC_APP_URL;
   try {
-    delete process.env.NEXT_PUBLIC_APP_URL;
-    delete process.env.NEXT_PUBLIC_BASE_URL;
-    delete process.env.WATCHDOG_BASE_URL;
+    process.env.VERCEL_ENV = 'production';
     process.env.VERCEL_URL = 'project.vazhugal.app';
-    assert.equal(getPublicCustomerBaseUrl(), 'http://localhost:3000');
-    process.env.NEXT_PUBLIC_APP_URL = 'https://awesomepg.in';
-    assert.equal(getPublicCustomerBaseUrl(), 'https://awesomepg.in');
+    delete process.env.NEXT_PUBLIC_APP_URL;
+    assert.equal(getAppUrl(), CANONICAL_PRODUCTION_URL);
   } finally {
-    if (prevApp === undefined) delete process.env.NEXT_PUBLIC_APP_URL;
-    else process.env.NEXT_PUBLIC_APP_URL = prevApp;
-    if (prevBase === undefined) delete process.env.NEXT_PUBLIC_BASE_URL;
-    else process.env.NEXT_PUBLIC_BASE_URL = prevBase;
-    if (prevWatch === undefined) delete process.env.WATCHDOG_BASE_URL;
-    else process.env.WATCHDOG_BASE_URL = prevWatch;
+    if (prevEnv === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = prevEnv;
     if (prevVercel === undefined) delete process.env.VERCEL_URL;
     else process.env.VERCEL_URL = prevVercel;
+    if (prevApp === undefined) delete process.env.NEXT_PUBLIC_APP_URL;
+    else process.env.NEXT_PUBLIC_APP_URL = prevApp;
   }
 });

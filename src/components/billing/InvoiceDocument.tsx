@@ -264,6 +264,46 @@ export function InvoiceDocument({ document: doc, variant = 'admin', className = 
         </dl>
       </section>
 
+      {doc.bookingPaymentSummary ? (
+        <section className={`mt-6 border-t pt-6 ${divider}`}>
+          <h2 className={`text-[10px] font-semibold uppercase tracking-wide ${muted}`}>
+            Booking payment summary
+          </h2>
+          <p className={`mt-1 text-xs ${muted}`}>
+            How the checkout payment was allocated across rent, deposit, and prior balances.
+          </p>
+          <dl className="mt-4 space-y-2 text-sm">
+            <div className="flex justify-between gap-4 font-medium">
+              <dt>Total payment received</dt>
+              <dd className="tabular-nums">
+                {paiseToInr(doc.bookingPaymentSummary.totalPaymentPaise)}
+              </dd>
+            </div>
+          </dl>
+          <h3 className={`mt-4 text-[10px] font-semibold uppercase tracking-wide ${muted}`}>
+            Allocation
+          </h3>
+          <dl className="mt-2 space-y-2 text-sm">
+            {doc.bookingPaymentSummary.allocationLines.map((line) => (
+              <div key={line.key} className="flex justify-between gap-4">
+                <dt className={muted}>{line.label}</dt>
+                <dd className="tabular-nums">{paiseToInr(line.amountPaise)}</dd>
+              </div>
+            ))}
+            <div className={`flex justify-between gap-4 border-t pt-2 font-medium ${divider}`}>
+              <dt>Current refundable deposit held</dt>
+              <dd className="tabular-nums">
+                {paiseToInr(doc.bookingPaymentSummary.currentDepositHeldPaise)}
+              </dd>
+            </div>
+          </dl>
+          <p className={`mt-3 text-xs ${muted}`}>
+            This amount may be refunded at checkout after electricity, damage, notice, and other
+            approved deductions.
+          </p>
+        </section>
+      ) : null}
+
       {/* Payment */}
       {(doc.payment.paymentReference || doc.payment.paymentLinkUrl) && (
         <section className={`mt-6 border-t pt-6 ${divider}`}>

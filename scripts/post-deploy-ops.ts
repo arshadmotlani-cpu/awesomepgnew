@@ -3,19 +3,19 @@
  * Post-deploy production ops: trigger crons and optionally run DB scripts.
  *
  * Usage:
- *   CRON_SECRET=… NEXT_PUBLIC_APP_URL=https://www.awesomepg.in npx tsx scripts/post-deploy-ops.ts
- *   CRON_SECRET=… npx tsx scripts/post-deploy-ops.ts --with-db   # also audit + expire via DB
+ *   CRON_SECRET=… npx tsx scripts/post-deploy-ops.ts
+ *   CRON_SECRET=… npx tsx scripts/post-deploy-ops.ts --with-db
+ *   CRON_SECRET=… npx tsx scripts/post-deploy-ops.ts --local   # hit local dev server
  */
 import dotenv from 'dotenv';
+import { CANONICAL_PRODUCTION_URL, getAppUrl } from '../src/lib/url';
 
 dotenv.config({ path: '.env.production.local' });
 dotenv.config({ path: '.env.bak' });
 dotenv.config();
 
 const baseUrl = (
-  process.env.NEXT_PUBLIC_APP_URL ??
-  process.env.NEXT_PUBLIC_BASE_URL ??
-  'https://www.awesomepg.in'
+  process.argv.includes('--local') ? getAppUrl() : CANONICAL_PRODUCTION_URL
 ).replace(/\/$/, '');
 
 const cronSecret = process.env.CRON_SECRET?.trim();
