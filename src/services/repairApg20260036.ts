@@ -87,16 +87,31 @@ async function hasTransferComplete(targetBookingId: string, sourceBookingId: str
   );
 }
 
+async function sourceRefundableLedgerPaise(bookingId: string): Promise<number> {
+  const [row] = await db
+    .select({
+      balance: sql<number>`coalesce(sum(${depositLedger.amountPaise}), 0)::bigint`,
+    })
+    .from(depositLedger)
+    .where(eq(depositLedger.bookingId, bookingId));
+  return Math.max(0, Number(row?.balance ?? 0));
+}
+
 async function finalizeSourceLedgerTransfer(
   target: typeof bookings.$inferSelect,
   source: typeof bookings.$inferSelect,
   adminId: string,
 ): Promise<void> {
-  const sourceSummary = await getDepositSummaryForBooking(source.id);
-  const refundable = sourceSummary?.refundableBalancePaise ?? 0;
-  if (refundable <= 0) return;
+  const ledgerRefundable = await sourceRefundableLedgerPaise(source.id);
+  if (ledgerRefundable <= 0) {
+    const targetSummary = await getDepositSummaryForBooking(target.id);
+    if ((targetSummary?.collectedPaise ?? 0) >= EXPECTED.totalDepositHeldPaise) {
+      return;
+    }
+    throw new Error('Source ledger has no refundable balance but target deposit is incomplete.');
+  }
 
-  const slice = Math.min(TRANSFER_PAISE, refundable);
+  const slice = Math.min(TRANSFER_PAISE, ledgerRefundable);
   const deducted = await applyDepositDeduction({
     bookingId: source.id,
     customerId: source.customerId,
@@ -176,6 +191,8 @@ export async function repairApg20260036(): Promise<RepairApg20260036Result> {
   const targetSummary = await getDepositSummaryForBooking(target.id);
   const sourceSummary = await getDepositSummaryForBooking(source.id);
 
+  const sourceLedgerRefundable = await sourceRefundableLedgerPaise(source.id);
+
   const fullySettled =
     target.status === 'confirmed' &&
     proof?.status === 'approved' &&
@@ -183,7 +200,7 @@ export async function repairApg20260036(): Promise<RepairApg20260036Result> {
     creditApplied >= TRANSFER_PAISE &&
     (target.depositDuePaise ?? 0) === 0 &&
     (targetSummary?.collectedPaise ?? 0) >= EXPECTED.totalDepositHeldPaise &&
-    (sourceSummary?.refundableBalancePaise ?? 0) === 0;
+    sourceLedgerRefundable === 0;
 
   if (fullySettled) {
     return {
@@ -218,7 +235,7 @@ export async function repairApg20260036(): Promise<RepairApg20260036Result> {
     if (!transferResult.ok) {
       throw new Error(`Transfer failed: ${transferResult.error}`);
     }
-  } else if ((sourceSummary?.refundableBalancePaise ?? 0) > 0) {
+  } else if (sourceLedgerRefundable > 0) {
     await finalizeSourceLedgerTransfer(target, source, admin.id);
   }
 
@@ -258,7 +275,6 @@ export async function repairApg20260036(): Promise<RepairApg20260036Result> {
 
   const [finalTarget] = await db.select().from(bookings).where(eq(bookings.id, target.id)).limit(1);
   const finalSummary = await getDepositSummaryForBooking(target.id);
-  const finalSourceSummary = await getDepositSummaryForBooking(source.id);
   const priorSummary = prior ? await getDepositSummaryForBooking(prior.id) : null;
 
   const split = proof != null ? splitBookingPayment(targetAfterTransfer, proof.amountPaise) : null;
@@ -269,12 +285,14 @@ export async function repairApg20260036(): Promise<RepairApg20260036Result> {
     .where(eq(bookings.id, source.id))
     .limit(1);
 
+  const finalSourceLedgerRefundable = await sourceRefundableLedgerPaise(source.id);
+
   const checks = {
     targetConfirmed: finalTarget?.status === 'confirmed',
     targetDepositRequired: (finalTarget?.depositPaise ?? 0) === EXPECTED.totalDepositHeldPaise,
     targetDepositHeld: (finalSummary?.collectedPaise ?? 0) >= EXPECTED.totalDepositHeldPaise,
     targetDepositDue: (finalTarget?.depositDuePaise ?? 0) === 0,
-    sourceRefundableZero: (finalSourceSummary?.refundableBalancePaise ?? 0) === 0,
+    sourceRefundableZero: finalSourceLedgerRefundable === 0,
     sourceDepositDueZero: (finalSource?.depositDuePaise ?? 0) === 0,
     priorOutstandingCleared: priorSummary ? priorSummary.collectedPaise >= 16_500 : true,
     splitRent: split?.rentPaisePaid === EXPECTED.rentPaise,
