@@ -196,26 +196,28 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-24 09:00:17 UTC
+### Pending pre-commit sync · 2026-06-24 09:55:58 UTC
 
-**Areas touched:** [[ROUTES]], [[Bed Assignment]], [[Residents]]
+**Areas touched:** [[ROUTES]], [[Billing]], [[Bookings]]
 
 **Docs flagged for review:**
+- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DECISIONS.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (7):**
-- `app/(admin)/admin/bookings/[bookingId]/page.tsx`
-- `app/(admin)/admin/residents/[customerId]/page.tsx`
-- `app/(customer)/booking/[bookingCode]/pay/page.tsx`
-- `app/(customer)/booking/new/actions.ts`
+**Staged code files (9):**
 - `app/(customer)/booking/new/page.tsx`
-- `src/lib/residentActiveTenancy.ts`
-- `src/services/residentAdmin.ts`
+- `app/(customer)/dev/booking-funnel-ui/page.tsx`
+- `app/(customer)/pgs/[pgSlug]/page.tsx`
+- `app/(customer)/pgs/[pgSlug]/rooms/[roomId]/page.tsx`
+- `app/page.tsx`
+- `src/lib/billing/invoiceOnlyFinancials.ts`
+- `src/services/bookingLifecycle.ts`
+- `src/services/bookingPaymentInvoices.ts`
+- `src/services/rentInvoices.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

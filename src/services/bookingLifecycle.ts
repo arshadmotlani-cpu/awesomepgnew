@@ -528,6 +528,14 @@ export async function recordPaymentSuccess(
     )
     .limit(1);
   if (existing) {
+    try {
+      const { ensureBookingRentInvoiceForExistingPayment } = await import(
+        './bookingPaymentInvoices'
+      );
+      await ensureBookingRentInvoiceForExistingPayment(existing.id);
+    } catch (repairErr) {
+      console.error('booking rent invoice replay repair failed:', repairErr);
+    }
     return {
       ok: true,
       paymentId: existing.id,
@@ -691,6 +699,47 @@ export async function recordPaymentSuccess(
       }
     }
 
+    if (!isReserveBooking && wasAwaitingConfirm) {
+      try {
+        const { applyBookingRentInvoiceOnPaymentSuccess } = await import(
+          './bookingPaymentInvoices'
+        );
+        const rentInvoice = await applyBookingRentInvoiceOnPaymentSuccess({
+          booking,
+          paymentId: result.paymentId,
+          paymentAmountPaise: input.amountPaise,
+          membershipAmountPaise: input.membershipAmountPaise,
+          providerPaymentId: input.providerPaymentId,
+        });
+        if (!rentInvoice.ok) {
+          await compensateFailedBookingPaymentConfirm({
+            bookingId: booking.id,
+            paymentId: result.paymentId,
+            priorBookingStatus: booking.status,
+            wasAwaitingConfirm,
+            isReserveBooking,
+            reason: rentInvoice.reason,
+            recordedByAdminId: input.recordedByAdminId,
+          });
+          return { ok: false, reason: rentInvoice.reason };
+        }
+      } catch (rentErr) {
+        const reason =
+          rentErr instanceof Error ? rentErr.message : 'Booking rent invoice failed';
+        console.error('booking rent invoice failed:', rentErr);
+        await compensateFailedBookingPaymentConfirm({
+          bookingId: booking.id,
+          paymentId: result.paymentId,
+          priorBookingStatus: booking.status,
+          wasAwaitingConfirm,
+          isReserveBooking,
+          reason,
+          recordedByAdminId: input.recordedByAdminId,
+        });
+        return { ok: false, reason };
+      }
+    }
+
     try {
       const { clearBedInterestForBooking } = await import('./bedNoticeInterest');
       if (!isReserveBooking && wasAwaitingConfirm) {
@@ -808,6 +857,14 @@ export async function recordPaymentSuccess(
         )
         .limit(1);
       if (reread) {
+        try {
+          const { ensureBookingRentInvoiceForExistingPayment } = await import(
+            './bookingPaymentInvoices'
+          );
+          await ensureBookingRentInvoiceForExistingPayment(reread.id);
+        } catch (repairErr) {
+          console.error('booking rent invoice race repair failed:', repairErr);
+        }
         return {
           ok: true,
           paymentId: reread.id,
@@ -1315,6 +1372,14 @@ export async function recordExtensionPaymentSuccess(
     )
     .limit(1);
   if (existing) {
+    try {
+      const { ensureBookingRentInvoiceForExistingPayment } = await import(
+        './bookingPaymentInvoices'
+      );
+      await ensureBookingRentInvoiceForExistingPayment(existing.id);
+    } catch (repairErr) {
+      console.error('extension rent invoice replay repair failed:', repairErr);
+    }
     return {
       ok: true,
       paymentId: existing.id,
@@ -1450,6 +1515,26 @@ export async function recordExtensionPaymentSuccess(
       reference: booking.bookingCode,
     });
 
+    try {
+      const { applyExtensionRentInvoiceOnPaymentSuccess } = await import(
+        './bookingPaymentInvoices'
+      );
+      const rentInvoice = await applyExtensionRentInvoiceOnPaymentSuccess({
+        extensionId: ext.id,
+        bookingId: booking.id,
+        paymentId: result.paymentId,
+        amountPaise: input.amountPaise,
+      });
+      if (!rentInvoice.ok) {
+        return { ok: false, reason: rentInvoice.reason };
+      }
+    } catch (rentErr) {
+      const reason =
+        rentErr instanceof Error ? rentErr.message : 'Extension rent invoice failed';
+      console.error('extension rent invoice failed:', rentErr);
+      return { ok: false, reason };
+    }
+
     return {
       ok: true,
       paymentId: result.paymentId,
@@ -1471,6 +1556,14 @@ export async function recordExtensionPaymentSuccess(
         )
         .limit(1);
       if (reread) {
+        try {
+          const { ensureBookingRentInvoiceForExistingPayment } = await import(
+            './bookingPaymentInvoices'
+          );
+          await ensureBookingRentInvoiceForExistingPayment(reread.id);
+        } catch (repairErr) {
+          console.error('extension rent invoice race repair failed:', repairErr);
+        }
         return {
           ok: true,
           paymentId: reread.id,

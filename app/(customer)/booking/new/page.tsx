@@ -166,7 +166,7 @@ export default async function NewBookingPage(props: PageProps<'/booking/new'>) {
   };
 
   return (
-    <main className="apg-aurora mx-auto max-w-5xl px-4 py-10 sm:px-6">
+    <main className="w-full px-4 py-6 sm:px-6 lg:py-8">
       <nav className="mb-4 text-xs text-apg-silver">
         <Link href={`/pgs/${pg.pgSlug}`} className="hover:text-apg-orange">
           ← Back

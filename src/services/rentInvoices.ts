@@ -890,6 +890,110 @@ export async function expireRentInvoicesPastDue(
 }
 
 // ───────────────────────────────────────────────────────────────────────────
+// markRentInvoicePaidFromExistingPayment — link invoice to an existing payment
+// ───────────────────────────────────────────────────────────────────────────
+
+export async function markRentInvoicePaidFromExistingPayment(input: {
+  invoiceId: string;
+  paymentId: string;
+  principalPaise: number;
+  paidAt?: Date;
+  source?: string;
+  meta?: Record<string, unknown>;
+}): Promise<
+  | { ok: true; invoiceId: string; stateChanged: boolean }
+  | { ok: false; reason: string }
+> {
+  if (input.principalPaise <= 0) {
+    return { ok: false, reason: 'principalPaise must be > 0' };
+  }
+
+  const [invoice] = await db
+    .select({
+      id: rentInvoices.id,
+      bookingId: rentInvoices.bookingId,
+      status: rentInvoices.status,
+      rentPaise: rentInvoices.rentPaise,
+      paymentId: rentInvoices.paymentId,
+      paidPrincipalPaise: rentInvoices.paidPrincipalPaise,
+      paidLateFeePaise: rentInvoices.paidLateFeePaise,
+    })
+    .from(rentInvoices)
+    .where(eq(rentInvoices.id, input.invoiceId))
+    .limit(1);
+
+  if (!invoice) {
+    return { ok: false, reason: `no rent invoice ${input.invoiceId}` };
+  }
+  if (invoice.status === 'cancelled') {
+    return { ok: false, reason: 'invoice is cancelled' };
+  }
+  if (invoice.status === 'paid') {
+    if (invoice.paymentId === input.paymentId) {
+      return { ok: true, invoiceId: invoice.id, stateChanged: false };
+    }
+    if (!invoice.paymentId) {
+      await db
+        .update(rentInvoices)
+        .set({ paymentId: input.paymentId, updatedAt: new Date() })
+        .where(eq(rentInvoices.id, invoice.id));
+      return { ok: true, invoiceId: invoice.id, stateChanged: true };
+    }
+    return { ok: true, invoiceId: invoice.id, stateChanged: false };
+  }
+
+  const paidAt = input.paidAt ?? new Date();
+  const principal = Math.min(input.principalPaise, invoice.rentPaise);
+  const fullyPaid = principal >= invoice.rentPaise;
+
+  await db
+    .update(rentInvoices)
+    .set({
+      status: fullyPaid ? 'paid' : invoice.status,
+      paidPrincipalPaise: principal,
+      paidLateFeePaise: 0,
+      lateFeeLockedPaise: fullyPaid ? 0 : undefined,
+      paymentId: fullyPaid ? input.paymentId : null,
+      paidAt: fullyPaid ? paidAt : undefined,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(rentInvoices.id, invoice.id),
+        inArray(rentInvoices.status, ['pending', 'overdue', 'payment_in_progress']),
+      ),
+    );
+
+  if (fullyPaid) {
+    logInvoiceStateTransition({
+      invoiceId: invoice.id,
+      layer: 'rent',
+      previousStatus: invoice.status,
+      newStatus: 'paid',
+      source: input.source ?? 'booking_payment',
+      meta: { paymentId: input.paymentId, ...input.meta },
+    });
+  }
+
+  await db.insert(auditLog).values({
+    actorType: 'system',
+    actorId: null,
+    entity: 'rent_invoice',
+    entityId: invoice.id,
+    action: fullyPaid ? 'paid' : 'partial_payment',
+    diff: {
+      source: input.source ?? 'booking_payment',
+      paymentId: input.paymentId,
+      principalPaise: principal,
+      rentPaise: invoice.rentPaise,
+      meta: input.meta ?? null,
+    },
+  });
+
+  return { ok: true, invoiceId: invoice.id, stateChanged: fullyPaid };
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // recordRentPaymentSuccess — webhook entry point (idempotent)
 // ───────────────────────────────────────────────────────────────────────────
 

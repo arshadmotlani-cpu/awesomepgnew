@@ -44,24 +44,32 @@ function editHref(
   return null;
 }
 
+function hasRoomSelection(data: BookingSummaryData): boolean {
+  return Boolean(data.roomId);
+}
+
 function Row({
   label,
   value,
   editLink,
+  emphasize,
 }: {
   label: string;
   value: React.ReactNode;
   editLink?: string | null;
+  emphasize?: boolean;
 }) {
   return (
-    <div className="flex items-start justify-between gap-2 text-xs">
-      <dt className="text-apg-silver">{label}</dt>
-      <dd className="text-right font-medium text-white">
+    <div className="flex items-start justify-between gap-3 py-2.5">
+      <dt className="text-sm text-apg-silver">{label}</dt>
+      <dd
+        className={`text-right text-sm font-medium ${emphasize ? 'text-base font-semibold text-apg-orange' : 'text-white'}`}
+      >
         {value}
         {editLink ? (
           <>
             {' '}
-            <Link href={editLink} className="text-apg-cyan hover:underline">
+            <Link href={editLink} className="text-xs font-semibold text-apg-cyan hover:underline">
               Edit
             </Link>
           </>
@@ -72,87 +80,89 @@ function Row({
 }
 
 export function BookingSummaryRail({ data }: { data: BookingSummaryData }) {
+  const roomSelected = hasRoomSelection(data);
   const fixedDates = data.stayType && !isMonthlyStayType(data.stayType);
-  const stayLabel = data.stayType
-    ? stayTypeLabel(data.stayType as StayType)
-    : '—';
+  const stayLabel = data.stayType ? stayTypeLabel(data.stayType as StayType) : null;
+  const showRent = data.rentPaise != null && data.rentPaise > 0;
+  const showDeposit = data.depositPaise != null && data.depositPaise > 0;
+  const showTotal = data.totalDuePaise != null && data.totalDuePaise > 0;
 
   return (
     <aside
-      className="rounded-xl border border-white/10 apg-glass-light p-4"
+      className="overflow-hidden rounded-2xl border border-white/10 bg-[#121a26]/90 shadow-[0_16px_48px_rgba(0,0,0,0.35)] backdrop-blur-md"
       aria-label="Booking summary"
     >
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-apg-orange">
-        Your booking
-      </h2>
-      <dl className="mt-3 space-y-2">
-        <Row
-          label="PG"
-          value={data.pgName ?? '—'}
-          editLink={editHref('pg', data)}
-        />
-        <Row
-          label="Room"
-          value={data.roomNumber ? `Room ${data.roomNumber}` : '—'}
-          editLink={editHref('room', data)}
-        />
-        <Row
-          label="Bed"
-          value={data.bedCode ? `Bed ${data.bedCode}` : '—'}
-          editLink={editHref('bed', data)}
-        />
-        <Row
-          label="Stay type"
-          value={stayLabel}
-          editLink={editHref('dates', data)}
-        />
-        <Row
-          label="Check-in"
-          value={data.moveInDate ? formatDate(data.moveInDate) : '—'}
-          editLink={editHref('dates', data)}
-        />
-        {fixedDates ? (
-          <>
+      <div className="border-b border-white/8 px-5 py-4">
+        <h2 className="text-base font-semibold text-white">Your booking</h2>
+        {!roomSelected ? (
+          <p className="mt-1.5 text-sm leading-relaxed text-apg-silver">
+            Select a room to begin.
+          </p>
+        ) : (
+          <p className="mt-1 text-xs text-apg-muted">Review your choices as you go.</p>
+        )}
+      </div>
+
+      {!roomSelected ? (
+        <div className="px-5 py-8 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-white/[0.06] ring-1 ring-white/10">
+            <span className="text-lg text-apg-muted" aria-hidden>
+              ○
+            </span>
+          </div>
+          <p className="mt-4 text-sm text-apg-silver">
+            Pick a room and bed to see rent, deposit, and your total.
+          </p>
+        </div>
+      ) : (
+        <dl className="divide-y divide-white/8 px-5">
+          {data.pgName ? (
+            <Row label="PG" value={data.pgName} editLink={editHref('pg', data)} />
+          ) : null}
+          {data.roomNumber ? (
             <Row
-              label="Check-out"
-              value={data.moveOutDate ? formatDate(data.moveOutDate) : '—'}
+              label="Room"
+              value={`Room ${data.roomNumber}`}
+              editLink={editHref('room', data)}
+            />
+          ) : null}
+          {data.bedCode ? (
+            <Row label="Bed" value={`Bed ${data.bedCode}`} editLink={editHref('bed', data)} />
+          ) : null}
+          {stayLabel ? (
+            <Row label="Stay type" value={stayLabel} editLink={editHref('dates', data)} />
+          ) : null}
+          {data.moveInDate ? (
+            <Row
+              label="Check-in"
+              value={formatDate(data.moveInDate)}
               editLink={editHref('dates', data)}
             />
+          ) : null}
+          {fixedDates && data.moveOutDate ? (
+            <Row
+              label="Check-out"
+              value={formatDate(data.moveOutDate)}
+              editLink={editHref('dates', data)}
+            />
+          ) : null}
+          {fixedDates && data.stayNights != null && data.stayNights > 0 ? (
             <Row
               label="Duration"
-              value={
-                data.stayNights != null && data.stayNights > 0
-                  ? `${data.stayNights} night${data.stayNights === 1 ? '' : 's'}`
-                  : '—'
-              }
+              value={`${data.stayNights} night${data.stayNights === 1 ? '' : 's'}`}
             />
-          </>
-        ) : null}
-        <Row
-          label="Rent"
-          value={data.rentPaise != null && data.rentPaise > 0 ? paiseToInr(data.rentPaise) : '—'}
-        />
-        <Row
-          label="Deposit"
-          value={
-            data.depositPaise != null && data.depositPaise > 0
-              ? paiseToInr(data.depositPaise)
-              : '—'
-          }
-        />
-        <div className="border-t border-white/10 pt-2">
-          <Row
-            label="Total due today"
-            value={
-              data.totalDuePaise != null && data.totalDuePaise > 0 ? (
-                <span className="text-apg-orange">{paiseToInr(data.totalDuePaise)}</span>
-              ) : (
-                '—'
-              )
-            }
-          />
-        </div>
-      </dl>
+          ) : null}
+          {showRent ? <Row label="Rent" value={paiseToInr(data.rentPaise!)} /> : null}
+          {showDeposit ? <Row label="Deposit" value={paiseToInr(data.depositPaise!)} /> : null}
+          {showTotal ? (
+            <Row
+              label="Total due today"
+              value={paiseToInr(data.totalDuePaise!)}
+              emphasize
+            />
+          ) : null}
+        </dl>
+      )}
     </aside>
   );
 }

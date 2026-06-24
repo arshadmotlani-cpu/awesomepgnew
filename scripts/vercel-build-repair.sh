@@ -11,6 +11,10 @@ if [ "${SYNC_DEPOSIT_0032_0036:-}" = "1" ]; then
   echo "Syncing APG-2026-0032 / 0036 deposit collection fields…"
   npx tsx scripts/sync-deposit-0032-0036.ts
 fi
+if [ "${DISCOVER_BOOKING_RENT_GAPS:-}" = "1" ]; then
+  echo "Discovering booking rent invoice gaps…"
+  npx tsx scripts/discover-booking-rent-invoice-gaps.ts || true
+fi
 if [ "${REPAIR_APG_0036_EXECUTE:-}" = "1" ]; then
   echo "Running APG-2026-0036 repair…"
   npx tsx scripts/final-repair-apg-2026-0036.ts --execute

@@ -4,7 +4,7 @@ export const BOOKING_FUNNEL_STEPS: TimelineStage[] = [
   { id: 'pg', label: 'PG' },
   { id: 'room', label: 'Room' },
   { id: 'bed', label: 'Bed' },
-  { id: 'preview', label: 'Booking' },
+  { id: 'preview', label: 'Dates' },
   { id: 'payment', label: 'Payment' },
   { id: 'confirmation', label: 'Done' },
 ];

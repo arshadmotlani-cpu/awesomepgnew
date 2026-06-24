@@ -48,22 +48,21 @@ export function BookingFunnelShell({
 
   return (
     <BookingFunnelContext.Provider value={ctx}>
-      <div className="space-y-4">
-        <div className="rounded-xl border border-white/10 apg-glass-light p-3 sm:p-4">
+      <div className="mx-auto w-full max-w-7xl">
+        <div className="mb-6 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-4 sm:px-5 sm:py-5">
           <BookingFunnelProgressBar activeStep={activeStep} />
         </div>
-        <div
-          className={
-            showSummary ? 'grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(220px,280px)]' : ''
-          }
-        >
-          <div className="min-w-0">{children}</div>
-          {showSummary ? (
-            <div className="lg:sticky lg:top-4 lg:self-start">
+
+        {showSummary ? (
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,3fr)] lg:items-start lg:gap-8">
+            <div className="min-w-0">{children}</div>
+            <div className="lg:sticky lg:top-6 lg:self-start">
               <BookingSummaryRail data={summary} />
             </div>
-          ) : null}
-        </div>
+          </div>
+        ) : (
+          <div className="min-w-0">{children}</div>
+        )}
       </div>
     </BookingFunnelContext.Provider>
   );

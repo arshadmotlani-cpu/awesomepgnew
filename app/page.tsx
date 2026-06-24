@@ -19,6 +19,22 @@ export default async function Home() {
   const pgs = pgsResult.ok ? pgsResult.data : [];
   const availableBeds = pgs.reduce((n, pg) => n + pg.availableBeds, 0);
   const totalBeds = pgs.reduce((n, pg) => n + pg.totalBeds, 0);
+  const featuredPgs = pgs.map((pg) => ({
+    id: pg.id,
+    slug: pg.slug,
+    name: pg.name,
+    city: pg.city,
+    state: pg.state,
+    pincode: pg.pincode,
+    genderPolicy: pg.genderPolicy,
+    amenities: pg.amenities,
+    description: pg.description,
+    heroImage: pg.heroImage,
+    totalBeds: pg.totalBeds,
+    availableBeds: pg.availableBeds,
+    startingFromPaise: pg.startingFromPaise,
+    hasPaymentEnabled: pg.hasPaymentEnabled,
+  }));
 
   return (
     <div className="apg-customer-shell flex min-h-screen flex-col bg-apg-charcoal">
@@ -29,6 +45,7 @@ export default async function Home() {
             availableBeds={availableBeds}
             totalBeds={totalBeds}
             pgCount={pgs.length}
+            featuredPgs={featuredPgs}
           />
         </WorldShell>
       </main>

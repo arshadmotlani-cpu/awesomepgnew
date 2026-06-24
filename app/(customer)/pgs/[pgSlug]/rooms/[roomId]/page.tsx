@@ -101,7 +101,7 @@ export default async function RoomDetailPage(
       roomId={room.roomId}
       floorNumber={room.floorNumber}
     >
-    <div className="apg-aurora mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
+    <div className="w-full px-4 py-6 sm:px-6 lg:py-8">
       <BookingFunnelShell
         activeStep="room"
         initialSummary={{
@@ -109,7 +109,6 @@ export default async function RoomDetailPage(
           pgName: room.pgName,
           roomId: room.roomId,
           roomNumber: room.roomNumber,
-          rentPaise: rateSample?.monthlyRatePaise,
         }}
       >
       <AnalyticsMountEvent

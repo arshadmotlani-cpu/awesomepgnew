@@ -297,3 +297,6 @@ flowchart TB
 
 <!-- DOC_SYNC_TOUCH_2026-06-23 -->
 > **2026-06-23 07:25:58 UTC** — Code changed in: Routes, Auth, Billing. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-06-24 -->
+> **2026-06-24 09:55:58 UTC** — Code changed in: Routes, Billing, Bookings. Manual review recommended.

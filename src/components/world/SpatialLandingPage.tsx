@@ -1,11 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { motion, useReducedMotion } from 'framer-motion';
 import { LiveAvailabilityStrip } from '@/src/components/customer/marketing/LiveAvailabilityStrip';
 import { ApgCard } from '@/src/components/customer/design-system';
-import { WorldLayer, WorldSection } from '@/src/components/world';
-import { WORLD_EASE } from '@/src/components/world/worldMotion';
+import { PgCard, type PgCardData } from '@/src/components/customer/PgCard';
+import { paiseToInr } from '@/src/lib/format';
 
 type LifestyleItem = {
   emoji: string;
@@ -13,6 +12,13 @@ type LifestyleItem = {
   body: string;
   comingSoon?: boolean;
 };
+
+const FEATURES = [
+  { label: 'Stay cool 24/7', sub: 'AC rooms · split billing only for usage' },
+  { label: 'Unlimited high-speed WiFi', sub: 'Work, stream, game — no caps' },
+  { label: 'Daily cleaning & laundry', sub: 'Fresh sheets weekly · free laundry' },
+  { label: 'Transparent bills', sub: 'Rent · AC power · deposit — no surprises' },
+];
 
 const LIFESTYLE: LifestyleItem[] = [
   {
@@ -61,178 +67,201 @@ type Props = {
   availableBeds?: number;
   totalBeds?: number;
   pgCount?: number;
+  featuredPgs?: PgCardData[];
 };
 
 export function SpatialLandingPage({
   availableBeds = 0,
   totalBeds = 0,
-  pgCount = 4,
+  pgCount = 0,
+  featuredPgs = [],
 }: Props) {
-  const reduced = useReducedMotion();
-
   return (
-    <div className="world-entry overflow-hidden">
-      {/* Phase C — Hero sky layer */}
-      <WorldSection id="hero" checkpoint className="relative mx-auto flex w-full max-w-6xl flex-col items-center px-4 pb-20 pt-16 text-center sm:px-6 sm:pt-24">
-        <WorldLayer depth={0} className="absolute inset-0 -z-10 opacity-60">
-          <div className="world-hero-glow mx-auto h-64 w-64 rounded-full blur-3xl sm:h-96 sm:w-96" />
-        </WorldLayer>
-
-        <WorldLayer depth={2} className="max-w-4xl">
-          <motion.div
-            initial={reduced ? false : { opacity: 0, y: 32 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.75, ease: WORLD_EASE.reveal }}
+    <div className="apg-landing">
+      {/* A — Hero: headline + CTAs in first viewport */}
+      <section className="mx-auto w-full max-w-6xl px-4 pb-10 pt-6 text-center sm:px-6 sm:pb-12 sm:pt-8">
+        <span className="inline-flex items-center gap-2 rounded-full border border-apg-orange/40 bg-apg-orange/15 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-orange-100">
+          <span className="h-1.5 w-1.5 rounded-full bg-apg-orange" />
+          Awesome PG
+        </span>
+        <h1 className="mx-auto mt-5 max-w-4xl text-3xl font-semibold leading-[1.1] tracking-tight text-white sm:mt-6 sm:text-5xl lg:text-6xl">
+          Not just a room.
+          <br />
+          <span className="apg-gradient-text">A universe you&apos;ll never want to leave.</span>
+        </h1>
+        <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-apg-silver sm:mt-5 sm:text-lg">
+          Premium paying-guest living with gaming zones, chill rooms, daily cleaning, free laundry,
+          and honest amenities. Book your exact bed in minutes.
+        </p>
+        <div className="mt-7 flex flex-wrap items-center justify-center gap-3 sm:mt-8 sm:gap-4">
+          <Link
+            href="/pgs"
+            className="apg-glow-btn inline-flex min-h-[48px] items-center justify-center rounded-xl bg-apg-orange px-7 py-3 text-sm font-semibold text-white transition hover:brightness-110 sm:px-8"
           >
-            <span className="inline-flex items-center gap-2 rounded-full border border-apg-orange/40 bg-apg-orange/15 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-orange-100">
-              <span className="h-1.5 w-1.5 rounded-full bg-apg-orange apg-pulse-live" />
-              Awesome PG
-            </span>
-            <h1 className="mt-8 text-4xl font-semibold leading-[1.08] tracking-tight text-white sm:text-6xl lg:text-7xl">
-              Not just a room.
-              <br />
-              <span className="apg-gradient-text">A universe you&apos;ll never want to leave.</span>
-            </h1>
-            <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-apg-silver sm:text-lg">
-              Premium paying-guest living with gaming zones, chill rooms, daily cleaning, free laundry,
-              and honest amenities — not empty promises. Book your exact bed in minutes and step into
-              a community built for people who expect more.
-            </p>
-            <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-              <Link
-                href="/pgs"
-                className="apg-glow-btn world-cta inline-flex items-center justify-center rounded-xl bg-apg-orange px-8 py-3.5 text-sm font-semibold text-white transition hover:brightness-110"
-              >
-                Explore PGs & pick your bed
-              </Link>
-              <Link
-                href="/login?next=/account/profile"
-                className="inline-flex items-center justify-center rounded-xl border border-white/20 bg-white/10 px-8 py-3.5 text-sm font-semibold text-white transition hover:border-apg-orange/40 hover:bg-white/15"
-              >
-                Resident sign in
-              </Link>
-            </div>
-          </motion.div>
-        </WorldLayer>
+            Explore PGs & pick your bed
+          </Link>
+          <Link
+            href="/login?next=/account/profile"
+            className="inline-flex min-h-[48px] items-center justify-center rounded-xl border border-white/20 bg-white/10 px-7 py-3 text-sm font-semibold text-white transition hover:border-apg-orange/40 hover:bg-white/15 sm:px-8"
+          >
+            Resident sign in
+          </Link>
+        </div>
+      </section>
 
-        <WorldLayer depth={1} float className="mt-12 w-full max-w-4xl">
-          <LiveAvailabilityStrip
-            availableBeds={availableBeds}
-            totalBeds={totalBeds}
-            pgCount={pgCount}
-          />
-        </WorldLayer>
+      {/* B — Trust / live availability */}
+      <section className="mx-auto w-full max-w-6xl px-4 pb-12 sm:px-6 sm:pb-16">
+        <LiveAvailabilityStrip
+          availableBeds={availableBeds}
+          totalBeds={totalBeds}
+          pgCount={pgCount}
+        />
+      </section>
 
-        <WorldLayer depth={1} className="mt-10 grid w-full max-w-4xl grid-cols-2 gap-3 sm:grid-cols-4">
-          {[
-            { label: 'Stay cool 24/7', sub: 'AC rooms · split billing only for usage' },
-            { label: 'Unlimited high-speed WiFi', sub: 'Work, stream, game — no caps' },
-            { label: 'Daily cleaning & laundry', sub: 'Fresh sheets weekly · free laundry' },
-            { label: 'Transparent bills', sub: 'Rent · AC power · deposit — no surprises' },
-          ].map((s, i) => (
-            <motion.div
-              key={s.label}
-              initial={reduced ? false : { opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 + i * 0.06, duration: 0.5, ease: WORLD_EASE.cinematic }}
-            >
-              <ApgCard tier="card" className="world-float-card px-4 py-4 text-left">
-                <p className="text-sm font-semibold text-white">{s.label}</p>
-                <p className="mt-1 text-xs text-apg-silver">{s.sub}</p>
-              </ApgCard>
-            </motion.div>
-          ))}
-        </WorldLayer>
-      </WorldSection>
-
-      {/* Lifestyle — floating objects */}
-      <WorldSection id="lifestyle" className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6">
-        <WorldLayer depth={1} className="mb-10 max-w-2xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-apg-cyan">The Awesome life</p>
-          <h2 className="mt-2 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-            Facilities that make people talk about this place
-          </h2>
-          <p className="mt-3 text-apg-silver">
-            We&apos;re building the PG you wish existed — where quality living, entertainment, and
-            community aren&apos;t extras. They&apos;re the standard, and we&apos;re honest about
-            what&apos;s live today versus coming soon.
+      {/* D — Feature cards: responsive grid, no overlap */}
+      <section
+        id="features"
+        data-section="features"
+        className="mx-auto w-full max-w-6xl px-4 pb-16 sm:px-6 sm:pb-20"
+      >
+        <div className="mb-8 max-w-2xl">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-apg-orange">
+            Why residents choose us
           </p>
-        </WorldLayer>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {LIFESTYLE.map((item, i) => (
-            <WorldLayer key={item.title} depth={i % 3 === 0 ? 2 : 1} float={i % 2 === 0}>
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: '-40px' }}
-                transition={{ delay: i * 0.04, ease: WORLD_EASE.cinematic }}
-                className="group apg-glass apg-shimmer world-float-card overflow-hidden rounded-2xl p-6 transition hover:border-apg-cyan/30"
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+            Everything you need, included upfront
+          </h2>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {FEATURES.map((item) => (
+            <ApgCard key={item.label} tier="card" className="h-full px-4 py-5 text-left">
+              <p className="text-sm font-semibold text-white">{item.label}</p>
+              <p className="mt-2 text-xs leading-relaxed text-apg-silver">{item.sub}</p>
+            </ApgCard>
+          ))}
+        </div>
+      </section>
+
+      {/* Amenities */}
+      <section
+        id="amenities"
+        data-section="amenities"
+        className="border-y border-white/10 bg-white/[0.02] py-16 sm:py-20"
+      >
+        <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
+          <div className="mb-10 max-w-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-apg-cyan">
+              The Awesome life
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+              Facilities that make people talk about this place
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed text-apg-silver sm:text-base">
+              Quality living, entertainment, and community aren&apos;t extras — they&apos;re the
+              standard. We&apos;re honest about what&apos;s live today versus coming soon.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {LIFESTYLE.map((item) => (
+              <article
+                key={item.title}
+                className="rounded-2xl border border-white/10 bg-white/[0.04] p-6 transition hover:border-white/20"
               >
                 <div className="flex items-start justify-between gap-2">
-                  <span className="text-3xl">{item.emoji}</span>
+                  <span className="text-3xl" aria-hidden>
+                    {item.emoji}
+                  </span>
                   {item.comingSoon ? (
                     <span className="shrink-0 rounded-full border border-apg-cyan/35 bg-apg-cyan/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-apg-cyan">
                       Coming soon
                     </span>
                   ) : null}
                 </div>
-                <h3 className="mt-4 text-lg font-semibold text-white transition-colors group-hover:text-apg-orange">
-                  {item.title}
-                </h3>
+                <h3 className="mt-4 text-lg font-semibold text-white">{item.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-apg-silver">{item.body}</p>
-              </motion.div>
-            </WorldLayer>
-          ))}
+              </article>
+            ))}
+          </div>
         </div>
-      </WorldSection>
+      </section>
 
-      {/* Journey checkpoints */}
-      <WorldSection
-        id="journey"
-        checkpoint
-        className="border-y border-white/10 bg-white/[0.03] py-20 backdrop-blur-sm"
-      >
+      {/* Rooms */}
+      {featuredPgs.length > 0 ? (
+        <section id="rooms" className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
+          <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="max-w-2xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-apg-orange">
+                Browse properties
+              </p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+                Pick a PG, then your exact bed
+              </h2>
+              <p className="mt-2 text-sm text-apg-silver">
+                Live availability — no guessing which rooms are actually open.
+              </p>
+            </div>
+            <Link
+              href="/pgs"
+              className="shrink-0 text-sm font-semibold text-apg-cyan hover:text-apg-orange"
+            >
+              View all PGs →
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {featuredPgs.slice(0, 3).map((pg) => (
+              <PgCard key={pg.id} pg={pg} />
+            ))}
+          </div>
+          {featuredPgs[0]?.startingFromPaise ? (
+            <p className="mt-6 text-center text-xs text-apg-muted">
+              From {paiseToInr(featuredPgs[0].startingFromPaise)}/mo at select properties
+            </p>
+          ) : null}
+        </section>
+      ) : null}
+
+      {/* How it works */}
+      <section className="border-t border-white/10 bg-white/[0.03] py-16 sm:py-20">
         <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
           <p className="text-center text-xs font-semibold uppercase tracking-[0.2em] text-apg-orange">
             Simple journey
           </p>
-          <h2 className="mt-2 text-center text-3xl font-semibold text-white sm:text-4xl">
+          <h2 className="mt-2 text-center text-2xl font-semibold text-white sm:text-3xl">
             From browse to belonging
           </h2>
-          <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {STEPS.map((step, i) => (
-              <WorldLayer key={step.n} depth={(i % 2) as 0 | 1} float>
-                <div className="relative apg-glass-light world-float-card rounded-2xl p-6">
-                  <span className="text-3xl font-bold text-apg-orange/50">{step.n}</span>
-                  <h3 className="mt-3 text-base font-semibold text-white">{step.title}</h3>
-                  <p className="mt-2 text-sm text-apg-silver">{step.body}</p>
-                </div>
-              </WorldLayer>
+          <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {STEPS.map((step) => (
+              <div
+                key={step.n}
+                className="rounded-2xl border border-white/10 bg-white/[0.04] p-6"
+              >
+                <span className="text-2xl font-bold text-apg-orange/60">{step.n}</span>
+                <h3 className="mt-3 text-base font-semibold text-white">{step.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-apg-silver">{step.body}</p>
+              </div>
             ))}
           </div>
         </div>
-      </WorldSection>
+      </section>
 
-      {/* CTA convergence */}
-      <WorldSection id="cta" className="mx-auto w-full max-w-6xl px-4 py-24 text-center sm:px-6">
-        <WorldLayer depth={2}>
-          <h2 className="text-3xl font-semibold tracking-tight text-white sm:text-5xl">
-            Ready to live somewhere
-            <br />
-            <span className="apg-gradient-text">you&apos;ll recommend forever?</span>
-          </h2>
-          <p className="mx-auto mt-4 max-w-xl text-apg-silver">
-            Search PGs, see real availability, and reserve the bed that fits your life — before
-            someone else does.
-          </p>
-          <Link
-            href="/pgs"
-            className="apg-glow-btn world-cta mt-10 inline-flex rounded-xl bg-apg-orange px-10 py-4 text-sm font-semibold text-white transition hover:brightness-110"
-          >
-            Start browsing →
-          </Link>
-        </WorldLayer>
-      </WorldSection>
+      {/* CTA */}
+      <section className="mx-auto w-full max-w-6xl px-4 py-16 text-center sm:px-6 sm:py-20">
+        <h2 className="text-2xl font-semibold tracking-tight text-white sm:text-4xl">
+          Ready to live somewhere
+          <br />
+          <span className="apg-gradient-text">you&apos;ll recommend forever?</span>
+        </h2>
+        <p className="mx-auto mt-4 max-w-xl text-sm text-apg-silver sm:text-base">
+          Search PGs, see real availability, and reserve the bed that fits your life — before
+          someone else does.
+        </p>
+        <Link
+          href="/pgs"
+          className="apg-glow-btn mt-8 inline-flex min-h-[48px] items-center justify-center rounded-xl bg-apg-orange px-10 py-3.5 text-sm font-semibold text-white transition hover:brightness-110"
+        >
+          Start browsing →
+        </Link>
+      </section>
     </div>
   );
 }

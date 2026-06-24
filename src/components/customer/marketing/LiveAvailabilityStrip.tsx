@@ -1,6 +1,5 @@
 'use client';
 
-import { motion, useReducedMotion } from 'framer-motion';
 import { CountUpNumber } from '@/src/components/customer/design-system';
 
 type Props = {
@@ -10,17 +9,9 @@ type Props = {
 };
 
 export function LiveAvailabilityStrip({ availableBeds, totalBeds, pgCount }: Props) {
-  const reduceMotion = useReducedMotion();
-
   return (
-    <motion.section
-      initial={reduceMotion ? false : { opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.45, delay: 0.2 }}
-      className="mx-auto mt-10 w-full max-w-3xl"
-      aria-live="polite"
-    >
-      <div className="apg-elev-floating apg-glass flex flex-col items-center gap-2 rounded-2xl px-6 py-4 sm:flex-row sm:justify-between">
+    <section className="mx-auto w-full max-w-3xl" aria-live="polite">
+      <div className="flex flex-col items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 sm:flex-row sm:justify-between sm:gap-4">
         <div className="flex items-center gap-2">
           <span className="relative flex h-2.5 w-2.5">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60 motion-reduce:animate-none" />
@@ -48,6 +39,6 @@ export function LiveAvailabilityStrip({ availableBeds, totalBeds, pgCount }: Pro
           ) : null}
         </p>
       </div>
-    </motion.section>
+    </section>
   );
 }
