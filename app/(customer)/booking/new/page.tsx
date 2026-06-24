@@ -9,6 +9,10 @@ import { SimpleStayRules } from '@/src/components/customer/simple/SimpleStayRule
 import { getBedsForCart } from '@/src/db/queries/customer';
 import { normalizeBrowseStay } from '@/src/lib/dateDefaults';
 import { todayString } from '@/src/lib/dates';
+import {
+  bookingFunnelDatesFromParams,
+  validateBookingFunnelDates,
+} from '@/src/lib/booking/bookingFunnelDates';
 import { computeNewBookingCheckoutTotals } from '@/src/lib/billing/bookingCheckoutTotals';
 import { quoteBookingPrice } from '@/src/services/pricing';
 import { getCustomerPriorOutstandingForCheckout } from '@/src/services/bookingPriorOutstanding';
@@ -52,6 +56,31 @@ export default async function NewBookingPage(props: PageProps<'/booking/new'>) {
     stayType: sp.stayType,
   });
   const { start, end, mode, stayType } = stay;
+  const funnelDates = bookingFunnelDatesFromParams({
+    start,
+    end: mode === 'open_ended' ? null : end,
+    stayType,
+  });
+  const dateError = validateBookingFunnelDates(funnelDates);
+
+  if (dateError) {
+    return (
+      <main className="apg-aurora mx-auto max-w-lg px-4 py-16 text-center sm:px-6">
+        <h1 className="text-xl font-bold text-white">Dates need a quick fix</h1>
+        <p className="mt-2 text-sm text-rose-200">{dateError}</p>
+        <p className="mt-2 text-sm text-apg-silver">
+          Go back to the bed page and pick your dates again — they must match through checkout and
+          payment.
+        </p>
+        <Link
+          href="/pgs"
+          className="mt-6 inline-flex min-h-[48px] items-center justify-center rounded-xl bg-apg-orange px-6 text-sm font-bold text-white"
+        >
+          Browse PGs
+        </Link>
+      </main>
+    );
+  }
 
   const cartBedsResult = await getBedsForCart(bedIds);
   if (!cartBedsResult.ok || cartBedsResult.data.length === 0) {
@@ -128,7 +157,9 @@ export default async function NewBookingPage(props: PageProps<'/booking/new'>) {
     bedId: primaryBed.bedId,
     bedCode: primaryBed.bedCode,
     stayType,
-    moveInDate: start,
+    moveInDate: funnelDates.start,
+    moveOutDate: funnelDates.end ?? undefined,
+    stayNights: funnelDates.stayNights ?? undefined,
     rentPaise: subtotalPaise,
     depositPaise,
     totalDuePaise: checkoutTotals?.totalToCollectTodayPaise,
@@ -167,8 +198,9 @@ export default async function NewBookingPage(props: PageProps<'/booking/new'>) {
             <div className="mt-6 rounded-2xl border border-white/10 apg-glass-light p-4">
               <BookingCartForm
                 bedIds={bedIds}
-                startDate={start}
-                endDate={mode === 'open_ended' ? null : end}
+                startDate={funnelDates.start}
+                endDate={funnelDates.end}
+                stayType={stayType}
                 durationMode={mode}
                 lineItems={lineItems}
                 subtotalPaise={subtotalPaise}

@@ -470,6 +470,7 @@ export type AdminBookingDetail = {
   bookingCode: string;
   status: string;
   durationMode: string;
+  stayType: string;
   expectedCheckoutDate: string | null;
   subtotalPaise: number;
   depositPaise: number;
@@ -545,6 +546,7 @@ export function getAdminBookingDetail(
         bookingCode: bookings.bookingCode,
         status: bookings.status,
         durationMode: bookings.durationMode,
+        stayType: bookings.stayType,
         expectedCheckoutDate: bookings.expectedCheckoutDate,
         subtotalPaise: bookings.subtotalPaise,
         depositPaise: bookings.depositPaise,
@@ -630,6 +632,7 @@ export function getAdminBookingDetail(
       bookingCode: b.bookingCode,
       status: b.status,
       durationMode: b.durationMode,
+      stayType: b.stayType,
       expectedCheckoutDate: b.expectedCheckoutDate,
       subtotalPaise: b.subtotalPaise,
       depositPaise: b.depositPaise,

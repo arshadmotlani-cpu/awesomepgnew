@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { formatDate, paiseToInr } from '@/src/lib/format';
-import { stayTypeLabel, type StayType } from '@/src/lib/stayType';
+import { isMonthlyStayType, stayTypeLabel, type StayType } from '@/src/lib/stayType';
+import { bookingNewSearchParams } from '@/src/lib/booking/bookingFunnelDates';
 
 export type BookingSummaryData = {
   pgSlug?: string;
@@ -13,6 +14,8 @@ export type BookingSummaryData = {
   bedCode?: string;
   stayType?: string;
   moveInDate?: string;
+  moveOutDate?: string;
+  stayNights?: number;
   rentPaise?: number;
   depositPaise?: number;
   totalDuePaise?: number;
@@ -29,11 +32,13 @@ function editHref(
   if (field === 'bed' && data.pgSlug && data.roomId) {
     return `/pgs/${data.pgSlug}/rooms/${data.roomId}#bed-selector`;
   }
-  if (field === 'dates' && data.pgSlug && data.bedId) {
-    const params = new URLSearchParams();
-    params.append('bed', data.bedId);
-    if (data.moveInDate) params.set('start', data.moveInDate);
-    if (data.stayType) params.set('stayType', data.stayType);
+  if (field === 'dates' && data.bedId && data.moveInDate) {
+    const params = bookingNewSearchParams({
+      bedIds: [data.bedId],
+      start: data.moveInDate,
+      end: data.moveOutDate ?? null,
+      stayType: isMonthlyStayType(data.stayType) ? 'monthly_stay' : 'fixed_date_stay',
+    });
     return `/booking/new?${params.toString()}`;
   }
   return null;
@@ -67,6 +72,7 @@ function Row({
 }
 
 export function BookingSummaryRail({ data }: { data: BookingSummaryData }) {
+  const fixedDates = data.stayType && !isMonthlyStayType(data.stayType);
   const stayLabel = data.stayType
     ? stayTypeLabel(data.stayType as StayType)
     : '—';
@@ -101,10 +107,27 @@ export function BookingSummaryRail({ data }: { data: BookingSummaryData }) {
           editLink={editHref('dates', data)}
         />
         <Row
-          label="Move-in"
+          label="Check-in"
           value={data.moveInDate ? formatDate(data.moveInDate) : '—'}
           editLink={editHref('dates', data)}
         />
+        {fixedDates ? (
+          <>
+            <Row
+              label="Check-out"
+              value={data.moveOutDate ? formatDate(data.moveOutDate) : '—'}
+              editLink={editHref('dates', data)}
+            />
+            <Row
+              label="Duration"
+              value={
+                data.stayNights != null && data.stayNights > 0
+                  ? `${data.stayNights} night${data.stayNights === 1 ? '' : 's'}`
+                  : '—'
+              }
+            />
+          </>
+        ) : null}
         <Row
           label="Rent"
           value={data.rentPaise != null && data.rentPaise > 0 ? paiseToInr(data.rentPaise) : '—'}

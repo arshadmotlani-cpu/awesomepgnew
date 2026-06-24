@@ -20,6 +20,8 @@ import {
   listRentInvoicesForBooking,
 } from '@/src/db/queries/customer';
 import { formatDate, formatDateTime, paiseToInr, titleCase } from '@/src/lib/format';
+import { adminStayTypeLabel, isMonthlyStayType } from '@/src/lib/stayType';
+import { diffDays, parseDate } from '@/src/lib/dates';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { projectElectricityInvoice } from '@/src/services/electricityBilling';
 import { parseDaterange } from '@/src/services/availability';
@@ -175,8 +177,28 @@ export default async function AdminBookingDetailPage(
               <dd className="text-right text-zinc-900">{formatDateTime(b.createdAt)}</dd>
               <dt className="text-zinc-500">Channel</dt>
               <dd className="text-right text-zinc-900">{titleCase(b.createdVia)}</dd>
+              <dt className="text-zinc-500">Stay type</dt>
+              <dd className="text-right text-zinc-900">
+                {adminStayTypeLabel({ stayType: b.stayType, durationMode: b.durationMode })}
+              </dd>
               <dt className="text-zinc-500">Duration mode</dt>
               <dd className="text-right text-zinc-900">{titleCase(b.durationMode)}</dd>
+              {isMonthlyStayType(b.stayType ?? b.durationMode) ? null : (
+                <>
+                  <dt className="text-zinc-500">Stay nights</dt>
+                  <dd className="text-right text-zinc-900">
+                    {b.expectedCheckoutDate && b.reservations[0]
+                      ? (() => {
+                          const range = parseDaterange(b.reservations[0]!.stayRange);
+                          const checkIn = range.lower;
+                          if (!checkIn || !b.expectedCheckoutDate) return '—';
+                          const nights = diffDays(parseDate(checkIn), parseDate(b.expectedCheckoutDate));
+                          return `${nights} night${nights === 1 ? '' : 's'}`;
+                        })()
+                      : '—'}
+                  </dd>
+                </>
+              )}
               <dt className="text-zinc-500">Expected check-out</dt>
               <dd className="text-right text-zinc-900">{formatDate(b.expectedCheckoutDate)}</dd>
               {b.cancelledAt ? (

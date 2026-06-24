@@ -10,6 +10,7 @@ import {
   requireCustomerSession,
 } from '@/src/lib/auth/guards';
 import { diffDays, parseDate } from '@/src/lib/dates';
+import { stayTypeFromPricingMode } from '@/src/lib/stayType';
 import { resolveBookingCheckoutQr } from '@/src/lib/payments/checkoutQr';
 import { paiseToInr as formatPaise } from '@/src/lib/format';
 import { PS4_ADDON_LABEL, PS4_PLANS } from '@/src/lib/playstation/plans';
@@ -110,8 +111,10 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
     pgName: booking.pg.name,
     roomNumber: roomNumber ?? undefined,
     bedCode: bedCode ?? undefined,
-    stayType: booking.durationMode,
+    stayType: stayTypeFromPricingMode(booking.durationMode),
     moveInDate: checkInDate ?? undefined,
+    moveOutDate: booking.expectedCheckoutDate ?? undefined,
+    stayNights: stayNights ?? undefined,
     rentPaise: booking.subtotalPaise,
     depositPaise: booking.depositPaise,
     totalDuePaise: checkoutTotalPaise,

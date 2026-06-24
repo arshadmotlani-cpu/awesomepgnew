@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation';
 import { trackClientEvent } from '@/src/lib/analytics/client';
 import { addDays, diffDays, formatDate, parseDate, todayString } from '@/src/lib/dates';
 import { defaultCheckOutDate } from '@/src/lib/dateDefaults';
-import { formatDate as formatDisplayDate, paiseToInr } from '@/src/lib/format';
-import { formatBookingRentPaise } from '@/src/lib/booking/bookingFunnelPricing';
+import { formatDate as formatDisplayDate } from '@/src/lib/format';
+import { formatBookingRentPaise, formatBookingNightlyRentPaise } from '@/src/lib/booking/bookingFunnelPricing';
 import { checkoutCapMessage } from '@/src/lib/bedAvailabilityWindows';
 import {
   isCheckInAvailableForReservations,
@@ -15,13 +15,14 @@ import {
 } from '@/src/lib/bedStayOverlap';
 import { reserveBufferDate } from '@/src/lib/bedReservePolicy';
 import { computeNewBookingCheckoutTotals } from '@/src/lib/billing/bookingCheckoutTotals';
-import { previewFixedStayQuote } from '@/src/lib/pricing/fixedStayOptimizer';
 import type { PricingLineItem } from '@/src/lib/pricing/types';
 import {
   defaultFixedDateCheckOut,
   FIXED_DATE_MAX_NIGHTS,
   pricingModeFromStayType,
   stayTypeLabel,
+  stayTypeBillingTag,
+  stayTypeChoiceDescription,
   validateFixedDateStay,
   type StayType,
 } from '@/src/lib/stayType';
@@ -73,10 +74,6 @@ type ServerBookingQuote = {
     nights: number | null;
   }>;
 };
-
-function estimateFixedStaySubtotal(bed: BedSelectorBed, nights: number): number {
-  return previewFixedStayQuote(nights, bed.dailyRatePaise, bed.weeklyRatePaise).subtotalPaise;
-}
 
 /**
  * Modal panel for picking stay type and dates after selecting bed(s).
@@ -311,24 +308,13 @@ export function BedBookingPanel({
       bedCode: bed.bedCode,
       stayType,
       moveInDate: start,
+      moveOutDate: !isMonthly ? end : undefined,
+      stayNights: !isMonthly && fixedNights > 0 ? fixedNights : undefined,
       rentPaise: serverQuote?.subtotalPaise ?? bed.monthlyRatePaise,
       depositPaise: serverQuote?.depositPaise,
       totalDuePaise: checkoutFromQuote?.totalToCollectTodayPaise,
     });
-  }, [funnel, beds, stayType, start, serverQuote, checkoutFromQuote]);
-
-  const durationHint = useMemo(() => {
-    if (isMonthly) {
-      const rentPaise = beds.reduce((sum, bed) => sum + bed.monthlyRatePaise, 0);
-      return `Monthly Stay · ${paiseToInr(rentPaise)}/mo · ${VACATING_NOTICE_MIN_DAYS}-day notice to leave`;
-    }
-    const nights = fixedNights > 0 ? fixedNights : 7;
-    const rentPaise = beds.reduce(
-      (sum, bed) => sum + estimateFixedStaySubtotal(bed, nights),
-      0,
-    );
-    return `Fixed-Date Stay · ${nights} night${nights === 1 ? '' : 's'} · ${paiseToInr(rentPaise)} total`;
-  }, [isMonthly, fixedNights, beds]);
+  }, [funnel, beds, stayType, start, end, isMonthly, fixedNights, serverQuote, checkoutFromQuote]);
 
   function handleStayTypeSelect(next: StayType) {
     setStayType(next);
@@ -434,32 +420,32 @@ export function BedBookingPanel({
   type StayTypeCard = {
     id: StayType;
     title: string;
-    subtitle: string;
+    billingTag: string;
+    description: string;
     priceLabel: string;
   };
 
   const stayTypeCards: StayTypeCard[] = useMemo(() => {
     const primary = beds[0];
     if (!primary) return [];
-    const sampleNights = 7;
-    const fixedRent = estimateFixedStaySubtotal(primary, sampleNights);
-    const monthlyRent = primary.monthlyRatePaise;
     const cards: StayTypeCard[] = [];
     if (!shortStayOnly) {
       cards.push({
         id: 'monthly_stay',
         title: stayTypeLabel('monthly_stay'),
-        subtitle: 'Long-term · check-in only · monthly billing until you request move-out',
-        priceLabel: monthlyRent > 0 ? formatBookingRentPaise(monthlyRent) : '—',
+        billingTag: stayTypeBillingTag('monthly_stay'),
+        description: stayTypeChoiceDescription('monthly_stay'),
+        priceLabel: primary.monthlyRatePaise > 0 ? formatBookingRentPaise(primary.monthlyRatePaise) : '—',
       });
     }
     cards.push({
       id: 'fixed_date_stay',
       title: stayTypeLabel('fixed_date_stay'),
-      subtitle: `Temporary stay · pick check-in and check-out · up to ${FIXED_DATE_MAX_NIGHTS} nights`,
+      billingTag: stayTypeBillingTag('fixed_date_stay'),
+      description: stayTypeChoiceDescription('fixed_date_stay'),
       priceLabel:
-        fixedRent > 0
-          ? `e.g. ${paiseToInr(fixedRent)} for ${sampleNights} nights`
+        primary.dailyRatePaise > 0
+          ? formatBookingNightlyRentPaise(primary.dailyRatePaise)
           : '—',
     });
     return cards;
@@ -483,9 +469,11 @@ export function BedBookingPanel({
           </h2>
           <p className={`mt-0.5 text-xs ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
             {step === 'stayType'
-              ? 'How long are you planning to stay?'
+              ? 'Pick how your stay works — not how you pay week to week.'
               : step === 'dates'
-                ? 'Pick your dates'
+                ? isMonthly
+                  ? 'Choose your check-in date'
+                  : 'Choose your dates and review pricing'
                 : 'Review before you confirm'}
           </p>
         </div>
@@ -515,7 +503,7 @@ export function BedBookingPanel({
           <>
             {step === 'stayType' ? (
               <fieldset className="space-y-3">
-                <legend className={`${label} mb-1`}>Stay type</legend>
+                <legend className={`${label} mb-1`}>How does your stay work?</legend>
                 <div className="grid grid-cols-1 gap-3">
                   {stayTypeCards.map((card) => {
                     const selected = stayType === card.id;
@@ -544,19 +532,28 @@ export function BedBookingPanel({
                         }
                       >
                         <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <span
+                              className={`block text-sm font-semibold ${dark ? 'text-white' : 'text-zinc-900'}`}
+                            >
+                              {card.title}
+                            </span>
+                            <span
+                              className={`mt-0.5 block text-[11px] font-medium uppercase tracking-wide ${
+                                dark ? 'text-apg-cyan' : 'text-indigo-600'
+                              }`}
+                            >
+                              {card.billingTag}
+                            </span>
+                          </div>
                           <span
-                            className={`text-sm font-semibold ${dark ? 'text-white' : 'text-zinc-900'}`}
-                          >
-                            {card.title}
-                          </span>
-                          <span
-                            className={`text-sm font-bold ${dark ? 'text-apg-orange' : 'text-indigo-600'}`}
+                            className={`shrink-0 text-sm font-bold ${dark ? 'text-apg-orange' : 'text-indigo-600'}`}
                           >
                             {card.priceLabel}
                           </span>
                         </div>
-                        <p className={`mt-1 text-xs ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
-                          {card.subtitle}
+                        <p className={`mt-2 text-xs leading-relaxed ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
+                          {card.description}
                         </p>
                       </button>
                     );
@@ -600,9 +597,13 @@ export function BedBookingPanel({
                 ) : null}
 
                 <p
-                  className={`text-sm font-semibold ${dark ? 'text-apg-orange' : 'text-orange-600'}`}
+                  className={`text-sm ${dark ? 'text-apg-silver' : 'text-zinc-600'}`}
                 >
-                  {durationHint}
+                  {isMonthly
+                    ? `${stayTypeLabel('monthly_stay')} · ${VACATING_NOTICE_MIN_DAYS}-day notice to move out`
+                    : fixedNights > 0
+                      ? `${fixedNights} night${fixedNights === 1 ? '' : 's'} · ${formatDisplayDate(start)} → ${formatDisplayDate(end)}`
+                      : 'Pick check-in and check-out dates'}
                 </p>
 
                 <StayDateRangePicker

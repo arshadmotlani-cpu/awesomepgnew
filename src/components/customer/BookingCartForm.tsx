@@ -1,6 +1,7 @@
 'use client';
 
-import { useActionState, useCallback, useState } from 'react';
+import { useActionState, useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   IndianPhoneInput,
   indianPhoneDefaultLocal,
@@ -16,7 +17,7 @@ import {
 } from '@/src/lib/billing/partialDepositCheckout';
 import { PS4_ADDON_LABEL, PS4_PLANS, type Ps4PlanId } from '@/src/lib/playstation/plans';
 import { VACATING_NOTICE_MIN_DAYS } from '@/src/lib/dateDefaults';
-import { stayTypeFromPricingMode } from '@/src/lib/stayType';
+import { stayTypeFromPricingMode, type StayType } from '@/src/lib/stayType';
 import { formatDate } from '@/src/lib/format';
 import { BOOK_BED_ACTION, HOLD_THIS_BED } from '@/src/lib/booking/bookingFunnelLabels';
 import type { BookingActionState } from '@/app/(customer)/booking/new/actions';
@@ -33,6 +34,7 @@ type Props = {
   bedIds: string[];
   startDate: string;
   endDate: string | null;
+  stayType?: StayType;
   durationMode: 'daily' | 'weekly' | 'monthly' | 'open_ended' | 'fixed_stay';
   lineItems: CartLineItem[];
   subtotalPaise: number;
@@ -64,6 +66,7 @@ export function BookingCartForm({
   bedIds,
   startDate,
   endDate,
+  stayType: stayTypeProp,
   durationMode,
   lineItems,
   subtotalPaise,
@@ -78,10 +81,18 @@ export function BookingCartForm({
   lowestPriceApplied,
   simpleCheckout = false,
 }: Props) {
+  const router = useRouter();
+  const resolvedStayType = stayTypeProp ?? stayTypeFromPricingMode(durationMode);
   const [state, formAction, isPending] = useActionState(
     createBookingAction,
     INITIAL_STATE,
   );
+
+  useEffect(() => {
+    if (state.status === 'success' && state.redirectTo) {
+      router.push(state.redirectTo);
+    }
+  }, [state, router]);
 
   const [ps4Plan, setPs4Plan] = useState<Ps4PlanId | null>(null);
   const [couponDiscountPaise, setCouponDiscountPaise] = useState(0);
@@ -123,7 +134,7 @@ export function BookingCartForm({
         <input type="hidden" name="startDate" value={startDate} />
         {endDate ? <input type="hidden" name="endDate" value={endDate} /> : null}
         <input type="hidden" name="durationMode" value={durationMode} />
-        <input type="hidden" name="stayType" value={stayTypeFromPricingMode(durationMode)} />
+        <input type="hidden" name="stayType" value={resolvedStayType} />
         {bedIds.map((id) => (
           <input key={id} type="hidden" name="bedId" value={id} />
         ))}
@@ -154,22 +165,6 @@ export function BookingCartForm({
             autoComplete="email"
             defaultValue={defaultCustomer?.email}
           />
-          <label className="flex flex-col gap-1 text-xs font-medium text-zinc-700">
-            Gender
-            <select
-              name="gender"
-              required
-              defaultValue=""
-              className="h-9 rounded-md border border-zinc-300 bg-white px-2 text-sm text-zinc-900"
-            >
-              <option value="" disabled>
-                Pick one
-              </option>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-              <option value="other">Other</option>
-            </select>
-          </label>
         </div>
 
         {state.status === 'error' ? (
@@ -198,6 +193,7 @@ export function BookingCartForm({
       <input type="hidden" name="startDate" value={startDate} />
       {endDate ? <input type="hidden" name="endDate" value={endDate} /> : null}
       <input type="hidden" name="durationMode" value={durationMode} />
+      <input type="hidden" name="stayType" value={resolvedStayType} />
       {bedIds.map((id) => (
         <input key={id} type="hidden" name="bedId" value={id} />
       ))}
@@ -236,22 +232,6 @@ export function BookingCartForm({
             autoComplete="email"
             defaultValue={defaultCustomer?.email}
           />
-          <label className="flex flex-col gap-1 text-xs font-medium text-zinc-700">
-            Gender
-            <select
-              name="gender"
-              required
-              defaultValue=""
-              className="h-9 rounded-md border border-zinc-300 bg-white px-2 text-sm text-zinc-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            >
-              <option value="" disabled>
-                Select…
-              </option>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-              <option value="other">Other</option>
-            </select>
-          </label>
         </div>
 
         <label className="mt-4 flex flex-col gap-1 text-xs font-medium text-zinc-700">

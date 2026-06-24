@@ -18,8 +18,39 @@ export function isStayType(value: string): value is StayType {
   return STAY_TYPES.has(value as StayType);
 }
 
+/** Customer-facing stay type label (summary, checkout). */
 export function stayTypeLabel(stayType: StayType): string {
-  return stayType === 'monthly_stay' ? 'Monthly Stay' : 'Fixed-Date Stay';
+  return stayType === 'monthly_stay' ? 'Stay until you move out' : 'Stay for specific dates';
+}
+
+/** Admin / ops label — distinct from customer copy. */
+export function adminStayTypeLabel(input: {
+  stayType?: StayType | string | null;
+  durationMode?: string | null;
+}): string {
+  const stay =
+    input.stayType && isStayType(String(input.stayType))
+      ? (input.stayType as StayType)
+      : stayTypeFromPricingMode(input.durationMode ?? 'open_ended');
+  return stay === 'monthly_stay' ? 'Monthly' : 'Fixed date';
+}
+
+export function stayTypeBillingTag(stayType: StayType): string {
+  return stayType === 'monthly_stay' ? 'Monthly billing' : 'Automatic price calculation';
+}
+
+export function stayTypeChoiceDescription(stayType: StayType): string {
+  if (stayType === 'monthly_stay') {
+    return 'Choose a check-in date. Rent is billed monthly until you submit a move-out request.';
+  }
+  return 'Choose check-in and check-out dates. The system calculates rent automatically for any duration up to 30 nights.';
+}
+
+export function isMonthlyStayType(stayType: StayType | string | null | undefined): boolean {
+  if (!stayType) return false;
+  if (stayType === 'monthly_stay') return true;
+  if (stayType === 'fixed_date_stay') return false;
+  return stayTypeFromPricingMode(stayType) === 'monthly_stay';
 }
 
 /** Map user stay type to internal pricing duration mode. */
@@ -62,13 +93,13 @@ export function validateFixedDateStay(
     return 'Check-out must be after check-in.';
   }
   if (nights > FIXED_DATE_MAX_NIGHTS) {
-    return `Fixed-date stays are limited to ${FIXED_DATE_MAX_NIGHTS} nights. Pick a shorter stay or choose Monthly Stay.`;
+    return `Fixed-date stays are limited to ${FIXED_DATE_MAX_NIGHTS} nights. Pick a shorter stay or choose stay until you move out.`;
   }
 
   const bookDay = bookingDate ?? todayString();
   const maxCheckout = formatDate(addDays(parseDate(bookDay), FIXED_DATE_MAX_NIGHTS));
   if (checkOut > maxCheckout) {
-    return `Check-out must be within ${FIXED_DATE_MAX_NIGHTS} days of booking (by ${formatDisplayDate(maxCheckout)}). For longer stays, choose Monthly Stay.`;
+    return `Check-out must be within ${FIXED_DATE_MAX_NIGHTS} days of booking (by ${formatDisplayDate(maxCheckout)}). For longer stays, choose stay until you move out.`;
   }
 
   return null;

@@ -91,6 +91,9 @@ export const activeTenancyLateralSql = sql`
       ), 0)::bigint AS monthly_rent_paise,
       b.deposit_paise,
       b.blocks_room_availability,
+      b.duration_mode::text AS duration_mode,
+      b.stay_type::text AS stay_type,
+      b.expected_checkout_date::text AS expected_checkout_date,
       to_char(lower(br.stay_range), 'YYYY-MM-DD') AS move_in_date,
       b.pricing_snapshot,
       EXISTS (
@@ -125,6 +128,9 @@ export type ActiveTenancyDbRow = {
   monthly_rent_paise: number | null;
   deposit_paise: number;
   blocks_room_availability: boolean;
+  duration_mode: string;
+  stay_type: string;
+  expected_checkout_date: string | null;
   move_in_date: string;
   pricing_snapshot: PricingSnapshot | null;
   is_vacating: boolean;
@@ -143,6 +149,9 @@ export type ActiveTenancy = {
   depositPaise: number;
   blocksRoomAvailability: boolean;
   moveInDate: string;
+  durationMode: string;
+  stayType: string;
+  expectedCheckoutDate: string | null;
   isVacating: boolean;
 };
 
@@ -163,6 +172,9 @@ function mapActiveTenancyRow(row: ActiveTenancyDbRow): ActiveTenancy {
     depositPaise: Number(row.deposit_paise ?? 0),
     blocksRoomAvailability: row.blocks_room_availability,
     moveInDate: row.move_in_date,
+    durationMode: row.duration_mode,
+    stayType: row.stay_type,
+    expectedCheckoutDate: row.expected_checkout_date,
     isVacating: row.is_vacating,
   };
 }
@@ -193,6 +205,9 @@ export async function getActiveTenancyForCustomer(
       ), 0)::bigint AS monthly_rent_paise,
       b.deposit_paise,
       b.blocks_room_availability,
+      b.duration_mode::text AS duration_mode,
+      b.stay_type::text AS stay_type,
+      b.expected_checkout_date::text AS expected_checkout_date,
       to_char(lower(br.stay_range), 'YYYY-MM-DD') AS move_in_date,
       b.pricing_snapshot,
       EXISTS (

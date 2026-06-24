@@ -19,6 +19,8 @@ import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
 import { isExpressCollectionNote } from '@/src/lib/billing/expressCollectionConstants';
 import { formatDate, formatDateTime, paiseToInr, titleCase } from '@/src/lib/format';
+import { adminStayTypeLabel, isMonthlyStayType } from '@/src/lib/stayType';
+import { diffDays, parseDate } from '@/src/lib/dates';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { getLatestKycSubmission } from '@/src/services/kyc';
 import { getResidentDetail, getCustomerVerificationStatus } from '@/src/services/residentAdmin';
@@ -239,7 +241,10 @@ export default async function ResidentDetailPage({
 
       {customer.residencyStatus !== 'vacated' ? (
         <>
-          {activeTenancy && financialSummary && billingDefaults ? (
+          {activeTenancy &&
+          financialSummary &&
+          billingDefaults &&
+          isMonthlyStayType(activeTenancy.stayType) ? (
             <ResidentInlineOpenBills
               customerId={customerId}
               customerName={customer.fullName}
@@ -259,6 +264,9 @@ export default async function ResidentDetailPage({
               financialSummary={financialSummary}
               depositSummary={depositSummary}
               moveInDate={activeTenancy.moveInDate}
+              stayType={activeTenancy.stayType}
+              durationMode={activeTenancy.durationMode}
+              expectedCheckoutDate={activeTenancy.expectedCheckoutDate}
             />
           ) : null}
 
@@ -303,8 +311,27 @@ export default async function ResidentDetailPage({
                 </Link>
               </p>
               <p className="mt-1">
-                Move-in {activeTenancy.moveInDate} · Rent {paiseToInr(activeTenancy.monthlyRentPaise)}/mo
-                · Joined {formatDateTime(customer.createdAt)}
+                {isMonthlyStayType(activeTenancy.stayType) ? (
+                  <>
+                    Check-in {formatDate(activeTenancy.moveInDate)} · Rent{' '}
+                    {paiseToInr(activeTenancy.monthlyRentPaise)}/mo · Joined{' '}
+                    {formatDateTime(customer.createdAt)}
+                  </>
+                ) : (
+                  <>
+                    Check-in {formatDate(activeTenancy.moveInDate)}
+                    {activeTenancy.expectedCheckoutDate
+                      ? ` · Check-out ${formatDate(activeTenancy.expectedCheckoutDate)}`
+                      : ''}
+                    {activeTenancy.expectedCheckoutDate
+                      ? ` · ${diffDays(
+                          parseDate(activeTenancy.moveInDate),
+                          parseDate(activeTenancy.expectedCheckoutDate),
+                        )} nights`
+                      : ''}{' '}
+                    · Fixed-date stay · Joined {formatDateTime(customer.createdAt)}
+                  </>
+                )}
               </p>
               <div className="mt-3 flex flex-wrap gap-3">
                 <Link
@@ -334,7 +361,7 @@ export default async function ResidentDetailPage({
               currentMoveInDate={activeTenancy.moveInDate}
             />
 
-            {billingDefaults ? (
+            {billingDefaults && isMonthlyStayType(activeTenancy.stayType) ? (
               <EditRentDueDateForm
                 bookingId={activeTenancy.bookingId}
                 customerId={customerId}

@@ -113,6 +113,9 @@ export type ResidentDetail = {
     depositPaise: number;
     blocksRoomAvailability: boolean;
     moveInDate: string;
+    durationMode: string;
+    stayType: string;
+    expectedCheckoutDate: string | null;
   } | null;
   settledTenancy: SettledTenancy | null;
   canArchive: boolean;
@@ -473,6 +476,9 @@ export async function getResidentDetail(
           depositPaise: activeTenancyRow.depositPaise,
           blocksRoomAvailability: activeTenancyRow.blocksRoomAvailability,
           moveInDate: activeTenancyRow.moveInDate,
+          durationMode: activeTenancyRow.durationMode,
+          stayType: activeTenancyRow.stayType,
+          expectedCheckoutDate: activeTenancyRow.expectedCheckoutDate,
         }
       : null,
     settledTenancy,

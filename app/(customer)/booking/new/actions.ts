@@ -1,14 +1,17 @@
 'use server';
 
-import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { createBooking } from '@/src/services/booking';
 import type { PricingMode } from '@/src/services/pricing';
 import {
   stayTypeFromPricingMode,
-  validateFixedDateStay,
   type StayType,
 } from '@/src/lib/stayType';
+import {
+  bookingFunnelDatesFromParams,
+  validateBookingFunnelDates,
+} from '@/src/lib/booking/bookingFunnelDates';
+import { quoteBookingPrice } from '@/src/services/pricing';
 import { createPendingMembershipForBooking } from '@/src/services/playstationMembership';
 import { isPs4PlanId } from '@/src/lib/playstation/plans';
 import { getCustomerSession } from '@/src/lib/auth/session';
@@ -21,14 +24,13 @@ import { trackAnalyticsEvent } from '@/src/services/visitorAnalytics';
  *
  * We pair the action with `useActionState` on the client so submission
  * pending state and error rendering can stay declarative. On success we
- * call `redirect()` from `next/navigation`, which throws a framework-handled
- * exception; the action therefore never returns a "success" state object —
- * callers only ever see `idle | error`.
+ * On success we return `{ status: 'success', redirectTo }` for client navigation.
  */
 
 export type BookingActionState =
   | { status: 'idle' }
-  | { status: 'error'; message: string; conflictBedIds?: string[] };
+  | { status: 'error'; message: string; conflictBedIds?: string[] }
+  | { status: 'success'; redirectTo: string };
 
 const VALID_MODES: ReadonlySet<PricingMode> = new Set([
   'open_ended',
@@ -84,7 +86,9 @@ export async function createBookingAction(
   const fullName = getString(formData, 'fullName');
   const email = getString(formData, 'email');
   const phone = getString(formData, 'phone');
-  const gender = getString(formData, 'gender');
+  const genderRaw = getString(formData, 'gender');
+  const gender =
+    VALID_GENDERS.has(genderRaw) ? (genderRaw as 'male' | 'female' | 'other') : customer.gender;
   const notes = getString(formData, 'notes');
   const ps4PlanRaw = getString(formData, 'ps4Plan');
   const couponCode = getString(formData, 'couponCode');
@@ -101,16 +105,49 @@ export async function createBookingAction(
   if (!VALID_MODES.has(durationModeRaw) && !['monthly_stay', 'fixed_date_stay'].includes(stayTypeRaw)) {
     return { status: 'error', message: 'Pick a stay type.' };
   }
-  const endDate = durationMode === 'open_ended' ? null : endDateRaw;
-  if (durationMode !== 'open_ended' && !ISO_DATE_RE.test(endDateRaw)) {
+  const endDate = durationMode === 'open_ended' ? null : endDateRaw || null;
+  if (durationMode !== 'open_ended' && (!endDateRaw || !ISO_DATE_RE.test(endDateRaw))) {
     return { status: 'error', message: 'Check-out date is missing or invalid.' };
   }
-  if (durationMode === 'fixed_stay') {
-    const fixedErr = validateFixedDateStay(startDate, endDateRaw);
-    if (fixedErr) {
-      return { status: 'error', message: fixedErr };
-    }
+
+  const bookingStayType: StayType =
+    stayTypeRaw === 'monthly_stay' || stayTypeRaw === 'fixed_date_stay'
+      ? stayTypeRaw
+      : stayTypeFromPricingMode(durationMode);
+  const funnelDates = bookingFunnelDatesFromParams({
+    start: startDate,
+    end: endDate,
+    stayType: bookingStayType,
+  });
+  const funnelDateError = validateBookingFunnelDates(funnelDates);
+  if (funnelDateError) {
+    return { status: 'error', message: funnelDateError };
   }
+
+  try {
+    const quote = await quoteBookingPrice({
+      bedIds,
+      startDate: funnelDates.start,
+      endDate: funnelDates.end,
+      durationMode,
+      includeDeposit: true,
+    });
+    if (durationMode === 'fixed_stay') {
+      const quoteNights = quote.perBed[0]?.nights ?? null;
+      if (quoteNights !== funnelDates.stayNights) {
+        return {
+          status: 'error',
+          message: 'Stay dates changed during checkout. Go back and pick your dates again.',
+        };
+      }
+    }
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : 'Could not verify pricing for these dates.',
+    };
+  }
+
   if (!fullName || fullName.length < 2) {
     return { status: 'error', message: 'Enter your full name.' };
   }
@@ -125,13 +162,16 @@ export async function createBookingAction(
     };
   }
   if (!VALID_GENDERS.has(gender)) {
-    return { status: 'error', message: 'Pick a gender for PG eligibility checks.' };
+    return {
+      status: 'error',
+      message: 'Complete your profile gender in account settings before booking.',
+    };
   }
 
   const result = await createBooking({
     bedIds,
-    startDate,
-    endDate,
+    startDate: funnelDates.start,
+    endDate: funnelDates.end,
     durationMode,
     customerId: session.customerId,
     customer: {
@@ -188,7 +228,7 @@ export async function createBookingAction(
   // Admin-initiated bookings (status='confirmed') skip straight to the
   // confirmation page since money is handled out-of-band.
   if (result.status === 'pending_payment') {
-    redirect(`/booking/${result.bookingCode}/pay`);
+    return { status: 'success', redirectTo: `/booking/${result.bookingCode}/pay` };
   }
-  redirect(`/booking/${result.bookingCode}`);
+  return { status: 'success', redirectTo: `/booking/${result.bookingCode}` };
 }
