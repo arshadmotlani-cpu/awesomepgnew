@@ -8,8 +8,10 @@ export type PaymentExplanationLine = {
   amountPaise: number;
   bookingCode?: string | null;
   statusLabel?: string;
-  /** Prefix for calculation rows, e.g. "+" */
+  /** Prefix for calculation rows, e.g. "+" or "−" */
   amountPrefix?: string;
+  /** When true, line is subtracted in mental arithmetic (display only). */
+  isDeduction?: boolean;
 };
 
 export type PaymentFinancialTraceEntry = {
@@ -33,9 +35,20 @@ export type PaymentAfterApprovalPreview = {
   residentBalanceDuePaise: number;
 };
 
+export type NetDepositPosition = {
+  refundableDepositsPaise: number;
+  outstandingDepositsPaise: number;
+  netPaise: number;
+  netLabel: string;
+  netTone: 'positive' | 'negative' | 'neutral';
+};
+
 export type PaymentExplanationView = {
+  /** Rent for this checkout only. */
   newBookingLines: PaymentExplanationLine[];
-  previousBookingLines: PaymentExplanationLine[];
+  depositCalculationLines: PaymentExplanationLine[];
+  netDepositPosition: NetDepositPosition | null;
+  /** Line items that sum exactly to totalExpectedPaise. */
   calculationLines: PaymentExplanationLine[];
   totalExpectedPaise: number;
   customerPaidPaise: number | null;
@@ -46,12 +59,6 @@ export type PaymentExplanationView = {
 };
 
 type BookingReview = NonNullable<Awaited<ReturnType<typeof getQrBookingPaymentReview>>>;
-
-function depositPercentLabel(depositRequiredPaise: number, rentDuePaise: number): string {
-  if (rentDuePaise <= 0) return 'Required deposit';
-  const pct = Math.round((depositRequiredPaise / rentDuePaise) * 100);
-  return pct > 0 ? `Required deposit (${pct}%)` : 'Required deposit';
-}
 
 function priorOutstandingReason(item: PriorOutstandingItem): string {
   if (item.kind === 'deposit') {
@@ -64,6 +71,13 @@ function priorOutstandingReason(item: PriorOutstandingItem): string {
     return 'Outstanding electricity from prior stay';
   }
   return item.label || 'Prior stay balance';
+}
+
+function priorOutstandingCalculationLabel(item: PriorOutstandingItem): string {
+  if (item.kind === 'deposit') return 'Previous outstanding';
+  if (item.kind === 'rent') return 'Previous outstanding rent';
+  if (item.kind === 'electricity') return 'Previous outstanding electricity';
+  return 'Previous outstanding balance';
 }
 
 function transferStatusForPriorDeposit(
@@ -92,6 +106,42 @@ function formatInrPlain(paise: number): string {
   return `₹${(paise / 100).toLocaleString('en-IN')}`;
 }
 
+function buildNetDepositPosition(input: {
+  priorBookingDeposits: PriorBookingDepositInfo[];
+  priorOutstandingItems: PriorOutstandingItem[];
+}): NetDepositPosition {
+  const refundableDepositsPaise = input.priorBookingDeposits.reduce(
+    (sum, d) => sum + Math.max(0, d.refundablePaise),
+    0,
+  );
+  const outstandingDepositsPaise = input.priorOutstandingItems
+    .filter((item) => item.kind === 'deposit')
+    .reduce((sum, item) => sum + item.amountPaise, 0);
+
+  const netPaise = refundableDepositsPaise - outstandingDepositsPaise;
+
+  let netLabel: string;
+  let netTone: NetDepositPosition['netTone'];
+  if (netPaise > 0) {
+    netLabel = `+${formatInrPlain(netPaise)} refundable`;
+    netTone = 'positive';
+  } else if (netPaise < 0) {
+    netLabel = `−${formatInrPlain(Math.abs(netPaise))} due`;
+    netTone = 'negative';
+  } else {
+    netLabel = '₹0 settled';
+    netTone = 'neutral';
+  }
+
+  return {
+    refundableDepositsPaise,
+    outstandingDepositsPaise,
+    netPaise,
+    netLabel,
+    netTone,
+  };
+}
+
 /** Presentation-only view model for admin booking checkout payment review. */
 export function buildBookingPaymentExplanation(input: {
   review: BookingReview;
@@ -116,7 +166,6 @@ export function buildBookingPaymentExplanation(input: {
   const depositCashDuePaise = review.depositCashDuePaise;
   const requiredDepositPaise = depositRequiredPaise ?? depositCashDuePaise + depositCreditAppliedPaise;
   const priorOutstandingPaise = priorOutstandingItems.reduce((s, i) => s + i.amountPaise, 0);
-  const newBookingChargesPaise = rentDuePaise + depositCashDuePaise;
   const received = review.amountSubmittedPaise;
   const overpaidPaise = Math.max(0, received - review.bookingTotalDuePaise);
 
@@ -126,73 +175,62 @@ export function buildBookingPaymentExplanation(input: {
       label: 'Rent for stay',
       amountPaise: rentDuePaise,
     },
+  ];
+
+  const depositCalculationLines: PaymentExplanationLine[] = [
     {
       key: 'deposit-required',
-      label: depositPercentLabel(requiredDepositPaise, rentDuePaise),
+      label: 'Deposit required for booking',
       amountPaise: requiredDepositPaise,
     },
   ];
 
   if (depositCreditAppliedPaise > 0) {
-    newBookingLines.push({
+    depositCalculationLines.push({
       key: 'deposit-credit',
-      label: 'Deposit credit applied',
+      label: 'Less refundable deposit available',
       amountPaise: depositCreditAppliedPaise,
       bookingCode: depositCreditSourceBookingCode,
       amountPrefix: '−',
+      isDeduction: true,
     });
   }
 
-  if (depositCashDuePaise !== requiredDepositPaise) {
-    newBookingLines.push({
-      key: 'deposit-due-now',
-      label: 'Deposit due at checkout',
-      amountPaise: depositCashDuePaise,
-    });
-  }
+  depositCalculationLines.push({
+    key: 'deposit-due-now',
+    label: 'Deposit due now',
+    amountPaise: depositCashDuePaise,
+  });
 
-  const previousBookingLines: PaymentExplanationLine[] = [];
-
-  for (const d of priorBookingDeposits) {
-    if (d.refundablePaise <= 0) continue;
-    previousBookingLines.push({
-      key: `refundable-${d.bookingId}`,
-      label: 'Refundable deposit available',
-      amountPaise: d.refundablePaise,
-      bookingCode: d.bookingCode,
-      statusLabel: d.statusLabel,
-    });
-  }
-
-  for (const item of priorOutstandingItems) {
-    previousBookingLines.push({
-      key: `outstanding-${item.bookingId ?? item.label}`,
-      label:
-        item.kind === 'deposit'
-          ? 'Outstanding deposit due'
-          : item.kind === 'rent'
-            ? 'Outstanding rent due'
-            : item.kind === 'electricity'
-              ? 'Outstanding electricity due'
-              : 'Outstanding balance due',
+  for (const item of priorOutstandingItems.filter((row) => row.kind === 'deposit')) {
+    depositCalculationLines.push({
+      key: `prior-deposit-${item.bookingId ?? item.bookingCode ?? item.label}`,
+      label: 'Outstanding balance from previous booking',
       amountPaise: item.amountPaise,
       bookingCode: item.bookingCode,
+      amountPrefix: '+',
     });
   }
 
   const calculationLines: PaymentExplanationLine[] = [
     {
-      key: 'new-booking',
-      label: 'New booking charges',
-      amountPaise: newBookingChargesPaise,
+      key: 'rent',
+      label: 'Rent',
+      amountPaise: rentDuePaise,
+    },
+    {
+      key: 'deposit-due-now',
+      label: 'Deposit due now',
+      amountPaise: depositCashDuePaise,
     },
   ];
 
-  if (priorOutstandingPaise > 0) {
+  for (const item of priorOutstandingItems) {
     calculationLines.push({
-      key: 'prior-balance',
-      label: 'Previous booking balance',
-      amountPaise: priorOutstandingPaise,
+      key: `calc-prior-${item.bookingId ?? item.bookingCode ?? item.label}`,
+      label: priorOutstandingCalculationLabel(item),
+      amountPaise: item.amountPaise,
+      bookingCode: item.bookingCode,
       amountPrefix: '+',
     });
   }
@@ -267,9 +305,19 @@ export function buildBookingPaymentExplanation(input: {
     });
   }
 
+  const netDepositPosition = buildNetDepositPosition({
+    priorBookingDeposits,
+    priorOutstandingItems,
+  });
+
   return {
     newBookingLines,
-    previousBookingLines,
+    depositCalculationLines,
+    netDepositPosition:
+      netDepositPosition.refundableDepositsPaise > 0 ||
+      netDepositPosition.outstandingDepositsPaise > 0
+        ? netDepositPosition
+        : null,
     calculationLines,
     totalExpectedPaise: review.bookingTotalDuePaise,
     customerPaidPaise: received,
@@ -300,10 +348,15 @@ export function buildSimplePaymentExplanation(input: {
   resultLabel: string | null;
 }): Pick<
   PaymentExplanationView,
-  'calculationLines' | 'totalExpectedPaise' | 'customerPaidPaise' | 'resultLabel' | 'resultTone'
+  | 'calculationLines'
+  | 'totalExpectedPaise'
+  | 'customerPaidPaise'
+  | 'resultLabel'
+  | 'resultTone'
 > & {
   newBookingLines: [];
-  previousBookingLines: [];
+  depositCalculationLines: [];
+  netDepositPosition: null;
   afterApproval: null;
   financialTrace: [];
 } {
@@ -327,7 +380,8 @@ export function buildSimplePaymentExplanation(input: {
 
   return {
     newBookingLines: [],
-    previousBookingLines: [],
+    depositCalculationLines: [],
+    netDepositPosition: null,
     calculationLines: input.lines.map((line, i) => ({
       key: `line-${i}`,
       label: line.label,

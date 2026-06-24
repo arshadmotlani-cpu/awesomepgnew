@@ -13,7 +13,7 @@ Operations → Payment Reviews (`/admin/operations/payment-reviews`)
 ### UI deliverables
 
 1. **Booking context** — booking type, pricing rule, stay dates, rent calculation narrative, deposit policy, required deposit
-2. **Payment explanation** — new booking, previous bookings, calculation, customer paid, result, after approval
+2. **Payment explanation** — deposit calculation (required → credit → due now), net deposit position, line-by-line total (rent + deposit due now + prior outstanding), customer paid, result, after approval
 3. **Financial trace** — collapsed admin-only per prior booking (refundable, outstanding, transfer, impact, reason)
 
 ### Manual test checklist

@@ -20,6 +20,7 @@ function MoneyLine({
     bookingCode?: string | null;
     statusLabel?: string;
     amountPrefix?: string;
+    isDeduction?: boolean;
   };
   strong?: boolean;
 }) {
@@ -35,7 +36,15 @@ function MoneyLine({
           <p className="text-xs text-amber-200/90">Status: {line.statusLabel}</p>
         ) : null}
       </div>
-      <span className={`shrink-0 tabular-nums ${strong ? 'text-base font-semibold text-white' : 'font-medium text-white'}`}>
+      <span
+        className={`shrink-0 tabular-nums ${
+          line.isDeduction
+            ? 'font-medium text-rose-300'
+            : strong
+              ? 'text-base font-semibold text-white'
+              : 'font-medium text-white'
+        }`}
+      >
         {prefix}
         {paiseToInr(line.amountPaise)}
       </span>
@@ -50,12 +59,27 @@ const RESULT_TONE_CLASS: Record<PaymentExplanationView['resultTone'], string> = 
   danger: 'text-rose-300',
 };
 
+const NET_TONE_CLASS = {
+  positive: 'text-emerald-300',
+  negative: 'text-rose-300',
+  neutral: 'text-apg-silver',
+} as const;
+
 export function PaymentExplanationBlock({
   explanation,
 }: {
   explanation: PaymentExplanationView;
 }) {
   const [traceOpen, setTraceOpen] = useState(false);
+
+  const calculationSumPaise = explanation.calculationLines.reduce((sum, line) => {
+    if (line.amountPrefix === '+') return sum + line.amountPaise;
+    if (line.isDeduction || line.amountPrefix === '−') return sum - line.amountPaise;
+    return sum + line.amountPaise;
+  }, 0);
+  const arithmeticMatches =
+    explanation.calculationLines.length === 0 ||
+    calculationSumPaise === explanation.totalExpectedPaise;
 
   return (
     <div className="mt-4 rounded-xl border border-white/10 bg-[#121820] p-4">
@@ -74,14 +98,42 @@ export function PaymentExplanationBlock({
         </div>
       ) : null}
 
-      {explanation.previousBookingLines.length > 0 ? (
+      {explanation.depositCalculationLines.length > 0 ? (
         <div className="mt-4 border-t border-white/10 pt-4">
-          <SectionTitle>Previous bookings</SectionTitle>
-          <ul className="mt-2 space-y-3 text-sm">
-            {explanation.previousBookingLines.map((line) => (
+          <SectionTitle>Deposit calculation</SectionTitle>
+          <ul className="mt-2 space-y-2 text-sm">
+            {explanation.depositCalculationLines.map((line) => (
               <MoneyLine key={line.key} line={line} />
             ))}
           </ul>
+        </div>
+      ) : null}
+
+      {explanation.netDepositPosition ? (
+        <div className="mt-4 rounded-lg border border-amber-400/20 bg-amber-500/5 p-3">
+          <SectionTitle>Net deposit position</SectionTitle>
+          <dl className="mt-2 space-y-2 text-sm">
+            <div className="flex justify-between gap-3">
+              <dt className="text-apg-silver">Refundable deposits</dt>
+              <dd className="font-medium tabular-nums text-white">
+                {paiseToInr(explanation.netDepositPosition.refundableDepositsPaise)}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-apg-silver">Outstanding deposits</dt>
+              <dd className="font-medium tabular-nums text-white">
+                {paiseToInr(explanation.netDepositPosition.outstandingDepositsPaise)}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-3 border-t border-white/10 pt-2">
+              <dt className="font-medium text-white">Net resident position</dt>
+              <dd
+                className={`font-semibold tabular-nums ${NET_TONE_CLASS[explanation.netDepositPosition.netTone]}`}
+              >
+                {explanation.netDepositPosition.netLabel}
+              </dd>
+            </div>
+          </dl>
         </div>
       ) : null}
 
@@ -100,6 +152,11 @@ export function PaymentExplanationBlock({
             {paiseToInr(explanation.totalExpectedPaise)}
           </span>
         </div>
+        {!arithmeticMatches ? (
+          <p className="mt-1 text-xs text-rose-300">
+            Line items sum to {paiseToInr(calculationSumPaise)} — verify booking snapshot.
+          </p>
+        ) : null}
         <div className="mt-2 flex items-center justify-between gap-3">
           <span className="text-sm text-apg-silver">Customer paid</span>
           <span className="text-lg font-semibold tabular-nums text-emerald-300">
