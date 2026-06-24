@@ -160,10 +160,6 @@ export async function auditBookingRentInvoice(
     .from(financialInvoices)
     .where(eq(financialInvoices.bookingId, booking.id));
 
-  const finByRent = await batchLookupFinancialInvoiceIds(
-    rentInvs.map((r) => ({ sourceTable: 'rent_invoices' as const, sourceId: r.id })),
-  );
-
   const paymentDate = succeeded?.paidAt
     ? succeeded.paidAt.toISOString().slice(0, 10)
     : booking.createdAt.toISOString().slice(0, 10);
