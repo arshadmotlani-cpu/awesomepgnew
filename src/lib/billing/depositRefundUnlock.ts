@@ -2,15 +2,10 @@
  * Unified deposit refund unlock state — monthly vacating + fixed-stay checkout.
  */
 
-import { diffDays, formatDate, parseDate, todayString, type DateLike } from '@/src/lib/dates';
+import { formatDate, parseDate, todayString, type DateLike } from '@/src/lib/dates';
 import { fixedStayRefundUnlockLabel, isPastFixedStayCheckout } from '@/src/lib/dates/ist';
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
-import {
-  noticeShortfallDeduction,
-  noticeShortfallDays,
-  vacatingPenalty,
-  VACATING_NOTICE_MIN_DAYS,
-} from '@/src/services/billing';
+import { computeNoticeDeduction } from '@/src/services/billing';
 
 export type DepositRefundUnlockState =
   | 'locked'
@@ -51,17 +46,11 @@ export function estimateNoticeDeductionPaise(args: {
   monthlyRentPaise: number;
   noticeGivenDate: DateLike;
   vacatingDate: DateLike;
-  useShortfallFormula?: boolean;
 }): number {
-  const shortfall = noticeShortfallDays({
+  return computeNoticeDeduction(args.monthlyRentPaise, {
     noticeGivenDate: args.noticeGivenDate,
     vacatingDate: args.vacatingDate,
   });
-  if (args.useShortfallFormula) {
-    return noticeShortfallDeduction(args.monthlyRentPaise, shortfall);
-  }
-  const given = diffDays(args.noticeGivenDate, args.vacatingDate);
-  return given < VACATING_NOTICE_MIN_DAYS ? vacatingPenalty(args.monthlyRentPaise) : 0;
 }
 
 /**
@@ -151,7 +140,6 @@ export function computeDepositRefundUnlockState(args: {
       monthlyRentPaise: monthlyRent,
       noticeGivenDate: noticeGiven,
       vacatingDate: checkoutDate,
-      useShortfallFormula: Boolean(args.vacating),
     });
   }
 

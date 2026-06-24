@@ -197,7 +197,11 @@ function dedupeQueueRows(rows: ResidentsQueueRow[]): ResidentsQueueRow[] {
     const rowRank = H5_CATEGORY_ORDER[row.category];
     const existingRank = H5_CATEGORY_ORDER[existing.category];
     if (rowRank < existingRank || (rowRank === existingRank && row.ageSortHours > existing.ageSortHours)) {
-      byResident.set(row.customerId, row);
+      const mergedTags = [...new Set([...row.filterTags, ...existing.filterTags])];
+      byResident.set(row.customerId, { ...row, filterTags: mergedTags });
+    } else {
+      const mergedTags = [...new Set([...existing.filterTags, ...row.filterTags])];
+      existing.filterTags = mergedTags;
     }
   }
 
@@ -396,39 +400,6 @@ export function buildResidentOperationsResidentsView(input: {
 } {
   const blockedResidents = detectBlockedResidents(input);
 
-  const commandCards: ResidentsCommandCard[] = [
-    {
-      id: 'bed_assignment',
-      label: 'Waiting bed assignment',
-      count: input.queue.filter((q) => q.filterBucket === 'bed_unassigned').length,
-    },
-    {
-      id: 'kyc',
-      label: 'Pending KYC',
-      count: input.queue.filter((q) => q.filterBucket === 'kyc_pending').length,
-    },
-    {
-      id: 'payment_proof',
-      label: 'Payment proofs awaiting review',
-      count: input.paymentProofs.length,
-    },
-    {
-      id: 'move_out',
-      label: 'Move-outs awaiting action',
-      count: input.queue.filter((q) => q.filterBucket === 'move_out').length,
-    },
-    {
-      id: 'overdue',
-      label: 'Overdue residents',
-      count: input.queue.filter((q) => q.filterBucket === 'rent_overdue').length,
-    },
-    {
-      id: 'blocked',
-      label: 'Blocked residents',
-      count: blockedResidents.length,
-    },
-  ];
-
   const queueRows = input.queue.map((item) => {
     const age = enrichQueueAge(item, input.paymentProofAges ?? new Map());
     return {
@@ -451,6 +422,41 @@ export function buildResidentOperationsResidentsView(input: {
       category: item.category,
     } satisfies ResidentsQueueRow;
   });
+
+  const dedupedQueue = dedupeQueueRows(queueRows);
+
+  const commandCards: ResidentsCommandCard[] = [
+    {
+      id: 'bed_assignment',
+      label: 'Waiting bed assignment',
+      count: dedupedQueue.filter((q) => q.filterTags.includes('bed_assignment')).length,
+    },
+    {
+      id: 'kyc',
+      label: 'Pending KYC',
+      count: dedupedQueue.filter((q) => q.filterTags.includes('kyc')).length,
+    },
+    {
+      id: 'payment_proof',
+      label: 'Payment proofs awaiting review',
+      count: input.paymentProofs.length,
+    },
+    {
+      id: 'move_out',
+      label: 'Move-outs awaiting action',
+      count: dedupedQueue.filter((q) => q.filterTags.includes('move_out')).length,
+    },
+    {
+      id: 'overdue',
+      label: 'Overdue residents',
+      count: dedupedQueue.filter((q) => q.filterTags.includes('overdue')).length,
+    },
+    {
+      id: 'blocked',
+      label: 'Blocked residents',
+      count: blockedResidents.length,
+    },
+  ];
 
   const settlementIds = new Set(input.checkoutRefunds.map((s) => s.customerId));
   const vacatingPendingIds = new Set(input.vacatingPendingCustomerIds);
@@ -480,7 +486,7 @@ export function buildResidentOperationsResidentsView(input: {
 
   return {
     commandCards,
-    queue: dedupeQueueRows(queueRows),
+    queue: dedupedQueue,
     journeyCounts,
     blockedResidents,
     recentActivity,

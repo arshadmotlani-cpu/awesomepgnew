@@ -6,6 +6,7 @@ import { IconClipboard } from '@/src/components/admin/icons';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
 import { listBookings } from '@/src/db/queries/admin';
+import { adminStayTypeLabel } from '@/src/lib/stayType';
 import { formatDate, formatDateTime, paiseToInr, titleCase } from '@/src/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -64,7 +65,7 @@ export default async function BookingsPage() {
                 <TD>
                   <Badge tone={toneForStatus(b.status)}>{titleCase(b.status)}</Badge>
                 </TD>
-                <TD>{titleCase(b.durationMode)}</TD>
+                <TD>{adminStayTypeLabel({ durationMode: b.durationMode })}</TD>
                 <TD>{formatDate(b.expectedCheckoutDate)}</TD>
                 <TD className="text-right tabular-nums">{paiseToInr(b.totalPaise)}</TD>
                 <TD>{formatDateTime(b.createdAt)}</TD>

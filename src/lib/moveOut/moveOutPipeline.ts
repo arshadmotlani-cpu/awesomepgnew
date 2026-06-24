@@ -1,4 +1,5 @@
 import { formatDate, normalizeIsoDateOnly, toIsoTimestampSafe } from '@/src/lib/dates';
+import { computeCheckoutRefundPreview } from '@/src/lib/billing/checkoutRefundPreview';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import type { CheckoutSettlementStatus } from '@/src/db/schema/enums';
 import type { MoveOutUrgency, VacatingBedStatus } from '@/src/lib/vacating/approvalPreview';
@@ -125,29 +126,24 @@ function computeEstimatedRefundPaise(
   vacating: VacatingInput,
   settlement: SettlementInput | null,
 ): number {
-  if (settlement?.amountsLocked && settlement.finalRefundPaise != null) {
-    return guardDepositPaise(settlement.finalRefundPaise);
-  }
   if (
     settlement &&
     (settlement.status === 'completed' ||
       settlement.status === 'refund_paid' ||
-      settlement.status === 'refund_pending')
+      settlement.status === 'refund_pending') &&
+    settlement.finalRefundPaise != null
   ) {
-    if (settlement.finalRefundPaise != null) {
-      return guardDepositPaise(settlement.finalRefundPaise);
-    }
+    return guardDepositPaise(settlement.finalRefundPaise);
   }
 
-  const depositHeld = guardDepositPaise(vacating.depositHeldPaise);
-  const noticePaise = guardDepositPaise(
-    settlement?.noticeDeductionPaise ?? vacating.deductionPaise,
-  );
-  const electricityPaise =
-    settlement?.electricityDeductFromDeposit === false
-      ? 0
-      : guardDepositPaise(settlement?.electricitySharePaise ?? 0);
-  return Math.max(0, depositHeld - noticePaise - electricityPaise);
+  return computeCheckoutRefundPreview({
+    depositHeldPaise: vacating.depositHeldPaise,
+    noticeDeductionPaise: settlement?.noticeDeductionPaise ?? vacating.deductionPaise,
+    electricitySharePaise: settlement?.electricitySharePaise,
+    electricityDeductFromDeposit: settlement?.electricityDeductFromDeposit,
+    finalRefundPaise: settlement?.finalRefundPaise,
+    amountsLocked: settlement?.amountsLocked,
+  }).finalRefundPaise;
 }
 
 const STAGE_INDEX: Record<MoveOutStageId, number> = {

@@ -7,6 +7,7 @@ import {
   ACCOUNT_SURFACE,
 } from '@/src/components/customer/accountStyles';
 import { residentTabHref } from '@/src/lib/accountNavigation';
+import { stayTypeFromPricingMode, stayTypeLabel } from '@/src/lib/stayType';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 
 const STATUS_TONE: Record<string, string> = {
@@ -30,9 +31,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function plainDuration(mode: string): string {
-  if (mode === 'monthly') return 'Monthly stay';
-  if (mode === 'open_ended') return 'Open-ended stay';
-  return titleCase(mode.replace(/_/g, ' '));
+  return stayTypeLabel(stayTypeFromPricingMode(mode));
 }
 
 export function ApplicationBookingsList({

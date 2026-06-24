@@ -6,7 +6,9 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { electricityInvoices, rentInvoices } from '@/src/db/schema';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
+import { projectElectricityInvoice } from '@/src/services/electricityBilling';
 import { getPgDepositCollectionDetail } from '@/src/services/pgDepositCollection';
+import { projectInvoice } from '@/src/services/rentInvoices';
 
 export type PgRevenueResidentRow = {
   customerId: string;
@@ -41,57 +43,40 @@ export async function getPgRevenueResidentRows(
   const bookingIds = residents.map((r) => r.bookingId);
 
   const [rentRows, elecRows] = await Promise.all([
-    db
-      .select({
-        bookingId: rentInvoices.bookingId,
-        rentPaise: rentInvoices.rentPaise,
-        paidPrincipalPaise: rentInvoices.paidPrincipalPaise,
-        paidLateFeePaise: rentInvoices.paidLateFeePaise,
-        status: rentInvoices.status,
-      })
-      .from(rentInvoices)
-      .where(
-        and(
-          inArray(rentInvoices.bookingId, bookingIds),
-          eq(rentInvoices.billingMonth, billingMonth),
-        ),
+    db.select().from(rentInvoices).where(
+      and(
+        inArray(rentInvoices.bookingId, bookingIds),
+        eq(rentInvoices.billingMonth, billingMonth),
       ),
-    db
-      .select({
-        bookingId: electricityInvoices.bookingId,
-        amountPaise: electricityInvoices.amountPaise,
-        paidPaise: electricityInvoices.paidPaise,
-        status: electricityInvoices.status,
-      })
-      .from(electricityInvoices)
-      .where(
-        and(
-          inArray(electricityInvoices.bookingId, bookingIds),
-          eq(electricityInvoices.billingMonth, billingMonth),
-        ),
+    ),
+    db.select().from(electricityInvoices).where(
+      and(
+        inArray(electricityInvoices.bookingId, bookingIds),
+        eq(electricityInvoices.billingMonth, billingMonth),
       ),
+    ),
   ]);
 
   const rentByBooking = new Map<string, { due: number; paid: number }>();
   for (const r of rentRows) {
+    const projected = projectInvoice(r);
     const bucket = rentByBooking.get(r.bookingId) ?? { due: 0, paid: 0 };
-    if (r.status === 'pending' || r.status === 'overdue') {
-      bucket.due += r.rentPaise;
-    }
-    if (r.status === 'paid') {
-      bucket.paid += r.paidPrincipalPaise + (r.paidLateFeePaise ?? 0);
+    if (projected.effectiveStatus === 'paid') {
+      bucket.paid += projected.paidPrincipalPaise + (projected.paidLateFeePaise ?? 0);
+    } else if (projected.effectiveStatus !== 'cancelled' && projected.effectiveStatus !== 'expired') {
+      bucket.due += projected.outstandingPaise;
     }
     rentByBooking.set(r.bookingId, bucket);
   }
 
   const elecByBooking = new Map<string, { due: number; paid: number }>();
   for (const e of elecRows) {
+    const projected = projectElectricityInvoice(e);
     const bucket = elecByBooking.get(e.bookingId) ?? { due: 0, paid: 0 };
-    if (e.status === 'pending') {
-      bucket.due += e.amountPaise;
-    }
-    if (e.status === 'paid') {
+    if (projected.effectiveStatus === 'paid') {
       bucket.paid += e.paidPaise;
+    } else if (projected.effectiveStatus !== 'cancelled') {
+      bucket.due += projected.outstandingPaise;
     }
     elecByBooking.set(e.bookingId, bucket);
   }

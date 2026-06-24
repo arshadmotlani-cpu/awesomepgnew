@@ -45,7 +45,7 @@ export function MoveOutCommandCenter({
       <div className="flex flex-wrap gap-2">
         <FilterTab
           label="All active"
-          count={stats.needsAction + stats.waitingResident + stats.overdue + stats.refundsToSend}
+          count={stats.activeCount}
           active={activeFilter === 'all'}
           onClick={() => onFilterChange('all')}
         />

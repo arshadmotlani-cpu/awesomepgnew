@@ -6,6 +6,7 @@ import { mirrorClientEventToPostHog } from '@/src/lib/analytics/client';
 import { ImageFileInput } from '@/src/components/shared/ImageFileInput';
 import { customerPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import { paiseToInr } from '@/src/lib/format';
+import { stayTypeFromPricingMode, stayTypeLabel } from '@/src/lib/stayType';
 import type { PriorOutstandingItem } from '@/src/lib/billing/bookingCheckoutTotals';
 import { computeNewBookingCheckoutTotals } from '@/src/lib/billing/bookingCheckoutTotals';
 import type { PricingLineItem } from '@/src/lib/pricing/types';
@@ -63,11 +64,9 @@ const STEPS = [
   { n: 4, label: 'Submit' },
 ] as const;
 
-function stayTypeLabel(mode: string, isReserve: boolean): string {
+function checkoutStayTypeLabel(mode: string, isReserve: boolean): string {
   if (isReserve) return 'Reserve hold';
-  if (mode === 'open_ended') return 'Continue living';
-  if (mode === 'fixed_stay') return 'Fixed stay';
-  return mode.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  return stayTypeLabel(stayTypeFromPricingMode(mode));
 }
 
 function rentLineLabel(
@@ -307,7 +306,7 @@ export function BookingCheckoutExperience({
           <Row label="PG" value={pgName} />
           <Row label="Room" value={roomNumber ?? '—'} />
           <Row label="Bed" value={bedCode ?? bedDisplay} />
-          <Row label="Stay type" value={stayTypeLabel(durationMode, isReserveBooking)} />
+          <Row label="Stay type" value={checkoutStayTypeLabel(durationMode, isReserveBooking)} />
           {checkInDate && !isReserveBooking ? (
             <Row label="Check-in" value={formatStayDateTime(checkInDate, 'check-in')} />
           ) : null}

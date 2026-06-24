@@ -7,6 +7,7 @@ import {
 } from '@/src/lib/auth/guards';
 import { parseDaterange } from '@/src/services/availability';
 import { formatDate as formatDateUtc } from '@/src/lib/dates';
+import { adminStayTypeLabel, stayTypeFromPricingMode, stayTypeLabel } from '@/src/lib/stayType';
 import { formatDate, formatDateTime, paiseToInr, titleCase } from '@/src/lib/format';
 import { BookingRequestVacateSection } from '@/src/components/customer/BookingRequestVacateSection';
 import { getVacatingForBooking } from '@/src/db/queries/customer';
@@ -313,7 +314,10 @@ export default async function BookingConfirmationPage(
       </section>
 
       <section className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Tile term="Stay type" value={titleCase(b.durationMode)} />
+        <Tile
+          term="Stay type"
+          value={stayTypeLabel(stayTypeFromPricingMode(b.durationMode))}
+        />
         <Tile term="Beds reserved" value={String(b.reservations.length)} />
       </section>
 

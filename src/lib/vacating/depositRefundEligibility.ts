@@ -5,7 +5,7 @@ import {
   depositRefundEligibilityFromUnlock,
   type DepositRefundUnlockResult,
 } from '@/src/lib/billing/depositRefundUnlock';
-import { VACATING_NOTICE_MIN_DAYS, vacatingPenalty } from '@/src/services/billing';
+import { computeNoticeDeduction } from '@/src/services/billing';
 
 export type DepositRefundEligibility = {
   canRequestRefund: boolean;
@@ -80,8 +80,11 @@ export function estimateVacateDepositPreview(args: {
     };
   }
   const daysUntilVacate = tryDiffDays(noticeGivenDate, args.vacatingDate) ?? 0;
-  const earlyVacate = daysUntilVacate < VACATING_NOTICE_MIN_DAYS;
-  const estimatedDeductionPaise = earlyVacate ? vacatingPenalty(args.monthlyRentPaise) : 0;
+  const estimatedDeductionPaise = computeNoticeDeduction(args.monthlyRentPaise, {
+    noticeGivenDate,
+    vacatingDate: args.vacatingDate,
+  });
+  const earlyVacate = estimatedDeductionPaise > 0;
   const estimatedRefundablePaise = Math.max(
     0,
     args.depositHeldPaise - estimatedDeductionPaise,

@@ -11,7 +11,7 @@ export const TYPE_TO_MODULE: Record<AdminNotificationRow['type'], AdminModule | 
   kyc_pending: 'kyc',
   rent_due: 'revenue',
   electricity_due: 'revenue',
-  payment_received: 'revenue',
+  payment_received: 'operations',
   vacating_alert: 'operations',
   extension_request: 'operations',
   maintenance_issue: 'operations',

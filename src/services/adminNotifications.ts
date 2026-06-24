@@ -79,7 +79,7 @@ function notificationHref(type: ActionItem['type'], meta: ActionItemMetadata, re
   if (residentId) {
     return `/admin/residents/${residentId}?read=${encodeURIComponent(`resident:${residentId}:${type}`)}`;
   }
-  if (type === 'payment_received') return '/admin/collections?tab=payments';
+  if (type === 'payment_received') return '/admin/operations/payment-reviews';
   if (type === 'rent_due') return '/admin/collections?tab=rent';
   if (type === 'electricity_due') return '/admin/collections?tab=electricity';
   return '/admin/overview';
@@ -103,8 +103,10 @@ function typeToModule(type: ActionItem['type']): AdminModule | 'deposits' {
       return 'kyc';
     case 'rent_due':
     case 'electricity_due':
-    case 'payment_received':
       return 'revenue';
+    case 'payment_received':
+    case 'fixed_stay_checkout_due':
+      return 'operations';
     case 'vacating_alert':
     case 'extension_request':
     case 'maintenance_issue':
@@ -514,6 +516,10 @@ const PATH_NOTIFICATION_TYPES: Array<{ prefix: string; types: ActionItemType[] }
   {
     prefix: '/admin/requests',
     types: ['deposit_refund_request', 'refund_request_submitted', 'extension_request'],
+  },
+  {
+    prefix: '/admin/operations/payment-reviews',
+    types: ['payment_received'],
   },
   {
     prefix: '/admin/operations',

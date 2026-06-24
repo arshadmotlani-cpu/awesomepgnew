@@ -69,7 +69,6 @@ test('notice penalty uses 5-day vacating penalty for short notice monthly path',
     monthlyRentPaise: 30_000,
     noticeGivenDate: '2026-06-05',
     vacatingDate: '2026-06-10',
-    useShortfallFormula: false,
   });
   assert.equal(deduction, 5000);
 });

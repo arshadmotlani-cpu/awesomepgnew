@@ -10,6 +10,7 @@ import {
 } from '@/app/(admin)/admin/checkout-settlements/actions';
 import { CheckoutSettlementElectricitySection } from '@/src/components/admin/CheckoutSettlementElectricitySection';
 import { paiseToInr } from '@/src/lib/format';
+import { VACATING_NOTICE_MIN_DAYS, VACATING_NOTICE_PENALTY_DAYS } from '@/src/services/billing';
 import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement';
 
 const idle: CheckoutSettlementActionState = { status: 'idle' };
@@ -127,7 +128,8 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
 
       <Section title="Notice fee" defaultOpen={canApprove && !locked}>
         <p className="text-xs text-apg-silver">
-          Monthly rent ÷ 30 × {detail.noticeShortfallDays} days short of required notice
+          Short notice (&lt; {detail.noticeRequiredDays} days): fixed {VACATING_NOTICE_PENALTY_DAYS}-day
+          rent fee ({detail.noticeShortfallDays} days short of required notice)
         </p>
         {!locked && canApprove ? (
           <form action={saveAction} className="mt-3 flex flex-wrap items-end gap-3">

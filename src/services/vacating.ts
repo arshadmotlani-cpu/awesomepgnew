@@ -48,7 +48,10 @@ import {
   shouldShortenStayOnVacatingApproval,
 } from '../lib/occupancyEligibility';
 import { reconcileBookingOccupancy } from '../lib/occupancySync';
-import { isNoticeCompliant, vacatingPenalty } from './billing';
+import {
+  computeNoticeDeduction,
+  isNoticeCompliant,
+} from './billing';
 import { getDepositSummaryForBooking } from './deposits';
 import { settleVacatingDepositRefund, applyDepositDeduction } from './depositSettlement';
 import {
@@ -330,7 +333,9 @@ export async function submitVacatingRequest(
     booking.pricingSnapshot as PricingSnapshot | null,
   );
   const deduction =
-    input.waiveDeduction || noticeCompliant ? 0 : vacatingPenalty(monthlyRent);
+    input.waiveDeduction
+      ? 0
+      : computeNoticeDeduction(monthlyRent, { noticeGivenDate, vacatingDate });
 
   const [activeRequest] = await db
     .select({ id: vacatingRequests.id })
@@ -1273,7 +1278,10 @@ export async function extendVacatingDate(input: {
       vacatingDate: newDate,
     });
     const monthlyRent = vacating.monthlyRentPaiseSnapshot;
-    const deduction = noticeCompliant ? 0 : vacatingPenalty(monthlyRent);
+    const deduction = computeNoticeDeduction(monthlyRent, {
+      noticeGivenDate: vacating.noticeGivenDate,
+      vacatingDate: newDate,
+    });
 
     const [updated] = await db
       .update(vacatingRequests)

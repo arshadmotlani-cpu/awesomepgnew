@@ -13,6 +13,9 @@ import { addDays, addMonths, diffDays, formatDate, parseDate, type DateLike } fr
 /** Minimum days of notice before vacating for 100% deposit refund (no 5-day penalty). */
 export const VACATING_NOTICE_MIN_DAYS = 14;
 
+/** Fixed rent days deducted when notice is under {@link VACATING_NOTICE_MIN_DAYS}. */
+export const VACATING_NOTICE_PENALTY_DAYS = 5;
+
 /** Days in the calendar month containing `date`. */
 export function daysInMonth(date: DateLike): number {
   const d = parseDate(date);
@@ -163,24 +166,38 @@ export function dailyRateFromMonthly(monthlyRatePaise: number): number {
 }
 
 /**
- * Fixed 5-day vacating penalty when notice < {@link VACATING_NOTICE_MIN_DAYS} days.
- * `daily * 5` (NOT the full notice shortfall — per explicit spec).
- * @deprecated Prefer {@link noticeShortfallDeduction} for checkout settlement.
+ * Fixed {@link VACATING_NOTICE_PENALTY_DAYS}-day vacating penalty when notice is short.
+ * `daily * 5` — never scaled by notice shortfall days.
  */
 export function vacatingPenalty(monthlyRatePaise: number): number {
-  return dailyRateFromMonthly(monthlyRatePaise) * 5;
+  return dailyRateFromMonthly(monthlyRatePaise) * VACATING_NOTICE_PENALTY_DAYS;
 }
 
 /**
- * Notice shortfall deduction for checkout settlement:
- * monthlyRent ÷ 30 × shortfallDays
+ * Awesome PG notice policy (SSOT):
+ * IF notice_days < {@link VACATING_NOTICE_MIN_DAYS} THEN deduction = 5 days rent ELSE 0.
+ */
+export function computeNoticeDeduction(
+  monthlyRatePaise: number,
+  args: {
+    noticeGivenDate: DateLike;
+    vacatingDate: DateLike;
+    minDays?: number;
+  },
+): number {
+  if (monthlyRatePaise <= 0) return 0;
+  return isNoticeCompliant(args) ? 0 : vacatingPenalty(monthlyRatePaise);
+}
+
+/**
+ * @deprecated Use {@link computeNoticeDeduction}. Shortfall days are informational only.
  */
 export function noticeShortfallDeduction(
   monthlyRatePaise: number,
   shortfallDays: number,
 ): number {
   if (shortfallDays <= 0 || monthlyRatePaise <= 0) return 0;
-  return Math.floor((monthlyRatePaise / 30) * shortfallDays);
+  return vacatingPenalty(monthlyRatePaise);
 }
 
 export function noticeShortfallDays(args: {

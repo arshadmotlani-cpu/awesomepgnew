@@ -10,7 +10,7 @@ import {
 import { defaultVacatingDate } from '@/src/lib/dateDefaults';
 import { isOpenEndedStayEnd, todayString } from '@/src/lib/dates';
 import { paiseToInr } from '@/src/lib/format';
-import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
+import { VACATING_NOTICE_MIN_DAYS, computeNoticeDeduction } from '@/src/services/billing';
 
 function resolveDefaultVacatingDate(expectedCheckoutDate?: string | null): string {
   if (expectedCheckoutDate && !isOpenEndedStayEnd(expectedCheckoutDate)) {
@@ -53,7 +53,10 @@ export function AdminVacatingSubmitForm({
 
   if (hasExistingVacating) return null;
 
-  const penalty = Math.floor(monthlyRentPaise / 30) * 5;
+  const penalty = computeNoticeDeduction(monthlyRentPaise, {
+    noticeGivenDate: todayString(),
+    vacatingDate,
+  });
 
   return (
     <form

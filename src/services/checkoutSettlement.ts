@@ -27,9 +27,10 @@ import {
   validateDepositRefundSubmission,
 } from '@/src/lib/billing/depositRefundRequirements';
 import {
-  noticeShortfallDeduction,
+  computeNoticeDeduction,
   noticeShortfallDays,
   VACATING_NOTICE_MIN_DAYS,
+  VACATING_NOTICE_PENALTY_DAYS,
 } from '@/src/services/billing';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import {
@@ -142,7 +143,7 @@ export function buildCheckoutSettlementDeductionPlan(
   if (row.noticeDeductionPaise > 0) {
     deductions.push({
       amountPaise: row.noticeDeductionPaise,
-      reason: `Notice shortfall (${row.noticeShortfallDays} days)`,
+      reason: `Notice period fee (${VACATING_NOTICE_PENALTY_DAYS} days rent)`,
     });
   }
   if (row.electricitySharePaise > 0 && row.electricityDeductFromDeposit) {
@@ -170,6 +171,70 @@ export function checkoutSettlementRequiresLedgerDeductions(
   row: CheckoutSettlementDeductionInput,
 ): boolean {
   return buildCheckoutSettlementDeductionPlan(row).length > 0;
+}
+
+function policyNoticeFields(args: {
+  monthlyRentPaiseSnapshot: number;
+  noticeGivenDate: string;
+  vacatingDate: string;
+}): {
+  noticeGivenDays: number;
+  noticeShortfallDays: number;
+  noticeDeductionPaise: number;
+} {
+  const noticeGivenDays = diffDays(args.noticeGivenDate, args.vacatingDate);
+  const shortfall = noticeShortfallDays({
+    noticeGivenDate: args.noticeGivenDate,
+    vacatingDate: args.vacatingDate,
+  });
+  const noticeDeductionPaise = computeNoticeDeduction(args.monthlyRentPaiseSnapshot, {
+    noticeGivenDate: args.noticeGivenDate,
+    vacatingDate: args.vacatingDate,
+  });
+  return {
+    noticeGivenDays,
+    noticeShortfallDays: shortfall,
+    noticeDeductionPaise,
+  };
+}
+
+/** Repair settlements created with the old shortfall×daily formula before approval. */
+async function reconcileCheckoutSettlementNoticePolicy(
+  settlement: CheckoutSettlement,
+  noticeGivenDate: string,
+  vacatingDate: string,
+): Promise<CheckoutSettlement> {
+  if (settlement.amountsLocked) return settlement;
+  if (!['awaiting_resident_details', 'awaiting_admin_review'].includes(settlement.status)) {
+    return settlement;
+  }
+
+  const policy = policyNoticeFields({
+    monthlyRentPaiseSnapshot: settlement.monthlyRentPaiseSnapshot,
+    noticeGivenDate,
+    vacatingDate,
+  });
+
+  if (settlement.noticeDeductionPaise === policy.noticeDeductionPaise) {
+    return settlement;
+  }
+
+  await db
+    .update(checkoutSettlements)
+    .set({
+      noticeGivenDays: policy.noticeGivenDays,
+      noticeShortfallDays: policy.noticeShortfallDays,
+      noticeDeductionPaise: policy.noticeDeductionPaise,
+      updatedAt: new Date(),
+    })
+    .where(eq(checkoutSettlements.id, settlement.id));
+
+  return {
+    ...settlement,
+    noticeGivenDays: policy.noticeGivenDays,
+    noticeShortfallDays: policy.noticeShortfallDays,
+    noticeDeductionPaise: policy.noticeDeductionPaise,
+  };
 }
 
 function hasResidentRefundDetails(
@@ -435,12 +500,11 @@ export async function createCheckoutSettlementFromVacating(input: {
     return { ok: true, settlementId: existingForBooking.id };
   }
 
-  const noticeGiven = diffDays(vr.noticeGivenDate, vr.vacatingDate);
-  const shortfall = noticeShortfallDays({
+  const policy = policyNoticeFields({
+    monthlyRentPaiseSnapshot: vr.monthlyRentPaiseSnapshot,
     noticeGivenDate: vr.noticeGivenDate,
     vacatingDate: vr.vacatingDate,
   });
-  const noticeDeduction = noticeShortfallDeduction(vr.monthlyRentPaiseSnapshot, shortfall);
 
   const [booking] = await db
     .select({ depositPaise: bookings.depositPaise })
@@ -456,9 +520,9 @@ export async function createCheckoutSettlementFromVacating(input: {
       customerId: vr.customerId,
       status: 'awaiting_resident_details',
       noticeRequiredDays: VACATING_NOTICE_MIN_DAYS,
-      noticeGivenDays: noticeGiven,
-      noticeShortfallDays: shortfall,
-      noticeDeductionPaise: noticeDeduction,
+      noticeGivenDays: policy.noticeGivenDays,
+      noticeShortfallDays: policy.noticeShortfallDays,
+      noticeDeductionPaise: policy.noticeDeductionPaise,
       monthlyRentPaiseSnapshot: vr.monthlyRentPaiseSnapshot,
       depositRequiredPaise: booking?.depositPaise ?? 0,
     })
@@ -608,7 +672,12 @@ export async function getCheckoutSettlementDetail(
 
   const wallet = await getDepositSummaryForBooking(row.bookingId);
   const depositHeld = paiseField(wallet?.refundableBalancePaise ?? 0);
-  const settlement = mapDbSettlement(row);
+  let settlement = mapDbSettlement(row);
+  settlement = await reconcileCheckoutSettlementNoticePolicy(
+    settlement,
+    row.notice_given_date,
+    row.vacating_date,
+  );
   const roomOccupancy = await resolveRoomOccupancyContext(row.booking_id);
   const sharingUsed = effectiveSharingCount({
     autoDetectedCount: roomOccupancy.autoDetectedCount,
@@ -674,7 +743,24 @@ export async function getCheckoutSettlementForCustomer(
     )
     .orderBy(desc(checkoutSettlements.updatedAt))
     .limit(1);
-  return row ?? null;
+  if (!row) return null;
+
+  const [vacating] = await db
+    .select({
+      noticeGivenDate: vacatingRequests.noticeGivenDate,
+      vacatingDate: vacatingRequests.vacatingDate,
+    })
+    .from(vacatingRequests)
+    .where(eq(vacatingRequests.id, row.vacatingRequestId))
+    .limit(1);
+
+  if (!vacating) return row;
+
+  return reconcileCheckoutSettlementNoticePolicy(
+    row,
+    vacating.noticeGivenDate,
+    vacating.vacatingDate,
+  );
 }
 
 /** Latest checkout settlement status for resident vacating timeline (any non-archived row). */
@@ -1288,15 +1374,13 @@ export async function backfillCheckoutSettlementsFromVacating(input?: {
   const created: BackfillCheckoutSettlementRow[] = [];
 
   for (const row of missing) {
-    const noticeGiven = diffDays(row.notice_given_date, row.vacating_date);
-    const shortfall = noticeShortfallDays({
+    const policy = policyNoticeFields({
+      monthlyRentPaiseSnapshot: row.monthly_rent_paise_snapshot,
       noticeGivenDate: row.notice_given_date,
       vacatingDate: row.vacating_date,
     });
     const noticeDeduction =
-      row.deduction_paise > 0
-        ? row.deduction_paise
-        : noticeShortfallDeduction(row.monthly_rent_paise_snapshot, shortfall);
+      row.deduction_paise > 0 ? row.deduction_paise : policy.noticeDeductionPaise;
 
     const [depositSettlement] = await db.execute<{ deductions_snapshot: RefundDeductionsSnapshot | null }>(
       sql`
@@ -1345,8 +1429,8 @@ export async function backfillCheckoutSettlementsFromVacating(input?: {
       customerId: row.customer_id,
       status: 'awaiting_resident_details' as const,
       noticeRequiredDays: VACATING_NOTICE_MIN_DAYS,
-      noticeGivenDays: noticeGiven,
-      noticeShortfallDays: shortfall,
+      noticeGivenDays: policy.noticeGivenDays,
+      noticeShortfallDays: policy.noticeShortfallDays,
       noticeDeductionPaise: noticeDeduction,
       monthlyRentPaiseSnapshot: row.monthly_rent_paise_snapshot,
       depositRequiredPaise: booking?.depositPaise ?? 0,

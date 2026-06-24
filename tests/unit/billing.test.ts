@@ -12,6 +12,7 @@ import {
   computeElectricityLateFee,
   computeLateFee,
   computeNextRentDueDate,
+  computeNoticeDeduction,
   dailyRateFromMonthly,
   daysInMonth,
   daysOverdue,
@@ -92,6 +93,26 @@ test('dailyRateFromMonthly is floor(monthly / 30)', () => {
 
 test('vacatingPenalty matches spec example (₹6000 → ₹1000)', () => {
   assert.equal(vacatingPenalty(6_00_000), 100_000); // 5 × ₹200 = ₹1,000
+});
+
+test('computeNoticeDeduction: short notice is always 5-day rent (not shortfall days)', () => {
+  const monthly = 408_000; // ₹4,080/mo → ₹136/day
+  const deduction = computeNoticeDeduction(monthly, {
+    noticeGivenDate: '2026-06-01',
+    vacatingDate: '2026-06-07', // 6 days notice, 8 days short — still 5-day fee
+  });
+  assert.equal(deduction, 68_000); // ₹680
+  assert.notEqual(deduction, 108_800); // old bug: 8 × ₹136
+});
+
+test('computeNoticeDeduction: compliant notice is zero', () => {
+  assert.equal(
+    computeNoticeDeduction(408_000, {
+      noticeGivenDate: '2026-06-01',
+      vacatingDate: '2026-06-15',
+    }),
+    0,
+  );
 });
 
 test('isNoticeCompliant: 14-day boundary inclusive', () => {
