@@ -26,6 +26,7 @@ import type { ActionItemMetadata } from '@/src/lib/actionCenter/constants';
 import { todayString } from '@/src/lib/dates';
 import { formatPgDisplayName } from '@/src/lib/operationsCenterRules';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
+import { resolveStalePaymentReviewArtifacts } from '@/src/services/paymentReviewIntegrity';
 import { projectElectricityInvoice } from '@/src/services/electricityBilling';
 import { projectInvoice } from '@/src/services/rentInvoices';
 import { syncResidentRequestActionItems } from '@/src/services/residentRequestActions';
@@ -724,6 +725,7 @@ export async function resolveStaleRefundAndCheckoutActionItems(): Promise<{ reso
 }
 
 async function syncPaymentReviews(session: AdminSession): Promise<void> {
+  await resolveStalePaymentReviewArtifacts(session);
   const items = await listPendingPaymentReviews(session);
   const activeKeys = new Set<string>();
   for (const item of items) {

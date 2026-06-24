@@ -20,7 +20,7 @@ async function handle(req: NextRequest) {
   try {
     const [visitors, kpis] = await Promise.all([
       getVisitorCountSummary(),
-      getAdminOverviewKpis(billingMonth),
+      getAdminOverviewKpis(session, billingMonth),
     ]);
     return Response.json({ ok: true, data: { visitors, kpis } });
   } catch (error) {

@@ -18,7 +18,9 @@ import {
   getDashboardStats,
 } from '@/src/db/queries/admin';
 import { getMonthlyRevenuePaise } from '@/src/services/dashboardMetrics';
+import type { AdminSession } from '@/src/lib/auth/session';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
+import { countPendingPaymentReviews } from '@/src/services/paymentProofQueue';
 import { todayString } from '@/src/lib/dates';
 import { VISITOR_SESSION_COOKIE, LIVE_VISITOR_WINDOW_MS } from '@/src/lib/analytics/constants';
 import { parseDeviceType } from '@/src/lib/analytics/device';
@@ -276,6 +278,7 @@ export type AdminOverviewKpis = {
 };
 
 export async function getAdminOverviewKpis(
+  session: AdminSession,
   billingMonthInput?: string,
 ): Promise<AdminOverviewKpis> {
   const billingMonth = resolveBillingMonth(billingMonthInput);
@@ -317,10 +320,7 @@ export async function getAdminOverviewKpis(
     .from(kycSubmissions)
     .where(eq(kycSubmissions.status, 'pending'));
 
-  const [pendingPayRow] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(bookings)
-    .where(eq(bookings.status, 'pending_payment'));
+  const pendingPayments = await countPendingPaymentReviews(session);
 
   const [todayRevResult, monthRevenue] = await Promise.all([
     getDailyCollectionTotals(),
@@ -337,7 +337,7 @@ export async function getAdminOverviewKpis(
     bedsOccupied,
     bedsAvailable,
     pendingKyc: kycRow?.count ?? 0,
-    pendingPayments: pendingPayRow?.count ?? 0,
+    pendingPayments,
     todayRevenuePaise: todayBreakdown.totalPaise,
     monthlyRevenuePaise: monthRevenue.totalPaise,
   };

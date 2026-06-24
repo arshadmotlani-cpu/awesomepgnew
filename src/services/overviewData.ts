@@ -103,7 +103,7 @@ export async function loadOverviewContext(
       returningMonth: 0,
       returningAllTime: 0,
     })),
-    getAdminOverviewKpis(billingMonth).catch(() => ({
+    getAdminOverviewKpis(session, billingMonth).catch(() => ({
       totalVisitorsAllTime: 0,
       activeTenants: 0,
       bedsOccupied: 0,

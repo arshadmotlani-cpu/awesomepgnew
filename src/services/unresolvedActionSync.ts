@@ -8,6 +8,7 @@ import type { ActionItemMetadata } from '@/src/lib/actionCenter/constants';
 import { isResidentBedAssignmentEligible } from '@/src/lib/residentBedAssignment';
 import type { AdminSession } from '@/src/lib/auth/session';
 import type { UnresolvedActionType } from '@/src/db/schema/enums';
+import { resolveStalePaymentReviewArtifacts } from '@/src/services/paymentReviewIntegrity';
 import { listResidentsForAdmin } from '@/src/services/residentAdmin';
 import {
   closeUnresolvedActionsNotInSourceKeys,
@@ -27,7 +28,7 @@ const ACTION_ITEM_TO_UNRESOLVED: Record<string, UnresolvedActionType | null> = {
   extension_request: 'room_transfer_approval',
   rent_due: 'invoice_review',
   electricity_due: 'invoice_review',
-  deposit_collection_due: 'payment_proof_review',
+  deposit_collection_due: 'invoice_review',
 };
 
 function parseEntityFromSourceKey(
@@ -222,6 +223,7 @@ export async function syncUnresolvedActionsFromDomain(
 
   await resolveTerminalCheckoutUnresolvedActions();
   await resolveStaleBedAssignmentUnresolvedActions(session);
+  await resolveStalePaymentReviewArtifacts(session);
 
   const closed = await closeUnresolvedActionsNotInSourceKeys(activeKeys, session);
 

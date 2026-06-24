@@ -127,70 +127,6 @@ function sessionCanAccessPg(session: AdminSession, pgId: string): boolean {
   return adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, pgId);
 }
 
-async function listExtraPendingPaymentProofs(session: AdminSession) {
-  const [ps4Rows, reserveRows] = await Promise.all([
-    db
-      .select({
-        id: playstationMemberships.id,
-        pgId: playstationMemberships.pgId,
-        pgName: pgs.name,
-        customerName: customers.fullName,
-        amountPaise: playstationMemberships.amountPaise,
-      })
-      .from(playstationMemberships)
-      .innerJoin(customers, eq(customers.id, playstationMemberships.customerId))
-      .innerJoin(pgs, eq(pgs.id, playstationMemberships.pgId))
-      .where(
-        and(
-          eq(playstationMemberships.status, 'pending_payment'),
-          isNotNull(playstationMemberships.paymentProofUrl),
-        ),
-      ),
-    db
-      .select({
-        id: bedReserveHolds.id,
-        pgId: floors.pgId,
-        pgName: pgs.name,
-        customerName: customers.fullName,
-        amountPaise: bedReserveHolds.amountPaise,
-        reserveCode: bedReserveHolds.reserveCode,
-      })
-      .from(bedReserveHolds)
-      .innerJoin(customers, eq(customers.id, bedReserveHolds.customerId))
-      .innerJoin(beds, eq(beds.id, bedReserveHolds.bedId))
-      .innerJoin(rooms, eq(rooms.id, beds.roomId))
-      .innerJoin(floors, eq(floors.id, rooms.floorId))
-      .innerJoin(pgs, eq(pgs.id, floors.pgId))
-      .where(
-        and(
-          eq(bedReserveHolds.status, 'pending_payment'),
-          isNotNull(bedReserveHolds.paymentProofUrl),
-        ),
-      ),
-  ]);
-
-  const items: Array<{ key: string; pgName: string; title: string; amountPaise: number }> = [];
-  for (const row of ps4Rows) {
-    if (!sessionCanAccessPg(session, row.pgId)) continue;
-    items.push({
-      key: `ps4-${row.id}`,
-      pgName: formatPgDisplayName(row.pgName),
-      title: `${row.customerName} · PS4 subscription`,
-      amountPaise: row.amountPaise,
-    });
-  }
-  for (const row of reserveRows) {
-    if (!sessionCanAccessPg(session, row.pgId)) continue;
-    items.push({
-      key: `reserve-${row.id}`,
-      pgName: formatPgDisplayName(row.pgName),
-      title: `${row.customerName} · Reservation ${row.reserveCode}`,
-      amountPaise: row.amountPaise,
-    });
-  }
-  return items;
-}
-
 async function listPendingKycWithPg(session: AdminSession) {
   const today = todayString();
   const rows = await db
@@ -540,8 +476,7 @@ export async function getOperationsCenterData(
   const today = todayString();
 
   const [
-    basePayments,
-    extraPayments,
+    paymentItems,
     pendingKycItems,
     vacatingRows,
     reservations,
@@ -550,7 +485,6 @@ export async function getOperationsCenterData(
     ps4RenewalItems,
   ] = await Promise.all([
     listPendingPaymentReviews(session),
-    listExtraPendingPaymentProofs(session),
     listPendingKycWithPg(session),
     listVacatingForOps(session),
     listActiveBedReserves(session),
@@ -559,15 +493,12 @@ export async function getOperationsCenterData(
     listPs4RenewalsForOps(session, today),
   ]);
 
-  const paymentItems = [
-    ...basePayments.map((p) => ({
-      key: p.key,
-      pgName: formatPgDisplayName(p.pgName),
-      title: p.title,
-      amountPaise: p.amountPaise,
-    })),
-    ...extraPayments,
-  ];
+  const pendingPaymentRows = paymentItems.map((p) => ({
+    key: p.key,
+    pgName: formatPgDisplayName(p.pgName),
+    title: p.title,
+    amountPaise: p.amountPaise,
+  }));
 
   const leavingSoonItems = vacatingRows.map((v) => {
     const daysRemaining = diffDays(today, v.vacatingDate);
@@ -596,7 +527,7 @@ export async function getOperationsCenterData(
     }));
 
   const partial: Omit<OperationsCenterData, 'tasks'> = {
-    pendingPayments: { count: paymentItems.length, items: paymentItems },
+    pendingPayments: { count: pendingPaymentRows.length, items: pendingPaymentRows },
     pendingKyc: { count: pendingKycItems.length, items: pendingKycItems },
     leavingSoon: { count: leavingSoonItems.length, items: leavingSoonItems },
     bedsReleasingSoon: { count: bedsReleasingItems.length, items: bedsReleasingItems },

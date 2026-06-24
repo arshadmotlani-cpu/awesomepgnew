@@ -236,20 +236,20 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-24 17:48:15 UTC
+### Pending pre-commit sync · 2026-06-24 17:58:42 UTC
 
-**Areas touched:** [[Residents]]
+**Areas touched:** [[ROUTES]], [[Action Center]]
 
 **Docs flagged for review:**
+- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
+- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
-- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (3):**
-- `src/lib/residents/residentOperationsDashboard.ts`
-- `src/lib/residents/residentOperationsResidentsView.ts`
-- `src/services/residentOperationsDashboard.ts`
+**Staged code files (2):**
+- `app/api/admin/analytics/summary/route.ts`
+- `src/services/actionItems.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed
