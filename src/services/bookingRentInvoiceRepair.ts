@@ -10,7 +10,7 @@ import {
   rentInvoices,
 } from '@/src/db/schema';
 import { getBusinessMetricsSummary } from '@/src/db/queries/admin';
-import { batchLookupFinancialInvoiceIds } from '@/src/lib/billing/invoiceNumbering.server';
+import { lookupFinancialInvoiceIdBySource } from '@/src/lib/billing/invoiceNumbering.server';
 import { allocateBookingCheckoutPayment } from '@/src/lib/billing/bookingPaymentAllocation';
 import { firstOfMonth } from '@/src/services/billing';
 import {
@@ -213,7 +213,9 @@ export async function auditBookingRentInvoice(
   const linkedRent = succeeded
     ? rentInvs.some((r) => r.status === 'paid' && r.paymentId === succeeded.id)
     : false;
-  const linkedFin = rentInvs.some((r) => finByRent[r.id] != null);
+  const linkedFin = await Promise.all(
+    rentInvs.map((r) => lookupFinancialInvoiceIdBySource('rent_invoices', r.id)),
+  ).then((ids) => ids.some((id) => id != null));
 
   const checks = {
     q1_rentInvoiceExists: rentInvs.some((r) => r.status === 'paid' && r.paidPrincipalPaise > 0),
@@ -379,9 +381,7 @@ async function buildMatrix(afterAudits: BookingRentAuditRow[]): Promise<BookingR
       (r) => r.status === 'paid' && r.paymentId === row.payment?.id,
     );
     const finId = paidRent
-      ? (await batchLookupFinancialInvoiceIds([
-          { sourceTable: 'rent_invoices', sourceId: paidRent.id },
-        ]))[paidRent.id]
+      ? await lookupFinancialInvoiceIdBySource('rent_invoices', paidRent.id)
       : null;
 
     matrix.push({
