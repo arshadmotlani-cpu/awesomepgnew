@@ -4,30 +4,15 @@
  *   npx tsx scripts/backfill-booking-rent-invoices.ts           # dry-run
  *   npx tsx scripts/backfill-booking-rent-invoices.ts --execute # apply
  */
-import { config } from 'dotenv';
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import { createClient } from '../src/db/client';
 import {
   discoverBookingRentInvoiceGaps,
   ensureBookingRentInvoiceForExistingPayment,
 } from '../src/services/bookingPaymentInvoices';
 import { paiseToInr } from '../src/lib/format';
+import { loadScriptEnv } from '../src/lib/scripts/loadScriptEnv';
 
-for (const file of [
-  '.env.production.local',
-  '.env.prod',
-  '.env.local',
-  '.env',
-  '.env.repair.local',
-  '.env.vercel.prod.live',
-]) {
-  const path = join(process.cwd(), file);
-  if (existsSync(path)) config({ path, override: false });
-}
-if (existsSync(join(process.cwd(), '.env.vercel.pull.tmp'))) {
-  config({ path: join(process.cwd(), '.env.vercel.pull.tmp'), override: true });
-}
+loadScriptEnv();
 
 const execute = process.argv.includes('--execute');
 

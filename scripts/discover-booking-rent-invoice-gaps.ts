@@ -5,27 +5,12 @@
  *   npx tsx scripts/discover-booking-rent-invoice-gaps.ts
  *   DISCOVER_BOOKING_RENT_GAPS=1 on Vercel build
  */
-import { config } from 'dotenv';
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import { createClient } from '../src/db/client';
 import { discoverBookingRentInvoiceGaps } from '../src/services/bookingPaymentInvoices';
 import { paiseToInr } from '../src/lib/format';
+import { loadScriptEnv } from '../src/lib/scripts/loadScriptEnv';
 
-for (const file of [
-  '.env.production.local',
-  '.env.prod',
-  '.env.local',
-  '.env',
-  '.env.repair.local',
-  '.env.vercel.prod.live',
-]) {
-  const path = join(process.cwd(), file);
-  if (existsSync(path)) config({ path, override: false });
-}
-if (existsSync(join(process.cwd(), '.env.vercel.pull.tmp'))) {
-  config({ path: join(process.cwd(), '.env.vercel.pull.tmp'), override: true });
-}
+loadScriptEnv();
 
 async function main() {
   const { close } = createClient();
