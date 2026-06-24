@@ -236,20 +236,21 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-24 17:58:42 UTC
+### Pending pre-commit sync · 2026-06-24 18:05:44 UTC
 
-**Areas touched:** [[ROUTES]], [[Action Center]]
+**Areas touched:** [[ROUTES]]
 
 **Docs flagged for review:**
-- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 
-**Staged code files (2):**
-- `app/api/admin/analytics/summary/route.ts`
-- `src/services/actionItems.ts`
+**Staged code files (5):**
+- `app/(customer)/layout.tsx`
+- `app/api/analytics/track/route.ts`
+- `app/layout.tsx`
+- `app/login/page.tsx`
+- `app/page.tsx`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

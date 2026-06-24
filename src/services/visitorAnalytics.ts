@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lte, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gte, lte, lt, sql, type SQL } from 'drizzle-orm';
 import { cookies, headers } from 'next/headers';
 import { db } from '@/src/db/client';
 import {
@@ -158,6 +158,22 @@ export async function trackPageView(input: {
 }): Promise<void> {
   const pageKey = pathToPageKey(input.path);
   const now = new Date();
+  const pathOnly = input.path.split('?')[0] ?? input.path;
+  const dedupeSince = new Date(now.getTime() - 5_000);
+
+  const [recent] = await db
+    .select({ id: sitePageViews.id })
+    .from(sitePageViews)
+    .where(
+      and(
+        eq(sitePageViews.sessionId, input.sessionId),
+        eq(sitePageViews.path, input.path),
+        gte(sitePageViews.viewedAt, dedupeSince),
+      ),
+    )
+    .limit(1);
+
+  if (recent) return;
 
   await closePreviousPageView(input.sessionId);
 
@@ -170,7 +186,7 @@ export async function trackPageView(input: {
 
   await db
     .update(visitorSessions)
-    .set({ lastSeenAt: now, currentPath: input.path })
+    .set({ lastSeenAt: now, currentPath: pathOnly })
     .where(eq(visitorSessions.id, input.sessionId));
 }
 
@@ -232,23 +248,48 @@ export async function getVisitorCountSummary(): Promise<VisitorCountSummary> {
   const weekStart = startOfWeekUtc(now);
   const monthStart = startOfMonthUtc(now);
 
-  const [row] = await db
-    .select({
-      today: sql<number>`count(*) FILTER (WHERE ${visitorSessions.firstSeenAt} >= ${todayStart})::int`,
-      week: sql<number>`count(*) FILTER (WHERE ${visitorSessions.firstSeenAt} >= ${weekStart})::int`,
-      month: sql<number>`count(*) FILTER (WHERE ${visitorSessions.firstSeenAt} >= ${monthStart})::int`,
-      allTime: sql<number>`count(*)::int`,
-      returningToday: sql<number>`count(*) FILTER (WHERE ${visitorSessions.lastSeenAt} >= ${todayStart} AND ${visitorSessions.firstSeenAt} < ${todayStart})::int`,
-      returningWeek: sql<number>`count(*) FILTER (WHERE ${visitorSessions.lastSeenAt} >= ${weekStart} AND ${visitorSessions.firstSeenAt} < ${weekStart})::int`,
-      returningMonth: sql<number>`count(*) FILTER (WHERE ${visitorSessions.lastSeenAt} >= ${monthStart} AND ${visitorSessions.firstSeenAt} < ${monthStart})::int`,
-      returningAllTime: sql<number>`count(*) FILTER (WHERE ${visitorSessions.lastSeenAt} > ${visitorSessions.firstSeenAt} + interval '30 minutes')::int`,
-    })
-    .from(visitorSessions);
+  async function countSessions(where?: SQL): Promise<number> {
+    const query = db.select({ c: count() }).from(visitorSessions);
+    const [row] = where ? await query.where(where) : await query;
+    return Number(row?.c ?? 0);
+  }
 
-  const today = row?.today ?? 0;
-  const week = row?.week ?? 0;
-  const month = row?.month ?? 0;
-  const allTime = row?.allTime ?? 0;
+  const [
+    allTime,
+    today,
+    week,
+    month,
+    returningToday,
+    returningWeek,
+    returningMonth,
+    returningAllTime,
+  ] = await Promise.all([
+    countSessions(),
+    countSessions(gte(visitorSessions.firstSeenAt, todayStart)),
+    countSessions(gte(visitorSessions.firstSeenAt, weekStart)),
+    countSessions(gte(visitorSessions.firstSeenAt, monthStart)),
+    countSessions(
+      and(
+        gte(visitorSessions.lastSeenAt, todayStart),
+        lt(visitorSessions.firstSeenAt, todayStart),
+      ),
+    ),
+    countSessions(
+      and(
+        gte(visitorSessions.lastSeenAt, weekStart),
+        lt(visitorSessions.firstSeenAt, weekStart),
+      ),
+    ),
+    countSessions(
+      and(
+        gte(visitorSessions.lastSeenAt, monthStart),
+        lt(visitorSessions.firstSeenAt, monthStart),
+      ),
+    ),
+    countSessions(
+      sql`${visitorSessions.lastSeenAt} > ${visitorSessions.firstSeenAt} + interval '30 minutes'`,
+    ),
+  ]);
 
   return {
     today,
@@ -259,10 +300,10 @@ export async function getVisitorCountSummary(): Promise<VisitorCountSummary> {
     uniqueWeek: week,
     uniqueMonth: month,
     uniqueAllTime: allTime,
-    returningToday: row?.returningToday ?? 0,
-    returningWeek: row?.returningWeek ?? 0,
-    returningMonth: row?.returningMonth ?? 0,
-    returningAllTime: row?.returningAllTime ?? 0,
+    returningToday,
+    returningWeek,
+    returningMonth,
+    returningAllTime,
   };
 }
 

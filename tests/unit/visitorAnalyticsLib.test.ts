@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { parseDeviceType } from '@/src/lib/analytics/device';
 import { pathToPageKey, shouldTrackPath } from '@/src/lib/analytics/pageKeys';
+import { shouldSkipAnalyticsUserAgent } from '@/src/lib/analytics/botFilter';
+import { classifyTrafficSource } from '@/src/lib/analytics/trafficSource';
 import { classifyTrafficSource } from '@/src/lib/analytics/trafficSource';
 
 test('pathToPageKey maps customer routes', () => {
@@ -20,6 +22,12 @@ test('shouldTrackPath skips admin and api', () => {
   assert.equal(shouldTrackPath('/admin/bookings'), false);
   assert.equal(shouldTrackPath('/api/health'), false);
   assert.equal(shouldTrackPath('/pgs'), true);
+});
+
+test('shouldSkipAnalyticsUserAgent skips bots but allows verify script', () => {
+  assert.equal(shouldSkipAnalyticsUserAgent('Googlebot/2.1'), true);
+  assert.equal(shouldSkipAnalyticsUserAgent('Mozilla/5.0 Chrome/120'), false);
+  assert.equal(shouldSkipAnalyticsUserAgent('AwesomePG-Analytics-Verify/1.0'), false);
 });
 
 test('parseDeviceType classifies common agents', () => {

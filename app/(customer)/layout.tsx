@@ -1,4 +1,3 @@
-import { VisitorAnalyticsTrackerBoundary } from '@/src/components/analytics/VisitorAnalyticsTrackerBoundary';
 import { SiteFooter } from '@/src/components/customer/SiteFooter';
 import { SiteHeader } from '@/src/components/customer/SiteHeader';
 import { WhatsAppSupportButton } from '@/src/components/customer/WhatsAppSupportButton';
@@ -25,7 +24,6 @@ export default function CustomerLayout({
       <SiteFooter />
       <WhatsAppSupportButton />
       <CockroachAI enabled={cockroachEnabled} />
-      <VisitorAnalyticsTrackerBoundary />
     </div>
   );
 }

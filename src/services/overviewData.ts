@@ -89,20 +89,23 @@ export async function loadOverviewContext(
     getPgBusinessMetrics(billingMonth),
     getDashboardStats().catch(() => ({ ok: false as const, error: '' })),
     getRentStats().catch(() => ({ ok: false as const, error: '' })),
-    getVisitorCountSummary().catch(() => ({
-      today: 0,
-      week: 0,
-      month: 0,
-      allTime: 0,
-      uniqueToday: 0,
-      uniqueWeek: 0,
-      uniqueMonth: 0,
-      uniqueAllTime: 0,
-      returningToday: 0,
-      returningWeek: 0,
-      returningMonth: 0,
-      returningAllTime: 0,
-    })),
+    getVisitorCountSummary().catch((err) => {
+      console.error('[overview] visitor analytics query failed', err);
+      return {
+        today: 0,
+        week: 0,
+        month: 0,
+        allTime: 0,
+        uniqueToday: 0,
+        uniqueWeek: 0,
+        uniqueMonth: 0,
+        uniqueAllTime: 0,
+        returningToday: 0,
+        returningWeek: 0,
+        returningMonth: 0,
+        returningAllTime: 0,
+      };
+    }),
     getAdminOverviewKpis(session, billingMonth).catch(() => ({
       totalVisitorsAllTime: 0,
       activeTenants: 0,

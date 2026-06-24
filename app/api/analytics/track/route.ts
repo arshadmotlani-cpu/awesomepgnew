@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { shouldSkipAnalyticsPath, shouldSkipAnalyticsUserAgent } from '@/src/lib/analytics/botFilter';
 import { VISITOR_SESSION_COOKIE } from '@/src/lib/analytics/constants';
 import { shouldTrackPath } from '@/src/lib/analytics/pageKeys';
 import { getCustomerSession } from '@/src/lib/auth/session';
@@ -28,8 +29,13 @@ export async function POST(req: NextRequest) {
   }
 
   const path = body.path?.trim();
-  if (!path || !shouldTrackPath(path)) {
+  if (!path || !shouldTrackPath(path) || shouldSkipAnalyticsPath(path)) {
     return NextResponse.json({ ok: true, skipped: true });
+  }
+
+  const userAgent = req.headers.get('user-agent');
+  if (shouldSkipAnalyticsUserAgent(userAgent)) {
+    return NextResponse.json({ ok: true, skipped: true, reason: 'bot' });
   }
 
   try {
@@ -44,7 +50,7 @@ export async function POST(req: NextRequest) {
       utmSource: body.utmSource ?? req.nextUrl.searchParams.get('utm_source'),
       utmMedium: body.utmMedium ?? req.nextUrl.searchParams.get('utm_medium'),
       utmCampaign: body.utmCampaign ?? req.nextUrl.searchParams.get('utm_campaign'),
-      userAgent: req.headers.get('user-agent'),
+      userAgent,
       customerId: customerSession?.customerId ?? null,
     });
 
