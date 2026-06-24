@@ -15,6 +15,7 @@ import { listResidentsForAdmin } from '@/src/services/residentAdmin';
 import { listPendingResidentRequestsForAdmin } from '@/src/services/residentRequests';
 import { listPipelineCheckoutSettlements } from '@/src/services/checkoutSettlement';
 import { getOperationsCenterData } from '@/src/services/operationsCenter';
+import { isTerminalCheckoutSettlement } from '@/src/lib/residents/checkoutOpsQueueCopy';
 import type { AdminSession } from '@/src/lib/auth/session';
 
 function mergeUnpaidRent(pending: AdminRentInvoiceRow[], overdue: AdminRentInvoiceRow[]) {
@@ -74,25 +75,35 @@ export async function loadResidentOperationsDashboard(session: AdminSession) {
     }));
 
   const settlementByVacatingId = new Map(
-    checkoutSettlements.map((s) => [s.vacatingRequestId, s.id]),
+    checkoutSettlements.map((s) => [s.vacatingRequestId, s]),
   );
 
   const vacatingRows =
     vacatingRes.ok
       ? vacatingRes.data
           .filter((v) => v.status === 'pending' || v.status === 'approved')
-          .map((v) => ({
-            id: v.id,
-            customerId: v.customerId,
-            customerFullName: v.customerFullName,
-            pgName: v.pgName,
-            roomNumber: v.roomNumber,
-            bedCode: v.bedCode,
-            status: v.status,
-            vacatingDate: v.vacatingDate,
-            bookingId: v.bookingId,
-            settlementId: settlementByVacatingId.get(v.id) ?? null,
-          }))
+          .filter((v) => {
+            const settlement = settlementByVacatingId.get(v.id);
+            if (!settlement) return true;
+            return !isTerminalCheckoutSettlement(settlement.status);
+          })
+          .map((v) => {
+            const settlement = settlementByVacatingId.get(v.id);
+            return {
+              id: v.id,
+              customerId: v.customerId,
+              customerFullName: v.customerFullName,
+              pgName: v.pgName,
+              roomNumber: v.roomNumber,
+              bedCode: v.bedCode,
+              status: v.status,
+              vacatingDate: v.vacatingDate,
+              bookingId: v.bookingId,
+              settlementId: settlement?.id ?? null,
+              settlementStatus: settlement?.status ?? null,
+              finalRefundPaise: settlement?.finalRefundPaise ?? settlement?.previewRefundPaise ?? null,
+            };
+          })
       : [];
 
   const residentByBooking = new Map(residents.map((r) => [r.bookingId, r]));

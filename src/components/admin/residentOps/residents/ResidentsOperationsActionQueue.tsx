@@ -1,7 +1,12 @@
 'use client';
 
 import Link from 'next/link';
+import { useActionState } from 'react';
 import type { ResidentsQueueRow } from '@/src/lib/residents/residentOperationsResidentsView';
+import {
+  dismissOperationsQueueItemAction,
+  type DismissOperationsQueueState,
+} from '@/app/(admin)/admin/operations/actions';
 import {
   OpsPanel,
   OpsSection,
@@ -11,12 +16,16 @@ import {
 const PRIMARY =
   'inline-flex min-h-[36px] items-center justify-center rounded-lg bg-[#FF5A1F] px-4 py-2 text-xs font-semibold text-white shadow-[0_0_20px_rgba(255,90,31,0.25)] transition hover:brightness-110';
 
+const dismissInitial: DismissOperationsQueueState = { status: 'idle' };
+
 export function ResidentsOperationsActionQueue({
   items,
   totalCount,
+  isSuperAdmin = false,
 }: {
   items: ResidentsQueueRow[];
   totalCount: number;
+  isSuperAdmin?: boolean;
 }) {
   if (items.length === 0) {
     return (
@@ -97,7 +106,7 @@ export function ResidentsOperationsActionQueue({
                     {row.ageLabel}
                   </td>
                   <td className="px-4 py-4 text-right">
-                    <QueueRowActions row={row} />
+                    <QueueRowActions row={row} isSuperAdmin={isSuperAdmin} />
                   </td>
                 </tr>
               ))}
@@ -109,9 +118,26 @@ export function ResidentsOperationsActionQueue({
   );
 }
 
-function QueueRowActions({ row }: { row: ResidentsQueueRow }) {
+function QueueRowActions({
+  row,
+  isSuperAdmin,
+}: {
+  row: ResidentsQueueRow;
+  isSuperAdmin: boolean;
+}) {
+  const [dismissState, dismissAction, dismissPending] = useActionState(
+    dismissOperationsQueueItemAction,
+    dismissInitial,
+  );
+
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
+      {dismissState.status === 'error' ? (
+        <p className="w-full text-xs text-rose-300">{dismissState.message}</p>
+      ) : null}
+      {dismissState.status === 'ok' ? (
+        <p className="w-full text-xs text-emerald-300">{dismissState.message}</p>
+      ) : null}
       <Link href={row.primaryHref} className={PRIMARY}>
         {row.primaryActionLabel}
       </Link>
@@ -143,6 +169,23 @@ function QueueRowActions({ row }: { row: ResidentsQueueRow }) {
             >
               KYC workspace
             </Link>
+          ) : null}
+          {isSuperAdmin ? (
+            <form action={dismissAction} className="border-t border-white/10">
+              <input type="hidden" name="queueItemId" value={row.id} />
+              <input type="hidden" name="category" value={row.category} />
+              <input type="hidden" name="customerId" value={row.customerId ?? ''} />
+              <input type="hidden" name="bookingId" value={row.bookingId ?? ''} />
+              <input type="hidden" name="vacatingRequestId" value={row.vacatingRequestId ?? ''} />
+              <input type="hidden" name="residentName" value={row.residentName} />
+              <button
+                type="submit"
+                disabled={dismissPending}
+                className="block w-full px-4 py-2.5 text-left text-xs text-rose-300 hover:bg-rose-500/10 disabled:opacity-50"
+              >
+                {dismissPending ? 'Deleting…' : 'Delete from Operations'}
+              </button>
+            </form>
           ) : null}
         </div>
       </details>

@@ -236,31 +236,26 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-24 16:43:22 UTC
+### Pending pre-commit sync · 2026-06-24 17:36:21 UTC
 
-**Areas touched:** [[ROUTES]], [[Auth]], [[DATABASE]], [[Billing]]
+**Areas touched:** [[ROUTES]], [[Residents]], [[Action Center]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DATABASE.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (11):**
-- `app/(admin)/admin/invoices/actions.ts`
-- `app/(customer)/account/resident/invoices/[invoiceId]/page.tsx`
-- `app/(customer)/resident/invoices/[ref]/page.tsx`
-- `app/i/[shareToken]/page.tsx`
-- `middleware.ts`
-- `src/db/migrations/0071_financial_invoice_share_token.sql`
-- `src/db/migrations/meta/_journal.json`
-- `src/db/schema/financialInvoices.ts`
-- `src/lib/billing/invoiceShareToken.ts`
-- `src/lib/billing/sendInvoiceOnWhatsApp.ts`
-- `src/services/unifiedInvoices.ts`
+**Staged code files (7):**
+- `app/(admin)/admin/operations/actions.ts`
+- `app/(admin)/admin/operations/residents/page.tsx`
+- `src/lib/residents/checkoutOpsQueueCopy.ts`
+- `src/lib/residents/residentOperationsDashboard.ts`
+- `src/lib/residents/residentOperationsResidentsView.ts`
+- `src/services/actionItems.ts`
+- `src/services/residentOperationsDashboard.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

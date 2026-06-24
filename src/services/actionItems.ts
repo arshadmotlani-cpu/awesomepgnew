@@ -32,10 +32,10 @@ import { syncResidentRequestActionItems } from '@/src/services/residentRequestAc
 import { syncAdminNotificationsFromActionItems } from '@/src/services/adminNotifications';
 import { resolveStaleVacatingActionItems } from '@/src/services/vacatingPastDue';
 import { resolveFixedStayCheckoutActionItems } from '@/src/services/fixedStayActionItems';
-import {
-  resolveStaleKycActionItems,
+import { resolveStaleKycActionItems,
   syncUnresolvedActionsFromDomain,
 } from '@/src/services/unresolvedActionSync';
+import { repairTerminalCheckoutOperations } from '@/src/services/terminalCheckoutOperationsRepair';
 import { resolveAction } from '@/src/services/unresolvedActions';
 import { diffDays, formatDate, tryDiffDays } from '@/src/lib/dates';
 
@@ -507,6 +507,11 @@ async function syncVacatingAlerts(session: AdminSession): Promise<void> {
     ) loc ON true
     LEFT JOIN checkout_settlements cs ON cs.vacating_request_id = vr.id
     WHERE vr.status IN ('pending', 'approved')
+      AND NOT EXISTS (
+        SELECT 1 FROM checkout_settlements cs2
+        WHERE cs2.vacating_request_id = vr.id
+          AND cs2.status IN ('completed', 'refund_paid')
+      )
   `);
 
   for (const row of rows) {
@@ -591,7 +596,16 @@ async function syncRefundsPending(session: AdminSession): Promise<void> {
       ),
     )
     .where(
-      and(eq(bookings.adminDepositRefundStatus, 'pending'), eq(bookings.status, 'completed')),
+      and(
+        eq(bookings.adminDepositRefundStatus, 'pending'),
+        eq(bookings.status, 'completed'),
+        sql`NOT EXISTS (
+          SELECT 1 FROM checkout_settlements cs
+          WHERE cs.booking_id = ${bookings.id}
+            AND cs.status IN ('completed', 'refund_paid')
+            AND COALESCE(cs.final_refund_paise, 0) <= 0
+        )`,
+      ),
     )
     .groupBy(
       bookings.id,
@@ -817,6 +831,7 @@ async function syncDepositCollectionDue(session: AdminSession): Promise<void> {
 }
 
 export async function syncActionItems(session: AdminSession): Promise<void> {
+  await repairTerminalCheckoutOperations();
   await resolveStaleBillingActionItems();
   await resolveStaleKycActionItems();
   await resolveStaleVacatingActionItems();

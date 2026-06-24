@@ -1,5 +1,6 @@
 import { formatDate as formatDisplayDate } from '@/src/lib/format';
 import { diffDays, formatDate } from '@/src/lib/dates';
+import { deriveCheckoutOpsNextAction } from '@/src/lib/residents/checkoutOpsQueueCopy';
 import type { CollectionQueueItem } from '@/src/lib/billing/collectionsQueue';
 import type { KycSubmissionListRow } from '@/src/services/kyc';
 import type { PendingPaymentReviewItem } from '@/src/services/paymentProofQueue';
@@ -40,6 +41,7 @@ export type ResidentOpsQueueItem = {
   sortPriority: number;
   bookingId: string | null;
   kycSubmissionId: string | null;
+  vacatingRequestId?: string | null;
   tenancyStatus: ResidentListRow['tenancyStatus'] | null;
   kycStatus: ResidentListRow['kycStatus'] | null;
 };
@@ -121,6 +123,8 @@ export function buildResidentOperationsDashboard(input: {
     vacatingDate: string;
     bookingId: string;
     settlementId?: string | null;
+    settlementStatus?: string | null;
+    finalRefundPaise?: number | null;
   }>;
   checkoutRefunds: CheckoutSettlementRow[];
   depositRefunds: Array<{
@@ -305,6 +309,13 @@ export function buildResidentOperationsDashboard(input: {
   }
 
   for (const v of input.vacatingRows) {
+    const copy = deriveCheckoutOpsNextAction({
+      vacatingStatus: v.status,
+      settlementStatus: v.settlementStatus as Parameters<
+        typeof deriveCheckoutOpsNextAction
+      >[0]['settlementStatus'],
+      finalRefundPaise: v.finalRefundPaise,
+    });
     queue.push({
       id: `moveout-${v.id}`,
       category: 'move_out',
@@ -317,10 +328,9 @@ export function buildResidentOperationsDashboard(input: {
       issue:
         v.status === 'pending'
           ? `Move-out notice · leaves ${formatDisplayDate(v.vacatingDate)}`
-          : `Move-out approved · checkout in progress`,
-      nextAction:
-        v.status === 'pending' ? 'Approve move-out notice' : 'Complete checkout settlement',
-      primaryActionLabel: v.status === 'pending' ? 'Approve move-out' : 'Open checkout',
+          : copy.issue,
+      nextAction: copy.nextAction,
+      primaryActionLabel: copy.primaryActionLabel,
       primaryHref:
         v.status === 'pending'
           ? '/admin/vacating?status=pending'
@@ -330,6 +340,7 @@ export function buildResidentOperationsDashboard(input: {
       sortPriority: v.status === 'pending' ? 0 : diffDays(today, v.vacatingDate),
       bookingId: v.bookingId,
       kycSubmissionId: null,
+      vacatingRequestId: v.id,
       tenancyStatus: 'vacating',
       kycStatus: null,
     });

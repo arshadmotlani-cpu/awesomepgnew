@@ -32,7 +32,7 @@ export default async function ResidentOperationsResidentsPage({
     '/admin/operations/residents',
   );
 
-  const { data } = await loadResidentOperationsResidentsPageFromRequest(params.filter);
+  const { session, data } = await loadResidentOperationsResidentsPageFromRequest(params.filter);
 
   return (
     <>
@@ -67,7 +67,11 @@ export default async function ResidentOperationsResidentsPage({
         </AdminSectionErrorBoundary>
 
         <AdminSectionErrorBoundary title="Action queue">
-          <ResidentsOperationsActionQueue items={data.queue} totalCount={data.allQueueCount} />
+          <ResidentsOperationsActionQueue
+            items={data.queue}
+            totalCount={data.allQueueCount}
+            isSuperAdmin={session.role === 'super_admin'}
+          />
         </AdminSectionErrorBoundary>
 
         <AdminSectionErrorBoundary title="Resident journey">

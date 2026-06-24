@@ -41,6 +41,7 @@ export type ResidentsQueueRow = {
   filterTags: ResidentsCommandFilter[];
   bookingId: string | null;
   kycSubmissionId: string | null;
+  vacatingRequestId: string | null;
   category: ResidentOpsQueueCategory;
 };
 
@@ -416,6 +417,7 @@ export function buildResidentOperationsResidentsView(input: {
       filterTags: queueFilterTags(item),
       bookingId: item.bookingId,
       kycSubmissionId: item.kycSubmissionId,
+      vacatingRequestId: item.vacatingRequestId ?? null,
       category: item.category,
     } satisfies ResidentsQueueRow;
   });

@@ -144,6 +144,7 @@ export async function resolveTerminalCheckoutUnresolvedActions(): Promise<number
             OR ua.source_key = 'unresolved:refund:' || cs.booking_id::text
             OR ua.source_key = 'unresolved:vacating:' || vr.id::text
             OR ua.source_key = 'unresolved:fixed_stay_checkout:' || cs.booking_id::text
+            OR (ua.resident_id IS NOT NULL AND ua.resident_id = cs.customer_id)
           )
       )
     RETURNING ua.id
