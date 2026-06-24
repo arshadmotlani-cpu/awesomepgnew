@@ -58,12 +58,16 @@ async function readGeoFromHeaders(): Promise<{
   state: string | null;
   city: string | null;
 }> {
-  const h = await headers();
-  return {
-    country: h.get('x-vercel-ip-country') ?? h.get('cf-ipcountry') ?? null,
-    state: h.get('x-vercel-ip-country-region') ?? null,
-    city: h.get('x-vercel-ip-city') ?? null,
-  };
+  try {
+    const h = await headers();
+    return {
+      country: h.get('x-vercel-ip-country') ?? h.get('cf-ipcountry') ?? null,
+      state: h.get('x-vercel-ip-country-region') ?? null,
+      city: h.get('x-vercel-ip-city') ?? null,
+    };
+  } catch {
+    return { country: null, state: null, city: null };
+  }
 }
 
 export async function getVisitorSessionIdFromCookies(): Promise<string | null> {
