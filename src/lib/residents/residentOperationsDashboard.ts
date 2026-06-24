@@ -314,7 +314,7 @@ export function buildResidentOperationsDashboard(input: {
       settlementStatus: v.settlementStatus as Parameters<
         typeof deriveCheckoutOpsNextAction
       >[0]['settlementStatus'],
-      finalRefundPaise: v.finalRefundPaise,
+      finalRefundPaise: v.finalRefundPaise ?? null,
     });
     queue.push({
       id: `moveout-${v.id}`,

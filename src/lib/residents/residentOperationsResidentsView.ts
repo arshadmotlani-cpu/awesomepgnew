@@ -516,6 +516,7 @@ export function filterResidentsQueue(
       filterTags: ['blocked'],
       bookingId: null,
       kycSubmissionId: null,
+      vacatingRequestId: null,
       category: 'resident_request',
     }));
   }

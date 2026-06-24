@@ -101,7 +101,7 @@ export async function loadResidentOperationsDashboard(session: AdminSession) {
               bookingId: v.bookingId,
               settlementId: settlement?.id ?? null,
               settlementStatus: settlement?.status ?? null,
-              finalRefundPaise: settlement?.finalRefundPaise ?? settlement?.previewRefundPaise ?? null,
+              finalRefundPaise: settlement?.finalRefundPaise ?? null,
             };
           })
       : [];
