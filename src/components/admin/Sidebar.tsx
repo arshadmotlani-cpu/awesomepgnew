@@ -3,11 +3,7 @@
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { IconLogo } from './icons';
-import { AdminNavLink } from '@/src/components/admin/AdminNavLink';
-import { useSidebarLayoutItems } from '@/src/components/admin/sidebar/SidebarLayoutProvider';
-import { SIDEBAR_MODULE_REGISTRY } from '@/src/lib/admin/sidebarModules';
-import { isModuleActive } from '@/src/lib/admin/navigation';
-import { useAdminNavBadges } from '@/src/components/admin/AdminLiveRefreshProvider';
+import { DraggableSidebarNav } from '@/src/components/admin/sidebar/DraggableSidebarNav';
 
 export function Sidebar({
   onNavigate,
@@ -17,8 +13,6 @@ export function Sidebar({
   variant?: 'docked' | 'drawer';
 }) {
   const pathname = usePathname() ?? '/admin';
-  const badges = useAdminNavBadges();
-  const layoutItems = useSidebarLayoutItems();
   const [optimisticHref, setOptimisticHref] = useState<string | null>(null);
 
   useEffect(() => {
@@ -38,35 +32,6 @@ export function Sidebar({
     [onNavigate],
   );
 
-  const pinnedItems = layoutItems.filter((item) => item.pinned);
-  const regularItems = layoutItems.filter((item) => !item.pinned);
-
-  function renderItem(item: (typeof layoutItems)[number]) {
-    const def = SIDEBAR_MODULE_REGISTRY[item.key];
-    const Icon = def.icon;
-    const active = item.module
-      ? isModuleActive(activePath, item.module)
-      : activePath === item.href || activePath.startsWith(`${item.href}/`);
-    const badgeCount = item.badgeKey
-      ? badges[item.badgeKey]
-      : item.module
-        ? badges[item.module]
-        : undefined;
-
-    return (
-      <li key={item.key}>
-        <AdminNavLink
-          href={item.href}
-          label={item.pinned ? `⭐ ${item.label}` : item.label}
-          icon={Icon}
-          active={active}
-          badgeCount={badgeCount}
-          onNavigateStart={handleNavigateStart}
-        />
-      </li>
-    );
-  }
-
   return (
     <nav
       className={
@@ -82,7 +47,7 @@ export function Sidebar({
           </span>
           <div>
             <p className="text-sm font-semibold tracking-tight text-white">Menu</p>
-            <p className="text-[11px] text-apg-silver">Tap a section to navigate</p>
+            <p className="text-[11px] text-apg-silver">Drag ⋮⋮ to reorder</p>
           </div>
         </div>
       ) : (
@@ -92,35 +57,17 @@ export function Sidebar({
           </span>
           <div>
             <p className="text-sm font-semibold tracking-tight text-white">Awesome PG</p>
-            <p className="text-[11px] text-apg-silver">Admin console</p>
+            <p className="text-[11px] text-apg-silver">Drag ⋮⋮ to reorder</p>
           </div>
         </div>
       )}
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-6">
-        {pinnedItems.length > 0 ? (
-          <div className="mt-2">
-            <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-amber-400/80">
-              Pinned
-            </p>
-            <ul className="space-y-0.5">{pinnedItems.map(renderItem)}</ul>
-          </div>
-        ) : null}
-
-        <div className={pinnedItems.length > 0 ? 'mt-4' : 'mt-2'}>
-          {pinnedItems.length > 0 && regularItems.length > 0 ? (
-            <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-apg-silver/70">
-              Navigation
-            </p>
-          ) : null}
-          <ul className="space-y-0.5">{regularItems.map(renderItem)}</ul>
-        </div>
+        <DraggableSidebarNav activePath={activePath} onNavigateStart={handleNavigateStart} />
       </div>
 
       <div className="border-t border-white/5 px-5 py-3 text-[11px] leading-relaxed text-apg-silver/60">
-        <a href="/admin/settings/sidebar-layout" className="hover:text-apg-orange">
-          Customize sidebar →
-        </a>
+        Module → PG → Resident → Actions
       </div>
     </nav>
   );

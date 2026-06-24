@@ -22,7 +22,7 @@ export default async function AdminGroupLayout({ children }: { children: ReactNo
     loadAdminNavBadges(session),
     getResolvedSidebarLayout(session),
   ]);
-  const sidebarNavItems = sidebarLayout.visibleItems.map((item) => ({
+  const sidebarNavItems = sidebarLayout.items.map((item) => ({
     key: item.key,
     label: item.label,
     href: item.href,
@@ -34,7 +34,10 @@ export default async function AdminGroupLayout({ children }: { children: ReactNo
   }));
   return (
     <AdminLiveRefreshProvider initialBadges={badges}>
-      <SidebarLayoutProvider items={sidebarNavItems}>
+      <SidebarLayoutProvider
+        initialItems={sidebarNavItems}
+        isSuperAdmin={session.role === 'super_admin'}
+      >
       <div className="apg-admin-shell flex h-[100dvh] w-full max-w-[100vw] overflow-hidden bg-[#0B0F14] text-[#f4f6f8]">
         <aside className="relative z-20 hidden h-full shrink-0 lg:block lg:w-64">
           <Sidebar />
