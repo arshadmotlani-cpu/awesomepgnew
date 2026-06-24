@@ -6,9 +6,12 @@ import type { AdminSession } from '@/src/lib/auth/session';
 import { breakdownBookingCheckoutPayment } from '@/src/lib/billing/bookingCheckoutTotals';
 import { resolveBookingDepositCreditAppliedPaise } from '@/src/lib/billing/bookingCheckoutTotals';
 import { splitBookingPayment } from '@/src/services/depositCollection';
-import { getDepositSummaryForBooking } from '@/src/services/deposits';
+import { getDepositSummaryForBooking, recordDepositCollected } from '@/src/services/deposits';
 import { transferOldDepositAdmin } from '@/src/services/depositCredit';
+import { applyDepositDeduction } from '@/src/services/depositSettlement';
 import { reviewPaymentRecord } from '@/src/services/qrPayments';
+
+const DEPOSIT_CREDIT_REASON = 'Deposit credit applied from prior stay wallet';
 
 const TARGET_CODE = 'APG-2026-0036';
 const SOURCE_CODE = 'APG-2026-0032';
@@ -84,6 +87,56 @@ async function hasTransferComplete(targetBookingId: string, sourceBookingId: str
   );
 }
 
+async function finalizeSourceLedgerTransfer(
+  target: typeof bookings.$inferSelect,
+  source: typeof bookings.$inferSelect,
+  adminId: string,
+): Promise<void> {
+  const sourceSummary = await getDepositSummaryForBooking(source.id);
+  const refundable = sourceSummary?.refundableBalancePaise ?? 0;
+  if (refundable <= 0) return;
+
+  const slice = Math.min(TRANSFER_PAISE, refundable);
+  const deducted = await applyDepositDeduction({
+    bookingId: source.id,
+    customerId: source.customerId,
+    amountPaise: slice,
+    reason: `Deposit credit transferred to booking ${target.id}`,
+  });
+  if (!deducted.ok) {
+    throw new Error(`Source deposit deduction failed: ${deducted.error}`);
+  }
+
+  const targetSummary = await getDepositSummaryForBooking(target.id);
+  const missingPaise = EXPECTED.totalDepositHeldPaise - (targetSummary?.collectedPaise ?? 0);
+  if (missingPaise > 0) {
+    await recordDepositCollected({
+      bookingId: target.id,
+      customerId: target.customerId,
+      amountPaise: missingPaise,
+      reason: DEPOSIT_CREDIT_REASON,
+    });
+  }
+
+  const transferLogged = await hasTransferComplete(target.id, source.id);
+  if (!transferLogged) {
+    await db.insert(auditLog).values({
+      actorType: 'admin',
+      actorId: adminId,
+      entity: 'booking',
+      entityId: target.id,
+      action: 'deposit_transfer_from_prior_booking',
+      diff: {
+        reason: `Transfer ₹330 refundable deposit from ${SOURCE_CODE} to ${TARGET_CODE}`,
+        sourceBookingId: source.id,
+        sourceBookingCode: source.bookingCode,
+        targetBookingCode: target.bookingCode,
+        creditAppliedPaise: slice,
+      },
+    });
+  }
+}
+
 /** Idempotent one-time repair for APG-2026-0036. */
 export async function repairApg20260036(): Promise<RepairApg20260036Result> {
   const [target] = await db
@@ -120,19 +173,27 @@ export async function repairApg20260036(): Promise<RepairApg20260036Result> {
   const snapshot = (target.pricingSnapshot ?? {}) as PricingSnapshot;
   const creditApplied = resolveBookingDepositCreditAppliedPaise(snapshot.depositCredit);
 
-  const targetConfirmed = target.status === 'confirmed';
-  const proofApproved = proof?.status === 'approved';
-  if (transferDone && targetConfirmed && proofApproved) {
-    const summary = await getDepositSummaryForBooking(target.id);
-    const sourceSummary = await getDepositSummaryForBooking(source.id);
+  const targetSummary = await getDepositSummaryForBooking(target.id);
+  const sourceSummary = await getDepositSummaryForBooking(source.id);
+
+  const fullySettled =
+    target.status === 'confirmed' &&
+    proof?.status === 'approved' &&
+    transferDone &&
+    creditApplied >= TRANSFER_PAISE &&
+    (target.depositDuePaise ?? 0) === 0 &&
+    (targetSummary?.collectedPaise ?? 0) >= EXPECTED.totalDepositHeldPaise &&
+    (sourceSummary?.refundableBalancePaise ?? 0) === 0;
+
+  if (fullySettled) {
     return {
       ok: true,
       alreadyComplete: true,
       checks: {
         targetConfirmed: true,
-        targetDepositHeld: (summary?.collectedPaise ?? 0) >= EXPECTED.totalDepositHeldPaise,
-        targetDepositDue: target.depositDuePaise === 0,
-        sourceRefundableZero: (sourceSummary?.refundableBalancePaise ?? 0) === 0,
+        targetDepositHeld: true,
+        targetDepositDue: true,
+        sourceRefundableZero: true,
       },
     };
   }
@@ -157,6 +218,8 @@ export async function repairApg20260036(): Promise<RepairApg20260036Result> {
     if (!transferResult.ok) {
       throw new Error(`Transfer failed: ${transferResult.error}`);
     }
+  } else if ((sourceSummary?.refundableBalancePaise ?? 0) > 0) {
+    await finalizeSourceLedgerTransfer(target, source, admin.id);
   }
 
   const [targetAfterTransfer] = await db
@@ -195,7 +258,7 @@ export async function repairApg20260036(): Promise<RepairApg20260036Result> {
 
   const [finalTarget] = await db.select().from(bookings).where(eq(bookings.id, target.id)).limit(1);
   const finalSummary = await getDepositSummaryForBooking(target.id);
-  const sourceSummary = await getDepositSummaryForBooking(source.id);
+  const finalSourceSummary = await getDepositSummaryForBooking(source.id);
   const priorSummary = prior ? await getDepositSummaryForBooking(prior.id) : null;
 
   const split = proof != null ? splitBookingPayment(targetAfterTransfer, proof.amountPaise) : null;
@@ -211,7 +274,7 @@ export async function repairApg20260036(): Promise<RepairApg20260036Result> {
     targetDepositRequired: (finalTarget?.depositPaise ?? 0) === EXPECTED.totalDepositHeldPaise,
     targetDepositHeld: (finalSummary?.collectedPaise ?? 0) >= EXPECTED.totalDepositHeldPaise,
     targetDepositDue: (finalTarget?.depositDuePaise ?? 0) === 0,
-    sourceRefundableZero: (sourceSummary?.refundableBalancePaise ?? 0) === 0,
+    sourceRefundableZero: (finalSourceSummary?.refundableBalancePaise ?? 0) === 0,
     sourceDepositDueZero: (finalSource?.depositDuePaise ?? 0) === 0,
     priorOutstandingCleared: priorSummary ? priorSummary.collectedPaise >= 16_500 : true,
     splitRent: split?.rentPaisePaid === EXPECTED.rentPaise,
