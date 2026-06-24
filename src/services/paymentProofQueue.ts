@@ -17,6 +17,7 @@ import {
   paymentLinks,
   pgs,
   rentInvoices,
+  rooms,
 } from '@/src/db/schema';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import type {
@@ -24,6 +25,15 @@ import type {
   PaymentReviewExpectedLine,
   PendingPaymentReviewItem,
 } from '@/src/lib/operations/paymentReviewTypes';
+import { resolveBookingDepositCreditAppliedPaise } from '@/src/lib/billing/bookingCheckoutTotals';
+import {
+  buildBookingPaymentExplanation,
+  buildSimplePaymentExplanation,
+} from '@/src/lib/operations/paymentExplanationView';
+import {
+  buildPaymentBookingContext,
+  type BookingDetailsInput,
+} from '@/src/lib/operations/paymentBookingContextView';
 import { titleCase } from '@/src/lib/format';
 import { formatDate as formatIsoDate } from '@/src/lib/dates';
 import { and, eq, isNull } from 'drizzle-orm';
@@ -48,9 +58,13 @@ async function loadBookingReviewDetails(
       expectedCheckoutDate: bookings.expectedCheckoutDate,
       durationMode: bookings.durationMode,
       stayType: bookings.stayType,
+      status: bookings.status,
+      subtotalPaise: bookings.subtotalPaise,
+      discountPaise: bookings.discountPaise,
       depositPaise: bookings.depositPaise,
       pricingSnapshot: bookings.pricingSnapshot,
       bedCode: beds.bedCode,
+      roomNumber: rooms.roomNumber,
       stayRange: bedReservations.stayRange,
     })
     .from(bookings)
@@ -59,6 +73,7 @@ async function loadBookingReviewDetails(
       and(eq(bedReservations.bookingId, bookings.id), eq(bedReservations.kind, 'primary')),
     )
     .leftJoin(beds, eq(beds.id, bedReservations.bedId))
+    .leftJoin(rooms, eq(rooms.id, beds.roomId))
     .where(eq(bookings.id, bookingId))
     .limit(1);
 
@@ -80,15 +95,94 @@ async function loadBookingReviewDetails(
     ? titleCase(String(row.durationMode).replace(/_/g, ' '))
     : null;
 
+  const snapshot = row.pricingSnapshot as PricingSnapshot | null;
+  const depositCredit = snapshot?.depositCredit;
+  const subtotalPaise = row.subtotalPaise ?? null;
+  const discountPaise = row.discountPaise ?? null;
+  const rentDuePaise =
+    subtotalPaise != null
+      ? Math.max(0, subtotalPaise - (discountPaise ?? 0))
+      : null;
+
   return {
     moveInDate,
     moveOutDate,
     durationLabel,
     roomType: row.stayType ? titleCase(String(row.stayType).replace(/_/g, ' ')) : null,
     bedCode: row.bedCode ?? null,
-    monthlyRentPaise: monthlyRentFromSnapshot(row.pricingSnapshot as PricingSnapshot | null),
+    roomNumber: row.roomNumber ?? null,
+    monthlyRentPaise: monthlyRentFromSnapshot(snapshot),
     depositRequiredPaise: row.depositPaise ?? null,
+    durationMode: row.durationMode ? String(row.durationMode) : null,
+    stayType: row.stayType ? String(row.stayType) : null,
+    bookingStatus: row.status ? String(row.status) : null,
+    subtotalPaise,
+    discountPaise,
+    rentDuePaise,
+    rentLineItems: snapshot?.rentLineItems,
+    snapshotPerBedDurationMode: snapshot?.perBed?.[0]?.durationMode ?? null,
+    snapshotPerBedUnits: snapshot?.perBed?.[0]?.units ?? null,
+    depositCreditAppliedPaise: resolveBookingDepositCreditAppliedPaise(depositCredit),
+    depositCreditSourceBookingId: depositCredit?.sourceBookingId ?? null,
+    depositCreditSourceBookingCode: depositCredit?.sourceBookingCode ?? null,
+    priorOutstandingItems: snapshot?.priorOutstanding?.items ?? [],
   };
+}
+
+function bookingDetailsForContext(
+  details: PaymentReviewBookingDetails | null,
+): BookingDetailsInput | null {
+  if (!details) return null;
+  const pricingSnapshot: PricingSnapshot | null =
+    details.snapshotPerBedDurationMode
+      ? {
+          perBed: [
+            {
+              bedId: '',
+              dailyRatePaise: 0,
+              weeklyRatePaise: 0,
+              monthlyRatePaise: 0,
+              securityDepositPaise: 0,
+              durationMode: details.snapshotPerBedDurationMode as PricingSnapshot['perBed'][0]['durationMode'],
+              units: details.snapshotPerBedUnits ?? 0,
+              lineTotalPaise: 0,
+            },
+          ],
+          computedAt: '',
+        }
+      : null;
+
+  return {
+    moveInDate: details.moveInDate,
+    moveOutDate: details.moveOutDate,
+    durationMode: details.durationMode,
+    stayType: details.stayType,
+    bookingStatus: details.bookingStatus,
+    subtotalPaise: details.subtotalPaise,
+    discountPaise: details.discountPaise,
+    depositRequiredPaise: details.depositRequiredPaise,
+    rentDuePaise: details.rentDuePaise,
+    pricingSnapshot,
+    rentLineItems: details.rentLineItems,
+  };
+}
+
+function contextFromItem(
+  item: Pick<
+    PendingPaymentReviewItem,
+    | 'kind'
+    | 'pgName'
+    | 'bookingCode'
+    | 'roomNumber'
+    | 'bedCode'
+    | 'paymentTypeLabel'
+    | 'subtitle'
+    | 'amountPaise'
+    | 'bookingPaymentReview'
+  >,
+  details: PaymentReviewBookingDetails | null,
+) {
+  return buildPaymentBookingContext(item, bookingDetailsForContext(details));
 }
 
 function buildOutstandingSummary(args: {
@@ -140,10 +234,6 @@ function buildQrReviewItem(
     outstandingSummary = buildOutstandingSummary({
       outstandingAfterApprovalPaise,
       overpaidPaise,
-      partialLabel:
-        canPartialApprove && outstandingAfterApprovalPaise > 0
-          ? `₹${(bookingPaymentReview.depositPaisePaid / 100).toLocaleString('en-IN')} deposit collected now · ₹${(outstandingAfterApprovalPaise / 100).toLocaleString('en-IN')} deposit still pending`
-          : null,
     });
   } else {
     expectedLines = [{ label: paymentTypeLabel, amountPaise: p.amountPaise }];
@@ -154,6 +244,44 @@ function buildQrReviewItem(
     outstandingSummary = 'Approval records this collection';
   }
 
+  const paymentExplanation = bookingPaymentReview
+    ? buildBookingPaymentExplanation({
+        review: bookingPaymentReview,
+        depositRequiredPaise: bookingDetails?.depositRequiredPaise ?? null,
+        depositCreditAppliedPaise: bookingDetails?.depositCreditAppliedPaise ?? 0,
+        depositCreditSourceBookingId: bookingDetails?.depositCreditSourceBookingId,
+        depositCreditSourceBookingCode: bookingDetails?.depositCreditSourceBookingCode,
+        priorOutstandingItems: bookingDetails?.priorOutstandingItems ?? [],
+        priorBookingDeposits,
+      })
+    : buildSimplePaymentExplanation({
+        lines: expectedLines,
+        totalExpectedPaise: expectedTotalPaise,
+        receivedPaise,
+        resultLabel: outstandingSummary,
+      });
+
+  const roomNumber = bookingDetails?.roomNumber ?? null;
+  const bedCode = bookingDetails?.bedCode ?? null;
+  const bookingContext = contextFromItem(
+    {
+      kind: 'qr',
+      pgName: p.pgName,
+      bookingCode: p.bookingCode ?? null,
+      roomNumber,
+      bedCode,
+      paymentTypeLabel,
+      subtitle: isBookingCheckout
+        ? 'Booking checkout — rent, deposit & reservation'
+        : p.month
+          ? `Month ${p.month}`
+          : 'QR payment',
+      amountPaise: p.amountPaise,
+      bookingPaymentReview: bookingPaymentReview ?? undefined,
+    },
+    bookingDetails,
+  );
+
   return {
     key: `qr-${p.id}`,
     kind: 'qr',
@@ -162,8 +290,8 @@ function buildQrReviewItem(
     residentName: p.customerName,
     phone: p.customerPhone ?? null,
     bookingCode: p.bookingCode ?? null,
-    roomNumber: null,
-    bedCode: bookingDetails?.bedCode ?? null,
+    roomNumber,
+    bedCode,
     paymentTypeLabel,
     title: isBookingCheckout
       ? `${p.customerName} · Booking ${p.bookingCode}`
@@ -190,6 +318,8 @@ function buildQrReviewItem(
     bookingPaymentReview: bookingPaymentReview ?? undefined,
     priorBookingDeposits:
       priorBookingDeposits.length > 0 ? priorBookingDeposits : undefined,
+    paymentExplanation,
+    bookingContext,
   };
 }
 
@@ -243,6 +373,25 @@ async function buildRentReviewItem(
       'Verify screenshot — approval records full outstanding rent',
     canPartialApprove: false,
     canReject: true,
+    paymentExplanation: buildSimplePaymentExplanation({
+      lines: expectedLines,
+      totalExpectedPaise: projected.outstandingPaise,
+      receivedPaise: null,
+      resultLabel: 'Verify screenshot — approval records full outstanding rent',
+    }),
+    bookingContext: contextFromItem(
+      {
+        kind: 'rent',
+        pgName: pg.name,
+        bookingCode: customer?.bookingCode ?? null,
+        roomNumber: r.roomNumber,
+        bedCode: r.bedCode,
+        paymentTypeLabel: 'Monthly rent',
+        subtitle: `Room ${r.roomNumber} · ${r.bedCode} · ${r.billingMonth.slice(0, 7)}`,
+        amountPaise: projected.outstandingPaise,
+      },
+      null,
+    ),
   };
 }
 
@@ -301,6 +450,25 @@ async function buildElectricityReviewItem(
       'Verify screenshot — approval records full electricity due',
     canPartialApprove: false,
     canReject: true,
+    paymentExplanation: buildSimplePaymentExplanation({
+      lines: expectedLines,
+      totalExpectedPaise: expectedTotalPaise,
+      receivedPaise: null,
+      resultLabel: 'Verify screenshot — approval records full electricity due',
+    }),
+    bookingContext: contextFromItem(
+      {
+        kind: 'electricity',
+        pgName: pg.name,
+        bookingCode: customer?.bookingCode ?? null,
+        roomNumber: e.roomNumber,
+        bedCode: null,
+        paymentTypeLabel: 'Electricity',
+        subtitle: `Room ${e.roomNumber}`,
+        amountPaise: expectedTotalPaise,
+      },
+      null,
+    ),
   };
 }
 
@@ -354,6 +522,25 @@ async function buildExtensionReviewItem(
     canPartialApprove: false,
     canReject: true,
     bookingDetails: bookingDetails ?? undefined,
+    paymentExplanation: buildSimplePaymentExplanation({
+      lines: expectedLines,
+      totalExpectedPaise: x.amountPaise,
+      receivedPaise: null,
+      resultLabel: 'Verify screenshot — approval confirms extension payment',
+    }),
+    bookingContext: contextFromItem(
+      {
+        kind: 'extension',
+        pgName: pg.name,
+        bookingCode: x.bookingCode,
+        roomNumber: null,
+        bedCode: bookingDetails?.bedCode ?? null,
+        paymentTypeLabel: 'Stay extension',
+        subtitle: 'Stay extension payment',
+        amountPaise: x.amountPaise,
+      },
+      bookingDetails,
+    ),
   };
 }
 
@@ -418,6 +605,25 @@ async function buildDepositLinkReviewItem(
     outstandingSummary: 'Verify screenshot — approval records deposit collection',
     canPartialApprove: false,
     canReject: true,
+    paymentExplanation: buildSimplePaymentExplanation({
+      lines: expectedLines,
+      totalExpectedPaise: d.amountPaise,
+      receivedPaise: null,
+      resultLabel: 'Verify screenshot — approval records deposit collection',
+    }),
+    bookingContext: contextFromItem(
+      {
+        kind: 'deposit_link',
+        pgName: pg.name,
+        bookingCode,
+        roomNumber: d.roomNumber ?? null,
+        bedCode: null,
+        paymentTypeLabel: 'Security deposit',
+        subtitle: 'Additional security deposit',
+        amountPaise: d.amountPaise,
+      },
+      null,
+    ),
   };
 }
 

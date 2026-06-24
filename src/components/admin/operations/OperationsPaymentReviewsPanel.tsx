@@ -19,9 +19,9 @@ import {
 import { PaymentScreenshotPreview } from '@/src/components/admin/PaymentScreenshotPreview';
 import { OPS_ORANGE, OPS_PANEL } from '@/src/components/admin/residentOps/residentOpsUi';
 import { adminPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
+import { PaymentBookingContextBlock } from '@/src/components/admin/operations/PaymentBookingContextBlock';
+import { PaymentExplanationBlock } from '@/src/components/admin/operations/PaymentExplanationBlock';
 import type { OverpaymentDisposition, PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
-import { PriorBookingDepositsInfoBlock } from '@/src/components/admin/PriorBookingDepositsInfoBlock';
-import { formatDate, paiseToInr } from '@/src/lib/format';
 
 const OVERPAYMENT_OPTIONS: Array<{ value: OverpaymentDisposition; label: string }> = [
   { value: 'wallet_credit', label: 'Credit to wallet' },
@@ -35,48 +35,6 @@ function MetaRow({ label, value }: { label: string; value: string | null | undef
     <div>
       <dt className="text-[11px] uppercase tracking-wide text-apg-silver">{label}</dt>
       <dd className="mt-0.5 text-sm font-medium text-white">{value}</dd>
-    </div>
-  );
-}
-
-function FinancialBlock({ item }: { item: PendingPaymentReviewItem }) {
-  return (
-    <div className="mt-4 grid gap-4 sm:grid-cols-3">
-      <div className="rounded-xl border border-white/10 bg-[#121820] p-3">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-apg-silver">Expected</p>
-        <ul className="mt-2 space-y-1 text-sm text-white">
-          {item.expectedLines.map((line) => (
-            <li key={line.label} className="flex justify-between gap-3">
-              <span className="text-apg-silver">{line.label}</span>
-              <span className="font-medium">{paiseToInr(line.amountPaise)}</span>
-            </li>
-          ))}
-        </ul>
-        <p className="mt-2 border-t border-white/10 pt-2 text-sm font-semibold text-white">
-          Total {paiseToInr(item.expectedTotalPaise)}
-        </p>
-      </div>
-
-      <div className="rounded-xl border border-white/10 bg-[#121820] p-3">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-apg-silver">Received</p>
-        <p className="mt-2 text-2xl font-semibold text-emerald-300">
-          {item.receivedPaise != null ? paiseToInr(item.receivedPaise) : 'Not declared'}
-        </p>
-        {item.receivedPaise == null ? (
-          <p className="mt-1 text-xs text-apg-silver">Verify amount on screenshot before approving.</p>
-        ) : null}
-      </div>
-
-      <div className="rounded-xl border border-white/10 bg-[#121820] p-3">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-apg-silver">
-          {item.overpaidPaise > 0 ? 'Overpaid' : 'After approval'}
-        </p>
-        {item.overpaidPaise > 0 ? (
-          <p className="mt-2 text-2xl font-semibold text-sky-300">{paiseToInr(item.overpaidPaise)}</p>
-        ) : (
-          <p className="mt-2 text-sm font-medium text-amber-200">{item.outstandingSummary}</p>
-        )}
-      </div>
     </div>
   );
 }
@@ -225,7 +183,6 @@ export function OperationsPaymentReviewsPanel({
         const review = item.bookingPaymentReview;
         const showPartial = item.canPartialApprove;
         const busy = busyKey === item.key;
-        const details = item.bookingDetails;
 
         return (
           <article
@@ -246,58 +203,18 @@ export function OperationsPaymentReviewsPanel({
             <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
               <div className="min-w-0">
                 <h3 className="text-lg font-semibold text-white">{item.residentName}</h3>
-                <dl className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <dl className="mt-3 grid gap-3 sm:grid-cols-2">
                   <MetaRow label="Phone" value={item.phone} />
-                  <MetaRow label="Booking code" value={item.bookingCode} />
-                  <MetaRow label="PG" value={item.pgName} />
-                  <MetaRow label="Room" value={item.roomNumber} />
-                  <MetaRow label="Bed" value={item.bedCode} />
+                  <MetaRow label="Payment type" value={item.paymentTypeLabel} />
                 </dl>
 
-                {details ? (
-                  <div className="mt-4 rounded-xl border border-white/10 bg-[#121820] p-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-apg-silver">
-                      Booking details
-                    </p>
-                    <dl className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                      <MetaRow label="Move-in" value={details.moveInDate ? formatDate(details.moveInDate) : null} />
-                      <MetaRow
-                        label="Move-out"
-                        value={details.moveOutDate ? formatDate(details.moveOutDate) : null}
-                      />
-                      <MetaRow label="Duration" value={details.durationLabel} />
-                      <MetaRow label="Room type" value={details.roomType} />
-                      <MetaRow label="Bed" value={details.bedCode} />
-                      <MetaRow
-                        label="Monthly rent"
-                        value={
-                          details.monthlyRentPaise != null
-                            ? paiseToInr(details.monthlyRentPaise)
-                            : null
-                        }
-                      />
-                      <MetaRow
-                        label="Deposit required"
-                        value={
-                          details.depositRequiredPaise != null
-                            ? paiseToInr(details.depositRequiredPaise)
-                            : null
-                        }
-                      />
-                    </dl>
-                  </div>
+                {item.bookingContext ? (
+                  <PaymentBookingContextBlock context={item.bookingContext} />
                 ) : null}
 
-                {item.priorBookingDeposits?.length ? (
-                  <div className="mt-4">
-                    <PriorBookingDepositsInfoBlock
-                      deposits={item.priorBookingDeposits}
-                      variant="dark"
-                    />
-                  </div>
+                {item.paymentExplanation ? (
+                  <PaymentExplanationBlock explanation={item.paymentExplanation} />
                 ) : null}
-
-                <FinancialBlock item={item} />
 
                 <div className="mt-4 rounded-xl border border-dashed border-white/15 bg-[#121820]/80 p-3">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-apg-silver">
@@ -419,8 +336,8 @@ export function OperationsPaymentReviewsPanel({
             {partialOpenKey === item.key && review ? (
               <div className="mt-3 rounded-xl border border-sky-400/30 bg-sky-500/10 p-3">
                 <p className="text-xs font-semibold text-sky-100">
-                  Partial deposit move-in — {paiseToInr(review.depositPaisePaid)} collected now,{' '}
-                  {paiseToInr(review.depositDuePaise)} due later
+                  Partial deposit move-in — review the after-approval section above for collected vs
+                  remaining deposit.
                 </p>
                 <label className="mt-2 block text-xs text-apg-silver">
                   Deposit balance due date

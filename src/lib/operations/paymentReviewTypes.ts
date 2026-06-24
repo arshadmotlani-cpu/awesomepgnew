@@ -1,3 +1,6 @@
+import type { PaymentExplanationView } from '@/src/lib/operations/paymentExplanationView';
+import type { PaymentBookingContextView } from '@/src/lib/operations/paymentBookingContextView';
+import type { PriorOutstandingItem } from '@/src/lib/billing/bookingCheckoutTotals';
 import type { getQrBookingPaymentReview } from '@/src/services/qrPayments';
 import type { PriorBookingDepositInfo } from '@/src/services/depositCredit';
 
@@ -6,14 +9,31 @@ export type PaymentReviewExpectedLine = {
   amountPaise: number;
 };
 
+import type { PricingLineItem } from '@/src/lib/pricing/types';
+
 export type PaymentReviewBookingDetails = {
   moveInDate: string | null;
   moveOutDate: string | null;
   durationLabel: string | null;
   roomType: string | null;
   bedCode: string | null;
+  roomNumber: string | null;
   monthlyRentPaise: number | null;
   depositRequiredPaise: number | null;
+  durationMode: string | null;
+  stayType: string | null;
+  bookingStatus: string | null;
+  subtotalPaise: number | null;
+  discountPaise: number | null;
+  rentDuePaise: number | null;
+  rentLineItems?: PricingLineItem[];
+  snapshotPricingStrategy?: string | null;
+  snapshotPerBedDurationMode?: string | null;
+  snapshotPerBedUnits?: number | null;
+  depositCreditAppliedPaise?: number;
+  depositCreditSourceBookingId?: string | null;
+  depositCreditSourceBookingCode?: string | null;
+  priorOutstandingItems?: PriorOutstandingItem[];
 };
 
 export type OverpaymentDisposition = 'wallet_credit' | 'future_adjustment' | 'refund_later' | 'refund';
@@ -48,4 +68,8 @@ export type PendingPaymentReviewItem = {
   bookingPaymentReview?: Awaited<ReturnType<typeof getQrBookingPaymentReview>>;
   /** Informational only — prior booking refundable deposits (does not reduce expected due). */
   priorBookingDeposits?: PriorBookingDepositInfo[];
+  /** Admin money-trace presentation (no calculation changes). */
+  paymentExplanation?: PaymentExplanationView;
+  /** Booking + pricing story for admin review (presentation only). */
+  bookingContext?: PaymentBookingContextView;
 };
