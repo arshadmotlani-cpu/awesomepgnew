@@ -1,14 +1,17 @@
 /**
  * Mirrors open action_items (+ bed assignment) into unresolved_actions SSOT.
  */
-import { and, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { actionItems } from '@/src/db/schema';
+import { actionItems, unresolvedActions } from '@/src/db/schema';
 import type { ActionItemMetadata } from '@/src/lib/actionCenter/constants';
+import { isResidentBedAssignmentEligible } from '@/src/lib/residentBedAssignment';
 import type { AdminSession } from '@/src/lib/auth/session';
 import type { UnresolvedActionType } from '@/src/db/schema/enums';
+import { listResidentsForAdmin } from '@/src/services/residentAdmin';
 import {
   closeUnresolvedActionsNotInSourceKeys,
+  resolveAction,
   upsertOpenAction,
 } from '@/src/services/unresolvedActions';
 
@@ -72,7 +75,7 @@ function hrefForAction(
     case 'invoice_review':
       return meta.residentId ? `/admin/residents/${meta.residentId}` : '/admin/invoices';
     case 'room_transfer_approval':
-      return meta.requestId ? `/admin/requests/${meta.requestId}` : '/admin/requests';
+      return '/admin/requests';
     case 'maintenance_approval':
       return '/admin/operations/residents';
     case 'bed_assignment':
@@ -94,47 +97,86 @@ function sessionCanSeePg(session: AdminSession, pgId: string): boolean {
 
 async function syncBedAssignmentActions(session: AdminSession): Promise<Set<string>> {
   const keys = new Set<string>();
-  const rows = await db.execute<{
-    customer_id: string;
-    customer_name: string;
-    pg_id: string;
-  }>(sql`
-    SELECT
-      c.id AS customer_id,
-      c.full_name AS customer_name,
-      f.pg_id AS pg_id
-    FROM customers c
-    INNER JOIN bookings b ON b.customer_id = c.id AND b.status = 'confirmed'
-    INNER JOIN bed_reservations br ON br.booking_id = b.id AND br.kind = 'primary'
-    INNER JOIN beds bd ON bd.id = br.bed_id
-    INNER JOIN rooms r ON r.id = bd.room_id
-    INNER JOIN floors f ON f.id = r.floor_id
-    WHERE c.kyc_status = 'approved'
-      AND NOT (
-        br.status = 'active'
-        AND CURRENT_DATE <@ br.stay_range
-      )
-    LIMIT 200
-  `);
+  const residents = await listResidentsForAdmin(session);
 
-  for (const row of rows) {
-    if (!sessionCanSeePg(session, row.pg_id)) continue;
-    const sourceKey = `bed_assignment:${row.customer_id}`;
+  for (const resident of residents) {
+    if (!isResidentBedAssignmentEligible(resident)) continue;
+    if (!resident.pgId || !sessionCanSeePg(session, resident.pgId)) continue;
+
+    const sourceKey = `bed_assignment:${resident.id}`;
     keys.add(sourceKey);
     await upsertOpenAction({
       actionType: 'bed_assignment',
       entityType: 'customer',
-      entityId: row.customer_id,
-      residentId: row.customer_id,
-      pgId: row.pg_id,
+      entityId: resident.id,
+      residentId: resident.id,
+      pgId: resident.pgId,
       priority: 'high',
       sourceKey,
-      label: `${row.customer_name} — assign bed`,
-      href: `/admin/beds?customerId=${row.customer_id}`,
+      label: `${resident.fullName} — assign bed`,
+      href: `/admin/beds?customerId=${resident.id}`,
     });
   }
 
   return keys;
+}
+
+/** Close checkout / refund unresolved rows when settlement is terminal with ₹0 refund. */
+export async function resolveTerminalCheckoutUnresolvedActions(): Promise<number> {
+  const rows = await db.execute<{ id: string }>(sql`
+    UPDATE unresolved_actions ua
+    SET status = 'CLOSED', resolved_at = now(), updated_at = now()
+    WHERE ua.status = 'OPEN'
+      AND ua.action_type IN (
+        'deposit_refund_approval',
+        'checkout_settlement',
+        'move_out_approval'
+      )
+      AND EXISTS (
+        SELECT 1
+        FROM checkout_settlements cs
+        LEFT JOIN vacating_requests vr ON vr.id = cs.vacating_request_id
+        WHERE cs.status IN ('completed', 'refund_paid')
+          AND COALESCE(cs.final_refund_paise, 0) <= 0
+          AND (
+            ua.entity_id = cs.id::text
+            OR ua.entity_id = cs.booking_id::text
+            OR ua.source_key = 'unresolved:refund:' || cs.booking_id::text
+            OR ua.source_key = 'unresolved:vacating:' || vr.id::text
+            OR ua.source_key = 'unresolved:fixed_stay_checkout:' || cs.booking_id::text
+          )
+      )
+    RETURNING ua.id
+  `);
+  return rows.length;
+}
+
+/** Drop bed_assignment rows when resident no longer has an active onboarding booking awaiting bed. */
+export async function resolveStaleBedAssignmentUnresolvedActions(
+  session: AdminSession,
+): Promise<number> {
+  const residents = await listResidentsForAdmin(session);
+  const eligibleIds = new Set(
+    residents.filter((r) => isResidentBedAssignmentEligible(r)).map((r) => r.id),
+  );
+
+  const openRows = await db
+    .select({ sourceKey: unresolvedActions.sourceKey, residentId: unresolvedActions.residentId })
+    .from(unresolvedActions)
+    .where(
+      and(
+        eq(unresolvedActions.status, 'OPEN'),
+        eq(unresolvedActions.actionType, 'bed_assignment'),
+      ),
+    );
+
+  let closed = 0;
+  for (const row of openRows) {
+    if (!row.residentId || !eligibleIds.has(row.residentId)) {
+      closed += await resolveAction({ sourceKey: row.sourceKey });
+    }
+  }
+  return closed;
 }
 
 export async function syncUnresolvedActionsFromDomain(
@@ -176,6 +218,9 @@ export async function syncUnresolvedActionsFromDomain(
 
   const bedKeys = await syncBedAssignmentActions(session);
   for (const k of bedKeys) activeKeys.add(k);
+
+  await resolveTerminalCheckoutUnresolvedActions();
+  await resolveStaleBedAssignmentUnresolvedActions(session);
 
   const closed = await closeUnresolvedActionsNotInSourceKeys(activeKeys, session);
 

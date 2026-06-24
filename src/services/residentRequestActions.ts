@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, or, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { actionItems, customers, pgs, residentRequests } from '@/src/db/schema';
 import { formatPgDisplayName } from '@/src/lib/operationsCenterRules';
@@ -21,7 +21,18 @@ export async function syncResidentRequestActionItems(): Promise<void> {
     .from(residentRequests)
     .innerJoin(pgs, eq(pgs.id, residentRequests.pgId))
     .innerJoin(customers, eq(customers.id, residentRequests.customerId))
-    .where(inArray(residentRequests.status, ['submitted', 'under_review', 'approved']));
+    .where(
+      or(
+        and(
+          inArray(residentRequests.type, ['stay_extension', 'deposit_due_extension']),
+          inArray(residentRequests.status, ['submitted', 'under_review']),
+        ),
+        and(
+          eq(residentRequests.type, 'deposit_refund'),
+          inArray(residentRequests.status, ['submitted', 'under_review', 'approved']),
+        ),
+      ),
+    );
 
   const openKeys = new Set<string>();
 

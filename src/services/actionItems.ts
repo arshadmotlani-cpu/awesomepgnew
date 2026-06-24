@@ -609,6 +609,8 @@ async function syncRefundsPending(session: AdminSession): Promise<void> {
       vacatingRequests.resolvedAt,
     );
 
+  const activeKeys = new Set<string>();
+
   for (const row of rows) {
     if (!sessionCanAccessPg(session, row.pgId)) continue;
     const { getDepositSummaryForBooking } = await import('./deposits');
@@ -617,6 +619,8 @@ async function syncRefundsPending(session: AdminSession): Promise<void> {
     if (refundPaise <= 0) continue;
     const anchor = row.completedAt ?? row.updatedAt;
     const daysWaiting = Math.max(0, diffDays(formatDate(anchor), today));
+    const sourceKey = `refund:${row.bookingId}`;
+    activeKeys.add(sourceKey);
     await upsertActionItem({
       type: 'refund_pending',
       title: `${row.residentName} · Deposit refund pending`,
@@ -626,7 +630,7 @@ async function syncRefundsPending(session: AdminSession): Promise<void> {
       residentId: row.residentId,
       amount: refundPaise,
       priority: daysWaiting >= 7 ? 'high' : daysWaiting >= 3 ? 'medium' : 'low',
-      sourceKey: `refund:${row.bookingId}`,
+      sourceKey,
       metadata: {
         residentName: row.residentName,
         residentPhone: row.residentPhone,
@@ -638,6 +642,71 @@ async function syncRefundsPending(session: AdminSession): Promise<void> {
       },
     });
   }
+
+  const stale = await db
+    .select({ sourceKey: actionItems.sourceKey })
+    .from(actionItems)
+    .where(
+      and(
+        eq(actionItems.type, 'refund_pending'),
+        inArray(actionItems.status, ['open', 'in_progress']),
+      ),
+    );
+
+  for (const row of stale) {
+    if (!activeKeys.has(row.sourceKey)) {
+      await db
+        .update(actionItems)
+        .set({ status: 'resolved', updatedAt: new Date() })
+        .where(eq(actionItems.sourceKey, row.sourceKey));
+    }
+  }
+}
+
+/** Resolve refund + checkout action items when settlement is done or wallet is empty. */
+export async function resolveStaleRefundAndCheckoutActionItems(): Promise<{ resolved: number }> {
+  const refundRows = await db.execute<{ id: string }>(sql`
+    UPDATE action_items ai
+    SET status = 'resolved', updated_at = now()
+    WHERE ai.type = 'refund_pending'
+      AND ai.status IN ('open', 'in_progress')
+      AND (
+        NOT EXISTS (
+          SELECT 1 FROM bookings b
+          WHERE ai.source_key = 'refund:' || b.id::text
+            AND b.admin_deposit_refund_status = 'pending'
+            AND b.status = 'completed'
+        )
+        OR EXISTS (
+          SELECT 1 FROM checkout_settlements cs
+          WHERE cs.booking_id::text = ai.metadata->>'bookingId'
+            AND cs.status IN ('completed', 'refund_paid')
+            AND COALESCE(cs.final_refund_paise, 0) <= 0
+        )
+      )
+    RETURNING ai.id
+  `);
+
+  const checkoutRows = await db.execute<{ id: string }>(sql`
+    UPDATE action_items ai
+    SET status = 'resolved', updated_at = now()
+    WHERE ai.type IN ('vacating_alert', 'fixed_stay_checkout_due')
+      AND ai.status IN ('open', 'in_progress')
+      AND EXISTS (
+        SELECT 1
+        FROM checkout_settlements cs
+        INNER JOIN vacating_requests vr ON vr.id = cs.vacating_request_id
+        WHERE cs.status IN ('completed', 'refund_paid')
+          AND COALESCE(cs.final_refund_paise, 0) <= 0
+          AND (
+            ai.source_key = 'vacating:' || vr.id::text
+            OR ai.source_key = 'fixed_stay_checkout:' || cs.booking_id::text
+          )
+      )
+    RETURNING ai.id
+  `);
+
+  return { resolved: refundRows.length + checkoutRows.length };
 }
 
 async function syncPaymentReviews(session: AdminSession): Promise<void> {
@@ -752,6 +821,7 @@ export async function syncActionItems(session: AdminSession): Promise<void> {
   await resolveStaleKycActionItems();
   await resolveStaleVacatingActionItems();
   await resolveFixedStayCheckoutActionItems();
+  await resolveStaleRefundAndCheckoutActionItems();
   await Promise.all([
     syncRentDue(session),
     syncElectricityDue(session),
@@ -1057,7 +1127,7 @@ export async function getActionItemDetail(
     availableActions.push({
       type: 'view_ledger',
       label: 'Review request',
-      href: `/admin/requests/${meta.requestId}`,
+      href: '/admin/requests',
     });
   }
   if (base.status !== 'resolved') {

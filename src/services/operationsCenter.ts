@@ -339,6 +339,12 @@ async function listPendingDepositRefunds(session: AdminSession) {
       and(
         eq(bookings.adminDepositRefundStatus, 'pending'),
         eq(bookings.status, 'completed'),
+        sql`NOT EXISTS (
+          SELECT 1 FROM checkout_settlements cs
+          WHERE cs.booking_id = ${bookings.id}
+            AND cs.status IN ('completed', 'refund_paid')
+            AND COALESCE(cs.final_refund_paise, 0) <= 0
+        )`,
       ),
     )
     .groupBy(
@@ -363,7 +369,8 @@ async function listPendingDepositRefunds(session: AdminSession) {
         priority: depositRefundPriority(daysWaiting),
         bookingId: r.bookingId,
       };
-    });
+    })
+    .filter((r) => r.depositPaise > 0);
 }
 
 async function listOutstandingElectricity(session: AdminSession) {

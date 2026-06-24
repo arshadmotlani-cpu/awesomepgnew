@@ -1,5 +1,6 @@
 import { formatDate } from '@/src/lib/dates';
 import type { CollectionQueueItem } from '@/src/lib/billing/collectionsQueue';
+import { isResidentBedAssignmentEligible } from '@/src/lib/residentBedAssignment';
 import type {
   AttentionBucketId,
   ResidentOpsQueueCategory,
@@ -260,12 +261,7 @@ function detectBlockedResidents(input: {
       });
     }
 
-    if (
-      r.kycStatus === 'approved' &&
-      !r.bedId &&
-      r.onboardingPaymentApproved &&
-      (r.onboardingBookingStatus === 'pending_approval' || r.onboardingBookingStatus === 'confirmed')
-    ) {
+    if (isResidentBedAssignmentEligible(r)) {
       push({
         id: `blocked-bed-${r.id}`,
         customerId: r.id,
@@ -283,7 +279,8 @@ function detectBlockedResidents(input: {
     if (
       r.onboardingPaymentApproved &&
       r.onboardingBookingStatus === 'pending_approval' &&
-      !r.bedId
+      !r.bedId &&
+      !isResidentBedAssignmentEligible(r)
     ) {
       push({
         id: `blocked-booking-${r.id}`,
