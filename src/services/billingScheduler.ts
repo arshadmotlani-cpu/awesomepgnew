@@ -10,6 +10,7 @@ import {
   billingGenerationFailures,
   billingGenerationRuns,
   bookings,
+  customers,
   residentBillingProfiles,
 } from '@/src/db/schema';
 import { todayInBillingTimezone } from '@/src/lib/billing/billingTimezone';
@@ -57,6 +58,7 @@ async function listAnniversaryCandidates(runDate: string) {
     })
     .from(residentBillingProfiles)
     .innerJoin(bookings, eq(bookings.id, residentBillingProfiles.bookingId))
+    .innerJoin(customers, eq(customers.id, residentBillingProfiles.customerId))
     .innerJoin(bedReservations, eq(bedReservations.bookingId, bookings.id))
     .where(
       and(
