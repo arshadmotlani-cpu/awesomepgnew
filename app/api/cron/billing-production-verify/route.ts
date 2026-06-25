@@ -54,7 +54,19 @@ async function tableExists(name: string): Promise<boolean> {
   return Boolean(rows[0]?.exists);
 }
 
-async function runReadOnlyChecks(): Promise<Check[]> {
+async function repairFixedStayProfiles(): Promise<number> {
+  const result = await db.execute(sql`
+    UPDATE resident_billing_profiles AS rbp
+    SET auto_generate = false, updated_at = now()
+    FROM bookings AS b
+    WHERE b.id = rbp.booking_id
+      AND b.duration_mode = 'fixed_stay'
+      AND rbp.auto_generate = true
+  `);
+  return Number(result.count ?? 0);
+}
+
+async function runReadOnlyChecks(repairedFixedStay: number): Promise<Check[]> {
   const checks: Check[] = [];
   const today = todayInBillingTimezone();
   const billingMonth = `${today.slice(0, 7)}-01`;
@@ -137,7 +149,10 @@ async function runReadOnlyChecks(): Promise<Check[]> {
   checks.push({
     section: 'Fixed-date residents excluded',
     status: (fixedBad[0]?.count ?? 0) === 0 ? 'PASS' : 'FAIL',
-    detail: `${fixedBad[0]?.count ?? 0} fixed_stay with auto_generate=true`,
+    detail:
+      (fixedBad[0]?.count ?? 0) === 0
+        ? 'All fixed_stay profiles have auto_generate=false'
+        : `${fixedBad[0]?.count ?? 0} fixed_stay with auto_generate=true${repairedFixedStay > 0 ? ` (${repairedFixedStay} repaired this run)` : ''}`,
   });
 
   const [pendingRent] = await db
@@ -149,6 +164,7 @@ async function runReadOnlyChecks(): Promise<Check[]> {
       and(
         collectibleResidentFilters(),
         eq(rentInvoices.isAdhoc, false),
+        eq(rentInvoices.billingMonth, billingMonth),
         inArray(rentInvoices.status, ['pending', 'overdue', 'payment_in_progress']),
       ),
     );
@@ -166,7 +182,8 @@ async function runReadOnlyChecks(): Promise<Check[]> {
             .where(
               and(
                 eq(rentInvoices.status, 'paid'),
-                sql`date_trunc('month', ${rentInvoices.paidAt}) = date_trunc('month', ${billingMonth}::date)`,
+                eq(rentInvoices.billingMonth, billingMonth),
+                eq(rentInvoices.isAdhoc, false),
                 collectibleResidentFilters(),
               ),
             )
@@ -182,7 +199,7 @@ async function runReadOnlyChecks(): Promise<Check[]> {
             .where(
               and(
                 eq(electricityInvoices.status, 'paid'),
-                sql`date_trunc('month', ${electricityInvoices.paidAt}) = date_trunc('month', ${billingMonth}::date)`,
+                eq(electricityInvoices.billingMonth, billingMonth),
                 collectibleResidentFilters(),
               ),
             )
@@ -201,6 +218,7 @@ async function runReadOnlyChecks(): Promise<Check[]> {
             .where(
               and(
                 collectibleResidentFilters(),
+                eq(electricityInvoices.billingMonth, billingMonth),
                 eq(electricityInvoices.status, 'pending'),
               ),
             )
@@ -210,8 +228,8 @@ async function runReadOnlyChecks(): Promise<Check[]> {
   );
 
   const rentBalanced =
-    metrics.rent.generatedPaise >=
-    metrics.rent.collectedPaise + metrics.rent.pendingPaise - metrics.rent.overduePaise;
+    metrics.rent.generatedPaise ===
+    metrics.rent.collectedPaise + metrics.rent.pendingPaise + metrics.rent.overduePaise;
 
   checks.push({
     section: 'Revenue rent reconciliation',
@@ -220,9 +238,9 @@ async function runReadOnlyChecks(): Promise<Check[]> {
   });
 
   const elecBalanced =
-    metrics.electricity.generatedPaise >=
+    metrics.electricity.generatedPaise ===
     metrics.electricity.collectedPaise +
-      metrics.electricity.pendingPaise -
+      metrics.electricity.pendingPaise +
       metrics.electricity.overduePaise;
 
   checks.push({
@@ -428,7 +446,8 @@ async function handle(req: NextRequest) {
   const runE2e = url.searchParams.get('e2e') === '1';
 
   try {
-    const checks = await runReadOnlyChecks();
+    const repairedFixedStay = await repairFixedStayProfiles();
+    const checks = await runReadOnlyChecks(repairedFixedStay);
     if (runE2e) {
       checks.push(await runRentE2E());
     }
