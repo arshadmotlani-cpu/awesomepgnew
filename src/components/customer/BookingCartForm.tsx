@@ -89,9 +89,8 @@ export function BookingCartForm({
   );
 
   useEffect(() => {
-    if (state.status === 'success' && state.redirectTo) {
-      router.refresh();
-      router.push(state.redirectTo);
+    if (state.status === 'success' && state.nextRoute) {
+      router.replace(state.nextRoute);
     }
   }, [state, router]);
 

@@ -163,15 +163,6 @@ export default async function NewBookingPage(props: PageProps<'/booking/new'>) {
             endDate={funnelDates.end}
             stayType={stayType}
             durationMode={mode}
-            defaultCustomer={
-              session
-                ? {
-                    fullName: session.fullName,
-                    email: session.email,
-                    phone: session.phone,
-                  }
-                : undefined
-            }
           />
         )}
       </BookingFunnelShell>

@@ -1,6 +1,13 @@
 'use client';
 
-import { useActionState, useEffect, useRef, useState } from 'react';
+import {
+  useActionState,
+  useCallback,
+  useEffect,
+  useReducer,
+  useRef,
+  useState,
+} from 'react';
 import { useRouter } from 'next/navigation';
 import { BookingReviewCard, type BookingReviewData } from './BookingReviewCard';
 import { BookingInlineAuth } from './BookingInlineAuth';
@@ -9,11 +16,16 @@ import {
   type BookingActionState,
 } from '@/app/(customer)/booking/new/actions';
 import type { StayType } from '@/src/lib/stayType';
-
-type Phase = 'review' | 'auth' | 'submitting';
+import {
+  BOOKING_CREATE_TIMEOUT_MESSAGE,
+  BOOKING_CREATE_TIMEOUT_MS,
+  bookingFlowReducer,
+  isBookingFlowBusy,
+  logBookingFlowStep,
+  type BookingFlowStep,
+} from '@/src/lib/booking/bookingFlowMachine';
 
 const INITIAL_STATE: BookingActionState = { status: 'idle' };
-const RESUME_KEY = 'apg-booking-review-continue';
 
 type Props = {
   isLoggedIn: boolean;
@@ -23,11 +35,6 @@ type Props = {
   endDate: string | null;
   stayType: StayType;
   durationMode: 'daily' | 'weekly' | 'monthly' | 'open_ended' | 'fixed_stay';
-  defaultCustomer?: {
-    fullName: string;
-    email: string;
-    phone: string;
-  };
 };
 
 export function BookingReviewFlow({
@@ -38,62 +45,137 @@ export function BookingReviewFlow({
   endDate,
   stayType,
   durationMode,
-  defaultCustomer,
 }: Props) {
   const router = useRouter();
-  const [phase, setPhase] = useState<Phase>('review');
-  const resumeAfterAuthRef = useRef(
-    typeof window !== 'undefined' && sessionStorage.getItem(RESUME_KEY) === '1',
-  );
+  const formRef = useRef<HTMLFormElement>(null);
+  const submitGuardRef = useRef(false);
+  const redirectedRef = useRef(false);
+  const [step, dispatchStep] = useReducer(bookingFlowReducer, 'REVIEW' as BookingFlowStep);
+  const [clientError, setClientError] = useState<string | null>(null);
   const [state, formAction, isPending] = useActionState(createBookingAction, INITIAL_STATE);
 
   useEffect(() => {
-    if (state.status === 'success' && state.redirectTo) {
-      router.refresh();
-      router.push(state.redirectTo);
+    logBookingFlowStep('REVIEW', { isLoggedIn });
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    logBookingFlowStep(step);
+  }, [step]);
+
+  const submitCreateBooking = useCallback(() => {
+    if (submitGuardRef.current) {
+      logBookingFlowStep('CREATE_BOOKING', { skipped: 'duplicate_submit' });
+      return;
+    }
+    submitGuardRef.current = true;
+    setClientError(null);
+    dispatchStep({ type: 'CREATE_START' });
+    formRef.current?.requestSubmit();
+  }, []);
+
+  useEffect(() => {
+    if (!isLoggedIn || step !== 'AUTH_REQUIRED') return;
+    dispatchStep({ type: 'AUTH_COMPLETE' });
+    submitCreateBooking();
+  }, [isLoggedIn, step, submitCreateBooking]);
+
+  useEffect(() => {
+    if (state.status === 'idle') return;
+
+    if (state.status === 'error') {
+      submitGuardRef.current = false;
+      dispatchStep({ type: 'CREATE_ERROR' });
+      setClientError(state.message);
+      return;
+    }
+
+    if (state.status === 'success' && !redirectedRef.current) {
+      redirectedRef.current = true;
+      submitGuardRef.current = false;
+      dispatchStep({ type: 'CREATE_SUCCESS' });
+      logBookingFlowStep('REDIRECT_PAYMENT', {
+        bookingId: state.bookingId,
+        bookingCode: state.bookingCode,
+        nextRoute: state.nextRoute,
+      });
+      router.replace(state.nextRoute);
     }
   }, [state, router]);
 
   useEffect(() => {
-    if (!isLoggedIn || !resumeAfterAuthRef.current) return;
-    resumeAfterAuthRef.current = false;
-    sessionStorage.removeItem(RESUME_KEY);
-    setPhase('submitting');
-    const form = document.getElementById('booking-review-submit') as HTMLFormElement | null;
-    form?.requestSubmit();
-  }, [isLoggedIn]);
+    if (step !== 'CREATE_BOOKING' || !isPending) return;
+
+    const timer = window.setTimeout(() => {
+      if (!submitGuardRef.current) return;
+      submitGuardRef.current = false;
+      dispatchStep({ type: 'CREATE_TIMEOUT' });
+      setClientError(BOOKING_CREATE_TIMEOUT_MESSAGE);
+      logBookingFlowStep('FAILED', { reason: 'client_timeout' });
+    }, BOOKING_CREATE_TIMEOUT_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [step, isPending]);
 
   function handleContinue() {
-    if (!isLoggedIn) {
-      resumeAfterAuthRef.current = true;
-      sessionStorage.setItem(RESUME_KEY, '1');
-      setPhase('auth');
+    if (step === 'FAILED') {
+      handleRetry();
+      if (!isLoggedIn) return;
+      dispatchStep({ type: 'CONTINUE_SIGNED_IN' });
+      submitCreateBooking();
       return;
     }
-    setPhase('submitting');
+    if (!isLoggedIn) {
+      dispatchStep({ type: 'CONTINUE_GUEST' });
+      logBookingFlowStep('AUTH_REQUIRED');
+      return;
+    }
+    dispatchStep({ type: 'CONTINUE_SIGNED_IN' });
+    submitCreateBooking();
   }
 
-  const busy = phase === 'submitting' || isPending;
+  function handleRetry() {
+    redirectedRef.current = false;
+    dispatchStep({ type: 'RESET' });
+    setClientError(null);
+    submitGuardRef.current = false;
+  }
+
+  const busy = isBookingFlowBusy(step, isPending);
+  const errorMessage = clientError ?? (state.status === 'error' ? state.message : null);
+  const showContinue = step !== 'AUTH_REQUIRED' || isLoggedIn;
 
   return (
     <div className="mx-auto max-w-xl space-y-6">
       <BookingReviewCard data={review} />
 
-      {phase === 'auth' && !isLoggedIn ? (
+      {step === 'AUTH_REQUIRED' && !isLoggedIn ? (
         <BookingInlineAuth
           onAuthenticated={() => {
+            logBookingFlowStep('AUTH_REQUIRED', { event: 'otp_verified' });
             router.refresh();
           }}
         />
       ) : null}
 
-      {state.status === 'error' ? (
-        <div className="rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-          {state.message}
+      {errorMessage ? (
+        <div className="space-y-3 rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+          <p>{errorMessage}</p>
+          {step === 'FAILED' ? (
+            <button
+              type="button"
+              onClick={() => {
+                handleRetry();
+                if (isLoggedIn) submitCreateBooking();
+              }}
+              className="text-xs font-semibold text-rose-100 underline"
+            >
+              Try again
+            </button>
+          ) : null}
         </div>
       ) : null}
 
-      <form id="booking-review-submit" action={formAction} className="space-y-3">
+      <form ref={formRef} action={formAction} className="space-y-3">
         <input type="hidden" name="startDate" value={startDate} />
         {endDate ? <input type="hidden" name="endDate" value={endDate} /> : null}
         <input type="hidden" name="durationMode" value={durationMode} />
@@ -101,44 +183,24 @@ export function BookingReviewFlow({
         {bedIds.map((id) => (
           <input key={id} type="hidden" name="bedId" value={id} />
         ))}
-        {defaultCustomer ? (
-          <>
-            <input type="hidden" name="fullName" value={defaultCustomer.fullName} />
-            <input type="hidden" name="email" value={defaultCustomer.email} />
-            <input type="hidden" name="phone" value={defaultCustomer.phone} />
-          </>
-        ) : (
-          <>
-            <input type="hidden" name="fullName" value="" />
-            <input type="hidden" name="email" value="" />
-            <input type="hidden" name="phone" value="" />
-          </>
-        )}
 
-        {phase !== 'auth' || isLoggedIn ? (
+        {showContinue ? (
           <button
-            type="submit"
+            type="button"
             disabled={busy}
-            onClick={(e) => {
-              if (!isLoggedIn) {
-                e.preventDefault();
-                handleContinue();
-              } else if (phase === 'review') {
-                setPhase('submitting');
-              }
-            }}
+            onClick={handleContinue}
             className="flex min-h-[56px] w-full items-center justify-center rounded-2xl bg-apg-orange text-base font-bold text-white shadow-[0_0_32px_rgba(255,90,31,0.35)] transition hover:brightness-110 disabled:opacity-50"
           >
-            {busy ? 'Confirming your booking…' : 'Continue'}
+            {busy ? 'Confirming your booking…' : step === 'FAILED' ? 'Try again' : 'Continue'}
           </button>
         ) : null}
       </form>
 
-      {isLoggedIn && defaultCustomer ? (
+      {isLoggedIn ? (
         <p className="text-center text-xs text-apg-silver">
-          Signed in as {defaultCustomer.fullName}. Continue goes straight to payment.
+          Signed in. Continue creates your booking and opens payment.
         </p>
-      ) : phase === 'review' ? (
+      ) : step === 'REVIEW' ? (
         <p className="text-center text-xs text-apg-silver">
           You&apos;ll sign in only if needed — your choices stay saved.
         </p>

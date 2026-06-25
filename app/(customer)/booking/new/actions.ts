@@ -15,22 +15,27 @@ import { quoteBookingPrice } from '@/src/services/pricing';
 import { createPendingMembershipForBooking } from '@/src/services/playstationMembership';
 import { isPs4PlanId } from '@/src/lib/playstation/plans';
 import { getCustomerSession } from '@/src/lib/auth/session';
-import { indianPhonesEqual, normaliseIndianPhone } from '@/src/lib/phone';
+import { withBookingActionTimeout } from '@/src/lib/booking/bookingActionTimeout';
 import { getCustomerById, isProfileComplete } from '@/src/services/profile';
 import { trackAnalyticsEvent } from '@/src/services/visitorAnalytics';
+import { logger } from '@/src/lib/logger';
 
 /**
- * The single mutating entry point for the customer cart.
- *
- * We pair the action with `useActionState` on the client so submission
- * pending state and error rendering can stay declarative. On success we
- * On success we return `{ status: 'success', redirectTo }` for client navigation.
+ * Single mutating entry point for customer booking confirmation.
+ * Success always includes bookingId + nextRoute — the client only navigates.
  */
 
 export type BookingActionState =
   | { status: 'idle' }
   | { status: 'error'; message: string; conflictBedIds?: string[] }
-  | { status: 'success'; redirectTo: string };
+  | {
+      status: 'success';
+      bookingId: string;
+      bookingCode: string;
+      nextRoute: string;
+      /** @deprecated Use nextRoute */
+      redirectTo: string;
+    };
 
 const VALID_MODES: ReadonlySet<PricingMode> = new Set([
   'open_ended',
@@ -39,10 +44,8 @@ const VALID_MODES: ReadonlySet<PricingMode> = new Set([
   'daily',
   'weekly',
 ]);
-const VALID_GENDERS = new Set(['male', 'female', 'other']);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function getString(form: FormData, key: string): string {
   const v = form.get(key);
@@ -57,17 +60,28 @@ function getAll(form: FormData, key: string): string[] {
     .filter((v) => v.length > 0);
 }
 
+function nextRouteForBooking(status: 'pending_payment' | 'confirmed', bookingCode: string): string {
+  return status === 'pending_payment'
+    ? `/booking/${bookingCode}/pay`
+    : `/booking/${bookingCode}`;
+}
+
 export async function createBookingAction(
   _prev: BookingActionState,
   formData: FormData,
 ): Promise<BookingActionState> {
+  const startedAt = Date.now();
+  logger.info('[booking-flow] CREATE_BOOKING start');
+
   const session = await getCustomerSession();
   if (!session) {
+    logger.warn('[booking-flow] CREATE_BOOKING failure', { reason: 'no_session' });
     return { status: 'error', message: 'Sign in required to complete a booking.' };
   }
 
   const customer = await getCustomerById(session.customerId);
   if (!customer || !isProfileComplete(customer)) {
+    logger.warn('[booking-flow] CREATE_BOOKING failure', { reason: 'incomplete_profile' });
     return {
       status: 'error',
       message: 'Complete your resident profile (name, email, mobile) before booking.',
@@ -83,12 +97,6 @@ export async function createBookingAction(
   if (stayTypeRaw === 'monthly_stay') durationMode = 'open_ended';
   if (stayTypeRaw === 'fixed_date_stay') durationMode = 'fixed_stay';
   if (durationMode === 'daily' || durationMode === 'weekly') durationMode = 'fixed_stay';
-  const fullName = getString(formData, 'fullName');
-  const email = getString(formData, 'email');
-  const phone = getString(formData, 'phone');
-  const genderRaw = getString(formData, 'gender');
-  const gender =
-    VALID_GENDERS.has(genderRaw) ? (genderRaw as 'male' | 'female' | 'other') : customer.gender;
   const notes = getString(formData, 'notes');
   const ps4PlanRaw = getString(formData, 'ps4Plan');
   const couponCode = getString(formData, 'couponCode');
@@ -125,13 +133,15 @@ export async function createBookingAction(
   }
 
   try {
-    const quote = await quoteBookingPrice({
-      bedIds,
-      startDate: funnelDates.start,
-      endDate: funnelDates.end,
-      durationMode,
-      includeDeposit: true,
-    });
+    const quote = await withBookingActionTimeout(
+      quoteBookingPrice({
+        bedIds,
+        startDate: funnelDates.start,
+        endDate: funnelDates.end,
+        durationMode,
+        includeDeposit: true,
+      }),
+    );
     if (durationMode === 'fixed_stay') {
       const quoteNights = quote.perBed[0]?.nights ?? null;
       if (quoteNights !== funnelDates.stayNights) {
@@ -142,49 +152,53 @@ export async function createBookingAction(
       }
     }
   } catch (err) {
-    return {
-      status: 'error',
-      message: err instanceof Error ? err.message : 'Could not verify pricing for these dates.',
-    };
+    const message =
+      err instanceof Error ? err.message : 'Could not verify pricing for these dates.';
+    logger.warn('[booking-flow] CREATE_BOOKING failure', { reason: 'quote', message });
+    return { status: 'error', message };
   }
 
-  if (!fullName || fullName.length < 2) {
-    return { status: 'error', message: 'Enter your full name.' };
-  }
-  if (!EMAIL_RE.test(email)) {
-    return { status: 'error', message: 'Enter a valid email address.' };
-  }
-  const normalisedPhone = normaliseIndianPhone(phone);
-  if (!normalisedPhone || !indianPhonesEqual(normalisedPhone, session.phone)) {
-    return {
-      status: 'error',
-      message: 'Mobile number must match your signed-in account.',
-    };
-  }
-  if (!VALID_GENDERS.has(gender)) {
-    return {
-      status: 'error',
-      message: 'Complete your profile gender in account settings before booking.',
-    };
-  }
+  const fullName = customer.fullName.trim();
+  const email = customer.email;
+  const phone = customer.phone;
+  const gender = customer.gender;
 
-  const result = await createBooking({
-    bedIds,
-    startDate: funnelDates.start,
-    endDate: funnelDates.end,
-    durationMode,
-    customerId: session.customerId,
-    customer: {
-      fullName,
-      email,
-      phone: normalisedPhone,
-      gender: gender as 'male' | 'female' | 'other',
-    },
-    notes: notes || undefined,
-    couponCode: couponCode || undefined,
-  });
+  let result;
+  try {
+    result = await withBookingActionTimeout(
+      createBooking({
+        bedIds,
+        startDate: funnelDates.start,
+        endDate: funnelDates.end,
+        durationMode,
+        customerId: session.customerId,
+        customer: {
+          fullName,
+          email,
+          phone,
+          gender,
+        },
+        notes: notes || undefined,
+        couponCode: couponCode || undefined,
+      }),
+    );
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : 'Something went wrong creating your booking.';
+    logger.error('[booking-flow] CREATE_BOOKING failure', {
+      reason: 'timeout_or_throw',
+      message,
+      elapsedMs: Date.now() - startedAt,
+    });
+    return { status: 'error', message };
+  }
 
   if (!result.ok) {
+    logger.warn('[booking-flow] CREATE_BOOKING failure', {
+      reason: result.kind,
+      message: result.message,
+      elapsedMs: Date.now() - startedAt,
+    });
     return {
       status: 'error',
       message: result.message,
@@ -217,18 +231,23 @@ export async function createBookingAction(
     }
   }
 
-  // Bust the admin dashboard cache so the new reservation shows up there.
   revalidatePath('/admin');
   revalidatePath('/admin/bookings');
   revalidatePath('/admin/residents');
 
-  // Phase 4: customer-initiated bookings come back as `pending_payment` with
-  // a `hold` reservation. Send them to the pay page; on payment success the
-  // webhook flips state and the pay page itself redirects to /booking/[code].
-  // Admin-initiated bookings (status='confirmed') skip straight to the
-  // confirmation page since money is handled out-of-band.
-  if (result.status === 'pending_payment') {
-    return { status: 'success', redirectTo: `/booking/${result.bookingCode}/pay` };
-  }
-  return { status: 'success', redirectTo: `/booking/${result.bookingCode}` };
+  const nextRoute = nextRouteForBooking(result.status, result.bookingCode);
+  logger.info('[booking-flow] CREATE_BOOKING success', {
+    bookingId: result.bookingId,
+    bookingCode: result.bookingCode,
+    nextRoute,
+    elapsedMs: Date.now() - startedAt,
+  });
+
+  return {
+    status: 'success',
+    bookingId: result.bookingId,
+    bookingCode: result.bookingCode,
+    nextRoute,
+    redirectTo: nextRoute,
+  };
 }
