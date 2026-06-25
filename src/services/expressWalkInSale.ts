@@ -22,6 +22,7 @@ import { syncDepositCollectionFromLedger } from '@/src/services/depositCollectio
 import { recordExpressCollection } from '@/src/services/expressCollection';
 import { clearBedInterest } from '@/src/services/bedNoticeInterest';
 import { isBedAvailable } from '@/src/services/availability';
+import { validateResidentGenderForBed } from '@/src/services/pgGenderPolicy';
 import { reconcileOrphanBedReservations } from '@/src/lib/occupancySync';
 import { rollbackExpressWalkInSale } from '@/src/services/expressWalkInRollback';
 
@@ -180,6 +181,11 @@ export async function executeExpressWalkInSale(
   );
   if (!available) {
     return { ok: false, error: 'Selected bed is not available for these dates.' };
+  }
+
+  const genderCheck = await validateResidentGenderForBed(input.bedId, input.gender);
+  if (!genderCheck.ok) {
+    return { ok: false, error: genderCheck.error };
   }
 
   const walletCreditRequested = Math.max(0, input.walletCreditPaise ?? 0);

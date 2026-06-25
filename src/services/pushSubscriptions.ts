@@ -69,3 +69,38 @@ export async function removeAllPushSubscriptionsForUser(
     .delete(pushSubscriptions)
     .where(and(eq(pushSubscriptions.audience, audience), eq(pushSubscriptions.userId, userId)));
 }
+
+export async function listPushSubscriptionsForUser(
+  audience: NotificationAudience,
+  userId: string,
+) {
+  return db
+    .select({
+      id: pushSubscriptions.id,
+      endpoint: pushSubscriptions.endpoint,
+      deviceName: pushSubscriptions.deviceName,
+      platform: pushSubscriptions.platform,
+      lastSeen: pushSubscriptions.lastSeen,
+      createdAt: pushSubscriptions.createdAt,
+    })
+    .from(pushSubscriptions)
+    .where(and(eq(pushSubscriptions.audience, audience), eq(pushSubscriptions.userId, userId)));
+}
+
+export async function countPushSubscriptionsForUser(
+  audience: NotificationAudience,
+  userId: string,
+): Promise<number> {
+  const rows = await listPushSubscriptionsForUser(audience, userId);
+  return rows.length;
+}
+
+export async function getDeliverablePushSubscriptions(
+  audience: NotificationAudience,
+  userId: string,
+) {
+  return db
+    .select()
+    .from(pushSubscriptions)
+    .where(and(eq(pushSubscriptions.audience, audience), eq(pushSubscriptions.userId, userId)));
+}

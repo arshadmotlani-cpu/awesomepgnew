@@ -445,7 +445,7 @@ export const ADMIN_GUIDE: GuideCatalog = {
         'View same bed on customer site vs admin bed map.',
         'Bed maintenance/blocked/manual occupied prevents booking.',
         'Active hold from another pending_payment booking blocks until expiry (~15 min).',
-        'Gender policy on PG must match customer selection if enforced.',
+        'Gender policy on PG is informational for bookings; enforce only when assigning a resident to a bed.',
         'Notice/pre-book beds require future start date matching vacating date.',
       ],
     },

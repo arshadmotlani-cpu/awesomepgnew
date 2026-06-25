@@ -38,8 +38,8 @@ self.addEventListener('push', (event) => {
       if (silent) return;
       await self.registration.showNotification(data.title || 'Awesome PG', {
         body: data.body || '',
-        icon: '/roachie-premium.png',
-        badge: '/roachie-premium.png',
+        icon: '/icons/apg-admin-192.png',
+        badge: '/icons/apg-admin-192.png',
         tag: data.dedupeKey || data.notificationId || 'apg-notification',
         renotify: true,
         data: {

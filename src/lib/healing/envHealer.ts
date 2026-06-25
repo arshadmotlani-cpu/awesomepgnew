@@ -1,5 +1,6 @@
 import { hasDatabaseUrl } from '@/src/lib/db/env';
 import { getIntegrationsHealthSummary } from '@/src/lib/integrations/status';
+import { isPushConfigured } from '@/src/lib/push/webPush';
 import { isBlobPrivateConfigured } from '@/src/lib/storage/blob';
 import { logger } from '@/src/lib/logger';
 import { patchSystemState } from '@/src/lib/healing/systemState';
@@ -103,6 +104,7 @@ export function getEnvHealthSummary() {
     blobPrivateConfigured: integrations.blob.privateConfigured,
     blobPublicConfigured: integrations.blob.publicConfigured,
     kycUploadsAvailable: integrations.kyc.uploadsAvailable,
+    pushConfigured: isPushConfigured(),
     integrations,
   };
 }

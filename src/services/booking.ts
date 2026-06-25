@@ -140,7 +140,6 @@ export type CreateBookingFailure = {
     | 'validation'
     | 'conflict'
     | 'unavailable_bed'
-    | 'gender_policy'
     | 'unknown';
   message: string;
   conflictBedIds?: string[];
@@ -434,38 +433,7 @@ export async function createBooking(
     }
   }
 
-  // 3. Gender policy: every selected bed must belong to a PG whose
-  //    `gender_policy` accepts the customer's gender. `coed` accepts all.
-  const policyRows = await db
-    .select({ pgId: pgs.id, genderPolicy: pgs.genderPolicy })
-    .from(pgs)
-    .where(
-      sql`${pgs.id} IN (
-        SELECT f.pg_id FROM floors f
-        JOIN rooms r ON r.floor_id = f.id
-        JOIN beds b ON b.room_id = r.id
-        WHERE b.id = ANY(${sql.raw(`'{${uniqueBedIds.join(',')}}'::uuid[]`)})
-      )`,
-    );
-  for (const row of policyRows) {
-    if (row.genderPolicy === 'coed') continue;
-    if (input.customer.gender === 'other') {
-      return {
-        ok: false,
-        kind: 'gender_policy',
-        message: `One of the selected PGs is restricted to ${row.genderPolicy} residents.`,
-      };
-    }
-    if (row.genderPolicy !== input.customer.gender) {
-      return {
-        ok: false,
-        kind: 'gender_policy',
-        message: `One of the selected PGs is restricted to ${row.genderPolicy} residents.`,
-      };
-    }
-  }
-
-  // 4. Compute the price quote (one round-trip per bed inside the pricing
+  // 3. Compute the price quote (one round-trip per bed inside the pricing
   //    service — small N, fine for Phase 3).
   let quote: BookingQuote;
   try {

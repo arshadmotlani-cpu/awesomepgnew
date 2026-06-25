@@ -17,11 +17,15 @@ export const metadata: Metadata = {
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
-    title: 'APG Admin',
+    title: 'Awesome PG',
     statusBarStyle: 'black-translucent',
   },
   icons: {
-    apple: '/roachie-premium.png',
+    icon: [
+      { url: '/icons/apg-favicon-32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/icons/apg-admin-192.png', sizes: '192x192', type: 'image/png' },
+    ],
+    apple: '/icons/apg-apple-touch.png',
   },
 };
 

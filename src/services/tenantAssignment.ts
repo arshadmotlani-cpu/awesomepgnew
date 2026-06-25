@@ -11,6 +11,7 @@ import { createBooking } from '@/src/services/booking';
 import { clearBedAdminMarks } from '@/src/services/bookingAdminOps';
 import { reconcileOrphanBedReservations } from '@/src/lib/occupancySync';
 import { isBedAvailable } from '@/src/services/availability';
+import { validateResidentGenderForBed } from '@/src/services/pgGenderPolicy';
 
 const LONG_TERM_RESERVATION_END = '2099-01-01';
 
@@ -64,6 +65,11 @@ export async function assignTenantToBed(
   });
   if (!available) {
     return { ok: false, error: 'That bed is already booked for the selected dates.' };
+  }
+
+  const genderCheck = await validateResidentGenderForBed(input.bedId, input.gender);
+  if (!genderCheck.ok) {
+    return { ok: false, error: genderCheck.error };
   }
 
   if (input.customerId) {

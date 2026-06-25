@@ -1,33 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-
-function detectPlatform(): string {
-  if (typeof navigator === 'undefined') return 'unknown';
-  const ua = navigator.userAgent;
-  if (/iPhone|iPad|iPod/i.test(ua)) return 'ios';
-  if (/Android/i.test(ua)) return 'android';
-  if (/Mac/i.test(ua)) return 'macos';
-  if (/Win/i.test(ua)) return 'windows';
-  return 'desktop';
-}
-
-function detectDeviceName(): string {
-  if (typeof navigator === 'undefined') return 'Unknown device';
-  const platform = detectPlatform();
-  if (platform === 'ios') return 'iPhone / iPad';
-  if (platform === 'android') return 'Android';
-  return navigator.userAgent.includes('Mobile') ? 'Mobile browser' : 'Desktop browser';
-}
-
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const raw = window.atob(base64);
-  const arr = new Uint8Array(raw.length);
-  for (let i = 0; i < raw.length; ++i) arr[i] = raw.charCodeAt(i);
-  return arr;
-}
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  runAdminPushRegistration,
+  registerAdminServiceWorker,
+  emptyPushDiagnostics,
+  fetchVapidPublicKey,
+} from '@/src/lib/push/clientRegistration';
 
 async function updateBadge(unreadCount: number) {
   if (!('setAppBadge' in navigator)) return;
@@ -39,14 +18,77 @@ async function updateBadge(unreadCount: number) {
   }
 }
 
+type PushStatus =
+  | 'idle'
+  | 'unsupported'
+  | 'denied'
+  | 'awaiting_permission'
+  | 'vapid_missing'
+  | 'active'
+  | 'error';
+
 /**
- * Registers admin PWA service worker + Web Push subscription when permitted.
+ * Registers admin PWA service worker + Web Push subscription.
+ * Permission is requested only after an explicit user tap (required on mobile).
  */
 export function AdminPushRegistration() {
-  const [status, setStatus] = useState<'idle' | 'unsupported' | 'denied' | 'active' | 'error'>(
-    'idle',
-  );
+  const [status, setStatus] = useState<PushStatus>('idle');
+  const [errorDetail, setErrorDetail] = useState<string | null>(null);
+  const [registering, setRegistering] = useState(false);
   const registeringRef = useRef(false);
+
+  const syncBadge = useCallback(async () => {
+    const res = await fetch('/api/admin/live', { cache: 'no-store' });
+    if (!res.ok) return;
+    const json = (await res.json()) as { unreadCount?: number };
+    if (typeof json.unreadCount === 'number') {
+      await updateBadge(json.unreadCount);
+    }
+  }, []);
+
+  const completeRegistration = useCallback(
+    async (requestPermission: boolean) => {
+      if (registeringRef.current) return;
+      registeringRef.current = true;
+      setRegistering(true);
+      setErrorDetail(null);
+      try {
+        const result = await runAdminPushRegistration({ requestPermission });
+        if (result.lastStep === 'complete') {
+          await syncBadge();
+          setStatus('active');
+          return;
+        }
+        if (!result.serviceWorkerSupported || !result.pushManagerSupported) {
+          setStatus('unsupported');
+          setErrorDetail(result.lastError);
+          return;
+        }
+        if (result.notificationPermission === 'denied') {
+          setStatus('denied');
+          return;
+        }
+        if (!result.vapidKeyLoaded) {
+          setStatus('vapid_missing');
+          setErrorDetail(result.vapidKeyError);
+          return;
+        }
+        if (result.lastStep === 'awaiting_user_permission') {
+          setStatus('awaiting_permission');
+          return;
+        }
+        setStatus('error');
+        setErrorDetail(result.lastError ?? result.lastStep);
+      } catch (err) {
+        setStatus('error');
+        setErrorDetail(err instanceof Error ? err.message : String(err));
+      } finally {
+        registeringRef.current = false;
+        setRegistering(false);
+      }
+    },
+    [syncBadge],
+  );
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -55,83 +97,40 @@ export function AdminPushRegistration() {
       return;
     }
 
-    async function syncBadge() {
-      const res = await fetch('/api/admin/live', { cache: 'no-store' });
-      if (!res.ok) return;
-      const json = (await res.json()) as { unreadCount?: number };
-      if (typeof json.unreadCount === 'number') {
-        await updateBadge(json.unreadCount);
-      }
-    }
+    async function bootstrap() {
+      const diag = emptyPushDiagnostics();
+      diag.serviceWorkerSupported = true;
+      diag.pushManagerSupported = true;
+      diag.notificationSupported = 'Notification' in window;
+      diag.notificationPermission = diag.notificationSupported
+        ? Notification.permission
+        : 'unsupported';
 
-    async function subscribe(reg: ServiceWorkerRegistration, publicKey: string) {
-      const existing = await reg.pushManager.getSubscription();
-      const sub =
-        existing ??
-        (await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
-        }));
+      await registerAdminServiceWorker(diag);
 
-      const json = sub.toJSON();
-      if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) {
-        throw new Error('Invalid push subscription');
+      const vapid = await fetchVapidPublicKey();
+      if (!vapid.ok) {
+        setStatus('vapid_missing');
+        setErrorDetail(vapid.error ?? 'VAPID not configured');
+        return;
       }
 
-      await fetch('/api/push/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          endpoint: json.endpoint,
-          keys: { p256dh: json.keys.p256dh, auth: json.keys.auth },
-          deviceName: detectDeviceName(),
-          platform: detectPlatform(),
-        }),
-      });
-    }
-
-    async function register() {
-      if (registeringRef.current) return;
-      registeringRef.current = true;
-      try {
-        const keyRes = await fetch('/api/push/vapid-public-key');
-        const keyJson = (await keyRes.json()) as { ok?: boolean; publicKey?: string };
-        if (!keyJson.ok || !keyJson.publicKey) {
-          setStatus('unsupported');
-          return;
-        }
-
-        const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
-        await navigator.serviceWorker.ready;
-
-        if (Notification.permission === 'denied') {
-          setStatus('denied');
-          return;
-        }
-
-        if (Notification.permission === 'default') {
-          const perm = await Notification.requestPermission();
-          if (perm !== 'granted') {
-            setStatus(perm === 'denied' ? 'denied' : 'idle');
-            return;
-          }
-        }
-
-        await subscribe(reg, keyJson.publicKey);
-        await syncBadge();
-        setStatus('active');
-      } catch {
-        setStatus('error');
-      } finally {
-        registeringRef.current = false;
+      if (Notification.permission === 'granted') {
+        await completeRegistration(false);
+        return;
       }
+      if (Notification.permission === 'denied') {
+        setStatus('denied');
+        return;
+      }
+      setStatus('awaiting_permission');
     }
 
-    void register();
+    void bootstrap();
 
     const onMessage = (event: MessageEvent) => {
       if (event.data?.type === 'PUSH_SUBSCRIPTION_EXPIRED') {
-        void register();
+        void completeRegistration(Notification.permission === 'default');
       }
     };
     navigator.serviceWorker.addEventListener('message', onMessage);
@@ -148,13 +147,59 @@ export function AdminPushRegistration() {
       navigator.serviceWorker.removeEventListener('message', onMessage);
       window.removeEventListener('admin-badges-updated', onBadgeUpdate);
     };
-  }, []);
+  }, [completeRegistration]);
+
+  if (status === 'active' || status === 'unsupported') {
+    return null;
+  }
 
   if (status === 'denied') {
     return (
       <p className="sr-only">
         Push notifications blocked — enable in browser settings to get alerts on this device.
       </p>
+    );
+  }
+
+  if (status === 'vapid_missing') {
+    return (
+      <div
+        role="status"
+        className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-3 right-3 z-50 mx-auto max-w-lg rounded-xl border border-amber-500/40 bg-[#1A1F27] p-4 shadow-lg sm:left-auto sm:right-6"
+      >
+        <p className="text-sm font-medium text-white">Push alerts unavailable</p>
+        <p className="mt-1 text-xs text-apg-silver">
+          Server VAPID keys are not configured. Ask your admin to set VAPID_PUBLIC_KEY and
+          VAPID_PRIVATE_KEY in production.
+          {errorDetail ? ` (${errorDetail})` : ''}
+        </p>
+      </div>
+    );
+  }
+
+  if (status === 'awaiting_permission' || status === 'error' || status === 'idle') {
+    return (
+      <div
+        role="dialog"
+        aria-label="Enable push notifications"
+        className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-3 right-3 z-50 mx-auto max-w-lg rounded-xl border border-[#FF5A1F]/40 bg-[#1A1F27] p-4 shadow-lg sm:left-auto sm:right-6"
+      >
+        <p className="text-sm font-medium text-white">Enable push notifications</p>
+        <p className="mt-1 text-xs text-apg-silver">
+          Get instant alerts for bookings, payments, and resident updates on this device.
+        </p>
+        {errorDetail ? <p className="mt-2 text-xs text-rose-300">{errorDetail}</p> : null}
+        <div className="mt-3 flex gap-2">
+          <button
+            type="button"
+            disabled={registering}
+            onClick={() => void completeRegistration(true)}
+            className="rounded-lg bg-[#FF5A1F] px-4 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50"
+          >
+            {registering ? 'Enabling…' : 'Enable notifications'}
+          </button>
+        </div>
+      </div>
     );
   }
 
