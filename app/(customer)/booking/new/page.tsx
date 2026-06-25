@@ -1,25 +1,20 @@
 import Link from 'next/link';
-import {
-  BookingCartForm,
-  type CartLineItem,
-} from '@/src/components/customer/BookingCartForm';
 import { BookingFunnelShell } from '@/src/components/customer/checkout/BookingFunnelShell';
-import { BookingInlineAuth } from '@/src/components/customer/checkout/BookingInlineAuth';
-import { SimpleStayRules } from '@/src/components/customer/simple/SimpleStayRules';
+import { BookingReviewFlow } from '@/src/components/customer/checkout/BookingReviewFlow';
+import type { BookingReviewData } from '@/src/components/customer/checkout/BookingReviewCard';
 import { getBedsForCart } from '@/src/db/queries/customer';
 import { normalizeBrowseStay } from '@/src/lib/dateDefaults';
-import { todayString } from '@/src/lib/dates';
 import {
   bookingFunnelDatesFromParams,
   validateBookingFunnelDates,
 } from '@/src/lib/booking/bookingFunnelDates';
-import { quoteToBookingDraftPricing, bookingDraftToSummaryData } from '@/src/lib/booking/bookingDraft';
 import { computeNewBookingCheckoutTotals } from '@/src/lib/billing/bookingCheckoutTotals';
 import { quoteBookingPrice } from '@/src/services/pricing';
 import { getCustomerPriorOutstandingForCheckout } from '@/src/services/bookingPriorOutstanding';
 import { getCustomerSession } from '@/src/lib/auth/session';
+import { stayTypeLabel } from '@/src/lib/stayType';
 
-export const metadata = { title: 'Booking summary' };
+export const metadata = { title: 'Booking review' };
 
 export const dynamic = 'force-dynamic';
 
@@ -99,76 +94,52 @@ export default async function NewBookingPage(props: PageProps<'/booking/new'>) {
 
   let subtotalPaise = 0;
   let depositPaise = 0;
-  let depositCreditAppliedPaise = 0;
-  let additionalDepositDuePaise = 0;
-  let totalPaise = 0;
+  let totalDuePaise = 0;
   let quoteError: string | null = null;
-  let breakdownLineItems: import('@/src/services/pricing').LineItem[] = [];
-  let checkoutTotals: ReturnType<typeof computeNewBookingCheckoutTotals> | null = null;
-  let lineItems: CartLineItem[] = [];
-  let priorOutstanding = {
-    totalPaise: 0,
-    items: [] as import('@/src/lib/billing/bookingCheckoutTotals').PriorOutstandingItem[],
-  };
 
-  if (session) {
-    try {
-      const quote = await quoteBookingPrice({
-        bedIds,
-        startDate: start,
-        endDate: mode === 'open_ended' ? null : end,
-        durationMode: mode,
-        includeDeposit: true,
-      });
-      subtotalPaise = quote.subtotalPaise;
-      depositPaise = quote.depositPaise;
-      additionalDepositDuePaise = depositPaise;
+  try {
+    const quote = await quoteBookingPrice({
+      bedIds,
+      startDate: start,
+      endDate: mode === 'open_ended' ? null : end,
+      durationMode: mode,
+      includeDeposit: true,
+    });
+    subtotalPaise = quote.subtotalPaise;
+    depositPaise = quote.depositPaise;
+
+    let priorOutstanding = {
+      totalPaise: 0,
+      items: [] as import('@/src/lib/billing/bookingCheckoutTotals').PriorOutstandingItem[],
+    };
+    if (session) {
       priorOutstanding = await getCustomerPriorOutstandingForCheckout(session.customerId);
-      checkoutTotals = computeNewBookingCheckoutTotals({
-        rentSubtotalPaise: subtotalPaise,
-        depositRequiredPaise: depositPaise,
-        priorOutstanding,
-      });
-      totalPaise = checkoutTotals.totalToCollectTodayPaise;
-      breakdownLineItems = quote.perBed.flatMap((q) =>
-        q.lineItems.filter((li) => li.kind !== 'deposit'),
-      );
-      lineItems = quote.perBed.map((q) => {
-        const bedMeta = cartBeds.find((c) => c.bedId === q.bedId);
-        const bedLabel = bedMeta ? `Your room at ${pg.pgName}` : 'Your room';
-        return {
-          bedId: q.bedId,
-          label: bedLabel,
-          lineTotalPaise: q.subtotalPaise,
-          unitsLabel: 'your stay',
-        };
-      });
-    } catch (err) {
-      quoteError = err instanceof Error ? err.message : String(err);
     }
+
+    const checkoutTotals = computeNewBookingCheckoutTotals({
+      rentSubtotalPaise: subtotalPaise,
+      depositRequiredPaise: depositPaise,
+      priorOutstanding,
+    });
+    totalDuePaise = checkoutTotals.totalToCollectTodayPaise;
+    depositPaise = checkoutTotals.depositDueNowPaise;
+  } catch (err) {
+    quoteError = err instanceof Error ? err.message : String(err);
   }
 
-  const checkoutTiming = start > todayString() ? 'future_start' : 'available_now';
-
-  const summary = bookingDraftToSummaryData({
-    pgSlug: pg.pgSlug,
+  const review: BookingReviewData = {
     pgName: pg.pgName,
-    roomId: primaryBed.roomId,
     roomNumber: primaryBed.roomNumber,
-    bedId: primaryBed.bedId,
     bedCode: primaryBed.bedCode,
-    stayType,
+    stayTypeLabel: stayTypeLabel(stayType),
+    isMonthly: stayType === 'monthly_stay',
     checkIn: funnelDates.start,
     checkOut: funnelDates.end,
-    stayNights: funnelDates.stayNights ?? undefined,
-    pricing: checkoutTotals
-      ? quoteToBookingDraftPricing({
-          subtotalPaise,
-          depositPaise,
-          priorOutstanding,
-        })
-      : null,
-  });
+    stayNights: funnelDates.stayNights,
+    rentPaise: subtotalPaise,
+    depositPaise,
+    totalDuePaise,
+  };
 
   return (
     <main className="w-full px-4 py-6 sm:px-6 lg:py-8">
@@ -178,58 +149,31 @@ export default async function NewBookingPage(props: PageProps<'/booking/new'>) {
         </Link>
       </nav>
 
-      <BookingFunnelShell activeStep="preview" initialSummary={summary}>
-        <div>
-          <h1 className="text-2xl font-bold text-white">Booking summary</h1>
-          <p className="mt-2 text-base text-apg-silver">
-            Review your stay and total — then continue to payment.
-          </p>
-
-          <div className="mt-5">
-            <SimpleStayRules />
+      <BookingFunnelShell activeStep="preview" showSummary={false}>
+        {quoteError ? (
+          <div className="mx-auto max-w-xl rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+            {quoteError}
           </div>
-
-          {!session ? (
-            <div className="mt-5">
-              <BookingInlineAuth />
-            </div>
-          ) : null}
-
-          {quoteError ? (
-            <div className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
-              {quoteError}
-            </div>
-          ) : session ? (
-            <div className="mt-6 rounded-2xl border border-white/10 apg-glass-light p-4">
-              <BookingCartForm
-                bedIds={bedIds}
-                startDate={funnelDates.start}
-                endDate={funnelDates.end}
-                stayType={stayType}
-                durationMode={mode}
-                lineItems={lineItems}
-                subtotalPaise={subtotalPaise}
-                depositPaise={depositPaise}
-                depositCreditAppliedPaise={depositCreditAppliedPaise}
-                additionalDepositDuePaise={additionalDepositDuePaise}
-                totalPaise={totalPaise}
-                defaultCustomer={{
-                  fullName: session.fullName,
-                  email: session.email,
-                  phone: session.phone,
-                }}
-                showPs4Addon={false}
-                checkoutTiming={checkoutTiming}
-                breakdownLineItems={breakdownLineItems}
-                simpleCheckout
-              />
-            </div>
-          ) : (
-            <p className="mt-5 text-sm text-apg-silver">
-              Sign in above to see your total and continue to payment.
-            </p>
-          )}
-        </div>
+        ) : (
+          <BookingReviewFlow
+            isLoggedIn={Boolean(session)}
+            review={review}
+            bedIds={bedIds}
+            startDate={funnelDates.start}
+            endDate={funnelDates.end}
+            stayType={stayType}
+            durationMode={mode}
+            defaultCustomer={
+              session
+                ? {
+                    fullName: session.fullName,
+                    email: session.email,
+                    phone: session.phone,
+                  }
+                : undefined
+            }
+          />
+        )}
       </BookingFunnelShell>
     </main>
   );

@@ -6,11 +6,6 @@ import { trackClientEvent } from '@/src/lib/analytics/client';
 import { addDays, diffDays, formatDate, parseDate, todayString } from '@/src/lib/dates';
 import { defaultCheckOutDate } from '@/src/lib/dateDefaults';
 import { formatDate as formatDisplayDate } from '@/src/lib/format';
-import {
-  quoteToBookingDraftPricing,
-  bookingDraftToSummaryData,
-  type BookingDraftStatus,
-} from '@/src/lib/booking/bookingDraft';
 import { checkoutCapMessage } from '@/src/lib/bedAvailabilityWindows';
 import {
   isCheckInAvailableForReservations,
@@ -60,12 +55,6 @@ type Props = {
 };
 
 type WizardStep = 'stayType' | 'dates';
-
-type ServerBookingQuote = {
-  subtotalPaise: number;
-  depositPaise: number;
-  totalPaise: number;
-};
 
 function validateDatesForNavigation(input: {
   isMonthly: boolean;
@@ -123,8 +112,24 @@ function validateDatesForNavigation(input: {
   return null;
 }
 
+function buildReviewUrl(input: {
+  beds: BedSelectorBed[];
+  start: string;
+  checkout: string;
+  stayType: StayType;
+  mode: ReturnType<typeof pricingModeFromStayType>;
+}): string {
+  const params = new URLSearchParams();
+  params.set('start', input.start);
+  params.set('end', input.checkout);
+  params.set('stayType', input.stayType);
+  params.set('mode', input.mode);
+  for (const bed of input.beds) params.append('bed', bed.bedId);
+  return `/booking/new?${params.toString()}`;
+}
+
 /**
- * Book flow: stay type → dates → booking summary (no review popup, no Continue buttons).
+ * Book flow: stay type → dates → instant navigation to booking review (no pricing in modal).
  */
 export function BedBookingPanel({
   beds,
@@ -146,36 +151,19 @@ export function BedBookingPanel({
   const [stayType, setStayType] = useState<StayType>(
     shortStayOnly ? 'fixed_date_stay' : 'monthly_stay',
   );
-  const [draftStatus, setDraftStatus] = useState<BookingDraftStatus>(
-    shortStayOnly ? 'selecting_dates' : 'empty',
-  );
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [timelines, setTimelines] = useState<BedTimelineResponse[]>([]);
   const [minCheckIn, setMinCheckIn] = useState(today);
-
-  const [start, setStart] = useState<string | null>(null);
-  const [end, setEnd] = useState<string | null>(null);
+  const [selectedCheckIn, setSelectedCheckIn] = useState<string | null>(null);
   const [flowError, setFlowError] = useState<string | null>(null);
-  const [serverQuote, setServerQuote] = useState<ServerBookingQuote | null>(null);
-  const [quoteLoading, setQuoteLoading] = useState(false);
-  const [quoteError, setQuoteError] = useState<string | null>(null);
 
   const isMonthly = stayType === 'monthly_stay';
   const mode = pricingModeFromStayType(stayType);
-  const fixedNights =
-    !isMonthly && start && end && end > start
-      ? diffDays(parseDate(start), parseDate(end))
-      : 0;
 
   const resetDateFlow = useCallback(() => {
-    setStart(null);
-    setEnd(null);
     setFlowError(null);
-    setQuoteError(null);
-    setServerQuote(null);
-    setQuoteLoading(false);
-    setDraftStatus('selecting_dates');
+    setSelectedCheckIn(null);
     navigateOnceRef.current = false;
   }, []);
 
@@ -221,6 +209,12 @@ export function BedBookingPanel({
     void loadTimelines();
   }, [loadTimelines]);
 
+  useEffect(() => {
+    if (step === 'dates') {
+      router.prefetch('/booking/new');
+    }
+  }, [step, router]);
+
   const reservationsByBed = useMemo(
     () => timelines.map((t) => t.futureReservations),
     [timelines],
@@ -229,8 +223,8 @@ export function BedBookingPanel({
   const horizonEnd = timelines[0]?.windowEnd ?? formatDate(addDays(parseDate(today), 365));
 
   const maxCheckout = useMemo(() => {
-    if (!start) return null;
-    const cap = maxCheckoutForAllBeds(start, reservationsByBed, horizonEnd);
+    const checkInAnchor = selectedCheckIn ?? minCheckIn;
+    const cap = maxCheckoutForAllBeds(checkInAnchor, reservationsByBed, horizonEnd);
     const bookingWindowEnd = formatDate(addDays(parseDate(today), FIXED_DATE_MAX_NIGHTS));
     let effectiveCap = cap;
     if (!isMonthly) {
@@ -243,153 +237,62 @@ export function BedBookingPanel({
       return effectiveCap < reserveLastStay ? effectiveCap : reserveLastStay;
     }
     return effectiveCap;
-  }, [start, reservationsByBed, horizonEnd, shortStayOnly, reserveLastStay, isMonthly, today]);
-
-  const availabilityEnd = useMemo(
-    () => (start ? defaultCheckOutDate(start) : null),
-    [start],
-  );
+  }, [selectedCheckIn, minCheckIn, reservationsByBed, horizonEnd, shortStayOnly, reserveLastStay, isMonthly, today]);
 
   const combinedReservations = useMemo(
     () => timelines.flatMap((t) => t.futureReservations),
     [timelines],
   );
 
-  const canFetchQuote =
-    draftStatus === 'quoting' &&
-    beds.length > 0 &&
-    !loading &&
-    !fetchError &&
-    Boolean(start) &&
-    (isMonthly || (end != null && fixedNights > 0));
-
-  useEffect(() => {
-    if (!canFetchQuote || !start) {
-      return;
-    }
-
-    let cancelled = false;
-    setQuoteLoading(true);
-    setQuoteError(null);
-    setServerQuote(null);
-
-    void fetch('/api/booking/quote', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        bedIds: beds.map((b) => b.bedId),
-        startDate: start,
-        endDate: isMonthly ? null : end,
-        stayType,
-      }),
-    })
-      .then(async (res) => res.json())
-      .then((data: { ok?: boolean; quote?: ServerBookingQuote; error?: string }) => {
-        if (cancelled) return;
-        if (!data.ok || !data.quote) {
-          setServerQuote(null);
-          setQuoteError(data.error ?? 'Could not load price.');
-          setDraftStatus('error');
-          return;
-        }
-        setServerQuote(data.quote);
-        setDraftStatus('ready');
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setServerQuote(null);
-          setQuoteError('Could not load price.');
-          setDraftStatus('error');
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setQuoteLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [canFetchQuote, beds, start, end, isMonthly, stayType]);
-
-  const draftPricing = useMemo(() => {
-    if (!serverQuote || draftStatus !== 'ready') return null;
-    return quoteToBookingDraftPricing({
-      subtotalPaise: serverQuote.subtotalPaise,
-      depositPaise: serverQuote.depositPaise,
-    });
-  }, [serverQuote, draftStatus]);
-
   useEffect(() => {
     if (!funnel) return;
     funnel.setActiveStep(step === 'stayType' ? 'bed' : 'preview');
-    const bed = beds[0];
-    if (!bed) return;
+  }, [funnel, step]);
 
-    const showPricing = draftStatus === 'ready' || draftStatus === 'navigating';
-    funnel.patchSummary(
-      bookingDraftToSummaryData({
-        bedId: bed.bedId,
-        bedCode: bed.bedCode,
-        stayType,
-        checkIn: showPricing ? (start ?? undefined) : undefined,
-        checkOut: showPricing && !isMonthly ? end : null,
-        stayNights: showPricing && !isMonthly && fixedNights > 0 ? fixedNights : undefined,
-        pricing: showPricing ? draftPricing : null,
-      }),
-    );
-  }, [funnel, beds, stayType, start, end, isMonthly, fixedNights, draftPricing, draftStatus, step]);
+  const navigateToReview = useCallback(
+    (checkIn: string, checkOut: string | null) => {
+      if (navigateOnceRef.current) return;
 
-  useEffect(() => {
-    if (draftStatus !== 'ready' || !serverQuote || !start || navigateOnceRef.current) return;
+      const checkout = isMonthly ? defaultCheckOutDate(checkIn) : checkOut;
+      if (!checkout) return;
 
-    const validationMessage = validateDatesForNavigation({
+      const validationMessage = validateDatesForNavigation({
+        isMonthly,
+        start: checkIn,
+        end: checkOut,
+        today,
+        timelines,
+        reservationsByBed,
+        maxCheckout,
+        availabilityEnd: checkout,
+      });
+
+      if (validationMessage) {
+        setFlowError(validationMessage);
+        navigateOnceRef.current = false;
+        return;
+      }
+
+      navigateOnceRef.current = true;
+      const url = buildReviewUrl({ beds, start: checkIn, checkout, stayType, mode });
+      void trackClientEvent('bed_selected', { bedCount: beds.length, stayType });
+      router.prefetch(url);
+      onClose();
+      router.push(url);
+    },
+    [
       isMonthly,
-      start,
-      end,
       today,
       timelines,
       reservationsByBed,
       maxCheckout,
-      availabilityEnd: availabilityEnd ?? defaultCheckOutDate(start),
-    });
-
-    if (validationMessage) {
-      setFlowError(validationMessage);
-      setDraftStatus('error');
-      return;
-    }
-
-    navigateOnceRef.current = true;
-    setDraftStatus('navigating');
-
-    const checkout = isMonthly ? availabilityEnd ?? defaultCheckOutDate(start) : end!;
-    const params = new URLSearchParams();
-    params.set('start', start);
-    params.set('end', checkout);
-    params.set('stayType', stayType);
-    params.set('mode', mode);
-    for (const bed of beds) params.append('bed', bed.bedId);
-
-    void trackClientEvent('bed_selected', { bedCount: beds.length, stayType });
-    onClose();
-    router.push(`/booking/new?${params.toString()}`);
-  }, [
-    draftStatus,
-    serverQuote,
-    start,
-    end,
-    isMonthly,
-    availabilityEnd,
-    today,
-    timelines,
-    reservationsByBed,
-    maxCheckout,
-    stayType,
-    mode,
-    beds,
-    onClose,
-    router,
-  ]);
+      beds,
+      stayType,
+      mode,
+      onClose,
+      router,
+    ],
+  );
 
   const handleStayTypeSelect = useCallback(
     (next: StayType) => {
@@ -402,13 +305,10 @@ export function BedBookingPanel({
 
   const handleRangeComplete = useCallback(
     (range: { checkIn: string; checkOut: string | null }) => {
-      setStart(range.checkIn);
-      setEnd(range.checkOut);
       setFlowError(null);
-      setQuoteError(null);
-      setDraftStatus('quoting');
+      navigateToReview(range.checkIn, range.checkOut);
     },
-    [],
+    [navigateToReview],
   );
 
   const shell = dark
@@ -435,9 +335,6 @@ export function BedBookingPanel({
     });
     return cards;
   }, [shortStayOnly]);
-
-  const showDateStatus =
-    draftStatus === 'quoting' || draftStatus === 'navigating' || draftStatus === 'ready';
 
   const panelInner = (
     <div
@@ -541,29 +438,21 @@ export function BedBookingPanel({
                   showPricing={false}
                   checkIn=""
                   checkOut={null}
-                  onCheckInChange={() => undefined}
+                  onCheckInChange={setSelectedCheckIn}
                   onCheckOutChange={() => undefined}
                   onRangeComplete={handleRangeComplete}
                   minCheckIn={minCheckIn}
                   maxCheckOut={maxCheckout ?? undefined}
                   showCheckOut={!isMonthly}
-                  disabled={showDateStatus || loading || Boolean(fetchError)}
+                  disabled={loading || Boolean(fetchError)}
                   horizonEnd={horizonEnd}
                   reservationsByBed={reservationsByBed}
                   futureReservations={combinedReservations}
                 />
 
-                {showDateStatus ? (
-                  <div className="rounded-xl border border-apg-orange/30 bg-apg-orange/10 px-4 py-3 text-center text-sm text-white">
-                    {draftStatus === 'navigating'
-                      ? 'Opening booking summary…'
-                      : 'Calculating your price…'}
-                  </div>
-                ) : null}
-
-                {(draftStatus === 'error' && (quoteError || flowError)) ? (
+                {flowError ? (
                   <div className="space-y-2 rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-3 text-sm text-rose-200">
-                    <p>{flowError ?? quoteError}</p>
+                    <p>{flowError}</p>
                     <button
                       type="button"
                       onClick={resetDateFlow}
