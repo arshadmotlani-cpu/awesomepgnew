@@ -15,7 +15,10 @@ import {
 import type { InvoiceBreakdown } from '@/src/db/schema/financialInvoices';
 import type { FinancialInvoiceStatus, FinancialInvoiceType } from '@/src/db/schema/enums';
 import { paymentLinkPublicUrl } from '@/src/lib/billing/paymentLinkUrl';
-import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
+import {
+  durationModeToStayType,
+  getInvoiceStayPolicyNote,
+} from '@/src/lib/booking/bookingPolicies';
 import { parseDaterange } from '@/src/services/availability';
 import { formatDate, titleCase } from '@/src/lib/format';
 import { formatDate as formatIsoDate } from '@/src/lib/dates';
@@ -40,7 +43,10 @@ export type InvoiceDocumentStayDates = {
   checkOut: string | null;
   isOpenEnded: boolean;
   displayLabel: string;
+  /** Monthly open-ended stays only — vacating notice requirement. */
   noticeNote: string | null;
+  /** Fixed-date stays only — automatic checkout, no notice. */
+  stayPeriodNote: string | null;
 };
 
 export type InvoiceDocumentLetterhead = {
@@ -240,6 +246,7 @@ export function buildInvoiceDocumentStayDates(input: {
   const isOpenEnded = input.durationMode === 'open_ended' || (!range.upper && !range.upperInc);
 
   if (isOpenEnded) {
+    const stayType = durationModeToStayType(input.durationMode);
     return {
       checkIn,
       checkOut: null,
@@ -247,17 +254,20 @@ export function buildInvoiceDocumentStayDates(input: {
       displayLabel: checkIn
         ? `Continue living (open-ended) from ${checkIn}`
         : 'Continue living (open-ended)',
-      noticeNote: `${VACATING_NOTICE_MIN_DAYS}-day notice period required for move-out`,
+      noticeNote: getInvoiceStayPolicyNote(stayType),
+      stayPeriodNote: null,
     };
   }
 
   if (checkIn && checkOut) {
+    const stayType = durationModeToStayType(input.durationMode);
     return {
       checkIn,
       checkOut,
       isOpenEnded: false,
       displayLabel: `${checkIn} → ${checkOut}`,
       noticeNote: null,
+      stayPeriodNote: getInvoiceStayPolicyNote(stayType),
     };
   }
 
@@ -268,6 +278,7 @@ export function buildInvoiceDocumentStayDates(input: {
       isOpenEnded: false,
       displayLabel: checkIn,
       noticeNote: null,
+      stayPeriodNote: null,
     };
   }
 

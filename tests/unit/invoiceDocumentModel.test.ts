@@ -18,9 +18,9 @@ test('open-ended stay shows notice note', () => {
   assert.match(stay.noticeNote ?? '', /14-day notice/);
 });
 
-test('fixed stay shows check-in and check-out', () => {
+test('fixed stay shows check-in and check-out with stay period note', () => {
   const stay = buildInvoiceDocumentStayDates({
-    durationMode: 'monthly',
+    durationMode: 'fixed_stay',
     stayRangeRaw: '[2026-06-01,2026-07-01)',
   });
   assert.ok(stay);
@@ -28,6 +28,9 @@ test('fixed stay shows check-in and check-out', () => {
   assert.ok(stay.checkIn?.includes('2026'));
   assert.ok(stay.checkOut?.includes('2026'));
   assert.match(stay.displayLabel, /2026/);
+  assert.equal(stay.noticeNote, null);
+  assert.match(stay.stayPeriodNote ?? '', /checkout date/);
+  assert.doesNotMatch(stay.stayPeriodNote ?? '', /14-day/);
 });
 
 test('line items from breakdown with rent period', () => {

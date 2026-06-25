@@ -30,8 +30,55 @@ export const DEFAULT_POLICY: CancellationPolicy = {
   partialRefundUntilHrsBefore: 24, // 1–7 days
   partialRefundPct: 50,
   depositRefundPct: 100,
-  label: 'Standard',
+  label: 'Monthly stay',
 };
+
+/** Short fixed-date stays — stricter pre-check-in window, no partial tier. */
+export const SHORT_STAY_POLICY: CancellationPolicy = {
+  fullRefundUntilHrsBefore: 24,
+  partialRefundUntilHrsBefore: 0,
+  partialRefundPct: 0,
+  depositRefundPct: 100,
+  label: 'Short stay',
+};
+
+export type CancellationPolicyVariant = 'monthly' | 'fixed_date';
+
+/**
+ * Customer-facing cancellation summary derived from the policy tiers.
+ * Used on booking review, confirmations, and invoices — not hardcoded in UI.
+ */
+export function formatCancellationPolicyCustomerCopy(
+  policy: CancellationPolicy,
+  variant: CancellationPolicyVariant,
+): string {
+  if (variant === 'fixed_date') {
+    const windowHrs = policy.fullRefundUntilHrsBefore;
+    const windowLabel =
+      windowHrs >= 24 && windowHrs % 24 === 0
+        ? `${windowHrs / 24} day${windowHrs === 24 ? '' : 's'}`
+        : `${windowHrs} hours`;
+    return (
+      `Cancel at least ${windowLabel} before check-in for a full refund of rent and deposit. ` +
+      'After that, rent is non-refundable for your reserved dates. ' +
+      'If you have not checked in, your security deposit is fully refunded.'
+    );
+  }
+
+  const fullDays = Math.max(1, Math.floor(policy.fullRefundUntilHrsBefore / 24));
+  const partialHrs = policy.partialRefundUntilHrsBefore;
+  const partialLabel =
+    partialHrs >= 24
+      ? `${Math.floor(partialHrs / 24)} day${partialHrs === 24 ? '' : 's'}`
+      : `${partialHrs} hours`;
+
+  return (
+    `Cancel ${fullDays} or more days before check-in for a full rent refund. ` +
+    `Cancel between ${partialLabel} and ${fullDays} days before check-in for a ${policy.partialRefundPct}% rent refund. ` +
+    `Within ${partialLabel} of check-in, rent is non-refundable. ` +
+    'Your security deposit is fully refunded on cancellation.'
+  );
+}
 
 export type RefundBreakdownLine = {
   kind: 'rent_refund' | 'deposit_refund' | 'rent_forfeit' | 'deposit_forfeit';

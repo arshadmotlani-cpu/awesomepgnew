@@ -55,7 +55,7 @@ import {
   reserveBlocksLongStay,
   validateShortStayDuringReserve,
 } from './bedReserve';
-import { DEFAULT_POLICY } from './cancellationPolicy';
+import { getCancellationPolicyForStayType } from '@/src/lib/booking/bookingPolicies';
 import {
   quoteBookingPrice,
   quoteAdminTenantAssignment,
@@ -185,7 +185,9 @@ function buildSnapshot(
     })),
     computedAt: quote.computedAt,
     notes,
-    cancellationPolicy: { ...DEFAULT_POLICY },
+    cancellationPolicy: {
+      ...getCancellationPolicyForStayType(stayTypeFromPricingMode(quote.durationMode)),
+    },
     dateCoupon,
     rentLineItems,
   };

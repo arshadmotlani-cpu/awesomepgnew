@@ -25,7 +25,7 @@ import type { BedSelectorBed } from './BedSelector';
 import { StayDateRangePicker } from './StayDateRangePicker';
 import { MobileBottomSheet } from '@/src/components/customer/block/MobileBottomSheet';
 import { useBookingFunnel } from '@/src/components/customer/checkout/BookingFunnelShell';
-import { VACATING_NOTICE_MIN_DAYS } from '@/src/lib/dateDefaults';
+import { getBookingPolicies } from '@/src/lib/booking/bookingPolicies';
 
 export type BedTimelineResponse = {
   bedId: string;
@@ -426,7 +426,7 @@ export function BedBookingPanel({
 
                 {isMonthly ? (
                   <p className={`text-xs ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
-                    {VACATING_NOTICE_MIN_DAYS}-day notice when you decide to move out.
+                    {getBookingPolicies('monthly_stay').noticePolicy.body}
                   </p>
                 ) : null}
 

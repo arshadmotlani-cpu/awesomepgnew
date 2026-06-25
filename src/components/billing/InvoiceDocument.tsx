@@ -174,6 +174,12 @@ export function InvoiceDocument({ document: doc, variant = 'admin', className = 
             {doc.stayDates.noticeNote ? (
               <p className={`mt-2 text-xs italic ${muted}`}>{doc.stayDates.noticeNote}</p>
             ) : null}
+            {doc.stayDates.stayPeriodNote ? (
+              <p className={`mt-2 text-xs italic ${muted}`}>{doc.stayDates.stayPeriodNote}</p>
+            ) : null}
+            {doc.stayDates.stayPeriodNote ? (
+              <p className={`mt-2 text-xs italic ${muted}`}>{doc.stayDates.stayPeriodNote}</p>
+            ) : null}
           </div>
         ) : null}
       </section>

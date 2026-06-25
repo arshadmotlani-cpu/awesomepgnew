@@ -1,13 +1,17 @@
 import type { ReactNode } from 'react';
 import { formatDate, paiseToInr } from '@/src/lib/format';
-import { VACATING_NOTICE_MIN_DAYS } from '@/src/lib/dateDefaults';
+import {
+  bookingPolicySections,
+  getBookingPolicies,
+} from '@/src/lib/booking/bookingPolicies';
+import { isMonthlyStayType, type StayType } from '@/src/lib/stayType';
 
 export type BookingReviewData = {
   pgName: string;
   roomNumber: string;
   bedCode: string;
+  stayType: StayType;
   stayTypeLabel: string;
-  isMonthly: boolean;
   checkIn: string;
   checkOut?: string | null;
   stayNights?: number | null;
@@ -30,6 +34,10 @@ function Row({ label, value, emphasize }: { label: string; value: ReactNode; emp
 }
 
 export function BookingReviewCard({ data }: { data: BookingReviewData }) {
+  const policies = getBookingPolicies(data.stayType);
+  const policySections = bookingPolicySections(policies);
+  const isMonthly = isMonthlyStayType(data.stayType);
+
   return (
     <article className="overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-[#1a2332] to-[#121820] shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
       <header className="border-b border-white/8 px-6 py-5 sm:px-8">
@@ -47,10 +55,10 @@ export function BookingReviewCard({ data }: { data: BookingReviewData }) {
       <dl className="px-6 py-2 sm:px-8">
         <Row label="Stay type" value={data.stayTypeLabel} />
         <Row label="Check-in" value={formatDate(data.checkIn)} />
-        {!data.isMonthly && data.checkOut ? (
+        {!isMonthly && data.checkOut ? (
           <Row label="Check-out" value={formatDate(data.checkOut)} />
         ) : null}
-        {!data.isMonthly && data.stayNights != null && data.stayNights > 0 ? (
+        {!isMonthly && data.stayNights != null && data.stayNights > 0 ? (
           <Row
             label="Duration"
             value={`${data.stayNights} night${data.stayNights === 1 ? '' : 's'}`}
@@ -62,16 +70,12 @@ export function BookingReviewCard({ data }: { data: BookingReviewData }) {
       </dl>
 
       <footer className="space-y-3 border-t border-white/8 bg-black/20 px-6 py-5 text-xs leading-relaxed text-apg-silver sm:px-8">
-        <p>
-          <span className="font-semibold text-white">Notice policy:</span>{' '}
-          {VACATING_NOTICE_MIN_DAYS}-day notice before move-out. Submit a move-out request when you
-          decide to leave.
-        </p>
-        <p>
-          <span className="font-semibold text-white">Cancellation:</span> Free cancellation before
-          check-in. After check-in, standard PG cancellation terms apply.
-        </p>
-        {data.isMonthly ? (
+        {policySections.map((section) => (
+          <p key={section.title}>
+            <span className="font-semibold text-white">{section.title}:</span> {section.body}
+          </p>
+        ))}
+        {isMonthly ? (
           <p>
             <span className="font-semibold text-white">Expected monthly rent:</span>{' '}
             {paiseToInr(data.rentPaise)} / month (billed monthly while you stay).
