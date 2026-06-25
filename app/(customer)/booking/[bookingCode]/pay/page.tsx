@@ -10,6 +10,7 @@ import {
   requireCustomerSession,
 } from '@/src/lib/auth/guards';
 import { diffDays, parseDate } from '@/src/lib/dates';
+import { persistedBookingToSummaryData } from '@/src/lib/booking/bookingDraft';
 import { stayTypeFromPricingMode } from '@/src/lib/stayType';
 import { resolveBookingCheckoutQr } from '@/src/lib/payments/checkoutQr';
 import { paiseToInr as formatPaise } from '@/src/lib/format';
@@ -106,19 +107,20 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
     .map((r) => `${r.bedCode} (Room ${r.roomNumber})`)
     .join(', ');
 
-  const summary = {
+  const summary = persistedBookingToSummaryData({
     pgSlug: booking.pg.slug,
     pgName: booking.pg.name,
-    roomNumber: roomNumber ?? undefined,
-    bedCode: bedCode ?? undefined,
+    roomNumber,
+    bedCode,
     stayType: stayTypeFromPricingMode(booking.durationMode),
-    moveInDate: checkInDate ?? undefined,
-    moveOutDate: booking.expectedCheckoutDate ?? undefined,
-    stayNights: stayNights ?? undefined,
-    rentPaise: booking.subtotalPaise,
+    checkIn: checkInDate,
+    checkOut: booking.expectedCheckoutDate,
+    stayNights,
+    subtotalPaise: booking.subtotalPaise,
     depositPaise: booking.depositPaise,
+    discountPaise: booking.discountPaise,
     totalDuePaise: checkoutTotalPaise,
-  };
+  });
 
   return (
     <div className="apg-aurora apg-grid-overlay min-h-full">

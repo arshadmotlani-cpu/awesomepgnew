@@ -9,12 +9,7 @@ import {
 } from '@/src/lib/bedAvailabilityState';
 import { reserveBufferDate } from '@/src/lib/bedReservePolicy';
 import { customerBookableFromDate } from '@/src/lib/dates';
-import {
-  displayMonthlyDepositPaise,
-  MONTHLY_STAY_DEPOSIT_REFERENCE_LABEL,
-} from '@/src/lib/customerDepositDisplay';
-import { formatDate, paiseToInr } from '@/src/lib/format';
-import { formatBookingRentPaise } from '@/src/lib/booking/bookingFunnelPricing';
+import { formatDate } from '@/src/lib/format';
 import type { BedSelectorBed } from './customerBedTypes';
 import { BedStateTile, type BedVisualState } from '@/src/components/customer/design-system';
 import { BOOK_THIS_BED, HOLD_THIS_BED } from '@/src/lib/booking/bookingFunnelLabels';
@@ -86,62 +81,6 @@ export function CustomerBedTile({
       disabled={!bookable && availability.kind !== 'notice' && !isSelected}
       onSelect={onSelect}
     />
-  );
-}
-
-function BedPricingDetails({
-  bed,
-  isNotice,
-  shortStayOnly,
-}: {
-  bed: BedSelectorBed;
-  isNotice: boolean;
-  shortStayOnly?: boolean;
-}) {
-  const rate = bed.monthlyRatePaise;
-  const deposit = displayMonthlyDepositPaise(bed);
-  const bookableFrom = customerBookableFromDate(bed.nextAvailableDate);
-
-  return (
-    <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
-      {shortStayOnly ? (
-        <>
-          <dt className="text-apg-silver">Short stays from</dt>
-          <dd className="text-right font-medium text-white">
-            {bed.dailyRatePaise > 0 ? `${paiseToInr(bed.dailyRatePaise)}/day` : '—'}
-          </dd>
-          <dt className="text-apg-silver">Weekly rate (calc)</dt>
-          <dd className="text-right font-medium text-white">
-            {bed.weeklyRatePaise > 0 ? paiseToInr(bed.weeklyRatePaise) : '—'}
-          </dd>
-        </>
-      ) : (
-        <>
-          <dt className="text-apg-silver">Rent</dt>
-          <dd className="text-right font-medium text-white">
-            {rate > 0 ? formatBookingRentPaise(rate) : '—'}
-          </dd>
-          {deposit > 0 ? (
-            <>
-              <dt className="text-apg-silver">{MONTHLY_STAY_DEPOSIT_REFERENCE_LABEL}</dt>
-              <dd className="text-right text-white">{paiseToInr(deposit)}</dd>
-            </>
-          ) : null}
-        </>
-      )}
-      {isNotice && bed.vacatingDate ? (
-        <>
-          <dt className="text-apg-silver">Opens</dt>
-          <dd className="text-right text-white">{formatDate(bed.vacatingDate)}</dd>
-        </>
-      ) : null}
-      {!isNotice && bookableFrom && !bed.isAvailableNow ? (
-        <>
-          <dt className="text-apg-silver">Available from</dt>
-          <dd className="text-right text-white">{formatDate(bookableFrom)}</dd>
-        </>
-      ) : null}
-    </dl>
   );
 }
 
@@ -275,11 +214,7 @@ export function CustomerBedDetailSheet({
             </div>
           ) : null}
 
-          {showBookActions ? (
-            <BedPricingDetails bed={bed} isNotice={isNotice} />
-          ) : isReserved ? (
-            <BedPricingDetails bed={bed} isNotice={false} shortStayOnly />
-          ) : (
+          {showBookActions ? null : isReserved ? null : (
             <p className="mt-4 text-sm text-apg-silver">
               {availability.kind === 'occupied'
                 ? 'Someone is living here right now. Check back when the bed opens up.'

@@ -59,6 +59,12 @@ type Props = {
   futureReservations?: ReservationSpan[];
   summary?: StayDateSummary | null;
   holdMinutes?: number;
+  /** Inline calendar (no popover) — used in booking wizard. */
+  layout?: 'inline' | 'popover';
+  /** Hide rent/deposit in calendar — pricing belongs on booking summary only. */
+  showPricing?: boolean;
+  /** Fired when check-in (monthly) or full range (short stay) is committed. */
+  onRangeComplete?: () => void;
 };
 
 const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
@@ -369,6 +375,9 @@ export function StayDateRangePicker({
   futureReservations = [],
   summary = null,
   holdMinutes = 15,
+  layout = 'popover',
+  showPricing = false,
+  onRangeComplete,
 }: Props) {
   const dark = theme === 'dark';
   const [open, setOpen] = useState(false);
@@ -402,7 +411,12 @@ export function StayDateRangePicker({
     wasOpenRef.current = open;
   }, [open, checkIn, checkOut, showCheckOut]);
 
-  const nextMonth = useMemo(() => addMonths(viewMonth, 1), [viewMonth]);
+  useEffect(() => {
+    if (layout === 'inline') {
+      setDraftStart(checkIn || null);
+      setDraftEnd(showCheckOut ? checkOut : null);
+    }
+  }, [layout, checkIn, checkOut, showCheckOut]);
 
   const nights =
     showCheckOut && draftEnd && draftStart && draftEnd > draftStart
@@ -411,8 +425,13 @@ export function StayDateRangePicker({
         ? diffDays(parseDate(checkIn), parseDate(checkOut))
         : 0;
 
-  const displayStart = open ? draftStart ?? checkIn : checkIn;
-  const displayEnd = open ? draftEnd ?? checkOut : checkOut;
+  const phaseHint = !showCheckOut
+    ? 'Choose your check-in date'
+    : !draftStart
+      ? 'Choose check-in'
+      : !draftEnd
+        ? 'Choose check-out'
+        : `${nights} night${nights === 1 ? '' : 's'} selected`;
 
   const canSelect = useCallback(
     (date: string, phase: 'start' | 'end') => {
@@ -435,8 +454,9 @@ export function StayDateRangePicker({
       if (showCheckOut && end) {
         onCheckOutChange(end);
       }
+      onRangeComplete?.();
     },
-    [onCheckInChange, onCheckOutChange, showCheckOut],
+    [onCheckInChange, onCheckOutChange, showCheckOut, onRangeComplete],
   );
 
   const onPick = useCallback(
@@ -450,7 +470,7 @@ export function StayDateRangePicker({
           return;
         }
         commitRange(date, null);
-        setOpen(false);
+        if (layout === 'popover') setOpen(false);
         return;
       }
 
@@ -467,7 +487,7 @@ export function StayDateRangePicker({
 
       if (result.complete && result.draft.start && result.draft.end) {
         commitRange(result.draft.start, result.draft.end);
-        setOpen(false);
+        if (layout === 'popover') setOpen(false);
       }
     },
     [
@@ -478,9 +498,61 @@ export function StayDateRangePicker({
       commitRange,
       earliestCheckIn,
       bedReservationSets,
-      effectiveHorizon,
+      layout,
     ],
   );
+
+  const displayStart = open ? draftStart ?? checkIn : checkIn;
+  const displayEnd = open ? draftEnd ?? checkOut : checkOut;
+
+  if (layout === 'inline') {
+    return (
+      <div className="space-y-3">
+        <p className={`text-sm font-medium ${dark ? 'text-white' : 'text-zinc-900'}`}>{phaseHint}</p>
+        {showCheckOut && draftStart ? (
+          <p className={`text-xs ${dark ? 'text-apg-silver/80' : 'text-zinc-500'}`}>
+            {draftEnd
+              ? `${formatDateDdMmYyyy(draftStart)} → ${formatDateDdMmYyyy(draftEnd)}`
+              : `Check-in ${formatDateDdMmYyyy(draftStart)} — now pick check-out`}
+          </p>
+        ) : null}
+        <div className="mb-3 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setViewMonth(addMonths(viewMonth, -1))}
+            className={`rounded-full px-3 py-1.5 text-lg ${dark ? 'text-white hover:bg-white/10' : 'hover:bg-zinc-100'}`}
+            aria-label="Previous month"
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMonth(addMonths(viewMonth, 1))}
+            className={`rounded-full px-3 py-1.5 text-lg ${dark ? 'text-white hover:bg-white/10' : 'hover:bg-zinc-100'}`}
+            aria-label="Next month"
+          >
+            ›
+          </button>
+        </div>
+        <MonthGrid
+          year={viewMonth.getUTCFullYear()}
+          month={viewMonth.getUTCMonth()}
+          theme={theme}
+          draftStart={draftStart ?? checkIn}
+          draftEnd={draftEnd ?? checkOut}
+          hoverDate={hoverDate}
+          earliestCheckIn={earliestCheckIn}
+          freeWindows={_freeWindows}
+          futureReservations={futureReservations}
+          horizonEnd={effectiveHorizon}
+          reservationsByBed={reservationsByBed}
+          onPick={onPick}
+          onHover={setHoverDate}
+        />
+        <AvailabilityLegend theme={theme} />
+      </div>
+    );
+  }
 
   const triggerShell = dark
     ? 'flex w-full items-center gap-2 rounded-2xl border border-white/15 bg-white/5 transition hover:border-apg-orange/50 hover:bg-white/[0.08] focus-within:ring-2 focus-within:ring-apg-orange/40 disabled:opacity-50'
@@ -493,16 +565,8 @@ export function StayDateRangePicker({
     : 'mr-2 flex h-11 min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border border-zinc-200 px-3 text-sm font-semibold text-zinc-600 hover:border-orange-300 hover:bg-orange-50 focus:outline-none focus:ring-2 focus:ring-orange-400/30 disabled:cursor-not-allowed disabled:opacity-50';
 
   const modalShell = dark
-    ? 'flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-[#12151c] shadow-2xl sm:max-h-[90vh] sm:max-w-[720px] sm:rounded-2xl'
-    : 'flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-zinc-200 bg-white shadow-2xl sm:max-h-[90vh] sm:max-w-[720px] sm:rounded-2xl';
-
-  const phaseHint = !showCheckOut
-    ? 'Choose your move-in date'
-    : !draftStart
-      ? 'Choose check-in'
-      : !draftEnd
-        ? 'Choose check-out'
-        : `${nights} night${nights === 1 ? '' : 's'} selected`;
+    ? 'flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-[#12151c] shadow-2xl sm:max-h-[90vh] sm:max-w-[520px] sm:rounded-2xl'
+    : 'flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-zinc-200 bg-white shadow-2xl sm:max-h-[90vh] sm:max-w-[520px] sm:rounded-2xl';
 
   return (
     <>
@@ -626,25 +690,10 @@ export function StayDateRangePicker({
                       ›
                     </button>
                   </div>
-                  <div className="flex flex-col gap-8 lg:flex-row lg:justify-center">
+                  <div className="flex justify-center">
                     <MonthGrid
                       year={viewMonth.getUTCFullYear()}
                       month={viewMonth.getUTCMonth()}
-                      theme={theme}
-                      draftStart={draftStart}
-                      draftEnd={draftEnd}
-                      hoverDate={hoverDate}
-                      earliestCheckIn={earliestCheckIn}
-                      freeWindows={_freeWindows}
-                      futureReservations={futureReservations}
-                      horizonEnd={effectiveHorizon}
-                      reservationsByBed={reservationsByBed}
-                      onPick={onPick}
-                      onHover={setHoverDate}
-                    />
-                    <MonthGrid
-                      year={nextMonth.getUTCFullYear()}
-                      month={nextMonth.getUTCMonth()}
                       theme={theme}
                       draftStart={draftStart}
                       draftEnd={draftEnd}
@@ -661,20 +710,21 @@ export function StayDateRangePicker({
                   <AvailabilityLegend theme={theme} />
                 </div>
 
-                {/* Sticky footer: summary + trust */}
-                <div
-                  className={`shrink-0 space-y-3 border-t px-4 py-4 sm:px-6 ${dark ? 'border-white/10 bg-[#12151c]/95' : 'border-zinc-200 bg-white/95'}`}
-                >
-                  <SummaryCard
-                    theme={theme}
-                    checkIn={draftStart ?? checkIn}
-                    checkOut={draftEnd ?? checkOut}
-                    summary={summary}
-                  />
-                  {showCheckOut && draftStart && (draftEnd || nights > 0) ? (
-                    <TrustRow theme={theme} holdMinutes={holdMinutes} />
-                  ) : null}
-                </div>
+                {showPricing ? (
+                  <div
+                    className={`shrink-0 space-y-3 border-t px-4 py-4 sm:px-6 ${dark ? 'border-white/10 bg-[#12151c]/95' : 'border-zinc-200 bg-white/95'}`}
+                  >
+                    <SummaryCard
+                      theme={theme}
+                      checkIn={draftStart ?? checkIn}
+                      checkOut={draftEnd ?? checkOut}
+                      summary={summary}
+                    />
+                    {showCheckOut && draftStart && (draftEnd || nights > 0) ? (
+                      <TrustRow theme={theme} holdMinutes={holdMinutes} />
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             </div>,
             document.body,

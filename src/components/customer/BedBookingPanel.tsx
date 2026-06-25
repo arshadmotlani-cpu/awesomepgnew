@@ -1,12 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { trackClientEvent } from '@/src/lib/analytics/client';
 import { addDays, diffDays, formatDate, parseDate, todayString } from '@/src/lib/dates';
 import { defaultCheckOutDate } from '@/src/lib/dateDefaults';
-import { formatDate as formatDisplayDate, paiseToInr } from '@/src/lib/format';
-import { formatBookingRentPaise, formatBookingNightlyRentPaise } from '@/src/lib/booking/bookingFunnelPricing';
+import { formatDate as formatDisplayDate } from '@/src/lib/format';
+import { quoteToBookingDraftPricing, bookingDraftToSummaryData } from '@/src/lib/booking/bookingDraft';
 import { checkoutCapMessage } from '@/src/lib/bedAvailabilityWindows';
 import {
   isCheckInAvailableForReservations,
@@ -14,20 +14,17 @@ import {
   maxCheckoutForAllBeds,
 } from '@/src/lib/bedStayOverlap';
 import { reserveBufferDate } from '@/src/lib/bedReservePolicy';
-import { computeNewBookingCheckoutTotals } from '@/src/lib/billing/bookingCheckoutTotals';
-import type { PricingLineItem } from '@/src/lib/pricing/types';
 import {
   defaultFixedDateCheckOut,
   FIXED_DATE_MAX_NIGHTS,
   pricingModeFromStayType,
-  stayTypeLabel,
-  stayTypeBillingTag,
   stayTypeChoiceDescription,
+  stayTypeLabel,
   validateFixedDateStay,
   type StayType,
 } from '@/src/lib/stayType';
 import type { BedSelectorBed } from './BedSelector';
-import { StayDateRangePicker, type StayDateSummary } from './StayDateRangePicker';
+import { StayDateRangePicker } from './StayDateRangePicker';
 import { MobileBottomSheet } from '@/src/components/customer/block/MobileBottomSheet';
 import { useBookingFunnel } from '@/src/components/customer/checkout/BookingFunnelShell';
 import { VACATING_NOTICE_MIN_DAYS } from '@/src/lib/dateDefaults';
@@ -55,29 +52,20 @@ type Props = {
   onClose: () => void;
   shortStayOnly?: boolean;
   reserveCheckInDate?: string;
-  /** Prefill check-in for rebooking (e.g. prior checkout + 1 day). */
   suggestedCheckIn?: string;
   presentation?: 'center' | 'bottomSheet';
 };
 
-type WizardStep = 'stayType' | 'dates' | 'review';
+type WizardStep = 'stayType' | 'dates';
 
 type ServerBookingQuote = {
   subtotalPaise: number;
   depositPaise: number;
   totalPaise: number;
-  perBed: Array<{
-    bedId: string;
-    subtotalPaise: number;
-    depositPaise: number;
-    lineItems: PricingLineItem[];
-    nights: number | null;
-  }>;
 };
 
 /**
- * Modal panel for picking stay type and dates after selecting bed(s).
- * Flow: Choose stay type → Select dates → Review price → Submit booking.
+ * Book flow: stay type → dates → booking summary (no review popup, no Continue buttons).
  */
 export function BedBookingPanel({
   beds,
@@ -94,7 +82,7 @@ export function BedBookingPanel({
   const today = todayString();
   const reserveLastStay = reserveCheckInDate ? reserveBufferDate(reserveCheckInDate) : null;
 
-  const [step, setStep] = useState<WizardStep>('stayType');
+  const [step, setStep] = useState<WizardStep>(shortStayOnly ? 'dates' : 'stayType');
   const [stayType, setStayType] = useState<StayType>(
     shortStayOnly ? 'fixed_date_stay' : 'monthly_stay',
   );
@@ -110,6 +98,9 @@ export function BedBookingPanel({
   const [serverQuote, setServerQuote] = useState<ServerBookingQuote | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
+  const [navigating, setNavigating] = useState(false);
+  const [datesCommitted, setDatesCommitted] = useState(false);
+  const navigationStartedRef = useRef(false);
 
   const isMonthly = stayType === 'monthly_stay';
   const mode = pricingModeFromStayType(stayType);
@@ -221,6 +212,7 @@ export function BedBookingPanel({
     !fetchError &&
     !stayRangeConflict &&
     !fixedDateError &&
+    datesCommitted &&
     (isMonthly || fixedNights > 0);
 
   useEffect(() => {
@@ -267,79 +259,38 @@ export function BedBookingPanel({
     return () => {
       cancelled = true;
     };
-  }, [canFetchQuote, beds, start, end, isMonthly, stayType, stayRangeConflict, fixedDateError, loading, fetchError]);
+  }, [canFetchQuote, beds, start, end, isMonthly, stayType]);
 
-  const checkoutFromQuote = useMemo(() => {
+  const draftPricing = useMemo(() => {
     if (!serverQuote) return null;
-    return computeNewBookingCheckoutTotals({
-      rentSubtotalPaise: serverQuote.subtotalPaise,
-      depositRequiredPaise: serverQuote.depositPaise,
+    return quoteToBookingDraftPricing({
+      subtotalPaise: serverQuote.subtotalPaise,
+      depositPaise: serverQuote.depositPaise,
     });
   }, [serverQuote]);
 
-  const staySummary = useMemo((): StayDateSummary | null => {
-    if (isMonthly || fixedNights <= 0 || !serverQuote || !checkoutFromQuote) return null;
-    const rentLineItems = serverQuote.perBed.flatMap((b) =>
-      b.lineItems.filter((li) => li.kind !== 'deposit'),
-    );
-    return {
-      nights: fixedNights,
-      dailyRatePaise: beds[0]?.dailyRatePaise ?? 0,
-      accommodationPaise: serverQuote.subtotalPaise,
-      depositPaise: serverQuote.depositPaise,
-      depositDueNowPaise: checkoutFromQuote.depositDueNowPaise,
-      totalDuePaise: checkoutFromQuote.totalToCollectTodayPaise,
-      rentLineItems,
-    };
-  }, [isMonthly, fixedNights, beds, serverQuote, checkoutFromQuote]);
-
-  const monthlyCheckout = useMemo(() => {
-    if (!isMonthly || !serverQuote || !checkoutFromQuote) return null;
-    return checkoutFromQuote;
-  }, [isMonthly, serverQuote, checkoutFromQuote]);
-
   useEffect(() => {
     if (!funnel) return;
-    funnel.setActiveStep('bed');
+    funnel.setActiveStep(step === 'stayType' ? 'bed' : 'dates');
     const bed = beds[0];
     if (!bed) return;
-    funnel.patchSummary({
-      bedId: bed.bedId,
-      bedCode: bed.bedCode,
-      stayType,
-      moveInDate: start,
-      moveOutDate: !isMonthly ? end : undefined,
-      stayNights: !isMonthly && fixedNights > 0 ? fixedNights : undefined,
-      rentPaise: serverQuote?.subtotalPaise ?? bed.monthlyRatePaise,
-      depositPaise: serverQuote?.depositPaise,
-      totalDuePaise: checkoutFromQuote?.totalToCollectTodayPaise,
-    });
-  }, [funnel, beds, stayType, start, end, isMonthly, fixedNights, serverQuote, checkoutFromQuote]);
+    funnel.patchSummary(
+      bookingDraftToSummaryData({
+        bedId: bed.bedId,
+        bedCode: bed.bedCode,
+        stayType,
+        checkIn: datesCommitted ? start : undefined,
+        checkOut: datesCommitted && !isMonthly ? end : null,
+        stayNights: datesCommitted && !isMonthly && fixedNights > 0 ? fixedNights : undefined,
+        pricing: datesCommitted ? draftPricing : null,
+      }),
+    );
+  }, [funnel, beds, stayType, start, end, isMonthly, fixedNights, datesCommitted, draftPricing, step]);
 
-  function handleStayTypeSelect(next: StayType) {
-    setStayType(next);
+  const navigateToBookingSummary = useCallback(() => {
+    if (navigating || navigationStartedRef.current) return;
     setValidationError(null);
-    if (next === 'fixed_date_stay') {
-      setEnd(defaultFixedDateCheckOut(start));
-    }
-  }
 
-  function handleStartChange(value: string) {
-    setStart(value);
-    setValidationError(null);
-    if (!isMonthly) {
-      const cap = maxCheckout;
-      const preferred = defaultFixedDateCheckOut(value);
-      if (cap && preferred > cap) {
-        setEnd(formatDate(addDays(parseDate(cap), -1)));
-      } else if (end <= value) {
-        setEnd(preferred);
-      }
-    }
-  }
-
-  function validateAndContinue() {
-    setValidationError(null);
     if (timelines.some((t) => t.bedStatus !== 'available')) {
       setValidationError('One or more selected beds cannot be booked.');
       return;
@@ -387,15 +338,13 @@ export function BedBookingPanel({
       }
     }
 
-    if (quoteLoading) {
-      setValidationError('Price is still loading. Please wait a moment.');
-      return;
-    }
-    if (quoteError || !serverQuote) {
-      setValidationError(quoteError ?? 'Could not load price. Adjust dates and try again.');
+    if (quoteLoading || !serverQuote) {
+      setValidationError('Loading your price…');
       return;
     }
 
+    setNavigating(true);
+    navigationStartedRef.current = true;
     const params = new URLSearchParams();
     params.set('start', start);
     params.set('end', checkout);
@@ -404,52 +353,78 @@ export function BedBookingPanel({
     for (const bed of beds) params.append('bed', bed.bedId);
     void trackClientEvent('bed_selected', { bedCount: beds.length, stayType });
     router.push(`/booking/new?${params.toString()}`);
+  }, [
+    navigating,
+    timelines,
+    reservationsByBed,
+    start,
+    end,
+    isMonthly,
+    availabilityEnd,
+    today,
+    maxCheckout,
+    quoteLoading,
+    serverQuote,
+    stayType,
+    mode,
+    beds,
+    router,
+  ]);
+
+  useEffect(() => {
+    if (!datesCommitted || quoteLoading || !serverQuote || navigating || validationError) return;
+    navigateToBookingSummary();
+  }, [datesCommitted, quoteLoading, serverQuote, navigating, validationError, navigateToBookingSummary]);
+
+  function handleStayTypeSelect(next: StayType) {
+    setStayType(next);
+    setValidationError(null);
+    setDatesCommitted(false);
+    if (next === 'fixed_date_stay') {
+      setEnd(defaultFixedDateCheckOut(start));
+    }
+    setStep('dates');
+  }
+
+  function handleStartChange(value: string) {
+    setStart(value);
+    setValidationError(null);
+    setDatesCommitted(false);
+    if (!isMonthly) {
+      const cap = maxCheckout;
+      const preferred = defaultFixedDateCheckOut(value);
+      if (cap && preferred > cap) {
+        setEnd(formatDate(addDays(parseDate(cap), -1)));
+      } else if (end <= value) {
+        setEnd(preferred);
+      }
+    }
   }
 
   const shell = dark
     ? 'rounded-2xl border border-white/10 apg-glass shadow-2xl'
     : 'rounded-xl border border-zinc-200 bg-white shadow-xl';
   const label = dark ? 'text-xs font-medium text-apg-silver' : 'text-xs font-medium text-zinc-600';
-  const btnPrimary = dark
-    ? 'rounded-lg bg-apg-orange px-5 py-2.5 text-sm font-semibold text-white apg-glow-btn hover:brightness-110 disabled:opacity-40'
-    : 'rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-40';
   const btnGhost = dark
     ? 'rounded-lg border border-white/15 px-4 py-2.5 text-sm font-medium text-apg-silver hover:border-white/30 hover:text-white'
     : 'rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-50';
 
-  type StayTypeCard = {
-    id: StayType;
-    title: string;
-    billingTag: string;
-    description: string;
-    priceLabel: string;
-  };
-
-  const stayTypeCards: StayTypeCard[] = useMemo(() => {
-    const primary = beds[0];
-    if (!primary) return [];
-    const cards: StayTypeCard[] = [];
+  const stayTypeCards = useMemo(() => {
+    const cards: Array<{ id: StayType; title: string; description: string }> = [];
     if (!shortStayOnly) {
       cards.push({
         id: 'monthly_stay',
         title: stayTypeLabel('monthly_stay'),
-        billingTag: stayTypeBillingTag('monthly_stay'),
         description: stayTypeChoiceDescription('monthly_stay'),
-        priceLabel: primary.monthlyRatePaise > 0 ? formatBookingRentPaise(primary.monthlyRatePaise) : '—',
       });
     }
     cards.push({
       id: 'fixed_date_stay',
       title: stayTypeLabel('fixed_date_stay'),
-      billingTag: stayTypeBillingTag('fixed_date_stay'),
       description: stayTypeChoiceDescription('fixed_date_stay'),
-      priceLabel:
-        primary.dailyRatePaise > 0
-          ? formatBookingNightlyRentPaise(primary.dailyRatePaise)
-          : '—',
     });
     return cards;
-  }, [beds, shortStayOnly]);
+  }, [shortStayOnly]);
 
   const panelInner = (
     <div
@@ -469,12 +444,10 @@ export function BedBookingPanel({
           </h2>
           <p className={`mt-0.5 text-xs ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
             {step === 'stayType'
-              ? 'Pick how your stay works — not how you pay week to week.'
-              : step === 'dates'
-                ? isMonthly
-                  ? 'Choose your check-in date'
-                  : 'Choose your dates and review pricing'
-                : 'Review before you confirm'}
+              ? 'How do you want to stay?'
+              : isMonthly
+                ? 'Pick your check-in date'
+                : 'Pick check-in and check-out'}
           </p>
         </div>
         {presentation === 'center' ? (
@@ -499,15 +472,20 @@ export function BedBookingPanel({
           <div className="rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-200">
             {fetchError}
           </div>
+        ) : navigating || quoteLoading ? (
+          <div className="rounded-xl border border-apg-orange/30 bg-apg-orange/10 px-4 py-6 text-center">
+            <p className={`text-sm font-medium ${dark ? 'text-white' : 'text-zinc-900'}`}>
+              {navigating ? 'Taking you to booking summary…' : 'Calculating your price…'}
+            </p>
+          </div>
         ) : (
           <>
             {step === 'stayType' ? (
               <fieldset className="space-y-3">
-                <legend className={`${label} mb-1`}>How does your stay work?</legend>
+                <legend className={`${label} mb-1`}>Stay type</legend>
                 <div className="grid grid-cols-1 gap-3">
                   {stayTypeCards.map((card) => {
                     const selected = stayType === card.id;
-                    const highlight = card.id === 'monthly_stay' && !shortStayOnly && selected;
                     return (
                       <button
                         key={card.id}
@@ -515,43 +493,24 @@ export function BedBookingPanel({
                         onClick={() => handleStayTypeSelect(card.id)}
                         className={
                           dark
-                            ? `rounded-xl border px-4 py-3 text-left transition ${
+                            ? `rounded-xl border px-4 py-4 text-left transition ${
                                 selected
-                                  ? highlight
-                                    ? 'border-emerald-400/60 bg-emerald-500/15 ring-1 ring-emerald-400/30'
-                                    : 'border-sky-400/50 bg-sky-500/10 ring-1 ring-sky-400/20'
+                                  ? 'border-apg-orange/60 bg-apg-orange/10 ring-1 ring-apg-orange/30'
                                   : 'border-white/10 bg-white/5 hover:border-white/20'
                               }`
-                            : `rounded-lg border px-4 py-3 text-left transition ${
+                            : `rounded-lg border px-4 py-4 text-left transition ${
                                 selected
-                                  ? highlight
-                                    ? 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-200'
-                                    : 'border-sky-500 bg-sky-50 ring-1 ring-sky-200'
+                                  ? 'border-orange-500 bg-orange-50 ring-1 ring-orange-200'
                                   : 'border-zinc-200 bg-white hover:border-zinc-300'
                               }`
                         }
                       >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <span
-                              className={`block text-sm font-semibold ${dark ? 'text-white' : 'text-zinc-900'}`}
-                            >
-                              {card.title}
-                            </span>
-                            <span
-                              className={`mt-0.5 block text-[11px] font-medium uppercase tracking-wide ${
-                                dark ? 'text-apg-cyan' : 'text-indigo-600'
-                              }`}
-                            >
-                              {card.billingTag}
-                            </span>
-                          </div>
-                          <span
-                            className={`shrink-0 text-sm font-bold ${dark ? 'text-apg-orange' : 'text-indigo-600'}`}
-                          >
-                            {card.priceLabel}
-                          </span>
-                        </div>
+                        <span
+                          className={`flex items-center gap-2 text-sm font-semibold ${dark ? 'text-white' : 'text-zinc-900'}`}
+                        >
+                          {selected ? <span aria-hidden>✔</span> : null}
+                          {card.title}
+                        </span>
                         <p className={`mt-2 text-xs leading-relaxed ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
                           {card.description}
                         </p>
@@ -566,55 +525,35 @@ export function BedBookingPanel({
               <>
                 {shortStayOnly && reserveCheckInDate && reserveLastStay ? (
                   <div className="rounded-xl border border-violet-400/30 bg-violet-500/10 px-3 py-2 text-xs text-violet-100">
-                    This bed is reserved for someone else from{' '}
-                    {formatDisplayDate(reserveCheckInDate)}. Pick dates with checkout on or before{' '}
-                    {formatDisplayDate(reserveLastStay)}.
+                    This bed is reserved from {formatDisplayDate(reserveCheckInDate)}. Checkout on or
+                    before {formatDisplayDate(reserveLastStay)}.
                   </div>
                 ) : null}
 
-                {timelines.some((t) => t.futureReservations.length > 0) ? (
-                  <div
-                    className={
-                      dark ? 'rounded-xl border border-white/10 p-3' : 'rounded-lg border border-zinc-200 p-3'
-                    }
-                  >
-                    <p className={`text-xs font-semibold ${dark ? 'text-white' : 'text-zinc-900'}`}>
-                      Upcoming reservations on this bed
-                    </p>
-                    <ul
-                      className={`mt-2 space-y-1 text-xs ${dark ? 'text-apg-silver' : 'text-zinc-600'}`}
-                    >
-                      {timelines.flatMap((t) =>
-                        t.futureReservations.slice(0, 4).map((r) => (
-                          <li key={`${t.bedId}-${r.startDate}-${r.endDate}`}>
-                            {formatDisplayDate(r.startDate)} → {formatDisplayDate(r.endDate)}
-                            {r.bookingCode ? ` · ${r.bookingCode}` : ''}
-                          </li>
-                        )),
-                      )}
-                    </ul>
-                  </div>
+                {isMonthly ? (
+                  <p className={`text-xs ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
+                    {VACATING_NOTICE_MIN_DAYS}-day notice when you decide to move out.
+                  </p>
+                ) : fixedNights > 0 ? (
+                  <p className={`text-xs ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
+                    {fixedNights} night{fixedNights === 1 ? '' : 's'} · {formatDisplayDate(start)} →{' '}
+                    {formatDisplayDate(end)}
+                  </p>
                 ) : null}
-
-                <p
-                  className={`text-sm ${dark ? 'text-apg-silver' : 'text-zinc-600'}`}
-                >
-                  {isMonthly
-                    ? `${stayTypeLabel('monthly_stay')} · ${VACATING_NOTICE_MIN_DAYS}-day notice to move out`
-                    : fixedNights > 0
-                      ? `${fixedNights} night${fixedNights === 1 ? '' : 's'} · ${formatDisplayDate(start)} → ${formatDisplayDate(end)}`
-                      : 'Pick check-in and check-out dates'}
-                </p>
 
                 <StayDateRangePicker
                   theme={dark ? 'dark' : 'light'}
+                  layout="inline"
+                  showPricing={false}
                   checkIn={start}
                   checkOut={!isMonthly ? end : null}
                   onCheckInChange={handleStartChange}
                   onCheckOutChange={(d) => {
                     setEnd(d);
                     setValidationError(null);
+                    setDatesCommitted(false);
                   }}
+                  onRangeComplete={() => setDatesCommitted(true)}
                   minCheckIn={timelines[0]?.earliestCheckIn ?? today}
                   maxCheckOut={maxCheckout ?? undefined}
                   showCheckOut={!isMonthly}
@@ -622,14 +561,7 @@ export function BedBookingPanel({
                   horizonEnd={horizonEnd}
                   reservationsByBed={reservationsByBed}
                   futureReservations={combinedReservations}
-                  summary={staySummary}
                 />
-
-                {quoteLoading ? (
-                  <p className={`text-sm ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
-                    Loading price…
-                  </p>
-                ) : null}
 
                 {quoteError ? (
                   <p className="rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
@@ -638,40 +570,10 @@ export function BedBookingPanel({
                 ) : null}
 
                 {(fixedDateError || stayRangeConflict) ? (
-                  <p
-                    className={
-                      dark
-                        ? 'rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-100'
-                        : 'rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900'
-                    }
-                  >
+                  <p className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
                     {fixedDateError ?? stayRangeConflict}
                   </p>
                 ) : null}
-              </>
-            ) : null}
-
-            {step === 'review' ? (
-              <>
-              {quoteLoading ? (
-                <p className={`text-sm ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
-                  Loading price…
-                </p>
-              ) : null}
-
-              {quoteError ? (
-                <p className="rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
-                  {quoteError}
-                </p>
-              ) : checkoutFromQuote ? (
-                <p className={`text-sm ${dark ? 'text-apg-silver' : 'text-zinc-600'}`}>
-                  Total due today:{' '}
-                  <strong className={dark ? 'text-white' : 'text-zinc-900'}>
-                    {paiseToInr(checkoutFromQuote.totalToCollectTodayPaise)}
-                  </strong>
-                  . See the booking summary for the full breakdown.
-                </p>
-              ) : null}
               </>
             ) : null}
 
@@ -684,77 +586,24 @@ export function BedBookingPanel({
         )}
       </div>
 
-      <div
-        className={
-          'sticky bottom-0 flex shrink-0 flex-col-reverse gap-2 border-t border-white/10 bg-[#161b22] px-4 py-4 sm:flex-row sm:justify-end sm:px-5'
-        }
-      >
-        {step === 'review' ? (
+      <div className="sticky bottom-0 flex shrink-0 justify-between gap-2 border-t border-white/10 bg-[#161b22] px-4 py-4 sm:px-5">
+        {step === 'dates' && !shortStayOnly ? (
           <button
             type="button"
             onClick={() => {
               setValidationError(null);
-              setStep('dates');
+              setDatesCommitted(false);
+              setStep('stayType');
             }}
-            className={`text-sm font-medium ${dark ? 'text-apg-silver hover:text-white' : 'text-zinc-600 hover:text-zinc-900'} sm:mr-auto`}
+            className={`text-sm font-medium ${dark ? 'text-apg-silver hover:text-white' : 'text-zinc-600'}`}
           >
-            Go back
+            ← Change stay type
           </button>
         ) : (
           <button type="button" onClick={onClose} className={btnGhost}>
             Cancel
           </button>
         )}
-
-        {step === 'stayType' ? (
-          <button
-            type="button"
-            disabled={loading || Boolean(fetchError)}
-            onClick={() => setStep('dates')}
-            className={btnPrimary}
-          >
-            Continue →
-          </button>
-        ) : null}
-
-        {step === 'dates' ? (
-          <button
-            type="button"
-            disabled={
-              loading ||
-              Boolean(fetchError) ||
-              Boolean(stayRangeConflict) ||
-              Boolean(fixedDateError) ||
-              quoteLoading ||
-              Boolean(quoteError) ||
-              !serverQuote
-            }
-            onClick={() => {
-              setValidationError(null);
-              setStep('review');
-            }}
-            className={btnPrimary}
-          >
-            Review booking →
-          </button>
-        ) : null}
-
-        {step === 'review' ? (
-          <button
-            type="button"
-            disabled={
-              loading ||
-              Boolean(fetchError) ||
-              quoteLoading ||
-              Boolean(quoteError) ||
-              !serverQuote
-            }
-            onClick={validateAndContinue}
-            className={btnPrimary}
-          >
-            Confirm booking
-          </button>
-        ) : null}
       </div>
     </div>
   );

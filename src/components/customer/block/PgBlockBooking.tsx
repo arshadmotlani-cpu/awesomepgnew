@@ -196,8 +196,6 @@ export function PgBlockBooking({
       roomNumber: selectedBed.bedRoom.roomNumber,
       bedId: selectedBed.bed.bedId,
       bedCode: selectedBed.bed.bedCode,
-      rentPaise: selectedBed.bed.monthlyRatePaise,
-      depositPaise: selectedBed.bed.monthlySecurityDepositPaise ?? selectedBed.bed.securityDepositPaise,
     });
   }, [funnel, pgSlug, pgName, selectedBed]);
 

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { formatDate, paiseToInr } from '@/src/lib/format';
+import { hasBookingDraftSelection } from '@/src/lib/booking/bookingDraft';
 import { isMonthlyStayType, stayTypeLabel, type StayType } from '@/src/lib/stayType';
 import { bookingNewSearchParams } from '@/src/lib/booking/bookingFunnelDates';
 
@@ -18,6 +19,9 @@ export type BookingSummaryData = {
   stayNights?: number;
   rentPaise?: number;
   depositPaise?: number;
+  discountPaise?: number;
+  couponDiscountPaise?: number;
+  taxPaise?: number;
   totalDuePaise?: number;
 };
 
@@ -42,10 +46,6 @@ function editHref(
     return `/booking/new?${params.toString()}`;
   }
   return null;
-}
-
-function hasRoomSelection(data: BookingSummaryData): boolean {
-  return Boolean(data.roomId);
 }
 
 function Row({
@@ -80,12 +80,14 @@ function Row({
 }
 
 export function BookingSummaryRail({ data }: { data: BookingSummaryData }) {
-  const roomSelected = hasRoomSelection(data);
+  const hasSelection = hasBookingDraftSelection(data);
   const fixedDates = data.stayType && !isMonthlyStayType(data.stayType);
   const stayLabel = data.stayType ? stayTypeLabel(data.stayType as StayType) : null;
-  const showRent = data.rentPaise != null && data.rentPaise > 0;
-  const showDeposit = data.depositPaise != null && data.depositPaise > 0;
-  const showTotal = data.totalDuePaise != null && data.totalDuePaise > 0;
+  const showRent = data.rentPaise != null && data.rentPaise >= 0;
+  const showDeposit = data.depositPaise != null && data.depositPaise >= 0;
+  const showDiscount = (data.discountPaise ?? 0) > 0 || (data.couponDiscountPaise ?? 0) > 0;
+  const showTax = (data.taxPaise ?? 0) > 0;
+  const showTotal = data.totalDuePaise != null && data.totalDuePaise >= 0;
 
   return (
     <aside
@@ -94,16 +96,18 @@ export function BookingSummaryRail({ data }: { data: BookingSummaryData }) {
     >
       <div className="border-b border-white/8 px-5 py-4">
         <h2 className="text-base font-semibold text-white">Your booking</h2>
-        {!roomSelected ? (
+        {!hasSelection ? (
           <p className="mt-1.5 text-sm leading-relaxed text-apg-silver">
-            Select a room to begin.
+            Choose a bed to get started.
           </p>
+        ) : !data.moveInDate ? (
+          <p className="mt-1 text-xs text-apg-muted">Pick your stay type and dates next.</p>
         ) : (
-          <p className="mt-1 text-xs text-apg-muted">Review your choices as you go.</p>
+          <p className="mt-1 text-xs text-apg-muted">All prices from our pricing engine.</p>
         )}
       </div>
 
-      {!roomSelected ? (
+      {!hasSelection ? (
         <div className="px-5 py-8 text-center">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-white/[0.06] ring-1 ring-white/10">
             <span className="text-lg text-apg-muted" aria-hidden>
@@ -111,7 +115,7 @@ export function BookingSummaryRail({ data }: { data: BookingSummaryData }) {
             </span>
           </div>
           <p className="mt-4 text-sm text-apg-silver">
-            Pick a room and bed to see rent, deposit, and your total.
+            Select a bed, then choose how long you want to stay.
           </p>
         </div>
       ) : (
@@ -154,12 +158,21 @@ export function BookingSummaryRail({ data }: { data: BookingSummaryData }) {
           ) : null}
           {showRent ? <Row label="Rent" value={paiseToInr(data.rentPaise!)} /> : null}
           {showDeposit ? <Row label="Deposit" value={paiseToInr(data.depositPaise!)} /> : null}
+          {showDiscount ? (
+            <Row
+              label="Discount"
+              value={`−${paiseToInr((data.discountPaise ?? 0) + (data.couponDiscountPaise ?? 0))}`}
+            />
+          ) : null}
+          {showTax ? <Row label="Taxes" value={paiseToInr(data.taxPaise!)} /> : null}
           {showTotal ? (
             <Row
-              label="Total due today"
+              label="Grand total"
               value={paiseToInr(data.totalDuePaise!)}
               emphasize
             />
+          ) : data.moveInDate && !showTotal ? (
+            <Row label="Grand total" value="Calculating…" />
           ) : null}
         </dl>
       )}

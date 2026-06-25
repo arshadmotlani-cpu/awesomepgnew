@@ -13,12 +13,13 @@ import {
   bookingFunnelDatesFromParams,
   validateBookingFunnelDates,
 } from '@/src/lib/booking/bookingFunnelDates';
+import { quoteToBookingDraftPricing, bookingDraftToSummaryData } from '@/src/lib/booking/bookingDraft';
 import { computeNewBookingCheckoutTotals } from '@/src/lib/billing/bookingCheckoutTotals';
 import { quoteBookingPrice } from '@/src/services/pricing';
 import { getCustomerPriorOutstandingForCheckout } from '@/src/services/bookingPriorOutstanding';
 import { getCustomerSession } from '@/src/lib/auth/session';
 
-export const metadata = { title: 'Complete your booking' };
+export const metadata = { title: 'Booking summary' };
 
 export const dynamic = 'force-dynamic';
 
@@ -149,7 +150,7 @@ export default async function NewBookingPage(props: PageProps<'/booking/new'>) {
 
   const checkoutTiming = start > todayString() ? 'future_start' : 'available_now';
 
-  const summary = {
+  const summary = bookingDraftToSummaryData({
     pgSlug: pg.pgSlug,
     pgName: pg.pgName,
     roomId: primaryBed.roomId,
@@ -157,13 +158,17 @@ export default async function NewBookingPage(props: PageProps<'/booking/new'>) {
     bedId: primaryBed.bedId,
     bedCode: primaryBed.bedCode,
     stayType,
-    moveInDate: funnelDates.start,
-    moveOutDate: funnelDates.end ?? undefined,
+    checkIn: funnelDates.start,
+    checkOut: funnelDates.end,
     stayNights: funnelDates.stayNights ?? undefined,
-    rentPaise: subtotalPaise,
-    depositPaise,
-    totalDuePaise: checkoutTotals?.totalToCollectTodayPaise,
-  };
+    pricing: checkoutTotals
+      ? quoteToBookingDraftPricing({
+          subtotalPaise,
+          depositPaise,
+          priorOutstanding,
+        })
+      : null,
+  });
 
   return (
     <main className="w-full px-4 py-6 sm:px-6 lg:py-8">
@@ -175,9 +180,9 @@ export default async function NewBookingPage(props: PageProps<'/booking/new'>) {
 
       <BookingFunnelShell activeStep="preview" initialSummary={summary}>
         <div>
-          <h1 className="text-2xl font-bold text-white">Almost done!</h1>
+          <h1 className="text-2xl font-bold text-white">Booking summary</h1>
           <p className="mt-2 text-base text-apg-silver">
-            Confirm your details, then continue to payment.
+            Review your stay and total — then continue to payment.
           </p>
 
           <div className="mt-5">
