@@ -4,6 +4,7 @@ import {
   getOpenActionsCount,
   type UnresolvedBadgeBucket,
 } from '@/src/services/unresolvedActions';
+import { loadResidentOperationsResidentsPage } from '@/src/services/residentOperationsResidentsPage';
 
 /** Sidebar badge keys — all module counts from unresolved_actions SSOT. */
 export type AdminNavBadges = Partial<
@@ -25,7 +26,10 @@ export async function loadAdminNavBadges(session: AdminSession): Promise<AdminNa
     let total = 0;
 
     for (const bucket of buckets) {
-      const count = await getOpenActionsCount(session, bucket);
+      const count =
+        bucket === 'operations'
+          ? (await loadResidentOperationsResidentsPage(session, null)).allQueueCount
+          : await getOpenActionsCount(session, bucket);
       if (count > 0) {
         badges[BUCKET_TO_NAV[bucket]] = count;
         total += count;

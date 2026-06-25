@@ -17,6 +17,7 @@ import {
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import {
   billingDayFromMoveIn,
+  computeNextRentDueDate,
   dueDateForBillingDay,
   firstAutoBillingDate,
   firstOfMonth,
@@ -29,16 +30,36 @@ function monthlyRentFromSnapshot(snapshot: PricingSnapshot | null): number {
   return snapshot.perBed.reduce((acc, bed) => acc + (bed.monthlyRatePaise ?? 0), 0);
 }
 
+export type ResidentLastInvoiceSnapshot = {
+  invoiceDate: string;
+  statusLabel: 'Paid' | 'Pending' | 'Awaiting approval';
+  amountPaise: number;
+  invoiceNumber: string;
+};
+
 export type ResidentBillingFormDefaults = {
   rentAmountPaise: number;
   billingMonth: string;
+  /** Earliest open rent bill due date, or next cycle due for new charges. */
   dueDate: string;
+  /** Next future rent due date for profile display (never a past cycle). */
+  nextRentDueDate: string;
   billingDay: number;
   defaultPaymentMethod: string;
   pendingRentInvoiceId: string | null;
   pendingInvoiceNumber: string | null;
   pendingInvoiceStatus: string | null;
+  lastInvoice: ResidentLastInvoiceSnapshot | null;
 };
+
+function rentInvoiceStatusLabel(
+  status: string,
+  paymentProofUrl: string | null,
+): ResidentLastInvoiceSnapshot['statusLabel'] {
+  if (status === 'paid') return 'Paid';
+  if (paymentProofUrl) return 'Awaiting approval';
+  return 'Pending';
+}
 
 async function moveInDateForBooking(bookingId: string): Promise<string | null> {
   const [stay] = await db
@@ -170,9 +191,10 @@ export async function getResidentBillingFormDefaults(
   if (!profile) return null;
 
   const billingMonth = firstOfMonth(new Date());
-  const dueDate = formatDate(dueDateForBillingDay(billingMonth, profile.billingDay));
+  const calendarDueDate = formatDate(dueDateForBillingDay(billingMonth, profile.billingDay));
+  const moveIn = await moveInDateForBooking(bookingId);
 
-  const [pending] = await db
+  const [latest] = await db
     .select({
       id: rentInvoices.id,
       invoiceNumber: rentInvoices.invoiceNumber,
@@ -180,6 +202,8 @@ export async function getResidentBillingFormDefaults(
       rentPaise: rentInvoices.rentPaise,
       dueDate: rentInvoices.dueDate,
       billingMonth: rentInvoices.billingMonth,
+      paymentProofUrl: rentInvoices.paymentProofUrl,
+      createdAt: rentInvoices.createdAt,
     })
     .from(rentInvoices)
     .where(
@@ -187,22 +211,50 @@ export async function getResidentBillingFormDefaults(
         eq(rentInvoices.bookingId, bookingId),
         eq(rentInvoices.customerId, customerId),
         eq(rentInvoices.isAdhoc, false),
+        sql`${rentInvoices.status} != 'cancelled'`,
       ),
     )
-    .orderBy(desc(rentInvoices.billingMonth))
+    .orderBy(desc(rentInvoices.billingMonth), desc(rentInvoices.createdAt))
     .limit(1);
 
   const activePending =
-    pending && !['paid', 'cancelled'].includes(pending.status) ? pending : null;
+    latest && !['paid', 'cancelled'].includes(latest.status) ? latest : null;
+
+  const today = formatDate(new Date());
+  const openDueForDisplay =
+    activePending?.dueDate && activePending.dueDate >= today ? activePending.dueDate : null;
+  const nextRentDueDate = moveIn
+    ? computeNextRentDueDate({
+        moveInDate: moveIn,
+        billingDay: profile.billingDay,
+        openInvoiceDueDate: openDueForDisplay,
+      })
+    : calendarDueDate >= today
+      ? calendarDueDate
+      : computeNextRentDueDate({
+          moveInDate: billingMonth,
+          billingDay: profile.billingDay,
+        });
+
+  const lastInvoice: ResidentLastInvoiceSnapshot | null = latest
+    ? {
+        invoiceDate: formatDate(latest.createdAt),
+        statusLabel: rentInvoiceStatusLabel(latest.status, latest.paymentProofUrl),
+        amountPaise: latest.rentPaise,
+        invoiceNumber: latest.invoiceNumber,
+      }
+    : null;
 
   return {
     rentAmountPaise: activePending?.rentPaise ?? profile.rentAmountPaise,
     billingMonth: activePending?.billingMonth ?? billingMonth,
-    dueDate: activePending?.dueDate ?? dueDate,
+    dueDate: activePending?.dueDate ?? nextRentDueDate,
+    nextRentDueDate,
     billingDay: profile.billingDay,
     defaultPaymentMethod: profile.defaultPaymentMethod,
     pendingRentInvoiceId: activePending?.id ?? null,
     pendingInvoiceNumber: activePending?.invoiceNumber ?? null,
     pendingInvoiceStatus: activePending?.status ?? null,
+    lastInvoice,
   };
 }

@@ -2,7 +2,7 @@
  * SSOT — admin-required steps. OPEN actions appear everywhere; CLOSED appear nowhere.
  * Notifications are not SSOT — badges and queues read from this table only.
  */
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { unresolvedActions } from '@/src/db/schema';
 import type {
@@ -30,8 +30,9 @@ export type UnresolvedActionRow = {
 
 export type UnresolvedBadgeBucket = 'operations' | 'payments' | 'kyc' | 'checkout';
 
+/** Sidebar badge mapping — invoice_review excluded (billing audit, not Operations queue). */
 export const UNRESOLVED_ACTION_BADGE_BUCKET: Record<
-  UnresolvedActionType,
+  Exclude<UnresolvedActionType, 'invoice_review'>,
   UnresolvedBadgeBucket
 > = {
   kyc_review: 'kyc',
@@ -40,7 +41,6 @@ export const UNRESOLVED_ACTION_BADGE_BUCKET: Record<
   move_out_approval: 'operations',
   checkout_settlement: 'checkout',
   deposit_refund_approval: 'operations',
-  invoice_review: 'operations',
   room_transfer_approval: 'operations',
   maintenance_approval: 'operations',
 };
@@ -158,7 +158,11 @@ export async function getOpenActionsForResident(
     .select()
     .from(unresolvedActions)
     .where(
-      and(eq(unresolvedActions.residentId, residentId), eq(unresolvedActions.status, 'OPEN')),
+      and(
+        eq(unresolvedActions.residentId, residentId),
+        eq(unresolvedActions.status, 'OPEN'),
+        ne(unresolvedActions.actionType, 'invoice_review'),
+      ),
     )
     .orderBy(sql`${unresolvedActions.priority} DESC`, unresolvedActions.createdAt);
 

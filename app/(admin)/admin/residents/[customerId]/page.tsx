@@ -378,7 +378,7 @@ export default async function ResidentDetailPage({
               <EditRentDueDateForm
                 bookingId={activeTenancy.bookingId}
                 customerId={customerId}
-                currentNextDueDate={billingDefaults.dueDate}
+                currentNextDueDate={billingDefaults.nextRentDueDate}
                 billingDay={billingDefaults.billingDay}
               />
             ) : null}

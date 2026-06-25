@@ -35,7 +35,7 @@ async function upsertManualReviewActionItems(
     await db
       .insert(actionItems)
       .values({
-        type: 'deposit_collection_due',
+        type: 'financial_audit_review',
         title: `Financial audit · ${issue.checkType.replace(/_/g, ' ')} · ${issue.customerName}`,
         pgId,
         residentId: issue.customerId,

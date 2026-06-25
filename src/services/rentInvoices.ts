@@ -76,6 +76,11 @@ import {
   collectibleResidentFilters,
 } from '@/src/lib/billing/productionDataFilter';
 import {
+  getRoomBillingConfigForBed,
+  resolvePrivateRoomRentPaise,
+  shouldSkipPrivateRoomDuplicate,
+} from '@/src/lib/billing/roomBilling';
+import {
   ensureBillingProfileForBooking,
   syncBillingDayFromCheckIn,
 } from '@/src/services/residentBillingProfiles';
@@ -681,12 +686,26 @@ export async function generateRentInvoicesForMonth(
       continue;
     }
 
-    const monthlyRent =
+    let monthlyRent =
       profile?.rentAmountPaise ?? monthlyRentFromSnapshot(c.pricingSnapshot);
     if (monthlyRent <= 0) {
-      // No monthly rate on snapshot — skip (audit log, no invoice).
       skipped += 1;
       continue;
+    }
+
+    const roomConfig = await getRoomBillingConfigForBed(c.bedId);
+    if (roomConfig?.billingMode === 'private_room') {
+      const dup = await shouldSkipPrivateRoomDuplicate({
+        roomId: roomConfig.roomId,
+        billingMonth,
+        bookingId: c.bookingId,
+        bedId: c.bedId,
+      });
+      if (dup.skip) {
+        skipped += 1;
+        continue;
+      }
+      monthlyRent = resolvePrivateRoomRentPaise(roomConfig, monthlyRent);
     }
 
     const billingDay = profile?.billingDay ?? 5;

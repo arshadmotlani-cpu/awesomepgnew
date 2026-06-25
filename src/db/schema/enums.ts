@@ -1,6 +1,7 @@
 import { pgEnum } from 'drizzle-orm/pg-core';
 
 export const genderPolicyEnum = pgEnum('gender_policy', ['male', 'female', 'coed']);
+export const roomBillingModeEnum = pgEnum('room_billing_mode', ['per_bed', 'private_room']);
 export const genderEnum = pgEnum('gender', ['male', 'female', 'other']);
 export const idProofTypeEnum = pgEnum('id_proof_type', ['aadhaar', 'passport', 'pan', 'dl']);
 export const kycStatusEnum = pgEnum('kyc_status', ['pending', 'approved', 'rejected']);
@@ -236,6 +237,7 @@ export const actionItemTypeEnum = pgEnum('action_item_type', [
   'deposit_refund_request',
   'extension_request',
   'deposit_collection_due',
+  'financial_audit_review',
   'fixed_stay_checkout_due',
   'refund_request_submitted',
 ]);

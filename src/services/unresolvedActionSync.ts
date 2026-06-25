@@ -26,9 +26,11 @@ const ACTION_ITEM_TO_UNRESOLVED: Record<string, UnresolvedActionType | null> = {
   refund_request_submitted: 'deposit_refund_approval',
   maintenance_issue: 'maintenance_approval',
   extension_request: 'room_transfer_approval',
-  rent_due: 'invoice_review',
-  electricity_due: 'invoice_review',
-  deposit_collection_due: 'invoice_review',
+  // Collections / billing reminders — Action Center only, not Operations sidebar.
+  rent_due: null,
+  electricity_due: null,
+  deposit_collection_due: null,
+  financial_audit_review: null,
 };
 
 function parseEntityFromSourceKey(
@@ -181,6 +183,18 @@ export async function resolveStaleBedAssignmentUnresolvedActions(
   return closed;
 }
 
+/** Close invoice_review rows created from billing/financial audit — not Operations queue items. */
+export async function resolveStaleInvoiceReviewUnresolvedActions(): Promise<number> {
+  const rows = await db.execute<{ id: string }>(sql`
+    UPDATE unresolved_actions ua
+    SET status = 'CLOSED', resolved_at = now(), updated_at = now()
+    WHERE ua.status = 'OPEN'
+      AND ua.action_type = 'invoice_review'
+    RETURNING ua.id
+  `);
+  return rows.length;
+}
+
 export async function syncUnresolvedActionsFromDomain(
   session: AdminSession,
 ): Promise<{ open: number; closed: number }> {
@@ -224,6 +238,7 @@ export async function syncUnresolvedActionsFromDomain(
   await resolveTerminalCheckoutUnresolvedActions();
   await resolveStaleBedAssignmentUnresolvedActions(session);
   await resolveStalePaymentReviewArtifacts(session);
+  await resolveStaleInvoiceReviewUnresolvedActions();
 
   const closed = await closeUnresolvedActionsNotInSourceKeys(activeKeys, session);
 

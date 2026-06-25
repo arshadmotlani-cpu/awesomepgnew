@@ -1,6 +1,6 @@
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import { adminStayTypeLabel, isMonthlyStayType } from '@/src/lib/stayType';
-import type { ResidentBillingFormDefaults } from '@/src/services/residentBillingProfiles';
+import type { ResidentBillingFormDefaults, ResidentLastInvoiceSnapshot } from '@/src/services/residentBillingProfiles';
 import type { DepositSummary } from '@/src/services/deposits';
 import type { ResidentFinancialSummary } from '@/src/lib/billing/residentFinancialTypes';
 
@@ -24,7 +24,6 @@ export function ResidentFinancialScheduleCard({
   expectedCheckoutDate?: string | null;
 }) {
   const monthlyStay = isMonthlyStayType(stayType ?? durationMode);
-  const firstRentItem = financialSummary?.rent.items[0];
   const depositRequired = financialSummary?.deposit.requiredPaise ?? 0;
   const depositPaid = depositSummary?.collectedPaise ?? financialSummary?.deposit.paidPaise ?? 0;
   const depositOutstanding = financialSummary?.deposit.outstandingPaise ?? 0;
@@ -47,8 +46,12 @@ export function ResidentFinancialScheduleCard({
         {monthlyStay ? (
           <>
             <Stat
-              label="Current rent due date"
-              value={billingDefaults?.dueDate ? formatDate(billingDefaults.dueDate) : '—'}
+              label="Next rent due"
+              value={
+                billingDefaults?.nextRentDueDate
+                  ? formatDate(billingDefaults.nextRentDueDate)
+                  : '—'
+              }
               accent
             />
             <Stat label="Billing cycle" value="Monthly" />
@@ -56,14 +59,11 @@ export function ResidentFinancialScheduleCard({
               label="Rent due day"
               value={billingDefaults ? `${billingDefaults.billingDay} of each month` : '—'}
             />
-            <Stat
-              label="Last invoice date"
-              value={
-                firstRentItem?.generatedAt
-                  ? formatDate(firstRentItem.generatedAt.slice(0, 10))
-                  : '—'
-              }
-            />
+            {billingDefaults?.lastInvoice ? (
+              <LastInvoiceStat invoice={billingDefaults.lastInvoice} />
+            ) : (
+              <Stat label="Last invoice" value="—" />
+            )}
           </>
         ) : (
           <>
@@ -84,6 +84,20 @@ export function ResidentFinancialScheduleCard({
         />
       </dl>
     </section>
+  );
+}
+
+function LastInvoiceStat({ invoice }: { invoice: ResidentLastInvoiceSnapshot }) {
+  return (
+    <div className="rounded-lg border border-white/10 bg-[#12161C] px-3 py-2">
+      <dt className="text-[10px] font-medium uppercase tracking-wide text-apg-silver">Last invoice</dt>
+      <dd className="mt-1 space-y-0.5 text-sm font-semibold text-white">
+        <p>{formatDate(invoice.invoiceDate)}</p>
+        <p className="text-xs font-medium text-apg-silver">
+          {invoice.statusLabel} · {paiseToInr(invoice.amountPaise)}
+        </p>
+      </dd>
+    </div>
   );
 }
 

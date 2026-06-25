@@ -5,7 +5,8 @@
  *   npx tsx scripts/audit-open-unresolved-actions.ts
  *   npx tsx scripts/audit-open-unresolved-actions.ts --fix
  */
-import 'dotenv/config';
+import { loadScriptEnv } from '@/src/lib/scripts/loadScriptEnv';
+loadScriptEnv();
 import { and, eq, sql } from 'drizzle-orm';
 import { db, closeDb } from '@/src/db/client';
 import { unresolvedActions } from '@/src/db/schema';
@@ -185,6 +186,13 @@ async function main() {
           }
         }
         whyOpen = row.label ?? row.actionType;
+        break;
+      }
+      case 'invoice_review': {
+        valid = false;
+        shouldClose = true;
+        closeReason = 'invoice_review is billing audit — not Operations queue';
+        whyOpen = row.label ?? 'Stale financial/billing audit item';
         break;
       }
       default:

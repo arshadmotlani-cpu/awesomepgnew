@@ -24,6 +24,7 @@ export const ACTION_ITEM_GROUP_LABELS: Record<ActionItemType, string> = {
   deposit_refund_request: 'Deposit Refund Requests',
   extension_request: 'Extension Requests',
   deposit_collection_due: 'Outstanding Deposits',
+  financial_audit_review: 'Financial Audit',
   fixed_stay_checkout_due: 'Fixed Stay Checkouts',
   refund_request_submitted: 'Refund Requests Submitted',
 };
@@ -35,6 +36,7 @@ export const ACTION_ITEM_GROUP_ORDER: ActionItemType[] = [
   'fixed_stay_checkout_due',
   'refund_pending',
   'deposit_collection_due',
+  'financial_audit_review',
   'deposit_refund_request',
   'refund_request_submitted',
   'extension_request',

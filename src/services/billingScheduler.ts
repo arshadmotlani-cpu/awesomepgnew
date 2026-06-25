@@ -43,7 +43,7 @@ export type DailyRentBillingJobResult = {
   expired: Awaited<ReturnType<typeof expireRentInvoicesPastDue>>;
 };
 
-async function listAnniversaryCandidates(runDate: string) {
+export async function listAnniversaryCandidates(runDate: string) {
   const rows = await db
     .select({
       bookingId: residentBillingProfiles.bookingId,

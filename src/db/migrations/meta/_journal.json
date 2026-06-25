@@ -505,6 +505,41 @@
       "when": 1789300000000,
       "tag": "0075_billing_scheduler",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1789400000000,
+      "tag": "0076_room_billing_mode",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1789500000000,
+      "tag": "0077_financial_audit_action_item",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1789600000000,
+      "tag": "0078_room_201_private_billing",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1789700000000,
+      "tag": "0079_close_stale_invoice_review_ops",
+      "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1789800000000,
+      "tag": "0080_resolve_stale_financial_audit",
+      "breakpoints": true
     }
   ]
 }
