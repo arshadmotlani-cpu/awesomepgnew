@@ -10,9 +10,13 @@ import { join } from 'node:path';
 import dotenv from 'dotenv';
 import { CANONICAL_PRODUCTION_URL } from '@/src/lib/url';
 
+const presetCronSecret = process.env.CRON_SECRET?.trim();
 dotenv.config({ path: '.env.production.local' });
-dotenv.config({ path: '.env.bak' });
+dotenv.config({ path: '.env.bak', override: !presetCronSecret });
 dotenv.config();
+if (presetCronSecret) {
+  process.env.CRON_SECRET = presetCronSecret;
+}
 
 const baseUrl = (
   process.argv.includes('--local') ? 'http://localhost:3000' : CANONICAL_PRODUCTION_URL
@@ -60,7 +64,13 @@ async function runVerify(): Promise<VerifyResponse> {
     headers: { Authorization: `Bearer ${cronSecret}` },
     signal: AbortSignal.timeout(58_000),
   });
-  const body = (await res.json()) as VerifyResponse;
+  const text = await res.text();
+  let body: VerifyResponse;
+  try {
+    body = JSON.parse(text) as VerifyResponse;
+  } catch {
+    throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
+  }
   if (!res.ok && !body.checks) {
     throw new Error(body.reason ?? `HTTP ${res.status}`);
   }
