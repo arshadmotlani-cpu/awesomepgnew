@@ -25,12 +25,19 @@ async function handle(req: NextRequest) {
   const url = new URL(req.url);
   const asOfOverride = url.searchParams.get('asOf'); // YYYY-MM-DD IST
 
-  const result = await runDailyRentBillingJob({
-    asOfIst: asOfOverride ?? undefined,
-    triggeredBy: url.searchParams.get('retry') === '1' ? 'admin_retry' : 'system',
-  });
+  try {
+    const result = await runDailyRentBillingJob({
+      asOfIst: asOfOverride ?? undefined,
+      triggeredBy: url.searchParams.get('retry') === '1' ? 'admin_retry' : 'system',
+    });
 
-  return Response.json({ ok: true, ...result });
+    return Response.json({ ok: true, ...result });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const stack = error instanceof Error ? error.stack : undefined;
+    console.error('[cron/generate-monthly-rent]', message, stack);
+    return Response.json({ ok: false, reason: message, stack }, { status: 500 });
+  }
 }
 
 export const GET = handle;
