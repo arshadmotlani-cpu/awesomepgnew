@@ -17,6 +17,7 @@ import { requireAdminSession } from '@/src/lib/auth/guards';
 import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
 import { BillingHealthCardPanel } from '@/src/components/admin/billing/BillingCenterPanels';
 import { getBillingHealthSnapshot } from '@/src/services/billingHealth';
+import { loadOverviewContext } from '@/src/services/overviewData';
 import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
 
 export const dynamic = 'force-dynamic';

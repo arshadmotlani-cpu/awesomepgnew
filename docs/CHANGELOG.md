@@ -256,36 +256,18 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-25 19:00:56 UTC
+### Pending pre-commit sync · 2026-06-25 19:19:44 UTC
 
-**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Bookings]]
+**Areas touched:** [[ROUTES]]
 
 **Docs flagged for review:**
-- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DATABASE.md` — review for accuracy
-- `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
-- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (16):**
-- `app/(admin)/admin/billing/actions.ts`
-- `app/(admin)/admin/billing/electricity/generate/page.tsx`
+**Staged code files (2):**
 - `app/(admin)/admin/billing/page.tsx`
-- `app/(admin)/admin/electricity/new/page.tsx`
-- `app/(admin)/admin/revenue/billing/page.tsx`
 - `app/(admin)/admin/system/page.tsx`
-- `app/api/cron/generate-monthly-rent/route.ts`
-- `src/db/migrations/0075_billing_scheduler.sql`
-- `src/db/migrations/meta/_journal.json`
-- `src/db/schema/billingGeneration.ts`
-- `src/db/schema/index.ts`
-- `src/db/schema/residentBillingProfiles.ts`
-- `src/lib/billing/billingTimezone.ts`
-- `src/services/billing.ts`
-- `src/services/bookingLifecycle.ts`
-- `src/services/rentInvoices.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

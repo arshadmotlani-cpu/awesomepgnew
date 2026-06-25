@@ -46,6 +46,7 @@ import {
 } from '@/src/services/billingScheduler';
 import { listRentBillingOverview, listBillingCycleOperations } from '@/src/services/rentInvoices';
 import { listRoomsMissingElectricityBill } from '@/src/services/electricityBilling';
+import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
 import type { AdminRentInvoiceRow } from '@/src/db/queries/admin';
 
 const TABS = [
@@ -119,7 +120,7 @@ export default async function CollectionsModulePage({
     getLatestBillingGenerationRun(),
     listTodayGeneratedInvoices(todayIst),
     listBillingGenerationFailures({ unresolvedOnly: true, limit: 50 }),
-    listPendingPaymentReviews({ limit: 100 }),
+    listPendingPaymentReviews(session),
   ]);
 
   const allUnpaidRent = mergeUnpaidRent(

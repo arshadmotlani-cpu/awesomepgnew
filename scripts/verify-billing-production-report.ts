@@ -34,9 +34,23 @@ import {
 } from '../src/services/billing';
 import { getDatabaseConnectionInfo } from '../src/lib/db/env';
 import { getBillingRevenueMetrics } from '../src/services/billingRevenueMetrics';
+import type { AdminSession } from '../src/lib/auth/session';
 import { listPendingPaymentReviews } from '../src/services/paymentProofQueue';
 
 type PassFail = 'PASS' | 'FAIL' | 'BLOCKED' | 'WARN';
+
+const CRON: AdminSession = {
+  kind: 'admin',
+  sessionId: 'verify-billing',
+  adminId: 'verify-billing',
+  email: 'verify@system',
+  fullName: 'Verify Billing',
+  role: 'super_admin',
+  pgScope: [],
+  mustChangePassword: false,
+  rememberMe: false,
+  expiresAt: new Date(Date.now() + 86_400_000),
+};
 
 const report: Array<{ section: string; status: PassFail; detail: string }> = [];
 
@@ -469,7 +483,7 @@ async function main() {
       ),
     );
 
-  const pendingApprovals = await listPendingPaymentReviews({ limit: 500 });
+  const pendingApprovals = await listPendingPaymentReviews(CRON);
 
   console.log(`Generated today: ${generatedToday?.count ?? 0}`);
   console.log(`Pending rent invoices: ${pendingRent?.count ?? 0} (${fmtPaise(Number(pendingRent?.total ?? 0))})`);

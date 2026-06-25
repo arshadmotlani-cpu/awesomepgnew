@@ -10,12 +10,12 @@ import {
   bookings,
   customers,
   electricityBills,
+  electricityInvoices,
   rentInvoices,
 } from '@/src/db/schema';
 import { nextBillingSchedulerRunUtc, todayInBillingTimezone } from '@/src/lib/billing/billingTimezone';
 import { collectibleResidentFilters } from '@/src/lib/billing/productionDataFilter';
 import { getLatestBillingGenerationRun } from '@/src/services/billingScheduler';
-import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
 
 export type BillingHealthSnapshot = {
   nextSchedulerRunUtc: string;
@@ -76,7 +76,29 @@ export async function getBillingHealthSnapshot(): Promise<BillingHealthSnapshot>
     .orderBy(desc(electricityBills.createdAt))
     .limit(1);
 
-  const pendingReviews = await listPendingPaymentReviews({ limit: 500 });
+  const [rentProofPending] = await db
+    .select({ count: count() })
+    .from(rentInvoices)
+    .where(
+      and(
+        eq(rentInvoices.isAdhoc, false),
+        sql`${rentInvoices.paymentProofUrl} IS NOT NULL`,
+        inArray(rentInvoices.status, ['pending', 'payment_in_progress']),
+      ),
+    );
+
+  const [elecProofPending] = await db
+    .select({ count: count() })
+    .from(electricityInvoices)
+    .where(
+      and(
+        sql`${electricityInvoices.paymentProofUrl} IS NOT NULL`,
+        eq(electricityInvoices.status, 'pending'),
+      ),
+    );
+
+  const pendingApprovals =
+    (rentProofPending?.count ?? 0) + (elecProofPending?.count ?? 0);
 
   return {
     nextSchedulerRunUtc: nextRun.toISOString(),
@@ -94,7 +116,7 @@ export async function getBillingHealthSnapshot(): Promise<BillingHealthSnapshot>
       : null,
     invoicesGeneratedToday: generatedTodayRow?.count ?? 0,
     unresolvedFailures: failuresRow?.count ?? 0,
-    pendingApprovals: pendingReviews.length,
+    pendingApprovals,
     overdueRentInvoices: overdueRow?.count ?? 0,
     lastElectricityBatchAt: elecRow?.createdAt?.toISOString() ?? null,
   };

@@ -22,6 +22,8 @@ RAZORPAY_KEY_SECRET=...
 NEXT_PUBLIC_APP_URL=https://www.awesomepg.in
 ```
 
+**Billing cron (2026-06-26):** `CRON_SECRET` configured on Vercel project `awesomepg-k59k` → Settings → Environment Variables for **Production** (Sensitive), **Preview** (Sensitive), and **Development**. Rent cron: `30 18 * * *` UTC (00:00 IST) in `vercel.json`.
+
 Staging/dev mock payments:
 
 ```
