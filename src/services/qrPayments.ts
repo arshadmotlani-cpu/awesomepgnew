@@ -319,6 +319,9 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
   const { markBookingAwaitingApproval } = await import('@/src/lib/bookingApproval');
   await markBookingAwaitingApproval(booking.id);
 
+  const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
+  scheduleAdminNotificationSync();
+
   const { trackAnalyticsEvent } = await import('./visitorAnalytics');
   void trackAnalyticsEvent({
     eventType: 'payment_uploaded',

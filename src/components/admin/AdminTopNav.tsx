@@ -14,7 +14,7 @@ export function AdminTopNav({
   adminRole?: string | null;
 }) {
   const badges = useAdminNavBadges();
-  const unreadTotal = badges.overview ?? 0;
+  const unreadTotal = badges.notifications ?? 0;
 
   return (
     <header className="sticky top-0 z-40 flex min-h-14 w-full max-w-[100vw] items-center gap-2 border-b border-white/5 bg-[#0B0F14] px-3 pt-[env(safe-area-inset-top)] sm:gap-3 sm:px-4 lg:px-6">

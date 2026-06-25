@@ -47,7 +47,7 @@ export function AdminLiveRefreshProvider({
       if (typeof window !== 'undefined') {
         window.dispatchEvent(
           new CustomEvent('admin-badges-updated', {
-            detail: { unreadCount: json.unreadCount ?? json.badges.overview ?? 0 },
+            detail: { unreadCount: json.unreadCount ?? json.badges?.notifications ?? 0 },
           }),
         );
       }

@@ -38,6 +38,9 @@ import {
   couponRedemptions,
   customers,
   pgs,
+  rooms,
+  floors,
+  adminUsers,
 } from '../db/schema';
 import type { PricingSnapshot } from '../db/schema/bookings';
 import { applyDateCouponToRentSubtotal } from '../lib/dateCoupon';
@@ -699,6 +702,39 @@ export async function createBooking(
       await stampProfileCompletedAtIfReady(result.customerId);
 
       scheduleAdminNotificationSync();
+
+      if (!isAdminCreated) {
+        const { emitBookingCreatedAdminNotifications } = await import(
+          '@/src/services/notificationEngine'
+        );
+        const { adminCanAccessPg } = await import('@/src/lib/auth/roles');
+        const [pgRow] = await db
+          .select({ id: pgs.id, name: pgs.name })
+          .from(pgs)
+          .innerJoin(floors, eq(floors.pgId, pgs.id))
+          .innerJoin(rooms, eq(rooms.floorId, floors.id))
+          .innerJoin(beds, eq(beds.roomId, rooms.id))
+          .where(eq(beds.id, uniqueBedIds[0]!))
+          .limit(1);
+        const admins = await db
+          .select({ id: adminUsers.id, role: adminUsers.role, pgScope: adminUsers.pgScope })
+          .from(adminUsers)
+          .where(eq(adminUsers.isActive, true));
+        const adminIds = pgRow
+          ? admins
+              .filter((a) => adminCanAccessPg({ role: a.role, pgScope: a.pgScope }, pgRow.id))
+              .map((a) => a.id)
+          : admins.map((a) => a.id);
+        if (adminIds.length > 0 && pgRow) {
+          void emitBookingCreatedAdminNotifications({
+            adminIds,
+            bookingId: result.id,
+            bookingCode: candidateCode,
+            pgName: pgRow.name,
+            residentName: input.customer.fullName,
+          });
+        }
+      }
 
       return {
         ok: true,

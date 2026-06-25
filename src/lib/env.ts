@@ -212,6 +212,20 @@ export const env = {
   get SENTRY_PROJECT() {
     return optional('SENTRY_PROJECT');
   },
+
+  // ── Web Push (PWA) ───────────────────────────────────────────────────
+  get VAPID_PUBLIC_KEY() {
+    return optional('VAPID_PUBLIC_KEY');
+  },
+  get VAPID_PRIVATE_KEY() {
+    return optional('VAPID_PRIVATE_KEY');
+  },
+  get NEXT_PUBLIC_VAPID_PUBLIC_KEY() {
+    return optional('NEXT_PUBLIC_VAPID_PUBLIC_KEY') ?? optional('VAPID_PUBLIC_KEY');
+  },
+  get VAPID_SUBJECT() {
+    return optional('VAPID_SUBJECT') ?? 'mailto:admin@awesomepg.com';
+  },
 } as const;
 
 export type Env = typeof env;

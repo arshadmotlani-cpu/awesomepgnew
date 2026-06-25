@@ -1,19 +1,31 @@
 import Link from 'next/link';
 import { PageHeader } from '@/src/components/admin/PageHeader';
+import { NotificationCenterList } from '@/src/components/admin/NotificationCenterList';
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import {
-  formatNotificationAge,
-  listAdminNotifications,
-  NOTIFICATION_TAB_LABELS,
-} from '@/src/services/adminNotifications';
+  NOTIFICATION_CATEGORY_LABELS,
+  type NotificationCategory,
+} from '@/src/lib/notifications/notificationTypes';
+import { listUserNotifications } from '@/src/services/notificationEngine';
 import { syncActionItems } from '@/src/services/actionItems';
 
 export const dynamic = 'force-dynamic';
 
+const CATEGORIES: NotificationCategory[] = [
+  'bookings',
+  'payments',
+  'refunds',
+  'checkout',
+  'kyc',
+  'residents',
+  'complaints',
+  'maintenance',
+];
+
 export default async function AdminNotificationsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; category?: string }>;
 }) {
   const sp = await searchParams;
   const session = await requireAdminSession('/admin/notifications');
@@ -21,26 +33,38 @@ export default async function AdminNotificationsPage({
 
   const tab =
     sp.tab === 'archived' ? 'archived' : sp.tab === 'read' ? 'read' : 'unread';
-  const items = await listAdminNotifications(session, tab, 100);
+  const category =
+    sp.category && CATEGORIES.includes(sp.category as NotificationCategory)
+      ? (sp.category as NotificationCategory)
+      : null;
+
+  const items = await listUserNotifications('admin', session.adminId, tab, {
+    category,
+    limit: 100,
+  });
 
   return (
     <>
       <PageHeader
         title="Notification center"
-        description="New items show badge counts. Opening the relevant page marks them Seen. Resolved when the task is completed."
+        description="Unread count drives your home-screen badge. Tap a notification to open the related page."
       />
 
-      <nav className="mb-6 flex flex-wrap gap-2 text-sm">
+      <nav className="mb-4 flex flex-wrap gap-2 text-sm">
         {(
           [
-            ['unread', NOTIFICATION_TAB_LABELS.unread],
-            ['read', NOTIFICATION_TAB_LABELS.read],
-            ['archived', NOTIFICATION_TAB_LABELS.archived],
+            ['unread', 'Unread'],
+            ['read', 'Read'],
+            ['archived', 'Archive'],
           ] as const
         ).map(([key, label]) => (
           <Link
             key={key}
-            href={key === 'unread' ? '/admin/notifications' : `/admin/notifications?tab=${key}`}
+            href={
+              key === 'unread'
+                ? `/admin/notifications${category ? `?category=${category}` : ''}`
+                : `/admin/notifications?tab=${key}${category ? `&category=${category}` : ''}`
+            }
             className={
               'rounded-lg px-3 py-1.5 ' +
               (tab === key
@@ -53,50 +77,33 @@ export default async function AdminNotificationsPage({
         ))}
       </nav>
 
-      {items.length === 0 ? (
-        <p className="text-sm text-apg-silver">No {NOTIFICATION_TAB_LABELS[tab].toLowerCase()} notifications.</p>
-      ) : (
-        <ul className="space-y-2">
-          {items.map((item) => (
-            <li key={item.id}>
-              <Link
-                href={item.href}
-                className="block rounded-xl border border-white/10 bg-[#1A1F27] px-4 py-3 hover:border-[#FF5A1F]/30"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[#FF5A1F]">
-                      {item.typeLabel}
-                    </p>
-                    <p className="mt-0.5 text-sm font-semibold text-white">
-                      {item.residentName ?? item.title}
-                    </p>
-                    {item.pgName ? (
-                      <p className="text-xs uppercase text-apg-silver">{item.pgName}</p>
-                    ) : null}
-                    {item.detail ? (
-                      <p className="mt-1 text-xs text-sky-200">{item.detail}</p>
-                    ) : null}
-                    {item.readAt ? (
-                      <p className="mt-1 text-[10px] text-apg-silver">
-                        Seen {formatNotificationAge(item.readAt)}
-                      </p>
-                    ) : null}
-                    {item.resolvedAt ? (
-                      <p className="text-[10px] text-emerald-300/80">
-                        Resolved {formatNotificationAge(item.resolvedAt)}
-                      </p>
-                    ) : null}
-                  </div>
-                  <span className="text-[10px] text-apg-silver">
-                    {formatNotificationAge(item.createdAt)}
-                  </span>
-                </div>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
+      <nav className="mb-6 flex flex-wrap gap-2 text-xs">
+        <Link
+          href={`/admin/notifications${tab !== 'unread' ? `?tab=${tab}` : ''}`}
+          className={
+            'rounded-full px-3 py-1 ' +
+            (!category ? 'bg-white/10 text-white' : 'text-apg-silver hover:text-white')
+          }
+        >
+          All
+        </Link>
+        {CATEGORIES.map((cat) => (
+          <Link
+            key={cat}
+            href={`/admin/notifications?${tab !== 'unread' ? `tab=${tab}&` : ''}category=${cat}`}
+            className={
+              'rounded-full px-3 py-1 ' +
+              (category === cat
+                ? 'bg-white/10 text-white'
+                : 'text-apg-silver hover:text-white')
+            }
+          >
+            {NOTIFICATION_CATEGORY_LABELS[cat]}
+          </Link>
+        ))}
+      </nav>
+
+      <NotificationCenterList items={items} />
     </>
   );
 }

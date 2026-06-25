@@ -22,6 +22,11 @@ import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { formatDate } from '@/src/lib/dates';
 import type { ActionItemRow } from '@/src/services/actionItems';
+import {
+  emitAdminNotificationsForActionItem,
+  markUserNotificationReadByDedupeKey,
+  countUnreadForAdmin as countUnreadUserNotifications,
+} from '@/src/services/notificationEngine';
 
 /** NEW = unread badge, SEEN = read history, RESOLVED = archived (task closed). */
 export type AdminNotificationState = 'unread' | 'read' | 'archived';
@@ -247,11 +252,33 @@ export async function syncAdminNotificationsFromActionItems(
 
     if (inserted) {
       const notifyAllAdmins = meta.notifyAllAdmins === true;
+      const adminIds = notifyAllAdmins
+        ? (
+            await db
+              .select({ id: adminUsers.id })
+              .from(adminUsers)
+              .where(eq(adminUsers.isActive, true))
+          ).map((a) => a.id)
+        : await adminsForPg(row.pgId);
+
       if (notifyAllAdmins) {
         await seedUnreadForAllActiveAdmins(inserted.id);
       } else {
         await seedUnreadForAdmins(inserted.id, row.pgId);
       }
+
+      const body = buildDetail(row.type, meta, row.dueDate) ?? row.title;
+      await emitAdminNotificationsForActionItem({
+        adminIds,
+        sourceKey: row.sourceKey,
+        type: row.type,
+        title: TYPE_LABELS[row.type] ?? row.title,
+        body,
+        href: row.href,
+        entityType: row.type,
+        entityId: meta.bookingId ?? meta.submissionId ?? meta.settlementId ?? null,
+        metadata: meta,
+      });
     }
   }
 
@@ -387,8 +414,7 @@ export async function listUnreadNotificationTypesForBadges(
 }
 
 export async function countUnreadNotifications(session: AdminSession): Promise<number> {
-  const rows = await listAdminNotifications(session, 'unread', 500);
-  return rows.length;
+  return countUnreadUserNotifications(session);
 }
 
 export async function loadUnreadNavBadges(session: AdminSession) {
@@ -441,6 +467,12 @@ export async function markNotificationRead(
 
   if (!notificationId) return;
 
+  const [notifRow] = await db
+    .select({ sourceKey: adminNotifications.sourceKey })
+    .from(adminNotifications)
+    .where(eq(adminNotifications.id, notificationId))
+    .limit(1);
+
   await db
     .insert(adminNotificationStates)
     .values({
@@ -458,6 +490,10 @@ export async function markNotificationRead(
         updatedAt: new Date(),
       },
     });
+
+  if (notifRow?.sourceKey) {
+    await markUserNotificationReadByDedupeKey('admin', session.adminId, notifRow.sourceKey);
+  }
 }
 
 export async function archiveNotification(

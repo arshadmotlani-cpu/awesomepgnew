@@ -4,6 +4,7 @@ import {
   archiveNotification,
   markNotificationRead,
 } from '@/src/services/adminNotifications';
+import { markUserNotificationRead } from '@/src/services/notificationEngine';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,10 +16,16 @@ export async function POST(req: NextRequest) {
 
   const body = (await req.json()) as {
     notificationId?: string;
+    userNotificationId?: string;
     sourceKey?: string;
     readKey?: string;
     archive?: boolean;
   };
+
+  if (body.userNotificationId) {
+    await markUserNotificationRead('admin', session.adminId, body.userNotificationId);
+    return NextResponse.json({ ok: true });
+  }
 
   if (body.archive && body.notificationId) {
     await archiveNotification(session, body.notificationId);

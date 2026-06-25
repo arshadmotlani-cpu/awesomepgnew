@@ -58,3 +58,4 @@ export * from './residentUploadEvents';
 export * from './pgPriceRevisions';
 export * from './sidebarLayouts';
 export * from './operationsQueueDismissals';
+export * from './userNotifications';

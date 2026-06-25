@@ -236,18 +236,30 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-25 13:49:21 UTC
+### Pending pre-commit sync · 2026-06-25 14:28:27 UTC
 
-**Areas touched:** [[ROUTES]]
+**Areas touched:** [[ROUTES]], [[DATABASE]], [[Bookings]]
 
 **Docs flagged for review:**
 - `CHANGELOG.md` — review for accuracy
+- `DATABASE.md` — review for accuracy
+- `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
+- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (2):**
-- `app/(customer)/booking/new/actions.ts`
-- `app/(customer)/booking/new/page.tsx`
+**Staged code files (11):**
+- `app/(admin)/admin/notifications/page.tsx`
+- `app/(admin)/layout.tsx`
+- `app/api/admin/notifications/read/route.ts`
+- `app/api/push/subscribe/route.ts`
+- `app/api/push/unsubscribe/route.ts`
+- `app/api/push/vapid-public-key/route.ts`
+- `src/db/migrations/0074_push_notifications.sql`
+- `src/db/migrations/meta/_journal.json`
+- `src/db/schema/index.ts`
+- `src/db/schema/userNotifications.ts`
+- `src/services/booking.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed
