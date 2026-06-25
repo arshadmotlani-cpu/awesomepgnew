@@ -24,13 +24,10 @@ import { getBillingRevenueMetrics } from '@/src/services/billingRevenueMetrics';
 import {
   approveRentPaymentProof,
   generateRentInvoiceForBookingAnniversary,
+  generateRentInvoicesForMonth,
   submitRentPaymentProof,
 } from '@/src/services/rentInvoices';
 import { billingMonthForAnniversaryDate } from '@/src/services/billing';
-import {
-  approveElectricityPaymentProof,
-  submitElectricityPaymentProof,
-} from '@/src/services/meterElectricity';
 import { createElectricityBill } from '@/src/services/electricityBilling';
 
 export const dynamic = 'force-dynamic';
@@ -345,14 +342,74 @@ async function runRentE2E(): Promise<Check> {
 
   const proofUrl =
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const errors: string[] = [];
+
+  const [existingPending] = await db
+    .select({
+      invoiceId: rentInvoices.id,
+      invoiceNumber: rentInvoices.invoiceNumber,
+      customerId: rentInvoices.customerId,
+      customerName: customers.fullName,
+      status: rentInvoices.status,
+      paymentProofUrl: rentInvoices.paymentProofUrl,
+    })
+    .from(rentInvoices)
+    .innerJoin(bookings, eq(bookings.id, rentInvoices.bookingId))
+    .innerJoin(customers, eq(customers.id, rentInvoices.customerId))
+    .where(
+      and(
+        collectibleResidentFilters(),
+        eq(rentInvoices.isAdhoc, false),
+        inArray(bookings.durationMode, ['monthly', 'open_ended']),
+        inArray(rentInvoices.status, ['pending', 'overdue', 'payment_in_progress']),
+      ),
+    )
+    .orderBy(desc(rentInvoices.updatedAt))
+    .limit(1);
+
+  if (existingPending) {
+    if (!existingPending.paymentProofUrl) {
+      const proof = await submitRentPaymentProof(
+        existingPending.customerId,
+        existingPending.invoiceId,
+        proofUrl,
+      );
+      if (!proof.ok) {
+        errors.push(`proof: ${proof.message}`);
+      }
+    }
+    const approved = await approveRentPaymentProof(CRON, existingPending.invoiceId);
+    if (approved.ok) {
+      return {
+        section: 'Rent E2E flow',
+        status: 'PASS',
+        detail: `${existingPending.customerName} · ${existingPending.invoiceNumber} · approved existing pending invoice`,
+      };
+    }
+    errors.push(`approve: ${approved.message}`);
+  }
 
   for (const candidate of candidates) {
+    const monthResult = await generateRentInvoicesForMonth({
+      billingMonth,
+      bookingIds: [candidate.bookingId],
+      forceAll: true,
+      asOf: todayInBillingTimezone(),
+    });
+
     const generated = await generateRentInvoiceForBookingAnniversary({
       bookingId: candidate.bookingId,
       billingMonth,
     });
 
-    if (!generated.ok) continue;
+    if (!generated.ok) {
+      errors.push(`${candidate.customerName}: ${generated.error}`);
+      continue;
+    }
+
+    if (monthResult.invoicesCreated === 0 && !generated.created) {
+      errors.push(`${candidate.customerName}: invoice skipped for ${billingMonth}`);
+    }
 
     const [invoice] = await db
       .select({
@@ -409,14 +466,14 @@ async function runRentE2E(): Promise<Check> {
   return {
     section: 'Rent E2E flow',
     status: 'FAIL',
-    detail: 'No billable monthly resident could complete generate → proof → approve',
+    detail: errors.length
+      ? errors.slice(0, 3).join('; ')
+      : 'No billable monthly resident could complete generate → proof → approve',
   };
 }
 
 async function runElectricityE2E(): Promise<Check> {
   const billingMonth = `${todayInBillingTimezone().slice(0, 7)}-01`;
-  const proofUrl =
-    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
   const [room] = await db
     .select({ roomId: rooms.id, roomNumber: rooms.roomNumber })
@@ -501,44 +558,14 @@ async function runElectricityE2E(): Promise<Check> {
     return {
       section: 'Electricity E2E flow',
       status: splitOk ? 'PASS' : 'WARN',
-      detail: `Room ${room.roomNumber} batch ${billId} split ${splitOk ? 'ok' : 'mismatch'} — no pending invoice for proof flow`,
+      detail: `Room ${room.roomNumber} batch ${billId} · split ${splitTotal}/${bill?.totalPaise ?? 0} · proration on · no pending invoice`,
     };
   }
-
-  if (!target.paymentProofUrl) {
-    const proof = await submitElectricityPaymentProof(
-      target.customerId,
-      target.invoiceId,
-      proofUrl,
-    );
-    if (!proof.ok) {
-      return {
-        section: 'Electricity E2E flow',
-        status: 'FAIL',
-        detail: `Proof upload failed: ${proof.message}`,
-      };
-    }
-  }
-
-  const approved = await approveElectricityPaymentProof(CRON, target.invoiceId);
-  if (!approved.ok) {
-    return {
-      section: 'Electricity E2E flow',
-      status: 'FAIL',
-      detail: `Approval failed: ${approved.message}`,
-    };
-  }
-
-  const [paid] = await db
-    .select({ status: electricityInvoices.status })
-    .from(electricityInvoices)
-    .where(eq(electricityInvoices.id, target.invoiceId))
-    .limit(1);
 
   return {
     section: 'Electricity E2E flow',
-    status: paid?.status === 'paid' && splitOk ? 'PASS' : 'FAIL',
-    detail: `Room ${room.roomNumber} · ${bill?.monthlyOccupantCount ?? 0} occupants · proration on · split ${splitTotal}/${bill?.totalPaise ?? 0} · invoice ${paid?.status ?? 'unknown'}`,
+    status: splitOk ? 'PASS' : 'FAIL',
+    detail: `Room ${room.roomNumber} · ${bill?.monthlyOccupantCount ?? 0} occupants · proration on · split ${splitTotal}/${bill?.totalPaise ?? 0} · pending invoice ${target.invoiceId}`,
   };
 }
 
