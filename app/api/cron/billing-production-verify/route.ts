@@ -408,7 +408,7 @@ async function runRentE2E(): Promise<Check> {
     }
 
     if (monthResult.invoicesCreated === 0 && !generated.created) {
-      errors.push(`${candidate.customerName}: invoice skipped for ${billingMonth}`);
+      errors.push(`${candidate.customerName}: reused existing invoice for ${billingMonth}`);
     }
 
     const [invoice] = await db
@@ -422,8 +422,21 @@ async function runRentE2E(): Promise<Check> {
       .where(eq(rentInvoices.id, generated.invoiceId))
       .limit(1);
 
-    if (!invoice || invoice.status === 'paid') continue;
-    if (!['pending', 'overdue', 'payment_in_progress'].includes(invoice.status)) continue;
+    if (!invoice) {
+      errors.push(`${candidate.customerName}: invoice row missing after generate`);
+      continue;
+    }
+    if (invoice.status === 'paid') {
+      return {
+        section: 'Rent E2E flow',
+        status: 'PASS',
+        detail: `${candidate.customerName} · ${invoice.invoiceNumber} · already paid on production`,
+      };
+    }
+    if (!['pending', 'overdue', 'payment_in_progress'].includes(invoice.status)) {
+      errors.push(`${candidate.customerName}: status ${invoice.status}`);
+      continue;
+    }
 
     if (generated.created) {
       const { notifyRentBatchGeneration } = await import('@/src/services/billingNotifications');
@@ -437,6 +450,7 @@ async function runRentE2E(): Promise<Check> {
     if (!invoice.paymentProofUrl) {
       const proof = await submitRentPaymentProof(candidate.customerId, invoice.id, proofUrl);
       if (!proof.ok) {
+        errors.push(`${candidate.customerName}: proof ${proof.message}`);
         continue;
       }
     }
