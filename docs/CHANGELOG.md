@@ -256,32 +256,18 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-25 21:35:08 UTC
+### Pending pre-commit sync · 2026-06-25 22:59:23 UTC
 
-**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Action Center]]
+**Areas touched:** [[ROUTES]]
 
 **Docs flagged for review:**
-- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DATABASE.md` — review for accuracy
-- `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
-- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (12):**
+**Staged code files (2):**
+- `app/(admin)/admin/bookings/[bookingId]/page.tsx`
 - `app/(admin)/admin/residents/[customerId]/page.tsx`
-- `src/db/migrations/0076_room_billing_mode.sql`
-- `src/db/migrations/0077_financial_audit_action_item.sql`
-- `src/db/migrations/0078_room_201_private_billing.sql`
-- `src/db/migrations/0079_close_stale_invoice_review_ops.sql`
-- `src/db/migrations/0080_resolve_stale_financial_audit.sql`
-- `src/db/migrations/meta/_journal.json`
-- `src/db/schema/enums.ts`
-- `src/db/schema/rooms.ts`
-- `src/lib/billing/roomBilling.ts`
-- `src/services/actionItems.ts`
-- `src/services/rentInvoices.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

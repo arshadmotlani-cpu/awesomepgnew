@@ -9,6 +9,12 @@ import {
   RecordOfflinePaymentForm,
 } from '@/src/components/admin/AdminBookingActions';
 import { AdminBookingOpsPanel } from '@/src/components/admin/AdminBookingOpsPanel';
+import { BookingInvoiceHistorySection } from '@/src/components/admin/bookings/BookingInvoiceHistorySection';
+import {
+  getBookingFinancialPhase,
+  showBookingCheckoutFinancialOps,
+  showBookingCheckoutOpsPanel,
+} from '@/src/lib/admin/bookingFinancialPhase';
 import {
   AdminCancelExtensionForm,
   AdminRecordOfflineExtensionPaymentForm,
@@ -126,6 +132,14 @@ export default async function AdminBookingDetailPage(
       : 0;
   const computedDuesPaise = computedRentDues + computedElectricityDues;
   const depositBalancePaise = depositSummary?.refundableBalancePaise ?? 0;
+  const financialPhase = getBookingFinancialPhase({
+    status: b.status,
+    reservations: b.reservations,
+    adminDepositRefundStatus: b.adminDepositRefundStatus,
+    adminDuesStatus: b.adminDuesStatus,
+  });
+  const showCheckoutFinancialOps = showBookingCheckoutFinancialOps(financialPhase);
+  const showCheckoutOpsPanel = showBookingCheckoutOpsPanel(financialPhase);
   const uniqueBeds = Array.from(
     new Map(
       b.reservations.map((r) => [
@@ -150,7 +164,9 @@ export default async function AdminBookingDetailPage(
 
   const canCancel =
     b.status === 'pending_payment' || b.status === 'confirmed';
-  const canRecordPayment = b.status === 'pending_payment' || b.status === 'confirmed';
+  const canRecordPayment =
+    showCheckoutFinancialOps &&
+    (b.status === 'pending_payment' || b.status === 'confirmed');
   // Phase 5 — extension CTA: only confirmed bookings with a finite checkout.
   const canExtend =
     b.status === 'confirmed' &&
@@ -333,6 +349,7 @@ export default async function AdminBookingDetailPage(
             </div>
           ) : null}
 
+          {showCheckoutFinancialOps ? (
           <div className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
             <h2 className="text-sm font-semibold text-zinc-900">Payments ledger</h2>
             {b.payments.length === 0 ? (
@@ -392,8 +409,9 @@ export default async function AdminBookingDetailPage(
               </dd>
             </dl>
           </div>
+          ) : null}
 
-          {succeededBookingPayments.length > 0 ? (
+          {showCheckoutFinancialOps && succeededBookingPayments.length > 0 ? (
             <div className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
               <h2 className="text-sm font-semibold text-zinc-900">Checkout payment allocation</h2>
               <p className="mt-1 text-xs text-zinc-500">
@@ -442,7 +460,38 @@ export default async function AdminBookingDetailPage(
             </div>
           ) : null}
 
-          {rentInvoices.ok && rentInvoices.data.length > 0 ? (
+          {!showCheckoutFinancialOps ? (
+            <BookingInvoiceHistorySection
+              residentId={b.customer.id}
+              residentName={b.customer.fullName}
+              rentInvoices={
+                rentInvoices.ok
+                  ? rentInvoices.data.map((inv) => ({
+                      id: inv.id,
+                      invoiceNumber: inv.invoiceNumber,
+                      billingMonth: inv.billingMonth,
+                      status: inv.status,
+                      rentPaise: inv.rentPaise,
+                      paidPrincipalPaise: inv.paidPrincipalPaise,
+                      paidLateFeePaise: inv.paidLateFeePaise,
+                    }))
+                  : []
+              }
+              electricityInvoices={
+                electricityInvoices.ok
+                  ? electricityInvoices.data.map((inv) => ({
+                      id: inv.id,
+                      invoiceNumber: inv.invoiceNumber,
+                      billingMonth: inv.billingMonth,
+                      status: inv.status,
+                      amountPaise: inv.amountPaise,
+                      paidPaise: inv.paidPaise,
+                    }))
+                  : []
+              }
+              rentInvoiceHrefMap={rentInvoiceHrefMap}
+            />
+          ) : rentInvoices.ok && rentInvoices.data.length > 0 ? (
             <div className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
               <h2 className="text-sm font-semibold text-zinc-900">Rent invoices</h2>
               <Table>
@@ -487,6 +536,7 @@ export default async function AdminBookingDetailPage(
         </section>
 
         <aside className="space-y-5">
+          {showCheckoutOpsPanel ? (
           <AdminBookingOpsPanel
             bookingId={b.id}
             adminDuesStatus={b.adminDuesStatus}
@@ -496,6 +546,7 @@ export default async function AdminBookingDetailPage(
             depositBalancePaise={depositBalancePaise}
             beds={uniqueBeds}
           />
+          ) : null}
 
           <DepositRefundNotice variant="compact" />
 
@@ -521,16 +572,16 @@ export default async function AdminBookingDetailPage(
             </dl>
             <div className="mt-3 flex flex-col gap-2 border-t border-zinc-100 pt-3">
               <Link
-                href={`/admin/residents/${b.customer.id}`}
+                href={`/admin/residents/${b.customer.id}#financial`}
                 className="text-sm font-semibold text-[#FF5A1F] hover:underline"
               >
-                Open resident profile →
+                Financial summary (resident profile) →
               </Link>
               <Link
                 href={`/admin/deposits/${b.id}`}
                 className="text-sm font-medium text-indigo-600 hover:underline"
               >
-                Deposit ledger →
+                Deposit invoice →
               </Link>
             </div>
           </div>

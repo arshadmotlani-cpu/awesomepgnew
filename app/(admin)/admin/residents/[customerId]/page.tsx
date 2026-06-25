@@ -1,10 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { BedAssignmentWhatsAppButton } from '@/src/components/admin/BedAssignmentWhatsAppButton';
 import { EditMoveInDateForm } from '@/src/components/admin/EditMoveInDateForm';
 import { EditRentDueDateForm } from '@/src/components/admin/EditRentDueDateForm';
-import { ResidentFinancialScheduleCard } from '@/src/components/admin/residents/ResidentFinancialScheduleCard';
+import { ResidentFinancialSSOTPanel } from '@/src/components/admin/residents/ResidentFinancialSSOTPanel';
 import { EditTenantTenancyForm } from '@/src/components/admin/EditTenantTenancyForm';
 import { RentUpdatedSuccessBanner } from '@/src/components/admin/RentUpdatedSuccessBanner';
 import { FinalSettlementPanel } from '@/src/components/admin/FinalSettlementPanel';
@@ -20,11 +19,9 @@ import { syncActionItems } from '@/src/services/actionItems';
 import { getOpenActionsForResident } from '@/src/services/unresolvedActions';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
-import { listAdminRentInvoices } from '@/src/db/queries/admin';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
-import { isExpressCollectionNote } from '@/src/lib/billing/expressCollectionConstants';
-import { formatDate, formatDateTime, paiseToInr, titleCase } from '@/src/lib/format';
+import { formatDate, formatDateTime, paiseToInr } from '@/src/lib/format';
 import { adminStayTypeLabel, isMonthlyStayType } from '@/src/lib/stayType';
 import { diffDays, parseDate } from '@/src/lib/dates';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
@@ -137,18 +134,6 @@ export default async function ResidentDetailPage({
     primaryUnresolved,
   });
 
-  const rentRes = await listAdminRentInvoices();
-  const rentHistory = rentRes.ok
-    ? rentRes.data
-        .filter(
-          (r) =>
-            r.customerPhone === customer.phone &&
-            r.status !== 'cancelled' &&
-            (!activeTenancy || r.bookingId === activeTenancy.bookingId),
-        )
-        .slice(0, 12)
-    : [];
-
   return (
     <>
       <ModuleBreadcrumbs
@@ -175,7 +160,7 @@ export default async function ResidentDetailPage({
               identity documents
             </Link>{' '}
             or confirm a{' '}
-            <Link href="/admin/revenue/billing" className="font-semibold text-[#FF5A1F] hover:underline">
+            <Link href="/admin/billing" className="font-semibold text-[#FF5A1F] hover:underline">
               payment
             </Link>{' '}
             before assigning a bed.
@@ -271,15 +256,13 @@ export default async function ResidentDetailPage({
             />
           ) : null}
 
-          {activeTenancy && billingDefaults ? (
-            <ResidentFinancialScheduleCard
+          {activeTenancy && financialSummary ? (
+            <ResidentFinancialSSOTPanel
+              activeTenancy={activeTenancy}
               billingDefaults={billingDefaults}
               financialSummary={financialSummary}
               depositSummary={depositSummary}
-              moveInDate={activeTenancy.moveInDate}
-              stayType={activeTenancy.stayType}
-              durationMode={activeTenancy.durationMode}
-              expectedCheckoutDate={activeTenancy.expectedCheckoutDate}
+              invoiceHistory={invoiceHistory}
             />
           ) : null}
 
@@ -351,13 +334,13 @@ export default async function ResidentDetailPage({
                   href={`/admin/bookings/${activeTenancy.bookingId}`}
                   className="text-sm font-semibold text-[#FF5A1F] hover:underline"
                 >
-                  Rent & electricity bills
+                  Booking history
                 </Link>
                 <Link
                   href={`/admin/deposits/${activeTenancy.bookingId}`}
                   className="text-sm font-semibold text-[#FF5A1F] hover:underline"
                 >
-                  Security deposit
+                  Deposit invoice
                 </Link>
                 <Link
                   href={`/admin/pgs/${activeTenancy.pgId}/map`}
@@ -419,50 +402,6 @@ export default async function ResidentDetailPage({
           </section>
         )}
 
-        {rentHistory.length > 0 && customer.residencyStatus !== 'vacated' ? (
-          <section className={SURFACE}>
-            <h2 className="text-sm font-semibold text-white">Rent payment history</h2>
-            <div className="mt-3 overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-white/10 text-xs uppercase text-apg-silver">
-                    <th className="py-2 pr-4">Invoice</th>
-                    <th className="py-2 pr-4">Month</th>
-                    <th className="py-2 pr-4">Amount</th>
-                    <th className="py-2 pr-4">Paid</th>
-                    <th className="py-2 pr-4">Method</th>
-                    <th className="py-2">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {rentHistory.map((inv) => {
-                    const historical = isExpressCollectionNote(inv.notes);
-                    return (
-                    <tr key={inv.id}>
-                      <td className="py-2 pr-4 text-white">{inv.invoiceNumber}</td>
-                      <td className="py-2 pr-4 text-apg-silver">{inv.billingMonth}</td>
-                      <td className="py-2 pr-4 text-white">{paiseToInr(inv.rentPaise)}</td>
-                      <td className="py-2 pr-4 text-apg-silver">
-                        {inv.paidAt ? formatDate(inv.paidAt) : '—'}
-                      </td>
-                      <td className="py-2 pr-4 text-apg-silver">
-                        {inv.paymentProvider ? titleCase(inv.paymentProvider.replace('_', ' ')) : '—'}
-                      </td>
-                      <td className="py-2">
-                        {historical ? (
-                          <Badge tone="emerald">Paid (Historical)</Badge>
-                        ) : (
-                          <Badge tone={toneForStatus(inv.status)}>{titleCase(inv.status)}</Badge>
-                        )}
-                      </td>
-                    </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        ) : null}
       </div>
     </>
   );
