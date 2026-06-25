@@ -271,7 +271,7 @@ export function BedBookingPanel({
 
   useEffect(() => {
     if (!funnel) return;
-    funnel.setActiveStep(step === 'stayType' ? 'bed' : 'dates');
+    funnel.setActiveStep(step === 'stayType' ? 'bed' : 'preview');
     const bed = beds[0];
     if (!bed) return;
     funnel.patchSummary(
