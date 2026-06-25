@@ -9,6 +9,9 @@
     },
     "app/api/cron/deploy-watchdog/route.ts": {
       "maxDuration": 60
+    },
+    "app/api/cron/billing-production-verify/route.ts": {
+      "maxDuration": 60
     }
   },
   "crons": [

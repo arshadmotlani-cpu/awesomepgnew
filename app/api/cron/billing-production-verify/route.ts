@@ -32,7 +32,6 @@ import {
   submitElectricityPaymentProof,
 } from '@/src/services/meterElectricity';
 import { createElectricityBill } from '@/src/services/electricityBilling';
-import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -276,12 +275,21 @@ async function runReadOnlyChecks(repairedFixedStay: number): Promise<Check[]> {
     .from(notifications)
     .where(inArray(notifications.type, ['rent_batch_generated', 'rent_batch_failed']));
 
-  const pendingApprovals = await listPendingPaymentReviews(CRON);
+  const [proofPending] = await db
+    .select({ count: count() })
+    .from(rentInvoices)
+    .where(
+      and(
+        eq(rentInvoices.isAdhoc, false),
+        sql`${rentInvoices.paymentProofUrl} IS NOT NULL`,
+        inArray(rentInvoices.status, ['pending', 'payment_in_progress']),
+      ),
+    );
 
   checks.push({
     section: 'Admin notifications',
     status: (batchNotifs[0]?.count ?? 0) > 0 ? 'PASS' : 'WARN',
-    detail: `${batchNotifs[0]?.count ?? 0} rent batch notifications, ${pendingApprovals.length} pending payment reviews`,
+    detail: `${batchNotifs[0]?.count ?? 0} rent batch notifications, ${proofPending?.count ?? 0} rent proofs awaiting approval`,
   });
 
   const [elecBatch] = await db
@@ -359,6 +367,15 @@ async function runRentE2E(): Promise<Check> {
 
     if (!invoice || invoice.status === 'paid') continue;
     if (!['pending', 'overdue', 'payment_in_progress'].includes(invoice.status)) continue;
+
+    if (generated.created) {
+      const { notifyRentBatchGeneration } = await import('@/src/services/billingNotifications');
+      await notifyRentBatchGeneration({
+        runId: 'production-e2e',
+        createdCount: 1,
+        failedCount: 0,
+      }).catch(() => undefined);
+    }
 
     if (!invoice.paymentProofUrl) {
       const proof = await submitRentPaymentProof(candidate.customerId, invoice.id, proofUrl);
@@ -539,13 +556,17 @@ async function handle(req: NextRequest) {
   }
 
   const url = new URL(req.url);
-  const runE2e = url.searchParams.get('e2e') === '1';
+  const runE2e = url.searchParams.get('e2e');
+  const runRentE2e = runE2e === '1' || runE2e === 'rent';
+  const runElecE2e = runE2e === '1' || runE2e === 'elec';
 
   try {
     const repairedFixedStay = await repairFixedStayProfiles();
     const checks = await runReadOnlyChecks(repairedFixedStay);
-    if (runE2e) {
+    if (runRentE2e) {
       checks.push(await runRentE2E());
+    }
+    if (runElecE2e) {
       checks.push(await runElectricityE2E());
     }
 
