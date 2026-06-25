@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "tsx src/db/startupMigrationGate.ts && next dev",
+    "env:pull": "npx vercel env pull .env.local --environment=preview",
+    "env:check": "tsx scripts/check-env.ts",
     "db:status": "tsx src/db/migrationStatus.ts",
     "build": "next build",
     "vercel-build": "npm run db:migrate && bash scripts/vercel-build-repair.sh && next build",

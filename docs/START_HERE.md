@@ -19,6 +19,26 @@
 
 ---
 
+## Local development setup
+
+Database configuration uses one resolver: `src/lib/db/env.ts` (priority: `DATABASE_URL` → `POSTGRES_URL` → `POSTGRES_PRISMA_URL`). Scripts auto-load `.env.local` then `.env` via `src/lib/db/loadEnv.ts`.
+
+```bash
+npm install
+cp .env.example .env              # local Postgres URL — edit if needed
+npx vercel link
+npm run env:pull                  # non-DB vars → .env.local
+npm run env:check                 # Neon: paste DATABASE_URL into .env.local first
+npm run db:migrate
+npm run dev
+```
+
+Verify configuration anytime: `npm run env:check`.
+
+**Note:** Vercel’s default `vercel env pull .env.local` uses the **Development** environment, which may not include `DATABASE_URL`. Use `npm run env:pull` (Preview) for integration metadata, then set `DATABASE_URL` in `.env` (local Postgres from `.env.example`) or paste your Neon connection string into `.env.local`. Run `npm run env:check` to verify. See [[DATABASE#Environment & migrations]].
+
+---
+
 ## 2. Current status
 
 > Detail: [[CURRENT_STATE]] · History: [[CHANGELOG]] · Issues: [[BUGS]]

@@ -15,11 +15,29 @@ export function NewElectricityBillForm({
   rooms,
   defaultMonth,
   defaultRoomId,
+  defaultPgId,
+  showPgPicker = false,
 }: {
   rooms: RoomPickerRow[];
   defaultMonth: string;
   defaultRoomId?: string;
+  defaultPgId?: string;
+  showPgPicker?: boolean;
 }) {
+  const pgOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of rooms) map.set(r.pgId, r.pgName);
+    return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [rooms]);
+
+  const [pgId, setPgId] = useState<string>(
+    defaultPgId ?? (pgOptions.length === 1 ? pgOptions[0][0] : ''),
+  );
+  const filteredRooms = useMemo(
+    () => (pgId ? rooms.filter((r) => r.pgId === pgId) : rooms),
+    [rooms, pgId],
+  );
+
   const [state, action, pending] = useActionState(createElectricityBillAction, idle);
   const [prevReading, setPrevReading] = useState<string>('');
   const [currReading, setCurrReading] = useState<string>('');
@@ -28,6 +46,12 @@ export function NewElectricityBillForm({
   );
   const [roomId, setRoomId] = useState<string>(defaultRoomId ?? '');
   const [loadingPrev, setLoadingPrev] = useState(false);
+
+  useEffect(() => {
+    if (defaultRoomId) return;
+    if (filteredRooms.some((r) => r.roomId === roomId)) return;
+    setRoomId('');
+  }, [pgId, filteredRooms, roomId, defaultRoomId]);
 
   useEffect(() => {
     if (!roomId) return;
@@ -50,8 +74,8 @@ export function NewElectricityBillForm({
   }, [roomId]);
 
   const selectedRoom = useMemo(
-    () => rooms.find((r) => r.roomId === roomId),
-    [rooms, roomId],
+    () => filteredRooms.find((r) => r.roomId === roomId),
+    [filteredRooms, roomId],
   );
 
   const previewUnits = useMemo(() => {
@@ -86,6 +110,25 @@ export function NewElectricityBillForm({
       action={action}
       className="space-y-4 rounded-xl border border-white/10 bg-[#1A1F27] p-5"
     >
+      {showPgPicker && pgOptions.length > 1 ? (
+        <label className="block">
+          <span className="text-xs font-medium uppercase tracking-wide text-apg-silver">PG</span>
+          <select
+            required
+            value={pgId}
+            onChange={(e) => setPgId(e.target.value)}
+            className="apg-admin-field mt-1 block w-full rounded-lg border border-white/10 bg-[#12161D] px-3 py-2 text-sm text-white"
+          >
+            <option value="">— pick a PG —</option>
+            {pgOptions.map(([id, name]) => (
+              <option key={id} value={id}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+
       <label className="block">
         <span className="text-xs font-medium uppercase tracking-wide text-apg-silver">
           Room
@@ -98,7 +141,7 @@ export function NewElectricityBillForm({
           className="apg-admin-field mt-1 block w-full rounded-lg border border-white/10 bg-[#12161D] px-3 py-2 text-sm text-white"
         >
           <option value="">— pick a room —</option>
-          {rooms.map((r) => (
+          {filteredRooms.map((r) => (
             <option key={r.roomId} value={r.roomId}>
               {r.pgName} · Room {r.roomNumber} ({r.bedCount} bed{r.bedCount === 1 ? '' : 's'})
               {r.prepaidCreditPaise > 0 ? ` · ${paiseToInr(r.prepaidCreditPaise)} prepaid` : ''}

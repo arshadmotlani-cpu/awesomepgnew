@@ -47,5 +47,8 @@ const cliScript = process.argv?.[1];
 const isDirectRun =
   typeof cliScript === 'string' && cliScript.endsWith('startupMigrationGate.ts');
 if (isDirectRun) {
-  void import('dotenv/config').then(() => assertMigrationsAppliedForDev());
+  void import('@/src/lib/db/loadEnv').then(({ loadAppEnv }) => {
+    loadAppEnv();
+    return assertMigrationsAppliedForDev();
+  });
 }

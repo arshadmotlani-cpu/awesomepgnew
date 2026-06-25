@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import { getDatabaseUrl, hasDatabaseUrl } from '@/src/lib/db/env';
 import { checkRequiredEnv, getEnvHealthSummary } from '@/src/lib/healing/envHealer';
 import { isDegradedMode, isSafeMode } from '@/src/lib/healing/systemState';
@@ -225,6 +224,11 @@ export const env = {
   },
   get VAPID_SUBJECT() {
     return optional('VAPID_SUBJECT') ?? 'mailto:admin@awesomepg.com';
+  },
+
+  /** IANA timezone for rent billing anniversary (default Asia/Kolkata). */
+  get BILLING_TIMEZONE() {
+    return optional('BILLING_TIMEZONE') ?? 'Asia/Kolkata';
   },
 } as const;
 

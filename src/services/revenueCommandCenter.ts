@@ -51,6 +51,7 @@ export type RevenueCommandCenterData = {
   depositPortfolio: DepositPortfolioMetrics;
   byPg: RevenueByPgRow[];
   outstanding: OutstandingMoneySummary;
+  billingMetrics: import('@/src/services/billingRevenueMetrics').BillingRevenueMetrics;
 };
 
 export type RevenueCommandCenterInput = {
@@ -181,6 +182,16 @@ export async function getRevenueCommandCenterData(
 
   const outstanding = buildOutstandingFromSsot(portfolioTotals, pendingPayments);
 
+  const { getBillingRevenueMetrics } = await import('@/src/services/billingRevenueMetrics');
+  const billingMetrics = await getBillingRevenueMetrics(
+    billingMonth,
+    { rentPaise: mtd.rentPaise, electricityPaise: mtd.electricityPaise },
+    {
+      rentPaise: portfolioTotals.rent.outstandingPaise,
+      electricityPaise: portfolioTotals.electricity.outstandingPaise,
+    },
+  );
+
   return {
     billingMonth,
     today,
@@ -188,5 +199,6 @@ export async function getRevenueCommandCenterData(
     depositPortfolio,
     byPg,
     outstanding,
+    billingMetrics,
   };
 }

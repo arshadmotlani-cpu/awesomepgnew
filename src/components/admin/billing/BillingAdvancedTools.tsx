@@ -20,6 +20,7 @@ export function BillingAdvancedTools({
   billingOverview,
   billingCycleOps,
   needsBillCount,
+  allowManualBackfill,
 }: {
   billingMonth: string;
   canGenerateRent: boolean;
@@ -30,6 +31,7 @@ export function BillingAdvancedTools({
     generatedPending: BillingCycleOperationRow[];
   };
   needsBillCount: number;
+  allowManualBackfill?: boolean;
 }) {
   const [cancelState, cancelAction, cancelPending] = useActionState(
     cancelPendingInvoicesAction,
@@ -47,6 +49,7 @@ export function BillingAdvancedTools({
         billingMonth={billingMonth}
         canGenerateRent={canGenerateRent}
         needsBillCount={needsBillCount}
+        allowManualBackfill={allowManualBackfill}
       />
 
       <BillingOverviewPanel

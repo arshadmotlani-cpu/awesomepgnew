@@ -46,6 +46,8 @@ export const NOTIFICATION_TYPE_CATEGORIES: Record<string, NotificationCategory> 
   rent_due: 'bookings',
   electricity_due: 'bookings',
   deposit_collection_due: 'payments',
+  rent_batch_generated: 'payments',
+  rent_batch_failed: 'payments',
 };
 
 export type NotificationPriority = 'critical' | 'important' | 'informational';
@@ -68,6 +70,7 @@ const IMPORTANT_TYPES = new Set([
   'maintenance_issue',
   'deposit_refund_request',
   'refund_request_submitted',
+  'rent_batch_failed',
 ]);
 
 export function priorityForNotificationType(type: string): NotificationPriority {

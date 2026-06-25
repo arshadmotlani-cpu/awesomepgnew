@@ -77,8 +77,8 @@ export function classifyDatabaseError(message: string): {
     return {
       code: 'missing_url',
       hint:
-        'Set DATABASE_URL (or POSTGRES_URL / POSTGRES_PRISMA_URL from Neon/Vercel integration) ' +
-        'in Vercel → Project → Settings → Environment Variables.',
+        'Run: npm run env:pull && npm run db:migrate\n' +
+        'Set DATABASE_URL (or POSTGRES_URL) in Vercel → Project → Settings → Environment Variables.',
     };
   }
   if (/ECONNREFUSED|ENOTFOUND|ETIMEDOUT|timeout|Connection terminated/i.test(message)) {

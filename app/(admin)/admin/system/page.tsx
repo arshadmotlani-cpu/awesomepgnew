@@ -15,7 +15,8 @@ import { getLatestPersistedHealth, runHealthDiagnosis } from '@/src/lib/healing/
 import { getIntegrationsHealthSummaryWithBlobProbe } from '@/src/lib/integrations/status';
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
-import { loadOverviewContext } from '@/src/services/overviewData';
+import { BillingHealthCardPanel } from '@/src/components/admin/billing/BillingCenterPanels';
+import { getBillingHealthSnapshot } from '@/src/services/billingHealth';
 import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
 
 export const dynamic = 'force-dynamic';
@@ -50,9 +51,10 @@ export default async function SystemHealthModulePage() {
     healthError = error instanceof Error ? error.message : String(error);
   }
 
-  const [monitoring, errorsByRoute] = await Promise.all([
+  const [monitoring, errorsByRoute, billingHealth] = await Promise.all([
     getMonitoringSnapshot({ limit: 50 }).catch(() => null),
     getErrorsByRoute(7, 20).catch(() => []),
+    getBillingHealthSnapshot().catch(() => null),
   ]);
 
   if (!ctx.ok) {
@@ -134,6 +136,23 @@ export default async function SystemHealthModulePage() {
             </Link>
           </div>
         </section>
+
+        <AdminSectionErrorBoundary title="Billing health">
+          {billingHealth ? (
+            <section className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-sm font-semibold text-white">Billing health</h2>
+                <Link
+                  href="/admin/billing"
+                  className="text-xs font-medium text-[#FF5A1F] hover:underline"
+                >
+                  Open Billing Center →
+                </Link>
+              </div>
+              <BillingHealthCardPanel health={billingHealth} />
+            </section>
+          ) : null}
+        </AdminSectionErrorBoundary>
 
         <AdminSectionErrorBoundary title="Uptime & errors">
           <SystemHealthCard health={ctx.data.systemHealth} sentryUrl={ctx.data.sentryUrl} />

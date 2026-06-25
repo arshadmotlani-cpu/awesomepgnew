@@ -255,6 +255,57 @@ Append-only: entity, action, diff JSON — all financial mutations.
 
 ---
 
+## Environment & migrations
+
+### Configuration SSOT
+
+| Piece | Location |
+|-------|----------|
+| URL resolver | `src/lib/db/env.ts` — `DATABASE_URL` → `POSTGRES_URL` → `POSTGRES_PRISMA_URL` |
+| Env file loader | `src/lib/db/loadEnv.ts` — loads `.env` then `.env.local` for scripts |
+| Drizzle client | `src/db/client.ts` |
+| Migrate CLI | `src/db/migrate.ts` — prints host/database before applying |
+
+### Local setup
+
+```bash
+npm install
+cp .env.example .env              # local Postgres URL (edit if needed)
+npx vercel link
+npm run env:pull                  # Preview secrets → .env.local (non-DB vars)
+# If using Neon: paste DATABASE_URL from Neon dashboard into .env.local
+npm run env:check
+npm run db:migrate
+npm run dev
+```
+
+### Vercel environment audit (2026-06-25)
+
+| Variable | Production | Preview | Development |
+|----------|------------|---------|-------------|
+| `DATABASE_URL` | ✅ (deploy-time) | ✅ (deploy-time) | ❌ missing |
+| `POSTGRES_URL` | ✅ (deploy-time) | ✅ (deploy-time) | ❌ missing |
+| `POSTGRES_PRISMA_URL` | ✅ (deploy-time) | ✅ (deploy-time) | ❌ missing |
+
+Neon/Vercel integration secrets are **injected at deploy time** and pull as **empty placeholders** in `.env.local`. For local DB access either use `.env` with local Postgres (`cp .env.example .env`) or paste the Neon connection string from the Neon dashboard into `.env.local`.
+
+Add `DATABASE_URL` to **Development** in Vercel (non-sensitive) if you want the raw URL in `vercel env pull` without using the Neon dashboard.
+
+### Commands
+
+| Command | Purpose |
+|---------|---------|
+| `npm run env:pull` | Pull Preview secrets into `.env.local` |
+| `npm run env:check` | Print database configuration report |
+| `npm run db:migrate` | Apply pending SQL migrations |
+| `npm run db:status` | JSON migration health |
+| `npm run db:seed` | Idempotent dev inventory seed |
+| `npm run db:reset` | Drop public schema (local only) |
+
+Migrations refuse **localhost** targets when `NODE_ENV=production` or on Vercel builds, so CI never silently migrates an empty local Postgres.
+
+---
+
 ## Critical constraints (never break)
 
 1. **`bed_reservations` GiST EXCLUDE** — no double booking

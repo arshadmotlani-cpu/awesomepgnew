@@ -330,6 +330,9 @@ export async function executeExpressWalkInSale(
     const { reconcileBookingOccupancy } = await import('@/src/lib/occupancySync');
     await reconcileBookingOccupancy(bookingId);
 
+    const { ensureBillingProfileForBooking } = await import('@/src/services/residentBillingProfiles');
+    await ensureBillingProfileForBooking(bookingId).catch(() => undefined);
+
     const { revalidateFinancialViews } = await import('@/src/lib/billing/revalidateFinancialViews');
     revalidateFinancialViews();
   } catch (err) {

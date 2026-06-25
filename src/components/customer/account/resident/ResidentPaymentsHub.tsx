@@ -13,6 +13,7 @@ export type PaidHistoryRow = {
   amountPaise: number;
   paidAt: string | null;
   status: string;
+  invoiceNumber?: string;
 };
 
 const BILL_STATUS_TONE: Record<string, string> = {
@@ -20,6 +21,7 @@ const BILL_STATUS_TONE: Record<string, string> = {
   overdue: 'bg-rose-50 text-rose-800 ring-rose-200',
   paid: 'bg-emerald-50 text-emerald-800 ring-emerald-200',
   processing: 'bg-sky-50 text-sky-800 ring-sky-200',
+  'waiting for admin approval': 'bg-sky-50 text-sky-800 ring-sky-200',
 };
 
 const PRIMARY_BTN =
@@ -37,19 +39,78 @@ function primaryPayAction(rows: PaymentDueRow[]): { href: string; label: string 
   return { href: first.href, label: `Pay ${paiseToInr(first.amountPaise)}` };
 }
 
+function BillList({
+  title,
+  description,
+  rows,
+  emptyMessage,
+}: {
+  title: string;
+  description?: string;
+  rows: PaymentDueRow[];
+  emptyMessage: string;
+}) {
+  return (
+    <ApgCard tier="account" className="p-5">
+      <h2 className="text-base font-semibold text-zinc-900">{title}</h2>
+      {description ? <p className="mt-1 text-sm text-zinc-600">{description}</p> : null}
+      {rows.length === 0 ? (
+        <p className="mt-3 text-sm text-zinc-500">{emptyMessage}</p>
+      ) : (
+        <ul className="mt-3 divide-y divide-zinc-100">
+          {rows.map((row) => (
+            <li key={row.key}>
+              {row.href ? (
+                <Link
+                  href={row.href}
+                  className="flex flex-wrap items-center justify-between gap-2 py-3 transition hover:bg-zinc-50/80"
+                >
+                  <BillRowContent row={row} />
+                </Link>
+              ) : (
+                <div className="flex flex-wrap items-center justify-between gap-2 py-3">
+                  <BillRowContent row={row} />
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </ApgCard>
+  );
+}
+
+function BillRowContent({ row }: { row: PaymentDueRow }) {
+  return (
+    <>
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-zinc-900">{row.label}</p>
+        {row.dueDate ? (
+          <p className="text-xs text-zinc-500">Due {formatDate(row.dueDate)}</p>
+        ) : null}
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-semibold tabular-nums">{paiseToInr(row.amountPaise)}</span>
+        <StatusChip status={row.status} toneMap={BILL_STATUS_TONE} />
+      </div>
+    </>
+  );
+}
+
 export function ResidentPaymentsHub({
-  billRows,
-  paidHistory,
+  dueRows,
+  pendingApprovalRows,
+  paidBills,
   historyHref,
 }: {
-  billRows: PaymentDueRow[];
-  paidHistory: PaidHistoryRow[];
+  dueRows: PaymentDueRow[];
+  pendingApprovalRows: PaymentDueRow[];
+  paidBills: PaidHistoryRow[];
   historyHref: string | null;
 }) {
-  const dueRows = billRows.filter((r) => r.href);
-  const totalDue = dueRows.reduce((s, r) => s + r.amountPaise, 0);
-  const primary = primaryPayAction(dueRows);
-  const payFirst = dueRows[0] ?? null;
+  const payableDue = dueRows.filter((r) => r.href);
+  const primary = primaryPayAction(payableDue);
+  const payFirst = payableDue[0] ?? null;
 
   return (
     <div className="space-y-4 pb-2">
@@ -71,58 +132,53 @@ export function ResidentPaymentsHub({
             ) : null}
           </div>
         </ApgCard>
-      ) : (
+      ) : pendingApprovalRows.length === 0 ? (
         <ApgCard tier="account" className="p-5">
-          <h2 className="text-base font-semibold text-zinc-900">What you owe</h2>
+          <h2 className="text-base font-semibold text-zinc-900">Due bills</h2>
           <p className="mt-3 text-3xl font-bold tabular-nums text-emerald-700">₹0</p>
-          <p className="mt-1 text-sm text-zinc-600">No bills waiting right now.</p>
+          <p className="mt-1 text-sm text-zinc-600">No bills waiting for payment right now.</p>
         </ApgCard>
-      )}
+      ) : null}
 
       {primary ? (
         <Link href={primary.href} className={PRIMARY_BTN}>
           {primary.label}
         </Link>
+      ) : pendingApprovalRows.length > 0 ? (
+        <p className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+          Payment submitted — we are reviewing your screenshot.
+        </p>
       ) : (
         <Link href={residentTabHref('home')} className={PRIMARY_BTN}>
           All paid — back to home
         </Link>
       )}
 
-      {dueRows.length > 1 ? (
-        <ApgCard tier="account" className="p-5">
-          <h2 className="text-base font-semibold text-zinc-900">Other bills waiting</h2>
-          <ul className="mt-3 divide-y divide-zinc-100">
-            {dueRows.slice(1).map((row) => (
-              <li key={row.key}>
-                <Link
-                  href={row.href!}
-                  className="flex flex-wrap items-center justify-between gap-2 py-3 transition hover:bg-zinc-50/80"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-zinc-900">{row.label}</p>
-                    {row.dueDate ? (
-                      <p className="text-xs text-zinc-500">Due {formatDate(row.dueDate)}</p>
-                    ) : null}
-                  </div>
-                  <span className="text-sm font-semibold tabular-nums">{paiseToInr(row.amountPaise)}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </ApgCard>
-      ) : null}
+      <BillList
+        title="Due bills"
+        description="Generated invoices waiting for your payment."
+        rows={dueRows}
+        emptyMessage="Nothing due right now."
+      />
 
-      {paidHistory.length > 0 ? (
+      <BillList
+        title="Pending approval"
+        description="Screenshot uploaded — waiting for admin to confirm payment."
+        rows={pendingApprovalRows}
+        emptyMessage="No payments awaiting approval."
+      />
+
+      {paidBills.length > 0 ? (
         <ApgCard tier="account" className="p-5">
-          <h2 className="text-base font-semibold text-zinc-900">Paid history</h2>
-          <p className="mt-1 text-sm text-zinc-600">Recent payments we have recorded.</p>
+          <h2 className="text-base font-semibold text-zinc-900">Paid bills</h2>
+          <p className="mt-1 text-sm text-zinc-600">Invoices paid in the last 30 days.</p>
           <ul className="mt-4 divide-y divide-zinc-100">
-            {paidHistory.map((row) => (
+            {paidBills.map((row) => (
               <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
                 <div>
                   <p className="text-sm font-medium text-zinc-900">{row.label}</p>
                   <p className="text-xs text-zinc-500">
+                    {row.invoiceNumber ? `${row.invoiceNumber} · ` : ''}
                     {row.paidAt ? formatDate(row.paidAt) : 'Date pending'}
                   </p>
                 </div>
@@ -153,14 +209,14 @@ export function ResidentPaymentsHub({
         </p>
       </ApgCard>
 
-      <ResidentMoreSection title="More" description="History and wallet.">
+      <ResidentMoreSection title="Invoice history" description="Full payment and invoice archive.">
         <div className="flex flex-wrap gap-2">
           {historyHref ? (
             <Link
               href={historyHref}
               className="rounded-lg border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-800 hover:bg-zinc-50"
             >
-              Payment history →
+              View invoice history →
             </Link>
           ) : null}
           <Link

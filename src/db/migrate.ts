@@ -1,8 +1,16 @@
-import 'dotenv/config';
+import { loadAppEnv } from '@/src/lib/db/loadEnv';
+loadAppEnv();
+
 import { sql } from 'drizzle-orm';
 import { readMigrationFiles } from 'drizzle-orm/migrator';
 import { createClient } from '@/src/db/client';
 import { bootstrapAdminIfNeeded } from '@/src/lib/auth/bootstrapAdmin';
+import { getDatabaseConnectionInfo } from '@/src/lib/db/env';
+import {
+  assertSafeMigrationTarget,
+  formatMigrationConnectionBanner,
+  readMigrationStats,
+} from '@/src/lib/db/migrationSafety';
 
 const MIGRATIONS_FOLDER = 'src/db/migrations';
 const MIGRATIONS_SCHEMA = 'drizzle';
@@ -16,7 +24,12 @@ const MIGRATIONS_TABLE = '__drizzle_migrations';
  * before they can be referenced in indexes).
  */
 async function main() {
-  const { db, close } = createClient({ max: 1 });
+  const connectionInfo = getDatabaseConnectionInfo();
+  assertSafeMigrationTarget(connectionInfo);
+
+  const { db, sql: pg, close } = createClient({ max: 1 });
+  const statsBefore = await readMigrationStats(pg);
+  console.log(formatMigrationConnectionBanner(connectionInfo, statsBefore));
   console.log(`→ Running migrations from ${MIGRATIONS_FOLDER} …`);
 
   await db.execute(sql.raw(`CREATE SCHEMA IF NOT EXISTS "${MIGRATIONS_SCHEMA}"`));
@@ -54,6 +67,9 @@ async function main() {
   }
 
   console.log(applied > 0 ? `✓ Applied ${applied} migration(s)` : '✓ Migrations up to date');
+
+  const statsAfter = await readMigrationStats(pg);
+  console.log(formatMigrationConnectionBanner(connectionInfo, statsAfter));
 
   const { syncMissingCheckoutSettlements } = await import('@/src/services/checkoutSettlement');
   const backfill = await syncMissingCheckoutSettlements();

@@ -23,10 +23,10 @@ export default async function NewElectricityBillPage({
         description="Pick a room, enter meter readings + rate. The system splits the total across monthly residents by active days in the billing month and creates per-resident invoices in one transaction."
       />
       <Link
-        href="/admin/collections?tab=electricity"
+        href="/admin/billing/electricity/generate"
         className="text-xs font-medium text-[#FF5A1F] hover:underline"
       >
-        ← Back to Collections · Electricity
+        ← Back to Billing Center · Generate electricity
       </Link>
       {!rooms.ok ? (
         <div className="mt-4">

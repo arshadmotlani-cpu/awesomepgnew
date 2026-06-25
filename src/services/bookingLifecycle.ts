@@ -723,6 +723,12 @@ export async function recordPaymentSuccess(
           });
           return { ok: false, reason: rentInvoice.reason };
         }
+        if (booking.durationMode === 'monthly' || booking.durationMode === 'open_ended') {
+          const { ensureBillingProfileForBooking } = await import(
+            '@/src/services/residentBillingProfiles'
+          );
+          await ensureBillingProfileForBooking(booking.id).catch(() => undefined);
+        }
       } catch (rentErr) {
         const reason =
           rentErr instanceof Error ? rentErr.message : 'Booking rent invoice failed';

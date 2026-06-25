@@ -22,14 +22,15 @@ type Props = {
 
 function tabHref(tab: string, billingMonth: string) {
   const params = new URLSearchParams({ tab, month: billingMonth });
-  return `/admin/revenue/billing?${params.toString()}`;
+  return `/admin/billing?${params.toString()}`;
 }
 
 export function BillingPrimaryActions({
   billingMonth,
   canGenerateRent,
   needsBillCount,
-}: Props) {
+  allowManualBackfill = false,
+}: Props & { allowManualBackfill?: boolean }) {
   const [genState, genAction, genPending] = useActionState(generateDueInvoicesAction, idle);
   const monthLabel = billingMonth.slice(0, 7);
 
@@ -38,9 +39,7 @@ export function BillingPrimaryActions({
     | { key: string; kind: 'link'; href: string; label: string; primary?: boolean; badge?: number }
   > = [];
 
-  if (canGenerateRent && needsBillCount > 0) {
-    actions.push({ key: 'create-bills', kind: 'form' });
-  } else if (canGenerateRent) {
+  if (allowManualBackfill && canGenerateRent) {
     actions.push({ key: 'create-bills', kind: 'form' });
   }
 
@@ -62,7 +61,7 @@ export function BillingPrimaryActions({
   actions.push({
     key: 'electricity-new',
     kind: 'link',
-    href: `/admin/electricity/new?month=${monthLabel}`,
+    href: `/admin/billing/electricity/generate?month=${monthLabel}`,
     label: 'Create electricity bill',
   });
 
@@ -81,7 +80,7 @@ export function BillingPrimaryActions({
       <p className="mt-1 text-sm text-apg-silver">
         {needsBillCount > 0
           ? `${needsBillCount} resident${needsBillCount === 1 ? '' : 's'} still need a bill for ${monthLabel}.`
-          : 'Create bills, send payment links, or review collections.'}
+          : 'Rent is generated automatically on each resident billing anniversary. Review collections and approve payments here.'}
       </p>
 
       {genState.status === 'ok' ? (

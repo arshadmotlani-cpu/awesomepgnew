@@ -1,4 +1,6 @@
-import 'dotenv/config';
+import { loadAppEnv } from '@/src/lib/db/loadEnv';
+loadAppEnv();
+
 import { defineConfig } from 'drizzle-kit';
 import { getDatabaseUrl } from './src/lib/db/env';
 

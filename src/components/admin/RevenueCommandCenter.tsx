@@ -48,7 +48,7 @@ export function RevenueCommandCenter({
   monthLabel: string;
   pgHref?: (pgId: string) => string;
 }) {
-  const { today, mtd, byPg, outstanding, depositPortfolio } = data;
+  const { today, mtd, byPg, outstanding, depositPortfolio, billingMetrics } = data;
   const totalDepositPaid = byPg.reduce((a, r) => a + r.depositPaidCount, 0);
   const totalDepositPending = byPg.reduce((a, r) => a + r.depositPendingCount, 0);
   const pgTotals = byPg.reduce(
@@ -139,6 +139,75 @@ export function RevenueCommandCenter({
             label="Total revenue"
             value={paiseToInr(mtd.totalPaise)}
             hint="Rent + electricity + deposits"
+            icon={<IconCard />}
+            accent="indigo"
+          />
+        </div>
+      </div>
+
+      <div>
+        <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-apg-silver">
+          Billing cycle · {monthLabel}
+        </p>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <OverviewStatCard
+            label="Rent generated"
+            value={paiseToInr(billingMetrics.rent.generatedPaise)}
+            hint="Invoices issued this month"
+            icon={<IconCard />}
+            accent="amber"
+          />
+          <OverviewStatCard
+            label="Rent collected"
+            value={paiseToInr(billingMetrics.rent.collectedPaise)}
+            hint="Matches MTD rent revenue"
+            icon={<IconCard />}
+            accent="emerald"
+          />
+          <OverviewStatCard
+            label="Rent pending"
+            value={paiseToInr(billingMetrics.rent.pendingPaise)}
+            hint={`${outstanding.pendingRentInvoices} open invoices`}
+            icon={<IconChart />}
+            accent="orange"
+            href="/admin/billing?tab=need-attention"
+          />
+          <OverviewStatCard
+            label="Rent overdue"
+            value={paiseToInr(billingMetrics.rent.overduePaise)}
+            hint="Past due date"
+            icon={<IconChart />}
+            accent="rose"
+            href="/admin/billing?tab=need-attention"
+          />
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <OverviewStatCard
+            label="Electricity generated"
+            value={paiseToInr(billingMetrics.electricity.generatedPaise)}
+            hint="Bills issued this month"
+            icon={<IconChart />}
+            accent="amber"
+          />
+          <OverviewStatCard
+            label="Electricity collected"
+            value={paiseToInr(billingMetrics.electricity.collectedPaise)}
+            hint="Matches MTD electricity revenue"
+            icon={<IconChart />}
+            accent="emerald"
+          />
+          <OverviewStatCard
+            label="Electricity pending"
+            value={paiseToInr(billingMetrics.electricity.pendingPaise)}
+            hint={`${outstanding.pendingElectricityInvoices} open invoices`}
+            icon={<IconCard />}
+            accent="orange"
+            href="/admin/billing?tab=electricity"
+          />
+          <OverviewStatCard
+            label="Expected vs collected"
+            value={paiseToInr(billingMetrics.collectedRevenuePaise)}
+            hint={`of ${paiseToInr(billingMetrics.expectedRevenuePaise)} generated rent + electricity`}
             icon={<IconCard />}
             accent="indigo"
           />

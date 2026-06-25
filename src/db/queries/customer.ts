@@ -1256,6 +1256,7 @@ export type RentInvoiceRow = {
   status: 'pending' | 'payment_in_progress' | 'paid' | 'overdue' | 'expired' | 'cancelled';
   paidAt: Date | null;
   notes: string | null;
+  paymentProofUrl: string | null;
 };
 
 export function listRentInvoicesForBooking(
@@ -1277,6 +1278,7 @@ export function listRentInvoicesForBooking(
         status: rentInvoices.status,
         paidAt: rentInvoices.paidAt,
         notes: rentInvoices.notes,
+        paymentProofUrl: rentInvoices.paymentProofUrl,
       })
       .from(rentInvoices)
       .innerJoin(bookings, eq(bookings.id, rentInvoices.bookingId))
@@ -1298,6 +1300,7 @@ export type ElectricityInvoiceRow = {
   lateFeeLockedPaise: number | null;
   status: 'pending' | 'paid' | 'cancelled';
   paidAt: Date | null;
+  paymentProofUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
   roomNumber: string;
@@ -1327,6 +1330,7 @@ export function listElectricityInvoicesForBooking(
         lateFeeLockedPaise: electricityInvoices.lateFeeLockedPaise,
         status: electricityInvoices.status,
         paidAt: electricityInvoices.paidAt,
+        paymentProofUrl: electricityInvoices.paymentProofUrl,
         createdAt: electricityInvoices.createdAt,
         updatedAt: electricityInvoices.updatedAt,
         roomNumber: rooms.roomNumber,

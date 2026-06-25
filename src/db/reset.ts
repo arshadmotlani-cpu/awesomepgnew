@@ -1,4 +1,6 @@
-import 'dotenv/config';
+import { loadAppEnv } from '@/src/lib/db/loadEnv';
+loadAppEnv();
+
 import { createClient } from './client';
 
 /**

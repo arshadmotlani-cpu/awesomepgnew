@@ -1,4 +1,6 @@
-import 'dotenv/config';
+import { loadAppEnv } from '@/src/lib/db/loadEnv';
+loadAppEnv();
+
 import { eq, sql } from 'drizzle-orm';
 import { createClient } from './client';
 import { hashPassword } from '@/src/lib/auth/crypto';

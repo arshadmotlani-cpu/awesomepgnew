@@ -15,7 +15,12 @@ import {
   type ResidentBillingProfile,
 } from '@/src/db/schema';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
-import { billingDayFromMoveIn, dueDateForBillingDay, firstOfMonth } from '@/src/services/billing';
+import {
+  billingDayFromMoveIn,
+  dueDateForBillingDay,
+  firstAutoBillingDate,
+  firstOfMonth,
+} from '@/src/services/billing';
 import { formatDate } from '@/src/lib/dates';
 import { sql } from 'drizzle-orm';
 
@@ -35,7 +40,7 @@ export type ResidentBillingFormDefaults = {
   pendingInvoiceStatus: string | null;
 };
 
-async function billingDayForBooking(bookingId: string): Promise<number> {
+async function moveInDateForBooking(bookingId: string): Promise<string | null> {
   const [stay] = await db
     .select({
       moveIn: sql<string>`to_char(lower(${bedReservations.stayRange}), 'YYYY-MM-DD')`,
@@ -43,15 +48,29 @@ async function billingDayForBooking(bookingId: string): Promise<number> {
     .from(bedReservations)
     .where(and(eq(bedReservations.bookingId, bookingId), eq(bedReservations.status, 'active')))
     .limit(1);
-  return stay?.moveIn ? billingDayFromMoveIn(stay.moveIn) : 5;
+  return stay?.moveIn ?? null;
+}
+
+async function billingDayForBooking(bookingId: string): Promise<number> {
+  const moveIn = await moveInDateForBooking(bookingId);
+  return moveIn ? billingDayFromMoveIn(moveIn) : 5;
+}
+
+function billingCycleFields(moveIn: string, billingDay: number) {
+  return {
+    billingAnchorDate: moveIn,
+    firstAutoBillingDate: firstAutoBillingDate(moveIn, billingDay),
+  };
 }
 
 /** Sync billing day from the resident's check-in date. */
 export async function syncBillingDayFromCheckIn(bookingId: string): Promise<number> {
-  const billingDay = await billingDayForBooking(bookingId);
+  const moveIn = await moveInDateForBooking(bookingId);
+  const billingDay = moveIn ? billingDayFromMoveIn(moveIn) : 5;
+  const cycle = moveIn ? billingCycleFields(moveIn, billingDay) : {};
   await db
     .update(residentBillingProfiles)
-    .set({ billingDay, updatedAt: new Date() })
+    .set({ billingDay, ...cycle, updatedAt: new Date() })
     .where(eq(residentBillingProfiles.bookingId, bookingId));
   return billingDay;
 }
@@ -74,6 +93,7 @@ export async function ensureBillingProfileForBooking(
   const [booking] = await db
     .select({
       customerId: bookings.customerId,
+      durationMode: bookings.durationMode,
       pricingSnapshot: bookings.pricingSnapshot,
     })
     .from(bookings)
@@ -98,7 +118,14 @@ export async function ensureBillingProfileForBooking(
 
   if (!pgRow) return null;
 
-  const billingDay = await billingDayForBooking(bookingId);
+  const moveIn = await moveInDateForBooking(bookingId);
+  const billingDay = moveIn ? billingDayFromMoveIn(moveIn) : 5;
+  const cycle = moveIn ? billingCycleFields(moveIn, billingDay) : {};
+  const autoGenerate =
+    booking.durationMode !== 'fixed_stay' &&
+    booking.durationMode !== 'daily' &&
+    booking.durationMode !== 'weekly' &&
+    booking.durationMode !== 'reserve';
 
   const existing = await getBillingProfileForBooking(bookingId);
   if (existing) {
@@ -107,6 +134,8 @@ export async function ensureBillingProfileForBooking(
       .set({
         rentAmountPaise,
         billingDay,
+        autoGenerate,
+        ...cycle,
         updatedAt: new Date(),
       })
       .where(eq(residentBillingProfiles.id, existing.id))
@@ -123,7 +152,8 @@ export async function ensureBillingProfileForBooking(
       rentAmountPaise,
       billingDay,
       defaultPaymentMethod: 'upi',
-      autoGenerate: true,
+      autoGenerate,
+      ...cycle,
     })
     .onConflictDoNothing({ target: residentBillingProfiles.bookingId })
     .returning();

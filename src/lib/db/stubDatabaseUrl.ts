@@ -6,7 +6,11 @@ export function isStubDatabaseUrl(): boolean {
   const host = getDatabaseHost();
   if (!host) return true;
   if (host === 'localhost' || host === '127.0.0.1') return true;
-  const url = process.env.DATABASE_URL ?? process.env.POSTGRES_URL ?? '';
+  const url =
+    process.env.DATABASE_URL ??
+    process.env.POSTGRES_URL ??
+    process.env.POSTGRES_PRISMA_URL ??
+    '';
   return url.length > 0 && url.length < 64;
 }
 

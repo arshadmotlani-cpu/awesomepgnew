@@ -498,6 +498,13 @@
       "when": 1789200000000,
       "tag": "0074_push_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1789300000000,
+      "tag": "0075_billing_scheduler",
+      "breakpoints": true
     }
   ]
 }

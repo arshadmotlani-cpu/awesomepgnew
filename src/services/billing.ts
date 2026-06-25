@@ -45,6 +45,38 @@ export function billingDayFromMoveIn(moveInDate: DateLike): number {
   return Math.min(Math.max(1, day), 31);
 }
 
+/** Effective billing day for a calendar month (31st → last day of month). */
+export function effectiveBillingDayInMonth(month: DateLike, billingDay: number): number {
+  return Math.min(Math.max(1, billingDay), daysInMonth(month));
+}
+
+/**
+ * First date the nightly job may auto-generate a rent invoice.
+ * Check-in in June → earliest auto bill on billing day in July.
+ */
+export function firstAutoBillingDate(anchorDate: DateLike, billingDay: number): string {
+  const { start } = monthBounds(parseDate(anchorDate));
+  const nextMonthStart = addMonths(start, 1);
+  return formatDate(dueDateForBillingDay(nextMonthStart, billingDay));
+}
+
+/** True when `today` is the resident's billing anniversary and past first auto date. */
+export function isBillingAnniversaryToday(
+  today: DateLike,
+  billingDay: number,
+  firstAutoDate: DateLike,
+): boolean {
+  const t = parseDate(today);
+  const effective = effectiveBillingDayInMonth(today, billingDay);
+  if (t.getUTCDate() !== effective) return false;
+  return formatDate(t) >= formatDate(parseDate(firstAutoDate));
+}
+
+/** Billing month for an anniversary run on `today` (invoice covers current calendar month). */
+export function billingMonthForAnniversaryDate(today: DateLike): string {
+  return firstOfMonth(today);
+}
+
 /**
  * Due date for a billing month. Per spec, rent is due on the 1st with a
  * grace period through the 5th; late fees start accruing on the 6th.

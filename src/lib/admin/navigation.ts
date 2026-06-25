@@ -38,10 +38,10 @@ export const ADMIN_MODULES: Record<AdminModule, AdminModuleMeta> = {
   },
   collections: {
     id: 'collections',
-    label: 'Billing',
-    description: 'Invoices, collections, and payment queues (under Revenue)',
-    href: '/admin/revenue/billing',
-    sidebar: false,
+    label: 'Billing Center',
+    description: 'Automatic rent, electricity, approvals, and collections',
+    href: '/admin/billing',
+    sidebar: true,
   },
   invoices: {
     id: 'invoices',

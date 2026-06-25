@@ -5,6 +5,26 @@
 
 ---
 
+## 2026-06-25 (database environment SSOT)
+
+### Added
+- `src/lib/db/loadEnv.ts` — single loader for `.env` + `.env.local` (used by migrate, seed, drizzle-kit, CLI)
+- `formatDatabaseConfigReport()` — actionable diagnostics when database URL is missing
+- `src/lib/db/migrationSafety.ts` — connection banner + localhost guard on production/Vercel builds
+- `npm run env:pull` — `vercel env pull .env.local --environment=preview` (Neon `DATABASE_URL`)
+- `npm run env:check` — validate local database configuration
+
+### Fixed
+- `npm run db:migrate` failed locally because scripts only loaded `.env` (not `.env.local`) and Vercel Development env lacks `DATABASE_URL`
+- Empty `DATABASE_URL=""` placeholders from `vercel env pull` overwrote shell env and blocked resolution
+- Preview pull injected `VERCEL=1` locally and falsely triggered production migration guards
+- Resolver priority aligned: `DATABASE_URL` → `POSTGRES_URL` → `POSTGRES_PRISMA_URL`
+
+### Docs
+- [[START_HERE#Local development setup]] · [[DATABASE#Environment & migrations]]
+
+---
+
 ## 2026-06-24 (URL consistency SSOT)
 
 ### Added
@@ -236,24 +256,36 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-25 17:10:00 UTC
+### Pending pre-commit sync · 2026-06-25 19:00:56 UTC
 
-**Areas touched:** [[ROUTES]], [[Bookings]]
+**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Bookings]]
 
 **Docs flagged for review:**
+- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
+- `DATABASE.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (6):**
+**Staged code files (16):**
+- `app/(admin)/admin/billing/actions.ts`
+- `app/(admin)/admin/billing/electricity/generate/page.tsx`
+- `app/(admin)/admin/billing/page.tsx`
+- `app/(admin)/admin/electricity/new/page.tsx`
+- `app/(admin)/admin/revenue/billing/page.tsx`
 - `app/(admin)/admin/system/page.tsx`
-- `app/(admin)/admin/system/push-diagnostics/page.tsx`
-- `app/(admin)/layout.tsx`
-- `app/api/push/diagnostics/route.ts`
-- `app/api/push/test/route.ts`
-- `src/services/booking.ts`
+- `app/api/cron/generate-monthly-rent/route.ts`
+- `src/db/migrations/0075_billing_scheduler.sql`
+- `src/db/migrations/meta/_journal.json`
+- `src/db/schema/billingGeneration.ts`
+- `src/db/schema/index.ts`
+- `src/db/schema/residentBillingProfiles.ts`
+- `src/lib/billing/billingTimezone.ts`
+- `src/services/billing.ts`
+- `src/services/bookingLifecycle.ts`
+- `src/services/rentInvoices.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed
