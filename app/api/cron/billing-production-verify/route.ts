@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server';
 import { and, count, desc, eq, inArray, isNull, sql, sum } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
+  bedReservations,
+  beds,
   billingGenerationFailures,
   billingGenerationRuns,
   bookings,
@@ -11,6 +13,7 @@ import {
   notifications,
   rentInvoices,
   residentBillingProfiles,
+  rooms,
 } from '@/src/db/schema';
 import { nextBillingSchedulerRunUtc, todayInBillingTimezone } from '@/src/lib/billing/billingTimezone';
 import { collectibleResidentFilters } from '@/src/lib/billing/productionDataFilter';
@@ -24,6 +27,11 @@ import {
   submitRentPaymentProof,
 } from '@/src/services/rentInvoices';
 import { billingMonthForAnniversaryDate } from '@/src/services/billing';
+import {
+  approveElectricityPaymentProof,
+  submitElectricityPaymentProof,
+} from '@/src/services/meterElectricity';
+import { createElectricityBill } from '@/src/services/electricityBilling';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
 
 export const dynamic = 'force-dynamic';
@@ -307,125 +315,213 @@ async function runReadOnlyChecks(repairedFixedStay: number): Promise<Check[]> {
 async function runRentE2E(): Promise<Check> {
   const billingMonth = billingMonthForAnniversaryDate(todayInBillingTimezone());
 
-  const [pendingExisting] = await db
+  const candidates = await db
     .select({
-      invoiceId: rentInvoices.id,
-      invoiceNumber: rentInvoices.invoiceNumber,
-      customerId: rentInvoices.customerId,
+      bookingId: bookings.id,
+      customerId: bookings.customerId,
       customerName: customers.fullName,
-      status: rentInvoices.status,
-      paymentProofUrl: rentInvoices.paymentProofUrl,
     })
-    .from(rentInvoices)
-    .innerJoin(bookings, eq(bookings.id, rentInvoices.bookingId))
-    .innerJoin(customers, eq(customers.id, rentInvoices.customerId))
+    .from(residentBillingProfiles)
+    .innerJoin(bookings, eq(bookings.id, residentBillingProfiles.bookingId))
+    .innerJoin(customers, eq(customers.id, bookings.customerId))
     .where(
       and(
-        collectibleResidentFilters(),
-        eq(rentInvoices.isAdhoc, false),
-        eq(rentInvoices.billingMonth, billingMonth),
+        eq(residentBillingProfiles.autoGenerate, true),
         inArray(bookings.durationMode, ['monthly', 'open_ended']),
-        inArray(rentInvoices.status, ['pending', 'overdue']),
-        sql`${rentInvoices.paymentProofUrl} IS NULL`,
+        eq(bookings.status, 'confirmed'),
+        eq(customers.isTest, false),
+        eq(bookings.isTest, false),
       ),
     )
-    .limit(1);
+    .limit(5);
 
-  let invoiceId: string;
-  let invoiceNumber: string;
-  let customerId: string;
-  let customerName: string;
+  const proofUrl =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
-  if (pendingExisting) {
-    invoiceId = pendingExisting.invoiceId;
-    invoiceNumber = pendingExisting.invoiceNumber;
-    customerId = pendingExisting.customerId;
-    customerName = pendingExisting.customerName;
-  } else {
-    const [candidate] = await db
-      .select({
-        bookingId: bookings.id,
-        customerId: bookings.customerId,
-        customerName: customers.fullName,
-      })
-      .from(residentBillingProfiles)
-      .innerJoin(bookings, eq(bookings.id, residentBillingProfiles.bookingId))
-      .innerJoin(customers, eq(customers.id, bookings.customerId))
-      .where(
-        and(
-          eq(residentBillingProfiles.autoGenerate, true),
-          inArray(bookings.durationMode, ['monthly', 'open_ended']),
-          eq(bookings.status, 'confirmed'),
-          eq(customers.isTest, false),
-          eq(bookings.isTest, false),
-          sql`NOT EXISTS (
-            SELECT 1 FROM rent_invoices ri
-            WHERE ri.booking_id = ${bookings.id}
-              AND ri.billing_month = ${billingMonth}
-              AND ri.is_adhoc = false
-              AND ri.status != 'cancelled'
-          )`,
-        ),
-      )
-      .limit(1);
-
-    if (!candidate) {
-      return {
-        section: 'Rent E2E flow',
-        status: 'WARN',
-        detail: 'No pending invoice or billable monthly resident for current billing month',
-      };
-    }
-
+  for (const candidate of candidates) {
     const generated = await generateRentInvoiceForBookingAnniversary({
       bookingId: candidate.bookingId,
       billingMonth,
     });
 
-    if (!generated.ok) {
+    if (!generated.ok) continue;
+
+    const [invoice] = await db
+      .select({
+        id: rentInvoices.id,
+        invoiceNumber: rentInvoices.invoiceNumber,
+        status: rentInvoices.status,
+        paymentProofUrl: rentInvoices.paymentProofUrl,
+      })
+      .from(rentInvoices)
+      .where(eq(rentInvoices.id, generated.invoiceId))
+      .limit(1);
+
+    if (!invoice || invoice.status === 'paid') continue;
+    if (!['pending', 'overdue', 'payment_in_progress'].includes(invoice.status)) continue;
+
+    if (!invoice.paymentProofUrl) {
+      const proof = await submitRentPaymentProof(candidate.customerId, invoice.id, proofUrl);
+      if (!proof.ok) {
+        continue;
+      }
+    }
+
+    const approved = await approveRentPaymentProof(CRON, invoice.id);
+    if (!approved.ok) {
       return {
         section: 'Rent E2E flow',
         status: 'FAIL',
-        detail: `Generate failed for ${candidate.customerName}: ${generated.error}`,
+        detail: `Approval failed for ${candidate.customerName}: ${approved.message}`,
       };
     }
 
-    invoiceId = generated.invoiceId;
-    invoiceNumber = generated.invoiceNumber;
-    customerId = candidate.customerId;
-    customerName = candidate.customerName;
-  }
+    const [paid] = await db
+      .select({ status: rentInvoices.status, paidAt: rentInvoices.paidAt })
+      .from(rentInvoices)
+      .where(eq(rentInvoices.id, invoice.id))
+      .limit(1);
 
-  const proofUrl =
-    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
-  const proof = await submitRentPaymentProof(customerId, invoiceId, proofUrl);
-  if (!proof.ok) {
     return {
       section: 'Rent E2E flow',
-      status: 'FAIL',
-      detail: `Proof upload failed: ${proof.message}`,
+      status: paid?.status === 'paid' ? 'PASS' : 'FAIL',
+      detail: `${candidate.customerName} · ${invoice.invoiceNumber} · status ${paid?.status ?? 'unknown'}`,
     };
   }
 
-  const approved = await approveRentPaymentProof(CRON, invoiceId);
+  return {
+    section: 'Rent E2E flow',
+    status: 'FAIL',
+    detail: 'No billable monthly resident could complete generate → proof → approve',
+  };
+}
+
+async function runElectricityE2E(): Promise<Check> {
+  const billingMonth = `${todayInBillingTimezone().slice(0, 7)}-01`;
+  const proofUrl =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+  const [room] = await db
+    .select({ roomId: rooms.id, roomNumber: rooms.roomNumber })
+    .from(rooms)
+    .innerJoin(beds, eq(beds.roomId, rooms.id))
+    .innerJoin(bedReservations, eq(bedReservations.bedId, beds.id))
+    .innerJoin(bookings, eq(bookings.id, bedReservations.bookingId))
+    .innerJoin(customers, eq(customers.id, bookings.customerId))
+    .where(
+      and(
+        eq(bedReservations.status, 'active'),
+        inArray(bookings.durationMode, ['monthly', 'open_ended']),
+        eq(bookings.status, 'confirmed'),
+        eq(bookings.isTest, false),
+        eq(customers.isTest, false),
+      ),
+    )
+    .limit(1);
+
+  if (!room) {
+    return {
+      section: 'Electricity E2E flow',
+      status: 'FAIL',
+      detail: 'No room with active monthly residents found',
+    };
+  }
+
+  const created = await createElectricityBill({
+    roomId: room.roomId,
+    billingMonth,
+    previousReadingUnits: 100,
+    currentReadingUnits: 150,
+    ratePerUnitPaise: 1000,
+    useProRataByActiveDays: true,
+    notes: 'Production billing rollout verification',
+  });
+
+  let billId: string;
+  if (created.ok) {
+    billId = created.billId;
+  } else if (created.kind === 'already_exists') {
+    billId = created.existingBillId;
+  } else {
+    return {
+      section: 'Electricity E2E flow',
+      status: 'FAIL',
+      detail: 'message' in created ? created.message : created.kind,
+    };
+  }
+
+  const [bill] = await db
+    .select({
+      totalPaise: electricityBills.totalPaise,
+      monthlyOccupantCount: electricityBills.monthlyOccupantCount,
+    })
+    .from(electricityBills)
+    .where(eq(electricityBills.id, billId))
+    .limit(1);
+
+  const split = await db
+    .select({ total: sum(electricityInvoices.amountPaise) })
+    .from(electricityInvoices)
+    .where(eq(electricityInvoices.electricityBillId, billId));
+
+  const splitTotal = Number(split[0]?.total ?? 0);
+  const splitOk = bill ? Math.abs(splitTotal - bill.totalPaise) < 100 : false;
+
+  const [target] = await db
+    .select({
+      invoiceId: electricityInvoices.id,
+      customerId: electricityInvoices.customerId,
+      status: electricityInvoices.status,
+      paymentProofUrl: electricityInvoices.paymentProofUrl,
+    })
+    .from(electricityInvoices)
+    .where(
+      and(eq(electricityInvoices.electricityBillId, billId), eq(electricityInvoices.status, 'pending')),
+    )
+    .limit(1);
+
+  if (!target) {
+    return {
+      section: 'Electricity E2E flow',
+      status: splitOk ? 'PASS' : 'WARN',
+      detail: `Room ${room.roomNumber} batch ${billId} split ${splitOk ? 'ok' : 'mismatch'} — no pending invoice for proof flow`,
+    };
+  }
+
+  if (!target.paymentProofUrl) {
+    const proof = await submitElectricityPaymentProof(
+      target.customerId,
+      target.invoiceId,
+      proofUrl,
+    );
+    if (!proof.ok) {
+      return {
+        section: 'Electricity E2E flow',
+        status: 'FAIL',
+        detail: `Proof upload failed: ${proof.message}`,
+      };
+    }
+  }
+
+  const approved = await approveElectricityPaymentProof(CRON, target.invoiceId);
   if (!approved.ok) {
     return {
-      section: 'Rent E2E flow',
+      section: 'Electricity E2E flow',
       status: 'FAIL',
       detail: `Approval failed: ${approved.message}`,
     };
   }
 
   const [paid] = await db
-    .select({ status: rentInvoices.status, paidAt: rentInvoices.paidAt })
-    .from(rentInvoices)
-    .where(eq(rentInvoices.id, invoiceId))
+    .select({ status: electricityInvoices.status })
+    .from(electricityInvoices)
+    .where(eq(electricityInvoices.id, target.invoiceId))
     .limit(1);
 
   return {
-    section: 'Rent E2E flow',
-    status: paid?.status === 'paid' ? 'PASS' : 'FAIL',
-    detail: `${customerName} · ${invoiceNumber} · status ${paid?.status ?? 'unknown'}`,
+    section: 'Electricity E2E flow',
+    status: paid?.status === 'paid' && splitOk ? 'PASS' : 'FAIL',
+    detail: `Room ${room.roomNumber} · ${bill?.monthlyOccupantCount ?? 0} occupants · proration on · split ${splitTotal}/${bill?.totalPaise ?? 0} · invoice ${paid?.status ?? 'unknown'}`,
   };
 }
 
@@ -450,6 +546,7 @@ async function handle(req: NextRequest) {
     const checks = await runReadOnlyChecks(repairedFixedStay);
     if (runE2e) {
       checks.push(await runRentE2E());
+      checks.push(await runElectricityE2E());
     }
 
     const fails = checks.filter((c) => c.status === 'FAIL').length;
