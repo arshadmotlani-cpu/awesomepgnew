@@ -64,7 +64,9 @@ type Props = {
   /** Hide rent/deposit in calendar — pricing belongs on booking summary only. */
   showPricing?: boolean;
   /** Fired when check-in (monthly) or full range (short stay) is committed. */
-  onRangeComplete?: () => void;
+  onRangeComplete?: (range: { checkIn: string; checkOut: string | null }) => void;
+  /** Remount inline calendar empty (e.g. when stay type changes). */
+  resetKey?: string;
 };
 
 const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
@@ -378,12 +380,17 @@ export function StayDateRangePicker({
   layout = 'popover',
   showPricing = false,
   onRangeComplete,
+  resetKey,
 }: Props) {
   const dark = theme === 'dark';
   const [open, setOpen] = useState(false);
   const [portalReady, setPortalReady] = useState(false);
-  const [draftStart, setDraftStart] = useState<string | null>(checkIn);
-  const [draftEnd, setDraftEnd] = useState<string | null>(checkOut);
+  const [draftStart, setDraftStart] = useState<string | null>(
+    layout === 'inline' ? null : checkIn || null,
+  );
+  const [draftEnd, setDraftEnd] = useState<string | null>(
+    layout === 'inline' ? null : showCheckOut ? checkOut : null,
+  );
   const [hoverDate, setHoverDate] = useState<string | null>(null);
   const [viewMonth, setViewMonth] = useState(() => monthStart(parseDate(checkIn || todayString())));
   const wasOpenRef = useRef(false);
@@ -412,18 +419,17 @@ export function StayDateRangePicker({
   }, [open, checkIn, checkOut, showCheckOut]);
 
   useEffect(() => {
-    if (layout === 'inline') {
-      setDraftStart(checkIn || null);
-      setDraftEnd(showCheckOut ? checkOut : null);
-    }
-  }, [layout, checkIn, checkOut, showCheckOut]);
+    if (layout !== 'inline') return;
+    setDraftStart(null);
+    setDraftEnd(null);
+    setHoverDate(null);
+    setViewMonth(monthStart(parseDate(minCheckIn ?? todayString())));
+  }, [layout, resetKey, minCheckIn]);
 
   const nights =
     showCheckOut && draftEnd && draftStart && draftEnd > draftStart
       ? diffDays(parseDate(draftStart), parseDate(draftEnd))
-      : showCheckOut && checkOut && checkIn > '' && checkOut > checkIn
-        ? diffDays(parseDate(checkIn), parseDate(checkOut))
-        : 0;
+      : 0;
 
   const phaseHint = !showCheckOut
     ? 'Choose your check-in date'
@@ -454,7 +460,7 @@ export function StayDateRangePicker({
       if (showCheckOut && end) {
         onCheckOutChange(end);
       }
-      onRangeComplete?.();
+      onRangeComplete?.({ checkIn: start, checkOut: showCheckOut ? end : null });
     },
     [onCheckInChange, onCheckOutChange, showCheckOut, onRangeComplete],
   );
@@ -538,8 +544,8 @@ export function StayDateRangePicker({
           year={viewMonth.getUTCFullYear()}
           month={viewMonth.getUTCMonth()}
           theme={theme}
-          draftStart={draftStart ?? checkIn}
-          draftEnd={draftEnd ?? checkOut}
+          draftStart={draftStart}
+          draftEnd={draftEnd}
           hoverDate={hoverDate}
           earliestCheckIn={earliestCheckIn}
           freeWindows={_freeWindows}

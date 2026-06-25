@@ -17,6 +17,14 @@ export type BookingDraftPricing = {
   breakdownLineItems?: PricingLineItem[];
 };
 
+export type BookingDraftStatus =
+  | 'empty'
+  | 'selecting_dates'
+  | 'quoting'
+  | 'ready'
+  | 'navigating'
+  | 'error';
+
 export type BookingDraft = {
   pgSlug?: string;
   pgName?: string;

@@ -6,7 +6,11 @@ import { trackClientEvent } from '@/src/lib/analytics/client';
 import { addDays, diffDays, formatDate, parseDate, todayString } from '@/src/lib/dates';
 import { defaultCheckOutDate } from '@/src/lib/dateDefaults';
 import { formatDate as formatDisplayDate } from '@/src/lib/format';
-import { quoteToBookingDraftPricing, bookingDraftToSummaryData } from '@/src/lib/booking/bookingDraft';
+import {
+  quoteToBookingDraftPricing,
+  bookingDraftToSummaryData,
+  type BookingDraftStatus,
+} from '@/src/lib/booking/bookingDraft';
 import { checkoutCapMessage } from '@/src/lib/bedAvailabilityWindows';
 import {
   isCheckInAvailableForReservations,
@@ -15,7 +19,6 @@ import {
 } from '@/src/lib/bedStayOverlap';
 import { reserveBufferDate } from '@/src/lib/bedReservePolicy';
 import {
-  defaultFixedDateCheckOut,
   FIXED_DATE_MAX_NIGHTS,
   pricingModeFromStayType,
   stayTypeChoiceDescription,
@@ -64,6 +67,62 @@ type ServerBookingQuote = {
   totalPaise: number;
 };
 
+function validateDatesForNavigation(input: {
+  isMonthly: boolean;
+  start: string;
+  end: string | null;
+  today: string;
+  timelines: BedTimelineResponse[];
+  reservationsByBed: Array<Array<{ startDate: string; endDate: string }>>;
+  maxCheckout: string | null | undefined;
+  availabilityEnd: string;
+}): string | null {
+  if (input.timelines.some((t) => t.bedStatus !== 'available')) {
+    return 'One or more selected beds cannot be booked.';
+  }
+
+  const earliest = input.timelines
+    .map((t) => t.earliestCheckIn)
+    .filter((d): d is string => Boolean(d))
+    .sort()[0];
+
+  const checkInOk = input.reservationsByBed.every((res) =>
+    isCheckInAvailableForReservations(input.start, res, earliest ?? input.today),
+  );
+  if (!checkInOk) {
+    return 'The selected check-in date is not available for these beds.';
+  }
+
+  const checkout = input.isMonthly ? input.availabilityEnd : input.end;
+  if (!checkout) {
+    return 'Please select your check-out date.';
+  }
+
+  if (!input.isMonthly && input.end! <= input.start) {
+    return 'Check-out must be after check-in.';
+  }
+
+  if (!input.isMonthly) {
+    const fixedErr = validateFixedDateStay(input.start, input.end!, input.today);
+    if (fixedErr) return fixedErr;
+  }
+
+  if (!isStayRangeAvailableForAllBeds(input.start, checkout, input.reservationsByBed)) {
+    return 'The selected dates overlap an existing reservation for one or more beds.';
+  }
+
+  if (!input.isMonthly) {
+    const cap = input.maxCheckout;
+    if (!cap || input.end! > cap) {
+      return cap
+        ? checkoutCapMessage(cap)
+        : 'Invalid stay dates for the selected beds.';
+    }
+  }
+
+  return null;
+}
+
 /**
  * Book flow: stay type → dates → booking summary (no review popup, no Continue buttons).
  */
@@ -81,31 +140,44 @@ export function BedBookingPanel({
   const funnel = useBookingFunnel();
   const today = todayString();
   const reserveLastStay = reserveCheckInDate ? reserveBufferDate(reserveCheckInDate) : null;
+  const navigateOnceRef = useRef(false);
 
   const [step, setStep] = useState<WizardStep>(shortStayOnly ? 'dates' : 'stayType');
   const [stayType, setStayType] = useState<StayType>(
     shortStayOnly ? 'fixed_date_stay' : 'monthly_stay',
   );
+  const [draftStatus, setDraftStatus] = useState<BookingDraftStatus>(
+    shortStayOnly ? 'selecting_dates' : 'empty',
+  );
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [timelines, setTimelines] = useState<BedTimelineResponse[]>([]);
+  const [minCheckIn, setMinCheckIn] = useState(today);
 
-  const [start, setStart] = useState(today);
-  const [end, setEnd] = useState(() =>
-    shortStayOnly ? defaultFixedDateCheckOut(today) : defaultCheckOutDate(today),
-  );
-  const [validationError, setValidationError] = useState<string | null>(null);
+  const [start, setStart] = useState<string | null>(null);
+  const [end, setEnd] = useState<string | null>(null);
+  const [flowError, setFlowError] = useState<string | null>(null);
   const [serverQuote, setServerQuote] = useState<ServerBookingQuote | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
-  const [navigating, setNavigating] = useState(false);
-  const [datesCommitted, setDatesCommitted] = useState(false);
-  const navigationStartedRef = useRef(false);
 
   const isMonthly = stayType === 'monthly_stay';
   const mode = pricingModeFromStayType(stayType);
   const fixedNights =
-    !isMonthly && end > start ? diffDays(parseDate(start), parseDate(end)) : 0;
+    !isMonthly && start && end && end > start
+      ? diffDays(parseDate(start), parseDate(end))
+      : 0;
+
+  const resetDateFlow = useCallback(() => {
+    setStart(null);
+    setEnd(null);
+    setFlowError(null);
+    setQuoteError(null);
+    setServerQuote(null);
+    setQuoteLoading(false);
+    setDraftStatus('selecting_dates');
+    navigateOnceRef.current = false;
+  }, []);
 
   const loadTimelines = useCallback(async () => {
     setLoading(true);
@@ -133,23 +205,17 @@ export function BedBookingPanel({
         .map((t) => t.earliestCheckIn)
         .filter((d): d is string => Boolean(d))
         .sort()[0];
-      const initialStayType: StayType = shortStayOnly ? 'fixed_date_stay' : 'monthly_stay';
-      let initialStart = earliest ?? today;
-      if (suggestedCheckIn && suggestedCheckIn >= initialStart) {
-        initialStart = suggestedCheckIn;
+      let earliestCheckIn = earliest ?? today;
+      if (suggestedCheckIn && suggestedCheckIn >= earliestCheckIn) {
+        earliestCheckIn = suggestedCheckIn;
       }
-      setStart(initialStart);
-      setEnd(
-        initialStayType === 'fixed_date_stay'
-          ? defaultFixedDateCheckOut(initialStart)
-          : defaultCheckOutDate(initialStart),
-      );
+      setMinCheckIn(earliestCheckIn);
     } catch (err) {
       setFetchError(err instanceof Error ? err.message : 'Failed to load availability');
     } finally {
       setLoading(false);
     }
-  }, [beds, today, shortStayOnly, suggestedCheckIn]);
+  }, [beds, today, suggestedCheckIn]);
 
   useEffect(() => {
     void loadTimelines();
@@ -163,6 +229,7 @@ export function BedBookingPanel({
   const horizonEnd = timelines[0]?.windowEnd ?? formatDate(addDays(parseDate(today), 365));
 
   const maxCheckout = useMemo(() => {
+    if (!start) return null;
     const cap = maxCheckoutForAllBeds(start, reservationsByBed, horizonEnd);
     const bookingWindowEnd = formatDate(addDays(parseDate(today), FIXED_DATE_MAX_NIGHTS));
     let effectiveCap = cap;
@@ -178,53 +245,33 @@ export function BedBookingPanel({
     return effectiveCap;
   }, [start, reservationsByBed, horizonEnd, shortStayOnly, reserveLastStay, isMonthly, today]);
 
-  const availabilityEnd = useMemo(() => defaultCheckOutDate(start), [start]);
+  const availabilityEnd = useMemo(
+    () => (start ? defaultCheckOutDate(start) : null),
+    [start],
+  );
 
   const combinedReservations = useMemo(
     () => timelines.flatMap((t) => t.futureReservations),
     [timelines],
   );
 
-  const fixedDateError = useMemo(() => {
-    if (isMonthly || end <= start) return null;
-    return validateFixedDateStay(start, end, today);
-  }, [isMonthly, start, end, today]);
-
-  const stayRangeConflict = useMemo((): string | null => {
-    const checkout = isMonthly ? availabilityEnd : end;
-    if (checkout <= start) return null;
-
-    if (!isStayRangeAvailableForAllBeds(start, checkout, reservationsByBed)) {
-      return 'The selected dates overlap an existing reservation for one or more beds.';
-    }
-
-    if (!isMonthly) {
-      const cap = maxCheckoutForAllBeds(start, reservationsByBed, horizonEnd);
-      if (cap && end > cap) return checkoutCapMessage(cap);
-    }
-
-    return null;
-  }, [isMonthly, start, end, availabilityEnd, reservationsByBed, horizonEnd]);
-
   const canFetchQuote =
+    draftStatus === 'quoting' &&
     beds.length > 0 &&
     !loading &&
     !fetchError &&
-    !stayRangeConflict &&
-    !fixedDateError &&
-    datesCommitted &&
-    (isMonthly || fixedNights > 0);
+    Boolean(start) &&
+    (isMonthly || (end != null && fixedNights > 0));
 
   useEffect(() => {
-    if (!canFetchQuote) {
-      setServerQuote(null);
-      setQuoteError(null);
+    if (!canFetchQuote || !start) {
       return;
     }
 
     let cancelled = false;
     setQuoteLoading(true);
     setQuoteError(null);
+    setServerQuote(null);
 
     void fetch('/api/booking/quote', {
       method: 'POST',
@@ -242,14 +289,17 @@ export function BedBookingPanel({
         if (!data.ok || !data.quote) {
           setServerQuote(null);
           setQuoteError(data.error ?? 'Could not load price.');
+          setDraftStatus('error');
           return;
         }
         setServerQuote(data.quote);
+        setDraftStatus('ready');
       })
       .catch(() => {
         if (!cancelled) {
           setServerQuote(null);
           setQuoteError('Could not load price.');
+          setDraftStatus('error');
         }
       })
       .finally(() => {
@@ -262,144 +312,104 @@ export function BedBookingPanel({
   }, [canFetchQuote, beds, start, end, isMonthly, stayType]);
 
   const draftPricing = useMemo(() => {
-    if (!serverQuote) return null;
+    if (!serverQuote || draftStatus !== 'ready') return null;
     return quoteToBookingDraftPricing({
       subtotalPaise: serverQuote.subtotalPaise,
       depositPaise: serverQuote.depositPaise,
     });
-  }, [serverQuote]);
+  }, [serverQuote, draftStatus]);
 
   useEffect(() => {
     if (!funnel) return;
     funnel.setActiveStep(step === 'stayType' ? 'bed' : 'preview');
     const bed = beds[0];
     if (!bed) return;
+
+    const showPricing = draftStatus === 'ready' || draftStatus === 'navigating';
     funnel.patchSummary(
       bookingDraftToSummaryData({
         bedId: bed.bedId,
         bedCode: bed.bedCode,
         stayType,
-        checkIn: datesCommitted ? start : undefined,
-        checkOut: datesCommitted && !isMonthly ? end : null,
-        stayNights: datesCommitted && !isMonthly && fixedNights > 0 ? fixedNights : undefined,
-        pricing: datesCommitted ? draftPricing : null,
+        checkIn: showPricing ? (start ?? undefined) : undefined,
+        checkOut: showPricing && !isMonthly ? end : null,
+        stayNights: showPricing && !isMonthly && fixedNights > 0 ? fixedNights : undefined,
+        pricing: showPricing ? draftPricing : null,
       }),
     );
-  }, [funnel, beds, stayType, start, end, isMonthly, fixedNights, datesCommitted, draftPricing, step]);
+  }, [funnel, beds, stayType, start, end, isMonthly, fixedNights, draftPricing, draftStatus, step]);
 
-  const navigateToBookingSummary = useCallback(() => {
-    if (navigating || navigationStartedRef.current) return;
-    setValidationError(null);
+  useEffect(() => {
+    if (draftStatus !== 'ready' || !serverQuote || !start || navigateOnceRef.current) return;
 
-    if (timelines.some((t) => t.bedStatus !== 'available')) {
-      setValidationError('One or more selected beds cannot be booked.');
+    const validationMessage = validateDatesForNavigation({
+      isMonthly,
+      start,
+      end,
+      today,
+      timelines,
+      reservationsByBed,
+      maxCheckout,
+      availabilityEnd: availabilityEnd ?? defaultCheckOutDate(start),
+    });
+
+    if (validationMessage) {
+      setFlowError(validationMessage);
+      setDraftStatus('error');
       return;
     }
 
-    const earliest = timelines
-      .map((t) => t.earliestCheckIn)
-      .filter((d): d is string => Boolean(d))
-      .sort()[0];
-    const checkInOk = reservationsByBed.every((res) =>
-      isCheckInAvailableForReservations(start, res, earliest ?? today),
-    );
-    if (!checkInOk) {
-      setValidationError('The selected check-in date is not available for these beds.');
-      return;
-    }
+    navigateOnceRef.current = true;
+    setDraftStatus('navigating');
 
-    const checkout = isMonthly ? availabilityEnd : end;
-
-    if (!isMonthly && end <= start) {
-      setValidationError('Check-out must be after check-in.');
-      return;
-    }
-
-    if (!isMonthly) {
-      const fixedErr = validateFixedDateStay(start, end, today);
-      if (fixedErr) {
-        setValidationError(fixedErr);
-        return;
-      }
-    }
-
-    if (!isStayRangeAvailableForAllBeds(start, checkout, reservationsByBed)) {
-      setValidationError('The selected dates overlap an existing reservation for one or more beds.');
-      return;
-    }
-
-    if (!isMonthly) {
-      const cap = maxCheckout;
-      if (!cap || end > cap) {
-        setValidationError(
-          cap ? checkoutCapMessage(cap) : 'Invalid stay dates for the selected beds.',
-        );
-        return;
-      }
-    }
-
-    if (quoteLoading || !serverQuote) {
-      setValidationError('Loading your price…');
-      return;
-    }
-
-    setNavigating(true);
-    navigationStartedRef.current = true;
+    const checkout = isMonthly ? availabilityEnd ?? defaultCheckOutDate(start) : end!;
     const params = new URLSearchParams();
     params.set('start', start);
     params.set('end', checkout);
     params.set('stayType', stayType);
     params.set('mode', mode);
     for (const bed of beds) params.append('bed', bed.bedId);
+
     void trackClientEvent('bed_selected', { bedCount: beds.length, stayType });
+    onClose();
     router.push(`/booking/new?${params.toString()}`);
   }, [
-    navigating,
-    timelines,
-    reservationsByBed,
+    draftStatus,
+    serverQuote,
     start,
     end,
     isMonthly,
     availabilityEnd,
     today,
+    timelines,
+    reservationsByBed,
     maxCheckout,
-    quoteLoading,
-    serverQuote,
     stayType,
     mode,
     beds,
+    onClose,
     router,
   ]);
 
-  useEffect(() => {
-    if (!datesCommitted || quoteLoading || !serverQuote || navigating || validationError) return;
-    navigateToBookingSummary();
-  }, [datesCommitted, quoteLoading, serverQuote, navigating, validationError, navigateToBookingSummary]);
+  const handleStayTypeSelect = useCallback(
+    (next: StayType) => {
+      setStayType(next);
+      resetDateFlow();
+      setStep('dates');
+    },
+    [resetDateFlow],
+  );
 
-  function handleStayTypeSelect(next: StayType) {
-    setStayType(next);
-    setValidationError(null);
-    setDatesCommitted(false);
-    if (next === 'fixed_date_stay') {
-      setEnd(defaultFixedDateCheckOut(start));
-    }
-    setStep('dates');
-  }
-
-  function handleStartChange(value: string) {
-    setStart(value);
-    setValidationError(null);
-    setDatesCommitted(false);
-    if (!isMonthly) {
-      const cap = maxCheckout;
-      const preferred = defaultFixedDateCheckOut(value);
-      if (cap && preferred > cap) {
-        setEnd(formatDate(addDays(parseDate(cap), -1)));
-      } else if (end <= value) {
-        setEnd(preferred);
-      }
-    }
-  }
+  const handleRangeComplete = useCallback(
+    (range: { checkIn: string; checkOut: string | null }) => {
+      setStart(range.checkIn);
+      setEnd(range.checkOut);
+      setFlowError(null);
+      setQuoteError(null);
+      setDraftStatus('quoting');
+    },
+    [],
+  );
 
   const shell = dark
     ? 'rounded-2xl border border-white/10 apg-glass shadow-2xl'
@@ -425,6 +435,9 @@ export function BedBookingPanel({
     });
     return cards;
   }, [shortStayOnly]);
+
+  const showDateStatus =
+    draftStatus === 'quoting' || draftStatus === 'navigating' || draftStatus === 'ready';
 
   const panelInner = (
     <div
@@ -472,51 +485,35 @@ export function BedBookingPanel({
           <div className="rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-200">
             {fetchError}
           </div>
-        ) : navigating || quoteLoading ? (
-          <div className="rounded-xl border border-apg-orange/30 bg-apg-orange/10 px-4 py-6 text-center">
-            <p className={`text-sm font-medium ${dark ? 'text-white' : 'text-zinc-900'}`}>
-              {navigating ? 'Taking you to booking summary…' : 'Calculating your price…'}
-            </p>
-          </div>
         ) : (
           <>
             {step === 'stayType' ? (
               <fieldset className="space-y-3">
                 <legend className={`${label} mb-1`}>Stay type</legend>
                 <div className="grid grid-cols-1 gap-3">
-                  {stayTypeCards.map((card) => {
-                    const selected = stayType === card.id;
-                    return (
-                      <button
-                        key={card.id}
-                        type="button"
-                        onClick={() => handleStayTypeSelect(card.id)}
-                        className={
-                          dark
-                            ? `rounded-xl border px-4 py-4 text-left transition ${
-                                selected
-                                  ? 'border-apg-orange/60 bg-apg-orange/10 ring-1 ring-apg-orange/30'
-                                  : 'border-white/10 bg-white/5 hover:border-white/20'
-                              }`
-                            : `rounded-lg border px-4 py-4 text-left transition ${
-                                selected
-                                  ? 'border-orange-500 bg-orange-50 ring-1 ring-orange-200'
-                                  : 'border-zinc-200 bg-white hover:border-zinc-300'
-                              }`
-                        }
+                  {stayTypeCards.map((card) => (
+                    <button
+                      key={card.id}
+                      type="button"
+                      onClick={() => handleStayTypeSelect(card.id)}
+                      className={
+                        dark
+                          ? 'rounded-xl border border-white/10 bg-white/5 px-4 py-4 text-left transition hover:border-white/20'
+                          : 'rounded-lg border border-zinc-200 bg-white px-4 py-4 text-left transition hover:border-zinc-300'
+                      }
+                    >
+                      <span
+                        className={`text-sm font-semibold ${dark ? 'text-white' : 'text-zinc-900'}`}
                       >
-                        <span
-                          className={`flex items-center gap-2 text-sm font-semibold ${dark ? 'text-white' : 'text-zinc-900'}`}
-                        >
-                          {selected ? <span aria-hidden>✔</span> : null}
-                          {card.title}
-                        </span>
-                        <p className={`mt-2 text-xs leading-relaxed ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
-                          {card.description}
-                        </p>
-                      </button>
-                    );
-                  })}
+                        {card.title}
+                      </span>
+                      <p
+                        className={`mt-2 text-xs leading-relaxed ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}
+                      >
+                        {card.description}
+                      </p>
+                    </button>
+                  ))}
                 </div>
               </fieldset>
             ) : null}
@@ -534,53 +531,49 @@ export function BedBookingPanel({
                   <p className={`text-xs ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
                     {VACATING_NOTICE_MIN_DAYS}-day notice when you decide to move out.
                   </p>
-                ) : fixedNights > 0 ? (
-                  <p className={`text-xs ${dark ? 'text-apg-silver' : 'text-zinc-500'}`}>
-                    {fixedNights} night{fixedNights === 1 ? '' : 's'} · {formatDisplayDate(start)} →{' '}
-                    {formatDisplayDate(end)}
-                  </p>
                 ) : null}
 
                 <StayDateRangePicker
+                  key={stayType}
+                  resetKey={stayType}
                   theme={dark ? 'dark' : 'light'}
                   layout="inline"
                   showPricing={false}
-                  checkIn={start}
-                  checkOut={!isMonthly ? end : null}
-                  onCheckInChange={handleStartChange}
-                  onCheckOutChange={(d) => {
-                    setEnd(d);
-                    setValidationError(null);
-                    setDatesCommitted(false);
-                  }}
-                  onRangeComplete={() => setDatesCommitted(true)}
-                  minCheckIn={timelines[0]?.earliestCheckIn ?? today}
+                  checkIn=""
+                  checkOut={null}
+                  onCheckInChange={() => undefined}
+                  onCheckOutChange={() => undefined}
+                  onRangeComplete={handleRangeComplete}
+                  minCheckIn={minCheckIn}
                   maxCheckOut={maxCheckout ?? undefined}
                   showCheckOut={!isMonthly}
-                  disabled={loading || Boolean(fetchError)}
+                  disabled={showDateStatus || loading || Boolean(fetchError)}
                   horizonEnd={horizonEnd}
                   reservationsByBed={reservationsByBed}
                   futureReservations={combinedReservations}
                 />
 
-                {quoteError ? (
-                  <p className="rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
-                    {quoteError}
-                  </p>
+                {showDateStatus ? (
+                  <div className="rounded-xl border border-apg-orange/30 bg-apg-orange/10 px-4 py-3 text-center text-sm text-white">
+                    {draftStatus === 'navigating'
+                      ? 'Opening booking summary…'
+                      : 'Calculating your price…'}
+                  </div>
                 ) : null}
 
-                {(fixedDateError || stayRangeConflict) ? (
-                  <p className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-                    {fixedDateError ?? stayRangeConflict}
-                  </p>
+                {(draftStatus === 'error' && (quoteError || flowError)) ? (
+                  <div className="space-y-2 rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-3 text-sm text-rose-200">
+                    <p>{flowError ?? quoteError}</p>
+                    <button
+                      type="button"
+                      onClick={resetDateFlow}
+                      className="text-xs font-semibold text-rose-100 underline"
+                    >
+                      Choose different dates
+                    </button>
+                  </div>
                 ) : null}
               </>
-            ) : null}
-
-            {validationError ? (
-              <p className="rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
-                {validationError}
-              </p>
             ) : null}
           </>
         )}
@@ -591,8 +584,7 @@ export function BedBookingPanel({
           <button
             type="button"
             onClick={() => {
-              setValidationError(null);
-              setDatesCommitted(false);
+              resetDateFlow();
               setStep('stayType');
             }}
             className={`text-sm font-medium ${dark ? 'text-apg-silver hover:text-white' : 'text-zinc-600'}`}
