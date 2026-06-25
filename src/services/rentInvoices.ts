@@ -758,6 +758,7 @@ export async function generateRentInvoicesForMonth(
           })
           .onConflictDoNothing({
             target: [rentInvoices.bookingId, rentInvoices.billingMonth],
+            where: sql`${rentInvoices.isAdhoc} = false`,
           })
           .returning({ id: rentInvoices.id, invoice_number: rentInvoices.invoiceNumber });
         if (row) {
