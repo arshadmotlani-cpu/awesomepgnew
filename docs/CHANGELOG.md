@@ -256,40 +256,17 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-26 21:08:59 UTC
+### Pending pre-commit sync · 2026-06-26 21:43:45 UTC
 
-**Areas touched:** [[ROUTES]], [[Residents]], [[Bed Assignment]]
+**Areas touched:** [[ROUTES]]
 
 **Docs flagged for review:**
 - `CHANGELOG.md` — review for accuracy
-- `DECISIONS.md` — review for accuracy
-- `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
-- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (21):**
-- `app/(admin)/admin/analytics/page.tsx`
-- `app/(admin)/admin/billing/electricity/generate/page.tsx`
-- `app/(admin)/admin/bookings/[bookingId]/page.tsx`
-- `app/(admin)/admin/electricity/page.tsx`
-- `app/(admin)/admin/overview/page.tsx`
-- `app/(admin)/admin/pgs/page.tsx`
-- `app/(admin)/admin/playstation/page.tsx`
-- `app/(admin)/admin/pricing/page.tsx`
-- `app/(admin)/admin/rent/page.tsx`
-- `app/(admin)/admin/revenue/page.tsx`
-- `app/(admin)/admin/settings/business/page.tsx`
-- `app/(admin)/admin/settings/notifications/page.tsx`
-- `app/(admin)/admin/settings/page.tsx`
-- `app/(admin)/admin/settings/payments/page.tsx`
-- `app/(admin)/admin/settings/policies/page.tsx`
-- `app/(admin)/admin/system/developer/page.tsx`
-- `app/(admin)/admin/system/page.tsx`
-- `app/(admin)/admin/system/pricing-health/page.tsx`
-- `app/(admin)/admin/system/production-audit/page.tsx`
-- `src/lib/residents/residentLifecycleBadge.tsx`
-- `src/services/pgBedMap.ts`
+**Staged code files (1):**
+- `app/(admin)/layout.tsx`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

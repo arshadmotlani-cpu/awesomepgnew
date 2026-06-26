@@ -192,7 +192,7 @@ export async function markUserNotificationRead(
   notificationId: string,
 ): Promise<void> {
   const now = new Date();
-  await db
+  const updated = await db
     .update(notifications)
     .set({ isRead: true, readAt: now })
     .where(
@@ -201,7 +201,15 @@ export async function markUserNotificationRead(
         eq(notifications.audience, audience),
         eq(notifications.userId, userId),
       ),
-    );
+    )
+    .returning({ id: notifications.id });
+
+  logger.info('[notifications] markUserNotificationRead', {
+    audience,
+    userId,
+    notificationId,
+    updated: updated.length,
+  });
 
   const unreadCount = await countUnreadForUser(audience, userId);
   void syncBadgeToDevices(audience, userId, unreadCount);
@@ -213,7 +221,7 @@ export async function markUserNotificationReadByDedupeKey(
   dedupeKey: string,
 ): Promise<void> {
   const now = new Date();
-  await db
+  const updated = await db
     .update(notifications)
     .set({ isRead: true, readAt: now })
     .where(
@@ -223,7 +231,15 @@ export async function markUserNotificationReadByDedupeKey(
         eq(notifications.userId, userId),
         eq(notifications.isRead, false),
       ),
-    );
+    )
+    .returning({ id: notifications.id });
+
+  logger.info('[notifications] markUserNotificationReadByDedupeKey', {
+    audience,
+    userId,
+    dedupeKey,
+    updated: updated.length,
+  });
 
   const unreadCount = await countUnreadForUser(audience, userId);
   void syncBadgeToDevices(audience, userId, unreadCount);

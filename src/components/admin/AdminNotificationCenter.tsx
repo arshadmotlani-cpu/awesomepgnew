@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { appendNotifReadParam } from '@/src/components/admin/NotificationReadOnArrival';
 import type { AdminInboxNotificationRow } from '@/src/services/notificationEngine';
 
 function relativeTime(iso: string): string {
@@ -85,13 +86,7 @@ export function AdminNotificationCenter({ initialUnread = 0 }: { initialUnread?:
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [open]);
 
-  async function onItemClick(item: AdminInboxNotificationRow) {
-    await fetch('/api/admin/notifications/read', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ notificationId: item.id }),
-    }).catch(() => undefined);
-    setUnreadCount((c) => Math.max(0, c - 1));
+  async function onItemClick() {
     setOpen(false);
   }
 
@@ -122,7 +117,7 @@ export function AdminNotificationCenter({ initialUnread = 0 }: { initialUnread?:
         <div className="absolute right-0 top-full z-50 mt-2 w-[min(100vw-1.5rem,22rem)] overflow-hidden rounded-xl border border-white/10 bg-[#1A1F27] shadow-2xl">
           <div className="border-b border-white/10 px-4 py-3">
             <p className="text-sm font-semibold text-white">Notifications</p>
-            <p className="text-[11px] text-apg-silver">Unread only — opening clears the badge</p>
+            <p className="text-[11px] text-apg-silver">Unread only — tap to open the related page</p>
           </div>
           <div className="max-h-[min(60vh,24rem)] overflow-y-auto">
             {loading ? (
@@ -134,8 +129,8 @@ export function AdminNotificationCenter({ initialUnread = 0 }: { initialUnread?:
                 {items.map((item) => (
                   <li key={item.id}>
                     <Link
-                      href={item.href}
-                      onClick={() => void onItemClick(item)}
+                      href={appendNotifReadParam(item.href, item.id)}
+                      onClick={() => void onItemClick()}
                       className="block px-4 py-3 hover:bg-white/5"
                     >
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-[#FF5A1F]">

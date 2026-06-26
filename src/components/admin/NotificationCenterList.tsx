@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { appendNotifReadParam } from '@/src/components/admin/NotificationReadOnArrival';
 import type { UserNotificationRow } from '@/src/services/notificationEngine';
 import { NOTIFICATION_CATEGORY_LABELS } from '@/src/lib/notifications/notificationTypes';
 
@@ -14,21 +15,6 @@ function relativeTime(date: Date): string {
 }
 
 export function NotificationCenterList({ items }: { items: UserNotificationRow[] }) {
-  async function onOpen(item: UserNotificationRow) {
-    await fetch('/api/admin/notifications/read', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userNotificationId: item.id }),
-    }).catch(() => undefined);
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(
-        new CustomEvent('admin-badges-updated', {
-          detail: { unreadCount: undefined },
-        }),
-      );
-    }
-  }
-
   if (items.length === 0) {
     return <p className="text-sm text-apg-silver">No notifications in this view.</p>;
   }
@@ -38,8 +24,7 @@ export function NotificationCenterList({ items }: { items: UserNotificationRow[]
       {items.map((item) => (
         <li key={item.id}>
           <Link
-            href={item.deepLink}
-            onClick={() => void onOpen(item)}
+            href={appendNotifReadParam(item.deepLink, item.id)}
             className="block rounded-xl border border-white/10 bg-[#1A1F27] px-4 py-3 hover:border-[#FF5A1F]/30"
           >
             <div className="flex flex-wrap items-start justify-between gap-2">

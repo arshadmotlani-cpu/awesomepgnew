@@ -53,8 +53,13 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = event.notification.data?.url || '/admin/notifications';
-  const absolute = new URL(targetUrl, self.location.origin).href;
+  const rawUrl = event.notification.data?.url || '/admin/notifications';
+  const notificationId = event.notification.data?.notificationId;
+  const url = new URL(rawUrl, self.location.origin);
+  if (notificationId) {
+    url.searchParams.set('notifRead', notificationId);
+  }
+  const absolute = url.href;
 
   event.waitUntil(
     (async () => {

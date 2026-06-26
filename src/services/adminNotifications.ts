@@ -23,8 +23,10 @@ import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { formatDate } from '@/src/lib/dates';
 import type { ActionItemRow } from '@/src/services/actionItems';
+import { logger } from '@/src/lib/logger';
 import {
   emitAdminNotificationsForActionItem,
+  markUserNotificationRead,
   markUserNotificationReadByDedupeKey,
   countUnreadForAdmin as countUnreadUserNotifications,
 } from '@/src/services/notificationEngine';
@@ -350,44 +352,44 @@ export async function markNotificationRead(
   session: AdminSession,
   input: { notificationId?: string; sourceKey?: string; readKey?: string },
 ): Promise<void> {
-  let notificationId = input.notificationId;
-
-  if (!notificationId && input.sourceKey) {
-    const [row] = await db
-      .select({ id: adminNotifications.id, pgId: adminNotifications.pgId })
-      .from(adminNotifications)
-      .where(eq(adminNotifications.sourceKey, input.sourceKey))
-      .limit(1);
-    if (!row || !sessionCanSeePg(session, row.pgId)) return;
-    notificationId = row.id;
+  if (input.notificationId) {
+    logger.info('[notifications] mark read', {
+      reason: 'notificationId',
+      notificationId: input.notificationId,
+      adminId: session.adminId,
+    });
+    await markUserNotificationRead('admin', session.adminId, input.notificationId);
+    return;
   }
 
-  if (!notificationId && input.readKey) {
-    const sourceKey = resolveReadKeyToSourceKey(input.readKey);
-    if (sourceKey) {
-      const [row] = await db
+  const dedupeKey =
+    input.sourceKey ??
+    (input.readKey ? resolveReadKeyToSourceKey(input.readKey.trim()) : null);
+
+  if (dedupeKey) {
+    logger.info('[notifications] mark read', {
+      reason: 'dedupeKey',
+      dedupeKey,
+      adminId: session.adminId,
+    });
+    await markUserNotificationReadByDedupeKey('admin', session.adminId, dedupeKey);
+  }
+
+  const [legacyRow] = dedupeKey
+    ? await db
         .select({ id: adminNotifications.id, pgId: adminNotifications.pgId })
         .from(adminNotifications)
-        .where(eq(adminNotifications.sourceKey, sourceKey))
-        .limit(1);
-      if (!row || !sessionCanSeePg(session, row.pgId)) return;
-      notificationId = row.id;
-    }
-  }
+        .where(eq(adminNotifications.sourceKey, dedupeKey))
+        .limit(1)
+    : [];
 
-  if (!notificationId) return;
-
-  const [notifRow] = await db
-    .select({ sourceKey: adminNotifications.sourceKey })
-    .from(adminNotifications)
-    .where(eq(adminNotifications.id, notificationId))
-    .limit(1);
+  if (!legacyRow || !sessionCanSeePg(session, legacyRow.pgId)) return;
 
   await db
     .insert(adminNotificationStates)
     .values({
       adminId: session.adminId,
-      notificationId,
+      notificationId: legacyRow.id,
       state: 'read',
       readAt: new Date(),
       updatedAt: new Date(),
@@ -400,10 +402,6 @@ export async function markNotificationRead(
         updatedAt: new Date(),
       },
     });
-
-  if (notifRow?.sourceKey) {
-    await markUserNotificationReadByDedupeKey('admin', session.adminId, notifRow.sourceKey);
-  }
 }
 
 export async function archiveNotification(
@@ -494,12 +492,17 @@ function typesForAdminPath(pathname: string): ActionItemType[] {
   return [];
 }
 
-/** Mark all unread notifications of given types as SEEN for this admin. */
+/** @deprecated Do not call on page load — marks many notifications read without user action. */
 export async function markNotificationsSeenForTypes(
   session: AdminSession,
   types: ActionItemType[],
 ): Promise<number> {
   if (types.length === 0) return 0;
+
+  logger.warn('[notifications] bulk markNotificationsSeenForTypes invoked', {
+    types,
+    adminId: session.adminId,
+  });
 
   const unread = await listAdminNotifications(session, 'unread', 500);
   const toMark = unread.filter((n) => types.includes(n.type));
@@ -509,7 +512,7 @@ export async function markNotificationsSeenForTypes(
   return toMark.length;
 }
 
-/** When admin opens a module page, clear badge counts for that module's notification types. */
+/** @deprecated Do not call on page load — use explicit read params or inbox dismiss instead. */
 export async function markNotificationsSeenForPath(
   session: AdminSession,
   pathname: string,

@@ -1,8 +1,6 @@
 import { requireAdminSession } from '@/src/lib/auth/guards';
-import {
-  markNotificationsSeenForPath,
-  processNotificationReadParam,
-} from '@/src/services/adminNotifications';
+import { logger } from '@/src/lib/logger';
+import { processNotificationReadParam } from '@/src/services/adminNotifications';
 
 /** Marks a notification read when ?read= query param is present (server-side). */
 export async function handleNotificationReadFromParams(
@@ -15,17 +13,20 @@ export async function handleNotificationReadFromParams(
 }
 
 /**
- * Marks module notifications SEEN when admin opens the relevant page.
- * Also handles optional ?read= deep-link for a single notification.
+ * Marks a single notification read when the admin arrived via an explicit deep link
+ * (`?read=` legacy key or `?notifRead=` notification id). Never bulk-clears on page load.
  */
 export async function ensureAdminPageNotificationsSeen(
   loginPath: string,
-  pathname: string,
+  _pathname: string,
   readParam?: string,
 ) {
+  if (!readParam?.trim()) return;
   const session = await requireAdminSession(loginPath);
-  if (readParam?.trim()) {
-    await processNotificationReadParam(session, readParam);
-  }
-  await markNotificationsSeenForPath(session, pathname);
+  logger.info('[notifications] deep-link read param on page load', {
+    loginPath,
+    readParam: readParam.slice(0, 80),
+    adminId: session.adminId,
+  });
+  await processNotificationReadParam(session, readParam);
 }
