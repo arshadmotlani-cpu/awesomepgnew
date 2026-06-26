@@ -161,10 +161,10 @@ export function buildOverviewDashboard(ctx: OverviewContext): OverviewDashboardD
           href: moduleHref('revenue', month),
         }),
         moneyMetric('today_rent', 'Rent Collected Today', r.today.rentPaise, {
-          href: '/admin/rent?status=paid',
+          href: '/admin/billing?tab=paid',
         }),
         moneyMetric('today_electricity', 'Electricity Collected Today', r.today.electricityPaise, {
-          href: '/admin/electricity',
+          href: '/admin/billing?tab=electricity',
         }),
         moneyMetric('today_deposit', 'Deposits Collected Today', r.today.depositPaise, {
           href: '/admin/deposits/collected',
@@ -184,7 +184,7 @@ export function buildOverviewDashboard(ctx: OverviewContext): OverviewDashboardD
           href: moduleHref('revenue', month),
         }),
         moneyMetric('mtd_electricity', 'Electricity Collected (MTD)', s.incomeElectricityPaise, {
-          href: '/admin/electricity',
+          href: '/admin/billing?tab=electricity',
         }),
         moneyMetric('mtd_deposit', 'Deposit Collected (MTD)', r.mtd.depositPaise, {
           href: withMonth('/admin/deposits/collected', month),
@@ -204,25 +204,25 @@ export function buildOverviewDashboard(ctx: OverviewContext): OverviewDashboardD
       title: 'INVOICES & COLLECTIONS',
       metrics: [
         moneyMetric('pending_rent', 'Rent Pending', out.pendingRentInvoicesPaise, {
-          href: '/admin/rent?status=pending',
+          href: '/admin/billing?tab=rent',
           hint: `${out.pendingRentInvoices} invoice${out.pendingRentInvoices === 1 ? '' : 's'}`,
         }),
         countMetric('overdue_rent', 'Rent Overdue', rentStats?.overdueCount ?? 0, {
-          href: '/admin/rent?status=overdue',
+          href: '/admin/billing?tab=rent',
         }),
         countMetric('paid_rent', 'Rent Paid', rentStats?.paidCount ?? 0, {
-          href: '/admin/rent?status=paid',
+          href: '/admin/billing?tab=paid',
           hint: rentStats ? `₹${(rentStats.collectedPaise / 100).toLocaleString('en-IN')}` : undefined,
         }),
         moneyMetric('rent_outstanding', 'Rent Outstanding', rentStats?.outstandingPaise ?? 0, {
-          href: '/admin/rent',
+          href: '/admin/billing?tab=rent',
         }),
         moneyMetric('pending_electricity', 'Electricity Pending', out.pendingElectricityInvoicesPaise, {
-          href: '/admin/electricity',
+          href: '/admin/billing?tab=electricity',
           hint: `${out.pendingElectricityInvoices} invoice${out.pendingElectricityInvoices === 1 ? '' : 's'}`,
         }),
         countMetric('electricity_due', 'Electricity Due', ops?.electricityPending.count ?? 0, {
-          href: '/admin/electricity',
+          href: '/admin/billing?tab=electricity',
         }),
         moneyMetric('total_outstanding', 'Total Outstanding', out.totalOutstandingPaise, {
           href: moduleHref('collections', month),
@@ -234,18 +234,9 @@ export function buildOverviewDashboard(ctx: OverviewContext): OverviewDashboardD
       emoji: '💳',
       title: 'PAYMENTS & APPROVALS',
       metrics: [
-        countMetric('pending_payments', 'Pending Payments', kpis.pendingPayments, {
-          href: '/admin/operations/payment-reviews',
-        }),
         countMetric('payments_to_review', 'Payments To Review', ops?.pendingPayments.count ?? 0, {
           href: '/admin/operations/payment-reviews',
-        }),
-        countMetric('payment_approvals', 'Payment Approvals', out.pendingPaymentApprovals, {
-          href: '/admin/operations/payment-reviews',
-          hint:
-            out.pendingPaymentApprovalsPaise > 0
-              ? `₹${(out.pendingPaymentApprovalsPaise / 100).toLocaleString('en-IN')} awaiting review`
-              : undefined,
+          hint: 'SSOT: payment proof queue',
         }),
       ],
     },
@@ -254,15 +245,22 @@ export function buildOverviewDashboard(ctx: OverviewContext): OverviewDashboardD
       emoji: '🏠',
       title: 'MOVE-OUTS & REFUNDS',
       metrics: [
-        countMetric('vacating_month', 'Vacating This Month', ops?.leavingSoon.count ?? 0, {
+        countMetric('vacating_month', 'Move-out notices', ops?.leavingSoon.count ?? 0, {
+          href: '/admin/vacating',
+          hint: 'Pending or approved vacating requests',
+        }),
+        countMetric('beds_releasing', 'Beds releasing (30d)', ops?.bedsReleasingSoon.count ?? 0, {
           href: '/admin/vacating',
         }),
-        countMetric('beds_releasing', 'Beds Releasing Soon', ops?.bedsReleasingSoon.count ?? 0, {
-          href: '/admin/pgs',
-        }),
-        countMetric('refunds_pending', 'Refunds Pending', ops?.refundsPending.count ?? 0, {
-          href: '/admin/checkout-settlements',
-        }),
+        countMetric(
+          'refunds_pending',
+          'Refunds pending',
+          ops?.checkoutRefundsPending.count ?? 0,
+          {
+            href: '/admin/checkout-settlements?tab=refund_pending',
+            hint: 'Checkout pipeline — refund to send',
+          },
+        ),
       ],
     },
     {
@@ -306,8 +304,9 @@ export function buildOverviewDashboard(ctx: OverviewContext): OverviewDashboardD
       emoji: '✅',
       title: 'COMPLIANCE & KYC',
       metrics: [
-        countMetric('kyc_pending', 'KYC Pending', ops?.pendingKyc.count ?? kpis.pendingKyc, {
+        countMetric('kyc_pending', 'KYC Pending', ops?.pendingKyc.count ?? 0, {
           href: '/admin/residents/kyc',
+          hint: 'SSOT: pending KYC submissions',
         }),
       ],
     },
@@ -355,27 +354,12 @@ export function buildOverviewDashboard(ctx: OverviewContext): OverviewDashboardD
 
   const propertyPerformance = selectFeaturedPropertyRows(r.byPg, month);
 
-  const operationsAlerts: OverviewMetric[] = [
-    countMetric('alert_vacating', 'Vacating Alerts', ctx.vacatingAlertsCount, {
-      href: '/admin/vacating',
-    }),
-    countMetric('alert_pending_payments', 'Pending Payments', kpis.pendingPayments, {
-      href: '/admin/operations/payment-reviews',
-    }),
-    countMetric('alert_payments_review', 'Payments To Review', ops?.pendingPayments.count ?? 0, {
-      href: '/admin/operations/payment-reviews',
-    }),
-    countMetric('alert_kyc', 'KYC Pending', ops?.pendingKyc.count ?? kpis.pendingKyc, {
-      href: '/admin/residents/kyc',
-    }),
-  ];
-
   return {
     billingMonth: month,
     monthLabel: ctx.monthLabel,
     sections,
     propertyPerformance,
-    operationsAlerts,
+    operationsAlerts: [],
   };
 }
 

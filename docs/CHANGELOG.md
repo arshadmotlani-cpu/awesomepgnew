@@ -256,43 +256,40 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-26 11:29:51 UTC
+### Pending pre-commit sync · 2026-06-26 21:08:59 UTC
 
-**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Action Center]], [[Electricity]]
+**Areas touched:** [[ROUTES]], [[Residents]], [[Bed Assignment]]
 
 **Docs flagged for review:**
-- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DATABASE.md` — review for accuracy
+- `DECISIONS.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (23):**
+**Staged code files (21):**
+- `app/(admin)/admin/analytics/page.tsx`
 - `app/(admin)/admin/billing/electricity/generate/page.tsx`
-- `app/(admin)/admin/billing/page.tsx`
 - `app/(admin)/admin/bookings/[bookingId]/page.tsx`
-- `app/(admin)/admin/checkout-settlements/page.tsx`
-- `app/(admin)/admin/collections/page.tsx`
-- `app/(admin)/admin/electricity/new/actions.ts`
-- `app/(admin)/admin/payments/actions.ts`
-- `app/(admin)/admin/requests/page.tsx`
-- `app/(admin)/admin/residents/[customerId]/page.tsx`
-- `app/(admin)/layout.tsx`
-- `app/api/admin/live/route.ts`
-- `app/api/admin/notifications/read/route.ts`
-- `app/api/admin/notifications/route.ts`
-- `app/api/cron/automation/route.ts`
-- `src/db/migrations/0082_stabilization_indexes.sql`
-- `src/db/migrations/meta/_journal.json`
-- `src/lib/billing/financialMetrics.ts`
-- `src/lib/billing/residentFinancialTypes.ts`
-- `src/services/actionItems.ts`
-- `src/services/electricityBilling.ts`
-- `src/services/meterElectricity.ts`
-- `src/services/rentInvoices.ts`
-- `src/services/residentFinancialEngine.ts`
+- `app/(admin)/admin/electricity/page.tsx`
+- `app/(admin)/admin/overview/page.tsx`
+- `app/(admin)/admin/pgs/page.tsx`
+- `app/(admin)/admin/playstation/page.tsx`
+- `app/(admin)/admin/pricing/page.tsx`
+- `app/(admin)/admin/rent/page.tsx`
+- `app/(admin)/admin/revenue/page.tsx`
+- `app/(admin)/admin/settings/business/page.tsx`
+- `app/(admin)/admin/settings/notifications/page.tsx`
+- `app/(admin)/admin/settings/page.tsx`
+- `app/(admin)/admin/settings/payments/page.tsx`
+- `app/(admin)/admin/settings/policies/page.tsx`
+- `app/(admin)/admin/system/developer/page.tsx`
+- `app/(admin)/admin/system/page.tsx`
+- `app/(admin)/admin/system/pricing-health/page.tsx`
+- `app/(admin)/admin/system/production-audit/page.tsx`
+- `src/lib/residents/residentLifecycleBadge.tsx`
+- `src/services/pgBedMap.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

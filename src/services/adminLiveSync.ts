@@ -4,11 +4,13 @@
  */
 
 import { logger } from '@/src/lib/logger';
+import { revalidateAdminSurfaces } from '@/src/lib/admin/revalidateSurfaces';
 
 export async function triggerAdminNotificationSync(): Promise<void> {
   try {
     const { syncActionItemsForCron } = await import('@/src/services/actionItems');
     await syncActionItemsForCron();
+    revalidateAdminSurfaces();
   } catch (err) {
     logger.error('admin notification sync failed', {
       error: err instanceof Error ? err.message : String(err),

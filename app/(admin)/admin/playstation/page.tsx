@@ -96,15 +96,15 @@ export default async function AdminPlaystationPage() {
                       url={m.paymentProofUrl}
                       viewHref={adminPaymentProofViewUrl('playstation', m.id)}
                       alt={`${m.customerName} PS4 payment proof`}
-                      className="h-24 w-24 rounded-lg border border-zinc-200 object-contain bg-zinc-50"
+                      className="h-24 w-24 rounded-lg border border-white/10 object-contain bg-white/[0.03]"
                     />
                   ) : m.status === 'pending_payment' ? (
-                    <span className="text-zinc-400">Awaiting payment</span>
+                    <span className="text-apg-silver/70">Awaiting payment</span>
                   ) : (
                     '—'
                   )}
                   {m.transactionRef ? (
-                    <div className="mt-0.5 font-mono text-[10px] text-zinc-500">{m.transactionRef}</div>
+                    <div className="mt-0.5 font-mono text-[10px] text-apg-silver">{m.transactionRef}</div>
                   ) : null}
                 </TD>
                 <TD className="text-xs whitespace-nowrap">
@@ -113,7 +113,7 @@ export default async function AdminPlaystationPage() {
                 <TD className="text-xs whitespace-nowrap">
                   {m.expiresAt ? formatDateTime(m.expiresAt) : '—'}
                 </TD>
-                <TD className="text-xs text-zinc-500">{formatDate(m.createdAt)}</TD>
+                <TD className="text-xs text-apg-silver">{formatDate(m.createdAt)}</TD>
                 <TD className="text-right">
                   <div className="flex flex-wrap justify-end gap-1">
                     {m.status === 'pending_payment' ? (
@@ -121,7 +121,7 @@ export default async function AdminPlaystationPage() {
                         <input type="hidden" name="membershipId" value={m.id} />
                         <button
                           type="submit"
-                          className="rounded border border-emerald-300 px-2 py-0.5 text-[10px] font-medium text-emerald-800 hover:bg-emerald-50"
+                          className="rounded border border-emerald-500/40 px-2 py-0.5 text-[10px] font-medium text-emerald-300 hover:bg-emerald-500/10"
                         >
                           Activate
                         </button>
@@ -134,7 +134,7 @@ export default async function AdminPlaystationPage() {
                           <input type="hidden" name="extraDays" value="7" />
                           <button
                             type="submit"
-                            className="rounded border border-zinc-300 px-2 py-0.5 text-[10px] font-medium text-zinc-700 hover:bg-zinc-50"
+                            className="rounded border border-white/20 px-2 py-0.5 text-[10px] font-medium text-apg-silver hover:bg-white/5"
                           >
                             +7d
                           </button>
@@ -143,7 +143,7 @@ export default async function AdminPlaystationPage() {
                           <input type="hidden" name="membershipId" value={m.id} />
                           <button
                             type="submit"
-                            className="rounded border border-amber-300 px-2 py-0.5 text-[10px] font-medium text-amber-800 hover:bg-amber-50"
+                            className="rounded border border-amber-500/40 px-2 py-0.5 text-[10px] font-medium text-amber-300 hover:bg-amber-500/10"
                           >
                             Deactivate
                           </button>
@@ -155,7 +155,7 @@ export default async function AdminPlaystationPage() {
                         <input type="hidden" name="membershipId" value={m.id} />
                         <button
                           type="submit"
-                          className="rounded border border-rose-300 px-2 py-0.5 text-[10px] font-medium text-rose-800 hover:bg-rose-50"
+                          className="rounded border border-rose-500/40 px-2 py-0.5 text-[10px] font-medium text-rose-300 hover:bg-rose-500/10"
                         >
                           Cancel
                         </button>
@@ -182,10 +182,10 @@ function StatCard({
   hint?: string;
 }) {
   return (
-    <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-      <div className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">{label}</div>
-      <div className="mt-1 text-xl font-semibold text-zinc-900">{value}</div>
-      {hint ? <div className="mt-1 text-xs text-zinc-500">{hint}</div> : null}
+    <div className="rounded-xl border border-white/10 bg-[#1A1F27] p-4">
+      <div className="text-[10px] font-medium uppercase tracking-wide text-apg-silver">{label}</div>
+      <div className="mt-1 text-xl font-semibold text-white">{value}</div>
+      {hint ? <div className="mt-1 text-xs text-apg-silver">{hint}</div> : null}
     </div>
   );
 }

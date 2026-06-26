@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import { ElectricityWizardLauncher } from '@/src/components/admin/ElectricityWizardLauncher';
+import { ElectricityWizardProgress } from '@/src/components/admin/ElectricityWizardProgress';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { NewElectricityBillForm } from '@/src/components/admin/NewElectricityBillForm';
 import { PageHeader } from '@/src/components/admin/PageHeader';
@@ -128,6 +129,11 @@ export default async function BillingElectricityGeneratePage({
         </div>
       ) : wizardMode && currentRoom ? (
         <div className="mt-4 w-full max-w-2xl">
+          <ElectricityWizardProgress
+            current={roomIdx + 1}
+            total={pgRooms.length}
+            pgName={currentRoom.pgName}
+          />
           <NewElectricityBillForm
             rooms={rooms.data}
             defaultMonth={billingMonth}

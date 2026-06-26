@@ -10,6 +10,7 @@ import {
   skipToNextKycAction,
   type KycReviewActionState,
 } from '@/app/(admin)/admin/residents/kyc/actions';
+import { KycLazyDocumentImage } from '@/src/components/admin/kyc/KycLazyDocumentImage';
 import { KYC_DOCUMENT_LABELS, kycDocumentUrl } from '@/src/lib/kyc/documentUrls';
 import { formatDateTime } from '@/src/lib/format';
 import type { KycReviewContext } from '@/src/services/kyc';
@@ -335,6 +336,10 @@ function KycDocPanel({
   large?: boolean;
   compact?: boolean;
 }) {
+  if (compact) {
+    return <KycLazyDocumentImage label={title} src={src} />;
+  }
+
   return (
     <figure className="overflow-hidden rounded-xl border border-white/10 bg-black/20">
       <figcaption className="border-b border-white/10 px-3 py-2 text-xs font-semibold text-white">
@@ -345,9 +350,10 @@ function KycDocPanel({
         src={src}
         alt={title}
         className={
-          (compact ? 'aspect-square ' : 'min-h-[280px] ') +
+          (large ? 'min-h-[280px] ' : 'min-h-[280px] ') +
           'w-full object-contain bg-black/30'
         }
+        loading="lazy"
       />
     </figure>
   );

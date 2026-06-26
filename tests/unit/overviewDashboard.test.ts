@@ -136,6 +136,7 @@ test('buildOverviewDashboard maps context into spec sections', () => {
       bedsReleasingSoon: { count: 2, items: [] },
       upcomingReservations: { count: 5, items: [] },
       refundsPending: { count: 1, items: [] },
+      checkoutRefundsPending: { count: 2, items: [] },
       electricityPending: { count: 4, items: [] },
     },
     pgCount: 4,
@@ -154,5 +155,5 @@ test('buildOverviewDashboard maps context into spec sections', () => {
     2,
   );
   assert.equal(dashboard.propertyPerformance.length, 1);
-  assert.equal(dashboard.operationsAlerts.length, 4);
+  assert.equal(dashboard.operationsAlerts.length, 0);
 });

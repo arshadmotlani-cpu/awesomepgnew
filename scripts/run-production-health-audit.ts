@@ -10,6 +10,7 @@ import type { AdminSession } from '../src/lib/auth/session';
 import { runBedAudit, repairBedAuditIssue } from '../src/services/bedAudit';
 import { runFinancialHealthAudit } from '../src/services/financialAudit';
 import { runSystemHealthAudit } from '../src/services/systemHealthAudit';
+import { runProductionAudit } from '../src/services/productionAudit';
 import { repairVacatingAuditIssues, runVacatingAudit } from '../src/services/vacatingAudit';
 
 function mockSuperAdminSession(): AdminSession {
@@ -75,17 +76,17 @@ async function main() {
     console.log(`Repaired: ${repair.repaired}`);
   }
 
-  console.log('\n=== SYSTEM HEALTH REPORT ===\n');
-  const health = await runSystemHealthAudit(session);
-  for (const section of health.sections) {
-    console.log(`  [${section.pass ? 'PASS' : 'FAIL'}] ${section.name}: ${section.summary}`);
-    for (const m of section.mismatches.slice(0, 10)) {
+  console.log('\n=== PRODUCTION AUDIT (unified) ===\n');
+  const prod = await runProductionAudit(session);
+  for (const gate of prod.gates) {
+    console.log(`  [${gate.pass ? 'PASS' : 'FAIL'}] ${gate.name}: ${gate.summary}`);
+    for (const m of gate.mismatches.slice(0, 5)) {
       console.log(`      - ${m}`);
     }
   }
 
-  console.log(`\n=== OVERALL: ${health.allPass ? 'PRODUCTION READY' : 'NOT READY'} ===\n`);
-  process.exit(health.allPass ? 0 : 1);
+  console.log(`\n=== OVERALL: ${prod.allPass ? 'PRODUCTION READY' : 'NOT READY'} ===\n`);
+  process.exit(prod.allPass ? 0 : 1);
 }
 
 main()

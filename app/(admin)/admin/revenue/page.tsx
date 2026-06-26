@@ -7,6 +7,7 @@ import { OverviewMonthNav } from '@/src/components/admin/OverviewMonthNav';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { PgIncomeDonutChart } from '@/src/components/admin/PgIncomeDonutChart';
 import { RevenueCommandCenter } from '@/src/components/admin/RevenueCommandCenter';
+import { RevenueMtdBarChart } from '@/src/components/admin/revenue/charts/RevenueMtdBarChart';
 import { RevenueLiveRefresh } from '@/src/components/admin/RevenueLiveRefresh';
 import { RevenueMonthSummary } from '@/src/components/admin/RevenueMonthSummary';
 import { DateCouponAdminPanel } from '@/src/components/admin/DateCouponAdminPanel';
@@ -89,6 +90,10 @@ export default async function RevenueModulePage({
 
         <AdminSectionErrorBoundary title="Revenue command center">
           <RevenueCommandCenter data={data.revenue} monthLabel={data.monthLabel} pgHref={pgHref} />
+        </AdminSectionErrorBoundary>
+
+        <AdminSectionErrorBoundary title="Revenue charts">
+          <RevenueMtdBarChart rows={data.revenue.byPg} />
         </AdminSectionErrorBoundary>
 
         <div className="grid gap-4 xl:grid-cols-5">

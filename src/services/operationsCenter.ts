@@ -37,6 +37,8 @@ import {
   computeElectricityInvoiceOutstandingPaise,
 } from '@/src/services/residentFinancialEngine';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
+import { listPipelineCheckoutSettlements } from '@/src/services/checkoutSettlement';
+import { isStaleZeroRefundSettlement } from '@/src/lib/residents/checkoutOpsQueueCopy';
 import {
   isDismissedFromOperationsQueue,
   loadOperationsQueueDismissalIndex,
@@ -106,6 +108,11 @@ export type OperationsCenterData = {
       priority: OpsPriority;
       bookingId: string;
     }>;
+  };
+  /** Checkout pipeline refunds — SSOT for overview card linking to /admin/checkout-settlements */
+  checkoutRefundsPending: {
+    count: number;
+    items: Array<{ id: string; residentName: string; pgName: string | null }>;
   };
   electricityPending: {
     count: number;
@@ -491,6 +498,7 @@ export async function getOperationsCenterData(
     vacatingRows,
     reservations,
     refunds,
+    checkoutSettlements,
     electricityItems,
     ps4RenewalItems,
     dismissalIndex,
@@ -500,6 +508,7 @@ export async function getOperationsCenterData(
     listVacatingForOps(session),
     listActiveBedReserves(session),
     listPendingDepositRefunds(session),
+    listPipelineCheckoutSettlements(session),
     listOutstandingElectricity(session),
     listPs4RenewalsForOps(session, today),
     loadOperationsQueueDismissalIndex(),
@@ -545,6 +554,14 @@ export async function getOperationsCenterData(
       priority,
     }));
 
+  const checkoutRefundItems = checkoutSettlements
+    .filter((s) => s.status === 'refund_pending' && !isStaleZeroRefundSettlement(s))
+    .map((s) => ({
+      id: s.id,
+      residentName: s.customerName,
+      pgName: s.pgName ? formatPgDisplayName(s.pgName) : null,
+    }));
+
   const partial: Omit<OperationsCenterData, 'tasks'> = {
     pendingPayments: { count: pendingPaymentRows.length, items: pendingPaymentRows },
     pendingKyc: { count: pendingKycItems.length, items: pendingKycItems },
@@ -552,6 +569,7 @@ export async function getOperationsCenterData(
     bedsReleasingSoon: { count: bedsReleasingItems.length, items: bedsReleasingItems },
     upcomingReservations: { count: reservations.length, items: reservations },
     refundsPending: { count: visibleRefunds.length, items: visibleRefunds },
+    checkoutRefundsPending: { count: checkoutRefundItems.length, items: checkoutRefundItems },
     electricityPending: { count: electricityItems.length, items: electricityItems },
     ps4Renewals: { count: ps4RenewalItems.length, items: ps4RenewalItems },
   };

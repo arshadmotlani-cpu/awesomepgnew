@@ -2,16 +2,15 @@ import { AdminSectionErrorBoundary } from '@/src/components/admin/AdminSectionEr
 import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import { OverviewMonthPicker } from '@/src/components/admin/OverviewMonthPicker';
 import { PageHeader } from '@/src/components/admin/PageHeader';
-import { SyncActionsButton } from '@/src/components/admin/SyncActionsButton';
-import { UnreadNotificationsPanel } from '@/src/components/admin/UnreadNotificationsPanel';
 import { OutstandingDepositsPanel } from '@/src/components/admin/overview/OutstandingDepositsPanel';
 import { OverviewDashboard } from '@/src/components/admin/overview/OverviewDashboard';
-import { PendingActionItemsOverview } from '@/src/components/admin/overview/PendingActionItemsOverview';
+import { PriorityActionCenter } from '@/src/components/admin/overview/PriorityActionCenter';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import { runOperatorTestDataCleanup } from '@/src/services/operatorTestDataCleanup';
 import { buildOverviewDashboard } from '@/src/services/overviewDashboard';
 import { loadOverviewContext } from '@/src/services/overviewData';
+import { loadResidentOperationsResidentsPage } from '@/src/services/residentOperationsResidentsPage';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
@@ -45,6 +44,9 @@ export default async function OverviewPage({
   const session = await requireAdminSession('/admin/overview');
 
   const ctx = await loadOverviewContext(session, billingMonth, { syncActions: false });
+  const opsPage = ctx.ok
+    ? await loadResidentOperationsResidentsPage(session, null)
+    : null;
 
   if (!ctx.ok) {
     return (
@@ -62,12 +64,7 @@ export default async function OverviewPage({
       <PageHeader
         title="Overview Dashboard"
         description="Money, collections, occupancy, and operations — each metric links to its module."
-        actions={
-          <div className="flex items-center gap-2">
-            <SyncActionsButton />
-            <OverviewMonthPicker billingMonth={billingMonth} />
-          </div>
-        }
+        actions={<OverviewMonthPicker billingMonth={billingMonth} />}
       />
 
       {sp.extraIncomeCleared === '1' ? (
@@ -78,14 +75,17 @@ export default async function OverviewPage({
       ) : null}
 
       <AdminSectionErrorBoundary title="Overview summary">
-        <div className="mb-8">
-          <UnreadNotificationsPanel items={ctx.data.unreadNotifications} />
-        </div>
+        {opsPage ? (
+          <div className="mb-8">
+            <PriorityActionCenter
+              nextItem={opsPage.nextQueueItem}
+              queueCount={opsPage.allQueueCount}
+              topItems={opsPage.queue.slice(0, 5)}
+            />
+          </div>
+        ) : null}
         <div className="mb-8">
           <OutstandingDepositsPanel rows={ctx.data.outstandingDeposits} />
-        </div>
-        <div className="mb-8">
-          <PendingActionItemsOverview items={ctx.data.oldestPendingActions} />
         </div>
         <OverviewDashboard data={dashboard} />
       </AdminSectionErrorBoundary>

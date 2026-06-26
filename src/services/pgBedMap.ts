@@ -25,6 +25,7 @@ export type PgBedMapVacating = {
   status: 'pending' | 'approved';
   vacatingDate: string;
   deductionPaise: number;
+  settlementId: string | null;
 };
 
 export type PgBedMapBillingHints = {
@@ -121,6 +122,7 @@ type RawRow = {
   vacating_status: 'pending' | 'approved' | null;
   vacating_date: string | null;
   vacating_deduction_paise: number | null;
+  vacating_settlement_id: string | null;
   rent_overdue_count: number;
   rent_pending_count: number;
   electricity_pending_count: number;
@@ -180,6 +182,7 @@ function buildBed(row: RawRow): PgBedMapBed {
           status: row.vacating_status,
           vacatingDate: row.vacating_date,
           deductionPaise: row.vacating_deduction_paise ?? 0,
+          settlementId: row.vacating_settlement_id,
         }
       : null;
 
@@ -287,6 +290,7 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
       vac.status AS vacating_status,
       vac.vacating_date,
       vac.deduction_paise AS vacating_deduction_paise,
+      vac.settlement_id AS vacating_settlement_id,
       coalesce(bill.rent_overdue, 0)::int AS rent_overdue_count,
       coalesce(bill.rent_pending, 0)::int AS rent_pending_count,
       coalesce(bill.elec_pending, 0)::int AS electricity_pending_count,
@@ -353,7 +357,14 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
       LIMIT 1
     ) brhold ON true
     LEFT JOIN LATERAL (
-      SELECT vr.id AS request_id, vr.status, vr.vacating_date::text AS vacating_date, vr.deduction_paise
+      SELECT vr.id AS request_id, vr.status, vr.vacating_date::text AS vacating_date, vr.deduction_paise,
+        (
+          SELECT cs.id::text FROM checkout_settlements cs
+          WHERE cs.vacating_request_id = vr.id
+            AND cs.status NOT IN ('archived', 'completed')
+          ORDER BY cs.created_at DESC
+          LIMIT 1
+        ) AS settlement_id
       FROM vacating_requests vr
       WHERE vr.booking_id = coalesce(occ.booking_id, res.booking_id)
         AND vr.status IN ('pending', 'approved')

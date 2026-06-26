@@ -16,6 +16,7 @@ import {
 import type { ActionItem } from '@/src/db/schema/actionItems';
 import type { ActionItemType } from '@/src/db/schema/enums';
 import type { ActionItemMetadata } from '@/src/lib/actionCenter/constants';
+import { buildActionDeepLink } from '@/src/lib/admin/actionDeepLinks';
 import { ACTION_ITEM_GROUP_LABELS } from '@/src/lib/actionCenter/constants';
 import type { AdminModule } from '@/src/lib/admin/navigation';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
@@ -67,33 +68,7 @@ const TYPE_LABELS: Partial<Record<ActionItem['type'], string>> = {
 };
 
 function notificationHref(type: ActionItem['type'], meta: ActionItemMetadata, residentId: string | null): string {
-  if (type === 'vacating_alert' && meta.settlementId) {
-    return `/admin/checkout-settlements/${meta.settlementId}?read=${encodeURIComponent(`vacating:${meta.vacatingRequestId ?? ''}`)}`;
-  }
-  if (type === 'vacating_alert' && meta.vacatingRequestId) {
-    return `/admin/vacating?read=${encodeURIComponent(`vacating:${meta.vacatingRequestId}`)}`;
-  }
-  if (type === 'fixed_stay_checkout_due' && meta.settlementId) {
-    return `/admin/checkout-settlements/${meta.settlementId}`;
-  }
-  if (type === 'kyc_pending' && meta.submissionId) {
-    return `/admin/residents/kyc/${meta.submissionId}?read=${encodeURIComponent(`kyc:${meta.submissionId}`)}`;
-  }
-  if (type === 'deposit_refund_request' || type === 'extension_request') {
-    if (meta.requestId) {
-      return `/admin/requests?read=${encodeURIComponent(`request:${meta.requestId}`)}`;
-    }
-  }
-  if (meta.bookingId && (type === 'refund_pending' || type === 'deposit_refund_request' || type === 'deposit_collection_due')) {
-    return `/admin/deposits/${meta.bookingId}?read=${encodeURIComponent(`deposit:${meta.bookingId}`)}`;
-  }
-  if (residentId) {
-    return `/admin/residents/${residentId}?read=${encodeURIComponent(`resident:${residentId}:${type}`)}`;
-  }
-  if (type === 'payment_received') return '/admin/operations/payment-reviews';
-  if (type === 'rent_due') return '/admin/collections?tab=rent';
-  if (type === 'electricity_due') return '/admin/collections?tab=electricity';
-  return '/admin/overview';
+  return buildActionDeepLink(type, meta, residentId);
 }
 
 function buildDetail(type: ActionItem['type'], meta: ActionItemMetadata, dueDate: string | null): string | null {
@@ -205,7 +180,7 @@ function rowFromActionItem(item: ActionItemRow): {
   };
 }
 
-/** Sync notifications from open action items — one record per source_key. */
+/** Sync notifications from open action items — notifications table SSOT only (legacy admin_notifications retired). */
 export async function syncAdminNotificationsFromActionItems(
   openItems: ActionItemRow[],
 ): Promise<void> {
@@ -216,102 +191,31 @@ export async function syncAdminNotificationsFromActionItems(
     const row = rowFromActionItem(item);
     const meta = row.metadata;
 
-    const [existing] = await db
-      .select({ id: adminNotifications.id })
-      .from(adminNotifications)
-      .where(eq(adminNotifications.sourceKey, row.sourceKey))
-      .limit(1);
+    const notifyAllAdmins = meta.notifyAllAdmins === true;
+    const adminIds = notifyAllAdmins
+      ? (
+          await db
+            .select({ id: adminUsers.id })
+            .from(adminUsers)
+            .where(eq(adminUsers.isActive, true))
+        ).map((a) => a.id)
+      : await adminsForPg(row.pgId);
 
-    if (existing) {
-      await db
-        .update(adminNotifications)
-        .set({
-          title: row.title,
-          href: row.href,
-          metadata: {
-            ...meta,
-            detail: buildDetail(row.type, meta, row.dueDate),
-            typeLabel: TYPE_LABELS[row.type] ?? ACTION_ITEM_GROUP_LABELS[row.type],
-          },
-          updatedAt: new Date(),
-        })
-        .where(eq(adminNotifications.id, existing.id));
-      continue;
-    }
-
-    const [inserted] = await db
-      .insert(adminNotifications)
-      .values({
-        sourceKey: row.sourceKey,
-        type: row.type,
-        title: row.title,
-        pgId: row.pgId,
-        residentId: row.residentId,
-        href: row.href,
-        metadata: {
-          ...meta,
-          detail: buildDetail(row.type, meta, row.dueDate),
-          typeLabel: TYPE_LABELS[row.type] ?? ACTION_ITEM_GROUP_LABELS[row.type],
-        },
-      })
-      .returning({ id: adminNotifications.id });
-
-    if (inserted) {
-      const notifyAllAdmins = meta.notifyAllAdmins === true;
-      const adminIds = notifyAllAdmins
-        ? (
-            await db
-              .select({ id: adminUsers.id })
-              .from(adminUsers)
-              .where(eq(adminUsers.isActive, true))
-          ).map((a) => a.id)
-        : await adminsForPg(row.pgId);
-
-      if (notifyAllAdmins) {
-        await seedUnreadForAllActiveAdmins(inserted.id);
-      } else {
-        await seedUnreadForAdmins(inserted.id, row.pgId);
-      }
-
-      const body = buildDetail(row.type, meta, row.dueDate) ?? row.title;
-      await emitAdminNotificationsForActionItem({
-        adminIds,
-        sourceKey: row.sourceKey,
-        type: row.type,
-        title: TYPE_LABELS[row.type] ?? row.title,
-        body,
-        href: row.href,
-        entityType: row.type,
-        entityId: meta.bookingId ?? meta.submissionId ?? meta.settlementId ?? null,
-        metadata: meta,
-      });
-    }
+    const body = buildDetail(row.type, meta, row.dueDate) ?? row.title;
+    await emitAdminNotificationsForActionItem({
+      adminIds,
+      sourceKey: row.sourceKey,
+      type: row.type,
+      title: TYPE_LABELS[row.type] ?? row.title,
+      body,
+      href: row.href,
+      entityType: row.type,
+      entityId: meta.bookingId ?? meta.submissionId ?? meta.settlementId ?? null,
+      metadata: meta,
+    });
   }
 
-  if (activeKeys.size === 0) {
-    await db
-      .update(adminNotificationStates)
-      .set({ state: 'archived', archivedAt: new Date(), updatedAt: new Date() })
-      .where(sql`${adminNotificationStates.state} != 'archived'`);
-    return;
-  }
-
-  const stale = await db
-    .select({ id: adminNotifications.id })
-    .from(adminNotifications)
-    .where(notInArray(adminNotifications.sourceKey, [...activeKeys]));
-
-  if (stale.length > 0) {
-    await db
-      .update(adminNotificationStates)
-      .set({ state: 'archived', archivedAt: new Date(), updatedAt: new Date() })
-      .where(
-        inArray(
-          adminNotificationStates.notificationId,
-          stale.map((s) => s.id),
-        ),
-      );
-  }
+  void activeKeys;
 }
 
 function sessionCanSeePg(session: AdminSession, pgId: string): boolean {

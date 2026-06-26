@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { IconLogo } from './icons';
 import { DraggableSidebarNav } from '@/src/components/admin/sidebar/DraggableSidebarNav';
+import { SidebarDragStatusBanner } from '@/src/components/admin/sidebar/SidebarDragStatusBanner';
 
 export function Sidebar({
   onNavigate,
@@ -63,6 +64,7 @@ export function Sidebar({
       )}
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-6">
+        <SidebarDragStatusBanner />
         <DraggableSidebarNav activePath={activePath} onNavigateStart={handleNavigateStart} />
       </div>
 

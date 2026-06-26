@@ -13,6 +13,7 @@ import {
   isResidentBedAssigned,
   viewBedAdminHref,
 } from '@/src/lib/residentBedAssignment';
+import { ResidentLifecycleBadge } from '@/src/lib/residents/residentLifecycleBadge';
 import type { ResidentListRow } from '@/src/services/residentAdmin';
 
 type StatusFilter = 'all' | 'active' | 'unassigned' | 'vacating' | 'kyc_pending';
@@ -185,6 +186,9 @@ export function ResidentsTable({
                     Verified via
                   </th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-apg-silver">
+                    Lifecycle
+                  </th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-apg-silver">
                     KYC
                   </th>
                   <th className="px-4 py-3" />
@@ -210,6 +214,9 @@ export function ResidentsTable({
                       <Badge tone={r.verificationSource === 'kyc' ? 'emerald' : 'sky'}>
                         {r.verificationSource === 'kyc' ? 'KYC' : 'Payment'}
                       </Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <ResidentLifecycleBadge resident={r} />
                     </td>
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <AdminKycStatusWithWhatsApp

@@ -129,7 +129,9 @@ export function OverviewDashboard({ data }: { data: OverviewDashboardData }) {
         <PropertyPerformanceTable rows={data.propertyPerformance} />
       </section>
 
-      <OverviewSectionBlock emoji="🚨" title="OPERATIONS ALERTS" metrics={data.operationsAlerts} />
+      {data.operationsAlerts.length > 0 ? (
+        <OverviewSectionBlock emoji="🚨" title="OPERATIONS ALERTS" metrics={data.operationsAlerts} />
+      ) : null}
     </div>
   );
 }

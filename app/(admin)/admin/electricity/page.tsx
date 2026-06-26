@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
 
 export default function LegacyElectricityRedirect() {
-  redirect('/admin/collections?tab=electricity');
+  redirect('/admin/billing?tab=electricity');
 }

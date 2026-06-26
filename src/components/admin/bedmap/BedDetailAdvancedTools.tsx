@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { AdminAdvancedToolsSection } from '@/src/components/admin/AdminAdvancedToolsSection';
 import { BedMapRemoveTenantButton } from '@/src/components/admin/BedMapRemoveTenantButton';
 import { BedMapManualOccupiedToggle } from '@/src/components/admin/BedMapManualOccupiedToggle';
@@ -9,7 +10,6 @@ import { BedMapMoveForm } from '@/src/components/admin/BedMapMoveForm';
 import { BedMapReservationForm } from '@/src/components/admin/BedMapReservationForm';
 import {
   CancelVacatingNoticeButton,
-  CompleteVacatingButton,
   RejectVacatingButton,
   UndoVacatingApprovalButton,
 } from '@/src/components/admin/VacatingActions';
@@ -67,10 +67,29 @@ export function BedDetailAdvancedTools({
                     <RejectVacatingButton requestId={bed.vacating.requestId} pgId={pgId} />
                   ) : null}
                   {bed.vacating.status === 'approved' ? (
-                    <>
-                      <CompleteVacatingButton requestId={bed.vacating.requestId} pgId={pgId} />
-                      <UndoVacatingApprovalButton requestId={bed.vacating.requestId} pgId={pgId} />
-                    </>
+                    bed.vacating.settlementId ? (
+                      <Link
+                        href={`/admin/checkout-settlements/${bed.vacating.settlementId}`}
+                        className="rounded-lg bg-[#FF5A1F] px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110"
+                      >
+                        Open checkout settlement →
+                      </Link>
+                    ) : (
+                      <>
+                        <p className="text-[10px] text-orange-200/90">
+                          Complete move-out via Checkout Processing — legacy Complete is disabled.
+                        </p>
+                        <Link
+                          href="/admin/checkout-settlements"
+                          className="inline-flex rounded-lg border border-orange-400/40 px-3 py-1.5 text-xs font-medium text-orange-100 hover:bg-orange-500/10"
+                        >
+                          Go to checkout settlements
+                        </Link>
+                      </>
+                    )
+                  ) : null}
+                  {bed.vacating.status === 'approved' && !bed.vacating.settlementId ? (
+                    <UndoVacatingApprovalButton requestId={bed.vacating.requestId} pgId={pgId} />
                   ) : null}
                   {bed.vacating.status === 'pending' || bed.vacating.status === 'approved' ? (
                     <CancelVacatingNoticeButton requestId={bed.vacating.requestId} pgId={pgId} />

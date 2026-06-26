@@ -107,13 +107,23 @@ export function usePersistSidebarLayout() {
       const { persistSidebarLayoutAction } = await import(
         '@/app/(admin)/admin/actions/sidebarLayout'
       );
-      const result = await persistSidebarLayoutAction(entriesFromItems(normalized));
-      if (!result.ok) {
-        setItems(previous);
-        setDragEnabled(false);
-        return false;
+
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const result = await persistSidebarLayoutAction(entriesFromItems(normalized));
+        if (result.ok) return true;
+        if (attempt === 0) await new Promise((r) => setTimeout(r, 400));
       }
-      return true;
+
+      setItems(previous);
+      setDragEnabled(false);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('sidebar-persist-failed', {
+            detail: { message: 'Could not save sidebar order — drag disabled.' },
+          }),
+        );
+      }
+      return false;
     },
     [items, setItems, setDragEnabled],
   );

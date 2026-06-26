@@ -4,7 +4,6 @@ import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import { EmptyState } from '@/src/components/admin/EmptyState';
 import { IconBuilding } from '@/src/components/admin/icons';
 import { PageHeader } from '@/src/components/admin/PageHeader';
-import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
 import { listPgs } from '@/src/db/queries/admin';
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import { adminHasPermission } from '@/src/lib/auth/roles';
@@ -21,7 +20,7 @@ export default async function PgsPage() {
     <>
       <PageHeader
         title="PG listings"
-        description="Open Bed map to see every room and tenant, or Edit to manage listing, rooms, and collections."
+        description="Tap a card to open the bed map — whole-card navigation."
         actions={
           canWrite ? (
             <Link
@@ -43,57 +42,37 @@ export default async function PgsPage() {
           description="Create a listing or run npm run db:seed for demo data."
         />
       ) : (
-        <Table>
-          <THead>
-            <TR>
-              <TH>Name</TH>
-              <TH>Location</TH>
-              <TH>Gender policy</TH>
-              <TH className="text-right">Beds</TH>
-              <TH>Status</TH>
-              <TH />
-            </TR>
-          </THead>
-          <TBody>
-            {res.data.map((row) => (
-              <TR key={row.id}>
-                <TD className="font-medium text-zinc-900">
-                  {row.name}
-                  <div className="text-xs font-normal text-zinc-500">{row.slug}</div>
-                </TD>
-                <TD>
-                  {row.city}, {row.state}
-                  <div className="text-xs text-zinc-500">PIN {row.pincode}</div>
-                </TD>
-                <TD>{titleCase(row.genderPolicy)}</TD>
-                <TD className="text-right tabular-nums">{row.bedCount}</TD>
-                <TD>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {res.data.map((row) => (
+            <article
+              key={row.id}
+              className="rounded-xl border border-white/10 bg-[#1A1F27] p-5 transition hover:border-[#FF5A1F]/40"
+            >
+              <Link href={`/admin/pgs/${row.id}/map`} className="group block">
+                <div className="flex items-start justify-between gap-2">
+                  <h2 className="text-base font-semibold text-white group-hover:text-[#FF5A1F]">
+                    {row.name}
+                  </h2>
                   <Badge tone={row.isActive ? 'emerald' : 'zinc'}>
                     {row.isActive ? 'Active' : 'Inactive'}
                   </Badge>
-                </TD>
-                <TD>
-                  {canWrite ? (
-                    <div className="flex flex-col items-end gap-1">
-                      <Link
-                        href={`/admin/pgs/${row.id}/map`}
-                        className="text-sm font-semibold text-[#FF5A1F] hover:underline"
-                      >
-                        Bed map →
-                      </Link>
-                      <Link
-                        href={`/admin/pgs/${row.id}/listing`}
-                        className="text-xs text-zinc-500 hover:text-[#FF5A1F] hover:underline"
-                      >
-                        Setup
-                      </Link>
-                    </div>
-                  ) : null}
-                </TD>
-              </TR>
-            ))}
-          </TBody>
-        </Table>
+                </div>
+                <p className="mt-2 text-sm text-apg-silver">
+                  {row.city}, {row.state} · {titleCase(row.genderPolicy.replace(/_/g, ' '))}
+                </p>
+                <p className="mt-3 text-xs font-medium text-[#FF5A1F]">Open bed map →</p>
+              </Link>
+              {canWrite ? (
+                <Link
+                  href={`/admin/pgs/${row.id}/listing`}
+                  className="mt-3 inline-block text-xs text-apg-silver hover:text-white"
+                >
+                  Listing setup
+                </Link>
+              ) : null}
+            </article>
+          ))}
+        </div>
       )}
     </>
   );
