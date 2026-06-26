@@ -531,15 +531,26 @@ export async function approveVacatingRequest(input: {
   const { createCheckoutSettlementFromVacating } = await import(
     '@/src/services/checkoutSettlement'
   );
-  const settlement = await createCheckoutSettlementFromVacating({
-    vacatingRequestId: updated.id,
-  });
-  if (!settlement.ok) {
-    console.error(
-      '[vacating] checkout settlement not created on approve:',
-      settlement.error,
-      { vacatingRequestId: updated.id, bookingId: updated.bookingId },
-    );
+  const { evaluateResidencyCheckoutOnBookingEnd } = await import(
+    '@/src/services/continuousResidency'
+  );
+  const checkoutDecision = await evaluateResidencyCheckoutOnBookingEnd(updated.bookingId);
+  if (checkoutDecision.action === 'KEEP_RESIDENCY_ACTIVE') {
+    await db
+      .update(vacatingRequests)
+      .set({ checkoutSettlementSuppressed: true, updatedAt: new Date() })
+      .where(eq(vacatingRequests.id, updated.id));
+  } else {
+    const settlement = await createCheckoutSettlementFromVacating({
+      vacatingRequestId: updated.id,
+    });
+    if (!settlement.ok) {
+      console.error(
+        '[vacating] checkout settlement not created on approve:',
+        settlement.error,
+        { vacatingRequestId: updated.id, bookingId: updated.bookingId },
+      );
+    }
   }
 
   scheduleAdminNotificationSync();

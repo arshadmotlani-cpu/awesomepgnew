@@ -135,6 +135,15 @@ export async function assignTenantToBed(
   const { ensureBillingProfileForBooking } = await import('@/src/services/residentBillingProfiles');
   await ensureBillingProfileForBooking(result.bookingId).catch(() => undefined);
 
+  try {
+    const { ensureContinuousResidencyOnBookingConfirmed } = await import(
+      '@/src/services/continuousResidency'
+    );
+    await ensureContinuousResidencyOnBookingConfirmed(result.bookingId);
+  } catch (residencyErr) {
+    console.error('continuous residency on tenant assign failed:', residencyErr);
+  }
+
   return { ok: true, bookingId: result.bookingId, bookingCode: result.bookingCode };
 }
 

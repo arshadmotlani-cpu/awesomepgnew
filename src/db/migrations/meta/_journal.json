@@ -540,6 +540,13 @@
       "when": 1789800000000,
       "tag": "0080_resolve_stale_financial_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1789900000000,
+      "tag": "0081_resident_residencies",
+      "breakpoints": true
     }
   ]
 }

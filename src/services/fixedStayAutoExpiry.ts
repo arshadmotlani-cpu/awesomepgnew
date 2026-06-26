@@ -126,7 +126,7 @@ async function ensureSystemVacatingRequest(booking: {
 }
 
 export type ExpireFixedStayResult =
-  | { ok: true; bookingId: string; settlementId: string | null }
+  | { ok: true; bookingId: string; settlementId: string | null; keptResidencyActive?: boolean }
   | { ok: false; kind: 'not_found' | 'wrong_status' | 'not_due' | 'error'; message?: string };
 
 export async function expireFixedStayBooking(bookingId: string): Promise<ExpireFixedStayResult> {
@@ -156,6 +156,31 @@ export async function expireFixedStayBooking(bookingId: string): Promise<ExpireF
   }
   if (!isPastFixedStayCheckout(booking.expectedCheckoutDate)) {
     return { ok: false, kind: 'not_due', message: 'Checkout time not reached (11 AM IST).' };
+  }
+
+  const { evaluateResidencyCheckoutOnBookingEnd, completeBookingPeriodWithoutCheckout } =
+    await import('@/src/services/continuousResidency');
+  const checkoutDecision = await evaluateResidencyCheckoutOnBookingEnd(booking.id);
+  if (checkoutDecision.action === 'KEEP_RESIDENCY_ACTIVE') {
+    await completeBookingPeriodWithoutCheckout(booking.id);
+    await db.insert(auditLog).values({
+      actorType: 'system',
+      entity: 'booking',
+      entityId: booking.id,
+      action: 'fixed_stay_period_end_continuous',
+      diff: {
+        expectedCheckoutDate: booking.expectedCheckoutDate,
+        successorBookingId: checkoutDecision.successorBookingId,
+        successorBookingCode: checkoutDecision.successorBookingCode,
+      },
+    });
+    scheduleAdminNotificationSync();
+    return {
+      ok: true,
+      bookingId: booking.id,
+      settlementId: null,
+      keptResidencyActive: true,
+    };
   }
 
   const [location] = await db

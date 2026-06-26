@@ -342,3 +342,6 @@ Migrations refuse **localhost** targets when `NODE_ENV=production` or on Vercel 
 
 <!-- DOC_SYNC_TOUCH_2026-06-25 -->
 > **2026-06-25 14:28:27 UTC** — Code changed in: Routes, Database, Bookings. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-06-26 -->
+> **2026-06-26 08:55:12 UTC** — Code changed in: Routes, Database, Bookings, Vacating. Manual review recommended.

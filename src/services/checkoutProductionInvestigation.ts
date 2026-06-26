@@ -11,6 +11,7 @@ import {
   executeCheckoutSettlementRepair,
 } from '@/src/services/checkoutSettlementRepair';
 import { archiveCheckoutSettlement } from '@/src/services/checkoutSettlement';
+import { cleanupContinuousStayFalseCheckouts, getResidencyAdminView } from '@/src/services/continuousResidency';
 import { eq } from 'drizzle-orm';
 import { checkoutSettlements } from '@/src/db/schema';
 
@@ -227,8 +228,8 @@ export async function runCheckoutProductionInvestigation() {
 
   return {
     generatedAt: new Date().toISOString(),
-    dhruv,
-    arshad,
+    dhruv: { ...dhruv, residency: await getResidencyAdminView(dhruv.customer?.id as string) },
+    arshad: { ...arshad, residency: await getResidencyAdminView(arshad.customer?.id as string) },
     activeQueue: activeQueue.map((q) => ({
       ...q,
       notice_deduction_inr: inr(q.notice_deduction_paise),
@@ -357,6 +358,7 @@ export async function archiveStaleOperationalCheckouts(adminId: string): Promise
 export async function runCheckoutProductionRepairs(adminId: string) {
   const notice = await repairFixedStayNoticeDeductions(adminId);
   const repair = await executeCheckoutSettlementRepair({ adminId, dryRun: false });
+  const continuous = await cleanupContinuousStayFalseCheckouts(adminId);
   const stale = await archiveStaleOperationalCheckouts(adminId);
-  return { notice, repair, stale };
+  return { notice, repair, continuous, stale };
 }

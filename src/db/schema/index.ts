@@ -53,6 +53,7 @@ export * from './financialInvoices';
 export * from './couponRedemptions';
 export * from './residentRequests';
 export * from './residentBillingProfiles';
+export * from './residentResidencies';
 export * from './billingGeneration';
 export * from './adminNotifications';
 export * from './residentUploadEvents';

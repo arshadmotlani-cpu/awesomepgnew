@@ -27,6 +27,17 @@ export type CheckoutSettlementStatus =
 export const residencyStatusEnum = pgEnum('residency_status', ['active', 'vacated', 'blocked']);
 
 export type ResidencyStatus = (typeof residencyStatusEnum.enumValues)[number];
+
+export const residencyLifecycleEnum = pgEnum('residency_lifecycle', [
+  'onboarding',
+  'active',
+  'vacating',
+  'checkout',
+  'ended',
+  'cancelled',
+]);
+
+export type ResidencyLifecycle = (typeof residencyLifecycleEnum.enumValues)[number];
 export const authProviderEnum = pgEnum('auth_provider', ['otp', 'google', 'email']);
 
 export const bedStatusEnum = pgEnum('bed_status', ['available', 'maintenance', 'blocked']);

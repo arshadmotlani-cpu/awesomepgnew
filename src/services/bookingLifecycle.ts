@@ -764,6 +764,17 @@ export async function recordPaymentSuccess(
       console.error('PS4 membership activation failed:', ps4Err);
     }
 
+    if (!isReserveBooking && wasAwaitingConfirm) {
+      try {
+        const { ensureContinuousResidencyOnBookingConfirmed } = await import(
+          '@/src/services/continuousResidency'
+        );
+        await ensureContinuousResidencyOnBookingConfirmed(booking.id);
+      } catch (residencyErr) {
+        console.error('continuous residency on booking confirm failed:', residencyErr);
+      }
+    }
+
     const { notifyBookingConfirmed, notifyPaymentReceipt } = await import(
       '@/src/lib/email/notifications'
     );

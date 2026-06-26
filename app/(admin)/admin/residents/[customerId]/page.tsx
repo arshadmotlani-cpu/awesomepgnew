@@ -34,6 +34,8 @@ import { listAssignableBeds } from '@/src/services/tenantAssignment';
 import { getResidentFinancialSummary } from '@/src/services/residentFinancialEngine';
 import { listResidentInvoiceHistory } from '@/src/services/invoiceGeneration';
 import { getResidentBillingFormDefaults } from '@/src/services/residentBillingProfiles';
+import { getResidencyAdminView } from '@/src/services/continuousResidency';
+import { ResidentResidencyPanel } from '@/src/components/admin/residents/ResidentResidencyPanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -133,6 +135,12 @@ export default async function ResidentDetailPage({
     ? await getResidentBillingFormDefaults(customerId, activeTenancy.bookingId)
     : null;
 
+  const residencyView = await getResidencyAdminView(customerId);
+  const residencyDepositPaise =
+    residencyView?.depositBookingCode && depositSummary
+      ? depositSummary.refundableBalancePaise
+      : depositSummary?.refundableBalancePaise ?? null;
+
   const primaryUnresolved = pickPrimaryUnresolvedAction(
     openUnresolvedRows.map(mapUnresolvedActionRow),
   );
@@ -166,6 +174,15 @@ export default async function ResidentDetailPage({
       />
 
       <Resident360WorkflowBar workflow={resident360} />
+
+      {residencyView ? (
+        <div className="mb-6">
+          <ResidentResidencyPanel
+            residency={residencyView}
+            depositHeldPaise={residencyDepositPaise}
+          />
+        </div>
+      ) : null}
 
       {verification && !verification.isVerified ? (
         <div className="mb-6 rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">

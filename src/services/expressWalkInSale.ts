@@ -333,6 +333,15 @@ export async function executeExpressWalkInSale(
     const { ensureBillingProfileForBooking } = await import('@/src/services/residentBillingProfiles');
     await ensureBillingProfileForBooking(bookingId).catch(() => undefined);
 
+    try {
+      const { ensureContinuousResidencyOnBookingConfirmed } = await import(
+        '@/src/services/continuousResidency'
+      );
+      await ensureContinuousResidencyOnBookingConfirmed(bookingId);
+    } catch (residencyErr) {
+      console.error('continuous residency on express walk-in failed:', residencyErr);
+    }
+
     const { revalidateFinancialViews } = await import('@/src/lib/billing/revalidateFinancialViews');
     revalidateFinancialViews();
   } catch (err) {
