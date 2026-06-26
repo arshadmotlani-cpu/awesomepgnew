@@ -284,17 +284,18 @@ export async function repairFixedStayNoticeDeductions(adminId: string): Promise<
     }
   }
 
-  if (updated > 0) {
-    await db.execute(sql`
-      UPDATE vacating_requests vr
-      SET deduction_paise = 0, notice_compliant = true, updated_at = now()
-      FROM bookings b
-      WHERE vr.booking_id = b.id
-        AND b.duration_mode IN ('fixed_stay', 'daily', 'weekly')
-        AND vr.deduction_paise > 0
-        AND vr.status IN ('pending', 'approved')
-    `);
-  }
+  await db.execute(sql`
+    UPDATE vacating_requests vr
+    SET deduction_paise = 0, notice_compliant = true, updated_at = now()
+    FROM bookings b
+    WHERE vr.booking_id = b.id
+      AND (
+        b.duration_mode IN ('fixed_stay', 'daily', 'weekly')
+        OR b.stay_type = 'fixed_date_stay'
+      )
+      AND vr.deduction_paise > 0
+      AND vr.status IN ('pending', 'approved')
+  `);
 
   return { updated, rows: fixed };
 }
@@ -325,14 +326,37 @@ export async function archiveStaleOperationalCheckouts(adminId: string): Promise
   const archived: string[] = [];
   for (const row of stale) {
     const res = await archiveCheckoutSettlement({ settlementId: row.id, adminId });
-    if (res.ok) archived.push(`${row.full_name} · ${row.booking_code} · ${row.id}`);
+    if (res.ok) {
+      archived.push(`${row.full_name} · ${row.booking_code} · ${row.id}`);
+      await db.execute(sql`
+        UPDATE vacating_requests vr
+        SET checkout_settlement_suppressed = true,
+            deduction_paise = CASE
+              WHEN b.duration_mode IN ('fixed_stay', 'daily', 'weekly')
+                OR b.stay_type = 'fixed_date_stay'
+              THEN 0
+              ELSE vr.deduction_paise
+            END,
+            notice_compliant = CASE
+              WHEN b.duration_mode IN ('fixed_stay', 'daily', 'weekly')
+                OR b.stay_type = 'fixed_date_stay'
+              THEN true
+              ELSE vr.notice_compliant
+            END,
+            updated_at = now()
+        FROM checkout_settlements cs
+        JOIN bookings b ON b.id = cs.booking_id
+        WHERE cs.id = ${row.id}::uuid
+          AND vr.id = cs.vacating_request_id
+      `);
+    }
   }
   return { archived };
 }
 
 export async function runCheckoutProductionRepairs(adminId: string) {
   const notice = await repairFixedStayNoticeDeductions(adminId);
-  const stale = await archiveStaleOperationalCheckouts(adminId);
   const repair = await executeCheckoutSettlementRepair({ adminId, dryRun: false });
-  return { notice, stale, repair };
+  const stale = await archiveStaleOperationalCheckouts(adminId);
+  return { notice, repair, stale };
 }
