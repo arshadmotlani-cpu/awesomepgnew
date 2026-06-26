@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { boolean, jsonb, numeric, pgTable, text, timestamp, uuid, bigint } from 'drizzle-orm/pg-core';
+import { boolean, integer, jsonb, numeric, pgTable, text, timestamp, uuid, bigint } from 'drizzle-orm/pg-core';
 import { adminUsers } from './adminUsers';
 import { genderPolicyEnum } from './enums';
 
@@ -61,6 +61,10 @@ export type PgAmenities = {
 export const pgs = pgTable('pgs', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   name: text('name').notNull(),
+  /** Public website label; falls back to `name` when null. */
+  publicDisplayName: text('public_display_name'),
+  /** Public listing sort order (lower first). */
+  displayOrder: integer('display_order'),
   slug: text('slug').notNull().unique(),
   addressLine1: text('address_line1').notNull(),
   addressLine2: text('address_line2'),

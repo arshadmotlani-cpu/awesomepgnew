@@ -11,6 +11,10 @@
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../client';
 import {
+  applyPublicPgPresentation,
+  sortPublicPgs,
+} from '@/src/lib/publicPgPresentation';
+import {
   beds,
   bedPrices,
   bedReservations,
@@ -105,6 +109,8 @@ export function listPublicPgs(): Promise<QueryResult<CustomerPgListRow[]>> {
         id: pgs.id,
         slug: pgs.slug,
         name: pgs.name,
+        publicDisplayName: pgs.publicDisplayName,
+        displayOrder: pgs.displayOrder,
         city: pgs.city,
         state: pgs.state,
         pincode: pgs.pincode,
@@ -157,25 +163,35 @@ export function listPublicPgs(): Promise<QueryResult<CustomerPgListRow[]>> {
         ), 0)`,
       })
       .from(pgs)
-      .where(and(sql`${pgs.archivedAt} IS NULL`, eq(pgs.isActive, true)))
-      .orderBy(asc(pgs.name));
+      .where(and(sql`${pgs.archivedAt} IS NULL`, eq(pgs.isActive, true)));
 
-    const result = rows.map((r) => ({
-      id: r.id,
-      slug: r.slug,
-      name: r.name,
-      city: r.city,
-      state: r.state,
-      pincode: r.pincode,
-      genderPolicy: r.genderPolicy,
-      amenities: (r.amenities ?? {}) as Record<string, unknown>,
-      description: r.description,
-      heroImage: Array.isArray(r.images) && r.images.length > 0 ? r.images[0] : null,
-      totalBeds: r.totalBeds,
-      availableBeds: r.availableBeds,
-      startingFromPaise: r.startingFromPaise,
-      hasPaymentEnabled: r.hasPaymentEnabled,
-    }));
+    const result = sortPublicPgs(
+      rows.map((r) => {
+        const presented = applyPublicPgPresentation({
+          name: r.name,
+          slug: r.slug,
+          publicDisplayName: r.publicDisplayName,
+          displayOrder: r.displayOrder,
+        });
+        return {
+          id: r.id,
+          slug: r.slug,
+          name: presented.name,
+          city: r.city,
+          state: r.state,
+          pincode: r.pincode,
+          genderPolicy: r.genderPolicy,
+          amenities: (r.amenities ?? {}) as Record<string, unknown>,
+          description: r.description,
+          heroImage: Array.isArray(r.images) && r.images.length > 0 ? r.images[0] : null,
+          totalBeds: r.totalBeds,
+          availableBeds: r.availableBeds,
+          startingFromPaise: r.startingFromPaise,
+          hasPaymentEnabled: r.hasPaymentEnabled,
+          displayOrder: presented.displayOrder,
+        };
+      }),
+    ).map(({ displayOrder: _displayOrder, ...row }) => row);
 
     const sourceUsed = getDatabaseUrlSource();
     logger.db('listPublicPgs', {
@@ -217,6 +233,8 @@ export function getPgBySlug(
         id: pgs.id,
         slug: pgs.slug,
         name: pgs.name,
+        publicDisplayName: pgs.publicDisplayName,
+        displayOrder: pgs.displayOrder,
         addressLine1: pgs.addressLine1,
         addressLine2: pgs.addressLine2,
         city: pgs.city,
@@ -232,11 +250,26 @@ export function getPgBySlug(
       .where(and(eq(pgs.slug, slug), sql`${pgs.archivedAt} IS NULL`))
       .limit(1);
     if (!row) return null;
+    const presented = applyPublicPgPresentation({
+      name: row.name,
+      slug: row.slug,
+      publicDisplayName: row.publicDisplayName,
+      displayOrder: row.displayOrder,
+    });
     return {
-      ...row,
+      id: row.id,
+      slug: row.slug,
+      name: presented.name,
+      addressLine1: row.addressLine1,
+      addressLine2: row.addressLine2,
+      city: row.city,
+      state: row.state,
+      pincode: row.pincode,
+      genderPolicy: row.genderPolicy,
       amenities: (row.amenities ?? {}) as Record<string, unknown>,
       images: Array.isArray(row.images) ? (row.images as string[]) : [],
       videos: Array.isArray(row.videos) ? (row.videos as string[]) : [],
+      description: row.description,
     };
   });
 }
@@ -401,6 +434,8 @@ export function getRoomDetail(
         pgId: pgs.id,
         pgSlug: pgs.slug,
         pgName: pgs.name,
+        publicDisplayName: pgs.publicDisplayName,
+        displayOrder: pgs.displayOrder,
       })
       .from(rooms)
       .innerJoin(roomTypes, eq(roomTypes.id, rooms.roomTypeId))
@@ -570,8 +605,15 @@ export function getRoomDetail(
       .where(and(eq(beds.roomId, meta.roomId), sql`${beds.archivedAt} IS NULL`))
       .orderBy(asc(beds.bedCode));
 
+    const { publicDisplayName, displayOrder, ...roomMeta } = meta;
     return {
-      ...meta,
+      ...roomMeta,
+      pgName: applyPublicPgPresentation({
+        name: meta.pgName,
+        slug: meta.pgSlug,
+        publicDisplayName,
+        displayOrder,
+      }).name,
       beds: bedRows,
     };
   });
@@ -613,6 +655,8 @@ export function getBedsForCart(
         pgId: pgs.id,
         pgSlug: pgs.slug,
         pgName: pgs.name,
+        publicDisplayName: pgs.publicDisplayName,
+        displayOrder: pgs.displayOrder,
         genderPolicy: pgs.genderPolicy,
       })
       .from(beds)
@@ -627,7 +671,23 @@ export function getBedsForCart(
         ),
       )
       .orderBy(asc(floors.floorNumber), asc(rooms.roomNumber), asc(beds.bedCode));
-    return rows;
+    return rows.map((row) => ({
+      bedId: row.bedId,
+      bedCode: row.bedCode,
+      roomId: row.roomId,
+      roomNumber: row.roomNumber,
+      roomType: row.roomType,
+      floorLabel: row.floorLabel,
+      pgId: row.pgId,
+      pgSlug: row.pgSlug,
+      pgName: applyPublicPgPresentation({
+        name: row.pgName,
+        slug: row.pgSlug,
+        publicDisplayName: row.publicDisplayName,
+        displayOrder: row.displayOrder,
+      }).name,
+      genderPolicy: row.genderPolicy,
+    }));
   });
 }
 
