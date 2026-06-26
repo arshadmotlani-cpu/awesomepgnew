@@ -8,6 +8,7 @@ import {
   activePipelineItems,
   buildMoveOutPipeline,
   toClientMoveOutPipelineItem,
+  type MoveOutPipelineItem,
   type MoveOutPipelineItemClient,
 } from '@/src/lib/moveOut/moveOutPipeline';
 import {
@@ -122,23 +123,35 @@ export async function loadAdminVacatingPageData(session: AdminSession): Promise<
     }
   }
 
-  const pipeline = buildMoveOutPipeline({
-    vacatingRows: pipelineVacatingRows,
-    settlements: settlements.map((s) => ({
-      id: s.id,
-      vacatingRequestId: s.vacatingRequestId,
-      status: s.status,
-      createdAt: s.createdAt,
-      updatedAt: s.updatedAt,
-      approvedAt: s.approvedAt,
-      refundPaidAt: s.refundPaidAt,
-      noticeDeductionPaise: s.noticeDeductionPaise,
-      electricitySharePaise: s.electricitySharePaise,
-      electricityDeductFromDeposit: s.electricityDeductFromDeposit,
-      finalRefundPaise: s.finalRefundPaise,
-      amountsLocked: s.amountsLocked,
-    })),
-  });
+  let pipeline: MoveOutPipelineItem[];
+  try {
+    pipeline = buildMoveOutPipeline({
+      vacatingRows: pipelineVacatingRows,
+      settlements: settlements.map((s) => ({
+        id: s.id,
+        vacatingRequestId: s.vacatingRequestId,
+        status: s.status,
+        createdAt: s.createdAt,
+        updatedAt: s.updatedAt,
+        approvedAt: s.approvedAt,
+        refundPaidAt: s.refundPaidAt,
+        noticeDeductionPaise: s.noticeDeductionPaise,
+        electricitySharePaise: s.electricitySharePaise,
+        electricityDeductFromDeposit: s.electricityDeductFromDeposit,
+        finalRefundPaise: s.finalRefundPaise,
+        amountsLocked: s.amountsLocked,
+      })),
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[admin/vacating] pipeline build failed', err);
+    rowErrors.push({
+      vacatingRequestId: 'pipeline',
+      bookingCode: '—',
+      message: `Pipeline build failed: ${message}`,
+    });
+    pipeline = [];
+  }
 
   const activeItems: MoveOutPipelineItemClient[] = [];
   for (const item of activePipelineItems(pipeline)) {

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { NotificationActionResolved } from '@/src/components/admin/NotificationActionResolved';
 import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import { EmptyState } from '@/src/components/admin/EmptyState';
 import { IconDoor } from '@/src/components/admin/icons';
@@ -6,9 +7,9 @@ import { MoveOutAdvancedTools } from '@/src/components/admin/moveOut/MoveOutAdva
 import { MoveOutWorkflowPanel } from '@/src/components/admin/moveOut/MoveOutWorkflowPanel';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { requireAdminSession } from '@/src/lib/auth/guards';
+import { evaluateNotificationDeepLink } from '@/src/lib/admin/notificationDeepLinkGuard';
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
 import { loadAdminVacatingPageData } from '@/src/lib/vacating/loadAdminVacatingPageData';
-import { syncActionItems } from '@/src/services/actionItems';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,10 +51,17 @@ export default async function AdminVacatingPage(props: PageProps<'/admin/vacatin
   const legacy = sp.legacy === '1';
   await ensureAdminPageNotificationsSeen('/admin/vacating', '/admin/vacating', readParam);
 
+  const deepLink = await evaluateNotificationDeepLink(readParam);
+  if (deepLink.status === 'resolved') {
+    return (
+      <>
+        <PageHeader title="Move-outs" description="Unified move-out pipeline." />
+        <NotificationActionResolved message={deepLink.message} />
+      </>
+    );
+  }
+
   const session = await requireAdminSession('/admin/vacating');
-  await syncActionItems(session).catch((err) => {
-    console.error('[admin/vacating] action item sync failed', err);
-  });
   const { vacatingRes, data } = await loadAdminVacatingPageData(session);
 
   if (!vacatingRes.ok || !data) {

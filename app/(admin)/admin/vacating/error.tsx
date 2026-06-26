@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect } from 'react';
 import { IconAlertTriangle } from '@/src/components/admin/icons';
 
@@ -27,13 +28,21 @@ export default function VacatingError({
       {error.digest ? (
         <p className="mt-2 text-[11px] text-apg-silver/70">Reference: {error.digest}</p>
       ) : null}
-      <button
-        type="button"
-        onClick={() => reset()}
-        className="mt-6 rounded-lg bg-[#FF5A1F] px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110"
-      >
-        Reload page
-      </button>
+      <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+        <button
+          type="button"
+          onClick={() => reset()}
+          className="rounded-lg bg-[#FF5A1F] px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110"
+        >
+          Reload page
+        </button>
+        <Link
+          href="/admin/operations/residents"
+          className="rounded-lg border border-white/15 px-5 py-2.5 text-sm font-semibold text-white hover:bg-white/5"
+        >
+          Back to Operations
+        </Link>
+      </div>
     </div>
   );
 }

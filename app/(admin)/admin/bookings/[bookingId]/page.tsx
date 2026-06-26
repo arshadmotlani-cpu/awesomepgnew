@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { NotificationActionResolved } from '@/src/components/admin/NotificationActionResolved';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import { PageHeader } from '@/src/components/admin/PageHeader';
@@ -10,11 +10,8 @@ import {
 } from '@/src/components/admin/AdminBookingActions';
 import { AdminBookingOpsPanel } from '@/src/components/admin/AdminBookingOpsPanel';
 import { BookingInvoiceHistorySection } from '@/src/components/admin/bookings/BookingInvoiceHistorySection';
-import {
-  getBookingFinancialPhase,
-  showBookingCheckoutFinancialOps,
-  showBookingCheckoutOpsPanel,
-} from '@/src/lib/admin/bookingFinancialPhase';
+import { getBookingFinancialPhase, showBookingCheckoutFinancialOps, showBookingCheckoutOpsPanel } from '@/src/lib/admin/bookingFinancialPhase';
+import { evaluateBookingDetailDeepLink } from '@/src/lib/admin/notificationDeepLinkGuard';
 import {
   AdminCancelExtensionForm,
   AdminRecordOfflineExtensionPaymentForm,
@@ -45,7 +42,11 @@ export default async function AdminBookingDetailPage(
   props: PageProps<'/admin/bookings/[bookingId]'>,
 ) {
   const { bookingId } = await props.params;
-  if (!UUID_RE.test(bookingId)) notFound();
+  if (!UUID_RE.test(bookingId)) {
+    return <NotificationActionResolved />;
+  }
+
+  const bookingGuard = await evaluateBookingDetailDeepLink(bookingId);
 
   const res = await getAdminBookingDetail(bookingId);
   if (!res.ok) {
@@ -56,7 +57,12 @@ export default async function AdminBookingDetailPage(
       </>
     );
   }
-  if (!res.data) notFound();
+  if (!res.data) {
+    return <NotificationActionResolved />;
+  }
+  if (bookingGuard.status === 'resolved' && res.data.status === 'cancelled') {
+    return <NotificationActionResolved message={bookingGuard.message} />;
+  }
 
   const b = res.data;
   const [rentInvoices, electricityInvoices, depositSummary] = await Promise.all([

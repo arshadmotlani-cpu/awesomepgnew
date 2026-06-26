@@ -1,23 +1,39 @@
 import Link from 'next/link';
 import { AdminSectionErrorBoundary } from '@/src/components/admin/AdminSectionErrorBoundary';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
+import { NotificationActionResolved } from '@/src/components/admin/NotificationActionResolved';
 import { OperationsPaymentReviewsPanel } from '@/src/components/admin/operations/OperationsPaymentReviewsPanel';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { OPS_ORANGE } from '@/src/components/admin/residentOps/residentOpsUi';
 import { requireAdminPermission, requireAdminSession } from '@/src/lib/auth/guards';
 import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
+import { evaluatePaymentProofDeepLink } from '@/src/lib/admin/notificationDeepLinkGuard';
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
 
 export const dynamic = 'force-dynamic';
 
-export default async function OperationsPaymentReviewsPage() {
+export default async function OperationsPaymentReviewsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ booking?: string }>;
+}) {
+  const sp = await searchParams;
+  const bookingId = typeof sp.booking === 'string' ? sp.booking : undefined;
   await ensureAdminPageNotificationsSeen(
     '/admin/operations/payment-reviews',
     '/admin/operations/payment-reviews',
   );
   await requireAdminSession('/admin/operations/payment-reviews');
   const session = await requireAdminPermission('payments:write');
+
+  if (bookingId) {
+    const deepLink = await evaluatePaymentProofDeepLink(session, bookingId);
+    if (deepLink.status === 'resolved') {
+      return <NotificationActionResolved message={deepLink.message} />;
+    }
+  }
+
   const items = await listPendingPaymentReviews(session);
 
   return (

@@ -1,7 +1,9 @@
 import Link from 'next/link';
+import { NotificationActionResolved } from '@/src/components/admin/NotificationActionResolved';
 import { Badge } from '@/src/components/admin/Badge';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { ResidentRequestReviewPanel } from '@/src/components/admin/ResidentRequestReviewPanel';
+import { evaluateNotificationDeepLink } from '@/src/lib/admin/notificationDeepLinkGuard';
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { titleCase } from '@/src/lib/format';
@@ -19,6 +21,12 @@ export default async function AdminRequestsPage({
 }) {
   const sp = await searchParams;
   await ensureAdminPageNotificationsSeen('/admin/requests', '/admin/requests', sp.read);
+
+  const deepLink = sp.read ? await evaluateNotificationDeepLink(sp.read) : { status: 'none' as const, message: '' };
+  if (deepLink.status === 'resolved') {
+    return <NotificationActionResolved message={deepLink.message} />;
+  }
+
   const session = await requireAdminPermission('bookings:write');
   await syncActionItems(session).catch(() => undefined);
   const [refundQueue, legacyRequests] = await Promise.all([

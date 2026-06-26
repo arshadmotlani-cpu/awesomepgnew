@@ -256,18 +256,30 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-25 22:59:23 UTC
+### Pending pre-commit sync · 2026-06-26 07:02:31 UTC
 
-**Areas touched:** [[ROUTES]]
+**Areas touched:** [[ROUTES]], [[Vacating]]
 
 **Docs flagged for review:**
 - `CHANGELOG.md` — review for accuracy
+- `DECISIONS.md` — review for accuracy
+- `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
+- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (2):**
+**Staged code files (11):**
 - `app/(admin)/admin/bookings/[bookingId]/page.tsx`
+- `app/(admin)/admin/checkout-settlements/[id]/page.tsx`
+- `app/(admin)/admin/deposits/[bookingId]/page.tsx`
+- `app/(admin)/admin/operations/payment-reviews/page.tsx`
+- `app/(admin)/admin/requests/page.tsx`
 - `app/(admin)/admin/residents/[customerId]/page.tsx`
+- `app/(admin)/admin/residents/kyc/[submissionId]/page.tsx`
+- `app/(admin)/admin/vacating/error.tsx`
+- `app/(admin)/admin/vacating/page.tsx`
+- `src/lib/moveOut/moveOutPipeline.ts`
+- `src/lib/vacating/loadAdminVacatingPageData.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

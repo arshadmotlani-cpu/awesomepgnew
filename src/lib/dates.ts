@@ -68,6 +68,35 @@ export function normalizeIsoDateOnly(value: string | null | undefined): string {
   return trimmed;
 }
 
+/** Milliseconds since epoch for sorting — never throws; accepts Date or ISO string. */
+export function timestampMsSafe(value: unknown): number {
+  if (value instanceof Date) {
+    const ms = value.getTime();
+    return Number.isFinite(ms) ? ms : 0;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return 0;
+    const ms = Date.parse(trimmed);
+    return Number.isFinite(ms) ? ms : 0;
+  }
+  return 0;
+}
+
+/** Coerce DB driver values to Date for server-only math — returns null when invalid. */
+export function coerceDateSafe(value: unknown): Date | null {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const d = new Date(trimmed);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+}
+
 /** Coerce Date | ISO string to ISO timestamp for RSC/client props — never throws. */
 export function toIsoTimestampSafe(value: unknown): string | null {
   if (value == null) return null;

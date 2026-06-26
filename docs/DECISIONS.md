@@ -199,3 +199,6 @@ Cross-links: [[ARCHITECTURE]] · [[WORKFLOWS]] · [[AI_CONTEXT]] · [[BUGS]]
 
 <!-- DOC_SYNC_TOUCH_2026-06-24 -->
 > **2026-06-24 09:00:17 UTC** — Code changed in: Routes, Bed Assignment, Residents. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-06-26 -->
+> **2026-06-26 07:02:31 UTC** — Code changed in: Routes, Vacating. Manual review recommended.

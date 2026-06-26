@@ -112,6 +112,57 @@ test('buildMoveOutPipeline tolerates bigint paise from postgres driver', () => {
   assert.doesNotThrow(() => JSON.stringify(toClientMoveOutPipelineItem(item)));
 });
 
+test('buildMoveOutPipeline tolerates ISO string createdAt when sorting pipeline', () => {
+  const items = buildMoveOutPipeline({
+    vacatingRows: [
+      {
+        id: 'vr-1',
+        bookingId: 'bk-1',
+        bookingCode: 'APG-2026-0016',
+        customerId: 'c-1',
+        customerFullName: 'Harish',
+        customerPhone: '+916369363982',
+        pgName: 'Shanti Nagar',
+        bedCode: 'B5',
+        roomNumber: '203',
+        noticeGivenDate: '2026-06-01',
+        vacatingDate: '2026-06-25',
+        noticeCompliant: true,
+        status: 'approved',
+        resolvedAt: null,
+        createdAt: '2026-06-01T10:00:00.000Z' as unknown as Date,
+        updatedAt: '2026-06-02T10:00:00.000Z' as unknown as Date,
+        deductionPaise: 0,
+        depositHeldPaise: 400000,
+      },
+      {
+        id: 'vr-2',
+        bookingId: 'bk-2',
+        bookingCode: 'APG-2026-0017',
+        customerId: 'c-2',
+        customerFullName: 'Priya',
+        customerPhone: '+919876543210',
+        pgName: 'Shanti Nagar',
+        bedCode: 'B6',
+        roomNumber: '204',
+        noticeGivenDate: '2026-06-02',
+        vacatingDate: '2026-06-20',
+        noticeCompliant: true,
+        status: 'pending',
+        resolvedAt: null,
+        createdAt: '2026-06-02T08:00:00.000Z' as unknown as Date,
+        updatedAt: '2026-06-02T09:00:00.000Z' as unknown as Date,
+        deductionPaise: 0,
+        depositHeldPaise: 300000,
+      },
+    ],
+    settlements: [],
+  });
+
+  assert.equal(items.length, 2);
+  assert.doesNotThrow(() => JSON.stringify(items.map(toClientMoveOutPipelineItem)));
+});
+
 test('toMoveOutAdvancedToolsRow accepts ISO string timestamps from raw SQL', () => {
   const row = toMoveOutAdvancedToolsRow(
     {

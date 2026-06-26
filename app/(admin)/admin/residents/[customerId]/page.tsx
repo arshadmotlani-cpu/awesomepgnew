@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { NotificationActionResolved } from '@/src/components/admin/NotificationActionResolved';
 import { BedAssignmentWhatsAppButton } from '@/src/components/admin/BedAssignmentWhatsAppButton';
 import { EditMoveInDateForm } from '@/src/components/admin/EditMoveInDateForm';
 import { EditRentDueDateForm } from '@/src/components/admin/EditRentDueDateForm';
@@ -21,6 +22,8 @@ import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
+import { evaluateNotificationDeepLink } from '@/src/lib/admin/notificationDeepLinkGuard';
+import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
 import { formatDate, formatDateTime, paiseToInr } from '@/src/lib/format';
 import { adminStayTypeLabel, isMonthlyStayType } from '@/src/lib/stayType';
 import { diffDays, parseDate } from '@/src/lib/dates';
@@ -63,11 +66,24 @@ export default async function ResidentDetailPage({
     bedReassigned?: string;
     saved?: string;
     expressCollection?: string;
+    read?: string;
   }>;
 }) {
   const { customerId } = await params;
   const sp = await searchParams;
   if (!UUID_RE.test(customerId)) notFound();
+
+  if (sp.read) {
+    await ensureAdminPageNotificationsSeen(
+      `/admin/residents/${customerId}`,
+      `/admin/residents/${customerId}`,
+      sp.read,
+    );
+    const deepLink = await evaluateNotificationDeepLink(sp.read);
+    if (deepLink.status === 'resolved') {
+      return <NotificationActionResolved message={deepLink.message} />;
+    }
+  }
 
   const session = await requireAdminPermission('bookings:write');
   await syncActionItems(session).catch(() => undefined);

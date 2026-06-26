@@ -1,4 +1,4 @@
-import { formatDate, normalizeIsoDateOnly, toIsoTimestampSafe } from '@/src/lib/dates';
+import { formatDate, normalizeIsoDateOnly, timestampMsSafe, coerceDateSafe, toIsoTimestampSafe } from '@/src/lib/dates';
 import { computeCheckoutRefundPreview } from '@/src/lib/billing/checkoutRefundPreview';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import type { CheckoutSettlementStatus } from '@/src/db/schema/enums';
@@ -264,41 +264,60 @@ function stageMeta(
   };
 }
 
+function vacatingTimestamps(v: VacatingInput) {
+  const createdAt = coerceDateSafe(v.createdAt) ?? new Date(0);
+  const updatedAt = coerceDateSafe(v.updatedAt) ?? createdAt;
+  const resolvedAt = v.resolvedAt ? coerceDateSafe(v.resolvedAt) : null;
+  return { createdAt, updatedAt, resolvedAt };
+}
+
+function settlementTimestamps(settlement: SettlementInput | null) {
+  if (!settlement) return null;
+  return {
+    ...settlement,
+    createdAt: coerceDateSafe(settlement.createdAt) ?? new Date(0),
+    updatedAt: coerceDateSafe(settlement.updatedAt) ?? new Date(0),
+    approvedAt: settlement.approvedAt ? coerceDateSafe(settlement.approvedAt) : null,
+    refundPaidAt: settlement.refundPaidAt ? coerceDateSafe(settlement.refundPaidAt) : null,
+  };
+}
 function buildStageTimestamps(
   vacating: VacatingInput,
   settlement: SettlementInput | null,
 ): Partial<Record<MoveOutStageId, Date>> {
+  const { createdAt, updatedAt, resolvedAt } = vacatingTimestamps(vacating);
+  const settled = settlementTimestamps(settlement);
   const ts: Partial<Record<MoveOutStageId, Date>> = {
-    requested: vacating.createdAt,
+    requested: createdAt,
   };
 
   if (vacating.status === 'approved' || vacating.status === 'completed') {
-    ts.notice_verified = settlement?.createdAt ?? vacating.updatedAt;
+    ts.notice_verified = settled?.createdAt ?? updatedAt;
   }
 
-  if (settlement) {
-    ts.room_inspection = settlement.createdAt;
+  if (settled) {
+    ts.room_inspection = settled.createdAt;
 
     if (
-      settlement.status === 'awaiting_admin_review' ||
-      settlement.status === 'refund_pending' ||
-      settlement.status === 'refund_paid' ||
-      settlement.status === 'completed'
+      settled.status === 'awaiting_admin_review' ||
+      settled.status === 'refund_pending' ||
+      settled.status === 'refund_paid' ||
+      settled.status === 'completed'
     ) {
-      ts.charges_calculated = settlement.updatedAt;
+      ts.charges_calculated = settled.updatedAt;
     }
 
-    if (settlement.approvedAt) {
-      ts.deposit_approved = settlement.approvedAt;
+    if (settled.approvedAt) {
+      ts.deposit_approved = settled.approvedAt;
     }
 
-    if (settlement.refundPaidAt) {
-      ts.refund_processed = settlement.refundPaidAt;
+    if (settled.refundPaidAt) {
+      ts.refund_processed = settled.refundPaidAt;
     }
   }
 
-  if (vacating.status === 'completed' && vacating.resolvedAt) {
-    ts.bed_released = vacating.resolvedAt;
+  if (vacating.status === 'completed' && resolvedAt) {
+    ts.bed_released = resolvedAt;
   }
 
   return ts;
@@ -323,7 +342,7 @@ export function buildMoveOutPipeline(input: {
   for (const v of input.vacatingRows) {
     if (v.status === 'rejected') continue;
 
-    const settlement = settlementByVacating.get(v.id) ?? null;
+    const settlement = settlementTimestamps(settlementByVacating.get(v.id) ?? null);
     const derived = deriveMoveOutStage(v, settlement);
     const depositHeldPaise = guardDepositPaise(v.depositHeldPaise);
     const deductionPaise = guardDepositPaise(
@@ -335,6 +354,7 @@ export function buildMoveOutPipeline(input: {
         : guardDepositPaise(settlement?.electricitySharePaise ?? 0);
     const estimatedRefundPaise = computeEstimatedRefundPaise(v, settlement);
     const daysRemaining = moveOutDaysRemaining(v.vacatingDate);
+    const { createdAt, updatedAt, resolvedAt } = vacatingTimestamps(v);
 
     items.push({
       id: v.id,
@@ -353,9 +373,9 @@ export function buildMoveOutPipeline(input: {
       vacatingStatus: v.status,
       settlementId: settlement?.id ?? null,
       settlementStatus: settlement?.status ?? null,
-      resolvedAt: v.resolvedAt,
-      createdAt: v.createdAt,
-      updatedAt: v.updatedAt,
+      resolvedAt,
+      createdAt,
+      updatedAt,
       deductionPaise,
       electricityDeductionPaise,
       depositHeldPaise,
@@ -385,7 +405,7 @@ function sortPipeline(a: MoveOutPipelineItem, b: MoveOutPipelineItem): number {
   if (dateCmp !== 0) return dateCmp;
 
   if (a.sortPriority !== b.sortPriority) return a.sortPriority - b.sortPriority;
-  return a.createdAt.getTime() - b.createdAt.getTime();
+  return timestampMsSafe(a.createdAt) - timestampMsSafe(b.createdAt);
 }
 
 export function activePipelineItems(items: MoveOutPipelineItem[]): MoveOutPipelineItem[] {

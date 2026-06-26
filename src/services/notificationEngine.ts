@@ -378,6 +378,12 @@ function improveDeepLink(
   ) {
     return `/admin/deposits/${meta.bookingId}`;
   }
+  if (type === 'vacating_alert' && meta?.settlementId) {
+    return `/admin/checkout-settlements/${meta.settlementId}`;
+  }
+  if (type === 'vacating_alert' && meta?.vacatingRequestId) {
+    return `/admin/vacating?read=${encodeURIComponent(`vacating:${meta.vacatingRequestId}`)}`;
+  }
   if (type === 'fixed_stay_checkout_due' && meta?.settlementId) {
     return `/admin/checkout-settlements/${meta.settlementId}`;
   }

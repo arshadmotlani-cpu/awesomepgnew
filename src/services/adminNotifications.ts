@@ -67,8 +67,14 @@ const TYPE_LABELS: Partial<Record<ActionItem['type'], string>> = {
 };
 
 function notificationHref(type: ActionItem['type'], meta: ActionItemMetadata, residentId: string | null): string {
+  if (type === 'vacating_alert' && meta.settlementId) {
+    return `/admin/checkout-settlements/${meta.settlementId}?read=${encodeURIComponent(`vacating:${meta.vacatingRequestId ?? ''}`)}`;
+  }
   if (type === 'vacating_alert' && meta.vacatingRequestId) {
     return `/admin/vacating?read=${encodeURIComponent(`vacating:${meta.vacatingRequestId}`)}`;
+  }
+  if (type === 'fixed_stay_checkout_due' && meta.settlementId) {
+    return `/admin/checkout-settlements/${meta.settlementId}`;
   }
   if (type === 'kyc_pending' && meta.submissionId) {
     return `/admin/residents/kyc/${meta.submissionId}?read=${encodeURIComponent(`kyc:${meta.submissionId}`)}`;

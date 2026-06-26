@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { NotificationActionResolved } from '@/src/components/admin/NotificationActionResolved';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { DepositSettlementPanel } from '@/src/components/admin/DepositSettlementPanel';
 import { DepositActivitySection } from '@/src/components/admin/deposits/DepositActivitySection';
@@ -8,6 +8,7 @@ import { DepositCorrectForm } from '@/src/components/admin/deposits/DepositCorre
 import { DepositDetailSection } from '@/src/components/admin/deposits/DepositDetailSection';
 import { DepositSummaryCard } from '@/src/components/admin/deposits/DepositSummaryCard';
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
+import { evaluateNotificationDeepLink } from '@/src/lib/admin/notificationDeepLinkGuard';
 import { jsonSafe } from '@/src/lib/depositPageDebug';
 import { loadDepositPageData } from '@/src/lib/deposits/loadDepositPageData';
 import { DepositWorkflowHeader } from '@/src/components/admin/deposits/DepositWorkflowHeader';
@@ -24,20 +25,27 @@ export default async function AdminDepositDetailPage({
   searchParams,
 }: {
   params: Promise<RouteParams>;
-  searchParams: Promise<{ saved?: string; depositError?: string }>;
+  searchParams: Promise<{ saved?: string; depositError?: string; read?: string }>;
 }) {
   const { bookingId } = await params;
   const query = await searchParams;
   const saved = query.saved === '1';
   const depositError = query.depositError ? decodeURIComponent(query.depositError) : null;
+  const readParam = typeof query.read === 'string' ? query.read : undefined;
 
   try {
     await ensureAdminPageNotificationsSeen(
       `/admin/deposits/${bookingId}`,
       `/admin/deposits/${bookingId}`,
+      readParam,
     );
   } catch (err) {
     console.error('[deposit-detail] ensureAdminPageNotificationsSeen failed', { bookingId, err });
+  }
+
+  const deepLink = readParam ? await evaluateNotificationDeepLink(readParam) : { status: 'none' as const, message: '' };
+  if (deepLink.status === 'resolved') {
+    return <NotificationActionResolved message={deepLink.message} />;
   }
 
   const data = await loadDepositPageData(bookingId);
@@ -72,7 +80,7 @@ export default async function AdminDepositDetailPage({
         </>
       );
     }
-    notFound();
+    return <NotificationActionResolved />;
   }
 
   const {
