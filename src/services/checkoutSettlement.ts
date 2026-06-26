@@ -32,13 +32,15 @@ import {
   VACATING_NOTICE_MIN_DAYS,
   VACATING_NOTICE_PENALTY_DAYS,
 } from '@/src/services/billing';
+import { noticeDeductionAppliesToBooking } from '@/src/lib/checkout/noticeDeductionPolicy';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import {
   applyDepositDeductionsInTx,
   settleDepositRefund,
 } from '@/src/services/depositSettlement';
 import { finalizeVacatingOccupancy } from '@/src/services/vacating';
-import { scheduleAdminNotificationSync } from '@/src/services/adminLiveSync';
+import { assessCheckoutSettlementReadiness } from '@/src/lib/checkout/checkoutSettlementReadiness';
+import { noticeDeductionAppliesToBooking } from '@/src/lib/checkout/noticeDeductionPolicy';
 import {
   calculateAverageBillingElectricity,
   calculateCheckoutElectricity,
@@ -94,6 +96,8 @@ export type CheckoutSettlementRow = CheckoutSettlement & {
 };
 
 export type CheckoutSettlementDetail = CheckoutSettlementRow & {
+  stayType: string | null;
+  durationMode: string | null;
   depositCollectedPaise: number;
   depositDeductedPaise: number;
   depositRefundedPaise: number;
@@ -177,6 +181,8 @@ function policyNoticeFields(args: {
   monthlyRentPaiseSnapshot: number;
   noticeGivenDate: string;
   vacatingDate: string;
+  stayType?: string | null;
+  durationMode?: string | null;
 }): {
   noticeGivenDays: number;
   noticeShortfallDays: number;
@@ -187,13 +193,19 @@ function policyNoticeFields(args: {
     noticeGivenDate: args.noticeGivenDate,
     vacatingDate: args.vacatingDate,
   });
-  const noticeDeductionPaise = computeNoticeDeduction(args.monthlyRentPaiseSnapshot, {
-    noticeGivenDate: args.noticeGivenDate,
-    vacatingDate: args.vacatingDate,
+  const applies = noticeDeductionAppliesToBooking({
+    stayType: args.stayType,
+    durationMode: args.durationMode,
   });
+  const noticeDeductionPaise = applies
+    ? computeNoticeDeduction(args.monthlyRentPaiseSnapshot, {
+        noticeGivenDate: args.noticeGivenDate,
+        vacatingDate: args.vacatingDate,
+      })
+    : 0;
   return {
     noticeGivenDays,
-    noticeShortfallDays: shortfall,
+    noticeShortfallDays: applies ? shortfall : 0,
     noticeDeductionPaise,
   };
 }
@@ -203,6 +215,7 @@ async function reconcileCheckoutSettlementNoticePolicy(
   settlement: CheckoutSettlement,
   noticeGivenDate: string,
   vacatingDate: string,
+  booking?: { stayType?: string | null; durationMode?: string | null },
 ): Promise<CheckoutSettlement> {
   if (settlement.amountsLocked) return settlement;
   if (!['awaiting_resident_details', 'awaiting_admin_review'].includes(settlement.status)) {
@@ -213,6 +226,8 @@ async function reconcileCheckoutSettlementNoticePolicy(
     monthlyRentPaiseSnapshot: settlement.monthlyRentPaiseSnapshot,
     noticeGivenDate,
     vacatingDate,
+    stayType: booking?.stayType,
+    durationMode: booking?.durationMode,
   });
 
   if (settlement.noticeDeductionPaise === policy.noticeDeductionPaise) {
@@ -332,6 +347,8 @@ type SettlementJoinRow = {
   customer_name: string;
   customer_phone: string;
   booking_code: string;
+  stay_type: string | null;
+  duration_mode: string | null;
   pg_name: string;
   pg_id: string;
   room_number: string;
@@ -418,6 +435,8 @@ async function loadSettlementRow(
       c.full_name AS customer_name,
       c.phone AS customer_phone,
       b.booking_code AS booking_code,
+      b.stay_type AS stay_type,
+      b.duration_mode AS duration_mode,
       loc.pg_name,
       loc.pg_id,
       loc.room_number,
@@ -500,17 +519,23 @@ export async function createCheckoutSettlementFromVacating(input: {
     return { ok: true, settlementId: existingForBooking.id };
   }
 
+  const [booking] = await db
+    .select({
+      depositPaise: bookings.depositPaise,
+      stayType: bookings.stayType,
+      durationMode: bookings.durationMode,
+    })
+    .from(bookings)
+    .where(eq(bookings.id, vr.bookingId))
+    .limit(1);
+
   const policy = policyNoticeFields({
     monthlyRentPaiseSnapshot: vr.monthlyRentPaiseSnapshot,
     noticeGivenDate: vr.noticeGivenDate,
     vacatingDate: vr.vacatingDate,
+    stayType: booking?.stayType,
+    durationMode: booking?.durationMode,
   });
-
-  const [booking] = await db
-    .select({ depositPaise: bookings.depositPaise })
-    .from(bookings)
-    .where(eq(bookings.id, vr.bookingId))
-    .limit(1);
 
   const [created] = await db
     .insert(checkoutSettlements)
@@ -560,6 +585,8 @@ export async function listCheckoutSettlements(
       c.full_name AS customer_name,
       c.phone AS customer_phone,
       b.booking_code AS booking_code,
+      b.stay_type AS stay_type,
+      b.duration_mode AS duration_mode,
       loc.pg_name,
       loc.pg_id,
       loc.room_number,
@@ -613,6 +640,8 @@ export async function listPipelineCheckoutSettlements(
       c.full_name AS customer_name,
       c.phone AS customer_phone,
       b.booking_code AS booking_code,
+      b.stay_type AS stay_type,
+      b.duration_mode AS duration_mode,
       loc.pg_name,
       loc.pg_id,
       loc.room_number,
@@ -677,6 +706,7 @@ export async function getCheckoutSettlementDetail(
     settlement,
     row.notice_given_date,
     row.vacating_date,
+    { stayType: row.stay_type, durationMode: row.duration_mode },
   );
   const roomOccupancy = await resolveRoomOccupancyContext(row.booking_id);
   const sharingUsed = effectiveSharingCount({
@@ -710,6 +740,8 @@ export async function getCheckoutSettlementDetail(
 
   return {
     ...mapJoinRow(row),
+    stayType: row.stay_type ?? null,
+    durationMode: row.duration_mode ?? null,
     depositCollectedPaise: paiseField(wallet?.collectedPaise ?? 0),
     depositDeductedPaise: paiseField(wallet?.deductedPaise ?? 0),
     depositRefundedPaise: paiseField(wallet?.refundedPaise ?? 0),
@@ -1094,6 +1126,23 @@ export async function approveCheckoutSettlement(input: {
     .limit(1);
   if (!current) return { ok: false, error: 'Settlement not found.' };
 
+  const [booking] = await db
+    .select({ stayType: bookings.stayType, durationMode: bookings.durationMode })
+    .from(bookings)
+    .where(eq(bookings.id, current.bookingId))
+    .limit(1);
+
+  if (
+    booking &&
+    !noticeDeductionAppliesToBooking(booking) &&
+    current.noticeDeductionPaise > 0
+  ) {
+    return {
+      ok: false,
+      error: 'Fixed-stay checkout cannot include a notice fee. Save electricity and retry.',
+    };
+  }
+
   const wallet = await getDepositSummaryForBooking(current.bookingId);
   const depositHeld = wallet?.refundableBalancePaise ?? 0;
   const preview = buildPreview(current, depositHeld);
@@ -1112,6 +1161,12 @@ export async function approveCheckoutSettlement(input: {
   }
   if (!hasResidentRefundDetails(current, preview.finalRefundPaise)) {
     return { ok: false, error: DEPOSIT_REFUND_MISSING_DETAILS_MESSAGE };
+  }
+  if (!hasCheckoutElectricityEvidence(current)) {
+    return {
+      ok: false,
+      error: 'Final AC meter photo (or average billing) is required before completing checkout.',
+    };
   }
 
   const deductions = buildCheckoutSettlementDeductionPlan({
@@ -1374,13 +1429,26 @@ export async function backfillCheckoutSettlementsFromVacating(input?: {
   const created: BackfillCheckoutSettlementRow[] = [];
 
   for (const row of missing) {
+    const [bookingMeta] = await db
+      .select({ stayType: bookings.stayType, durationMode: bookings.durationMode })
+      .from(bookings)
+      .where(eq(bookings.id, row.booking_id))
+      .limit(1);
+
     const policy = policyNoticeFields({
       monthlyRentPaiseSnapshot: row.monthly_rent_paise_snapshot,
       noticeGivenDate: row.notice_given_date,
       vacatingDate: row.vacating_date,
+      stayType: bookingMeta?.stayType,
+      durationMode: bookingMeta?.durationMode,
     });
     const noticeDeduction =
-      row.deduction_paise > 0 ? row.deduction_paise : policy.noticeDeductionPaise;
+      noticeDeductionAppliesToBooking({
+        stayType: bookingMeta?.stayType,
+        durationMode: bookingMeta?.durationMode,
+      }) && row.deduction_paise > 0
+        ? row.deduction_paise
+        : policy.noticeDeductionPaise;
 
     const [depositSettlement] = await db.execute<{ deductions_snapshot: RefundDeductionsSnapshot | null }>(
       sql`

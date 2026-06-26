@@ -3,7 +3,8 @@ import { NotificationActionResolved } from '@/src/components/admin/NotificationA
 import { CheckoutSettlementPanel } from '@/src/components/admin/CheckoutSettlementPanel';
 import { CheckoutSettlementAdminActions } from '@/src/components/admin/CheckoutSettlementAdminActions';
 import { CheckoutSettlementPrimaryActions } from '@/src/components/admin/checkout/CheckoutSettlementPrimaryActions';
-import { CheckoutSettlementSummary } from '@/src/components/admin/checkout/CheckoutSettlementSummary';
+import { assessCheckoutSettlementReadiness } from '@/src/lib/checkout/checkoutSettlementReadiness';
+import { CheckoutSettlementCommandCenter } from '@/src/components/admin/checkout/CheckoutSettlementCommandCenter';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
@@ -52,7 +53,7 @@ export default async function CheckoutSettlementDetailRoute({
         title={`Checkout — ${detail.customerName}`}
         description={`${detail.pgName} · Room ${detail.roomNumber} · ${detail.bedCode}`}
       />
-      <CheckoutSettlementSummary detail={detail} />
+      <CheckoutSettlementCommandCenter detail={detail} />
       <CheckoutSettlementPrimaryActions detail={detail} />
       <CheckoutSettlementPanel detail={detail} />
       <div className="mt-8">

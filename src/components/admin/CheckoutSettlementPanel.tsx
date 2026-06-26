@@ -9,6 +9,7 @@ import {
   type CheckoutSettlementActionState,
 } from '@/app/(admin)/admin/checkout-settlements/actions';
 import { CheckoutSettlementElectricitySection } from '@/src/components/admin/CheckoutSettlementElectricitySection';
+import { assessCheckoutSettlementReadiness } from '@/src/lib/checkout/checkoutSettlementReadiness';
 import { paiseToInr } from '@/src/lib/format';
 import { VACATING_NOTICE_MIN_DAYS, VACATING_NOTICE_PENALTY_DAYS } from '@/src/services/billing';
 import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement';
@@ -69,15 +70,9 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
 
   const preview = detail.preview;
   const locked = detail.amountsLocked;
+  const readiness = assessCheckoutSettlementReadiness(detail);
   const zeroRefund = preview.finalRefundPaise <= 0;
-  const electricityReady =
-    preview.electricityDeductionPaise > 0 ||
-    detail.meterPhotoMissing ||
-    Boolean(detail.electricityMeterPhotoUrl) ||
-    detail.electricityUseAverage;
-  const canApprove =
-    detail.status === 'awaiting_admin_review' ||
-    (zeroRefund && detail.status === 'awaiting_resident_details' && electricityReady);
+  const canApprove = readiness.ready && !locked;
   const canMarkPaid = detail.status === 'refund_pending' && !zeroRefund;
   const canEditElectricity =
     !locked &&
@@ -268,7 +263,7 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
           </p>
           <button
             type="submit"
-            disabled={approvePending}
+            disabled={approvePending || !readiness.ready}
             className="mt-4 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-60"
           >
             {approvePending
@@ -279,6 +274,11 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
           </button>
           {approveState.status === 'error' ? (
             <p className="mt-2 text-xs text-rose-300">{approveState.message}</p>
+          ) : null}
+          {!readiness.ready && !approvePending ? (
+            <p className="mt-2 text-xs text-amber-200">
+              Complete all steps above: {readiness.blockingReasons.join(' · ')}
+            </p>
           ) : null}
           {approveState.status === 'ok' ? (
             <p className="mt-2 text-xs text-emerald-200">{approveState.message}</p>

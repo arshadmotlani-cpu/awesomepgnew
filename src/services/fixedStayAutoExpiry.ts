@@ -21,10 +21,6 @@ import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import { formatDate, parseDate } from '@/src/lib/dates';
 import { isPastFixedStayCheckout } from '@/src/lib/dates/ist';
 import { reconcileBookingOccupancy } from '@/src/lib/occupancySync';
-import {
-  computeNoticeDeduction,
-  isNoticeCompliant,
-} from '@/src/services/billing';
 import { cancelElectricityInvoicesForBooking } from '@/src/services/electricityBilling';
 import { createCheckoutSettlementFromVacating } from '@/src/services/checkoutSettlement';
 import { cancelFutureRentInvoices } from '@/src/services/rentInvoices';
@@ -100,8 +96,8 @@ async function ensureSystemVacatingRequest(booking: {
   const noticeGivenDate = formatDate(parseDate(booking.createdAt));
   const vacatingDate = booking.expectedCheckoutDate;
   const monthlyRent = monthlyRentFromBooking(booking.pricingSnapshot);
-  const noticeCompliant = isNoticeCompliant({ noticeGivenDate, vacatingDate });
-  const deduction = computeNoticeDeduction(monthlyRent, { noticeGivenDate, vacatingDate });
+  const noticeCompliant = true;
+  const deduction = 0;
 
   const [created] = await db
     .insert(vacatingRequests)

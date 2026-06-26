@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { assessCheckoutSettlementReadiness } from '@/src/lib/checkout/checkoutSettlementReadiness';
 import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement';
 
 const PRIMARY =
@@ -7,15 +8,9 @@ const SECONDARY =
   'inline-flex items-center justify-center rounded-lg border border-white/15 px-4 py-2.5 text-sm font-medium text-white hover:bg-white/5';
 
 export function CheckoutSettlementPrimaryActions({ detail }: { detail: CheckoutSettlementDetail }) {
+  const readiness = assessCheckoutSettlementReadiness(detail);
   const zeroRefund = detail.preview.finalRefundPaise <= 0;
-  const electricityReady =
-    detail.preview.electricityDeductionPaise > 0 ||
-    detail.meterPhotoMissing ||
-    Boolean(detail.electricityMeterPhotoUrl) ||
-    detail.electricityUseAverage;
-  const canApprove =
-    detail.status === 'awaiting_admin_review' ||
-    (zeroRefund && detail.status === 'awaiting_resident_details' && electricityReady);
+  const canApprove = readiness.ready;
   const canMarkPaid = detail.status === 'refund_pending' && !zeroRefund;
 
   return (
