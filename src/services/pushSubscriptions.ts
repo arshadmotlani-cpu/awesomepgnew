@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { pushSubscriptions } from '@/src/db/schema';
 import type { NotificationAudience } from '@/src/services/notificationEngine';
@@ -43,6 +43,27 @@ export async function upsertPushSubscription(
         lastSeen: now,
       },
     });
+  await pruneDuplicatePushSubscriptions(audience, userId, input.endpoint, input.platform ?? null);
+}
+
+/** Keep one subscription per platform — remove stale endpoints after a device re-subscribes. */
+async function pruneDuplicatePushSubscriptions(
+  audience: NotificationAudience,
+  userId: string,
+  keepEndpoint: string,
+  platform: string | null,
+): Promise<void> {
+  if (!platform) return;
+  await db
+    .delete(pushSubscriptions)
+    .where(
+      and(
+        eq(pushSubscriptions.audience, audience),
+        eq(pushSubscriptions.userId, userId),
+        eq(pushSubscriptions.platform, platform),
+        ne(pushSubscriptions.endpoint, keepEndpoint),
+      ),
+    );
 }
 
 export async function removePushSubscription(

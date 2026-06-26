@@ -2,10 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  bootstrapAdminPushRegistration,
+  clearStoredPushRegistration,
   runAdminPushRegistration,
-  registerAdminServiceWorker,
-  emptyPushDiagnostics,
-  fetchVapidPublicKey,
 } from '@/src/lib/push/clientRegistration';
 
 async function updateBadge(unreadCount: number) {
@@ -36,6 +35,7 @@ export function AdminPushRegistration() {
   const [errorDetail, setErrorDetail] = useState<string | null>(null);
   const [registering, setRegistering] = useState(false);
   const registeringRef = useRef(false);
+  const bootstrappedRef = useRef(false);
 
   const syncBadge = useCallback(async () => {
     const res = await fetch('/api/admin/live', { cache: 'no-store' });
@@ -45,6 +45,40 @@ export function AdminPushRegistration() {
       await updateBadge(json.unreadCount);
     }
   }, []);
+
+  const applyBootstrapAction = useCallback(
+    async (action: Awaited<ReturnType<typeof bootstrapAdminPushRegistration>>['action']) => {
+      switch (action.kind) {
+        case 'active':
+          await syncBadge();
+          setStatus('active');
+          setErrorDetail(null);
+          return;
+        case 'unsupported':
+          setStatus('unsupported');
+          return;
+        case 'denied':
+          clearStoredPushRegistration();
+          setStatus('denied');
+          return;
+        case 'vapid_missing':
+          setStatus('vapid_missing');
+          setErrorDetail(action.error);
+          return;
+        case 'prompt':
+          setStatus('awaiting_permission');
+          setErrorDetail(null);
+          return;
+        case 'error':
+          setStatus('error');
+          setErrorDetail(action.error);
+          return;
+        default:
+          setStatus('awaiting_permission');
+      }
+    },
+    [syncBadge],
+  );
 
   const completeRegistration = useCallback(
     async (requestPermission: boolean) => {
@@ -65,6 +99,7 @@ export function AdminPushRegistration() {
           return;
         }
         if (result.notificationPermission === 'denied') {
+          clearStoredPushRegistration();
           setStatus('denied');
           return;
         }
@@ -92,48 +127,33 @@ export function AdminPushRegistration() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-      setStatus('unsupported');
-      return;
-    }
+    if (bootstrappedRef.current) return;
+    bootstrappedRef.current = true;
 
     async function bootstrap() {
-      const diag = emptyPushDiagnostics();
-      diag.serviceWorkerSupported = true;
-      diag.pushManagerSupported = true;
-      diag.notificationSupported = 'Notification' in window;
-      diag.notificationPermission = diag.notificationSupported
-        ? Notification.permission
-        : 'unsupported';
-
-      await registerAdminServiceWorker(diag);
-
-      const vapid = await fetchVapidPublicKey();
-      if (!vapid.ok) {
-        setStatus('vapid_missing');
-        setErrorDetail(vapid.error ?? 'VAPID not configured');
-        return;
-      }
-
-      if (Notification.permission === 'granted') {
-        await completeRegistration(false);
-        return;
-      }
-      if (Notification.permission === 'denied') {
-        setStatus('denied');
-        return;
-      }
-      setStatus('awaiting_permission');
+      const { action } = await bootstrapAdminPushRegistration();
+      await applyBootstrapAction(action);
     }
 
     void bootstrap();
 
     const onMessage = (event: MessageEvent) => {
       if (event.data?.type === 'PUSH_SUBSCRIPTION_EXPIRED') {
-        void completeRegistration(Notification.permission === 'default');
+        void (async () => {
+          const { action } = await bootstrapAdminPushRegistration();
+          if (action.kind === 'active') {
+            await applyBootstrapAction(action);
+            return;
+          }
+          if (Notification.permission === 'default') {
+            setStatus('awaiting_permission');
+            return;
+          }
+          await completeRegistration(false);
+        })();
       }
     };
-    navigator.serviceWorker.addEventListener('message', onMessage);
+    navigator.serviceWorker?.addEventListener('message', onMessage);
 
     const onBadgeUpdate = (e: Event) => {
       const detail = (e as CustomEvent<{ unreadCount?: number }>).detail;
@@ -144,10 +164,10 @@ export function AdminPushRegistration() {
     window.addEventListener('admin-badges-updated', onBadgeUpdate);
 
     return () => {
-      navigator.serviceWorker.removeEventListener('message', onMessage);
+      navigator.serviceWorker?.removeEventListener('message', onMessage);
       window.removeEventListener('admin-badges-updated', onBadgeUpdate);
     };
-  }, [completeRegistration]);
+  }, [applyBootstrapAction, completeRegistration]);
 
   if (status === 'active' || status === 'unsupported') {
     return null;

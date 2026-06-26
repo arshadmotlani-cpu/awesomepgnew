@@ -2,6 +2,29 @@
  * Client-side Web Push registration — shared by AdminPushRegistration and diagnostics.
  */
 
+export const PUSH_REGISTERED_STORAGE_KEY = 'apg_admin_push_registered_v1';
+
+export type StoredPushRegistration = {
+  endpoint: string;
+  registeredAt: string;
+};
+
+export type PushServerState = {
+  ok: boolean;
+  subscriptionInDatabase: boolean;
+  subscriptionCount: number;
+  hasMatchingEndpoint: boolean;
+  vapidConfigured: boolean;
+};
+
+export type PushBootstrapAction =
+  | { kind: 'active' }
+  | { kind: 'unsupported' }
+  | { kind: 'denied' }
+  | { kind: 'vapid_missing'; error: string }
+  | { kind: 'prompt' }
+  | { kind: 'error'; error: string };
+
 export type PushClientDiagnostics = {
   serviceWorkerSupported: boolean;
   pushManagerSupported: boolean;
@@ -20,6 +43,231 @@ export type PushClientDiagnostics = {
   lastStep: string;
   lastError: string | null;
 };
+
+export function readStoredPushRegistration(): StoredPushRegistration | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(PUSH_REGISTERED_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as StoredPushRegistration;
+    if (typeof parsed.endpoint !== 'string' || !parsed.endpoint.trim()) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function persistStoredPushRegistration(endpoint: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const payload: StoredPushRegistration = {
+      endpoint,
+      registeredAt: new Date().toISOString(),
+    };
+    window.localStorage.setItem(PUSH_REGISTERED_STORAGE_KEY, JSON.stringify(payload));
+  } catch {
+    // localStorage may be unavailable in private mode
+  }
+}
+
+export function clearStoredPushRegistration(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(PUSH_REGISTERED_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+/** Pure decision logic — when to show the enable-notifications UI. */
+export function decidePushUiAfterBootstrap(input: {
+  serviceWorkerSupported: boolean;
+  pushManagerSupported: boolean;
+  vapidOk: boolean;
+  vapidError?: string | null;
+  notificationPermission: NotificationPermission | 'unsupported';
+  localSubscription: boolean;
+  serverHasMatchingEndpoint: boolean;
+  serverHasAnySubscription: boolean;
+  previouslyRegisteredLocally: boolean;
+}): PushBootstrapAction {
+  if (!input.serviceWorkerSupported || !input.pushManagerSupported) {
+    return { kind: 'unsupported' };
+  }
+  if (!input.vapidOk) {
+    return { kind: 'vapid_missing', error: input.vapidError ?? 'VAPID not configured' };
+  }
+  if (input.notificationPermission === 'denied') {
+    return { kind: 'denied' };
+  }
+  if (input.localSubscription) {
+    return { kind: 'active' };
+  }
+  if (input.serverHasMatchingEndpoint) {
+    return { kind: 'active' };
+  }
+  if (input.notificationPermission === 'granted') {
+    return { kind: 'active' };
+  }
+  if (input.previouslyRegisteredLocally && input.serverHasAnySubscription) {
+    return { kind: 'active' };
+  }
+  if (input.notificationPermission === 'default') {
+    return { kind: 'prompt' };
+  }
+  return { kind: 'prompt' };
+}
+
+export async function fetchServerPushState(localEndpoint?: string | null): Promise<PushServerState> {
+  const fallback: PushServerState = {
+    ok: false,
+    subscriptionInDatabase: false,
+    subscriptionCount: 0,
+    hasMatchingEndpoint: false,
+    vapidConfigured: false,
+  };
+  try {
+    const qs = localEndpoint?.trim()
+      ? `?endpoint=${encodeURIComponent(localEndpoint.trim())}`
+      : '';
+    const res = await fetch(`/api/push/diagnostics${qs}`, { cache: 'no-store' });
+    if (!res.ok) return fallback;
+    const json = (await res.json()) as {
+      ok?: boolean;
+      subscriptionInDatabase?: boolean;
+      subscriptionCount?: number;
+      hasMatchingEndpoint?: boolean;
+      vapidConfigured?: boolean;
+    };
+    return {
+      ok: json.ok === true,
+      subscriptionInDatabase: json.subscriptionInDatabase === true,
+      subscriptionCount: typeof json.subscriptionCount === 'number' ? json.subscriptionCount : 0,
+      hasMatchingEndpoint: json.hasMatchingEndpoint === true,
+      vapidConfigured: json.vapidConfigured !== false,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * On app launch: reuse an existing browser subscription before checking permission UI.
+ * iOS PWAs often report Notification.permission as "default" while a push subscription still exists.
+ */
+export async function bootstrapAdminPushRegistration(): Promise<{
+  action: PushBootstrapAction;
+  diagnostics: PushClientDiagnostics;
+}> {
+  const diag = emptyPushDiagnostics();
+  diag.serviceWorkerSupported = 'serviceWorker' in navigator;
+  diag.pushManagerSupported = 'PushManager' in window;
+  diag.notificationSupported = 'Notification' in window;
+  diag.notificationPermission = diag.notificationSupported
+    ? Notification.permission
+    : 'unsupported';
+
+  const initialDecision = decidePushUiAfterBootstrap({
+    serviceWorkerSupported: diag.serviceWorkerSupported,
+    pushManagerSupported: diag.pushManagerSupported,
+    vapidOk: false,
+    notificationPermission: diag.notificationPermission,
+    localSubscription: false,
+    serverHasMatchingEndpoint: false,
+    serverHasAnySubscription: false,
+    previouslyRegisteredLocally: Boolean(readStoredPushRegistration()),
+  });
+  if (initialDecision.kind === 'unsupported') {
+    diag.lastStep = 'unsupported';
+    return { action: initialDecision, diagnostics: diag };
+  }
+
+  const vapid = await fetchVapidPublicKey();
+  diag.vapidKeyLoaded = vapid.ok;
+  diag.vapidKeyError = vapid.ok ? null : (vapid.error ?? 'VAPID key missing');
+
+  const reg = await registerAdminServiceWorker(diag);
+  if (!reg) {
+    return {
+      action: { kind: 'error', error: diag.lastError ?? 'Service worker registration failed' },
+      diagnostics: diag,
+    };
+  }
+
+  let localSub: PushSubscription | null = null;
+  try {
+    localSub = await reg.pushManager.getSubscription();
+  } catch {
+    localSub = null;
+  }
+
+  if (localSub) {
+    diag.pushSubscriptionLocal = true;
+    diag.pushEndpoint = localSub.endpoint;
+  }
+
+  const server = await fetchServerPushState(localSub?.endpoint ?? readStoredPushRegistration()?.endpoint);
+  if (!vapid.ok && server.vapidConfigured === false) {
+    return {
+      action: { kind: 'vapid_missing', error: diag.vapidKeyError ?? 'VAPID not configured' },
+      diagnostics: diag,
+    };
+  }
+
+  const action = decidePushUiAfterBootstrap({
+    serviceWorkerSupported: diag.serviceWorkerSupported,
+    pushManagerSupported: diag.pushManagerSupported,
+    vapidOk: vapid.ok,
+    vapidError: diag.vapidKeyError,
+    notificationPermission: diag.notificationPermission,
+    localSubscription: Boolean(localSub),
+    serverHasMatchingEndpoint: server.hasMatchingEndpoint,
+    serverHasAnySubscription: server.subscriptionInDatabase,
+    previouslyRegisteredLocally: Boolean(readStoredPushRegistration()),
+  });
+
+  if (action.kind === 'active') {
+    if (localSub) {
+      await savePushSubscriptionToServer(localSub, diag);
+      if (diag.subscriptionSaved) {
+        persistStoredPushRegistration(localSub.endpoint);
+      }
+      diag.lastStep = diag.subscriptionSaved ? 'complete' : 'sync_existing_subscription';
+      return { action: { kind: 'active' }, diagnostics: diag };
+    }
+
+    if (diag.notificationPermission === 'granted' || server.subscriptionInDatabase) {
+      const refreshed = await runAdminPushRegistration({ requestPermission: false });
+      Object.assign(diag, refreshed);
+      if (refreshed.lastStep === 'complete' && refreshed.pushEndpoint) {
+        persistStoredPushRegistration(refreshed.pushEndpoint);
+        return { action: { kind: 'active' }, diagnostics: diag };
+      }
+    }
+
+    if (readStoredPushRegistration() && server.subscriptionInDatabase) {
+      diag.lastStep = 'reuse_server_subscription';
+      return { action: { kind: 'active' }, diagnostics: diag };
+    }
+  }
+
+  if (action.kind === 'denied') {
+    clearStoredPushRegistration();
+    diag.lastStep = 'permission_denied';
+    return { action, diagnostics: diag };
+  }
+
+  if (action.kind === 'vapid_missing') {
+    return { action, diagnostics: diag };
+  }
+
+  if (action.kind === 'prompt') {
+    diag.lastStep = 'awaiting_user_permission';
+    return { action, diagnostics: diag };
+  }
+
+  return { action, diagnostics: diag };
+}
 
 export function emptyPushDiagnostics(): PushClientDiagnostics {
   return {
@@ -211,6 +459,7 @@ export async function runAdminPushRegistration(opts?: {
       diag.lastError = diag.subscriptionSaveError;
       return diag;
     }
+    persistStoredPushRegistration(sub.endpoint);
     diag.lastStep = 'complete';
     diag.lastError = null;
   } catch (err) {
