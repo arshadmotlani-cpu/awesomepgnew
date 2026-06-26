@@ -1683,7 +1683,8 @@ export function listAdminVacatingRequests(filter?: {
           br.created_at DESC
         LIMIT 1
       ) loc ON true
-      ${filter?.status ? sql`WHERE vr.status = ${filter.status}` : sql``}
+      WHERE vr.checkout_settlement_suppressed = false
+      ${filter?.status ? sql`AND vr.status = ${filter.status}` : sql``}
       ORDER BY vr.created_at DESC
     `);
 
