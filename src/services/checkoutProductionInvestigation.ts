@@ -95,7 +95,7 @@ async function residentReport(whereSql: ReturnType<typeof sql>): Promise<Residen
   `);
 
   const depositLedger = await db.execute(sql`
-    SELECT dl.entry_kind, dl.amount_paise, dl.note, dl.created_at, b.booking_code
+    SELECT dl.entry_kind, dl.amount_paise, dl.reason, dl.created_at, b.booking_code
     FROM deposit_ledger dl
     JOIN bookings b ON b.id = dl.booking_id
     WHERE b.customer_id = ${customerId}::uuid
