@@ -145,9 +145,9 @@ function EvidenceCard({
 function otherDeductions(preview: CheckoutSettlementDetail['preview']) {
   return (
     preview.noticeDeductionPaise +
-    preview.damageChargePaise +
-    preview.cleaningChargePaise +
-    preview.customChargePaise
+    (preview.damageChargePaise ?? 0) +
+    (preview.cleaningChargePaise ?? 0) +
+    (preview.customChargePaise ?? 0)
   );
 }
 

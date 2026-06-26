@@ -33,14 +33,15 @@ import {
   VACATING_NOTICE_PENALTY_DAYS,
 } from '@/src/services/billing';
 import { noticeDeductionAppliesToBooking } from '@/src/lib/checkout/noticeDeductionPolicy';
+import { hasCheckoutElectricityEvidence } from '@/src/lib/checkout/checkoutElectricityEvidence';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import {
   applyDepositDeductionsInTx,
   settleDepositRefund,
 } from '@/src/services/depositSettlement';
 import { finalizeVacatingOccupancy } from '@/src/services/vacating';
+import { scheduleAdminNotificationSync } from '@/src/services/adminLiveSync';
 import { assessCheckoutSettlementReadiness } from '@/src/lib/checkout/checkoutSettlementReadiness';
-import { noticeDeductionAppliesToBooking } from '@/src/lib/checkout/noticeDeductionPolicy';
 import {
   calculateAverageBillingElectricity,
   calculateCheckoutElectricity,
@@ -118,15 +119,7 @@ export type CheckoutSettlementDetail = CheckoutSettlementRow & {
   };
 };
 
-export function hasCheckoutElectricityEvidence(row: CheckoutSettlement): boolean {
-  return (
-    Boolean(row.electricityMeterPhotoUrl) ||
-    row.electricityUseAverage ||
-    row.meterPhotoMissing ||
-    row.electricitySharePaise > 0 ||
-    row.electricityCalculationMethod !== 'meter_reading'
-  );
-}
+export { hasCheckoutElectricityEvidence } from '@/src/lib/checkout/checkoutElectricityEvidence';
 
 export type CheckoutSettlementDeductionInput = {
   noticeDeductionPaise: number;

@@ -1,7 +1,26 @@
-import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement';
-import { hasCheckoutElectricityEvidence } from '@/src/services/checkoutSettlement';
+import { hasCheckoutElectricityEvidence } from '@/src/lib/checkout/checkoutElectricityEvidence';
 import { noticeDeductionAppliesToBooking } from '@/src/lib/checkout/noticeDeductionPolicy';
 import { adminStayTypeLabel } from '@/src/lib/stayType';
+
+export type CheckoutSettlementReadinessInput = {
+  status: string;
+  amountsLocked: boolean;
+  stayType?: string | null;
+  durationMode?: string | null;
+  payoutUpiId?: string | null;
+  payoutQrUrl?: string | null;
+  electricityUseAverage?: boolean | null;
+  meterPhotoMissing?: boolean | null;
+  depositRefundablePaise: number;
+  electricityMeterPhotoUrl?: string | null;
+  electricitySharePaise?: number | null;
+  electricityCalculationMethod?: string | null;
+  preview: {
+    finalRefundPaise: number;
+    noticeDeductionPaise: number;
+    electricityDeductionPaise: number;
+  };
+};
 
 export type CheckoutReadinessItem = {
   id: string;
@@ -19,10 +38,7 @@ export type CheckoutSettlementReadiness = {
 };
 
 export function assessCheckoutSettlementReadiness(
-  detail: CheckoutSettlementDetail & {
-    stayType?: string | null;
-    durationMode?: string | null;
-  },
+  detail: CheckoutSettlementReadinessInput,
 ): CheckoutSettlementReadiness {
   const isFixedStay = !noticeDeductionAppliesToBooking({
     stayType: detail.stayType,

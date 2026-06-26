@@ -256,21 +256,18 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-26 07:22:17 UTC
+### Pending pre-commit sync · 2026-06-26 07:39:32 UTC
 
-**Areas touched:** [[ROUTES]], [[Vacating]]
+**Areas touched:** [[Vacating]]
 
 **Docs flagged for review:**
 - `CHANGELOG.md` — review for accuracy
 - `DECISIONS.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
-- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (3):**
-- `app/(admin)/admin/checkout-settlements/[id]/page.tsx`
-- `app/api/admin/checkout-investigation/route.ts`
+**Staged code files (1):**
 - `src/services/checkoutSettlement.ts`
 
 **Changed:**
