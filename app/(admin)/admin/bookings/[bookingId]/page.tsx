@@ -28,9 +28,8 @@ import { allocateBookingCheckoutPayment } from '@/src/lib/billing/bookingPayment
 import { buildAdminInvoiceHrefMap } from '@/src/lib/billing/invoiceHrefMap';
 import { diffDays, parseDate } from '@/src/lib/dates';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
-import { projectElectricityInvoice } from '@/src/services/electricityBilling';
+import { getBookingFinancialAccount } from '@/src/services/residentFinancialEngine';
 import { parseDaterange } from '@/src/services/availability';
-import { projectInvoice } from '@/src/services/rentInvoices';
 import { formatDate as formatDateIso } from '@/src/lib/dates';
 import { DepositRefundNotice } from '@/src/components/customer/DepositRefundNotice';
 
@@ -65,10 +64,24 @@ export default async function AdminBookingDetailPage(
   }
 
   const b = res.data;
-  const [rentInvoices, electricityInvoices, depositSummary] = await Promise.all([
+  const primaryRes = b.reservations.find((r) => r.kind === 'primary') ?? b.reservations[0];
+  const [rentInvoices, electricityInvoices, financialAccount] = await Promise.all([
     listRentInvoicesForBooking(bookingId),
     listElectricityInvoicesForBooking(bookingId),
-    getDepositSummaryForBooking(bookingId),
+    primaryRes
+      ? getBookingFinancialAccount({
+          bookingId,
+          customerId: b.customer.id,
+          customerName: b.customer.fullName,
+          customerPhone: b.customer.phone,
+          bookingCode: b.bookingCode,
+          pgId: '',
+          pgName: primaryRes.pgName,
+          roomNumber: primaryRes.roomNumber,
+          depositPaise: b.depositPaise,
+          depositDuePaise: 0,
+        })
+      : Promise.resolve(null),
   ]);
   const rentInvoiceHrefMap =
     rentInvoices.ok && rentInvoices.data.length > 0
@@ -89,55 +102,8 @@ export default async function AdminBookingDetailPage(
   const succeededBookingPayments = b.payments.filter(
     (p) => p.status === 'succeeded' && p.purpose === 'booking',
   );
-  const computedRentDues =
-    rentInvoices.ok === true
-      ? rentInvoices.data.reduce((acc, inv) => {
-          const p = projectInvoice({
-            ...inv,
-            customerId: b.customer.id,
-            bedId: b.reservations[0]?.bedId ?? '',
-            pgId: '',
-            paymentId: null,
-            paymentProofUrl: null,
-            cancelledAt: null,
-            cancellationReason: null,
-            isAdhoc: false,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          });
-          return acc + p.outstandingPaise;
-        }, 0)
-      : 0;
-  const computedElectricityDues =
-    electricityInvoices.ok === true
-      ? electricityInvoices.data.reduce((acc, inv) => {
-          const p = projectElectricityInvoice({
-            id: inv.id,
-            invoiceNumber: inv.invoiceNumber,
-            electricityBillId: inv.electricityBillId,
-            bookingId: inv.bookingId,
-            customerId: b.customer.id,
-            bedId: '',
-            billingMonth: inv.billingMonth,
-            dueDate: inv.dueDate,
-            amountPaise: inv.amountPaise,
-            paidPaise: inv.paidPaise,
-            lateFeeLockedPaise: inv.lateFeeLockedPaise,
-            status: inv.status,
-            paymentId: null,
-            paidAt: inv.paidAt,
-            paymentProofUrl: null,
-            unitsShare: null,
-            activeDays: null,
-            cancelledAt: null,
-            createdAt: inv.createdAt,
-            updatedAt: inv.updatedAt,
-          });
-          return acc + p.outstandingPaise;
-        }, 0)
-      : 0;
-  const computedDuesPaise = computedRentDues + computedElectricityDues;
-  const depositBalancePaise = depositSummary?.refundableBalancePaise ?? 0;
+  const computedDuesPaise = financialAccount?.totalOutstandingPaise ?? 0;
+  const depositBalancePaise = financialAccount?.depositHeldPaise ?? 0;
   const financialPhase = getBookingFinancialPhase({
     status: b.status,
     reservations: b.reservations,

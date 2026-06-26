@@ -85,6 +85,9 @@ function BillRowContent({ row }: { row: PaymentDueRow }) {
     <>
       <div className="min-w-0">
         <p className="text-sm font-medium text-zinc-900">{row.label}</p>
+        {row.invoiceNumber ? (
+          <p className="text-xs text-zinc-500">{row.invoiceNumber}</p>
+        ) : null}
         {row.dueDate ? (
           <p className="text-xs text-zinc-500">Due {formatDate(row.dueDate)}</p>
         ) : null}
@@ -168,31 +171,20 @@ export function ResidentPaymentsHub({
         emptyMessage="No payments awaiting approval."
       />
 
-      {paidBills.length > 0 ? (
-        <ApgCard tier="account" className="p-5">
-          <h2 className="text-base font-semibold text-zinc-900">Paid bills</h2>
-          <p className="mt-1 text-sm text-zinc-600">Invoices paid in the last 30 days.</p>
-          <ul className="mt-4 divide-y divide-zinc-100">
-            {paidBills.map((row) => (
-              <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
-                <div>
-                  <p className="text-sm font-medium text-zinc-900">{row.label}</p>
-                  <p className="text-xs text-zinc-500">
-                    {row.invoiceNumber ? `${row.invoiceNumber} · ` : ''}
-                    {row.paidAt ? formatDate(row.paidAt) : 'Date pending'}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold tabular-nums text-emerald-700">
-                    {paiseToInr(row.amountPaise)}
-                  </span>
-                  <StatusChip status={row.status} toneMap={BILL_STATUS_TONE} />
-                </div>
-              </li>
-            ))}
-          </ul>
-        </ApgCard>
-      ) : null}
+      <BillList
+        title="Paid bills"
+        description="Invoices paid in the last 30 days."
+        rows={paidBills.map((row) => ({
+          key: row.id,
+          label: row.label,
+          amountPaise: row.amountPaise,
+          dueDate: row.paidAt,
+          href: null,
+          status: row.status,
+          invoiceNumber: row.invoiceNumber,
+        }))}
+        emptyMessage="No paid bills in the last 30 days."
+      />
 
       <ApgCard tier="account" className="p-5">
         <h2 className="text-sm font-semibold text-zinc-900">What happens when you pay</h2>

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   approveElectricityProofAction,
   approveDepositLinkProofAction,
@@ -22,6 +22,7 @@ import { adminPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import { PaymentBookingContextBlock } from '@/src/components/admin/operations/PaymentBookingContextBlock';
 import { PaymentExplanationBlock } from '@/src/components/admin/operations/PaymentExplanationBlock';
 import type { OverpaymentDisposition, PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
+import { paiseToInr } from '@/src/lib/format';
 
 const OVERPAYMENT_OPTIONS: Array<{ value: OverpaymentDisposition; label: string }> = [
   { value: 'wallet_credit', label: 'Credit to wallet' },
@@ -39,10 +40,21 @@ function MetaRow({ label, value }: { label: string; value: string | null | undef
   );
 }
 
+function formatUploadTime(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  try {
+    return new Date(iso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+  } catch {
+    return null;
+  }
+}
+
 export function OperationsPaymentReviewsPanel({
   items,
+  reviewMode = true,
 }: {
   items: PendingPaymentReviewItem[];
+  reviewMode?: boolean;
 }) {
   const router = useRouter();
   const [busyKey, setBusyKey] = useState<string | null>(null);
@@ -53,6 +65,25 @@ export function OperationsPaymentReviewsPanel({
   const [overpayDisposition, setOverpayDisposition] = useState<OverpaymentDisposition>('wallet_credit');
   const [reviewNotes, setReviewNotes] = useState('');
   const [approvalNotes, setApprovalNotes] = useState('');
+  const [rejectOpenKey, setRejectOpenKey] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+
+  const visibleItems = useMemo(() => {
+    if (!reviewMode || items.length <= 1) return items;
+    return [items[0]];
+  }, [items, reviewMode]);
+
+  async function advanceAfterAction(currentKey: string, nextKey?: string | null) {
+    setRejectOpenKey(null);
+    setRejectReason('');
+    setPartialOpenKey(null);
+    setMoreOpenKey(null);
+    if (reviewMode && nextKey) {
+      router.push(`/admin/operations/payment-reviews?focus=${encodeURIComponent(nextKey)}`);
+    } else {
+      router.refresh();
+    }
+  }
 
   async function onApprove(item: PendingPaymentReviewItem) {
     if (item.overpaidPaise > 0 && !overpayDisposition) {
@@ -62,33 +93,38 @@ export function OperationsPaymentReviewsPanel({
     setBusyKey(item.key);
     setError(null);
     try {
-      let result: { ok: boolean; message?: string };
+      let result: { ok: boolean; message?: string; nextKey?: string | null };
       switch (item.kind) {
         case 'qr':
-          result = await approveQrPaymentAction(item.entityId, item.pgId, {
-            overpaymentDisposition: item.overpaidPaise > 0 ? overpayDisposition : undefined,
-            reviewNotes: reviewNotes.trim() || undefined,
-            approvalNotes: approvalNotes.trim() || undefined,
-          });
+          result = await approveQrPaymentAction(
+            item.entityId,
+            item.pgId,
+            {
+              overpaymentDisposition: item.overpaidPaise > 0 ? overpayDisposition : undefined,
+              reviewNotes: reviewNotes.trim() || undefined,
+              approvalNotes: approvalNotes.trim() || undefined,
+            },
+            item.key,
+          );
           break;
         case 'rent':
-          result = await approveRentProofAction(item.entityId, item.pgId);
+          result = await approveRentProofAction(item.entityId, item.pgId, item.key);
           break;
         case 'electricity':
-          result = await approveElectricityProofAction(item.entityId, item.pgId);
+          result = await approveElectricityProofAction(item.entityId, item.pgId, item.key);
           break;
         case 'extension':
-          result = await approveExtensionProofAction(item.entityId, item.pgId);
+          result = await approveExtensionProofAction(item.entityId, item.pgId, item.key);
           break;
         case 'deposit_link':
-          result = await approveDepositLinkProofAction(item.entityId, item.pgId);
+          result = await approveDepositLinkProofAction(item.entityId, item.pgId, item.key);
           break;
       }
       if (!result.ok) {
         setError(result.message ?? 'Approval failed.');
         return;
       }
-      router.refresh();
+      await advanceAfterAction(item.key, result.nextKey);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Approval failed.');
     } finally {
@@ -128,32 +164,47 @@ export function OperationsPaymentReviewsPanel({
   }
 
   async function onReject(item: PendingPaymentReviewItem) {
+    const needsReason = item.kind === 'rent' || item.kind === 'electricity';
+    if (needsReason && !rejectReason.trim()) {
+      setError('Add a rejection reason for the resident.');
+      return;
+    }
     setBusyKey(item.key);
     setError(null);
     try {
-      let result: { ok: boolean; message?: string } = { ok: true };
+      let result: { ok: boolean; message?: string; nextKey?: string | null } = { ok: true };
       switch (item.kind) {
         case 'qr':
-          await rejectQrPaymentAction(item.entityId, item.pgId);
+          result = await rejectQrPaymentAction(item.entityId, item.pgId, item.key);
           break;
         case 'rent':
-          result = await rejectRentProofAction(item.entityId, item.pgId);
+          result = await rejectRentProofAction(
+            item.entityId,
+            item.pgId,
+            rejectReason.trim(),
+            item.key,
+          );
           break;
         case 'electricity':
-          result = await rejectElectricityProofAction(item.entityId, item.pgId);
+          result = await rejectElectricityProofAction(
+            item.entityId,
+            item.pgId,
+            rejectReason.trim(),
+            item.key,
+          );
           break;
         case 'extension':
-          result = await rejectExtensionProofAction(item.entityId, item.pgId);
+          result = await rejectExtensionProofAction(item.entityId, item.pgId, item.key);
           break;
         case 'deposit_link':
-          result = await rejectDepositLinkProofAction(item.entityId, item.pgId);
+          result = await rejectDepositLinkProofAction(item.entityId, item.pgId, item.key);
           break;
       }
       if (!result.ok) {
         setError(result.message ?? 'Rejection failed.');
         return;
       }
-      router.refresh();
+      await advanceAfterAction(item.key, result.nextKey);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Rejection failed.');
     } finally {
@@ -173,16 +224,24 @@ export function OperationsPaymentReviewsPanel({
 
   return (
     <div className="space-y-5">
+      {reviewMode && items.length > 0 ? (
+        <p className="text-sm text-apg-silver">
+          <span className="font-semibold text-white">{items.length}</span> pending
+          {items.length === 1 ? '' : ' — approve or reject to open the next automatically'}
+        </p>
+      ) : null}
+
       {error ? (
         <p className="rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
           {error}
         </p>
       ) : null}
 
-      {items.map((item) => {
+      {visibleItems.map((item) => {
         const review = item.bookingPaymentReview;
         const showPartial = item.canPartialApprove;
         const busy = busyKey === item.key;
+        const uploadTime = formatUploadTime(item.proofSubmittedAt);
 
         return (
           <article
@@ -204,8 +263,30 @@ export function OperationsPaymentReviewsPanel({
               <div className="min-w-0">
                 <h3 className="text-lg font-semibold text-white">{item.residentName}</h3>
                 <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <MetaRow label="Bill type" value={item.paymentTypeLabel} />
+                  <MetaRow label="Invoice number" value={item.invoiceNumber ?? null} />
+                  <MetaRow
+                    label="Invoice amount"
+                    value={
+                      item.invoiceAmountPaise != null
+                        ? paiseToInr(item.invoiceAmountPaise)
+                        : paiseToInr(item.expectedTotalPaise)
+                    }
+                  />
+                  <MetaRow
+                    label="Amount submitted"
+                    value={
+                      item.submittedAmountPaise != null
+                        ? paiseToInr(item.submittedAmountPaise)
+                        : null
+                    }
+                  />
+                  <MetaRow label="Reference number" value={item.referenceNumber ?? '—'} />
+                  <MetaRow label="Upload time" value={uploadTime} />
                   <MetaRow label="Phone" value={item.phone} />
-                  <MetaRow label="Payment type" value={item.paymentTypeLabel} />
+                  {item.roomNumber ? (
+                    <MetaRow label="Room" value={`Room ${item.roomNumber}`} />
+                  ) : null}
                 </dl>
 
                 {item.bookingContext ? (
@@ -317,7 +398,11 @@ export function OperationsPaymentReviewsPanel({
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => void onReject(item)}
+                  onClick={() => {
+                    setRejectOpenKey(rejectOpenKey === item.key ? null : item.key);
+                    setRejectReason('');
+                    setError(null);
+                  }}
                   className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-200 hover:bg-rose-500/20 disabled:opacity-50"
                 >
                   Reject
@@ -332,6 +417,38 @@ export function OperationsPaymentReviewsPanel({
                 More
               </button>
             </div>
+
+            {rejectOpenKey === item.key ? (
+              <div className="mt-3 rounded-xl border border-rose-400/30 bg-rose-500/10 p-3">
+                <p className="text-xs font-semibold text-rose-100">
+                  Rejection reason (sent to resident)
+                </p>
+                <textarea
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  rows={2}
+                  className="mt-2 w-full rounded-lg border border-white/10 bg-[#0f1318] px-2 py-1.5 text-sm text-white"
+                  placeholder="e.g. Screenshot does not match amount or UPI reference"
+                />
+                <div className="mt-2 flex gap-2">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void onReject(item)}
+                    className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-500 disabled:opacity-50"
+                  >
+                    Confirm reject
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRejectOpenKey(null)}
+                    className="rounded-md border border-white/15 px-3 py-1.5 text-xs font-semibold text-apg-silver"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : null}
 
             {partialOpenKey === item.key && review ? (
               <div className="mt-3 rounded-xl border border-sky-400/30 bg-sky-500/10 p-3">

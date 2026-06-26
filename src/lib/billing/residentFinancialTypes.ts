@@ -74,3 +74,35 @@ export type GlobalFinancialAggregates = {
   pendingRentInvoiceCount: number;
   pendingElectricityInvoiceCount: number;
 };
+
+/** Append-only money events for a resident account (deposit ledger + invoice activity). */
+export type FinancialLedgerTimelineEntry = {
+  at: string;
+  kind:
+    | 'deposit_collected'
+    | 'deposit_deducted'
+    | 'deposit_refunded'
+    | 'rent'
+    | 'electricity'
+    | 'other'
+    | 'adjustment';
+  label: string;
+  amountPaise: number;
+  sourceTable?: string | null;
+  sourceId?: string | null;
+};
+
+/**
+ * Canonical per-resident financial projection — every admin/resident money UI
+ * must read from this shape (via getResidentFinancialAccount).
+ */
+export type ResidentFinancialAccount = ResidentFinancialSummary & {
+  depositHeldPaise: number;
+  rentOutstandingPaise: number;
+  electricityOutstandingPaise: number;
+  otherChargesOutstandingPaise: number;
+  creditsPaise: number;
+  refundBalancePaise: number;
+  totalOutstandingPaise: number;
+  ledgerTimeline: FinancialLedgerTimelineEntry[];
+};

@@ -547,6 +547,13 @@
       "when": 1789900000000,
       "tag": "0081_resident_residencies",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1790000000000,
+      "tag": "0082_stabilization_indexes",
+      "breakpoints": true
     }
   ]
 }

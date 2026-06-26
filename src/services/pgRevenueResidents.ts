@@ -1,14 +1,10 @@
 /**
  * Resident-level financial breakdown for PG revenue / collection screens.
+ * All amounts from Resident Financial Account (SSOT).
  */
 
-import { and, eq, inArray, sql } from 'drizzle-orm';
-import { db } from '@/src/db/client';
-import { electricityInvoices, rentInvoices } from '@/src/db/schema';
-import { resolveBillingMonth } from '@/src/lib/dateDefaults';
-import { projectElectricityInvoice } from '@/src/services/electricityBilling';
+import { getBookingFinancialAccount } from '@/src/services/residentFinancialEngine';
 import { getPgDepositCollectionDetail } from '@/src/services/pgDepositCollection';
-import { projectInvoice } from '@/src/services/rentInvoices';
 
 export type PgRevenueResidentRow = {
   customerId: string;
@@ -33,60 +29,26 @@ export async function getPgRevenueResidentRows(
   pgId: string,
   billingMonthInput?: string,
 ): Promise<PgRevenueResidentRow[]> {
-  const billingMonth = resolveBillingMonth(billingMonthInput);
-  const detail = await getPgDepositCollectionDetail(pgId, billingMonth);
+  const detail = await getPgDepositCollectionDetail(pgId, billingMonthInput);
   if (!detail) return [];
 
   const residents = [...detail.paidResidents, ...detail.pendingResidents];
   if (residents.length === 0) return [];
 
-  const bookingIds = residents.map((r) => r.bookingId);
-
-  const [rentRows, elecRows] = await Promise.all([
-    db.select().from(rentInvoices).where(
-      and(
-        inArray(rentInvoices.bookingId, bookingIds),
-        eq(rentInvoices.billingMonth, billingMonth),
-      ),
-    ),
-    db.select().from(electricityInvoices).where(
-      and(
-        inArray(electricityInvoices.bookingId, bookingIds),
-        eq(electricityInvoices.billingMonth, billingMonth),
-      ),
-    ),
-  ]);
-
-  const rentByBooking = new Map<string, { due: number; paid: number }>();
-  for (const r of rentRows) {
-    const projected = projectInvoice(r);
-    const bucket = rentByBooking.get(r.bookingId) ?? { due: 0, paid: 0 };
-    if (projected.effectiveStatus === 'paid') {
-      bucket.paid += projected.paidPrincipalPaise + (projected.paidLateFeePaise ?? 0);
-    } else if (projected.effectiveStatus !== 'cancelled' && projected.effectiveStatus !== 'expired') {
-      bucket.due += projected.outstandingPaise;
-    }
-    rentByBooking.set(r.bookingId, bucket);
-  }
-
-  const elecByBooking = new Map<string, { due: number; paid: number }>();
-  for (const e of elecRows) {
-    const projected = projectElectricityInvoice(e);
-    const bucket = elecByBooking.get(e.bookingId) ?? { due: 0, paid: 0 };
-    if (projected.effectiveStatus === 'paid') {
-      bucket.paid += e.paidPaise;
-    } else if (projected.effectiveStatus !== 'cancelled') {
-      bucket.due += projected.outstandingPaise;
-    }
-    elecByBooking.set(e.bookingId, bucket);
-  }
-
-  return residents
-    .map((r) => {
-      const rent = rentByBooking.get(r.bookingId) ?? { due: 0, paid: 0 };
-      const elec = elecByBooking.get(r.bookingId) ?? { due: 0, paid: 0 };
-      const depositOutstandingPaise = r.outstandingPaise;
-      const totalOutstandingPaise = rent.due + elec.due + depositOutstandingPaise;
+  const rows = await Promise.all(
+    residents.map(async (r) => {
+      const account = await getBookingFinancialAccount({
+        bookingId: r.bookingId,
+        customerId: r.customerId,
+        customerName: r.customerName,
+        customerPhone: r.phone,
+        bookingCode: r.bookingCode,
+        pgId,
+        pgName: detail.pgName,
+        roomNumber: r.roomNumber,
+        depositPaise: r.requiredDepositPaise,
+        depositDuePaise: r.outstandingPaise,
+      });
 
       return {
         customerId: r.customerId,
@@ -96,18 +58,21 @@ export async function getPgRevenueResidentRows(
         bookingCode: r.bookingCode,
         roomNumber: r.roomNumber,
         bedCode: r.bedCode,
-        rentDuePaise: rent.due,
-        rentPaidPaise: rent.paid,
+        rentDuePaise: account.rentOutstandingPaise,
+        rentPaidPaise: account.rent.paidPaise,
         depositRequiredPaise: r.requiredDepositPaise,
         depositPaidPaise: r.paidAmountPaise,
-        depositOutstandingPaise,
-        electricityDuePaise: elec.due,
-        electricityPaidPaise: elec.paid,
-        totalOutstandingPaise,
-        depositStatus: depositOutstandingPaise <= 0 && r.paidAmountPaise > 0 ? 'paid' : 'pending',
+        depositOutstandingPaise: account.deposit.outstandingPaise,
+        electricityDuePaise: account.electricityOutstandingPaise,
+        electricityPaidPaise: account.electricity.paidPaise,
+        totalOutstandingPaise: account.totalOutstandingPaise,
+        depositStatus:
+          account.deposit.outstandingPaise <= 0 && r.paidAmountPaise > 0 ? 'paid' : 'pending',
       } satisfies PgRevenueResidentRow;
-    })
-    .sort((a, b) => a.customerName.localeCompare(b.customerName));
+    }),
+  );
+
+  return rows.sort((a, b) => a.customerName.localeCompare(b.customerName));
 }
 
 /** MTD deposit refunded for a PG (ledger entries in billing month). */
@@ -115,6 +80,9 @@ export async function getPgDepositRefundedMtd(
   pgId: string,
   billingMonthInput?: string,
 ): Promise<number> {
+  const { resolveBillingMonth } = await import('@/src/lib/dateDefaults');
+  const { sql } = await import('drizzle-orm');
+  const { db } = await import('@/src/db/client');
   const billingMonth = resolveBillingMonth(billingMonthInput);
   const [row] = await db.execute<{ total: number }>(sql`
     SELECT coalesce(sum(dl.amount_paise), 0)::bigint::int AS total

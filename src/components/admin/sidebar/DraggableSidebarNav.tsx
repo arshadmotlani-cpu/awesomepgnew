@@ -34,6 +34,7 @@ type SectionProps = {
   activePath: string;
   onNavigateStart: (href: string) => void;
   onPinToggle: (key: SidebarNavItem['key'], pinned: boolean) => void;
+  dragEnabled: boolean;
 };
 
 function SidebarSection({
@@ -42,6 +43,7 @@ function SidebarSection({
   activePath,
   onNavigateStart,
   onPinToggle,
+  dragEnabled,
 }: SectionProps) {
   const ids = useMemo(() => items.map((i) => i.key), [items]);
   if (items.length === 0) return null;
@@ -62,6 +64,7 @@ function SidebarSection({
               activePath={activePath}
               onNavigateStart={onNavigateStart}
               onPinToggle={onPinToggle}
+              dragEnabled={dragEnabled}
             />
           ))}
         </ul>
@@ -77,7 +80,7 @@ export function DraggableSidebarNav({
   activePath: string;
   onNavigateStart: (href: string) => void;
 }) {
-  const { items, setItems } = useSidebarLayout();
+  const { items, setItems, dragEnabled } = useSidebarLayout();
   const persist = usePersistSidebarLayout();
   const [activeId, setActiveId] = useState<SidebarNavItem['key'] | null>(null);
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -123,6 +126,7 @@ export function DraggableSidebarNav({
 
   const onDragEnd = useCallback(
     (event: DragEndEvent) => {
+      if (!dragEnabled) return;
       setActiveId(null);
       const { active, over } = event;
       if (!over || active.id === over.id) return;
@@ -157,7 +161,7 @@ export function DraggableSidebarNav({
       setItems(next);
       schedulePersist(next);
     },
-    [items, visible, setItems, schedulePersist],
+    [items, visible, setItems, schedulePersist, dragEnabled],
   );
 
   const onPinToggle = useCallback(
@@ -184,6 +188,7 @@ export function DraggableSidebarNav({
         activePath={activePath}
         onNavigateStart={onNavigateStart}
         onPinToggle={onPinToggle}
+        dragEnabled={dragEnabled}
       />
       <SidebarSection
         title={pinned.length > 0 && regular.length > 0 ? 'Navigation' : undefined}
@@ -191,6 +196,7 @@ export function DraggableSidebarNav({
         activePath={activePath}
         onNavigateStart={onNavigateStart}
         onPinToggle={onPinToggle}
+        dragEnabled={dragEnabled}
       />
 
       {typeof document !== 'undefined'

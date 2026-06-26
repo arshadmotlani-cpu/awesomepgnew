@@ -10,6 +10,7 @@ export type PaymentDueRow = {
   dueDate: string | null;
   href: string | null;
   status: string;
+  invoiceNumber?: string;
 };
 
 export function ResidentPaymentsSummary({

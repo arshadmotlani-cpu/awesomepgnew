@@ -33,7 +33,7 @@ export function ElectricityRoomsPendingPanel({
         {rooms.map((room) => (
           <li key={room.roomId}>
             <Link
-              href={`/admin/electricity/new?month=${monthLabel}&roomId=${room.roomId}`}
+              href={`/admin/billing/electricity/generate?month=${monthLabel}&wizard=1&pgId=${room.pgId}&roomId=${room.roomId}`}
               className="flex items-center justify-between rounded-lg border border-white/10 bg-[#1A1F27] px-3 py-2 text-sm hover:border-[#FF5A1F]/40"
             >
               <span className="text-white">

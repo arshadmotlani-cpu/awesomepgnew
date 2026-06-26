@@ -1,11 +1,11 @@
 import Link from 'next/link';
-import type { AdminNotificationRow } from '@/src/services/adminNotifications';
+import type { AdminInboxNotificationRow } from '@/src/services/notificationEngine';
 import { formatNotificationAge } from '@/src/services/adminNotifications';
 
 export function UnreadNotificationsPanel({
   items,
 }: {
-  items: AdminNotificationRow[];
+  items: AdminInboxNotificationRow[];
 }) {
   if (items.length === 0) return null;
 

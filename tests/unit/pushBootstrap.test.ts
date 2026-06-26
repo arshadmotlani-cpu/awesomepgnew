@@ -11,6 +11,7 @@ const base = {
   serverHasMatchingEndpoint: false,
   serverHasAnySubscription: false,
   previouslyRegisteredLocally: false,
+  bannerDismissed: false,
 };
 
 test('decidePushUiAfterBootstrap prompts only when no subscription signals exist', () => {
@@ -70,5 +71,15 @@ test('decidePushUiAfterBootstrap respects denied permission', () => {
       notificationPermission: 'denied',
     }).kind,
     'denied',
+  );
+});
+
+test('decidePushUiAfterBootstrap hides prompt after banner dismissed', () => {
+  assert.equal(
+    decidePushUiAfterBootstrap({
+      ...base,
+      bannerDismissed: true,
+    }).kind,
+    'active',
   );
 });

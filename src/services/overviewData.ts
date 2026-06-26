@@ -13,9 +13,7 @@ import {
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { listOpenActionItems, listOldestPendingActionItems, syncActionItems } from '@/src/services/actionItems';
-import {
-  listAdminNotifications,
-} from '@/src/services/adminNotifications';
+import { listAdminInboxNotifications } from '@/src/services/notificationEngine';
 import { getOperationsCenterData } from '@/src/services/operationsCenter';
 import { getRevenueCommandCenterData } from '@/src/services/revenueCommandCenter';
 import { getSentryDashboardUrl, getSystemHealthSnapshot } from '@/src/services/systemHealth';
@@ -46,7 +44,7 @@ export type OverviewContext = {
   pgCount: number;
   pendingActionsCount: number;
   unreadNotificationsCount: number;
-  unreadNotifications: Awaited<ReturnType<typeof listAdminNotifications>>;
+  unreadNotifications: Awaited<ReturnType<typeof listAdminInboxNotifications>>;
   vacatingAlertsCount: number;
   outstandingDeposits: Awaited<ReturnType<typeof import('@/src/services/depositCollection').listOutstandingDeposits>>;
 };
@@ -182,7 +180,7 @@ export async function loadOverviewContext(
 
   const pendingActionsCount = actionItems.length;
   const oldestPendingActions = await listOldestPendingActionItems(session, 5).catch(() => []);
-  const unreadNotifications = await listAdminNotifications(session, 'unread', 20).catch(() => []);
+  const unreadNotifications = await listAdminInboxNotifications(session, 'unread', 20).catch(() => []);
   const unreadNotificationsCount = unreadNotifications.length;
   const vacatingAlertsCount = operations?.leavingSoon.count ?? 0;
   const { listOutstandingDeposits } = await import('@/src/services/depositCollection');

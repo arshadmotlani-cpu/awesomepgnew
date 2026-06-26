@@ -27,8 +27,12 @@ import { todayString } from '@/src/lib/dates';
 import { formatPgDisplayName } from '@/src/lib/operationsCenterRules';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
 import { resolveStalePaymentReviewArtifacts } from '@/src/services/paymentReviewIntegrity';
-import { projectElectricityInvoice } from '@/src/services/electricityBilling';
-import { projectInvoice } from '@/src/services/rentInvoices';
+import {
+  computeElectricityInvoiceEffectiveStatus,
+  computeElectricityInvoiceOutstandingPaise,
+  computeRentInvoiceEffectiveStatus,
+  computeRentInvoiceOutstandingPaise,
+} from '@/src/services/residentFinancialEngine';
 import { syncResidentRequestActionItems } from '@/src/services/residentRequestActions';
 import { syncAdminNotificationsFromActionItems } from '@/src/services/adminNotifications';
 import { resolveStaleVacatingActionItems } from '@/src/services/vacatingPastDue';
@@ -226,9 +230,9 @@ async function syncRentDue(session: AdminSession): Promise<void> {
 
   for (const row of rows) {
     if (!sessionCanAccessPg(session, row.pgId)) continue;
-    const projected = projectInvoice(row.invoice);
-    if (projected.outstandingPaise <= 0) continue;
-    const isOverdue = projected.effectiveStatus === 'overdue';
+    const projectedOutstanding = computeRentInvoiceOutstandingPaise(row.invoice);
+    if (projectedOutstanding <= 0) continue;
+    const isOverdue = computeRentInvoiceEffectiveStatus(row.invoice) === 'overdue';
     await upsertActionItem({
       type: 'rent_due',
       title: `${row.residentName} · Rent ${isOverdue ? 'overdue' : 'due'}`,
@@ -236,7 +240,7 @@ async function syncRentDue(session: AdminSession): Promise<void> {
       roomId: row.roomId,
       bedId: row.bedId,
       residentId: row.residentId,
-      amount: projected.outstandingPaise,
+      amount: projectedOutstanding,
       dueDate: row.invoice.dueDate,
       priority: isOverdue ? 'high' : 'medium',
       sourceKey: `rent:${row.invoice.id}`,
@@ -282,9 +286,9 @@ async function syncElectricityDue(session: AdminSession): Promise<void> {
 
   for (const row of rows) {
     if (!sessionCanAccessPg(session, row.pgId)) continue;
-    const projected = projectElectricityInvoice(row.invoice, today);
-    if (projected.outstandingPaise <= 0) continue;
-    const isOverdue = projected.effectiveStatus === 'overdue';
+    const projectedOutstanding = computeElectricityInvoiceOutstandingPaise(row.invoice, today);
+    if (projectedOutstanding <= 0) continue;
+    const isOverdue = computeElectricityInvoiceEffectiveStatus(row.invoice, today) === 'overdue';
     await upsertActionItem({
       type: 'electricity_due',
       title: `${row.residentName} · Electricity ${isOverdue ? 'overdue' : 'due'}`,
@@ -292,7 +296,7 @@ async function syncElectricityDue(session: AdminSession): Promise<void> {
       roomId: row.roomId,
       bedId: row.invoice.bedId,
       residentId: row.invoice.customerId,
-      amount: projected.outstandingPaise,
+      amount: projectedOutstanding,
       dueDate: row.invoice.dueDate,
       priority: isOverdue ? 'high' : 'medium',
       sourceKey: `electricity:${row.invoice.id}`,

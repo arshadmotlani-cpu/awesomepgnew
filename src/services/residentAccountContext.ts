@@ -14,9 +14,9 @@ import type { ResidentFinancialSummary } from '@/src/lib/billing/residentFinanci
 import { deriveResidencyJourney, type ResidencyJourneyState } from '@/src/lib/residents/residencyJourney';
 import { formatStayDateTime } from '@/src/lib/residents/stayBillingRules';
 import { projectElectricityInvoice } from '@/src/services/electricityBilling';
-import { getDepositSummaryForBooking } from '@/src/services/deposits';
-import { getResidentFinancialSummary } from '@/src/services/residentFinancialEngine';
 import { projectInvoice } from '@/src/services/rentInvoices';
+import { getDepositSummaryForBooking } from '@/src/services/deposits';
+import { getResidentFinancialAccount } from '@/src/services/residentFinancialEngine';
 import { getCustomerById, isProfileComplete } from '@/src/services/profile';
 import { paymentLinkPublicUrl } from '@/src/lib/billing/paymentLinkUrl';
 import { batchLookupFinancialInvoiceIds } from '@/src/lib/billing/invoiceNumbering.server';
@@ -103,7 +103,7 @@ export async function loadResidentAccountContext(
   const primaryBooking = uniqueBookings[0] ?? null;
 
   const financialSummary = hasConfirmedBooking
-    ? await getResidentFinancialSummary(customerId)
+    ? await getResidentFinancialAccount(customerId)
     : null;
 
   const depositPaid =

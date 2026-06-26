@@ -170,7 +170,7 @@ export function RevenueCommandCenter({
             hint={`${outstanding.pendingRentInvoices} open invoices`}
             icon={<IconChart />}
             accent="orange"
-            href="/admin/billing?tab=need-attention"
+            href="/admin/billing?tab=billing"
           />
           <OverviewStatCard
             label="Rent overdue"
@@ -178,7 +178,7 @@ export function RevenueCommandCenter({
             hint="Past due date"
             icon={<IconChart />}
             accent="rose"
-            href="/admin/billing?tab=need-attention"
+            href="/admin/billing?tab=billing"
           />
         </div>
         <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">

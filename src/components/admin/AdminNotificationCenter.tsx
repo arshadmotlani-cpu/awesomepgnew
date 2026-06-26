@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AdminNotificationRow } from '@/src/services/adminNotifications';
+import type { AdminInboxNotificationRow } from '@/src/services/notificationEngine';
 
 function relativeTime(iso: string): string {
   const date = new Date(iso);
@@ -18,7 +18,7 @@ function relativeTime(iso: string): string {
 export function AdminNotificationCenter({ initialUnread = 0 }: { initialUnread?: number }) {
   const [open, setOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(initialUnread);
-  const [items, setItems] = useState<AdminNotificationRow[]>([]);
+  const [items, setItems] = useState<AdminInboxNotificationRow[]>([]);
   const [loading, setLoading] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -28,7 +28,7 @@ export function AdminNotificationCenter({ initialUnread = 0 }: { initialUnread?:
       const res = await fetch('/api/admin/notifications?state=unread', { cache: 'no-store' });
       const json = (await res.json()) as {
         ok: boolean;
-        data?: AdminNotificationRow[];
+        data?: AdminInboxNotificationRow[];
         unreadCount?: number;
       };
       if (json.ok) {
@@ -85,7 +85,7 @@ export function AdminNotificationCenter({ initialUnread = 0 }: { initialUnread?:
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [open]);
 
-  async function onItemClick(item: AdminNotificationRow) {
+  async function onItemClick(item: AdminInboxNotificationRow) {
     await fetch('/api/admin/notifications/read', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

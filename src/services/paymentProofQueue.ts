@@ -373,6 +373,10 @@ async function buildRentReviewItem(
       'Verify screenshot — approval records full outstanding rent',
     canPartialApprove: false,
     canReject: true,
+    invoiceNumber: r.invoiceNumber,
+    invoiceAmountPaise: projected.outstandingPaise,
+    submittedAmountPaise: projected.outstandingPaise,
+    proofSubmittedAt: invoice.updatedAt.toISOString(),
     paymentExplanation: buildSimplePaymentExplanation({
       lines: expectedLines,
       totalExpectedPaise: projected.outstandingPaise,
@@ -450,6 +454,10 @@ async function buildElectricityReviewItem(
       'Verify screenshot — approval records full electricity due',
     canPartialApprove: false,
     canReject: true,
+    invoiceNumber: e.invoiceNumber,
+    invoiceAmountPaise: expectedTotalPaise,
+    submittedAmountPaise: expectedTotalPaise,
+    proofSubmittedAt: invoice.updatedAt.toISOString(),
     paymentExplanation: buildSimplePaymentExplanation({
       lines: expectedLines,
       totalExpectedPaise: expectedTotalPaise,
@@ -692,6 +700,19 @@ export async function listPendingPaymentReviews(
   }
 
   return items;
+}
+
+/** Next item in FIFO review queue after the current key (excludes current). */
+export async function getNextPendingPaymentReviewKey(
+  session: AdminSession,
+  afterKey?: string,
+): Promise<string | null> {
+  const items = await listPendingPaymentReviews(session);
+  if (items.length === 0) return null;
+  if (!afterKey) return items[0]?.key ?? null;
+  const idx = items.findIndex((i) => i.key === afterKey);
+  if (idx < 0) return items[0]?.key ?? null;
+  return items[idx + 1]?.key ?? null;
 }
 
 export async function countPendingPaymentReviews(session: AdminSession): Promise<number> {

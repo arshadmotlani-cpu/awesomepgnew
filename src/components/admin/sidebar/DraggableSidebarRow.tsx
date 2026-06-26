@@ -16,19 +16,21 @@ export function DraggableSidebarRow({
   onNavigateStart,
   onPinToggle,
   overlay = false,
+  dragEnabled = true,
 }: {
   item: SidebarNavItem;
   activePath: string;
   onNavigateStart: (href: string) => void;
   onPinToggle: (key: SidebarNavItem['key'], pinned: boolean) => void;
   overlay?: boolean;
+  dragEnabled?: boolean;
 }) {
   const badges = useAdminNavBadges();
   const def = SIDEBAR_MODULE_REGISTRY[item.key];
   const Icon = def.icon;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.key,
-    disabled: overlay,
+    disabled: overlay || !dragEnabled,
   });
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const rowRef = useRef<HTMLLIElement | null>(null);
@@ -87,15 +89,17 @@ export function DraggableSidebarRow({
           isDragging && !overlay ? 'scale-[1.02] shadow-lg ring-1 ring-apg-orange/30' : ''
         }`}
       >
+        {dragEnabled ? (
         <button
           type="button"
-          className="flex h-11 w-6 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-[11px] leading-none text-apg-silver/50 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-white/5 hover:text-apg-silver active:cursor-grabbing"
+          className="flex h-11 w-6 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-[11px] leading-none text-apg-silver/70 opacity-60 transition-opacity group-hover:opacity-100 hover:bg-white/5 hover:text-apg-silver active:cursor-grabbing sm:opacity-0 sm:group-hover:opacity-100"
           aria-label={`Drag ${item.label}`}
           {...attributes}
           {...listeners}
         >
           ⋮⋮
         </button>
+        ) : null}
 
         <div className="min-w-0 flex-1">
           <AdminNavLink

@@ -36,6 +36,7 @@ import {
   BillingGeneratedTodayPanel,
   BillingHealthCardPanel,
 } from '@/src/components/admin/billing/BillingCenterPanels';
+import { BillingOperationsDashboard } from '@/src/components/admin/billing/BillingOperationsDashboard';
 import { OperationsPaymentReviewsPanel } from '@/src/components/admin/operations/OperationsPaymentReviewsPanel';
 import { todayInBillingTimezone } from '@/src/lib/billing/billingTimezone';
 import { getBillingHealthSnapshot } from '@/src/services/billingHealth';
@@ -47,6 +48,9 @@ import {
 import { listRentBillingOverview, listBillingCycleOperations } from '@/src/services/rentInvoices';
 import { listRoomsMissingElectricityBill } from '@/src/services/electricityBilling';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
+import { count, sql } from 'drizzle-orm';
+import { db } from '@/src/db/client';
+import { electricityBills } from '@/src/db/schema';
 import type { AdminRentInvoiceRow } from '@/src/db/queries/admin';
 
 const TABS = [
@@ -106,7 +110,7 @@ export default async function CollectionsModulePage({
   await ensureAdminPageNotificationsSeen('/admin/billing', '/admin/billing');
   const canGenerateRent = adminHasPermission(session.role, 'rent:write');
   const canSendLinks = adminHasPermission(session.role, 'payments:write');
-  const [rentPending, rentOverdue, rentPaid, elecPending, pgs, billingOverview, billingCycleOps, roomsMissingElectricity, billingHealth, lastRun, generatedToday, failures, paymentReviews] =
+  const [rentPending, rentOverdue, rentPaid, elecPending, pgs, billingOverview, billingCycleOps, roomsMissingElectricity, billingHealth, lastRun, generatedToday, failures, paymentReviews, electricityBillsToday] =
     await Promise.all([
     listAdminRentInvoices({ status: 'pending' }),
     listAdminRentInvoices({ status: 'overdue' }),
@@ -121,6 +125,13 @@ export default async function CollectionsModulePage({
     listTodayGeneratedInvoices(todayIst),
     listBillingGenerationFailures({ unresolvedOnly: true, limit: 50 }),
     listPendingPaymentReviews(session),
+    db
+      .select({ count: count() })
+      .from(electricityBills)
+      .where(
+        sql`(${electricityBills.createdAt} AT TIME ZONE 'Asia/Kolkata')::date = ${todayIst}::date`,
+      )
+      .then((rows) => rows[0]?.count ?? 0),
   ]);
 
   const allUnpaidRent = mergeUnpaidRent(
@@ -209,8 +220,44 @@ export default async function CollectionsModulePage({
       />
 
       {tab === 'dashboard' ? (
-        <AdminSectionErrorBoundary title="Billing health">
-          <BillingHealthCardPanel health={billingHealth} />
+        <AdminSectionErrorBoundary title="Billing dashboard">
+          <BillingOperationsDashboard
+            metrics={{
+              billingMonth,
+              rentGeneratedToday: generatedToday.length,
+              electricityGeneratedToday: electricityBillsToday,
+              pendingApprovals: paymentReviews.length,
+              paidTodayCount: collectionsStats.collectedTodayCount,
+              overdueCount: collectionsStats.overdueCount,
+              newestInvoices: [
+                ...generatedToday.map((r) => ({
+                  id: r.invoiceId,
+                  residentName: r.customerName,
+                  invoiceNumber: r.invoiceNumber,
+                  amountPaise: r.rentPaise,
+                  status: 'generated',
+                  kind: 'rent' as const,
+                  dateLabel: formatDate(r.billingMonth),
+                  href: `/admin/invoices?ref=${encodeURIComponent(r.invoiceNumber)}`,
+                })),
+                ...(rentPending.ok ? rentPending.data : [])
+                  .slice(0, 8)
+                  .map((r) => ({
+                    id: r.id,
+                    residentName: r.customerFullName,
+                    invoiceNumber: r.invoiceNumber,
+                    amountPaise: r.outstandingPaise,
+                    status: r.effectiveStatus,
+                    kind: 'rent' as const,
+                    dateLabel: formatDate(r.billingMonth),
+                    href: `/admin/residents/${r.customerId}`,
+                  })),
+              ].slice(0, 12),
+            }}
+          />
+          <div className="mt-8">
+            <BillingHealthCardPanel health={billingHealth} />
+          </div>
         </AdminSectionErrorBoundary>
       ) : null}
 

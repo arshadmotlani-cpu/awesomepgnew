@@ -3,6 +3,7 @@
  */
 
 export const PUSH_REGISTERED_STORAGE_KEY = 'apg_admin_push_registered_v1';
+export const PUSH_BANNER_DISMISSED_KEY = 'apg_admin_push_banner_dismissed_v1';
 
 export type StoredPushRegistration = {
   endpoint: string;
@@ -43,6 +44,33 @@ export type PushClientDiagnostics = {
   lastStep: string;
   lastError: string | null;
 };
+
+export function readPushBannerDismissed(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem(PUSH_BANNER_DISMISSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function dismissPushBanner(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(PUSH_BANNER_DISMISSED_KEY, '1');
+  } catch {
+    // ignore
+  }
+}
+
+export function clearPushBannerDismissed(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(PUSH_BANNER_DISMISSED_KEY);
+  } catch {
+    // ignore
+  }
+}
 
 export function readStoredPushRegistration(): StoredPushRegistration | null {
   if (typeof window === 'undefined') return null;
@@ -90,6 +118,7 @@ export function decidePushUiAfterBootstrap(input: {
   serverHasMatchingEndpoint: boolean;
   serverHasAnySubscription: boolean;
   previouslyRegisteredLocally: boolean;
+  bannerDismissed: boolean;
 }): PushBootstrapAction {
   if (!input.serviceWorkerSupported || !input.pushManagerSupported) {
     return { kind: 'unsupported' };
@@ -106,13 +135,17 @@ export function decidePushUiAfterBootstrap(input: {
   if (input.serverHasMatchingEndpoint) {
     return { kind: 'active' };
   }
+  const stored = input.previouslyRegisteredLocally;
+  if (stored && input.serverHasAnySubscription) {
+    return { kind: 'active' };
+  }
   if (input.notificationPermission === 'granted') {
     return { kind: 'active' };
   }
-  if (input.previouslyRegisteredLocally && input.serverHasAnySubscription) {
-    return { kind: 'active' };
-  }
   if (input.notificationPermission === 'default') {
+    if (input.bannerDismissed) {
+      return { kind: 'active' };
+    }
     return { kind: 'prompt' };
   }
   return { kind: 'prompt' };
@@ -176,6 +209,7 @@ export async function bootstrapAdminPushRegistration(): Promise<{
     serverHasMatchingEndpoint: false,
     serverHasAnySubscription: false,
     previouslyRegisteredLocally: Boolean(readStoredPushRegistration()),
+    bannerDismissed: readPushBannerDismissed(),
   });
   if (initialDecision.kind === 'unsupported') {
     diag.lastStep = 'unsupported';
@@ -224,6 +258,7 @@ export async function bootstrapAdminPushRegistration(): Promise<{
     serverHasMatchingEndpoint: server.hasMatchingEndpoint,
     serverHasAnySubscription: server.subscriptionInDatabase,
     previouslyRegisteredLocally: Boolean(readStoredPushRegistration()),
+    bannerDismissed: readPushBannerDismissed(),
   });
 
   if (action.kind === 'active') {

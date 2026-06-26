@@ -9,7 +9,6 @@ import { requireAdminSession } from '@/src/lib/auth/guards';
 import { loadAdminNavBadges } from '@/src/services/adminNavBadges';
 import { getResolvedSidebarLayout } from '@/src/services/sidebarLayouts';
 import { AdminPushRegistration } from '@/src/components/admin/AdminPushRegistration';
-import { syncActionItems } from '@/src/services/actionItems';
 
 export const metadata: Metadata = {
   title: 'Admin · Awesome PG',
@@ -31,7 +30,6 @@ export const metadata: Metadata = {
 
 export default async function AdminGroupLayout({ children }: { children: ReactNode }) {
   const session = await requireAdminSession('/admin');
-  await syncActionItems(session).catch(() => undefined);
   const [badges, sidebarLayout] = await Promise.all([
     loadAdminNavBadges(session),
     getResolvedSidebarLayout(session),

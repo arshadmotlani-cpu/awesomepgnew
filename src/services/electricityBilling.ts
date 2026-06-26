@@ -865,11 +865,13 @@ export async function listRoomsMissingElectricityBill(
     FROM rooms r
     INNER JOIN floors f ON f.id = r.floor_id
     INNER JOIN pgs p ON p.id = f.pg_id
-    INNER JOIN beds bd ON bd.room_id = r.id AND bd.archived_at IS NULL
+    INNER JOIN beds bd ON bd.room_id = r.id AND bd.archived_at IS NULL AND bd.status != 'maintenance'
     INNER JOIN bed_reservations br ON br.bed_id = bd.id
     INNER JOIN bookings b ON b.id = br.booking_id
+    INNER JOIN room_types rt ON rt.id = r.room_type_id
     WHERE r.archived_at IS NULL
       AND p.archived_at IS NULL
+      AND rt.has_ac = true
       AND br.status = 'active'
       AND b.status = 'confirmed'
       AND b.duration_mode IN ('monthly', 'open_ended')

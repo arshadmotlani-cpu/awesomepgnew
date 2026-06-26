@@ -426,3 +426,74 @@ export async function archiveNotificationsByDedupeKeys(
       ),
     );
 }
+
+/** Unified admin inbox row — maps `notifications` table for bell + overview. */
+export type AdminInboxNotificationRow = {
+  id: string;
+  sourceKey: string;
+  type: string;
+  typeLabel: string;
+  title: string;
+  residentName: string | null;
+  pgName: string | null;
+  detail: string | null;
+  href: string;
+  state: 'unread' | 'read' | 'archived';
+  createdAt: Date;
+  readAt: Date | null;
+  resolvedAt: Date | null;
+};
+
+const INBOX_TYPE_LABELS: Record<string, string> = {
+  rent_due: 'Rent Due',
+  electricity_due: 'Electricity Due',
+  deposit_collection_due: 'Deposit Due',
+  kyc_pending: 'KYC Pending',
+  vacating_alert: 'Vacating Notice',
+  payment_proof_pending: 'Payment Proof',
+  checkout_settlement: 'Checkout',
+  booking_created: 'New Booking',
+  financial_audit_review: 'Financial Audit',
+};
+
+function mapToInboxRow(
+  row: UserNotificationRow,
+  state: AdminInboxNotificationRow['state'],
+): AdminInboxNotificationRow {
+  return {
+    id: row.id,
+    sourceKey: row.id,
+    type: row.type,
+    typeLabel: INBOX_TYPE_LABELS[row.type] ?? row.type.replace(/_/g, ' '),
+    title: row.title,
+    residentName: row.title,
+    pgName: null,
+    detail: row.body,
+    href: row.deepLink,
+    state,
+    createdAt: row.createdAt,
+    readAt: row.readAt,
+    resolvedAt: row.isArchived ? row.readAt : null,
+  };
+}
+
+/** SSOT admin notification list — reads `notifications` table only. */
+export async function listAdminInboxNotifications(
+  session: AdminSession,
+  filter: 'unread' | 'read' | 'archived' | 'all' = 'unread',
+  limit = 50,
+): Promise<AdminInboxNotificationRow[]> {
+  if (filter === 'all') {
+    const [unread, read] = await Promise.all([
+      listUserNotifications('admin', session.adminId, 'unread', { limit }),
+      listUserNotifications('admin', session.adminId, 'read', { limit }),
+    ]);
+    return [
+      ...unread.map((r) => mapToInboxRow(r, 'unread')),
+      ...read.map((r) => mapToInboxRow(r, 'read')),
+    ];
+  }
+  const listFilter = filter === 'archived' ? 'archived' : filter;
+  const rows = await listUserNotifications('admin', session.adminId, listFilter, { limit });
+  return rows.map((r) => mapToInboxRow(r, filter));
+}

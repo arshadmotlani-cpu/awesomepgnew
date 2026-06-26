@@ -72,4 +72,10 @@ export type PendingPaymentReviewItem = {
   paymentExplanation?: PaymentExplanationView;
   /** Booking + pricing story for admin review (presentation only). */
   bookingContext?: PaymentBookingContextView;
+  /** Dedicated approval card fields (rent / electricity). */
+  invoiceNumber?: string | null;
+  invoiceAmountPaise?: number | null;
+  submittedAmountPaise?: number | null;
+  referenceNumber?: string | null;
+  proofSubmittedAt?: string | null;
 };

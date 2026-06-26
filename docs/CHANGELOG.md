@@ -256,28 +256,43 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-26 08:55:12 UTC
+### Pending pre-commit sync · 2026-06-26 11:29:51 UTC
 
-**Areas touched:** [[ROUTES]], [[DATABASE]], [[Bookings]], [[Vacating]]
+**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Action Center]], [[Electricity]]
 
 **Docs flagged for review:**
+- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
 - `DATABASE.md` — review for accuracy
-- `DECISIONS.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (8):**
+**Staged code files (23):**
+- `app/(admin)/admin/billing/electricity/generate/page.tsx`
+- `app/(admin)/admin/billing/page.tsx`
+- `app/(admin)/admin/bookings/[bookingId]/page.tsx`
+- `app/(admin)/admin/checkout-settlements/page.tsx`
+- `app/(admin)/admin/collections/page.tsx`
+- `app/(admin)/admin/electricity/new/actions.ts`
+- `app/(admin)/admin/payments/actions.ts`
+- `app/(admin)/admin/requests/page.tsx`
 - `app/(admin)/admin/residents/[customerId]/page.tsx`
-- `src/db/migrations/0081_resident_residencies.sql`
+- `app/(admin)/layout.tsx`
+- `app/api/admin/live/route.ts`
+- `app/api/admin/notifications/read/route.ts`
+- `app/api/admin/notifications/route.ts`
+- `app/api/cron/automation/route.ts`
+- `src/db/migrations/0082_stabilization_indexes.sql`
 - `src/db/migrations/meta/_journal.json`
-- `src/db/schema/enums.ts`
-- `src/db/schema/index.ts`
-- `src/db/schema/residentResidencies.ts`
-- `src/services/bookingLifecycle.ts`
-- `src/services/vacating.ts`
+- `src/lib/billing/financialMetrics.ts`
+- `src/lib/billing/residentFinancialTypes.ts`
+- `src/services/actionItems.ts`
+- `src/services/electricityBilling.ts`
+- `src/services/meterElectricity.ts`
+- `src/services/rentInvoices.ts`
+- `src/services/residentFinancialEngine.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

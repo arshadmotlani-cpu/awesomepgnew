@@ -5,7 +5,7 @@
 
 import { eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { beds, customers, floors, pgs, rooms } from '@/src/db/schema';
+import { beds, customers, floors, pgs, rooms, auditLog } from '@/src/db/schema';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import { diffDays, formatDate } from '@/src/lib/dates';
@@ -243,6 +243,7 @@ export async function executeExpressWalkInSale(
   }
 
   if (walletCreditApplied > 0) {
+    const walletBefore = await getCustomerDepositCredit(customerId);
     const credit = await applyDepositCreditToBooking({
       customerId,
       targetBookingId: bookingId,
@@ -251,6 +252,23 @@ export async function executeExpressWalkInSale(
     if (!credit.ok) {
       return failAfterBooking(credit.error);
     }
+    await db.insert(auditLog).values({
+      actorType: 'admin',
+      actorId: session.adminId,
+      entity: 'booking',
+      entityId: bookingId,
+      action: 'express_walkin_deposit_credit',
+      diff: {
+        creditAppliedPaise: walletCreditApplied,
+        sourceBookings: walletBefore.byBooking
+          .filter((b) => b.availablePaise > 0)
+          .map((b) => ({
+            bookingId: b.bookingId,
+            availablePaise: b.availablePaise,
+          })),
+        targetBookingCode: bookingCode,
+      },
+    });
   }
 
   const paymentDate = formatDate(new Date());

@@ -193,13 +193,19 @@ export async function sumPaidRentForBillingMonth(billingMonth: string): Promise<
 /** Re-export resident financial engine — use for all outstanding/required/paid figures. */
 export {
   getResidentFinancialSummary,
+  getResidentFinancialAccount,
   getBookingFinancialSummary,
+  getBookingFinancialAccount,
   getGlobalFinancialAggregates,
   getPortfolioFinancialTotals,
   getPortfolioRentStats,
   listOutstandingDepositsFromEngine,
   recalculateBillingAfterVacatingRestore,
 } from '@/src/services/residentFinancialEngine';
+export type {
+  ResidentFinancialAccount,
+  FinancialLedgerTimelineEntry,
+} from '@/src/lib/billing/residentFinancialTypes';
 
 export {
   runFinancialHealthAudit,

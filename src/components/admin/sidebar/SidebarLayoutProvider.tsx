@@ -28,6 +28,8 @@ type SidebarLayoutContextValue = {
   items: SidebarNavItem[];
   setItems: (items: SidebarNavItem[]) => void;
   isSuperAdmin: boolean;
+  dragEnabled: boolean;
+  setDragEnabled: (enabled: boolean) => void;
 };
 
 const SidebarLayoutContext = createContext<SidebarLayoutContextValue | null>(null);
@@ -42,14 +44,15 @@ export function SidebarLayoutProvider({
   children: ReactNode;
 }) {
   const [items, setItems] = useState(initialItems);
+  const [dragEnabled, setDragEnabled] = useState(true);
 
   useEffect(() => {
     setItems(initialItems);
   }, [initialItems]);
 
   const value = useMemo(
-    () => ({ items, setItems, isSuperAdmin }),
-    [items, isSuperAdmin],
+    () => ({ items, setItems, isSuperAdmin, dragEnabled, setDragEnabled }),
+    [items, isSuperAdmin, dragEnabled],
   );
 
   return (
@@ -94,7 +97,7 @@ export function reassignSidebarSortOrders(items: SidebarNavItem[]): SidebarNavIt
 }
 
 export function usePersistSidebarLayout() {
-  const { items, setItems } = useSidebarLayout();
+  const { items, setItems, setDragEnabled } = useSidebarLayout();
 
   const persist = useCallback(
     async (nextItems: SidebarNavItem[]) => {
@@ -107,11 +110,12 @@ export function usePersistSidebarLayout() {
       const result = await persistSidebarLayoutAction(entriesFromItems(normalized));
       if (!result.ok) {
         setItems(previous);
+        setDragEnabled(false);
         return false;
       }
       return true;
     },
-    [items, setItems],
+    [items, setItems, setDragEnabled],
   );
 
   return persist;

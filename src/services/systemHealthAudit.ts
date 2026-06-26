@@ -7,7 +7,7 @@ import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import { runFinancialHealthAudit } from '@/src/services/financialAudit';
 import { runBedAudit } from '@/src/services/bedAudit';
 import { runVacatingAudit } from '@/src/services/vacatingAudit';
-import { countUnreadNotifications, listAdminNotifications } from '@/src/services/adminNotifications';
+import { countUnreadForAdmin, listAdminInboxNotifications } from '@/src/services/notificationEngine';
 import { db } from '@/src/db/client';
 import { financialInvoices } from '@/src/db/schema';
 import { and, inArray, sql } from 'drizzle-orm';
@@ -85,8 +85,8 @@ async function runInvoiceIntegrityAudit(): Promise<HealthSection> {
 
 async function runNotificationIntegrityAudit(session: AdminSession): Promise<HealthSection> {
   const mismatches: string[] = [];
-  const unread = await listAdminNotifications(session, 'unread', 500);
-  const unreadCount = await countUnreadNotifications(session);
+  const unread = await listAdminInboxNotifications(session, 'unread', 500);
+  const unreadCount = await countUnreadForAdmin(session);
 
   if (unread.length !== unreadCount) {
     mismatches.push(
@@ -104,7 +104,7 @@ async function runNotificationIntegrityAudit(session: AdminSession): Promise<Hea
     pass: mismatches.length === 0,
     summary:
       mismatches.length === 0
-        ? `${unreadCount} unread (NEW) notifications; state machine OK.`
+        ? `${unreadCount} unread notifications (SSOT table); inbox consistent.`
         : `${mismatches.length} notification integrity issue(s).`,
     mismatches,
   };

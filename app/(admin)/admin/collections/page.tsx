@@ -16,5 +16,5 @@ export default async function CollectionsRedirectPage({
   if (sp.tab) params.set('tab', sp.tab);
   if (sp.month) params.set('month', sp.month);
   const qs = params.toString();
-  redirect(`/admin/revenue/billing${qs ? `?${qs}` : ''}`);
+  redirect(`/admin/billing${qs ? `?${qs}` : ''}`);
 }

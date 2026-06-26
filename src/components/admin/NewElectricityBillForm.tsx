@@ -17,12 +17,20 @@ export function NewElectricityBillForm({
   defaultRoomId,
   defaultPgId,
   showPgPicker = false,
+  wizardMode = false,
+  wizardPgId,
+  wizardRoomLabel,
+  wizardProgress,
 }: {
   rooms: RoomPickerRow[];
   defaultMonth: string;
   defaultRoomId?: string;
   defaultPgId?: string;
   showPgPicker?: boolean;
+  wizardMode?: boolean;
+  wizardPgId?: string;
+  wizardRoomLabel?: string;
+  wizardProgress?: string;
 }) {
   const pgOptions = useMemo(() => {
     const map = new Map<string, string>();
@@ -46,6 +54,10 @@ export function NewElectricityBillForm({
   );
   const [roomId, setRoomId] = useState<string>(defaultRoomId ?? '');
   const [loadingPrev, setLoadingPrev] = useState(false);
+
+  useEffect(() => {
+    if (defaultRoomId) setRoomId(defaultRoomId);
+  }, [defaultRoomId]);
 
   useEffect(() => {
     if (defaultRoomId) return;
@@ -110,7 +122,27 @@ export function NewElectricityBillForm({
       action={action}
       className="space-y-4 rounded-xl border border-white/10 bg-[#1A1F27] p-5"
     >
-      {showPgPicker && pgOptions.length > 1 ? (
+      {wizardMode && wizardRoomLabel ? (
+        <header>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#FF5A1F]">
+            {wizardProgress ?? 'Electricity wizard'}
+          </p>
+          <h2 className="mt-1 text-lg font-semibold text-white">Room {wizardRoomLabel}</h2>
+          <p className="mt-1 text-xs text-apg-silver">
+            Previous reading is auto-filled. Enter current reading only.
+          </p>
+        </header>
+      ) : null}
+
+      {wizardMode ? (
+        <>
+          <input type="hidden" name="wizardMode" value="1" />
+          <input type="hidden" name="wizardPgId" value={wizardPgId ?? pgId} />
+          <input type="hidden" name="roomId" value={roomId} />
+        </>
+      ) : null}
+
+      {!wizardMode && showPgPicker && pgOptions.length > 1 ? (
         <label className="block">
           <span className="text-xs font-medium uppercase tracking-wide text-apg-silver">PG</span>
           <select
@@ -129,6 +161,7 @@ export function NewElectricityBillForm({
         </label>
       ) : null}
 
+      {!wizardMode ? (
       <label className="block">
         <span className="text-xs font-medium uppercase tracking-wide text-apg-silver">
           Room
@@ -149,7 +182,9 @@ export function NewElectricityBillForm({
           ))}
         </select>
       </label>
+      ) : null}
 
+      {!wizardMode ? (
       <label className="block">
         <span className="text-xs font-medium uppercase tracking-wide text-apg-silver">
           Billing month (YYYY-MM-01)
@@ -163,20 +198,29 @@ export function NewElectricityBillForm({
           className="apg-admin-field mt-1 block w-full rounded-lg border border-white/10 bg-[#12161D] px-3 py-2 text-sm text-white"
         />
       </label>
+      ) : (
+        <input type="hidden" name="billingMonth" value={defaultMonth} />
+      )}
 
       <div className="grid grid-cols-2 gap-4">
         <label className="block">
           <span className="text-xs font-medium uppercase tracking-wide text-apg-silver">
             Previous reading (units)
           </span>
+          {wizardMode ? (
+            <div className="apg-admin-field mt-1 block w-full rounded-lg border border-white/10 bg-[#12161D]/60 px-3 py-2 text-sm text-apg-silver">
+              {prevReading || (loadingPrev ? '…' : '—')}
+            </div>
+          ) : null}
           <input
-            type="number"
+            type={wizardMode ? 'hidden' : 'number'}
             name="previousReadingUnits"
             min="0"
             step="0.01"
             required
             value={prevReading}
             onChange={(e) => setPrevReading(e.target.value)}
+            readOnly={wizardMode}
             className="apg-admin-field mt-1 block w-full rounded-lg border border-white/10 bg-[#12161D] px-3 py-2 text-sm text-white"
           />
           {loadingPrev ? (
@@ -204,6 +248,7 @@ export function NewElectricityBillForm({
         </label>
       </div>
 
+      {!wizardMode ? (
       <label className="block">
         <span className="text-xs font-medium uppercase tracking-wide text-apg-silver">
           Rate per unit (₹) — default ₹16
@@ -219,6 +264,9 @@ export function NewElectricityBillForm({
           className="apg-admin-field mt-1 block w-full max-w-xs rounded-lg border border-white/10 bg-[#12161D] px-3 py-2 text-sm text-white"
         />
       </label>
+      ) : (
+        <input type="hidden" name="ratePerUnitInr" value={rateInr} />
+      )}
 
       {readingsInverted ? (
         <p className="rounded-md border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
@@ -249,6 +297,7 @@ export function NewElectricityBillForm({
         </div>
       ) : null}
 
+      {!wizardMode ? (
       <label className="block">
         <span className="text-xs font-medium uppercase tracking-wide text-apg-silver">
           Notes (optional)
@@ -259,13 +308,18 @@ export function NewElectricityBillForm({
           className="apg-admin-field mt-1 block w-full rounded-lg border border-white/10 bg-[#12161D] px-3 py-2 text-sm text-white"
         />
       </label>
+      ) : null}
 
       <button
         type="submit"
         disabled={pending}
         className="inline-flex w-full items-center justify-center rounded-lg bg-[#FF5A1F] px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50"
       >
-        {pending ? 'Creating bill…' : 'Generate electricity bills for room'}
+        {pending
+          ? 'Creating bill…'
+          : wizardMode
+            ? 'Generate & Next →'
+            : 'Generate electricity bills for room'}
       </button>
 
       {state.status === 'error' ? (

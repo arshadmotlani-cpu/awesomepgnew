@@ -67,8 +67,8 @@ export default async function CheckoutSettlementsPage({
           No settlements in this queue.
         </p>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-white/10 bg-[#1A1F27]">
-          <table className="min-w-full text-left text-sm">
+        <div className="overflow-x-auto rounded-xl border border-white/10 bg-[#1A1F27]">
+          <table className="min-w-[640px] w-full text-left text-sm">
             <thead className="border-b border-white/10 bg-white/[0.03] text-xs uppercase text-apg-silver">
               <tr>
                 <th className="px-4 py-3">Resident</th>

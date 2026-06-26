@@ -32,7 +32,10 @@ import {
   type OpsPriority,
 } from '@/src/lib/operationsCenterRules';
 import { dedupeOpsTasks, type OpsTaskInput } from '@/src/lib/operationsCenterAudit';
-import { projectElectricityInvoice } from '@/src/services/electricityBilling';
+import {
+  computeElectricityInvoiceEffectiveStatus,
+  computeElectricityInvoiceOutstandingPaise,
+} from '@/src/services/residentFinancialEngine';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
 import {
   isDismissedFromOperationsQueue,
@@ -334,14 +337,17 @@ async function listOutstandingElectricity(session: AdminSession) {
   const items: OperationsCenterData['electricityPending']['items'] = [];
   for (const row of rows) {
     if (!sessionCanAccessPg(session, row.pgId)) continue;
-    const projected = projectElectricityInvoice(row.invoice, today);
-    if (projected.outstandingPaise <= 0) continue;
-    const status = projected.effectiveStatus === 'overdue' ? 'overdue' : 'pending';
+    const outstandingPaise = computeElectricityInvoiceOutstandingPaise(row.invoice, today);
+    if (outstandingPaise <= 0) continue;
+    const status =
+      computeElectricityInvoiceEffectiveStatus(row.invoice, today) === 'overdue'
+        ? 'overdue'
+        : 'pending';
     items.push({
       invoiceId: row.invoice.id,
       residentName: row.customerName,
       pgName: formatPgDisplayName(row.pgName),
-      amountDuePaise: projected.outstandingPaise,
+      amountDuePaise: outstandingPaise,
       priority: electricityPriority(status, row.invoice.dueDate, today),
     });
   }

@@ -7,9 +7,10 @@ import {
   type ResidentBookingRow,
 } from '@/src/db/queries/customer';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
-import { getResidentFinancialSummary } from '@/src/services/residentFinancialEngine';
-import { projectInvoice } from '@/src/services/rentInvoices';
-import { projectElectricityInvoice } from '@/src/services/electricityBilling';
+import {
+  getBookingFinancialAccount,
+  getResidentFinancialAccount,
+} from '@/src/services/residentFinancialEngine';
 import { isWithinLastDays } from '@/src/services/billingRevenueMetrics';
 import { getCustomerSession } from '@/src/lib/auth/session';
 import { getCustomerById } from '@/src/services/profile';
@@ -78,7 +79,7 @@ export async function ResidentAreaSection({
   const bookings = await listResidentBookingsForCustomer(session.customerId);
   const tenantActive = await isActiveTenant(session.customerId);
   const ps4Membership = tenantActive ? await getMembershipForDashboard(session.customerId) : null;
-  const financialSummary = await getResidentFinancialSummary(session.customerId);
+  const financialAccount = await getResidentFinancialAccount(session.customerId);
   const uniqueBookings: ResidentBookingRow[] =
     bookings.ok && bookings.data.length > 0
       ? Array.from(new Map(bookings.data.map((item) => [item.bookingId, item])).values())
@@ -120,8 +121,7 @@ export async function ResidentAreaSection({
 
   const depositDueCards = await Promise.all(
     detail.map(async (d) => {
-      const { getBookingFinancialSummary } = await import('@/src/services/residentFinancialEngine');
-      const fin = await getBookingFinancialSummary({
+      const account = await getBookingFinancialAccount({
         bookingId: d.bookingId,
         customerId: session.customerId,
         customerName: session.fullName || customer?.fullName || 'Resident',
@@ -133,8 +133,8 @@ export async function ResidentAreaSection({
         depositPaise: d.booking.depositPaise,
         depositDuePaise: d.booking.depositDuePaise,
       });
-      const depositDuePaise = fin.deposit.outstandingPaise;
-      const collected = fin.deposit.paidPaise;
+      const depositDuePaise = account.deposit.outstandingPaise;
+      const collected = account.deposit.paidPaise;
       let paymentLinkUrl: string | null = null;
       if (depositDuePaise > 0) {
         const existing = await getLatestPaymentLinkForResident(session.customerId, 'deposit');
@@ -147,7 +147,7 @@ export async function ResidentAreaSection({
         bookingId: d.bookingId,
         bookingCode: d.bookingCode,
         pgName: d.booking.pgName,
-        depositPaise: fin.deposit.requiredPaise,
+        depositPaise: account.deposit.requiredPaise,
         collectedPaise: collected,
         depositDuePaise,
         depositDueDate: d.booking.depositDueDate,
@@ -196,16 +196,16 @@ export async function ResidentAreaSection({
   }
 
   const conciergeContext: ConciergeContext | null =
-    primaryBooking && financialSummary
+    primaryBooking && financialAccount
       ? {
           residentName: session.fullName || customer?.fullName || 'Resident',
           pgName: primaryBooking.booking.pgName,
           roomNumber: primaryBooking.booking.roomNumber,
           bedCode: primaryBooking.booking.bedCode,
-          rentDuePaise: financialSummary.rent.outstandingPaise,
-          electricityDuePaise: financialSummary.electricity.outstandingPaise,
-          depositBalancePaise: financialSummary.deposit.refundablePaise,
-          depositDuePaise: financialSummary.deposit.outstandingPaise,
+          rentDuePaise: financialAccount.rentOutstandingPaise,
+          electricityDuePaise: financialAccount.electricityOutstandingPaise,
+          depositBalancePaise: financialAccount.depositHeldPaise,
+          depositDuePaise: financialAccount.deposit.outstandingPaise,
           vacatingStatus:
             primaryBooking.vacating.ok && primaryBooking.vacating.data
               ? primaryBooking.vacating.data.status
@@ -233,81 +233,81 @@ export async function ResidentAreaSection({
   let firstUnpaidRentId: string | null = null;
   let firstUnpaidElectricityId: string | null = null;
 
-  if (primaryBooking) {
+  if (primaryBooking && financialAccount) {
     const rentRows = primaryBooking.rent.ok ? primaryBooking.rent.data : [];
     const electricityRows = primaryBooking.electricity.ok ? primaryBooking.electricity.data : [];
-    const projectedRent = rentRows.map((r) =>
-      projectInvoice({
-        ...r,
-        cancelledAt: null,
-        cancellationReason: null,
-        customerId: primaryBooking.booking.customerId,
-        bedId: '',
-        pgId: primaryBooking.booking.pgId,
-        paymentId: null,
-        paymentProofUrl: r.paymentProofUrl,
-        isAdhoc: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }),
-    );
-    const projectedElectricity = electricityRows.map((e) =>
-      projectElectricityInvoice({
-        id: e.id,
-        invoiceNumber: e.invoiceNumber,
-        electricityBillId: e.electricityBillId,
-        bookingId: e.bookingId,
-        customerId: primaryBooking.booking.customerId,
-        bedId: '',
-        billingMonth: e.billingMonth,
-        dueDate: e.dueDate,
-        amountPaise: e.amountPaise,
-        paidPaise: e.paidPaise,
-        lateFeeLockedPaise: e.lateFeeLockedPaise,
-        status: e.status,
-        paymentId: null,
-        paidAt: e.paidAt,
-        paymentProofUrl: e.paymentProofUrl,
-        unitsShare: null,
-        activeDays: null,
-        cancelledAt: null,
-        createdAt: e.createdAt,
-        updatedAt: e.updatedAt,
-      }),
-    );
 
-    for (const r of projectedRent) {
-      if (r.effectiveStatus === 'paid' && isWithinLastDays(r.paidAt, 30)) {
+    for (const r of rentRows) {
+      if (r.status === 'paid' && isWithinLastDays(r.paidAt, 30)) {
         paidBillRows.push({
           id: r.id,
           label: `Rent · ${formatDate(r.billingMonth)}`,
-          amountPaise: r.rentPaise + (r.lateFeeLockedPaise ?? 0),
+          amountPaise: r.paidPrincipalPaise + r.paidLateFeePaise,
           paidAt: r.paidAt ? formatDate(r.paidAt) : null,
           status: 'paid',
           invoiceNumber: r.invoiceNumber,
         });
-        continue;
       }
-      if (r.effectiveStatus === 'payment_in_progress' || r.paymentProofUrl) {
+    }
+    for (const e of electricityRows) {
+      if (e.status === 'paid' && isWithinLastDays(e.paidAt, 30)) {
+        paidBillRows.push({
+          id: e.id,
+          label: `Electricity · ${formatDate(e.billingMonth)}`,
+          amountPaise: e.paidPaise + (e.lateFeeLockedPaise ?? 0),
+          paidAt: e.paidAt ? formatDate(e.paidAt) : null,
+          status: 'paid',
+          invoiceNumber: e.invoiceNumber,
+        });
+      }
+    }
+
+    const openLineItems = [
+      ...financialAccount.rent.items,
+      ...financialAccount.electricity.items,
+      ...financialAccount.other.items,
+    ];
+    for (const item of openLineItems) {
+      const href =
+        item.kind === 'rent' && item.sourceId
+          ? `/account/resident/pay-rent/${item.sourceId}`
+          : item.kind === 'electricity' && item.sourceId
+            ? `/account/resident/pay-electricity/${item.sourceId}`
+            : null;
+
+      if (item.status === 'payment_in_progress') {
         pendingApprovalRows.push({
-          key: `rent-${r.id}`,
-          label: `Rent · ${formatDate(r.billingMonth)}`,
-          amountPaise: r.outstandingPaise,
-          dueDate: r.dueDate,
-          href: `/account/resident/pay-rent/${r.id}`,
+          key: `${item.kind}-${item.id}`,
+          label: item.label,
+          amountPaise: item.outstandingPaise,
+          dueDate: item.dueDate ?? null,
+          href,
           status: 'Waiting for admin approval',
+          invoiceNumber: item.invoiceNumber ?? undefined,
         });
         continue;
       }
-      if (r.effectiveStatus === 'pending' || r.effectiveStatus === 'overdue') {
-        if (!firstUnpaidRentId) firstUnpaidRentId = r.id;
+
+      if (
+        item.outstandingPaise > 0 &&
+        (item.status === 'pending' ||
+          item.status === 'overdue' ||
+          item.status === 'due_at_checkout')
+      ) {
+        if (item.kind === 'rent' && !firstUnpaidRentId && item.sourceId) {
+          firstUnpaidRentId = item.sourceId;
+        }
+        if (item.kind === 'electricity' && !firstUnpaidElectricityId && item.sourceId) {
+          firstUnpaidElectricityId = item.sourceId;
+        }
         const row: PaymentDueRow = {
-          key: `rent-${r.id}`,
-          label: `Rent · ${formatDate(r.billingMonth)}`,
-          amountPaise: r.outstandingPaise,
-          dueDate: r.dueDate,
-          href: `/account/resident/pay-rent/${r.id}`,
-          status: titleCase(r.effectiveStatus),
+          key: `${item.kind}-${item.id}`,
+          label: item.label,
+          amountPaise: item.outstandingPaise,
+          dueDate: item.dueDate ?? null,
+          href,
+          status: titleCase(item.status.replace(/_/g, ' ')),
+          invoiceNumber: item.invoiceNumber ?? undefined,
         };
         dueBillRows.push(row);
         homeUpcoming.push({
@@ -320,51 +320,6 @@ export async function ResidentAreaSection({
         });
       }
     }
-    projectedElectricity.forEach((p, i) => {
-      const e = electricityRows[i];
-      if (p.effectiveStatus === 'paid' && isWithinLastDays(e.paidAt, 30)) {
-        paidBillRows.push({
-          id: e.id,
-          label: `Electricity · ${formatDate(e.billingMonth)}`,
-          amountPaise: e.amountPaise + (e.lateFeeLockedPaise ?? 0),
-          paidAt: e.paidAt ? formatDate(e.paidAt) : null,
-          status: 'paid',
-          invoiceNumber: e.invoiceNumber,
-        });
-        return;
-      }
-      if (e.paymentProofUrl && e.status === 'pending') {
-        pendingApprovalRows.push({
-          key: `elec-${e.id}`,
-          label: `Electricity · ${formatDate(e.billingMonth)}`,
-          amountPaise: p.outstandingPaise,
-          dueDate: e.dueDate,
-          href: `/account/resident/pay-electricity/${e.id}`,
-          status: 'Waiting for admin approval',
-        });
-        return;
-      }
-      if (p.effectiveStatus === 'pending' || p.effectiveStatus === 'overdue') {
-        if (!firstUnpaidElectricityId) firstUnpaidElectricityId = e.id;
-        const row: PaymentDueRow = {
-          key: `elec-${e.id}`,
-          label: `Electricity · ${formatDate(e.billingMonth)}`,
-          amountPaise: p.outstandingPaise,
-          dueDate: e.dueDate,
-          href: `/account/resident/pay-electricity/${e.id}`,
-          status: titleCase(p.effectiveStatus),
-        };
-        dueBillRows.push(row);
-        homeUpcoming.push({
-          key: row.key,
-          label: row.label,
-          amountPaise: row.amountPaise,
-          dueDate: row.dueDate,
-          href: row.href,
-          status: row.status,
-        });
-      }
-    });
     if (primaryDepositCard && primaryDepositCard.depositDuePaise > 0) {
       homeUpcoming.unshift({
         key: 'deposit-due',
@@ -475,14 +430,14 @@ export async function ResidentAreaSection({
           roomLabel={roomLabel}
           vacating={primaryVacating}
           checkoutStatus={checkoutByBooking.get(primaryBooking.bookingId) ?? null}
-          depositHeldPaise={financialSummary?.deposit.refundablePaise ?? 0}
+          depositHeldPaise={financialAccount?.depositHeldPaise ?? 0}
         />
       ) : null}
 
-      {activeTab === 'home' && primaryBooking && financialSummary && customer ? (
+      {activeTab === 'home' && primaryBooking && financialAccount && customer ? (
         <ResidentHomePanel
           booking={primaryBooking.booking}
-          financialSummary={financialSummary}
+          financialSummary={financialAccount}
           kycStatus={customer.kycStatus}
           documentsSubmitted={documentsSubmitted}
           openRequests={openRequests}
@@ -517,9 +472,9 @@ export async function ResidentAreaSection({
         />
       ) : null}
 
-      {activeTab === 'wallet' && financialSummary && primaryBooking ? (
+      {activeTab === 'wallet' && financialAccount && primaryBooking ? (
         <ResidentWalletView
-          amountDuePaise={financialSummary.totals.outstandingPaise}
+          amountDuePaise={financialAccount.totalOutstandingPaise}
           depositHeldPaise={depositWallet.totalHeldPaise}
           ledgerEntries={walletLedgerEntries}
           firstUnpaidRentId={firstUnpaidRentId}
@@ -528,7 +483,7 @@ export async function ResidentAreaSection({
         />
       ) : null}
 
-      {activeTab === 'payments' && financialSummary && primaryBooking ? (
+      {activeTab === 'payments' && financialAccount && primaryBooking ? (
         <ResidentPaymentsHub
           dueRows={dueBillRows}
           pendingApprovalRows={pendingApprovalRows}

@@ -1789,6 +1789,7 @@ export async function approveRentPaymentProof(
 export async function rejectRentPaymentProof(
   session: AdminSession,
   invoiceId: string,
+  reason?: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   const [invoice] = await db
     .select()
@@ -1814,6 +1815,14 @@ export async function rejectRentPaymentProof(
       updatedAt: new Date(),
     })
     .where(eq(rentInvoices.id, invoiceId));
+
+  const { notifyInvoicePaymentProofRejected } = await import('@/src/lib/email/notifications');
+  notifyInvoicePaymentProofRejected({
+    customerId: invoice.customerId,
+    invoiceNumber: invoice.invoiceNumber,
+    billType: 'rent',
+    reason,
+  });
 
   return { ok: true };
 }

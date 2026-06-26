@@ -533,6 +533,7 @@ export async function approveElectricityPaymentProof(
 export async function rejectElectricityPaymentProof(
   session: AdminSession,
   invoiceId: string,
+  reason?: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   const [invoice] = await db
     .select()
@@ -563,6 +564,14 @@ export async function rejectElectricityPaymentProof(
       updatedAt: new Date(),
     })
     .where(eq(electricityInvoices.id, invoiceId));
+
+  const { notifyInvoicePaymentProofRejected } = await import('@/src/lib/email/notifications');
+  notifyInvoicePaymentProofRejected({
+    customerId: invoice.customerId,
+    invoiceNumber: invoice.invoiceNumber,
+    billType: 'electricity',
+    reason,
+  });
 
   return { ok: true };
 }

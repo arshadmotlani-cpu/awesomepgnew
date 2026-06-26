@@ -98,7 +98,7 @@ test('buildOverviewDashboard maps context into spec sections', () => {
         pendingElectricityInvoicesPaise: 4_000,
         pendingPaymentApprovals: 1,
         pendingPaymentApprovalsPaise: 3_000,
-        totalOutstandingPaise: 22_000,
+        totalOutstandingPaise: 19_000,
       },
       byPg: [samplePgRow({ pgId: '1', pgName: 'SHANTINAGAR - AWESOME PG' })],
     },

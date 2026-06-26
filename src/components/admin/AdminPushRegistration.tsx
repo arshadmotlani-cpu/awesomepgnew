@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   bootstrapAdminPushRegistration,
   clearStoredPushRegistration,
+  dismissPushBanner,
   runAdminPushRegistration,
 } from '@/src/lib/push/clientRegistration';
 
@@ -217,6 +218,18 @@ export function AdminPushRegistration() {
             className="rounded-lg bg-[#FF5A1F] px-4 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50"
           >
             {registering ? 'Enabling…' : 'Enable notifications'}
+          </button>
+          <button
+            type="button"
+            disabled={registering}
+            onClick={() => {
+              dismissPushBanner();
+              setStatus('active');
+              setErrorDetail(null);
+            }}
+            className="rounded-lg border border-white/20 px-4 py-2 text-sm font-medium text-apg-silver hover:bg-white/5 disabled:opacity-50"
+          >
+            Not now
           </button>
         </div>
       </div>

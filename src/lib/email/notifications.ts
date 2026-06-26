@@ -285,6 +285,23 @@ export function notifyBookingOverpaymentFutureCredit(args: {
   });
 }
 
+export function notifyInvoicePaymentProofRejected(args: {
+  customerId: string;
+  invoiceNumber: string;
+  billType: 'rent' | 'electricity';
+  reason?: string;
+}): void {
+  queueTenantNotification({
+    customerId: args.customerId,
+    notificationKind: 'payment_proof_rejected',
+    subject: `Payment rejected — ${args.invoiceNumber}`,
+    text:
+      `Your ${args.billType} payment for invoice ${args.invoiceNumber} was not approved.\n` +
+      `The bill is back in Due Bills — you can pay again from the resident portal.\n` +
+      (args.reason?.trim() ? `\nReason: ${args.reason.trim()}\n` : ''),
+  });
+}
+
 export type EmailDeliveryMeta = {
   provider: 'resend' | 'smtp' | 'log';
   messageId?: string;

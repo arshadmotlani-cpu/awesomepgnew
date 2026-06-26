@@ -31,7 +31,7 @@ import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { getLatestKycSubmission } from '@/src/services/kyc';
 import { getResidentDetail, getCustomerVerificationStatus } from '@/src/services/residentAdmin';
 import { listAssignableBeds } from '@/src/services/tenantAssignment';
-import { getResidentFinancialSummary } from '@/src/services/residentFinancialEngine';
+import { getResidentFinancialAccount } from '@/src/services/residentFinancialEngine';
 import { listResidentInvoiceHistory } from '@/src/services/invoiceGeneration';
 import { getResidentBillingFormDefaults } from '@/src/services/residentBillingProfiles';
 import { getResidencyAdminView } from '@/src/services/continuousResidency';
@@ -124,10 +124,10 @@ export default async function ResidentDetailPage({
   const pendingKycSubmissionId =
     latestKyc?.status === 'pending' ? latestKyc.id : null;
 
-  const financialSummary =
-    customer.residencyStatus === 'vacated' ? null : await getResidentFinancialSummary(customerId);
+  const financialAccount =
+    customer.residencyStatus === 'vacated' ? null : await getResidentFinancialAccount(customerId);
   const invoiceHistory =
-    financialSummary && customer.residencyStatus !== 'vacated'
+    financialAccount && customer.residencyStatus !== 'vacated'
       ? await listResidentInvoiceHistory(customerId, 20)
       : [];
 
@@ -153,7 +153,7 @@ export default async function ResidentDetailPage({
     hasActiveTenancy: Boolean(activeTenancy),
     hasBed: Boolean(activeTenancy?.bedId),
     bookingId: activeTenancy?.bookingId ?? settledTenancy?.bookingId ?? null,
-    financialSummary,
+    financialSummary: financialAccount,
     residencyStatus: customer.residencyStatus,
     primaryUnresolved,
   });
@@ -273,7 +273,7 @@ export default async function ResidentDetailPage({
       {customer.residencyStatus !== 'vacated' ? (
         <>
           {activeTenancy &&
-          financialSummary &&
+          financialAccount &&
           billingDefaults &&
           isMonthlyStayType(activeTenancy.stayType) ? (
             <ResidentInlineOpenBills
@@ -285,28 +285,28 @@ export default async function ResidentDetailPage({
               roomNumber={activeTenancy.roomNumber}
               bookingId={activeTenancy.bookingId}
               billingDefaults={billingDefaults}
-              financialSummary={financialSummary}
+              financialSummary={financialAccount}
             />
           ) : null}
 
-          {activeTenancy && financialSummary ? (
+          {activeTenancy && financialAccount ? (
             <ResidentFinancialSSOTPanel
               activeTenancy={activeTenancy}
               billingDefaults={billingDefaults}
-              financialSummary={financialSummary}
+              financialSummary={financialAccount}
               depositSummary={depositSummary}
               invoiceHistory={invoiceHistory}
             />
           ) : null}
 
-          {financialSummary && activeTenancy ? (
+          {financialAccount && activeTenancy ? (
             <ResidentProfileAdvancedTools
               customerId={customerId}
               customerName={customer.fullName}
               phone={customer.phone}
               kycStatus={customer.kycStatus}
               canArchive={canArchive}
-              financialSummary={financialSummary}
+              financialSummary={financialAccount}
               invoiceHistory={invoiceHistory}
               depositWallet={depositSummary}
               bookingId={activeTenancy.bookingId}

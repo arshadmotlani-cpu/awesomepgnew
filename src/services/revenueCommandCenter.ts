@@ -116,8 +116,30 @@ function buildOutstandingFromSsot(
     pendingDepositPaise: portfolio.deposit.outstandingPaise,
     pendingPaymentApprovals,
     pendingPaymentApprovalsPaise,
-    totalOutstandingPaise:
-      portfolio.totals.outstandingPaise + pendingPaymentApprovalsPaise,
+    /** SSOT: invoice outstanding only — proofs awaiting review are already in outstanding. */
+    totalOutstandingPaise: portfolio.totals.outstandingPaise,
+  };
+}
+
+/** @internal Exported for financial surface audit tests. */
+export function buildOutstandingFromSsotForAudit(
+  portfolio: {
+    pendingRentInvoiceCount: number;
+    pendingElectricityInvoiceCount: number;
+    rent: { outstandingPaise: number };
+    electricity: { outstandingPaise: number };
+    deposit: { outstandingPaise: number };
+    totals: { outstandingPaise: number };
+  },
+  pendingPayments: Array<{ amountPaise: number }>,
+): Pick<OutstandingMoneySummary, 'totalOutstandingPaise' | 'pendingPaymentApprovalsPaise'> {
+  const summary = buildOutstandingFromSsot(
+    portfolio as Awaited<ReturnType<typeof import('@/src/services/residentFinancialEngine').getPortfolioFinancialTotals>>,
+    pendingPayments as PendingPaymentReviewItem[],
+  );
+  return {
+    totalOutstandingPaise: summary.totalOutstandingPaise,
+    pendingPaymentApprovalsPaise: summary.pendingPaymentApprovalsPaise,
   };
 }
 

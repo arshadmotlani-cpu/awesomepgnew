@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSession } from '@/src/lib/auth/session';
 import {
-  countUnreadNotifications,
-  listAdminNotifications,
-} from '@/src/services/adminNotifications';
+  countUnreadForAdmin,
+  listAdminInboxNotifications,
+} from '@/src/services/notificationEngine';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,8 +17,8 @@ export async function GET(req: NextRequest) {
   const filter =
     state === 'read' || state === 'archived' || state === 'all' ? state : 'unread';
 
-  const data = await listAdminNotifications(session, filter, 50);
-  const unreadCount = await countUnreadNotifications(session);
+  const data = await listAdminInboxNotifications(session, filter, 50);
+  const unreadCount = await countUnreadForAdmin(session);
 
   return NextResponse.json({
     ok: true,

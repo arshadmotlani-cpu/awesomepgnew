@@ -29,12 +29,14 @@ import { formatDate } from '@/src/lib/dates';
 import type {
   GlobalFinancialAggregates,
   ResidentDepositCategory,
+  ResidentFinancialAccount,
   ResidentFinancialCategory,
   ResidentFinancialLineItem,
   ResidentFinancialSummary,
   ResidentFinancialTotals,
+  FinancialLedgerTimelineEntry,
 } from '@/src/lib/billing/residentFinancialTypes';
-import { getDepositSummaryForBooking } from '@/src/services/deposits';
+import { getDepositSummaryForBooking, type DepositSummary } from '@/src/services/deposits';
 import { getActiveTenancyForCustomer } from '@/src/lib/residentActiveTenancy';
 import { projectElectricityInvoice } from '@/src/services/electricityBilling';
 import { projectInvoice } from '@/src/services/rentInvoices';
@@ -393,6 +395,125 @@ async function buildOtherCategory(
   }
 
   return { requiredPaise, paidPaise, outstandingPaise, items };
+}
+
+function buildLedgerTimeline(
+  depositEntries: DepositSummary['entries'] | undefined,
+  categories: ResidentFinancialCategory[],
+): FinancialLedgerTimelineEntry[] {
+  const timeline: FinancialLedgerTimelineEntry[] = [];
+
+  for (const entry of depositEntries ?? []) {
+    const kind =
+      entry.entryKind === 'collected'
+        ? 'deposit_collected'
+        : entry.entryKind === 'deducted'
+          ? 'deposit_deducted'
+          : entry.entryKind === 'refunded'
+            ? 'deposit_refunded'
+            : 'adjustment';
+    timeline.push({
+      at: entry.createdAt.toISOString(),
+      kind,
+      label: entry.reason ?? entry.entryKind,
+      amountPaise: entry.amountPaise,
+      sourceTable: 'deposit_ledger',
+      sourceId: entry.id,
+    });
+  }
+
+  for (const cat of categories) {
+    for (const item of cat.items) {
+      if (item.paidPaise > 0 && item.generatedAt) {
+        timeline.push({
+          at: item.generatedAt,
+          kind:
+            item.kind === 'rent'
+              ? 'rent'
+              : item.kind === 'electricity'
+                ? 'electricity'
+                : 'other',
+          label: `${item.label} · paid`,
+          amountPaise: -item.paidPaise,
+          sourceTable: item.sourceTable ?? null,
+          sourceId: item.sourceId ?? item.id,
+        });
+      }
+      if (item.outstandingPaise > 0 && item.generatedAt) {
+        timeline.push({
+          at: item.generatedAt,
+          kind:
+            item.kind === 'rent'
+              ? 'rent'
+              : item.kind === 'electricity'
+                ? 'electricity'
+                : 'other',
+          label: `${item.label} · due`,
+          amountPaise: item.outstandingPaise,
+          sourceTable: item.sourceTable ?? null,
+          sourceId: item.sourceId ?? item.id,
+        });
+      }
+    }
+  }
+
+  return timeline.sort((a, b) => a.at.localeCompare(b.at));
+}
+
+function projectSummaryToAccount(
+  summary: ResidentFinancialSummary,
+  depositSummary: Awaited<ReturnType<typeof getDepositSummaryForBooking>> | null,
+): ResidentFinancialAccount {
+  const ledgerTimeline = buildLedgerTimeline(depositSummary?.entries, [
+    summary.rent,
+    summary.electricity,
+    summary.other,
+    summary.deposit,
+  ]);
+
+  return {
+    ...summary,
+    depositHeldPaise: summary.deposit.refundablePaise,
+    rentOutstandingPaise: summary.rent.outstandingPaise,
+    electricityOutstandingPaise: summary.electricity.outstandingPaise,
+    otherChargesOutstandingPaise: summary.other.outstandingPaise,
+    creditsPaise: 0,
+    refundBalancePaise: depositSummary?.refundableBalancePaise ?? summary.deposit.refundablePaise,
+    totalOutstandingPaise: summary.totals.outstandingPaise,
+    ledgerTimeline,
+  };
+}
+
+export async function getBookingFinancialAccount(
+  args: Parameters<typeof getBookingFinancialSummary>[0],
+): Promise<ResidentFinancialAccount> {
+  const [bookingRow] = await db
+    .select({
+      depositPaise: bookings.depositPaise,
+      depositDuePaise: bookings.depositDuePaise,
+    })
+    .from(bookings)
+    .where(eq(bookings.id, args.bookingId))
+    .limit(1);
+
+  const summary = await getBookingFinancialSummary({
+    ...args,
+    depositPaise: bookingRow?.depositPaise ?? args.depositPaise,
+    depositDuePaise: bookingRow?.depositDuePaise ?? args.depositDuePaise,
+  });
+  const depositSummary = await getDepositSummaryForBooking(args.bookingId);
+  return projectSummaryToAccount(summary, depositSummary);
+}
+
+export async function getResidentFinancialAccount(
+  customerId: string,
+): Promise<ResidentFinancialAccount | null> {
+  const summary = await getResidentFinancialSummary(customerId);
+  if (!summary) return null;
+  const depositSummary = summary.bookingId
+    ? await getDepositSummaryForBooking(summary.bookingId)
+    : null;
+  return projectSummaryToAccount(summary, depositSummary);
 }
 
 export async function getBookingFinancialSummary(args: {
@@ -901,3 +1022,29 @@ export async function listOutstandingDepositsFromEngine(
 
 /** Live outstanding — open invoices + deposit shortfall not on invoice. Re-export for profile UIs. */
 export { getLiveOutstandingBalance } from '@/src/services/financialIntegrityAudit';
+
+/**
+ * Single-invoice projection helpers — the only supported way to read outstanding
+ * outside aggregate account builders. Keeps `projectInvoice` inside this module.
+ */
+export function computeRentInvoiceOutstandingPaise(invoice: RentInvoice): number {
+  return projectInvoice(invoice).outstandingPaise;
+}
+
+export function computeRentInvoiceEffectiveStatus(invoice: RentInvoice): string {
+  return projectInvoice(invoice).effectiveStatus;
+}
+
+export function computeElectricityInvoiceOutstandingPaise(
+  invoice: ElectricityInvoice,
+  today?: string,
+): number {
+  return projectElectricityInvoice(invoice, today).outstandingPaise;
+}
+
+export function computeElectricityInvoiceEffectiveStatus(
+  invoice: ElectricityInvoice,
+  today?: string,
+): string {
+  return projectElectricityInvoice(invoice, today).effectiveStatus;
+}

@@ -6,6 +6,8 @@ import {
 } from '@/src/services/automationEngine';
 import { processFixedStayAutoExpiryBatch } from '@/src/services/fixedStayAutoExpiry';
 import { processVacatingPastDueDaily } from '@/src/services/vacatingPastDue';
+import { syncActionItemsForCron } from '@/src/services/actionItems';
+import { runGhostBookingAudit } from '@/src/services/ghostBookingAudit';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -31,6 +33,8 @@ async function handle(req: NextRequest) {
   const processed = await processQueuedAutomationActions(100);
   const vacatingPastDue = await processVacatingPastDueDaily();
   const fixedStayExpiry = await processFixedStayAutoExpiryBatch();
+  await syncActionItemsForCron().catch(() => undefined);
+  const ghostAudit = await runGhostBookingAudit().catch(() => ({ issues: [] }));
 
   return Response.json({
     ok: true,
@@ -39,6 +43,8 @@ async function handle(req: NextRequest) {
     actionItemsSynced: true,
     vacatingPastDue,
     fixedStayExpiry,
+    ghostBookingIssues:
+      'summary' in ghostAudit ? ghostAudit.summary.totalIssues : 0,
     at: new Date().toISOString(),
   });
 }
