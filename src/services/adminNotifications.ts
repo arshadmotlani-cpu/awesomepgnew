@@ -22,6 +22,10 @@ import type { AdminModule } from '@/src/lib/admin/navigation';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { formatDate } from '@/src/lib/dates';
+import {
+  buildCheckoutNotificationPushContent,
+  isCheckoutNotificationType,
+} from '@/src/lib/notifications/checkoutNotificationContent';
 import type { ActionItemRow } from '@/src/services/actionItems';
 import { logger } from '@/src/lib/logger';
 import {
@@ -203,12 +207,17 @@ export async function syncAdminNotificationsFromActionItems(
         ).map((a) => a.id)
       : await adminsForPg(row.pgId);
 
-    const body = buildDetail(row.type, meta, row.dueDate) ?? row.title;
+    const checkoutPush = isCheckoutNotificationType(row.type)
+      ? buildCheckoutNotificationPushContent(row.type, meta, row.dueDate, row.title)
+      : null;
+    const title = checkoutPush?.title ?? TYPE_LABELS[row.type] ?? row.title;
+    const body =
+      checkoutPush?.body ?? buildDetail(row.type, meta, row.dueDate) ?? row.title;
     await emitAdminNotificationsForActionItem({
       adminIds,
       sourceKey: row.sourceKey,
       type: row.type,
-      title: TYPE_LABELS[row.type] ?? row.title,
+      title,
       body,
       href: row.href,
       entityType: row.type,

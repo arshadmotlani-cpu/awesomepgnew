@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   bootstrapAdminPushRegistration,
+  clearPushBannerDismissed,
   clearStoredPushRegistration,
   dismissPushBanner,
+  readPushBannerDismissed,
   runAdminPushRegistration,
 } from '@/src/lib/push/clientRegistration';
 
@@ -19,7 +21,7 @@ async function updateBadge(unreadCount: number) {
 }
 
 type PushStatus =
-  | 'idle'
+  | 'bootstrapping'
   | 'unsupported'
   | 'denied'
   | 'awaiting_permission'
@@ -32,7 +34,7 @@ type PushStatus =
  * Permission is requested only after an explicit user tap (required on mobile).
  */
 export function AdminPushRegistration() {
-  const [status, setStatus] = useState<PushStatus>('idle');
+  const [status, setStatus] = useState<PushStatus>('bootstrapping');
   const [errorDetail, setErrorDetail] = useState<string | null>(null);
   const [registering, setRegistering] = useState(false);
   const registeringRef = useRef(false);
@@ -75,7 +77,7 @@ export function AdminPushRegistration() {
           setErrorDetail(action.error);
           return;
         default:
-          setStatus('awaiting_permission');
+          setStatus('active');
       }
     },
     [syncBadge],
@@ -90,6 +92,7 @@ export function AdminPushRegistration() {
       try {
         const result = await runAdminPushRegistration({ requestPermission });
         if (result.lastStep === 'complete') {
+          clearPushBannerDismissed();
           await syncBadge();
           setStatus('active');
           return;
@@ -142,15 +145,7 @@ export function AdminPushRegistration() {
       if (event.data?.type === 'PUSH_SUBSCRIPTION_EXPIRED') {
         void (async () => {
           const { action } = await bootstrapAdminPushRegistration();
-          if (action.kind === 'active') {
-            await applyBootstrapAction(action);
-            return;
-          }
-          if (Notification.permission === 'default') {
-            setStatus('awaiting_permission');
-            return;
-          }
-          await completeRegistration(false);
+          await applyBootstrapAction(action);
         })();
       }
     };
@@ -168,17 +163,27 @@ export function AdminPushRegistration() {
       navigator.serviceWorker?.removeEventListener('message', onMessage);
       window.removeEventListener('admin-badges-updated', onBadgeUpdate);
     };
-  }, [applyBootstrapAction, completeRegistration]);
+  }, [applyBootstrapAction]);
 
-  if (status === 'active' || status === 'unsupported') {
+  if (status === 'bootstrapping' || status === 'active' || status === 'unsupported') {
     return null;
   }
 
   if (status === 'denied') {
     return (
-      <p className="sr-only">
-        Push notifications blocked — enable in browser settings to get alerts on this device.
-      </p>
+      <div
+        role="status"
+        className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-3 right-3 z-40 mx-auto max-w-lg rounded-lg border border-white/10 bg-[#1A1F27]/95 px-3 py-2 shadow sm:left-auto sm:right-6"
+      >
+        <p className="text-xs text-apg-silver">
+          Push notifications are blocked on this device. Enable them in your browser settings, or
+          open{' '}
+          <a href="/admin/settings/notifications" className="font-medium text-[#FF5A1F] hover:underline">
+            Settings → Notifications
+          </a>{' '}
+          after allowing permission.
+        </p>
+      </div>
     );
   }
 
@@ -198,7 +203,7 @@ export function AdminPushRegistration() {
     );
   }
 
-  if (status === 'awaiting_permission' || status === 'error' || status === 'idle') {
+  if (status === 'awaiting_permission' || status === 'error') {
     return (
       <div
         role="dialog"
@@ -237,4 +242,97 @@ export function AdminPushRegistration() {
   }
 
   return null;
+}
+
+/** Manual enable from Settings → Notifications (after dismissing the one-time prompt). */
+export function SettingsNotificationPush() {
+  const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>('default');
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [registering, setRegistering] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      setPermission('unsupported');
+      return;
+    }
+    setPermission(Notification.permission);
+    setBannerDismissed(readPushBannerDismissed());
+  }, []);
+
+  async function handleEnable() {
+    setRegistering(true);
+    setMessage(null);
+    setError(null);
+    try {
+      const result = await runAdminPushRegistration({ requestPermission: true });
+      setPermission(result.notificationPermission as NotificationPermission);
+      if (result.lastStep === 'complete') {
+        clearPushBannerDismissed();
+        setMessage('Push notifications enabled on this device.');
+        return;
+      }
+      if (result.notificationPermission === 'denied') {
+        setError('Permission blocked. Enable notifications in your browser settings, then try again.');
+        return;
+      }
+      setError(result.lastError ?? 'Could not enable push notifications.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRegistering(false);
+    }
+  }
+
+  if (permission === 'unsupported') {
+    return (
+      <p className="mt-4 text-sm text-apg-silver">
+        Push notifications are not supported in this browser.
+      </p>
+    );
+  }
+
+  if (permission === 'granted') {
+    return (
+      <p className="mt-4 text-sm text-emerald-300">
+        Push notifications are enabled on this device.
+      </p>
+    );
+  }
+
+  if (permission === 'denied') {
+    return (
+      <p className="mt-4 text-sm text-apg-silver">
+        Notifications are blocked in your browser. Open site settings for this app and allow
+        notifications, then return here to register this device.
+      </p>
+    );
+  }
+
+  if (bannerDismissed) {
+    return (
+      <div className="mt-4 space-y-2">
+        <p className="text-sm text-apg-silver">
+          Push alerts are off on this device. Enable them when you are ready.
+        </p>
+        <button
+          type="button"
+          disabled={registering}
+          onClick={() => void handleEnable()}
+          className="rounded-lg bg-[#FF5A1F] px-4 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50"
+        >
+          {registering ? 'Enabling…' : 'Enable push notifications'}
+        </button>
+        {message ? <p className="text-sm text-emerald-300">{message}</p> : null}
+        {error ? <p className="text-sm text-rose-300">{error}</p> : null}
+      </div>
+    );
+  }
+
+  return (
+    <p className="mt-4 text-sm text-apg-silver">
+      You will be asked once in the admin app to enable push notifications.
+    </p>
+  );
 }
