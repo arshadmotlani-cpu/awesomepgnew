@@ -306,3 +306,6 @@ flowchart TB
 
 <!-- DOC_SYNC_TOUCH_2026-06-26 -->
 > **2026-06-26 11:29:51 UTC** — Code changed in: Routes, Database, Billing, Action Center, Electricity. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-06-27 -->
+> **2026-06-27 08:37:59 UTC** — Code changed in: Vacating, Action Center, Residents. Manual review recommended.

@@ -25,6 +25,7 @@ import type { AdminSession } from '@/src/lib/auth/session';
 import type { ActionItemMetadata } from '@/src/lib/actionCenter/constants';
 import { todayString } from '@/src/lib/dates';
 import { formatPgDisplayName } from '@/src/lib/operationsCenterRules';
+import { loadMoveOutPipelineBundle } from '@/src/services/moveOutPipelineService';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
 import { resolveStalePaymentReviewArtifacts } from '@/src/services/paymentReviewIntegrity';
 import {
@@ -477,116 +478,76 @@ async function syncKycPending(session: AdminSession): Promise<void> {
 }
 
 async function syncVacatingAlerts(session: AdminSession): Promise<void> {
-  const today = todayString();
-  /** LEFT JOIN bed location — INNER JOIN dropped pending rows when primary reservation was missing. */
-  const rows = await db.execute<{
-    id: string;
-    pg_id: string | null;
-    pg_name: string | null;
-    resident_id: string;
-    resident_name: string;
-    resident_phone: string | null;
-    resident_email: string | null;
-    room_id: string | null;
-    bed_id: string | null;
-    room_number: string | null;
-    bed_code: string | null;
-    vacating_date: string;
-    vacating_status: 'pending' | 'approved';
-    booking_id: string;
-    settlement_id: string | null;
-  }>(sql`
-    SELECT
-      vr.id,
-      loc.pg_id,
-      loc.pg_name,
-      vr.customer_id AS resident_id,
-      c.full_name AS resident_name,
-      c.phone AS resident_phone,
-      c.email AS resident_email,
-      loc.room_id,
-      loc.bed_id,
-      loc.room_number,
-      loc.bed_code,
-      vr.vacating_date::text AS vacating_date,
-      vr.status AS vacating_status,
-      vr.booking_id,
-      cs.id AS settlement_id
-    FROM vacating_requests vr
-    INNER JOIN bookings b ON b.id = vr.booking_id
-    INNER JOIN customers c ON c.id = vr.customer_id
-    LEFT JOIN LATERAL (
-      SELECT
-        p.id AS pg_id,
-        p.name AS pg_name,
-        r.id AS room_id,
-        bd.id AS bed_id,
-        r.room_number,
-        bd.bed_code
-      FROM bed_reservations br
-      INNER JOIN beds bd ON bd.id = br.bed_id
-      INNER JOIN rooms r ON r.id = bd.room_id
-      INNER JOIN floors f ON f.id = r.floor_id
-      INNER JOIN pgs p ON p.id = f.pg_id
-      WHERE br.booking_id = vr.booking_id AND br.kind = 'primary'
-      ORDER BY
-        CASE
-          WHEN br.status IN ('hold', 'active') AND CURRENT_DATE <@ br.stay_range THEN 0
-          ELSE 1
-        END,
-        br.created_at DESC
-      LIMIT 1
-    ) loc ON true
-    LEFT JOIN checkout_settlements cs ON cs.vacating_request_id = vr.id
-    WHERE vr.status IN ('pending', 'approved')
-      AND NOT EXISTS (
-        SELECT 1 FROM checkout_settlements cs2
-        WHERE cs2.vacating_request_id = vr.id
-          AND cs2.status IN ('completed', 'refund_paid')
-      )
-  `);
+  const bundle = await loadMoveOutPipelineBundle(session, { syncSettlements: false });
+  const vacatingById = new Map(bundle.vacatingRows.map((row) => [row.id, row]));
+  const activeKeys = new Set<string>();
 
-  for (const row of rows) {
-    if (row.pg_id && !sessionCanAccessPg(session, row.pg_id)) continue;
-    if (!row.pg_id) {
-      console.warn('[syncVacatingAlerts] skip vacating row without PG context', row.id, row.booking_id);
+  for (const item of bundle.activeItems) {
+    const row = vacatingById.get(item.vacatingRequestId);
+    if (!row?.pgId) {
+      console.warn(
+        '[syncVacatingAlerts] skip active pipeline row without PG context',
+        item.vacatingRequestId,
+        item.bookingId,
+      );
       continue;
     }
-    const daysRemaining = tryDiffDays(today, row.vacating_date) ?? 0;
+    if (!sessionCanAccessPg(session, row.pgId)) continue;
+
+    const daysRemaining = item.daysRemaining;
     const isPastDue = daysRemaining < 0;
     const daysPastDue = isPastDue ? Math.abs(daysRemaining) : 0;
     const title = isPastDue
-      ? row.vacating_status === 'approved'
-        ? `${row.resident_name} · Move-out overdue (${daysPastDue}d) · complete checkout`
-        : `${row.resident_name} · Notice expired (${daysPastDue}d) · approve move-out`
-      : row.vacating_status === 'pending'
-        ? `${row.resident_name} · Approve move-out notice · ${row.vacating_date}`
-        : `${row.resident_name} · Vacating ${row.vacating_date}`;
+      ? item.vacatingStatus === 'approved'
+        ? `${item.customerFullName} · Move-out overdue (${daysPastDue}d) · complete checkout`
+        : `${item.customerFullName} · Notice expired (${daysPastDue}d) · approve move-out`
+      : item.vacatingStatus === 'pending'
+        ? `${item.customerFullName} · Approve move-out notice · ${item.vacatingDate}`
+        : `${item.customerFullName} · Vacating ${item.vacatingDate}`;
+
+    const sourceKey = `vacating:${item.vacatingRequestId}`;
+    activeKeys.add(sourceKey);
 
     await upsertActionItem({
       type: 'vacating_alert',
       title,
-      pgId: row.pg_id,
-      roomId: row.room_id,
-      bedId: row.bed_id,
-      residentId: row.resident_id,
-      dueDate: row.vacating_date,
+      pgId: row.pgId,
+      residentId: item.customerId,
+      dueDate: item.vacatingDate,
       priority: isPastDue ? 'high' : daysRemaining <= 3 ? 'high' : daysRemaining <= 7 ? 'medium' : 'low',
-      sourceKey: `vacating:${row.id}`,
+      sourceKey,
       metadata: {
-        residentName: row.resident_name,
-        residentPhone: row.resident_phone ?? undefined,
-        residentEmail: row.resident_email ?? undefined,
-        pgName: row.pg_name ? formatPgDisplayName(row.pg_name) : undefined,
-        roomNumber: row.room_number ?? undefined,
-        bedCode: row.bed_code ?? undefined,
-        bookingId: row.booking_id,
-        vacatingRequestId: row.id,
-        settlementId: row.settlement_id ?? undefined,
+        residentName: item.customerFullName,
+        residentPhone: row.customerPhone ?? undefined,
+        pgName: formatPgDisplayName(item.pgName),
+        roomNumber: item.roomNumber !== '—' ? item.roomNumber : undefined,
+        bedCode: item.bedCode !== '—' ? item.bedCode : undefined,
+        bookingId: item.bookingId,
+        vacatingRequestId: item.vacatingRequestId,
+        settlementId: item.settlementId ?? undefined,
         isPastDue,
         daysPastDue: isPastDue ? daysPastDue : undefined,
       },
     });
+  }
+
+  const stale = await db
+    .select({ sourceKey: actionItems.sourceKey })
+    .from(actionItems)
+    .where(
+      and(
+        eq(actionItems.type, 'vacating_alert'),
+        inArray(actionItems.status, ['open', 'in_progress']),
+      ),
+    );
+
+  for (const row of stale) {
+    if (!activeKeys.has(row.sourceKey)) {
+      await db
+        .update(actionItems)
+        .set({ status: 'resolved', updatedAt: new Date() })
+        .where(eq(actionItems.sourceKey, row.sourceKey));
+    }
   }
 }
 

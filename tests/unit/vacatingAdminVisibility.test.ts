@@ -63,11 +63,11 @@ test('command stats count pending approval separately', () => {
   assert.equal(stats.needsAction, 1);
 });
 
-test('syncVacatingAlerts uses LEFT JOIN LATERAL (not inner join on bed_reservations)', () => {
+test('syncVacatingAlerts reads active rows from move-out pipeline SSOT', () => {
   const source = readFileSync('src/services/actionItems.ts', 'utf8');
   const start = source.indexOf('async function syncVacatingAlerts');
   const end = source.indexOf('async function syncRefundsPending');
   const fn = source.slice(start, end);
-  assert.match(fn, /LEFT JOIN LATERAL/);
-  assert.doesNotMatch(fn, /\.innerJoin\(\s*bedReservations/);
+  assert.match(fn, /loadMoveOutPipelineBundle/);
+  assert.match(fn, /bundle\.activeItems/);
 });

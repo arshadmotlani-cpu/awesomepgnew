@@ -14,11 +14,9 @@ import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
 import { listResidentsForAdmin } from '@/src/services/residentAdmin';
 import { listPendingResidentRequestsForAdmin } from '@/src/services/residentRequests';
 import { listPipelineCheckoutSettlements } from '@/src/services/checkoutSettlement';
+import { getMoveOutPipelineSnapshot } from '@/src/services/moveOutPipelineService';
 import { getOperationsCenterData } from '@/src/services/operationsCenter';
-import {
-  isStaleZeroRefundSettlement,
-  isTerminalCheckoutSettlement,
-} from '@/src/lib/residents/checkoutOpsQueueCopy';
+import { isStaleZeroRefundSettlement } from '@/src/lib/residents/checkoutOpsQueueCopy';
 import {
   isDismissedFromOperationsQueue,
   loadOperationsQueueDismissalIndex,
@@ -46,6 +44,7 @@ export async function loadResidentOperationsDashboard(session: AdminSession) {
     vacatingRes,
     checkoutSettlements,
     residentRequests,
+    moveOutPipeline,
     opsCenter,
     dismissalIndex,
   ] = await Promise.all([
@@ -58,6 +57,7 @@ export async function loadResidentOperationsDashboard(session: AdminSession) {
     listAdminVacatingRequests(),
     listPipelineCheckoutSettlements(session),
     listPendingResidentRequestsForAdmin(session),
+    getMoveOutPipelineSnapshot(session),
     getOperationsCenterData(session),
     loadOperationsQueueDismissalIndex(),
   ]);
@@ -87,40 +87,23 @@ export async function loadResidentOperationsDashboard(session: AdminSession) {
     checkoutSettlements.map((s) => [s.vacatingRequestId, s]),
   );
 
-  const vacatingRows =
-    vacatingRes.ok
-      ? vacatingRes.data
-          .filter((v) => v.status === 'pending' || v.status === 'approved')
-          .filter((v) => !isDismissedFromOperationsQueue(dismissalIndex, {
-            customerId: v.customerId,
-            bookingId: v.bookingId,
-            vacatingRequestId: v.id,
-          }))
-          .filter((v) => {
-            const settlement = settlementByVacatingId.get(v.id);
-            if (!settlement) return true;
-            if (isTerminalCheckoutSettlement(settlement.status)) return false;
-            if (isStaleZeroRefundSettlement(settlement)) return false;
-            return true;
-          })
-          .map((v) => {
-            const settlement = settlementByVacatingId.get(v.id);
-            return {
-              id: v.id,
-              customerId: v.customerId,
-              customerFullName: v.customerFullName,
-              pgName: v.pgName,
-              roomNumber: v.roomNumber,
-              bedCode: v.bedCode,
-              status: v.status,
-              vacatingDate: v.vacatingDate,
-              bookingId: v.bookingId,
-              settlementId: settlement?.id ?? null,
-              settlementStatus: settlement?.status ?? null,
-              finalRefundPaise: settlement?.finalRefundPaise ?? null,
-            };
-          })
-      : [];
+  const vacatingRows = moveOutPipeline.activeItems.map((item) => {
+    const settlement = settlementByVacatingId.get(item.vacatingRequestId);
+    return {
+      id: item.vacatingRequestId,
+      customerId: item.customerId,
+      customerFullName: item.customerFullName,
+      pgName: item.pgName,
+      roomNumber: item.roomNumber,
+      bedCode: item.bedCode,
+      status: item.vacatingStatus,
+      vacatingDate: item.vacatingDate,
+      bookingId: item.bookingId,
+      settlementId: settlement?.id ?? item.settlementId,
+      settlementStatus: settlement?.status ?? item.settlementStatus,
+      finalRefundPaise: settlement?.finalRefundPaise ?? null,
+    };
+  });
 
   const residentByBooking = new Map(residents.map((r) => [r.bookingId, r]));
   for (const v of vacatingRows) {
@@ -150,14 +133,14 @@ export async function loadResidentOperationsDashboard(session: AdminSession) {
         }),
     )
     .map((r) => {
-    const resident = residents.find((x) => x.bookingId === r.bookingId);
-    return {
-      bookingId: r.bookingId,
-      customerName: r.residentName,
-      pgName: r.pgName,
-      customerId: resident?.id,
-    };
-  });
+      const resident = residents.find((x) => x.bookingId === r.bookingId);
+      return {
+        bookingId: r.bookingId,
+        customerName: r.residentName,
+        pgName: r.pgName,
+        customerId: resident?.id,
+      };
+    });
 
   const moveInsToday = opsCenter.upcomingReservations.items
     .filter((r) => r.checkInDate === today)
@@ -168,7 +151,7 @@ export async function loadResidentOperationsDashboard(session: AdminSession) {
       roomNumber: r.roomNumber,
     }));
 
-  const moveOutsToday = opsCenter.leavingSoon.items
+  const moveOutsToday = moveOutPipeline.moveOutNoticeItems
     .filter((v) => v.daysRemaining <= 0)
     .map((v) => ({
       residentName: v.residentName,

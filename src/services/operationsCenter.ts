@@ -23,12 +23,10 @@ import {
   depositRefundPriority,
   electricityPriority,
   formatPgDisplayName,
-  isWithinDays,
   kycPriority,
   paymentApprovalPriority,
   ps4RenewalPriority,
   reservationPriority,
-  vacatingPriority,
   type OpsPriority,
 } from '@/src/lib/operationsCenterRules';
 import { dedupeOpsTasks, type OpsTaskInput } from '@/src/lib/operationsCenterAudit';
@@ -38,6 +36,7 @@ import {
 } from '@/src/services/residentFinancialEngine';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
 import { listPipelineCheckoutSettlements } from '@/src/services/checkoutSettlement';
+import { getMoveOutPipelineSnapshot } from '@/src/services/moveOutPipelineService';
 import { isStaleZeroRefundSettlement } from '@/src/lib/residents/checkoutOpsQueueCopy';
 import {
   isDismissedFromOperationsQueue,
@@ -227,33 +226,6 @@ async function listActiveBedReserves(session: AdminSession) {
     }));
 }
 
-async function listVacatingForOps(session: AdminSession) {
-  const rows = await db
-    .select({
-      id: vacatingRequests.id,
-      pgId: pgs.id,
-      pgName: pgs.name,
-      customerFullName: customers.fullName,
-      bedCode: beds.bedCode,
-      roomNumber: rooms.roomNumber,
-      vacatingDate: vacatingRequests.vacatingDate,
-    })
-    .from(vacatingRequests)
-    .innerJoin(bookings, eq(bookings.id, vacatingRequests.bookingId))
-    .innerJoin(customers, eq(customers.id, vacatingRequests.customerId))
-    .innerJoin(
-      bedReservations,
-      and(eq(bedReservations.bookingId, bookings.id), eq(bedReservations.kind, 'primary')),
-    )
-    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
-    .innerJoin(rooms, eq(rooms.id, beds.roomId))
-    .innerJoin(floors, eq(floors.id, rooms.floorId))
-    .innerJoin(pgs, eq(pgs.id, floors.pgId))
-    .where(inArray(vacatingRequests.status, ['pending', 'approved']))
-    .orderBy(vacatingRequests.vacatingDate);
-
-  return rows.filter((r) => sessionCanAccessPg(session, r.pgId));
-}
 
 async function listPendingDepositRefunds(session: AdminSession) {
   const today = todayString();
@@ -495,7 +467,7 @@ export async function getOperationsCenterData(
   const [
     paymentItems,
     pendingKycItems,
-    vacatingRows,
+    moveOutPipeline,
     reservations,
     refunds,
     checkoutSettlements,
@@ -505,7 +477,7 @@ export async function getOperationsCenterData(
   ] = await Promise.all([
     listPendingPaymentReviews(session),
     listPendingKycWithPg(session),
-    listVacatingForOps(session),
+    getMoveOutPipelineSnapshot(session),
     listActiveBedReserves(session),
     listPendingDepositRefunds(session),
     listPipelineCheckoutSettlements(session),
@@ -514,9 +486,6 @@ export async function getOperationsCenterData(
     loadOperationsQueueDismissalIndex(),
   ]);
 
-  const visibleVacatingRows = vacatingRows.filter(
-    (v) => !isDismissedFromOperationsQueue(dismissalIndex, { vacatingRequestId: v.id }),
-  );
   const visibleRefunds = refunds.filter(
     (r) => !isDismissedFromOperationsQueue(dismissalIndex, { bookingId: r.bookingId }),
   );
@@ -528,31 +497,18 @@ export async function getOperationsCenterData(
     amountPaise: p.amountPaise,
   }));
 
-  const leavingSoonItems = visibleVacatingRows.map((v) => {
-    const daysRemaining = diffDays(today, v.vacatingDate);
-    return {
-      id: v.id,
-      residentName: v.customerFullName,
-      bedCode: v.bedCode,
-      roomNumber: v.roomNumber,
-      pgName: formatPgDisplayName(v.pgName),
-      vacatingDate: v.vacatingDate,
-      daysRemaining,
-      priority: vacatingPriority(daysRemaining),
-    };
-  });
+  const leavingSoonItems = moveOutPipeline.moveOutNoticeItems.map((v) => ({
+    id: v.id,
+    residentName: v.residentName,
+    bedCode: v.bedCode,
+    roomNumber: v.roomNumber,
+    pgName: v.pgName,
+    vacatingDate: v.vacatingDate,
+    daysRemaining: v.daysRemaining,
+    priority: v.priority,
+  }));
 
-  const bedsReleasingItems = leavingSoonItems
-    .filter((v) => isWithinDays(v.vacatingDate, today, 30))
-    .map(({ id, bedCode, roomNumber, pgName, vacatingDate, daysRemaining, priority }) => ({
-      id,
-      bedCode,
-      roomNumber,
-      pgName,
-      vacatingDate,
-      daysRemaining,
-      priority,
-    }));
+  const bedsReleasingItems = moveOutPipeline.bedsReleasingItems;
 
   const checkoutRefundItems = checkoutSettlements
     .filter((s) => s.status === 'refund_pending' && !isStaleZeroRefundSettlement(s))

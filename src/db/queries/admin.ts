@@ -1603,6 +1603,7 @@ export type AdminVacatingRow = {
   customerId: string;
   customerFullName: string;
   customerPhone: string;
+  pgId: string | null;
   pgName: string;
   bedCode: string;
   roomNumber: string;
@@ -1630,6 +1631,7 @@ export function listAdminVacatingRequests(filter?: {
       customer_id: string;
       customer_full_name: string;
       customer_phone: string;
+      pg_id: string | null;
       pg_name: string | null;
       bed_code: string | null;
       room_number: string | null;
@@ -1651,6 +1653,7 @@ export function listAdminVacatingRequests(filter?: {
         vr.customer_id,
         c.full_name AS customer_full_name,
         c.phone AS customer_phone,
+        loc.pg_id,
         loc.pg_name,
         loc.bed_code,
         loc.room_number,
@@ -1668,7 +1671,7 @@ export function listAdminVacatingRequests(filter?: {
       INNER JOIN bookings b ON b.id = vr.booking_id
       INNER JOIN customers c ON c.id = vr.customer_id
       LEFT JOIN LATERAL (
-        SELECT p.name AS pg_name, r.room_number, bd.bed_code
+        SELECT p.id AS pg_id, p.name AS pg_name, r.room_number, bd.bed_code
         FROM bed_reservations br
         INNER JOIN beds bd ON bd.id = br.bed_id
         INNER JOIN rooms r ON r.id = bd.room_id
@@ -1698,6 +1701,7 @@ export function listAdminVacatingRequests(filter?: {
             customerId: r.customer_id,
             customerFullName: r.customer_full_name,
             customerPhone: r.customer_phone,
+            pgId: r.pg_id,
             pgName: r.pg_name ?? '—',
             bedCode: r.bed_code ?? '—',
             roomNumber: r.room_number ?? '—',
