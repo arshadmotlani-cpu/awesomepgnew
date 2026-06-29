@@ -1015,7 +1015,7 @@ export async function ensureCheckoutSettlementForBooking(input: {
     const { ensureFixedStayCheckoutPrerequisites } = await import(
       '@/src/services/fixedStayAutoExpiry'
     );
-    vacatingRequestId = await ensureFixedStayCheckoutPrerequisites(booking);
+    vacatingRequestId = await ensureFixedStayCheckoutPrerequisites({ id: booking.id });
   } else {
     const [approvedVacating] = await db
       .select({ id: vacatingRequests.id })

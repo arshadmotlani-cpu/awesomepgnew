@@ -126,13 +126,35 @@ async function ensureSystemVacatingRequest(booking: {
 }
 
 /** Ensures an approved system vacating row exists for fixed-stay refund / expiry (idempotent). */
-export async function ensureFixedStayCheckoutPrerequisites(booking: {
+export async function ensureFixedStayCheckoutPrerequisites(input: {
   id: string;
-  customerId: string;
-  expectedCheckoutDate: string | null;
-  createdAt: Date;
 }): Promise<string> {
-  return ensureSystemVacatingRequest(booking);
+  const [row] = await db
+    .select({
+      id: bookings.id,
+      customerId: bookings.customerId,
+      expectedCheckoutDate: bookings.expectedCheckoutDate,
+      createdAt: bookings.createdAt,
+      pricingSnapshot: bookings.pricingSnapshot,
+    })
+    .from(bookings)
+    .where(eq(bookings.id, input.id))
+    .limit(1);
+
+  if (!row) {
+    throw new Error(`Booking not found: ${input.id}`);
+  }
+
+  const vacatingDate =
+    row.expectedCheckoutDate ?? formatDate(parseDate(row.createdAt));
+
+  return ensureSystemVacatingRequest({
+    id: row.id,
+    customerId: row.customerId,
+    expectedCheckoutDate: vacatingDate,
+    createdAt: row.createdAt,
+    pricingSnapshot: row.pricingSnapshot,
+  });
 }
 
 export type ExpireFixedStayResult =
