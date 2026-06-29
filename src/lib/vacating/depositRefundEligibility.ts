@@ -1,4 +1,4 @@
-import { todayString, normalizeIsoDateOnly } from '@/src/lib/dates';
+import { todayString, normalizeIsoDateOnly, tryDiffDays } from '@/src/lib/dates';
 import { isFixedStayDurationMode } from '@/src/lib/checkout/checkoutWorkflow';
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
 import {
