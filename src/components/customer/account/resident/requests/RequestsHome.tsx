@@ -19,6 +19,7 @@ import {
 } from '@/src/lib/residents/requestCenter';
 import { accountProfileHref, residentTabHref } from '@/src/lib/accountNavigation';
 import { buildRefundRequestPageModel } from '@/src/lib/refund/refundRequestValidation';
+import { applyDeveloperTestEligibilityOverride } from '@/src/lib/auth/developerTestResident.shared';
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
 
 type Props = {
@@ -40,6 +41,7 @@ type Props = {
   checkoutSettlementStatus?: string | null;
   checkoutSettlement?: { status: string; rejectionReason?: string | null } | null;
   monthlyRentPaise?: number;
+  developerTestEmail?: string | null;
 };
 
 export function RequestsHome({
@@ -61,6 +63,7 @@ export function RequestsHome({
   checkoutSettlementStatus = null,
   checkoutSettlement = null,
   monthlyRentPaise = 0,
+  developerTestEmail = null,
 }: Props) {
   const router = useRouter();
   const [making, setMaking] = useState(startMake);
@@ -83,6 +86,7 @@ export function RequestsHome({
         settlement:
           checkoutSettlement ??
           (checkoutSettlementStatus ? { status: checkoutSettlementStatus } : null),
+        developerTestEmail,
       }),
     [
       bookingId,
@@ -96,10 +100,16 @@ export function RequestsHome({
       vacating,
       checkoutSettlement,
       checkoutSettlementStatus,
+      developerTestEmail,
     ],
   );
 
-  const refundEligibility = refundPageModel.eligibility;
+  const refundEligibility = applyDeveloperTestEligibilityOverride(
+    developerTestEmail,
+    refundPageModel.eligibility,
+  );
+  const refundUnlocked =
+    refundEligibility.canRequestRefund || Boolean(developerTestEmail);
 
   const selected = useMemo(
     () => activeRequests.find((r) => r.id === selectedRequestId) ?? null,
@@ -124,7 +134,7 @@ export function RequestsHome({
       router.push(`/account/resident/request-vacating/${bookingId}`);
       return;
     }
-    if (cat.wired === 'deposit_refund' && !refundEligibility.canRequestRefund) {
+    if (cat.wired === 'deposit_refund' && !refundUnlocked) {
       return;
     }
     setMakeCategory(id);
@@ -136,7 +146,7 @@ export function RequestsHome({
   }
 
   if (making) {
-    if (makeCategory === 'deposit_refund' && !refundEligibility.canRequestRefund) {
+    if (makeCategory === 'deposit_refund' && !refundUnlocked) {
       return (
         <ApgCard tier="account" className="p-5">
           <p className="text-sm font-medium text-zinc-900">Deposit refund locked</p>
@@ -177,6 +187,7 @@ export function RequestsHome({
           bookingCreatedAt={bookingCreatedAt}
           checkoutSettlement={checkoutSettlement}
           monthlyRentPaise={monthlyRentPaise}
+          developerTestEmail={developerTestEmail}
           onClose={() => {
             setMaking(false);
             setMakeCategory(null);
@@ -254,9 +265,11 @@ export function RequestsHome({
               key={cat.id}
               title={cat.title}
               description={cat.description}
-              disabled={cat.id === 'deposit_refund' && !refundEligibility.canRequestRefund}
+              disabled={cat.id === 'deposit_refund' && !refundUnlocked}
               lockReason={
-                cat.id === 'deposit_refund' ? refundEligibility.lockReason : null
+                cat.id === 'deposit_refund' && !refundUnlocked
+                  ? refundEligibility.lockReason
+                  : null
               }
               onSelect={() => selectCategory(cat.id)}
             />
@@ -271,9 +284,11 @@ export function RequestsHome({
               key={cat.id}
               title={cat.title}
               description={cat.description}
-              disabled={cat.wired === 'deposit_refund' && !refundEligibility.canRequestRefund}
+              disabled={cat.wired === 'deposit_refund' && !refundUnlocked}
               lockReason={
-                cat.wired === 'deposit_refund' ? refundEligibility.lockReason : null
+                cat.wired === 'deposit_refund' && !refundUnlocked
+                  ? refundEligibility.lockReason
+                  : null
               }
               onSelect={() => selectCategory(cat.id)}
             />

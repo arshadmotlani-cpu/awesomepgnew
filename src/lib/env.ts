@@ -164,6 +164,10 @@ export const env = {
   get AUTH_OTP_MAX_SENDS_PER_IP_HOUR() {
     return optionalInt('AUTH_OTP_MAX_SENDS_PER_IP_HOUR', 15);
   },
+  /** Resident developer test mode — only this email receives workflow bypass + dev tools. */
+  get DEVELOPER_TEST_EMAIL() {
+    return optional('DEVELOPER_TEST_EMAIL');
+  },
 
   // ── Email (Resend preferred, SMTP fallback) ───────────────────────────────
   get RESEND_API_KEY() {

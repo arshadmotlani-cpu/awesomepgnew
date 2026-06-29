@@ -83,6 +83,18 @@ export function parseDaterange(value: string): ParsedRange {
   };
 }
 
+/** Non-throwing variant — returns null when the daterange string is malformed. */
+export function tryParseDaterange(value: string | null | undefined): ParsedRange | null {
+  if (!value || value === 'empty') {
+    return { lower: null, upper: null, lowerInc: false, upperInc: false };
+  }
+  try {
+    return parseDaterange(value);
+  } catch {
+    return null;
+  }
+}
+
 export type Busy = { start: Date; end: Date };
 export type FreeWindow = { startDate: string; endDate: string; nights: number };
 

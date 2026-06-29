@@ -15,6 +15,7 @@ type Props = {
   booking: RefundRequestBookingInput;
   vacating: VacatingForBookingRow | null;
   settlement: RefundRequestSettlementInput;
+  developerTestEmail?: string | null;
   onBack: () => void;
 };
 
@@ -23,6 +24,7 @@ export function RefundRequestPageGuard({
   booking,
   vacating,
   settlement,
+  developerTestEmail = null,
   onBack,
 }: Props) {
   const model = useMemo(
@@ -31,8 +33,9 @@ export function RefundRequestPageGuard({
         booking,
         vacating,
         settlement,
+        developerTestEmail,
       }),
-    [booking, vacating, settlement],
+    [booking, vacating, settlement, developerTestEmail],
   );
 
   useEffect(() => {
@@ -40,6 +43,7 @@ export function RefundRequestPageGuard({
       page: 'refund_request',
       bookingId: model.bookingId,
       customerId: customerId ?? undefined,
+      email: developerTestEmail ?? undefined,
       durationMode: model.durationMode,
       extra: {
         stayKind: model.stayKind,
@@ -48,7 +52,7 @@ export function RefundRequestPageGuard({
         settlementStatus: settlement?.status ?? null,
       },
     });
-  }, [customerId, model, settlement?.status]);
+  }, [customerId, developerTestEmail, model, settlement?.status]);
 
   if (!model.canRenderForm) {
     return (

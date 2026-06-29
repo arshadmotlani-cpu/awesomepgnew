@@ -34,6 +34,7 @@ type Props = {
   bookingCreatedAt?: Date | string;
   checkoutSettlement?: { status: string; rejectionReason?: string | null } | null;
   monthlyRentPaise?: number;
+  developerTestEmail?: string | null;
 };
 
 export function RequestsMakeFlow({
@@ -52,6 +53,7 @@ export function RequestsMakeFlow({
   bookingCreatedAt,
   checkoutSettlement = null,
   monthlyRentPaise = 0,
+  developerTestEmail = null,
 }: Props) {
   const router = useRouter();
   const resolvedInitialCategory =
@@ -84,6 +86,7 @@ export function RequestsMakeFlow({
         }}
         vacating={vacating}
         settlement={checkoutSettlement}
+        developerTestEmail={developerTestEmail}
         onBack={onClose}
       />
     );

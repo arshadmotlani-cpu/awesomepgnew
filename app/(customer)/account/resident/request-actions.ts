@@ -2,6 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 import { getCustomerSession } from '@/src/lib/auth/session';
+import { isDeveloperTestSession } from '@/src/lib/auth/developerTestResident.server';
+import { ensureApprovedVacatingForDeveloperTest } from '@/src/services/developerTestResidentOps';
 import { uploadPaymentScreenshot } from '@/src/lib/payments/screenshotUpload';
 import { revalidateVacatingLifecycleForBooking } from '@/src/lib/vacating/revalidateVacatingViews';
 import {
@@ -50,6 +52,13 @@ export async function submitDepositRefundRequestAction(
   const payoutQrUrl = formData.get('payoutQrUrl')?.toString()?.trim() || null;
   const payoutUpiId = formData.get('payoutUpiId')?.toString()?.trim() || null;
   const useAverageBillingFallback = formData.get('useAverageBillingFallback')?.toString() === '1';
+
+  if (isDeveloperTestSession(session)) {
+    await ensureApprovedVacatingForDeveloperTest({
+      customerId: session.customerId,
+      bookingId,
+    });
+  }
 
   const { getCheckoutSettlementForCustomer, submitResidentCheckoutDetails, ensureCheckoutSettlementForBooking } = await import(
     '@/src/services/checkoutSettlement'

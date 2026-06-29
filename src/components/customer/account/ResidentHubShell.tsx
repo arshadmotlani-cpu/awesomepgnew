@@ -8,18 +8,54 @@ import {
   RESIDENT_MOBILE_SECONDARY_TABS,
   residentTabMeta,
 } from '@/src/lib/residentNavigation';
+import { ResidentSectionErrorBoundary } from '@/src/components/customer/account/resident/ResidentSectionErrorBoundary';
+import { DeveloperTestResidentPanel } from '@/src/components/customer/account/resident/DeveloperTestResidentPanel';
+import type { DevResidentDurationMode } from '@/src/lib/auth/developerTestResident.shared';
 
 type Props = {
   activeTab: ResidentTab;
   children: React.ReactNode;
+  developerTestMode?: boolean;
+  customerId?: string | null;
+  customerEmail?: string | null;
+  bookingId?: string | null;
+  actualDurationMode?: string | null;
+  simulatedDurationMode?: DevResidentDurationMode | null;
 };
 
-export function ResidentHubShell({ activeTab, children }: Props) {
+export function ResidentHubShell({
+  activeTab,
+  children,
+  developerTestMode = false,
+  customerId = null,
+  customerEmail = null,
+  bookingId = null,
+  actualDurationMode = null,
+  simulatedDurationMode = null,
+}: Props) {
   const tabMeta = residentTabMeta(activeTab);
 
   return (
     <ResidentControlShell>
       <div className="apg-resident-hub-main min-w-0">
+        {developerTestMode ? (
+          <div
+            className="mb-3 inline-flex items-center gap-2 rounded-full border border-violet-400/50 bg-violet-500/15 px-3 py-1 text-xs font-semibold text-violet-200"
+            role="status"
+          >
+            <span aria-hidden className="h-2 w-2 rounded-full bg-violet-300" />
+            Developer Test Mode
+          </div>
+        ) : null}
+
+        {developerTestMode ? (
+          <DeveloperTestResidentPanel
+            bookingId={bookingId}
+            actualDurationMode={actualDurationMode}
+            simulatedDurationMode={simulatedDurationMode}
+          />
+        ) : null}
+
         <nav
           className="mb-3 hidden flex-wrap gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1 md:flex"
           aria-label="Resident hub"
@@ -67,7 +103,15 @@ export function ResidentHubShell({ activeTab, children }: Props) {
           <p className="mt-0.5 text-sm text-apg-silver">{tabMeta.subtitle}</p>
         </div>
 
-        <div className="min-w-0 space-y-6">{children}</div>
+        <ResidentSectionErrorBoundary
+          page={`resident_portal_${activeTab}`}
+          bookingId={bookingId}
+          customerId={customerId}
+          email={customerEmail}
+          title="Your stay dashboard could not load"
+        >
+          <div className="min-w-0 space-y-6">{children}</div>
+        </ResidentSectionErrorBoundary>
 
         <nav
           className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 bg-apg-charcoal/95 backdrop-blur-md md:hidden"

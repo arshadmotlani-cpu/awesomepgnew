@@ -4,6 +4,7 @@ import {
   listPaymentsForBooking,
   listRentInvoicesForBooking,
   listResidentBookingsForCustomer,
+  customerHasConfirmedBooking,
   type ResidentBookingRow,
 } from '@/src/db/queries/customer';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
@@ -13,6 +14,14 @@ import {
 } from '@/src/services/residentFinancialEngine';
 import { isWithinLastDays } from '@/src/services/billingRevenueMetrics';
 import { getCustomerSession } from '@/src/lib/auth/session';
+import {
+  DEV_RESIDENT_DURATION_COOKIE,
+  isDeveloperTestResidentEmail,
+  mapDevDurationToBookingMode,
+  parseDevResidentDurationMode,
+} from '@/src/lib/auth/developerTestResident.server';
+import { logger } from '@/src/lib/logger';
+import { cookies } from 'next/headers';
 import { getCustomerById } from '@/src/services/profile';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import { getRoomElectricityForCustomer } from '@/src/services/meterElectricity';
@@ -49,7 +58,12 @@ import {
   type PaymentDueRow,
 } from '@/src/components/customer/account/resident/ResidentPaymentsPanel';
 import { ResidentHomePanel } from '@/src/components/customer/account/resident/ResidentHomePanel';
+import { ResidentIncompleteStayPanel } from '@/src/components/customer/account/resident/ResidentIncompleteStayPanel';
 import type { UpcomingPaymentRow } from '@/src/components/customer/account/resident/ResidentUpcomingPayments';
+
+function labelResidentStatus(value: string | null | undefined): string {
+  return titleCase((value ?? 'pending').replace(/_/g, ' '));
+}
 
 /**
  * Resident billing dashboard — rent, electricity, deposit, vacating.
@@ -72,6 +86,13 @@ export async function ResidentAreaSection({
   if (!session || session.customerId !== customerId) {
     return null;
   }
+  const developerTestMode = isDeveloperTestResidentEmail(session.email);
+  const cookieStore = await cookies();
+  const simulatedDurationMode = developerTestMode
+    ? parseDevResidentDurationMode(cookieStore.get(DEV_RESIDENT_DURATION_COOKIE)?.value)
+    : null;
+  const confirmedBooking = await customerHasConfirmedBooking(session.customerId);
+  const hasConfirmedBookingWithoutDetail = confirmedBooking.ok && confirmedBooking.data;
   const customer = await getCustomerById(session.customerId);
   const depositWallet = await getCustomerDepositCredit(session.customerId);
   const openRequests = await listOpenRequestsForCustomer(session.customerId);
@@ -159,33 +180,50 @@ export async function ResidentAreaSection({
   );
 
   const primaryBooking = detail[0];
-  const residentBriefing =
-    primaryBooking != null
-      ? await buildBriefingInputForBooking({
-          customerId: session.customerId,
-          residentName: session.fullName || customer?.fullName || 'Resident',
-          kycLabel: customer?.kycStatus === 'approved' ? 'Verified' : 'Pending',
-          booking: {
-            bookingId: primaryBooking.bookingId,
-            bookingCode: primaryBooking.bookingCode,
-            pgName: primaryBooking.booking.pgName,
-            durationMode: primaryBooking.booking.durationMode,
-            status: 'confirmed',
-            expectedCheckoutDate: primaryBooking.booking.expectedCheckoutDate,
-            pricingSnapshot: {
-              perBed: [{ monthlyRatePaise: primaryBooking.booking.monthlyRentPaise }],
-            } as PricingSnapshot,
-            reservations: [
-              {
-                roomNumber: primaryBooking.booking.roomNumber,
-                bedCode: primaryBooking.booking.bedCode,
-                stayRange: `[${primaryBooking.booking.checkInDate},)`,
-              },
-            ],
-            customerFullName: session.fullName,
-          },
-        })
-      : null;
+  const effectiveDurationMode =
+    primaryBooking && developerTestMode && simulatedDurationMode
+      ? mapDevDurationToBookingMode(simulatedDurationMode)
+      : primaryBooking?.booking.durationMode;
+
+  let residentBriefing = null;
+  if (primaryBooking != null) {
+    try {
+      residentBriefing = await buildBriefingInputForBooking({
+        customerId: session.customerId,
+        residentName: session.fullName || customer?.fullName || 'Resident',
+        kycLabel: customer?.kycStatus === 'approved' ? 'Verified' : 'Pending',
+        booking: {
+          bookingId: primaryBooking.bookingId,
+          bookingCode: primaryBooking.bookingCode,
+          pgName: primaryBooking.booking.pgName,
+          durationMode: effectiveDurationMode ?? primaryBooking.booking.durationMode,
+          status: 'confirmed',
+          expectedCheckoutDate: primaryBooking.booking.expectedCheckoutDate,
+          pricingSnapshot: {
+            perBed: [{ monthlyRatePaise: primaryBooking.booking.monthlyRentPaise }],
+          } as PricingSnapshot,
+          reservations: [
+            {
+              roomNumber: primaryBooking.booking.roomNumber,
+              bedCode: primaryBooking.booking.bedCode,
+              stayRange: primaryBooking.booking.checkInDate
+                ? `[${primaryBooking.booking.checkInDate},)`
+                : 'empty',
+              checkInDate: primaryBooking.booking.checkInDate,
+            },
+          ],
+          customerFullName: session.fullName,
+        },
+      });
+    } catch (error) {
+      logger.warn('resident briefing build failed', {
+        customerId: session.customerId,
+        email: session.email,
+        bookingId: primaryBooking.bookingId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
 
   const checkoutByBooking = new Map<string, string>();
   const checkoutSettlementByBooking = new Map<
@@ -323,7 +361,7 @@ export async function ResidentAreaSection({
           amountPaise: item.outstandingPaise,
           dueDate: item.dueDate ?? null,
           href,
-          status: titleCase(item.status.replace(/_/g, ' ')),
+          status: labelResidentStatus(item.status),
           invoiceNumber: item.invoiceNumber ?? undefined,
         };
         dueBillRows.push(row);
@@ -344,7 +382,7 @@ export async function ResidentAreaSection({
         amountPaise: primaryDepositCard.depositDuePaise,
         dueDate: primaryDepositCard.depositDueDate,
         href: primaryDepositCard.paymentLinkUrl,
-        status: titleCase(primaryDepositCard.depositCollectionStatus.replace(/_/g, ' ')),
+        status: labelResidentStatus(primaryDepositCard.depositCollectionStatus),
       });
     }
   }
@@ -396,7 +434,21 @@ export async function ResidentAreaSection({
     : '';
 
   return (
-    <ResidentHubShell activeTab={activeTab}>
+    <ResidentHubShell
+      activeTab={activeTab}
+      developerTestMode={developerTestMode}
+      customerId={session.customerId}
+      customerEmail={session.email}
+      bookingId={primaryBooking?.bookingId ?? null}
+      actualDurationMode={primaryBooking?.booking.durationMode ?? null}
+      simulatedDurationMode={simulatedDurationMode}
+    >
+      {!primaryBooking && hasConfirmedBookingWithoutDetail ? (
+        <ResidentIncompleteStayPanel
+          customerEmail={session.email}
+          developerTestMode={developerTestMode}
+        />
+      ) : null}
       {activeTab === 'notifications' ? (
         <NotificationCenterPanel email={customer?.email} notifications={notifications} />
       ) : null}
@@ -440,12 +492,13 @@ export async function ResidentAreaSection({
           initialCategory={requestsQuery.category ?? null}
           vacating={primaryVacating}
           bookingStatus={primaryBooking.booking.status}
-          durationMode={primaryBooking.booking.durationMode}
+          durationMode={effectiveDurationMode ?? primaryBooking.booking.durationMode}
           expectedCheckoutDate={primaryBooking.booking.expectedCheckoutDate}
           bookingCreatedAt={primaryBooking.booking.createdAt}
           checkoutSettlementStatus={checkoutByBooking.get(primaryBooking.bookingId) ?? null}
           checkoutSettlement={checkoutSettlementByBooking.get(primaryBooking.bookingId) ?? null}
           monthlyRentPaise={primaryBooking.booking.monthlyRentPaise}
+          developerTestEmail={developerTestMode ? session.email : null}
         />
         </ResidentSectionErrorBoundary>
       ) : null}
@@ -465,11 +518,12 @@ export async function ResidentAreaSection({
           checkoutStatus={checkoutByBooking.get(primaryBooking.bookingId) ?? null}
           checkoutSettlement={checkoutSettlementByBooking.get(primaryBooking.bookingId) ?? null}
           depositHeldPaise={financialAccount?.depositHeldPaise ?? 0}
-          durationMode={primaryBooking.booking.durationMode}
+          durationMode={effectiveDurationMode ?? primaryBooking.booking.durationMode}
           expectedCheckoutDate={primaryBooking.booking.expectedCheckoutDate}
           bookingStatus={primaryBooking.booking.status}
           bookingCreatedAt={primaryBooking.booking.createdAt}
           monthlyRentPaise={primaryBooking.booking.monthlyRentPaise}
+          developerTestEmail={developerTestMode ? session.email : null}
         />
         </ResidentSectionErrorBoundary>
       ) : null}

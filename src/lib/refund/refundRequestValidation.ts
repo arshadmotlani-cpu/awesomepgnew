@@ -1,6 +1,10 @@
 import { isFixedStayDurationMode, isMonthlyDurationMode } from '@/src/lib/checkout/checkoutWorkflow';
 import { coerceNonNegativePaise } from '@/src/lib/format';
 import {
+  applyDeveloperTestEligibilityOverride,
+  applyDeveloperTestRefundPageOverride,
+} from '@/src/lib/auth/developerTestResident.shared';
+import {
   getDepositRefundEligibility,
   type DepositRefundEligibility,
 } from '@/src/lib/vacating/depositRefundEligibility';
@@ -60,6 +64,7 @@ export function buildRefundRequestPageModel(input: {
   booking: RefundRequestBookingInput;
   vacating: VacatingForBookingRow | null;
   settlement: RefundRequestSettlementInput;
+  developerTestEmail?: string | null;
 }): RefundRequestPageModel {
   const missingRequirements: string[] = [];
   const bookingId = input.booking.bookingId?.trim() ?? '';
@@ -116,6 +121,8 @@ export function buildRefundRequestPageModel(input: {
     missingRequirements.push('refund eligibility');
   }
 
+  eligibility = applyDeveloperTestEligibilityOverride(input.developerTestEmail, eligibility);
+
   const rejectionReason = input.settlement?.rejectionReason?.trim() || null;
   let blockedMessage: string | null = null;
 
@@ -129,10 +136,16 @@ export function buildRefundRequestPageModel(input: {
       'No refundable deposit balance is available on this booking. If you believe this is wrong, contact the PG office.';
   }
 
-  const canRenderForm =
+  const canRenderFormBase =
     missingRequirements.length === 0 &&
     eligibility.canRequestRefund &&
     refundableBalancePaise > 0;
+
+  const devOverride = applyDeveloperTestRefundPageOverride(
+    input.developerTestEmail,
+    canRenderFormBase,
+    blockedMessage,
+  );
 
   return {
     bookingId,
@@ -144,7 +157,7 @@ export function buildRefundRequestPageModel(input: {
     eligibility,
     rejectionReason,
     missingRequirements,
-    canRenderForm,
-    blockedMessage,
+    canRenderForm: devOverride.canRenderForm || canRenderFormBase,
+    blockedMessage: devOverride.blockedMessage ?? blockedMessage,
   };
 }

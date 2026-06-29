@@ -18,6 +18,7 @@ import {
 } from '@/src/lib/residents/vacatingPresentation';
 import { isFixedStayDurationMode } from '@/src/lib/checkout/checkoutWorkflow';
 import { getDepositRefundEligibility } from '@/src/lib/vacating/depositRefundEligibility';
+import { applyDeveloperTestEligibilityOverride } from '@/src/lib/auth/developerTestResident.shared';
 import { accountProfileHref } from '@/src/lib/accountNavigation';
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
 import { formatDate, paiseToInr } from '@/src/lib/format';
@@ -49,6 +50,7 @@ type Props = {
   bookingStatus?: string;
   bookingCreatedAt?: Date;
   monthlyRentPaise?: number;
+  developerTestEmail?: string | null;
 };
 
 export function VacatingHome({
@@ -64,6 +66,7 @@ export function VacatingHome({
   bookingStatus = 'confirmed',
   bookingCreatedAt,
   monthlyRentPaise = 0,
+  developerTestEmail = null,
 }: Props) {
   const fixedStay = isFixedStayDurationMode(durationMode);
   const refundHref = accountProfileHref('resident', {
@@ -72,20 +75,23 @@ export function VacatingHome({
     category: 'deposit_refund',
   });
 
-  const refundEligibility = getDepositRefundEligibility({
-    vacating,
-    booking:
-      bookingCreatedAt != null
-        ? {
-            status: bookingStatus,
-            durationMode,
-            expectedCheckoutDate,
-            createdAt: bookingCreatedAt,
-          }
-        : null,
-    settlement: checkoutSettlement,
-    monthlyRentPaise,
-  });
+  const refundEligibility = applyDeveloperTestEligibilityOverride(
+    developerTestEmail,
+    getDepositRefundEligibility({
+      vacating,
+      booking:
+        bookingCreatedAt != null
+          ? {
+              status: bookingStatus,
+              durationMode,
+              expectedCheckoutDate,
+              createdAt: bookingCreatedAt,
+            }
+          : null,
+      settlement: checkoutSettlement,
+      monthlyRentPaise,
+    }),
+  );
 
   if (fixedStay) {
     const checkoutDate = expectedCheckoutDate;

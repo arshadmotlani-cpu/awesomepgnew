@@ -8,6 +8,7 @@ type Props = {
   page: string;
   bookingId?: string | null;
   customerId?: string | null;
+  email?: string | null;
   title?: string;
 };
 
@@ -26,6 +27,7 @@ export class ResidentSectionErrorBoundary extends Component<Props, State> {
       page: this.props.page,
       bookingId: this.props.bookingId,
       customerId: this.props.customerId,
+      email: this.props.email,
       extra: { componentStack: info.componentStack },
     });
   }

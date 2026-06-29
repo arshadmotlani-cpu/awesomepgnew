@@ -2,8 +2,8 @@ import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import { getVacatingForBooking } from '@/src/db/queries/customer';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import { PS4_PLANS, type Ps4PlanId } from '@/src/lib/playstation/plans';
-import { parseDaterange } from '@/src/services/availability';
-import { formatDate as formatDateUtc } from '@/src/lib/dates';
+import { tryParseDaterange } from '@/src/services/availability';
+import { formatDate as formatDateUtc, normalizeIsoDateOnly } from '@/src/lib/dates';
 import type { ResidentBriefingInput } from '@/src/lib/cockroach/residentBriefing';
 import {
   getMembershipForDashboard,
@@ -18,7 +18,7 @@ type BookingBriefingSource = {
   status: string;
   expectedCheckoutDate: string | null;
   pricingSnapshot: PricingSnapshot | null;
-  reservations: Array<{ roomNumber: string; bedCode: string; stayRange: string }>;
+  reservations: Array<{ roomNumber: string; bedCode: string; stayRange: string; checkInDate?: string | null }>;
   customerFullName: string;
 };
 
@@ -68,10 +68,13 @@ export async function buildBriefingInputForBooking(args: {
     }
   }
 
-  const stayRange = booking.reservations[0]
-    ? parseDaterange(booking.reservations[0].stayRange)
+  const reservation = booking.reservations[0];
+  const parsedRange = reservation ? tryParseDaterange(reservation.stayRange) : null;
+  const checkInFromRange = parsedRange?.lower ? formatDateUtc(parsedRange.lower) : null;
+  const checkInFromField = reservation?.checkInDate
+    ? normalizeIsoDateOnly(reservation.checkInDate) || reservation.checkInDate
     : null;
-  const checkIn = stayRange?.lower ? formatDateUtc(stayRange.lower) : '—';
+  const checkIn = checkInFromRange ?? checkInFromField ?? '—';
 
   return {
     residentName,
