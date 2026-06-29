@@ -482,7 +482,7 @@ async function syncVacatingAlerts(session: AdminSession): Promise<void> {
   const vacatingById = new Map(bundle.vacatingRows.map((row) => [row.id, row]));
   const activeKeys = new Set<string>();
 
-  for (const item of bundle.activeItems) {
+  for (const item of bundle.approvalItems) {
     const row = vacatingById.get(item.vacatingRequestId);
     if (!row?.pgId) {
       console.warn(

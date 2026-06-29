@@ -77,6 +77,8 @@ test('computeMoveOutPipelineCounts applies 30-day beds releasing window', () => 
       stageTimestamps: {},
       electricityDeductionPaise: 0,
       estimatedRefundPaise: 0,
+      durationMode: 'monthly',
+      workflowKind: 'monthly',
     },
     {
       ...baseVacating,
@@ -91,7 +93,7 @@ test('computeMoveOutPipelineCounts applies 30-day beds releasing window', () => 
       stageLabel: 'Notice verified',
       nextAction: 'Continue',
       continueHref: null,
-      continueKind: 'settlement',
+      continueKind: 'view',
       sortPriority: 3,
       daysRemaining: 80,
       urgency: 'normal',
@@ -99,10 +101,12 @@ test('computeMoveOutPipelineCounts applies 30-day beds releasing window', () => 
       stageTimestamps: {},
       electricityDeductionPaise: 0,
       estimatedRefundPaise: 0,
+      durationMode: 'monthly',
+      workflowKind: 'monthly',
     },
   ];
 
   const counts = computeMoveOutPipelineCounts(active, '2026-06-12');
-  assert.equal(counts.moveOutNotices, 2);
+  assert.equal(counts.moveOutNotices, 0);
   assert.equal(counts.bedsReleasing30Days, 1);
 });

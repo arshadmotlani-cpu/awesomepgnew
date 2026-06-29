@@ -1,4 +1,11 @@
-import { formatDate, normalizeIsoDateOnly, timestampMsSafe, coerceDateSafe, toIsoTimestampSafe } from '@/src/lib/dates';
+import type { CheckoutWorkflowKind } from '@/src/lib/checkout/checkoutWorkflow';
+import { checkoutWorkflowKind } from '@/src/lib/checkout/checkoutWorkflow';
+import {
+  coerceDateSafe,
+  normalizeIsoDateOnly,
+  timestampMsSafe,
+  toIsoTimestampSafe,
+} from '@/src/lib/dates';
 import { computeCheckoutRefundPreview } from '@/src/lib/billing/checkoutRefundPreview';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import type { CheckoutSettlementStatus } from '@/src/db/schema/enums';
@@ -52,6 +59,8 @@ export type MoveOutPipelineItem = {
   urgency: MoveOutUrgency;
   bedStatus: VacatingBedStatus;
   stageTimestamps: Partial<Record<MoveOutStageId, Date>>;
+  durationMode: string;
+  workflowKind: CheckoutWorkflowKind;
 };
 
 /** JSON-safe shape for client components (no Date instances). */
@@ -105,6 +114,8 @@ type VacatingInput = {
   updatedAt: Date;
   deductionPaise: number;
   depositHeldPaise: number;
+  durationMode?: string;
+  stayType?: string;
 };
 
 type SettlementInput = {
@@ -185,6 +196,50 @@ export function deriveMoveOutStage(
   const baseHref = settlementId ? `/admin/checkout-settlements/${settlementId}` : null;
   const hash = settlementHash(settlementStatus);
   const settlementContinue = baseHref ? `${baseHref}${hash ?? ''}` : null;
+  const workflow = checkoutWorkflowKind({
+    durationMode: vacating.durationMode,
+    stayType: vacating.stayType,
+  });
+
+  if (workflow === 'fixed_stay') {
+    if (
+      vacating.status === 'completed' ||
+      settlementStatus === 'completed' ||
+      settlementStatus === 'refund_paid'
+    ) {
+      return stageMeta('bed_released', 'Checkout complete', settlementContinue, 'view');
+    }
+    if (settlementStatus === 'refund_pending') {
+      return stageMeta(
+        'deposit_approved',
+        'Send refund to resident, then mark paid',
+        settlementContinue,
+        'settlement',
+      );
+    }
+    if (settlementStatus === 'awaiting_admin_review') {
+      return stageMeta(
+        'charges_calculated',
+        'Review electricity and charges, approve refund',
+        settlementContinue,
+        'settlement',
+      );
+    }
+    if (settlementStatus === 'awaiting_resident_details' || !settlementId) {
+      return stageMeta(
+        'room_inspection',
+        'Waiting for resident refund request (meter photo + UPI)',
+        settlementContinue ?? '/admin/checkout-settlements',
+        'settlement',
+      );
+    }
+    return stageMeta(
+      'room_inspection',
+      'Open checkout settlement',
+      settlementContinue ?? '/admin/checkout-settlements',
+      'settlement',
+    );
+  }
 
   if (vacating.status === 'rejected') {
     return stageMeta('requested', 'Declined — no action needed', null, 'view');
@@ -228,11 +283,9 @@ export function deriveMoveOutStage(
   if (vacating.status === 'approved') {
     return stageMeta(
       'notice_verified',
-      settlementId
-        ? 'Open checkout — resident may still be submitting details'
-        : 'Checkout not ready yet — sync or open settlements',
-      settlementContinue ?? '/admin/checkout-settlements',
-      'settlement',
+      'Move-out approved — resident refund unlocks on vacate date',
+      null,
+      'view',
     );
   }
 
@@ -355,6 +408,10 @@ export function buildMoveOutPipeline(input: {
     const estimatedRefundPaise = computeEstimatedRefundPaise(v, settlement);
     const daysRemaining = moveOutDaysRemaining(v.vacatingDate);
     const { createdAt, updatedAt, resolvedAt } = vacatingTimestamps(v);
+    const workflowKind = checkoutWorkflowKind({
+      durationMode: v.durationMode,
+      stayType: v.stayType,
+    });
 
     items.push({
       id: v.id,
@@ -384,6 +441,8 @@ export function buildMoveOutPipeline(input: {
       urgency: moveOutUrgency(daysRemaining),
       bedStatus: deriveBedStatus(v),
       stageTimestamps: buildStageTimestamps(v, settlement),
+      durationMode: v.durationMode ?? 'monthly',
+      workflowKind,
       ...derived,
     });
   }
@@ -410,4 +469,26 @@ function sortPipeline(a: MoveOutPipelineItem, b: MoveOutPipelineItem): number {
 
 export function activePipelineItems(items: MoveOutPipelineItem[]): MoveOutPipelineItem[] {
   return items.filter((i) => i.stage !== 'bed_released');
+}
+
+/** Monthly move-out requests awaiting admin approve / reject only. */
+export function monthlyMoveOutApprovalItems(items: MoveOutPipelineItem[]): MoveOutPipelineItem[] {
+  return items.filter(
+    (i) => i.workflowKind === 'monthly' && i.vacatingStatus === 'pending' && i.stage === 'requested',
+  );
+}
+
+/** Active checkout settlements — after resident submits refund details. */
+export function checkoutSettlementPipelineItems(
+  items: MoveOutPipelineItem[],
+): MoveOutPipelineItem[] {
+  return items.filter((i) => {
+    if (i.stage === 'bed_released') return false;
+    const status = i.settlementStatus;
+    return (
+      status === 'awaiting_admin_review' ||
+      status === 'awaiting_resident_details' ||
+      status === 'refund_pending'
+    );
+  });
 }

@@ -32,6 +32,7 @@ import {
   VACATING_NOTICE_MIN_DAYS,
   VACATING_NOTICE_PENALTY_DAYS,
 } from '@/src/services/billing';
+import { isFixedStayDurationMode } from '@/src/lib/checkout/checkoutWorkflow';
 import { noticeDeductionAppliesToBooking } from '@/src/lib/checkout/noticeDeductionPolicy';
 import { hasCheckoutElectricityEvidence } from '@/src/lib/checkout/checkoutElectricityEvidence';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
@@ -877,6 +878,7 @@ export async function submitResidentCheckoutDetails(input: {
       payoutUpiId: input.payoutUpiId?.trim() || null,
       payoutQrUrl: input.payoutQrUrl ?? null,
       status: 'awaiting_admin_review',
+      refundNotes: null,
       updatedAt: new Date(),
     })
     .where(eq(checkoutSettlements.id, input.settlementId));
@@ -927,6 +929,117 @@ export async function submitResidentCheckoutDetails(input: {
   );
   await refreshAdminNotificationsFromActionItems().catch(() => undefined);
   return { ok: true };
+}
+
+/** Admin rejects incomplete refund submission; resident may resubmit without manual reset. */
+export async function rejectResidentCheckoutSubmission(input: {
+  settlementId: string;
+  adminId: string;
+  reason: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const reason = input.reason.trim();
+  if (!reason) return { ok: false, error: 'Rejection reason is required.' };
+
+  const [current] = await db
+    .select({
+      id: checkoutSettlements.id,
+      status: checkoutSettlements.status,
+      customerId: checkoutSettlements.customerId,
+      bookingId: checkoutSettlements.bookingId,
+    })
+    .from(checkoutSettlements)
+    .where(eq(checkoutSettlements.id, input.settlementId))
+    .limit(1);
+  if (!current) return { ok: false, error: 'Checkout settlement not found.' };
+  if (current.status !== 'awaiting_admin_review') {
+    return { ok: false, error: 'Only submitted refund requests can be rejected.' };
+  }
+
+  await db
+    .update(checkoutSettlements)
+    .set({
+      status: 'awaiting_resident_details',
+      refundNotes: reason,
+      amountsLocked: false,
+      updatedAt: new Date(),
+    })
+    .where(eq(checkoutSettlements.id, input.settlementId));
+
+  await db.insert(auditLog).values({
+    actorId: input.adminId,
+    actorType: 'admin',
+    entity: 'checkout_settlement',
+    entityId: input.settlementId,
+    action: 'reject_resident_submission',
+    diff: { reason },
+  });
+
+  scheduleAdminNotificationSync();
+  const { refreshAdminNotificationsFromActionItems } = await import(
+    '@/src/services/actionItems'
+  );
+  await refreshAdminNotificationsFromActionItems().catch(() => undefined);
+  return { ok: true };
+}
+
+/** Creates or returns an open checkout settlement when resident requests a refund. */
+export async function ensureCheckoutSettlementForBooking(input: {
+  bookingId: string;
+  customerId: string;
+}): Promise<{ ok: true; settlementId: string } | { ok: false; error: string }> {
+  const existing = await getCheckoutSettlementForCustomer(input.customerId, input.bookingId);
+  if (existing) return { ok: true, settlementId: existing.id };
+
+  const [booking] = await db
+    .select({
+      id: bookings.id,
+      customerId: bookings.customerId,
+      status: bookings.status,
+      durationMode: bookings.durationMode,
+      expectedCheckoutDate: bookings.expectedCheckoutDate,
+      createdAt: bookings.createdAt,
+    })
+    .from(bookings)
+    .where(
+      and(eq(bookings.id, input.bookingId), eq(bookings.customerId, input.customerId)),
+    )
+    .limit(1);
+  if (!booking) return { ok: false, error: 'Booking not found.' };
+  if (booking.status !== 'confirmed' && booking.status !== 'completed') {
+    return { ok: false, error: 'Booking is not active for checkout.' };
+  }
+
+  let vacatingRequestId: string;
+
+  if (isFixedStayDurationMode(booking.durationMode)) {
+    const { ensureFixedStayCheckoutPrerequisites } = await import(
+      '@/src/services/fixedStayAutoExpiry'
+    );
+    vacatingRequestId = await ensureFixedStayCheckoutPrerequisites(booking);
+  } else {
+    const [approvedVacating] = await db
+      .select({ id: vacatingRequests.id })
+      .from(vacatingRequests)
+      .where(
+        and(
+          eq(vacatingRequests.bookingId, booking.id),
+          eq(vacatingRequests.status, 'approved'),
+        ),
+      )
+      .orderBy(desc(vacatingRequests.updatedAt))
+      .limit(1);
+    if (!approvedVacating) {
+      return {
+        ok: false,
+        error: 'Move-out must be approved before you can request a refund.',
+      };
+    }
+    vacatingRequestId = approvedVacating.id;
+  }
+
+  const created = await createCheckoutSettlementFromVacating({ vacatingRequestId });
+  if (!created.ok) return { ok: false, error: created.error };
+  return { ok: true, settlementId: created.settlementId };
 }
 
 export async function updateCheckoutElectricitySettlement(input: {
@@ -1413,9 +1526,23 @@ export async function backfillCheckoutSettlementsFromVacating(input?: {
     FROM vacating_requests vr
     INNER JOIN customers c ON c.id = vr.customer_id
     LEFT JOIN checkout_settlements cs ON cs.vacating_request_id = vr.id
-    WHERE vr.status IN ('approved', 'completed')
-      AND COALESCE(vr.checkout_settlement_suppressed, false) = false
+    WHERE COALESCE(vr.checkout_settlement_suppressed, false) = false
       AND cs.id IS NULL
+      AND (
+        vr.status = 'completed'
+        OR EXISTS (
+          SELECT 1 FROM bookings b
+          WHERE b.id = vr.booking_id
+            AND b.duration_mode IN ('fixed_stay', 'daily', 'weekly')
+            AND vr.status IN ('approved', 'completed')
+        )
+        OR EXISTS (
+          SELECT 1 FROM resident_requests rr
+          WHERE rr.booking_id = vr.booking_id
+            AND rr.type = 'deposit_refund'
+            AND rr.status IN ('submitted', 'under_review', 'approved')
+        )
+      )
     ORDER BY vr.created_at ASC
   `);
 

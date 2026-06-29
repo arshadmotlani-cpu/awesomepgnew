@@ -10,6 +10,8 @@ import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import {
   activePipelineItems,
   buildMoveOutPipeline,
+  checkoutSettlementPipelineItems,
+  monthlyMoveOutApprovalItems,
   type MoveOutPipelineItem,
 } from '@/src/lib/moveOut/moveOutPipeline';
 import {
@@ -42,6 +44,8 @@ export type MoveOutNoticeCardItem = {
 
 export type MoveOutPipelineSnapshot = {
   activeItems: MoveOutPipelineItem[];
+  approvalItems: MoveOutPipelineItem[];
+  settlementItems: MoveOutPipelineItem[];
   moveOutNoticeItems: MoveOutNoticeCardItem[];
   bedsReleasingItems: Array<Omit<MoveOutNoticeCardItem, 'residentName'>>;
   counts: MoveOutPipelineCounts;
@@ -78,6 +82,8 @@ function vacatingPipelineInput(
     updatedAt: v.updatedAt,
     deductionPaise: guardDepositPaise(v.deductionPaise),
     depositHeldPaise: guardDepositPaise(depositHeldByBooking[v.bookingId] ?? 0),
+    durationMode: v.durationMode,
+    stayType: v.stayType,
   };
 }
 
@@ -105,14 +111,23 @@ function snapshotFromPipeline(
   today: string,
 ): MoveOutPipelineSnapshot {
   const activeItems = activePipelineItems(pipeline);
-  const moveOutNoticeItems = activeItems.map((item) => toNoticeCardItem(item, today));
-  const bedsReleasingFiltered = moveOutNoticeItems.filter((item) =>
-    isWithinDays(item.vacatingDate, today, 30),
-  );
+  const approvalItems = monthlyMoveOutApprovalItems(activeItems);
+  const settlementItems = checkoutSettlementPipelineItems(activeItems);
+  const moveOutNoticeItems = approvalItems.map((item) => toNoticeCardItem(item, today));
+  const bedsReleasingFiltered = activeItems
+    .filter(
+      (item) =>
+        item.workflowKind === 'monthly' &&
+        item.vacatingStatus === 'approved' &&
+        isWithinDays(item.vacatingDate, today, 30),
+    )
+    .map((item) => toNoticeCardItem(item, today));
   const counts = computeMoveOutPipelineCounts(activeItems, today);
 
   return {
     activeItems,
+    approvalItems,
+    settlementItems,
     moveOutNoticeItems,
     bedsReleasingItems: bedsReleasingFiltered.map(({ residentName: _n, ...rest }) => rest),
     counts,
@@ -187,6 +202,8 @@ export async function getMoveOutPipelineSnapshot(
   const bundle = await loadMoveOutPipelineBundle(session, { syncSettlements: false });
   return {
     activeItems: bundle.activeItems,
+    approvalItems: bundle.approvalItems,
+    settlementItems: bundle.settlementItems,
     moveOutNoticeItems: bundle.moveOutNoticeItems,
     bedsReleasingItems: bundle.bedsReleasingItems,
     counts: bundle.counts,

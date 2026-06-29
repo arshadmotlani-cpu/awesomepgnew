@@ -45,17 +45,17 @@ async function main() {
   const beds30 = snapshot.counts.bedsReleasing30Days;
 
   console.log('\n=== Move-out counter parity ===\n');
-  console.log(`Overview / SSOT Move-out Notices     = ${moveOutCount}`);
+  console.log(`Move-out approval queue (SSOT)      = ${moveOutCount}`);
   console.log(`Operations center leavingSoon        = ${ops.leavingSoon.count}`);
+  console.log(`Pipeline approval items              = ${snapshot.approvalItems.length}`);
   console.log(`Vacating module active pipeline      = ${vacatingPage.data?.activeItems.length ?? 0}`);
-  console.log(`Checkout pipeline (active move-outs) = ${moveOutCount}`);
   console.log(`vacating_alert open action items     = ${actionItems.length}`);
   console.log(`Beds releasing (30d)                 = ${beds30}`);
   console.log(`Operations bedsReleasingSoon         = ${ops.bedsReleasingSoon.count}`);
 
   const allMatch =
     moveOutCount === ops.leavingSoon.count &&
-    moveOutCount === (vacatingPage.data?.activeItems.length ?? 0) &&
+    moveOutCount === snapshot.approvalItems.length &&
     moveOutCount === actionItems.length &&
     beds30 === ops.bedsReleasingSoon.count;
 

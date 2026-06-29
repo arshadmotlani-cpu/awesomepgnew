@@ -3,8 +3,8 @@
  */
 
 import { formatDate, parseDate, todayString, type DateLike } from '@/src/lib/dates';
-import { fixedStayRefundUnlockLabel, isPastFixedStayCheckout } from '@/src/lib/dates/ist';
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
+import { isFixedStayDurationMode, isMonthlyDurationMode } from '@/src/lib/checkout/checkoutWorkflow';
 import { computeNoticeDeduction } from '@/src/services/billing';
 
 export type DepositRefundUnlockState =
@@ -32,15 +32,12 @@ type BookingContext = {
 
 type SettlementContext = {
   status: string;
+  rejectionReason?: string | null;
 } | null;
 
 type ResidentRequestContext = {
   status: string;
 } | null;
-
-function isFixedStayMode(durationMode: string): boolean {
-  return ['fixed_stay', 'daily', 'weekly'].includes(durationMode);
-}
 
 export function estimateNoticeDeductionPaise(args: {
   monthlyRentPaise: number;
@@ -67,35 +64,21 @@ export function computeDepositRefundUnlockState(args: {
 }): DepositRefundUnlockResult {
   const today = args.today ?? todayString();
   const monthlyRent = args.monthlyRentPaise ?? 0;
-
-  if (args.residentRequest?.status === 'rejected') {
-    return {
-      state: 'rejected',
-      canRequestRefund: false,
-      lockReason: 'Your deposit refund request was declined. Contact the office for help.',
-      unlockDate: null,
-      estimatedNoticeDeductionPaise: 0,
-    };
-  }
+  const fixedStay = isFixedStayDurationMode(args.booking.durationMode);
+  const monthly = isMonthlyDurationMode(args.booking.durationMode);
 
   if (
     args.settlement?.status === 'refund_paid' ||
     args.settlement?.status === 'completed' ||
-    args.booking.status === 'completed' && args.vacating?.status === 'completed'
+    (args.booking.status === 'completed' && args.vacating?.status === 'completed')
   ) {
-    const paid =
-      args.settlement?.status === 'refund_paid' ||
-      args.settlement?.status === 'completed' ||
-      (args.vacating?.depositRefundPaise ?? 0) > 0;
-    if (paid) {
-      return {
-        state: 'paid',
-        canRequestRefund: false,
-        lockReason: null,
-        unlockDate: null,
-        estimatedNoticeDeductionPaise: 0,
-      };
-    }
+    return {
+      state: 'paid',
+      canRequestRefund: false,
+      lockReason: null,
+      unlockDate: null,
+      estimatedNoticeDeductionPaise: 0,
+    };
   }
 
   if (
@@ -126,64 +109,65 @@ export function computeDepositRefundUnlockState(args: {
     };
   }
 
-  const fixedStay = isFixedStayMode(args.booking.durationMode);
+  if (args.settlement?.status === 'awaiting_resident_details') {
+    const rejection = args.settlement.rejectionReason?.trim();
+    if (rejection) {
+      return {
+        state: 'rejected',
+        canRequestRefund: true,
+        lockReason: `Please fix and resubmit your refund request. ${rejection}`,
+        unlockDate: null,
+        estimatedNoticeDeductionPaise: 0,
+      };
+    }
+  }
+
+  if (args.residentRequest?.status === 'rejected' && !args.settlement) {
+    return {
+      state: 'rejected',
+      canRequestRefund: true,
+      lockReason: 'Your previous refund request was declined. You may submit again with corrected details.',
+      unlockDate: null,
+      estimatedNoticeDeductionPaise: 0,
+    };
+  }
+
   const checkoutDate =
-    args.booking.expectedCheckoutDate ??
-    args.vacating?.vacatingDate ??
-    null;
+    args.booking.expectedCheckoutDate ?? args.vacating?.vacatingDate ?? null;
 
   let estimatedNoticeDeductionPaise = 0;
-  if (checkoutDate && monthlyRent > 0) {
-    const noticeGiven =
-      args.vacating?.noticeGivenDate ?? formatDate(parseDate(args.booking.createdAt));
+  if (monthly && checkoutDate && monthlyRent > 0 && args.vacating) {
     estimatedNoticeDeductionPaise = estimateNoticeDeductionPaise({
       monthlyRentPaise: monthlyRent,
-      noticeGivenDate: noticeGiven,
+      noticeGivenDate: args.vacating.noticeGivenDate,
       vacatingDate: checkoutDate,
     });
   }
 
-  if (fixedStay && checkoutDate) {
-    const pastCheckout = isPastFixedStayCheckout(checkoutDate, args.now);
-    if (pastCheckout && args.booking.status === 'completed') {
+  if (fixedStay) {
+    if (args.booking.status === 'confirmed' || args.booking.status === 'completed') {
       return {
         state: 'unlocked',
         canRequestRefund: true,
         lockReason: null,
         unlockDate: checkoutDate,
-        estimatedNoticeDeductionPaise,
+        estimatedNoticeDeductionPaise: 0,
       };
     }
-    if (!pastCheckout) {
-      return {
-        state: 'locked',
-        canRequestRefund: false,
-        lockReason: fixedStayRefundUnlockLabel(checkoutDate),
-        unlockDate: checkoutDate,
-        estimatedNoticeDeductionPaise,
-      };
-    }
-    if (pastCheckout && args.booking.status === 'confirmed') {
-      return {
-        state: 'locked',
-        canRequestRefund: false,
-        lockReason:
-          'Your stay checkout is being processed. Deposit refund will unlock shortly after 11 AM on your checkout date.',
-        unlockDate: checkoutDate,
-        estimatedNoticeDeductionPaise,
-      };
-    }
+    return {
+      state: 'locked',
+      canRequestRefund: false,
+      lockReason: 'Refund is available once your stay is active.',
+      unlockDate: checkoutDate,
+      estimatedNoticeDeductionPaise: 0,
+    };
   }
 
   if (!args.vacating) {
     return {
       state: 'locked',
       canRequestRefund: false,
-      lockReason: fixedStay
-        ? checkoutDate
-          ? fixedStayRefundUnlockLabel(checkoutDate)
-          : 'Deposit refund unlocks after your stay checkout.'
-        : 'Submit a vacate request and wait for admin approval before requesting a deposit refund.',
+      lockReason: 'Submit a move-out request and wait for admin approval before requesting a deposit refund.',
       unlockDate: checkoutDate,
       estimatedNoticeDeductionPaise,
     };
@@ -193,8 +177,7 @@ export function computeDepositRefundUnlockState(args: {
     return {
       state: 'locked',
       canRequestRefund: false,
-      lockReason:
-        'Deposit refund unlocks after admin approves your vacate request and your vacate date arrives.',
+      lockReason: 'Deposit refund unlocks after admin approves your move-out request and your move-out date arrives.',
       unlockDate: args.vacating.vacatingDate,
       estimatedNoticeDeductionPaise,
     };
@@ -204,7 +187,7 @@ export function computeDepositRefundUnlockState(args: {
     return {
       state: 'rejected',
       canRequestRefund: false,
-      lockReason: 'Your vacate request was not approved. Contact the office for help.',
+      lockReason: 'Your move-out request was not approved. Submit a new move-out request first.',
       unlockDate: null,
       estimatedNoticeDeductionPaise: 0,
     };
@@ -214,7 +197,7 @@ export function computeDepositRefundUnlockState(args: {
     return {
       state: 'locked',
       canRequestRefund: false,
-      lockReason: 'Vacate request must be approved first.',
+      lockReason: 'Move-out request must be approved first.',
       unlockDate: args.vacating.vacatingDate,
       estimatedNoticeDeductionPaise,
     };
@@ -224,30 +207,16 @@ export function computeDepositRefundUnlockState(args: {
     return {
       state: 'locked',
       canRequestRefund: false,
-      lockReason: fixedStayRefundUnlockLabel(args.vacating.vacatingDate),
-      unlockDate: args.vacating.vacatingDate,
-      estimatedNoticeDeductionPaise,
-    };
-  }
-
-  if (
-    args.settlement?.status === 'awaiting_resident_details' ||
-    args.vacating.status === 'approved' ||
-    args.vacating.status === 'completed'
-  ) {
-    return {
-      state: 'unlocked',
-      canRequestRefund: true,
-      lockReason: null,
+      lockReason: `Request Refund unlocks on your approved move-out date (${formatDate(parseDate(args.vacating.vacatingDate))}).`,
       unlockDate: args.vacating.vacatingDate,
       estimatedNoticeDeductionPaise,
     };
   }
 
   return {
-    state: 'locked',
-    canRequestRefund: false,
-    lockReason: 'Deposit refund is not available yet.',
+    state: 'unlocked',
+    canRequestRefund: true,
+    lockReason: null,
     unlockDate: args.vacating.vacatingDate,
     estimatedNoticeDeductionPaise,
   };

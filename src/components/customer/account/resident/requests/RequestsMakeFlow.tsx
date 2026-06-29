@@ -26,6 +26,12 @@ type Props = {
   onClose: () => void;
   initialCategory?: RequestCategoryId | null;
   vacating: VacatingForBookingRow | null;
+  bookingStatus?: string;
+  durationMode?: string;
+  expectedCheckoutDate?: string | null;
+  bookingCreatedAt?: Date;
+  checkoutSettlement?: { status: string; rejectionReason?: string | null } | null;
+  monthlyRentPaise?: number;
 };
 
 export function RequestsMakeFlow({
@@ -36,9 +42,27 @@ export function RequestsMakeFlow({
   onClose,
   initialCategory = null,
   vacating,
+  bookingStatus = 'confirmed',
+  durationMode = 'monthly',
+  expectedCheckoutDate = null,
+  bookingCreatedAt,
+  checkoutSettlement = null,
+  monthlyRentPaise = 0,
 }: Props) {
   const router = useRouter();
-  const refundEligibility = getDepositRefundEligibility({ vacating });
+  const refundEligibility = getDepositRefundEligibility({
+    vacating,
+    booking: bookingCreatedAt
+      ? {
+          status: bookingStatus,
+          durationMode,
+          expectedCheckoutDate,
+          createdAt: bookingCreatedAt,
+        }
+      : null,
+    settlement: checkoutSettlement,
+    monthlyRentPaise,
+  });
   const [step, setStep] = useState<Step>(
     initialCategory &&
       getCategoryById(initialCategory)?.wired !== 'deposit_refund' &&

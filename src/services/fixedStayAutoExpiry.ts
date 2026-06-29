@@ -125,6 +125,16 @@ async function ensureSystemVacatingRequest(booking: {
   return created.id;
 }
 
+/** Ensures an approved system vacating row exists for fixed-stay refund / expiry (idempotent). */
+export async function ensureFixedStayCheckoutPrerequisites(booking: {
+  id: string;
+  customerId: string;
+  expectedCheckoutDate: string | null;
+  createdAt: Date;
+}): Promise<string> {
+  return ensureSystemVacatingRequest(booking);
+}
+
 export type ExpireFixedStayResult =
   | { ok: true; bookingId: string; settlementId: string | null; keptResidencyActive?: boolean }
   | { ok: false; kind: 'not_found' | 'wrong_status' | 'not_due' | 'error'; message?: string };

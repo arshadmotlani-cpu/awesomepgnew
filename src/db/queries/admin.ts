@@ -1613,6 +1613,8 @@ export type AdminVacatingRow = {
   deductionPaise: number;
   depositRefundPaise: number;
   monthlyRentPaiseSnapshot: number;
+  durationMode: string;
+  stayType: string;
   status: 'pending' | 'approved' | 'completed' | 'rejected';
   resolvedAt: Date | null;
   createdAt: Date;
@@ -1641,6 +1643,8 @@ export function listAdminVacatingRequests(filter?: {
       deduction_paise: number;
       deposit_refund_paise: number;
       monthly_rent_paise_snapshot: number;
+      duration_mode: string;
+      stay_type: string;
       status: AdminVacatingRow['status'];
       resolved_at: Date | null;
       created_at: Date;
@@ -1663,6 +1667,8 @@ export function listAdminVacatingRequests(filter?: {
         vr.deduction_paise::bigint::int AS deduction_paise,
         vr.deposit_refund_paise::bigint::int AS deposit_refund_paise,
         vr.monthly_rent_paise_snapshot::bigint::int AS monthly_rent_paise_snapshot,
+        b.duration_mode,
+        b.stay_type,
         vr.status,
         vr.resolved_at,
         vr.created_at,
@@ -1711,6 +1717,8 @@ export function listAdminVacatingRequests(filter?: {
             deductionPaise: guardDepositPaise(r.deduction_paise),
             depositRefundPaise: guardDepositPaise(r.deposit_refund_paise),
             monthlyRentPaiseSnapshot: guardDepositPaise(r.monthly_rent_paise_snapshot),
+            durationMode: r.duration_mode,
+            stayType: r.stay_type,
             status: r.status,
             resolvedAt: r.resolved_at,
             createdAt: r.created_at,

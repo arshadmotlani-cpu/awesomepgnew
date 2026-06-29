@@ -5,7 +5,6 @@ import { getCustomerSession } from '@/src/lib/auth/session';
 import { uploadPaymentScreenshot } from '@/src/lib/payments/screenshotUpload';
 import { revalidateVacatingLifecycleForBooking } from '@/src/lib/vacating/revalidateVacatingViews';
 import {
-  submitDepositRefundRequest,
   submitStayExtensionRequest,
 } from '@/src/services/residentRequests';
 
@@ -47,44 +46,35 @@ export async function submitDepositRefundRequestAction(
   if (!session) return { ok: false, error: 'Sign in required.' };
 
   const bookingId = formData.get('bookingId')?.toString() ?? '';
-  const notes = formData.get('notes')?.toString()?.trim();
   const meterReadingPhotoUrl = formData.get('meterReadingPhotoUrl')?.toString()?.trim() || null;
   const payoutQrUrl = formData.get('payoutQrUrl')?.toString()?.trim() || null;
   const payoutUpiId = formData.get('payoutUpiId')?.toString()?.trim() || null;
   const useAverageBillingFallback = formData.get('useAverageBillingFallback')?.toString() === '1';
 
-  const { getCheckoutSettlementForCustomer, submitResidentCheckoutDetails } = await import(
+  const { getCheckoutSettlementForCustomer, submitResidentCheckoutDetails, ensureCheckoutSettlementForBooking } = await import(
     '@/src/services/checkoutSettlement'
   );
+
+  const ensured = await ensureCheckoutSettlementForBooking({
+    bookingId,
+    customerId: session.customerId,
+  });
+  if (!ensured.ok) return { ok: false, error: ensured.error };
+
   const checkout = await getCheckoutSettlementForCustomer(session.customerId, bookingId);
-  if (checkout) {
-    const checkoutResult = await submitResidentCheckoutDetails({
-      settlementId: checkout.id,
-      customerId: session.customerId,
-      electricityMeterPhotoUrl: meterReadingPhotoUrl,
-      electricityUseAverage: useAverageBillingFallback,
-      payoutUpiId,
-      payoutQrUrl,
-    });
-    if (!checkoutResult.ok) return { ok: false, error: checkoutResult.error };
-    revalidatePath('/account/profile');
-    revalidatePath('/account/resident');
-    await revalidateVacatingLifecycleForBooking(bookingId, session.customerId);
-    return { ok: true };
+  if (!checkout) {
+    return { ok: false, error: 'Could not open checkout settlement. Please try again.' };
   }
 
-  const result = await submitDepositRefundRequest({
+  const checkoutResult = await submitResidentCheckoutDetails({
+    settlementId: checkout.id,
     customerId: session.customerId,
-    bookingId,
-    notes: notes || undefined,
-    meterReadingPhotoUrl,
-    useAverageBillingFallback,
+    electricityMeterPhotoUrl: meterReadingPhotoUrl,
+    electricityUseAverage: useAverageBillingFallback,
     payoutUpiId,
     payoutQrUrl,
   });
-
-  if (!result.ok) return { ok: false, error: result.error };
-
+  if (!checkoutResult.ok) return { ok: false, error: checkoutResult.error };
   revalidatePath('/account/profile');
   revalidatePath('/account/resident');
   await revalidateVacatingLifecycleForBooking(bookingId, session.customerId);

@@ -35,6 +35,7 @@ type Props = {
   expectedCheckoutDate?: string | null;
   bookingCreatedAt?: Date;
   checkoutSettlementStatus?: string | null;
+  checkoutSettlement?: { status: string; rejectionReason?: string | null } | null;
   monthlyRentPaise?: number;
 };
 
@@ -53,6 +54,7 @@ export function RequestsHome({
   expectedCheckoutDate = null,
   bookingCreatedAt,
   checkoutSettlementStatus = null,
+  checkoutSettlement = null,
   monthlyRentPaise = 0,
 }: Props) {
   const router = useRouter();
@@ -71,7 +73,7 @@ export function RequestsHome({
               createdAt: bookingCreatedAt,
             }
           : null,
-        settlement: checkoutSettlementStatus ? { status: checkoutSettlementStatus } : null,
+        settlement: checkoutSettlement ?? (checkoutSettlementStatus ? { status: checkoutSettlementStatus } : null),
         monthlyRentPaise,
       }),
     [
@@ -80,6 +82,7 @@ export function RequestsHome({
       durationMode,
       expectedCheckoutDate,
       bookingCreatedAt,
+      checkoutSettlement,
       checkoutSettlementStatus,
       monthlyRentPaise,
     ],
@@ -147,6 +150,12 @@ export function RequestsHome({
         hasDepositDue={hasDepositDue}
         initialCategory={makeCategory}
         vacating={vacating}
+        bookingStatus={bookingStatus}
+        durationMode={durationMode}
+        expectedCheckoutDate={expectedCheckoutDate}
+        bookingCreatedAt={bookingCreatedAt}
+        checkoutSettlement={checkoutSettlement}
+        monthlyRentPaise={monthlyRentPaise}
         onClose={() => {
           setMaking(false);
           setMakeCategory(null);

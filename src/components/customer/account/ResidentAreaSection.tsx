@@ -38,7 +38,7 @@ import { ResidentHubShell } from '@/src/components/customer/account/ResidentHubS
 import type { ConciergeContext } from '@/src/lib/concierge/answers';
 import type { ResidentTab } from '@/src/lib/accountNavigation';
 import { listCustomerEmailNotifications } from '@/src/db/queries/customerNotifications';
-import { getLatestCheckoutSettlementStatusForCustomer } from '@/src/services/checkoutSettlement';
+import { getCheckoutSettlementForCustomer, getLatestCheckoutSettlementStatusForCustomer } from '@/src/services/checkoutSettlement';
 import { getLatestKycSubmission } from '@/src/services/kyc';
 import { buildWalletLedger } from '@/src/lib/residents/walletLedger';
 import { ResidentWalletView } from '@/src/components/customer/account/resident/ResidentWalletView';
@@ -187,7 +187,23 @@ export async function ResidentAreaSection({
       : null;
 
   const checkoutByBooking = new Map<string, string>();
+  const checkoutSettlementByBooking = new Map<
+    string,
+    { status: string; rejectionReason?: string | null }
+  >();
   for (const d of detail) {
+    const openSettlement = await getCheckoutSettlementForCustomer(
+      session.customerId,
+      d.bookingId,
+    );
+    if (openSettlement) {
+      checkoutByBooking.set(d.bookingId, openSettlement.status);
+      checkoutSettlementByBooking.set(d.bookingId, {
+        status: openSettlement.status,
+        rejectionReason: openSettlement.refundNotes,
+      });
+      continue;
+    }
     const status = await getLatestCheckoutSettlementStatusForCustomer(
       session.customerId,
       d.bookingId,
@@ -419,6 +435,7 @@ export async function ResidentAreaSection({
           expectedCheckoutDate={primaryBooking.booking.expectedCheckoutDate}
           bookingCreatedAt={primaryBooking.booking.createdAt}
           checkoutSettlementStatus={checkoutByBooking.get(primaryBooking.bookingId) ?? null}
+          checkoutSettlement={checkoutSettlementByBooking.get(primaryBooking.bookingId) ?? null}
           monthlyRentPaise={primaryBooking.booking.monthlyRentPaise}
         />
       ) : null}
@@ -430,7 +447,13 @@ export async function ResidentAreaSection({
           roomLabel={roomLabel}
           vacating={primaryVacating}
           checkoutStatus={checkoutByBooking.get(primaryBooking.bookingId) ?? null}
+          checkoutSettlement={checkoutSettlementByBooking.get(primaryBooking.bookingId) ?? null}
           depositHeldPaise={financialAccount?.depositHeldPaise ?? 0}
+          durationMode={primaryBooking.booking.durationMode}
+          expectedCheckoutDate={primaryBooking.booking.expectedCheckoutDate}
+          bookingStatus={primaryBooking.booking.status}
+          bookingCreatedAt={primaryBooking.booking.createdAt}
+          monthlyRentPaise={primaryBooking.booking.monthlyRentPaise}
         />
       ) : null}
 

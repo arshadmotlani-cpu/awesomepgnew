@@ -22,7 +22,7 @@ export function getDepositRefundEligibility(args: {
     expectedCheckoutDate: string | null;
     createdAt: Date;
   } | null;
-  settlement?: { status: string } | null;
+  settlement?: { status: string; rejectionReason?: string | null } | null;
   residentRequest?: { status: string } | null;
   monthlyRentPaise?: number;
 }): DepositRefundEligibility {

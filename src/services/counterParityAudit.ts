@@ -91,7 +91,7 @@ export async function runCounterParityAudit(
   const overviewVacating = findMetricCount(dashboard, 'vacating_month') ?? 0;
   const overviewBedsReleasing = findMetricCount(dashboard, 'beds_releasing') ?? 0;
 
-  const vacatingModuleCount = vacatingPage.data?.activeItems.length ?? 0;
+  const vacatingModuleCount = moveOutPipeline.approvalItems.length;
   const pipelineCount = moveOutPipeline.counts.moveOutNotices;
   const vacatingBadgeCount = vacatingActionItems.length;
   const operationsMoveOutCount = opsPage.commandCards.find((c) => c.id === 'move_out')?.count ?? 0;

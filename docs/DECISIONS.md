@@ -205,3 +205,6 @@ Cross-links: [[ARCHITECTURE]] · [[WORKFLOWS]] · [[AI_CONTEXT]] · [[BUGS]]
 
 <!-- DOC_SYNC_TOUCH_2026-06-27 -->
 > **2026-06-27 08:37:59 UTC** — Code changed in: Vacating, Action Center, Residents. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-06-29 -->
+> **2026-06-29 08:55:28 UTC** — Code changed in: Routes, Billing, Vacating, Action Center. Manual review recommended.

@@ -9,6 +9,7 @@ import {
   deleteCheckoutSettlement,
   markCheckoutRefundPaid,
   rebuildCheckoutSettlement,
+  rejectResidentCheckoutSubmission,
   updateCheckoutElectricitySettlement,
   updateCheckoutSettlementAdminFields,
 } from '@/src/services/checkoutSettlement';
@@ -74,6 +75,29 @@ export async function approveCheckoutSettlementAction(
       ? 'Checkout completed. Deposit fully applied to deductions — no refund due.'
       : `Settlement approved. Final refund: ₹${(result.finalRefundPaise / 100).toFixed(2)}`;
   return { status: 'ok', message: msg };
+}
+
+export async function rejectCheckoutSettlementSubmissionAction(
+  _prev: CheckoutSettlementActionState,
+  formData: FormData,
+): Promise<CheckoutSettlementActionState> {
+  const admin = await requireAdminPermission('deposits:write');
+  const settlementId = String(formData.get('settlementId') ?? '');
+  const reason = String(formData.get('rejectionReason') ?? '').trim();
+
+  const result = await rejectResidentCheckoutSubmission({
+    settlementId,
+    adminId: admin.adminId,
+    reason,
+  });
+  if (!result.ok) {
+    return { status: 'error', message: result.error };
+  }
+  revalidateCheckoutPaths(settlementId);
+  return {
+    status: 'ok',
+    message: 'Refund request returned to resident. They can fix details and resubmit.',
+  };
 }
 
 export async function markCheckoutRefundPaidAction(

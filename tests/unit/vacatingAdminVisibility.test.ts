@@ -69,5 +69,5 @@ test('syncVacatingAlerts reads active rows from move-out pipeline SSOT', () => {
   const end = source.indexOf('async function syncRefundsPending');
   const fn = source.slice(start, end);
   assert.match(fn, /loadMoveOutPipelineBundle/);
-  assert.match(fn, /bundle\.activeItems/);
+  assert.match(fn, /bundle\.approvalItems/);
 });

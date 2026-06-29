@@ -5,7 +5,7 @@ import {
   estimateNoticeDeductionPaise,
 } from '../../src/lib/billing/depositRefundUnlock';
 
-test('fixed stay locked before 11 AM checkout with date message', () => {
+test('fixed stay refund always available while stay is active', () => {
   const result = computeDepositRefundUnlockState({
     booking: {
       status: 'confirmed',
@@ -19,9 +19,9 @@ test('fixed stay locked before 11 AM checkout with date message', () => {
     monthlyRentPaise: 30_000,
     now: new Date('2026-06-10T05:00:00.000Z'),
   });
-  assert.equal(result.state, 'locked');
-  assert.equal(result.canRequestRefund, false);
-  assert.match(result.lockReason ?? '', /11:00 AM/);
+  assert.equal(result.state, 'unlocked');
+  assert.equal(result.canRequestRefund, true);
+  assert.equal(result.lockReason, null);
 });
 
 test('fixed stay unlocked after auto-expiry completes booking', () => {
@@ -100,5 +100,5 @@ test('monthly vacating locked until vacate date after approval', () => {
     today: '2026-06-10',
   });
   assert.equal(result.state, 'locked');
-  assert.match(result.lockReason ?? '', /11:00 AM/);
+  assert.match(result.lockReason ?? '', /approved move-out date/);
 });

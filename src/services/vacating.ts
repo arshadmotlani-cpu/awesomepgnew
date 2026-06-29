@@ -518,7 +518,7 @@ export async function approveVacatingRequest(input: {
   const depositSummary = await getDepositSummaryForBooking(updated.bookingId);
   const refundNote =
     depositSummary && depositSummary.refundableBalancePaise > 0
-      ? 'Complete your checkout settlement in the resident dashboard — upload your final electricity meter photo (or choose average billing) and your UPI ID or QR code for refund.'
+      ? `On ${formatDate(parseDate(updated.vacatingDate))}, you can submit your refund request with your final meter photo and UPI details.`
       : undefined;
   notifyVacatingUpdate({
     customerId: updated.customerId,
@@ -528,9 +528,6 @@ export async function approveVacatingRequest(input: {
     note: refundNote,
   });
 
-  const { createCheckoutSettlementFromVacating } = await import(
-    '@/src/services/checkoutSettlement'
-  );
   const { evaluateResidencyCheckoutOnBookingEnd } = await import(
     '@/src/services/continuousResidency'
   );
@@ -540,17 +537,6 @@ export async function approveVacatingRequest(input: {
       .update(vacatingRequests)
       .set({ checkoutSettlementSuppressed: true, updatedAt: new Date() })
       .where(eq(vacatingRequests.id, updated.id));
-  } else {
-    const settlement = await createCheckoutSettlementFromVacating({
-      vacatingRequestId: updated.id,
-    });
-    if (!settlement.ok) {
-      console.error(
-        '[vacating] checkout settlement not created on approve:',
-        settlement.error,
-        { vacatingRequestId: updated.id, bookingId: updated.bookingId },
-      );
-    }
   }
 
   scheduleAdminNotificationSync();
