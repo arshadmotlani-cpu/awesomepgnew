@@ -206,3 +206,8 @@ export function nextStepForRequest(status: string, type: string): string {
 export function getCategoryById(id: RequestCategoryId): RequestCategory | undefined {
   return REQUEST_CATEGORIES.find((c) => c.id === id);
 }
+
+export function isRequestCategoryId(value: string | null | undefined): value is RequestCategoryId {
+  if (!value) return false;
+  return REQUEST_CATEGORIES.some((c) => c.id === value);
+}

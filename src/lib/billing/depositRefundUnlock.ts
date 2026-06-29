@@ -2,7 +2,8 @@
  * Unified deposit refund unlock state — monthly vacating + fixed-stay checkout.
  */
 
-import { formatDate, parseDate, todayString, type DateLike } from '@/src/lib/dates';
+import { normalizeIsoDateOnly, todayString, type DateLike } from '@/src/lib/dates';
+import { formatDate as formatDisplayDate } from '@/src/lib/format';
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
 import { isFixedStayDurationMode, isMonthlyDurationMode } from '@/src/lib/checkout/checkoutWorkflow';
 import { computeNoticeDeduction } from '@/src/services/billing';
@@ -27,8 +28,17 @@ type BookingContext = {
   status: string;
   durationMode: string;
   expectedCheckoutDate: string | null;
-  createdAt: Date;
+  createdAt: Date | string;
 };
+
+function dateOnly(value: string | null | undefined): string | null {
+  const normalized = normalizeIsoDateOnly(value ?? '');
+  return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : null;
+}
+
+function displayDateLabel(value: string | null | undefined): string {
+  return formatDisplayDate(value);
+}
 
 type SettlementContext = {
   status: string;
@@ -133,15 +143,20 @@ export function computeDepositRefundUnlockState(args: {
   }
 
   const checkoutDate =
-    args.booking.expectedCheckoutDate ?? args.vacating?.vacatingDate ?? null;
+    dateOnly(args.booking.expectedCheckoutDate) ?? dateOnly(args.vacating?.vacatingDate) ?? null;
 
   let estimatedNoticeDeductionPaise = 0;
-  if (monthly && checkoutDate && monthlyRent > 0 && args.vacating) {
-    estimatedNoticeDeductionPaise = estimateNoticeDeductionPaise({
-      monthlyRentPaise: monthlyRent,
-      noticeGivenDate: args.vacating.noticeGivenDate,
-      vacatingDate: checkoutDate,
-    });
+  const noticeGivenDate = dateOnly(args.vacating?.noticeGivenDate);
+  if (monthly && checkoutDate && noticeGivenDate && monthlyRent > 0 && args.vacating) {
+    try {
+      estimatedNoticeDeductionPaise = estimateNoticeDeductionPaise({
+        monthlyRentPaise: monthlyRent,
+        noticeGivenDate,
+        vacatingDate: checkoutDate,
+      });
+    } catch {
+      estimatedNoticeDeductionPaise = 0;
+    }
   }
 
   if (fixedStay) {
@@ -174,11 +189,12 @@ export function computeDepositRefundUnlockState(args: {
   }
 
   if (args.vacating.status === 'pending') {
+    const vacateDate = dateOnly(args.vacating.vacatingDate);
     return {
       state: 'locked',
       canRequestRefund: false,
       lockReason: 'Deposit refund unlocks after admin approves your move-out request and your move-out date arrives.',
-      unlockDate: args.vacating.vacatingDate,
+      unlockDate: vacateDate,
       estimatedNoticeDeductionPaise,
     };
   }
@@ -194,21 +210,23 @@ export function computeDepositRefundUnlockState(args: {
   }
 
   if (args.vacating.status !== 'approved' && args.vacating.status !== 'completed') {
+    const vacateDate = dateOnly(args.vacating.vacatingDate);
     return {
       state: 'locked',
       canRequestRefund: false,
       lockReason: 'Move-out request must be approved first.',
-      unlockDate: args.vacating.vacatingDate,
+      unlockDate: vacateDate,
       estimatedNoticeDeductionPaise,
     };
   }
 
-  if (today < args.vacating.vacatingDate) {
+  const vacatingDate = dateOnly(args.vacating.vacatingDate);
+  if (vacatingDate && today < vacatingDate) {
     return {
       state: 'locked',
       canRequestRefund: false,
-      lockReason: `Request Refund unlocks on your approved move-out date (${formatDate(parseDate(args.vacating.vacatingDate))}).`,
-      unlockDate: args.vacating.vacatingDate,
+      lockReason: `Request Refund unlocks on your approved move-out date (${displayDateLabel(vacatingDate)}).`,
+      unlockDate: vacatingDate,
       estimatedNoticeDeductionPaise,
     };
   }
@@ -217,7 +235,7 @@ export function computeDepositRefundUnlockState(args: {
     state: 'unlocked',
     canRequestRefund: true,
     lockReason: null,
-    unlockDate: args.vacating.vacatingDate,
+    unlockDate: vacatingDate,
     estimatedNoticeDeductionPaise,
   };
 }

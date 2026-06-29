@@ -1,4 +1,5 @@
-import { todayString, tryDiffDays } from '@/src/lib/dates';
+import { todayString, normalizeIsoDateOnly } from '@/src/lib/dates';
+import { isFixedStayDurationMode } from '@/src/lib/checkout/checkoutWorkflow';
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
 import {
   computeDepositRefundUnlockState,
@@ -20,16 +21,67 @@ export function getDepositRefundEligibility(args: {
     status: string;
     durationMode: string;
     expectedCheckoutDate: string | null;
-    createdAt: Date;
+    createdAt: Date | string;
   } | null;
   settlement?: { status: string; rejectionReason?: string | null } | null;
   residentRequest?: { status: string } | null;
   monthlyRentPaise?: number;
 }): DepositRefundEligibility {
-  if (args.booking) {
+  try {
+    return computeDepositRefundEligibilitySafe(args);
+  } catch {
+    return {
+      canRequestRefund: false,
+      lockReason:
+        'We could not verify refund eligibility due to incomplete stay data. Please refresh and try again.',
+      unlockState: 'locked',
+    };
+  }
+}
+
+function computeDepositRefundEligibilitySafe(args: {
+  vacating: VacatingForBookingRow | null;
+  today?: string;
+  booking?: {
+    status: string;
+    durationMode: string;
+    expectedCheckoutDate: string | null;
+    createdAt: Date | string;
+  } | null;
+  settlement?: { status: string; rejectionReason?: string | null } | null;
+  residentRequest?: { status: string } | null;
+  monthlyRentPaise?: number;
+}): DepositRefundEligibility {
+  const bookingCreatedAt =
+    args.booking?.createdAt instanceof Date
+      ? args.booking.createdAt
+      : typeof args.booking?.createdAt === 'string'
+        ? new Date(args.booking.createdAt)
+        : null;
+
+  const resolvedCreatedAt =
+    bookingCreatedAt && !Number.isNaN(bookingCreatedAt.getTime())
+      ? bookingCreatedAt
+      : args.booking && isFixedStayDurationMode(args.booking.durationMode)
+        ? new Date(0)
+        : null;
+
+  if (args.booking && resolvedCreatedAt) {
     const unlock = computeDepositRefundUnlockState({
-      booking: args.booking,
-      vacating: args.vacating,
+      booking: {
+        ...args.booking,
+        expectedCheckoutDate: normalizeIsoDateOnly(args.booking.expectedCheckoutDate ?? '') || null,
+        createdAt: resolvedCreatedAt,
+      },
+      vacating: args.vacating
+        ? {
+            ...args.vacating,
+            noticeGivenDate:
+              normalizeIsoDateOnly(args.vacating.noticeGivenDate) || args.vacating.noticeGivenDate,
+            vacatingDate:
+              normalizeIsoDateOnly(args.vacating.vacatingDate) || args.vacating.vacatingDate,
+          }
+        : null,
       settlement: args.settlement ?? null,
       residentRequest: args.residentRequest ?? null,
       monthlyRentPaise: args.monthlyRentPaise,
@@ -43,7 +95,7 @@ export function getDepositRefundEligibility(args: {
     return {
       canRequestRefund: false,
       lockReason:
-        'Submit a vacate request and wait for admin approval before requesting a deposit refund.',
+        'Submit a move-out request and wait for admin approval before requesting a deposit refund.',
       unlockState: 'locked',
     };
   }
@@ -52,10 +104,15 @@ export function getDepositRefundEligibility(args: {
     booking: {
       status: 'confirmed',
       durationMode: 'monthly',
-      expectedCheckoutDate: vacating.vacatingDate,
-      createdAt: vacating.createdAt,
+      expectedCheckoutDate: normalizeIsoDateOnly(vacating.vacatingDate) || vacating.vacatingDate,
+      createdAt:
+        vacating.createdAt instanceof Date ? vacating.createdAt : new Date(String(vacating.createdAt)),
     },
-    vacating,
+    vacating: {
+      ...vacating,
+      noticeGivenDate: normalizeIsoDateOnly(vacating.noticeGivenDate) || vacating.noticeGivenDate,
+      vacatingDate: normalizeIsoDateOnly(vacating.vacatingDate) || vacating.vacatingDate,
+    },
     settlement: args.settlement ?? null,
     residentRequest: args.residentRequest ?? null,
     monthlyRentPaise: args.monthlyRentPaise ?? vacating.monthlyRentPaiseSnapshot,

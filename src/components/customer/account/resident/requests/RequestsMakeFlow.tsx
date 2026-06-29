@@ -10,16 +10,18 @@ import {
   type RequestCategoryId,
 } from '@/src/lib/residents/requestCenter';
 import { RequestSuccessState } from '@/src/components/customer/account/resident/requests/RequestSuccessState';
-import { DepositRefundRequestFlow } from '@/src/components/customer/account/resident/requests/DepositRefundRequestFlow';
+import { RefundRequestPageGuard } from '@/src/components/customer/account/resident/requests/RefundRequestPageGuard';
 import { DepositExtensionRequestFlow } from '@/src/components/customer/account/resident/requests/DepositExtensionRequestFlow';
 import { residentTabHref } from '@/src/lib/accountNavigation';
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
-import { getDepositRefundEligibility } from '@/src/lib/vacating/depositRefundEligibility';
+import { isRequestCategoryId } from '@/src/lib/residents/requestCenter';
 
 type Step = 'select' | 'form' | 'confirm' | 'success';
 
 type Props = {
+  customerId?: string | null;
   bookingId: string;
+  bookingCode?: string | null;
   roomLabel: string;
   refundableBalancePaise: number;
   hasDepositDue: boolean;
@@ -29,13 +31,15 @@ type Props = {
   bookingStatus?: string;
   durationMode?: string;
   expectedCheckoutDate?: string | null;
-  bookingCreatedAt?: Date;
+  bookingCreatedAt?: Date | string;
   checkoutSettlement?: { status: string; rejectionReason?: string | null } | null;
   monthlyRentPaise?: number;
 };
 
 export function RequestsMakeFlow({
+  customerId,
   bookingId,
+  bookingCode = null,
   roomLabel,
   refundableBalancePaise,
   hasDepositDue,
@@ -50,49 +54,36 @@ export function RequestsMakeFlow({
   monthlyRentPaise = 0,
 }: Props) {
   const router = useRouter();
-  const refundEligibility = getDepositRefundEligibility({
-    vacating,
-    booking: bookingCreatedAt
-      ? {
-          status: bookingStatus,
-          durationMode,
-          expectedCheckoutDate,
-          createdAt: bookingCreatedAt,
-        }
-      : null,
-    settlement: checkoutSettlement,
-    monthlyRentPaise,
-  });
+  const resolvedInitialCategory =
+    initialCategory && isRequestCategoryId(initialCategory) ? initialCategory : null;
   const [step, setStep] = useState<Step>(
-    initialCategory &&
-      getCategoryById(initialCategory)?.wired !== 'deposit_refund' &&
-      getCategoryById(initialCategory)?.wired !== 'deposit_extension'
+    resolvedInitialCategory &&
+      getCategoryById(resolvedInitialCategory)?.wired !== 'deposit_refund' &&
+      getCategoryById(resolvedInitialCategory)?.wired !== 'deposit_extension'
       ? 'form'
       : 'select',
   );
-  const [categoryId, setCategoryId] = useState<RequestCategoryId | null>(initialCategory);
+  const [categoryId, setCategoryId] = useState<RequestCategoryId | null>(resolvedInitialCategory);
   const [details, setDetails] = useState('');
 
   const category = categoryId ? getCategoryById(categoryId) : null;
 
   if (category?.wired === 'deposit_refund') {
-    if (!refundEligibility.canRequestRefund) {
-      return (
-        <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-5">
-          <p className="text-sm font-medium text-zinc-900">Deposit refund locked</p>
-          <p className="text-sm text-zinc-600">{refundEligibility.lockReason}</p>
-          <button type="button" onClick={onClose} className="text-sm font-semibold text-indigo-600">
-            ← Back
-          </button>
-        </div>
-      );
-    }
     return (
-      <DepositRefundRequestFlow
-        bookingId={bookingId}
-        refundableBalancePaise={refundableBalancePaise}
-        estimatedDeductionPaise={vacating?.deductionPaise ?? 0}
-        onDone={onClose}
+      <RefundRequestPageGuard
+        customerId={customerId}
+        booking={{
+          bookingId,
+          bookingCode,
+          status: bookingStatus,
+          durationMode,
+          expectedCheckoutDate,
+          createdAt: bookingCreatedAt ?? null,
+          refundableBalancePaise,
+          monthlyRentPaise,
+        }}
+        vacating={vacating}
+        settlement={checkoutSettlement}
         onBack={onClose}
       />
     );

@@ -30,6 +30,7 @@ import { listOpenRequestsForCustomer } from '@/src/services/residentRequests';
 import { MyRoomPanel } from '@/src/components/customer/account/MyRoomPanel';
 import { NotificationCenterPanel } from '@/src/components/customer/account/NotificationCenterPanel';
 import { ReferralsPanel } from '@/src/components/customer/account/ReferralsPanel';
+import { ResidentSectionErrorBoundary } from '@/src/components/customer/account/resident/ResidentSectionErrorBoundary';
 import { RequestsHome } from '@/src/components/customer/account/resident/requests/RequestsHome';
 import { VacatingHome } from '@/src/components/customer/account/resident/vacating/VacatingHome';
 import { requestTypeLabel, type ActiveRequestItem } from '@/src/lib/residents/requestCenter';
@@ -420,10 +421,18 @@ export async function ResidentAreaSection({
         />
       ) : null}
       {activeTab === 'requests' && primaryBooking ? (
-        <RequestsHome
+        <ResidentSectionErrorBoundary
+          page="requests_home"
           bookingId={primaryBooking.bookingId}
-          roomLabel={roomLabel}
-          refundableBalancePaise={primaryBooking.deposit?.refundableBalancePaise ?? 0}
+          customerId={session.customerId}
+          title="Requests could not load"
+        >
+          <RequestsHome
+            customerId={session.customerId}
+            bookingId={primaryBooking.bookingId}
+            bookingCode={primaryBooking.bookingCode}
+            roomLabel={roomLabel}
+            refundableBalancePaise={primaryBooking.deposit?.refundableBalancePaise ?? 0}
           hasDepositDue={hasDepositDue}
           activeRequests={activeRequests}
           selectedRequestId={requestsQuery.requestId ?? null}
@@ -438,9 +447,16 @@ export async function ResidentAreaSection({
           checkoutSettlement={checkoutSettlementByBooking.get(primaryBooking.bookingId) ?? null}
           monthlyRentPaise={primaryBooking.booking.monthlyRentPaise}
         />
+        </ResidentSectionErrorBoundary>
       ) : null}
 
       {activeTab === 'vacating' && primaryBooking ? (
+        <ResidentSectionErrorBoundary
+          page="vacating_home"
+          bookingId={primaryBooking.bookingId}
+          customerId={session.customerId}
+          title="Move-out page could not load"
+        >
         <VacatingHome
           bookingId={primaryBooking.bookingId}
           bookingCode={primaryBooking.bookingCode}
@@ -455,6 +471,7 @@ export async function ResidentAreaSection({
           bookingCreatedAt={primaryBooking.booking.createdAt}
           monthlyRentPaise={primaryBooking.booking.monthlyRentPaise}
         />
+        </ResidentSectionErrorBoundary>
       ) : null}
 
       {activeTab === 'home' && primaryBooking && financialAccount && customer ? (

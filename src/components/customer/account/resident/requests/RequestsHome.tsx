@@ -8,6 +8,7 @@ import { StatusChip } from '@/src/components/customer/design-system';
 import { ResidentMoreSection } from '@/src/components/customer/account/resident/ResidentMoreSection';
 import { RequestsMakeFlow } from '@/src/components/customer/account/resident/requests/RequestsMakeFlow';
 import { RequestDetailView } from '@/src/components/customer/account/resident/requests/RequestDetailView';
+import { ResidentSectionErrorBoundary } from '@/src/components/customer/account/resident/ResidentSectionErrorBoundary';
 import {
   nextStepForRequest,
   REQUEST_CATEGORIES,
@@ -17,11 +18,13 @@ import {
   type RequestCategoryId,
 } from '@/src/lib/residents/requestCenter';
 import { accountProfileHref, residentTabHref } from '@/src/lib/accountNavigation';
-import { getDepositRefundEligibility } from '@/src/lib/vacating/depositRefundEligibility';
+import { buildRefundRequestPageModel } from '@/src/lib/refund/refundRequestValidation';
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
 
 type Props = {
+  customerId: string;
   bookingId: string;
+  bookingCode?: string | null;
   roomLabel: string;
   refundableBalancePaise: number;
   hasDepositDue: boolean;
@@ -33,14 +36,16 @@ type Props = {
   bookingStatus?: string;
   durationMode?: string;
   expectedCheckoutDate?: string | null;
-  bookingCreatedAt?: Date;
+  bookingCreatedAt?: Date | string;
   checkoutSettlementStatus?: string | null;
   checkoutSettlement?: { status: string; rejectionReason?: string | null } | null;
   monthlyRentPaise?: number;
 };
 
 export function RequestsHome({
+  customerId,
   bookingId,
+  bookingCode = null,
   roomLabel,
   refundableBalancePaise,
   hasDepositDue,
@@ -61,32 +66,40 @@ export function RequestsHome({
   const [making, setMaking] = useState(startMake);
   const [makeCategory, setMakeCategory] = useState(initialCategory);
 
-  const refundEligibility = useMemo(
+  const refundPageModel = useMemo(
     () =>
-      getDepositRefundEligibility({
+      buildRefundRequestPageModel({
+        booking: {
+          bookingId,
+          bookingCode,
+          status: bookingStatus,
+          durationMode,
+          expectedCheckoutDate,
+          createdAt: bookingCreatedAt ?? null,
+          refundableBalancePaise,
+          monthlyRentPaise,
+        },
         vacating,
-        booking: bookingCreatedAt
-          ? {
-              status: bookingStatus,
-              durationMode,
-              expectedCheckoutDate,
-              createdAt: bookingCreatedAt,
-            }
-          : null,
-        settlement: checkoutSettlement ?? (checkoutSettlementStatus ? { status: checkoutSettlementStatus } : null),
-        monthlyRentPaise,
+        settlement:
+          checkoutSettlement ??
+          (checkoutSettlementStatus ? { status: checkoutSettlementStatus } : null),
       }),
     [
-      vacating,
+      bookingId,
+      bookingCode,
       bookingStatus,
       durationMode,
       expectedCheckoutDate,
       bookingCreatedAt,
+      refundableBalancePaise,
+      monthlyRentPaise,
+      vacating,
       checkoutSettlement,
       checkoutSettlementStatus,
-      monthlyRentPaise,
     ],
   );
+
+  const refundEligibility = refundPageModel.eligibility;
 
   const selected = useMemo(
     () => activeRequests.find((r) => r.id === selectedRequestId) ?? null,
@@ -143,24 +156,33 @@ export function RequestsHome({
     }
 
     return (
-      <RequestsMakeFlow
+      <ResidentSectionErrorBoundary
+        page="requests_make_refund"
         bookingId={bookingId}
-        roomLabel={roomLabel}
-        refundableBalancePaise={refundableBalancePaise}
-        hasDepositDue={hasDepositDue}
-        initialCategory={makeCategory}
-        vacating={vacating}
-        bookingStatus={bookingStatus}
-        durationMode={durationMode}
-        expectedCheckoutDate={expectedCheckoutDate}
-        bookingCreatedAt={bookingCreatedAt}
-        checkoutSettlement={checkoutSettlement}
-        monthlyRentPaise={monthlyRentPaise}
-        onClose={() => {
-          setMaking(false);
-          setMakeCategory(null);
-        }}
-      />
+        customerId={customerId}
+        title="Refund request could not load"
+      >
+        <RequestsMakeFlow
+          customerId={customerId}
+          bookingId={bookingId}
+          bookingCode={bookingCode}
+          roomLabel={roomLabel}
+          refundableBalancePaise={refundableBalancePaise}
+          hasDepositDue={hasDepositDue}
+          initialCategory={makeCategory}
+          vacating={vacating}
+          bookingStatus={bookingStatus}
+          durationMode={durationMode}
+          expectedCheckoutDate={expectedCheckoutDate}
+          bookingCreatedAt={bookingCreatedAt}
+          checkoutSettlement={checkoutSettlement}
+          monthlyRentPaise={monthlyRentPaise}
+          onClose={() => {
+            setMaking(false);
+            setMakeCategory(null);
+          }}
+        />
+      </ResidentSectionErrorBoundary>
     );
   }
 
