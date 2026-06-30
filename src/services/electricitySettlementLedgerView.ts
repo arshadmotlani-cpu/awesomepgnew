@@ -17,6 +17,7 @@ import {
   computeElectricityCollectionReconciliation,
   computeElectricitySettlementLedgerReconciliation,
 } from '@/src/lib/billing/electricitySettlementLedgerReconciliation';
+import { isProductionElectricityBillFilter } from '@/src/lib/billing/electricityProductionFilter';
 import { firstOfMonth } from '@/src/services/billing';
 import { getElectricityInvoiceSchemaCaps } from '@/src/lib/db/electricityInvoiceSchemaCaps';
 import type { DateLike } from '@/src/lib/dates';
@@ -134,6 +135,7 @@ export async function getElectricitySettlementLedgerView(input: {
       and(
         eq(electricityBills.roomId, input.roomId),
         eq(electricityBills.billingMonth, month),
+        isProductionElectricityBillFilter(),
       ),
     )
     .limit(1);

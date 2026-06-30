@@ -18,6 +18,7 @@ import {
   asElectricityInvoiceRow,
   electricityInvoiceLegacySelect,
 } from '@/src/lib/db/electricityInvoiceSelect';
+import { isProductionElectricityBillFilter } from '@/src/lib/billing/electricityProductionFilter';
 import { firstOfMonth } from '@/src/services/billing';
 import type { DateLike } from '@/src/lib/dates';
 
@@ -51,6 +52,10 @@ function supersededFilter(caps: ElectricityInvoiceSchemaCaps) {
     : sql``;
 }
 
+function pipelineTestFilter() {
+  return sql`AND COALESCE(ei.is_pipeline_test, false) = false`;
+}
+
 export async function countActiveElectricityInvoiceDuplicates(): Promise<number> {
   const caps = await getElectricityInvoiceSchemaCaps();
 
@@ -62,6 +67,7 @@ export async function countActiveElectricityInvoiceDuplicates(): Promise<number>
           FROM electricity_invoices ei
           WHERE ei.status <> 'cancelled'
           ${supersededFilter(caps)}
+          ${pipelineTestFilter()}
           GROUP BY ei.room_id, ei.billing_month, ei.customer_id
           HAVING COUNT(*) > 1
         ) dupes
@@ -73,6 +79,7 @@ export async function countActiveElectricityInvoiceDuplicates(): Promise<number>
           FROM electricity_invoices ei
           INNER JOIN electricity_bills eb ON eb.id = ei.electricity_bill_id
           WHERE ei.status <> 'cancelled'
+          ${pipelineTestFilter()}
           GROUP BY eb.room_id, ei.billing_month, ei.customer_id
           HAVING COUNT(*) > 1
         ) dupes
@@ -96,6 +103,7 @@ export async function listElectricityInvoiceDuplicateGroups(): Promise<
         FROM electricity_invoices ei
         WHERE ei.status <> 'cancelled'
         ${supersededFilter(caps)}
+        ${pipelineTestFilter()}
         GROUP BY ei.room_id, ei.billing_month, ei.customer_id
         HAVING COUNT(*) > 1
         ORDER BY ei.billing_month DESC, ei.room_id
@@ -400,7 +408,13 @@ export async function findExistingElectricityBillForRoomMonth(
   const [row] = await db
     .select({ id: electricityBills.id })
     .from(electricityBills)
-    .where(and(eq(electricityBills.roomId, roomId), eq(electricityBills.billingMonth, month)))
+    .where(
+      and(
+        eq(electricityBills.roomId, roomId),
+        eq(electricityBills.billingMonth, month),
+        isProductionElectricityBillFilter(),
+      ),
+    )
     .limit(1);
   return row ?? null;
 }

@@ -14,6 +14,7 @@ import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import { normalizeIsoDateOnly, todayString } from '@/src/lib/dates';
 import { asPlainNumber } from '@/src/lib/format';
 import { sanitizeAdminQueryError } from '@/src/lib/admin/productionDbError';
+import { isProductionElectricityBillFilter } from '@/src/lib/billing/electricityProductionFilter';
 import {
   asElectricityInvoiceRow,
   electricityInvoiceLegacySelect,
@@ -1412,7 +1413,9 @@ export function listAdminElectricityBills(filter?: {
   pgId?: string;
 }): Promise<QueryResult<AdminElectricityBillRow[]>> {
   return guard(async () => {
-    const where = filter?.pgId ? eq(electricityBills.pgId, filter.pgId) : undefined;
+    const where = filter?.pgId
+      ? and(eq(electricityBills.pgId, filter.pgId), isProductionElectricityBillFilter())
+      : isProductionElectricityBillFilter();
     return db
       .select({
         id: electricityBills.id,

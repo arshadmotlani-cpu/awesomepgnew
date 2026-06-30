@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   bigint,
+  boolean,
   date,
   index,
   integer,
@@ -67,6 +68,8 @@ export const electricityInvoices = pgTable(
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
     supersededByInvoiceId: uuid('superseded_by_invoice_id'),
     duplicateDetectedAt: timestamp('duplicate_detected_at', { withTimezone: true }),
+    /** UI/payment pipeline verification — excluded from room reconciliation & revenue. */
+    isPipelineTest: boolean('is_pipeline_test').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -87,7 +90,9 @@ export const electricityInvoices = pgTable(
     ),
     uniqueIndex('electricity_invoices_room_month_customer_active_unique')
       .on(t.roomId, t.billingMonth, t.customerId)
-      .where(sql`${t.status} <> 'cancelled' AND ${t.supersededByInvoiceId} IS NULL`),
+      .where(
+        sql`${t.status} <> 'cancelled' AND ${t.supersededByInvoiceId} IS NULL AND ${t.isPipelineTest} = false`,
+      ),
   ],
 );
 

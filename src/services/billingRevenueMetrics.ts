@@ -12,6 +12,7 @@ import {
 } from '@/src/db/schema';
 import { todayInBillingTimezone } from '@/src/lib/billing/billingTimezone';
 import { collectibleResidentFilters } from '@/src/lib/billing/productionDataFilter';
+import { isProductionElectricityInvoiceFilter } from '@/src/lib/billing/electricityProductionFilter';
 import { addDays, formatDate, parseDate } from '@/src/lib/dates';
 
 export type BillingRevenueMetrics = {
@@ -61,6 +62,7 @@ export async function getBillingRevenueMetrics(
     .where(
       and(
         collectibleResidentFilters(),
+        isProductionElectricityInvoiceFilter(),
         eq(electricityInvoices.billingMonth, monthStart),
         ne(electricityInvoices.status, 'cancelled'),
       ),
@@ -88,6 +90,7 @@ export async function getBillingRevenueMetrics(
     .where(
       and(
         collectibleResidentFilters(),
+        isProductionElectricityInvoiceFilter(),
         eq(electricityInvoices.status, 'pending'),
         sql`${electricityInvoices.dueDate} < ${today}::date`,
       ),

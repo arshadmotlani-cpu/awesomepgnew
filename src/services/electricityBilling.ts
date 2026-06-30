@@ -223,7 +223,7 @@ function monthLabel(billingMonth: DateLike): string {
  * Compute the next per-resident electricity invoice number.
  * Sequence is per-month across the whole system.
  */
-async function nextElectricityInvoiceNumber(
+export async function nextElectricityInvoiceNumber(
   billingMonth: DateLike,
   attempt = 0,
 ): Promise<string> {

@@ -69,6 +69,7 @@ export function asElectricityInvoiceRow(
     roomId: extras?.roomId ?? '',
     supersededByInvoiceId: extras?.supersededByInvoiceId ?? null,
     duplicateDetectedAt: extras?.duplicateDetectedAt ?? null,
+    isPipelineTest: false,
   };
 }
 

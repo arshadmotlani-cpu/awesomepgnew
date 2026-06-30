@@ -251,6 +251,7 @@ export async function loadResidentAccountContext(
           cancelledAt: null,
           supersededByInvoiceId: null,
           duplicateDetectedAt: null,
+          isPipelineTest: false,
           createdAt: inv.createdAt,
           updatedAt: inv.updatedAt,
         });

@@ -77,11 +77,15 @@ export const electricityBills = pgTable(
       onDelete: 'set null',
     }),
     notes: text('notes'),
+    /** UI/payment pipeline verification — excluded from room reconciliation & revenue. */
+    isPipelineTest: boolean('is_pipeline_test').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    uniqueIndex('electricity_bills_room_month_unique').on(t.roomId, t.billingMonth),
+    uniqueIndex('electricity_bills_room_month_unique')
+      .on(t.roomId, t.billingMonth)
+      .where(sql`${t.isPipelineTest} = false`),
     index('electricity_bills_pg_month_idx').on(t.pgId, t.billingMonth),
     index('electricity_bills_room_idx').on(t.roomId),
   ],
