@@ -256,24 +256,20 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-30 19:07:12 UTC
+### Pending pre-commit sync · 2026-06-30 20:02:22 UTC
 
-**Areas touched:** [[DATABASE]], [[Billing]], [[Electricity]]
+**Areas touched:** [[ROUTES]]
 
 **Docs flagged for review:**
-- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DATABASE.md` — review for accuracy
-- `PROJECT/features.md` — review for accuracy
+- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
-- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (5):**
-- `src/db/migrations/0089_electricity_pipeline_test.sql`
-- `src/db/schema/electricityBills.ts`
-- `src/db/schema/electricityInvoices.ts`
-- `src/lib/billing/electricityProductionFilter.ts`
-- `src/services/electricityBilling.ts`
+**Staged code files (4):**
+- `app/(admin)/admin/system/june-electricity-generation/JuneElectricityGenerationRunner.tsx`
+- `app/(admin)/admin/system/june-electricity-generation/page.tsx`
+- `app/(admin)/admin/system/page.tsx`
+- `app/api/admin/system/june-electricity-generation/route.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed
