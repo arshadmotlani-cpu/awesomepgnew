@@ -15,6 +15,8 @@ import { DepositWorkflowHeader } from '@/src/components/admin/deposits/DepositWo
 import { TransferOldDepositPanel } from '@/src/components/admin/deposits/TransferOldDepositPanel';
 import { buildDepositWorkflowPresentation } from '@/src/lib/deposits/depositWorkflowPresentation';
 import { clientSafeDepositView } from '@/src/lib/deposits/unifiedDepositView';
+import { getCheckoutSettlementDetailForBooking } from '@/src/services/checkoutSettlement';
+import { CheckoutRefundReceiptFromDetail } from '@/src/components/admin/checkout/CheckoutRefundReceipt';
 
 export const dynamic = 'force-dynamic';
 
@@ -109,6 +111,10 @@ export default async function AdminDepositDetailPage({
       })
     : null;
 
+  const checkoutReceiptDetail = isFrozen
+    ? await getCheckoutSettlementDetailForBooking(bookingId)
+    : null;
+
   return (
     <>
       <PageHeader
@@ -163,6 +169,12 @@ export default async function AdminDepositDetailPage({
         >
           <TransferOldDepositPanel targetBookingId={bookingId} />
         </DepositDetailSection>
+      ) : null}
+
+      {checkoutReceiptDetail ? (
+        <div className="mb-8">
+          <CheckoutRefundReceiptFromDetail detail={checkoutReceiptDetail} compact />
+        </div>
       ) : null}
 
       {isFrozen ? (

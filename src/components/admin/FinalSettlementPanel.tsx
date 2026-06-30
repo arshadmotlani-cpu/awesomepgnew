@@ -1,17 +1,21 @@
 import Link from 'next/link';
 import { DepositWalletSummary } from '@/src/components/admin/DepositWalletSummary';
+import { CheckoutRefundReceiptFromDetail } from '@/src/components/admin/checkout/CheckoutRefundReceipt';
 import { paiseToInr } from '@/src/lib/format';
 import type { DepositSummary } from '@/src/services/deposits';
+import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement';
 import type { SettledTenancy } from '@/src/services/residentAdmin';
 
 export function FinalSettlementPanel({
   customerName,
   settledTenancy,
   depositWallet,
+  checkoutDetail,
 }: {
   customerName: string;
   settledTenancy: SettledTenancy;
   depositWallet: DepositSummary | null;
+  checkoutDetail?: CheckoutSettlementDetail | null;
 }) {
   const collected = depositWallet?.collectedPaise ?? 0;
   const deducted = depositWallet?.deductedPaise ?? 0;
@@ -41,6 +45,10 @@ export function FinalSettlementPanel({
           <p className="mt-2 text-xs text-apg-silver">No deposit ledger entries on file.</p>
         </div>
       )}
+
+      {checkoutDetail ? (
+        <CheckoutRefundReceiptFromDetail detail={checkoutDetail} compact />
+      ) : null}
 
       <div className="rounded-2xl border border-white/10 bg-[#1A1F27] p-5">
         <p className="text-sm font-semibold text-white">Checkout summary</p>

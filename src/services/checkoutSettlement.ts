@@ -717,6 +717,12 @@ export async function getCheckoutSettlementDetail(
     return null;
   }
 
+  return buildCheckoutSettlementDetailFromJoinRow(row);
+}
+
+async function buildCheckoutSettlementDetailFromJoinRow(
+  row: NonNullable<Awaited<ReturnType<typeof loadSettlementRow>>>,
+): Promise<CheckoutSettlementDetail> {
   const wallet = await getDepositSummaryForBooking(row.bookingId);
   const depositHeld = paiseField(wallet?.refundableBalancePaise ?? 0);
   let settlement = mapDbSettlement(row);
@@ -772,6 +778,27 @@ export async function getCheckoutSettlementDetail(
     electricityTotalBillPaise,
     preview: buildPreview(settlement, depositHeld),
   });
+}
+
+/** Read-only checkout detail for booking history, deposit ledger, and receipts. */
+export async function getCheckoutSettlementDetailForBooking(
+  bookingId: string,
+): Promise<CheckoutSettlementDetail | null> {
+  const [idRow] = await db
+    .select({ id: checkoutSettlements.id })
+    .from(checkoutSettlements)
+    .where(
+      and(
+        eq(checkoutSettlements.bookingId, bookingId),
+        sql`${checkoutSettlements.status} <> 'archived'`,
+      ),
+    )
+    .orderBy(desc(checkoutSettlements.updatedAt))
+    .limit(1);
+  if (!idRow) return null;
+  const row = await loadSettlementRow(idRow.id);
+  if (!row) return null;
+  return buildCheckoutSettlementDetailFromJoinRow(row);
 }
 
 export async function getCheckoutSettlementForCustomer(

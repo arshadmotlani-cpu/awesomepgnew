@@ -28,10 +28,12 @@ import { allocateBookingCheckoutPayment } from '@/src/lib/billing/bookingPayment
 import { buildAdminInvoiceHrefMap } from '@/src/lib/billing/invoiceHrefMap';
 import { diffDays, parseDate } from '@/src/lib/dates';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
+import { getCheckoutSettlementDetailForBooking } from '@/src/services/checkoutSettlement';
 import { getBookingFinancialAccount } from '@/src/services/residentFinancialEngine';
 import { parseDaterange } from '@/src/services/availability';
 import { formatDate as formatDateIso } from '@/src/lib/dates';
 import { DepositRefundNotice } from '@/src/components/customer/DepositRefundNotice';
+import { CheckoutRefundReceiptFromDetail } from '@/src/components/admin/checkout/CheckoutRefundReceipt';
 
 export const dynamic = 'force-dynamic';
 
@@ -112,6 +114,10 @@ export default async function AdminBookingDetailPage(
   });
   const showCheckoutFinancialOps = showBookingCheckoutFinancialOps(financialPhase);
   const showCheckoutOpsPanel = showBookingCheckoutOpsPanel(financialPhase);
+  const checkoutReceiptDetail =
+    financialPhase === 'historical' || b.adminDepositRefundStatus === 'refunded'
+      ? await getCheckoutSettlementDetailForBooking(bookingId)
+      : null;
   const uniqueBeds = Array.from(
     new Map(
       b.reservations.map((r) => [
@@ -429,6 +435,10 @@ export default async function AdminBookingDetailPage(
                 </TBody>
               </Table>
             </div>
+          ) : null}
+
+          {checkoutReceiptDetail ? (
+            <CheckoutRefundReceiptFromDetail detail={checkoutReceiptDetail} compact />
           ) : null}
 
           {!showCheckoutFinancialOps ? (

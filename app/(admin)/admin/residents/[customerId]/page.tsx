@@ -35,6 +35,7 @@ import { getResidentFinancialAccount } from '@/src/services/residentFinancialEng
 import { listResidentInvoiceHistory } from '@/src/services/invoiceGeneration';
 import { getResidentBillingFormDefaults } from '@/src/services/residentBillingProfiles';
 import { getResidencyAdminView } from '@/src/services/continuousResidency';
+import { getCheckoutSettlementDetailForBooking } from '@/src/services/checkoutSettlement';
 import { ResidentResidencyPanel } from '@/src/components/admin/residents/ResidentResidencyPanel';
 
 export const dynamic = 'force-dynamic';
@@ -119,6 +120,10 @@ export default async function ResidentDetailPage({
     : settledTenancy
       ? await getDepositSummaryForBooking(settledTenancy.bookingId)
       : null;
+
+  const checkoutReceiptDetail = settledTenancy
+    ? await getCheckoutSettlementDetailForBooking(settledTenancy.bookingId)
+    : null;
 
   const latestKyc = await getLatestKycSubmission(customerId);
   const pendingKycSubmissionId =
@@ -267,6 +272,7 @@ export default async function ResidentDetailPage({
           customerName={customer.fullName}
           settledTenancy={settledTenancy}
           depositWallet={depositSummary}
+          checkoutDetail={checkoutReceiptDetail}
         />
       ) : null}
 
