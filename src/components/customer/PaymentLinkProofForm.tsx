@@ -1,6 +1,7 @@
 'use client';
 
-import { UpiPaymentProofForm } from '@/src/components/customer/UpiPaymentProofForm';
+import { customerPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
+import { UpiPaymentProofForm } from './UpiPaymentProofForm';
 import {
   submitPaymentLinkProofAction,
   uploadPaymentLinkScreenshotAction,
@@ -26,6 +27,7 @@ export function PaymentLinkProofForm({
       instructions="Scan the QR, pay the exact amount via UPI, then upload a screenshot of the payment."
       qrImageUrl={qrImageUrl}
       existingProofUrl={existingProofUrl}
+      proofViewHref={customerPaymentProofViewUrl('deposit_link', linkId)}
       uploadScreenshot={async (formData) => {
         formData.set('linkId', linkId);
         return uploadPaymentLinkScreenshotAction(formData);

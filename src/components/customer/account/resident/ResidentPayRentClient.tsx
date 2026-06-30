@@ -1,5 +1,6 @@
 'use client';
 
+import { customerPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import { ResidentPaymentConfirmFlow } from '@/src/components/customer/account/resident/ResidentPaymentConfirmFlow';
 
 export function ResidentPayRentClient({
@@ -29,6 +30,7 @@ export function ResidentPayRentClient({
       qrImageUrl={qrImageUrl}
       upiId={upiId}
       existingProofUrl={existingProofUrl}
+      proofViewHref={customerPaymentProofViewUrl('rent', invoiceId)}
       uploadScreenshot={uploadScreenshot}
       submitProof={async ({ screenshotUrl }) => {
         const res = await fetch(`/api/rent-invoice/${invoiceId}/payment-proof`, {

@@ -15,6 +15,7 @@ type Props = {
   qrImageUrl?: string | null;
   upiId?: string | null;
   existingProofUrl?: string | null;
+  proofViewHref?: string;
   uploadScreenshot: (formData: FormData) => Promise<string>;
   submitProof: (args: { screenshotUrl: string; transactionRef?: string }) => Promise<SubmitResult>;
   successChecklist: string[];
@@ -34,6 +35,7 @@ export function ResidentPaymentConfirmFlow({
   qrImageUrl,
   upiId,
   existingProofUrl,
+  proofViewHref,
   uploadScreenshot,
   submitProof,
   successChecklist,
@@ -74,6 +76,7 @@ export function ResidentPaymentConfirmFlow({
       qrImageUrl={qrImageUrl}
       upiId={upiId}
       existingProofUrl={existingProofUrl}
+      proofViewHref={proofViewHref}
       uploadScreenshot={uploadScreenshot}
       submitProof={async (args) => {
         const result = await submitProof(args);

@@ -9,10 +9,11 @@ export function adminPaymentProofViewUrl(
 }
 
 export function customerPaymentProofViewUrl(
-  kind: 'playstation' | 'booking',
+  kind: 'playstation' | 'booking' | 'rent' | 'electricity' | 'extension' | 'deposit_link',
   id: string,
 ): string {
-  return `/api/payment-proof/${kind}/${id}`;
+  const segment = kind === 'deposit_link' ? 'deposit-link' : kind;
+  return `/api/payment-proof/${segment}/${id}`;
 }
 
 /** Parse data URIs, stream private Blob URLs, or redirect public HTTPS URLs. */

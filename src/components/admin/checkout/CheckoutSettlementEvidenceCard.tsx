@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { useState } from 'react';
 import { Badge } from '@/src/components/admin/Badge';
+import { resolveBlobImageDisplaySrc } from '@/src/lib/storage/blobImageDisplay';
 import type { CheckoutSettlementImageEvidence } from '@/src/lib/checkout/checkoutSettlementImages';
 
 export function CheckoutSettlementEvidenceCard({
@@ -15,7 +16,10 @@ export function CheckoutSettlementEvidenceCard({
   fallback: string;
 }) {
   const [loadFailed, setLoadFailed] = useState(false);
-  const showImage = Boolean(evidence.viewUrl) && evidence.fetchable && !loadFailed;
+  const displaySrc = evidence.viewUrl
+    ? resolveBlobImageDisplaySrc(evidence.storedUrl, evidence.viewUrl)
+    : null;
+  const showImage = Boolean(displaySrc) && evidence.fetchable && !loadFailed;
   const badgeTone =
     evidence.status === 'present' || evidence.status === 'alternative'
       ? 'emerald'
@@ -29,10 +33,10 @@ export function CheckoutSettlementEvidenceCard({
         <h3 className="text-sm font-semibold text-white">{title}</h3>
         <Badge tone={badgeTone}>{loadFailed ? 'Image missing' : evidence.statusLabel}</Badge>
       </div>
-      {showImage && evidence.viewUrl ? (
+      {showImage && displaySrc ? (
         <div className="relative mt-3 aspect-[4/3] overflow-hidden rounded-lg border border-white/10 bg-black/30">
           <Image
-            src={evidence.viewUrl}
+            src={displaySrc}
             alt={title}
             fill
             className="object-contain"

@@ -1,5 +1,6 @@
 'use client';
 
+import { customerPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import { UpiPaymentProofForm } from './UpiPaymentProofForm';
 
 export function ExtensionPaymentProofForm({
@@ -25,6 +26,7 @@ export function ExtensionPaymentProofForm({
       qrImageUrl={qrImageUrl}
       upiId={upiId}
       existingProofUrl={existingProofUrl}
+      proofViewHref={customerPaymentProofViewUrl('extension', extensionId)}
       uploadScreenshot={uploadScreenshot}
       submitProof={async ({ screenshotUrl, transactionRef }) => {
         const res = await fetch(`/api/stay-extension/${extensionId}/payment-proof`, {

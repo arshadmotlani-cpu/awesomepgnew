@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   adminPaymentProofViewUrl,
+  customerPaymentProofViewUrl,
   isDataProofUrl,
   proofUrlToImageResponse,
 } from '../../src/lib/payments/proofResponse';
@@ -28,6 +29,13 @@ describe('proofResponse', () => {
     assert.equal(res.headers.get('Content-Type'), 'image/jpeg');
     const body = Buffer.from(await res.arrayBuffer());
     assert.equal(body.toString(), 'fake-jpeg');
+  });
+
+  it('builds customer view URLs including deposit links', () => {
+    assert.equal(
+      customerPaymentProofViewUrl('deposit_link', 'link-1'),
+      '/api/payment-proof/deposit-link/link-1',
+    );
   });
 
   it('redirects https URLs', async () => {

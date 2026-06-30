@@ -3,6 +3,7 @@ import { db } from '@/src/db/client';
 import {
   bedReservations,
   beds,
+  bookings,
   electricityBills,
   electricityInvoices,
   floors,
@@ -156,5 +157,70 @@ export async function resolveCustomerBookingProofUrl(
     .where(eq(pgPaymentRecords.id, recordId))
     .limit(1);
   if (!row?.url || row.customerId !== customerId) return null;
+  return row.url;
+}
+
+export async function resolveCustomerRentProofUrl(
+  customerId: string,
+  invoiceId: string,
+): Promise<string | null> {
+  const [row] = await db
+    .select({
+      customerId: rentInvoices.customerId,
+      url: rentInvoices.paymentProofUrl,
+    })
+    .from(rentInvoices)
+    .where(eq(rentInvoices.id, invoiceId))
+    .limit(1);
+  if (!row?.url || row.customerId !== customerId) return null;
+  return row.url;
+}
+
+export async function resolveCustomerElectricityProofUrl(
+  customerId: string,
+  invoiceId: string,
+): Promise<string | null> {
+  const [row] = await db
+    .select({
+      customerId: electricityInvoices.customerId,
+      url: electricityInvoices.paymentProofUrl,
+    })
+    .from(electricityInvoices)
+    .where(eq(electricityInvoices.id, invoiceId))
+    .limit(1);
+  if (!row?.url || row.customerId !== customerId) return null;
+  return row.url;
+}
+
+export async function resolveCustomerExtensionProofUrl(
+  customerId: string,
+  extensionId: string,
+): Promise<string | null> {
+  const [row] = await db
+    .select({
+      customerId: bookings.customerId,
+      url: stayExtensions.paymentProofUrl,
+    })
+    .from(stayExtensions)
+    .innerJoin(bookings, eq(bookings.id, stayExtensions.bookingId))
+    .where(eq(stayExtensions.id, extensionId))
+    .limit(1);
+  if (!row?.url || row.customerId !== customerId) return null;
+  return row.url;
+}
+
+export async function resolveCustomerDepositLinkProofUrl(
+  customerId: string,
+  linkId: string,
+): Promise<string | null> {
+  const [row] = await db
+    .select({
+      residentId: paymentLinks.residentId,
+      url: paymentLinks.paymentProofUrl,
+    })
+    .from(paymentLinks)
+    .where(eq(paymentLinks.id, linkId))
+    .limit(1);
+  if (!row?.url || row.residentId !== customerId) return null;
   return row.url;
 }

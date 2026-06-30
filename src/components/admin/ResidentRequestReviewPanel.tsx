@@ -10,6 +10,7 @@ import {
 } from '@/app/(admin)/admin/requests/actions';
 import { DepositWalletSummary } from '@/src/components/admin/DepositWalletSummary';
 import { validateDepositRefundSubmission } from '@/src/lib/billing/depositRefundRequirements';
+import { adminResidentRequestImageUrl } from '@/src/lib/residents/residentRequestImages';
 import { computeRefundDeductions } from '@/src/lib/refundDeductions';
 import { paiseToInr, titleCase } from '@/src/lib/format';
 import type { DepositSummary } from '@/src/services/deposits';
@@ -155,7 +156,7 @@ export function ResidentRequestReviewPanel({
                   <span className="text-amber-300">Average billing fallback selected</span>
                 ) : request.meterReadingPhotoUrl ? (
                   <a
-                    href={request.meterReadingPhotoUrl}
+                    href={adminResidentRequestImageUrl(request.id, 'meter')}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-sky-300 underline"
@@ -178,7 +179,7 @@ export function ResidentRequestReviewPanel({
                 UPI QR:{' '}
                 {request.payoutQrUrl ? (
                   <a
-                    href={request.payoutQrUrl}
+                    href={adminResidentRequestImageUrl(request.id, 'refund_qr')}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-sky-300 underline"

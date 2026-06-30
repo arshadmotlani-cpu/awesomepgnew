@@ -165,15 +165,17 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
             UPI: <span className="font-mono">{detail.payoutUpiId}</span>
           </p>
         ) : null}
-        {detail.payoutQrUrl ? (
+        {detail.refundQrEvidence.fetchable && detail.refundQrEvidence.viewUrl ? (
           <a
-            href={detail.payoutQrUrl}
+            href={detail.refundQrEvidence.viewUrl}
             target="_blank"
             rel="noreferrer"
             className="mt-2 inline-block text-sm font-semibold text-[#FF5A1F] hover:underline"
           >
             View QR code
           </a>
+        ) : detail.payoutQrUrl && detail.refundQrEvidence.status === 'image_missing' ? (
+          <p className="mt-2 text-sm text-rose-300">QR on file but image is missing — ask resident to re-upload.</p>
         ) : null}
         {!detail.payoutUpiId && !detail.payoutQrUrl ? (
           zeroRefund ? (

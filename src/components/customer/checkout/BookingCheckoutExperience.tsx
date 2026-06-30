@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useId, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { mirrorClientEventToPostHog } from '@/src/lib/analytics/client';
 import { ImageFileInput } from '@/src/components/shared/ImageFileInput';
 import { customerPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
+import { resolveBlobLinkHref } from '@/src/lib/storage/blobImageDisplay';
 import { paiseToInr } from '@/src/lib/format';
 import { stayTypeFromPricingMode, stayTypeLabel } from '@/src/lib/stayType';
 import type { PriorOutstandingItem } from '@/src/lib/billing/bookingCheckoutTotals';
@@ -116,6 +117,7 @@ export function BookingCheckoutExperience({
   const uploadInputId = useId();
 
   const [screenshotUrl, setScreenshotUrl] = useState('');
+  const [previewObjectUrl, setPreviewObjectUrl] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [transactionRef, setTransactionRef] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -147,6 +149,22 @@ export function BookingCheckoutExperience({
   const hasScreenshot = Boolean(screenshotUrl);
   const canSubmit = hasScreenshot && !uploading && !pending;
 
+  useEffect(() => {
+    return () => {
+      if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+    };
+  }, [previewObjectUrl]);
+
+  const previewSrc =
+    previewObjectUrl ??
+    resolveBlobLinkHref(
+      screenshotUrl,
+      existingProofRecordId
+        ? customerPaymentProofViewUrl('booking', existingProofRecordId)
+        : undefined,
+    ) ??
+    null;
+
   const bedDisplay =
     roomNumber && bedCode
       ? `${bedCode} · Room ${roomNumber}`
@@ -162,6 +180,8 @@ export function BookingCheckoutExperience({
       setUploading(true);
       setError(null);
       setFileName(file.name);
+      if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+      setPreviewObjectUrl(URL.createObjectURL(file));
       try {
         const fd = new FormData();
         fd.append('file', file);
@@ -170,6 +190,8 @@ export function BookingCheckoutExperience({
       } catch (err) {
         setScreenshotUrl('');
         setFileName(null);
+        if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+        setPreviewObjectUrl(null);
         setError(err instanceof Error ? err.message : 'Upload failed');
       } finally {
         setUploading(false);
@@ -516,10 +538,10 @@ export function BookingCheckoutExperience({
             </>
           )}
         </label>
-        {screenshotUrl && !uploading ? (
+        {previewSrc && !uploading ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={screenshotUrl}
+            src={previewSrc}
             alt="Payment screenshot preview"
             className="mx-auto mt-3 max-h-40 rounded-lg border border-white/10 object-contain"
           />

@@ -1,6 +1,11 @@
 'use client';
 
 import { isDataProofUrl } from '@/src/lib/payments/proofResponse';
+import {
+  privateBlobRequiresProxy,
+  resolveBlobImageDisplaySrc,
+  resolveBlobLinkHref,
+} from '@/src/lib/storage/blobImageDisplay';
 
 export function PaymentScreenshotPreview({
   url,
@@ -9,19 +14,29 @@ export function PaymentScreenshotPreview({
   className = 'h-40 w-full max-w-xs rounded-lg border border-zinc-700 object-contain bg-black/40',
 }: {
   url: string;
-  /** Use for data-URL proofs — opens a server route that streams the image. */
+  /** Authenticated server route that streams private Blob / data-URL proofs. */
   viewHref?: string;
   alt?: string;
   className?: string;
 }) {
-  const fullSizeHref =
-    viewHref ?? (isDataProofUrl(url) ? undefined : url);
+  const displaySrc = resolveBlobImageDisplaySrc(url, viewHref);
+  const fullSizeHref = resolveBlobLinkHref(url, viewHref);
+
+  if (!displaySrc) {
+    return (
+      <p className="text-xs text-rose-300">
+        {privateBlobRequiresProxy(url) && !viewHref
+          ? 'Image requires an authenticated view URL.'
+          : 'Image unavailable.'}
+      </p>
+    );
+  }
 
   return (
     <div className="inline-block max-w-xs">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={url} alt={alt} className={className} />
-      {fullSizeHref ? (
+      <img src={displaySrc} alt={alt} className={className} />
+      {fullSizeHref && !isDataProofUrl(url) ? (
         <a
           href={fullSizeHref}
           target="_blank"

@@ -17,6 +17,7 @@ import {
   rooms,
 } from '@/src/db/schema';
 import type { AdminSession } from '@/src/lib/auth/session';
+import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import { formatDate, parseDate } from '@/src/lib/dates';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { getDepositRefundEligibility } from '@/src/lib/vacating/depositRefundEligibility';
@@ -460,4 +461,26 @@ export async function listPendingResidentRequestsForAdmin(_session: AdminSession
     .innerJoin(pgs, eq(pgs.id, residentRequests.pgId))
     .where(inArray(residentRequests.status, ['submitted', 'under_review', 'approved']))
     .orderBy(residentRequests.createdAt);
+}
+
+export async function resolveAdminResidentRequestImageUrl(
+  session: AdminSession,
+  requestId: string,
+  kind: 'meter' | 'refund_qr',
+): Promise<string | null> {
+  const [row] = await db
+    .select({
+      pgId: residentRequests.pgId,
+      meterReadingPhotoUrl: residentRequests.meterReadingPhotoUrl,
+      payoutQrUrl: residentRequests.payoutQrUrl,
+    })
+    .from(residentRequests)
+    .where(eq(residentRequests.id, requestId))
+    .limit(1);
+  if (!row) return null;
+  if (!adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, row.pgId)) {
+    return null;
+  }
+  const url = kind === 'meter' ? row.meterReadingPhotoUrl : row.payoutQrUrl;
+  return url?.trim() || null;
 }

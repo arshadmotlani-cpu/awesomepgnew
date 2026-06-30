@@ -1,8 +1,8 @@
 'use client';
 
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { ImageFileInput } from '@/src/components/shared/ImageFileInput';
-import { isDataProofUrl } from '@/src/lib/payments/proofResponse';
+import { resolveBlobLinkHref } from '@/src/lib/storage/blobImageDisplay';
 
 type SubmitResult = { ok: boolean; message?: string };
 
@@ -41,12 +41,22 @@ export function UpiPaymentProofForm({
   const isLight = variant === 'light';
   const inputId = useId();
   const [screenshotUrl, setScreenshotUrl] = useState(existingProofUrl ?? '');
+  const [previewObjectUrl, setPreviewObjectUrl] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [transactionRef, setTransactionRef] = useState('');
   const [uploading, setUploading] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(Boolean(existingProofUrl));
+
+  useEffect(() => {
+    return () => {
+      if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+    };
+  }, [previewObjectUrl]);
+
+  const previewSrc =
+    previewObjectUrl ?? resolveBlobLinkHref(screenshotUrl, proofViewHref) ?? null;
 
   async function onFile(file: File | null) {
     if (!file) return;
@@ -57,6 +67,8 @@ export function UpiPaymentProofForm({
     setUploading(true);
     setError(null);
     setFileName(file.name);
+    if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+    setPreviewObjectUrl(URL.createObjectURL(file));
     try {
       const fd = new FormData();
       fd.append('file', file);
@@ -65,6 +77,8 @@ export function UpiPaymentProofForm({
     } catch (err) {
       setScreenshotUrl('');
       setFileName(null);
+      if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+      setPreviewObjectUrl(null);
       setError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
       setUploading(false);
@@ -97,8 +111,7 @@ export function UpiPaymentProofForm({
   }
 
   if (done) {
-    const viewHref =
-      proofViewHref ?? (screenshotUrl && !isDataProofUrl(screenshotUrl) ? screenshotUrl : undefined);
+    const viewHref = resolveBlobLinkHref(screenshotUrl, proofViewHref);
 
     return (
       <div
@@ -245,10 +258,10 @@ export function UpiPaymentProofForm({
           )}
         </label>
 
-        {screenshotUrl && !uploading ? (
+        {previewSrc && !uploading ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={screenshotUrl}
+            src={previewSrc}
             alt="Payment screenshot preview"
             className={`mx-auto max-h-40 rounded-lg border object-contain ${isLight ? 'border-zinc-200' : 'border-white/10'}`}
           />

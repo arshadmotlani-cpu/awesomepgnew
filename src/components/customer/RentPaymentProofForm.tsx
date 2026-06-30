@@ -1,5 +1,6 @@
 'use client';
 
+import { customerPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import { UpiPaymentProofForm } from './UpiPaymentProofForm';
 
 export function RentPaymentProofForm({
@@ -24,6 +25,7 @@ export function RentPaymentProofForm({
       qrImageUrl={qrImageUrl}
       upiId={upiId}
       existingProofUrl={existingProofUrl}
+      proofViewHref={customerPaymentProofViewUrl('rent', invoiceId)}
       uploadScreenshot={uploadScreenshot}
       submitProof={async ({ screenshotUrl }) => {
         const res = await fetch(`/api/rent-invoice/${invoiceId}/payment-proof`, {

@@ -1,5 +1,6 @@
 'use client';
 
+import { customerPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import { UpiPaymentProofForm } from './UpiPaymentProofForm';
 
 export function ElectricityPaymentProofForm({
@@ -24,6 +25,7 @@ export function ElectricityPaymentProofForm({
       qrImageUrl={qrImageUrl}
       upiId={upiId}
       existingProofUrl={existingProofUrl}
+      proofViewHref={customerPaymentProofViewUrl('electricity', invoiceId)}
       uploadScreenshot={uploadScreenshot}
       submitProof={async ({ screenshotUrl, transactionRef }) => {
         const res = await fetch(`/api/electricity-invoice/${invoiceId}/payment-proof`, {
