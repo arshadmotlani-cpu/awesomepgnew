@@ -1,11 +1,15 @@
 /* eslint-disable no-console */
 /**
- * Production electricity ops — CLI wrapper around src/services/juneElectricityProductionOps.ts
+ * Production June 2026 electricity ops — CLI / Vercel build hook.
  *
+ *   RUN_JUNE_ELECTRICITY_OPS=1 npm run vercel-build   # on Vercel (production DATABASE_URL)
  *   npx tsx scripts/run-production-electricity-ops.ts
  *   npx tsx scripts/run-production-electricity-ops.ts --admin-email you@example.com
  */
-import 'dotenv/config';
+import { loadAppEnv } from '@/src/lib/db/loadEnv';
+
+process.env.DATABASE_POOL_MAX = process.env.DATABASE_POOL_MAX || '3';
+loadAppEnv();
 
 import { closeDb } from '../src/db/client';
 import { hasDatabaseUrl } from '../src/lib/db/env';
@@ -26,9 +30,10 @@ async function main() {
 
   const adminEmail = parseAdminEmail();
   await runJuneElectricityProductionOps({
-    adminEmail,
-    adminId: '00000000-0000-4000-a000-000000000000',
-    onLog: (line) => console.log(line),
+    adminEmail: adminEmail || undefined,
+    onLog: (line) => {
+      process.stdout.write(`${line}\n`);
+    },
   });
 }
 

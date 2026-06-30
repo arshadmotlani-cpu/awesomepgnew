@@ -17,7 +17,6 @@ import { requireAdminSession } from '@/src/lib/auth/guards';
 import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
 import { BillingHealthCardPanel } from '@/src/components/admin/billing/BillingCenterPanels';
 import { getBillingHealthSnapshot } from '@/src/services/billingHealth';
-import { getJuneElectricityOpsGate } from '@/src/lib/admin/juneElectricityOpsGate';
 import { loadOverviewContext } from '@/src/services/overviewData';
 import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
 
@@ -26,8 +25,6 @@ export const maxDuration = 60;
 
 export default async function SystemHealthModulePage() {
   const session = await requireAdminSession('/admin/system');
-  const juneOpsGate =
-    session.role === 'super_admin' ? await getJuneElectricityOpsGate() : null;
   const ctx = await loadOverviewContext(session, undefined, { syncActions: false });
   const migration = await checkMigrationHealth();
 
@@ -132,14 +129,6 @@ export default async function SystemHealthModulePage() {
             >
               System health report →
             </Link>
-            {juneOpsGate?.enabled ? (
-              <Link
-                href="/admin/system/june-electricity-generation"
-                className="rounded-lg border border-amber-500/50 bg-amber-500/15 px-4 py-2 text-sm font-semibold text-amber-200 hover:bg-amber-500/25"
-              >
-                Run June Electricity Generation →
-              </Link>
-            ) : null}
             <Link
               href="/admin/uploads"
               className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-sm font-medium text-rose-200 hover:bg-rose-500/20"

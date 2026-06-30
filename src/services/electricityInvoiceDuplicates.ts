@@ -22,6 +22,8 @@ import { isProductionElectricityBillFilter } from '@/src/lib/billing/electricity
 import { firstOfMonth } from '@/src/services/billing';
 import type { DateLike } from '@/src/lib/dates';
 
+type DbExecutor = Pick<typeof db, 'select'>;
+
 export type ElectricityInvoiceDuplicateRow = {
   invoiceId: string;
   invoiceNumber: string;
@@ -253,12 +255,15 @@ export async function findActiveElectricityInvoiceForResidentMonth(input: {
   roomId: string;
   billingMonth: DateLike;
   customerId: string;
+  /** Pass the active transaction to avoid pool deadlocks (max pool size 1 on Vercel). */
+  executor?: DbExecutor;
 }): Promise<{ id: string; invoiceNumber: string } | null> {
   const caps = await getElectricityInvoiceSchemaCaps();
   const billingMonth = firstOfMonth(input.billingMonth);
+  const conn = input.executor ?? db;
 
   if (caps.roomId) {
-    const [row] = await db
+    const [row] = await conn
       .select({
         id: electricityInvoices.id,
         invoiceNumber: electricityInvoices.invoiceNumber,
@@ -280,7 +285,7 @@ export async function findActiveElectricityInvoiceForResidentMonth(input: {
     return row ?? null;
   }
 
-  const [row] = await db
+  const [row] = await conn
     .select({
       id: electricityInvoices.id,
       invoiceNumber: electricityInvoices.invoiceNumber,

@@ -25,6 +25,7 @@ import { formatBillingMonthLabel } from '@/src/lib/billing/formatBillingMonth';
 export { formatBillingMonthLabel };
 
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+type DbExecutor = Pick<typeof db, 'select'>;
 
 export type RoomElectricityLedgerEntryView = {
   customerId: string;
@@ -47,8 +48,9 @@ async function resolveRoomMonthlyBillPaise(
   roomId: string,
   billingMonth: string,
   fallbackTotalPaise?: number,
+  executor: DbExecutor = db,
 ): Promise<number> {
-  const [bill] = await db
+  const [bill] = await executor
     .select({ totalPaise: electricityBills.totalPaise })
     .from(electricityBills)
     .where(
@@ -312,6 +314,7 @@ export async function recordCheckoutElectricityCollectionInTx(
     input.roomId,
     billingMonth,
     input.totalBillPaise,
+    tx,
   );
 
   const cycleId = await ensureCycleInTx(tx, {
@@ -429,6 +432,7 @@ export async function recordManualElectricityCreditInTx(
     input.roomId,
     input.billingMonth,
     input.totalBillPaise,
+    tx,
   );
 
   const cycleId = await ensureCycleInTx(tx, {

@@ -6,11 +6,13 @@ ALTER TABLE electricity_bills
 ALTER TABLE electricity_invoices
   ADD COLUMN IF NOT EXISTS is_pipeline_test boolean NOT NULL DEFAULT false;
 
+ALTER TABLE electricity_bills DROP CONSTRAINT IF EXISTS electricity_bills_room_month_unique;
 DROP INDEX IF EXISTS electricity_bills_room_month_unique;
 CREATE UNIQUE INDEX electricity_bills_room_month_unique
   ON electricity_bills (room_id, billing_month)
   WHERE is_pipeline_test = false;
 
+ALTER TABLE electricity_invoices DROP CONSTRAINT IF EXISTS electricity_invoices_room_month_customer_active_unique;
 DROP INDEX IF EXISTS electricity_invoices_room_month_customer_active_unique;
 CREATE UNIQUE INDEX electricity_invoices_room_month_customer_active_unique
   ON electricity_invoices (room_id, billing_month, customer_id)

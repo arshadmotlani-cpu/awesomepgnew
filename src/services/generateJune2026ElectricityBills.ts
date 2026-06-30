@@ -9,7 +9,7 @@
  *
  * Stops before generating if any room cannot reconcile exactly (rule 9).
  */
-import { and, desc, eq, ilike, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, isNull, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
   bedReservations,
@@ -36,8 +36,10 @@ import {
   sumManualElectricityCreditsForRoomMonth,
 } from '@/src/services/electricitySettlementLedgerView';
 import { recordManualElectricityCredit } from '@/src/services/roomElectricityLedger';
+import { recordCheckoutElectricityCollectionFromSettlementId } from '@/src/services/roomElectricityLedger';
 import { repairElectricityInvoiceDuplicateGroup } from '@/src/services/electricityInvoiceDuplicates';
 import { listElectricityInvoiceDuplicateGroups } from '@/src/services/electricityInvoiceDuplicates';
+import { resolveCheckoutElectricityDeductionPaise } from '@/src/lib/checkout/electricitySettlementCalc';
 import { formatDate, parseDate, diffDays } from '@/src/lib/dates';
 
 const BILLING_MONTH = '2026-06-01';
@@ -63,7 +65,7 @@ type RoomContext = {
 
 const ROOM_SPECS: RoomSpec[] = [
   { roomNumber: '101', previousReadingUnits: 2008, currentReadingUnits: 2046, dedupeBeforeGenerate: true },
-  { roomNumber: '102', previousReadingUnits: 205, currentReadingUnits: 241 },
+  { roomNumber: '102', previousReadingUnits: 205, currentReadingUnits: 241, prepare: prepareRoom102 },
   { roomNumber: '201', previousReadingUnits: 362, currentReadingUnits: 464 },
   { roomNumber: '202', previousReadingUnits: 506, currentReadingUnits: 661 },
   { roomNumber: '203', previousReadingUnits: 980, currentReadingUnits: 1267 },
@@ -193,8 +195,74 @@ async function repairDuplicateInvoicesForRoom(
   }
 }
 
-/** Room 204: first resident paid ₹500 but only ₹250 recorded — top up manual credit. */
+/** Backfill electricity_settlement_ledger from approved checkout settlements (June batch). */
+async function backfillCheckoutElectricityLedgerForRoom(ctx: RoomContext): Promise<void> {
+  const { start: monthStart, end: monthEnd } = monthBounds(ctx.billingMonth);
+  const monthStartIso = formatDate(monthStart);
+  const monthEndIso = formatDate(monthEnd);
+
+  const settlementRows = await db
+    .select({
+      settlementId: checkoutSettlements.id,
+      customerName: customers.fullName,
+      electricitySharePaise: checkoutSettlements.electricitySharePaise,
+      electricityCalculationMethod: checkoutSettlements.electricityCalculationMethod,
+      manualChargePaise: checkoutSettlements.manualChargePaise,
+      electricityDeductFromDeposit: checkoutSettlements.electricityDeductFromDeposit,
+      status: checkoutSettlements.status,
+      ledgerId: electricitySettlementLedger.id,
+    })
+    .from(checkoutSettlements)
+    .innerJoin(vacatingRequests, eq(vacatingRequests.id, checkoutSettlements.vacatingRequestId))
+    .innerJoin(customers, eq(customers.id, checkoutSettlements.customerId))
+    .innerJoin(bedReservations, eq(bedReservations.bookingId, checkoutSettlements.bookingId))
+    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+    .leftJoin(
+      electricitySettlementLedger,
+      eq(electricitySettlementLedger.checkoutSettlementId, checkoutSettlements.id),
+    )
+    .where(
+      and(
+        eq(beds.roomId, ctx.roomId),
+        eq(bedReservations.kind, 'primary'),
+        sql`${vacatingRequests.vacatingDate} >= ${monthStartIso}::date`,
+        sql`${vacatingRequests.vacatingDate} < ${monthEndIso}::date`,
+        sql`(
+          ${checkoutSettlements.electricitySharePaise} > 0
+          OR coalesce(${checkoutSettlements.manualChargePaise}, 0) > 0
+        )`,
+        sql`${checkoutSettlements.status} IN ('approved', 'refund_pending', 'completed', 'awaiting_admin_review')`,
+      ),
+    );
+
+  for (const row of settlementRows) {
+    const deductionPaise = resolveCheckoutElectricityDeductionPaise(row);
+    if (deductionPaise <= 0) continue;
+    if (row.ledgerId) {
+      console.log(
+        `  ${ctx.roomNumber} — ${row.customerName}: checkout ledger ${paiseToInr(deductionPaise)} (already recorded)`,
+      );
+      continue;
+    }
+    console.log(
+      `  ${ctx.roomNumber} — backfilling checkout electricity for ${row.customerName}: ${paiseToInr(deductionPaise)} (${row.status})`,
+    );
+    if (!ctx.dryRun) {
+      await recordCheckoutElectricityCollectionFromSettlementId(row.settlementId);
+    }
+  }
+}
+
+async function prepareRoom102(ctx: RoomContext): Promise<void> {
+  await backfillCheckoutElectricityLedgerForRoom(ctx);
+  const manualTotal = await sumManualElectricityCreditsForRoomMonth(ctx.roomId, ctx.billingMonth);
+  if (manualTotal > 0) {
+    console.log(`  Room 102 — manual credits already recorded: ${paiseToInr(manualTotal)}`);
+  }
+}
+
 async function prepareRoom204(ctx: RoomContext): Promise<void> {
+  await backfillCheckoutElectricityLedgerForRoom(ctx);
   const TARGET_FIRST_RESIDENT_PAISE = 50_000; // ₹500
 
   const departedResidents = await db
@@ -298,7 +366,12 @@ async function prepareRoom204(ctx: RoomContext): Promise<void> {
   }
 }
 
-async function loadOccupantsForPreflight(roomId: string, billingMonth: string, useProRata: boolean) {
+async function loadOccupantsForPreflight(
+  roomId: string,
+  billingMonth: string,
+  useProRata: boolean,
+  includeFixedStay = false,
+) {
   const { start: monthStart, end: monthEnd } = monthBounds(billingMonth);
   const monthStartIso = formatDate(monthStart);
   const monthEndIso = formatDate(monthEnd);
@@ -317,8 +390,11 @@ async function loadOccupantsForPreflight(roomId: string, billingMonth: string, u
     .where(
       and(
         eq(beds.roomId, roomId),
-        sql`${bookings.status} IN ('confirmed', 'completed')`,
-        sql`${bookings.durationMode} IN ('monthly', 'open_ended')`,
+        inArray(bookings.status, ['confirmed', 'completed']),
+        inArray(
+          bookings.durationMode,
+          includeFixedStay ? ['monthly', 'open_ended', 'fixed_stay'] : ['monthly', 'open_ended'],
+        ),
         eq(bedReservations.kind, 'primary'),
         sql`${bedReservations.stayRange} && daterange(${monthStartIso}::date, ${monthEndIso}::date, '[)')`,
       ),
@@ -396,6 +472,7 @@ async function preflightRoom(
   const { occupants, totalWeight } = await loadOccupantsForPreflight(
     ctx.roomId,
     ctx.billingMonth,
+    true,
     true,
   );
 
@@ -577,6 +654,7 @@ async function processRoom(
     currentReadingUnits: spec.currentReadingUnits,
     ratePerUnitPaise: RATE_PAISE,
     useProRataByActiveDays: true,
+    includeFixedStayOccupants: true,
     notes: 'June 2026 batch generation',
   });
 

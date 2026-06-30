@@ -84,6 +84,8 @@ export type CreateElectricityBillInput = {
   notes?: string | null;
   /** When true, split by active days in billing month (mid-month check-ins). */
   useProRataByActiveDays?: boolean;
+  /** June 2026 batch: include fixed_stay occupants who overlap the billing month. */
+  includeFixedStayOccupants?: boolean;
   /** Correlates structured logs across action + service. */
   requestId?: string;
 };
@@ -223,16 +225,24 @@ function monthLabel(billingMonth: DateLike): string {
  * Compute the next per-resident electricity invoice number.
  * Sequence is per-month across the whole system.
  */
+type DbExecutor = Pick<typeof db, 'select'>;
+
 export async function nextElectricityInvoiceNumber(
   billingMonth: DateLike,
   attempt = 0,
+  executor: DbExecutor = db,
 ): Promise<string> {
   const label = monthLabel(billingMonth);
-  const [{ count }] = await db
-    .select({ count: sql<number>`count(*)::int` })
+  const month = firstOfMonth(billingMonth);
+  const [{ maxSeq }] = await executor
+    .select({
+      maxSeq: sql<number>`coalesce(max(
+        nullif(substring(${electricityInvoices.invoiceNumber} from '[0-9]+$'), '')::int
+      ), 0)::int`,
+    })
     .from(electricityInvoices)
-    .where(eq(electricityInvoices.billingMonth, firstOfMonth(billingMonth)));
-  const seq = (count ?? 0) + 1 + attempt;
+    .where(eq(electricityInvoices.billingMonth, month));
+  const seq = (maxSeq ?? 0) + 1 + attempt;
   return `${INVOICE_PREFIX}-${label}-${String(seq).padStart(4, '0')}`;
 }
 
@@ -346,7 +356,12 @@ export async function createElectricityBill(
       and(
         eq(beds.roomId, input.roomId),
         inArray(bookings.status, ['confirmed', 'completed']),
-        inArray(bookings.durationMode, ['monthly', 'open_ended']),
+        inArray(
+          bookings.durationMode,
+          input.includeFixedStayOccupants
+            ? ['monthly', 'open_ended', 'fixed_stay']
+            : ['monthly', 'open_ended'],
+        ),
         sql`bed_reservations.kind = 'primary'`,
         sql`bed_reservations.stay_range && daterange(${monthStartIso}::date, ${monthEndIso}::date, '[)')`,
       ),
@@ -564,6 +579,7 @@ export async function createElectricityBill(
             roomId: input.roomId,
             billingMonth,
             customerId: draft.customerId,
+            executor: tx,
           });
           if (existingInvoice) {
             invoiceIds.push(existingInvoice.id);
@@ -581,7 +597,10 @@ export async function createElectricityBill(
             const invoiceNumber = await nextElectricityInvoiceNumber(
               billingMonth,
               attempt + invoiceIds.length,
+              tx,
             );
+            const savepoint = `inv_try_${attempt}`;
+            await tx.execute(sql.raw(`SAVEPOINT "${savepoint}"`));
             try {
               const invoiceValues = {
                 invoiceNumber,
@@ -602,13 +621,16 @@ export async function createElectricityBill(
                 .values(invoiceValues as NewElectricityInvoice)
                 .returning({ id: electricityInvoices.id });
               inserted = row;
+              await tx.execute(sql.raw(`RELEASE SAVEPOINT "${savepoint}"`));
               break;
             } catch (err) {
+              await tx.execute(sql.raw(`ROLLBACK TO SAVEPOINT "${savepoint}"`));
               if (pgErrorCode(err) === '23505') {
                 const reused = await findActiveElectricityInvoiceForResidentMonth({
                   roomId: input.roomId,
                   billingMonth,
                   customerId: draft.customerId,
+                  executor: tx,
                 });
                 if (reused) {
                   inserted = { id: reused.id };
@@ -715,10 +737,10 @@ export async function createElectricityBill(
     }
 
     const { syncManyToUnified } = await import('@/src/services/unifiedInvoices');
-    void syncManyToUnified(result.invoiceIds, 'electricity').catch((syncErr) => {
+    await syncManyToUnified(result.invoiceIds, 'electricity').catch((syncErr) => {
       logElectricityBillCreate('failed', {
         requestId,
-        step: 'unified_sync_background',
+        step: 'unified_sync',
         message: syncErr instanceof Error ? syncErr.message : String(syncErr),
       });
     });
