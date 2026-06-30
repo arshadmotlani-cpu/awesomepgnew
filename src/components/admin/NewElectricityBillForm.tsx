@@ -8,6 +8,7 @@ import {
 import type { RoomPickerRow } from '@/src/db/queries/admin';
 import { DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE } from '@/src/lib/billing/constants';
 import { paiseToInr } from '@/src/lib/format';
+import { ElectricityCheckoutReconciliationPreview } from '@/src/components/admin/electricity/ElectricityCheckoutReconciliationPreview';
 
 const idle: ActionState = { status: 'idle' };
 
@@ -53,6 +54,7 @@ export function NewElectricityBillForm({
     String(DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE / 100),
   );
   const [roomId, setRoomId] = useState<string>(defaultRoomId ?? '');
+  const [billingMonth, setBillingMonth] = useState<string>(defaultMonth);
   const [loadingPrev, setLoadingPrev] = useState(false);
 
   useEffect(() => {
@@ -193,7 +195,8 @@ export function NewElectricityBillForm({
           type="text"
           name="billingMonth"
           required
-          defaultValue={defaultMonth}
+          value={billingMonth}
+          onChange={(e) => setBillingMonth(e.target.value)}
           pattern="\d{4}-\d{2}-\d{2}"
           className="apg-admin-field mt-1 block w-full rounded-lg border border-white/10 bg-[#12161D] px-3 py-2 text-sm text-white"
         />
@@ -294,6 +297,13 @@ export function NewElectricityBillForm({
             ) : null}{' '}
             — split across monthly residents in this room.
           </div>
+          {roomId ? (
+            <ElectricityCheckoutReconciliationPreview
+              roomId={roomId}
+              billingMonth={wizardMode ? defaultMonth : billingMonth}
+              grossBillPaise={previewTotalPaise}
+            />
+          ) : null}
         </div>
       ) : null}
 

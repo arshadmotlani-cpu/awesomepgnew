@@ -58,6 +58,10 @@ export const electricityBills = pgTable(
     prepaidCreditAppliedPaise: bigint('prepaid_credit_applied_paise', { mode: 'number' })
       .notNull()
       .default(0),
+    /** Checkout electricity already collected from short-stay residents this month. */
+    checkoutCreditAppliedPaise: bigint('checkout_credit_applied_paise', { mode: 'number' })
+      .notNull()
+      .default(0),
     /** Who paid offline, e.g. "Former tenant Amit — paid cash June 2026". */
     prepaidCreditNote: text('prepaid_credit_note'),
     createdByAdminId: uuid('created_by_admin_id').references(() => adminUsers.id, {

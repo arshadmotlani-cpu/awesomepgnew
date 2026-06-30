@@ -53,6 +53,10 @@ import {
 import type { ElectricityInvoice } from '../db/schema';
 import type { AnyPaymentProvider } from './bookingLifecycle';
 import type { ProviderName } from './payments';
+import {
+  applyCheckoutElectricityLedgerToBill,
+  sumUnappliedCheckoutElectricityPaise,
+} from './electricitySettlementLedger';
 
 const INVOICE_PREFIX = 'ELE';
 
@@ -85,6 +89,7 @@ export type CreateElectricityBillResult =
       unitsConsumed: number;
       totalPaise: number;
       prepaidCreditAppliedPaise: number;
+      checkoutCreditAppliedPaise: number;
       netSplittablePaise: number;
       monthlyOccupantCount: number;
       perResidentPaise: number;
@@ -377,7 +382,13 @@ export async function createElectricityBill(
     room.prepaidCreditPaise ?? 0,
     grossTotalPaise,
   );
-  const netSplittablePaise = grossTotalPaise - prepaidCreditAppliedPaise;
+  const afterPrepaidPaise = grossTotalPaise - prepaidCreditAppliedPaise;
+  const checkoutCollectedPaise = await sumUnappliedCheckoutElectricityPaise(
+    input.roomId,
+    billingMonth,
+  );
+  const checkoutCreditAppliedPaise = Math.min(checkoutCollectedPaise, afterPrepaidPaise);
+  const netSplittablePaise = afterPrepaidPaise - checkoutCreditAppliedPaise;
 
   const useProRata = input.useProRataByActiveDays && totalWeight > 0;
   const bookingList = [...byBooking.values()];
@@ -443,6 +454,7 @@ export async function createElectricityBill(
           roundingRemainderPaise: remainderPaise,
           prepaidCreditAppliedPaise,
           prepaidCreditNote,
+          checkoutCreditAppliedPaise,
           createdByAdminId: input.createdByAdminId ?? null,
           notes: input.notes ?? null,
         })
@@ -526,6 +538,15 @@ export async function createElectricityBill(
         });
       }
 
+      if (checkoutCreditAppliedPaise > 0) {
+        await applyCheckoutElectricityLedgerToBill(tx, {
+          roomId: input.roomId,
+          billingMonth,
+          electricityBillId: bill.id,
+          maxPaise: checkoutCreditAppliedPaise,
+        });
+      }
+
       await tx.insert(auditLog).values({
         actorType: input.createdByAdminId ? 'admin' : 'system',
         actorId: input.createdByAdminId ?? null,
@@ -541,6 +562,7 @@ export async function createElectricityBill(
           ratePerUnitPaise: input.ratePerUnitPaise,
           grossTotalPaise,
           prepaidCreditAppliedPaise,
+          checkoutCreditAppliedPaise,
           netSplittablePaise,
           monthlyOccupantCount: totalMonthlyBedShares,
           perResidentPaise,
@@ -577,6 +599,7 @@ export async function createElectricityBill(
       unitsConsumed,
       totalPaise: grossTotalPaise,
       prepaidCreditAppliedPaise,
+      checkoutCreditAppliedPaise,
       netSplittablePaise,
       monthlyOccupantCount: totalMonthlyBedShares,
       perResidentPaise,

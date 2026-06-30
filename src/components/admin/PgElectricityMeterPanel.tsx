@@ -228,13 +228,19 @@ function RoomMeterCard({
         {bill ? (
           <div>
             Last bill:{' '}
-            <span className="text-zinc-200">
+            <a
+              href={`/admin/electricity/bills/${bill.id}`}
+              className="text-zinc-200 underline decoration-zinc-600 hover:text-white"
+            >
               {bill.unitsConsumed} units · {paiseToInr(bill.totalPaise)}
               {bill.prepaidCreditAppliedPaise > 0
                 ? ` (−${paiseToInr(bill.prepaidCreditAppliedPaise)} prepaid)`
+                : ''}
+              {bill.checkoutCreditAppliedPaise > 0
+                ? ` (−${paiseToInr(bill.checkoutCreditAppliedPaise)} checkout)`
                 : ''}{' '}
               · {formatDate(bill.billingMonth)}
-            </span>
+            </a>
           </div>
         ) : null}
         <div>

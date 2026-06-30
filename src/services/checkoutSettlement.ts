@@ -46,6 +46,7 @@ import {
 } from '@/src/services/depositSettlement';
 import { finalizeVacatingOccupancy } from '@/src/services/vacating';
 import { scheduleAdminNotificationSync } from '@/src/services/adminLiveSync';
+import { recordCheckoutElectricityLedgerFromSettlementId } from '@/src/services/electricitySettlementLedger';
 import { assessCheckoutSettlementReadiness } from '@/src/lib/checkout/checkoutSettlementReadiness';
 import {
   calculateAverageBillingElectricity,
@@ -1394,6 +1395,7 @@ export async function approveCheckoutSettlement(input: {
   });
 
   scheduleAdminNotificationSync();
+  await recordCheckoutElectricityLedgerFromSettlementId(current.id);
   return { ok: true, finalRefundPaise };
 }
 
