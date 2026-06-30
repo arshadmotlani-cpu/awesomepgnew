@@ -28,6 +28,7 @@ import { formatDate, formatDateTime, paiseToInr } from '@/src/lib/format';
 import { adminStayTypeLabel, isMonthlyStayType } from '@/src/lib/stayType';
 import { diffDays, parseDate } from '@/src/lib/dates';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
+import { canAdminMarkInvoicePaidWithCash } from '@/src/services/adminCashSettlement';
 import { getLatestKycSubmission } from '@/src/services/kyc';
 import { getResidentDetail, getCustomerVerificationStatus } from '@/src/services/residentAdmin';
 import { listAssignableBeds } from '@/src/services/tenantAssignment';
@@ -90,6 +91,7 @@ export default async function ResidentDetailPage({
 
   const session = await requireAdminPermission('bookings:write');
   await syncActionItems(session).catch(() => undefined);
+  const canMarkCash = canAdminMarkInvoicePaidWithCash(session.role);
   const [detail, verification, openUnresolvedRows] = await Promise.all([
     getResidentDetail(session, customerId),
     getCustomerVerificationStatus(customerId),
@@ -292,6 +294,11 @@ export default async function ResidentDetailPage({
               bookingId={activeTenancy.bookingId}
               billingDefaults={billingDefaults}
               financialSummary={financialAccount}
+              cashSettlement={
+                canMarkCash
+                  ? { canSettle: true, adminName: session.fullName ?? session.email }
+                  : null
+              }
             />
           ) : null}
 

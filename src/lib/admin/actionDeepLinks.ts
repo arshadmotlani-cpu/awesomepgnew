@@ -23,7 +23,7 @@ export function buildActionDeepLink(
     return `/admin/residents/kyc/${meta.submissionId}?read=${encodeURIComponent(`kyc:${meta.submissionId}`)}`;
   }
   if (type === 'payment_received' && meta.paymentReviewKey) {
-    return `/admin/operations/payment-reviews?key=${encodeURIComponent(meta.paymentReviewKey)}`;
+    return `/admin/operations?filter=payment_proof&key=${encodeURIComponent(meta.paymentReviewKey)}`;
   }
   if (type === 'refund_pending' && meta.settlementId) {
     return `/admin/checkout-settlements/${meta.settlementId}`;
@@ -43,13 +43,17 @@ export function buildActionDeepLink(
   if (type === 'maintenance_issue' && meta.requestId) {
     return `/admin/requests?read=${meta.requestId}`;
   }
+  if (type === 'financial_audit_review') {
+    if (residentId) return `/admin/residents/${residentId}`;
+    return '/admin/billing?tab=billing';
+  }
   if (type === 'extension_request' && meta.bookingId) {
     return `/admin/bookings/${meta.bookingId}`;
   }
   if (residentId) {
     return `/admin/residents/${residentId}`;
   }
-  return '/admin/operations/residents';
+  return '/admin/operations';
 }
 
 export function buildNotificationReadParam(type: ActionItem['type'], meta: ActionItemMetadata): string | null {

@@ -48,7 +48,8 @@ export function RevenueCommandCenter({
   monthLabel: string;
   pgHref?: (pgId: string) => string;
 }) {
-  const { today, mtd, byPg, outstanding, depositPortfolio, billingMetrics } = data;
+  const { today, mtd, byPg, outstanding, depositPortfolio, billingMetrics, collectionsByMode } =
+    data;
   const totalDepositPaid = byPg.reduce((a, r) => a + r.depositPaidCount, 0);
   const totalDepositPending = byPg.reduce((a, r) => a + r.depositPendingCount, 0);
   const pgTotals = byPg.reduce(
@@ -141,6 +142,49 @@ export function RevenueCommandCenter({
             hint="Rent + electricity + deposits"
             icon={<IconCard />}
             accent="indigo"
+          />
+        </div>
+      </div>
+
+      <div>
+        <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-apg-silver">
+          Collections by payment mode · {monthLabel}
+        </p>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          <OverviewStatCard
+            label="UPI"
+            value={paiseToInr(collectionsByMode.upiPaise)}
+            hint="QR, Razorpay, manual UPI"
+            icon={<IconCard />}
+            accent="sky"
+          />
+          <OverviewStatCard
+            label="Cash"
+            value={paiseToInr(collectionsByMode.cashPaise)}
+            hint="Reception cash collections"
+            icon={<IconCard />}
+            accent="emerald"
+          />
+          <OverviewStatCard
+            label="Bank transfer"
+            value={paiseToInr(collectionsByMode.bankTransferPaise)}
+            hint="NEFT / IMPS / bank"
+            icon={<IconCard />}
+            accent="indigo"
+          />
+          <OverviewStatCard
+            label="Other"
+            value={paiseToInr(collectionsByMode.otherPaise)}
+            hint="Mock / legacy adapters"
+            icon={<IconCard />}
+            accent="orange"
+          />
+          <OverviewStatCard
+            label="All modes"
+            value={paiseToInr(collectionsByMode.totalPaise)}
+            hint="Payment ledger MTD"
+            icon={<IconChart />}
+            accent="emerald"
           />
         </div>
       </div>
@@ -360,7 +404,7 @@ export function RevenueCommandCenter({
             label="Pending payment approvals"
             count={outstanding.pendingPaymentApprovals}
             amountPaise={outstanding.pendingPaymentApprovalsPaise}
-            href="/admin/operations/payment-reviews"
+            href="/admin/operations?filter=payment_proof"
             linkLabel="Operations payment reviews →"
           />
           <div className="rounded-xl border border-[#FF5A1F]/30 bg-[#FF5A1F]/5 p-4">

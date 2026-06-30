@@ -1,7 +1,7 @@
 /**
  * ₹0 pipeline-test electricity invoice — full UI/sync path, zero room/revenue impact.
  */
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
   adminUsers,
@@ -19,12 +19,24 @@ import type { NewElectricityInvoice } from '@/src/db/schema/electricityInvoices'
 import { electricityDueDate, firstOfMonth } from '@/src/services/billing';
 import { formatDate } from '@/src/lib/dates';
 import { nextElectricityInvoiceNumber } from '@/src/services/electricityBilling';
+import {
+  isPipelineTestResidentEmail,
+  normalizePipelineTestEmail,
+  PIPELINE_TEST_RESIDENT_EMAIL,
+} from '@/src/lib/billing/pipelineTestResident';
 
 const PIPELINE_TEST_NOTE =
   'PIPELINE_TEST — excluded from room reconciliation, revenue, and settlements';
 
 async function resolveAdminCustomerContext(adminEmail: string) {
-  const normalized = adminEmail.trim().toLowerCase();
+  const normalized = normalizePipelineTestEmail(adminEmail);
+
+  if (!isPipelineTestResidentEmail(normalized)) {
+    return {
+      ok: false as const,
+      error: `Pipeline test invoice can only be created for ${PIPELINE_TEST_RESIDENT_EMAIL}.`,
+    };
+  }
 
   const [admin] = await db
     .select({ id: adminUsers.id, email: adminUsers.email, fullName: adminUsers.fullName })
@@ -39,13 +51,13 @@ async function resolveAdminCustomerContext(adminEmail: string) {
       email: customers.email,
     })
     .from(customers)
-    .where(eq(customers.email, normalized))
+    .where(sql`lower(trim(${customers.email})) = ${normalized}`)
     .limit(1);
 
   if (!customer) {
     return {
       ok: false as const,
-      error: `No customer account with email ${normalized}. Link your admin email to a resident profile first.`,
+      error: `No resident account with email ${PIPELINE_TEST_RESIDENT_EMAIL}. Create or link this account before running the pipeline test.`,
     };
   }
 
@@ -88,8 +100,9 @@ async function resolveAdminCustomerContext(adminEmail: string) {
   };
 }
 
+
 export async function createPipelineTestElectricityInvoice(input: {
-  adminEmail: string;
+  adminEmail?: string;
   billingMonth?: string;
 }): Promise<
   | {
@@ -103,7 +116,9 @@ export async function createPipelineTestElectricityInvoice(input: {
   | { ok: false; error: string }
 > {
   const billingMonth = firstOfMonth(input.billingMonth ?? '2026-06-01');
-  const ctx = await resolveAdminCustomerContext(input.adminEmail);
+  const ctx = await resolveAdminCustomerContext(
+    input.adminEmail ?? PIPELINE_TEST_RESIDENT_EMAIL,
+  );
   if (!ctx.ok) return ctx;
 
   const { customer, booking, admin } = ctx;

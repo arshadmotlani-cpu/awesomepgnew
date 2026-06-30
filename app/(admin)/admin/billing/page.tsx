@@ -40,7 +40,16 @@ import {
 } from '@/src/components/admin/billing/BillingCenterPanels';
 import { BillingOperationsDashboard } from '@/src/components/admin/billing/BillingOperationsDashboard';
 import { BillingCycleCertificationPanel } from '@/src/components/admin/billing/BillingCycleCertificationPanel';
+import { PipelineTestIntegrityPanel } from '@/src/components/admin/billing/PipelineTestIntegrityPanel';
 import { OperationsPaymentReviewsPanel } from '@/src/components/admin/operations/OperationsPaymentReviewsPanel';
+import {
+  canAdminMarkInvoicePaidWithCash,
+  resolveFinancialInvoiceIdMap,
+} from '@/src/services/adminCashSettlement';
+import {
+  listPipelineTestIntegrityIssues,
+  listStrayZeroProductionInvoices,
+} from '@/src/services/billingPipelineIntegrity';
 import { loadBillingCommandCenterSnapshot } from '@/src/services/billingCommandCenter';
 import { todayInBillingTimezone } from '@/src/lib/billing/billingTimezone';
 import { getBillingHealthSnapshot } from '@/src/services/billingHealth';
@@ -112,7 +121,7 @@ export default async function CollectionsModulePage({
   await ensureAdminPageNotificationsSeen('/admin/billing', '/admin/billing');
   const canGenerateRent = adminHasPermission(session.role, 'rent:write');
   const canSendLinks = adminHasPermission(session.role, 'payments:write');
-  const [openRent, rentPaid, elecPending, pgs, billingOverview, billingCycleOps, roomsMissingElectricity, billingHealth, lastRun, generatedToday, failures, paymentReviews, electricityBillsToday, billingSnapshot] =
+  const [openRent, rentPaid, elecPending, pgs, billingOverview, billingCycleOps, roomsMissingElectricity, billingHealth, lastRun, generatedToday, failures, paymentReviews, electricityBillsToday, billingSnapshot, pipelineIssues, strayZeroInvoices] =
     await Promise.all([
     listAdminOpenRentInvoices(),
     listAdminRentInvoices({ status: 'paid' }),
@@ -134,6 +143,8 @@ export default async function CollectionsModulePage({
       )
       .then((rows) => rows[0]?.count ?? 0),
     loadBillingCommandCenterSnapshot(session, billingMonth),
+    listPipelineTestIntegrityIssues(),
+    listStrayZeroProductionInvoices(),
   ]);
 
   const allUnpaidRent = mergeUnpaidRent(openRent.ok ? openRent.data : []);
@@ -144,6 +155,19 @@ export default async function CollectionsModulePage({
     rentRows: allUnpaidRent,
     electricityRows: allUnpaidElectricity,
   });
+
+  const financialIdMap = await resolveFinancialInvoiceIdMap(
+    collectionsQueue.map((item) => ({
+      sourceTable: item.sourceTable,
+      sourceId: item.sourceId,
+    })),
+  );
+  for (const item of collectionsQueue) {
+    item.financialInvoiceId =
+      financialIdMap.get(`${item.sourceTable}:${item.sourceId}`) ?? null;
+  }
+
+  const canMarkCash = canAdminMarkInvoicePaidWithCash(session.role);
 
   const collectionsStats = buildCollectionsCommandStats({
     queue: collectionsQueue,
@@ -195,7 +219,12 @@ export default async function CollectionsModulePage({
         </Link>
       </div>
 
-      <BillingCycleCertificationPanel reconciliation={billingSnapshot.reconciliation} />
+      <BillingCycleCertificationPanel
+        reconciliation={billingSnapshot.reconciliation}
+        error={billingSnapshot.reconciliationError}
+      />
+
+      <PipelineTestIntegrityPanel issues={pipelineIssues} strayZeroInvoices={strayZeroInvoices} />
 
       <div className="mb-6 flex flex-wrap gap-2">
         {TABS.map((t) => (
@@ -303,7 +332,14 @@ export default async function CollectionsModulePage({
       {tab === 'billing' ? (
         <>
           <CollectionsCommandCenter stats={collectionsStats} />
-          <CollectionsActionQueue items={collectionsQueue} />
+          <CollectionsActionQueue
+            items={collectionsQueue}
+            cashSettlement={
+              canMarkCash
+                ? { canSettle: true, adminName: session.fullName ?? session.email }
+                : null
+            }
+          />
           <BillingRecentCollections
             rows={recentCollections}
             error={rentPaid.ok ? null : rentPaid.error ?? null}

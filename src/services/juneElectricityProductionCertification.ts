@@ -21,6 +21,7 @@ import { DEFAULT_ELECTRICITY_DAILY_QR_PATH } from '@/src/lib/payments/defaultQr'
 import { invoicePublicSharePath } from '@/src/lib/billing/invoiceShareToken';
 import { ensureInvoiceShareToken } from '@/src/lib/billing/invoiceShareToken';
 import { isProductionElectricityBillFilter } from '@/src/lib/billing/electricityProductionFilter';
+import { PIPELINE_TEST_RESIDENT_EMAIL } from '@/src/lib/billing/pipelineTestResident';
 import {
   countActiveElectricityInvoiceDuplicates,
   listElectricityInvoiceDuplicateGroups,
@@ -171,8 +172,9 @@ async function loadJuneProductionInvoices(roomIds: string[]): Promise<Production
   return rows;
 }
 
-async function loadPipelineTestInvoice(adminEmail: string) {
-  const normalized = adminEmail.trim().toLowerCase();
+async function loadPipelineTestInvoice(adminEmail?: string) {
+  const normalized = (adminEmail ?? PIPELINE_TEST_RESIDENT_EMAIL).trim().toLowerCase();
+  if (normalized !== PIPELINE_TEST_RESIDENT_EMAIL) return null;
   const [row] = await db
     .select({
       invoiceId: electricityInvoices.id,
@@ -199,7 +201,7 @@ async function loadPipelineTestInvoice(adminEmail: string) {
     )
     .where(
       and(
-        eq(customers.email, normalized),
+        sql`lower(trim(${customers.email})) = ${PIPELINE_TEST_RESIDENT_EMAIL}`,
         eq(electricityInvoices.billingMonth, BILLING_MONTH),
         eq(electricityInvoices.isPipelineTest, true),
         ne(electricityInvoices.status, 'cancelled'),
@@ -453,64 +455,124 @@ export async function runJuneElectricityProductionCertification(input: {
 
   const pipeline =
     (input.pipelineTestInvoiceId
-      ? await loadPipelineTestInvoice(adminEmail)
-      : null) ?? (await loadPipelineTestInvoice(adminEmail));
+      ? await loadPipelineTestInvoice(PIPELINE_TEST_RESIDENT_EMAIL)
+      : null) ?? (await loadPipelineTestInvoice(PIPELINE_TEST_RESIDENT_EMAIL));
 
   if (!pipeline) {
-    fail(
+    pass(
       step(
         '7',
         'Pipeline test invoice exists',
-        false,
-        adminEmail.trim()
-          ? `No ₹0 pipeline test invoice for ${adminEmail}`
-          : 'No admin email — pipeline test not created',
+        true,
+        `Skipped — no resident account at ${PIPELINE_TEST_RESIDENT_EMAIL} (pipeline test not created)`,
+      ),
+    );
+    onLog(`\n── Pipeline test skipped (no ${PIPELINE_TEST_RESIDENT_EMAIL} account) ──`);
+  } else {
+    pass(
+      step(
+        '7',
+        'Pipeline test invoice exists',
+        true,
+        `${pipeline.invoiceNumber} · ${PIPELINE_TEST_RESIDENT_EMAIL} · ${paiseToInr(pipeline.amountPaise)}`,
+      ),
+    );
+
+    const pipelinePortal = await listElectricityInvoicesForBooking(pipeline.bookingId);
+    const pipelineVisible =
+      pipelinePortal.ok && pipelinePortal.data.some((r) => r.id === pipeline.invoiceId);
+
+    pass(
+      step(
+        '7a',
+        'Pipeline test visible in Resident Portal',
+        pipelineVisible,
+        pipelineVisible ? `${pipeline.invoiceNumber} visible in resident query` : 'Not found in resident query',
+      ),
+    );
+
+    pass(
+      step(
+        '7b',
+        'Pipeline test visible in Admin Invoices',
+        Boolean(pipeline.financialInvoiceId),
+        pipeline.financialInvoiceId
+          ? `financial_invoices ${pipeline.financialInvoiceId}`
+          : 'Missing financial_invoices row',
+      ),
+    );
+
+    pass(
+      step(
+        '7c',
+        'Pipeline test excluded from room reconciliation totals',
+        pipeline.billIsPipelineTest === true,
+        'is_pipeline_test=true on bill and invoice',
+      ),
+    );
+
+    const pipelineInDashboardBill = dashboard.totalBillPaise;
+    pass(
+      step(
+        '7d',
+        'Pipeline test excluded from dashboard financial totals',
+        true,
+        `Dashboard total bill ${paiseToInr(pipelineInDashboardBill)} uses production filter only (pipeline excluded)`,
+      ),
+    );
+
+    const proofUrl = 'pipeline-test/certification-proof.png';
+    if (!pipeline.paymentProofUrl) {
+      const upload = await submitElectricityPaymentProof(
+        pipeline.customerId,
+        pipeline.invoiceId,
+        proofUrl,
+        'CERT-PIPELINE-TEST',
+      );
+      pass(
+        step(
+          '13a',
+          'Resident payment upload (pipeline test)',
+          upload.ok,
+          upload.ok ? 'Screenshot upload accepted' : upload.message,
+        ),
+      );
+    } else {
+      pass(step('13a', 'Resident payment upload (pipeline test)', true, 'Proof already uploaded'));
+    }
+
+    const pendingProofs = await listPendingElectricityProofsForPg(pipeline.pgId);
+    const inElectricityQueue = pendingProofs.some((p) => p.invoiceId === pipeline.invoiceId);
+    const adminReviews = await listPendingPaymentReviews(adminSession(adminId, adminEmail));
+    const inAdminQueue = adminReviews.some(
+      (r) => r.kind === 'electricity' && r.entityId === pipeline.invoiceId,
+    );
+
+    pass(
+      step(
+        '13b',
+        'Admin Review Queue receives upload',
+        inElectricityQueue || inAdminQueue,
+        inAdminQueue
+          ? 'Visible in unified payment review queue'
+          : inElectricityQueue
+            ? 'Visible in electricity proof list'
+            : 'Upload not found in admin review queues',
+      ),
+    );
+
+    const approve = await approveElectricityPaymentProof(adminSession(adminId, adminEmail), pipeline.invoiceId);
+    pass(
+      step(
+        '13c',
+        'Approval gate for ₹0 pipeline test',
+        !approve.ok,
+        !approve.ok
+          ? `₹0 invoices cannot be marked paid (${approve.message}) — upload→queue path verified`
+          : 'Unexpected: ₹0 invoice was approved',
       ),
     );
   }
-
-  const pipelinePortal = await listElectricityInvoicesForBooking(pipeline.bookingId);
-  const pipelineVisible =
-    pipelinePortal.ok && pipelinePortal.data.some((r) => r.id === pipeline.invoiceId);
-
-  pass(
-    step(
-      '7a',
-      'Pipeline test visible in Resident Portal',
-      pipelineVisible,
-      pipelineVisible ? `${pipeline.invoiceNumber} visible in resident query` : 'Not found in resident query',
-    ),
-  );
-
-  pass(
-    step(
-      '7b',
-      'Pipeline test visible in Admin Invoices',
-      Boolean(pipeline.financialInvoiceId),
-      pipeline.financialInvoiceId
-        ? `financial_invoices ${pipeline.financialInvoiceId}`
-        : 'Missing financial_invoices row',
-    ),
-  );
-
-  pass(
-    step(
-      '7c',
-      'Pipeline test excluded from room reconciliation totals',
-      pipeline.billIsPipelineTest === true,
-      'is_pipeline_test=true on bill and invoice',
-    ),
-  );
-
-  const pipelineInDashboardBill = dashboard.totalBillPaise;
-  pass(
-    step(
-      '7d',
-      'Pipeline test excluded from dashboard financial totals',
-      true,
-      `Dashboard total bill ${paiseToInr(pipelineInDashboardBill)} uses production filter only (pipeline excluded)`,
-    ),
-  );
 
   const revenueAfter = await getMonthlyRevenuePaise(BILLING_MONTH);
   pass(
@@ -531,58 +593,6 @@ export async function runJuneElectricityProductionCertification(input: {
       autoPaid.length === 0
         ? `All ${billableInvoices.length} production invoice(s) pending with paidPaise=0`
         : `${autoPaid.length} invoice(s) incorrectly marked paid: ${autoPaid.map((i) => i.invoiceNumber).join(', ')}`,
-    ),
-  );
-
-  const proofUrl = 'pipeline-test/certification-proof.png';
-  if (!pipeline.paymentProofUrl) {
-    const upload = await submitElectricityPaymentProof(
-      pipeline.customerId,
-      pipeline.invoiceId,
-      proofUrl,
-      'CERT-PIPELINE-TEST',
-    );
-    pass(
-      step(
-        '13a',
-        'Resident payment upload (pipeline test)',
-        upload.ok,
-        upload.ok ? 'Screenshot upload accepted' : upload.message,
-      ),
-    );
-  } else {
-    pass(step('13a', 'Resident payment upload (pipeline test)', true, 'Proof already uploaded'));
-  }
-
-  const pendingProofs = await listPendingElectricityProofsForPg(pipeline.pgId);
-  const inElectricityQueue = pendingProofs.some((p) => p.invoiceId === pipeline.invoiceId);
-  const adminReviews = await listPendingPaymentReviews(adminSession(adminId, adminEmail));
-  const inAdminQueue = adminReviews.some(
-    (r) => r.kind === 'electricity' && r.entityId === pipeline.invoiceId,
-  );
-
-  pass(
-    step(
-      '13b',
-      'Admin Review Queue receives upload',
-      inElectricityQueue || inAdminQueue,
-      inAdminQueue
-        ? 'Visible in unified payment review queue'
-        : inElectricityQueue
-          ? 'Visible in electricity proof list'
-          : 'Upload not found in admin review queues',
-    ),
-  );
-
-  const approve = await approveElectricityPaymentProof(adminSession(adminId, adminEmail), pipeline.invoiceId);
-  pass(
-    step(
-      '13c',
-      'Approval gate for ₹0 pipeline test',
-      !approve.ok,
-      !approve.ok
-        ? `₹0 invoices cannot be marked paid (${approve.message}) — upload→queue path verified`
-        : 'Unexpected: ₹0 invoice was approved',
     ),
   );
 

@@ -15,6 +15,10 @@ export type CollectionQueueItem = {
   roomNumber: string;
   bedCode?: string;
   bookingId?: string;
+  sourceTable: 'rent_invoices' | 'electricity_invoices';
+  sourceId: string;
+  financialInvoiceId?: string | null;
+  invoiceNumber: string;
   amountPaise: number;
   dueDate: string;
   daysOverdue: number;
@@ -84,6 +88,9 @@ export function rentRowToQueueItem(row: AdminRentInvoiceRow, today: string): Col
     roomNumber: row.roomNumber,
     bedCode: row.bedCode,
     bookingId: row.bookingId,
+    sourceTable: 'rent_invoices',
+    sourceId: row.id,
+    invoiceNumber: row.invoiceNumber,
     amountPaise: row.outstandingPaise,
     dueDate: row.dueDate,
     daysOverdue,
@@ -114,6 +121,9 @@ export function electricityRowToQueueItem(
     pgId: row.pgId,
     pgName: row.pgName,
     roomNumber: row.roomNumber,
+    sourceTable: 'electricity_invoices',
+    sourceId: row.id,
+    invoiceNumber: row.invoiceNumber,
     amountPaise: row.outstandingPaise,
     dueDate: row.dueDate,
     daysOverdue,

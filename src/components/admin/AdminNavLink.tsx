@@ -25,6 +25,8 @@ type AdminNavLinkProps = {
   active: boolean;
   badgeCount?: number;
   onNavigateStart?: (href: string) => void;
+  /** When false, show full label (e.g. Payment Reviews) without ellipsis. */
+  truncateLabel?: boolean;
 };
 
 export function AdminNavLink({
@@ -34,6 +36,7 @@ export function AdminNavLink({
   active,
   badgeCount,
   onNavigateStart,
+  truncateLabel = true,
 }: AdminNavLinkProps) {
   const pathname = usePathname() ?? '/admin';
   const timingRef = useRef<AdminNavTiming | null>(null);
@@ -106,7 +109,15 @@ export function AdminNavLink({
           'shrink-0 ' + (active ? 'text-[#FF5A1F]' : 'text-apg-silver/70 group-hover:text-white')
         }
       />
-      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <span
+        className={
+          truncateLabel
+            ? 'min-w-0 flex-1 truncate'
+            : 'min-w-0 flex-1 whitespace-normal leading-snug'
+        }
+      >
+        {label}
+      </span>
       {badgeCount != null && badgeCount > 0 ? (
         <span
           className="inline-flex min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-[#FF5A1F] px-1.5 py-0.5 text-[10px] font-bold leading-none text-white"

@@ -1086,6 +1086,80 @@ export type CollectionBreakdown = {
   totalPaise: number;
 };
 
+export type CollectionByPaymentMode = {
+  upiPaise: number;
+  cashPaise: number;
+  bankTransferPaise: number;
+  otherPaise: number;
+  totalPaise: number;
+};
+
+function billingMonthDateRange(billingMonthInput?: string): { start: string; end: string } {
+  const billingMonth = resolveBillingMonth(billingMonthInput);
+  const [y, m] = billingMonth.slice(0, 7).split('-').map(Number);
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return {
+    start: `${billingMonth.slice(0, 7)}-01`,
+    end: `${billingMonth.slice(0, 7)}-${String(lastDay).padStart(2, '0')}`,
+  };
+}
+
+/** MTD collections grouped by payment mode — includes cash; excludes test bookings. */
+export function getMtdCollectionByPaymentMode(
+  billingMonthInput?: string,
+): Promise<QueryResult<CollectionByPaymentMode>> {
+  return guard(async () => {
+    const { start, end } = billingMonthDateRange(billingMonthInput);
+
+    const rows = await db
+      .select({
+        provider: payments.provider,
+        total: sql<number>`coalesce(sum(${payments.amountPaise}), 0)::bigint::int`,
+      })
+      .from(payments)
+      .innerJoin(bookings, eq(bookings.id, payments.bookingId))
+      .innerJoin(customers, eq(customers.id, bookings.customerId))
+      .where(
+        and(
+          eq(payments.status, 'succeeded'),
+          sql`${payments.paidAt}::date >= ${start}::date`,
+          sql`${payments.paidAt}::date <= ${end}::date`,
+          eq(bookings.isTest, false),
+          eq(customers.isTest, false),
+        ),
+      )
+      .groupBy(payments.provider);
+
+    let upiPaise = 0;
+    let cashPaise = 0;
+    let bankTransferPaise = 0;
+    let otherPaise = 0;
+
+    for (const row of rows) {
+      const amt = asPlainNumber(row.total);
+      if (row.provider === 'cash') cashPaise += amt;
+      else if (row.provider === 'bank_transfer') bankTransferPaise += amt;
+      else if (
+        row.provider === 'upi_manual' ||
+        row.provider === 'razorpay' ||
+        row.provider === 'stripe'
+      ) {
+        upiPaise += amt;
+      } else {
+        otherPaise += amt;
+      }
+    }
+
+    return {
+      upiPaise,
+      cashPaise,
+      bankTransferPaise,
+      otherPaise,
+      totalPaise: upiPaise + cashPaise + bankTransferPaise + otherPaise,
+    };
+  });
+}
+
 export type DepositCollectedByPgRow = {
   pgId: string;
   collectedPaise: number;

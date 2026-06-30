@@ -19,7 +19,7 @@ const KINDS = new Set<PaymentProofKind>([
 ]);
 
 export async function GET(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ kind: string; id: string }> },
 ) {
   const session = await getAdminSession();
@@ -37,5 +37,13 @@ export async function GET(
     return new Response('Payment proof not found', { status: 404 });
   }
 
-  return await proofUrlToImageResponse(url);
+  const download = new URL(req.url).searchParams.get('download') === '1';
+  const response = await proofUrlToImageResponse(url);
+  if (download && response.ok) {
+    const headers = new Headers(response.headers);
+    headers.set('Content-Disposition', 'attachment; filename="payment-proof.jpg"');
+    return new Response(response.body, { status: response.status, headers });
+  }
+
+  return response;
 }

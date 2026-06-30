@@ -383,7 +383,7 @@ function improveDeepLink(
   meta?: ActionItemMetadata,
 ): string {
   if (type === 'payment_received' && meta?.bookingId) {
-    return `/admin/operations/payment-reviews?booking=${meta.bookingId}`;
+    return `/admin/operations?filter=payment_proof&booking=${meta.bookingId}`;
   }
   if (type === 'kyc_pending' && meta?.submissionId) {
     return `/admin/residents/kyc/${meta.submissionId}`;

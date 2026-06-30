@@ -39,7 +39,7 @@ export default async function CheckoutSettlementDetailRoute({
     <>
       <ModuleBreadcrumbs
         items={[
-          { label: "Today's work", href: '/admin/operations/residents' },
+          { label: 'Operations', href: '/admin/operations' },
           { label: detail.customerName },
         ]}
       />

@@ -110,7 +110,8 @@ function revalidateDepositViews(bookingId: string) {
   revalidateFinancialViews();
   revalidatePath(`/admin/deposits/${bookingId}`);
   revalidatePath('/admin/deposits');
-  revalidatePath('/admin/operations/payment-reviews');
+  revalidatePath('/admin/operations?filter=payment_proof');
+  revalidatePath('/admin/operations');
 }
 
 export async function loadTransferOldDepositSourcesAction(

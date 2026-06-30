@@ -1,18 +1,13 @@
 import { AdminSectionErrorBoundary } from '@/src/components/admin/AdminSectionErrorBoundary';
 import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
-import { BillingCommandCards } from '@/src/components/admin/overview/BillingCommandCards';
-import { BillingCycleStatusBanner } from '@/src/components/admin/overview/BillingCycleStatusBanner';
-import { MorningDashboard } from '@/src/components/admin/work/MorningDashboard';
-import {
-  buildTodaysWorkCards,
-  countNeedsAttention,
-  estimateTotalMinutes,
-  greetingForHour,
-} from '@/src/lib/admin/todaysWorkPresentation';
+import { OverviewDashboard } from '@/src/components/admin/overview/OverviewDashboard';
+import { BillingCertificationNotice } from '@/src/components/admin/overview/BillingCertificationNotice';
+import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
+import { moduleHref } from '@/src/lib/admin/navigation';
 import { requireAdminSession } from '@/src/lib/auth/guards';
-import { loadBillingCommandCenterSnapshot } from '@/src/services/billingCommandCenter';
-import { loadResidentOperationsResidentsPage } from '@/src/services/residentOperationsResidentsPage';
-import { listPipelineCheckoutSettlements } from '@/src/services/checkoutSettlement';
+import { loadOverviewContext } from '@/src/services/overviewData';
+import { loadBillingReconciliationSafe } from '@/src/services/billingCycleReconciliation';
+import { buildOverviewDashboard } from '@/src/services/overviewDashboard';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -20,50 +15,48 @@ export const maxDuration = 60;
 export default async function OverviewPage() {
   const session = await requireAdminSession('/admin/overview');
 
-  let opsPage;
-  let settlements;
-  let billing;
-  try {
-    [opsPage, settlements, billing] = await Promise.all([
-      loadResidentOperationsResidentsPage(session, null),
-      listPipelineCheckoutSettlements(session),
-      loadBillingCommandCenterSnapshot(session),
-    ]);
-  } catch (err) {
+  const [overviewResult, billingCert] = await Promise.all([
+    loadOverviewContext(session, undefined, { syncActions: true }),
+    loadBillingReconciliationSafe(session),
+  ]);
+
+  if (!overviewResult.ok) {
     return (
       <>
-        <DbStatusBanner
-          error={err instanceof Error ? err.message : 'Unable to load today\'s work.'}
-        />
+        <DbStatusBanner error={overviewResult.error} />
+        {billingCert.ok ? (
+          <BillingCertificationNotice reconciliation={billingCert.reconciliation} />
+        ) : (
+          <BillingCertificationNotice error={billingCert.error} />
+        )}
       </>
     );
   }
 
-  const cards = buildTodaysWorkCards(opsPage.queue, settlements);
-  const attentionCount = countNeedsAttention(cards, {
-    hasUnpaidInvoices: billing.hasUnpaidInvoices,
-    pendingBillingCount: billing.pendingInvoiceCount,
-  });
-  const estimatedMinutes = estimateTotalMinutes(
-    cards.filter((c) => c.priority !== 'waiting_resident'),
-  );
-  const hour = new Date().getUTCHours() + 5.5;
-  const greeting = greetingForHour(Math.floor(hour) % 24);
-  const showCaughtUp = !billing.hasUnpaidInvoices && attentionCount === 0;
+  const dashboard = buildOverviewDashboard(overviewResult.data);
 
   return (
-    <AdminSectionErrorBoundary title="Morning dashboard">
-      <BillingCycleStatusBanner reconciliation={billing.reconciliation} />
-      <MorningDashboard
-        greeting={greeting}
-        adminName={session.fullName}
-        attentionCount={attentionCount}
-        estimatedMinutes={estimatedMinutes}
-        previewCards={cards.slice(0, 6)}
-        operationsHref="/admin/operations/residents"
-        billingCards={<BillingCommandCards cards={billing.cards} />}
-        showCaughtUp={showCaughtUp}
-      />
-    </AdminSectionErrorBoundary>
+    <>
+      <ModuleBreadcrumbs items={[{ label: 'Overview' }]} />
+      <AdminSectionErrorBoundary title="Overview">
+        {billingCert.ok ? (
+          <BillingCertificationNotice reconciliation={billingCert.reconciliation} />
+        ) : (
+          <BillingCertificationNotice error={billingCert.error} />
+        )}
+        <OverviewDashboard data={dashboard} />
+        <p className="mt-8 text-sm text-apg-silver">
+          Action items live in{' '}
+          <a href={moduleHref('operations')} className="font-medium text-[#FF5A1F] hover:underline">
+            Operations
+          </a>
+          . Financial detail is in{' '}
+          <a href="/admin/billing" className="font-medium text-[#FF5A1F] hover:underline">
+            Billing Centre
+          </a>
+          .
+        </p>
+      </AdminSectionErrorBoundary>
+    </>
   );
 }

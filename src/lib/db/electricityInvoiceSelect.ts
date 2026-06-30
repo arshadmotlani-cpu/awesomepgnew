@@ -30,6 +30,7 @@ export const electricityInvoiceLegacySelect = {
   cancelledAt: electricityInvoices.cancelledAt,
   createdAt: electricityInvoices.createdAt,
   updatedAt: electricityInvoices.updatedAt,
+  isPipelineTest: electricityInvoices.isPipelineTest,
 } as const;
 
 export type ElectricityInvoiceLegacyRow = {
@@ -53,6 +54,7 @@ export type ElectricityInvoiceLegacyRow = {
   cancelledAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  isPipelineTest: boolean;
 };
 
 /** Satisfies projectElectricityInvoice / ElectricityInvoice consumers on legacy DBs. */
@@ -62,6 +64,7 @@ export function asElectricityInvoiceRow(
     roomId?: string;
     supersededByInvoiceId?: string | null;
     duplicateDetectedAt?: Date | null;
+    isPipelineTest?: boolean;
   },
 ): ElectricityInvoice {
   return {
@@ -69,7 +72,7 @@ export function asElectricityInvoiceRow(
     roomId: extras?.roomId ?? '',
     supersededByInvoiceId: extras?.supersededByInvoiceId ?? null,
     duplicateDetectedAt: extras?.duplicateDetectedAt ?? null,
-    isPipelineTest: false,
+    isPipelineTest: extras?.isPipelineTest ?? row.isPipelineTest ?? false,
   };
 }
 

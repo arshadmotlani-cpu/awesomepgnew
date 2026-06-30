@@ -386,7 +386,7 @@ export function buildOperationsTasks(
       priority: paymentApprovalPriority(),
       pgName: p.pgName,
       label: `Approve payment — ${p.title}`,
-      href: '/admin/operations/payment-reviews',
+      href: '/admin/operations?filter=payment_proof',
     });
   }
 

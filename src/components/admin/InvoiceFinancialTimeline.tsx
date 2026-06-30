@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { PipelineTestInvoiceBadge } from '@/src/components/admin/PipelineTestInvoiceBadge';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import type { FinancialTimelineEvent } from '@/src/services/invoiceCommandCenter';
 
@@ -76,6 +77,7 @@ export function InvoiceDayList({
     status: string;
     createdAt: string;
     paidAt: string | null;
+    isPipelineTest?: boolean;
   }>;
 }) {
   if (invoices.length === 0) {
@@ -102,15 +104,31 @@ export function InvoiceDayList({
         </thead>
         <tbody>
           {invoices.map((inv) => (
-            <tr key={inv.id} className="border-b border-white/5 last:border-0">
+            <tr
+              key={inv.id}
+              className={
+                inv.isPipelineTest
+                  ? 'border-b border-amber-500/20 bg-amber-500/5 last:border-0'
+                  : 'border-b border-white/5 last:border-0'
+              }
+            >
               <td className="px-4 py-3">
-                <Link href={`/admin/invoices/${inv.id}`} className="font-medium text-[#FF5A1F] hover:underline">
-                  {inv.invoiceNumber}
-                </Link>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Link href={`/admin/invoices/${inv.id}`} className="font-medium text-[#FF5A1F] hover:underline">
+                    {inv.invoiceNumber}
+                  </Link>
+                  {inv.isPipelineTest ? <PipelineTestInvoiceBadge /> : null}
+                </div>
               </td>
               <td className="px-4 py-3 text-white">{inv.customerName}</td>
               <td className="px-4 py-3 capitalize text-apg-silver">{inv.invoiceType}</td>
-              <td className="px-4 py-3 text-right tabular-nums text-white">{paiseToInr(inv.amountPaise)}</td>
+              <td className="px-4 py-3 text-right tabular-nums text-white">
+                {inv.isPipelineTest ? (
+                  <span className="text-amber-200">{paiseToInr(inv.amountPaise)}</span>
+                ) : (
+                  paiseToInr(inv.amountPaise)
+                )}
+              </td>
               <td className="px-4 py-3 capitalize text-apg-silver">{inv.status.replace(/_/g, ' ')}</td>
               <td className="px-4 py-3 text-apg-silver">
                 {formatDate(new Date(inv.createdAt))}

@@ -25,7 +25,7 @@ export function TodaysWorkPage({
         </p>
         <p className="mt-4 text-xs text-apg-silver">
           Payment proofs live in{' '}
-          <Link href="/admin/operations/payment-reviews" className="text-[#FF5A1F] hover:underline">
+          <Link href="/admin/operations?filter=payment_proof" className="text-[#FF5A1F] hover:underline">
             payment reviews
           </Link>
           . Numbers and trends are in{' '}

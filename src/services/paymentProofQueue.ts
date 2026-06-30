@@ -378,6 +378,8 @@ async function buildRentReviewItem(
     invoiceAmountPaise: projected.outstandingPaise,
     submittedAmountPaise: projected.outstandingPaise,
     proofSubmittedAt: invoice.updatedAt.toISOString(),
+    billingMonth: r.billingMonth,
+    isPipelineTest: false,
     paymentExplanation: buildSimplePaymentExplanation({
       lines: expectedLines,
       totalExpectedPaise: projected.outstandingPaise,
@@ -455,6 +457,8 @@ async function buildElectricityReviewItem(
     invoiceAmountPaise: expectedTotalPaise,
     submittedAmountPaise: expectedTotalPaise,
     proofSubmittedAt: invoice.updatedAt.toISOString(),
+    billingMonth: invoice.billingMonth,
+    isPipelineTest: invoice.isPipelineTest ?? false,
     paymentExplanation: buildSimplePaymentExplanation({
       lines: expectedLines,
       totalExpectedPaise: expectedTotalPaise,

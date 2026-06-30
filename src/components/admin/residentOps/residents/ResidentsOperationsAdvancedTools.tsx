@@ -15,7 +15,7 @@ export function ResidentsOperationsAdvancedTools() {
           ['KYC review', moduleHref('kyc')],
           ['Bed assignment', '/admin/beds'],
           ['Move-outs', '/admin/vacating'],
-          ['Payment reviews', '/admin/operations/payment-reviews'],
+          ['Payment reviews', '/admin/operations?filter=payment_proof'],
           ['Billing', '/admin/revenue/billing'],
           ['Deposits', moduleHref('deposits')],
           ['Checkout settlements', moduleHref('checkoutSettlements')],

@@ -1,12 +1,15 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { InvoiceDetailActions } from '@/src/components/admin/InvoiceDetailActions';
+import { MarkAsPaidCashButton } from '@/src/components/admin/MarkAsPaidCashButton';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { InvoiceDocument } from '@/src/components/billing/InvoiceDocument';
 import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
 import { getInvoiceDocumentDetail } from '@/src/lib/billing/invoiceDocumentModel';
 import { getInvoiceVoidCapabilities } from '@/src/services/invoiceVoid';
+import { getCashSettlementEligibility } from '@/src/services/adminCashSettlement';
+import { requireAdminSession } from '@/src/lib/auth/guards';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,9 +19,11 @@ export default async function InvoiceDetailPage({
   params: Promise<{ invoiceId: string }>;
 }) {
   const { invoiceId } = await params;
-  const [document, voidCaps] = await Promise.all([
+  const session = await requireAdminSession('/admin/invoices');
+  const [document, voidCaps, cashEligibility] = await Promise.all([
     getInvoiceDocumentDetail(invoiceId),
     getInvoiceVoidCapabilities(invoiceId),
+    getCashSettlementEligibility(session, invoiceId),
   ]);
   if (!document) notFound();
 
@@ -105,6 +110,19 @@ export default async function InvoiceDetailPage({
 
       <section className="rounded-xl border border-white/10 bg-[#1A1F27] p-5">
         <h2 className="mb-4 text-sm font-semibold text-white">Actions</h2>
+        {cashEligibility?.canSettle ? (
+          <div className="mb-4">
+            <MarkAsPaidCashButton
+              financialInvoiceId={cashEligibility.financialInvoiceId}
+              balanceDuePaise={cashEligibility.balanceDuePaise}
+              residentName={cashEligibility.residentName}
+              invoiceNumber={cashEligibility.invoiceNumber}
+              adminName={session.fullName ?? session.email}
+              canSettle={cashEligibility.canSettle}
+              blockReason={cashEligibility.blockReason}
+            />
+          </div>
+        ) : null}
         <InvoiceDetailActions
           invoiceId={document.id}
           status={document.status}

@@ -3,7 +3,7 @@
  * Amounts come from financial_invoices + breakdown; no duplicate billing math.
  */
 
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
   bedReservations,
@@ -11,6 +11,8 @@ import {
   financialInvoices,
   payments,
   pgs,
+  adminUsers,
+  auditLog,
 } from '@/src/db/schema';
 import type { InvoiceBreakdown } from '@/src/db/schema/financialInvoices';
 import type { FinancialInvoiceStatus, FinancialInvoiceType } from '@/src/db/schema/enums';
@@ -72,7 +74,9 @@ export type InvoiceDocumentTotals = {
 export type InvoiceDocumentPayment = {
   paymentId: string | null;
   paymentReference: string | null;
+  paymentMode: string | null;
   paidAt: string | null;
+  collectedByName: string | null;
   paymentLinkUrl: string | null;
   paymentLinkId: string | null;
 };
@@ -334,6 +338,24 @@ function formatPaymentReference(
   return label;
 }
 
+function formatPaymentModeLabel(provider: string | null): string | null {
+  if (!provider) return null;
+  if (provider === 'cash') return 'Cash';
+  if (provider === 'upi_manual' || provider === 'razorpay' || provider === 'stripe') return 'UPI';
+  if (provider === 'bank_transfer') return 'Bank transfer';
+  if (provider === 'mock') return 'Other';
+  return titleCase(provider.replace(/_/g, ' '));
+}
+
+function adminNameFromPaymentPayload(rawPayload: unknown): string | null {
+  if (!rawPayload || typeof rawPayload !== 'object') return null;
+  const payload = rawPayload as Record<string, unknown>;
+  if (payload.source !== 'admin_cash_settlement') return null;
+  const name = payload.receivedByAdminName;
+  if (typeof name === 'string' && name.trim()) return name.trim();
+  return null;
+}
+
 export async function getInvoiceDocumentDetail(
   invoiceId: string,
 ): Promise<InvoiceDocumentModel | null> {
@@ -379,11 +401,15 @@ export async function getInvoiceDocumentDetail(
   }
 
   let paymentReference: string | null = null;
+  let paymentMode: string | null = null;
+  let collectedByName: string | null = null;
   if (base.paymentId) {
     const [pay] = await db
       .select({
         provider: payments.provider,
         providerPaymentId: payments.providerPaymentId,
+        rawPayload: payments.rawPayload,
+        paidAt: payments.paidAt,
       })
       .from(payments)
       .where(eq(payments.id, base.paymentId))
@@ -392,6 +418,39 @@ export async function getInvoiceDocumentDetail(
       pay?.provider ?? null,
       pay?.providerPaymentId ?? null,
     );
+    paymentMode = formatPaymentModeLabel(pay?.provider ?? null);
+    collectedByName = adminNameFromPaymentPayload(pay?.rawPayload);
+    if (!collectedByName && pay?.rawPayload && typeof pay.rawPayload === 'object') {
+      const adminId = (pay.rawPayload as Record<string, unknown>).collectedByAdminId;
+      if (typeof adminId === 'string') {
+        const [admin] = await db
+          .select({ fullName: adminUsers.fullName, email: adminUsers.email })
+          .from(adminUsers)
+          .where(eq(adminUsers.id, adminId))
+          .limit(1);
+        collectedByName = admin?.fullName ?? admin?.email ?? null;
+      }
+    }
+  }
+
+  if (!collectedByName && base.status === 'paid') {
+    const [auditRow] = await db
+      .select({ diff: auditLog.diff })
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.entity, 'financial_invoice'),
+          eq(auditLog.entityId, base.id),
+          eq(auditLog.action, 'mark_paid_cash'),
+        ),
+      )
+      .orderBy(desc(auditLog.createdAt))
+      .limit(1);
+    const diff = auditRow?.diff as { receivedByAdminName?: string } | null | undefined;
+    if (diff?.receivedByAdminName) {
+      collectedByName = diff.receivedByAdminName;
+      if (!paymentMode) paymentMode = 'Cash';
+    }
   }
 
   const paymentLinkUrl = base.paymentLink ? paymentLinkPublicUrl(base.paymentLink.id) : null;
@@ -464,7 +523,9 @@ export async function getInvoiceDocumentDetail(
     payment: {
       paymentId: base.paymentId ?? null,
       paymentReference,
+      paymentMode,
       paidAt: base.paidAt ? formatDate(base.paidAt) : null,
+      collectedByName,
       paymentLinkUrl:
         base.status !== 'paid' && base.status !== 'cancelled' && base.status !== 'refunded'
           ? paymentLinkUrl

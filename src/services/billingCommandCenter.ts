@@ -11,7 +11,7 @@ import { listPendingKycSubmissions } from '@/src/services/kyc';
 import { getMoveOutPipelineSnapshot } from '@/src/services/moveOutPipelineService';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import {
-  reconcileAndEvaluateBillingCycle,
+  loadBillingReconciliationSafe,
   type BillingCycleReconciliation,
 } from '@/src/services/billingCycleReconciliation';
 
@@ -39,7 +39,8 @@ export type BillingCommandCenterSnapshot = {
   collectionPct: number;
   cards: BillingCommandCard[];
   hasUnpaidInvoices: boolean;
-  reconciliation: BillingCycleReconciliation;
+  reconciliation: BillingCycleReconciliation | null;
+  reconciliationError: string | null;
 };
 
 function waitingForPaymentRent(rows: AdminRentInvoiceRow[]) {
@@ -74,15 +75,17 @@ export async function loadBillingCommandCenterSnapshot(
 ): Promise<BillingCommandCenterSnapshot> {
   const billingMonth = resolveBillingMonth(billingMonthInput);
 
-  const [openRent, elecPending, paymentReviews, kycPending, moveOut, reconciliation] =
+  const [openRent, elecPending, paymentReviews, kycPending, moveOut, billingCert] =
     await Promise.all([
     listAdminOpenRentInvoices(),
     listAdminElectricityInvoicesForReminders(),
     listPendingPaymentReviews(session),
     listPendingKycSubmissions(),
     getMoveOutPipelineSnapshot(session),
-    reconcileAndEvaluateBillingCycle(session, billingMonth),
+    loadBillingReconciliationSafe(session, billingMonth),
   ]);
+
+  const reconciliation = billingCert.ok ? billingCert.reconciliation : null;
 
   const allUnpaidRent = openRent.ok ? openRent.data : [];
   const allUnpaidElectricity = elecPending.ok ? elecPending.data : [];
@@ -100,10 +103,11 @@ export async function loadBillingCommandCenterSnapshot(
   const rentInReview = allUnpaidRent.filter((r) => r.effectiveStatus === 'payment_in_progress');
   const elecInReview = allUnpaidElectricity.filter((r) => r.paymentProofUrl);
 
-  const totalBilledPaise = reconciliation.metrics.totalBilledPaise;
-  const totalCollectedPaise = reconciliation.metrics.totalCollectedPaise;
-  const totalOutstandingPaise = reconciliation.metrics.totalOutstandingPaise;
-  const collectionPct = reconciliation.metrics.collectionPct;
+  const totalBilledPaise = reconciliation?.metrics.totalBilledPaise ?? 0;
+  const totalCollectedPaise = reconciliation?.metrics.totalCollectedPaise ?? 0;
+  const totalOutstandingPaise = reconciliation?.metrics.totalOutstandingPaise ?? rentWaiting.reduce((s, r) => s + r.outstandingPaise, 0) + elecWaiting.reduce((s, r) => s + r.outstandingPaise, 0);
+  const collectionPct = reconciliation?.metrics.collectionPct ?? 0;
+  const waitingAdminReview = reconciliation?.metrics.waitingAdminReview ?? rentInReview.length + elecInReview.length;
 
   const cards: BillingCommandCard[] = [
     {
@@ -131,15 +135,15 @@ export async function loadBillingCommandCenterSnapshot(
       id: 'payment_reviews',
       label: 'Payment screenshots to review',
       count: paymentReviews.length,
-      href: '/admin/operations/payment-reviews',
+      href: '/admin/operations?filter=payment_proof',
       tone: paymentReviews.length > 0 ? 'urgent' : 'default',
     },
     {
       id: 'admin_review',
       label: 'Waiting for admin review',
-      count: reconciliation.metrics.waitingAdminReview,
-      href: '/admin/operations/payment-reviews',
-      tone: reconciliation.metrics.waitingAdminReview > 0 ? 'urgent' : 'default',
+      count: waitingAdminReview,
+      href: '/admin/operations?filter=payment_proof',
+      tone: waitingAdminReview > 0 ? 'urgent' : 'default',
     },
     {
       id: 'overdue',
@@ -152,14 +156,14 @@ export async function loadBillingCommandCenterSnapshot(
       id: 'move_outs',
       label: 'Move-outs in progress',
       count: moveOut.activeItems.length,
-      href: '/admin/operations/residents?filter=move_out',
+      href: '/admin/operations?filter=move_out',
       tone: moveOut.activeItems.length > 0 ? 'warn' : 'default',
     },
     {
       id: 'kyc',
       label: 'KYC reviews',
       count: kycPending.length,
-      href: '/admin/operations/residents?filter=kyc',
+      href: '/admin/operations?filter=kyc',
       tone: kycPending.length > 0 ? 'warn' : 'default',
     },
   ];
@@ -188,5 +192,6 @@ export async function loadBillingCommandCenterSnapshot(
     cards: cards.filter((c) => c.count > 0),
     hasUnpaidInvoices,
     reconciliation,
+    reconciliationError: billingCert.ok ? null : billingCert.error,
   };
 }

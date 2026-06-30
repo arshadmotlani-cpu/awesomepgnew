@@ -64,7 +64,7 @@ function hrefForAction(
         ? `/admin/residents/kyc/${meta.submissionId}`
         : '/admin/residents/kyc';
     case 'payment_proof_review':
-      return '/admin/operations/payment-reviews';
+      return '/admin/operations?filter=payment_proof';
     case 'move_out_approval':
       return meta.settlementId
         ? `/admin/checkout-settlements/${meta.settlementId}`
@@ -80,7 +80,7 @@ function hrefForAction(
     case 'room_transfer_approval':
       return '/admin/requests';
     case 'maintenance_approval':
-      return '/admin/operations/residents';
+      return '/admin/operations';
     case 'bed_assignment':
       return meta.residentId
         ? `/admin/beds?customerId=${meta.residentId}`

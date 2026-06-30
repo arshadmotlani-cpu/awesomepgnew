@@ -2,6 +2,7 @@
 
 import { BillingWhatsAppWithLinkButton } from '@/src/components/admin/BillingWhatsAppWithLinkButton';
 import { ExpressCollectionButton } from '@/src/components/admin/ExpressCollectionButton';
+import { MarkAsPaidCashButton } from '@/src/components/admin/MarkAsPaidCashButton';
 import type { ResidentFinancialSummary } from '@/src/lib/billing/residentFinancialTypes';
 import type { ResidentBillingFormDefaults } from '@/src/services/residentBillingProfiles';
 import { formatDate, paiseToInr } from '@/src/lib/format';
@@ -22,6 +23,7 @@ export function ResidentInlineOpenBills({
   bookingId,
   billingDefaults,
   financialSummary,
+  cashSettlement,
 }: {
   customerId: string;
   customerName: string;
@@ -32,6 +34,7 @@ export function ResidentInlineOpenBills({
   bookingId: string;
   billingDefaults: ResidentBillingFormDefaults | null;
   financialSummary: ResidentFinancialSummary;
+  cashSettlement?: { canSettle: boolean; adminName: string } | null;
 }) {
   const openItems = [
     ...financialSummary.rent.items,
@@ -68,6 +71,17 @@ export function ResidentInlineOpenBills({
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              {cashSettlement?.canSettle && item.financialInvoiceId ? (
+                <MarkAsPaidCashButton
+                  financialInvoiceId={item.financialInvoiceId}
+                  balanceDuePaise={item.outstandingPaise}
+                  residentName={customerName}
+                  invoiceNumber={item.invoiceNumber ?? item.label}
+                  adminName={cashSettlement.adminName}
+                  canSettle
+                  compact
+                />
+              ) : null}
               <BillingWhatsAppWithLinkButton
                 kind={whatsAppKind(item)}
                 residentId={customerId}

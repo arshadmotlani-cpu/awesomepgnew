@@ -10,7 +10,7 @@ export default async function CollectionsRedirectPage({
 }) {
   const sp = await searchParams;
   if (sp.tab === 'approvals') {
-    redirect('/admin/operations/payment-reviews');
+    redirect('/admin/operations?filter=payment_proof');
   }
   const params = new URLSearchParams();
   if (sp.tab) params.set('tab', sp.tab);

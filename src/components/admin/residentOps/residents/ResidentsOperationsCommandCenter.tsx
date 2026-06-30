@@ -8,7 +8,7 @@ import type {
 import { OPS_ORANGE, OpsSection } from '@/src/components/admin/residentOps/residentOpsUi';
 
 const EXTERNAL_CARD_HREF: Partial<Record<ResidentsCommandFilter, string>> = {
-  payment_proof: '/admin/operations/payment-reviews',
+  payment_proof: '/admin/operations?filter=payment_proof',
 };
 
 export function ResidentsOperationsCommandCenter({
@@ -32,9 +32,9 @@ export function ResidentsOperationsCommandCenter({
             externalHref && card.count > 0
               ? externalHref
               : isActive && card.count > 0
-                ? '/admin/operations/residents#queue'
+                ? '/admin/operations#queue'
                 : card.count > 0
-                  ? `/admin/operations/residents?filter=${card.id}#queue`
+                  ? `/admin/operations?filter=${card.id}#queue`
                   : undefined;
 
           const inner = (
@@ -81,7 +81,7 @@ export function ResidentsOperationsCommandCenter({
             {cards.find((c) => c.id === activeFilter)?.label}
           </span>
           .{' '}
-          <Link href="/admin/operations/residents#queue" className="font-medium hover:underline" style={{ color: OPS_ORANGE }}>
+          <Link href="/admin/operations#queue" className="font-medium hover:underline" style={{ color: OPS_ORANGE }}>
             Clear filter
           </Link>
         </p>

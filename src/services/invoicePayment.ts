@@ -20,13 +20,14 @@ async function applyLinePayment(
   customerId: string,
   amountPaise: number,
   providerPaymentId: string,
+  offlineProvider: 'cash' | 'upi_manual' | 'bank_transfer' = 'upi_manual',
 ): Promise<void> {
   if (amountPaise <= 0) return;
 
   if (line.sourceTable === 'rent_invoices' && line.sourceId) {
     await recordRentPaymentSuccess({
       provider: 'mock',
-      offlineProvider: 'upi_manual',
+      offlineProvider,
       providerPaymentId: `${providerPaymentId}:rent:${line.sourceId}`,
       amountPaise,
       invoiceId: line.sourceId,
@@ -37,7 +38,7 @@ async function applyLinePayment(
   if (line.sourceTable === 'electricity_invoices' && line.sourceId) {
     await recordElectricityPaymentSuccess({
       provider: 'mock',
-      offlineProvider: 'upi_manual',
+      offlineProvider,
       providerPaymentId: `${providerPaymentId}:elec:${line.sourceId}`,
       amountPaise,
       invoiceId: line.sourceId,
@@ -63,6 +64,7 @@ export async function allocateInvoicePayment(input: {
   amountPaise: number;
   providerPaymentId: string;
   paymentId?: string | null;
+  offlineProvider?: 'cash' | 'upi_manual' | 'bank_transfer';
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const [inv] = await db
     .select()
@@ -85,11 +87,13 @@ export async function allocateInvoicePayment(input: {
   const applyAmount = Math.min(input.amountPaise, remaining);
   if (applyAmount <= 0) return { ok: false, error: 'Nothing due on this invoice.' };
 
+  const offlineProvider = input.offlineProvider ?? 'upi_manual';
+
   if (lines.length === 0) {
     if (inv.sourceTable === 'rent_invoices' && inv.sourceId) {
       await recordRentPaymentSuccess({
         provider: 'mock',
-        offlineProvider: 'upi_manual',
+        offlineProvider,
         providerPaymentId: input.providerPaymentId,
         amountPaise: applyAmount,
         invoiceId: inv.sourceId,
@@ -105,7 +109,7 @@ export async function allocateInvoicePayment(input: {
     for (const line of lines) {
       if (left <= 0) break;
       const lineAmt = Math.min(line.amountPaise, left);
-      await applyLinePayment(line, inv.bookingId, inv.customerId, lineAmt, input.providerPaymentId);
+      await applyLinePayment(line, inv.bookingId, inv.customerId, lineAmt, input.providerPaymentId, offlineProvider);
       left -= lineAmt;
     }
   }

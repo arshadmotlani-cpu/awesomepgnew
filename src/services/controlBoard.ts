@@ -655,10 +655,10 @@ export async function loadControlBoardDrillDown(
         pgName: p.pgName,
         amountPaise: p.amountPaise,
         status: 'pending review',
-        href: '/admin/operations/payment-reviews',
+        href: '/admin/operations?filter=payment_proof',
       }));
       return drillDown('Payments to review', rows, {
-        ledgerHref: '/admin/operations/payment-reviews',
+        ledgerHref: '/admin/operations?filter=payment_proof',
       });
     }
     case 'ops_leaving': {

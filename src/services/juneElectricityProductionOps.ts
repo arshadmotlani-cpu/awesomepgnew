@@ -1,10 +1,10 @@
 /**
  * Production June 2026 electricity ops — generation + automatic certification.
  */
-import { eq, and, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { runPendingMigrations } from '@/src/db/runPendingMigrations';
 import { db } from '@/src/db/client';
-import { adminUsers, customers, electricityBills, electricityInvoices, bookings } from '@/src/db/schema';
+import { adminUsers } from '@/src/db/schema';
 import { getDatabaseConnectionInfo, hasDatabaseUrl } from '@/src/lib/db/env';
 import {
   getJuneElectricityOpsCompletion,
@@ -15,6 +15,7 @@ import {
   listElectricityInvoiceDuplicateGroups,
 } from '@/src/services/electricityInvoiceDuplicates';
 import { createPipelineTestElectricityInvoice } from '@/src/services/electricityPipelineTestInvoice';
+import { PIPELINE_TEST_RESIDENT_EMAIL } from '@/src/lib/billing/pipelineTestResident';
 import { runGenerateJune2026ElectricityBills } from '@/src/services/generateJune2026ElectricityBills';
 import {
   JuneElectricityCertificationError,
@@ -46,39 +47,23 @@ async function auditDuplicates(onLog: ProductionOpsLogFn) {
   onLog('Duplicate check: PASS');
 }
 
-async function findJuneBillableResidentEmail(): Promise<string | null> {
-  const [billable] = await db
-    .select({ email: customers.email })
-    .from(electricityInvoices)
-    .innerJoin(customers, eq(customers.id, electricityInvoices.customerId))
-    .innerJoin(bookings, eq(bookings.id, electricityInvoices.bookingId))
-    .innerJoin(electricityBills, eq(electricityBills.id, electricityInvoices.electricityBillId))
-    .where(
-      and(
-        eq(electricityBills.billingMonth, BILLING_MONTH),
-        eq(electricityInvoices.status, 'pending'),
-        eq(bookings.status, 'confirmed'),
-        sql`coalesce(${electricityInvoices.isPipelineTest}, false) = false`,
-      ),
-    )
-    .limit(1);
-  return billable?.email?.trim() || null;
-}
-
-async function resolvePipelineTestAdminEmail(onLog: ProductionOpsLogFn): Promise<string> {
-  const developer = process.env.DEVELOPER_TEST_EMAIL?.trim();
-  if (developer) {
-    onLog(`  Trying pipeline test resident: ${developer}`);
-    return developer;
+async function createPipelineTestInvoiceSafe(
+  onLog: ProductionOpsLogFn,
+): Promise<{ invoiceId: string | null; adminEmail: string }> {
+  onLog(`  Pipeline test resident: ${PIPELINE_TEST_RESIDENT_EMAIL}`);
+  const testResult = await createPipelineTestElectricityInvoice({
+    billingMonth: BILLING_MONTH,
+  });
+  if (!testResult.ok) {
+    onLog(`  WARNING: Skipping pipeline test invoice — ${testResult.error}`);
+    return { invoiceId: null, adminEmail: PIPELINE_TEST_RESIDENT_EMAIL };
   }
-  const billable = await findJuneBillableResidentEmail();
-  if (billable) {
-    onLog(`  Pipeline test resident (June billable): ${billable}`);
-    return billable;
-  }
-  throw new Error(
-    'No June billable resident with confirmed booking found for pipeline test.',
+  onLog(
+    `Pipeline test invoice ${testResult.reused ? 'reused' : 'created'}: ${testResult.invoiceId}`,
   );
+  onLog(`  Invoice number: ${testResult.invoiceNumber}`);
+  onLog(`  Amount: ${paiseToInr(0)} · status: pending`);
+  return { invoiceId: testResult.invoiceId, adminEmail: PIPELINE_TEST_RESIDENT_EMAIL };
 }
 
 export async function runJuneElectricityProductionOps(input: {
@@ -118,9 +103,8 @@ export async function runJuneElectricityProductionOps(input: {
     }
     onLog('\nRunning certification-only verification…');
     const revenueBefore = await getMonthlyRevenuePaise(BILLING_MONTH);
-    const pipelineAdminEmail = await resolvePipelineTestAdminEmail(onLog);
     await runJuneElectricityProductionCertification({
-      adminEmail: pipelineAdminEmail,
+      adminEmail: PIPELINE_TEST_RESIDENT_EMAIL,
       adminId,
       pgQuery,
       revenueElectricityBeforePaise: revenueBefore.electricityPaise,
@@ -149,33 +133,8 @@ export async function runJuneElectricityProductionOps(input: {
   await auditDuplicates(onLog);
 
   onLog('\n[5/6] ₹0 pipeline test invoice…');
-  let pipelineTestInvoiceId: string | null = null;
-  let pipelineAdminEmail = await resolvePipelineTestAdminEmail(onLog);
-
-  let testResult = await createPipelineTestElectricityInvoice({
-    adminEmail: pipelineAdminEmail,
-    billingMonth: BILLING_MONTH,
-  });
-  if (!testResult.ok && process.env.DEVELOPER_TEST_EMAIL?.trim() === pipelineAdminEmail) {
-    const fallback = await findJuneBillableResidentEmail();
-    if (fallback && fallback !== pipelineAdminEmail) {
-      onLog(`  Retrying pipeline test with ${fallback}`);
-      pipelineAdminEmail = fallback;
-      testResult = await createPipelineTestElectricityInvoice({
-        adminEmail: pipelineAdminEmail,
-        billingMonth: BILLING_MONTH,
-      });
-    }
-  }
-  if (!testResult.ok) {
-    throw new Error(`Pipeline test invoice failed: ${testResult.error}`);
-  }
-  pipelineTestInvoiceId = testResult.invoiceId;
-  onLog(
-    `Pipeline test invoice ${testResult.reused ? 'reused' : 'created'}: ${testResult.invoiceId}`,
-  );
-  onLog(`  Invoice number: ${testResult.invoiceNumber}`);
-  onLog(`  Amount: ${paiseToInr(0)} · status: pending`);
+  const { invoiceId: pipelineTestInvoiceId, adminEmail: pipelineAdminEmail } =
+    await createPipelineTestInvoiceSafe(onLog);
 
   onLog('\n[6/6] Automatic certification (all verification steps)…');
   try {

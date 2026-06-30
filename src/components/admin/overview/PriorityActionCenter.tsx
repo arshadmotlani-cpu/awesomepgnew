@@ -34,7 +34,7 @@ export function PriorityActionCenter({
           </p>
         </div>
         <Link
-          href="/admin/operations/residents"
+          href="/admin/operations"
           className="text-xs font-medium text-[#FF5A1F] hover:underline"
         >
           View full queue →

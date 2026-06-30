@@ -311,13 +311,36 @@ export function InvoiceDocument({ document: doc, variant = 'admin', className = 
       ) : null}
 
       {/* Payment */}
-      {(doc.payment.paymentReference || doc.payment.paymentLinkUrl) && (
+      {(doc.payment.paymentMode ||
+        doc.payment.paymentReference ||
+        doc.payment.paymentLinkUrl ||
+        doc.status === 'paid') && (
         <section className={`mt-6 border-t pt-6 ${divider}`}>
           <h2 className={`text-[10px] font-semibold uppercase tracking-wide ${muted}`}>Payment</h2>
+          {doc.status === 'paid' && doc.payment.paymentMode ? (
+            <dl className="mt-3 space-y-1 text-sm">
+              <div className="flex justify-between gap-4">
+                <dt className={muted}>Mode</dt>
+                <dd>{doc.payment.paymentMode}</dd>
+              </div>
+              {doc.payment.paidAt ? (
+                <div className="flex justify-between gap-4">
+                  <dt className={muted}>Collected on</dt>
+                  <dd>{doc.payment.paidAt}</dd>
+                </div>
+              ) : null}
+              {doc.payment.collectedByName ? (
+                <div className="flex justify-between gap-4">
+                  <dt className={muted}>Collected by</dt>
+                  <dd>{doc.payment.collectedByName}</dd>
+                </div>
+              ) : null}
+            </dl>
+          ) : null}
           {doc.payment.paymentReference ? (
             <p className="mt-2 text-sm">
               Reference: <span className="font-mono text-xs">{doc.payment.paymentReference}</span>
-              {doc.payment.paidAt ? (
+              {doc.payment.paidAt && !doc.payment.paymentMode ? (
                 <span className={`ml-2 text-xs ${muted}`}>· Paid {doc.payment.paidAt}</span>
               ) : null}
             </p>

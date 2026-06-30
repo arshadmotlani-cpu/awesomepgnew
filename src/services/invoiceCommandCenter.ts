@@ -10,6 +10,7 @@ import {
   checkoutSettlements,
   customers,
   depositLedger,
+  electricityInvoices,
   financialInvoices,
   payments,
   pgPaymentRecords,
@@ -85,6 +86,7 @@ export type InvoiceCommandCenterData = {
     status: string;
     createdAt: string;
     paidAt: string | null;
+    isPipelineTest: boolean;
   }>;
 };
 
@@ -96,6 +98,18 @@ const OPEN_INVOICE_STATUSES = [
   'payment_in_progress',
   'processing',
 ] as const;
+
+/** Pipeline-test electricity rows stay visible in lists but never affect daily totals. */
+function excludePipelineTestFinancialInvoices() {
+  return sql`NOT (
+    ${financialInvoices.sourceTable} = 'electricity_invoices'
+    AND EXISTS (
+      SELECT 1 FROM electricity_invoices ei
+      WHERE ei.id = ${financialInvoices.sourceId}
+        AND ei.is_pipeline_test = true
+    )
+  )`;
+}
 
 /** Pure net inflow for a calendar day — invoice-first (no gross booking payment bucket). */
 export function computeInvoiceDailyNetRevenue(input: {
@@ -269,6 +283,7 @@ export async function getInvoiceDailySummary(dateInput?: string): Promise<Invoic
         and(
           sql`${financialInvoices.createdAt}::date = ${selectedDate}::date`,
           productionCustomerFilter,
+          excludePipelineTestFinancialInvoices(),
         ),
       ),
     db
@@ -281,6 +296,7 @@ export async function getInvoiceDailySummary(dateInput?: string): Promise<Invoic
           inArray(financialInvoices.status, ['paid', 'partial', 'settled']),
           sql`${financialInvoices.paidAt}::date = ${selectedDate}::date`,
           productionCustomerFilter,
+          excludePipelineTestFinancialInvoices(),
         ),
       ),
     db
@@ -293,6 +309,7 @@ export async function getInvoiceDailySummary(dateInput?: string): Promise<Invoic
           sql`${financialInvoices.createdAt}::date = ${selectedDate}::date`,
           inArray(financialInvoices.status, [...OPEN_INVOICE_STATUSES]),
           productionCustomerFilter,
+          excludePipelineTestFinancialInvoices(),
         ),
       ),
   ]);
@@ -467,6 +484,7 @@ export async function getFinancialTimelineForDate(
         and(
           sql`${financialInvoices.createdAt}::date = ${selectedDate}::date`,
           productionCustomerFilter,
+          excludePipelineTestFinancialInvoices(),
         ),
       )
       .orderBy(desc(financialInvoices.createdAt)),
@@ -739,10 +757,18 @@ export async function listInvoicesForSelectedDay(dateInput?: string) {
       status: financialInvoices.status,
       createdAt: financialInvoices.createdAt,
       paidAt: financialInvoices.paidAt,
+      isPipelineTest: sql<boolean>`coalesce(${electricityInvoices.isPipelineTest}, false)`,
     })
     .from(financialInvoices)
     .innerJoin(customers, eq(customers.id, financialInvoices.customerId))
     .leftJoin(bookings, eq(bookings.id, financialInvoices.bookingId))
+    .leftJoin(
+      electricityInvoices,
+      and(
+        eq(financialInvoices.sourceTable, 'electricity_invoices'),
+        eq(financialInvoices.sourceId, electricityInvoices.id),
+      ),
+    )
     .where(
       and(
         productionCustomerFilter,
@@ -764,6 +790,7 @@ export async function listInvoicesForSelectedDay(dateInput?: string) {
     status: row.status,
     createdAt: row.createdAt.toISOString(),
     paidAt: row.paidAt?.toISOString() ?? null,
+    isPipelineTest: Boolean(row.isPipelineTest),
   }));
 }
 

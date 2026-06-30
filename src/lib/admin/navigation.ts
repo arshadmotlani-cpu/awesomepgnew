@@ -25,7 +25,7 @@ export const ADMIN_MODULES: Record<AdminModule, AdminModuleMeta> = {
   overview: {
     id: 'overview',
     label: 'Overview',
-    description: 'Morning dashboard — what to do today',
+    description: 'Business health — revenue, occupancy, and billing status',
     href: '/admin/overview',
     sidebar: true,
   },
@@ -61,7 +61,7 @@ export const ADMIN_MODULES: Record<AdminModule, AdminModuleMeta> = {
     id: 'checkoutSettlements',
     label: 'Move-out checkout',
     description: 'Finish move-out refunds — open from Today\'s work',
-    href: '/admin/operations/residents',
+    href: '/admin/operations?filter=checkout',
     sidebar: false,
   },
   pgs: {
@@ -87,9 +87,9 @@ export const ADMIN_MODULES: Record<AdminModule, AdminModuleMeta> = {
   },
   operations: {
     id: 'operations',
-    label: "Today's work",
-    description: 'Residents who need you — one action at a time',
-    href: '/admin/operations/residents',
+    label: 'Operations',
+    description: 'Single queue for every admin action — billing, KYC, move-outs, and more',
+    href: '/admin/operations',
     sidebar: true,
   },
   analytics: {

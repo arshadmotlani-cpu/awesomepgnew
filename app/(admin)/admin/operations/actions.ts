@@ -15,7 +15,7 @@ export async function dismissOperationsQueueItemAction(
   formData: FormData,
 ): Promise<DismissOperationsQueueState> {
   try {
-    const session = await requireAdminSession('/admin/operations/residents');
+    const session = await requireAdminSession('/admin/operations');
     if (session.role !== 'super_admin') {
       return { status: 'error', message: 'Only Super Admin can dismiss operational queue items.' };
     }
@@ -42,7 +42,7 @@ export async function dismissOperationsQueueItemAction(
     if (!result.ok) return { status: 'error', message: result.error };
 
     revalidatePath('/admin/operations');
-    revalidatePath('/admin/operations/residents');
+    revalidatePath('/admin/operations');
     revalidatePath('/admin/overview');
     revalidatePath('/admin/checkout-settlements');
     revalidatePath('/admin/actions');

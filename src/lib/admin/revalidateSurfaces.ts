@@ -6,7 +6,7 @@ import { revalidatePath } from 'next/cache';
 const ADMIN_PATHS = [
   '/admin/overview',
   '/admin/operations',
-  '/admin/operations/residents',
+  '/admin/operations',
   '/admin/revenue',
   '/admin/collections',
   '/admin/billing',

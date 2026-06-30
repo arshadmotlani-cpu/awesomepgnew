@@ -84,7 +84,7 @@ function CheckoutSettlementWizardInner({ detail }: { detail: CheckoutSettlementD
     <div className="pb-20">
       <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <Link
-          href="/admin/operations/residents"
+          href="/admin/operations?filter=checkout"
           className="text-sm font-medium text-[#FF5A1F] hover:underline"
         >
           ← Today&apos;s work

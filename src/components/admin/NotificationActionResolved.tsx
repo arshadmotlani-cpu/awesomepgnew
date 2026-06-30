@@ -4,7 +4,7 @@ import { RESOLVED_MESSAGE } from '@/src/lib/admin/notificationDeepLinkGuard';
 
 export function NotificationActionResolved({
   message = RESOLVED_MESSAGE,
-  operationsHref = '/admin/operations/residents',
+  operationsHref = '/admin/operations',
 }: {
   message?: string;
   operationsHref?: string;

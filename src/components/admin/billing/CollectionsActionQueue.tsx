@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMemo } from 'react';
 import { ExpressCollectionButton } from '@/src/components/admin/ExpressCollectionButton';
 import { BillingWhatsAppWithLinkButton } from '@/src/components/admin/BillingWhatsAppWithLinkButton';
+import { MarkAsPaidCashButton } from '@/src/components/admin/MarkAsPaidCashButton';
 import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import {
@@ -16,7 +17,16 @@ import {
 const PRIMARY =
   'inline-flex min-h-[36px] items-center justify-center rounded-lg bg-[#FF5A1F] px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110';
 
-export function CollectionsActionQueue({ items }: { items: CollectionQueueItem[] }) {
+export function CollectionsActionQueue({
+  items,
+  cashSettlement,
+}: {
+  items: CollectionQueueItem[];
+  cashSettlement?: {
+    canSettle: boolean;
+    adminName: string;
+  } | null;
+}) {
   const grouped = useMemo(() => {
     const order: CollectionPriority[] = ['overdue', 'due_today', 'due_soon'];
     return order
@@ -111,7 +121,7 @@ export function CollectionsActionQueue({ items }: { items: CollectionQueueItem[]
                         )}
                       </TD>
                       <TD className="text-right">
-                        <CollectionsQueueRowActions row={row} />
+                        <CollectionsQueueRowActions row={row} cashSettlement={cashSettlement} />
                       </TD>
                     </TR>
                   ))}
@@ -125,11 +135,31 @@ export function CollectionsActionQueue({ items }: { items: CollectionQueueItem[]
   );
 }
 
-function CollectionsQueueRowActions({ row }: { row: CollectionQueueItem }) {
+function CollectionsQueueRowActions({
+  row,
+  cashSettlement,
+}: {
+  row: CollectionQueueItem;
+  cashSettlement?: {
+    canSettle: boolean;
+    adminName: string;
+  } | null;
+}) {
   const purpose = row.kind === 'electricity' ? 'electricity' : row.kind === 'rent' ? 'rent' : 'deposit';
 
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
+      {cashSettlement?.canSettle && row.financialInvoiceId ? (
+        <MarkAsPaidCashButton
+          financialInvoiceId={row.financialInvoiceId}
+          balanceDuePaise={row.amountPaise}
+          residentName={row.customerFullName}
+          invoiceNumber={row.invoiceNumber}
+          adminName={cashSettlement.adminName}
+          canSettle
+          compact
+        />
+      ) : null}
       <ExpressCollectionButton
         customerId={row.customerId}
         bookingId={row.bookingId}
@@ -158,6 +188,14 @@ function CollectionsQueueRowActions({ row }: { row: CollectionQueueItem }) {
               label="Send payment request"
             />
           </div>
+          {row.financialInvoiceId ? (
+            <Link
+              href={`/admin/invoices/${row.financialInvoiceId}`}
+              className="block px-3 py-2 text-xs text-apg-silver hover:bg-white/5 hover:text-white"
+            >
+              Invoice detail
+            </Link>
+          ) : null}
           <Link
             href={`/admin/residents/${row.customerId}`}
             className="block px-3 py-2 text-xs text-apg-silver hover:bg-white/5 hover:text-white"

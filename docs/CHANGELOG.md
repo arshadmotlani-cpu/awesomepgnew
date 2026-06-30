@@ -256,9 +256,9 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-30 22:52:09 UTC
+### Pending pre-commit sync · 2026-06-30 23:44:38 UTC
 
-**Areas touched:** [[ROUTES]], [[Billing]], [[Residents]], [[Electricity]]
+**Areas touched:** [[ROUTES]], [[Billing]], [[Residents]], [[Action Center]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
@@ -268,18 +268,30 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (11):**
+**Staged code files (23):**
 - `app/(admin)/admin/billing/page.tsx`
+- `app/(admin)/admin/billing/pipeline-integrity-actions.ts`
+- `app/(admin)/admin/checkout-settlements/[id]/page.tsx`
+- `app/(admin)/admin/checkout-settlements/page.tsx`
+- `app/(admin)/admin/collections/page.tsx`
+- `app/(admin)/admin/deposits/deposit-wallet-actions.ts`
+- `app/(admin)/admin/invoices/[invoiceId]/page.tsx`
+- `app/(admin)/admin/invoices/cash-settlement-actions.ts`
+- `app/(admin)/admin/operations/actions.ts`
+- `app/(admin)/admin/operations/page.tsx`
+- `app/(admin)/admin/operations/payment-reviews/page.tsx`
+- `app/(admin)/admin/operations/residents/page.tsx`
 - `app/(admin)/admin/overview/page.tsx`
+- `app/(admin)/admin/payments/actions.ts`
+- `app/(admin)/admin/payments/page.tsx`
+- `app/(admin)/admin/residents/[customerId]/page.tsx`
+- `app/(admin)/admin/vacating/error.tsx`
+- `app/api/admin/payment-proof/[kind]/[id]/route.ts`
 - `src/lib/billing/collectionsQueue.ts`
-- `src/lib/billing/financialMetrics.ts`
-- `src/lib/residents/residentLifecycleState.ts`
+- `src/lib/billing/invoiceDocumentModel.ts`
+- `src/lib/billing/pipelineTestResident.ts`
 - `src/lib/residents/residentOperationsDashboard.ts`
-- `src/lib/residents/residentOperationsResidentsView.ts`
-- `src/services/electricityBilling.ts`
-- `src/services/meterElectricity.ts`
-- `src/services/rentInvoices.ts`
-- `src/services/residentOperationsDashboard.ts`
+- `src/services/actionItems.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

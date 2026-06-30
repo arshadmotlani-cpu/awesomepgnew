@@ -109,6 +109,7 @@ export function DraggableSidebarRow({
             active={active}
             badgeCount={badgeCount}
             onNavigateStart={onNavigateStart}
+            truncateLabel={item.key !== 'payment_reviews'}
           />
         </div>
 

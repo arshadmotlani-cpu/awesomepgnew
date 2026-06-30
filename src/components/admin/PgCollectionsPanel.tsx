@@ -150,7 +150,7 @@ export function PgCollectionsPanel({
           Tenants pay on <strong className="text-zinc-300">/pgs</strong> by scanning your QR (rent)
           or from their resident dashboard (electricity invoice + screenshot). Approve payment
           screenshots in{' '}
-          <Link href="/admin/operations/payment-reviews" className="text-[#FF5A1F] hover:underline">
+          <Link href="/admin/operations?filter=payment_proof" className="text-[#FF5A1F] hover:underline">
             Operations → Payment Reviews
           </Link>
           .
@@ -307,7 +307,7 @@ export function PgCollectionsPanel({
               {pendingCount} payment proof{pendingCount === 1 ? '' : 's'} awaiting review.
             </p>
             <Link
-              href="/admin/operations/payment-reviews"
+              href="/admin/operations?filter=payment_proof"
               className="mt-3 inline-flex rounded-lg bg-[#FF5A1F] px-4 py-2 text-xs font-semibold text-white hover:brightness-110"
             >
               Review in Payment Reviews →

@@ -1100,7 +1100,7 @@ export async function getActionItemDetail(
     availableActions.push({
       type: 'view_ledger',
       label: 'Review payment',
-      href: '/admin/operations/payment-reviews',
+      href: '/admin/operations?filter=payment_proof',
     });
   }
   if (base.type === 'kyc_pending' && meta.submissionId) {

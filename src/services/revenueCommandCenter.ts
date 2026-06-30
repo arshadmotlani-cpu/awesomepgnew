@@ -6,6 +6,8 @@ import type {
 import {
   getDailyCollectionTotals,
   getDepositCollectedByPgForBillingMonth,
+  getMtdCollectionByPaymentMode,
+  type CollectionByPaymentMode,
 } from '@/src/db/queries/admin';
 import { getMonthlyRevenuePaise } from '@/src/services/dashboardMetrics';
 import type { DepositPortfolioMetrics } from '@/src/services/depositLedgerMetrics';
@@ -48,6 +50,7 @@ export type RevenueCommandCenterData = {
     depositRefundedPaise: number;
     netInflowPaise: number;
   };
+  collectionsByMode: CollectionByPaymentMode;
   depositPortfolio: DepositPortfolioMetrics;
   byPg: RevenueByPgRow[];
   outstanding: OutstandingMoneySummary;
@@ -149,7 +152,7 @@ export async function getRevenueCommandCenterData(
 ): Promise<RevenueCommandCenterData> {
   const billingMonth = resolveBillingMonth(input.billingMonth);
 
-  const [todayResult, depositRows, depositSummaries, pendingPayments, portfolioTotals, depositPortfolio] =
+  const [todayResult, depositRows, depositSummaries, pendingPayments, portfolioTotals, depositPortfolio, collectionsByModeResult] =
     await Promise.all([
     getDailyCollectionTotals(),
     getDepositCollectedByPgForBillingMonth(billingMonth),
@@ -163,6 +166,7 @@ export async function getRevenueCommandCenterData(
     import('@/src/services/depositLedgerMetrics').then((m) =>
       m.getDepositPortfolioMetrics(billingMonth),
     ),
+    getMtdCollectionByPaymentMode(billingMonth),
   ]);
 
   const today: CollectionBreakdown = todayResult.ok
@@ -214,10 +218,15 @@ export async function getRevenueCommandCenterData(
     },
   );
 
+  const collectionsByMode: CollectionByPaymentMode = collectionsByModeResult.ok
+    ? collectionsByModeResult.data
+    : { upiPaise: 0, cashPaise: 0, bankTransferPaise: 0, otherPaise: 0, totalPaise: 0 };
+
   return {
     billingMonth,
     today,
     mtd,
+    collectionsByMode,
     depositPortfolio,
     byPg,
     outstanding,

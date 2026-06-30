@@ -235,7 +235,7 @@ export function buildOverviewDashboard(ctx: OverviewContext): OverviewDashboardD
       title: 'PAYMENTS & APPROVALS',
       metrics: [
         countMetric('payments_to_review', 'Payments To Review', ops?.pendingPayments.count ?? 0, {
-          href: '/admin/operations/payment-reviews',
+          href: '/admin/operations?filter=payment_proof',
           hint: 'SSOT: payment proof queue',
         }),
       ],

@@ -2,13 +2,31 @@ import Link from 'next/link';
 import { paiseToInr } from '@/src/lib/format';
 import type { BillingCycleReconciliation } from '@/src/services/billingCycleReconciliation';
 
+/** Billing cycle certification on Billing Centre — never blocks the rest of the page. */
 export function BillingCycleCertificationPanel({
   reconciliation,
+  error,
   compact,
 }: {
-  reconciliation: BillingCycleReconciliation;
+  reconciliation?: BillingCycleReconciliation | null;
+  error?: string | null;
   compact?: boolean;
 }) {
+  if (error) {
+    return (
+      <section className="mb-8 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-6">
+        <p className="text-lg font-semibold text-amber-100">Billing certification unavailable</p>
+        <p className="mt-2 text-sm text-amber-200/90">{error}</p>
+        <p className="mt-3 text-xs text-apg-silver">
+          Collections, invoices, and Operations continue to work. Retry from this page after fixing
+          the underlying data issue.
+        </p>
+      </section>
+    );
+  }
+
+  if (!reconciliation) return null;
+
   const m = reconciliation.metrics;
   const month = reconciliation.billingMonth.slice(0, 7);
   const tab = (id: string) => `/admin/billing?tab=${id}&month=${month}`;

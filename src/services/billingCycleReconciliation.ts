@@ -91,7 +91,6 @@ async function countElectricitySkippedForMonth(billingMonth: string): Promise<nu
       GROUP BY electricity_bill_id
     ) inv ON inv.electricity_bill_id = eb.id
     WHERE eb.billing_month = ${billingMonth}::date
-      AND eb.bill_status != 'cancelled'
   `);
   return Number(Array.from(rows)[0]?.skipped ?? 0);
 }
@@ -507,4 +506,26 @@ export async function reconcileAndEvaluateBillingCycle(
   const { syncActionItemsForCron } = await import('@/src/services/actionItems');
   await syncActionItemsForCron().catch(() => undefined);
   return evaluateBillingCycleReconciliation(session, billingMonth);
+}
+
+export type BillingReconciliationLoadResult =
+  | { ok: true; reconciliation: BillingCycleReconciliation }
+  | { ok: false; error: string; reconciliation: null };
+
+/** Never throws — safe for Overview and other critical pages. */
+export async function loadBillingReconciliationSafe(
+  session: AdminSession,
+  billingMonthInput?: string,
+): Promise<BillingReconciliationLoadResult> {
+  try {
+    const reconciliation = await reconcileAndEvaluateBillingCycle(session, billingMonthInput);
+    return { ok: true, reconciliation };
+  } catch (err) {
+    console.error('[billing-reconciliation]', err);
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Billing certification unavailable',
+      reconciliation: null,
+    };
+  }
 }

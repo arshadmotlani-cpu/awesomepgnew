@@ -37,7 +37,7 @@ export default function VacatingError({
           Reload page
         </button>
         <Link
-          href="/admin/operations/residents"
+          href="/admin/operations?filter=checkout"
           className="rounded-lg border border-white/15 px-5 py-2.5 text-sm font-semibold text-white hover:bg-white/5"
         >
           Back to Operations
