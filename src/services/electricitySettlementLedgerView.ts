@@ -17,6 +17,7 @@ import {
   computeElectricityCollectionReconciliation,
   computeElectricitySettlementLedgerReconciliation,
 } from '@/src/lib/billing/electricitySettlementLedgerReconciliation';
+import { collectionPercentage as calcCollectionPct } from '@/src/lib/billing/electricityValidation';
 import { isProductionElectricityBillFilter } from '@/src/lib/billing/electricityProductionFilter';
 import { firstOfMonth } from '@/src/services/billing';
 import { getElectricityInvoiceSchemaCaps } from '@/src/lib/db/electricityInvoiceSchemaCaps';
@@ -71,9 +72,12 @@ export type ElectricitySettlementLedgerView = {
   roundingRemainderPaise: number;
   collectedPaise: number;
   outstandingPaise: number;
+  overCollectionPaise: number;
+  collectionPercentage: number;
   reconciliationGapPaise: number;
   isBalanced: boolean;
   isFullyCollected: boolean;
+  hasReconciliationWarning: boolean;
 };
 
 export async function sumManualElectricityCreditsForRoomMonth(
@@ -323,10 +327,16 @@ export async function getElectricitySettlementLedgerView(input: {
     residentAllocations,
     residentAllocationsTotalPaise,
     roundingRemainderPaise,
-    collectedPaise,
+    collectedPaise: collection.rawCollectedPaise,
     outstandingPaise: collection.outstandingPaise,
+    overCollectionPaise: collection.overCollectionPaise,
+    collectionPercentage: calcCollectionPct(collection.rawCollectedPaise, totalRoomBillPaise),
     reconciliationGapPaise: reconciliation.reconciliationGapPaise,
     isBalanced: reconciliation.isBalanced,
     isFullyCollected: collection.isFullyCollected,
+    hasReconciliationWarning:
+      !reconciliation.isBalanced ||
+      collection.overCollectionPaise > 0 ||
+      collection.outstandingPaise < 0,
   };
 }

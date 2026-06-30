@@ -18,6 +18,7 @@ import { firstOfMonth, monthBounds } from '@/src/services/billing';
 import type { CheckoutSettlement } from '@/src/db/schema/checkoutSettlements';
 import type { DateLike } from '@/src/lib/dates';
 import { sumManualElectricityCreditsForRoomMonth } from '@/src/services/electricitySettlementLedgerView';
+import { recordCheckoutElectricityCollectionFromSettlementId } from '@/src/services/roomElectricityLedger';
 
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -303,23 +304,5 @@ export async function listCheckoutElectricityLedgerForBill(
 export async function recordCheckoutElectricityLedgerFromSettlementId(
   settlementId: string,
 ): Promise<void> {
-  const [row] = await db
-    .select({
-      settlement: checkoutSettlements,
-      vacatingDate: vacatingRequests.vacatingDate,
-    })
-    .from(checkoutSettlements)
-    .innerJoin(vacatingRequests, eq(vacatingRequests.id, checkoutSettlements.vacatingRequestId))
-    .where(eq(checkoutSettlements.id, settlementId))
-    .limit(1);
-  if (!row) return;
-
-  const roomId = await resolveRoomIdForBooking(row.settlement.bookingId);
-  if (!roomId) return;
-
-  await recordCheckoutElectricityLedgerEntry({
-    settlement: row.settlement,
-    vacatingDate: String(row.vacatingDate),
-    roomId,
-  });
+  await recordCheckoutElectricityCollectionFromSettlementId(settlementId);
 }

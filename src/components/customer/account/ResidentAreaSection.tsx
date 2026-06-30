@@ -53,6 +53,7 @@ import { getLatestKycSubmission } from '@/src/services/kyc';
 import { buildWalletLedger } from '@/src/lib/residents/walletLedger';
 import { ResidentWalletView } from '@/src/components/customer/account/resident/ResidentWalletView';
 import { ResidentPaymentsHub } from '@/src/components/customer/account/resident/ResidentPaymentsHub';
+import type { ResidentElectricityHistoryItem } from '@/src/components/customer/account/resident/ResidentElectricityHistory';
 import type { PaidHistoryRow } from '@/src/components/customer/account/resident/ResidentPaymentsHub';
 import {
   type PaymentDueRow,
@@ -406,6 +407,22 @@ export async function ResidentAreaSection({
     (b.paidAt ?? '').localeCompare(a.paidAt ?? ''),
   );
 
+  const electricityHistory: ResidentElectricityHistoryItem[] =
+    primaryBooking?.electricity.ok && primaryBooking.electricity.data.length > 0
+      ? primaryBooking.electricity.data.map((e) => ({
+          id: e.id,
+          invoiceNumber: e.invoiceNumber,
+          billingMonth: String(e.billingMonth),
+          amountPaise: e.amountPaise,
+          paidPaise: e.paidPaise,
+          status: e.status,
+          dueDate: String(e.dueDate),
+          roomNumber: e.roomNumber,
+          isCheckoutSettled:
+            e.status === 'paid' && e.paidPaise > 0 && e.amountPaise <= e.paidPaise,
+        }))
+      : [];
+
   const activeRequests: ActiveRequestItem[] = [];
   for (const r of openRequests) {
     activeRequests.push({
@@ -583,6 +600,8 @@ export async function ResidentAreaSection({
           pendingApprovalRows={pendingApprovalRows}
           paidBills={paidHistory}
           historyHref={historyHref}
+          electricityHistory={electricityHistory}
+          bookingId={primaryBooking.bookingId}
         />
       ) : null}
     </ResidentHubShell>

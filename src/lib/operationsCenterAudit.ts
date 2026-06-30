@@ -8,7 +8,7 @@ export const OPERATIONS_CENTER_CARD_ROUTES = {
   bedsReleasingSoon: '/admin/vacating',
   upcomingReservations: '/admin/bookings',
   refundsPending: '/admin/deposits',
-  electricityPending: '/admin/electricity',
+  electricityPending: '/admin/billing?tab=electricity',
   ps4Renewals: '/admin/playstation',
 } as const;
 

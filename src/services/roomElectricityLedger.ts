@@ -437,6 +437,24 @@ export async function recordManualElectricityCreditInTx(
     totalBillPaise: Math.max(totalBillPaise, input.amountPaise),
   });
 
+  const [duplicate] = await tx
+    .select({ id: roomElectricityLedgerEntries.id })
+    .from(roomElectricityLedgerEntries)
+    .where(
+      and(
+        eq(roomElectricityLedgerEntries.cycleId, cycleId),
+        eq(roomElectricityLedgerEntries.customerId, input.customerId),
+        eq(roomElectricityLedgerEntries.amountPaise, input.amountPaise),
+        eq(roomElectricityLedgerEntries.source, input.source),
+        input.note
+          ? eq(roomElectricityLedgerEntries.note, input.note)
+          : sql`${roomElectricityLedgerEntries.note} IS NULL`,
+      ),
+    )
+    .limit(1);
+
+  if (duplicate) return;
+
   await tx.insert(roomElectricityLedgerEntries).values({
     cycleId,
     customerId: input.customerId,

@@ -52,10 +52,20 @@ export function computeElectricitySettlementLedgerReconciliation(
 export function computeElectricityCollectionReconciliation(input: {
   totalRoomBillPaise: number;
   collectedPaise: number;
-}): { outstandingPaise: number; isFullyCollected: boolean } {
-  const outstandingPaise = Math.max(0, input.totalRoomBillPaise - input.collectedPaise);
+}): {
+  outstandingPaise: number;
+  isFullyCollected: boolean;
+  overCollectionPaise: number;
+  rawCollectedPaise: number;
+} {
+  const rawCollectedPaise = Math.max(0, input.collectedPaise);
+  const cappedCollected = Math.min(rawCollectedPaise, input.totalRoomBillPaise);
+  const overCollectionPaise = Math.max(0, rawCollectedPaise - input.totalRoomBillPaise);
+  const outstandingPaise = Math.max(0, input.totalRoomBillPaise - cappedCollected);
   return {
     outstandingPaise,
-    isFullyCollected: outstandingPaise === 0 && input.collectedPaise <= input.totalRoomBillPaise,
+    isFullyCollected: outstandingPaise === 0 && overCollectionPaise === 0,
+    overCollectionPaise,
+    rawCollectedPaise,
   };
 }

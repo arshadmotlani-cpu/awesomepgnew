@@ -359,12 +359,19 @@ export default async function CollectionsModulePage({
 
       {tab === 'electricity' ? (
         <>
-          <header className="mb-4">
-            <h2 className="text-base font-semibold text-white">Electricity bills</h2>
-            <p className="mt-1 text-sm text-apg-silver">
-              Room meter bills split among residents — create bills from meter readings, then send
-              payment links from here.
-            </p>
+          <header className="mb-4 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h2 className="text-base font-semibold text-white">Electricity bills</h2>
+              <p className="mt-1 text-sm text-apg-silver">
+                Create room bills from meter readings, track collection, and approve resident payments.
+              </p>
+            </div>
+            <Link
+              href={`/admin/electricity/dashboard?month=${billingMonth}`}
+              className="rounded-lg bg-[#FF5A1F] px-4 py-2 text-sm font-semibold text-white hover:brightness-110"
+            >
+              Room dashboard →
+            </Link>
           </header>
           <ElectricityRoomsPendingPanel
             rooms={roomsMissingElectricity}

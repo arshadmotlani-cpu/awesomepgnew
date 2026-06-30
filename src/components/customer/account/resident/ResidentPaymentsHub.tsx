@@ -3,6 +3,10 @@ import { ApgCard } from '@/src/components/customer/design-system';
 import { StatusChip } from '@/src/components/customer/design-system';
 import { GlossaryTip } from '@/src/components/customer/account/resident/GlossaryTip';
 import { ResidentMoreSection } from '@/src/components/customer/account/resident/ResidentMoreSection';
+import {
+  ResidentElectricityHistory,
+  type ResidentElectricityHistoryItem,
+} from '@/src/components/customer/account/resident/ResidentElectricityHistory';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import { residentTabHref } from '@/src/lib/accountNavigation';
 import type { PaymentDueRow } from '@/src/components/customer/account/resident/ResidentPaymentsPanel';
@@ -105,11 +109,15 @@ export function ResidentPaymentsHub({
   pendingApprovalRows,
   paidBills,
   historyHref,
+  electricityHistory,
+  bookingId,
 }: {
   dueRows: PaymentDueRow[];
   pendingApprovalRows: PaymentDueRow[];
   paidBills: PaidHistoryRow[];
   historyHref: string | null;
+  electricityHistory?: ResidentElectricityHistoryItem[];
+  bookingId?: string | null;
 }) {
   const payableDue = dueRows.filter((r) => r.href);
   const primary = primaryPayAction(payableDue);
@@ -170,6 +178,12 @@ export function ResidentPaymentsHub({
         rows={pendingApprovalRows}
         emptyMessage="No payments awaiting approval."
       />
+
+      {electricityHistory && electricityHistory.length > 0 && bookingId ? (
+        <ApgCard tier="account" className="p-5">
+          <ResidentElectricityHistory items={electricityHistory} bookingId={bookingId} />
+        </ApgCard>
+      ) : null}
 
       <BillList
         title="Paid bills"

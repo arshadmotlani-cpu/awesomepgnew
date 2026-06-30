@@ -353,7 +353,7 @@ export function RevenueCommandCenter({
             label="Pending electricity invoices"
             count={outstanding.pendingElectricityInvoices}
             amountPaise={outstanding.pendingElectricityInvoicesPaise}
-            href="/admin/electricity"
+            href="/admin/electricity/dashboard"
             linkLabel="Electricity billing →"
           />
           <OutstandingCard

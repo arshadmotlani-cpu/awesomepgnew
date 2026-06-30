@@ -22,55 +22,65 @@ export function ElectricitySettlementLedgerPanel({
         <h2 className="text-lg font-semibold text-white">
           {ledger.pgName} · Room {ledger.roomNumber} · {formatDate(ledger.billingMonth)}
         </h2>
-        <p className="text-xs text-apg-silver">Single source of truth for room electricity accounting</p>
+        <p className="text-xs text-apg-silver">Your single view of who paid what for this room</p>
       </header>
 
-      <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <LedgerStat label="Total room bill" value={paiseToInr(ledger.totalRoomBillPaise)} />
+      {ledger.hasReconciliationWarning ? (
+        <div className="mb-6 rounded-2xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+          {ledger.overCollectionPaise > 0
+            ? `This room collected ${paiseToInr(ledger.overCollectionPaise)} more than the bill. Fix manual credits or invoices before closing the month.`
+            : !ledger.isBalanced
+              ? `Bill and resident shares do not match (gap ${paiseToInr(Math.abs(ledger.reconciliationGapPaise))}). Review allocations before sending reminders.`
+              : 'This room needs your review before the month can be closed.'}
+        </div>
+      ) : null}
+
+      <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <LedgerStat label="Room bill" value={paiseToInr(ledger.totalRoomBillPaise)} />
+        <LedgerStat label="Collected so far" value={paiseToInr(ledger.collectedPaise)} />
         <LedgerStat
-          label="Checkout settlement credits"
+          label="Still to recover"
+          value={paiseToInr(ledger.outstandingPaise)}
+          accent
+        />
+        <LedgerStat
+          label="Collection rate"
+          value={`${ledger.collectionPercentage}%`}
+        />
+      </dl>
+
+      <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <LedgerStat
+          label="Paid at checkout"
           value={`−${paiseToInr(ledger.checkoutSettlementTotalPaise)}`}
           muted
         />
         <LedgerStat
-          label="Manual / offline credits"
+          label="Cash / UPI / manual"
           value={`−${paiseToInr(ledger.manualCreditsTotalPaise)}`}
           muted
         />
         {ledger.prepaidCreditAppliedPaise > 0 ? (
           <LedgerStat
-            label="Prepaid credit applied"
+            label="Prepaid credit used"
             value={`−${paiseToInr(ledger.prepaidCreditAppliedPaise)}`}
             muted
           />
         ) : null}
-        <LedgerStat
-          label="Remaining room balance"
-          value={paiseToInr(ledger.remainingRoomBalancePaise)}
-          accent
-        />
-        <LedgerStat
-          label="Collected so far"
-          value={paiseToInr(ledger.collectedPaise)}
-        />
-        <LedgerStat
-          label="Outstanding"
-          value={paiseToInr(ledger.outstandingPaise)}
-        />
       </dl>
 
       {ledger.checkoutSettlementCredits.length > 0 ? (
-        <CreditSection title="Checkout settlement credits" rows={ledger.checkoutSettlementCredits} />
+        <CreditSection title="Paid at move-out (deposit)" rows={ledger.checkoutSettlementCredits} />
       ) : null}
 
       {ledger.manualCredits.length > 0 ? (
-        <CreditSection title="Manual / offline credits" rows={ledger.manualCredits} />
+        <CreditSection title="Cash, UPI, or manual payments" rows={ledger.manualCredits} />
       ) : null}
 
       {ledger.residentAllocations.length > 0 ? (
         <div className="mt-8 border-t border-white/[0.06] pt-6">
           <h3 className="text-xs font-medium uppercase tracking-wider text-apg-silver">
-            Resident allocations
+            Residents
           </h3>
           <ul className="mt-3 divide-y divide-white/[0.06]">
             {ledger.residentAllocations.map((row) => (
@@ -113,23 +123,30 @@ export function ElectricitySettlementLedgerPanel({
             : 'border-amber-400/30 bg-amber-500/10')
         }
       >
-        <h3 className="text-sm font-semibold text-white">Final reconciliation</h3>
+        <h3 className="text-sm font-semibold text-white">Does it add up?</h3>
         <p className="mt-2 text-sm text-apg-silver">
-          Room bill = prepaid + checkout credits + manual credits + resident allocations + rounding
-          remainder
+          Room bill must equal everything collected plus what residents still owe.
         </p>
         <dl className="mt-3 space-y-1 text-sm">
           <div className="flex justify-between gap-4">
-            <dt className="text-apg-silver">Reconciliation gap</dt>
+            <dt className="text-apg-silver">Difference</dt>
             <dd className={ledger.isBalanced ? 'text-emerald-200' : 'text-amber-200'}>
               {paiseToInr(ledger.reconciliationGapPaise)}
-              {ledger.isBalanced ? ' ✓ balanced' : ' — needs review'}
+              {ledger.isBalanced ? ' ✓ All good' : ' — fix before closing month'}
             </dd>
           </div>
+          {ledger.overCollectionPaise > 0 ? (
+            <div className="flex justify-between gap-4">
+              <dt className="text-apg-silver">Over-collected</dt>
+              <dd className="text-rose-200">{paiseToInr(ledger.overCollectionPaise)}</dd>
+            </div>
+          ) : null}
           <div className="flex justify-between gap-4">
-            <dt className="text-apg-silver">Collection status</dt>
+            <dt className="text-apg-silver">Collection</dt>
             <dd className="text-white">
-              {ledger.isFullyCollected ? 'Fully collected' : 'Partially collected'}
+              {ledger.isFullyCollected
+                ? 'Fully collected'
+                : `${ledger.collectionPercentage}% collected · ${paiseToInr(ledger.outstandingPaise)} left`}
             </dd>
           </div>
         </dl>

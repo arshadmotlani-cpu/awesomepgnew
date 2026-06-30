@@ -424,7 +424,7 @@ function rowFromElecInvoice(r: AdminElectricityInvoiceReminderRow): ControlBoard
     billingMonth: r.billingMonth,
     dueDate: r.dueDate,
     isOverdue: r.isOverdue,
-    href: '/admin/electricity',
+    href: '/admin/electricity/dashboard',
   };
 }
 
@@ -562,14 +562,14 @@ export async function loadControlBoardDrillDown(
         const paid = await listAdminPaidElectricityInvoicesForMonth(billingMonth);
         if (!paid.ok) return null;
         return drillDown('Electricity collected this month', paid.data.map(rowFromElecInvoice), {
-          ledgerHref: '/admin/electricity',
+          ledgerHref: '/admin/electricity/dashboard',
         });
       }
       const res = await listAdminElectricityInvoicesForReminders();
       if (!res.ok) return null;
       return drillDown('Electricity pending', res.data.map(rowFromElecInvoice), {
         bulkActionKind: 'electricity',
-        ledgerHref: '/admin/electricity',
+        ledgerHref: '/admin/electricity/dashboard',
       });
     }
     case 'deposit_refunds':
