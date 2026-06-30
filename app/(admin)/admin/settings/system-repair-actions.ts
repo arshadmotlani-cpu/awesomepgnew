@@ -30,6 +30,12 @@ import {
   type DepositRepairResult,
 } from '@/src/services/depositRepair';
 import { revalidateFinancialViews } from '@/src/lib/billing/revalidateFinancialViews';
+import {
+  auditBookingStayDateIntegrity,
+  formatBookingStayDateReportMarkdown,
+  repairBookingStayDateIntegrity,
+  type BookingStayDateRepairReport,
+} from '@/src/services/bookingStayDateIntegrity';
 
 export type SystemRepairActionState =
   | { status: 'idle' }
@@ -211,6 +217,64 @@ export async function executeDashboardRepairAction(
         ? `Dry run — occupancy drift ${result.occupancyDriftBefore}.`
         : `Repair complete — reconciled ${result.reconciledInvoices} financial row(s); occupancy drift ${result.occupancyDriftBefore} → ${result.occupancyDriftAfter}.`,
       result,
+    };
+  } catch (err) {
+    return { status: 'error', message: err instanceof Error ? err.message : 'Repair failed.' };
+  }
+}
+
+export async function auditBookingStayDateRepairAction(): Promise<SystemRepairActionState> {
+  await requireAdminSession('/admin/settings');
+  try {
+    const issues = await auditBookingStayDateIntegrity();
+    const report: BookingStayDateRepairReport = {
+      auditedAt: new Date().toISOString(),
+      execute: false,
+      totalActiveBookings: 0,
+      issueCount: issues.length,
+      repairableCount: issues.filter(
+        (i) => i.reservationId && !i.issues.includes('missing_primary_reservation'),
+      ).length,
+      repairedCount: 0,
+      skippedCount: issues.length,
+      issues,
+      repairs: [],
+      verification: [],
+    };
+    return {
+      status: 'ok',
+      message:
+        issues.length === 0
+          ? 'No active bookings with null check-in or malformed stay_range.'
+          : `${issues.length} active booking(s) with stay date integrity issues (${report.repairableCount} repairable).`,
+      preview: { issues, markdown: formatBookingStayDateReportMarkdown(report) },
+    };
+  } catch (err) {
+    return { status: 'error', message: err instanceof Error ? err.message : 'Audit failed.' };
+  }
+}
+
+export async function executeBookingStayDateRepairAction(
+  dryRun: boolean,
+): Promise<SystemRepairActionState> {
+  const session = await requireAdminSession('/admin/settings');
+  if (session.role !== 'super_admin') {
+    return { status: 'error', message: 'Super admin only.' };
+  }
+  try {
+    const report = await repairBookingStayDateIntegrity({ execute: !dryRun });
+    if (!dryRun) {
+      revalidateAllAdminViews();
+      revalidatePath('/account/bookings', 'layout');
+      revalidatePath('/account/profile', 'layout');
+    }
+    return {
+      status: 'ok',
+      message: dryRun
+        ? `Dry run — ${report.issueCount} issue(s); would repair ${report.repairableCount}.`
+        : `Repair complete — repaired ${report.repairedCount}, skipped ${report.skippedCount}, remaining issues ${report.issueCount}.`,
+      result: report,
+      preview: { markdown: formatBookingStayDateReportMarkdown(report) },
     };
   } catch (err) {
     return { status: 'error', message: err instanceof Error ? err.message : 'Repair failed.' };

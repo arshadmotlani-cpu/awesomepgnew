@@ -256,9 +256,9 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-30 06:36:43 UTC
+### Pending pre-commit sync · 2026-06-30 06:53:37 UTC
 
-**Areas touched:** [[ROUTES]], [[Residents]]
+**Areas touched:** [[ROUTES]], [[Bookings]]
 
 **Docs flagged for review:**
 - `CHANGELOG.md` — review for accuracy
@@ -267,11 +267,10 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (4):**
-- `app/(customer)/account/bookings/page.tsx`
-- `app/(customer)/account/profile/page.tsx`
-- `app/api/auth/customer/login/route.ts`
-- `src/lib/residents/stayBillingRules.ts`
+**Staged code files (3):**
+- `app/(admin)/admin/settings/system-repair-actions.ts`
+- `app/api/cron/booking-stay-date-integrity/route.ts`
+- `src/services/bookingStayDateIntegrity.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

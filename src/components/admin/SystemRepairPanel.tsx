@@ -11,10 +11,12 @@ import {
   previewDashboardRepairAction,
   previewDepositRepairAction,
   previewOccupancyRepairAction,
+  auditBookingStayDateRepairAction,
+  executeBookingStayDateRepairAction,
   type SystemRepairActionState,
 } from '@/app/(admin)/admin/settings/system-repair-actions';
 
-type ToolKey = 'occupancy' | 'deposits' | 'checkout' | 'dashboard';
+type ToolKey = 'occupancy' | 'deposits' | 'checkout' | 'dashboard' | 'stayDates';
 
 export function SystemRepairPanel() {
   const [messages, setMessages] = useState<Partial<Record<ToolKey, string>>>({});
@@ -92,6 +94,20 @@ export function SystemRepairPanel() {
         onPreview={() => run('dashboard', previewDashboardRepairAction, 'preview')}
         onDryRun={() => run('dashboard', () => executeDashboardRepairAction(true), 'message')}
         onExecute={() => run('dashboard', () => executeDashboardRepairAction(false), 'message')}
+      />
+
+      <RepairTool
+        title="Repair Booking Stay Dates"
+        description="Fix active bookings with null check-in or malformed bed_reservations.stay_range — prevents resident portal crashes after login."
+        pending={pending}
+        previewText={previews.stayDates}
+        message={messages.stayDates}
+        error={errors.stayDates}
+        onAudit={() => run('stayDates', auditBookingStayDateRepairAction, 'preview')}
+        onPreview={() => run('stayDates', () => executeBookingStayDateRepairAction(true), 'preview')}
+        onDryRun={() => run('stayDates', () => executeBookingStayDateRepairAction(true), 'message')}
+        onExecute={() => run('stayDates', () => executeBookingStayDateRepairAction(false), 'message')}
+        auditLabel="Audit"
       />
     </div>
   );
