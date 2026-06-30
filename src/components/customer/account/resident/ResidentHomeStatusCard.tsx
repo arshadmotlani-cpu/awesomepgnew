@@ -22,7 +22,7 @@ export function ResidentHomeStatusCard({
 }: {
   status: ResidentHomeStatus;
   bookingCode: string;
-  checkInDate: string;
+  checkInDate: string | null;
   expectedCheckoutDate: string | null;
 }) {
   return (
@@ -50,7 +50,8 @@ export function ResidentHomeStatusCard({
           >
             {bookingCode}
           </Link>
-          {' · '}Moved in {formatDate(checkInDate)}
+          {' · '}
+          {checkInDate ? `Moved in ${formatDate(checkInDate)}` : 'Check-in date pending'}
           {expectedCheckoutDate ? ` · Leaving ${formatDate(expectedCheckoutDate)}` : ''}
         </p>
       </div>

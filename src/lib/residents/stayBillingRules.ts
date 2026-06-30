@@ -16,9 +16,19 @@ export const PREBOOKING_RULE_COPY =
 export const DEPOSIT_REFUND_RULE_COPY =
   'If historical room electricity bills exist, we use the average of recent cycles. If no data is available, a conservative default average is used. Remaining deposit is refunded after deductions.';
 
-export function formatStayDateTime(dateYmd: string, kind: 'check-in' | 'check-out'): string {
+export function formatStayDateTime(
+  dateYmd: string | null | undefined,
+  kind: 'check-in' | 'check-out',
+): string {
+  const normalized = (dateYmd ?? '').trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    return kind === 'check-in' ? 'Check-in date pending' : 'Check-out date pending';
+  }
+  const d = new Date(`${normalized}T12:00:00`);
+  if (Number.isNaN(d.getTime())) {
+    return kind === 'check-in' ? 'Check-in date pending' : 'Check-out date pending';
+  }
   const label = kind === 'check-in' ? STAY_CHECK_IN_TIME : STAY_CHECK_OUT_TIME;
-  const d = new Date(`${dateYmd}T12:00:00`);
   const formatted = d.toLocaleDateString('en-IN', {
     day: 'numeric',
     month: 'long',

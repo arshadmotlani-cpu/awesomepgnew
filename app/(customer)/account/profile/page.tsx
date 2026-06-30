@@ -5,6 +5,9 @@ import { ApplicationStatusTracker } from '@/src/components/customer/account/Appl
 import { DocumentsModule } from '@/src/components/customer/account/v2/DocumentsModule';
 import { ResidentAreaSection } from '@/src/components/customer/account/ResidentAreaSection';
 import { ResidentPageHeader } from '@/src/components/customer/account/resident/ResidentPageHeader';
+import { ResidentSectionErrorBoundary } from '@/src/components/customer/account/resident/ResidentSectionErrorBoundary';
+import { PostLoginRouteObserver } from '@/src/components/customer/account/PostLoginRouteObserver';
+import { ResidentAccountIncompletePanel } from '@/src/components/customer/account/ResidentAccountIncompletePanel';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
 import {
   parseAccountSection,
@@ -14,7 +17,8 @@ import {
 } from '@/src/lib/accountNavigation';
 import { residentTabMeta } from '@/src/lib/residentNavigation';
 import { formatIndianPhoneDisplay, indianLocalFromE164 } from '@/src/lib/phone';
-import { loadResidentAccountContext } from '@/src/services/residentAccountContext';
+import { loadResidentAccountContextSafe } from '@/src/services/residentAccountContextSafe';
+import { logger } from '@/src/lib/logger';
 
 function parseLegacyHubTab(
   value: string | undefined,
@@ -35,16 +39,34 @@ export const metadata = { title: 'My Account' };
 
 export default async function ProfilePage(props: PageProps<'/account/profile'>) {
   const session = await requireCustomerSession('/account/profile');
-  const ctx = await loadResidentAccountContext(session.customerId);
 
-  if (!ctx) {
+  logger.info('post-login profile page session ok', {
+    customerId: session.customerId,
+    email: session.email,
+    sessionId: session.sessionId,
+  });
+
+  const contextLoad = await loadResidentAccountContextSafe(session.customerId, session.email);
+
+  if (!contextLoad.ok) {
     return (
       <main className="mx-auto max-w-lg px-4 py-12">
-        <p className="text-sm text-rose-700">Account not found.</p>
+        <PostLoginRouteObserver
+          step="account_profile_context_failed"
+          customerId={session.customerId}
+          email={session.email}
+          extra={{ reason: contextLoad.reason, error: contextLoad.errorMessage }}
+        />
+        {contextLoad.reason === 'not_found' ? (
+          <p className="text-sm text-rose-700">Account not found.</p>
+        ) : (
+          <ResidentAccountIncompletePanel />
+        )}
       </main>
     );
   }
 
+  const ctx = contextLoad.ctx;
   const sp = await props.searchParams;
   const next = typeof sp.next === 'string' ? sp.next : undefined;
   const bookingCode = typeof sp.booking === 'string' ? sp.booking : undefined;
@@ -54,9 +76,23 @@ export default async function ProfilePage(props: PageProps<'/account/profile'>) 
   const residentTab = residentTabFromLegacy(tabParam);
   const explicitSettings = sp.settings === '1';
 
+  logger.info('post-login profile page routing', {
+    customerId: session.customerId,
+    email: session.email,
+    section,
+    residentTab,
+    hasConfirmedBooking: ctx.hasConfirmedBooking,
+    primaryBookingId: ctx.primaryBooking?.bookingId ?? null,
+  });
+
   if (section === 'identity') {
     return (
       <main className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6">
+        <PostLoginRouteObserver
+          step="account_profile_identity"
+          customerId={session.customerId}
+          email={session.email}
+        />
         <nav className="apg-account-nav mb-4 text-xs">
           <Link href={ctx.hasConfirmedBooking ? residentTabHref('home') : '/account/profile'}>
             ← {ctx.hasConfirmedBooking ? 'Your stay' : 'My account'}
@@ -78,21 +114,35 @@ export default async function ProfilePage(props: PageProps<'/account/profile'>) 
   if (ctx.hasConfirmedBooking && section === 'resident') {
     return (
       <main className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6">
+        <PostLoginRouteObserver
+          step="account_profile_resident_dashboard"
+          customerId={session.customerId}
+          email={session.email}
+          extra={{ residentTab }}
+        />
         <div className="hidden md:block">
           <ResidentPageHeader meta={residentTabMeta(residentTab)} />
         </div>
-        <ResidentAreaSection
+        <ResidentSectionErrorBoundary
+          page={`account_profile_resident_${residentTab}`}
           customerId={session.customerId}
-          activeTab={residentTab}
-          requestsQuery={{
-            requestId: typeof sp.request === 'string' ? sp.request : undefined,
-            make: sp.make === '1',
-            category:
-              typeof sp.category === 'string'
-                ? (sp.category as import('@/src/lib/residents/requestCenter').RequestCategoryId)
-                : undefined,
-          }}
-        />
+          email={session.email}
+          bookingId={ctx.primaryBooking?.bookingId ?? null}
+          title="Your resident dashboard could not load"
+        >
+          <ResidentAreaSection
+            customerId={session.customerId}
+            activeTab={residentTab}
+            requestsQuery={{
+              requestId: typeof sp.request === 'string' ? sp.request : undefined,
+              make: sp.make === '1',
+              category:
+                typeof sp.category === 'string'
+                  ? (sp.category as import('@/src/lib/residents/requestCenter').RequestCategoryId)
+                  : undefined,
+            }}
+          />
+        </ResidentSectionErrorBoundary>
       </main>
     );
   }
@@ -104,6 +154,11 @@ export default async function ProfilePage(props: PageProps<'/account/profile'>) 
 
   return (
     <main className="mx-auto w-full max-w-lg px-4 py-10 sm:px-6">
+      <PostLoginRouteObserver
+        step="account_profile_settings"
+        customerId={session.customerId}
+        email={session.email}
+      />
       <nav className="apg-account-nav mb-4 text-xs">
         <Link href="/account/bookings">My bookings</Link>
         <span className="mx-1">/</span>
@@ -120,13 +175,20 @@ export default async function ProfilePage(props: PageProps<'/account/profile'>) 
 
       {!ctx.hasConfirmedBooking ? (
         <div className="mb-8">
-          <ApplicationStatusTracker
-            profileComplete={ctx.profileComplete}
-            kycStatus={ctx.customer.kycStatus}
-            hasConfirmedBooking={ctx.hasConfirmedBooking}
-            depositPaid={ctx.depositOutstandingPaise === 0 && ctx.depositPaidPaise > 0}
-            isResident={ctx.isActiveStay}
-          />
+          <ResidentSectionErrorBoundary
+            page="account_profile_status_tracker"
+            customerId={session.customerId}
+            email={session.email}
+            title="Application progress could not load"
+          >
+            <ApplicationStatusTracker
+              profileComplete={ctx.profileComplete}
+              kycStatus={ctx.customer.kycStatus}
+              hasConfirmedBooking={ctx.hasConfirmedBooking}
+              depositPaid={ctx.depositOutstandingPaise === 0 && ctx.depositPaidPaise > 0}
+              isResident={ctx.isActiveStay}
+            />
+          </ResidentSectionErrorBoundary>
         </div>
       ) : null}
 

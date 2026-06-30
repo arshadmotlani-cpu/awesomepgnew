@@ -68,6 +68,7 @@ export async function POST(request: Request) {
 
   logger.info('customer_login_success', {
     customerId: customer.id,
+    email: customer.email,
     sessionKind: 'customer',
     mustSetPassword: customer.mustSetPassword,
   });

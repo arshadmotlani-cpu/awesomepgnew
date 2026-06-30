@@ -22,7 +22,7 @@ import { paymentLinkPublicUrl } from '@/src/lib/billing/paymentLinkUrl';
 import { batchLookupFinancialInvoiceIds } from '@/src/lib/billing/invoiceNumbering.server';
 import { invoiceDetailHref } from '@/src/lib/billing/invoiceRoutes';
 import { getLatestPaymentLinkForResident } from '@/src/services/paymentLinks';
-import { diffDays, formatDate } from '@/src/lib/dates';
+import { formatDate, tryDiffDays } from '@/src/lib/dates';
 
 export type ResidentInvoiceCard = {
   id: string;
@@ -81,6 +81,12 @@ function depositStatusLabel(input: {
   if (input.refundablePaise > 0) return 'Held';
   if (input.paidPaise > 0) return 'Settled';
   return 'Pending';
+}
+
+function billingMonthLabel(value: string | null | undefined): string {
+  const raw = (value ?? '').trim();
+  if (raw.length >= 7) return raw.slice(0, 7);
+  return '—';
 }
 
 export async function loadResidentAccountContext(
@@ -149,15 +155,19 @@ export async function loadResidentAccountContext(
     const depositPaidPaise = depositNetHeldPaise;
     const depositRefundedPaise = depositSummary?.refundedPaise ?? 0;
     ledgerRefundedPaise = depositRefundedPaise;
-    const checkInLabel = formatStayDateTime(primaryBooking.checkInDate, 'check-in');
+    const checkInLabel = primaryBooking.checkInDate
+      ? formatStayDateTime(primaryBooking.checkInDate, 'check-in')
+      : 'Check-in date pending';
     const checkOutLabel = primaryBooking.expectedCheckoutDate
       ? formatStayDateTime(primaryBooking.expectedCheckoutDate, 'check-out')
       : null;
 
     let stayDurationLabel: string | null = null;
-    if (primaryBooking.expectedCheckoutDate) {
-      const nights = diffDays(primaryBooking.checkInDate, primaryBooking.expectedCheckoutDate);
-      stayDurationLabel = `${nights} night${nights === 1 ? '' : 's'}`;
+    if (primaryBooking.expectedCheckoutDate && primaryBooking.checkInDate) {
+      const nights = tryDiffDays(primaryBooking.checkInDate, primaryBooking.expectedCheckoutDate);
+      if (nights != null) {
+        stayDurationLabel = `${nights} night${nights === 1 ? '' : 's'}`;
+      }
     }
 
     if (rentRes.ok) {
@@ -185,7 +195,7 @@ export async function loadResidentAccountContext(
           id: inv.id,
           kind: 'rent',
           invoiceNumber: inv.invoiceNumber,
-          label: `Rent · ${inv.billingMonth.slice(0, 7)}`,
+          label: `Rent · ${billingMonthLabel(inv.billingMonth)}`,
           stayDurationLabel,
           checkInLabel,
           checkOutLabel,
@@ -207,7 +217,7 @@ export async function loadResidentAccountContext(
             id: inv.id,
             label: inv.paidAt
               ? `Rent · paid ${formatDate(inv.paidAt)}`
-              : `Rent · ${inv.billingMonth.slice(0, 7)}`,
+              : `Rent · ${billingMonthLabel(inv.billingMonth)}`,
             paidPaise: inv.paidPrincipalPaise + inv.paidLateFeePaise,
             paidAt: inv.paidAt?.toISOString() ?? null,
             status: inv.status,
@@ -245,7 +255,7 @@ export async function loadResidentAccountContext(
           id: inv.id,
           kind: 'electricity',
           invoiceNumber: inv.invoiceNumber,
-          label: `Electricity · ${inv.billingMonth.slice(0, 7)}`,
+          label: `Electricity · ${billingMonthLabel(inv.billingMonth)}`,
           stayDurationLabel,
           checkInLabel,
           checkOutLabel,
