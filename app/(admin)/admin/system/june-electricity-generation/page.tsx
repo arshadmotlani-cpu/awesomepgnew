@@ -33,7 +33,7 @@ export default async function JuneElectricityGenerationPage() {
       />
       <PageHeader
         title="Run June Electricity Generation"
-        description="One-time Super Admin action — migrates, generates June 2026 bills for rooms 101–204, audits duplicates, creates pipeline test invoice, and prints room summaries. Uses production DATABASE_URL."
+        description="One-time Super Admin action — migrates, generates June 2026 bills for rooms 101–204, audits duplicates, creates pipeline test invoice, and prints a full PASS/FAIL certification report. Uses production DATABASE_URL."
       />
 
       {gate.completed ? (

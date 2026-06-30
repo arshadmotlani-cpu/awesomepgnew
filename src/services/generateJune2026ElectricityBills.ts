@@ -604,9 +604,9 @@ export async function runGenerateJune2026ElectricityBills(
 ): Promise<void> {
   const dryRun = options.dryRun ?? false;
   const pgQuery = options.pgQuery ?? 'shanti';
-  const log = options.onLog ?? ((line: string) => console.log(line));
   const prevLog = console.log;
   const prevErr = console.error;
+  const log = options.onLog ?? ((line: string) => prevLog(line));
   console.log = (...args: unknown[]) => log(args.map(String).join(' '));
   console.error = (...args: unknown[]) => log(`[stderr] ${args.map(String).join(' ')}`);
 
