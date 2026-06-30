@@ -10,6 +10,7 @@ import {
   checkoutSettlements,
   customers,
   electricityBills,
+  electricityInvoices,
   electricitySettlementLedger,
   roomElectricityLedgerCycles,
   roomElectricityLedgerEntries,
@@ -274,6 +275,25 @@ export async function syncRoomElectricityLedgerCycleFromBillInTx(
     );
 }
 
+/** Cancel pending monthly invoices when resident pays electricity at checkout (avoids double charge). */
+async function cancelPendingElectricityInvoicesForCheckoutInTx(
+  tx: DbTx,
+  input: { bookingId: string; billingMonth: string },
+): Promise<string[]> {
+  const rows = await tx
+    .update(electricityInvoices)
+    .set({ status: 'cancelled', cancelledAt: new Date(), updatedAt: new Date() })
+    .where(
+      and(
+        eq(electricityInvoices.bookingId, input.bookingId),
+        eq(electricityInvoices.billingMonth, input.billingMonth),
+        eq(electricityInvoices.status, 'pending'),
+      ),
+    )
+    .returning({ id: electricityInvoices.id });
+  return rows.map((r) => r.id);
+}
+
 /** Record checkout electricity collection in room ledger + settlement ledger (idempotent). */
 export async function recordCheckoutElectricityCollectionInTx(
   tx: DbTx,
@@ -283,9 +303,9 @@ export async function recordCheckoutElectricityCollectionInTx(
     roomId: string;
     totalBillPaise?: number;
   },
-): Promise<void> {
+): Promise<{ cancelledInvoiceIds: string[] }> {
   const amountPaise = resolveCheckoutElectricityDeductionPaise(input.settlement);
-  if (amountPaise <= 0) return;
+  if (amountPaise <= 0) return { cancelledInvoiceIds: [] };
 
   const billingMonth = firstOfMonth(input.vacatingDate);
   const totalBillPaise = await resolveRoomMonthlyBillPaise(
@@ -322,11 +342,33 @@ export async function recordCheckoutElectricityCollectionInTx(
       target: roomElectricityLedgerEntries.checkoutSettlementId,
     });
 
-  await recalculateCycleTotalsInTx(
-    tx,
-    cycleId,
-    Math.max(totalBillPaise, amountPaise),
-  );
+  const resolvedTotalBillPaise = Math.max(totalBillPaise, amountPaise);
+  await recalculateCycleTotalsInTx(tx, cycleId, resolvedTotalBillPaise);
+
+  const [existingBill] = await tx
+    .select({ id: electricityBills.id })
+    .from(electricityBills)
+    .where(
+      and(
+        eq(electricityBills.roomId, input.roomId),
+        eq(electricityBills.billingMonth, billingMonth),
+      ),
+    )
+    .limit(1);
+
+  if (existingBill) {
+    await tx
+      .update(electricitySettlementLedger)
+      .set({ electricityBillId: existingBill.id, status: 'applied' })
+      .where(eq(electricitySettlementLedger.checkoutSettlementId, input.settlement.id));
+  }
+
+  return {
+    cancelledInvoiceIds: await cancelPendingElectricityInvoicesForCheckoutInTx(tx, {
+      bookingId: input.settlement.bookingId,
+      billingMonth,
+    }),
+  };
 }
 
 /** Record monthly invoice payment in room electricity ledger. */
@@ -391,12 +433,19 @@ export async function recordCheckoutElectricityCollectionFromSettlementId(
 
   if (!row?.roomId) return;
 
+  let cancelledInvoiceIds: string[] = [];
   await db.transaction(async (tx) => {
-    await recordCheckoutElectricityCollectionInTx(tx, {
+    const result = await recordCheckoutElectricityCollectionInTx(tx, {
       settlement: row.settlement,
       vacatingDate: String(row.vacatingDate),
       roomId: row.roomId,
       totalBillPaise: options?.totalBillPaise,
     });
+    cancelledInvoiceIds = result.cancelledInvoiceIds;
   });
+
+  if (cancelledInvoiceIds.length > 0) {
+    const { syncManyToUnified } = await import('@/src/services/unifiedInvoices');
+    await syncManyToUnified(cancelledInvoiceIds, 'electricity').catch(() => undefined);
+  }
 }
