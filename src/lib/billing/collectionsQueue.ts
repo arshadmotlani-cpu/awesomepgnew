@@ -2,7 +2,7 @@ import { addDays, diffDays, formatDate, parseDate } from '@/src/lib/dates';
 import type { AdminElectricityInvoiceReminderRow } from '@/src/db/queries/admin';
 import type { AdminRentInvoiceRow } from '@/src/db/queries/admin';
 
-export type CollectionPriority = 'overdue' | 'due_today' | 'due_soon';
+export type CollectionPriority = 'overdue' | 'due_today' | 'due_soon' | 'pending';
 
 export type CollectionQueueItem = {
   id: string;
@@ -38,18 +38,19 @@ function todayIso(): string {
   return formatDate(new Date());
 }
 
-function classifyDueDate(dueDate: string, today: string): CollectionPriority | null {
+function classifyDueDate(dueDate: string, today: string): CollectionPriority {
   const daysUntilDue = diffDays(today, dueDate);
   if (daysUntilDue < 0) return 'overdue';
   if (daysUntilDue === 0) return 'due_today';
   if (daysUntilDue <= 3) return 'due_soon';
-  return null;
+  return 'pending';
 }
 
 const PRIORITY_ORDER: Record<CollectionPriority, number> = {
   overdue: 0,
   due_today: 1,
   due_soon: 2,
+  pending: 3,
 };
 
 function sortQueue(a: CollectionQueueItem, b: CollectionQueueItem): number {
@@ -63,11 +64,12 @@ export function rentRowToQueueItem(row: AdminRentInvoiceRow, today: string): Col
   if (row.outstandingPaise <= 0) return null;
   if (row.effectiveStatus === 'paid' || row.effectiveStatus === 'cancelled') return null;
 
+  if (row.effectiveStatus === 'payment_in_progress') return null;
+
   const priority =
     row.effectiveStatus === 'overdue'
       ? 'overdue'
       : classifyDueDate(row.dueDate, today);
-  if (!priority) return null;
 
   const daysOverdue = Math.max(0, diffDays(row.dueDate, today));
 
@@ -97,8 +99,9 @@ export function electricityRowToQueueItem(
 ): CollectionQueueItem | null {
   if (row.outstandingPaise <= 0) return null;
 
+  if (row.paymentProofUrl) return null;
+
   const priority = row.isOverdue ? 'overdue' : classifyDueDate(row.dueDate, today);
-  if (!priority) return null;
 
   const daysOverdue = Math.max(0, diffDays(row.dueDate, today));
 
@@ -216,7 +219,8 @@ export function buildCollectionsCommandStats(input: {
 export function prioritySectionLabel(priority: CollectionPriority): string {
   if (priority === 'overdue') return 'Overdue';
   if (priority === 'due_today') return 'Due today';
-  return 'Due in next 3 days';
+  if (priority === 'due_soon') return 'Due in next 3 days';
+  return 'Pending payment';
 }
 
 export function daysOverdueLabel(days: number): string {

@@ -472,6 +472,9 @@ export async function submitElectricityPaymentProof(
   const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
   scheduleAdminNotificationSync();
 
+  const { syncElectricityInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
+  await syncElectricityInvoiceToUnified(invoiceId);
+
   return { ok: true };
 }
 

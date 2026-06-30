@@ -5,7 +5,7 @@ import { todayString } from '@/src/lib/dates';
 import { buildResidentOperationsDashboard } from '@/src/lib/residents/residentOperationsDashboard';
 import {
   listAdminElectricityInvoicesForReminders,
-  listAdminRentInvoices,
+  listAdminOpenRentInvoices,
   listAdminVacatingRequests,
   type AdminRentInvoiceRow,
 } from '@/src/db/queries/admin';
@@ -23,20 +23,15 @@ import {
 } from '@/src/services/operationsQueueDismissals';
 import type { AdminSession } from '@/src/lib/auth/session';
 
-function mergeUnpaidRent(pending: AdminRentInvoiceRow[], overdue: AdminRentInvoiceRow[]) {
-  const byId = new Map<string, AdminRentInvoiceRow>();
-  for (const row of [...pending, ...overdue]) {
-    byId.set(row.id, row);
-  }
-  return [...byId.values()];
+function mergeUnpaidRent(open: AdminRentInvoiceRow[]) {
+  return open.filter((r) => r.outstandingPaise > 0 && r.effectiveStatus !== 'paid' && r.effectiveStatus !== 'cancelled');
 }
 
 export async function loadResidentOperationsDashboard(session: AdminSession) {
   const today = todayString();
 
   const [
-    rentPendingRes,
-    rentOverdueRes,
+    openRentRes,
     elecPending,
     kycPending,
     paymentProofs,
@@ -48,8 +43,7 @@ export async function loadResidentOperationsDashboard(session: AdminSession) {
     opsCenter,
     dismissalIndex,
   ] = await Promise.all([
-    listAdminRentInvoices({ status: 'pending' }),
-    listAdminRentInvoices({ status: 'overdue' }),
+    listAdminOpenRentInvoices(),
     listAdminElectricityInvoicesForReminders(),
     listPendingKycSubmissions(),
     listPendingPaymentReviews(session),
@@ -62,10 +56,7 @@ export async function loadResidentOperationsDashboard(session: AdminSession) {
     loadOperationsQueueDismissalIndex(),
   ]);
 
-  const allUnpaidRent = mergeUnpaidRent(
-    rentPendingRes.ok ? rentPendingRes.data : [],
-    rentOverdueRes.ok ? rentOverdueRes.data : [],
-  );
+  const allUnpaidRent = mergeUnpaidRent(openRentRes.ok ? openRentRes.data : []);
 
   const collectionsQueue = buildCollectionsQueue({
     rentRows: allUnpaidRent,
@@ -159,7 +150,7 @@ export async function loadResidentOperationsDashboard(session: AdminSession) {
     }));
 
   const dashboard = buildResidentOperationsDashboard({
-    rentOverdue: rentOverdue.filter(
+    unpaidBilling: collectionsQueue.filter(
       (r) =>
         !r.customerId ||
         !isDismissedFromOperationsQueue(dismissalIndex, {

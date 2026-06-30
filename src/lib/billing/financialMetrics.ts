@@ -179,6 +179,17 @@ export async function sumPaidElectricityByPgForBillingMonth(billingMonth: string
   return Array.from(rows).map((r) => ({ pgId: r.pg_id, total: Number(r.total) }));
 }
 
+/** Global paid electricity for a billing month — SSOT check helper. */
+export async function sumPaidElectricityForBillingMonth(billingMonth: string): Promise<number> {
+  const rows = await db.execute<{ total: number }>(sql`
+    SELECT coalesce(sum(ei.paid_paise + coalesce(ei.late_fee_locked_paise, 0)), 0)::bigint::int AS total
+    FROM electricity_invoices ei
+    WHERE ei.status = 'paid'
+      AND ei.billing_month = ${billingMonth}::date
+  `);
+  return Number(Array.from(rows)[0]?.total ?? 0);
+}
+
 /** Global paid rent for a billing month — SSOT check helper. */
 export async function sumPaidRentForBillingMonth(billingMonth: string): Promise<number> {
   const [row] = await db

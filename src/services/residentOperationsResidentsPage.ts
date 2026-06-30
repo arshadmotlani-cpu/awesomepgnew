@@ -10,7 +10,7 @@ import {
 } from '@/src/lib/residents/residentOperationsResidentsView';
 import {
   listAdminElectricityInvoicesForReminders,
-  listAdminRentInvoices,
+  listAdminOpenRentInvoices,
   listAdminVacatingRequests,
   type AdminRentInvoiceRow,
 } from '@/src/db/queries/admin';
@@ -26,12 +26,8 @@ import {
 
 const NOISE_ENTITIES = new Set(['whatsapp_message', 'app_log', 'visitor_event']);
 
-function mergeUnpaidRent(pending: AdminRentInvoiceRow[], overdue: AdminRentInvoiceRow[]) {
-  const byId = new Map<string, AdminRentInvoiceRow>();
-  for (const row of [...pending, ...overdue]) {
-    byId.set(row.id, row);
-  }
-  return [...byId.values()];
+function mergeUnpaidRent(open: AdminRentInvoiceRow[]) {
+  return open.filter((r) => r.outstandingPaise > 0 && r.effectiveStatus !== 'paid' && r.effectiveStatus !== 'cancelled');
 }
 
 async function listRecentOperationalAudit(limit = 40) {
@@ -57,8 +53,7 @@ export async function loadResidentOperationsResidentsPage(
     dashboard,
     paymentProofs,
     qrPayments,
-    rentPendingRes,
-    rentOverdueRes,
+    openRentRes,
     elecPending,
     checkoutSettlements,
     vacatingRes,
@@ -67,18 +62,14 @@ export async function loadResidentOperationsResidentsPage(
     loadResidentOperationsDashboard(session),
     listPendingPaymentReviews(session),
     listOwnerPayments(session, { status: 'pending' }),
-    listAdminRentInvoices({ status: 'pending' }),
-    listAdminRentInvoices({ status: 'overdue' }),
+    listAdminOpenRentInvoices(),
     listAdminElectricityInvoicesForReminders(),
     listPipelineCheckoutSettlements(session),
     listAdminVacatingRequests(),
     listRecentOperationalAudit(),
   ]);
 
-  const allUnpaidRent = mergeUnpaidRent(
-    rentPendingRes.ok ? rentPendingRes.data : [],
-    rentOverdueRes.ok ? rentOverdueRes.data : [],
-  );
+  const allUnpaidRent = mergeUnpaidRent(openRentRes.ok ? openRentRes.data : []);
   const collectionsQueue = buildCollectionsQueue({
     rentRows: allUnpaidRent,
     electricityRows: elecPending.ok ? elecPending.data : [],

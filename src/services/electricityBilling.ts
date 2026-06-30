@@ -749,6 +749,9 @@ export async function createElectricityBill(
       invoiceCount: result.invoiceIds.length,
     });
 
+    const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
+    scheduleAdminNotificationSync();
+
     return {
       ok: true,
       billId: result.billId,

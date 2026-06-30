@@ -87,6 +87,8 @@ const OWNER_BY_CATEGORY: Record<ResidentOpsQueueCategory, string> = {
   bed_assignment: 'Front desk',
   move_out: 'Move-out',
   rent_overdue: 'Collections',
+  rent_due: 'Collections',
+  electricity_due: 'Collections',
   refund: 'Finance',
   resident_request: 'Operations',
 };
@@ -97,6 +99,8 @@ const FILTER_BY_BUCKET: Partial<Record<AttentionBucketId, ResidentsCommandFilter
   payment_proof: 'payment_proof',
   move_out: 'move_out',
   rent_overdue: 'overdue',
+  rent_due: 'overdue',
+  electricity_due: 'overdue',
 };
 
 const JOURNEY_STAGES: JourneyStageCount[] = [
@@ -130,6 +134,10 @@ function currentStateLabel(item: ResidentOpsQueueItem): string {
   switch (item.category) {
     case 'payment_proof':
       return 'Payment proof submitted';
+    case 'rent_due':
+      return 'Rent awaiting payment';
+    case 'electricity_due':
+      return 'Electricity awaiting payment';
     case 'kyc':
       return 'KYC pending review';
     case 'bed_assignment':
@@ -159,7 +167,7 @@ function enrichQueueAge(
       return { ageLabel: formatAgeLabel(hours), ageSortHours: hours };
     }
   }
-  if (item.category === 'rent_overdue') {
+  if (item.category === 'rent_overdue' || item.category === 'rent_due' || item.category === 'electricity_due') {
     const daysMatch = item.issue.match(/(\d+) day/);
     const days = daysMatch ? Number(daysMatch[1]) : 1;
     return { ageLabel: `${days}d overdue`, ageSortHours: days * 24 };
@@ -421,8 +429,10 @@ export function buildResidentOperationsResidentsView(input: {
     },
     {
       id: 'overdue',
-      label: 'Overdue residents',
-      count: dedupedQueue.filter((q) => q.filterTags.includes('overdue')).length,
+      label: 'Billing awaiting action',
+      count:
+        dedupedQueue.filter((q) => q.filterTags.includes('overdue')).length +
+        input.paymentProofs.length,
     },
     {
       id: 'blocked',

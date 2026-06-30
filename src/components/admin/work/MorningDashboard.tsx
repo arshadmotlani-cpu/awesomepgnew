@@ -9,6 +9,8 @@ export function MorningDashboard({
   estimatedMinutes,
   previewCards,
   operationsHref,
+  billingCards,
+  showCaughtUp,
 }: {
   greeting: string;
   adminName: string;
@@ -16,6 +18,8 @@ export function MorningDashboard({
   estimatedMinutes: number;
   previewCards: TodaysWorkCard[];
   operationsHref: string;
+  billingCards?: React.ReactNode;
+  showCaughtUp: boolean;
 }) {
   const firstName = adminName.split(/\s+/)[0] || adminName;
 
@@ -27,7 +31,7 @@ export function MorningDashboard({
 
         <div className="mt-10 max-w-xl">
           <h2 className="text-lg font-medium text-white">Today&apos;s work</h2>
-          {attentionCount === 0 ? (
+          {showCaughtUp ? (
             <p className="mt-3 text-2xl font-semibold text-emerald-300">You&apos;re all caught up.</p>
           ) : (
             <>
@@ -42,22 +46,24 @@ export function MorningDashboard({
           )}
         </div>
 
-        {attentionCount > 0 ? (
-          <Link
-            href={operationsHref}
-            className="mt-8 inline-flex min-h-[48px] items-center justify-center rounded-2xl bg-[#FF5A1F] px-8 py-3 text-base font-semibold text-white shadow-[0_12px_40px_rgba(255,90,31,0.3)] transition hover:brightness-110"
-          >
-            Start working
-          </Link>
-        ) : (
+        {showCaughtUp ? (
           <Link
             href="/admin/analytics"
             className="mt-8 inline-flex items-center text-sm font-medium text-apg-silver hover:text-white"
           >
             View analytics →
           </Link>
+        ) : (
+          <Link
+            href={operationsHref}
+            className="mt-8 inline-flex min-h-[48px] items-center justify-center rounded-2xl bg-[#FF5A1F] px-8 py-3 text-base font-semibold text-white shadow-[0_12px_40px_rgba(255,90,31,0.3)] transition hover:brightness-110"
+          >
+            Start working
+          </Link>
         )}
       </section>
+
+      {billingCards}
 
       {previewCards.length > 0 ? (
         <section>

@@ -10,6 +10,8 @@ import type { CheckoutSettlementRow } from '@/src/services/checkoutSettlement';
 
 export type AttentionBucketId =
   | 'rent_overdue'
+  | 'rent_due'
+  | 'electricity_due'
   | 'payment_proof'
   | 'kyc_pending'
   | 'bed_unassigned'
@@ -24,6 +26,8 @@ export type ResidentOpsQueueCategory =
   | 'payment_proof'
   | 'resident_request'
   | 'rent_overdue'
+  | 'rent_due'
+  | 'electricity_due'
   | 'move_out';
 
 export type ResidentOpsQueueItem = {
@@ -81,12 +85,14 @@ export const LIFECYCLE_STAGES: Array<{ id: ResidentLifecycleStage; label: string
 
 const CATEGORY_SORT: Record<ResidentOpsQueueCategory, number> = {
   refund: 0,
-  kyc: 1,
-  bed_assignment: 2,
-  payment_proof: 3,
-  resident_request: 4,
-  rent_overdue: 5,
-  move_out: 6,
+  payment_proof: 1,
+  kyc: 2,
+  bed_assignment: 3,
+  rent_overdue: 4,
+  rent_due: 5,
+  electricity_due: 6,
+  resident_request: 7,
+  move_out: 8,
 };
 
 export function deriveResidentLifecycle(input: {
@@ -109,7 +115,7 @@ export function lifecycleStageIndex(stage: ResidentLifecycleStage): number {
 }
 
 export function buildResidentOperationsDashboard(input: {
-  rentOverdue: CollectionQueueItem[];
+  unpaidBilling: CollectionQueueItem[];
   paymentProofs: PendingPaymentReviewItem[];
   kycPending: KycSubmissionListRow[];
   unassignedResidents: ResidentListRow[];
@@ -299,22 +305,73 @@ export function buildResidentOperationsDashboard(input: {
     });
   }
 
-  for (const r of input.rentOverdue) {
+  for (const p of input.paymentProofs) {
+    if (!p.customerId) continue;
+    if (activeCheckoutCustomerIds.has(p.customerId)) continue;
+    const kindLabel =
+      p.kind === 'electricity' ? 'Electricity payment' : p.kind === 'rent' ? 'Rent payment' : p.paymentTypeLabel;
     queue.push({
-      id: r.id,
-      category: 'rent_overdue',
-      filterBucket: 'rent_overdue',
-      customerId: r.customerId,
-      residentName: r.customerFullName,
-      pgName: r.pgName,
-      roomNumber: r.roomNumber,
-      bedCode: r.bedCode ?? null,
-      issue: `Rent overdue · ${formatDisplayDate(r.dueDate)} · ${r.daysOverdue} day${r.daysOverdue === 1 ? '' : 's'}`,
-      nextAction: 'Contact resident and collect payment',
-      primaryActionLabel: 'Collect payment',
-      primaryHref: `/admin/residents/${r.customerId}`,
-      sortPriority: r.daysOverdue,
-      bookingId: r.bookingId ?? null,
+      id: `pay-${p.key}`,
+      category: 'payment_proof',
+      filterBucket: 'payment_proof',
+      customerId: p.customerId,
+      residentName: p.residentName,
+      pgName: p.pgName,
+      roomNumber: p.roomNumber,
+      bedCode: p.bedCode,
+      issue: `${kindLabel} screenshot awaiting admin review`,
+      nextAction: 'Verify payment screenshot and approve or reject',
+      primaryActionLabel: 'Review payment',
+      primaryHref: '/admin/operations/payment-reviews',
+      sortPriority: 0,
+      bookingId: p.bookingId,
+      kycSubmissionId: null,
+      tenancyStatus: 'active',
+      kycStatus: null,
+    });
+  }
+
+  const proofCustomerIds = new Set(
+    input.paymentProofs.map((p) => p.customerId).filter(Boolean) as string[],
+  );
+
+  for (const b of input.unpaidBilling) {
+    if (activeCheckoutCustomerIds.has(b.customerId)) continue;
+    const isRent = b.kind === 'rent';
+    const category: ResidentOpsQueueCategory = isRent
+      ? b.priority === 'overdue'
+        ? 'rent_overdue'
+        : 'rent_due'
+      : 'electricity_due';
+    const filterBucket: AttentionBucketId =
+      b.priority === 'overdue' ? 'rent_overdue' : isRent ? 'rent_due' : 'electricity_due';
+
+    if (isRent && proofCustomerIds.has(b.customerId)) continue;
+
+    const dueLabel =
+      b.priority === 'overdue'
+        ? `Overdue · ${b.daysOverdue} day${b.daysOverdue === 1 ? '' : 's'}`
+        : b.priority === 'due_today'
+          ? 'Due today'
+          : b.priority === 'due_soon'
+            ? 'Due soon'
+            : 'Waiting for payment';
+
+    queue.push({
+      id: b.id,
+      category,
+      filterBucket,
+      customerId: b.customerId,
+      residentName: b.customerFullName,
+      pgName: b.pgName,
+      roomNumber: b.roomNumber,
+      bedCode: b.bedCode ?? null,
+      issue: `${b.invoiceLabel} · ${dueLabel}`,
+      nextAction: 'Resident pays and uploads payment screenshot',
+      primaryActionLabel: 'Open invoice',
+      primaryHref: `/admin/residents/${b.customerId}`,
+      sortPriority: b.priority === 'overdue' ? b.daysOverdue : 0,
+      bookingId: b.bookingId ?? null,
       kycSubmissionId: null,
       tenancyStatus: 'active',
       kycStatus: null,
@@ -370,8 +427,14 @@ export function buildResidentOperationsDashboard(input: {
     input.depositRefunds.length +
     input.residentRequests.filter((r) => r.type === 'deposit_refund').length;
 
+  const overdueBilling = input.unpaidBilling.filter((b) => b.priority === 'overdue');
+  const rentDue = input.unpaidBilling.filter((b) => b.kind === 'rent' && b.priority !== 'overdue');
+  const elecDue = input.unpaidBilling.filter((b) => b.kind === 'electricity');
+
   const buckets: AttentionBucket[] = [
-    { id: 'rent_overdue', label: 'Rent overdue', count: input.rentOverdue.length },
+    { id: 'rent_due', label: 'Rent awaiting payment', count: rentDue.length },
+    { id: 'electricity_due', label: 'Electricity awaiting payment', count: elecDue.length },
+    { id: 'rent_overdue', label: 'Overdue invoices', count: overdueBilling.length },
     { id: 'payment_proof', label: 'Payment proof awaiting review', count: input.paymentProofs.length },
     { id: 'kyc_pending', label: 'KYC pending', count: input.kycPending.length },
     { id: 'bed_unassigned', label: 'Bed not assigned', count: input.unassignedResidents.length },
@@ -405,9 +468,9 @@ export function buildResidentOperationsDashboard(input: {
     },
     {
       id: 'rent-due',
-      label: `${input.rentsDueToday.length} rent bill${input.rentsDueToday.length === 1 ? '' : 's'} due today`,
-      count: input.rentsDueToday.length,
-      href: '/admin/revenue/billing',
+      label: `${input.unpaidBilling.length} pending bill${input.unpaidBilling.length === 1 ? '' : 's'} awaiting payment`,
+      count: input.unpaidBilling.length,
+      href: '/admin/billing?tab=billing',
     },
   ].filter((t) => t.count > 0);
 

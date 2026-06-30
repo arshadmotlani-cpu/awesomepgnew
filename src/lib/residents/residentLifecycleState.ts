@@ -20,6 +20,8 @@ export type ResidentLifecycleState =
   | 'kyc_pending'
   | 'payment_proof_pending'
   | 'rent_overdue'
+  | 'rent_due'
+  | 'electricity_due'
   | 'resident_request';
 
 export const LIFECYCLE_STATE_LABEL: Record<ResidentLifecycleState, string> = {
@@ -33,6 +35,8 @@ export const LIFECYCLE_STATE_LABEL: Record<ResidentLifecycleState, string> = {
   kyc_pending: 'KYC Pending',
   payment_proof_pending: 'Payment Proof Pending',
   rent_overdue: 'Rent Overdue',
+  rent_due: 'Rent Due',
+  electricity_due: 'Electricity Due',
   resident_request: 'Resident Request',
 };
 
@@ -48,6 +52,8 @@ const SUPPRESSED_WHEN_CHECKOUT_ACTIVE: Set<ResidentOpsQueueCategory> = new Set([
   'kyc',
   'payment_proof',
   'rent_overdue',
+  'rent_due',
+  'electricity_due',
   'resident_request',
   'refund',
 ]);
@@ -57,6 +63,8 @@ const CATEGORY_TO_LIFECYCLE: Partial<Record<ResidentOpsQueueCategory, ResidentLi
   kyc: 'kyc_pending',
   payment_proof: 'payment_proof_pending',
   rent_overdue: 'rent_overdue',
+  rent_due: 'rent_due',
+  electricity_due: 'electricity_due',
   resident_request: 'resident_request',
   refund: 'refund_pending',
   move_out: 'waiting_for_admin',
@@ -69,8 +77,17 @@ const H5_CATEGORY_ORDER: Record<ResidentOpsQueueCategory, number> = {
   kyc: 3,
   bed_assignment: 4,
   rent_overdue: 5,
-  resident_request: 6,
+  rent_due: 6,
+  electricity_due: 7,
+  resident_request: 8,
 };
+
+const BILLING_CATEGORIES: Set<ResidentOpsQueueCategory> = new Set([
+  'payment_proof',
+  'rent_overdue',
+  'rent_due',
+  'electricity_due',
+]);
 
 export function isActiveCheckoutSettlement(
   settlement: Pick<CheckoutSettlementRow, 'status'> | null | undefined,
@@ -167,9 +184,15 @@ export function buildLifecycleResolvedQueue(input: {
   const rowById = new Map(input.queueRows.map((row) => [row.id, row]));
   const itemsByCustomer = new Map<string, ResidentOpsQueueItem[]>();
   const withoutCustomer: ResidentsQueueRow[] = [];
+  const billingRows: ResidentsQueueRow[] = [];
 
   for (const item of input.queueItems) {
     if (!item.customerId) continue;
+    if (BILLING_CATEGORIES.has(item.category)) {
+      const row = rowById.get(item.id);
+      if (row) billingRows.push(row);
+      continue;
+    }
     const list = itemsByCustomer.get(item.customerId) ?? [];
     list.push(item);
     itemsByCustomer.set(item.customerId, list);
@@ -189,7 +212,15 @@ export function buildLifecycleResolvedQueue(input: {
     resolved.push(applyLifecycleStateToQueueRow(row, settlement, winner));
   }
 
-  return [...withoutCustomer, ...resolved].sort((a, b) => {
+  const enrichedBilling = billingRows.map((row) => {
+    const settlement = row.customerId
+      ? input.settlementsByCustomerId.get(row.customerId)
+      : undefined;
+    const sourceItem = input.queueItems.find((i) => i.id === row.id);
+    return applyLifecycleStateToQueueRow(row, settlement, sourceItem);
+  });
+
+  return [...withoutCustomer, ...resolved, ...enrichedBilling].sort((a, b) => {
     const c = H5_CATEGORY_ORDER[a.category] - H5_CATEGORY_ORDER[b.category];
     if (c !== 0) return c;
     return b.ageSortHours - a.ageSortHours;

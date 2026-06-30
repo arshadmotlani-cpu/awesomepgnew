@@ -75,9 +75,13 @@ function workflowLabel(row: ResidentsQueueRow): string {
     case 'kyc':
       return 'ID verification';
     case 'payment_proof':
-      return 'Payment proof';
+      return 'Payment review';
     case 'rent_overdue':
       return 'Rent overdue';
+    case 'rent_due':
+      return 'Rent due';
+    case 'electricity_due':
+      return 'Electricity due';
     case 'refund':
       return 'Refund';
     case 'resident_request':
@@ -177,8 +181,35 @@ function derivePriority(
     };
   }
 
+  if (row.category === 'payment_proof') {
+    return {
+      priority: 'needs_approval',
+      statusTone: 'orange',
+      statusLabel: 'Waiting for admin review',
+      estimatedMinutes: 1,
+      residentChecks: [{ label: 'Payment screenshot uploaded', done: true, who: 'resident' }],
+      adminChecks: [{ label: 'Approve or reject payment', done: false, who: 'admin' }],
+      waitingOnResident: false,
+    };
+  }
+
+  if (row.category === 'rent_due' || row.category === 'electricity_due') {
+    return {
+      priority: 'waiting_resident',
+      statusTone: 'blue',
+      statusLabel: 'Waiting for payment',
+      estimatedMinutes: 0,
+      residentChecks: [
+        { label: 'Pay invoice', done: false, who: 'resident' },
+        { label: 'Upload payment screenshot', done: false, who: 'resident' },
+      ],
+      adminChecks: [],
+      waitingOnResident: true,
+    };
+  }
+
   const estimatedMinutes =
-    row.category === 'payment_proof' ? 1 : row.category === 'kyc' ? 2 : row.category === 'bed_assignment' ? 2 : 3;
+    row.category === 'kyc' ? 2 : row.category === 'bed_assignment' ? 2 : 3;
 
   return {
     priority: 'waiting_admin',
@@ -200,7 +231,10 @@ function plainNextStep(row: ResidentsQueueRow, priority: WorkPriorityBand): stri
   if (row.category === 'bed_assignment') return 'Assign a bed';
   if (row.category === 'kyc') return 'Review ID documents';
   if (row.category === 'payment_proof') return 'Verify payment screenshot';
-  if (row.category === 'rent_overdue') return 'Follow up on rent';
+  if (row.category === 'rent_due' || row.category === 'electricity_due') {
+    return 'Waiting for resident to pay and upload screenshot';
+  }
+  if (row.category === 'rent_overdue') return 'Follow up on overdue payment';
   return row.nextAction.replace(/settlement/gi, 'checkout').replace(/SSOT|pipeline/gi, '').trim();
 }
 
@@ -292,8 +326,17 @@ export function estimateTotalMinutes(cards: TodaysWorkCard[]): number {
   return cards.reduce((sum, c) => sum + c.estimatedMinutes, 0);
 }
 
-export function countNeedsAttention(cards: TodaysWorkCard[]): number {
-  return cards.filter((c) => c.priority !== 'waiting_resident' && c.priority !== 'completed_today').length;
+export function countNeedsAttention(
+  cards: TodaysWorkCard[],
+  opts?: { hasUnpaidInvoices?: boolean; pendingBillingCount?: number },
+): number {
+  const cardAttention = cards.filter(
+    (c) => c.priority !== 'waiting_resident' && c.priority !== 'completed_today',
+  ).length;
+  if (opts?.hasUnpaidInvoices) {
+    return Math.max(cardAttention, opts.pendingBillingCount ?? 1);
+  }
+  return cardAttention;
 }
 
 export function groupCardsByBand(cards: TodaysWorkCard[]): Array<{ band: WorkPriorityBand; label: string; cards: TodaysWorkCard[] }> {

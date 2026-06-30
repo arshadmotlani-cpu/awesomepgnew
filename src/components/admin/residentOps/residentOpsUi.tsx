@@ -66,6 +66,8 @@ export const IconChevronRight = (props: IconProps) => (
 
 export const BUCKET_ICONS: Record<AttentionBucketId, (props: IconProps) => ReactNode> = {
   rent_overdue: IconAlertTriangle,
+  rent_due: IconCard,
+  electricity_due: IconBell,
   payment_proof: IconDocument,
   kyc_pending: IconClipboard,
   bed_unassigned: IconBed,

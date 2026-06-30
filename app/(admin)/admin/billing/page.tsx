@@ -18,6 +18,7 @@ import { PageHeader } from '@/src/components/admin/PageHeader';
 import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
 import {
   listAdminElectricityInvoicesForReminders,
+  listAdminOpenRentInvoices,
   listAdminRentInvoices,
   listPgs,
 } from '@/src/db/queries/admin';
@@ -38,7 +39,9 @@ import {
   BillingHealthCardPanel,
 } from '@/src/components/admin/billing/BillingCenterPanels';
 import { BillingOperationsDashboard } from '@/src/components/admin/billing/BillingOperationsDashboard';
+import { BillingCycleCertificationPanel } from '@/src/components/admin/billing/BillingCycleCertificationPanel';
 import { OperationsPaymentReviewsPanel } from '@/src/components/admin/operations/OperationsPaymentReviewsPanel';
+import { loadBillingCommandCenterSnapshot } from '@/src/services/billingCommandCenter';
 import { todayInBillingTimezone } from '@/src/lib/billing/billingTimezone';
 import { getBillingHealthSnapshot } from '@/src/services/billingHealth';
 import {
@@ -54,6 +57,9 @@ import { db } from '@/src/db/client';
 import { electricityBills } from '@/src/db/schema';
 import type { AdminRentInvoiceRow } from '@/src/db/queries/admin';
 
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
 const TABS = [
   { id: 'dashboard', label: 'Dashboard' },
   { id: 'generated', label: "Today's generated" },
@@ -65,15 +71,10 @@ const TABS = [
   { id: 'paid', label: 'Recent payments' },
 ] as const;
 
-function mergeUnpaidRent(
-  pending: AdminRentInvoiceRow[],
-  overdue: AdminRentInvoiceRow[],
-): AdminRentInvoiceRow[] {
-  const byId = new Map<string, AdminRentInvoiceRow>();
-  for (const row of [...pending, ...overdue]) {
-    byId.set(row.id, row);
-  }
-  return [...byId.values()];
+function mergeUnpaidRent(open: AdminRentInvoiceRow[]): AdminRentInvoiceRow[] {
+  return open.filter(
+    (r) => r.outstandingPaise > 0 && r.effectiveStatus !== 'paid' && r.effectiveStatus !== 'cancelled',
+  );
 }
 
 function sortRecentCollections(rows: AdminRentInvoiceRow[]): AdminRentInvoiceRow[] {
@@ -111,10 +112,9 @@ export default async function CollectionsModulePage({
   await ensureAdminPageNotificationsSeen('/admin/billing', '/admin/billing');
   const canGenerateRent = adminHasPermission(session.role, 'rent:write');
   const canSendLinks = adminHasPermission(session.role, 'payments:write');
-  const [rentPending, rentOverdue, rentPaid, elecPending, pgs, billingOverview, billingCycleOps, roomsMissingElectricity, billingHealth, lastRun, generatedToday, failures, paymentReviews, electricityBillsToday] =
+  const [openRent, rentPaid, elecPending, pgs, billingOverview, billingCycleOps, roomsMissingElectricity, billingHealth, lastRun, generatedToday, failures, paymentReviews, electricityBillsToday, billingSnapshot] =
     await Promise.all([
-    listAdminRentInvoices({ status: 'pending' }),
-    listAdminRentInvoices({ status: 'overdue' }),
+    listAdminOpenRentInvoices(),
     listAdminRentInvoices({ status: 'paid' }),
     listAdminElectricityInvoicesForReminders(),
     listPgs(),
@@ -133,12 +133,11 @@ export default async function CollectionsModulePage({
         sql`(${electricityBills.createdAt} AT TIME ZONE 'Asia/Kolkata')::date = ${todayIst}::date`,
       )
       .then((rows) => rows[0]?.count ?? 0),
+    loadBillingCommandCenterSnapshot(session, billingMonth),
   ]);
 
-  const allUnpaidRent = mergeUnpaidRent(
-    rentPending.ok ? rentPending.data : [],
-    rentOverdue.ok ? rentOverdue.data : [],
-  );
+  const allUnpaidRent = mergeUnpaidRent(openRent.ok ? openRent.data : []);
+  const rentPendingRows = allUnpaidRent.filter((r) => r.effectiveStatus !== 'payment_in_progress');
   const allUnpaidElectricity = elecPending.ok ? elecPending.data : [];
 
   const collectionsQueue = buildCollectionsQueue({
@@ -196,6 +195,8 @@ export default async function CollectionsModulePage({
         </Link>
       </div>
 
+      <BillingCycleCertificationPanel reconciliation={billingSnapshot.reconciliation} />
+
       <div className="mb-6 flex flex-wrap gap-2">
         {TABS.map((t) => (
           <Link
@@ -244,9 +245,7 @@ export default async function CollectionsModulePage({
                   dateLabel: formatDate(r.billingMonth),
                   href: `/admin/invoices?ref=${encodeURIComponent(r.invoiceNumber)}`,
                 })),
-                ...(rentPending.ok ? rentPending.data : [])
-                  .slice(0, 8)
-                  .map((r) => ({
+                ...(rentPendingRows.slice(0, 8).map((r) => ({
                     id: r.id,
                     residentName: r.customerFullName,
                     invoiceNumber: r.invoiceNumber,
@@ -255,7 +254,7 @@ export default async function CollectionsModulePage({
                     kind: 'rent' as const,
                     dateLabel: formatDate(r.billingMonth),
                     href: `/admin/residents/${r.customerId}`,
-                  })),
+                  }))),
               ].slice(0, 12),
             }}
           />
@@ -331,9 +330,7 @@ export default async function CollectionsModulePage({
           </header>
           <RentInvoicesBulkSendBar
             canSendLinks={canSendLinks}
-            rows={
-              rentPending.ok
-                ? rentPending.data.map((r) => ({
+            rows={rentPendingRows.map((r) => ({
                     id: r.id,
                     customerId: r.customerId,
                     customerFullName: r.customerFullName,
@@ -344,14 +341,12 @@ export default async function CollectionsModulePage({
                     rentPaise: r.outstandingPaise,
                     dueDate: r.dueDate,
                     isOverdue: r.effectiveStatus === 'overdue',
-                  }))
-                : []
-            }
+                  }))}
           />
           <InvoiceTable
             title="Unpaid rent bills"
-            error={rentPending.ok ? null : rentPending.error}
-            rows={rentPending.ok ? rentPending.data : []}
+            error={openRent.ok ? null : openRent.error}
+            rows={rentPendingRows}
             pgNameById={pgNameById}
           />
         </>

@@ -823,6 +823,11 @@ export async function generateRentInvoicesForMonth(
     }
   }
 
+  if (created > 0) {
+    const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
+    scheduleAdminNotificationSync();
+  }
+
   return {
     billingMonth,
     candidateBookings: candidates.length,
@@ -1743,7 +1748,7 @@ export async function listPendingRentProofsForPg(pgId: string) {
     .where(
       and(
         eq(rentInvoices.pgId, pgId),
-        inArray(rentInvoices.status, ['pending', 'overdue']),
+        inArray(rentInvoices.status, ['pending', 'overdue', 'payment_in_progress']),
         isNotNull(rentInvoices.paymentProofUrl),
       ),
     )

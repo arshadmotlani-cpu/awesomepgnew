@@ -1376,6 +1376,91 @@ export function listAdminRentInvoices(
   });
 }
 
+/** Unpaid rent invoices across pending, overdue, and payment_in_progress (awaiting admin review). */
+export function listAdminOpenRentInvoices(filter?: {
+  pgId?: string;
+  billingMonth?: string;
+}): Promise<QueryResult<AdminRentInvoiceRow[]>> {
+  return guard(async () => {
+    const conditions = [
+      collectibleResidentFilters(),
+      inArray(rentInvoices.status, ['pending', 'overdue', 'payment_in_progress']),
+    ];
+    if (filter?.pgId) conditions.push(eq(rentInvoices.pgId, filter.pgId));
+    if (filter?.billingMonth) conditions.push(eq(rentInvoices.billingMonth, filter.billingMonth));
+
+    const rows = await db
+      .select({
+        id: rentInvoices.id,
+        invoiceNumber: rentInvoices.invoiceNumber,
+        bookingId: rentInvoices.bookingId,
+        bookingCode: bookings.bookingCode,
+        customerId: rentInvoices.customerId,
+        customerFullName: customers.fullName,
+        customerPhone: customers.phone,
+        pgId: rentInvoices.pgId,
+        pgName: pgs.name,
+        bedId: rentInvoices.bedId,
+        bedCode: beds.bedCode,
+        roomNumber: rooms.roomNumber,
+        billingMonth: rentInvoices.billingMonth,
+        dueDate: rentInvoices.dueDate,
+        rentPaise: rentInvoices.rentPaise,
+        paidPrincipalPaise: rentInvoices.paidPrincipalPaise,
+        paidLateFeePaise: rentInvoices.paidLateFeePaise,
+        lateFeeLockedPaise: rentInvoices.lateFeeLockedPaise,
+        status: rentInvoices.status,
+        paidAt: rentInvoices.paidAt,
+        createdAt: rentInvoices.createdAt,
+        notes: rentInvoices.notes,
+        paymentProvider: payments.provider,
+        paymentProofUrl: rentInvoices.paymentProofUrl,
+      })
+      .from(rentInvoices)
+      .innerJoin(bookings, eq(bookings.id, rentInvoices.bookingId))
+      .innerJoin(customers, eq(customers.id, rentInvoices.customerId))
+      .innerJoin(pgs, eq(pgs.id, rentInvoices.pgId))
+      .innerJoin(beds, eq(beds.id, rentInvoices.bedId))
+      .innerJoin(rooms, eq(rooms.id, beds.roomId))
+      .leftJoin(payments, eq(payments.id, rentInvoices.paymentId))
+      .where(and(...conditions))
+      .orderBy(desc(rentInvoices.billingMonth), desc(rentInvoices.createdAt));
+
+    const { projectInvoice } = await import('@/src/services/rentInvoices');
+    return rows.map((r) => {
+      const projected = projectInvoice({
+        id: r.id,
+        invoiceNumber: r.invoiceNumber,
+        bookingId: r.bookingId,
+        customerId: r.customerId,
+        bedId: r.bedId,
+        pgId: r.pgId,
+        billingMonth: r.billingMonth,
+        dueDate: r.dueDate,
+        rentPaise: r.rentPaise,
+        paidPrincipalPaise: r.paidPrincipalPaise,
+        paidLateFeePaise: r.paidLateFeePaise,
+        lateFeeLockedPaise: r.lateFeeLockedPaise,
+        status: r.status,
+        paidAt: r.paidAt,
+        paymentId: null,
+        paymentProofUrl: r.paymentProofUrl,
+        notes: r.notes,
+        cancelledAt: null,
+        cancellationReason: null,
+        isAdhoc: false,
+        createdAt: r.createdAt,
+        updatedAt: r.createdAt,
+      });
+      return {
+        ...r,
+        outstandingPaise: projected.outstandingPaise,
+        effectiveStatus: projected.effectiveStatus,
+      };
+    });
+  });
+}
+
 export type RentStats = {
   pendingCount: number;
   overdueCount: number;
@@ -1456,6 +1541,7 @@ export type AdminElectricityInvoiceReminderRow = {
   outstandingPaise: number;
   effectiveStatus: string;
   isOverdue: boolean;
+  paymentProofUrl?: string | null;
 };
 
 /** Pending electricity invoices eligible for WhatsApp / email reminders. */
@@ -1548,6 +1634,7 @@ export function listAdminElectricityInvoicesForReminders(
         outstandingPaise: projected.outstandingPaise,
         effectiveStatus: projected.effectiveStatus,
         isOverdue: projected.effectiveStatus === 'overdue',
+        paymentProofUrl: r.invoice.paymentProofUrl,
       });
     }
     return result;
