@@ -21,12 +21,14 @@ export type MonthlyElectricityInvoiceLine = {
 export function allocateMonthlyElectricityInvoices(input: {
   grossTotalPaise: number;
   prepaidCreditPaise: number;
+  manualCreditPaise?: number;
   occupants: MonthlyElectricityOccupant[];
   checkoutCollectedByCustomerId: Map<string, number>;
   useProRata: boolean;
 }): {
   prepaidCreditAppliedPaise: number;
   checkoutCreditAppliedPaise: number;
+  manualCreditAppliedPaise: number;
   netSplittablePaise: number;
   billableOccupantCount: number;
   invoices: MonthlyElectricityInvoiceLine[];
@@ -44,7 +46,12 @@ export function allocateMonthlyElectricityInvoices(input: {
     0,
   );
   const cappedCheckoutCredit = Math.min(checkoutCreditAppliedPaise, afterPrepaidPaise);
-  const netSplittablePaise = Math.max(0, afterPrepaidPaise - cappedCheckoutCredit);
+  const afterCheckoutPaise = Math.max(0, afterPrepaidPaise - cappedCheckoutCredit);
+  const manualCreditAppliedPaise = Math.min(
+    Math.max(0, input.manualCreditPaise ?? 0),
+    afterCheckoutPaise,
+  );
+  const netSplittablePaise = Math.max(0, afterCheckoutPaise - manualCreditAppliedPaise);
 
   const billable = input.occupants.filter(
     (o) => (input.checkoutCollectedByCustomerId.get(o.customerId) ?? 0) <= 0,
@@ -68,6 +75,7 @@ export function allocateMonthlyElectricityInvoices(input: {
     return {
       prepaidCreditAppliedPaise,
       checkoutCreditAppliedPaise: cappedCheckoutCredit,
+      manualCreditAppliedPaise,
       netSplittablePaise,
       billableOccupantCount: billableBedShares,
       invoices,
@@ -106,6 +114,7 @@ export function allocateMonthlyElectricityInvoices(input: {
   return {
     prepaidCreditAppliedPaise,
     checkoutCreditAppliedPaise: cappedCheckoutCredit,
+    manualCreditAppliedPaise,
     netSplittablePaise,
     billableOccupantCount: billableBedShares,
     invoices,

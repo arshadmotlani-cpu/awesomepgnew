@@ -4,12 +4,14 @@ import type { ElectricitySettlementLedgerRow } from '@/src/services/electricityS
 export function ElectricityBillReconciliationPanel({
   actualBillPaise,
   checkoutCollectedPaise,
+  manualCreditsPaise = 0,
   remainingToRecoverPaise,
   entries,
   compact = false,
 }: {
   actualBillPaise: number;
   checkoutCollectedPaise: number;
+  manualCreditsPaise?: number;
   remainingToRecoverPaise: number;
   entries: ElectricitySettlementLedgerRow[];
   compact?: boolean;
@@ -33,6 +35,13 @@ export function ElectricityBillReconciliationPanel({
           value={paiseToInr(checkoutCollectedPaise)}
           muted
         />
+        {manualCreditsPaise > 0 ? (
+          <Row
+            label="Manual / offline credits"
+            value={paiseToInr(manualCreditsPaise)}
+            muted
+          />
+        ) : null}
         <Row
           label="Remaining to recover"
           value={paiseToInr(remainingToRecoverPaise)}

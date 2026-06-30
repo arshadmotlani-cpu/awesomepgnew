@@ -58,6 +58,7 @@ import { logElectricityBillCreate } from '../lib/billing/electricityBillCreateLo
 import { allocateMonthlyElectricityInvoices } from '../lib/billing/roomElectricityMonthlyAllocation';
 import { syncRoomElectricityLedgerCycleFromBillInTx, recordMonthlyInvoiceCollectionInTx } from './roomElectricityLedger';
 import { findActiveElectricityInvoiceForResidentMonth } from './electricityInvoiceDuplicates';
+import { sumManualElectricityCreditsForRoomMonth } from './electricitySettlementLedgerView';
 
 const INVOICE_PREFIX = 'ELE';
 
@@ -398,10 +399,16 @@ export async function createElectricityBill(
     checkoutCollectedByCustomerId.set(row.customerId, prev + row.amountPaise);
   }
 
+  const manualCreditPaise = await sumManualElectricityCreditsForRoomMonth(
+    input.roomId,
+    billingMonth,
+  );
+
   const grossTotalPaise = Math.round(unitsConsumed * input.ratePerUnitPaise);
   const allocation = allocateMonthlyElectricityInvoices({
     grossTotalPaise,
     prepaidCreditPaise: room.prepaidCreditPaise ?? 0,
+    manualCreditPaise,
     occupants: [...byBooking.values()].map((bk) => ({
       bookingId: bk.bookingId,
       customerId: bk.customerId,
@@ -414,6 +421,7 @@ export async function createElectricityBill(
 
   const prepaidCreditAppliedPaise = allocation.prepaidCreditAppliedPaise;
   const checkoutCreditAppliedPaise = allocation.checkoutCreditAppliedPaise;
+  const manualCreditAppliedPaise = allocation.manualCreditAppliedPaise;
   const netSplittablePaise = allocation.netSplittablePaise;
   const perResidentPaise = allocation.perResidentPaise;
   const remainderPaise = allocation.remainderPaise;
@@ -435,6 +443,7 @@ export async function createElectricityBill(
     prepaidCreditAppliedPaise,
     checkoutCollectedPaise: checkoutCreditAppliedPaise,
     checkoutCreditAppliedPaise,
+    manualCreditAppliedPaise,
     netSplittablePaise,
     useProRata: input.useProRataByActiveDays && totalWeight > 0,
     excludedCheckoutResidents: allocation.invoices.filter((i) => i.excludedBecauseCheckoutPaid).length,

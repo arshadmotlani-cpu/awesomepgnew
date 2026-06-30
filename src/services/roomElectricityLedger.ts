@@ -409,6 +409,68 @@ export async function recordMonthlyInvoiceCollectionInTx(
   await recalculateCycleTotalsInTx(tx, cycleId, input.totalBillPaise);
 }
 
+/** Record offline/manual electricity credit for a room billing month. */
+export async function recordManualElectricityCreditInTx(
+  tx: DbTx,
+  input: {
+    roomId: string;
+    billingMonth: string;
+    customerId: string;
+    bookingId: string;
+    amountPaise: number;
+    source: 'manual' | 'cash' | 'upi';
+    note?: string | null;
+    totalBillPaise?: number;
+  },
+): Promise<void> {
+  if (input.amountPaise <= 0) return;
+
+  const totalBillPaise = await resolveRoomMonthlyBillPaise(
+    input.roomId,
+    input.billingMonth,
+    input.totalBillPaise,
+  );
+
+  const cycleId = await ensureCycleInTx(tx, {
+    roomId: input.roomId,
+    billingMonth: input.billingMonth,
+    totalBillPaise: Math.max(totalBillPaise, input.amountPaise),
+  });
+
+  await tx.insert(roomElectricityLedgerEntries).values({
+    cycleId,
+    customerId: input.customerId,
+    bookingId: input.bookingId,
+    amountPaise: input.amountPaise,
+    source: input.source,
+    note: input.note ?? null,
+  });
+
+  await recalculateCycleTotalsInTx(
+    tx,
+    cycleId,
+    Math.max(totalBillPaise, input.amountPaise),
+  );
+}
+
+export async function recordManualElectricityCredit(input: {
+  roomId: string;
+  billingMonth: DateLike;
+  customerId: string;
+  bookingId: string;
+  amountPaise: number;
+  source: 'manual' | 'cash' | 'upi';
+  note?: string | null;
+}): Promise<void> {
+  const billingMonth = firstOfMonth(input.billingMonth);
+  await db.transaction(async (tx) => {
+    await recordManualElectricityCreditInTx(tx, {
+      ...input,
+      billingMonth,
+    });
+  });
+}
+
 export async function recordCheckoutElectricityCollectionFromSettlementId(
   settlementId: string,
   options?: { totalBillPaise?: number },

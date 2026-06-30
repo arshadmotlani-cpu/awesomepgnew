@@ -58,6 +58,7 @@ export const roomElectricityLedgerEntries = pgTable(
     electricityInvoiceId: uuid('electricity_invoice_id').references(() => electricityInvoices.id, {
       onDelete: 'restrict',
     }),
+    note: text('note'),
     collectedAt: timestamp('collected_at', { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

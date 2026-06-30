@@ -256,7 +256,7 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-30 17:47:24 UTC
+### Pending pre-commit sync · 2026-06-30 17:57:05 UTC
 
 **Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Electricity]]
 
@@ -269,18 +269,15 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (12):**
-- `app/(admin)/admin/billing/electricity/generate/page.tsx`
-- `app/(admin)/admin/billing/page.tsx`
-- `app/(admin)/admin/electricity/duplicates/actions.ts`
-- `app/(admin)/admin/electricity/duplicates/page.tsx`
-- `app/(admin)/admin/electricity/new/actions.ts`
-- `app/api/admin/electricity-bill-jobs/[jobId]/route.ts`
-- `src/db/migrations/0087_electricity_invoice_dedup.sql`
-- `src/db/schema/electricityBillGenerationJobs.ts`
-- `src/db/schema/electricityInvoices.ts`
-- `src/db/schema/index.ts`
-- `src/lib/billing/electricityBillCreateLog.ts`
+**Staged code files (9):**
+- `app/(admin)/admin/electricity/bills/[id]/page.tsx`
+- `app/(admin)/admin/electricity/ledger/actions.ts`
+- `app/(admin)/admin/electricity/ledger/page.tsx`
+- `app/api/admin/rooms/[id]/electricity-reconciliation/route.ts`
+- `src/db/migrations/0088_electricity_ledger_entry_notes.sql`
+- `src/db/schema/roomElectricityLedger.ts`
+- `src/lib/billing/electricitySettlementLedgerReconciliation.ts`
+- `src/lib/billing/roomElectricityMonthlyAllocation.ts`
 - `src/services/electricityBilling.ts`
 
 **Changed:**
