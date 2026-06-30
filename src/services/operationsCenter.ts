@@ -42,6 +42,10 @@ import {
   isDismissedFromOperationsQueue,
   loadOperationsQueueDismissalIndex,
 } from '@/src/services/operationsQueueDismissals';
+import {
+  asElectricityInvoiceRow,
+  electricityInvoiceLegacySelect,
+} from '@/src/lib/db/electricityInvoiceSelect';
 
 export type OpsTask = OpsTaskInput;
 
@@ -302,7 +306,7 @@ async function listOutstandingElectricity(session: AdminSession) {
       pgId: floors.pgId,
       pgName: pgs.name,
       customerName: customers.fullName,
-      invoice: electricityInvoices,
+      invoice: electricityInvoiceLegacySelect,
     })
     .from(electricityInvoices)
     .innerJoin(bookings, eq(bookings.id, electricityInvoices.bookingId))
@@ -316,18 +320,19 @@ async function listOutstandingElectricity(session: AdminSession) {
   const items: OperationsCenterData['electricityPending']['items'] = [];
   for (const row of rows) {
     if (!sessionCanAccessPg(session, row.pgId)) continue;
-    const outstandingPaise = computeElectricityInvoiceOutstandingPaise(row.invoice, today);
+    const invoice = asElectricityInvoiceRow(row.invoice);
+    const outstandingPaise = computeElectricityInvoiceOutstandingPaise(invoice, today);
     if (outstandingPaise <= 0) continue;
     const status =
-      computeElectricityInvoiceEffectiveStatus(row.invoice, today) === 'overdue'
+      computeElectricityInvoiceEffectiveStatus(invoice, today) === 'overdue'
         ? 'overdue'
         : 'pending';
     items.push({
-      invoiceId: row.invoice.id,
+      invoiceId: invoice.id,
       residentName: row.customerName,
       pgName: formatPgDisplayName(row.pgName),
       amountDuePaise: outstandingPaise,
-      priority: electricityPriority(status, row.invoice.dueDate, today),
+      priority: electricityPriority(status, invoice.dueDate, today),
     });
   }
   items.sort((a, b) => comparePriority(a.priority, b.priority));

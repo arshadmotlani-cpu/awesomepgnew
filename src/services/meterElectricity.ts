@@ -17,6 +17,7 @@ import {
   createElectricityBill,
   recordElectricityPaymentSuccess,
 } from './electricityBilling';
+import { fetchElectricityInvoiceById } from '@/src/lib/db/electricityInvoiceSelect';
 import { electricityInvoices } from '@/src/db/schema/electricityInvoices';
 
 export type RecordMeterLogInput = {
@@ -434,11 +435,7 @@ export async function submitElectricityPaymentProof(
   paymentProofUrl: string,
   transactionRef?: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  const [invoice] = await db
-    .select()
-    .from(electricityInvoices)
-    .where(eq(electricityInvoices.id, invoiceId))
-    .limit(1);
+  const invoice = await fetchElectricityInvoiceById(invoiceId);
   if (!invoice || invoice.customerId !== customerId) {
     return { ok: false, message: 'Invoice not found.' };
   }
@@ -504,11 +501,7 @@ export async function approveElectricityPaymentProof(
   session: AdminSession,
   invoiceId: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  const [invoice] = await db
-    .select()
-    .from(electricityInvoices)
-    .where(eq(electricityInvoices.id, invoiceId))
-    .limit(1);
+  const invoice = await fetchElectricityInvoiceById(invoiceId);
   if (!invoice) return { ok: false, message: 'Invoice not found.' };
   if (!invoice.paymentProofUrl) {
     return { ok: false, message: 'No payment proof uploaded.' };
@@ -535,11 +528,7 @@ export async function rejectElectricityPaymentProof(
   invoiceId: string,
   reason?: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  const [invoice] = await db
-    .select()
-    .from(electricityInvoices)
-    .where(eq(electricityInvoices.id, invoiceId))
-    .limit(1);
+  const invoice = await fetchElectricityInvoiceById(invoiceId);
   if (!invoice) return { ok: false, message: 'Invoice not found.' };
 
   const [pgRow] = await db

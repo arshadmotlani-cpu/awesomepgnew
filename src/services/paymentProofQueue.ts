@@ -4,6 +4,7 @@ import { parseDaterange } from '@/src/services/availability';
 import { listPendingExtensionProofsForPg } from '@/src/services/extension';
 import { listPendingElectricityProofsForPg } from '@/src/services/meterElectricity';
 import { projectElectricityInvoice } from '@/src/services/electricityBilling';
+import { fetchElectricityInvoiceById } from '@/src/lib/db/electricityInvoiceSelect';
 import { listPendingRentProofsForPg, projectInvoice } from '@/src/services/rentInvoices';
 import { listPendingDepositLinkProofsForPg } from '@/src/services/residentCharges';
 import { listOwnerPayments, getQrBookingPaymentReview } from '@/src/services/qrPayments';
@@ -403,11 +404,7 @@ async function buildElectricityReviewItem(
   pg: { id: string; name: string },
   e: Awaited<ReturnType<typeof listPendingElectricityProofsForPg>>[number],
 ): Promise<PendingPaymentReviewItem | null> {
-  const [invoice] = await db
-    .select()
-    .from(electricityInvoices)
-    .where(eq(electricityInvoices.id, e.invoiceId))
-    .limit(1);
+  const invoice = await fetchElectricityInvoiceById(e.invoiceId);
   if (!invoice) return null;
 
   const projected = projectElectricityInvoice(invoice);

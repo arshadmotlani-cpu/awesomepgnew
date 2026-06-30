@@ -15,6 +15,10 @@ import { normalizeIsoDateOnly, todayString } from '@/src/lib/dates';
 import { asPlainNumber } from '@/src/lib/format';
 import { sanitizeAdminQueryError } from '@/src/lib/admin/productionDbError';
 import {
+  asElectricityInvoiceRow,
+  electricityInvoiceLegacySelect,
+} from '@/src/lib/db/electricityInvoiceSelect';
+import {
   beds,
   bedPrices,
   bedReservations,
@@ -1504,7 +1508,7 @@ export function listAdminElectricityInvoicesForReminders(
 
     const rows = await db
       .select({
-        invoice: electricityInvoices,
+        invoice: electricityInvoiceLegacySelect,
         customerId: electricityInvoices.customerId,
         customerFullName: customers.fullName,
         customerPhone: customers.phone,
@@ -1524,7 +1528,7 @@ export function listAdminElectricityInvoicesForReminders(
     const { projectElectricityInvoice } = await import('@/src/services/electricityBilling');
     const result: AdminElectricityInvoiceReminderRow[] = [];
     for (const r of rows) {
-      const projected = projectElectricityInvoice(r.invoice, today);
+      const projected = projectElectricityInvoice(asElectricityInvoiceRow(r.invoice), today);
       if (projected.outstandingPaise <= 0) continue;
       result.push({
         id: r.invoice.id,

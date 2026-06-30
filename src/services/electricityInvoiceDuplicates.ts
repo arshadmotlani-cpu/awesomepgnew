@@ -1,5 +1,6 @@
 /**
  * Detect and repair duplicate electricity invoices (same room + month + resident).
+ * Backward compatible before migration 0087 (room_id / dedup columns on electricity_invoices).
  */
 import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
@@ -9,6 +10,14 @@ import {
   electricityInvoices,
   rooms,
 } from '@/src/db/schema';
+import {
+  getElectricityInvoiceSchemaCaps,
+  type ElectricityInvoiceSchemaCaps,
+} from '@/src/lib/db/electricityInvoiceSchemaCaps';
+import {
+  asElectricityInvoiceRow,
+  electricityInvoiceLegacySelect,
+} from '@/src/lib/db/electricityInvoiceSelect';
 import { firstOfMonth } from '@/src/services/billing';
 import type { DateLike } from '@/src/lib/dates';
 
@@ -36,94 +45,174 @@ export type ElectricityInvoiceDuplicateGroup = {
   invoices: ElectricityInvoiceDuplicateRow[];
 };
 
+function supersededFilter(caps: ElectricityInvoiceSchemaCaps) {
+  return caps.supersededByInvoiceId
+    ? sql`AND ei.superseded_by_invoice_id IS NULL`
+    : sql``;
+}
+
 export async function countActiveElectricityInvoiceDuplicates(): Promise<number> {
-  const rows = await db.execute<{ group_count: number }>(sql`
-    SELECT COUNT(*)::int AS group_count
-    FROM (
-      SELECT ei.room_id, ei.billing_month, ei.customer_id
-      FROM electricity_invoices ei
-      WHERE ei.status <> 'cancelled'
-        AND ei.superseded_by_invoice_id IS NULL
-      GROUP BY ei.room_id, ei.billing_month, ei.customer_id
-      HAVING COUNT(*) > 1
-    ) dupes
-  `);
+  const caps = await getElectricityInvoiceSchemaCaps();
+
+  const rows = caps.roomId
+    ? await db.execute<{ group_count: number }>(sql`
+        SELECT COUNT(*)::int AS group_count
+        FROM (
+          SELECT ei.room_id, ei.billing_month, ei.customer_id
+          FROM electricity_invoices ei
+          WHERE ei.status <> 'cancelled'
+          ${supersededFilter(caps)}
+          GROUP BY ei.room_id, ei.billing_month, ei.customer_id
+          HAVING COUNT(*) > 1
+        ) dupes
+      `)
+    : await db.execute<{ group_count: number }>(sql`
+        SELECT COUNT(*)::int AS group_count
+        FROM (
+          SELECT eb.room_id, ei.billing_month, ei.customer_id
+          FROM electricity_invoices ei
+          INNER JOIN electricity_bills eb ON eb.id = ei.electricity_bill_id
+          WHERE ei.status <> 'cancelled'
+          GROUP BY eb.room_id, ei.billing_month, ei.customer_id
+          HAVING COUNT(*) > 1
+        ) dupes
+      `);
+
   return rows[0]?.group_count ?? 0;
 }
 
 export async function listElectricityInvoiceDuplicateGroups(): Promise<
   ElectricityInvoiceDuplicateGroup[]
 > {
-  const duplicateKeys = await db.execute<{
-    room_id: string;
-    billing_month: string;
-    customer_id: string;
-  }>(sql`
-    SELECT ei.room_id, ei.billing_month::text, ei.customer_id
-    FROM electricity_invoices ei
-    WHERE ei.status <> 'cancelled'
-      AND ei.superseded_by_invoice_id IS NULL
-    GROUP BY ei.room_id, ei.billing_month, ei.customer_id
-    HAVING COUNT(*) > 1
-    ORDER BY ei.billing_month DESC, ei.room_id
-  `);
+  const caps = await getElectricityInvoiceSchemaCaps();
+
+  const duplicateKeys = caps.roomId
+    ? await db.execute<{
+        room_id: string;
+        billing_month: string;
+        customer_id: string;
+      }>(sql`
+        SELECT ei.room_id, ei.billing_month::text, ei.customer_id
+        FROM electricity_invoices ei
+        WHERE ei.status <> 'cancelled'
+        ${supersededFilter(caps)}
+        GROUP BY ei.room_id, ei.billing_month, ei.customer_id
+        HAVING COUNT(*) > 1
+        ORDER BY ei.billing_month DESC, ei.room_id
+      `)
+    : await db.execute<{
+        room_id: string;
+        billing_month: string;
+        customer_id: string;
+      }>(sql`
+        SELECT eb.room_id, ei.billing_month::text, ei.customer_id
+        FROM electricity_invoices ei
+        INNER JOIN electricity_bills eb ON eb.id = ei.electricity_bill_id
+        WHERE ei.status <> 'cancelled'
+        GROUP BY eb.room_id, ei.billing_month, ei.customer_id
+        HAVING COUNT(*) > 1
+        ORDER BY ei.billing_month DESC, eb.room_id
+      `);
 
   if (duplicateKeys.length === 0) return [];
 
   const groups: ElectricityInvoiceDuplicateGroup[] = [];
 
   for (const key of duplicateKeys) {
-    const invoices = await db
-      .select({
-        invoiceId: electricityInvoices.id,
-        invoiceNumber: electricityInvoices.invoiceNumber,
-        status: electricityInvoices.status,
-        amountPaise: electricityInvoices.amountPaise,
-        paidPaise: electricityInvoices.paidPaise,
-        bookingId: electricityInvoices.bookingId,
-        billId: electricityInvoices.electricityBillId,
-        createdAt: electricityInvoices.createdAt,
-        duplicateDetectedAt: electricityInvoices.duplicateDetectedAt,
-        supersededByInvoiceId: electricityInvoices.supersededByInvoiceId,
-        roomNumber: rooms.roomNumber,
-        pgName: sql<string>`(
-          SELECT p.name FROM pgs p
-          INNER JOIN floors f ON f.pg_id = p.id
-          WHERE f.id = ${rooms.floorId}
-          LIMIT 1
-        )`,
-        customerName: customers.fullName,
-      })
-      .from(electricityInvoices)
-      .innerJoin(rooms, eq(rooms.id, electricityInvoices.roomId))
-      .innerJoin(customers, eq(customers.id, electricityInvoices.customerId))
-      .where(
-        and(
-          eq(electricityInvoices.roomId, key.room_id),
-          eq(electricityInvoices.billingMonth, key.billing_month),
-          eq(electricityInvoices.customerId, key.customer_id),
-          ne(electricityInvoices.status, 'cancelled'),
-          isNull(electricityInvoices.supersededByInvoiceId),
-        ),
-      )
-      .orderBy(electricityInvoices.createdAt);
+    const invoices = caps.roomId
+      ? await db
+          .select({
+            invoiceId: electricityInvoices.id,
+            invoiceNumber: electricityInvoices.invoiceNumber,
+            status: electricityInvoices.status,
+            amountPaise: electricityInvoices.amountPaise,
+            paidPaise: electricityInvoices.paidPaise,
+            bookingId: electricityInvoices.bookingId,
+            billId: electricityInvoices.electricityBillId,
+            createdAt: electricityInvoices.createdAt,
+            duplicateDetectedAt: caps.duplicateDetectedAt
+              ? electricityInvoices.duplicateDetectedAt
+              : sql<Date | null>`NULL::timestamptz`,
+            supersededByInvoiceId: caps.supersededByInvoiceId
+              ? electricityInvoices.supersededByInvoiceId
+              : sql<string | null>`NULL::uuid`,
+            roomNumber: rooms.roomNumber,
+            pgName: sql<string>`(
+              SELECT p.name FROM pgs p
+              INNER JOIN floors f ON f.pg_id = p.id
+              WHERE f.id = ${rooms.floorId}
+              LIMIT 1
+            )`,
+            customerName: customers.fullName,
+          })
+          .from(electricityInvoices)
+          .innerJoin(rooms, eq(rooms.id, electricityInvoices.roomId))
+          .innerJoin(customers, eq(customers.id, electricityInvoices.customerId))
+          .where(
+            and(
+              eq(electricityInvoices.roomId, key.room_id),
+              eq(electricityInvoices.billingMonth, key.billing_month),
+              eq(electricityInvoices.customerId, key.customer_id),
+              ne(electricityInvoices.status, 'cancelled'),
+              caps.supersededByInvoiceId
+                ? isNull(electricityInvoices.supersededByInvoiceId)
+                : undefined,
+            ),
+          )
+          .orderBy(electricityInvoices.createdAt)
+      : await db
+          .select({
+            invoiceId: electricityInvoices.id,
+            invoiceNumber: electricityInvoices.invoiceNumber,
+            status: electricityInvoices.status,
+            amountPaise: electricityInvoices.amountPaise,
+            paidPaise: electricityInvoices.paidPaise,
+            bookingId: electricityInvoices.bookingId,
+            billId: electricityInvoices.electricityBillId,
+            createdAt: electricityInvoices.createdAt,
+            duplicateDetectedAt: sql<Date | null>`NULL::timestamptz`,
+            supersededByInvoiceId: sql<string | null>`NULL::uuid`,
+            roomNumber: rooms.roomNumber,
+            pgName: sql<string>`(
+              SELECT p.name FROM pgs p
+              INNER JOIN floors f ON f.pg_id = p.id
+              WHERE f.id = ${rooms.floorId}
+              LIMIT 1
+            )`,
+            customerName: customers.fullName,
+          })
+          .from(electricityInvoices)
+          .innerJoin(electricityBills, eq(electricityBills.id, electricityInvoices.electricityBillId))
+          .innerJoin(rooms, eq(rooms.id, electricityBills.roomId))
+          .innerJoin(customers, eq(customers.id, electricityInvoices.customerId))
+          .where(
+            and(
+              eq(electricityBills.roomId, key.room_id),
+              eq(electricityInvoices.billingMonth, key.billing_month),
+              eq(electricityInvoices.customerId, key.customer_id),
+              ne(electricityInvoices.status, 'cancelled'),
+            ),
+          )
+          .orderBy(electricityInvoices.createdAt);
 
     if (invoices.length < 2) continue;
 
     const first = invoices[0]!;
     const groupKey = `${key.room_id}:${key.billing_month}:${key.customer_id}`;
 
-    const undetected = invoices.filter((i) => !i.duplicateDetectedAt);
-    if (undetected.length > 0) {
-      await db
-        .update(electricityInvoices)
-        .set({ duplicateDetectedAt: new Date(), updatedAt: new Date() })
-        .where(
-          inArray(
-            electricityInvoices.id,
-            undetected.map((i) => i.invoiceId),
-          ),
-        );
+    if (caps.duplicateDetectedAt) {
+      const undetected = invoices.filter((i) => !i.duplicateDetectedAt);
+      if (undetected.length > 0) {
+        await db
+          .update(electricityInvoices)
+          .set({ duplicateDetectedAt: new Date(), updatedAt: new Date() })
+          .where(
+            inArray(
+              electricityInvoices.id,
+              undetected.map((i) => i.invoiceId),
+            ),
+          );
+      }
     }
 
     groups.push({
@@ -157,20 +246,45 @@ export async function findActiveElectricityInvoiceForResidentMonth(input: {
   billingMonth: DateLike;
   customerId: string;
 }): Promise<{ id: string; invoiceNumber: string } | null> {
+  const caps = await getElectricityInvoiceSchemaCaps();
   const billingMonth = firstOfMonth(input.billingMonth);
+
+  if (caps.roomId) {
+    const [row] = await db
+      .select({
+        id: electricityInvoices.id,
+        invoiceNumber: electricityInvoices.invoiceNumber,
+      })
+      .from(electricityInvoices)
+      .where(
+        and(
+          eq(electricityInvoices.roomId, input.roomId),
+          eq(electricityInvoices.billingMonth, billingMonth),
+          eq(electricityInvoices.customerId, input.customerId),
+          ne(electricityInvoices.status, 'cancelled'),
+          caps.supersededByInvoiceId
+            ? isNull(electricityInvoices.supersededByInvoiceId)
+            : undefined,
+        ),
+      )
+      .orderBy(electricityInvoices.createdAt)
+      .limit(1);
+    return row ?? null;
+  }
+
   const [row] = await db
     .select({
       id: electricityInvoices.id,
       invoiceNumber: electricityInvoices.invoiceNumber,
     })
     .from(electricityInvoices)
+    .innerJoin(electricityBills, eq(electricityBills.id, electricityInvoices.electricityBillId))
     .where(
       and(
-        eq(electricityInvoices.roomId, input.roomId),
+        eq(electricityBills.roomId, input.roomId),
         eq(electricityInvoices.billingMonth, billingMonth),
         eq(electricityInvoices.customerId, input.customerId),
         ne(electricityInvoices.status, 'cancelled'),
-        isNull(electricityInvoices.supersededByInvoiceId),
       ),
     )
     .orderBy(electricityInvoices.createdAt)
@@ -183,23 +297,51 @@ export async function repairElectricityInvoiceDuplicateGroup(input: {
   groupKey: string;
   adminId: string;
 }): Promise<{ ok: true; cancelledIds: string[] } | { ok: false; error: string }> {
+  const caps = await getElectricityInvoiceSchemaCaps();
+  if (!caps.supersededByInvoiceId) {
+    return {
+      ok: false,
+      error:
+        'Duplicate repair requires migration 0087 (superseded_by_invoice_id). Run database migrations first.',
+    };
+  }
+
   const [roomId, billingMonth, customerId] = input.groupKey.split(':');
   if (!roomId || !billingMonth || !customerId) {
     return { ok: false, error: 'Invalid duplicate group key.' };
   }
 
-  const rows = await db
-    .select()
-    .from(electricityInvoices)
-    .where(
-      and(
-        eq(electricityInvoices.roomId, roomId),
-        eq(electricityInvoices.billingMonth, billingMonth),
-        eq(electricityInvoices.customerId, customerId),
-        ne(electricityInvoices.status, 'cancelled'),
-        isNull(electricityInvoices.supersededByInvoiceId),
-      ),
-    );
+  const roomFilter = caps.roomId
+    ? eq(electricityInvoices.roomId, roomId)
+    : sql`${electricityBills.roomId} = ${roomId}`;
+
+  const rows = caps.roomId
+    ? await db
+        .select(electricityInvoiceLegacySelect)
+        .from(electricityInvoices)
+        .where(
+          and(
+            roomFilter,
+            eq(electricityInvoices.billingMonth, billingMonth),
+            eq(electricityInvoices.customerId, customerId),
+            ne(electricityInvoices.status, 'cancelled'),
+            isNull(electricityInvoices.supersededByInvoiceId),
+          ),
+        )
+        .then((r) => r.map((row) => asElectricityInvoiceRow(row)))
+    : await db
+        .select({ invoice: electricityInvoiceLegacySelect })
+        .from(electricityInvoices)
+        .innerJoin(electricityBills, eq(electricityBills.id, electricityInvoices.electricityBillId))
+        .where(
+          and(
+            eq(electricityBills.roomId, roomId),
+            eq(electricityInvoices.billingMonth, billingMonth),
+            eq(electricityInvoices.customerId, customerId),
+            ne(electricityInvoices.status, 'cancelled'),
+          ),
+        )
+        .then((r) => r.map((x) => asElectricityInvoiceRow(x.invoice)));
 
   if (rows.length < 2) {
     return { ok: false, error: 'This duplicate group no longer exists.' };
@@ -235,10 +377,12 @@ export async function repairElectricityInvoiceDuplicateGroup(input: {
       cancelledIds.push(inv.id);
     }
 
-    await tx
-      .update(electricityInvoices)
-      .set({ duplicateDetectedAt: null, updatedAt: new Date() })
-      .where(eq(electricityInvoices.id, keeper.id));
+    if (caps.duplicateDetectedAt) {
+      await tx
+        .update(electricityInvoices)
+        .set({ duplicateDetectedAt: null, updatedAt: new Date() })
+        .where(eq(electricityInvoices.id, keeper.id));
+    }
   });
 
   const { syncManyToUnified } = await import('@/src/services/unifiedInvoices');

@@ -1381,7 +1381,7 @@ export function listElectricityInvoicesForBooking(
       .select({
         id: electricityInvoices.id,
         invoiceNumber: electricityInvoices.invoiceNumber,
-        roomId: electricityInvoices.roomId,
+        roomId: electricityBills.roomId,
         bookingId: electricityInvoices.bookingId,
         bookingCode: bookings.bookingCode,
         electricityBillId: electricityInvoices.electricityBillId,

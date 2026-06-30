@@ -48,6 +48,10 @@ import {
 } from '@/src/services/operationsQueueDismissals';
 import { resolveAction } from '@/src/services/unresolvedActions';
 import { diffDays, formatDate, tryDiffDays } from '@/src/lib/dates';
+import {
+  asElectricityInvoiceRow,
+  electricityInvoiceLegacySelect,
+} from '@/src/lib/db/electricityInvoiceSelect';
 
 export type ActionItemRow = {
   id: string;
@@ -265,7 +269,7 @@ async function syncElectricityDue(session: AdminSession): Promise<void> {
   const today = todayString();
   const rows = await db
     .select({
-      invoice: electricityInvoices,
+      invoice: electricityInvoiceLegacySelect,
       pgId: floors.pgId,
       pgName: pgs.name,
       residentName: customers.fullName,
@@ -287,9 +291,10 @@ async function syncElectricityDue(session: AdminSession): Promise<void> {
 
   for (const row of rows) {
     if (!sessionCanAccessPg(session, row.pgId)) continue;
-    const projectedOutstanding = computeElectricityInvoiceOutstandingPaise(row.invoice, today);
+    const invoice = asElectricityInvoiceRow(row.invoice);
+    const projectedOutstanding = computeElectricityInvoiceOutstandingPaise(invoice, today);
     if (projectedOutstanding <= 0) continue;
-    const isOverdue = computeElectricityInvoiceEffectiveStatus(row.invoice, today) === 'overdue';
+    const isOverdue = computeElectricityInvoiceEffectiveStatus(invoice, today) === 'overdue';
     await upsertActionItem({
       type: 'electricity_due',
       title: `${row.residentName} · Electricity ${isOverdue ? 'overdue' : 'due'}`,

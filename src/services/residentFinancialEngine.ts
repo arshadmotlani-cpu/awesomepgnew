@@ -6,6 +6,7 @@
  */
 
 import { and, eq, inArray, sql } from 'drizzle-orm';
+import { fetchElectricityInvoicesByBookingId } from '@/src/lib/db/electricityInvoiceSelect';
 import { db } from '@/src/db/client';
 import {
   bedReservations,
@@ -530,10 +531,7 @@ export async function getBookingFinancialSummary(args: {
 }): Promise<ResidentFinancialSummary> {
   const [rentRows, elecRows, finIds, openVacating] = await Promise.all([
     db.select().from(rentInvoices).where(eq(rentInvoices.bookingId, args.bookingId)),
-    db
-      .select()
-      .from(electricityInvoices)
-      .where(eq(electricityInvoices.bookingId, args.bookingId)),
+    fetchElectricityInvoicesByBookingId(args.bookingId),
     loadFinancialInvoiceIds(args.bookingId),
     loadOpenVacatingForBooking(args.bookingId),
   ]);

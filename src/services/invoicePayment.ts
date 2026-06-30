@@ -9,6 +9,7 @@ import type { FinancialInvoice, InvoiceBreakdown } from '@/src/db/schema/financi
 import { syncDepositCollectionFromLedger } from '@/src/services/depositCollection';
 import { recordDepositCollected } from '@/src/services/deposits';
 import { recordElectricityPaymentSuccess } from '@/src/services/electricityBilling';
+import { fetchElectricityInvoiceById } from '@/src/lib/db/electricityInvoiceSelect';
 import { recordRentPaymentSuccess } from '@/src/services/rentInvoices';
 
 type BreakdownLine = NonNullable<InvoiceBreakdown['lines']>[number];
@@ -156,11 +157,7 @@ export async function reverseInvoicePaymentAllocation(inv: FinancialInvoice): Pr
       await syncRentInvoiceToUnified(line.sourceId);
     } else if (line.sourceTable === 'electricity_invoices' && line.sourceId) {
       const { electricityInvoices } = await import('@/src/db/schema');
-      const [ei] = await db
-        .select()
-        .from(electricityInvoices)
-        .where(eq(electricityInvoices.id, line.sourceId))
-        .limit(1);
+      const ei = await fetchElectricityInvoiceById(line.sourceId);
       if (!ei) continue;
       const newPaid = Math.max(0, ei.paidPaise - line.amountPaise);
       await db

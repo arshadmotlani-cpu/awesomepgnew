@@ -3,6 +3,7 @@
  */
 
 import { and, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
+import { fetchElectricityInvoiceById } from '@/src/lib/db/electricityInvoiceSelect';
 import { db } from '@/src/db/client';
 import {
   bedReservations,
@@ -382,11 +383,7 @@ export async function finalizeExpressWalkInFinancialInvoice(input: {
 export async function syncElectricityInvoiceToUnified(
   electricityInvoiceId: string,
 ): Promise<string | null> {
-  const [ei] = await db
-    .select()
-    .from(electricityInvoices)
-    .where(eq(electricityInvoices.id, electricityInvoiceId))
-    .limit(1);
+  const ei = await fetchElectricityInvoiceById(electricityInvoiceId);
   if (!ei) return null;
 
   const [bill] = await db

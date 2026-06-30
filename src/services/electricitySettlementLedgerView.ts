@@ -18,6 +18,7 @@ import {
   computeElectricitySettlementLedgerReconciliation,
 } from '@/src/lib/billing/electricitySettlementLedgerReconciliation';
 import { firstOfMonth } from '@/src/services/billing';
+import { getElectricityInvoiceSchemaCaps } from '@/src/lib/db/electricityInvoiceSchemaCaps';
 import type { DateLike } from '@/src/lib/dates';
 
 const MANUAL_CREDIT_SOURCES = ['manual', 'cash', 'upi'] as const;
@@ -229,6 +230,8 @@ export async function getElectricitySettlementLedgerView(input: {
 
   const checkoutPayerIds = new Set(checkoutSettlementCredits.map((r) => r.customerId));
 
+  const invoiceSchemaCaps = await getElectricityInvoiceSchemaCaps();
+
   const invoiceRows = bill
     ? await db
         .select({
@@ -247,7 +250,9 @@ export async function getElectricitySettlementLedgerView(input: {
           and(
             eq(electricityInvoices.electricityBillId, bill.id),
             ne(electricityInvoices.status, 'cancelled'),
-            isNull(electricityInvoices.supersededByInvoiceId),
+            invoiceSchemaCaps.supersededByInvoiceId
+              ? isNull(electricityInvoices.supersededByInvoiceId)
+              : undefined,
           ),
         )
         .orderBy(electricityInvoices.invoiceNumber)

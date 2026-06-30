@@ -40,6 +40,7 @@ import {
   roomElectricityPrepaidLedger,
   rooms,
 } from '../db/schema';
+import type { NewElectricityInvoice } from '../db/schema/electricityInvoices';
 import { diffDays, formatDate, parseDate, type DateLike } from '../lib/dates';
 import {
   ELECTRICITY_GRACE_DAYS,
@@ -59,6 +60,8 @@ import { allocateMonthlyElectricityInvoices } from '../lib/billing/roomElectrici
 import { syncRoomElectricityLedgerCycleFromBillInTx, recordMonthlyInvoiceCollectionInTx } from './roomElectricityLedger';
 import { findActiveElectricityInvoiceForResidentMonth } from './electricityInvoiceDuplicates';
 import { sumManualElectricityCreditsForRoomMonth } from './electricitySettlementLedgerView';
+import { getElectricityInvoiceSchemaCaps } from '@/src/lib/db/electricityInvoiceSchemaCaps';
+import { fetchElectricityInvoiceById } from '@/src/lib/db/electricityInvoiceSelect';
 
 const INVOICE_PREFIX = 'ELE';
 
@@ -469,6 +472,7 @@ export async function createElectricityBill(
   };
   const pendingNotifications: PendingNotify[] = [];
   let prepaidCreditNote: string | null = null;
+  const invoiceSchemaCaps = await getElectricityInvoiceSchemaCaps();
 
   try {
     logElectricityBillCreate('transaction_started', { requestId });
@@ -579,22 +583,23 @@ export async function createElectricityBill(
               attempt + invoiceIds.length,
             );
             try {
+              const invoiceValues = {
+                invoiceNumber,
+                electricityBillId: bill.id,
+                bookingId: draft.bookingId,
+                customerId: draft.customerId,
+                bedId: draft.bedId,
+                billingMonth,
+                dueDate: dueDateIso,
+                amountPaise: draft.amountPaise,
+                unitsShare: draft.unitsShare.toString(),
+                activeDays: draft.activeDays,
+                status: 'pending' as const,
+                ...(invoiceSchemaCaps.roomId ? { roomId: input.roomId } : {}),
+              };
               const [row] = await tx
                 .insert(electricityInvoices)
-                .values({
-                  invoiceNumber,
-                  electricityBillId: bill.id,
-                  roomId: input.roomId,
-                  bookingId: draft.bookingId,
-                  customerId: draft.customerId,
-                  bedId: draft.bedId,
-                  billingMonth,
-                  dueDate: dueDateIso,
-                  amountPaise: draft.amountPaise,
-                  unitsShare: draft.unitsShare.toString(),
-                  activeDays: draft.activeDays,
-                  status: 'pending',
-                })
+                .values(invoiceValues as NewElectricityInvoice)
                 .returning({ id: electricityInvoices.id });
               inserted = row;
               break;
@@ -773,11 +778,7 @@ export async function recordElectricityPaymentSuccess(
   | { ok: true; paymentId: string; invoiceId: string; stateChanged: boolean }
   | { ok: false; reason: string }
 > {
-  const [invoice] = await db
-    .select()
-    .from(electricityInvoices)
-    .where(eq(electricityInvoices.id, input.invoiceId))
-    .limit(1);
+  const invoice = await fetchElectricityInvoiceById(input.invoiceId);
   if (!invoice) return { ok: false, reason: `no electricity invoice ${input.invoiceId}` };
   if (invoice.status === 'cancelled') return { ok: false, reason: 'invoice cancelled' };
   if (invoice.status === 'paid') {

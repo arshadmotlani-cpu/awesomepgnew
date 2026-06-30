@@ -20,12 +20,15 @@ import {
   rentInvoices,
   rooms,
 } from '@/src/db/schema';
+import type { NewElectricityInvoice } from '@/src/db/schema/electricityInvoices';
 import {
   EXPRESS_COLLECTION_NOTE_PREFIX,
   expressCollectionProvider,
   type ExpressCollectionChargeType,
   type ExpressCollectionPaymentMethod,
 } from '@/src/lib/billing/expressCollectionConstants';
+import { getElectricityInvoiceSchemaCaps } from '@/src/lib/db/electricityInvoiceSchemaCaps';
+import { fetchElectricityInvoiceByBookingAndMonth } from '@/src/lib/db/electricityInvoiceSelect';
 import { revalidateFinancialViews } from '@/src/lib/billing/revalidateFinancialViews';
 import { createInvoiceShareToken } from '@/src/lib/billing/invoiceShareToken';
 import { nextFinancialInvoiceNumber } from '@/src/lib/billing/invoiceNumbering.server';
@@ -354,16 +357,7 @@ async function recordExpressElectricity(
   const dueDate = formatDate(dueDateForMonth(billingMonth));
   const note = [EXPRESS_COLLECTION_NOTE_PREFIX, input.notes].filter(Boolean).join(' · ');
 
-  const [existing] = await db
-    .select()
-    .from(electricityInvoices)
-    .where(
-      and(
-        eq(electricityInvoices.bookingId, ctx.bookingId),
-        eq(electricityInvoices.billingMonth, billingMonth),
-      ),
-    )
-    .limit(1);
+  const existing = await fetchElectricityInvoiceByBookingAndMonth(ctx.bookingId, billingMonth);
 
   let invoiceId: string;
   let invoiceNumber: string;
@@ -394,6 +388,7 @@ async function recordExpressElectricity(
     invoiceId = existing.id;
     invoiceNumber = existing.invoiceNumber;
   } else {
+    const invoiceSchemaCaps = await getElectricityInvoiceSchemaCaps();
     const result = await db.transaction(async (tx) => {
       const [bill] = await tx
         .insert(electricityBills)
@@ -440,7 +435,7 @@ async function recordExpressElectricity(
             .values({
               invoiceNumber: invNum,
               electricityBillId: billId,
-              roomId: ctx.roomId,
+              ...(invoiceSchemaCaps.roomId ? { roomId: ctx.roomId } : {}),
               bookingId: ctx.bookingId,
               customerId: ctx.customerId,
               bedId: ctx.bedId,
@@ -450,7 +445,7 @@ async function recordExpressElectricity(
               unitsShare: '1',
               activeDays: 1,
               status: 'pending',
-            })
+            } as NewElectricityInvoice)
             .returning({
               id: electricityInvoices.id,
               invoiceNumber: electricityInvoices.invoiceNumber,
