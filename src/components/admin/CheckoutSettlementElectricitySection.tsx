@@ -21,9 +21,12 @@ const idle: CheckoutSettlementActionState = { status: 'idle' };
 export function CheckoutSettlementElectricitySection({
   detail,
   editable,
+  operatorMode = false,
 }: {
   detail: CheckoutSettlementDetail;
   editable: boolean;
+  /** Hide technical occupancy / sharing panels for operator checkout wizard. */
+  operatorMode?: boolean;
 }) {
   const router = useRouter();
   const [state, action, pending] = useActionState(updateCheckoutElectricityAction, idle);
@@ -192,8 +195,9 @@ export function CheckoutSettlementElectricitySection({
       ) : (
         <p className="text-sm text-apg-silver">Awaiting resident meter photo or admin settlement.</p>
       )}
-      {roomDataHint ? <p className="text-xs text-sky-200">{roomDataHint}</p> : null}
+      {roomDataHint && !operatorMode ? <p className="text-xs text-sky-200">{roomDataHint}</p> : null}
 
+      {!operatorMode ? (
       <section className="rounded-xl border border-white/10 bg-[#12161C] p-4 text-sm">
         <h4 className="font-semibold text-white">Sharing detection</h4>
         <p className="mt-1 text-xs text-apg-silver">
@@ -212,6 +216,7 @@ export function CheckoutSettlementElectricitySection({
           </ul>
         ) : null}
       </section>
+      ) : null}
 
       {editable ? (
         <form action={action} className="space-y-4">
@@ -388,9 +393,13 @@ export function CheckoutSettlementElectricitySection({
           <button
             type="submit"
             disabled={pending}
-            className="rounded-lg border border-white/10 px-4 py-2 text-xs font-semibold text-white hover:bg-white/5 disabled:opacity-60"
+            className={
+              operatorMode
+                ? 'rounded-2xl bg-white/10 px-5 py-2.5 text-sm font-medium text-white hover:bg-white/15 disabled:opacity-60'
+                : 'rounded-lg border border-white/10 px-4 py-2 text-xs font-semibold text-white hover:bg-white/5 disabled:opacity-60'
+            }
           >
-            {pending ? 'Saving…' : 'Save electricity settlement'}
+            {pending ? 'Updating…' : operatorMode ? 'Apply electricity' : 'Save electricity settlement'}
           </button>
           {state.status === 'error' ? (
             <p className="text-xs text-rose-300">{state.message}</p>
@@ -430,12 +439,14 @@ export function CheckoutSettlementElectricitySection({
             {deductFromDeposit ? `−${paiseToInr(refundImpactPaise)}` : 'Not deducted'}
           </dd>
         </div>
+        {!operatorMode ? (
         <div>
           <dt className="text-apg-silver">Final refund impact</dt>
           <dd className="font-semibold text-emerald-300">
             −{paiseToInr(refundImpactPaise)} from deposit refund
           </dd>
         </div>
+        ) : null}
       </dl>
     </div>
   );

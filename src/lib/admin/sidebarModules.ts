@@ -53,18 +53,17 @@ const MODULE_ICONS: Record<AdminModule, ComponentType<SVGProps<SVGSVGElement>>> 
 
 export const DEFAULT_SIDEBAR_MODULE_KEYS: SidebarModuleKey[] = [
   'overview',
+  'operations',
   'billing',
   'revenue',
   'invoices',
   'deposits',
-  'checkoutSettlements',
   'pgs',
   'residents',
   'kyc',
   'analytics',
   'system',
   'panel',
-  'operations',
   'payment_reviews',
   'notifications',
   'pricing',
@@ -163,6 +162,7 @@ export const SIDEBAR_MODULE_REGISTRY: Record<SidebarModuleKey, SidebarModuleDef>
     href: ADMIN_MODULES.operations.href,
     icon: MODULE_ICONS.operations,
     module: 'operations',
+    badgeKey: 'operations',
   },
   payment_reviews: {
     key: 'payment_reviews',

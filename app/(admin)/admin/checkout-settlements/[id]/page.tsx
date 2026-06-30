@@ -1,12 +1,6 @@
-import Link from 'next/link';
 import { NotificationActionResolved } from '@/src/components/admin/NotificationActionResolved';
-import { CheckoutSettlementPanel } from '@/src/components/admin/CheckoutSettlementPanel';
-import { CheckoutSettlementAdminActions } from '@/src/components/admin/CheckoutSettlementAdminActions';
-import { CheckoutSettlementPrimaryActions } from '@/src/components/admin/checkout/CheckoutSettlementPrimaryActions';
-import { assessCheckoutSettlementReadiness } from '@/src/lib/checkout/checkoutSettlementReadiness';
-import { CheckoutSettlementCommandCenter } from '@/src/components/admin/checkout/CheckoutSettlementCommandCenter';
+import { CheckoutSettlementWizard } from '@/src/components/admin/checkout/CheckoutSettlementWizard';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
-import { PageHeader } from '@/src/components/admin/PageHeader';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { evaluateCheckoutSettlementDeepLink } from '@/src/lib/admin/notificationDeepLinkGuard';
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
@@ -45,24 +39,11 @@ export default async function CheckoutSettlementDetailRoute({
     <>
       <ModuleBreadcrumbs
         items={[
-          { label: 'Checkout settlements', href: '/admin/checkout-settlements' },
+          { label: "Today's work", href: '/admin/operations/residents' },
           { label: detail.customerName },
         ]}
       />
-      <PageHeader
-        title={`Checkout — ${detail.customerName}`}
-        description={`${detail.pgName} · Room ${detail.roomNumber} · ${detail.bedCode}`}
-      />
-      <CheckoutSettlementCommandCenter detail={detail} />
-      <CheckoutSettlementPrimaryActions detail={detail} />
-      <CheckoutSettlementPanel detail={detail} />
-      <div className="mt-8">
-        <CheckoutSettlementAdminActions
-          settlementId={detail.id}
-          status={detail.status}
-          amountsLocked={detail.amountsLocked}
-        />
-      </div>
+      <CheckoutSettlementWizard detail={detail} />
     </>
   );
 }

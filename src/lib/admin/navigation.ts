@@ -25,7 +25,7 @@ export const ADMIN_MODULES: Record<AdminModule, AdminModuleMeta> = {
   overview: {
     id: 'overview',
     label: 'Overview',
-    description: 'Global KPIs — no resident-level data',
+    description: 'Morning dashboard — what to do today',
     href: '/admin/overview',
     sidebar: true,
   },
@@ -59,10 +59,10 @@ export const ADMIN_MODULES: Record<AdminModule, AdminModuleMeta> = {
   },
   checkoutSettlements: {
     id: 'checkoutSettlements',
-    label: 'Checkout settlements',
-    description: 'Unified vacating checkout — deposit, electricity, notice deduction, and refund',
-    href: '/admin/checkout-settlements',
-    sidebar: true,
+    label: 'Move-out checkout',
+    description: 'Finish move-out refunds — open from Today\'s work',
+    href: '/admin/operations/residents',
+    sidebar: false,
   },
   pgs: {
     id: 'pgs',
@@ -87,8 +87,8 @@ export const ADMIN_MODULES: Record<AdminModule, AdminModuleMeta> = {
   },
   operations: {
     id: 'operations',
-    label: 'Operations',
-    description: 'Resident ops dashboard, payment reviews, beds, vacating, and KYC',
+    label: "Today's work",
+    description: 'Residents who need you — one action at a time',
     href: '/admin/operations/residents',
     sidebar: true,
   },
