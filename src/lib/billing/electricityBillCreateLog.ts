@@ -11,6 +11,7 @@ export type ElectricityBillCreateLogStep =
   | 'transaction_started'
   | 'bill_inserted'
   | 'invoices_created'
+  | 'invoice_reused_existing'
   | 'ledger_applied'
   | 'transaction_committed'
   | 'unified_sync_scheduled'

@@ -57,6 +57,7 @@ import {
 import { logElectricityBillCreate } from '../lib/billing/electricityBillCreateLog';
 import { allocateMonthlyElectricityInvoices } from '../lib/billing/roomElectricityMonthlyAllocation';
 import { syncRoomElectricityLedgerCycleFromBillInTx, recordMonthlyInvoiceCollectionInTx } from './roomElectricityLedger';
+import { findActiveElectricityInvoiceForResidentMonth } from './electricityInvoiceDuplicates';
 
 const INVOICE_PREFIX = 'ELE';
 
@@ -508,6 +509,15 @@ export async function createElectricityBill(
 
       const invoiceIds: string[] = [];
       if (invoiceAllocationByBooking.size > 0 && netSplittablePaise > 0) {
+        type CustomerInvoiceDraft = {
+          bookingId: string;
+          customerId: string;
+          bedId: string;
+          amountPaise: number;
+          unitsShare: number;
+          activeDays: number;
+        };
+        const byCustomer = new Map<string, CustomerInvoiceDraft>();
         for (const bk of byBooking.values()) {
           const amount = invoiceAllocationByBooking.get(bk.bookingId);
           if (amount == null || amount <= 0) continue;
@@ -518,9 +528,40 @@ export async function createElectricityBill(
                 (unitsConsumed * bk.bedIds.size) / Math.max(1, billableOccupantCount),
               );
           const activeDays = useProRata ? bk.weight : daysInMonth;
+          const representativeBed = [...bk.bedIds].sort()[0]!;
+          const existing = byCustomer.get(bk.customerId);
+          if (existing) {
+            existing.amountPaise += amount;
+            existing.unitsShare = roundToHundredth(existing.unitsShare + unitsShare);
+            existing.activeDays += activeDays;
+          } else {
+            byCustomer.set(bk.customerId, {
+              bookingId: bk.bookingId,
+              customerId: bk.customerId,
+              bedId: representativeBed,
+              amountPaise: amount,
+              unitsShare,
+              activeDays,
+            });
+          }
+        }
 
-          // Representative bed = the smallest-UUID bed for determinism.
-          const representativeBed = [...bk.bedIds].sort()[0];
+        for (const draft of byCustomer.values()) {
+          const existingInvoice = await findActiveElectricityInvoiceForResidentMonth({
+            roomId: input.roomId,
+            billingMonth,
+            customerId: draft.customerId,
+          });
+          if (existingInvoice) {
+            invoiceIds.push(existingInvoice.id);
+            logElectricityBillCreate('invoice_reused_existing', {
+              requestId,
+              billId: bill.id,
+              invoiceId: existingInvoice.id,
+              customerId: draft.customerId,
+            });
+            continue;
+          }
 
           let inserted: { id: string } | null = null;
           for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -534,29 +575,41 @@ export async function createElectricityBill(
                 .values({
                   invoiceNumber,
                   electricityBillId: bill.id,
-                  bookingId: bk.bookingId,
-                  customerId: bk.customerId,
-                  bedId: representativeBed,
+                  roomId: input.roomId,
+                  bookingId: draft.bookingId,
+                  customerId: draft.customerId,
+                  bedId: draft.bedId,
                   billingMonth,
                   dueDate: dueDateIso,
-                  amountPaise: amount,
-                  unitsShare: unitsShare.toString(),
-                  activeDays,
+                  amountPaise: draft.amountPaise,
+                  unitsShare: draft.unitsShare.toString(),
+                  activeDays: draft.activeDays,
                   status: 'pending',
                 })
                 .returning({ id: electricityInvoices.id });
               inserted = row;
               break;
             } catch (err) {
-              if (pgErrorCode(err) === '23505') continue;
+              if (pgErrorCode(err) === '23505') {
+                const reused = await findActiveElectricityInvoiceForResidentMonth({
+                  roomId: input.roomId,
+                  billingMonth,
+                  customerId: draft.customerId,
+                });
+                if (reused) {
+                  inserted = { id: reused.id };
+                  break;
+                }
+                continue;
+              }
               throw err;
             }
           }
           if (inserted) {
             invoiceIds.push(inserted.id);
             pendingNotifications.push({
-              customerId: bk.customerId,
-              amountPaise: amount,
+              customerId: draft.customerId,
+              amountPaise: draft.amountPaise,
             });
           }
         }

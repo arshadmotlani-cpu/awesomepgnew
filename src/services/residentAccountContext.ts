@@ -233,6 +233,7 @@ export async function loadResidentAccountContext(
           id: inv.id,
           invoiceNumber: inv.invoiceNumber,
           electricityBillId: inv.electricityBillId,
+          roomId: inv.roomId,
           bookingId: inv.bookingId,
           customerId: primaryBooking.customerId,
           bedId: '',
@@ -248,6 +249,8 @@ export async function loadResidentAccountContext(
           unitsShare: null,
           activeDays: null,
           cancelledAt: null,
+          supersededByInvoiceId: null,
+          duplicateDetectedAt: null,
           createdAt: inv.createdAt,
           updatedAt: inv.updatedAt,
         });

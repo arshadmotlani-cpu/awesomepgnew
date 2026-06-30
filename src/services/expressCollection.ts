@@ -440,6 +440,7 @@ async function recordExpressElectricity(
             .values({
               invoiceNumber: invNum,
               electricityBillId: billId,
+              roomId: ctx.roomId,
               bookingId: ctx.bookingId,
               customerId: ctx.customerId,
               bedId: ctx.bedId,

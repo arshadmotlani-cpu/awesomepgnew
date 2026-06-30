@@ -22,6 +22,7 @@ export * from './auditLog';
 export * from './rentInvoices';
 export * from './electricityBills';
 export * from './electricityInvoices';
+export * from './electricityBillGenerationJobs';
 export * from './depositLedger';
 export * from './depositSettlements';
 export * from './webhookReplayGuard';

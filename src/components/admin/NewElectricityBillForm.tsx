@@ -12,7 +12,9 @@ import { paiseToInr } from '@/src/lib/format';
 import { ElectricityCheckoutReconciliationPreview } from '@/src/components/admin/electricity/ElectricityCheckoutReconciliationPreview';
 
 const idle: ActionState = { status: 'idle' };
-const SUBMIT_TIMEOUT_MS = 15_000;
+const POLL_INTERVAL_MS = 1_500;
+
+type GenerationPhase = 'idle' | 'generating' | 'completed' | 'failed' | 'duplicate';
 
 export function NewElectricityBillForm({
   rooms,
@@ -37,7 +39,7 @@ export function NewElectricityBillForm({
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestIdRef = useRef(crypto.randomUUID());
 
   const pgOptions = useMemo(() => {
     const map = new Map<string, string>();
@@ -54,8 +56,8 @@ export function NewElectricityBillForm({
   );
 
   const [state, setState] = useState<ActionState>(idle);
-  const [pending, setPending] = useState(false);
-  const [timedOut, setTimedOut] = useState(false);
+  const [phase, setPhase] = useState<GenerationPhase>('idle');
+  const [jobId, setJobId] = useState<string | null>(null);
   const [prevReading, setPrevReading] = useState<string>('');
   const [currReading, setCurrReading] = useState<string>('');
   const [rateInr, setRateInr] = useState<string>(
@@ -64,6 +66,9 @@ export function NewElectricityBillForm({
   const [roomId, setRoomId] = useState<string>(defaultRoomId ?? '');
   const [billingMonth, setBillingMonth] = useState<string>(defaultMonth);
   const [loadingPrev, setLoadingPrev] = useState(false);
+
+  const effectiveBillingMonth = wizardMode ? defaultMonth : billingMonth;
+  const isBusy = phase === 'generating';
 
   useEffect(() => {
     if (defaultRoomId) setRoomId(defaultRoomId);
@@ -94,6 +99,82 @@ export function NewElectricityBillForm({
       .catch(() => undefined)
       .finally(() => setLoadingPrev(false));
   }, [roomId]);
+
+  const pollJobUntilDone = useCallback(
+    async (pollJobId: string): Promise<ActionState | null> => {
+      for (let attempt = 0; attempt < 120; attempt += 1) {
+        const res = await fetch(`/api/admin/electricity-bill-jobs/${pollJobId}`, {
+          cache: 'no-store',
+        });
+        const json = (await res.json()) as {
+          ok?: boolean;
+          job?: {
+            status: string;
+            billId: string | null;
+            errorMessage: string | null;
+          };
+        };
+        if (!json.ok || !json.job) return null;
+
+        if (json.job.status === 'success' && json.job.billId) {
+          return {
+            status: 'success',
+            billId: json.job.billId,
+            redirectTo: `/admin/electricity/bills/${json.job.billId}`,
+            jobId: pollJobId,
+          };
+        }
+        if (json.job.status === 'duplicate' && json.job.billId) {
+          return {
+            status: 'duplicate',
+            existingBillId: json.job.billId,
+            jobId: pollJobId,
+          };
+        }
+        if (json.job.status === 'failed') {
+          return {
+            status: 'error',
+            message: json.job.errorMessage ?? 'Bill generation failed.',
+            jobId: pollJobId,
+          };
+        }
+        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      }
+      return {
+        status: 'error',
+        message:
+          'Generation is still running. Refresh this page — do not submit again until status shows completed or failed.',
+        jobId: pollJobId,
+      };
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!roomId || !effectiveBillingMonth || phase !== 'idle') return;
+    void fetch(
+      `/api/admin/electricity-bill-jobs/active?roomId=${roomId}&billingMonth=${effectiveBillingMonth}`,
+      { cache: 'no-store' },
+    )
+      .then((res) => res.json())
+      .then(async (json: { ok?: boolean; job?: { id: string; status: string } | null }) => {
+        if (!json.ok || !json.job || json.job.status !== 'running') return;
+        setPhase('generating');
+        setJobId(json.job.id);
+        const result = await pollJobUntilDone(json.job.id);
+        if (!result) return;
+        setState(result);
+        if (result.status === 'success') {
+          setPhase('completed');
+          router.push(result.redirectTo);
+        } else if (result.status === 'duplicate') {
+          setPhase('duplicate');
+        } else {
+          setPhase('failed');
+        }
+      })
+      .catch(() => undefined);
+  }, [effectiveBillingMonth, phase, pollJobUntilDone, roomId, router]);
 
   const selectedRoom = useMemo(
     () => filteredRooms.find((r) => r.roomId === roomId),
@@ -127,69 +208,90 @@ export function NewElectricityBillForm({
     );
   }, [prevReading, currReading]);
 
-  const clearSubmitTimeout = useCallback(() => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-  }, []);
-
-  useEffect(() => () => clearSubmitTimeout(), [clearSubmitTimeout]);
-
   const handleSubmit = useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      if (pending) return;
+      if (isBusy) return;
 
-      setTimedOut(false);
-      setPending(true);
+      setPhase('generating');
       setState(idle);
-      clearSubmitTimeout();
-
-      timeoutRef.current = setTimeout(() => {
-        setPending(false);
-        setTimedOut(true);
-        setState({
-          status: 'error',
-          message:
-            'Request timed out after 15 seconds. The bill may still be processing — check electricity bills before retrying.',
-        });
-      }, SUBMIT_TIMEOUT_MS);
+      setJobId(null);
 
       try {
         const formData = new FormData(event.currentTarget);
+        formData.set('requestId', requestIdRef.current);
         const result = await createElectricityBillAction(idle, formData);
-        clearSubmitTimeout();
 
-        if (result.status === 'success') {
-          setPending(false);
-          setState(result);
-          router.push(result.redirectTo);
+        if (result.status === 'processing') {
+          setJobId(result.jobId);
+          const polled = await pollJobUntilDone(result.jobId);
+          if (!polled) {
+            setPhase('failed');
+            setState({
+              status: 'error',
+              message: 'Could not read generation job status.',
+              jobId: result.jobId,
+            });
+            return;
+          }
+          setState(polled);
+          if (polled.status === 'success') {
+            setPhase('completed');
+            router.push(polled.redirectTo);
+            return;
+          }
+          if (polled.status === 'duplicate') {
+            setPhase('duplicate');
+            return;
+          }
+          setPhase('failed');
           return;
         }
 
-        setPending(false);
         setState(result);
+        if (result.status === 'success') {
+          setPhase('completed');
+          if ('jobId' in result) setJobId(result.jobId);
+          router.push(result.redirectTo);
+          return;
+        }
+        if (result.status === 'duplicate') {
+          setPhase('duplicate');
+          if ('jobId' in result) setJobId(result.jobId ?? null);
+          return;
+        }
+        setPhase('failed');
+        if (result.status === 'error' && result.jobId) setJobId(result.jobId);
       } catch (err) {
-        clearSubmitTimeout();
-        setPending(false);
+        setPhase('failed');
         setState({
           status: 'error',
           message:
             err instanceof Error
               ? err.message
-              : 'Something went wrong while creating the bill. Please retry.',
+              : 'Something went wrong while creating the bill.',
         });
       }
     },
-    [clearSubmitTimeout, pending, router],
+    [isBusy, pollJobUntilDone, router],
   );
 
   const handleRetry = useCallback(() => {
-    setTimedOut(false);
+    requestIdRef.current = crypto.randomUUID();
+    setPhase('idle');
     setState(idle);
+    setJobId(null);
     formRef.current?.requestSubmit();
   }, []);
+
+  const buttonLabel =
+    phase === 'generating'
+      ? 'Generating…'
+      : phase === 'completed'
+        ? 'Completed'
+        : wizardMode
+          ? 'Generate & Next →'
+          : 'Generate electricity bills for room';
 
   return (
     <form
@@ -209,6 +311,13 @@ export function NewElectricityBillForm({
         </header>
       ) : null}
 
+      {phase === 'generating' ? (
+        <p className="rounded-md border border-sky-400/30 bg-sky-500/10 px-3 py-2 text-sm text-sky-100">
+          Generating bill{jobId ? ` (job ${jobId.slice(0, 8)}…)` : ''} — please wait. Do not
+          submit again.
+        </p>
+      ) : null}
+
       {wizardMode ? (
         <>
           <input type="hidden" name="wizardMode" value="1" />
@@ -224,6 +333,7 @@ export function NewElectricityBillForm({
             required
             value={pgId}
             onChange={(e) => setPgId(e.target.value)}
+            disabled={isBusy}
             className="apg-admin-field mt-1 block w-full rounded-lg border border-white/10 bg-[#12161D] px-3 py-2 text-sm text-white"
           >
             <option value="">— pick a PG —</option>
@@ -246,6 +356,7 @@ export function NewElectricityBillForm({
           required
           value={roomId}
           onChange={(e) => setRoomId(e.target.value)}
+          disabled={isBusy}
           className="apg-admin-field mt-1 block w-full rounded-lg border border-white/10 bg-[#12161D] px-3 py-2 text-sm text-white"
         >
           <option value="">— pick a room —</option>
@@ -270,6 +381,7 @@ export function NewElectricityBillForm({
           required
           value={billingMonth}
           onChange={(e) => setBillingMonth(e.target.value)}
+          disabled={isBusy}
           pattern="\d{4}-\d{2}-\d{2}"
           className="apg-admin-field mt-1 block w-full rounded-lg border border-white/10 bg-[#12161D] px-3 py-2 text-sm text-white"
         />
@@ -297,6 +409,7 @@ export function NewElectricityBillForm({
             value={prevReading}
             onChange={(e) => setPrevReading(e.target.value)}
             readOnly={wizardMode}
+            disabled={isBusy}
             className="apg-admin-field mt-1 block w-full rounded-lg border border-white/10 bg-[#12161D] px-3 py-2 text-sm text-white"
           />
           {loadingPrev ? (
@@ -319,6 +432,7 @@ export function NewElectricityBillForm({
             required
             value={currReading}
             onChange={(e) => setCurrReading(e.target.value)}
+            disabled={isBusy}
             className="apg-admin-field mt-1 block w-full rounded-lg border border-white/10 bg-[#12161D] px-3 py-2 text-sm text-white"
           />
         </label>
@@ -337,6 +451,7 @@ export function NewElectricityBillForm({
           required
           value={rateInr}
           onChange={(e) => setRateInr(e.target.value)}
+          disabled={isBusy}
           className="apg-admin-field mt-1 block w-full max-w-xs rounded-lg border border-white/10 bg-[#12161D] px-3 py-2 text-sm text-white"
         />
       </label>
@@ -388,6 +503,7 @@ export function NewElectricityBillForm({
         <textarea
           name="notes"
           rows={2}
+          disabled={isBusy}
           className="apg-admin-field mt-1 block w-full rounded-lg border border-white/10 bg-[#12161D] px-3 py-2 text-sm text-white"
         />
       </label>
@@ -395,14 +511,10 @@ export function NewElectricityBillForm({
 
       <button
         type="submit"
-        disabled={pending}
+        disabled={isBusy || phase === 'completed'}
         className="inline-flex w-full items-center justify-center rounded-lg bg-[#FF5A1F] px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50"
       >
-        {pending
-          ? 'Creating bill…'
-          : wizardMode
-            ? 'Generate & Next →'
-            : 'Generate electricity bills for room'}
+        {buttonLabel}
       </button>
 
       {state.status === 'error' ? (
@@ -413,9 +525,10 @@ export function NewElectricityBillForm({
           <button
             type="button"
             onClick={handleRetry}
-            className="inline-flex rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-white hover:bg-white/5"
+            disabled={isBusy}
+            className="inline-flex rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-white hover:bg-white/5 disabled:opacity-50"
           >
-            {timedOut ? 'Retry' : 'Try again'}
+            Try again with new request
           </button>
         </div>
       ) : state.status === 'duplicate' ? (
@@ -434,6 +547,13 @@ export function NewElectricityBillForm({
       ) : state.status === 'success' ? (
         <p className="rounded-md border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
           Bill created — opening details…
+        </p>
+      ) : null}
+
+      {phase === 'failed' ? (
+        <p className="text-xs text-apg-silver">
+          Status: <span className="font-medium text-rose-200">Failed</span>
+          {jobId ? ` · job ${jobId}` : ''}
         </p>
       ) : null}
     </form>

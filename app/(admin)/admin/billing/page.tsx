@@ -9,6 +9,7 @@ import { CollectionsActionQueue } from '@/src/components/admin/billing/Collectio
 import { CollectionsCommandCenter } from '@/src/components/admin/billing/CollectionsCommandCenter';
 import { ElectricityRoomsPendingPanel } from '@/src/components/admin/ElectricityRoomsPendingPanel';
 import { ElectricityBulkSendPanel } from '@/src/components/admin/ElectricityBulkSendPanel';
+import { ElectricityDuplicateWarningBanner } from '@/src/components/admin/electricity/ElectricityDuplicateWarningBanner';
 import { RentInvoicesBulkSendBar } from '@/src/components/admin/RentInvoicesBulkSendBar';
 import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import { FinancialRowActions } from '@/src/components/admin/FinancialRowActions';
@@ -177,6 +178,9 @@ export default async function CollectionsModulePage({
         title="Billing Center"
         description="Automatic rent generation, payment approvals, electricity bills, and collections."
       />
+      <div className="mb-4">
+        <ElectricityDuplicateWarningBanner />
+      </div>
       <div className="mb-4 flex flex-wrap gap-3">
         <Link
           href="/admin/billing/electricity/generate"

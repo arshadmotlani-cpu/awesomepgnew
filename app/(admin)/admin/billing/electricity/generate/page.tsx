@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
+import { ElectricityDuplicateWarningBanner } from '@/src/components/admin/electricity/ElectricityDuplicateWarningBanner';
 import { ElectricityWizardLauncher } from '@/src/components/admin/ElectricityWizardLauncher';
 import { ElectricityWizardProgress } from '@/src/components/admin/ElectricityWizardProgress';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
@@ -74,6 +75,9 @@ export default async function BillingElectricityGeneratePage({
         title="Generate electricity bill"
         description="Select a PG once, then enter only the current meter reading — room by room."
       />
+      <div className="mt-4">
+        <ElectricityDuplicateWarningBanner />
+      </div>
       <Link
         href={`/admin/billing?tab=electricity&month=${billingMonth.slice(0, 7)}`}
         className="text-xs font-medium text-[#FF5A1F] hover:underline"

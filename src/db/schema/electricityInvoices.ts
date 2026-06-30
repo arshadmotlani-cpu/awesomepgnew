@@ -17,6 +17,7 @@ import { customers } from './customers';
 import { electricityBills } from './electricityBills';
 import { electricityInvoiceStatusEnum } from './enums';
 import { payments } from './payments';
+import { rooms } from './rooms';
 
 /**
  * Per-resident slice of an electricity bill. One row per
@@ -38,6 +39,9 @@ export const electricityInvoices = pgTable(
     electricityBillId: uuid('electricity_bill_id')
       .notNull()
       .references(() => electricityBills.id, { onDelete: 'cascade' }),
+    roomId: uuid('room_id')
+      .notNull()
+      .references(() => rooms.id, { onDelete: 'restrict' }),
     bookingId: uuid('booking_id')
       .notNull()
       .references(() => bookings.id, { onDelete: 'restrict' }),
@@ -61,6 +65,8 @@ export const electricityInvoices = pgTable(
     unitsShare: numeric('units_share', { precision: 10, scale: 2 }),
     activeDays: integer('active_days'),
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    supersededByInvoiceId: uuid('superseded_by_invoice_id'),
+    duplicateDetectedAt: timestamp('duplicate_detected_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -74,6 +80,14 @@ export const electricityInvoices = pgTable(
     index('electricity_invoices_customer_idx').on(t.customerId),
     index('electricity_invoices_status_idx').on(t.status),
     index('electricity_invoices_bill_idx').on(t.electricityBillId),
+    index('electricity_invoices_room_month_customer_idx').on(
+      t.roomId,
+      t.billingMonth,
+      t.customerId,
+    ),
+    uniqueIndex('electricity_invoices_room_month_customer_active_unique')
+      .on(t.roomId, t.billingMonth, t.customerId)
+      .where(sql`${t.status} <> 'cancelled' AND ${t.supersededByInvoiceId} IS NULL`),
   ],
 );
 

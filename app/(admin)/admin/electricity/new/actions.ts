@@ -4,6 +4,11 @@ import { revalidatePath } from 'next/cache';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { logElectricityBillCreate } from '@/src/lib/billing/electricityBillCreateLog';
 import {
+  beginElectricityBillGenerationJob,
+  completeElectricityBillGenerationJob,
+} from '@/src/services/electricityBillGenerationJobs';
+import { findExistingElectricityBillForRoomMonth } from '@/src/services/electricityInvoiceDuplicates';
+import {
   createElectricityBill,
   listRoomsMissingElectricityBill,
   type RoomMissingElectricityRow,
@@ -11,9 +16,10 @@ import {
 
 export type ActionState =
   | { status: 'idle' }
-  | { status: 'error'; message: string }
-  | { status: 'duplicate'; existingBillId: string }
-  | { status: 'success'; billId: string; redirectTo: string };
+  | { status: 'processing'; jobId: string; requestId: string }
+  | { status: 'error'; message: string; jobId?: string }
+  | { status: 'duplicate'; existingBillId: string; jobId?: string }
+  | { status: 'success'; billId: string; redirectTo: string; jobId: string };
 
 function wizardRedirectUrl(
   billingMonth: string,
@@ -45,7 +51,8 @@ export async function createElectricityBillAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const requestId = crypto.randomUUID();
+  const requestId = String(formData.get('requestId') ?? crypto.randomUUID());
+  let activeJobId: string | null = null;
 
   try {
     const admin = await requireAdminPermission('electricity:write');
@@ -90,7 +97,64 @@ export async function createElectricityBillAction(
       return { status: 'error', message: 'Rate must be ≥ 0.' };
     }
 
-    logElectricityBillCreate('validation', { requestId, ok: true });
+    const existingBill = await findExistingElectricityBillForRoomMonth(roomId, billingMonth);
+    if (existingBill) {
+      logElectricityBillCreate('response_returned', {
+        requestId,
+        outcome: 'duplicate_precheck',
+        existingBillId: existingBill.id,
+      });
+      return { status: 'duplicate', existingBillId: existingBill.id };
+    }
+
+    const jobBegin = await beginElectricityBillGenerationJob({
+      requestId,
+      roomId,
+      billingMonth,
+      adminId: admin.adminId,
+    });
+
+    if (jobBegin.kind === 'replay' && jobBegin.job.status === 'running') {
+      return {
+        status: 'processing',
+        jobId: jobBegin.job.id,
+        requestId,
+      };
+    }
+
+    if (jobBegin.kind === 'replay' && jobBegin.job.status !== 'running') {
+      if (jobBegin.job.status === 'success' && jobBegin.job.billId) {
+        return {
+          status: 'success',
+          billId: jobBegin.job.billId,
+          redirectTo: `/admin/electricity/bills/${jobBegin.job.billId}`,
+          jobId: jobBegin.job.id,
+        };
+      }
+      if (jobBegin.job.status === 'duplicate' && jobBegin.job.billId) {
+        return { status: 'duplicate', existingBillId: jobBegin.job.billId, jobId: jobBegin.job.id };
+      }
+      if (jobBegin.job.status === 'failed') {
+        return {
+          status: 'error',
+          message: jobBegin.job.errorMessage ?? 'Previous generation attempt failed.',
+          jobId: jobBegin.job.id,
+        };
+      }
+    }
+
+    if (jobBegin.kind === 'already_running') {
+      return {
+        status: 'processing',
+        jobId: jobBegin.job.id,
+        requestId,
+      };
+    }
+
+    const jobId = jobBegin.job.id;
+    activeJobId = jobId;
+
+    logElectricityBillCreate('validation', { requestId, ok: true, jobId });
 
     const result = await createElectricityBill({
       roomId,
@@ -106,12 +170,18 @@ export async function createElectricityBillAction(
 
     if (!result.ok) {
       if (result.kind === 'already_exists') {
+        await completeElectricityBillGenerationJob({
+          jobId,
+          status: 'duplicate',
+          billId: result.existingBillId,
+        });
         logElectricityBillCreate('response_returned', {
           requestId,
           outcome: 'duplicate',
           existingBillId: result.existingBillId,
+          jobId,
         });
-        return { status: 'duplicate', existingBillId: result.existingBillId };
+        return { status: 'duplicate', existingBillId: result.existingBillId, jobId };
       }
       const message =
         result.kind === 'invalid_input'
@@ -119,12 +189,24 @@ export async function createElectricityBillAction(
           : result.kind === 'no_such_room'
             ? 'That room no longer exists.'
             : 'Failed to create bill.';
-      logElectricityBillCreate('failed', { requestId, kind: result.kind, message });
-      return { status: 'error', message };
+      await completeElectricityBillGenerationJob({
+        jobId,
+        status: 'failed',
+        errorMessage: message,
+      });
+      logElectricityBillCreate('failed', { requestId, kind: result.kind, message, jobId });
+      return { status: 'error', message, jobId };
     }
+
+    await completeElectricityBillGenerationJob({
+      jobId,
+      status: 'success',
+      billId: result.billId,
+    });
 
     revalidatePath('/admin/electricity');
     revalidatePath('/admin/billing');
+    revalidatePath('/admin/electricity/duplicates');
 
     const redirectTo =
       wizardMode && wizardPgId
@@ -142,16 +224,25 @@ export async function createElectricityBillAction(
       billId: result.billId,
       redirectTo,
       invoiceCount: result.invoiceIds.length,
+      jobId,
     });
 
-    return { status: 'success', billId: result.billId, redirectTo };
+    return { status: 'success', billId: result.billId, redirectTo, jobId };
   } catch (err) {
     const message =
       err instanceof Error ? err.message : 'Something went wrong while creating the bill.';
+    if (activeJobId) {
+      await completeElectricityBillGenerationJob({
+        jobId: activeJobId,
+        status: 'failed',
+        errorMessage: message,
+      }).catch(() => undefined);
+    }
     logElectricityBillCreate('failed', {
       requestId,
       message,
       stack: err instanceof Error ? err.stack : undefined,
+      jobId: activeJobId ?? undefined,
     });
     return {
       status: 'error',

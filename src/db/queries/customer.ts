@@ -1350,6 +1350,7 @@ export function listRentInvoicesForBooking(
 export type ElectricityInvoiceRow = {
   id: string;
   invoiceNumber: string;
+  roomId: string;
   bookingId: string;
   bookingCode: string;
   electricityBillId: string;
@@ -1380,6 +1381,7 @@ export function listElectricityInvoicesForBooking(
       .select({
         id: electricityInvoices.id,
         invoiceNumber: electricityInvoices.invoiceNumber,
+        roomId: electricityInvoices.roomId,
         bookingId: electricityInvoices.bookingId,
         bookingCode: bookings.bookingCode,
         electricityBillId: electricityInvoices.electricityBillId,
