@@ -57,6 +57,7 @@ import {
   applyCheckoutElectricityLedgerToBill,
   sumUnappliedCheckoutElectricityPaise,
 } from './electricitySettlementLedger';
+import { logElectricityBillCreate } from '../lib/billing/electricityBillCreateLog';
 
 const INVOICE_PREFIX = 'ELE';
 
@@ -79,6 +80,8 @@ export type CreateElectricityBillInput = {
   notes?: string | null;
   /** When true, split by active days in billing month (mid-month check-ins). */
   useProRataByActiveDays?: boolean;
+  /** Correlates structured logs across action + service. */
+  requestId?: string;
 };
 
 export type CreateElectricityBillResult =
@@ -236,6 +239,8 @@ async function nextElectricityInvoiceNumber(
 export async function createElectricityBill(
   input: CreateElectricityBillInput,
 ): Promise<CreateElectricityBillResult> {
+  const requestId = input.requestId ?? crypto.randomUUID();
+
   if (
     !Number.isFinite(input.previousReadingUnits) ||
     !Number.isFinite(input.currentReadingUnits)
@@ -279,6 +284,14 @@ export async function createElectricityBill(
     .where(eq(rooms.id, input.roomId))
     .limit(1);
   if (!room || !room.pgId) return { ok: false, kind: 'no_such_room' };
+
+  logElectricityBillCreate('room_resolved', {
+    requestId,
+    roomId: input.roomId,
+    pgId: room.pgId,
+    roomNumber: room.roomNumber,
+    prepaidCreditPaise: room.prepaidCreditPaise ?? 0,
+  });
 
   // 2. Find monthly residents currently occupying any bed in the room
   //    during the billing month.
@@ -390,6 +403,24 @@ export async function createElectricityBill(
   const checkoutCreditAppliedPaise = Math.min(checkoutCollectedPaise, afterPrepaidPaise);
   const netSplittablePaise = afterPrepaidPaise - checkoutCreditAppliedPaise;
 
+  logElectricityBillCreate('occupants_loaded', {
+    requestId,
+    monthlyOccupantCount: totalMonthlyBedShares,
+    bookingCount: byBooking.size,
+  });
+
+  logElectricityBillCreate('bill_calculated', {
+    requestId,
+    billingMonth,
+    unitsConsumed,
+    grossTotalPaise,
+    prepaidCreditAppliedPaise,
+    checkoutCollectedPaise,
+    checkoutCreditAppliedPaise,
+    netSplittablePaise,
+    useProRata: input.useProRataByActiveDays && totalWeight > 0,
+  });
+
   const useProRata = input.useProRataByActiveDays && totalWeight > 0;
   const bookingList = [...byBooking.values()];
   const equalSplit = splitElectricity({
@@ -422,6 +453,7 @@ export async function createElectricityBill(
   let prepaidCreditNote: string | null = null;
 
   try {
+    logElectricityBillCreate('transaction_started', { requestId });
     const result = await db.transaction(async (tx) => {
       if (prepaidCreditAppliedPaise > 0) {
         const [latestAdded] = await tx
@@ -459,6 +491,12 @@ export async function createElectricityBill(
           notes: input.notes ?? null,
         })
         .returning({ id: electricityBills.id });
+
+      logElectricityBillCreate('bill_inserted', {
+        requestId,
+        billId: bill.id,
+        grossTotalPaise,
+      });
 
       const invoiceIds: string[] = [];
       if (totalMonthlyBedShares > 0 && netSplittablePaise > 0) {
@@ -519,6 +557,12 @@ export async function createElectricityBill(
         }
       }
 
+      logElectricityBillCreate('invoices_created', {
+        requestId,
+        billId: bill.id,
+        invoiceCount: invoiceIds.length,
+      });
+
       if (prepaidCreditAppliedPaise > 0) {
         await tx
           .update(rooms)
@@ -544,6 +588,11 @@ export async function createElectricityBill(
           billingMonth,
           electricityBillId: bill.id,
           maxPaise: checkoutCreditAppliedPaise,
+        });
+        logElectricityBillCreate('ledger_applied', {
+          requestId,
+          billId: bill.id,
+          checkoutCreditAppliedPaise,
         });
       }
 
@@ -575,6 +624,12 @@ export async function createElectricityBill(
       return { billId: bill.id, invoiceIds };
     });
 
+    logElectricityBillCreate('transaction_committed', {
+      requestId,
+      billId: result.billId,
+      invoiceCount: result.invoiceIds.length,
+    });
+
     const { notifyElectricityReminder } = await import('@/src/lib/email/notifications');
     for (const n of pendingNotifications) {
       notifyElectricityReminder({
@@ -590,7 +645,17 @@ export async function createElectricityBill(
     }
 
     const { syncManyToUnified } = await import('@/src/services/unifiedInvoices');
-    await syncManyToUnified(result.invoiceIds, 'electricity');
+    void syncManyToUnified(result.invoiceIds, 'electricity').catch((syncErr) => {
+      logElectricityBillCreate('failed', {
+        requestId,
+        step: 'unified_sync_background',
+        message: syncErr instanceof Error ? syncErr.message : String(syncErr),
+      });
+    });
+    logElectricityBillCreate('unified_sync_scheduled', {
+      requestId,
+      invoiceCount: result.invoiceIds.length,
+    });
 
     return {
       ok: true,
@@ -608,6 +673,11 @@ export async function createElectricityBill(
       dueDate: dueDateIso,
     };
   } catch (err) {
+    logElectricityBillCreate('failed', {
+      requestId,
+      message: err instanceof Error ? err.message : String(err),
+      code: pgErrorCode(err),
+    });
     if (pgErrorCode(err) === '23505') {
       // Duplicate on (room_id, billing_month) → already-exists.
       const [existing] = await db

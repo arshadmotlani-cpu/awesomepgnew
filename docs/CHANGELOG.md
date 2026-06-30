@@ -256,28 +256,22 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-30 14:09:02 UTC
+### Pending pre-commit sync · 2026-06-30 15:34:23 UTC
 
-**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Vacating]]
+**Areas touched:** [[ROUTES]], [[Billing]], [[Electricity]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DATABASE.md` — review for accuracy
-- `DECISIONS.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (7):**
-- `app/(admin)/admin/checkout-settlements/actions.ts`
-- `src/db/migrations/0085_room_electricity_ledger.sql`
-- `src/db/migrations/meta/_journal.json`
-- `src/db/schema/index.ts`
-- `src/db/schema/roomElectricityLedger.ts`
-- `src/lib/billing/formatBillingMonth.ts`
-- `src/services/checkoutSettlement.ts`
+**Staged code files (3):**
+- `app/(admin)/admin/electricity/new/actions.ts`
+- `src/lib/billing/electricityBillCreateLog.ts`
+- `src/services/electricityBilling.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

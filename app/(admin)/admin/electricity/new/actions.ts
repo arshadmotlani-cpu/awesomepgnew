@@ -1,8 +1,8 @@
 'use server';
 
-import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
+import { logElectricityBillCreate } from '@/src/lib/billing/electricityBillCreateLog';
 import {
   createElectricityBill,
   listRoomsMissingElectricityBill,
@@ -12,7 +12,8 @@ import {
 export type ActionState =
   | { status: 'idle' }
   | { status: 'error'; message: string }
-  | { status: 'duplicate'; existingBillId: string };
+  | { status: 'duplicate'; existingBillId: string }
+  | { status: 'success'; billId: string; redirectTo: string };
 
 function wizardRedirectUrl(
   billingMonth: string,
@@ -44,69 +45,119 @@ export async function createElectricityBillAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  let admin;
+  const requestId = crypto.randomUUID();
+
   try {
-    admin = await requireAdminPermission('electricity:write');
+    const admin = await requireAdminPermission('electricity:write');
+
+    const roomId = String(formData.get('roomId') ?? '');
+    const billingMonth = String(formData.get('billingMonth') ?? '');
+    const previousReadingUnits = Number(formData.get('previousReadingUnits') ?? '');
+    const currentReadingUnits = Number(formData.get('currentReadingUnits') ?? '');
+    const ratePerUnitInr = Number(formData.get('ratePerUnitInr') ?? '');
+    const notes = String(formData.get('notes') ?? '');
+    const wizardMode = formData.get('wizardMode') === '1';
+    const wizardPgId = String(formData.get('wizardPgId') ?? '');
+
+    logElectricityBillCreate('request_received', {
+      requestId,
+      adminId: admin.adminId,
+      roomId,
+      billingMonth,
+      previousReadingUnits,
+      currentReadingUnits,
+      ratePerUnitInr,
+      wizardMode,
+    });
+
+    if (!roomId) return { status: 'error', message: 'Pick a room.' };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(billingMonth)) {
+      return { status: 'error', message: 'Billing month must be YYYY-MM-01.' };
+    }
+    if (!Number.isFinite(previousReadingUnits) || previousReadingUnits < 0) {
+      return { status: 'error', message: 'Previous reading must be ≥ 0.' };
+    }
+    if (!Number.isFinite(currentReadingUnits) || currentReadingUnits < 0) {
+      return { status: 'error', message: 'Current reading must be ≥ 0.' };
+    }
+    if (currentReadingUnits < previousReadingUnits) {
+      return {
+        status: 'error',
+        message: 'Current reading must be ≥ previous reading.',
+      };
+    }
+    if (!Number.isFinite(ratePerUnitInr) || ratePerUnitInr < 0) {
+      return { status: 'error', message: 'Rate must be ≥ 0.' };
+    }
+
+    logElectricityBillCreate('validation', { requestId, ok: true });
+
+    const result = await createElectricityBill({
+      roomId,
+      billingMonth,
+      previousReadingUnits,
+      currentReadingUnits,
+      ratePerUnitPaise: Math.round(ratePerUnitInr * 100),
+      notes: notes || null,
+      createdByAdminId: admin.adminId,
+      useProRataByActiveDays: true,
+      requestId,
+    });
+
+    if (!result.ok) {
+      if (result.kind === 'already_exists') {
+        logElectricityBillCreate('response_returned', {
+          requestId,
+          outcome: 'duplicate',
+          existingBillId: result.existingBillId,
+        });
+        return { status: 'duplicate', existingBillId: result.existingBillId };
+      }
+      const message =
+        result.kind === 'invalid_input'
+          ? result.message
+          : result.kind === 'no_such_room'
+            ? 'That room no longer exists.'
+            : 'Failed to create bill.';
+      logElectricityBillCreate('failed', { requestId, kind: result.kind, message });
+      return { status: 'error', message };
+    }
+
+    revalidatePath('/admin/electricity');
+    revalidatePath('/admin/billing');
+
+    const redirectTo =
+      wizardMode && wizardPgId
+        ? wizardRedirectUrl(
+            billingMonth,
+            wizardPgId,
+            roomId,
+            await listRoomsMissingElectricityBill(billingMonth),
+          )
+        : `/admin/electricity/bills/${result.billId}`;
+
+    logElectricityBillCreate('response_returned', {
+      requestId,
+      outcome: 'success',
+      billId: result.billId,
+      redirectTo,
+      invoiceCount: result.invoiceIds.length,
+    });
+
+    return { status: 'success', billId: result.billId, redirectTo };
   } catch (err) {
+    const message =
+      err instanceof Error ? err.message : 'Something went wrong while creating the bill.';
+    logElectricityBillCreate('failed', {
+      requestId,
+      message,
+      stack: err instanceof Error ? err.stack : undefined,
+    });
     return {
       status: 'error',
-      message: err instanceof Error ? err.message : 'Permission denied.',
+      message: message.includes('NEXT_REDIRECT')
+        ? 'Bill may have been created but navigation failed. Check electricity bills and retry if needed.'
+        : message,
     };
   }
-
-  const roomId = String(formData.get('roomId') ?? '');
-  const billingMonth = String(formData.get('billingMonth') ?? '');
-  const previousReadingUnits = Number(formData.get('previousReadingUnits') ?? '');
-  const currentReadingUnits = Number(formData.get('currentReadingUnits') ?? '');
-  const ratePerUnitInr = Number(formData.get('ratePerUnitInr') ?? '');
-  const notes = String(formData.get('notes') ?? '');
-  const wizardMode = formData.get('wizardMode') === '1';
-  const wizardPgId = String(formData.get('wizardPgId') ?? '');
-
-  if (!roomId) return { status: 'error', message: 'Pick a room.' };
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(billingMonth))
-    return { status: 'error', message: 'Billing month must be YYYY-MM-01.' };
-  if (!Number.isFinite(previousReadingUnits) || previousReadingUnits < 0)
-    return { status: 'error', message: 'Previous reading must be ≥ 0.' };
-  if (!Number.isFinite(currentReadingUnits) || currentReadingUnits < 0)
-    return { status: 'error', message: 'Current reading must be ≥ 0.' };
-  if (currentReadingUnits < previousReadingUnits)
-    return {
-      status: 'error',
-      message: 'Current reading must be ≥ previous reading.',
-    };
-  if (!Number.isFinite(ratePerUnitInr) || ratePerUnitInr < 0)
-    return { status: 'error', message: 'Rate must be ≥ 0.' };
-
-  const result = await createElectricityBill({
-    roomId,
-    billingMonth,
-    previousReadingUnits,
-    currentReadingUnits,
-    ratePerUnitPaise: Math.round(ratePerUnitInr * 100),
-    notes: notes || null,
-    createdByAdminId: admin.adminId,
-    useProRataByActiveDays: true,
-  });
-  if (!result.ok) {
-    if (result.kind === 'already_exists') {
-      return { status: 'duplicate', existingBillId: result.existingBillId };
-    }
-    if (result.kind === 'invalid_input') {
-      return { status: 'error', message: result.message };
-    }
-    if (result.kind === 'no_such_room') {
-      return { status: 'error', message: 'That room no longer exists.' };
-    }
-    return { status: 'error', message: 'Failed to create bill.' };
-  }
-  revalidatePath('/admin/electricity');
-  revalidatePath('/admin/billing');
-
-  if (wizardMode && wizardPgId) {
-    const missing = await listRoomsMissingElectricityBill(billingMonth);
-    redirect(wizardRedirectUrl(billingMonth, wizardPgId, roomId, missing));
-  }
-
-  redirect('/admin/billing?tab=electricity');
 }

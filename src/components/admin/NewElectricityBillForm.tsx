@@ -1,6 +1,7 @@
 'use client';
 
-import { useActionState, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   createElectricityBillAction,
   type ActionState,
@@ -11,6 +12,7 @@ import { paiseToInr } from '@/src/lib/format';
 import { ElectricityCheckoutReconciliationPreview } from '@/src/components/admin/electricity/ElectricityCheckoutReconciliationPreview';
 
 const idle: ActionState = { status: 'idle' };
+const SUBMIT_TIMEOUT_MS = 15_000;
 
 export function NewElectricityBillForm({
   rooms,
@@ -33,6 +35,10 @@ export function NewElectricityBillForm({
   wizardRoomLabel?: string;
   wizardProgress?: string;
 }) {
+  const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const pgOptions = useMemo(() => {
     const map = new Map<string, string>();
     for (const r of rooms) map.set(r.pgId, r.pgName);
@@ -47,7 +53,9 @@ export function NewElectricityBillForm({
     [rooms, pgId],
   );
 
-  const [state, action, pending] = useActionState(createElectricityBillAction, idle);
+  const [state, setState] = useState<ActionState>(idle);
+  const [pending, setPending] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
   const [prevReading, setPrevReading] = useState<string>('');
   const [currReading, setCurrReading] = useState<string>('');
   const [rateInr, setRateInr] = useState<string>(
@@ -119,9 +127,74 @@ export function NewElectricityBillForm({
     );
   }, [prevReading, currReading]);
 
+  const clearSubmitTimeout = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => () => clearSubmitTimeout(), [clearSubmitTimeout]);
+
+  const handleSubmit = useCallback(
+    async (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      if (pending) return;
+
+      setTimedOut(false);
+      setPending(true);
+      setState(idle);
+      clearSubmitTimeout();
+
+      timeoutRef.current = setTimeout(() => {
+        setPending(false);
+        setTimedOut(true);
+        setState({
+          status: 'error',
+          message:
+            'Request timed out after 15 seconds. The bill may still be processing — check electricity bills before retrying.',
+        });
+      }, SUBMIT_TIMEOUT_MS);
+
+      try {
+        const formData = new FormData(event.currentTarget);
+        const result = await createElectricityBillAction(idle, formData);
+        clearSubmitTimeout();
+
+        if (result.status === 'success') {
+          setPending(false);
+          setState(result);
+          router.push(result.redirectTo);
+          return;
+        }
+
+        setPending(false);
+        setState(result);
+      } catch (err) {
+        clearSubmitTimeout();
+        setPending(false);
+        setState({
+          status: 'error',
+          message:
+            err instanceof Error
+              ? err.message
+              : 'Something went wrong while creating the bill. Please retry.',
+        });
+      }
+    },
+    [clearSubmitTimeout, pending, router],
+  );
+
+  const handleRetry = useCallback(() => {
+    setTimedOut(false);
+    setState(idle);
+    formRef.current?.requestSubmit();
+  }, []);
+
   return (
     <form
-      action={action}
+      ref={formRef}
+      onSubmit={(e) => void handleSubmit(e)}
       className="space-y-4 rounded-xl border border-white/10 bg-[#1A1F27] p-5"
     >
       {wizardMode && wizardRoomLabel ? (
@@ -333,12 +406,34 @@ export function NewElectricityBillForm({
       </button>
 
       {state.status === 'error' ? (
-        <p className="rounded-md border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
-          {state.message}
-        </p>
+        <div className="space-y-2">
+          <p className="rounded-md border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+            {state.message}
+          </p>
+          <button
+            type="button"
+            onClick={handleRetry}
+            className="inline-flex rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-white hover:bg-white/5"
+          >
+            {timedOut ? 'Retry' : 'Try again'}
+          </button>
+        </div>
       ) : state.status === 'duplicate' ? (
-        <p className="rounded-md border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
-          A bill for this room + month already exists.
+        <div className="space-y-2">
+          <p className="rounded-md border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+            A bill for this room + month already exists.
+          </p>
+          <button
+            type="button"
+            onClick={() => router.push(`/admin/electricity/bills/${state.existingBillId}`)}
+            className="inline-flex rounded-lg border border-amber-400/40 px-4 py-2 text-sm font-medium text-amber-100 hover:bg-amber-500/10"
+          >
+            View existing bill
+          </button>
+        </div>
+      ) : state.status === 'success' ? (
+        <p className="rounded-md border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
+          Bill created — opening details…
         </p>
       ) : null}
     </form>
