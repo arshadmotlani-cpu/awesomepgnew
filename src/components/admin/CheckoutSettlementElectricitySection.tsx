@@ -209,11 +209,15 @@ export function CheckoutSettlementElectricitySection({
     : detail.electricityTotalBillPaise;
   const timelineSharePaise = timelineAllocation?.currentResidentSharePaise;
   const previewSharePaise =
-    timelineSharePaise != null
-      ? timelineSharePaise
-      : live?.ok
+    method === 'manual_amount'
+      ? live?.ok
         ? live.calc.sharePaise
-        : detail.electricitySharePaise;
+        : detail.manualChargePaise ?? detail.electricitySharePaise
+      : timelineSharePaise != null
+        ? timelineSharePaise
+        : live?.ok
+          ? live.calc.sharePaise
+          : detail.electricitySharePaise;
   const electricityDeductionPaise = deductFromDeposit ? previewSharePaise : 0;
   const unitsConsumed =
     live?.ok && live.calc.unitsConsumed != null

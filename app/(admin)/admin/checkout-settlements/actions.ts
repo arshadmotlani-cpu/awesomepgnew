@@ -42,7 +42,6 @@ export async function approveCheckoutSettlementAction(
   const cleaningInr = Number(formData.get('cleaningChargeInr') ?? 0);
   const customInr = Number(formData.get('customChargeInr') ?? 0);
   const customLabel = String(formData.get('customChargeLabel') ?? '').trim();
-  const skipElectricityShare = formData.get('skipElectricityShare') === 'yes';
 
   if (Number.isFinite(noticeDeductionInr) && noticeDeductionInr >= 0) {
     await updateCheckoutSettlementAdminFields({
@@ -52,13 +51,6 @@ export async function approveCheckoutSettlementAction(
       cleaningChargePaise: Math.round(cleaningInr * 100),
       customChargePaise: Math.round(customInr * 100),
       customChargeLabel: customLabel || null,
-      ...(skipElectricityShare
-        ? {}
-        : {
-            electricitySharePaise: Math.round(
-              Number(formData.get('electricityShareInr') ?? 0) * 100,
-            ),
-          }),
     });
   }
 
@@ -139,7 +131,6 @@ export async function updateCheckoutSettlementFieldsAction(
   const cleaningInr = Number(formData.get('cleaningChargeInr') ?? 0);
   const customInr = Number(formData.get('customChargeInr') ?? 0);
   const customLabel = String(formData.get('customChargeLabel') ?? '').trim();
-  const electricityInr = Number(formData.get('electricityShareInr') ?? 0);
 
   const result = await updateCheckoutSettlementAdminFields({
     settlementId,
@@ -148,7 +139,6 @@ export async function updateCheckoutSettlementFieldsAction(
     cleaningChargePaise: Math.round(cleaningInr * 100),
     customChargePaise: Math.round(customInr * 100),
     customChargeLabel: customLabel || null,
-    electricitySharePaise: Math.round(electricityInr * 100),
   });
   if (!result.ok) {
     return { status: 'error', message: result.error };

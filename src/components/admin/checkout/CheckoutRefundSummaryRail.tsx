@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { useState } from 'react';
 import { resolveBlobImageDisplaySrc } from '@/src/lib/storage/blobImageDisplay';
 import { paiseToInr } from '@/src/lib/format';
+import { formatBillingMonthLabel } from '@/src/lib/billing/formatBillingMonth';
 import type { CheckoutSettlementImageEvidence } from '@/src/lib/checkout/checkoutSettlementImages';
 import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement';
 
@@ -66,6 +67,33 @@ export function CheckoutRefundSummaryRail({
           value={`−${paiseToInr(preview.electricityDeductFromDeposit ? electricityDeduction : 0)}`}
           muted
         />
+        {preview.electricityDeductFromDeposit && electricityDeduction > 0 ? (
+          <div className="rounded-2xl bg-white/[0.03] px-3 py-3 text-xs text-apg-silver">
+            <p>
+              This amount will automatically be credited toward this room&apos;s electricity bill
+              {detail.roomElectricityLedger
+                ? ` for ${formatBillingMonthLabel(detail.roomElectricityLedger.billingMonth)}`
+                : ''}
+              .
+            </p>
+            {detail.roomElectricityLedger ? (
+              <dl className="mt-3 space-y-1.5">
+                <div className="flex justify-between gap-3">
+                  <dt>Room electricity collected</dt>
+                  <dd className="font-medium text-white">
+                    {paiseToInr(detail.roomElectricityLedger.collectedPaise)}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <dt>Remaining</dt>
+                  <dd className="font-medium text-white">
+                    {paiseToInr(detail.roomElectricityLedger.remainingPaise)}
+                  </dd>
+                </div>
+              </dl>
+            ) : null}
+          </div>
+        ) : null}
         <SummaryRow
           label="Damage"
           value={`−${paiseToInr(damagePaise)}`}

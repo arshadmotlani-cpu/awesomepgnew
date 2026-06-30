@@ -13,6 +13,7 @@ import {
   vacatingRequests,
 } from '@/src/db/schema';
 import { formatDate, parseDate } from '@/src/lib/dates';
+import { resolveCheckoutElectricityDeductionPaise } from '@/src/lib/checkout/electricitySettlementCalc';
 import { firstOfMonth, monthBounds } from '@/src/services/billing';
 import type { CheckoutSettlement } from '@/src/db/schema/checkoutSettlements';
 import type { DateLike } from '@/src/lib/dates';
@@ -95,8 +96,8 @@ export async function recordCheckoutElectricityLedgerEntry(input: {
   roomId: string;
 }): Promise<void> {
   const { settlement, vacatingDate, roomId } = input;
-  if (settlement.electricitySharePaise <= 0) return;
-  if (settlement.electricityDeductFromDeposit === false) return;
+  const amountPaise = resolveCheckoutElectricityDeductionPaise(settlement);
+  if (amountPaise <= 0) return;
 
   const billingMonth = billingMonthFromVacatingDate(vacatingDate);
   const stayPeriod = await resolveStayPeriodForBookingMonth(settlement.bookingId, billingMonth);
@@ -112,7 +113,7 @@ export async function recordCheckoutElectricityLedgerEntry(input: {
       stayPeriodStart: stayPeriod.start,
       stayPeriodEnd: stayPeriod.end,
       units: settlement.electricityUnits,
-      amountPaise: settlement.electricitySharePaise,
+      amountPaise,
       status: 'collected',
     })
     .onConflictDoNothing({ target: electricitySettlementLedger.checkoutSettlementId });

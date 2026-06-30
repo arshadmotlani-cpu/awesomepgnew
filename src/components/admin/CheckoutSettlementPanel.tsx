@@ -240,18 +240,6 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
         >
           <input type="hidden" name="settlementId" value={detail.id} />
           <input type="hidden" name="noticeDeductionInr" value={(detail.noticeDeductionPaise / 100).toFixed(2)} />
-          <input
-            type="hidden"
-            name="skipElectricityShare"
-            value={preview.electricityDeductFromDeposit ? 'no' : 'yes'}
-          />
-          {preview.electricityDeductFromDeposit ? (
-            <input
-              type="hidden"
-              name="electricityShareInr"
-              value={(preview.electricityDeductionPaise / 100).toFixed(2)}
-            />
-          ) : null}
           <input type="hidden" name="damageChargeInr" value={(detail.damageChargePaise / 100).toFixed(2)} />
           <input type="hidden" name="cleaningChargeInr" value={(detail.cleaningChargePaise / 100).toFixed(2)} />
           <input type="hidden" name="customChargeInr" value={(detail.customChargePaise / 100).toFixed(2)} />

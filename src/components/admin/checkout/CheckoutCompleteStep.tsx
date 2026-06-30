@@ -9,6 +9,7 @@ import {
   type CheckoutSettlementActionState,
 } from '@/app/(admin)/admin/checkout-settlements/actions';
 import { CheckoutPaymentPanel } from '@/src/components/admin/checkout/CheckoutPaymentPanel';
+import { useCheckoutElectricityDraft } from '@/src/components/admin/checkout/CheckoutElectricityDraftContext';
 import { CheckoutRefundReceiptFromDetail } from '@/src/components/admin/checkout/CheckoutRefundReceipt';
 import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement';
 
@@ -41,6 +42,20 @@ export function CheckoutCompleteStep({
 }) {
   const router = useRouter();
   const preview = detail.preview;
+  const { livePreview } = useCheckoutElectricityDraft();
+  const electricityDeductionPaise =
+    livePreview?.electricityDeductionPaise ?? preview.electricityDeductionPaise;
+  const finalRefundPaise =
+    livePreview?.electricityDeductionPaise != null
+      ? Math.max(
+          0,
+          detail.depositRefundablePaise -
+            preview.noticeDeductionPaise -
+            (preview.electricityDeductFromDeposit ? electricityDeductionPaise : 0) -
+            (preview.damageChargePaise ?? 0) -
+            ((preview.cleaningChargePaise ?? 0) + (preview.customChargePaise ?? 0)),
+        )
+      : preview.finalRefundPaise;
   const isFinished =
     detail.status === 'completed' ||
     detail.status === 'refund_paid' ||
@@ -65,10 +80,6 @@ export function CheckoutCompleteStep({
     const fd = new FormData();
     fd.set('settlementId', detail.id);
     fd.set('noticeDeductionInr', (detail.noticeDeductionPaise / 100).toFixed(2));
-    fd.set('skipElectricityShare', preview.electricityDeductFromDeposit ? 'no' : 'yes');
-    if (preview.electricityDeductFromDeposit) {
-      fd.set('electricityShareInr', (preview.electricityDeductionPaise / 100).toFixed(2));
-    }
     fd.set('damageChargeInr', (detail.damageChargePaise / 100).toFixed(2));
     fd.set('cleaningChargeInr', (detail.cleaningChargePaise / 100).toFixed(2));
     fd.set('customChargeInr', (detail.customChargePaise / 100).toFixed(2));
@@ -139,7 +150,7 @@ export function CheckoutCompleteStep({
     <div className="space-y-8">
       {needsPaymentConfirm ? (
         <CheckoutPaymentPanel
-          refundPaise={preview.finalRefundPaise}
+          refundPaise={finalRefundPaise}
           upiId={detail.payoutUpiId}
           evidence={detail.refundQrEvidence}
           customerName={detail.customerName}

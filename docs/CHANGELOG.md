@@ -256,23 +256,27 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-30 11:46:55 UTC
+### Pending pre-commit sync · 2026-06-30 14:09:02 UTC
 
-**Areas touched:** [[ROUTES]], [[Residents]], [[Vacating]]
+**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Vacating]]
 
 **Docs flagged for review:**
+- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
+- `DATABASE.md` — review for accuracy
 - `DECISIONS.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (5):**
-- `app/api/admin/checkout-settlements/[id]/room-electricity-preview/route.ts`
-- `src/lib/residents/residentLifecycleState.ts`
-- `src/lib/residents/residentOperationsDashboard.ts`
-- `src/lib/residents/residentOperationsResidentsView.ts`
+**Staged code files (7):**
+- `app/(admin)/admin/checkout-settlements/actions.ts`
+- `src/db/migrations/0085_room_electricity_ledger.sql`
+- `src/db/migrations/meta/_journal.json`
+- `src/db/schema/index.ts`
+- `src/db/schema/roomElectricityLedger.ts`
+- `src/lib/billing/formatBillingMonth.ts`
 - `src/services/checkoutSettlement.ts`
 
 **Changed:**

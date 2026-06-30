@@ -568,6 +568,13 @@
       "when": 1790200000000,
       "tag": "0084_electricity_settlement_ledger",
       "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1790300000000,
+      "tag": "0085_room_electricity_ledger",
+      "breakpoints": true
     }
   ]
 }

@@ -6,6 +6,10 @@ import {
   CheckoutSettlementElectricitySection,
   type ElectricityLivePreview,
 } from '@/src/components/admin/CheckoutSettlementElectricitySection';
+import {
+  CheckoutElectricityDraftProvider,
+  useCheckoutElectricityDraft,
+} from '@/src/components/admin/checkout/CheckoutElectricityDraftContext';
 import { CheckoutCompleteStep } from '@/src/components/admin/checkout/CheckoutCompleteStep';
 import { CheckoutJourneyTimeline } from '@/src/components/admin/checkout/CheckoutJourneyTimeline';
 import { CheckoutRefundSummaryRail } from '@/src/components/admin/checkout/CheckoutRefundSummaryRail';
@@ -37,6 +41,14 @@ function submissionTime(detail: CheckoutSettlementDetail): string {
 }
 
 export function CheckoutSettlementWizard({ detail }: { detail: CheckoutSettlementDetail }) {
+  return (
+    <CheckoutElectricityDraftProvider>
+      <CheckoutSettlementWizardInner detail={detail} />
+    </CheckoutElectricityDraftProvider>
+  );
+}
+
+function CheckoutSettlementWizardInner({ detail }: { detail: CheckoutSettlementDetail }) {
   const readiness = assessCheckoutSettlementReadiness(detail);
   const preview = detail.preview;
   const zeroRefund = preview.finalRefundPaise <= 0;
@@ -51,10 +63,14 @@ export function CheckoutSettlementWizard({ detail }: { detail: CheckoutSettlemen
     detail.status === 'completed' || detail.status === 'refund_paid' || (detail.amountsLocked && zeroRefund);
 
   const [step, setStep] = useState<WizardStep>(() => wizardStepFromDetail(detail));
-  const [liveElectricity, setLiveElectricity] = useState<ElectricityLivePreview | null>(null);
-  const handleLivePreviewChange = useCallback((preview: ElectricityLivePreview | null) => {
-    setLiveElectricity(preview);
-  }, []);
+  const { livePreview: liveElectricity, setLivePreview: setLiveElectricity } =
+    useCheckoutElectricityDraft();
+  const handleLivePreviewChange = useCallback(
+    (preview: ElectricityLivePreview | null) => {
+      setLiveElectricity(preview);
+    },
+    [setLiveElectricity],
+  );
 
   const steps = useMemo(() => {
     if (waitingResident) return [1] as WizardStep[];

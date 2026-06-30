@@ -120,3 +120,32 @@ export function calculateManualElectricityCharge(input: {
 export function defaultElectricityRatePaise(): number {
   return DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE;
 }
+
+/** Fields required to resolve checkout electricity share from persisted settlement state. */
+export type CheckoutElectricityResolutionInput = {
+  electricityCalculationMethod: ElectricityCalculationMethod | string;
+  electricitySharePaise: number;
+  manualChargePaise?: number | null;
+  electricityDeductFromDeposit?: boolean;
+};
+
+/**
+ * Single source of truth for resident electricity share at checkout.
+ * For manual_amount, manualChargePaise always wins over electricity_share_paise.
+ */
+export function resolveCheckoutElectricitySharePaise(
+  row: CheckoutElectricityResolutionInput,
+): number {
+  if (row.electricityCalculationMethod === 'manual_amount') {
+    return asPlainNumber(row.manualChargePaise ?? 0);
+  }
+  return asPlainNumber(row.electricitySharePaise);
+}
+
+/** Deposit deduction amount — zero when admin chose not to deduct from deposit. */
+export function resolveCheckoutElectricityDeductionPaise(
+  row: CheckoutElectricityResolutionInput,
+): number {
+  if (row.electricityDeductFromDeposit === false) return 0;
+  return resolveCheckoutElectricitySharePaise(row);
+}
