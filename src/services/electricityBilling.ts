@@ -47,17 +47,16 @@ import {
   electricityDueDate,
   firstOfMonth,
   monthBounds,
-  splitElectricity,
-  splitElectricityWeighted,
 } from './billing';
 import type { ElectricityInvoice } from '../db/schema';
 import type { AnyPaymentProvider } from './bookingLifecycle';
 import type { ProviderName } from './payments';
 import {
-  applyCheckoutElectricityLedgerToBill,
-  sumUnappliedCheckoutElectricityPaise,
+  listCheckoutElectricityLedgerForRoomMonth,
 } from './electricitySettlementLedger';
 import { logElectricityBillCreate } from '../lib/billing/electricityBillCreateLog';
+import { allocateMonthlyElectricityInvoices } from '../lib/billing/roomElectricityMonthlyAllocation';
+import { syncRoomElectricityLedgerCycleFromBillInTx, recordMonthlyInvoiceCollectionInTx } from './roomElectricityLedger';
 
 const INVOICE_PREFIX = 'ELE';
 
@@ -341,9 +340,8 @@ export async function createElectricityBill(
     .where(
       and(
         eq(beds.roomId, input.roomId),
-        eq(bookings.status, 'confirmed'),
+        inArray(bookings.status, ['confirmed', 'completed']),
         inArray(bookings.durationMode, ['monthly', 'open_ended']),
-        sql`bed_reservations.status = 'active'`,
         sql`bed_reservations.kind = 'primary'`,
         sql`bed_reservations.stay_range && daterange(${monthStartIso}::date, ${monthEndIso}::date, '[)')`,
       ),
@@ -382,31 +380,50 @@ export async function createElectricityBill(
       });
     }
   }
-  const totalMonthlyBedShares = [...byBooking.values()].reduce(
+  const totalOccupantsAll = [...byBooking.values()].reduce(
     (acc, b) => acc + b.bedIds.size,
     0,
   );
   const totalWeight = [...byBooking.values()].reduce((acc, b) => acc + b.weight, 0);
 
-  // Gross meter total in paise. Offline prepaid credit is deducted before
-  // splitting among current monthly residents.
-  const grossTotalPaise = Math.round(unitsConsumed * input.ratePerUnitPaise);
-  const prepaidCreditAppliedPaise = Math.min(
-    room.prepaidCreditPaise ?? 0,
-    grossTotalPaise,
-  );
-  const afterPrepaidPaise = grossTotalPaise - prepaidCreditAppliedPaise;
-  const checkoutCollectedPaise = await sumUnappliedCheckoutElectricityPaise(
+  const checkoutLedgerRows = await listCheckoutElectricityLedgerForRoomMonth(
     input.roomId,
     billingMonth,
+    { status: 'collected' },
   );
-  const checkoutCreditAppliedPaise = Math.min(checkoutCollectedPaise, afterPrepaidPaise);
-  const netSplittablePaise = afterPrepaidPaise - checkoutCreditAppliedPaise;
+  const checkoutCollectedByCustomerId = new Map<string, number>();
+  for (const row of checkoutLedgerRows) {
+    const prev = checkoutCollectedByCustomerId.get(row.customerId) ?? 0;
+    checkoutCollectedByCustomerId.set(row.customerId, prev + row.amountPaise);
+  }
+
+  const grossTotalPaise = Math.round(unitsConsumed * input.ratePerUnitPaise);
+  const allocation = allocateMonthlyElectricityInvoices({
+    grossTotalPaise,
+    prepaidCreditPaise: room.prepaidCreditPaise ?? 0,
+    occupants: [...byBooking.values()].map((bk) => ({
+      bookingId: bk.bookingId,
+      customerId: bk.customerId,
+      bedCount: bk.bedIds.size,
+      weight: bk.weight,
+    })),
+    checkoutCollectedByCustomerId,
+    useProRata: Boolean(input.useProRataByActiveDays && totalWeight > 0),
+  });
+
+  const prepaidCreditAppliedPaise = allocation.prepaidCreditAppliedPaise;
+  const checkoutCreditAppliedPaise = allocation.checkoutCreditAppliedPaise;
+  const netSplittablePaise = allocation.netSplittablePaise;
+  const perResidentPaise = allocation.perResidentPaise;
+  const remainderPaise = allocation.remainderPaise;
+  const billableOccupantCount = allocation.billableOccupantCount;
 
   logElectricityBillCreate('occupants_loaded', {
     requestId,
-    monthlyOccupantCount: totalMonthlyBedShares,
+    monthlyOccupantCount: totalOccupantsAll,
+    billableOccupantCount,
     bookingCount: byBooking.size,
+    checkoutPayerCount: checkoutCollectedByCustomerId.size,
   });
 
   logElectricityBillCreate('bill_calculated', {
@@ -415,28 +432,19 @@ export async function createElectricityBill(
     unitsConsumed,
     grossTotalPaise,
     prepaidCreditAppliedPaise,
-    checkoutCollectedPaise,
+    checkoutCollectedPaise: checkoutCreditAppliedPaise,
     checkoutCreditAppliedPaise,
     netSplittablePaise,
     useProRata: input.useProRataByActiveDays && totalWeight > 0,
+    excludedCheckoutResidents: allocation.invoices.filter((i) => i.excludedBecauseCheckoutPaid).length,
   });
 
   const useProRata = input.useProRataByActiveDays && totalWeight > 0;
-  const bookingList = [...byBooking.values()];
-  const equalSplit = splitElectricity({
-    totalPaise: netSplittablePaise,
-    occupantCount: totalMonthlyBedShares,
-  });
-  const weightedShares = useProRata
-    ? splitElectricityWeighted({
-        totalPaise: netSplittablePaise,
-        weights: bookingList.map((b) => b.weight),
-      })
-    : null;
-  const perResidentPaise = useProRata ? 0 : equalSplit.perResidentPaise;
-  const remainderPaise = useProRata
-    ? weightedShares!.remainderPaise
-    : equalSplit.remainderPaise;
+  const invoiceAllocationByBooking = new Map(
+    allocation.invoices
+      .filter((line) => !line.excludedBecauseCheckoutPaid && line.amountPaise > 0)
+      .map((line) => [line.bookingId, line.amountPaise]),
+  );
 
   // Invoice due date = bill issuance date + 3 days. We pick the date
   // once here (not per-invoice) so every invoice in the fan-out shares
@@ -481,7 +489,7 @@ export async function createElectricityBill(
           unitsConsumed: unitsConsumed.toString(),
           ratePerUnitPaise: input.ratePerUnitPaise,
           totalPaise: grossTotalPaise,
-          monthlyOccupantCount: totalMonthlyBedShares,
+          monthlyOccupantCount: totalOccupantsAll,
           perResidentPaise,
           roundingRemainderPaise: remainderPaise,
           prepaidCreditAppliedPaise,
@@ -499,20 +507,17 @@ export async function createElectricityBill(
       });
 
       const invoiceIds: string[] = [];
-      if (totalMonthlyBedShares > 0 && netSplittablePaise > 0) {
-        let bookingIdx = 0;
+      if (invoiceAllocationByBooking.size > 0 && netSplittablePaise > 0) {
         for (const bk of byBooking.values()) {
-          const amount = useProRata
-            ? weightedShares!.shares[bookingIdx]
-            : perResidentPaise * bk.bedIds.size;
+          const amount = invoiceAllocationByBooking.get(bk.bookingId);
+          if (amount == null || amount <= 0) continue;
+
           const unitsShare = useProRata
             ? roundToHundredth((unitsConsumed * bk.weight) / totalWeight)
             : roundToHundredth(
-                (unitsConsumed * bk.bedIds.size) / totalMonthlyBedShares,
+                (unitsConsumed * bk.bedIds.size) / Math.max(1, billableOccupantCount),
               );
           const activeDays = useProRata ? bk.weight : daysInMonth;
-          bookingIdx += 1;
-          if (amount <= 0) continue;
 
           // Representative bed = the smallest-UUID bed for determinism.
           const representativeBed = [...bk.bedIds].sort()[0];
@@ -582,19 +587,17 @@ export async function createElectricityBill(
         });
       }
 
-      if (checkoutCreditAppliedPaise > 0) {
-        await applyCheckoutElectricityLedgerToBill(tx, {
-          roomId: input.roomId,
-          billingMonth,
-          electricityBillId: bill.id,
-          maxPaise: checkoutCreditAppliedPaise,
-        });
-        logElectricityBillCreate('ledger_applied', {
-          requestId,
-          billId: bill.id,
-          checkoutCreditAppliedPaise,
-        });
-      }
+      await syncRoomElectricityLedgerCycleFromBillInTx(tx, {
+        roomId: input.roomId,
+        billingMonth,
+        totalBillPaise: grossTotalPaise,
+        electricityBillId: bill.id,
+      });
+      logElectricityBillCreate('ledger_applied', {
+        requestId,
+        billId: bill.id,
+        checkoutCreditAppliedPaise,
+      });
 
       await tx.insert(auditLog).values({
         actorType: input.createdByAdminId ? 'admin' : 'system',
@@ -613,7 +616,7 @@ export async function createElectricityBill(
           prepaidCreditAppliedPaise,
           checkoutCreditAppliedPaise,
           netSplittablePaise,
-          monthlyOccupantCount: totalMonthlyBedShares,
+          monthlyOccupantCount: totalOccupantsAll,
           perResidentPaise,
           dueDate: dueDateIso,
           graceDays: ELECTRICITY_GRACE_DAYS,
@@ -666,7 +669,7 @@ export async function createElectricityBill(
       prepaidCreditAppliedPaise,
       checkoutCreditAppliedPaise,
       netSplittablePaise,
-      monthlyOccupantCount: totalMonthlyBedShares,
+      monthlyOccupantCount: totalOccupantsAll,
       perResidentPaise,
       roundingRemainderPaise: remainderPaise,
       invoiceIds: result.invoiceIds,
@@ -754,6 +757,15 @@ export async function recordElectricityPaymentSuccess(
     return { ok: true, paymentId: existing.id, invoiceId: invoice.id, stateChanged: false };
   }
 
+  const [bill] = await db
+    .select({
+      roomId: electricityBills.roomId,
+      totalPaise: electricityBills.totalPaise,
+    })
+    .from(electricityBills)
+    .where(eq(electricityBills.id, invoice.electricityBillId))
+    .limit(1);
+
   try {
     const result = await db.transaction(async (tx) => {
       const [payment] = await tx
@@ -797,6 +809,18 @@ export async function recordElectricityPaymentSuccess(
           outstandingPaise: Math.max(0, totalDue - newPaidPaise),
         },
       });
+
+      if (bill?.roomId) {
+        await recordMonthlyInvoiceCollectionInTx(tx, {
+          roomId: bill.roomId,
+          billingMonth: String(invoice.billingMonth),
+          totalBillPaise: bill.totalPaise,
+          customerId: invoice.customerId,
+          bookingId: invoice.bookingId,
+          amountPaise: input.amountPaise,
+          electricityInvoiceId: invoice.id,
+        });
+      }
 
       return { paymentId: payment.id };
     });

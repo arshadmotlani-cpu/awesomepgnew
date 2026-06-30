@@ -575,6 +575,13 @@
       "when": 1790300000000,
       "tag": "0085_room_electricity_ledger",
       "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1790400000000,
+      "tag": "0086_room_electricity_ledger_invoice_id",
+      "breakpoints": true
     }
   ]
 }

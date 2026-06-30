@@ -256,21 +256,25 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-30 15:34:23 UTC
+### Pending pre-commit sync · 2026-06-30 15:40:38 UTC
 
-**Areas touched:** [[ROUTES]], [[Billing]], [[Electricity]]
+**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Electricity]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
+- `DATABASE.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (3):**
-- `app/(admin)/admin/electricity/new/actions.ts`
-- `src/lib/billing/electricityBillCreateLog.ts`
+**Staged code files (6):**
+- `app/(admin)/admin/electricity/bills/[id]/page.tsx`
+- `src/db/migrations/0086_room_electricity_ledger_invoice_id.sql`
+- `src/db/migrations/meta/_journal.json`
+- `src/db/schema/roomElectricityLedger.ts`
+- `src/lib/billing/roomElectricityMonthlyAllocation.ts`
 - `src/services/electricityBilling.ts`
 
 **Changed:**

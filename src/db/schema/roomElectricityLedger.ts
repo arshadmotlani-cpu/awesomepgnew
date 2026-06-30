@@ -12,6 +12,7 @@ import {
 import { bookings } from './bookings';
 import { checkoutSettlements } from './checkoutSettlements';
 import { customers } from './customers';
+import { electricityInvoices } from './electricityInvoices';
 import { rooms } from './rooms';
 
 /** Per-room per-month electricity cycle — collected + remaining must equal total bill. */
@@ -54,11 +55,15 @@ export const roomElectricityLedgerEntries = pgTable(
     checkoutSettlementId: uuid('checkout_settlement_id').references(() => checkoutSettlements.id, {
       onDelete: 'restrict',
     }),
+    electricityInvoiceId: uuid('electricity_invoice_id').references(() => electricityInvoices.id, {
+      onDelete: 'restrict',
+    }),
     collectedAt: timestamp('collected_at', { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     uniqueIndex('room_electricity_ledger_entries_checkout_unique').on(t.checkoutSettlementId),
+    uniqueIndex('room_electricity_ledger_entries_invoice_unique').on(t.electricityInvoiceId),
     index('room_electricity_ledger_entries_cycle_idx').on(t.cycleId),
   ],
 );

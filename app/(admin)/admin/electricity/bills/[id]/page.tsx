@@ -7,6 +7,7 @@ import { getElectricityBillDetail } from '@/src/db/queries/admin';
 import { db } from '@/src/db/client';
 import { electricityBills } from '@/src/db/schema';
 import { eq } from 'drizzle-orm';
+import { getRoomElectricityLedgerCycle } from '@/src/services/roomElectricityLedger';
 import { listCheckoutElectricityLedgerForBill } from '@/src/services/electricitySettlementLedger';
 
 export const dynamic = 'force-dynamic';
@@ -33,13 +34,21 @@ export default async function ElectricityBillDetailPage({
 
   const bill = detail.data.bill;
   const [billRow] = await db
-    .select({ checkoutCreditAppliedPaise: electricityBills.checkoutCreditAppliedPaise })
+    .select({
+      checkoutCreditAppliedPaise: electricityBills.checkoutCreditAppliedPaise,
+      roomId: electricityBills.roomId,
+    })
     .from(electricityBills)
     .where(eq(electricityBills.id, id))
     .limit(1);
 
   const ledgerEntries = await listCheckoutElectricityLedgerForBill(id);
   const checkoutCollectedPaise = billRow?.checkoutCreditAppliedPaise ?? 0;
+  const roomLedger = billRow?.roomId
+    ? await getRoomElectricityLedgerCycle(billRow.roomId, bill.billingMonth, {
+        fallbackTotalBillPaise: bill.totalPaise,
+      })
+    : null;
 
   return (
     <>
@@ -81,12 +90,45 @@ export default async function ElectricityBillDetailPage({
         </section>
 
         <ElectricityBillReconciliationPanel
-          actualBillPaise={bill.totalPaise}
+          actualBillPaise={roomLedger?.totalBillPaise ?? bill.totalPaise}
           checkoutCollectedPaise={checkoutCollectedPaise}
-          remainingToRecoverPaise={Math.max(0, bill.totalPaise - checkoutCollectedPaise)}
+          remainingToRecoverPaise={roomLedger?.remainingPaise ?? Math.max(0, bill.totalPaise - checkoutCollectedPaise)}
           entries={ledgerEntries}
         />
       </div>
+
+      {roomLedger && roomLedger.entries.length > 0 ? (
+        <section className="mt-6 rounded-3xl bg-[#1A1F27]/80 p-6 ring-1 ring-white/[0.06]">
+          <h2 className="text-sm font-medium uppercase tracking-wider text-apg-silver">
+            Room electricity ledger
+          </h2>
+          <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+            <div>
+              <dt className="text-apg-silver">Collected</dt>
+              <dd className="font-semibold text-white">{paiseToInr(roomLedger.collectedPaise)}</dd>
+            </div>
+            <div>
+              <dt className="text-apg-silver">Remaining</dt>
+              <dd className="font-semibold text-white">{paiseToInr(roomLedger.remainingPaise)}</dd>
+            </div>
+            <div>
+              <dt className="text-apg-silver">Total bill</dt>
+              <dd className="font-semibold text-white">{paiseToInr(roomLedger.totalBillPaise)}</dd>
+            </div>
+          </dl>
+          <ul className="mt-4 divide-y divide-white/[0.06]">
+            {roomLedger.entries.map((entry, index) => (
+              <li key={`${entry.customerId}-${entry.source}-${index}`} className="flex items-center justify-between py-3 text-sm">
+                <div>
+                  <p className="font-medium text-white">{entry.customerName}</p>
+                  <p className="text-xs text-apg-silver">{entry.source.replace(/_/g, ' ')}</p>
+                </div>
+                <p className="font-semibold text-white">{paiseToInr(entry.amountPaise)}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {detail.data.distribution.length > 0 ? (
         <section className="mt-8 rounded-3xl bg-[#1A1F27]/80 p-6 ring-1 ring-white/[0.06]">

@@ -8,7 +8,9 @@ import {
   bedReservations,
   beds,
   checkoutSettlements,
+  customers,
   electricityBills,
+  electricitySettlementLedger,
   roomElectricityLedgerCycles,
   roomElectricityLedgerEntries,
   vacatingRequests,
@@ -18,23 +20,26 @@ import { resolveCheckoutElectricityDeductionPaise } from '@/src/lib/checkout/ele
 import { firstOfMonth } from '@/src/services/billing';
 import type { DateLike } from '@/src/lib/dates';
 import { formatBillingMonthLabel } from '@/src/lib/billing/formatBillingMonth';
-import { recordCheckoutElectricityLedgerEntry } from '@/src/services/electricitySettlementLedger';
 
 export { formatBillingMonthLabel };
 
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+export type RoomElectricityLedgerEntryView = {
+  customerId: string;
+  customerName: string;
+  bookingId: string;
+  amountPaise: number;
+  source: string;
+  collectedAt: Date;
+};
 
 export type RoomElectricityLedgerCycleView = {
   billingMonth: string;
   totalBillPaise: number;
   collectedPaise: number;
   remainingPaise: number;
-  entries: Array<{
-    customerId: string;
-    amountPaise: number;
-    source: string;
-    collectedAt: Date;
-  }>;
+  entries: RoomElectricityLedgerEntryView[];
 };
 
 async function resolveRoomMonthlyBillPaise(
@@ -54,6 +59,73 @@ async function resolveRoomMonthlyBillPaise(
     .limit(1);
   if (bill?.totalPaise != null && bill.totalPaise > 0) return bill.totalPaise;
   return Math.max(0, fallbackTotalPaise ?? 0);
+}
+
+async function recalculateCycleTotalsInTx(
+  tx: DbTx,
+  cycleId: string,
+  totalBillPaise: number,
+): Promise<{ collectedPaise: number; remainingPaise: number }> {
+  const [sumRow] = await tx
+    .select({
+      total: sql<number>`coalesce(sum(${roomElectricityLedgerEntries.amountPaise}), 0)::bigint::int`,
+    })
+    .from(roomElectricityLedgerEntries)
+    .where(eq(roomElectricityLedgerEntries.cycleId, cycleId));
+
+  const collectedPaise = Math.min(sumRow?.total ?? 0, totalBillPaise);
+  const remainingPaise = Math.max(0, totalBillPaise - collectedPaise);
+
+  await tx
+    .update(roomElectricityLedgerCycles)
+    .set({
+      totalBillPaise,
+      collectedPaise,
+      remainingPaise,
+      updatedAt: new Date(),
+    })
+    .where(eq(roomElectricityLedgerCycles.id, cycleId));
+
+  return { collectedPaise, remainingPaise };
+}
+
+async function ensureCycleInTx(
+  tx: DbTx,
+  input: { roomId: string; billingMonth: string; totalBillPaise: number },
+): Promise<string> {
+  const [existing] = await tx
+    .select({ id: roomElectricityLedgerCycles.id, totalBillPaise: roomElectricityLedgerCycles.totalBillPaise })
+    .from(roomElectricityLedgerCycles)
+    .where(
+      and(
+        eq(roomElectricityLedgerCycles.roomId, input.roomId),
+        eq(roomElectricityLedgerCycles.billingMonth, input.billingMonth),
+      ),
+    )
+    .limit(1);
+
+  const totalBillPaise = Math.max(existing?.totalBillPaise ?? 0, input.totalBillPaise);
+
+  if (existing) {
+    await tx
+      .update(roomElectricityLedgerCycles)
+      .set({ totalBillPaise, updatedAt: new Date() })
+      .where(eq(roomElectricityLedgerCycles.id, existing.id));
+    return existing.id;
+  }
+
+  const [created] = await tx
+    .insert(roomElectricityLedgerCycles)
+    .values({
+      roomId: input.roomId,
+      billingMonth: input.billingMonth,
+      totalBillPaise,
+      collectedPaise: 0,
+      remainingPaise: totalBillPaise,
+    })
+    .returning({ id: roomElectricityLedgerCycles.id });
+
+  return created.id;
 }
 
 export async function getRoomElectricityLedgerCycle(
@@ -83,11 +155,14 @@ export async function getRoomElectricityLedgerCycle(
     ? await db
         .select({
           customerId: roomElectricityLedgerEntries.customerId,
+          customerName: customers.fullName,
+          bookingId: roomElectricityLedgerEntries.bookingId,
           amountPaise: roomElectricityLedgerEntries.amountPaise,
           source: roomElectricityLedgerEntries.source,
           collectedAt: roomElectricityLedgerEntries.collectedAt,
         })
         .from(roomElectricityLedgerEntries)
+        .innerJoin(customers, eq(customers.id, roomElectricityLedgerEntries.customerId))
         .where(eq(roomElectricityLedgerEntries.cycleId, cycle.id))
         .orderBy(roomElectricityLedgerEntries.collectedAt)
     : [];
@@ -105,68 +180,98 @@ export async function getRoomElectricityLedgerCycle(
   };
 }
 
-async function upsertCycleInTx(
+async function recordCheckoutElectricityLedgerEntryInTx(
+  tx: DbTx,
+  input: {
+    settlement: CheckoutSettlement;
+    vacatingDate: string;
+    roomId: string;
+    amountPaise: number;
+    billingMonth: string;
+  },
+): Promise<void> {
+  const stayPeriodStart = null;
+  const stayPeriodEnd = input.vacatingDate;
+
+  await tx
+    .insert(electricitySettlementLedger)
+    .values({
+      roomId: input.roomId,
+      customerId: input.settlement.customerId,
+      bookingId: input.settlement.bookingId,
+      checkoutSettlementId: input.settlement.id,
+      billingMonth: input.billingMonth,
+      stayPeriodStart,
+      stayPeriodEnd,
+      units: input.settlement.electricityUnits,
+      amountPaise: input.amountPaise,
+      status: 'collected',
+    })
+    .onConflictDoNothing({ target: electricitySettlementLedger.checkoutSettlementId });
+}
+
+/** Sync room ledger cycle when a monthly electricity bill is created. */
+export async function syncRoomElectricityLedgerCycleFromBillInTx(
   tx: DbTx,
   input: {
     roomId: string;
     billingMonth: string;
     totalBillPaise: number;
-    additionalCollectedPaise: number;
+    electricityBillId: string;
   },
-): Promise<{ cycleId: string; collectedPaise: number; remainingPaise: number }> {
-  const [existing] = await tx
-    .select()
-    .from(roomElectricityLedgerCycles)
+): Promise<void> {
+  const cycleId = await ensureCycleInTx(tx, {
+    roomId: input.roomId,
+    billingMonth: input.billingMonth,
+    totalBillPaise: input.totalBillPaise,
+  });
+
+  const checkoutRows = await tx
+    .select({
+      customerId: electricitySettlementLedger.customerId,
+      bookingId: electricitySettlementLedger.bookingId,
+      amountPaise: electricitySettlementLedger.amountPaise,
+      checkoutSettlementId: electricitySettlementLedger.checkoutSettlementId,
+      createdAt: electricitySettlementLedger.createdAt,
+    })
+    .from(electricitySettlementLedger)
     .where(
       and(
-        eq(roomElectricityLedgerCycles.roomId, input.roomId),
-        eq(roomElectricityLedgerCycles.billingMonth, input.billingMonth),
+        eq(electricitySettlementLedger.roomId, input.roomId),
+        eq(electricitySettlementLedger.billingMonth, input.billingMonth),
+        sql`${electricitySettlementLedger.status} IN ('collected', 'applied')`,
       ),
-    )
-    .limit(1);
+    );
 
-  const totalBillPaise = Math.max(
-    existing?.totalBillPaise ?? 0,
-    input.totalBillPaise,
-  );
-  const collectedPaise = (existing?.collectedPaise ?? 0) + input.additionalCollectedPaise;
-  const remainingPaise = Math.max(0, totalBillPaise - collectedPaise);
-  const cappedCollected = Math.min(collectedPaise, totalBillPaise);
-  const cappedRemaining = Math.max(0, totalBillPaise - cappedCollected);
-
-  if (existing) {
+  for (const row of checkoutRows) {
     await tx
-      .update(roomElectricityLedgerCycles)
-      .set({
-        totalBillPaise,
-        collectedPaise: cappedCollected,
-        remainingPaise: cappedRemaining,
-        updatedAt: new Date(),
+      .insert(roomElectricityLedgerEntries)
+      .values({
+        cycleId,
+        customerId: row.customerId,
+        bookingId: row.bookingId,
+        amountPaise: row.amountPaise,
+        source: 'checkout_settlement',
+        checkoutSettlementId: row.checkoutSettlementId,
+        collectedAt: row.createdAt,
       })
-      .where(eq(roomElectricityLedgerCycles.id, existing.id));
-    return {
-      cycleId: existing.id,
-      collectedPaise: cappedCollected,
-      remainingPaise: cappedRemaining,
-    };
+      .onConflictDoNothing({
+        target: roomElectricityLedgerEntries.checkoutSettlementId,
+      });
   }
 
-  const [created] = await tx
-    .insert(roomElectricityLedgerCycles)
-    .values({
-      roomId: input.roomId,
-      billingMonth: input.billingMonth,
-      totalBillPaise,
-      collectedPaise: cappedCollected,
-      remainingPaise: cappedRemaining,
-    })
-    .returning({ id: roomElectricityLedgerCycles.id });
+  await recalculateCycleTotalsInTx(tx, cycleId, input.totalBillPaise);
 
-  return {
-    cycleId: created.id,
-    collectedPaise: cappedCollected,
-    remainingPaise: cappedRemaining,
-  };
+  await tx
+    .update(electricitySettlementLedger)
+    .set({ electricityBillId: input.electricityBillId, status: 'applied' })
+    .where(
+      and(
+        eq(electricitySettlementLedger.roomId, input.roomId),
+        eq(electricitySettlementLedger.billingMonth, input.billingMonth),
+        eq(electricitySettlementLedger.status, 'collected'),
+      ),
+    );
 }
 
 /** Record checkout electricity collection in room ledger + settlement ledger (idempotent). */
@@ -189,11 +294,18 @@ export async function recordCheckoutElectricityCollectionInTx(
     input.totalBillPaise,
   );
 
-  const { cycleId } = await upsertCycleInTx(tx, {
+  const cycleId = await ensureCycleInTx(tx, {
     roomId: input.roomId,
     billingMonth,
     totalBillPaise: Math.max(totalBillPaise, amountPaise),
-    additionalCollectedPaise: amountPaise,
+  });
+
+  await recordCheckoutElectricityLedgerEntryInTx(tx, {
+    settlement: input.settlement,
+    vacatingDate: input.vacatingDate,
+    roomId: input.roomId,
+    amountPaise,
+    billingMonth,
   });
 
   await tx
@@ -210,14 +322,49 @@ export async function recordCheckoutElectricityCollectionInTx(
       target: roomElectricityLedgerEntries.checkoutSettlementId,
     });
 
-  await recordCheckoutElectricityLedgerEntry({
-    settlement: {
-      ...input.settlement,
-      electricitySharePaise: amountPaise,
-    },
-    vacatingDate: input.vacatingDate,
+  await recalculateCycleTotalsInTx(
+    tx,
+    cycleId,
+    Math.max(totalBillPaise, amountPaise),
+  );
+}
+
+/** Record monthly invoice payment in room electricity ledger. */
+export async function recordMonthlyInvoiceCollectionInTx(
+  tx: DbTx,
+  input: {
+    roomId: string;
+    billingMonth: string;
+    totalBillPaise: number;
+    customerId: string;
+    bookingId: string;
+    amountPaise: number;
+    electricityInvoiceId: string;
+  },
+): Promise<void> {
+  if (input.amountPaise <= 0) return;
+
+  const cycleId = await ensureCycleInTx(tx, {
     roomId: input.roomId,
+    billingMonth: input.billingMonth,
+    totalBillPaise: input.totalBillPaise,
   });
+
+  await tx
+    .insert(roomElectricityLedgerEntries)
+    .values({
+      cycleId,
+      customerId: input.customerId,
+      bookingId: input.bookingId,
+      amountPaise: input.amountPaise,
+      source: 'monthly_invoice',
+      electricityInvoiceId: input.electricityInvoiceId,
+    })
+    .onConflictDoNothing({
+      target: roomElectricityLedgerEntries.electricityInvoiceId,
+    });
+
+  await recalculateCycleTotalsInTx(tx, cycleId, input.totalBillPaise);
 }
 
 export async function recordCheckoutElectricityCollectionFromSettlementId(
