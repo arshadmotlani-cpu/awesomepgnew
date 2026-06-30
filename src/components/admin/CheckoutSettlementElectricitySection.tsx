@@ -6,6 +6,7 @@ import {
   updateCheckoutElectricityAction,
   type CheckoutSettlementActionState,
 } from '@/app/(admin)/admin/checkout-settlements/actions';
+import { CheckoutRoomElectricityBreakdown } from '@/src/components/admin/checkout/CheckoutRoomElectricityBreakdown';
 import {
   calculateAverageBillingElectricity,
   calculateCheckoutElectricity,
@@ -13,6 +14,7 @@ import {
   effectiveSharingCount,
   type ElectricityCalculationMethod,
 } from '@/src/lib/checkout/electricitySettlementCalc';
+import type { RoomElectricityCheckoutAllocation } from '@/src/lib/checkout/roomElectricityAllocation';
 import { paiseToInr } from '@/src/lib/format';
 import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement';
 
@@ -48,8 +50,13 @@ export function CheckoutSettlementElectricitySection({
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
+  const lastSavedSnapshotRef = useRef<string | null>(null);
+  const settlementIdRef = useRef(detail.id);
   const [state, action, pending] = useActionState(updateCheckoutElectricityAction, idle);
   const [mounted, setMounted] = useState(false);
+  const [timelineAllocation, setTimelineAllocation] =
+    useState<RoomElectricityCheckoutAllocation | null>(detail.roomElectricityAllocation);
+  const [timelineLoading, setTimelineLoading] = useState(false);
 
   const [method, setMethod] = useState<ElectricityCalculationMethod>(() => {
     if (detail.electricityUseAverage && detail.electricityCalculationMethod === 'meter_reading') {
@@ -137,8 +144,12 @@ export function CheckoutSettlementElectricitySection({
   }, [meterPhotoMissing, method]);
 
   useEffect(() => {
-    if (state.status === 'ok') router.refresh();
-  }, [state.status, router]);
+    if (settlementIdRef.current !== detail.id) {
+      settlementIdRef.current = detail.id;
+      lastSavedSnapshotRef.current = null;
+    }
+    setTimelineAllocation(detail.roomElectricityAllocation);
+  }, [detail.id, detail.roomElectricityAllocation]);
 
   const occupants = useMemo(
     () =>
@@ -193,10 +204,16 @@ export function CheckoutSettlementElectricitySection({
     detail.roomOccupancy.autoDetectedCount,
   ]);
 
-  const previewSharePaise = live?.ok ? live.calc.sharePaise : detail.electricitySharePaise;
   const previewTotalBillPaise = live?.ok
     ? live.calc.totalBillPaise
     : detail.electricityTotalBillPaise;
+  const timelineSharePaise = timelineAllocation?.currentResidentSharePaise;
+  const previewSharePaise =
+    timelineSharePaise != null
+      ? timelineSharePaise
+      : live?.ok
+        ? live.calc.sharePaise
+        : detail.electricitySharePaise;
   const electricityDeductionPaise = deductFromDeposit ? previewSharePaise : 0;
   const unitsConsumed =
     live?.ok && live.calc.unitsConsumed != null
@@ -207,15 +224,18 @@ export function CheckoutSettlementElectricitySection({
 
   useEffect(() => {
     if (!onLivePreviewChange) return;
-    if (!live?.ok) {
-      onLivePreviewChange(null);
-      return;
-    }
-    onLivePreviewChange({
-      electricityDeductionPaise,
-      unitsConsumed,
-      residentSharePaise: previewSharePaise,
-    });
+    const timer = window.setTimeout(() => {
+      if (!live?.ok) {
+        onLivePreviewChange(null);
+        return;
+      }
+      onLivePreviewChange({
+        electricityDeductionPaise,
+        unitsConsumed,
+        residentSharePaise: previewSharePaise,
+      });
+    }, 200);
+    return () => window.clearTimeout(timer);
   }, [
     onLivePreviewChange,
     live?.ok,
@@ -252,7 +272,7 @@ export function CheckoutSettlementElectricitySection({
     ],
   );
 
-  const savedSnapshot = useMemo(
+  const baselineSavedSnapshot = useMemo(
     () =>
       JSON.stringify({
         method: detail.electricityUseAverage && detail.electricityCalculationMethod === 'meter_reading'
@@ -283,13 +303,50 @@ export function CheckoutSettlementElectricitySection({
   );
 
   useEffect(() => {
+    if (state.status === 'ok') {
+      lastSavedSnapshotRef.current = formSnapshot;
+      if (!autoSave) router.refresh();
+    }
+  }, [state.status, autoSave, router, formSnapshot]);
+
+  useEffect(() => {
     if (!autoSave || !editable || !mounted || !live?.ok) return;
-    if (formSnapshot === savedSnapshot) return;
+    const saved = lastSavedSnapshotRef.current ?? baselineSavedSnapshot;
+    if (formSnapshot === saved) return;
     const timer = window.setTimeout(() => {
       formRef.current?.requestSubmit();
     }, 700);
     return () => window.clearTimeout(timer);
-  }, [autoSave, editable, mounted, live?.ok, formSnapshot, savedSnapshot]);
+  }, [autoSave, editable, mounted, live?.ok, formSnapshot, baselineSavedSnapshot]);
+
+  useEffect(() => {
+    if (method !== 'meter_reading' || !detail.roomId) return;
+    const prev = Number(previousReading);
+    const cur = Number(currentReading);
+    const rate = Number(ratePerUnitInr);
+    if (!Number.isFinite(prev) || !Number.isFinite(cur) || !Number.isFinite(rate) || rate <= 0) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setTimelineLoading(true);
+      const params = new URLSearchParams({
+        previousReading: String(prev),
+        currentReading: String(cur),
+        ratePerUnitInr: String(rate),
+      });
+      void fetch(
+        `/api/admin/checkout-settlements/${detail.id}/room-electricity-preview?${params}`,
+        { cache: 'no-store' },
+      )
+        .then((res) => res.json())
+        .then((body: { ok?: boolean; data?: RoomElectricityCheckoutAllocation }) => {
+          if (body.ok && body.data) setTimelineAllocation(body.data);
+        })
+        .catch(() => undefined)
+        .finally(() => setTimelineLoading(false));
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [detail.id, detail.roomId, method, previousReading, currentReading, ratePerUnitInr]);
 
   if (operatorMode) {
     return (
@@ -417,6 +474,13 @@ export function CheckoutSettlementElectricitySection({
             accent
           />
         </div>
+
+        <CheckoutRoomElectricityBreakdown
+          allocation={timelineAllocation}
+          liveTotalBillPaise={previewTotalBillPaise}
+          liveSharePaise={previewSharePaise}
+          loading={timelineLoading}
+        />
       </div>
     );
   }

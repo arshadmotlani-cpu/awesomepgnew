@@ -117,6 +117,7 @@ export async function loadResidentOperationsResidentsPage(
     paymentProofs,
     paymentProofAges,
     checkoutRefunds,
+    checkoutSettlements,
     rentOverdue,
     vacatingPendingCustomerIds,
     recentAudit: filteredAudit,

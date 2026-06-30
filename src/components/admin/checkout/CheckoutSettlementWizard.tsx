@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   CheckoutSettlementElectricitySection,
   type ElectricityLivePreview,
@@ -52,6 +52,9 @@ export function CheckoutSettlementWizard({ detail }: { detail: CheckoutSettlemen
 
   const [step, setStep] = useState<WizardStep>(() => wizardStepFromDetail(detail));
   const [liveElectricity, setLiveElectricity] = useState<ElectricityLivePreview | null>(null);
+  const handleLivePreviewChange = useCallback((preview: ElectricityLivePreview | null) => {
+    setLiveElectricity(preview);
+  }, []);
 
   const steps = useMemo(() => {
     if (waitingResident) return [1] as WizardStep[];
@@ -194,7 +197,7 @@ export function CheckoutSettlementWizard({ detail }: { detail: CheckoutSettlemen
                     editable
                     operatorMode
                     autoSave
-                    onLivePreviewChange={setLiveElectricity}
+                    onLivePreviewChange={handleLivePreviewChange}
                   />
                 </div>
               ) : (

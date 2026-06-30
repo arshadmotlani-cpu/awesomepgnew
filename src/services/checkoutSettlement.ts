@@ -47,6 +47,8 @@ import {
 import { finalizeVacatingOccupancy } from '@/src/services/vacating';
 import { scheduleAdminNotificationSync } from '@/src/services/adminLiveSync';
 import { recordCheckoutElectricityLedgerFromSettlementId } from '@/src/services/electricitySettlementLedger';
+import { buildRoomElectricityCheckoutAllocation } from '@/src/services/roomElectricityCheckout';
+import type { RoomElectricityCheckoutAllocation } from '@/src/lib/checkout/roomElectricityAllocation';
 import { assessCheckoutSettlementReadiness } from '@/src/lib/checkout/checkoutSettlementReadiness';
 import {
   calculateAverageBillingElectricity,
@@ -54,6 +56,7 @@ import {
   calculateManualElectricityCharge,
   defaultElectricityRatePaise,
   effectiveSharingCount,
+  bookingRoomId,
   resolveRoomOccupancyContext,
   type RoomOccupancyContext,
 } from '@/src/lib/checkout/electricitySettlement';
@@ -115,6 +118,7 @@ export type CheckoutSettlementDetail = CheckoutSettlementRow & {
   roomOccupancy: RoomOccupancyContext;
   electricityTotalBillPaise: number;
   effectiveSharingCount: number;
+  roomElectricityAllocation: RoomElectricityCheckoutAllocation | null;
   meterPhotoEvidence: CheckoutSettlementImageEvidence;
   refundQrEvidence: CheckoutSettlementImageEvidence;
   preview: RefundDeductionsSnapshot & {
@@ -741,6 +745,7 @@ async function buildCheckoutSettlementDetailFromJoinRow(
   });
 
   let electricityTotalBillPaise = settlement.averageBillPaise ?? 0;
+  let unitsForAllocation: number | null = null;
   if (settlement.electricityCalculationMethod === 'meter_reading') {
     const prev = settlement.electricityPreviousReading
       ? Number(settlement.electricityPreviousReading)
@@ -756,10 +761,29 @@ async function buildCheckoutSettlementDetailFromJoinRow(
         ratePerUnitPaise: rate,
         roomOccupants: sharingUsed,
       });
-      if (bill.ok) electricityTotalBillPaise = bill.calc.totalBillPaise;
+      if (bill.ok) {
+        electricityTotalBillPaise = bill.calc.totalBillPaise;
+        unitsForAllocation = bill.calc.unitsConsumed;
+      }
     }
   } else if (settlement.electricityCalculationMethod === 'manual_amount') {
     electricityTotalBillPaise = settlement.manualChargePaise ?? settlement.electricitySharePaise;
+  }
+
+  let roomElectricityAllocation: RoomElectricityCheckoutAllocation | null = null;
+  if (row.room_id && electricityTotalBillPaise > 0) {
+    try {
+      roomElectricityAllocation = await buildRoomElectricityCheckoutAllocation({
+        roomId: row.room_id,
+        customerId: settlement.customerId,
+        vacatingDate: row.vacating_date,
+        totalBillPaise: electricityTotalBillPaise,
+        unitsConsumed: unitsForAllocation,
+        excludeCheckoutSettlementId: settlement.id,
+      });
+    } catch {
+      roomElectricityAllocation = null;
+    }
   }
 
   return enrichCheckoutSettlementImageEvidence({
@@ -776,6 +800,7 @@ async function buildCheckoutSettlementDetailFromJoinRow(
     roomOccupancy,
     effectiveSharingCount: sharingUsed,
     electricityTotalBillPaise,
+    roomElectricityAllocation,
     preview: buildPreview(settlement, depositHeld),
   });
 }
@@ -1170,6 +1195,32 @@ export async function updateCheckoutElectricitySettlement(input: {
   }
   if (!computed.ok) return computed;
 
+  let timelineSharePaise: number | null = null;
+  let roomElectricityAllocation: RoomElectricityCheckoutAllocation | null = null;
+  const checkoutRoomId = await bookingRoomId(current.bookingId);
+  if (checkoutRoomId && computed.calc.totalBillPaise > 0) {
+    const [vacatingRow] = await db
+      .select({ vacatingDate: vacatingRequests.vacatingDate })
+      .from(checkoutSettlements)
+      .innerJoin(vacatingRequests, eq(vacatingRequests.id, checkoutSettlements.vacatingRequestId))
+      .where(eq(checkoutSettlements.id, input.settlementId))
+      .limit(1);
+    if (vacatingRow?.vacatingDate) {
+      roomElectricityAllocation = await buildRoomElectricityCheckoutAllocation({
+        roomId: checkoutRoomId,
+        customerId: current.customerId,
+        vacatingDate: String(vacatingRow.vacatingDate),
+        totalBillPaise: computed.calc.totalBillPaise,
+        unitsConsumed: computed.calc.unitsConsumed,
+        excludeCheckoutSettlementId: input.settlementId,
+      });
+      timelineSharePaise = roomElectricityAllocation.currentResidentSharePaise;
+    }
+  }
+
+  const finalSharePaise = timelineSharePaise ?? computed.calc.sharePaise;
+  const finalCalc = { ...computed.calc, sharePaise: finalSharePaise };
+
   await db
     .update(checkoutSettlements)
     .set({
@@ -1196,7 +1247,7 @@ export async function updateCheckoutElectricitySettlement(input: {
         input.calculationMethod === 'manual_amount' && input.manualChargeInr != null
           ? Math.round(input.manualChargeInr * 100)
           : null,
-      electricitySharePaise: computed.calc.sharePaise,
+      electricitySharePaise: finalSharePaise,
       electricityDeductFromDeposit: input.deductFromDeposit,
       meterPhotoMissing: input.meterPhotoMissing,
       electricityUseAverage: input.calculationMethod === 'average_billing',
@@ -1217,15 +1268,16 @@ export async function updateCheckoutElectricitySettlement(input: {
       sharingOverride: input.sharingOverride,
       ratePerUnitPaise: computed.calc.ratePerUnitPaise,
       unitsConsumed: computed.calc.unitsConsumed,
-      totalBillPaise: computed.calc.totalBillPaise,
-      sharePaise: computed.calc.sharePaise,
+      totalBillPaise: finalCalc.totalBillPaise,
+      sharePaise: finalSharePaise,
+      timelineAllocation: roomElectricityAllocation,
       deductFromDeposit: input.deductFromDeposit,
       meterPhotoMissing: input.meterPhotoMissing,
       occupantNames: roomOccupancy.occupantNames,
     },
   });
 
-  return { ok: true, calc: computed.calc };
+  return { ok: true, calc: finalCalc };
 }
 
 export async function updateCheckoutSettlementAdminFields(input: {

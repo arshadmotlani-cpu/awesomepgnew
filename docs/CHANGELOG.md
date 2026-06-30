@@ -256,9 +256,9 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-30 11:24:26 UTC
+### Pending pre-commit sync · 2026-06-30 11:46:55 UTC
 
-**Areas touched:** [[ROUTES]], [[Vacating]]
+**Areas touched:** [[ROUTES]], [[Residents]], [[Vacating]]
 
 **Docs flagged for review:**
 - `CHANGELOG.md` — review for accuracy
@@ -268,10 +268,11 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (4):**
-- `app/(admin)/admin/bookings/[bookingId]/page.tsx`
-- `app/(admin)/admin/deposits/[bookingId]/page.tsx`
-- `app/(admin)/admin/residents/[customerId]/page.tsx`
+**Staged code files (5):**
+- `app/api/admin/checkout-settlements/[id]/room-electricity-preview/route.ts`
+- `src/lib/residents/residentLifecycleState.ts`
+- `src/lib/residents/residentOperationsDashboard.ts`
+- `src/lib/residents/residentOperationsResidentsView.ts`
 - `src/services/checkoutSettlement.ts`
 
 **Changed:**

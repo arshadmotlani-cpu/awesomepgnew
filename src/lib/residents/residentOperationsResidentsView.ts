@@ -1,6 +1,7 @@
 import { formatDate } from '@/src/lib/dates';
 import type { CollectionQueueItem } from '@/src/lib/billing/collectionsQueue';
 import { isResidentBedAssignmentEligible } from '@/src/lib/residentBedAssignment';
+import { buildLifecycleResolvedQueue } from '@/src/lib/residents/residentLifecycleState';
 import type {
   AttentionBucketId,
   ResidentOpsQueueCategory,
@@ -78,16 +79,6 @@ export type OperationalActivityRow = {
   label: string;
   detail: string | null;
   occurredAt: Date;
-};
-
-const H5_CATEGORY_ORDER: Record<ResidentOpsQueueCategory, number> = {
-  payment_proof: 0,
-  kyc: 1,
-  bed_assignment: 2,
-  move_out: 3,
-  rent_overdue: 4,
-  refund: 5,
-  resident_request: 6,
 };
 
 const OWNER_BY_CATEGORY: Record<ResidentOpsQueueCategory, string> = {
@@ -182,37 +173,6 @@ function enrichQueueAge(
   return { ageLabel: 'Today', ageSortHours: 12 };
 }
 
-function dedupeQueueRows(rows: ResidentsQueueRow[]): ResidentsQueueRow[] {
-  const byResident = new Map<string, ResidentsQueueRow>();
-  const withoutCustomer: ResidentsQueueRow[] = [];
-
-  for (const row of rows) {
-    if (!row.customerId) {
-      withoutCustomer.push(row);
-      continue;
-    }
-    const existing = byResident.get(row.customerId);
-    if (!existing) {
-      byResident.set(row.customerId, row);
-      continue;
-    }
-    const rowRank = H5_CATEGORY_ORDER[row.category];
-    const existingRank = H5_CATEGORY_ORDER[existing.category];
-    if (rowRank < existingRank || (rowRank === existingRank && row.ageSortHours > existing.ageSortHours)) {
-      const mergedTags = [...new Set([...row.filterTags, ...existing.filterTags])];
-      byResident.set(row.customerId, { ...row, filterTags: mergedTags });
-    } else {
-      const mergedTags = [...new Set([...existing.filterTags, ...row.filterTags])];
-      existing.filterTags = mergedTags;
-    }
-  }
-
-  return [...withoutCustomer, ...byResident.values()].sort((a, b) => {
-    const c = H5_CATEGORY_ORDER[a.category] - H5_CATEGORY_ORDER[b.category];
-    if (c !== 0) return c;
-    return b.ageSortHours - a.ageSortHours;
-  });
-}
 
 function deriveJourneyStage(
   resident: ResidentListRow,
@@ -380,6 +340,8 @@ export function buildResidentOperationsResidentsView(input: {
   paymentProofs: PendingPaymentReviewItem[];
   paymentProofAges?: Map<string, Date>;
   checkoutRefunds: CheckoutSettlementRow[];
+  /** All pipeline checkout settlements — used for lifecycle state resolution. */
+  checkoutSettlements?: CheckoutSettlementRow[];
   rentOverdue: CollectionQueueItem[];
   vacatingPendingCustomerIds: string[];
   recentAudit: Array<{
@@ -422,7 +384,19 @@ export function buildResidentOperationsResidentsView(input: {
     } satisfies ResidentsQueueRow;
   });
 
-  const dedupedQueue = dedupeQueueRows(queueRows);
+  const settlementsByCustomerId = new Map<string, CheckoutSettlementRow>();
+  for (const settlement of input.checkoutSettlements ?? input.checkoutRefunds) {
+    const existing = settlementsByCustomerId.get(settlement.customerId);
+    if (!existing || settlement.updatedAt > existing.updatedAt) {
+      settlementsByCustomerId.set(settlement.customerId, settlement);
+    }
+  }
+
+  const dedupedQueue = buildLifecycleResolvedQueue({
+    queueItems: input.queue,
+    queueRows,
+    settlementsByCustomerId,
+  });
 
   const commandCards: ResidentsCommandCard[] = [
     {
@@ -457,7 +431,9 @@ export function buildResidentOperationsResidentsView(input: {
     },
   ];
 
-  const settlementIds = new Set(input.checkoutRefunds.map((s) => s.customerId));
+  const settlementIds = new Set(
+    [...settlementsByCustomerId.values()].map((s) => s.customerId),
+  );
   const vacatingPendingIds = new Set(input.vacatingPendingCustomerIds);
   const journeyCounts = JOURNEY_STAGES.map((stage) => ({ ...stage, count: 0 }));
   for (const resident of input.allResidents) {

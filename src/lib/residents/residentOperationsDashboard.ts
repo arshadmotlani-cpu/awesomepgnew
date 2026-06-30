@@ -1,6 +1,7 @@
 import { formatDate as formatDisplayDate } from '@/src/lib/format';
 import { diffDays, formatDate } from '@/src/lib/dates';
 import { deriveCheckoutOpsNextAction } from '@/src/lib/residents/checkoutOpsQueueCopy';
+import { isActiveCheckoutSettlement } from '@/src/lib/residents/residentLifecycleState';
 import type { CollectionQueueItem } from '@/src/lib/billing/collectionsQueue';
 import type { KycSubmissionListRow } from '@/src/services/kyc';
 import type { PendingPaymentReviewItem } from '@/src/services/paymentProofQueue';
@@ -154,6 +155,16 @@ export function buildResidentOperationsDashboard(input: {
   const queue: ResidentOpsQueueItem[] = [];
   const today = formatDate(new Date());
 
+  const activeCheckoutCustomerIds = new Set<string>();
+  for (const v of input.vacatingRows) {
+    if (v.customerId && v.settlementStatus && isActiveCheckoutSettlement({ status: v.settlementStatus as CheckoutSettlementRow['status'] })) {
+      activeCheckoutCustomerIds.add(v.customerId);
+    }
+  }
+  for (const s of input.checkoutRefunds) {
+    if (isActiveCheckoutSettlement(s)) activeCheckoutCustomerIds.add(s.customerId);
+  }
+
   for (const s of input.checkoutRefunds) {
     queue.push({
       id: `checkout-refund-${s.id}`,
@@ -199,6 +210,7 @@ export function buildResidentOperationsDashboard(input: {
   }
 
   for (const k of input.kycPending) {
+    if (activeCheckoutCustomerIds.has(k.customerId)) continue;
     queue.push({
       id: `kyc-${k.id}`,
       category: 'kyc',
@@ -221,6 +233,7 @@ export function buildResidentOperationsDashboard(input: {
   }
 
   for (const r of input.unassignedResidents) {
+    if (activeCheckoutCustomerIds.has(r.id)) continue;
     queue.push({
       id: `bed-${r.id}`,
       category: 'bed_assignment',
