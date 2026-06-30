@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useMemo, useState } from 'react';
+import { useActionState, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   updateCheckoutElectricityAction,
@@ -18,18 +18,38 @@ import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement
 
 const idle: CheckoutSettlementActionState = { status: 'idle' };
 
+export type ElectricityLivePreview = {
+  electricityDeductionPaise: number;
+  unitsConsumed: number | null;
+  residentSharePaise: number;
+};
+
+const METHOD_OPTIONS: { value: ElectricityCalculationMethod; label: string }[] = [
+  { value: 'meter_reading', label: 'Meter Reading' },
+  { value: 'average_billing', label: 'Average Billing' },
+  { value: 'manual_amount', label: 'Manual Amount' },
+];
+
+const FIELD =
+  'apg-admin-field mt-2 block w-full rounded-2xl border border-white/[0.08] bg-[#12161C] px-4 py-3.5 text-lg text-white placeholder:text-white/30 focus:border-white/20 focus:outline-none';
+
 export function CheckoutSettlementElectricitySection({
   detail,
   editable,
   operatorMode = false,
+  autoSave = false,
+  onLivePreviewChange,
 }: {
   detail: CheckoutSettlementDetail;
   editable: boolean;
-  /** Hide technical occupancy / sharing panels for operator checkout wizard. */
   operatorMode?: boolean;
+  autoSave?: boolean;
+  onLivePreviewChange?: (preview: ElectricityLivePreview | null) => void;
 }) {
   const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
   const [state, action, pending] = useActionState(updateCheckoutElectricityAction, idle);
+  const [mounted, setMounted] = useState(false);
 
   const [method, setMethod] = useState<ElectricityCalculationMethod>(() => {
     if (detail.electricityUseAverage && detail.electricityCalculationMethod === 'meter_reading') {
@@ -69,6 +89,10 @@ export function CheckoutSettlementElectricitySection({
     detail.electricityDeductFromDeposit !== false,
   );
   const [roomDataHint, setRoomDataHint] = useState<string | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!editable || !detail.roomId) return;
@@ -173,7 +197,229 @@ export function CheckoutSettlementElectricitySection({
   const previewTotalBillPaise = live?.ok
     ? live.calc.totalBillPaise
     : detail.electricityTotalBillPaise;
-  const refundImpactPaise = deductFromDeposit ? previewSharePaise : 0;
+  const electricityDeductionPaise = deductFromDeposit ? previewSharePaise : 0;
+  const unitsConsumed =
+    live?.ok && live.calc.unitsConsumed != null
+      ? live.calc.unitsConsumed
+      : detail.electricityUnits != null
+        ? Number(detail.electricityUnits)
+        : null;
+
+  useEffect(() => {
+    if (!onLivePreviewChange) return;
+    if (!live?.ok) {
+      onLivePreviewChange(null);
+      return;
+    }
+    onLivePreviewChange({
+      electricityDeductionPaise,
+      unitsConsumed,
+      residentSharePaise: previewSharePaise,
+    });
+  }, [
+    onLivePreviewChange,
+    live?.ok,
+    electricityDeductionPaise,
+    unitsConsumed,
+    previewSharePaise,
+  ]);
+
+  const formSnapshot = useMemo(
+    () =>
+      JSON.stringify({
+        method,
+        meterPhotoMissing,
+        sharingOverride,
+        sharingCountOverride,
+        previousReading,
+        currentReading,
+        ratePerUnitInr,
+        averageBillInr,
+        manualChargeInr,
+        deductFromDeposit,
+      }),
+    [
+      method,
+      meterPhotoMissing,
+      sharingOverride,
+      sharingCountOverride,
+      previousReading,
+      currentReading,
+      ratePerUnitInr,
+      averageBillInr,
+      manualChargeInr,
+      deductFromDeposit,
+    ],
+  );
+
+  const savedSnapshot = useMemo(
+    () =>
+      JSON.stringify({
+        method: detail.electricityUseAverage && detail.electricityCalculationMethod === 'meter_reading'
+          ? 'average_billing'
+          : detail.electricityCalculationMethod,
+        meterPhotoMissing: detail.meterPhotoMissing,
+        sharingOverride: detail.electricitySharingOverride,
+        sharingCountOverride: String(
+          detail.electricityOccupants ?? detail.roomOccupancy.autoDetectedCount,
+        ),
+        previousReading: detail.electricityPreviousReading ?? '',
+        currentReading: detail.electricityCurrentReading ?? '',
+        ratePerUnitInr:
+          detail.electricityUnitRatePaise != null
+            ? (detail.electricityUnitRatePaise / 100).toFixed(2)
+            : '16',
+        averageBillInr:
+          detail.averageBillPaise != null ? (detail.averageBillPaise / 100).toFixed(2) : '',
+        manualChargeInr:
+          detail.manualChargePaise != null
+            ? (detail.manualChargePaise / 100).toFixed(2)
+            : detail.electricitySharePaise > 0
+              ? (detail.electricitySharePaise / 100).toFixed(2)
+              : '',
+        deductFromDeposit: detail.electricityDeductFromDeposit !== false,
+      }),
+    [detail],
+  );
+
+  useEffect(() => {
+    if (!autoSave || !editable || !mounted || !live?.ok) return;
+    if (formSnapshot === savedSnapshot) return;
+    const timer = window.setTimeout(() => {
+      formRef.current?.requestSubmit();
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [autoSave, editable, mounted, live?.ok, formSnapshot, savedSnapshot]);
+
+  if (operatorMode) {
+    return (
+      <div className="space-y-8">
+        {editable ? (
+          <form ref={formRef} action={action} className="space-y-8">
+            <input type="hidden" name="settlementId" value={detail.id} />
+            <input type="hidden" name="calculationMethod" value={method} />
+            <input type="hidden" name="meterPhotoMissing" value={meterPhotoMissing ? 'on' : ''} />
+            <input type="hidden" name="deductFromDeposit" value={deductFromDeposit ? 'on' : ''} />
+            <input type="hidden" name="sharingOverride" value={sharingOverride ? 'on' : ''} />
+            <input type="hidden" name="sharingCountOverride" value={sharingCountOverride} />
+
+            <fieldset className="space-y-3">
+              <legend className="sr-only">Electricity calculation method</legend>
+              {METHOD_OPTIONS.map((option) => (
+                <label
+                  key={option.value}
+                  className={
+                    'flex cursor-pointer items-center gap-4 rounded-2xl px-5 py-4 transition ' +
+                    (method === option.value
+                      ? 'bg-white/[0.08] ring-1 ring-white/15'
+                      : 'hover:bg-white/[0.04]')
+                  }
+                >
+                  <input
+                    type="radio"
+                    name="calculationMethodRadio"
+                    value={option.value}
+                    checked={method === option.value}
+                    onChange={() => setMethod(option.value)}
+                    className="h-4 w-4 border-white/30 bg-transparent text-[#FF5A1F] focus:ring-[#FF5A1F]"
+                  />
+                  <span className="text-base font-medium text-white">{option.label}</span>
+                </label>
+              ))}
+            </fieldset>
+
+            {method === 'meter_reading' ? (
+              <div className="grid gap-5 sm:grid-cols-2">
+                <label className="block text-sm">
+                  <span className="text-apg-silver">Previous reading</span>
+                  <input
+                    name="previousReading"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={previousReading}
+                    onChange={(e) => setPreviousReading(e.target.value)}
+                    className={FIELD}
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="text-apg-silver">Current reading</span>
+                  <input
+                    name="currentReading"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={currentReading}
+                    onChange={(e) => setCurrentReading(e.target.value)}
+                    className={FIELD}
+                  />
+                </label>
+                <label className="block text-sm sm:col-span-2">
+                  <span className="text-apg-silver">Rate per unit (₹)</span>
+                  <input
+                    name="ratePerUnitInr"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={ratePerUnitInr}
+                    onChange={(e) => setRatePerUnitInr(e.target.value)}
+                    className={FIELD}
+                  />
+                </label>
+              </div>
+            ) : null}
+
+            {method === 'average_billing' ? (
+              <label className="block text-sm">
+                <span className="text-apg-silver">Average room electricity bill (₹)</span>
+                <input
+                  name="averageBillInr"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={averageBillInr}
+                  onChange={(e) => setAverageBillInr(e.target.value)}
+                  className={FIELD}
+                />
+              </label>
+            ) : null}
+
+            {method === 'manual_amount' ? (
+              <label className="block text-sm">
+                <span className="text-apg-silver">Electricity charge for this resident (₹)</span>
+                <input
+                  name="manualChargeInr"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={manualChargeInr}
+                  onChange={(e) => setManualChargeInr(e.target.value)}
+                  className={FIELD}
+                />
+              </label>
+            ) : null}
+
+            {pending ? (
+              <p className="text-sm text-apg-silver">Saving…</p>
+            ) : null}
+            {state.status === 'error' ? (
+              <p className="text-sm text-rose-300">{state.message}</p>
+            ) : null}
+          </form>
+        ) : null}
+
+        <div className="grid gap-4 rounded-3xl bg-[#12161C]/80 p-6 sm:grid-cols-3">
+          <LiveStat label="Units consumed" value={unitsConsumed != null ? String(unitsConsumed) : '—'} />
+          <LiveStat label="Resident share" value={paiseToInr(previewSharePaise)} />
+          <LiveStat
+            label="Electricity deduction"
+            value={deductFromDeposit ? `−${paiseToInr(electricityDeductionPaise)}` : 'Not deducted'}
+            accent
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -195,9 +441,8 @@ export function CheckoutSettlementElectricitySection({
       ) : (
         <p className="text-sm text-apg-silver">Awaiting resident meter photo or admin settlement.</p>
       )}
-      {roomDataHint && !operatorMode ? <p className="text-xs text-sky-200">{roomDataHint}</p> : null}
+      {roomDataHint ? <p className="text-xs text-sky-200">{roomDataHint}</p> : null}
 
-      {!operatorMode ? (
       <section className="rounded-xl border border-white/10 bg-[#12161C] p-4 text-sm">
         <h4 className="font-semibold text-white">Sharing detection</h4>
         <p className="mt-1 text-xs text-apg-silver">
@@ -216,7 +461,6 @@ export function CheckoutSettlementElectricitySection({
           </ul>
         ) : null}
       </section>
-      ) : null}
 
       {editable ? (
         <form action={action} className="space-y-4">
@@ -236,23 +480,16 @@ export function CheckoutSettlementElectricitySection({
 
           <fieldset className="space-y-2">
             <legend className="text-sm font-semibold text-white">Electricity calculation method</legend>
-            {(
-              [
-                ['meter_reading', 'Meter reading'],
-                ['average_billing', 'Average monthly billing'],
-                ['manual_amount', 'Manual amount'],
-              ] as const
-            ).map(([value, label]) => (
-              <label key={value} className="flex items-center gap-2 text-sm text-apg-silver">
+            {METHOD_OPTIONS.map((option) => (
+              <label key={option.value} className="flex items-center gap-2 text-sm text-apg-silver">
                 <input
                   type="radio"
                   name="calculationMethodRadio"
-                  value={value}
-                  checked={method === value}
-                  onChange={() => setMethod(value)}
-                  disabled={value === 'meter_reading' && meterPhotoMissing && false}
+                  value={option.value}
+                  checked={method === option.value}
+                  onChange={() => setMethod(option.value)}
                 />
-                {label}
+                {option.label}
               </label>
             ))}
           </fieldset>
@@ -393,13 +630,9 @@ export function CheckoutSettlementElectricitySection({
           <button
             type="submit"
             disabled={pending}
-            className={
-              operatorMode
-                ? 'rounded-2xl bg-white/10 px-5 py-2.5 text-sm font-medium text-white hover:bg-white/15 disabled:opacity-60'
-                : 'rounded-lg border border-white/10 px-4 py-2 text-xs font-semibold text-white hover:bg-white/5 disabled:opacity-60'
-            }
+            className="rounded-lg border border-white/10 px-4 py-2 text-xs font-semibold text-white hover:bg-white/5 disabled:opacity-60"
           >
-            {pending ? 'Updating…' : operatorMode ? 'Apply electricity' : 'Save electricity settlement'}
+            {pending ? 'Updating…' : 'Save electricity settlement'}
           </button>
           {state.status === 'error' ? (
             <p className="text-xs text-rose-300">{state.message}</p>
@@ -436,18 +669,35 @@ export function CheckoutSettlementElectricitySection({
         <div>
           <dt className="text-apg-silver">Deposit deduction</dt>
           <dd className="text-rose-300">
-            {deductFromDeposit ? `−${paiseToInr(refundImpactPaise)}` : 'Not deducted'}
+            {deductFromDeposit ? `−${paiseToInr(electricityDeductionPaise)}` : 'Not deducted'}
           </dd>
         </div>
-        {!operatorMode ? (
         <div>
           <dt className="text-apg-silver">Final refund impact</dt>
           <dd className="font-semibold text-emerald-300">
-            −{paiseToInr(refundImpactPaise)} from deposit refund
+            −{paiseToInr(electricityDeductionPaise)} from deposit refund
           </dd>
         </div>
-        ) : null}
       </dl>
+    </div>
+  );
+}
+
+function LiveStat({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent?: boolean;
+}) {
+  return (
+    <div>
+      <p className="text-xs font-medium uppercase tracking-wider text-apg-silver">{label}</p>
+      <p className={`mt-2 text-2xl font-semibold tracking-tight ${accent ? 'text-[#FF5A1F]' : 'text-white'}`}>
+        {value}
+      </p>
     </div>
   );
 }

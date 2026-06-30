@@ -138,10 +138,6 @@ function deriveMoveOutPriority(
     return { priority: 'waiting_admin', adminChecks, residentChecks };
   }
 
-  if (settlement.status === 'awaiting_resident_details') {
-    return { priority: 'waiting_resident', adminChecks, residentChecks };
-  }
-
   return { priority: 'waiting_admin', adminChecks, residentChecks };
 }
 
