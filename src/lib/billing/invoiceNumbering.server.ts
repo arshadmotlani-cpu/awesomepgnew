@@ -8,6 +8,7 @@ import {
   type FinancialInvoiceSourceRef,
   type NextFinancialInvoiceNumberInput,
 } from '@/src/lib/billing/invoiceNumbering';
+import { isFinancialInvoiceUuid } from '@/src/lib/billing/resolveFinancialInvoiceRef';
 
 export type { FinancialInvoiceSourceRef, NextFinancialInvoiceNumberInput };
 
@@ -84,8 +85,14 @@ export async function batchLookupFinancialInvoiceIds(
   if (refs.length === 0) return {};
 
   const unique = Array.from(
-    new Map(refs.map((r) => [sourceRefKey(r.sourceTable, r.sourceId), r])).values(),
+    new Map(
+      refs
+        .filter((r) => isFinancialInvoiceUuid(r.sourceId))
+        .map((r) => [sourceRefKey(r.sourceTable, r.sourceId), r]),
+    ).values(),
   );
+
+  if (unique.length === 0) return {};
 
   const rows = await db
     .select({

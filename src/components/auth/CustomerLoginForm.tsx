@@ -16,6 +16,7 @@ import {
   signupFetch,
 } from '@/src/lib/auth/signupFetch';
 import { redirectAfterAuth, safeNext } from '@/src/lib/auth/safeNext';
+import { logResidentClientInfo } from '@/src/lib/client/residentClientLogger';
 import { INDIAN_MOBILE_LOCAL, formatIndianPhoneDisplay } from '@/src/lib/phone';
 
 type Step = 'credentials' | 'otp' | 'profile' | 'reset-password';
@@ -233,6 +234,8 @@ export function CustomerLoginForm({
         needsCompleteSignup?: boolean;
         mustSetPassword?: boolean;
         accountExists?: boolean;
+        customerId?: string;
+        email?: string;
       };
       if (!res.ok || !data.ok) {
         if (data.needsCompleteSignup) {
@@ -253,6 +256,12 @@ export function CustomerLoginForm({
         router.replace(`/account/set-password?next=${encodeURIComponent(next)}`);
         return;
       }
+      logResidentClientInfo('post-login redirect start', {
+        page: 'login_password',
+        customerId: data.customerId ?? null,
+        email: data.email ?? email.trim(),
+        extra: { next, redirectTarget: next },
+      });
       redirectAfterAuth(next);
     } finally {
       setPending(false);

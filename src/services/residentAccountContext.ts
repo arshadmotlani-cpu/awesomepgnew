@@ -21,6 +21,7 @@ import { getCustomerById, isProfileComplete } from '@/src/services/profile';
 import { paymentLinkPublicUrl } from '@/src/lib/billing/paymentLinkUrl';
 import { batchLookupFinancialInvoiceIds } from '@/src/lib/billing/invoiceNumbering.server';
 import { invoiceDetailHref } from '@/src/lib/billing/invoiceRoutes';
+import { isFinancialInvoiceUuid } from '@/src/lib/billing/resolveFinancialInvoiceRef';
 import { getLatestPaymentLinkForResident } from '@/src/services/paymentLinks';
 import { formatDate, tryDiffDays } from '@/src/lib/dates';
 
@@ -333,7 +334,11 @@ export async function loadResidentAccountContext(
 
     const fiMap = await batchLookupFinancialInvoiceIds(
       invoices
-        .filter((inv) => inv.kind === 'rent' || inv.kind === 'electricity')
+        .filter(
+          (inv) =>
+            (inv.kind === 'rent' || inv.kind === 'electricity') &&
+            isFinancialInvoiceUuid(inv.id),
+        )
         .map((inv) => ({
           sourceTable: inv.kind === 'rent' ? 'rent_invoices' : 'electricity_invoices',
           sourceId: inv.id,

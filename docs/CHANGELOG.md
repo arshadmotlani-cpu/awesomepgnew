@@ -256,21 +256,24 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-06-30 06:53:37 UTC
+### Pending pre-commit sync · 2026-06-30 07:29:12 UTC
 
-**Areas touched:** [[ROUTES]], [[Bookings]]
+**Areas touched:** [[ROUTES]], [[Billing]]
 
 **Docs flagged for review:**
+- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (3):**
-- `app/(admin)/admin/settings/system-repair-actions.ts`
-- `app/api/cron/booking-stay-date-integrity/route.ts`
-- `src/services/bookingStayDateIntegrity.ts`
+**Staged code files (5):**
+- `app/(customer)/layout.tsx`
+- `app/api/admin/booking-stay-date-integrity/route.ts`
+- `app/api/admin/post-login-probe/route.ts`
+- `app/api/auth/customer/login/route.ts`
+- `src/lib/billing/invoiceNumbering.server.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

@@ -1,6 +1,7 @@
 import { SiteFooter } from '@/src/components/customer/SiteFooter';
 import { SiteHeader } from '@/src/components/customer/SiteHeader';
 import { WhatsAppSupportButton } from '@/src/components/customer/WhatsAppSupportButton';
+import { PostLoginGlobalErrorObserver } from '@/src/components/customer/account/PostLoginGlobalErrorObserver';
 import { CockroachAI } from '@/src/components/cockroach/CockroachAI';
 import { WorldShell } from '@/src/components/world';
 
@@ -18,6 +19,7 @@ export default function CustomerLayout({
   return (
     <div className="apg-customer-shell flex min-h-screen flex-col bg-apg-charcoal">
       <SiteHeader />
+      <PostLoginGlobalErrorObserver />
       <main className="flex-1">
         <WorldShell>{children}</WorldShell>
       </main>

@@ -71,6 +71,8 @@ export async function POST(request: Request) {
     email: customer.email,
     sessionKind: 'customer',
     mustSetPassword: customer.mustSetPassword,
+    userAgent: request.headers.get('user-agent'),
+    ip,
   });
 
   return NextResponse.json({
