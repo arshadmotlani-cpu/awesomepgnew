@@ -1,5 +1,5 @@
-import Image from 'next/image';
 import { Badge } from '@/src/components/admin/Badge';
+import { CheckoutSettlementEvidenceCard } from '@/src/components/admin/checkout/CheckoutSettlementEvidenceCard';
 import {
   assessCheckoutSettlementReadiness,
   type CheckoutSettlementReadiness,
@@ -45,10 +45,9 @@ export function CheckoutSettlementCommandCenter({
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <EvidenceCard
+        <CheckoutSettlementEvidenceCard
           title="Meter photo"
-          present={Boolean(detail.electricityMeterPhotoUrl) || detail.electricityUseAverage}
-          url={detail.electricityMeterPhotoUrl}
+          evidence={detail.meterPhotoEvidence}
           fallback={
             detail.electricityUseAverage
               ? 'Average billing selected'
@@ -57,10 +56,9 @@ export function CheckoutSettlementCommandCenter({
                 : 'Not uploaded'
           }
         />
-        <EvidenceCard
+        <CheckoutSettlementEvidenceCard
           title="Refund QR / UPI"
-          present={Boolean(detail.payoutUpiId?.trim()) || Boolean(detail.payoutQrUrl)}
-          url={detail.payoutQrUrl}
+          evidence={detail.refundQrEvidence}
           fallback={detail.payoutUpiId?.trim() ? `UPI: ${detail.payoutUpiId}` : 'Not submitted'}
         />
       </div>
@@ -110,34 +108,6 @@ function Metric({
       >
         {value}
       </dd>
-    </div>
-  );
-}
-
-function EvidenceCard({
-  title,
-  present,
-  url,
-  fallback,
-}: {
-  title: string;
-  present: boolean;
-  url: string | null;
-  fallback: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-[#1A1F27] p-4">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-white">{title}</h3>
-        <Badge tone={present ? 'emerald' : 'amber'}>{present ? 'Present' : 'Missing'}</Badge>
-      </div>
-      {url ? (
-        <div className="relative mt-3 aspect-[4/3] overflow-hidden rounded-lg border border-white/10 bg-black/30">
-          <Image src={url} alt={title} fill className="object-contain" unoptimized />
-        </div>
-      ) : (
-        <p className="mt-3 text-sm text-apg-silver">{fallback}</p>
-      )}
     </div>
   );
 }

@@ -122,6 +122,35 @@ export function roomImageBlobPath(roomId: string, filename: string): string {
   return `rooms/${roomId}/${filename}`;
 }
 
+/** Non-throwing HEAD check — true when the private blob object exists and is readable. */
+export async function privateBlobReachable(urlOrPathname: string): Promise<{
+  ok: boolean;
+  reason?: string;
+}> {
+  const trimmed = urlOrPathname.trim();
+  if (!trimmed) return { ok: false, reason: 'Empty storage path' };
+  if (!isPrivateBlobUrl(trimmed)) {
+    return { ok: false, reason: 'Not a private Blob URL' };
+  }
+  if (!isBlobPrivateConfigured()) {
+    return { ok: false, reason: 'Private Blob storage is not configured' };
+  }
+  try {
+    await head(trimmed, { token: privateToken() });
+    return { ok: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const name = err instanceof Error ? err.name : '';
+    if (name === 'BlobNotFoundError' || /not found|404/i.test(msg)) {
+      return { ok: false, reason: 'Blob object not found (404)' };
+    }
+    if (/403|forbidden|unauthorized/i.test(msg)) {
+      return { ok: false, reason: 'Blob access denied (403)' };
+    }
+    return { ok: false, reason: msg.slice(0, 200) };
+  }
+}
+
 /** Non-throwing connectivity probe for health checks. */
 export async function checkBlobConnectivity(): Promise<{ ok: boolean; detail: string }> {
   if (!isBlobPrivateConfigured()) {

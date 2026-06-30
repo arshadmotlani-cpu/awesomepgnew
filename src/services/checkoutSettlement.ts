@@ -35,6 +35,10 @@ import {
 import { isFixedStayDurationMode } from '@/src/lib/checkout/checkoutWorkflow';
 import { noticeDeductionAppliesToBooking } from '@/src/lib/checkout/noticeDeductionPolicy';
 import { hasCheckoutElectricityEvidence } from '@/src/lib/checkout/checkoutElectricityEvidence';
+import {
+  enrichCheckoutSettlementImageEvidence,
+  type CheckoutSettlementImageEvidence,
+} from '@/src/lib/checkout/checkoutSettlementImages';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import {
   applyDepositDeductionsInTx,
@@ -110,6 +114,8 @@ export type CheckoutSettlementDetail = CheckoutSettlementRow & {
   roomOccupancy: RoomOccupancyContext;
   electricityTotalBillPaise: number;
   effectiveSharingCount: number;
+  meterPhotoEvidence: CheckoutSettlementImageEvidence;
+  refundQrEvidence: CheckoutSettlementImageEvidence;
   preview: RefundDeductionsSnapshot & {
     finalRefundPaise: number;
     totalDeductionsPaise: number;
@@ -679,6 +685,23 @@ export async function listPipelineCheckoutSettlements(
     .map(mapJoinRow);
 }
 
+export async function getCheckoutSettlementStoredImageUrl(
+  session: AdminSession,
+  settlementId: string,
+): Promise<CheckoutSettlement | null> {
+  const row = await loadSettlementRow(settlementId);
+  if (!row) return null;
+
+  if (
+    row.pg_id &&
+    !adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, row.pg_id)
+  ) {
+    return null;
+  }
+
+  return mapDbSettlement(row);
+}
+
 export async function getCheckoutSettlementDetail(
   session: AdminSession,
   settlementId: string,
@@ -732,7 +755,7 @@ export async function getCheckoutSettlementDetail(
     electricityTotalBillPaise = settlement.manualChargePaise ?? settlement.electricitySharePaise;
   }
 
-  return {
+  return enrichCheckoutSettlementImageEvidence({
     ...mapJoinRow(row),
     stayType: row.stay_type ?? null,
     durationMode: row.duration_mode ?? null,
@@ -747,7 +770,7 @@ export async function getCheckoutSettlementDetail(
     effectiveSharingCount: sharingUsed,
     electricityTotalBillPaise,
     preview: buildPreview(settlement, depositHeld),
-  };
+  });
 }
 
 export async function getCheckoutSettlementForCustomer(

@@ -174,15 +174,19 @@ export function CheckoutSettlementElectricitySection({
 
   return (
     <div className="space-y-4">
-      {detail.electricityMeterPhotoUrl ? (
+      {detail.meterPhotoEvidence.fetchable && detail.meterPhotoEvidence.viewUrl ? (
         <a
-          href={detail.electricityMeterPhotoUrl}
+          href={detail.meterPhotoEvidence.viewUrl}
           target="_blank"
           rel="noreferrer"
           className="text-sm font-semibold text-[#FF5A1F] hover:underline"
         >
           View resident meter photo
         </a>
+      ) : detail.electricityMeterPhotoUrl && detail.meterPhotoEvidence.status === 'image_missing' ? (
+        <p className="text-sm text-rose-300">
+          Meter photo on file but image is missing — ask resident to re-upload.
+        </p>
       ) : meterPhotoMissing ? (
         <p className="text-sm text-amber-200">Resident did not upload a meter photo.</p>
       ) : (
