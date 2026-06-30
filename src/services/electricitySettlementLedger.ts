@@ -17,6 +17,7 @@ import { resolveCheckoutElectricityDeductionPaise } from '@/src/lib/checkout/ele
 import { firstOfMonth, monthBounds } from '@/src/services/billing';
 import type { CheckoutSettlement } from '@/src/db/schema/checkoutSettlements';
 import type { DateLike } from '@/src/lib/dates';
+import { sumManualElectricityCreditsForRoomMonth } from '@/src/services/electricitySettlementLedgerView';
 
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -41,6 +42,7 @@ export type RoomCheckoutElectricityReconciliation = {
   billingMonth: string;
   grossBillPaise: number | null;
   checkoutCollectedPaise: number;
+  manualCreditsPaise: number;
   remainingToRecoverPaise: number;
   entries: ElectricitySettlementLedgerRow[];
 };
@@ -197,13 +199,16 @@ export async function getRoomCheckoutElectricityReconciliation(
     status: 'collected',
   });
   const checkoutCollectedPaise = entries.reduce((sum, e) => sum + e.amountPaise, 0);
+  const manualCreditsPaise = await sumManualElectricityCreditsForRoomMonth(roomId, month);
+  const totalCredits = checkoutCollectedPaise + manualCreditsPaise;
 
   return {
     billingMonth: month,
     grossBillPaise: grossBillPaise ?? null,
     checkoutCollectedPaise,
+    manualCreditsPaise,
     remainingToRecoverPaise:
-      grossBillPaise != null ? Math.max(0, grossBillPaise - checkoutCollectedPaise) : 0,
+      grossBillPaise != null ? Math.max(0, grossBillPaise - totalCredits) : 0,
     entries,
   };
 }

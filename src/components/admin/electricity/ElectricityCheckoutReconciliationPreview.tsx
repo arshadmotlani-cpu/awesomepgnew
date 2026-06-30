@@ -28,12 +28,7 @@ export function ElectricityCheckoutReconciliationPreview({
     });
     void fetch(`/api/admin/rooms/${roomId}/electricity-reconciliation?${params}`)
       .then((res) => res.json())
-      .then((json: {
-          ok?: boolean;
-          data?: RoomCheckoutElectricityReconciliation & {
-            manualCreditsPaise?: number;
-          };
-        }) => {
+      .then((json: { ok?: boolean; data?: RoomCheckoutElectricityReconciliation }) => {
         setData(json.ok && json.data ? json.data : null);
       })
       .catch(() => setData(null))
@@ -44,7 +39,7 @@ export function ElectricityCheckoutReconciliationPreview({
   if (loading) {
     return <p className="text-sm text-apg-silver">Loading checkout reconciliation…</p>;
   }
-  if (!data || (data.checkoutCollectedPaise <= 0 && (data.manualCreditsPaise ?? 0) <= 0)) {
+  if (!data || (data.checkoutCollectedPaise <= 0 && data.manualCreditsPaise <= 0)) {
     return null;
   }
 
@@ -54,7 +49,7 @@ export function ElectricityCheckoutReconciliationPreview({
         compact
         actualBillPaise={data.grossBillPaise ?? grossBillPaise}
         checkoutCollectedPaise={data.checkoutCollectedPaise}
-        manualCreditsPaise={data.manualCreditsPaise ?? 0}
+        manualCreditsPaise={data.manualCreditsPaise}
         remainingToRecoverPaise={data.remainingToRecoverPaise}
         entries={data.entries}
       />
