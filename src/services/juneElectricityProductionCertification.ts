@@ -4,7 +4,7 @@
  */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { and, eq, ilike, inArray, isNull, ne } from 'drizzle-orm';
+import { and, eq, ilike, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
   beds,
