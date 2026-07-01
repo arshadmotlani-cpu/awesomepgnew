@@ -447,6 +447,7 @@ export default async function CollectionsModulePage({
             error={rentPaid.ok ? null : rentPaid.error}
             rows={rentPaid.ok ? rentPaid.data.slice(0, 50) : []}
             pgNameById={pgNameById}
+            financialIdMap={financialIdMap}
           />
         </>
       ) : null}

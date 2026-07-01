@@ -406,7 +406,7 @@ export async function createElectricityBill(
     excludedCheckoutResidents: allocation.invoices.filter((i) => i.excludedBecauseCheckoutPaid).length,
   });
 
-  const useProRata = input.useProRataByActiveDays && totalWeight > 0;
+  const useProRata = Boolean(input.useProRataByActiveDays && totalWeight > 0);
   const invoiceAllocationByBooking = new Map(
     allocation.invoices
       .filter((line) => !line.excludedBecauseCheckoutPaid && line.amountPaise > 0)

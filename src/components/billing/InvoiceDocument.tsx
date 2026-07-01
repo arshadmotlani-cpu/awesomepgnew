@@ -5,7 +5,7 @@ import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import type { InvoiceDocumentModel } from '@/src/lib/billing/invoiceDocumentModel';
 import type { FinancialInvoiceStatus } from '@/src/db/schema/enums';
 import { ElectricityBillCalculationBreakdownPanel } from '@/src/components/billing/ElectricityBillCalculationBreakdownPanel';
-import { personalizeElectricityBreakdown } from '@/src/lib/billing/buildElectricityBillBreakdown';
+import { personalizeElectricityBreakdown } from '@/src/lib/billing/electricityBillBreakdownPure';
 
 type Variant = 'admin' | 'resident';
 

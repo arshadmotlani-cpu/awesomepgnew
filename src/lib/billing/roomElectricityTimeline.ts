@@ -2,6 +2,8 @@
  * All residents who occupied a room during a billing month — including departed.
  * Used for transparent electricity bill breakdown / occupancy timeline.
  */
+import 'server-only';
+
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
