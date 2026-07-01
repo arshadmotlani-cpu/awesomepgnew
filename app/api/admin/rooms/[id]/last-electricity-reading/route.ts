@@ -12,14 +12,14 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(
   _req: NextRequest,
-  ctx: { params: Promise<{ roomId: string }> },
+  ctx: { params: Promise<{ id: string }> },
 ) {
   const session = await getAdminSession();
   if (!session || !adminHasPermission(session.role, 'electricity:write')) {
     return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { roomId } = await ctx.params;
+  const { id: roomId } = await ctx.params;
 
   const [lastBill] = await db
     .select({
