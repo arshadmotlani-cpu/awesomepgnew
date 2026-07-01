@@ -53,8 +53,10 @@ import { getLatestKycSubmission } from '@/src/services/kyc';
 import { buildWalletLedger } from '@/src/lib/residents/walletLedger';
 import { DepositDueSection } from '@/src/components/customer/account/DepositDueSection';
 import { DepositWalletSection } from '@/src/components/customer/account/DepositWalletSection';
+import { DepositRefundNotice } from '@/src/components/customer/DepositRefundNotice';
 import { ResidentRequestForms } from '@/src/components/customer/account/ResidentRequestForms';
 import { ResidentDepositLedger } from '@/src/components/customer/account/resident/ResidentDepositLedger';
+import { ResidentDepositBreakdown } from '@/src/components/customer/account/resident/ResidentDepositBreakdown';
 import { ResidentWalletRequestStatus } from '@/src/components/customer/account/resident/ResidentWalletRequestStatus';
 import { ResidentWalletView } from '@/src/components/customer/account/resident/ResidentWalletView';
 import { ResidentPaymentsHub } from '@/src/components/customer/account/resident/ResidentPaymentsHub';
@@ -454,6 +456,12 @@ export async function ResidentAreaSection({
   const roomLabel = primaryBooking
     ? `${primaryBooking.booking.pgName} · R${primaryBooking.booking.roomNumber}`
     : '';
+  const walletDepositHeldPaise =
+    depositWallet.totalHeldPaise > 0
+      ? depositWallet.totalHeldPaise
+      : (primaryBooking?.deposit?.refundableBalancePaise ?? 0);
+  const walletAvailableRefundPaise =
+    primaryBooking?.deposit?.refundableBalancePaise ?? depositWallet.availableCreditPaise;
 
   return (
     <ResidentHubShell
@@ -539,7 +547,7 @@ export async function ResidentAreaSection({
           vacating={primaryVacating}
           checkoutStatus={checkoutByBooking.get(primaryBooking.bookingId) ?? null}
           checkoutSettlement={checkoutSettlementByBooking.get(primaryBooking.bookingId) ?? null}
-          depositHeldPaise={financialAccount?.depositHeldPaise ?? 0}
+          depositHeldPaise={walletDepositHeldPaise}
           durationMode={effectiveDurationMode ?? primaryBooking.booking.durationMode}
           expectedCheckoutDate={primaryBooking.booking.expectedCheckoutDate}
           bookingStatus={primaryBooking.booking.status}
@@ -550,10 +558,33 @@ export async function ResidentAreaSection({
         </ResidentSectionErrorBoundary>
       ) : null}
 
-      {activeTab === 'home' && primaryBooking && financialAccount && customer ? (
+      {activeTab === 'home' && primaryBooking && customer ? (
         <ResidentHomePanel
           booking={primaryBooking.booking}
-          financialSummary={financialAccount}
+          financialSummary={
+            financialAccount ?? {
+              customerId: session.customerId,
+              bookingId: primaryBooking.bookingId,
+              bookingCode: primaryBooking.bookingCode,
+              customerName: customer.fullName,
+              customerPhone: customer.phone ?? '',
+              pgId: primaryBooking.booking.pgId,
+              pgName: primaryBooking.booking.pgName,
+              roomNumber: primaryBooking.booking.roomNumber,
+              asOf: new Date().toISOString(),
+              rent: { requiredPaise: 0, paidPaise: 0, outstandingPaise: 0, items: [] },
+              deposit: {
+                requiredPaise: primaryBooking.booking.depositPaise,
+                paidPaise: primaryBooking.deposit?.collectedPaise ?? 0,
+                outstandingPaise: primaryBooking.booking.depositDuePaise ?? 0,
+                refundablePaise: primaryBooking.deposit?.refundableBalancePaise ?? 0,
+                items: [],
+              },
+              electricity: { requiredPaise: 0, paidPaise: 0, outstandingPaise: 0, items: [] },
+              other: { requiredPaise: 0, paidPaise: 0, outstandingPaise: 0, items: [] },
+              totals: { requiredPaise: 0, paidPaise: 0, outstandingPaise: 0 },
+            }
+          }
           kycStatus={customer.kycStatus}
           documentsSubmitted={documentsSubmitted}
           openRequests={openRequests}
@@ -590,40 +621,43 @@ export async function ResidentAreaSection({
 
       {activeTab === 'wallet' && primaryBooking ? (
         <div className="space-y-4 pb-2">
-          {financialAccount ? (
-            <ResidentWalletView
-              amountDuePaise={financialAccount.totalOutstandingPaise}
-              depositHeldPaise={depositWallet.totalHeldPaise}
-              availableCreditPaise={depositWallet.availableCreditPaise}
-              ledgerEntries={walletLedgerEntries}
-              firstUnpaidRentId={firstUnpaidRentId}
-              firstUnpaidElectricityId={firstUnpaidElectricityId}
-              historyHref={historyHref}
-            />
-          ) : null}
+          <DepositWalletSection
+            wallet={depositWallet}
+            availableRefundPaise={walletAvailableRefundPaise}
+          />
+
+          <ResidentWalletView
+            amountDuePaise={financialAccount?.totalOutstandingPaise ?? 0}
+            depositHeldPaise={walletDepositHeldPaise}
+            availableCreditPaise={depositWallet.availableCreditPaise}
+            ledgerEntries={walletLedgerEntries}
+            firstUnpaidRentId={firstUnpaidRentId}
+            firstUnpaidElectricityId={firstUnpaidElectricityId}
+            historyHref={historyHref}
+          />
 
           {depositDueCards.map((card) => (
             <DepositDueSection key={`deposit-due-${card.bookingId}`} {...card} />
           ))}
 
-          {depositWallet.totalCollectedPaise > 0 ? (
-            <DepositWalletSection wallet={depositWallet} />
-          ) : null}
+          <ResidentDepositBreakdown entries={primaryBooking.deposit?.entries ?? []} />
 
           <ResidentDepositLedger entries={primaryBooking.deposit?.entries ?? []} />
+
+          <DepositRefundNotice />
 
           <ResidentWalletRequestStatus requests={activeRequests} />
 
           <ResidentRequestForms
             bookingId={primaryBooking.bookingId}
             customerId={session.customerId}
-            refundableBalancePaise={primaryBooking.deposit?.refundableBalancePaise ?? 0}
+            refundableBalancePaise={walletAvailableRefundPaise}
             hasOpenVacating={hasOpenVacating}
           />
         </div>
       ) : null}
 
-      {activeTab === 'payments' && financialAccount && primaryBooking ? (
+      {activeTab === 'payments' && primaryBooking && financialAccount ? (
         <ResidentPaymentsHub
           dueRows={dueBillRows}
           pendingApprovalRows={pendingApprovalRows}

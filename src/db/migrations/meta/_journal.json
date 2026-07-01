@@ -610,6 +610,13 @@
       "when": 1790800000000,
       "tag": "0090_close_completed_reservation_stay_ranges",
       "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1790900000000,
+      "tag": "0091_electricity_bill_calculation_breakdown",
+      "breakpoints": true
     }
   ]
 }

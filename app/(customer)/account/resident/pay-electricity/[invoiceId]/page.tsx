@@ -27,7 +27,8 @@ import {
   ACCOUNT_PAGE_TITLE,
 } from '@/src/components/customer/accountStyles';
 import { formatDate, paiseToInr } from '@/src/lib/format';
-import { projectElectricityInvoice } from '@/src/services/electricityBilling';
+import { projectElectricityInvoice, getElectricityBreakdownForInvoice } from '@/src/services/electricityBilling';
+import { ElectricityBillCalculationBreakdownPanel } from '@/src/components/billing/ElectricityBillCalculationBreakdownPanel';
 import {
   ensureDefaultPaymentCategoriesForPg,
   getElectricityDailyCategory,
@@ -93,6 +94,7 @@ export default async function PayElectricityPage({
   const amountLabel = paiseToInr(outstanding);
   const periodLabel = formatDate(invoiceRow.billingMonth);
   const backHref = residentTabHref('payments');
+  const calculation = await getElectricityBreakdownForInvoice(invoiceId);
 
   await ensureDefaultPaymentCategoriesForPg(row.pgId);
   const elecCategory = await getElectricityDailyCategory(row.pgId);
@@ -135,6 +137,14 @@ export default async function PayElectricityPage({
           </p>
         ) : null}
       </ApgCard>
+
+      {calculation ? (
+        <ElectricityBillCalculationBreakdownPanel
+          breakdown={calculation.breakdown}
+          viewer={calculation.viewer}
+          theme="light"
+        />
+      ) : null}
 
       {invoiceRow.status === 'paid' ? (
         <ApgCard tier="account" className="p-5 text-sm text-emerald-800">

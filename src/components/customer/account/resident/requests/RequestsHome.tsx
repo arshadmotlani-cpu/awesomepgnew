@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ApgCard } from '@/src/components/customer/design-system';
 import { StatusChip } from '@/src/components/customer/design-system';
@@ -18,8 +18,6 @@ import {
   type RequestCategoryId,
 } from '@/src/lib/residents/requestCenter';
 import { accountProfileHref, residentTabHref } from '@/src/lib/accountNavigation';
-import { buildRefundRequestPageModel } from '@/src/lib/refund/refundRequestValidation';
-import { applyDeveloperTestEligibilityOverride } from '@/src/lib/auth/developerTestResident.shared';
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
 
 type Props = {
@@ -69,57 +67,34 @@ export function RequestsHome({
   const [making, setMaking] = useState(startMake);
   const [makeCategory, setMakeCategory] = useState(initialCategory);
 
-  const refundPageModel = useMemo(
-    () =>
-      buildRefundRequestPageModel({
-        booking: {
-          bookingId,
-          bookingCode,
-          status: bookingStatus,
-          durationMode,
-          expectedCheckoutDate,
-          createdAt: bookingCreatedAt ?? null,
-          refundableBalancePaise,
-          monthlyRentPaise,
-        },
-        vacating,
-        settlement:
-          checkoutSettlement ??
-          (checkoutSettlementStatus ? { status: checkoutSettlementStatus } : null),
-        developerTestEmail,
-      }),
-    [
-      bookingId,
-      bookingCode,
-      bookingStatus,
-      durationMode,
-      expectedCheckoutDate,
-      bookingCreatedAt,
-      refundableBalancePaise,
-      monthlyRentPaise,
-      vacating,
-      checkoutSettlement,
-      checkoutSettlementStatus,
-      developerTestEmail,
-    ],
-  );
-
-  const refundEligibility = applyDeveloperTestEligibilityOverride(
-    developerTestEmail,
-    refundPageModel.eligibility,
-  );
-  const refundUnlocked =
-    refundEligibility.canRequestRefund || Boolean(developerTestEmail);
-
   const selected = useMemo(
     () => activeRequests.find((r) => r.id === selectedRequestId) ?? null,
     [activeRequests, selectedRequestId],
   );
 
+  useEffect(() => {
+    if (selected?.type === 'deposit_refund') {
+      router.replace(residentTabHref('wallet'));
+    }
+  }, [selected, router]);
+
+  useEffect(() => {
+    if (initialCategory === 'deposit_refund' || makeCategory === 'deposit_refund') {
+      router.replace(residentTabHref('wallet'));
+    }
+  }, [initialCategory, makeCategory, router]);
+
   const visibleCategories = REQUEST_CATEGORIES.filter((c) => c.primaryVisible);
-  const moreCategories = REQUEST_CATEGORIES.filter((c) => !c.primaryVisible);
+  const moreCategories = REQUEST_CATEGORIES.filter(
+    (c) => !c.primaryVisible && c.id !== 'deposit_refund',
+  );
 
   function openDetail(id: string) {
+    const request = activeRequests.find((r) => r.id === id);
+    if (request?.type === 'deposit_refund') {
+      router.push(residentTabHref('wallet'));
+      return;
+    }
     router.push(accountProfileHref('resident', { tab: 'requests', request: id }));
   }
 
@@ -134,7 +109,8 @@ export function RequestsHome({
       router.push(`/account/resident/request-vacating/${bookingId}`);
       return;
     }
-    if (cat.wired === 'deposit_refund' && !refundUnlocked) {
+    if (cat.wired === 'deposit_refund') {
+      router.push(residentTabHref('wallet'));
       return;
     }
     setMakeCategory(id);
@@ -146,23 +122,8 @@ export function RequestsHome({
   }
 
   if (making) {
-    if (makeCategory === 'deposit_refund' && !refundUnlocked) {
-      return (
-        <ApgCard tier="account" className="p-5">
-          <p className="text-sm font-medium text-zinc-900">Deposit refund locked</p>
-          <p className="mt-2 text-sm text-zinc-600">{refundEligibility.lockReason}</p>
-          <button
-            type="button"
-            onClick={() => {
-              setMaking(false);
-              setMakeCategory(null);
-            }}
-            className="mt-4 text-sm font-semibold text-indigo-600 hover:text-indigo-500"
-          >
-            ← Back
-          </button>
-        </ApgCard>
-      );
+    if (makeCategory === 'deposit_refund') {
+      return null;
     }
 
     return (
@@ -207,23 +168,6 @@ export function RequestsHome({
         </p>
       </ApgCard>
 
-      {refundEligibility.canRequestRefund && refundableBalancePaise > 0 ? (
-        <ApgCard tier="account" className="border-emerald-200 bg-emerald-50/80 p-5">
-          <p className="text-sm font-semibold text-emerald-900">Request deposit refund</p>
-          <p className="mt-1 text-xs text-emerald-800">
-            Your checkout is complete. Submit your final meter photo and UPI details to receive your
-            deposit refund.
-          </p>
-          <button
-            type="button"
-            onClick={() => selectCategory('deposit_refund')}
-            className="mt-3 w-full rounded-xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-600"
-          >
-            Request deposit refund
-          </button>
-        </ApgCard>
-      ) : null}
-
       {activeRequests.length > 0 ? (
         <ApgCard tier="account" className="p-5">
           <h2 className="text-sm font-semibold text-zinc-900">Open requests</h2>
@@ -265,12 +209,6 @@ export function RequestsHome({
               key={cat.id}
               title={cat.title}
               description={cat.description}
-              disabled={cat.id === 'deposit_refund' && !refundUnlocked}
-              lockReason={
-                cat.id === 'deposit_refund' && !refundUnlocked
-                  ? refundEligibility.lockReason
-                  : null
-              }
               onSelect={() => selectCategory(cat.id)}
             />
           ))}
@@ -284,12 +222,6 @@ export function RequestsHome({
               key={cat.id}
               title={cat.title}
               description={cat.description}
-              disabled={cat.wired === 'deposit_refund' && !refundUnlocked}
-              lockReason={
-                cat.wired === 'deposit_refund' && !refundUnlocked
-                  ? refundEligibility.lockReason
-                  : null
-              }
               onSelect={() => selectCategory(cat.id)}
             />
           ))}

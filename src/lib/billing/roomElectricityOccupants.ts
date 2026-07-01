@@ -182,6 +182,10 @@ export async function loadRoomElectricityOccupantsForMonth(input: {
       excludedCustomerIds.add(row.customerId);
       continue;
     }
+    if ((checkoutCollectedByCustomerId.get(row.customerId) ?? 0) > 0) {
+      excludedCustomerIds.add(row.customerId);
+      continue;
+    }
 
     const bedDays = input.useProRataByActiveDays
       ? activeDaysInMonth(row.lower, row.upper)

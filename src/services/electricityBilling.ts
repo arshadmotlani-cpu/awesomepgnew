@@ -43,6 +43,8 @@ import {
   rooms,
 } from '../db/schema';
 import { loadRoomElectricityOccupantsForMonth } from '@/src/lib/billing/roomElectricityOccupants';
+import { composeElectricityBillBreakdown, loadElectricityBillBreakdown, personalizeElectricityBreakdown } from '@/src/lib/billing/buildElectricityBillBreakdown';
+import type { ElectricityBillCalculationBreakdown } from '@/src/lib/billing/electricityBillBreakdownTypes';
 import type { NewElectricityInvoice } from '../db/schema/electricityInvoices';
 import { diffDays, formatDate, parseDate, type DateLike } from '../lib/dates';
 import {
@@ -659,6 +661,29 @@ export async function createElectricityBill(
       invoiceCount: result.invoiceIds.length,
     });
 
+    const calculationBreakdown = await composeElectricityBillBreakdown({
+      roomId: input.roomId,
+      roomNumber: room.roomNumber,
+      billingMonth,
+      previousReadingUnits: input.previousReadingUnits,
+      currentReadingUnits: input.currentReadingUnits,
+      ratePerUnitPaise: input.ratePerUnitPaise,
+      grossTotalPaise,
+      prepaidCreditPaise: prepaidCreditAppliedPaise,
+      prepaidCreditNote,
+      manualCreditPaise: manualCreditAppliedPaise,
+      checkoutCreditAppliedPaise,
+      remainingBillPaise: netSplittablePaise,
+      useProRata,
+      occupantLoad,
+      invoiceAmountByBookingId: invoiceAllocationByBooking,
+    });
+
+    await db
+      .update(electricityBills)
+      .set({ calculationBreakdown, updatedAt: new Date() })
+      .where(eq(electricityBills.id, result.billId));
+
     const { notifyElectricityReminder } = await import('@/src/lib/email/notifications');
     for (const n of pendingNotifications) {
       notifyElectricityReminder({
@@ -1072,4 +1097,33 @@ export async function listRoomsMissingElectricityBill(
     pgId: row.pg_id,
     pgName: row.pg_name,
   }));
+}
+
+/** Load transparent calculation breakdown for a resident electricity invoice. */
+export async function getElectricityBreakdownForInvoice(
+  electricityInvoiceId: string,
+): Promise<{
+  breakdown: ElectricityBillCalculationBreakdown;
+  viewer: ReturnType<typeof personalizeElectricityBreakdown>['viewer'];
+} | null> {
+  const [row] = await db
+    .select({
+      customerId: electricityInvoices.customerId,
+      electricityBillId: electricityInvoices.electricityBillId,
+      amountPaise: electricityInvoices.amountPaise,
+    })
+    .from(electricityInvoices)
+    .where(eq(electricityInvoices.id, electricityInvoiceId))
+    .limit(1);
+  if (!row) return null;
+
+  const breakdown = await loadElectricityBillBreakdown(row.electricityBillId);
+  if (!breakdown) return null;
+
+  const { viewer } = personalizeElectricityBreakdown(breakdown, row.customerId);
+  if (viewer) {
+    viewer.amountPayablePaise = row.amountPaise;
+  }
+
+  return { breakdown, viewer };
 }

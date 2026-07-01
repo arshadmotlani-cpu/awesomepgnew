@@ -17,9 +17,7 @@ import {
   expectedCompletionLabel,
 } from '@/src/lib/residents/vacatingPresentation';
 import { isFixedStayDurationMode } from '@/src/lib/checkout/checkoutWorkflow';
-import { getDepositRefundEligibility } from '@/src/lib/vacating/depositRefundEligibility';
-import { applyDeveloperTestEligibilityOverride } from '@/src/lib/auth/developerTestResident.shared';
-import { accountProfileHref } from '@/src/lib/accountNavigation';
+import { residentTabHref } from '@/src/lib/accountNavigation';
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 
@@ -63,35 +61,9 @@ export function VacatingHome({
   depositHeldPaise,
   durationMode = 'monthly',
   expectedCheckoutDate = null,
-  bookingStatus = 'confirmed',
-  bookingCreatedAt,
-  monthlyRentPaise = 0,
-  developerTestEmail = null,
 }: Props) {
   const fixedStay = isFixedStayDurationMode(durationMode);
-  const refundHref = accountProfileHref('resident', {
-    tab: 'requests',
-    make: '1',
-    category: 'deposit_refund',
-  });
-
-  const refundEligibility = applyDeveloperTestEligibilityOverride(
-    developerTestEmail,
-    getDepositRefundEligibility({
-      vacating,
-      booking:
-        bookingCreatedAt != null
-          ? {
-              status: bookingStatus,
-              durationMode,
-              expectedCheckoutDate,
-              createdAt: bookingCreatedAt,
-            }
-          : null,
-      settlement: checkoutSettlement,
-      monthlyRentPaise,
-    }),
-  );
+  const walletHref = residentTabHref('wallet');
 
   if (fixedStay) {
     const checkoutDate = expectedCheckoutDate;
@@ -129,29 +101,14 @@ export function VacatingHome({
         </ApgCard>
 
         <ApgCard tier="account" className="p-5">
-          <h3 className="text-sm font-semibold text-zinc-900">Refund request</h3>
+          <h3 className="text-sm font-semibold text-zinc-900">Deposit refund</h3>
           <p className="mt-1 text-xs text-zinc-600">
-            You will need your final AC meter photo (if applicable) and a UPI QR code or UPI ID.
+            Deposit refunds are handled in your Wallet after checkout and electricity settlement are
+            complete. Request vacating here; use Wallet when you are ready to submit refund details.
           </p>
-          {refundEligibility.unlockState === 'rejected' && refundEligibility.lockReason ? (
-            <p className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
-              {refundEligibility.lockReason}
-            </p>
-          ) : null}
-          {refundEligibility.canRequestRefund ? (
-            <Link href={refundHref} className={`${PRIMARY_BTN} mt-4`}>
-              Request refund
-            </Link>
-          ) : (
-            <>
-              <button type="button" disabled className={`${SECONDARY_BTN} mt-4`}>
-                Request refund
-              </button>
-              {refundEligibility.lockReason ? (
-                <p className="mt-2 text-xs text-zinc-500">{refundEligibility.lockReason}</p>
-              ) : null}
-            </>
-          )}
+          <Link href={walletHref} className={`${SECONDARY_BTN} mt-4`}>
+            Open Wallet
+          </Link>
         </ApgCard>
       </div>
     );
@@ -303,28 +260,12 @@ export function VacatingHome({
           <ApgCard tier="account" className="p-5">
             <h3 className="text-sm font-semibold text-zinc-900">Deposit refund</h3>
             <p className="mt-1 text-xs text-zinc-600">
-              Deposit held · {paiseToInr(depositHeldPaise)}. After admin approves your move-out and
-              your move-out date arrives, submit your refund details here.
+              After admin approves your move-out and checkout is complete, open Wallet to request your
+              deposit refund with UPI details and your final meter photo.
             </p>
-            {refundEligibility.unlockState === 'rejected' && refundEligibility.lockReason ? (
-              <p className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
-                {refundEligibility.lockReason}
-              </p>
-            ) : null}
-            {refundEligibility.canRequestRefund ? (
-              <Link href={refundHref} className={`${PRIMARY_BTN} mt-4`}>
-                Request refund
-              </Link>
-            ) : (
-              <>
-                <button type="button" disabled className={`${SECONDARY_BTN} mt-4`}>
-                  Request refund
-                </button>
-                {refundEligibility.lockReason ? (
-                  <p className="mt-2 text-xs text-zinc-500">{refundEligibility.lockReason}</p>
-                ) : null}
-              </>
-            )}
+            <Link href={walletHref} className={`${SECONDARY_BTN} mt-4`}>
+              Open Wallet
+            </Link>
           </ApgCard>
 
           {settlementLines.length > 0 ? (

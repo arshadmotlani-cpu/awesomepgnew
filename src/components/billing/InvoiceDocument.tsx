@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import type { InvoiceDocumentModel } from '@/src/lib/billing/invoiceDocumentModel';
 import type { FinancialInvoiceStatus } from '@/src/db/schema/enums';
+import { ElectricityBillCalculationBreakdownPanel } from '@/src/components/billing/ElectricityBillCalculationBreakdownPanel';
+import { personalizeElectricityBreakdown } from '@/src/lib/billing/buildElectricityBillBreakdown';
 
 type Variant = 'admin' | 'resident';
 
@@ -223,6 +225,28 @@ export function InvoiceDocument({ document: doc, variant = 'admin', className = 
           </table>
         </div>
       </section>
+
+      {doc.electricityCalculationBreakdown ? (
+        <section className="mt-6 print:break-inside-avoid">
+          <ElectricityBillCalculationBreakdownPanel
+            breakdown={doc.electricityCalculationBreakdown}
+            viewer={(() => {
+              const personalized = personalizeElectricityBreakdown(
+                doc.electricityCalculationBreakdown,
+                doc.customerId,
+              );
+              if (personalized.viewer) {
+                personalized.viewer.amountPayablePaise =
+                  doc.totals.balanceDuePaise > 0
+                    ? doc.totals.balanceDuePaise
+                    : personalized.viewer.amountPayablePaise;
+              }
+              return personalized.viewer;
+            })()}
+            theme={variant === 'resident' ? 'light' : 'dark'}
+          />
+        </section>
+      ) : null}
 
       {/* Totals */}
       <section className="mt-6 flex justify-end">

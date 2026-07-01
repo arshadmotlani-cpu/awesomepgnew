@@ -10,7 +10,6 @@ import {
   type RequestCategoryId,
 } from '@/src/lib/residents/requestCenter';
 import { RequestSuccessState } from '@/src/components/customer/account/resident/requests/RequestSuccessState';
-import { RefundRequestPageGuard } from '@/src/components/customer/account/resident/requests/RefundRequestPageGuard';
 import { DepositExtensionRequestFlow } from '@/src/components/customer/account/resident/requests/DepositExtensionRequestFlow';
 import { residentTabHref } from '@/src/lib/accountNavigation';
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
@@ -71,25 +70,8 @@ export function RequestsMakeFlow({
   const category = categoryId ? getCategoryById(categoryId) : null;
 
   if (category?.wired === 'deposit_refund') {
-    return (
-      <RefundRequestPageGuard
-        customerId={customerId}
-        booking={{
-          bookingId,
-          bookingCode,
-          status: bookingStatus,
-          durationMode,
-          expectedCheckoutDate,
-          createdAt: bookingCreatedAt ?? null,
-          refundableBalancePaise,
-          monthlyRentPaise,
-        }}
-        vacating={vacating}
-        settlement={checkoutSettlement}
-        developerTestEmail={developerTestEmail}
-        onBack={onClose}
-      />
-    );
+    router.replace(residentTabHref('wallet'));
+    return null;
   }
 
   if (category?.wired === 'deposit_extension') {

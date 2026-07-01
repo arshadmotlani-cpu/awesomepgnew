@@ -30,6 +30,7 @@ export function DepositRefundRequestForm({
   const [meterUrl, setMeterUrl] = useState('');
   const [qrUrl, setQrUrl] = useState('');
   const [payoutUpiId, setPayoutUpiId] = useState('');
+  const [remarks, setRemarks] = useState('');
   const [uploadingMeter, setUploadingMeter] = useState(false);
   const [uploadingQr, setUploadingQr] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -96,6 +97,7 @@ export function DepositRefundRequestForm({
       <input type="hidden" name="meterReadingPhotoUrl" value={meterUrl} />
       <input type="hidden" name="payoutQrUrl" value={qrUrl} />
       <input type="hidden" name="payoutUpiId" value={payoutUpiId.trim()} />
+      <input type="hidden" name="remarks" value={remarks.trim()} />
 
       <h4 className="text-sm font-semibold text-zinc-900">Request deposit refund</h4>
 
@@ -170,6 +172,17 @@ export function DepositRefundRequestForm({
             value={payoutUpiId}
             onChange={(e) => setPayoutUpiId(e.target.value)}
             placeholder="name@upi"
+            className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900"
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-xs font-semibold text-zinc-800">Remarks (optional)</span>
+          <textarea
+            value={remarks}
+            onChange={(e) => setRemarks(e.target.value)}
+            rows={2}
+            placeholder="Anything else we should know for your refund…"
             className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900"
           />
         </label>

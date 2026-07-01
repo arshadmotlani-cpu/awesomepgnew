@@ -206,8 +206,14 @@ export function SimpleAccountHub({
                 )}
               </dl>
               <Link
+                href="/account/profile?section=resident&tab=wallet"
+                className="mt-5 flex min-h-[48px] w-full items-center justify-center rounded-xl border border-emerald-400/30 bg-emerald-500/10 text-sm font-semibold text-emerald-200 hover:border-emerald-300/50"
+              >
+                Wallet — deposit &amp; refund
+              </Link>
+              <Link
                 href={`/booking/${primaryBooking.bookingCode}`}
-                className="mt-5 flex min-h-[48px] w-full items-center justify-center rounded-xl border border-white/15 text-sm font-semibold text-white hover:border-apg-orange/40"
+                className="mt-3 flex min-h-[48px] w-full items-center justify-center rounded-xl border border-white/15 text-sm font-semibold text-white hover:border-apg-orange/40"
               >
                 View booking
               </Link>

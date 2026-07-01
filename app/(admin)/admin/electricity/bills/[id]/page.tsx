@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
+import { ElectricityBillCalculationBreakdownPanel } from '@/src/components/billing/ElectricityBillCalculationBreakdownPanel';
 import { ElectricitySettlementLedgerPanel } from '@/src/components/admin/electricity/ElectricitySettlementLedgerPanel';
+import { loadElectricityBillBreakdown } from '@/src/lib/billing/buildElectricityBillBreakdown';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import { getElectricityBillDetail } from '@/src/db/queries/admin';
@@ -45,6 +47,8 @@ export default async function ElectricityBillDetailPage({
         fallbackTotalBillPaise: bill.totalPaise,
       })
     : null;
+
+  const calculationBreakdown = await loadElectricityBillBreakdown(id);
 
   return (
     <>
@@ -134,6 +138,36 @@ export default async function ElectricityBillDetailPage({
         <div className="mt-6">
           <ElectricitySettlementLedgerPanel ledger={ledger} showManualCreditForm />
         </div>
+      ) : null}
+
+      {calculationBreakdown ? (
+        <div className="mt-6">
+          <ElectricityBillCalculationBreakdownPanel
+            breakdown={calculationBreakdown}
+            theme="dark"
+          />
+        </div>
+      ) : null}
+
+      {detail.data.distribution.length > 0 ? (
+        <section className="mt-6 rounded-3xl bg-[#1A1F27]/80 p-6 ring-1 ring-white/[0.06]">
+          <h2 className="text-sm font-medium uppercase tracking-wider text-apg-silver">
+            Resident invoices
+          </h2>
+          <ul className="mt-4 divide-y divide-white/[0.06]">
+            {detail.data.distribution.map((row) => (
+              <li key={row.invoiceId} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
+                <div>
+                  <p className="font-medium text-white">{row.customerFullName}</p>
+                  <p className="text-xs text-apg-silver">
+                    {row.invoiceNumber} · {row.bedCode} · {row.status}
+                  </p>
+                </div>
+                <p className="font-semibold text-white">{paiseToInr(row.amountPaise)}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
       ) : null}
     </>
   );

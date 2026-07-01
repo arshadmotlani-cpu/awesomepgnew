@@ -5,7 +5,7 @@
  * from this module. Do not duplicate outstanding/required/paid math elsewhere.
  */
 
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { fetchElectricityInvoicesByBookingId } from '@/src/lib/db/electricityInvoiceSelect';
 import { db } from '@/src/db/client';
 import {
@@ -580,12 +580,64 @@ export async function getBookingFinancialSummary(args: {
   };
 }
 
+/** Latest confirmed/completed booking — wallet SSOT when active bed assignment is absent. */
+async function getLatestBookingFinancialContext(customerId: string) {
+  const [row] = await db
+    .select({
+      bookingId: bookings.id,
+      bookingCode: bookings.bookingCode,
+      depositPaise: bookings.depositPaise,
+      depositDuePaise: bookings.depositDuePaise,
+      pgId: pgs.id,
+      pgName: pgs.name,
+      roomNumber: rooms.roomNumber,
+      customerName: customers.fullName,
+      customerPhone: customers.phone,
+    })
+    .from(bookings)
+    .innerJoin(customers, eq(customers.id, bookings.customerId))
+    .innerJoin(
+      bedReservations,
+      and(eq(bedReservations.bookingId, bookings.id), eq(bedReservations.kind, 'primary')),
+    )
+    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
+    .innerJoin(floors, eq(floors.id, rooms.floorId))
+    .innerJoin(pgs, eq(pgs.id, floors.pgId))
+    .where(
+      and(
+        eq(bookings.customerId, customerId),
+        inArray(bookings.status, ['confirmed', 'completed']),
+      ),
+    )
+    .orderBy(desc(bookings.createdAt), asc(bedReservations.bedId))
+    .limit(1);
+
+  return row ?? null;
+}
+
 export async function getResidentFinancialSummary(
   customerId: string,
 ): Promise<ResidentFinancialSummary | null> {
   const activeTenancy = await getActiveTenancyForCustomer(customerId);
 
   if (!activeTenancy) {
+    const latestBooking = await getLatestBookingFinancialContext(customerId);
+    if (latestBooking) {
+      return getBookingFinancialSummary({
+        bookingId: latestBooking.bookingId,
+        customerId,
+        customerName: latestBooking.customerName,
+        customerPhone: latestBooking.customerPhone ?? '',
+        bookingCode: latestBooking.bookingCode,
+        pgId: latestBooking.pgId,
+        pgName: latestBooking.pgName,
+        roomNumber: latestBooking.roomNumber,
+        depositPaise: latestBooking.depositPaise,
+        depositDuePaise: latestBooking.depositDuePaise ?? 0,
+      });
+    }
+
     const [customer] = await db
       .select({
         id: customers.id,

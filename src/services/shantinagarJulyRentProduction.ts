@@ -38,8 +38,10 @@ import {
   listStaleBillingProfilesForPg,
   resolveMonthlyRentPaiseForBooking,
   syncAllBillingProfilesForPg,
+  syncBillingProfileRentFromSsot,
   type RentPricingSource,
 } from '@/src/lib/billing/rentPricingSsot';
+import { ensureBillingProfileForBooking } from '@/src/services/residentBillingProfiles';
 
 export const SHANTINAGAR_PRICING_TARGET_ROOMS = [
   '102',
@@ -286,6 +288,7 @@ async function listActiveShantinagarResidents(pgId: string) {
         isProductionBookingFilter(),
         isProductionCustomerFilter(),
         isActiveResidentFilter(),
+        sql`${customers.residencyStatus} NOT IN ('vacated', 'blocked')`,
         inArray(bookings.durationMode, ['monthly', 'open_ended']),
       ),
     );
@@ -316,6 +319,35 @@ async function countDuplicateJulyRentInvoices(pgId: string) {
     customerName: r.customerName,
     count: r.count,
   }));
+}
+
+async function ensureJulyRentInvoiceForBooking(input: {
+  pgId: string;
+  bookingId: string;
+  customerName: string;
+  log: (line: string) => void;
+}): Promise<boolean> {
+  await syncBillingProfileRentFromSsot(input.bookingId, JULY_BILLING_MONTH);
+  const profile = await ensureBillingProfileForBooking(input.bookingId);
+  if (profile && !profile.autoGenerate) {
+    await db
+      .update(residentBillingProfiles)
+      .set({ autoGenerate: true, updatedAt: new Date() })
+      .where(eq(residentBillingProfiles.bookingId, input.bookingId));
+  }
+
+  const gen = await generateRentInvoicesForMonth({
+    billingMonth: JULY_BILLING_MONTH,
+    pgId: input.pgId,
+    bookingIds: [input.bookingId],
+    forceAll: true,
+    asOf: JULY_BILLING_MONTH,
+    collectionDueDay: 15,
+  });
+  input.log(
+    `  Retry ${input.customerName}: created=${gen.invoicesCreated} skipped=${gen.invoicesSkipped}`,
+  );
+  return gen.invoicesCreated > 0;
 }
 
 export async function runShantinagarJulyRentProduction(input: {
@@ -405,7 +437,15 @@ export async function runShantinagarJulyRentProduction(input: {
   log(`Profiles synced from bed_prices / room config: ${profilesSynced}`);
 
   const staleAfterSync = await listStaleBillingProfilesForPg(pg.id, JULY_BILLING_MONTH);
-  for (const stale of staleAfterSync) {
+  if (!dryRun) {
+    for (const stale of staleAfterSync) {
+      await syncBillingProfileRentFromSsot(stale.bookingId, JULY_BILLING_MONTH);
+    }
+  }
+  const staleRemaining = dryRun
+    ? staleAfterSync
+    : await listStaleBillingProfilesForPg(pg.id, JULY_BILLING_MONTH);
+  for (const stale of staleRemaining) {
     report.staleProfiles.push({
       name: stale.customerName,
       room: `Room ${stale.roomNumber}`,
@@ -542,6 +582,49 @@ export async function runShantinagarJulyRentProduction(input: {
           room: `Room ${resident.roomNumber}`,
           bookingId: resident.bookingId,
         });
+        const created = await ensureJulyRentInvoiceForBooking({
+          pgId: pg.id,
+          bookingId: resident.bookingId,
+          customerName: resident.customerName,
+          log,
+        });
+        if (created) {
+          const [inv] = await db
+            .select({
+              customerName: customers.fullName,
+              roomNumber: rooms.roomNumber,
+              bedCode: beds.bedCode,
+              invoiceNumber: rentInvoices.invoiceNumber,
+              rentPaise: rentInvoices.rentPaise,
+            })
+            .from(rentInvoices)
+            .innerJoin(customers, eq(customers.id, rentInvoices.customerId))
+            .innerJoin(beds, eq(beds.id, rentInvoices.bedId))
+            .innerJoin(rooms, eq(rooms.id, beds.roomId))
+            .where(
+              and(
+                eq(rentInvoices.bookingId, resident.bookingId),
+                eq(rentInvoices.billingMonth, JULY_BILLING_MONTH),
+                eq(rentInvoices.isAdhoc, false),
+                ne(rentInvoices.status, 'cancelled'),
+              ),
+            )
+            .limit(1);
+          if (inv) {
+            report.missingJulyInvoice.pop();
+            const resolved = await resolveMonthlyRentPaiseForBooking(
+              resident.bookingId,
+              JULY_BILLING_MONTH,
+            );
+            report.residentsBilled.push({
+              name: inv.customerName,
+              room: `Room ${inv.roomNumber} ${inv.bedCode}`,
+              amountPaise: inv.rentPaise,
+              invoiceNumber: inv.invoiceNumber,
+              pricingSource: resolved.source,
+            });
+          }
+        }
         continue;
       }
       if (invoices.length === 1) {

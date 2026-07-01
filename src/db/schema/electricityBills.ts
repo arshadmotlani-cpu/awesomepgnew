@@ -5,6 +5,7 @@ import {
   date,
   index,
   integer,
+  jsonb,
   numeric,
   pgTable,
   text,
@@ -64,6 +65,8 @@ export const electricityBills = pgTable(
       .default(0),
     /** Who paid offline, e.g. "Former tenant Amit — paid cash June 2026". */
     prepaidCreditNote: text('prepaid_credit_note'),
+    /** Transparent calculation — meter, occupancy timeline, credits, remaining balance. */
+    calculationBreakdown: jsonb('calculation_breakdown'),
     createdByAdminId: uuid('created_by_admin_id').references(() => adminUsers.id, {
       onDelete: 'set null',
     }),

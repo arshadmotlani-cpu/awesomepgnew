@@ -69,7 +69,7 @@ export const ROOM_SPECS: RoomSpec[] = [
   { roomNumber: '102', previousReadingUnits: 205, currentReadingUnits: 241, prepare: prepareRoom102 },
   { roomNumber: '201', previousReadingUnits: 362, currentReadingUnits: 464 },
   { roomNumber: '202', previousReadingUnits: 506, currentReadingUnits: 661 },
-  { roomNumber: '203', previousReadingUnits: 980, currentReadingUnits: 1267 },
+  { roomNumber: '203', previousReadingUnits: 980, currentReadingUnits: 1267, prepare: prepareRoom203 },
   {
     roomNumber: '204',
     previousReadingUnits: 654,
@@ -259,6 +259,23 @@ async function prepareRoom102(ctx: RoomContext): Promise<void> {
   const manualTotal = await sumManualElectricityCreditsForRoomMonth(ctx.roomId, ctx.billingMonth);
   if (manualTotal > 0) {
     console.log(`  Room 102 — manual credits already recorded: ${paiseToInr(manualTotal)}`);
+  }
+}
+
+/** Room 203 — backfill departed occupant checkout collection (e.g. ₹990) before monthly split. */
+async function prepareRoom203(ctx: RoomContext): Promise<void> {
+  await backfillCheckoutElectricityLedgerForRoom(ctx);
+  const checkoutRows = await listCheckoutElectricityLedgerForRoomMonth(ctx.roomId, ctx.billingMonth, {
+    status: 'collected',
+  });
+  const collectedPaise = checkoutRows.reduce((sum, row) => sum + row.amountPaise, 0);
+  console.log(
+    `  Room 203 — checkout electricity already collected: ${paiseToInr(collectedPaise)} (${checkoutRows.length} ledger row(s))`,
+  );
+  if (collectedPaise <= 0) {
+    console.warn(
+      `  Room 203 — WARNING: no checkout electricity in ledger for June; allocation will not deduct prior collections`,
+    );
   }
 }
 

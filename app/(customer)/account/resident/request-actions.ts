@@ -52,6 +52,7 @@ export async function submitDepositRefundRequestAction(
   const payoutQrUrl = formData.get('payoutQrUrl')?.toString()?.trim() || null;
   const payoutUpiId = formData.get('payoutUpiId')?.toString()?.trim() || null;
   const useAverageBillingFallback = formData.get('useAverageBillingFallback')?.toString() === '1';
+  const remarks = formData.get('remarks')?.toString()?.trim() || null;
 
   if (isDeveloperTestSession(session)) {
     await ensureApprovedVacatingForDeveloperTest({
@@ -82,6 +83,7 @@ export async function submitDepositRefundRequestAction(
     electricityUseAverage: useAverageBillingFallback,
     payoutUpiId,
     payoutQrUrl,
+    residentRemarks: remarks,
   });
   if (!checkoutResult.ok) return { ok: false, error: checkoutResult.error };
   revalidatePath('/account/profile');

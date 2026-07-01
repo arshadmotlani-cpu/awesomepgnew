@@ -16,6 +16,7 @@ import {
 } from '@/src/db/schema';
 import type { InvoiceBreakdown } from '@/src/db/schema/financialInvoices';
 import type { FinancialInvoiceStatus, FinancialInvoiceType } from '@/src/db/schema/enums';
+import type { ElectricityBillCalculationBreakdown } from '@/src/lib/billing/electricityBillBreakdownTypes';
 import { paymentLinkPublicUrl } from '@/src/lib/billing/paymentLinkUrl';
 import {
   durationModeToStayType,
@@ -116,6 +117,7 @@ export type InvoiceDocumentModel = {
   issuedAt: string;
   notes: string | null;
   cancellationReason: string | null;
+  electricityCalculationBreakdown: ElectricityBillCalculationBreakdown | null;
 };
 
 function resolveGstin(): string {
@@ -501,6 +503,13 @@ export async function getInvoiceDocumentDetail(
     contactEmail: pgRow?.contactEmail ?? null,
   };
 
+  let electricityCalculationBreakdown: ElectricityBillCalculationBreakdown | null = null;
+  if (base.invoiceType === 'electricity' && base.sourceTable === 'electricity_invoices' && base.sourceId) {
+    const { getElectricityBreakdownForInvoice } = await import('@/src/services/electricityBilling');
+    const calc = await getElectricityBreakdownForInvoice(base.sourceId);
+    electricityCalculationBreakdown = calc?.breakdown ?? null;
+  }
+
   return {
     id: base.id,
     invoiceNumber: base.invoiceNumber,
@@ -539,6 +548,7 @@ export async function getInvoiceDocumentDetail(
     issuedAt,
     notes: base.notes,
     cancellationReason: base.cancellationReason,
+    electricityCalculationBreakdown,
   };
 }
 

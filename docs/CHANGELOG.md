@@ -256,23 +256,36 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-01 10:01:40 UTC
+### Pending pre-commit sync · 2026-07-01 11:53:56 UTC
 
-**Areas touched:** [[ROUTES]], [[Billing]]
+**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Vacating]], [[Electricity]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
+- `DATABASE.md` — review for accuracy
+- `DECISIONS.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (4):**
-- `app/(admin)/admin/billing/page.tsx`
-- `app/(admin)/admin/invoices/actions.ts`
-- `src/lib/billing/invoiceCollectionWhatsApp.ts`
-- `src/lib/billing/sendInvoiceOnWhatsApp.ts`
+**Staged code files (15):**
+- `app/(admin)/admin/electricity/bills/[id]/page.tsx`
+- `app/(customer)/account/resident/pay-electricity/[invoiceId]/page.tsx`
+- `app/(customer)/account/resident/request-actions.ts`
+- `src/db/migrations/0091_electricity_bill_calculation_breakdown.sql`
+- `src/db/migrations/meta/_journal.json`
+- `src/db/schema/electricityBills.ts`
+- `src/lib/billing/buildElectricityBillBreakdown.ts`
+- `src/lib/billing/electricityBillBreakdownTypes.ts`
+- `src/lib/billing/invoiceDocumentModel.ts`
+- `src/lib/billing/roomElectricityOccupants.ts`
+- `src/lib/billing/roomElectricityTimeline.ts`
+- `src/services/checkoutSettlement.ts`
+- `src/services/electricityBilling.ts`
+- `src/services/residentFinancialEngine.ts`
+- `src/services/unifiedInvoices.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

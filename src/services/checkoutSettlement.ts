@@ -946,6 +946,7 @@ export async function submitResidentCheckoutDetails(input: {
   electricitySharePaise?: number | null;
   payoutUpiId?: string | null;
   payoutQrUrl?: string | null;
+  residentRemarks?: string | null;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const [current] = await db
     .select()
@@ -1002,7 +1003,7 @@ export async function submitResidentCheckoutDetails(input: {
       payoutUpiId: input.payoutUpiId?.trim() || null,
       payoutQrUrl: input.payoutQrUrl ?? null,
       status: 'awaiting_admin_review',
-      refundNotes: null,
+      refundNotes: input.residentRemarks?.trim() || null,
       updatedAt: new Date(),
     })
     .where(eq(checkoutSettlements.id, input.settlementId));

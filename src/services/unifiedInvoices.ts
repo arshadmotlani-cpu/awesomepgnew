@@ -395,10 +395,25 @@ export async function syncElectricityInvoiceToUnified(
 
   const ctx = await loadBedContext(ei.bedId);
   const amountPaise = ei.amountPaise + (ei.lateFeeLockedPaise ?? 0);
+
+  const { loadElectricityBillBreakdown, breakdownToInvoiceLines } = await import(
+    '@/src/lib/billing/buildElectricityBillBreakdown'
+  );
+  const roomBreakdown = await loadElectricityBillBreakdown(ei.electricityBillId);
+  const detailLines = roomBreakdown
+    ? breakdownToInvoiceLines(roomBreakdown, ei.customerId)
+    : [{ kind: 'electricity', label: 'Electricity share', amountPaise: ei.amountPaise }];
+
   const breakdown: InvoiceBreakdown = {
     electricityPaise: ei.amountPaise,
     lateFeePaise: ei.lateFeeLockedPaise ?? 0,
-    lines: [{ kind: 'electricity', label: 'Electricity share', amountPaise: ei.amountPaise }],
+    lines: detailLines.map((l) => ({
+      kind: l.kind,
+      label: l.label,
+      amountPaise: l.amountPaise,
+      sourceTable: 'electricity_invoices',
+      sourceId: electricityInvoiceId,
+    })),
   };
   const status = elecStatusToUnified(ei.status, ei.dueDate);
 

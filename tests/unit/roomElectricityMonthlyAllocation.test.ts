@@ -62,3 +62,31 @@ test('no checkout credit bills all occupants equally', () => {
   assert.equal(result.invoices[0]?.amountPaise, 20_000);
   assert.equal(result.invoices[1]?.amountPaise, 20_000);
 });
+
+test('room 203 — deduct checkout collection then split among three active residents', () => {
+  const grossTotalPaise = 287 * 1_600; // 459_200 — 287 units @ ₹16
+  const checkoutCollected = new Map<string, number>([['departed', 99_000]]);
+  const result = allocateMonthlyElectricityInvoices({
+    grossTotalPaise,
+    prepaidCreditPaise: 0,
+    occupants: [
+      { bookingId: 'krishna', customerId: 'krishna', bedCount: 1, weight: 30 },
+      { bookingId: 'vijay', customerId: 'vijay', bedCount: 1, weight: 30 },
+      { bookingId: 'waqar', customerId: 'waqar', bedCount: 1, weight: 30 },
+      { bookingId: 'departed', customerId: 'departed', bedCount: 1, weight: 10 },
+    ],
+    checkoutCollectedByCustomerId: checkoutCollected,
+    useProRata: false,
+  });
+
+  assert.equal(result.checkoutCreditAppliedPaise, 99_000);
+  assert.equal(result.netSplittablePaise, 360_200);
+  const billable = result.invoices.filter((i) => i.amountPaise > 0);
+  assert.equal(billable.length, 3);
+  for (const line of billable) {
+    assert.ok(line.amountPaise >= 120_000 && line.amountPaise <= 120_100);
+  }
+  const departed = result.invoices.find((i) => i.customerId === 'departed');
+  assert.equal(departed?.amountPaise, 0);
+  assert.equal(departed?.excludedBecauseCheckoutPaid, true);
+});

@@ -45,9 +45,19 @@ import {
   runShantinagarJulyRentProduction,
 } from '@/src/services/shantinagarJulyRentProduction';
 import { repairMisassignedElectricityInvoices } from '@/src/services/electricityInvoiceOwnership';
+import { listCheckoutElectricityLedgerForRoomMonth } from '@/src/services/electricitySettlementLedger';
+import { resolveMonthlyRentPaiseForBooking } from '@/src/lib/billing/rentPricingSsot';
+import {
+  getRoomBillingConfigForBed,
+  shouldSkipPrivateRoomDuplicate,
+} from '@/src/lib/billing/roomBilling';
 
 const JUNE_MONTH = '2026-06-01';
+const JULY_MONTH = '2026-07-01';
 const RATE_PAISE = DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE;
+const ROOM_203_EXPECTED_RESIDENT_PAISE_MIN = 118_000;
+const ROOM_203_EXPECTED_RESIDENT_PAISE_MAX = 122_000;
+const NEGOTIATED_RENT_PAISE = 721_140; // ₹7,211.40 — rooms 101 & 201 private
 
 export type RoomOccupancySpec = {
   roomNumber: string;
@@ -125,10 +135,33 @@ export type ShantinagarOccupancySsotReport = {
   certification: {
     activeResidents: Array<{ name: string; room: string; bed: string }>;
     roomOccupancy: Array<{ room: string; occupants: string[]; vacant: boolean }>;
+    room203: {
+      totalRoomBillPaise: number;
+      checkoutCollectedPaise: number;
+      remainingBillPaise: number;
+      residents: Array<{
+        name: string;
+        amountPaise: number;
+        invoiceNumber: string | null;
+        status: string | null;
+      }>;
+      invalidInvoices: string[];
+      pass: boolean;
+    } | null;
+    julyRentByResident: Array<{
+      name: string;
+      room: string;
+      bed: string;
+      rentPaise: number | null;
+      invoiceNumber: string | null;
+      status: string | null;
+      issue: 'ok' | 'missing' | 'duplicate' | 'wrong_amount' | 'skipped_private_room';
+    }>;
     julyRentInvoices: string[];
     juneElectricityInvoices: Array<{ room: string; name: string; amountPaise: number; invoiceNumber: string }>;
     operationsQueueCount: number;
     duplicateInvoiceCount: number;
+    julyRentDuplicateCount: number;
     orphanResidentCount: number;
     occupancyMismatchCount: number;
     pass: boolean;
@@ -221,6 +254,7 @@ async function listActiveSsotOccupants(pgId: string) {
       customerName: customers.fullName,
       roomNumber: rooms.roomNumber,
       bedCode: beds.bedCode,
+      bedId: beds.id,
       bookingId: bookings.id,
       bookingCode: bookings.bookingCode,
     })
@@ -239,6 +273,8 @@ async function listActiveSsotOccupants(pgId: string) {
         sql`CURRENT_DATE <@ ${bedReservations.stayRange}`,
         eq(bookings.isTest, false),
         eq(customers.isTest, false),
+        sql`${customers.residencyStatus} NOT IN ('vacated', 'blocked')`,
+        inArray(bookings.durationMode, ['monthly', 'open_ended']),
       ),
     );
 }
@@ -683,6 +719,255 @@ async function regenerateJuneElectricityForRoom(input: {
   }
 }
 
+async function buildRoom203Certification(
+  pgId: string,
+): Promise<NonNullable<ShantinagarOccupancySsotReport['certification']['room203']>> {
+  const room = await resolveRoom(pgId, '203');
+  const meterSpec = roomSpecForNumber('203');
+  const grossFromMeter =
+    meterSpec != null
+      ? Math.round((meterSpec.currentReadingUnits - meterSpec.previousReadingUnits) * RATE_PAISE)
+      : 0;
+
+  let totalRoomBillPaise = grossFromMeter;
+  let checkoutCollectedPaise = 0;
+
+  if (room) {
+    const checkoutRows = await listCheckoutElectricityLedgerForRoomMonth(room.roomId, JUNE_MONTH, {
+      status: 'collected',
+    });
+    checkoutCollectedPaise = checkoutRows.reduce((sum, row) => sum + row.amountPaise, 0);
+
+    const [bill] = await db
+      .select({
+        totalPaise: electricityBills.totalPaise,
+        checkoutCreditAppliedPaise: electricityBills.checkoutCreditAppliedPaise,
+      })
+      .from(electricityBills)
+      .where(
+        and(
+          eq(electricityBills.roomId, room.roomId),
+          eq(electricityBills.billingMonth, JUNE_MONTH),
+          eq(electricityBills.isPipelineTest, false),
+        ),
+      )
+      .limit(1);
+    if (bill) {
+      totalRoomBillPaise = bill.totalPaise;
+      if (bill.checkoutCreditAppliedPaise > 0) {
+        checkoutCollectedPaise = Math.max(checkoutCollectedPaise, bill.checkoutCreditAppliedPaise);
+      }
+    }
+  }
+
+  const remainingBillPaise = Math.max(0, totalRoomBillPaise - checkoutCollectedPaise);
+
+  const room203Invoices = await db
+    .select({
+      customerName: customers.fullName,
+      amountPaise: electricityInvoices.amountPaise,
+      invoiceNumber: electricityInvoices.invoiceNumber,
+      status: electricityInvoices.status,
+    })
+    .from(electricityInvoices)
+    .innerJoin(electricityBills, eq(electricityBills.id, electricityInvoices.electricityBillId))
+    .innerJoin(rooms, eq(rooms.id, electricityBills.roomId))
+    .innerJoin(floors, eq(floors.id, rooms.floorId))
+    .innerJoin(customers, eq(customers.id, electricityInvoices.customerId))
+    .where(
+      and(
+        eq(floors.pgId, pgId),
+        eq(rooms.roomNumber, '203'),
+        eq(electricityBills.billingMonth, JUNE_MONTH),
+        ne(electricityInvoices.status, 'cancelled'),
+      ),
+    );
+
+  const allowedPatterns = ['krishna', 'vijay', 'waqar'];
+  const invalidInvoices: string[] = [];
+  const residents: Array<{
+    name: string;
+    amountPaise: number;
+    invoiceNumber: string | null;
+    status: string | null;
+  }> = [];
+
+  for (const pattern of allowedPatterns) {
+    const match = room203Invoices.find((i) =>
+      i.customerName.toLowerCase().includes(pattern),
+    );
+    residents.push({
+      name: match?.customerName ?? pattern,
+      amountPaise: match?.amountPaise ?? 0,
+      invoiceNumber: match?.invoiceNumber ?? null,
+      status: match?.status ?? null,
+    });
+    if (!match) {
+      invalidInvoices.push(`Missing invoice for ${pattern}`);
+    } else if (
+      match.amountPaise < ROOM_203_EXPECTED_RESIDENT_PAISE_MIN ||
+      match.amountPaise > ROOM_203_EXPECTED_RESIDENT_PAISE_MAX
+    ) {
+      invalidInvoices.push(
+        `${match.customerName}: ${paiseToInr(match.amountPaise)} (expected ~₹1,200 after ₹990 adjustment)`,
+      );
+    }
+  }
+
+  for (const inv of room203Invoices) {
+    const lower = inv.customerName.toLowerCase();
+    if (lower.includes('harshad') || lower.includes('harish')) {
+      invalidInvoices.push(`Invalid occupant invoice: ${inv.customerName} (${inv.invoiceNumber})`);
+    }
+    if (!allowedPatterns.some((p) => lower.includes(p))) {
+      invalidInvoices.push(`Unexpected occupant invoice: ${inv.customerName} (${inv.invoiceNumber})`);
+    }
+  }
+
+  const billableCount = residents.filter((r) => r.invoiceNumber).length;
+  const pass =
+    invalidInvoices.length === 0 &&
+    billableCount === 3 &&
+    checkoutCollectedPaise >= 99_000 &&
+    residents.every(
+      (r) =>
+        r.amountPaise >= ROOM_203_EXPECTED_RESIDENT_PAISE_MIN &&
+        r.amountPaise <= ROOM_203_EXPECTED_RESIDENT_PAISE_MAX,
+    );
+
+  return {
+    totalRoomBillPaise,
+    checkoutCollectedPaise,
+    remainingBillPaise,
+    residents,
+    invalidInvoices,
+    pass,
+  };
+}
+
+async function buildJulyRentCertification(pgId: string) {
+  const activeResidents = await listActiveSsotOccupants(pgId);
+  const byBooking = new Map<string, (typeof activeResidents)[number]>();
+  for (const row of activeResidents) {
+    if (!byBooking.has(row.bookingId)) byBooking.set(row.bookingId, row);
+  }
+
+  const julyInvoices = await db
+    .select({
+      bookingId: rentInvoices.bookingId,
+      customerName: customers.fullName,
+      roomNumber: rooms.roomNumber,
+      bedCode: beds.bedCode,
+      invoiceNumber: rentInvoices.invoiceNumber,
+      rentPaise: rentInvoices.rentPaise,
+      status: rentInvoices.status,
+    })
+    .from(rentInvoices)
+    .innerJoin(customers, eq(customers.id, rentInvoices.customerId))
+    .innerJoin(beds, eq(beds.id, rentInvoices.bedId))
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
+    .where(
+      and(
+        eq(rentInvoices.pgId, pgId),
+        eq(rentInvoices.billingMonth, JULY_MONTH),
+        eq(rentInvoices.isAdhoc, false),
+        ne(rentInvoices.status, 'cancelled'),
+      ),
+    );
+
+  const invoicesByBooking = new Map<string, typeof julyInvoices>();
+  for (const inv of julyInvoices) {
+    const list = invoicesByBooking.get(inv.bookingId) ?? [];
+    list.push(inv);
+    invoicesByBooking.set(inv.bookingId, list);
+  }
+
+  const julyRentByResident: ShantinagarOccupancySsotReport['certification']['julyRentByResident'] =
+    [];
+
+  for (const resident of byBooking.values()) {
+    const roomConfig = await getRoomBillingConfigForBed(resident.bedId);
+    const isPrivateSkip =
+      roomConfig?.billingMode === 'private_room' &&
+      (
+        await shouldSkipPrivateRoomDuplicate({
+          roomId: roomConfig.roomId,
+          billingMonth: JULY_MONTH,
+          bookingId: resident.bookingId,
+          bedId: resident.bedId,
+        })
+      ).skip;
+
+    if (isPrivateSkip) {
+      julyRentByResident.push({
+        name: resident.customerName,
+        room: resident.roomNumber,
+        bed: resident.bedCode,
+        rentPaise: null,
+        invoiceNumber: null,
+        status: null,
+        issue: 'skipped_private_room',
+      });
+      continue;
+    }
+
+    const invoices = invoicesByBooking.get(resident.bookingId) ?? [];
+    if (invoices.length === 0) {
+      julyRentByResident.push({
+        name: resident.customerName,
+        room: resident.roomNumber,
+        bed: resident.bedCode,
+        rentPaise: null,
+        invoiceNumber: null,
+        status: null,
+        issue: 'missing',
+      });
+      continue;
+    }
+    if (invoices.length > 1) {
+      julyRentByResident.push({
+        name: resident.customerName,
+        room: resident.roomNumber,
+        bed: resident.bedCode,
+        rentPaise: invoices[0]!.rentPaise,
+        invoiceNumber: invoices.map((i) => i.invoiceNumber).join(', '),
+        status: invoices.map((i) => i.status).join(', '),
+        issue: 'duplicate',
+      });
+      continue;
+    }
+
+    const inv = invoices[0]!;
+    const resolved = await resolveMonthlyRentPaiseForBooking(
+      resident.bookingId,
+      JULY_MONTH,
+    );
+    const isNegotiatedPrivate =
+      (resident.roomNumber === '101' &&
+        resident.customerName.toLowerCase().includes('laxmi')) ||
+      (resident.roomNumber === '201' &&
+        resident.customerName.toLowerCase().includes('dhairya'));
+    const expectedPaise = isNegotiatedPrivate ? NEGOTIATED_RENT_PAISE : resolved.rentPaise;
+    const wrongAmount = inv.rentPaise !== expectedPaise;
+
+    julyRentByResident.push({
+      name: resident.customerName,
+      room: resident.roomNumber,
+      bed: resident.bedCode,
+      rentPaise: inv.rentPaise,
+      invoiceNumber: inv.invoiceNumber,
+      status: inv.status,
+      issue: wrongAmount ? 'wrong_amount' : 'ok',
+    });
+  }
+
+  const julyRentDuplicateCount = [...invoicesByBooking.values()].filter(
+    (list) => list.length > 1,
+  ).length;
+
+  return { julyRentByResident, julyRentDuplicateCount };
+}
+
 async function buildCertification(pgId: string, session: AdminSession): Promise<ShantinagarOccupancySsotReport['certification']> {
   const activeResidents = await listActiveSsotOccupants(pgId);
   const roomNumbers = ['101', '102', '201', '202', '203', '204', '301', '302'];
@@ -728,10 +1013,13 @@ async function buildCertification(pgId: string, session: AdminSession): Promise<
     .where(
       and(
         eq(rentInvoices.pgId, pgId),
-        eq(rentInvoices.billingMonth, '2026-07-01'),
+        eq(rentInvoices.billingMonth, JULY_MONTH),
         ne(rentInvoices.status, 'cancelled'),
       ),
     );
+
+  const room203 = await buildRoom203Certification(pgId);
+  const { julyRentByResident, julyRentDuplicateCount } = await buildJulyRentCertification(pgId);
 
   const mismatches = await auditOccupancyMismatches(session);
   const mismatchCount = mismatches.filter((m) => m.mismatch).length;
@@ -766,14 +1054,25 @@ async function buildCertification(pgId: string, session: AdminSession): Promise<
   const harshadInvoices = juneElectricityInvoices.filter((i) =>
     i.customerName.toLowerCase().includes('harshad'),
   );
+  const harishInvoices = juneElectricityInvoices.filter((i) =>
+    i.customerName.toLowerCase().includes('harish'),
+  );
   const room102Invoices = juneElectricityInvoices.filter((i) => i.roomNumber === '102');
+
+  const julyRentIssues = julyRentByResident.filter(
+    (r) => r.issue !== 'ok' && r.issue !== 'skipped_private_room',
+  );
 
   const pass =
     invalidOccupants.length === 0 &&
     harshadInvoices.length === 0 &&
+    harishInvoices.length === 0 &&
     room102Invoices.length === 0 &&
     mismatchCount === 0 &&
     duplicateInvoiceCount === 0 &&
+    julyRentDuplicateCount === 0 &&
+    julyRentIssues.length === 0 &&
+    room203.pass &&
     ghost.summary.totalIssues === 0;
 
   return {
@@ -783,6 +1082,8 @@ async function buildCertification(pgId: string, session: AdminSession): Promise<
       bed: r.bedCode,
     })),
     roomOccupancy,
+    room203,
+    julyRentByResident,
     julyRentInvoices: julyRentInvoices.map((r) => r.invoiceNumber),
     juneElectricityInvoices: juneElectricityInvoices.map((i) => ({
       room: i.roomNumber,
@@ -792,6 +1093,7 @@ async function buildCertification(pgId: string, session: AdminSession): Promise<
     })),
     operationsQueueCount: opsCount,
     duplicateInvoiceCount,
+    julyRentDuplicateCount,
     orphanResidentCount: ghost.summary.totalIssues,
     occupancyMismatchCount: mismatchCount,
     pass,
@@ -813,10 +1115,13 @@ export async function runShantinagarOccupancySsotRepair(input: {
     certification: {
       activeResidents: [],
       roomOccupancy: [],
+      room203: null,
+      julyRentByResident: [],
       julyRentInvoices: [],
       juneElectricityInvoices: [],
       operationsQueueCount: 0,
       duplicateInvoiceCount: 0,
+      julyRentDuplicateCount: 0,
       orphanResidentCount: 0,
       occupancyMismatchCount: 0,
       pass: false,
@@ -939,7 +1244,51 @@ export function formatShantinagarOccupancySsotReport(report: ShantinagarOccupanc
   lines.push('\nRENT:');
   lines.push(report.rentActions.join('\n') || '(none)');
   lines.push('\n--- FINAL CERTIFICATION ---');
-  lines.push(`✓ Active residents (${report.certification.activeResidents.length}):`);
+
+  if (report.certification.room203) {
+    const r203 = report.certification.room203;
+    lines.push('\n### Room 203 (June Electricity)');
+    lines.push(`  Total room bill: ${paiseToInr(r203.totalRoomBillPaise)}`);
+    lines.push(`  Already collected adjustment: ${paiseToInr(r203.checkoutCollectedPaise)}`);
+    lines.push(`  Remaining bill: ${paiseToInr(r203.remainingBillPaise)}`);
+    for (const r of r203.residents) {
+      const inv = r.invoiceNumber ? ` · ${r.invoiceNumber} · ${r.status}` : ' · MISSING';
+      lines.push(`  ${r.name}: ${paiseToInr(r.amountPaise)}${inv}`);
+    }
+    if (r203.invalidInvoices.length > 0) {
+      lines.push('  Issues:');
+      for (const issue of r203.invalidInvoices) lines.push(`    ✗ ${issue}`);
+    } else {
+      lines.push(`  ${r203.pass ? '✓' : '✗'} Room 203 electricity`);
+    }
+  }
+
+  lines.push('\n### July Rent (active residents)');
+  for (const r of report.certification.julyRentByResident) {
+    const flag =
+      r.issue === 'missing'
+        ? ' ✗ MISSING'
+        : r.issue === 'duplicate'
+          ? ' ✗ DUPLICATE'
+          : r.issue === 'wrong_amount'
+            ? ' ✗ WRONG AMOUNT'
+            : r.issue === 'skipped_private_room'
+              ? ' (private room skip)'
+              : '';
+    const rent = r.rentPaise != null ? paiseToInr(r.rentPaise) : '—';
+    const inv = r.invoiceNumber ?? '—';
+    const status = r.status ?? '—';
+    lines.push(
+      `  ${r.name} · Room ${r.room} · ${r.bed} · ${rent} · ${inv} · ${status}${flag}`,
+    );
+  }
+  if (report.certification.julyRentDuplicateCount > 0) {
+    lines.push(
+      `  ✗ July rent duplicate groups: ${report.certification.julyRentDuplicateCount}`,
+    );
+  }
+
+  lines.push(`\n✓ Active residents (${report.certification.activeResidents.length}):`);
   for (const r of report.certification.activeResidents) {
     lines.push(`    ${r.name} · Room ${r.room} · ${r.bed}`);
   }
@@ -953,9 +1302,13 @@ export function formatShantinagarOccupancySsotReport(report: ShantinagarOccupanc
     lines.push(`    Room ${i.room} · ${i.name} · ${paiseToInr(i.amountPaise)} · ${i.invoiceNumber}`);
   }
   lines.push(`✓ Operations queue count: ${report.certification.operationsQueueCount}`);
-  lines.push(`✓ Duplicate invoice count: ${report.certification.duplicateInvoiceCount}`);
+  lines.push(`✓ Duplicate electricity invoice count: ${report.certification.duplicateInvoiceCount}`);
   lines.push(`✓ Orphan resident count: ${report.certification.orphanResidentCount}`);
   lines.push(`✓ Occupancy mismatch count: ${report.certification.occupancyMismatchCount}`);
-  lines.push(report.certification.pass ? '\n✓ PASS — production synchronized with occupancy SSOT' : '\n✗ FAIL — manual review required');
+  lines.push(
+    report.certification.pass
+      ? '\n✓ PASS — production synchronized with occupancy SSOT'
+      : '\n✗ FAIL — manual review required',
+  );
   return lines.join('\n');
 }

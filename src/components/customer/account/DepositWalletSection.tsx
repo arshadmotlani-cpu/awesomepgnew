@@ -1,23 +1,29 @@
 import { paiseToInr } from '@/src/lib/format';
 import type { DepositCreditSummary } from '@/src/services/depositCredit';
 
-export function DepositWalletSection({ wallet }: { wallet: DepositCreditSummary }) {
+export function DepositWalletSection({
+  wallet,
+  availableRefundPaise,
+}: {
+  wallet: DepositCreditSummary;
+  /** Refundable balance after deductions — shown even when no payments are on file yet. */
+  availableRefundPaise?: number;
+}) {
+  const refundPaise = availableRefundPaise ?? wallet.availableCreditPaise;
+
   return (
     <section className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-5 ring-1 ring-indigo-100">
       <h3 className="text-sm font-semibold text-indigo-900">Security deposit balance</h3>
       <p className="mt-1 text-xs text-indigo-800/80">
         Money you paid as deposit — held until checkout, then refunded minus any charges.
       </p>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <WalletStat label="Current balance" value={paiseToInr(wallet.totalHeldPaise)} highlight />
+        <WalletStat label="Available refund" value={paiseToInr(refundPaise)} highlight />
         <WalletStat label="Total paid in" value={paiseToInr(wallet.totalCollectedPaise)} />
-        <WalletStat label="Held for you" value={paiseToInr(wallet.totalHeldPaise)} />
         <WalletStat label="Used on charges" value={paiseToInr(wallet.totalUsedPaise)} />
         <WalletStat label="Sent back to you" value={paiseToInr(wallet.totalRefundedPaise)} />
-        <WalletStat
-          label="Credit you can use"
-          value={paiseToInr(wallet.availableCreditPaise)}
-          highlight
-        />
+        <WalletStat label="Deposit credit" value={paiseToInr(wallet.availableCreditPaise)} />
       </div>
     </section>
   );
