@@ -30,7 +30,7 @@ jobs:
         run: npm run build
         env:
           AUTH_SECRET: ci-build-auth-secret-min-32-chars-long
-          SKIP_MIGRATION_GATE: '1'
+          SKIP_MIGRATION_CHECK: 'true'
 
   e2e:
     runs-on: ubuntu-latest
@@ -55,4 +55,4 @@ jobs:
         env:
           CI: 'true'
           AUTH_SECRET: ci-build-auth-secret-min-32-chars-long
-          SKIP_MIGRATION_GATE: '1'
+          SKIP_MIGRATION_CHECK: 'true'
