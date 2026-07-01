@@ -23,6 +23,7 @@ import {
   firstOfMonth,
 } from '@/src/services/billing';
 import { formatDate } from '@/src/lib/dates';
+import { resolveMonthlyRentPaiseForBooking } from '@/src/lib/billing/rentPricingSsot';
 import { sql } from 'drizzle-orm';
 
 function monthlyRentFromSnapshot(snapshot: PricingSnapshot | null): number {
@@ -107,7 +108,7 @@ export async function getBillingProfileForBooking(
   return row ?? null;
 }
 
-/** Create or refresh billing profile from booking pricing snapshot. */
+/** Create or refresh billing profile — rent from bed_prices / room config, not stale snapshot. */
 export async function ensureBillingProfileForBooking(
   bookingId: string,
 ): Promise<ResidentBillingProfile | null> {
@@ -123,9 +124,17 @@ export async function ensureBillingProfileForBooking(
 
   if (!booking) return null;
 
-  const rentAmountPaise = monthlyRentFromSnapshot(
+  const billingMonth = firstOfMonth(new Date());
+  const resolved = await resolveMonthlyRentPaiseForBooking(bookingId, billingMonth);
+  const snapshotRent = monthlyRentFromSnapshot(
     booking.pricingSnapshot as PricingSnapshot | null,
   );
+  const rentAmountPaise =
+    resolved.source === 'bed_price' || resolved.source === 'private_room_config'
+      ? resolved.rentPaise
+      : resolved.rentPaise > 0
+        ? resolved.rentPaise
+        : snapshotRent;
   if (rentAmountPaise <= 0) return null;
 
   const [pgRow] = await db
@@ -150,10 +159,16 @@ export async function ensureBillingProfileForBooking(
 
   const existing = await getBillingProfileForBooking(bookingId);
   if (existing) {
+    const profileRent =
+      resolved.source === 'bed_price' || resolved.source === 'private_room_config'
+        ? resolved.rentPaise
+        : existing.rentAmountPaise > 0
+          ? existing.rentAmountPaise
+          : rentAmountPaise;
     const [updated] = await db
       .update(residentBillingProfiles)
       .set({
-        rentAmountPaise,
+        rentAmountPaise: profileRent,
         billingDay,
         autoGenerate,
         ...cycle,

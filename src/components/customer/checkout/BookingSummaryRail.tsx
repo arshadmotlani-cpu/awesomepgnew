@@ -1,10 +1,8 @@
 'use client';
 
-import Link from 'next/link';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import { hasBookingDraftSelection } from '@/src/lib/booking/bookingDraft';
 import { isMonthlyStayType, stayTypeLabel, type StayType } from '@/src/lib/stayType';
-import { bookingNewSearchParams } from '@/src/lib/booking/bookingFunnelDates';
 
 export type BookingSummaryData = {
   pgSlug?: string;
@@ -25,38 +23,13 @@ export type BookingSummaryData = {
   totalDuePaise?: number;
 };
 
-function editHref(
-  field: 'pg' | 'room' | 'bed' | 'dates',
-  data: BookingSummaryData,
-): string | null {
-  if (field === 'pg' && data.pgSlug) return `/pgs/${data.pgSlug}`;
-  if (field === 'room' && data.pgSlug && data.roomId) {
-    return `/pgs/${data.pgSlug}/rooms/${data.roomId}#bed-selector`;
-  }
-  if (field === 'bed' && data.pgSlug && data.roomId) {
-    return `/pgs/${data.pgSlug}/rooms/${data.roomId}#bed-selector`;
-  }
-  if (field === 'dates' && data.bedId && data.moveInDate) {
-    const params = bookingNewSearchParams({
-      bedIds: [data.bedId],
-      start: data.moveInDate,
-      end: data.moveOutDate ?? null,
-      stayType: isMonthlyStayType(data.stayType) ? 'monthly_stay' : 'fixed_date_stay',
-    });
-    return `/booking/new?${params.toString()}`;
-  }
-  return null;
-}
-
 function Row({
   label,
   value,
-  editLink,
   emphasize,
 }: {
   label: string;
   value: React.ReactNode;
-  editLink?: string | null;
   emphasize?: boolean;
 }) {
   return (
@@ -66,14 +39,6 @@ function Row({
         className={`text-right text-sm font-medium ${emphasize ? 'text-base font-semibold text-apg-orange' : 'text-white'}`}
       >
         {value}
-        {editLink ? (
-          <>
-            {' '}
-            <Link href={editLink} className="text-xs font-semibold text-apg-cyan hover:underline">
-              Edit
-            </Link>
-          </>
-        ) : null}
       </dd>
     </div>
   );
@@ -120,35 +85,13 @@ export function BookingSummaryRail({ data }: { data: BookingSummaryData }) {
         </div>
       ) : (
         <dl className="divide-y divide-white/8 px-5">
-          {data.pgName ? (
-            <Row label="PG" value={data.pgName} editLink={editHref('pg', data)} />
-          ) : null}
-          {data.roomNumber ? (
-            <Row
-              label="Room"
-              value={`Room ${data.roomNumber}`}
-              editLink={editHref('room', data)}
-            />
-          ) : null}
-          {data.bedCode ? (
-            <Row label="Bed" value={`Bed ${data.bedCode}`} editLink={editHref('bed', data)} />
-          ) : null}
-          {stayLabel ? (
-            <Row label="Stay type" value={stayLabel} editLink={editHref('dates', data)} />
-          ) : null}
-          {data.moveInDate ? (
-            <Row
-              label="Check-in"
-              value={formatDate(data.moveInDate)}
-              editLink={editHref('dates', data)}
-            />
-          ) : null}
+          {data.pgName ? <Row label="PG" value={data.pgName} /> : null}
+          {data.roomNumber ? <Row label="Room" value={`Room ${data.roomNumber}`} /> : null}
+          {data.bedCode ? <Row label="Bed" value={`Bed ${data.bedCode}`} /> : null}
+          {stayLabel ? <Row label="Stay type" value={stayLabel} /> : null}
+          {data.moveInDate ? <Row label="Check-in" value={formatDate(data.moveInDate)} /> : null}
           {fixedDates && data.moveOutDate ? (
-            <Row
-              label="Check-out"
-              value={formatDate(data.moveOutDate)}
-              editLink={editHref('dates', data)}
-            />
+            <Row label="Check-out" value={formatDate(data.moveOutDate)} />
           ) : null}
           {fixedDates && data.stayNights != null && data.stayNights > 0 ? (
             <Row

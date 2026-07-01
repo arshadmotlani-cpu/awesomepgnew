@@ -413,6 +413,13 @@ function RefundForm({ onDone }: { onDone: () => void }) {
   );
 }
 
+const BILLING_EXCLUDED_ACTIONS: QuickActionId[] = [
+  'advance_deposit',
+  'offline_deposit',
+  'refund',
+  'express_sale',
+];
+
 export function AdminQuickMenu() {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -443,6 +450,9 @@ export function AdminQuickMenu() {
   }
 
   const meta = active ? DIALOG_META[active] : null;
+  const visibleActions = pathname.startsWith('/admin/billing')
+    ? ACTIONS.filter((a) => !BILLING_EXCLUDED_ACTIONS.includes(a.id))
+    : ACTIONS;
 
   return (
     <>
@@ -473,7 +483,7 @@ export function AdminQuickMenu() {
               One-click operational tasks — not module navigation.
             </p>
             <div className="grid grid-cols-2 gap-2">
-              {ACTIONS.map((item) => (
+              {visibleActions.map((item) => (
                 <button
                   key={item.id}
                   type="button"

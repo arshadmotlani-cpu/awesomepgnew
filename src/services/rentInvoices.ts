@@ -12,11 +12,9 @@
  *   - at least one bed_reservation (primary or extension) with status='active'
  *     whose stay_range intersects the billing month
  *
- * Rent amount is always read from the booking's pricing snapshot
- * (`perBed[*].monthlyRatePaise`), summed across all beds on the booking.
- * That's the same rate the resident saw at checkout — never a fresh
- * lookup against `bed_prices`, so a later rate hike does NOT silently
- * raise an existing resident's monthly bill.
+ * Rent amount is read from the billing SSOT chain:
+ *   bed_prices (per-bed) → rooms.private_room_monthly_rent_paise (negotiated)
+ *   → resident_billing_profiles → pricing snapshot (historical fallback only).
  *
  * Pro-ration:
  *   - First month (resident moves in mid-month): pro-rated by days active.
@@ -82,8 +80,13 @@ import {
 } from '@/src/lib/billing/roomBilling';
 import {
   ensureBillingProfileForBooking,
+  getBillingProfileForBooking,
   syncBillingDayFromCheckIn,
 } from '@/src/services/residentBillingProfiles';
+import {
+  resolveMonthlyRentPaiseForBooking,
+  syncBillingProfileRentFromSsot,
+} from '@/src/lib/billing/rentPricingSsot';
 import {
   clampDueDateOnOrAfterIssueDate,
   resolveRentInvoiceDueDate,
@@ -106,6 +109,8 @@ export type GenerateRentInvoicesInput = {
   bookingIds?: string[];
   /** Admin batch: generate even if move-in is after `asOf`. */
   forceAll?: boolean;
+  /** Due date = this calendar day of the billing month (e.g. 15). Overrides profile billing day. */
+  collectionDueDay?: number;
 };
 
 export type GenerateRentInvoicesResult = {
@@ -680,14 +685,22 @@ export async function generateRentInvoicesForMonth(
       continue;
     }
 
-    const profile = await ensureBillingProfileForBooking(c.bookingId);
+    await syncBillingProfileRentFromSsot(c.bookingId, billingMonth);
+    let profile = await getBillingProfileForBooking(c.bookingId);
+    if (!profile) {
+      profile = await ensureBillingProfileForBooking(c.bookingId);
+    }
     if (profile && !profile.autoGenerate) {
       skipped += 1;
       continue;
     }
 
-    let monthlyRent =
-      profile?.rentAmountPaise ?? monthlyRentFromSnapshot(c.pricingSnapshot);
+    const resolved = await resolveMonthlyRentPaiseForBooking(c.bookingId, billingMonth);
+    let monthlyRent = resolved.rentPaise;
+    if (monthlyRent <= 0) {
+      monthlyRent =
+        profile?.rentAmountPaise ?? monthlyRentFromSnapshot(c.pricingSnapshot);
+    }
     if (monthlyRent <= 0) {
       skipped += 1;
       continue;
@@ -705,11 +718,13 @@ export async function generateRentInvoicesForMonth(
         skipped += 1;
         continue;
       }
-      monthlyRent = resolvePrivateRoomRentPaise(
-        roomConfig,
-        monthlyRent,
-        monthlyRentFromSnapshot(c.pricingSnapshot),
-      );
+      if (resolved.source !== 'private_room_config') {
+        monthlyRent = resolvePrivateRoomRentPaise(
+          roomConfig,
+          monthlyRent,
+          monthlyRentFromSnapshot(c.pricingSnapshot),
+        );
+      }
     }
 
     const billingDay = profile?.billingDay ?? 5;
@@ -726,9 +741,16 @@ export async function generateRentInvoicesForMonth(
       continue;
     }
 
-    const calendarDue = formatDate(dueDateForBillingDay(billingMonth, billingDay));
+    const calendarDue =
+      input.collectionDueDay != null
+        ? formatDate(dueDateForBillingDay(billingMonth, input.collectionDueDay))
+        : formatDate(dueDateForBillingDay(billingMonth, billingDay));
     const dueDate =
-      stay.start > calendarDue ? formatDate(addDays(stay.start, 4)) : calendarDue;
+      input.collectionDueDay != null
+        ? calendarDue
+        : stay.start > calendarDue
+          ? formatDate(addDays(stay.start, 4))
+          : calendarDue;
 
     const prorated = prorateForMonth({
       monthlyRatePaise: monthlyRent,

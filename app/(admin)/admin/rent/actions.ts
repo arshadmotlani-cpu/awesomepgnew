@@ -17,12 +17,73 @@ export type ActionState =
   | { status: 'error'; message: string };
 
 function revalidateBillingPaths() {
+  revalidatePath('/admin/billing');
   revalidatePath('/admin/collections');
   revalidatePath('/admin/invoices');
   revalidatePath('/admin/revenue');
   revalidatePath('/admin/rent');
   revalidatePath('/admin/overview');
   revalidatePath('/admin/notifications');
+  revalidatePath('/admin/operations');
+}
+
+/** Billing Centre — generate rent for every active assigned resident. */
+export async function generateRentBillsAction(
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    await requireAdminPermission('rent:write');
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : 'Permission denied.',
+    };
+  }
+
+  const monthInput = String(formData.get('billingMonthInput') ?? '').trim();
+  const dueDateRaw = String(formData.get('collectionDueDate') ?? '').trim();
+
+  const billingMonth = /^\d{4}-\d{2}$/.test(monthInput)
+    ? `${monthInput}-01`
+    : String(formData.get('billingMonth') ?? '');
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(billingMonth)) {
+    return { status: 'error', message: 'Invalid billing month.' };
+  }
+
+  let collectionDueDay = 15;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dueDateRaw)) {
+    const dueMonth = dueDateRaw.slice(0, 7);
+    const billMonth = billingMonth.slice(0, 7);
+    if (dueMonth !== billMonth) {
+      return {
+        status: 'error',
+        message: 'Collection due date must fall in the billing month.',
+      };
+    }
+    collectionDueDay = Number(dueDateRaw.slice(8, 10));
+  }
+
+  try {
+    const result = await generateRentInvoicesForMonth({
+      billingMonth,
+      forceAll: true,
+      asOf: billingMonth,
+      collectionDueDay,
+    });
+    revalidateBillingPaths();
+    return {
+      status: 'ok',
+      message: `Created ${result.invoicesCreated} rent invoice(s) for ${billingMonth.slice(0, 7)} (skipped ${result.invoicesSkipped}; ${result.candidateBookings} active residents).`,
+    };
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : 'unknown error',
+    };
+  }
 }
 
 export async function generateInvoicesAction(

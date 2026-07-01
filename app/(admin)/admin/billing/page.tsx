@@ -4,6 +4,7 @@ import { AdminSectionErrorBoundary } from '@/src/components/admin/AdminSectionEr
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { BillingWorkflowGuide } from '@/src/components/admin/billing/BillingWorkflowGuide';
 import { BillingAdvancedTools } from '@/src/components/admin/billing/BillingAdvancedTools';
+import { BillingPrimaryActions } from '@/src/components/admin/billing/BillingPrimaryActions';
 import { BillingRecentCollections } from '@/src/components/admin/billing/BillingRecentCollections';
 import { CollectionsActionQueue } from '@/src/components/admin/billing/CollectionsActionQueue';
 import { CollectionsCommandCenter } from '@/src/components/admin/billing/CollectionsCommandCenter';
@@ -202,22 +203,14 @@ export default async function CollectionsModulePage({
         title="Billing Center"
         description="Automatic rent generation, payment approvals, electricity bills, and collections."
       />
+
+      <BillingPrimaryActions
+        billingMonth={billingMonth}
+        canGenerateRent={canGenerateRent}
+      />
+
       <div className="mb-4">
         <ElectricityDuplicateWarningBanner />
-      </div>
-      <div className="mb-4 flex flex-wrap gap-3">
-        <Link
-          href="/admin/billing/electricity/generate"
-          className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-4 py-2 text-sm font-medium text-sky-200 hover:bg-sky-500/20"
-        >
-          Generate electricity bills →
-        </Link>
-        <Link
-          href="/admin/invoices"
-          className="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/5"
-        >
-          Invoice history →
-        </Link>
       </div>
 
       <BillingCycleCertificationPanel
