@@ -4,8 +4,10 @@ import { useActionState } from 'react';
 import {
   previewJuneElectricityIntegrityAction,
   previewShantinagarJulyRentAction,
+  previewShantinagarOccupancySsotAction,
   runJuneElectricityIntegrityAction,
   runShantinagarJulyRentAction,
+  runShantinagarOccupancySsotAction,
   type ProductionRepairActionState,
 } from '@/app/(admin)/admin/billing/production-repair-actions';
 
@@ -92,6 +94,14 @@ export function BillingProductionRepairPanel() {
       </header>
 
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
+        <RepairBlock
+          title="Shantinagar occupancy SSOT (rooms 101–302)"
+          description="Final occupancy source of truth: closes invalid residents (Harshad, empty 102, vacant 301), fixes bed assignments, regenerates affected June electricity, then July rent for active residents only. Prints full certification."
+          previewAction={previewShantinagarOccupancySsotAction}
+          runAction={runShantinagarOccupancySsotAction}
+          runLabel="Run occupancy SSOT repair"
+          runConfirm="Apply Shantinagar occupancy SSOT repair? This updates bookings, reservations, and regenerates affected billing. Preview first."
+        />
         <RepairBlock
           title="Shantinagar +1% & July rent"
           description="Applies +1% monthly rent to rooms 102, 201–204, 301–302 (skips 101). Room 201 uses negotiated private-room rent +1%. Then generates July rent for every active assigned resident."

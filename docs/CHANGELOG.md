@@ -256,26 +256,17 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-01 09:00:24 UTC
+### Pending pre-commit sync · 2026-07-01 09:16:42 UTC
 
-**Areas touched:** [[DATABASE]], [[Billing]], [[Vacating]]
+**Areas touched:** [[ROUTES]]
 
 **Docs flagged for review:**
-- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DATABASE.md` — review for accuracy
-- `DECISIONS.md` — review for accuracy
-- `PROJECT/features.md` — review for accuracy
+- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
-- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (6):**
-- `src/db/migrations/0090_close_completed_reservation_stay_ranges.sql`
-- `src/db/migrations/meta/_journal.json`
-- `src/lib/billing/electricityOccupancyEligibility.ts`
-- `src/lib/billing/electricityOccupantEligibility.ts`
-- `src/lib/billing/roomElectricityOccupants.ts`
-- `src/services/vacating.ts`
+**Staged code files (1):**
+- `app/(admin)/admin/billing/production-repair-actions.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

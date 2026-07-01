@@ -10,6 +10,10 @@ import {
   formatShantinagarJulyRentReport,
   runShantinagarJulyRentProduction,
 } from '@/src/services/shantinagarJulyRentProduction';
+import {
+  formatShantinagarOccupancySsotReport,
+  runShantinagarOccupancySsotRepair,
+} from '@/src/services/shantinagarOccupancySsotRepair';
 
 export type ProductionRepairActionState =
   | { status: 'idle' }
@@ -29,6 +33,59 @@ function revalidateBillingSurfaces() {
   revalidatePath('/admin/overview');
   revalidatePath('/admin/operations');
   revalidatePath('/admin/invoices');
+}
+
+export async function previewShantinagarOccupancySsotAction(
+  _prev: ProductionRepairActionState,
+): Promise<ProductionRepairActionState> {
+  try {
+    const session = await requireSuperAdminBilling();
+    const report = await runShantinagarOccupancySsotRepair({
+      session,
+      dryRun: true,
+    });
+    return {
+      status: 'ok',
+      message: 'Preview complete — no data was changed.',
+      report: formatShantinagarOccupancySsotReport(report),
+    };
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+export async function runShantinagarOccupancySsotAction(
+  _prev: ProductionRepairActionState,
+): Promise<ProductionRepairActionState> {
+  try {
+    const session = await requireSuperAdminBilling();
+    const report = await runShantinagarOccupancySsotRepair({
+      session,
+      dryRun: false,
+    });
+    revalidateBillingSurfaces();
+    const certification = formatShantinagarOccupancySsotReport(report);
+    if (!report.certification.pass || report.errors.length > 0) {
+      return {
+        status: 'error',
+        message: 'Occupancy SSOT repair finished with certification failures — review the report.',
+        report: certification,
+      };
+    }
+    return {
+      status: 'ok',
+      message: 'Shantinagar occupancy SSOT repair completed — production synchronized.',
+      report: certification,
+    };
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : String(err),
+    };
+  }
 }
 
 export async function previewShantinagarJulyRentAction(
