@@ -65,16 +65,17 @@ describe('1 — New resident booking URL + pricing mode mapping', () => {
     assert.deepEqual(q.getAll('bed'), ['bed-a', 'bed-b']);
   });
 
-  it('BedBookingPanel validateAndContinue still emits start/end/mode params', () => {
+  it('BedBookingPanel buildReviewUrl still emits start/end/stayType/mode params', () => {
     const src = readFileSync(
       join(process.cwd(), 'src/components/customer/BedBookingPanel.tsx'),
       'utf8',
     );
-    const fn = src.slice(src.indexOf('function validateAndContinue'));
-    assert.match(fn, /params\.set\('start', start\)/);
-    assert.match(fn, /params\.set\('end', checkout\)/);
-    assert.match(fn, /params\.set\('mode', mode\)/);
-    assert.match(fn, /router\.push\(`\/booking\/new\?\$\{params\.toString\(\)\}`\)/);
+    const fn = src.slice(src.indexOf('function buildReviewUrl'));
+    assert.match(fn, /params\.set\('start', input\.start\)/);
+    assert.match(fn, /params\.set\('end', input\.checkout\)/);
+    assert.match(fn, /params\.set\('stayType', input\.stayType\)/);
+    assert.match(fn, /params\.set\('mode', input\.mode\)/);
+    assert.match(fn, /\/booking\/new\?\$\{params\.toString\(\)\}/);
   });
 });
 
@@ -96,7 +97,7 @@ describe('2 — Booking extension suggested check-in', () => {
       'utf8',
     );
     assert.match(src, /suggestedCheckIn\?: string/);
-    assert.match(src, /if \(suggestedCheckIn && suggestedCheckIn >= initialStart\)/);
+    assert.match(src, /if \(suggestedCheckIn && suggestedCheckIn >= earliestCheckIn\)/);
   });
 });
 

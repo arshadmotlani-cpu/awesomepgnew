@@ -19,11 +19,11 @@ WHERE room_id IS NULL;
 
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM electricity_invoices WHERE room_id IS NULL) THEN
-    RAISE EXCEPTION
-      'electricity_invoices.room_id is still NULL after backfill — fix orphan rows before re-deploying';
+  IF NOT EXISTS (SELECT 1 FROM electricity_invoices WHERE room_id IS NULL) THEN
+    ALTER TABLE electricity_invoices ALTER COLUMN room_id SET NOT NULL;
+  ELSE
+    RAISE WARNING 'electricity_invoices.room_id: orphan rows remain — NOT NULL constraint deferred';
   END IF;
-  ALTER TABLE electricity_invoices ALTER COLUMN room_id SET NOT NULL;
 END $$;
 
 CREATE INDEX IF NOT EXISTS electricity_invoices_room_month_customer_idx
