@@ -16,7 +16,7 @@
     "db:seed": "tsx src/db/seed.ts",
     "db:reset": "tsx src/db/reset.ts",
     "db:studio": "drizzle-kit studio",
-    "test": "tsx scripts/lint-image-uploads.ts && tsx scripts/lint-private-blob-display.ts && node --import tsx --test 'tests/unit/**/*.test.ts' 'tests/integration/**/*.test.ts'",
+    "test": "tsx scripts/lint-image-uploads.ts && tsx scripts/lint-private-blob-display.ts && tsx scripts/run-node-tests.ts",
     "lint:uploads": "tsx scripts/lint-image-uploads.ts",
     "lint:private-blobs": "tsx scripts/lint-private-blob-display.ts",
     "test:e2e": "playwright test",
