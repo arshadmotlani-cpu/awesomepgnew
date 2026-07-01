@@ -67,11 +67,24 @@ test('FIXED_DATE_MAX_NIGHTS is 30', () => {
   assert.equal(FIXED_DATE_MAX_NIGHTS, 30);
 });
 
-test('monthly stay deposit = 2 weeks rent (half of monthly)', () => {
+test('monthly stay deposit uses bed_prices when configured (1 month rent)', () => {
   const monthlyRentPaise = 600_000;
   const deposit = computeMonthlyDepositPaise({
     ...RATE,
     monthlyRatePaise: monthlyRentPaise,
+    monthlySecurityDepositPaise: monthlyRentPaise,
+    securityDepositPaise: monthlyRentPaise,
+  });
+  assert.equal(deposit, 600_000);
+});
+
+test('monthly stay deposit falls back to 2 weeks rent when bed_prices deposit unset', () => {
+  const monthlyRentPaise = 600_000;
+  const deposit = computeMonthlyDepositPaise({
+    ...RATE,
+    monthlyRatePaise: monthlyRentPaise,
+    monthlySecurityDepositPaise: 0,
+    securityDepositPaise: 0,
   });
   assert.equal(deposit, 300_000);
 });
@@ -106,9 +119,14 @@ test('fixed-date 29-night stay: auto rent + 50% deposit', () => {
   assert.equal(q.depositPaise, Math.ceil(q.subtotalPaise * 0.5));
 });
 
-test('monthly stay open_ended: first month rent + 2-week deposit', () => {
+test('monthly stay open_ended: first month rent + one-month deposit from bed_prices', () => {
   const monthlyRentPaise = 600_000;
-  const rate: RateSnapshot = { ...RATE, monthlyRatePaise: monthlyRentPaise };
+  const rate: RateSnapshot = {
+    ...RATE,
+    monthlyRatePaise: monthlyRentPaise,
+    monthlySecurityDepositPaise: monthlyRentPaise,
+    securityDepositPaise: monthlyRentPaise,
+  };
   const q = computePriceBreakdown({
     bedId: BED_ID,
     rate,
@@ -118,6 +136,6 @@ test('monthly stay open_ended: first month rent + 2-week deposit', () => {
     includeDeposit: true,
   });
   assert.equal(q.subtotalPaise, monthlyRentPaise);
-  assert.equal(q.depositPaise, 300_000);
-  assert.equal(q.totalPaise, monthlyRentPaise + 300_000);
+  assert.equal(q.depositPaise, monthlyRentPaise);
+  assert.equal(q.totalPaise, monthlyRentPaise * 2);
 });

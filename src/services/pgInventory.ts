@@ -15,6 +15,223 @@ import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { monthStartFor, writeBedPriceVersion } from '@/src/services/pgInventoryPricing';
 
+export type PgPricingRateTier = 'daily' | 'weekly' | 'monthly';
+
+export type PgPricingAdjustmentSummary = {
+  pgName: string;
+  roomsAffected: number;
+  bedsAffected: number;
+  roomNumbers: string[];
+  previousAvgMonthlyPaise: number;
+  newAvgMonthlyPaise: number;
+};
+
+function adjustPaise(current: number, mode: 'percent' | 'fixed', value: number): number {
+  if (current <= 0 && mode === 'percent') return 0;
+  if (mode === 'percent') {
+    return Math.max(0, Math.round(current * (1 + value / 100)));
+  }
+  return Math.max(0, current + value);
+}
+
+function buildAdjustedBedPriceVersion(
+  bed: PgInventoryBedRow,
+  tiers: PgPricingRateTier[],
+  mode: 'percent' | 'fixed',
+  value: number,
+) {
+  let daily = bed.dailyRatePaise;
+  let weekly = bed.weeklyRatePaise;
+  let monthly = bed.monthlyRatePaise;
+
+  if (tiers.includes('daily')) daily = adjustPaise(daily, mode, value);
+  if (tiers.includes('weekly')) weekly = adjustPaise(weekly, mode, value);
+  if (tiers.includes('monthly')) monthly = adjustPaise(monthly, mode, value);
+
+  const monthlyDeposit =
+    monthly > 0 ? monthly : bed.monthlyDepositPaise;
+
+  return {
+    bedId: bed.bedId,
+    dailyRatePaise: daily,
+    weeklyRatePaise: weekly,
+    monthlyRatePaise: monthly,
+    dailySecurityDepositPaise: bed.dailyDepositPaise,
+    weeklySecurityDepositPaise: bed.weeklyDepositPaise,
+    monthlySecurityDepositPaise: monthlyDeposit,
+    securityDepositPaise: monthlyDeposit,
+  };
+}
+
+function averageMonthlyPaise(beds: PgInventoryBedRow[]): number {
+  const monthlies = beds.map((b) => b.monthlyRatePaise).filter((m) => m > 0);
+  if (monthlies.length === 0) return 0;
+  return Math.round(monthlies.reduce((sum, m) => sum + m, 0) / monthlies.length);
+}
+
+/**
+ * Apply a percent or fixed adjustment to each bed in a PG (or one room).
+ * Each bed keeps its own base rates — only the chosen tiers are adjusted.
+ * Future bookings use new prices; existing residents keep pricing_snapshot.
+ */
+export async function applyPgPricingAdjustment(
+  session: AdminSession,
+  input: {
+    pgId: string;
+    roomId?: string | null;
+    tiers: PgPricingRateTier[];
+    mode: 'percent' | 'fixed';
+    value: number;
+  },
+): Promise<PgPricingAdjustmentSummary> {
+  assertPgAccess(session, input.pgId);
+
+  const inv = await getPgInventory(session, input.pgId);
+  const beds = input.roomId
+    ? inv.beds.filter((b) => b.roomId === input.roomId)
+    : inv.beds;
+
+  if (beds.length === 0) {
+    throw new Error(input.roomId ? 'No beds in this room.' : 'No beds in this PG.');
+  }
+
+  const [pgRow] = await db.select({ name: pgs.name, slug: pgs.slug }).from(pgs).where(eq(pgs.id, input.pgId)).limit(1);
+  const previousAvgMonthlyPaise = averageMonthlyPaise(beds);
+
+  const monthStart = monthStartFor(todayString());
+  const adjustedMonthlies: number[] = [];
+
+  for (const bed of beds) {
+    const version = buildAdjustedBedPriceVersion(bed, input.tiers, input.mode, input.value);
+    await writeBedPriceVersion(version, monthStart);
+    if (version.monthlyRatePaise > 0) {
+      adjustedMonthlies.push(version.monthlyRatePaise);
+    }
+  }
+
+  const newAvgMonthlyPaise =
+    adjustedMonthlies.length > 0
+      ? Math.round(adjustedMonthlies.reduce((sum, m) => sum + m, 0) / adjustedMonthlies.length)
+      : 0;
+
+  const { revalidatePricingViews } = await import('@/src/lib/pricingRevalidate');
+  revalidatePricingViews(pgRow?.slug);
+
+  const roomNumbers = [...new Set(beds.map((b) => b.roomNumber))].sort((a, b) =>
+    a.localeCompare(b, undefined, { numeric: true }),
+  );
+
+  return {
+    pgName: pgRow?.name ?? 'PG',
+    roomsAffected: roomNumbers.length,
+    bedsAffected: beds.length,
+    roomNumbers,
+    previousAvgMonthlyPaise,
+    newAvgMonthlyPaise,
+  };
+}
+
+export type PgDepositPolicySummary = {
+  pgName: string;
+  pgSlug: string;
+  roomsUpdated: number;
+  bedsUpdated: number;
+  roomNumbers: string[];
+  previousPolicyLabel: string;
+  newPolicyLabel: string;
+  activeBookingCount: number;
+  bookingRecordsModified: number;
+};
+
+/**
+ * Set every bed's deposit to exactly one month's rent. Monthly rent is unchanged.
+ * Future bookings use new bed_prices; existing residents keep pricing_snapshot.
+ */
+export async function applyPgOneMonthDepositPolicy(
+  session: AdminSession,
+  pgId: string,
+): Promise<PgDepositPolicySummary> {
+  assertPgAccess(session, pgId);
+
+  const inv = await getPgInventory(session, pgId);
+  if (inv.beds.length === 0) {
+    throw new Error('No beds in this PG.');
+  }
+
+  const [pgRow] = await db
+    .select({ name: pgs.name, slug: pgs.slug, amenities: pgs.amenities })
+    .from(pgs)
+    .where(eq(pgs.id, pgId))
+    .limit(1);
+
+  const monthStart = monthStartFor(todayString());
+  const roomNumbers = new Set<string>();
+
+  for (const bed of inv.beds) {
+    if (bed.monthlyRatePaise <= 0) {
+      throw new Error(
+        `Bed ${bed.roomNumber}-${bed.bedCode} has no monthly rent — set rent before changing deposit policy.`,
+      );
+    }
+
+    const oneMonthDeposit = bed.monthlyRatePaise;
+    await writeBedPriceVersion(
+      {
+        bedId: bed.bedId,
+        dailyRatePaise: bed.dailyRatePaise,
+        weeklyRatePaise: bed.weeklyRatePaise,
+        monthlyRatePaise: bed.monthlyRatePaise,
+        dailySecurityDepositPaise: bed.dailyDepositPaise,
+        weeklySecurityDepositPaise: bed.weeklyDepositPaise,
+        monthlySecurityDepositPaise: oneMonthDeposit,
+        securityDepositPaise: oneMonthDeposit,
+      },
+      monthStart,
+    );
+    roomNumbers.add(bed.roomNumber);
+  }
+
+  await db
+    .update(pgs)
+    .set({
+      amenities: {
+        ...(pgRow?.amenities ?? {}),
+        monthlyDepositPolicy: 'one_month_rent',
+      },
+      updatedAt: new Date(),
+    })
+    .where(eq(pgs.id, pgId));
+
+  const { revalidatePricingViews } = await import('@/src/lib/pricingRevalidate');
+  revalidatePricingViews(pgRow?.slug);
+
+  const [{ activeBookingCount }] = await db
+    .select({ activeBookingCount: count() })
+    .from(bedReservations)
+    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
+    .innerJoin(floors, eq(floors.id, rooms.floorId))
+    .where(
+      and(
+        eq(floors.pgId, pgId),
+        eq(bedReservations.status, 'active'),
+        sql`${bedReservations.stayRange} @> CURRENT_DATE`,
+      ),
+    );
+
+  return {
+    pgName: pgRow?.name ?? 'PG',
+    pgSlug: pgRow?.slug ?? '',
+    roomsUpdated: roomNumbers.size,
+    bedsUpdated: inv.beds.length,
+    roomNumbers: [...roomNumbers].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
+    previousPolicyLabel: '2 months',
+    newPolicyLabel: '1 month',
+    activeBookingCount: Number(activeBookingCount),
+    bookingRecordsModified: 0,
+  };
+}
+
 function assertPgAccess(session: AdminSession, pgId: string) {
   if (!adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, pgId)) {
     throw new Error('You do not have access to this PG.');

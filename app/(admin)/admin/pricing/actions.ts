@@ -2,76 +2,38 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireAdminSession } from '@/src/lib/auth/guards';
-import { getPgInventory, updateRoomBedPricing, type BedPricingInput } from '@/src/services/pgInventory';
-import { computeMonthlyDepositPaise } from '@/src/services/pricing';
+import {
+  applyPgPricingAdjustment,
+  type PgPricingAdjustmentSummary,
+  type PgPricingRateTier,
+} from '@/src/services/pgInventory';
 
-type RateTier = 'daily' | 'weekly' | 'monthly';
+export type PricingAdjustmentActionResult =
+  | { ok: true; summary: PgPricingAdjustmentSummary; message: string }
+  | { ok: false; error: string };
 
-function adjustPaise(current: number, mode: 'percent' | 'fixed', value: number): number {
-  if (current <= 0 && mode === 'percent') return 0;
-  if (mode === 'percent') {
-    return Math.max(0, Math.round(current * (1 + value / 100)));
+function formatSummaryMessage(summary: PgPricingAdjustmentSummary, scope: 'pg' | 'room'): string {
+  if (scope === 'room') {
+    return `Successfully updated ${summary.bedsAffected} bed(s) in room ${summary.roomNumbers[0] ?? ''} · ${summary.pgName}.`;
   }
-  return Math.max(0, current + value);
+  return `Successfully updated ${summary.bedsAffected} beds across ${summary.roomsAffected} room${summary.roomsAffected === 1 ? '' : 's'} in ${summary.pgName}.`;
 }
 
-export async function applyPricingAdjustmentAction(input: {
+async function runAdjustment(input: {
   pgId: string;
-  roomId: string;
-  tiers: RateTier[];
+  roomId?: string | null;
+  tiers: PgPricingRateTier[];
   mode: 'percent' | 'fixed';
   value: number;
-}): Promise<{ ok: true; message: string } | { ok: false; error: string }> {
+}): Promise<PricingAdjustmentActionResult> {
   const session = await requireAdminSession();
   try {
-    const inv = await getPgInventory(session, input.pgId);
-    const roomBeds = inv.beds.filter((b) => b.roomId === input.roomId);
-    if (roomBeds.length === 0) return { ok: false, error: 'No beds in this room.' };
-
-    const sample = roomBeds[0]!;
-    let daily = sample.dailyRatePaise;
-    let weekly = sample.weeklyRatePaise;
-    let monthly = sample.monthlyRatePaise;
-
-    if (input.tiers.includes('daily')) {
-      daily = adjustPaise(daily, input.mode, input.value);
-    }
-    if (input.tiers.includes('weekly')) {
-      weekly = adjustPaise(weekly, input.mode, input.value);
-    }
-    if (input.tiers.includes('monthly')) {
-      monthly = adjustPaise(monthly, input.mode, input.value);
-    }
-
-    const monthlyDeposit = monthly > 0 ? computeMonthlyDepositPaise({
-      bedPriceId: 'adj',
-      dailyRatePaise: daily,
-      weeklyRatePaise: weekly,
-      monthlyRatePaise: monthly,
-      securityDepositPaise: 0,
-      dailySecurityDepositPaise: sample.dailyDepositPaise,
-      weeklySecurityDepositPaise: sample.weeklyDepositPaise,
-      monthlySecurityDepositPaise: 0,
-      effectiveFrom: '2026-01-01',
-      effectiveTo: null,
-    }) : sample.monthlyDepositPaise;
-
-    const pricing: BedPricingInput = {
-      dailyRatePaise: daily,
-      weeklyRatePaise: weekly,
-      monthlyRatePaise: monthly,
-      dailyDepositPaise: sample.dailyDepositPaise,
-      weeklyDepositPaise: sample.weeklyDepositPaise,
-      monthlyDepositPaise: monthlyDeposit,
-    };
-
-    await updateRoomBedPricing(session, input.pgId, input.roomId, pricing);
-
+    const summary = await applyPgPricingAdjustment(session, input);
     revalidatePath('/admin/pricing');
-
     return {
       ok: true,
-      message: `Rates updated for ${roomBeds.length} bed(s). Future bookings use new prices; existing residents unchanged.`,
+      summary,
+      message: formatSummaryMessage(summary, input.roomId ? 'room' : 'pg'),
     };
   } catch (err) {
     return {
@@ -79,4 +41,38 @@ export async function applyPricingAdjustmentAction(input: {
       error: err instanceof Error ? err.message : 'Failed to update pricing.',
     };
   }
+}
+
+/** Primary workflow — adjust every bed in the selected PG. */
+export async function applyPgPricingAdjustmentAction(input: {
+  pgId: string;
+  tiers: PgPricingRateTier[];
+  mode: 'percent' | 'fixed';
+  value: number;
+}): Promise<PricingAdjustmentActionResult> {
+  return runAdjustment({ ...input, roomId: null });
+}
+
+/** Exceptional workflow — adjust one room only. */
+export async function applyRoomPricingAdjustmentAction(input: {
+  pgId: string;
+  roomId: string;
+  tiers: PgPricingRateTier[];
+  mode: 'percent' | 'fixed';
+  value: number;
+}): Promise<PricingAdjustmentActionResult> {
+  return runAdjustment(input);
+}
+
+/** @deprecated Use applyPgPricingAdjustmentAction or applyRoomPricingAdjustmentAction */
+export async function applyPricingAdjustmentAction(input: {
+  pgId: string;
+  roomId: string;
+  tiers: PgPricingRateTier[];
+  mode: 'percent' | 'fixed';
+  value: number;
+}): Promise<{ ok: true; message: string } | { ok: false; error: string }> {
+  const result = await applyRoomPricingAdjustmentAction(input);
+  if (!result.ok) return result;
+  return { ok: true, message: result.message };
 }

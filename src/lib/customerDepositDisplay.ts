@@ -25,7 +25,10 @@ export function displayMonthlyDepositPaise(bed: CustomerBedRateFields): number {
     return bed.quotedMonthlyDepositPaise;
   }
   if (bed.monthlyRatePaise > 0) {
-    return computeMonthlyDepositPaise({ monthlyRatePaise: bed.monthlyRatePaise });
+    return computeMonthlyDepositPaise({
+      monthlyRatePaise: bed.monthlyRatePaise,
+      monthlySecurityDepositPaise: bed.monthlySecurityDepositPaise,
+    });
   }
   return 0;
 }

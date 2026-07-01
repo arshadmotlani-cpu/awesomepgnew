@@ -81,10 +81,11 @@ export const PRICING_PATH_AUDITS: PricingPathAudit[] = [
   },
   {
     path: 'Deposit (monthly / open-ended)',
-    formula: 'deposit = ceil(monthlyRate / 2) — two weeks rent',
-    inputs: ['monthlyRatePaise'],
+    formula:
+      'deposit = monthlySecurityDepositPaise when set on bed_prices; else ceil(monthlyRate / 2)',
+    inputs: ['monthlyRatePaise', 'monthlySecurityDepositPaise'],
     output: 'depositPaise independent of stay length',
-    edgeCases: ['Rent change triggers deposit delta via pricing propagation service.'],
+    edgeCases: ['PG inventory deposit is SSOT for future bookings; existing snapshots unchanged.'],
   },
   {
     path: 'PS4 add-on',
@@ -179,10 +180,14 @@ export function runPricingSelfChecks(sampleRate: RateSnapshot): PricingSelfCheck
   });
 
   const monthlyDep = computeMonthlyDepositPaise(sampleRate);
+  const expectedMonthlyDep =
+    sampleRate.monthlySecurityDepositPaise > 0
+      ? sampleRate.monthlySecurityDepositPaise
+      : Math.ceil(sampleRate.monthlyRatePaise / 2);
   checks.push({
-    name: 'monthly_deposit_2_weeks_rent',
-    pass: monthlyDep === Math.ceil(sampleRate.monthlyRatePaise / 2),
-    detail: `deposit ${monthlyDep} = 2 weeks (½ × ${sampleRate.monthlyRatePaise})`,
+    name: 'monthly_deposit_from_bed_prices_or_fallback',
+    pass: monthlyDep === expectedMonthlyDep,
+    detail: `deposit ${monthlyDep} (bed_prices or ½ × ${sampleRate.monthlyRatePaise})`,
   });
 
   const fixedDep = computeFixedStayDepositPaise(289_000);

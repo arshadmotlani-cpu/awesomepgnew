@@ -29,37 +29,40 @@ const RATE: RateSnapshot = {
 
 /**
  * SSOT chain (pre-booking display → booking creation):
- * depositRules.ts → pricing.ts quoteBookingPrice/quoteBedPrice → bookings.deposit_paise
+ * bed_prices.monthly_security_deposit_paise → pricing.ts quote → bookings.deposit_paise
  *
  * After a booking exists, required deposit is always bookings.deposit_paise (snapshotted at creation).
- * Pre-booking UI must not read bed_prices.security_deposit_paise columns for display.
  */
 
-test('monthly UI reference deposit matches quote engine (₹6000/mo → ₹3000)', () => {
+test('monthly UI reference deposit matches quote engine when bed_prices deposit is set', () => {
   const monthlyRentPaise = 600_000;
-  const rate: RateSnapshot = { ...RATE, monthlyRatePaise: monthlyRentPaise };
+  const oneMonthDeposit = 600_000;
+  const rate: RateSnapshot = {
+    ...RATE,
+    monthlyRatePaise: monthlyRentPaise,
+    monthlySecurityDepositPaise: oneMonthDeposit,
+    securityDepositPaise: oneMonthDeposit,
+  };
   const fromQuote = computeMonthlyDepositPaise(rate);
   const fromUi = displayMonthlyDepositPaise({
     monthlyRatePaise: monthlyRentPaise,
-    securityDepositPaise: 1_000_000,
-    monthlySecurityDepositPaise: 1_000_000,
+    securityDepositPaise: oneMonthDeposit,
+    monthlySecurityDepositPaise: oneMonthDeposit,
   });
 
-  assert.equal(fromQuote, 300_000);
+  assert.equal(fromQuote, oneMonthDeposit);
   assert.equal(fromUi, fromQuote);
 });
 
-test('legacy bed_prices deposit columns must not drive pre-booking UI reference rate', () => {
+test('monthly UI falls back to half-month when bed_prices deposit is unset', () => {
   const monthlyRentPaise = 600_000;
-  const legacyColumnPaise = 1_000_000;
-  const uiDeposit = displayMonthlyDepositPaise({
+  const fromUi = displayMonthlyDepositPaise({
     monthlyRatePaise: monthlyRentPaise,
-    securityDepositPaise: legacyColumnPaise,
-    monthlySecurityDepositPaise: legacyColumnPaise,
+    securityDepositPaise: 1_000_000,
+    monthlySecurityDepositPaise: 0,
   });
 
-  assert.notEqual(uiDeposit, legacyColumnPaise);
-  assert.equal(uiDeposit, 300_000);
+  assert.equal(fromUi, 300_000);
 });
 
 test('server-enriched quotedMonthlyDepositPaise is preferred on bed pages', () => {
@@ -92,7 +95,12 @@ test('fixed-date 10-night stay: UI/checkout deposit matches quote engine (50% of
 
 test('admin assign-bed preview deposit matches open_ended quote engine', () => {
   const monthlyRentPaise = 600_000;
-  const rate: RateSnapshot = { ...RATE, monthlyRatePaise: monthlyRentPaise };
+  const rate: RateSnapshot = {
+    ...RATE,
+    monthlyRatePaise: monthlyRentPaise,
+    monthlySecurityDepositPaise: monthlyRentPaise,
+    securityDepositPaise: monthlyRentPaise,
+  };
   const adminPreviewDeposit = computeRequiredDepositPaise(rate, 'open_ended', monthlyRentPaise);
   const createBookingQuote = computePriceBreakdown({
     bedId: BED_ID,
@@ -103,13 +111,18 @@ test('admin assign-bed preview deposit matches open_ended quote engine', () => {
     includeDeposit: true,
   }).depositPaise;
 
-  assert.equal(adminPreviewDeposit, 300_000);
+  assert.equal(adminPreviewDeposit, monthlyRentPaise);
   assert.equal(createBookingQuote, adminPreviewDeposit);
 });
 
 test('booking.deposit_paise must equal quote engine deposit at creation time', () => {
   const monthlyRentPaise = 600_000;
-  const rate: RateSnapshot = { ...RATE, monthlyRatePaise: monthlyRentPaise };
+  const rate: RateSnapshot = {
+    ...RATE,
+    monthlyRatePaise: monthlyRentPaise,
+    monthlySecurityDepositPaise: monthlyRentPaise,
+    securityDepositPaise: monthlyRentPaise,
+  };
   const quoteAtCreation = computePriceBreakdown({
     bedId: BED_ID,
     rate,
@@ -120,7 +133,7 @@ test('booking.deposit_paise must equal quote engine deposit at creation time', (
   });
 
   const storedBookingDepositPaise = quoteAtCreation.depositPaise;
-  assert.equal(storedBookingDepositPaise, 300_000);
+  assert.equal(storedBookingDepositPaise, monthlyRentPaise);
   assert.equal(
     storedBookingDepositPaise,
     computeRequiredDepositPaise(rate, 'open_ended', quoteAtCreation.subtotalPaise),

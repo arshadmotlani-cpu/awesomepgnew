@@ -97,11 +97,14 @@ export function securityDepositForMode(rate: RateSnapshot, durationMode: Pricing
   );
 }
 
-/** Monthly / open-ended stays: deposit = 2 weeks rent (half of one month). */
+/** Monthly / open-ended stays: bed_prices deposit when set, else 2 weeks rent. */
 export function computeMonthlyDepositPaise(rate: RateSnapshot): number {
   const monthly = coerceNonNegativePaise(rate.monthlyRatePaise);
   requirePositiveRate(monthly, 'monthly');
-  return monthlyDepositFromRules({ monthlyRatePaise: monthly });
+  return monthlyDepositFromRules({
+    monthlyRatePaise: monthly,
+    monthlySecurityDepositPaise: rate.monthlySecurityDepositPaise,
+  });
 }
 
 /** Fixed-date stays: deposit = 50% of booking subtotal (rent only, not deposit). */
@@ -346,7 +349,7 @@ export function computePriceBreakdown(input: ComputePriceInput): PriceQuote {
   if (depositPaise > 0) {
     const depositLabel =
       durationMode === 'open_ended' || durationMode === 'monthly'
-        ? 'Refundable security deposit (2 weeks rent)'
+        ? monthlyDepositLineLabel(rate, depositPaise)
         : durationMode === 'fixed_stay'
           ? 'Refundable security deposit (50% of booking)'
           : 'Refundable security deposit';
@@ -376,6 +379,21 @@ export function computePriceBreakdown(input: ComputePriceInput): PriceQuote {
     lowestPriceApplied,
     pricingStrategy,
   };
+}
+
+function monthlyDepositLineLabel(rate: RateSnapshot, depositPaise: number): string {
+  const monthly = coerceNonNegativePaise(rate.monthlyRatePaise);
+  if (monthly > 0 && depositPaise === monthly) {
+    return 'Refundable security deposit (1 month rent)';
+  }
+  const twoWeeks = monthlyDepositFromRules({ monthlyRatePaise: monthly });
+  if (depositPaise === twoWeeks) {
+    return 'Refundable security deposit (2 weeks rent)';
+  }
+  if (monthly > 0 && depositPaise === monthly * 2) {
+    return 'Refundable security deposit (2 months rent)';
+  }
+  return 'Refundable security deposit';
 }
 
 function requirePositiveRate(rate: number, modeLabel: string): void {
