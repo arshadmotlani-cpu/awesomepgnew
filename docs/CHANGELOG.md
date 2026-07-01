@@ -256,27 +256,17 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-01 19:56:08 UTC
+### Pending pre-commit sync · 2026-07-01 20:12:02 UTC
 
-**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Residents]]
+**Areas touched:** [[ROUTES]]
 
 **Docs flagged for review:**
-- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DATABASE.md` — review for accuracy
-- `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
-- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (7):**
+**Staged code files (1):**
 - `app/(customer)/account/resident/pay-rent/[invoiceId]/page.tsx`
-- `src/db/migrations/0092_room_201_single_sharing.sql`
-- `src/db/migrations/meta/_journal.json`
-- `src/lib/billing/invoiceDocumentModel.ts`
-- `src/lib/billing/rentInvoiceBreakdown.ts`
-- `src/lib/billing/rentInvoiceBreakdownTypes.ts`
-- `src/lib/residents/residentHomeState.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

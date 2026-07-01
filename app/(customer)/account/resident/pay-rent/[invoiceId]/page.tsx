@@ -31,6 +31,10 @@ import { RentInvoiceBreakdownPanel } from '@/src/components/billing/RentInvoiceB
 import { loadRentInvoiceBreakdown } from '@/src/lib/billing/rentInvoiceBreakdown';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import { projectInvoice } from '@/src/services/rentInvoices';
+import {
+  ensureDefaultPaymentCategoriesForPg,
+  getRentDepositBookingCategory,
+} from '@/src/services/pgPaymentDefaults';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
 
 export const dynamic = 'force-dynamic';
