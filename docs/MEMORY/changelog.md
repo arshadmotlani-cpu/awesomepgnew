@@ -102,5 +102,6 @@ Files:
 ## 2026-07-02
 
 - **RESIDENT-PORTAL-V2** — Redesigned resident hub: 5-tab nav (Profile, Payments, Requests, Referrals, Concierge); Profile sub-tabs (Overview, Wallet); Payments sub-tabs (Bills Due, Invoices); room change workflow + referral DB (`0093_resident_portal_v2.sql`); booking review line-item breakdown + Awesome PG policies → `docs/MEMORY/decisions-resident-portal-v2.md`
+- **OCCUPANCY-SSOT-AUDIT** — Admin vs Public bed state drift (Room 102 B1); traced 6 compute paths + 2 label functions; proposed `bedOccupancyEngine.ts` SSOT + parity tests → `docs/OCCUPANCY_SSOT_AUDIT.md` · [[BED_EXPLORER_SSOT_PLAN]]
 
 ---
