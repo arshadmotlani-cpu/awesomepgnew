@@ -68,8 +68,18 @@ test('financial engine falls back to latest booking for wallet SSOT', () => {
   );
 });
 
-test('simple account hub links to wallet from My Stay', () => {
-  assert.match(simpleAccountHub, /section=resident&tab=wallet/);
+test('payments tab is not gated on financialAccount', () => {
+  assert.match(residentAreaSection, /activeTab === 'payments' && primaryBooking/);
+  assert.doesNotMatch(
+    residentAreaSection,
+    /activeTab === 'payments' && primaryBooking && financialAccount/,
+  );
+});
+
+test('resident nav uses My Stay and Bills labels', () => {
+  const nav = readFileSync(join(process.cwd(), 'src/lib/residentNavigation.ts'), 'utf8');
+  assert.match(nav, /label: 'My Stay'/);
+  assert.match(nav, /label: 'Bills'/);
 });
 
 test('restored deposit wallet components exist on disk', () => {

@@ -10,7 +10,6 @@ import { PostLoginRouteObserver } from '@/src/components/customer/account/PostLo
 import { ResidentAccountIncompletePanel } from '@/src/components/customer/account/ResidentAccountIncompletePanel';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
 import {
-  parseAccountSection,
   parseResidentTab,
   type ResidentTab,
   residentTabHref,
@@ -71,21 +70,22 @@ export default async function ProfilePage(props: PageProps<'/account/profile'>) 
   const next = typeof sp.next === 'string' ? sp.next : undefined;
   const bookingCode = typeof sp.booking === 'string' ? sp.booking : undefined;
   const submitted = sp.submitted === '1';
-  const section = parseAccountSection(typeof sp.section === 'string' ? sp.section : undefined);
+  const sectionRaw = typeof sp.section === 'string' ? sp.section : undefined;
+  const explicitSettings = sp.settings === '1';
+
   const tabParam = typeof sp.tab === 'string' ? sp.tab : undefined;
   const residentTab = residentTabFromLegacy(tabParam);
-  const explicitSettings = sp.settings === '1';
 
   logger.info('post-login profile page routing', {
     customerId: session.customerId,
     email: session.email,
-    section,
+    section: sectionRaw,
     residentTab,
     hasConfirmedBooking: ctx.hasConfirmedBooking,
     primaryBookingId: ctx.primaryBooking?.bookingId ?? null,
   });
 
-  if (section === 'identity') {
+  if (sectionRaw === 'identity') {
     return (
       <main className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6">
         <PostLoginRouteObserver
@@ -107,11 +107,11 @@ export default async function ProfilePage(props: PageProps<'/account/profile'>) 
     );
   }
 
-  if (ctx.hasConfirmedBooking && section === 'profile' && !explicitSettings) {
-    redirect(residentTabHref(residentTab));
-  }
+  if (ctx.hasConfirmedBooking && !explicitSettings) {
+    if (sectionRaw === 'profile') {
+      redirect(residentTabHref(residentTab));
+    }
 
-  if (ctx.hasConfirmedBooking && section === 'resident') {
     return (
       <main className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6">
         <PostLoginRouteObserver
@@ -147,9 +147,6 @@ export default async function ProfilePage(props: PageProps<'/account/profile'>) 
     );
   }
 
-  const bookingStatus =
-    ctx.hasConfirmedBooking || ctx.isActiveStay ? 'Active' : ('Not booked yet' as const);
-
   const hubTab = parseLegacyHubTab(tabParam);
 
   return (
@@ -162,13 +159,13 @@ export default async function ProfilePage(props: PageProps<'/account/profile'>) 
       <nav className="apg-account-nav mb-4 text-xs">
         <Link href="/account/bookings">My bookings</Link>
         <span className="mx-1">/</span>
-        <span aria-current="page">Account settings</span>
+        <span aria-current="page">Edit profile</span>
       </nav>
 
       {ctx.hasConfirmedBooking ? (
         <p className="mb-6 rounded-xl border border-apg-orange/30 bg-apg-orange/10 px-4 py-3 text-sm text-apg-silver">
           <Link href={residentTabHref('home')} className="font-semibold text-apg-orange hover:underline">
-            ← Back to your stay
+            ← Back to My Stay
           </Link>
         </p>
       ) : null}
@@ -197,7 +194,9 @@ export default async function ProfilePage(props: PageProps<'/account/profile'>) 
         email={ctx.customer.email}
         phoneLocal={indianLocalFromE164(ctx.customer.phone) ?? ''}
         phoneDisplay={formatIndianPhoneDisplay(session.phone)}
-        bookingStatus={bookingStatus}
+        bookingStatus={
+          ctx.hasConfirmedBooking || ctx.isActiveStay ? 'Active' : ('Not booked yet' as const)
+        }
         profileComplete={ctx.profileComplete}
         isActiveStay={ctx.isActiveStay}
         initialTab={hubTab}

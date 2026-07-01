@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ApgCard } from '@/src/components/customer/design-system';
 import { DepositRefundRequestForm } from '@/src/components/customer/account/DepositRefundRequestForm';
+import type { DepositRefundSettlementPreview } from '@/src/lib/deposits/depositRefundSettlementPreview';
 
 const PRIMARY_BTN =
   'flex w-full min-h-[52px] items-center justify-center rounded-xl bg-[#FF5A1F] px-6 py-3.5 text-base font-semibold text-white hover:brightness-110';
@@ -12,11 +13,13 @@ export function ResidentRequestForms({
   customerId,
   refundableBalancePaise,
   hasOpenVacating,
+  settlementPreview = null,
 }: {
   bookingId: string;
   customerId?: string;
   refundableBalancePaise: number;
   hasOpenVacating: boolean;
+  settlementPreview?: DepositRefundSettlementPreview | null;
 }) {
   const [showRefundForm, setShowRefundForm] = useState(false);
 
@@ -50,6 +53,7 @@ export function ResidentRequestForms({
           bookingId={bookingId}
           customerId={customerId}
           refundableBalancePaise={refundableBalancePaise}
+          settlementPreview={settlementPreview}
           onSubmitted={() => setShowRefundForm(false)}
         />
       )}

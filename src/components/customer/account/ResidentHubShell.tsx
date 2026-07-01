@@ -6,6 +6,7 @@ import { RESIDENT_BOTTOM_NAV, type ResidentTab, residentTabHref } from '@/src/li
 import {
   RESIDENT_DESKTOP_NAV,
   RESIDENT_MOBILE_SECONDARY_TABS,
+  residentAccountSettingsHref,
   residentTabMeta,
 } from '@/src/lib/residentNavigation';
 import { ResidentSectionErrorBoundary } from '@/src/components/customer/account/resident/ResidentSectionErrorBoundary';
@@ -74,6 +75,12 @@ export function ResidentHubShell({
               {label}
             </Link>
           ))}
+          <Link
+            href={residentAccountSettingsHref()}
+            className="rounded-lg px-3 py-2 text-sm font-medium text-apg-silver transition-colors hover:bg-white/5 hover:text-white"
+          >
+            Profile
+          </Link>
         </nav>
 
         <nav

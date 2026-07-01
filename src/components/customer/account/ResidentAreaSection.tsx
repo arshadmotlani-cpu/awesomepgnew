@@ -68,9 +68,196 @@ import {
 import { ResidentHomePanel } from '@/src/components/customer/account/resident/ResidentHomePanel';
 import { ResidentIncompleteStayPanel } from '@/src/components/customer/account/resident/ResidentIncompleteStayPanel';
 import type { UpcomingPaymentRow } from '@/src/components/customer/account/resident/ResidentUpcomingPayments';
+import { getDepositRefundSettlementPreview } from '@/src/lib/deposits/depositRefundSettlementPreview';
+import { projectElectricityInvoice } from '@/src/services/electricityBilling';
+import { projectInvoice } from '@/src/services/rentInvoices';
 
 function labelResidentStatus(value: string | null | undefined): string {
   return titleCase((value ?? 'pending').replace(/_/g, ' '));
+}
+
+function buildBillRowsFromDetail(
+  detail: Array<{
+    bookingId: string;
+    rent: Awaited<ReturnType<typeof listRentInvoicesForBooking>>;
+    electricity: Awaited<ReturnType<typeof listElectricityInvoicesForBooking>>;
+  }>,
+  options: { paidWindowDays?: number } = {},
+): {
+  dueBillRows: PaymentDueRow[];
+  pendingApprovalRows: PaymentDueRow[];
+  paidBillRows: PaidHistoryRow[];
+  homeUpcoming: UpcomingPaymentRow[];
+  firstUnpaidRentId: string | null;
+  firstUnpaidElectricityId: string | null;
+} {
+  const dueBillRows: PaymentDueRow[] = [];
+  const pendingApprovalRows: PaymentDueRow[] = [];
+  const paidBillRows: PaidHistoryRow[] = [];
+  const homeUpcoming: UpcomingPaymentRow[] = [];
+  let firstUnpaidRentId: string | null = null;
+  let firstUnpaidElectricityId: string | null = null;
+
+  for (const d of detail) {
+    const rentRows = d.rent.ok ? d.rent.data : [];
+    const electricityRows = d.electricity.ok ? d.electricity.data : [];
+
+    for (const r of rentRows) {
+      if (r.status === 'cancelled') {
+        paidBillRows.push({
+          id: r.id,
+          label: `Rent · ${formatDate(r.billingMonth)} (cancelled)`,
+          amountPaise: r.rentPaise,
+          paidAt: null,
+          status: 'cancelled',
+          invoiceNumber: r.invoiceNumber,
+        });
+        continue;
+      }
+      if (r.status === 'paid') {
+        if (options.paidWindowDays == null || isWithinLastDays(r.paidAt, options.paidWindowDays)) {
+          paidBillRows.push({
+            id: r.id,
+            label: `Rent · ${formatDate(r.billingMonth)}`,
+            amountPaise: r.paidPrincipalPaise + r.paidLateFeePaise,
+            paidAt: r.paidAt ? formatDate(r.paidAt) : null,
+            status: 'paid',
+            invoiceNumber: r.invoiceNumber,
+          });
+        }
+        continue;
+      }
+      const projected = projectInvoice({
+        ...r,
+        cancelledAt: null,
+        cancellationReason: null,
+        customerId: '',
+        bedId: '',
+        pgId: '',
+        paymentId: null,
+        paymentProofUrl: null,
+        isAdhoc: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      const outstanding = projected.outstandingPaise;
+      if (outstanding <= 0) continue;
+      if (projected.effectiveStatus === 'payment_in_progress') {
+        pendingApprovalRows.push({
+          key: `rent-${r.id}`,
+          label: `Rent · ${formatDate(r.billingMonth)}`,
+          amountPaise: outstanding,
+          dueDate: r.dueDate,
+          href: `/account/resident/pay-rent/${r.id}`,
+          status: 'Waiting for admin approval',
+          invoiceNumber: r.invoiceNumber,
+        });
+        continue;
+      }
+      if (!firstUnpaidRentId) firstUnpaidRentId = r.id;
+      const row: PaymentDueRow = {
+        key: `rent-${r.id}`,
+        label: `Rent · ${formatDate(r.billingMonth)}`,
+        amountPaise: outstanding,
+        dueDate: r.dueDate,
+        href: `/account/resident/pay-rent/${r.id}`,
+        status: labelResidentStatus(projected.effectiveStatus),
+        invoiceNumber: r.invoiceNumber,
+      };
+      dueBillRows.push(row);
+      homeUpcoming.push({
+        key: row.key,
+        label: row.label,
+        amountPaise: row.amountPaise,
+        dueDate: row.dueDate,
+        href: row.href,
+        status: row.status,
+      });
+    }
+
+    for (const e of electricityRows) {
+      if (e.status === 'cancelled') {
+        paidBillRows.push({
+          id: e.id,
+          label: `Electricity · ${formatDate(e.billingMonth)} (cancelled)`,
+          amountPaise: e.amountPaise,
+          paidAt: null,
+          status: 'cancelled',
+          invoiceNumber: e.invoiceNumber,
+        });
+        continue;
+      }
+      if (e.status === 'paid') {
+        if (options.paidWindowDays == null || isWithinLastDays(e.paidAt, options.paidWindowDays)) {
+          paidBillRows.push({
+            id: e.id,
+            label: `Electricity · ${formatDate(e.billingMonth)}`,
+            amountPaise: e.paidPaise + (e.lateFeeLockedPaise ?? 0),
+            paidAt: e.paidAt ? formatDate(e.paidAt) : null,
+            status: 'paid',
+            invoiceNumber: e.invoiceNumber,
+          });
+        }
+        continue;
+      }
+      const projected = projectElectricityInvoice({
+        id: e.id,
+        invoiceNumber: e.invoiceNumber,
+        electricityBillId: e.electricityBillId,
+        roomId: e.roomId,
+        bookingId: e.bookingId,
+        customerId: '',
+        bedId: '',
+        billingMonth: e.billingMonth,
+        dueDate: e.dueDate,
+        amountPaise: e.amountPaise,
+        paidPaise: e.paidPaise,
+        lateFeeLockedPaise: e.lateFeeLockedPaise,
+        status: e.status,
+        paymentId: null,
+        paidAt: e.paidAt,
+        paymentProofUrl: null,
+        unitsShare: null,
+        activeDays: null,
+        cancelledAt: null,
+        supersededByInvoiceId: null,
+        duplicateDetectedAt: null,
+        isPipelineTest: false,
+        createdAt: e.createdAt,
+        updatedAt: e.updatedAt,
+      });
+      const outstanding = projected.outstandingPaise;
+      if (outstanding <= 0) continue;
+      if (!firstUnpaidElectricityId) firstUnpaidElectricityId = e.id;
+      const row: PaymentDueRow = {
+        key: `elec-${e.id}`,
+        label: `Electricity · ${formatDate(e.billingMonth)}`,
+        amountPaise: outstanding,
+        dueDate: e.dueDate,
+        href: `/account/resident/pay-electricity/${e.id}`,
+        status: labelResidentStatus(projected.effectiveStatus),
+        invoiceNumber: e.invoiceNumber,
+      };
+      dueBillRows.push(row);
+      homeUpcoming.push({
+        key: row.key,
+        label: row.label,
+        amountPaise: row.amountPaise,
+        dueDate: row.dueDate,
+        href: row.href,
+        status: row.status,
+      });
+    }
+  }
+
+  return {
+    dueBillRows,
+    pendingApprovalRows,
+    paidBillRows,
+    homeUpcoming,
+    firstUnpaidRentId,
+    firstUnpaidElectricityId,
+  };
 }
 
 /**
@@ -296,93 +483,16 @@ export async function ResidentAreaSection({
   let firstUnpaidRentId: string | null = null;
   let firstUnpaidElectricityId: string | null = null;
 
-  if (primaryBooking && financialAccount) {
-    const rentRows = primaryBooking.rent.ok ? primaryBooking.rent.data : [];
-    const electricityRows = primaryBooking.electricity.ok ? primaryBooking.electricity.data : [];
+  if (detail.length > 0) {
+    const homeBills = buildBillRowsFromDetail(detail, { paidWindowDays: 30 });
+    const allBills = buildBillRowsFromDetail(detail);
+    dueBillRows.push(...homeBills.dueBillRows);
+    pendingApprovalRows.push(...homeBills.pendingApprovalRows);
+    paidBillRows.push(...allBills.paidBillRows);
+    homeUpcoming.push(...homeBills.homeUpcoming);
+    firstUnpaidRentId = homeBills.firstUnpaidRentId;
+    firstUnpaidElectricityId = homeBills.firstUnpaidElectricityId;
 
-    for (const r of rentRows) {
-      if (r.status === 'paid' && isWithinLastDays(r.paidAt, 30)) {
-        paidBillRows.push({
-          id: r.id,
-          label: `Rent · ${formatDate(r.billingMonth)}`,
-          amountPaise: r.paidPrincipalPaise + r.paidLateFeePaise,
-          paidAt: r.paidAt ? formatDate(r.paidAt) : null,
-          status: 'paid',
-          invoiceNumber: r.invoiceNumber,
-        });
-      }
-    }
-    for (const e of electricityRows) {
-      if (e.status === 'paid' && isWithinLastDays(e.paidAt, 30)) {
-        paidBillRows.push({
-          id: e.id,
-          label: `Electricity · ${formatDate(e.billingMonth)}`,
-          amountPaise: e.paidPaise + (e.lateFeeLockedPaise ?? 0),
-          paidAt: e.paidAt ? formatDate(e.paidAt) : null,
-          status: 'paid',
-          invoiceNumber: e.invoiceNumber,
-        });
-      }
-    }
-
-    const openLineItems = [
-      ...financialAccount.rent.items,
-      ...financialAccount.electricity.items,
-      ...financialAccount.other.items,
-    ];
-    for (const item of openLineItems) {
-      const href =
-        item.kind === 'rent' && item.sourceId
-          ? `/account/resident/pay-rent/${item.sourceId}`
-          : item.kind === 'electricity' && item.sourceId
-            ? `/account/resident/pay-electricity/${item.sourceId}`
-            : null;
-
-      if (item.status === 'payment_in_progress') {
-        pendingApprovalRows.push({
-          key: `${item.kind}-${item.id}`,
-          label: item.label,
-          amountPaise: item.outstandingPaise,
-          dueDate: item.dueDate ?? null,
-          href,
-          status: 'Waiting for admin approval',
-          invoiceNumber: item.invoiceNumber ?? undefined,
-        });
-        continue;
-      }
-
-      if (
-        item.outstandingPaise > 0 &&
-        (item.status === 'pending' ||
-          item.status === 'overdue' ||
-          item.status === 'due_at_checkout')
-      ) {
-        if (item.kind === 'rent' && !firstUnpaidRentId && item.sourceId) {
-          firstUnpaidRentId = item.sourceId;
-        }
-        if (item.kind === 'electricity' && !firstUnpaidElectricityId && item.sourceId) {
-          firstUnpaidElectricityId = item.sourceId;
-        }
-        const row: PaymentDueRow = {
-          key: `${item.kind}-${item.id}`,
-          label: item.label,
-          amountPaise: item.outstandingPaise,
-          dueDate: item.dueDate ?? null,
-          href,
-          status: labelResidentStatus(item.status),
-          invoiceNumber: item.invoiceNumber ?? undefined,
-        };
-        dueBillRows.push(row);
-        homeUpcoming.push({
-          key: row.key,
-          label: row.label,
-          amountPaise: row.amountPaise,
-          dueDate: row.dueDate,
-          href: row.href,
-          status: row.status,
-        });
-      }
-    }
     if (primaryDepositCard && primaryDepositCard.depositDuePaise > 0) {
       homeUpcoming.unshift({
         key: 'deposit-due',
@@ -399,24 +509,46 @@ export async function ResidentAreaSection({
   const firstPayHref = paymentBillRows.find((r) => r.href)?.href ?? null;
   const nextDueDate = paymentBillRows[0]?.dueDate ?? null;
 
-  const paymentHistoryRes = primaryBooking
-    ? await listPaymentsForBooking(primaryBooking.bookingId)
+  const walletBooking =
+    detail.reduce(
+      (best, d) => {
+        const bal = d.deposit?.refundableBalancePaise ?? 0;
+        const bestBal = best?.deposit?.refundableBalancePaise ?? 0;
+        return bal >= bestBal ? d : best;
+      },
+      detail[0] ?? null,
+    ) ?? primaryBooking;
+
+  const refundSettlementPreview = walletBooking
+    ? await getDepositRefundSettlementPreview(walletBooking.bookingId)
     : null;
+
+  const paymentHistoryRes = walletBooking
+    ? await listPaymentsForBooking(walletBooking.bookingId)
+    : null;
+  const walletDepositHeldPaise =
+    depositWallet.totalHeldPaise > 0
+      ? depositWallet.totalHeldPaise
+      : (walletBooking?.deposit?.refundableBalancePaise ?? primaryBooking?.deposit?.refundableBalancePaise ?? 0);
+  const walletAvailableRefundPaise =
+    walletBooking?.deposit?.refundableBalancePaise ??
+    primaryBooking?.deposit?.refundableBalancePaise ??
+    depositWallet.availableCreditPaise;
   const walletLedgerEntries = buildWalletLedger({
-    depositEntries: primaryBooking?.deposit?.entries ?? [],
+    depositEntries: walletBooking?.deposit?.entries ?? primaryBooking?.deposit?.entries ?? [],
     payments: paymentHistoryRes?.ok ? paymentHistoryRes.data : [],
   });
-  const historyHref = primaryBooking
-    ? `/account/resident/history/${primaryBooking.bookingId}`
+  const historyHref = walletBooking
+    ? `/account/resident/history/${walletBooking.bookingId}`
     : null;
 
   const paidHistory: PaidHistoryRow[] = paidBillRows.sort((a, b) =>
     (b.paidAt ?? '').localeCompare(a.paidAt ?? ''),
   );
 
-  const electricityHistory: ResidentElectricityHistoryItem[] =
-    primaryBooking?.electricity.ok && primaryBooking.electricity.data.length > 0
-      ? primaryBooking.electricity.data.map((e) => ({
+  const electricityHistory: ResidentElectricityHistoryItem[] = detail.flatMap((d) =>
+    d.electricity.ok
+      ? d.electricity.data.map((e) => ({
           id: e.id,
           invoiceNumber: e.invoiceNumber,
           billingMonth: String(e.billingMonth),
@@ -428,7 +560,8 @@ export async function ResidentAreaSection({
           isCheckoutSettled:
             e.status === 'paid' && e.paidPaise > 0 && e.amountPaise <= e.paidPaise,
         }))
-      : [];
+      : [],
+  );
 
   const activeRequests: ActiveRequestItem[] = [];
   for (const r of openRequests) {
@@ -456,12 +589,6 @@ export async function ResidentAreaSection({
   const roomLabel = primaryBooking
     ? `${primaryBooking.booking.pgName} · R${primaryBooking.booking.roomNumber}`
     : '';
-  const walletDepositHeldPaise =
-    depositWallet.totalHeldPaise > 0
-      ? depositWallet.totalHeldPaise
-      : (primaryBooking?.deposit?.refundableBalancePaise ?? 0);
-  const walletAvailableRefundPaise =
-    primaryBooking?.deposit?.refundableBalancePaise ?? depositWallet.availableCreditPaise;
 
   return (
     <ResidentHubShell
@@ -640,31 +767,32 @@ export async function ResidentAreaSection({
             <DepositDueSection key={`deposit-due-${card.bookingId}`} {...card} />
           ))}
 
-          <ResidentDepositBreakdown entries={primaryBooking.deposit?.entries ?? []} />
+          <ResidentDepositBreakdown entries={walletBooking?.deposit?.entries ?? primaryBooking.deposit?.entries ?? []} />
 
-          <ResidentDepositLedger entries={primaryBooking.deposit?.entries ?? []} />
+          <ResidentDepositLedger entries={walletBooking?.deposit?.entries ?? primaryBooking.deposit?.entries ?? []} />
 
           <DepositRefundNotice />
 
           <ResidentWalletRequestStatus requests={activeRequests} />
 
           <ResidentRequestForms
-            bookingId={primaryBooking.bookingId}
+            bookingId={walletBooking?.bookingId ?? primaryBooking.bookingId}
             customerId={session.customerId}
             refundableBalancePaise={walletAvailableRefundPaise}
             hasOpenVacating={hasOpenVacating}
+            settlementPreview={refundSettlementPreview}
           />
         </div>
       ) : null}
 
-      {activeTab === 'payments' && primaryBooking && financialAccount ? (
+      {activeTab === 'payments' && primaryBooking ? (
         <ResidentPaymentsHub
           dueRows={dueBillRows}
           pendingApprovalRows={pendingApprovalRows}
           paidBills={paidHistory}
           historyHref={historyHref}
           electricityHistory={electricityHistory}
-          bookingId={primaryBooking.bookingId}
+          bookingId={walletBooking?.bookingId ?? primaryBooking.bookingId}
         />
       ) : null}
     </ResidentHubShell>

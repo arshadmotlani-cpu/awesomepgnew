@@ -12,21 +12,27 @@ export type ResidentTabMeta = {
 export const RESIDENT_DESKTOP_NAV: ResidentTabMeta[] = [
   {
     tab: 'home',
-    label: 'Home',
-    title: 'Your stay',
-    subtitle: 'Status, next step, and what matters today.',
+    label: 'My Stay',
+    title: 'My Stay',
+    subtitle: 'Your booking, room, and what matters today.',
   },
   {
     tab: 'wallet',
     label: 'Wallet',
     title: 'Wallet',
-    subtitle: 'Deposit balance and payment history.',
+    subtitle: 'Deposit balance, ledger, and refund.',
   },
   {
     tab: 'payments',
-    label: 'Payments',
-    title: 'Payments',
-    subtitle: 'Bills due now and paid history.',
+    label: 'Bills',
+    title: 'Bills',
+    subtitle: 'Rent, electricity, and payment history.',
+  },
+  {
+    tab: 'room',
+    label: 'Booking',
+    title: 'Current booking',
+    subtitle: 'Bed, rent, and stay details.',
   },
   {
     tab: 'requests',
@@ -35,22 +41,16 @@ export const RESIDENT_DESKTOP_NAV: ResidentTabMeta[] = [
     subtitle: 'Maintenance, complaints, and PG requests.',
   },
   {
-    tab: 'room',
-    label: 'My room',
-    title: 'My room',
-    subtitle: 'Bed, rent, and stay details.',
+    tab: 'notifications',
+    label: 'Notifications',
+    title: 'Notifications',
+    subtitle: 'Email updates from Awesome PG.',
   },
   {
     tab: 'vacating',
     label: 'Vacating',
     title: 'Move-out',
     subtitle: 'Notice period, checkout, and deposit refund.',
-  },
-  {
-    tab: 'notifications',
-    label: 'Notifications',
-    title: 'Notifications',
-    subtitle: 'Email updates from Awesome PG.',
   },
   {
     tab: 'referrals',

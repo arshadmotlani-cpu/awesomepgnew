@@ -109,7 +109,7 @@ export async function loadResidentAccountContext(
       : [];
   const primaryBooking = uniqueBookings[0] ?? null;
 
-  const financialSummary = hasConfirmedBooking
+  const financialSummary = primaryBooking
     ? await getResidentFinancialAccount(customerId)
     : null;
 
@@ -131,17 +131,18 @@ export async function loadResidentAccountContext(
   const invoices: ResidentInvoiceCard[] = [];
   const rentPaymentHistory: RentPaymentHistoryRow[] = [];
   let ledgerRefundedPaise = 0;
-  if (primaryBooking) {
+
+  for (const booking of uniqueBookings) {
     const [rentRes, elecRes, depositSummary, openVacating] = await Promise.all([
-      listRentInvoicesForBooking(primaryBooking.bookingId),
-      listElectricityInvoicesForBooking(primaryBooking.bookingId),
-      getDepositSummaryForBooking(primaryBooking.bookingId),
+      listRentInvoicesForBooking(booking.bookingId),
+      listElectricityInvoicesForBooking(booking.bookingId),
+      getDepositSummaryForBooking(booking.bookingId),
       db
         .select({ vacatingDate: vacatingRequests.vacatingDate })
         .from(vacatingRequests)
         .where(
           and(
-            eq(vacatingRequests.bookingId, primaryBooking.bookingId),
+            eq(vacatingRequests.bookingId, booking.bookingId),
             inArray(vacatingRequests.status, ['pending', 'approved']),
           ),
         )
@@ -152,20 +153,20 @@ export async function loadResidentAccountContext(
     const depositNetHeldPaise =
       depositSummary != null && depositSummary.entries.length > 0
         ? Math.max(0, depositSummary.refundableBalancePaise)
-        : Math.max(0, primaryBooking.depositPaise - (primaryBooking.depositDuePaise ?? 0));
+        : Math.max(0, booking.depositPaise - (booking.depositDuePaise ?? 0));
     const depositPaidPaise = depositNetHeldPaise;
     const depositRefundedPaise = depositSummary?.refundedPaise ?? 0;
-    ledgerRefundedPaise = depositRefundedPaise;
-    const checkInLabel = primaryBooking.checkInDate
-      ? formatStayDateTime(primaryBooking.checkInDate, 'check-in')
+    ledgerRefundedPaise = Math.max(ledgerRefundedPaise, depositRefundedPaise);
+    const checkInLabel = booking.checkInDate
+      ? formatStayDateTime(booking.checkInDate, 'check-in')
       : 'Check-in date pending';
-    const checkOutLabel = primaryBooking.expectedCheckoutDate
-      ? formatStayDateTime(primaryBooking.expectedCheckoutDate, 'check-out')
+    const checkOutLabel = booking.expectedCheckoutDate
+      ? formatStayDateTime(booking.expectedCheckoutDate, 'check-out')
       : null;
 
     let stayDurationLabel: string | null = null;
-    if (primaryBooking.expectedCheckoutDate && primaryBooking.checkInDate) {
-      const nights = tryDiffDays(primaryBooking.checkInDate, primaryBooking.expectedCheckoutDate);
+    if (booking.expectedCheckoutDate && booking.checkInDate) {
+      const nights = tryDiffDays(booking.checkInDate, booking.expectedCheckoutDate);
       if (nights != null) {
         stayDurationLabel = `${nights} night${nights === 1 ? '' : 's'}`;
       }
@@ -173,14 +174,34 @@ export async function loadResidentAccountContext(
 
     if (rentRes.ok) {
       for (const inv of rentRes.data) {
-        if (inv.status === 'cancelled') continue;
+        if (inv.status === 'cancelled') {
+          invoices.push({
+            id: inv.id,
+            kind: 'rent',
+            invoiceNumber: inv.invoiceNumber,
+            label: `Rent · ${billingMonthLabel(inv.billingMonth)} (cancelled)`,
+            stayDurationLabel,
+            checkInLabel,
+            checkOutLabel,
+            rentPaise: inv.rentPaise,
+            electricityPaise: 0,
+            depositPaidPaise: 0,
+            finalAmountPaise: inv.rentPaise,
+            status: 'cancelled',
+            dueDate: inv.dueDate,
+            payHref: null,
+            detailHref: null,
+            paymentLinkUrl: null,
+          });
+          continue;
+        }
         const projected = projectInvoice({
           ...inv,
           cancelledAt: null,
           cancellationReason: null,
-          customerId: primaryBooking.customerId,
+          customerId: booking.customerId,
           bedId: '',
-          pgId: primaryBooking.pgId,
+          pgId: booking.pgId,
           paymentId: null,
           paymentProofUrl: null,
           isAdhoc: false,
@@ -235,7 +256,7 @@ export async function loadResidentAccountContext(
           electricityBillId: inv.electricityBillId,
           roomId: inv.roomId,
           bookingId: inv.bookingId,
-          customerId: primaryBooking.customerId,
+          customerId: booking.customerId,
           bedId: '',
           billingMonth: inv.billingMonth,
           dueDate: inv.dueDate,
@@ -312,9 +333,9 @@ export async function loadResidentAccountContext(
 
     if (depositPaidPaise > 0) {
       invoices.push({
-        id: `deposit-${primaryBooking.bookingId}`,
+        id: `deposit-${booking.bookingId}`,
         kind: 'deposit',
-        invoiceNumber: `DEP-${primaryBooking.bookingCode}`,
+        invoiceNumber: `DEP-${booking.bookingCode}`,
         label: 'Security deposit',
         stayDurationLabel,
         checkInLabel,
@@ -326,34 +347,34 @@ export async function loadResidentAccountContext(
         status:
           depositRefundedPaise > 0 && (depositSummary?.refundableBalancePaise ?? 0) === 0
             ? 'refunded'
-            : depositPaidPaise >= primaryBooking.depositPaise
+            : depositPaidPaise >= booking.depositPaise
               ? 'held'
               : 'partial',
-        dueDate: primaryBooking.checkInDate,
+        dueDate: booking.checkInDate,
         payHref: null,
         detailHref: null,
         paymentLinkUrl: null,
       });
     }
+  }
 
-    const fiMap = await batchLookupFinancialInvoiceIds(
-      invoices
-        .filter(
-          (inv) =>
-            (inv.kind === 'rent' || inv.kind === 'electricity') &&
-            isFinancialInvoiceUuid(inv.id),
-        )
-        .map((inv) => ({
-          sourceTable: inv.kind === 'rent' ? 'rent_invoices' : 'electricity_invoices',
-          sourceId: inv.id,
-        })),
-    );
-    for (const inv of invoices) {
-      if (inv.kind === 'rent' || inv.kind === 'electricity') {
-        const table = inv.kind === 'rent' ? 'rent_invoices' : 'electricity_invoices';
-        const fiId = fiMap[`${table}:${inv.id}`];
-        inv.detailHref = fiId ? invoiceDetailHref(fiId, 'resident') : null;
-      }
+  const fiMap = await batchLookupFinancialInvoiceIds(
+    invoices
+      .filter(
+        (inv) =>
+          (inv.kind === 'rent' || inv.kind === 'electricity') &&
+          isFinancialInvoiceUuid(inv.id),
+      )
+      .map((inv) => ({
+        sourceTable: inv.kind === 'rent' ? 'rent_invoices' : 'electricity_invoices',
+        sourceId: inv.id,
+      })),
+  );
+  for (const inv of invoices) {
+    if (inv.kind === 'rent' || inv.kind === 'electricity') {
+      const table = inv.kind === 'rent' ? 'rent_invoices' : 'electricity_invoices';
+      const fiId = fiMap[`${table}:${inv.id}`];
+      inv.detailHref = fiId ? invoiceDetailHref(fiId, 'resident') : null;
     }
   }
 

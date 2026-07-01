@@ -983,7 +983,7 @@ export function listBookingsForCustomer(
   });
 }
 
-/** True when the customer has at least one confirmed booking. */
+/** True when the customer has a resident portal booking (active or historical). */
 export function customerHasConfirmedBooking(
   customerId: string,
 ): Promise<QueryResult<boolean>> {
@@ -992,7 +992,10 @@ export function customerHasConfirmedBooking(
       .select({ id: bookings.id })
       .from(bookings)
       .where(
-        and(eq(bookings.customerId, customerId), eq(bookings.status, 'confirmed')),
+        and(
+          eq(bookings.customerId, customerId),
+          inArray(bookings.status, ['confirmed', 'completed']),
+        ),
       )
       .limit(1);
     return Boolean(row);

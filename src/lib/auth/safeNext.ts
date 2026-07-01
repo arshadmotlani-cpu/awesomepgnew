@@ -1,5 +1,5 @@
 /** Allow only same-origin relative paths for post-login redirects. */
-export function safeNext(raw: string | null | undefined, fallback = '/account/bookings'): string {
+export function safeNext(raw: string | null | undefined, fallback = '/account/resident'): string {
   const value = (raw ?? '').trim();
   if (!value.startsWith('/') || value.startsWith('//')) return fallback;
   return value;
@@ -20,6 +20,6 @@ export function redirectAfterAuth(url: string): void {
 }
 
 export function profileRedirectWithNext(next: string | null | undefined): string {
-  const dest = safeNext(next, '/account/bookings');
+  const dest = safeNext(next, '/account/resident');
   return `/account/profile?next=${encodeURIComponent(dest)}`;
 }

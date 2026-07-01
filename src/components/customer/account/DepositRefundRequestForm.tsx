@@ -10,6 +10,7 @@ import {
 import { ImageFileInputInline } from '@/src/components/shared/ImageFileInput';
 import { logResidentClientError } from '@/src/lib/client/residentClientLogger';
 import { coerceNonNegativePaise, paiseToInr } from '@/src/lib/format';
+import type { DepositRefundSettlementPreview } from '@/src/lib/deposits/depositRefundSettlementPreview';
 
 const idle: RequestActionState = { ok: false };
 
@@ -18,12 +19,14 @@ export function DepositRefundRequestForm({
   customerId,
   refundableBalancePaise,
   estimatedDeductionPaise = 0,
+  settlementPreview = null,
   onSubmitted,
 }: {
   bookingId: string;
   customerId?: string;
   refundableBalancePaise: number;
   estimatedDeductionPaise?: number;
+  settlementPreview?: DepositRefundSettlementPreview | null;
   onSubmitted?: () => void;
 }) {
   const [state, formAction, pending] = useActionState(submitDepositRefundRequestAction, idle);
@@ -36,7 +39,12 @@ export function DepositRefundRequestForm({
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   const [useAverage, setUseAverage] = useState(false);
-  const depositHeld = coerceNonNegativePaise(refundableBalancePaise);
+  const depositHeld = coerceNonNegativePaise(
+    settlementPreview?.depositBalancePaise ?? refundableBalancePaise,
+  );
+  const electricityAdjustment = settlementPreview?.electricityAdjustmentPaise ?? null;
+  const projectedRefund = settlementPreview?.refundAmountPaise ?? null;
+  const electricityPending = settlementPreview?.electricityPending ?? false;
   const noticeDeduction = coerceNonNegativePaise(estimatedDeductionPaise);
   const hasPayoutDetails = Boolean(qrUrl.trim() || payoutUpiId.trim());
   const canSubmit = Boolean((meterUrl || useAverage) && hasPayoutDetails && depositHeld > 0);
@@ -103,9 +111,35 @@ export function DepositRefundRequestForm({
 
       <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
         <div>
-          <dt className="text-xs text-zinc-500">Deposit paid</dt>
+          <dt className="text-xs text-zinc-500">Deposit balance</dt>
           <dd className="font-semibold text-zinc-900">{paiseToInr(depositHeld)}</dd>
         </div>
+        {electricityPending ? (
+          <div className="sm:col-span-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            Electricity pending. Final refund will be calculated after billing
+            {settlementPreview?.electricityBillingMonth
+              ? ` (${settlementPreview.electricityBillingMonth}).`
+              : '.'}
+          </div>
+        ) : electricityAdjustment != null && electricityAdjustment > 0 ? (
+          <>
+            <div>
+              <dt className="text-xs text-zinc-500">Electricity adjustment</dt>
+              <dd className="font-semibold text-rose-700">{paiseToInr(electricityAdjustment)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-zinc-500">Refund amount</dt>
+              <dd className="font-semibold text-emerald-800">
+                {paiseToInr(projectedRefund ?? Math.max(0, depositHeld - electricityAdjustment))}
+              </dd>
+            </div>
+          </>
+        ) : projectedRefund != null ? (
+          <div>
+            <dt className="text-xs text-zinc-500">Refund amount</dt>
+            <dd className="font-semibold text-emerald-800">{paiseToInr(projectedRefund)}</dd>
+          </div>
+        ) : null}
         {noticeDeduction > 0 ? (
           <>
             <div>

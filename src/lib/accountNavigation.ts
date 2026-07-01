@@ -56,9 +56,9 @@ export const ACCOUNT_RESIDENT_HREF = accountProfileHref('resident');
 
 /** Mobile bottom nav tabs (max 5 per spec). */
 export const RESIDENT_BOTTOM_NAV: { tab: ResidentTab; label: string; icon: string }[] = [
-  { tab: 'home', label: 'Home', icon: '🏠' },
+  { tab: 'home', label: 'My Stay', icon: '🏠' },
   { tab: 'wallet', label: 'Wallet', icon: '💳' },
-  { tab: 'payments', label: 'Payments', icon: '💰' },
+  { tab: 'payments', label: 'Bills', icon: '💰' },
   { tab: 'requests', label: 'Requests', icon: '📋' },
   { tab: 'concierge', label: 'Concierge', icon: '💬' },
 ];
