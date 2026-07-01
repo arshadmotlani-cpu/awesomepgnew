@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildElectricityBillBreakdownFromContext } from '@/src/lib/billing/buildElectricityBillBreakdown';
-import type { RoomElectricityTimelineRow } from '@/src/lib/billing/roomElectricityTimeline';
+import { buildElectricityBillBreakdownFromContext } from '@/src/lib/billing/electricityBillBreakdownPure';
+import type { RoomElectricityTimelineRow } from '@/src/lib/billing/electricityBillBreakdownTypes';
 
 /**
  * Room 204 June 2026 — transparent breakdown certification scenario.

@@ -4,7 +4,156 @@
 import type {
   ElectricityBillCalculationBreakdown,
   ElectricityBreakdownViewerContext,
+  ElectricitySettlementDisplayStatus,
+  ElectricityTimelineEntry,
+  RoomElectricityTimelineRow,
 } from '@/src/lib/billing/electricityBillBreakdownTypes';
+import { diffDays, formatDate, parseDate } from '@/src/lib/dates';
+import { monthBounds, splitElectricityWeighted } from '@/src/services/billing';
+
+function formatStayLabel(stayStart: string, stayEnd: string | null, entireMonth: boolean): string {
+  if (entireMonth) return 'Entire month';
+  if (!stayEnd) return `${formatDate(parseDate(stayStart))} → ongoing`;
+  return `${formatDate(parseDate(stayStart))} → ${formatDate(parseDate(stayEnd))}`;
+}
+
+export function stayLabelForTimelineRow(
+  row: Pick<RoomElectricityTimelineRow, 'stayStart' | 'stayEnd' | 'activeDays' | 'role'>,
+  daysInMonth: number,
+): string {
+  const entireMonth = row.role === 'active' && row.activeDays >= daysInMonth;
+  return formatStayLabel(row.stayStart, row.stayEnd, entireMonth);
+}
+
+function settlementStatusForRow(
+  row: RoomElectricityTimelineRow,
+  monthlyInvoiceAmountPaise: number,
+): { status: ElectricitySettlementDisplayStatus; label: string } {
+  if (row.role === 'active') {
+    if (monthlyInvoiceAmountPaise > 0) {
+      return { status: 'active_billable', label: 'Your share this month' };
+    }
+    return { status: 'excluded_zero_balance', label: 'No balance due' };
+  }
+
+  const credit = row.settlement?.creditAppliedToRoomBillPaise ?? 0;
+  const share = row.settlement?.electricitySharePaise ?? 0;
+  if (credit <= 0 && share <= 0) {
+    return { status: 'excluded_zero_balance', label: 'No electricity charge' };
+  }
+  if (row.settlement?.recoveredFromDepositPaise && row.settlement.collectedDuringCheckoutPaise) {
+    return { status: 'fully_settled', label: '✓ Fully settled' };
+  }
+  if (row.settlement?.recoveredFromDepositPaise) {
+    return { status: 'recovered_from_deposit', label: '✓ Recovered from deposit' };
+  }
+  if (credit > 0 || row.settlement?.collectedDuringCheckoutPaise) {
+    return { status: 'already_collected_at_checkout', label: '✓ Already collected during checkout' };
+  }
+  return { status: 'fully_settled', label: '✓ Fully settled' };
+}
+
+function proRataSharePaise(
+  grossTotalPaise: number,
+  weight: number,
+  allWeights: number[],
+  index: number,
+): number {
+  if (grossTotalPaise <= 0 || weight <= 0) return 0;
+  const shares = splitElectricityWeighted({ totalPaise: grossTotalPaise, weights: allWeights });
+  return shares.shares[index] ?? 0;
+}
+
+export function buildElectricityBillBreakdownFromContext(input: {
+  roomNumber: string;
+  billingMonth: string;
+  previousReadingUnits: number;
+  currentReadingUnits: number;
+  ratePerUnitPaise: number;
+  grossTotalPaise: number;
+  prepaidCreditPaise: number;
+  prepaidCreditNote?: string | null;
+  manualCreditPaise: number;
+  checkoutCreditAppliedPaise: number;
+  remainingBillPaise: number;
+  useProRata: boolean;
+  timelineRows: RoomElectricityTimelineRow[];
+  invoiceAmountByBookingId: Map<string, number>;
+  checkoutCredits: Array<{
+    customerId: string;
+    customerName: string;
+    amountPaise: number;
+    recoveredFromDepositPaise: number;
+    collectedDuringCheckoutPaise: number;
+  }>;
+}): ElectricityBillCalculationBreakdown {
+  const unitsConsumed = Math.round((input.currentReadingUnits - input.previousReadingUnits) * 100) / 100;
+  const { start: monthStart, end: monthEnd } = monthBounds(input.billingMonth);
+  const daysInMonth = diffDays(monthStart, monthEnd);
+
+  const weights = input.timelineRows.map((r) => r.activeDays);
+  const totalWeight = weights.reduce((s, w) => s + w, 0);
+
+  const timeline: ElectricityTimelineEntry[] = input.timelineRows.map((row, idx) => {
+    const monthlyInvoiceAmountPaise = input.invoiceAmountByBookingId.get(row.bookingId) ?? 0;
+    const calculatedFromMeter =
+      row.settlement?.electricitySharePaise && row.settlement.electricitySharePaise > 0
+        ? row.settlement.electricitySharePaise
+        : input.useProRata && totalWeight > 0
+          ? proRataSharePaise(input.grossTotalPaise, row.activeDays, weights, idx)
+          : Math.floor(input.grossTotalPaise / Math.max(1, input.timelineRows.length));
+
+    const { status, label } = settlementStatusForRow(row, monthlyInvoiceAmountPaise);
+
+    return {
+      customerId: row.customerId,
+      customerName: row.customerName,
+      bookingId: row.bookingId,
+      role: row.role,
+      vacatedOn: row.vacatedOn,
+      stayStart: row.stayStart,
+      stayEnd: row.stayEnd,
+      stayLabel: stayLabelForTimelineRow(row, daysInMonth),
+      activeDays: row.activeDays,
+      calculatedSharePaise: calculatedFromMeter,
+      recoveredFromDepositPaise: row.settlement?.recoveredFromDepositPaise ?? 0,
+      collectedDuringCheckoutPaise: row.settlement?.collectedDuringCheckoutPaise ?? 0,
+      creditAppliedToRoomBillPaise: row.settlement?.creditAppliedToRoomBillPaise ?? 0,
+      monthlyInvoiceAmountPaise,
+      settlementStatus: status,
+      settlementStatusLabel: label,
+    };
+  });
+
+  const totalDeducted =
+    input.prepaidCreditPaise +
+    input.checkoutCreditAppliedPaise +
+    input.manualCreditPaise;
+
+  return {
+    version: 1,
+    roomNumber: input.roomNumber,
+    billingMonth: input.billingMonth,
+    meter: {
+      previousReadingUnits: input.previousReadingUnits,
+      currentReadingUnits: input.currentReadingUnits,
+      unitsConsumed,
+      ratePerUnitPaise: input.ratePerUnitPaise,
+      grossTotalPaise: input.grossTotalPaise,
+    },
+    adjustments: {
+      prepaidCreditPaise: input.prepaidCreditPaise,
+      prepaidCreditNote: input.prepaidCreditNote ?? null,
+      checkoutCredits: input.checkoutCredits,
+      manualCreditPaise: input.manualCreditPaise,
+      totalDeductedPaise: totalDeducted,
+    },
+    remainingBillPaise: input.remainingBillPaise,
+    useProRata: input.useProRata,
+    timeline,
+    generatedAt: new Date().toISOString(),
+  };
+}
 
 export function personalizeElectricityBreakdown(
   breakdown: ElectricityBillCalculationBreakdown,

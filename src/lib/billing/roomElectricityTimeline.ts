@@ -2,8 +2,6 @@
  * All residents who occupied a room during a billing month — including departed.
  * Used for transparent electricity bill breakdown / occupancy timeline.
  */
-import 'server-only';
-
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
@@ -15,6 +13,7 @@ import {
   electricitySettlementLedger,
   vacatingRequests,
 } from '@/src/db/schema';
+import type { RoomElectricityTimelineRow } from '@/src/lib/billing/electricityBillBreakdownTypes';
 import {
   resolveCheckoutElectricityDeductionPaise,
   resolveCheckoutElectricitySharePaise,
@@ -22,27 +21,8 @@ import {
 import { diffDays, formatDate, parseDate } from '@/src/lib/dates';
 import { monthBounds } from '@/src/services/billing';
 
-export type RoomElectricityTimelineRow = {
-  bookingId: string;
-  customerId: string;
-  customerName: string;
-  reservationStatus: string;
-  bookingStatus: string;
-  lower: string;
-  upper: string | null;
-  activeDays: number;
-  stayStart: string;
-  stayEnd: string | null;
-  vacatedOn: string | null;
-  role: 'departed' | 'active';
-  settlement: {
-    electricitySharePaise: number;
-    recoveredFromDepositPaise: number;
-    collectedDuringCheckoutPaise: number;
-    creditAppliedToRoomBillPaise: number;
-    ledgerAmountPaise: number;
-  } | null;
-};
+export type { RoomElectricityTimelineRow } from '@/src/lib/billing/electricityBillBreakdownTypes';
+export { stayLabelForTimelineRow } from '@/src/lib/billing/electricityBillBreakdownPure';
 
 function activeDaysInMonth(
   lower: string,
@@ -63,12 +43,6 @@ function activeDaysInMonth(
     stayStart: formatDate(intersectStart),
     stayEnd: formatDate(lastOccupied),
   };
-}
-
-function formatStayLabel(stayStart: string, stayEnd: string | null, entireMonth: boolean): string {
-  if (entireMonth) return 'Entire month';
-  if (!stayEnd) return `${formatDate(parseDate(stayStart))} → ongoing`;
-  return `${formatDate(parseDate(stayStart))} → ${formatDate(parseDate(stayEnd))}`;
 }
 
 export async function loadRoomElectricityTimelineForMonth(input: {
@@ -218,12 +192,4 @@ export async function loadRoomElectricityTimelineForMonth(input: {
     if (a.role !== b.role) return a.role === 'departed' ? -1 : 1;
     return a.stayStart.localeCompare(b.stayStart);
   });
-}
-
-export function stayLabelForTimelineRow(
-  row: Pick<RoomElectricityTimelineRow, 'stayStart' | 'stayEnd' | 'activeDays' | 'role'>,
-  daysInMonth: number,
-): string {
-  const entireMonth = row.role === 'active' && row.activeDays >= daysInMonth;
-  return formatStayLabel(row.stayStart, row.stayEnd, entireMonth);
 }

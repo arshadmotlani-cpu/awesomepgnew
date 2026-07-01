@@ -67,3 +67,26 @@ export type ElectricityBreakdownViewerContext = {
   amountPayablePaise: number;
   invoiceNumber?: string | null;
 };
+
+/** Occupancy row for electricity breakdown builder — no DB coupling. */
+export type RoomElectricityTimelineRow = {
+  bookingId: string;
+  customerId: string;
+  customerName: string;
+  reservationStatus: string;
+  bookingStatus: string;
+  lower: string;
+  upper: string | null;
+  activeDays: number;
+  stayStart: string;
+  stayEnd: string | null;
+  vacatedOn: string | null;
+  role: 'departed' | 'active';
+  settlement: {
+    electricitySharePaise: number;
+    recoveredFromDepositPaise: number;
+    collectedDuringCheckoutPaise: number;
+    creditAppliedToRoomBillPaise: number;
+    ledgerAmountPaise: number;
+  } | null;
+};
