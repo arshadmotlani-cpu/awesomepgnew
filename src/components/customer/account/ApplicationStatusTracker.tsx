@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { StatusTimeline, type TimelineStage } from '@/src/components/customer/design-system';
 import { ApgCard } from '@/src/components/customer/design-system';
-import { accountProfileHref, residentTabHref } from '@/src/lib/accountNavigation';
+import { accountProfileHref, legacyResidentTabHref, residentTabHref } from '@/src/lib/accountNavigation';
 import { GlossaryTip } from '@/src/components/customer/account/resident/GlossaryTip';
 
 const APPLICATION_STAGES: TimelineStage[] = [
@@ -42,9 +42,9 @@ function nextStepLabel(props: Props): { label: string; href: string } {
     return { label: 'Pay security deposit', href: residentTabHref('payments') };
   }
   if (!props.isResident) {
-    return { label: 'Open resident home', href: residentTabHref('home') };
+    return { label: 'Open resident home', href: legacyResidentTabHref('home') };
   }
-  return { label: 'Go to resident home', href: residentTabHref('home') };
+  return { label: 'Go to resident home', href: legacyResidentTabHref('home') };
 }
 
 function waitingOnAdmin(props: Props): string | null {

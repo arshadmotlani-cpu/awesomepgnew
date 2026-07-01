@@ -250,5 +250,5 @@ test('P0-2 mobile layout classes present for bottom sheet + iPhone/Android width
   assert.match(src, /min-h-\[44px\]/);
   assert.match(src, /Edit stay dates/);
   assert.match(src, /sm:items-center/);
-  assert.match(src, /sm:max-w-\[720px\]/);
+  assert.match(src, /sm:max-w-\[520px\]/);
 });

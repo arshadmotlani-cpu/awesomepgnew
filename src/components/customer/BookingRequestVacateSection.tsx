@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
-import { residentTabHref } from '@/src/lib/accountNavigation';
+import { legacyResidentTabHref, residentTabHref } from '@/src/lib/accountNavigation';
 import { formatDate } from '@/src/lib/format';
 import { vacatingStatusLabel } from '@/src/lib/residents/vacatingJourney';
 
@@ -46,7 +46,7 @@ export function BookingRequestVacateSection({
                   : 'See your resident area for request details.'}
           </p>
           <Link
-            href={residentTabHref('vacating')}
+            href={legacyResidentTabHref('vacating')}
             className="inline-flex text-sm font-semibold text-indigo-600 hover:text-indigo-500"
           >
             View move-out status →

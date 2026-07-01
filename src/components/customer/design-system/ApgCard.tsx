@@ -1,13 +1,14 @@
 import type { ReactNode } from 'react';
 import { elevation, surface } from '@/src/lib/design-system/tokens';
 
-type Tier = 'base' | 'card' | 'floating' | 'account';
+type Tier = 'base' | 'card' | 'floating' | 'account' | 'resident';
 
 const tierClass: Record<Tier, string> = {
   base: '',
   card: `${elevation.card} ${surface.darkGlass}`,
   floating: `${elevation.floating} ${surface.darkGlass}`,
   account: surface.accountPadded,
+  resident: surface.residentGlassPadded,
 };
 
 type Props = {

@@ -11,10 +11,16 @@ import { ResidentAccountIncompletePanel } from '@/src/components/customer/accoun
 import { requireCustomerSession } from '@/src/lib/auth/guards';
 import {
   parseResidentTab,
+  parseResidentProfileSub,
+  parseResidentPaymentsSub,
+  legacySubFromTab,
   type ResidentTab,
   residentTabHref,
+  residentProfileHref,
+  residentPaymentsHref,
 } from '@/src/lib/accountNavigation';
 import { residentTabMeta } from '@/src/lib/residentNavigation';
+import { normalizeRequestCategoryId } from '@/src/lib/residents/requestCenter';
 import { formatIndianPhoneDisplay, indianLocalFromE164 } from '@/src/lib/phone';
 import { loadResidentAccountContextSafe } from '@/src/services/residentAccountContextSafe';
 import { logger } from '@/src/lib/logger';
@@ -26,10 +32,20 @@ function parseLegacyHubTab(
   return 'profile';
 }
 
-function residentTabFromLegacy(tab: string | undefined): ResidentTab {
-  if (tab === 'payments' || tab === 'invoices') return 'payments';
-  if (tab === 'stay') return 'home';
-  return parseResidentTab(tab);
+function resolveResidentRouting(tabParam: string | undefined): {
+  tab: ResidentTab;
+  profileSub: ReturnType<typeof parseResidentProfileSub>;
+  paymentsSub: ReturnType<typeof parseResidentPaymentsSub>;
+  requestsCategory?: string;
+} {
+  const legacy = legacySubFromTab(tabParam);
+  const tab = parseResidentTab(tabParam);
+  return {
+    tab,
+    profileSub: legacy.profileSub ?? 'overview',
+    paymentsSub: legacy.paymentsSub ?? 'due',
+    requestsCategory: legacy.requestsCategory,
+  };
 }
 
 export const dynamic = 'force-dynamic';
@@ -74,13 +90,23 @@ export default async function ProfilePage(props: PageProps<'/account/profile'>) 
   const explicitSettings = sp.settings === '1';
 
   const tabParam = typeof sp.tab === 'string' ? sp.tab : undefined;
-  const residentTab = residentTabFromLegacy(tabParam);
+  const subParam = typeof sp.sub === 'string' ? sp.sub : undefined;
+  const routing = resolveResidentRouting(tabParam);
+  const profileSub = parseResidentProfileSub(subParam ?? routing.profileSub);
+  const paymentsSub = parseResidentPaymentsSub(subParam ?? routing.paymentsSub);
+  const residentTab = routing.tab;
+  const editExpanded = sp.edit === '1' || explicitSettings;
+
+  const categoryRaw = typeof sp.category === 'string' ? sp.category : routing.requestsCategory;
+  const requestCategory = categoryRaw ? normalizeRequestCategoryId(categoryRaw) : undefined;
 
   logger.info('post-login profile page routing', {
     customerId: session.customerId,
     email: session.email,
     section: sectionRaw,
     residentTab,
+    profileSub,
+    paymentsSub,
     hasConfirmedBooking: ctx.hasConfirmedBooking,
     primaryBookingId: ctx.primaryBooking?.bookingId ?? null,
   });
@@ -94,8 +120,8 @@ export default async function ProfilePage(props: PageProps<'/account/profile'>) 
           email={session.email}
         />
         <nav className="apg-account-nav mb-4 text-xs">
-          <Link href={ctx.hasConfirmedBooking ? residentTabHref('home') : '/account/profile'}>
-            ← {ctx.hasConfirmedBooking ? 'Your stay' : 'My account'}
+          <Link href={ctx.hasConfirmedBooking ? residentProfileHref('overview') : '/account/profile'}>
+            ← {ctx.hasConfirmedBooking ? 'Profile' : 'My account'}
           </Link>
         </nav>
         <DocumentsModule
@@ -109,8 +135,14 @@ export default async function ProfilePage(props: PageProps<'/account/profile'>) 
 
   if (ctx.hasConfirmedBooking && !explicitSettings) {
     if (sectionRaw === 'profile') {
-      redirect(residentTabHref(residentTab));
+      redirect(residentTabHref(residentTab, { sub: profileSub }));
     }
+
+    // Legacy tab redirects
+    if (tabParam === 'home') redirect(residentProfileHref('overview'));
+    if (tabParam === 'wallet') redirect(residentProfileHref('wallet'));
+    if (tabParam === 'room' || tabParam === 'notifications') redirect(residentProfileHref('overview'));
+    if (tabParam === 'vacating') redirect(residentTabHref('requests', { category: 'move_out' }));
 
     return (
       <main className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6">
@@ -118,7 +150,7 @@ export default async function ProfilePage(props: PageProps<'/account/profile'>) 
           step="account_profile_resident_dashboard"
           customerId={session.customerId}
           email={session.email}
-          extra={{ residentTab }}
+          extra={{ residentTab, profileSub, paymentsSub }}
         />
         <div className="hidden md:block">
           <ResidentPageHeader meta={residentTabMeta(residentTab)} />
@@ -133,13 +165,13 @@ export default async function ProfilePage(props: PageProps<'/account/profile'>) 
           <ResidentAreaSection
             customerId={session.customerId}
             activeTab={residentTab}
+            profileSub={profileSub}
+            paymentsSub={paymentsSub}
+            editExpanded={editExpanded}
             requestsQuery={{
               requestId: typeof sp.request === 'string' ? sp.request : undefined,
-              make: sp.make === '1',
-              category:
-                typeof sp.category === 'string'
-                  ? (sp.category as import('@/src/lib/residents/requestCenter').RequestCategoryId)
-                  : undefined,
+              make: sp.make === '1' || categoryRaw === 'move_out',
+              category: requestCategory ?? undefined,
             }}
           />
         </ResidentSectionErrorBoundary>
@@ -164,8 +196,8 @@ export default async function ProfilePage(props: PageProps<'/account/profile'>) 
 
       {ctx.hasConfirmedBooking ? (
         <p className="mb-6 rounded-xl border border-apg-orange/30 bg-apg-orange/10 px-4 py-3 text-sm text-apg-silver">
-          <Link href={residentTabHref('home')} className="font-semibold text-apg-orange hover:underline">
-            ← Back to My Stay
+          <Link href={residentProfileHref('overview')} className="font-semibold text-apg-orange hover:underline">
+            ← Back to Profile
           </Link>
         </p>
       ) : null}

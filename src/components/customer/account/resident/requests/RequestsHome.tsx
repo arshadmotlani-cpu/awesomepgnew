@@ -5,25 +5,30 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ApgCard } from '@/src/components/customer/design-system';
 import { StatusChip } from '@/src/components/customer/design-system';
-import { ResidentMoreSection } from '@/src/components/customer/account/resident/ResidentMoreSection';
 import { RequestsMakeFlow } from '@/src/components/customer/account/resident/requests/RequestsMakeFlow';
 import { RequestDetailView } from '@/src/components/customer/account/resident/requests/RequestDetailView';
+import { RoomChangeFlow } from '@/src/components/customer/account/resident/requests/RoomChangeFlow';
+import { VacatingHome } from '@/src/components/customer/account/resident/vacating/VacatingHome';
 import { ResidentSectionErrorBoundary } from '@/src/components/customer/account/resident/ResidentSectionErrorBoundary';
 import {
   nextStepForRequest,
   REQUEST_CATEGORIES,
   REQUEST_TIMELINE_STAGES,
   requestStatusToTimelineIndex,
+  normalizeRequestCategoryId,
   type ActiveRequestItem,
   type RequestCategoryId,
 } from '@/src/lib/residents/requestCenter';
-import { accountProfileHref, residentTabHref } from '@/src/lib/accountNavigation';
+import { accountProfileHref, residentProfileHref, residentTabHref } from '@/src/lib/accountNavigation';
+import { requestStatusTone, primaryBtn } from '@/src/lib/design-system/tokens';
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
 
 type Props = {
   customerId: string;
   bookingId: string;
   bookingCode?: string | null;
+  pgId: string;
+  fromBedId: string;
   roomLabel: string;
   refundableBalancePaise: number;
   hasDepositDue: boolean;
@@ -39,6 +44,8 @@ type Props = {
   checkoutSettlementStatus?: string | null;
   checkoutSettlement?: { status: string; rejectionReason?: string | null } | null;
   monthlyRentPaise?: number;
+  depositHeldPaise?: number;
+  moveInDate?: string;
   developerTestEmail?: string | null;
 };
 
@@ -46,6 +53,8 @@ export function RequestsHome({
   customerId,
   bookingId,
   bookingCode = null,
+  pgId,
+  fromBedId,
   roomLabel,
   refundableBalancePaise,
   hasDepositDue,
@@ -61,11 +70,14 @@ export function RequestsHome({
   checkoutSettlementStatus = null,
   checkoutSettlement = null,
   monthlyRentPaise = 0,
+  depositHeldPaise = 0,
+  moveInDate = '',
   developerTestEmail = null,
 }: Props) {
   const router = useRouter();
+  const normalizedInitial = normalizeRequestCategoryId(initialCategory ?? undefined);
   const [making, setMaking] = useState(startMake);
-  const [makeCategory, setMakeCategory] = useState(initialCategory);
+  const [makeCategory, setMakeCategory] = useState<RequestCategoryId | null>(normalizedInitial);
 
   const selected = useMemo(
     () => activeRequests.find((r) => r.id === selectedRequestId) ?? null,
@@ -73,28 +85,15 @@ export function RequestsHome({
   );
 
   useEffect(() => {
-    if (selected?.type === 'deposit_refund') {
-      router.replace(residentTabHref('wallet'));
+    if (normalizedInitial) {
+      setMakeCategory(normalizedInitial);
+      setMaking(true);
     }
-  }, [selected, router]);
+  }, [normalizedInitial]);
 
-  useEffect(() => {
-    if (initialCategory === 'deposit_refund' || makeCategory === 'deposit_refund') {
-      router.replace(residentTabHref('wallet'));
-    }
-  }, [initialCategory, makeCategory, router]);
-
-  const visibleCategories = REQUEST_CATEGORIES.filter((c) => c.primaryVisible);
-  const moreCategories = REQUEST_CATEGORIES.filter(
-    (c) => !c.primaryVisible && c.id !== 'deposit_refund',
-  );
+  const visibleCategories = REQUEST_CATEGORIES;
 
   function openDetail(id: string) {
-    const request = activeRequests.find((r) => r.id === id);
-    if (request?.type === 'deposit_refund') {
-      router.push(residentTabHref('wallet'));
-      return;
-    }
     router.push(accountProfileHref('resident', { tab: 'requests', request: id }));
   }
 
@@ -103,16 +102,6 @@ export function RequestsHome({
   }
 
   function selectCategory(id: RequestCategoryId) {
-    const cat = REQUEST_CATEGORIES.find((c) => c.id === id);
-    if (!cat) return;
-    if (cat.wired === 'vacating') {
-      router.push(`/account/resident/request-vacating/${bookingId}`);
-      return;
-    }
-    if (cat.wired === 'deposit_refund') {
-      router.push(residentTabHref('wallet'));
-      return;
-    }
     setMakeCategory(id);
     setMaking(true);
   }
@@ -121,34 +110,58 @@ export function RequestsHome({
     return <RequestDetailView request={selected} onBack={closeDetail} />;
   }
 
-  if (making) {
-    if (makeCategory === 'deposit_refund') {
-      return null;
-    }
+  if (making && makeCategory === 'move_out') {
+    return (
+      <VacatingHome
+        bookingId={bookingId}
+        bookingCode={bookingCode ?? ''}
+        roomLabel={roomLabel}
+        vacating={vacating}
+        checkoutStatus={checkoutSettlementStatus}
+        checkoutSettlement={checkoutSettlement}
+        depositHeldPaise={depositHeldPaise}
+        durationMode={durationMode}
+        expectedCheckoutDate={expectedCheckoutDate}
+        bookingStatus={bookingStatus}
+        bookingCreatedAt={
+          bookingCreatedAt instanceof Date ? bookingCreatedAt : new Date(String(bookingCreatedAt))
+        }
+        monthlyRentPaise={monthlyRentPaise}
+        developerTestEmail={developerTestEmail}
+      />
+    );
+  }
 
+  if (making && makeCategory === 'room_change') {
+    return (
+      <RoomChangeFlow
+        bookingId={bookingId}
+        pgId={pgId}
+        fromBedId={fromBedId}
+        roomLabel={roomLabel}
+        monthlyRentPaise={monthlyRentPaise}
+        depositHeldPaise={depositHeldPaise}
+        moveInDate={moveInDate}
+        onClose={() => {
+          setMaking(false);
+          setMakeCategory(null);
+        }}
+      />
+    );
+  }
+
+  if (making && makeCategory) {
     return (
       <ResidentSectionErrorBoundary
-        page="requests_make_refund"
+        page="requests_make"
         bookingId={bookingId}
         customerId={customerId}
-        title="Refund request could not load"
+        title="Request could not load"
       >
         <RequestsMakeFlow
-          customerId={customerId}
           bookingId={bookingId}
-          bookingCode={bookingCode}
           roomLabel={roomLabel}
-          refundableBalancePaise={refundableBalancePaise}
-          hasDepositDue={hasDepositDue}
           initialCategory={makeCategory}
-          vacating={vacating}
-          bookingStatus={bookingStatus}
-          durationMode={durationMode}
-          expectedCheckoutDate={expectedCheckoutDate}
-          bookingCreatedAt={bookingCreatedAt}
-          checkoutSettlement={checkoutSettlement}
-          monthlyRentPaise={monthlyRentPaise}
-          developerTestEmail={developerTestEmail}
           onClose={() => {
             setMaking(false);
             setMakeCategory(null);
@@ -160,36 +173,34 @@ export function RequestsHome({
 
   return (
     <div className="space-y-4 pb-2">
-      <ApgCard tier="account" className="p-5">
-        <h2 className="text-lg font-semibold text-zinc-900">Requests center</h2>
-        <p className="mt-1 text-sm text-zinc-600">
-          Tell us what you need — maintenance, room change, move-out, and more. Every request has a
-          status tracker so you know what happens next.
+      <ApgCard tier="resident">
+        <h2 className="text-lg font-semibold text-white">Requests</h2>
+        <p className="mt-1 text-sm text-apg-silver">
+          Maintenance, room change, move-out, complaints, and support — each with a clear status.
         </p>
       </ApgCard>
 
       {activeRequests.length > 0 ? (
-        <ApgCard tier="account" className="p-5">
-          <h2 className="text-sm font-semibold text-zinc-900">Open requests</h2>
-          <p className="mt-1 text-xs text-zinc-600">Tap to see full progress and next steps.</p>
+        <ApgCard tier="resident">
+          <h2 className="text-sm font-semibold text-white">Active requests</h2>
           <ul className="mt-3 space-y-3">
-            {activeRequests.slice(0, 5).map((r) => {
+            {activeRequests.slice(0, 8).map((r) => {
               const stepIndex = requestStatusToTimelineIndex(r.status);
               return (
                 <li key={r.id}>
                   <button
                     type="button"
                     onClick={() => openDetail(r.id)}
-                    className="w-full rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-left hover:border-[#FF5A1F]/30"
+                    className="w-full rounded-xl border border-white/10 bg-white/[0.03] p-4 text-left transition hover:border-apg-orange/30"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-sm font-semibold text-zinc-900">{r.typeLabel}</span>
-                      <StatusChip status={r.status} />
+                      <span className="text-sm font-semibold text-white">{r.typeLabel}</span>
+                      <StatusChip status={r.status} toneMap={requestStatusTone} />
                     </div>
-                    <p className="mt-2 text-xs text-zinc-600">
+                    <p className="mt-2 text-xs text-apg-silver">
                       {nextStepForRequest(r.status, r.type)}
                     </p>
-                    <p className="mt-2 text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+                    <p className="mt-2 text-[10px] font-medium uppercase tracking-wide text-apg-silver/80">
                       Step {stepIndex + 1} of {REQUEST_TIMELINE_STAGES.length}
                     </p>
                   </button>
@@ -201,8 +212,7 @@ export function RequestsHome({
       ) : null}
 
       <section>
-        <h2 className="mb-2 text-sm font-semibold text-zinc-900">Start a request</h2>
-        <p className="mb-3 text-xs text-zinc-600">Pick a category — we guide you through each step.</p>
+        <h2 className="mb-2 text-sm font-semibold text-white">Start a request</h2>
         <div className="grid gap-3 sm:grid-cols-2">
           {visibleCategories.map((cat) => (
             <CategoryCard
@@ -215,22 +225,10 @@ export function RequestsHome({
         </div>
       </section>
 
-      <ResidentMoreSection title="More request types" description="Less common requests.">
-        <div className="grid gap-2 sm:grid-cols-2">
-          {moreCategories.map((cat) => (
-            <CategoryCard
-              key={cat.id}
-              title={cat.title}
-              description={cat.description}
-              onSelect={() => selectCategory(cat.id)}
-            />
-          ))}
-        </div>
-      </ResidentMoreSection>
-
-      <p className="text-center text-xs text-zinc-500">
-        <Link href={residentTabHref('home')} className="font-medium text-indigo-700 hover:underline">
-          Back to home
+      <p className="text-center text-xs text-apg-silver">
+        Deposit refund is in{' '}
+        <Link href={residentProfileHref('wallet')} className="font-medium text-apg-orange hover:underline">
+          Profile → Wallet
         </Link>
       </p>
     </div>
@@ -241,27 +239,19 @@ function CategoryCard({
   title,
   description,
   onSelect,
-  disabled = false,
-  lockReason,
 }: {
   title: string;
   description: string;
   onSelect: () => void;
-  disabled?: boolean;
-  lockReason?: string | null;
 }) {
   return (
     <button
       type="button"
       onClick={onSelect}
-      disabled={disabled}
-      className="rounded-xl border border-zinc-200 bg-white p-4 text-left shadow-sm transition hover:border-[#FF5A1F]/35 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
+      className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-left transition hover:border-apg-orange/35 hover:bg-white/[0.06]"
     >
-      <p className="text-sm font-semibold text-zinc-900">{title}</p>
-      <p className="mt-1.5 text-xs leading-relaxed text-zinc-600">{description}</p>
-      {disabled && lockReason ? (
-        <p className="mt-2 text-[10px] leading-relaxed text-zinc-500">{lockReason}</p>
-      ) : null}
+      <p className="text-sm font-semibold text-white">{title}</p>
+      <p className="mt-1.5 text-xs leading-relaxed text-apg-silver">{description}</p>
     </button>
   );
 }

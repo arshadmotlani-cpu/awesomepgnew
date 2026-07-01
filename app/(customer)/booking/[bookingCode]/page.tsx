@@ -18,7 +18,7 @@ import { RoachieResidentBriefing } from '@/src/components/cockroach/RoachieResid
 import { buildBriefingInputForBooking } from '@/src/lib/cockroach/briefingFromBooking';
 import { ApplicationBookingPrimaryActions } from '@/src/components/customer/account/resident/ApplicationBookingPrimaryActions';
 import { AwaitingBookingApprovalPanel } from '@/src/components/customer/account/resident/AwaitingBookingApprovalPanel';
-import { accountProfileHref, residentTabHref } from '@/src/lib/accountNavigation';
+import { accountProfileHref, legacyResidentTabHref, residentTabHref } from '@/src/lib/accountNavigation';
 import { deriveBookingApprovalPhase } from '@/src/lib/bookingApproval';
 import { getPendingBookingPaymentRecord } from '@/src/services/qrPayments';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
@@ -287,7 +287,7 @@ export default async function BookingConfirmationPage(
             payHref={isPendingPayment ? `/booking/${b.bookingCode}/pay` : null}
             identityHref={accountProfileHref('identity', { booking: b.bookingCode })}
             showIdentity={Boolean(customer && !checkInAllowed && isConfirmed)}
-            residentHomeHref={residentTabHref('home')}
+            residentHomeHref={legacyResidentTabHref('home')}
           />
         )}
       </div>

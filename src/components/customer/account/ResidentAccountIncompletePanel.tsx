@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { residentTabHref } from '@/src/lib/accountNavigation';
+import { legacyResidentTabHref, residentTabHref } from '@/src/lib/accountNavigation';
 
 /** Shown when account context cannot be built but the session is valid. */
 export function ResidentAccountIncompletePanel({
@@ -21,7 +21,7 @@ export function ResidentAccountIncompletePanel({
           Open My bookings
         </Link>
         <Link
-          href={residentTabHref('notifications')}
+          href={legacyResidentTabHref('notifications')}
           className="inline-flex rounded-lg border border-amber-300 px-4 py-2.5 text-sm font-semibold text-amber-950 hover:bg-amber-100"
         >
           Notifications

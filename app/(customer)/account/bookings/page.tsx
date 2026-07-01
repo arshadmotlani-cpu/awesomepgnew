@@ -13,7 +13,7 @@ import { ResidentSectionErrorBoundary } from '@/src/components/customer/account/
 import { PostLoginRouteObserver } from '@/src/components/customer/account/PostLoginRouteObserver';
 import { ResidentAccountIncompletePanel } from '@/src/components/customer/account/ResidentAccountIncompletePanel';
 import { ACCOUNT_LINK_ON_DARK } from '@/src/components/customer/accountStyles';
-import { residentTabHref } from '@/src/lib/accountNavigation';
+import { legacyResidentTabHref, residentTabHref } from '@/src/lib/accountNavigation';
 import { loadResidentAccountContextSafe } from '@/src/services/residentAccountContextSafe';
 import { logger } from '@/src/lib/logger';
 
@@ -119,7 +119,7 @@ export default async function AccountBookingsPage() {
         {hasConfirmedBooking ? (
           <>
             Monthly stay?{' '}
-            <Link href={residentTabHref('home')} className={ACCOUNT_LINK_ON_DARK}>
+            <Link href={legacyResidentTabHref('home')} className={ACCOUNT_LINK_ON_DARK}>
               Open resident home →
             </Link>
           </>

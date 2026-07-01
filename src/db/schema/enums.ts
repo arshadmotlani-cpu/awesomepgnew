@@ -281,6 +281,7 @@ export const financialInvoiceTypeEnum = pgEnum('financial_invoice_type', [
   'damage',
   'custom',
   'combined',
+  'room_shift',
 ]);
 
 export const financialInvoiceStatusEnum = pgEnum('financial_invoice_status', [

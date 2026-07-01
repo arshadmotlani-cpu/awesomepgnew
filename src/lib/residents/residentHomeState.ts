@@ -1,5 +1,5 @@
 import { formatDate, paiseToInr } from '@/src/lib/format';
-import { accountProfileHref, residentTabHref } from '@/src/lib/accountNavigation';
+import { accountProfileHref, legacyResidentTabHref, residentTabHref } from '@/src/lib/accountNavigation';
 import type { UpcomingPaymentRow } from '@/src/components/customer/account/resident/ResidentUpcomingPayments';
 
 export type ResidentHomePhase =
@@ -127,7 +127,7 @@ export function deriveResidentHomePrimaryAction(input: {
 
   if (input.hasMoveOutInProgress) {
     return {
-      href: residentTabHref('vacating'),
+      href: legacyResidentTabHref('vacating'),
       label: 'Continue move-out',
     };
   }

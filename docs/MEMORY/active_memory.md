@@ -7,6 +7,7 @@
 
 ## Current Focus
 
+- **Resident Portal V2** — 5-tab resident hub shipped (Profile/Payments/Requests/Referrals/Concierge); legacy tab URLs redirect to V2
 - **Semantic Intelligence Layer** — `brain-semantic.sh` → intent + impact + `Semantic State`
 - Git-backed vault synced to https://github.com/arshadmotlani-cpu/awesomepg-docs
 - Stabilize vacating / checkout ops post-`d4c01c6` deploy

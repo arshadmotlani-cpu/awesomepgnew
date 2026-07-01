@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { residentTabHref } from '@/src/lib/accountNavigation';
+import { legacyResidentTabHref, residentTabHref } from '@/src/lib/accountNavigation';
 
 /** Shown when a confirmed booking exists but resident detail rows cannot be loaded. */
 export function ResidentIncompleteStayPanel({
@@ -30,7 +30,7 @@ export function ResidentIncompleteStayPanel({
         </p>
       ) : null}
       <Link
-        href={residentTabHref('notifications')}
+        href={legacyResidentTabHref('notifications')}
         className="mt-4 inline-flex rounded-lg bg-amber-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-700"
       >
         Open notifications

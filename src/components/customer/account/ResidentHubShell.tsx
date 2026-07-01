@@ -3,12 +3,7 @@
 import Link from 'next/link';
 import { ResidentControlShell } from '@/src/components/world/ResidentControlShell';
 import { RESIDENT_BOTTOM_NAV, type ResidentTab, residentTabHref } from '@/src/lib/accountNavigation';
-import {
-  RESIDENT_DESKTOP_NAV,
-  RESIDENT_MOBILE_SECONDARY_TABS,
-  residentAccountSettingsHref,
-  residentTabMeta,
-} from '@/src/lib/residentNavigation';
+import { RESIDENT_DESKTOP_NAV, residentTabMeta } from '@/src/lib/residentNavigation';
 import { ResidentSectionErrorBoundary } from '@/src/components/customer/account/resident/ResidentSectionErrorBoundary';
 import { DeveloperTestResidentPanel } from '@/src/components/customer/account/resident/DeveloperTestResidentPanel';
 import type { DevResidentDurationMode } from '@/src/lib/auth/developerTestResident.shared';
@@ -58,7 +53,7 @@ export function ResidentHubShell({
         ) : null}
 
         <nav
-          className="mb-3 hidden flex-wrap gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1 md:flex"
+          className="mb-4 hidden flex-wrap gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1 md:flex"
           aria-label="Resident hub"
         >
           {RESIDENT_DESKTOP_NAV.map(({ tab, label }) => (
@@ -69,32 +64,6 @@ export function ResidentHubShell({
                 activeTab === tab
                   ? 'bg-apg-orange/15 text-apg-orange ring-1 ring-apg-orange/30'
                   : 'text-apg-silver hover:bg-white/5 hover:text-white'
-              }`}
-              aria-current={activeTab === tab ? 'page' : undefined}
-            >
-              {label}
-            </Link>
-          ))}
-          <Link
-            href={residentAccountSettingsHref()}
-            className="rounded-lg px-3 py-2 text-sm font-medium text-apg-silver transition-colors hover:bg-white/5 hover:text-white"
-          >
-            Profile
-          </Link>
-        </nav>
-
-        <nav
-          className="mb-4 flex gap-2 overflow-x-auto overscroll-x-contain pb-1 md:hidden [-webkit-overflow-scrolling:touch]"
-          aria-label="More resident sections"
-        >
-          {RESIDENT_MOBILE_SECONDARY_TABS.map(({ tab, label }) => (
-            <Link
-              key={tab}
-              href={residentTabHref(tab)}
-              className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                activeTab === tab
-                  ? 'border-apg-orange/40 bg-apg-orange/15 text-apg-orange'
-                  : 'border-white/10 bg-white/[0.03] text-apg-silver hover:border-white/20 hover:text-white'
               }`}
               aria-current={activeTab === tab ? 'page' : undefined}
             >
@@ -137,7 +106,7 @@ export function ResidentHubShell({
                   <span className="text-base leading-none" aria-hidden>
                     {icon}
                   </span>
-                  <span className="truncate max-w-full">{label}</span>
+                  <span className="max-w-full truncate">{label}</span>
                 </Link>
               </li>
             ))}

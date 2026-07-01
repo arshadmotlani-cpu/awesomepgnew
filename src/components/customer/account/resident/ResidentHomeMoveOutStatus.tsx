@@ -3,7 +3,7 @@ import { ApgCard } from '@/src/components/customer/design-system';
 import { StatusChip } from '@/src/components/customer/design-system';
 import { formatDate } from '@/src/lib/format';
 import { vacatingStatusLabel } from '@/src/lib/residents/vacatingJourney';
-import { residentTabHref } from '@/src/lib/accountNavigation';
+import { legacyResidentTabHref, residentTabHref } from '@/src/lib/accountNavigation';
 
 export function ResidentHomeMoveOutStatus({
   vacatingStatus,
@@ -42,7 +42,7 @@ export function ResidentHomeMoveOutStatus({
         <StatusChip status={chipStatus} />
       </div>
       <Link
-        href={residentTabHref('vacating')}
+        href={legacyResidentTabHref('vacating')}
         className="mt-4 inline-block text-xs font-semibold text-indigo-700 hover:text-indigo-600"
       >
         Open move-out journey →

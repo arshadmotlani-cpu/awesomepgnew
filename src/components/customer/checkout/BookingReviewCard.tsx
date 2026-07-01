@@ -1,10 +1,14 @@
 import type { ReactNode } from 'react';
+import Link from 'next/link';
 import { formatDate, paiseToInr } from '@/src/lib/format';
-import {
-  bookingPolicySections,
-  getBookingPolicies,
-} from '@/src/lib/booking/bookingPolicies';
 import { isMonthlyStayType, type StayType } from '@/src/lib/stayType';
+
+export type BookingReviewLineItem = {
+  label: string;
+  amountPaise: number;
+  detail?: string;
+  tone?: 'credit' | 'charge';
+};
 
 export type BookingReviewData = {
   pgName: string;
@@ -18,25 +22,52 @@ export type BookingReviewData = {
   rentPaise: number;
   depositPaise: number;
   totalDuePaise: number;
+  lineItems?: BookingReviewLineItem[];
 };
 
-function Row({ label, value, emphasize }: { label: string; value: ReactNode; emphasize?: boolean }) {
+function Row({
+  label,
+  value,
+  emphasize,
+  detail,
+}: {
+  label: string;
+  value: ReactNode;
+  emphasize?: boolean;
+  detail?: string;
+}) {
   return (
-    <div className="flex items-start justify-between gap-4 border-b border-white/8 py-3.5 last:border-0">
-      <dt className="text-sm text-apg-silver">{label}</dt>
-      <dd
-        className={`text-right text-sm font-medium ${emphasize ? 'text-lg font-bold text-apg-orange' : 'text-white'}`}
-      >
-        {value}
-      </dd>
+    <div className="border-b border-white/8 py-3.5 last:border-0">
+      <div className="flex items-start justify-between gap-4">
+        <dt className="text-sm text-apg-silver">{label}</dt>
+        <dd
+          className={`text-right text-sm font-medium ${emphasize ? 'text-lg font-bold text-apg-orange' : 'text-white'}`}
+        >
+          {value}
+        </dd>
+      </div>
+      {detail ? <p className="mt-1 text-xs text-apg-silver/80">{detail}</p> : null}
     </div>
   );
 }
 
 export function BookingReviewCard({ data }: { data: BookingReviewData }) {
-  const policies = getBookingPolicies(data.stayType);
-  const policySections = bookingPolicySections(policies);
   const isMonthly = isMonthlyStayType(data.stayType);
+
+  const lineItems =
+    data.lineItems ??
+    [
+      {
+        label: `Rent (${data.roomNumber} · Bed ${data.bedCode})`,
+        amountPaise: data.rentPaise,
+        detail: 'Quoted from current bed pricing',
+      },
+      {
+        label: 'Security deposit',
+        amountPaise: data.depositPaise,
+        detail: 'Required deposit for this stay',
+      },
+    ];
 
   return (
     <article className="overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-[#1a2332] to-[#121820] shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
@@ -64,21 +95,38 @@ export function BookingReviewCard({ data }: { data: BookingReviewData }) {
             value={`${data.stayNights} night${data.stayNights === 1 ? '' : 's'}`}
           />
         ) : null}
-        <Row label="Rent" value={paiseToInr(data.rentPaise)} />
-        <Row label="Deposit" value={paiseToInr(data.depositPaise)} />
+        {lineItems.map((item) => (
+          <Row
+            key={item.label}
+            label={item.label}
+            value={
+              item.tone === 'credit'
+                ? `−${paiseToInr(item.amountPaise)}`
+                : paiseToInr(item.amountPaise)
+            }
+            detail={item.detail}
+          />
+        ))}
         <Row label="Total payable today" value={paiseToInr(data.totalDuePaise)} emphasize />
       </dl>
 
-      <footer className="space-y-3 border-t border-white/8 bg-black/20 px-6 py-5 text-xs leading-relaxed text-apg-silver sm:px-8">
-        {policySections.map((section) => (
-          <p key={section.title}>
-            <span className="font-semibold text-white">{section.title}:</span> {section.body}
-          </p>
-        ))}
+      <footer className="space-y-2 border-t border-white/8 bg-black/20 px-6 py-5 text-xs leading-relaxed text-apg-silver sm:px-8">
+        <p className="font-semibold text-white">Awesome PG policies</p>
+        <ul className="list-disc space-y-1 pl-4">
+          <li>14-day notice required before moving out (monthly stays).</li>
+          <li>Security deposit refunded after checkout inspection and meter reading.</li>
+          <li>Electricity billed monthly — your share is split among room occupants.</li>
+          <li>Rent and deposit amounts above come directly from our pricing system.</li>
+        </ul>
+        <p>
+          <Link href="/about" className="text-apg-cyan hover:text-apg-orange">
+            Full policies →
+          </Link>
+        </p>
         {isMonthly ? (
-          <p>
+          <p className="pt-1">
             <span className="font-semibold text-white">Expected monthly rent:</span>{' '}
-            {paiseToInr(data.rentPaise)} / month (billed monthly while you stay).
+            {paiseToInr(data.rentPaise)} / month while you stay.
           </p>
         ) : null}
       </footer>

@@ -17,7 +17,7 @@ import {
   expectedCompletionLabel,
 } from '@/src/lib/residents/vacatingPresentation';
 import { isFixedStayDurationMode } from '@/src/lib/checkout/checkoutWorkflow';
-import { residentTabHref } from '@/src/lib/accountNavigation';
+import { residentProfileHref } from '@/src/lib/accountNavigation';
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 
@@ -63,7 +63,7 @@ export function VacatingHome({
   expectedCheckoutDate = null,
 }: Props) {
   const fixedStay = isFixedStayDurationMode(durationMode);
-  const walletHref = residentTabHref('wallet');
+  const walletHref = residentProfileHref('wallet');
 
   if (fixedStay) {
     const checkoutDate = expectedCheckoutDate;

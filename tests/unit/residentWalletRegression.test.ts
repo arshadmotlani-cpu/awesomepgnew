@@ -7,6 +7,14 @@ const residentAreaSection = readFileSync(
   join(process.cwd(), 'src/components/customer/account/ResidentAreaSection.tsx'),
   'utf8',
 );
+const profileHub = readFileSync(
+  join(process.cwd(), 'src/components/customer/account/resident/ResidentProfileHub.tsx'),
+  'utf8',
+);
+const profileWalletPanel = readFileSync(
+  join(process.cwd(), 'src/components/customer/account/resident/ProfileWalletPanel.tsx'),
+  'utf8',
+);
 const requestsHome = readFileSync(
   join(process.cwd(), 'src/components/customer/account/resident/requests/RequestsHome.tsx'),
   'utf8',
@@ -23,41 +31,35 @@ const financialEngine = readFileSync(
   join(process.cwd(), 'src/services/residentFinancialEngine.ts'),
   'utf8',
 );
-const simpleAccountHub = readFileSync(
-  join(process.cwd(), 'src/components/customer/simple/SimpleAccountHub.tsx'),
-  'utf8',
-);
 
-test('wallet tab is always available for residents with a booking', () => {
-  assert.match(residentAreaSection, /activeTab === 'wallet' && primaryBooking/);
-  assert.match(residentAreaSection, /activeTab === 'wallet'[\s\S]*<ResidentWalletView/);
+test('wallet sub-tab is always available for residents with a booking', () => {
+  assert.match(residentAreaSection, /activeTab === 'profile' && primaryBooking/);
+  assert.match(residentAreaSection, /<ResidentProfileHub/);
+  assert.match(profileHub, /id: 'wallet'/);
+  assert.match(profileHub, /<ProfileWalletPanel/);
+  assert.match(residentAreaSection, /walletBooking/);
   assert.doesNotMatch(
     residentAreaSection,
-    /\{financialAccount \?\s*\(\s*\n\s*<ResidentWalletView/,
+    /\{financialAccount \?\s*\(\s*\n\s*<ProfileWalletPanel/,
     'wallet content must not be gated on financialAccount',
   );
 });
 
-test('wallet tab wires deposit balance, ledger, policy, and refund tracking', () => {
-  assert.match(residentAreaSection, /DepositWalletSection/);
-  assert.match(residentAreaSection, /ResidentDepositLedger/);
-  assert.match(residentAreaSection, /ResidentDepositBreakdown/);
-  assert.match(residentAreaSection, /DepositRefundNotice/);
-  assert.match(residentAreaSection, /ResidentRequestForms/);
-  assert.match(residentAreaSection, /ResidentWalletRequestStatus/);
-  assert.doesNotMatch(
-    residentAreaSection,
-    /depositWallet\.totalCollectedPaise > 0 \?/,
-    'deposit wallet must not be hidden when collected is zero',
-  );
+test('wallet sub-tab wires deposit balance, ledger, policy, and refund tracking', () => {
+  assert.match(profileWalletPanel, /ResidentRequestForms/);
+  assert.match(profileWalletPanel, /Deposit deductions/);
+  assert.match(profileWalletPanel, /Refund history/);
+  assert.match(profileWalletPanel, /Refund not available yet/);
+  assert.match(residentAreaSection, /getDepositSummaryForBooking/);
+  assert.match(residentAreaSection, /refundableBalancePaise/);
 });
 
 test('request refund lives only in wallet', () => {
   assert.match(residentRequestForms, /Request refund/);
   assert.doesNotMatch(requestsHome, /Request deposit refund/);
   assert.doesNotMatch(vacatingHome, /Request refund/);
-  assert.match(vacatingHome, /residentTabHref\('wallet'\)/);
-  assert.match(requestsHome, /deposit_refund[\s\S]*residentTabHref\('wallet'\)/);
+  assert.match(vacatingHome, /residentProfileHref\('wallet'\)/);
+  assert.match(requestsHome, /residentProfileHref\('wallet'\)/);
 });
 
 test('financial engine falls back to latest booking for wallet SSOT', () => {
@@ -76,16 +78,16 @@ test('payments tab is not gated on financialAccount', () => {
   );
 });
 
-test('resident nav uses My Stay and Bills labels', () => {
+test('resident nav uses Profile and Payments labels', () => {
   const nav = readFileSync(join(process.cwd(), 'src/lib/residentNavigation.ts'), 'utf8');
-  assert.match(nav, /label: 'My Stay'/);
-  assert.match(nav, /label: 'Bills'/);
+  assert.match(nav, /label: 'Profile'/);
+  assert.match(nav, /label: 'Payments'/);
 });
 
 test('restored deposit wallet components exist on disk', () => {
   const files = [
-    'src/components/customer/account/DepositWalletSection.tsx',
     'src/components/customer/account/ResidentRequestForms.tsx',
+    'src/components/customer/account/resident/ProfileWalletPanel.tsx',
     'src/components/customer/account/resident/ResidentDepositLedger.tsx',
     'src/components/customer/account/resident/ResidentDepositBreakdown.tsx',
     'src/components/customer/account/resident/ResidentWalletRequestStatus.tsx',

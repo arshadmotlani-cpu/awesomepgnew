@@ -11,7 +11,6 @@ test('every unresolved action type maps to a sidebar badge bucket', () => {
     'move_out_approval',
     'checkout_settlement',
     'deposit_refund_approval',
-    'invoice_review',
     'room_transfer_approval',
     'maintenance_approval',
   ] as const;
@@ -19,6 +18,14 @@ test('every unresolved action type maps to a sidebar badge bucket', () => {
   for (const type of types) {
     assert.ok(UNRESOLVED_ACTION_BADGE_BUCKET[type], `missing bucket for ${type}`);
   }
+});
+
+test('invoice_review is excluded from sidebar badge buckets', () => {
+  assert.equal(
+    'invoice_review' in UNRESOLVED_ACTION_BADGE_BUCKET,
+    false,
+    'billing audit items must not inflate Operations badges',
+  );
 });
 
 test('mapUnresolvedActionRow preserves href and label', () => {

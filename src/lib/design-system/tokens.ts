@@ -9,8 +9,14 @@ export const elevation = {
 export const surface = {
   darkGlass: 'apg-glass',
   darkGlassLight: 'apg-glass-light',
+  /** @deprecated Use residentGlass for V2 resident portal. */
   account: 'apg-account-surface rounded-xl border border-zinc-200 shadow-sm',
   accountPadded: 'apg-account-surface rounded-xl border border-zinc-200 shadow-sm p-5',
+  /** Premium dark glass card for resident portal V2. */
+  residentGlass:
+    'rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.08] to-white/[0.03] shadow-[0_8px_32px_rgba(0,0,0,0.35)] backdrop-blur-md',
+  residentGlassPadded:
+    'rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.08] to-white/[0.03] p-5 shadow-[0_8px_32px_rgba(0,0,0,0.35)] backdrop-blur-md',
 } as const;
 
 export const typography = {
@@ -35,13 +41,16 @@ export const bedStateTone = {
 } as const;
 
 export const requestStatusTone = {
-  submitted: 'bg-sky-50 text-sky-700 ring-sky-200',
-  under_review: 'bg-amber-50 text-amber-700 ring-amber-200',
-  reviewing: 'bg-amber-50 text-amber-700 ring-amber-200',
-  approved: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  rejected: 'bg-rose-50 text-rose-700 ring-rose-200',
-  completed: 'bg-indigo-50 text-indigo-700 ring-indigo-200',
-  pending: 'bg-amber-50 text-amber-700 ring-amber-200',
+  submitted: 'bg-sky-500/15 text-sky-200 ring-sky-400/30',
+  under_review: 'bg-amber-500/15 text-amber-200 ring-amber-400/30',
+  reviewing: 'bg-amber-500/15 text-amber-200 ring-amber-400/30',
+  approved: 'bg-emerald-500/15 text-emerald-200 ring-emerald-400/30',
+  rejected: 'bg-rose-500/15 text-rose-200 ring-rose-400/30',
+  completed: 'bg-indigo-500/15 text-indigo-200 ring-indigo-400/30',
+  pending: 'bg-amber-500/15 text-amber-200 ring-amber-400/30',
+  paid: 'bg-emerald-500/15 text-emerald-200 ring-emerald-400/30',
+  overdue: 'bg-rose-500/15 text-rose-200 ring-rose-400/30',
+  processing: 'bg-sky-500/15 text-sky-200 ring-sky-400/30',
 } as const;
 
 export const primaryBtn =

@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
-import { residentTabHref } from '@/src/lib/accountNavigation';
+import { legacyResidentTabHref, residentTabHref } from '@/src/lib/accountNavigation';
 
 export default function ResidentDashboardRedirect() {
-  redirect(residentTabHref('home'));
+  redirect(legacyResidentTabHref('home'));
 }

@@ -10,7 +10,7 @@ import {
   ACCOUNT_PAGE_SUBTITLE,
   ACCOUNT_PAGE_TITLE,
 } from '@/src/components/customer/accountStyles';
-import { residentTabHref } from '@/src/lib/accountNavigation';
+import { legacyResidentTabHref, residentTabHref } from '@/src/lib/accountNavigation';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,7 +42,7 @@ export default async function PaymentHistoryPage({
   return (
     <div className="mx-auto w-full max-w-3xl space-y-5 px-4 py-10 sm:px-6">
       <header>
-        <Link href={residentTabHref('wallet')} className={ACCOUNT_BACK_LINK}>
+        <Link href={legacyResidentTabHref('wallet')} className={ACCOUNT_BACK_LINK}>
           ← Back to wallet
         </Link>
         <h1 className={`mt-2 ${ACCOUNT_PAGE_TITLE}`}>Payment history</h1>

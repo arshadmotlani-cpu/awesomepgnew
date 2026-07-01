@@ -3,7 +3,7 @@ import { DepositRefundNotice } from '@/src/components/customer/DepositRefundNoti
 import { MyServicesPanel } from '@/src/components/customer/MyServicesPanel';
 import { RoachieResidentBriefing } from '@/src/components/cockroach/RoachieResidentBriefing';
 import type { buildBriefingInputForBooking } from '@/src/lib/cockroach/briefingFromBooking';
-import { residentTabHref } from '@/src/lib/accountNavigation';
+import { legacyResidentTabHref, residentTabHref } from '@/src/lib/accountNavigation';
 import { ResidentHomeActiveRequests } from '@/src/components/customer/account/resident/ResidentHomeActiveRequests';
 import { ResidentHomeAdminWaiting } from '@/src/components/customer/account/resident/ResidentHomeAdminWaiting';
 import { ResidentHomeMoveOutStatus } from '@/src/components/customer/account/resident/ResidentHomeMoveOutStatus';
@@ -172,11 +172,11 @@ export function ResidentHomePanel({
             Payments
           </Link>
           ,{' '}
-          <Link href={residentTabHref('wallet')} className="font-semibold text-indigo-700">
+          <Link href={legacyResidentTabHref('wallet')} className="font-semibold text-indigo-700">
             Wallet
           </Link>
           , and{' '}
-          <Link href={residentTabHref('vacating')} className="font-semibold text-indigo-700">
+          <Link href={legacyResidentTabHref('vacating')} className="font-semibold text-indigo-700">
             Move-out
           </Link>
           .

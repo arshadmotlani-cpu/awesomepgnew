@@ -13,6 +13,7 @@ import { quoteBookingPrice } from '@/src/services/pricing';
 import { getCustomerPriorOutstandingForCheckout } from '@/src/services/bookingPriorOutstanding';
 import { getCustomerSession } from '@/src/lib/auth/session';
 import { stayTypeLabel } from '@/src/lib/stayType';
+import { paiseToInr } from '@/src/lib/format';
 
 export const metadata = { title: 'Booking review' };
 
@@ -96,6 +97,7 @@ export default async function NewBookingPage(props: PageProps<'/booking/new'>) {
   let depositPaise = 0;
   let totalDuePaise = 0;
   let quoteError: string | null = null;
+  let reviewLineItems: import('@/src/components/customer/checkout/BookingReviewCard').BookingReviewLineItem[] | undefined;
 
   try {
     const quote = await quoteBookingPrice({
@@ -123,6 +125,40 @@ export default async function NewBookingPage(props: PageProps<'/booking/new'>) {
     });
     totalDuePaise = checkoutTotals.totalToCollectTodayPaise;
     depositPaise = checkoutTotals.depositDueNowPaise;
+
+    const lineItems: import('@/src/components/customer/checkout/BookingReviewCard').BookingReviewLineItem[] =
+      [
+        {
+          label: `Rent · Room ${primaryBed.roomNumber} Bed ${primaryBed.bedCode}`,
+          amountPaise: checkoutTotals.rentDuePaise,
+          detail: 'From bed_prices for your selected dates',
+        },
+        {
+          label: 'Security deposit',
+          amountPaise: checkoutTotals.depositRequiredPaise,
+          detail:
+            checkoutTotals.depositCreditAppliedPaise > 0
+              ? `Required ${paiseToInr(checkoutTotals.depositRequiredPaise)} · credit applied separately`
+              : 'Required for this stay',
+        },
+      ];
+    if (checkoutTotals.depositCreditAppliedPaise > 0) {
+      lineItems.push({
+        label: 'Deposit credit applied',
+        amountPaise: checkoutTotals.depositCreditAppliedPaise,
+        detail: 'Transferred from a prior booking by admin',
+        tone: 'credit',
+      });
+    }
+    for (const item of priorOutstanding.items) {
+      lineItems.push({
+        label: item.label,
+        amountPaise: item.amountPaise,
+        detail: 'Outstanding from a prior stay',
+      });
+    }
+
+    reviewLineItems = lineItems;
   } catch (err) {
     quoteError = err instanceof Error ? err.message : String(err);
   }
@@ -139,6 +175,7 @@ export default async function NewBookingPage(props: PageProps<'/booking/new'>) {
     rentPaise: subtotalPaise,
     depositPaise,
     totalDuePaise,
+    lineItems: reviewLineItems,
   };
 
   return (

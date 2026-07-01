@@ -8,49 +8,25 @@ export type ResidentTabMeta = {
   subtitle: string;
 };
 
-/** Desktop pill nav — all resident tabs. */
+/** V2 desktop + mobile nav — five tabs only. */
 export const RESIDENT_DESKTOP_NAV: ResidentTabMeta[] = [
   {
-    tab: 'home',
-    label: 'My Stay',
-    title: 'My Stay',
-    subtitle: 'Your booking, room, and what matters today.',
-  },
-  {
-    tab: 'wallet',
-    label: 'Wallet',
-    title: 'Wallet',
-    subtitle: 'Deposit balance, ledger, and refund.',
+    tab: 'profile',
+    label: 'Profile',
+    title: 'Profile',
+    subtitle: 'Your stay, wallet, and account details.',
   },
   {
     tab: 'payments',
-    label: 'Bills',
-    title: 'Bills',
-    subtitle: 'Rent, electricity, and payment history.',
-  },
-  {
-    tab: 'room',
-    label: 'Booking',
-    title: 'Current booking',
-    subtitle: 'Bed, rent, and stay details.',
+    label: 'Payments',
+    title: 'Payments',
+    subtitle: 'Bills due and payment history.',
   },
   {
     tab: 'requests',
     label: 'Requests',
     title: 'Requests',
-    subtitle: 'Maintenance, complaints, and PG requests.',
-  },
-  {
-    tab: 'notifications',
-    label: 'Notifications',
-    title: 'Notifications',
-    subtitle: 'Email updates from Awesome PG.',
-  },
-  {
-    tab: 'vacating',
-    label: 'Vacating',
-    title: 'Move-out',
-    subtitle: 'Notice period, checkout, and deposit refund.',
+    subtitle: 'Maintenance, room change, move-out, and support.',
   },
   {
     tab: 'referrals',
@@ -61,37 +37,30 @@ export const RESIDENT_DESKTOP_NAV: ResidentTabMeta[] = [
   {
     tab: 'concierge',
     label: 'Concierge',
-    title: 'Concierge',
+    title: 'AI Concierge',
     subtitle: 'Ask Roachie or reach the PG team.',
   },
 ];
 
-/** Mobile bottom nav (max 5). */
-export const RESIDENT_MOBILE_PRIMARY_TABS: ResidentTab[] = [
-  'home',
-  'wallet',
-  'payments',
-  'requests',
-  'concierge',
-];
+/** @deprecated V2 uses same 5 tabs on mobile — kept for import compatibility. */
+export const RESIDENT_MOBILE_PRIMARY_TABS: ResidentTab[] = RESIDENT_DESKTOP_NAV.map((t) => t.tab);
 
-/** Mobile secondary strip — tabs not in bottom nav. */
-export const RESIDENT_MOBILE_SECONDARY_TABS: ResidentTabMeta[] = RESIDENT_DESKTOP_NAV.filter(
-  (t) => !RESIDENT_MOBILE_PRIMARY_TABS.includes(t.tab),
-);
+/** @deprecated No secondary strip in V2. */
+export const RESIDENT_MOBILE_SECONDARY_TABS: ResidentTabMeta[] = [];
 
 export function residentTabMeta(tab: ResidentTab): ResidentTabMeta {
   return RESIDENT_DESKTOP_NAV.find((t) => t.tab === tab) ?? RESIDENT_DESKTOP_NAV[0]!;
 }
 
+/** Profile edit lives inside Profile tab — no separate settings route. */
 export function residentAccountSettingsHref(): string {
-  return '/account/profile?section=profile&settings=1';
+  return residentTabHref('profile', { sub: 'overview', edit: '1' });
 }
 
 export function residentBookingsHref(): string {
   return '/account/bookings';
 }
 
-export function residentBackToHubHref(tab: ResidentTab = 'home'): string {
+export function residentBackToHubHref(tab: ResidentTab = 'profile'): string {
   return residentTabHref(tab);
 }

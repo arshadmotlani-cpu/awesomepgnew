@@ -8,7 +8,7 @@ import {
   type ResidentElectricityHistoryItem,
 } from '@/src/components/customer/account/resident/ResidentElectricityHistory';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
-import { residentTabHref } from '@/src/lib/accountNavigation';
+import { legacyResidentTabHref, residentTabHref } from '@/src/lib/accountNavigation';
 import { ResidentOutstandingBillsCard } from '@/src/components/customer/account/resident/ResidentOutstandingBillsCard';
 import type { PaymentDueRow } from '@/src/components/customer/account/resident/ResidentPaymentsPanel';
 
@@ -141,7 +141,7 @@ export function ResidentPaymentsHub({
           Payment submitted — we are reviewing your screenshot.
         </p>
       ) : (
-        <Link href={residentTabHref('home')} className={PRIMARY_BTN}>
+        <Link href={legacyResidentTabHref('home')} className={PRIMARY_BTN}>
           All paid — back to home
         </Link>
       )}
@@ -207,7 +207,7 @@ export function ResidentPaymentsHub({
             </Link>
           ) : null}
           <Link
-            href={residentTabHref('wallet')}
+            href={legacyResidentTabHref('wallet')}
             className="rounded-lg border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-800 hover:bg-zinc-50"
           >
             Wallet statement →

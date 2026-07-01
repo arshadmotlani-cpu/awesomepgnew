@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import { ACCOUNT_SURFACE } from '@/src/components/customer/accountStyles';
-import { residentTabHref } from '@/src/lib/accountNavigation';
+import { legacyResidentTabHref, residentTabHref } from '@/src/lib/accountNavigation';
 
 export type PaymentDueRow = {
   key: string;
@@ -73,7 +73,7 @@ export function ResidentPaymentsPrimaryActions({
           </Link>
         ) : (
           <Link
-            href={residentTabHref('home')}
+            href={legacyResidentTabHref('home')}
             className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-[#FF5A1F] px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110"
           >
             All paid — back to home
@@ -88,7 +88,7 @@ export function ResidentPaymentsPrimaryActions({
           </Link>
         ) : null}
         <Link
-          href={residentTabHref('wallet')}
+          href={legacyResidentTabHref('wallet')}
           className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-zinc-800 hover:bg-zinc-50"
         >
           Wallet

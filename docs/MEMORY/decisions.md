@@ -7,6 +7,10 @@
 
 ---
 
+## 2026-07-02
+
+- **Resident Portal V2** — Consolidated 9 tabs into 5; Profile owns stay + wallet; Payments owns due + paid history; move-out merged into Requests; referral + room-shift backends added. Defaults: `docs/MEMORY/decisions-resident-portal-v2.md`
+
 ## 2026-06-22
 
 - Adopted **MEMORY/** folder for auto-structured AI memory (ideas, tasks, insights, mistakes, decisions, active_memory)
