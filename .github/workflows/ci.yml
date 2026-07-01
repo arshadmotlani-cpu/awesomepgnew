@@ -41,7 +41,7 @@ jobs:
         run: node_modules/.bin/tsx scripts/lint-private-blob-display.ts
 
       - name: Unit and integration tests
-        run: node_modules/.bin/tsx --test --test-concurrency=1 'tests/unit/**/*.test.ts' 'tests/integration/**/*.test.ts'
+        run: TEST_CONCURRENCY=1 node scripts/run-unit-tests.mjs
 
       - name: Production build
         run: npm run build
