@@ -216,10 +216,13 @@ async function runSearchQuery(
   tier: SearchTier,
   caps: SearchSchemaCapabilities,
 ): Promise<SearchDbRow[]> {
-  const pattern = `%${q.replace(/[%_\\]/g, '\\$&')}%`;
   const phoneDigits = q.replace(/\D/g, '');
   const qLower = q.toLowerCase();
   const namePrefix = `${q.replace(/[%_\\]/g, '\\$&')}%`;
+  const pattern =
+    q.length === 1
+      ? namePrefix
+      : `%${q.replace(/[%_\\]/g, '\\$&')}%`;
   const phoneSearchEnabled = phoneDigits.length >= 2;
 
   if (tier === 'minimal') {
@@ -321,7 +324,8 @@ export async function searchResidentsForAdmin(
   limit = 20,
 ): Promise<AdminResidentSearchResult[]> {
   const q = query.trim();
-  if (q.length < 2) return [];
+  if (q.length < 1) return [];
+  if (q.length === 1 && !/[a-zA-Z]/.test(q)) return [];
 
   const caps = await getResidentSearchSchemaCapabilities();
   const tiers: SearchTier[] = caps.customerLifecycle

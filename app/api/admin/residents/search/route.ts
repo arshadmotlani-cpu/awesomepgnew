@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
     kycApprovedOnly,
   });
 
-  if (q.length < 2) {
+  if (q.length < 1) {
     return Response.json({ ok: true, data: [], count: 0 } satisfies AdminResidentSearchApiResponse);
   }
 

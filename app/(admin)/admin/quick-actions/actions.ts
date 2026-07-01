@@ -10,10 +10,16 @@ import type { CustomChargeKind } from '@/src/services/customCharges';
 import { settleDepositRefund } from '@/src/services/depositSettlement';
 import { getCustomerDepositCredit } from '@/src/services/depositCredit';
 import {
-  executeExpressWalkInSale,
+  executeExpressBookingSale,
   type ExpressWalkInPaymentMethod,
   type ExpressWalkInStayType,
-} from '@/src/services/expressWalkInSale';
+} from '@/src/services/expressBookingSale';
+import { loadExpressBookingResidentContext } from '@/src/services/expressBookingContext';
+import {
+  quoteExpressBooking,
+  type ExpressBookingQuote,
+} from '@/src/services/expressBookingQuote';
+import type { ExpressBookingPaymentStatus } from '@/src/services/expressBookingPayment';
 import {
   getDepositSummaryForBooking,
   recordAdvanceDeposit,
@@ -382,14 +388,20 @@ export type ExpressWalkInLookupResult =
       phone: string;
       gender: 'male' | 'female' | 'other';
       kycStatus: string;
-      tenancyStatus: 'active' | 'unassigned' | 'vacated';
+      tenancyStatus: 'active' | 'unassigned' | 'vacated' | 'vacating';
       walletCreditPaise: number;
+      activeTenancy: import('@/src/services/expressBookingContext').ExpressBookingActiveTenancy | null;
+      depositCollectedPaise: number;
+      depositHeldPaise: number;
     }
   | { found: false };
 
-function isPlaceholderWalkInEmail(email: string): boolean {
-  return email.startsWith('walkin+') && email.endsWith('@residents.awesomepg.in');
-}
+export type ExpressBookingResidentContext = NonNullable<
+  Awaited<ReturnType<typeof loadExpressBookingResidentContext>>
+>;
+
+export type { ExpressBookingQuote };
+
 
 export async function searchExpressWalkInCustomersAction(
   query: string,
@@ -427,43 +439,57 @@ export async function searchExpressWalkInCustomersAction(
   }
 }
 
+export async function getExpressBookingContextAction(
+  customerId: string,
+): Promise<ExpressBookingResidentContext | { error: string }> {
+  try {
+    const session = await requireAdminPermission('bookings:write');
+    const ctx = await loadExpressBookingResidentContext(session, customerId);
+    if (!ctx) return { error: 'Resident not found.' };
+    return ctx;
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Could not load resident.' };
+  }
+}
+
+export async function quoteExpressBookingAction(input: {
+  bedId: string;
+  checkInDate: string;
+  checkOutDate?: string | null;
+  stayType: ExpressWalkInStayType;
+}): Promise<{ ok: true; quote: ExpressBookingQuote } | { ok: false; error: string }> {
+  try {
+    await requireAdminPermission('bookings:write');
+    const quote = await quoteExpressBooking(input);
+    return { ok: true, quote };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not quote booking.' };
+  }
+}
+
 export async function getExpressWalkInCustomerAction(
   customerId: string,
 ): Promise<ExpressWalkInLookupResult | { error: string }> {
   try {
     const session = await requireAdminPermission('bookings:write');
-    const { db } = await import('@/src/db/client');
-    const { customers } = await import('@/src/db/schema');
-    const { eq } = await import('drizzle-orm');
-
-    const [customer] = await db
-      .select()
-      .from(customers)
-      .where(eq(customers.id, customerId))
-      .limit(1);
-
-    if (!customer || customer.archivedAt) {
+    const ctx = await loadExpressBookingResidentContext(session, customerId);
+    if (!ctx) {
       return { found: false };
     }
 
-    const { getResidentDetail } = await import('@/src/services/residentAdmin');
-    const detail = await getResidentDetail(session, customer.id);
-    const wallet = await getCustomerDepositCredit(customer.id);
-
     return {
       found: true,
-      customerId: customer.id,
-      fullName: customer.fullName,
-      email: isPlaceholderWalkInEmail(customer.email) ? '' : customer.email,
-      phone: customer.phone,
-      gender: customer.gender,
-      kycStatus: customer.kycStatus,
-      tenancyStatus: detail?.activeTenancy
-        ? 'active'
-        : customer.residencyStatus === 'vacated'
-          ? 'vacated'
-          : 'unassigned',
-      walletCreditPaise: wallet.availableCreditPaise,
+      customerId: ctx.customerId,
+      fullName: ctx.fullName,
+      email: ctx.email,
+      phone: ctx.phone,
+      gender: ctx.gender,
+      kycStatus: ctx.kycStatus,
+      tenancyStatus: ctx.tenancyStatus,
+      walletCreditPaise: ctx.walletCreditPaise,
+      activeTenancy: ctx.activeTenancy,
+      depositCollectedPaise: ctx.depositCollectedPaise,
+      depositHeldPaise: ctx.depositHeldPaise,
     };
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Could not load resident.' };
@@ -524,6 +550,8 @@ export async function expressWalkInSaleAction(input: {
   rentPaidInr?: number;
   walletCreditInr?: number;
   paymentMethod: ExpressWalkInPaymentMethod;
+  paymentStatus?: ExpressBookingPaymentStatus;
+  amountReceivedInr?: number;
   notes?: string;
 }): Promise<QuickActionResult> {
   try {
@@ -533,13 +561,16 @@ export async function expressWalkInSaleAction(input: {
     if (input.stayType === 'fixed' && !input.checkOutDate?.trim()) {
       return { ok: false, error: 'Check-out date is required for fixed stays.' };
     }
-    if (input.stayType === 'fixed' && input.rentAmountInr <= 0) {
-      return { ok: false, error: 'Enter rent for the fixed stay (days × daily rate).' };
+    if (input.rentAmountInr <= 0) {
+      return { ok: false, error: 'Rent amount is required.' };
+    }
+    if (input.stayType === 'fixed' && (input.depositRequiredInr > 0 || (input.walletCreditInr ?? 0) > 0)) {
+      return { ok: false, error: 'Fixed stays are daily rental only — no deposit or wallet.' };
     }
 
     const toPaise = (inr: number) => Math.round(inr * 100);
 
-    const result = await executeExpressWalkInSale(session, {
+    const result = await executeExpressBookingSale(session, {
       customerId: input.customerId,
       fullName: input.fullName.trim(),
       phone: input.phone.trim(),
@@ -557,6 +588,8 @@ export async function expressWalkInSaleAction(input: {
       rentPaidPaise: toPaise(input.rentPaidInr ?? 0),
       walletCreditPaise: toPaise(input.walletCreditInr ?? 0),
       paymentMethod: input.paymentMethod,
+      paymentStatus: input.paymentStatus,
+      amountReceivedPaise: input.amountReceivedInr ? toPaise(input.amountReceivedInr) : undefined,
       notes: input.notes,
     });
 

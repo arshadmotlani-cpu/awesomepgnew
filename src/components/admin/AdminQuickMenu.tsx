@@ -9,7 +9,7 @@ import {
   quickRefundSettlementAction,
 } from '@/app/(admin)/admin/quick-actions/actions';
 import { QuickActionDialog } from '@/src/components/admin/quickActions/QuickActionDialog';
-import { ExpressBookingConsole } from '@/src/components/admin/quickActions/ExpressBookingConsole';
+import { ExpressBookingSheet } from '@/src/components/admin/expressBooking/ExpressBookingSheet';
 import { QuickActionResidentStep } from '@/src/components/admin/quickActions/QuickActionResidentStep';
 import {
   type ResidentQuickResult,
@@ -343,9 +343,6 @@ function RentInvoiceFields({
   );
 }
 
-function ExpressSaleForm({ onDone }: { onDone: () => void }) {
-  return <ExpressBookingConsole onDone={onDone} />;
-}
 
 function ElectricityForm({ onDone }: { onDone: () => void }) {
   const router = useRouter();
@@ -502,21 +499,26 @@ export function AdminQuickMenu() {
         ) : null}
       </div>
 
-      {meta && active ? (
+      {meta && active && active !== 'express_sale' ? (
         <QuickActionDialog
           open={active !== null}
           title={meta.title}
           description={meta.description}
           onClose={closeDialog}
-          wide={active === 'express_sale'}
+          wide={false}
         >
           {active === 'advance_deposit' ? <DepositForm mode="advance" onDone={closeDialog} /> : null}
           {active === 'offline_deposit' ? <DepositForm mode="offline" onDone={closeDialog} /> : null}
           {active === 'rent_invoice' ? <RentInvoiceForm onDone={closeDialog} /> : null}
           {active === 'electricity' ? <ElectricityForm onDone={closeDialog} /> : null}
-          {active === 'express_sale' ? <ExpressSaleForm onDone={closeDialog} /> : null}
           {active === 'refund' ? <RefundForm onDone={closeDialog} /> : null}
         </QuickActionDialog>
+      ) : null}
+
+      {active === 'express_sale' ? (
+        <div className="fixed inset-0 z-[100000] flex flex-col bg-[#0a0d12]">
+          <ExpressBookingSheet onClose={closeDialog} />
+        </div>
       ) : null}
     </>
   );
