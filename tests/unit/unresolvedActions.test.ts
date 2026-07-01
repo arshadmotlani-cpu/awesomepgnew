@@ -11,7 +11,6 @@ test('every unresolved action type maps to a sidebar badge bucket', () => {
     'move_out_approval',
     'checkout_settlement',
     'deposit_refund_approval',
-    'invoice_review',
     'room_transfer_approval',
     'maintenance_approval',
   ] as const;

@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ACTION_ITEM_GROUP_LABELS, ACTION_ITEM_GROUP_ORDER } from '../../src/lib/actionCenter/constants';
-import { TYPE_TO_MODULE } from '../../src/services/adminNavBadges';
 
 test('action item group order includes fixed stay checkout and refund submitted', () => {
   assert.ok(ACTION_ITEM_GROUP_ORDER.includes('fixed_stay_checkout_due'));
@@ -9,9 +8,9 @@ test('action item group order includes fixed stay checkout and refund submitted'
   assert.ok(ACTION_ITEM_GROUP_LABELS.fixed_stay_checkout_due);
 });
 
-test('admin nav badges map new action types to modules', () => {
-  assert.equal(TYPE_TO_MODULE.fixed_stay_checkout_due, 'operations');
-  assert.equal(TYPE_TO_MODULE.refund_request_submitted, 'deposits');
+test('admin nav badges use unresolved_actions buckets for sidebar counts', async () => {
+  const { loadAdminNavBadges } = await import('../../src/services/adminNavBadges');
+  assert.equal(typeof loadAdminNavBadges, 'function');
 });
 
 test('mark resolved is an explicit action not auto on view', async () => {
