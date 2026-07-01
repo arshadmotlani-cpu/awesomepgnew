@@ -9,7 +9,6 @@ import {
   quickRefundSettlementAction,
 } from '@/app/(admin)/admin/quick-actions/actions';
 import { QuickActionDialog } from '@/src/components/admin/quickActions/QuickActionDialog';
-import { ExpressBookingSheet } from '@/src/components/admin/expressBooking/ExpressBookingSheet';
 import { QuickActionResidentStep } from '@/src/components/admin/quickActions/QuickActionResidentStep';
 import {
   type ResidentQuickResult,
@@ -418,6 +417,7 @@ const BILLING_EXCLUDED_ACTIONS: QuickActionId[] = [
 ];
 
 export function AdminQuickMenu() {
+  const router = useRouter();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [active, setActive] = useState<QuickActionId | null>(null);
@@ -443,6 +443,10 @@ export function AdminQuickMenu() {
 
   function openAction(id: QuickActionId) {
     setMenuOpen(false);
+    if (id === 'express_sale') {
+      router.push('/admin/express-booking');
+      return;
+    }
     setActive(id);
   }
 
@@ -513,12 +517,6 @@ export function AdminQuickMenu() {
           {active === 'electricity' ? <ElectricityForm onDone={closeDialog} /> : null}
           {active === 'refund' ? <RefundForm onDone={closeDialog} /> : null}
         </QuickActionDialog>
-      ) : null}
-
-      {active === 'express_sale' ? (
-        <div className="fixed inset-0 z-[100000] flex flex-col bg-[#0a0d12]">
-          <ExpressBookingSheet onClose={closeDialog} />
-        </div>
       ) : null}
     </>
   );

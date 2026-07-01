@@ -1,14 +1,19 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import {
   expressWalkInSaleAction,
   getExpressBookingContextAction,
   listExpressWalkInBedsAction,
-  type ExpressBookingResidentContext,
-  type ExpressWalkInBedOption,
 } from '@/app/(admin)/admin/quick-actions/actions';
+import type {
+  ExpressBookingResidentContext,
+  ExpressWalkInBedOption,
+  ExpressBookingStayType,
+  ExpressBookingPaymentStatus,
+} from '@/src/lib/admin/expressBookingTypes';
 import { CurrentTenancyCard } from '@/src/components/admin/expressBooking/CurrentTenancyCard';
 import { ExpressBookingReceipt } from '@/src/components/admin/expressBooking/ExpressBookingReceipt';
 import { ExpressBookingSearchPanel } from '@/src/components/admin/expressBooking/ExpressBookingSearchPanel';
@@ -24,14 +29,17 @@ import type { AdminResidentSearchResult } from '@/src/lib/admin/residentSearchTy
 import { defaultCheckOutDate } from '@/src/lib/dateDefaults';
 import { todayString } from '@/src/lib/dates';
 import { buildExpressWalkInWhatsAppUrl } from '@/src/lib/billing/expressWalkInWhatsApp';
-import type { ExpressBookingStayType } from '@/src/services/expressBookingQuote';
-import type { ExpressBookingPaymentStatus } from '@/src/services/expressBookingPayment';
 
 function defaultCheckInDate(): string {
   return todayString();
 }
 
-export function ExpressBookingSheet({ onClose }: { onClose: () => void }) {
+export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
+  const router = useRouter();
+  function handleClose() {
+    if (onClose) onClose();
+    else router.back();
+  }
   const [ctx, setCtx] = useState<ExpressBookingResidentContext | null>(null);
   const [ctxLoading, startLoadCtx] = useTransition();
 
@@ -136,19 +144,27 @@ export function ExpressBookingSheet({ onClose }: { onClose: () => void }) {
     setIsNewResident(false);
     setCustomerId(row.id);
     setFullName(row.fullName);
-    setPhone(row.phone);
+    setPhone(row.phone ?? '');
+    setSubmitError(null);
+    setCtx(null);
     startLoadCtx(async () => {
-      const res = await getExpressBookingContextAction(row.id);
-      if ('error' in res) {
-        setCtx(null);
-        setSubmitError(res.error);
-      } else {
-        setCtx(res);
-        setSubmitError(null);
-        if (res.activeTenancy?.bedId) {
-          setBedId(res.activeTenancy.bedId);
-          setSelectedPgId(res.activeTenancy.pgId);
+      try {
+        const res = await getExpressBookingContextAction(row.id);
+        if ('error' in res) {
+          setCtx(null);
+          setSubmitError(res.error);
+          return;
         }
+        setCtx(res);
+        if (res.activeTenancy?.bedId && res.activeTenancy.pgId) {
+          setSelectedPgId(res.activeTenancy.pgId);
+          setBedId(res.activeTenancy.bedId);
+        }
+      } catch (err) {
+        setCtx(null);
+        setSubmitError(
+          err instanceof Error ? err.message : 'Failed to load resident context.',
+        );
       }
     });
   }
@@ -290,7 +306,7 @@ export function ExpressBookingSheet({ onClose }: { onClose: () => void }) {
           ) : null}
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="rounded-xl border border-white/15 px-6 py-3 text-sm text-apg-silver"
           >
             Close
@@ -300,255 +316,274 @@ export function ExpressBookingSheet({ onClose }: { onClose: () => void }) {
     );
   }
 
-  const leftPanel = (
+  const leftPanel = hasIdentity ? (
     <div className="space-y-4">
-      {!hasIdentity ? (
-        <ExpressBookingSearchPanel onSelect={selectResident} onCreateNew={beginNewResident} />
-      ) : (
-        <>
-          <div className={`${posGlassCard} flex flex-wrap items-start justify-between gap-3`}>
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-apg-muted">
-                {isNewResident ? 'New resident' : 'Existing resident'}
-              </p>
-              <p className="mt-1 text-xl font-semibold text-white">{fullName}</p>
-              <p className="text-sm text-apg-silver">{phone}</p>
-            </div>
+      <div className={`${posGlassCard} flex flex-wrap items-start justify-between gap-3`}>
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-apg-muted">
+            {isNewResident ? 'New resident' : 'Existing resident'}
+          </p>
+          <p className="mt-1 text-xl font-semibold text-white">{fullName}</p>
+          <p className="text-sm text-apg-silver">{phone}</p>
+        </div>
+        <button
+          type="button"
+          onClick={resetResident}
+          className="rounded-lg border border-white/10 px-3 py-2 text-xs text-apg-silver hover:text-white"
+        >
+          Change user
+        </button>
+      </div>
+
+      {ctxLoading ? (
+        <p className="text-sm text-apg-silver">Loading current assignment…</p>
+      ) : ctx ? (
+        <CurrentTenancyCard ctx={ctx} />
+      ) : null}
+
+      {isNewResident ? (
+        <div className={posGlassCard}>
+          <p className="text-xs font-semibold uppercase tracking-wide text-apg-muted">
+            Resident details
+          </p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <label className="block text-xs text-apg-silver">
+              Full name
+              <input
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                className={posInputClass}
+              />
+            </label>
+            <label className="block text-xs text-apg-silver">
+              Phone
+              <input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className={posInputClass}
+              />
+            </label>
+            <label className="block text-xs text-apg-silver sm:col-span-2">
+              Email (optional)
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className={posInputClass}
+              />
+            </label>
+            <label className="block text-xs text-apg-silver">
+              Gender
+              <select
+                value={gender}
+                onChange={(e) => setGender(e.target.value as typeof gender)}
+                className={posInputClass}
+              >
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+              </select>
+            </label>
+          </div>
+          <label className="mt-3 flex items-start gap-2 text-xs text-apg-silver">
+            <input
+              type="checkbox"
+              checked={adminVerifiedKyc}
+              onChange={(e) => setAdminVerifiedKyc(e.target.checked)}
+              className="mt-0.5"
+            />
+            Verified by admin (skip OTP)
+          </label>
+        </div>
+      ) : null}
+
+      <div className={posGlassCard}>
+        <p className="text-xs font-semibold uppercase tracking-wide text-apg-muted">Stay type</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {(
+            [
+              ['fixed', 'Fixed Stay', 'Daily rental · check-in + check-out'],
+              ['continue', 'Monthly Stay', 'Open-ended · deposit + monthly rent'],
+            ] as const
+          ).map(([value, title, desc]) => (
             <button
+              key={value}
               type="button"
-              onClick={resetResident}
-              className="rounded-lg border border-white/10 px-3 py-2 text-xs text-apg-silver hover:text-white"
+              onClick={() => setStayType(value)}
+              className={`rounded-xl border p-4 text-left transition ${
+                stayType === value
+                  ? 'border-[#FF5A1F]/50 bg-[#FF5A1F]/10'
+                  : 'border-white/10 hover:border-white/20'
+              }`}
             >
-              Change user
+              <p className="font-semibold text-white">{title}</p>
+              <p className="mt-1 text-xs text-apg-silver">{desc}</p>
             </button>
-          </div>
+          ))}
+        </div>
+      </div>
 
-          {ctxLoading ? (
-            <p className="text-sm text-apg-silver">Loading current assignment…</p>
-          ) : ctx ? (
-            <CurrentTenancyCard ctx={ctx} />
+      <div className={posGlassCard}>
+        <p className="text-xs font-semibold uppercase tracking-wide text-apg-muted">Dates</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label className="block text-xs text-apg-silver">
+            Check-in
+            <input
+              type="date"
+              value={checkInDate}
+              onChange={(e) => setCheckInDate(e.target.value)}
+              className={posInputClass}
+            />
+          </label>
+          {stayType === 'fixed' ? (
+            <label className="block text-xs text-apg-silver">
+              Check-out
+              <input
+                type="date"
+                value={checkOutDate}
+                onChange={(e) => setCheckOutDate(e.target.value)}
+                className={posInputClass}
+              />
+            </label>
           ) : null}
+        </div>
+        {quote?.isHistorical ? (
+          <p className="mt-2 text-xs text-amber-200/90">
+            Historical check-in — invoice only, no bed reservation or occupancy change.
+          </p>
+        ) : null}
+      </div>
 
-          {isNewResident ? (
-            <div className={posGlassCard}>
-              <p className="text-xs font-semibold uppercase tracking-wide text-apg-muted">
-                Resident details
-              </p>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <label className="block text-xs text-apg-silver">
-                  Full name
-                  <input
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className={posInputClass}
-                  />
-                </label>
-                <label className="block text-xs text-apg-silver">
-                  Phone
-                  <input
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className={posInputClass}
-                  />
-                </label>
-                <label className="block text-xs text-apg-silver sm:col-span-2">
-                  Email (optional)
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className={posInputClass}
-                  />
-                </label>
-                <label className="block text-xs text-apg-silver">
-                  Gender
-                  <select
-                    value={gender}
-                    onChange={(e) => setGender(e.target.value as typeof gender)}
-                    className={posInputClass}
-                  >
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="other">Other</option>
-                  </select>
-                </label>
-              </div>
-              <label className="mt-3 flex items-start gap-2 text-xs text-apg-silver">
-                <input
-                  type="checkbox"
-                  checked={adminVerifiedKyc}
-                  onChange={(e) => setAdminVerifiedKyc(e.target.checked)}
-                  className="mt-0.5"
-                />
-                Verified by admin (skip OTP)
-              </label>
-            </div>
-          ) : null}
-
-          <div className={posGlassCard}>
-            <p className="text-xs font-semibold uppercase tracking-wide text-apg-muted">Stay type</p>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              {(
-                [
-                  ['fixed', 'Fixed Stay', 'Daily rental · check-in + check-out'],
-                  ['continue', 'Monthly Stay', 'Open-ended · deposit + monthly rent'],
-                ] as const
-              ).map(([value, title, desc]) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setStayType(value)}
-                  className={`rounded-xl border p-4 text-left transition ${
-                    stayType === value
-                      ? 'border-[#FF5A1F]/50 bg-[#FF5A1F]/10'
-                      : 'border-white/10 hover:border-white/20'
-                  }`}
-                >
-                  <p className="font-semibold text-white">{title}</p>
-                  <p className="mt-1 text-xs text-apg-silver">{desc}</p>
-                </button>
-              ))}
-            </div>
+      <div className={posGlassCard} id="express-bed-section">
+        <p className="text-xs font-semibold uppercase tracking-wide text-apg-muted">
+          {quote?.isHistorical && ctx?.activeTenancy
+            ? 'Billing bed (reference)'
+            : 'Assign bed'}
+        </p>
+        {bedsLoading ? (
+          <p className="mt-2 text-sm text-apg-silver">Loading beds…</p>
+        ) : (
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <label className="block text-xs text-apg-silver">
+              PG
+              <select
+                value={selectedPgId}
+                onChange={(e) => {
+                  setSelectedPgId(e.target.value);
+                  setBedId('');
+                }}
+                className={posInputClass}
+              >
+                <option value="">All PGs</option>
+                {pgOptions.map(([id, name]) => (
+                  <option key={id} value={id}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-xs text-apg-silver">
+              Bed
+              <select
+                value={bedId}
+                onChange={(e) => setBedId(e.target.value)}
+                className={posInputClass}
+              >
+                <option value="">Select bed</option>
+                {filteredBeds.map((b) => (
+                  <option key={b.bedId} value={b.bedId}>
+                    {b.label}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
+        )}
+        <label className="mt-3 flex items-center gap-2 text-xs text-apg-silver">
+          <input
+            type="checkbox"
+            checked={blocksWholeRoom}
+            onChange={(e) => setBlocksWholeRoom(e.target.checked)}
+          />
+          Block whole room availability
+        </label>
+        {quoteLoading ? <p className="mt-2 text-xs text-apg-silver">Calculating rent…</p> : null}
+        {quoteError ? <p className="mt-2 text-xs text-rose-300">{quoteError}</p> : null}
+      </div>
 
-          <div className={posGlassCard}>
-            <p className="text-xs font-semibold uppercase tracking-wide text-apg-muted">Dates</p>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <label className="block text-xs text-apg-silver">
-                Check-in
-                <input
-                  type="date"
-                  value={checkInDate}
-                  onChange={(e) => setCheckInDate(e.target.value)}
-                  className={posInputClass}
-                />
-              </label>
-              {stayType === 'fixed' ? (
-                <label className="block text-xs text-apg-silver">
-                  Check-out
-                  <input
-                    type="date"
-                    value={checkOutDate}
-                    onChange={(e) => setCheckOutDate(e.target.value)}
-                    className={posInputClass}
-                  />
-                </label>
-              ) : null}
-            </div>
-            {quote?.isHistorical ? (
-              <p className="mt-2 text-xs text-amber-200/90">
-                Historical check-in — invoice only, no bed reservation or occupancy change.
-              </p>
-            ) : null}
-          </div>
-
-          <div className={posGlassCard} id="express-bed-section">
-            <p className="text-xs font-semibold uppercase tracking-wide text-apg-muted">
-              {quote?.isHistorical && ctx?.activeTenancy
-                ? 'Billing bed (reference)'
-                : 'Assign bed'}
-            </p>
-            {bedsLoading ? (
-              <p className="mt-2 text-sm text-apg-silver">Loading beds…</p>
-            ) : (
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <label className="block text-xs text-apg-silver">
-                  PG
-                  <select
-                    value={selectedPgId}
-                    onChange={(e) => {
-                      setSelectedPgId(e.target.value);
-                      setBedId('');
-                    }}
-                    className={posInputClass}
-                  >
-                    <option value="">All PGs</option>
-                    {pgOptions.map(([id, name]) => (
-                      <option key={id} value={id}>
-                        {name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block text-xs text-apg-silver">
-                  Bed
-                  <select
-                    value={bedId}
-                    onChange={(e) => setBedId(e.target.value)}
-                    className={posInputClass}
-                  >
-                    <option value="">Select bed</option>
-                    {filteredBeds.map((b) => (
-                      <option key={b.bedId} value={b.bedId}>
-                        {b.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            )}
+      {stayType === 'continue' ? (
+        <div className={posGlassCard}>
+          <p className="text-xs font-semibold uppercase tracking-wide text-apg-muted">
+            Deposit (monthly only)
+          </p>
+          <label className="mt-3 block text-xs text-apg-silver">
+            Deposit collected (₹)
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={depositPaidInr}
+              onChange={(e) => setDepositPaidInr(e.target.value)}
+              className={posInputClass}
+              readOnly={Boolean(quote)}
+            />
+          </label>
+          {ctx && ctx.walletCreditPaise > 0 ? (
             <label className="mt-3 flex items-center gap-2 text-xs text-apg-silver">
               <input
                 type="checkbox"
-                checked={blocksWholeRoom}
-                onChange={(e) => setBlocksWholeRoom(e.target.checked)}
+                checked={useWalletCredit}
+                onChange={(e) => setUseWalletCredit(e.target.checked)}
               />
-              Block whole room availability
+              Apply wallet credit (₹{(ctx.walletCreditPaise / 100).toLocaleString('en-IN')})
             </label>
-            {quoteLoading ? (
-              <p className="mt-2 text-xs text-apg-silver">Calculating rent…</p>
-            ) : null}
-            {quoteError ? <p className="mt-2 text-xs text-rose-300">{quoteError}</p> : null}
-          </div>
-
-          {stayType === 'continue' ? (
-            <div className={posGlassCard}>
-              <p className="text-xs font-semibold uppercase tracking-wide text-apg-muted">
-                Deposit (monthly only)
-              </p>
-              <label className="mt-3 block text-xs text-apg-silver">
-                Deposit collected (₹)
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={depositPaidInr}
-                  onChange={(e) => setDepositPaidInr(e.target.value)}
-                  className={posInputClass}
-                  readOnly={Boolean(quote)}
-                />
-              </label>
-              {ctx && ctx.walletCreditPaise > 0 ? (
-                <label className="mt-3 flex items-center gap-2 text-xs text-apg-silver">
-                  <input
-                    type="checkbox"
-                    checked={useWalletCredit}
-                    onChange={(e) => setUseWalletCredit(e.target.checked)}
-                  />
-                  Apply wallet credit (₹{(ctx.walletCreditPaise / 100).toLocaleString('en-IN')})
-                </label>
-              ) : null}
-            </div>
           ) : null}
+        </div>
+      ) : null}
 
-          <div className={`${posGlassCard} lg:hidden`}>
-            <p className="text-xs font-semibold uppercase tracking-wide text-apg-muted">Payment</p>
-            <PaymentControls
-              paymentStatus={paymentStatus}
-              setPaymentStatus={setPaymentStatus}
-              paymentMethod={paymentMethod}
-              setPaymentMethod={setPaymentMethod}
-              amountReceivedInr={amountReceivedInr}
-              setAmountReceivedInr={setAmountReceivedInr}
-            />
-          </div>
-        </>
-      )}
+      <div className={`${posGlassCard} lg:hidden`}>
+        <p className="text-xs font-semibold uppercase tracking-wide text-apg-muted">Payment</p>
+        <PaymentControls
+          paymentStatus={paymentStatus}
+          setPaymentStatus={setPaymentStatus}
+          paymentMethod={paymentMethod}
+          setPaymentMethod={setPaymentMethod}
+          amountReceivedInr={amountReceivedInr}
+          setAmountReceivedInr={setAmountReceivedInr}
+        />
+      </div>
     </div>
-  );
+  ) : null;
+
+  const confirmPanel = confirmOpen ? (
+    <div className={`${posGlassCard} border-[#FF5A1F]/30`}>
+      <p className="text-lg font-semibold text-white">Confirm booking</p>
+      <p className="mt-2 text-sm text-apg-silver">
+        Create {stayType === 'fixed' ? 'fixed stay' : 'monthly stay'} for {fullName}?
+      </p>
+      {submitError ? <p className="mt-2 text-sm text-rose-300">{submitError}</p> : null}
+      <div className="mt-4 flex gap-3">
+        <button
+          type="button"
+          onClick={() => setConfirmOpen(false)}
+          className="flex-1 rounded-xl border border-white/10 py-3 text-sm text-apg-silver"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          disabled={submitting}
+          onClick={submitBooking}
+          className="flex-1 rounded-xl bg-[#FF5A1F] py-3 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          {submitting ? 'Creating…' : 'Confirm'}
+        </button>
+      </div>
+    </div>
+  ) : null;
 
   const rightPanel = hasIdentity ? (
-    <div className="space-y-4">
+    <div className="space-y-4 lg:sticky lg:top-4">
       <ExpressBookingReceipt
         residentName={fullName}
         ctx={ctx}
@@ -570,46 +605,57 @@ export function ExpressBookingSheet({ onClose }: { onClose: () => void }) {
           setAmountReceivedInr={setAmountReceivedInr}
         />
       </div>
-      <button
-        type="button"
-        disabled={submitting || !quote || !bedId}
-        onClick={() => setConfirmOpen(true)}
-        className="hidden w-full rounded-xl bg-[#FF5A1F] py-4 text-base font-semibold text-white hover:brightness-110 disabled:opacity-40 lg:block"
-      >
-        Review & create
-      </button>
+      {confirmPanel}
+      {!confirmOpen ? (
+        <button
+          type="button"
+          disabled={submitting || !quote || !bedId}
+          onClick={() => setConfirmOpen(true)}
+          className="hidden w-full rounded-xl bg-[#FF5A1F] py-4 text-base font-semibold text-white hover:brightness-110 disabled:opacity-40 lg:block"
+        >
+          Review & create
+        </button>
+      ) : null}
     </div>
   ) : null;
 
   return (
-    <div className="flex h-full flex-col bg-[#0a0d12]">
-      <header className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-4 sm:px-6">
-        <div>
-          <h1 className="text-lg font-semibold text-white">Express Booking</h1>
-          <p className="text-xs text-apg-silver">Point of sale — booking & invoices</p>
+    <div className="-mx-3 -my-4 flex min-h-[calc(100dvh-3.5rem)] flex-col bg-[#0B0F14] sm:-mx-4 sm:-my-6 lg:-mx-8 lg:-my-8">
+      <header className="shrink-0 border-b border-white/10 bg-[#0B0F14]/95 px-4 py-4 backdrop-blur sm:px-6 lg:px-8">
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-semibold text-white sm:text-2xl">Express Booking</h1>
+            <p className="text-sm text-apg-silver">Walk-in booking & invoice workspace</p>
+          </div>
+          <button
+            type="button"
+            onClick={handleClose}
+            className="rounded-lg border border-white/10 px-4 py-2 text-sm text-apg-silver hover:text-white"
+          >
+            Back
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-lg border border-white/10 px-4 py-2 text-sm text-apg-silver hover:text-white"
-        >
-          Close
-        </button>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
-        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 lg:max-w-xl lg:border-r lg:border-white/10 xl:max-w-2xl">
-          {leftPanel}
-        </div>
-        {hasIdentity ? (
-          <div className="hidden min-h-0 w-full shrink-0 overflow-y-auto border-t border-white/10 p-4 sm:p-6 lg:block lg:w-[min(100%,28rem)] lg:border-t-0">
-            {rightPanel}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
+        {!hasIdentity ? (
+          <div className="mx-auto w-full max-w-6xl">
+            <ExpressBookingSearchPanel
+              variant="hero"
+              onSelect={selectResident}
+              onCreateNew={beginNewResident}
+            />
           </div>
-        ) : null}
+        ) : (
+          <div className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
+            <div className="min-w-0">{leftPanel}</div>
+            <div className="min-w-0">{rightPanel}</div>
+          </div>
+        )}
       </div>
 
-      {hasIdentity ? (
-        <div className="shrink-0 border-t border-white/10 p-4 lg:hidden">
+      {hasIdentity && !confirmOpen ? (
+        <div className="shrink-0 border-t border-white/10 bg-[#0B0F14] p-4 lg:hidden">
           <button
             type="button"
             disabled={submitting || !quote || !bedId}
@@ -621,32 +667,9 @@ export function ExpressBookingSheet({ onClose }: { onClose: () => void }) {
         </div>
       ) : null}
 
-      {confirmOpen ? (
-        <div className="fixed inset-0 z-[100000] flex items-end justify-center bg-black/70 p-4 sm:items-center">
-          <div className={`${posGlassCard} w-full max-w-md`}>
-            <p className="text-lg font-semibold text-white">Confirm booking</p>
-            <p className="mt-2 text-sm text-apg-silver">
-              Create {stayType === 'fixed' ? 'fixed stay' : 'monthly stay'} for {fullName}?
-            </p>
-            {submitError ? <p className="mt-2 text-sm text-rose-300">{submitError}</p> : null}
-            <div className="mt-4 flex gap-3">
-              <button
-                type="button"
-                onClick={() => setConfirmOpen(false)}
-                className="flex-1 rounded-xl border border-white/10 py-3 text-sm text-apg-silver"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={submitBooking}
-                className="flex-1 rounded-xl bg-[#FF5A1F] py-3 text-sm font-semibold text-white disabled:opacity-50"
-              >
-                {submitting ? 'Creating…' : 'Confirm'}
-              </button>
-            </div>
-          </div>
+      {hasIdentity && confirmOpen ? (
+        <div className="shrink-0 border-t border-white/10 bg-[#0B0F14] p-4 lg:hidden">
+          {confirmPanel}
         </div>
       ) : null}
     </div>

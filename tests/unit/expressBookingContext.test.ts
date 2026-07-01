@@ -1,6 +1,7 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
 import { isHistoricalCheckIn } from '@/src/services/expressBookingQuote';
+import { serializeExpressBookingContext } from '@/src/lib/admin/expressBookingTypes';
 
 test('isHistoricalCheckIn returns true when check-in is before today', () => {
   assert.equal(isHistoricalCheckIn('2020-01-01', new Date('2026-07-02T12:00:00Z')), true);
@@ -65,9 +66,37 @@ test('fixed stay quote shape excludes deposit', () => {
   assert.equal(quote.dailyRatePaise, 33000);
 });
 
-test('historical sale requires active booking when no live path', () => {
-  const historical = true;
-  const activeTenancy = null;
-  const shouldBlock = historical && !activeTenancy;
-  assert.equal(shouldBlock, true);
+test('serializeExpressBookingContext coerces bigint-like values', () => {
+  const raw = {
+    customerId: 'uuid',
+    fullName: 'Test',
+    email: '',
+    phone: '+919999999999',
+    gender: 'male' as const,
+    kycStatus: 'approved',
+    tenancyStatus: 'active' as const,
+    walletCreditPaise: BigInt(50000) as unknown as number,
+    activeTenancy: {
+      bookingId: 'b1',
+      bookingCode: 'APG-1',
+      bookingStatus: 'confirmed',
+      pgId: 'pg1',
+      pgName: 'Shantinagar',
+      roomNumber: '203',
+      bedId: 'bed1',
+      bedCode: 'B3',
+      moveInDate: '2026-01-01',
+      stayType: 'monthly_stay',
+      durationMode: 'open_ended',
+      monthlyRentPaise: BigInt(1200000) as unknown as number,
+      depositPaise: BigInt(600000) as unknown as number,
+      isVacating: false,
+      expectedCheckoutDate: null,
+    },
+    depositCollectedPaise: BigInt(600000) as unknown as number,
+    depositHeldPaise: BigInt(600000) as unknown as number,
+  };
+  const out = serializeExpressBookingContext(raw);
+  assert.equal(typeof out.walletCreditPaise, 'number');
+  assert.equal(out.activeTenancy?.monthlyRentPaise, 1200000);
 });

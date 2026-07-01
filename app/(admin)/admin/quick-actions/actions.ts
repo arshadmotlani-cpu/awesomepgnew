@@ -17,8 +17,15 @@ import {
 import { loadExpressBookingResidentContext } from '@/src/services/expressBookingContext';
 import {
   quoteExpressBooking,
-  type ExpressBookingQuote,
 } from '@/src/services/expressBookingQuote';
+import type {
+  ExpressBookingQuote,
+  ExpressBookingResidentContext,
+} from '@/src/lib/admin/expressBookingTypes';
+import {
+  serializeExpressBookingContext,
+  serializeExpressBookingQuote,
+} from '@/src/lib/admin/expressBookingTypes';
 import type { ExpressBookingPaymentStatus } from '@/src/services/expressBookingPayment';
 import {
   getDepositSummaryForBooking,
@@ -390,17 +397,13 @@ export type ExpressWalkInLookupResult =
       kycStatus: string;
       tenancyStatus: 'active' | 'unassigned' | 'vacated' | 'vacating';
       walletCreditPaise: number;
-      activeTenancy: import('@/src/services/expressBookingContext').ExpressBookingActiveTenancy | null;
+      activeTenancy: import('@/src/lib/admin/expressBookingTypes').ExpressBookingActiveTenancy | null;
       depositCollectedPaise: number;
       depositHeldPaise: number;
     }
   | { found: false };
 
-export type ExpressBookingResidentContext = NonNullable<
-  Awaited<ReturnType<typeof loadExpressBookingResidentContext>>
->;
-
-export type { ExpressBookingQuote };
+export type { ExpressBookingQuote, ExpressBookingResidentContext } from '@/src/lib/admin/expressBookingTypes';
 
 
 export async function searchExpressWalkInCustomersAction(
@@ -446,7 +449,7 @@ export async function getExpressBookingContextAction(
     const session = await requireAdminPermission('bookings:write');
     const ctx = await loadExpressBookingResidentContext(session, customerId);
     if (!ctx) return { error: 'Resident not found.' };
-    return ctx;
+    return serializeExpressBookingContext(ctx);
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Could not load resident.' };
   }
@@ -461,7 +464,7 @@ export async function quoteExpressBookingAction(input: {
   try {
     await requireAdminPermission('bookings:write');
     const quote = await quoteExpressBooking(input);
-    return { ok: true, quote };
+    return { ok: true, quote: serializeExpressBookingQuote(quote) };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Could not quote booking.' };
   }

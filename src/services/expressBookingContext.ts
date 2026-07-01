@@ -9,38 +9,12 @@ import type { AdminSession } from '@/src/lib/auth/session';
 import { getCustomerDepositCredit } from '@/src/services/depositCredit';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { getResidentDetail } from '@/src/services/residentAdmin';
+import {
+  serializeExpressBookingContext,
+  type ExpressBookingResidentContext,
+} from '@/src/lib/admin/expressBookingTypes';
 
-export type ExpressBookingActiveTenancy = {
-  bookingId: string;
-  bookingCode: string;
-  bookingStatus: string;
-  pgId: string;
-  pgName: string;
-  roomNumber: string;
-  bedId: string;
-  bedCode: string;
-  moveInDate: string;
-  stayType: string | null;
-  durationMode: string;
-  monthlyRentPaise: number;
-  depositPaise: number;
-  isVacating: boolean;
-  expectedCheckoutDate: string | null;
-};
-
-export type ExpressBookingResidentContext = {
-  customerId: string;
-  fullName: string;
-  email: string;
-  phone: string;
-  gender: 'male' | 'female' | 'other';
-  kycStatus: string;
-  tenancyStatus: 'active' | 'unassigned' | 'vacated' | 'vacating';
-  walletCreditPaise: number;
-  activeTenancy: ExpressBookingActiveTenancy | null;
-  depositCollectedPaise: number;
-  depositHeldPaise: number;
-};
+export type { ExpressBookingActiveTenancy, ExpressBookingResidentContext } from '@/src/lib/admin/expressBookingTypes';
 
 function isPlaceholderWalkInEmail(email: string): boolean {
   return email.startsWith('walkin+') && email.endsWith('@residents.awesomepg.in');
@@ -99,7 +73,7 @@ export async function loadExpressBookingResidentContext(
     resolvedStatus = 'vacated';
   }
 
-  return {
+  return serializeExpressBookingContext({
     customerId: customer.id,
     fullName: customer.fullName,
     email: isPlaceholderWalkInEmail(customer.email) ? '' : customer.email,
@@ -129,5 +103,5 @@ export async function loadExpressBookingResidentContext(
       : null,
     depositCollectedPaise,
     depositHeldPaise,
-  };
+  });
 }

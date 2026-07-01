@@ -1,7 +1,7 @@
 'use client';
 
 import { paiseToInr } from '@/src/lib/format';
-import type { ExpressBookingResidentContext } from '@/app/(admin)/admin/quick-actions/actions';
+import type { ExpressBookingResidentContext } from '@/src/lib/admin/expressBookingTypes';
 import { posGlassCard } from '@/src/components/admin/expressBooking/expressBookingStyles';
 
 export function CurrentTenancyCard({ ctx }: { ctx: ExpressBookingResidentContext }) {

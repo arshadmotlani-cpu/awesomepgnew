@@ -1,10 +1,12 @@
 'use client';
 
 import { paiseToInr } from '@/src/lib/format';
-import type { ExpressBookingQuote } from '@/app/(admin)/admin/quick-actions/actions';
-import type { ExpressBookingResidentContext } from '@/app/(admin)/admin/quick-actions/actions';
-import type { ExpressBookingStayType } from '@/src/services/expressBookingQuote';
-import type { ExpressBookingPaymentStatus } from '@/src/services/expressBookingPayment';
+import type {
+  ExpressBookingQuote,
+  ExpressBookingResidentContext,
+  ExpressBookingStayType,
+  ExpressBookingPaymentStatus,
+} from '@/src/lib/admin/expressBookingTypes';
 import { posGlassCard } from '@/src/components/admin/expressBooking/expressBookingStyles';
 
 export function ExpressBookingReceipt({

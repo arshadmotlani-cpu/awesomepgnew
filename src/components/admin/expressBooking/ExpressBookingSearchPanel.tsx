@@ -40,31 +40,47 @@ function SearchResultRow({
 export function ExpressBookingSearchPanel({
   onSelect,
   onCreateNew,
+  variant = 'default',
 }: {
   onSelect: (row: AdminResidentSearchResult) => void;
   onCreateNew?: (query: string) => void;
+  variant?: 'default' | 'hero';
 }) {
   const { query, setQuery, results, loading, showEmpty, emptyMessage } = useAdminResidentSearch({
     minLength: 1,
     debounceMs: 250,
   });
 
+  const heroInputClass =
+    'mt-3 w-full rounded-2xl border border-white/15 bg-[#0d1118]/90 px-5 py-4 text-lg text-white placeholder:text-apg-muted focus:border-[#FF5A1F]/50 focus:outline-none focus:ring-2 focus:ring-[#FF5A1F]/25';
+
+  const wrapperClass = variant === 'hero' ? 'w-full' : posGlassCard;
+  const inputClass = variant === 'hero' ? heroInputClass : posInputClass;
+  const labelClass =
+    variant === 'hero'
+      ? 'block text-sm font-medium text-apg-silver'
+      : 'block text-xs font-semibold uppercase tracking-wide text-apg-muted';
+
   return (
-    <div className={posGlassCard}>
-      <label className="block text-xs font-semibold uppercase tracking-wide text-apg-muted">
-        Find resident
+    <div className={wrapperClass}>
+      <label className={labelClass}>
+        {variant === 'hero' ? 'Search by name or phone' : 'Find resident'}
         <input
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Name or phone — filters as you type"
-          className={posInputClass}
+          className={inputClass}
           autoFocus
         />
       </label>
       {loading ? <p className="mt-3 text-sm text-apg-silver">Searching…</p> : null}
       {results.length > 0 ? (
-        <ul className="mt-3 max-h-64 overflow-y-auto rounded-xl border border-white/10">
+        <ul
+          className={`mt-3 overflow-y-auto rounded-xl border border-white/10 ${
+            variant === 'hero' ? 'max-h-[min(60vh,28rem)]' : 'max-h-64'
+          }`}
+        >
           {results.map((row) => (
             <li key={row.id}>
               <SearchResultRow row={row} onSelect={onSelect} />

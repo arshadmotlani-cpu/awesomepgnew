@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { quoteExpressBookingAction, type ExpressBookingQuote } from '@/app/(admin)/admin/quick-actions/actions';
-import type { ExpressBookingStayType } from '@/src/services/expressBookingQuote';
+import { quoteExpressBookingAction } from '@/app/(admin)/admin/quick-actions/actions';
+import type { ExpressBookingQuote, ExpressBookingStayType } from '@/src/lib/admin/expressBookingTypes';
 
 export function useExpressBookingQuote(input: {
   bedId: string;
@@ -31,21 +31,28 @@ export function useExpressBookingQuote(input: {
       void (async () => {
         setLoading(true);
         setError(null);
-        const res = await quoteExpressBookingAction({
-          bedId: input.bedId,
-          checkInDate: input.checkInDate,
-          checkOutDate: input.stayType === 'fixed' ? input.checkOutDate : null,
-          stayType: input.stayType,
-        });
-        if (controller.signal.aborted) return;
-        if (!res.ok) {
+        try {
+          const res = await quoteExpressBookingAction({
+            bedId: input.bedId,
+            checkInDate: input.checkInDate,
+            checkOutDate: input.stayType === 'fixed' ? input.checkOutDate : null,
+            stayType: input.stayType,
+          });
+          if (controller.signal.aborted) return;
+          if (!res.ok) {
+            setQuote(null);
+            setError(res.error);
+          } else {
+            setQuote(res.quote);
+            setError(null);
+          }
+        } catch (err) {
+          if (controller.signal.aborted) return;
           setQuote(null);
-          setError(res.error);
-        } else {
-          setQuote(res.quote);
-          setError(null);
+          setError(err instanceof Error ? err.message : 'Could not load pricing.');
+        } finally {
+          if (!controller.signal.aborted) setLoading(false);
         }
-        setLoading(false);
       })();
     }, 300);
 
