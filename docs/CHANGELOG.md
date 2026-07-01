@@ -256,20 +256,22 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-01 14:08:14 UTC
+### Pending pre-commit sync · 2026-07-01 14:33:23 UTC
 
-**Areas touched:** [[Electricity]], [[Billing]]
+**Areas touched:** [[ROUTES]], [[Vacating]], [[Bed Assignment]]
 
 **Docs flagged for review:**
-- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
+- `DECISIONS.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
+- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (2):**
-- `src/services/electricityBilling.ts`
-- `src/services/rentInvoices.ts`
+**Staged code files (3):**
+- `app/(customer)/pgs/[pgSlug]/page.tsx`
+- `src/services/checkoutSettlement.ts`
+- `src/services/pgBedMap.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

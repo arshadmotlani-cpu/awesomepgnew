@@ -6,6 +6,7 @@ import type { CustomerRoomBedMap } from '@/src/components/customer/CustomerBedMa
 import { AnalyticsMountEvent } from '@/src/components/analytics/AnalyticsMountEvent';
 import { getPgBySlug, getRoomDetail, listRoomsForPg } from '@/src/db/queries/customer';
 import { buildSingleSharedSummaries } from '@/src/lib/booking/pgRoomTypeSummaries';
+import { enrichBedsWithQuotedMonthlyDeposit } from '@/src/lib/booking/publicQuote';
 import { trackAnalyticsEvent } from '@/src/services/visitorAnalytics';
 
 export const dynamic = 'force-dynamic';
@@ -35,36 +36,46 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
     await Promise.all(roomList.map((r) => getRoomDetail(pg.slug, r.roomId)))
   ).flatMap((d) => (d.ok && d.data ? [d.data] : []));
 
-  const bedMapRooms: CustomerRoomBedMap[] = roomDetails.map((room) => ({
-    roomId: room.roomId,
-    roomNumber: room.roomNumber,
-    roomType: room.roomType,
-    capacity: room.capacity,
-    hasAc: room.hasAc,
-    floorLabel: room.floorLabel,
-    floorNumber: room.floorNumber,
-    beds: room.beds.map((b) => ({
-      bedId: b.bedId,
-      bedCode: b.bedCode,
-      status: b.status,
-      isAvailableNow: b.isAvailableNow,
-      nextAvailableDate: b.nextAvailableDate,
-      interestCount: b.interestCount,
-      noticeInterestCount: b.noticeInterestCount,
-      vacatingDate: b.vacatingDate ?? null,
-      vacatingStatus: b.vacatingStatus ?? null,
-      reservedFrom: b.reservedFrom ?? null,
-      activeBedReserveCheckIn: b.activeBedReserveCheckIn ?? null,
-      manualOccupied: b.manualOccupied ?? false,
-      dailyRatePaise: b.dailyRatePaise,
-      weeklyRatePaise: b.weeklyRatePaise,
-      monthlyRatePaise: b.monthlyRatePaise,
-      securityDepositPaise: b.securityDepositPaise,
-      dailySecurityDepositPaise: b.dailySecurityDepositPaise,
-      weeklySecurityDepositPaise: b.weeklySecurityDepositPaise,
-      monthlySecurityDepositPaise: b.monthlySecurityDepositPaise,
-    })),
-  }));
+  const bedMapRooms: CustomerRoomBedMap[] = await Promise.all(
+    roomDetails.map(async (room) => {
+      const enriched = await enrichBedsWithQuotedMonthlyDeposit(room.beds);
+      const enrichedById = new Map(enriched.map((b) => [b.bedId, b]));
+      return {
+        roomId: room.roomId,
+        roomNumber: room.roomNumber,
+        roomType: room.roomType,
+        capacity: room.capacity,
+        hasAc: room.hasAc,
+        floorLabel: room.floorLabel,
+        floorNumber: room.floorNumber,
+        beds: room.beds.map((b) => {
+          const q = enrichedById.get(b.bedId);
+          return {
+            bedId: b.bedId,
+            bedCode: b.bedCode,
+            status: b.status,
+            isAvailableNow: b.isAvailableNow,
+            nextAvailableDate: b.nextAvailableDate,
+            interestCount: b.interestCount,
+            noticeInterestCount: b.noticeInterestCount,
+            vacatingDate: b.vacatingDate ?? null,
+            vacatingStatus: b.vacatingStatus ?? null,
+            reservedFrom: b.reservedFrom ?? null,
+            activeBedReserveCheckIn: b.activeBedReserveCheckIn ?? null,
+            manualOccupied: b.manualOccupied ?? false,
+            dailyRatePaise: b.dailyRatePaise,
+            weeklyRatePaise: b.weeklyRatePaise,
+            monthlyRatePaise: b.monthlyRatePaise,
+            securityDepositPaise: b.securityDepositPaise,
+            dailySecurityDepositPaise: b.dailySecurityDepositPaise,
+            weeklySecurityDepositPaise: b.weeklySecurityDepositPaise,
+            monthlySecurityDepositPaise: b.monthlySecurityDepositPaise,
+            quotedMonthlyDepositPaise: q?.quotedMonthlyDepositPaise,
+          };
+        }),
+      };
+    }),
+  );
 
   void trackAnalyticsEvent({
     eventType: 'pg_viewed',

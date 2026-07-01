@@ -27,7 +27,7 @@ export type PricingPathAudit = {
 export const PRICING_PATH_AUDITS: PricingPathAudit[] = [
   {
     path: 'Open-ended stay',
-    formula: 'rent = 1 × monthlyRate; deposit = ceil(monthlyRate / 2)',
+    formula: 'rent = 1 × monthlyRate; deposit = monthlySecurityDepositPaise or monthlyRatePaise',
     inputs: ['monthlyRatePaise', 'startDate'],
     output: 'subtotalPaise, depositPaise, totalPaise',
     edgeCases: [
@@ -38,7 +38,7 @@ export const PRICING_PATH_AUDITS: PricingPathAudit[] = [
   {
     path: 'Monthly stay',
     formula:
-      'rent = wholeMonths × monthlyRate + remainderDays × dailyRate (or monthly/30); deposit = ceil(monthlyRate / 2)',
+      'rent = wholeMonths × monthlyRate + remainderDays × dailyRate (or monthly/30); deposit = monthlySecurityDepositPaise or monthlyRatePaise (1-month policy)',
     inputs: ['startDate', 'endDate', 'monthlyRatePaise', 'dailyRatePaise'],
     output: 'subtotalPaise with monthly_cycle + pro_rata_days line items',
     edgeCases: [

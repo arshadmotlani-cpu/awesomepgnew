@@ -470,6 +470,7 @@ async function loadSettlementRow(
     INNER JOIN customers c ON c.id = cs.customer_id
     INNER JOIN bookings b ON b.id = cs.booking_id
     INNER JOIN vacating_requests vr ON vr.id = cs.vacating_request_id
+      AND vr.checkout_settlement_suppressed = false
     LEFT JOIN LATERAL (
       SELECT
         bd.bed_code,
@@ -614,6 +615,7 @@ export async function listCheckoutSettlements(
     INNER JOIN customers c ON c.id = cs.customer_id
     INNER JOIN bookings b ON b.id = cs.booking_id
     INNER JOIN vacating_requests vr ON vr.id = cs.vacating_request_id
+      AND vr.checkout_settlement_suppressed = false
     LEFT JOIN LATERAL (
       SELECT
         bd.bed_code,
@@ -669,6 +671,7 @@ export async function listPipelineCheckoutSettlements(
     INNER JOIN customers c ON c.id = cs.customer_id
     INNER JOIN bookings b ON b.id = cs.booking_id
     INNER JOIN vacating_requests vr ON vr.id = cs.vacating_request_id
+      AND vr.checkout_settlement_suppressed = false
     LEFT JOIN LATERAL (
       SELECT
         bd.bed_code,

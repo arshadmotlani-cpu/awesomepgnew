@@ -311,6 +311,14 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
         lower(br.stay_range)::text AS move_in_date,
         upper(br.stay_range)::text AS stay_upper,
         coalesce((
+          SELECT bp.monthly_rate_paise::int
+          FROM bed_prices bp
+          WHERE bp.bed_id = b.id
+            AND bp.effective_from <= CURRENT_DATE
+            AND (bp.effective_to IS NULL OR bp.effective_to > CURRENT_DATE)
+          ORDER BY bp.effective_from DESC, bp.created_at DESC
+          LIMIT 1
+        ), (
           SELECT sum((elem->>'monthlyRatePaise')::bigint)::int
           FROM jsonb_array_elements(bk.pricing_snapshot->'perBed') elem
         ), 0) AS monthly_rent_paise
@@ -332,6 +340,14 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
         bk.booking_code,
         lower(br.stay_range)::text AS reserved_from,
         coalesce((
+          SELECT bp.monthly_rate_paise::int
+          FROM bed_prices bp
+          WHERE bp.bed_id = b.id
+            AND bp.effective_from <= CURRENT_DATE
+            AND (bp.effective_to IS NULL OR bp.effective_to > CURRENT_DATE)
+          ORDER BY bp.effective_from DESC, bp.created_at DESC
+          LIMIT 1
+        ), (
           SELECT sum((elem->>'monthlyRatePaise')::bigint)::int
           FROM jsonb_array_elements(bk.pricing_snapshot->'perBed') elem
         ), 0) AS monthly_rent_paise

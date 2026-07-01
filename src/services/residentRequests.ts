@@ -97,9 +97,41 @@ export async function submitDepositRefundRequest(input: {
     return { ok: false as const, error: 'No refundable deposit balance on this booking.' };
   }
 
+  const [bookingRow] = await db
+    .select({
+      status: bookings.status,
+      durationMode: bookings.durationMode,
+      expectedCheckoutDate: bookings.expectedCheckoutDate,
+      createdAt: bookings.createdAt,
+      depositPaise: bookings.depositPaise,
+      pricingSnapshot: bookings.pricingSnapshot,
+    })
+    .from(bookings)
+    .where(eq(bookings.id, input.bookingId))
+    .limit(1);
+
   const vacatingRes = await getVacatingForBooking(input.bookingId);
+  const monthlyRentPaise =
+    bookingRow?.pricingSnapshot &&
+    typeof bookingRow.pricingSnapshot === 'object' &&
+    'perBed' in bookingRow.pricingSnapshot
+      ? (bookingRow.pricingSnapshot.perBed as Array<{ monthlyRatePaise?: number }>).reduce(
+          (sum, bed) => sum + (bed.monthlyRatePaise ?? 0),
+          0,
+        )
+      : undefined;
+
   const refundEligibility = getDepositRefundEligibility({
     vacating: vacatingRes.ok ? vacatingRes.data : null,
+    booking: bookingRow
+      ? {
+          status: bookingRow.status,
+          durationMode: bookingRow.durationMode,
+          expectedCheckoutDate: bookingRow.expectedCheckoutDate,
+          createdAt: bookingRow.createdAt,
+        }
+      : null,
+    monthlyRentPaise,
   });
   if (!refundEligibility.canRequestRefund) {
     return {

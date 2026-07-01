@@ -94,13 +94,12 @@ export const SHANTINAGAR_OCCUPANCY_SPECS: RoomOccupancySpec[] = [
   },
   {
     roomNumber: '202',
-    allowedNamePatterns: ['angatra', 'anuj', 'ishan', 'jharia'],
+    allowedNamePatterns: ['angatra', 'anuj', 'ishan'],
     regenerateJuneElectricity: true,
     fixedJuneInvoiceAmounts: [
       { namePattern: 'angatra', amountPaise: 82_700 },
       { namePattern: 'anuj', amountPaise: 82_700 },
       { namePattern: 'ishan', amountPaise: 82_600 },
-      { namePattern: 'jharia', amountPaise: 82_600 },
     ],
   },
   {
@@ -966,6 +965,13 @@ async function buildJulyRentCertification(pgId: string) {
   ).length;
 
   return { julyRentByResident, julyRentDuplicateCount };
+}
+
+export async function getShantinagarOccupancyCertification(
+  pgId: string,
+  session: AdminSession,
+): Promise<ShantinagarOccupancySsotReport['certification']> {
+  return buildCertification(pgId, session);
 }
 
 async function buildCertification(pgId: string, session: AdminSession): Promise<ShantinagarOccupancySsotReport['certification']> {

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ApgCard } from '@/src/components/customer/design-system';
 import { DepositRefundRequestForm } from '@/src/components/customer/account/DepositRefundRequestForm';
 import type { DepositRefundSettlementPreview } from '@/src/lib/deposits/depositRefundSettlementPreview';
+import type { DepositRefundEligibility } from '@/src/lib/vacating/depositRefundEligibility';
 
 const PRIMARY_BTN =
   'flex w-full min-h-[52px] items-center justify-center rounded-xl bg-[#FF5A1F] px-6 py-3.5 text-base font-semibold text-white hover:brightness-110';
@@ -14,14 +15,18 @@ export function ResidentRequestForms({
   refundableBalancePaise,
   hasOpenVacating,
   settlementPreview = null,
+  refundEligibility = null,
 }: {
   bookingId: string;
   customerId?: string;
   refundableBalancePaise: number;
   hasOpenVacating: boolean;
   settlementPreview?: DepositRefundSettlementPreview | null;
+  refundEligibility?: DepositRefundEligibility | null;
 }) {
   const [showRefundForm, setShowRefundForm] = useState(false);
+  const canRequestRefund = refundEligibility?.canRequestRefund ?? refundableBalancePaise > 0;
+  const refundLockReason = refundEligibility?.lockReason ?? null;
 
   return (
     <div className="grid gap-4">
@@ -40,10 +45,20 @@ export function ResidentRequestForms({
             Submit your UPI ID or QR code, final electricity meter photo (if metered), and optional
             remarks. Track status here in your Wallet.
           </p>
+          {refundableBalancePaise <= 0 ? (
+            <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              No refundable deposit balance is on file for this stay yet.
+            </p>
+          ) : !canRequestRefund && refundLockReason ? (
+            <p className="mt-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
+              {refundLockReason}
+            </p>
+          ) : null}
           <button
             type="button"
             onClick={() => setShowRefundForm(true)}
-            className={`${PRIMARY_BTN} mt-4`}
+            disabled={!canRequestRefund || refundableBalancePaise <= 0}
+            className={`${PRIMARY_BTN} mt-4 disabled:cursor-not-allowed disabled:opacity-50`}
           >
             Request refund
           </button>

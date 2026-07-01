@@ -69,6 +69,7 @@ import { ResidentHomePanel } from '@/src/components/customer/account/resident/Re
 import { ResidentIncompleteStayPanel } from '@/src/components/customer/account/resident/ResidentIncompleteStayPanel';
 import type { UpcomingPaymentRow } from '@/src/components/customer/account/resident/ResidentUpcomingPayments';
 import { getDepositRefundSettlementPreview } from '@/src/lib/deposits/depositRefundSettlementPreview';
+import { getDepositRefundEligibility } from '@/src/lib/vacating/depositRefundEligibility';
 import { projectElectricityInvoice } from '@/src/services/electricityBilling';
 import { projectInvoice } from '@/src/services/rentInvoices';
 
@@ -523,6 +524,20 @@ export async function ResidentAreaSection({
     ? await getDepositRefundSettlementPreview(walletBooking.bookingId)
     : null;
 
+  const refundEligibility = walletBooking
+    ? getDepositRefundEligibility({
+        vacating: walletBooking.vacating.ok ? walletBooking.vacating.data : null,
+        booking: {
+          status: walletBooking.booking.status,
+          durationMode: walletBooking.booking.durationMode,
+          expectedCheckoutDate: walletBooking.booking.expectedCheckoutDate,
+          createdAt: walletBooking.booking.createdAt,
+        },
+        settlement: checkoutSettlementByBooking.get(walletBooking.bookingId) ?? null,
+        monthlyRentPaise: walletBooking.booking.monthlyRentPaise,
+      })
+    : { canRequestRefund: false, lockReason: 'No active booking found.' };
+
   const paymentHistoryRes = walletBooking
     ? await listPaymentsForBooking(walletBooking.bookingId)
     : null;
@@ -641,7 +656,7 @@ export async function ResidentAreaSection({
             bookingId={primaryBooking.bookingId}
             bookingCode={primaryBooking.bookingCode}
             roomLabel={roomLabel}
-            refundableBalancePaise={primaryBooking.deposit?.refundableBalancePaise ?? 0}
+            refundableBalancePaise={walletAvailableRefundPaise}
           hasDepositDue={hasDepositDue}
           activeRequests={activeRequests}
           selectedRequestId={requestsQuery.requestId ?? null}
@@ -781,6 +796,7 @@ export async function ResidentAreaSection({
             refundableBalancePaise={walletAvailableRefundPaise}
             hasOpenVacating={hasOpenVacating}
             settlementPreview={refundSettlementPreview}
+            refundEligibility={refundEligibility}
           />
         </div>
       ) : null}

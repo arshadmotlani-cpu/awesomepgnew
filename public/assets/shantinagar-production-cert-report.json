@@ -1,0 +1,41 @@
+{
+  "asOf": "2026-07-01T13:42:00Z",
+  "certification": "NOT READY",
+  "livePublicSiteProbe": {
+    "url": "https://www.awesomepg.in/pgs/shantinagar-awesome-pg",
+    "staleAmountsInrFound": [4000, 4080],
+    "expectedAfterPlusOnePercentSampleInr": 4121,
+    "pass": false,
+    "detail": "Production HTML still contains ₹4,080 and ₹4,000 — +1% / 1-month deposit not reflected on public site until bed_prices remediation runs on Neon production DB and deploy revalidates cache."
+  },
+  "productionDatabase": {
+    "available": false,
+    "detail": "DATABASE_URL empty in Vercel production pull; per-resident and bed_prices DB checks blocked"
+  },
+  "residentsChecked": 0,
+  "residentsWithRentInvoice": "0 / 0",
+  "residentsWithElectricityInvoice": "0 / 0",
+  "walletVisible": "FAIL",
+  "vacatingRequest": "PASS",
+  "refundRequest": "PASS",
+  "billsVisibleInResidentProfile": "FAIL",
+  "adminInvoicesSynced": "FAIL",
+  "operationsSynced": "FAIL",
+  "occupancySsot": "FAIL",
+  "noDuplicateInvoices": "FAIL",
+  "noOrphanInvoices": "FAIL",
+  "pricingSurfacesPass": "FAIL",
+  "overall": "NOT READY",
+  "operatorNextSteps": [
+    "Paste Neon DATABASE_URL into environment",
+    "npx tsx scripts/run-shantinagar-production-remediation.ts --execute",
+    "npx tsx scripts/run-shantinagar-production-certification.ts",
+    "Deploy this commit so PG page deposit enrichment + pricing revalidation apply",
+    "Re-run certification until overall is READY TO MESSAGE ALL RESIDENTS"
+  ],
+  "blockers": [
+    "Production DATABASE_URL not available in this environment",
+    "Live public site still shows stale ₹4,080 / ₹4,000 pricing",
+    "Data remediation not yet executed on production Neon"
+  ]
+}

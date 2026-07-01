@@ -7,6 +7,10 @@ import { db } from '@/src/db/client';
 import { auditLog, bedPrices, beds, floors, pgs, rooms } from '@/src/db/schema';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
+import { revalidatePricingViews } from '@/src/lib/pricingRevalidate';
+import { todayString } from '@/src/lib/dates';
+import { writeBedPriceVersion } from '@/src/services/pgInventoryPricing';
+import { loadBedPrice } from '@/src/services/pricing';
 
 export type PricingPreviewRow = {
   bedId: string;
@@ -77,14 +81,43 @@ export async function applyPgPricingRevision(
   const preview = await previewPgPricingRevision(session, pgId, percentChange);
   if (!preview) return { ok: false, message: 'Access denied or PG not found.', updated: 0 };
 
+  const [pgRow] = await db
+    .select({ slug: pgs.slug })
+    .from(pgs)
+    .where(eq(pgs.id, pgId))
+    .limit(1);
+
+  const effectiveFrom = todayString();
   let updated = 0;
   for (const row of preview.rows) {
     if (row.proposedMonthlyPaise === row.currentMonthlyPaise) continue;
-    await db
-      .update(bedPrices)
-      .set({ monthlyRatePaise: row.proposedMonthlyPaise, updatedAt: new Date() })
-      .where(eq(bedPrices.bedId, row.bedId));
+    const rate = await loadBedPrice(row.bedId, effectiveFrom);
+    if (!rate) continue;
+    const proposedMonthly = row.proposedMonthlyPaise;
+    const depositWasOneMonth =
+      rate.monthlySecurityDepositPaise > 0 &&
+      rate.monthlySecurityDepositPaise === rate.monthlyRatePaise;
+    const newMonthlyDeposit = depositWasOneMonth
+      ? proposedMonthly
+      : rate.monthlySecurityDepositPaise;
+    await writeBedPriceVersion(
+      {
+        bedId: row.bedId,
+        dailyRatePaise: rate.dailyRatePaise,
+        weeklyRatePaise: rate.weeklyRatePaise,
+        monthlyRatePaise: proposedMonthly,
+        securityDepositPaise: rate.securityDepositPaise,
+        dailySecurityDepositPaise: rate.dailySecurityDepositPaise,
+        weeklySecurityDepositPaise: rate.weeklySecurityDepositPaise,
+        monthlySecurityDepositPaise: newMonthlyDeposit,
+      },
+      effectiveFrom,
+    );
     updated += 1;
+  }
+
+  if (pgRow?.slug) {
+    revalidatePricingViews(pgRow.slug);
   }
 
   await db.insert(auditLog).values({

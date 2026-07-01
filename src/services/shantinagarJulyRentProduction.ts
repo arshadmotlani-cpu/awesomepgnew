@@ -55,7 +55,7 @@ export const SHANTINAGAR_PRICING_TARGET_ROOMS = [
 
 export const SHANTINAGAR_PRICING_SKIP_ROOMS = ['101'] as const;
 
-const JULY_BILLING_MONTH = '2026-07-01';
+export const JULY_BILLING_MONTH = '2026-07-01';
 
 export type ShantinagarJulyRentReport = {
   roomsUpdated: string[];
@@ -263,7 +263,7 @@ async function syncBillingProfilesFromBedPrices(
   return result.synced;
 }
 
-async function listActiveShantinagarResidents(pgId: string) {
+export async function listActiveShantinagarResidents(pgId: string) {
   return db
     .select({
       bookingId: bookings.id,

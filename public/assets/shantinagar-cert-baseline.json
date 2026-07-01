@@ -1,0 +1,29 @@
+{
+  "asOf": "2026-07-01",
+  "environment": "production",
+  "databaseUrlAvailable": false,
+  "note": "Vercel production pull returns empty DATABASE_URL placeholder. Paste Neon connection string to run certification against production.",
+  "scripts": {
+    "certification": "npx tsx scripts/run-shantinagar-production-certification.ts",
+    "remediation": "npx tsx scripts/run-shantinagar-production-remediation.ts --execute",
+    "occupancyDryRun": "npx tsx scripts/run-shantinagar-occupancy-ssot-repair.ts",
+    "pricingAudit": "npx tsx scripts/audit-shantinagar-pricing.ts",
+    "oneMonthDeposit": "npx tsx scripts/apply-shantinagar-one-month-deposit.ts",
+    "plusOnePercent": "npx tsx scripts/apply-shantinagar-plus-one-percent-fix.ts"
+  },
+  "codeFixesApplied": [
+    "SHANTINAGAR_OCCUPANCY_SPECS room 202: Jharia removed",
+    "src/services/shantinagarProductionCertification.ts unified cert",
+    "scripts/run-shantinagar-production-certification.ts",
+    "scripts/run-shantinagar-production-remediation.ts",
+    "pricingCommandCenter: writeBedPriceVersion + revalidatePricingViews",
+    "PG listing: enrichBedsWithQuotedMonthlyDeposit",
+    "pgBedMap: bed_prices primary for occupant rent display",
+    "auditReport: 1-month deposit policy docs"
+  ],
+  "localBaseline": {
+    "shantinagarPgFound": false,
+    "reason": "Local dev database has no Shantinagar PG"
+  },
+  "overall": "NOT READY — production DATABASE_URL required to complete data verification"
+}
