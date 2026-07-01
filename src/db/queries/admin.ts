@@ -15,6 +15,7 @@ import { normalizeIsoDateOnly, todayString } from '@/src/lib/dates';
 import { asPlainNumber } from '@/src/lib/format';
 import { sanitizeAdminQueryError } from '@/src/lib/admin/productionDbError';
 import { isProductionElectricityBillFilter } from '@/src/lib/billing/electricityProductionFilter';
+import { operationsElectricityInvoiceFilter } from '@/src/lib/billing/electricityOperationsFilter';
 import {
   asElectricityInvoiceRow,
   electricityInvoiceLegacySelect,
@@ -1678,13 +1679,16 @@ export function listAdminElectricityInvoicesForReminders(
         pgId: electricityBills.pgId,
         pgName: pgs.name,
         roomNumber: rooms.roomNumber,
+        bedCode: beds.bedCode,
       })
       .from(electricityInvoices)
       .innerJoin(electricityBills, eq(electricityBills.id, electricityInvoices.electricityBillId))
+      .innerJoin(bookings, eq(bookings.id, electricityInvoices.bookingId))
       .innerJoin(customers, eq(customers.id, electricityInvoices.customerId))
+      .innerJoin(beds, eq(beds.id, electricityInvoices.bedId))
+      .innerJoin(rooms, eq(rooms.id, beds.roomId))
       .innerJoin(pgs, eq(pgs.id, electricityBills.pgId))
-      .innerJoin(rooms, eq(rooms.id, electricityBills.roomId))
-      .where(and(...conditions))
+      .where(and(...conditions, operationsElectricityInvoiceFilter()))
       .orderBy(desc(electricityInvoices.dueDate));
 
     const today = todayString();

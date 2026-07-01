@@ -46,6 +46,7 @@ import {
   asElectricityInvoiceRow,
   electricityInvoiceLegacySelect,
 } from '@/src/lib/db/electricityInvoiceSelect';
+import { operationsElectricityInvoiceFilter } from '@/src/lib/billing/electricityOperationsFilter';
 
 export type OpsTask = OpsTaskInput;
 
@@ -315,7 +316,7 @@ async function listOutstandingElectricity(session: AdminSession) {
     .innerJoin(rooms, eq(rooms.id, beds.roomId))
     .innerJoin(floors, eq(floors.id, rooms.floorId))
     .innerJoin(pgs, eq(pgs.id, floors.pgId))
-    .where(eq(electricityInvoices.status, 'pending'));
+    .where(and(eq(electricityInvoices.status, 'pending'), operationsElectricityInvoiceFilter()));
 
   const items: OperationsCenterData['electricityPending']['items'] = [];
   for (const row of rows) {

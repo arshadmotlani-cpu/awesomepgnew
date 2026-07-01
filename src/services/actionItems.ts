@@ -52,6 +52,7 @@ import {
   asElectricityInvoiceRow,
   electricityInvoiceLegacySelect,
 } from '@/src/lib/db/electricityInvoiceSelect';
+import { operationsElectricityInvoiceFilter } from '@/src/lib/billing/electricityOperationsFilter';
 
 export type ActionItemRow = {
   id: string;
@@ -163,8 +164,14 @@ export async function resolveStaleBillingActionItems(): Promise<{ resolved: numb
       AND ai.status IN ('open', 'in_progress')
       AND NOT EXISTS (
         SELECT 1 FROM electricity_invoices ei
+        INNER JOIN bookings b ON b.id = ei.booking_id
+        INNER JOIN customers c ON c.id = ei.customer_id
         WHERE ai.source_key = 'electricity:' || ei.id::text
           AND ei.status = 'pending'
+          AND COALESCE(ei.is_pipeline_test, false) = false
+          AND b.is_test = false
+          AND c.is_test = false
+          AND lower(trim(c.email)) <> 'arshadmotlani0@gmail.com'
       )
     RETURNING ai.id
   `);
@@ -287,7 +294,7 @@ async function syncElectricityDue(session: AdminSession): Promise<void> {
     .innerJoin(rooms, eq(rooms.id, beds.roomId))
     .innerJoin(floors, eq(floors.id, rooms.floorId))
     .innerJoin(pgs, eq(pgs.id, floors.pgId))
-    .where(eq(electricityInvoices.status, 'pending'));
+    .where(and(eq(electricityInvoices.status, 'pending'), operationsElectricityInvoiceFilter()));
 
   for (const row of rows) {
     if (!sessionCanAccessPg(session, row.pgId)) continue;

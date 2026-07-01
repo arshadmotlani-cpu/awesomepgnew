@@ -1,6 +1,6 @@
 /**
  * Exclude pipeline-test electricity rows from room math, revenue, and reconciliation.
- * Test invoices still appear in admin/resident UI lists.
+ * Operations queues also filter these via electricityOperationsFilter.
  */
 import { eq } from 'drizzle-orm';
 import { electricityBills, electricityInvoices } from '@/src/db/schema';

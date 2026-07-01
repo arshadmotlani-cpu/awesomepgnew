@@ -32,14 +32,17 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../db/client';
 import {
   auditLog,
+  bedReservations,
   beds,
   bookings,
+  customers,
   electricityBills,
   electricityInvoices,
   payments,
   roomElectricityPrepaidLedger,
   rooms,
 } from '../db/schema';
+import { isPipelineTestResidentEmail } from '@/src/lib/billing/pipelineTestResident';
 import type { NewElectricityInvoice } from '../db/schema/electricityInvoices';
 import { diffDays, formatDate, parseDate, type DateLike } from '../lib/dates';
 import {
@@ -342,19 +345,20 @@ export async function createElectricityBill(
     .select({
       bookingId: bookings.id,
       customerId: bookings.customerId,
+      customerEmail: customers.email,
       bedId: beds.id,
-      lower: sql<string>`lower(bed_reservations.stay_range)::text`,
-      upper: sql<string>`upper(bed_reservations.stay_range)::text`,
+      lower: sql<string>`lower(${bedReservations.stayRange})::text`,
+      upper: sql<string>`upper(${bedReservations.stayRange})::text`,
     })
-    .from(bookings)
-    .innerJoin(
-      sql`bed_reservations`,
-      sql`bed_reservations.booking_id = ${bookings.id}`,
-    )
-    .innerJoin(beds, sql`${beds.id} = bed_reservations.bed_id`)
+    .from(bedReservations)
+    .innerJoin(bookings, eq(bookings.id, bedReservations.bookingId))
+    .innerJoin(customers, eq(customers.id, bookings.customerId))
+    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
     .where(
       and(
         eq(beds.roomId, input.roomId),
+        eq(bedReservations.kind, 'primary'),
+        inArray(bedReservations.status, ['active', 'completed']),
         inArray(bookings.status, ['confirmed', 'completed']),
         inArray(
           bookings.durationMode,
@@ -362,8 +366,9 @@ export async function createElectricityBill(
             ? ['monthly', 'open_ended', 'fixed_stay']
             : ['monthly', 'open_ended'],
         ),
-        sql`bed_reservations.kind = 'primary'`,
-        sql`bed_reservations.stay_range && daterange(${monthStartIso}::date, ${monthEndIso}::date, '[)')`,
+        eq(bookings.isTest, false),
+        eq(customers.isTest, false),
+        sql`${bedReservations.stayRange} && daterange(${monthStartIso}::date, ${monthEndIso}::date, '[)')`,
       ),
     );
 
@@ -384,6 +389,7 @@ export async function createElectricityBill(
     { bookingId: string; customerId: string; bedIds: Set<string>; weight: number }
   >();
   for (const row of occupantRows) {
+    if (isPipelineTestResidentEmail(row.customerEmail)) continue;
     const bedDays = input.useProRataByActiveDays
       ? activeDaysInMonth(row.lower, row.upper)
       : 1;
