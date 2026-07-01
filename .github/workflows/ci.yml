@@ -25,8 +25,20 @@ jobs:
       - name: Install dependencies
         run: npm ci --include=dev
 
+      - name: Verify test tooling
+        run: |
+          set -euxo pipefail
+          node -v
+          npm -v
+          test -x node_modules/.bin/tsx
+          node_modules/.bin/tsx --version
+
       - name: Unit and integration tests
-        run: npm run test:ci
+        run: |
+          set -euxo pipefail
+          node_modules/.bin/tsx scripts/lint-image-uploads.ts
+          node_modules/.bin/tsx scripts/lint-private-blob-display.ts
+          node --import tsx --test --test-concurrency=1 'tests/unit/**/*.test.ts' 'tests/integration/**/*.test.ts'
 
       - name: Production build
         run: npm run build
