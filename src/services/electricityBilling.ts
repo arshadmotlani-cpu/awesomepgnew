@@ -30,6 +30,8 @@
 
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../db/client';
+import { writeAuditLogNonBlocking } from '@/src/lib/audit/writeAuditLog';
+import { formatPostgresError } from '@/src/lib/db/postgresError';
 import {
   auditLog,
   bedReservations,
@@ -845,21 +847,6 @@ export async function recordElectricityPaymentSuccess(
         })
         .where(eq(electricityInvoices.id, invoice.id));
 
-      await tx.insert(auditLog).values({
-        actorType: 'system',
-        actorId: null,
-        entity: 'electricity_invoice',
-        entityId: invoice.id,
-        action: fullyPaid ? 'paid' : 'partial_payment',
-        diff: {
-          provider,
-          providerPaymentId: input.providerPaymentId,
-          amountPaise: input.amountPaise,
-          paidPaise: newPaidPaise,
-          outstandingPaise: Math.max(0, totalDue - newPaidPaise),
-        },
-      });
-
       if (bill?.roomId) {
         await recordMonthlyInvoiceCollectionInTx(tx, {
           roomId: bill.roomId,
@@ -874,6 +861,27 @@ export async function recordElectricityPaymentSuccess(
 
       return { paymentId: payment.id };
     });
+
+    const auditResult = await writeAuditLogNonBlocking(db, {
+      actorType: 'system',
+      actorId: null,
+      entity: 'electricity_invoice',
+      entityId: invoice.id,
+      action: fullyPaid ? 'paid' : 'partial_payment',
+      diff: {
+        provider,
+        providerPaymentId: input.providerPaymentId,
+        amountPaise: input.amountPaise,
+        paidPaise: newPaidPaise,
+        outstandingPaise: Math.max(0, totalDue - newPaidPaise),
+      },
+    });
+    if (!auditResult.ok) {
+      console.error(
+        '[electricity-payment] payment recorded but audit_log insert failed',
+        auditResult.error,
+      );
+    }
 
     if (!input.historical) {
       const { notifyPaymentReceipt } = await import('@/src/lib/email/notifications');
@@ -903,7 +911,7 @@ export async function recordElectricityPaymentSuccess(
         .limit(1);
       if (reread) return { ok: true, paymentId: reread.id, invoiceId: invoice.id, stateChanged: false };
     }
-    return { ok: false, reason: err instanceof Error ? err.message : 'unknown error' };
+    return { ok: false, reason: formatPostgresError(err) };
   }
 }
 

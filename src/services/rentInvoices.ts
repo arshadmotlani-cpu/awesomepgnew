@@ -49,6 +49,8 @@ import type { PricingSnapshot } from '../db/schema/bookings';
 import { adminCanAccessPg } from '../lib/auth/roles';
 import type { AdminSession } from '../lib/auth/session';
 import { addDays, diffDays, formatDate, parseDate, type DateLike } from '../lib/dates';
+import { writeAuditLogNonBlocking } from '@/src/lib/audit/writeAuditLog';
+import { formatPostgresError } from '@/src/lib/db/postgresError';
 import {
   computeLateFee,
   daysOverdue,
@@ -1282,26 +1284,32 @@ export async function recordRentPaymentSuccess(
         });
       }
 
-      await tx.insert(auditLog).values({
-        actorType: 'system',
-        actorId: null,
-        entity: 'rent_invoice',
-        entityId: invoice.id,
-        action: fullyPaid ? 'paid' : 'partial_payment',
-        diff: {
-          provider,
-          providerPaymentId: input.providerPaymentId,
-          amountPaise: input.amountPaise,
-          rentPaise: invoice.rentPaise,
-          paidPrincipalPaise: newPaidPrincipal,
-          paidLateFeePaise: newPaidLate,
-          lateFeeLockedPaise: fullyPaid ? lateFee : invoice.lateFeeLockedPaise,
-          outstandingPaise: Math.max(0, newOutstanding),
-        },
-      });
-
       return { paymentId: payment.id };
     });
+
+    const auditResult = await writeAuditLogNonBlocking(db, {
+      actorType: 'system',
+      actorId: null,
+      entity: 'rent_invoice',
+      entityId: invoice.id,
+      action: fullyPaid ? 'paid' : 'partial_payment',
+      diff: {
+        provider,
+        providerPaymentId: input.providerPaymentId,
+        amountPaise: input.amountPaise,
+        rentPaise: invoice.rentPaise,
+        paidPrincipalPaise: newPaidPrincipal,
+        paidLateFeePaise: newPaidLate,
+        lateFeeLockedPaise: fullyPaid ? lateFee : invoice.lateFeeLockedPaise,
+        outstandingPaise: Math.max(0, newOutstanding),
+      },
+    });
+    if (!auditResult.ok) {
+      console.error(
+        '[rent-payment] payment recorded but audit_log insert failed',
+        auditResult.error,
+      );
+    }
 
     if (!input.historical) {
       const { notifyPaymentReceipt } = await import('@/src/lib/email/notifications');
@@ -1379,7 +1387,7 @@ export async function recordRentPaymentSuccess(
         };
       }
     }
-    return { ok: false, reason: err instanceof Error ? err.message : 'unknown error' };
+    return { ok: false, reason: formatPostgresError(err) };
   }
 }
 
