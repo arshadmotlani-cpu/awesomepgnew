@@ -3,7 +3,10 @@ import type { AdminSession } from '@/src/lib/auth/session';
 import { listPgs } from '@/src/db/queries/admin';
 import { getPgInventory } from '@/src/services/pgInventory';
 
-export async function loadPricingCommandCenterData(session: AdminSession): Promise<{
+export async function loadPricingCommandCenterData(
+  session: AdminSession,
+  pgIdInput?: string | null,
+): Promise<{
   pgs: PricingCenterPg[];
   initialPgId: string;
   rooms: PricingCenterRoom[];
@@ -13,7 +16,8 @@ export async function loadPricingCommandCenterData(session: AdminSession): Promi
     ? res.data.map((p) => ({ id: p.id, name: p.name, slug: p.slug }))
     : [];
 
-  const initialPgId = pgs[0]?.id ?? '';
+  const initialPgId =
+    pgIdInput && pgs.some((p) => p.id === pgIdInput) ? pgIdInput : (pgs[0]?.id ?? '');
   if (!initialPgId) {
     return { pgs, initialPgId: '', rooms: [] };
   }

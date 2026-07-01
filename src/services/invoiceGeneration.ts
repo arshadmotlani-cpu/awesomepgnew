@@ -162,6 +162,23 @@ export async function generateInvoiceFromSsot(
     const built = buildBreakdown(items);
     breakdown = built.breakdown;
     amountPaise = built.totalPaise;
+
+    const hasRent = items.some((i) => i.kind === 'rent');
+    const hasElectricity = items.some((i) => i.kind === 'electricity');
+    if (input.kind === 'combined' && hasRent && hasElectricity) {
+      return {
+        ok: false,
+        error:
+          'Rent and electricity must stay on separate invoices — generate one bill per category.',
+      };
+    }
+    if (hasRent && hasElectricity) {
+      return {
+        ok: false,
+        error:
+          'Rent and electricity cannot be combined — each needs its own invoice, QR, and payment record.',
+      };
+    }
   }
 
   if (amountPaise <= 0) {

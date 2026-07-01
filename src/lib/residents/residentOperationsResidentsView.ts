@@ -44,6 +44,10 @@ export type ResidentsQueueRow = {
   kycSubmissionId: string | null;
   vacatingRequestId: string | null;
   category: ResidentOpsQueueCategory;
+  outstandingLabel?: string;
+  outstandingAmountPaise?: number;
+  financialInvoiceId?: string | null;
+  outstandingKind?: 'rent' | 'electricity';
 };
 
 export type JourneyStageId =
@@ -389,6 +393,10 @@ export function buildResidentOperationsResidentsView(input: {
       kycSubmissionId: item.kycSubmissionId,
       vacatingRequestId: item.vacatingRequestId ?? null,
       category: item.category,
+      outstandingLabel: item.outstandingLabel,
+      outstandingAmountPaise: item.outstandingAmountPaise,
+      financialInvoiceId: item.financialInvoiceId,
+      outstandingKind: item.outstandingKind,
     } satisfies ResidentsQueueRow;
   });
 

@@ -32,7 +32,7 @@ export async function generateResidentInvoiceAction(
   try {
     const session = await requireAdminPermission('payments:write');
     const customerId = String(formData.get('customerId') ?? '');
-    const kind = String(formData.get('kind') ?? 'combined') as GenerateInvoiceKind;
+    const kind = String(formData.get('kind') ?? 'rent') as GenerateInvoiceKind;
     const lineItemIds = formData
       .getAll('lineItemIds')
       .map((v) => String(v))

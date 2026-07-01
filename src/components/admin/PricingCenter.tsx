@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { applyPricingAdjustmentAction } from '@/app/(admin)/admin/pricing/actions';
 import { paiseToInr } from '@/src/lib/format';
 import type { PgInventoryBedRow } from '@/src/services/pgInventory';
@@ -37,7 +37,18 @@ export function PricingCenter({
 }) {
   const router = useRouter();
   const [pgId, setPgId] = useState(initialPgId);
-  const [roomId, setRoomId] = useState(rooms[0]?.roomId ?? '');
+  const [roomId, setRoomId] = useState(() => rooms[0]?.roomId ?? '');
+
+  useEffect(() => {
+    setPgId(initialPgId);
+  }, [initialPgId]);
+
+  useEffect(() => {
+    setRoomId((current) => {
+      if (current && rooms.some((r) => r.roomId === current)) return current;
+      return rooms[0]?.roomId ?? '';
+    });
+  }, [rooms]);
   const [tierPreset, setTierPreset] = useState('all');
   const [adjMode, setAdjMode] = useState<AdjustmentMode>('percent');
   const [adjValue, setAdjValue] = useState('5');
@@ -73,6 +84,10 @@ export function PricingCenter({
   }
 
   function onPgChange(id: string) {
+    setPgId(id);
+    setRoomId('');
+    setMessage(null);
+    setError(null);
     router.push(`/admin/pricing?pgId=${id}`);
   }
 

@@ -17,6 +17,14 @@ import { buildActionDeepLink } from '@/src/lib/admin/actionDeepLinks';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 import type { ResidentsQueueRow } from '@/src/lib/residents/residentOperationsResidentsView';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
+import { paiseToInr } from '@/src/lib/format';
+
+export type UnifiedOpsOutstandingLine = {
+  label: string;
+  amountPaise: number;
+  financialInvoiceId?: string | null;
+  kind: 'rent' | 'electricity';
+};
 
 export type UnifiedOpsFilter =
   | 'all'
@@ -35,6 +43,7 @@ export type UnifiedOpsPriority = 'urgent' | 'high' | 'normal' | 'waiting';
 
 export type UnifiedOpsItem = {
   id: string;
+  customerId?: string;
   residentName: string;
   pgName: string | null;
   roomNumber: string | null;
@@ -46,6 +55,7 @@ export type UnifiedOpsItem = {
   openLabel: string;
   filterTags: UnifiedOpsFilter[];
   sortRank: number;
+  outstandingLines?: UnifiedOpsOutstandingLine[];
   cashSettlement?: {
     financialInvoiceId: string;
     invoiceNumber: string;
@@ -120,8 +130,21 @@ function residentsRowToItem(row: ResidentsQueueRow): UnifiedOpsItem {
     row.category === 'electricity_due' ||
     row.nextAction.toLowerCase().includes('waiting for resident');
   const priority = categoryPriority(row.category, waitingOnResident);
+  const outstandingLines: UnifiedOpsOutstandingLine[] | undefined =
+    row.outstandingLabel && row.outstandingAmountPaise != null && row.outstandingKind
+      ? [
+          {
+            label: row.outstandingLabel,
+            amountPaise: row.outstandingAmountPaise,
+            financialInvoiceId: row.financialInvoiceId,
+            kind: row.outstandingKind,
+          },
+        ]
+      : undefined;
+
   return {
     id: row.id,
+    customerId: row.customerId,
     residentName: row.residentName,
     pgName: row.pgName,
     roomNumber: row.roomNumber,
@@ -133,7 +156,75 @@ function residentsRowToItem(row: ResidentsQueueRow): UnifiedOpsItem {
     openLabel: row.primaryActionLabel || 'Open',
     filterTags: rowToFilterTags(row),
     sortRank: categorySortRank(priority),
+    outstandingLines,
   };
+}
+
+function isPaymentWaitingItem(item: UnifiedOpsItem): boolean {
+  return (
+    (item.filterTags.includes('rent_due') ||
+      item.filterTags.includes('electricity_due') ||
+      item.filterTags.includes('overdue')) &&
+    !item.filterTags.includes('payment_proof')
+  );
+}
+
+function mergePaymentWaitingByResident(items: UnifiedOpsItem[]): UnifiedOpsItem[] {
+  const paymentWaiting = items.filter(isPaymentWaitingItem);
+  const rest = items.filter((i) => !isPaymentWaitingItem(i));
+
+  const byCustomer = new Map<string, UnifiedOpsItem[]>();
+  const ungrouped: UnifiedOpsItem[] = [];
+
+  for (const item of paymentWaiting) {
+    if (!item.customerId) {
+      ungrouped.push(item);
+      continue;
+    }
+    const list = byCustomer.get(item.customerId) ?? [];
+    list.push(item);
+    byCustomer.set(item.customerId, list);
+  }
+
+  const grouped: UnifiedOpsItem[] = [...ungrouped];
+
+  for (const [customerId, rows] of byCustomer) {
+    if (rows.length === 1) {
+      grouped.push(rows[0]);
+      continue;
+    }
+
+    const outstandingLines = rows.flatMap((r) => r.outstandingLines ?? []);
+    const priorityOrder: UnifiedOpsPriority[] = ['urgent', 'high', 'normal', 'waiting'];
+    const priority =
+      rows.reduce<UnifiedOpsPriority>((best, row) => {
+        return priorityOrder.indexOf(row.priority) < priorityOrder.indexOf(best)
+          ? row.priority
+          : best;
+      }, 'waiting') ?? 'high';
+    const sortRank = Math.min(...rows.map((r) => r.sortRank));
+    const filterTags = [...new Set(rows.flatMap((r) => r.filterTags))] as UnifiedOpsFilter[];
+    const anchor = rows[0];
+
+    grouped.push({
+      id: `resident-outstanding-${customerId}`,
+      customerId,
+      residentName: anchor.residentName,
+      pgName: anchor.pgName,
+      roomNumber: anchor.roomNumber,
+      bedCode: anchor.bedCode,
+      priority,
+      status: 'Outstanding',
+      nextAction: 'Collect each invoice separately — rent and electricity stay independent',
+      openHref: `/admin/residents/${customerId}#open-bills`,
+      openLabel: 'Open',
+      filterTags,
+      sortRank,
+      outstandingLines,
+    });
+  }
+
+  return [...rest, ...grouped];
 }
 
 async function listPendingBookingApprovals(session: AdminSession) {
@@ -344,7 +435,7 @@ export async function loadUnifiedOperationsQueue(
     });
   }
 
-  let items = [...byId.values()].sort((a, b) => {
+  let items = mergePaymentWaitingByResident([...byId.values()]).sort((a, b) => {
     if (a.sortRank !== b.sortRank) return a.sortRank - b.sortRank;
     return a.residentName.localeCompare(b.residentName);
   });
@@ -353,14 +444,14 @@ export async function loadUnifiedOperationsQueue(
     items = items.filter((item) => matchesFilter(item, filter));
   }
 
-  const allItems = [...byId.values()];
+  const allItems = mergePaymentWaitingByResident([...byId.values()]);
   const filterCounts: UnifiedOperationsQueue['filterCounts'] = [
     { id: 'all', label: FILTER_LABELS.all, count: allItems.length },
     {
       id: 'waiting_for_payment',
       label: FILTER_LABELS.waiting_for_payment,
-      count: allItems.filter(
-        (i) => i.filterTags.includes('rent_due') || i.filterTags.includes('electricity_due'),
+      count: allItems.filter((i) =>
+        i.filterTags.includes('rent_due') || i.filterTags.includes('electricity_due'),
       ).length,
     },
     {

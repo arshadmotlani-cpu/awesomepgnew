@@ -44,14 +44,6 @@ const PRESETS: Array<{ id: string; label: string; categories: BillCategory[] }> 
   { id: 'electricity', label: 'Electricity only', categories: ['electricity'] },
   { id: 'custom', label: 'Custom only', categories: ['custom'] },
   { id: 'rent_deposit', label: 'Rent + Deposit', categories: ['rent', 'deposit'] },
-  { id: 'rent_electricity', label: 'Rent + Electricity', categories: ['rent', 'electricity'] },
-  { id: 'deposit_electricity', label: 'Deposit + Electricity', categories: ['deposit', 'electricity'] },
-  {
-    id: 'rent_deposit_electricity',
-    label: 'Rent + Deposit + Electricity',
-    categories: ['rent', 'deposit', 'electricity'],
-  },
-  { id: 'all', label: 'All outstanding', categories: ['rent', 'deposit', 'electricity', 'custom'] },
 ];
 
 const idle: ResidentInvoiceActionState = { status: 'idle' };
@@ -178,7 +170,7 @@ export function FinancialCommandCenter({
   const [state, formAction, pending] = useActionState(generateResidentInvoiceAction, idle);
   const [pendingKind, setPendingKind] = useState<string | null>(null);
   const [selectedCategories, setSelectedCategories] = useState<Set<BillCategory>>(
-    () => new Set(['rent', 'deposit', 'electricity']),
+    () => new Set(['rent']),
   );
 
   const ps4Category: ResidentFinancialCategory = useMemo(
@@ -279,11 +271,19 @@ export function FinancialCommandCenter({
 
   function generateCombined() {
     if (selectedLines.length === 0) return;
+    const hasRent = selectedLines.some((l) => l.kind === 'rent');
+    const hasElectricity = selectedLines.some((l) => l.kind === 'electricity');
+    if (hasRent && hasElectricity) {
+      return;
+    }
     submit(
       'combined',
       selectedLines.map((l) => l.id),
     );
   }
+
+  const rentElectricityMixBlocked =
+    selectedCategories.has('rent') && selectedCategories.has('electricity');
 
   const grandRequired =
     summary.rent.requiredPaise +
@@ -359,11 +359,19 @@ export function FinancialCommandCenter({
       {summary.totals.outstandingPaise > 0 ? (
         <div className="mb-4 rounded-xl border border-white/10 bg-[#12161C] p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-[#FF5A1F]">
-            Combined invoice
+            Multi-line invoice (same category only)
           </p>
           <p className="mt-1 text-[10px] text-apg-silver">
-            Pick what to include in one bill. Duplicate charges are prevented automatically.
+            Rent and electricity always stay on separate invoices with separate QR codes and
+            approvals. You can combine rent + deposit or multiple lines within one category.
           </p>
+
+          {rentElectricityMixBlocked ? (
+            <p className="mt-3 rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+              Rent and electricity cannot be on one invoice. Generate each from its category table
+              above.
+            </p>
+          ) : null}
 
           <div className="mt-3 flex flex-wrap gap-2">
             {PRESETS.map((preset) => (
@@ -431,7 +439,7 @@ export function FinancialCommandCenter({
 
           <button
             type="button"
-            disabled={pending || previewTotal <= 0}
+            disabled={pending || previewTotal <= 0 || rentElectricityMixBlocked}
             onClick={generateCombined}
             className="mt-4 rounded-lg bg-[#FF5A1F] px-4 py-2 text-xs font-semibold text-white hover:bg-[#e04e18] disabled:opacity-50"
           >

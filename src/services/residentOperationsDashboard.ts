@@ -1,6 +1,7 @@
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import { isResidentBedAssignmentEligible } from '@/src/lib/residentBedAssignment';
 import { buildCollectionsQueue } from '@/src/lib/billing/collectionsQueue';
+import { resolveFinancialInvoiceIdMap } from '@/src/services/adminCashSettlement';
 import { todayString } from '@/src/lib/dates';
 import { buildResidentOperationsDashboard } from '@/src/lib/residents/residentOperationsDashboard';
 import {
@@ -62,6 +63,17 @@ export async function loadResidentOperationsDashboard(session: AdminSession) {
     rentRows: allUnpaidRent,
     electricityRows: elecPending.ok ? elecPending.data : [],
   });
+
+  const financialIdMap = await resolveFinancialInvoiceIdMap(
+    collectionsQueue.map((item) => ({
+      sourceTable: item.sourceTable,
+      sourceId: item.sourceId,
+    })),
+  );
+  for (const item of collectionsQueue) {
+    item.financialInvoiceId =
+      financialIdMap.get(`${item.sourceTable}:${item.sourceId}`) ?? null;
+  }
 
   const rentOverdue = collectionsQueue.filter((q) => q.priority === 'overdue');
   const rentsDueToday = collectionsQueue.filter((q) => q.priority === 'due_today');

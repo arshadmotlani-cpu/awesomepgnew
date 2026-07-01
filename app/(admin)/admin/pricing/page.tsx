@@ -7,9 +7,14 @@ import { loadPricingCommandCenterData } from '@/src/services/pricingCommandCente
 
 export const dynamic = 'force-dynamic';
 
-export default async function PricingCommandCenterPage() {
+export default async function PricingCommandCenterPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ pgId?: string }>;
+}) {
   const session = await requireAdminPermission('pgs:write');
-  const data = await loadPricingCommandCenterData(session);
+  const sp = await searchParams;
+  const data = await loadPricingCommandCenterData(session, sp.pgId);
 
   return (
     <>
@@ -28,7 +33,12 @@ export default async function PricingCommandCenterPage() {
           </Link>
         }
       />
-      <PricingCenter pgs={data.pgs} initialPgId={data.initialPgId} rooms={data.rooms} />
+      <PricingCenter
+        key={data.initialPgId}
+        pgs={data.pgs}
+        initialPgId={data.initialPgId}
+        rooms={data.rooms}
+      />
     </>
   );
 }

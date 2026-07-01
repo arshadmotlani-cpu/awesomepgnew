@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { UnifiedOpsFilter, UnifiedOpsItem, UnifiedOperationsQueue } from '@/src/services/unifiedOperationsQueue';
+import { paiseToInr } from '@/src/lib/format';
 
 const PRIORITY_STYLES: Record<
   UnifiedOpsItem['priority'],
@@ -107,7 +108,33 @@ function OpsRow({ item }: { item: UnifiedOpsItem }) {
         </span>
       </td>
       <td className="px-4 py-4 text-apg-silver">{item.status}</td>
-      <td className="px-4 py-4 text-white">{item.nextAction}</td>
+      <td className="px-4 py-4 text-white">
+        {item.outstandingLines && item.outstandingLines.length > 0 ? (
+          <div>
+            <p className="text-xs text-apg-silver">Outstanding</p>
+            <ul className="mt-1 space-y-0.5 text-sm">
+              {item.outstandingLines.map((line) => (
+                <li key={`${line.kind}-${line.label}`}>
+                  {line.financialInvoiceId ? (
+                    <Link
+                      href={`/admin/invoices/${line.financialInvoiceId}`}
+                      className="text-[#FF5A1F] hover:underline"
+                    >
+                      • {line.label} {paiseToInr(line.amountPaise)}
+                    </Link>
+                  ) : (
+                    <span>
+                      • {line.label} {paiseToInr(line.amountPaise)}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          item.nextAction
+        )}
+      </td>
       <td className="px-4 py-4 text-right">
         <Link
           href={item.openHref}

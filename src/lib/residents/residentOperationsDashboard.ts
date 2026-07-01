@@ -49,6 +49,10 @@ export type ResidentOpsQueueItem = {
   vacatingRequestId?: string | null;
   tenancyStatus: ResidentListRow['tenancyStatus'] | null;
   kycStatus: ResidentListRow['kycStatus'] | null;
+  outstandingLabel?: string;
+  outstandingAmountPaise?: number;
+  financialInvoiceId?: string | null;
+  outstandingKind?: 'rent' | 'electricity';
 };
 
 export type AttentionBucket = {
@@ -368,13 +372,19 @@ export function buildResidentOperationsDashboard(input: {
       bedCode: b.bedCode ?? null,
       issue: `${b.invoiceLabel} · ${dueLabel}`,
       nextAction: 'Resident pays and uploads payment screenshot',
-      primaryActionLabel: 'Open invoice',
-      primaryHref: `/admin/residents/${b.customerId}`,
+      primaryActionLabel: 'Open resident',
+      primaryHref: b.financialInvoiceId
+        ? `/admin/invoices/${b.financialInvoiceId}`
+        : `/admin/residents/${b.customerId}#open-bills`,
       sortPriority: b.priority === 'overdue' ? b.daysOverdue : 0,
       bookingId: b.bookingId ?? null,
       kycSubmissionId: null,
       tenancyStatus: 'active',
       kycStatus: null,
+      outstandingLabel: b.invoiceLabel,
+      outstandingAmountPaise: b.amountPaise,
+      financialInvoiceId: b.financialInvoiceId ?? null,
+      outstandingKind: isRent ? 'rent' : 'electricity',
     });
   }
 
