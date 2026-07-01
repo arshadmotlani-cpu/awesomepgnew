@@ -32,6 +32,7 @@ jobs:
           npm -v
           test -x node_modules/.bin/tsx
           node_modules/.bin/tsx --version
+          node --import tsx -e "console.log('tsx import ok')"
 
       - name: Lint image uploads
         run: node_modules/.bin/tsx scripts/lint-image-uploads.ts
@@ -40,7 +41,7 @@ jobs:
         run: node_modules/.bin/tsx scripts/lint-private-blob-display.ts
 
       - name: Unit and integration tests
-        run: node --import tsx --test --test-concurrency=1 'tests/unit/**/*.test.ts' 'tests/integration/**/*.test.ts'
+        run: node_modules/.bin/tsx --test --test-concurrency=1 'tests/unit/**/*.test.ts' 'tests/integration/**/*.test.ts'
 
       - name: Production build
         run: npm run build
