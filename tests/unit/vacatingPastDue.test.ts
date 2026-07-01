@@ -34,7 +34,7 @@ test('future approved vacating still shows notice period', () => {
   const view = deriveCustomerBedAvailabilityView({
     bedStatus: 'available',
     isAvailableNow: false,
-    vacatingDate: '2026-07-01',
+    vacatingDate: '2099-07-01',
     vacatingStatus: 'approved',
     reservedFrom: null,
   });

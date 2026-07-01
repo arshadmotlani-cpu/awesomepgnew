@@ -1,7 +1,7 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
 
-test('database URL resolver priority: DATABASE_URL → POSTGRES_URL → POSTGRES_PRISMA_URL', async () => {
+test('database URL resolver priority: DATABASE_URL → POSTGRES_URL → POSTGRES_PRISMA_URL', { concurrency: false }, async () => {
   const prev = {
     DATABASE_URL: process.env.DATABASE_URL,
     POSTGRES_URL: process.env.POSTGRES_URL,
@@ -31,7 +31,7 @@ test('database URL resolver priority: DATABASE_URL → POSTGRES_URL → POSTGRES
   }
 });
 
-test('formatDatabaseConfigReport lists missing vars and setup steps', async () => {
+test('formatDatabaseConfigReport lists missing vars and setup steps', { concurrency: false }, async () => {
   const prev = {
     DATABASE_URL: process.env.DATABASE_URL,
     POSTGRES_URL: process.env.POSTGRES_URL,
@@ -55,7 +55,7 @@ test('formatDatabaseConfigReport lists missing vars and setup steps', async () =
   }
 });
 
-test('loadAppEnv loads .env.local over .env', async () => {
+test('loadAppEnv loads .env.local over .env', { concurrency: false }, async () => {
   const { writeFileSync, unlinkSync, existsSync } = await import('node:fs');
   const { join } = await import('node:path');
 
