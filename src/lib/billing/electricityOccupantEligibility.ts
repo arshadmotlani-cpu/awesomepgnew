@@ -8,6 +8,7 @@ import { bedReservations, beds, bookings, customers } from '@/src/db/schema';
 import { addMonths, formatDate, parseDate } from '@/src/lib/dates';
 import { isPipelineTestResidentEmail } from '@/src/lib/billing/pipelineTestResident';
 import { firstOfMonth } from '@/src/services/billing';
+import { listCheckoutSettledCustomerIdsForRoomMonth } from '@/src/lib/billing/roomElectricityOccupants';
 
 export type BedMonthOccupant = {
   customerId: string;
@@ -39,6 +40,15 @@ export async function listBedOccupantsForBillingMonth(
   const durationModes = opts?.includeFixedStay
     ? (['monthly', 'open_ended', 'fixed_stay'] as const)
     : (['monthly', 'open_ended'] as const);
+
+  const [bedRow] = await db
+    .select({ roomId: beds.roomId })
+    .from(beds)
+    .where(eq(beds.id, bedId))
+    .limit(1);
+  const checkoutSettledCustomerIds = bedRow
+    ? await listCheckoutSettledCustomerIdsForRoomMonth(bedRow.roomId, billingMonth)
+    : new Set<string>();
 
   const rows = await db
     .select({
@@ -76,6 +86,7 @@ export async function listBedOccupantsForBillingMonth(
 
   return rows
     .filter((r) => !isPipelineTestResidentEmail(r.customerEmail))
+    .filter((r) => !checkoutSettledCustomerIds.has(r.customerId))
     .map((r) => ({
       customerId: r.customerId,
       customerName: r.customerName,

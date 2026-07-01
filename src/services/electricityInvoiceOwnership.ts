@@ -163,10 +163,11 @@ export async function auditElectricityInvoiceOwnership(
 export async function repairMisassignedElectricityInvoices(
   session: AdminSession,
   billingMonthInput: string,
-  opts?: { dryRun?: boolean; roomNumber?: string },
+  opts?: { dryRun?: boolean; roomNumber?: string; pgNamePattern?: string },
 ): Promise<ElectricityOwnershipRepairResult> {
   const report = await auditElectricityInvoiceOwnership(billingMonthInput, {
     roomNumber: opts?.roomNumber,
+    pgNamePattern: opts?.pgNamePattern,
   });
 
   const result: ElectricityOwnershipRepairResult = {

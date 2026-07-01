@@ -41,6 +41,7 @@ import {
 import { BillingOperationsDashboard } from '@/src/components/admin/billing/BillingOperationsDashboard';
 import { BillingCycleCertificationPanel } from '@/src/components/admin/billing/BillingCycleCertificationPanel';
 import { PipelineTestIntegrityPanel } from '@/src/components/admin/billing/PipelineTestIntegrityPanel';
+import { BillingProductionRepairPanel } from '@/src/components/admin/billing/BillingProductionRepairPanel';
 import { OperationsPaymentReviewsPanel } from '@/src/components/admin/operations/OperationsPaymentReviewsPanel';
 import {
   canAdminMarkInvoicePaidWithCash,
@@ -225,6 +226,8 @@ export default async function CollectionsModulePage({
       />
 
       <PipelineTestIntegrityPanel issues={pipelineIssues} strayZeroInvoices={strayZeroInvoices} />
+
+      {session.role === 'super_admin' ? <BillingProductionRepairPanel /> : null}
 
       <div className="mb-6 flex flex-wrap gap-2">
         {TABS.map((t) => (

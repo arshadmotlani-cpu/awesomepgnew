@@ -705,7 +705,11 @@ export async function generateRentInvoicesForMonth(
         skipped += 1;
         continue;
       }
-      monthlyRent = resolvePrivateRoomRentPaise(roomConfig, monthlyRent);
+      monthlyRent = resolvePrivateRoomRentPaise(
+        roomConfig,
+        monthlyRent,
+        monthlyRentFromSnapshot(c.pricingSnapshot),
+      );
     }
 
     const billingDay = profile?.billingDay ?? 5;

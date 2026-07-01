@@ -1,0 +1,583 @@
+/**
+ * Shantinagar production run — room-scoped +1% pricing (skip 101) + July 2026 rent generation.
+ */
+import { and, eq, ilike, inArray, ne, sql } from 'drizzle-orm';
+import { db } from '@/src/db/client';
+import {
+  bedReservations,
+  beds,
+  bookings,
+  customers,
+  floors,
+  pgs,
+  rentInvoices,
+  residentBillingProfiles,
+  rooms,
+} from '@/src/db/schema';
+import type { PricingSnapshot } from '@/src/db/schema/bookings';
+import type { AdminSession } from '@/src/lib/auth/session';
+import {
+  isProductionBookingFilter,
+  isProductionCustomerFilter,
+  isActiveResidentFilter,
+} from '@/src/lib/billing/productionDataFilter';
+import {
+  getRoomBillingConfig,
+  getRoomBillingConfigForBed,
+  shouldSkipPrivateRoomDuplicate,
+} from '@/src/lib/billing/roomBilling';
+import { paiseToInr } from '@/src/lib/format';
+import { applyPgPricingAdjustment } from '@/src/services/pgInventory';
+import { getPgInventory } from '@/src/services/pgInventory';
+import { loadBedPrice } from '@/src/services/pricing';
+import {
+  generateRentInvoicesForMonth,
+  _internals as rentInvoiceInternals,
+} from '@/src/services/rentInvoices';
+import { ensureBillingProfileForBooking } from '@/src/services/residentBillingProfiles';
+
+export const SHANTINAGAR_PRICING_TARGET_ROOMS = [
+  '102',
+  '201',
+  '202',
+  '203',
+  '204',
+  '301',
+  '302',
+] as const;
+
+export const SHANTINAGAR_PRICING_SKIP_ROOMS = ['101'] as const;
+
+const JULY_BILLING_MONTH = '2026-07-01';
+
+export type ShantinagarJulyRentReport = {
+  roomsUpdated: string[];
+  bedsUpdated: number;
+  residentsBilled: Array<{
+    name: string;
+    room: string;
+    amountPaise: number;
+    invoiceNumber: string;
+  }>;
+  residentsSkipped: Array<{ name: string; room: string; reason: string }>;
+  duplicateInvoices: Array<{ bookingId: string; customerName: string; count: number }>;
+  errors: string[];
+  missingJulyInvoice: Array<{ name: string; room: string; bookingId: string }>;
+  complete: boolean;
+};
+
+function monthlyRentFromSnapshot(snapshot: PricingSnapshot | null): number {
+  return rentInvoiceInternals.monthlyRentFromSnapshot(snapshot);
+}
+
+function plusOnePaise(base: number): number {
+  return Math.round(base * 1.01);
+}
+
+async function resolveShantinagarPg(_pgSlug = 'shantinagar-awesome-pg') {
+  const [pg] = await db
+    .select({ id: pgs.id, name: pgs.name, slug: pgs.slug })
+    .from(pgs)
+    .where(ilike(pgs.name, '%shanti%'))
+    .limit(1);
+  return pg ?? null;
+}
+
+type BedPricingAuditRow = {
+  bed_id: string;
+  room_number: string;
+  bed_code: string;
+  current_monthly: number;
+  prior_monthly: number | null;
+};
+
+async function auditBedPricing(pgId: string): Promise<BedPricingAuditRow[]> {
+  const rows = (await db.execute(sql`
+    SELECT DISTINCT ON (bp.bed_id)
+      bp.bed_id::text AS bed_id,
+      r.room_number,
+      b.bed_code,
+      bp.monthly_rate_paise::int AS current_monthly,
+      (
+        SELECT bp2.monthly_rate_paise::int
+        FROM bed_prices bp2
+        WHERE bp2.bed_id = bp.bed_id
+          AND bp2.id <> bp.id
+        ORDER BY bp2.effective_from DESC, bp2.created_at DESC
+        LIMIT 1
+      ) AS prior_monthly
+    FROM bed_prices bp
+    JOIN beds b ON b.id = bp.bed_id
+    JOIN rooms r ON r.id = b.room_id
+    JOIN floors f ON f.id = r.floor_id
+    WHERE f.pg_id = ${pgId}::uuid
+      AND (bp.effective_to IS NULL OR bp.effective_to > CURRENT_DATE)
+    ORDER BY bp.bed_id, bp.effective_from DESC, bp.created_at DESC
+  `)) as BedPricingAuditRow[];
+
+  return rows;
+}
+
+function roomNeedsPricingFix(
+  audit: BedPricingAuditRow[],
+  roomNumber: string,
+): boolean {
+  const beds = audit.filter((r) => r.room_number === roomNumber);
+  return beds.some((row) => {
+    const prior = row.prior_monthly ?? row.current_monthly;
+    if (prior <= 0) return false;
+    return row.current_monthly !== plusOnePaise(prior);
+  });
+}
+
+/** Primary private-room invoice holder — non-inventory active bed in a private_room. */
+async function findPrivateRoomInvoiceBooking(
+  roomId: string,
+): Promise<{ bookingId: string; customerId: string; bedId: string } | null> {
+  const [row] = await db
+    .select({
+      bookingId: bookings.id,
+      customerId: bookings.customerId,
+      bedId: beds.id,
+      manualOccupied: beds.manualOccupied,
+    })
+    .from(bedReservations)
+    .innerJoin(bookings, eq(bookings.id, bedReservations.bookingId))
+    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+    .where(
+      and(
+        eq(beds.roomId, roomId),
+        eq(bedReservations.status, 'active'),
+        eq(bedReservations.kind, 'primary'),
+        eq(bookings.status, 'confirmed'),
+        eq(beds.manualOccupied, false),
+        sql`CURRENT_DATE <@ ${bedReservations.stayRange}`,
+      ),
+    )
+    .limit(1);
+
+  if (!row) return null;
+  return {
+    bookingId: row.bookingId,
+    customerId: row.customerId,
+    bedId: row.bedId,
+  };
+}
+
+async function agreedMonthlyRentForBooking(bookingId: string): Promise<number> {
+  const [booking] = await db
+    .select({ pricingSnapshot: bookings.pricingSnapshot })
+    .from(bookings)
+    .where(eq(bookings.id, bookingId))
+    .limit(1);
+  const fromSnapshot = monthlyRentFromSnapshot(
+    (booking?.pricingSnapshot as PricingSnapshot | null) ?? null,
+  );
+  if (fromSnapshot > 0) return fromSnapshot;
+
+  const [profile] = await db
+    .select({ rentAmountPaise: residentBillingProfiles.rentAmountPaise })
+    .from(residentBillingProfiles)
+    .where(eq(residentBillingProfiles.bookingId, bookingId))
+    .limit(1);
+  return profile?.rentAmountPaise ?? 0;
+}
+
+async function applyRoom201PrivateRentPlusOne(
+  roomId: string,
+  dryRun: boolean,
+): Promise<{ applied: boolean; beforePaise: number; afterPaise: number }> {
+  const config = await getRoomBillingConfig(roomId);
+  if (!config || config.billingMode !== 'private_room') {
+    return { applied: false, beforePaise: 0, afterPaise: 0 };
+  }
+
+  const holder = await findPrivateRoomInvoiceBooking(roomId);
+  const agreedFromSnapshot = holder
+    ? await agreedMonthlyRentForBooking(holder.bookingId)
+    : 0;
+  const baseRent =
+    agreedFromSnapshot > 0
+      ? agreedFromSnapshot
+      : (config.privateRoomMonthlyRentPaise ?? 0);
+  if (baseRent <= 0) {
+    return { applied: false, beforePaise: 0, afterPaise: 0 };
+  }
+
+  const targetRent = plusOnePaise(baseRent);
+  const currentRoomRent = config.privateRoomMonthlyRentPaise ?? 0;
+  if (currentRoomRent === targetRent) {
+    return { applied: false, beforePaise: currentRoomRent, afterPaise: targetRent };
+  }
+
+  if (!dryRun) {
+    await db
+      .update(rooms)
+      .set({
+        privateRoomMonthlyRentPaise: targetRent,
+        updatedAt: new Date(),
+      })
+      .where(eq(rooms.id, roomId));
+
+    if (holder) {
+      await db
+        .update(residentBillingProfiles)
+        .set({ rentAmountPaise: targetRent, updatedAt: new Date() })
+        .where(eq(residentBillingProfiles.bookingId, holder.bookingId));
+    }
+  }
+
+  return { applied: true, beforePaise: baseRent, afterPaise: targetRent };
+}
+
+async function syncBillingProfilesFromBedPrices(
+  pgId: string,
+  billingMonth: string,
+  dryRun: boolean,
+): Promise<number> {
+  const privateRoomHolders = new Map<string, string>();
+  const roomRows = await db
+    .select({ id: rooms.id, roomNumber: rooms.roomNumber, billingMode: rooms.billingMode })
+    .from(rooms)
+    .innerJoin(floors, eq(floors.id, rooms.floorId))
+    .where(and(eq(floors.pgId, pgId), eq(rooms.billingMode, 'private_room')));
+
+  for (const room of roomRows) {
+    const holder = await findPrivateRoomInvoiceBooking(room.id);
+    if (holder) privateRoomHolders.set(holder.bookingId, room.roomNumber);
+  }
+
+  const activeRows = await db
+    .select({
+      bookingId: bookings.id,
+      bedId: beds.id,
+      roomNumber: rooms.roomNumber,
+    })
+    .from(bookings)
+    .innerJoin(customers, eq(customers.id, bookings.customerId))
+    .innerJoin(bedReservations, eq(bedReservations.bookingId, bookings.id))
+    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
+    .innerJoin(floors, eq(floors.id, rooms.floorId))
+    .where(
+      and(
+        eq(floors.pgId, pgId),
+        eq(bedReservations.status, 'active'),
+        eq(bedReservations.kind, 'primary'),
+        eq(bookings.status, 'confirmed'),
+        isProductionBookingFilter(),
+        isProductionCustomerFilter(),
+        isActiveResidentFilter(),
+        inArray(bookings.durationMode, ['monthly', 'open_ended']),
+      ),
+    );
+
+  let updated = 0;
+  for (const row of activeRows) {
+    if (privateRoomHolders.has(row.bookingId)) continue;
+
+    const rate = await loadBedPrice(row.bedId, billingMonth);
+    if (!rate || rate.monthlyRatePaise <= 0) continue;
+
+    if (!dryRun) {
+      await db
+        .update(residentBillingProfiles)
+        .set({ rentAmountPaise: rate.monthlyRatePaise, updatedAt: new Date() })
+        .where(eq(residentBillingProfiles.bookingId, row.bookingId));
+    }
+    updated += 1;
+  }
+
+  return updated;
+}
+
+async function listActiveShantinagarResidents(pgId: string) {
+  return db
+    .select({
+      bookingId: bookings.id,
+      customerId: customers.id,
+      customerName: customers.fullName,
+      roomNumber: rooms.roomNumber,
+      bedCode: beds.bedCode,
+      bedId: beds.id,
+    })
+    .from(bookings)
+    .innerJoin(customers, eq(customers.id, bookings.customerId))
+    .innerJoin(bedReservations, eq(bedReservations.bookingId, bookings.id))
+    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
+    .innerJoin(floors, eq(floors.id, rooms.floorId))
+    .where(
+      and(
+        eq(floors.pgId, pgId),
+        eq(bedReservations.status, 'active'),
+        eq(bedReservations.kind, 'primary'),
+        eq(bookings.status, 'confirmed'),
+        isProductionBookingFilter(),
+        isProductionCustomerFilter(),
+        isActiveResidentFilter(),
+        inArray(bookings.durationMode, ['monthly', 'open_ended']),
+      ),
+    );
+}
+
+async function countDuplicateJulyRentInvoices(pgId: string) {
+  const rows = await db
+    .select({
+      bookingId: rentInvoices.bookingId,
+      customerName: customers.fullName,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(rentInvoices)
+    .innerJoin(customers, eq(customers.id, rentInvoices.customerId))
+    .where(
+      and(
+        eq(rentInvoices.pgId, pgId),
+        eq(rentInvoices.billingMonth, JULY_BILLING_MONTH),
+        eq(rentInvoices.isAdhoc, false),
+        ne(rentInvoices.status, 'cancelled'),
+      ),
+    )
+    .groupBy(rentInvoices.bookingId, customers.fullName)
+    .having(sql`count(*) > 1`);
+
+  return rows.map((r) => ({
+    bookingId: r.bookingId,
+    customerName: r.customerName,
+    count: r.count,
+  }));
+}
+
+export async function runShantinagarJulyRentProduction(input: {
+  session: AdminSession;
+  pgSlug?: string;
+  dryRun?: boolean;
+  onLog?: (line: string) => void;
+}): Promise<ShantinagarJulyRentReport> {
+  const dryRun = input.dryRun ?? false;
+  const log = input.onLog ?? ((line: string) => console.log(line));
+
+  const report: ShantinagarJulyRentReport = {
+    roomsUpdated: [],
+    bedsUpdated: 0,
+    residentsBilled: [],
+    residentsSkipped: [],
+    duplicateInvoices: [],
+    errors: [],
+    missingJulyInvoice: [],
+    complete: false,
+  };
+
+  const pg = await resolveShantinagarPg(input.pgSlug);
+  if (!pg) {
+    report.errors.push('Shantinagar PG not found');
+    return report;
+  }
+
+  log(`=== Shantinagar pricing + July rent (${dryRun ? 'DRY RUN' : 'EXECUTE'}) ===`);
+  log(`PG: ${pg.name}`);
+
+  const inv = await getPgInventory(input.session, pg.id);
+  const roomIdByNumber = new Map(inv.beds.map((b) => [b.roomNumber, b.roomId]));
+  const audit = await auditBedPricing(pg.id);
+
+  for (const roomNumber of SHANTINAGAR_PRICING_TARGET_ROOMS) {
+    if ((SHANTINAGAR_PRICING_SKIP_ROOMS as readonly string[]).includes(roomNumber)) {
+      log(`Room ${roomNumber}: SKIP (already updated)`);
+      continue;
+    }
+
+    if (!roomNeedsPricingFix(audit, roomNumber)) {
+      log(`Room ${roomNumber}: beds already at +1% — skip pricing apply`);
+      continue;
+    }
+
+    const roomId = roomIdByNumber.get(roomNumber);
+    if (!roomId) {
+      report.errors.push(`Room ${roomNumber} not found in inventory`);
+      continue;
+    }
+
+    log(`Room ${roomNumber}: applying +1% to all beds (room-scoped, not PG-wide)`);
+    if (!dryRun) {
+      const summary = await applyPgPricingAdjustment(input.session, {
+        pgId: pg.id,
+        roomId,
+        tiers: ['monthly'],
+        mode: 'percent',
+        value: 1,
+      });
+      report.roomsUpdated.push(roomNumber);
+      report.bedsUpdated += summary.bedsAffected;
+    } else {
+      const bedCount = inv.beds.filter((b) => b.roomNumber === roomNumber).length;
+      report.roomsUpdated.push(`${roomNumber} (dry-run)`);
+      report.bedsUpdated += bedCount;
+    }
+  }
+
+  const room201Id = roomIdByNumber.get('201');
+  if (room201Id) {
+    const privateRent = await applyRoom201PrivateRentPlusOne(room201Id, dryRun);
+    if (privateRent.applied) {
+      log(
+        `Room 201 private-room negotiated rent: ${paiseToInr(privateRent.beforePaise)} → ${paiseToInr(privateRent.afterPaise)} (snapshot +1%, not per-bed catalog)`,
+      );
+      if (!report.roomsUpdated.includes('201')) report.roomsUpdated.push('201');
+    } else if (privateRent.afterPaise > 0) {
+      log(`Room 201 private-room rent already at ${paiseToInr(privateRent.afterPaise)}`);
+    }
+  }
+
+  log('\n=== Sync billing profiles ===');
+  const profilesSynced = await syncBillingProfilesFromBedPrices(pg.id, JULY_BILLING_MONTH, dryRun);
+  log(`Profiles synced from bed_prices: ${profilesSynced} (private-room holders excluded)`);
+
+  log('\n=== July 2026 rent generation ===');
+  const activeResidents = await listActiveShantinagarResidents(pg.id);
+  const byBooking = new Map<string, (typeof activeResidents)[number]>();
+  for (const row of activeResidents) {
+    if (!byBooking.has(row.bookingId)) byBooking.set(row.bookingId, row);
+  }
+
+  for (const resident of byBooking.values()) {
+    const roomConfig = await getRoomBillingConfigForBed(resident.bedId);
+    if (roomConfig?.billingMode === 'private_room') {
+      const dup = await shouldSkipPrivateRoomDuplicate({
+        roomId: roomConfig.roomId,
+        billingMonth: JULY_BILLING_MONTH,
+        bookingId: resident.bookingId,
+        bedId: resident.bedId,
+      });
+      if (dup.skip) {
+        report.residentsSkipped.push({
+          name: resident.customerName,
+          room: `Room ${resident.roomNumber} ${resident.bedCode}`,
+          reason: dup.reason ?? 'private_room_skip',
+        });
+        continue;
+      }
+    }
+
+    await ensureBillingProfileForBooking(resident.bookingId);
+  }
+
+  if (!dryRun) {
+    const gen = await generateRentInvoicesForMonth({
+      billingMonth: JULY_BILLING_MONTH,
+      pgId: pg.id,
+      forceAll: true,
+      asOf: JULY_BILLING_MONTH,
+    });
+    log(
+      `Generated: ${gen.invoicesCreated} created, ${gen.invoicesSkipped} skipped (${gen.candidateBookings} candidates)`,
+    );
+  }
+
+  const julyInvoices = await db
+    .select({
+      bookingId: rentInvoices.bookingId,
+      customerName: customers.fullName,
+      roomNumber: rooms.roomNumber,
+      bedCode: beds.bedCode,
+      invoiceNumber: rentInvoices.invoiceNumber,
+      rentPaise: rentInvoices.rentPaise,
+      status: rentInvoices.status,
+    })
+    .from(rentInvoices)
+    .innerJoin(customers, eq(customers.id, rentInvoices.customerId))
+    .innerJoin(beds, eq(beds.id, rentInvoices.bedId))
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
+    .where(
+      and(
+        eq(rentInvoices.pgId, pg.id),
+        eq(rentInvoices.billingMonth, JULY_BILLING_MONTH),
+        eq(rentInvoices.isAdhoc, false),
+        ne(rentInvoices.status, 'cancelled'),
+      ),
+    );
+
+  const invoicesByBooking = new Map<string, typeof julyInvoices>();
+  for (const invRow of julyInvoices) {
+    const list = invoicesByBooking.get(invRow.bookingId) ?? [];
+    list.push(invRow);
+    invoicesByBooking.set(invRow.bookingId, list);
+  }
+
+  for (const resident of byBooking.values()) {
+    const roomConfig = await getRoomBillingConfigForBed(resident.bedId);
+    const isPrivateSkip =
+      roomConfig?.billingMode === 'private_room' &&
+      (await shouldSkipPrivateRoomDuplicate({
+        roomId: roomConfig.roomId,
+        billingMonth: JULY_BILLING_MONTH,
+        bookingId: resident.bookingId,
+        bedId: resident.bedId,
+      })).skip;
+
+    if (isPrivateSkip) continue;
+
+    const invoices = invoicesByBooking.get(resident.bookingId) ?? [];
+    if (invoices.length === 0) {
+      if (!dryRun) {
+        report.missingJulyInvoice.push({
+          name: resident.customerName,
+          room: `Room ${resident.roomNumber}`,
+          bookingId: resident.bookingId,
+        });
+      }
+      continue;
+    }
+    if (invoices.length === 1) {
+      const inv = invoices[0]!;
+      report.residentsBilled.push({
+        name: inv.customerName,
+        room: `Room ${inv.roomNumber} ${inv.bedCode}`,
+        amountPaise: inv.rentPaise,
+        invoiceNumber: inv.invoiceNumber,
+      });
+    }
+  }
+
+  report.duplicateInvoices = await countDuplicateJulyRentInvoices(pg.id);
+
+  report.complete =
+    !dryRun &&
+    report.errors.length === 0 &&
+    report.missingJulyInvoice.length === 0 &&
+    report.duplicateInvoices.length === 0;
+
+  return report;
+}
+
+export function formatShantinagarJulyRentReport(report: ShantinagarJulyRentReport): string {
+  const lines: string[] = [];
+  lines.push('Rooms updated:');
+  for (const r of report.roomsUpdated) lines.push(`  · ${r}`);
+  lines.push(`Beds updated: ${report.bedsUpdated}`);
+  lines.push('\nResidents billed:');
+  for (const r of report.residentsBilled) {
+    lines.push(`  · ${r.name} (${r.room}): ${paiseToInr(r.amountPaise)} — ${r.invoiceNumber}`);
+  }
+  lines.push('\nResidents skipped:');
+  if (report.residentsSkipped.length === 0) lines.push('  (none)');
+  for (const r of report.residentsSkipped) {
+    lines.push(`  · ${r.name} (${r.room}): ${r.reason}`);
+  }
+  lines.push('\nDuplicate invoices:');
+  if (report.duplicateInvoices.length === 0) lines.push('  (none)');
+  for (const d of report.duplicateInvoices) {
+    lines.push(`  · ${d.customerName}: ${d.count} invoices`);
+  }
+  lines.push('\nErrors:');
+  if (report.errors.length === 0) lines.push('  (none)');
+  for (const e of report.errors) lines.push(`  · ${e}`);
+  if (report.missingJulyInvoice.length > 0) {
+    lines.push('\nMissing July invoice:');
+    for (const m of report.missingJulyInvoice) {
+      lines.push(`  · ${m.name} (${m.room})`);
+    }
+  }
+  lines.push(`\n${report.complete ? '✓ JULY RENT GENERATION COMPLETE' : '✗ JULY RENT GENERATION INCOMPLETE'}`);
+  return lines.join('\n');
+}

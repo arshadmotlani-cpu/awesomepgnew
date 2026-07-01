@@ -212,15 +212,43 @@ export function buildLifecycleResolvedQueue(input: {
     resolved.push(applyLifecycleStateToQueueRow(row, settlement, winner));
   }
 
-  const enrichedBilling = billingRows.map((row) => {
-    const settlement = row.customerId
-      ? input.settlementsByCustomerId.get(row.customerId)
-      : undefined;
-    const sourceItem = input.queueItems.find((i) => i.id === row.id);
-    return applyLifecycleStateToQueueRow(row, settlement, sourceItem);
-  });
+  const billingByCustomer = new Map<string, ResidentsQueueRow[]>();
+  for (const row of billingRows) {
+    const key = row.customerId ?? row.id;
+    const list = billingByCustomer.get(key) ?? [];
+    list.push(row);
+    billingByCustomer.set(key, list);
+  }
 
-  return [...withoutCustomer, ...resolved, ...enrichedBilling].sort((a, b) => {
+  const mergedBilling: ResidentsQueueRow[] = [];
+  for (const [customerId, rows] of billingByCustomer) {
+    const enriched = rows.map((row) => {
+      const settlement = row.customerId
+        ? input.settlementsByCustomerId.get(row.customerId)
+        : undefined;
+      const sourceItem = input.queueItems.find((i) => i.id === row.id);
+      return applyLifecycleStateToQueueRow(row, settlement, sourceItem);
+    });
+    if (enriched.length === 1) {
+      mergedBilling.push(enriched[0]!);
+      continue;
+    }
+    const primary = [...enriched].sort(
+      (a, b) => H5_CATEGORY_ORDER[a.category] - H5_CATEGORY_ORDER[b.category],
+    )[0]!;
+    mergedBilling.push({
+      ...primary,
+      outstandingLabel: enriched
+        .map((r) => r.outstandingLabel)
+        .filter((label): label is string => Boolean(label))
+        .join(' · '),
+      nextAction: 'Resident pays rent and electricity — open bills for each invoice',
+      primaryActionLabel: 'Open bills',
+      primaryHref: `/admin/residents/${customerId}#open-bills`,
+    });
+  }
+
+  return [...withoutCustomer, ...resolved, ...mergedBilling].sort((a, b) => {
     const c = H5_CATEGORY_ORDER[a.category] - H5_CATEGORY_ORDER[b.category];
     if (c !== 0) return c;
     return b.ageSortHours - a.ageSortHours;

@@ -101,9 +101,19 @@ export async function shouldSkipPrivateRoomDuplicate(input: {
 export function resolvePrivateRoomRentPaise(
   config: RoomBillingConfig,
   profileRentPaise: number,
+  snapshotRentPaise?: number,
 ): number {
-  if (config.billingMode === 'private_room' && config.privateRoomMonthlyRentPaise) {
-    return config.privateRoomMonthlyRentPaise;
+  if (config.billingMode !== 'private_room') {
+    return profileRentPaise;
   }
-  return profileRentPaise;
+  // Profile / room config reflect current negotiated rent (incl. increases); snapshot is booking-time.
+  const negotiated =
+    profileRentPaise > 0
+      ? profileRentPaise
+      : (config.privateRoomMonthlyRentPaise ?? 0) > 0
+        ? config.privateRoomMonthlyRentPaise!
+        : snapshotRentPaise && snapshotRentPaise > 0
+          ? snapshotRentPaise
+          : 0;
+  return negotiated > 0 ? negotiated : profileRentPaise;
 }

@@ -7,6 +7,7 @@ export type ElectricityBillCreateLogStep =
   | 'validation'
   | 'room_resolved'
   | 'occupants_loaded'
+  | 'checkout_settled_excluded'
   | 'bill_calculated'
   | 'transaction_started'
   | 'bill_inserted'

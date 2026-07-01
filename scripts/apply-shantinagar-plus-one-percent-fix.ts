@@ -156,8 +156,11 @@ async function main() {
     return;
   }
 
-  // Apply +1% only to beds that still need it by running room batches.
-  const roomsToFix = [...new Set(needsUpdate.map((r) => r.room_number))];
+  // Apply +1% only to target rooms (skip 101 — already updated).
+  const TARGET = new Set(['102', '201', '202', '203', '204', '301', '302']);
+  const roomsToFix = [...new Set(needsUpdate.map((r) => r.room_number))]
+    .filter((r) => TARGET.has(r) && r !== '101')
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   let bedsFixed = 0;
   const roomIdsByNumber = new Map(beds.map((b) => [b.roomNumber, b.roomId]));
 

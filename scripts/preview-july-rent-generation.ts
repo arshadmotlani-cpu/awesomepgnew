@@ -120,7 +120,11 @@ async function buildPreview(billingMonth: string): Promise<PreviewRow[]> {
         if (dup.skip) {
           skipReason = dup.reason;
         } else {
-          rentPaise = resolvePrivateRoomRentPaise(roomConfig, rentPaise);
+          rentPaise = resolvePrivateRoomRentPaise(
+            roomConfig,
+            rentPaise,
+            profile?.rentAmountPaise ?? 0,
+          );
         }
       }
 

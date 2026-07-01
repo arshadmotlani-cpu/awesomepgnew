@@ -28,6 +28,7 @@ import {
 import { DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE } from '@/src/lib/billing/constants';
 import { computeElectricitySettlementLedgerReconciliation } from '@/src/lib/billing/electricitySettlementLedgerReconciliation';
 import { allocateMonthlyElectricityInvoices } from '@/src/lib/billing/roomElectricityMonthlyAllocation';
+import { loadRoomElectricityOccupantsForMonth } from '@/src/lib/billing/roomElectricityOccupants';
 import { createElectricityBill } from '@/src/services/electricityBilling';
 import { firstOfMonth, monthBounds } from '@/src/services/billing';
 import { listCheckoutElectricityLedgerForRoomMonth } from '@/src/services/electricitySettlementLedger';
@@ -45,7 +46,7 @@ import { formatDate, parseDate, diffDays } from '@/src/lib/dates';
 const BILLING_MONTH = '2026-06-01';
 const RATE_PAISE = DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE; // ₹16/unit
 
-type RoomSpec = {
+export type RoomSpec = {
   roomNumber: string;
   previousReadingUnits: number;
   currentReadingUnits: number;
@@ -55,7 +56,7 @@ type RoomSpec = {
   prepare?: (ctx: RoomContext) => Promise<void>;
 };
 
-type RoomContext = {
+export type RoomContext = {
   roomId: string;
   roomNumber: string;
   pgName: string;
@@ -63,7 +64,7 @@ type RoomContext = {
   dryRun: boolean;
 };
 
-const ROOM_SPECS: RoomSpec[] = [
+export const ROOM_SPECS: RoomSpec[] = [
   { roomNumber: '101', previousReadingUnits: 2008, currentReadingUnits: 2046, dedupeBeforeGenerate: true },
   { roomNumber: '102', previousReadingUnits: 205, currentReadingUnits: 241, prepare: prepareRoom102 },
   { roomNumber: '201', previousReadingUnits: 362, currentReadingUnits: 464 },
@@ -372,73 +373,16 @@ async function loadOccupantsForPreflight(
   useProRata: boolean,
   includeFixedStay = false,
 ) {
-  const { start: monthStart, end: monthEnd } = monthBounds(billingMonth);
-  const monthStartIso = formatDate(monthStart);
-  const monthEndIso = formatDate(monthEnd);
-
-  const occupantRows = await db
-    .select({
-      bookingId: bookings.id,
-      customerId: bookings.customerId,
-      bedId: beds.id,
-      lower: sql<string>`lower(${bedReservations.stayRange})::text`,
-      upper: sql<string>`upper(${bedReservations.stayRange})::text`,
-    })
-    .from(bookings)
-    .innerJoin(bedReservations, eq(bedReservations.bookingId, bookings.id))
-    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
-    .where(
-      and(
-        eq(beds.roomId, roomId),
-        inArray(bookings.status, ['confirmed', 'completed']),
-        inArray(
-          bookings.durationMode,
-          includeFixedStay ? ['monthly', 'open_ended', 'fixed_stay'] : ['monthly', 'open_ended'],
-        ),
-        eq(bedReservations.kind, 'primary'),
-        sql`${bedReservations.stayRange} && daterange(${monthStartIso}::date, ${monthEndIso}::date, '[)')`,
-      ),
-    );
-
-  const daysInMonth = diffDays(monthStart, monthEnd);
-  const byBooking = new Map<
-    string,
-    { bookingId: string; customerId: string; bedIds: Set<string>; weight: number }
-  >();
-
-  for (const row of occupantRows) {
-    const aStart = parseDate(row.lower);
-    const aEnd = row.upper ? parseDate(row.upper) : monthEnd;
-    const intersectStart = aStart > monthStart ? aStart : monthStart;
-    const intersectEnd = aEnd < monthEnd ? aEnd : monthEnd;
-    const bedDays =
-      useProRata && intersectEnd > intersectStart
-        ? diffDays(intersectStart, intersectEnd)
-        : 1;
-
-    const cur = byBooking.get(row.bookingId);
-    if (cur) {
-      cur.bedIds.add(row.bedId);
-      cur.weight += bedDays;
-    } else {
-      byBooking.set(row.bookingId, {
-        bookingId: row.bookingId,
-        customerId: row.customerId,
-        bedIds: new Set([row.bedId]),
-        weight: bedDays,
-      });
-    }
-  }
-
+  const load = await loadRoomElectricityOccupantsForMonth({
+    roomId,
+    billingMonth,
+    includeFixedStay,
+    useProRataByActiveDays: useProRata,
+  });
   return {
-    occupants: [...byBooking.values()].map((bk) => ({
-      bookingId: bk.bookingId,
-      customerId: bk.customerId,
-      bedCount: bk.bedIds.size,
-      weight: bk.weight,
-    })),
-    totalWeight: [...byBooking.values()].reduce((s, b) => s + b.weight, 0),
-    daysInMonth,
+    occupants: load.occupants,
+    totalWeight: load.totalWeight,
+    daysInMonth: load.daysInMonth,
   };
 }
 

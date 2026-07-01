@@ -6,6 +6,7 @@ import { env } from '@/src/lib/env';
 import { paiseToInr } from '@/src/lib/format';
 import { applyPgPricingAdjustment } from '@/src/services/pgInventory';
 import { getPgInventory } from '@/src/services/pgInventory';
+import { SHANTINAGAR_PRICING_TARGET_ROOMS } from '@/src/services/shantinagarJulyRentProduction';
 import type { AdminSession } from '@/src/lib/auth/session';
 
 export const dynamic = 'force-dynamic';
@@ -85,8 +86,11 @@ async function handle(req: NextRequest) {
 
   const roomsNeedingFix = new Set<string>();
   const alreadyUpdated: string[] = [];
+  const targetRooms = new Set<string>(SHANTINAGAR_PRICING_TARGET_ROOMS);
 
   for (const row of rows) {
+    if (!targetRooms.has(row.room_number)) continue;
+    if (row.room_number === '101') continue;
     const current = Number(row.current_monthly);
     const prior = row.prior_monthly != null ? Number(row.prior_monthly) : current;
     const target = prior > 0 ? Math.round(prior * 1.01) : current;

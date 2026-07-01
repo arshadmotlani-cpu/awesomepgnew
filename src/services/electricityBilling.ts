@@ -42,7 +42,7 @@ import {
   roomElectricityPrepaidLedger,
   rooms,
 } from '../db/schema';
-import { isPipelineTestResidentEmail } from '@/src/lib/billing/pipelineTestResident';
+import { loadRoomElectricityOccupantsForMonth } from '@/src/lib/billing/roomElectricityOccupants';
 import type { NewElectricityInvoice } from '../db/schema/electricityInvoices';
 import { diffDays, formatDate, parseDate, type DateLike } from '../lib/dates';
 import {
@@ -341,86 +341,22 @@ export async function createElectricityBill(
   //    same room → bedsInRoom = 2 → that booking pays
   //    2 × per_resident_paise. This is the only fair reading: the
   //    booking is "using 2 beds worth of electricity share".
-  const occupantRows = await db
-    .select({
-      bookingId: bookings.id,
-      customerId: bookings.customerId,
-      customerEmail: customers.email,
-      bedId: beds.id,
-      lower: sql<string>`lower(${bedReservations.stayRange})::text`,
-      upper: sql<string>`upper(${bedReservations.stayRange})::text`,
-    })
-    .from(bedReservations)
-    .innerJoin(bookings, eq(bookings.id, bedReservations.bookingId))
-    .innerJoin(customers, eq(customers.id, bookings.customerId))
-    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
-    .where(
-      and(
-        eq(beds.roomId, input.roomId),
-        eq(bedReservations.kind, 'primary'),
-        inArray(bedReservations.status, ['active', 'completed']),
-        inArray(bookings.status, ['confirmed', 'completed']),
-        inArray(
-          bookings.durationMode,
-          input.includeFixedStayOccupants
-            ? ['monthly', 'open_ended', 'fixed_stay']
-            : ['monthly', 'open_ended'],
-        ),
-        eq(bookings.isTest, false),
-        eq(customers.isTest, false),
-        sql`${bedReservations.stayRange} && daterange(${monthStartIso}::date, ${monthEndIso}::date, '[)')`,
-      ),
-    );
-
-  const daysInMonth = diffDays(monthStart, monthEnd);
-
-  function activeDaysInMonth(lower: string, upper: string | null): number {
-    const aStart = parseDate(lower);
-    const aEnd = upper ? parseDate(upper) : monthEnd;
-    const intersectStart = aStart > monthStart ? aStart : monthStart;
-    const intersectEnd = aEnd < monthEnd ? aEnd : monthEnd;
-    if (intersectEnd <= intersectStart) return 0;
-    return diffDays(intersectStart, intersectEnd);
-  }
-
-  // Group: bookingId → { customerId, bedIds[], weight (active-day shares) }
-  const byBooking = new Map<
-    string,
-    { bookingId: string; customerId: string; bedIds: Set<string>; weight: number }
-  >();
-  for (const row of occupantRows) {
-    if (isPipelineTestResidentEmail(row.customerEmail)) continue;
-    const bedDays = input.useProRataByActiveDays
-      ? activeDaysInMonth(row.lower, row.upper)
-      : 1;
-    const cur = byBooking.get(row.bookingId);
-    if (cur) {
-      cur.bedIds.add(row.bedId);
-      cur.weight += bedDays;
-    } else {
-      byBooking.set(row.bookingId, {
-        bookingId: row.bookingId,
-        customerId: row.customerId,
-        bedIds: new Set([row.bedId]),
-        weight: bedDays,
-      });
-    }
-  }
-  const totalOccupantsAll = [...byBooking.values()].reduce(
-    (acc, b) => acc + b.bedIds.size,
-    0,
-  );
-  const totalWeight = [...byBooking.values()].reduce((acc, b) => acc + b.weight, 0);
-
-  const checkoutLedgerRows = await listCheckoutElectricityLedgerForRoomMonth(
-    input.roomId,
+  const occupantLoad = await loadRoomElectricityOccupantsForMonth({
+    roomId: input.roomId,
     billingMonth,
-    { status: 'collected' },
-  );
-  const checkoutCollectedByCustomerId = new Map<string, number>();
-  for (const row of checkoutLedgerRows) {
-    const prev = checkoutCollectedByCustomerId.get(row.customerId) ?? 0;
-    checkoutCollectedByCustomerId.set(row.customerId, prev + row.amountPaise);
+    includeFixedStay: Boolean(input.includeFixedStayOccupants),
+    useProRataByActiveDays: Boolean(input.useProRataByActiveDays),
+  });
+
+  const totalOccupantsAll = occupantLoad.occupants.reduce((acc, o) => acc + o.bedCount, 0);
+  const totalWeight = occupantLoad.totalWeight;
+  const checkoutCollectedByCustomerId = occupantLoad.checkoutCollectedByCustomerId;
+
+  if (occupantLoad.excludedCustomerIds.length > 0) {
+    logElectricityBillCreate('checkout_settled_excluded', {
+      requestId,
+      excludedCustomerIds: occupantLoad.excludedCustomerIds,
+    });
   }
 
   const manualCreditPaise = await sumManualElectricityCreditsForRoomMonth(
@@ -433,12 +369,7 @@ export async function createElectricityBill(
     grossTotalPaise,
     prepaidCreditPaise: room.prepaidCreditPaise ?? 0,
     manualCreditPaise,
-    occupants: [...byBooking.values()].map((bk) => ({
-      bookingId: bk.bookingId,
-      customerId: bk.customerId,
-      bedCount: bk.bedIds.size,
-      weight: bk.weight,
-    })),
+    occupants: occupantLoad.occupants,
     checkoutCollectedByCustomerId,
     useProRata: Boolean(input.useProRataByActiveDays && totalWeight > 0),
   });
@@ -455,7 +386,7 @@ export async function createElectricityBill(
     requestId,
     monthlyOccupantCount: totalOccupantsAll,
     billableOccupantCount,
-    bookingCount: byBooking.size,
+    bookingCount: occupantLoad.occupants.length,
     checkoutPayerCount: checkoutCollectedByCustomerId.size,
   });
 
@@ -552,16 +483,16 @@ export async function createElectricityBill(
           activeDays: number;
         };
         const byCustomer = new Map<string, CustomerInvoiceDraft>();
-        for (const bk of byBooking.values()) {
+        for (const bk of occupantLoad.occupants) {
           const amount = invoiceAllocationByBooking.get(bk.bookingId);
           if (amount == null || amount <= 0) continue;
 
           const unitsShare = useProRata
             ? roundToHundredth((unitsConsumed * bk.weight) / totalWeight)
             : roundToHundredth(
-                (unitsConsumed * bk.bedIds.size) / Math.max(1, billableOccupantCount),
+                (unitsConsumed * bk.bedCount) / Math.max(1, billableOccupantCount),
               );
-          const activeDays = useProRata ? bk.weight : daysInMonth;
+          const activeDays = useProRata ? bk.weight : occupantLoad.daysInMonth;
           const representativeBed = [...bk.bedIds].sort()[0]!;
           const existing = byCustomer.get(bk.customerId);
           if (existing) {
@@ -1020,6 +951,47 @@ export async function recordElectricityPaymentFailure(input: {
     }
     return { ok: false, reason: err instanceof Error ? err.message : 'unknown error' };
   }
+}
+
+/** Cancel unpaid invoices and delete room electricity bill(s) for a billing month. */
+export async function voidRoomElectricityBillsForMonth(
+  roomId: string,
+  billingMonth: string,
+): Promise<{ cancelledInvoiceIds: string[]; deletedBillIds: string[] }> {
+  const month = firstOfMonth(billingMonth);
+  const bills = await db
+    .select({ id: electricityBills.id })
+    .from(electricityBills)
+    .where(and(eq(electricityBills.roomId, roomId), eq(electricityBills.billingMonth, month)));
+
+  const cancelledInvoiceIds: string[] = [];
+  for (const bill of bills) {
+    const cancelled = await db
+      .update(electricityInvoices)
+      .set({ status: 'cancelled', cancelledAt: new Date(), updatedAt: new Date() })
+      .where(
+        and(
+          eq(electricityInvoices.electricityBillId, bill.id),
+          sql`${electricityInvoices.status} <> 'cancelled'`,
+          sql`${electricityInvoices.paidPaise} = 0`,
+        ),
+      )
+      .returning({ id: electricityInvoices.id });
+    cancelledInvoiceIds.push(...cancelled.map((r) => r.id));
+  }
+
+  if (cancelledInvoiceIds.length > 0) {
+    const { syncManyToUnified } = await import('@/src/services/unifiedInvoices');
+    await syncManyToUnified(cancelledInvoiceIds, 'electricity').catch(() => undefined);
+  }
+
+  const deletedBillIds: string[] = [];
+  for (const bill of bills) {
+    await db.delete(electricityBills).where(eq(electricityBills.id, bill.id));
+    deletedBillIds.push(bill.id);
+  }
+
+  return { cancelledInvoiceIds, deletedBillIds };
 }
 
 /** Cancel all electricity invoices for a booking. Used on vacating-complete. */
