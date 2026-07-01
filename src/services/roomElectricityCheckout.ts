@@ -36,6 +36,7 @@ export async function loadRoomOccupantsForBillingPeriod(
       and(
         eq(beds.roomId, roomId),
         eq(bookings.status, 'confirmed'),
+        sql`bed_reservations.status = 'active'`,
         sql`bed_reservations.kind = 'primary'`,
         sql`bed_reservations.stay_range && daterange(${periodStart}::date, ${periodEndExclusive}::date, '[)')`,
       ),

@@ -6,9 +6,9 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { bedReservations, beds, bookings, customers } from '@/src/db/schema';
 import { addMonths, formatDate, parseDate } from '@/src/lib/dates';
-import { isPipelineTestResidentEmail } from '@/src/lib/billing/pipelineTestResident';
-import { firstOfMonth } from '@/src/services/billing';
+import { isMonthlyElectricityBillableOccupant } from '@/src/lib/billing/electricityOccupancyEligibility';
 import { listCheckoutSettledCustomerIdsForRoomMonth } from '@/src/lib/billing/roomElectricityOccupants';
+import { firstOfMonth } from '@/src/services/billing';
 
 export type BedMonthOccupant = {
   customerId: string;
@@ -55,6 +55,7 @@ export async function listBedOccupantsForBillingMonth(
       customerId: bookings.customerId,
       customerName: customers.fullName,
       customerEmail: customers.email,
+      residencyStatus: customers.residencyStatus,
       bookingId: bookings.id,
       bookingCode: bookings.bookingCode,
       bedId: beds.id,
@@ -71,11 +72,12 @@ export async function listBedOccupantsForBillingMonth(
       and(
         eq(bedReservations.bedId, bedId),
         eq(bedReservations.kind, 'primary'),
-        inArray(bedReservations.status, ['active', 'completed']),
-        inArray(bookings.status, ['confirmed', 'completed']),
+        eq(bedReservations.status, 'active'),
+        eq(bookings.status, 'confirmed'),
         inArray(bookings.durationMode, [...durationModes]),
         eq(bookings.isTest, false),
         eq(customers.isTest, false),
+        sql`${customers.residencyStatus} NOT IN ('vacated', 'blocked')`,
         sql`${bedReservations.stayRange} && daterange(${monthStartIso}::date, ${monthEndIso}::date, '[)')`,
       ),
     )
@@ -85,7 +87,14 @@ export async function listBedOccupantsForBillingMonth(
     );
 
   return rows
-    .filter((r) => !isPipelineTestResidentEmail(r.customerEmail))
+    .filter((r) =>
+      isMonthlyElectricityBillableOccupant({
+        reservationStatus: r.reservationStatus,
+        bookingStatus: r.bookingStatus,
+        residencyStatus: r.residencyStatus,
+        customerEmail: r.customerEmail,
+      }),
+    )
     .filter((r) => !checkoutSettledCustomerIds.has(r.customerId))
     .map((r) => ({
       customerId: r.customerId,

@@ -291,6 +291,30 @@ export async function runJuneElectricityIntegrityRepair(input: {
 
   log('=== June 2026 electricity integrity repair ===');
 
+  const room203 = await resolveRoom(pgQuery, '203');
+  if (room203) {
+    const harshadRows = await db
+      .select({ id: customers.id, fullName: customers.fullName })
+      .from(customers)
+      .where(sql`${customers.fullName} ILIKE '%harshad%'`);
+    const { traceElectricityInvoiceCausation } = await import(
+      '@/src/lib/billing/roomElectricityOccupants'
+    );
+    for (const cust of harshadRows) {
+      const causation = await traceElectricityInvoiceCausation({
+        roomId: room203.roomId,
+        billingMonth: BILLING_MONTH,
+        customerId: cust.id,
+      });
+      if (causation?.invoiceNumber) {
+        log(`Harshad causation: ${causation.causationSummary}`);
+        report.removedInvalidResidents.push(
+          `${cust.fullName}: ${causation.causationSummary}`,
+        );
+      }
+    }
+  }
+
   const ownershipBefore = await auditElectricityInvoiceOwnership(BILLING_MONTH, {
     pgNamePattern: pgQuery,
   });

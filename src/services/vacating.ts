@@ -751,6 +751,7 @@ export async function finalizeVacatingOccupancy(
     .set({ autoGenerate: false, updatedAt: new Date() })
     .where(eq(residentBillingProfiles.bookingId, current.bookingId));
 
+  await shortenBookingReservationsToDate(current.bookingId, current.vacatingDate);
   await completeBookingReservations(current.bookingId);
   await reconcileBookingOccupancy(current.bookingId);
 
@@ -953,6 +954,7 @@ export async function completeVacatingRequest(
     .set({ autoGenerate: false, updatedAt: new Date() })
     .where(eq(residentBillingProfiles.bookingId, current.bookingId));
 
+  await shortenBookingReservationsToDate(current.bookingId, current.vacatingDate);
   await completeBookingReservations(current.bookingId);
   await reconcileBookingOccupancy(current.bookingId);
 
