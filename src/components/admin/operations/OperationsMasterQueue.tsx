@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { AdminTableScroll } from '@/src/components/admin/AdminTableScroll';
 import type { UnifiedOpsFilter, UnifiedOpsItem, UnifiedOperationsQueue } from '@/src/services/unifiedOperationsQueue';
 import { paiseToInr } from '@/src/lib/format';
 
@@ -63,77 +64,136 @@ export function OperationsMasterQueue({ data }: { data: UnifiedOperationsQueue }
           </p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-white/10">
-          <table className="min-w-full text-left text-sm">
-            <thead className="border-b border-white/10 bg-[#141820] text-[10px] uppercase tracking-wide text-apg-silver">
-              <tr>
-                <th className="px-4 py-3 font-medium">Resident</th>
-                <th className="px-4 py-3 font-medium">PG</th>
-                <th className="px-4 py-3 font-medium">Room / bed</th>
-                <th className="px-4 py-3 font-medium">Priority</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Next action</th>
-                <th className="px-4 py-3 font-medium text-right">Open</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/5 bg-[#1A1F27]">
-              {data.items.map((item) => (
-                <OpsRow key={item.id} item={item} />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div className="space-y-3 md:hidden">
+            {data.items.map((item) => (
+              <OpsMobileCard key={item.id} item={item} />
+            ))}
+          </div>
+
+          <AdminTableScroll
+            className="hidden rounded-2xl border border-white/10 md:block"
+            hint="Swipe sideways to see Status, Next action, and Open."
+          >
+            <table className="min-w-[960px] w-full text-left text-sm">
+              <thead className="border-b border-white/10 bg-[#141820] text-[10px] uppercase tracking-wide text-apg-silver">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Resident</th>
+                  <th className="px-4 py-3 font-medium">PG</th>
+                  <th className="px-4 py-3 font-medium">Room / bed</th>
+                  <th className="px-4 py-3 font-medium">Priority</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">Next action</th>
+                  <th className="px-4 py-3 font-medium text-right">Open</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5 bg-[#1A1F27]">
+                {data.items.map((item) => (
+                  <OpsRow key={item.id} item={item} />
+                ))}
+              </tbody>
+            </table>
+          </AdminTableScroll>
+        </>
       )}
     </div>
   );
 }
 
-function OpsRow({ item }: { item: UnifiedOpsItem }) {
-  const p = PRIORITY_STYLES[item.priority];
-  const location = [
+function locationLabel(item: UnifiedOpsItem): string {
+  const parts = [
     item.roomNumber ? `R${item.roomNumber}` : null,
     item.bedCode ? `Bed ${item.bedCode}` : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  ].filter(Boolean);
+  return parts.join(' · ') || '—';
+}
 
+function PriorityBadge({ priority }: { priority: UnifiedOpsItem['priority'] }) {
+  const p = PRIORITY_STYLES[priority];
+  return (
+    <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${p.badge}`}>
+      {p.label}
+    </span>
+  );
+}
+
+function NextActionContent({ item }: { item: UnifiedOpsItem }) {
+  if (item.outstandingLines && item.outstandingLines.length > 0) {
+    return (
+      <div>
+        <p className="text-xs text-apg-silver">Outstanding</p>
+        <ul className="mt-1 space-y-0.5 text-sm">
+          {item.outstandingLines.map((line) => (
+            <li key={`${line.kind}-${line.label}`}>
+              {line.financialInvoiceId ? (
+                <Link
+                  href={`/admin/invoices/${line.financialInvoiceId}`}
+                  className="text-[#FF5A1F] hover:underline"
+                >
+                  • {line.label} {paiseToInr(line.amountPaise)}
+                </Link>
+              ) : (
+                <span>
+                  • {line.label} {paiseToInr(line.amountPaise)}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  return <>{item.nextAction}</>;
+}
+
+function OpsMobileCard({ item }: { item: UnifiedOpsItem }) {
+  return (
+    <article className="rounded-2xl border border-white/10 bg-[#1A1F27] p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-base font-semibold text-white">{item.residentName}</p>
+          <p className="mt-0.5 text-xs text-apg-silver">{item.pgName ?? '—'}</p>
+          <p className="mt-0.5 text-xs text-apg-silver">Room / bed: {locationLabel(item)}</p>
+        </div>
+        <PriorityBadge priority={item.priority} />
+      </div>
+
+      <dl className="mt-3 space-y-2 text-sm">
+        <div>
+          <dt className="text-[10px] font-semibold uppercase tracking-wide text-apg-silver">Status</dt>
+          <dd className="mt-0.5 text-white/90">{item.status}</dd>
+        </div>
+        <div>
+          <dt className="text-[10px] font-semibold uppercase tracking-wide text-apg-silver">Next action</dt>
+          <dd className="mt-0.5 text-white">
+            <NextActionContent item={item} />
+          </dd>
+        </div>
+      </dl>
+
+      <Link
+        href={item.openHref}
+        className="mt-4 inline-flex min-h-[44px] w-full items-center justify-center rounded-lg bg-[#FF5A1F] px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110"
+      >
+        {item.openLabel}
+      </Link>
+    </article>
+  );
+}
+
+function OpsRow({ item }: { item: UnifiedOpsItem }) {
   return (
     <tr className="transition hover:bg-white/[0.02]">
       <td className="px-4 py-4 font-medium text-white">{item.residentName}</td>
       <td className="px-4 py-4 text-apg-silver">{item.pgName ?? '—'}</td>
-      <td className="px-4 py-4 text-apg-silver">{location || '—'}</td>
+      <td className="px-4 py-4 text-apg-silver">{locationLabel(item)}</td>
       <td className="px-4 py-4">
-        <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${p.badge}`}>
-          {p.label}
-        </span>
+        <PriorityBadge priority={item.priority} />
       </td>
       <td className="px-4 py-4 text-apg-silver">{item.status}</td>
       <td className="px-4 py-4 text-white">
-        {item.outstandingLines && item.outstandingLines.length > 0 ? (
-          <div>
-            <p className="text-xs text-apg-silver">Outstanding</p>
-            <ul className="mt-1 space-y-0.5 text-sm">
-              {item.outstandingLines.map((line) => (
-                <li key={`${line.kind}-${line.label}`}>
-                  {line.financialInvoiceId ? (
-                    <Link
-                      href={`/admin/invoices/${line.financialInvoiceId}`}
-                      className="text-[#FF5A1F] hover:underline"
-                    >
-                      • {line.label} {paiseToInr(line.amountPaise)}
-                    </Link>
-                  ) : (
-                    <span>
-                      • {line.label} {paiseToInr(line.amountPaise)}
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : (
-          item.nextAction
-        )}
+        <NextActionContent item={item} />
       </td>
       <td className="px-4 py-4 text-right">
         <Link

@@ -8,7 +8,7 @@
     "env:check": "tsx scripts/check-env.ts",
     "db:status": "tsx src/db/migrationStatus.ts",
     "build": "next build",
-    "vercel-build": "npm run db:migrate && bash scripts/vercel-build-repair.sh && next build",
+    "vercel-build": "bash scripts/vercel-build.sh",
     "start": "next start",
     "lint": "eslint",
     "db:generate": "drizzle-kit generate",
@@ -16,7 +16,7 @@
     "db:seed": "tsx src/db/seed.ts",
     "db:reset": "tsx src/db/reset.ts",
     "db:studio": "drizzle-kit studio",
-    "test": "tsx scripts/lint-image-uploads.ts && tsx scripts/lint-private-blob-display.ts && node --import tsx --test 'tests/unit/**/*.test.ts' 'tests/integration/**/*.test.ts'",
+    "test": "tsx scripts/lint-image-uploads.ts && tsx scripts/lint-private-blob-display.ts && tsx scripts/run-node-tests.ts",
     "lint:uploads": "tsx scripts/lint-image-uploads.ts",
     "lint:private-blobs": "tsx scripts/lint-private-blob-display.ts",
     "test:e2e": "playwright test",
@@ -48,6 +48,7 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/nodemailer": "^8.0.0",

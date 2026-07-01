@@ -47,7 +47,7 @@ test('notice period still wins over open-ended stay end', () => {
     bedStatus: 'available',
     isAvailableNow: false,
     nextAvailableDate: '2099-01-01',
-    vacatingDate: '2026-06-26',
+    vacatingDate: '2099-06-26',
     vacatingStatus: 'pending',
     reservedFrom: null,
   });

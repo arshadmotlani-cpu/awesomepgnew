@@ -14,7 +14,7 @@ export function Table({
         className
       }
     >
-      <div className="overflow-x-auto">
+      <div className="apg-admin-table-scroll-viewport">
         <table className="min-w-full divide-y divide-zinc-100 text-left text-sm">
           {children}
         </table>

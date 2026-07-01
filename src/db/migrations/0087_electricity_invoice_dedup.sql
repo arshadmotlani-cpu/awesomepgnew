@@ -12,8 +12,19 @@ FROM electricity_bills eb
 WHERE ei.electricity_bill_id = eb.id
   AND ei.room_id IS NULL;
 
-ALTER TABLE electricity_invoices
-  ALTER COLUMN room_id SET NOT NULL;
+-- Legacy rows without a bill link cannot satisfy room_id — cancel so deploy can proceed.
+UPDATE electricity_invoices
+SET status = 'cancelled'
+WHERE room_id IS NULL;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM electricity_invoices WHERE room_id IS NULL) THEN
+    ALTER TABLE electricity_invoices ALTER COLUMN room_id SET NOT NULL;
+  ELSE
+    RAISE WARNING 'electricity_invoices.room_id: orphan rows remain — NOT NULL constraint deferred';
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS electricity_invoices_room_month_customer_idx
   ON electricity_invoices (room_id, billing_month, customer_id);
