@@ -152,9 +152,7 @@ export default async function ProfilePage(props: PageProps<'/account/profile'>) 
           email={session.email}
           extra={{ residentTab, profileSub, paymentsSub }}
         />
-        <div className="hidden md:block">
-          <ResidentPageHeader meta={residentTabMeta(residentTab)} />
-        </div>
+        <ResidentPageHeader meta={residentTabMeta(residentTab)} />
         <ResidentSectionErrorBoundary
           page={`account_profile_resident_${residentTab}`}
           customerId={session.customerId}

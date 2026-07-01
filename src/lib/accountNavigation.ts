@@ -115,11 +115,3 @@ export function residentPaymentsHref(sub: ResidentPaymentsSub = 'due'): string {
 /** Back link target for resident billing sub-pages. */
 export const ACCOUNT_RESIDENT_HREF = residentProfileHref('overview');
 
-/** Mobile bottom nav — same 5 items as desktop. */
-export const RESIDENT_BOTTOM_NAV: { tab: ResidentTab; label: string; icon: string }[] = [
-  { tab: 'profile', label: 'Profile', icon: '👤' },
-  { tab: 'payments', label: 'Payments', icon: '💰' },
-  { tab: 'requests', label: 'Requests', icon: '📋' },
-  { tab: 'referrals', label: 'Referrals', icon: '🎁' },
-  { tab: 'concierge', label: 'Concierge', icon: '💬' },
-];

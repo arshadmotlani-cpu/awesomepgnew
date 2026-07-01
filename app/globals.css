@@ -166,15 +166,22 @@ body {
   backdrop-filter: blur(20px);
 }
 
-/* Resident hub — mobile bottom nav safe area */
+/* Resident hub — clearance for floating Support button (24px + safe area) */
 .apg-resident-hub-main {
-  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(5rem + max(24px, env(safe-area-inset-bottom, 0px)));
 }
 
-@media (min-width: 768px) {
-  .apg-resident-hub-main {
-    padding-bottom: 0;
-  }
+.apg-resident-top-nav {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.apg-resident-top-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.apg-support-fab {
+  bottom: max(24px, env(safe-area-inset-bottom, 0px));
 }
 
 .apg-resident-subpage {

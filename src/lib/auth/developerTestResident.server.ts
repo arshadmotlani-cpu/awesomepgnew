@@ -5,8 +5,9 @@ function normalizeEmail(email: string | null | undefined): string {
   return (email ?? '').trim().toLowerCase();
 }
 
-/** True only when DEVELOPER_TEST_EMAIL is configured and matches the signed-in resident. */
+/** True only in non-production when DEVELOPER_TEST_EMAIL matches the signed-in resident. */
 export function isDeveloperTestResidentEmail(email: string | null | undefined): boolean {
+  if (process.env.NODE_ENV === 'production') return false;
   const configured = normalizeEmail(env.DEVELOPER_TEST_EMAIL);
   if (!configured) return false;
   return normalizeEmail(email) === configured;

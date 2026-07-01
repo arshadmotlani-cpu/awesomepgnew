@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { ResidentControlShell } from '@/src/components/world/ResidentControlShell';
-import { RESIDENT_BOTTOM_NAV, type ResidentTab, residentTabHref } from '@/src/lib/accountNavigation';
-import { RESIDENT_DESKTOP_NAV, residentTabMeta } from '@/src/lib/residentNavigation';
+import { type ResidentTab, residentTabHref } from '@/src/lib/accountNavigation';
+import { RESIDENT_DESKTOP_NAV } from '@/src/lib/residentNavigation';
 import { ResidentSectionErrorBoundary } from '@/src/components/customer/account/resident/ResidentSectionErrorBoundary';
 import { DeveloperTestResidentPanel } from '@/src/components/customer/account/resident/DeveloperTestResidentPanel';
 import type { DevResidentDurationMode } from '@/src/lib/auth/developerTestResident.shared';
@@ -29,11 +29,9 @@ export function ResidentHubShell({
   actualDurationMode = null,
   simulatedDurationMode = null,
 }: Props) {
-  const tabMeta = residentTabMeta(activeTab);
-
   return (
     <ResidentControlShell>
-      <div className="apg-resident-hub-main min-w-0">
+      <div className="apg-resident-hub-main min-w-0 overflow-x-clip">
         {developerTestMode ? (
           <div
             className="mb-3 inline-flex items-center gap-2 rounded-full border border-violet-400/50 bg-violet-500/15 px-3 py-1 text-xs font-semibold text-violet-200"
@@ -53,14 +51,14 @@ export function ResidentHubShell({
         ) : null}
 
         <nav
-          className="mb-4 hidden flex-wrap gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1 md:flex"
+          className="apg-resident-top-nav mb-4 flex gap-1 overflow-x-auto scroll-smooth rounded-xl border border-white/10 bg-white/[0.03] p-1 snap-x snap-mandatory md:flex-wrap md:overflow-visible"
           aria-label="Resident hub"
         >
           {RESIDENT_DESKTOP_NAV.map(({ tab, label }) => (
             <Link
               key={tab}
               href={residentTabHref(tab)}
-              className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              className={`shrink-0 snap-start whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                 activeTab === tab
                   ? 'bg-apg-orange/15 text-apg-orange ring-1 ring-apg-orange/30'
                   : 'text-apg-silver hover:bg-white/5 hover:text-white'
@@ -72,13 +70,6 @@ export function ResidentHubShell({
           ))}
         </nav>
 
-        <div className="mb-4 md:hidden">
-          <p className="text-xs font-semibold uppercase tracking-wider text-apg-orange">
-            {tabMeta.title}
-          </p>
-          <p className="mt-0.5 text-sm text-apg-silver">{tabMeta.subtitle}</p>
-        </div>
-
         <ResidentSectionErrorBoundary
           page={`resident_portal_${activeTab}`}
           bookingId={bookingId}
@@ -88,30 +79,6 @@ export function ResidentHubShell({
         >
           <div className="min-w-0 space-y-6">{children}</div>
         </ResidentSectionErrorBoundary>
-
-        <nav
-          className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 bg-apg-charcoal/95 backdrop-blur-md md:hidden"
-          aria-label="Resident navigation"
-        >
-          <ul className="mx-auto flex max-w-lg items-stretch justify-around px-1 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
-            {RESIDENT_BOTTOM_NAV.map(({ tab, label, icon }) => (
-              <li key={tab} className="min-w-0 flex-1">
-                <Link
-                  href={residentTabHref(tab)}
-                  className={`flex min-h-[44px] flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1 text-[10px] font-semibold transition ${
-                    activeTab === tab ? 'text-apg-orange' : 'text-apg-silver'
-                  }`}
-                  aria-current={activeTab === tab ? 'page' : undefined}
-                >
-                  <span className="text-base leading-none" aria-hidden>
-                    {icon}
-                  </span>
-                  <span className="max-w-full truncate">{label}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
       </div>
     </ResidentControlShell>
   );
