@@ -13,6 +13,15 @@ export const monitoringDrizzleLogger: Logger = {
       return;
     }
 
+    // Production: never persist every SQL statement — app_logs grew to 469MB+ and
+    // blocked all INSERTs (audit_log, payments). Opt in with MONITORING_LOG_ALL_DB_QUERIES=1.
+    if (
+      process.env.NODE_ENV === 'production' &&
+      process.env.MONITORING_LOG_ALL_DB_QUERIES !== '1'
+    ) {
+      return;
+    }
+
     const ctx = getMonitoringContext();
     logger.db('sql', {
       query: query.slice(0, 2000),

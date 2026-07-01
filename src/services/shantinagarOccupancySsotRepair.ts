@@ -106,6 +106,11 @@ export const SHANTINAGAR_OCCUPANCY_SPECS: RoomOccupancySpec[] = [
     roomNumber: '203',
     allowedNamePatterns: ['krishna', 'vijay', 'waqar'],
     regenerateJuneElectricity: true,
+    fixedJuneInvoiceAmounts: [
+      { namePattern: 'krishna', amountPaise: 120_000 },
+      { namePattern: 'vijay', amountPaise: 120_000 },
+      { namePattern: 'waqar', amountPaise: 120_000 },
+    ],
   },
   {
     roomNumber: '204',

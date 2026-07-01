@@ -522,8 +522,14 @@ export async function approveElectricityPaymentProof(
     rawPayload: { source: 'qr_payment_proof', proofUrl: invoice.paymentProofUrl },
   });
 
-  if (!result.ok) return { ok: false, message: result.reason };
-  return { ok: true };
+  if (result.ok) return { ok: true };
+
+  const refreshed = await fetchElectricityInvoiceById(invoiceId);
+  if (refreshed?.status === 'paid') {
+    return { ok: true };
+  }
+
+  return { ok: false, message: result.reason };
 }
 
 export async function rejectElectricityPaymentProof(

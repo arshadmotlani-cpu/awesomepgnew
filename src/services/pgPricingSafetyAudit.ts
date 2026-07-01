@@ -64,7 +64,7 @@ export async function capturePgFinancialFingerprint(pgId: string): Promise<PgFin
   `);
 
   const checkoutSettlements = await db.execute(sql`
-    SELECT cs.id, cs.status, cs.refund_paise, cs.booking_id
+    SELECT cs.id, cs.status, cs.final_refund_paise, cs.booking_id
     FROM checkout_settlements cs
     INNER JOIN bookings b ON b.id = cs.booking_id
     INNER JOIN bed_reservations br ON br.booking_id = b.id AND br.kind = 'primary'

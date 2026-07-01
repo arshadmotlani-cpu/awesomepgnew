@@ -308,13 +308,14 @@ export async function repairPipelineTestResidentProductionInvoices(
       .where(inArray(electricityInvoices.id, ids));
     const { syncManyToUnified } = await import('@/src/services/unifiedInvoices');
     await syncManyToUnified(ids, 'electricity').catch(() => undefined);
-    await db.insert(auditLog).values({
+    const { writeAuditLogNonBlocking } = await import('@/src/lib/audit/writeAuditLog');
+    await writeAuditLogNonBlocking(db, {
       actorType: 'admin',
       actorId: session.adminId,
-      entity: 'electricity_invoice_ownership',
-      entityId: billingMonth ?? 'all',
+      entity: 'electricity_invoice',
+      entityId: ids[0] ?? null,
       action: 'cancel_pipeline_test_resident_production_invoices',
-      diff: { cancelled },
+      diff: { billingMonth: billingMonth ?? 'all', cancelled },
     });
     const { syncActionItems } = await import('@/src/services/actionItems');
     await syncActionItems(session).catch(() => undefined);

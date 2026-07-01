@@ -19,7 +19,11 @@ const ADMIN_PATHS = [
 ] as const;
 
 export function revalidateAdminSurfaces(): void {
-  for (const path of ADMIN_PATHS) {
-    revalidatePath(path);
+  try {
+    for (const path of ADMIN_PATHS) {
+      revalidatePath(path);
+    }
+  } catch {
+    // No-op outside Next.js request context (CLI scripts).
   }
 }

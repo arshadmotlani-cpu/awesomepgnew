@@ -818,6 +818,7 @@ export async function recordElectricityPaymentSuccess(
     .where(eq(electricityBills.id, invoice.electricityBillId))
     .limit(1);
 
+  let paymentId: string;
   try {
     const result = await db.transaction(async (tx) => {
       const [payment] = await tx
@@ -861,42 +862,7 @@ export async function recordElectricityPaymentSuccess(
 
       return { paymentId: payment.id };
     });
-
-    const auditResult = await writeAuditLogNonBlocking(db, {
-      actorType: 'system',
-      actorId: null,
-      entity: 'electricity_invoice',
-      entityId: invoice.id,
-      action: fullyPaid ? 'paid' : 'partial_payment',
-      diff: {
-        provider,
-        providerPaymentId: input.providerPaymentId,
-        amountPaise: input.amountPaise,
-        paidPaise: newPaidPaise,
-        outstandingPaise: Math.max(0, totalDue - newPaidPaise),
-      },
-    });
-    if (!auditResult.ok) {
-      console.error(
-        '[electricity-payment] payment recorded but audit_log insert failed',
-        auditResult.error,
-      );
-    }
-
-    if (!input.historical) {
-      const { notifyPaymentReceipt } = await import('@/src/lib/email/notifications');
-      notifyPaymentReceipt({
-        customerId: invoice.customerId,
-        purpose: 'electricity',
-        amountPaise: input.amountPaise,
-        reference: invoice.billingMonth,
-      });
-    }
-
-    const { syncElectricityInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
-    await syncElectricityInvoiceToUnified(invoice.id);
-
-    return { ok: true, paymentId: result.paymentId, invoiceId: invoice.id, stateChanged: true };
+    paymentId = result.paymentId;
   } catch (err) {
     if (pgErrorCode(err) === '23505') {
       const [reread] = await db
@@ -913,6 +879,50 @@ export async function recordElectricityPaymentSuccess(
     }
     return { ok: false, reason: formatPostgresError(err) };
   }
+
+  const auditResult = await writeAuditLogNonBlocking(db, {
+    actorType: 'system',
+    actorId: null,
+    entity: 'electricity_invoice',
+    entityId: invoice.id,
+    action: fullyPaid ? 'paid' : 'partial_payment',
+    diff: {
+      provider,
+      providerPaymentId: input.providerPaymentId,
+      amountPaise: input.amountPaise,
+      paidPaise: newPaidPaise,
+      outstandingPaise: Math.max(0, totalDue - newPaidPaise),
+    },
+  });
+  if (!auditResult.ok) {
+    console.error(
+      '[electricity-payment] payment recorded but audit_log insert failed',
+      auditResult.error,
+    );
+  }
+
+  if (!input.historical) {
+    try {
+      const { notifyPaymentReceipt } = await import('@/src/lib/email/notifications');
+      notifyPaymentReceipt({
+        customerId: invoice.customerId,
+        purpose: 'electricity',
+        amountPaise: input.amountPaise,
+        reference: invoice.billingMonth,
+      });
+    } catch (notifyErr) {
+      console.error('[electricity-payment] receipt notification failed', notifyErr);
+    }
+  }
+
+  try {
+    const { syncElectricityInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
+    await syncElectricityInvoiceToUnified(invoice.id);
+  } catch (syncErr) {
+    console.error('[electricity-payment] unified invoice sync failed after payment', syncErr);
+  }
+
+  return { ok: true, paymentId, invoiceId: invoice.id, stateChanged: true };
 }
 
 export async function recordElectricityPaymentFailure(input: {
@@ -1020,6 +1030,16 @@ export async function voidRoomElectricityBillsForMonth(
 
   const deletedBillIds: string[] = [];
   for (const bill of bills) {
+    const ledgerLinked = await db.execute<{ id: string }>(sql`
+      SELECT rel.id
+      FROM room_electricity_ledger_entries rel
+      INNER JOIN electricity_invoices ei ON ei.id = rel.electricity_invoice_id
+      WHERE ei.electricity_bill_id = ${bill.id}::uuid
+      LIMIT 1
+    `);
+    if (Array.isArray(ledgerLinked) && ledgerLinked.length > 0) {
+      continue;
+    }
     await db.delete(electricityBills).where(eq(electricityBills.id, bill.id));
     deletedBillIds.push(bill.id);
   }

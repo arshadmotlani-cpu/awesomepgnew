@@ -5,7 +5,8 @@
  * Usage:
  *   DOTENV_CONFIG_PATH=.env.vercel.pull npx tsx -r dotenv/config scripts/verify-dhruv-account.ts
  */
-import 'dotenv/config';
+import { loadAppEnv } from '../src/lib/db/loadEnv';
+loadAppEnv();
 import { and, desc, eq } from 'drizzle-orm';
 import { closeDb, db } from '../src/db/client';
 import {

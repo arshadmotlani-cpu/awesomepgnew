@@ -330,11 +330,15 @@ export async function rebuildOccupancyState(): Promise<OccupancyRebuildResult> {
   const residencyStatusDemoted = Array.isArray(demoted) ? demoted.length : 0;
 
   await revalidateOccupancyViews();
-  revalidatePath('/admin/residents', 'layout');
-  revalidatePath('/admin/pgs', 'layout');
-  revalidatePath('/admin/overview', 'layout');
-  revalidatePath('/admin/operations', 'layout');
-  revalidatePath('/admin/settings', 'layout');
+  try {
+    revalidatePath('/admin/residents', 'layout');
+    revalidatePath('/admin/pgs', 'layout');
+    revalidatePath('/admin/overview', 'layout');
+    revalidatePath('/admin/operations', 'layout');
+    revalidatePath('/admin/settings', 'layout');
+  } catch {
+    // No-op outside Next.js request context (CLI repair scripts).
+  }
 
   return {
     orphanReservationsClosed,

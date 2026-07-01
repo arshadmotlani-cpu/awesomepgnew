@@ -1238,6 +1238,7 @@ export async function recordRentPaymentSuccess(
   const fullyPaid = newOutstanding <= 0;
   const paidAt = input.paidAt ?? new Date();
 
+  let paymentId: string;
   try {
     const result = await db.transaction(async (tx) => {
       const [payment] = await tx
@@ -1286,32 +1287,57 @@ export async function recordRentPaymentSuccess(
 
       return { paymentId: payment.id };
     });
-
-    const auditResult = await writeAuditLogNonBlocking(db, {
-      actorType: 'system',
-      actorId: null,
-      entity: 'rent_invoice',
-      entityId: invoice.id,
-      action: fullyPaid ? 'paid' : 'partial_payment',
-      diff: {
-        provider,
-        providerPaymentId: input.providerPaymentId,
-        amountPaise: input.amountPaise,
-        rentPaise: invoice.rentPaise,
-        paidPrincipalPaise: newPaidPrincipal,
-        paidLateFeePaise: newPaidLate,
-        lateFeeLockedPaise: fullyPaid ? lateFee : invoice.lateFeeLockedPaise,
-        outstandingPaise: Math.max(0, newOutstanding),
-      },
-    });
-    if (!auditResult.ok) {
-      console.error(
-        '[rent-payment] payment recorded but audit_log insert failed',
-        auditResult.error,
-      );
+    paymentId = result.paymentId;
+  } catch (err) {
+    if (pgErrorCode(err) === '23505') {
+      const [reread] = await db
+        .select({ id: payments.id })
+        .from(payments)
+        .where(
+          and(
+            eq(payments.provider, provider),
+            eq(payments.providerPaymentId, input.providerPaymentId),
+          ),
+        )
+        .limit(1);
+      if (reread) {
+        return {
+          ok: true,
+          paymentId: reread.id,
+          invoiceId: invoice.id,
+          stateChanged: false,
+        };
+      }
     }
+    return { ok: false, reason: formatPostgresError(err) };
+  }
 
-    if (!input.historical) {
+  const auditResult = await writeAuditLogNonBlocking(db, {
+    actorType: 'system',
+    actorId: null,
+    entity: 'rent_invoice',
+    entityId: invoice.id,
+    action: fullyPaid ? 'paid' : 'partial_payment',
+    diff: {
+      provider,
+      providerPaymentId: input.providerPaymentId,
+      amountPaise: input.amountPaise,
+      rentPaise: invoice.rentPaise,
+      paidPrincipalPaise: newPaidPrincipal,
+      paidLateFeePaise: newPaidLate,
+      lateFeeLockedPaise: fullyPaid ? lateFee : invoice.lateFeeLockedPaise,
+      outstandingPaise: Math.max(0, newOutstanding),
+    },
+  });
+  if (!auditResult.ok) {
+    console.error(
+      '[rent-payment] payment recorded but audit_log insert failed',
+      auditResult.error,
+    );
+  }
+
+  if (!input.historical) {
+    try {
       const { notifyPaymentReceipt } = await import('@/src/lib/email/notifications');
       notifyPaymentReceipt({
         customerId: invoice.customerId,
@@ -1345,50 +1371,31 @@ export async function recordRentPaymentSuccess(
           pgId: automationCtx.pgId,
           customerId: invoice.customerId,
           bookingId: invoice.bookingId,
-          paymentId: result.paymentId,
+          paymentId,
           amountPaise: input.amountPaise,
           pgName: automationCtx.pgName,
           customerName: automationCtx.customerName,
           paymentPurpose: 'rent',
         });
       }
+    } catch (sideEffectErr) {
+      console.error('[rent-payment] post-payment side effects failed', sideEffectErr);
     }
-
-    const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
-    const unifiedId = await syncRentInvoiceToUnified(invoice.id);
-    if (!unifiedId) {
-      return { ok: false, reason: 'Unified invoice sync failed after rent payment.' };
-    }
-
-    return {
-      ok: true,
-      paymentId: result.paymentId,
-      invoiceId: invoice.id,
-      stateChanged: true,
-    };
-  } catch (err) {
-    if (pgErrorCode(err) === '23505') {
-      const [reread] = await db
-        .select({ id: payments.id })
-        .from(payments)
-        .where(
-          and(
-            eq(payments.provider, provider),
-            eq(payments.providerPaymentId, input.providerPaymentId),
-          ),
-        )
-        .limit(1);
-      if (reread) {
-        return {
-          ok: true,
-          paymentId: reread.id,
-          invoiceId: invoice.id,
-          stateChanged: false,
-        };
-      }
-    }
-    return { ok: false, reason: formatPostgresError(err) };
   }
+
+  try {
+    const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
+    await syncRentInvoiceToUnified(invoice.id);
+  } catch (syncErr) {
+    console.error('[rent-payment] unified invoice sync failed after payment', syncErr);
+  }
+
+  return {
+    ok: true,
+    paymentId,
+    invoiceId: invoice.id,
+    stateChanged: true,
+  };
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -1821,8 +1828,18 @@ export async function approveRentPaymentProof(
     rawPayload: { source: 'payment_proof', proofUrl: invoice.paymentProofUrl },
   });
 
-  if (!result.ok) return { ok: false, message: result.reason };
-  return { ok: true };
+  if (result.ok) return { ok: true };
+
+  const [refreshed] = await db
+    .select({ status: rentInvoices.status })
+    .from(rentInvoices)
+    .where(eq(rentInvoices.id, invoiceId))
+    .limit(1);
+  if (refreshed?.status === 'paid') {
+    return { ok: true };
+  }
+
+  return { ok: false, message: result.reason };
 }
 
 export async function rejectRentPaymentProof(

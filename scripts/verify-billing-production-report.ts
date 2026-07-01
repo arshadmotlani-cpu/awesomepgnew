@@ -503,6 +503,8 @@ async function main() {
           await db
             .select({ t: sum(rentInvoices.paidPrincipalPaise) })
             .from(rentInvoices)
+            .innerJoin(bookings, eq(bookings.id, rentInvoices.bookingId))
+            .innerJoin(customers, eq(customers.id, rentInvoices.customerId))
             .where(
               and(
                 eq(rentInvoices.status, 'paid'),
@@ -517,6 +519,8 @@ async function main() {
           await db
             .select({ t: sum(electricityInvoices.paidPaise) })
             .from(electricityInvoices)
+            .innerJoin(bookings, eq(bookings.id, electricityInvoices.bookingId))
+            .innerJoin(customers, eq(customers.id, electricityInvoices.customerId))
             .where(
               and(
                 eq(electricityInvoices.status, 'paid'),

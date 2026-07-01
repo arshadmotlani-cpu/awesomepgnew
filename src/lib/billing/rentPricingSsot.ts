@@ -2,7 +2,7 @@
  * Rent pricing SSOT: bed_prices / negotiated room config → billing profile → invoice.
  * Booking pricing snapshots are historical — never preferred over current catalog.
  */
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, ne } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
   bedReservations,
@@ -10,6 +10,7 @@ import {
   bookings,
   customers,
   floors,
+  rentInvoices,
   residentBillingProfiles,
   rooms,
 } from '@/src/db/schema';
@@ -253,6 +254,7 @@ export async function syncAllBillingProfilesForPg(
   const rows = await db
     .select({ bookingId: bookings.id })
     .from(bookings)
+    .innerJoin(customers, eq(customers.id, bookings.customerId))
     .innerJoin(bedReservations, eq(bedReservations.bookingId, bookings.id))
     .innerJoin(beds, eq(beds.id, bedReservations.bedId))
     .innerJoin(rooms, eq(rooms.id, beds.roomId))
@@ -281,4 +283,54 @@ export async function syncAllBillingProfilesForPg(
     else skipped += 1;
   }
   return { synced, skipped };
+}
+
+/** Align pending/overdue rent invoices with bed_prices / room config for a billing month. */
+export async function syncPendingRentInvoicesFromSsot(
+  bookingId: string,
+  billingMonth: string,
+): Promise<{
+  updated: number;
+  changes: Array<{ invoiceId: string; fromPaise: number; toPaise: number }>;
+}> {
+  const month = firstOfMonth(billingMonth);
+  const resolved = await resolveMonthlyRentPaiseForBooking(bookingId, month);
+  if (!isCanonicalSource(resolved.source) || resolved.rentPaise <= 0) {
+    return { updated: 0, changes: [] };
+  }
+
+  await syncBillingProfileRentFromSsot(bookingId, month);
+
+  const pending = await db
+    .select({
+      id: rentInvoices.id,
+      rentPaise: rentInvoices.rentPaise,
+      status: rentInvoices.status,
+    })
+    .from(rentInvoices)
+    .where(
+      and(
+        eq(rentInvoices.bookingId, bookingId),
+        eq(rentInvoices.billingMonth, month),
+        eq(rentInvoices.isAdhoc, false),
+        ne(rentInvoices.status, 'cancelled'),
+        inArray(rentInvoices.status, ['pending', 'overdue']),
+      ),
+    );
+
+  const changes: Array<{ invoiceId: string; fromPaise: number; toPaise: number }> = [];
+  const now = new Date();
+
+  for (const inv of pending) {
+    if (inv.rentPaise === resolved.rentPaise) continue;
+    await db
+      .update(rentInvoices)
+      .set({ rentPaise: resolved.rentPaise, updatedAt: now })
+      .where(eq(rentInvoices.id, inv.id));
+    const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
+    await syncRentInvoiceToUnified(inv.id);
+    changes.push({ invoiceId: inv.id, fromPaise: inv.rentPaise, toPaise: resolved.rentPaise });
+  }
+
+  return { updated: changes.length, changes };
 }

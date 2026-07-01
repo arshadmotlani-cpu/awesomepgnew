@@ -39,6 +39,7 @@ import {
   resolveMonthlyRentPaiseForBooking,
   syncAllBillingProfilesForPg,
   syncBillingProfileRentFromSsot,
+  syncPendingRentInvoicesFromSsot,
   type RentPricingSource,
 } from '@/src/lib/billing/rentPricingSsot';
 import { ensureBillingProfileForBooking } from '@/src/services/residentBillingProfiles';
@@ -634,6 +635,21 @@ export async function runShantinagarJulyRentProduction(input: {
           JULY_BILLING_MONTH,
         );
         if (inv.rentPaise !== resolved.rentPaise) {
+          const synced = await syncPendingRentInvoicesFromSsot(
+            resident.bookingId,
+            JULY_BILLING_MONTH,
+          );
+          if (synced.updated > 0) {
+            const fixed = synced.changes[0];
+            report.residentsBilled.push({
+              name: inv.customerName,
+              room: `Room ${inv.roomNumber} ${inv.bedCode}`,
+              amountPaise: fixed?.toPaise ?? resolved.rentPaise,
+              invoiceNumber: inv.invoiceNumber,
+              pricingSource: resolved.source,
+            });
+            continue;
+          }
           report.errors.push(
             `Wrong invoice amount: ${inv.customerName} invoice=${paiseToInr(inv.rentPaise)} expected=${paiseToInr(resolved.rentPaise)} source=${resolved.source}`,
           );

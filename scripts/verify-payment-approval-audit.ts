@@ -5,7 +5,8 @@
  * Usage:
  *   DOTENV_CONFIG_PATH=.env.vercel.pull npx tsx -r dotenv/config scripts/verify-payment-approval-audit.ts
  */
-import 'dotenv/config';
+import { loadAppEnv } from '../src/lib/db/loadEnv';
+loadAppEnv();
 import { and, eq, isNotNull } from 'drizzle-orm';
 import { closeDb, db } from '../src/db/client';
 import { auditLog, electricityInvoices, rentInvoices } from '../src/db/schema';

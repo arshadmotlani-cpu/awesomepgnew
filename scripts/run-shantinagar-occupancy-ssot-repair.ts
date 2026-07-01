@@ -5,7 +5,8 @@
  *   npx tsx scripts/run-shantinagar-occupancy-ssot-repair.ts
  *   npx tsx scripts/run-shantinagar-occupancy-ssot-repair.ts --execute
  */
-import 'dotenv/config';
+import { loadAppEnv } from '@/src/lib/db/loadEnv';
+loadAppEnv();
 import {
   formatShantinagarOccupancySsotReport,
   runShantinagarOccupancySsotRepair,
