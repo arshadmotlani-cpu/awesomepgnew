@@ -18,6 +18,7 @@ import {
 } from '@/app/(admin)/admin/payments/actions';
 import { PaymentScreenshotPreview } from '@/src/components/admin/PaymentScreenshotPreview';
 import { PipelineTestInvoiceBadge } from '@/src/components/admin/PipelineTestInvoiceBadge';
+import { InvoiceAdminRowActions } from '@/src/components/admin/InvoiceAdminRowActions';
 import { OPS_ORANGE, OPS_PANEL } from '@/src/components/admin/residentOps/residentOpsUi';
 import { adminPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import type { OverpaymentDisposition, PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
@@ -379,6 +380,10 @@ export function OperationsPaymentReviewsPanel({
             ) : null}
 
             <div className="sticky bottom-0 flex flex-wrap items-center gap-2 border-t border-white/10 bg-[#141820] px-5 py-4">
+              {item.financialInvoiceId &&
+              (item.kind === 'rent' || item.kind === 'electricity') ? (
+                <InvoiceAdminRowActions financialInvoiceId={item.financialInvoiceId} />
+              ) : null}
               {showPartial && partialOpenKey !== item.key ? (
                 <>
                   <button

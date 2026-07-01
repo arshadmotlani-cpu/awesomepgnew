@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useMemo } from 'react';
 import { ExpressCollectionButton } from '@/src/components/admin/ExpressCollectionButton';
-import { BillingWhatsAppWithLinkButton } from '@/src/components/admin/BillingWhatsAppWithLinkButton';
+import { InvoiceAdminRowActions } from '@/src/components/admin/InvoiceAdminRowActions';
+import { InvoiceWhatsAppShareButton } from '@/src/components/admin/InvoiceWhatsAppShareButton';
 import { MarkAsPaidCashButton } from '@/src/components/admin/MarkAsPaidCashButton';
 import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
 import { formatDate, paiseToInr } from '@/src/lib/format';
@@ -145,10 +146,22 @@ function CollectionsQueueRowActions({
     adminName: string;
   } | null;
 }) {
-  const purpose = row.kind === 'electricity' ? 'electricity' : row.kind === 'rent' ? 'rent' : 'deposit';
-
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
+      {row.financialInvoiceId ? (
+        <>
+          <Link
+            href={`/admin/invoices/${row.financialInvoiceId}`}
+            className="rounded-lg border border-white/15 px-3 py-1.5 text-xs font-medium text-apg-silver hover:bg-white/5 hover:text-white"
+          >
+            Open
+          </Link>
+          <InvoiceWhatsAppShareButton
+            financialInvoiceId={row.financialInvoiceId}
+            className="inline-flex items-center gap-1 rounded-lg border border-[#25D366]/40 bg-[#25D366]/10 px-3 py-1.5 text-xs font-semibold text-[#25D366] hover:bg-[#25D366]/20"
+          />
+        </>
+      ) : null}
       {cashSettlement?.canSettle && row.financialInvoiceId ? (
         <MarkAsPaidCashButton
           financialInvoiceId={row.financialInvoiceId}
@@ -172,29 +185,10 @@ function CollectionsQueueRowActions({
           More ▾
         </summary>
         <div className="absolute right-0 z-20 mt-1 min-w-[180px] rounded-lg border border-white/10 bg-[#1A1F27] py-1 shadow-xl">
-          <div className="px-2 py-1">
-            <BillingWhatsAppWithLinkButton
-              kind={purpose}
-              residentId={row.customerId}
-              pgId={row.pgId}
-              customerName={row.customerFullName}
-              phone={row.customerPhone}
-              pgName={row.pgName}
-              amountPaise={row.amountPaise}
-              dueDate={row.dueDate}
-              roomNumber={row.roomNumber}
-              isOverdue={row.priority === 'overdue'}
-              className="block w-full rounded-md px-2 py-2 text-left text-xs font-medium text-white hover:bg-white/5"
-              label="Send payment request"
-            />
-          </div>
           {row.financialInvoiceId ? (
-            <Link
-              href={`/admin/invoices/${row.financialInvoiceId}`}
-              className="block px-3 py-2 text-xs text-apg-silver hover:bg-white/5 hover:text-white"
-            >
-              Invoice detail
-            </Link>
+            <div className="px-2 py-1">
+              <InvoiceAdminRowActions financialInvoiceId={row.financialInvoiceId} />
+            </div>
           ) : null}
           <Link
             href={`/admin/residents/${row.customerId}`}

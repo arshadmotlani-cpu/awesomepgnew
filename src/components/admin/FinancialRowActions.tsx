@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { BillingWhatsAppWithLinkButton } from '@/src/components/admin/BillingWhatsAppWithLinkButton';
+import { InvoiceWhatsAppShareButton } from '@/src/components/admin/InvoiceWhatsAppShareButton';
 import { WhatsAppIcon } from '@/src/components/admin/AdminKycWhatsAppButton';
 import { buildKycWhatsAppUrl, clientPublicSiteBaseUrl } from '@/src/lib/kyc/adminWhatsApp';
 
@@ -20,6 +21,7 @@ export type FinancialRowActionsProps = {
   roomNumber?: string;
   isOverdue?: boolean;
   bookingId?: string;
+  financialInvoiceId?: string | null;
   /** Show KYC WhatsApp instead of billing */
   kycOnly?: boolean;
 };
@@ -48,11 +50,22 @@ export function FinancialRowActions(props: FinancialRowActionsProps) {
     );
   }
 
+  const showInvoiceWhatsApp =
+    props.financialInvoiceId &&
+    (props.purpose === 'rent' || props.purpose === 'electricity');
+
   return (
     <div className="flex flex-wrap justify-end gap-1">
-      {props.purpose === 'rent' || props.purpose === 'electricity' || props.purpose === 'deposit' ? (
+      {props.financialInvoiceId ? (
+        <Link href={`/admin/invoices/${props.financialInvoiceId}`} className={BTN}>
+          Open
+        </Link>
+      ) : null}
+      {showInvoiceWhatsApp ? (
+        <InvoiceWhatsAppShareButton financialInvoiceId={props.financialInvoiceId!} />
+      ) : props.purpose === 'deposit' ? (
         <BillingWhatsAppWithLinkButton
-          kind={props.purpose}
+          kind="deposit"
           residentId={props.residentId}
           pgId={props.pgId}
           customerName={props.residentName}

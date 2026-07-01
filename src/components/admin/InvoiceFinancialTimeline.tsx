@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { InvoiceAdminRowActions } from '@/src/components/admin/InvoiceAdminRowActions';
 import { PipelineTestInvoiceBadge } from '@/src/components/admin/PipelineTestInvoiceBadge';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import type { FinancialTimelineEvent } from '@/src/services/invoiceCommandCenter';
@@ -100,6 +101,7 @@ export function InvoiceDayList({
             <th className="px-4 py-3">Status</th>
             <th className="px-4 py-3">Created</th>
             <th className="px-4 py-3">Paid</th>
+            <th className="px-4 py-3 text-right">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -135,6 +137,20 @@ export function InvoiceDayList({
               </td>
               <td className="px-4 py-3 text-apg-silver">
                 {inv.paidAt ? formatDate(new Date(inv.paidAt)) : '—'}
+              </td>
+              <td className="px-4 py-3 text-right">
+                {(inv.invoiceType === 'rent' || inv.invoiceType === 'electricity') &&
+                inv.status !== 'paid' &&
+                inv.status !== 'cancelled' ? (
+                  <InvoiceAdminRowActions financialInvoiceId={inv.id} />
+                ) : (
+                  <Link
+                    href={`/admin/invoices/${inv.id}`}
+                    className="text-xs text-apg-silver hover:text-white"
+                  >
+                    Open
+                  </Link>
+                )}
               </td>
             </tr>
           ))}

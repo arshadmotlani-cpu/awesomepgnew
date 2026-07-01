@@ -27,6 +27,7 @@ import type {
   PendingPaymentReviewItem,
 } from '@/src/lib/operations/paymentReviewTypes';
 import { resolveBookingDepositCreditAppliedPaise } from '@/src/lib/billing/bookingCheckoutTotals';
+import { resolveFinancialInvoiceIdForSource } from '@/src/services/adminCashSettlement';
 import {
   buildBookingPaymentExplanation,
   buildSimplePaymentExplanation,
@@ -347,6 +348,11 @@ async function buildRentReviewItem(
     .where(eq(customers.id, invoice.customerId))
     .limit(1);
 
+  const financialInvoiceId = await resolveFinancialInvoiceIdForSource({
+    sourceTable: 'rent_invoices',
+    sourceId: r.invoiceId,
+  });
+
   return {
     key: `rent-${r.invoiceId}`,
     kind: 'rent',
@@ -380,6 +386,7 @@ async function buildRentReviewItem(
     proofSubmittedAt: invoice.updatedAt.toISOString(),
     billingMonth: r.billingMonth,
     isPipelineTest: false,
+    financialInvoiceId,
     paymentExplanation: buildSimplePaymentExplanation({
       lines: expectedLines,
       totalExpectedPaise: projected.outstandingPaise,
@@ -426,6 +433,11 @@ async function buildElectricityReviewItem(
     { label: 'Electricity', amountPaise: expectedTotalPaise },
   ];
 
+  const financialInvoiceId = await resolveFinancialInvoiceIdForSource({
+    sourceTable: 'electricity_invoices',
+    sourceId: e.invoiceId,
+  });
+
   return {
     key: `elec-${e.invoiceId}`,
     kind: 'electricity',
@@ -459,6 +471,7 @@ async function buildElectricityReviewItem(
     proofSubmittedAt: invoice.updatedAt.toISOString(),
     billingMonth: invoice.billingMonth,
     isPipelineTest: invoice.isPipelineTest ?? false,
+    financialInvoiceId,
     paymentExplanation: buildSimplePaymentExplanation({
       lines: expectedLines,
       totalExpectedPaise: expectedTotalPaise,

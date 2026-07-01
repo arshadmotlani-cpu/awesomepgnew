@@ -380,6 +380,7 @@ export default async function CollectionsModulePage({
             error={openRent.ok ? null : openRent.error}
             rows={rentPendingRows}
             pgNameById={pgNameById}
+            financialIdMap={financialIdMap}
           />
         </>
       ) : null}
@@ -429,6 +430,7 @@ export default async function CollectionsModulePage({
             error={elecPending.ok ? null : elecPending.error}
             rows={elecPending.ok ? elecPending.data : []}
             pgNameById={pgNameById}
+            financialIdMap={financialIdMap}
             electricity
           />
         </>
@@ -457,6 +459,7 @@ function InvoiceTable({
   error,
   rows,
   pgNameById,
+  financialIdMap,
   electricity,
 }: {
   title: string;
@@ -479,6 +482,7 @@ function InvoiceTable({
     isOverdue?: boolean;
   }>;
   pgNameById: Map<string, string>;
+  financialIdMap: Map<string, string>;
   electricity?: boolean;
 }) {
   if (error) return <DbStatusBanner error={error} />;
@@ -512,6 +516,8 @@ function InvoiceTable({
                 amount > 0 &&
                 displayStatus !== 'paid' &&
                 displayStatus !== 'cancelled';
+              const sourceTable = electricity ? 'electricity_invoices' : 'rent_invoices';
+              const financialInvoiceId = financialIdMap.get(`${sourceTable}:${r.id}`) ?? null;
               return (
                 <TR key={r.id}>
                   <TD>
@@ -560,6 +566,7 @@ function InvoiceTable({
                         roomNumber={r.roomNumber}
                         isOverdue={r.isOverdue ?? displayStatus === 'overdue'}
                         bookingId={r.bookingId}
+                        financialInvoiceId={financialInvoiceId}
                       />
                     ) : (
                       <span className="text-[10px] text-apg-silver">—</span>

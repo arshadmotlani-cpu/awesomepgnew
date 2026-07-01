@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { BillingWhatsAppWithLinkButton } from '@/src/components/admin/BillingWhatsAppWithLinkButton';
+import { InvoiceAdminRowActions } from '@/src/components/admin/InvoiceAdminRowActions';
 import { paiseToInr } from '@/src/lib/format';
 import type {
   ResidentFinancialCategory,
@@ -13,12 +13,6 @@ import type {
 type Props = {
   summary: ResidentFinancialSummary;
 };
-
-function whatsAppKind(item: ResidentFinancialLineItem): 'rent' | 'deposit' | 'electricity' {
-  if (item.kind === 'deposit') return 'deposit';
-  if (item.kind === 'electricity') return 'electricity';
-  return 'rent';
-}
 
 function CategoryRow({
   label,
@@ -119,19 +113,9 @@ function DrilldownPanel({
               <span>Left {paiseToInr(item.outstandingPaise)}</span>
             </div>
             <div className="mt-2 flex flex-wrap gap-2">
-              {summary.pgId && item.outstandingPaise > 0 && item.kind !== 'ps4' && item.kind !== 'custom' ? (
-                <BillingWhatsAppWithLinkButton
-                  kind={whatsAppKind(item)}
-                  residentId={summary.customerId}
-                  pgId={summary.pgId}
-                  customerName={summary.customerName}
-                  phone={summary.customerPhone}
-                  pgName={summary.pgName ?? ''}
-                  amountPaise={item.outstandingPaise}
-                  dueDate={item.dueDate ?? 'soon'}
-                  roomNumber={item.roomNumber ?? summary.roomNumber ?? undefined}
-                  isOverdue={item.status === 'overdue'}
-                />
+              {summary.pgId && item.outstandingPaise > 0 && item.financialInvoiceId &&
+              (item.kind === 'rent' || item.kind === 'electricity') ? (
+                <InvoiceAdminRowActions financialInvoiceId={item.financialInvoiceId} />
               ) : null}
               {item.financialInvoiceId ? (
                 <Link

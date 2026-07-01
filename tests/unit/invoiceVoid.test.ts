@@ -18,8 +18,11 @@ test('WhatsApp payload includes public invoice URL', () => {
     {
       id: 'inv-1',
       invoiceNumber: 'INV-2026-SHA-0001',
+      invoiceType: 'rent',
       customerName: 'Test Resident',
       customerPhone: '+919876543210',
+      pgName: 'Awesome PG',
+      billingMonth: '2026-07-01',
       totals: {
         subtotalPaise: 500000,
         lateFeePaise: 0,
@@ -28,12 +31,10 @@ test('WhatsApp payload includes public invoice URL', () => {
         paidPaise: 0,
         balanceDuePaise: 500000,
       },
-      lineItems: [{ kind: 'rent', label: 'Rent', subtitle: null, period: null, amountPaise: 500000 }],
-      payment: { paymentReference: null, paidAt: null, paymentLinkUrl: null, paymentLinkId: null },
     },
     'https://www.awesomepg.in/i/abc123sharetoken',
   );
-  assert.match(payload.message, /INV-2026-SHA-0001/);
+  assert.match(payload.message, /July Rent invoice/);
   assert.match(payload.message, /https:\/\/www\.awesomepg\.in\/i\/abc123sharetoken/);
   assert.ok(payload.whatsappUrl?.includes('wa.me'));
 });

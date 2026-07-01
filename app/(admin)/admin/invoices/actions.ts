@@ -8,11 +8,7 @@ import {
   createPaymentLinkForInvoice,
   refundUnifiedInvoice,
 } from '@/src/services/unifiedInvoices';
-import { getInvoiceDocumentDetail } from '@/src/lib/billing/invoiceDocumentModel';
-import {
-  buildInvoicePublicUrlForInvoice,
-  buildInvoiceWhatsAppSendPayload,
-} from '@/src/lib/billing/sendInvoiceOnWhatsApp';
+import { prepareInvoiceWhatsAppShare } from '@/src/lib/billing/sendInvoiceOnWhatsApp';
 import { voidInvoiceCompletely } from '@/src/services/invoiceVoid';
 
 export type InvoiceActionState =
@@ -154,8 +150,7 @@ export async function invoicePaymentLinkAction(
   }
 }
 
-export async function invoiceWhatsAppAction(
-  _prev: InvoiceActionState,
+export async function openInvoiceWhatsAppShareAction(
   formData: FormData,
 ): Promise<InvoiceActionState> {
   try {
@@ -165,38 +160,28 @@ export async function invoiceWhatsAppAction(
 
     await assertAdminFinancialInvoiceAccess(session, invoiceId);
 
-    let detail = await getInvoiceDocumentDetail(invoiceId);
-    if (!detail) return { status: 'error', message: 'Invoice not found.' };
-
-    if (
-      !detail.payment.paymentLinkUrl &&
-      detail.status !== 'paid' &&
-      detail.status !== 'cancelled' &&
-      detail.status !== 'refunded'
-    ) {
-      const link = await createPaymentLinkForInvoice(invoiceId);
-      if (link.ok) {
-        detail = (await getInvoiceDocumentDetail(invoiceId)) ?? detail;
-      }
-    }
-
-    const publicInvoiceUrl = await buildInvoicePublicUrlForInvoice(invoiceId);
-    const payload = buildInvoiceWhatsAppSendPayload(detail, publicInvoiceUrl);
-
-    if (!payload.whatsappUrl) {
-      return { status: 'error', message: 'Resident phone number is missing or invalid.' };
+    const prepared = await prepareInvoiceWhatsAppShare(invoiceId);
+    if (!prepared.ok) {
+      return { status: 'error', message: prepared.error };
     }
 
     return {
       status: 'ok',
-      message: 'WhatsApp message ready.',
-      whatsappUrl: payload.whatsappUrl,
-      paymentUrl: detail.payment.paymentLinkUrl ?? undefined,
+      message: 'WhatsApp ready.',
+      whatsappUrl: prepared.whatsappUrl,
+      paymentUrl: prepared.publicInvoiceUrl,
     };
   } catch (err) {
     return {
       status: 'error',
-      message: err instanceof Error ? err.message : 'Could not build WhatsApp message.',
+      message: err instanceof Error ? err.message : 'Could not open WhatsApp.',
     };
   }
+}
+
+export async function invoiceWhatsAppAction(
+  _prev: InvoiceActionState,
+  formData: FormData,
+): Promise<InvoiceActionState> {
+  return openInvoiceWhatsAppShareAction(formData);
 }

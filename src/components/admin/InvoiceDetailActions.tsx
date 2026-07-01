@@ -73,7 +73,7 @@ export function InvoiceDetailActions({
             className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#25D366] px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50 sm:w-auto"
           >
             <WhatsAppIcon className="h-4 w-4" />
-            {waPending ? 'Opening…' : 'Send on WhatsApp'}
+            {waPending ? 'Opening…' : 'WhatsApp'}
           </button>
         </form>
 

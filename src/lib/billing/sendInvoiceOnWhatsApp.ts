@@ -1,12 +1,17 @@
 import { appAbsoluteUrl, getAppUrl } from '@/src/lib/url';
-import { whatsAppPhoneDigits } from '@/src/lib/kyc/adminWhatsApp';
-import { paiseToInr } from '@/src/lib/format';
 import type { InvoiceDocumentModel } from '@/src/lib/billing/invoiceDocumentModel';
+import {
+  buildCollectionWhatsAppMessageForInvoiceType,
+  buildCollectionWhatsAppUrl,
+} from '@/src/lib/billing/invoiceCollectionWhatsApp';
 import { invoiceDetailHref } from '@/src/lib/billing/invoiceRoutes';
 import {
   ensureInvoiceShareToken,
+  getInvoiceShareToken,
   invoicePublicSharePath,
+  resolveInvoiceIdByShareToken,
 } from '@/src/lib/billing/invoiceShareToken';
+import { getInvoiceDocumentDetail } from '@/src/lib/billing/invoiceDocumentModel';
 
 export type InvoiceWhatsAppSendPayload = {
   message: string;
@@ -57,43 +62,84 @@ export function buildInvoiceWhatsAppSendPayload(
     InvoiceDocumentModel,
     | 'id'
     | 'invoiceNumber'
+    | 'invoiceType'
     | 'customerName'
     | 'customerPhone'
+    | 'pgName'
+    | 'billingMonth'
     | 'totals'
-    | 'lineItems'
-    | 'payment'
   >,
   publicInvoiceUrl: string,
 ): InvoiceWhatsAppSendPayload {
-  const firstName = detail.customerName.trim().split(/\s+/)[0] || 'there';
-  const balanceDue = detail.totals.balanceDuePaise;
-  const amountLine =
-    balanceDue > 0
-      ? `Amount due: ${paiseToInr(balanceDue)}`
-      : `Total: ${paiseToInr(detail.totals.totalPaise)}`;
+  const amountPaise =
+    detail.totals.balanceDuePaise > 0
+      ? detail.totals.balanceDuePaise
+      : detail.totals.totalPaise;
 
-  const breakdownBlock =
-    detail.lineItems.length > 1
-      ? '\n\nBreakdown:\n' +
-        detail.lineItems.map((l) => `• ${l.label}: ${paiseToInr(l.amountPaise)}`).join('\n')
-      : '';
+  const message = buildCollectionWhatsAppMessageForInvoiceType({
+    invoiceType: detail.invoiceType,
+    customerName: detail.customerName,
+    pgName: detail.pgName,
+    invoiceNumber: detail.invoiceNumber,
+    billingMonth: detail.billingMonth,
+    amountPaise,
+    publicInvoiceUrl,
+  });
 
-  const payBlock = detail.payment?.paymentLinkUrl
-    ? `\n\nPay here:\n${detail.payment.paymentLinkUrl}`
-    : '';
-
-  const message =
-    `Hi ${firstName},\n\n` +
-    `Invoice #${detail.invoiceNumber}\n\n` +
-    `${amountLine}${breakdownBlock}${payBlock}\n\n` +
-    `View invoice:\n${publicInvoiceUrl}`;
-
-  const digits = whatsAppPhoneDigits(detail.customerPhone);
-  const whatsappUrl = digits
-    ? `https://wa.me/${digits}?text=${encodeURIComponent(message)}`
-    : null;
+  const whatsappUrl = buildCollectionWhatsAppUrl({
+    customerPhone: detail.customerPhone,
+    message,
+  });
 
   return { message, whatsappUrl, publicInvoiceUrl };
+}
+
+export type InvoiceWhatsAppShareResult =
+  | { ok: true; whatsappUrl: string; publicInvoiceUrl: string; message: string }
+  | { ok: false; error: string };
+
+/** Validate phone, invoice, and public URL before opening WhatsApp. */
+export async function prepareInvoiceWhatsAppShare(
+  invoiceId: string,
+  baseUrl?: string,
+): Promise<InvoiceWhatsAppShareResult> {
+  const detail = await getInvoiceDocumentDetail(invoiceId);
+  if (!detail) {
+    return { ok: false, error: 'Invoice not found.' };
+  }
+
+  if (!detail.customerPhone?.trim()) {
+    return { ok: false, error: 'Resident phone number is missing.' };
+  }
+
+  let publicInvoiceUrl: string;
+  try {
+    publicInvoiceUrl = await buildInvoicePublicUrlForInvoice(invoiceId, baseUrl);
+  } catch {
+    return { ok: false, error: 'Could not generate public invoice link.' };
+  }
+
+  const shareToken = await getInvoiceShareToken(invoiceId);
+  if (!shareToken) {
+    return { ok: false, error: 'Invoice share token is missing.' };
+  }
+
+  const resolvedId = await resolveInvoiceIdByShareToken(shareToken);
+  if (resolvedId !== invoiceId) {
+    return { ok: false, error: 'Public invoice URL does not resolve to this invoice.' };
+  }
+
+  const payload = buildInvoiceWhatsAppSendPayload(detail, publicInvoiceUrl);
+  if (!payload.whatsappUrl) {
+    return { ok: false, error: 'Resident phone number is invalid for WhatsApp.' };
+  }
+
+  return {
+    ok: true,
+    whatsappUrl: payload.whatsappUrl,
+    publicInvoiceUrl: payload.publicInvoiceUrl,
+    message: payload.message,
+  };
 }
 
 /** Client-side helper — opens WhatsApp in a new tab. */

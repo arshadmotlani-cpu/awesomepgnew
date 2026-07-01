@@ -256,7 +256,7 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-01 09:46:01 UTC
+### Pending pre-commit sync · 2026-07-01 10:01:40 UTC
 
 **Areas touched:** [[ROUTES]], [[Billing]]
 
@@ -270,9 +270,9 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 
 **Staged code files (4):**
 - `app/(admin)/admin/billing/page.tsx`
-- `app/(admin)/admin/rent/actions.ts`
-- `src/lib/billing/rentPricingSsot.ts`
-- `src/services/rentInvoices.ts`
+- `app/(admin)/admin/invoices/actions.ts`
+- `src/lib/billing/invoiceCollectionWhatsApp.ts`
+- `src/lib/billing/sendInvoiceOnWhatsApp.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

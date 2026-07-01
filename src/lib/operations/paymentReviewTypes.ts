@@ -80,4 +80,5 @@ export type PendingPaymentReviewItem = {
   proofSubmittedAt?: string | null;
   billingMonth?: string | null;
   isPipelineTest?: boolean;
+  financialInvoiceId?: string | null;
 };
