@@ -64,7 +64,7 @@ export function deriveResidentHomeStatus(input: {
     const billTone = (input.nextBillStatus ?? '').toLowerCase();
     return {
       phase: 'payment_due',
-      headline: `${paiseToInr(input.totalDuePaise)} waiting to be paid`,
+      headline: 'You have bills due',
       subline: stay,
       chipLabel: billTone.includes('overdue') ? 'Overdue' : 'Bill due',
       chipStatus: billTone.includes('overdue') ? 'overdue' : 'pending',

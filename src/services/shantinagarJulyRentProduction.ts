@@ -22,7 +22,6 @@ import {
   isActiveResidentFilter,
 } from '@/src/lib/billing/productionDataFilter';
 import {
-  getRoomBillingConfig,
   getRoomBillingConfigForBed,
   shouldSkipPrivateRoomDuplicate,
 } from '@/src/lib/billing/roomBilling';
@@ -46,7 +45,6 @@ import { ensureBillingProfileForBooking } from '@/src/services/residentBillingPr
 
 export const SHANTINAGAR_PRICING_TARGET_ROOMS = [
   '102',
-  '201',
   '202',
   '203',
   '204',
@@ -54,7 +52,8 @@ export const SHANTINAGAR_PRICING_TARGET_ROOMS = [
   '302',
 ] as const;
 
-export const SHANTINAGAR_PRICING_SKIP_ROOMS = ['101'] as const;
+/** Rooms with negotiated / finalized catalog pricing — skip bulk +1% apply. */
+export const SHANTINAGAR_PRICING_SKIP_ROOMS = ['101', '201'] as const;
 
 export const JULY_BILLING_MONTH = '2026-07-01';
 
@@ -144,111 +143,6 @@ function roomNeedsPricingFix(
     if (prior <= 0) return false;
     return row.current_monthly !== plusOnePaise(prior);
   });
-}
-
-/** Primary private-room invoice holder — non-inventory active bed in a private_room. */
-async function findPrivateRoomInvoiceBooking(
-  roomId: string,
-): Promise<{ bookingId: string; customerId: string; bedId: string } | null> {
-  const [row] = await db
-    .select({
-      bookingId: bookings.id,
-      customerId: bookings.customerId,
-      bedId: beds.id,
-      manualOccupied: beds.manualOccupied,
-    })
-    .from(bedReservations)
-    .innerJoin(bookings, eq(bookings.id, bedReservations.bookingId))
-    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
-    .where(
-      and(
-        eq(beds.roomId, roomId),
-        eq(bedReservations.status, 'active'),
-        eq(bedReservations.kind, 'primary'),
-        eq(bookings.status, 'confirmed'),
-        eq(beds.manualOccupied, false),
-        sql`CURRENT_DATE <@ ${bedReservations.stayRange}`,
-      ),
-    )
-    .limit(1);
-
-  if (!row) return null;
-  return {
-    bookingId: row.bookingId,
-    customerId: row.customerId,
-    bedId: row.bedId,
-  };
-}
-
-async function agreedMonthlyRentForBooking(bookingId: string): Promise<number> {
-  const resolved = await resolveMonthlyRentPaiseForBooking(bookingId, JULY_BILLING_MONTH);
-  if (resolved.rentPaise > 0 && resolved.source !== 'pricing_snapshot') {
-    return resolved.rentPaise;
-  }
-
-  const [booking] = await db
-    .select({ pricingSnapshot: bookings.pricingSnapshot })
-    .from(bookings)
-    .where(eq(bookings.id, bookingId))
-    .limit(1);
-  const fromSnapshot = monthlyRentFromSnapshot(
-    (booking?.pricingSnapshot as PricingSnapshot | null) ?? null,
-  );
-  if (fromSnapshot > 0) return fromSnapshot;
-
-  const [profile] = await db
-    .select({ rentAmountPaise: residentBillingProfiles.rentAmountPaise })
-    .from(residentBillingProfiles)
-    .where(eq(residentBillingProfiles.bookingId, bookingId))
-    .limit(1);
-  return profile?.rentAmountPaise ?? 0;
-}
-
-async function applyRoom201PrivateRentPlusOne(
-  roomId: string,
-  dryRun: boolean,
-): Promise<{ applied: boolean; beforePaise: number; afterPaise: number }> {
-  const config = await getRoomBillingConfig(roomId);
-  if (!config || config.billingMode !== 'private_room') {
-    return { applied: false, beforePaise: 0, afterPaise: 0 };
-  }
-
-  const holder = await findPrivateRoomInvoiceBooking(roomId);
-  const agreedFromSnapshot = holder
-    ? await agreedMonthlyRentForBooking(holder.bookingId)
-    : 0;
-  const baseRent =
-    agreedFromSnapshot > 0
-      ? agreedFromSnapshot
-      : (config.privateRoomMonthlyRentPaise ?? 0);
-  if (baseRent <= 0) {
-    return { applied: false, beforePaise: 0, afterPaise: 0 };
-  }
-
-  const targetRent = plusOnePaise(baseRent);
-  const currentRoomRent = config.privateRoomMonthlyRentPaise ?? 0;
-  if (currentRoomRent === targetRent) {
-    return { applied: false, beforePaise: currentRoomRent, afterPaise: targetRent };
-  }
-
-  if (!dryRun) {
-    await db
-      .update(rooms)
-      .set({
-        privateRoomMonthlyRentPaise: targetRent,
-        updatedAt: new Date(),
-      })
-      .where(eq(rooms.id, roomId));
-
-    if (holder) {
-      await db
-        .update(residentBillingProfiles)
-        .set({ rentAmountPaise: targetRent, updatedAt: new Date() })
-        .where(eq(residentBillingProfiles.bookingId, holder.bookingId));
-    }
-  }
-
-  return { applied: true, beforePaise: baseRent, afterPaise: targetRent };
 }
 
 async function syncBillingProfilesFromBedPrices(
@@ -417,19 +311,6 @@ export async function runShantinagarJulyRentProduction(input: {
       const bedCount = inv.beds.filter((b) => b.roomNumber === roomNumber).length;
       report.roomsUpdated.push(`${roomNumber} (dry-run)`);
       report.bedsUpdated += bedCount;
-    }
-  }
-
-  const room201Id = roomIdByNumber.get('201');
-  if (room201Id) {
-    const privateRent = await applyRoom201PrivateRentPlusOne(room201Id, dryRun);
-    if (privateRent.applied) {
-      log(
-        `Room 201 private-room negotiated rent: ${paiseToInr(privateRent.beforePaise)} → ${paiseToInr(privateRent.afterPaise)} (snapshot +1%, not per-bed catalog)`,
-      );
-      if (!report.roomsUpdated.includes('201')) report.roomsUpdated.push('201');
-    } else if (privateRent.afterPaise > 0) {
-      log(`Room 201 private-room rent already at ${paiseToInr(privateRent.afterPaise)}`);
     }
   }
 

@@ -17,6 +17,7 @@ import {
 import type { InvoiceBreakdown } from '@/src/db/schema/financialInvoices';
 import type { FinancialInvoiceStatus, FinancialInvoiceType } from '@/src/db/schema/enums';
 import type { ElectricityBillCalculationBreakdown } from '@/src/lib/billing/electricityBillBreakdownTypes';
+import type { RentInvoiceBreakdown } from '@/src/lib/billing/rentInvoiceBreakdownTypes';
 import { paymentLinkPublicUrl } from '@/src/lib/billing/paymentLinkUrl';
 import {
   durationModeToStayType,
@@ -118,6 +119,7 @@ export type InvoiceDocumentModel = {
   notes: string | null;
   cancellationReason: string | null;
   electricityCalculationBreakdown: ElectricityBillCalculationBreakdown | null;
+  rentCalculationBreakdown: RentInvoiceBreakdown | null;
 };
 
 function resolveGstin(): string {
@@ -510,6 +512,12 @@ export async function getInvoiceDocumentDetail(
     electricityCalculationBreakdown = calc?.breakdown ?? null;
   }
 
+  let rentCalculationBreakdown: RentInvoiceBreakdown | null = null;
+  if (base.invoiceType === 'rent' && base.sourceTable === 'rent_invoices' && base.sourceId) {
+    const { loadRentInvoiceBreakdown } = await import('@/src/lib/billing/rentInvoiceBreakdown');
+    rentCalculationBreakdown = await loadRentInvoiceBreakdown(base.sourceId);
+  }
+
   return {
     id: base.id,
     invoiceNumber: base.invoiceNumber,
@@ -549,6 +557,7 @@ export async function getInvoiceDocumentDetail(
     notes: base.notes,
     cancellationReason: base.cancellationReason,
     electricityCalculationBreakdown,
+    rentCalculationBreakdown,
   };
 }
 

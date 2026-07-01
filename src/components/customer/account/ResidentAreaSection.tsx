@@ -70,6 +70,7 @@ import { ResidentIncompleteStayPanel } from '@/src/components/customer/account/r
 import type { UpcomingPaymentRow } from '@/src/components/customer/account/resident/ResidentUpcomingPayments';
 import { getDepositRefundSettlementPreview } from '@/src/lib/deposits/depositRefundSettlementPreview';
 import { getDepositRefundEligibility } from '@/src/lib/vacating/depositRefundEligibility';
+import { getActiveTenancyForCustomer } from '@/src/lib/residentActiveTenancy';
 import { projectElectricityInvoice } from '@/src/services/electricityBilling';
 import { projectInvoice } from '@/src/services/rentInvoices';
 
@@ -375,7 +376,11 @@ export async function ResidentAreaSection({
     }),
   );
 
-  const primaryBooking = detail[0];
+  const activeTenancy = await getActiveTenancyForCustomer(session.customerId);
+  const primaryBooking =
+    (activeTenancy ? detail.find((d) => d.bookingId === activeTenancy.bookingId) : null) ??
+    detail[0] ??
+    undefined;
   const effectiveDurationMode =
     primaryBooking && developerTestMode && simulatedDurationMode
       ? mapDevDurationToBookingMode(simulatedDurationMode)
@@ -731,8 +736,11 @@ export async function ResidentAreaSection({
           documentsSubmitted={documentsSubmitted}
           openRequests={openRequests}
           depositDuePaise={primaryDepositCard?.depositDuePaise ?? 0}
+          depositRequiredPaise={primaryDepositCard?.depositPaise}
+          depositPaidPaise={primaryDepositCard?.collectedPaise}
           depositPaymentLinkUrl={primaryDepositCard?.paymentLinkUrl ?? null}
           upcomingPayments={homeUpcoming}
+          dueBillRows={dueBillRows}
           firstUnpaidRentId={firstUnpaidRentId}
           firstUnpaidElectricityId={firstUnpaidElectricityId}
           hasOpenVacating={hasOpenVacating}
@@ -809,6 +817,10 @@ export async function ResidentAreaSection({
           historyHref={historyHref}
           electricityHistory={electricityHistory}
           bookingId={walletBooking?.bookingId ?? primaryBooking.bookingId}
+          depositDuePaise={primaryDepositCard?.depositDuePaise}
+          depositRequiredPaise={primaryDepositCard?.depositPaise}
+          depositPaidPaise={primaryDepositCard?.collectedPaise}
+          depositPaymentLinkUrl={primaryDepositCard?.paymentLinkUrl}
         />
       ) : null}
     </ResidentHubShell>

@@ -104,7 +104,7 @@ export function BillingProductionRepairPanel() {
         />
         <RepairBlock
           title="Shantinagar +1% & July rent"
-          description="Applies +1% monthly rent to rooms 102, 201–204, 301–302 (skips 101). Room 201 uses negotiated private-room rent +1%. Then generates July rent for every active assigned resident."
+          description="Applies +1% monthly rent to rooms 102, 202–204, 301–302 (skips 101 and 201). Then generates July rent for every active assigned resident."
           previewAction={previewShantinagarJulyRentAction}
           runAction={runShantinagarJulyRentAction}
           runLabel="Run pricing + July rent"

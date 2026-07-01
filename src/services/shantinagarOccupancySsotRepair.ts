@@ -57,7 +57,7 @@ const JULY_MONTH = '2026-07-01';
 const RATE_PAISE = DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE;
 const ROOM_203_EXPECTED_RESIDENT_PAISE_MIN = 118_000;
 const ROOM_203_EXPECTED_RESIDENT_PAISE_MAX = 122_000;
-const NEGOTIATED_RENT_PAISE = 721_140; // ₹7,211.40 — rooms 101 & 201 private
+const NEGOTIATED_RENT_PAISE = 721_140; // ₹7,211.40 — room 101 private negotiated rate
 
 export type RoomOccupancySpec = {
   roomNumber: string;
@@ -947,10 +947,8 @@ async function buildJulyRentCertification(pgId: string) {
       JULY_MONTH,
     );
     const isNegotiatedPrivate =
-      (resident.roomNumber === '101' &&
-        resident.customerName.toLowerCase().includes('laxmi')) ||
-      (resident.roomNumber === '201' &&
-        resident.customerName.toLowerCase().includes('dhairya'));
+      resident.roomNumber === '101' &&
+      resident.customerName.toLowerCase().includes('laxmi');
     const expectedPaise = isNegotiatedPrivate ? NEGOTIATED_RENT_PAISE : resolved.rentPaise;
     const wrongAmount = inv.rentPaise !== expectedPaise;
 

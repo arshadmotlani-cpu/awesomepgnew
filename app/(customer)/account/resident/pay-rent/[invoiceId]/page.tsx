@@ -27,7 +27,8 @@ import {
   ACCOUNT_PAGE_SUBTITLE,
   ACCOUNT_PAGE_TITLE,
 } from '@/src/components/customer/accountStyles';
-import { ensureDefaultPaymentCategoriesForPg, getRentDepositBookingCategory } from '@/src/services/pgPaymentDefaults';
+import { RentInvoiceBreakdownPanel } from '@/src/components/billing/RentInvoiceBreakdownPanel';
+import { loadRentInvoiceBreakdown } from '@/src/lib/billing/rentInvoiceBreakdown';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import { projectInvoice } from '@/src/services/rentInvoices';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
@@ -94,6 +95,7 @@ export default async function PayRentPage({
   if (!row || row.customerId !== session.customerId) notFound();
 
   const projected = projectInvoice(row);
+  const rentBreakdown = await loadRentInvoiceBreakdown(invoiceId);
   const amountLabel = paiseToInr(projected.outstandingPaise);
   const periodLabel = formatDate(row.billingMonth);
   const backHref = residentTabHref('payments');
@@ -132,6 +134,10 @@ export default async function PayRentPage({
           <p className="mt-3 rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-600">{row.notes}</p>
         ) : null}
       </ApgCard>
+
+      {rentBreakdown ? (
+        <RentInvoiceBreakdownPanel breakdown={rentBreakdown} theme="light" />
+      ) : null}
 
       {row.status === 'paid' ? (
         <ApgCard tier="account" className="p-5 text-sm text-emerald-800">

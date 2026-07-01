@@ -5,6 +5,7 @@ import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import type { InvoiceDocumentModel } from '@/src/lib/billing/invoiceDocumentModel';
 import type { FinancialInvoiceStatus } from '@/src/db/schema/enums';
 import { ElectricityBillCalculationBreakdownPanel } from '@/src/components/billing/ElectricityBillCalculationBreakdownPanel';
+import { RentInvoiceBreakdownPanel } from '@/src/components/billing/RentInvoiceBreakdownPanel';
 import { personalizeElectricityBreakdown } from '@/src/lib/billing/electricityBillBreakdownPure';
 
 type Variant = 'admin' | 'resident';
@@ -225,6 +226,15 @@ export function InvoiceDocument({ document: doc, variant = 'admin', className = 
           </table>
         </div>
       </section>
+
+      {doc.rentCalculationBreakdown ? (
+        <section className="mt-6 print:break-inside-avoid">
+          <RentInvoiceBreakdownPanel
+            breakdown={doc.rentCalculationBreakdown}
+            theme={variant === 'resident' ? 'light' : 'dark'}
+          />
+        </section>
+      ) : null}
 
       {doc.electricityCalculationBreakdown ? (
         <section className="mt-6 print:break-inside-avoid">

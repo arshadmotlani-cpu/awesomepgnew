@@ -617,6 +617,13 @@
       "when": 1790900000000,
       "tag": "0091_electricity_bill_calculation_breakdown",
       "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "7",
+      "when": 1791000000000,
+      "tag": "0092_room_201_single_sharing",
+      "breakpoints": true
     }
   ]
 }

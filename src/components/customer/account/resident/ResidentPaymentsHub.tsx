@@ -9,6 +9,7 @@ import {
 } from '@/src/components/customer/account/resident/ResidentElectricityHistory';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import { residentTabHref } from '@/src/lib/accountNavigation';
+import { ResidentOutstandingBillsCard } from '@/src/components/customer/account/resident/ResidentOutstandingBillsCard';
 import type { PaymentDueRow } from '@/src/components/customer/account/resident/ResidentPaymentsPanel';
 
 export type PaidHistoryRow = {
@@ -30,18 +31,6 @@ const BILL_STATUS_TONE: Record<string, string> = {
 
 const PRIMARY_BTN =
   'flex w-full min-h-[52px] items-center justify-center rounded-xl bg-[#FF5A1F] px-6 py-3.5 text-base font-semibold text-white hover:brightness-110';
-
-function primaryPayAction(rows: PaymentDueRow[]): { href: string; label: string } | null {
-  const first = rows.find((r) => r.href);
-  if (!first?.href) return null;
-  if (first.key.startsWith('rent-')) {
-    return { href: first.href, label: `Pay rent · ${paiseToInr(first.amountPaise)}` };
-  }
-  if (first.key.startsWith('elec-')) {
-    return { href: first.href, label: `Pay electricity · ${paiseToInr(first.amountPaise)}` };
-  }
-  return { href: first.href, label: `Pay ${paiseToInr(first.amountPaise)}` };
-}
 
 function BillList({
   title,
@@ -111,6 +100,10 @@ export function ResidentPaymentsHub({
   historyHref,
   electricityHistory,
   bookingId,
+  depositDuePaise,
+  depositRequiredPaise,
+  depositPaidPaise,
+  depositPaymentLinkUrl,
 }: {
   dueRows: PaymentDueRow[];
   pendingApprovalRows: PaymentDueRow[];
@@ -118,31 +111,23 @@ export function ResidentPaymentsHub({
   historyHref: string | null;
   electricityHistory?: ResidentElectricityHistoryItem[];
   bookingId?: string | null;
+  depositDuePaise?: number;
+  depositRequiredPaise?: number;
+  depositPaidPaise?: number;
+  depositPaymentLinkUrl?: string | null;
 }) {
   const payableDue = dueRows.filter((r) => r.href);
-  const primary = primaryPayAction(payableDue);
-  const payFirst = payableDue[0] ?? null;
 
   return (
     <div className="space-y-4 pb-2">
-      {payFirst ? (
-        <ApgCard tier="account" className="overflow-hidden p-0">
-          <div className="border-b border-[#FF5A1F]/15 bg-gradient-to-br from-[#FF5A1F]/10 via-white to-white px-5 py-6">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#FF5A1F]">
-              Pay this first
-            </p>
-            <p className="mt-2 text-xl font-bold text-zinc-900">{payFirst.label}</p>
-            <p className="mt-1 text-3xl font-bold tabular-nums text-zinc-900">
-              {paiseToInr(payFirst.amountPaise)}
-            </p>
-            {payFirst.dueDate ? (
-              <p className="mt-2 text-sm text-zinc-600">
-                Due {formatDate(payFirst.dueDate)}
-                {payFirst.status.toLowerCase().includes('overdue') ? ' · overdue' : ''}
-              </p>
-            ) : null}
-          </div>
-        </ApgCard>
+      {payableDue.length > 0 ? (
+        <ResidentOutstandingBillsCard
+          dueRows={dueRows}
+          depositDuePaise={depositDuePaise}
+          depositRequiredPaise={depositRequiredPaise}
+          depositPaidPaise={depositPaidPaise}
+          depositPaymentLinkUrl={depositPaymentLinkUrl}
+        />
       ) : pendingApprovalRows.length === 0 ? (
         <ApgCard tier="account" className="p-5">
           <h2 className="text-base font-semibold text-zinc-900">Due bills</h2>
@@ -151,11 +136,7 @@ export function ResidentPaymentsHub({
         </ApgCard>
       ) : null}
 
-      {primary ? (
-        <Link href={primary.href} className={PRIMARY_BTN}>
-          {primary.label}
-        </Link>
-      ) : pendingApprovalRows.length > 0 ? (
+      {pendingApprovalRows.length > 0 ? (
         <p className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
           Payment submitted — we are reviewing your screenshot.
         </p>

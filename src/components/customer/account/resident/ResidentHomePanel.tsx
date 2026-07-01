@@ -12,12 +12,15 @@ import { ResidentHomePrimaryAction } from '@/src/components/customer/account/res
 import { ResidentHomeStatusCard } from '@/src/components/customer/account/resident/ResidentHomeStatusCard';
 import { ResidentHomeWhatNext } from '@/src/components/customer/account/resident/ResidentHomeWhatNext';
 import { ResidentMoreSection } from '@/src/components/customer/account/resident/ResidentMoreSection';
+import { ResidentElectricityDueBanner } from '@/src/components/customer/account/resident/ResidentElectricityDueBanner';
+import { ResidentOutstandingBillsCard } from '@/src/components/customer/account/resident/ResidentOutstandingBillsCard';
+import type { PaymentDueRow } from '@/src/components/customer/account/resident/ResidentPaymentsPanel';
+import type { UpcomingPaymentRow } from '@/src/components/customer/account/resident/ResidentUpcomingPayments';
 import {
   deriveResidentHomePrimaryAction,
   deriveResidentHomeStatus,
   deriveWhatHappensNext,
 } from '@/src/lib/residents/residentHomeState';
-import type { UpcomingPaymentRow } from '@/src/components/customer/account/resident/ResidentUpcomingPayments';
 import type { ResidentFinancialSummary } from '@/src/lib/billing/residentFinancialTypes';
 import type { ResidentBookingRow } from '@/src/db/queries/customer';
 import type { PlaystationMembership } from '@/src/db/schema/playstationMemberships';
@@ -34,8 +37,11 @@ export function ResidentHomePanel({
   documentsSubmitted,
   openRequests,
   depositDuePaise,
+  depositRequiredPaise,
+  depositPaidPaise,
   depositPaymentLinkUrl,
   upcomingPayments,
+  dueBillRows = [],
   firstUnpaidRentId,
   firstUnpaidElectricityId,
   hasOpenVacating,
@@ -52,8 +58,11 @@ export function ResidentHomePanel({
   documentsSubmitted: boolean;
   openRequests: OpenRequest[];
   depositDuePaise: number;
+  depositRequiredPaise?: number;
+  depositPaidPaise?: number;
   depositPaymentLinkUrl: string | null;
   upcomingPayments: UpcomingPaymentRow[];
+  dueBillRows?: PaymentDueRow[];
   firstUnpaidRentId: string | null;
   firstUnpaidElectricityId: string | null;
   hasOpenVacating: boolean;
@@ -67,6 +76,8 @@ export function ResidentHomePanel({
 }) {
   const bookingRequests = openRequests.filter((r) => r.bookingId === booking.bookingId);
   const firstPayment = upcomingPayments[0] ?? null;
+  const electricityDueRow =
+    dueBillRows.find((r) => r.key.startsWith('elec-') && r.href) ?? null;
 
   const status = deriveResidentHomeStatus({
     kycStatus,
@@ -102,16 +113,30 @@ export function ResidentHomePanel({
     openRequestCount: bookingRequests.length,
   });
 
+  const hasOutstandingBills = dueBillRows.length > 0 || depositDuePaise > 0;
+
   return (
     <div className="space-y-4 pb-2">
+      {electricityDueRow ? <ResidentElectricityDueBanner row={electricityDueRow} /> : null}
+
+      {hasOutstandingBills ? (
+        <ResidentOutstandingBillsCard
+          dueRows={dueBillRows}
+          depositDuePaise={depositDuePaise}
+          depositRequiredPaise={depositRequiredPaise}
+          depositPaidPaise={depositPaidPaise}
+          depositPaymentLinkUrl={depositPaymentLinkUrl}
+        />
+      ) : (
+        <ResidentHomePrimaryAction action={primaryAction} />
+      )}
+
       <ResidentHomeStatusCard
         status={status}
         bookingCode={booking.bookingCode}
         checkInDate={booking.checkInDate}
         expectedCheckoutDate={booking.expectedCheckoutDate}
       />
-
-      <ResidentHomePrimaryAction action={primaryAction} />
 
       <ResidentHomeAdminWaiting
         kycStatus={kycStatus}
@@ -123,7 +148,7 @@ export function ResidentHomePanel({
 
       <ResidentHomeWhatNext message={whatNext} />
 
-      <ResidentHomeNextPayment payment={firstPayment} />
+      {!hasOutstandingBills ? <ResidentHomeNextPayment payment={firstPayment} /> : null}
 
       {(hasOpenVacating || vacatingStatus || checkoutStatus) && (
         <ResidentHomeMoveOutStatus

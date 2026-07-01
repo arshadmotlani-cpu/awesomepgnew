@@ -7,12 +7,12 @@ test('sortByRoomBed orders by room number then bed code', () => {
     { roomNumber: '202', bedCode: 'B3', name: 'Angatra' },
     { roomNumber: '101', bedCode: 'B1', name: 'CV' },
     { roomNumber: '202', bedCode: 'B1', name: 'Anuj' },
-    { roomNumber: '201', bedCode: 'B2', name: 'Dhairya' },
+    { roomNumber: '201', bedCode: 'B1', name: 'Dhairya' },
   ];
   const sorted = sortByRoomBed(rows);
   assert.deepEqual(
     sorted.map((r) => `${r.roomNumber}-${r.bedCode}`),
-    ['101-B1', '201-B2', '202-B1', '202-B3'],
+    ['101-B1', '201-B1', '202-B1', '202-B3'],
   );
 });
 
