@@ -306,7 +306,6 @@ body {
 /* Admin console — mobile browsers, safe areas, touch targets */
 .apg-admin-shell {
   -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
   max-width: 100vw;
 }
 
@@ -314,8 +313,28 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
+/* Vertical page scroll only — wide tables scroll in .apg-admin-table-scroll-viewport */
 .apg-admin-scroll {
   -webkit-overflow-scrolling: touch;
+  overflow-x: hidden;
+}
+
+.apg-admin-table-scroll-viewport {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+  max-width: 100%;
+}
+
+.apg-admin-table-scroll-hint {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  .apg-admin-table-scroll-hint {
+    display: block;
+  }
 }
 
 /* White account/resident surfaces on the dark customer shell. */
