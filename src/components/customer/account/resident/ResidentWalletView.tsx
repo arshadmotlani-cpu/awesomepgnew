@@ -41,6 +41,7 @@ function LedgerSection({
 export function ResidentWalletView({
   amountDuePaise,
   depositHeldPaise,
+  availableCreditPaise = 0,
   ledgerEntries,
   firstUnpaidRentId,
   firstUnpaidElectricityId,
@@ -48,6 +49,7 @@ export function ResidentWalletView({
 }: {
   amountDuePaise: number;
   depositHeldPaise: number;
+  availableCreditPaise?: number;
   ledgerEntries: ConsoleLedgerEntry[];
   firstUnpaidRentId: string | null;
   firstUnpaidElectricityId: string | null;
@@ -81,7 +83,7 @@ export function ResidentWalletView({
               {paiseToInr(amountDuePaise)}
             </dd>
           </div>
-          <div className="flex items-baseline justify-between gap-3">
+          <div className="flex items-baseline justify-between gap-3 border-b border-zinc-100 pb-3">
             <dt className="text-sm text-zinc-600">
               <GlossaryTip term="Security deposit money the PG is holding for you until checkout.">
                 Deposit position
@@ -91,6 +93,18 @@ export function ResidentWalletView({
               {paiseToInr(depositHeldPaise)}
             </dd>
           </div>
+          {availableCreditPaise > 0 ? (
+            <div className="flex items-baseline justify-between gap-3">
+              <dt className="text-sm text-zinc-600">
+                <GlossaryTip term="Deposit credit you can apply toward charges or transfer when eligible.">
+                  Available deposit credit
+                </GlossaryTip>
+              </dt>
+              <dd className="text-xl font-bold tabular-nums text-emerald-800">
+                {paiseToInr(availableCreditPaise)}
+              </dd>
+            </div>
+          ) : null}
         </dl>
       </ApgCard>
 

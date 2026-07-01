@@ -51,6 +51,11 @@ import { listCustomerEmailNotifications } from '@/src/db/queries/customerNotific
 import { getCheckoutSettlementForCustomer, getLatestCheckoutSettlementStatusForCustomer } from '@/src/services/checkoutSettlement';
 import { getLatestKycSubmission } from '@/src/services/kyc';
 import { buildWalletLedger } from '@/src/lib/residents/walletLedger';
+import { DepositDueSection } from '@/src/components/customer/account/DepositDueSection';
+import { DepositWalletSection } from '@/src/components/customer/account/DepositWalletSection';
+import { ResidentRequestForms } from '@/src/components/customer/account/ResidentRequestForms';
+import { ResidentDepositLedger } from '@/src/components/customer/account/resident/ResidentDepositLedger';
+import { ResidentWalletRequestStatus } from '@/src/components/customer/account/resident/ResidentWalletRequestStatus';
 import { ResidentWalletView } from '@/src/components/customer/account/resident/ResidentWalletView';
 import { ResidentPaymentsHub } from '@/src/components/customer/account/resident/ResidentPaymentsHub';
 import type { ResidentElectricityHistoryItem } from '@/src/components/customer/account/resident/ResidentElectricityHistory';
@@ -583,15 +588,39 @@ export async function ResidentAreaSection({
         />
       ) : null}
 
-      {activeTab === 'wallet' && financialAccount && primaryBooking ? (
-        <ResidentWalletView
-          amountDuePaise={financialAccount.totalOutstandingPaise}
-          depositHeldPaise={depositWallet.totalHeldPaise}
-          ledgerEntries={walletLedgerEntries}
-          firstUnpaidRentId={firstUnpaidRentId}
-          firstUnpaidElectricityId={firstUnpaidElectricityId}
-          historyHref={historyHref}
-        />
+      {activeTab === 'wallet' && primaryBooking ? (
+        <div className="space-y-4 pb-2">
+          {financialAccount ? (
+            <ResidentWalletView
+              amountDuePaise={financialAccount.totalOutstandingPaise}
+              depositHeldPaise={depositWallet.totalHeldPaise}
+              availableCreditPaise={depositWallet.availableCreditPaise}
+              ledgerEntries={walletLedgerEntries}
+              firstUnpaidRentId={firstUnpaidRentId}
+              firstUnpaidElectricityId={firstUnpaidElectricityId}
+              historyHref={historyHref}
+            />
+          ) : null}
+
+          {depositDueCards.map((card) => (
+            <DepositDueSection key={`deposit-due-${card.bookingId}`} {...card} />
+          ))}
+
+          {depositWallet.totalCollectedPaise > 0 ? (
+            <DepositWalletSection wallet={depositWallet} />
+          ) : null}
+
+          <ResidentDepositLedger entries={primaryBooking.deposit?.entries ?? []} />
+
+          <ResidentWalletRequestStatus requests={activeRequests} />
+
+          <ResidentRequestForms
+            bookingId={primaryBooking.bookingId}
+            customerId={session.customerId}
+            refundableBalancePaise={primaryBooking.deposit?.refundableBalancePaise ?? 0}
+            hasOpenVacating={hasOpenVacating}
+          />
+        </div>
       ) : null}
 
       {activeTab === 'payments' && financialAccount && primaryBooking ? (
