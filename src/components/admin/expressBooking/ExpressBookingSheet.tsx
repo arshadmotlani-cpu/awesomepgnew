@@ -619,8 +619,8 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
     </div>
   ) : null;
 
-  const rightPanel = hasIdentity ? (
-    <div className="space-y-4 lg:sticky lg:top-4">
+  const rightPanelScroll = hasIdentity ? (
+    <>
       <ExpressBookingReceipt
         residentName={fullName}
         ctx={ctx}
@@ -643,6 +643,11 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
           disabled={isProcessing}
         />
       </div>
+    </>
+  ) : null;
+
+  const rightPanelFooter = hasIdentity ? (
+    <>
       {confirmPanel}
       {!confirmOpen ? (
         <div className="hidden lg:block">
@@ -659,6 +664,12 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
           </p>
         </div>
       ) : null}
+    </>
+  ) : null;
+
+  const rightPanelMobile = hasIdentity ? (
+    <div className="space-y-4 lg:hidden">
+      {rightPanelScroll}
     </div>
   ) : null;
 
@@ -681,29 +692,42 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
-        {submitError ? (
-          <div
-            className="mx-auto mb-4 w-full max-w-6xl rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-200"
-            role="alert"
-          >
-            {submitError}
-          </div>
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
+          {submitError ? (
+            <div
+              className="mx-auto mb-4 w-full max-w-6xl rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-200"
+              role="alert"
+            >
+              {submitError}
+            </div>
+          ) : null}
+          {!hasIdentity ? (
+            <div className="mx-auto w-full max-w-6xl">
+              <ExpressBookingSearchPanel
+                variant="hero"
+                onSelect={selectResident}
+                onCreateNew={beginNewResident}
+              />
+            </div>
+          ) : (
+            <div className="mx-auto w-full max-w-6xl">
+              <div className="min-w-0">{leftPanel}</div>
+              {rightPanelMobile}
+            </div>
+          )}
+        </div>
+
+        {hasIdentity ? (
+          <aside className="hidden min-h-0 w-[22rem] shrink-0 flex-col border-l border-white/10 bg-[#0B0F14] lg:flex lg:max-h-[calc(100dvh-4.75rem)]">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
+              {rightPanelScroll}
+            </div>
+            <div className="shrink-0 space-y-4 border-t border-white/10 p-4 sm:p-6">
+              {rightPanelFooter}
+            </div>
+          </aside>
         ) : null}
-        {!hasIdentity ? (
-          <div className="mx-auto w-full max-w-6xl">
-            <ExpressBookingSearchPanel
-              variant="hero"
-              onSelect={selectResident}
-              onCreateNew={beginNewResident}
-            />
-          </div>
-        ) : (
-          <div className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
-            <div className="min-w-0">{leftPanel}</div>
-            <div className="min-w-0">{rightPanel}</div>
-          </div>
-        )}
       </div>
 
       {hasIdentity && !confirmOpen ? (

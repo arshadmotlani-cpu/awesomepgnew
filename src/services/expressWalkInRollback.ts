@@ -115,6 +115,7 @@ export async function rollbackExpressWalkInSale(
       status: rentInvoices.status,
       paidPrincipalPaise: rentInvoices.paidPrincipalPaise,
       paymentId: rentInvoices.paymentId,
+      cancellationReason: rentInvoices.cancellationReason,
     })
     .from(rentInvoices)
     .where(eq(rentInvoices.bookingId, input.bookingId));
@@ -131,39 +132,35 @@ export async function rollbackExpressWalkInSale(
       )
       .limit(1);
 
-    if (isUnpaidRentInvoice(rent)) {
-      if (fi && fi.status !== 'cancelled' && fi.status !== 'refunded') {
+    if (fi) {
+      if (fi.status === 'paid' || fi.status === 'partial') {
+        await refundUnifiedInvoice(fi.id, reason, { type: 'system', id: input.adminId }).catch(
+          () => undefined,
+        );
+      } else if (fi.status !== 'cancelled' && fi.status !== 'refunded') {
         await cancelUnifiedInvoice(fi.id, reason, { type: 'system', id: input.adminId }).catch(
           () => undefined,
         );
       }
-      await purgeUnpaidRentInvoiceRow(rent.id);
-      continue;
+    } else if (isUnpaidRentInvoice(rent)) {
+      await db
+        .update(rentInvoices)
+        .set({
+          status: 'cancelled',
+          cancelledAt: new Date(),
+          cancellationReason: reason,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(rentInvoices.id, rent.id),
+            inArray(rentInvoices.status, ['pending', 'overdue', 'expired']),
+          ),
+        );
     }
 
-    if (fi) {
-      if (fi.status === 'paid' || fi.status === 'partial') {
-        await refundUnifiedInvoice(fi.id, reason, { type: 'system', id: input.adminId });
-      } else if (fi.status !== 'cancelled' && fi.status !== 'refunded') {
-        await cancelUnifiedInvoice(fi.id, reason, { type: 'system', id: input.adminId });
-      }
-      continue;
-    }
-
-    await db
-      .update(rentInvoices)
-      .set({
-        status: 'cancelled',
-        cancelledAt: new Date(),
-        cancellationReason: reason,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(rentInvoices.id, rent.id),
-          inArray(rentInvoices.status, ['pending', 'overdue', 'expired']),
-        ),
-      );
+    // Remove rent row entirely so retry can regenerate (paid+cancelled tombstones block ensureMonthlyRentInvoice).
+    await purgeUnpaidRentInvoiceRow(rent.id);
   }
 
   const cancelled = await cancelBooking({

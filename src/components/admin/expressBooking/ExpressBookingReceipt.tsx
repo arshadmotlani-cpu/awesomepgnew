@@ -42,7 +42,7 @@ export function ExpressBookingReceipt({
   const balanceDue = Math.max(0, totalPaise - alreadyPaid);
 
   return (
-    <div className={`${posGlassCard} sticky top-4`}>
+    <div className={posGlassCard}>
       <p className="text-[10px] font-semibold uppercase tracking-widest text-[#FF5A1F]">
         Invoice preview
       </p>

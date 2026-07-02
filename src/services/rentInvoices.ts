@@ -269,6 +269,9 @@ async function ensureFixedStayRentInvoice(input: {
       invoiceNumber: rentInvoices.invoiceNumber,
       status: rentInvoices.status,
       rentPaise: rentInvoices.rentPaise,
+      paidPrincipalPaise: rentInvoices.paidPrincipalPaise,
+      paymentId: rentInvoices.paymentId,
+      cancellationReason: rentInvoices.cancellationReason,
     })
     .from(rentInvoices)
     .where(
@@ -296,26 +299,32 @@ async function ensureFixedStayRentInvoice(input: {
       };
     }
     if (existing.status === 'cancelled') {
+      if (shouldPurgeCancelledRentInvoiceForRetry(existing)) {
+        await purgeUnpaidRentInvoiceRow(existing.id);
+        // Fall through — createAdhocRentInvoice below.
+      } else {
+        return {
+          ok: false,
+          error: 'Rent invoice was cancelled. Re-generate from the billing queue first.',
+        };
+      }
+    } else {
+      if (input.amountPaise && input.amountPaise !== existing.rentPaise) {
+        await db
+          .update(rentInvoices)
+          .set({ rentPaise: input.amountPaise, updatedAt: new Date() })
+          .where(eq(rentInvoices.id, existing.id));
+        const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
+        await syncRentInvoiceToUnified(existing.id);
+      }
       return {
-        ok: false,
-        error: 'Rent invoice was cancelled. Re-generate from the billing queue first.',
+        ok: true,
+        invoiceId: existing.id,
+        invoiceNumber: existing.invoiceNumber,
+        created: false,
+        status: existing.status,
       };
     }
-    if (input.amountPaise && input.amountPaise !== existing.rentPaise) {
-      await db
-        .update(rentInvoices)
-        .set({ rentPaise: input.amountPaise, updatedAt: new Date() })
-        .where(eq(rentInvoices.id, existing.id));
-      const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
-      await syncRentInvoiceToUnified(existing.id);
-    }
-    return {
-      ok: true,
-      invoiceId: existing.id,
-      invoiceNumber: existing.invoiceNumber,
-      created: false,
-      status: existing.status,
-    };
   }
 
   const [ctx] = await db
@@ -389,6 +398,8 @@ export async function ensureMonthlyRentInvoice(input: {
   bookingId: string;
   billingMonth?: DateLike;
   amountPaise?: number;
+  /** Express walk-in / collection — auto-recover cancelled tombstones on retry. */
+  expressWalkInRetry?: boolean;
 }): Promise<EnsureMonthlyRentInvoiceResult> {
   const billingMonth = firstOfMonth(input.billingMonth ?? new Date());
   await ensureBillingProfileForBooking(input.bookingId);
@@ -444,7 +455,10 @@ export async function ensureMonthlyRentInvoice(input: {
       };
     }
     if (existing.status === 'cancelled') {
-      if (shouldPurgeCancelledRentInvoiceForRetry(existing)) {
+      const expressTombstone =
+        input.expressWalkInRetry ||
+        shouldPurgeCancelledRentInvoiceForRetry(existing);
+      if (expressTombstone) {
         await purgeUnpaidRentInvoiceRow(existing.id);
         // Fall through — generate a fresh invoice below.
       } else {

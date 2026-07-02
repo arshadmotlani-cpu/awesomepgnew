@@ -13,10 +13,12 @@ export function isExpressRollbackCancellationReason(
   return (
     reason.includes('Express walk-in rolled back') ||
     reason.includes('[rollback]') ||
-    reason.includes('[system]')
+    reason.includes('[system]') ||
+    /rolled back/i.test(reason)
   );
 }
 
+/** Unpaid = no recorded payment on the rent invoice row. */
 export function isUnpaidRentInvoice(row: {
   paidPrincipalPaise?: number | null;
   paymentId?: string | null;
@@ -24,7 +26,11 @@ export function isUnpaidRentInvoice(row: {
   return (row.paidPrincipalPaise ?? 0) === 0 && !row.paymentId;
 }
 
-/** Unpaid cancelled invoices from express rollback should be purged, not left blocking UNIQUE(booking, month). */
+/**
+ * Express rollback tombstones block UNIQUE(booking_id, billing_month).
+ * Must purge even when payment was recorded before finalize failed — rollback leaves
+ * status=cancelled with paymentId/paidPrincipalPaise still set.
+ */
 export function shouldPurgeCancelledRentInvoiceForRetry(row: {
   status: string;
   paidPrincipalPaise?: number | null;
@@ -32,7 +38,6 @@ export function shouldPurgeCancelledRentInvoiceForRetry(row: {
   cancellationReason?: string | null;
 }): boolean {
   if (row.status !== 'cancelled') return false;
-  if (!isUnpaidRentInvoice(row)) return false;
   return isExpressRollbackCancellationReason(row.cancellationReason);
 }
 

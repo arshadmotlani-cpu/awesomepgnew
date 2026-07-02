@@ -215,6 +215,7 @@ async function recordExpressRent(
     bookingId: ctx.bookingId,
     billingMonth,
     amountPaise: input.amountPaise,
+    expressWalkInRetry: true,
   });
   if (!ensured.ok) {
     return { ok: false, error: ensured.error };

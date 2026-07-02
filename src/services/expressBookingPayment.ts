@@ -66,6 +66,7 @@ export async function recordExpressBookingPayment(
       bookingId: input.bookingId,
       billingMonth,
       amountPaise: totalRentPaise,
+      expressWalkInRetry: true,
     });
     if (!ensured.ok) {
       return { ok: false, error: ensured.error };
@@ -109,6 +110,7 @@ export async function recordExpressBookingPayment(
       bookingId: input.bookingId,
       billingMonth,
       amountPaise: totalRentPaise,
+      expressWalkInRetry: true,
     });
     if (ensured.ok && ensured.invoiceId) {
       await syncRentInvoiceToUnified(ensured.invoiceId);
