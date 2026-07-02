@@ -173,7 +173,10 @@ export async function syncElectricityInvoiceToUnifiedInTx(
   if (!ei) return null;
 
   const [bill] = await tx
-    .select({ pgId: electricityBills.pgId })
+    .select({
+      pgId: electricityBills.pgId,
+      calculationBreakdown: electricityBills.calculationBreakdown,
+    })
     .from(electricityBills)
     .where(eq(electricityBills.id, ei.electricityBillId))
     .limit(1);
@@ -182,13 +185,18 @@ export async function syncElectricityInvoiceToUnifiedInTx(
   const ctx = await loadBedContextInTx(tx, ei.bedId);
   const amountPaise = ei.amountPaise + (ei.lateFeeLockedPaise ?? 0);
 
-  const { loadElectricityBillBreakdown, breakdownToInvoiceLines } = await import(
+  const { breakdownToInvoiceLines } = await import(
     '@/src/lib/billing/buildElectricityBillBreakdown'
   );
-  const roomBreakdown = await loadElectricityBillBreakdown(ei.electricityBillId);
+  // Read cached breakdown via `tx` only — never call loadElectricityBillBreakdown() here.
+  // That helper uses the global `db` pool; on Vercel (pool max 1) it deadlocks inside this transaction.
+  const roomBreakdown = bill.calculationBreakdown;
   const detailLines = roomBreakdown
-    ? breakdownToInvoiceLines(roomBreakdown, ei.customerId)
-    : [{ kind: 'electricity', label: 'Electricity share', amountPaise: ei.amountPaise }];
+    ? breakdownToInvoiceLines(
+        roomBreakdown as import('@/src/lib/billing/electricityBillBreakdownTypes').ElectricityBillCalculationBreakdown,
+        ei.customerId,
+      )
+    : [{ kind: 'electricity' as const, label: 'Electricity share', amountPaise: ei.amountPaise }];
 
   const breakdown: InvoiceBreakdown = {
     electricityPaise: ei.amountPaise,
