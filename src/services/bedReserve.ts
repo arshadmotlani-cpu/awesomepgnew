@@ -32,7 +32,7 @@ import { nextReserveCode } from '../lib/reserveCode';
 import { BLOCKING_RESERVATION_STATUS_SQL } from '../lib/reservationBlocking';
 import { env } from '../lib/env';
 import { computeLowestFixedStayRent } from '../lib/pricing/fixedStayOptimizer';
-import { loadBedPrice, quoteBedPrice } from './pricing';
+import { loadBedPrice, quoteBedPrice, type PricingMode } from './pricing';
 import { stayTypeFromPricingMode } from '../lib/stayType';
 import { ensureBillingProfileForBooking } from './residentBillingProfiles';
 

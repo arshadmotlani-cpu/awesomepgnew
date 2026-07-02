@@ -8,6 +8,8 @@ import {
   type BedAvailabilityKind,
 } from '@/src/lib/bedAvailabilityState';
 import { resolveBedOccupancy } from '@/src/lib/bedOccupancyResolve';
+import { reserveBufferDate } from '@/src/lib/bedReservePolicy';
+import { customerBookableFromDate } from '@/src/lib/dates';
 import { formatDate } from '@/src/lib/format';
 import type { BedSelectorBed } from './customerBedTypes';
 import { BedStateTile, type BedVisualState } from '@/src/components/customer/design-system';

@@ -610,6 +610,9 @@ export async function generateRentInvoicesForMonth(
   const { start: monthStart, end: monthEnd } = monthBounds(billingMonth);
   const monthStartIso = formatDate(monthStart);
   const monthEndIso = formatDate(monthEnd);
+  /** Booking checkout approval — future move-in is valid; skip "occupied today" gate. */
+  const targetedBookingGeneration =
+    input.forceAll === true && (input.bookingIds?.length ?? 0) > 0;
 
   // 1. Find every confirmed monthly booking whose active reservations
   //    intersect [monthStart, monthEnd). We deduplicate by booking_id and
@@ -634,10 +637,13 @@ export async function generateRentInvoicesForMonth(
         eq(bookings.status, 'confirmed'),
         isProductionBookingFilter(),
         isProductionCustomerFilter(),
-        isActiveResidentFilter(),
+        targetedBookingGeneration ? undefined : isActiveResidentFilter(),
         inArray(bookings.durationMode, ['monthly', 'open_ended']),
         eq(bedReservations.status, 'active'),
         sql`${bedReservations.stayRange} && daterange(${monthStartIso}::date, ${monthEndIso}::date, '[)')`,
+        targetedBookingGeneration && input.bookingIds?.length
+          ? inArray(bookings.id, input.bookingIds)
+          : undefined,
         input.pgId
           ? sql`EXISTS (
               SELECT 1 FROM beds b

@@ -27,6 +27,7 @@ import { coerceNonNegativePaise } from '../lib/format';
 import { computeLowestFixedStayRent } from '../lib/pricing/fixedStayOptimizer';
 import {
   computeFixedStayDepositPaise as fixedStayDepositFromRules,
+  computeMonthlyDepositPaise as monthlyDepositFromRules,
 } from '../lib/pricing/depositRules';
 import { resolveMonthlyDepositPaise } from '../lib/pricing/monthlyDepositPolicy';
 import type { FixedStayPricingStrategy } from '../lib/pricing/types';

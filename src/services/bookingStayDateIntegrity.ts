@@ -69,7 +69,7 @@ export type BookingStayDateRepairAction = {
   beforeStayRange: string;
   afterStayRange: string;
   resolvedCheckIn: string;
-  resolvedCheckOut: string;
+  resolvedCheckOut: string | null;
   checkInSource: string;
   checkOutSource: string;
 };
@@ -135,7 +135,7 @@ export function resolveBookingStayDates(input: {
   durationMode: string;
   bookingCreatedAt: Date | string;
   reservationCreatedAt: Date | string | null;
-}): { checkIn: string; checkOut: string; checkInSource: string; checkOutSource: string } | null {
+}): { checkIn: string; checkOut: string | null; checkInSource: string; checkOutSource: string } | null {
   const lower = normalizeIsoDateOnly(input.stayRangeLower ?? '');
   const upper = normalizeIsoDateOnly(input.stayRangeUpper ?? '');
   const expectedCheckout = normalizeIsoDateOnly(input.expectedCheckoutDate ?? '');
@@ -440,7 +440,9 @@ export async function repairBookingStayDateIntegrity(options?: {
       continue;
     }
 
-    const afterStayRange = `[${resolved.checkIn},${resolved.checkOut})`;
+    const afterStayRange = resolved.checkOut
+      ? `[${resolved.checkIn},${resolved.checkOut})`
+      : `[${resolved.checkIn},)`;
     const action: BookingStayDateRepairAction = {
       bookingId: issue.bookingId,
       bookingCode: issue.bookingCode,
