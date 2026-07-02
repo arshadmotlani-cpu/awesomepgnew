@@ -1,38 +1,40 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {
+  OPS_QUEUE_FILTERS,
+  OPS_QUEUE_LABELS,
+  parseOperationsFilter,
+} from '@/src/lib/operations/operationsFilterLinks';
 import { buildUnifiedOpsFilterTags } from '@/src/services/unifiedOperationsQueue';
 
-test('buildUnifiedOpsFilterTags keeps rent_due separate from overdue', () => {
-  const rentDue = buildUnifiedOpsFilterTags({ category: 'rent_due' });
-  assert.ok(rentDue.includes('rent_due'));
-  assert.ok(rentDue.includes('waiting_for_payment'));
-  assert.equal(rentDue.includes('overdue'), false);
-
-  const overdue = buildUnifiedOpsFilterTags({ category: 'rent_overdue' });
-  assert.ok(overdue.includes('overdue'));
-  assert.ok(overdue.includes('rent_due'));
+test('operations has exactly eight action queues in order', () => {
+  assert.deepEqual(OPS_QUEUE_FILTERS, [
+    'waiting_for_approval',
+    'rent_due',
+    'electricity_due',
+    'vacating_requests',
+    'refund_due',
+    'booking_approval',
+    'bed_assignment',
+    'kyc_review',
+  ]);
+  assert.equal(OPS_QUEUE_LABELS.overdue, undefined);
+  assert.equal(OPS_QUEUE_LABELS.deposit_due, undefined);
 });
 
-test('buildUnifiedOpsFilterTags keeps payment approval separate from waiting for payment', () => {
-  const proof = buildUnifiedOpsFilterTags({ category: 'payment_proof' });
-  assert.ok(proof.includes('payment_proof'));
-  assert.ok(proof.includes('waiting_for_admin_review'));
-  assert.equal(proof.includes('waiting_for_payment'), false);
+test('legacy payment_proof filter maps to waiting_for_approval', () => {
+  assert.equal(parseOperationsFilter('payment_proof'), 'waiting_for_approval');
+  assert.equal(parseOperationsFilter('move_out'), 'vacating_requests');
+  assert.equal(parseOperationsFilter('refund'), 'refund_due');
 });
 
-test('buildUnifiedOpsFilterTags adds deposit_due and refund chips', () => {
-  const deposit = buildUnifiedOpsFilterTags({ category: 'deposit_due' });
-  assert.ok(deposit.includes('deposit_due'));
-  assert.ok(deposit.includes('waiting_for_payment'));
+test('buildUnifiedOpsFilterTags maps rent overdue to rent_due only', () => {
+  const rentOverdue = buildUnifiedOpsFilterTags({ category: 'rent_overdue' });
+  assert.deepEqual(rentOverdue, ['rent_due']);
+  assert.equal(rentOverdue.includes('overdue' as never), false);
+});
 
-  const refund = buildUnifiedOpsFilterTags({ category: 'refund' });
-  assert.ok(refund.includes('refund'));
-  assert.ok(refund.includes('checkout'));
-
-  const moveOutRefund = buildUnifiedOpsFilterTags({
-    category: 'move_out',
-    primaryActionLabel: 'Open Refund Console',
-  });
-  assert.ok(moveOutRefund.includes('refund'));
-  assert.ok(moveOutRefund.includes('move_out'));
+test('payment proof maps to waiting_for_approval only', () => {
+  const tags = buildUnifiedOpsFilterTags({ category: 'payment_proof' });
+  assert.deepEqual(tags, ['waiting_for_approval']);
 });

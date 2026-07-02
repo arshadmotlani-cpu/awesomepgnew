@@ -14,9 +14,11 @@ const dismissInitial: DismissOperationsQueueState = { status: 'idle' };
 export function OperationsOpsRowActions({
   item,
   isSuperAdmin,
+  showWhatsApp = false,
 }: {
   item: UnifiedOpsItem;
   isSuperAdmin: boolean;
+  showWhatsApp?: boolean;
 }) {
   const hasPaymentLines = Boolean(item.outstandingLines?.length);
   const [dismissState, dismissAction, dismissPending] = useActionState(
@@ -34,12 +36,12 @@ export function OperationsOpsRowActions({
       {dismissState.status === 'ok' ? (
         <p className="w-full text-xs text-emerald-300">{dismissState.message}</p>
       ) : null}
-      {hasPaymentLines ? <OperationsPaymentWhatsAppButton item={item} /> : null}
+      {showWhatsApp && hasPaymentLines ? <OperationsPaymentWhatsAppButton item={item} /> : null}
       <Link
         href={item.openHref}
         className="inline-flex min-h-[36px] items-center justify-center rounded-lg bg-[#FF5A1F] px-4 py-2 text-xs font-semibold text-white hover:brightness-110"
       >
-        {hasPaymentLines ? 'Open bills' : item.openLabel}
+        {hasPaymentLines && !showWhatsApp ? item.openLabel : showWhatsApp ? 'Open bills' : item.openLabel}
       </Link>
       {canDismiss ? (
         <details className="relative inline-block text-left">

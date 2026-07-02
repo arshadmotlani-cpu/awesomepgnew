@@ -9,7 +9,7 @@ export default async function OperationsPaymentReviewsRedirectPage({
   searchParams: Promise<{ booking?: string }>;
 }) {
   const sp = await searchParams;
-  const qs = new URLSearchParams({ filter: 'payment_proof' });
+  const qs = new URLSearchParams({ filter: 'waiting_for_approval' });
   if (sp.booking) qs.set('booking', sp.booking);
   redirect(`/admin/operations?${qs.toString()}`);
 }

@@ -9,6 +9,7 @@
 
 ## 2026-07-02
 
+- **OPS-ACTION-CENTER** — Operations simplified to eight action queues (waiting for approval, rent/electricity due, vacating, refund, booking, bed, KYC); removed overdue/deposit/waiting-for-payment filters
 - **REFUND-CONSOLE-WORKSPACE** — Refund Console is inline payout workspace (no redirect loop); mark refund paid closes checkout + ops queue; Express-style accounting UI
 - **OPS-FULL-AUDIT** — Full Operations Center audit complete; restored dismiss, deposit_due + refund chips, overdue filter fix, payment approval SSOT; `docs/OPERATIONS_FULL_AUDIT.md`
 - **OPS-PROD-POLISH** — Refund Console enforced as sole refund UI (legacy settlement panel removed, requests redirect fixed, electricity proof-pending excluded from Waiting for Payment); dead duplicate ops panels removed; `verify-refund-console-ssot.ts` expanded

@@ -83,7 +83,7 @@ export function OperationsPaymentReviewsPanel({
     setPartialOpenKey(null);
     setMoreOpenKey(null);
     if (reviewMode && nextKey) {
-      router.push(`/admin/operations?filter=payment_proof&focus=${encodeURIComponent(nextKey)}`);
+      router.push(`/admin/operations?filter=waiting_for_approval&focus=${encodeURIComponent(nextKey)}`);
     } else {
       router.refresh();
     }

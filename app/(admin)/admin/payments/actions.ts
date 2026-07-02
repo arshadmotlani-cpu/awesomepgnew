@@ -16,7 +16,7 @@ import {
 import { reviewPaymentRecord } from '@/src/services/qrPayments';
 import { getNextPendingPaymentReviewKey } from '@/src/services/paymentProofQueue';
 
-const PAYMENT_REVIEW_PATH = '/admin/operations?filter=payment_proof';
+const PAYMENT_REVIEW_PATH = '/admin/operations?filter=waiting_for_approval';
 
 function revalidatePaymentReviewSurfaces(pgId: string) {
   revalidatePath('/admin');

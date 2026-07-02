@@ -290,7 +290,7 @@ export function buildResidentOperationsDashboard(input: {
       issue: `${kindLabel} screenshot awaiting admin review`,
       nextAction: 'Verify payment screenshot and approve or reject',
       primaryActionLabel: 'Review payment',
-      primaryHref: '/admin/operations?filter=payment_proof',
+      primaryHref: '/admin/operations?filter=waiting_for_approval',
       sortPriority: 0,
       bookingId: p.bookingId,
       kycSubmissionId: null,
