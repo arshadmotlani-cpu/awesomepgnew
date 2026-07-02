@@ -1,12 +1,15 @@
 'use client';
 
+import Image from 'next/image';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useActionState, useCallback, useEffect, useState, useTransition } from 'react';
+import { useActionState, useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import {
   DEDUCTION_CATEGORY_LABELS,
   type DeductionCategory,
 } from '@/src/lib/financial/deductionCategories';
 import { formatDate, formatDateTime, paiseToInr } from '@/src/lib/format';
+import type { RefundConsoleWorkspaceDTO } from '@/src/lib/refund/refundConsoleDto';
 import {
   posGlassCard,
   posInputClass,
@@ -14,15 +17,14 @@ import {
 import {
   deductDepositAction,
   initialRefundActionState,
+  listRefundConsoleBookingsForCustomerAction,
   loadRefundConsoleWorkspaceAction,
-  markRefundPaidAction,
+  markRefundedAction,
   searchRefundConsoleAction,
+  transferDepositAction,
   type RefundActionState,
 } from '@/app/(admin)/admin/refunds/actions';
-import type {
-  RefundConsoleBookingRow,
-  RefundConsoleWorkspace,
-} from '@/src/services/refundConsole';
+import type { RefundConsoleBookingRow } from '@/src/services/refundConsole';
 
 function ActionBanner({ state }: { state: RefundActionState }) {
   if (state.status === 'idle') return null;
@@ -54,6 +56,59 @@ function SummaryMetric({
   );
 }
 
+function BookingPicker({
+  rows,
+  residentLabel,
+  onSelect,
+  onBack,
+}: {
+  rows: RefundConsoleBookingRow[];
+  residentLabel: string;
+  onSelect: (row: RefundConsoleBookingRow) => void;
+  onBack: () => void;
+}) {
+  return (
+    <div className="mx-auto w-full max-w-3xl space-y-6 py-8">
+      <div className="text-center">
+        <h2 className="text-2xl font-semibold text-white">Select booking</h2>
+        <p className="mt-2 text-sm text-apg-silver">
+          {residentLabel} has {rows.length} bookings with a deposit wallet.
+        </p>
+      </div>
+      <ul className="overflow-hidden rounded-2xl border border-white/10 bg-[#12161C]/80">
+        {rows.map((row) => (
+          <li key={row.bookingId}>
+            <button
+              type="button"
+              onClick={() => onSelect(row)}
+              className="flex w-full flex-col gap-1 border-b border-white/5 px-5 py-4 text-left transition hover:bg-white/[0.04] last:border-0 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div>
+                <p className="text-base font-semibold text-white">{row.bookingCode}</p>
+                <p className="text-sm text-apg-silver">
+                  {row.status}
+                  {row.bedLabel ? ` · ${row.bedLabel}` : ''}
+                  {row.pgName ? ` · ${row.pgName}` : ''}
+                </p>
+              </div>
+              <p className="text-sm font-semibold text-emerald-300">
+                Refundable {paiseToInr(row.wallet.remainingDepositPaise)}
+              </p>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <button
+        type="button"
+        onClick={onBack}
+        className="mx-auto block text-sm text-apg-silver hover:text-white"
+      >
+        ← Search again
+      </button>
+    </div>
+  );
+}
+
 function RefundSearchHero({
   onSelect,
   loading,
@@ -70,9 +125,9 @@ function RefundSearchHero({
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6 py-8">
       <div className="text-center">
-        <h2 className="text-2xl font-semibold text-white">Find resident</h2>
+        <h2 className="text-2xl font-semibold text-white">Search resident</h2>
         <p className="mt-2 text-sm text-apg-silver">
-          Search by name, phone, or booking code — selecting opens the payout workspace immediately.
+          Name, phone, or booking code — selecting a booking opens the refund workspace immediately.
         </p>
       </div>
       <label className="block">
@@ -118,12 +173,103 @@ function RefundSearchHero({
   );
 }
 
+function AttachmentPreview({ label, url }: { label: string; url: string }) {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-semibold uppercase tracking-wide text-apg-muted">{label}</p>
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block overflow-hidden rounded-xl border border-white/10 bg-black/40"
+      >
+        <Image
+          src={url}
+          alt={label}
+          width={480}
+          height={320}
+          unoptimized
+          className="h-auto max-h-64 w-full object-contain"
+        />
+      </a>
+    </div>
+  );
+}
+
+function CheckoutSettlementSection({ workspace }: { workspace: RefundConsoleWorkspaceDTO }) {
+  const checkout = workspace.checkout;
+  if (!checkout) {
+    return (
+      <section className={posGlassCard}>
+        <h3 className="text-sm font-semibold text-white">Checkout settlement</h3>
+        <p className="mt-2 text-sm text-apg-silver">No active checkout settlement for this booking.</p>
+      </section>
+    );
+  }
+
+  const charges = [
+    { label: 'Notice deduction', paise: checkout.noticeDeductionPaise },
+    { label: 'Electricity share', paise: checkout.electricitySharePaise },
+    { label: 'Damage charge', paise: checkout.damageChargePaise },
+    { label: 'Cleaning charge', paise: checkout.cleaningChargePaise },
+    {
+      label: checkout.customChargeLabel ?? 'Custom charge',
+      paise: checkout.customChargePaise,
+    },
+  ].filter((c) => c.paise > 0);
+
+  return (
+    <section className={posGlassCard}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-white">Checkout settlement</h3>
+          <p className="mt-1 text-xs text-apg-silver">
+            Status <span className="text-white">{checkout.status.replace(/_/g, ' ')}</span>
+            {checkout.finalRefundPaise != null
+              ? ` · Final refund ${paiseToInr(checkout.finalRefundPaise)}`
+              : ''}
+          </p>
+          {checkout.payoutUpiId ? (
+            <p className="mt-1 text-xs text-apg-silver">
+              Payout UPI: <span className="text-white">{checkout.payoutUpiId}</span>
+            </p>
+          ) : null}
+        </div>
+        <Link
+          href={checkout.settlementHref}
+          className="text-xs font-semibold text-[#FF5A1F] hover:underline"
+        >
+          View settlement →
+        </Link>
+      </div>
+      {charges.length > 0 ? (
+        <ul className="mt-4 divide-y divide-white/10 rounded-xl border border-white/10">
+          {charges.map((c) => (
+            <li key={c.label} className="flex justify-between px-4 py-2 text-sm">
+              <span className="text-apg-silver">{c.label}</span>
+              <span className="font-medium text-rose-200">−{paiseToInr(c.paise)}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        {checkout.meterPhotoUrl ? (
+          <AttachmentPreview label="Meter photo" url={checkout.meterPhotoUrl} />
+        ) : null}
+        {checkout.payoutQrUrl ? (
+          <AttachmentPreview label="QR payment screenshot" url={checkout.payoutQrUrl} />
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 function PayoutWorkspace({
   workspace,
   onChangeResident,
   onRefresh,
 }: {
-  workspace: RefundConsoleWorkspace;
+  workspace: RefundConsoleWorkspaceDTO;
   onChangeResident: () => void;
   onRefresh: () => void;
 }) {
@@ -131,16 +277,31 @@ function PayoutWorkspace({
     deductDepositAction.bind(null, workspace.bookingId),
     initialRefundActionState,
   );
-  const [payState, payAction, payPending] = useActionState(
-    markRefundPaidAction.bind(null, workspace.bookingId),
+  const [transferState, transferAction, transferPending] = useActionState(
+    transferDepositAction.bind(null, workspace.bookingId),
+    initialRefundActionState,
+  );
+  const [refundState, refundAction, refundPending] = useActionState(
+    markRefundedAction.bind(null, workspace.bookingId),
     initialRefundActionState,
   );
 
+  const actionState =
+    deductState.status !== 'idle'
+      ? deductState
+      : transferState.status !== 'idle'
+        ? transferState
+        : refundState;
+
   useEffect(() => {
-    if (deductState.status === 'ok' || payState.status === 'ok') {
+    if (
+      deductState.status === 'ok' ||
+      transferState.status === 'ok' ||
+      refundState.status === 'ok'
+    ) {
       onRefresh();
     }
-  }, [deductState.status, payState.status, onRefresh]);
+  }, [deductState.status, transferState.status, refundState.status, onRefresh]);
 
   const defaultRefundInr = (workspace.suggestedRefundPaise / 100).toFixed(2);
   const defaultUpi = workspace.checkout?.payoutUpiId ?? '';
@@ -150,7 +311,7 @@ function PayoutWorkspace({
       <div className={`${posGlassCard} flex flex-wrap items-start justify-between gap-4`}>
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-wider text-apg-muted">
-            Refund payout workspace
+            Refund workspace
           </p>
           <h2 className="mt-1 text-2xl font-semibold text-white">{workspace.customerName}</h2>
           <p className="mt-1 text-sm text-apg-silver">
@@ -162,6 +323,7 @@ function PayoutWorkspace({
             {workspace.customerPhone ?? '—'}
             {workspace.checkInDate ? ` · Check-in ${formatDate(workspace.checkInDate)}` : ''}
             {workspace.checkOutDate ? ` · Check-out ${formatDate(workspace.checkOutDate)}` : ''}
+            {workspace.status ? ` · ${workspace.status}` : ''}
           </p>
         </div>
         <button
@@ -173,11 +335,11 @@ function PayoutWorkspace({
         </button>
       </div>
 
-      <ActionBanner state={deductState.status !== 'idle' ? deductState : payState} />
+      <ActionBanner state={actionState} />
 
       <section className={posGlassCard}>
         <h3 className="text-sm font-semibold uppercase tracking-wide text-apg-muted">
-          Deposit ledger summary
+          Deposit summary
         </h3>
         <dl className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <SummaryMetric label="Deposit collected" value={paiseToInr(workspace.wallet.depositPaidPaise)} />
@@ -186,11 +348,11 @@ function PayoutWorkspace({
             value={paiseToInr(workspace.wallet.depositTransferredPaise)}
           />
           <SummaryMetric
-            label="Deposit already deducted"
+            label="Deposit deductions"
             value={paiseToInr(workspace.wallet.depositUsedPaise)}
           />
           <SummaryMetric
-            label="Refundable balance"
+            label="Current refundable balance"
             value={paiseToInr(workspace.refundableBalancePaise)}
             highlight
           />
@@ -208,11 +370,13 @@ function PayoutWorkspace({
         </div>
       </section>
 
+      <CheckoutSettlementSection workspace={workspace} />
+
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
         <div className="space-y-6">
           {workspace.deductions.length > 0 ? (
             <section className={posGlassCard}>
-              <h3 className="text-sm font-semibold text-white">Previous deductions</h3>
+              <h3 className="text-sm font-semibold text-white">Deposit deductions</h3>
               <ul className="mt-3 divide-y divide-white/10">
                 {workspace.deductions.map((d) => (
                   <li key={d.id} className="flex items-start justify-between gap-3 py-3 text-sm">
@@ -288,7 +452,45 @@ function PayoutWorkspace({
                   disabled={deductPending}
                   className="rounded-xl border border-white/15 px-5 py-3 text-sm font-semibold text-white hover:bg-white/[0.04] disabled:opacity-50"
                 >
-                  {deductPending ? 'Applying…' : 'Apply deduction'}
+                  {deductPending ? 'Applying…' : 'Add deduction'}
+                </button>
+              </div>
+            </form>
+          </section>
+
+          <section className={posGlassCard}>
+            <h3 className="text-sm font-semibold text-white">Transfer deposit</h3>
+            <p className="mt-1 text-xs text-apg-silver">
+              Move part of this booking&apos;s deposit to another booking for the same resident.
+            </p>
+            <form action={transferAction} className="mt-4 grid gap-4 sm:grid-cols-2">
+              <label className="block text-xs text-apg-silver sm:col-span-2">
+                Target booking ID
+                <input
+                  name="targetBookingId"
+                  required
+                  placeholder="UUID of destination booking"
+                  className={posInputClass}
+                />
+              </label>
+              <label className="block text-xs text-apg-silver">
+                Amount (₹)
+                <input
+                  name="amountInr"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  required
+                  className={posInputClass}
+                />
+              </label>
+              <div className="flex items-end">
+                <button
+                  type="submit"
+                  disabled={transferPending}
+                  className="rounded-xl border border-white/15 px-5 py-3 text-sm font-semibold text-white hover:bg-white/[0.04] disabled:opacity-50"
+                >
+                  {transferPending ? 'Transferring…' : 'Transfer deposit'}
                 </button>
               </div>
             </form>
@@ -297,18 +499,19 @@ function PayoutWorkspace({
 
         <aside className="space-y-6">
           <section className={`${posGlassCard} border-[#FF5A1F]/20`}>
-            <h3 className="text-sm font-semibold text-white">Mark refund paid</h3>
+            <h3 className="text-sm font-semibold text-white">Mark refunded</h3>
             {workspace.checkout?.status === 'refund_pending' ? (
               <p className="mt-2 text-xs text-apg-silver">
                 Checkout settlement approved — pay{' '}
-                {paiseToInr(workspace.checkout.finalRefundPaise ?? 0)} to close the workflow.
+                {paiseToInr(workspace.checkout.finalRefundPaise ?? 0)} to complete checkout and
+                close Refund Due.
               </p>
             ) : (
               <p className="mt-2 text-xs text-apg-silver">
                 Record UPI or bank transfer against the deposit wallet.
               </p>
             )}
-            <form action={payAction} className="mt-4 space-y-4">
+            <form action={refundAction} className="mt-4 space-y-4">
               <label className="block text-xs text-apg-silver">
                 Final refund amount (₹)
                 <input
@@ -346,20 +549,20 @@ function PayoutWorkspace({
               </label>
               <button
                 type="submit"
-                disabled={payPending || workspace.refundableBalancePaise <= 0}
+                disabled={refundPending || workspace.refundableBalancePaise <= 0}
                 className="w-full rounded-xl bg-[#FF5A1F] py-3.5 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-40"
               >
-                {payPending ? 'Processing…' : 'Mark refund paid'}
+                {refundPending ? 'Processing…' : 'Mark refunded'}
               </button>
             </form>
           </section>
 
           <section className={posGlassCard}>
-            <h3 className="text-sm font-semibold text-white">Wallet balance</h3>
+            <h3 className="text-sm font-semibold text-white">Refundable balance</h3>
             <p className="mt-2 text-3xl font-bold tabular-nums text-white">
               {paiseToInr(workspace.refundableBalancePaise)}
             </p>
-            <p className="mt-1 text-xs text-apg-silver">Available to refund after deductions</p>
+            <p className="mt-1 text-xs text-apg-silver">Available after deductions and transfers</p>
             {workspace.adminDepositRefundStatus === 'refunded' ? (
               <p className="mt-3 rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100">
                 Booking deposit marked refunded
@@ -370,7 +573,7 @@ function PayoutWorkspace({
       </div>
 
       <section className={posGlassCard}>
-        <h3 className="text-sm font-semibold text-white">Timeline</h3>
+        <h3 className="text-sm font-semibold text-white">Deposit ledger timeline</h3>
         {workspace.timeline.length === 0 ? (
           <p className="mt-3 text-sm text-apg-silver">No ledger activity yet.</p>
         ) : (
@@ -404,22 +607,26 @@ function PayoutWorkspace({
 
 export function RefundConsoleWorkspace({
   initialBookingId,
-  initialWorkspace,
+  initialCustomerId,
 }: {
   initialBookingId?: string | null;
-  initialWorkspace?: RefundConsoleWorkspace | null;
+  initialCustomerId?: string | null;
 }) {
   const router = useRouter();
+  const bootstrapped = useRef(false);
   const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState<RefundConsoleBookingRow[]>([]);
+  const [bookingPickerRows, setBookingPickerRows] = useState<RefundConsoleBookingRow[] | null>(null);
+  const [pickerLabel, setPickerLabel] = useState('');
   const [searching, startSearch] = useTransition();
   const [loadingWorkspace, startLoadWorkspace] = useTransition();
-  const [workspace, setWorkspace] = useState<RefundConsoleWorkspace | null>(initialWorkspace ?? null);
+  const [workspace, setWorkspace] = useState<RefundConsoleWorkspaceDTO | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const openBooking = useCallback(
     (bookingId: string) => {
       setLoadError(null);
+      setBookingPickerRows(null);
       startLoadWorkspace(async () => {
         const res = await loadRefundConsoleWorkspaceAction(bookingId);
         if (!res.ok) {
@@ -434,16 +641,45 @@ export function RefundConsoleWorkspace({
     [router],
   );
 
+  const loadCustomerBookings = useCallback(
+    (customerId: string) => {
+      setLoadError(null);
+      startLoadWorkspace(async () => {
+        const res = await listRefundConsoleBookingsForCustomerAction(customerId);
+        if (!res.ok) {
+          setLoadError(res.error);
+          return;
+        }
+        if (res.rows.length === 0) {
+          setLoadError('No deposit wallets found for this resident.');
+          return;
+        }
+        if (res.rows.length === 1) {
+          openBooking(res.rows[0]!.bookingId);
+          return;
+        }
+        setPickerLabel(res.rows[0]?.customerName ?? 'Resident');
+        setBookingPickerRows(res.rows);
+        router.replace(`/admin/refunds?customer=${encodeURIComponent(customerId)}`, { scroll: false });
+      });
+    },
+    [openBooking, router],
+  );
+
   const refreshWorkspace = useCallback(() => {
     if (!workspace?.bookingId) return;
     void openBooking(workspace.bookingId);
   }, [openBooking, workspace?.bookingId]);
 
   useEffect(() => {
-    if (initialBookingId && initialWorkspace && !workspace) {
-      setWorkspace(initialWorkspace);
+    if (bootstrapped.current) return;
+    bootstrapped.current = true;
+    if (initialBookingId) {
+      openBooking(initialBookingId);
+    } else if (initialCustomerId) {
+      loadCustomerBookings(initialCustomerId);
     }
-  }, [initialBookingId, initialWorkspace, workspace]);
+  }, [initialBookingId, initialCustomerId, loadCustomerBookings, openBooking]);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -468,6 +704,7 @@ export function RefundConsoleWorkspace({
 
   function handleChangeResident() {
     setWorkspace(null);
+    setBookingPickerRows(null);
     setLoadError(null);
     setQuery('');
     router.replace('/admin/refunds', { scroll: false });
@@ -478,9 +715,9 @@ export function RefundConsoleWorkspace({
       <header className="shrink-0 border-b border-white/10 bg-[#0B0F14]/95 px-4 py-4 backdrop-blur sm:px-6 lg:px-8">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4">
           <div>
-            <h1 className="text-xl font-semibold text-white sm:text-2xl">Refund Console</h1>
+            <h1 className="text-xl font-semibold text-white sm:text-2xl">Refund Deposit</h1>
             <p className="text-sm text-apg-silver">
-              Deposit refunds, deductions, and payout — final accounting workspace
+              Search resident, select booking, process deductions and refund payout
             </p>
           </div>
         </div>
@@ -492,13 +729,20 @@ export function RefundConsoleWorkspace({
             {loadError}
           </div>
         ) : null}
-        {loadingWorkspace ? (
-          <p className="text-center text-sm text-apg-silver">Loading payout workspace…</p>
+        {loadingWorkspace && !workspace ? (
+          <p className="text-center text-sm text-apg-silver">Loading refund workspace…</p>
         ) : workspace ? (
           <PayoutWorkspace
             workspace={workspace}
             onChangeResident={handleChangeResident}
             onRefresh={refreshWorkspace}
+          />
+        ) : bookingPickerRows ? (
+          <BookingPicker
+            rows={bookingPickerRows}
+            residentLabel={pickerLabel}
+            onSelect={(row) => openBooking(row.bookingId)}
+            onBack={handleChangeResident}
           />
         ) : (
           <RefundSearchHero

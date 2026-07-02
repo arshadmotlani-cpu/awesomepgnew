@@ -15,10 +15,11 @@ import {
 import { applyDepositCreditToBooking } from '@/src/services/depositCredit';
 import { applyDepositDeduction, settleDepositRefund } from '@/src/services/depositSettlement';
 import { markCheckoutRefundPaid } from '@/src/services/checkoutSettlement';
+import { toRefundConsoleWorkspaceDTO, type RefundConsoleWorkspaceDTO } from '@/src/lib/refund/refundConsoleDto';
 import {
   getRefundConsoleWorkspace,
+  listRefundConsoleBookingsForCustomer,
   searchRefundConsoleBookings,
-  type RefundConsoleWorkspace,
 } from '@/src/services/refundConsole';
 
 export type RefundActionState =
@@ -83,7 +84,7 @@ export async function searchRefundConsoleAction(
 
 export async function loadRefundConsoleWorkspaceAction(
   bookingId: string,
-): Promise<{ ok: true; workspace: RefundConsoleWorkspace } | { ok: false; error: string }> {
+): Promise<{ ok: true; workspace: RefundConsoleWorkspaceDTO } | { ok: false; error: string }> {
   try {
     const admin = await requireAdminPermission('deposits:write');
     await assertAdminBookingAccess(admin, bookingId);
@@ -91,13 +92,40 @@ export async function loadRefundConsoleWorkspaceAction(
     if (!workspace) {
       return { ok: false, error: 'No deposit wallet found for this booking.' };
     }
-    return { ok: true, workspace };
+    return { ok: true, workspace: toRefundConsoleWorkspaceDTO(workspace) };
   } catch (err) {
     return {
       ok: false,
       error: err instanceof Error ? err.message : 'Could not load refund workspace.',
     };
   }
+}
+
+export async function listRefundConsoleBookingsForCustomerAction(
+  customerId: string,
+): Promise<
+  | { ok: true; rows: Awaited<ReturnType<typeof listRefundConsoleBookingsForCustomer>> }
+  | { ok: false; error: string }
+> {
+  try {
+    await requireAdminPermission('deposits:write');
+    const rows = await listRefundConsoleBookingsForCustomer(customerId);
+    return { ok: true, rows };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Could not load bookings.',
+    };
+  }
+}
+
+/** Mark deposit refunded — ledger, wallet, checkout, and all admin views. */
+export async function markRefundedAction(
+  bookingId: string,
+  prev: RefundActionState,
+  formData: FormData,
+): Promise<RefundActionState> {
+  return markRefundPaidAction(bookingId, prev, formData);
 }
 
 export async function markRefundPaidAction(
@@ -158,7 +186,7 @@ export async function markRefundPaidAction(
     revalidateRefundConsole(bookingId, workspace.checkout.settlementId);
     return {
       status: 'ok',
-      message: 'Refund marked paid. Checkout completed and removed from Operations.',
+      message: 'Refund marked. Checkout completed and removed from Refund Due.',
     };
   }
 
@@ -184,7 +212,7 @@ export async function markRefundPaidAction(
   if (!settlement.ok) return { status: 'error', message: settlement.error };
 
   revalidateRefundConsole(bookingId);
-  return { status: 'ok', message: 'Refund recorded and deposit ledger updated.' };
+  return { status: 'ok', message: 'Refund marked and deposit ledger updated.' };
 }
 
 /** @deprecated Use markRefundPaidAction — kept for legacy form bindings. */

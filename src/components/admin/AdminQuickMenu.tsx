@@ -1,8 +1,6 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
-import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import {
   quickAdvanceDepositAction,
@@ -387,50 +385,6 @@ function ElectricityForm({ onDone }: { onDone: () => void }) {
   );
 }
 
-function RefundForm({ onDone }: { onDone: () => void }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const [selected, setSelected] = useState<ResidentQuickResult | null>(null);
-  const onRefundsPage = pathname.startsWith('/admin/refunds');
-
-  return (
-    <QuickActionResidentStep selected={selected} onSelect={setSelected}>
-      {({ ctx }) => {
-        const bookingId = selected?.bookingId ?? ctx?.bookingId ?? null;
-        return (
-          <div className="space-y-4 text-sm">
-            <p className="text-apg-silver">
-              All deposit refunds go through the Refund Console — deductions, transfers, and payout
-              in one audited workflow.
-            </p>
-            {bookingId ? (
-              <button
-                type="button"
-                onClick={() => {
-                  router.push(`/admin/refunds?booking=${encodeURIComponent(bookingId)}`);
-                  onDone();
-                }}
-                className="w-full rounded-lg bg-[#FF5A1F] px-4 py-2.5 font-semibold text-white hover:brightness-110"
-              >
-                {onRefundsPage ? 'Load payout workspace' : 'Open Refund Console'}
-              </button>
-            ) : selected ? (
-              <p className="text-xs text-amber-200">No booking on file for this resident.</p>
-            ) : null}
-            <Link
-              href="/admin/refunds"
-              onClick={onDone}
-              className="block text-center text-xs font-semibold text-[#FF5A1F] hover:underline"
-            >
-              Browse all refunds →
-            </Link>
-          </div>
-        );
-      }}
-    </QuickActionResidentStep>
-  );
-}
-
 const BILLING_EXCLUDED_ACTIONS: QuickActionId[] = [
   'advance_deposit',
   'offline_deposit',
@@ -467,6 +421,10 @@ export function AdminQuickMenu() {
     setMenuOpen(false);
     if (id === 'express_sale') {
       router.push('/admin/express-booking');
+      return;
+    }
+    if (id === 'refund') {
+      router.push('/admin/refunds');
       return;
     }
     setActive(id);
@@ -537,7 +495,6 @@ export function AdminQuickMenu() {
           {active === 'offline_deposit' ? <DepositForm mode="offline" onDone={closeDialog} /> : null}
           {active === 'rent_invoice' ? <RentInvoiceForm onDone={closeDialog} /> : null}
           {active === 'electricity' ? <ElectricityForm onDone={closeDialog} /> : null}
-          {active === 'refund' ? <RefundForm onDone={closeDialog} /> : null}
         </QuickActionDialog>
       ) : null}
     </>
