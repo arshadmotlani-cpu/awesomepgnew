@@ -27,12 +27,24 @@ export type RoomElectricityOccupantRow = MonthlyElectricityOccupant & {
   bedIds: string[];
 };
 
+export type ElectricityOccupantExclusionTrace = {
+  customerId: string;
+  bookingId: string;
+  reason:
+    | 'checkout_settled'
+    | 'checkout_collected'
+    | 'non_billable_status'
+    | 'no_month_overlap'
+    | 'test_record';
+};
+
 export type RoomElectricityOccupantLoadResult = {
   occupants: RoomElectricityOccupantRow[];
   totalWeight: number;
   daysInMonth: number;
   checkoutCollectedByCustomerId: Map<string, number>;
   excludedCustomerIds: string[];
+  exclusionTraces: ElectricityOccupantExclusionTrace[];
 };
 
 /** Customers whose June electricity was collected at checkout — must not be allocated or invoiced. */
@@ -166,6 +178,7 @@ export async function loadRoomElectricityOccupantsForMonth(input: {
     { bookingId: string; customerId: string; bedIds: Set<string>; weight: number }
   >();
   const excludedCustomerIds = new Set<string>();
+  const exclusionTraces: ElectricityOccupantExclusionTrace[] = [];
 
   for (const row of occupantRows) {
     if (
@@ -176,21 +189,43 @@ export async function loadRoomElectricityOccupantsForMonth(input: {
         customerEmail: row.customerEmail,
       })
     ) {
+      exclusionTraces.push({
+        customerId: row.customerId,
+        bookingId: row.bookingId,
+        reason: 'non_billable_status',
+      });
       continue;
     }
     if (settledCustomerIds.has(row.customerId)) {
       excludedCustomerIds.add(row.customerId);
+      exclusionTraces.push({
+        customerId: row.customerId,
+        bookingId: row.bookingId,
+        reason: 'checkout_settled',
+      });
       continue;
     }
     if ((checkoutCollectedByCustomerId.get(row.customerId) ?? 0) > 0) {
       excludedCustomerIds.add(row.customerId);
+      exclusionTraces.push({
+        customerId: row.customerId,
+        bookingId: row.bookingId,
+        reason: 'checkout_collected',
+      });
       continue;
     }
 
     const bedDays = input.useProRataByActiveDays
       ? activeDaysInMonth(row.lower, row.upper)
       : 1;
-    if (bedDays <= 0) continue;
+    if (bedDays <= 0) {
+      exclusionTraces.push({
+        customerId: row.customerId,
+        bookingId: row.bookingId,
+        reason: 'no_month_overlap',
+      });
+      continue;
+    }
 
     const cur = byBooking.get(row.bookingId);
     if (cur) {
@@ -222,6 +257,7 @@ export async function loadRoomElectricityOccupantsForMonth(input: {
     daysInMonth,
     checkoutCollectedByCustomerId,
     excludedCustomerIds: [...excludedCustomerIds],
+    exclusionTraces,
   };
 }
 

@@ -1285,6 +1285,21 @@ export async function recordRentPaymentSuccess(
         });
       }
 
+      const {
+        syncRentInvoiceToUnifiedInTx,
+        recordBillingSettlementEventInTx,
+      } = await import('@/src/lib/billing/syncUnifiedInvoiceInTx');
+      const unifiedInvoiceId = await syncRentInvoiceToUnifiedInTx(tx, invoice.id);
+      await recordBillingSettlementEventInTx(tx, {
+        purpose: 'rent',
+        sourceTable: 'rent_invoices',
+        sourceInvoiceId: invoice.id,
+        paymentId: payment.id,
+        unifiedInvoiceId,
+        providerPaymentId: input.providerPaymentId,
+        amountPaise: input.amountPaise,
+      });
+
       return { paymentId: payment.id };
     });
     paymentId = result.paymentId;
@@ -1381,13 +1396,6 @@ export async function recordRentPaymentSuccess(
     } catch (sideEffectErr) {
       console.error('[rent-payment] post-payment side effects failed', sideEffectErr);
     }
-  }
-
-  try {
-    const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
-    await syncRentInvoiceToUnified(invoice.id);
-  } catch (syncErr) {
-    console.error('[rent-payment] unified invoice sync failed after payment', syncErr);
   }
 
   return {
@@ -1819,7 +1827,9 @@ export async function approveRentPaymentProof(
   const projected = projectInvoice(invoice);
   const amountPaise = projected.outstandingPaise;
 
-  const result = await recordRentPaymentSuccess({
+  const { applyApprovedPaymentAtomic } = await import('@/src/services/paymentSettlementAtomic');
+  const result = await applyApprovedPaymentAtomic({
+    purpose: 'rent',
     provider: 'mock',
     offlineProvider: 'upi_manual',
     providerPaymentId: `rent-proof-${invoiceId}`,

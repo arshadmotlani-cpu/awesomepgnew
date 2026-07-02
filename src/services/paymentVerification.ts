@@ -5,10 +5,6 @@ import {
   recordExtensionPaymentSuccess,
   recordPaymentSuccess,
 } from '@/src/services/bookingLifecycle';
-import {
-  recordElectricityPaymentSuccess,
-} from '@/src/services/electricityBilling';
-import { recordRentPaymentSuccess } from '@/src/services/rentInvoices';
 
 export type VerifyCheckoutPurpose =
   | { purpose: 'booking'; bookingCode: string }
@@ -103,7 +99,9 @@ export async function verifyRazorpayCheckoutPayment(
   }
 
   if (input.purpose === 'rent') {
-    const result = await recordRentPaymentSuccess({
+    const { applyApprovedPaymentAtomic } = await import('@/src/services/paymentSettlementAtomic');
+    const result = await applyApprovedPaymentAtomic({
+      purpose: 'rent',
       provider: 'razorpay',
       providerPaymentId: input.razorpayPaymentId,
       providerOrderId: input.razorpayOrderId,
@@ -120,7 +118,9 @@ export async function verifyRazorpayCheckoutPayment(
     };
   }
 
-  const result = await recordElectricityPaymentSuccess({
+  const { applyApprovedPaymentAtomic } = await import('@/src/services/paymentSettlementAtomic');
+  const result = await applyApprovedPaymentAtomic({
+    purpose: 'electricity',
     provider: 'razorpay',
     providerPaymentId: input.razorpayPaymentId,
     providerOrderId: input.razorpayOrderId,

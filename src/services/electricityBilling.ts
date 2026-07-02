@@ -860,6 +860,21 @@ export async function recordElectricityPaymentSuccess(
         });
       }
 
+      const {
+        syncElectricityInvoiceToUnifiedInTx,
+        recordBillingSettlementEventInTx,
+      } = await import('@/src/lib/billing/syncUnifiedInvoiceInTx');
+      const unifiedInvoiceId = await syncElectricityInvoiceToUnifiedInTx(tx, invoice.id);
+      await recordBillingSettlementEventInTx(tx, {
+        purpose: 'electricity',
+        sourceTable: 'electricity_invoices',
+        sourceInvoiceId: invoice.id,
+        paymentId: payment.id,
+        unifiedInvoiceId,
+        providerPaymentId: input.providerPaymentId,
+        amountPaise: input.amountPaise,
+      });
+
       return { paymentId: payment.id };
     });
     paymentId = result.paymentId;
@@ -913,13 +928,6 @@ export async function recordElectricityPaymentSuccess(
     } catch (notifyErr) {
       console.error('[electricity-payment] receipt notification failed', notifyErr);
     }
-  }
-
-  try {
-    const { syncElectricityInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
-    await syncElectricityInvoiceToUnified(invoice.id);
-  } catch (syncErr) {
-    console.error('[electricity-payment] unified invoice sync failed after payment', syncErr);
   }
 
   return { ok: true, paymentId, invoiceId: invoice.id, stateChanged: true };

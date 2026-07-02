@@ -8,9 +8,8 @@ import { financialInvoices, rentInvoices } from '@/src/db/schema';
 import type { FinancialInvoice, InvoiceBreakdown } from '@/src/db/schema/financialInvoices';
 import { syncDepositCollectionFromLedger } from '@/src/services/depositCollection';
 import { recordDepositCollected } from '@/src/services/deposits';
-import { recordElectricityPaymentSuccess } from '@/src/services/electricityBilling';
 import { fetchElectricityInvoiceById } from '@/src/lib/db/electricityInvoiceSelect';
-import { recordRentPaymentSuccess } from '@/src/services/rentInvoices';
+import { applyApprovedPaymentAtomic } from '@/src/services/paymentSettlementAtomic';
 
 type BreakdownLine = NonNullable<InvoiceBreakdown['lines']>[number];
 
@@ -25,7 +24,8 @@ async function applyLinePayment(
   if (amountPaise <= 0) return;
 
   if (line.sourceTable === 'rent_invoices' && line.sourceId) {
-    await recordRentPaymentSuccess({
+    await applyApprovedPaymentAtomic({
+      purpose: 'rent',
       provider: 'mock',
       offlineProvider,
       providerPaymentId: `${providerPaymentId}:rent:${line.sourceId}`,
@@ -36,7 +36,8 @@ async function applyLinePayment(
   }
 
   if (line.sourceTable === 'electricity_invoices' && line.sourceId) {
-    await recordElectricityPaymentSuccess({
+    await applyApprovedPaymentAtomic({
+      purpose: 'electricity',
       provider: 'mock',
       offlineProvider,
       providerPaymentId: `${providerPaymentId}:elec:${line.sourceId}`,
@@ -91,7 +92,8 @@ export async function allocateInvoicePayment(input: {
 
   if (lines.length === 0) {
     if (inv.sourceTable === 'rent_invoices' && inv.sourceId) {
-      await recordRentPaymentSuccess({
+      await applyApprovedPaymentAtomic({
+        purpose: 'rent',
         provider: 'mock',
         offlineProvider,
         providerPaymentId: input.providerPaymentId,

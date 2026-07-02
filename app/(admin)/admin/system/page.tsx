@@ -100,6 +100,12 @@ export default async function SystemHealthModulePage() {
               Recalculate financial data →
             </Link>
             <Link
+              href="/admin/system/billing-integrity"
+              className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm font-medium text-amber-200 hover:bg-amber-500/20"
+            >
+              Billing integrity check →
+            </Link>
+            <Link
               href="/admin/system/bed-audit"
               className="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/5"
             >

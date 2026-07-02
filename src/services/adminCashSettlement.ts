@@ -20,9 +20,8 @@ import { adminCanAccessPg, adminHasPermission, type AdminRole } from '@/src/lib/
 import type { AdminSession } from '@/src/lib/auth/session';
 import { fetchElectricityInvoiceById } from '@/src/lib/db/electricityInvoiceSelect';
 import { computeElectricityInvoiceOutstandingPaise } from '@/src/services/residentFinancialEngine';
-import { recordElectricityPaymentSuccess } from '@/src/services/electricityBilling';
 import { allocateInvoicePayment } from '@/src/services/invoicePayment';
-import { projectInvoice, recordRentPaymentSuccess } from '@/src/services/rentInvoices';
+import { projectInvoice } from '@/src/services/rentInvoices';
 import { syncActionItems } from '@/src/services/actionItems';
 import { getUnifiedInvoiceDetail } from '@/src/services/unifiedInvoices';
 
@@ -302,7 +301,9 @@ export async function markFinancialInvoicePaidWithCash(
         .where(eq(rentInvoices.id, base.sourceId));
     }
 
-    const result = await recordRentPaymentSuccess({
+    const { applyApprovedPaymentAtomic } = await import('@/src/services/paymentSettlementAtomic');
+    const result = await applyApprovedPaymentAtomic({
+      purpose: 'rent',
       provider: 'mock',
       offlineProvider: 'cash',
       providerPaymentId,
@@ -321,7 +322,9 @@ export async function markFinancialInvoicePaidWithCash(
         .where(eq(electricityInvoices.id, base.sourceId));
     }
 
-    const result = await recordElectricityPaymentSuccess({
+    const { applyApprovedPaymentAtomic } = await import('@/src/services/paymentSettlementAtomic');
+    const result = await applyApprovedPaymentAtomic({
+      purpose: 'electricity',
       provider: 'mock',
       offlineProvider: 'cash',
       providerPaymentId,
