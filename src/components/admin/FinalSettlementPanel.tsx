@@ -98,7 +98,7 @@ export function FinalSettlementPanel({
             href={refundConsoleHref(settledTenancy.bookingId)}
             className="rounded-lg bg-[#FF5A1F] px-3 py-2 text-xs font-semibold text-white hover:brightness-110"
           >
-            Open Refund Console →
+            Refund of Deposit →
           </Link>
           <Link
             href={`/admin/deposits/${settledTenancy.bookingId}`}

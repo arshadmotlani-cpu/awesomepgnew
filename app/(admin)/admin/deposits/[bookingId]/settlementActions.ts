@@ -14,7 +14,7 @@ export async function processDepositSettlementAction(
   return {
     status: 'error',
     message: bookingId
-      ? `Legacy deposit settlement is disabled. Open Refund Console: /admin/refunds?booking=${bookingId}`
-      : 'Legacy deposit settlement is disabled. Use Refund Console (/admin/refunds).',
+      ? `Legacy deposit settlement is disabled. Use Refund of Deposit: /admin/refunds?booking=${bookingId}`
+      : 'Legacy deposit settlement is disabled. Use Refund of Deposit (/admin/refunds).',
   };
 }

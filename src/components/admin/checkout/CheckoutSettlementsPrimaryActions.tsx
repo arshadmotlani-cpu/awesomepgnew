@@ -26,7 +26,7 @@ export function CheckoutSettlementsPrimaryActions({
     actions.push({
       key: 'refund',
       href: '/admin/refunds',
-      label: 'Open Refund Console',
+      label: 'Refund of Deposit',
       primary: true,
     });
   } else if (count > 0) {
@@ -47,7 +47,7 @@ export function CheckoutSettlementsPrimaryActions({
   actions.push({
     key: 'tab-refund',
     href: '/admin/refunds',
-    label: 'Refund Console',
+    label: 'Refund of Deposit',
   });
 
   const visible = actions.slice(0, 5);

@@ -135,7 +135,7 @@ function residentsRowToItem(row: ResidentsQueueRow): UnifiedOpsItem | null {
 
   if (row.category === 'move_out') {
     if (row.nextAction.toLowerCase().includes('waiting for resident')) return null;
-    if (row.primaryActionLabel === 'Open Refund Console') {
+    if (row.primaryActionLabel === 'Refund of Deposit') {
       return {
         id: row.id,
         queue: 'refund_due',

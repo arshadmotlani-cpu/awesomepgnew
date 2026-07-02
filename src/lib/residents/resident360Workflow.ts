@@ -44,7 +44,7 @@ export function buildResident360Workflow(input: {
       stateLine: `${input.customerName} — moved out`,
       nextAction: 'Review final settlement and deposit refund if pending.',
       primaryAction: input.bookingId
-        ? { label: 'Open Refund Console', href: refundConsoleHref(input.bookingId) }
+        ? { label: 'Refund of Deposit', href: refundConsoleHref(input.bookingId) }
         : null,
     };
   }

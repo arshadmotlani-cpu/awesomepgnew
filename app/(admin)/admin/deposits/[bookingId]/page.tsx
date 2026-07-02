@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { NotificationActionResolved } from '@/src/components/admin/NotificationActionResolved';
 import { PageHeader } from '@/src/components/admin/PageHeader';
-import { DepositRefundConsolePanel } from '@/src/components/admin/deposits/DepositRefundConsolePanel';
 import { DepositActivitySection } from '@/src/components/admin/deposits/DepositActivitySection';
 import { DepositAdvancedTools } from '@/src/components/admin/deposits/DepositAdvancedTools';
 import { DepositCorrectForm } from '@/src/components/admin/deposits/DepositCorrectForm';
@@ -195,8 +194,6 @@ export default async function AdminDepositDetailPage({
           />
 
           {adjustProps ? <DepositActivitySection bookingId={adjustProps.bookingId} /> : null}
-
-          {settlementProps ? <DepositRefundConsolePanel bookingId={bookingId} /> : null}
 
           {adjustProps ? (
             <DepositAdvancedTools

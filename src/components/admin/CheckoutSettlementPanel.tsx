@@ -276,14 +276,14 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
         >
           <h3 className="text-sm font-semibold text-sky-100">Send refund</h3>
           <p className="text-xs text-apg-silver">
-            Approve the payout amount in the Refund Console — record UPI reference and mark the refund
+            Approve the payout amount in Refund of Deposit — record UPI reference and mark the refund
             sent there.
           </p>
           <Link
             href={refundConsoleHref(detail.bookingId)}
             className="inline-flex rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-500"
           >
-            Open Refund Console →
+            Refund of Deposit →
           </Link>
         </div>
       ) : null}

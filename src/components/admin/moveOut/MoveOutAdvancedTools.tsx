@@ -28,7 +28,7 @@ export function MoveOutAdvancedTools({
           href="/admin/refunds"
           className="rounded-lg border border-white/15 px-3 py-2 text-xs font-medium text-white hover:bg-white/5"
         >
-          Refund Console →
+          Refund of Deposit →
         </Link>
         <Link
           href="/admin/checkout-settlements"

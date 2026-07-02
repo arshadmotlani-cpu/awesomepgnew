@@ -404,7 +404,7 @@ function DirectLinks({ row }: { row: MoveOutPipelineItemClient }) {
       </Link>
       {row.settlementStatus === 'refund_pending' ? (
         <Link href={`/admin/refunds?booking=${row.bookingId}`} className={LINK}>
-          Refund Console
+          Refund of Deposit
         </Link>
       ) : (
         <Link href={`/admin/deposits/${row.bookingId}`} className={LINK}>

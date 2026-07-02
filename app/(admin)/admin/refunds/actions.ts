@@ -52,18 +52,29 @@ function parseNote(form: FormData, field = 'note'): string | null {
   return raw.length > 0 ? raw : null;
 }
 
-function revalidateRefundConsole(bookingId: string, settlementId?: string | null) {
+function revalidateRefundConsole(
+  bookingId: string,
+  opts?: { settlementId?: string | null; customerId?: string | null },
+) {
   revalidatePath('/admin/refunds');
   revalidatePath(`/admin/refunds?booking=${bookingId}`);
   revalidatePath('/admin/operations');
+  revalidatePath('/admin/operations?filter=refund_due');
   revalidatePath('/admin/overview');
+  revalidatePath('/admin/revenue');
+  revalidatePath('/admin/analytics');
+  revalidatePath('/admin/collections');
   revalidatePath('/admin/checkout-settlements');
   revalidatePath('/admin/vacating');
   revalidatePath('/admin/deposits');
+  revalidatePath(`/admin/deposits/${bookingId}`);
   revalidatePath('/admin/residents');
+  if (opts?.customerId) {
+    revalidatePath(`/admin/residents/${opts.customerId}`);
+  }
   revalidateFinancialViews();
-  if (settlementId) {
-    revalidatePath(`/admin/checkout-settlements/${settlementId}`);
+  if (opts?.settlementId) {
+    revalidatePath(`/admin/checkout-settlements/${opts.settlementId}`);
   }
 }
 
@@ -183,7 +194,10 @@ export async function markRefundPaidAction(
     });
     if (!result.ok) return { status: 'error', message: result.error };
 
-    revalidateRefundConsole(bookingId, workspace.checkout.settlementId);
+    revalidateRefundConsole(bookingId, {
+      settlementId: workspace.checkout.settlementId,
+      customerId: workspace.customerId,
+    });
     return {
       status: 'ok',
       message: 'Refund marked. Checkout completed and removed from Refund Due.',
@@ -211,7 +225,7 @@ export async function markRefundPaidAction(
 
   if (!settlement.ok) return { status: 'error', message: settlement.error };
 
-  revalidateRefundConsole(bookingId);
+  revalidateRefundConsole(bookingId, { customerId: booking.customerId });
   return { status: 'ok', message: 'Refund marked and deposit ledger updated.' };
 }
 
@@ -266,7 +280,7 @@ export async function deductDepositAction(
   });
   if (!result.ok) return { status: 'error', message: result.error };
 
-  revalidateRefundConsole(bookingId);
+  revalidateRefundConsole(bookingId, { customerId: booking.customerId });
   return { status: 'ok', message: 'Deduction applied to deposit ledger.' };
 }
 
@@ -305,7 +319,7 @@ export async function transferDepositAction(
   });
   if (!transferred.ok) return { status: 'error', message: transferred.error };
 
-  revalidateRefundConsole(bookingId);
+  revalidateRefundConsole(bookingId, { customerId: source.customerId });
   revalidateRefundConsole(targetBookingId);
   return { status: 'ok', message: 'Deposit transferred.' };
 }

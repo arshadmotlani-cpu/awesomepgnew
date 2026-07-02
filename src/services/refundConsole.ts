@@ -9,6 +9,7 @@ import {
   checkoutSettlements,
   customers,
   depositLedger,
+  vacatingRequests,
   type DepositLedgerEntry,
 } from '@/src/db/schema';
 import { guardDepositPaise, guardPlainPaise } from '@/src/lib/deposits/paiseSafety';
@@ -38,6 +39,15 @@ function absLedgerPaise(value: unknown): number {
 
 function signedLedgerPaise(value: unknown): number {
   return guardPlainPaise(value, 'refundConsole.signedLedgerPaise');
+}
+
+function formatDateOnly(value: string | Date | null | undefined): string | null {
+  if (value == null) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value.toISOString().slice(0, 10);
+  }
+  const trimmed = String(value).trim();
+  return trimmed.length > 0 ? trimmed.slice(0, 10) : null;
 }
 
 function ledgerEventDate(value: Date | string | null | undefined): Date {
@@ -120,6 +130,7 @@ export type RefundConsoleWorkspace = RefundConsoleBookingRow & {
   customerPhone: string | null;
   checkInDate: string | null;
   checkOutDate: string | null;
+  vacatingDate: string | null;
   adminDepositRefundStatus: string | null;
   ledger: DepositLedgerEntry[];
   deductions: RefundConsoleDeductionRow[];
@@ -521,18 +532,25 @@ export async function getRefundConsoleWorkspace(
   if (!detail) return null;
 
   const [bookingRow] = await db
-      .select({
-        phone: customers.phone,
-        checkInDate: bookings.billingAnchorDate,
-        checkOutDate: bookings.expectedCheckoutDate,
-        adminDepositRefundStatus: bookings.adminDepositRefundStatus,
-      })
-      .from(bookings)
-      .innerJoin(customers, eq(customers.id, bookings.customerId))
-      .where(eq(bookings.id, bookingId))
-      .limit(1);
+    .select({
+      phone: customers.phone,
+      checkInDate: bookings.billingAnchorDate,
+      checkOutDate: bookings.expectedCheckoutDate,
+      adminDepositRefundStatus: bookings.adminDepositRefundStatus,
+    })
+    .from(bookings)
+    .innerJoin(customers, eq(customers.id, bookings.customerId))
+    .where(eq(bookings.id, bookingId))
+    .limit(1);
 
-    const [settlement] = await db
+  const [vacatingRow] = await db
+    .select({ vacatingDate: vacatingRequests.vacatingDate })
+    .from(vacatingRequests)
+    .where(eq(vacatingRequests.bookingId, bookingId))
+    .orderBy(desc(vacatingRequests.createdAt))
+    .limit(1);
+
+  const [settlement] = await db
       .select({
         id: checkoutSettlements.id,
         status: checkoutSettlements.status,
@@ -575,8 +593,9 @@ export async function getRefundConsoleWorkspace(
   return {
     ...detail,
     customerPhone: bookingRow?.phone ?? null,
-    checkInDate: bookingRow?.checkInDate ?? null,
-    checkOutDate: bookingRow?.checkOutDate ?? null,
+    checkInDate: formatDateOnly(bookingRow?.checkInDate),
+    checkOutDate: formatDateOnly(bookingRow?.checkOutDate),
+    vacatingDate: formatDateOnly(vacatingRow?.vacatingDate),
     adminDepositRefundStatus: bookingRow?.adminDepositRefundStatus ?? null,
     deductions: buildDeductionRows(detail.ledger),
     transfers: buildTransferRows(detail.ledger),

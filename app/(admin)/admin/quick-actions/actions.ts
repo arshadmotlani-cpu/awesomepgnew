@@ -331,7 +331,7 @@ export async function quickRefundSettlementAction(input: {
     }
     return {
       ok: false,
-      error: `Quick refunds are disabled. Open Refund Console: /admin/refunds?booking=${bookingId}`,
+      error: `Quick refunds are disabled. Use Refund of Deposit: /admin/refunds?booking=${bookingId}`,
     };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Refund failed.' };

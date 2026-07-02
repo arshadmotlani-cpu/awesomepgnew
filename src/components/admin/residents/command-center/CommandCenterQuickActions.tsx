@@ -28,7 +28,7 @@ export function CommandCenterQuickActions({ data }: { data: ResidentCommandCente
           href={checkoutRefundHref(t.bookingId)}
           className="inline-flex rounded-lg bg-[#FF5A1F] px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110"
         >
-          Open Refund Console →
+          Refund of Deposit →
         </Link>
       </CommandCenterSection>
     );
@@ -61,7 +61,7 @@ export function CommandCenterQuickActions({ data }: { data: ResidentCommandCente
             href={checkoutRefundHref(t.bookingId)}
             className="inline-flex rounded-lg border border-white/15 px-4 py-2.5 text-sm font-medium text-white hover:bg-white/5"
           >
-            Refund Console — {refundDuePaise > 0 ? 'refund due' : 'deposit wallet'}
+            Refund of Deposit — {refundDuePaise > 0 ? 'refund due' : 'deposit wallet'}
           </Link>
         ) : null}
       </div>

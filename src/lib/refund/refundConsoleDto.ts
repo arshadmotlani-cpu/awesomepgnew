@@ -8,6 +8,15 @@ import type {
   RefundConsoleWorkspace,
 } from '@/src/services/refundConsole';
 
+function normalizeDateField(value: string | Date | null | undefined): string | null {
+  if (value == null) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value.toISOString().slice(0, 10);
+  }
+  const trimmed = String(value).trim();
+  return trimmed.length > 0 ? trimmed.slice(0, 10) : null;
+}
+
 /** Client-safe workspace — no ledger rows, all dates are ISO strings. */
 export type RefundConsoleWorkspaceDTO = Omit<
   RefundConsoleWorkspace,
@@ -66,6 +75,9 @@ export function toRefundConsoleWorkspaceDTO(
 
   return {
     ...rest,
+    checkInDate: normalizeDateField(rest.checkInDate),
+    checkOutDate: normalizeDateField(rest.checkOutDate),
+    vacatingDate: normalizeDateField(rest.vacatingDate),
     wallet: toClientWallet(wallet),
     suggestedRefundPaise: guardDepositPaise(
       suggestedRefundPaise,

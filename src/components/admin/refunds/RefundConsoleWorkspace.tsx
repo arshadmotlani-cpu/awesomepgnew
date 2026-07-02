@@ -323,6 +323,7 @@ function PayoutWorkspace({
             {workspace.customerPhone ?? '—'}
             {workspace.checkInDate ? ` · Check-in ${formatDate(workspace.checkInDate)}` : ''}
             {workspace.checkOutDate ? ` · Check-out ${formatDate(workspace.checkOutDate)}` : ''}
+            {workspace.vacatingDate ? ` · Vacating ${formatDate(workspace.vacatingDate)}` : ''}
             {workspace.status ? ` · ${workspace.status}` : ''}
           </p>
         </div>
@@ -619,9 +620,13 @@ function PayoutWorkspace({
 export function RefundConsoleWorkspace({
   initialBookingId,
   initialCustomerId,
+  initialWorkspace = null,
+  initialLoadError = null,
 }: {
   initialBookingId?: string | null;
   initialCustomerId?: string | null;
+  initialWorkspace?: RefundConsoleWorkspaceDTO | null;
+  initialLoadError?: string | null;
 }) {
   const router = useRouter();
   const bootstrapped = useRef(false);
@@ -631,11 +636,15 @@ export function RefundConsoleWorkspace({
   const [pickerLabel, setPickerLabel] = useState('');
   const [searching, startSearch] = useTransition();
   const [loadingWorkspace, startLoadWorkspace] = useTransition();
-  const [workspace, setWorkspace] = useState<RefundConsoleWorkspaceDTO | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [workspace, setWorkspace] = useState<RefundConsoleWorkspaceDTO | null>(initialWorkspace);
+  const [loadError, setLoadError] = useState<string | null>(initialLoadError);
+  const [pendingBookingId, setPendingBookingId] = useState<string | null>(
+    initialWorkspace?.bookingId ?? initialBookingId ?? null,
+  );
 
   const openBooking = useCallback(
     (bookingId: string) => {
+      setPendingBookingId(bookingId);
       setLoadError(null);
       setBookingPickerRows(null);
       startLoadWorkspace(async () => {
@@ -643,6 +652,7 @@ export function RefundConsoleWorkspace({
         if (!res.ok) {
           setLoadError(res.error);
           setWorkspace(null);
+          setPendingBookingId(null);
           return;
         }
         setWorkspace(res.workspace);
@@ -685,12 +695,20 @@ export function RefundConsoleWorkspace({
   useEffect(() => {
     if (bootstrapped.current) return;
     bootstrapped.current = true;
+    if (initialWorkspace || initialLoadError) return;
     if (initialBookingId) {
       openBooking(initialBookingId);
     } else if (initialCustomerId) {
       loadCustomerBookings(initialCustomerId);
     }
-  }, [initialBookingId, initialCustomerId, loadCustomerBookings, openBooking]);
+  }, [
+    initialBookingId,
+    initialCustomerId,
+    initialLoadError,
+    initialWorkspace,
+    loadCustomerBookings,
+    openBooking,
+  ]);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -717,6 +735,7 @@ export function RefundConsoleWorkspace({
     setWorkspace(null);
     setBookingPickerRows(null);
     setLoadError(null);
+    setPendingBookingId(null);
     setQuery('');
     router.replace('/admin/refunds', { scroll: false });
   }
@@ -740,14 +759,14 @@ export function RefundConsoleWorkspace({
             {loadError}
           </div>
         ) : null}
-        {loadingWorkspace && !workspace ? (
-          <p className="text-center text-sm text-apg-silver">Loading refund workspace…</p>
-        ) : workspace ? (
+        {workspace ? (
           <PayoutWorkspace
             workspace={workspace}
             onChangeResident={handleChangeResident}
             onRefresh={refreshWorkspace}
           />
+        ) : pendingBookingId || loadingWorkspace ? (
+          <p className="text-center text-sm text-apg-silver">Loading refund workspace…</p>
         ) : bookingPickerRows ? (
           <BookingPicker
             rows={bookingPickerRows}

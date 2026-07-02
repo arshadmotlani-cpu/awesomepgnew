@@ -27,6 +27,7 @@ test('refund workspace DTO serializes dates for client components', () => {
     status: 'checked_out',
     checkInDate: '2025-01-01',
     checkOutDate: '2026-01-01',
+    vacatingDate: '2026-01-15',
     adminDepositRefundStatus: null,
     wallet: {
       depositPaidPaise: 100000,
@@ -86,8 +87,39 @@ test('refund workspace DTO serializes dates for client components', () => {
 
   assert.equal(typeof dto.deductions[0]!.occurredAt, 'string');
   assert.equal(typeof dto.timeline[0]!.occurredAt, 'string');
+  assert.equal(dto.vacatingDate, '2026-01-15');
   assert.equal(dto.checkout?.settlementHref, '/admin/checkout-settlements/s1');
   assert.equal('ledger' in dto, false);
+  assert.doesNotThrow(() => JSON.stringify(dto));
+});
+
+test('refund workspace DTO serializes Date fields for client components', () => {
+  const dto = toRefundConsoleWorkspaceDTO({
+    bookingId: 'b1',
+    bookingCode: 'BK-1',
+    customerId: 'c1',
+    customerName: 'Test',
+    customerPhone: '999',
+    pgName: 'PG',
+    bedLabel: 'Room 1',
+    status: 'checked_out',
+    checkInDate: new Date('2025-06-01T00:00:00.000Z'),
+    checkOutDate: new Date('2026-06-01T00:00:00.000Z'),
+    vacatingDate: new Date('2026-05-15T00:00:00.000Z'),
+    adminDepositRefundStatus: null,
+    wallet: emptyRefundConsoleWallet(),
+    ledger: [],
+    deductions: [],
+    transfers: [],
+    timeline: [],
+    checkout: null,
+    suggestedRefundPaise: 0,
+    refundableBalancePaise: 0,
+  });
+
+  assert.equal(dto.checkInDate, '2025-06-01');
+  assert.equal(dto.checkOutDate, '2026-06-01');
+  assert.equal(dto.vacatingDate, '2026-05-15');
   assert.doesNotThrow(() => JSON.stringify(dto));
 });
 
@@ -117,6 +149,7 @@ test('empty workspace DTO round-trips through JSON', () => {
     status: 'confirmed',
     checkInDate: null,
     checkOutDate: null,
+    vacatingDate: null,
     adminDepositRefundStatus: null,
     wallet: emptyRefundConsoleWallet(),
     ledger: [],

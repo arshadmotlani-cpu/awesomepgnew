@@ -35,8 +35,8 @@ export function deriveCheckoutOpsNextAction(input: {
   if (settlementStatus === 'refund_pending' && refundPaise > 0) {
     return {
       issue: 'Settlement approved — refund due',
-      nextAction: 'Pay the refund in the Refund Console',
-      primaryActionLabel: 'Open Refund Console',
+      nextAction: 'Pay the refund in Refund of Deposit',
+      primaryActionLabel: 'Refund of Deposit',
     };
   }
 
@@ -65,8 +65,8 @@ export function deriveCheckoutOpsNextAction(input: {
   if (settlementStatus === 'approved' && refundPaise > 0) {
     return {
       issue: 'Settlement approved — release refund',
-      nextAction: 'Pay the refund in the Refund Console',
-      primaryActionLabel: 'Open Refund Console',
+      nextAction: 'Pay the refund in Refund of Deposit',
+      primaryActionLabel: 'Refund of Deposit',
     };
   }
 

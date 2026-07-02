@@ -56,14 +56,11 @@ export function CheckoutSettlementPrimaryActions({ detail }: { detail: CheckoutS
         ) : null}
         {canMarkPaid ? (
           <Link href={refundConsoleHref(detail.bookingId)} className={PRIMARY}>
-            Open Refund Console
+            Refund of Deposit
           </Link>
         ) : null}
         <Link href={`/admin/residents/${detail.customerId}`} className={SECONDARY}>
           Resident profile
-        </Link>
-        <Link href={refundConsoleHref(detail.bookingId)} className={SECONDARY}>
-          Refund Console
         </Link>
         <Link href="/admin/vacating?status=pending" className={SECONDARY}>
           Move-out requests
