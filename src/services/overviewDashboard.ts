@@ -282,7 +282,7 @@ export function buildOverviewDashboard(ctx: OverviewContext): OverviewDashboardD
           href: '/admin/beds',
         }),
         countMetric('maintenance_beds', 'Maintenance Beds', d?.maintenanceBeds ?? 0, {
-          href: '/admin/beds',
+          hint: 'Beds marked under maintenance on the PG map',
         }),
       ],
     },

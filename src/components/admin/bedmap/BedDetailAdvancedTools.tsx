@@ -3,10 +3,7 @@
 import Link from 'next/link';
 import { AdminAdvancedToolsSection } from '@/src/components/admin/AdminAdvancedToolsSection';
 import { BedMapRemoveTenantButton } from '@/src/components/admin/BedMapRemoveTenantButton';
-import { BedMapManualOccupiedToggle } from '@/src/components/admin/BedMapManualOccupiedToggle';
-import { BedMapManualReservedToggle } from '@/src/components/admin/BedMapManualReservedToggle';
 import { AdminVacatingSubmitForm } from '@/src/components/admin/AdminVacatingSubmitForm';
-import { BedMapMaintenanceTools } from '@/src/components/admin/bedmap/BedMapMaintenanceTools';
 import { BedMapMoveForm } from '@/src/components/admin/BedMapMoveForm';
 import { BedMapReservationForm } from '@/src/components/admin/BedMapReservationForm';
 import {
@@ -37,7 +34,7 @@ export function BedDetailAdvancedTools({
   return (
     <AdminAdvancedToolsSection
       title="Advanced tools"
-      description="Change bed, reservations, manual website status, maintenance, or cancel move-out."
+      description="Move bed, reservations, or cancel move-out. Bed status is set in the panel above."
       defaultOpen={false}
       className="!mb-0 border-0 bg-transparent"
     >
@@ -124,27 +121,6 @@ export function BedDetailAdvancedTools({
             mode="activate_now"
             reservedFrom={bed.reservedFrom}
           />
-        ) : null}
-
-        <BedMapMaintenanceTools pgId={pgId} bed={bed} />
-
-        {!person && bed.bedStatus === 'available' ? (
-          <>
-            <BedMapManualReservedToggle
-              pgId={pgId}
-              bedId={bed.bedId}
-              bedCode={bed.bedCode}
-              manualReservedCheckIn={bed.manualReservedCheckIn}
-              disabled={bed.manualOccupied}
-            />
-            <BedMapManualOccupiedToggle
-              pgId={pgId}
-              bedId={bed.bedId}
-              bedCode={bed.bedCode}
-              manualOccupied={bed.manualOccupied}
-              disabled={Boolean(bed.manualReservedCheckIn)}
-            />
-          </>
         ) : null}
       </div>
     </AdminAdvancedToolsSection>

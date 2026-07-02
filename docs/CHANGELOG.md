@@ -256,28 +256,24 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-02 18:33:39 UTC
+### Pending pre-commit sync · 2026-07-02 19:46:19 UTC
 
-**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]]
+**Areas touched:** [[ROUTES]], [[Billing]], [[Residents]], [[Action Center]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DATABASE.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (8):**
-- `app/(admin)/admin/deposits/[bookingId]/actions.ts`
-- `app/(admin)/admin/invoices/page.tsx`
-- `app/(admin)/admin/refunds/actions.ts`
-- `app/(admin)/admin/refunds/page.tsx`
-- `app/(admin)/admin/revenue/pg/[pgId]/page.tsx`
-- `src/db/migrations/0096_deduction_category.sql`
-- `src/db/schema/depositLedger.ts`
-- `src/lib/billing/billingCycleEngine.ts`
+**Staged code files (5):**
+- `app/(admin)/admin/operations/actions.ts`
+- `src/lib/billing/collectionsQueue.ts`
+- `src/lib/residents/residentOperationsDashboard.ts`
+- `src/lib/residents/residentOperationsResidentsView.ts`
+- `src/services/actionItems.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

@@ -24,7 +24,7 @@ const ACTION_ITEM_TO_UNRESOLVED: Record<string, UnresolvedActionType | null> = {
   refund_pending: 'deposit_refund_approval',
   deposit_refund_request: 'deposit_refund_approval',
   refund_request_submitted: 'deposit_refund_approval',
-  maintenance_issue: 'maintenance_approval',
+  maintenance_issue: null,
   extension_request: 'room_transfer_approval',
   // Collections / billing reminders — Action Center only, not Operations sidebar.
   rent_due: null,
@@ -80,7 +80,7 @@ function hrefForAction(
     case 'room_transfer_approval':
       return '/admin/requests';
     case 'maintenance_approval':
-      return '/admin/operations';
+      return meta.pgId ? `/admin/pgs/${meta.pgId}/map` : '/admin/pgs';
     case 'bed_assignment':
       return meta.residentId
         ? `/admin/beds?customerId=${meta.residentId}`

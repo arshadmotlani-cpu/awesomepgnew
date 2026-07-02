@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { AdminKycStatusWithWhatsApp } from '@/src/components/admin/AdminKycWhatsAppButton';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
-import { formatMaintenanceReason } from '@/src/lib/bedMaintenance';
+import { BedStatusControl } from '@/src/components/admin/bedmap/BedStatusControl';
 import { BedDetailAdvancedTools } from '@/src/components/admin/bedmap/BedDetailAdvancedTools';
 import { BedInlineAssignForm } from '@/src/components/admin/bedmap/BedInlineAssignForm';
 import {
@@ -110,29 +110,7 @@ function BedDetailPanel({
       </div>
 
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
-        {bed.bedStatus === 'maintenance' ? (
-          <section className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-50">
-            <p className="text-xs font-semibold uppercase tracking-wide text-rose-200">Maintenance</p>
-            <p className="mt-2">
-              <span className="text-rose-200/80">Reason:</span>{' '}
-              {formatMaintenanceReason(bed.maintenanceReason, bed.maintenanceReasonCustom)}
-            </p>
-            {bed.maintenanceStartedAt ? (
-              <p className="mt-1">
-                <span className="text-rose-200/80">Since:</span> {formatDate(bed.maintenanceStartedAt)}
-              </p>
-            ) : null}
-            {bed.maintenanceExpectedCompletion ? (
-              <p className="mt-1">
-                <span className="text-rose-200/80">Expected completion:</span>{' '}
-                {formatDate(bed.maintenanceExpectedCompletion)}
-              </p>
-            ) : null}
-            {bed.maintenanceNotes ? (
-              <p className="mt-2 text-xs text-rose-100/90">{bed.maintenanceNotes}</p>
-            ) : null}
-          </section>
-        ) : null}
+        <BedStatusControl pgId={pgId} bed={bed} />
 
         {person ? (
           <>
@@ -171,13 +149,6 @@ function BedDetailPanel({
           </>
         ) : (
           <>
-            <p className="text-sm text-apg-silver">
-              {bed.manualOccupied
-                ? 'Marked as occupied on the website — assign a resident or open the bed when ready.'
-                : bed.manualReservedCheckIn
-                  ? `Marked reserved until ${bed.manualReservedCheckIn}.`
-                  : 'This bed is open. Assign a resident or mark it reserved/occupied.'}
-            </p>
             <EmptyBedPrimaryActions pgId={pgId} bed={bed} />
             {inlineAssign && inlineAssign.bedId === bed.bedId ? (
               <BedInlineAssignForm

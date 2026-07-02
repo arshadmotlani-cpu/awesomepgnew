@@ -47,7 +47,15 @@ export type ResidentsQueueRow = {
   outstandingLabel?: string;
   outstandingAmountPaise?: number;
   financialInvoiceId?: string | null;
-  outstandingKind?: 'rent' | 'electricity';
+  outstandingKind?: 'rent' | 'electricity' | 'deposit';
+  outstandingCategory?: string;
+  outstandingPeriod?: string;
+  customerPhone?: string;
+  pgId?: string;
+  sourceId?: string;
+  sourceTable?: 'rent_invoices' | 'electricity_invoices';
+  billingMonth?: string;
+  bookingIdForDeposit?: string;
 };
 
 export type JourneyStageId =
@@ -397,6 +405,13 @@ export function buildResidentOperationsResidentsView(input: {
       outstandingAmountPaise: item.outstandingAmountPaise,
       financialInvoiceId: item.financialInvoiceId,
       outstandingKind: item.outstandingKind,
+      outstandingCategory: item.outstandingCategory,
+      outstandingPeriod: item.outstandingPeriod,
+      customerPhone: item.customerPhone,
+      pgId: item.pgId,
+      sourceId: item.sourceId,
+      sourceTable: item.sourceTable,
+      billingMonth: item.billingMonth,
     } satisfies ResidentsQueueRow;
   });
 

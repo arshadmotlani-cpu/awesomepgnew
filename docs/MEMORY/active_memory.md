@@ -7,6 +7,7 @@
 
 ## Current Focus
 
+- **Operations Center P0 redesign** — Phase 1 audit complete (`docs/OPERATIONS_CENTER_AUDIT.md`); awaiting approval before implementation. Goal: true action center only, invoice/payment SSOT, no duplicate queues.
 - **Occupancy SSOT** — Critical: Admin bed map ≠ Public PG page for same bed; audit complete, implementation blocked on approval → `docs/OCCUPANCY_SSOT_AUDIT.md`
 - **Resident Portal V2** — 5-tab resident hub shipped (Profile/Payments/Requests/Referrals/ Concierge); legacy tab URLs redirect to V2
 - **Semantic Intelligence Layer** — `brain-semantic.sh` → intent + impact + `Semantic State`

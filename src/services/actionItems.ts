@@ -16,6 +16,7 @@ import {
   rentInvoices,
   rooms,
   vacatingRequests,
+  unresolvedActions,
 } from '@/src/db/schema';
 import type { ActionItem } from '@/src/db/schema/actionItems';
 
@@ -770,39 +771,26 @@ async function syncPaymentReviews(session: AdminSession): Promise<void> {
   }
 }
 
-async function syncMaintenanceIssues(session: AdminSession): Promise<void> {
-  const rows = await db
-    .select({
-      bedId: beds.id,
-      bedCode: beds.bedCode,
-      roomId: rooms.id,
-      roomNumber: rooms.roomNumber,
-      pgId: floors.pgId,
-      pgName: pgs.name,
-    })
-    .from(beds)
-    .innerJoin(rooms, eq(rooms.id, beds.roomId))
-    .innerJoin(floors, eq(floors.id, rooms.floorId))
-    .innerJoin(pgs, eq(pgs.id, floors.pgId))
-    .where(and(eq(beds.status, 'maintenance'), sql`${beds.archivedAt} IS NULL`));
+async function resolveMaintenanceActionItems(): Promise<void> {
+  await db
+    .update(actionItems)
+    .set({ status: 'resolved', updatedAt: new Date() })
+    .where(
+      and(
+        eq(actionItems.type, 'maintenance_issue'),
+        inArray(actionItems.status, ['open', 'in_progress']),
+      ),
+    );
 
-  for (const row of rows) {
-    if (!sessionCanAccessPg(session, row.pgId)) continue;
-    await upsertActionItem({
-      type: 'maintenance_issue',
-      title: `Bed ${row.bedCode} · Room ${row.roomNumber} under maintenance`,
-      pgId: row.pgId,
-      roomId: row.roomId,
-      bedId: row.bedId,
-      priority: 'medium',
-      sourceKey: `maintenance:${row.bedId}`,
-      metadata: {
-        pgName: formatPgDisplayName(row.pgName),
-        roomNumber: row.roomNumber,
-        bedCode: row.bedCode,
-      },
-    });
-  }
+  await db
+    .update(unresolvedActions)
+    .set({ status: 'CLOSED', resolvedAt: new Date(), updatedAt: new Date() })
+    .where(
+      and(
+        eq(unresolvedActions.actionType, 'maintenance_approval'),
+        eq(unresolvedActions.status, 'OPEN'),
+      ),
+    );
 }
 
 async function syncDepositCollectionDue(session: AdminSession): Promise<void> {
@@ -844,6 +832,7 @@ export async function syncActionItems(session: AdminSession): Promise<void> {
   await resolveStaleVacatingActionItems();
   await resolveFixedStayCheckoutActionItems();
   await resolveStaleRefundAndCheckoutActionItems();
+  await resolveMaintenanceActionItems();
   await Promise.all([
     syncRentDue(session),
     syncElectricityDue(session),
@@ -852,7 +841,6 @@ export async function syncActionItems(session: AdminSession): Promise<void> {
     syncRefundsPending(session),
     syncDepositCollectionDue(session),
     syncPaymentReviews(session),
-    syncMaintenanceIssues(session),
     syncResidentRequestActionItems(),
   ]);
   const openItems = await listOpenActionItems(session);

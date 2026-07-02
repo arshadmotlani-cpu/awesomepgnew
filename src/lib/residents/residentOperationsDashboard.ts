@@ -52,7 +52,14 @@ export type ResidentOpsQueueItem = {
   outstandingLabel?: string;
   outstandingAmountPaise?: number;
   financialInvoiceId?: string | null;
-  outstandingKind?: 'rent' | 'electricity';
+  outstandingKind?: 'rent' | 'electricity' | 'deposit';
+  outstandingCategory?: string;
+  outstandingPeriod?: string;
+  customerPhone?: string;
+  pgId?: string;
+  sourceId?: string;
+  sourceTable?: 'rent_invoices' | 'electricity_invoices';
+  billingMonth?: string;
 };
 
 export type AttentionBucket = {
@@ -265,50 +272,6 @@ export function buildResidentOperationsDashboard(input: {
     });
   }
 
-  for (const req of input.residentRequests.filter((r) => r.type !== 'deposit_refund')) {
-    queue.push({
-      id: `req-${req.id}`,
-      category: 'resident_request',
-      filterBucket: 'requests_pending',
-      customerId: req.customerId,
-      residentName: req.customerName,
-      pgName: req.pgName,
-      roomNumber: null,
-      bedCode: null,
-      issue: `${req.type.replace(/_/g, ' ')} request · ${req.status}`,
-      nextAction: 'Review resident request and approve or reject',
-      primaryActionLabel: 'Open request',
-      primaryHref: '/admin/requests',
-      sortPriority: 0,
-      bookingId: req.bookingId,
-      kycSubmissionId: null,
-      tenancyStatus: null,
-      kycStatus: null,
-    });
-  }
-
-  for (const req of input.residentRequests.filter((r) => r.type === 'deposit_refund')) {
-    queue.push({
-      id: `req-refund-${req.id}`,
-      category: 'resident_request',
-      filterBucket: 'deposit_refund',
-      customerId: req.customerId,
-      residentName: req.customerName,
-      pgName: req.pgName,
-      roomNumber: null,
-      bedCode: null,
-      issue: 'Deposit refund request from resident',
-      nextAction: 'Review and process refund',
-      primaryActionLabel: 'Open request',
-      primaryHref: '/admin/requests',
-      sortPriority: 2,
-      bookingId: req.bookingId,
-      kycSubmissionId: null,
-      tenancyStatus: null,
-      kycStatus: null,
-    });
-  }
-
   for (const p of input.paymentProofs) {
     if (!p.customerId) continue;
     if (activeCheckoutCustomerIds.has(p.customerId)) continue;
@@ -338,10 +301,19 @@ export function buildResidentOperationsDashboard(input: {
   const proofCustomerIds = new Set(
     input.paymentProofs.map((p) => p.customerId).filter(Boolean) as string[],
   );
+  const pendingElecInvoiceIds = new Set(
+    input.paymentProofs
+      .filter((p) => p.kind === 'electricity')
+      .map((p) => p.entityId)
+      .filter(Boolean),
+  );
 
   for (const b of input.unpaidBilling) {
     if (activeCheckoutCustomerIds.has(b.customerId)) continue;
     const isRent = b.kind === 'rent';
+    if (isRent && proofCustomerIds.has(b.customerId)) continue;
+    if (!isRent && pendingElecInvoiceIds.has(b.sourceId)) continue;
+
     const category: ResidentOpsQueueCategory = isRent
       ? b.priority === 'overdue'
         ? 'rent_overdue'
@@ -349,8 +321,6 @@ export function buildResidentOperationsDashboard(input: {
       : 'electricity_due';
     const filterBucket: AttentionBucketId =
       b.priority === 'overdue' ? 'rent_overdue' : isRent ? 'rent_due' : 'electricity_due';
-
-    if (isRent && proofCustomerIds.has(b.customerId)) continue;
 
     const dueLabel =
       b.priority === 'overdue'
@@ -385,6 +355,13 @@ export function buildResidentOperationsDashboard(input: {
       outstandingAmountPaise: b.amountPaise,
       financialInvoiceId: b.financialInvoiceId ?? null,
       outstandingKind: isRent ? 'rent' : 'electricity',
+      outstandingCategory: b.categoryLabel,
+      outstandingPeriod: b.periodLabel,
+      customerPhone: b.customerPhone,
+      pgId: b.pgId,
+      sourceId: b.sourceId,
+      sourceTable: b.sourceTable,
+      billingMonth: b.billingMonth,
     });
   }
 

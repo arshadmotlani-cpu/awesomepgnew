@@ -1,6 +1,14 @@
+import { billingMonthLabel } from '@/src/lib/billing/invoiceCollectionWhatsApp';
 import { addDays, diffDays, formatDate, parseDate } from '@/src/lib/dates';
 import type { AdminElectricityInvoiceReminderRow } from '@/src/db/queries/admin';
 import type { AdminRentInvoiceRow } from '@/src/db/queries/admin';
+
+/** "2026-07-01" → "July 2026" */
+function billingPeriodLabel(billingMonth: string): string {
+  const month = billingMonthLabel(billingMonth);
+  const year = billingMonth.length >= 4 ? billingMonth.slice(0, 4) : '';
+  return year ? `${month} ${year}` : month;
+}
 
 export type CollectionPriority = 'overdue' | 'due_today' | 'due_soon' | 'pending';
 
@@ -25,6 +33,9 @@ export type CollectionQueueItem = {
   priority: CollectionPriority;
   effectiveStatus: string;
   invoiceLabel: string;
+  billingMonth: string;
+  categoryLabel: string;
+  periodLabel: string;
 };
 
 export type CollectionsCommandStats = {
@@ -97,6 +108,9 @@ export function rentRowToQueueItem(row: AdminRentInvoiceRow, today: string): Col
     priority,
     effectiveStatus: row.effectiveStatus,
     invoiceLabel: `Rent · ${row.billingMonth.slice(0, 7)}`,
+    billingMonth: row.billingMonth,
+    categoryLabel: 'Rent',
+    periodLabel: billingPeriodLabel(row.billingMonth),
   };
 }
 
@@ -105,7 +119,7 @@ export function electricityRowToQueueItem(
   today: string,
 ): CollectionQueueItem | null {
   if (row.outstandingPaise <= 0) return null;
-
+  if (row.effectiveStatus === 'paid' || row.effectiveStatus === 'cancelled') return null;
   if (row.paymentProofUrl) return null;
 
   const priority = row.isOverdue ? 'overdue' : classifyDueDate(row.dueDate, today);
@@ -130,6 +144,9 @@ export function electricityRowToQueueItem(
     priority,
     effectiveStatus: row.effectiveStatus,
     invoiceLabel: `Electricity · ${row.billingMonth.slice(0, 7)}`,
+    billingMonth: row.billingMonth,
+    categoryLabel: 'Electricity',
+    periodLabel: billingPeriodLabel(row.billingMonth),
   };
 }
 

@@ -1,5 +1,5 @@
 /**
- * Unified Operations master queue — single command center for all admin actions.
+ * Unified Operations master queue — single command center for admin actions.
  */
 
 import { eq, inArray } from 'drizzle-orm';
@@ -7,23 +7,24 @@ import { db } from '@/src/db/client';
 import { bedReservations, beds, bookings, customers, floors, pgs, rooms } from '@/src/db/schema';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
+import { billingMonthLabel } from '@/src/lib/billing/invoiceCollectionWhatsApp';
+import { formatDate } from '@/src/lib/format';
 import type { ResidentsCommandFilter } from '@/src/lib/residents/residentOperationsResidentsView';
-import type { OpsPriority } from '@/src/lib/operationsCenterRules';
-import { listBillingGenerationFailures } from '@/src/services/billingScheduler';
-import { getOperationsCenterData } from '@/src/services/operationsCenter';
 import { loadResidentOperationsResidentsPage } from '@/src/services/residentOperationsResidentsPage';
-import { listOpenActionItems } from '@/src/services/actionItems';
-import { buildActionDeepLink } from '@/src/lib/admin/actionDeepLinks';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 import type { ResidentsQueueRow } from '@/src/lib/residents/residentOperationsResidentsView';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
-import { paiseToInr } from '@/src/lib/format';
+import { listOutstandingDeposits } from '@/src/services/depositCollection';
 
 export type UnifiedOpsOutstandingLine = {
-  label: string;
+  categoryLabel: string;
+  periodLabel: string;
   amountPaise: number;
   financialInvoiceId?: string | null;
-  kind: 'rent' | 'electricity';
+  kind: 'rent' | 'electricity' | 'deposit';
+  billingMonth?: string | null;
+  bookingId?: string | null;
+  label?: string;
 };
 
 export type UnifiedOpsFilter =
@@ -34,21 +35,17 @@ export type UnifiedOpsFilter =
   | 'rent_due'
   | 'electricity_due'
   | 'booking_approval'
-  | 'billing_failure'
-  | 'checkout'
-  | 'maintenance'
-  | 'manual_review';
-
-export type UnifiedOpsPriority = 'urgent' | 'high' | 'normal' | 'waiting';
+  | 'checkout';
 
 export type UnifiedOpsItem = {
   id: string;
   customerId?: string;
   residentName: string;
+  residentPhone?: string | null;
+  pgId?: string | null;
   pgName: string | null;
   roomNumber: string | null;
   bedCode: string | null;
-  priority: UnifiedOpsPriority;
   status: string;
   nextAction: string;
   openHref: string;
@@ -56,11 +53,7 @@ export type UnifiedOpsItem = {
   filterTags: UnifiedOpsFilter[];
   sortRank: number;
   outstandingLines?: UnifiedOpsOutstandingLine[];
-  cashSettlement?: {
-    financialInvoiceId: string;
-    invoiceNumber: string;
-    balanceDuePaise: number;
-  } | null;
+  totalOutstandingPaise?: number;
 };
 
 export type UnifiedOperationsQueue = {
@@ -84,89 +77,107 @@ const FILTER_LABELS: Record<UnifiedOpsFilter, string> = {
   rent_due: 'Rent due',
   electricity_due: 'Electricity due',
   booking_approval: 'Booking approval',
-  billing_failure: 'Billing failure',
   checkout: 'Checkout',
-  maintenance: 'Maintenance',
-  manual_review: 'Manual review',
 };
 
-function opsPriorityToUnified(p: OpsPriority): UnifiedOpsPriority {
-  if (p === 'red') return 'urgent';
-  if (p === 'orange') return 'high';
-  return 'normal';
-}
+const EXCLUDED_CATEGORIES = new Set(['resident_request']);
 
-function categoryPriority(category: string, waitingOnResident: boolean): UnifiedOpsPriority {
-  if (waitingOnResident) return 'waiting';
-  if (category === 'payment_proof' || category === 'rent_overdue') return 'urgent';
-  if (category === 'rent_due' || category === 'electricity_due' || category === 'move_out') {
-    return 'high';
+function workflowStatus(row: ResidentsQueueRow): string {
+  switch (row.category) {
+    case 'payment_proof':
+      return 'Waiting for Admin Approval';
+    case 'rent_due':
+    case 'electricity_due':
+    case 'rent_overdue':
+      return 'Waiting for Resident Payment';
+    case 'kyc':
+      return 'Waiting for KYC Review';
+    case 'bed_assignment':
+      return 'Waiting for Bed Assignment';
+    case 'move_out':
+      return 'Waiting for Checkout';
+    case 'refund':
+      return 'Waiting for Refund';
+    case 'booking_approval':
+      return 'Waiting for Booking Approval';
+    default:
+      return row.currentState;
   }
-  return 'normal';
 }
 
-function categorySortRank(priority: UnifiedOpsPriority): number {
-  if (priority === 'urgent') return 0;
-  if (priority === 'high') return 1;
-  if (priority === 'normal') return 2;
+function categorySortRank(category: string): number {
+  if (category === 'payment_proof' || category === 'rent_overdue') return 0;
+  if (category === 'rent_due' || category === 'electricity_due' || category === 'move_out') return 1;
+  if (category === 'refund') return 2;
   return 3;
 }
 
 function rowToFilterTags(row: ResidentsQueueRow): UnifiedOpsFilter[] {
   const tags: UnifiedOpsFilter[] = [...row.filterTags];
-  if (row.category === 'rent_due') tags.push('rent_due', 'waiting_for_payment');
-  if (row.category === 'electricity_due') tags.push('electricity_due', 'waiting_for_payment');
-  if (row.category === 'rent_overdue') tags.push('overdue', 'rent_due', 'waiting_for_payment');
-  if (row.category === 'payment_proof') tags.push('payment_proof', 'waiting_for_admin_review');
+  if (row.category === 'rent_due' || row.category === 'rent_overdue') {
+    tags.push('rent_due', 'waiting_for_payment');
+  }
+  if (row.category === 'electricity_due') {
+    tags.push('electricity_due', 'waiting_for_payment');
+  }
+  if (row.category === 'payment_proof') {
+    tags.push('payment_proof', 'waiting_for_admin_review');
+  }
   if (row.category === 'move_out') tags.push('move_out', 'checkout');
   if (row.category === 'refund') tags.push('checkout');
-  if (row.category === 'resident_request') tags.push('maintenance');
   return [...new Set(tags)];
 }
 
-function residentsRowToItem(row: ResidentsQueueRow): UnifiedOpsItem {
-  const waitingOnResident =
-    row.category === 'rent_due' ||
-    row.category === 'electricity_due' ||
-    row.nextAction.toLowerCase().includes('waiting for resident');
-  const priority = categoryPriority(row.category, waitingOnResident);
-  const outstandingLines: UnifiedOpsOutstandingLine[] | undefined =
-    row.outstandingLabel && row.outstandingAmountPaise != null && row.outstandingKind
-      ? [
-          {
-            label: row.outstandingLabel,
-            amountPaise: row.outstandingAmountPaise,
-            financialInvoiceId: row.financialInvoiceId,
-            kind: row.outstandingKind,
-          },
-        ]
-      : undefined;
+function outstandingLineFromRow(row: ResidentsQueueRow): UnifiedOpsOutstandingLine | null {
+  if (row.outstandingAmountPaise == null || row.outstandingAmountPaise <= 0) return null;
+  return {
+    categoryLabel: row.outstandingCategory ?? (row.outstandingKind === 'rent' ? 'Rent' : 'Electricity'),
+    periodLabel: row.outstandingPeriod ?? billingMonthLabel(row.billingMonth),
+    amountPaise: row.outstandingAmountPaise,
+    financialInvoiceId: row.financialInvoiceId,
+    kind: row.outstandingKind ?? 'rent',
+    billingMonth: row.billingMonth,
+    bookingId: row.bookingId,
+    label: row.outstandingLabel,
+  };
+}
+
+function residentsRowToItem(row: ResidentsQueueRow): UnifiedOpsItem | null {
+  if (EXCLUDED_CATEGORIES.has(row.category)) return null;
+
+  const outstandingLine = outstandingLineFromRow(row);
+  const status = workflowStatus(row);
 
   return {
     id: row.id,
     customerId: row.customerId,
     residentName: row.residentName,
+    residentPhone: row.customerPhone,
+    pgId: row.pgId,
     pgName: row.pgName,
     roomNumber: row.roomNumber,
     bedCode: row.bedCode,
-    priority,
-    status: row.currentState,
+    status,
     nextAction: row.nextAction,
     openHref: row.primaryHref,
     openLabel: row.primaryActionLabel || 'Open',
     filterTags: rowToFilterTags(row),
-    sortRank: categorySortRank(priority),
-    outstandingLines,
+    sortRank: categorySortRank(row.category),
+    outstandingLines: outstandingLine ? [outstandingLine] : undefined,
+    totalOutstandingPaise: outstandingLine?.amountPaise,
   };
 }
 
 function isPaymentWaitingItem(item: UnifiedOpsItem): boolean {
   return (
-    (item.filterTags.includes('rent_due') ||
-      item.filterTags.includes('electricity_due') ||
-      item.filterTags.includes('overdue')) &&
-    !item.filterTags.includes('payment_proof')
+    item.filterTags.includes('waiting_for_payment') &&
+    !item.filterTags.includes('payment_proof') &&
+    Boolean(item.outstandingLines?.length)
   );
+}
+
+function sumOutstanding(lines: UnifiedOpsOutstandingLine[]): number {
+  return lines.reduce((sum, line) => sum + line.amountPaise, 0);
 }
 
 function mergePaymentWaitingByResident(items: UnifiedOpsItem[]): UnifiedOpsItem[] {
@@ -189,38 +200,29 @@ function mergePaymentWaitingByResident(items: UnifiedOpsItem[]): UnifiedOpsItem[
   const grouped: UnifiedOpsItem[] = [...ungrouped];
 
   for (const [customerId, rows] of byCustomer) {
-    if (rows.length === 1) {
-      grouped.push(rows[0]);
-      continue;
-    }
-
     const outstandingLines = rows.flatMap((r) => r.outstandingLines ?? []);
-    const priorityOrder: UnifiedOpsPriority[] = ['urgent', 'high', 'normal', 'waiting'];
-    const priority =
-      rows.reduce<UnifiedOpsPriority>((best, row) => {
-        return priorityOrder.indexOf(row.priority) < priorityOrder.indexOf(best)
-          ? row.priority
-          : best;
-      }, 'waiting') ?? 'high';
     const sortRank = Math.min(...rows.map((r) => r.sortRank));
     const filterTags = [...new Set(rows.flatMap((r) => r.filterTags))] as UnifiedOpsFilter[];
-    const anchor = rows[0];
+    const anchor = rows[0]!;
+    const totalOutstandingPaise = sumOutstanding(outstandingLines);
 
     grouped.push({
-      id: `resident-outstanding-${customerId}`,
+      id: rows.length === 1 ? rows[0]!.id : `resident-outstanding-${customerId}`,
       customerId,
       residentName: anchor.residentName,
+      residentPhone: anchor.residentPhone,
+      pgId: anchor.pgId,
       pgName: anchor.pgName,
       roomNumber: anchor.roomNumber,
       bedCode: anchor.bedCode,
-      priority,
-      status: 'Outstanding',
-      nextAction: 'Collect each invoice separately — rent and electricity stay independent',
+      status: 'Waiting for Resident Payment',
+      nextAction: 'Collect each invoice separately — rent, electricity, and deposit stay independent',
       openHref: `/admin/residents/${customerId}#open-bills`,
-      openLabel: 'Open',
+      openLabel: 'Open bills',
       filterTags,
       sortRank,
       outstandingLines,
+      totalOutstandingPaise,
     });
   }
 
@@ -255,6 +257,46 @@ async function listPendingBookingApprovals(session: AdminSession) {
   );
 }
 
+function depositRowsToItems(
+  session: AdminSession,
+  deposits: Awaited<ReturnType<typeof listOutstandingDeposits>>,
+): UnifiedOpsItem[] {
+  const items: UnifiedOpsItem[] = [];
+  for (const d of deposits) {
+    if (!adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, d.pgId)) continue;
+    if (d.depositDuePaise <= 0) continue;
+
+    const periodLabel = d.depositDueDate ? formatDate(d.depositDueDate) : 'Due now';
+    items.push({
+      id: `deposit-${d.bookingId}`,
+      customerId: d.customerId,
+      residentName: d.customerFullName,
+      residentPhone: d.customerPhone,
+      pgId: d.pgId,
+      pgName: d.pgName,
+      roomNumber: d.roomNumber,
+      bedCode: d.bedCode,
+      status: 'Waiting for Resident Payment',
+      nextAction: 'Collect remaining security deposit',
+      openHref: `/admin/residents/${d.customerId}#open-bills`,
+      openLabel: 'Open bills',
+      filterTags: ['waiting_for_payment'],
+      sortRank: 1,
+      outstandingLines: [
+        {
+          categoryLabel: 'Deposit',
+          periodLabel,
+          amountPaise: d.depositDuePaise,
+          kind: 'deposit',
+          bookingId: d.bookingId,
+        },
+      ],
+      totalOutstandingPaise: d.depositDuePaise,
+    });
+  }
+  return items;
+}
+
 function mapFilterToResidents(filter: UnifiedOpsFilter | null): ResidentsCommandFilter | null {
   if (!filter || filter === 'all') return null;
   if (
@@ -263,10 +305,7 @@ function mapFilterToResidents(filter: UnifiedOpsFilter | null): ResidentsCommand
     filter === 'rent_due' ||
     filter === 'electricity_due' ||
     filter === 'booking_approval' ||
-    filter === 'billing_failure' ||
-    filter === 'checkout' ||
-    filter === 'maintenance' ||
-    filter === 'manual_review'
+    filter === 'checkout'
   ) {
     return null;
   }
@@ -276,12 +315,10 @@ function mapFilterToResidents(filter: UnifiedOpsFilter | null): ResidentsCommand
 function matchesFilter(item: UnifiedOpsItem, filter: UnifiedOpsFilter | null): boolean {
   if (!filter || filter === 'all') return true;
   if (filter === 'waiting_for_payment') {
-    return item.filterTags.includes('rent_due') || item.filterTags.includes('electricity_due');
+    return item.filterTags.includes('waiting_for_payment');
   }
   if (filter === 'waiting_for_admin_review') {
-    return (
-      item.filterTags.includes('payment_proof') || item.filterTags.includes('manual_review')
-    );
+    return item.filterTags.includes('payment_proof');
   }
   return item.filterTags.includes(filter);
 }
@@ -300,42 +337,9 @@ export function parseUnifiedOpsFilter(value: string | undefined): UnifiedOpsFilt
     'rent_due',
     'electricity_due',
     'booking_approval',
-    'billing_failure',
     'checkout',
-    'maintenance',
-    'manual_review',
   ];
   return valid.includes(value as UnifiedOpsFilter) ? (value as UnifiedOpsFilter) : null;
-}
-
-function actionItemPriority(priority: 'low' | 'medium' | 'high'): UnifiedOpsPriority {
-  if (priority === 'high') return 'urgent';
-  if (priority === 'medium') return 'high';
-  return 'normal';
-}
-
-async function resolveFailureEntityNames(
-  failures: Awaited<ReturnType<typeof listBillingGenerationFailures>>,
-) {
-  const customerIds = [...new Set(failures.map((f) => f.customerId).filter(Boolean))] as string[];
-  const pgIds = [...new Set(failures.map((f) => f.pgId).filter(Boolean))] as string[];
-
-  const [customerRows, pgRows] = await Promise.all([
-    customerIds.length
-      ? db
-          .select({ id: customers.id, fullName: customers.fullName })
-          .from(customers)
-          .where(inArray(customers.id, customerIds))
-      : Promise.resolve([]),
-    pgIds.length
-      ? db.select({ id: pgs.id, name: pgs.name }).from(pgs).where(inArray(pgs.id, pgIds))
-      : Promise.resolve([]),
-  ]);
-
-  return {
-    customerNames: new Map(customerRows.map((r) => [r.id, r.fullName])),
-    pgNames: new Map(pgRows.map((r) => [r.id, r.name])),
-  };
 }
 
 export async function loadUnifiedOperationsQueue(
@@ -345,22 +349,22 @@ export async function loadUnifiedOperationsQueue(
   const filter = filterInput ?? null;
   const residentsFilter = mapFilterToResidents(filter);
 
-  const [residentsPage, opsCenter, billingFailures, bookingApprovals, paymentReviews, openActionItems] =
-    await Promise.all([
-      loadResidentOperationsResidentsPage(session, residentsFilter),
-      getOperationsCenterData(session),
-      listBillingGenerationFailures({ unresolvedOnly: true, limit: 50 }),
-      listPendingBookingApprovals(session),
-      listPendingPaymentReviews(session),
-      listOpenActionItems(session),
-    ]);
-
-  const { customerNames, pgNames } = await resolveFailureEntityNames(billingFailures);
+  const [residentsPage, bookingApprovals, paymentReviews, outstandingDeposits] = await Promise.all([
+    loadResidentOperationsResidentsPage(session, residentsFilter),
+    listPendingBookingApprovals(session),
+    listPendingPaymentReviews(session),
+    listOutstandingDeposits(),
+  ]);
 
   const byId = new Map<string, UnifiedOpsItem>();
 
   for (const row of residentsPage.queue) {
-    byId.set(row.id, residentsRowToItem(row));
+    const item = residentsRowToItem(row);
+    if (item) byId.set(item.id, item);
+  }
+
+  for (const depositItem of depositRowsToItems(session, outstandingDeposits)) {
+    byId.set(depositItem.id, depositItem);
   }
 
   for (const b of bookingApprovals) {
@@ -370,68 +374,12 @@ export async function loadUnifiedOperationsQueue(
       pgName: b.pgName,
       roomNumber: null,
       bedCode: null,
-      priority: 'urgent',
-      status: 'Booking awaiting approval',
+      status: 'Waiting for Booking Approval',
       nextAction: 'Review payment and approve booking',
       openHref: `/admin/bookings/${b.id}`,
       openLabel: 'Review booking',
       filterTags: ['booking_approval'],
       sortRank: 0,
-    });
-  }
-
-  for (const f of billingFailures) {
-    byId.set(`billing-fail-${f.id}`, {
-      id: `billing-fail-${f.id}`,
-      residentName: f.customerId ? customerNames.get(f.customerId) ?? 'Resident' : 'Unknown',
-      pgName: f.pgId ? pgNames.get(f.pgId) ?? null : null,
-      roomNumber: null,
-      bedCode: null,
-      priority: 'urgent',
-      status: 'Billing generation failed',
-      nextAction: f.errorMessage,
-      openHref: '/admin/billing?tab=failures',
-      openLabel: 'View failure',
-      filterTags: ['billing_failure'],
-      sortRank: 0,
-    });
-  }
-
-  for (const item of openActionItems) {
-    if (item.type !== 'financial_audit_review') continue;
-    const priority = actionItemPriority(item.priority);
-    byId.set(`action-${item.id}`, {
-      id: `action-${item.id}`,
-      residentName: item.residentName ?? 'Unknown',
-      pgName: item.pgName,
-      roomNumber: item.roomNumber,
-      bedCode: item.bedCode,
-      priority,
-      status: 'Invoice exception',
-      nextAction: item.title,
-      openHref: buildActionDeepLink(item.type, item.metadata, item.residentId),
-      openLabel: 'Review',
-      filterTags: ['manual_review', 'waiting_for_admin_review'],
-      sortRank: categorySortRank(priority),
-    });
-  }
-
-  for (const task of opsCenter.tasks) {
-    if (byId.has(task.id)) continue;
-    const priority = opsPriorityToUnified(task.priority);
-    byId.set(task.id, {
-      id: task.id,
-      residentName: task.label.split('—').pop()?.trim() ?? task.label,
-      pgName: task.pgName,
-      roomNumber: null,
-      bedCode: null,
-      priority,
-      status: 'Requires attention',
-      nextAction: task.label,
-      openHref: task.href,
-      openLabel: 'Open',
-      filterTags: ['maintenance'],
-      sortRank: categorySortRank(priority),
     });
   }
 
@@ -450,28 +398,37 @@ export async function loadUnifiedOperationsQueue(
     {
       id: 'waiting_for_payment',
       label: FILTER_LABELS.waiting_for_payment,
-      count: allItems.filter((i) =>
-        i.filterTags.includes('rent_due') || i.filterTags.includes('electricity_due'),
-      ).length,
+      count: allItems.filter((i) => i.filterTags.includes('waiting_for_payment')).length,
     },
     {
       id: 'waiting_for_admin_review',
       label: FILTER_LABELS.waiting_for_admin_review,
-      count: allItems.filter(
-        (i) => i.filterTags.includes('payment_proof') || i.filterTags.includes('manual_review'),
-      ).length,
+      count: allItems.filter((i) => i.filterTags.includes('payment_proof')).length,
     },
     { id: 'payment_proof', label: FILTER_LABELS.payment_proof, count: paymentReviews.length },
-    { id: 'rent_due', label: FILTER_LABELS.rent_due, count: allItems.filter((i) => i.filterTags.includes('rent_due')).length },
-    { id: 'electricity_due', label: FILTER_LABELS.electricity_due, count: allItems.filter((i) => i.filterTags.includes('electricity_due')).length },
+    {
+      id: 'rent_due',
+      label: FILTER_LABELS.rent_due,
+      count: allItems.filter((i) => i.filterTags.includes('rent_due')).length,
+    },
+    {
+      id: 'electricity_due',
+      label: FILTER_LABELS.electricity_due,
+      count: allItems.filter((i) => i.filterTags.includes('electricity_due')).length,
+    },
     { id: 'kyc', label: FILTER_LABELS.kyc, count: allItems.filter((i) => i.filterTags.includes('kyc')).length },
-    { id: 'booking_approval', label: FILTER_LABELS.booking_approval, count: allItems.filter((i) => i.filterTags.includes('booking_approval')).length },
+    {
+      id: 'booking_approval',
+      label: FILTER_LABELS.booking_approval,
+      count: allItems.filter((i) => i.filterTags.includes('booking_approval')).length,
+    },
     { id: 'move_out', label: FILTER_LABELS.move_out, count: allItems.filter((i) => i.filterTags.includes('move_out')).length },
     { id: 'checkout', label: FILTER_LABELS.checkout, count: allItems.filter((i) => i.filterTags.includes('checkout')).length },
-    { id: 'bed_assignment', label: FILTER_LABELS.bed_assignment, count: allItems.filter((i) => i.filterTags.includes('bed_assignment')).length },
-    { id: 'billing_failure', label: FILTER_LABELS.billing_failure, count: allItems.filter((i) => i.filterTags.includes('billing_failure')).length },
-    { id: 'maintenance', label: FILTER_LABELS.maintenance, count: allItems.filter((i) => i.filterTags.includes('maintenance')).length },
-    { id: 'manual_review', label: FILTER_LABELS.manual_review, count: allItems.filter((i) => i.filterTags.includes('manual_review')).length },
+    {
+      id: 'bed_assignment',
+      label: FILTER_LABELS.bed_assignment,
+      count: allItems.filter((i) => i.filterTags.includes('bed_assignment')).length,
+    },
     { id: 'overdue', label: FILTER_LABELS.overdue, count: allItems.filter((i) => i.filterTags.includes('overdue')).length },
   ].filter((f) => f.id === 'all' || f.count > 0) as UnifiedOperationsQueue['filterCounts'];
 

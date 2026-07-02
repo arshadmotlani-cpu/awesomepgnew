@@ -9,6 +9,7 @@
 
 ## 2026-07-02
 
+- **OPS-MAINTENANCE-REMOVE** — Maintenance removed from Operations queue/filter; legacy opsCenter task injection dropped; maintenance action items auto-resolved; bed status control on PG map (Available/Occupied/Reserved/Under Maintenance)
 - **FIN-SSOT-SPRINT** — Billing Cycle Engine, Financial Metrics Engine (read-only revenue), Refund Console (`/admin/refunds`), structured deduction categories (0096), invoice timeline collapsed at bottom, maintenance beds viewable on website, legacy deposit refund paths blocked → `docs/FINANCIAL_SSOT_AUDIT_REPORT.md` · `scripts/verify-financial-ssot.ts`
 
 ## 2026-06-23

@@ -8,6 +8,11 @@
 
 ## Active
 
+## 2026-07-02
+
+- [ ] **P0 Operations Center** — Await approval of `docs/OPERATIONS_CENTER_AUDIT.md`, then implement SSOT-only unified queue (fix electricity/maintenance/financial_audit bugs, status labels, WhatsApp, Pending Reviews + Timeline cleanup)
+- [ ] Write `scripts/audit-unified-operations-queue.ts` for count parity vs production DB
+
 ## 2026-06-22
 
 - [ ] Add GitHub remote to docs vault and push `main`
