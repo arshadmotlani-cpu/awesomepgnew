@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useCallback, useState, useTransition } from 'react';
-import { repairElectricityInvoiceDuplicateAction } from '@/app/(admin)/admin/electricity/duplicates/actions';
+import { repairElectricityInvoiceDuplicateAction, repairPaidMonthElectricityDuplicatesAction } from '@/app/(admin)/admin/electricity/duplicates/actions';
 import type { ElectricityInvoiceDuplicateGroup } from '@/src/services/electricityInvoiceDuplicates';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 
@@ -46,9 +46,54 @@ export function ElectricityDuplicateRepairPanel({
 
   if (groups.length === 0) {
     return (
-      <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-6 text-sm text-emerald-100">
-        No duplicate electricity invoices detected. Each resident has at most one active
-        invoice per room per billing month.
+      <div className="space-y-4">
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-6 text-sm text-emerald-100">
+          No duplicate electricity invoices detected. Each resident has at most one active
+          invoice per room per billing month.
+        </div>
+        <div className="rounded-xl border border-white/10 bg-[#1A1F27] p-6">
+          <h3 className="text-sm font-semibold text-white">Paid-month duplicate cleanup</h3>
+          <p className="mt-2 text-sm text-apg-silver">
+            Cancel pending invoices when the same booking and billing month already has a paid
+            invoice (fixes stale Electricity Due rows after approval).
+          </p>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => {
+              setError(null);
+              setMessage(null);
+              startTransition(async () => {
+                const result = await repairPaidMonthElectricityDuplicatesAction();
+                if (!result.ok) {
+                  setError(result.error);
+                  return;
+                }
+                if (result.cancelled.length === 0) {
+                  setMessage('No paid-month duplicate pending invoices found.');
+                } else {
+                  setMessage(
+                    `Cancelled ${result.cancelled.length} stale invoice(s): ${result.cancelled.map((c) => c.invoiceNumber).join(', ')}`,
+                  );
+                }
+                router.refresh();
+              });
+            }}
+            className="mt-4 inline-flex rounded-lg bg-[#FF5A1F] px-4 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50"
+          >
+            {pending ? 'Cleaning…' : 'Cancel stale pending invoices'}
+          </button>
+        </div>
+        {message ? (
+          <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+            {message}
+          </p>
+        ) : null}
+        {error ? (
+          <p className="rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+            {error}
+          </p>
+        ) : null}
       </div>
     );
   }

@@ -275,57 +275,33 @@ async function syncRentDue(session: AdminSession): Promise<void> {
 }
 
 async function syncElectricityDue(session: AdminSession): Promise<void> {
-  const today = todayString();
-  const rows = await db
-    .select({
-      invoice: electricityInvoiceLegacySelect,
-      pgId: floors.pgId,
-      pgName: pgs.name,
-      residentName: customers.fullName,
-      residentPhone: customers.phone,
-      residentEmail: customers.email,
-      roomId: rooms.id,
-      roomNumber: rooms.roomNumber,
-      bedCode: beds.bedCode,
-      bookingId: electricityInvoices.bookingId,
-    })
-    .from(electricityInvoices)
-    .innerJoin(bookings, eq(bookings.id, electricityInvoices.bookingId))
-    .innerJoin(customers, eq(customers.id, electricityInvoices.customerId))
-    .innerJoin(beds, eq(beds.id, electricityInvoices.bedId))
-    .innerJoin(rooms, eq(rooms.id, beds.roomId))
-    .innerJoin(floors, eq(floors.id, rooms.floorId))
-    .innerJoin(pgs, eq(pgs.id, floors.pgId))
-    .where(and(eq(electricityInvoices.status, 'pending'), operationsElectricityInvoiceFilter()));
+  const { listAdminElectricityInvoicesForReminders } = await import('@/src/db/queries/admin');
+  const res = await listAdminElectricityInvoicesForReminders();
+  if (!res.ok) return;
 
-  for (const row of rows) {
+  for (const row of res.data) {
     if (!sessionCanAccessPg(session, row.pgId)) continue;
-    const invoice = asElectricityInvoiceRow(row.invoice);
-    const projectedOutstanding = computeElectricityInvoiceOutstandingPaise(invoice, today);
-    if (projectedOutstanding <= 0) continue;
-    const isOverdue = computeElectricityInvoiceEffectiveStatus(invoice, today) === 'overdue';
+    const isOverdue = row.isOverdue;
     await upsertActionItem({
       type: 'electricity_due',
-      title: `${row.residentName} · Electricity ${isOverdue ? 'overdue' : 'due'}`,
+      title: `${row.customerFullName} · Electricity ${isOverdue ? 'overdue' : 'due'}`,
       pgId: row.pgId,
-      roomId: row.roomId,
-      bedId: row.invoice.bedId,
-      residentId: row.invoice.customerId,
-      amount: projectedOutstanding,
-      dueDate: row.invoice.dueDate,
+      roomId: null,
+      bedId: null,
+      residentId: row.customerId,
+      amount: row.outstandingPaise,
+      dueDate: row.dueDate,
       priority: isOverdue ? 'high' : 'medium',
-      sourceKey: `electricity:${row.invoice.id}`,
+      sourceKey: `electricity:${row.id}`,
       metadata: {
-        residentName: row.residentName,
-        residentPhone: row.residentPhone,
-        residentEmail: row.residentEmail,
+        residentName: row.customerFullName,
+        residentPhone: row.customerPhone,
         pgName: formatPgDisplayName(row.pgName),
         roomNumber: row.roomNumber,
-        bedCode: row.bedCode,
         bookingId: row.bookingId,
-        invoiceId: row.invoice.id,
+        invoiceId: row.id,
         isOverdue,
-        billingMonth: row.invoice.billingMonth,
+        billingMonth: row.billingMonth,
       },
     });
   }

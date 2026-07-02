@@ -4,6 +4,7 @@ import {
   type AdminElectricityInvoiceReminderRow,
   type AdminRentInvoiceRow,
 } from '@/src/db/queries/admin';
+import { isElectricityAwaitingResidentPayment, isElectricityAwaitingAdminApproval } from '@/src/lib/billing/electricityCollectibility';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { buildCollectionsQueue } from '@/src/lib/billing/collectionsQueue';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
@@ -54,7 +55,17 @@ function waitingForPaymentRent(rows: AdminRentInvoiceRow[]) {
 }
 
 function waitingForPaymentElectricity(rows: AdminElectricityInvoiceReminderRow[]) {
-  return rows.filter((r) => r.outstandingPaise > 0 && !r.paymentProofUrl);
+  return rows.filter((r) =>
+    isElectricityAwaitingResidentPayment({
+      id: r.id,
+      status: 'pending',
+      paymentProofUrl: r.paymentProofUrl,
+      outstandingPaise: r.outstandingPaise,
+      effectiveStatus: r.effectiveStatus,
+      bookingId: r.bookingId ?? '',
+      billingMonth: r.billingMonth,
+    }),
+  );
 }
 
 function countBothDue(
@@ -101,7 +112,12 @@ export async function loadBillingCommandCenterSnapshot(
   const overdueCount = collectionsQueue.filter((q) => q.priority === 'overdue').length;
 
   const rentInReview = allUnpaidRent.filter((r) => r.effectiveStatus === 'payment_in_progress');
-  const elecInReview = allUnpaidElectricity.filter((r) => r.paymentProofUrl);
+  const elecInReview = allUnpaidElectricity.filter((r) =>
+    isElectricityAwaitingAdminApproval({
+      status: 'pending',
+      paymentProofUrl: r.paymentProofUrl,
+    }),
+  );
 
   const totalBilledPaise = reconciliation?.metrics.totalBilledPaise ?? 0;
   const totalCollectedPaise = reconciliation?.metrics.totalCollectedPaise ?? 0;

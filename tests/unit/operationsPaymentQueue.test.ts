@@ -8,6 +8,7 @@ test('electricityRowToQueueItem excludes paid and proof-pending invoices', () =>
     id: 'inv-1',
     invoiceNumber: 'E-1',
     customerId: 'c1',
+    bookingId: 'booking-1',
     customerFullName: 'Test',
     customerPhone: '9999999999',
     pgId: 'pg1',

@@ -315,13 +315,6 @@ export async function markFinancialInvoicePaidWithCash(
     if (!result.ok) return { ok: false, error: result.reason };
     paymentId = result.paymentId;
   } else if (base.sourceTable === 'electricity_invoices' && base.sourceId) {
-    if (base.sourceId) {
-      await db
-        .update(electricityInvoices)
-        .set({ paymentProofUrl: null, updatedAt: new Date() })
-        .where(eq(electricityInvoices.id, base.sourceId));
-    }
-
     const { applyApprovedPaymentAtomic } = await import('@/src/services/paymentSettlementAtomic');
     const result = await applyApprovedPaymentAtomic({
       purpose: 'electricity',
@@ -334,6 +327,13 @@ export async function markFinancialInvoicePaidWithCash(
       rawPayload,
     });
     if (!result.ok) return { ok: false, error: result.reason };
+
+    if (result.stateChanged) {
+      await db
+        .update(electricityInvoices)
+        .set({ paymentProofUrl: null, updatedAt: new Date() })
+        .where(eq(electricityInvoices.id, base.sourceId));
+    }
     paymentId = result.paymentId;
   } else {
     const result = await allocateInvoicePayment({

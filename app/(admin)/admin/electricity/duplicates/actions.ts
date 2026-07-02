@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
-import { repairElectricityInvoiceDuplicateGroup } from '@/src/services/electricityInvoiceDuplicates';
+import { repairElectricityInvoiceDuplicateGroup, cancelPendingElectricityWhenBookingMonthPaid } from '@/src/services/electricityInvoiceDuplicates';
 
 export async function repairElectricityInvoiceDuplicateAction(input: {
   groupKey: string;
@@ -18,6 +18,24 @@ export async function repairElectricityInvoiceDuplicateAction(input: {
     revalidatePath('/admin/electricity/duplicates');
     revalidatePath('/admin/billing');
     revalidatePath('/admin/billing/electricity/generate');
+    revalidatePath('/admin/operations');
+    revalidatePath('/admin/residents');
+  }
+  return result;
+}
+
+export async function repairPaidMonthElectricityDuplicatesAction(): Promise<
+  | { ok: true; cancelled: Array<{ invoiceId: string; invoiceNumber: string }> }
+  | { ok: false; error: string }
+> {
+  const admin = await requireAdminPermission('electricity:write');
+  const result = await cancelPendingElectricityWhenBookingMonthPaid({ adminId: admin.adminId });
+  if (result.ok) {
+    revalidatePath('/admin/electricity/duplicates');
+    revalidatePath('/admin/billing');
+    revalidatePath('/admin/operations');
+    revalidatePath('/admin/residents');
+    revalidatePath('/admin/overview');
   }
   return result;
 }

@@ -40,6 +40,10 @@ import type {
 import { getDepositSummaryForBooking, type DepositSummary } from '@/src/services/deposits';
 import { getActiveTenancyForCustomer } from '@/src/lib/residentActiveTenancy';
 import { projectElectricityInvoice } from '@/src/services/electricityBilling';
+import {
+  buildPaidElectricityBookingMonthKeys,
+  isElectricityAwaitingResidentPayment,
+} from '@/src/lib/billing/electricityCollectibility';
 import { projectInvoice } from '@/src/services/rentInvoices';
 import { firstOfMonth } from '@/src/services/billing';
 
@@ -130,8 +134,15 @@ function buildElectricityCategory(
   let paidPaise = 0;
   let outstandingPaise = 0;
 
+  const paidBookingMonthKeys = buildPaidElectricityBookingMonthKeys(
+    invoices
+      .filter((inv) => inv.status === 'paid')
+      .map((inv) => ({ bookingId: inv.bookingId, billingMonth: String(inv.billingMonth) })),
+  );
+
   for (const inv of invoices) {
     if (inv.status === 'cancelled') continue;
+    if (inv.supersededByInvoiceId) continue;
     const projected = projectElectricityInvoice(inv);
     const lateFee =
       inv.status === 'paid'
@@ -140,6 +151,28 @@ function buildElectricityCategory(
     const required = inv.amountPaise + lateFee;
     const paid = inv.paidPaise;
     const outstanding = Math.max(0, projected.outstandingPaise);
+
+    if (
+      !isElectricityAwaitingResidentPayment(
+        {
+          id: inv.id,
+          status: inv.status,
+          paymentProofUrl: inv.paymentProofUrl,
+          outstandingPaise: outstanding,
+          effectiveStatus: projected.effectiveStatus,
+          supersededByInvoiceId: inv.supersededByInvoiceId,
+          bookingId: inv.bookingId,
+          billingMonth: String(inv.billingMonth),
+        },
+        paidBookingMonthKeys,
+      )
+    ) {
+      if (inv.status === 'paid') {
+        requiredPaise += required;
+        paidPaise += paid;
+      }
+      continue;
+    }
 
     requiredPaise += required;
     paidPaise += paid;

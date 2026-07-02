@@ -47,6 +47,10 @@ import {
   asElectricityInvoiceRow,
   electricityInvoiceLegacySelect,
 } from '@/src/lib/db/electricityInvoiceSelect';
+import {
+  buildPaidElectricityBookingMonthKeys,
+  isElectricityAwaitingResidentPayment,
+} from '@/src/lib/billing/electricityCollectibility';
 import { operationsElectricityInvoiceFilter } from '@/src/lib/billing/electricityOperationsFilter';
 
 export type OpsTask = OpsTaskInput;
@@ -302,39 +306,20 @@ async function listPendingDepositRefunds(session: AdminSession) {
 }
 
 async function listOutstandingElectricity(session: AdminSession) {
-  const today = todayString();
-  const rows = await db
-    .select({
-      pgId: floors.pgId,
-      pgName: pgs.name,
-      customerName: customers.fullName,
-      invoice: electricityInvoiceLegacySelect,
-    })
-    .from(electricityInvoices)
-    .innerJoin(bookings, eq(bookings.id, electricityInvoices.bookingId))
-    .innerJoin(customers, eq(customers.id, electricityInvoices.customerId))
-    .innerJoin(beds, eq(beds.id, electricityInvoices.bedId))
-    .innerJoin(rooms, eq(rooms.id, beds.roomId))
-    .innerJoin(floors, eq(floors.id, rooms.floorId))
-    .innerJoin(pgs, eq(pgs.id, floors.pgId))
-    .where(and(eq(electricityInvoices.status, 'pending'), operationsElectricityInvoiceFilter()));
+  const { listAdminElectricityInvoicesForReminders } = await import('@/src/db/queries/admin');
+  const res = await listAdminElectricityInvoicesForReminders();
+  if (!res.ok) return [];
 
   const items: OperationsCenterData['electricityPending']['items'] = [];
-  for (const row of rows) {
+  for (const row of res.data) {
     if (!sessionCanAccessPg(session, row.pgId)) continue;
-    const invoice = asElectricityInvoiceRow(row.invoice);
-    const outstandingPaise = computeElectricityInvoiceOutstandingPaise(invoice, today);
-    if (outstandingPaise <= 0) continue;
-    const status =
-      computeElectricityInvoiceEffectiveStatus(invoice, today) === 'overdue'
-        ? 'overdue'
-        : 'pending';
+    const status = row.isOverdue ? 'overdue' : 'pending';
     items.push({
-      invoiceId: invoice.id,
-      residentName: row.customerName,
+      invoiceId: row.id,
+      residentName: row.customerFullName,
       pgName: formatPgDisplayName(row.pgName),
-      amountDuePaise: outstandingPaise,
-      priority: electricityPriority(status, invoice.dueDate, today),
+      amountDuePaise: row.outstandingPaise,
+      priority: electricityPriority(status, row.dueDate, todayString()),
     });
   }
   items.sort((a, b) => comparePriority(a.priority, b.priority));

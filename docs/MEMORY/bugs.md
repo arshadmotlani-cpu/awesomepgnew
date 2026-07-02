@@ -25,7 +25,7 @@
 - **CHECKOUT-NOTICE-01** — Notice deduction ₹680 applied to fixed_stay APG-2026-0036 auto-expiry settlement (production diagnosis 2026-07-02)
 - **OPS-UX-01** — Duplicate vacating/deposit/refund CTAs across admin UI → use [[Operations]] only ([[BUGS#OPS-UX-01]])
 - **OPS-UX-02** — Legacy route bookmarks still in use → see [[ROUTES#Legacy redirects]]
-- **RES-LIST-01** — `listResidentsForAdmin` LIMIT 200 may omit older residents in ops timeline
+- **ELEC-DUE-01** — Approved electricity payments still in Electricity Due (Ishan ₹826, Anuj ₹827) → root cause: `approveElectricityPaymentProof` paid `amountPaise` only, leaving late-fee outstanding; duplicate June invoices per booking+month also possible → SSOT `electricityCollectibility.ts`, unified `listAdminElectricityInvoicesForReminders`, approval uses `projectElectricityInvoice().outstandingPaise`; prod verified Electricity Due (0) after late-fee cash settlement
 - **VAC-SAME-01** — Same-day vacating approve + stay shortening edge case → see tests
 
 ---

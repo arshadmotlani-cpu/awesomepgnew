@@ -129,5 +129,6 @@ Files:
 - **PRODUCTION-STABILIZATION** — Five-phase investigation batch: auth/session, electricity Room 203, Pay All UX (removed misleading CTA), UPI audit, occupancy SSOT approval request; read-only audit script; master sign-off → `docs/PRODUCTION_STABILIZATION/`
 - **PRODUCTION-STABILIZATION-P0** — P0 code fixes: session cookie-clear on reject, 30d standard TTL, checkout occupant exclusion for Room 203, UPI SSOT resolver + non-destructive defaults; `scripts/verify-production-p0.ts`
 - **BED-MAINTENANCE** — First-class maintenance workflow: schema metadata, bed map Advanced Tools (put/complete), red admin tiles + customer exclusion, engine labels with reason/dates
+- **ELEC-DUE-SSOT** — Electricity Due collectibility SSOT; approval pays full outstanding incl. late fees; duplicate booking-month repair; prod Ishan+Anuj cleared from Electricity Due
 
 ---

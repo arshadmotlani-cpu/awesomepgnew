@@ -844,6 +844,7 @@ export async function recordElectricityPaymentSuccess(
           lateFeeLockedPaise: fullyPaid ? lockedLateFee : invoice.lateFeeLockedPaise,
           paymentId: fullyPaid ? payment.id : undefined,
           paidAt: fullyPaid ? paidAt : undefined,
+          paymentProofUrl: fullyPaid ? null : invoice.paymentProofUrl,
           updatedAt: new Date(),
         })
         .where(eq(electricityInvoices.id, invoice.id));

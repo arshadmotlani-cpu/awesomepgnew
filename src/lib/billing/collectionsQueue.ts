@@ -1,6 +1,10 @@
 import { billingMonthLabel } from '@/src/lib/billing/invoiceCollectionWhatsApp';
 import { addDays, diffDays, formatDate, parseDate } from '@/src/lib/dates';
 import type { AdminElectricityInvoiceReminderRow } from '@/src/db/queries/admin';
+import {
+  isElectricityAwaitingResidentPayment,
+  type ElectricityCollectibilityRow,
+} from '@/src/lib/billing/electricityCollectibility';
 import type { AdminRentInvoiceRow } from '@/src/db/queries/admin';
 
 /** "2026-07-01" → "July 2026" */
@@ -118,10 +122,17 @@ export function electricityRowToQueueItem(
   row: AdminElectricityInvoiceReminderRow,
   today: string,
 ): CollectionQueueItem | null {
-  if (row.outstandingPaise <= 0) return null;
-  if (row.effectiveStatus === 'paid' || row.effectiveStatus === 'cancelled') return null;
-  if (row.paymentProofUrl) return null;
-  if (row.effectiveStatus === 'payment_in_progress') return null;
+  const collectibility: ElectricityCollectibilityRow = {
+    id: row.id,
+    status: 'pending',
+    paymentProofUrl: row.paymentProofUrl,
+    outstandingPaise: row.outstandingPaise,
+    effectiveStatus: row.effectiveStatus,
+    bookingId: row.bookingId ?? '',
+    billingMonth: row.billingMonth,
+  };
+  if (!collectibility.bookingId) return null;
+  if (!isElectricityAwaitingResidentPayment(collectibility)) return null;
 
   const priority = row.isOverdue ? 'overdue' : classifyDueDate(row.dueDate, today);
 
@@ -218,8 +229,19 @@ export function buildCollectionsCommandStats(input: {
     countUnpaid(r.outstandingPaise, r.dueDate, r.effectiveStatus === 'overdue', r.effectiveStatus);
   }
   for (const e of input.allUnpaidElectricity) {
-    if (e.outstandingPaise <= 0 || e.paymentProofUrl) continue;
-    if (e.effectiveStatus === 'paid' || e.effectiveStatus === 'cancelled') continue;
+    if (
+      !isElectricityAwaitingResidentPayment({
+        id: e.id,
+        status: 'pending',
+        paymentProofUrl: e.paymentProofUrl,
+        outstandingPaise: e.outstandingPaise,
+        effectiveStatus: e.effectiveStatus,
+        bookingId: e.bookingId ?? '',
+        billingMonth: e.billingMonth,
+      })
+    ) {
+      continue;
+    }
     countUnpaid(e.outstandingPaise, e.dueDate, e.isOverdue, e.effectiveStatus);
   }
 

@@ -256,17 +256,26 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-02 21:32:37 UTC
+### Pending pre-commit sync · 2026-07-02 21:33:32 UTC
 
-**Areas touched:** [[ROUTES]]
+**Areas touched:** [[ROUTES]], [[Billing]], [[Action Center]], [[Electricity]]
 
 **Docs flagged for review:**
+- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
+- `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
+- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (1):**
-- `app/(admin)/admin/refunds/actions.ts`
+**Staged code files (7):**
+- `app/(admin)/admin/electricity/duplicates/actions.ts`
+- `src/lib/billing/collectionsQueue.ts`
+- `src/lib/billing/electricityCollectibility.ts`
+- `src/services/actionItems.ts`
+- `src/services/electricityBilling.ts`
+- `src/services/meterElectricity.ts`
+- `src/services/residentFinancialEngine.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

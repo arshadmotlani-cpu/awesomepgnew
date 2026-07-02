@@ -15,6 +15,7 @@ import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
 import {
   createElectricityBill,
+  projectElectricityInvoice,
 } from './electricityBilling';
 import { fetchElectricityInvoiceById } from '@/src/lib/db/electricityInvoiceSelect';
 import { electricityInvoices } from '@/src/db/schema/electricityInvoices';
@@ -512,12 +513,15 @@ export async function approveElectricityPaymentProof(
     return { ok: false, message: 'Invoice is not pending.' };
   }
 
+  const projected = projectElectricityInvoice(invoice);
+  const refundPaise = projected.outstandingPaise;
+
   const { applyApprovedPaymentAtomic } = await import('@/src/services/paymentSettlementAtomic');
   const result = await applyApprovedPaymentAtomic({
     purpose: 'electricity',
     provider: 'mock',
     providerPaymentId: `qr-proof-${invoiceId}`,
-    amountPaise: invoice.amountPaise,
+    amountPaise: refundPaise,
     invoiceId,
     offlineProvider: 'upi_manual',
     rawPayload: { source: 'qr_payment_proof', proofUrl: invoice.paymentProofUrl },

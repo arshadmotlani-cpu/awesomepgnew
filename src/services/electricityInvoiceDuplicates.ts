@@ -404,6 +404,84 @@ export async function repairElectricityInvoiceDuplicateGroup(input: {
   return { ok: true, cancelledIds };
 }
 
+/** Cancel pending invoices when the same booking + billing month already has a paid invoice. */
+export async function cancelPendingElectricityWhenBookingMonthPaid(input?: {
+  adminId?: string;
+}): Promise<{ ok: true; cancelled: Array<{ invoiceId: string; invoiceNumber: string }> } | { ok: false; error: string }> {
+  const pendingRows = await db
+    .select({
+      id: electricityInvoices.id,
+      invoiceNumber: electricityInvoices.invoiceNumber,
+      bookingId: electricityInvoices.bookingId,
+      billingMonth: electricityInvoices.billingMonth,
+      status: electricityInvoices.status,
+      paidPaise: electricityInvoices.paidPaise,
+    })
+    .from(electricityInvoices)
+    .where(
+      and(
+        eq(electricityInvoices.status, 'pending'),
+        isNull(electricityInvoices.supersededByInvoiceId),
+      ),
+    );
+
+  const paidRows = await db
+    .select({
+      bookingId: electricityInvoices.bookingId,
+      billingMonth: electricityInvoices.billingMonth,
+    })
+    .from(electricityInvoices)
+    .where(eq(electricityInvoices.status, 'paid'));
+
+  const paidKeys = new Set(
+    paidRows.map((r) => `${r.bookingId}:${String(r.billingMonth)}`),
+  );
+
+  const toCancel = pendingRows.filter(
+    (row) =>
+      paidKeys.has(`${row.bookingId}:${String(row.billingMonth)}`) && row.paidPaise === 0,
+  );
+
+  if (toCancel.length === 0) {
+    return { ok: true, cancelled: [] };
+  }
+
+  const cancelled: Array<{ invoiceId: string; invoiceNumber: string }> = [];
+  await db.transaction(async (tx) => {
+    for (const inv of toCancel) {
+      await tx
+        .update(electricityInvoices)
+        .set({
+          status: 'cancelled',
+          cancelledAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(electricityInvoices.id, inv.id));
+      cancelled.push({ invoiceId: inv.id, invoiceNumber: inv.invoiceNumber });
+    }
+  });
+
+  const { syncManyToUnified } = await import('@/src/services/unifiedInvoices');
+  await syncManyToUnified(
+    cancelled.map((c) => c.invoiceId),
+    'electricity',
+  ).catch(() => undefined);
+
+  if (input?.adminId) {
+    const { writeAuditLogNonBlocking } = await import('@/src/lib/audit/writeAuditLog');
+    await writeAuditLogNonBlocking(db, {
+      actorType: 'admin',
+      actorId: input.adminId,
+      entity: 'electricity_invoice',
+      entityId: cancelled.map((c) => c.invoiceId).join(','),
+      action: 'cancel_duplicate_after_paid_month',
+      diff: { cancelled },
+    });
+  }
+
+  return { ok: true, cancelled };
+}
+
 /** Verify bill exists for room+month (used by generation idempotency). */
 export async function findExistingElectricityBillForRoomMonth(
   roomId: string,

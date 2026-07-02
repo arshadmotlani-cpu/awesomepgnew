@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, ne, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import { db } from '../client';
 import { hasDatabaseUrl } from '@/src/lib/db/env';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
@@ -23,6 +23,10 @@ import { asPlainNumber } from '@/src/lib/format';
 import { sanitizeAdminQueryError } from '@/src/lib/admin/productionDbError';
 import { isProductionElectricityBillFilter } from '@/src/lib/billing/electricityProductionFilter';
 import { operationsElectricityInvoiceFilter } from '@/src/lib/billing/electricityOperationsFilter';
+import {
+  buildPaidElectricityBookingMonthKeys,
+  isElectricityAwaitingResidentPayment,
+} from '@/src/lib/billing/electricityCollectibility';
 import {
   asElectricityInvoiceRow,
   electricityInvoiceLegacySelect,
@@ -1611,6 +1615,7 @@ export type AdminElectricityInvoiceReminderRow = {
   effectiveStatus: string;
   isOverdue: boolean;
   paymentProofUrl?: string | null;
+  bookingId?: string;
 };
 
 /** Pending electricity invoices eligible for WhatsApp / email reminders. */
@@ -1661,8 +1666,23 @@ export function listAdminElectricityInvoicesForReminders(
   filter?: { pgId?: string },
 ): Promise<QueryResult<AdminElectricityInvoiceReminderRow[]>> {
   return guard(async () => {
-    const conditions = [eq(electricityInvoices.status, 'pending')];
+    const conditions = [
+      eq(electricityInvoices.status, 'pending'),
+      isNull(electricityInvoices.supersededByInvoiceId),
+    ];
     if (filter?.pgId) conditions.push(eq(electricityBills.pgId, filter.pgId));
+
+    const paidBookingMonths = await db
+      .select({
+        bookingId: electricityInvoices.bookingId,
+        billingMonth: electricityInvoices.billingMonth,
+      })
+      .from(electricityInvoices)
+      .innerJoin(bookings, eq(bookings.id, electricityInvoices.bookingId))
+      .innerJoin(customers, eq(customers.id, electricityInvoices.customerId))
+      .where(and(eq(electricityInvoices.status, 'paid'), operationsElectricityInvoiceFilter()));
+
+    const paidBookingMonthKeys = buildPaidElectricityBookingMonthKeys(paidBookingMonths);
 
     const rows = await db
       .select({
@@ -1690,7 +1710,24 @@ export function listAdminElectricityInvoicesForReminders(
     const result: AdminElectricityInvoiceReminderRow[] = [];
     for (const r of rows) {
       const projected = projectElectricityInvoice(asElectricityInvoiceRow(r.invoice), today);
-      if (projected.outstandingPaise <= 0) continue;
+      const invoice = asElectricityInvoiceRow(r.invoice);
+      if (
+        !isElectricityAwaitingResidentPayment(
+          {
+            id: invoice.id,
+            status: invoice.status,
+            paymentProofUrl: invoice.paymentProofUrl,
+            outstandingPaise: projected.outstandingPaise,
+            effectiveStatus: projected.effectiveStatus,
+            supersededByInvoiceId: invoice.supersededByInvoiceId,
+            bookingId: invoice.bookingId,
+            billingMonth: String(invoice.billingMonth),
+          },
+          paidBookingMonthKeys,
+        )
+      ) {
+        continue;
+      }
       result.push({
         id: r.invoice.id,
         invoiceNumber: r.invoice.invoiceNumber,
@@ -1707,6 +1744,7 @@ export function listAdminElectricityInvoicesForReminders(
         effectiveStatus: projected.effectiveStatus,
         isOverdue: projected.effectiveStatus === 'overdue',
         paymentProofUrl: r.invoice.paymentProofUrl,
+        bookingId: invoice.bookingId,
       });
     }
     return result;
