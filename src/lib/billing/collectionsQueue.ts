@@ -121,6 +121,7 @@ export function electricityRowToQueueItem(
   if (row.outstandingPaise <= 0) return null;
   if (row.effectiveStatus === 'paid' || row.effectiveStatus === 'cancelled') return null;
   if (row.paymentProofUrl) return null;
+  if (row.effectiveStatus === 'payment_in_progress') return null;
 
   const priority = row.isOverdue ? 'overdue' : classifyDueDate(row.dueDate, today);
 
@@ -217,7 +218,8 @@ export function buildCollectionsCommandStats(input: {
     countUnpaid(r.outstandingPaise, r.dueDate, r.effectiveStatus === 'overdue', r.effectiveStatus);
   }
   for (const e of input.allUnpaidElectricity) {
-    if (e.outstandingPaise <= 0) continue;
+    if (e.outstandingPaise <= 0 || e.paymentProofUrl) continue;
+    if (e.effectiveStatus === 'paid' || e.effectiveStatus === 'cancelled') continue;
     countUnpaid(e.outstandingPaise, e.dueDate, e.isOverdue, e.effectiveStatus);
   }
 

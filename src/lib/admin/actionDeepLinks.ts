@@ -31,13 +31,13 @@ export function buildActionDeepLink(
     return refundConsoleHref(meta.bookingId);
   }
   if (type === 'refund_pending' && meta.settlementId) {
-    return `/admin/checkout-settlements/${meta.settlementId}`;
+    return '/admin/refunds';
   }
   if (type === 'deposit_refund_request' && meta.bookingId) {
     return refundConsoleHref(meta.bookingId);
   }
   if (type === 'deposit_refund_request' && meta.settlementId) {
-    return `/admin/checkout-settlements/${meta.settlementId}`;
+    return '/admin/refunds';
   }
   if (type === 'rent_due' && meta.bookingId) {
     return `/admin/billing?tab=rent&booking=${meta.bookingId}`;

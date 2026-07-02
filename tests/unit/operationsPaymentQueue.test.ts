@@ -23,6 +23,10 @@ test('electricityRowToQueueItem excludes paid and proof-pending invoices', () =>
 
   assert.equal(electricityRowToQueueItem({ ...base, paymentProofUrl: 'https://proof' }, '2026-07-02'), null);
   assert.equal(
+    electricityRowToQueueItem({ ...base, effectiveStatus: 'payment_in_progress' }, '2026-07-02'),
+    null,
+  );
+  assert.equal(
     electricityRowToQueueItem({ ...base, effectiveStatus: 'paid', outstandingPaise: 0 }, '2026-07-02'),
     null,
   );

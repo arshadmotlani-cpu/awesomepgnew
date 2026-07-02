@@ -256,9 +256,9 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-02 20:09:46 UTC
+### Pending pre-commit sync · 2026-07-02 20:24:01 UTC
 
-**Areas touched:** [[ROUTES]], [[Vacating]], [[Residents]], [[Action Center]]
+**Areas touched:** [[ROUTES]], [[Billing]], [[Vacating]], [[Residents]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
@@ -269,16 +269,13 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (9):**
-- `app/(admin)/admin/deposits/[bookingId]/page.tsx`
-- `app/(admin)/admin/operations/actions.ts`
-- `app/(admin)/admin/quick-actions/actions.ts`
-- `src/lib/moveOut/moveOutPipeline.ts`
-- `src/lib/residents/commandCenterLinks.ts`
-- `src/lib/residents/resident360Workflow.ts`
+**Staged code files (6):**
+- `app/(admin)/admin/deposits/[bookingId]/settlementActions.ts`
+- `app/(admin)/admin/requests/page.tsx`
+- `src/lib/billing/collectionsQueue.ts`
+- `src/lib/moveOut/moveOutPipelineUi.ts`
+- `src/lib/residents/checkoutOpsQueueCopy.ts`
 - `src/lib/residents/residentOperationsDashboard.ts`
-- `src/lib/residents/residentOperationsResidentsView.ts`
-- `src/services/actionItems.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

@@ -25,10 +25,16 @@ export function MoveOutAdvancedTools({
     >
       <div className="flex flex-wrap gap-2">
         <Link
+          href="/admin/refunds"
+          className="rounded-lg border border-white/15 px-3 py-2 text-xs font-medium text-white hover:bg-white/5"
+        >
+          Refund Console →
+        </Link>
+        <Link
           href="/admin/checkout-settlements"
           className="rounded-lg border border-white/15 px-3 py-2 text-xs font-medium text-white hover:bg-white/5"
         >
-          All checkout settlements →
+          Checkout settlements →
         </Link>
         <Link
           href="/admin/deposits"

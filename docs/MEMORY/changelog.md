@@ -9,7 +9,7 @@
 
 ## 2026-07-02
 
-- **OPS-PROD-STABILIZE** — Phases 3–5: Resident Command Center cleanup (actionable pending reviews only, timeline technical toggle, simplified quick actions); Refund Console as sole refund workflow (`refundConsoleHref` SSOT); legacy deposit settlement UI removed from deposit detail; checkout refund payout → Refund Console; `scripts/verify-refund-console-ssot.ts`
+- **OPS-PROD-POLISH** — Refund Console enforced as sole refund UI (legacy settlement panel removed, requests redirect fixed, electricity proof-pending excluded from Waiting for Payment); dead duplicate ops panels removed; `verify-refund-console-ssot.ts` expanded
 - **OPS-MAINTENANCE-REMOVE** — Maintenance removed from Operations queue/filter; legacy opsCenter task injection dropped; maintenance action items auto-resolved; bed status control on PG map (Available/Occupied/Reserved/Under Maintenance)
 - **FIN-SSOT-SPRINT** — Billing Cycle Engine, Financial Metrics Engine (read-only revenue), Refund Console (`/admin/refunds`), structured deduction categories (0096), invoice timeline collapsed at bottom, maintenance beds viewable on website, legacy deposit refund paths blocked → `docs/FINANCIAL_SSOT_AUDIT_REPORT.md` · `scripts/verify-financial-ssot.ts`
 

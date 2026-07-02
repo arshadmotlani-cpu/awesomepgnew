@@ -392,9 +392,11 @@ export function buildResidentOperationsDashboard(input: {
       primaryHref:
         v.status === 'pending'
           ? '/admin/vacating?status=pending'
-          : v.settlementId
-            ? `/admin/checkout-settlements/${v.settlementId}`
-            : '/admin/checkout-settlements',
+          : v.settlementStatus === 'refund_pending'
+            ? refundConsoleHref(v.bookingId)
+            : v.settlementId
+              ? `/admin/checkout-settlements/${v.settlementId}`
+              : '/admin/vacating',
       sortPriority: v.status === 'pending' ? 0 : diffDays(today, v.vacatingDate),
       bookingId: v.bookingId,
       kycSubmissionId: null,

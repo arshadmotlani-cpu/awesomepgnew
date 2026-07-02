@@ -35,8 +35,8 @@ export function deriveCheckoutOpsNextAction(input: {
   if (settlementStatus === 'refund_pending' && refundPaise > 0) {
     return {
       issue: 'Settlement approved — refund due',
-      nextAction: `Send ₹${(refundPaise / 100).toFixed(0)} refund to resident, then mark paid`,
-      primaryActionLabel: 'Mark refund paid',
+      nextAction: 'Pay the refund in the Refund Console',
+      primaryActionLabel: 'Open Refund Console',
     };
   }
 
@@ -65,8 +65,8 @@ export function deriveCheckoutOpsNextAction(input: {
   if (settlementStatus === 'approved' && refundPaise > 0) {
     return {
       issue: 'Settlement approved — release refund',
-      nextAction: 'Mark refund as paid after UPI transfer',
-      primaryActionLabel: 'Mark refund paid',
+      nextAction: 'Pay the refund in the Refund Console',
+      primaryActionLabel: 'Open Refund Console',
     };
   }
 

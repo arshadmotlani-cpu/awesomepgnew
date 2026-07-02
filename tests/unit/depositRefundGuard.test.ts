@@ -4,7 +4,7 @@ import { LEGACY_DEPOSIT_REFUND_BLOCKED_MESSAGE } from '../../src/lib/deposits/de
 
 describe('depositRefundGuard messages', () => {
   it('blocked message points operators to checkout settlement', () => {
-    assert.match(LEGACY_DEPOSIT_REFUND_BLOCKED_MESSAGE, /Checkout Settlement/);
-    assert.match(LEGACY_DEPOSIT_REFUND_BLOCKED_MESSAGE, /checkout-settlements/);
+    assert.match(LEGACY_DEPOSIT_REFUND_BLOCKED_MESSAGE, /Refund Console/);
+    assert.match(LEGACY_DEPOSIT_REFUND_BLOCKED_MESSAGE, /\/admin\/refunds/);
   });
 });

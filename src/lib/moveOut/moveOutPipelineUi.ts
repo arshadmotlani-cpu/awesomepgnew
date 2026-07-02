@@ -102,7 +102,7 @@ export function moveOutPrimaryActionLabel(item: MoveOutPipelineItemClient): stri
   if (item.continueKind === 'approve') return 'Approve move-out';
   if (moveOutIsZeroRefundCheckout(item)) return 'Complete checkout';
   if (item.settlementStatus === 'awaiting_admin_review') return 'Review settlement';
-  if (item.settlementStatus === 'refund_pending') return 'Mark refund paid';
+  if (item.settlementStatus === 'refund_pending') return 'Open Refund Console';
   if (item.continueKind === 'settlement') return 'Open checkout';
   if (item.continueKind === 'view') return 'View settlement';
   return 'Continue';
@@ -112,7 +112,7 @@ export function moveOutHeroTitle(item: MoveOutPipelineItemClient): string {
   if (moveOutIsZeroRefundCheckout(item)) return 'Complete checkout';
   if (item.continueKind === 'approve') return 'Approve move-out';
   if (item.settlementStatus === 'awaiting_admin_review') return 'Review settlement';
-  if (item.settlementStatus === 'refund_pending') return 'Send refund';
+  if (item.settlementStatus === 'refund_pending') return 'Refund Console';
   if (item.settlementStatus === 'awaiting_resident_details') return 'Waiting for resident';
   if (item.stage === 'bed_released') return 'Move-out complete';
   return item.stageLabel;

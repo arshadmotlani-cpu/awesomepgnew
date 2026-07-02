@@ -1,6 +1,5 @@
 /**
- * Production stabilization audit — verifies Refund Console is the sole refund workflow
- * in admin UI (no legacy navigation entry points).
+ * Production stabilization audit — Refund Console must be the sole refund workflow in admin UI.
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -16,9 +15,10 @@ const LEGACY_PATTERNS: Array<{ label: string; pattern: RegExp }> = [
   { label: 'checkout-settlements refund tab link', pattern: /checkout-settlements\?tab=refund_pending/ },
   { label: 'mark-refund-paid navigation href', pattern: /href=[^>]*#mark-refund-paid/ },
   { label: 'DepositSettlementPanel usage', pattern: /DepositSettlementPanel/ },
+  { label: 'Mark refund paid button label', pattern: /Mark refund paid/ },
+  { label: 'Refund / Settlement quick action to checkout', pattern: /Refund \/ Settlement[\s\S]{0,200}checkout-settlements/ },
+  { label: 'requests redirect to checkout-settlements', pattern: /Legacy refund queue[\s\S]{0,120}redirect\(`\/admin\/checkout-settlements/ },
 ];
-
-const ALLOWLIST = new Set(['src/components/admin/DepositSettlementPanel.tsx']);
 
 function walk(dir: string, acc: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
@@ -46,7 +46,6 @@ for (const file of files) {
   const relative = rel(file);
   for (const { label, pattern } of LEGACY_PATTERNS) {
     if (!pattern.test(content)) continue;
-    if (ALLOWLIST.has(relative)) continue;
     violations.push(`${relative}: ${label}`);
   }
 }
