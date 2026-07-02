@@ -1,6 +1,7 @@
 import type { CustomerRoomCard } from '@/src/db/queries/customer';
 import type { CustomerRoomBedMap } from '@/src/components/customer/CustomerBedMap';
 import type { BedSelectorBed } from '@/src/components/customer/customerBedTypes';
+import { resolveFromSelectorBed } from '@/src/lib/bedOccupancyResolve';
 import { paiseToInr } from '@/src/lib/format';
 
 export type SimpleRoomCategoryId = 'single' | 'shared' | 'dormitory';
@@ -60,7 +61,9 @@ export function buildSimpleCategoryOptions(
     for (const room of matchingRooms) {
       const bedRoom = bedRoomById.get(room.roomId);
       if (!bedRoom) continue;
-      const bed = bedRoom.beds.find((b) => b.isAvailableNow && b.status === 'available');
+      const bed = bedRoom.beds.find(
+        (b) => b.status === 'available' && resolveFromSelectorBed(b).isOpenNow,
+      );
       if (!bed) continue;
       if (!pickedRoom || room.dailyRatePaise < bestDaily || bestDaily === 0) {
         pickedRoom = room;

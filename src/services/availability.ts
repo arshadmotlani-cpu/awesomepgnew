@@ -178,7 +178,8 @@ export {
 export type IsBedAvailableInput = {
   bedId: string;
   startDate: DateLike;
-  endDate: DateLike;
+  /** null = unbounded upper bound (open-ended monthly stay). */
+  endDate: DateLike | null;
 };
 
 /**
@@ -198,7 +199,6 @@ export async function isBedAvailable(
   options?: IsBedAvailableOptions,
 ): Promise<boolean> {
   const start = formatDate(parseDate(input.startDate));
-  const end = formatDate(parseDate(input.endDate));
 
   const [bed] = await db
     .select({
@@ -212,6 +212,11 @@ export async function isBedAvailable(
   if (!bed || bed.archivedAt || bed.status !== 'available') return false;
   // Reservations are SSOT — manualOccupied is legacy admin mark only, not operational.
 
+  const rangeOverlap =
+    input.endDate == null
+      ? sql`${bedReservations.stayRange} && daterange(${start}::date, NULL, '[)')`
+      : sql`${bedReservations.stayRange} && daterange(${start}::date, ${formatDate(parseDate(input.endDate))}::date, '[)')`;
+
   const [conflict] = await db
     .select({ id: bedReservations.id })
     .from(bedReservations)
@@ -221,7 +226,7 @@ export async function isBedAvailable(
         eq(bedReservations.bedId, input.bedId),
         sql`${bedReservations.status} IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
         eq(bookings.status, 'confirmed'),
-        sql`${bedReservations.stayRange} && daterange(${start}::date, ${end}::date, '[)')`,
+        rangeOverlap,
       ),
     )
     .limit(1);

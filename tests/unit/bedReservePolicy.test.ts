@@ -19,8 +19,8 @@ test('sets cleaning buffer one day before check-in', () => {
   assert.equal(reserveBufferDate('2026-06-21'), '2026-06-20');
 });
 
-test('caps short stays at check-in (exclusive end)', () => {
-  assert.equal(reserveShortStayEndExclusive('2026-06-21'), '2026-06-21');
+test('caps short stays before cleaning buffer (exclusive end)', () => {
+  assert.equal(reserveShortStayEndExclusive('2026-06-21'), '2026-06-20');
 });
 
 test('active bed reserve shows Reserved on customer map', () => {
@@ -30,5 +30,5 @@ test('active bed reserve shows Reserved on customer map', () => {
     activeBedReserveCheckIn: '2026-06-21',
   });
   assert.equal(view.kind, 'reserved');
-  assert.match(view.sublabel ?? '', /Short stays until/i);
+  assert.match(view.sublabel ?? '', /Reserved until/i);
 });

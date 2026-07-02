@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm';
 import { bigint, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { floors } from './floors';
 import { roomTypes } from './roomTypes';
-import { roomBillingModeEnum } from './enums';
+import { roomBillingModeEnum, monthlyDepositPolicyEnum } from './enums';
 
 export const rooms = pgTable(
   'rooms',
@@ -21,6 +21,7 @@ export const rooms = pgTable(
       .notNull()
       .default(0),
     billingMode: roomBillingModeEnum('billing_mode').notNull().default('per_bed'),
+    monthlyDepositPolicy: monthlyDepositPolicyEnum('monthly_deposit_policy'),
     privateRoomMonthlyRentPaise: bigint('private_room_monthly_rent_paise', { mode: 'number' }),
     archivedAt: timestamp('archived_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

@@ -227,21 +227,6 @@ async function shortenBookingReservationsToDate(bookingId: string, endDate: stri
     .where(eq(bookings.id, bookingId));
 }
 
-const LONG_TERM_END = '2099-01-01';
-
-async function bookingHasActiveStayToday(bookingId: string): Promise<boolean> {
-  const rows = await db.execute<{ occupied: boolean }>(sql`
-    SELECT EXISTS (
-      SELECT 1
-      FROM bookings b
-      INNER JOIN bed_reservations br ON br.booking_id = b.id
-      WHERE b.id = ${bookingId}::uuid
-        AND ${occupancyReservationCoreSql_b}
-    ) AS occupied
-  `);
-  return Boolean(rows[0]?.occupied);
-}
-
 async function restoreOpenEndedStay(
   bookingId: string,
   opts?: { includeCompletedReservations?: boolean; skipKyc?: boolean },
@@ -258,7 +243,7 @@ async function restoreOpenEndedStay(
   await db
     .update(bedReservations)
     .set({
-      stayRange: sql`daterange(lower(${bedReservations.stayRange}), ${LONG_TERM_END}::date, '[)')`,
+      stayRange: sql`daterange(lower(${bedReservations.stayRange}), NULL, '[)')`,
       updatedAt: new Date(),
     })
     .where(
@@ -271,10 +256,23 @@ async function restoreOpenEndedStay(
 
   await db
     .update(bookings)
-    .set({ expectedCheckoutDate: LONG_TERM_END, updatedAt: new Date() })
+    .set({ expectedCheckoutDate: null, updatedAt: new Date() })
     .where(eq(bookings.id, bookingId));
 
   return { ok: true };
+}
+
+async function bookingHasActiveStayToday(bookingId: string): Promise<boolean> {
+  const rows = await db.execute<{ occupied: boolean }>(sql`
+    SELECT EXISTS (
+      SELECT 1
+      FROM bookings b
+      INNER JOIN bed_reservations br ON br.booking_id = b.id
+      WHERE b.id = ${bookingId}::uuid
+        AND ${occupancyReservationCoreSql_b}
+    ) AS occupied
+  `);
+  return Boolean(rows[0]?.occupied);
 }
 
 export async function completeBookingReservations(bookingId: string) {

@@ -105,6 +105,7 @@ describe('3 — Vacating past-due and checkout settlement paths', () => {
     const view = deriveCustomerBedAvailabilityView({
       bedStatus: 'available',
       isAvailableNow: false,
+      isOccupiedToday: true,
       vacatingDate: '2026-06-18',
       vacatingStatus: 'approved',
       reservedFrom: null,
@@ -118,6 +119,7 @@ describe('3 — Vacating past-due and checkout settlement paths', () => {
     const view = deriveCustomerBedAvailabilityView({
       bedStatus: 'available',
       isAvailableNow: false,
+      isOccupiedToday: true,
       vacatingDate: '2026-06-18',
       vacatingStatus: 'pending',
       reservedFrom: null,

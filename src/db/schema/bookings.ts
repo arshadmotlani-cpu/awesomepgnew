@@ -149,6 +149,7 @@ export const bookings = pgTable(
     durationMode: durationModeEnum('duration_mode').notNull(),
     stayType: stayTypeEnum('stay_type').notNull().default('monthly_stay'),
     expectedCheckoutDate: date('expected_checkout_date'),
+    billingAnchorDate: date('billing_anchor_date'),
     subtotalPaise: bigint('subtotal_paise', { mode: 'number' }).notNull().default(0),
     discountPaise: bigint('discount_paise', { mode: 'number' }).notNull().default(0),
     taxPaise: bigint('tax_paise', { mode: 'number' }).notNull().default(0),

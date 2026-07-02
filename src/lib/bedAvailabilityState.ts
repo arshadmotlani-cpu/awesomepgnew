@@ -1,18 +1,11 @@
 /** Shared bed availability labels for admin map + customer bed picker. */
 
 import {
-  computeBedOccupancySnapshot,
-  toAdminAvailabilityView,
-  toCustomerAvailabilityView,
-  type BedOccupancyInput,
-} from '@/src/lib/bedOccupancyEngine';
-import { isOccupancyEngineV2Enabled } from '@/src/lib/bedOccupancyEngineFlag';
-import { customerBookableFromDate, isOpenEndedStayEnd, todayString } from '@/src/lib/dates';
-import { reserveBufferDate } from '@/src/lib/bedReservePolicy';
+  resolveBedOccupancy,
+  type RawBedOccupancyFacts,
+} from '@/src/lib/bedOccupancyResolve';
+import type { BedOccupancyInput } from '@/src/lib/bedOccupancyEngine';
 
-function isVacatingPastDue(vacatingDate: string, today = todayString()): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(vacatingDate) && vacatingDate < today;
-}
 export type BedAvailabilityKind =
   | 'open_now'
   | 'pre_bookable'
@@ -36,6 +29,50 @@ export type CustomerBedAvailabilityView = {
   sublabel?: string;
 };
 
+export type { BedOccupancyInput };
+
+function toRawFacts(input: {
+  bedStatus: 'available' | 'maintenance' | 'blocked';
+  manualOccupied?: boolean;
+  isOccupiedToday: boolean;
+  isAvailableNow?: boolean;
+  vacatingDate?: string | null;
+  vacatingStatus?: 'pending' | 'approved' | null;
+  preBookableFrom?: string | null;
+  reservedFrom?: string | null;
+  manualReservedCheckIn?: string | null;
+  nextAvailableDate?: string | null;
+  interestCount?: number;
+  noticeInterestCount?: number;
+  occupantFirstName?: string | null;
+  stayType?: string | null;
+  durationMode?: string | null;
+  expectedCheckoutDate?: string | null;
+  stayUpper?: string | null;
+  checkoutSettlement?: RawBedOccupancyFacts['checkoutSettlement'];
+  activeBedReserveCheckIn?: string | null;
+}): RawBedOccupancyFacts {
+  return {
+    bedId: '',
+    bedStatus: input.bedStatus,
+    isOccupiedToday: input.isOccupiedToday,
+    manualOccupied: input.manualOccupied,
+    stayType: input.stayType,
+    durationMode: input.durationMode,
+    expectedCheckoutDate: input.expectedCheckoutDate,
+    stayUpper: input.stayUpper ?? input.preBookableFrom ?? input.nextAvailableDate,
+    vacatingDate: input.vacatingDate,
+    vacatingStatus: input.vacatingStatus,
+    checkoutSettlement: input.checkoutSettlement,
+    manualReservedCheckIn: input.manualReservedCheckIn,
+    activeBedReserveCheckIn: input.activeBedReserveCheckIn,
+    reservedFrom: input.reservedFrom,
+    occupantFirstName: input.occupantFirstName,
+    interestCount: input.interestCount,
+    noticeInterestCount: input.noticeInterestCount,
+  };
+}
+
 export function deriveBedAvailabilityView(input: {
   bedStatus: 'available' | 'maintenance' | 'blocked';
   manualOccupied?: boolean;
@@ -45,7 +82,6 @@ export function deriveBedAvailabilityView(input: {
   vacatingStatus?: 'pending' | 'approved' | null;
   preBookableFrom?: string | null;
   reservedFrom?: string | null;
-  /** Admin manual reserve or customer 50% hold check-in. */
   manualReservedCheckIn?: string | null;
   nextAvailableDate?: string | null;
   interestCount?: number;
@@ -56,143 +92,16 @@ export function deriveBedAvailabilityView(input: {
   durationMode?: string | null;
   expectedCheckoutDate?: string | null;
   stayUpper?: string | null;
-  checkoutSettlement?: BedOccupancyInput['checkoutSettlement'];
+  checkoutSettlement?: RawBedOccupancyFacts['checkoutSettlement'];
   activeBedReserveCheckIn?: string | null;
 }): BedAvailabilityView {
-  if (isOccupancyEngineV2Enabled()) {
-    return toAdminAvailabilityView({
-      bedStatus: input.bedStatus,
-      isOccupiedToday: input.isOccupiedToday,
-      isAvailableNow: input.isAvailableNow,
-      manualOccupied: input.manualOccupied,
-      vacatingDate: input.vacatingDate,
-      vacatingStatus: input.vacatingStatus,
-      stayType: input.stayType,
-      durationMode: input.durationMode,
-      expectedCheckoutDate: input.expectedCheckoutDate,
-      stayUpper: input.stayUpper ?? input.preBookableFrom ?? input.nextAvailableDate,
-      checkoutSettlement: input.checkoutSettlement,
-      manualReservedCheckIn: input.manualReservedCheckIn,
-      reservedFrom: input.reservedFrom,
-      activeBedReserveCheckIn: input.activeBedReserveCheckIn,
-      occupantFirstName: input.occupantFirstName,
-      interestCount: input.interestCount,
-      noticeInterestCount: input.noticeInterestCount,
-    });
-  }
-
-  if (input.bedStatus === 'maintenance') {
-    return { kind: 'maintenance', label: 'Maintenance' };
-  }
-  if (input.bedStatus === 'blocked') {
-    return { kind: 'blocked', label: 'Blocked' };
-  }
-
-  if (input.manualOccupied && !input.isOccupiedToday) {
-    return {
-      kind: 'occupied',
-      label: 'Occupied',
-      sublabel: 'Marked occupied · shown on website',
-    };
-  }
-
-  if (input.manualReservedCheckIn && !input.isOccupiedToday) {
-    return {
-      kind: 'reserved',
-      label: 'Reserved',
-      sublabel: `Check-in ${formatShortDate(input.manualReservedCheckIn)} · daily/weekly OK`,
-    };
-  }
-
-  if (input.reservedFrom && !input.isOccupiedToday) {
-    return {
-      kind: 'booked',
-      label: 'Booked',
-      sublabel: `Move-in ${formatShortDate(input.reservedFrom)}`,
-    };
-  }
-
-  if (input.isOccupiedToday) {
-    if (input.vacatingDate && input.vacatingStatus === 'approved') {
-      if (isVacatingPastDue(input.vacatingDate)) {
-        return {
-          kind: 'notice',
-          label: input.occupantFirstName ?? 'Occupied',
-          sublabel: `Move-out overdue · complete checkout settlement`,
-        };
-      }
-      return {
-        kind: 'pre_bookable',
-        label: input.occupantFirstName ?? 'Occupied',
-        sublabel: `Hold from ${formatShortDate(input.vacatingDate)}`,
-      };
-    }
-    if (input.vacatingDate && input.vacatingStatus === 'pending') {
-      const interest = input.noticeInterestCount ?? 0;
-      if (isVacatingPastDue(input.vacatingDate)) {
-        return {
-          kind: 'notice',
-          label: input.occupantFirstName ?? 'Occupied',
-          sublabel:
-            `Notice expired ${formatShortDate(input.vacatingDate)} · approve move-out` +
-            (interest > 0 ? ` · ${interest} interested` : ''),
-        };
-      }
-      return {
-        kind: 'notice',
-        label: input.occupantFirstName ?? 'Occupied',
-        sublabel:
-          `Notice · leaves ${formatShortDate(input.vacatingDate)}` +
-          (interest > 0 ? ` · ${interest} interested` : ''),
-      };
-    }
-    return {
-      kind: 'occupied',
-      label: input.occupantFirstName ?? 'Occupied',
-      sublabel:
-        input.preBookableFrom && !isOpenEndedStayEnd(input.preBookableFrom)
-          ? `Until ${formatShortDate(input.preBookableFrom)}`
-          : undefined,
-    };
-  }
-
-  if (input.isAvailableNow) {
-    const holdInterest = input.interestCount ?? 0;
-    const bedInterest = input.noticeInterestCount ?? 0;
-    if (holdInterest > 0) {
-      return {
-        kind: 'hold_interest',
-        label: 'Open now',
-        sublabel: `${holdInterest} booking${holdInterest === 1 ? '' : 's'} in progress`,
-      };
-    }
-    if (bedInterest > 0) {
-      return {
-        kind: 'open_now',
-        label: 'Open · book now',
-        sublabel: `${bedInterest} interested`,
-      };
-    }
-    return { kind: 'open_now', label: 'Open · book now' };
-  }
-
-  const from = customerBookableFromDate(input.preBookableFrom ?? input.nextAvailableDate);
-  if (from) {
-    return {
-      kind: 'pre_bookable',
-      label: 'Hold',
-      sublabel: `From ${formatShortDate(from)}`,
-    };
-  }
-
-  return { kind: 'occupied', label: 'Unavailable' };
+  return resolveBedOccupancy(toRawFacts(input)).adminView;
 }
 
 /** Customer-facing labels — no admin jargon, privacy-safe. */
 export function deriveCustomerBedAvailabilityView(input: {
   bedStatus: 'available' | 'maintenance' | 'blocked';
   isAvailableNow: boolean;
-  /** Confirmed primary active reservation overlapping today — lifecycle SSOT. */
   isOccupiedToday?: boolean;
   manualOccupied?: boolean;
   nextAvailableDate?: string | null;
@@ -206,144 +115,26 @@ export function deriveCustomerBedAvailabilityView(input: {
   stayType?: string | null;
   durationMode?: string | null;
   expectedCheckoutDate?: string | null;
-  checkoutSettlement?: BedOccupancyInput['checkoutSettlement'];
+  checkoutSettlement?: RawBedOccupancyFacts['checkoutSettlement'];
 }): CustomerBedAvailabilityView {
-  if (isOccupancyEngineV2Enabled()) {
-    return toCustomerAvailabilityView({
-      bedStatus: input.bedStatus,
-      isOccupiedToday: Boolean(input.isOccupiedToday),
-      isAvailableNow: input.isAvailableNow,
-      manualOccupied: input.manualOccupied,
-      nextAvailableDate: input.nextAvailableDate,
-      vacatingDate: input.vacatingDate,
-      vacatingStatus: input.vacatingStatus,
-      reservedFrom: input.reservedFrom,
-      activeBedReserveCheckIn: input.activeBedReserveCheckIn,
-      availableUntilDate: input.availableUntilDate,
-      stayType: input.stayType,
-      durationMode: input.durationMode,
-      expectedCheckoutDate: input.expectedCheckoutDate,
-      stayUpper: input.nextAvailableDate,
-      checkoutSettlement: input.checkoutSettlement,
-      noticeInterestCount: input.noticeInterestCount,
-      holdInterestCount: input.holdInterestCount,
-    });
-  }
-
-  if (input.bedStatus === 'maintenance') {
-    return { kind: 'maintenance', label: 'Maintenance' };
-  }
-  if (input.bedStatus === 'blocked') {
-    return { kind: 'blocked', label: 'Unavailable' };
-  }
-
-  if (input.manualOccupied) {
-    return { kind: 'occupied', label: 'Occupied' };
-  }
-
-  if (input.activeBedReserveCheckIn) {
-    const checkIn = input.activeBedReserveCheckIn;
-    const bufferIso = reserveBufferDate(checkIn);
-    return {
-      kind: 'reserved',
-      label: 'Held',
-      sublabel: `Short stays until ${formatShortDate(bufferIso)} · holder moves in ${formatShortDate(checkIn)}`,
-    };
-  }
-
-  if (input.reservedFrom) {
-    return {
-      kind: 'booked',
-      label: 'Booked',
-      sublabel: `From ${formatShortDate(input.reservedFrom)}`,
-    };
-  }
-
-  const realisticNextDate = customerBookableFromDate(input.nextAvailableDate);
-  const isNotice =
-    Boolean(input.vacatingDate) &&
-    (input.vacatingStatus === 'pending' || input.vacatingStatus === 'approved');
-  const isOccupied =
-    !input.isAvailableNow && !realisticNextDate && !isNotice && !input.reservedFrom;
-
-  if (isNotice && input.vacatingDate) {
-    const interest = input.noticeInterestCount ?? 0;
-    const pastDue = isVacatingPastDue(input.vacatingDate);
-    const leaveLabel = pastDue
-      ? input.vacatingStatus === 'approved'
-        ? `Move-out was ${formatShortDate(input.vacatingDate)} · checkout pending`
-        : `Notice expired ${formatShortDate(input.vacatingDate)} · admin review needed`
-      : input.vacatingStatus === 'approved'
-        ? `Available from ${formatShortDate(input.vacatingDate)}`
-        : `Leaving ${formatShortDate(input.vacatingDate)}`;
-    return {
-      kind: 'notice',
-      label: pastDue ? 'Move-out overdue' : 'Notice period',
-      sublabel:
-        interest > 0
-          ? `${leaveLabel} · ${interest} interested`
-          : leaveLabel,
-    };
-  }
-
-  if (input.availableUntilDate) {
-    return {
-      kind: 'pre_bookable',
-      label: 'Limited availability',
-      sublabel: `Until ${formatShortDate(input.availableUntilDate)}`,
-    };
-  }
-
-  // Lifecycle: checked-in occupant without approved notice → Occupied (never "Available soon").
-  if (input.isOccupiedToday) {
-    return {
-      kind: 'occupied',
-      label: 'Occupied',
-      sublabel:
-        realisticNextDate && !isNotice
-          ? `Until ${formatShortDate(realisticNextDate)}`
-          : undefined,
-    };
-  }
-
-  if (input.isAvailableNow) {
-    const holds = input.holdInterestCount ?? 0;
-    const interested = input.noticeInterestCount ?? 0;
-    return {
-      kind: 'open_now',
-      label: 'Available',
-      sublabel:
-        interested > 0
-          ? `${interested} ${interested === 1 ? 'person is' : 'people are'} interested · book now`
-          : holds > 0
-            ? `${holds} checkout${holds === 1 ? '' : 's'} in progress — still bookable`
-            : 'Book this bed',
-    };
-  }
-
-  if (realisticNextDate) {
-    return {
-      kind: 'pre_bookable',
-      label: 'Available soon',
-      sublabel: `From ${formatShortDate(realisticNextDate)}`,
-    };
-  }
-
-  if (isOccupied || !input.isAvailableNow) {
-    return { kind: 'occupied', label: 'Occupied' };
-  }
-
-  return { kind: 'blocked', label: 'Unavailable' };
-}
-
-function formatShortDate(iso: string): string {
-  const d = new Date(iso + 'T00:00:00Z');
-  return d.toLocaleDateString('en-IN', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  });
+  return resolveBedOccupancy({
+    bedId: '',
+    bedStatus: input.bedStatus,
+    isOccupiedToday: Boolean(input.isOccupiedToday),
+    manualOccupied: input.manualOccupied,
+    stayType: input.stayType,
+    durationMode: input.durationMode,
+    expectedCheckoutDate: input.expectedCheckoutDate,
+    stayUpper: input.nextAvailableDate,
+    vacatingDate: input.vacatingDate,
+    vacatingStatus: input.vacatingStatus,
+    checkoutSettlement: input.checkoutSettlement,
+    activeBedReserveCheckIn: input.activeBedReserveCheckIn,
+    reservedFrom: input.reservedFrom,
+    noticeInterestCount: input.noticeInterestCount,
+    holdInterestCount: input.holdInterestCount,
+    availableUntilDate: input.availableUntilDate,
+  }).customerView;
 }
 
 export const ADMIN_BED_KIND_CLASS: Record<BedAvailabilityKind, string> = {

@@ -52,6 +52,10 @@ function parseInput(formData: FormData): PgFormInput {
     throw new Error('Invalid gender policy.');
   }
 
+  const depositPolicy = formData.get('monthlyDepositPolicy')?.toString();
+  const monthlyDepositPolicy =
+    depositPolicy === 'two_month' ? 'two_month' : 'one_month';
+
   return {
     name: formData.get('name')?.toString() ?? '',
     slug: formData.get('slug')?.toString(),
@@ -61,6 +65,7 @@ function parseInput(formData: FormData): PgFormInput {
     state: formData.get('state')?.toString() ?? '',
     pincode: formData.get('pincode')?.toString() ?? '',
     genderPolicy: gender as PgFormInput['genderPolicy'],
+    monthlyDepositPolicy,
     description: formData.get('description')?.toString(),
     contactPhone: formData.get('contactPhone')?.toString(),
     contactEmail: formData.get('contactEmail')?.toString(),

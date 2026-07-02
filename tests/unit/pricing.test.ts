@@ -229,21 +229,22 @@ test('open_ended: deposit uses bed_prices monthly deposit when set', () => {
   assert.match(q.lineItems.find((li) => li.kind === 'deposit')?.description ?? '', /1 month/i);
 });
 
-test('open_ended: deposit is 2 weeks rent when bed_prices deposit unset', () => {
-  const halfMonthFallback: RateSnapshot = {
+test('open_ended: deposit defaults to one month rent when bed_prices deposit unset', () => {
+  const policyDefault: RateSnapshot = {
     ...RATE,
     monthlySecurityDepositPaise: 0,
     securityDepositPaise: 0,
+    pgMonthlyDepositPolicy: 'one_month',
   };
   const q = quote({
     startDate: '2026-06-01',
     endDate: null,
     durationMode: 'open_ended',
     includeDeposit: true,
-    rate: halfMonthFallback,
+    rate: policyDefault,
   });
-  assert.equal(q.depositPaise, 7_00_000);
-  assert.match(q.lineItems.find((li) => li.kind === 'deposit')?.description ?? '', /2 weeks/i);
+  assert.equal(q.depositPaise, 14_00_000);
+  assert.match(q.lineItems.find((li) => li.kind === 'deposit')?.description ?? '', /1 month/i);
 });
 
 // ───────────────────────────────────────────────────────────────────────────

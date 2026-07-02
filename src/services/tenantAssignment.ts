@@ -13,8 +13,6 @@ import { reconcileOrphanBedReservations } from '@/src/lib/occupancySync';
 import { isBedAvailable } from '@/src/services/availability';
 import { validateResidentGenderForBed } from '@/src/services/pgGenderPolicy';
 
-const LONG_TERM_RESERVATION_END = '2099-01-01';
-
 export type AssignTenantInput = {
   bedId: string;
   startDate: string;
@@ -61,7 +59,7 @@ export async function assignTenantToBed(
   const available = await isBedAvailable({
     bedId: input.bedId,
     startDate: input.startDate,
-    endDate: LONG_TERM_RESERVATION_END,
+    endDate: null,
   });
   if (!available) {
     return { ok: false, error: 'That bed is already booked for the selected dates.' };
@@ -99,7 +97,6 @@ export async function assignTenantToBed(
     startDate: input.startDate,
     endDate: null,
     durationMode: 'open_ended',
-    reservationEndDate: LONG_TERM_RESERVATION_END,
     blocksRoomAvailability: input.blocksWholeRoom === true,
     customerId: input.customerId,
     customer: {
@@ -189,7 +186,7 @@ export async function listAssignableBeds(session: AdminSession, startDate?: stri
       {
         bedId: row.bedId,
         startDate: from,
-        endDate: LONG_TERM_RESERVATION_END,
+        endDate: null,
       },
       { ignoreManualOccupied: true },
     );

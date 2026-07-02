@@ -624,6 +624,13 @@
       "when": 1791000000000,
       "tag": "0092_room_201_single_sharing",
       "breakpoints": true
+    },
+    {
+      "idx": 93,
+      "version": "7",
+      "when": 1791100000000,
+      "tag": "0094_monthly_lifecycle_deposit_policy",
+      "breakpoints": true
     }
   ]
 }

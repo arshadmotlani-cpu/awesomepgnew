@@ -31,7 +31,10 @@ import {
 import { nextReserveCode } from '../lib/reserveCode';
 import { BLOCKING_RESERVATION_STATUS_SQL } from '../lib/reservationBlocking';
 import { env } from '../lib/env';
-import { quoteBedPrice, type PricingMode } from './pricing';
+import { computeLowestFixedStayRent } from '../lib/pricing/fixedStayOptimizer';
+import { loadBedPrice, quoteBedPrice } from './pricing';
+import { stayTypeFromPricingMode } from '../lib/stayType';
+import { ensureBillingProfileForBooking } from './residentBillingProfiles';
 
 export type ActiveBedReserve = {
   id: string;
@@ -187,6 +190,9 @@ export async function canOfferBedReserve(bedId: string): Promise<{
     .where(eq(beds.id, bedId))
     .limit(1);
   if (!bed || bed.status !== 'available') {
+    if (bed?.status === 'maintenance') {
+      return { ok: false, reason: 'This bed is under maintenance.' };
+    }
     return { ok: false, reason: 'Bed is not available for reserve.' };
   }
 
@@ -236,15 +242,17 @@ export async function quoteBedReserve(input: QuoteBedReserveInput) {
     throw new Error(`Reserve can start from ${offer.earliestStart} on this bed.`);
   }
 
-  const rate = await quoteBedPrice({
-    bedId: input.bedId,
-    startDate: reserveStart,
-    endDate: checkInDate,
-    durationMode: 'monthly',
-    includeDeposit: false,
-  });
+  const rate = await loadBedPrice(input.bedId, reserveStart);
+  if (!rate) {
+    throw new Error('No rent price configured for this bed on the reserve start date.');
+  }
 
-  const feePaise = reserveFeePaise(rate.rate.monthlyRatePaise);
+  const optimized = computeLowestFixedStayRent({
+    nights: periodDays,
+    dailyRatePaise: rate.dailyRatePaise,
+    weeklyRatePaise: rate.weeklyRatePaise,
+  });
+  const feePaise = reserveFeePaise(optimized.subtotalPaise);
 
   return {
     bedId: input.bedId,
@@ -252,7 +260,8 @@ export async function quoteBedReserve(input: QuoteBedReserveInput) {
     checkInDate,
     bufferDate: reserveBufferDate(checkInDate),
     periodDays,
-    monthlyRatePaise: rate.rate.monthlyRatePaise,
+    monthlyRatePaise: rate.monthlyRatePaise,
+    optimizedRentPaise: optimized.subtotalPaise,
     feePaise,
     nonRefundable: true,
   };
@@ -327,7 +336,7 @@ export async function createBedReserve(input: CreateBedReserveInput) {
                 },
               ],
               computedAt: new Date().toISOString(),
-              notes: `Bed reserve ${reserveCode}: 50% rent hold until ${quote.checkInDate}. Non-refundable.`,
+              notes: `Bed reserve ${reserveCode}: 50% of optimized rent until ${quote.checkInDate}. Non-refundable.`,
             },
             notes: `Reserve hold ${reserveCode}`,
             createdVia: 'customer',
@@ -476,24 +485,123 @@ export async function extendBedReserve(
     .where(eq(bookings.id, hold.bookingId));
 }
 
-export async function expireStaleBedReserves() {
-  const today = todayString();
-  const rows = await db
+export async function convertBedReserveToMonthlyStay(reserveId: string) {
+  const [hold] = await db
+    .select()
+    .from(bedReserveHolds)
+    .where(eq(bedReserveHolds.id, reserveId))
+    .limit(1);
+  if (!hold || hold.status !== 'active') {
+    return { ok: false as const, reason: 'Reserve not active.' };
+  }
+
+  const checkInIso = String(hold.checkInDate);
+  const quote = await quoteBedPrice({
+    bedId: hold.bedId,
+    startDate: checkInIso,
+    endDate: null,
+    durationMode: 'open_ended',
+    includeDeposit: true,
+  });
+
+  const reserveFeePaid = hold.amountPaise;
+  const monthlyDuePaise = quote.subtotalPaise + quote.depositPaise - reserveFeePaid;
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(bookings)
+      .set({
+        durationMode: 'open_ended',
+        stayType: stayTypeFromPricingMode('open_ended'),
+        status: monthlyDuePaise > 0 ? 'pending_payment' : 'confirmed',
+        expectedCheckoutDate: null,
+        billingAnchorDate: checkInIso,
+        subtotalPaise: quote.subtotalPaise,
+        depositPaise: quote.depositPaise,
+        totalPaise: Math.max(0, monthlyDuePaise),
+        pricingSnapshot: {
+          perBed: [
+            {
+              bedId: hold.bedId,
+              dailyRatePaise: quote.rate.dailyRatePaise,
+              weeklyRatePaise: quote.rate.weeklyRatePaise,
+              monthlyRatePaise: quote.rate.monthlyRatePaise,
+              securityDepositPaise: quote.depositPaise,
+              durationMode: 'open_ended',
+              units: quote.units,
+              lineTotalPaise: quote.subtotalPaise,
+            },
+          ],
+          computedAt: new Date().toISOString(),
+          notes: `Converted from reserve ${hold.reserveCode} on ${checkInIso}. Reserve fee ₹${(reserveFeePaid / 100).toFixed(0)} applied.`,
+          stayType: stayTypeFromPricingMode('open_ended'),
+        },
+        updatedAt: new Date(),
+      })
+      .where(eq(bookings.id, hold.bookingId));
+
+    await tx
+      .insert(bedReservations)
+      .values({
+        bookingId: hold.bookingId,
+        bedId: hold.bedId,
+        stayRange: sql`daterange(${checkInIso}::date, NULL, '[)')` as unknown as string,
+        kind: 'primary',
+        status: monthlyDuePaise > 0 ? 'hold' : 'active',
+        holdExpiresAt: monthlyDuePaise > 0 ? new Date(Date.now() + env.BOOKING_HOLD_MINUTES * 60_000) : null,
+      });
+
+    await tx
+      .update(bedReserveHolds)
+      .set({ status: 'converted', updatedAt: new Date() })
+      .where(eq(bedReserveHolds.id, reserveId));
+
+    await tx.insert(auditLog).values({
+      actorType: 'system',
+      actorId: null,
+      entity: 'bed_reserve',
+      entityId: hold.id,
+      action: 'converted_to_monthly',
+      diff: {
+        reserveCode: hold.reserveCode,
+        checkInDate: checkInIso,
+        monthlyDuePaise,
+      },
+    });
+  });
+
+  if (monthlyDuePaise <= 0) {
+    await ensureBillingProfileForBooking(hold.bookingId);
+  }
+
+  return { ok: true as const, bookingId: hold.bookingId, monthlyDuePaise };
+}
+
+export async function processDueBedReserveConversions(asOfDate?: string) {
+  const today = asOfDate ?? todayString();
+  const due = await db
     .select({ id: bedReserveHolds.id })
     .from(bedReserveHolds)
     .where(
       and(
         eq(bedReserveHolds.status, 'active'),
-        sql`${bedReserveHolds.checkInDate} < ${today}::date`,
+        sql`${bedReserveHolds.checkInDate} <= ${today}::date`,
       ),
     );
 
-  for (const row of rows) {
-    await db
-      .update(bedReserveHolds)
-      .set({ status: 'expired', updatedAt: new Date() })
-      .where(eq(bedReserveHolds.id, row.id));
+  let converted = 0;
+  const errors: string[] = [];
+  for (const row of due) {
+    const result = await convertBedReserveToMonthlyStay(row.id);
+    if (result.ok) converted += 1;
+    else errors.push(`${row.id}: ${result.reason}`);
   }
+  return { scanned: due.length, converted, errors };
+}
+
+export async function expireStaleBedReserves() {
+  const today = todayString();
+  const conversions = await processDueBedReserveConversions(today);
 
   const expiredHolds = await db
     .select({ id: bedReserveHolds.id, bookingId: bedReserveHolds.bookingId })
@@ -519,7 +627,11 @@ export async function expireStaleBedReserves() {
     });
   }
 
-  return { expired: rows.length, cancelledPending: expiredHolds.length };
+  return {
+    converted: conversions.converted,
+    conversionErrors: conversions.errors,
+    cancelledPending: expiredHolds.length,
+  };
 }
 
 export async function reserveBlocksLongStay(

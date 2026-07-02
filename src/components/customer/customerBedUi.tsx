@@ -7,10 +7,7 @@ import {
   deriveCustomerBedAvailabilityView,
   type BedAvailabilityKind,
 } from '@/src/lib/bedAvailabilityState';
-import { canBookBedFromSnapshot } from '@/src/lib/bedOccupancyEngine';
-import { isOccupancyEngineV2Enabled } from '@/src/lib/bedOccupancyEngineFlag';
-import { reserveBufferDate } from '@/src/lib/bedReservePolicy';
-import { customerBookableFromDate } from '@/src/lib/dates';
+import { resolveBedOccupancy } from '@/src/lib/bedOccupancyResolve';
 import { formatDate } from '@/src/lib/format';
 import type { BedSelectorBed } from './customerBedTypes';
 import { BedStateTile, type BedVisualState } from '@/src/components/customer/design-system';
@@ -42,31 +39,24 @@ function bedAvailability(bed: BedSelectorBed) {
 
 export function canBookBed(bed: BedSelectorBed): boolean {
   if (bed.forcePublicOccupied) return false;
-  if (isOccupancyEngineV2Enabled()) {
-    return canBookBedFromSnapshot({
-      bedStatus: bed.status,
-      isAvailableNow: bed.isAvailableNow,
-      isOccupiedToday: Boolean(bed.isOccupiedToday),
-      manualOccupied: bed.manualOccupied,
-      vacatingDate: bed.vacatingDate,
-      vacatingStatus: bed.vacatingStatus,
-      stayType: bed.stayType,
-      durationMode: bed.durationMode,
-      expectedCheckoutDate: bed.expectedCheckoutDate,
-      stayUpper: bed.nextAvailableDate,
-      checkoutSettlement: bed.checkoutSettlement,
-      activeBedReserveCheckIn: bed.activeBedReserveCheckIn,
-      reservedFrom: bed.reservedFrom,
-    });
-  }
-  if (bed.isOccupiedToday) return false;
-  if (bed.vacatingDate) return false;
-  if (bed.manualOccupied) return false;
-  const bookableFrom = customerBookableFromDate(bed.nextAvailableDate);
-  return (
-    bed.status === 'available' &&
-    (bed.isAvailableNow || Boolean(bookableFrom) || Boolean(bed.activeBedReserveCheckIn))
-  );
+  return resolveBedOccupancy({
+    bedId: bed.bedId,
+    bedStatus: bed.status,
+    isOccupiedToday: Boolean(bed.isOccupiedToday),
+    manualOccupied: bed.manualOccupied,
+    stayType: bed.stayType,
+    durationMode: bed.durationMode,
+    expectedCheckoutDate: bed.expectedCheckoutDate,
+    stayUpper: bed.nextAvailableDate,
+    vacatingDate: bed.vacatingDate,
+    vacatingStatus: bed.vacatingStatus,
+    checkoutSettlement: bed.checkoutSettlement,
+    activeBedReserveCheckIn: bed.activeBedReserveCheckIn,
+    reservedFrom: bed.reservedFrom,
+    noticeInterestCount: bed.noticeInterestCount,
+    holdInterestCount: bed.interestCount,
+    availableUntilDate: bed.availableUntilDate,
+  }).isBookable;
 }
 
 function visualStateForKind(kind: BedAvailabilityKind, selected?: boolean): BedVisualState {

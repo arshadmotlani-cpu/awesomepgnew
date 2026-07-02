@@ -1,6 +1,6 @@
 # Booking Lifecycle SSOT — Implementation Plan
 
-**Status:** **Phase 1 in progress** — engine + flag; Phase 3 gated behind stability  
+**Status:** **Phase 1 complete** — see [`PHASE_1_OCCUPANCY_AUDIT.md`](./PHASE_1_OCCUPANCY_AUDIT.md)  
 **Date:** 2026-07-02 (finalized 2026-07-02)  
 **Approved investigation:** [`APG-2026-0036_BOOKING_MODEL_INVESTIGATION.md`](./APG-2026-0036_BOOKING_MODEL_INVESTIGATION.md)  
 **Related:** [`BED_EXPLORER_SSOT_PLAN.md`](./BED_EXPLORER_SSOT_PLAN.md)
@@ -246,6 +246,7 @@ APG-2026-0036: **₹680 = notice deduction** (`5 × dailyRateFromMonthly(₹4,08
 | 1.5 | Fixed occupied → "Available from {checkout}"; monthly → no pre-book |
 | 1.6 | Wire all surfaces; flag `OCCUPANCY_ENGINE_V2=1` |
 | 1.7 | Parity tests (Dhruv 0040 monthly B1, fixed-stay fixtures) |
+| 1.8 | Remove flag; `bedOccupancyResolve` + `bedOccupancyBatch` for all counts |
 
 **DB:** None · **Risk:** Low
 

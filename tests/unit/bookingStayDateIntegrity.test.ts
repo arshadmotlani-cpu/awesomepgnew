@@ -46,8 +46,8 @@ test('resolveBookingStayDates uses open-ended end for monthly stays', () => {
   });
   assert.ok(resolved);
   assert.equal(resolved.checkIn, '2026-06-10');
-  assert.equal(resolved.checkOut, '2099-01-01');
-  assert.equal(resolved.checkOutSource, 'open_ended_default');
+  assert.equal(resolved.checkOut, null);
+  assert.equal(resolved.checkOutSource, 'open_ended_unbounded');
 });
 
 test('resolveBookingStayDates parses check-in from raw stay_range text', () => {

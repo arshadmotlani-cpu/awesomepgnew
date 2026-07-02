@@ -7,6 +7,7 @@ import { db } from '@/src/db/client';
 import {
   auditLog,
   bedReservations,
+  beds,
   billingGenerationFailures,
   billingGenerationRuns,
   bookings,
@@ -60,6 +61,7 @@ export async function listAnniversaryCandidates(runDate: string) {
     .innerJoin(bookings, eq(bookings.id, residentBillingProfiles.bookingId))
     .innerJoin(customers, eq(customers.id, residentBillingProfiles.customerId))
     .innerJoin(bedReservations, eq(bedReservations.bookingId, bookings.id))
+    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
     .where(
       and(
         eq(residentBillingProfiles.autoGenerate, true),
@@ -69,6 +71,7 @@ export async function listAnniversaryCandidates(runDate: string) {
         isActiveResidentFilter(),
         inArray(bookings.durationMode, ['monthly', 'open_ended']),
         eq(bedReservations.status, 'active'),
+        sql`${beds.status} != 'maintenance'`,
         sql`${runDate}::date <@ ${bedReservations.stayRange}`,
       ),
     );

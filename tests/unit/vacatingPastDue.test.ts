@@ -9,6 +9,7 @@ test('approved vacating past due shows checkout pending on customer picker', () 
   const view = deriveCustomerBedAvailabilityView({
     bedStatus: 'available',
     isAvailableNow: false,
+    isOccupiedToday: true,
     vacatingDate: PAST,
     vacatingStatus: 'approved',
     reservedFrom: null,
@@ -22,6 +23,7 @@ test('pending vacating past due prompts admin review on customer picker', () => 
   const view = deriveCustomerBedAvailabilityView({
     bedStatus: 'available',
     isAvailableNow: false,
+    isOccupiedToday: true,
     vacatingDate: PAST,
     vacatingStatus: 'pending',
     reservedFrom: null,
@@ -34,6 +36,7 @@ test('future approved vacating still shows notice period', () => {
   const view = deriveCustomerBedAvailabilityView({
     bedStatus: 'available',
     isAvailableNow: false,
+    isOccupiedToday: true,
     vacatingDate: '2099-07-01',
     vacatingStatus: 'approved',
     reservedFrom: null,

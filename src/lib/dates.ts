@@ -178,16 +178,22 @@ export function todayString(now: Date = new Date()): string {
 }
 
 /**
- * Sentinel upper bound for open-ended monthly stays in `bed_reservations`.
- * Never surface this to customers as a move-out or pre-book date.
+ * Legacy sentinel — prefer `isUnboundedStayUpper` / unbounded `stay_range` (upper NULL).
+ * @deprecated Phase 3 — retained only for reading legacy rows pre-migration.
  */
 export const OPEN_ENDED_STAY_END = '2099-01-01';
 
 const OPEN_ENDED_CUTOFF = parseDate('2090-01-01');
 
+/** True when upper(stay_range) is unbounded or legacy open-ended sentinel. */
+export function isUnboundedStayUpper(upper: string | null | undefined): boolean {
+  if (upper == null || upper === '') return true;
+  return isOpenEndedStayEnd(upper);
+}
+
 /** True when a date is the open-ended placeholder, not a real checkout. */
 export function isOpenEndedStayEnd(date: string | null | undefined): boolean {
-  if (!date) return false;
+  if (!date) return true;
   try {
     return parseDate(date).getTime() >= OPEN_ENDED_CUTOFF.getTime();
   } catch {

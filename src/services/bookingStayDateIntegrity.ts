@@ -17,8 +17,6 @@ import { listOpenRequestsForCustomer } from '@/src/services/residentRequests';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { loadResidentAccountContextSafe } from '@/src/services/residentAccountContextSafe';
 
-const LONG_TERM_END = '2099-01-01';
-
 function toIsoTimestamp(value: Date | string | null | undefined): string | null {
   if (value == null) return null;
   if (value instanceof Date) return value.toISOString();
@@ -198,8 +196,8 @@ export function resolveBookingStayDates(input: {
     checkOut = upper;
     checkOutSource = 'stay_range_upper';
   } else if (isOpenEndedDuration(input.durationMode)) {
-    checkOut = LONG_TERM_END;
-    checkOutSource = 'open_ended_default';
+    checkOut = null;
+    checkOutSource = 'open_ended_unbounded';
   } else {
     checkOut = formatDate(
       new Date(Date.parse(`${checkIn}T00:00:00Z`) + 7 * 86_400_000),
@@ -209,8 +207,8 @@ export function resolveBookingStayDates(input: {
 
   if (!checkOut || checkOut <= checkIn) {
     if (isOpenEndedDuration(input.durationMode)) {
-      checkOut = LONG_TERM_END;
-      checkOutSource = 'open_ended_default';
+      checkOut = null;
+      checkOutSource = 'open_ended_unbounded';
     } else if (expectedCheckout && expectedCheckout > checkIn) {
       checkOut = expectedCheckout;
       checkOutSource = 'expected_checkout_date';

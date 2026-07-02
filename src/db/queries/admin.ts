@@ -10,6 +10,13 @@ import {
 import { productionInvoiceBookingFilters } from '@/src/lib/billing/invoiceOnlyFinancials';
 import { collectibleResidentFilters } from '@/src/lib/billing/productionDataFilter';
 import { bedOccupiedTodayExistsSql } from '@/src/lib/occupancySsot';
+import { aggregateOccupancyCounts } from '@/src/lib/bedOccupancyResolve';
+import {
+  fetchBedOccupancyRows,
+  getGlobalOccupancyCounts,
+  getOccupancyCountsByPg,
+  resolveBedOccupancyRows,
+} from '@/src/services/bedOccupancyBatch';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import { normalizeIsoDateOnly, todayString } from '@/src/lib/dates';
 import { asPlainNumber } from '@/src/lib/format';
@@ -109,35 +116,19 @@ export function getDashboardStats(): Promise<QueryResult<DashboardStats>> {
       .where(sql`${beds.archivedAt} IS NULL`)
       .groupBy(beds.status);
 
-    const byStatus = new Map(bedRows.map((r) => [r.status, r.count]));
     const totalBeds = bedRows.reduce((acc, r) => acc + r.count, 0);
-    const availableBedsRaw = byStatus.get('available') ?? 0;
-    const blockedBeds = byStatus.get('blocked') ?? 0;
-    const maintenanceBeds = byStatus.get('maintenance') ?? 0;
-
-    // Occupied = beds with a confirmed primary active reservation covering today (SSOT).
-    const [occRow] = await db
-      .select({ count: sql<number>`count(distinct ${beds.id})::int` })
-      .from(beds)
-      .where(sql`${beds.archivedAt} IS NULL AND ${bedOccupiedTodayExistsSql}`);
-
-    const occupiedBeds = occRow?.count ?? 0;
-    // Available now means "physically available AND not currently occupied".
-    const availableBeds = Math.max(0, availableBedsRaw - occupiedBeds);
-
-    const occupancyPct =
-      totalBeds === 0 ? 0 : Math.round((occupiedBeds / totalBeds) * 1000) / 10;
+    const occupancy = await getGlobalOccupancyCounts();
 
     return {
       totalPgs: pgRow?.count ?? 0,
       totalFloors: floorRow?.count ?? 0,
       totalRooms: roomRow?.count ?? 0,
       totalBeds,
-      occupiedBeds,
-      availableBeds,
-      blockedBeds,
-      maintenanceBeds,
-      occupancyPct,
+      occupiedBeds: occupancy.occupiedBeds,
+      availableBeds: occupancy.openNowBeds,
+      blockedBeds: occupancy.blockedBeds,
+      maintenanceBeds: occupancy.maintenanceBeds,
+      occupancyPct: occupancy.occupancyPct,
     };
   });
 }
@@ -801,36 +792,29 @@ export type OccupancyByPg = {
 
 export function getOccupancyByPg(): Promise<QueryResult<OccupancyByPg[]>> {
   return guard(async () => {
-    return await db
+    const pgRows = await db
       .select({
         pgId: pgs.id,
         pgName: pgs.name,
-        // `beds.id` / `beds.status` qualified literally — the LEFT JOIN
-        // chain brings `pgs.id`, `floors.id`, `rooms.id`, `beds.id` all into
-        // scope. Bare `"id"` is ambiguous.
-        totalBeds: sql<number>`count(beds.id)::int`,
-        occupiedBeds: sql<number>`count(beds.id) FILTER (
-          WHERE ${bedOccupiedTodayExistsSql}
-        )::int`,
-        availableBeds: sql<number>`count(beds.id) FILTER (
-          WHERE beds.status = 'available' AND NOT (${bedOccupiedTodayExistsSql})
-        )::int`,
-        blockedBeds: sql<number>`count(beds.id) FILTER (WHERE beds.status = 'blocked')::int`,
-        occupancyPct: sql<number>`(
-          CASE WHEN count(beds.id) = 0 THEN 0
-          ELSE round(100.0 * count(beds.id) FILTER (
-            WHERE ${bedOccupiedTodayExistsSql}
-          ) / count(beds.id), 1)
-          END
-        )::float`,
       })
       .from(pgs)
-      .leftJoin(floors, eq(floors.pgId, pgs.id))
-      .leftJoin(rooms, eq(rooms.floorId, floors.id))
-      .leftJoin(beds, and(eq(beds.roomId, rooms.id), sql`${beds.archivedAt} IS NULL`))
       .where(sql`${pgs.archivedAt} IS NULL`)
-      .groupBy(pgs.id, pgs.name)
       .orderBy(asc(pgs.name));
+
+    const countsByPg = await getOccupancyCountsByPg(pgRows.map((r) => r.pgId));
+
+    return pgRows.map((row) => {
+      const counts = countsByPg.get(row.pgId);
+      return {
+        pgId: row.pgId,
+        pgName: row.pgName,
+        totalBeds: counts?.totalBeds ?? 0,
+        occupiedBeds: counts?.occupiedBeds ?? 0,
+        availableBeds: counts?.openNowBeds ?? 0,
+        blockedBeds: counts?.blockedBeds ?? 0,
+        occupancyPct: counts?.occupancyPct ?? 0,
+      };
+    });
   });
 }
 
@@ -1256,30 +1240,40 @@ export type OccupancyByFloor = {
 
 export function getOccupancyByFloor(): Promise<QueryResult<OccupancyByFloor[]>> {
   return guard(async () => {
-    return await db
+    const floorRows = await db
       .select({
+        floorId: floors.id,
         pgName: pgs.name,
         floorNumber: floors.floorNumber,
         floorLabel: sql<string>`coalesce(${floors.label}, 'Floor ' || ${floors.floorNumber})`,
-        totalBeds: sql<number>`count(beds.id)::int`,
-        occupiedBeds: sql<number>`count(beds.id) FILTER (
-          WHERE ${bedOccupiedTodayExistsSql}
-        )::int`,
-        occupancyPct: sql<number>`(
-          CASE WHEN count(beds.id) = 0 THEN 0
-          ELSE round(100.0 * count(beds.id) FILTER (
-            WHERE ${bedOccupiedTodayExistsSql}
-          ) / count(beds.id), 1)
-          END
-        )::float`,
       })
       .from(floors)
       .innerJoin(pgs, eq(pgs.id, floors.pgId))
-      .leftJoin(rooms, eq(rooms.floorId, floors.id))
-      .leftJoin(beds, and(eq(beds.roomId, rooms.id), sql`${beds.archivedAt} IS NULL`))
       .where(sql`${floors.archivedAt} IS NULL AND ${pgs.archivedAt} IS NULL`)
-      .groupBy(pgs.name, floors.floorNumber, floors.label, floors.id)
       .orderBy(asc(pgs.name), asc(floors.floorNumber));
+
+    const bedRows = await fetchBedOccupancyRows({});
+    const resolved = resolveBedOccupancyRows(bedRows);
+    const byFloor = new Map<string, typeof resolved>();
+    for (let i = 0; i < bedRows.length; i += 1) {
+      const floorId = bedRows[i].floorId;
+      if (!floorId) continue;
+      const list = byFloor.get(floorId) ?? [];
+      list.push(resolved[i]);
+      byFloor.set(floorId, list);
+    }
+
+    return floorRows.map((floor) => {
+      const counts = aggregateOccupancyCounts(byFloor.get(floor.floorId) ?? []);
+      return {
+        pgName: floor.pgName,
+        floorNumber: floor.floorNumber,
+        floorLabel: floor.floorLabel,
+        totalBeds: counts.totalBeds,
+        occupiedBeds: counts.occupiedBeds,
+        occupancyPct: counts.occupancyPct,
+      };
+    });
   });
 }
 

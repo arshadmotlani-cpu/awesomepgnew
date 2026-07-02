@@ -6,7 +6,7 @@ import { customerBookableFromDate, isOpenEndedStayEnd } from '../../src/lib/date
 test('isOpenEndedStayEnd treats 2099 sentinel as open-ended', () => {
   assert.equal(isOpenEndedStayEnd('2099-01-01'), true);
   assert.equal(isOpenEndedStayEnd('2027-06-01'), false);
-  assert.equal(isOpenEndedStayEnd(null), false);
+  assert.equal(isOpenEndedStayEnd(null), true);
 });
 
 test('customerBookableFromDate strips open-ended sentinel', () => {
@@ -18,7 +18,10 @@ test('occupied open-ended stay shows Occupied not Available soon', () => {
   const view = deriveCustomerBedAvailabilityView({
     bedStatus: 'available',
     isAvailableNow: false,
+    isOccupiedToday: true,
     nextAvailableDate: '2099-01-01',
+    stayType: 'open_ended',
+    durationMode: 'open_ended',
     vacatingDate: null,
     vacatingStatus: null,
     reservedFrom: null,
@@ -62,6 +65,7 @@ test('notice period still wins over open-ended stay end', () => {
   const view = deriveCustomerBedAvailabilityView({
     bedStatus: 'available',
     isAvailableNow: false,
+    isOccupiedToday: true,
     nextAvailableDate: '2099-01-01',
     vacatingDate: '2099-06-26',
     vacatingStatus: 'pending',
@@ -75,6 +79,7 @@ test('past-due approved vacating shows move-out overdue label', () => {
   const view = deriveCustomerBedAvailabilityView({
     bedStatus: 'available',
     isAvailableNow: false,
+    isOccupiedToday: true,
     vacatingDate: '2026-06-18',
     vacatingStatus: 'approved',
     reservedFrom: null,

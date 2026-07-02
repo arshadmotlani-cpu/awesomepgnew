@@ -21,7 +21,6 @@ import {
 import { countBookingsInYear } from '@/src/db/queries/customer';
 
 const PLACEHOLDER_PHONE = OCCUPANCY_PLACEHOLDER_PHONE;
-const OCCUPANCY_END = '2099-01-01';
 
 /** PG name substrings matched case-insensitively for bulk “fully occupied” admin actions. */
 export const FULLY_OCCUPIED_PG_NAME_PATTERNS = ['central', 'trimurti'] as const;
@@ -52,7 +51,7 @@ async function upsertPlaceholderCustomer() {
 }
 
 /**
- * Mark every vacant bed in a PG as occupied (active reservation through 2099).
+ * Mark every vacant bed in a PG as occupied (open-ended active reservation).
  * Used when tenants are on-site but not yet entered as individual bookings.
  */
 export async function markPgFullyOccupied(
@@ -106,8 +105,10 @@ export async function markPgFullyOccupied(
         bookingCode,
         customerId: customer.id,
         status: 'confirmed',
-        durationMode: 'monthly',
+        durationMode: 'open_ended',
         stayType: 'monthly_stay',
+        expectedCheckoutDate: null,
+        billingAnchorDate: today,
         subtotalPaise: 0,
         discountPaise: 0,
         taxPaise: 0,
@@ -128,7 +129,7 @@ export async function markPgFullyOccupied(
       await tx.insert(bedReservations).values({
         bookingId: booking.id,
         bedId,
-        stayRange: sql`daterange(${today}::date, ${OCCUPANCY_END}::date, '[)')` as unknown as string,
+        stayRange: sql`daterange(${today}::date, NULL, '[)')` as unknown as string,
         kind: 'primary',
         status: 'active',
       });

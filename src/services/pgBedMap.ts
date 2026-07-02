@@ -1,9 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import {
-  deriveBedAvailabilityView,
-  type BedAvailabilityView,
-} from '@/src/lib/bedAvailabilityState';
+import type { BedAvailabilityView } from '@/src/lib/bedAvailabilityState';
+import { resolveBedOccupancy } from '@/src/lib/bedOccupancyResolve';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { todayString } from '@/src/lib/dates';
@@ -205,11 +203,6 @@ function buildBed(row: RawRow): PgBedMapBed {
       : null;
   const bedReserveCheckIn = row.bed_reserve_check_in;
   const effectiveReserveCheckIn = manualReservedCheckIn ?? bedReserveCheckIn;
-  const isAvailableNow =
-    row.bed_status === 'available' &&
-    !isOccupiedToday &&
-    !reserved &&
-    !effectiveReserveCheckIn;
   const preBookableFrom =
     vacating?.status === 'approved'
       ? vacating.vacatingDate
@@ -241,26 +234,28 @@ function buildBed(row: RawRow): PgBedMapBed {
   const stayType = row.stay_type ?? row.pending_stay_type;
   const durationMode = row.duration_mode ?? row.pending_duration_mode;
 
-  const availability = deriveBedAvailabilityView({
+  const resolved = resolveBedOccupancy({
+    bedId: row.bed_id,
     bedStatus: row.bed_status,
     isOccupiedToday,
-    isAvailableNow,
     manualOccupied,
-    manualReservedCheckIn: effectiveReserveCheckIn,
-    vacatingDate: vacating?.vacatingDate,
-    vacatingStatus: vacating?.status,
-    preBookableFrom,
-    reservedFrom: row.reserved_from,
     stayType,
     durationMode,
     expectedCheckoutDate: row.expected_checkout_date,
     stayUpper: row.stay_upper,
+    vacatingDate: vacating?.vacatingDate,
+    vacatingStatus: vacating?.status,
     checkoutSettlement,
+    manualReservedCheckIn: effectiveReserveCheckIn,
     activeBedReserveCheckIn: bedReserveCheckIn,
-    interestCount: row.interest_count,
+    reservedFrom: row.reserved_from,
     occupantFirstName: occupant?.customerName.split(' ')[0] ?? reserved?.customerName.split(' ')[0],
+    interestCount: row.interest_count,
     noticeInterestCount: row.notice_interest_count,
   });
+
+  const availability = resolved.adminView;
+  const isAvailableNow = resolved.isOpenNow;
 
   return {
     bedId: row.bed_id,
@@ -544,10 +539,14 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
   const allBeds = floors.flatMap((f) => f.rooms.flatMap((r) => r.beds));
   const summary: PgBedMapSummary = {
     totalBeds: allBeds.length,
-    occupiedBeds: allBeds.filter((b) => b.isOccupiedToday).length,
+    occupiedBeds: allBeds.filter((b) => b.isOccupiedToday || b.vacating).length,
     openNowBeds: allBeds.filter((b) => b.isAvailableNow).length,
     reservedBeds: allBeds.filter(
-      (b) => (b.reserved && !b.isOccupiedToday) || Boolean(b.manualReservedCheckIn) || Boolean(b.bedReserveCheckIn),
+      (b) =>
+        b.availability.kind === 'reserved' ||
+        b.availability.kind === 'booked' ||
+        Boolean(b.manualReservedCheckIn) ||
+        Boolean(b.bedReserveCheckIn),
     ).length,
     maintenanceBeds: allBeds.filter((b) => b.bedStatus === 'maintenance').length,
     blockedBeds: allBeds.filter((b) => b.bedStatus === 'blocked').length,

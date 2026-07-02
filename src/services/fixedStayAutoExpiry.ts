@@ -1,6 +1,7 @@
 /**
  * Fixed-stay / short-stay auto-expiry at 11:00 AM IST on expected checkout date.
- * Completes booking, releases bed, creates checkout settlement for deposit refund.
+ * Holds the bed in checkout_pending until settlement completes — does not
+ * mark the booking completed or release reservations early.
  */
 
 import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
@@ -20,11 +21,9 @@ import {
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import { formatDate, parseDate } from '@/src/lib/dates';
 import { isPastFixedStayCheckout } from '@/src/lib/dates/ist';
-import { reconcileBookingOccupancy } from '@/src/lib/occupancySync';
 import { cancelElectricityInvoicesForBooking } from '@/src/services/electricityBilling';
 import { createCheckoutSettlementFromVacating } from '@/src/services/checkoutSettlement';
 import { cancelFutureRentInvoices } from '@/src/services/rentInvoices';
-import { completeBookingReservations } from '@/src/services/vacating';
 import { scheduleAdminNotificationSync } from '@/src/services/adminLiveSync';
 import { upsertFixedStayCheckoutActionItem } from '@/src/services/fixedStayActionItems';
 import { syncActionItemsForCron } from '@/src/services/actionItems';
@@ -246,28 +245,26 @@ export async function expireFixedStayBooking(bookingId: string): Promise<ExpireF
   );
   await cancelElectricityInvoicesForBooking(booking.id);
 
-  await db
-    .update(bookings)
-    .set({ status: 'completed', updatedAt: new Date() })
-    .where(eq(bookings.id, booking.id));
-
-  await db
-    .update(customers)
-    .set({ residencyStatus: 'vacated', updatedAt: new Date() })
-    .where(eq(customers.id, booking.customerId));
+  const checkoutIso = String(booking.expectedCheckoutDate);
+  await db.execute(sql`
+    UPDATE bed_reservations
+    SET
+      stay_range = daterange(lower(stay_range), ${checkoutIso}::date, '[)'),
+      updated_at = now()
+    WHERE booking_id = ${booking.id}
+      AND status IN ('hold', 'active')
+      AND upper(stay_range) > ${checkoutIso}::date
+  `);
 
   await db
     .update(residentBillingProfiles)
     .set({ autoGenerate: false, updatedAt: new Date() })
     .where(eq(residentBillingProfiles.bookingId, booking.id));
 
-  await completeBookingReservations(booking.id);
-  await reconcileBookingOccupancy(booking.id);
-
   const vacatingRequestId = await ensureSystemVacatingRequest({
     id: booking.id,
     customerId: booking.customerId,
-    expectedCheckoutDate: String(booking.expectedCheckoutDate),
+    expectedCheckoutDate: checkoutIso,
     createdAt: booking.createdAt,
     pricingSnapshot: booking.pricingSnapshot as PricingSnapshot | null,
   });

@@ -20,14 +20,15 @@
 
 import { and, asc, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import { db } from '../db/client';
-import { bedPrices } from '../db/schema';
+import { bedPrices, beds, floors, pgs, rooms } from '../db/schema';
+import type { MonthlyDepositPolicy } from '../db/schema/enums';
 import { addMonths, diffDays, formatDate, isBefore, parseDate, type DateLike } from '../lib/dates';
 import { coerceNonNegativePaise } from '../lib/format';
 import { computeLowestFixedStayRent } from '../lib/pricing/fixedStayOptimizer';
 import {
   computeFixedStayDepositPaise as fixedStayDepositFromRules,
-  computeMonthlyDepositPaise as monthlyDepositFromRules,
 } from '../lib/pricing/depositRules';
+import { resolveMonthlyDepositPaise } from '../lib/pricing/monthlyDepositPolicy';
 import type { FixedStayPricingStrategy } from '../lib/pricing/types';
 
 export type PricingMode = 'daily' | 'weekly' | 'monthly' | 'open_ended' | 'fixed_stay';
@@ -44,6 +45,8 @@ export type RateSnapshot = {
   monthlySecurityDepositPaise: number;
   effectiveFrom: string;
   effectiveTo: string | null;
+  pgMonthlyDepositPolicy?: MonthlyDepositPolicy | null;
+  roomMonthlyDepositPolicy?: MonthlyDepositPolicy | null;
 };
 
 function coerceRateSnapshot(row: {
@@ -57,6 +60,8 @@ function coerceRateSnapshot(row: {
   monthlySecurityDepositPaise: unknown;
   effectiveFrom: string;
   effectiveTo: string | null;
+  pgMonthlyDepositPolicy?: MonthlyDepositPolicy | null;
+  roomMonthlyDepositPolicy?: MonthlyDepositPolicy | null;
 }): RateSnapshot {
   return {
     bedPriceId: row.id,
@@ -69,6 +74,8 @@ function coerceRateSnapshot(row: {
     monthlySecurityDepositPaise: coerceNonNegativePaise(row.monthlySecurityDepositPaise),
     effectiveFrom: row.effectiveFrom,
     effectiveTo: row.effectiveTo,
+    pgMonthlyDepositPolicy: row.pgMonthlyDepositPolicy ?? null,
+    roomMonthlyDepositPolicy: row.roomMonthlyDepositPolicy ?? null,
   };
 }
 
@@ -97,13 +104,13 @@ export function securityDepositForMode(rate: RateSnapshot, durationMode: Pricing
   );
 }
 
-/** Monthly / open-ended stays: bed_prices deposit when set, else 2 weeks rent. */
+/** Monthly / open-ended stays: PG → room → bed_prices deposit inheritance. */
 export function computeMonthlyDepositPaise(rate: RateSnapshot): number {
-  const monthly = coerceNonNegativePaise(rate.monthlyRatePaise);
-  requirePositiveRate(monthly, 'monthly');
-  return monthlyDepositFromRules({
-    monthlyRatePaise: monthly,
-    monthlySecurityDepositPaise: rate.monthlySecurityDepositPaise,
+  return resolveMonthlyDepositPaise({
+    monthlyRatePaise: rate.monthlyRatePaise,
+    pgPolicy: rate.pgMonthlyDepositPolicy,
+    roomPolicy: rate.roomMonthlyDepositPolicy,
+    bedMonthlySecurityDepositPaise: rate.monthlySecurityDepositPaise,
   });
 }
 
@@ -433,8 +440,14 @@ export async function loadBedPrice(
       monthlySecurityDepositPaise: bedPrices.monthlySecurityDepositPaise,
       effectiveFrom: bedPrices.effectiveFrom,
       effectiveTo: bedPrices.effectiveTo,
+      pgMonthlyDepositPolicy: pgs.monthlyDepositPolicy,
+      roomMonthlyDepositPolicy: rooms.monthlyDepositPolicy,
     })
     .from(bedPrices)
+    .innerJoin(beds, eq(beds.id, bedPrices.bedId))
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
+    .innerJoin(floors, eq(floors.id, rooms.floorId))
+    .innerJoin(pgs, eq(pgs.id, floors.pgId))
     .where(
       and(
         eq(bedPrices.bedId, bedId),
@@ -467,8 +480,14 @@ export async function loadLatestBedPrice(bedId: string): Promise<RateSnapshot | 
       monthlySecurityDepositPaise: bedPrices.monthlySecurityDepositPaise,
       effectiveFrom: bedPrices.effectiveFrom,
       effectiveTo: bedPrices.effectiveTo,
+      pgMonthlyDepositPolicy: pgs.monthlyDepositPolicy,
+      roomMonthlyDepositPolicy: rooms.monthlyDepositPolicy,
     })
     .from(bedPrices)
+    .innerJoin(beds, eq(beds.id, bedPrices.bedId))
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
+    .innerJoin(floors, eq(floors.id, rooms.floorId))
+    .innerJoin(pgs, eq(pgs.id, floors.pgId))
     .where(eq(bedPrices.bedId, bedId))
     .orderBy(desc(bedPrices.effectiveFrom))
     .limit(1);

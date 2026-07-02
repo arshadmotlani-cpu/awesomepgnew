@@ -1,6 +1,6 @@
 /** Bed reserve (50% rent hold) business constants. */
 
-/** Non-refundable reservation fee = 50% of one month's rent. */
+/** Non-refundable reservation fee = 50% of optimized fixed-stay rent for the reserve window. */
 export const RESERVE_FEE_PERCENT = 50;
 
 /** Days kept empty for cleaning before the reserve holder's check-in date. */
@@ -15,8 +15,9 @@ export const RESERVE_MIN_PERIOD_DAYS = 2;
 /** Maximum reserve window from start to check-in. */
 export const RESERVE_MAX_PERIOD_DAYS = 90;
 
-export function reserveFeePaise(monthlyRatePaise: number): number {
-  return Math.round((monthlyRatePaise * RESERVE_FEE_PERCENT) / 100);
+export function reserveFeePaise(optimizedRentPaise: number): number {
+  if (optimizedRentPaise <= 0) return 0;
+  return Math.round((optimizedRentPaise * RESERVE_FEE_PERCENT) / 100);
 }
 
 /** Last calendar day short-term guests may occupy before cleaning buffer. */
@@ -28,5 +29,5 @@ export function reserveBufferDate(checkInDate: string): string {
 
 /** Exclusive checkout cap for daily/weekly during an active reserve (half-open end). */
 export function reserveShortStayEndExclusive(checkInDate: string): string {
-  return checkInDate;
+  return reserveBufferDate(checkInDate);
 }

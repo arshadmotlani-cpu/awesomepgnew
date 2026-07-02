@@ -5,6 +5,8 @@ import { slugify } from '@/src/lib/slug';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
 
+import type { MonthlyDepositPolicy } from '@/src/db/schema/enums';
+
 export type PgFormInput = {
   name: string;
   slug?: string;
@@ -14,6 +16,7 @@ export type PgFormInput = {
   state: string;
   pincode: string;
   genderPolicy: 'male' | 'female' | 'coed';
+  monthlyDepositPolicy?: MonthlyDepositPolicy;
   description?: string;
   contactPhone?: string;
   contactEmail?: string;
@@ -57,6 +60,7 @@ export async function createPg(session: AdminSession, input: PgFormInput) {
       images: input.images.filter(Boolean),
       videos: input.videos.filter(Boolean),
       isActive: input.isActive,
+      monthlyDepositPolicy: input.monthlyDepositPolicy ?? 'one_month',
     })
     .returning({ id: pgs.id });
 
@@ -85,6 +89,7 @@ export async function updatePg(session: AdminSession, id: string, input: PgFormI
       images: input.images.filter(Boolean),
       videos: input.videos.filter(Boolean),
       isActive: input.isActive,
+      monthlyDepositPolicy: input.monthlyDepositPolicy ?? 'one_month',
       updatedAt: new Date(),
     })
     .where(eq(pgs.id, id));

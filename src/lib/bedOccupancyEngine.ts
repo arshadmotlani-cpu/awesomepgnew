@@ -187,7 +187,6 @@ export function computeBedOccupancySnapshot(input: BedOccupancyInput): BedOccupa
   const asOf = input.asOfDate ?? todayString();
   const monthly = isMonthlyTenancy(input);
   const fixed = isFixedTenancy(input);
-  const checkoutPending = isCheckoutPending(input);
 
   if (input.bedStatus === 'maintenance') {
     return {
@@ -200,6 +199,7 @@ export function computeBedOccupancySnapshot(input: BedOccupancyInput): BedOccupa
     };
   }
 
+  const checkoutPending = isCheckoutPending(input);
   if (checkoutPending) {
     return {
       publicState: 'occupied',
@@ -336,7 +336,7 @@ export function toCustomerAvailabilityView(
   }
 
   if (snap.publicState === 'maintenance') {
-    return { kind: 'maintenance', label: 'Maintenance' };
+    return { kind: 'maintenance', label: 'Under Maintenance' };
   }
 
   if (snap.adminState === 'checkout_pending') {
@@ -349,11 +349,10 @@ export function toCustomerAvailabilityView(
 
   if (snap.publicState === 'reserved' && input.activeBedReserveCheckIn) {
     const checkIn = input.activeBedReserveCheckIn;
-    const bufferIso = reserveBufferDate(checkIn);
     return {
       kind: 'reserved',
-      label: 'Held',
-      sublabel: `Short stays until ${formatShortDate(bufferIso)} · holder moves in ${formatShortDate(checkIn)}`,
+      label: 'Reserved',
+      sublabel: `Reserved until ${formatShortDate(checkIn)}`,
     };
   }
 
@@ -441,7 +440,7 @@ export function toAdminAvailabilityView(
   const snap = snapshot ?? computeBedOccupancySnapshot(input);
 
   if (input.bedStatus === 'maintenance') {
-    return { kind: 'maintenance', label: 'Maintenance' };
+    return { kind: 'maintenance', label: 'Under Maintenance' };
   }
   if (input.bedStatus === 'blocked') {
     return { kind: 'blocked', label: 'Blocked' };
@@ -469,7 +468,7 @@ export function toAdminAvailabilityView(
     return {
       kind: 'reserved',
       label: 'Reserved',
-      sublabel: `Check-in ${formatShortDate(reserveCheckIn)} · daily/weekly OK`,
+      sublabel: `Reserved until ${formatShortDate(reserveCheckIn)}`,
     };
   }
 

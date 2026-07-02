@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
+import { resolveFromSelectorBed } from '@/src/lib/bedOccupancyResolve';
 import { dispatchRoachieReminder } from '@/src/lib/cockroach/roachieReminders';
 import { BedBookingPanel } from './BedBookingPanel';
 import { BedReservePanel } from './BedReservePanel';
@@ -31,7 +32,7 @@ const LEGEND = [
   { label: 'Occupied', kind: 'occupied' as const },
   { label: 'Booked', kind: 'booked' as const },
   { label: 'Available soon', kind: 'pre_bookable' as const },
-  { label: 'Maintenance', kind: 'maintenance' as const },
+  { label: 'Under Maintenance', kind: 'maintenance' as const },
 ];
 
 function RoomBedCard({
@@ -45,12 +46,8 @@ function RoomBedCard({
   onSelectBed: (bedId: string) => void;
   mergeBed: (bed: BedSelectorBed) => BedSelectorBed;
 }) {
-  const openCount = room.beds.filter((b) => b.isAvailableNow && b.status === 'available').length;
-  const occupiedCount = room.beds.filter(
-    (b) =>
-      (!b.isAvailableNow && b.status === 'available' && !b.reservedFrom && !b.activeBedReserveCheckIn) ||
-      b.manualOccupied,
-  ).length;
+  const openCount = room.beds.filter((b) => resolveFromSelectorBed(b).isOpenNow).length;
+  const occupiedCount = room.beds.filter((b) => resolveFromSelectorBed(b).isOccupiedForKpi).length;
 
   return (
     <article className="rounded-2xl border border-white/10 apg-glass-light p-5">

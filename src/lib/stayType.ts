@@ -10,7 +10,7 @@ import type { PricingMode } from '@/src/services/pricing';
 export type StayType = 'monthly_stay' | 'fixed_date_stay';
 
 /** Max nights for fixed-date stays; checkout must fall within this window from booking day. */
-export const FIXED_DATE_MAX_NIGHTS = 30;
+export const FIXED_DATE_MAX_NIGHTS = 29;
 
 const STAY_TYPES: ReadonlySet<StayType> = new Set(['monthly_stay', 'fixed_date_stay']);
 

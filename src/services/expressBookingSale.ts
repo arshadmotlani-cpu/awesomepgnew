@@ -30,8 +30,6 @@ import { validateResidentGenderForBed } from '@/src/services/pgGenderPolicy';
 import { reconcileOrphanBedReservations } from '@/src/lib/occupancySync';
 import { rollbackExpressWalkInSale } from '@/src/services/expressWalkInRollback';
 
-const LONG_TERM_RESERVATION_END = '2099-01-01';
-
 export type ExpressBookingStayType = 'fixed' | 'continue';
 export type ExpressWalkInStayType = ExpressBookingStayType;
 export type ExpressWalkInPaymentMethod = 'cash' | 'upi' | 'bank_transfer' | 'other';
@@ -335,7 +333,7 @@ export async function executeExpressBookingSale(
 
   const reservationEnd =
     input.stayType === 'continue'
-      ? LONG_TERM_RESERVATION_END
+      ? null
       : (input.checkOutDate ?? input.checkInDate);
 
   const available = await isBedAvailable(
@@ -371,7 +369,6 @@ export async function executeExpressBookingSale(
     startDate: input.checkInDate,
     endDate,
     durationMode,
-    reservationEndDate: reservationEnd,
     blocksRoomAvailability: input.blocksWholeRoom === true,
     customerId,
     customer: {

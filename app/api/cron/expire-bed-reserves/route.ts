@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 /**
- * Marks active bed reserves past their check-in date as expired, and cancels
+ * Converts due bed reserves to monthly stays on check-in, and cancels
  * unpaid pending reserve holds whose payment window has lapsed.
  */
 async function handle(req: NextRequest) {

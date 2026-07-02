@@ -108,5 +108,7 @@ Files:
 - **APG-2026-0036-BOOKING-MODEL** — Production verified: 0036 = fixed_stay B3 (₹2,685 / 7 nights); current B1 Aug-1 = monthly APG-2026-0040 (₹8,242); occupancy bug = shared checkout-date semantics → `docs/APG-2026-0036_BOOKING_MODEL_INVESTIGATION.md`
 - **BOOKING-LIFECYCLE-SSOT-PLAN** — Plan approved: Phase 1→2→2b→3→4; unbounded `[check_in,)`; admin checkout_pending; PG deposit policy inheritance; global 1-day buffer → `docs/BOOKING_LIFECYCLE_SSOT_PLAN.md`
 - **BOOKING-LIFECYCLE-PHASE-1** — Occupancy SSOT engine (`bedOccupancyEngine.ts`), `OCCUPANCY_ENGINE_V2` flag, pgBedMap + customer query wiring, checkout-pending rules (monthly mandatory / fixed workflow-only), Phase 3 migration gated
+- **BOOKING-LIFECYCLE-PHASE-1-COMPLETE** — All display/count surfaces migrated; flag removed; `bedOccupancyResolve` + `bedOccupancyBatch`; audit → `docs/PHASE_1_OCCUPANCY_AUDIT.md`
+- **BOOKING-LIFECYCLE-PHASES-2-2B-3** — Maintenance first-class; reservation product (50% optimized rent, auto-convert); monthly unbounded stay_range + deposit policy PG UI; report → `docs/PHASES_2_3_IMPLEMENTATION_REPORT.md`
 
 ---

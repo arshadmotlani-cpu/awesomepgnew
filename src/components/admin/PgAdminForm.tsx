@@ -174,6 +174,35 @@ export function PgAdminForm({
         </div>
       </Section>
 
+      <Section
+        title="Monthly deposit policy"
+        description="Default security deposit for monthly stays at this PG. Room-level overrides are supported in the database; bed prices can still set an explicit deposit."
+      >
+        <fieldset>
+          <legend className="text-sm text-zinc-400">Deposit required</legend>
+          <div className="mt-2 flex flex-wrap gap-4 text-sm text-zinc-200">
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="monthlyDepositPolicy"
+                value="one_month"
+                defaultChecked={pg?.monthlyDepositPolicy !== 'two_month'}
+              />
+              One month rent
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="monthlyDepositPolicy"
+                value="two_month"
+                defaultChecked={pg?.monthlyDepositPolicy === 'two_month'}
+              />
+              Two months rent
+            </label>
+          </div>
+        </fieldset>
+      </Section>
+
       <Section title="Facilities & amenities" description="Tick what this PG offers. Shown on the public listing.">
         <fieldset>
           <legend className="text-sm text-zinc-400">Gender policy</legend>

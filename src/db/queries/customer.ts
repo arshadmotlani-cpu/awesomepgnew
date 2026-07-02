@@ -37,6 +37,8 @@ import type { PricingSnapshot } from '../schema/bookings';
 import { classifyDatabaseError } from '@/src/lib/db/connectionOptions';
 import { getDatabaseHost, getDatabaseUrlSource } from '@/src/lib/db/env';
 import { todayString } from '@/src/lib/dates';
+import { resolveBedOccupancy } from '@/src/lib/bedOccupancyResolve';
+import { getOccupancyCountsByPg, getOccupancyCountsByRoom } from '@/src/services/bedOccupancyBatch';
 import { logger } from '@/src/lib/logger';
 import { safeQuery } from '@/src/lib/healing/safeQuery';
 import { traceQuery } from '@/src/lib/monitoring/traceQuery';
@@ -135,23 +137,7 @@ export function listPublicPgs(): Promise<QueryResult<CustomerPgListRow[]>> {
             AND r.archived_at IS NULL
             AND f.archived_at IS NULL
         )`,
-        availableBeds: sql<number>`(
-          SELECT count(*)::int FROM ${beds} b
-          JOIN ${rooms} r ON r.id = b.room_id
-          JOIN ${floors} f ON f.id = r.floor_id
-          WHERE f.pg_id = pgs.id
-            AND b.archived_at IS NULL
-            AND r.archived_at IS NULL
-            AND f.archived_at IS NULL
-            AND b.status = 'available'
-            AND NOT b.manual_occupied
-            AND NOT EXISTS (
-              SELECT 1 FROM ${bedReservations} br
-              WHERE br.bed_id = b.id
-                AND br.status = 'active'
-                AND CURRENT_DATE <@ br.stay_range
-            )
-        )`,
+        availableBeds: sql<number>`0`,
         startingFromPaise: sql<number>`coalesce((
           SELECT min(bp.monthly_rate_paise)::bigint::int FROM ${bedPrices} bp
           JOIN ${beds} b ON b.id = bp.bed_id
@@ -166,6 +152,9 @@ export function listPublicPgs(): Promise<QueryResult<CustomerPgListRow[]>> {
       .from(pgs)
       .where(and(sql`${pgs.archivedAt} IS NULL`, eq(pgs.isActive, true)));
 
+    const pgIds = rows.map((r) => r.id);
+    const countsByPg = await getOccupancyCountsByPg(pgIds);
+
     const result = sortPublicPgs(
       rows.map((r) => {
         const presented = applyPublicPgPresentation({
@@ -174,6 +163,7 @@ export function listPublicPgs(): Promise<QueryResult<CustomerPgListRow[]>> {
           publicDisplayName: r.publicDisplayName,
           displayOrder: r.displayOrder,
         });
+        const counts = countsByPg.get(r.id);
         return {
           id: r.id,
           slug: r.slug,
@@ -186,7 +176,7 @@ export function listPublicPgs(): Promise<QueryResult<CustomerPgListRow[]>> {
           description: r.description,
           heroImage: Array.isArray(r.images) && r.images.length > 0 ? r.images[0] : null,
           totalBeds: r.totalBeds,
-          availableBeds: r.availableBeds,
+          availableBeds: counts?.openNowBeds ?? 0,
           startingFromPaise: r.startingFromPaise,
           hasPaymentEnabled: r.hasPaymentEnabled,
           displayOrder: presented.displayOrder,
@@ -317,19 +307,7 @@ export function listRoomsForPg(
           SELECT count(*)::int FROM ${beds} b
           WHERE b.room_id = rooms.id AND b.archived_at IS NULL
         )`,
-        availableBeds: sql<number>`(
-          SELECT count(*)::int FROM ${beds} b
-          WHERE b.room_id = rooms.id
-            AND b.archived_at IS NULL
-            AND b.status = 'available'
-            AND NOT b.manual_occupied
-            AND NOT EXISTS (
-              SELECT 1 FROM ${bedReservations} br
-              WHERE br.bed_id = b.id
-                AND br.status = 'active'
-                AND ${refDate}::date <@ br.stay_range
-            )
-        )`,
+        availableBeds: sql<number>`0`,
         monthlyRatePaise: sql<number>`coalesce((
           SELECT min(bp.monthly_rate_paise)::bigint::int FROM ${bedPrices} bp
           JOIN ${beds} b ON b.id = bp.bed_id
@@ -366,7 +344,13 @@ export function listRoomsForPg(
         ),
       )
       .orderBy(asc(floors.floorNumber), asc(rooms.roomNumber));
-    return rows;
+
+    const roomIds = rows.map((r) => r.roomId);
+    const countsByRoom = await getOccupancyCountsByRoom(roomIds, refDate);
+    return rows.map((r) => ({
+      ...r,
+      availableBeds: countsByRoom.get(r.roomId)?.openNowBeds ?? 0,
+    }));
   });
 }
 
@@ -475,16 +459,7 @@ export function getRoomDetail(
         // Correlated references to the outer `beds.id` / `beds.status` are
         // qualified literals to avoid the ambiguity bug — see the note in
         // listPublicPgs above.
-        isAvailableNow: sql<boolean>`(
-          beds.status = 'available'
-          AND NOT beds.manual_occupied
-          AND NOT EXISTS (
-            SELECT 1 FROM ${bedReservations} br
-            WHERE br.bed_id = beds.id
-              AND br.status = 'active'
-              AND ${refDate}::date <@ br.stay_range
-          )
-        )`,
+        isAvailableNow: sql<boolean>`false`,
         isOccupiedToday: sql<boolean>`(${bedOccupiedTodayExistsSql})`,
         nextAvailableDate: sql<string | null>`(
           SELECT to_char(sub.d, 'YYYY-MM-DD')
@@ -753,24 +728,8 @@ export function getRoomDetail(
         publicDisplayName,
         displayOrder,
       }).name,
-      beds: bedRows.map((row) => ({
-        bedId: row.bedId,
-        bedCode: row.bedCode,
-        status: row.status,
-        manualOccupied: row.manualOccupied,
-        isAvailableNow: row.isAvailableNow,
-        isOccupiedToday: row.isOccupiedToday,
-        nextAvailableDate: row.nextAvailableDate,
-        interestCount: row.interestCount,
-        noticeInterestCount: row.noticeInterestCount,
-        vacatingDate: row.vacatingDate,
-        vacatingStatus: row.vacatingStatus,
-        reservedFrom: row.reservedFrom,
-        activeBedReserveCheckIn: row.activeBedReserveCheckIn,
-        stayType: row.stayType,
-        durationMode: row.durationMode,
-        expectedCheckoutDate: row.expectedCheckoutDate,
-        checkoutSettlement:
+      beds: bedRows.map((row) => {
+        const checkoutSettlement =
           row.checkoutSettlementId && row.checkoutSettlementStatus
             ? {
                 id: row.checkoutSettlementId,
@@ -780,15 +739,52 @@ export function getRoomDetail(
                 depositHeldPaise: row.checkoutDepositHeldPaise ?? 0,
                 electricityPending: Boolean(row.checkoutElectricityPending),
               }
-            : null,
-        dailyRatePaise: row.dailyRatePaise,
-        weeklyRatePaise: row.weeklyRatePaise,
-        monthlyRatePaise: row.monthlyRatePaise,
-        securityDepositPaise: row.securityDepositPaise,
-        dailySecurityDepositPaise: row.dailySecurityDepositPaise,
-        weeklySecurityDepositPaise: row.weeklySecurityDepositPaise,
-        monthlySecurityDepositPaise: row.monthlySecurityDepositPaise,
-      })),
+            : null;
+        const resolved = resolveBedOccupancy({
+          bedId: row.bedId,
+          bedStatus: row.status,
+          asOfDate: refDate,
+          isOccupiedToday: row.isOccupiedToday,
+          manualOccupied: row.manualOccupied ?? false,
+          stayType: row.stayType,
+          durationMode: row.durationMode,
+          expectedCheckoutDate: row.expectedCheckoutDate,
+          stayUpper: row.nextAvailableDate,
+          vacatingDate: row.vacatingDate,
+          vacatingStatus: row.vacatingStatus,
+          checkoutSettlement,
+          activeBedReserveCheckIn: row.activeBedReserveCheckIn,
+          reservedFrom: row.reservedFrom,
+          noticeInterestCount: row.noticeInterestCount,
+          holdInterestCount: row.interestCount,
+        });
+        return {
+          bedId: row.bedId,
+          bedCode: row.bedCode,
+          status: row.status,
+          manualOccupied: row.manualOccupied,
+          isAvailableNow: resolved.isOpenNow,
+          isOccupiedToday: row.isOccupiedToday,
+          nextAvailableDate: resolved.snapshot.bookableFromDate ?? row.nextAvailableDate,
+          interestCount: row.interestCount,
+          noticeInterestCount: row.noticeInterestCount,
+          vacatingDate: row.vacatingDate,
+          vacatingStatus: row.vacatingStatus,
+          reservedFrom: row.reservedFrom,
+          activeBedReserveCheckIn: row.activeBedReserveCheckIn,
+          stayType: row.stayType,
+          durationMode: row.durationMode,
+          expectedCheckoutDate: row.expectedCheckoutDate,
+          checkoutSettlement,
+          dailyRatePaise: row.dailyRatePaise,
+          weeklyRatePaise: row.weeklyRatePaise,
+          monthlyRatePaise: row.monthlyRatePaise,
+          securityDepositPaise: row.securityDepositPaise,
+          dailySecurityDepositPaise: row.dailySecurityDepositPaise,
+          weeklySecurityDepositPaise: row.weeklySecurityDepositPaise,
+          monthlySecurityDepositPaise: row.monthlySecurityDepositPaise,
+        };
+      }),
     };
   });
 }

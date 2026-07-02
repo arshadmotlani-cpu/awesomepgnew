@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { boolean, integer, jsonb, numeric, pgTable, text, timestamp, uuid, bigint } from 'drizzle-orm/pg-core';
 import { adminUsers } from './adminUsers';
-import { genderPolicyEnum } from './enums';
+import { genderPolicyEnum, monthlyDepositPolicyEnum } from './enums';
 
 export type PgAmenities = {
   wifi?: boolean;
@@ -74,6 +74,9 @@ export const pgs = pgTable('pgs', {
   geoLat: numeric('geo_lat', { precision: 9, scale: 6 }),
   geoLng: numeric('geo_lng', { precision: 9, scale: 6 }),
   genderPolicy: genderPolicyEnum('gender_policy').notNull(),
+  monthlyDepositPolicy: monthlyDepositPolicyEnum('monthly_deposit_policy')
+    .notNull()
+    .default('one_month'),
   amenities: jsonb('amenities').$type<PgAmenities>().notNull().default({}),
   images: jsonb('images').$type<string[]>().notNull().default([]),
   videos: jsonb('videos').$type<string[]>().notNull().default([]),

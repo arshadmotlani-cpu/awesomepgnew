@@ -54,7 +54,7 @@ test('monthly UI reference deposit matches quote engine when bed_prices deposit 
   assert.equal(fromUi, fromQuote);
 });
 
-test('monthly UI falls back to half-month when bed_prices deposit is unset', () => {
+test('monthly UI falls back to one-month policy when bed_prices deposit is unset', () => {
   const monthlyRentPaise = 600_000;
   const fromUi = displayMonthlyDepositPaise({
     monthlyRatePaise: monthlyRentPaise,
@@ -62,7 +62,7 @@ test('monthly UI falls back to half-month when bed_prices deposit is unset', () 
     monthlySecurityDepositPaise: 0,
   });
 
-  assert.equal(fromUi, 300_000);
+  assert.equal(fromUi, 600_000);
 });
 
 test('server-enriched quotedMonthlyDepositPaise is preferred on bed pages', () => {

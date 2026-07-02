@@ -355,16 +355,23 @@ export async function createBooking(
     }
   }
 
-  const reservationEnd = input.reservationEndDate
-    ? parseDate(input.reservationEndDate)
-    : endDate ??
-      new Date(
-        Date.UTC(
-          startDate.getUTCFullYear(),
-          startDate.getUTCMonth() + 1,
-          startDate.getUTCDate(),
-        ),
-      );
+  const isOpenEndedMonthly =
+    input.durationMode === 'open_ended' || input.durationMode === 'monthly';
+
+  let reservationEnd: Date | null = null;
+  if (input.reservationEndDate) {
+    reservationEnd = parseDate(input.reservationEndDate);
+  } else if (endDate) {
+    reservationEnd = endDate;
+  } else if (!isOpenEndedMonthly) {
+    reservationEnd = new Date(
+      Date.UTC(
+        startDate.getUTCFullYear(),
+        startDate.getUTCMonth() + 1,
+        startDate.getUTCDate(),
+      ),
+    );
+  }
 
   let reservationBedIds = uniqueBedIds;
   if (input.blocksRoomAvailability) {
@@ -588,6 +595,8 @@ export async function createBooking(
           customer = row;
         }
 
+        const startIso = formatDate(startDate);
+
         const [booking] = await tx
           .insert(bookings)
           .values({
@@ -597,9 +606,10 @@ export async function createBooking(
             durationMode: input.durationMode,
             stayType: bookingStayType,
             expectedCheckoutDate:
-              input.durationMode === 'open_ended' || !endDate
+              isOpenEndedMonthly || !endDate
                 ? null
                 : formatDate(endDate),
+            billingAnchorDate: isOpenEndedMonthly ? startIso : null,
             subtotalPaise: quote.subtotalPaise,
             discountPaise,
             taxPaise: 0,
@@ -613,19 +623,18 @@ export async function createBooking(
           })
           .returning({ id: bookings.id });
 
-        const startIso = formatDate(startDate);
-        const endIso = formatDate(reservationEnd);
-
-        // One insert per bed. We could VALUES-batch this, but per-row
-        // inserts let postgres point us at the specific conflicting row in
-        // its error message if the EXCLUDE constraint fires.
+        // One insert per bed.
         for (const bedId of reservationBedIds) {
+          const stayRange =
+            isOpenEndedMonthly
+              ? (sql`daterange(${startIso}::date, NULL, '[)')` as unknown as string)
+              : (sql`daterange(${startIso}::date, ${formatDate(reservationEnd!)}::date, '[)')` as unknown as string);
           await tx
             .insert(bedReservations)
             .values({
               bookingId: booking.id,
               bedId,
-              stayRange: sql`daterange(${startIso}::date, ${endIso}::date, '[)')` as unknown as string,
+              stayRange,
               kind: 'primary',
               status: reservationStatus,
               holdExpiresAt,

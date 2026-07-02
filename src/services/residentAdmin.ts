@@ -43,8 +43,7 @@ import {
 } from '@/src/services/rentInvoices';
 import { billingDayFromMoveIn } from '@/src/services/billing';
 import { siblingBedIdsInRoom } from '@/src/services/tenantAssignmentInternals';
-
-const LONG_TERM_END = '2099-01-01';
+import { isUnboundedStayUpper } from '@/src/lib/dates';
 
 export type ResidentListRow = {
   id: string;
@@ -591,7 +590,7 @@ export async function updateTenantTenancy(
     const available = await isBedAvailable({
       bedId: newBedId,
       startDate: today,
-      endDate: LONG_TERM_END,
+      endDate: null,
     });
     if (!available) {
       return { ok: false, error: 'Selected bed is not available for those dates.' };
@@ -612,7 +611,7 @@ export async function updateTenantTenancy(
       await db.insert(bedReservations).values({
         bookingId: input.bookingId,
         bedId,
-        stayRange: sql`daterange(${today}::date, ${LONG_TERM_END}::date, '[)')` as unknown as string,
+        stayRange: sql`daterange(${today}::date, NULL, '[)')` as unknown as string,
         kind: 'primary',
         status: 'active',
       });
@@ -742,7 +741,7 @@ export async function shiftBookingToReservation(
       and(
         eq(bedReservations.bedId, ctx.bedId),
         sql`${bedReservations.status} IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
-        sql`${bedReservations.stayRange} && daterange(${moveInDate}::date, ${LONG_TERM_END}::date, '[)')`,
+        sql`${bedReservations.stayRange} && daterange(${moveInDate}::date, NULL, '[)')`,
         sql`${bedReservations.bookingId} <> ${input.bookingId}`,
       ),
     )
@@ -754,7 +753,7 @@ export async function shiftBookingToReservation(
   await db.execute(sql`
     UPDATE bed_reservations
     SET
-      stay_range = daterange(${moveInDate}::date, ${LONG_TERM_END}::date, '[)'),
+      stay_range = daterange(${moveInDate}::date, NULL, '[)'),
       updated_at = now()
     WHERE booking_id = ${input.bookingId}
       AND status = 'active'
@@ -762,7 +761,11 @@ export async function shiftBookingToReservation(
 
   await db
     .update(bookings)
-    .set({ expectedCheckoutDate: LONG_TERM_END, updatedAt: new Date() })
+    .set({
+      expectedCheckoutDate: null,
+      billingAnchorDate: moveInDate,
+      updatedAt: new Date(),
+    })
     .where(eq(bookings.id, input.bookingId));
 
   return { ok: true };
@@ -865,7 +868,12 @@ export async function updateBookingMoveInDate(
     return { ok: false, error: 'Check-in date is already set to that day.' };
   }
 
-  const stayEnd = ctx.currentUpper ?? LONG_TERM_END;
+  const stayEnd = ctx.currentUpper;
+  const unboundedUpper = isUnboundedStayUpper(stayEnd);
+
+  const overlapSql = unboundedUpper
+    ? sql`${bedReservations.stayRange} && daterange(${moveInDate}::date, NULL, '[)')`
+    : sql`${bedReservations.stayRange} && daterange(${moveInDate}::date, ${stayEnd}::date, '[)')`;
 
   const [conflict] = await db
     .select({ id: bedReservations.id })
@@ -875,7 +883,7 @@ export async function updateBookingMoveInDate(
       and(
         eq(bedReservations.bedId, ctx.bedId),
         sql`${bedReservations.status} IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
-        sql`${bedReservations.stayRange} && daterange(${moveInDate}::date, ${stayEnd}::date, '[)')`,
+        overlapSql,
         sql`${bedReservations.bookingId} <> ${input.bookingId}`,
       ),
     )
@@ -884,14 +892,25 @@ export async function updateBookingMoveInDate(
     return { ok: false, error: 'Bed is occupied by another booking for that date range.' };
   }
 
-  await db.execute(sql`
+  await db.execute(
+    unboundedUpper
+      ? sql`
+    UPDATE bed_reservations
+    SET
+      stay_range = daterange(${moveInDate}::date, NULL, '[)'),
+      updated_at = now()
+    WHERE booking_id = ${input.bookingId}
+      AND status = 'active'
+  `
+      : sql`
     UPDATE bed_reservations
     SET
       stay_range = daterange(${moveInDate}::date, ${stayEnd}::date, '[)'),
       updated_at = now()
     WHERE booking_id = ${input.bookingId}
       AND status = 'active'
-  `);
+  `,
+  );
 
   const rentResult = await recalculateRentAfterMoveInChange({
     bookingId: input.bookingId,

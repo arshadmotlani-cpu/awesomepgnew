@@ -49,9 +49,9 @@ test('fixed-date: 25 Jun → 05 Jul 2026 = 10 nights auto total', () => {
   assert.equal(q.pricingStrategy, 'weeks_plus_days');
 });
 
-test('fixed-date validation rejects stays over 30 nights', () => {
+test('fixed-date validation rejects stays over 29 nights', () => {
   const err = validateFixedDateStay('2026-06-01', '2026-07-05', '2026-06-01');
-  assert.match(err ?? '', /30 nights/);
+  assert.match(err ?? '', /29 nights/);
 });
 
 test('fixed-date validation rejects checkout beyond booking window', () => {
@@ -63,8 +63,8 @@ test('fixed-date validation accepts 7-night stay within window', () => {
   assert.equal(validateFixedDateStay('2026-06-10', '2026-06-17', '2026-06-01'), null);
 });
 
-test('FIXED_DATE_MAX_NIGHTS is 30', () => {
-  assert.equal(FIXED_DATE_MAX_NIGHTS, 30);
+test('FIXED_DATE_MAX_NIGHTS is 29', () => {
+  assert.equal(FIXED_DATE_MAX_NIGHTS, 29);
 });
 
 test('monthly stay deposit uses bed_prices when configured (1 month rent)', () => {
@@ -78,15 +78,16 @@ test('monthly stay deposit uses bed_prices when configured (1 month rent)', () =
   assert.equal(deposit, 600_000);
 });
 
-test('monthly stay deposit falls back to 2 weeks rent when bed_prices deposit unset', () => {
+test('monthly stay deposit falls back to one month rent when bed_prices deposit unset', () => {
   const monthlyRentPaise = 600_000;
   const deposit = computeMonthlyDepositPaise({
     ...RATE,
     monthlyRatePaise: monthlyRentPaise,
     monthlySecurityDepositPaise: 0,
     securityDepositPaise: 0,
+    pgMonthlyDepositPolicy: 'one_month',
   });
-  assert.equal(deposit, 300_000);
+  assert.equal(deposit, 600_000);
 });
 
 test('fixed-date 10-night stay: auto rent + 50% deposit', () => {

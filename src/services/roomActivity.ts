@@ -1,28 +1,23 @@
+import { and, eq, gte, isNull, or, sql } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
-import { and, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
   bedReservations,
   beds,
   bookings,
-  floors,
-  pgs,
   roomPageViews,
-  rooms,
   vacatingRequests,
 } from '@/src/db/schema';
 import { todayString } from '@/src/lib/dates';
+import { getOccupancyCountsByRoom } from '@/src/services/bedOccupancyBatch';
 
 export type RoomActivityStats = {
   bedsTotal: number;
   bedsAvailableNow: number;
   bedsOccupiedNow: number;
   bedsLeavingSoon: number;
-  /** Distinct unpaid checkouts (hold) overlapping today — soft interest, not occupancy. */
   interestedBookings: number;
-  /** Bookings awaiting payment for beds in this room. */
   pendingPayments: number;
-  /** Unique visitors in the last 7 days (null if view tracking is unavailable). */
   uniqueViewers7d: number | null;
 };
 
@@ -71,25 +66,11 @@ export async function getRoomActivityStats(
   referenceDate?: string,
 ): Promise<RoomActivityStats> {
   const refDate = referenceDate ?? todayString();
-
-  const bedRows = await db
-    .select({
-      bedId: beds.id,
-      isAvailableNow: sql<boolean>`(
-        ${beds.status} = 'available' AND NOT EXISTS (
-          SELECT 1 FROM ${bedReservations} br
-          WHERE br.bed_id = ${beds.id}
-            AND br.status = 'active'
-            AND ${refDate}::date <@ br.stay_range
-        )
-      )`,
-    })
-    .from(beds)
-    .where(and(eq(beds.roomId, roomId), isNull(beds.archivedAt)));
-
-  const bedsTotal = bedRows.length;
-  const bedsAvailableNow = bedRows.filter((b) => b.isAvailableNow).length;
-  const bedsOccupiedNow = bedsTotal - bedsAvailableNow;
+  const countsByRoom = await getOccupancyCountsByRoom([roomId], refDate);
+  const counts = countsByRoom.get(roomId);
+  const bedsTotal = counts?.totalBeds ?? 0;
+  const bedsAvailableNow = counts?.openNowBeds ?? 0;
+  const bedsOccupiedNow = counts?.occupiedBeds ?? 0;
 
   const [{ interestCount }] = await db
     .select({
@@ -124,7 +105,7 @@ export async function getRoomActivityStats(
         eq(beds.roomId, roomId),
         isNull(beds.archivedAt),
         eq(bookings.status, 'pending_payment'),
-        inArray(bedReservations.status, ['hold', 'active']),
+        eq(bedReservations.status, 'hold'),
       ),
     );
 
@@ -132,30 +113,33 @@ export async function getRoomActivityStats(
     .select({
       leavingSoon: sql<number>`count(distinct ${beds.id})::int`,
     })
-    .from(vacatingRequests)
-    .innerJoin(bookings, eq(bookings.id, vacatingRequests.bookingId))
-    .innerJoin(bedReservations, eq(bedReservations.bookingId, bookings.id))
-    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
+    .from(beds)
+    .innerJoin(bedReservations, eq(bedReservations.bedId, beds.id))
+    .innerJoin(bookings, eq(bookings.id, bedReservations.bookingId))
+    .innerJoin(vacatingRequests, eq(vacatingRequests.bookingId, bookings.id))
     .where(
       and(
         eq(beds.roomId, roomId),
         isNull(beds.archivedAt),
         eq(bedReservations.status, 'active'),
-        inArray(vacatingRequests.status, ['pending', 'approved']),
-        sql`${vacatingRequests.vacatingDate} >= ${refDate}::date`,
+        eq(bookings.status, 'confirmed'),
+        sql`${vacatingRequests.status} IN ('pending', 'approved')`,
+        sql`${refDate}::date <@ ${bedReservations.stayRange}`,
       ),
     );
 
   let uniqueViewers7d: number | null = null;
   try {
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const [{ viewers }] = await db
+    const [{ count }] = await db
       .select({
-        viewers: sql<number>`count(distinct ${roomPageViews.visitorKey})::int`,
+        count: sql<number>`count(distinct ${roomPageViews.visitorKey})::int`,
       })
       .from(roomPageViews)
-      .where(and(eq(roomPageViews.roomId, roomId), gte(roomPageViews.viewedAt, sevenDaysAgo)));
-    uniqueViewers7d = viewers;
+      .where(
+        and(eq(roomPageViews.roomId, roomId), gte(roomPageViews.viewedAt, sevenDaysAgo)),
+      );
+    uniqueViewers7d = count;
   } catch {
     uniqueViewers7d = null;
   }
@@ -164,21 +148,9 @@ export async function getRoomActivityStats(
     bedsTotal,
     bedsAvailableNow,
     bedsOccupiedNow,
-    bedsLeavingSoon: leavingSoon,
-    interestedBookings: interestCount,
-    pendingPayments: pendingCount,
+    bedsLeavingSoon: leavingSoon ?? 0,
+    interestedBookings: interestCount ?? 0,
+    pendingPayments: pendingCount ?? 0,
     uniqueViewers7d,
   };
-}
-
-/** Verify room belongs to PG before recording views. */
-export async function roomBelongsToPgSlug(pgSlug: string, roomId: string): Promise<boolean> {
-  const [row] = await db
-    .select({ roomId: rooms.id })
-    .from(rooms)
-    .innerJoin(floors, eq(floors.id, rooms.floorId))
-    .innerJoin(pgs, eq(pgs.id, floors.pgId))
-    .where(and(eq(rooms.id, roomId), eq(pgs.slug, pgSlug), isNull(rooms.archivedAt)))
-    .limit(1);
-  return Boolean(row);
 }

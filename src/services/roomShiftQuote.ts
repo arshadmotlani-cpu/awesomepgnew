@@ -4,8 +4,7 @@
 
 import { todayString, parseDate, formatDate, addDays } from '@/src/lib/dates';
 import { billingDayFromMoveIn, prorateForMonth } from '@/src/services/billing';
-import { computeMonthlyDepositPaise } from '@/src/lib/pricing/depositRules';
-import { loadBedPrice } from '@/src/services/pricing';
+import { computeMonthlyDepositPaise, loadBedPrice } from '@/src/services/pricing';
 
 export const ROOM_SHIFT_FEE_PAISE = 10_000; // ₹100
 
@@ -67,10 +66,7 @@ export async function computeRoomShiftQuote(input: {
     throw new Error('Could not load pricing for target bed.');
   }
   const newMonthlyRentPaise = newPrice.monthlyRatePaise;
-  const newDepositRequired = computeMonthlyDepositPaise({
-    monthlyRatePaise: newMonthlyRentPaise,
-    monthlySecurityDepositPaise: newPrice.monthlySecurityDepositPaise ?? undefined,
-  });
+  const newDepositRequired = computeMonthlyDepositPaise(newPrice);
 
   const unusedRentCreditPaise = remainingInBillingMonth(shiftDate, input.oldMonthlyRentPaise);
   const newRentChargePaise = remainingInBillingMonth(shiftDate, newMonthlyRentPaise);

@@ -42,6 +42,13 @@ export const authProviderEnum = pgEnum('auth_provider', ['otp', 'google', 'email
 
 export const bedStatusEnum = pgEnum('bed_status', ['available', 'maintenance', 'blocked']);
 
+export const monthlyDepositPolicyEnum = pgEnum('monthly_deposit_policy', [
+  'one_month',
+  'two_month',
+]);
+
+export type MonthlyDepositPolicy = (typeof monthlyDepositPolicyEnum.enumValues)[number];
+
 export const bookingStatusEnum = pgEnum('booking_status', [
   'draft',
   'pending_payment',

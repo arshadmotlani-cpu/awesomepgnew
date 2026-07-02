@@ -6,6 +6,8 @@ import {
   BedSelector,
   type BedSelectorBed,
 } from '@/src/components/customer/BedSelector';
+import { canBookBed } from '@/src/components/customer/customerBedUi';
+import { resolveFromSelectorBed } from '@/src/lib/bedOccupancyResolve';
 import { StickyBookCta } from '@/src/components/customer/marketing/StickyBookCta';
 import { CountUpNumber } from '@/src/components/customer/design-system';
 import { RoomDetailInsights } from '@/src/components/customer/RoomDetailInsights';
@@ -95,10 +97,8 @@ export default async function RoomDetailPage(
     quotedMonthlyDepositPaise: b.quotedMonthlyDepositPaise,
   }));
 
-  const availableNowCount = bedsForSelector.filter((b) => b.status === 'available' && b.isAvailableNow).length;
-  const bookableCount = bedsForSelector.filter(
-    (b) => b.status === 'available' && (b.isAvailableNow || b.nextAvailableDate),
-  ).length;
+  const availableNowCount = bedsForSelector.filter((b) => resolveFromSelectorBed(b).isOpenNow).length;
+  const bookableCount = bedsForSelector.filter((b) => canBookBed(b)).length;
 
   const rateSample = bedsForSelector.find((b) => b.monthlyRatePaise > 0) ?? bedsForSelector[0];
 

@@ -39,7 +39,7 @@ export async function fetchRoomChangeAvailabilityAction(input: {
   const available: Array<{ bedId: string; roomNumber: string; bedCode: string; monthlyRentPaise: number }> = [];
   for (const row of bedRows) {
     if (row.bedId === input.fromBedId) continue;
-    const ok = await isBedAvailable({ bedId: row.bedId, startDate: fromDate, endDate: '2099-01-01' });
+    const ok = await isBedAvailable({ bedId: row.bedId, startDate: fromDate, endDate: null });
     if (!ok) continue;
     try {
       const price = await loadBedPrice(row.bedId, fromDate);

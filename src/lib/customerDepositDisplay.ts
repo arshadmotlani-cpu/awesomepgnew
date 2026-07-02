@@ -1,4 +1,4 @@
-import { computeMonthlyDepositPaise } from '@/src/lib/pricing/depositRules';
+import { resolveMonthlyDepositPaise } from '@/src/lib/pricing/monthlyDepositPolicy';
 
 /** Bed rate fields used for customer-facing deposit previews (no DB). */
 export type CustomerBedRateFields = {
@@ -18,16 +18,16 @@ export const MONTHLY_STAY_DEPOSIT_REFERENCE_LABEL = 'Reference deposit (monthly 
 
 /**
  * Monthly / open-ended deposit shown on bed maps and room pages.
- * Prefers server quote; falls back to half-month rule when only rates are present.
+ * Prefers server quote; falls back to one-month PG-default policy when only rates are present.
  */
 export function displayMonthlyDepositPaise(bed: CustomerBedRateFields): number {
   if (typeof bed.quotedMonthlyDepositPaise === 'number' && bed.quotedMonthlyDepositPaise > 0) {
     return bed.quotedMonthlyDepositPaise;
   }
   if (bed.monthlyRatePaise > 0) {
-    return computeMonthlyDepositPaise({
+    return resolveMonthlyDepositPaise({
       monthlyRatePaise: bed.monthlyRatePaise,
-      monthlySecurityDepositPaise: bed.monthlySecurityDepositPaise,
+      bedMonthlySecurityDepositPaise: bed.monthlySecurityDepositPaise,
     });
   }
   return 0;
