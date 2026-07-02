@@ -79,6 +79,7 @@ export const activeTenancyLateralSql = sql`
       bd.bed_code,
       bd.id::text AS bed_id,
       f.pg_id::text AS pg_id,
+      f.floor_number,
       coalesce((
         SELECT sum((elem->>'monthlyRatePaise')::bigint)
         FROM jsonb_array_elements(
@@ -94,13 +95,30 @@ export const activeTenancyLateralSql = sql`
       b.duration_mode::text AS duration_mode,
       b.stay_type::text AS stay_type,
       b.expected_checkout_date::text AS expected_checkout_date,
+      b.billing_anchor_date::text AS billing_anchor_date,
       to_char(lower(br.stay_range), 'YYYY-MM-DD') AS move_in_date,
       b.pricing_snapshot,
       EXISTS (
         SELECT 1 FROM vacating_requests vr
         WHERE vr.booking_id = b.id
           AND vr.status IN ('pending', 'approved')
-      ) AS is_vacating
+      ) AS is_vacating,
+      (
+        SELECT vr.vacating_date::text
+        FROM vacating_requests vr
+        WHERE vr.booking_id = b.id
+          AND vr.status IN ('pending', 'approved')
+        ORDER BY vr.created_at DESC
+        LIMIT 1
+      ) AS vacating_date,
+      (
+        SELECT vr.status::text
+        FROM vacating_requests vr
+        WHERE vr.booking_id = b.id
+          AND vr.status IN ('pending', 'approved')
+        ORDER BY vr.created_at DESC
+        LIMIT 1
+      ) AS vacating_status
     FROM bookings b
     INNER JOIN bed_reservations br ON br.booking_id = b.id
     INNER JOIN beds bd ON bd.id = br.bed_id
@@ -125,15 +143,19 @@ export type ActiveTenancyDbRow = {
   bed_code: string;
   bed_id: string;
   pg_id: string;
+  floor_number: number | null;
   monthly_rent_paise: number | null;
   deposit_paise: number;
   blocks_room_availability: boolean;
   duration_mode: string;
   stay_type: string;
   expected_checkout_date: string | null;
+  billing_anchor_date: string | null;
   move_in_date: string;
   pricing_snapshot: PricingSnapshot | null;
   is_vacating: boolean;
+  vacating_date: string | null;
+  vacating_status: string | null;
 };
 
 export type ActiveTenancy = {
@@ -145,14 +167,18 @@ export type ActiveTenancy = {
   roomId: string;
   bedId: string;
   bedCode: string;
+  floorNumber: number | null;
   monthlyRentPaise: number;
   depositPaise: number;
   blocksRoomAvailability: boolean;
   moveInDate: string;
+  billingAnchorDate: string | null;
   durationMode: string;
   stayType: string;
   expectedCheckoutDate: string | null;
   isVacating: boolean;
+  vacatingDate: string | null;
+  vacatingStatus: string | null;
 };
 
 function mapActiveTenancyRow(row: ActiveTenancyDbRow): ActiveTenancy {
@@ -168,14 +194,18 @@ function mapActiveTenancyRow(row: ActiveTenancyDbRow): ActiveTenancy {
     roomId: row.room_id,
     bedId: row.bed_id,
     bedCode: row.bed_code,
+    floorNumber: row.floor_number != null ? Number(row.floor_number) : null,
     monthlyRentPaise: Number(row.monthly_rent_paise ?? monthlyFromSnapshot),
     depositPaise: Number(row.deposit_paise ?? 0),
     blocksRoomAvailability: row.blocks_room_availability,
     moveInDate: row.move_in_date,
+    billingAnchorDate: row.billing_anchor_date,
     durationMode: row.duration_mode,
     stayType: row.stay_type,
     expectedCheckoutDate: row.expected_checkout_date,
     isVacating: row.is_vacating,
+    vacatingDate: row.vacating_date,
+    vacatingStatus: row.vacating_status,
   };
 }
 
@@ -193,6 +223,7 @@ export async function getActiveTenancyForCustomer(
       bd.bed_code,
       bd.id::text AS bed_id,
       f.pg_id::text AS pg_id,
+      f.floor_number,
       coalesce((
         SELECT sum((elem->>'monthlyRatePaise')::bigint)
         FROM jsonb_array_elements(
@@ -208,13 +239,30 @@ export async function getActiveTenancyForCustomer(
       b.duration_mode::text AS duration_mode,
       b.stay_type::text AS stay_type,
       b.expected_checkout_date::text AS expected_checkout_date,
+      b.billing_anchor_date::text AS billing_anchor_date,
       to_char(lower(br.stay_range), 'YYYY-MM-DD') AS move_in_date,
       b.pricing_snapshot,
       EXISTS (
         SELECT 1 FROM vacating_requests vr
         WHERE vr.booking_id = b.id
           AND vr.status IN ('pending', 'approved')
-      ) AS is_vacating
+      ) AS is_vacating,
+      (
+        SELECT vr.vacating_date::text
+        FROM vacating_requests vr
+        WHERE vr.booking_id = b.id
+          AND vr.status IN ('pending', 'approved')
+        ORDER BY vr.created_at DESC
+        LIMIT 1
+      ) AS vacating_date,
+      (
+        SELECT vr.status::text
+        FROM vacating_requests vr
+        WHERE vr.booking_id = b.id
+          AND vr.status IN ('pending', 'approved')
+        ORDER BY vr.created_at DESC
+        LIMIT 1
+      ) AS vacating_status
     FROM bookings b
     INNER JOIN bed_reservations br ON br.booking_id = b.id
     INNER JOIN beds bd ON bd.id = br.bed_id

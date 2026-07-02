@@ -9,10 +9,12 @@ import {
   bookings,
   checkoutSettlements,
   customers,
+  financialInvoices,
   kycSubmissions,
   pgPaymentRecords,
   residentRequests,
   residentUploadEvents,
+  roomChangeRequests,
   vacatingRequests,
 } from '@/src/db/schema';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
@@ -289,7 +291,7 @@ export async function buildResidentTimeline(
           .from(bookings)
           .where(eq(bookings.customerId, customerId))
           .orderBy(desc(bookings.createdAt))
-          .limit(10)
+          .limit(50)
       ).map((b) => b.id);
 
   const events: ResidentTimelineEvent[] = [];
@@ -438,6 +440,85 @@ export async function buildResidentTimeline(
           }),
         );
       }
+    }
+  }
+
+  const roomChanges = await db
+    .select()
+    .from(roomChangeRequests)
+    .where(eq(roomChangeRequests.customerId, customerId))
+    .orderBy(desc(roomChangeRequests.createdAt));
+
+  for (const rc of roomChanges) {
+    events.push(
+      evt({
+        kind: 'submitted',
+        label: 'Room change request',
+        status: rc.status,
+        recordId: rc.id,
+        sourceTable: 'room_change_requests',
+        timestamp: rc.createdAt,
+        bookingId: rc.bookingId,
+        bookingCode: subject.bookingCode,
+        detail: `Shift ${rc.requestedShiftDate}`,
+        adminHref: `/admin/bookings/${rc.bookingId}`,
+      }),
+    );
+    if (rc.status !== 'submitted' && rc.updatedAt.getTime() - rc.createdAt.getTime() > 1000) {
+      events.push(
+        evt({
+          kind: kindForStatus(rc.status),
+          label: `Room change ${rc.status}`,
+          status: rc.status,
+          recordId: rc.id,
+          sourceTable: 'room_change_requests',
+          timestamp: rc.updatedAt,
+          bookingId: rc.bookingId,
+          bookingCode: subject.bookingCode,
+          detail: rc.adminNotes,
+          adminHref: `/admin/bookings/${rc.bookingId}`,
+        }),
+      );
+    }
+  }
+
+  const finInvoices = await db
+    .select()
+    .from(financialInvoices)
+    .where(eq(financialInvoices.customerId, customerId))
+    .orderBy(desc(financialInvoices.createdAt))
+    .limit(80);
+
+  for (const inv of finInvoices) {
+    events.push(
+      evt({
+        kind: inv.status === 'paid' ? 'approved' : 'submitted',
+        label: `Invoice ${inv.invoiceNumber}`,
+        status: inv.status,
+        recordId: inv.id,
+        sourceTable: 'financial_invoices',
+        timestamp: inv.createdAt,
+        bookingId: inv.bookingId,
+        bookingCode: subject.bookingCode,
+        detail: `${inv.invoiceType} · ${inv.amountPaise} paise`,
+        adminHref: '/admin/billing?tab=billing',
+      }),
+    );
+    if (inv.paidAt && inv.paidAt.getTime() - inv.createdAt.getTime() > 1000) {
+      events.push(
+        evt({
+          kind: 'approved',
+          label: `Invoice paid · ${inv.invoiceNumber}`,
+          status: 'paid',
+          recordId: inv.id,
+          sourceTable: 'financial_invoices',
+          timestamp: inv.paidAt,
+          bookingId: inv.bookingId,
+          bookingCode: subject.bookingCode,
+          detail: inv.invoiceType,
+          adminHref: '/admin/billing?tab=billing',
+        }),
+      );
     }
   }
 

@@ -36,6 +36,7 @@ type FetchFilter = {
   pgId?: string;
   roomId?: string;
   roomIds?: string[];
+  bedId?: string;
   asOfDate?: string;
 };
 
@@ -56,6 +57,9 @@ export async function fetchBedOccupancyRows(
   }
   if (filter.roomIds && filter.roomIds.length > 0) {
     conditions.push(inArray(beds.roomId, filter.roomIds));
+  }
+  if (filter.bedId) {
+    conditions.push(eq(beds.id, filter.bedId));
   }
 
   const rows = await db

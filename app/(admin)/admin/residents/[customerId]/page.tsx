@@ -2,47 +2,21 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { NotificationActionResolved } from '@/src/components/admin/NotificationActionResolved';
 import { BedAssignmentWhatsAppButton } from '@/src/components/admin/BedAssignmentWhatsAppButton';
-import { EditMoveInDateForm } from '@/src/components/admin/EditMoveInDateForm';
-import { EditRentDueDateForm } from '@/src/components/admin/EditRentDueDateForm';
-import { ResidentFinancialSSOTPanel } from '@/src/components/admin/residents/ResidentFinancialSSOTPanel';
-import { EditTenantTenancyForm } from '@/src/components/admin/EditTenantTenancyForm';
 import { RentUpdatedSuccessBanner } from '@/src/components/admin/RentUpdatedSuccessBanner';
-import { FinalSettlementPanel } from '@/src/components/admin/FinalSettlementPanel';
-import { Resident360WorkflowBar } from '@/src/components/admin/residents/Resident360WorkflowBar';
-import { ResidentInlineOpenBills } from '@/src/components/admin/residents/ResidentInlineOpenBills';
-import { ResidentProfileAdvancedTools } from '@/src/components/admin/residents/ResidentProfileAdvancedTools';
-import { buildResident360Workflow } from '@/src/lib/residents/resident360Workflow';
-import {
-  mapUnresolvedActionRow,
-  pickPrimaryUnresolvedAction,
-} from '@/src/lib/residents/residentUnresolvedActions';
-import { syncActionItems } from '@/src/services/actionItems';
-import { getOpenActionsForResident } from '@/src/services/unresolvedActions';
+import { ResidentCommandCenter } from '@/src/components/admin/residents/command-center/ResidentCommandCenter';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
 import { evaluateNotificationDeepLink } from '@/src/lib/admin/notificationDeepLinkGuard';
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
-import { formatDate, formatDateTime, paiseToInr } from '@/src/lib/format';
-import { adminStayTypeLabel, isMonthlyStayType } from '@/src/lib/stayType';
-import { diffDays, parseDate } from '@/src/lib/dates';
-import { getDepositSummaryForBooking } from '@/src/services/deposits';
-import { canAdminMarkInvoicePaidWithCash } from '@/src/services/adminCashSettlement';
-import { getLatestKycSubmission } from '@/src/services/kyc';
-import { getResidentDetail, getCustomerVerificationStatus } from '@/src/services/residentAdmin';
+import { syncActionItems } from '@/src/services/actionItems';
 import { listAssignableBeds } from '@/src/services/tenantAssignment';
-import { getResidentFinancialAccount } from '@/src/services/residentFinancialEngine';
-import { listResidentInvoiceHistory } from '@/src/services/invoiceGeneration';
-import { getResidentBillingFormDefaults } from '@/src/services/residentBillingProfiles';
-import { getResidencyAdminView } from '@/src/services/continuousResidency';
-import { getCheckoutSettlementDetailForBooking } from '@/src/services/checkoutSettlement';
-import { ResidentResidencyPanel } from '@/src/components/admin/residents/ResidentResidencyPanel';
+import { loadResidentCommandCenter } from '@/src/services/residentCommandCenter';
 
 export const dynamic = 'force-dynamic';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const SURFACE = 'rounded-2xl border border-white/10 bg-[#1A1F27] p-4';
 
 function residentContextLine(
   customer: { fullName: string; residencyStatus: string },
@@ -50,7 +24,7 @@ function residentContextLine(
 ) {
   if (customer.residencyStatus === 'vacated') return `${customer.fullName} — moved out`;
   if (activeTenancy) {
-    return `${customer.fullName} — living at ${activeTenancy.pgName}, Room ${activeTenancy.roomNumber}, Bed ${activeTenancy.bedCode}`;
+    return `${customer.fullName} — ${activeTenancy.pgName}, Room ${activeTenancy.roomNumber}, Bed ${activeTenancy.bedCode}`;
   }
   return `${customer.fullName} — no bed assigned yet`;
 }
@@ -91,15 +65,9 @@ export default async function ResidentDetailPage({
 
   const session = await requireAdminPermission('bookings:write');
   await syncActionItems(session).catch(() => undefined);
-  const canMarkCash = canAdminMarkInvoicePaidWithCash(session.role);
-  const [detail, verification, openUnresolvedRows] = await Promise.all([
-    getResidentDetail(session, customerId),
-    getCustomerVerificationStatus(customerId),
-    getOpenActionsForResident(customerId),
-  ]);
-  if (!detail) notFound();
 
-  const { customer, activeTenancy, canArchive, settledTenancy } = detail;
+  const data = await loadResidentCommandCenter(session, customerId);
+  if (!data) notFound();
 
   const assignableRows = await listAssignableBeds(session);
   const bedOptions = assignableRows.map((b) => ({
@@ -107,63 +75,15 @@ export default async function ResidentDetailPage({
     label: `${b.pgName} · Room ${b.roomNumber} · ${b.bedCode}${b.manualOccupied ? ' · marked occupied' : ''}`,
   }));
 
-  if (activeTenancy) {
-    const currentLabel = `${activeTenancy.pgName} · Room ${activeTenancy.roomNumber} · ${activeTenancy.bedCode}`;
-    if (!bedOptions.some((b) => b.bedId === activeTenancy.bedId)) {
-      bedOptions.unshift({
-        bedId: activeTenancy.bedId,
-        label: `${currentLabel} (current)`,
-      });
+  if (data.activeTenancy) {
+    const t = data.activeTenancy;
+    const currentLabel = `${t.pgName} · Room ${t.roomNumber} · ${t.bedCode}`;
+    if (!bedOptions.some((b) => b.bedId === t.bedId)) {
+      bedOptions.unshift({ bedId: t.bedId, label: `${currentLabel} (current)` });
     }
   }
 
-  const depositSummary = activeTenancy
-    ? await getDepositSummaryForBooking(activeTenancy.bookingId)
-    : settledTenancy
-      ? await getDepositSummaryForBooking(settledTenancy.bookingId)
-      : null;
-
-  const checkoutReceiptDetail = settledTenancy
-    ? await getCheckoutSettlementDetailForBooking(settledTenancy.bookingId)
-    : null;
-
-  const latestKyc = await getLatestKycSubmission(customerId);
-  const pendingKycSubmissionId =
-    latestKyc?.status === 'pending' ? latestKyc.id : null;
-
-  const financialAccount =
-    customer.residencyStatus === 'vacated' ? null : await getResidentFinancialAccount(customerId);
-  const invoiceHistory =
-    financialAccount && customer.residencyStatus !== 'vacated'
-      ? await listResidentInvoiceHistory(customerId, 20)
-      : [];
-
-  const billingDefaults = activeTenancy
-    ? await getResidentBillingFormDefaults(customerId, activeTenancy.bookingId)
-    : null;
-
-  const residencyView = await getResidencyAdminView(customerId);
-  const residencyDepositPaise =
-    residencyView?.depositBookingCode && depositSummary
-      ? depositSummary.refundableBalancePaise
-      : depositSummary?.refundableBalancePaise ?? null;
-
-  const primaryUnresolved = pickPrimaryUnresolvedAction(
-    openUnresolvedRows.map(mapUnresolvedActionRow),
-  );
-
-  const resident360 = buildResident360Workflow({
-    customerId,
-    customerName: customer.fullName,
-    kycStatus: customer.kycStatus,
-    pendingKycSubmissionId,
-    hasActiveTenancy: Boolean(activeTenancy),
-    hasBed: Boolean(activeTenancy?.bedId),
-    bookingId: activeTenancy?.bookingId ?? settledTenancy?.bookingId ?? null,
-    financialSummary: financialAccount,
-    residencyStatus: customer.residencyStatus,
-    primaryUnresolved,
-  });
+  const { customer, activeTenancy } = data;
 
   return (
     <>
@@ -180,18 +100,7 @@ export default async function ResidentDetailPage({
         description={residentContextLine(customer, activeTenancy)}
       />
 
-      <Resident360WorkflowBar workflow={resident360} />
-
-      {residencyView ? (
-        <div className="mb-6">
-          <ResidentResidencyPanel
-            residency={residencyView}
-            depositHeldPaise={residencyDepositPaise}
-          />
-        </div>
-      ) : null}
-
-      {verification && !verification.isVerified ? (
+      {data.verification && !data.verification.isVerified ? (
         <div className="mb-6 rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
           <p className="font-semibold">Not verified yet</p>
           <p className="mt-1">
@@ -204,16 +113,6 @@ export default async function ResidentDetailPage({
               payment
             </Link>{' '}
             before assigning a bed.
-            {activeTenancy ? (
-              <>
-                {' '}
-                They are currently on{' '}
-                <strong>
-                  Room {activeTenancy.roomNumber} · {activeTenancy.bedCode}
-                </strong>{' '}
-                — use the bed map to reassign if this was a mistake.
-              </>
-            ) : null}
           </p>
         </div>
       ) : null}
@@ -254,9 +153,7 @@ export default async function ResidentDetailPage({
       {sp.assigned === '1' && activeTenancy ? (
         <div className="mb-6 rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
           <p className="font-semibold">Bed assigned</p>
-          <p className="mt-1">
-            Rent and security deposit are set. Monthly rent bills will start from move-in date.
-          </p>
+          <p className="mt-1">Monthly rent bills will start from move-in date.</p>
           <div className="mt-3">
             <BedAssignmentWhatsAppButton
               customerName={customer.fullName}
@@ -269,186 +166,7 @@ export default async function ResidentDetailPage({
         </div>
       ) : null}
 
-      {settledTenancy && customer.residencyStatus === 'vacated' ? (
-        <FinalSettlementPanel
-          customerName={customer.fullName}
-          settledTenancy={settledTenancy}
-          depositWallet={depositSummary}
-          checkoutDetail={checkoutReceiptDetail}
-        />
-      ) : null}
-
-      {customer.residencyStatus !== 'vacated' ? (
-        <>
-          {activeTenancy &&
-          financialAccount &&
-          billingDefaults &&
-          isMonthlyStayType(activeTenancy.stayType) ? (
-            <ResidentInlineOpenBills
-              customerId={customerId}
-              customerName={customer.fullName}
-              phone={customer.phone}
-              pgId={activeTenancy.pgId}
-              pgName={activeTenancy.pgName}
-              roomNumber={activeTenancy.roomNumber}
-              bookingId={activeTenancy.bookingId}
-              billingDefaults={billingDefaults}
-              financialSummary={financialAccount}
-              cashSettlement={
-                canMarkCash
-                  ? { canSettle: true, adminName: session.fullName ?? session.email }
-                  : null
-              }
-            />
-          ) : null}
-
-          {activeTenancy && financialAccount ? (
-            <ResidentFinancialSSOTPanel
-              activeTenancy={activeTenancy}
-              billingDefaults={billingDefaults}
-              financialSummary={financialAccount}
-              depositSummary={depositSummary}
-              invoiceHistory={invoiceHistory}
-            />
-          ) : null}
-
-          {financialAccount && activeTenancy ? (
-            <ResidentProfileAdvancedTools
-              customerId={customerId}
-              customerName={customer.fullName}
-              phone={customer.phone}
-              kycStatus={customer.kycStatus}
-              canArchive={canArchive}
-              financialSummary={financialAccount}
-              invoiceHistory={invoiceHistory}
-              depositWallet={depositSummary}
-              bookingId={activeTenancy.bookingId}
-              billingDefaults={billingDefaults}
-            />
-          ) : canArchive ? (
-            <ResidentProfileAdvancedTools
-              customerId={customerId}
-              customerName={customer.fullName}
-              phone={customer.phone}
-              kycStatus={customer.kycStatus}
-              canArchive={canArchive}
-              invoiceHistory={[]}
-            />
-          ) : null}
-        </>
-      ) : null}
-
-      <div className="space-y-8">
-        {activeTenancy ? (
-          <>
-            <section className={`${SURFACE} text-sm text-apg-silver`}>
-              <p className="text-xs font-medium uppercase tracking-wide text-apg-silver">Stay details</p>
-              <p className="mt-2">
-                <strong className="text-white">{activeTenancy.pgName}</strong> · Booking{' '}
-                <Link
-                  href={`/admin/bookings/${activeTenancy.bookingId}`}
-                  className="font-semibold text-[#FF5A1F] hover:underline"
-                >
-                  {activeTenancy.bookingCode}
-                </Link>
-              </p>
-              <p className="mt-1">
-                {isMonthlyStayType(activeTenancy.stayType) ? (
-                  <>
-                    Check-in {formatDate(activeTenancy.moveInDate)} · Rent{' '}
-                    {paiseToInr(activeTenancy.monthlyRentPaise)}/mo · Joined{' '}
-                    {formatDateTime(customer.createdAt)}
-                  </>
-                ) : (
-                  <>
-                    Check-in {formatDate(activeTenancy.moveInDate)}
-                    {activeTenancy.expectedCheckoutDate
-                      ? ` · Check-out ${formatDate(activeTenancy.expectedCheckoutDate)}`
-                      : ''}
-                    {activeTenancy.expectedCheckoutDate
-                      ? ` · ${diffDays(
-                          parseDate(activeTenancy.moveInDate),
-                          parseDate(activeTenancy.expectedCheckoutDate),
-                        )} nights`
-                      : ''}{' '}
-                    · Fixed-date stay · Joined {formatDateTime(customer.createdAt)}
-                  </>
-                )}
-              </p>
-              <div className="mt-3 flex flex-wrap gap-3">
-                <Link
-                  href={`/admin/bookings/${activeTenancy.bookingId}`}
-                  className="text-sm font-semibold text-[#FF5A1F] hover:underline"
-                >
-                  Booking history
-                </Link>
-                <Link
-                  href={`/admin/deposits/${activeTenancy.bookingId}`}
-                  className="text-sm font-semibold text-[#FF5A1F] hover:underline"
-                >
-                  Deposit invoice
-                </Link>
-                <Link
-                  href={`/admin/pgs/${activeTenancy.pgId}/map`}
-                  className="text-sm font-semibold text-[#FF5A1F] hover:underline"
-                >
-                  PG bed map
-                </Link>
-              </div>
-            </section>
-
-            <EditMoveInDateForm
-              bookingId={activeTenancy.bookingId}
-              customerId={customerId}
-              currentMoveInDate={activeTenancy.moveInDate}
-            />
-
-            {billingDefaults && isMonthlyStayType(activeTenancy.stayType) ? (
-              <EditRentDueDateForm
-                bookingId={activeTenancy.bookingId}
-                customerId={customerId}
-                currentNextDueDate={billingDefaults.nextRentDueDate}
-                billingDay={billingDefaults.billingDay}
-              />
-            ) : null}
-
-            <section id="edit-tenancy">
-            <EditTenantTenancyForm
-              bookingId={activeTenancy.bookingId}
-              customerId={customerId}
-              customerName={customer.fullName}
-              customerPhone={customer.phone}
-              currentBedId={activeTenancy.bedId}
-              currentRoomLabel={`${activeTenancy.pgName} · Room ${activeTenancy.roomNumber} · ${activeTenancy.bedCode}`}
-              blocksWholeRoom={activeTenancy.blocksRoomAvailability}
-              beds={bedOptions}
-            />
-            </section>
-          </>
-        ) : verification?.isVerified ? (
-          <section id="assign-bed" className={`${SURFACE} scroll-mt-6`}>
-            <h2 className="text-sm font-semibold text-white">Assign to a bed</h2>
-            <p className="mt-2 max-w-xl text-sm text-apg-silver">
-              Use the bed assignment command center to pick a PG, room, and bed. Rent and occupancy
-              update as soon as you save.
-            </p>
-            <Link
-              href={`/admin/beds?customerId=${customerId}`}
-              className="mt-4 inline-flex rounded-lg bg-[#FF5A1F] px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110"
-            >
-              Open bed assignment →
-            </Link>
-          </section>
-        ) : (
-          <section id="assign-bed" className={`${SURFACE} scroll-mt-6`}>
-            <h2 className="text-sm font-semibold text-white">Assign to a bed</h2>
-            <p className="mt-2 text-sm text-apg-silver">
-              Approve identity documents or confirm a payment first — then bed assignment unlocks.
-            </p>
-          </section>
-        )}
-
-      </div>
+      <ResidentCommandCenter data={data} bedOptions={bedOptions} />
     </>
   );
 }

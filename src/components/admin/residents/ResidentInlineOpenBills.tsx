@@ -18,6 +18,7 @@ export function ResidentInlineOpenBills({
   billingDefaults,
   financialSummary,
   cashSettlement,
+  embedded = false,
 }: {
   customerId: string;
   customerName: string;
@@ -29,6 +30,7 @@ export function ResidentInlineOpenBills({
   billingDefaults: ResidentBillingFormDefaults | null;
   financialSummary: ResidentFinancialSummary;
   cashSettlement?: { canSettle: boolean; adminName: string } | null;
+  embedded?: boolean;
 }) {
   const openItems = [
     ...financialSummary.rent.items,
@@ -47,13 +49,21 @@ export function ResidentInlineOpenBills({
 
   if (openItems.length === 0) return null;
 
-  return (
-    <section id="open-bills" className="mb-8 rounded-2xl border border-white/10 bg-[#1A1F27] p-5">
-      <h2 className="text-sm font-semibold text-white">Open bills — collect now</h2>
-      <p className="mt-1 text-xs text-apg-silver">
-        Top {openItems.length} outstanding — one action per line, no need to open Advanced tools.
-      </p>
-      <ul className="mt-4 divide-y divide-white/5">
+  const content = (
+    <>
+      {!embedded ? (
+        <>
+          <h2 className="text-sm font-semibold text-white">Open bills — collect now</h2>
+          <p className="mt-1 text-xs text-apg-silver">
+            Top {openItems.length} outstanding — one action per line, no need to open Advanced tools.
+          </p>
+        </>
+      ) : (
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-apg-silver">
+          Open bills — collect now
+        </h3>
+      )}
+      <ul className={`divide-y divide-white/5 ${embedded ? 'mt-2' : 'mt-4'}`}>
         {openItems.map((item) => (
           <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
             <div className="min-w-0">
@@ -94,6 +104,16 @@ export function ResidentInlineOpenBills({
           </li>
         ))}
       </ul>
+    </>
+  );
+
+  if (embedded) {
+    return <div id="open-bills">{content}</div>;
+  }
+
+  return (
+    <section id="open-bills" className="mb-8 rounded-2xl border border-white/10 bg-[#1A1F27] p-5">
+      {content}
     </section>
   );
 }
