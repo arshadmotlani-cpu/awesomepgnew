@@ -73,8 +73,19 @@ export function CustomerLoginForm({
   const [existingAccountByPhone, setExistingAccountByPhone] = useState(false);
   const [maskedRegisteredEmail, setMaskedRegisteredEmail] = useState<string | null>(null);
   const [forgotPasswordMaskedEmail, setForgotPasswordMaskedEmail] = useState<string | null>(null);
+  const [rememberDevice, setRememberDevice] = useState(true);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const verifyInFlight = useRef(false);
   const profileInFlight = useRef(false);
+
+  useEffect(() => {
+    const key = searchParams.get('message');
+    if (key === 'password_changed') {
+      setInfoMessage('Password updated. Sign in with your new password.');
+    } else if (key === 'signed_out_all_devices') {
+      setInfoMessage('Signed out on all devices. Sign in to continue.');
+    }
+  }, [searchParams]);
 
   const phoneDisplay =
     phone.length === 10 ? formatIndianPhoneDisplay(`+91${phone}`) : phone;
@@ -237,7 +248,7 @@ export function CustomerLoginForm({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({ identifier, password }),
+        body: JSON.stringify({ identifier, password, rememberMe: rememberDevice }),
       });
       const data = (await res.json()) as {
         ok: boolean;
@@ -828,6 +839,29 @@ export function CustomerLoginForm({
               className={inputClass}
             />
           </label>
+          <label
+            className={
+              dark
+                ? 'flex items-start gap-2.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5'
+                : 'flex items-start gap-2.5 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5'
+            }
+          >
+            <input
+              type="checkbox"
+              checked={rememberDevice}
+              onChange={(e) => setRememberDevice(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-white/20"
+            />
+            <span className={dark ? 'text-sm text-apg-silver' : 'text-sm text-zinc-600'}>
+              <span className={dark ? 'font-medium text-white' : 'font-medium text-zinc-900'}>
+                Remember this device
+              </span>
+              <span className="mt-0.5 block text-xs">
+                Stay signed in for up to 75 days on this phone or computer. We renew your session
+                quietly while you use the portal.
+              </span>
+            </span>
+          </label>
           <button type="submit" disabled={pending} className={btnClass}>
             {pending ? 'Signing in…' : 'Sign in'}
           </button>
@@ -1131,6 +1165,8 @@ export function CustomerLoginForm({
           </button>
         </form>
       ) : null}
+
+      {infoMessage ? <p className={successClass}>{infoMessage}</p> : null}
 
       {error && !(emailVerified && step === 'profile' && profilePhase !== 'idle') ? (
         <p className={errorClass}>{error}</p>

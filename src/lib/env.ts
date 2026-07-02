@@ -110,6 +110,14 @@ export const env = {
   get AUTH_CUSTOMER_SESSION_DAYS() {
     return optionalInt('AUTH_CUSTOMER_SESSION_DAYS', 7);
   },
+  /** Remember-this-device resident session. Default 75 days (within 60–90 day target). */
+  get AUTH_CUSTOMER_REMEMBER_DAYS() {
+    return optionalInt('AUTH_CUSTOMER_REMEMBER_DAYS', 75);
+  },
+  /** Extend resident session when remaining lifetime falls below this threshold. Default 14 days. */
+  get AUTH_CUSTOMER_SESSION_REFRESH_DAYS() {
+    return optionalInt('AUTH_CUSTOMER_SESSION_REFRESH_DAYS', 14);
+  },
   /** Standard admin session length (without Remember Me). Default 30 days. */
   get AUTH_ADMIN_SESSION_DAYS() {
     return optionalInt('AUTH_ADMIN_SESSION_DAYS', 30);

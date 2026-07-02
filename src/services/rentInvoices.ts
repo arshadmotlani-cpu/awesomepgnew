@@ -409,6 +409,9 @@ export async function ensureMonthlyRentInvoice(input: {
       invoiceNumber: rentInvoices.invoiceNumber,
       status: rentInvoices.status,
       rentPaise: rentInvoices.rentPaise,
+      paidPrincipalPaise: rentInvoices.paidPrincipalPaise,
+      paymentId: rentInvoices.paymentId,
+      cancellationReason: rentInvoices.cancellationReason,
     })
     .from(rentInvoices)
     .where(
@@ -437,6 +440,50 @@ export async function ensureMonthlyRentInvoice(input: {
       };
     }
     if (existing.status === 'cancelled') {
+      const unpaid =
+        (existing.paidPrincipalPaise ?? 0) === 0 && !existing.paymentId;
+      const rollbackTombstone =
+        unpaid &&
+        (existing.cancellationReason?.includes('Express walk-in rolled back') ||
+          existing.cancellationReason?.includes('[rollback]') ||
+          existing.cancellationReason?.includes('[system]'));
+
+      if (rollbackTombstone) {
+        await db
+          .update(rentInvoices)
+          .set({
+            status: 'pending',
+            cancelledAt: null,
+            cancellationReason: null,
+            updatedAt: new Date(),
+            ...(input.amountPaise ? { rentPaise: input.amountPaise } : {}),
+          })
+          .where(eq(rentInvoices.id, existing.id));
+
+        const [fi] = await db
+          .select({ id: financialInvoices.id, status: financialInvoices.status })
+          .from(financialInvoices)
+          .where(
+            and(
+              eq(financialInvoices.sourceTable, 'rent_invoices'),
+              eq(financialInvoices.sourceId, existing.id),
+            ),
+          )
+          .limit(1);
+        if (fi && (fi.status === 'cancelled' || fi.status === 'refunded')) {
+          const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
+          await syncRentInvoiceToUnified(existing.id);
+        }
+
+        return {
+          ok: true,
+          invoiceId: existing.id,
+          invoiceNumber: existing.invoiceNumber,
+          created: false,
+          status: 'pending',
+        };
+      }
+
       return {
         ok: false,
         error: 'Monthly invoice was cancelled. Re-generate from the billing queue first.',

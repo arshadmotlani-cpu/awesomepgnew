@@ -12,7 +12,7 @@ import {
 } from '@/src/lib/auth/signupSession';
 import { verifyEmailOtp } from '@/src/lib/auth/otp';
 import { validateCustomerPassword } from '@/src/lib/auth/password';
-import { createCustomerSession } from '@/src/lib/auth/session';
+import { createCustomerSession, destroyAllCustomerSessions } from '@/src/lib/auth/session';
 import { normaliseEmail } from '@/src/lib/email/address';
 import {
   clearRecoveryCookie,
@@ -112,7 +112,13 @@ export async function POST(request: Request) {
       }
       if (signupSession) await completeSignupSession(signupSession.id);
       await clearRecoveryCookie();
-      await createCustomerSession({ customerId: customer.id, ip, userAgent });
+      await destroyAllCustomerSessions(customer.id);
+      await createCustomerSession({
+        customerId: customer.id,
+        rememberMe: true,
+        ip,
+        userAgent,
+      });
       return NextResponse.json({
         ok: true,
         customerId: customer.id,
@@ -130,7 +136,13 @@ export async function POST(request: Request) {
       });
       await completeSignupSession(signupSession.id);
       await clearRecoveryCookie();
-      await createCustomerSession({ customerId: committed.id, ip, userAgent });
+      await destroyAllCustomerSessions(committed.id);
+      await createCustomerSession({
+        customerId: committed.id,
+        rememberMe: true,
+        ip,
+        userAgent,
+      });
       return NextResponse.json({
         ok: true,
         customerId: committed.id,

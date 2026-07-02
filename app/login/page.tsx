@@ -34,8 +34,9 @@ export default async function LoginPage({
         <div className="mt-6 apg-glass rounded-2xl p-6 sm:p-8">
           <h1 className="text-xl font-semibold text-white">Welcome back</h1>
           <p className="mt-2 text-sm text-apg-silver">
-            Sign in with email and password to book a bed, pay rent, or manage your resident
-            dashboard. Email codes are only used when you sign up or forget your password.
+            Sign in with your email or mobile number and password to book a bed, pay rent, or manage
+            your resident dashboard. Email codes are only used when you sign up or forget your
+            password.
           </p>
           <div className="mt-6">
             <Suspense fallback={<p className="text-sm text-apg-silver">Loading…</p>}>

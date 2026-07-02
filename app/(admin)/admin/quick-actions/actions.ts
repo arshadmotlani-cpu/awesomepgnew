@@ -556,6 +556,7 @@ export async function expressWalkInSaleAction(input: {
   paymentStatus?: ExpressBookingPaymentStatus;
   amountReceivedInr?: number;
   notes?: string;
+  idempotencyKey?: string;
 }): Promise<QuickActionResult> {
   try {
     const session = await requireAdminPermission('bookings:write');
@@ -594,6 +595,7 @@ export async function expressWalkInSaleAction(input: {
       paymentStatus: input.paymentStatus,
       amountReceivedPaise: input.amountReceivedInr ? toPaise(input.amountReceivedInr) : undefined,
       notes: input.notes,
+      idempotencyKey: input.idempotencyKey,
     });
 
     if (!result.ok) {

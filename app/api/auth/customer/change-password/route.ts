@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { findCustomerByEmail, setCustomerPassword } from '@/src/lib/auth/customer';
 import { verifyPassword } from '@/src/lib/auth/crypto';
 import { validateCustomerPassword } from '@/src/lib/auth/password';
-import { getCustomerSession } from '@/src/lib/auth/session';
+import { destroyAllCustomerSessions, getCustomerSession } from '@/src/lib/auth/session';
 
 export async function POST(request: Request) {
   const session = await getCustomerSession();
@@ -58,6 +58,7 @@ export async function POST(request: Request) {
   }
 
   await setCustomerPassword(session.customerId, newPassword);
+  await destroyAllCustomerSessions(session.customerId);
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, requiresReLogin: true });
 }

@@ -29,6 +29,13 @@ import { isBedAvailable } from '@/src/services/availability';
 import { validateResidentGenderForBed } from '@/src/services/pgGenderPolicy';
 import { reconcileOrphanBedReservations } from '@/src/lib/occupancySync';
 import { rollbackExpressWalkInSale } from '@/src/services/expressWalkInRollback';
+import {
+  beginExpressBookingIdempotency,
+  completeExpressBookingIdempotency,
+  deriveExpressBookingIdempotencyKey,
+  failExpressBookingIdempotency,
+  type ExpressBookingIdempotencyPayload,
+} from '@/src/services/expressBookingIdempotency';
 
 export type ExpressBookingStayType = 'fixed' | 'continue';
 export type ExpressWalkInStayType = ExpressBookingStayType;
@@ -59,6 +66,8 @@ export type ExpressBookingSaleInput = {
   amountReceivedPaise?: number;
 
   notes?: string;
+  /** Stable key from client or derived server-side — prevents duplicate bookings on double submit. */
+  idempotencyKey?: string;
 };
 
 export type ExpressBookingSaleResult =
@@ -274,8 +283,41 @@ export async function executeExpressBookingSale(
   session: AdminSession,
   input: ExpressBookingSaleInput,
 ): Promise<ExpressBookingSaleResult> {
+  const idempotencyPayload: ExpressBookingIdempotencyPayload = {
+    adminId: session.adminId,
+    customerId: input.customerId,
+    phone: input.phone,
+    bedId: input.bedId,
+    checkInDate: input.checkInDate,
+    stayType: input.stayType,
+    checkOutDate: input.checkOutDate,
+    rentAmountPaise: input.rentAmountPaise,
+    depositRequiredPaise: input.depositRequiredPaise,
+    paymentStatus: input.paymentStatus,
+  };
+  const idempotencyKey =
+    input.idempotencyKey?.trim() || deriveExpressBookingIdempotencyKey(idempotencyPayload);
+
+  const idem = await beginExpressBookingIdempotency(idempotencyKey, session.adminId);
+  if (idem.kind === 'replay') {
+    return idem.result;
+  }
+  if (idem.kind === 'in_progress') {
+    return {
+      ok: false,
+      error:
+        'This booking is already being created. Wait a few seconds before trying again.',
+    };
+  }
+
+  async function abortSale(error: string): Promise<ExpressBookingSaleResult> {
+    await failExpressBookingIdempotency(idempotencyKey, session.adminId, error);
+    return { ok: false, error };
+  }
+
   const quoteCheck = await validateQuote(input);
   if (!quoteCheck.ok) {
+    await failExpressBookingIdempotency(idempotencyKey, session.adminId, quoteCheck.error);
     return quoteCheck;
   }
 
@@ -288,6 +330,7 @@ export async function executeExpressBookingSale(
     adminVerifiedKyc: input.adminVerifiedKyc,
   });
   if (!customerResult.ok) {
+    await failExpressBookingIdempotency(idempotencyKey, session.adminId, customerResult.error);
     return { ok: false, error: customerResult.error };
   }
   const customerId = customerResult.customerId;
@@ -303,29 +346,40 @@ export async function executeExpressBookingSale(
     .where(eq(customers.id, customerId))
     .limit(1);
   if (!customerRow) {
-    return { ok: false, error: 'Customer record missing after merge.' };
+    return abortSale('Customer record missing after merge.');
   }
 
   const bedCtx = await resolveBedContext(input.bedId);
   if (!bedCtx) {
-    return { ok: false, error: 'Bed not found.' };
+    return abortSale('Bed not found.');
   }
   if (!adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, bedCtx.pgId)) {
-    return { ok: false, error: 'You do not have access to this PG.' };
+    return abortSale('You do not have access to this PG.');
   }
 
   const activeTenancy = await getActiveTenancyForCustomer(customerId);
   const historical = isHistoricalCheckIn(input.checkInDate);
 
   if (historical) {
-    return executeHistoricalSale(session, input, customerId, activeTenancy, bedCtx);
+    const historicalResult = await executeHistoricalSale(
+      session,
+      input,
+      customerId,
+      activeTenancy,
+      bedCtx,
+    );
+    if (historicalResult.ok) {
+      await completeExpressBookingIdempotency(idempotencyKey, session.adminId, historicalResult);
+    } else {
+      await failExpressBookingIdempotency(idempotencyKey, session.adminId, historicalResult.error);
+    }
+    return historicalResult;
   }
 
   if (activeTenancy) {
-    return {
-      ok: false,
-      error: `Resident already occupies ${activeTenancy.pgName} · Room ${activeTenancy.roomNumber} · ${activeTenancy.bedCode}. Use historical check-in to bill the current stay.`,
-    };
+    return abortSale(
+      `Resident already occupies ${activeTenancy.pgName} · Room ${activeTenancy.roomNumber} · ${activeTenancy.bedCode}. Use historical check-in to bill the current stay.`,
+    );
   }
 
   await clearBedAdminMarks(input.bedId);
@@ -345,12 +399,12 @@ export async function executeExpressBookingSale(
     { ignoreManualOccupied: true },
   );
   if (!available) {
-    return { ok: false, error: 'Selected bed is not available for these dates.' };
+    return abortSale('Selected bed is not available for these dates.');
   }
 
   const genderCheck = await validateResidentGenderForBed(input.bedId, input.gender);
   if (!genderCheck.ok) {
-    return { ok: false, error: genderCheck.error };
+    return abortSale(genderCheck.error);
   }
 
   const walletCreditRequested =
@@ -392,7 +446,7 @@ export async function executeExpressBookingSale(
   });
 
   if (!bookingResult.ok) {
-    return { ok: false, error: bookingResult.message };
+    return abortSale(bookingResult.message);
   }
 
   const { bookingId, bookingCode } = bookingResult;
@@ -410,6 +464,7 @@ export async function executeExpressBookingSale(
     }).catch((err) => {
       console.error('[expressBookingSale] rollback failed after partial create', err);
     });
+    await failExpressBookingIdempotency(idempotencyKey, session.adminId, error);
     return { ok: false, error };
   }
 
@@ -571,8 +626,8 @@ export async function executeExpressBookingSale(
       : 0,
   );
 
-  return {
-    ok: true,
+  const successResult = {
+    ok: true as const,
     customerId,
     bookingId,
     bookingCode,
@@ -587,6 +642,8 @@ export async function executeExpressBookingSale(
     historical: false,
     message: `Booking ${bookingCode} created · bed locked · invoice recorded.`,
   };
+  await completeExpressBookingIdempotency(idempotencyKey, session.adminId, successResult);
+  return successResult;
 }
 
 /** @deprecated Use executeExpressBookingSale */

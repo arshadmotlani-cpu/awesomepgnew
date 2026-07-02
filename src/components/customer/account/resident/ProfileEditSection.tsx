@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { ProfileForm } from '@/src/components/customer/ProfileForm';
+import { ResidentActiveSessionsPanel } from '@/src/components/customer/account/resident/ResidentActiveSessionsPanel';
 import { ApgCard } from '@/src/components/customer/design-system';
 import { accountProfileHref } from '@/src/lib/accountNavigation';
 
@@ -54,6 +55,8 @@ export function ProfileEditSection({
           </p>
         </div>
       ) : null}
+
+      <ResidentActiveSessionsPanel />
     </ApgCard>
   );
 }

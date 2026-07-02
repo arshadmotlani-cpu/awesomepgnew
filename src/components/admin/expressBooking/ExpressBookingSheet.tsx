@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import {
   expressWalkInSaleAction,
   getExpressBookingContextAction,
@@ -72,6 +72,8 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
 
   const [submitting, startSubmit] = useTransition();
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const submitInFlightRef = useRef(false);
+  const idempotencyKeyRef = useRef<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [success, setSuccess] = useState<{
     message: string;
@@ -140,6 +142,11 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
     }
   }, [ctx, stayType]);
 
+  useEffect(() => {
+    idempotencyKeyRef.current = null;
+    setSubmitError(null);
+  }, [customerId, bedId, checkInDate, stayType, checkOutDate, paymentStatus, paymentMethod]);
+
   function selectResident(row: AdminResidentSearchResult) {
     setIsNewResident(false);
     setCustomerId(row.id);
@@ -201,6 +208,10 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
   }
 
   function submitBooking() {
+    if (submitInFlightRef.current || submitting) {
+      setSubmitError('Booking is already in progress — please wait.');
+      return;
+    }
     if (!quote) {
       setSubmitError('Wait for pricing to load.');
       return;
@@ -210,8 +221,17 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
       return;
     }
 
+    if (!idempotencyKeyRef.current) {
+      idempotencyKeyRef.current =
+        typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID()
+          : `express-${Date.now()}`;
+    }
+
     setSubmitError(null);
+    submitInFlightRef.current = true;
     startSubmit(async () => {
+      try {
       const rentInr = quote.rentPaise / 100;
       const depositRequiredInr = stayType === 'continue' ? quote.depositPaise / 100 : 0;
 
@@ -241,12 +261,15 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
         paymentStatus,
         amountReceivedInr:
           paymentStatus === 'partially_paid' ? inrToNumber(amountReceivedInr) : undefined,
+        idempotencyKey: idempotencyKeyRef.current ?? undefined,
       });
       if (!res.ok) {
         setSubmitError(res.error);
         setConfirmOpen(false);
         return;
       }
+
+      idempotencyKeyRef.current = null;
 
       const whatsAppUrl =
         res.pgName && res.roomNumber && res.bedCode
@@ -278,6 +301,9 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
         bookingCode: res.bookingCode ?? '',
         whatsAppUrl,
       });
+      } finally {
+        submitInFlightRef.current = false;
+      }
     });
   }
 
@@ -508,7 +534,11 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
           Block whole room availability
         </label>
         {quoteLoading ? <p className="mt-2 text-xs text-apg-silver">Calculating rent…</p> : null}
-        {quoteError ? <p className="mt-2 text-xs text-rose-300">{quoteError}</p> : null}
+        {quoteError ? (
+        <p className="mt-2 text-xs text-rose-300" role="alert">
+          {quoteError}
+        </p>
+      ) : null}
       </div>
 
       {stayType === 'continue' ? (
@@ -638,6 +668,14 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
+        {submitError ? (
+          <div
+            className="mx-auto mb-4 w-full max-w-6xl rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-200"
+            role="alert"
+          >
+            {submitError}
+          </div>
+        ) : null}
         {!hasIdentity ? (
           <div className="mx-auto w-full max-w-6xl">
             <ExpressBookingSearchPanel

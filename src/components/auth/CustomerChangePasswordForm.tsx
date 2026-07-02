@@ -1,11 +1,8 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import {
-  authFieldLabelClassName,
-  authInputClassName,
-} from '@/src/components/auth/authFieldStyles';
+import { redirectAfterAuth } from '@/src/lib/auth/safeNext';
+import { authFieldLabelClassName } from '@/src/components/auth/authFieldStyles';
 import {
   ACCOUNT_LINK_ON_DARK,
   ACCOUNT_PAGE_SUBTITLE,
@@ -13,7 +10,6 @@ import {
 } from '@/src/components/customer/accountStyles';
 
 export function CustomerChangePasswordForm({ email }: { email: string }) {
-  const router = useRouter();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -32,16 +28,23 @@ export function CustomerChangePasswordForm({ email }: { email: string }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentPassword, newPassword, confirmPassword }),
       });
-      const data = (await res.json()) as { ok: boolean; message?: string };
+      const data = (await res.json()) as {
+        ok: boolean;
+        message?: string;
+        requiresReLogin?: boolean;
+      };
       if (!res.ok || !data.ok) {
         setError(data.message ?? 'Could not update password.');
+        return;
+      }
+      if (data.requiresReLogin) {
+        redirectAfterAuth('/login?message=password_changed');
         return;
       }
       setSuccess(true);
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      router.refresh();
     } finally {
       setPending(false);
     }

@@ -10,6 +10,10 @@ import {
   adminSessionRefreshThresholdMs,
 } from './adminSessionPolicy';
 import {
+  customerSessionExpiry,
+  customerSessionRefreshThresholdMs,
+} from './customerSessionPolicy';
+import {
   ADMIN_SESSION_COOKIE,
   CUSTOMER_SESSION_COOKIE,
 } from './constants';
@@ -25,6 +29,7 @@ export type CustomerSession = {
   fullName: string;
   email: string;
   mustSetPassword: boolean;
+  rememberMe: boolean;
   expiresAt: Date;
 };
 
@@ -41,9 +46,12 @@ export type AdminSession = {
   expiresAt: Date;
 };
 
-function customerExpiry(): Date {
-  const days = env.AUTH_CUSTOMER_SESSION_DAYS;
-  return new Date(Date.now() + days * 86_400_000);
+function customerExpiryFor(rememberMe: boolean): Date {
+  return customerSessionExpiry(rememberMe);
+}
+
+function customerRefreshThresholdMs(): number {
+  return customerSessionRefreshThresholdMs();
 }
 
 function adminExpiryFor(rememberMe: boolean): Date {
@@ -56,16 +64,19 @@ function adminRefreshThresholdMs(): number {
 
 export async function createCustomerSession(args: {
   customerId: string;
+  rememberMe?: boolean;
   ip?: string | null;
   userAgent?: string | null;
 }): Promise<string> {
+  const rememberMe = args.rememberMe ?? false;
   const token = randomToken();
-  const expires = customerExpiry();
+  const expires = customerExpiryFor(rememberMe);
   await db.insert(authSessions).values({
     kind: 'customer',
     subjectId: args.customerId,
     tokenHash: sha256(token),
     expiresAt: expires,
+    rememberMe,
     ip: args.ip ?? null,
     userAgent: args.userAgent ?? null,
   });
@@ -190,11 +201,53 @@ async function refreshAdminSessionIfNeeded(args: {
   return newExpires;
 }
 
+async function refreshCustomerSessionIfNeeded(args: {
+  sessionId: string;
+  expiresAt: Date;
+  rememberMe: boolean;
+  token: string;
+}): Promise<Date> {
+  const remaining = args.expiresAt.getTime() - Date.now();
+  if (remaining > customerRefreshThresholdMs()) {
+    return args.expiresAt;
+  }
+
+  const newExpires = customerExpiryFor(args.rememberMe);
+  try {
+    await db
+      .update(authSessions)
+      .set({ expiresAt: newExpires, lastSeenAt: new Date() })
+      .where(eq(authSessions.id, args.sessionId));
+
+    const jar = await cookies();
+    jar.set(CUSTOMER_SESSION_COOKIE, args.token, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: env.NODE_ENV === 'production',
+      path: '/',
+      expires: newExpires,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[auth] customer session refresh failed:', message);
+    return args.expiresAt;
+  }
+
+  return newExpires;
+}
+
 /** Per-request dedupe — layout + page may both need the session. */
 export const getCustomerSession = cache(async (): Promise<CustomerSession | null> => {
   const base = await readSessionByCookie(CUSTOMER_SESSION_COOKIE, 'customer');
   if (!base) return null;
   try {
+    const expiresAt = await refreshCustomerSessionIfNeeded({
+      sessionId: base.sessionId,
+      expiresAt: base.expiresAt,
+      rememberMe: base.rememberMe,
+      token: base.token,
+    });
+
     const [customer] = await db
       .select({
         id: customers.id,
@@ -223,7 +276,8 @@ export const getCustomerSession = cache(async (): Promise<CustomerSession | null
       fullName: customer.fullName,
       email: customer.email,
       mustSetPassword: customer.mustSetPassword,
-      expiresAt: base.expiresAt,
+      rememberMe: base.rememberMe,
+      expiresAt,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -286,6 +340,36 @@ export async function destroyCustomerSession(): Promise<void> {
       .where(eq(authSessions.tokenHash, sha256(token)));
   }
   jar.delete(CUSTOMER_SESSION_COOKIE);
+}
+
+/** Revoke every resident session (optionally keep the current device). */
+export async function destroyAllCustomerSessions(
+  customerId: string,
+  opts?: { exceptCurrentSession?: boolean },
+): Promise<void> {
+  const jar = await cookies();
+  const token = jar.get(CUSTOMER_SESSION_COOKIE)?.value;
+  let exceptSessionId: string | null = null;
+  if (opts?.exceptCurrentSession && token) {
+    const [row] = await db
+      .select({ id: authSessions.id })
+      .from(authSessions)
+      .where(
+        and(
+          eq(authSessions.kind, 'customer'),
+          eq(authSessions.tokenHash, sha256(token)),
+        ),
+      )
+      .limit(1);
+    exceptSessionId = row?.id ?? null;
+  }
+
+  const { revokeAllCustomerSessions } = await import('@/src/lib/auth/customerSessions');
+  await revokeAllCustomerSessions(customerId, { exceptSessionId });
+
+  if (!opts?.exceptCurrentSession) {
+    jar.delete(CUSTOMER_SESSION_COOKIE);
+  }
 }
 
 export async function destroyAdminSession(): Promise<void> {

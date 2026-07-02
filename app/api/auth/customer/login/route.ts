@@ -7,9 +7,14 @@ import { createCustomerSession } from '@/src/lib/auth/session';
 import { logger } from '@/src/lib/logger';
 
 export async function POST(request: Request) {
-  let body: { email?: string; identifier?: string; password?: string };
+  let body: { email?: string; identifier?: string; password?: string; rememberMe?: boolean };
   try {
-    body = (await request.json()) as { email?: string; identifier?: string; password?: string };
+    body = (await request.json()) as {
+      email?: string;
+      identifier?: string;
+      password?: string;
+      rememberMe?: boolean;
+    };
   } catch {
     return NextResponse.json({ ok: false, message: 'Invalid JSON body.' }, { status: 400 });
   }
@@ -106,7 +111,12 @@ export async function POST(request: Request) {
     userAgent,
   });
 
-  await createCustomerSession({ customerId: customer.id, ip, userAgent });
+  await createCustomerSession({
+    customerId: customer.id,
+    rememberMe: body.rememberMe !== false,
+    ip,
+    userAgent,
+  });
 
   logger.info('customer_login_success', {
     customerId: customer.id,

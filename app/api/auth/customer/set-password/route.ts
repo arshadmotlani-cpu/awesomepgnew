@@ -63,6 +63,7 @@ export async function POST(request: Request) {
         await setCustomerPassword(existing.id, password);
         await createCustomerSession({
           customerId: existing.id,
+          rememberMe: true,
           ip,
           userAgent,
         });
@@ -87,6 +88,7 @@ export async function POST(request: Request) {
         await completeSignupSession(signupSession.id);
         await createCustomerSession({
           customerId: existingComplete.id,
+          rememberMe: true,
           ip,
           userAgent,
         });
@@ -108,6 +110,7 @@ export async function POST(request: Request) {
       await completeSignupSession(signupSession.id);
       await createCustomerSession({
         customerId: customer.id,
+        rememberMe: true,
         ip,
         userAgent,
       });

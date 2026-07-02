@@ -111,5 +111,8 @@ Files:
 - **BOOKING-LIFECYCLE-PHASE-1-COMPLETE** — All display/count surfaces migrated; flag removed; `bedOccupancyResolve` + `bedOccupancyBatch`; audit → `docs/PHASE_1_OCCUPANCY_AUDIT.md`
 - **BOOKING-LIFECYCLE-PHASES-2-2B-3** — Maintenance first-class; reservation product (50% optimized rent, auto-convert); monthly unbounded stay_range + deposit policy PG UI; report → `docs/PHASES_2_3_IMPLEMENTATION_REPORT.md`
 - **AUTH-SSOT** — Investigation report + `customerIdentityMerge` (full FK reassign); auth integrity detectors (orphan KYC/wallet, booking without customer, incomplete with password); repair merges wallet/KYC/invoices; masked forgot-password email → `docs/AUTH_SSOT_INVESTIGATION.md`
+- **RESIDENT-AUTH-SESSIONS** — Remember-device (75d default), sliding refresh (14d threshold), silent `/api/auth/customer/session/refresh`, active sessions panel + logout-all, password/forgot-password revoke all sessions; admin sessions unchanged
+- **RESIDENT-AUTH-REPAIR-7083608128** — Unarchived canonical customer `bc9aa020-…` (Harshal Deotale), expired stale signup session `7557` email conflict; phone/email login restored
+- **EXP-BOOKING-IDEMPOTENCY** — Express Booking saga: rollback cancelled rent invoice tombstones blocked retry; server idempotency + persistent UI errors on double submit
 
 ---
