@@ -52,7 +52,7 @@ async function main() {
   }
 
   await page.locator('ul button').first().click();
-  await page.waitForTimeout(6000);
+  await page.waitForTimeout(8000);
 
   const body = await page.locator('body').innerText();
   if (body.includes('This page could not load')) {
