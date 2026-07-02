@@ -63,6 +63,12 @@ export async function findCustomerByEmail(rawEmail: string) {
   return row ?? null;
 }
 
+/** Active (non-archived) customer by email — preferred for auth lookups. */
+export async function findActiveCustomerByEmail(rawEmail: string) {
+  const row = await findCustomerByEmail(rawEmail);
+  return row && !row.archivedAt ? row : null;
+}
+
 export async function findCustomerByPhone(rawPhone: string) {
   const phone = normaliseIndianPhone(rawPhone);
   if (!phone) return null;
@@ -72,6 +78,12 @@ export async function findCustomerByPhone(rawPhone: string) {
     .where(eq(customers.phone, phone))
     .limit(1);
   return row ?? null;
+}
+
+/** Active (non-archived) customer by phone — preferred for auth lookups. */
+export async function findActiveCustomerByPhone(rawPhone: string) {
+  const row = await findCustomerByPhone(rawPhone);
+  return row && !row.archivedAt ? row : null;
 }
 
 export async function createCustomerProfile(args: {

@@ -39,7 +39,8 @@ export function maskEmailForDisplay(email: string): string {
   const domain = normalised.slice(at + 1);
   if (!domain) return 'your registered email';
   const first = local[0] ?? '*';
-  return `${first}***@${domain}`;
+  const maskedLocal = local.length <= 1 ? `${first}******` : `${first}${'*'.repeat(6)}`;
+  return `${maskedLocal}@${domain}`;
 }
 
 export async function findCustomerByLoginIdentifier(

@@ -4,8 +4,12 @@
  */
 import { eq, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { auditLog, bookings, customers } from '@/src/db/schema';
+import { auditLog, customers } from '@/src/db/schema';
 import { archiveStaleCustomerForRecovery } from '@/src/lib/auth/customer';
+import {
+  mergeIdentityFieldsOntoCanonical,
+  reassignCustomerForeignKeys,
+} from '@/src/lib/auth/customerIdentityMerge';
 import type { AuthIntegrityIssue } from '@/src/services/authIntegrityCheck';
 
 export type AuthRepairAction = {
@@ -77,19 +81,20 @@ async function repairDuplicateIdentity(
       checkType: issue.checkType,
       issue,
       action: 'repaired',
-      detail: `Would keep ${canonicalId}, archive ${duplicates.join(', ')}, reassign bookings`,
+      detail: `Would keep ${canonicalId}, reassign bookings/wallet/KYC/invoices from ${duplicates.join(', ')}, merge identity, archive duplicates`,
     };
   }
 
+  await db.transaction(async (tx) => {
+    for (const dupId of duplicates) {
+      await reassignCustomerForeignKeys(dupId, canonicalId, tx);
+    }
+    await mergeIdentityFieldsOntoCanonical(canonicalId, duplicates, tx);
+  });
+
   for (const dupId of duplicates) {
     const [dup] = await db.select().from(customers).where(eq(customers.id, dupId)).limit(1);
-    if (!dup) continue;
-
-    await db
-      .update(bookings)
-      .set({ customerId: canonicalId, updatedAt: new Date() })
-      .where(eq(bookings.customerId, dupId));
-
+    if (!dup || dup.archivedAt) continue;
     await archiveStaleCustomerForRecovery({ id: dup.id, email: dup.email });
     await logAuthRepair(canonicalId, 'auth_integrity_merge_duplicate', {
       archivedCustomerId: dupId,
@@ -101,7 +106,37 @@ async function repairDuplicateIdentity(
     checkType: issue.checkType,
     issue,
     action: 'repaired',
-    detail: `Merged into ${canonicalId}, archived ${duplicates.length} duplicate(s)`,
+    detail: `Merged into ${canonicalId}: FKs reassigned, identity merged, ${duplicates.length} duplicate(s) archived`,
+  };
+}
+
+async function repairIncompleteWithPassword(
+  issue: AuthIntegrityIssue,
+  dryRun: boolean,
+): Promise<AuthRepairAction> {
+  if (dryRun) {
+    return {
+      checkType: issue.checkType,
+      issue,
+      action: 'repaired',
+      detail: `Would clear must_set_password for ${issue.customerId}`,
+    };
+  }
+
+  await db
+    .update(customers)
+    .set({ mustSetPassword: false, updatedAt: new Date() })
+    .where(eq(customers.id, issue.customerId));
+
+  await logAuthRepair(issue.customerId, 'auth_integrity_clear_must_set_password', {
+    checkType: issue.checkType,
+  });
+
+  return {
+    checkType: issue.checkType,
+    issue,
+    action: 'repaired',
+    detail: `Cleared must_set_password for ${issue.customerId}`,
   };
 }
 
@@ -116,6 +151,8 @@ export async function repairAuthIntegrityIssue(
     case 'DUPLICATE_EMAIL':
     case 'PHONE_LOOKUP_EMAIL_MISMATCH':
       return repairDuplicateIdentity(issue, dryRun);
+    case 'INCOMPLETE_WITH_PASSWORD':
+      return repairIncompleteWithPassword(issue, dryRun);
     default:
       return {
         checkType: issue.checkType,

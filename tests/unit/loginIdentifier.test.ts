@@ -25,7 +25,7 @@ describe('parseLoginIdentifier', () => {
 
 describe('maskEmailForDisplay', () => {
   it('masks local part without revealing full email', () => {
-    assert.equal(maskEmailForDisplay('abc@gmail.com'), 'a***@gmail.com');
+    assert.equal(maskEmailForDisplay('abc@gmail.com'), 'a******@gmail.com');
   });
 
   it('never returns the full address', () => {

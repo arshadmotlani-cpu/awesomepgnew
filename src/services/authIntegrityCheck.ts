@@ -3,6 +3,7 @@
  */
 import { sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
+import { collectSplitIdentityClusterIds } from '@/src/lib/auth/customerIdentityMerge';
 
 export const AUTH_INTEGRITY_CHECK_TYPES = [
   'DUPLICATE_PHONE',
@@ -13,6 +14,8 @@ export const AUTH_INTEGRITY_CHECK_TYPES = [
   'INCOMPLETE_WITH_PASSWORD',
   'SIGNUP_SESSION_CONFLICT',
   'PHONE_LOOKUP_EMAIL_MISMATCH',
+  'ORPHAN_KYC',
+  'ORPHAN_WALLET',
 ] as const;
 
 export type AuthIntegrityCheckType = (typeof AUTH_INTEGRITY_CHECK_TYPES)[number];
@@ -51,6 +54,8 @@ function emptyByCheckType(): Record<AuthIntegrityCheckType, number> {
     INCOMPLETE_WITH_PASSWORD: 0,
     SIGNUP_SESSION_CONFLICT: 0,
     PHONE_LOOKUP_EMAIL_MISMATCH: 0,
+    ORPHAN_KYC: 0,
+    ORPHAN_WALLET: 0,
   };
 }
 
@@ -213,15 +218,133 @@ async function checkPhoneLookupEmailMismatch(): Promise<AuthIntegrityIssue[]> {
       )
   `);
 
+  const issues: AuthIntegrityIssue[] = [];
+  const seenClusters = new Set<string>();
+
+  for (const row of rows) {
+    const clusterIds = await collectSplitIdentityClusterIds(row.customer_id);
+    const clusterKey = [...clusterIds].sort().join(',');
+    if (seenClusters.has(clusterKey)) continue;
+    seenClusters.add(clusterKey);
+
+    issues.push({
+      checkType: 'PHONE_LOOKUP_EMAIL_MISMATCH',
+      customerId: clusterIds[0] ?? row.customer_id,
+      customerName: row.full_name,
+      email: row.email,
+      phone: row.phone,
+      relatedCustomerId: clusterIds[1] ?? null,
+      detail: `Identity split — ${clusterIds.length} rows share phone/email cluster (${row.booking_count} bookings on this row)`,
+      metadata: { customerIds: clusterIds, bookingCount: row.booking_count },
+      autoRepairable: clusterIds.length >= 2,
+    });
+  }
+  return issues;
+}
+
+async function checkBookingWithoutCustomer(): Promise<AuthIntegrityIssue[]> {
+  const rows = await db.execute<{
+    booking_id: string;
+    booking_code: string;
+    customer_id: string;
+    customer_name: string | null;
+    archived: boolean;
+  }>(sql`
+    SELECT bk.id AS booking_id, bk.booking_code, bk.customer_id,
+           c.full_name AS customer_name,
+           (c.archived_at IS NOT NULL) AS archived
+    FROM bookings bk
+    LEFT JOIN customers c ON c.id = bk.customer_id
+    WHERE c.id IS NULL OR c.archived_at IS NOT NULL
+  `);
+
   return rows.map((row) => ({
-    checkType: 'PHONE_LOOKUP_EMAIL_MISMATCH' as const,
+    checkType: 'BOOKING_WITHOUT_CUSTOMER' as const,
+    customerId: row.customer_id,
+    customerName: row.customer_name ?? '—',
+    email: null,
+    phone: null,
+    bookingId: row.booking_id,
+    bookingCode: row.booking_code,
+    detail: row.archived
+      ? `Booking ${row.booking_code} points to archived customer`
+      : `Booking ${row.booking_code} has no valid customer`,
+    autoRepairable: false,
+  }));
+}
+
+async function checkIncompleteWithPassword(): Promise<AuthIntegrityIssue[]> {
+  const rows = await db.execute<{
+    customer_id: string;
+    full_name: string;
+    email: string;
+    phone: string;
+  }>(sql`
+    SELECT id AS customer_id, full_name, email, phone
+    FROM customers
+    WHERE archived_at IS NULL
+      AND password_hash IS NOT NULL
+      AND must_set_password = true
+  `);
+
+  return rows.map((row) => ({
+    checkType: 'INCOMPLETE_WITH_PASSWORD' as const,
     customerId: row.customer_id,
     customerName: row.full_name,
     email: row.email,
     phone: row.phone,
-    detail: `Identity split — phone and email may resolve to different customer rows (${row.booking_count} bookings)`,
-    metadata: { bookingCount: row.booking_count },
+    detail: 'Password hash exists but must_set_password is still true',
     autoRepairable: true,
+  }));
+}
+
+async function checkOrphanKyc(): Promise<AuthIntegrityIssue[]> {
+  const rows = await db.execute<{
+    kyc_id: string;
+    customer_id: string;
+    customer_name: string | null;
+  }>(sql`
+    SELECT k.id AS kyc_id, k.customer_id, c.full_name AS customer_name
+    FROM kyc_submissions k
+    LEFT JOIN customers c ON c.id = k.customer_id
+    WHERE c.id IS NULL OR c.archived_at IS NOT NULL
+  `);
+
+  return rows.map((row) => ({
+    checkType: 'ORPHAN_KYC' as const,
+    customerId: row.customer_id,
+    customerName: row.customer_name ?? '—',
+    email: null,
+    phone: null,
+    detail: `KYC submission ${row.kyc_id} has no active customer`,
+    metadata: { kycId: row.kyc_id },
+    autoRepairable: false,
+  }));
+}
+
+async function checkOrphanDepositLedger(): Promise<AuthIntegrityIssue[]> {
+  const rows = await db.execute<{
+    ledger_id: string;
+    customer_id: string;
+    booking_id: string;
+    customer_name: string | null;
+  }>(sql`
+    SELECT dl.id AS ledger_id, dl.customer_id, dl.booking_id, c.full_name AS customer_name
+    FROM deposit_ledger dl
+    LEFT JOIN customers c ON c.id = dl.customer_id
+    WHERE c.id IS NULL OR c.archived_at IS NOT NULL
+  `);
+
+  return rows.map((row) => ({
+    checkType: 'ORPHAN_WALLET' as const,
+    customerId: row.customer_id,
+    customerName: row.customer_name ?? '—',
+    email: null,
+    phone: null,
+    bookingId: row.booking_id,
+    detail: `Deposit ledger ${row.ledger_id} has no active customer`,
+    metadata: { ledgerId: row.ledger_id },
+    autoRepairable: false,
   }));
 }
 
@@ -238,12 +361,20 @@ export async function runAuthIntegrityCheck(opts?: {
     orphanIncomplete,
     signupConflicts,
     phoneEmailMismatch,
+    bookingWithoutCustomer,
+    incompleteWithPassword,
+    orphanKyc,
+    orphanDepositLedger,
   ] = await Promise.all([
     checkDuplicatePhones(),
     checkDuplicateEmails(),
     checkOrphanIncompleteWithBooking(),
     checkSignupSessionConflicts(),
     checkPhoneLookupEmailMismatch(),
+    checkBookingWithoutCustomer(),
+    checkIncompleteWithPassword(),
+    checkOrphanKyc(),
+    checkOrphanDepositLedger(),
   ]);
 
   let issues = [
@@ -252,6 +383,10 @@ export async function runAuthIntegrityCheck(opts?: {
     ...orphanIncomplete,
     ...signupConflicts,
     ...phoneEmailMismatch,
+    ...bookingWithoutCustomer,
+    ...incompleteWithPassword,
+    ...orphanKyc,
+    ...orphanDepositLedger,
   ];
 
   if (opts?.phone) {

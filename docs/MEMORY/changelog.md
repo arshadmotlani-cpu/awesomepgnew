@@ -110,5 +110,6 @@ Files:
 - **BOOKING-LIFECYCLE-PHASE-1** — Occupancy SSOT engine (`bedOccupancyEngine.ts`), `OCCUPANCY_ENGINE_V2` flag, pgBedMap + customer query wiring, checkout-pending rules (monthly mandatory / fixed workflow-only), Phase 3 migration gated
 - **BOOKING-LIFECYCLE-PHASE-1-COMPLETE** — All display/count surfaces migrated; flag removed; `bedOccupancyResolve` + `bedOccupancyBatch`; audit → `docs/PHASE_1_OCCUPANCY_AUDIT.md`
 - **BOOKING-LIFECYCLE-PHASES-2-2B-3** — Maintenance first-class; reservation product (50% optimized rent, auto-convert); monthly unbounded stay_range + deposit policy PG UI; report → `docs/PHASES_2_3_IMPLEMENTATION_REPORT.md`
+- **AUTH-SSOT** — Investigation report + `customerIdentityMerge` (full FK reassign); auth integrity detectors (orphan KYC/wallet, booking without customer, incomplete with password); repair merges wallet/KYC/invoices; masked forgot-password email → `docs/AUTH_SSOT_INVESTIGATION.md`
 
 ---
