@@ -145,7 +145,7 @@ export default async function ProfilePage(props: PageProps<'/account/profile'>) 
     if (tabParam === 'vacating') redirect(residentTabHref('requests', { category: 'move_out' }));
 
     return (
-      <main className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6">
+      <main className="apg-resident-portal-main mx-auto w-full max-w-4xl px-4 py-10 sm:px-6">
         <PostLoginRouteObserver
           step="account_profile_resident_dashboard"
           customerId={session.customerId}

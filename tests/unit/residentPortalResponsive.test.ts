@@ -10,10 +10,25 @@ describe('resident portal responsive nav', () => {
       'utf8',
     );
     assert.match(shell, /apg-resident-top-nav/);
-    assert.match(shell, /RESIDENT_DESKTOP_NAV/);
+    assert.match(shell, /apg-resident-top-nav-wrap/);
+    assert.match(shell, /apg-resident-top-nav-fade md:hidden/);
     assert.doesNotMatch(shell, /fixed bottom-0/);
-    assert.doesNotMatch(shell, /md:hidden/);
     assert.doesNotMatch(shell, /hidden md:flex/);
+  });
+
+  it('styles secondary nav as lighter tier on mobile', () => {
+    const sub = readFileSync(
+      join(process.cwd(), 'src/components/customer/account/resident/ResidentSubpageLayout.tsx'),
+      'utf8',
+    );
+    assert.match(sub, /apg-resident-sub-nav/);
+    assert.match(sub, /max-md:bg-apg-orange\/10/);
+  });
+
+  it('applies mobile polish hooks in globals.css', () => {
+    const css = readFileSync(join(process.cwd(), 'app/globals.css'), 'utf8');
+    assert.match(css, /apg-resident-top-nav-fade/);
+    assert.match(css, /@media \(max-width: 767px\)/);
   });
 
   it('shows page header on mobile and desktop', () => {

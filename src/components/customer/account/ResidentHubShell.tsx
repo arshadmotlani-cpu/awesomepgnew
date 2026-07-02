@@ -50,25 +50,28 @@ export function ResidentHubShell({
           />
         ) : null}
 
-        <nav
-          className="apg-resident-top-nav mb-4 flex gap-1 overflow-x-auto scroll-smooth rounded-xl border border-white/10 bg-white/[0.03] p-1 snap-x snap-mandatory md:flex-wrap md:overflow-visible"
-          aria-label="Resident hub"
-        >
-          {RESIDENT_DESKTOP_NAV.map(({ tab, label }) => (
-            <Link
-              key={tab}
-              href={residentTabHref(tab)}
-              className={`shrink-0 snap-start whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                activeTab === tab
-                  ? 'bg-apg-orange/15 text-apg-orange ring-1 ring-apg-orange/30'
-                  : 'text-apg-silver hover:bg-white/5 hover:text-white'
-              }`}
-              aria-current={activeTab === tab ? 'page' : undefined}
-            >
-              {label}
-            </Link>
-          ))}
-        </nav>
+        <div className="apg-resident-top-nav-wrap">
+          <nav
+            className="apg-resident-top-nav mb-4 flex gap-1 overflow-x-auto scroll-smooth rounded-xl border border-white/10 bg-white/[0.03] p-1 snap-x snap-mandatory md:mb-4 md:flex-wrap md:overflow-visible"
+            aria-label="Resident hub"
+          >
+            {RESIDENT_DESKTOP_NAV.map(({ tab, label }) => (
+              <Link
+                key={tab}
+                href={residentTabHref(tab)}
+                className={`apg-resident-top-nav-link shrink-0 snap-start whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-[color,background-color,box-shadow,transform] duration-200 ease-out ${
+                  activeTab === tab
+                    ? 'bg-apg-orange/15 text-apg-orange ring-1 ring-apg-orange/30 max-md:ring-0 max-md:shadow-[0_4px_16px_-4px_rgba(255,90,31,0.45)]'
+                    : 'text-apg-silver hover:bg-white/5 hover:text-white'
+                }`}
+                aria-current={activeTab === tab ? 'page' : undefined}
+              >
+                {label}
+              </Link>
+            ))}
+          </nav>
+          <div className="apg-resident-top-nav-fade md:hidden" aria-hidden />
+        </div>
 
         <ResidentSectionErrorBoundary
           page={`resident_portal_${activeTab}`}
@@ -77,7 +80,9 @@ export function ResidentHubShell({
           email={customerEmail}
           title="Your stay dashboard could not load"
         >
-          <div className="min-w-0 space-y-6">{children}</div>
+          <div className="apg-resident-hub-content min-w-0 space-y-6 max-md:space-y-8">
+            {children}
+          </div>
         </ResidentSectionErrorBoundary>
       </div>
     </ResidentControlShell>

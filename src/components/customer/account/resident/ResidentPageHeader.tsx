@@ -19,7 +19,7 @@ type Props = {
 
 export function ResidentPageHeader({ meta, backHref, backLabel }: Props) {
   return (
-    <header className="mb-5">
+    <header className="apg-resident-page-header mb-5 max-md:mb-6">
       <nav className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
         {backHref ? (
           <Link href={backHref} className={ACCOUNT_BACK_LINK}>

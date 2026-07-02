@@ -76,7 +76,7 @@ export function ResidentProfileHub({
   ];
 
   return (
-    <div>
+    <div className="apg-resident-panel-content">
       <ResidentSubNav items={subNav} activeId={sub} />
 
       {sub === 'overview' ? (

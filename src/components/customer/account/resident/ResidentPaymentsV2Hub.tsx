@@ -105,7 +105,7 @@ export function ResidentPaymentsV2Hub({
   const totalDuePaise = payableDue.reduce((s, r) => s + r.amountPaise, 0);
 
   return (
-    <div>
+    <div className="apg-resident-panel-content">
       <ResidentSubNav items={subNav} activeId={sub} />
 
       {sub === 'due' ? (

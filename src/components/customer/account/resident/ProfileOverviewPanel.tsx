@@ -42,7 +42,7 @@ export function ProfileOverviewPanel({
     roomCapacity <= 1 ? 'Private room' : `${roomCapacity}-sharing (${roommatesCount} roommate${roommatesCount === 1 ? '' : 's'})`;
 
   return (
-    <div className="space-y-4 pb-2">
+    <div className="space-y-4 pb-2 max-md:space-y-5">
       <ApgCard tier="resident" className="space-y-1">
         <h2 className="text-base font-semibold text-white">Current stay</h2>
         <p className="text-sm text-apg-silver">

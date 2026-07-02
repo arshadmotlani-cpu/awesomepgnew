@@ -47,17 +47,17 @@ export function ResidentSubNav({
 }) {
   return (
     <nav
-      className="mb-4 flex gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1"
+      className="apg-resident-sub-nav mb-4 flex gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1 max-md:mb-6"
       aria-label="Section navigation"
     >
       {items.map((item) => (
         <Link
           key={item.id}
           href={item.href}
-          className={`flex-1 rounded-lg px-3 py-2 text-center text-sm font-medium transition ${
+          className={`apg-resident-sub-nav-link flex-1 rounded-lg px-3 py-2 text-center text-sm font-medium transition-[color,background-color] duration-200 ease-out max-md:py-2 max-md:text-[13px] max-md:font-medium ${
             activeId === item.id
-              ? 'bg-apg-orange/15 text-apg-orange ring-1 ring-apg-orange/30'
-              : 'text-apg-silver hover:bg-white/5 hover:text-white'
+              ? 'bg-apg-orange/15 text-apg-orange ring-1 ring-apg-orange/30 max-md:bg-apg-orange/10 max-md:ring-0'
+              : 'text-apg-silver hover:bg-white/5 hover:text-white max-md:text-apg-muted'
           }`}
           aria-current={activeId === item.id ? 'page' : undefined}
         >
