@@ -114,5 +114,6 @@ Files:
 - **RESIDENT-AUTH-SESSIONS** — Remember-device (75d default), sliding refresh (14d threshold), silent `/api/auth/customer/session/refresh`, active sessions panel + logout-all, password/forgot-password revoke all sessions; admin sessions unchanged
 - **RESIDENT-AUTH-REPAIR-7083608128** — Unarchived canonical customer `bc9aa020-…` (Harshal Deotale), expired stale signup session `7557` email conflict; phone/email login restored
 - **EXP-BOOKING-IDEMPOTENCY** — Express Booking saga: rollback cancelled rent invoice tombstones blocked retry; server idempotency + persistent UI errors on double submit
+- **EXP-BOOKING-RETRY-HARDEN** — Rollback purges unpaid rent invoices (no tombstones); `ensureMonthlyRentInvoice` regenerates after express rollback; two-step confirm UI + processing lock; rollback failure surfaces retryable state
 
 ---

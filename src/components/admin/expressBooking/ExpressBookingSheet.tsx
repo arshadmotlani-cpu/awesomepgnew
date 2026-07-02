@@ -75,6 +75,7 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
   const submitInFlightRef = useRef(false);
   const idempotencyKeyRef = useRef<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const isProcessing = submitting;
   const [success, setSuccess] = useState<{
     message: string;
     href: string;
@@ -266,6 +267,7 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
       if (!res.ok) {
         setSubmitError(res.error);
         setConfirmOpen(false);
+        idempotencyKeyRef.current = null;
         return;
       }
 
@@ -343,7 +345,7 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
   }
 
   const leftPanel = hasIdentity ? (
-    <div className="space-y-4">
+    <fieldset className="space-y-4" disabled={isProcessing}>
       <div className={`${posGlassCard} flex flex-wrap items-start justify-between gap-3`}>
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-wider text-apg-muted">
@@ -580,33 +582,38 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
           setPaymentMethod={setPaymentMethod}
           amountReceivedInr={amountReceivedInr}
           setAmountReceivedInr={setAmountReceivedInr}
+          disabled={isProcessing}
         />
       </div>
-    </div>
+    </fieldset>
   ) : null;
 
   const confirmPanel = confirmOpen ? (
     <div className={`${posGlassCard} border-[#FF5A1F]/30`}>
-      <p className="text-lg font-semibold text-white">Confirm booking</p>
-      <p className="mt-2 text-sm text-apg-silver">
-        Create {stayType === 'fixed' ? 'fixed stay' : 'monthly stay'} for {fullName}?
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#FF5A1F]">
+        Step 2 of 2
       </p>
-      {submitError ? <p className="mt-2 text-sm text-rose-300">{submitError}</p> : null}
+      <p className="mt-1 text-lg font-semibold text-white">Confirm booking</p>
+      <p className="mt-2 text-sm text-apg-silver">
+        Create {stayType === 'fixed' ? 'fixed stay' : 'monthly stay'} for {fullName}? This will
+        create the booking, invoice, and payment records.
+      </p>
       <div className="mt-4 flex gap-3">
         <button
           type="button"
+          disabled={isProcessing}
           onClick={() => setConfirmOpen(false)}
-          className="flex-1 rounded-xl border border-white/10 py-3 text-sm text-apg-silver"
+          className="flex-1 rounded-xl border border-white/10 py-3 text-sm text-apg-silver disabled:opacity-40"
         >
-          Cancel
+          Back
         </button>
         <button
           type="button"
-          disabled={submitting}
+          disabled={isProcessing}
           onClick={submitBooking}
           className="flex-1 rounded-xl bg-[#FF5A1F] py-3 text-sm font-semibold text-white disabled:opacity-50"
         >
-          {submitting ? 'Creating…' : 'Confirm'}
+          {isProcessing ? 'Creating booking…' : 'Confirm & create'}
         </button>
       </div>
     </div>
@@ -633,18 +640,24 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
           setPaymentMethod={setPaymentMethod}
           amountReceivedInr={amountReceivedInr}
           setAmountReceivedInr={setAmountReceivedInr}
+          disabled={isProcessing}
         />
       </div>
       {confirmPanel}
       {!confirmOpen ? (
-        <button
-          type="button"
-          disabled={submitting || !quote || !bedId}
-          onClick={() => setConfirmOpen(true)}
-          className="hidden w-full rounded-xl bg-[#FF5A1F] py-4 text-base font-semibold text-white hover:brightness-110 disabled:opacity-40 lg:block"
-        >
-          Review & create
-        </button>
+        <div className="hidden lg:block">
+          <button
+            type="button"
+            disabled={isProcessing || !quote || !bedId}
+            onClick={() => setConfirmOpen(true)}
+            className="w-full rounded-xl bg-[#FF5A1F] py-4 text-base font-semibold text-white hover:brightness-110 disabled:opacity-40"
+          >
+            {isProcessing ? 'Creating booking…' : 'Continue to confirm'}
+          </button>
+          <p className="mt-2 text-center text-xs text-apg-muted">
+            Step 1 of 2 — you will review and confirm before anything is created
+          </p>
+        </div>
       ) : null}
     </div>
   ) : null;
@@ -659,8 +672,9 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
           </div>
           <button
             type="button"
+            disabled={isProcessing}
             onClick={handleClose}
-            className="rounded-lg border border-white/10 px-4 py-2 text-sm text-apg-silver hover:text-white"
+            className="rounded-lg border border-white/10 px-4 py-2 text-sm text-apg-silver hover:text-white disabled:opacity-40"
           >
             Back
           </button>
@@ -696,12 +710,15 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
         <div className="shrink-0 border-t border-white/10 bg-[#0B0F14] p-4 lg:hidden">
           <button
             type="button"
-            disabled={submitting || !quote || !bedId}
+            disabled={isProcessing || !quote || !bedId}
             onClick={() => setConfirmOpen(true)}
             className="w-full rounded-xl bg-[#FF5A1F] py-4 text-base font-semibold text-white disabled:opacity-40"
           >
-            Review & create
+            {isProcessing ? 'Creating booking…' : 'Continue to confirm'}
           </button>
+          <p className="mt-2 text-center text-xs text-apg-muted">
+            Step 1 of 2 — review and confirm before creating
+          </p>
         </div>
       ) : null}
 
@@ -721,6 +738,7 @@ function PaymentControls({
   setPaymentMethod,
   amountReceivedInr,
   setAmountReceivedInr,
+  disabled = false,
 }: {
   paymentStatus: ExpressBookingPaymentStatus;
   setPaymentStatus: (v: ExpressBookingPaymentStatus) => void;
@@ -728,6 +746,7 @@ function PaymentControls({
   setPaymentMethod: (v: 'cash' | 'upi' | 'bank_transfer' | 'other') => void;
   amountReceivedInr: string;
   setAmountReceivedInr: (v: string) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="mt-3 space-y-4">
@@ -742,8 +761,9 @@ function PaymentControls({
           <button
             key={value}
             type="button"
+            disabled={disabled}
             onClick={() => setPaymentStatus(value)}
-            className={`${posSegmentBase} ${paymentStatus === value ? posSegmentActive : posSegmentIdle}`}
+            className={`${posSegmentBase} ${paymentStatus === value ? posSegmentActive : posSegmentIdle} disabled:opacity-40`}
           >
             {label}
           </button>
@@ -759,6 +779,7 @@ function PaymentControls({
             value={amountReceivedInr}
             onChange={(e) => setAmountReceivedInr(e.target.value)}
             className={posInputClass}
+            disabled={disabled}
           />
         </label>
       ) : null}
@@ -768,6 +789,7 @@ function PaymentControls({
           value={paymentMethod}
           onChange={(e) => setPaymentMethod(e.target.value as typeof paymentMethod)}
           className={posInputClass}
+          disabled={disabled}
         >
           <option value="upi">UPI</option>
           <option value="cash">Cash</option>

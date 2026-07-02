@@ -46,6 +46,10 @@ import {
   type RentInvoice,
 } from '../db/schema';
 import type { PricingSnapshot } from '../db/schema/bookings';
+import {
+  purgeUnpaidRentInvoiceRow,
+  shouldPurgeCancelledRentInvoiceForRetry,
+} from './expressRentInvoiceRecovery';
 import { adminCanAccessPg } from '../lib/auth/roles';
 import type { AdminSession } from '../lib/auth/session';
 import { addDays, diffDays, formatDate, parseDate, type DateLike } from '../lib/dates';
@@ -440,70 +444,32 @@ export async function ensureMonthlyRentInvoice(input: {
       };
     }
     if (existing.status === 'cancelled') {
-      const unpaid =
-        (existing.paidPrincipalPaise ?? 0) === 0 && !existing.paymentId;
-      const rollbackTombstone =
-        unpaid &&
-        (existing.cancellationReason?.includes('Express walk-in rolled back') ||
-          existing.cancellationReason?.includes('[rollback]') ||
-          existing.cancellationReason?.includes('[system]'));
-
-      if (rollbackTombstone) {
-        await db
-          .update(rentInvoices)
-          .set({
-            status: 'pending',
-            cancelledAt: null,
-            cancellationReason: null,
-            updatedAt: new Date(),
-            ...(input.amountPaise ? { rentPaise: input.amountPaise } : {}),
-          })
-          .where(eq(rentInvoices.id, existing.id));
-
-        const [fi] = await db
-          .select({ id: financialInvoices.id, status: financialInvoices.status })
-          .from(financialInvoices)
-          .where(
-            and(
-              eq(financialInvoices.sourceTable, 'rent_invoices'),
-              eq(financialInvoices.sourceId, existing.id),
-            ),
-          )
-          .limit(1);
-        if (fi && (fi.status === 'cancelled' || fi.status === 'refunded')) {
-          const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
-          await syncRentInvoiceToUnified(existing.id);
-        }
-
+      if (shouldPurgeCancelledRentInvoiceForRetry(existing)) {
+        await purgeUnpaidRentInvoiceRow(existing.id);
+        // Fall through — generate a fresh invoice below.
+      } else {
         return {
-          ok: true,
-          invoiceId: existing.id,
-          invoiceNumber: existing.invoiceNumber,
-          created: false,
-          status: 'pending',
+          ok: false,
+          error: 'Monthly invoice was cancelled. Re-generate from the billing queue first.',
         };
       }
-
+    } else {
+      if (input.amountPaise && input.amountPaise !== existing.rentPaise) {
+        await db
+          .update(rentInvoices)
+          .set({ rentPaise: input.amountPaise, updatedAt: new Date() })
+          .where(eq(rentInvoices.id, existing.id));
+        const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
+        await syncRentInvoiceToUnified(existing.id);
+      }
       return {
-        ok: false,
-        error: 'Monthly invoice was cancelled. Re-generate from the billing queue first.',
+        ok: true,
+        invoiceId: existing.id,
+        invoiceNumber: existing.invoiceNumber,
+        created: false,
+        status: existing.status,
       };
     }
-    if (input.amountPaise && input.amountPaise !== existing.rentPaise) {
-      await db
-        .update(rentInvoices)
-        .set({ rentPaise: input.amountPaise, updatedAt: new Date() })
-        .where(eq(rentInvoices.id, existing.id));
-      const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
-      await syncRentInvoiceToUnified(existing.id);
-    }
-    return {
-      ok: true,
-      invoiceId: existing.id,
-      invoiceNumber: existing.invoiceNumber,
-      created: false,
-      status: existing.status,
-    };
   }
 
   await generateRentInvoicesForMonth({

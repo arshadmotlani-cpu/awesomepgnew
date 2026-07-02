@@ -21,6 +21,10 @@ import { syncDepositCollectionFromLedger } from '@/src/services/depositCollectio
 import { adjustDepositCollectedBalance, getDepositSummaryForBooking } from '@/src/services/deposits';
 import { applyDepositDeduction } from '@/src/services/depositSettlement';
 import { cancelUnifiedInvoice, refundUnifiedInvoice } from '@/src/services/unifiedInvoices';
+import {
+  isUnpaidRentInvoice,
+  purgeUnpaidRentInvoiceRow,
+} from '@/src/services/expressRentInvoiceRecovery';
 
 const DEPOSIT_CREDIT_REASON = 'Deposit credit applied from prior stay wallet';
 
@@ -64,7 +68,7 @@ export async function rollbackExpressWalkInSale(
     .where(
       and(
         eq(payments.bookingId, input.bookingId),
-        eq(payments.purpose, 'deposit'),
+        inArray(payments.purpose, ['deposit', 'rent']),
         eq(payments.status, 'succeeded'),
       ),
     );
@@ -106,7 +110,12 @@ export async function rollbackExpressWalkInSale(
   }
 
   const rentRows = await db
-    .select({ id: rentInvoices.id })
+    .select({
+      id: rentInvoices.id,
+      status: rentInvoices.status,
+      paidPrincipalPaise: rentInvoices.paidPrincipalPaise,
+      paymentId: rentInvoices.paymentId,
+    })
     .from(rentInvoices)
     .where(eq(rentInvoices.bookingId, input.bookingId));
 
@@ -121,6 +130,16 @@ export async function rollbackExpressWalkInSale(
         ),
       )
       .limit(1);
+
+    if (isUnpaidRentInvoice(rent)) {
+      if (fi && fi.status !== 'cancelled' && fi.status !== 'refunded') {
+        await cancelUnifiedInvoice(fi.id, reason, { type: 'system', id: input.adminId }).catch(
+          () => undefined,
+        );
+      }
+      await purgeUnpaidRentInvoiceRow(rent.id);
+      continue;
+    }
 
     if (fi) {
       if (fi.status === 'paid' || fi.status === 'partial') {

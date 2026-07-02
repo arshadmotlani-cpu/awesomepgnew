@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { deriveExpressBookingIdempotencyKey } from '../../src/services/expressBookingIdempotency';
+import { isExpressRollbackCancellationReason } from '../../src/services/expressRentInvoiceRecovery';
 
 describe('deriveExpressBookingIdempotencyKey', () => {
   it('is stable for the same sale inputs', () => {
@@ -45,11 +46,7 @@ describe('cancelled rent invoice tombstone detection', () => {
       '[system] Express walk-in rolled back — invoice creation failed mid-flight',
     ];
     for (const reason of reasons) {
-      assert.ok(
-        reason.includes('Express walk-in rolled back') ||
-          reason.includes('[rollback]') ||
-          reason.includes('[system]'),
-      );
+      assert.ok(isExpressRollbackCancellationReason(reason));
     }
   });
 });

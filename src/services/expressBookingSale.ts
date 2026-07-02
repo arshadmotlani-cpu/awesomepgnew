@@ -458,12 +458,18 @@ export async function executeExpressBookingSale(
   };
 
   async function failAfterBooking(error: string): Promise<ExpressBookingSaleResult> {
-    await rollbackExpressWalkInSale({
+    const rolled = await rollbackExpressWalkInSale({
       ...rollbackCtx,
       reason: `[rollback] ${error}`,
-    }).catch((err) => {
-      console.error('[expressBookingSale] rollback failed after partial create', err);
     });
+    if (!rolled.ok) {
+      console.error('[expressBookingSale] rollback failed after partial create', rolled.error);
+      await failExpressBookingIdempotency(idempotencyKey, session.adminId, error);
+      return {
+        ok: false,
+        error: `${error} Cleanup failed (${rolled.error}). Try again in a moment.`,
+      };
+    }
     await failExpressBookingIdempotency(idempotencyKey, session.adminId, error);
     return { ok: false, error };
   }
