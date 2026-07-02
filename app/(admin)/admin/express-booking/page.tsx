@@ -1,4 +1,5 @@
 import { ExpressBookingSheet } from '@/src/components/admin/expressBooking/ExpressBookingSheet';
+import styles from './express-booking.module.css';
 
 export const metadata = {
   title: 'Express Booking · Admin',
@@ -6,5 +7,9 @@ export const metadata = {
 };
 
 export default function ExpressBookingPage() {
-  return <ExpressBookingSheet />;
+  return (
+    <div data-express-booking-workspace className={styles.workspace}>
+      <ExpressBookingSheet />
+    </div>
+  );
 }

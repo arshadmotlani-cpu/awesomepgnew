@@ -116,5 +116,6 @@ Files:
 - **EXP-BOOKING-IDEMPOTENCY** — Express Booking saga: rollback cancelled rent invoice tombstones blocked retry; server idempotency + persistent UI errors on double submit
 - **EXP-BOOKING-RETRY-HARDEN** — Rollback purges unpaid rent invoices (no tombstones); `ensureMonthlyRentInvoice` regenerates after express rollback; two-step confirm UI + processing lock; rollback failure surfaces retryable state
 - **EXP-BOOKING-TOMBSTONE-FIX** — Paid+cancelled rent tombstones (paymentId set) blocked purge; expressWalkInRetry flag; rollback deletes all rent rows; fixed-stay recovery; viewport-bound invoice preview aside
+- **EXP-BOOKING-LAYOUT** — Split-pane express workspace; lock admin shell scroll; pinned preview footer; layout E2E
 
 ---

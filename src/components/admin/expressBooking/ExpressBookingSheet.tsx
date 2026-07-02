@@ -674,7 +674,7 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
   ) : null;
 
   return (
-    <div className="-mx-3 -my-4 flex min-h-[calc(100dvh-3.5rem)] flex-col bg-[#0B0F14] sm:-mx-4 sm:-my-6 lg:-mx-8 lg:-my-8">
+    <div className="-mx-3 flex min-h-0 flex-1 flex-col overflow-hidden bg-[#0B0F14] sm:-mx-4 lg:-mx-8">
       <header className="shrink-0 border-b border-white/10 bg-[#0B0F14]/95 px-4 py-4 backdrop-blur sm:px-6 lg:px-8">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4">
           <div>
@@ -692,8 +692,11 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
+      <div className="flex min-h-0 flex-1 overflow-hidden lg:flex-row">
+        <div
+          data-express-booking-form-scroll
+          className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-y-contain px-4 py-6 sm:px-6 lg:px-8"
+        >
           {submitError ? (
             <div
               className="mx-auto mb-4 w-full max-w-6xl rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-200"
@@ -719,11 +722,20 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
         </div>
 
         {hasIdentity ? (
-          <aside className="hidden min-h-0 w-[22rem] shrink-0 flex-col border-l border-white/10 bg-[#0B0F14] lg:flex lg:max-h-[calc(100dvh-4.75rem)]">
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
-              {rightPanelScroll}
+          <aside
+            data-express-booking-preview-panel
+            className="hidden min-h-0 w-[22rem] shrink-0 flex-col overflow-hidden border-l border-white/10 bg-[#0B0F14] lg:flex"
+          >
+            <div
+              data-express-booking-preview-scroll
+              className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain"
+            >
+              <div className="space-y-4 p-4 sm:p-6">{rightPanelScroll}</div>
             </div>
-            <div className="shrink-0 space-y-4 border-t border-white/10 p-4 sm:p-6">
+            <div
+              data-express-booking-preview-footer
+              className="shrink-0 space-y-4 border-t border-white/10 bg-[#0B0F14] p-4 sm:p-6"
+            >
               {rightPanelFooter}
             </div>
           </aside>

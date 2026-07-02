@@ -25,13 +25,13 @@ describe('expressRentInvoiceRecovery', () => {
     assert.equal(isUnpaidRentInvoice({ paidPrincipalPaise: 0, paymentId: 'pay-1' }), false);
   });
 
-  it('purges express rollback tombstones even when payment was recorded before finalize failed', () => {
+  it('purges express rollback tombstones regardless of payment fields', () => {
     assert.equal(
       shouldPurgeCancelledRentInvoiceForRetry({
         status: 'cancelled',
         paidPrincipalPaise: 800_000,
         paymentId: 'pay-1',
-        cancellationReason: '[rollback] finalizeExpressWalkInFinancialInvoice failed',
+        cancellationReason: '[rollback] finalize failed',
       }),
       true,
     );
