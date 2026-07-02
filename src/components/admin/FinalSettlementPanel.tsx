@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { DepositWalletSummary } from '@/src/components/admin/DepositWalletSummary';
 import { CheckoutRefundReceiptFromDetail } from '@/src/components/admin/checkout/CheckoutRefundReceipt';
 import { paiseToInr } from '@/src/lib/format';
+import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import type { DepositSummary } from '@/src/services/deposits';
 import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement';
 import type { SettledTenancy } from '@/src/services/residentAdmin';
@@ -93,6 +94,12 @@ export function FinalSettlementPanel({
           </div>
         </dl>
         <div className="mt-4 flex flex-wrap gap-2">
+          <Link
+            href={refundConsoleHref(settledTenancy.bookingId)}
+            className="rounded-lg bg-[#FF5A1F] px-3 py-2 text-xs font-semibold text-white hover:brightness-110"
+          >
+            Open Refund Console →
+          </Link>
           <Link
             href={`/admin/deposits/${settledTenancy.bookingId}`}
             className="rounded-lg border border-white/10 px-3 py-2 text-xs text-apg-silver hover:text-white"

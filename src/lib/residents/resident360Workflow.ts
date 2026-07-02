@@ -1,5 +1,6 @@
 import type { ResidentFinancialSummary } from '@/src/lib/billing/residentFinancialTypes';
 import { paiseToInr } from '@/src/lib/format';
+import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import {
   buildKycReviewAction,
   isKycReviewRequired,
@@ -43,7 +44,7 @@ export function buildResident360Workflow(input: {
       stateLine: `${input.customerName} — moved out`,
       nextAction: 'Review final settlement and deposit refund if pending.',
       primaryAction: input.bookingId
-        ? { label: 'Open deposit settlement', href: `/admin/deposits/${input.bookingId}` }
+        ? { label: 'Open Refund Console', href: refundConsoleHref(input.bookingId) }
         : null,
     };
   }

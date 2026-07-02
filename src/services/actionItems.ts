@@ -1,3 +1,4 @@
+import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
@@ -1122,7 +1123,7 @@ export async function getActionItemDetail(
     availableActions.push({
       type: 'view_ledger',
       label: 'Process refund',
-      href: `/admin/deposits/${meta.bookingId}`,
+      href: refundConsoleHref(meta.bookingId),
     });
   }
   if (base.type === 'fixed_stay_checkout_due') {

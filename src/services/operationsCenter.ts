@@ -1,3 +1,4 @@
+import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import { and, eq, gte, inArray, isNotNull, lte, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
@@ -420,7 +421,7 @@ export function buildOperationsTasks(
       priority: r.priority,
       pgName: r.pgName,
       label: `Refund deposit for ${r.residentName}`,
-      href: `/admin/deposits/${r.bookingId}`,
+      href: refundConsoleHref(r.bookingId),
     });
   }
 

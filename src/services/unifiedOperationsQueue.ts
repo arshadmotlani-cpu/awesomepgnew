@@ -98,8 +98,6 @@ function workflowStatus(row: ResidentsQueueRow): string {
       return 'Waiting for Checkout';
     case 'refund':
       return 'Waiting for Refund';
-    case 'booking_approval':
-      return 'Waiting for Booking Approval';
     default:
       return row.currentState;
   }

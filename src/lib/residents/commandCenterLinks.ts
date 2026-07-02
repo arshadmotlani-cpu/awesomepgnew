@@ -1,4 +1,7 @@
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
+import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
+
+export { refundConsoleHref, refundConsoleSearchHref } from '@/src/lib/refund/refundConsoleLinks';
 
 export function paymentProofWorkflowHref(item: PendingPaymentReviewItem): string {
   return `/admin/operations?filter=payment_proof&key=${encodeURIComponent(item.key)}`;
@@ -22,6 +25,10 @@ export function vacatingWorkflowHref(vacatingRequestId: string): string {
 
 export function settlementWorkflowHref(settlementId: string): string {
   return `/admin/checkout-settlements/${settlementId}`;
+}
+
+export function checkoutRefundHref(bookingId: string): string {
+  return refundConsoleHref(bookingId);
 }
 
 export function bedMapHref(pgId: string): string {

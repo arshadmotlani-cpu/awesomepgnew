@@ -1,3 +1,4 @@
+import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import type { CheckoutWorkflowKind } from '@/src/lib/checkout/checkoutWorkflow';
 import { checkoutWorkflowKind } from '@/src/lib/checkout/checkoutWorkflow';
 import {
@@ -180,7 +181,6 @@ const STAFF_SORT_PRIORITY: Record<MoveOutStageId, number> = {
 
 function settlementHash(status: CheckoutSettlementStatus | null): string | null {
   if (status === 'awaiting_admin_review') return '#approve-settlement';
-  if (status === 'refund_pending') return '#mark-refund-paid';
   return null;
 }
 
@@ -194,8 +194,10 @@ export function deriveMoveOutStage(
   const settlementId = settlement?.id ?? null;
   const settlementStatus = settlement?.status ?? null;
   const baseHref = settlementId ? `/admin/checkout-settlements/${settlementId}` : null;
-  const hash = settlementHash(settlementStatus);
-  const settlementContinue = baseHref ? `${baseHref}${hash ?? ''}` : null;
+  const refundHref =
+    settlementStatus === 'refund_pending' ? refundConsoleHref(vacating.bookingId) : null;
+  const hash = settlementStatus === 'refund_pending' ? null : settlementHash(settlementStatus);
+  const settlementContinue = refundHref ?? (baseHref ? `${baseHref}${hash ?? ''}` : null);
   const workflow = checkoutWorkflowKind({
     durationMode: vacating.durationMode,
     stayType: vacating.stayType,

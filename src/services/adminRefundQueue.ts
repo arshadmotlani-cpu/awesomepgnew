@@ -1,5 +1,6 @@
 import type { AdminSession } from '@/src/lib/auth/session';
 import { titleCase } from '@/src/lib/format';
+import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import {
   listCheckoutSettlements,
   type CheckoutSettlementRow,
@@ -57,6 +58,10 @@ export async function listAdminRefundQueue(session: AdminSession): Promise<Admin
   const items: AdminRefundQueueItem[] = [];
 
   for (const row of checkoutRows) {
+    const href =
+      row.status === 'refund_pending'
+        ? refundConsoleHref(row.bookingId)
+        : `/admin/checkout-settlements/${row.id}`;
     items.push({
       source: 'checkout_settlement',
       id: row.id,
@@ -69,7 +74,7 @@ export async function listAdminRefundQueue(session: AdminSession): Promise<Admin
       bedCode: row.bedCode,
       status: row.status,
       label: `Checkout · ${titleCase(row.status.replace(/_/g, ' '))}`,
-      href: `/admin/checkout-settlements/${row.id}`,
+      href,
       createdAt: row.createdAt,
     });
   }
@@ -87,8 +92,8 @@ export async function listAdminRefundQueue(session: AdminSession): Promise<Admin
       roomNumber: '—',
       bedCode: '—',
       status: req.status,
-      label: `Legacy request · ${titleCase(req.status.replace(/_/g, ' '))}`,
-      href: '/admin/requests',
+      label: `Deposit refund · ${titleCase(req.status.replace(/_/g, ' '))}`,
+      href: refundConsoleHref(req.bookingId),
       createdAt: req.createdAt,
     });
   }

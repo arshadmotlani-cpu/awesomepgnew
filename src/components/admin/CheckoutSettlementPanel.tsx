@@ -1,10 +1,11 @@
 'use client';
 
+import Link from 'next/link';
 import { useActionState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import {
   approveCheckoutSettlementAction,
-  markCheckoutRefundPaidAction,
   updateCheckoutSettlementFieldsAction,
   type CheckoutSettlementActionState,
 } from '@/app/(admin)/admin/checkout-settlements/actions';
@@ -49,24 +50,16 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
     approveCheckoutSettlementAction,
     idle,
   );
-  const [refundState, refundAction, refundPending] = useActionState(
-    markCheckoutRefundPaidAction,
-    idle,
-  );
   const [saveState, saveAction, savePending] = useActionState(
     updateCheckoutSettlementFieldsAction,
     idle,
   );
 
   useEffect(() => {
-    if (
-      approveState.status === 'ok' ||
-      refundState.status === 'ok' ||
-      saveState.status === 'ok'
-    ) {
+    if (approveState.status === 'ok' || saveState.status === 'ok') {
       router.refresh();
     }
-  }, [approveState.status, refundState.status, saveState.status, router]);
+  }, [approveState.status, saveState.status, router]);
 
   const preview = detail.preview;
   const locked = detail.amountsLocked;
@@ -277,47 +270,22 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
       ) : null}
 
       {canMarkPaid ? (
-        <form
+        <div
           id="mark-refund-paid"
-          action={refundAction}
           className="space-y-3 rounded-2xl border border-sky-400/30 bg-sky-500/10 p-5"
         >
-          <input type="hidden" name="settlementId" value={detail.id} />
-          <h3 className="text-sm font-semibold text-sky-100">Mark refund sent</h3>
-          <label className="block text-sm">
-            <span className="text-apg-silver">UPI reference or transaction number *</span>
-            <input
-              name="refundReference"
-              required
-              className="apg-admin-field mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-white"
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="text-apg-silver">How paid</span>
-            <input
-              name="refundMethod"
-              placeholder="UPI / bank transfer"
-              className="apg-admin-field mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-white"
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="text-apg-silver">Notes</span>
-            <input
-              name="refundNotes"
-              className="apg-admin-field mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-white"
-            />
-          </label>
-          <button
-            type="submit"
-            disabled={refundPending}
-            className="rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-500 disabled:opacity-60"
+          <h3 className="text-sm font-semibold text-sky-100">Send refund</h3>
+          <p className="text-xs text-apg-silver">
+            Approve the payout amount in the Refund Console — record UPI reference and mark the refund
+            sent there.
+          </p>
+          <Link
+            href={refundConsoleHref(detail.bookingId)}
+            className="inline-flex rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-500"
           >
-            {refundPending ? 'Recording…' : 'Mark refund sent'}
-          </button>
-          {refundState.status === 'error' ? (
-            <p className="text-xs text-rose-300">{refundState.message}</p>
-          ) : null}
-        </form>
+            Open Refund Console →
+          </Link>
+        </div>
       ) : null}
 
       {detail.status === 'completed' ? (

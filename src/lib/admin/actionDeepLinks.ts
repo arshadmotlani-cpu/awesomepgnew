@@ -1,3 +1,5 @@
+import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
+
 /**
  * Unified deep links for admin actions — single href builder for notifications and action items.
  */
@@ -25,8 +27,14 @@ export function buildActionDeepLink(
   if (type === 'payment_received' && meta.paymentReviewKey) {
     return `/admin/operations?filter=payment_proof&key=${encodeURIComponent(meta.paymentReviewKey)}`;
   }
+  if (type === 'refund_pending' && meta.bookingId) {
+    return refundConsoleHref(meta.bookingId);
+  }
   if (type === 'refund_pending' && meta.settlementId) {
     return `/admin/checkout-settlements/${meta.settlementId}`;
+  }
+  if (type === 'deposit_refund_request' && meta.bookingId) {
+    return refundConsoleHref(meta.bookingId);
   }
   if (type === 'deposit_refund_request' && meta.settlementId) {
     return `/admin/checkout-settlements/${meta.settlementId}`;

@@ -4,7 +4,7 @@ import { formatDate, formatDateTime, paiseToInr, titleCase } from '@/src/lib/for
 import { isMonthlyStayType } from '@/src/lib/stayType';
 import { diffDays, parseDate } from '@/src/lib/dates';
 import type { ResidentCommandCenterData } from '@/src/lib/residents/commandCenterTypes';
-import { bedMapHref, bookingWorkflowHref, refundRequestStatusLabel, residentRequestWorkflowHref } from '@/src/lib/residents/commandCenterLinks';
+import { bedMapHref, bookingWorkflowHref } from '@/src/lib/residents/commandCenterLinks';
 import {
   CommandCenterSection,
   EmptyState,
@@ -254,92 +254,35 @@ export function CommandCenterBills({ data }: { data: ResidentCommandCenterData }
 
 export function CommandCenterPendingReviews({ data }: { data: ResidentCommandCenterData }) {
   const items = data.pendingReviews;
+  if (items.length === 0) return null;
+
   return (
     <CommandCenterSection
       id="pending-reviews"
       title="Pending reviews"
-      description="Every open item awaiting admin action — tap through to the existing workflow."
+      description="Items requiring an admin decision right now."
       badge={
-        items.length > 0 ? (
-          <span className="rounded-full bg-[#FF5A1F]/20 px-2.5 py-0.5 text-xs font-semibold text-[#FF5A1F]">
-            {items.length} open
-          </span>
-        ) : null
+        <span className="rounded-full bg-[#FF5A1F]/20 px-2.5 py-0.5 text-xs font-semibold text-[#FF5A1F]">
+          {items.length} open
+        </span>
       }
     >
-      {items.length === 0 ? (
-        <EmptyState>Nothing awaiting review — you are caught up.</EmptyState>
-      ) : (
-        <ul className="space-y-2">
-          {items.map((item) => (
-            <li
-              key={item.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/5 bg-[#12161C] px-3 py-2.5"
-            >
-              <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-apg-silver">
-                  {item.category}
-                </p>
-                <p className="text-sm font-medium text-white">{item.label}</p>
-                {item.detail ? (
-                  <p className="mt-0.5 text-xs text-apg-silver">{item.detail}</p>
-                ) : null}
-              </div>
-              <WorkflowButton href={item.href} />
-            </li>
-          ))}
-        </ul>
-      )}
-    </CommandCenterSection>
-  );
-}
-
-export function CommandCenterRefunds({ data }: { data: ResidentCommandCenterData }) {
-  const refundRequests = data.openRequests.filter((r) => r.type === 'deposit_refund');
-  const pendingSettlements = data.vacatingRows.filter(
-    (v) => v.settlementId && v.settlementStatus && !['completed', 'cancelled'].includes(v.settlementStatus),
-  );
-
-  if (refundRequests.length === 0 && pendingSettlements.length === 0) {
-    return (
-      <CommandCenterSection id="refunds" title="Refunds" description="Deposit refund and settlement status.">
-        <EmptyState>No open refund workflows.</EmptyState>
-      </CommandCenterSection>
-    );
-  }
-
-  return (
-    <CommandCenterSection id="refunds" title="Refunds" description="Deposit refund and settlement status.">
       <ul className="space-y-2">
-        {refundRequests.map((r) => (
+        {items.map((item) => (
           <li
-            key={r.id}
+            key={item.id}
             className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/5 bg-[#12161C] px-3 py-2.5"
           >
-            <div>
-              <p className="text-sm font-medium text-white">Deposit refund request</p>
-              <p className="text-xs text-apg-silver">
-                Status: {refundRequestStatusLabel(r.status)}
-                {r.bookingCode ? ` · ${r.bookingCode}` : ''}
-                {' · '}
-                {formatDateTime(r.createdAt)}
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-apg-silver">
+                {item.category}
               </p>
+              <p className="text-sm font-medium text-white">{item.label}</p>
+              {item.detail ? (
+                <p className="mt-0.5 text-xs text-apg-silver">{item.detail}</p>
+              ) : null}
             </div>
-            <WorkflowButton href={residentRequestWorkflowHref(r.id)} />
-          </li>
-        ))}
-        {pendingSettlements.map((v) => (
-          <li
-            key={v.settlementId!}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/5 bg-[#12161C] px-3 py-2.5"
-          >
-            <div>
-              <p className="text-sm font-medium text-white">Checkout settlement</p>
-              <p className="text-xs text-apg-silver">
-                {titleCase(v.settlementStatus ?? 'pending')} · vacating {formatDate(v.vacatingDate)}
-              </p>
-            </div>
-            <WorkflowButton href={`/admin/checkout-settlements/${v.settlementId}`} />
+            <WorkflowButton href={item.href} />
           </li>
         ))}
       </ul>
@@ -347,56 +290,13 @@ export function CommandCenterRefunds({ data }: { data: ResidentCommandCenterData
   );
 }
 
-export function CommandCenterVacating({ data }: { data: ResidentCommandCenterData }) {
-  if (data.isVacated) return null;
-  const rows = data.vacatingRows.filter((v) => v.status !== 'completed' && v.status !== 'cancelled');
-  return (
-    <CommandCenterSection id="vacating" title="Vacating" description="Move-out notices and checkout pipeline.">
-      {rows.length === 0 ? (
-        <EmptyState>No active move-out workflow.</EmptyState>
-      ) : (
-        <ul className="space-y-2">
-          {rows.map((v) => (
-            <li
-              key={v.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/5 bg-[#12161C] px-3 py-2.5"
-            >
-              <div>
-                <p className="text-sm font-medium text-white">
-                  {titleCase(v.status)} · {formatDate(v.vacatingDate)}
-                </p>
-                <p className="text-xs text-apg-silver">
-                  Booking {v.bookingCode ?? v.bookingId.slice(0, 8)}
-                </p>
-              </div>
-              <WorkflowButton
-                href={
-                  v.settlementId
-                    ? `/admin/checkout-settlements/${v.settlementId}`
-                    : `/admin/vacating?read=${encodeURIComponent(`vacating:${v.id}`)}`
-                }
-              />
-            </li>
-          ))}
-        </ul>
-      )}
-    </CommandCenterSection>
-  );
-}
-
 export function CommandCenterRequests({ data }: { data: ResidentCommandCenterData }) {
-  const rows = data.openRequests.filter((r) => r.type !== 'deposit_refund');
-  const roomChanges = data.roomChanges.filter((r) =>
-    ['submitted', 'draft', 'approved'].includes(r.status),
+  const rows = data.openRequests.filter(
+    (r) => r.type !== 'deposit_refund' && ['submitted', 'under_review'].includes(r.status),
   );
+  const roomChanges = data.roomChanges.filter((r) => ['submitted', 'draft'].includes(r.status));
 
-  if (rows.length === 0 && roomChanges.length === 0) {
-    return (
-      <CommandCenterSection id="requests" title="Requests" description="Extensions, complaints, and room changes.">
-        <EmptyState>No open resident requests.</EmptyState>
-      </CommandCenterSection>
-    );
-  }
+  if (rows.length === 0 && roomChanges.length === 0) return null;
 
   return (
     <CommandCenterSection id="requests" title="Requests" description="Extensions, complaints, and room changes.">
@@ -414,19 +314,19 @@ export function CommandCenterRequests({ data }: { data: ResidentCommandCenterDat
           </li>
         ))}
         {roomChanges.map((rc) => (
-          <li
-            key={rc.id}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/5 bg-[#12161C] px-3 py-2.5"
-          >
-            <div>
-              <p className="text-sm font-medium text-white">Room change</p>
-              <p className="text-xs text-apg-silver">
-                {titleCase(rc.status)} · shift {formatDate(rc.requestedShiftDate)}
-              </p>
-            </div>
-            <WorkflowButton href={bookingWorkflowHref(rc.bookingId)} label="Open booking" />
-          </li>
-        ))}
+            <li
+              key={rc.id}
+              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/5 bg-[#12161C] px-3 py-2.5"
+            >
+              <div>
+                <p className="text-sm font-medium text-white">Room change</p>
+                <p className="text-xs text-apg-silver">
+                  {titleCase(rc.status)} · shift {formatDate(rc.requestedShiftDate)}
+                </p>
+              </div>
+              <WorkflowButton href={bookingWorkflowHref(rc.bookingId)} label="Open booking" />
+            </li>
+          ))}
       </ul>
     </CommandCenterSection>
   );

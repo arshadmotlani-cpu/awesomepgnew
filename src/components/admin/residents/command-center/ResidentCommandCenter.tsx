@@ -14,9 +14,7 @@ import {
   CommandCenterCurrentStay,
   CommandCenterFinancialSummary,
   CommandCenterPendingReviews,
-  CommandCenterRefunds,
   CommandCenterRequests,
-  CommandCenterVacating,
 } from '@/src/components/admin/residents/command-center/CommandCenterSections';
 import { CommandCenterTimeline } from '@/src/components/admin/residents/command-center/CommandCenterTimeline';
 import { isMonthlyStayType } from '@/src/lib/stayType';
@@ -44,7 +42,6 @@ export async function ResidentCommandCenter({
       {data.isVacated ? (
         <>
           <CommandCenterFinancialSummary data={data} />
-          <CommandCenterRefunds data={data} />
           <CommandCenterBookingHistory data={data} />
           <CommandCenterTimeline timeline={data.timeline} />
           {data.settledTenancy ? (
@@ -62,8 +59,6 @@ export async function ResidentCommandCenter({
           <CommandCenterFinancialSummary data={data} />
           <CommandCenterQuickActions data={data} />
           <CommandCenterBills data={data} />
-          <CommandCenterRefunds data={data} />
-          <CommandCenterVacating data={data} />
           <CommandCenterRequests data={data} />
           <CommandCenterBookingHistory data={data} />
           <CommandCenterTimeline timeline={data.timeline} />

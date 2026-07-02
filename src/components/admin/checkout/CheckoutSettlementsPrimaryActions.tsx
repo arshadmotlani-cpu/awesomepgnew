@@ -25,8 +25,8 @@ export function CheckoutSettlementsPrimaryActions({
   } else if (count > 0 && tab === 'refund_pending') {
     actions.push({
       key: 'refund',
-      href: '#settlement-queue',
-      label: 'Send refunds below',
+      href: '/admin/refunds',
+      label: 'Open Refund Console',
       primary: true,
     });
   } else if (count > 0) {
@@ -46,8 +46,8 @@ export function CheckoutSettlementsPrimaryActions({
   });
   actions.push({
     key: 'tab-refund',
-    href: '/admin/checkout-settlements?tab=refund_pending',
-    label: 'Refunds to send',
+    href: '/admin/refunds',
+    label: 'Refund Console',
   });
 
   const visible = actions.slice(0, 5);

@@ -3,6 +3,7 @@
 import { useActionState } from 'react';
 import Link from 'next/link';
 import { assessCheckoutSettlementReadiness } from '@/src/lib/checkout/checkoutSettlementReadiness';
+import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import {
   rejectCheckoutSettlementSubmissionAction,
   type CheckoutSettlementActionState,
@@ -54,15 +55,15 @@ export function CheckoutSettlementPrimaryActions({ detail }: { detail: CheckoutS
           </a>
         ) : null}
         {canMarkPaid ? (
-          <a href="#mark-refund-paid" className={PRIMARY}>
-            Mark refund sent
-          </a>
+          <Link href={refundConsoleHref(detail.bookingId)} className={PRIMARY}>
+            Open Refund Console
+          </Link>
         ) : null}
         <Link href={`/admin/residents/${detail.customerId}`} className={SECONDARY}>
           Resident profile
         </Link>
-        <Link href={`/admin/deposits/${detail.bookingId}`} className={SECONDARY}>
-          Security deposit
+        <Link href={refundConsoleHref(detail.bookingId)} className={SECONDARY}>
+          Refund Console
         </Link>
         <Link href="/admin/vacating?status=pending" className={SECONDARY}>
           Move-out requests

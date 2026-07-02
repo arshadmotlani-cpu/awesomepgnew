@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import { DepositWalletSummary } from '@/src/components/admin/DepositWalletSummary';
 import { Badge } from '@/src/components/admin/Badge';
 import { paiseToInr, titleCase } from '@/src/lib/format';
@@ -15,10 +16,10 @@ export async function RefundRequestsOpsPanel({ session }: { session: AdminSessio
         <h2 className="text-sm font-semibold text-white">Refund requests</h2>
         <p className="mt-2 text-sm text-apg-silver">No open deposit refund requests.</p>
         <Link
-          href="/admin/checkout-settlements"
+          href="/admin/refunds"
           className="mt-3 inline-block text-sm font-medium text-[#FF5A1F] hover:underline"
         >
-          Open checkout settlements →
+          Open Refund Console →
         </Link>
       </section>
     );
@@ -39,15 +40,13 @@ export async function RefundRequestsOpsPanel({ session }: { session: AdminSessio
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-white">Refund requests</h2>
-          <p className="text-xs text-apg-silver">
-            Checkout settlements (SSOT) plus legacy resident requests
-          </p>
+          <p className="text-xs text-apg-silver">Checkout settlements and deposit refund requests</p>
         </div>
         <Link
-          href="/admin/checkout-settlements?tab=refund_pending"
+          href="/admin/refunds"
           className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-apg-silver hover:text-white"
         >
-          Checkout queue →
+          Refund Console →
         </Link>
       </div>
 
@@ -92,7 +91,11 @@ export async function RefundRequestsOpsPanel({ session }: { session: AdminSessio
               href={r.href}
               className="mt-3 inline-flex rounded-lg bg-[#FF5A1F] px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110"
             >
-              {r.source === 'checkout_settlement' ? 'Open checkout settlement →' : 'Review legacy request →'}
+              {r.source === 'checkout_settlement' && r.status === 'refund_pending'
+                ? 'Open Refund Console →'
+                : r.source === 'checkout_settlement'
+                  ? 'Open checkout settlement →'
+                  : 'Open Refund Console →'}
             </Link>
           </article>
         ))}

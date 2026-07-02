@@ -23,6 +23,7 @@ import type {
 } from '@/src/lib/residents/commandCenterTypes';
 import {
   bookingWorkflowHref,
+  checkoutRefundHref,
   paymentProofWorkflowHref,
   residentRequestWorkflowHref,
   settlementWorkflowHref,
@@ -207,13 +208,17 @@ async function buildPendingReviews(
 
   for (const row of unresolved) {
     const mapped = mapUnresolvedActionRow(row);
+    const href =
+      mapped.kind === 'deposit_refund' && row.entityType === 'booking'
+        ? checkoutRefundHref(row.entityId)
+        : mapped.href;
     push({
       id: mapped.sourceKey,
       category: mapped.kind.replace(/_/g, ' '),
       label: mapped.label,
       detail: mapped.stateLine ?? null,
       priority: mapped.priority,
-      href: mapped.href,
+      href,
       createdAt: row.createdAt,
     });
   }
@@ -250,19 +255,30 @@ async function buildPendingReviews(
 
   const openRequests = await listOpenRequestsForCustomer(customerId);
   for (const req of openRequests) {
-    if (!['submitted', 'under_review', 'approved'].includes(req.status)) continue;
+    if (!['submitted', 'under_review'].includes(req.status)) continue;
+    if (req.type === 'deposit_refund') {
+      if (!req.bookingId) continue;
+      push({
+        id: `resident_request:${req.id}`,
+        category: 'Refund',
+        label: 'Deposit refund request',
+        detail: req.notes,
+        priority: 'high',
+        href: checkoutRefundHref(req.bookingId),
+        createdAt: req.createdAt,
+      });
+      continue;
+    }
     const label =
-      req.type === 'deposit_refund'
-        ? 'Deposit refund request'
-        : req.type === 'stay_extension'
-          ? 'Stay extension request'
-          : `Resident request: ${req.type.replace(/_/g, ' ')}`;
+      req.type === 'stay_extension'
+        ? 'Stay extension request'
+        : `Resident request: ${req.type.replace(/_/g, ' ')}`;
     push({
       id: `resident_request:${req.id}`,
       category: 'Request',
       label,
       detail: req.notes,
-      priority: req.type === 'deposit_refund' ? 'high' : 'medium',
+      priority: 'medium',
       href: residentRequestWorkflowHref(req.id),
       createdAt: req.createdAt,
     });
@@ -284,19 +300,41 @@ async function buildPendingReviews(
 
   const vacating = await listVacatingForCustomer(customerId);
   for (const v of vacating) {
-    if (!['pending', 'approved'].includes(v.status)) continue;
-    const href = v.settlementId
-      ? settlementWorkflowHref(v.settlementId)
-      : vacatingWorkflowHref(v.id);
-    push({
-      id: `vacating:${v.id}`,
-      category: 'Vacating',
-      label: v.status === 'pending' ? 'Move-out approval pending' : 'Move-out approved',
-      detail: `Vacating ${v.vacatingDate}`,
-      priority: 'high',
-      href,
-      createdAt: v.createdAt,
-    });
+    if (v.status === 'pending') {
+      push({
+        id: `vacating:${v.id}`,
+        category: 'Vacating',
+        label: 'Move-out approval pending',
+        detail: `Vacating ${v.vacatingDate}`,
+        priority: 'high',
+        href: vacatingWorkflowHref(v.id),
+        createdAt: v.createdAt,
+      });
+      continue;
+    }
+    if (v.settlementStatus === 'awaiting_admin_review' && v.settlementId) {
+      push({
+        id: `vacating-settlement:${v.settlementId}`,
+        category: 'Checkout',
+        label: 'Checkout settlement review',
+        detail: `Vacating ${v.vacatingDate}`,
+        priority: 'high',
+        href: settlementWorkflowHref(v.settlementId),
+        createdAt: v.createdAt,
+      });
+      continue;
+    }
+    if (v.settlementStatus === 'refund_pending') {
+      push({
+        id: `vacating-refund:${v.bookingId}`,
+        category: 'Refund',
+        label: 'Refund ready to pay',
+        detail: `Vacating ${v.vacatingDate}`,
+        priority: 'high',
+        href: checkoutRefundHref(v.bookingId),
+        createdAt: v.createdAt,
+      });
+    }
   }
 
   const priorityRank = { high: 0, medium: 1, low: 2 };

@@ -18,6 +18,7 @@ import {
 } from '@/src/db/queries/admin';
 import { ACTION_ITEM_GROUP_LABELS, ACTION_ITEM_GROUP_ORDER } from '@/src/lib/actionCenter/constants';
 import type { AdminSession } from '@/src/lib/auth/session';
+import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import type {
   ControlBoardBulkActionKind,
   ControlBoardCard,
@@ -440,7 +441,10 @@ function rowFromDeposit(d: DepositLedgerSummaryRow): ControlBoardDrillDownRow {
     meta: `Refundable ${money(d.refundableBalancePaise)}`,
     bookingId: d.bookingId,
     billingKind: 'deposit',
-    href: `/admin/deposits/${d.bookingId}`,
+    href:
+      d.refundableBalancePaise > 0
+        ? refundConsoleHref(d.bookingId)
+        : `/admin/deposits/${d.bookingId}`,
   };
 }
 

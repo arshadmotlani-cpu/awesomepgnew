@@ -257,7 +257,7 @@ export function buildOverviewDashboard(ctx: OverviewContext): OverviewDashboardD
           'Refunds pending',
           ops?.checkoutRefundsPending.count ?? 0,
           {
-            href: '/admin/checkout-settlements?tab=refund_pending',
+            href: '/admin/refunds',
             hint: 'Checkout pipeline — refund to send',
           },
         ),

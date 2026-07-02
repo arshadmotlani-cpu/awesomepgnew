@@ -1,10 +1,10 @@
 'use client';
 
+import Link from 'next/link';
 import { ResidentInlineOpenBills } from '@/src/components/admin/residents/ResidentInlineOpenBills';
-import { ResidentActionBar } from '@/src/components/admin/ResidentActionBar';
-import { FinancialCommandCenter } from '@/src/components/admin/FinancialCommandCenter';
 import { isMonthlyStayType } from '@/src/lib/stayType';
 import type { ResidentCommandCenterData } from '@/src/lib/residents/commandCenterTypes';
+import { checkoutRefundHref } from '@/src/lib/residents/commandCenterLinks';
 import { CommandCenterSection } from '@/src/components/admin/residents/command-center/CommandCenterSection';
 
 export function CommandCenterQuickActions({ data }: { data: ResidentCommandCenterData }) {
@@ -14,66 +14,56 @@ export function CommandCenterQuickActions({ data }: { data: ResidentCommandCente
   const fin = data.financialAccount;
   const billing = data.billingDefaults;
   const monthly = isMonthlyStayType(t.stayType);
+  const refundDuePaise = fin.refundBalancePaise;
 
-  const rentItem = fin.rent.items.find((i) => i.outstandingPaise > 0);
-  const elecItem = fin.electricity.items.find((i) => i.outstandingPaise > 0);
+  if (!monthly || !billing) {
+    if (refundDuePaise <= 0) return null;
+    return (
+      <CommandCenterSection
+        id="quick-actions"
+        title="Quick actions"
+        description="Operational shortcuts for this resident."
+      >
+        <Link
+          href={checkoutRefundHref(t.bookingId)}
+          className="inline-flex rounded-lg bg-[#FF5A1F] px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110"
+        >
+          Open Refund Console →
+        </Link>
+      </CommandCenterSection>
+    );
+  }
 
   return (
     <CommandCenterSection
       id="quick-actions"
       title="Quick actions"
-      description="Collect rent, electricity, deposit, generate invoices, send payment links — existing workflows only."
+      description="Collect rent, electricity, and deposit — one billing surface."
     >
-      <div className="space-y-6">
-        {monthly && billing ? (
-          <ResidentInlineOpenBills
-            customerId={data.customer.id}
-            customerName={data.customer.fullName}
-            phone={data.customer.phone}
-            pgId={t.pgId}
-            pgName={t.pgName}
-            roomNumber={t.roomNumber}
-            bookingId={t.bookingId}
-            billingDefaults={billing}
-            financialSummary={fin}
-            cashSettlement={
-              data.canMarkCash
-                ? { canSettle: true, adminName: data.adminName }
-                : null
-            }
-            embedded
-          />
-        ) : null}
-
-        <div className="rounded-xl border border-white/5 bg-[#12161C] p-3">
-          <ResidentActionBar
-            customerId={data.customer.id}
-            customerName={data.customer.fullName}
-            phone={data.customer.phone}
-            kycStatus={data.customer.kycStatus}
-            pgId={t.pgId}
-            pgName={t.pgName}
-            roomNumber={t.roomNumber}
-            bookingId={t.bookingId}
-            monthlyRentPaise={t.monthlyRentPaise}
-            pendingRentPaise={fin.rent.outstandingPaise}
-            rentDueDate={billing?.nextRentDueDate}
-            rentOverdue={rentItem?.status === 'overdue'}
-            depositDuePaise={fin.deposit.outstandingPaise}
-            depositRefundablePaise={data.depositSummary?.refundableBalancePaise}
-            pendingElectricityPaise={fin.electricity.outstandingPaise}
-            electricityDueDate={elecItem?.dueDate ?? undefined}
-            electricityOverdue={elecItem?.status === 'overdue'}
-            electricityInvoiceNumber={elecItem?.invoiceNumber ?? undefined}
-          />
-        </div>
-
-        <FinancialCommandCenter
-          summary={fin}
-          invoiceHistory={data.invoiceHistory}
-          depositWallet={data.depositSummary}
+      <div className="space-y-4">
+        <ResidentInlineOpenBills
+          customerId={data.customer.id}
+          customerName={data.customer.fullName}
+          phone={data.customer.phone}
+          pgId={t.pgId}
+          pgName={t.pgName}
+          roomNumber={t.roomNumber}
           bookingId={t.bookingId}
+          billingDefaults={billing}
+          financialSummary={fin}
+          cashSettlement={
+            data.canMarkCash ? { canSettle: true, adminName: data.adminName } : null
+          }
+          embedded
         />
+        {refundDuePaise > 0 ? (
+          <Link
+            href={checkoutRefundHref(t.bookingId)}
+            className="inline-flex rounded-lg border border-white/15 px-4 py-2.5 text-sm font-medium text-white hover:bg-white/5"
+          >
+            Refund Console — {refundDuePaise > 0 ? 'refund due' : 'deposit wallet'}
+          </Link>
+        ) : null}
       </div>
     </CommandCenterSection>
   );

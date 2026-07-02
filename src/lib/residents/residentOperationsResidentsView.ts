@@ -1,4 +1,5 @@
 import { formatDate } from '@/src/lib/dates';
+import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import type { CollectionQueueItem } from '@/src/lib/billing/collectionsQueue';
 import { isResidentBedAssignmentEligible } from '@/src/lib/residentBedAssignment';
 import { buildLifecycleResolvedQueue } from '@/src/lib/residents/residentLifecycleState';
@@ -291,7 +292,7 @@ function detectBlockedResidents(input: {
       reason: 'Move-out approved — checkout refund not sent yet',
       blockedSinceLabel: 'Settlement pending',
       primaryActionLabel: 'Process refund',
-      primaryHref: `/admin/checkout-settlements/${s.id}#mark-refund-paid`,
+      primaryHref: refundConsoleHref(s.bookingId),
     });
   }
 

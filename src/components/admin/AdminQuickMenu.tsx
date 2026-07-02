@@ -1,12 +1,13 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
+import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import {
   quickAdvanceDepositAction,
   quickCreateRentInvoiceAction,
   quickOfflineDepositAction,
-  quickRefundSettlementAction,
 } from '@/app/(admin)/admin/quick-actions/actions';
 import { QuickActionDialog } from '@/src/components/admin/quickActions/QuickActionDialog';
 import { QuickActionResidentStep } from '@/src/components/admin/quickActions/QuickActionResidentStep';
@@ -55,8 +56,8 @@ const ACTIONS: Array<{
   },
   {
     id: 'refund',
-    label: 'Refund / Settlement',
-    description: 'Deposit refund or vacating',
+    label: 'Refund Console',
+    description: 'Deposit refund and settlement payout',
     accent: 'border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20',
   },
   {
@@ -85,8 +86,8 @@ const DIALOG_META: Record<QuickActionId, { title: string; description: string }>
     description: 'Opens the room meter form — splits across residents automatically.',
   },
   refund: {
-    title: 'Refund / Vacating Settlement',
-    description: 'Quick deposit refund or jump to full settlement workflow.',
+    title: 'Refund Console',
+    description: 'Process deposit refunds and deductions for a booking.',
   },
   express_sale: {
     title: 'Express Booking',
@@ -388,24 +389,43 @@ function ElectricityForm({ onDone }: { onDone: () => void }) {
 
 function RefundForm({ onDone }: { onDone: () => void }) {
   const router = useRouter();
+  const [selected, setSelected] = useState<ResidentQuickResult | null>(null);
+
   return (
-    <div className="space-y-4 text-sm">
-      <p className="text-apg-silver">
-        Quick deposit refunds are disabled. All vacating refunds must go through{' '}
-        <strong className="text-white">Checkout Settlements</strong> so notice deduction,
-        electricity, and payout are handled in one audited workflow.
-      </p>
-      <button
-        type="button"
-        onClick={() => {
-          router.push('/admin/checkout-settlements');
-          onDone();
-        }}
-        className="w-full rounded-lg bg-[#FF5A1F] px-4 py-2.5 font-semibold text-white hover:brightness-110"
-      >
-        Open Checkout Settlements
-      </button>
-    </div>
+    <QuickActionResidentStep selected={selected} onSelect={setSelected}>
+      {({ ctx }) => {
+        const bookingId = selected?.bookingId ?? ctx?.bookingId ?? null;
+        return (
+          <div className="space-y-4 text-sm">
+            <p className="text-apg-silver">
+              All deposit refunds go through the Refund Console — deductions, transfers, and payout
+              in one audited workflow.
+            </p>
+            {bookingId ? (
+              <button
+                type="button"
+                onClick={() => {
+                  router.push(refundConsoleHref(bookingId));
+                  onDone();
+                }}
+                className="w-full rounded-lg bg-[#FF5A1F] px-4 py-2.5 font-semibold text-white hover:brightness-110"
+              >
+                Open Refund Console for this booking
+              </button>
+            ) : selected ? (
+              <p className="text-xs text-amber-200">No booking on file for this resident.</p>
+            ) : null}
+            <Link
+              href="/admin/refunds"
+              onClick={onDone}
+              className="block text-center text-xs font-semibold text-[#FF5A1F] hover:underline"
+            >
+              Browse all refunds →
+            </Link>
+          </div>
+        );
+      }}
+    </QuickActionResidentStep>
   );
 }
 

@@ -324,44 +324,15 @@ export async function quickRefundSettlementAction(input: {
   refundMethod?: string;
 }): Promise<QuickActionResult> {
   try {
-    const session = await requireAdminPermission('deposits:write');
+    await requireAdminPermission('deposits:write');
     const bookingId = await resolveQuickActionBookingId(input.customerId, input.bookingId);
     if (!bookingId) {
       return { ok: false, error: 'No booking found — cannot process refund without a booking.' };
     }
-    await assertAdminBookingAccess(session, bookingId);
-    const legacyGuard = await import('@/src/lib/deposits/depositRefundGuard').then((m) =>
-      m.assertLegacyDepositRefundAllowed(bookingId),
-    );
-    if (!legacyGuard.ok) return { ok: false, error: legacyGuard.error };
-    const amountPaise = Math.round(input.amountInr * 100);
-    if (amountPaise <= 0) return { ok: false, error: 'Amount must be greater than zero.' };
-    if (!input.reason.trim()) return { ok: false, error: 'Reason is required.' };
-
-    const summary = await getDepositSummaryForBooking(bookingId);
-    if (!summary || amountPaise > summary.refundableBalancePaise) {
-      return { ok: false, error: 'Refund exceeds refundable deposit balance.' };
-    }
-
-    const settlement = await settleDepositRefund({
-      bookingId,
-      customerId: input.customerId,
-      idempotencyKey: `quick:${bookingId}:${randomUUID()}`,
-      source: 'manual',
-      adminId: session.adminId,
-      reason: input.reason.trim(),
-      refundPaise: amountPaise,
-      refundAudit: {
-        refundMethod: input.refundMethod?.trim() || null,
-        refundReference: null,
-        refundProofUrl: null,
-      },
-    });
-    if (!settlement.ok) return { ok: false, error: settlement.error };
-
-    revalidateFinancialViews();
-    revalidatePath(`/admin/deposits/${bookingId}`);
-    return { ok: true, message: `Refund ₹${input.amountInr.toLocaleString('en-IN')} recorded.` };
+    return {
+      ok: false,
+      error: `Quick refunds are disabled. Open Refund Console: /admin/refunds?booking=${bookingId}`,
+    };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Refund failed.' };
   }

@@ -12,6 +12,7 @@ import {
   type NotificationCategory,
   type NotificationPriority,
 } from '@/src/lib/notifications/notificationTypes';
+import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import { sendWebPush } from '@/src/lib/push/webPush';
 import { logger } from '@/src/lib/logger';
 import type { ActionItem } from '@/src/db/schema/actionItems';
@@ -392,7 +393,7 @@ function improveDeepLink(
     (type === 'refund_pending' || type === 'deposit_refund_request') &&
     meta?.bookingId
   ) {
-    return `/admin/deposits/${meta.bookingId}`;
+    return refundConsoleHref(meta.bookingId);
   }
   if (type === 'vacating_alert' && meta?.settlementId) {
     return `/admin/checkout-settlements/${meta.settlementId}`;

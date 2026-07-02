@@ -1,5 +1,6 @@
 import { formatDate as formatDisplayDate } from '@/src/lib/format';
 import { diffDays, formatDate } from '@/src/lib/dates';
+import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import { deriveCheckoutOpsNextAction } from '@/src/lib/residents/checkoutOpsQueueCopy';
 import { isActiveCheckoutSettlement } from '@/src/lib/residents/residentLifecycleState';
 import type { CollectionQueueItem } from '@/src/lib/billing/collectionsQueue';
@@ -195,7 +196,7 @@ export function buildResidentOperationsDashboard(input: {
       issue: 'Checkout refund waiting to be sent',
       nextAction: 'Send refund and mark paid',
       primaryActionLabel: 'Process refund',
-      primaryHref: `/admin/checkout-settlements/${s.id}#mark-refund-paid`,
+      primaryHref: refundConsoleHref(s.bookingId),
       sortPriority: 0,
       bookingId: s.bookingId,
       kycSubmissionId: null,
@@ -217,7 +218,7 @@ export function buildResidentOperationsDashboard(input: {
       issue: 'Deposit refund pending after move-out',
       nextAction: 'Complete deposit payout',
       primaryActionLabel: 'Process refund',
-      primaryHref: `/admin/deposits/${r.bookingId}`,
+      primaryHref: refundConsoleHref(r.bookingId),
       sortPriority: 1,
       bookingId: r.bookingId,
       kycSubmissionId: null,
@@ -451,7 +452,7 @@ export function buildResidentOperationsDashboard(input: {
       id: 'deposit-refund',
       label: `${depositRefundCount} deposit refund${depositRefundCount === 1 ? '' : 's'} awaiting action`,
       count: depositRefundCount,
-      href: '/admin/checkout-settlements?tab=refund_pending',
+      href: '/admin/refunds',
     },
     {
       id: 'rent-due',

@@ -4,6 +4,7 @@
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { actionItems, unresolvedActions } from '@/src/db/schema';
+import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import type { ActionItemMetadata } from '@/src/lib/actionCenter/constants';
 import { isResidentBedAssignmentEligible } from '@/src/lib/residentBedAssignment';
 import type { AdminSession } from '@/src/lib/auth/session';
@@ -74,7 +75,7 @@ function hrefForAction(
         ? `/admin/checkout-settlements/${meta.settlementId}`
         : '/admin/checkout-settlements';
     case 'deposit_refund_approval':
-      return meta.bookingId ? `/admin/deposits/${meta.bookingId}` : '/admin/deposits';
+      return meta.bookingId ? refundConsoleHref(meta.bookingId) : '/admin/refunds';
     case 'invoice_review':
       return meta.residentId ? `/admin/residents/${meta.residentId}` : '/admin/invoices';
     case 'room_transfer_approval':

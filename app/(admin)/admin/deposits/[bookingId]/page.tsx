@@ -1,7 +1,8 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { NotificationActionResolved } from '@/src/components/admin/NotificationActionResolved';
 import { PageHeader } from '@/src/components/admin/PageHeader';
-import { DepositSettlementPanel } from '@/src/components/admin/DepositSettlementPanel';
+import { DepositRefundConsolePanel } from '@/src/components/admin/deposits/DepositRefundConsolePanel';
 import { DepositActivitySection } from '@/src/components/admin/deposits/DepositActivitySection';
 import { DepositAdvancedTools } from '@/src/components/admin/deposits/DepositAdvancedTools';
 import { DepositCorrectForm } from '@/src/components/admin/deposits/DepositCorrectForm';
@@ -17,6 +18,7 @@ import { buildDepositWorkflowPresentation } from '@/src/lib/deposits/depositWork
 import { clientSafeDepositView } from '@/src/lib/deposits/unifiedDepositView';
 import { getCheckoutSettlementDetailForBooking } from '@/src/services/checkoutSettlement';
 import { CheckoutRefundReceiptFromDetail } from '@/src/components/admin/checkout/CheckoutRefundReceipt';
+import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,10 +29,13 @@ export default async function AdminDepositDetailPage({
   searchParams,
 }: {
   params: Promise<RouteParams>;
-  searchParams: Promise<{ saved?: string; depositError?: string; read?: string }>;
+  searchParams: Promise<{ saved?: string; depositError?: string; read?: string; refund?: string }>;
 }) {
   const { bookingId } = await params;
   const query = await searchParams;
+  if (query.refund === '1') {
+    redirect(refundConsoleHref(bookingId));
+  }
   const saved = query.saved === '1';
   const depositError = query.depositError ? decodeURIComponent(query.depositError) : null;
   const readParam = typeof query.read === 'string' ? query.read : undefined;
@@ -191,7 +196,7 @@ export default async function AdminDepositDetailPage({
 
           {adjustProps ? <DepositActivitySection bookingId={adjustProps.bookingId} /> : null}
 
-          {settlementProps ? <DepositSettlementPanel {...settlementProps} /> : null}
+          {settlementProps ? <DepositRefundConsolePanel bookingId={bookingId} /> : null}
 
           {adjustProps ? (
             <DepositAdvancedTools

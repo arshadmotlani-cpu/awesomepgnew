@@ -50,6 +50,7 @@ export type ActionItemMetadata = {
   residentPhone?: string;
   residentEmail?: string;
   pgName?: string;
+  pgId?: string;
   roomNumber?: string;
   bedCode?: string;
   bookingId?: string;
