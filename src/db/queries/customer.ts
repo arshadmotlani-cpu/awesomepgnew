@@ -14,6 +14,7 @@ import {
   applyPublicPgPresentation,
   sortPublicPgs,
 } from '@/src/lib/publicPgPresentation';
+import { bedOccupiedTodayExistsSql } from '@/src/lib/occupancySsot';
 import {
   beds,
   bedPrices,
@@ -390,6 +391,7 @@ export type CustomerRoomDetail = {
     bedCode: string;
     status: 'available' | 'maintenance' | 'blocked';
     isAvailableNow: boolean;
+    isOccupiedToday: boolean;
     nextAvailableDate: string | null;
     /** Approved/pending vacating date for the current occupant. */
     vacatingDate?: string | null;
@@ -472,6 +474,7 @@ export function getRoomDetail(
               AND ${refDate}::date <@ br.stay_range
           )
         )`,
+        isOccupiedToday: sql<boolean>`(${bedOccupiedTodayExistsSql})`,
         nextAvailableDate: sql<string | null>`(
           SELECT to_char(sub.d, 'YYYY-MM-DD')
           FROM (

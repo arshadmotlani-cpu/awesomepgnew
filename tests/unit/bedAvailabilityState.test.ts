@@ -28,10 +28,26 @@ test('occupied open-ended stay shows Occupied not Available soon', () => {
   assert.equal(view.sublabel, undefined);
 });
 
-test('finite checkout still shows Available soon', () => {
+test('finite checkout while checked in shows Occupied not Available soon', () => {
   const view = deriveCustomerBedAvailabilityView({
     bedStatus: 'available',
     isAvailableNow: false,
+    isOccupiedToday: true,
+    nextAvailableDate: '2027-08-01',
+    vacatingDate: null,
+    vacatingStatus: null,
+    reservedFrom: null,
+  });
+  assert.equal(view.kind, 'occupied');
+  assert.equal(view.label, 'Occupied');
+  assert.match(view.sublabel ?? '', /August 2027/);
+});
+
+test('finite checkout without occupant shows Available soon', () => {
+  const view = deriveCustomerBedAvailabilityView({
+    bedStatus: 'available',
+    isAvailableNow: false,
+    isOccupiedToday: false,
     nextAvailableDate: '2027-08-01',
     vacatingDate: null,
     vacatingStatus: null,

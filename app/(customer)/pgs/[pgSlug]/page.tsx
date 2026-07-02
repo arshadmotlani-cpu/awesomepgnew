@@ -7,6 +7,7 @@ import { AnalyticsMountEvent } from '@/src/components/analytics/AnalyticsMountEv
 import { getPgBySlug, getRoomDetail, listRoomsForPg } from '@/src/db/queries/customer';
 import { buildSingleSharedSummaries } from '@/src/lib/booking/pgRoomTypeSummaries';
 import { enrichBedsWithQuotedMonthlyDeposit } from '@/src/lib/booking/publicQuote';
+import { isPublicAlwaysOccupiedPg } from '@/src/lib/publicPgAvailabilityOverrides';
 import { trackAnalyticsEvent } from '@/src/services/visitorAnalytics';
 
 export const dynamic = 'force-dynamic';
@@ -35,6 +36,7 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
   const roomDetails = (
     await Promise.all(roomList.map((r) => getRoomDetail(pg.slug, r.roomId)))
   ).flatMap((d) => (d.ok && d.data ? [d.data] : []));
+  const forceOccupied = isPublicAlwaysOccupiedPg({ pgSlug: pg.slug, pgName: pg.name });
 
   const bedMapRooms: CustomerRoomBedMap[] = await Promise.all(
     roomDetails.map(async (room) => {
@@ -53,16 +55,18 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
           return {
             bedId: b.bedId,
             bedCode: b.bedCode,
+            forcePublicOccupied: forceOccupied,
             status: b.status,
-            isAvailableNow: b.isAvailableNow,
-            nextAvailableDate: b.nextAvailableDate,
+            isAvailableNow: forceOccupied ? false : b.isAvailableNow,
+            isOccupiedToday: forceOccupied ? true : b.isOccupiedToday,
+            nextAvailableDate: forceOccupied ? null : b.nextAvailableDate,
             interestCount: b.interestCount,
             noticeInterestCount: b.noticeInterestCount,
-            vacatingDate: b.vacatingDate ?? null,
+            vacatingDate: forceOccupied ? null : (b.vacatingDate ?? null),
             vacatingStatus: b.vacatingStatus ?? null,
-            reservedFrom: b.reservedFrom ?? null,
-            activeBedReserveCheckIn: b.activeBedReserveCheckIn ?? null,
-            manualOccupied: b.manualOccupied ?? false,
+            reservedFrom: forceOccupied ? null : (b.reservedFrom ?? null),
+            activeBedReserveCheckIn: forceOccupied ? null : (b.activeBedReserveCheckIn ?? null),
+            manualOccupied: forceOccupied ? true : (b.manualOccupied ?? false),
             dailyRatePaise: b.dailyRatePaise,
             weeklyRatePaise: b.weeklyRatePaise,
             monthlyRatePaise: b.monthlyRatePaise,

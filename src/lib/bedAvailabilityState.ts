@@ -157,6 +157,8 @@ export function deriveBedAvailabilityView(input: {
 export function deriveCustomerBedAvailabilityView(input: {
   bedStatus: 'available' | 'maintenance' | 'blocked';
   isAvailableNow: boolean;
+  /** Confirmed primary active reservation overlapping today — lifecycle SSOT. */
+  isOccupiedToday?: boolean;
   manualOccupied?: boolean;
   nextAvailableDate?: string | null;
   vacatingDate?: string | null;
@@ -228,6 +230,18 @@ export function deriveCustomerBedAvailabilityView(input: {
       kind: 'pre_bookable',
       label: 'Limited availability',
       sublabel: `Until ${formatShortDate(input.availableUntilDate)}`,
+    };
+  }
+
+  // Lifecycle: checked-in occupant without approved notice → Occupied (never "Available soon").
+  if (input.isOccupiedToday) {
+    return {
+      kind: 'occupied',
+      label: 'Occupied',
+      sublabel:
+        realisticNextDate && !isNotice
+          ? `Until ${formatShortDate(realisticNextDate)}`
+          : undefined,
     };
   }
 

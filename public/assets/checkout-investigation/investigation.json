@@ -1,13 +1,13 @@
 {
   "ok": true,
   "report": {
-    "generatedAt": "2026-06-26T08:59:37.998Z",
+    "generatedAt": "2026-07-02T09:59:04.746Z",
     "dhruv": {
       "customer": {
         "id": "3cd0d0cb-5f4c-4fd9-ae8b-780664e61f1c",
         "full_name": "Dhruv",
         "phone": "+917002350213",
-        "residency_status": "vacated",
+        "residency_status": "active",
         "email": "dhruvpaul001@gmail.com"
       },
       "bookings": [
@@ -58,7 +58,7 @@
         {
           "id": "61e6104a-8291-4971-99a7-90b013a2e3de",
           "booking_code": "APG-2026-0036",
-          "status": "confirmed",
+          "status": "completed",
           "stay_type": "fixed_date_stay",
           "duration_mode": "fixed_stay",
           "expected_checkout_date": "2026-06-30",
@@ -69,13 +69,35 @@
           "created_at": "2026-06-23 17:31:42.014173+00",
           "check_in": "2026-06-23",
           "check_out": "2026-06-30",
-          "reservation_status": "active",
+          "reservation_status": "completed",
           "pg_name": "SHANTINAGAR - AWESOME PG",
           "room_number": "102",
           "bed_code": "B3",
           "subtotal_inr": "₹1,900",
           "deposit_inr": "₹950",
           "total_inr": "₹2,355"
+        },
+        {
+          "id": "70debd82-4c80-4fd7-a368-0cd7c40f7fbd",
+          "booking_code": "APG-2026-0040",
+          "status": "confirmed",
+          "stay_type": "monthly_stay",
+          "duration_mode": "open_ended",
+          "expected_checkout_date": null,
+          "subtotal_paise": "412080",
+          "deposit_paise": "412080",
+          "total_paise": "824160",
+          "discount_paise": "0",
+          "created_at": "2026-07-01 16:59:10.464012+00",
+          "check_in": "2026-07-01",
+          "check_out": "2026-08-01",
+          "reservation_status": "active",
+          "pg_name": "SHANTINAGAR - AWESOME PG",
+          "room_number": "102",
+          "bed_code": "B1",
+          "subtotal_inr": "₹4,121",
+          "deposit_inr": "₹4,121",
+          "total_inr": "₹8,242"
         }
       ],
       "payments": [
@@ -102,6 +124,22 @@
           "created_at": "2026-06-24 07:12:05.312782+00",
           "booking_code": "APG-2026-0036",
           "amount_inr": "₹2,685"
+        },
+        {
+          "purpose": "electricity",
+          "amount_paise": "35200",
+          "status": "succeeded",
+          "created_at": "2026-07-01 14:58:39.102214+00",
+          "booking_code": "APG-2026-0032",
+          "amount_inr": "₹352"
+        },
+        {
+          "purpose": "booking",
+          "amount_paise": "824160",
+          "status": "succeeded",
+          "created_at": "2026-07-01 17:11:07.412187+00",
+          "booking_code": "APG-2026-0040",
+          "amount_inr": "₹8,242"
         }
       ],
       "vacating": [
@@ -120,9 +158,31 @@
           "resolved_by_admin_id": null,
           "notes": "Auto-generated at fixed-stay checkout expiry (11 AM IST).",
           "created_at": "2026-06-26 06:47:06.508487+00",
-          "updated_at": "2026-06-26 07:54:04.053981+00",
+          "updated_at": "2026-06-26 08:59:41.675175+00",
           "checkout_settlement_suppressed": true,
           "booking_code": "APG-2026-0032",
+          "stay_type": "fixed_date_stay",
+          "duration_mode": "fixed_stay",
+          "deduction_inr": "₹0"
+        },
+        {
+          "id": "db2fa64f-8156-439f-bf7b-e726a104ef3c",
+          "booking_id": "61e6104a-8291-4971-99a7-90b013a2e3de",
+          "customer_id": "3cd0d0cb-5f4c-4fd9-ae8b-780664e61f1c",
+          "notice_given_date": "2026-06-23",
+          "vacating_date": "2026-06-30",
+          "notice_compliant": true,
+          "deduction_paise": "0",
+          "deposit_refund_paise": "0",
+          "monthly_rent_paise_snapshot": "408000",
+          "status": "approved",
+          "resolved_at": null,
+          "resolved_by_admin_id": null,
+          "notes": "Auto-generated at fixed-stay checkout expiry (11 AM IST).",
+          "created_at": "2026-06-30 06:01:31.414183+00",
+          "updated_at": "2026-07-01 17:11:09.059249+00",
+          "checkout_settlement_suppressed": true,
+          "booking_code": "APG-2026-0036",
           "stay_type": "fixed_date_stay",
           "duration_mode": "fixed_stay",
           "deduction_inr": "₹0"
@@ -130,7 +190,7 @@
       ],
       "settlements": [
         {
-          "id": "ec3fa1dc-e24a-42f6-bd81-460bb43f21fe",
+          "id": "18707588-1c5c-4c09-ba2b-71ff1a7f8aa7",
           "vacating_request_id": "4ee8c6f2-373e-470b-a230-db3cde826aa1",
           "booking_id": "efcbbf09-3753-471a-b6ed-42d30e1bce0f",
           "customer_id": "3cd0d0cb-5f4c-4fd9-ae8b-780664e61f1c",
@@ -166,8 +226,8 @@
           "approved_by_admin_id": null,
           "refund_paid_by_admin_id": null,
           "deposit_settlement_id": null,
-          "created_at": "2026-06-26 07:47:59.760728+00",
-          "updated_at": "2026-06-26 07:54:04.04+00",
+          "created_at": "2026-06-26 08:59:39.529479+00",
+          "updated_at": "2026-06-26 08:59:40.408+00",
           "electricity_deduct_from_deposit": true,
           "electricity_calculation_method": "meter_reading",
           "auto_detected_sharing_count": null,
@@ -180,6 +240,60 @@
           "duration_mode": "fixed_stay",
           "vacating_status": "approved",
           "notice_deduction_inr": "₹0",
+          "electricity_share_inr": "₹0",
+          "final_refund_inr": "₹0"
+        },
+        {
+          "id": "fdaa2cba-2d2d-476b-a157-c2549b7fdb70",
+          "vacating_request_id": "db2fa64f-8156-439f-bf7b-e726a104ef3c",
+          "booking_id": "61e6104a-8291-4971-99a7-90b013a2e3de",
+          "customer_id": "3cd0d0cb-5f4c-4fd9-ae8b-780664e61f1c",
+          "status": "archived",
+          "notice_required_days": 14,
+          "notice_given_days": 7,
+          "notice_shortfall_days": 7,
+          "notice_deduction_paise": "68000",
+          "monthly_rent_paise_snapshot": "408000",
+          "deposit_required_paise": "95000",
+          "electricity_meter_photo_url": "https://6cmsayjhhvl9waxk.private.blob.vercel-storage.com/payments/proofs/1782925586446-fpj2xlwu.jpg",
+          "electricity_use_average": true,
+          "electricity_previous_reading": null,
+          "electricity_current_reading": null,
+          "electricity_units": null,
+          "electricity_occupants": null,
+          "electricity_unit_rate_paise": null,
+          "electricity_share_paise": "0",
+          "damage_charge_paise": "0",
+          "cleaning_charge_paise": "0",
+          "custom_charge_paise": "0",
+          "custom_charge_label": null,
+          "payout_upi_id": "dhrubapawl845@oksbi",
+          "payout_qr_url": "https://6cmsayjhhvl9waxk.private.blob.vercel-storage.com/payments/proofs/1782925550273-yz0r08md.jpg",
+          "deductions_snapshot": null,
+          "final_refund_paise": null,
+          "amounts_locked": false,
+          "refund_method": null,
+          "refund_reference": null,
+          "refund_notes": null,
+          "refund_paid_at": null,
+          "approved_at": null,
+          "approved_by_admin_id": null,
+          "refund_paid_by_admin_id": null,
+          "deposit_settlement_id": null,
+          "created_at": "2026-06-30 06:01:31.439851+00",
+          "updated_at": "2026-07-01 17:11:09.088+00",
+          "electricity_deduct_from_deposit": true,
+          "electricity_calculation_method": "meter_reading",
+          "auto_detected_sharing_count": null,
+          "electricity_sharing_override": false,
+          "average_bill_paise": null,
+          "manual_charge_paise": null,
+          "meter_photo_missing": false,
+          "booking_code": "APG-2026-0036",
+          "stay_type": "fixed_date_stay",
+          "duration_mode": "fixed_stay",
+          "vacating_status": "approved",
+          "notice_deduction_inr": "₹680",
           "electricity_share_inr": "₹0",
           "final_refund_inr": "₹0"
         }
@@ -232,10 +346,35 @@
           "created_at": "2026-06-24 07:24:07.346377+00",
           "booking_code": "APG-2026-0032",
           "amount_inr": "-₹165"
+        },
+        {
+          "entry_kind": "collected",
+          "amount_paise": "412080",
+          "reason": "deposit captured with payment qr_record_153f07a2-614f-4071-8af8-5e0825dba398",
+          "created_at": "2026-07-01 17:11:07.448082+00",
+          "booking_code": "APG-2026-0040",
+          "amount_inr": "₹4,121"
         }
       ],
-      "diagnosis": [],
-      "residency": null
+      "diagnosis": [
+        "BUG: notice deduction ₹680 on fixed_date_stay/fixed_stay booking APG-2026-0036"
+      ],
+      "residency": {
+        "residencyId": "fcba6505-bca0-4b1d-b30b-54bb5d6056a9",
+        "lifecycle": "active",
+        "startedAt": "2026-06-23",
+        "expectedMoveOut": "2026-08-01",
+        "currentBookingCode": "APG-2026-0040",
+        "pgName": "SHANTINAGAR - AWESOME PG",
+        "roomNumber": "102",
+        "bedCode": "B1",
+        "depositBookingCode": "APG-2026-0032",
+        "bookingCodes": [
+          "APG-2026-0036",
+          "APG-2026-0032",
+          "APG-2026-0040"
+        ]
+      }
     },
     "arshad": {
       "customer": {
@@ -567,7 +706,7 @@
           "resolved_by_admin_id": null,
           "notes": "Auto-generated at fixed-stay checkout expiry (11 AM IST).",
           "created_at": "2026-06-26 06:47:01.062975+00",
-          "updated_at": "2026-06-26 07:54:04.03125+00",
+          "updated_at": "2026-06-26 08:59:41.861132+00",
           "checkout_settlement_suppressed": true,
           "booking_code": "APG-2026-0033",
           "stay_type": "fixed_date_stay",
@@ -577,7 +716,7 @@
       ],
       "settlements": [
         {
-          "id": "aec2b1ed-9589-4ed4-b592-3f480865101d",
+          "id": "89d79159-69eb-4177-9c04-6d954ac3f3ca",
           "vacating_request_id": "f200adb7-2ba7-47e0-ba8c-6ed3ff4dc763",
           "booking_id": "d9e06934-905b-44ef-a0c1-db78f501eb90",
           "customer_id": "503c6848-5850-4b26-b32d-2888c50ba986",
@@ -613,8 +752,8 @@
           "approved_by_admin_id": null,
           "refund_paid_by_admin_id": null,
           "deposit_settlement_id": null,
-          "created_at": "2026-06-26 07:47:59.350305+00",
-          "updated_at": "2026-06-26 07:54:04.016+00",
+          "created_at": "2026-06-26 08:59:39.590769+00",
+          "updated_at": "2026-06-26 08:59:41.784+00",
           "electricity_deduct_from_deposit": true,
           "electricity_calculation_method": "meter_reading",
           "auto_detected_sharing_count": null,
@@ -660,30 +799,7 @@
       "diagnosis": [],
       "residency": null
     },
-    "activeQueue": [
-      {
-        "settlement_id": "f427204d-71d6-44e7-8dbb-cf59b327f338",
-        "settlement_status": "awaiting_resident_details",
-        "full_name": "Mohd Aatif Siddiqui",
-        "booking_code": "APG-2026-0006",
-        "stay_type": "monthly_stay",
-        "duration_mode": "open_ended",
-        "booking_status": "confirmed",
-        "notice_deduction_paise": "68000",
-        "final_refund_paise": null,
-        "electricity_meter_photo_url": null,
-        "payout_upi_id": null,
-        "payout_qr_url": null,
-        "vacating_status": "approved",
-        "vacating_date": "2026-06-29",
-        "pg_name": "SHANTINAGAR - AWESOME PG",
-        "room_number": "204",
-        "bed_code": "B2",
-        "active_stay_today": true,
-        "notice_deduction_inr": "₹680",
-        "final_refund_inr": "₹0"
-      }
-    ],
+    "activeQueue": [],
     "staleCandidates": []
   }
 }

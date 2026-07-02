@@ -21,6 +21,8 @@
 
 ## Open
 
+- **BOOK-MODEL-01** — Monthly `open_ended` bookings store finite `upper(stay_range)`; public occupancy treats it like fixed-stay checkout → "Available soon" on occupied B1 (APG-2026-0040) → `docs/APG-2026-0036_BOOKING_MODEL_INVESTIGATION.md`
+- **CHECKOUT-NOTICE-01** — Notice deduction ₹680 applied to fixed_stay APG-2026-0036 auto-expiry settlement (production diagnosis 2026-07-02)
 - **OPS-UX-01** — Duplicate vacating/deposit/refund CTAs across admin UI → use [[Operations]] only ([[BUGS#OPS-UX-01]])
 - **OPS-UX-02** — Legacy route bookmarks still in use → see [[ROUTES#Legacy redirects]]
 - **RES-LIST-01** — `listResidentsForAdmin` LIMIT 200 may omit older residents in ops timeline

@@ -93,3 +93,15 @@
 - `MEMORY/changelog.md`
 - `Vacating.md`
 
+## 2026-07-02
+
+- **Dhruv booking chain:** APG-2026-0036 (fixed 7-night, B3, ended 30 Jun) ≠ current APG-2026-0040 (monthly, B1, Jul–Aug). Incident reports conflated booking codes, beds, and stay types.
+- **~₹8k vs ~₹9k pricing:** Shantinagar Room 102 list rent is ₹4,121/mo with 1× month deposit (₹8,242 checkout), not ₹6,000/₹3,000. APG-0036 fixed stay was correctly ₹2,685.
+- **Occupancy date field:** `upper(stay_range)` on monthly bookings is a billing-period bound, not a vacancy date — must not drive public pre-bookable state.
+
+## 2026-07-02
+
+- **Dhruv booking chain:** APG-2026-0036 (fixed 7-night, B3, ended 30 Jun) ≠ current APG-2026-0040 (monthly, B1, Jul–Aug). Incident reports conflated booking codes, beds, and stay types.
+- **~₹8k vs ~₹9k pricing:** Shantinagar Room 102 list rent is ₹4,121/mo with 1× month deposit (₹8,242 checkout), not ₹6,000/₹3,000. APG-0036 fixed stay was correctly ₹2,685.
+- **Occupancy date field:** `upper(stay_range)` on monthly bookings is a billing-period bound, not a vacancy date — must not drive public pre-bookable state.
+

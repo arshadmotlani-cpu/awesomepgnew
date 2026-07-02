@@ -55,6 +55,7 @@ function BlockRoomCard({
   mergeBed: (bed: BedSelectorBed) => BedSelectorBed;
 }) {
   const { bedRoom, roomCard } = row;
+  const openCount = bedRoom.beds.filter((b) => b.status === 'available' && b.isAvailableNow).length;
 
   return (
     <article className="overflow-hidden rounded-[16px] border border-white/10 bg-white/[0.03] shadow-sm">
@@ -65,11 +66,11 @@ function BlockRoomCard({
           </h3>
           <p className="mt-0.5 text-xs text-apg-muted">{roomCard.roomType}</p>
           <p className="mt-1 text-xs text-apg-silver">
-            Occupancy: {roomCard.availableBeds}/{roomCard.totalBeds}
+            Occupancy: {openCount}/{roomCard.totalBeds}
           </p>
         </div>
         <span className="shrink-0 text-xs text-apg-muted">
-          {roomCard.availableBeds > 0 ? `${roomCard.availableBeds} open` : '—'}
+          {openCount > 0 ? `${openCount} open` : '—'}
         </span>
       </div>
 

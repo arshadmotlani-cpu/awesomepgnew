@@ -24,7 +24,7 @@ async function customerHasActivity(customerId: string): Promise<boolean> {
 }
 
 /** Free unique phone/email slots from duplicate incomplete signups during verified recovery. */
-async function archiveStaleCustomerForRecovery(row: { id: string; email: string }) {
+export async function archiveStaleCustomerForRecovery(row: { id: string; email: string }) {
   const now = new Date();
   const tag = row.id.slice(0, 8);
   await db

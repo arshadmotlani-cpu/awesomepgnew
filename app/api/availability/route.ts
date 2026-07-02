@@ -48,6 +48,14 @@ function isValidIsoDate(input: string): boolean {
   return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
 }
 
+function isProductionLike(): boolean {
+  return (
+    process.env.NODE_ENV === 'production' ||
+    process.env.VERCEL_ENV === 'production' ||
+    process.env.VERCEL_ENV === 'preview'
+  );
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const pgId = url.searchParams.get('pgId');
@@ -94,8 +102,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: true, data });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    const isMissingUrl = /DATABASE_URL is not set/.test(message);
-    const isConnRefused = /ECONNREFUSED|connection refused/i.test(message);
+    const isMissingUrl = /DATABASE_URL|POSTGRES_URL|DATABASE URL missing/i.test(message);
+    const isConnRefused = /ECONNREFUSED|connection refused|ETIMEDOUT|timeout/i.test(message);
+    const publicMessage = isProductionLike()
+      ? isMissingUrl || isConnRefused
+        ? 'The database is temporarily unavailable. Please try again shortly.'
+        : 'Unable to load availability right now. Please try again.'
+      : message;
     return NextResponse.json(
       {
         ok: false,
@@ -105,7 +118,7 @@ export async function GET(request: Request) {
             : isConnRefused
               ? 'db_unreachable'
               : 'internal_error',
-          message,
+          message: publicMessage,
         },
       },
       { status: 500 },

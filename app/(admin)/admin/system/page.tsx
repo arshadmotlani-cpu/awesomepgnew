@@ -100,6 +100,12 @@ export default async function SystemHealthModulePage() {
               Recalculate financial data →
             </Link>
             <Link
+              href="/admin/system/auth-integrity"
+              className="rounded-lg border border-violet-500/40 bg-violet-500/10 px-4 py-2 text-sm font-medium text-violet-200 hover:bg-violet-500/20"
+            >
+              Auth integrity check →
+            </Link>
+            <Link
               href="/admin/system/billing-integrity"
               className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm font-medium text-amber-200 hover:bg-amber-500/20"
             >

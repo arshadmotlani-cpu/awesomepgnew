@@ -1,9 +1,12 @@
 export type BedSelectorBed = {
   bedId: string;
   bedCode: string;
+  /** Public-only override for special PGs (does not affect admin/DB lifecycle). */
+  forcePublicOccupied?: boolean;
   status: 'available' | 'maintenance' | 'blocked';
   manualOccupied?: boolean;
   isAvailableNow: boolean;
+  isOccupiedToday?: boolean;
   nextAvailableDate: string | null;
   interestCount?: number;
   noticeInterestCount?: number;

@@ -15,9 +15,13 @@ import { BedStateTile, type BedVisualState } from '@/src/components/customer/des
 import { BOOK_THIS_BED, HOLD_THIS_BED } from '@/src/lib/booking/bookingFunnelLabels';
 
 function bedAvailability(bed: BedSelectorBed) {
+  if (bed.forcePublicOccupied) {
+    return { kind: 'occupied' as const, label: 'Occupied' };
+  }
   return deriveCustomerBedAvailabilityView({
     bedStatus: bed.status,
     isAvailableNow: bed.isAvailableNow,
+    isOccupiedToday: bed.isOccupiedToday,
     manualOccupied: bed.manualOccupied,
     nextAvailableDate: bed.nextAvailableDate,
     vacatingDate: bed.vacatingDate,
@@ -31,13 +35,14 @@ function bedAvailability(bed: BedSelectorBed) {
 }
 
 export function canBookBed(bed: BedSelectorBed): boolean {
+  if (bed.forcePublicOccupied) return false;
+  if (bed.isOccupiedToday) return false;
+  if (bed.vacatingDate) return false;
+  if (bed.manualOccupied) return false;
   const bookableFrom = customerBookableFromDate(bed.nextAvailableDate);
   return (
     bed.status === 'available' &&
-    (bed.isAvailableNow ||
-      Boolean(bookableFrom) ||
-      Boolean(bed.vacatingDate) ||
-      Boolean(bed.activeBedReserveCheckIn))
+    (bed.isAvailableNow || Boolean(bookableFrom) || Boolean(bed.activeBedReserveCheckIn))
   );
 }
 
