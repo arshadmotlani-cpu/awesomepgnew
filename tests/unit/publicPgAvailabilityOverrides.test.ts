@@ -6,7 +6,8 @@ import { canBookBed } from '../../src/components/customer/customerBedUi';
 test('public always-occupied override matches targeted PG identities', () => {
   assert.equal(isPublicAlwaysOccupiedPg({ pgSlug: 'it-park' }), true);
   assert.equal(isPublicAlwaysOccupiedPg({ pgSlug: 'central-avenue-male' }), true);
-  assert.equal(isPublicAlwaysOccupiedPg({ pgName: 'Sunil PG' }), false);
+  assert.equal(isPublicAlwaysOccupiedPg({ pgName: 'IT Park' }), true);
+  assert.equal(isPublicAlwaysOccupiedPg({ pgName: 'Central Avenue (Male)' }), true);
   assert.equal(isPublicAlwaysOccupiedPg({ pgName: 'Central Avenue (Female)' }), false);
   assert.equal(isPublicAlwaysOccupiedPg({ pgName: 'Shanti Nagar - Awesome PG' }), false);
 });
