@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { assertAdminBookingAccess } from '@/src/lib/auth/pgAccess';
 import { revalidateFinancialViews } from '@/src/lib/billing/revalidateFinancialViews';
+import type { DepositExpressActionState } from '@/app/(admin)/admin/deposit-express/actionState';
 import {
   executeDepositExpress,
   listDepositExpressBookingsForCustomer,
@@ -13,16 +14,8 @@ import {
   type DepositExpressPaymentMethod,
 } from '@/src/services/depositExpress';
 
-export type DepositExpressActionState =
-  | { status: 'idle' }
-  | { status: 'ok'; message: string }
-  | { status: 'error'; message: string };
-
-export const initialDepositExpressActionState: DepositExpressActionState = { status: 'idle' };
-
-function revalidateDepositExpress(bookingId: string) {
+function revalidateDepositExpress(_bookingId: string) {
   revalidatePath('/admin/deposit-express');
-  revalidatePath(`/admin/deposit-express?booking=${bookingId}`);
   revalidatePath('/admin/operations');
   revalidatePath('/admin/operations?filter=deposit_due');
   revalidatePath('/admin/residents');

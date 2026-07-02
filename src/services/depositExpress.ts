@@ -112,29 +112,34 @@ async function loadBookingRow(bookingId: string) {
 export async function loadDepositExpressContext(
   bookingId: string,
 ): Promise<DepositExpressContext | null> {
-  const row = await loadBookingRow(bookingId);
-  if (!row?.pgId) return null;
+  try {
+    const row = await loadBookingRow(bookingId);
+    if (!row?.pgId) return null;
 
-  const summary = await getDepositSummaryForBooking(bookingId);
-  const walletBalancePaise = depositWalletBalancePaise(summary?.collectedPaise ?? 0);
-  const requiredDepositPaise = guardDepositPaise(row.depositPaise, 'depositExpress.required');
-  const remainingDuePaise = depositRemainingDuePaise(requiredDepositPaise, walletBalancePaise);
+    const summary = await getDepositSummaryForBooking(bookingId);
+    const walletBalancePaise = depositWalletBalancePaise(summary?.collectedPaise ?? 0);
+    const requiredDepositPaise = guardDepositPaise(row.depositPaise, 'depositExpress.required');
+    const remainingDuePaise = depositRemainingDuePaise(requiredDepositPaise, walletBalancePaise);
 
-  return {
-    bookingId: row.bookingId,
-    bookingCode: row.bookingCode,
-    customerId: row.customerId,
-    customerName: row.customerName,
-    customerPhone: row.customerPhone,
-    pgId: row.pgId,
-    pgName: row.pgName,
-    roomNumber: row.roomNumber,
-    bedCode: row.bedCode,
-    requiredDepositPaise,
-    alreadyPaidPaise: walletBalancePaise,
-    remainingDuePaise,
-    walletBalancePaise,
-  };
+    return {
+      bookingId: row.bookingId,
+      bookingCode: row.bookingCode,
+      customerId: row.customerId,
+      customerName: row.customerName,
+      customerPhone: row.customerPhone,
+      pgId: row.pgId,
+      pgName: row.pgName,
+      roomNumber: row.roomNumber,
+      bedCode: row.bedCode,
+      requiredDepositPaise,
+      alreadyPaidPaise: walletBalancePaise,
+      remainingDuePaise,
+      walletBalancePaise,
+    };
+  } catch (err) {
+    console.error('[depositExpress] loadDepositExpressContext failed', bookingId, err);
+    return null;
+  }
 }
 
 export async function searchDepositExpressResidents(query: string) {

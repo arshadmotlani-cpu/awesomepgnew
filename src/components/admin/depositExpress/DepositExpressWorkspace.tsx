@@ -1,10 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useActionState, useCallback, useEffect, useRef, useState, useTransition } from 'react';
+import { initialDepositExpressActionState } from '@/app/(admin)/admin/deposit-express/actionState';
 import {
-  initialDepositExpressActionState,
   listDepositExpressBookingsAction,
   loadDepositExpressContextAction,
   searchDepositExpressAction,
@@ -212,11 +211,14 @@ function DepositWorkspace({
 export function DepositExpressWorkspace({
   initialBookingId,
   initialCustomerId,
+  initialContext = null,
+  initialLoadError = null,
 }: {
   initialBookingId?: string | null;
   initialCustomerId?: string | null;
+  initialContext?: DepositExpressContext | null;
+  initialLoadError?: string | null;
 }) {
-  const router = useRouter();
   const bootstrapped = useRef(false);
   const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState<RefundConsoleBookingRow[]>([]);
@@ -224,8 +226,8 @@ export function DepositExpressWorkspace({
   const [pickerLabel, setPickerLabel] = useState('');
   const [searching, startSearch] = useTransition();
   const [loading, startLoad] = useTransition();
-  const [context, setContext] = useState<DepositExpressContext | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [context, setContext] = useState<DepositExpressContext | null>(initialContext);
+  const [loadError, setLoadError] = useState<string | null>(initialLoadError);
 
   const openBooking = useCallback(
     (bookingId: string) => {
@@ -239,10 +241,14 @@ export function DepositExpressWorkspace({
           return;
         }
         setContext(res.context);
-        router.replace(`/admin/deposit-express?booking=${encodeURIComponent(bookingId)}`, { scroll: false });
+        window.history.replaceState(
+          null,
+          '',
+          `/admin/deposit-express?booking=${encodeURIComponent(bookingId)}`,
+        );
       });
     },
-    [router],
+    [],
   );
 
   const loadCustomerBookings = useCallback(
@@ -264,20 +270,23 @@ export function DepositExpressWorkspace({
         }
         setPickerLabel(res.rows[0]?.customerName ?? 'Resident');
         setBookingPickerRows(res.rows);
-        router.replace(`/admin/deposit-express?customer=${encodeURIComponent(customerId)}`, {
-          scroll: false,
-        });
+        window.history.replaceState(
+          null,
+          '',
+          `/admin/deposit-express?customer=${encodeURIComponent(customerId)}`,
+        );
       });
     },
-    [openBooking, router],
+    [openBooking],
   );
 
   useEffect(() => {
     if (bootstrapped.current) return;
     bootstrapped.current = true;
+    if (initialContext) return;
     if (initialBookingId) openBooking(initialBookingId);
     else if (initialCustomerId) loadCustomerBookings(initialCustomerId);
-  }, [initialBookingId, initialCustomerId, loadCustomerBookings, openBooking]);
+  }, [initialBookingId, initialCustomerId, initialContext, loadCustomerBookings, openBooking]);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -299,7 +308,7 @@ export function DepositExpressWorkspace({
     setBookingPickerRows(null);
     setLoadError(null);
     setQuery('');
-    router.replace('/admin/deposit-express', { scroll: false });
+    window.history.replaceState(null, '', '/admin/deposit-express');
   }
 
   return (

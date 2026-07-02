@@ -241,8 +241,9 @@ export async function searchRefundConsoleBookings(
     return { query: trimmed, rows: [] };
   }
 
-  const pattern = `%${trimmed}%`;
-  const rows = await db
+  try {
+    const pattern = `%${trimmed}%`;
+    const rows = await db
     .select({
       bookingId: bookings.id,
       bookingCode: bookings.bookingCode,
@@ -287,20 +288,38 @@ export async function searchRefundConsoleBookings(
 
   const result: RefundConsoleBookingRow[] = [];
   for (const row of rows) {
-    const wallet = await buildRefundConsoleWallet(row.bookingId);
-    result.push({
-      bookingId: row.bookingId,
-      bookingCode: row.bookingCode,
-      customerId: row.customerId,
-      customerName: customerDisplayName(row),
-      pgName: row.pgName,
-      bedLabel: row.bedLabel,
-      status: row.status,
-      wallet,
-    });
+    try {
+      const wallet = await buildRefundConsoleWallet(row.bookingId);
+      result.push({
+        bookingId: row.bookingId,
+        bookingCode: row.bookingCode,
+        customerId: row.customerId,
+        customerName: customerDisplayName(row),
+        pgName: row.pgName,
+        bedLabel: row.bedLabel,
+        status: row.status,
+        wallet,
+      });
+    } catch (err) {
+      console.error('[refundConsole] search wallet failed', row.bookingId, err);
+      result.push({
+        bookingId: row.bookingId,
+        bookingCode: row.bookingCode,
+        customerId: row.customerId,
+        customerName: customerDisplayName(row),
+        pgName: row.pgName,
+        bedLabel: row.bedLabel,
+        status: row.status,
+        wallet: emptyRefundConsoleWallet(),
+      });
+    }
   }
 
   return { query: trimmed, rows: result };
+  } catch (err) {
+    console.error('[refundConsole] searchRefundConsoleBookings failed', trimmed, err);
+    return { query: trimmed, rows: [] };
+  }
 }
 
 /** All bookings for one resident (booking picker). */
@@ -342,17 +361,31 @@ export async function listRefundConsoleBookingsForCustomer(
 
   const result: RefundConsoleBookingRow[] = [];
   for (const row of rows) {
-    const wallet = await buildRefundConsoleWallet(row.bookingId);
-    result.push({
-      bookingId: row.bookingId,
-      bookingCode: row.bookingCode,
-      customerId: row.customerId,
-      customerName: customerDisplayName(row),
-      pgName: row.pgName,
-      bedLabel: row.bedLabel,
-      status: row.status,
-      wallet,
-    });
+    try {
+      const wallet = await buildRefundConsoleWallet(row.bookingId);
+      result.push({
+        bookingId: row.bookingId,
+        bookingCode: row.bookingCode,
+        customerId: row.customerId,
+        customerName: customerDisplayName(row),
+        pgName: row.pgName,
+        bedLabel: row.bedLabel,
+        status: row.status,
+        wallet,
+      });
+    } catch (err) {
+      console.error('[refundConsole] search wallet failed', row.bookingId, err);
+      result.push({
+        bookingId: row.bookingId,
+        bookingCode: row.bookingCode,
+        customerId: row.customerId,
+        customerName: customerDisplayName(row),
+        pgName: row.pgName,
+        bedLabel: row.bedLabel,
+        status: row.status,
+        wallet: emptyRefundConsoleWallet(),
+      });
+    }
   }
   return result;
 }
