@@ -7,6 +7,8 @@ import {
   deriveCustomerBedAvailabilityView,
   type BedAvailabilityKind,
 } from '@/src/lib/bedAvailabilityState';
+import { canBookBedFromSnapshot } from '@/src/lib/bedOccupancyEngine';
+import { isOccupancyEngineV2Enabled } from '@/src/lib/bedOccupancyEngineFlag';
 import { reserveBufferDate } from '@/src/lib/bedReservePolicy';
 import { customerBookableFromDate } from '@/src/lib/dates';
 import { formatDate } from '@/src/lib/format';
@@ -31,11 +33,32 @@ function bedAvailability(bed: BedSelectorBed) {
     availableUntilDate: bed.availableUntilDate,
     noticeInterestCount: bed.noticeInterestCount,
     holdInterestCount: bed.interestCount,
+    stayType: bed.stayType,
+    durationMode: bed.durationMode,
+    expectedCheckoutDate: bed.expectedCheckoutDate,
+    checkoutSettlement: bed.checkoutSettlement,
   });
 }
 
 export function canBookBed(bed: BedSelectorBed): boolean {
   if (bed.forcePublicOccupied) return false;
+  if (isOccupancyEngineV2Enabled()) {
+    return canBookBedFromSnapshot({
+      bedStatus: bed.status,
+      isAvailableNow: bed.isAvailableNow,
+      isOccupiedToday: Boolean(bed.isOccupiedToday),
+      manualOccupied: bed.manualOccupied,
+      vacatingDate: bed.vacatingDate,
+      vacatingStatus: bed.vacatingStatus,
+      stayType: bed.stayType,
+      durationMode: bed.durationMode,
+      expectedCheckoutDate: bed.expectedCheckoutDate,
+      stayUpper: bed.nextAvailableDate,
+      checkoutSettlement: bed.checkoutSettlement,
+      activeBedReserveCheckIn: bed.activeBedReserveCheckIn,
+      reservedFrom: bed.reservedFrom,
+    });
+  }
   if (bed.isOccupiedToday) return false;
   if (bed.vacatingDate) return false;
   if (bed.manualOccupied) return false;

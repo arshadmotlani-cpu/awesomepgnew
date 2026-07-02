@@ -214,3 +214,6 @@ Cross-links: [[ARCHITECTURE]] · [[WORKFLOWS]] · [[AI_CONTEXT]] · [[BUGS]]
 
 <!-- DOC_SYNC_TOUCH_2026-07-01 -->
 > **2026-07-01 09:00:24 UTC** — Code changed in: Database, Billing, Vacating. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-07-02 -->
+> **2026-07-02 10:51:15 UTC** — Code changed in: Routes, Bed Assignment. Manual review recommended.

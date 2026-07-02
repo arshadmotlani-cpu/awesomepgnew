@@ -1,6 +1,6 @@
 # Booking Lifecycle SSOT — Implementation Plan
 
-**Status:** **Approved** — ready to implement Phase 1 on go-ahead  
+**Status:** **Phase 1 in progress** — engine + flag; Phase 3 gated behind stability  
 **Date:** 2026-07-02 (finalized 2026-07-02)  
 **Approved investigation:** [`APG-2026-0036_BOOKING_MODEL_INVESTIGATION.md`](./APG-2026-0036_BOOKING_MODEL_INVESTIGATION.md)  
 **Related:** [`BED_EXPLORER_SSOT_PLAN.md`](./BED_EXPLORER_SSOT_PLAN.md)
@@ -56,6 +56,13 @@ getBedOccupancySnapshot(bedId, asOfDate) → BedOccupancySnapshot
 - **`bookableFromDate`** is separate from state (eligibility for *other* bookings).
 - **Global turnover buffer:** 1 day (`RESERVE_CLEANING_BUFFER_DAYS`) applied to all pre-bookable dates.
 - During **`checkout_pending`:** bed is **not Available**, **not bookable** on public or admin; admin map shows **"Checkout pending"** with settlement link.
+
+**Checkout pending eligibility:**
+
+| Stay type | When `checkout_pending` applies |
+|-----------|--------------------------------|
+| **Monthly** | **Mandatory** whenever an active `checkout_settlements` row exists (refund, electricity, deposit, damages workflow). |
+| **Fixed** | Only when there is an **actual outstanding settlement workflow** (refund, electricity, damages, deposit hold). If settlement is suppressed or deposit-only with no workflow, the bed may become **Available** automatically after the global 1-day turnover buffer. |
 
 **Public behaviour during checkout pending:**
 
@@ -272,6 +279,8 @@ APG-2026-0036: **₹680 = notice deduction** (`5 × dailyRateFromMonthly(₹4,08
 ---
 
 ### Phase 3 — Monthly architecture + deposit policy
+
+> **Gate:** Do **not** run Phase 3 database migrations until Phase 1 (occupancy SSOT) is implemented, verified under `OCCUPANCY_ENGINE_V2=1`, and confirmed stable in staging/production. Phase 1 engine must support **both** existing data (finite monthly `stay_range`, 2099 sentinel) **and** future unbounded ranges before any schema change.
 
 | Step | Work |
 |------|------|

@@ -1,5 +1,12 @@
 /** Shared bed availability labels for admin map + customer bed picker. */
 
+import {
+  computeBedOccupancySnapshot,
+  toAdminAvailabilityView,
+  toCustomerAvailabilityView,
+  type BedOccupancyInput,
+} from '@/src/lib/bedOccupancyEngine';
+import { isOccupancyEngineV2Enabled } from '@/src/lib/bedOccupancyEngineFlag';
 import { customerBookableFromDate, isOpenEndedStayEnd, todayString } from '@/src/lib/dates';
 import { reserveBufferDate } from '@/src/lib/bedReservePolicy';
 
@@ -45,7 +52,35 @@ export function deriveBedAvailabilityView(input: {
   noticeInterestCount?: number;
   occupantFirstName?: string | null;
   hasPendingBooking?: boolean;
+  stayType?: string | null;
+  durationMode?: string | null;
+  expectedCheckoutDate?: string | null;
+  stayUpper?: string | null;
+  checkoutSettlement?: BedOccupancyInput['checkoutSettlement'];
+  activeBedReserveCheckIn?: string | null;
 }): BedAvailabilityView {
+  if (isOccupancyEngineV2Enabled()) {
+    return toAdminAvailabilityView({
+      bedStatus: input.bedStatus,
+      isOccupiedToday: input.isOccupiedToday,
+      isAvailableNow: input.isAvailableNow,
+      manualOccupied: input.manualOccupied,
+      vacatingDate: input.vacatingDate,
+      vacatingStatus: input.vacatingStatus,
+      stayType: input.stayType,
+      durationMode: input.durationMode,
+      expectedCheckoutDate: input.expectedCheckoutDate,
+      stayUpper: input.stayUpper ?? input.preBookableFrom ?? input.nextAvailableDate,
+      checkoutSettlement: input.checkoutSettlement,
+      manualReservedCheckIn: input.manualReservedCheckIn,
+      reservedFrom: input.reservedFrom,
+      activeBedReserveCheckIn: input.activeBedReserveCheckIn,
+      occupantFirstName: input.occupantFirstName,
+      interestCount: input.interestCount,
+      noticeInterestCount: input.noticeInterestCount,
+    });
+  }
+
   if (input.bedStatus === 'maintenance') {
     return { kind: 'maintenance', label: 'Maintenance' };
   }
@@ -168,7 +203,33 @@ export function deriveCustomerBedAvailabilityView(input: {
   availableUntilDate?: string | null;
   noticeInterestCount?: number;
   holdInterestCount?: number;
+  stayType?: string | null;
+  durationMode?: string | null;
+  expectedCheckoutDate?: string | null;
+  checkoutSettlement?: BedOccupancyInput['checkoutSettlement'];
 }): CustomerBedAvailabilityView {
+  if (isOccupancyEngineV2Enabled()) {
+    return toCustomerAvailabilityView({
+      bedStatus: input.bedStatus,
+      isOccupiedToday: Boolean(input.isOccupiedToday),
+      isAvailableNow: input.isAvailableNow,
+      manualOccupied: input.manualOccupied,
+      nextAvailableDate: input.nextAvailableDate,
+      vacatingDate: input.vacatingDate,
+      vacatingStatus: input.vacatingStatus,
+      reservedFrom: input.reservedFrom,
+      activeBedReserveCheckIn: input.activeBedReserveCheckIn,
+      availableUntilDate: input.availableUntilDate,
+      stayType: input.stayType,
+      durationMode: input.durationMode,
+      expectedCheckoutDate: input.expectedCheckoutDate,
+      stayUpper: input.nextAvailableDate,
+      checkoutSettlement: input.checkoutSettlement,
+      noticeInterestCount: input.noticeInterestCount,
+      holdInterestCount: input.holdInterestCount,
+    });
+  }
+
   if (input.bedStatus === 'maintenance') {
     return { kind: 'maintenance', label: 'Maintenance' };
   }

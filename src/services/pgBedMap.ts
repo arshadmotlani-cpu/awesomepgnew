@@ -109,6 +109,9 @@ type RawRow = {
   booking_code: string | null;
   move_in_date: string | null;
   stay_upper: string | null;
+  stay_type: string | null;
+  duration_mode: string | null;
+  expected_checkout_date: string | null;
   monthly_rent_paise: number | null;
   reserved_customer_id: string | null;
   reserved_customer_name: string | null;
@@ -123,6 +126,14 @@ type RawRow = {
   vacating_date: string | null;
   vacating_deduction_paise: number | null;
   vacating_settlement_id: string | null;
+  vacating_settlement_suppressed: boolean | null;
+  pending_settlement_id: string | null;
+  pending_settlement_status: string | null;
+  pending_deposit_required_paise: number | null;
+  pending_deposit_held_paise: number | null;
+  pending_electricity_pending: boolean | null;
+  pending_stay_type: string | null;
+  pending_duration_mode: string | null;
   rent_overdue_count: number;
   rent_pending_count: number;
   electricity_pending_count: number;
@@ -206,6 +217,30 @@ function buildBed(row: RawRow): PgBedMapBed {
         ? row.stay_upper
         : null;
 
+  const checkoutSettlement =
+    row.pending_settlement_id && row.pending_settlement_status
+      ? {
+          id: row.pending_settlement_id,
+          status: row.pending_settlement_status,
+          suppressed: Boolean(row.vacating_settlement_suppressed),
+          depositRequiredPaise: row.pending_deposit_required_paise ?? 0,
+          depositHeldPaise: row.pending_deposit_held_paise ?? 0,
+          electricityPending: Boolean(row.pending_electricity_pending),
+        }
+      : vacating?.settlementId && row.vacating_settlement_id
+        ? {
+            id: vacating.settlementId,
+            status: 'awaiting_resident_details',
+            suppressed: Boolean(row.vacating_settlement_suppressed),
+            depositRequiredPaise: 0,
+            depositHeldPaise: 0,
+            electricityPending: row.electricity_pending_count > 0,
+          }
+        : null;
+
+  const stayType = row.stay_type ?? row.pending_stay_type;
+  const durationMode = row.duration_mode ?? row.pending_duration_mode;
+
   const availability = deriveBedAvailabilityView({
     bedStatus: row.bed_status,
     isOccupiedToday,
@@ -216,6 +251,12 @@ function buildBed(row: RawRow): PgBedMapBed {
     vacatingStatus: vacating?.status,
     preBookableFrom,
     reservedFrom: row.reserved_from,
+    stayType,
+    durationMode,
+    expectedCheckoutDate: row.expected_checkout_date,
+    stayUpper: row.stay_upper,
+    checkoutSettlement,
+    activeBedReserveCheckIn: bedReserveCheckIn,
     interestCount: row.interest_count,
     occupantFirstName: occupant?.customerName.split(' ')[0] ?? reserved?.customerName.split(' ')[0],
     noticeInterestCount: row.notice_interest_count,
@@ -277,6 +318,9 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
       occ.booking_code,
       occ.move_in_date,
       occ.stay_upper,
+      occ.stay_type,
+      occ.duration_mode,
+      occ.expected_checkout_date,
       occ.monthly_rent_paise,
       res.customer_id::text AS reserved_customer_id,
       res.customer_name AS reserved_customer_name,
@@ -291,6 +335,14 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
       vac.vacating_date,
       vac.deduction_paise AS vacating_deduction_paise,
       vac.settlement_id AS vacating_settlement_id,
+      vac.checkout_settlement_suppressed AS vacating_settlement_suppressed,
+      pending_cs.settlement_id AS pending_settlement_id,
+      pending_cs.settlement_status AS pending_settlement_status,
+      pending_cs.deposit_required_paise AS pending_deposit_required_paise,
+      pending_cs.deposit_held_paise AS pending_deposit_held_paise,
+      pending_cs.electricity_pending AS pending_electricity_pending,
+      pending_cs.stay_type AS pending_stay_type,
+      pending_cs.duration_mode AS pending_duration_mode,
       coalesce(bill.rent_overdue, 0)::int AS rent_overdue_count,
       coalesce(bill.rent_pending, 0)::int AS rent_pending_count,
       coalesce(bill.elec_pending, 0)::int AS electricity_pending_count,
@@ -310,6 +362,9 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
         bk.booking_code,
         lower(br.stay_range)::text AS move_in_date,
         upper(br.stay_range)::text AS stay_upper,
+        bk.stay_type::text AS stay_type,
+        bk.duration_mode::text AS duration_mode,
+        bk.expected_checkout_date::text AS expected_checkout_date,
         coalesce((
           SELECT bp.monthly_rate_paise::int
           FROM bed_prices bp
@@ -374,6 +429,7 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
     ) brhold ON true
     LEFT JOIN LATERAL (
       SELECT vr.id AS request_id, vr.status, vr.vacating_date::text AS vacating_date, vr.deduction_paise,
+        vr.checkout_settlement_suppressed,
         (
           SELECT cs.id::text FROM checkout_settlements cs
           WHERE cs.vacating_request_id = vr.id
@@ -386,6 +442,36 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
         AND vr.status IN ('pending', 'approved')
       LIMIT 1
     ) vac ON coalesce(occ.booking_id, res.booking_id) IS NOT NULL
+    LEFT JOIN LATERAL (
+      SELECT
+        cs.id::text AS settlement_id,
+        cs.status::text AS settlement_status,
+        cs.deposit_required_paise::bigint AS deposit_required_paise,
+        coalesce((
+          SELECT sum(dl.amount_paise)::bigint
+          FROM deposit_ledger dl
+          WHERE dl.booking_id = cs.booking_id
+        ), 0) AS deposit_held_paise,
+        EXISTS (
+          SELECT 1 FROM electricity_invoices ei
+          WHERE ei.booking_id = cs.booking_id AND ei.status = 'pending'
+        ) AS electricity_pending,
+        bk.stay_type::text AS stay_type,
+        bk.duration_mode::text AS duration_mode
+      FROM checkout_settlements cs
+      INNER JOIN bookings bk ON bk.id = cs.booking_id
+      INNER JOIN bed_reservations br ON br.booking_id = bk.id
+        AND br.bed_id = b.id
+        AND br.kind = 'primary'
+      WHERE cs.status IN (
+        'awaiting_resident_details',
+        'awaiting_admin_review',
+        'approved',
+        'refund_pending'
+      )
+      ORDER BY cs.created_at DESC
+      LIMIT 1
+    ) pending_cs ON true
     LEFT JOIN LATERAL (
       SELECT
         count(*) FILTER (WHERE ri.status = 'overdue')::int AS rent_overdue,

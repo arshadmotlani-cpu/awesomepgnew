@@ -15,6 +15,17 @@ export type BedSelectorBed = {
   reservedFrom?: string | null;
   /** Active 50% reserve hold — bed shows Reserved; daily/weekly still allowed. */
   activeBedReserveCheckIn?: string | null;
+  stayType?: string | null;
+  durationMode?: string | null;
+  expectedCheckoutDate?: string | null;
+  checkoutSettlement?: {
+    id: string;
+    status: string;
+    suppressed?: boolean;
+    depositRequiredPaise?: number;
+    depositHeldPaise?: number;
+    electricityPending?: boolean;
+  } | null;
   availableUntilDate?: string | null;
   dailyRatePaise: number;
   weeklyRatePaise: number;
