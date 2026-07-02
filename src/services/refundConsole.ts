@@ -2,10 +2,11 @@
  * Refund Console — single admin workflow for deposit refunds, transfers, and deductions.
  */
 
-import { and, desc, eq, ilike, or, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, ne, or, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
   bookings,
+  checkoutSettlements,
   customers,
   depositLedger,
   type DepositLedgerEntry,
@@ -43,6 +44,52 @@ export type RefundConsoleWallet = {
 export type RefundConsoleSearchResult = {
   query: string;
   rows: RefundConsoleBookingRow[];
+};
+
+export type RefundConsoleTimelineEvent = {
+  id: string;
+  label: string;
+  detail: string;
+  amountPaise: number | null;
+  occurredAt: Date;
+};
+
+export type RefundConsoleDeductionRow = {
+  id: string;
+  category: string;
+  reason: string;
+  amountPaise: number;
+  occurredAt: Date;
+};
+
+export type RefundConsoleTransferRow = {
+  id: string;
+  reason: string;
+  amountPaise: number;
+  occurredAt: Date;
+};
+
+export type RefundConsoleCheckoutContext = {
+  settlementId: string;
+  status: string;
+  finalRefundPaise: number | null;
+  payoutUpiId: string | null;
+  vacatingRequestId: string;
+  canMarkPaid: boolean;
+};
+
+export type RefundConsoleWorkspace = RefundConsoleBookingRow & {
+  customerPhone: string | null;
+  checkInDate: string | null;
+  checkOutDate: string | null;
+  adminDepositRefundStatus: string | null;
+  ledger: DepositLedgerEntry[];
+  deductions: RefundConsoleDeductionRow[];
+  transfers: RefundConsoleTransferRow[];
+  timeline: RefundConsoleTimelineEvent[];
+  checkout: RefundConsoleCheckoutContext | null;
+  suggestedRefundPaise: number;
+  refundableBalancePaise: number;
 };
 
 function customerDisplayName(row: {
@@ -241,5 +288,130 @@ export async function getRefundConsoleBookingDetail(
     status: row.status,
     wallet: summarizeWallet(summary.entries),
     ledger: summary.entries,
+  };
+}
+
+function ledgerTimelineLabel(entry: DepositLedgerEntry): string {
+  if (entry.entryKind === 'collected') return 'Deposit collected';
+  if (entry.entryKind === 'refunded') return 'Refund paid';
+  if (entry.entryKind === 'deducted') {
+    if (isDepositTransferReason(entry.reason)) return 'Deposit transferred';
+    return 'Deduction applied';
+  }
+  return entry.entryKind;
+}
+
+function buildTimeline(entries: DepositLedgerEntry[]): RefundConsoleTimelineEvent[] {
+  return [...entries]
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .map((entry) => ({
+      id: entry.id,
+      label: ledgerTimelineLabel(entry),
+      detail: entry.reason,
+      amountPaise: entry.amountPaise,
+      occurredAt: entry.createdAt,
+    }));
+}
+
+function buildDeductionRows(entries: DepositLedgerEntry[]): RefundConsoleDeductionRow[] {
+  return entries
+    .filter((e) => e.entryKind === 'deducted' && !isDepositTransferReason(e.reason))
+    .map((entry) => {
+      const category = parseDeductionCategory({
+        deductionCategory: entry.deductionCategory,
+        reason: entry.reason,
+      });
+      return {
+        id: entry.id,
+        category: category ? DEDUCTION_CATEGORY_LABELS[category] : 'Other',
+        reason: entry.reason,
+        amountPaise: Math.abs(entry.amountPaise),
+        occurredAt: entry.createdAt,
+      };
+    })
+    .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime());
+}
+
+function buildTransferRows(entries: DepositLedgerEntry[]): RefundConsoleTransferRow[] {
+  return entries
+    .filter((e) => e.entryKind === 'deducted' && isDepositTransferReason(e.reason))
+    .map((entry) => ({
+      id: entry.id,
+      reason: entry.reason,
+      amountPaise: Math.abs(entry.amountPaise),
+      occurredAt: entry.createdAt,
+    }))
+    .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime());
+}
+
+export async function getRefundConsoleWorkspace(
+  bookingId: string,
+): Promise<RefundConsoleWorkspace | null> {
+  const detail = await getRefundConsoleBookingDetail(bookingId);
+  if (!detail) return null;
+
+  const [bookingRow] = await db
+    .select({
+      phone: customers.phone,
+      checkInDate: bookings.billingAnchorDate,
+      checkOutDate: bookings.expectedCheckoutDate,
+      adminDepositRefundStatus: bookings.adminDepositRefundStatus,
+    })
+    .from(bookings)
+    .innerJoin(customers, eq(customers.id, bookings.customerId))
+    .where(eq(bookings.id, bookingId))
+    .limit(1);
+
+  const [settlement] = await db
+    .select({
+      id: checkoutSettlements.id,
+      status: checkoutSettlements.status,
+      finalRefundPaise: checkoutSettlements.finalRefundPaise,
+      payoutUpiId: checkoutSettlements.payoutUpiId,
+      vacatingRequestId: checkoutSettlements.vacatingRequestId,
+    })
+    .from(checkoutSettlements)
+    .where(
+      and(
+        eq(checkoutSettlements.bookingId, bookingId),
+        ne(checkoutSettlements.status, 'archived'),
+      ),
+    )
+    .orderBy(desc(checkoutSettlements.updatedAt))
+    .limit(1);
+
+  const refundableBalancePaise = detail.wallet.remainingDepositPaise;
+  const checkoutRefundPaise = settlement?.finalRefundPaise ?? null;
+  const suggestedRefundPaise =
+    settlement?.status === 'refund_pending' && checkoutRefundPaise != null
+      ? checkoutRefundPaise
+      : refundableBalancePaise;
+
+  const checkout: RefundConsoleCheckoutContext | null = settlement
+    ? {
+        settlementId: settlement.id,
+        status: settlement.status,
+        finalRefundPaise: settlement.finalRefundPaise,
+        payoutUpiId: settlement.payoutUpiId,
+        vacatingRequestId: settlement.vacatingRequestId,
+        canMarkPaid:
+          settlement.status === 'refund_pending' &&
+          (settlement.finalRefundPaise ?? 0) > 0 &&
+          refundableBalancePaise >= (settlement.finalRefundPaise ?? 0),
+      }
+    : null;
+
+  return {
+    ...detail,
+    customerPhone: bookingRow?.phone ?? null,
+    checkInDate: bookingRow?.checkInDate ?? null,
+    checkOutDate: bookingRow?.checkOutDate ?? null,
+    adminDepositRefundStatus: bookingRow?.adminDepositRefundStatus ?? null,
+    deductions: buildDeductionRows(detail.ledger),
+    transfers: buildTransferRows(detail.ledger),
+    timeline: buildTimeline(detail.ledger),
+    checkout,
+    suggestedRefundPaise,
+    refundableBalancePaise,
   };
 }

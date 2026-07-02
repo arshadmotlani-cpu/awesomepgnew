@@ -14,6 +14,12 @@ import {
 } from '@/src/lib/financial/deductionCategories';
 import { applyDepositCreditToBooking } from '@/src/services/depositCredit';
 import { applyDepositDeduction, settleDepositRefund } from '@/src/services/depositSettlement';
+import { markCheckoutRefundPaid } from '@/src/services/checkoutSettlement';
+import {
+  getRefundConsoleWorkspace,
+  searchRefundConsoleBookings,
+  type RefundConsoleWorkspace,
+} from '@/src/services/refundConsole';
 
 export type RefundActionState =
   | { status: 'idle' }
@@ -40,18 +46,61 @@ function parseInrPaise(form: FormData, field = 'amountInr'): number | null {
   return Math.round(n * 100);
 }
 
-function parseNote(form: FormData): string | null {
-  const raw = String(form.get('note') ?? '').trim();
+function parseNote(form: FormData, field = 'note'): string | null {
+  const raw = String(form.get(field) ?? '').trim();
   return raw.length > 0 ? raw : null;
 }
 
-function revalidateRefundConsole(bookingId: string) {
+function revalidateRefundConsole(bookingId: string, settlementId?: string | null) {
   revalidatePath('/admin/refunds');
   revalidatePath(`/admin/refunds?booking=${bookingId}`);
+  revalidatePath('/admin/operations');
+  revalidatePath('/admin/overview');
+  revalidatePath('/admin/checkout-settlements');
+  revalidatePath('/admin/vacating');
+  revalidatePath('/admin/deposits');
+  revalidatePath('/admin/residents');
   revalidateFinancialViews();
+  if (settlementId) {
+    revalidatePath(`/admin/checkout-settlements/${settlementId}`);
+  }
 }
 
-export async function payRefundAction(
+export async function searchRefundConsoleAction(
+  query: string,
+): Promise<{ ok: true; rows: Awaited<ReturnType<typeof searchRefundConsoleBookings>>['rows'] } | { ok: false; error: string }> {
+  try {
+    await requireAdminPermission('deposits:write');
+    const result = await searchRefundConsoleBookings(query);
+    return { ok: true, rows: result.rows };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Search failed.',
+    };
+  }
+}
+
+export async function loadRefundConsoleWorkspaceAction(
+  bookingId: string,
+): Promise<{ ok: true; workspace: RefundConsoleWorkspace } | { ok: false; error: string }> {
+  try {
+    const admin = await requireAdminPermission('deposits:write');
+    await assertAdminBookingAccess(admin, bookingId);
+    const workspace = await getRefundConsoleWorkspace(bookingId);
+    if (!workspace) {
+      return { ok: false, error: 'No deposit wallet found for this booking.' };
+    }
+    return { ok: true, workspace };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Could not load refund workspace.',
+    };
+  }
+}
+
+export async function markRefundPaidAction(
   bookingId: string,
   _prev: RefundActionState,
   formData: FormData,
@@ -64,14 +113,59 @@ export async function payRefundAction(
     return { status: 'error', message: err instanceof Error ? err.message : 'Permission denied.' };
   }
 
-  const amountPaise = parseInrPaise(formData);
-  const note = parseNote(formData);
-  if (amountPaise == null) return { status: 'error', message: 'Enter a valid refund amount.' };
-  if (!note) return { status: 'error', message: 'Add a short note for this refund.' };
+  const workspace = await getRefundConsoleWorkspace(bookingId);
+  if (!workspace) return { status: 'error', message: 'Booking wallet not found.' };
+
+  const refundReference = String(formData.get('refundReference') ?? formData.get('upiId') ?? '').trim();
+  const refundMethod = String(formData.get('refundMethod') ?? formData.get('paymentMethod') ?? 'upi').trim();
+  const refundNotes = String(formData.get('refundNotes') ?? '').trim();
+
+  if (!refundReference) {
+    return { status: 'error', message: 'Enter UPI ID or payment reference.' };
+  }
+
+  const amountFromForm = parseInrPaise(formData, 'finalRefundInr');
+  const refundPaise = amountFromForm ?? workspace.suggestedRefundPaise;
+
+  if (refundPaise <= 0) {
+    return { status: 'error', message: 'Refund amount must be greater than zero.' };
+  }
+
+  if (refundPaise > workspace.refundableBalancePaise) {
+    return {
+      status: 'error',
+      message: `Refund exceeds refundable balance (₹${(workspace.refundableBalancePaise / 100).toFixed(2)} available).`,
+    };
+  }
+
+  if (workspace.checkout?.status === 'refund_pending') {
+    if (workspace.checkout.finalRefundPaise != null && refundPaise !== workspace.checkout.finalRefundPaise) {
+      return {
+        status: 'error',
+        message: `Checkout settlement expects ₹${(workspace.checkout.finalRefundPaise / 100).toFixed(2)} — adjust deductions in checkout first.`,
+      };
+    }
+
+    const result = await markCheckoutRefundPaid({
+      settlementId: workspace.checkout.settlementId,
+      adminId: admin.adminId,
+      refundReference,
+      refundMethod: refundMethod || undefined,
+      refundNotes: refundNotes || undefined,
+    });
+    if (!result.ok) return { status: 'error', message: result.error };
+
+    revalidateRefundConsole(bookingId, workspace.checkout.settlementId);
+    return {
+      status: 'ok',
+      message: 'Refund marked paid. Checkout completed and removed from Operations.',
+    };
+  }
 
   const booking = await resolveBooking(bookingId);
   if (!booking) return { status: 'error', message: 'Booking not found.' };
 
+  const note = refundNotes || `Refund payout via ${refundMethod || 'upi'}`;
   const settlement = await settleDepositRefund({
     bookingId,
     customerId: booking.customerId,
@@ -79,17 +173,33 @@ export async function payRefundAction(
     source: 'admin_panel',
     adminId: admin.adminId,
     reason: note,
-    refundPaise: amountPaise,
+    refundPaise,
+    markBookingRefunded: true,
     refundAudit: {
-      refundMethod: formData.get('refundMethod')?.toString()?.trim() || null,
-      refundReference: formData.get('refundReference')?.toString()?.trim() || null,
-      refundProofUrl: formData.get('refundProofUrl')?.toString()?.trim() || null,
+      refundMethod: refundMethod || 'upi',
+      refundReference,
     },
   });
 
   if (!settlement.ok) return { status: 'error', message: settlement.error };
+
   revalidateRefundConsole(bookingId);
-  return { status: 'ok', message: 'Refund recorded.' };
+  return { status: 'ok', message: 'Refund recorded and deposit ledger updated.' };
+}
+
+/** @deprecated Use markRefundPaidAction — kept for legacy form bindings. */
+export async function payRefundAction(
+  bookingId: string,
+  prev: RefundActionState,
+  formData: FormData,
+): Promise<RefundActionState> {
+  if (!formData.get('finalRefundInr') && formData.get('amountInr')) {
+    formData.set('finalRefundInr', String(formData.get('amountInr')));
+  }
+  if (!formData.get('refundReference') && formData.get('note')) {
+    formData.set('refundReference', String(formData.get('note')));
+  }
+  return markRefundPaidAction(bookingId, prev, formData);
 }
 
 export async function deductDepositAction(
@@ -106,10 +216,10 @@ export async function deductDepositAction(
   }
 
   const amountPaise = parseInrPaise(formData);
-  const note = parseNote(formData);
-  const categoryRaw = String(formData.get('category') ?? '').trim();
+  const note = parseNote(formData, 'reason') ?? parseNote(formData, 'note');
+  const categoryRaw = String(formData.get('category') ?? 'other').trim();
   if (amountPaise == null) return { status: 'error', message: 'Enter a valid deduction amount.' };
-  if (!note) return { status: 'error', message: 'Add a short note for this deduction.' };
+  if (!note) return { status: 'error', message: 'Add a reason for this deduction.' };
   if (!isDeductionCategory(categoryRaw)) {
     return { status: 'error', message: 'Pick a deduction category.' };
   }
@@ -129,7 +239,7 @@ export async function deductDepositAction(
   if (!result.ok) return { status: 'error', message: result.error };
 
   revalidateRefundConsole(bookingId);
-  return { status: 'ok', message: 'Deduction recorded.' };
+  return { status: 'ok', message: 'Deduction applied to deposit ledger.' };
 }
 
 export async function transferDepositAction(

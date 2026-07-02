@@ -1,0 +1,28 @@
+/* Lock admin shell scroll — workspace scrolls internally. */
+:global(.apg-admin-scroll:has([data-refund-console-workspace])) {
+  overflow: hidden !important;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.workspace {
+  display: flex;
+  flex: 1 1 0%;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  margin-block: -1rem;
+}
+
+@media (min-width: 640px) {
+  .workspace {
+    margin-block: -1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .workspace {
+    margin-block: -2rem;
+  }
+}

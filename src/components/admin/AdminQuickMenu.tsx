@@ -389,7 +389,9 @@ function ElectricityForm({ onDone }: { onDone: () => void }) {
 
 function RefundForm({ onDone }: { onDone: () => void }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [selected, setSelected] = useState<ResidentQuickResult | null>(null);
+  const onRefundsPage = pathname.startsWith('/admin/refunds');
 
   return (
     <QuickActionResidentStep selected={selected} onSelect={setSelected}>
@@ -405,12 +407,12 @@ function RefundForm({ onDone }: { onDone: () => void }) {
               <button
                 type="button"
                 onClick={() => {
-                  router.push(refundConsoleHref(bookingId));
+                  router.push(`/admin/refunds?booking=${encodeURIComponent(bookingId)}`);
                   onDone();
                 }}
                 className="w-full rounded-lg bg-[#FF5A1F] px-4 py-2.5 font-semibold text-white hover:brightness-110"
               >
-                Open Refund Console for this booking
+                {onRefundsPage ? 'Load payout workspace' : 'Open Refund Console'}
               </button>
             ) : selected ? (
               <p className="text-xs text-amber-200">No booking on file for this resident.</p>

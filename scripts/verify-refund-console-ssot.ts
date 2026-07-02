@@ -44,8 +44,13 @@ const violations: string[] = [];
 for (const file of files) {
   const content = readFileSync(file, 'utf8');
   const relative = rel(file);
+  const isRefundConsoleCanonical =
+    relative.includes('admin/refunds/') ||
+    relative.includes('refunds/RefundConsole') ||
+    relative.includes('CheckoutSettlementPanel');
   for (const { label, pattern } of LEGACY_PATTERNS) {
     if (!pattern.test(content)) continue;
+    if (label === 'Mark refund paid button label' && isRefundConsoleCanonical) continue;
     violations.push(`${relative}: ${label}`);
   }
 }
