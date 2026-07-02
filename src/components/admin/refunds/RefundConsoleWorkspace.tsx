@@ -656,7 +656,11 @@ export function RefundConsoleWorkspace({
           return;
         }
         setWorkspace(res.workspace);
-        router.replace(`/admin/refunds?booking=${encodeURIComponent(bookingId)}`, { scroll: false });
+        window.history.replaceState(
+          null,
+          '',
+          `/admin/refunds?booking=${encodeURIComponent(bookingId)}`,
+        );
       });
     },
     [router],
@@ -681,7 +685,11 @@ export function RefundConsoleWorkspace({
         }
         setPickerLabel(res.rows[0]?.customerName ?? 'Resident');
         setBookingPickerRows(res.rows);
-        router.replace(`/admin/refunds?customer=${encodeURIComponent(customerId)}`, { scroll: false });
+        window.history.replaceState(
+          null,
+          '',
+          `/admin/refunds?customer=${encodeURIComponent(customerId)}`,
+        );
       });
     },
     [openBooking, router],

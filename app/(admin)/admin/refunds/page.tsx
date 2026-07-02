@@ -12,6 +12,10 @@ export const metadata = {
   description: 'Deposit refund payout workspace.',
 };
 
+function assertClientSerializable<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
 export default async function RefundsPage({
   searchParams,
 }: {
@@ -34,7 +38,11 @@ export default async function RefundsPage({
       if (!workspace) {
         initialLoadError = 'Booking not found.';
       } else {
-        initialWorkspace = toRefundConsoleWorkspaceDTO(workspace);
+        try {
+          initialWorkspace = assertClientSerializable(toRefundConsoleWorkspaceDTO(workspace));
+        } catch {
+          initialLoadError = 'Could not prepare refund workspace for display.';
+        }
       }
     } catch (err) {
       initialLoadError =
