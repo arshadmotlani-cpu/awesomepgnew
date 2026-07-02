@@ -18,7 +18,7 @@ import {
   isDepositTransferReason,
   parseDeductionCategory,
 } from '@/src/lib/financial/deductionCategories';
-import { getDepositSummaryForBooking } from '@/src/services/deposits';
+import { getDepositSummaryForBooking, fetchDepositLedgerEntriesForBooking } from '@/src/services/deposits';
 
 export function emptyRefundConsoleWallet(): RefundConsoleWallet {
   return {
@@ -393,9 +393,47 @@ export async function getRefundConsoleBookingDetail(
 
   if (!row) return null;
 
-  const summary = await getDepositSummaryForBooking(bookingId);
-  const ledger = summary?.entries ?? [];
-  const wallet = summary ? summarizeWallet(summary.entries) : emptyRefundConsoleWallet();
+  let ledger: DepositLedgerEntry[] = [];
+  let wallet = emptyRefundConsoleWallet();
+
+  try {
+    const summary = await getDepositSummaryForBooking(bookingId);
+    if (summary) {
+      ledger = summary.entries;
+      wallet = summarizeWallet(summary.entries);
+    } else {
+      ledger = await fetchDepositLedgerEntriesForBooking(bookingId);
+      if (ledger.length > 0) {
+        wallet = summarizeWallet(ledger);
+      }
+    }
+  } catch (err) {
+    console.error('[refundConsole] deposit summary failed', bookingId, err);
+    try {
+      ledger = await fetchDepositLedgerEntriesForBooking(bookingId);
+      if (ledger.length > 0) {
+        wallet = summarizeWallet(ledger);
+      }
+    } catch {
+      ledger = [];
+    }
+  }
+
+  if (ledger.length === 0 && wallet.remainingDepositPaise === 0) {
+    const [depositRow] = await db
+      .select({ depositPaise: bookings.depositPaise })
+      .from(bookings)
+      .where(eq(bookings.id, bookingId))
+      .limit(1);
+    const depositPaise = guardDepositPaise(depositRow?.depositPaise ?? 0, 'refundConsole.fallbackDepositPaise');
+    if (depositPaise > 0) {
+      wallet = {
+        ...emptyRefundConsoleWallet(),
+        depositPaidPaise: depositPaise,
+        remainingDepositPaise: depositPaise,
+      };
+    }
+  }
 
   return {
     bookingId: row.bookingId,
@@ -429,7 +467,7 @@ function buildTimeline(entries: DepositLedgerEntry[]): RefundConsoleTimelineEven
     .map((entry) => ({
       id: entry.id,
       label: ledgerTimelineLabel(entry),
-      detail: entry.reason,
+      detail: entry.reason?.trim() || '—',
       amountPaise: signedLedgerPaise(entry.amountPaise),
       occurredAt: ledgerEventDate(entry.createdAt),
     }));
@@ -446,7 +484,7 @@ function buildDeductionRows(entries: DepositLedgerEntry[]): RefundConsoleDeducti
       return {
         id: entry.id,
         category: category ? DEDUCTION_CATEGORY_LABELS[category] : 'Other',
-        reason: entry.reason,
+        reason: entry.reason?.trim() || 'Deduction',
         amountPaise: absLedgerPaise(entry.amountPaise),
         occurredAt: ledgerEventDate(entry.createdAt),
       };
@@ -459,7 +497,7 @@ function buildTransferRows(entries: DepositLedgerEntry[]): RefundConsoleTransfer
     .filter((e) => e.entryKind === 'deducted' && isDepositTransferReason(e.reason))
     .map((entry) => ({
       id: entry.id,
-      reason: entry.reason,
+      reason: entry.reason?.trim() || 'Deposit transfer',
       amountPaise: absLedgerPaise(entry.amountPaise),
       occurredAt: ledgerEventDate(entry.createdAt),
     }))
@@ -517,7 +555,7 @@ function mapCheckoutSettlement(
       'refundConsole.checkout.customChargePaise',
     ),
     customChargeLabel: settlement.customChargeLabel,
-    vacatingRequestId: settlement.vacatingRequestId,
+    vacatingRequestId: settlement.vacatingRequestId ?? '',
     canMarkPaid:
       settlement.status === 'refund_pending' &&
       (finalRefundPaise ?? 0) > 0 &&
@@ -526,6 +564,43 @@ function mapCheckoutSettlement(
 }
 
 export async function getRefundConsoleWorkspace(
+  bookingId: string,
+): Promise<RefundConsoleWorkspace | null> {
+  try {
+    return await buildRefundConsoleWorkspace(bookingId);
+  } catch (err) {
+    console.error('[refundConsole] getRefundConsoleWorkspace failed', bookingId, err);
+    return buildRefundConsoleWorkspaceFallback(bookingId);
+  }
+}
+
+async function buildRefundConsoleWorkspaceFallback(
+  bookingId: string,
+): Promise<RefundConsoleWorkspace | null> {
+  try {
+    const detail = await getRefundConsoleBookingDetail(bookingId);
+    if (!detail) return null;
+    return {
+      ...detail,
+      customerPhone: null,
+      checkInDate: null,
+      checkOutDate: null,
+      vacatingDate: null,
+      adminDepositRefundStatus: null,
+      deductions: [],
+      transfers: [],
+      timeline: [],
+      checkout: null,
+      suggestedRefundPaise: detail.wallet.remainingDepositPaise,
+      refundableBalancePaise: detail.wallet.remainingDepositPaise,
+    };
+  } catch (fallbackErr) {
+    console.error('[refundConsole] fallback workspace failed', bookingId, fallbackErr);
+    return null;
+  }
+}
+
+async function buildRefundConsoleWorkspace(
   bookingId: string,
 ): Promise<RefundConsoleWorkspace | null> {
   const detail = await getRefundConsoleBookingDetail(bookingId);
@@ -586,9 +661,23 @@ export async function getRefundConsoleWorkspace(
       ? checkoutRefundPaise
       : refundableBalancePaise;
 
-  const checkout: RefundConsoleCheckoutContext | null = settlement
-    ? mapCheckoutSettlement(settlement, refundableBalancePaise)
-    : null;
+  let checkout: RefundConsoleCheckoutContext | null = null;
+  try {
+    checkout = settlement ? mapCheckoutSettlement(settlement, refundableBalancePaise) : null;
+  } catch (checkoutErr) {
+    console.error('[refundConsole] checkout mapping failed', bookingId, checkoutErr);
+  }
+
+  let deductions: RefundConsoleDeductionRow[] = [];
+  let transfers: RefundConsoleTransferRow[] = [];
+  let timeline: RefundConsoleTimelineEvent[] = [];
+  try {
+    deductions = buildDeductionRows(detail.ledger);
+    transfers = buildTransferRows(detail.ledger);
+    timeline = buildTimeline(detail.ledger);
+  } catch (ledgerErr) {
+    console.error('[refundConsole] ledger presentation failed', bookingId, ledgerErr);
+  }
 
   return {
     ...detail,
@@ -597,9 +686,9 @@ export async function getRefundConsoleWorkspace(
     checkOutDate: formatDateOnly(bookingRow?.checkOutDate),
     vacatingDate: formatDateOnly(vacatingRow?.vacatingDate),
     adminDepositRefundStatus: bookingRow?.adminDepositRefundStatus ?? null,
-    deductions: buildDeductionRows(detail.ledger),
-    transfers: buildTransferRows(detail.ledger),
-    timeline: buildTimeline(detail.ledger),
+    deductions,
+    transfers,
+    timeline,
     checkout,
     suggestedRefundPaise: guardDepositPaise(
       suggestedRefundPaise,

@@ -65,8 +65,76 @@ function ledgerEntryAmountPaise(value: unknown, field: string): number {
 function sanitizeLedgerEntries(entries: DepositLedgerEntry[]): DepositLedgerEntry[] {
   return entries.map((entry, i) => ({
     ...entry,
+    reason: entry.reason ?? '',
+    deductionCategory: entry.deductionCategory ?? null,
     amountPaise: ledgerEntryAmountPaise(entry.amountPaise, `ledger[${i}].amountPaise`),
   }));
+}
+
+function isPostgresMissingColumnError(err: unknown, column: string): boolean {
+  let current: unknown = err;
+  for (let depth = 0; depth < 5 && current; depth += 1) {
+    if (typeof current !== 'object' || current === null) break;
+    const record = current as { code?: string; message?: string; cause?: unknown };
+    const code = record.code ?? '';
+    const message =
+      record.message ?? (current instanceof Error ? current.message : '');
+    if (code === '42703' && message.includes(column)) return true;
+    current = record.cause;
+  }
+  return false;
+}
+
+const depositLedgerBaseColumns = {
+  id: depositLedger.id,
+  bookingId: depositLedger.bookingId,
+  customerId: depositLedger.customerId,
+  entryKind: depositLedger.entryKind,
+  amountPaise: depositLedger.amountPaise,
+  reason: depositLedger.reason,
+  relatedPaymentId: depositLedger.relatedPaymentId,
+  relatedVacatingId: depositLedger.relatedVacatingId,
+  createdByAdminId: depositLedger.createdByAdminId,
+  createdAt: depositLedger.createdAt,
+};
+
+/** Reads ledger rows without assuming optional columns (e.g. deduction_category) exist. */
+export async function fetchDepositLedgerEntriesForBooking(
+  bookingId: string,
+): Promise<DepositLedgerEntry[]> {
+  try {
+    const rows = await db
+      .select({
+        ...depositLedgerBaseColumns,
+        deductionCategory: depositLedger.deductionCategory,
+      })
+      .from(depositLedger)
+      .where(eq(depositLedger.bookingId, bookingId))
+      .orderBy(depositLedger.createdAt);
+    return sanitizeLedgerEntries(rows);
+  } catch (err) {
+    if (!isPostgresMissingColumnError(err, 'deduction_category')) {
+      console.error('[deposits] fetchDepositLedgerEntriesForBooking failed', bookingId, err);
+      return [];
+    }
+    try {
+      const rows = await db
+        .select(depositLedgerBaseColumns)
+        .from(depositLedger)
+        .where(eq(depositLedger.bookingId, bookingId))
+        .orderBy(depositLedger.createdAt);
+      return sanitizeLedgerEntries(
+        rows.map((row) => ({ ...row, deductionCategory: null })),
+      );
+    } catch (fallbackErr) {
+      console.error(
+        '[deposits] fetchDepositLedgerEntriesForBooking fallback failed',
+        bookingId,
+        fallbackErr,
+      );
+      return [];
+    }
+  }
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -370,13 +438,7 @@ export async function getDepositSummaryForBooking(
       return null;
     }
 
-    const entries = sanitizeLedgerEntries(
-      await db
-        .select()
-        .from(depositLedger)
-        .where(eq(depositLedger.bookingId, bookingId))
-        .orderBy(depositLedger.createdAt),
-    );
+    const entries = await fetchDepositLedgerEntriesForBooking(bookingId);
 
     let collected = 0;
     let ledgerDeducted = 0;
