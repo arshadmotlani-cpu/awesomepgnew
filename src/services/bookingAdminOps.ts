@@ -149,7 +149,7 @@ async function assertBookingAccess(session: AdminSession, bookingId: string) {
   }
 }
 
-async function assertBedAccess(session: AdminSession, bedId: string) {
+export async function assertBedAccess(session: AdminSession, bedId: string) {
   const [row] = await db
     .select({ pgId: floors.pgId })
     .from(beds)
@@ -238,6 +238,31 @@ export async function updateBedInventoryStatus(
     .update(beds)
     .set({ status, updatedAt: new Date() })
     .where(eq(beds.id, bedId));
+
+  if (status === 'available') {
+    await db
+      .update(beds)
+      .set({
+        maintenanceReason: null,
+        maintenanceReasonCustom: null,
+        maintenanceStartedAt: null,
+        maintenanceExpectedCompletion: null,
+        maintenanceNotes: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(beds.id, bedId));
+  } else if (status === 'maintenance') {
+    await db
+      .update(beds)
+      .set({
+        maintenanceStartedAt: sql`coalesce(${beds.maintenanceStartedAt}, CURRENT_DATE)`,
+        manualOccupied: false,
+        manualReservedStart: null,
+        manualReservedCheckIn: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(beds.id, bedId));
+  }
 
   await db.insert(auditLog).values({
     actorType: 'admin',

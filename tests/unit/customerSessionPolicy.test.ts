@@ -9,8 +9,8 @@ import {
 } from '../../src/lib/auth/customerSessionPolicy';
 
 describe('customerSessionPolicy', () => {
-  it('uses 7-day standard and 75-day remember windows by default', () => {
-    assert.equal(customerStandardSessionMs(), 7 * 86_400_000);
+  it('uses 30-day standard and 75-day remember windows by default', () => {
+    assert.equal(customerStandardSessionMs(), 30 * 86_400_000);
     assert.equal(customerRememberSessionMs(), 75 * 86_400_000);
     assert.equal(customerSessionMs(false), customerStandardSessionMs());
     assert.equal(customerSessionMs(true), customerRememberSessionMs());

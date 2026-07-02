@@ -6,6 +6,7 @@ import { BedMapRemoveTenantButton } from '@/src/components/admin/BedMapRemoveTen
 import { BedMapManualOccupiedToggle } from '@/src/components/admin/BedMapManualOccupiedToggle';
 import { BedMapManualReservedToggle } from '@/src/components/admin/BedMapManualReservedToggle';
 import { AdminVacatingSubmitForm } from '@/src/components/admin/AdminVacatingSubmitForm';
+import { BedMapMaintenanceTools } from '@/src/components/admin/bedmap/BedMapMaintenanceTools';
 import { BedMapMoveForm } from '@/src/components/admin/BedMapMoveForm';
 import { BedMapReservationForm } from '@/src/components/admin/BedMapReservationForm';
 import {
@@ -36,7 +37,7 @@ export function BedDetailAdvancedTools({
   return (
     <AdminAdvancedToolsSection
       title="Advanced tools"
-      description="Change bed, reservations, manual website status, or cancel move-out."
+      description="Change bed, reservations, manual website status, maintenance, or cancel move-out."
       defaultOpen={false}
       className="!mb-0 border-0 bg-transparent"
     >
@@ -124,6 +125,8 @@ export function BedDetailAdvancedTools({
             reservedFrom={bed.reservedFrom}
           />
         ) : null}
+
+        <BedMapMaintenanceTools pgId={pgId} bed={bed} />
 
         {!person && bed.bedStatus === 'available' ? (
           <>

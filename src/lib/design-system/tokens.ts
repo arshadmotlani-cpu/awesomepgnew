@@ -38,6 +38,7 @@ export const bedStateTone = {
   reserved: 'border-amber-400/40 bg-amber-500/15 text-amber-100',
   selected: 'border-apg-orange bg-apg-orange/25 text-white ring-2 ring-apg-orange/50',
   notice: 'border-sky-400/40 bg-sky-500/15 text-sky-100',
+  maintenance: 'border-rose-500/50 bg-rose-600/15 text-rose-100',
 } as const;
 
 export const requestStatusTone = {

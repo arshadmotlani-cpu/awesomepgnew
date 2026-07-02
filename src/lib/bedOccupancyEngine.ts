@@ -7,6 +7,9 @@
 
 import { RESERVE_CLEANING_BUFFER_DAYS } from '@/src/lib/bedReservePolicy';
 import {
+  buildMaintenanceSublabel,
+} from '@/src/lib/bedMaintenance';
+import {
   addDays,
   customerBookableFromDate,
   formatDate,
@@ -68,6 +71,12 @@ export type BedOccupancyInput = {
   noticeInterestCount?: number;
   holdInterestCount?: number;
   availableUntilDate?: string | null;
+
+  maintenanceReason?: string | null;
+  maintenanceReasonCustom?: string | null;
+  maintenanceStartedAt?: string | null;
+  maintenanceExpectedCompletion?: string | null;
+  maintenanceNotes?: string | null;
 };
 
 export type BedOccupancySnapshot = {
@@ -336,7 +345,14 @@ export function toCustomerAvailabilityView(
   }
 
   if (snap.publicState === 'maintenance') {
-    return { kind: 'maintenance', label: 'Under Maintenance' };
+    const sublabel = buildMaintenanceSublabel({
+      reason: input.maintenanceReason ?? null,
+      reasonCustom: input.maintenanceReasonCustom ?? null,
+      startedAt: input.maintenanceStartedAt ?? null,
+      expectedCompletion: input.maintenanceExpectedCompletion ?? null,
+      notes: input.maintenanceNotes ?? null,
+    });
+    return { kind: 'maintenance', label: 'Maintenance', sublabel };
   }
 
   if (snap.adminState === 'checkout_pending') {
@@ -440,7 +456,14 @@ export function toAdminAvailabilityView(
   const snap = snapshot ?? computeBedOccupancySnapshot(input);
 
   if (input.bedStatus === 'maintenance') {
-    return { kind: 'maintenance', label: 'Under Maintenance' };
+    const sublabel = buildMaintenanceSublabel({
+      reason: input.maintenanceReason ?? null,
+      reasonCustom: input.maintenanceReasonCustom ?? null,
+      startedAt: input.maintenanceStartedAt ?? null,
+      expectedCompletion: input.maintenanceExpectedCompletion ?? null,
+      notes: input.maintenanceNotes ?? null,
+    });
+    return { kind: 'maintenance', label: 'Maintenance', sublabel };
   }
   if (input.bedStatus === 'blocked') {
     return { kind: 'blocked', label: 'Blocked' };

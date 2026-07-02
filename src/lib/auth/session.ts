@@ -21,6 +21,38 @@ import { normaliseIndianPhone } from '@/src/lib/phone';
 import { hasDatabaseUrl } from '@/src/lib/db/env';
 import { randomToken, sha256 } from './crypto';
 
+type CustomerSessionRejectReason =
+  | 'session_expired_or_missing'
+  | 'customer_missing_or_archived';
+
+/** Drop stale resident cookie so middleware does not loop on invalid sessions. */
+async function clearCustomerSessionCookie(): Promise<void> {
+  const jar = await cookies();
+  jar.delete(CUSTOMER_SESSION_COOKIE);
+}
+
+async function rejectCustomerSession(args: {
+  token: string;
+  sessionId?: string;
+  reason: CustomerSessionRejectReason;
+  subjectId?: string;
+}): Promise<void> {
+  logger.warn('customer_session_rejected', {
+    reason: args.reason,
+    subjectId: args.subjectId,
+    sessionId: args.sessionId,
+  });
+  try {
+    await db
+      .delete(authSessions)
+      .where(eq(authSessions.tokenHash, sha256(args.token)));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[auth] customer session revoke failed:', message);
+  }
+  await clearCustomerSessionCookie();
+}
+
 export type CustomerSession = {
   kind: 'customer';
   sessionId: string;
@@ -151,7 +183,15 @@ async function readSessionByCookie(
         ),
       )
       .limit(1);
-    if (!row) return null;
+    if (!row) {
+      if (kind === 'customer') {
+        await rejectCustomerSession({
+          token,
+          reason: 'session_expired_or_missing',
+        });
+      }
+      return null;
+    }
     return {
       sessionId: row.sessionId,
       subjectId: row.subjectId,
@@ -261,10 +301,11 @@ export const getCustomerSession = cache(async (): Promise<CustomerSession | null
       .where(and(eq(customers.id, base.subjectId), isNull(customers.archivedAt)))
       .limit(1);
     if (!customer) {
-      logger.warn('customer_session_rejected', {
-        reason: 'customer_missing_or_archived',
-        subjectId: base.subjectId,
+      await rejectCustomerSession({
+        token: base.token,
         sessionId: base.sessionId,
+        subjectId: base.subjectId,
+        reason: 'customer_missing_or_archived',
       });
       return null;
     }

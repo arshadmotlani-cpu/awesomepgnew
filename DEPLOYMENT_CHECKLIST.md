@@ -14,6 +14,9 @@ Use this list before every production deploy. Full audit: `/admin/system/health-
 
 ```
 AUTH_SECRET=...
+AUTH_CUSTOMER_SESSION_DAYS=30          # standard session (without remember-device)
+AUTH_CUSTOMER_REMEMBER_DAYS=75         # remember-this-device TTL
+AUTH_CUSTOMER_SESSION_REFRESH_DAYS=14  # sliding refresh threshold
 CRON_SECRET=...
 BLOB_READ_WRITE_TOKEN=...
 PAYMENT_PROVIDER=razorpay
@@ -42,6 +45,11 @@ MOCK_WEBHOOK_SECRET=...
 Neon-linked `DATABASE_URL` values are **not** exported by `vercel env pull` — use Neon dashboard or Vercel runtime.
 
 ```bash
+# Production Stabilization P0 gate (before stabilization commit)
+# Paste Neon DATABASE_URL into .env.local, then:
+npx tsx scripts/verify-production-p0.ts
+npx tsx scripts/production-stabilization-audit.ts --write-docs
+
 # Trigger deployed crons (needs CRON_SECRET from Vercel → Settings → Environment Variables)
 CRON_SECRET=… npx tsx scripts/post-deploy-ops.ts
 

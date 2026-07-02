@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { AdminKycStatusWithWhatsApp } from '@/src/components/admin/AdminKycWhatsAppButton';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
+import { formatMaintenanceReason } from '@/src/lib/bedMaintenance';
 import { BedDetailAdvancedTools } from '@/src/components/admin/bedmap/BedDetailAdvancedTools';
 import { BedInlineAssignForm } from '@/src/components/admin/bedmap/BedInlineAssignForm';
 import {
@@ -48,7 +49,7 @@ const LEGEND_FULL = [
   { label: 'Booked', className: 'border-violet-400/55 bg-violet-500/15' },
   { label: 'Reserved', className: 'border-violet-400/55 bg-violet-500/15' },
   { label: 'Checkout pending', className: 'border-cyan-400/50 bg-cyan-500/12' },
-  { label: 'Maintenance', className: 'border-amber-400/50 bg-amber-500/12' },
+  { label: 'Maintenance', className: 'border-rose-500/60 bg-rose-600/20' },
 ];
 
 const COMMAND_LEGEND = [
@@ -83,10 +84,20 @@ function BedDetailPanel({
             {floor.floorLabel} · Room {room.roomNumber}
           </p>
           <h2 className="text-lg font-semibold text-white">Bed {bed.bedCode}</h2>
-          <p className="text-xs text-apg-silver">
-            {room.roomTypeName}
-            {room.hasAc ? ' · AC' : ''} · {room.sharingCount}-sharing · {bed.availability.label}
-          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            {bed.bedStatus === 'maintenance' ? (
+              <Badge tone="rose">
+                <span aria-hidden className="mr-1">
+                  🔧
+                </span>
+                Maintenance
+              </Badge>
+            ) : null}
+            <p className="text-xs text-apg-silver">
+              {room.roomTypeName}
+              {room.hasAc ? ' · AC' : ''} · {room.sharingCount}-sharing · {bed.availability.label}
+            </p>
+          </div>
         </div>
         <button
           type="button"
@@ -99,6 +110,30 @@ function BedDetailPanel({
       </div>
 
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
+        {bed.bedStatus === 'maintenance' ? (
+          <section className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-50">
+            <p className="text-xs font-semibold uppercase tracking-wide text-rose-200">Maintenance</p>
+            <p className="mt-2">
+              <span className="text-rose-200/80">Reason:</span>{' '}
+              {formatMaintenanceReason(bed.maintenanceReason, bed.maintenanceReasonCustom)}
+            </p>
+            {bed.maintenanceStartedAt ? (
+              <p className="mt-1">
+                <span className="text-rose-200/80">Since:</span> {formatDate(bed.maintenanceStartedAt)}
+              </p>
+            ) : null}
+            {bed.maintenanceExpectedCompletion ? (
+              <p className="mt-1">
+                <span className="text-rose-200/80">Expected completion:</span>{' '}
+                {formatDate(bed.maintenanceExpectedCompletion)}
+              </p>
+            ) : null}
+            {bed.maintenanceNotes ? (
+              <p className="mt-2 text-xs text-rose-100/90">{bed.maintenanceNotes}</p>
+            ) : null}
+          </section>
+        ) : null}
+
         {person ? (
           <>
             <section className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
@@ -205,6 +240,7 @@ function RoomCard({
         {room.beds.map((bed) => {
           const selected = selectedBedId === bed.bedId;
           const kindClass = ADMIN_BED_KIND_CLASS[bed.availability.kind];
+          const isMaintenance = bed.bedStatus === 'maintenance';
           return (
             <button
               key={bed.bedId}
@@ -217,6 +253,11 @@ function RoomCard({
                   : kindClass
               }`}
             >
+              {isMaintenance ? (
+                <span className="absolute right-1.5 top-1.5 text-[11px]" aria-hidden title="Maintenance">
+                  🔧
+                </span>
+              ) : null}
               <span className="text-sm font-bold uppercase tracking-wide">{bed.bedCode}</span>
               <span className="mt-1.5 text-[11px] font-medium leading-snug opacity-95">
                 {bed.availability.label}

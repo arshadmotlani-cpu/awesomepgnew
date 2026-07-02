@@ -256,18 +256,29 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-02 17:24:12 UTC
+### Pending pre-commit sync · 2026-07-02 17:51:25 UTC
 
-**Areas touched:** [[ROUTES]]
+**Areas touched:** [[ROUTES]], [[DATABASE]], [[Auth]], [[Billing]], [[Action Center]], [[Bookings]], [[Bed Assignment]]
 
 **Docs flagged for review:**
+- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
+- `DATABASE.md` — review for accuracy
+- `DECISIONS.md` — review for accuracy
+- `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
+- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (2):**
-- `app/(admin)/admin/express-booking/express-booking.module.css`
-- `app/(admin)/admin/express-booking/page.tsx`
+**Staged code files (8):**
+- `app/(admin)/admin/pgs/[pgId]/map/actions.ts`
+- `src/db/migrations/0095_bed_maintenance_metadata.sql`
+- `src/db/schema/beds.ts`
+- `src/lib/auth/session.ts`
+- `src/lib/billing/roomElectricityOccupants.ts`
+- `src/services/actionItems.ts`
+- `src/services/bookingAdminOps.ts`
+- `src/services/pgBedMap.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

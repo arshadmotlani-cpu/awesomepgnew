@@ -117,5 +117,8 @@ Files:
 - **EXP-BOOKING-RETRY-HARDEN** — Rollback purges unpaid rent invoices (no tombstones); `ensureMonthlyRentInvoice` regenerates after express rollback; two-step confirm UI + processing lock; rollback failure surfaces retryable state
 - **EXP-BOOKING-TOMBSTONE-FIX** — Paid+cancelled rent tombstones (paymentId set) blocked purge; expressWalkInRetry flag; rollback deletes all rent rows; fixed-stay recovery; viewport-bound invoice preview aside
 - **EXP-BOOKING-LAYOUT** — Split-pane express workspace; lock admin shell scroll; pinned preview footer; layout E2E
+- **PRODUCTION-STABILIZATION** — Five-phase investigation batch: auth/session, electricity Room 203, Pay All UX (removed misleading CTA), UPI audit, occupancy SSOT approval request; read-only audit script; master sign-off → `docs/PRODUCTION_STABILIZATION/`
+- **PRODUCTION-STABILIZATION-P0** — P0 code fixes: session cookie-clear on reject, 30d standard TTL, checkout occupant exclusion for Room 203, UPI SSOT resolver + non-destructive defaults; `scripts/verify-production-p0.ts`
+- **BED-MAINTENANCE** — First-class maintenance workflow: schema metadata, bed map Advanced Tools (put/complete), red admin tiles + customer exclusion, engine labels with reason/dates
 
 ---

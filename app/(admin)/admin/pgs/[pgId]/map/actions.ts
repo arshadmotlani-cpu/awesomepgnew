@@ -159,6 +159,55 @@ export async function clearBedManualReservedAction(
   }
 }
 
+export async function putBedUnderMaintenanceAction(
+  pgId: string,
+  bedId: string,
+  input: {
+    reason: string;
+    reasonCustom?: string | null;
+    startDate: string;
+    expectedCompletion?: string | null;
+    notes?: string | null;
+  },
+): Promise<MapActionState> {
+  try {
+    const session = await requireAdminPermission('bookings:write');
+    const { putBedUnderMaintenance } = await import('@/src/services/bedMaintenance');
+    const result = await putBedUnderMaintenance(session, bedId, {
+      reason: input.reason as import('@/src/lib/bedMaintenance').BedMaintenanceReason,
+      reasonCustom: input.reasonCustom,
+      startDate: input.startDate,
+      expectedCompletion: input.expectedCompletion,
+      notes: input.notes,
+    });
+    if (!result.ok) return result;
+
+    revalidateOccupancyViews(pgId);
+    revalidatePath('/pgs');
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function completeBedMaintenanceAction(
+  pgId: string,
+  bedId: string,
+): Promise<MapActionState> {
+  try {
+    const session = await requireAdminPermission('bookings:write');
+    const { completeBedMaintenance } = await import('@/src/services/bedMaintenance');
+    const result = await completeBedMaintenance(session, bedId);
+    if (!result.ok) return result;
+
+    revalidateOccupancyViews(pgId);
+    revalidatePath('/pgs');
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 export async function removeTenantFromBedAction(
   _prev: MapActionState,
   formData: FormData,

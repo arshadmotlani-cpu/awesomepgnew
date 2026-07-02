@@ -41,8 +41,8 @@ export function BedAssignmentAdvancedTools() {
         </Link>
       </div>
       <p className="text-xs text-apg-silver">
-        Move bed, force remove tenant, vacating controls, and maintenance toggles are on each bed in
-        the map — select a bed, then open Advanced tools in the side panel.
+        Move bed, force remove tenant, vacating controls, and maintenance are in Advanced tools on
+        each bed in the map — select a bed, then open Advanced tools in the side panel.
       </p>
     </AdminAdvancedToolsSection>
   );

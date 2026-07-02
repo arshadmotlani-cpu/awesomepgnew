@@ -2,7 +2,13 @@
 
 import { bedStateTone } from '@/src/lib/design-system/tokens';
 
-export type BedVisualState = 'available' | 'occupied' | 'reserved' | 'selected' | 'notice';
+export type BedVisualState =
+  | 'available'
+  | 'occupied'
+  | 'reserved'
+  | 'selected'
+  | 'notice'
+  | 'maintenance';
 
 const stateIcon: Record<BedVisualState, string> = {
   available: '○',
@@ -10,6 +16,7 @@ const stateIcon: Record<BedVisualState, string> = {
   reserved: '◐',
   selected: '✓',
   notice: '◔',
+  maintenance: '🔧',
 };
 
 type Props = {

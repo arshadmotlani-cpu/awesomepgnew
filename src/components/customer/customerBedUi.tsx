@@ -73,6 +73,8 @@ function visualStateForKind(kind: BedAvailabilityKind, selected?: boolean): BedV
     case 'booked':
     case 'hold_interest':
       return 'reserved';
+    case 'maintenance':
+      return 'maintenance';
     default:
       return 'occupied';
   }

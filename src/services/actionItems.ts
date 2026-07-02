@@ -1206,23 +1206,17 @@ export async function getPgQrForPurpose(
   pgId: string,
   purpose: 'rent' | 'electricity' | 'deposit' | 'combined',
 ): Promise<{ qrUrl: string; upiId: string | null } | null> {
-  const nameHints =
-    purpose === 'rent' || purpose === 'combined'
-      ? ['rent', 'monthly']
-      : purpose === 'electricity'
-        ? ['electricity', 'elec', 'power']
-        : ['deposit', 'security'];
+  const { getElectricityDailyCategory, getRentDepositBookingCategory } = await import(
+    '@/src/services/pgPaymentDefaults'
+  );
 
-  const categories = await db
-    .select()
-    .from(pgPaymentCategories)
-    .where(and(eq(pgPaymentCategories.pgId, pgId), eq(pgPaymentCategories.isActive, true)));
+  if (purpose === 'electricity') {
+    const category = await getElectricityDailyCategory(pgId);
+    if (!category) return null;
+    return { qrUrl: category.qrCodeImageUrl, upiId: category.upiId };
+  }
 
-  const match =
-    categories.find((c) =>
-      nameHints.some((h) => c.name.toLowerCase().includes(h)),
-    ) ?? categories[0];
-
-  if (!match) return null;
-  return { qrUrl: match.qrCodeImageUrl, upiId: match.upiId };
+  const category = await getRentDepositBookingCategory(pgId);
+  if (!category) return null;
+  return { qrUrl: category.qrCodeImageUrl, upiId: category.upiId };
 }

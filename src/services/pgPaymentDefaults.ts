@@ -12,7 +12,7 @@ import {
 } from '@/src/lib/payments/defaultQr';
 
 function findElectricityCategory(
-  existing: Array<{ id: string; name: string }>,
+  existing: Array<(typeof pgPaymentCategories.$inferSelect)>,
 ) {
   return existing.find(
     (c) =>
@@ -36,15 +36,12 @@ export async function ensureDefaultPaymentCategoriesForPg(pgId: string): Promise
 
   const rentCat = existing.find((c) => c.name === RENT_DEPOSIT_BOOKING_CATEGORY_NAME);
   if (rentCat) {
-    await db
-      .update(pgPaymentCategories)
-      .set({
-        qrCodeImageUrl: DEFAULT_RENT_DEPOSIT_QR_PATH,
-        upiId: DEFAULT_RENT_DEPOSIT_UPI_ID,
-        isActive: true,
-        updatedAt: new Date(),
-      })
-      .where(eq(pgPaymentCategories.id, rentCat.id));
+    if (!rentCat.isActive) {
+      await db
+        .update(pgPaymentCategories)
+        .set({ isActive: true, updatedAt: new Date() })
+        .where(eq(pgPaymentCategories.id, rentCat.id));
+    }
   } else {
     await db.insert(pgPaymentCategories).values({
       pgId,
@@ -57,16 +54,20 @@ export async function ensureDefaultPaymentCategoriesForPg(pgId: string): Promise
 
   const elecCat = findElectricityCategory(existing);
   if (elecCat) {
-    await db
-      .update(pgPaymentCategories)
-      .set({
-        name: ELECTRICITY_CATEGORY_NAME,
-        qrCodeImageUrl: DEFAULT_ELECTRICITY_DAILY_QR_PATH,
-        upiId: DEFAULT_ELECTRICITY_DAILY_UPI_ID,
-        isActive: true,
-        updatedAt: new Date(),
-      })
-      .where(eq(pgPaymentCategories.id, elecCat.id));
+    const updates: {
+      isActive: boolean;
+      updatedAt: Date;
+      name?: string;
+    } = { isActive: true, updatedAt: new Date() };
+    if (elecCat.name !== ELECTRICITY_CATEGORY_NAME) {
+      updates.name = ELECTRICITY_CATEGORY_NAME;
+    }
+    if (!elecCat.isActive || updates.name) {
+      await db
+        .update(pgPaymentCategories)
+        .set(updates)
+        .where(eq(pgPaymentCategories.id, elecCat.id));
+    }
   } else {
     await db.insert(pgPaymentCategories).values({
       pgId,

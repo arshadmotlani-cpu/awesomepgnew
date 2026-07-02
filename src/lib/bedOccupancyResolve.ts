@@ -36,6 +36,11 @@ export type RawBedOccupancyFacts = {
   noticeInterestCount?: number;
   holdInterestCount?: number;
   availableUntilDate?: string | null;
+  maintenanceReason?: string | null;
+  maintenanceReasonCustom?: string | null;
+  maintenanceStartedAt?: string | null;
+  maintenanceExpectedCompletion?: string | null;
+  maintenanceNotes?: string | null;
 };
 
 export type ResolvedBedOccupancy = {
@@ -72,6 +77,11 @@ export function rawFactsToInput(facts: RawBedOccupancyFacts): BedOccupancyInput 
     noticeInterestCount: facts.noticeInterestCount,
     holdInterestCount: facts.holdInterestCount,
     availableUntilDate: facts.availableUntilDate,
+    maintenanceReason: facts.maintenanceReason,
+    maintenanceReasonCustom: facts.maintenanceReasonCustom,
+    maintenanceStartedAt: facts.maintenanceStartedAt,
+    maintenanceExpectedCompletion: facts.maintenanceExpectedCompletion,
+    maintenanceNotes: facts.maintenanceNotes,
   };
 }
 

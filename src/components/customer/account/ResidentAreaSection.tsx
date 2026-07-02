@@ -551,11 +551,6 @@ export async function ResidentAreaSection({
   );
 
   const enrichedDueRows = dueBillRows.map(enrichBillDueRow);
-  const payableHrefs = enrichedDueRows.filter((r) => r.href).map((r) => r.href!);
-  const payAllEnabled =
-    payableHrefs.length > 1 &&
-    pendingApprovalRows.length === 0 &&
-    !payableHrefs.some((h) => h.includes('deposit'));
 
   const referralSummary = await getReferralSummaryForCustomer(session.customerId);
 
@@ -704,8 +699,6 @@ export async function ResidentAreaSection({
           paidBills={paidHistory}
           historyHref={historyHref}
           lifetimeTotals={lifetimeTotals}
-          payAllEnabled={payAllEnabled}
-          payAllHref={payableHrefs[0] ?? null}
         />
       ) : null}
     </ResidentHubShell>

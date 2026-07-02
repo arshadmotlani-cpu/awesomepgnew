@@ -108,7 +108,7 @@ export const env = {
     return optional('AUTH_SECRET') ?? 'dev-only-auth-secret-change-me';
   },
   get AUTH_CUSTOMER_SESSION_DAYS() {
-    return optionalInt('AUTH_CUSTOMER_SESSION_DAYS', 7);
+    return optionalInt('AUTH_CUSTOMER_SESSION_DAYS', 30);
   },
   /** Remember-this-device resident session. Default 75 days (within 60–90 day target). */
   get AUTH_CUSTOMER_REMEMBER_DAYS() {

@@ -36,6 +36,11 @@ export type PgBedMapBed = {
   bedId: string;
   bedCode: string;
   bedStatus: 'available' | 'maintenance' | 'blocked';
+  maintenanceReason: string | null;
+  maintenanceReasonCustom: string | null;
+  maintenanceStartedAt: string | null;
+  maintenanceExpectedCompletion: string | null;
+  maintenanceNotes: string | null;
   isOccupiedToday: boolean;
   isAvailableNow: boolean;
   manualOccupied: boolean;
@@ -95,6 +100,11 @@ type RawRow = {
   bed_id: string;
   bed_code: string;
   bed_status: 'available' | 'maintenance' | 'blocked';
+  maintenance_reason: string | null;
+  maintenance_reason_custom: string | null;
+  maintenance_started_at: string | null;
+  maintenance_expected_completion: string | null;
+  maintenance_notes: string | null;
   manual_occupied: boolean;
   manual_reserved_start: string | null;
   manual_reserved_check_in: string | null;
@@ -252,6 +262,11 @@ function buildBed(row: RawRow): PgBedMapBed {
     occupantFirstName: occupant?.customerName.split(' ')[0] ?? reserved?.customerName.split(' ')[0],
     interestCount: row.interest_count,
     noticeInterestCount: row.notice_interest_count,
+    maintenanceReason: row.maintenance_reason,
+    maintenanceReasonCustom: row.maintenance_reason_custom,
+    maintenanceStartedAt: row.maintenance_started_at,
+    maintenanceExpectedCompletion: row.maintenance_expected_completion,
+    maintenanceNotes: row.maintenance_notes,
   });
 
   const availability = resolved.adminView;
@@ -261,6 +276,11 @@ function buildBed(row: RawRow): PgBedMapBed {
     bedId: row.bed_id,
     bedCode: row.bed_code,
     bedStatus: row.bed_status,
+    maintenanceReason: row.maintenance_reason,
+    maintenanceReasonCustom: row.maintenance_reason_custom,
+    maintenanceStartedAt: row.maintenance_started_at,
+    maintenanceExpectedCompletion: row.maintenance_expected_completion,
+    maintenanceNotes: row.maintenance_notes,
     isOccupiedToday,
     isAvailableNow,
     manualOccupied,
@@ -301,6 +321,11 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
       b.id::text AS bed_id,
       b.bed_code,
       b.status AS bed_status,
+      b.maintenance_reason,
+      b.maintenance_reason_custom,
+      b.maintenance_started_at::text,
+      b.maintenance_expected_completion::text,
+      b.maintenance_notes,
       b.manual_occupied,
       b.manual_reserved_start::text,
       b.manual_reserved_check_in::text,

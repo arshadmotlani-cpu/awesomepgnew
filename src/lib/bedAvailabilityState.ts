@@ -146,7 +146,7 @@ export const ADMIN_BED_KIND_CLASS: Record<BedAvailabilityKind, string> = {
   booked: 'border-violet-400/55 bg-violet-500/15 text-violet-50 hover:border-violet-400/75',
   reserved: 'border-violet-400/55 bg-violet-500/15 text-violet-50 hover:border-violet-400/75',
   hold_interest: 'border-cyan-400/50 bg-cyan-500/12 text-cyan-50 hover:border-cyan-400/70',
-  maintenance: 'border-amber-400/50 bg-amber-500/12 text-amber-50 hover:border-amber-400/70',
+  maintenance: 'border-rose-500/60 bg-rose-600/20 text-rose-50 hover:border-rose-400/80',
   blocked: 'border-rose-400/50 bg-rose-500/12 text-rose-100 hover:border-rose-400/70',
 };
 
@@ -159,6 +159,6 @@ export const CUSTOMER_BED_KIND_CLASS: Record<BedAvailabilityKind, string> = {
   booked: 'border-violet-400/45 bg-violet-500/12 text-violet-100',
   reserved: 'border-violet-400/45 bg-violet-500/12 text-violet-100',
   hold_interest: 'border-cyan-400/40 bg-cyan-500/10 text-cyan-100',
-  maintenance: 'border-amber-400/45 bg-amber-500/10 text-amber-100',
+  maintenance: 'border-rose-500/50 bg-rose-600/15 text-rose-100',
   blocked: 'border-rose-400/40 bg-rose-500/10 text-rose-200/80',
 };

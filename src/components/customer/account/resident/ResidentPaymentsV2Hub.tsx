@@ -39,8 +39,6 @@ type Props = {
   paidBills: PaidHistoryRow[];
   historyHref: string | null;
   lifetimeTotals: LifetimeTotals;
-  payAllEnabled: boolean;
-  payAllHref: string | null;
 };
 
 function BillCard({ row }: { row: BillDueRow }) {
@@ -93,8 +91,6 @@ export function ResidentPaymentsV2Hub({
   paidBills,
   historyHref,
   lifetimeTotals,
-  payAllEnabled,
-  payAllHref,
 }: Props) {
   const subNav = [
     { id: 'due', label: 'Bills Due', href: residentPaymentsHref('due') },
@@ -119,12 +115,12 @@ export function ResidentPaymentsV2Hub({
                 <p className="mt-1 text-3xl font-bold tabular-nums text-apg-orange">
                   {paiseToInr(totalDuePaise)}
                 </p>
+                {payableDue.length > 1 ? (
+                  <p className="mt-2 text-xs text-apg-silver">
+                    Pay each bill separately using the buttons below.
+                  </p>
+                ) : null}
               </div>
-              {payAllEnabled && payAllHref && totalDuePaise > 0 ? (
-                <Link href={payAllHref} className={primaryBtn}>
-                  Pay all {paiseToInr(totalDuePaise)}
-                </Link>
-              ) : null}
             </div>
           </ApgCard>
 

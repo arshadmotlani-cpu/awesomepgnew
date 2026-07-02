@@ -18,7 +18,6 @@ import {
 import type { MonthlyElectricityOccupant } from '@/src/lib/billing/roomElectricityMonthlyAllocation';
 import { isMonthlyElectricityBillableOccupant } from '@/src/lib/billing/electricityOccupancyEligibility';
 import { diffDays, formatDate, parseDate } from '@/src/lib/dates';
-import { resolveCheckoutElectricityDeductionPaise } from '@/src/lib/checkout/electricitySettlementCalc';
 import { paiseToInr } from '@/src/lib/format';
 import { monthBounds } from '@/src/services/billing';
 import { listCheckoutElectricityLedgerForRoomMonth } from '@/src/services/electricitySettlementLedger';
@@ -87,12 +86,9 @@ export async function listCheckoutSettledCustomerIdsForRoomMonth(
     );
 
   for (const row of settlementRows) {
-    const deduction = resolveCheckoutElectricityDeductionPaise(row);
-    // Terminal checkout in this room/month — exclude from monthly allocation whether or
-    // not electricity was deducted (checkout is the billing boundary for departed residents).
-    if (deduction > 0 || row.status === 'completed' || row.status === 'refund_paid') {
-      excluded.add(row.customerId);
-    }
+    // Any checkout workflow row for this room/month is a billing boundary — exclude
+    // from monthly allocation whether or not electricity deduction is finalized yet.
+    excluded.add(row.customerId);
   }
 
   return excluded;

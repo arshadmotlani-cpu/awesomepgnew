@@ -69,7 +69,7 @@ export function toneForStatus(status: string): BadgeTone {
       return 'rose';
     case 'blocked':
     case 'maintenance':
-      return 'violet';
+      return 'rose';
     case 'draft':
       return 'sky';
     default:
