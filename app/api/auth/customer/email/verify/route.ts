@@ -27,6 +27,7 @@ import {
 import { resolveCustomerAuthSnapshot } from '@/src/lib/auth/resolveCustomerAuthState';
 import { createCustomerSession } from '@/src/lib/auth/session';
 import { normaliseEmail } from '@/src/lib/email/address';
+import { maskEmailForDisplay } from '@/src/lib/auth/loginIdentifier';
 import { normaliseIndianPhone } from '@/src/lib/phone';
 import { isProfileComplete } from '@/src/services/profile';
 
@@ -82,8 +83,9 @@ async function handleProfileStep(args: {
             ok: false,
             needsProfile: true,
             email,
-            phoneLinkedTo: err.linkedEmail,
-            message: `This mobile number belongs to ${err.linkedEmail}. Recover that account instead, or use a different number.`,
+            existingAccountByPhone: true,
+            maskedEmail: maskEmailForDisplay(err.linkedEmail),
+            message: 'We found an existing account with this phone number.',
           },
           { status: 409 },
         );

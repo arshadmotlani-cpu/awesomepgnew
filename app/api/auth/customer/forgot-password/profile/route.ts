@@ -11,6 +11,7 @@ import {
   readSignupSessionFromRequest,
   submitSignupProfile,
 } from '@/src/lib/auth/signupSession';
+import { maskEmailForDisplay } from '@/src/lib/auth/loginIdentifier';
 import { normaliseEmail } from '@/src/lib/email/address';
 import { normaliseIndianPhone } from '@/src/lib/phone';
 
@@ -102,8 +103,9 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           ok: false,
-          phoneLinkedTo: err.linkedEmail,
-          message: `This mobile number belongs to ${err.linkedEmail}. Recover that account instead, or use a different number.`,
+          existingAccountByPhone: true,
+          maskedEmail: maskEmailForDisplay(err.linkedEmail),
+          message: 'We found an existing account with this phone number.',
         },
         { status: 409 },
       );

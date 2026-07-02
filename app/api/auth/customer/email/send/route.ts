@@ -1,4 +1,9 @@
 import { NextResponse } from 'next/server';
+import {
+  findCustomerByLoginIdentifier,
+  maskEmailForDisplay,
+  parseLoginIdentifier,
+} from '@/src/lib/auth/loginIdentifier';
 import { findCustomerByEmail, isAccountComplete, isIncompleteSignup } from '@/src/lib/auth/customer';
 import { getActiveSignupSessionForEmail } from '@/src/lib/auth/signupSession';
 import { sendEmailOtp } from '@/src/lib/auth/otp';
@@ -6,15 +11,50 @@ import { sendEmailOtp } from '@/src/lib/auth/otp';
 export type OtpPurpose = 'signup' | 'forgot_password';
 
 export async function POST(request: Request) {
-  let body: { email?: string; purpose?: OtpPurpose };
+  let body: { email?: string; identifier?: string; purpose?: OtpPurpose };
   try {
-    body = (await request.json()) as { email?: string; purpose?: OtpPurpose };
+    body = (await request.json()) as { email?: string; identifier?: string; purpose?: OtpPurpose };
   } catch {
     return NextResponse.json({ ok: false, message: 'Invalid JSON body.' }, { status: 400 });
   }
 
   const purpose: OtpPurpose = body.purpose === 'forgot_password' ? 'forgot_password' : 'signup';
-  const customer = await findCustomerByEmail(body.email ?? '');
+  const identifierInput = (body.identifier ?? body.email ?? '').trim();
+  const parsed = parseLoginIdentifier(identifierInput);
+
+  if (!parsed) {
+    return NextResponse.json(
+      { ok: false, message: 'Enter a valid email address or mobile number.' },
+      { status: 400 },
+    );
+  }
+
+  let otpEmail = parsed.kind === 'email' ? parsed.value : null;
+  let maskedEmail: string | undefined;
+  let customer =
+    parsed.kind === 'email' ? await findCustomerByEmail(parsed.value) : null;
+
+  if (purpose === 'forgot_password' && parsed.kind === 'phone') {
+    const resolved = await findCustomerByLoginIdentifier(parsed.raw);
+    if (!resolved) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: 'No account found for this mobile number. Sign up if you are new here.',
+        },
+        { status: 400 },
+      );
+    }
+    customer = resolved.customer;
+    otpEmail = customer.email;
+    maskedEmail = maskEmailForDisplay(customer.email);
+  } else if (parsed.kind === 'email') {
+    customer = await findCustomerByEmail(parsed.value);
+  }
+
+  if (!otpEmail) {
+    return NextResponse.json({ ok: false, message: 'Invalid email address.' }, { status: 400 });
+  }
 
   if (purpose === 'signup' && customer && isAccountComplete(customer)) {
     return NextResponse.json(
@@ -30,25 +70,26 @@ export async function POST(request: Request) {
 
   if (purpose === 'forgot_password') {
     if (!customer || customer.archivedAt) {
-      const pendingSignup = await getActiveSignupSessionForEmail(body.email ?? '');
+      const pendingSignup = await getActiveSignupSessionForEmail(otpEmail);
       if (!pendingSignup) {
         return NextResponse.json(
           {
             ok: false,
-            message: 'No account found for this email. Sign up if you are new here.',
+            message:
+              parsed.kind === 'phone'
+                ? 'No account found for this mobile number. Sign up if you are new here.'
+                : 'No account found for this email. Sign up if you are new here.',
           },
           { status: 400 },
         );
       }
-      // Pending signup only — allow OTP to set password via set-password route.
     }
-    // Incomplete accounts: allow OTP to set or reset password (same flow).
   }
 
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null;
   const userAgent = request.headers.get('user-agent');
 
-  const result = await sendEmailOtp(body.email ?? '', { ip, userAgent });
+  const result = await sendEmailOtp(otpEmail, { ip, userAgent });
   if (!result.ok) {
     return NextResponse.json(result, {
       status: result.retryAfterSeconds ? 429 : 400,
@@ -57,16 +98,24 @@ export async function POST(request: Request) {
 
   const settingFirstPassword =
     purpose === 'forgot_password' &&
-    ((customer && isIncompleteSignup(customer)) ||
-      !(customer && !customer.archivedAt));
+    ((customer && isIncompleteSignup(customer)) || !(customer && !customer.archivedAt));
+
+  const forgotViaPhone = purpose === 'forgot_password' && parsed.kind === 'phone';
 
   return NextResponse.json({
     ok: true,
     email: result.email,
+    deliveryEmail: result.email,
+    maskedEmail: maskedEmail ?? undefined,
     expiresAt: result.expiresAt.toISOString(),
     resendAfter: result.resendAfter,
     delivery: result.delivery,
     settingFirstPassword,
+    ...(forgotViaPhone
+      ? {
+          message: `Password reset instructions have been sent to your registered email (${maskEmailForDisplay(result.email)}).`,
+        }
+      : {}),
     ...(purpose === 'signup' && customer && isIncompleteSignup(customer)
       ? { needsCompleteSignup: true, resumeSignup: true }
       : {}),

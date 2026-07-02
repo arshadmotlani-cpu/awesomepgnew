@@ -70,7 +70,9 @@ export function CustomerLoginForm({
   const [otpPhase, setOtpPhase] = useState<OtpSubmitPhase>('idle');
   const [profilePhase, setProfilePhase] = useState<ProfileSubmitPhase>('idle');
   const [recoveryOtpVerified, setRecoveryOtpVerified] = useState(false);
-  const [phoneLinkedEmail, setPhoneLinkedEmail] = useState<string | null>(null);
+  const [existingAccountByPhone, setExistingAccountByPhone] = useState(false);
+  const [maskedRegisteredEmail, setMaskedRegisteredEmail] = useState<string | null>(null);
+  const [forgotPasswordMaskedEmail, setForgotPasswordMaskedEmail] = useState<string | null>(null);
   const verifyInFlight = useRef(false);
   const profileInFlight = useRef(false);
 
@@ -211,8 +213,17 @@ export function CustomerLoginForm({
   }
 
   async function signInWithPassword() {
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    const identifier = email.trim();
+    if (!identifier) {
+      setError('Enter your email or mobile number.');
+      return;
+    }
+    if (identifier.includes('@') && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier)) {
       setError('Enter a valid email address.');
+      return;
+    }
+    if (!identifier.includes('@') && !INDIAN_MOBILE_LOCAL.test(identifier.replace(/\D/g, '').slice(-10))) {
+      setError('Enter a valid 10-digit mobile number or email address.');
       return;
     }
     if (!password) {
@@ -226,7 +237,7 @@ export function CustomerLoginForm({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({ email: email.trim(), password }),
+        body: JSON.stringify({ identifier, password }),
       });
       const data = (await res.json()) as {
         ok: boolean;
@@ -268,13 +279,18 @@ export function CustomerLoginForm({
     }
   }
 
-  async function sendCode(purpose: OtpPurpose = otpPurpose, overrideEmail?: string) {
-    const targetEmail = (overrideEmail ?? email).trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(targetEmail)) {
+  async function sendCode(purpose: OtpPurpose = otpPurpose, overrideIdentifier?: string) {
+    const targetIdentifier = (overrideIdentifier ?? email).trim();
+    const isEmail = targetIdentifier.includes('@');
+    if (isEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(targetIdentifier)) {
       setError('Enter a valid email address.');
       return;
     }
-    if (overrideEmail) setEmail(targetEmail);
+    if (!isEmail && !INDIAN_MOBILE_LOCAL.test(targetIdentifier.replace(/\D/g, '').slice(-10))) {
+      setError('Enter a valid email address or 10-digit mobile number.');
+      return;
+    }
+    if (overrideIdentifier) setEmail(targetIdentifier);
     if (resendSeconds > 0) {
       setError(`Please wait ${formatResendWait(resendSeconds)} before requesting another code.`);
       return;
@@ -287,11 +303,13 @@ export function CustomerLoginForm({
       const res = await fetch('/api/auth/customer/email/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: targetEmail, purpose }),
+        body: JSON.stringify({ identifier: targetIdentifier, purpose }),
       });
       const data = (await res.json()) as {
         ok: boolean;
         message?: string;
+        email?: string;
+        maskedEmail?: string;
         resendAfter?: string;
         retryAfterSeconds?: number;
         rateLimited?: boolean;
@@ -326,6 +344,12 @@ export function CustomerLoginForm({
       }
       applyResendAfter(data.resendAfter);
       setOtpPurpose(purpose);
+      if (purpose === 'forgot_password' && data.email) {
+        setEmail(data.email);
+        setForgotPasswordMaskedEmail(data.maskedEmail ?? null);
+      } else {
+        setForgotPasswordMaskedEmail(null);
+      }
       if (!wasVerified) {
         setOtpPhase('idle');
       }
@@ -376,16 +400,15 @@ export function CustomerLoginForm({
           message?: string;
           needsNewCode?: boolean;
           needsLogin?: boolean;
-          phoneLinkedTo?: string;
+          existingAccountByPhone?: boolean;
+          maskedEmail?: string;
         };
         if (!res.ok || !data.ok) {
-          if (data.phoneLinkedTo) {
+          if (data.existingAccountByPhone) {
             resetProfileSubmit();
-            setPhoneLinkedEmail(data.phoneLinkedTo);
-            setError(
-              data.message ??
-                `This mobile belongs to ${data.phoneLinkedTo}. Recover that email instead, or use a different number.`,
-            );
+            setExistingAccountByPhone(true);
+            setMaskedRegisteredEmail(data.maskedEmail ?? null);
+            setError(data.message ?? 'We found an existing account with this phone number.');
             return;
           }
           if (data.needsLogin) {
@@ -407,7 +430,8 @@ export function CustomerLoginForm({
         }
         setProfilePhase('success');
         finishProfileSubmit();
-        setPhoneLinkedEmail(null);
+        setExistingAccountByPhone(false);
+        setMaskedRegisteredEmail(null);
         setStep('reset-password');
         setError(null);
         return;
@@ -473,6 +497,8 @@ export function CustomerLoginForm({
         needsLogin?: boolean;
         retryable?: boolean;
         redirect?: string;
+        existingAccountByPhone?: boolean;
+        maskedEmail?: string;
       };
 
       if (data.needsLogin) {
@@ -520,6 +546,13 @@ export function CustomerLoginForm({
       }
 
       if (!res.ok || !data.ok) {
+        if (data.existingAccountByPhone && includeProfile) {
+          resetProfileSubmit();
+          setExistingAccountByPhone(true);
+          setMaskedRegisteredEmail(data.maskedEmail ?? null);
+          setError(data.message ?? 'We found an existing account with this phone number.');
+          return;
+        }
         if (data.needsProfileComplete && data.redirect) {
           setProfilePhase('redirecting');
           router.replace(data.redirect);
@@ -672,11 +705,32 @@ export function CustomerLoginForm({
     setCode('');
     setRecoveryOtpVerified(false);
     setOtpPurpose('forgot_password');
-    if (!email.trim()) {
-      setError('Enter your email above, then tap forgot password.');
+    const value = email.trim();
+    if (!value) {
+      setError('Enter your email or mobile number above, then tap Forgot password.');
       return;
     }
     void sendCode('forgot_password');
+  }
+
+  function returnToLoginFromPhoneConflict() {
+    setExistingAccountByPhone(false);
+    setMaskedRegisteredEmail(null);
+    setFullName('');
+    setPhone('');
+    void resetToLogin();
+  }
+
+  function startForgotPasswordFromPhoneConflict() {
+    const savedPhone = phone;
+    setExistingAccountByPhone(false);
+    setMaskedRegisteredEmail(null);
+    setFullName('');
+    setError(null);
+    setStep('credentials');
+    setEmail(savedPhone);
+    setOtpPurpose('forgot_password');
+    void sendCode('forgot_password', savedPhone);
   }
 
   const dark = theme === 'dark';
@@ -734,8 +788,8 @@ export function CustomerLoginForm({
         <div>
           <h1 className={titleClass}>Sign in</h1>
           <p className={subClass}>
-            Use your email and password. We only send a verification code when you sign up or forget
-            your password.
+            Use your email or mobile number and password. We only send a verification code when you
+            sign up or forget your password.
           </p>
         </div>
       ) : null}
@@ -749,15 +803,17 @@ export function CustomerLoginForm({
           className="space-y-3"
         >
           <label className="block">
-            <span className={labelClass}>Email address</span>
+            <span className={labelClass}>Email or phone number</span>
             <input
-              type="email"
-              name="email"
+              type="text"
+              name="identifier"
               required
-              autoComplete="email"
+              autoComplete="username"
+              inputMode="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className={inputClass}
+              placeholder="you@email.com or 9876543210"
             />
           </label>
           <label className="block">
@@ -799,11 +855,28 @@ export function CustomerLoginForm({
           className="space-y-3"
         >
           <p className={mutedText}>
-            {otpPurpose === 'forgot_password'
-              ? 'Enter the code we sent to reset your password for '
-              : 'Code sent to '}
-            <strong className={dark ? 'text-white' : 'text-zinc-900'}>{email.trim()}</strong>.
-            {otpPurpose === 'signup' ? ' It expires in 5 minutes.' : null}
+            {otpPurpose === 'forgot_password' ? (
+              forgotPasswordMaskedEmail ? (
+                <>
+                  Password reset instructions were sent to your registered email (
+                  <strong className={dark ? 'text-white' : 'text-zinc-900'}>
+                    {forgotPasswordMaskedEmail}
+                  </strong>
+                  ). Enter the 6-digit code from that email.
+                </>
+              ) : (
+                <>
+                  Enter the code we sent to reset your password for{' '}
+                  <strong className={dark ? 'text-white' : 'text-zinc-900'}>{email.trim()}</strong>.
+                </>
+              )
+            ) : (
+              <>
+                Code sent to{' '}
+                <strong className={dark ? 'text-white' : 'text-zinc-900'}>{email.trim()}</strong>.
+                It expires in 5 minutes.
+              </>
+            )}
           </p>
           <label className="block">
             <span className={labelClass}>6-digit code</span>
@@ -940,24 +1013,38 @@ export function CustomerLoginForm({
               Try again
             </button>
           ) : null}
-          {phoneLinkedEmail && step === 'profile' ? (
-            <button
-              type="button"
-              onClick={() => {
-                const linked = phoneLinkedEmail;
-                setPhoneLinkedEmail(null);
-                setFullName('');
-                setPhone('');
-                setCode('');
-                setRecoveryOtpVerified(false);
-                setError(null);
-                setOtpPurpose('forgot_password');
-                void sendCode('forgot_password', linked);
-              }}
-              className={btnClass}
-            >
-              Recover {phoneLinkedEmail} instead
-            </button>
+          {existingAccountByPhone && step === 'profile' ? (
+            <div className={`${infoClass} space-y-3`}>
+              <p>
+                We found an existing account with this phone number.
+                {maskedRegisteredEmail ? (
+                  <>
+                    {' '}
+                    It may be registered to{' '}
+                    <strong className={dark ? 'text-white' : 'text-zinc-900'}>
+                      {maskedRegisteredEmail}
+                    </strong>
+                    .
+                  </>
+                ) : null}
+              </p>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <button type="button" onClick={returnToLoginFromPhoneConflict} className={btnClass}>
+                  Login
+                </button>
+                <button
+                  type="button"
+                  onClick={startForgotPasswordFromPhoneConflict}
+                  className={
+                    dark
+                      ? 'w-full rounded-lg border border-white/15 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/5'
+                      : 'w-full rounded-md border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-800 hover:bg-zinc-50'
+                  }
+                >
+                  Forgot password
+                </button>
+              </div>
+            </div>
           ) : null}
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-3">
             <button
