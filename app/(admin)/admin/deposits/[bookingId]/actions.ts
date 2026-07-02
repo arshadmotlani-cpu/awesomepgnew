@@ -1,8 +1,6 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { isRedirectError } from 'next/dist/client/components/redirect-error';
-import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { assertAdminBookingAccess } from '@/src/lib/auth/pgAccess';
@@ -10,9 +8,7 @@ import { revalidateFinancialViews } from '@/src/lib/billing/revalidateFinancialV
 import {
   recordDepositCollected,
   executeReconcileDepositLedger,
-  getDepositSummaryForBooking,
 } from '@/src/services/deposits';
-import { applyDepositDeduction, settleDepositRefund } from '@/src/services/depositSettlement';
 
 export type ActionState =
   | { status: 'idle' }
@@ -94,102 +90,25 @@ export async function addDepositAction(
 }
 
 export async function deductDepositAction(
-  bookingId: string,
+  _bookingId: string,
   _prev: ActionState,
-  formData: FormData,
+  _formData: FormData,
 ): Promise<ActionState> {
-  let admin;
-  try {
-    admin = await requireAdminPermission('deposits:write');
-    await assertAdminBookingAccess(admin, bookingId);
-  } catch (err) {
-    return {
-      status: 'error',
-      message: err instanceof Error ? err.message : 'Permission denied.',
-    };
-  }
-  const amountPaise = parseAmount(formData);
-  const reason = parseReason(formData);
-  if (amountPaise == null) return { status: 'error', message: 'Amount must be > 0.' };
-  if (!reason) return { status: 'error', message: 'Reason is required.' };
-  const customerId = await resolveCustomerId(bookingId);
-  if (!customerId) return { status: 'error', message: 'Booking not found.' };
-  try {
-    const summary = await getDepositSummaryForBooking(bookingId);
-    if (!summary || amountPaise > summary.refundableBalancePaise) {
-      return { status: 'error', message: 'Deduction exceeds refundable deposit balance.' };
-    }
-    const result = await applyDepositDeduction({
-      bookingId,
-      customerId,
-      amountPaise,
-      reason,
-      adminId: admin.adminId,
-    });
-    if (!result.ok) {
-      return { status: 'error', message: result.error };
-    }
-    revalidateFinancialViews();
-    return { status: 'ok', message: `Deducted ${reason}.` };
-  } catch (err) {
-    return {
-      status: 'error',
-      message: err instanceof Error ? err.message : 'Deduct failed.',
-    };
-  }
+  return {
+    status: 'error',
+    message: 'Use Refund Console (/admin/refunds) to deduct deposits.',
+  };
 }
 
 export async function refundDepositAction(
   bookingId: string,
   _prev: ActionState,
-  formData: FormData,
+  _formData: FormData,
 ): Promise<ActionState> {
-  let admin;
-  try {
-    admin = await requireAdminPermission('deposits:write');
-    await assertAdminBookingAccess(admin, bookingId);
-  } catch (err) {
-    return {
-      status: 'error',
-      message: err instanceof Error ? err.message : 'Permission denied.',
-    };
-  }
-  const amountPaise = parseAmount(formData);
-  const reason = parseReason(formData);
-  if (amountPaise == null) return { status: 'error', message: 'Amount must be > 0.' };
-  if (!reason) return { status: 'error', message: 'Reason is required.' };
-  const customerId = await resolveCustomerId(bookingId);
-  if (!customerId) return { status: 'error', message: 'Booking not found.' };
-  const legacyGuard = await import('@/src/lib/deposits/depositRefundGuard').then((m) =>
-    m.assertLegacyDepositRefundAllowed(bookingId),
-  );
-  if (!legacyGuard.ok) return { status: 'error', message: legacyGuard.error };
-  try {
-    const settlement = await settleDepositRefund({
-      bookingId,
-      customerId,
-      idempotencyKey: `manual:${bookingId}:${randomUUID()}`,
-      source: 'manual',
-      adminId: admin.adminId,
-      reason,
-      refundPaise: amountPaise,
-      refundAudit: {
-        refundMethod: formData.get('refundMethod')?.toString()?.trim() || null,
-        refundReference: formData.get('refundReference')?.toString()?.trim() || null,
-        refundProofUrl: formData.get('refundProofUrl')?.toString()?.trim() || null,
-      },
-    });
-    if (!settlement.ok) {
-      return { status: 'error', message: settlement.error };
-    }
-    revalidateFinancialViews();
-    return { status: 'ok', message: 'Refund recorded.' };
-  } catch (err) {
-    return {
-      status: 'error',
-      message: err instanceof Error ? err.message : 'Refund failed.',
-    };
-  }
+  return {
+    status: 'error',
+    message: 'Use Refund Console (/admin/refunds) to pay refunds.',
+  };
 }
 
 export async function correctDepositAction(

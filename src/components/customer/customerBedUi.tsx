@@ -10,7 +10,7 @@ import {
 import { resolveBedOccupancy } from '@/src/lib/bedOccupancyResolve';
 import { reserveBufferDate } from '@/src/lib/bedReservePolicy';
 import { customerBookableFromDate } from '@/src/lib/dates';
-import { formatDate } from '@/src/lib/format';
+import { formatDate, paiseToInr } from '@/src/lib/format';
 import type { BedSelectorBed } from './customerBedTypes';
 import { BedStateTile, type BedVisualState } from '@/src/components/customer/design-system';
 import { BOOK_THIS_BED, HOLD_THIS_BED } from '@/src/lib/booking/bookingFunnelLabels';
@@ -100,7 +100,7 @@ export function CustomerBedTile({
       sublabel={availability.sublabel}
       state={state}
       selected={isSelected}
-      disabled={!bookable && availability.kind !== 'notice' && !isSelected}
+      disabled={!bookable && availability.kind !== 'notice' && availability.kind !== 'maintenance' && !isSelected}
       onSelect={onSelect}
     />
   );
@@ -134,6 +134,7 @@ export function CustomerBedDetailSheet({
   }, [bed.bedId, bed.noticeInterestCount]);
 
   const availability = bedAvailability({ ...bed, noticeInterestCount: noticeCount });
+  const isMaintenance = availability.kind === 'maintenance';
   const isNotice = availability.kind === 'notice';
   const isAvailable = availability.kind === 'open_now' || availability.kind === 'hold_interest';
   const isReserved = availability.kind === 'reserved';
@@ -194,7 +195,9 @@ export function CustomerBedDetailSheet({
         className={`mt-4 rounded-[14px] border px-4 py-3 ${
           availability.kind === 'open_now'
             ? 'border-emerald-400/40 bg-emerald-500/10'
-            : 'border-white/10 bg-white/[0.03]'
+            : isMaintenance
+              ? 'border-red-400/40 bg-red-500/10'
+              : 'border-white/10 bg-white/[0.03]'
         }`}
       >
         {availability.kind === 'open_now' ? (
@@ -236,7 +239,23 @@ export function CustomerBedDetailSheet({
             </div>
           ) : null}
 
-          {showBookActions ? null : isReserved ? null : (
+          {showBookActions ? null : isReserved ? null : isMaintenance ? (
+            <div className="mt-4 space-y-3">
+              <p className="text-sm text-red-100">
+                This bed is under maintenance and cannot be booked right now. You can still review
+                photos and pricing below.
+              </p>
+              <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm">
+                <p className="font-semibold text-white">Pricing</p>
+                <ul className="mt-2 space-y-1 text-apg-silver">
+                  <li>Daily: {paiseToInr(bed.dailyRatePaise)}</li>
+                  <li>Weekly: {paiseToInr(bed.weeklyRatePaise)}</li>
+                  <li>Monthly: {paiseToInr(bed.monthlyRatePaise)}</li>
+                  <li>Security deposit: {paiseToInr(bed.securityDepositPaise)}</li>
+                </ul>
+              </div>
+            </div>
+          ) : (
             <p className="mt-4 text-sm text-apg-silver">
               {availability.kind === 'occupied'
                 ? 'Someone is living here right now. Check back when the bed opens up.'

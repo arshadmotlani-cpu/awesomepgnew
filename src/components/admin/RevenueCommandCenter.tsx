@@ -52,24 +52,13 @@ export function RevenueCommandCenter({
     data;
   const totalDepositPaid = byPg.reduce((a, r) => a + r.depositPaidCount, 0);
   const totalDepositPending = byPg.reduce((a, r) => a + r.depositPendingCount, 0);
-  const pgTotals = byPg.reduce(
-    (acc, row) => ({
-      rent: acc.rent + row.rentRevenuePaise,
-      electricity: acc.electricity + row.electricityRevenuePaise,
-      deposit: acc.deposit + row.depositRevenuePaise,
-      lateFees: acc.lateFees + row.lateFeePaise,
-      total: acc.total + row.totalRevenuePaise,
-    }),
-    { rent: 0, electricity: 0, deposit: 0, lateFees: 0, total: 0 },
-  );
 
   return (
     <section className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold text-white">Revenue Command Center</h2>
         <p className="mt-1 text-sm text-apg-silver">
-          Collections today and {monthLabel} — same totals as rent, electricity, and deposit
-          screens.
+          Read-only view — all totals come from the financial engine for {monthLabel}.
         </p>
       </div>
 
@@ -129,17 +118,17 @@ export function RevenueCommandCenter({
             accent="sky"
           />
           <OverviewStatCard
-            label="Deposit revenue"
+            label="Deposits collected"
             value={paiseToInr(mtd.depositPaise)}
-            hint={`${totalDepositPaid} paid · ${totalDepositPending} pending · assigned residents`}
+            hint={`${totalDepositPaid} paid · ${totalDepositPending} pending · cash flow, not revenue`}
             icon={<IconCard />}
             accent="orange"
             href={`/admin/deposits/collected?month=${data.billingMonth}`}
           />
           <OverviewStatCard
-            label="Total revenue"
+            label="Operating revenue"
             value={paiseToInr(mtd.totalPaise)}
-            hint="Rent + electricity + deposits"
+            hint="Rent + late fees + electricity + other income"
             icon={<IconCard />}
             accent="indigo"
           />
@@ -310,9 +299,9 @@ export function RevenueCommandCenter({
                   <th className="px-4 py-3">Occupancy</th>
                   <th className="px-4 py-3">Rent revenue</th>
                   <th className="px-4 py-3">Electricity revenue</th>
-                  <th className="px-4 py-3">Deposit revenue</th>
+                  <th className="px-4 py-3">Deposits collected</th>
                   <th className="px-4 py-3">Late fees</th>
-                  <th className="px-4 py-3">Total revenue</th>
+                  <th className="px-4 py-3">Operating revenue</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5 text-apg-silver">
@@ -337,7 +326,7 @@ export function RevenueCommandCenter({
                     </td>
                     <td className="px-4 py-3">
                       <DepositRevenueCell
-                        paise={row.depositRevenuePaise}
+                        paise={row.depositCollectedPaise}
                         paidCount={row.depositPaidCount}
                         pendingCount={row.depositPendingCount}
                         missingCount={row.depositRequirementMissingCount}
@@ -359,18 +348,18 @@ export function RevenueCommandCenter({
                     All PGs
                   </td>
                   <td className="px-4 py-3">
-                    <MoneyCell paise={pgTotals.rent} />
+                    <MoneyCell paise={mtd.rentPaise} />
                   </td>
                   <td className="px-4 py-3">
-                    <MoneyCell paise={pgTotals.electricity} />
+                    <MoneyCell paise={mtd.electricityPaise} />
                   </td>
                   <td className="px-4 py-3">
-                    <MoneyCell paise={pgTotals.deposit} />
+                    <MoneyCell paise={mtd.depositPaise} />
                   </td>
                   <td className="px-4 py-3">
-                    <MoneyCell paise={pgTotals.lateFees} tone="charge" />
+                    <MoneyCell paise={mtd.lateFeePaise} tone="charge" />
                   </td>
-                  <td className="px-4 py-3">{paiseToInr(pgTotals.total)}</td>
+                  <td className="px-4 py-3">{paiseToInr(mtd.totalPaise)}</td>
                 </tr>
               </tfoot>
             </table>

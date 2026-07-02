@@ -1,3 +1,6 @@
+'use client';
+
+import { useState } from 'react';
 import Link from 'next/link';
 import { InvoiceAdminRowActions } from '@/src/components/admin/InvoiceAdminRowActions';
 import { PipelineTestInvoiceBadge } from '@/src/components/admin/PipelineTestInvoiceBadge';
@@ -19,6 +22,31 @@ const EVENT_LABELS: Record<FinancialTimelineEvent['eventType'], string> = {
   manual_adjustment: 'Adjustment',
   notice_deduction: 'Notice',
 };
+
+export function InvoiceFinancialTimelineCollapsible({
+  events,
+  selectedDate,
+}: {
+  events: FinancialTimelineEvent[];
+  selectedDate: string;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="mb-3 flex w-full items-center justify-between rounded-xl border border-white/10 bg-[#1A1F27] px-4 py-3 text-left"
+      >
+        <span className="text-sm font-semibold uppercase tracking-wide text-apg-silver">
+          Financial timeline · {selectedDate}
+        </span>
+        <span className="text-xs text-apg-silver">{open ? 'Hide' : 'Show'} ({events.length})</span>
+      </button>
+      {open ? <InvoiceFinancialTimeline events={events} /> : null}
+    </div>
+  );
+}
 
 export function InvoiceFinancialTimeline({ events }: { events: FinancialTimelineEvent[] }) {
   if (events.length === 0) {

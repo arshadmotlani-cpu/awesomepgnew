@@ -1,55 +1,40 @@
 /**
- * Single metric source for dashboard revenue — avoids duplicate fetches/formulas.
+ * Single metric source for dashboard revenue — delegates to FinancialMetricsEngine.
  */
 
-import {
-  getBusinessMetricsSummary,
-  getDepositCollectedByPgForBillingMonth,
-} from '@/src/db/queries/admin';
-import { resolveBillingMonth } from '@/src/lib/dateDefaults';
+import { getFinancialMetrics } from '@/src/services/financialMetricsEngine';
 
 export type MonthlyRevenueMetrics = {
   billingMonth: string;
   rentPaise: number;
   electricityPaise: number;
+  lateFeePaise: number;
+  otherIncomePaise: number;
   rentAndElectricityPaise: number;
   depositPaise: number;
   depositRefundedPaise: number;
   netInflowPaise: number;
+  /** Operating revenue only — excludes deposits. */
   totalPaise: number;
 };
 
 export async function getMonthlyRevenuePaise(
   billingMonthInput?: string,
 ): Promise<MonthlyRevenueMetrics> {
-  const billingMonth = resolveBillingMonth(billingMonthInput);
-  const [monthSummary, depositByPg, depositMetrics] = await Promise.all([
-    getBusinessMetricsSummary(billingMonth),
-    getDepositCollectedByPgForBillingMonth(billingMonth),
-    import('@/src/services/depositLedgerMetrics').then((m) =>
-      m.getDepositPortfolioMetrics(billingMonth),
-    ),
-  ]);
-
-  const rentPaise = monthSummary.ok ? monthSummary.data.incomeRentPaise : 0;
-  const electricityPaise = monthSummary.ok ? monthSummary.data.incomeElectricityPaise : 0;
-  const rentAndElectricityPaise = monthSummary.ok ? monthSummary.data.incomeTotalPaise : 0;
-  const depositPaise = depositByPg.ok
-    ? depositByPg.data.reduce((a, r) => a + r.collectedPaise, 0)
-    : depositMetrics.collectedMtdPaise;
-  const depositRefundedPaise = monthSummary.ok
-    ? monthSummary.data.depositRefundsPaise
-    : depositMetrics.refundedMtdPaise;
-  const netInflowPaise = rentPaise + depositPaise - depositRefundedPaise;
-
+  const metrics = await getFinancialMetrics(billingMonthInput);
   return {
-    billingMonth,
-    rentPaise,
-    electricityPaise,
-    rentAndElectricityPaise,
-    depositPaise,
-    depositRefundedPaise,
-    netInflowPaise,
-    totalPaise: rentAndElectricityPaise + depositPaise,
+    billingMonth: metrics.billingMonth,
+    rentPaise: metrics.operating.rentPrincipalPaise,
+    electricityPaise: metrics.operating.electricityPaise,
+    lateFeePaise: metrics.operating.lateFeePaise,
+    otherIncomePaise: metrics.operating.otherIncomePaise,
+    rentAndElectricityPaise:
+      metrics.operating.rentPrincipalPaise +
+      metrics.operating.lateFeePaise +
+      metrics.operating.electricityPaise,
+    depositPaise: metrics.deposits.collectedPaise,
+    depositRefundedPaise: metrics.deposits.refundedPaise,
+    netInflowPaise: metrics.deposits.netCashInflowPaise,
+    totalPaise: metrics.operating.operatingRevenuePaise,
   };
 }

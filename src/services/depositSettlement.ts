@@ -70,7 +70,7 @@ export async function applyDepositDeductionsInTx(
     customerId: string;
     adminId?: string | null;
     relatedVacatingId?: string | null;
-    deductions: Array<{ amountPaise: number; reason: string }>;
+    deductions: Array<{ amountPaise: number; reason: string; deductionCategory?: string | null }>;
   },
 ): Promise<void> {
   for (const d of input.deductions) {
@@ -85,6 +85,7 @@ export async function applyDepositDeductionsInTx(
       entryKind: 'deducted',
       amountPaise: -d.amountPaise,
       reason: d.reason,
+      deductionCategory: d.deductionCategory ?? null,
       relatedVacatingId: input.relatedVacatingId ?? null,
       createdByAdminId: input.adminId ?? null,
     });
@@ -97,6 +98,7 @@ export async function applyDepositDeduction(input: {
   customerId: string;
   amountPaise: number;
   reason: string;
+  deductionCategory?: string | null;
   adminId?: string | null;
   relatedVacatingId?: string | null;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -113,7 +115,13 @@ export async function applyDepositDeduction(input: {
         customerId: input.customerId,
         adminId: input.adminId,
         relatedVacatingId: input.relatedVacatingId,
-        deductions: [{ amountPaise: input.amountPaise, reason: input.reason }],
+        deductions: [
+          {
+            amountPaise: input.amountPaise,
+            reason: input.reason,
+            deductionCategory: input.deductionCategory ?? null,
+          },
+        ],
       });
       await tx.insert(auditLog).values({
         actorType: input.adminId ? 'admin' : 'system',

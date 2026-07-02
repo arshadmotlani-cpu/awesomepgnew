@@ -16,10 +16,10 @@ import {
 } from '@/src/db/schema';
 import { todayInBillingTimezone } from '@/src/lib/billing/billingTimezone';
 import {
-  billingMonthForAnniversaryDate,
+  billingCycleMonthForRunDate,
   firstAutoBillingDate,
-  isBillingAnniversaryToday,
-} from '@/src/services/billing';
+  shouldGenerateBillOnDate,
+} from '@/src/lib/billing/billingCycleEngine';
 import {
   generateRentInvoiceForBookingAnniversary,
   markOverdueInvoices,
@@ -93,7 +93,7 @@ export async function listAnniversaryCandidates(runDate: string) {
       firstAuto = firstAutoBillingDate(anchor, row.billingDay);
     }
     if (!firstAuto) continue;
-    if (!isBillingAnniversaryToday(runDate, row.billingDay, firstAuto)) continue;
+    if (!shouldGenerateBillOnDate({ runDate, billingDay: row.billingDay, firstAutoBillingDate: firstAuto })) continue;
     eligible.push({ ...row, firstAuto });
   }
   return eligible;
@@ -104,7 +104,7 @@ export async function runDailyRentBillingJob(opts?: {
   triggeredBy?: string;
 }): Promise<DailyRentBillingJobResult> {
   const runDate = opts?.asOfIst ?? todayInBillingTimezone();
-  const billingMonth = billingMonthForAnniversaryDate(runDate);
+  const billingMonth = billingCycleMonthForRunDate(runDate);
   const triggeredBy = opts?.triggeredBy ?? 'system';
 
   const [run] = await db

@@ -256,29 +256,28 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-02 17:51:25 UTC
+### Pending pre-commit sync · 2026-07-02 18:33:39 UTC
 
-**Areas touched:** [[ROUTES]], [[DATABASE]], [[Auth]], [[Billing]], [[Action Center]], [[Bookings]], [[Bed Assignment]]
+**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
 - `DATABASE.md` — review for accuracy
-- `DECISIONS.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
 **Staged code files (8):**
-- `app/(admin)/admin/pgs/[pgId]/map/actions.ts`
-- `src/db/migrations/0095_bed_maintenance_metadata.sql`
-- `src/db/schema/beds.ts`
-- `src/lib/auth/session.ts`
-- `src/lib/billing/roomElectricityOccupants.ts`
-- `src/services/actionItems.ts`
-- `src/services/bookingAdminOps.ts`
-- `src/services/pgBedMap.ts`
+- `app/(admin)/admin/deposits/[bookingId]/actions.ts`
+- `app/(admin)/admin/invoices/page.tsx`
+- `app/(admin)/admin/refunds/actions.ts`
+- `app/(admin)/admin/refunds/page.tsx`
+- `app/(admin)/admin/revenue/pg/[pgId]/page.tsx`
+- `src/db/migrations/0096_deduction_category.sql`
+- `src/db/schema/depositLedger.ts`
+- `src/lib/billing/billingCycleEngine.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

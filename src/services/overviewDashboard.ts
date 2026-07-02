@@ -132,7 +132,7 @@ function toPropertyPerformanceRow(row: RevenueByPgRow, billingMonth: string): Pr
     totalRevenuePaise: row.totalRevenuePaise,
     rentRevenuePaise: row.rentRevenuePaise,
     electricityRevenuePaise: row.electricityRevenuePaise,
-    depositRevenuePaise: row.depositRevenuePaise,
+    depositRevenuePaise: row.depositCollectedPaise,
     occupancyPct: row.occupancyPct,
     occupiedBeds: row.occupiedBeds,
     totalBeds: row.totalBeds,

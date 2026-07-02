@@ -122,7 +122,7 @@ export function PgBusinessMetricsTable({
         <tbody className="divide-y divide-white/5 text-apg-silver">
           {rows.map((row) => {
             const dep = depositMap.get(row.pgId);
-            const depositPaise = dep?.depositRevenuePaise ?? 0;
+            const depositPaise = dep?.depositCollectedPaise ?? 0;
             const grandTotal =
               row.incomeRentPaise + row.incomeElectricityPaise + depositPaise + row.lateFeePaise;
             const monthQs = billingMonth ? `?month=${billingMonth.slice(0, 7)}` : '';
@@ -180,7 +180,7 @@ export function PgBusinessMetricsTable({
               </td>
               <td className="px-4 py-3">
                 <InvoiceCell
-                  paise={revenueByPg?.reduce((a, r) => a + r.depositRevenuePaise, 0) ?? 0}
+                  paise={revenueByPg?.reduce((a, r) => a + r.depositCollectedPaise, 0) ?? 0}
                 />
               </td>
               <td className="px-4 py-3">
@@ -191,7 +191,7 @@ export function PgBusinessMetricsTable({
                   totals.incomeRentPaise +
                     totals.incomeElectricityPaise +
                     totals.lateFeePaise +
-                    (revenueByPg?.reduce((a, r) => a + r.depositRevenuePaise, 0) ?? 0),
+                    (revenueByPg?.reduce((a, r) => a + r.depositCollectedPaise, 0) ?? 0),
                 )}
               </td>
             </tr>

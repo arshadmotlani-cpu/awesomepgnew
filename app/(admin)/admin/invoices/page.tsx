@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { InvoiceDailySummary } from '@/src/components/admin/InvoiceDailySummary';
-import { InvoiceDayList, InvoiceFinancialTimeline } from '@/src/components/admin/InvoiceFinancialTimeline';
+import { InvoiceDayList, InvoiceFinancialTimelineCollapsible } from '@/src/components/admin/InvoiceFinancialTimeline';
 import { InvoiceDayNav } from '@/src/components/admin/InvoiceDayNav';
 import { PageHeader } from '@/src/components/admin/PageHeader';
 import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
@@ -46,16 +46,13 @@ export default async function InvoicesPage({
 
       <section className="mb-8">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-apg-silver">
-          Financial timeline
-        </h2>
-        <InvoiceFinancialTimeline events={data.timeline} />
-      </section>
-
-      <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-apg-silver">
           Invoices for this day
         </h2>
         <InvoiceDayList invoices={data.invoicesForDay} selectedDate={selectedDate} />
+      </section>
+
+      <section>
+        <InvoiceFinancialTimelineCollapsible events={data.timeline} selectedDate={selectedDate} />
       </section>
     </>
   );

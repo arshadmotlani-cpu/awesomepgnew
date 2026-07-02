@@ -44,8 +44,8 @@ export function RevenueMtdBarChart({
               />
               <div
                 className="bg-amber-500/70"
-                style={{ width: `${(row.depositRevenuePaise / max) * 100}%` }}
-                title={`${depositLabel} ${formatInr(row.depositRevenuePaise)}`}
+                style={{ width: `${(row.depositCollectedPaise / max) * 100}%` }}
+                title={`${depositLabel} ${formatInr(row.depositCollectedPaise)}`}
               />
             </div>
           </li>

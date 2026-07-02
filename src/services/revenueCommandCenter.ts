@@ -9,7 +9,7 @@ import {
   getMtdCollectionByPaymentMode,
   type CollectionByPaymentMode,
 } from '@/src/db/queries/admin';
-import { getMonthlyRevenuePaise } from '@/src/services/dashboardMetrics';
+import { getFinancialMetrics, getPgFinancialMetrics } from '@/src/services/financialMetricsEngine';
 import type { DepositPortfolioMetrics } from '@/src/services/depositLedgerMetrics';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
@@ -24,8 +24,10 @@ export type RevenueByPgRow = {
   totalBeds: number;
   rentRevenuePaise: number;
   electricityRevenuePaise: number;
-  depositRevenuePaise: number;
   lateFeePaise: number;
+  otherIncomePaise: number;
+  /** Deposit cash collected — not operating revenue. */
+  depositCollectedPaise: number;
   depositPaidCount: number;
   depositPendingCount: number;
   depositRequirementMissingCount: number;
@@ -47,6 +49,8 @@ export type RevenueCommandCenterData = {
   billingMonth: string;
   today: CollectionBreakdown;
   mtd: CollectionBreakdown & {
+    lateFeePaise: number;
+    otherIncomePaise: number;
     depositRefundedPaise: number;
     netInflowPaise: number;
   };
@@ -69,36 +73,33 @@ export type RevenueCommandCenterInput = {
 };
 
 function buildByPgRows(
-  pgMetrics: PgBusinessMetrics[],
+  pgFinancial: Awaited<ReturnType<typeof getPgFinancialMetrics>>,
   depositByPg: Map<string, number>,
   depositCountsByPg: Map<string, { paid: number; pending: number; requirementMissing: number }>,
 ): RevenueByPgRow[] {
-  return pgMetrics
+  return pgFinancial
     .map((row) => {
-      const depositRevenuePaise = depositByPg.get(row.pgId) ?? 0;
+      const depositCollectedPaise = depositByPg.get(row.pgId) ?? 0;
       const counts = depositCountsByPg.get(row.pgId) ?? {
         paid: 0,
         pending: 0,
         requirementMissing: 0,
       };
-      const rentRevenuePaise = row.incomeRentPaise;
-      const electricityRevenuePaise = row.incomeElectricityPaise;
-      const lateFeePaise = row.lateFeePaise;
       return {
         pgId: row.pgId,
         pgName: row.pgName,
         occupancyPct: row.occupancyPct,
         occupiedBeds: row.occupiedBeds,
         totalBeds: row.totalBeds,
-        rentRevenuePaise,
-        electricityRevenuePaise,
-        depositRevenuePaise,
-        lateFeePaise,
+        rentRevenuePaise: row.rentPrincipalPaise,
+        electricityRevenuePaise: row.electricityPaise,
+        lateFeePaise: row.lateFeePaise,
+        otherIncomePaise: row.otherIncomePaise,
+        depositCollectedPaise,
         depositPaidCount: counts.paid,
         depositPendingCount: counts.pending,
         depositRequirementMissingCount: counts.requirementMissing,
-        totalRevenuePaise:
-          rentRevenuePaise + electricityRevenuePaise + depositRevenuePaise + lateFeePaise,
+        totalRevenuePaise: row.operatingRevenuePaise,
       };
     })
     .sort((a, b) => b.totalRevenuePaise - a.totalRevenuePaise);
@@ -152,7 +153,7 @@ export async function getRevenueCommandCenterData(
 ): Promise<RevenueCommandCenterData> {
   const billingMonth = resolveBillingMonth(input.billingMonth);
 
-  const [todayResult, depositRows, depositSummaries, pendingPayments, portfolioTotals, depositPortfolio, collectionsByModeResult] =
+  const [todayResult, depositRows, depositSummaries, pendingPayments, portfolioTotals, depositPortfolio, collectionsByModeResult, financialMetrics, pgFinancial] =
     await Promise.all([
     getDailyCollectionTotals(),
     getDepositCollectedByPgForBillingMonth(billingMonth),
@@ -167,6 +168,8 @@ export async function getRevenueCommandCenterData(
       m.getDepositPortfolioMetrics(billingMonth),
     ),
     getMtdCollectionByPaymentMode(billingMonth),
+    getFinancialMetrics(billingMonth),
+    getPgFinancialMetrics(billingMonth),
   ]);
 
   const today: CollectionBreakdown = todayResult.ok
@@ -195,16 +198,17 @@ export async function getRevenueCommandCenterData(
     }
   }
 
-  const mtdMetrics = await getMonthlyRevenuePaise(billingMonth);
   const mtd = {
-    rentPaise: mtdMetrics.rentPaise,
-    electricityPaise: mtdMetrics.electricityPaise,
-    depositPaise: mtdMetrics.depositPaise,
-    totalPaise: mtdMetrics.totalPaise,
-    depositRefundedPaise: mtdMetrics.depositRefundedPaise,
-    netInflowPaise: mtdMetrics.netInflowPaise,
+    rentPaise: financialMetrics.operating.rentPrincipalPaise,
+    electricityPaise: financialMetrics.operating.electricityPaise,
+    lateFeePaise: financialMetrics.operating.lateFeePaise,
+    otherIncomePaise: financialMetrics.operating.otherIncomePaise,
+    depositPaise: financialMetrics.deposits.collectedPaise,
+    totalPaise: financialMetrics.operating.operatingRevenuePaise,
+    depositRefundedPaise: financialMetrics.deposits.refundedPaise,
+    netInflowPaise: financialMetrics.deposits.netCashInflowPaise,
   };
-  const byPg = buildByPgRows(input.pgMetrics, depositByPg, depositCountsByPg);
+  const byPg = buildByPgRows(pgFinancial, depositByPg, depositCountsByPg);
 
   const outstanding = buildOutstandingFromSsot(portfolioTotals, pendingPayments);
 

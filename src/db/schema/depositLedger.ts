@@ -44,6 +44,8 @@ export const depositLedger = pgTable(
     /** Signed paise — collected > 0, deducted/refunded < 0. */
     amountPaise: bigint('amount_paise', { mode: 'number' }).notNull(),
     reason: text('reason').notNull(),
+    /** Structured deduction category — see `src/lib/financial/deductionCategories.ts`. */
+    deductionCategory: text('deduction_category'),
     relatedPaymentId: uuid('related_payment_id').references(() => payments.id, {
       onDelete: 'set null',
     }),

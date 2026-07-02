@@ -7,6 +7,10 @@
 
 ---
 
+## 2026-07-02
+
+- **FIN-SSOT-SPRINT** — Billing Cycle Engine, Financial Metrics Engine (read-only revenue), Refund Console (`/admin/refunds`), structured deduction categories (0096), invoice timeline collapsed at bottom, maintenance beds viewable on website, legacy deposit refund paths blocked → `docs/FINANCIAL_SSOT_AUDIT_REPORT.md` · `scripts/verify-financial-ssot.ts`
+
 ## 2026-06-23
 
 - **NAV-SB-01** — Fix admin sidebar navigation: drop periodic layout refresh race, optimistic active state, nav timing instrumentation → [[BUGS#NAV-SB-01]]

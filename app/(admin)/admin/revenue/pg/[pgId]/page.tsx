@@ -76,9 +76,9 @@ export default async function RevenuePgPage({
             ['Occupancy', `${pgRow.occupancyPct}% · ${pgRow.occupiedBeds}/${pgRow.totalBeds}`],
             ['Rent revenue', paiseToInr(pgRow.rentRevenuePaise)],
             ['Electricity', paiseToInr(pgRow.electricityRevenuePaise)],
-            ['Deposit revenue', paiseToInr(pgRow.depositRevenuePaise)],
+            ['Deposits collected', paiseToInr(pgRow.depositCollectedPaise)],
             ['Late fees', paiseToInr(pgRow.lateFeePaise)],
-            ['Total revenue', paiseToInr(pgRow.totalRevenuePaise)],
+            ['Operating revenue', paiseToInr(pgRow.totalRevenuePaise)],
             [
               'Deposits',
               depositDetail
