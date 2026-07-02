@@ -84,6 +84,20 @@ export type CommandCenterOccupancy = {
   adminViewLabel: string;
 };
 
+export type CommandCenterBookingDepositRow = {
+  bookingId: string;
+  bookingCode: string;
+  bookingStatus: string;
+  depositPaidPaise: number;
+  depositUsedPaise: number;
+  depositRefundedPaise: number;
+  depositRemainingPaise: number;
+  transferFromPriorPaise: number;
+  additionalDepositPaidPaise: number;
+  /** Prior-booking disposition when this booking is completed (transferred / refunded / pending). */
+  dispositionLabel: string | null;
+};
+
 export type ResidentCommandCenterData = {
   customer: CommandCenterCustomer;
   isVacated: boolean;
@@ -92,6 +106,7 @@ export type ResidentCommandCenterData = {
   occupancy: CommandCenterOccupancy | null;
   financialAccount: ResidentFinancialAccount | null;
   depositSummary: DepositSummary | null;
+  bookingDeposits: CommandCenterBookingDepositRow[];
   billingDefaults: ResidentBillingFormDefaults | null;
   invoiceHistory: CommandCenterBillRow[];
   pendingReviews: CommandCenterPendingItem[];

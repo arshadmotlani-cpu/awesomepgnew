@@ -628,6 +628,13 @@
     {
       "idx": 93,
       "version": "7",
+      "when": 1791050000000,
+      "tag": "0093_resident_portal_v2",
+      "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "7",
       "when": 1791100000000,
       "tag": "0094_monthly_lifecycle_deposit_policy",
       "breakpoints": true

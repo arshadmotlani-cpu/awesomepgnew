@@ -4,7 +4,7 @@ import { formatDate, formatDateTime, paiseToInr, titleCase } from '@/src/lib/for
 import { isMonthlyStayType } from '@/src/lib/stayType';
 import { diffDays, parseDate } from '@/src/lib/dates';
 import type { ResidentCommandCenterData } from '@/src/lib/residents/commandCenterTypes';
-import { bedMapHref, bookingWorkflowHref } from '@/src/lib/residents/commandCenterLinks';
+import { bedMapHref, bookingWorkflowHref, refundRequestStatusLabel, residentRequestWorkflowHref } from '@/src/lib/residents/commandCenterLinks';
 import {
   CommandCenterSection,
   EmptyState,
@@ -96,7 +96,9 @@ function Fact({ label, value }: { label: string; value: string }) {
 
 export function CommandCenterFinancialSummary({ data }: { data: ResidentCommandCenterData }) {
   const fin = data.financialAccount;
-  if (!fin) {
+  const walletPaise = data.depositSummary?.refundableBalancePaise ?? fin?.depositHeldPaise ?? 0;
+
+  if (!fin && data.bookingDeposits.length === 0) {
     return (
       <CommandCenterSection
         id="financial"
@@ -108,26 +110,84 @@ export function CommandCenterFinancialSummary({ data }: { data: ResidentCommandC
     );
   }
 
-  const walletPaise = data.depositSummary?.refundableBalancePaise ?? fin.depositHeldPaise ?? 0;
-
   return (
     <CommandCenterSection
       id="financial"
       title="Financial summary"
       description="Single source of truth — same figures as Billing Center and Collections."
     >
-      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        <MoneyStat label="Wallet" value={walletPaise} accent />
-        <MoneyStat label="Deposit held" value={fin.depositHeldPaise} />
-        <MoneyStat label="Refund balance" value={fin.refundBalancePaise} />
-        <MoneyStat label="Total outstanding" value={fin.totalOutstandingPaise} warn />
-        <MoneyStat label="Rent due" value={fin.rentOutstandingPaise} warn />
-        <MoneyStat label="Electricity due" value={fin.electricityOutstandingPaise} warn />
-        <MoneyStat label="Lifetime rent paid" value={fin.rent.paidPaise} positive />
-        <MoneyStat label="Lifetime electricity paid" value={fin.electricity.paidPaise} positive />
-        <MoneyStat label="Lifetime deposit paid" value={fin.deposit.paidPaise} positive />
-      </dl>
+      {fin ? (
+        <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          <MoneyStat label="Wallet balance" value={walletPaise} accent />
+          <MoneyStat label="Current deposit held" value={fin.depositHeldPaise} />
+          <MoneyStat label="Refund balance" value={fin.refundBalancePaise} />
+          <MoneyStat label="Total outstanding" value={fin.totalOutstandingPaise} warn />
+          <MoneyStat label="Rent due" value={fin.rentOutstandingPaise} warn />
+          <MoneyStat label="Electricity due" value={fin.electricityOutstandingPaise} warn />
+          <MoneyStat label="Lifetime rent paid" value={fin.rent.paidPaise} positive />
+          <MoneyStat label="Lifetime electricity paid" value={fin.electricity.paidPaise} positive />
+          <MoneyStat label="Lifetime deposit paid" value={fin.deposit.paidPaise} positive />
+        </dl>
+      ) : null}
+
+      {data.bookingDeposits.length > 0 ? (
+        <div className={fin ? 'mt-5 space-y-3 border-t border-white/5 pt-5' : 'space-y-3'}>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-apg-silver">
+            Deposits by booking
+          </p>
+          {data.bookingDeposits.map((row) => (
+            <div
+              key={row.bookingId}
+              className="rounded-xl border border-white/5 bg-[#12161C] px-3 py-3"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Link
+                  href={bookingWorkflowHref(row.bookingId)}
+                  className="text-sm font-semibold text-[#FF5A1F] hover:underline"
+                >
+                  {row.bookingCode}
+                </Link>
+                <Badge tone={toneForStatus(row.bookingStatus)}>{titleCase(row.bookingStatus)}</Badge>
+              </div>
+              <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                <DepositFact label="Deposit paid" value={row.depositPaidPaise} />
+                {row.transferFromPriorPaise > 0 ? (
+                  <DepositFact label="Transfer from prior" value={row.transferFromPriorPaise} />
+                ) : null}
+                {row.additionalDepositPaidPaise > 0 ? (
+                  <DepositFact label="Additional paid" value={row.additionalDepositPaidPaise} />
+                ) : null}
+                <DepositFact label="Deposit used" value={row.depositUsedPaise} />
+                <DepositFact label="Deposit refunded" value={row.depositRefundedPaise} />
+                <DepositFact label="Deposit remaining" value={row.depositRemainingPaise} accent />
+              </dl>
+              {row.dispositionLabel ? (
+                <p className="mt-2 text-xs text-apg-silver">Disposition: {row.dispositionLabel}</p>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
     </CommandCenterSection>
+  );
+}
+
+function DepositFact({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: number;
+  accent?: boolean;
+}) {
+  return (
+    <div>
+      <dt className="text-[10px] font-semibold uppercase tracking-wide text-apg-silver">{label}</dt>
+      <dd className={`mt-0.5 text-sm font-medium ${accent ? 'text-sky-300' : 'text-white'}`}>
+        {paiseToInr(value)}
+      </dd>
+    </div>
   );
 }
 
@@ -259,10 +319,13 @@ export function CommandCenterRefunds({ data }: { data: ResidentCommandCenterData
             <div>
               <p className="text-sm font-medium text-white">Deposit refund request</p>
               <p className="text-xs text-apg-silver">
-                {titleCase(r.status)} · {formatDateTime(r.createdAt)}
+                Status: {refundRequestStatusLabel(r.status)}
+                {r.bookingCode ? ` · ${r.bookingCode}` : ''}
+                {' · '}
+                {formatDateTime(r.createdAt)}
               </p>
             </div>
-            <WorkflowButton href={`/admin/requests?read=${r.id}`} />
+            <WorkflowButton href={residentRequestWorkflowHref(r.id)} />
           </li>
         ))}
         {pendingSettlements.map((v) => (

@@ -22,6 +22,10 @@ const MIGRATIONS_TABLE = '__drizzle_migrations';
  * Drizzle's default migrator wraps ALL pending migrations in a single
  * transaction, which breaks PostgreSQL enum extensions (new labels must commit
  * before they can be referenced in indexes).
+ *
+ * Pending detection uses migration content hashes (not folder timestamps) so a
+ * journal gap — e.g. 0094 applied before 0093 was registered — still applies
+ * the missing file on the next run.
  */
 async function main() {
   const connectionInfo = getDatabaseConnectionInfo();
@@ -42,16 +46,16 @@ async function main() {
   `));
 
   const migrations = readMigrationFiles({ migrationsFolder: MIGRATIONS_FOLDER });
-  const lastRows = await db.execute<{ created_at: number | string }>(
+  const appliedRows = await db.execute<{ hash: string }>(
     sql.raw(
-      `SELECT created_at FROM "${MIGRATIONS_SCHEMA}"."${MIGRATIONS_TABLE}" ORDER BY created_at DESC LIMIT 1`,
+      `SELECT hash FROM "${MIGRATIONS_SCHEMA}"."${MIGRATIONS_TABLE}"`,
     ),
   );
-  const lastMillis = lastRows[0] ? Number(lastRows[0].created_at) : 0;
+  const appliedHashes = new Set(appliedRows.map((row) => row.hash));
 
   let applied = 0;
   for (const migration of migrations) {
-    if (migration.folderMillis <= lastMillis) continue;
+    if (appliedHashes.has(migration.hash)) continue;
 
     await db.transaction(async (tx) => {
       for (const stmt of migration.sql) {

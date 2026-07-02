@@ -13,6 +13,7 @@ import {
 } from '@/src/db/schema';
 import type { AdminSession } from '@/src/lib/auth/session';
 import type {
+  CommandCenterBookingDepositRow,
   CommandCenterBookingHistoryRow,
   CommandCenterPendingItem,
   CommandCenterRequestRow,
@@ -35,6 +36,10 @@ import { getActiveTenancyForCustomer } from '@/src/lib/residentActiveTenancy';
 import { fetchBedOccupancyRows, resolveBedOccupancyRows } from '@/src/services/bedOccupancyBatch';
 import { canAdminMarkInvoicePaidWithCash } from '@/src/services/adminCashSettlement';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
+import {
+  DEPOSIT_CREDIT_REASON,
+  listPriorBookingDepositsForReview,
+} from '@/src/services/depositCredit';
 import { getLatestKycSubmission } from '@/src/services/kyc';
 import { listResidentInvoiceHistory } from '@/src/services/invoiceGeneration';
 import {
@@ -302,6 +307,48 @@ async function buildPendingReviews(
   });
 }
 
+async function listBookingDepositRows(
+  customerId: string,
+  bookingHistory: CommandCenterBookingHistoryRow[],
+  activeBookingId: string | null,
+): Promise<CommandCenterBookingDepositRow[]> {
+  const priorDeposits = await listPriorBookingDepositsForReview(customerId, activeBookingId);
+  const priorByBookingId = new Map(priorDeposits.map((row) => [row.bookingId, row]));
+
+  const rows = await Promise.all(
+    bookingHistory.map(async (booking) => {
+      const summary = await getDepositSummaryForBooking(booking.bookingId);
+      if (!summary) return null;
+
+      const transferFromPriorPaise = summary.entries
+        .filter(
+          (entry) =>
+            entry.entryKind === 'collected' && entry.reason === DEPOSIT_CREDIT_REASON,
+        )
+        .reduce((sum, entry) => sum + entry.amountPaise, 0);
+
+      const prior = priorByBookingId.get(booking.bookingId);
+
+      return {
+        bookingId: booking.bookingId,
+        bookingCode: booking.bookingCode,
+        bookingStatus: booking.status,
+        depositPaidPaise: summary.collectedPaise,
+        depositUsedPaise: summary.deductedPaise,
+        depositRefundedPaise: summary.refundedPaise,
+        depositRemainingPaise: summary.refundableBalancePaise,
+        transferFromPriorPaise,
+        additionalDepositPaidPaise: Math.max(0, summary.collectedPaise - transferFromPriorPaise),
+        dispositionLabel: prior?.statusLabel ?? null,
+      } satisfies CommandCenterBookingDepositRow;
+    }),
+  );
+
+  return rows
+    .filter((row): row is CommandCenterBookingDepositRow => row !== null)
+    .reverse();
+}
+
 async function resolveOccupancy(bedId: string) {
   const rows = await fetchBedOccupancyRows({ bedId });
   const resolved = resolveBedOccupancyRows(rows)[0];
@@ -348,7 +395,7 @@ export async function loadResidentCommandCenter(
   const pendingKycSubmissionId =
     latestKyc?.status === 'pending' ? latestKyc.id : null;
 
-  const [financialAccount, depositSummary, billingDefaults, invoiceHistory, pendingReviews, timeline] =
+  const [financialAccount, depositSummary, billingDefaults, invoiceHistory, pendingReviews, timeline, bookingDeposits] =
     await Promise.all([
       isVacated && settledTenancy
         ? getBookingFinancialAccount({
@@ -370,7 +417,8 @@ export async function loadResidentCommandCenter(
         : Promise.resolve(null),
       listResidentInvoiceHistory(customerId, 40),
       buildPendingReviews(session, customerId, pendingKycSubmissionId, customer.fullName),
-      buildResidentTimeline(session, customerId, bookingId),
+      buildResidentTimeline(session, customerId, null),
+      listBookingDepositRows(customerId, bookingHistory, bookingId),
     ]);
 
   const activeTenancyFull = await getActiveTenancyForCustomer(customerId);
@@ -391,6 +439,7 @@ export async function loadResidentCommandCenter(
     occupancy,
     financialAccount,
     depositSummary,
+    bookingDeposits,
     billingDefaults,
     invoiceHistory,
     pendingReviews,

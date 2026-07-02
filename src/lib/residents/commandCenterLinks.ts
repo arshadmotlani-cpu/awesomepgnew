@@ -27,3 +27,21 @@ export function settlementWorkflowHref(settlementId: string): string {
 export function bedMapHref(pgId: string): string {
   return `/admin/pgs/${pgId}/map`;
 }
+
+/** Resident deposit-refund request status for Command Center display. */
+export function refundRequestStatusLabel(status: string): string {
+  switch (status) {
+    case 'submitted':
+      return 'Requested';
+    case 'under_review':
+      return 'Under Review';
+    case 'approved':
+      return 'Approved';
+    case 'completed':
+      return 'Paid';
+    case 'rejected':
+      return 'Rejected';
+    default:
+      return status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+}
