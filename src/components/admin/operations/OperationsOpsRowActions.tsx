@@ -28,6 +28,9 @@ export function OperationsOpsRowActions({
 
   const canDismiss = isSuperAdmin && item.customerId && item.category;
 
+  const openLinkLabel =
+    showWhatsApp && item.queue !== 'deposit_due' ? 'Open bills' : item.openLabel;
+
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
       {dismissState.status === 'error' ? (
@@ -41,7 +44,7 @@ export function OperationsOpsRowActions({
         href={item.openHref}
         className="inline-flex min-h-[36px] items-center justify-center rounded-lg bg-[#FF5A1F] px-4 py-2 text-xs font-semibold text-white hover:brightness-110"
       >
-        {hasPaymentLines && !showWhatsApp ? item.openLabel : showWhatsApp ? 'Open bills' : item.openLabel}
+        {openLinkLabel}
       </Link>
       {canDismiss ? (
         <details className="relative inline-block text-left">

@@ -678,7 +678,7 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
       <header className="shrink-0 border-b border-white/10 bg-[#0B0F14]/95 px-4 py-4 backdrop-blur sm:px-6 lg:px-8">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4">
           <div>
-            <h1 className="text-xl font-semibold text-white sm:text-2xl">Express Booking</h1>
+            <h1 className="text-xl font-semibold text-white sm:text-2xl">Sale Express</h1>
             <p className="text-sm text-apg-silver">Walk-in booking & invoice workspace</p>
           </div>
           <button

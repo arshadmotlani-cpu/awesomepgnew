@@ -5,7 +5,7 @@ import styles from './refunds.module.css';
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: 'Refund Console · Admin',
+  title: 'Refund of Deposit · Admin',
   description: 'Deposit refund payout workspace.',
 };
 

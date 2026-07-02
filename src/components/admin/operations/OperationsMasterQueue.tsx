@@ -94,7 +94,19 @@ export function OperationsMasterQueue({
   );
 }
 
-type ColumnKey = 'resident' | 'pg' | 'room' | 'reason' | 'amount' | 'month' | 'status' | 'booking' | 'actions';
+type ColumnKey =
+  | 'resident'
+  | 'pg'
+  | 'room'
+  | 'reason'
+  | 'amount'
+  | 'month'
+  | 'status'
+  | 'booking'
+  | 'required'
+  | 'already_paid'
+  | 'remaining'
+  | 'actions';
 
 function columnsForFilter(filter: OpsQueueFilter): ColumnKey[] {
   switch (filter) {
@@ -108,7 +120,8 @@ function columnsForFilter(filter: OpsQueueFilter): ColumnKey[] {
       return ['resident', 'amount', 'booking', 'status', 'actions'];
     case 'booking_approval':
       return ['resident', 'booking', 'status', 'actions'];
-    case 'bed_assignment':
+    case 'deposit_due':
+      return ['resident', 'required', 'already_paid', 'remaining', 'actions'];
     case 'kyc_review':
       return ['resident', 'pg', 'room', 'reason', 'actions'];
     default:
@@ -117,6 +130,9 @@ function columnsForFilter(filter: OpsQueueFilter): ColumnKey[] {
 }
 
 function columnLabel(col: ColumnKey, filter: OpsQueueFilter): string {
+  if (col === 'required') return 'Required deposit';
+  if (col === 'already_paid') return 'Already paid';
+  if (col === 'remaining') return 'Remaining due';
   if (col === 'month') return filter === 'electricity_due' ? 'Month' : 'Rent month';
   if (col === 'amount') return 'Amount';
   if (col === 'room') return 'Room / bed';
@@ -202,8 +218,27 @@ function OpsRow({
     month: <span className="text-apg-silver">{monthLabel}</span>,
     status: <span className="text-apg-silver">{item.statusLabel ?? '—'}</span>,
     booking: <span className="font-mono text-apg-silver">{item.bookingCode ?? '—'}</span>,
+    required: (
+      <span className="font-medium text-white">
+        {item.depositRequiredPaise != null ? paiseToInr(item.depositRequiredPaise) : '—'}
+      </span>
+    ),
+    already_paid: (
+      <span className="text-apg-silver">
+        {item.depositPaidPaise != null ? paiseToInr(item.depositPaidPaise) : '—'}
+      </span>
+    ),
+    remaining: (
+      <span className="font-medium text-[#FF5A1F]">
+        {item.depositRemainingPaise != null ? paiseToInr(item.depositRemainingPaise) : '—'}
+      </span>
+    ),
     actions: (
-      <OperationsOpsRowActions item={item} isSuperAdmin={isSuperAdmin} showWhatsApp={filter === 'rent_due' || filter === 'electricity_due'} />
+      <OperationsOpsRowActions
+        item={item}
+        isSuperAdmin={isSuperAdmin}
+        showWhatsApp={filter === 'rent_due' || filter === 'electricity_due' || filter === 'deposit_due'}
+      />
     ),
   };
 

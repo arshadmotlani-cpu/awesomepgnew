@@ -8,6 +8,7 @@ import { bedReservations, beds, bookings, customers, floors, pgs, rooms } from '
 import type { AdminSession } from '@/src/lib/auth/session';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import { billingMonthLabel } from '@/src/lib/billing/invoiceCollectionWhatsApp';
+import { depositExpressHref } from '@/src/lib/deposits/depositExpressLinks';
 import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import {
   defaultOperationsFilter,
@@ -64,6 +65,9 @@ export type UnifiedOpsItem = {
   bookingCode?: string | null;
   statusLabel?: string;
   outstandingLines?: UnifiedOpsOutstandingLine[];
+  depositRequiredPaise?: number;
+  depositPaidPaise?: number;
+  depositRemainingPaise?: number;
   paymentReviewKey?: string;
 };
 
@@ -265,20 +269,7 @@ function residentsRowToItem(row: ResidentsQueueRow): UnifiedOpsItem | null {
   }
 
   if (row.category === 'bed_assignment') {
-    return {
-      id: row.id,
-      queue: 'bed_assignment',
-      customerId: row.customerId,
-      residentName: row.residentName,
-      pgName: row.pgName,
-      roomNumber: row.roomNumber,
-      bedCode: row.bedCode,
-      reason: row.reason,
-      openHref: row.primaryHref,
-      openLabel: 'Assign bed',
-      category: row.category,
-      bookingId: row.bookingId,
-    };
+    return null;
   }
 
   return null;
@@ -330,11 +321,13 @@ export async function loadUnifiedOperationsQueue(
   filterInput?: OpsQueueFilter | null,
   focusReviewKey?: string | null,
 ): Promise<UnifiedOperationsQueue> {
-  const [residentsPage, bookingApprovals, rawPaymentReviews, dismissalIndex] = await Promise.all([
+  const [residentsPage, bookingApprovals, rawPaymentReviews, dismissalIndex, depositDueRows] =
+    await Promise.all([
     loadResidentOperationsResidentsPage(session, null),
     listPendingBookingApprovals(session),
     listPendingPaymentReviews(session),
     loadOperationsQueueDismissalIndex(),
+    import('@/src/services/depositExpress').then((m) => m.listDepositDueBookings(session)),
   ]);
 
   const paymentReviews = rawPaymentReviews.filter(
@@ -376,6 +369,39 @@ export async function loadUnifiedOperationsQueue(
     });
   }
 
+  for (const row of depositDueRows) {
+    items.push({
+      id: `deposit-due-${row.bookingId}`,
+      queue: 'deposit_due',
+      customerId: row.customerId,
+      residentName: row.customerName,
+      residentPhone: row.customerPhone,
+      pgId: row.pgId,
+      pgName: row.pgName,
+      roomNumber: row.roomNumber,
+      bedCode: row.bedCode,
+      reason: 'Security deposit outstanding',
+      openHref: depositExpressHref(row.bookingId),
+      openLabel: 'Open Deposit',
+      bookingId: row.bookingId,
+      bookingCode: row.bookingCode,
+      amountPaise: row.remainingDuePaise,
+      depositRequiredPaise: row.requiredDepositPaise,
+      depositPaidPaise: row.alreadyPaidPaise,
+      depositRemainingPaise: row.remainingDuePaise,
+      outstandingLines: [
+        {
+          categoryLabel: 'Deposit',
+          periodLabel: 'Security deposit',
+          amountPaise: row.remainingDuePaise,
+          kind: 'deposit',
+          bookingId: row.bookingId,
+          label: 'Deposit due',
+        },
+      ],
+    });
+  }
+
   const counts = countByQueue(items);
   const filter = filterInput ?? defaultOperationsFilter(counts);
 
@@ -399,7 +425,7 @@ export async function loadUnifiedOperationsQueue(
 
 /** @deprecated Use buildUnifiedOpsFilterTags from tests only — queues are assigned in row mappers. */
 export function buildUnifiedOpsFilterTags(input: {
-  category: ResidentOpsQueueCategory | 'booking_approval';
+  category: ResidentOpsQueueCategory | 'booking_approval' | 'deposit_due';
 }): OpsQueueFilter[] {
   switch (input.category) {
     case 'payment_proof':
@@ -416,7 +442,9 @@ export function buildUnifiedOpsFilterTags(input: {
     case 'kyc':
       return ['kyc_review'];
     case 'bed_assignment':
-      return ['bed_assignment'];
+      return [];
+    case 'deposit_due':
+      return ['deposit_due'];
     case 'booking_approval':
       return ['booking_approval'];
     default:

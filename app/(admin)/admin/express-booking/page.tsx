@@ -2,7 +2,7 @@ import { ExpressBookingSheet } from '@/src/components/admin/expressBooking/Expre
 import styles from './express-booking.module.css';
 
 export const metadata = {
-  title: 'Express Booking · Admin',
+  title: 'Sale Express · Admin',
   description: 'Walk-in booking and invoice workspace.',
 };
 

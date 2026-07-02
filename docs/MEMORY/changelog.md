@@ -130,5 +130,6 @@ Files:
 - **PRODUCTION-STABILIZATION-P0** — P0 code fixes: session cookie-clear on reject, 30d standard TTL, checkout occupant exclusion for Room 203, UPI SSOT resolver + non-destructive defaults; `scripts/verify-production-p0.ts`
 - **BED-MAINTENANCE** — First-class maintenance workflow: schema metadata, bed map Advanced Tools (put/complete), red admin tiles + customer exclusion, engine labels with reason/dates
 - **ELEC-DUE-SSOT** — Electricity Due collectibility SSOT; approval pays full outstanding incl. late fees; duplicate booking-month repair; prod Ishan+Anuj cleared from Electricity Due
+- **QUICK-ACTIONS-DEPOSIT** — Quick Actions simplified to Sale Express, Deposit Express, Refund of Deposit; Operations bed_assignment → deposit_due queue
 
 ---

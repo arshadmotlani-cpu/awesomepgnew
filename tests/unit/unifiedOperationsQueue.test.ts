@@ -15,11 +15,11 @@ test('operations has exactly eight action queues in order', () => {
     'vacating_requests',
     'refund_due',
     'booking_approval',
-    'bed_assignment',
+    'deposit_due',
     'kyc_review',
   ]);
-  assert.equal(OPS_QUEUE_LABELS.overdue, undefined);
-  assert.equal(OPS_QUEUE_LABELS.deposit_due, undefined);
+  assert.equal(OPS_QUEUE_LABELS.deposit_due, 'Deposit due');
+  assert.equal(OPS_QUEUE_LABELS.bed_assignment, undefined);
 });
 
 test('legacy payment_proof filter maps to waiting_for_approval', () => {

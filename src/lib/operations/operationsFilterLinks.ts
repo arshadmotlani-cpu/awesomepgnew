@@ -7,7 +7,7 @@ export const OPS_QUEUE_FILTERS = [
   'vacating_requests',
   'refund_due',
   'booking_approval',
-  'bed_assignment',
+  'deposit_due',
   'kyc_review',
 ] as const;
 
@@ -20,7 +20,7 @@ export const OPS_QUEUE_LABELS: Record<OpsQueueFilter, string> = {
   vacating_requests: 'Vacating requests',
   refund_due: 'Refund due',
   booking_approval: 'Booking approval',
-  bed_assignment: 'Bed assignment',
+  deposit_due: 'Deposit due',
   kyc_review: 'KYC review',
 };
 
@@ -31,7 +31,8 @@ const LEGACY_FILTER_ALIASES: Record<string, OpsQueueFilter> = {
   checkout: 'vacating_requests',
   refund: 'refund_due',
   kyc: 'kyc_review',
-  bed_assignment: 'bed_assignment',
+  bed_assignment: 'deposit_due',
+  deposit_due: 'deposit_due',
   booking_approval: 'booking_approval',
   rent_due: 'rent_due',
   electricity_due: 'electricity_due',
