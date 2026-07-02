@@ -3,6 +3,7 @@ import test from 'node:test';
 import { toRefundConsoleWorkspaceDTO } from '@/src/lib/refund/refundConsoleDto';
 import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import { parseOperationsFilter } from '@/src/lib/operations/operationsFilterLinks';
+import { emptyRefundConsoleWallet } from '@/src/services/refundConsole';
 
 test('refund console deep link uses booking query param only', () => {
   assert.equal(refundConsoleHref('abc-123'), '/admin/refunds?booking=abc-123');
@@ -37,7 +38,21 @@ test('refund workspace DTO serializes dates for client components', () => {
       refundPaidPaise: 0,
       remainingDepositPaise: 100000,
     },
-    ledger: [],
+    ledger: [
+      {
+        id: 'ledger-1',
+        bookingId: 'b1',
+        customerId: 'c1',
+        entryKind: 'collected',
+        amountPaise: 100000,
+        reason: 'Paid at move-in',
+        deductionCategory: null,
+        relatedPaymentId: null,
+        relatedVacatingId: null,
+        createdByAdminId: null,
+        createdAt: occurredAt,
+      },
+    ],
     deductions: [{ id: 'd1', amountPaise: 5000, reason: 'Damage', category: 'other', occurredAt }],
     transfers: [{ id: 't1', amountPaise: 2000, reason: 'Transfer', occurredAt }],
     timeline: [
@@ -72,4 +87,48 @@ test('refund workspace DTO serializes dates for client components', () => {
   assert.equal(typeof dto.deductions[0]!.occurredAt, 'string');
   assert.equal(typeof dto.timeline[0]!.occurredAt, 'string');
   assert.equal(dto.checkout?.settlementHref, '/admin/checkout-settlements/s1');
+  assert.equal('ledger' in dto, false);
+  assert.doesNotThrow(() => JSON.stringify(dto));
+});
+
+test('empty refund wallet is all zeros', () => {
+  const wallet = emptyRefundConsoleWallet();
+  assert.deepEqual(wallet, {
+    depositPaidPaise: 0,
+    depositUsedPaise: 0,
+    depositTransferredPaise: 0,
+    electricityDeductionPaise: 0,
+    policyDeductionPaise: 0,
+    otherDeductionsPaise: 0,
+    refundPaidPaise: 0,
+    remainingDepositPaise: 0,
+  });
+});
+
+test('empty workspace DTO round-trips through JSON', () => {
+  const dto = toRefundConsoleWorkspaceDTO({
+    bookingId: 'b-empty',
+    bookingCode: 'BK-EMPTY',
+    customerId: 'c-empty',
+    customerName: 'Empty Resident',
+    customerPhone: null,
+    pgName: null,
+    bedLabel: null,
+    status: 'confirmed',
+    checkInDate: null,
+    checkOutDate: null,
+    adminDepositRefundStatus: null,
+    wallet: emptyRefundConsoleWallet(),
+    ledger: [],
+    deductions: [],
+    transfers: [],
+    timeline: [],
+    checkout: null,
+    suggestedRefundPaise: 0,
+    refundableBalancePaise: 0,
+  });
+
+  assert.equal(dto.wallet.remainingDepositPaise, 0);
+  assert.equal(dto.timeline.length, 0);
+  assert.doesNotThrow(() => JSON.stringify(dto));
 });

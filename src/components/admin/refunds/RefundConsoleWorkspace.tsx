@@ -72,7 +72,7 @@ function BookingPicker({
       <div className="text-center">
         <h2 className="text-2xl font-semibold text-white">Select booking</h2>
         <p className="mt-2 text-sm text-apg-silver">
-          {residentLabel} has {rows.length} bookings with a deposit wallet.
+          {residentLabel} has {rows.length} booking{rows.length === 1 ? '' : 's'}.
         </p>
       </div>
       <ul className="overflow-hidden rounded-2xl border border-white/10 bg-[#12161C]/80">
@@ -167,7 +167,7 @@ function RefundSearchHero({
         </ul>
       ) : null}
       {query.trim().length >= 2 && !loading && results.length === 0 ? (
-        <p className="text-center text-sm text-apg-silver">No bookings with a deposit wallet found.</p>
+        <p className="text-center text-sm text-apg-silver">No residents or bookings found.</p>
       ) : null}
     </div>
   );
@@ -341,6 +341,18 @@ function PayoutWorkspace({
         <h3 className="text-sm font-semibold uppercase tracking-wide text-apg-muted">
           Deposit summary
         </h3>
+        <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <SummaryMetric
+            label="Wallet balance"
+            value={paiseToInr(workspace.refundableBalancePaise)}
+            highlight
+          />
+          <SummaryMetric
+            label="Deposit held"
+            value={paiseToInr(workspace.wallet.depositPaidPaise)}
+          />
+          <SummaryMetric label="Refund due" value={paiseToInr(workspace.suggestedRefundPaise)} />
+        </dl>
         <dl className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <SummaryMetric label="Deposit collected" value={paiseToInr(workspace.wallet.depositPaidPaise)} />
           <SummaryMetric
@@ -354,7 +366,6 @@ function PayoutWorkspace({
           <SummaryMetric
             label="Current refundable balance"
             value={paiseToInr(workspace.refundableBalancePaise)}
-            highlight
           />
         </dl>
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -575,7 +586,7 @@ function PayoutWorkspace({
       <section className={posGlassCard}>
         <h3 className="text-sm font-semibold text-white">Deposit ledger timeline</h3>
         {workspace.timeline.length === 0 ? (
-          <p className="mt-3 text-sm text-apg-silver">No ledger activity yet.</p>
+          <p className="mt-3 text-sm text-apg-silver">No transactions yet.</p>
         ) : (
           <ol className="mt-4 space-y-0">
             {workspace.timeline.map((event, index) => (
@@ -651,7 +662,7 @@ export function RefundConsoleWorkspace({
           return;
         }
         if (res.rows.length === 0) {
-          setLoadError('No deposit wallets found for this resident.');
+          setLoadError('No bookings found for this resident.');
           return;
         }
         if (res.rows.length === 1) {

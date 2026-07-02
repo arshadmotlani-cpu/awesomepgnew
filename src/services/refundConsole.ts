@@ -11,13 +11,43 @@ import {
   depositLedger,
   type DepositLedgerEntry,
 } from '@/src/db/schema';
+import { guardDepositPaise, guardPlainPaise } from '@/src/lib/deposits/paiseSafety';
 import {
   DEDUCTION_CATEGORY_LABELS,
   isDepositTransferReason,
   parseDeductionCategory,
-  type DeductionCategory,
 } from '@/src/lib/financial/deductionCategories';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
+
+export function emptyRefundConsoleWallet(): RefundConsoleWallet {
+  return {
+    depositPaidPaise: 0,
+    depositUsedPaise: 0,
+    depositTransferredPaise: 0,
+    electricityDeductionPaise: 0,
+    policyDeductionPaise: 0,
+    otherDeductionsPaise: 0,
+    refundPaidPaise: 0,
+    remainingDepositPaise: 0,
+  };
+}
+
+function absLedgerPaise(value: unknown): number {
+  return guardDepositPaise(Math.abs(guardPlainPaise(value)), 'refundConsole.absLedgerPaise');
+}
+
+function signedLedgerPaise(value: unknown): number {
+  return guardPlainPaise(value, 'refundConsole.signedLedgerPaise');
+}
+
+function ledgerEventDate(value: Date | string | null | undefined): Date {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? new Date(0) : value;
+  }
+  if (!value) return new Date(0);
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? new Date(0) : parsed;
+}
 
 export type RefundConsoleBookingRow = {
   bookingId: string;
@@ -118,9 +148,12 @@ function summarizeWallet(entries: DepositLedgerEntry[]): RefundConsoleWallet {
   let refundPaidPaise = 0;
 
   for (const entry of entries) {
-    const amount = Math.abs(entry.amountPaise);
+    const amount = absLedgerPaise(entry.amountPaise);
     if (entry.entryKind === 'collected') {
-      depositPaidPaise += entry.amountPaise;
+      depositPaidPaise += guardDepositPaise(
+        signedLedgerPaise(entry.amountPaise),
+        'refundConsole.collected',
+      );
       continue;
     }
     if (entry.entryKind === 'refunded') {
@@ -156,22 +189,35 @@ function summarizeWallet(entries: DepositLedgerEntry[]): RefundConsoleWallet {
   );
 
   return {
-    depositPaidPaise,
-    depositUsedPaise,
-    depositTransferredPaise,
-    electricityDeductionPaise,
-    policyDeductionPaise,
-    otherDeductionsPaise,
-    refundPaidPaise,
-    remainingDepositPaise,
+    depositPaidPaise: guardDepositPaise(depositPaidPaise, 'refundConsole.depositPaidPaise'),
+    depositUsedPaise: guardDepositPaise(depositUsedPaise, 'refundConsole.depositUsedPaise'),
+    depositTransferredPaise: guardDepositPaise(
+      depositTransferredPaise,
+      'refundConsole.depositTransferredPaise',
+    ),
+    electricityDeductionPaise: guardDepositPaise(
+      electricityDeductionPaise,
+      'refundConsole.electricityDeductionPaise',
+    ),
+    policyDeductionPaise: guardDepositPaise(
+      policyDeductionPaise,
+      'refundConsole.policyDeductionPaise',
+    ),
+    otherDeductionsPaise: guardDepositPaise(
+      otherDeductionsPaise,
+      'refundConsole.otherDeductionsPaise',
+    ),
+    refundPaidPaise: guardDepositPaise(refundPaidPaise, 'refundConsole.refundPaidPaise'),
+    remainingDepositPaise: guardDepositPaise(
+      remainingDepositPaise,
+      'refundConsole.remainingDepositPaise',
+    ),
   };
 }
 
-export async function buildRefundConsoleWallet(
-  bookingId: string,
-): Promise<RefundConsoleWallet | null> {
+export async function buildRefundConsoleWallet(bookingId: string): Promise<RefundConsoleWallet> {
   const summary = await getDepositSummaryForBooking(bookingId);
-  if (!summary) return null;
+  if (!summary) return emptyRefundConsoleWallet();
   return summarizeWallet(summary.entries);
 }
 
@@ -231,7 +277,6 @@ export async function searchRefundConsoleBookings(
   const result: RefundConsoleBookingRow[] = [];
   for (const row of rows) {
     const wallet = await buildRefundConsoleWallet(row.bookingId);
-    if (!wallet) continue;
     result.push({
       bookingId: row.bookingId,
       bookingCode: row.bookingCode,
@@ -247,7 +292,7 @@ export async function searchRefundConsoleBookings(
   return { query: trimmed, rows: result };
 }
 
-/** All bookings with a deposit wallet for one resident (booking picker). */
+/** All bookings for one resident (booking picker). */
 export async function listRefundConsoleBookingsForCustomer(
   customerId: string,
   limit = 20,
@@ -287,7 +332,6 @@ export async function listRefundConsoleBookingsForCustomer(
   const result: RefundConsoleBookingRow[] = [];
   for (const row of rows) {
     const wallet = await buildRefundConsoleWallet(row.bookingId);
-    if (!wallet) continue;
     result.push({
       bookingId: row.bookingId,
       bookingCode: row.bookingCode,
@@ -339,7 +383,8 @@ export async function getRefundConsoleBookingDetail(
   if (!row) return null;
 
   const summary = await getDepositSummaryForBooking(bookingId);
-  if (!summary) return null;
+  const ledger = summary?.entries ?? [];
+  const wallet = summary ? summarizeWallet(summary.entries) : emptyRefundConsoleWallet();
 
   return {
     bookingId: row.bookingId,
@@ -349,8 +394,8 @@ export async function getRefundConsoleBookingDetail(
     pgName: row.pgName,
     bedLabel: row.bedLabel,
     status: row.status,
-    wallet: summarizeWallet(summary.entries),
-    ledger: summary.entries,
+    wallet,
+    ledger,
   };
 }
 
@@ -366,13 +411,16 @@ function ledgerTimelineLabel(entry: DepositLedgerEntry): string {
 
 function buildTimeline(entries: DepositLedgerEntry[]): RefundConsoleTimelineEvent[] {
   return [...entries]
-    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .sort(
+      (a, b) =>
+        ledgerEventDate(b.createdAt).getTime() - ledgerEventDate(a.createdAt).getTime(),
+    )
     .map((entry) => ({
       id: entry.id,
       label: ledgerTimelineLabel(entry),
       detail: entry.reason,
-      amountPaise: entry.amountPaise,
-      occurredAt: entry.createdAt,
+      amountPaise: signedLedgerPaise(entry.amountPaise),
+      occurredAt: ledgerEventDate(entry.createdAt),
     }));
 }
 
@@ -388,8 +436,8 @@ function buildDeductionRows(entries: DepositLedgerEntry[]): RefundConsoleDeducti
         id: entry.id,
         category: category ? DEDUCTION_CATEGORY_LABELS[category] : 'Other',
         reason: entry.reason,
-        amountPaise: Math.abs(entry.amountPaise),
-        occurredAt: entry.createdAt,
+        amountPaise: absLedgerPaise(entry.amountPaise),
+        occurredAt: ledgerEventDate(entry.createdAt),
       };
     })
     .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime());
@@ -401,20 +449,78 @@ function buildTransferRows(entries: DepositLedgerEntry[]): RefundConsoleTransfer
     .map((entry) => ({
       id: entry.id,
       reason: entry.reason,
-      amountPaise: Math.abs(entry.amountPaise),
-      occurredAt: entry.createdAt,
+      amountPaise: absLedgerPaise(entry.amountPaise),
+      occurredAt: ledgerEventDate(entry.createdAt),
     }))
     .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime());
+}
+
+function mapCheckoutSettlement(
+  settlement: {
+    id: string;
+    status: string;
+    finalRefundPaise: number | null;
+    payoutUpiId: string | null;
+    payoutQrUrl: string | null;
+    electricityMeterPhotoUrl: string | null;
+    noticeDeductionPaise: number;
+    electricitySharePaise: number;
+    damageChargePaise: number;
+    cleaningChargePaise: number;
+    customChargePaise: number;
+    customChargeLabel: string | null;
+    vacatingRequestId: string;
+  },
+  refundableBalancePaise: number,
+): RefundConsoleCheckoutContext {
+  const finalRefundPaise =
+    settlement.finalRefundPaise == null
+      ? null
+      : guardDepositPaise(settlement.finalRefundPaise, 'refundConsole.checkout.finalRefundPaise');
+
+  return {
+    settlementId: settlement.id,
+    status: settlement.status,
+    finalRefundPaise,
+    payoutUpiId: settlement.payoutUpiId,
+    payoutQrUrl: settlement.payoutQrUrl,
+    meterPhotoUrl: settlement.electricityMeterPhotoUrl,
+    noticeDeductionPaise: guardDepositPaise(
+      settlement.noticeDeductionPaise,
+      'refundConsole.checkout.noticeDeductionPaise',
+    ),
+    electricitySharePaise: guardDepositPaise(
+      settlement.electricitySharePaise,
+      'refundConsole.checkout.electricitySharePaise',
+    ),
+    damageChargePaise: guardDepositPaise(
+      settlement.damageChargePaise,
+      'refundConsole.checkout.damageChargePaise',
+    ),
+    cleaningChargePaise: guardDepositPaise(
+      settlement.cleaningChargePaise,
+      'refundConsole.checkout.cleaningChargePaise',
+    ),
+    customChargePaise: guardDepositPaise(
+      settlement.customChargePaise,
+      'refundConsole.checkout.customChargePaise',
+    ),
+    customChargeLabel: settlement.customChargeLabel,
+    vacatingRequestId: settlement.vacatingRequestId,
+    canMarkPaid:
+      settlement.status === 'refund_pending' &&
+      (finalRefundPaise ?? 0) > 0 &&
+      refundableBalancePaise >= (finalRefundPaise ?? 0),
+  };
 }
 
 export async function getRefundConsoleWorkspace(
   bookingId: string,
 ): Promise<RefundConsoleWorkspace | null> {
-  try {
-    const detail = await getRefundConsoleBookingDetail(bookingId);
-    if (!detail) return null;
+  const detail = await getRefundConsoleBookingDetail(bookingId);
+  if (!detail) return null;
 
-    const [bookingRow] = await db
+  const [bookingRow] = await db
       .select({
         phone: customers.phone,
         checkInDate: bookings.billingAnchorDate,
@@ -452,49 +558,34 @@ export async function getRefundConsoleWorkspace(
       .orderBy(desc(checkoutSettlements.updatedAt))
       .limit(1);
 
-    const refundableBalancePaise = detail.wallet.remainingDepositPaise;
-    const checkoutRefundPaise = settlement?.finalRefundPaise ?? null;
-    const suggestedRefundPaise =
-      settlement?.status === 'refund_pending' && checkoutRefundPaise != null
-        ? checkoutRefundPaise
-        : refundableBalancePaise;
+  const refundableBalancePaise = detail.wallet.remainingDepositPaise;
+  const checkoutRefundPaise =
+    settlement == null || settlement.finalRefundPaise == null
+      ? null
+      : guardDepositPaise(settlement.finalRefundPaise, 'refundConsole.checkoutRefundPaise');
+  const suggestedRefundPaise =
+    settlement?.status === 'refund_pending' && checkoutRefundPaise != null
+      ? checkoutRefundPaise
+      : refundableBalancePaise;
 
-    const checkout: RefundConsoleCheckoutContext | null = settlement
-      ? {
-          settlementId: settlement.id,
-          status: settlement.status,
-          finalRefundPaise: settlement.finalRefundPaise,
-          payoutUpiId: settlement.payoutUpiId,
-          payoutQrUrl: settlement.payoutQrUrl,
-          meterPhotoUrl: settlement.electricityMeterPhotoUrl,
-          noticeDeductionPaise: settlement.noticeDeductionPaise,
-          electricitySharePaise: settlement.electricitySharePaise,
-          damageChargePaise: settlement.damageChargePaise,
-          cleaningChargePaise: settlement.cleaningChargePaise,
-          customChargePaise: settlement.customChargePaise,
-          customChargeLabel: settlement.customChargeLabel,
-          vacatingRequestId: settlement.vacatingRequestId,
-          canMarkPaid:
-            settlement.status === 'refund_pending' &&
-            (settlement.finalRefundPaise ?? 0) > 0 &&
-            refundableBalancePaise >= (settlement.finalRefundPaise ?? 0),
-        }
-      : null;
+  const checkout: RefundConsoleCheckoutContext | null = settlement
+    ? mapCheckoutSettlement(settlement, refundableBalancePaise)
+    : null;
 
-    return {
-      ...detail,
-      customerPhone: bookingRow?.phone ?? null,
-      checkInDate: bookingRow?.checkInDate ?? null,
-      checkOutDate: bookingRow?.checkOutDate ?? null,
-      adminDepositRefundStatus: bookingRow?.adminDepositRefundStatus ?? null,
-      deductions: buildDeductionRows(detail.ledger),
-      transfers: buildTransferRows(detail.ledger),
-      timeline: buildTimeline(detail.ledger),
-      checkout,
+  return {
+    ...detail,
+    customerPhone: bookingRow?.phone ?? null,
+    checkInDate: bookingRow?.checkInDate ?? null,
+    checkOutDate: bookingRow?.checkOutDate ?? null,
+    adminDepositRefundStatus: bookingRow?.adminDepositRefundStatus ?? null,
+    deductions: buildDeductionRows(detail.ledger),
+    transfers: buildTransferRows(detail.ledger),
+    timeline: buildTimeline(detail.ledger),
+    checkout,
+    suggestedRefundPaise: guardDepositPaise(
       suggestedRefundPaise,
-      refundableBalancePaise,
-    };
-  } catch {
-    return null;
-  }
+      'refundConsole.suggestedRefundPaise',
+    ),
+    refundableBalancePaise,
+  };
 }

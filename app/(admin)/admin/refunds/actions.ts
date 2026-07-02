@@ -90,7 +90,7 @@ export async function loadRefundConsoleWorkspaceAction(
     await assertAdminBookingAccess(admin, bookingId);
     const workspace = await getRefundConsoleWorkspace(bookingId);
     if (!workspace) {
-      return { ok: false, error: 'No deposit wallet found for this booking.' };
+      return { ok: false, error: 'Booking not found.' };
     }
     return { ok: true, workspace: toRefundConsoleWorkspaceDTO(workspace) };
   } catch (err) {
@@ -142,7 +142,7 @@ export async function markRefundPaidAction(
   }
 
   const workspace = await getRefundConsoleWorkspace(bookingId);
-  if (!workspace) return { status: 'error', message: 'Booking wallet not found.' };
+  if (!workspace) return { status: 'error', message: 'Booking not found.' };
 
   const refundReference = String(formData.get('refundReference') ?? formData.get('upiId') ?? '').trim();
   const refundMethod = String(formData.get('refundMethod') ?? formData.get('paymentMethod') ?? 'upi').trim();
