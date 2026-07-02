@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { OperationsPaymentWhatsAppButton } from '@/src/components/admin/operations/OperationsPaymentWhatsAppButton';
+import { OperationsOpsRowActions } from '@/src/components/admin/operations/OperationsOpsRowActions';
 import type { UnifiedOpsFilter, UnifiedOpsItem, UnifiedOperationsQueue } from '@/src/services/unifiedOperationsQueue';
 import { paiseToInr } from '@/src/lib/format';
 
@@ -10,7 +10,7 @@ function filterHref(filter: UnifiedOpsFilter): string {
 
 function OutstandingBreakdown({ item }: { item: UnifiedOpsItem }) {
   const lines = item.outstandingLines ?? [];
-  if (lines.length === 0) return <span>{item.nextAction}</span>;
+  if (lines.length === 0) return <span className="text-apg-silver">—</span>;
 
   const total = item.totalOutstandingPaise ?? lines.reduce((sum, line) => sum + line.amountPaise, 0);
 
@@ -35,7 +35,13 @@ function OutstandingBreakdown({ item }: { item: UnifiedOpsItem }) {
   );
 }
 
-export function OperationsMasterQueue({ data }: { data: UnifiedOperationsQueue }) {
+export function OperationsMasterQueue({
+  data,
+  isSuperAdmin = false,
+}: {
+  data: UnifiedOperationsQueue;
+  isSuperAdmin?: boolean;
+}) {
   const activeFilter = data.filter ?? 'all';
 
   return (
@@ -76,9 +82,11 @@ export function OperationsMasterQueue({ data }: { data: UnifiedOperationsQueue }
         <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-8 py-16 text-center">
           <p className="text-xl font-semibold text-emerald-100">Nothing in this queue</p>
           <p className="mt-2 text-sm text-emerald-200/80">
-            {activeFilter === 'move_out' || activeFilter === 'checkout'
-              ? 'No move-outs awaiting action.'
-              : 'Try another filter or check Billing Centre for financial summaries.'}
+            {activeFilter === 'move_out' || activeFilter === 'checkout' || activeFilter === 'refund'
+              ? 'No move-outs or refunds awaiting action.'
+              : activeFilter === 'payment_proof' || activeFilter === 'waiting_for_admin_review'
+                ? 'Use the payment approval panel above to review uploaded screenshots.'
+                : 'Try another filter or check Billing Centre for financial summaries.'}
           </p>
         </div>
       ) : (
@@ -89,14 +97,14 @@ export function OperationsMasterQueue({ data }: { data: UnifiedOperationsQueue }
                 <th className="px-4 py-3 font-medium">Resident</th>
                 <th className="px-4 py-3 font-medium">PG</th>
                 <th className="px-4 py-3 font-medium">Room / bed</th>
-                <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium">Reason</th>
                 <th className="px-4 py-3 font-medium">Outstanding</th>
-                <th className="px-4 py-3 font-medium text-right">Actions</th>
+                <th className="px-4 py-3 font-medium text-right">Primary action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5 bg-[#1A1F27]">
               {data.items.map((item) => (
-                <OpsRow key={item.id} item={item} />
+                <OpsRow key={item.id} item={item} isSuperAdmin={isSuperAdmin} />
               ))}
             </tbody>
           </table>
@@ -106,7 +114,7 @@ export function OperationsMasterQueue({ data }: { data: UnifiedOperationsQueue }
   );
 }
 
-function OpsRow({ item }: { item: UnifiedOpsItem }) {
+function OpsRow({ item, isSuperAdmin }: { item: UnifiedOpsItem; isSuperAdmin: boolean }) {
   const location = [
     item.roomNumber ? `R${item.roomNumber}` : null,
     item.bedCode ? `Bed ${item.bedCode}` : null,
@@ -121,20 +129,12 @@ function OpsRow({ item }: { item: UnifiedOpsItem }) {
       <td className="px-4 py-4 font-medium text-white">{item.residentName}</td>
       <td className="px-4 py-4 text-apg-silver">{item.pgName ?? '—'}</td>
       <td className="px-4 py-4 text-apg-silver">{location || '—'}</td>
-      <td className="px-4 py-4 text-apg-silver">{item.status}</td>
+      <td className="px-4 py-4 text-apg-silver">{item.reason}</td>
       <td className="px-4 py-4 text-white">
-        {hasPaymentLines ? <OutstandingBreakdown item={item} /> : item.nextAction}
+        {hasPaymentLines ? <OutstandingBreakdown item={item} /> : '—'}
       </td>
       <td className="px-4 py-4">
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {hasPaymentLines ? <OperationsPaymentWhatsAppButton item={item} /> : null}
-          <Link
-            href={item.openHref}
-            className="inline-flex min-h-[36px] items-center justify-center rounded-lg bg-[#FF5A1F] px-4 py-2 text-xs font-semibold text-white hover:brightness-110"
-          >
-            {hasPaymentLines ? 'Open bills' : item.openLabel}
-          </Link>
-        </div>
+        <OperationsOpsRowActions item={item} isSuperAdmin={isSuperAdmin} />
       </td>
     </tr>
   );

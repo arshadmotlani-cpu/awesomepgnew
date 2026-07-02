@@ -256,26 +256,20 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-02 20:24:01 UTC
+### Pending pre-commit sync · 2026-07-02 20:40:49 UTC
 
-**Areas touched:** [[ROUTES]], [[Billing]], [[Vacating]], [[Residents]]
+**Areas touched:** [[ROUTES]], [[Residents]]
 
 **Docs flagged for review:**
-- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DECISIONS.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (6):**
-- `app/(admin)/admin/deposits/[bookingId]/settlementActions.ts`
-- `app/(admin)/admin/requests/page.tsx`
-- `src/lib/billing/collectionsQueue.ts`
-- `src/lib/moveOut/moveOutPipelineUi.ts`
-- `src/lib/residents/checkoutOpsQueueCopy.ts`
-- `src/lib/residents/residentOperationsDashboard.ts`
+**Staged code files (2):**
+- `app/(admin)/admin/operations/page.tsx`
+- `src/lib/residents/residentOperationsResidentsView.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

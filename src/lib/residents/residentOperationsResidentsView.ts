@@ -35,6 +35,7 @@ export type ResidentsQueueRow = {
   bedCode: string | null;
   currentState: string;
   nextAction: string;
+  reason: string;
   owner: string;
   ageLabel: string;
   ageSortHours: number;
@@ -112,8 +113,6 @@ const FILTER_BY_BUCKET: Partial<Record<AttentionBucketId, ResidentsCommandFilter
   payment_proof: 'payment_proof',
   move_out: 'move_out',
   rent_overdue: 'overdue',
-  rent_due: 'overdue',
-  electricity_due: 'overdue',
 };
 
 const JOURNEY_STAGES: JourneyStageCount[] = [
@@ -392,6 +391,7 @@ export function buildResidentOperationsResidentsView(input: {
       bedCode: item.bedCode,
       currentState: currentStateLabel(item),
       nextAction: item.nextAction,
+      reason: item.issue,
       owner: OWNER_BY_CATEGORY[item.category],
       ageLabel: age.ageLabel,
       ageSortHours: age.ageSortHours,
@@ -518,6 +518,7 @@ export function filterResidentsQueue(
       bedCode: b.bedCode,
       currentState: 'Blocked',
       nextAction: b.reason,
+      reason: b.reason,
       owner: 'Operations',
       ageLabel: b.blockedSinceLabel,
       ageSortHours: 0,

@@ -40,7 +40,11 @@ export default async function OperationsPage({
       <AdminSectionErrorBoundary title="Operations">
         {showPaymentPanel ? (
           <section className="mb-8">
-            <h2 className="mb-4 text-lg font-semibold text-white">Payment screenshots</h2>
+            <h2 className="mb-4 text-lg font-semibold text-white">Payment approval</h2>
+            <p className="mb-4 text-sm text-apg-silver">
+              Resident uploaded a payment screenshot — review and approve or reject. Separate from
+              &ldquo;Waiting for payment&rdquo; (no screenshot yet).
+            </p>
             {data.paymentReviews.length > 0 ? (
               <OperationsPaymentReviewsPanel items={data.paymentReviews} />
             ) : (
@@ -50,7 +54,7 @@ export default async function OperationsPage({
             )}
           </section>
         ) : null}
-        <OperationsMasterQueue data={data} />
+        <OperationsMasterQueue data={data} isSuperAdmin={session.role === 'super_admin'} />
       </AdminSectionErrorBoundary>
     </>
   );

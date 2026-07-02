@@ -13,6 +13,11 @@ import type { ResidentsCommandFilter } from '@/src/lib/residents/residentOperati
 import { loadResidentOperationsResidentsPage } from '@/src/services/residentOperationsResidentsPage';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 import type { ResidentsQueueRow } from '@/src/lib/residents/residentOperationsResidentsView';
+import type { ResidentOpsQueueCategory } from '@/src/lib/residents/residentOperationsDashboard';
+import {
+  isDismissedFromOperationsQueue,
+  loadOperationsQueueDismissalIndex,
+} from '@/src/services/operationsQueueDismissals';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
 import { listOutstandingDeposits } from '@/src/services/depositCollection';
 
@@ -34,6 +39,8 @@ export type UnifiedOpsFilter =
   | 'waiting_for_admin_review'
   | 'rent_due'
   | 'electricity_due'
+  | 'deposit_due'
+  | 'refund'
   | 'booking_approval'
   | 'checkout';
 
@@ -47,10 +54,15 @@ export type UnifiedOpsItem = {
   roomNumber: string | null;
   bedCode: string | null;
   status: string;
+  reason: string;
   nextAction: string;
   openHref: string;
   openLabel: string;
   filterTags: UnifiedOpsFilter[];
+  category?: ResidentOpsQueueCategory;
+  bookingId?: string | null;
+  vacatingRequestId?: string | null;
+  kycSubmissionId?: string | null;
   sortRank: number;
   outstandingLines?: UnifiedOpsOutstandingLine[];
   totalOutstandingPaise?: number;
@@ -67,15 +79,17 @@ export type UnifiedOperationsQueue = {
 const FILTER_LABELS: Record<UnifiedOpsFilter, string> = {
   all: 'All',
   waiting_for_payment: 'Waiting for payment',
-  waiting_for_admin_review: 'Waiting for admin review',
+  waiting_for_admin_review: 'Payment approval',
   bed_assignment: 'Bed assignment',
-  kyc: 'KYC',
-  payment_proof: 'Payment review',
+  kyc: 'KYC review',
+  payment_proof: 'Payment approval',
   move_out: 'Move-out',
   overdue: 'Overdue',
   blocked: 'Blocked',
   rent_due: 'Rent due',
   electricity_due: 'Electricity due',
+  deposit_due: 'Deposit due',
+  refund: 'Refund',
   booking_approval: 'Booking approval',
   checkout: 'Checkout',
 };
@@ -95,7 +109,9 @@ function workflowStatus(row: ResidentsQueueRow): string {
     case 'bed_assignment':
       return 'Waiting for Bed Assignment';
     case 'move_out':
-      return 'Waiting for Checkout';
+      return row.primaryActionLabel === 'Approve move-out'
+        ? 'Waiting for Move-out Approval'
+        : 'Waiting for Checkout';
     case 'refund':
       return 'Waiting for Refund';
     default:
@@ -110,20 +126,53 @@ function categorySortRank(category: string): number {
   return 3;
 }
 
-function rowToFilterTags(row: ResidentsQueueRow): UnifiedOpsFilter[] {
-  const tags: UnifiedOpsFilter[] = [...row.filterTags];
-  if (row.category === 'rent_due' || row.category === 'rent_overdue') {
-    tags.push('rent_due', 'waiting_for_payment');
+/** SSOT filter tags from queue category — never inherit stale bucket tags. */
+export function buildUnifiedOpsFilterTags(input: {
+  category: ResidentOpsQueueCategory | 'booking_approval' | 'deposit_due';
+  primaryActionLabel?: string;
+}): UnifiedOpsFilter[] {
+  const tags: UnifiedOpsFilter[] = [];
+  switch (input.category) {
+    case 'rent_overdue':
+      tags.push('overdue', 'rent_due', 'waiting_for_payment');
+      break;
+    case 'rent_due':
+      tags.push('rent_due', 'waiting_for_payment');
+      break;
+    case 'electricity_due':
+      tags.push('electricity_due', 'waiting_for_payment');
+      break;
+    case 'payment_proof':
+      tags.push('payment_proof', 'waiting_for_admin_review');
+      break;
+    case 'kyc':
+      tags.push('kyc');
+      break;
+    case 'bed_assignment':
+      tags.push('bed_assignment');
+      break;
+    case 'move_out':
+      tags.push('move_out', 'checkout');
+      if (input.primaryActionLabel === 'Open Refund Console') tags.push('refund');
+      break;
+    case 'refund':
+      tags.push('refund', 'checkout');
+      break;
+    case 'booking_approval':
+      tags.push('booking_approval');
+      break;
+    case 'deposit_due':
+      tags.push('deposit_due', 'waiting_for_payment');
+      break;
   }
-  if (row.category === 'electricity_due') {
-    tags.push('electricity_due', 'waiting_for_payment');
-  }
-  if (row.category === 'payment_proof') {
-    tags.push('payment_proof', 'waiting_for_admin_review');
-  }
-  if (row.category === 'move_out') tags.push('move_out', 'checkout');
-  if (row.category === 'refund') tags.push('checkout');
   return [...new Set(tags)];
+}
+
+function rowToFilterTags(row: ResidentsQueueRow): UnifiedOpsFilter[] {
+  return buildUnifiedOpsFilterTags({
+    category: row.category,
+    primaryActionLabel: row.primaryActionLabel,
+  });
 }
 
 function outstandingLineFromRow(row: ResidentsQueueRow): UnifiedOpsOutstandingLine | null {
@@ -156,10 +205,15 @@ function residentsRowToItem(row: ResidentsQueueRow): UnifiedOpsItem | null {
     roomNumber: row.roomNumber,
     bedCode: row.bedCode,
     status,
+    reason: row.reason,
     nextAction: row.nextAction,
     openHref: row.primaryHref,
     openLabel: row.primaryActionLabel || 'Open',
     filterTags: rowToFilterTags(row),
+    category: row.category,
+    bookingId: row.bookingId,
+    vacatingRequestId: row.vacatingRequestId,
+    kycSubmissionId: row.kycSubmissionId,
     sortRank: categorySortRank(row.category),
     outstandingLines: outstandingLine ? [outstandingLine] : undefined,
     totalOutstandingPaise: outstandingLine?.amountPaise,
@@ -214,6 +268,7 @@ function mergePaymentWaitingByResident(items: UnifiedOpsItem[]): UnifiedOpsItem[
       roomNumber: anchor.roomNumber,
       bedCode: anchor.bedCode,
       status: 'Waiting for Resident Payment',
+      reason: rows.map((r) => r.reason).filter(Boolean).join(' · ') || 'Outstanding invoices',
       nextAction: 'Collect each invoice separately — rent, electricity, and deposit stay independent',
       openHref: `/admin/residents/${customerId}#open-bills`,
       openLabel: 'Open bills',
@@ -275,10 +330,13 @@ function depositRowsToItems(
       roomNumber: d.roomNumber,
       bedCode: d.bedCode,
       status: 'Waiting for Resident Payment',
+      reason: 'Security deposit outstanding',
       nextAction: 'Collect remaining security deposit',
       openHref: `/admin/residents/${d.customerId}#open-bills`,
       openLabel: 'Open bills',
-      filterTags: ['waiting_for_payment'],
+      filterTags: buildUnifiedOpsFilterTags({ category: 'deposit_due' }),
+      category: 'rent_due',
+      bookingId: d.bookingId,
       sortRank: 1,
       outstandingLines: [
         {
@@ -302,6 +360,8 @@ function mapFilterToResidents(filter: UnifiedOpsFilter | null): ResidentsCommand
     filter === 'waiting_for_admin_review' ||
     filter === 'rent_due' ||
     filter === 'electricity_due' ||
+    filter === 'deposit_due' ||
+    filter === 'refund' ||
     filter === 'booking_approval' ||
     filter === 'checkout'
   ) {
@@ -315,7 +375,7 @@ function matchesFilter(item: UnifiedOpsItem, filter: UnifiedOpsFilter | null): b
   if (filter === 'waiting_for_payment') {
     return item.filterTags.includes('waiting_for_payment');
   }
-  if (filter === 'waiting_for_admin_review') {
+  if (filter === 'waiting_for_admin_review' || filter === 'payment_proof') {
     return item.filterTags.includes('payment_proof');
   }
   return item.filterTags.includes(filter);
@@ -334,6 +394,8 @@ export function parseUnifiedOpsFilter(value: string | undefined): UnifiedOpsFilt
     'blocked',
     'rent_due',
     'electricity_due',
+    'deposit_due',
+    'refund',
     'booking_approval',
     'checkout',
   ];
@@ -347,12 +409,20 @@ export async function loadUnifiedOperationsQueue(
   const filter = filterInput ?? null;
   const residentsFilter = mapFilterToResidents(filter);
 
-  const [residentsPage, bookingApprovals, paymentReviews, outstandingDeposits] = await Promise.all([
-    loadResidentOperationsResidentsPage(session, residentsFilter),
-    listPendingBookingApprovals(session),
-    listPendingPaymentReviews(session),
-    listOutstandingDeposits(),
-  ]);
+  const [residentsPage, bookingApprovals, rawPaymentReviews, outstandingDeposits, dismissalIndex] =
+    await Promise.all([
+      loadResidentOperationsResidentsPage(session, residentsFilter),
+      listPendingBookingApprovals(session),
+      listPendingPaymentReviews(session),
+      listOutstandingDeposits(),
+      loadOperationsQueueDismissalIndex(),
+    ]);
+
+  const paymentReviews = rawPaymentReviews.filter(
+    (p) =>
+      !p.customerId ||
+      !isDismissedFromOperationsQueue(dismissalIndex, { customerId: p.customerId }),
+  );
 
   const byId = new Map<string, UnifiedOpsItem>();
 
@@ -362,10 +432,26 @@ export async function loadUnifiedOperationsQueue(
   }
 
   for (const depositItem of depositRowsToItems(session, outstandingDeposits)) {
+    if (
+      depositItem.bookingId &&
+      isDismissedFromOperationsQueue(dismissalIndex, {
+        customerId: depositItem.customerId,
+        bookingId: depositItem.bookingId,
+      })
+    ) {
+      continue;
+    }
     byId.set(depositItem.id, depositItem);
   }
 
+  const bookingIdsWithPaymentProof = new Set(
+    residentsPage.queue
+      .filter((r) => r.category === 'payment_proof' && r.bookingId)
+      .map((r) => r.bookingId!),
+  );
+
   for (const b of bookingApprovals) {
+    if (bookingIdsWithPaymentProof.has(b.id)) continue;
     byId.set(`booking-${b.id}`, {
       id: `booking-${b.id}`,
       residentName: b.customerName,
@@ -373,10 +459,12 @@ export async function loadUnifiedOperationsQueue(
       roomNumber: null,
       bedCode: null,
       status: 'Waiting for Booking Approval',
+      reason: 'Booking pending admin approval after payment',
       nextAction: 'Review payment and approve booking',
       openHref: `/admin/bookings/${b.id}`,
       openLabel: 'Review booking',
-      filterTags: ['booking_approval'],
+      filterTags: buildUnifiedOpsFilterTags({ category: 'booking_approval' }),
+      bookingId: b.id,
       sortRank: 0,
     });
   }
@@ -390,7 +478,12 @@ export async function loadUnifiedOperationsQueue(
     items = items.filter((item) => matchesFilter(item, filter));
   }
 
+  if (filter === 'payment_proof' || filter === 'waiting_for_admin_review') {
+    items = items.filter((item) => !item.filterTags.includes('payment_proof'));
+  }
+
   const allItems = mergePaymentWaitingByResident([...byId.values()]);
+  const paymentApprovalCount = paymentReviews.length;
   const filterCounts: UnifiedOperationsQueue['filterCounts'] = [
     { id: 'all', label: FILTER_LABELS.all, count: allItems.length },
     {
@@ -399,11 +492,10 @@ export async function loadUnifiedOperationsQueue(
       count: allItems.filter((i) => i.filterTags.includes('waiting_for_payment')).length,
     },
     {
-      id: 'waiting_for_admin_review',
-      label: FILTER_LABELS.waiting_for_admin_review,
-      count: allItems.filter((i) => i.filterTags.includes('payment_proof')).length,
+      id: 'payment_proof',
+      label: FILTER_LABELS.payment_proof,
+      count: paymentApprovalCount,
     },
-    { id: 'payment_proof', label: FILTER_LABELS.payment_proof, count: paymentReviews.length },
     {
       id: 'rent_due',
       label: FILTER_LABELS.rent_due,
@@ -414,6 +506,11 @@ export async function loadUnifiedOperationsQueue(
       label: FILTER_LABELS.electricity_due,
       count: allItems.filter((i) => i.filterTags.includes('electricity_due')).length,
     },
+    {
+      id: 'deposit_due',
+      label: FILTER_LABELS.deposit_due,
+      count: allItems.filter((i) => i.filterTags.includes('deposit_due')).length,
+    },
     { id: 'kyc', label: FILTER_LABELS.kyc, count: allItems.filter((i) => i.filterTags.includes('kyc')).length },
     {
       id: 'booking_approval',
@@ -421,6 +518,11 @@ export async function loadUnifiedOperationsQueue(
       count: allItems.filter((i) => i.filterTags.includes('booking_approval')).length,
     },
     { id: 'move_out', label: FILTER_LABELS.move_out, count: allItems.filter((i) => i.filterTags.includes('move_out')).length },
+    {
+      id: 'refund',
+      label: FILTER_LABELS.refund,
+      count: allItems.filter((i) => i.filterTags.includes('refund')).length,
+    },
     { id: 'checkout', label: FILTER_LABELS.checkout, count: allItems.filter((i) => i.filterTags.includes('checkout')).length },
     {
       id: 'bed_assignment',

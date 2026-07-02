@@ -60,6 +60,13 @@ export function parseDomainIdsFromQueueItemId(queueItemId: string): {
       bookingId: queueItemId.slice('deposit-refund-'.length) || null,
     };
   }
+  if (queueItemId.startsWith('deposit-')) {
+    return {
+      vacatingRequestId: null,
+      settlementId: null,
+      bookingId: queueItemId.slice('deposit-'.length) || null,
+    };
+  }
   return { vacatingRequestId: null, settlementId: null, bookingId: null };
 }
 
