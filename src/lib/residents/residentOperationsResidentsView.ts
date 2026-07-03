@@ -371,6 +371,7 @@ export function buildResidentOperationsResidentsView(input: {
     createdAt: Date;
     diff: unknown;
   }>;
+  moveOutOpsCount?: number;
 }): {
   commandCards: ResidentsCommandCard[];
   queue: ResidentsQueueRow[];
@@ -449,7 +450,7 @@ export function buildResidentOperationsResidentsView(input: {
     {
       id: 'move_out',
       label: 'Move-outs awaiting action',
-      count: dedupedQueue.filter((q) => q.filterTags.includes('move_out')).length,
+      count: input.moveOutOpsCount ?? 0,
     },
     {
       id: 'overdue',

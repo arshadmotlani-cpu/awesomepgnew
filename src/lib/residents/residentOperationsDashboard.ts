@@ -164,6 +164,7 @@ export function buildResidentOperationsDashboard(input: {
   moveInsToday: Array<{ residentName: string; pgName: string; bedCode: string; roomNumber: string }>;
   moveOutsToday: Array<{ residentName: string; pgName: string }>;
   rentsDueToday: CollectionQueueItem[];
+  moveOutOpsCount?: number;
 }): {
   buckets: AttentionBucket[];
   queue: ResidentOpsQueueItem[];
@@ -428,7 +429,7 @@ export function buildResidentOperationsDashboard(input: {
     { id: 'payment_proof', label: 'Payment proof awaiting review', count: input.paymentProofs.length },
     { id: 'kyc_pending', label: 'KYC pending', count: input.kycPending.length },
     { id: 'bed_unassigned', label: 'Bed not assigned', count: input.unassignedResidents.length },
-    { id: 'move_out', label: 'Move-out in progress', count: input.vacatingRows.length },
+    { id: 'move_out', label: 'Move-out in progress', count: input.moveOutOpsCount ?? 0 },
     { id: 'deposit_refund', label: 'Deposit refund pending', count: depositRefundCount },
     {
       id: 'requests_pending',

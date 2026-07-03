@@ -112,6 +112,7 @@ export async function loadResidentOperationsResidentsPage(
     rentOverdue,
     vacatingPendingCustomerIds,
     recentAudit: filteredAudit,
+    moveOutOpsCount: dashboard.moveOutOpsCount,
   });
 
   const filteredQueue = filterResidentsQueue(view.queue, filter, view.blockedResidents);

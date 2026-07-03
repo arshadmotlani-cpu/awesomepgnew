@@ -69,27 +69,27 @@ export function moveOutMatchesFilter(
   return moveOutItemBuckets(item).includes(filter);
 }
 
-export function buildMoveOutCommandStats(items: MoveOutPipelineItemClient[]): MoveOutCommandStats {
-  let needsAction = 0;
-  let waitingResident = 0;
-  let overdue = 0;
-  let refundsToSend = 0;
-  let completed = 0;
-  let pendingApproval = 0;
-  let activeCount = 0;
-
-  for (const item of items) {
-    const buckets = moveOutItemBuckets(item);
-    if (buckets.includes('needs_action')) needsAction += 1;
-    if (buckets.includes('waiting_resident')) waitingResident += 1;
-    if (buckets.includes('overdue')) overdue += 1;
-    if (buckets.includes('refunds_to_send')) refundsToSend += 1;
-    if (buckets.includes('completed')) completed += 1;
-    if (item.vacatingStatus === 'pending') pendingApproval += 1;
-    if (item.stage !== 'bed_released') activeCount += 1;
+function countForMoveOutFilter(
+  items: MoveOutPipelineItemClient[],
+  filter: MoveOutFilterBucket,
+): number {
+  if (filter === 'all') {
+    return items.filter((item) => item.stage !== 'bed_released').length;
   }
+  return items.filter((item) => moveOutMatchesFilter(item, filter)).length;
+}
 
-  return { needsAction, waitingResident, overdue, refundsToSend, completed, pendingApproval, activeCount };
+export function buildMoveOutCommandStats(items: MoveOutPipelineItemClient[]): MoveOutCommandStats {
+  const activeItems = items.filter((item) => item.stage !== 'bed_released');
+  return {
+    needsAction: countForMoveOutFilter(activeItems, 'needs_action'),
+    waitingResident: countForMoveOutFilter(activeItems, 'waiting_resident'),
+    overdue: countForMoveOutFilter(activeItems, 'overdue'),
+    refundsToSend: countForMoveOutFilter(activeItems, 'refunds_to_send'),
+    completed: countForMoveOutFilter(items, 'completed'),
+    pendingApproval: moveOutPendingApprovalItems(activeItems).length,
+    activeCount: activeItems.length,
+  };
 }
 
 export function moveOutPendingApprovalItems(

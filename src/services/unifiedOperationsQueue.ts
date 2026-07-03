@@ -14,13 +14,19 @@ import { listAdminElectricityInvoicesForReminders } from '@/src/db/queries/admin
 import { isActiveCheckoutSettlement } from '@/src/lib/residents/residentLifecycleState';
 import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import {
+  assertOperationsQueueParity,
+  buildOperationsQueueFilterCounts,
+  countOperationsQueueItems,
+  dedupeOperationsQueueItems,
+  filterOperationsQueueItems,
+} from '@/src/lib/operations/operationsQueueDefinition';
+import {
   defaultOperationsFilter,
   operationsFilterHref,
-  OPS_QUEUE_FILTERS,
-  OPS_QUEUE_LABELS,
   parseOperationsFilter,
   type OpsQueueFilter,
 } from '@/src/lib/operations/operationsFilterLinks';
+import { mapVacatingPipelineItemToOpsItem } from '@/src/lib/operations/operationsQueueVacating';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 import type { ResidentsQueueRow } from '@/src/lib/residents/residentOperationsResidentsView';
 import type { ResidentOpsQueueCategory } from '@/src/lib/residents/residentOperationsDashboard';
@@ -30,6 +36,7 @@ import {
 } from '@/src/services/operationsQueueDismissals';
 import { listPipelineCheckoutSettlements } from '@/src/services/checkoutSettlement';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
+import { loadMoveOutPipelineBundle } from '@/src/services/moveOutPipelineService';
 import { loadResidentOperationsResidentsPage } from '@/src/services/residentOperationsResidentsPage';
 
 export type UnifiedOpsOutstandingLine = {
@@ -172,44 +179,7 @@ function residentsRowToItem(row: ResidentsQueueRow): UnifiedOpsItem | null {
   }
 
   if (row.category === 'move_out') {
-    if (row.nextAction.toLowerCase().includes('waiting for resident')) return null;
-    if (row.primaryActionLabel === 'Refund of Deposit') {
-      return {
-        id: row.id,
-        queue: 'refund_due',
-        customerId: row.customerId,
-        residentName: row.residentName,
-        residentPhone: row.customerPhone,
-        pgId: row.pgId,
-        pgName: row.pgName,
-        roomNumber: row.roomNumber,
-        bedCode: row.bedCode,
-        reason: row.reason,
-        openHref: row.bookingId ? refundConsoleHref(row.bookingId) : row.primaryHref,
-        openLabel: 'Review refund',
-        category: 'refund',
-        bookingId: row.bookingId,
-        vacatingRequestId: row.vacatingRequestId,
-        statusLabel: 'Refund due',
-      };
-    }
-    return {
-      id: row.id,
-      queue: 'vacating_requests',
-      customerId: row.customerId,
-      residentName: row.residentName,
-      residentPhone: row.customerPhone,
-      pgId: row.pgId,
-      pgName: row.pgName,
-      roomNumber: row.roomNumber,
-      bedCode: row.bedCode,
-      reason: row.reason,
-      openHref: row.primaryHref,
-      openLabel: 'Review',
-      category: row.category,
-      bookingId: row.bookingId,
-      vacatingRequestId: row.vacatingRequestId,
-    };
+    return null;
   }
 
   if (row.category === 'rent_due' || row.category === 'rent_overdue') {
@@ -341,15 +311,6 @@ async function listPendingBookingApprovals(session: AdminSession) {
   );
 }
 
-function countByQueue(items: UnifiedOpsItem[]): Record<OpsQueueFilter, number> {
-  const counts = Object.fromEntries(OPS_QUEUE_FILTERS.map((id) => [id, 0])) as Record<
-    OpsQueueFilter,
-    number
-  >;
-  for (const item of items) counts[item.queue] += 1;
-  return counts;
-}
-
 export function parseUnifiedOpsFilter(value: string | undefined): OpsQueueFilter | null {
   return parseOperationsFilter(value);
 }
@@ -367,6 +328,7 @@ export async function loadUnifiedOperationsQueue(
     depositDueRows,
     elecPendingRes,
     checkoutSettlements,
+    moveOutBundle,
   ] = await Promise.all([
     loadResidentOperationsResidentsPage(session, null),
     listPendingBookingApprovals(session),
@@ -375,7 +337,12 @@ export async function loadUnifiedOperationsQueue(
     import('@/src/services/depositExpress').then((m) => m.listDepositDueBookings(session)),
     listAdminElectricityInvoicesForReminders(),
     listPipelineCheckoutSettlements(session),
+    loadMoveOutPipelineBundle(session, { syncSettlements: false }),
   ]);
+
+  const vacatingPgByRequestId = new Map(
+    moveOutBundle.vacatingRows.map((row) => [row.id, row.pgId]),
+  );
 
   const paymentReviews = rawPaymentReviews.filter(
     (p) =>
@@ -383,7 +350,7 @@ export async function loadUnifiedOperationsQueue(
       !isDismissedFromOperationsQueue(dismissalIndex, { customerId: p.customerId }),
   );
 
-  const items: UnifiedOpsItem[] = [];
+  let items: UnifiedOpsItem[] = [];
 
   for (const review of paymentReviews) {
     items.push(paymentReviewToItem(review));
@@ -426,8 +393,26 @@ export async function loadUnifiedOperationsQueue(
     items.push(electricityCollectionToItem(row));
   }
 
+  for (const pipelineItem of moveOutBundle.activeItems) {
+    if (
+      isDismissedFromOperationsQueue(dismissalIndex, {
+        customerId: pipelineItem.customerId,
+        bookingId: pipelineItem.bookingId,
+        vacatingRequestId: pipelineItem.vacatingRequestId,
+      })
+    ) {
+      continue;
+    }
+    const pgId = vacatingPgByRequestId.get(pipelineItem.vacatingRequestId) ?? null;
+    if (pgId && !adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, pgId)) {
+      continue;
+    }
+    const mapped = mapVacatingPipelineItemToOpsItem(pipelineItem, pgId);
+    if (mapped) items.push(mapped);
+  }
+
   for (const row of residentsPage.queue) {
-    if (row.category === 'electricity_due') continue;
+    if (row.category === 'electricity_due' || row.category === 'move_out') continue;
     const item = residentsRowToItem(row);
     if (item) items.push(item);
   }
@@ -483,16 +468,15 @@ export async function loadUnifiedOperationsQueue(
     });
   }
 
-  const counts = countByQueue(items);
+  items = dedupeOperationsQueueItems(items);
+
+  const counts = countOperationsQueueItems(items);
+  assertOperationsQueueParity(items, counts);
   const filter = filterInput ?? defaultOperationsFilter(counts);
 
-  const filtered = items.filter((item) => item.queue === filter);
+  const filtered = filterOperationsQueueItems(items, filter);
 
-  const filterCounts = OPS_QUEUE_FILTERS.map((id) => ({
-    id,
-    label: OPS_QUEUE_LABELS[id],
-    count: counts[id],
-  }));
+  const filterCounts = buildOperationsQueueFilterCounts(items);
 
   return {
     items: filtered,

@@ -12,6 +12,7 @@ import { getMoveOutPipelineSnapshot } from '@/src/services/moveOutPipelineServic
 import { listOpenActionItemsByType } from '@/src/services/actionItems';
 import { loadAdminVacatingPageData } from '@/src/lib/vacating/loadAdminVacatingPageData';
 import { loadResidentOperationsResidentsPage } from '@/src/services/residentOperationsResidentsPage';
+import { loadUnifiedOperationsQueue } from '@/src/services/unifiedOperationsQueue';
 import { getPaymentReviewIntegrityReport } from '@/src/services/paymentReviewIntegrity';
 import { listPipelineCheckoutSettlements } from '@/src/services/checkoutSettlement';
 import { getOpenActionsCount } from '@/src/services/unresolvedActions';
@@ -68,6 +69,8 @@ export async function runCounterParityAudit(
     moveOutPipeline,
     vacatingPage,
     vacatingActionItems,
+    unifiedOpsQueue,
+    unifiedOpsAll,
   ] = await Promise.all([
     getPaymentReviewIntegrityReport(session),
     getOperationsCenterData(session),
@@ -79,6 +82,8 @@ export async function runCounterParityAudit(
     getMoveOutPipelineSnapshot(session),
     loadAdminVacatingPageData(session),
     listOpenActionItemsByType(session, 'vacating_alert'),
+    loadUnifiedOperationsQueue(session, 'vacating_requests'),
+    loadUnifiedOperationsQueue(session, null),
   ]);
 
   const checkoutRefundsDest = checkoutSettlements.filter(
@@ -94,7 +99,9 @@ export async function runCounterParityAudit(
   const vacatingModuleCount = moveOutPipeline.approvalItems.length;
   const pipelineCount = moveOutPipeline.counts.moveOutNotices;
   const vacatingBadgeCount = vacatingActionItems.length;
-  const operationsMoveOutCount = opsPage.commandCards.find((c) => c.id === 'move_out')?.count ?? 0;
+  const operationsMoveOutFromUnified = unifiedOpsQueue.items.length;
+  const operationsMoveOutBadge =
+    unifiedOpsQueue.filterCounts.find((c) => c.id === 'vacating_requests')?.count ?? 0;
 
   const rows: CounterParityRow[] = [
     {
@@ -161,11 +168,20 @@ export async function runCounterParityAudit(
       matches: pipelineCount === vacatingModuleCount,
     },
     {
-      metric: 'Move-out notices (Operations queue)',
-      overviewValue: pipelineCount,
-      destinationValue: operationsMoveOutCount,
-      destination: 'residentOperationsDashboard move_out bucket',
-      matches: pipelineCount === operationsMoveOutCount,
+      metric: 'Move-out (Operations queue rows)',
+      overviewValue: operationsMoveOutFromUnified,
+      destinationValue: operationsMoveOutBadge,
+      destination: 'loadUnifiedOperationsQueue vacating_requests badge',
+      matches: operationsMoveOutFromUnified === operationsMoveOutBadge,
+    },
+    {
+      metric: 'Move-out (Operations command card)',
+      overviewValue: operationsMoveOutFromUnified,
+      destinationValue: opsPage.commandCards.find((c) => c.id === 'move_out')?.count ?? 0,
+      destination: 'residentOperationsResidentsPage move_out card',
+      matches:
+        operationsMoveOutFromUnified ===
+        (opsPage.commandCards.find((c) => c.id === 'move_out')?.count ?? 0),
     },
     {
       metric: 'Move-out notices (vacating_alert action items)',
@@ -189,11 +205,11 @@ export async function runCounterParityAudit(
       matches: moveOutPipeline.counts.bedsReleasing30Days === opsCenter.bedsReleasingSoon.count,
     },
     {
-      metric: 'Operations queue',
+      metric: 'Operations queue total',
       overviewValue: navBadges.operations ?? 0,
-      destinationValue: opsPage.allQueueCount,
-      destination: 'loadResidentOperationsResidentsPage.allQueueCount',
-      matches: (navBadges.operations ?? 0) === opsPage.allQueueCount,
+      destinationValue: unifiedOpsAll.totalCount,
+      destination: 'loadUnifiedOperationsQueue.totalCount',
+      matches: (navBadges.operations ?? 0) === unifiedOpsAll.totalCount,
     },
     {
       metric: 'Overview badge total',

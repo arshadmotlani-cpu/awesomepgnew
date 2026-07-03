@@ -256,26 +256,22 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-03 09:38:04 UTC
+### Pending pre-commit sync · 2026-07-03 09:56:20 UTC
 
-**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Electricity]]
+**Areas touched:** [[Vacating]], [[Residents]]
 
 **Docs flagged for review:**
-- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DATABASE.md` — review for accuracy
+- `DECISIONS.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
-- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (6):**
-- `app/(admin)/admin/refunds/actions.ts`
-- `src/db/migrations/0098_electricity_contribution_occupancy.sql`
-- `src/db/schema/electricityRoomContributions.ts`
-- `src/lib/billing/electricityBillBreakdownPure.ts`
-- `src/lib/billing/electricityBillBreakdownTypes.ts`
-- `src/services/electricityBilling.ts`
+**Staged code files (4):**
+- `src/lib/moveOut/moveOutPipelineUi.ts`
+- `src/lib/residents/residentOperationsDashboard.ts`
+- `src/lib/residents/residentOperationsResidentsView.ts`
+- `src/services/residentOperationsDashboard.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

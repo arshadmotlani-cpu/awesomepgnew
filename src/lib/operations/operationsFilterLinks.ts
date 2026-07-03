@@ -17,7 +17,7 @@ export const OPS_QUEUE_LABELS: Record<OpsQueueFilter, string> = {
   waiting_for_approval: 'Waiting for approval',
   rent_due: 'Rent due',
   electricity_due: 'Electricity due',
-  vacating_requests: 'Vacating requests',
+  vacating_requests: 'Move-out',
   refund_due: 'Refund due',
   booking_approval: 'Booking approval',
   deposit_due: 'Deposit due',
