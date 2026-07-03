@@ -2,6 +2,7 @@ import {
   type AdminElectricityInvoiceReminderRow,
   type AdminRentInvoiceRow,
 } from '@/src/db/queries/admin';
+import type { AdminSession } from '@/src/lib/auth/session';
 import { operationsFilterHref } from '@/src/lib/operations/operationsFilterLinks';
 import { BILLING_INVOICE_REVIEW_HREF } from '@/src/lib/approvals/approvalRegistry';
 import { buildCollectionsQueue } from '@/src/lib/billing/collectionsQueue';

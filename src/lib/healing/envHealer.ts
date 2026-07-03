@@ -18,6 +18,11 @@ function isProduction(): boolean {
   );
 }
 
+/** True only on the live Vercel production deployment — not preview, CI, or local prod builds. */
+function isVercelProductionDeployment(): boolean {
+  return process.env.VERCEL_ENV === 'production';
+}
+
 function hasAuthSecret(): boolean {
   const v = process.env.AUTH_SECRET?.trim();
   if (!v) return false;
@@ -64,9 +69,9 @@ export function checkRequiredEnv(): EnvCheckResult {
   return { ok, missing, degradedFeatures };
 }
 
-/** Throws in production when critical secrets or payment config are missing or insecure. */
+/** Throws on Vercel production when critical secrets or payment config are missing or insecure. */
 export function assertProductionBootSecrets(): void {
-  if (!isProduction()) return;
+  if (!isVercelProductionDeployment()) return;
 
   const missing: string[] = [];
 

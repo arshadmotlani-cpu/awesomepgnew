@@ -30,13 +30,24 @@ describe('assertProductionBootSecrets', () => {
 
   afterEach(() => restoreEnv(keys));
 
-  it('no-ops outside production', () => {
+  it('no-ops outside Vercel production', () => {
     saveEnv(keys);
     process.env.NODE_ENV = 'development';
     assert.doesNotThrow(() => assertProductionBootSecrets());
   });
 
-  it('throws when production is missing critical secrets', () => {
+  it('no-ops when NODE_ENV is production but deployment is preview or CI', () => {
+    saveEnv(keys);
+    process.env.NODE_ENV = 'production';
+    process.env.VERCEL_ENV = 'preview';
+    delete process.env.CRON_SECRET;
+    assert.doesNotThrow(() => assertProductionBootSecrets());
+
+    process.env.VERCEL_ENV = undefined;
+    assert.doesNotThrow(() => assertProductionBootSecrets());
+  });
+
+  it('throws when Vercel production is missing critical secrets', () => {
     saveEnv(keys);
     process.env.NODE_ENV = 'production';
     process.env.VERCEL_ENV = 'production';
