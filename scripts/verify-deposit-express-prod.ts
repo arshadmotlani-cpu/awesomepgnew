@@ -41,15 +41,24 @@ async function main() {
 
   const query = process.env.DEPOSIT_EXPRESS_SEARCH_QUERY ?? 'harshal';
   await page.getByPlaceholder('Start typing…').fill(query);
-  await page.waitForTimeout(900);
-  if ((await page.locator('ul button').count()) === 0) {
+  await page.waitForTimeout(1000);
+
+  const resultBtn = page
+    .locator('[data-deposit-express-workspace] ul button')
+    .filter({ hasText: query.split(' ')[0] ?? query })
+    .first();
+  if ((await resultBtn.count()) === 0 && (await page.locator('[data-deposit-express-workspace] ul button').count()) === 0) {
     console.log('No search results — set DEPOSIT_EXPRESS_SEARCH_QUERY');
     await browser.close();
     return;
   }
 
-  await page.locator('ul button').first().click();
-  await page.waitForTimeout(8000);
+  if ((await resultBtn.count()) > 0) {
+    await resultBtn.click();
+  } else {
+    await page.locator('[data-deposit-express-workspace] ul button').first().click();
+  }
+  await page.waitForTimeout(10000);
 
   const body = await page.locator('body').innerText();
   if (body.includes('This page could not load')) {
@@ -57,19 +66,17 @@ async function main() {
     console.error(body.slice(0, 800));
     process.exit(1);
   }
-  if (!(await page.getByText('Required deposit').isVisible())) {
+  if (!(await page.getByText('Record deposit').isVisible())) {
     console.error(body.slice(0, 1200));
     throw new Error('Deposit Express workspace did not open');
   }
 
-  const bookingId = new URL(page.url()).searchParams.get('booking');
-  if (bookingId) {
-    await page.goto(`${BASE}/admin/deposit-express?booking=${bookingId}`, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(5000);
-    const body2 = await page.locator('body').innerText();
-    if (body2.includes('This page could not load') || !(await page.getByText('Required deposit').isVisible())) {
-      throw new Error('Deep link ?booking= failed');
-    }
+  const bookingId = new URL(page.url()).searchParams.get('booking') ?? '090692ca-71a6-44ab-9f11-9dbdc9366114';
+  await page.goto(`${BASE}/admin/deposit-express?booking=${bookingId}`, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(5000);
+  const body2 = await page.locator('body').innerText();
+  if (body2.includes('This page could not load') || !(await page.getByText('Record deposit').isVisible())) {
+    throw new Error('Deep link ?booking= failed');
   }
 
   console.log('✓ Deposit Express flow OK');
