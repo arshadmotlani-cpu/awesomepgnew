@@ -652,6 +652,20 @@
       "when": 1791200000000,
       "tag": "0096_deduction_category",
       "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 1791250000000,
+      "tag": "0097_electricity_room_contributions",
+      "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
+      "when": 1791300000000,
+      "tag": "0098_electricity_contribution_occupancy",
+      "breakpoints": true
     }
   ]
 }
