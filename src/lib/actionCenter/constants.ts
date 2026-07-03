@@ -27,6 +27,7 @@ export const ACTION_ITEM_GROUP_LABELS: Record<ActionItemType, string> = {
   financial_audit_review: 'Financial Audit',
   fixed_stay_checkout_due: 'Fixed Stay Checkouts',
   refund_request_submitted: 'Refund Requests Submitted',
+  booking_approval: 'Booking Approval',
 };
 
 export const ACTION_ITEM_GROUP_ORDER: ActionItemType[] = [
@@ -43,6 +44,7 @@ export const ACTION_ITEM_GROUP_ORDER: ActionItemType[] = [
   'kyc_pending',
   'vacating_alert',
   'maintenance_issue',
+  'booking_approval',
 ];
 
 export type ActionItemMetadata = {
@@ -54,6 +56,7 @@ export type ActionItemMetadata = {
   roomNumber?: string;
   bedCode?: string;
   bookingId?: string;
+  bookingCode?: string;
   invoiceId?: string;
   submissionId?: string;
   vacatingRequestId?: string;

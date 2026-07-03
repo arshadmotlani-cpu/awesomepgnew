@@ -118,5 +118,8 @@ test('buildOperationsTasks uses stable unique ids', () => {
   );
   assert.equal(tasks.length, 1);
   assert.equal(tasks[0]!.id, 'pay-qr-1');
-  assert.equal(tasks[0]!.href, OPERATIONS_CENTER_CARD_ROUTES.pendingPayments);
+  assert.equal(
+    tasks[0]!.href,
+    '/admin/operations?filter=waiting_for_approval&focus=qr-1',
+  );
 });
