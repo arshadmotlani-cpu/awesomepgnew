@@ -23,6 +23,11 @@ export default defineConfig({
           url: 'http://localhost:3000',
           reuseExistingServer: false,
           timeout: 300_000,
+          env: {
+            ...process.env,
+            NODE_ENV: 'production',
+            SKIP_MIGRATION_CHECK: 'true',
+          },
         }
       : {
           command: 'npm run dev',

@@ -11,7 +11,14 @@ run_migrate() {
 }
 
 if has_db_url; then
-  run_migrate
+  if [[ "${VERCEL_ENV:-}" == "preview" ]]; then
+    if ! run_migrate; then
+      echo "⚠ Preview: db:migrate failed — continuing build so the PR preview can still deploy."
+      echo "  Fix migrations on a branch or run db:migrate against preview DB manually."
+    fi
+  else
+    run_migrate
+  fi
 elif [[ "${VERCEL_ENV:-}" == "preview" ]]; then
   echo "⚠ Preview: DATABASE_URL not set — skipping db:migrate (UI preview only)."
   echo "  Add DATABASE_URL to Vercel → Settings → Environment Variables → Preview for full API/DB behavior."
