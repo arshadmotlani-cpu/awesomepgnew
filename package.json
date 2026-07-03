@@ -16,6 +16,8 @@
     "db:seed": "tsx src/db/seed.ts",
     "db:reset": "tsx src/db/reset.ts",
     "db:studio": "drizzle-kit studio",
+    "neon:cleanup-branches": "tsx scripts/cleanup-neon-preview-branches.ts",
+    "neon:cleanup-branches:execute": "tsx scripts/cleanup-neon-preview-branches.ts --execute",
     "test": "npx tsx scripts/lint-image-uploads.ts && npx tsx scripts/lint-private-blob-display.ts && node scripts/run-unit-tests.mjs",
     "test:ci": "npx tsx scripts/lint-image-uploads.ts && npx tsx scripts/lint-private-blob-display.ts && TEST_CONCURRENCY=1 node scripts/run-unit-tests.mjs",
     "lint:uploads": "tsx scripts/lint-image-uploads.ts",

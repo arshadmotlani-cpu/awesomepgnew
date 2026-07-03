@@ -1,0 +1,62 @@
+name: Neon preview branch cleanup
+
+on:
+  schedule:
+    # Daily — prune stale Vercel/Neon preview DB branches before branch limit blocks deploys
+    - cron: '15 5 * * *'
+  pull_request:
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry-run only (report branches without deleting)'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: neon-preview-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup-stale-branches:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --include=dev
+
+      - name: Cleanup stale Neon / Vercel preview branches
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.dry_run }}" = "true" ]; then
+            npx tsx scripts/cleanup-neon-preview-branches.ts
+          else
+            npx tsx scripts/cleanup-neon-preview-branches.ts --execute
+          fi
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+          NEON_BRANCH_RETENTION_DAYS: ${{ vars.NEON_BRANCH_RETENTION_DAYS || '7' }}
+          NEON_BRANCH_HEADROOM: ${{ vars.NEON_BRANCH_HEADROOM || '2' }}
+          NEON_MAX_BRANCHES: ${{ vars.NEON_MAX_BRANCHES }}
+
+  delete-pr-preview-branch:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete Neon branch for closed PR
+        uses: neondatabase/delete-branch-action@v3
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          branch: ${{ github.head_ref }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+        continue-on-error: true

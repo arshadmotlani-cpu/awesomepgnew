@@ -40,6 +40,43 @@ MOCK_WEBHOOK_SECRET=...
 | Local | `npm run build` |
 | Vercel | `vercel-build` → `npm run db:migrate && next build` |
 
+## Neon preview branch cleanup (Vercel + Neon integration)
+
+Vercel preview deploys create a Neon database branch per PR. When the Neon **branch limit** is reached, new previews fail at **Provisioning Integrations** with `Branch limit reached`.
+
+### One-time setup (GitHub)
+
+| Secret / variable | Where to get it |
+|-------------------|-----------------|
+| `NEON_API_KEY` (secret) | Neon console → Account → API keys |
+| `NEON_PROJECT_ID` (variable) | Neon console → Project → Settings |
+| `VERCEL_TOKEN` (secret, optional) | Vercel → Account → Tokens |
+| `VERCEL_PROJECT_ID` (variable, optional) | Vercel project → Settings → General |
+| `NEON_MAX_BRANCHES` (variable, optional) | Your Neon plan limit (e.g. `10`) |
+
+### Immediate cleanup (branch limit hit now)
+
+```bash
+# Dry-run — lists branches that would be deleted
+NEON_API_KEY=... NEON_PROJECT_ID=... npm run neon:cleanup-branches
+
+# Delete stale preview branches (+ optional stale Vercel preview deployments)
+NEON_API_KEY=... NEON_PROJECT_ID=... VERCEL_TOKEN=... VERCEL_PROJECT_ID=... \
+  npm run neon:cleanup-branches:execute
+```
+
+Or trigger **Actions → Neon preview branch cleanup → Run workflow** (deletes by default).
+
+### Automatic cleanup (included in repo)
+
+| Trigger | Behavior |
+|---------|----------|
+| Daily GitHub Action (`05:15 UTC`) | Deletes preview branches older than 7 days and keeps 2 branch slots free |
+| PR closed | Deletes the Neon branch named after the PR head branch |
+| `GET/POST /api/cron/cleanup-neon-preview-branches` | Same logic on production (requires `CRON_SECRET`, `NEON_API_KEY`, `NEON_PROJECT_ID`) |
+
+Tune retention via `NEON_BRANCH_RETENTION_DAYS`, `NEON_BRANCH_HEADROOM`, `NEON_MAX_BRANCHES`.
+
 ## Post-deploy ops (production DB + crons)
 
 Neon-linked `DATABASE_URL` values are **not** exported by `vercel env pull` — use Neon dashboard or Vercel runtime.
