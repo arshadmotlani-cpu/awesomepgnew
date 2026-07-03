@@ -70,7 +70,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: E2E smoke tests
-        run: npm run test:e2e
+        run: npm run test:e2e:ci
         env:
           CI: 'true'
           AUTH_SECRET: ci-build-auth-secret-min-32-chars-long

@@ -21,6 +21,7 @@
     "lint:uploads": "tsx scripts/lint-image-uploads.ts",
     "lint:private-blobs": "tsx scripts/lint-private-blob-display.ts",
     "test:e2e": "playwright test",
+    "test:e2e:ci": "playwright test tests/e2e/smoke.spec.ts",
     "prepare": "bash scripts/install-git-hooks.sh",
     "docs:sync": "tsx scripts/sync-docs-pre-commit.ts",
     "docs:check": "tsx scripts/sync-docs-pre-commit.ts --check",
