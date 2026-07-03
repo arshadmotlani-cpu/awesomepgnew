@@ -13,7 +13,7 @@ import type { DepositPortfolioMetrics } from '@/src/services/depositLedgerMetric
 import type { AdminSession } from '@/src/lib/auth/session';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import type { PendingPaymentReviewItem } from '@/src/services/paymentProofQueue';
-import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
+import { loadApprovalQueueSnapshot } from '@/src/services/approvalService';
 import {
   computeOutstandingMoneyFromInvoices,
   loadCollectionsSnapshot,
@@ -70,8 +70,10 @@ export type RevenueCommandCenterData = {
 export type RevenueCommandCenterInput = {
   billingMonth?: string;
   session: AdminSession;
-  summary: BusinessMetricsSummary;
-  pgMetrics: PgBusinessMetrics[];
+  /** @deprecated Unused — revenue loads from financialMetricsEngine directly. */
+  summary?: BusinessMetricsSummary;
+  /** @deprecated Unused — revenue loads from getPgFinancialMetrics directly. */
+  pgMetrics?: PgBusinessMetrics[];
   /** Pre-loaded invoice snapshot — avoids duplicate DB round-trips from Overview. */
   invoiceSnapshot?: InvoiceOutstandingSnapshot;
 };
@@ -153,14 +155,14 @@ export async function getRevenueCommandCenterData(
 ): Promise<RevenueCommandCenterData> {
   const billingMonth = resolveBillingMonth(input.billingMonth);
 
-  const [collections, depositRows, depositSummaries, pendingPayments, invoiceSnapshot, depositPortfolio, collectionsByModeResult, pgFinancial] =
+  const [collections, depositRows, depositSummaries, approvalSnapshot, invoiceSnapshot, depositPortfolio, collectionsByModeResult, pgFinancial] =
     await Promise.all([
     loadCollectionsSnapshot(billingMonth),
     getDepositCollectedByPgForBillingMonth(billingMonth),
     import('@/src/services/pgDepositCollection').then((m) =>
       m.getAllPgDepositCollectionSummaries(billingMonth),
     ),
-    listPendingPaymentReviews(input.session),
+    loadApprovalQueueSnapshot(input.session),
     input.invoiceSnapshot
       ? Promise.resolve(input.invoiceSnapshot)
       : loadInvoiceOutstandingSnapshot(input.session),
@@ -198,6 +200,7 @@ export async function getRevenueCommandCenterData(
   const mtd = collections.mtd;
   const byPg = buildByPgRows(pgFinancial, depositByPg, depositCountsByPg);
 
+  const pendingPayments = approvalSnapshot.visiblePaymentReviews;
   const invoiceOutstanding = computeOutstandingMoneyFromInvoices(invoiceSnapshot);
   const outstanding = buildOutstandingFromSsot(
     invoiceOutstanding,

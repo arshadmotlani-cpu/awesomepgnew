@@ -1,8 +1,7 @@
 import Link from 'next/link';
 import { OperationsOpsRowActions } from '@/src/components/admin/operations/OperationsOpsRowActions';
 import { OperationsWaitingForApprovalTable } from '@/src/components/admin/operations/OperationsWaitingForApprovalTable';
-import { operationsFilterHref } from '@/src/lib/operations/operationsFilterLinks';
-import type { OpsQueueFilter } from '@/src/lib/operations/operationsFilterLinks';
+import { OPS_QUEUE_LABELS, operationsFilterHref, type OpsQueueFilter } from '@/src/lib/operations/operationsFilterLinks';
 import type { UnifiedOpsItem, UnifiedOperationsQueue } from '@/src/services/unifiedOperationsQueue';
 import { paiseToInr } from '@/src/lib/format';
 import { billingMonthLabel } from '@/src/lib/billing/invoiceCollectionWhatsApp';
@@ -34,11 +33,7 @@ export function OperationsMasterQueue({
   if (activeFilter === 'waiting_for_approval') {
     return (
       <div className="space-y-8">
-        <QueueHeader
-          activeFilter={activeFilter}
-          filterCounts={data.filterCounts}
-          itemCount={data.items.length}
-        />
+        <QueueHeader activeFilter={activeFilter} filterCounts={data.filterCounts} />
         <OperationsWaitingForApprovalTable
           items={data.paymentReviews}
           focusKey={data.focusReviewKey}
@@ -49,11 +44,7 @@ export function OperationsMasterQueue({
 
   return (
     <div className="space-y-8">
-      <QueueHeader
-        activeFilter={activeFilter}
-        filterCounts={data.filterCounts}
-        itemCount={data.items.length}
-      />
+      <QueueHeader activeFilter={activeFilter} filterCounts={data.filterCounts} />
 
       {data.items.length === 0 ? (
         <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-8 py-16 text-center">
@@ -147,12 +138,13 @@ function columnLabel(col: ColumnKey, filter: OpsQueueFilter): string {
 function QueueHeader({
   activeFilter,
   filterCounts,
-  itemCount,
 }: {
   activeFilter: OpsQueueFilter;
   filterCounts: UnifiedOperationsQueue['filterCounts'];
-  itemCount: number;
 }) {
+  const activeCount = filterCounts.find((c) => c.id === activeFilter)?.count ?? 0;
+  const activeLabel = OPS_QUEUE_LABELS[activeFilter];
+
   return (
     <>
       <section className="rounded-2xl border border-white/10 bg-[#1A1F27] px-6 py-6">
@@ -162,9 +154,9 @@ function QueueHeader({
           not a separate queue.
         </p>
         <p className="mt-3 text-sm font-medium text-white">
-          {itemCount === 0
-            ? 'All clear in this queue.'
-            : `${itemCount} item${itemCount === 1 ? '' : 's'} requiring action`}
+          {activeCount === 0
+            ? `All clear — nothing in ${activeLabel.toLowerCase()}.`
+            : `${activeCount} item${activeCount === 1 ? '' : 's'} in ${activeLabel.toLowerCase()}`}
         </p>
       </section>
 

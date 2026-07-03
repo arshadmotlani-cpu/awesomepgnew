@@ -6,6 +6,10 @@
 
 ---
 
+## 2026-07-03
+
+- **Approval pipeline SSOT:** Payment proofs must flow `listPendingPaymentReviews` → `action_items` (`paymentReviewKey`) → notifications (`finalizeApprovalNotificationDeepLink`) → Operations WFA queue. Never deep-link payment proofs to Billing Centre or use independent header counts per filter.
+
 ## 2026-06-22
 
 - **Nested Git repos:** App repo (`awesomepg`) and docs vault (`docs/.git`) can coexist; parent may show `docs/` as modified — use separate GitHub remote for vault sync

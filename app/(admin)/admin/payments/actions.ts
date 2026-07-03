@@ -3,18 +3,18 @@
 import { revalidatePath } from 'next/cache';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import type { OverpaymentDisposition } from '@/src/lib/operations/paymentReviewTypes';
-import { approveExtensionPaymentProof, rejectExtensionPaymentProof } from '@/src/services/extension';
-import {
-  approveElectricityPaymentProof,
-  rejectElectricityPaymentProof,
-} from '@/src/services/meterElectricity';
-import { approveRentPaymentProof, rejectRentPaymentProof } from '@/src/services/rentInvoices';
-import {
-  approveDepositLinkPaymentProof,
-  rejectDepositLinkPaymentProof,
-} from '@/src/services/residentCharges';
+import { approveExtensionPaymentProof } from '@/src/services/extension';
+import { approveElectricityPaymentProof } from '@/src/services/meterElectricity';
+import { approveRentPaymentProof } from '@/src/services/rentInvoices';
+import { approveDepositLinkPaymentProof } from '@/src/services/residentCharges';
 import { reviewPaymentRecord } from '@/src/services/qrPayments';
 import { getNextPendingPaymentReviewKey } from '@/src/services/paymentProofQueue';
+import {
+  rejectPaymentProof,
+  reviewKindToEntityType,
+} from '@/src/services/paymentProofRejectionService';
+import type { PaymentProofRejectionReasonCode } from '@/src/lib/approvals/paymentProofRejectionReasons';
+import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 
 const PAYMENT_REVIEW_PATH = '/admin/operations?filter=waiting_for_approval';
 
@@ -87,15 +87,47 @@ export async function approvePartialQrPaymentAction(
   return { ok: true as const };
 }
 
-export async function rejectQrPaymentAction(
-  recordId: string,
-  pgId: string,
-  currentKey?: string,
-) {
+export type RejectPaymentProofActionInput = {
+  reviewKey: string;
+  kind: PendingPaymentReviewItem['kind'];
+  entityId: string;
+  pgId: string;
+  reasonCode: PaymentProofRejectionReasonCode;
+  reasonDetail?: string;
+  adminNote?: string;
+  residentMessage: string;
+  sendWhatsApp: boolean;
+};
+
+export async function rejectPaymentProofAction(
+  input: RejectPaymentProofActionInput,
+): Promise<
+  | { ok: true; nextKey?: string | null; whatsappUrl?: string }
+  | { ok: false; message: string }
+> {
   const session = await requireAdminPermission('payments:write');
-  await reviewPaymentRecord(session, recordId, 'rejected');
-  revalidatePaymentReviewSurfaces(pgId);
-  return withNextReviewKey(session, currentKey, { ok: true });
+  const entityType = reviewKindToEntityType(input.kind);
+  const result = await rejectPaymentProof(session, {
+    reviewKey: input.reviewKey,
+    entityType,
+    entityId: input.entityId,
+    reasonCode: input.reasonCode,
+    reasonDetail: input.reasonDetail,
+    adminNote: input.adminNote,
+    residentMessage: input.residentMessage,
+    sendWhatsApp: input.sendWhatsApp,
+  });
+  if (!result.ok) return result;
+  revalidatePaymentReviewSurfaces(input.pgId);
+  if (input.kind === 'rent') revalidatePath('/admin/rent');
+  if (input.kind === 'electricity') revalidatePath('/admin/electricity');
+  if (input.kind === 'extension') revalidatePath('/admin/bookings');
+  if (input.kind === 'deposit_link') {
+    revalidatePath('/admin/collections');
+    revalidatePath('/admin/residents');
+  }
+  const nextKey = await getNextPendingPaymentReviewKey(session, input.reviewKey);
+  return { ok: true, nextKey, whatsappUrl: result.whatsappUrl };
 }
 
 export async function approveRentProofAction(
@@ -105,20 +137,6 @@ export async function approveRentProofAction(
 ) {
   const session = await requireAdminPermission('payments:write');
   const result = await approveRentPaymentProof(session, invoiceId);
-  if (!result.ok) return result;
-  revalidatePath('/admin/rent');
-  revalidatePaymentReviewSurfaces(pgId);
-  return withNextReviewKey(session, currentKey, { ok: true });
-}
-
-export async function rejectRentProofAction(
-  invoiceId: string,
-  pgId: string,
-  reason?: string,
-  currentKey?: string,
-) {
-  const session = await requireAdminPermission('payments:write');
-  const result = await rejectRentPaymentProof(session, invoiceId, reason);
   if (!result.ok) return result;
   revalidatePath('/admin/rent');
   revalidatePaymentReviewSurfaces(pgId);
@@ -138,20 +156,6 @@ export async function approveElectricityProofAction(
   return withNextReviewKey(session, currentKey, { ok: true });
 }
 
-export async function rejectElectricityProofAction(
-  invoiceId: string,
-  pgId: string,
-  reason?: string,
-  currentKey?: string,
-) {
-  const session = await requireAdminPermission('payments:write');
-  const result = await rejectElectricityPaymentProof(session, invoiceId, reason);
-  if (!result.ok) return result;
-  revalidatePath('/admin/electricity');
-  revalidatePaymentReviewSurfaces(pgId);
-  return withNextReviewKey(session, currentKey, { ok: true });
-}
-
 export async function approveExtensionProofAction(
   extensionId: string,
   pgId: string,
@@ -165,19 +169,6 @@ export async function approveExtensionProofAction(
   return withNextReviewKey(session, currentKey, { ok: true });
 }
 
-export async function rejectExtensionProofAction(
-  extensionId: string,
-  pgId: string,
-  currentKey?: string,
-) {
-  const session = await requireAdminPermission('payments:write');
-  const result = await rejectExtensionPaymentProof(session, extensionId);
-  if (!result.ok) return result;
-  revalidatePath('/admin/bookings');
-  revalidatePaymentReviewSurfaces(pgId);
-  return withNextReviewKey(session, currentKey, { ok: true });
-}
-
 export async function approveDepositLinkProofAction(
   linkId: string,
   pgId: string,
@@ -185,20 +176,6 @@ export async function approveDepositLinkProofAction(
 ) {
   const session = await requireAdminPermission('payments:write');
   const result = await approveDepositLinkPaymentProof(session, linkId);
-  if (!result.ok) return result;
-  revalidatePath('/admin/collections');
-  revalidatePath('/admin/residents');
-  revalidatePaymentReviewSurfaces(pgId);
-  return withNextReviewKey(session, currentKey, { ok: true });
-}
-
-export async function rejectDepositLinkProofAction(
-  linkId: string,
-  pgId: string,
-  currentKey?: string,
-) {
-  const session = await requireAdminPermission('payments:write');
-  const result = await rejectDepositLinkPaymentProof(session, linkId);
   if (!result.ok) return result;
   revalidatePath('/admin/collections');
   revalidatePath('/admin/residents');

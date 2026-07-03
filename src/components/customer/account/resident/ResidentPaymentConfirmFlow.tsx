@@ -16,6 +16,8 @@ type Props = {
   upiId?: string | null;
   existingProofUrl?: string | null;
   proofViewHref?: string;
+  rejectionReason?: string | null;
+  rejectionMessage?: string | null;
   uploadScreenshot: (formData: FormData) => Promise<string>;
   submitProof: (args: { screenshotUrl: string; transactionRef?: string }) => Promise<SubmitResult>;
   successChecklist: string[];
@@ -36,26 +38,49 @@ export function ResidentPaymentConfirmFlow({
   upiId,
   existingProofUrl,
   proofViewHref,
+  rejectionReason,
+  rejectionMessage,
   uploadScreenshot,
   submitProof,
   successChecklist,
   backHref,
 }: Props) {
-  const [step, setStep] = useState<Step>(existingProofUrl ? 'success' : 'confirm');
+  const [step, setStep] = useState<Step>(
+    existingProofUrl && !rejectionReason ? 'success' : 'confirm',
+  );
+
+  const rejectionBanner =
+    rejectionReason || rejectionMessage ? (
+      <div className="mb-6 rounded-xl border border-rose-400/40 bg-rose-500/10 px-4 py-4 text-sm text-rose-100">
+        <p className="font-semibold text-rose-200">Payment rejected</p>
+        {rejectionReason ? (
+          <p className="mt-2">
+            <span className="font-medium">Reason:</span> {rejectionReason}
+          </p>
+        ) : null}
+        {rejectionMessage ? <p className="mt-2 text-apg-silver">{rejectionMessage}</p> : null}
+        <p className="mt-3 text-xs text-rose-100/90">Please upload a new payment screenshot below.</p>
+      </div>
+    ) : null;
 
   if (step === 'success') {
     return (
-      <ResidentPaymentSuccess
+      <>
+        {rejectionBanner}
+        <ResidentPaymentSuccess
         amountLabel={amountLabel}
         checklist={successChecklist}
         backHref={backHref}
       />
+      </>
     );
   }
 
   if (step === 'confirm') {
     return (
-      <ConfirmationGate
+      <>
+        {rejectionBanner}
+        <ConfirmationGate
         title="Confirm payment"
         message={confirmMessage}
         confirmLabel="Confirm payment"
@@ -65,11 +90,14 @@ export function ResidentPaymentConfirmFlow({
           if (typeof window !== 'undefined') window.history.back();
         }}
       />
+      </>
     );
   }
 
   return (
-    <UpiPaymentProofForm
+    <>
+      {rejectionBanner}
+      <UpiPaymentProofForm
       variant="light"
       amountLabel={amountLabel}
       instructions={instructions}
@@ -86,5 +114,6 @@ export function ResidentPaymentConfirmFlow({
       doneMessage=""
       heading="Pay with UPI"
     />
+    </>
   );
 }

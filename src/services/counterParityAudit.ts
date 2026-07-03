@@ -2,21 +2,16 @@
  * Counter parity — Overview metric cards must match destination page totals.
  */
 
+import { OPS_QUEUE_FILTERS, type OpsQueueFilter } from '@/src/lib/operations/operationsFilterLinks';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
-import { buildOverviewDashboard } from '@/src/services/overviewDashboard';
+import { buildOverviewDashboard, findOverviewMetricValue } from '@/src/services/overviewDashboard';
 import { loadOverviewContext } from '@/src/services/overviewData';
 import { loadAdminNavBadges } from '@/src/services/adminNavBadges';
-import { getOperationsCenterData } from '@/src/services/operationsCenter';
+import { loadApprovalCounts } from '@/src/services/approvalService';
+import { loadBillingCommandCenterSnapshot } from '@/src/services/billingCommandCenter';
 import { getMoveOutPipelineSnapshot } from '@/src/services/moveOutPipelineService';
-import { listOpenActionItemsByType } from '@/src/services/actionItems';
-import { loadAdminVacatingPageData } from '@/src/lib/vacating/loadAdminVacatingPageData';
-import { loadResidentOperationsResidentsPage } from '@/src/services/residentOperationsResidentsPage';
 import { loadUnifiedOperationsQueue } from '@/src/services/unifiedOperationsQueue';
-import { getPaymentReviewIntegrityReport } from '@/src/services/paymentReviewIntegrity';
-import { listPipelineCheckoutSettlements } from '@/src/services/checkoutSettlement';
-import { getOpenActionsCount } from '@/src/services/unresolvedActions';
-import { isStaleZeroRefundSettlement } from '@/src/lib/residents/checkoutOpsQueueCopy';
 
 export type CounterParityRow = {
   metric: string;
@@ -32,16 +27,16 @@ export type CounterParityReport = {
   summary: string;
 };
 
-function findMetricCount(
-  dashboard: ReturnType<typeof buildOverviewDashboard>,
-  id: string,
-): number | null {
-  for (const section of dashboard.sections) {
-    const m = section.metrics.find((x) => x.id === id && x.kind === 'count');
-    if (m) return m.value;
-  }
-  return null;
-}
+const OPS_CARD_IDS: Record<OpsQueueFilter, string> = {
+  rent_due: 'rent_due',
+  electricity_due: 'electricity_due',
+  deposit_due: 'deposit_due',
+  refund_due: 'refund_due',
+  waiting_for_approval: 'waiting_for_approval',
+  vacating_requests: 'vacating_requests',
+  booking_approval: 'booking_approval',
+  kyc_review: 'kyc_review',
+};
 
 export async function runCounterParityAudit(
   session: AdminSession,
@@ -58,176 +53,63 @@ export async function runCounterParityAudit(
   }
 
   const dashboard = buildOverviewDashboard(ctx.data);
-  const [
-    paymentIntegrity,
-    opsCenter,
-    checkoutSettlements,
-    navBadges,
-    opsPage,
-    openCheckoutUnresolved,
-    openKycUnresolved,
-    moveOutPipeline,
-    vacatingPage,
-    vacatingActionItems,
-    unifiedOpsQueue,
-    unifiedOpsAll,
-  ] = await Promise.all([
-    getPaymentReviewIntegrityReport(session),
-    getOperationsCenterData(session),
-    listPipelineCheckoutSettlements(session),
+  const [navBadges, moveOutPipeline, unifiedOpsAll, approvalCounts, billingSnapshot] =
+    await Promise.all([
     loadAdminNavBadges(session),
-    loadResidentOperationsResidentsPage(session, null),
-    getOpenActionsCount(session, 'checkout'),
-    getOpenActionsCount(session, 'kyc'),
     getMoveOutPipelineSnapshot(session),
-    loadAdminVacatingPageData(session),
-    listOpenActionItemsByType(session, 'vacating_alert'),
-    loadUnifiedOperationsQueue(session, 'vacating_requests'),
     loadUnifiedOperationsQueue(session, null),
+    loadApprovalCounts(session),
+    loadBillingCommandCenterSnapshot(session, billingMonth),
   ]);
 
-  const checkoutRefundsDest = checkoutSettlements.filter(
-    (s) => s.status === 'refund_pending' && !isStaleZeroRefundSettlement(s),
-  ).length;
+  const unifiedCounts = Object.fromEntries(
+    unifiedOpsAll.filterCounts.map((c) => [c.id, c.count]),
+  ) as Record<OpsQueueFilter, number>;
 
-  const overviewPayments = findMetricCount(dashboard, 'payments_to_review') ?? 0;
-  const overviewKyc = findMetricCount(dashboard, 'kyc_pending') ?? 0;
-  const overviewRefunds = findMetricCount(dashboard, 'refunds_pending') ?? 0;
-  const overviewVacating = findMetricCount(dashboard, 'vacating_month') ?? 0;
-  const overviewBedsReleasing = findMetricCount(dashboard, 'beds_releasing') ?? 0;
+  const rows: CounterParityRow[] = OPS_QUEUE_FILTERS.map((filter) => {
+    const overviewValue = findOverviewMetricValue(dashboard, OPS_CARD_IDS[filter]) ?? 0;
+    const destinationValue = unifiedCounts[filter] ?? 0;
+    return {
+      metric: `Operations → ${filter}`,
+      overviewValue,
+      destinationValue,
+      destination: 'loadUnifiedOperationsQueue.filterCounts',
+      matches: overviewValue === destinationValue,
+    };
+  });
 
-  const vacatingModuleCount = moveOutPipeline.approvalItems.length;
-  const pipelineCount = moveOutPipeline.counts.moveOutNotices;
-  const vacatingBadgeCount = vacatingActionItems.length;
-  const operationsMoveOutFromUnified = unifiedOpsQueue.items.length;
-  const operationsMoveOutBadge =
-    unifiedOpsQueue.filterCounts.find((c) => c.id === 'vacating_requests')?.count ?? 0;
+  const overviewBedsReleasing = findOverviewMetricValue(dashboard, 'beds_releasing') ?? 0;
+  rows.push({
+    metric: 'Beds releasing (30d)',
+    overviewValue: overviewBedsReleasing,
+    destinationValue: moveOutPipeline.counts.bedsReleasing30Days,
+    destination: 'getMoveOutPipelineSnapshot.counts.bedsReleasing30Days',
+    matches: overviewBedsReleasing === moveOutPipeline.counts.bedsReleasing30Days,
+  });
 
-  const rows: CounterParityRow[] = [
-    {
-      metric: 'Pending payment reviews',
-      overviewValue: overviewPayments,
-      destinationValue: paymentIntegrity.queueCount,
-      destination: 'listPendingPaymentReviews',
-      matches: overviewPayments === paymentIntegrity.queueCount,
-    },
-    {
-      metric: 'Payment sidebar badge',
-      overviewValue: paymentIntegrity.queueCount,
-      destinationValue: paymentIntegrity.badgeCount,
-      destination: "getOpenActionsCount('payments')",
-      matches: paymentIntegrity.matches,
-    },
-    {
-      metric: 'KYC pending (overview vs ops center)',
-      overviewValue: overviewKyc,
-      destinationValue: opsCenter.pendingKyc.count,
-      destination: 'getOperationsCenterData.pendingKyc (PG-scoped)',
-      matches: overviewKyc === opsCenter.pendingKyc.count,
-    },
-    {
-      metric: 'KYC sidebar badge',
-      overviewValue: opsCenter.pendingKyc.count,
-      destinationValue: openKycUnresolved,
-      destination: "getOpenActionsCount('kyc')",
-      matches: opsCenter.pendingKyc.count === openKycUnresolved,
-    },
-    {
-      metric: 'Refunds pending (checkout pipeline)',
-      overviewValue: overviewRefunds,
-      destinationValue: checkoutRefundsDest,
-      destination: 'checkoutSettlements refund_pending',
-      matches: overviewRefunds === checkoutRefundsDest,
-    },
-    {
-      metric: 'Checkout sidebar badge',
-      overviewValue: checkoutRefundsDest,
-      destinationValue: openCheckoutUnresolved,
-      destination: "getOpenActionsCount('checkout')",
-      matches: checkoutRefundsDest === openCheckoutUnresolved,
-    },
-    {
-      metric: 'Move-out notices',
-      overviewValue: overviewVacating,
-      destinationValue: pipelineCount,
-      destination: 'getMoveOutPipelineSnapshot.counts.moveOutNotices',
-      matches: overviewVacating === pipelineCount,
-    },
-    {
-      metric: 'Move-out notices (Operations center)',
-      overviewValue: pipelineCount,
-      destinationValue: opsCenter.leavingSoon.count,
-      destination: 'getOperationsCenterData.leavingSoon',
-      matches: pipelineCount === opsCenter.leavingSoon.count,
-    },
-    {
-      metric: 'Move-out notices (Vacating module)',
-      overviewValue: pipelineCount,
-      destinationValue: vacatingModuleCount,
-      destination: 'loadAdminVacatingPageData.activeItems',
-      matches: pipelineCount === vacatingModuleCount,
-    },
-    {
-      metric: 'Move-out (Operations queue rows)',
-      overviewValue: operationsMoveOutFromUnified,
-      destinationValue: operationsMoveOutBadge,
-      destination: 'loadUnifiedOperationsQueue vacating_requests badge',
-      matches: operationsMoveOutFromUnified === operationsMoveOutBadge,
-    },
-    {
-      metric: 'Move-out (Operations command card)',
-      overviewValue: operationsMoveOutFromUnified,
-      destinationValue: opsPage.commandCards.find((c) => c.id === 'move_out')?.count ?? 0,
-      destination: 'residentOperationsResidentsPage move_out card',
-      matches:
-        operationsMoveOutFromUnified ===
-        (opsPage.commandCards.find((c) => c.id === 'move_out')?.count ?? 0),
-    },
-    {
-      metric: 'Move-out notices (vacating_alert action items)',
-      overviewValue: pipelineCount,
-      destinationValue: vacatingBadgeCount,
-      destination: 'listOpenActionItemsByType(vacating_alert)',
-      matches: pipelineCount === vacatingBadgeCount,
-    },
-    {
-      metric: 'Beds releasing (30d)',
-      overviewValue: overviewBedsReleasing,
-      destinationValue: moveOutPipeline.counts.bedsReleasing30Days,
-      destination: 'getMoveOutPipelineSnapshot.counts.bedsReleasing30Days',
-      matches: overviewBedsReleasing === moveOutPipeline.counts.bedsReleasing30Days,
-    },
-    {
-      metric: 'Beds releasing (30d) Operations center',
-      overviewValue: moveOutPipeline.counts.bedsReleasing30Days,
-      destinationValue: opsCenter.bedsReleasingSoon.count,
-      destination: 'getOperationsCenterData.bedsReleasingSoon',
-      matches: moveOutPipeline.counts.bedsReleasing30Days === opsCenter.bedsReleasingSoon.count,
-    },
-    {
-      metric: 'Operations queue total',
-      overviewValue: navBadges.operations ?? 0,
-      destinationValue: unifiedOpsAll.totalCount,
-      destination: 'loadUnifiedOperationsQueue.totalCount',
-      matches: (navBadges.operations ?? 0) === unifiedOpsAll.totalCount,
-    },
-    {
-      metric: 'Overview badge total',
-      overviewValue: navBadges.overview ?? 0,
-      destinationValue:
-        (navBadges.operations ?? 0) +
-        (navBadges.payments ?? 0) +
-        (navBadges.kyc ?? 0) +
-        (navBadges.checkoutSettlements ?? 0),
-      destination: 'sum sidebar module badges',
-      matches:
-        (navBadges.overview ?? 0) ===
-        (navBadges.operations ?? 0) +
-          (navBadges.payments ?? 0) +
-          (navBadges.kyc ?? 0) +
-          (navBadges.checkoutSettlements ?? 0),
-    },
-  ];
+  rows.push({
+    metric: 'Operations queue total',
+    overviewValue: navBadges.operations ?? 0,
+    destinationValue: unifiedOpsAll.totalCount,
+    destination: 'loadUnifiedOperationsQueue.totalCount',
+    matches: (navBadges.operations ?? 0) === unifiedOpsAll.totalCount,
+  });
+
+  rows.push({
+    metric: 'Payments nav badge',
+    overviewValue: navBadges.payments ?? 0,
+    destinationValue: approvalCounts.waitingForApprovalVisible,
+    destination: 'approvalService.waitingForApprovalVisible',
+    matches: (navBadges.payments ?? 0) === approvalCounts.waitingForApprovalVisible,
+  });
+
+  rows.push({
+    metric: 'Billing payment review count',
+    overviewValue: billingSnapshot.paymentReviewCount,
+    destinationValue: approvalCounts.waitingForApprovalVisible,
+    destination: 'approvalService.waitingForApprovalVisible',
+    matches: billingSnapshot.paymentReviewCount === approvalCounts.waitingForApprovalVisible,
+  });
 
   const pass = rows.every((r) => r.matches);
   const mismatches = rows.filter((r) => !r.matches);

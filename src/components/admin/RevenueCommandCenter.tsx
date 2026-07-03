@@ -393,7 +393,7 @@ export function RevenueCommandCenter({
             label="Pending payment approvals"
             count={outstanding.pendingPaymentApprovals}
             amountPaise={outstanding.pendingPaymentApprovalsPaise}
-            href="/admin/operations?filter=payment_proof"
+            href="/admin/operations?filter=waiting_for_approval"
             linkLabel="Operations payment reviews →"
           />
           <div className="rounded-xl border border-[#FF5A1F]/30 bg-[#FF5A1F]/5 p-4">

@@ -6,6 +6,7 @@ import { OperationsPaymentReviewsPanel } from '@/src/components/admin/operations
 import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
 import { requireAdminSession } from '@/src/lib/auth/guards';
+import { resolveOperationsFocusParam } from '@/src/lib/approvals/approvalDeepLinks';
 import {
   defaultOperationsFilter,
   operationsFilterHref,
@@ -14,6 +15,11 @@ import {
 import {
   loadUnifiedOperationsQueue,
 } from '@/src/services/unifiedOperationsQueue';
+import { syncActionItems } from '@/src/services/actionItems';
+import {
+  listPaymentProofRejectionsForEntity,
+  reviewKindToEntityType,
+} from '@/src/services/paymentProofRejectionService';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -21,14 +27,15 @@ export const maxDuration = 60;
 export default async function OperationsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string; focus?: string }>;
+  searchParams: Promise<{ filter?: string; focus?: string; key?: string }>;
 }) {
   const params = await searchParams;
   const session = await requireAdminSession('/admin/operations');
   await ensureAdminPageNotificationsSeen('/admin/operations', '/admin/operations');
+  await syncActionItems(session).catch(() => undefined);
 
   let filter = parseOperationsFilter(params.filter);
-  const focus = params.focus?.trim() ?? null;
+  const focus = resolveOperationsFocusParam(params);
 
   if (!filter) {
     const preview = await loadUnifiedOperationsQueue(session, 'waiting_for_approval', focus);
@@ -43,9 +50,14 @@ export default async function OperationsPage({
   const focusReview =
     filter === 'waiting_for_approval' && focus
       ? data.paymentReviews.find((p) => p.key === focus) ?? null
-      : filter === 'waiting_for_approval'
-        ? data.paymentReviews[0] ?? null
-        : null;
+      : null;
+
+  const rejectionHistory = focusReview
+    ? await listPaymentProofRejectionsForEntity(
+        reviewKindToEntityType(focusReview.kind),
+        focusReview.entityId,
+      )
+    : [];
 
   return (
     <>
@@ -59,7 +71,11 @@ export default async function OperationsPage({
       <AdminSectionErrorBoundary title="Operations">
         {filter === 'waiting_for_approval' && focusReview ? (
           <section className="mb-8">
-            <OperationsPaymentReviewsPanel items={[focusReview]} reviewMode={false} />
+            <OperationsPaymentReviewsPanel
+              items={[focusReview]}
+              reviewMode={false}
+              rejectionHistory={rejectionHistory}
+            />
           </section>
         ) : null}
         <OperationsMasterQueue data={data} isSuperAdmin={session.role === 'super_admin'} />

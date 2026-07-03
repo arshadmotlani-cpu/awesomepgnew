@@ -7,6 +7,12 @@
 
 ---
 
+## 2026-07-03
+
+- **APPROVAL-SSOT** — Unified approval deep links (`approvalDeepLinks.ts`), Operations header = WFA count, notification deep-links to `waiting_for_approval&focus=`, deposit proof notification sync + resident deposit bill visibility
+
+---
+
 ## 2026-07-02
 
 - **OPS-ACTION-CENTER** — Operations simplified to eight action queues (waiting for approval, rent/electricity due, vacating, refund, booking, bed, KYC); removed overdue/deposit/waiting-for-payment filters

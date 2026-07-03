@@ -334,7 +334,37 @@ export async function loadResidentAccountContext(
       }
     }
 
-    if (depositPaidPaise > 0) {
+    if (depositPaidPaise > 0 || (booking.depositDuePaise ?? 0) > 0) {
+      const depositOutstandingPaise = Math.max(
+        0,
+        booking.depositDuePaise ?? booking.depositPaise - depositPaidPaise,
+      );
+      let depositPayHref: string | null = null;
+      let depositPaymentLinkUrl: string | null = null;
+      let depositStatus: string =
+        depositOutstandingPaise > 0 ? booking.depositCollectionStatus ?? 'pending' : 'held';
+
+      if (depositOutstandingPaise > 0) {
+        const { getLatestPaymentLinkForResident } = await import('@/src/services/paymentLinks');
+        const { paymentLinkPublicUrl } = await import('@/src/lib/billing/paymentLinkUrl');
+        const { ensureDepositDuePaymentLink } = await import('@/src/services/depositCollection');
+        const existing = await getLatestPaymentLinkForResident(customerId, 'deposit');
+        if (existing?.status === 'active' && existing.bookingId === booking.bookingId) {
+          depositPaymentLinkUrl = paymentLinkPublicUrl(existing.id);
+          depositPayHref = `/pay/${existing.id}`;
+          if (existing.paymentProofUrl) {
+            depositStatus = 'payment_in_progress';
+          }
+        } else {
+          const url = await ensureDepositDuePaymentLink(booking.bookingId);
+          if (url) {
+            depositPaymentLinkUrl = url;
+            const linkId = url.split('/').pop();
+            depositPayHref = linkId ? `/pay/${linkId}` : null;
+          }
+        }
+      }
+
       invoices.push({
         id: `deposit-${booking.bookingId}`,
         kind: 'deposit',
@@ -346,17 +376,12 @@ export async function loadResidentAccountContext(
         rentPaise: 0,
         electricityPaise: 0,
         depositPaidPaise,
-        finalAmountPaise: depositPaidPaise,
-        status:
-          depositRefundedPaise > 0 && (depositSummary?.refundableBalancePaise ?? 0) === 0
-            ? 'refunded'
-            : depositPaidPaise >= booking.depositPaise
-              ? 'held'
-              : 'partial',
-        dueDate: booking.checkInDate,
-        payHref: null,
+        finalAmountPaise: depositOutstandingPaise > 0 ? depositOutstandingPaise : depositPaidPaise,
+        status: depositStatus,
+        dueDate: booking.depositDueDate ?? booking.checkInDate,
+        payHref: depositPayHref,
         detailHref: null,
-        paymentLinkUrl: null,
+        paymentLinkUrl: depositPaymentLinkUrl,
       });
     }
   }

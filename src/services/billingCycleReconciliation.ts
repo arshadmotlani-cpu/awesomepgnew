@@ -12,6 +12,7 @@ import {
   customers,
   electricityBillGenerationJobs,
   electricityInvoices,
+  paymentLinks,
   rentInvoices,
 } from '@/src/db/schema';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
@@ -128,7 +129,7 @@ async function countMissingPaymentReviewProofs(session: AdminSession): Promise<{
   missing: number;
   detail: string;
 }> {
-  const [rentProofRows, elecProofRows, reviews] = await Promise.all([
+  const [rentProofRows, elecProofRows, depositProofRows, reviews] = await Promise.all([
     db
       .select({ id: rentInvoices.id })
       .from(rentInvoices)
@@ -148,6 +149,15 @@ async function countMissingPaymentReviewProofs(session: AdminSession): Promise<{
           sql`${electricityInvoices.paymentProofUrl} IS NOT NULL`,
         ),
       ),
+    db
+      .select({ id: paymentLinks.id })
+      .from(paymentLinks)
+      .where(
+        and(
+          eq(paymentLinks.status, 'active'),
+          sql`${paymentLinks.paymentProofUrl} IS NOT NULL`,
+        ),
+      ),
     listPendingPaymentReviews(session),
   ]);
 
@@ -158,6 +168,9 @@ async function countMissingPaymentReviewProofs(session: AdminSession): Promise<{
   }
   for (const e of elecProofRows) {
     if (!reviewKeys.has(`elec-${e.id}`)) missingIds.push(`elec:${e.id}`);
+  }
+  for (const d of depositProofRows) {
+    if (!reviewKeys.has(`deposit-link-${d.id}`)) missingIds.push(`deposit-link:${d.id}`);
   }
 
   return {

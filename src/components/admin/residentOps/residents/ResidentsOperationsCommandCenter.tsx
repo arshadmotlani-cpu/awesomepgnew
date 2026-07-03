@@ -8,7 +8,7 @@ import type {
 import { OPS_ORANGE, OpsSection } from '@/src/components/admin/residentOps/residentOpsUi';
 
 const EXTERNAL_CARD_HREF: Partial<Record<ResidentsCommandFilter, string>> = {
-  payment_proof: '/admin/operations?filter=payment_proof',
+  payment_proof: '/admin/operations?filter=waiting_for_approval',
 };
 
 export function ResidentsOperationsCommandCenter({

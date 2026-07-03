@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildActionDeepLink } from '../../src/lib/admin/actionDeepLinks';
 
-test('routes payment reviews to operations payment proof filter', () => {
+test('routes payment reviews to operations waiting for approval with focus', () => {
   const href = buildActionDeepLink('payment_received', { paymentReviewKey: 'rent:abc' }, null);
   assert.ok(href.includes('/admin/operations'));
-  assert.ok(href.includes('filter=payment_proof'));
-  assert.ok(href.includes('rent%3Aabc'));
+  assert.ok(href.includes('filter=waiting_for_approval'));
+  assert.ok(href.includes('focus=rent%3Aabc'));
 });
 
 test('routes vacating with settlement to checkout', () => {

@@ -20,7 +20,7 @@ import {
 import { getMonthlyRevenuePaise } from '@/src/services/dashboardMetrics';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
-import { countPendingPaymentReviews } from '@/src/services/paymentProofQueue';
+import { getWaitingForApprovalCount } from '@/src/services/approvalService';
 import { todayString } from '@/src/lib/dates';
 import { VISITOR_SESSION_COOKIE, LIVE_VISITOR_WINDOW_MS } from '@/src/lib/analytics/constants';
 import { parseDeviceType } from '@/src/lib/analytics/device';
@@ -322,6 +322,25 @@ export type AdminOverviewKpis = {
   monthlyRevenuePaise: number;
 };
 
+/** Active confirmed residents with a primary bed reservation today. */
+export async function getActiveTenantCount(): Promise<number> {
+  const [tenantRow] = await db
+    .select({ count: sql<number>`count(distinct ${bookings.customerId})::int` })
+    .from(bookings)
+    .innerJoin(
+      bedReservations,
+      and(eq(bedReservations.bookingId, bookings.id), eq(bedReservations.kind, 'primary')),
+    )
+    .where(
+      and(
+        eq(bookings.status, 'confirmed'),
+        eq(bedReservations.status, 'active'),
+        sql`CURRENT_DATE <@ ${bedReservations.stayRange}`,
+      ),
+    );
+  return tenantRow?.count ?? 0;
+}
+
 export async function getAdminOverviewKpis(
   session: AdminSession,
   billingMonthInput?: string,
@@ -338,25 +357,7 @@ export async function getAdminOverviewKpis(
     .select({ count: sql<number>`count(*)::int` })
     .from(visitorSessions);
 
-  const [tenantRow] = await db
-    .select({ count: sql<number>`count(distinct ${bookings.customerId})::int` })
-    .from(bookings)
-    .innerJoin(
-      bedReservations,
-      and(
-        eq(bedReservations.bookingId, bookings.id),
-        eq(bedReservations.kind, 'primary'),
-      ),
-    )
-    .where(
-      and(
-        eq(bookings.status, 'confirmed'),
-        eq(bedReservations.status, 'active'),
-        sql`CURRENT_DATE <@ ${bedReservations.stayRange}`,
-      ),
-    );
-
-  const dash = await getDashboardStats();
+  const [tenantCount, dash] = await Promise.all([getActiveTenantCount(), getDashboardStats()]);
   const bedsOccupied = dash.ok ? dash.data.occupiedBeds : 0;
   const bedsAvailable = dash.ok ? dash.data.availableBeds : 0;
 
@@ -365,7 +366,7 @@ export async function getAdminOverviewKpis(
     .from(kycSubmissions)
     .where(eq(kycSubmissions.status, 'pending'));
 
-  const pendingPayments = await countPendingPaymentReviews(session);
+  const pendingPayments = await getWaitingForApprovalCount(session);
 
   const [todayRevResult, monthRevenue] = await Promise.all([
     getDailyCollectionTotals(),
@@ -378,7 +379,7 @@ export async function getAdminOverviewKpis(
 
   return {
     totalVisitorsAllTime: visitorRow?.count ?? 0,
-    activeTenants: tenantRow?.count ?? 0,
+    activeTenants: tenantCount,
     bedsOccupied,
     bedsAvailable,
     pendingKyc: kycRow?.count ?? 0,

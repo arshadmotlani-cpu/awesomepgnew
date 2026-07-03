@@ -471,7 +471,7 @@ const PATH_NOTIFICATION_TYPES: Array<{ prefix: string; types: ActionItemType[] }
     types: ['deposit_refund_request', 'refund_request_submitted', 'extension_request'],
   },
   {
-    prefix: '/admin/operations?filter=payment_proof',
+    prefix: '/admin/operations?filter=waiting_for_approval',
     types: ['payment_received'],
   },
   {

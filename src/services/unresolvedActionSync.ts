@@ -4,6 +4,7 @@
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { actionItems, unresolvedActions } from '@/src/db/schema';
+import { paymentApprovalDeepLink } from '@/src/lib/approvals/approvalDeepLinks';
 import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import type { ActionItemMetadata } from '@/src/lib/actionCenter/constants';
 import { isResidentBedAssignmentEligible } from '@/src/lib/residentBedAssignment';
@@ -25,8 +26,9 @@ const ACTION_ITEM_TO_UNRESOLVED: Record<string, UnresolvedActionType | null> = {
   refund_pending: 'deposit_refund_approval',
   deposit_refund_request: 'deposit_refund_approval',
   refund_request_submitted: 'deposit_refund_approval',
+  booking_approval: null,
   maintenance_issue: null,
-  extension_request: 'room_transfer_approval',
+  extension_request: null,
   // Collections / billing reminders — Action Center only, not Operations sidebar.
   rent_due: null,
   electricity_due: null,
@@ -49,6 +51,7 @@ function parseEntityFromSourceKey(
   if (prefix === 'resident_request') return { entityType: 'resident_request', entityId: id };
   if (prefix === 'maintenance') return { entityType: 'bed', entityId: id };
   if (prefix === 'fixed_stay_checkout') return { entityType: 'booking', entityId: id };
+  if (prefix === 'booking_approval') return { entityType: 'booking', entityId: id };
   if (meta.submissionId) return { entityType: 'kyc_submission', entityId: meta.submissionId };
   if (meta.requestId) return { entityType: 'resident_request', entityId: meta.requestId };
   if (meta.bookingId) return { entityType: 'booking', entityId: meta.bookingId };
@@ -65,7 +68,9 @@ function hrefForAction(
         ? `/admin/residents/kyc/${meta.submissionId}`
         : '/admin/residents/kyc';
     case 'payment_proof_review':
-      return '/admin/operations?filter=payment_proof';
+      return meta.paymentReviewKey
+        ? paymentApprovalDeepLink(meta.paymentReviewKey)
+        : '/admin/operations?filter=waiting_for_approval';
     case 'move_out_approval':
       return meta.settlementId
         ? `/admin/checkout-settlements/${meta.settlementId}`

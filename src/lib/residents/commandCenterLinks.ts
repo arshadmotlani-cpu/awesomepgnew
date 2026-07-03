@@ -1,10 +1,11 @@
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
+import { paymentProofWorkflowHref as approvalPaymentProofHref } from '@/src/lib/approvals/approvalDeepLinks';
 import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 
 export { refundConsoleHref, refundConsoleSearchHref } from '@/src/lib/refund/refundConsoleLinks';
 
 export function paymentProofWorkflowHref(item: PendingPaymentReviewItem): string {
-  return `/admin/operations?filter=payment_proof&key=${encodeURIComponent(item.key)}`;
+  return approvalPaymentProofHref(item);
 }
 
 export function kycWorkflowHref(submissionId: string): string {

@@ -9,12 +9,8 @@ import {
   approveExtensionProofAction,
   approveQrPaymentAction,
   approveRentProofAction,
-  rejectDepositLinkProofAction,
-  rejectElectricityProofAction,
-  rejectExtensionProofAction,
-  rejectQrPaymentAction,
-  rejectRentProofAction,
 } from '@/app/(admin)/admin/payments/actions';
+import { PaymentProofRejectionDialog } from '@/src/components/admin/operations/PaymentProofRejectionDialog';
 import { billingMonthLabel } from '@/src/lib/billing/invoiceCollectionWhatsApp';
 import { formatDateTime, paiseToInr } from '@/src/lib/format';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
@@ -44,8 +40,7 @@ export function OperationsWaitingForApprovalTable({
   const router = useRouter();
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [rejectKey, setRejectKey] = useState<string | null>(null);
-  const [rejectReason, setRejectReason] = useState('');
+  const [rejectDialogItem, setRejectDialogItem] = useState<PendingPaymentReviewItem | null>(null);
 
   const focusItem = useMemo(
     () => (focusKey ? items.find((i) => i.key === focusKey) : items[0]),
@@ -53,8 +48,7 @@ export function OperationsWaitingForApprovalTable({
   );
 
   async function refreshAfterAction() {
-    setRejectKey(null);
-    setRejectReason('');
+    setRejectDialogItem(null);
     router.refresh();
   }
 
@@ -92,55 +86,6 @@ export function OperationsWaitingForApprovalTable({
     }
   }
 
-  async function onReject(item: PendingPaymentReviewItem) {
-    const needsReason = item.kind === 'rent' || item.kind === 'electricity';
-    if (needsReason && !rejectReason.trim()) {
-      setError('Add a rejection reason.');
-      return;
-    }
-    setBusyKey(item.key);
-    setError(null);
-    try {
-      let result: { ok: boolean; message?: string } = { ok: true };
-      switch (item.kind) {
-        case 'qr':
-          result = await rejectQrPaymentAction(item.entityId, item.pgId, item.key);
-          break;
-        case 'rent':
-          result = await rejectRentProofAction(
-            item.entityId,
-            item.pgId,
-            rejectReason.trim(),
-            item.key,
-          );
-          break;
-        case 'electricity':
-          result = await rejectElectricityProofAction(
-            item.entityId,
-            item.pgId,
-            rejectReason.trim(),
-            item.key,
-          );
-          break;
-        case 'extension':
-          result = await rejectExtensionProofAction(item.entityId, item.pgId, item.key);
-          break;
-        case 'deposit_link':
-          result = await rejectDepositLinkProofAction(item.entityId, item.pgId, item.key);
-          break;
-      }
-      if (!result.ok) {
-        setError(result.message ?? 'Rejection failed.');
-        return;
-      }
-      await refreshAfterAction();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Rejection failed.');
-    } finally {
-      setBusyKey(null);
-    }
-  }
-
   if (items.length === 0) {
     return (
       <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-8 py-16 text-center">
@@ -152,6 +97,15 @@ export function OperationsWaitingForApprovalTable({
 
   return (
     <div className="space-y-4">
+      {rejectDialogItem ? (
+        <PaymentProofRejectionDialog
+          item={rejectDialogItem}
+          open
+          onClose={() => setRejectDialogItem(null)}
+          onRejected={() => void refreshAfterAction()}
+        />
+      ) : null}
+
       {error ? (
         <p className="rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
           {error}
@@ -180,7 +134,6 @@ export function OperationsWaitingForApprovalTable({
           <tbody className="divide-y divide-white/5 bg-[#1A1F27]">
             {items.map((item) => {
               const busy = busyKey === item.key;
-              const rejecting = rejectKey === item.key;
               return (
                 <tr key={item.key} className="transition hover:bg-white/[0.02]">
                   <td className="px-4 py-4 font-medium text-white">{item.residentName}</td>
@@ -193,53 +146,34 @@ export function OperationsWaitingForApprovalTable({
                     {formatUploadTime(item.proofSubmittedAt)}
                   </td>
                   <td className="px-4 py-4">
-                    <div className="flex flex-col items-end gap-2">
-                      <div className="flex flex-wrap justify-end gap-2">
-                        <Link
-                          href={operationsFilterHref('waiting_for_approval', item.key)}
-                          className="inline-flex min-h-[36px] items-center rounded-lg bg-[#FF5A1F] px-4 py-2 text-xs font-semibold text-white hover:brightness-110"
-                        >
-                          Review
-                        </Link>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <Link
+                        href={operationsFilterHref('waiting_for_approval', item.key)}
+                        className="inline-flex min-h-[36px] items-center rounded-lg bg-[#FF5A1F] px-4 py-2 text-xs font-semibold text-white hover:brightness-110"
+                      >
+                        Review
+                      </Link>
+                      {item.canReject ? (
                         <button
                           type="button"
                           disabled={busy}
                           onClick={() => {
-                            setRejectKey(item.key);
-                            setRejectReason('');
+                            setRejectDialogItem(item);
                             setError(null);
                           }}
-                          className="inline-flex min-h-[36px] items-center rounded-lg border border-white/15 px-4 py-2 text-xs font-semibold text-apg-silver hover:text-white disabled:opacity-50"
+                          className="inline-flex min-h-[36px] items-center rounded-lg border border-rose-400/40 px-4 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-500/10 disabled:opacity-50"
                         >
                           Reject
                         </button>
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => void onApprove(item)}
-                          className="inline-flex min-h-[36px] items-center rounded-lg border border-emerald-400/40 px-4 py-2 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/10 disabled:opacity-50"
-                        >
-                          {busy ? '…' : 'Approve'}
-                        </button>
-                      </div>
-                      {rejecting ? (
-                        <div className="w-full max-w-xs space-y-2">
-                          <input
-                            value={rejectReason}
-                            onChange={(e) => setRejectReason(e.target.value)}
-                            placeholder="Rejection reason"
-                            className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-white"
-                          />
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => void onReject(item)}
-                            className="w-full rounded-lg bg-rose-600/80 py-2 text-xs font-semibold text-white disabled:opacity-50"
-                          >
-                            Confirm reject
-                          </button>
-                        </div>
                       ) : null}
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void onApprove(item)}
+                        className="inline-flex min-h-[36px] items-center rounded-lg border border-emerald-400/40 px-4 py-2 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/10 disabled:opacity-50"
+                      >
+                        {busy ? '…' : 'Approve'}
+                      </button>
                     </div>
                   </td>
                 </tr>

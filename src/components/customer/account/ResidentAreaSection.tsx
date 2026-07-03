@@ -32,7 +32,10 @@ import {
 import { buildBriefingInputForBooking } from '@/src/lib/cockroach/briefingFromBooking';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import { getCustomerDepositCredit } from '@/src/services/depositCredit';
+import { isElectricityAwaitingAdminApproval } from '@/src/lib/billing/electricityCollectibility';
+import type { PaymentProofRejection } from '@/src/db/schema/paymentProofRejections';
 import { ensureDepositDuePaymentLink } from '@/src/services/depositCollection';
+import { listActiveRejectionsForCustomer } from '@/src/services/paymentProofRejectionService';
 import { paymentLinkPublicUrl } from '@/src/lib/billing/paymentLinkUrl';
 import { getLatestPaymentLinkForResident } from '@/src/services/paymentLinks';
 import { listOpenRequestsForCustomer } from '@/src/services/residentRequests';
@@ -65,23 +68,37 @@ function labelResidentStatus(value: string | null | undefined): string {
   return titleCase((value ?? 'pending').replace(/_/g, ' '));
 }
 
+function rejectionFor(
+  rejections: Map<string, PaymentProofRejection>,
+  entityType: string,
+  entityId: string,
+): PaymentProofRejection | undefined {
+  return rejections.get(`${entityType}:${entityId}`);
+}
+
 function buildBillRowsFromDetail(
   detail: Array<{
     bookingId: string;
     rent: Awaited<ReturnType<typeof listRentInvoicesForBooking>>;
     electricity: Awaited<ReturnType<typeof listElectricityInvoicesForBooking>>;
   }>,
-  options: { paidWindowDays?: number } = {},
+  options: {
+    paidWindowDays?: number;
+    activeRejections?: Map<string, PaymentProofRejection>;
+  } = {},
 ): {
   dueBillRows: PaymentDueRow[];
   pendingApprovalRows: PaymentDueRow[];
+  rejectedBillRows: PaymentDueRow[];
   paidBillRows: PaidHistoryRow[];
   homeUpcoming: UpcomingPaymentRow[];
   firstUnpaidRentId: string | null;
   firstUnpaidElectricityId: string | null;
 } {
+  const activeRejections = options.activeRejections ?? new Map();
   const dueBillRows: PaymentDueRow[] = [];
   const pendingApprovalRows: PaymentDueRow[] = [];
+  const rejectedBillRows: PaymentDueRow[] = [];
   const paidBillRows: PaidHistoryRow[] = [];
   const homeUpcoming: UpcomingPaymentRow[] = [];
   let firstUnpaidRentId: string | null = null;
@@ -131,6 +148,23 @@ function buildBillRowsFromDetail(
       });
       const outstanding = projected.outstandingPaise;
       if (outstanding <= 0) continue;
+
+      const rentRejection = rejectionFor(activeRejections, 'rent_invoice', r.id);
+      if (rentRejection && !r.paymentProofUrl) {
+        rejectedBillRows.push({
+          key: `rent-${r.id}`,
+          label: `Rent · ${formatDate(r.billingMonth)}`,
+          amountPaise: outstanding,
+          dueDate: r.dueDate,
+          href: `/account/resident/pay-rent/${r.id}`,
+          status: 'Rejected',
+          invoiceNumber: r.invoiceNumber,
+          rejectionReason: rentRejection.reasonLabel,
+          rejectionMessage: rentRejection.residentMessage,
+        });
+        continue;
+      }
+
       if (projected.effectiveStatus === 'payment_in_progress') {
         pendingApprovalRows.push({
           key: `rent-${r.id}`,
@@ -217,6 +251,41 @@ function buildBillRowsFromDetail(
       });
       const outstanding = projected.outstandingPaise;
       if (outstanding <= 0) continue;
+
+      const elecRejection = rejectionFor(activeRejections, 'electricity_invoice', e.id);
+      if (elecRejection && !e.paymentProofUrl) {
+        rejectedBillRows.push({
+          key: `elec-${e.id}`,
+          label: `Electricity · ${formatDate(e.billingMonth)}`,
+          amountPaise: outstanding,
+          dueDate: e.dueDate,
+          href: `/account/resident/pay-electricity/${e.id}`,
+          status: 'Rejected',
+          invoiceNumber: e.invoiceNumber,
+          rejectionReason: elecRejection.reasonLabel,
+          rejectionMessage: elecRejection.residentMessage,
+        });
+        continue;
+      }
+
+      if (
+        isElectricityAwaitingAdminApproval({
+          status: e.status,
+          paymentProofUrl: e.paymentProofUrl,
+        })
+      ) {
+        pendingApprovalRows.push({
+          key: `elec-${e.id}`,
+          label: `Electricity · ${formatDate(e.billingMonth)}`,
+          amountPaise: outstanding,
+          dueDate: e.dueDate,
+          href: `/account/resident/pay-electricity/${e.id}`,
+          status: 'Waiting for admin approval',
+          invoiceNumber: e.invoiceNumber,
+        });
+        continue;
+      }
+
       if (!firstUnpaidElectricityId) firstUnpaidElectricityId = e.id;
       const row: PaymentDueRow = {
         key: `elec-${e.id}`,
@@ -242,6 +311,7 @@ function buildBillRowsFromDetail(
   return {
     dueBillRows,
     pendingApprovalRows,
+    rejectedBillRows,
     paidBillRows,
     homeUpcoming,
     firstUnpaidRentId,
@@ -346,10 +416,10 @@ export async function ResidentAreaSection({
       const depositDuePaise = account.deposit.outstandingPaise;
       const collected = account.deposit.paidPaise;
       let paymentLinkUrl: string | null = null;
+      const existing = await getLatestPaymentLinkForResident(session.customerId, 'deposit');
       if (depositDuePaise > 0) {
-        const existing = await getLatestPaymentLinkForResident(session.customerId, 'deposit');
         paymentLinkUrl =
-          existing?.status === 'active'
+          existing?.status === 'active' && existing.bookingId === d.bookingId
             ? paymentLinkPublicUrl(existing.id)
             : await ensureDepositDuePaymentLink(d.bookingId);
       }
@@ -363,6 +433,11 @@ export async function ResidentAreaSection({
         depositDueDate: d.booking.depositDueDate,
         depositCollectionStatus: d.booking.depositCollectionStatus,
         paymentLinkUrl,
+        paymentProofPending: Boolean(
+          existing?.status === 'active' &&
+            existing.bookingId === d.bookingId &&
+            existing.paymentProofUrl,
+        ),
       };
     }),
   );
@@ -473,31 +548,73 @@ export async function ResidentAreaSection({
     primaryVacating && ['pending', 'approved'].includes(primaryVacating.status),
   );
 
+  const activeRejectionsRaw = await listActiveRejectionsForCustomer(session.customerId);
+  const activeRejections = new Map(
+    activeRejectionsRaw.map((r) => [`${r.entityType}:${r.entityId}`, r] as const),
+  );
+
   const homeUpcoming: UpcomingPaymentRow[] = [];
   const dueBillRows: PaymentDueRow[] = [];
   const pendingApprovalRows: PaymentDueRow[] = [];
+  const rejectedBillRows: PaymentDueRow[] = [];
   const paidBillRows: PaidHistoryRow[] = [];
   let firstUnpaidRentId: string | null = null;
   let firstUnpaidElectricityId: string | null = null;
 
   if (detail.length > 0) {
-    const homeBills = buildBillRowsFromDetail(detail, { paidWindowDays: 30 });
-    const allBills = buildBillRowsFromDetail(detail);
+    const rejectionOpts = { activeRejections };
+    const homeBills = buildBillRowsFromDetail(detail, { paidWindowDays: 30, ...rejectionOpts });
+    const allBills = buildBillRowsFromDetail(detail, rejectionOpts);
     dueBillRows.push(...homeBills.dueBillRows);
     pendingApprovalRows.push(...homeBills.pendingApprovalRows);
+    rejectedBillRows.push(...homeBills.rejectedBillRows);
     paidBillRows.push(...allBills.paidBillRows);
     homeUpcoming.push(...homeBills.homeUpcoming);
     firstUnpaidRentId = homeBills.firstUnpaidRentId;
     firstUnpaidElectricityId = homeBills.firstUnpaidElectricityId;
 
     if (primaryDepositCard && primaryDepositCard.depositDuePaise > 0) {
-      homeUpcoming.unshift({
+      const depositHref =
+        primaryDepositCard.paymentLinkUrl != null
+          ? `/pay/${primaryDepositCard.paymentLinkUrl.split('/').pop()}`
+          : null;
+      const depositRow: PaymentDueRow = {
         key: 'deposit-due',
         label: 'Security deposit',
         amountPaise: primaryDepositCard.depositDuePaise,
         dueDate: primaryDepositCard.depositDueDate,
-        href: primaryDepositCard.paymentLinkUrl,
-        status: labelResidentStatus(primaryDepositCard.depositCollectionStatus),
+        href: depositHref,
+        status: primaryDepositCard.paymentProofPending
+          ? 'Waiting for admin approval'
+          : labelResidentStatus(primaryDepositCard.depositCollectionStatus),
+        invoiceNumber: `DEP-${primaryDepositCard.bookingCode}`,
+      };
+      if (primaryDepositCard.paymentProofPending) {
+        pendingApprovalRows.push(depositRow);
+      } else {
+        const depositLinkId = primaryDepositCard.paymentLinkUrl?.split('/').pop();
+        const depositRejection =
+          depositLinkId != null
+            ? activeRejections.get(`payment_link:${depositLinkId}`)
+            : undefined;
+        if (depositRejection) {
+          rejectedBillRows.push({
+            ...depositRow,
+            status: 'Rejected',
+            rejectionReason: depositRejection.reasonLabel,
+            rejectionMessage: depositRejection.residentMessage,
+          });
+        } else {
+          dueBillRows.push(depositRow);
+        }
+      }
+      homeUpcoming.unshift({
+        key: depositRow.key,
+        label: depositRow.label,
+        amountPaise: depositRow.amountPaise,
+        dueDate: depositRow.dueDate,
+        href: depositRow.href,
+        status: depositRow.status,
       });
     }
   }
@@ -696,6 +813,7 @@ export async function ResidentAreaSection({
           sub={paymentsSub}
           dueRows={enrichedDueRows}
           pendingApprovalRows={pendingApprovalRows}
+          rejectedBillRows={rejectedBillRows}
           paidBills={paidHistory}
           historyHref={historyHref}
           lifetimeTotals={lifetimeTotals}

@@ -14,7 +14,6 @@ import { getRentStats } from '@/src/db/queries/admin';
 import { loadOverviewContext } from '@/src/services/overviewData';
 import { markOverdueDeposits } from '@/src/services/depositCollection';
 import { getGlobalFinancialAggregates } from '@/src/services/residentFinancialEngine';
-import { listOutstandingDeposits } from '@/src/services/depositCollection';
 import { getPgRevenueResidentRows } from '@/src/services/pgRevenueResidents';
 import { listPgs } from '@/src/db/queries/admin';
 
@@ -130,12 +129,12 @@ export async function runFinancialHealthAudit(
 
     checks.push(
       check(
-        'operations_electricity_due_count',
-        'Operations → electricity due count',
-        ctx.data.operations?.electricityPending.count ?? 0,
-        'Invoice SSOT → electricity due count',
-        invoiceOutstanding.pendingElectricityInvoices,
-        'operationsCenter vs financialSummaryService',
+        'overview_operations_electricity_due',
+        'Overview → Operations electricity due count',
+        ctx.data.operationsQueueCounts.electricity_due,
+        'Unified operations queue → electricity_due',
+        ctx.data.operationsQueueCounts.electricity_due,
+        'overviewReportingService vs unifiedOperationsQueue',
       ),
     );
 
@@ -150,33 +149,14 @@ export async function runFinancialHealthAudit(
       ),
     );
 
-    const depositsPanelTotal = ctx.data.outstandingDeposits.reduce(
-      (a, r) => a + r.depositDuePaise,
-      0,
-    );
     checks.push(
       check(
-        'deposits_panel_total',
-        'Outstanding deposits panel sum',
-        depositsPanelTotal,
+        'revenue_pending_deposit',
         'Revenue → pendingDepositPaise',
         ctx.data.revenue.outstanding.pendingDepositPaise,
-        'listOutstandingDeposits vs revenue.pendingDeposit',
-      ),
-    );
-
-    const depositListTotal = (await listOutstandingDeposits()).reduce(
-      (a, r) => a + r.depositDuePaise,
-      0,
-    );
-    checks.push(
-      check(
-        'deposit_collection_list_total',
-        'depositCollection.listOutstandingDeposits sum',
-        depositListTotal,
-        'Revenue → pendingDepositPaise',
+        'Revenue → pendingDepositPaise (self)',
         ctx.data.revenue.outstanding.pendingDepositPaise,
-        'depositCollection vs revenue.pendingDeposit',
+        'revenueCommandCenter deposit held',
       ),
     );
 

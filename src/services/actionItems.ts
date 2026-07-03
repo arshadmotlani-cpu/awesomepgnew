@@ -1,3 +1,4 @@
+import { paymentApprovalDeepLink } from '@/src/lib/approvals/approvalDeepLinks';
 import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
@@ -29,6 +30,7 @@ import { todayString } from '@/src/lib/dates';
 import { formatPgDisplayName } from '@/src/lib/operationsCenterRules';
 import { loadMoveOutPipelineBundle } from '@/src/services/moveOutPipelineService';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
+import { listPendingBookingApprovalsForSync } from '@/src/services/unifiedOperationsQueue';
 import { resolveStalePaymentReviewArtifacts } from '@/src/services/paymentReviewIntegrity';
 import {
   computeElectricityInvoiceEffectiveStatus,
@@ -748,6 +750,58 @@ async function syncPaymentReviews(session: AdminSession): Promise<void> {
   }
 }
 
+async function syncBookingApprovals(session: AdminSession): Promise<void> {
+  const [pendingBookings, paymentReviews] = await Promise.all([
+    listPendingBookingApprovalsForSync(session),
+    listPendingPaymentReviews(session),
+  ]);
+
+  const bookingIdsWithPaymentProof = new Set(
+    paymentReviews
+      .filter((item) => item.kind === 'qr' && item.bookingId)
+      .map((item) => item.bookingId as string),
+  );
+
+  const activeKeys = new Set<string>();
+  for (const booking of pendingBookings) {
+    if (bookingIdsWithPaymentProof.has(booking.id)) continue;
+    const sourceKey = `booking_approval:${booking.id}`;
+    activeKeys.add(sourceKey);
+    await upsertActionItem({
+      type: 'booking_approval',
+      title: `${booking.customerName} · Booking pending approval`,
+      pgId: booking.pgId,
+      amount: null,
+      priority: 'high',
+      sourceKey,
+      metadata: {
+        pgName: formatPgDisplayName(booking.pgName),
+        bookingId: booking.id,
+        bookingCode: booking.bookingCode,
+      },
+    });
+  }
+
+  const stale = await db
+    .select({ sourceKey: actionItems.sourceKey })
+    .from(actionItems)
+    .where(
+      and(
+        eq(actionItems.type, 'booking_approval'),
+        inArray(actionItems.status, ['open', 'in_progress']),
+      ),
+    );
+
+  for (const row of stale) {
+    if (!activeKeys.has(row.sourceKey)) {
+      await db
+        .update(actionItems)
+        .set({ status: 'resolved', updatedAt: new Date() })
+        .where(eq(actionItems.sourceKey, row.sourceKey));
+    }
+  }
+}
+
 async function resolveMaintenanceActionItems(): Promise<void> {
   await db
     .update(actionItems)
@@ -818,6 +872,7 @@ export async function syncActionItems(session: AdminSession): Promise<void> {
     syncRefundsPending(session),
     syncDepositCollectionDue(session),
     syncPaymentReviews(session),
+    syncBookingApprovals(session),
     syncResidentRequestActionItems(),
   ]);
   const openItems = await listOpenActionItems(session);
@@ -1069,10 +1124,14 @@ export async function getActionItemDetail(
     });
   }
   if (base.type === 'payment_received') {
+    const reviewHref =
+      typeof meta.paymentReviewKey === 'string' && meta.paymentReviewKey.length > 0
+        ? paymentApprovalDeepLink(meta.paymentReviewKey)
+        : '/admin/operations?filter=waiting_for_approval';
     availableActions.push({
       type: 'view_ledger',
       label: 'Review payment',
-      href: '/admin/operations?filter=payment_proof',
+      href: reviewHref,
     });
   }
   if (base.type === 'kyc_pending' && meta.submissionId) {

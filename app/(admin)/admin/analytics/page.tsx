@@ -41,11 +41,13 @@ export default async function AnalyticsModulePage({
         </>
       );
     }
+    const { getAdminOverviewKpis } = await import('@/src/services/visitorAnalytics');
+    const overviewKpis = await getAdminOverviewKpis(session, billingMonth);
     const couponAnalytics = await listDateCouponAnalytics(14);
     return (
       <>
         <PageHeader title="Analytics (legacy)" description="Full visitor device/browser tables." />
-        <AdminOverviewKpiRow kpis={ctx.data.overviewKpis} visitors={ctx.data.visitors} />
+        <AdminOverviewKpiRow kpis={overviewKpis} visitors={ctx.data.visitors} />
         <VisitorAnalyticsDashboard initialVisitors={ctx.data.visitors} billingMonth={billingMonth} />
         <CouponAnalyticsPanel rows={couponAnalytics} />
       </>

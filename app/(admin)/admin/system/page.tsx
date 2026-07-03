@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { AdminSectionErrorBoundary } from '@/src/components/admin/AdminSectionErrorBoundary';
 import { Badge } from '@/src/components/admin/Badge';
-import { DbStatusBanner } from '@/src/components/admin/DbStatusBanner';
 import { HealthDashboard } from '@/src/components/admin/HealthDashboard';
 import { IconDatabase } from '@/src/components/admin/icons';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
@@ -17,16 +16,22 @@ import { requireAdminSession } from '@/src/lib/auth/guards';
 import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
 import { BillingHealthCardPanel } from '@/src/components/admin/billing/BillingCenterPanels';
 import { getBillingHealthSnapshot } from '@/src/services/billingHealth';
-import { loadOverviewContext } from '@/src/services/overviewData';
+import { getSentryDashboardUrl, getSystemHealthSnapshot } from '@/src/services/systemHealth';
 import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 export default async function SystemHealthModulePage() {
-  const session = await requireAdminSession('/admin/system');
-  const ctx = await loadOverviewContext(session, undefined, { syncActions: false });
+  await requireAdminSession('/admin/system');
   const migration = await checkMigrationHealth();
+  const systemHealth = await getSystemHealthSnapshot().catch(() => ({
+    errorsToday: 0,
+    errorsThisWeek: 0,
+    lastCriticalError: null,
+    uptimeStatus: 'healthy' as const,
+  }));
+  const sentryUrl = getSentryDashboardUrl();
 
   let healthInitial = null;
   let healthError: string | null = null;
@@ -57,15 +62,6 @@ export default async function SystemHealthModulePage() {
     getErrorsByRoute(7, 20).catch(() => []),
     getBillingHealthSnapshot().catch(() => null),
   ]);
-
-  if (!ctx.ok) {
-    return (
-      <>
-        <PageHeader title="System health" />
-        <DbStatusBanner error={ctx.error} />
-      </>
-    );
-  }
 
   return (
     <>
@@ -174,7 +170,7 @@ export default async function SystemHealthModulePage() {
         </AdminSectionErrorBoundary>
 
         <AdminSectionErrorBoundary title="Uptime & errors">
-          <SystemHealthCard health={ctx.data.systemHealth} sentryUrl={ctx.data.sentryUrl} />
+          <SystemHealthCard health={systemHealth} sentryUrl={sentryUrl} />
         </AdminSectionErrorBoundary>
 
         {errorsByRoute.length > 0 ? (

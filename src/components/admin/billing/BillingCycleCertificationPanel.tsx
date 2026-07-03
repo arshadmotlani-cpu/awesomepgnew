@@ -101,7 +101,7 @@ export function BillingCycleCertificationPanel({
             <Metric
               label="Waiting admin review"
               value={String(m.waitingAdminReview)}
-              href={tab('approvals')}
+              href={tab('billing')}
               tone={m.waitingAdminReview > 0 ? 'warn' : 'default'}
             />
             <Metric

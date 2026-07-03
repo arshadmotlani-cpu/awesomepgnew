@@ -602,6 +602,12 @@ export async function submitExtensionPaymentProof(
     bookingId: ext.bookingId,
   }).catch(() => undefined);
 
+  const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
+  scheduleAdminNotificationSync();
+
+  const { supersedeActiveRejection } = await import('@/src/services/paymentProofRejectionService');
+  await supersedeActiveRejection('stay_extension', extensionId);
+
   return { ok: true };
 }
 
@@ -682,41 +688,24 @@ export async function approveExtensionPaymentProof(
 export async function rejectExtensionPaymentProof(
   session: AdminSession,
   extensionId: string,
-): Promise<{ ok: true } | { ok: false; message: string }> {
-  const [ext] = await db
-    .select()
-    .from(stayExtensions)
-    .where(eq(stayExtensions.id, extensionId))
-    .limit(1);
-  if (!ext) return { ok: false, message: 'Extension not found.' };
-  if (!ext.paymentProofUrl) {
-    return { ok: false, message: 'No payment photo uploaded.' };
-  }
-
-  const [pgRow] = await db
-    .select({ pgId: floors.pgId })
-    .from(bookings)
-    .innerJoin(
-      bedReservations,
-      and(eq(bedReservations.bookingId, bookings.id), eq(bedReservations.kind, 'primary')),
-    )
-    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
-    .innerJoin(rooms, eq(rooms.id, beds.roomId))
-    .innerJoin(floors, eq(floors.id, rooms.floorId))
-    .where(eq(bookings.id, ext.bookingId))
-    .limit(1);
-
-  if (!pgRow || !adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, pgRow.pgId)) {
-    return { ok: false, message: 'Access denied.' };
-  }
-
-  await db
-    .update(stayExtensions)
-    .set({
-      paymentProofUrl: null,
-      updatedAt: new Date(),
-    })
-    .where(eq(stayExtensions.id, extensionId));
-
-  return { ok: true };
+  rejection: {
+    reviewKey: string;
+    reasonCode: import('@/src/lib/approvals/paymentProofRejectionReasons').PaymentProofRejectionReasonCode;
+    reasonDetail?: string;
+    adminNote?: string;
+    residentMessage: string;
+    sendWhatsApp: boolean;
+  },
+): Promise<{ ok: true; whatsappUrl?: string } | { ok: false; message: string }> {
+  const { rejectPaymentProof } = await import('@/src/services/paymentProofRejectionService');
+  return rejectPaymentProof(session, {
+    reviewKey: rejection.reviewKey,
+    entityType: 'stay_extension',
+    entityId: extensionId,
+    reasonCode: rejection.reasonCode,
+    reasonDetail: rejection.reasonDetail,
+    adminNote: rejection.adminNote,
+    residentMessage: rejection.residentMessage,
+    sendWhatsApp: rejection.sendWhatsApp,
+  });
 }

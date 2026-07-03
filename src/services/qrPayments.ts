@@ -258,7 +258,10 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
   }
 
   const [dup] = await db
-    .select({ id: pgPaymentRecords.id })
+    .select({
+      id: pgPaymentRecords.id,
+      paymentScreenshotUrl: pgPaymentRecords.paymentScreenshotUrl,
+    })
     .from(pgPaymentRecords)
     .where(
       and(
@@ -267,21 +270,43 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
       ),
     )
     .limit(1);
-  if (dup) throw new Error('Payment proof is already pending review for this booking.');
+  if (dup?.paymentScreenshotUrl?.trim()) {
+    throw new Error('Payment proof is already pending review for this booking.');
+  }
 
-  const [row] = await db
-    .insert(pgPaymentRecords)
-    .values({
-      pgId: booking.pgId,
-      categoryId: category.id,
-      customerId: input.customerId,
-      amountPaise: input.amountPaise,
-      paymentScreenshotUrl: input.paymentScreenshotUrl.trim(),
-      transactionRef: input.transactionRef?.trim() || null,
-      status: 'pending',
-      bookingId: booking.id,
-    })
-    .returning();
+  let row: typeof pgPaymentRecords.$inferSelect;
+  if (dup) {
+    const [updated] = await db
+      .update(pgPaymentRecords)
+      .set({
+        amountPaise: input.amountPaise,
+        paymentScreenshotUrl: input.paymentScreenshotUrl.trim(),
+        transactionRef: input.transactionRef?.trim() || null,
+        reviewedByAdminId: null,
+        reviewedAt: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(pgPaymentRecords.id, dup.id))
+      .returning();
+    if (!updated) throw new Error('Could not update payment record.');
+    row = updated;
+  } else {
+    const [inserted] = await db
+      .insert(pgPaymentRecords)
+      .values({
+        pgId: booking.pgId,
+        categoryId: category.id,
+        customerId: input.customerId,
+        amountPaise: input.amountPaise,
+        paymentScreenshotUrl: input.paymentScreenshotUrl.trim(),
+        transactionRef: input.transactionRef?.trim() || null,
+        status: 'pending',
+        bookingId: booking.id,
+      })
+      .returning();
+    if (!inserted) throw new Error('Could not create payment record.');
+    row = inserted;
+  }
 
   const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
   await linkResidentUpload({
@@ -321,6 +346,11 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
 
   const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
   scheduleAdminNotificationSync();
+
+  const { supersedeActiveRejection } = await import('@/src/services/paymentProofRejectionService');
+  if (row?.id) {
+    await supersedeActiveRejection('pg_payment_record', row.id);
+  }
 
   const { trackAnalyticsEvent } = await import('./visitorAnalytics');
   void trackAnalyticsEvent({
@@ -567,21 +597,10 @@ export async function reviewPaymentRecord(
     }
   }
 
-  if (status === 'rejected' && record.bookingId) {
-    const [booking] = await db
-      .select({ bookingCode: bookings.bookingCode, customerId: bookings.customerId })
-      .from(bookings)
-      .where(eq(bookings.id, record.bookingId))
-      .limit(1);
-    const { cleanupRejectedBookingRequest } = await import('@/src/lib/bookingApproval');
-    await cleanupRejectedBookingRequest({
-      bookingId: record.bookingId,
-      reason: 'payment proof rejected by admin',
-      rejectedByAdminId: session.adminId,
-      pgPaymentRecordId: recordId,
-      customerId: booking?.customerId ?? record.customerId,
-      bookingCode: booking?.bookingCode ?? null,
-    });
+  if (status === 'rejected') {
+    throw new Error(
+      'Use rejectPaymentProof for payment proof rejection — booking stays active for re-upload.',
+    );
   }
 
   await db

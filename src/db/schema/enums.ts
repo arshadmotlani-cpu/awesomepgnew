@@ -258,6 +258,7 @@ export const actionItemTypeEnum = pgEnum('action_item_type', [
   'financial_audit_review',
   'fixed_stay_checkout_due',
   'refund_request_submitted',
+  'booking_approval',
 ]);
 
 export const actionItemStatusEnum = pgEnum('action_item_status', [
@@ -354,6 +355,19 @@ export const unresolvedActionPriorityEnum = pgEnum('unresolved_action_priority',
   'high',
 ]);
 
+export const paymentProofEntityTypeEnum = pgEnum('payment_proof_entity_type', [
+  'rent_invoice',
+  'electricity_invoice',
+  'payment_link',
+  'pg_payment_record',
+  'stay_extension',
+]);
+
+export const paymentProofRejectionStatusEnum = pgEnum('payment_proof_rejection_status', [
+  'active',
+  'superseded',
+]);
+
 export type ActionItemType = (typeof actionItemTypeEnum.enumValues)[number];
 export type ActionItemStatus = (typeof actionItemStatusEnum.enumValues)[number];
 export type ActionItemPriority = (typeof actionItemPriorityEnum.enumValues)[number];
@@ -365,6 +379,8 @@ export type FinancialInvoiceStatus = (typeof financialInvoiceStatusEnum.enumValu
 export type UnresolvedActionType = (typeof unresolvedActionTypeEnum.enumValues)[number];
 export type UnresolvedActionStatus = (typeof unresolvedActionStatusEnum.enumValues)[number];
 export type UnresolvedActionPriority = (typeof unresolvedActionPriorityEnum.enumValues)[number];
+export type PaymentProofEntityType = (typeof paymentProofEntityTypeEnum.enumValues)[number];
+export type PaymentProofRejectionStatus = (typeof paymentProofRejectionStatusEnum.enumValues)[number];
 
 export const sidebarLayoutTypeEnum = pgEnum('sidebar_layout_type', ['global', 'personal']);
 

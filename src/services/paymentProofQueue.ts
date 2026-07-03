@@ -657,6 +657,7 @@ export async function listPendingPaymentReviews(
   const qrRows = await listOwnerPayments(session, { status: 'pending' });
   const { listPriorBookingDepositsForReview } = await import('@/src/services/depositCredit');
   for (const p of qrRows) {
+    if (!p.paymentScreenshotUrl?.trim()) continue;
     const isBookingCheckout = Boolean(p.bookingCode);
     const bookingPaymentReview =
       isBookingCheckout && p.bookingId ? await getQrBookingPaymentReview(p.id) : null;

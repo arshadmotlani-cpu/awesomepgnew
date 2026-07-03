@@ -1,0 +1,92 @@
+/**
+ * Approval queue SSOT — counts, snapshots, and booking approval sync helpers.
+ *
+ * Operations, Overview, Billing metrics, Revenue, notifications, and integrity
+ * audits must read payment-proof counts from here.
+ */
+
+import type { AdminSession } from '@/src/lib/auth/session';
+import type { OpsQueueFilter } from '@/src/lib/operations/operationsFilterLinks';
+import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
+import {
+  loadUnifiedOperationsQueue,
+  listPendingBookingApprovalsForSync,
+} from '@/src/services/unifiedOperationsQueue';
+import {
+  countPendingPaymentReviews,
+  listPendingPaymentReviews,
+} from '@/src/services/paymentProofQueue';
+
+export type ApprovalQueueSnapshot = {
+  /** Canonical pending payment proofs (before dismissals). */
+  allPaymentReviews: PendingPaymentReviewItem[];
+  /** Visible in Operations after dismissals — same list as approval table. */
+  visiblePaymentReviews: PendingPaymentReviewItem[];
+  waitingForApprovalCount: number;
+  rawPaymentProofCount: number;
+  operationsFilterCounts: Array<{ id: OpsQueueFilter; label: string; count: number }>;
+  operationsTotalCount: number;
+};
+
+export type ApprovalCounts = {
+  waitingForApprovalVisible: number;
+  rawPaymentProofCount: number;
+  operationsTotalCount: number;
+  filterCounts: Record<OpsQueueFilter, number>;
+};
+
+function filterCountsToRecord(
+  counts: ApprovalQueueSnapshot['operationsFilterCounts'],
+): Record<OpsQueueFilter, number> {
+  return Object.fromEntries(counts.map((c) => [c.id, c.count])) as Record<
+    OpsQueueFilter,
+    number
+  >;
+}
+
+export async function loadApprovalQueueSnapshot(
+  session: AdminSession,
+): Promise<ApprovalQueueSnapshot> {
+  const [allPaymentReviews, rawCount, queue] = await Promise.all([
+    listPendingPaymentReviews(session),
+    countPendingPaymentReviews(session),
+    loadUnifiedOperationsQueue(session, 'waiting_for_approval'),
+  ]);
+
+  const waitingForApprovalCount =
+    queue.filterCounts.find((c) => c.id === 'waiting_for_approval')?.count ?? 0;
+
+  return {
+    allPaymentReviews,
+    visiblePaymentReviews: queue.paymentReviews,
+    waitingForApprovalCount,
+    rawPaymentProofCount: rawCount,
+    operationsFilterCounts: queue.filterCounts,
+    operationsTotalCount: queue.totalCount,
+  };
+}
+
+export async function loadApprovalCounts(session: AdminSession): Promise<ApprovalCounts> {
+  const snapshot = await loadApprovalQueueSnapshot(session);
+  return {
+    waitingForApprovalVisible: snapshot.waitingForApprovalCount,
+    rawPaymentProofCount: snapshot.rawPaymentProofCount,
+    operationsTotalCount: snapshot.operationsTotalCount,
+    filterCounts: filterCountsToRecord(snapshot.operationsFilterCounts),
+  };
+}
+
+export async function getWaitingForApprovalCount(session: AdminSession): Promise<number> {
+  const queue = await loadUnifiedOperationsQueue(session, 'waiting_for_approval');
+  return queue.filterCounts.find((c) => c.id === 'waiting_for_approval')?.count ?? 0;
+}
+
+export async function countAllPendingPaymentReviews(session: AdminSession): Promise<number> {
+  return countPendingPaymentReviews(session);
+}
+
+export async function countVisiblePaymentProofs(session: AdminSession): Promise<number> {
+  return getWaitingForApprovalCount(session);
+}
+
+export { listPendingBookingApprovalsForSync };

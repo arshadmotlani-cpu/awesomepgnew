@@ -56,7 +56,7 @@ describe('resident360Workflow KYC SSOT', () => {
         kind: 'payment_review',
         sourceKey: 'unresolved:payment_review:x',
         label: 'Review payment proof',
-        href: '/admin/operations?filter=payment_proof',
+        href: '/admin/operations?filter=waiting_for_approval&focus=rent%3Aabc',
         stateLine: 'Payment proof pending',
         nextAction: 'Approve or reject the proof.',
         priority: 'high',

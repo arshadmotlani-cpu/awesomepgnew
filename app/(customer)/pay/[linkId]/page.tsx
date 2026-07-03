@@ -6,6 +6,7 @@ import { bookings, pgs } from '@/src/db/schema';
 import { paiseToInr, titleCase } from '@/src/lib/format';
 import { assertActivePaymentLink } from '@/src/lib/billing/paymentLinkAccess';
 import { PaymentLinkProofForm } from '@/src/components/customer/PaymentLinkProofForm';
+import { getActiveRejectionForEntity } from '@/src/services/paymentProofRejectionService';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +34,7 @@ export default async function PaymentLinkPage({
   }
 
   const link = access.link;
+  const activeRejection = await getActiveRejectionForEntity('payment_link', link.id);
 
   const [pg] = await db
     .select({ name: pgs.name })
@@ -133,6 +135,8 @@ export default async function PaymentLinkPage({
             amountLabel={paiseToInr(finalPaise)}
             qrImageUrl={link.upiQrUrl}
             existingProofUrl={link.paymentProofUrl}
+            rejectionReason={activeRejection?.reasonLabel ?? null}
+            rejectionMessage={activeRejection?.residentMessage ?? null}
             title={link.title}
           />
         </section>

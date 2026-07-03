@@ -174,7 +174,7 @@ export const SIDEBAR_MODULE_REGISTRY: Record<SidebarModuleKey, SidebarModuleDef>
   payment_reviews: {
     key: 'payment_reviews',
     label: 'Payment Reviews',
-    href: '/admin/operations?filter=payment_proof',
+    href: '/admin/operations?filter=waiting_for_approval',
     icon: IconCard,
     badgeKey: 'payments',
   },

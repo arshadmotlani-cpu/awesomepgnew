@@ -10,13 +10,11 @@ import {
   approvePartialQrPaymentAction,
   approveQrPaymentAction,
   approveRentProofAction,
-  rejectDepositLinkProofAction,
-  rejectElectricityProofAction,
-  rejectExtensionProofAction,
-  rejectQrPaymentAction,
-  rejectRentProofAction,
 } from '@/app/(admin)/admin/payments/actions';
+import { PaymentProofRejectionDialog } from '@/src/components/admin/operations/PaymentProofRejectionDialog';
+import { PaymentProofRejectionHistory } from '@/src/components/admin/operations/PaymentProofRejectionHistory';
 import { PaymentScreenshotPreview } from '@/src/components/admin/PaymentScreenshotPreview';
+import type { PaymentProofRejectionHistoryRow } from '@/src/services/paymentProofRejectionService';
 import { PipelineTestInvoiceBadge } from '@/src/components/admin/PipelineTestInvoiceBadge';
 import { InvoiceAdminRowActions } from '@/src/components/admin/InvoiceAdminRowActions';
 import { OPS_ORANGE, OPS_PANEL } from '@/src/components/admin/residentOps/residentOpsUi';
@@ -56,9 +54,11 @@ function ReviewField({ label, value }: { label: string; value: string }) {
 export function OperationsPaymentReviewsPanel({
   items,
   reviewMode = true,
+  rejectionHistory = [],
 }: {
   items: PendingPaymentReviewItem[];
   reviewMode?: boolean;
+  rejectionHistory?: PaymentProofRejectionHistoryRow[];
 }) {
   const router = useRouter();
   const [busyKey, setBusyKey] = useState<string | null>(null);
@@ -69,8 +69,7 @@ export function OperationsPaymentReviewsPanel({
   const [overpayDisposition, setOverpayDisposition] = useState<OverpaymentDisposition>('wallet_credit');
   const [reviewNotes, setReviewNotes] = useState('');
   const [approvalNotes, setApprovalNotes] = useState('');
-  const [rejectOpenKey, setRejectOpenKey] = useState<string | null>(null);
-  const [rejectReason, setRejectReason] = useState('');
+  const [rejectDialogItem, setRejectDialogItem] = useState<PendingPaymentReviewItem | null>(null);
 
   const visibleItems = useMemo(() => {
     if (!reviewMode || items.length <= 1) return items;
@@ -78,8 +77,7 @@ export function OperationsPaymentReviewsPanel({
   }, [items, reviewMode]);
 
   async function advanceAfterAction(_currentKey: string, nextKey?: string | null) {
-    setRejectOpenKey(null);
-    setRejectReason('');
+    setRejectDialogItem(null);
     setPartialOpenKey(null);
     setMoreOpenKey(null);
     if (reviewMode && nextKey) {
@@ -167,55 +165,6 @@ export function OperationsPaymentReviewsPanel({
     }
   }
 
-  async function onReject(item: PendingPaymentReviewItem) {
-    const needsReason = item.kind === 'rent' || item.kind === 'electricity';
-    if (needsReason && !rejectReason.trim()) {
-      setError('Add a rejection reason for the resident.');
-      return;
-    }
-    setBusyKey(item.key);
-    setError(null);
-    try {
-      let result: { ok: boolean; message?: string; nextKey?: string | null } = { ok: true };
-      switch (item.kind) {
-        case 'qr':
-          result = await rejectQrPaymentAction(item.entityId, item.pgId, item.key);
-          break;
-        case 'rent':
-          result = await rejectRentProofAction(
-            item.entityId,
-            item.pgId,
-            rejectReason.trim(),
-            item.key,
-          );
-          break;
-        case 'electricity':
-          result = await rejectElectricityProofAction(
-            item.entityId,
-            item.pgId,
-            rejectReason.trim(),
-            item.key,
-          );
-          break;
-        case 'extension':
-          result = await rejectExtensionProofAction(item.entityId, item.pgId, item.key);
-          break;
-        case 'deposit_link':
-          result = await rejectDepositLinkProofAction(item.entityId, item.pgId, item.key);
-          break;
-      }
-      if (!result.ok) {
-        setError(result.message ?? 'Rejection failed.');
-        return;
-      }
-      await advanceAfterAction(item.key, result.nextKey);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Rejection failed.');
-    } finally {
-      setBusyKey(null);
-    }
-  }
-
   if (items.length === 0) {
     return (
       <div className="rounded-2xl border border-white/10 bg-[#1A1F27] p-8 text-center">
@@ -228,6 +177,16 @@ export function OperationsPaymentReviewsPanel({
 
   return (
     <div className="space-y-5">
+      {rejectDialogItem ? (
+        <PaymentProofRejectionDialog
+          item={rejectDialogItem}
+          open
+          onClose={() => setRejectDialogItem(null)}
+          onRejected={({ nextKey }) =>
+            void advanceAfterAction(rejectDialogItem.key, nextKey)
+          }
+        />
+      ) : null}
       {reviewMode && items.length > 0 ? (
         <p className="text-sm text-apg-silver">
           <span className="font-semibold text-white">{items.length}</span> pending
@@ -352,16 +311,9 @@ export function OperationsPaymentReviewsPanel({
               </div>
             </div>
 
-            {rejectOpenKey === item.key ? (
+            {rejectionHistory.length > 0 ? (
               <div className="border-t border-white/10 px-5 py-4">
-                <p className="text-xs font-semibold text-rose-100">Rejection reason (sent to resident)</p>
-                <textarea
-                  value={rejectReason}
-                  onChange={(e) => setRejectReason(e.target.value)}
-                  rows={2}
-                  className="mt-2 w-full rounded-lg border border-white/10 bg-[#0f1318] px-2 py-1.5 text-sm text-white"
-                  placeholder="e.g. Screenshot does not match amount or UPI reference"
-                />
+                <PaymentProofRejectionHistory rows={rejectionHistory} />
               </div>
             ) : null}
 
@@ -432,29 +384,17 @@ export function OperationsPaymentReviewsPanel({
               )}
 
               {item.canReject ? (
-                rejectOpenKey === item.key ? (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void onReject(item)}
-                    className="rounded-lg bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-rose-500 disabled:opacity-50"
-                  >
-                    Confirm reject
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => {
-                      setRejectOpenKey(item.key);
-                      setRejectReason('');
-                      setError(null);
-                    }}
-                    className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-5 py-2.5 text-sm font-semibold text-rose-200 hover:bg-rose-500/20 disabled:opacity-50"
-                  >
-                    Reject
-                  </button>
-                )
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    setRejectDialogItem(item);
+                    setError(null);
+                  }}
+                  className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-5 py-2.5 text-sm font-semibold text-rose-200 hover:bg-rose-500/20 disabled:opacity-50"
+                >
+                  Reject
+                </button>
               ) : null}
 
               <button

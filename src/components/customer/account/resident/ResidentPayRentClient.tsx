@@ -10,6 +10,8 @@ export function ResidentPayRentClient({
   qrImageUrl,
   upiId,
   existingProofUrl,
+  rejectionReason,
+  rejectionMessage,
   uploadScreenshot,
   backHref,
 }: {
@@ -19,6 +21,8 @@ export function ResidentPayRentClient({
   qrImageUrl?: string | null;
   upiId?: string | null;
   existingProofUrl?: string | null;
+  rejectionReason?: string | null;
+  rejectionMessage?: string | null;
   uploadScreenshot: (formData: FormData) => Promise<string>;
   backHref: string;
 }) {
@@ -30,6 +34,8 @@ export function ResidentPayRentClient({
       qrImageUrl={qrImageUrl}
       upiId={upiId}
       existingProofUrl={existingProofUrl}
+      rejectionReason={rejectionReason}
+      rejectionMessage={rejectionMessage}
       proofViewHref={customerPaymentProofViewUrl('rent', invoiceId)}
       uploadScreenshot={uploadScreenshot}
       submitProof={async ({ screenshotUrl }) => {

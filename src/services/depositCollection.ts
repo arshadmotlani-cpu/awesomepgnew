@@ -272,11 +272,12 @@ export async function ensureDepositDuePaymentLink(bookingId: string): Promise<st
     .where(and(eq(bookings.id, bookingId), eq(bedReservations.kind, 'primary')))
     .limit(1);
 
-  if (
-    !ctx ||
-    ctx.depositDuePaise <= 0 ||
-    !['partial', 'overdue'].includes(ctx.depositCollectionStatus)
-  ) {
+  if (!ctx || ctx.depositDuePaise <= 0) {
+    return null;
+  }
+
+  const canCollect = ['pending', 'partial', 'overdue'].includes(ctx.depositCollectionStatus);
+  if (!canCollect) {
     return null;
   }
 

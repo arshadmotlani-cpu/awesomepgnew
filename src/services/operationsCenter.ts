@@ -1,4 +1,5 @@
 import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
+import { operationsFilterHref } from '@/src/lib/operations/operationsFilterLinks';
 import { and, eq, gte, inArray, isNotNull, lte, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
@@ -35,7 +36,7 @@ import {
   computeElectricityInvoiceEffectiveStatus,
   computeElectricityInvoiceOutstandingPaise,
 } from '@/src/services/residentFinancialEngine';
-import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
+import { loadApprovalQueueSnapshot } from '@/src/services/approvalService';
 import { listPipelineCheckoutSettlements } from '@/src/services/checkoutSettlement';
 import { getMoveOutPipelineSnapshot } from '@/src/services/moveOutPipelineService';
 import { isStaleZeroRefundSettlement } from '@/src/lib/residents/checkoutOpsQueueCopy';
@@ -371,7 +372,7 @@ export function buildOperationsTasks(
       priority: paymentApprovalPriority(),
       pgName: p.pgName,
       label: `Approve payment — ${p.title}`,
-      href: '/admin/operations?filter=payment_proof',
+      href: operationsFilterHref('waiting_for_approval', p.key),
     });
   }
 
@@ -465,7 +466,7 @@ export async function getOperationsCenterData(
     ps4RenewalItems,
     dismissalIndex,
   ] = await Promise.all([
-    listPendingPaymentReviews(session),
+    loadApprovalQueueSnapshot(session).then((s) => s.visiblePaymentReviews),
     listPendingKycWithPg(session),
     getMoveOutPipelineSnapshot(session),
     listActiveBedReserves(session),
@@ -524,4 +525,10 @@ export async function getOperationsCenterData(
     ...partial,
     tasks: buildOperationsTasks(partial, today),
   };
+}
+
+/** Upcoming bed reserve check-ins — same rows as Operations center reservations card. */
+export async function getUpcomingCheckinsCount(session: AdminSession): Promise<number> {
+  const reservations = await listActiveBedReserves(session);
+  return reservations.length;
 }

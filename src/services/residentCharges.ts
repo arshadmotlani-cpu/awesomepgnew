@@ -348,12 +348,18 @@ export async function submitDepositLinkPaymentProof(
   const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
   await linkResidentUpload({
     storagePath: paymentProofUrl.trim(),
-    adminQueue: 'collections',
+    adminQueue: 'operations',
     linkedEntity: 'payment_link',
     linkedEntityId: linkId,
     bookingId: link.bookingId,
     pgId: link.pgId,
   }).catch(() => undefined);
+
+  const { supersedeActiveRejection } = await import('@/src/services/paymentProofRejectionService');
+  await supersedeActiveRejection('payment_link', linkId);
+
+  const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
+  scheduleAdminNotificationSync();
 
   return { ok: true };
 }
@@ -451,28 +457,26 @@ export async function approveDepositLinkPaymentProof(
 export async function rejectDepositLinkPaymentProof(
   session: AdminSession,
   linkId: string,
-): Promise<{ ok: true } | { ok: false; message: string }> {
-  const [link] = await db
-    .select()
-    .from(paymentLinks)
-    .where(eq(paymentLinks.id, linkId))
-    .limit(1);
-  if (!link) return { ok: false, message: 'Payment link not found.' };
-  if (!adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, link.pgId)) {
-    return { ok: false, message: 'Access denied.' };
-  }
-  if (!link.paymentProofUrl) {
-    return { ok: false, message: 'No payment photo uploaded.' };
-  }
-
-  await db
-    .update(paymentLinks)
-    .set({
-      paymentProofUrl: null,
-    })
-    .where(eq(paymentLinks.id, linkId));
-
-  return { ok: true };
+  rejection: {
+    reviewKey: string;
+    reasonCode: import('@/src/lib/approvals/paymentProofRejectionReasons').PaymentProofRejectionReasonCode;
+    reasonDetail?: string;
+    adminNote?: string;
+    residentMessage: string;
+    sendWhatsApp: boolean;
+  },
+): Promise<{ ok: true; whatsappUrl?: string } | { ok: false; message: string }> {
+  const { rejectPaymentProof } = await import('@/src/services/paymentProofRejectionService');
+  return rejectPaymentProof(session, {
+    reviewKey: rejection.reviewKey,
+    entityType: 'payment_link',
+    entityId: linkId,
+    reasonCode: rejection.reasonCode,
+    reasonDetail: rejection.reasonDetail,
+    adminNote: rejection.adminNote,
+    residentMessage: rejection.residentMessage,
+    sendWhatsApp: rejection.sendWhatsApp,
+  });
 }
 
 export function chargePaymentLinkPublicUrl(linkId: string): string {

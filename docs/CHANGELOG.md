@@ -256,17 +256,42 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-03 10:51:39 UTC
+### Pending pre-commit sync · 2026-07-03 12:42:41 UTC
 
-**Areas touched:** [[DATABASE]]
+**Areas touched:** [[ROUTES]], [[DATABASE]], [[Residents]], [[Action Center]], [[Electricity]], [[Billing]]
 
 **Docs flagged for review:**
+- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
 - `DATABASE.md` — review for accuracy
+- `PROJECT/features.md` — review for accuracy
+- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
+- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (1):**
-- `src/db/migrations/meta/_journal.json`
+**Staged code files (22):**
+- `app/(admin)/admin/analytics/page.tsx`
+- `app/(admin)/admin/billing/page.tsx`
+- `app/(admin)/admin/deposits/deposit-wallet-actions.ts`
+- `app/(admin)/admin/electricity/dashboard/page.tsx`
+- `app/(admin)/admin/operations/page.tsx`
+- `app/(admin)/admin/payments/actions.ts`
+- `app/(admin)/admin/system/page.tsx`
+- `app/(customer)/account/resident/pay-electricity/[invoiceId]/page.tsx`
+- `app/(customer)/account/resident/pay-rent/[invoiceId]/page.tsx`
+- `app/(customer)/booking/[bookingCode]/pay/page.tsx`
+- `app/(customer)/pay/[linkId]/page.tsx`
+- `src/db/migrations/0099_payment_proof_rejections.sql`
+- `src/db/migrations/0100_booking_approval_action_item.sql`
+- `src/db/migrations/0100_pg_payment_screenshot_nullable.sql`
+- `src/db/schema/enums.ts`
+- `src/db/schema/index.ts`
+- `src/db/schema/paymentProofRejections.ts`
+- `src/db/schema/pgPaymentRecords.ts`
+- `src/lib/residents/commandCenterLinks.ts`
+- `src/services/actionItems.ts`
+- `src/services/meterElectricity.ts`
+- `src/services/rentInvoices.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

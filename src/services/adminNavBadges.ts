@@ -1,5 +1,6 @@
 import type { AdminSession } from '@/src/lib/auth/session';
 import type { AdminModule } from '@/src/lib/admin/navigation';
+import { getWaitingForApprovalCount } from '@/src/services/approvalService';
 import { loadUnifiedOperationsQueue } from '@/src/services/unifiedOperationsQueue';
 import {
   getOpenActionsCount,
@@ -18,13 +19,13 @@ const BUCKET_TO_NAV: Record<UnresolvedBadgeBucket, keyof AdminNavBadges> = {
   checkout: 'checkoutSettlements',
 };
 
-/** Sidebar badges — operations queue uses unified SSOT; other buckets use unresolved_actions. */
+/** Sidebar badges — operations queue uses unified SSOT; payments = WFA visible count. */
 export async function loadAdminNavBadges(session: AdminSession): Promise<AdminNavBadges> {
   try {
     const badges: AdminNavBadges = {};
-    const [operationsQueue, paymentsCount, kycCount, checkoutCount] = await Promise.all([
+    const [operationsQueue, waitingForApproval, kycCount, checkoutCount] = await Promise.all([
       loadUnifiedOperationsQueue(session, null),
-      getOpenActionsCount(session, 'payments'),
+      getWaitingForApprovalCount(session),
       getOpenActionsCount(session, 'kyc'),
       getOpenActionsCount(session, 'checkout'),
     ]);
@@ -32,15 +33,12 @@ export async function loadAdminNavBadges(session: AdminSession): Promise<AdminNa
     if (operationsQueue.totalCount > 0) {
       badges.operations = operationsQueue.totalCount;
     }
-    if (paymentsCount > 0) badges.payments = paymentsCount;
+    if (waitingForApproval > 0) badges.payments = waitingForApproval;
     if (kycCount > 0) badges.kyc = kycCount;
     if (checkoutCount > 0) badges.checkoutSettlements = checkoutCount;
 
     const total =
-      (badges.operations ?? 0) +
-      (badges.payments ?? 0) +
-      (badges.kyc ?? 0) +
-      (badges.checkoutSettlements ?? 0);
+      (badges.operations ?? 0) + (badges.kyc ?? 0) + (badges.checkoutSettlements ?? 0);
     if (total > 0) badges.overview = total;
 
     return badges;

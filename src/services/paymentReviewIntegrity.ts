@@ -6,9 +6,11 @@ import { db } from '@/src/db/client';
 import {
   actionItems,
   bookings,
+  notifications,
   unresolvedActions,
 } from '@/src/db/schema';
 import type { AdminSession } from '@/src/lib/auth/session';
+import { getWaitingForApprovalCount } from '@/src/services/approvalService';
 import {
   countPendingPaymentReviews,
   listPendingPaymentReviews,
@@ -82,14 +84,14 @@ async function collectStalePaymentReviewRows(
           ),
         ),
       db.execute<{ id: string }>(sql`
-        SELECT an.id
-        FROM admin_notifications an
-        INNER JOIN admin_notification_states ans ON ans.notification_id = an.id
-        WHERE an.type = 'payment_received'
-          AND ans.state IN ('unread', 'read')
+        SELECT n.id
+        FROM notifications n
+        WHERE n.audience = 'admin'
+          AND n.type IN ('payment_proof_uploaded', 'payment_received')
+          AND NOT n.is_archived
           AND NOT EXISTS (
             SELECT 1 FROM action_items ai
-            WHERE ai.source_key = an.source_key
+            WHERE ai.source_key = n.dedupe_key
               AND ai.type = 'payment_received'
               AND ai.status IN ('open', 'in_progress')
           )
@@ -154,19 +156,18 @@ export async function resolveStalePaymentReviewArtifacts(
   }
 
   const archived = await db.execute<{ id: string }>(sql`
-    UPDATE admin_notification_states ans
-    SET state = 'archived', archived_at = now(), updated_at = now()
-    FROM admin_notifications an
-    WHERE ans.notification_id = an.id
-      AND an.type = 'payment_received'
-      AND ans.state IN ('unread', 'read')
+    UPDATE notifications n
+    SET is_archived = true
+    WHERE n.audience = 'admin'
+      AND n.type IN ('payment_proof_uploaded', 'payment_received')
+      AND NOT n.is_archived
       AND NOT EXISTS (
         SELECT 1 FROM action_items ai
-        WHERE ai.source_key = an.source_key
+        WHERE ai.source_key = n.dedupe_key
           AND ai.type = 'payment_received'
           AND ai.status IN ('open', 'in_progress')
       )
-    RETURNING ans.notification_id
+    RETURNING n.id
   `);
 
   return {
@@ -179,34 +180,36 @@ export async function resolveStalePaymentReviewArtifacts(
 export async function getPaymentReviewIntegrityReport(
   session: AdminSession,
 ): Promise<PaymentReviewIntegrityReport> {
-  const [queueCount, badgeCount, openUnresolvedPaymentReviewCount] = await Promise.all([
-    countPendingPaymentReviews(session),
-    getOpenActionsCount(session, 'payments'),
-    countOpenPaymentProofReviews(session),
-  ]);
+  const [rawQueueCount, visibleCount, badgeCount, openUnresolvedPaymentReviewCount] =
+    await Promise.all([
+      countPendingPaymentReviews(session),
+      getWaitingForApprovalCount(session),
+      getWaitingForApprovalCount(session),
+      countOpenPaymentProofReviews(session),
+    ]);
 
-  const dashboardCount = queueCount;
+  const dashboardCount = visibleCount;
   const items = await listPendingPaymentReviews(session);
   const { actionKeys, unresolvedKeys } = paymentReviewSourceKeys(items);
   const stale = await collectStalePaymentReviewRows(session, actionKeys, unresolvedKeys);
 
   const auditTable: PaymentReviewAuditRow[] = [
     {
-      surface: 'Payment Reviews Queue',
-      query: 'listPendingPaymentReviews(session).length',
+      surface: 'Payment Reviews Queue (raw)',
+      query: 'countPendingPaymentReviews(session)',
       service: 'paymentProofQueue',
-      count: queueCount,
+      count: rawQueueCount,
     },
     {
-      surface: 'Overview Pending Payments',
-      query: 'countPendingPaymentReviews(session)',
-      service: 'paymentReviewIntegrity / visitorAnalytics',
-      count: dashboardCount,
+      surface: 'Operations WFA (visible)',
+      query: 'getWaitingForApprovalCount(session)',
+      service: 'approvalService',
+      count: visibleCount,
     },
     {
       surface: 'Sidebar Payment Badge',
-      query: "getOpenActionsCount(session, 'payments')",
-      service: 'unresolvedActions',
+      query: 'getWaitingForApprovalCount(session)',
+      service: 'adminNavBadges / approvalService',
       count: badgeCount,
     },
     {
@@ -217,13 +220,10 @@ export async function getPaymentReviewIntegrityReport(
     },
   ];
 
-  const matches =
-    queueCount === dashboardCount &&
-    queueCount === badgeCount &&
-    queueCount === openUnresolvedPaymentReviewCount;
+  const matches = visibleCount === badgeCount && visibleCount === dashboardCount;
 
   return {
-    queueCount,
+    queueCount: rawQueueCount,
     dashboardCount,
     badgeCount,
     openUnresolvedPaymentReviewCount,

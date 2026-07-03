@@ -11,6 +11,8 @@ export type PaymentDueRow = {
   href: string | null;
   status: string;
   invoiceNumber?: string;
+  rejectionReason?: string;
+  rejectionMessage?: string;
 };
 
 export function ResidentPaymentsSummary({

@@ -48,6 +48,8 @@ export type BookingCheckoutExperienceProps = {
   membershipAmountPaise?: number;
   membershipLabel?: string | null;
   existingProofRecordId?: string | null;
+  rejectionReason?: string | null;
+  rejectionMessage?: string | null;
   /** Kept for API compat — not shown in the customer breakdown. */
   discountPaise?: number;
   depositCreditAppliedPaise?: number;
@@ -107,6 +109,8 @@ export function BookingCheckoutExperience({
   membershipAmountPaise,
   membershipLabel,
   existingProofRecordId,
+  rejectionReason,
+  rejectionMessage,
   discountPaise = 0,
   depositCreditAppliedPaise = 0,
   additionalDepositDuePaise,
@@ -123,7 +127,7 @@ export function BookingCheckoutExperience({
   const [uploading, setUploading] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(Boolean(existingProofRecordId));
+  const [done, setDone] = useState(Boolean(existingProofRecordId) && !rejectionReason);
   const [copied, setCopied] = useState(false);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -292,6 +296,20 @@ export function BookingCheckoutExperience({
     );
   }
 
+  const rejectionBanner =
+    rejectionReason || rejectionMessage ? (
+      <div className="rounded-[16px] border border-rose-500/30 bg-rose-500/10 px-5 py-4 text-sm text-rose-100">
+        <p className="font-semibold text-rose-200">Payment rejected</p>
+        {rejectionReason ? (
+          <p className="mt-2">
+            <span className="font-medium">Reason:</span> {rejectionReason}
+          </p>
+        ) : null}
+        {rejectionMessage ? <p className="mt-2 text-apg-silver">{rejectionMessage}</p> : null}
+        <p className="mt-3 text-xs text-rose-100/90">Please upload a new payment screenshot below.</p>
+      </div>
+    ) : null;
+
   if (done) {
     return (
       <div className="rounded-[16px] border border-emerald-500/30 bg-emerald-500/10 px-5 py-4 text-sm text-emerald-100">
@@ -312,6 +330,7 @@ export function BookingCheckoutExperience({
 
   return (
     <form onSubmit={onSubmit} className="space-y-5 pb-28">
+      {rejectionBanner}
       {!compactLayout ? (
       <>
       {/* Total payment summary */}

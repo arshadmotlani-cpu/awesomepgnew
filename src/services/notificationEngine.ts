@@ -2,7 +2,7 @@
  * User notifications + Web Push delivery — production SSOT for badge counts and push.
  */
 
-import { and, count, desc, eq, inArray } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { notifications, pushSubscriptions } from '@/src/db/schema';
 import type { AdminSession } from '@/src/lib/auth/session';
@@ -12,7 +12,7 @@ import {
   type NotificationCategory,
   type NotificationPriority,
 } from '@/src/lib/notifications/notificationTypes';
-import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
+import { finalizeApprovalNotificationDeepLink } from '@/src/lib/approvals/approvalDeepLinks';
 import { sendWebPush } from '@/src/lib/push/webPush';
 import { logger } from '@/src/lib/logger';
 import type { ActionItem } from '@/src/db/schema/actionItems';
@@ -70,32 +70,48 @@ export async function emitNotification(
       isRead: false,
       isArchived: false,
     })
-    .onConflictDoNothing()
-    .returning({ id: notifications.id });
+    .onConflictDoUpdate({
+      target: [notifications.audience, notifications.userId, notifications.dedupeKey],
+      set: {
+        deepLink: sql`excluded.deep_link`,
+        title: sql`excluded.title`,
+        body: sql`excluded.body`,
+        type: sql`excluded.type`,
+        priority: sql`excluded.priority`,
+        entityType: sql`excluded.entity_type`,
+        entityId: sql`excluded.entity_id`,
+        isArchived: false,
+      },
+    })
+    .returning({ id: notifications.id, createdAt: notifications.createdAt });
 
-  if (inserted.length === 0) {
+  const row = inserted[0];
+  if (!row) {
     return { created: false };
   }
 
-  const notificationId = inserted[0]!.id;
+  const created = row.createdAt.getTime() > Date.now() - 2000;
+  const notificationId = row.id;
   const unreadCount = await countUnreadForUser(input.audience, input.userId);
 
-  void deliverPushToUser(input.audience, input.userId, {
-    title: input.title,
-    body: input.body,
-    deepLink: input.deepLink,
-    notificationId,
-    dedupeKey: input.dedupeKey,
-    unreadCount,
-    priority,
-  }).catch((err) => {
-    logger.warn('[push] deliver failed', {
-      userId: input.userId,
-      error: err instanceof Error ? err.message : String(err),
+  if (created) {
+    void deliverPushToUser(input.audience, input.userId, {
+      title: input.title,
+      body: input.body,
+      deepLink: input.deepLink,
+      notificationId,
+      dedupeKey: input.dedupeKey,
+      unreadCount,
+      priority,
+    }).catch((err) => {
+      logger.warn('[push] deliver failed', {
+        userId: input.userId,
+        error: err instanceof Error ? err.message : String(err),
+      });
     });
-  });
+  }
 
-  return { created: true, id: notificationId };
+  return { created, id: notificationId };
 }
 
 export async function emitNotificationToAdmins(
@@ -358,7 +374,7 @@ export async function emitAdminNotificationsForActionItem(input: {
   metadata?: ActionItemMetadata;
 }): Promise<void> {
   const type = mapActionItemTypeToNotificationType(input.type);
-  const deepLink = improveDeepLink(input.type, input.href, input.metadata);
+  const deepLink = finalizeApprovalNotificationDeepLink(input.type, input.href, input.metadata);
 
   await emitNotificationToAdmins(input.adminIds, {
     type,
@@ -374,6 +390,7 @@ export async function emitAdminNotificationsForActionItem(input: {
 
 function mapActionItemTypeToNotificationType(type: ActionItem['type']): string {
   if (type === 'payment_received') return 'payment_proof_uploaded';
+  if (type === 'booking_approval') return 'booking_approval';
   if (type === 'fixed_stay_checkout_due') return 'checkout_settlement';
   return type;
 }
@@ -383,28 +400,7 @@ function improveDeepLink(
   href: string,
   meta?: ActionItemMetadata,
 ): string {
-  if (type === 'payment_received' && meta?.bookingId) {
-    return `/admin/operations?filter=payment_proof&booking=${meta.bookingId}`;
-  }
-  if (type === 'kyc_pending' && meta?.submissionId) {
-    return `/admin/residents/kyc/${meta.submissionId}`;
-  }
-  if (
-    (type === 'refund_pending' || type === 'deposit_refund_request') &&
-    meta?.bookingId
-  ) {
-    return refundConsoleHref(meta.bookingId);
-  }
-  if (type === 'vacating_alert' && meta?.settlementId) {
-    return `/admin/checkout-settlements/${meta.settlementId}`;
-  }
-  if (type === 'vacating_alert' && meta?.vacatingRequestId) {
-    return `/admin/vacating?read=${encodeURIComponent(`vacating:${meta.vacatingRequestId}`)}`;
-  }
-  if (type === 'fixed_stay_checkout_due' && meta?.settlementId) {
-    return `/admin/checkout-settlements/${meta.settlementId}`;
-  }
-  return href;
+  return finalizeApprovalNotificationDeepLink(type, href, meta);
 }
 
 export async function emitBookingCreatedAdminNotifications(input: {

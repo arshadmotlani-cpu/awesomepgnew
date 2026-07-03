@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { operationsFilterHref } from '@/src/lib/operations/operationsFilterLinks';
 import { paiseToInr } from '@/src/lib/format';
 
 export type BillingDashboardMetrics = {
@@ -71,7 +72,7 @@ export function BillingOperationsDashboard({ metrics }: { metrics: BillingDashbo
         <MetricCard
           label="Pending approvals"
           value={metrics.pendingApprovals}
-          href={tab('approvals')}
+          href={operationsFilterHref('waiting_for_approval')}
           tone={metrics.pendingApprovals > 0 ? 'warn' : 'default'}
         />
         <MetricCard

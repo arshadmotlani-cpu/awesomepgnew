@@ -254,6 +254,37 @@ export function notifyPaymentProofRejected(args: {
   });
 }
 
+/** Booking checkout proof rejected — booking stays active for re-upload. */
+export function notifyBookingPaymentProofRejected(args: {
+  customerId: string;
+  bookingCode: string;
+  reason?: string;
+  message: string;
+  payHref: string;
+}): void {
+  queueTenantNotification({
+    customerId: args.customerId,
+    notificationKind: 'payment_proof_rejected',
+    subject: `Payment not approved — ${args.bookingCode}`,
+    text: `${args.message}\n\nRe-upload here: ${args.payHref}`,
+  });
+}
+
+export function notifyGenericPaymentProofRejected(args: {
+  customerId: string;
+  billLabel: string;
+  reason?: string;
+  message: string;
+  payHref: string;
+}): void {
+  queueTenantNotification({
+    customerId: args.customerId,
+    notificationKind: 'payment_proof_rejected',
+    subject: `Payment rejected — ${args.billLabel}`,
+    text: `${args.message}\n\nRe-upload here: ${args.payHref}`,
+  });
+}
+
 export function notifyBookingOverpaymentRefundPending(args: {
   customerId: string;
   bookingCode: string;
@@ -290,15 +321,20 @@ export function notifyInvoicePaymentProofRejected(args: {
   invoiceNumber: string;
   billType: 'rent' | 'electricity';
   reason?: string;
+  message?: string;
+  payHref?: string;
 }): void {
+  const body =
+    args.message?.trim() ||
+    `Your ${args.billType} payment for invoice ${args.invoiceNumber} was not approved.\n` +
+      `The bill is back in Due Bills — you can pay again from the resident portal.\n` +
+      (args.reason?.trim() ? `\nReason: ${args.reason.trim()}\n` : '');
+  const payLine = args.payHref ? `\n\nRe-upload here: ${args.payHref}` : '';
   queueTenantNotification({
     customerId: args.customerId,
     notificationKind: 'payment_proof_rejected',
     subject: `Payment rejected — ${args.invoiceNumber}`,
-    text:
-      `Your ${args.billType} payment for invoice ${args.invoiceNumber} was not approved.\n` +
-      `The bill is back in Due Bills — you can pay again from the resident portal.\n` +
-      (args.reason?.trim() ? `\nReason: ${args.reason.trim()}\n` : ''),
+    text: `${body}${payLine}`,
   });
 }
 

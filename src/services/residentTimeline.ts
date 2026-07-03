@@ -11,6 +11,7 @@ import {
   customers,
   financialInvoices,
   kycSubmissions,
+  paymentProofRejections,
   pgPaymentRecords,
   residentRequests,
   residentUploadEvents,
@@ -316,7 +317,7 @@ export async function buildResidentTimeline(
           bookingCode: b.bookingCode,
           detail:
             b.status === 'pending_approval'
-              ? 'Payment proof submitted — awaiting admin approval in Collections'
+              ? 'Payment proof submitted — awaiting admin approval in Operations'
               : b.status === 'pending_payment'
                 ? 'Bed held — resident must pay and upload proof'
                 : null,
@@ -359,7 +360,7 @@ export async function buildResidentTimeline(
           bookingId: p.bookingId,
           bookingCode: subject.bookingCode,
           detail: p.paymentScreenshotUrl ? 'Screenshot on file' : null,
-          adminHref: '/admin/collections',
+          adminHref: '/admin/operations?filter=waiting_for_approval',
         }),
       );
     }
@@ -672,6 +673,31 @@ export async function buildResidentTimeline(
         bookingCode: subject.bookingCode,
         detail: n.type.replace(/_/g, ' '),
         adminHref: n.href,
+      }),
+    );
+  }
+
+  const proofRejections = await db
+    .select()
+    .from(paymentProofRejections)
+    .where(eq(paymentProofRejections.customerId, customerId))
+    .orderBy(desc(paymentProofRejections.rejectedAt))
+    .limit(50);
+
+  for (const r of proofRejections) {
+    if (!canAccessPg(session, r.pgId)) continue;
+    events.push(
+      evt({
+        kind: 'rejected',
+        label: `Payment proof rejected — ${r.reasonLabel}`,
+        status: r.status,
+        recordId: r.id,
+        sourceTable: 'payment_proof_rejections',
+        timestamp: r.rejectedAt,
+        bookingId: r.bookingId,
+        bookingCode: subject.bookingCode,
+        detail: r.residentMessage,
+        adminHref: '/admin/operations?filter=waiting_for_approval',
       }),
     );
   }

@@ -7,7 +7,8 @@ export type WhatsAppLogKind =
   | 'electricity_due'
   | 'kyc'
   | 'deposit'
-  | 'bed_assignment';
+  | 'bed_assignment'
+  | 'payment_rejection';
 
 export async function logWhatsAppEvent(args: {
   adminId?: string | null;

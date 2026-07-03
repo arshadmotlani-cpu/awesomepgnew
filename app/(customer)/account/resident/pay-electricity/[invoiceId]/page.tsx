@@ -34,6 +34,7 @@ import {
   getElectricityDailyCategory,
 } from '@/src/services/pgPaymentDefaults';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
+import { getActiveRejectionForEntity } from '@/src/services/paymentProofRejectionService';
 
 export const dynamic = 'force-dynamic';
 
@@ -95,6 +96,7 @@ export default async function PayElectricityPage({
   const periodLabel = formatDate(invoiceRow.billingMonth);
   const backHref = residentTabHref('payments');
   const calculation = await getElectricityBreakdownForInvoice(invoiceId);
+  const activeRejection = await getActiveRejectionForEntity('electricity_invoice', invoiceId);
 
   await ensureDefaultPaymentCategoriesForPg(row.pgId);
   const elecCategory = await getElectricityDailyCategory(row.pgId);
@@ -162,6 +164,8 @@ export default async function PayElectricityPage({
           qrImageUrl={elecCategory?.qrCodeImageUrl ?? DEFAULT_ELECTRICITY_DAILY_QR_PATH}
           upiId={elecCategory?.upiId ?? DEFAULT_ELECTRICITY_DAILY_UPI_ID}
           existingProofUrl={row.paymentProofUrl}
+          rejectionReason={activeRejection?.reasonLabel ?? null}
+          rejectionMessage={activeRejection?.residentMessage ?? null}
           uploadScreenshot={uploadPaymentScreenshotAction}
           backHref={backHref}
         />

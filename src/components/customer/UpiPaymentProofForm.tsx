@@ -13,6 +13,8 @@ export function UpiPaymentProofForm({
   qrImageUrl,
   upiId,
   existingProofUrl,
+  rejectionReason,
+  rejectionMessage,
   proofViewHref,
   uploadScreenshot,
   submitProof,
@@ -26,6 +28,8 @@ export function UpiPaymentProofForm({
   qrImageUrl?: string | null;
   upiId?: string | null;
   existingProofUrl?: string | null;
+  rejectionReason?: string | null;
+  rejectionMessage?: string | null;
   /** Server route for viewing data-URL proofs in a new tab. */
   proofViewHref?: string;
   uploadScreenshot: (formData: FormData) => Promise<string>;
@@ -47,7 +51,35 @@ export function UpiPaymentProofForm({
   const [uploading, setUploading] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(Boolean(existingProofUrl));
+  const [done, setDone] = useState(Boolean(existingProofUrl) && !rejectionReason);
+
+  const rejectionBanner =
+    rejectionReason || rejectionMessage ? (
+      <div
+        className={
+          isLight
+            ? 'rounded-xl border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-900'
+            : 'rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-4 text-sm text-rose-100'
+        }
+      >
+        <p className={`font-semibold ${isLight ? 'text-rose-800' : 'text-rose-200'}`}>
+          Payment rejected
+        </p>
+        {rejectionReason ? (
+          <p className="mt-2">
+            <span className="font-medium">Reason:</span> {rejectionReason}
+          </p>
+        ) : null}
+        {rejectionMessage ? (
+          <p className={`mt-2 ${isLight ? 'text-rose-800' : 'text-apg-silver'}`}>
+            {rejectionMessage}
+          </p>
+        ) : null}
+        <p className={`mt-3 text-xs ${isLight ? 'text-rose-700' : 'text-rose-100/90'}`}>
+          Please upload a new payment screenshot below.
+        </p>
+      </div>
+    ) : null;
 
   useEffect(() => {
     return () => {
@@ -145,6 +177,7 @@ export function UpiPaymentProofForm({
           : 'apg-glass space-y-4 rounded-2xl p-5'
       }
     >
+      {rejectionBanner}
       <div>
         <h3 className={`text-base font-semibold ${isLight ? 'text-zinc-900' : 'text-white'}`}>
           {heading}

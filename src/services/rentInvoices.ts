@@ -1805,6 +1805,9 @@ export async function submitRentPaymentProof(
   const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
   await syncRentInvoiceToUnified(invoiceId);
 
+  const { supersedeActiveRejection } = await import('@/src/services/paymentProofRejectionService');
+  await supersedeActiveRejection('rent_invoice', invoiceId);
+
   const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
   scheduleAdminNotificationSync();
 
@@ -1888,42 +1891,26 @@ export async function approveRentPaymentProof(
 export async function rejectRentPaymentProof(
   session: AdminSession,
   invoiceId: string,
-  reason?: string,
-): Promise<{ ok: true } | { ok: false; message: string }> {
-  const [invoice] = await db
-    .select()
-    .from(rentInvoices)
-    .where(eq(rentInvoices.id, invoiceId))
-    .limit(1);
-  if (!invoice) return { ok: false, message: 'Invoice not found.' };
-  if (!adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, invoice.pgId)) {
-    return { ok: false, message: 'Access denied.' };
-  }
-  if (!invoice.paymentProofUrl) {
-    return { ok: false, message: 'No payment photo uploaded.' };
-  }
-
-  const projected = projectInvoice({ ...invoice, status: 'pending', paymentProofUrl: null });
-  const nextStatus = projected.effectiveStatus === 'overdue' ? 'overdue' : 'pending';
-
-  await db
-    .update(rentInvoices)
-    .set({
-      paymentProofUrl: null,
-      status: nextStatus,
-      updatedAt: new Date(),
-    })
-    .where(eq(rentInvoices.id, invoiceId));
-
-  const { notifyInvoicePaymentProofRejected } = await import('@/src/lib/email/notifications');
-  notifyInvoicePaymentProofRejected({
-    customerId: invoice.customerId,
-    invoiceNumber: invoice.invoiceNumber,
-    billType: 'rent',
-    reason,
+  rejection: {
+    reviewKey: string;
+    reasonCode: import('@/src/lib/approvals/paymentProofRejectionReasons').PaymentProofRejectionReasonCode;
+    reasonDetail?: string;
+    adminNote?: string;
+    residentMessage: string;
+    sendWhatsApp: boolean;
+  },
+): Promise<{ ok: true; whatsappUrl?: string } | { ok: false; message: string }> {
+  const { rejectPaymentProof } = await import('@/src/services/paymentProofRejectionService');
+  return rejectPaymentProof(session, {
+    reviewKey: rejection.reviewKey,
+    entityType: 'rent_invoice',
+    entityId: invoiceId,
+    reasonCode: rejection.reasonCode,
+    reasonDetail: rejection.reasonDetail,
+    adminNote: rejection.adminNote,
+    residentMessage: rejection.residentMessage,
+    sendWhatsApp: rejection.sendWhatsApp,
   });
-
-  return { ok: true };
 }
 
 // ───────────────────────────────────────────────────────────────────────────

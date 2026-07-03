@@ -10,6 +10,8 @@ export function ResidentPayElectricityClient({
   qrImageUrl,
   upiId,
   existingProofUrl,
+  rejectionReason,
+  rejectionMessage,
   uploadScreenshot,
   backHref,
 }: {
@@ -19,6 +21,8 @@ export function ResidentPayElectricityClient({
   qrImageUrl?: string | null;
   upiId?: string | null;
   existingProofUrl?: string | null;
+  rejectionReason?: string | null;
+  rejectionMessage?: string | null;
   uploadScreenshot: (formData: FormData) => Promise<string>;
   backHref: string;
 }) {
@@ -30,6 +34,8 @@ export function ResidentPayElectricityClient({
       qrImageUrl={qrImageUrl}
       upiId={upiId}
       existingProofUrl={existingProofUrl}
+      rejectionReason={rejectionReason}
+      rejectionMessage={rejectionMessage}
       proofViewHref={customerPaymentProofViewUrl('electricity', invoiceId)}
       uploadScreenshot={uploadScreenshot}
       submitProof={async ({ screenshotUrl }) => {

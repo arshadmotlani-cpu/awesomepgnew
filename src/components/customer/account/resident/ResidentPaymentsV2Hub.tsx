@@ -36,6 +36,7 @@ type Props = {
   sub: ResidentPaymentsSub;
   dueRows: BillDueRow[];
   pendingApprovalRows: PaymentDueRow[];
+  rejectedBillRows?: PaymentDueRow[];
   paidBills: PaidHistoryRow[];
   historyHref: string | null;
   lifetimeTotals: LifetimeTotals;
@@ -76,9 +77,20 @@ function BillCard({ row }: { row: BillDueRow }) {
         </p>
       ) : null}
       {row.href ? (
-        <Link href={row.href} className={`${primaryBtn} mt-3 w-full`}>
-          Pay {paiseToInr(row.amountPaise)}
+        <Link
+          href={row.href}
+          className={`${primaryBtn} mt-3 w-full`}
+        >
+          {row.status === 'Rejected' ? 'Upload new screenshot' : `Pay ${paiseToInr(row.amountPaise)}`}
         </Link>
+      ) : null}
+      {row.rejectionReason ? (
+        <p className="mt-2 text-xs text-rose-200">
+          <span className="font-medium">Reason:</span> {row.rejectionReason}
+        </p>
+      ) : null}
+      {row.rejectionMessage ? (
+        <p className="mt-1 text-xs text-apg-silver line-clamp-3">{row.rejectionMessage}</p>
       ) : null}
     </li>
   );
@@ -88,6 +100,7 @@ export function ResidentPaymentsV2Hub({
   sub,
   dueRows,
   pendingApprovalRows,
+  rejectedBillRows = [],
   paidBills,
   historyHref,
   lifetimeTotals,
@@ -130,7 +143,9 @@ export function ResidentPaymentsV2Hub({
             </p>
           ) : null}
 
-          {payableDue.length === 0 && pendingApprovalRows.length === 0 ? (
+          {payableDue.length === 0 &&
+          pendingApprovalRows.length === 0 &&
+          rejectedBillRows.length === 0 ? (
             <ApgCard tier="resident">
               <p className="text-sm text-apg-silver">No bills waiting for payment right now.</p>
             </ApgCard>
@@ -141,6 +156,17 @@ export function ResidentPaymentsV2Hub({
               ))}
             </ul>
           )}
+
+          {rejectedBillRows.length > 0 ? (
+            <ApgCard tier="resident">
+              <h2 className="text-sm font-semibold text-rose-200">Rejected — action required</h2>
+              <ul className="mt-3 space-y-3">
+                {rejectedBillRows.map((row) => (
+                  <BillCard key={row.key} row={row} />
+                ))}
+              </ul>
+            </ApgCard>
+          ) : null}
 
           {pendingApprovalRows.length > 0 ? (
             <ApgCard tier="resident">

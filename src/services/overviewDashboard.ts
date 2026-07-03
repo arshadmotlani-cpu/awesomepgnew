@@ -1,6 +1,8 @@
+import { operationsFilterHref } from '@/src/lib/operations/operationsFilterLinks';
+import { FEATURED_PG_PATTERNS } from '@/src/lib/admin/featuredPgs';
 import { moduleHref, withMonth } from '@/src/lib/admin/navigation';
 import type { RevenueByPgRow } from '@/src/services/revenueCommandCenter';
-import type { OverviewContext } from '@/src/services/overviewData';
+import type { OverviewReportingSnapshot } from '@/src/services/overviewReportingService';
 
 export type MetricKind = 'money' | 'count' | 'percent';
 
@@ -41,29 +43,7 @@ export type OverviewDashboardData = {
   operationsAlerts: OverviewMetric[];
 };
 
-type FeaturedPgPattern = {
-  label: string;
-  match: (pgName: string) => boolean;
-};
-
-export const FEATURED_PG_PATTERNS: FeaturedPgPattern[] = [
-  {
-    label: 'CENTRAL - AWESOME PG',
-    match: (name) => /central/i.test(name) && !/female/i.test(name),
-  },
-  {
-    label: 'CENTRAL - AWESOME PG (Female)',
-    match: (name) => /central/i.test(name) && /female/i.test(name),
-  },
-  {
-    label: 'SHANTINAGAR - AWESOME PG',
-    match: (name) => /shantinagar/i.test(name),
-  },
-  {
-    label: 'TRIMURTI NAGAR - AWESOME PG',
-    match: (name) => /trimurti/i.test(name),
-  },
-];
+export { FEATURED_PG_PATTERNS };
 
 function metric(
   id: string,
@@ -106,7 +86,7 @@ function percentMetric(
 export function selectFeaturedPropertyRows(
   rows: RevenueByPgRow[],
   billingMonth: string,
-  patterns: FeaturedPgPattern[] = FEATURED_PG_PATTERNS,
+  patterns = FEATURED_PG_PATTERNS,
 ): PropertyPerformanceRow[] {
   const used = new Set<string>();
   const result: PropertyPerformanceRow[] = [];
@@ -140,16 +120,23 @@ function toPropertyPerformanceRow(row: RevenueByPgRow, billingMonth: string): Pr
   };
 }
 
-export function buildOverviewDashboard(ctx: OverviewContext): OverviewDashboardData {
+function opsCount(
+  counts: OverviewReportingSnapshot['operationsQueueCounts'],
+  filter: keyof OverviewReportingSnapshot['operationsQueueCounts'],
+): number {
+  return counts[filter] ?? 0;
+}
+
+/** Pure mapping from reporting snapshot to dashboard cards — no business logic. */
+export function buildOverviewDashboard(ctx: OverviewReportingSnapshot): OverviewDashboardData {
   const month = ctx.billingMonth;
-  const s = ctx.summary;
   const r = ctx.revenue;
   const out = r.outstanding;
-  const ops = ctx.operations;
-  const d = ctx.dashboard;
   const rentStats = ctx.rentStats;
-  const kpis = ctx.overviewKpis;
+  const d = ctx.dashboard;
   const visitors = ctx.visitors;
+  const ops = ctx.operationsQueueCounts;
+  const moveOut = ctx.moveOutPipeline;
 
   const sections: OverviewSection[] = [
     {
@@ -189,11 +176,11 @@ export function buildOverviewDashboard(ctx: OverviewContext): OverviewDashboardD
         moneyMetric('mtd_deposit', 'Deposit Collected (MTD)', r.mtd.depositPaise, {
           href: withMonth('/admin/deposits/collected', month),
         }),
-        moneyMetric('extra_income', 'Extra Income', s.extraIncomePaise, {
+        moneyMetric('extra_income', 'Extra Income', r.mtd.otherIncomePaise, {
           href: moduleHref('revenue', month),
           hint: 'Non-rent invoice income',
         }),
-        moneyMetric('late_fees', 'Late Fees Collected', s.lateFeePaise, {
+        moneyMetric('late_fees', 'Late Fees Collected', r.mtd.lateFeePaise, {
           href: moduleHref('revenue', month),
         }),
       ],
@@ -214,15 +201,9 @@ export function buildOverviewDashboard(ctx: OverviewContext): OverviewDashboardD
           href: '/admin/billing?tab=paid',
           hint: rentStats ? `₹${(rentStats.collectedPaise / 100).toLocaleString('en-IN')}` : undefined,
         }),
-        moneyMetric('rent_outstanding', 'Rent Outstanding', out.pendingRentInvoicesPaise, {
-          href: '/admin/billing?tab=rent',
-        }),
         moneyMetric('pending_electricity', 'Electricity Pending', out.pendingElectricityInvoicesPaise, {
           href: '/admin/billing?tab=electricity',
           hint: `${out.pendingElectricityInvoices} invoice${out.pendingElectricityInvoices === 1 ? '' : 's'}`,
-        }),
-        countMetric('electricity_due', 'Electricity Due', ctx.invoiceOutstanding.pendingElectricityInvoices, {
-          href: '/admin/billing?tab=electricity',
         }),
         moneyMetric('total_outstanding', 'Total Outstanding', out.totalOutstandingPaise, {
           href: moduleHref('collections', month),
@@ -230,37 +211,44 @@ export function buildOverviewDashboard(ctx: OverviewContext): OverviewDashboardD
       ],
     },
     {
-      id: 'payments_approvals',
-      emoji: '💳',
-      title: 'PAYMENTS & APPROVALS',
+      id: 'operations',
+      emoji: '⚡',
+      title: 'OPERATIONS',
       metrics: [
-        countMetric('payments_to_review', 'Payments To Review', ops?.pendingPayments.count ?? 0, {
-          href: '/admin/operations?filter=payment_proof',
-          hint: 'SSOT: payment proof queue',
+        countMetric('rent_due', 'Rent Due', opsCount(ops, 'rent_due'), {
+          href: operationsFilterHref('rent_due'),
+        }),
+        countMetric('electricity_due', 'Electricity Due', opsCount(ops, 'electricity_due'), {
+          href: operationsFilterHref('electricity_due'),
+        }),
+        countMetric('deposit_due', 'Deposit Due', opsCount(ops, 'deposit_due'), {
+          href: operationsFilterHref('deposit_due'),
+        }),
+        countMetric('refund_due', 'Refund Due', opsCount(ops, 'refund_due'), {
+          href: operationsFilterHref('refund_due'),
+        }),
+        countMetric('waiting_for_approval', 'Waiting for Approval', opsCount(ops, 'waiting_for_approval'), {
+          href: operationsFilterHref('waiting_for_approval'),
+        }),
+        countMetric('vacating_requests', 'Vacating Requests', opsCount(ops, 'vacating_requests'), {
+          href: operationsFilterHref('vacating_requests'),
+        }),
+        countMetric('booking_approval', 'Booking Approval', opsCount(ops, 'booking_approval'), {
+          href: operationsFilterHref('booking_approval'),
+        }),
+        countMetric('kyc_review', 'KYC Review', opsCount(ops, 'kyc_review'), {
+          href: operationsFilterHref('kyc_review'),
         }),
       ],
     },
     {
-      id: 'moveouts_refunds',
+      id: 'moveouts',
       emoji: '🏠',
-      title: 'MOVE-OUTS & REFUNDS',
+      title: 'MOVE-OUTS',
       metrics: [
-        countMetric('vacating_month', 'Move-out notices', ops?.leavingSoon.count ?? 0, {
-          href: '/admin/vacating',
-          hint: 'Pending or approved vacating requests',
-        }),
-        countMetric('beds_releasing', 'Beds releasing (30d)', ops?.bedsReleasingSoon.count ?? 0, {
+        countMetric('beds_releasing', 'Beds releasing (30d)', moveOut.counts.bedsReleasing30Days, {
           href: '/admin/vacating',
         }),
-        countMetric(
-          'refunds_pending',
-          'Refunds pending',
-          ops?.checkoutRefundsPending.count ?? 0,
-          {
-            href: '/admin/refunds',
-            hint: 'Checkout pipeline — refund to send',
-          },
-        ),
       ],
     },
     {
@@ -268,14 +256,14 @@ export function buildOverviewDashboard(ctx: OverviewContext): OverviewDashboardD
       emoji: '🛏',
       title: 'OCCUPANCY & INVENTORY',
       metrics: [
-        percentMetric('occupancy', 'Occupancy', s.occupancyPct, {
+        percentMetric('occupancy', 'Occupancy', d?.occupancyPct ?? 0, {
           href: '/admin/occupancy',
-          hint: `${s.occupiedBeds}/${s.totalBeds} beds`,
+          hint: `${d?.occupiedBeds ?? 0}/${d?.totalBeds ?? 0} beds`,
         }),
-        countMetric('occupied_beds', 'Occupied Beds', s.occupiedBeds, {
+        countMetric('occupied_beds', 'Occupied Beds', d?.occupiedBeds ?? 0, {
           href: '/admin/occupancy',
         }),
-        countMetric('bed_availability', 'Bed Availability', s.availableBeds, {
+        countMetric('bed_availability', 'Bed Availability', d?.availableBeds ?? 0, {
           href: '/admin/beds',
         }),
         countMetric('blocked_beds', 'Blocked Beds', d?.blockedBeds ?? 0, {
@@ -291,22 +279,11 @@ export function buildOverviewDashboard(ctx: OverviewContext): OverviewDashboardD
       emoji: '👥',
       title: 'RESIDENTS',
       metrics: [
-        countMetric('active_tenants', 'Active Tenants', kpis.activeTenants, {
+        countMetric('active_tenants', 'Active Tenants', ctx.activeTenants, {
           href: '/admin/residents',
         }),
-        countMetric('upcoming_checkins', 'Upcoming Check-ins', ops?.upcomingReservations.count ?? 0, {
+        countMetric('upcoming_checkins', 'Upcoming Check-ins', ctx.upcomingCheckins, {
           href: '/admin/bookings',
-        }),
-      ],
-    },
-    {
-      id: 'compliance_kyc',
-      emoji: '✅',
-      title: 'COMPLIANCE & KYC',
-      metrics: [
-        countMetric('kyc_pending', 'KYC Pending', ops?.pendingKyc.count ?? 0, {
-          href: '/admin/residents/kyc',
-          hint: 'SSOT: pending KYC submissions',
         }),
       ],
     },
@@ -345,7 +322,7 @@ export function buildOverviewDashboard(ctx: OverviewContext): OverviewDashboardD
         countMetric('rooms', 'Rooms', d?.totalRooms ?? 0, {
           href: '/admin/rooms',
         }),
-        countMetric('total_beds', 'Total Beds', d?.totalBeds ?? s.totalBeds, {
+        countMetric('total_beds', 'Total Beds', d?.totalBeds ?? 0, {
           href: '/admin/beds',
         }),
       ],
@@ -372,4 +349,16 @@ export function formatOverviewMetricValue(kind: MetricKind, value: number): stri
     case 'count':
       return value.toLocaleString('en-IN');
   }
+}
+
+/** Read a card value from a built dashboard — for parity scripts. */
+export function findOverviewMetricValue(
+  dashboard: OverviewDashboardData,
+  id: string,
+): number | null {
+  for (const section of dashboard.sections) {
+    const m = section.metrics.find((x) => x.id === id);
+    if (m) return m.value;
+  }
+  return null;
 }

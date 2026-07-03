@@ -25,6 +25,7 @@ import { getVacatingForBooking } from '@/src/db/queries/customer';
 import { settleDepositWithDeductions } from '@/src/services/depositSettlement';
 import { syncResidentRequestActionItems } from '@/src/services/residentRequestActions';
 import { refreshAdminNotificationsFromActionItems } from '@/src/services/actionItems';
+import { writeAuditLogNonBlocking } from '@/src/lib/audit/writeAuditLog';
 import {
   computeRefundDeductions,
   type RefundCompletionInput,
@@ -313,6 +314,14 @@ export async function adminReviewResidentRequest(input: {
       .set({ status: 'under_review', adminNotes: input.adminNotes ?? current.adminNotes, updatedAt: new Date() })
       .where(eq(residentRequests.id, input.requestId))
       .returning();
+    writeAuditLogNonBlocking({
+      actorType: 'admin',
+      actorId: input.adminId,
+      entity: 'resident_request',
+      entityId: input.requestId,
+      action: 'under_review',
+      diff: { type: current.type, adminNotes: input.adminNotes ?? null },
+    });
     await syncResidentRequestActionItems();
     return { ok: true as const, request: updated };
   }
@@ -329,6 +338,14 @@ export async function adminReviewResidentRequest(input: {
       })
       .where(eq(residentRequests.id, input.requestId))
       .returning();
+    writeAuditLogNonBlocking({
+      actorType: 'admin',
+      actorId: input.adminId,
+      entity: 'resident_request',
+      entityId: input.requestId,
+      action: 'reject',
+      diff: { type: current.type, adminNotes: input.adminNotes ?? null },
+    });
     await syncResidentRequestActionItems();
     return { ok: true as const, request: updated };
   }
@@ -372,6 +389,14 @@ export async function adminReviewResidentRequest(input: {
       .where(eq(residentRequests.id, input.requestId))
       .returning();
 
+    writeAuditLogNonBlocking({
+      actorType: 'admin',
+      actorId: input.adminId,
+      entity: 'resident_request',
+      entityId: input.requestId,
+      action: 'approve',
+      diff: { type: current.type, adminNotes: input.adminNotes ?? null },
+    });
     await syncResidentRequestActionItems();
     return { ok: true as const, request: updated };
   }
@@ -428,6 +453,14 @@ export async function adminReviewResidentRequest(input: {
         .where(eq(residentRequests.id, input.requestId))
         .returning();
 
+      writeAuditLogNonBlocking({
+        actorType: 'admin',
+        actorId: input.adminId,
+        entity: 'resident_request',
+        entityId: input.requestId,
+        action: 'complete',
+        diff: { type: current.type, finalRefundPaise: settlement.refundPaise },
+      });
       await syncResidentRequestActionItems();
       return { ok: true as const, request: updated };
     }
@@ -444,6 +477,14 @@ export async function adminReviewResidentRequest(input: {
       .where(eq(residentRequests.id, input.requestId))
       .returning();
 
+    writeAuditLogNonBlocking({
+      actorType: 'admin',
+      actorId: input.adminId,
+      entity: 'resident_request',
+      entityId: input.requestId,
+      action: 'complete',
+      diff: { type: current.type },
+    });
     await syncResidentRequestActionItems();
     return { ok: true as const, request: updated };
   }

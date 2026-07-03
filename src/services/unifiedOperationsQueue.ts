@@ -283,7 +283,7 @@ function residentsRowToItem(row: ResidentsQueueRow): UnifiedOpsItem | null {
   return null;
 }
 
-async function listPendingBookingApprovals(session: AdminSession) {
+export async function listPendingBookingApprovalsForSync(session: AdminSession) {
   const rows = await db
     .select({
       id: bookings.id,
@@ -331,7 +331,7 @@ export async function loadUnifiedOperationsQueue(
     moveOutBundle,
   ] = await Promise.all([
     loadResidentOperationsResidentsPage(session, null),
-    listPendingBookingApprovals(session),
+    listPendingBookingApprovalsForSync(session),
     listPendingPaymentReviews(session),
     loadOperationsQueueDismissalIndex(),
     import('@/src/services/depositExpress').then((m) => m.listDepositDueBookings(session)),

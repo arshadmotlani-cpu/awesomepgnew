@@ -23,7 +23,7 @@ export const pgPaymentRecords = pgTable(
     amountPaise: bigint('amount_paise', { mode: 'number' }).notNull(),
     month: text('month'),
     status: pgPaymentRecordStatusEnum('status').notNull().default('pending'),
-    paymentScreenshotUrl: text('payment_screenshot_url').notNull(),
+    paymentScreenshotUrl: text('payment_screenshot_url'),
     transactionRef: text('transaction_ref'),
     reviewedByAdminId: uuid('reviewed_by_admin_id'),
     reviewedAt: timestamp('reviewed_at', { withTimezone: true }),

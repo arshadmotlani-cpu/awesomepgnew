@@ -12,12 +12,16 @@ export function PaymentLinkProofForm({
   amountLabel,
   qrImageUrl,
   existingProofUrl,
+  rejectionReason,
+  rejectionMessage,
   title,
 }: {
   linkId: string;
   amountLabel: string;
   qrImageUrl?: string | null;
   existingProofUrl?: string | null;
+  rejectionReason?: string | null;
+  rejectionMessage?: string | null;
   title?: string | null;
 }) {
   return (
@@ -27,6 +31,8 @@ export function PaymentLinkProofForm({
       instructions="Scan the QR, pay the exact amount via UPI, then upload a screenshot of the payment."
       qrImageUrl={qrImageUrl}
       existingProofUrl={existingProofUrl}
+      rejectionReason={rejectionReason}
+      rejectionMessage={rejectionMessage}
       proofViewHref={customerPaymentProofViewUrl('deposit_link', linkId)}
       uploadScreenshot={async (formData) => {
         formData.set('linkId', linkId);

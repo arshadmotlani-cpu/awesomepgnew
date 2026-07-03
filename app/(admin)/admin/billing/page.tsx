@@ -1,5 +1,5 @@
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { AdminSectionErrorBoundary } from '@/src/components/admin/AdminSectionErrorBoundary';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { BillingWorkflowGuide } from '@/src/components/admin/billing/BillingWorkflowGuide';
@@ -43,7 +43,6 @@ import { BillingOperationsDashboard } from '@/src/components/admin/billing/Billi
 import { BillingCycleCertificationPanel } from '@/src/components/admin/billing/BillingCycleCertificationPanel';
 import { PipelineTestIntegrityPanel } from '@/src/components/admin/billing/PipelineTestIntegrityPanel';
 import { BillingProductionRepairPanel } from '@/src/components/admin/billing/BillingProductionRepairPanel';
-import { OperationsPaymentReviewsPanel } from '@/src/components/admin/operations/OperationsPaymentReviewsPanel';
 import {
   canAdminMarkInvoicePaidWithCash,
   resolveFinancialInvoiceIdMap,
@@ -62,7 +61,6 @@ import {
 } from '@/src/services/billingScheduler';
 import { listRentBillingOverview, listBillingCycleOperations } from '@/src/services/rentInvoices';
 import { listRoomsMissingElectricityBill } from '@/src/services/electricityBilling';
-import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
 import { count, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { electricityBills } from '@/src/db/schema';
@@ -75,7 +73,6 @@ const TABS = [
   { id: 'dashboard', label: 'Dashboard' },
   { id: 'generated', label: "Today's generated" },
   { id: 'failures', label: 'Failed jobs' },
-  { id: 'approvals', label: 'Payment approvals' },
   { id: 'billing', label: 'Need attention' },
   { id: 'rent', label: 'Rent bills' },
   { id: 'electricity', label: 'Electricity' },
@@ -115,6 +112,9 @@ export default async function CollectionsModulePage({
   searchParams: Promise<{ tab?: string; month?: string }>;
 }) {
   const sp = await searchParams;
+  if (sp.tab === 'approvals') {
+    redirect('/admin/operations?filter=waiting_for_approval');
+  }
   const tab = TABS.some((t) => t.id === sp.tab) ? sp.tab! : 'dashboard';
   const billingMonth = resolveBillingMonth(sp.month);
   const todayIst = todayInBillingTimezone();
@@ -123,7 +123,7 @@ export default async function CollectionsModulePage({
   await ensureAdminPageNotificationsSeen('/admin/billing', '/admin/billing');
   const canGenerateRent = adminHasPermission(session.role, 'rent:write');
   const canSendLinks = adminHasPermission(session.role, 'payments:write');
-  const [openRent, rentPaid, elecPending, pgs, billingOverview, billingCycleOps, roomsMissingElectricity, billingHealth, lastRun, generatedToday, failures, paymentReviews, electricityBillsToday, billingSnapshot, pipelineIssues, strayZeroInvoices] =
+  const [openRent, rentPaid, elecPending, pgs, billingOverview, billingCycleOps, roomsMissingElectricity, billingHealth, lastRun, generatedToday, failures, electricityBillsToday, billingSnapshot, pipelineIssues, strayZeroInvoices] =
     await Promise.all([
     listAdminOpenRentInvoices(),
     listAdminRentInvoices({ status: 'paid' }),
@@ -136,7 +136,6 @@ export default async function CollectionsModulePage({
     getLatestBillingGenerationRun(),
     listTodayGeneratedInvoices(todayIst),
     listBillingGenerationFailures({ unresolvedOnly: true, limit: 50 }),
-    listPendingPaymentReviews(session),
     db
       .select({ count: count() })
       .from(electricityBills)
@@ -256,7 +255,7 @@ export default async function CollectionsModulePage({
               billingMonth,
               rentGeneratedToday: generatedToday.length,
               electricityGeneratedToday: electricityBillsToday,
-              pendingApprovals: paymentReviews.length,
+              pendingApprovals: billingSnapshot.paymentReviewCount,
               paidTodayCount: collectionsStats.collectedTodayCount,
               overdueCount: collectionsStats.overdueCount,
               newestInvoices: [
@@ -317,12 +316,6 @@ export default async function CollectionsModulePage({
           }))}
           runId={lastRun?.id}
         />
-      ) : null}
-
-      {tab === 'approvals' ? (
-        <AdminSectionErrorBoundary title="Payment approvals">
-          <OperationsPaymentReviewsPanel items={paymentReviews} />
-        </AdminSectionErrorBoundary>
       ) : null}
 
       {tab === 'billing' ? (

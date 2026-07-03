@@ -64,7 +64,7 @@ export default async function ElectricityDashboardPage({
         >
           Generate new bill →
         </Link>
-        <Link href="/admin/billing?tab=approvals" className="text-apg-silver hover:text-white">
+        <Link href="/admin/operations?filter=waiting_for_approval" className="text-apg-silver hover:text-white">
           Payment approvals →
         </Link>
         <Link href="/admin/electricity/duplicates" className="text-apg-silver hover:text-white">

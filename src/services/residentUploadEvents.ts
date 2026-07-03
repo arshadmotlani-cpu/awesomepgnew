@@ -206,6 +206,8 @@ function adminHrefForQueue(
   switch (adminQueue) {
     case 'kyc':
       return linkedEntityId ? `/admin/residents/kyc/${linkedEntityId}` : null;
+    case 'operations':
+      return '/admin/operations?filter=waiting_for_approval';
     case 'collections':
       return pgId ? `/admin/collections/pg/${pgId}` : '/admin/collections';
     case 'checkout_settlements':

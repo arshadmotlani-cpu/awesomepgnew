@@ -2,9 +2,10 @@ import {
   type AdminElectricityInvoiceReminderRow,
   type AdminRentInvoiceRow,
 } from '@/src/db/queries/admin';
-import type { AdminSession } from '@/src/lib/auth/session';
+import { operationsFilterHref } from '@/src/lib/operations/operationsFilterLinks';
+import { BILLING_INVOICE_REVIEW_HREF } from '@/src/lib/approvals/approvalRegistry';
 import { buildCollectionsQueue } from '@/src/lib/billing/collectionsQueue';
-import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
+import { getWaitingForApprovalCount } from '@/src/services/approvalService';
 import { listPendingKycSubmissions } from '@/src/services/kyc';
 import { getMoveOutPipelineSnapshot } from '@/src/services/moveOutPipelineService';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
@@ -63,9 +64,9 @@ export async function loadBillingCommandCenterSnapshot(
 ): Promise<BillingCommandCenterSnapshot> {
   const billingMonth = resolveBillingMonth(billingMonthInput);
 
-  const [invoiceSnapshot, paymentReviews, kycPending, moveOut, billingCert] = await Promise.all([
+  const [invoiceSnapshot, paymentReviewCount, kycPending, moveOut, billingCert] = await Promise.all([
     loadInvoiceOutstandingSnapshot(session),
-    listPendingPaymentReviews(session),
+    getWaitingForApprovalCount(session),
     listPendingKycSubmissions(),
     getMoveOutPipelineSnapshot(session),
     loadBillingReconciliationSafe(session, billingMonth),
@@ -121,15 +122,15 @@ export async function loadBillingCommandCenterSnapshot(
     {
       id: 'payment_reviews',
       label: 'Payment screenshots to review',
-      count: paymentReviews.length,
-      href: '/admin/operations?filter=payment_proof',
-      tone: paymentReviews.length > 0 ? 'urgent' : 'default',
+      count: paymentReviewCount,
+      href: operationsFilterHref('waiting_for_approval'),
+      tone: paymentReviewCount > 0 ? 'urgent' : 'default',
     },
     {
       id: 'admin_review',
       label: 'Waiting for admin review',
       count: waitingAdminReview,
-      href: '/admin/operations?filter=payment_proof',
+      href: BILLING_INVOICE_REVIEW_HREF,
       tone: waitingAdminReview > 0 ? 'urgent' : 'default',
     },
     {
@@ -166,7 +167,7 @@ export async function loadBillingCommandCenterSnapshot(
     rentWaitingCount: rentWaiting.length,
     electricityWaitingCount: elecWaiting.length,
     bothDueCount,
-    paymentReviewCount: paymentReviews.length,
+    paymentReviewCount,
     overdueCount,
     moveOutCount: moveOut.activeItems.length,
     kycReviewCount: kycPending.length,

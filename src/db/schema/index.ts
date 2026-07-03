@@ -67,3 +67,4 @@ export * from './referrals';
 export * from './roomChangeRequests';
 export * from './operationsQueueDismissals';
 export * from './userNotifications';
+export * from './paymentProofRejections';

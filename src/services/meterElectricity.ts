@@ -475,6 +475,9 @@ export async function submitElectricityPaymentProof(
   const { syncElectricityInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
   await syncElectricityInvoiceToUnified(invoiceId);
 
+  const { supersedeActiveRejection } = await import('@/src/services/paymentProofRejectionService');
+  await supersedeActiveRejection('electricity_invoice', invoiceId);
+
   return { ok: true };
 }
 
@@ -540,41 +543,24 @@ export async function approveElectricityPaymentProof(
 export async function rejectElectricityPaymentProof(
   session: AdminSession,
   invoiceId: string,
-  reason?: string,
-): Promise<{ ok: true } | { ok: false; message: string }> {
-  const invoice = await fetchElectricityInvoiceById(invoiceId);
-  if (!invoice) return { ok: false, message: 'Invoice not found.' };
-
-  const [pgRow] = await db
-    .select({ pgId: electricityBills.pgId })
-    .from(electricityBills)
-    .where(eq(electricityBills.id, invoice.electricityBillId))
-    .limit(1);
-  if (
-    !pgRow ||
-    !adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, pgRow.pgId)
-  ) {
-    return { ok: false, message: 'Access denied.' };
-  }
-  if (!invoice.paymentProofUrl) {
-    return { ok: false, message: 'No payment proof uploaded.' };
-  }
-
-  await db
-    .update(electricityInvoices)
-    .set({
-      paymentProofUrl: null,
-      updatedAt: new Date(),
-    })
-    .where(eq(electricityInvoices.id, invoiceId));
-
-  const { notifyInvoicePaymentProofRejected } = await import('@/src/lib/email/notifications');
-  notifyInvoicePaymentProofRejected({
-    customerId: invoice.customerId,
-    invoiceNumber: invoice.invoiceNumber,
-    billType: 'electricity',
-    reason,
+  rejection: {
+    reviewKey: string;
+    reasonCode: import('@/src/lib/approvals/paymentProofRejectionReasons').PaymentProofRejectionReasonCode;
+    reasonDetail?: string;
+    adminNote?: string;
+    residentMessage: string;
+    sendWhatsApp: boolean;
+  },
+): Promise<{ ok: true; whatsappUrl?: string } | { ok: false; message: string }> {
+  const { rejectPaymentProof } = await import('@/src/services/paymentProofRejectionService');
+  return rejectPaymentProof(session, {
+    reviewKey: rejection.reviewKey,
+    entityType: 'electricity_invoice',
+    entityId: invoiceId,
+    reasonCode: rejection.reasonCode,
+    reasonDetail: rejection.reasonDetail,
+    adminNote: rejection.adminNote,
+    residentMessage: rejection.residentMessage,
+    sendWhatsApp: rejection.sendWhatsApp,
   });
-
-  return { ok: true };
 }

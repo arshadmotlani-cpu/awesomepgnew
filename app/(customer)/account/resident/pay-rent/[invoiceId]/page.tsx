@@ -36,6 +36,7 @@ import {
   getRentDepositBookingCategory,
 } from '@/src/services/pgPaymentDefaults';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
+import { getActiveRejectionForEntity } from '@/src/services/paymentProofRejectionService';
 
 export const dynamic = 'force-dynamic';
 
@@ -106,6 +107,7 @@ export default async function PayRentPage({
 
   await ensureDefaultPaymentCategoriesForPg(row.pgId);
   const rentCategory = await getRentDepositBookingCategory(row.pgId);
+  const activeRejection = await getActiveRejectionForEntity('rent_invoice', invoiceId);
 
   return (
     <div className="mx-auto w-full max-w-xl space-y-5 px-4 py-10 sm:px-6">
@@ -159,6 +161,8 @@ export default async function PayRentPage({
           qrImageUrl={rentCategory?.qrCodeImageUrl ?? DEFAULT_RENT_DEPOSIT_QR_PATH}
           upiId={rentCategory?.upiId ?? DEFAULT_RENT_DEPOSIT_UPI_ID}
           existingProofUrl={row.paymentProofUrl}
+          rejectionReason={activeRejection?.reasonLabel ?? null}
+          rejectionMessage={activeRejection?.residentMessage ?? null}
           uploadScreenshot={uploadPaymentScreenshotAction}
           backHref={backHref}
         />

@@ -23,6 +23,7 @@ import {
 } from '@/src/services/pgPaymentDefaults';
 import { getPendingMembershipForBooking } from '@/src/services/playstationMembership';
 import { getPendingBookingPaymentRecord } from '@/src/services/qrPayments';
+import { getActiveRejectionForEntity } from '@/src/services/paymentProofRejectionService';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import { resolveBookingDepositCreditAppliedPaise } from '@/src/lib/billing/bookingCheckoutTotals';
 
@@ -72,6 +73,10 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
   const elecCategory = await getElectricityDailyCategory(booking.pg.id);
   const pendingPs4 = isReserveBooking ? null : await getPendingMembershipForBooking(booking.id);
   const pendingPayment = await getPendingBookingPaymentRecord(booking.id, session.customerId);
+  const bookingRejection = pendingPayment
+    ? await getActiveRejectionForEntity('pg_payment_record', pendingPayment.id)
+    : null;
+  const hasSubmittedProof = Boolean(pendingPayment?.paymentScreenshotUrl);
   const ps4Paise = pendingPs4?.amountPaise ?? 0;
   const snapshot = booking.pricingSnapshot as PricingSnapshot | null;
   const depositCreditAppliedPaise = resolveBookingDepositCreditAppliedPaise(snapshot?.depositCredit);
@@ -172,7 +177,9 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
               membershipId={pendingPs4?.id}
               membershipAmountPaise={ps4Paise > 0 ? ps4Paise : undefined}
               membershipLabel={ps4PlanLabel}
-              existingProofRecordId={pendingPayment?.id}
+              existingProofRecordId={hasSubmittedProof ? pendingPayment?.id : undefined}
+              rejectionReason={bookingRejection?.reasonLabel ?? null}
+              rejectionMessage={bookingRejection?.residentMessage ?? null}
               compactLayout
             />
             )}
