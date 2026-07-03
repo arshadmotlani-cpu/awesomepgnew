@@ -9,7 +9,7 @@
 
 ## 2026-07-03
 
-- **APPROVAL-SSOT** — Unified approval deep links (`approvalDeepLinks.ts`), Operations header = WFA count, notification deep-links to `waiting_for_approval&focus=`, deposit proof notification sync + resident deposit bill visibility
+- **APPROVAL-SSOT-REBUILD** — Full approval architecture: `approvalRegistry.ts`, wired `approvalService`, booking_approval action items, notification deepLink upsert, Billing Centre approvals redirect, counter/badge parity via approvalService, resident timeline rejection history, backfill script
 
 ---
 
