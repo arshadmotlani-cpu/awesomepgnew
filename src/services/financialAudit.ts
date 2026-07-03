@@ -5,14 +5,15 @@
 import type { AdminSession } from '@/src/lib/auth/session';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import {
-  getGlobalFinancialAggregates,
-  getPortfolioRentStats,
-} from '@/src/services/residentFinancialEngine';
+  computeOutstandingMoneyFromInvoices,
+  loadInvoiceOutstandingSnapshot,
+} from '@/src/services/financialSummaryService';
+import { loadBillingCommandCenterSnapshot } from '@/src/services/billingCommandCenter';
 import { reconcileStaleFinancialInvoices } from '@/src/lib/billing/financialMetrics';
 import { getRentStats } from '@/src/db/queries/admin';
 import { loadOverviewContext } from '@/src/services/overviewData';
 import { markOverdueDeposits } from '@/src/services/depositCollection';
-import { getRevenueCommandCenterData } from '@/src/services/revenueCommandCenter';
+import { getGlobalFinancialAggregates } from '@/src/services/residentFinancialEngine';
 import { listOutstandingDeposits } from '@/src/services/depositCollection';
 import { getPgRevenueResidentRows } from '@/src/services/pgRevenueResidents';
 import { listPgs } from '@/src/db/queries/admin';
@@ -59,34 +60,27 @@ export async function runFinancialHealthAudit(
   billingMonthInput?: string,
 ): Promise<FinancialAuditReport> {
   const billingMonth = resolveBillingMonth(billingMonthInput);
-  const [ctx, engine, rentStats, pgs] = await Promise.all([
+  const [ctx, invoiceSnapshot, billingCenter, rentStats, pgs] = await Promise.all([
     loadOverviewContext(session, billingMonth, { syncActions: false }),
-    getGlobalFinancialAggregates(session),
+    loadInvoiceOutstandingSnapshot(session),
+    loadBillingCommandCenterSnapshot(session, billingMonth),
     getRentStats(),
     listPgs(),
   ]);
 
+  const invoiceOutstanding = computeOutstandingMoneyFromInvoices(invoiceSnapshot);
   const checks: FinancialAuditCheck[] = [];
 
   if (ctx.ok) {
-    const revenueData = await getRevenueCommandCenterData({
-      billingMonth,
-      session,
-      summary: ctx.data.summary,
-      pgMetrics: ctx.data.pgMetrics,
-      electricityPending: ctx.data.operations?.electricityPending,
-    });
-
     const overviewOutstanding = ctx.data.revenue.outstanding.totalOutstandingPaise;
-    const engineOutstanding = engine.totals.outstandingPaise;
     checks.push(
       check(
         'overview_total_outstanding',
         'Overview → Revenue outstanding',
         overviewOutstanding,
-        'Engine → grand outstanding',
-        engineOutstanding,
-        'overviewData.revenue.outstanding vs getGlobalFinancialAggregates().totals',
+        'Invoice SSOT → total outstanding',
+        invoiceOutstanding.totalOutstandingPaise,
+        'overviewData.revenue.outstanding vs financialSummaryService',
       ),
     );
 
@@ -94,21 +88,21 @@ export async function runFinancialHealthAudit(
       check(
         'revenue_command_center_total_outstanding',
         'Revenue Command Center → total outstanding',
-        revenueData.outstanding.totalOutstandingPaise,
-        'Engine → grand outstanding',
-        engineOutstanding,
-        'revenueCommandCenter.outstanding vs engine',
+        ctx.data.revenue.outstanding.totalOutstandingPaise,
+        'Invoice SSOT → total outstanding',
+        invoiceOutstanding.totalOutstandingPaise,
+        'revenueCommandCenter.outstanding vs financialSummaryService',
       ),
     );
 
     checks.push(
       check(
-        'revenue_no_double_count_proofs',
-        'Revenue total (must not add proof queue)',
-        revenueData.outstanding.totalOutstandingPaise,
-        'Engine outstanding (proofs already included)',
-        engineOutstanding,
-        'totalOutstanding must equal engine only',
+        'billing_center_total_outstanding',
+        'Billing Center → total outstanding',
+        billingCenter.totalOutstandingPaise,
+        'Invoice SSOT → total outstanding',
+        invoiceOutstanding.totalOutstandingPaise,
+        'billingCommandCenter vs financialSummaryService',
       ),
     );
 
@@ -117,9 +111,9 @@ export async function runFinancialHealthAudit(
         'overview_rent_outstanding',
         'Overview → rent outstanding (revenue)',
         ctx.data.revenue.outstanding.pendingRentInvoicesPaise,
-        'Engine → rent.outstandingPaise',
-        engine.rent.outstandingPaise,
-        'revenueCommandCenter vs engine.rent',
+        'Invoice SSOT → rent outstanding',
+        invoiceOutstanding.pendingRentInvoicesPaise,
+        'revenueCommandCenter vs financialSummaryService.rent',
       ),
     );
 
@@ -128,20 +122,31 @@ export async function runFinancialHealthAudit(
         'overview_electricity_outstanding',
         'Overview → electricity outstanding',
         ctx.data.revenue.outstanding.pendingElectricityInvoicesPaise,
-        'Engine → electricity.outstandingPaise',
-        engine.electricity.outstandingPaise,
-        'revenueCommandCenter vs engine.electricity',
+        'Invoice SSOT → electricity outstanding',
+        invoiceOutstanding.pendingElectricityInvoicesPaise,
+        'revenueCommandCenter vs financialSummaryService.electricity',
       ),
     );
 
     checks.push(
       check(
-        'overview_deposit_outstanding',
-        'Overview → deposit outstanding',
-        ctx.data.revenue.outstanding.pendingDepositPaise,
-        'Engine → deposit.outstandingPaise',
-        engine.deposit.outstandingPaise,
-        'revenueCommandCenter vs engine.deposit',
+        'operations_electricity_due_count',
+        'Operations → electricity due count',
+        ctx.data.operations?.electricityPending.count ?? 0,
+        'Invoice SSOT → electricity due count',
+        invoiceOutstanding.pendingElectricityInvoices,
+        'operationsCenter vs financialSummaryService',
+      ),
+    );
+
+    checks.push(
+      check(
+        'billing_electricity_waiting_count',
+        'Billing Center → electricity waiting count',
+        billingCenter.electricityWaitingCount,
+        'Invoice SSOT → electricity due count',
+        invoiceOutstanding.pendingElectricityInvoices,
+        'billingCommandCenter vs financialSummaryService',
       ),
     );
 
@@ -154,9 +159,9 @@ export async function runFinancialHealthAudit(
         'deposits_panel_total',
         'Outstanding deposits panel sum',
         depositsPanelTotal,
-        'Engine → deposit.outstandingPaise',
-        engine.deposit.outstandingPaise,
-        'listOutstandingDeposits vs engine.deposit',
+        'Revenue → pendingDepositPaise',
+        ctx.data.revenue.outstanding.pendingDepositPaise,
+        'listOutstandingDeposits vs revenue.pendingDeposit',
       ),
     );
 
@@ -169,9 +174,9 @@ export async function runFinancialHealthAudit(
         'deposit_collection_list_total',
         'depositCollection.listOutstandingDeposits sum',
         depositListTotal,
-        'Engine → deposit.outstandingPaise',
-        engine.deposit.outstandingPaise,
-        'depositCollection vs engine.deposit',
+        'Revenue → pendingDepositPaise',
+        ctx.data.revenue.outstanding.pendingDepositPaise,
+        'depositCollection vs revenue.pendingDeposit',
       ),
     );
 
@@ -184,9 +189,9 @@ export async function runFinancialHealthAudit(
           'pg_revenue_residents_sample',
           `PG revenue residents total (${samplePg.name}, n=${pgRows.length})`,
           pgResidentsTotal,
-          'Engine → deposit+rent+elec+other (portfolio; PG subset informational)',
-          engine.totals.outstandingPaise,
-          'pgRevenueResidents SSOT rows — informational; may differ from portfolio when PG≠all',
+          'Invoice SSOT total (portfolio subset informational)',
+          invoiceOutstanding.totalOutstandingPaise,
+          'pgRevenueResidents SSOT rows — informational; may differ when PG≠all',
         ),
       );
     }
@@ -198,24 +203,12 @@ export async function runFinancialHealthAudit(
         'collections_rent_outstanding',
         'Collections → getRentStats().outstandingPaise',
         rentStats.data.outstandingPaise,
-        'Engine → rent.outstandingPaise',
-        engine.rent.outstandingPaise,
-        'admin.getRentStats vs engine.rent',
+        'Invoice SSOT → rent outstanding',
+        invoiceOutstanding.pendingRentInvoicesPaise,
+        'admin.getRentStats vs financialSummaryService',
       ),
     );
   }
-
-  const portfolioRent = await getPortfolioRentStats();
-  checks.push(
-    check(
-      'engine_rent_stats_consistency',
-      'getPortfolioRentStats().outstandingPaise',
-      portfolioRent.outstandingPaise,
-      'Engine → rent.outstandingPaise',
-      engine.rent.outstandingPaise,
-      'getPortfolioRentStats vs getGlobalFinancialAggregates',
-    ),
-  );
 
   const { db } = await import('@/src/db/client');
   const { checkoutSettlements } = await import('@/src/db/schema');

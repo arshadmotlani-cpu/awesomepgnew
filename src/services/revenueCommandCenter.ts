@@ -4,17 +4,23 @@ import type {
   PgBusinessMetrics,
 } from '@/src/db/queries/admin';
 import {
-  getDailyCollectionTotals,
   getDepositCollectedByPgForBillingMonth,
   getMtdCollectionByPaymentMode,
   type CollectionByPaymentMode,
 } from '@/src/db/queries/admin';
-import { getFinancialMetrics, getPgFinancialMetrics } from '@/src/services/financialMetricsEngine';
+import { getPgFinancialMetrics } from '@/src/services/financialMetricsEngine';
 import type { DepositPortfolioMetrics } from '@/src/services/depositLedgerMetrics';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import type { PendingPaymentReviewItem } from '@/src/services/paymentProofQueue';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
+import {
+  computeOutstandingMoneyFromInvoices,
+  loadCollectionsSnapshot,
+  loadInvoiceOutstandingSnapshot,
+  type InvoiceOutstandingSnapshot,
+  type OutstandingMoneyFromInvoices,
+} from '@/src/services/financialSummaryService';
 
 export type RevenueByPgRow = {
   pgId: string;
@@ -66,10 +72,8 @@ export type RevenueCommandCenterInput = {
   session: AdminSession;
   summary: BusinessMetricsSummary;
   pgMetrics: PgBusinessMetrics[];
-  electricityPending?: {
-    count: number;
-    items: Array<{ amountDuePaise: number }>;
-  };
+  /** Pre-loaded invoice snapshot — avoids duplicate DB round-trips from Overview. */
+  invoiceSnapshot?: InvoiceOutstandingSnapshot;
 };
 
 function buildByPgRows(
@@ -106,39 +110,35 @@ function buildByPgRows(
 }
 
 function buildOutstandingFromSsot(
-  portfolio: Awaited<ReturnType<typeof import('@/src/services/residentFinancialEngine').getPortfolioFinancialTotals>>,
+  invoices: OutstandingMoneyFromInvoices,
+  pendingDepositPaise: number,
   pendingPayments: PendingPaymentReviewItem[],
 ): OutstandingMoneySummary {
   const pendingPaymentApprovals = pendingPayments.length;
   const pendingPaymentApprovalsPaise = pendingPayments.reduce((a, p) => a + p.amountPaise, 0);
 
   return {
-    pendingRentInvoices: portfolio.pendingRentInvoiceCount,
-    pendingRentInvoicesPaise: portfolio.rent.outstandingPaise,
-    pendingElectricityInvoices: portfolio.pendingElectricityInvoiceCount,
-    pendingElectricityInvoicesPaise: portfolio.electricity.outstandingPaise,
-    pendingDepositPaise: portfolio.deposit.outstandingPaise,
+    pendingRentInvoices: invoices.pendingRentInvoices,
+    pendingRentInvoicesPaise: invoices.pendingRentInvoicesPaise,
+    pendingElectricityInvoices: invoices.pendingElectricityInvoices,
+    pendingElectricityInvoicesPaise: invoices.pendingElectricityInvoicesPaise,
+    pendingDepositPaise,
     pendingPaymentApprovals,
     pendingPaymentApprovalsPaise,
-    /** SSOT: invoice outstanding only — proofs awaiting review are already in outstanding. */
-    totalOutstandingPaise: portfolio.totals.outstandingPaise,
+    /** Live unpaid rent + electricity invoices only — no deposits or cached balances. */
+    totalOutstandingPaise: invoices.totalOutstandingPaise,
   };
 }
 
 /** @internal Exported for financial surface audit tests. */
 export function buildOutstandingFromSsotForAudit(
-  portfolio: {
-    pendingRentInvoiceCount: number;
-    pendingElectricityInvoiceCount: number;
-    rent: { outstandingPaise: number };
-    electricity: { outstandingPaise: number };
-    deposit: { outstandingPaise: number };
-    totals: { outstandingPaise: number };
-  },
+  invoices: OutstandingMoneyFromInvoices,
   pendingPayments: Array<{ amountPaise: number }>,
+  pendingDepositPaise = 0,
 ): Pick<OutstandingMoneySummary, 'totalOutstandingPaise' | 'pendingPaymentApprovalsPaise'> {
   const summary = buildOutstandingFromSsot(
-    portfolio as Awaited<ReturnType<typeof import('@/src/services/residentFinancialEngine').getPortfolioFinancialTotals>>,
+    invoices,
+    pendingDepositPaise,
     pendingPayments as PendingPaymentReviewItem[],
   );
   return {
@@ -153,28 +153,25 @@ export async function getRevenueCommandCenterData(
 ): Promise<RevenueCommandCenterData> {
   const billingMonth = resolveBillingMonth(input.billingMonth);
 
-  const [todayResult, depositRows, depositSummaries, pendingPayments, portfolioTotals, depositPortfolio, collectionsByModeResult, financialMetrics, pgFinancial] =
+  const [collections, depositRows, depositSummaries, pendingPayments, invoiceSnapshot, depositPortfolio, collectionsByModeResult, pgFinancial] =
     await Promise.all([
-    getDailyCollectionTotals(),
+    loadCollectionsSnapshot(billingMonth),
     getDepositCollectedByPgForBillingMonth(billingMonth),
     import('@/src/services/pgDepositCollection').then((m) =>
       m.getAllPgDepositCollectionSummaries(billingMonth),
     ),
     listPendingPaymentReviews(input.session),
-    import('@/src/services/residentFinancialEngine').then((m) =>
-      m.getPortfolioFinancialTotals(input.session),
-    ),
+    input.invoiceSnapshot
+      ? Promise.resolve(input.invoiceSnapshot)
+      : loadInvoiceOutstandingSnapshot(input.session),
     import('@/src/services/depositLedgerMetrics').then((m) =>
       m.getDepositPortfolioMetrics(billingMonth),
     ),
     getMtdCollectionByPaymentMode(billingMonth),
-    getFinancialMetrics(billingMonth),
     getPgFinancialMetrics(billingMonth),
   ]);
 
-  const today: CollectionBreakdown = todayResult.ok
-    ? todayResult.data
-    : { rentPaise: 0, electricityPaise: 0, depositPaise: 0, totalPaise: 0 };
+  const today = collections.today;
 
   const depositByPg = new Map<string, number>();
   if (depositRows.ok) {
@@ -198,27 +195,23 @@ export async function getRevenueCommandCenterData(
     }
   }
 
-  const mtd = {
-    rentPaise: financialMetrics.operating.rentPrincipalPaise,
-    electricityPaise: financialMetrics.operating.electricityPaise,
-    lateFeePaise: financialMetrics.operating.lateFeePaise,
-    otherIncomePaise: financialMetrics.operating.otherIncomePaise,
-    depositPaise: financialMetrics.deposits.collectedPaise,
-    totalPaise: financialMetrics.operating.operatingRevenuePaise,
-    depositRefundedPaise: financialMetrics.deposits.refundedPaise,
-    netInflowPaise: financialMetrics.deposits.netCashInflowPaise,
-  };
+  const mtd = collections.mtd;
   const byPg = buildByPgRows(pgFinancial, depositByPg, depositCountsByPg);
 
-  const outstanding = buildOutstandingFromSsot(portfolioTotals, pendingPayments);
+  const invoiceOutstanding = computeOutstandingMoneyFromInvoices(invoiceSnapshot);
+  const outstanding = buildOutstandingFromSsot(
+    invoiceOutstanding,
+    depositPortfolio.heldPaise,
+    pendingPayments,
+  );
 
   const { getBillingRevenueMetrics } = await import('@/src/services/billingRevenueMetrics');
   const billingMetrics = await getBillingRevenueMetrics(
     billingMonth,
     { rentPaise: mtd.rentPaise, electricityPaise: mtd.electricityPaise },
     {
-      rentPaise: portfolioTotals.rent.outstandingPaise,
-      electricityPaise: portfolioTotals.electricity.outstandingPaise,
+      rentPaise: invoiceOutstanding.pendingRentInvoicesPaise,
+      electricityPaise: invoiceOutstanding.pendingElectricityInvoicesPaise,
     },
   );
 

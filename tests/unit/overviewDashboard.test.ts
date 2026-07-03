@@ -139,6 +139,21 @@ test('buildOverviewDashboard maps context into spec sections', () => {
       checkoutRefundsPending: { count: 2, items: [] },
       electricityPending: { count: 4, items: [] },
     },
+    invoiceSnapshot: {
+      allOpenRent: [],
+      allOpenElectricity: [],
+      rentWaiting: [],
+      electricityWaiting: [],
+      rentInReview: [],
+      electricityInReview: [],
+    },
+    invoiceOutstanding: {
+      pendingRentInvoices: 3,
+      pendingRentInvoicesPaise: 15_000,
+      pendingElectricityInvoices: 4,
+      pendingElectricityInvoicesPaise: 4_000,
+      totalOutstandingPaise: 19_000,
+    },
     pgCount: 4,
     vacatingAlertsCount: 1,
   } as unknown as OverviewContext;
@@ -155,5 +170,10 @@ test('buildOverviewDashboard maps context into spec sections', () => {
     2,
   );
   assert.equal(dashboard.propertyPerformance.length, 1);
+  assert.equal(
+    dashboard.sections.find((s) => s.id === 'invoices_collections')!.metrics.find((m) => m.id === 'electricity_due')!
+      .value,
+    4,
+  );
   assert.equal(dashboard.operationsAlerts.length, 0);
 });

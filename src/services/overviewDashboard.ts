@@ -180,10 +180,10 @@ export function buildOverviewDashboard(ctx: OverviewContext): OverviewDashboardD
           href: moduleHref('revenue', month),
           hint: ctx.monthLabel,
         }),
-        moneyMetric('mtd_rent', 'Rent Collected (MTD)', s.incomeRentPaise, {
+        moneyMetric('mtd_rent', 'Rent Collected (MTD)', r.mtd.rentPaise, {
           href: moduleHref('revenue', month),
         }),
-        moneyMetric('mtd_electricity', 'Electricity Collected (MTD)', s.incomeElectricityPaise, {
+        moneyMetric('mtd_electricity', 'Electricity Collected (MTD)', r.mtd.electricityPaise, {
           href: '/admin/billing?tab=electricity',
         }),
         moneyMetric('mtd_deposit', 'Deposit Collected (MTD)', r.mtd.depositPaise, {
@@ -214,14 +214,14 @@ export function buildOverviewDashboard(ctx: OverviewContext): OverviewDashboardD
           href: '/admin/billing?tab=paid',
           hint: rentStats ? `₹${(rentStats.collectedPaise / 100).toLocaleString('en-IN')}` : undefined,
         }),
-        moneyMetric('rent_outstanding', 'Rent Outstanding', rentStats?.outstandingPaise ?? 0, {
+        moneyMetric('rent_outstanding', 'Rent Outstanding', out.pendingRentInvoicesPaise, {
           href: '/admin/billing?tab=rent',
         }),
         moneyMetric('pending_electricity', 'Electricity Pending', out.pendingElectricityInvoicesPaise, {
           href: '/admin/billing?tab=electricity',
           hint: `${out.pendingElectricityInvoices} invoice${out.pendingElectricityInvoices === 1 ? '' : 's'}`,
         }),
-        countMetric('electricity_due', 'Electricity Due', ops?.electricityPending.count ?? 0, {
+        countMetric('electricity_due', 'Electricity Due', ctx.invoiceOutstanding.pendingElectricityInvoices, {
           href: '/admin/billing?tab=electricity',
         }),
         moneyMetric('total_outstanding', 'Total Outstanding', out.totalOutstandingPaise, {

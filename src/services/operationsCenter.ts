@@ -306,13 +306,11 @@ async function listPendingDepositRefunds(session: AdminSession) {
 }
 
 async function listOutstandingElectricity(session: AdminSession) {
-  const { listAdminElectricityInvoicesForReminders } = await import('@/src/db/queries/admin');
-  const res = await listAdminElectricityInvoicesForReminders();
-  if (!res.ok) return [];
+  const { loadInvoiceOutstandingSnapshot } = await import('@/src/services/financialSummaryService');
+  const snapshot = await loadInvoiceOutstandingSnapshot(session);
 
   const items: OperationsCenterData['electricityPending']['items'] = [];
-  for (const row of res.data) {
-    if (!sessionCanAccessPg(session, row.pgId)) continue;
+  for (const row of snapshot.electricityWaiting) {
     const status = row.isOverdue ? 'overdue' : 'pending';
     items.push({
       invoiceId: row.id,

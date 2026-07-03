@@ -1,10 +1,7 @@
 import {
-  listAdminElectricityInvoicesForReminders,
-  listAdminOpenRentInvoices,
   type AdminElectricityInvoiceReminderRow,
   type AdminRentInvoiceRow,
 } from '@/src/db/queries/admin';
-import { isElectricityAwaitingResidentPayment, isElectricityAwaitingAdminApproval } from '@/src/lib/billing/electricityCollectibility';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { buildCollectionsQueue } from '@/src/lib/billing/collectionsQueue';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
@@ -15,6 +12,10 @@ import {
   loadBillingReconciliationSafe,
   type BillingCycleReconciliation,
 } from '@/src/services/billingCycleReconciliation';
+import {
+  computeOutstandingMoneyFromInvoices,
+  loadInvoiceOutstandingSnapshot,
+} from '@/src/services/financialSummaryService';
 
 export type BillingCommandCard = {
   id: string;
@@ -44,30 +45,6 @@ export type BillingCommandCenterSnapshot = {
   reconciliationError: string | null;
 };
 
-function waitingForPaymentRent(rows: AdminRentInvoiceRow[]) {
-  return rows.filter(
-    (r) =>
-      r.outstandingPaise > 0 &&
-      r.effectiveStatus !== 'paid' &&
-      r.effectiveStatus !== 'cancelled' &&
-      r.effectiveStatus !== 'payment_in_progress',
-  );
-}
-
-function waitingForPaymentElectricity(rows: AdminElectricityInvoiceReminderRow[]) {
-  return rows.filter((r) =>
-    isElectricityAwaitingResidentPayment({
-      id: r.id,
-      status: 'pending',
-      paymentProofUrl: r.paymentProofUrl,
-      outstandingPaise: r.outstandingPaise,
-      effectiveStatus: r.effectiveStatus,
-      bookingId: r.bookingId ?? '',
-      billingMonth: r.billingMonth,
-    }),
-  );
-}
-
 function countBothDue(
   rentWaiting: AdminRentInvoiceRow[],
   elecWaiting: AdminElectricityInvoiceReminderRow[],
@@ -86,10 +63,8 @@ export async function loadBillingCommandCenterSnapshot(
 ): Promise<BillingCommandCenterSnapshot> {
   const billingMonth = resolveBillingMonth(billingMonthInput);
 
-  const [openRent, elecPending, paymentReviews, kycPending, moveOut, billingCert] =
-    await Promise.all([
-    listAdminOpenRentInvoices(),
-    listAdminElectricityInvoicesForReminders(),
+  const [invoiceSnapshot, paymentReviews, kycPending, moveOut, billingCert] = await Promise.all([
+    loadInvoiceOutstandingSnapshot(session),
     listPendingPaymentReviews(session),
     listPendingKycSubmissions(),
     getMoveOutPipelineSnapshot(session),
@@ -98,11 +73,10 @@ export async function loadBillingCommandCenterSnapshot(
 
   const reconciliation = billingCert.ok ? billingCert.reconciliation : null;
 
-  const allUnpaidRent = openRent.ok ? openRent.data : [];
-  const allUnpaidElectricity = elecPending.ok ? elecPending.data : [];
-
-  const rentWaiting = waitingForPaymentRent(allUnpaidRent);
-  const elecWaiting = waitingForPaymentElectricity(allUnpaidElectricity);
+  const allUnpaidRent = invoiceSnapshot.allOpenRent;
+  const allUnpaidElectricity = invoiceSnapshot.allOpenElectricity;
+  const rentWaiting = invoiceSnapshot.rentWaiting;
+  const elecWaiting = invoiceSnapshot.electricityWaiting;
   const bothDueCount = countBothDue(rentWaiting, elecWaiting);
 
   const collectionsQueue = buildCollectionsQueue({
@@ -111,17 +85,14 @@ export async function loadBillingCommandCenterSnapshot(
   });
   const overdueCount = collectionsQueue.filter((q) => q.priority === 'overdue').length;
 
-  const rentInReview = allUnpaidRent.filter((r) => r.effectiveStatus === 'payment_in_progress');
-  const elecInReview = allUnpaidElectricity.filter((r) =>
-    isElectricityAwaitingAdminApproval({
-      status: 'pending',
-      paymentProofUrl: r.paymentProofUrl,
-    }),
-  );
+  const rentInReview = invoiceSnapshot.rentInReview;
+  const elecInReview = invoiceSnapshot.electricityInReview;
+  const invoiceOutstanding = computeOutstandingMoneyFromInvoices(invoiceSnapshot);
 
   const totalBilledPaise = reconciliation?.metrics.totalBilledPaise ?? 0;
   const totalCollectedPaise = reconciliation?.metrics.totalCollectedPaise ?? 0;
-  const totalOutstandingPaise = reconciliation?.metrics.totalOutstandingPaise ?? rentWaiting.reduce((s, r) => s + r.outstandingPaise, 0) + elecWaiting.reduce((s, r) => s + r.outstandingPaise, 0);
+  const totalOutstandingPaise =
+    reconciliation?.metrics.totalOutstandingPaise ?? invoiceOutstanding.totalOutstandingPaise;
   const collectionPct = reconciliation?.metrics.collectionPct ?? 0;
   const waitingAdminReview = reconciliation?.metrics.waitingAdminReview ?? rentInReview.length + elecInReview.length;
 

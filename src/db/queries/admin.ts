@@ -1546,8 +1546,8 @@ export type RentStats = {
 
 export function getRentStats(): Promise<QueryResult<RentStats>> {
   return guard(async () => {
-    const { getPortfolioRentStats } = await import('@/src/services/residentFinancialEngine');
-    return getPortfolioRentStats();
+    const { loadRentInvoiceStats } = await import('@/src/services/financialSummaryService');
+    return loadRentInvoiceStats();
   });
 }
 

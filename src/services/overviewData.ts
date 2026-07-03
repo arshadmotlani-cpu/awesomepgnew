@@ -3,12 +3,10 @@ import {
   getDashboardStats,
   getDepositCollectedByPgForBillingMonth,
   getPgBusinessMetrics,
-  getRentStats,
   listPgs,
   type BusinessMetricsSummary,
   type DashboardStats,
   type PgBusinessMetrics,
-  type RentStats,
 } from '@/src/db/queries/admin';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import type { AdminSession } from '@/src/lib/auth/session';
@@ -21,10 +19,20 @@ import {
   getAdminOverviewKpis,
   getVisitorCountSummary,
 } from '@/src/services/visitorAnalytics';
+import {
+  computeOutstandingMoneyFromInvoices,
+  loadInvoiceOutstandingSnapshot,
+  loadRentInvoiceStats,
+  type InvoiceOutstandingSnapshot,
+  type OutstandingMoneyFromInvoices,
+  type RentInvoiceStats,
+} from '@/src/services/financialSummaryService';
 import type { GlobalFinancialAggregates } from '@/src/lib/billing/residentFinancialTypes';
 import type { DepositPortfolioMetrics } from '@/src/services/depositLedgerMetrics';
 
 export type OverviewContext = {
+  invoiceSnapshot: InvoiceOutstandingSnapshot;
+  invoiceOutstanding: OutstandingMoneyFromInvoices;
   billingMonth: string;
   monthLabel: string;
   summary: BusinessMetricsSummary;
@@ -33,7 +41,7 @@ export type OverviewContext = {
   depositPortfolio: DepositPortfolioMetrics;
   financialAggregates: GlobalFinancialAggregates;
   dashboard: DashboardStats | null;
-  rentStats: RentStats | null;
+  rentStats: RentInvoiceStats | null;
   visitors: Awaited<ReturnType<typeof getVisitorCountSummary>>;
   overviewKpis: Awaited<ReturnType<typeof getAdminOverviewKpis>>;
   operations: Awaited<ReturnType<typeof getOperationsCenterData>> | null;
@@ -74,7 +82,7 @@ export async function loadOverviewContext(
     summary,
     metrics,
     dashboard,
-    rentStats,
+    invoiceSnapshot,
     visitors,
     overviewKpis,
     operations,
@@ -86,7 +94,7 @@ export async function loadOverviewContext(
     getBusinessMetricsSummary(billingMonth),
     getPgBusinessMetrics(billingMonth),
     getDashboardStats().catch(() => ({ ok: false as const, error: '' })),
-    getRentStats().catch(() => ({ ok: false as const, error: '' })),
+    loadInvoiceOutstandingSnapshot(session),
     getVisitorCountSummary().catch((err) => {
       console.error('[overview] visitor analytics query failed', err);
       return {
@@ -140,12 +148,15 @@ export async function loadOverviewContext(
     depositRows.ok ? depositRows.data.map((r) => [r.pgId, r.collectedPaise]) : [],
   );
 
+  const invoiceOutstanding = computeOutstandingMoneyFromInvoices(invoiceSnapshot);
+  const rentStats = await loadRentInvoiceStats(session, invoiceSnapshot).catch(() => null);
+
   const revenue = await getRevenueCommandCenterData({
     billingMonth,
     session,
     summary: summary.data,
     pgMetrics: metrics.data,
-    electricityPending: operations?.electricityPending,
+    invoiceSnapshot,
   }).catch(() => null);
 
   if (!revenue) {
@@ -191,13 +202,15 @@ export async function loadOverviewContext(
     data: {
       billingMonth,
       monthLabel,
+      invoiceSnapshot,
+      invoiceOutstanding,
       summary: summary.data,
       pgMetrics: metrics.data,
       revenue,
       depositPortfolio,
       financialAggregates,
       dashboard: dashboard.ok ? dashboard.data : null,
-      rentStats: rentStats.ok ? rentStats.data : null,
+      rentStats,
       visitors,
       overviewKpis,
       operations,
