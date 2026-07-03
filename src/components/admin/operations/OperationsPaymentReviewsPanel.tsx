@@ -55,10 +55,12 @@ function ReviewField({ label, value }: { label: string; value: string }) {
 
 export function OperationsPaymentReviewsPanel({
   items,
-  reviewMode = true,
+  reviewMode = false,
+  onCompleted,
 }: {
   items: PendingPaymentReviewItem[];
   reviewMode?: boolean;
+  onCompleted?: () => void;
 }) {
   const router = useRouter();
   const [busyKey, setBusyKey] = useState<string | null>(null);
@@ -82,8 +84,15 @@ export function OperationsPaymentReviewsPanel({
     setRejectReason('');
     setPartialOpenKey(null);
     setMoreOpenKey(null);
+    if (onCompleted) {
+      onCompleted();
+      router.refresh();
+      return;
+    }
     if (reviewMode && nextKey) {
-      router.push(`/admin/operations?filter=payment_proof&focus=${encodeURIComponent(nextKey)}`);
+      router.push(
+        `/admin/operations?tab=waiting&item=${encodeURIComponent(nextKey)}&dialog=review`,
+      );
     } else {
       router.refresh();
     }
@@ -168,7 +177,8 @@ export function OperationsPaymentReviewsPanel({
   }
 
   async function onReject(item: PendingPaymentReviewItem) {
-    const needsReason = item.kind === 'rent' || item.kind === 'electricity';
+    const needsReason =
+      item.kind === 'rent' || item.kind === 'electricity' || item.kind === 'qr';
     if (needsReason && !rejectReason.trim()) {
       setError('Add a rejection reason for the resident.');
       return;
@@ -179,7 +189,12 @@ export function OperationsPaymentReviewsPanel({
       let result: { ok: boolean; message?: string; nextKey?: string | null } = { ok: true };
       switch (item.kind) {
         case 'qr':
-          result = await rejectQrPaymentAction(item.entityId, item.pgId, item.key);
+          result = await rejectQrPaymentAction(
+            item.entityId,
+            item.pgId,
+            rejectReason.trim(),
+            item.key,
+          );
           break;
         case 'rent':
           result = await rejectRentProofAction(

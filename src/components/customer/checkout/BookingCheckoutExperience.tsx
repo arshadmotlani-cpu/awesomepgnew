@@ -48,6 +48,7 @@ export type BookingCheckoutExperienceProps = {
   membershipAmountPaise?: number;
   membershipLabel?: string | null;
   existingProofRecordId?: string | null;
+  rejectedProofReason?: string | null;
   /** Kept for API compat — not shown in the customer breakdown. */
   discountPaise?: number;
   depositCreditAppliedPaise?: number;
@@ -107,6 +108,7 @@ export function BookingCheckoutExperience({
   membershipAmountPaise,
   membershipLabel,
   existingProofRecordId,
+  rejectedProofReason = null,
   discountPaise = 0,
   depositCreditAppliedPaise = 0,
   additionalDepositDuePaise,
@@ -292,6 +294,17 @@ export function BookingCheckoutExperience({
     );
   }
 
+  const rejectionBanner =
+    rejectedProofReason && !existingProofRecordId ? (
+      <div className="rounded-[16px] border border-rose-500/30 bg-rose-500/10 px-5 py-4 text-sm text-rose-100">
+        <p className="font-semibold text-white">Booking payment rejected</p>
+        <p className="mt-2">
+          Reason: <span className="text-white">{rejectedProofReason}</span>
+        </p>
+        <p className="mt-2">Upload a new payment screenshot to continue this booking.</p>
+      </div>
+    ) : null;
+
   if (done) {
     return (
       <div className="rounded-[16px] border border-emerald-500/30 bg-emerald-500/10 px-5 py-4 text-sm text-emerald-100">
@@ -312,6 +325,7 @@ export function BookingCheckoutExperience({
 
   return (
     <form onSubmit={onSubmit} className="space-y-5 pb-28">
+      {rejectionBanner}
       {!compactLayout ? (
       <>
       {/* Total payment summary */}

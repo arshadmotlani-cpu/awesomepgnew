@@ -382,8 +382,11 @@ function improveDeepLink(
   href: string,
   meta?: ActionItemMetadata,
 ): string {
+  if (type === 'payment_received' && meta?.paymentReviewKey) {
+    return `/admin/operations?tab=waiting&item=${encodeURIComponent(meta.paymentReviewKey)}&dialog=review`;
+  }
   if (type === 'payment_received' && meta?.bookingId) {
-    return `/admin/operations?filter=payment_proof&booking=${meta.bookingId}`;
+    return `/admin/operations?tab=waiting&section=booking&booking=${meta.bookingId}`;
   }
   if (type === 'kyc_pending' && meta?.submissionId) {
     return `/admin/residents/kyc/${meta.submissionId}`;

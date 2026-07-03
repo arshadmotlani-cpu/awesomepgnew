@@ -23,7 +23,7 @@ export function buildActionDeepLink(
     return `/admin/residents/kyc/${meta.submissionId}?read=${encodeURIComponent(`kyc:${meta.submissionId}`)}`;
   }
   if (type === 'payment_received' && meta.paymentReviewKey) {
-    return `/admin/operations?filter=payment_proof&key=${encodeURIComponent(meta.paymentReviewKey)}`;
+    return `/admin/operations?tab=waiting&item=${encodeURIComponent(meta.paymentReviewKey)}&dialog=review`;
   }
   if (type === 'refund_pending' && meta.settlementId) {
     return `/admin/checkout-settlements/${meta.settlementId}`;

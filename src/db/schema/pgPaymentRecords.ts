@@ -27,6 +27,7 @@ export const pgPaymentRecords = pgTable(
     transactionRef: text('transaction_ref'),
     reviewedByAdminId: uuid('reviewed_by_admin_id'),
     reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    rejectionReason: text('rejection_reason'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

@@ -4,9 +4,8 @@
 
 import { eq, inArray } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { bedReservations, beds, bookings, customers, floors, pgs, rooms } from '@/src/db/schema';
+import { customers, pgs } from '@/src/db/schema';
 import type { AdminSession } from '@/src/lib/auth/session';
-import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { ResidentsCommandFilter } from '@/src/lib/residents/residentOperationsResidentsView';
 import type { OpsPriority } from '@/src/lib/operationsCenterRules';
 import { listBillingGenerationFailures } from '@/src/services/billingScheduler';
@@ -16,7 +15,12 @@ import { listOpenActionItems } from '@/src/services/actionItems';
 import { buildActionDeepLink } from '@/src/lib/admin/actionDeepLinks';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 import type { ResidentsQueueRow } from '@/src/lib/residents/residentOperationsResidentsView';
-import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
+import { loadAdminApprovalQueue, type AdminApprovalQueue } from '@/src/services/adminApprovalQueue';
+import {
+  listPendingReservations,
+  type PendingReservationRow,
+} from '@/src/services/pendingReservations';
+import { buildApprovalDeepLinkForReviewItem } from '@/src/lib/admin/approvalDeepLinks';
 import { paiseToInr } from '@/src/lib/format';
 
 export type UnifiedOpsOutstandingLine = {
@@ -68,6 +72,8 @@ export type UnifiedOperationsQueue = {
   filter: UnifiedOpsFilter | null;
   filterCounts: Array<{ id: UnifiedOpsFilter; label: string; count: number }>;
   paymentReviews: PendingPaymentReviewItem[];
+  approvalQueue: AdminApprovalQueue;
+  pendingReservations: PendingReservationRow[];
   totalCount: number;
 };
 
@@ -227,34 +233,6 @@ function mergePaymentWaitingByResident(items: UnifiedOpsItem[]): UnifiedOpsItem[
   return [...rest, ...grouped];
 }
 
-async function listPendingBookingApprovals(session: AdminSession) {
-  const rows = await db
-    .select({
-      id: bookings.id,
-      bookingCode: bookings.bookingCode,
-      customerName: customers.fullName,
-      pgId: floors.pgId,
-      pgName: pgs.name,
-    })
-    .from(bookings)
-    .innerJoin(customers, eq(customers.id, bookings.customerId))
-    .innerJoin(bedReservations, eq(bedReservations.bookingId, bookings.id))
-    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
-    .innerJoin(rooms, eq(rooms.id, beds.roomId))
-    .innerJoin(floors, eq(floors.id, rooms.floorId))
-    .innerJoin(pgs, eq(pgs.id, floors.pgId))
-    .where(eq(bookings.status, 'pending_approval'));
-
-  const byBooking = new Map<string, (typeof rows)[number]>();
-  for (const row of rows) {
-    if (row.pgId && !byBooking.has(row.id)) byBooking.set(row.id, row);
-  }
-
-  return [...byBooking.values()].filter((r) =>
-    r.pgId ? adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, r.pgId) : false,
-  );
-}
-
 function mapFilterToResidents(filter: UnifiedOpsFilter | null): ResidentsCommandFilter | null {
   if (!filter || filter === 'all') return null;
   if (
@@ -345,15 +323,17 @@ export async function loadUnifiedOperationsQueue(
   const filter = filterInput ?? null;
   const residentsFilter = mapFilterToResidents(filter);
 
-  const [residentsPage, opsCenter, billingFailures, bookingApprovals, paymentReviews, openActionItems] =
+  const [residentsPage, opsCenter, billingFailures, approvalQueue, pendingReservations, openActionItems] =
     await Promise.all([
       loadResidentOperationsResidentsPage(session, residentsFilter),
       getOperationsCenterData(session),
       listBillingGenerationFailures({ unresolvedOnly: true, limit: 50 }),
-      listPendingBookingApprovals(session),
-      listPendingPaymentReviews(session),
+      loadAdminApprovalQueue(session),
+      listPendingReservations(session),
       listOpenActionItems(session),
     ]);
+
+  const paymentReviews = approvalQueue.allItems;
 
   const { customerNames, pgNames } = await resolveFailureEntityNames(billingFailures);
 
@@ -363,19 +343,19 @@ export async function loadUnifiedOperationsQueue(
     byId.set(row.id, residentsRowToItem(row));
   }
 
-  for (const b of bookingApprovals) {
-    byId.set(`booking-${b.id}`, {
-      id: `booking-${b.id}`,
-      residentName: b.customerName,
-      pgName: b.pgName,
-      roomNumber: null,
-      bedCode: null,
+  for (const review of approvalQueue.sections.find((s) => s.id === 'booking')?.items ?? []) {
+    byId.set(`approval-${review.key}`, {
+      id: `approval-${review.key}`,
+      residentName: review.residentName,
+      pgName: review.pgName,
+      roomNumber: review.roomNumber,
+      bedCode: review.bedCode,
       priority: 'urgent',
-      status: 'Booking awaiting approval',
-      nextAction: 'Review payment and approve booking',
-      openHref: `/admin/bookings/${b.id}`,
-      openLabel: 'Review booking',
-      filterTags: ['booking_approval'],
+      status: 'Booking payment awaiting approval',
+      nextAction: 'Review payment proof',
+      openHref: buildApprovalDeepLinkForReviewItem(review),
+      openLabel: 'Review proof',
+      filterTags: ['booking_approval', 'payment_proof', 'waiting_for_admin_review'],
       sortRank: 0,
     });
   }
@@ -457,15 +437,15 @@ export async function loadUnifiedOperationsQueue(
     {
       id: 'waiting_for_admin_review',
       label: FILTER_LABELS.waiting_for_admin_review,
-      count: allItems.filter(
-        (i) => i.filterTags.includes('payment_proof') || i.filterTags.includes('manual_review'),
-      ).length,
+      count:
+        approvalQueue.totalCount +
+        allItems.filter((i) => i.filterTags.includes('manual_review')).length,
     },
-    { id: 'payment_proof', label: FILTER_LABELS.payment_proof, count: paymentReviews.length },
+    { id: 'payment_proof', label: FILTER_LABELS.payment_proof, count: approvalQueue.totalCount },
     { id: 'rent_due', label: FILTER_LABELS.rent_due, count: allItems.filter((i) => i.filterTags.includes('rent_due')).length },
     { id: 'electricity_due', label: FILTER_LABELS.electricity_due, count: allItems.filter((i) => i.filterTags.includes('electricity_due')).length },
     { id: 'kyc', label: FILTER_LABELS.kyc, count: allItems.filter((i) => i.filterTags.includes('kyc')).length },
-    { id: 'booking_approval', label: FILTER_LABELS.booking_approval, count: allItems.filter((i) => i.filterTags.includes('booking_approval')).length },
+    { id: 'booking_approval', label: FILTER_LABELS.booking_approval, count: approvalQueue.sections.find((s) => s.id === 'booking')?.count ?? 0 },
     { id: 'move_out', label: FILTER_LABELS.move_out, count: allItems.filter((i) => i.filterTags.includes('move_out')).length },
     { id: 'checkout', label: FILTER_LABELS.checkout, count: allItems.filter((i) => i.filterTags.includes('checkout')).length },
     { id: 'bed_assignment', label: FILTER_LABELS.bed_assignment, count: allItems.filter((i) => i.filterTags.includes('bed_assignment')).length },
@@ -480,6 +460,8 @@ export async function loadUnifiedOperationsQueue(
     filter,
     filterCounts,
     paymentReviews,
+    approvalQueue,
+    pendingReservations,
     totalCount: allItems.length,
   };
 }

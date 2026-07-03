@@ -43,7 +43,6 @@ import { BillingOperationsDashboard } from '@/src/components/admin/billing/Billi
 import { BillingCycleCertificationPanel } from '@/src/components/admin/billing/BillingCycleCertificationPanel';
 import { PipelineTestIntegrityPanel } from '@/src/components/admin/billing/PipelineTestIntegrityPanel';
 import { BillingProductionRepairPanel } from '@/src/components/admin/billing/BillingProductionRepairPanel';
-import { OperationsPaymentReviewsPanel } from '@/src/components/admin/operations/OperationsPaymentReviewsPanel';
 import {
   canAdminMarkInvoicePaidWithCash,
   resolveFinancialInvoiceIdMap,
@@ -116,6 +115,9 @@ export default async function CollectionsModulePage({
 }) {
   const sp = await searchParams;
   const tab = TABS.some((t) => t.id === sp.tab) ? sp.tab! : 'dashboard';
+  if (tab === 'approvals') {
+    redirect('/admin/operations?tab=waiting');
+  }
   const billingMonth = resolveBillingMonth(sp.month);
   const todayIst = todayInBillingTimezone();
 
@@ -317,12 +319,6 @@ export default async function CollectionsModulePage({
           }))}
           runId={lastRun?.id}
         />
-      ) : null}
-
-      {tab === 'approvals' ? (
-        <AdminSectionErrorBoundary title="Payment approvals">
-          <OperationsPaymentReviewsPanel items={paymentReviews} />
-        </AdminSectionErrorBoundary>
       ) : null}
 
       {tab === 'billing' ? (

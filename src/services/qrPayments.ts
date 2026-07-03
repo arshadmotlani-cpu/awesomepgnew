@@ -295,7 +295,10 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
 
   // Keep the booking alive while admin reviews proof — holds no longer block
   // the public calendar, but we still cancel abandoned checkouts via cron.
-  const reviewHoldUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const { env } = await import('@/src/lib/env');
+  const reviewHoldUntil = new Date(
+    Date.now() + env.BOOKING_PROOF_REVIEW_DAYS * 24 * 60 * 60 * 1000,
+  );
   await db
     .update(bedReservations)
     .set({ holdExpiresAt: reviewHoldUntil, updatedAt: new Date() })
@@ -473,6 +476,7 @@ export async function reviewPaymentRecord(
   status: 'approved' | 'rejected',
   opts?: {
     partialDeposit?: { depositDueDate: string };
+    rejectionReason?: string;
     reviewMeta?: {
       overpaymentDisposition?: string;
       reviewNotes?: string;
@@ -568,15 +572,16 @@ export async function reviewPaymentRecord(
   }
 
   if (status === 'rejected' && record.bookingId) {
+    const reason = opts?.rejectionReason?.trim() || 'Payment proof rejected by admin';
     const [booking] = await db
       .select({ bookingCode: bookings.bookingCode, customerId: bookings.customerId })
       .from(bookings)
       .where(eq(bookings.id, record.bookingId))
       .limit(1);
-    const { cleanupRejectedBookingRequest } = await import('@/src/lib/bookingApproval');
-    await cleanupRejectedBookingRequest({
+    const { rejectBookingPaymentProof } = await import('@/src/lib/bookingApproval');
+    await rejectBookingPaymentProof({
       bookingId: record.bookingId,
-      reason: 'payment proof rejected by admin',
+      reason,
       rejectedByAdminId: session.adminId,
       pgPaymentRecordId: recordId,
       customerId: booking?.customerId ?? record.customerId,
@@ -590,9 +595,16 @@ export async function reviewPaymentRecord(
       status,
       reviewedByAdminId: session.adminId,
       reviewedAt: new Date(),
+      rejectionReason:
+        status === 'rejected' ? opts?.rejectionReason?.trim() || 'Payment proof rejected by admin' : null,
       updatedAt: new Date(),
     })
     .where(eq(pgPaymentRecords.id, recordId));
+
+  if (status === 'rejected') {
+    const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
+    scheduleAdminNotificationSync();
+  }
 
   if (status === 'approved') {
     const { trackAnalyticsEvent } = await import('./visitorAnalytics');

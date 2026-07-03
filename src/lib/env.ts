@@ -80,6 +80,14 @@ export const env = {
   get BOOKING_HOLD_MINUTES() {
     return optionalInt('BOOKING_HOLD_MINUTES', 15);
   },
+  /** How long admin has to review a submitted booking payment proof. */
+  get BOOKING_PROOF_REVIEW_DAYS() {
+    return optionalInt('BOOKING_PROOF_REVIEW_DAYS', 7);
+  },
+  /** Grace window after booking proof rejection before reservation expires. */
+  get BOOKING_REJECT_GRACE_MINUTES() {
+    return optionalInt('BOOKING_REJECT_GRACE_MINUTES', 60);
+  },
   /** Razorpay credentials. Only required when PAYMENT_PROVIDER=razorpay. */
   get RAZORPAY_KEY_ID() {
     return optional('RAZORPAY_KEY_ID');

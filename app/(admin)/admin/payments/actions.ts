@@ -16,7 +16,7 @@ import {
 import { reviewPaymentRecord } from '@/src/services/qrPayments';
 import { getNextPendingPaymentReviewKey } from '@/src/services/paymentProofQueue';
 
-const PAYMENT_REVIEW_PATH = '/admin/operations?filter=payment_proof';
+const PAYMENT_REVIEW_PATH = '/admin/operations?tab=waiting';
 
 function revalidatePaymentReviewSurfaces(pgId: string) {
   revalidatePath('/admin');
@@ -90,10 +90,16 @@ export async function approvePartialQrPaymentAction(
 export async function rejectQrPaymentAction(
   recordId: string,
   pgId: string,
+  reason?: string,
   currentKey?: string,
 ) {
   const session = await requireAdminPermission('payments:write');
-  await reviewPaymentRecord(session, recordId, 'rejected');
+  if (!reason?.trim()) {
+    return { ok: false as const, message: 'Add a rejection reason for the resident.' };
+  }
+  await reviewPaymentRecord(session, recordId, 'rejected', {
+    rejectionReason: reason.trim(),
+  });
   revalidatePaymentReviewSurfaces(pgId);
   return withNextReviewKey(session, currentKey, { ok: true });
 }

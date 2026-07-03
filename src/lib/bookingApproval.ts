@@ -3,15 +3,17 @@
  * ledger until admin confirms a submitted booking request (UPI proof reviewed).
  *
  * Flow:
- *   createBooking          → pending_payment
- *   submit payment proof   → pending_approval
+ *   createBooking          → pending_payment (temporary reservation — no admin approval)
+ *   submit payment proof   → pending_approval (Waiting For Approval)
  *   admin approves proof   → confirmed (+ active reservations, deposit ledger)
- *   admin rejects proof    → cancelled (+ hold release, no invoices/deposits)
+ *   admin rejects proof    → pending_payment (+ hold kept, resident re-uploads)
+ *   explicit cancel/timeout → cancelled (+ hold release)
  */
 
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { auditLog, bedReservations, bookings, pgPaymentRecords, rentInvoices } from '@/src/db/schema';
+import { env } from '@/src/lib/env';
 
 export type BookingApprovalPhase =
   | 'awaiting_payment'
@@ -82,7 +84,69 @@ export async function markBookingAwaitingApproval(bookingId: string): Promise<vo
 }
 
 /**
- * Rejection cleanup — release holds and remove any premature billing artefacts.
+ * Reject booking payment proof — keep reservation alive for re-upload (rent-like).
+ */
+export async function rejectBookingPaymentProof(input: {
+  bookingId: string;
+  reason: string;
+  rejectedByAdminId: string;
+  pgPaymentRecordId: string;
+  customerId?: string | null;
+  bookingCode?: string | null;
+}): Promise<void> {
+  const holdUntil = new Date(Date.now() + env.BOOKING_REJECT_GRACE_MINUTES * 60 * 1000);
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(bookings)
+      .set({ status: 'pending_payment', updatedAt: new Date() })
+      .where(
+        and(
+          eq(bookings.id, input.bookingId),
+          inArray(bookings.status, ['pending_payment', 'pending_approval']),
+        ),
+      );
+
+    await tx
+      .update(bedReservations)
+      .set({ holdExpiresAt: holdUntil, updatedAt: new Date() })
+      .where(
+        and(
+          eq(bedReservations.bookingId, input.bookingId),
+          eq(bedReservations.status, 'hold'),
+          eq(bedReservations.kind, 'primary'),
+        ),
+      );
+
+    await tx.insert(auditLog).values({
+      actorType: 'admin',
+      actorId: input.rejectedByAdminId,
+      entity: 'booking',
+      entityId: input.bookingId,
+      action: 'payment_proof_rejected',
+      diff: {
+        reason: input.reason,
+        pgPaymentRecordId: input.pgPaymentRecordId,
+        bookingCode: input.bookingCode ?? null,
+      },
+    });
+  });
+
+  const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
+  scheduleAdminNotificationSync();
+
+  if (input.customerId && input.bookingCode) {
+    const { notifyPaymentProofRejected } = await import('@/src/lib/email/notifications');
+    notifyPaymentProofRejected({
+      customerId: input.customerId,
+      bookingCode: input.bookingCode,
+      reason: input.reason,
+    });
+  }
+}
+
+/**
+ * Explicit booking cancellation — release holds and remove premature billing artefacts.
  */
 export async function cleanupRejectedBookingRequest(input: {
   bookingId: string;
@@ -119,7 +183,6 @@ export async function cleanupRejectedBookingRequest(input: {
         ),
       );
 
-    // Defensive — invoices/deposits must not exist pre-approval; cancel if they do.
     await tx
       .update(rentInvoices)
       .set({
@@ -140,7 +203,7 @@ export async function cleanupRejectedBookingRequest(input: {
       actorId: input.rejectedByAdminId ?? null,
       entity: 'booking',
       entityId: input.bookingId,
-      action: 'payment_proof_rejected',
+      action: 'booking_cancelled',
       diff: {
         reason: input.reason,
         pgPaymentRecordId: input.pgPaymentRecordId ?? null,
@@ -148,13 +211,27 @@ export async function cleanupRejectedBookingRequest(input: {
       },
     });
   });
+}
 
-  if (input.customerId && input.bookingCode) {
-    const { notifyPaymentProofRejected } = await import('@/src/lib/email/notifications');
-    notifyPaymentProofRejected({
-      customerId: input.customerId,
-      bookingCode: input.bookingCode,
-      reason: input.reason,
-    });
-  }
+export async function getLatestRejectedBookingPaymentProof(
+  bookingId: string,
+  customerId: string,
+): Promise<{ id: string; rejectionReason: string | null; reviewedAt: Date | null } | null> {
+  const [row] = await db
+    .select({
+      id: pgPaymentRecords.id,
+      rejectionReason: pgPaymentRecords.rejectionReason,
+      reviewedAt: pgPaymentRecords.reviewedAt,
+    })
+    .from(pgPaymentRecords)
+    .where(
+      and(
+        eq(pgPaymentRecords.bookingId, bookingId),
+        eq(pgPaymentRecords.customerId, customerId),
+        eq(pgPaymentRecords.status, 'rejected'),
+      ),
+    )
+    .orderBy(desc(pgPaymentRecords.reviewedAt), desc(pgPaymentRecords.createdAt))
+    .limit(1);
+  return row ?? null;
 }
