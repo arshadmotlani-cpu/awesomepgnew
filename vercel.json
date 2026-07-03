@@ -1,9 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
-    "app/(admin)/admin/page.tsx": {
-      "maxDuration": 60
-    },
     "app/api/webhooks/vercel/route.ts": {
       "maxDuration": 60
     },
