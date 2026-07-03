@@ -23,6 +23,7 @@ import {
 } from '@/app/(admin)/admin/refunds/actions';
 import { initialRefundActionState, type RefundActionState } from '@/app/(admin)/admin/refunds/actionState';
 import type { RefundConsoleBookingRow } from '@/src/services/refundConsole';
+import { partitionRefundConsoleBookings } from '@/src/lib/refund/refundConsoleActionability';
 
 function ActionBanner({ state }: { state: RefundActionState }) {
   if (state.status === 'idle') return null;
@@ -54,48 +55,150 @@ function SummaryMetric({
   );
 }
 
+function RefundConsoleBookingListItem({
+  row,
+  onSelect,
+  showCustomerName = false,
+}: {
+  row: RefundConsoleBookingRow;
+  onSelect: (row: RefundConsoleBookingRow) => void;
+  showCustomerName?: boolean;
+}) {
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => onSelect(row)}
+        className="flex w-full flex-col gap-1 border-b border-white/5 px-5 py-4 text-left transition hover:bg-white/[0.04] last:border-0 sm:flex-row sm:items-center sm:justify-between"
+      >
+        <div>
+          <p className="text-base font-semibold text-white">
+            {showCustomerName ? row.customerName : row.bookingCode}
+          </p>
+          <p className="text-sm text-apg-silver">
+            {showCustomerName ? (
+              <>
+                {row.bookingCode}
+                {row.bedLabel ? ` · ${row.bedLabel}` : ''}
+              </>
+            ) : (
+              <>
+                {row.status}
+                {row.bedLabel ? ` · ${row.bedLabel}` : ''}
+                {row.pgName ? ` · ${row.pgName}` : ''}
+              </>
+            )}
+          </p>
+        </div>
+        <p
+          className={`text-sm font-semibold tabular-nums ${row.isActionable ? 'text-emerald-300' : 'text-apg-muted'}`}
+        >
+          Refundable {paiseToInr(row.wallet.remainingDepositPaise)}
+        </p>
+      </button>
+    </li>
+  );
+}
+
+function RefundConsoleBookingResults({
+  rows,
+  onSelect,
+  showCustomerName = false,
+  showHistorical,
+  onToggleHistorical,
+}: {
+  rows: RefundConsoleBookingRow[];
+  onSelect: (row: RefundConsoleBookingRow) => void;
+  showCustomerName?: boolean;
+  showHistorical: boolean;
+  onToggleHistorical: () => void;
+}) {
+  const { actionable, historical } = partitionRefundConsoleBookings(rows);
+
+  return (
+    <div className="space-y-4">
+      {actionable.length > 0 ? (
+        <ul className="overflow-hidden rounded-2xl border border-white/10 bg-[#12161C]/80">
+          {actionable.map((row) => (
+            <RefundConsoleBookingListItem
+              key={row.bookingId}
+              row={row}
+              onSelect={onSelect}
+              showCustomerName={showCustomerName}
+            />
+          ))}
+        </ul>
+      ) : null}
+      {historical.length > 0 ? (
+        <div className="space-y-3">
+          {actionable.length === 0 ? (
+            <p className="text-center text-sm text-apg-silver">
+              No bookings requiring refund action.
+            </p>
+          ) : null}
+          <button
+            type="button"
+            onClick={onToggleHistorical}
+            className="mx-auto block text-sm font-medium text-apg-silver hover:text-white"
+          >
+            {showHistorical
+              ? 'Hide historical bookings'
+              : `Show historical bookings (${historical.length})`}
+          </button>
+          {showHistorical ? (
+            <ul className="overflow-hidden rounded-2xl border border-white/10 bg-[#12161C]/50">
+              {historical.map((row) => (
+                <RefundConsoleBookingListItem
+                  key={row.bookingId}
+                  row={row}
+                  onSelect={onSelect}
+                  showCustomerName={showCustomerName}
+                />
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function BookingPicker({
   rows,
   residentLabel,
   onSelect,
   onBack,
+  showHistorical,
+  onToggleHistorical,
 }: {
   rows: RefundConsoleBookingRow[];
   residentLabel: string;
   onSelect: (row: RefundConsoleBookingRow) => void;
   onBack: () => void;
+  showHistorical: boolean;
+  onToggleHistorical: () => void;
 }) {
+  const { actionable, historical } = partitionRefundConsoleBookings(rows);
+
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6 py-8">
       <div className="text-center">
         <h2 className="text-2xl font-semibold text-white">Select booking</h2>
         <p className="mt-2 text-sm text-apg-silver">
-          {residentLabel} has {rows.length} booking{rows.length === 1 ? '' : 's'}.
+          {residentLabel} has {actionable.length} booking{actionable.length === 1 ? '' : 's'}{' '}
+          requiring action
+          {historical.length > 0
+            ? ` (${historical.length} historical)`
+            : ''}
+          .
         </p>
       </div>
-      <ul className="overflow-hidden rounded-2xl border border-white/10 bg-[#12161C]/80">
-        {rows.map((row) => (
-          <li key={row.bookingId}>
-            <button
-              type="button"
-              onClick={() => onSelect(row)}
-              className="flex w-full flex-col gap-1 border-b border-white/5 px-5 py-4 text-left transition hover:bg-white/[0.04] last:border-0 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div>
-                <p className="text-base font-semibold text-white">{row.bookingCode}</p>
-                <p className="text-sm text-apg-silver">
-                  {row.status}
-                  {row.bedLabel ? ` · ${row.bedLabel}` : ''}
-                  {row.pgName ? ` · ${row.pgName}` : ''}
-                </p>
-              </div>
-              <p className="text-sm font-semibold text-emerald-300">
-                Refundable {paiseToInr(row.wallet.remainingDepositPaise)}
-              </p>
-            </button>
-          </li>
-        ))}
-      </ul>
+      <RefundConsoleBookingResults
+        rows={rows}
+        onSelect={onSelect}
+        showHistorical={showHistorical}
+        onToggleHistorical={onToggleHistorical}
+      />
       <button
         type="button"
         onClick={onBack}
@@ -113,19 +216,26 @@ function RefundSearchHero({
   results,
   query,
   onQueryChange,
+  showHistorical,
+  onToggleHistorical,
 }: {
   query: string;
   onQueryChange: (q: string) => void;
   results: RefundConsoleBookingRow[];
   loading: boolean;
   onSelect: (row: RefundConsoleBookingRow) => void;
+  showHistorical: boolean;
+  onToggleHistorical: () => void;
 }) {
+  const { actionable, historical } = partitionRefundConsoleBookings(results);
+  const hasAnyResults = results.length > 0;
+
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6 py-8">
       <div className="text-center">
         <h2 className="text-2xl font-semibold text-white">Search resident</h2>
         <p className="mt-2 text-sm text-apg-silver">
-          Name, phone, or booking code — selecting a booking opens the refund workspace immediately.
+          Name, phone, or booking code — actionable refunds appear first.
         </p>
       </div>
       <label className="block">
@@ -140,31 +250,16 @@ function RefundSearchHero({
         />
       </label>
       {loading ? <p className="text-center text-sm text-apg-silver">Searching…</p> : null}
-      {results.length > 0 ? (
-        <ul className="overflow-hidden rounded-2xl border border-white/10 bg-[#12161C]/80">
-          {results.map((row) => (
-            <li key={row.bookingId}>
-              <button
-                type="button"
-                onClick={() => onSelect(row)}
-                className="flex w-full flex-col gap-1 border-b border-white/5 px-5 py-4 text-left transition hover:bg-white/[0.04] last:border-0 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div>
-                  <p className="text-base font-semibold text-white">{row.customerName}</p>
-                  <p className="text-sm text-apg-silver">
-                    {row.bookingCode}
-                    {row.bedLabel ? ` · ${row.bedLabel}` : ''}
-                  </p>
-                </div>
-                <p className="text-sm font-semibold text-emerald-300">
-                  Refundable {paiseToInr(row.wallet.remainingDepositPaise)}
-                </p>
-              </button>
-            </li>
-          ))}
-        </ul>
+      {hasAnyResults ? (
+        <RefundConsoleBookingResults
+          rows={results}
+          onSelect={onSelect}
+          showCustomerName
+          showHistorical={showHistorical}
+          onToggleHistorical={onToggleHistorical}
+        />
       ) : null}
-      {query.trim().length >= 2 && !loading && results.length === 0 ? (
+      {query.trim().length >= 2 && !loading && actionable.length === 0 && historical.length === 0 ? (
         <p className="text-center text-sm text-apg-silver">No residents or bookings found.</p>
       ) : null}
     </div>
@@ -630,6 +725,7 @@ export function RefundConsoleWorkspace({
   const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState<RefundConsoleBookingRow[]>([]);
   const [bookingPickerRows, setBookingPickerRows] = useState<RefundConsoleBookingRow[] | null>(null);
+  const [showHistorical, setShowHistorical] = useState(false);
   const [pickerLabel, setPickerLabel] = useState('');
   const [searching, startSearch] = useTransition();
   const [loadingWorkspace, startLoadWorkspace] = useTransition();
@@ -676,10 +772,12 @@ export function RefundConsoleWorkspace({
           setLoadError('No bookings found for this resident.');
           return;
         }
-        if (res.rows.length === 1) {
-          openBooking(res.rows[0]!.bookingId);
+        const { actionable, historical } = partitionRefundConsoleBookings(res.rows);
+        if (actionable.length === 1 && historical.length === 0) {
+          openBooking(actionable[0]!.bookingId);
           return;
         }
+        setShowHistorical(false);
         setPickerLabel(res.rows[0]?.customerName ?? 'Resident');
         setBookingPickerRows(res.rows);
         window.history.replaceState(
@@ -719,12 +817,16 @@ export function RefundConsoleWorkspace({
     const trimmed = query.trim();
     if (trimmed.length < 2) {
       setSearchResults([]);
+      setShowHistorical(false);
       return;
     }
     const timer = setTimeout(() => {
       startSearch(async () => {
         const res = await searchRefundConsoleAction(trimmed);
-        if (res.ok) setSearchResults(res.rows);
+        if (res.ok) {
+          setSearchResults(res.rows);
+          setShowHistorical(false);
+        }
       });
     }, 250);
     return () => clearTimeout(timer);
@@ -742,6 +844,7 @@ export function RefundConsoleWorkspace({
     setLoadError(null);
     setPendingBookingId(null);
     setQuery('');
+    setShowHistorical(false);
     window.history.replaceState(null, '', '/admin/refunds');
   }
 
@@ -778,6 +881,8 @@ export function RefundConsoleWorkspace({
             residentLabel={pickerLabel}
             onSelect={(row) => openBooking(row.bookingId)}
             onBack={handleChangeResident}
+            showHistorical={showHistorical}
+            onToggleHistorical={() => setShowHistorical((v) => !v)}
           />
         ) : (
           <RefundSearchHero
@@ -786,6 +891,8 @@ export function RefundConsoleWorkspace({
             results={searchResults}
             loading={searching}
             onSelect={handleSelect}
+            showHistorical={showHistorical}
+            onToggleHistorical={() => setShowHistorical((v) => !v)}
           />
         )}
       </div>

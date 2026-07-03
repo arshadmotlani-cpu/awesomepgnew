@@ -18,7 +18,99 @@ import {
   isDepositTransferReason,
   parseDeductionCategory,
 } from '@/src/lib/financial/deductionCategories';
+import { isRefundConsoleActionable } from '@/src/lib/refund/refundConsoleActionability';
 import { getDepositSummaryForBooking, fetchDepositLedgerEntriesForBooking } from '@/src/services/deposits';
+
+const refundConsoleBookingLocationSelect = {
+  pgName: sql<string | null>`(
+    SELECT p.name FROM bed_reservations br
+    INNER JOIN beds bd ON bd.id = br.bed_id
+    INNER JOIN rooms r ON r.id = bd.room_id
+    INNER JOIN floors f ON f.id = r.floor_id
+    INNER JOIN pgs p ON p.id = f.pg_id
+    WHERE br.booking_id = ${bookings.id} AND br.kind = 'primary'
+    ORDER BY br.created_at DESC LIMIT 1
+  )`,
+  bedLabel: sql<string | null>`(
+    SELECT concat('Room ', r.room_number, ' · Bed ', bd.bed_code)
+    FROM bed_reservations br
+    INNER JOIN beds bd ON bd.id = br.bed_id
+    INNER JOIN rooms r ON r.id = bd.room_id
+    WHERE br.booking_id = ${bookings.id} AND br.kind = 'primary'
+    ORDER BY br.created_at DESC LIMIT 1
+  )`,
+  checkoutStatus: sql<string | null>`(
+    SELECT cs.status::text FROM checkout_settlements cs
+    WHERE cs.booking_id = ${bookings.id} AND cs.status <> 'archived'
+    ORDER BY cs.updated_at DESC LIMIT 1
+  )`,
+  checkoutFinalRefundPaise: sql<number | null>`(
+    SELECT cs.final_refund_paise::bigint::int FROM checkout_settlements cs
+    WHERE cs.booking_id = ${bookings.id} AND cs.status <> 'archived'
+    ORDER BY cs.updated_at DESC LIMIT 1
+  )`,
+};
+
+type RefundConsoleBookingQueryRow = {
+  bookingId: string;
+  bookingCode: string;
+  customerId: string;
+  status: string;
+  fullName: string | null;
+  phone: string | null;
+  pgName: string | null;
+  bedLabel: string | null;
+  adminDepositRefundStatus: string | null;
+  checkoutStatus: string | null;
+  checkoutFinalRefundPaise: number | null;
+};
+
+async function toRefundConsoleBookingRow(row: RefundConsoleBookingQueryRow): Promise<RefundConsoleBookingRow> {
+  try {
+    const wallet = await buildRefundConsoleWallet(row.bookingId);
+    const isActionable = isRefundConsoleActionable({
+      remainingDepositPaise: wallet.remainingDepositPaise,
+      adminDepositRefundStatus: row.adminDepositRefundStatus,
+      checkoutStatus: row.checkoutStatus,
+      checkoutFinalRefundPaise: row.checkoutFinalRefundPaise,
+    });
+    return {
+      bookingId: row.bookingId,
+      bookingCode: row.bookingCode,
+      customerId: row.customerId,
+      customerName: customerDisplayName(row),
+      pgName: row.pgName,
+      bedLabel: row.bedLabel,
+      status: row.status,
+      adminDepositRefundStatus: row.adminDepositRefundStatus,
+      checkoutStatus: row.checkoutStatus,
+      checkoutFinalRefundPaise: row.checkoutFinalRefundPaise,
+      isActionable,
+      wallet,
+    };
+  } catch (err) {
+    console.error('[refundConsole] search wallet failed', row.bookingId, err);
+    return {
+      bookingId: row.bookingId,
+      bookingCode: row.bookingCode,
+      customerId: row.customerId,
+      customerName: customerDisplayName(row),
+      pgName: row.pgName,
+      bedLabel: row.bedLabel,
+      status: row.status,
+      adminDepositRefundStatus: row.adminDepositRefundStatus,
+      checkoutStatus: row.checkoutStatus,
+      checkoutFinalRefundPaise: row.checkoutFinalRefundPaise,
+      isActionable: isRefundConsoleActionable({
+        remainingDepositPaise: 0,
+        adminDepositRefundStatus: row.adminDepositRefundStatus,
+        checkoutStatus: row.checkoutStatus,
+        checkoutFinalRefundPaise: row.checkoutFinalRefundPaise,
+      }),
+      wallet: emptyRefundConsoleWallet(),
+    };
+  }
+}
 
 export function emptyRefundConsoleWallet(): RefundConsoleWallet {
   return {
@@ -67,6 +159,10 @@ export type RefundConsoleBookingRow = {
   pgName: string | null;
   bedLabel: string | null;
   status: string;
+  adminDepositRefundStatus: string | null;
+  checkoutStatus: string | null;
+  checkoutFinalRefundPaise: number | null;
+  isActionable: boolean;
   wallet: RefundConsoleWallet;
 };
 
@@ -249,25 +345,10 @@ export async function searchRefundConsoleBookings(
       bookingCode: bookings.bookingCode,
       customerId: bookings.customerId,
       status: bookings.status,
+      adminDepositRefundStatus: bookings.adminDepositRefundStatus,
       fullName: customers.fullName,
       phone: customers.phone,
-      pgName: sql<string | null>`(
-        SELECT p.name FROM bed_reservations br
-        INNER JOIN beds bd ON bd.id = br.bed_id
-        INNER JOIN rooms r ON r.id = bd.room_id
-        INNER JOIN floors f ON f.id = r.floor_id
-        INNER JOIN pgs p ON p.id = f.pg_id
-        WHERE br.booking_id = ${bookings.id} AND br.kind = 'primary'
-        ORDER BY br.created_at DESC LIMIT 1
-      )`,
-      bedLabel: sql<string | null>`(
-        SELECT concat('Room ', r.room_number, ' · Bed ', bd.bed_code)
-        FROM bed_reservations br
-        INNER JOIN beds bd ON bd.id = br.bed_id
-        INNER JOIN rooms r ON r.id = bd.room_id
-        WHERE br.booking_id = ${bookings.id} AND br.kind = 'primary'
-        ORDER BY br.created_at DESC LIMIT 1
-      )`,
+      ...refundConsoleBookingLocationSelect,
     })
     .from(bookings)
     .innerJoin(customers, eq(customers.id, bookings.customerId))
@@ -288,31 +369,7 @@ export async function searchRefundConsoleBookings(
 
   const result: RefundConsoleBookingRow[] = [];
   for (const row of rows) {
-    try {
-      const wallet = await buildRefundConsoleWallet(row.bookingId);
-      result.push({
-        bookingId: row.bookingId,
-        bookingCode: row.bookingCode,
-        customerId: row.customerId,
-        customerName: customerDisplayName(row),
-        pgName: row.pgName,
-        bedLabel: row.bedLabel,
-        status: row.status,
-        wallet,
-      });
-    } catch (err) {
-      console.error('[refundConsole] search wallet failed', row.bookingId, err);
-      result.push({
-        bookingId: row.bookingId,
-        bookingCode: row.bookingCode,
-        customerId: row.customerId,
-        customerName: customerDisplayName(row),
-        pgName: row.pgName,
-        bedLabel: row.bedLabel,
-        status: row.status,
-        wallet: emptyRefundConsoleWallet(),
-      });
-    }
+    result.push(await toRefundConsoleBookingRow(row));
   }
 
   return { query: trimmed, rows: result };
@@ -333,25 +390,10 @@ export async function listRefundConsoleBookingsForCustomer(
       bookingCode: bookings.bookingCode,
       customerId: bookings.customerId,
       status: bookings.status,
+      adminDepositRefundStatus: bookings.adminDepositRefundStatus,
       fullName: customers.fullName,
       phone: customers.phone,
-      pgName: sql<string | null>`(
-        SELECT p.name FROM bed_reservations br
-        INNER JOIN beds bd ON bd.id = br.bed_id
-        INNER JOIN rooms r ON r.id = bd.room_id
-        INNER JOIN floors f ON f.id = r.floor_id
-        INNER JOIN pgs p ON p.id = f.pg_id
-        WHERE br.booking_id = ${bookings.id} AND br.kind = 'primary'
-        ORDER BY br.created_at DESC LIMIT 1
-      )`,
-      bedLabel: sql<string | null>`(
-        SELECT concat('Room ', r.room_number, ' · Bed ', bd.bed_code)
-        FROM bed_reservations br
-        INNER JOIN beds bd ON bd.id = br.bed_id
-        INNER JOIN rooms r ON r.id = bd.room_id
-        WHERE br.booking_id = ${bookings.id} AND br.kind = 'primary'
-        ORDER BY br.created_at DESC LIMIT 1
-      )`,
+      ...refundConsoleBookingLocationSelect,
     })
     .from(bookings)
     .innerJoin(customers, eq(customers.id, bookings.customerId))
@@ -361,31 +403,7 @@ export async function listRefundConsoleBookingsForCustomer(
 
   const result: RefundConsoleBookingRow[] = [];
   for (const row of rows) {
-    try {
-      const wallet = await buildRefundConsoleWallet(row.bookingId);
-      result.push({
-        bookingId: row.bookingId,
-        bookingCode: row.bookingCode,
-        customerId: row.customerId,
-        customerName: customerDisplayName(row),
-        pgName: row.pgName,
-        bedLabel: row.bedLabel,
-        status: row.status,
-        wallet,
-      });
-    } catch (err) {
-      console.error('[refundConsole] search wallet failed', row.bookingId, err);
-      result.push({
-        bookingId: row.bookingId,
-        bookingCode: row.bookingCode,
-        customerId: row.customerId,
-        customerName: customerDisplayName(row),
-        pgName: row.pgName,
-        bedLabel: row.bedLabel,
-        status: row.status,
-        wallet: emptyRefundConsoleWallet(),
-      });
-    }
+    result.push(await toRefundConsoleBookingRow(row));
   }
   return result;
 }
@@ -399,25 +417,10 @@ export async function getRefundConsoleBookingDetail(
       bookingCode: bookings.bookingCode,
       customerId: bookings.customerId,
       status: bookings.status,
+      adminDepositRefundStatus: bookings.adminDepositRefundStatus,
       fullName: customers.fullName,
       phone: customers.phone,
-      pgName: sql<string | null>`(
-        SELECT p.name FROM bed_reservations br
-        INNER JOIN beds bd ON bd.id = br.bed_id
-        INNER JOIN rooms r ON r.id = bd.room_id
-        INNER JOIN floors f ON f.id = r.floor_id
-        INNER JOIN pgs p ON p.id = f.pg_id
-        WHERE br.booking_id = ${bookings.id} AND br.kind = 'primary'
-        ORDER BY br.created_at DESC LIMIT 1
-      )`,
-      bedLabel: sql<string | null>`(
-        SELECT concat('Room ', r.room_number, ' · Bed ', bd.bed_code)
-        FROM bed_reservations br
-        INNER JOIN beds bd ON bd.id = br.bed_id
-        INNER JOIN rooms r ON r.id = bd.room_id
-        WHERE br.booking_id = ${bookings.id} AND br.kind = 'primary'
-        ORDER BY br.created_at DESC LIMIT 1
-      )`,
+      ...refundConsoleBookingLocationSelect,
     })
     .from(bookings)
     .innerJoin(customers, eq(customers.id, bookings.customerId))
@@ -476,6 +479,15 @@ export async function getRefundConsoleBookingDetail(
     pgName: row.pgName,
     bedLabel: row.bedLabel,
     status: row.status,
+    adminDepositRefundStatus: row.adminDepositRefundStatus,
+    checkoutStatus: row.checkoutStatus,
+    checkoutFinalRefundPaise: row.checkoutFinalRefundPaise,
+    isActionable: isRefundConsoleActionable({
+      remainingDepositPaise: wallet.remainingDepositPaise,
+      adminDepositRefundStatus: row.adminDepositRefundStatus,
+      checkoutStatus: row.checkoutStatus,
+      checkoutFinalRefundPaise: row.checkoutFinalRefundPaise,
+    }),
     wallet,
     ledger,
   };
