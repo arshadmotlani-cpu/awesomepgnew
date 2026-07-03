@@ -90,3 +90,46 @@ test('room 203 — deduct checkout collection then split among three active resi
   assert.equal(departed?.amountPaise, 0);
   assert.equal(departed?.excludedBecauseCheckoutPaid, true);
 });
+
+test('historical contributions reduce pool and assign remainder to remaining occupant', () => {
+  const grossTotalPaise = 299_200; // ₹2,992
+  const contributions = new Map<string, number>([
+    ['resident-a', 122_000],
+    ['resident-b', 50_000],
+  ]);
+  const result = allocateMonthlyElectricityInvoices({
+    grossTotalPaise,
+    prepaidCreditPaise: 0,
+    contributionsByCustomerId: contributions,
+    occupants: [
+      { bookingId: 'b-a', customerId: 'resident-a', bedCount: 1, weight: 30 },
+      { bookingId: 'b-b', customerId: 'resident-b', bedCount: 1, weight: 10 },
+      { bookingId: 'b-c', customerId: 'resident-c', bedCount: 1, weight: 30 },
+    ],
+    checkoutCollectedByCustomerId: new Map(),
+    useProRata: false,
+  });
+
+  assert.equal(result.roomContributionsAppliedPaise, 172_000);
+  assert.equal(result.netSplittablePaise, 127_200);
+  const remaining = result.invoices.find((i) => i.customerId === 'resident-c');
+  assert.equal(remaining?.amountPaise, 127_200);
+  assert.equal(result.invoices.find((i) => i.customerId === 'resident-a')?.amountPaise, 0);
+  assert.equal(result.invoices.find((i) => i.customerId === 'resident-b')?.amountPaise, 0);
+});
+
+test('july bill ignores june contributions when contributions map is empty', () => {
+  const result = allocateMonthlyElectricityInvoices({
+    grossTotalPaise: 300_000,
+    prepaidCreditPaise: 0,
+    occupants: [
+      { bookingId: 'b1', customerId: 'july-a', bedCount: 1, weight: 30 },
+      { bookingId: 'b2', customerId: 'july-b', bedCount: 1, weight: 30 },
+    ],
+    checkoutCollectedByCustomerId: new Map(),
+    useProRata: false,
+  });
+
+  assert.equal(result.netSplittablePaise, 300_000);
+  assert.equal(result.invoices.filter((i) => i.amountPaise > 0).length, 2);
+});

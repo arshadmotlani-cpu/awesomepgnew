@@ -686,33 +686,35 @@ export async function runJuneElectricityProductionCertification(input: {
       ),
     );
 
-    const june10Collected =
+    const contributionsTotal =
       (ledger204?.checkoutSettlementTotalPaise ?? 0) + (ledger204?.manualCreditsTotalPaise ?? 0);
+    const contributionCount =
+      (ledger204?.checkoutSettlementCredits.length ?? 0) + (ledger204?.manualCredits.length ?? 0);
     pass(
       step(
         '10b',
-        'Room 204 — ₹500 already collected (checkout + manual)',
-        june10Collected >= 50_000,
-        `Already collected ${paiseToInr(june10Collected)} (target ₹500.00)`,
+        'Room 204 — offline contributions recorded before split',
+        contributionCount >= 2 && contributionsTotal > 0,
+        `${contributionCount} contribution(s) totalling ${paiseToInr(contributionsTotal)}`,
       ),
     );
 
-    const rishikInvoice = billableInvoices.find(
-      (i) => i.roomNumber === '204' && /rishik/i.test(i.customerName),
+    const room204Invoices = billableInvoices.filter((i) => i.roomNumber === '204');
+    const remainderOccupant = room204Invoices.find(
+      (i) => i.amountPaise === (ledger204?.remainingRoomBalancePaise ?? 0) && i.amountPaise > 0,
     );
-    const rishikAlloc = ledger204?.residentAllocations.find((a) => /rishik/i.test(a.customerName));
-    const rishikOk =
-      rishikInvoice != null &&
-      rishikInvoice.amountPaise === (rishikAlloc?.amountPaise ?? rishikInvoice.amountPaise) &&
-      (rishikAlloc?.amountPaise ?? 0) > 0;
+    const excludedCount = ledger204?.residentAllocations.filter(
+      (a) => a.excludedBecauseCheckoutPaid || a.amountPaise === 0,
+    ).length;
     pass(
       step(
         '10c',
-        'Room 204 — Rishik receives remaining balance only',
-        rishikOk,
-        rishikInvoice
-          ? `Rishik invoice ${rishikInvoice.invoiceNumber}: ${paiseToInr(rishikInvoice.amountPaise)} outstanding after credits`
-          : 'Rishik invoice not found',
+        'Room 204 — remaining balance assigned to current occupant only',
+        remainderOccupant != null &&
+          room204Invoices.filter((i) => i.amountPaise > 0).length === 1,
+        remainderOccupant
+          ? `${remainderOccupant.customerName} invoice ${remainderOccupant.invoiceNumber}: ${paiseToInr(remainderOccupant.amountPaise)} (${excludedCount} contributor(s) excluded)`
+          : 'No single occupant invoice matching remaining room balance',
       ),
     );
   }

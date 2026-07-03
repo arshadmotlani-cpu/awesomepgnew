@@ -1,6 +1,7 @@
 /**
  * Pure monthly electricity invoice allocation for a room billing cycle.
- * Checkout collections reduce the splittable pool; checkout payers are excluded from invoices.
+ * Room contributions (historical + checkout recovery) reduce the splittable pool;
+ * contributors are excluded from new invoices.
  */
 import { splitElectricity, splitElectricityWeighted } from '@/src/services/billing';
 
@@ -21,6 +22,8 @@ export type MonthlyElectricityInvoiceLine = {
 export function allocateMonthlyElectricityInvoices(input: {
   grossTotalPaise: number;
   prepaidCreditPaise: number;
+  /** Unified room contributions (historical + checkout recovery). When set, replaces legacy checkout/manual credits. */
+  contributionsByCustomerId?: Map<string, number>;
   manualCreditPaise?: number;
   occupants: MonthlyElectricityOccupant[];
   checkoutCollectedByCustomerId: Map<string, number>;
@@ -29,6 +32,7 @@ export function allocateMonthlyElectricityInvoices(input: {
   prepaidCreditAppliedPaise: number;
   checkoutCreditAppliedPaise: number;
   manualCreditAppliedPaise: number;
+  roomContributionsAppliedPaise: number;
   netSplittablePaise: number;
   billableOccupantCount: number;
   invoices: MonthlyElectricityInvoiceLine[];
@@ -41,24 +45,48 @@ export function allocateMonthlyElectricityInvoices(input: {
   );
   const afterPrepaidPaise = input.grossTotalPaise - prepaidCreditAppliedPaise;
 
-  const checkoutCreditAppliedPaise = [...input.checkoutCollectedByCustomerId.values()].reduce(
-    (sum, amount) => sum + amount,
-    0,
-  );
-  const cappedCheckoutCredit = Math.min(checkoutCreditAppliedPaise, afterPrepaidPaise);
-  const afterCheckoutPaise = Math.max(0, afterPrepaidPaise - cappedCheckoutCredit);
-  const manualCreditAppliedPaise = Math.min(
-    Math.max(0, input.manualCreditPaise ?? 0),
-    afterCheckoutPaise,
-  );
-  const netSplittablePaise = Math.max(0, afterCheckoutPaise - manualCreditAppliedPaise);
+  const useContributionsSsot =
+    input.contributionsByCustomerId != null && input.contributionsByCustomerId.size > 0;
 
-  const billable = input.occupants.filter(
-    (o) => (input.checkoutCollectedByCustomerId.get(o.customerId) ?? 0) <= 0,
-  );
-  const excluded = input.occupants.filter(
-    (o) => (input.checkoutCollectedByCustomerId.get(o.customerId) ?? 0) > 0,
-  );
+  let checkoutCreditAppliedPaise = 0;
+  let manualCreditAppliedPaise = 0;
+  let roomContributionsAppliedPaise = 0;
+  let netSplittablePaise = afterPrepaidPaise;
+  const contributedCustomerIds = new Set<string>();
+
+  if (useContributionsSsot) {
+    for (const [customerId, amount] of input.contributionsByCustomerId!) {
+      if (amount > 0) contributedCustomerIds.add(customerId);
+    }
+    const totalContributions = [...input.contributionsByCustomerId!.values()].reduce(
+      (sum, amount) => sum + amount,
+      0,
+    );
+    roomContributionsAppliedPaise = Math.min(totalContributions, afterPrepaidPaise);
+    netSplittablePaise = Math.max(0, afterPrepaidPaise - roomContributionsAppliedPaise);
+    checkoutCreditAppliedPaise = roomContributionsAppliedPaise;
+  } else {
+    checkoutCreditAppliedPaise = [...input.checkoutCollectedByCustomerId.values()].reduce(
+      (sum, amount) => sum + amount,
+      0,
+    );
+    const cappedCheckoutCredit = Math.min(checkoutCreditAppliedPaise, afterPrepaidPaise);
+    const afterCheckoutPaise = Math.max(0, afterPrepaidPaise - cappedCheckoutCredit);
+    manualCreditAppliedPaise = Math.min(
+      Math.max(0, input.manualCreditPaise ?? 0),
+      afterCheckoutPaise,
+    );
+    netSplittablePaise = Math.max(0, afterCheckoutPaise - manualCreditAppliedPaise);
+    checkoutCreditAppliedPaise = cappedCheckoutCredit;
+    roomContributionsAppliedPaise = cappedCheckoutCredit + manualCreditAppliedPaise;
+
+    for (const [customerId, amount] of input.checkoutCollectedByCustomerId) {
+      if (amount > 0) contributedCustomerIds.add(customerId);
+    }
+  }
+
+  const billable = input.occupants.filter((o) => !contributedCustomerIds.has(o.customerId));
+  const excluded = input.occupants.filter((o) => contributedCustomerIds.has(o.customerId));
 
   const billableBedShares = billable.reduce((sum, o) => sum + o.bedCount, 0);
   const billableWeight = billable.reduce((sum, o) => sum + o.weight, 0);
@@ -74,8 +102,9 @@ export function allocateMonthlyElectricityInvoices(input: {
   if (netSplittablePaise <= 0 || billable.length === 0) {
     return {
       prepaidCreditAppliedPaise,
-      checkoutCreditAppliedPaise: cappedCheckoutCredit,
+      checkoutCreditAppliedPaise,
       manualCreditAppliedPaise,
+      roomContributionsAppliedPaise,
       netSplittablePaise,
       billableOccupantCount: billableBedShares,
       invoices,
@@ -113,8 +142,9 @@ export function allocateMonthlyElectricityInvoices(input: {
 
   return {
     prepaidCreditAppliedPaise,
-    checkoutCreditAppliedPaise: cappedCheckoutCredit,
+    checkoutCreditAppliedPaise,
     manualCreditAppliedPaise,
+    roomContributionsAppliedPaise,
     netSplittablePaise,
     billableOccupantCount: billableBedShares,
     invoices,

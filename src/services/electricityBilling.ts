@@ -67,6 +67,7 @@ import { allocateMonthlyElectricityInvoices } from '../lib/billing/roomElectrici
 import { syncRoomElectricityLedgerCycleFromBillInTx, recordMonthlyInvoiceCollectionInTx } from './roomElectricityLedger';
 import { findActiveElectricityInvoiceForResidentMonth } from './electricityInvoiceDuplicates';
 import { sumManualElectricityCreditsForRoomMonth } from './electricitySettlementLedgerView';
+import { loadRoomElectricityContributionsForMonth } from './electricityRoomContributions';
 import { getElectricityInvoiceSchemaCaps } from '@/src/lib/db/electricityInvoiceSchemaCaps';
 import { fetchElectricityInvoiceById } from '@/src/lib/db/electricityInvoiceSelect';
 
@@ -367,12 +368,18 @@ export async function createElectricityBill(
     input.roomId,
     billingMonth,
   );
+  const contributionsLoad = await loadRoomElectricityContributionsForMonth(
+    input.roomId,
+    billingMonth,
+  );
 
   const grossTotalPaise = Math.round(unitsConsumed * input.ratePerUnitPaise);
   const allocation = allocateMonthlyElectricityInvoices({
     grossTotalPaise,
     prepaidCreditPaise: room.prepaidCreditPaise ?? 0,
-    manualCreditPaise,
+    contributionsByCustomerId:
+      contributionsLoad.contributions.length > 0 ? contributionsLoad.byCustomerId : undefined,
+    manualCreditPaise: contributionsLoad.contributions.length > 0 ? undefined : manualCreditPaise,
     occupants: occupantLoad.occupants,
     checkoutCollectedByCustomerId,
     useProRata: Boolean(input.useProRataByActiveDays && totalWeight > 0),
@@ -679,6 +686,15 @@ export async function createElectricityBill(
       useProRata,
       occupantLoad,
       invoiceAmountByBookingId: invoiceAllocationByBooking,
+      previousContributions: contributionsLoad.contributions.map((row) => ({
+        customerId: row.customerId,
+        customerName: row.customerName,
+        bookingId: row.bookingId,
+        amountPaise: row.amountPaise,
+        kind: row.kind,
+        reason: row.reason,
+        contributionDate: row.contributionDate,
+      })),
     });
 
     await db

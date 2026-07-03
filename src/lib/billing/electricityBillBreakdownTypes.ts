@@ -55,6 +55,16 @@ export type ElectricityBillCalculationBreakdown = {
     manualCreditPaise: number;
     totalDeductedPaise: number;
   };
+  /** Historical offline payments and checkout recoveries recorded before invoice split. */
+  previousContributions: Array<{
+    customerId: string;
+    customerName: string;
+    bookingId: string;
+    amountPaise: number;
+    kind: 'historical' | 'checkout_recovery';
+    reason: string | null;
+    contributionDate: string;
+  }>;
   remainingBillPaise: number;
   useProRata: boolean;
   timeline: ElectricityTimelineEntry[];

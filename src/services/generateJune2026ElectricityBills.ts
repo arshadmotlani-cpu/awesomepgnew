@@ -32,11 +32,9 @@ import { loadRoomElectricityOccupantsForMonth } from '@/src/lib/billing/roomElec
 import { createElectricityBill } from '@/src/services/electricityBilling';
 import { firstOfMonth, monthBounds } from '@/src/services/billing';
 import { listCheckoutElectricityLedgerForRoomMonth } from '@/src/services/electricitySettlementLedger';
-import {
-  getElectricitySettlementLedgerView,
+import { getElectricitySettlementLedgerView,
   sumManualElectricityCreditsForRoomMonth,
 } from '@/src/services/electricitySettlementLedgerView';
-import { recordManualElectricityCredit } from '@/src/services/roomElectricityLedger';
 import { recordCheckoutElectricityCollectionFromSettlementId } from '@/src/services/roomElectricityLedger';
 import { repairElectricityInvoiceDuplicateGroup } from '@/src/services/electricityInvoiceDuplicates';
 import { listElectricityInvoiceDuplicateGroups } from '@/src/services/electricityInvoiceDuplicates';
@@ -281,105 +279,19 @@ async function prepareRoom203(ctx: RoomContext): Promise<void> {
 
 async function prepareRoom204(ctx: RoomContext): Promise<void> {
   await backfillCheckoutElectricityLedgerForRoom(ctx);
-  const TARGET_FIRST_RESIDENT_PAISE = 50_000; // ₹500
-
-  const departedResidents = await db
-    .select({
-      customerId: checkoutSettlements.customerId,
-      customerName: customers.fullName,
-      bookingId: checkoutSettlements.bookingId,
-      vacatingDate: vacatingRequests.vacatingDate,
-      settlementId: checkoutSettlements.id,
-    })
-    .from(vacatingRequests)
-    .innerJoin(checkoutSettlements, eq(checkoutSettlements.vacatingRequestId, vacatingRequests.id))
-    .innerJoin(customers, eq(customers.id, checkoutSettlements.customerId))
-    .innerJoin(bookings, eq(bookings.id, vacatingRequests.bookingId))
-    .innerJoin(bedReservations, eq(bedReservations.bookingId, bookings.id))
-    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
-    .where(
-      and(
-        eq(beds.roomId, ctx.roomId),
-        eq(bedReservations.kind, 'primary'),
-        eq(vacatingRequests.vacatingDate, '2026-06-10'),
-      ),
-    )
-    .limit(5);
-
-  const june10 = departedResidents[0];
-  if (june10) {
-    const checkoutRows = await listCheckoutElectricityLedgerForRoomMonth(
-      ctx.roomId,
-      ctx.billingMonth,
-      { status: 'collected' },
-    );
-    const checkoutForCustomer =
-      checkoutRows.find((r) => r.customerId === june10.customerId)?.amountPaise ?? 0;
-    const manualTotal = await sumManualElectricityCreditsForRoomMonth(
-      ctx.roomId,
-      ctx.billingMonth,
-    );
-    const recordedTotal = checkoutForCustomer + manualTotal;
-    const shortfall = TARGET_FIRST_RESIDENT_PAISE - checkoutForCustomer;
-
-    console.log(
-      `  Room 204 — ${june10.customerName} (left ${june10.vacatingDate}): checkout ledger ${paiseToInr(checkoutForCustomer)}, manual ${paiseToInr(manualTotal)}`,
-    );
-
-    if (shortfall > 0) {
-      console.log(
-        `  Recording manual credit ${paiseToInr(shortfall)} for ${june10.customerName} (₹500 total contribution rule)`,
-      );
-      if (!ctx.dryRun) {
-        await recordManualElectricityCredit({
-          roomId: ctx.roomId,
-          billingMonth: ctx.billingMonth,
-          customerId: june10.customerId,
-          bookingId: june10.bookingId,
-          amountPaise: shortfall,
-          source: 'manual',
-          note: 'June 2026 batch: resident paid ₹500; system had ₹250 — top-up to ₹500 already collected',
-        });
-      }
-    } else if (recordedTotal < TARGET_FIRST_RESIDENT_PAISE) {
-      const gap = TARGET_FIRST_RESIDENT_PAISE - recordedTotal;
-      console.log(`  Recording manual credit ${paiseToInr(gap)} to reach ₹500 total for first resident`);
-      if (!ctx.dryRun) {
-        await recordManualElectricityCredit({
-          roomId: ctx.roomId,
-          billingMonth: ctx.billingMonth,
-          customerId: june10.customerId,
-          bookingId: june10.bookingId,
-          amountPaise: gap,
-          source: 'manual',
-          note: 'June 2026 batch: align to ₹500 already collected from first resident',
-        });
-      }
-    }
-  } else {
-    console.warn('  Room 204: no resident found with vacating date 2026-06-10 — verify manually.');
-  }
-
-  const atifRows = await db
-    .select({
-      customerName: customers.fullName,
-      amountPaise: electricitySettlementLedger.amountPaise,
-      status: electricitySettlementLedger.status,
-    })
-    .from(electricitySettlementLedger)
-    .innerJoin(customers, eq(customers.id, electricitySettlementLedger.customerId))
-    .where(
-      and(
-        eq(electricitySettlementLedger.roomId, ctx.roomId),
-        eq(electricitySettlementLedger.billingMonth, ctx.billingMonth),
-        ilike(customers.fullName, '%atif%'),
-      ),
-    );
-  if (atifRows.length === 0) {
-    console.warn('  Room 204: Atif Siddiqui checkout electricity not found in settlement ledger — verify before generate.');
-  } else {
-    console.log(
-      `  Room 204 — Atif: ${atifRows.map((r) => `${paiseToInr(r.amountPaise)} (${r.status})`).join(', ')} — will be excluded from new invoice`,
+  const { loadRoomElectricityContributionsForMonth } = await import(
+    '@/src/services/electricityRoomContributions'
+  );
+  const contributions = await loadRoomElectricityContributionsForMonth(
+    ctx.roomId,
+    ctx.billingMonth,
+  );
+  console.log(
+    `  Room 204 — room contributions: ${paiseToInr(contributions.totalPaise)} (${contributions.contributions.length} row(s))`,
+  );
+  if (contributions.contributions.length === 0) {
+    console.warn(
+      '  Room 204 — WARNING: no electricity contributions on file. Record historical offline payments in admin before generating.',
     );
   }
 }
@@ -429,6 +341,13 @@ async function preflightRoom(
     ctx.roomId,
     ctx.billingMonth,
   );
+  const { loadRoomElectricityContributionsForMonth } = await import(
+    '@/src/services/electricityRoomContributions'
+  );
+  const contributionsLoad = await loadRoomElectricityContributionsForMonth(
+    ctx.roomId,
+    ctx.billingMonth,
+  );
 
   const { occupants, totalWeight } = await loadOccupantsForPreflight(
     ctx.roomId,
@@ -440,7 +359,9 @@ async function preflightRoom(
   const allocation = allocateMonthlyElectricityInvoices({
     grossTotalPaise: gross,
     prepaidCreditPaise: room?.prepaidCreditPaise ?? 0,
-    manualCreditPaise,
+    contributionsByCustomerId:
+      contributionsLoad.contributions.length > 0 ? contributionsLoad.byCustomerId : undefined,
+    manualCreditPaise: contributionsLoad.contributions.length > 0 ? undefined : manualCreditPaise,
     occupants,
     checkoutCollectedByCustomerId,
     useProRata: totalWeight > 0,
@@ -454,7 +375,10 @@ async function preflightRoom(
     totalRoomBillPaise: gross,
     prepaidCreditAppliedPaise: allocation.prepaidCreditAppliedPaise,
     checkoutSettlementCreditsPaise: allocation.checkoutCreditAppliedPaise,
-    manualCreditsPaise: allocation.manualCreditAppliedPaise,
+    manualCreditsPaise:
+      contributionsLoad.contributions.length > 0
+        ? allocation.roomContributionsAppliedPaise
+        : allocation.manualCreditAppliedPaise,
     residentAllocationsPaise,
     roundingRemainderPaise: allocation.remainderPaise,
   });

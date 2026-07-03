@@ -121,6 +121,17 @@ export async function loadRoomElectricityOccupantsForMonth(input: {
     input.billingMonth,
   );
 
+  const { loadRoomElectricityContributionsForMonth } = await import(
+    '@/src/services/electricityRoomContributions'
+  );
+  const contributionsLoad = await loadRoomElectricityContributionsForMonth(
+    input.roomId,
+    input.billingMonth,
+  );
+  for (const customerId of contributionsLoad.contributorCustomerIds) {
+    settledCustomerIds.add(customerId);
+  }
+
   const occupantRows = await db
     .select({
       bookingId: bookings.id,

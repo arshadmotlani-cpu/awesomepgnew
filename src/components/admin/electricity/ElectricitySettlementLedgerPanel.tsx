@@ -2,7 +2,9 @@
 
 import { useRouter } from 'next/navigation';
 import { useCallback, useState, useTransition } from 'react';
-import { recordManualElectricityCreditAction } from '@/app/(admin)/admin/electricity/ledger/actions';
+import {
+  recordHistoricalElectricityContributionAction,
+} from '@/app/(admin)/admin/electricity/ledger/actions';
 import type { ElectricitySettlementLedgerView } from '@/src/services/electricitySettlementLedgerView';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 
@@ -74,7 +76,10 @@ export function ElectricitySettlementLedgerPanel({
       ) : null}
 
       {ledger.manualCredits.length > 0 ? (
-        <CreditSection title="Cash, UPI, or manual payments" rows={ledger.manualCredits} />
+        <CreditSection
+          title="Historical / offline contributions"
+          rows={ledger.manualCredits}
+        />
       ) : null}
 
       {ledger.residentAllocations.length > 0 ? (
@@ -157,6 +162,7 @@ export function ElectricitySettlementLedgerPanel({
           roomId={ledger.roomId}
           billingMonth={ledger.billingMonth}
           allocations={ledger.residentAllocations}
+          checkoutCredits={ledger.checkoutSettlementCredits}
         />
       ) : null}
     </section>
@@ -221,31 +227,50 @@ function ManualCreditForm({
   roomId,
   billingMonth,
   allocations,
+  checkoutCredits,
 }: {
   roomId: string;
   billingMonth: string;
   allocations: ElectricitySettlementLedgerView['residentAllocations'];
+  checkoutCredits: ElectricitySettlementLedgerView['checkoutSettlementCredits'];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const billable = allocations.filter(
-    (a) => a.bookingId && !a.excludedBecauseCheckoutPaid,
-  );
+  const residentOptions = [
+    ...allocations
+      .filter((a) => a.bookingId)
+      .map((a) => ({
+        key: `${a.customerId}|${a.bookingId}`,
+        label: a.customerName,
+      })),
+    ...checkoutCredits
+      .filter((c) => c.id)
+      .map((c) => ({
+        key: `${c.customerId}|legacy`,
+        label: `${c.customerName} (checkout)`,
+      })),
+  ];
+  const uniqueResidents = [...new Map(residentOptions.map((r) => [r.key, r])).values()];
 
   const handleSubmit = useCallback(
     (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       setError(null);
       const formData = new FormData(event.currentTarget);
+      const residentKey = String(formData.get('residentKey') ?? '');
+      if (residentKey.endsWith('|legacy')) {
+        setError('Select a booking-linked resident for historical contributions.');
+        return;
+      }
       startTransition(async () => {
-        const result = await recordManualElectricityCreditAction({
+        const result = await recordHistoricalElectricityContributionAction({
           roomId,
           billingMonth,
-          residentKey: String(formData.get('residentKey') ?? ''),
+          residentKey,
           amountInr: Number(formData.get('amountInr')),
-          source: String(formData.get('source') ?? 'manual') as 'manual' | 'cash' | 'upi',
-          note: String(formData.get('note') ?? ''),
+          reason: String(formData.get('note') ?? ''),
+          contributionDate: String(formData.get('contributionDate') ?? '') || undefined,
         });
         if (!result.ok) {
           setError(result.error);
@@ -257,13 +282,16 @@ function ManualCreditForm({
     [billingMonth, roomId, router],
   );
 
-  if (billable.length === 0) return null;
+  if (uniqueResidents.length === 0) return null;
 
   return (
     <form onSubmit={handleSubmit} className="mt-8 border-t border-white/[0.06] pt-6 space-y-3">
       <h3 className="text-xs font-medium uppercase tracking-wider text-apg-silver">
-        Record manual / offline credit
+        Record historical contribution
       </h3>
+      <p className="text-xs text-apg-muted">
+        Offline electricity payments collected before Awesome PG or outside the billing system.
+      </p>
       <label className="block text-sm">
         <span className="text-apg-silver">Resident</span>
         <select
@@ -272,9 +300,9 @@ function ManualCreditForm({
           className="apg-admin-field mt-1 block w-full rounded-lg border border-white/10 bg-[#12161D] px-3 py-2 text-white"
         >
           <option value="">— select —</option>
-          {billable.map((a) => (
-            <option key={a.customerId} value={`${a.customerId}|${a.bookingId}`}>
-              {a.customerName}
+          {uniqueResidents.map((resident) => (
+            <option key={resident.key} value={resident.key}>
+              {resident.label}
             </option>
           ))}
         </select>
@@ -291,21 +319,19 @@ function ManualCreditForm({
         />
       </label>
       <label className="block text-sm">
-        <span className="text-apg-silver">Source</span>
-        <select
-          name="source"
+        <span className="text-apg-silver">Payment date</span>
+        <input
+          name="contributionDate"
+          type="date"
           className="apg-admin-field mt-1 block w-full max-w-xs rounded-lg border border-white/10 bg-[#12161D] px-3 py-2 text-white"
-        >
-          <option value="manual">Manual adjustment</option>
-          <option value="cash">Cash</option>
-          <option value="upi">UPI / offline</option>
-        </select>
+        />
       </label>
       <label className="block text-sm">
-        <span className="text-apg-silver">Note</span>
+        <span className="text-apg-silver">Reason</span>
         <input
           name="note"
           type="text"
+          placeholder="e.g. Paid offline before Awesome PG went live"
           className="apg-admin-field mt-1 block w-full rounded-lg border border-white/10 bg-[#12161D] px-3 py-2 text-white"
         />
       </label>
@@ -315,7 +341,7 @@ function ManualCreditForm({
         disabled={pending}
         className="rounded-lg bg-[#FF5A1F] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
       >
-        {pending ? 'Recording…' : 'Record credit'}
+        {pending ? 'Recording…' : 'Record contribution'}
       </button>
     </form>
   );

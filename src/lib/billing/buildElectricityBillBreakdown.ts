@@ -31,6 +31,7 @@ export async function composeElectricityBillBreakdown(input: {
   useProRata: boolean;
   occupantLoad: RoomElectricityOccupantLoadResult;
   invoiceAmountByBookingId: Map<string, number>;
+  previousContributions?: ElectricityBillCalculationBreakdown['previousContributions'];
 }): Promise<ElectricityBillCalculationBreakdown> {
   const timelineRows = await loadRoomElectricityTimelineForMonth({
     roomId: input.roomId,
@@ -67,6 +68,7 @@ export async function composeElectricityBillBreakdown(input: {
     ...input,
     timelineRows,
     checkoutCredits,
+    previousContributions: input.previousContributions,
   });
 }
 
@@ -95,7 +97,11 @@ export async function loadElectricityBillBreakdown(
 
   if (!bill) return null;
   if (bill.calculationBreakdown) {
-    return bill.calculationBreakdown as ElectricityBillCalculationBreakdown;
+    const stored = bill.calculationBreakdown as ElectricityBillCalculationBreakdown;
+    return {
+      ...stored,
+      previousContributions: stored.previousContributions ?? [],
+    };
   }
 
   const allInvoices = await db
@@ -145,6 +151,14 @@ export async function loadElectricityBillBreakdown(
       collectedDuringCheckoutPaise: r.settlement!.collectedDuringCheckoutPaise,
     }));
 
+  const { listRoomElectricityContributionsForMonth } = await import(
+    '@/src/services/electricityRoomContributions'
+  );
+  const contributionRows = await listRoomElectricityContributionsForMonth(
+    bill.roomId,
+    bill.billingMonth,
+  );
+
   return buildElectricityBillBreakdownFromContext({
     roomNumber: bill.roomNumber,
     billingMonth: bill.billingMonth,
@@ -161,5 +175,14 @@ export async function loadElectricityBillBreakdown(
     timelineRows,
     invoiceAmountByBookingId,
     checkoutCredits,
+    previousContributions: contributionRows.map((row) => ({
+      customerId: row.customerId,
+      customerName: row.customerName,
+      bookingId: row.bookingId,
+      amountPaise: row.amountPaise,
+      kind: row.kind,
+      reason: row.reason,
+      contributionDate: row.contributionDate,
+    })),
   });
 }

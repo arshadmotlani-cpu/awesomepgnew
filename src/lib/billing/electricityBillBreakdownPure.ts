@@ -86,6 +86,15 @@ export function buildElectricityBillBreakdownFromContext(input: {
     recoveredFromDepositPaise: number;
     collectedDuringCheckoutPaise: number;
   }>;
+  previousContributions?: Array<{
+    customerId: string;
+    customerName: string;
+    bookingId: string;
+    amountPaise: number;
+    kind: 'historical' | 'checkout_recovery';
+    reason: string | null;
+    contributionDate: string;
+  }>;
 }): ElectricityBillCalculationBreakdown {
   const unitsConsumed = Math.round((input.currentReadingUnits - input.previousReadingUnits) * 100) / 100;
   const { start: monthStart, end: monthEnd } = monthBounds(input.billingMonth);
@@ -125,10 +134,13 @@ export function buildElectricityBillBreakdownFromContext(input: {
     };
   });
 
+  const previousContributions = input.previousContributions ?? [];
+  const contributionsTotal = previousContributions.reduce((sum, row) => sum + row.amountPaise, 0);
   const totalDeducted =
     input.prepaidCreditPaise +
-    input.checkoutCreditAppliedPaise +
-    input.manualCreditPaise;
+    (previousContributions.length > 0
+      ? contributionsTotal
+      : input.checkoutCreditAppliedPaise + input.manualCreditPaise);
 
   return {
     version: 1,
@@ -148,6 +160,7 @@ export function buildElectricityBillBreakdownFromContext(input: {
       manualCreditPaise: input.manualCreditPaise,
       totalDeductedPaise: totalDeducted,
     },
+    previousContributions,
     remainingBillPaise: input.remainingBillPaise,
     useProRata: input.useProRata,
     timeline,
@@ -225,6 +238,18 @@ export function breakdownToInvoiceLines(
       kind: 'electricity_credit',
       label: 'Manual / offline credit',
       amountPaise: -breakdown.adjustments.manualCreditPaise,
+    });
+  }
+
+  for (const contribution of breakdown.previousContributions) {
+    const label =
+      contribution.kind === 'checkout_recovery'
+        ? `${contribution.customerName} — recovered from checkout`
+        : `${contribution.customerName} — previous contribution`;
+    lines.push({
+      kind: 'electricity_credit',
+      label,
+      amountPaise: -contribution.amountPaise,
     });
   }
 

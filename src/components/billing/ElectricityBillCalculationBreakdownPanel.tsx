@@ -60,6 +60,7 @@ export function ElectricityBillCalculationBreakdownPanel({
         <div className={`space-y-5 border-t px-4 py-4 sm:px-5 ${divider}`}>
           <MeterSection breakdown={breakdown} dark={dark} text={text} muted={muted} heading={heading} />
           <SharingSection breakdown={breakdown} dark={dark} text={text} muted={muted} heading={heading} />
+          <PreviousContributionsSection breakdown={breakdown} dark={dark} text={text} muted={muted} heading={heading} divider={divider} />
           <AlreadyCollectedSection breakdown={breakdown} dark={dark} text={text} muted={muted} heading={heading} divider={divider} />
           <BillTimelineSection breakdown={breakdown} dark={dark} text={text} muted={muted} heading={heading} />
 
@@ -83,6 +84,7 @@ export function ElectricityBillCalculationBreakdownPanel({
               </h4>
               <RemainingBalanceSection
                 viewer={viewer}
+                breakdown={breakdown}
                 dark={dark}
                 text={text}
                 muted={muted}
@@ -156,6 +158,66 @@ function SharingSection({
   );
 }
 
+function PreviousContributionsSection({
+  breakdown,
+  dark,
+  text,
+  muted,
+  heading,
+  divider,
+}: {
+  breakdown: ElectricityBillCalculationBreakdown;
+  dark: boolean;
+  text: string;
+  muted: string;
+  heading: string;
+  divider: string;
+}) {
+  const rows = breakdown.previousContributions ?? [];
+  if (rows.length === 0) return null;
+
+  const contributionsTotal = rows.reduce((sum, row) => sum + row.amountPaise, 0);
+
+  return (
+    <div>
+      <h4 className={`text-xs font-semibold uppercase tracking-wide ${heading}`}>
+        Previous contributions
+      </h4>
+      <ul className={`mt-3 space-y-2 text-sm ${text}`}>
+        {rows.map((row) => (
+          <li
+            key={`${row.bookingId}-${row.customerId}-${row.amountPaise}`}
+            className={`flex flex-wrap items-start justify-between gap-2 rounded-lg border px-3 py-2 ${dark ? 'border-white/10 bg-black/20' : 'border-zinc-200 bg-white'}`}
+          >
+            <div>
+              <p className="font-medium">{row.customerName}</p>
+              <p className={`text-xs ${muted}`}>
+                {row.kind === 'checkout_recovery' ? 'Recovered from checkout' : 'Paid offline'}
+                {row.reason ? ` · ${row.reason}` : ''}
+              </p>
+            </div>
+            <span className="font-semibold tabular-nums text-emerald-300">
+              {paiseToInr(row.amountPaise)}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <dl className={`mt-4 space-y-2 text-sm ${text}`}>
+        <Row label="Room electricity bill" value={paiseToInr(breakdown.meter.grossTotalPaise)} muted={muted} />
+        <Row label="Previous contributions" value={`−${paiseToInr(contributionsTotal)}`} muted={muted} />
+        <div className={`border-t pt-2 ${divider}`}>
+          <Row
+            label="Remaining room balance"
+            value={paiseToInr(breakdown.remainingBillPaise)}
+            muted={muted}
+            emphasis
+          />
+        </div>
+      </dl>
+    </div>
+  );
+}
+
 function AlreadyCollectedSection({
   breakdown,
   dark,
@@ -171,6 +233,8 @@ function AlreadyCollectedSection({
   heading: string;
   divider: string;
 }) {
+  if ((breakdown.previousContributions?.length ?? 0) > 0) return null;
+
   const credits = breakdown.adjustments.checkoutCredits;
   const prepaid = breakdown.adjustments.prepaidCreditPaise;
   const manual = breakdown.adjustments.manualCreditPaise;
@@ -330,11 +394,13 @@ function MeterSection({
 
 function RemainingBalanceSection({
   viewer,
+  breakdown,
   dark,
   text,
   muted,
 }: {
   viewer?: ElectricityBreakdownViewerContext | null;
+  breakdown: ElectricityBillCalculationBreakdown;
   dark: boolean;
   text: string;
   muted: string;
@@ -344,8 +410,15 @@ function RemainingBalanceSection({
   return (
     <div className={`mt-3 rounded-xl border p-4 ${dark ? 'border-white/10 bg-black/20' : 'border-zinc-200 bg-white'}`}>
       <dl className={`space-y-2 text-sm ${text}`}>
+        {(breakdown.previousContributions?.length ?? 0) > 0 ? (
+          <Row
+            label="Remaining room balance"
+            value={paiseToInr(breakdown.remainingBillPaise)}
+            muted={muted}
+          />
+        ) : null}
         <Row
-          label="Amount payable by you"
+          label="Your share"
           value={paiseToInr(viewer.amountPayablePaise)}
           muted={muted}
           accent

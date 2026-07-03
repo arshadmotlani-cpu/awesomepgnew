@@ -43,6 +43,7 @@ export * from './meterLogs';
 export * from './roomElectricityPrepaidLedger';
 export * from './electricitySettlementLedger';
 export * from './roomElectricityLedger';
+export * from './electricityRoomContributions';
 export * from './emailDeliveryLog';
 export * from './bedNoticeInterest';
 export * from './playstationMemberships';

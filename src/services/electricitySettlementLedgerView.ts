@@ -195,7 +195,41 @@ export async function getElectricitySettlementLedgerView(input: {
   let manualCredits: ElectricitySettlementCreditRow[] = [];
   let collectedPaise = checkoutSettlementTotalPaise;
 
-  if (cycle) {
+  const { listRoomElectricityContributionsForMonth } = await import(
+    '@/src/services/electricityRoomContributions'
+  );
+  const contributionRows = await listRoomElectricityContributionsForMonth(
+    input.roomId,
+    month,
+  );
+
+  if (contributionRows.length > 0) {
+    manualCredits = contributionRows
+      .filter((row) => row.kind === 'historical')
+      .map((row) => ({
+        id: row.id,
+        customerId: row.customerId,
+        customerName: row.customerName,
+        amountPaise: row.amountPaise,
+        source: 'historical',
+        note: row.reason,
+        collectedAt: new Date(row.contributionDate),
+      }));
+    for (const row of contributionRows.filter((r) => r.kind === 'checkout_recovery')) {
+      if (!checkoutSettlementCredits.some((c) => c.customerId === row.customerId)) {
+        checkoutSettlementCredits.push({
+          id: row.id,
+          customerId: row.customerId,
+          customerName: row.customerName,
+          amountPaise: row.amountPaise,
+          source: 'checkout_recovery',
+          note: row.reason,
+          collectedAt: new Date(row.contributionDate),
+        });
+      }
+    }
+    collectedPaise = contributionRows.reduce((sum, row) => sum + row.amountPaise, 0);
+  } else if (cycle) {
     const ledgerRows = await db
       .select({
         id: roomElectricityLedgerEntries.id,
@@ -297,10 +331,15 @@ export async function getElectricitySettlementLedgerView(input: {
     0,
   );
 
+  const resolvedCheckoutSettlementTotalPaise = checkoutSettlementCredits.reduce(
+    (s, r) => s + r.amountPaise,
+    0,
+  );
+
   const reconciliation = computeElectricitySettlementLedgerReconciliation({
     totalRoomBillPaise,
     prepaidCreditAppliedPaise,
-    checkoutSettlementCreditsPaise: checkoutSettlementTotalPaise,
+    checkoutSettlementCreditsPaise: resolvedCheckoutSettlementTotalPaise,
     manualCreditsPaise: manualCreditsTotalPaise,
     residentAllocationsPaise: residentAllocationsTotalPaise,
     roundingRemainderPaise,
@@ -320,7 +359,7 @@ export async function getElectricitySettlementLedgerView(input: {
     totalRoomBillPaise,
     prepaidCreditAppliedPaise,
     checkoutSettlementCredits,
-    checkoutSettlementTotalPaise,
+    checkoutSettlementTotalPaise: resolvedCheckoutSettlementTotalPaise,
     manualCredits,
     manualCreditsTotalPaise,
     remainingRoomBalancePaise: reconciliation.remainingRoomBalancePaise,

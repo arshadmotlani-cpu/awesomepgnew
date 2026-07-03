@@ -345,6 +345,19 @@ export async function recordCheckoutElectricityCollectionInTx(
       target: roomElectricityLedgerEntries.checkoutSettlementId,
     });
 
+  const { recordCheckoutElectricityContributionInTx } = await import(
+    '@/src/services/electricityRoomContributions'
+  );
+  await recordCheckoutElectricityContributionInTx(tx, {
+    roomId: input.roomId,
+    billingMonth,
+    customerId: input.settlement.customerId,
+    bookingId: input.settlement.bookingId,
+    amountPaise,
+    checkoutSettlementId: input.settlement.id,
+    contributionDate: input.vacatingDate,
+  });
+
   const resolvedTotalBillPaise = Math.max(totalBillPaise, amountPaise);
   await recalculateCycleTotalsInTx(tx, cycleId, resolvedTotalBillPaise);
 
