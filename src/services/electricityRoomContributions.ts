@@ -28,6 +28,8 @@ export type ElectricityRoomContributionRow = {
   kind: 'historical' | 'checkout_recovery';
   reason: string | null;
   contributionDate: string;
+  occupancyStart: string | null;
+  occupancyEnd: string | null;
   checkoutSettlementId: string | null;
   createdByAdminId: string | null;
   createdAt: Date;
@@ -127,6 +129,8 @@ export async function recordCheckoutElectricityContributionInTx(
     amountPaise: number;
     checkoutSettlementId: string;
     contributionDate?: string;
+    occupancyStart?: string | null;
+    occupancyEnd?: string | null;
     reason?: string | null;
   },
 ): Promise<void> {
@@ -146,6 +150,8 @@ export async function recordCheckoutElectricityContributionInTx(
       kind: 'checkout_recovery',
       reason: input.reason ?? 'Recovered from deposit at checkout',
       contributionDate,
+      occupancyStart: input.occupancyStart ?? null,
+      occupancyEnd: input.occupancyEnd ?? null,
       checkoutSettlementId: input.checkoutSettlementId,
     })
     .onConflictDoNothing({
@@ -169,6 +175,8 @@ async function loadContributionsFromTable(
       kind: electricityRoomContributions.kind,
       reason: electricityRoomContributions.reason,
       contributionDate: electricityRoomContributions.contributionDate,
+      occupancyStart: electricityRoomContributions.occupancyStart,
+      occupancyEnd: electricityRoomContributions.occupancyEnd,
       checkoutSettlementId: electricityRoomContributions.checkoutSettlementId,
       createdByAdminId: electricityRoomContributions.createdByAdminId,
       createdAt: electricityRoomContributions.createdAt,
@@ -187,6 +195,8 @@ async function loadContributionsFromTable(
     ...r,
     kind: r.kind as 'historical' | 'checkout_recovery',
     contributionDate: String(r.contributionDate),
+    occupancyStart: r.occupancyStart ? String(r.occupancyStart) : null,
+    occupancyEnd: r.occupancyEnd ? String(r.occupancyEnd) : null,
     billingMonth: String(r.billingMonth),
   }));
 }
@@ -212,6 +222,8 @@ async function loadLegacyContributionsForRoomMonth(
       kind: 'checkout_recovery',
       reason: 'Recovered from deposit at checkout',
       contributionDate: formatDate(row.createdAt),
+      occupancyStart: null,
+      occupancyEnd: null,
       checkoutSettlementId: row.checkoutSettlementId,
       createdByAdminId: null,
       createdAt: row.createdAt,
@@ -261,6 +273,8 @@ async function loadLegacyContributionsForRoomMonth(
         kind: 'historical',
         reason: row.note ?? 'Offline payment recorded before contribution ledger',
         contributionDate: formatDate(row.collectedAt),
+        occupancyStart: null,
+        occupancyEnd: null,
         checkoutSettlementId: null,
         createdByAdminId: null,
         createdAt: row.collectedAt,
@@ -269,6 +283,43 @@ async function loadLegacyContributionsForRoomMonth(
   }
 
   return contributions;
+}
+
+export async function loadCheckoutElectricityContributionForSettlement(
+  checkoutSettlementId: string,
+): Promise<ElectricityRoomContributionRow | null> {
+  const [row] = await db
+    .select({
+      id: electricityRoomContributions.id,
+      roomId: electricityRoomContributions.roomId,
+      billingMonth: electricityRoomContributions.billingMonth,
+      customerId: electricityRoomContributions.customerId,
+      customerName: customers.fullName,
+      bookingId: electricityRoomContributions.bookingId,
+      amountPaise: electricityRoomContributions.amountPaise,
+      kind: electricityRoomContributions.kind,
+      reason: electricityRoomContributions.reason,
+      contributionDate: electricityRoomContributions.contributionDate,
+      occupancyStart: electricityRoomContributions.occupancyStart,
+      occupancyEnd: electricityRoomContributions.occupancyEnd,
+      checkoutSettlementId: electricityRoomContributions.checkoutSettlementId,
+      createdByAdminId: electricityRoomContributions.createdByAdminId,
+      createdAt: electricityRoomContributions.createdAt,
+    })
+    .from(electricityRoomContributions)
+    .innerJoin(customers, eq(customers.id, electricityRoomContributions.customerId))
+    .where(eq(electricityRoomContributions.checkoutSettlementId, checkoutSettlementId))
+    .limit(1);
+
+  if (!row) return null;
+  return {
+    ...row,
+    kind: row.kind as 'historical' | 'checkout_recovery',
+    contributionDate: String(row.contributionDate),
+    occupancyStart: row.occupancyStart ? String(row.occupancyStart) : null,
+    occupancyEnd: row.occupancyEnd ? String(row.occupancyEnd) : null,
+    billingMonth: String(row.billingMonth),
+  };
 }
 
 function buildContributionsLoadResult(

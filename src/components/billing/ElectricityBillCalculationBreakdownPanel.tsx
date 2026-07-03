@@ -417,6 +417,9 @@ function RemainingBalanceSection({
             muted={muted}
           />
         ) : null}
+        {viewer.occupancyLabel ? (
+          <Row label="Your occupancy" value={viewer.occupancyLabel} muted={muted} />
+        ) : null}
         <Row
           label="Your share"
           value={paiseToInr(viewer.amountPayablePaise)}

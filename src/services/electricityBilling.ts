@@ -694,6 +694,8 @@ export async function createElectricityBill(
         kind: row.kind,
         reason: row.reason,
         contributionDate: row.contributionDate,
+        occupancyStart: row.occupancyStart,
+        occupancyEnd: row.occupancyEnd,
       })),
     });
 

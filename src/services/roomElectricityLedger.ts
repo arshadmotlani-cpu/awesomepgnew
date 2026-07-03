@@ -304,6 +304,8 @@ export async function recordCheckoutElectricityCollectionInTx(
     vacatingDate: string;
     roomId: string;
     totalBillPaise?: number;
+    occupancyStart?: string | null;
+    occupancyEnd?: string | null;
   },
 ): Promise<{ cancelledInvoiceIds: string[] }> {
   const amountPaise = resolveCheckoutElectricityDeductionPaise(input.settlement);
@@ -356,6 +358,8 @@ export async function recordCheckoutElectricityCollectionInTx(
     amountPaise,
     checkoutSettlementId: input.settlement.id,
     contributionDate: input.vacatingDate,
+    occupancyStart: input.occupancyStart,
+    occupancyEnd: input.occupancyEnd,
   });
 
   const resolvedTotalBillPaise = Math.max(totalBillPaise, amountPaise);
@@ -508,7 +512,11 @@ export async function recordManualElectricityCredit(input: {
 
 export async function recordCheckoutElectricityCollectionFromSettlementId(
   settlementId: string,
-  options?: { totalBillPaise?: number },
+  options?: {
+    totalBillPaise?: number;
+    occupancyStart?: string | null;
+    occupancyEnd?: string | null;
+  },
 ): Promise<void> {
   const [row] = await db
     .select({
@@ -537,6 +545,8 @@ export async function recordCheckoutElectricityCollectionFromSettlementId(
       vacatingDate: String(row.vacatingDate),
       roomId: row.roomId,
       totalBillPaise: options?.totalBillPaise,
+      occupancyStart: options?.occupancyStart,
+      occupancyEnd: options?.occupancyEnd,
     });
     cancelledInvoiceIds = result.cancelledInvoiceIds;
   });

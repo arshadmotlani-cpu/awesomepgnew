@@ -34,6 +34,8 @@ export const electricityRoomContributions = pgTable(
     kind: text('kind').notNull().$type<'historical' | 'checkout_recovery'>(),
     reason: text('reason'),
     contributionDate: date('contribution_date').notNull(),
+    occupancyStart: date('occupancy_start'),
+    occupancyEnd: date('occupancy_end'),
     checkoutSettlementId: uuid('checkout_settlement_id').references(() => checkoutSettlements.id, {
       onDelete: 'restrict',
     }),

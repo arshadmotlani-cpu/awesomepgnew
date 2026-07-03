@@ -333,3 +333,78 @@ export async function transferDepositAction(
   revalidateRefundConsole(targetBookingId);
   return { status: 'ok', message: 'Deposit transferred.' };
 }
+
+export async function loadRefundElectricityDetailAction(
+  bookingId: string,
+): Promise<
+  | {
+      ok: true;
+      detail: NonNullable<
+        Awaited<
+          ReturnType<typeof import('@/src/services/checkoutSettlement').getCheckoutSettlementDetailForBooking>
+        >
+      >;
+      recovery: Awaited<
+        ReturnType<
+          typeof import('@/src/services/electricityRoomContributions').loadCheckoutElectricityContributionForSettlement
+        >
+      >;
+    }
+  | { ok: false; error: string }
+> {
+  try {
+    const admin = await requireAdminPermission('deposits:write');
+    await assertAdminBookingAccess(admin, bookingId);
+    const { getCheckoutSettlementDetailForBooking } = await import(
+      '@/src/services/checkoutSettlement'
+    );
+    const { loadCheckoutElectricityContributionForSettlement } = await import(
+      '@/src/services/electricityRoomContributions'
+    );
+    const detail = await getCheckoutSettlementDetailForBooking(bookingId);
+    if (!detail) {
+      return { ok: false, error: 'No checkout settlement found for this booking.' };
+    }
+    const recovery = detail.id
+      ? await loadCheckoutElectricityContributionForSettlement(detail.id)
+      : null;
+    return { ok: true, detail, recovery };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Could not load electricity settlement.',
+    };
+  }
+}
+
+export async function deductRefundElectricityFromDepositAction(input: {
+  bookingId: string;
+  settlementId: string;
+  roomId: string;
+  totalBillPaise?: number;
+}): Promise<
+  | { ok: true; amountPaise: number; alreadyApplied: boolean }
+  | { ok: false; error: string }
+> {
+  try {
+    const admin = await requireAdminPermission('deposits:write');
+    await assertAdminBookingAccess(admin, input.bookingId);
+    const { applyCheckoutElectricityRecoveryFromDeposit } = await import(
+      '@/src/services/checkoutElectricityRecovery'
+    );
+    const result = await applyCheckoutElectricityRecoveryFromDeposit({
+      settlementId: input.settlementId,
+      adminId: admin.adminId,
+      roomId: input.roomId,
+      totalBillPaise: input.totalBillPaise,
+    });
+    if (!result.ok) return result;
+    revalidateRefundConsole(input.bookingId, { settlementId: input.settlementId });
+    return result;
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Could not deduct electricity from deposit.',
+    };
+  }
+}

@@ -26,6 +26,7 @@ import { initialRefundActionState, type RefundActionState } from '@/app/(admin)/
 import type { RefundConsoleBookingRow } from '@/src/services/refundConsole';
 import { partitionRefundConsoleBookings } from '@/src/lib/refund/refundConsoleActionability';
 import { depositRefundReceiptHref } from '@/src/lib/refund/refundReceiptLinks';
+import { RefundConsoleElectricitySection } from '@/src/components/admin/refunds/RefundConsoleElectricitySection';
 
 function ActionBanner({ state }: { state: RefundActionState }) {
   if (state.status === 'idle') return null;
@@ -494,6 +495,7 @@ function PayoutWorkspace({
       </section>
 
       <CheckoutSettlementSection workspace={workspace} />
+      <RefundConsoleElectricitySection workspace={workspace} onRefresh={onRefresh} />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
         <div className="space-y-6">

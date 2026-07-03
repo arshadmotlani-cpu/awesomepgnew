@@ -180,6 +180,11 @@ export function personalizeElectricityBreakdown(
     return { breakdown, viewer: null };
   }
 
+  const occupancyLabel =
+    viewerEntry.stayLabel && viewerEntry.stayLabel !== 'Entire month'
+      ? viewerEntry.stayLabel.replace(' → ', ' → ')
+      : viewerEntry.stayLabel;
+
   const amountPayablePaise =
     viewerEntry.monthlyInvoiceAmountPaise > 0
       ? viewerEntry.monthlyInvoiceAmountPaise
@@ -193,6 +198,7 @@ export function personalizeElectricityBreakdown(
       customerId: viewerCustomerId,
       customerName: viewerEntry.customerName,
       amountPayablePaise,
+      occupancyLabel,
     },
   };
 }

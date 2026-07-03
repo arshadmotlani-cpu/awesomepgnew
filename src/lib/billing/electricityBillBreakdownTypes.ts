@@ -64,6 +64,8 @@ export type ElectricityBillCalculationBreakdown = {
     kind: 'historical' | 'checkout_recovery';
     reason: string | null;
     contributionDate: string;
+    occupancyStart?: string | null;
+    occupancyEnd?: string | null;
   }>;
   remainingBillPaise: number;
   useProRata: boolean;
@@ -76,6 +78,7 @@ export type ElectricityBreakdownViewerContext = {
   customerName: string;
   amountPayablePaise: number;
   invoiceNumber?: string | null;
+  occupancyLabel?: string | null;
 };
 
 /** Occupancy row for electricity breakdown builder — no DB coupling. */

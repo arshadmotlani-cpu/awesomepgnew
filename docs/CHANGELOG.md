@@ -256,7 +256,7 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-03 08:59:00 UTC
+### Pending pre-commit sync · 2026-07-03 09:38:04 UTC
 
 **Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Electricity]]
 
@@ -269,16 +269,12 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (10):**
-- `app/(admin)/admin/electricity/ledger/actions.ts`
-- `src/db/migrations/0097_electricity_room_contributions.sql`
+**Staged code files (6):**
+- `app/(admin)/admin/refunds/actions.ts`
+- `src/db/migrations/0098_electricity_contribution_occupancy.sql`
 - `src/db/schema/electricityRoomContributions.ts`
-- `src/db/schema/index.ts`
-- `src/lib/billing/buildElectricityBillBreakdown.ts`
 - `src/lib/billing/electricityBillBreakdownPure.ts`
 - `src/lib/billing/electricityBillBreakdownTypes.ts`
-- `src/lib/billing/roomElectricityMonthlyAllocation.ts`
-- `src/lib/billing/roomElectricityOccupants.ts`
 - `src/services/electricityBilling.ts`
 
 **Changed:**

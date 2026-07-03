@@ -97,16 +97,40 @@ export async function buildRoomElectricityCheckoutAllocation(input: {
     { status: 'collected' },
   );
 
+  const { loadRoomElectricityContributionsForMonth } = await import(
+    '@/src/services/electricityRoomContributions'
+  );
+  const contributionsLoad = await loadRoomElectricityContributionsForMonth(
+    input.roomId,
+    billingMonth,
+  );
+
   const collectedByCustomerId = new Map<string, number>();
-  for (const entry of ledgerRows) {
-    if (
-      input.excludeCheckoutSettlementId &&
-      entry.checkoutSettlementId === input.excludeCheckoutSettlementId
-    ) {
-      continue;
+  if (contributionsLoad.contributions.length > 0) {
+    for (const [customerId, amount] of contributionsLoad.byCustomerId) {
+      if (
+        input.excludeCheckoutSettlementId &&
+        contributionsLoad.contributions.some(
+          (c) =>
+            c.customerId === customerId &&
+            c.checkoutSettlementId === input.excludeCheckoutSettlementId,
+        )
+      ) {
+        continue;
+      }
+      collectedByCustomerId.set(customerId, amount);
     }
-    const prev = collectedByCustomerId.get(entry.customerId) ?? 0;
-    collectedByCustomerId.set(entry.customerId, prev + entry.amountPaise);
+  } else {
+    for (const entry of ledgerRows) {
+      if (
+        input.excludeCheckoutSettlementId &&
+        entry.checkoutSettlementId === input.excludeCheckoutSettlementId
+      ) {
+        continue;
+      }
+      const prev = collectedByCustomerId.get(entry.customerId) ?? 0;
+      collectedByCustomerId.set(entry.customerId, prev + entry.amountPaise);
+    }
   }
 
   return allocateRoomElectricityCheckout({
