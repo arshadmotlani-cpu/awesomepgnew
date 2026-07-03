@@ -638,6 +638,20 @@
       "when": 1791100000000,
       "tag": "0094_monthly_lifecycle_deposit_policy",
       "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1791150000000,
+      "tag": "0095_bed_maintenance_metadata",
+      "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1791200000000,
+      "tag": "0096_deduction_category",
+      "breakpoints": true
     }
   ]
 }
