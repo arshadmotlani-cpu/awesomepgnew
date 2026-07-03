@@ -7,8 +7,11 @@ import { db } from '@/src/db/client';
 import { bedReservations, beds, bookings, customers, floors, pgs, rooms } from '@/src/db/schema';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
+import { buildCollectionsQueue, type CollectionQueueItem } from '@/src/lib/billing/collectionsQueue';
 import { billingMonthLabel } from '@/src/lib/billing/invoiceCollectionWhatsApp';
 import { depositExpressHref } from '@/src/lib/deposits/depositExpressLinks';
+import { listAdminElectricityInvoicesForReminders } from '@/src/db/queries/admin';
+import { isActiveCheckoutSettlement } from '@/src/lib/residents/residentLifecycleState';
 import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import {
   defaultOperationsFilter,
@@ -25,6 +28,7 @@ import {
   isDismissedFromOperationsQueue,
   loadOperationsQueueDismissalIndex,
 } from '@/src/services/operationsQueueDismissals';
+import { listPipelineCheckoutSettlements } from '@/src/services/checkoutSettlement';
 import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
 import { loadResidentOperationsResidentsPage } from '@/src/services/residentOperationsResidentsPage';
 
@@ -83,6 +87,40 @@ export type UnifiedOperationsQueue = {
 function overdueReason(daysOverdue: number): string {
   if (daysOverdue <= 0) return 'Awaiting resident payment';
   return `Overdue by ${daysOverdue} day${daysOverdue === 1 ? '' : 's'}`;
+}
+
+function electricityCollectionToItem(row: CollectionQueueItem): UnifiedOpsItem {
+  const outstandingLine: UnifiedOpsOutstandingLine = {
+    categoryLabel: 'Electricity',
+    periodLabel: row.periodLabel ?? billingMonthLabel(row.billingMonth),
+    amountPaise: row.amountPaise,
+    financialInvoiceId: row.financialInvoiceId,
+    kind: 'electricity',
+    billingMonth: row.billingMonth,
+    bookingId: row.bookingId,
+  };
+
+  const daysOverdue = row.daysOverdue;
+
+  return {
+    id: row.id,
+    queue: 'electricity_due',
+    customerId: row.customerId,
+    residentName: row.customerFullName,
+    residentPhone: row.customerPhone,
+    pgId: row.pgId,
+    pgName: row.pgName,
+    roomNumber: row.roomNumber,
+    bedCode: row.bedCode ?? null,
+    reason: overdueReason(daysOverdue),
+    openHref: `/admin/residents/${row.customerId}#open-bills`,
+    openLabel: 'Open bills',
+    category: 'electricity_due',
+    bookingId: row.bookingId ?? null,
+    amountPaise: row.amountPaise,
+    billingMonth: row.billingMonth,
+    outstandingLines: [outstandingLine],
+  };
 }
 
 function paymentReviewToItem(review: PendingPaymentReviewItem): UnifiedOpsItem {
@@ -321,13 +359,22 @@ export async function loadUnifiedOperationsQueue(
   filterInput?: OpsQueueFilter | null,
   focusReviewKey?: string | null,
 ): Promise<UnifiedOperationsQueue> {
-  const [residentsPage, bookingApprovals, rawPaymentReviews, dismissalIndex, depositDueRows] =
-    await Promise.all([
+  const [
+    residentsPage,
+    bookingApprovals,
+    rawPaymentReviews,
+    dismissalIndex,
+    depositDueRows,
+    elecPendingRes,
+    checkoutSettlements,
+  ] = await Promise.all([
     loadResidentOperationsResidentsPage(session, null),
     listPendingBookingApprovals(session),
     listPendingPaymentReviews(session),
     loadOperationsQueueDismissalIndex(),
     import('@/src/services/depositExpress').then((m) => m.listDepositDueBookings(session)),
+    listAdminElectricityInvoicesForReminders(),
+    listPipelineCheckoutSettlements(session),
   ]);
 
   const paymentReviews = rawPaymentReviews.filter(
@@ -346,7 +393,41 @@ export async function loadUnifiedOperationsQueue(
     paymentReviews.map((p) => p.bookingId).filter(Boolean) as string[],
   );
 
+  const pendingElecInvoiceIds = new Set(
+    paymentReviews
+      .filter((p) => p.kind === 'electricity')
+      .map((p) => p.entityId)
+      .filter(Boolean) as string[],
+  );
+
+  const activeCheckoutCustomerIds = new Set(
+    checkoutSettlements
+      .filter((s) => isActiveCheckoutSettlement(s))
+      .map((s) => s.customerId),
+  );
+
+  const electricityDueItems = buildCollectionsQueue({
+    rentRows: [],
+    electricityRows: elecPendingRes.ok ? elecPendingRes.data : [],
+  });
+
+  for (const row of electricityDueItems) {
+    if (pendingElecInvoiceIds.has(row.sourceId)) continue;
+    if (activeCheckoutCustomerIds.has(row.customerId)) continue;
+    if (
+      isDismissedFromOperationsQueue(dismissalIndex, {
+        customerId: row.customerId,
+        bookingId: row.bookingId ?? undefined,
+      })
+    ) {
+      continue;
+    }
+    if (!adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, row.pgId)) continue;
+    items.push(electricityCollectionToItem(row));
+  }
+
   for (const row of residentsPage.queue) {
+    if (row.category === 'electricity_due') continue;
     const item = residentsRowToItem(row);
     if (item) items.push(item);
   }
