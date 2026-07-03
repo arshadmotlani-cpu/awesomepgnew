@@ -314,7 +314,7 @@ export async function adminReviewResidentRequest(input: {
       .set({ status: 'under_review', adminNotes: input.adminNotes ?? current.adminNotes, updatedAt: new Date() })
       .where(eq(residentRequests.id, input.requestId))
       .returning();
-    writeAuditLogNonBlocking({
+    await writeAuditLogNonBlocking(db, {
       actorType: 'admin',
       actorId: input.adminId,
       entity: 'resident_request',
@@ -338,7 +338,7 @@ export async function adminReviewResidentRequest(input: {
       })
       .where(eq(residentRequests.id, input.requestId))
       .returning();
-    writeAuditLogNonBlocking({
+    await writeAuditLogNonBlocking(db, {
       actorType: 'admin',
       actorId: input.adminId,
       entity: 'resident_request',
@@ -389,7 +389,7 @@ export async function adminReviewResidentRequest(input: {
       .where(eq(residentRequests.id, input.requestId))
       .returning();
 
-    writeAuditLogNonBlocking({
+    await writeAuditLogNonBlocking(db, {
       actorType: 'admin',
       actorId: input.adminId,
       entity: 'resident_request',
@@ -453,7 +453,7 @@ export async function adminReviewResidentRequest(input: {
         .where(eq(residentRequests.id, input.requestId))
         .returning();
 
-      writeAuditLogNonBlocking({
+      await writeAuditLogNonBlocking(db, {
         actorType: 'admin',
         actorId: input.adminId,
         entity: 'resident_request',
@@ -477,7 +477,7 @@ export async function adminReviewResidentRequest(input: {
       .where(eq(residentRequests.id, input.requestId))
       .returning();
 
-    writeAuditLogNonBlocking({
+    await writeAuditLogNonBlocking(db, {
       actorType: 'admin',
       actorId: input.adminId,
       entity: 'resident_request',

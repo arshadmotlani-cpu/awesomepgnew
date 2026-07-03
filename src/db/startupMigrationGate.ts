@@ -13,6 +13,7 @@ import {
 export async function assertMigrationsAppliedForDev(): Promise<void> {
   if (process.env.NODE_ENV === 'production') return;
   if (process.env.SKIP_MIGRATION_CHECK === 'true') return;
+  if (process.env.SKIP_MIGRATION_GATE === '1') return;
   // Instrumentation also runs in the Edge runtime — filesystem/DB checks belong on Node.
   if (process.env.NEXT_RUNTIME === 'edge') return;
 
