@@ -180,27 +180,37 @@ async function upsertDepositDueInvoice(input: {
   roomNumber: string;
   amountPaise: number;
   notes?: string | null;
-  status: 'sent' | 'paid';
+  status: 'sent' | 'paid' | 'partial';
   paidAt?: Date;
+  paidPaiseInWallet?: number;
+  totalRequiredPaise?: number;
 }): Promise<{ invoiceId: string; invoiceNumber: string } | null> {
-  if (input.amountPaise <= 0) return null;
+  if (input.amountPaise <= 0 && input.status !== 'partial') return null;
+
+  const totalPaise = input.totalRequiredPaise ?? input.amountPaise;
+  const paidPaise =
+    input.status === 'paid'
+      ? totalPaise
+      : Math.max(0, input.paidPaiseInWallet ?? 0);
+  const outstandingPaise =
+    input.status === 'paid' ? 0 : Math.max(0, totalPaise - paidPaise);
 
   const existing = await findOpenDepositDueInvoice(input.bookingId);
   const label = 'Security deposit due';
   const breakdown: InvoiceBreakdown = {
-    depositPaise: input.amountPaise,
-    depositOutstandingPaise: input.amountPaise,
-    lines: [{ kind: 'deposit', label, amountPaise: input.amountPaise }],
-    paidPaise: input.status === 'paid' ? input.amountPaise : 0,
+    depositPaise: totalPaise,
+    depositOutstandingPaise: outstandingPaise,
+    lines: [{ kind: 'deposit', label, amountPaise: totalPaise }],
+    paidPaise,
   };
 
-  if (existing && input.status === 'sent') {
+  if (existing && (input.status === 'sent' || input.status === 'partial')) {
     await db
       .update(financialInvoices)
       .set({
-        amountPaise: input.amountPaise,
+        amountPaise: totalPaise,
         breakdown,
-        status: 'sent',
+        status: input.status === 'partial' ? 'partial' : 'sent',
         dueDate: formatDate(new Date()),
         notes: input.notes ?? null,
         updatedAt: new Date(),
@@ -220,7 +230,7 @@ async function upsertDepositDueInvoice(input: {
       bookingId: input.bookingId,
       pgId: input.pgId,
       roomNumber: input.roomNumber,
-      amountPaise: input.amountPaise,
+      amountPaise: totalPaise,
       breakdown,
       status: input.status,
       dueDate: formatDate(new Date()),
@@ -329,8 +339,10 @@ export async function executeDepositExpress(
       pgId: row.pgId,
       roomNumber: row.roomNumber,
       amountPaise: remainingDuePaise,
+      totalRequiredPaise: requiredDepositPaise,
+      paidPaiseInWallet: walletAfter,
       notes: input.notes,
-      status: 'sent',
+      status: paidAmountPaise > 0 ? 'partial' : 'sent',
     });
     if (inv) {
       invoiceId = inv.invoiceId;

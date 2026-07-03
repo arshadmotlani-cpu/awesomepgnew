@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useActionState, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useActionState, useEffect, useMemo, useRef, useState } from 'react';
 import { BillingWhatsAppWithLinkButton } from '@/src/components/admin/BillingWhatsAppWithLinkButton';
 import { DepositWalletSummary } from '@/src/components/admin/DepositWalletSummary';
 import { paiseToInr } from '@/src/lib/format';
@@ -18,6 +19,7 @@ import {
   type ResidentInvoiceActionState,
 } from '@/app/(admin)/admin/residents/[customerId]/invoiceActions';
 import type { DepositSummary } from '@/src/services/deposits';
+import { residentBillingInvoiceHref } from '@/src/lib/billing/residentBillingLinks';
 
 type Props = {
   summary: ResidentFinancialSummary;
@@ -167,6 +169,8 @@ export function FinancialCommandCenter({
   depositWallet,
   bookingId,
 }: Props) {
+  const router = useRouter();
+  const redirectedRef = useRef(false);
   const [state, formAction, pending] = useActionState(generateResidentInvoiceAction, idle);
   const [pendingKind, setPendingKind] = useState<string | null>(null);
   const [selectedCategories, setSelectedCategories] = useState<Set<BillCategory>>(
@@ -295,6 +299,12 @@ export function FinancialCommandCenter({
     summary.deposit.paidPaise +
     summary.electricity.paidPaise +
     summary.other.paidPaise;
+
+  useEffect(() => {
+    if (state.status !== 'ok' || !state.invoiceId || redirectedRef.current) return;
+    redirectedRef.current = true;
+    router.push(residentBillingInvoiceHref(state.invoiceId, summary.customerId));
+  }, [state, router, summary.customerId]);
 
   return (
     <section className="mb-8 rounded-2xl border border-[#FF5A1F]/25 bg-[#1A1F27] p-4 ring-1 ring-[#FF5A1F]/10">
@@ -469,28 +479,6 @@ export function FinancialCommandCenter({
         </dl>
       </div>
 
-      {state.status === 'ok' ? (
-        <div className="mt-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
-          <p>{state.message}</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {state.paymentUrl ? (
-              <a href={state.paymentUrl} target="_blank" rel="noreferrer" className="underline">
-                Payment link →
-              </a>
-            ) : null}
-            {state.whatsappUrl ? (
-              <a href={state.whatsappUrl} target="_blank" rel="noreferrer" className="underline">
-                WhatsApp →
-              </a>
-            ) : null}
-            {state.invoiceId ? (
-              <Link href={`/admin/invoices/${state.invoiceId}`} className="underline">
-                View invoice →
-              </Link>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
       {state.status === 'error' ? (
         <p className="mt-3 text-xs text-rose-300">{state.message}</p>
       ) : null}

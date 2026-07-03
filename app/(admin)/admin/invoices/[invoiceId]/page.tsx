@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { InvoiceDetailActions } from '@/src/components/admin/InvoiceDetailActions';
+import { InvoicePageToolbar } from '@/src/components/admin/InvoicePageToolbar';
 import { MarkAsPaidCashButton } from '@/src/components/admin/MarkAsPaidCashButton';
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { PageHeader } from '@/src/components/admin/PageHeader';
@@ -11,6 +12,11 @@ import { getInvoiceVoidCapabilities } from '@/src/services/invoiceVoid';
 import { getCashSettlementEligibility } from '@/src/services/adminCashSettlement';
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import { DEPOSIT_EXPRESS_RETURN_PATH } from '@/src/lib/deposits/depositExpressLinks';
+import { EXPRESS_SALE_RETURN_PATH } from '@/src/lib/expressBooking/expressSaleLinks';
+import { residentProfileHref } from '@/src/lib/billing/residentBillingLinks';
+import { invoicePublicSharePath } from '@/src/lib/billing/invoiceShareToken';
+import { ensureInvoiceShareToken } from '@/src/lib/billing/invoiceShareToken';
+import { getAppUrl } from '@/src/lib/url';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,20 +25,37 @@ export default async function InvoiceDetailPage({
   searchParams,
 }: {
   params: Promise<{ invoiceId: string }>;
-  searchParams: Promise<{ from?: string }>;
+  searchParams: Promise<{ from?: string; customerId?: string }>;
 }) {
   const { invoiceId } = await params;
   const sp = await searchParams;
   const fromDepositExpress = sp.from === 'deposit-express';
-  const backHref = fromDepositExpress ? DEPOSIT_EXPRESS_RETURN_PATH : '/admin/invoices';
-  const backLabel = fromDepositExpress ? '← Deposit Express' : '← All invoices';
+  const fromExpressSale = sp.from === 'express-sale';
+  const fromResidentBilling = sp.from === 'resident-billing' && sp.customerId;
+  const backHref = fromDepositExpress
+    ? DEPOSIT_EXPRESS_RETURN_PATH
+    : fromExpressSale
+      ? EXPRESS_SALE_RETURN_PATH
+      : fromResidentBilling
+        ? residentProfileHref(sp.customerId!)
+        : '/admin/invoices';
+  const backLabel = fromDepositExpress
+    ? '← Deposit Express'
+    : fromExpressSale
+      ? '← Sale Express'
+      : fromResidentBilling
+        ? '← Resident billing'
+        : '← All invoices';
   const session = await requireAdminSession('/admin/invoices');
-  const [document, voidCaps, cashEligibility] = await Promise.all([
+  const [document, voidCaps, cashEligibility, shareToken] = await Promise.all([
     getInvoiceDocumentDetail(invoiceId),
     getInvoiceVoidCapabilities(invoiceId),
     getCashSettlementEligibility(session, invoiceId),
+    ensureInvoiceShareToken(invoiceId),
   ]);
   if (!document) notFound();
+
+  const shareUrl = `${getAppUrl()}${invoicePublicSharePath(shareToken)}`;
 
   return (
     <>
@@ -47,21 +70,13 @@ export default async function InvoiceDetailPage({
         title={`Invoice ${document.invoiceNumber}`}
         description={`${document.pgName} · ${document.customerName}`}
         actions={
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href={`/admin/invoices/${invoiceId}/print`}
-              target="_blank"
-              className="rounded-lg border border-white/10 px-3 py-2 text-sm text-apg-silver hover:text-white"
-            >
-              Print
-            </Link>
-            <Link
-              href={backHref}
-              className="rounded-lg border border-white/10 px-3 py-2 text-sm text-apg-silver hover:text-white"
-            >
-              {backLabel}
-            </Link>
-          </div>
+          <InvoicePageToolbar
+            invoiceId={invoiceId}
+            shareUrl={shareUrl}
+            printHref={`/admin/invoices/${invoiceId}/print`}
+            backHref={backHref}
+            backLabel={backLabel}
+          />
         }
       />
 

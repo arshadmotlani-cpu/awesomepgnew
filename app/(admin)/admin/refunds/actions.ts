@@ -33,6 +33,17 @@ async function resolveBooking(bookingId: string) {
   return row ?? null;
 }
 
+async function resolveDepositSettlementForCheckout(checkoutSettlementId: string) {
+  const { db } = await import('@/src/db/client');
+  const { checkoutSettlements } = await import('@/src/db/schema');
+  const [row] = await db
+    .select({ depositSettlementId: checkoutSettlements.depositSettlementId })
+    .from(checkoutSettlements)
+    .where(eq(checkoutSettlements.id, checkoutSettlementId))
+    .limit(1);
+  return row?.depositSettlementId ?? null;
+}
+
 function parseInrPaise(form: FormData, field = 'amountInr'): number | null {
   const raw = String(form.get(field) ?? '');
   const n = Number(raw);
@@ -191,9 +202,11 @@ export async function markRefundPaidAction(
       settlementId: workspace.checkout.settlementId,
       customerId: workspace.customerId,
     });
+    const depositSettlementId = await resolveDepositSettlementForCheckout(workspace.checkout.settlementId);
     return {
       status: 'ok',
       message: 'Refund marked. Checkout completed and removed from Refund Due.',
+      receiptSettlementId: depositSettlementId ?? undefined,
     };
   }
 
@@ -219,7 +232,11 @@ export async function markRefundPaidAction(
   if (!settlement.ok) return { status: 'error', message: settlement.error };
 
   revalidateRefundConsole(bookingId, { customerId: booking.customerId });
-  return { status: 'ok', message: 'Refund marked and deposit ledger updated.' };
+  return {
+    status: 'ok',
+    message: 'Refund marked and deposit ledger updated.',
+    receiptSettlementId: settlement.settlementId,
+  };
 }
 
 /** @deprecated Use markRefundPaidAction — kept for legacy form bindings. */

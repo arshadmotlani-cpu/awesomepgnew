@@ -81,6 +81,7 @@ export type ExpressBookingSaleResult =
       depositRecordedPaise: number;
       rentRecordedPaise: number;
       rentInvoiceNumber?: string | null;
+      financialInvoiceId?: string | null;
       pgName: string;
       roomNumber: string;
       bedCode: string;
@@ -248,9 +249,10 @@ async function executeHistoricalSale(
     }
   }
 
+  let financialInvoiceId: string | null = null;
   if (rentRecordedPaise > 0 || input.depositPaidPaise > 0) {
     const { finalizeExpressWalkInFinancialInvoice } = await import('@/src/services/unifiedInvoices');
-    await finalizeExpressWalkInFinancialInvoice({
+    financialInvoiceId = await finalizeExpressWalkInFinancialInvoice({
       bookingId: activeTenancy.bookingId,
       rentInvoiceId,
       depositRecordedPaise: input.depositPaidPaise,
@@ -270,6 +272,7 @@ async function executeHistoricalSale(
     depositRecordedPaise: input.depositPaidPaise,
     rentRecordedPaise,
     rentInvoiceNumber,
+    financialInvoiceId,
     pgName: bedCtx.pgName,
     roomNumber: bedCtx.roomNumber,
     bedCode: bedCtx.bedCode,
@@ -578,10 +581,11 @@ export async function executeExpressBookingSale(
     }
   }
 
+  let financialInvoiceId: string | null = null;
   if (depositRecordedPaise > 0 || rentRecordedPaise > 0) {
     try {
       const { finalizeExpressWalkInFinancialInvoice } = await import('@/src/services/unifiedInvoices');
-      await finalizeExpressWalkInFinancialInvoice({
+      financialInvoiceId = await finalizeExpressWalkInFinancialInvoice({
         bookingId,
         rentInvoiceId,
         depositRecordedPaise,
@@ -592,6 +596,12 @@ export async function executeExpressBookingSale(
         err instanceof Error ? err.message : 'Invoice sync failed after express collection.';
       return failAfterBooking(message);
     }
+  } else if (rentInvoiceId) {
+    const { resolveFinancialInvoiceIdForSource } = await import('@/src/services/adminCashSettlement');
+    financialInvoiceId = await resolveFinancialInvoiceIdForSource({
+      sourceTable: 'rent_invoices',
+      sourceId: rentInvoiceId,
+    });
   }
 
   try {
@@ -641,6 +651,7 @@ export async function executeExpressBookingSale(
     depositRecordedPaise,
     rentRecordedPaise,
     rentInvoiceNumber,
+    financialInvoiceId,
     pgName: bedCtx.pgName,
     roomNumber: bedCtx.roomNumber,
     bedCode: bedCtx.bedCode,

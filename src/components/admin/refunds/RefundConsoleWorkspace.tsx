@@ -1,7 +1,8 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
+import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { useActionState, useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import {
   DEDUCTION_CATEGORY_LABELS,
@@ -24,9 +25,11 @@ import {
 import { initialRefundActionState, type RefundActionState } from '@/app/(admin)/admin/refunds/actionState';
 import type { RefundConsoleBookingRow } from '@/src/services/refundConsole';
 import { partitionRefundConsoleBookings } from '@/src/lib/refund/refundConsoleActionability';
+import { depositRefundReceiptHref } from '@/src/lib/refund/refundReceiptLinks';
 
 function ActionBanner({ state }: { state: RefundActionState }) {
   if (state.status === 'idle') return null;
+  if (state.status === 'ok' && state.receiptSettlementId) return null;
   const cls =
     state.status === 'ok'
       ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-100'
@@ -366,6 +369,7 @@ function PayoutWorkspace({
   onChangeResident: () => void;
   onRefresh: () => void;
 }) {
+  const router = useRouter();
   const [deductState, deductAction, deductPending] = useActionState(
     deductDepositAction.bind(null, workspace.bookingId),
     initialRefundActionState,
@@ -386,7 +390,14 @@ function PayoutWorkspace({
         ? transferState
         : refundState;
 
+  const refundReceiptSettlementId =
+    refundState.status === 'ok' ? refundState.receiptSettlementId : undefined;
+
   useEffect(() => {
+    if (refundState.status === 'ok' && refundReceiptSettlementId) {
+      router.push(depositRefundReceiptHref(refundReceiptSettlementId));
+      return;
+    }
     if (
       deductState.status === 'ok' ||
       transferState.status === 'ok' ||
@@ -394,7 +405,14 @@ function PayoutWorkspace({
     ) {
       onRefresh();
     }
-  }, [deductState.status, transferState.status, refundState.status, onRefresh]);
+  }, [
+    deductState.status,
+    transferState.status,
+    refundState.status,
+    refundReceiptSettlementId,
+    onRefresh,
+    router,
+  ]);
 
   const defaultRefundInr = (workspace.suggestedRefundPaise / 100).toFixed(2);
   const defaultUpi = workspace.checkout?.payoutUpiId ?? '';

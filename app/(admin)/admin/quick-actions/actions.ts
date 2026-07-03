@@ -48,6 +48,7 @@ export type QuickActionResult =
       customerId?: string;
       paymentLinkUrl?: string;
       rentInvoiceNumber?: string | null;
+      financialInvoiceId?: string | null;
       pgName?: string;
       roomNumber?: string;
       bedCode?: string;
@@ -585,6 +586,7 @@ export async function expressWalkInSaleAction(input: {
       bookingId: result.bookingId,
       bookingCode: result.bookingCode,
       rentInvoiceNumber: result.rentInvoiceNumber,
+      financialInvoiceId: result.financialInvoiceId,
       pgName: result.pgName,
       roomNumber: result.roomNumber,
       bedCode: result.bedCode,

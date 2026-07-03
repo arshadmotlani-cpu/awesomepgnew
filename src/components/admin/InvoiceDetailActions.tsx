@@ -1,13 +1,11 @@
 'use client';
 
-import { useActionState, useEffect, useState } from 'react';
+import { useActionState, useState } from 'react';
 import {
   cancelInvoiceAction,
-  invoiceWhatsAppAction,
   voidInvoiceCompletelyAction,
   type InvoiceActionState,
 } from '@/app/(admin)/admin/invoices/actions';
-import { WhatsAppIcon } from '@/src/components/admin/AdminKycWhatsAppButton';
 import type { FinancialInvoiceStatus } from '@/src/db/schema/enums';
 
 const initial: InvoiceActionState = { status: 'idle' };
@@ -27,14 +25,7 @@ export function InvoiceDetailActions({
 }: Props) {
   const [cancelState, cancelFormAction, cancelPending] = useActionState(cancelInvoiceAction, initial);
   const [voidState, voidFormAction, voidPending] = useActionState(voidInvoiceCompletelyAction, initial);
-  const [waState, waFormAction, waPending] = useActionState(invoiceWhatsAppAction, initial);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
-
-  const whatsappUrl = waState.status === 'ok' && waState.whatsappUrl ? waState.whatsappUrl : null;
-
-  useEffect(() => {
-    if (whatsappUrl) window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
-  }, [whatsappUrl]);
 
   const canCancel =
     status !== 'paid' &&
@@ -58,25 +49,11 @@ export function InvoiceDetailActions({
           ? cancelState.message
           : cancelState.status === 'error'
             ? cancelState.message
-            : waState.status === 'error'
-              ? waState.message
-              : null;
+            : null;
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
-        <form action={waFormAction}>
-          <input type="hidden" name="invoiceId" value={invoiceId} />
-          <button
-            type="submit"
-            disabled={waPending}
-            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#25D366] px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50 sm:w-auto"
-          >
-            <WhatsAppIcon className="h-4 w-4" />
-            {waPending ? 'Opening…' : 'WhatsApp'}
-          </button>
-        </form>
-
         {canCancel ? (
           showCancelConfirm ? (
             <form action={cancelFormAction} className="flex flex-wrap items-end gap-2 rounded-xl border border-red-500/30 bg-red-500/5 p-3">

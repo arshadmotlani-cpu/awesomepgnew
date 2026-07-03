@@ -28,6 +28,7 @@ import { useExpressBookingQuote } from '@/src/hooks/useExpressBookingQuote';
 import type { AdminResidentSearchResult } from '@/src/lib/admin/residentSearchTypes';
 import { defaultCheckOutDate } from '@/src/lib/dateDefaults';
 import { todayString } from '@/src/lib/dates';
+import { expressSaleInvoiceHref } from '@/src/lib/expressBooking/expressSaleLinks';
 import { buildExpressWalkInWhatsAppUrl } from '@/src/lib/billing/expressWalkInWhatsApp';
 
 function defaultCheckInDate(): string {
@@ -272,6 +273,13 @@ export function ExpressBookingSheet({ onClose }: { onClose?: () => void }) {
       }
 
       idempotencyKeyRef.current = null;
+
+      setConfirmOpen(false);
+
+      if (res.financialInvoiceId) {
+        router.push(expressSaleInvoiceHref(res.financialInvoiceId));
+        return;
+      }
 
       const whatsAppUrl =
         res.pgName && res.roomNumber && res.bedCode
