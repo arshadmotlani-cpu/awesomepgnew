@@ -77,6 +77,8 @@ Or trigger **Actions → Neon preview branch cleanup → Run workflow** (deletes
 
 Tune retention via `NEON_BRANCH_RETENTION_DAYS`, `NEON_BRANCH_HEADROOM`, `NEON_MAX_BRANCHES`.
 
+**Full setup guide:** [docs/NEON_BRANCH_SETUP.md](docs/NEON_BRANCH_SETUP.md)
+
 ## Post-deploy ops (production DB + crons)
 
 Neon-linked `DATABASE_URL` values are **not** exported by `vercel env pull` — use Neon dashboard or Vercel runtime.
