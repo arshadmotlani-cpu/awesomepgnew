@@ -2,7 +2,6 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useActionState, useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import {
   DEDUCTION_CATEGORY_LABELS,
@@ -16,14 +15,13 @@ import {
 } from '@/src/components/admin/expressBooking/expressBookingStyles';
 import {
   deductDepositAction,
-  initialRefundActionState,
   listRefundConsoleBookingsForCustomerAction,
   loadRefundConsoleWorkspaceAction,
   markRefundedAction,
   searchRefundConsoleAction,
   transferDepositAction,
-  type RefundActionState,
 } from '@/app/(admin)/admin/refunds/actions';
+import { initialRefundActionState, type RefundActionState } from '@/app/(admin)/admin/refunds/actionState';
 import type { RefundConsoleBookingRow } from '@/src/services/refundConsole';
 
 function ActionBanner({ state }: { state: RefundActionState }) {
@@ -628,7 +626,6 @@ export function RefundConsoleWorkspace({
   initialWorkspace?: RefundConsoleWorkspaceDTO | null;
   initialLoadError?: string | null;
 }) {
-  const router = useRouter();
   const bootstrapped = useRef(false);
   const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState<RefundConsoleBookingRow[]>([]);
@@ -663,7 +660,7 @@ export function RefundConsoleWorkspace({
         );
       });
     },
-    [router],
+    [],
   );
 
   const loadCustomerBookings = useCallback(
@@ -692,7 +689,7 @@ export function RefundConsoleWorkspace({
         );
       });
     },
-    [openBooking, router],
+    [openBooking],
   );
 
   const refreshWorkspace = useCallback(() => {
@@ -745,7 +742,7 @@ export function RefundConsoleWorkspace({
     setLoadError(null);
     setPendingBookingId(null);
     setQuery('');
-    router.replace('/admin/refunds', { scroll: false });
+    window.history.replaceState(null, '', '/admin/refunds');
   }
 
   return (

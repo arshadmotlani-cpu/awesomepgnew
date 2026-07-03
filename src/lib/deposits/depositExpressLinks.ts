@@ -6,3 +6,5 @@ export function depositExpressHref(bookingId?: string | null, customerId?: strin
   const q = params.toString();
   return q ? `/admin/deposit-express?${q}` : '/admin/deposit-express';
 }
+
+export const DEPOSIT_EXPRESS_RETURN_PATH = '/admin/deposit-express';

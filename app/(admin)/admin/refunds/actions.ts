@@ -6,8 +6,8 @@ import { eq } from 'drizzle-orm';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { assertAdminBookingAccess } from '@/src/lib/auth/pgAccess';
 import { revalidateFinancialViews } from '@/src/lib/billing/revalidateFinancialViews';
+import type { RefundActionState } from '@/app/(admin)/admin/refunds/actionState';
 import {
-  DEDUCTION_CATEGORIES,
   formatDeductionReason,
   isDeductionCategory,
   type DeductionCategory,
@@ -21,13 +21,6 @@ import {
   listRefundConsoleBookingsForCustomer,
   searchRefundConsoleBookings,
 } from '@/src/services/refundConsole';
-
-export type RefundActionState =
-  | { status: 'idle' }
-  | { status: 'ok'; message: string }
-  | { status: 'error'; message: string };
-
-export const initialRefundActionState: RefundActionState = { status: 'idle' };
 
 async function resolveBooking(bookingId: string) {
   const { db } = await import('@/src/db/client');
@@ -323,5 +316,3 @@ export async function transferDepositAction(
   revalidateRefundConsole(targetBookingId);
   return { status: 'ok', message: 'Deposit transferred.' };
 }
-
-export { DEDUCTION_CATEGORIES };

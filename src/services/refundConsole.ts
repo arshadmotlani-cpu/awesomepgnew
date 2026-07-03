@@ -599,38 +599,7 @@ function mapCheckoutSettlement(
 export async function getRefundConsoleWorkspace(
   bookingId: string,
 ): Promise<RefundConsoleWorkspace | null> {
-  try {
-    return await buildRefundConsoleWorkspace(bookingId);
-  } catch (err) {
-    console.error('[refundConsole] getRefundConsoleWorkspace failed', bookingId, err);
-    return buildRefundConsoleWorkspaceFallback(bookingId);
-  }
-}
-
-async function buildRefundConsoleWorkspaceFallback(
-  bookingId: string,
-): Promise<RefundConsoleWorkspace | null> {
-  try {
-    const detail = await getRefundConsoleBookingDetail(bookingId);
-    if (!detail) return null;
-    return {
-      ...detail,
-      customerPhone: null,
-      checkInDate: null,
-      checkOutDate: null,
-      vacatingDate: null,
-      adminDepositRefundStatus: null,
-      deductions: [],
-      transfers: [],
-      timeline: [],
-      checkout: null,
-      suggestedRefundPaise: detail.wallet.remainingDepositPaise,
-      refundableBalancePaise: detail.wallet.remainingDepositPaise,
-    };
-  } catch (fallbackErr) {
-    console.error('[refundConsole] fallback workspace failed', bookingId, fallbackErr);
-    return null;
-  }
+  return buildRefundConsoleWorkspace(bookingId);
 }
 
 async function buildRefundConsoleWorkspace(

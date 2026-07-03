@@ -10,15 +10,22 @@ import { getInvoiceDocumentDetail } from '@/src/lib/billing/invoiceDocumentModel
 import { getInvoiceVoidCapabilities } from '@/src/services/invoiceVoid';
 import { getCashSettlementEligibility } from '@/src/services/adminCashSettlement';
 import { requireAdminSession } from '@/src/lib/auth/guards';
+import { DEPOSIT_EXPRESS_RETURN_PATH } from '@/src/lib/deposits/depositExpressLinks';
 
 export const dynamic = 'force-dynamic';
 
 export default async function InvoiceDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ invoiceId: string }>;
+  searchParams: Promise<{ from?: string }>;
 }) {
   const { invoiceId } = await params;
+  const sp = await searchParams;
+  const fromDepositExpress = sp.from === 'deposit-express';
+  const backHref = fromDepositExpress ? DEPOSIT_EXPRESS_RETURN_PATH : '/admin/invoices';
+  const backLabel = fromDepositExpress ? '← Deposit Express' : '← All invoices';
   const session = await requireAdminSession('/admin/invoices');
   const [document, voidCaps, cashEligibility] = await Promise.all([
     getInvoiceDocumentDetail(invoiceId),
@@ -49,10 +56,10 @@ export default async function InvoiceDetailPage({
               Print
             </Link>
             <Link
-              href="/admin/invoices"
+              href={backHref}
               className="rounded-lg border border-white/10 px-3 py-2 text-sm text-apg-silver hover:text-white"
             >
-              ← All invoices
+              {backLabel}
             </Link>
           </div>
         }

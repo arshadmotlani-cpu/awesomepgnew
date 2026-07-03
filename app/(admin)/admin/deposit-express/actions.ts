@@ -103,7 +103,14 @@ export async function submitDepositExpressAction(
     if (!result.ok) return { status: 'error', message: result.error };
 
     revalidateDepositExpress(bookingId);
-    return { status: 'ok', message: result.message };
+    if (result.invoiceId) {
+      revalidatePath(`/admin/invoices/${result.invoiceId}`);
+    }
+    return {
+      status: 'ok',
+      message: result.message,
+      invoiceId: result.invoiceId,
+    };
   } catch (err) {
     return {
       status: 'error',

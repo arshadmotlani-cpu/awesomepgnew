@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useActionState, useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { initialDepositExpressActionState } from '@/app/(admin)/admin/deposit-express/actionState';
 import {
@@ -80,19 +81,23 @@ function BookingPicker({
 function DepositWorkspace({
   context,
   onChangeResident,
-  onSuccess,
 }: {
   context: DepositExpressContext;
   onChangeResident: () => void;
-  onSuccess: () => void;
 }) {
+  const router = useRouter();
   const [state, formAction, pending] = useActionState(submitDepositExpressAction, initialDepositExpressActionState);
   const [requiredInr, setRequiredInr] = useState(String(context.requiredDepositPaise / 100));
   const [paidInr, setPaidInr] = useState('0');
 
   useEffect(() => {
-    if (state.status === 'ok') onSuccess();
-  }, [state.status, onSuccess]);
+    if (state.status !== 'ok') return;
+    if ('invoiceId' in state && state.invoiceId) {
+      router.push(`/admin/invoices/${state.invoiceId}?from=deposit-express`);
+      return;
+    }
+    onChangeResident();
+  }, [state, router, onChangeResident]);
 
   const requiredPaise = Math.round(Number(requiredInr) * 100) || 0;
   const paidPaise = Math.round(Number(paidInr) * 100) || 0;
@@ -123,11 +128,6 @@ function DepositWorkspace({
         <SummaryMetric label="Wallet balance" value={paiseToInr(context.walletBalancePaise)} />
       </dl>
 
-      {state.status === 'ok' ? (
-        <p className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-          {state.message}
-        </p>
-      ) : null}
       {state.status === 'error' ? (
         <p className="rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
           {state.message}
@@ -330,11 +330,7 @@ export function DepositExpressWorkspace({
         {loading && !context && !bookingPickerRows ? (
           <p className="text-center text-sm text-apg-silver">Loading deposit workspace…</p>
         ) : context ? (
-          <DepositWorkspace
-            context={context}
-            onChangeResident={handleChangeResident}
-            onSuccess={() => openBooking(context.bookingId)}
-          />
+          <DepositWorkspace context={context} onChangeResident={handleChangeResident} />
         ) : bookingPickerRows ? (
           <BookingPicker
             rows={bookingPickerRows}
