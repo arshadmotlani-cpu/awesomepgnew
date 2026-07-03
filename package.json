@@ -8,7 +8,7 @@
     "env:check": "tsx scripts/check-env.ts",
     "db:status": "tsx src/db/migrationStatus.ts",
     "build": "next build",
-    "vercel-build": "npm run db:migrate && bash scripts/vercel-build-repair.sh && next build",
+    "vercel-build": "bash scripts/vercel-build.sh",
     "start": "next start",
     "lint": "eslint",
     "db:generate": "drizzle-kit generate",
