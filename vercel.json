@@ -1,16 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "functions": {
-    "app/api/webhooks/vercel/route.ts": {
-      "maxDuration": 60
-    },
-    "app/api/cron/deploy-watchdog/route.ts": {
-      "maxDuration": 60
-    },
-    "app/api/cron/billing-production-verify/route.ts": {
-      "maxDuration": 60
-    }
-  },
   "crons": [
     {
       "path": "/api/cron/release-holds",
