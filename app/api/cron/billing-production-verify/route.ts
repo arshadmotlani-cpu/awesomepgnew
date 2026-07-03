@@ -30,6 +30,7 @@ import { recordElectricityPaymentSuccess } from '@/src/services/electricityBilli
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 type Check = { section: string; status: 'PASS' | 'FAIL' | 'WARN' | 'BLOCKED' | 'TIMEOUT'; detail: string };
 

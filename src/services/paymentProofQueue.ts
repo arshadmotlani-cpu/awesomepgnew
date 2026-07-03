@@ -304,7 +304,7 @@ function buildQrReviewItem(
         ? `Month ${p.month}`
         : 'QR payment',
     amountPaise: p.amountPaise,
-    screenshotUrl: p.paymentScreenshotUrl,
+    screenshotUrl: p.paymentScreenshotUrl ?? '',
     entityId: p.id,
     customerId: p.customerId,
     bookingId: p.bookingId ?? null,

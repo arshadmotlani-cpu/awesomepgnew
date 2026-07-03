@@ -256,7 +256,7 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-03 22:49:37 UTC
+### Pending pre-commit sync · 2026-07-03 22:54:27 UTC
 
 **Areas touched:** [[ROUTES]]
 
@@ -266,7 +266,7 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 
 **Staged code files (1):**
-- `app/api/cron/cleanup-neon-preview-branches/route.ts`
+- `app/api/cron/billing-production-verify/route.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed
