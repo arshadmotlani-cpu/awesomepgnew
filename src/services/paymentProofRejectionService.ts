@@ -3,7 +3,7 @@
  */
 
 import { and, desc, eq, inArray } from 'drizzle-orm';
-import { db } from '@/src/db/client';
+import { db, type Database } from '@/src/db/client';
 import {
   adminUsers,
   bedReservations,
@@ -33,6 +33,9 @@ import {
 import { writeAuditLogNonBlocking } from '@/src/lib/audit/writeAuditLog';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 import { projectInvoice } from '@/src/services/rentInvoices';
+
+/** Drizzle client or transaction — pass when superseding inside an upload transaction. */
+export type DbExecutor = Database | Parameters<Parameters<Database['transaction']>[0]>[0];
 
 export type RejectPaymentProofInput = {
   reviewKey: string;
@@ -360,8 +363,9 @@ async function appendInvoiceAuditEvent(
 export async function supersedeActiveRejection(
   entityType: PaymentProofEntityType,
   entityId: string,
+  executor: DbExecutor = db,
 ): Promise<void> {
-  await db
+  await executor
     .update(paymentProofRejections)
     .set({ status: 'superseded', updatedAt: new Date() })
     .where(

@@ -274,39 +274,81 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
     throw new Error('Payment proof is already pending review for this booking.');
   }
 
-  let row: typeof pgPaymentRecords.$inferSelect;
-  if (dup) {
-    const [updated] = await db
-      .update(pgPaymentRecords)
-      .set({
-        amountPaise: input.amountPaise,
-        paymentScreenshotUrl: input.paymentScreenshotUrl.trim(),
-        transactionRef: input.transactionRef?.trim() || null,
-        reviewedByAdminId: null,
-        reviewedAt: null,
-        updatedAt: new Date(),
+  const row = await db.transaction(async (tx) => {
+    const [dupInTx] = await tx
+      .select({
+        id: pgPaymentRecords.id,
+        paymentScreenshotUrl: pgPaymentRecords.paymentScreenshotUrl,
       })
-      .where(eq(pgPaymentRecords.id, dup.id))
-      .returning();
-    if (!updated) throw new Error('Could not update payment record.');
-    row = updated;
-  } else {
-    const [inserted] = await db
-      .insert(pgPaymentRecords)
-      .values({
-        pgId: booking.pgId,
-        categoryId: category.id,
-        customerId: input.customerId,
-        amountPaise: input.amountPaise,
-        paymentScreenshotUrl: input.paymentScreenshotUrl.trim(),
-        transactionRef: input.transactionRef?.trim() || null,
-        status: 'pending',
-        bookingId: booking.id,
-      })
-      .returning();
-    if (!inserted) throw new Error('Could not create payment record.');
-    row = inserted;
-  }
+      .from(pgPaymentRecords)
+      .where(
+        and(
+          eq(pgPaymentRecords.bookingId, booking.id),
+          eq(pgPaymentRecords.status, 'pending'),
+        ),
+      )
+      .limit(1);
+    if (dupInTx?.paymentScreenshotUrl?.trim()) {
+      throw new Error('Payment proof is already pending review for this booking.');
+    }
+
+    let paymentRow: typeof pgPaymentRecords.$inferSelect;
+    if (dupInTx) {
+      const [updated] = await tx
+        .update(pgPaymentRecords)
+        .set({
+          amountPaise: input.amountPaise,
+          paymentScreenshotUrl: input.paymentScreenshotUrl.trim(),
+          transactionRef: input.transactionRef?.trim() || null,
+          reviewedByAdminId: null,
+          reviewedAt: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(pgPaymentRecords.id, dupInTx.id))
+        .returning();
+      if (!updated) throw new Error('Could not update payment record.');
+      paymentRow = updated;
+    } else {
+      const [inserted] = await tx
+        .insert(pgPaymentRecords)
+        .values({
+          pgId: booking.pgId,
+          categoryId: category.id,
+          customerId: input.customerId,
+          amountPaise: input.amountPaise,
+          paymentScreenshotUrl: input.paymentScreenshotUrl.trim(),
+          transactionRef: input.transactionRef?.trim() || null,
+          status: 'pending',
+          bookingId: booking.id,
+        })
+        .returning();
+      if (!inserted) throw new Error('Could not create payment record.');
+      paymentRow = inserted;
+    }
+
+    const reviewHoldUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    await tx
+      .update(bedReservations)
+      .set({ holdExpiresAt: reviewHoldUntil, updatedAt: new Date() })
+      .where(
+        and(
+          eq(bedReservations.bookingId, booking.id),
+          eq(bedReservations.status, 'hold'),
+        ),
+      );
+
+    await tx
+      .update(bookings)
+      .set({ status: 'pending_approval', updatedAt: new Date() })
+      .where(
+        and(eq(bookings.id, booking.id), inArray(bookings.status, ['pending_payment'])),
+      );
+
+    const { supersedeActiveRejection } = await import('@/src/services/paymentProofRejectionService');
+    await supersedeActiveRejection('pg_payment_record', paymentRow.id, tx);
+
+    return paymentRow;
+  });
 
   const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
   await linkResidentUpload({
@@ -318,19 +360,6 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
     pgId: booking.pgId,
   }).catch(() => undefined);
 
-  // Keep the booking alive while admin reviews proof — holds no longer block
-  // the public calendar, but we still cancel abandoned checkouts via cron.
-  const reviewHoldUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-  await db
-    .update(bedReservations)
-    .set({ holdExpiresAt: reviewHoldUntil, updatedAt: new Date() })
-    .where(
-      and(
-        eq(bedReservations.bookingId, booking.id),
-        eq(bedReservations.status, 'hold'),
-      ),
-    );
-
   if (input.membershipId && input.membershipAmountPaise) {
     const { submitMembershipPaymentProof } = await import('./playstationMembership');
     await submitMembershipPaymentProof({
@@ -341,16 +370,8 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
     });
   }
 
-  const { markBookingAwaitingApproval } = await import('@/src/lib/bookingApproval');
-  await markBookingAwaitingApproval(booking.id);
-
   const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
   scheduleAdminNotificationSync();
-
-  const { supersedeActiveRejection } = await import('@/src/services/paymentProofRejectionService');
-  if (row?.id) {
-    await supersedeActiveRejection('pg_payment_record', row.id);
-  }
 
   const { trackAnalyticsEvent } = await import('./visitorAnalytics');
   void trackAnalyticsEvent({
@@ -358,7 +379,7 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
     metadata: { bookingCode: input.bookingCode, bookingId: booking.id },
   });
 
-  return row!;
+  return row;
 }
 
 /** Pending UPI proof for a booking checkout (rent + deposit ± PS4 add-on). */

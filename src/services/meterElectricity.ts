@@ -446,13 +446,18 @@ export async function submitElectricityPaymentProof(
     return { ok: false, message: 'Payment screenshot is required.' };
   }
 
-  await db
-    .update(electricityInvoices)
-    .set({
-      paymentProofUrl: paymentProofUrl.trim(),
-      updatedAt: new Date(),
-    })
-    .where(eq(electricityInvoices.id, invoiceId));
+  await db.transaction(async (tx) => {
+    await tx
+      .update(electricityInvoices)
+      .set({
+        paymentProofUrl: paymentProofUrl.trim(),
+        updatedAt: new Date(),
+      })
+      .where(eq(electricityInvoices.id, invoiceId));
+
+    const { supersedeActiveRejection } = await import('@/src/services/paymentProofRejectionService');
+    await supersedeActiveRejection('electricity_invoice', invoiceId, tx);
+  });
 
   const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
   const [pgRow] = await db
@@ -474,9 +479,6 @@ export async function submitElectricityPaymentProof(
 
   const { syncElectricityInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
   await syncElectricityInvoiceToUnified(invoiceId);
-
-  const { supersedeActiveRejection } = await import('@/src/services/paymentProofRejectionService');
-  await supersedeActiveRejection('electricity_invoice', invoiceId);
 
   return { ok: true };
 }

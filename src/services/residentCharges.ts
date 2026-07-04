@@ -340,10 +340,15 @@ export async function submitDepositLinkPaymentProof(
     return { ok: false, message: 'Payment photo is required.' };
   }
 
-  await db
-    .update(paymentLinks)
-    .set({ paymentProofUrl: paymentProofUrl.trim() })
-    .where(eq(paymentLinks.id, linkId));
+  await db.transaction(async (tx) => {
+    await tx
+      .update(paymentLinks)
+      .set({ paymentProofUrl: paymentProofUrl.trim() })
+      .where(eq(paymentLinks.id, linkId));
+
+    const { supersedeActiveRejection } = await import('@/src/services/paymentProofRejectionService');
+    await supersedeActiveRejection('payment_link', linkId, tx);
+  });
 
   const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
   await linkResidentUpload({
@@ -354,9 +359,6 @@ export async function submitDepositLinkPaymentProof(
     bookingId: link.bookingId,
     pgId: link.pgId,
   }).catch(() => undefined);
-
-  const { supersedeActiveRejection } = await import('@/src/services/paymentProofRejectionService');
-  await supersedeActiveRejection('payment_link', linkId);
 
   const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
   scheduleAdminNotificationSync();

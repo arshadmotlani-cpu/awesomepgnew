@@ -1778,6 +1778,9 @@ export async function submitRentPaymentProof(
       meta: { idempotencyKey, action: 'payment_proof_uploaded' },
     });
 
+    const { supersedeActiveRejection } = await import('@/src/services/paymentProofRejectionService');
+    await supersedeActiveRejection('rent_invoice', invoiceId, tx);
+
     return { ok: true as const };
   });
 
@@ -1804,9 +1807,6 @@ export async function submitRentPaymentProof(
 
   const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
   await syncRentInvoiceToUnified(invoiceId);
-
-  const { supersedeActiveRejection } = await import('@/src/services/paymentProofRejectionService');
-  await supersedeActiveRejection('rent_invoice', invoiceId);
 
   const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
   scheduleAdminNotificationSync();

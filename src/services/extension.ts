@@ -584,14 +584,19 @@ export async function submitExtensionPaymentProof(
     return { ok: false, message: 'Payment photo is required.' };
   }
 
-  await db
-    .update(stayExtensions)
-    .set({
-      paymentProofUrl: paymentProofUrl.trim(),
-      paymentProofTransactionRef: transactionRef?.trim() || null,
-      updatedAt: new Date(),
-    })
-    .where(eq(stayExtensions.id, extensionId));
+  await db.transaction(async (tx) => {
+    await tx
+      .update(stayExtensions)
+      .set({
+        paymentProofUrl: paymentProofUrl.trim(),
+        paymentProofTransactionRef: transactionRef?.trim() || null,
+        updatedAt: new Date(),
+      })
+      .where(eq(stayExtensions.id, extensionId));
+
+    const { supersedeActiveRejection } = await import('@/src/services/paymentProofRejectionService');
+    await supersedeActiveRejection('stay_extension', extensionId, tx);
+  });
 
   const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
   await linkResidentUpload({
@@ -604,9 +609,6 @@ export async function submitExtensionPaymentProof(
 
   const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
   scheduleAdminNotificationSync();
-
-  const { supersedeActiveRejection } = await import('@/src/services/paymentProofRejectionService');
-  await supersedeActiveRejection('stay_extension', extensionId);
 
   return { ok: true };
 }
