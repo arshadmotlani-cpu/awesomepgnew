@@ -24,7 +24,7 @@ export async function GET(request: Request) {
     const checks = await runPaymentProofRejectionSchemaChecks(db);
     const summary = summarizePaymentProofSchemaChecks(checks);
     return Response.json(
-      { ok: summary.ok, ...summary, checks },
+      { ...summary, checks },
       { status: summary.ok ? 200 : 500 },
     );
   } finally {
