@@ -18,7 +18,6 @@ import {
   computeOutstandingMoneyFromInvoices,
   loadInvoiceOutstandingSnapshot,
 } from '@/src/services/financialSummaryService';
-import type { AdminSession } from '@/src/lib/auth/session';
 
 export type BillingCommandCard = {
   id: string;
