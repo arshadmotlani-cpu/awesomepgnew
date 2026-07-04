@@ -15,6 +15,7 @@ import {
 import {
   loadUnifiedOperationsQueue,
 } from '@/src/services/unifiedOperationsQueue';
+import { PAYMENT_ALREADY_APPROVED_MESSAGE } from '@/src/lib/operations/paymentReviewMessages';
 import {
   listPaymentProofRejectionsForEntity,
   reviewKindToEntityType,
@@ -50,6 +51,9 @@ export default async function OperationsPage({
       ? data.paymentReviews.find((p) => p.key === focus) ?? null
       : null;
 
+  const staleFocusReview =
+    filter === 'waiting_for_approval' && focus && !focusReview;
+
   const rejectionHistory = focusReview
     ? await listPaymentProofRejectionsForEntity(
         reviewKindToEntityType(focusReview.kind),
@@ -67,6 +71,11 @@ export default async function OperationsPage({
       />
 
       <AdminSectionErrorBoundary title="Operations">
+        {staleFocusReview ? (
+          <div className="mb-6 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+            {PAYMENT_ALREADY_APPROVED_MESSAGE}
+          </div>
+        ) : null}
         {filter === 'waiting_for_approval' && focusReview ? (
           <section className="mb-8">
             <OperationsPaymentReviewsPanel

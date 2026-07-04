@@ -9,6 +9,7 @@ import { approveRentPaymentProof } from '@/src/services/rentInvoices';
 import { approveDepositLinkPaymentProof } from '@/src/services/residentCharges';
 import { reviewPaymentRecord } from '@/src/services/qrPayments';
 import { getNextPendingPaymentReviewKey } from '@/src/services/paymentProofQueue';
+import { PAYMENT_ALREADY_APPROVED_MESSAGE } from '@/src/lib/operations/paymentReviewMessages';
 import {
   rejectPaymentProof,
   reviewKindToEntityType,
@@ -62,7 +63,7 @@ export async function approveQrPaymentAction(
       const nextKey = await getNextPendingPaymentReviewKey(session, currentKey);
       return {
         ok: true as const,
-        message: 'This payment has already been approved.',
+        message: PAYMENT_ALREADY_APPROVED_MESSAGE,
         nextKey,
       };
     }
@@ -96,7 +97,7 @@ export async function approvePartialQrPaymentAction(
       revalidatePaymentReviewSurfaces(pgId);
       return {
         ok: true as const,
-        message: 'This payment has already been approved.',
+        message: PAYMENT_ALREADY_APPROVED_MESSAGE,
       };
     }
   } catch (err) {

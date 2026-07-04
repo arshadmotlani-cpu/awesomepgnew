@@ -20,6 +20,7 @@ import { InvoiceAdminRowActions } from '@/src/components/admin/InvoiceAdminRowAc
 import { OPS_ORANGE, OPS_PANEL } from '@/src/components/admin/residentOps/residentOpsUi';
 import { adminPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import type { OverpaymentDisposition, PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
+import { PAYMENT_ALREADY_APPROVED_MESSAGE } from '@/src/lib/operations/paymentReviewMessages';
 import { paiseToInr } from '@/src/lib/format';
 
 const OVERPAYMENT_OPTIONS: Array<{ value: OverpaymentDisposition; label: string }> = [
@@ -63,6 +64,7 @@ export function OperationsPaymentReviewsPanel({
   const router = useRouter();
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [partialOpenKey, setPartialOpenKey] = useState<string | null>(null);
   const [depositDueDate, setDepositDueDate] = useState('');
   const [moreOpenKey, setMoreOpenKey] = useState<string | null>(null);
@@ -94,6 +96,7 @@ export function OperationsPaymentReviewsPanel({
     }
     setBusyKey(item.key);
     setError(null);
+    setInfo(null);
     try {
       let result: { ok: boolean; message?: string; nextKey?: string | null };
       switch (item.kind) {
@@ -126,8 +129,8 @@ export function OperationsPaymentReviewsPanel({
         setError(result.message ?? 'Approval failed.');
         return;
       }
-      if ('message' in result && result.message) {
-        setError(result.message);
+      if ('message' in result && result.message === PAYMENT_ALREADY_APPROVED_MESSAGE) {
+        setInfo(result.message);
       }
       await advanceAfterAction(item.key, result.nextKey);
     } catch (err) {
@@ -200,6 +203,12 @@ export function OperationsPaymentReviewsPanel({
       {error ? (
         <p className="rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
           {error}
+        </p>
+      ) : null}
+
+      {info ? (
+        <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
+          {info}
         </p>
       ) : null}
 

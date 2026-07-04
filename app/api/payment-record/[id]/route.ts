@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSession } from '@/src/lib/auth/session';
+import { PAYMENT_ALREADY_APPROVED_MESSAGE } from '@/src/lib/operations/paymentReviewMessages';
 import { reviewPaymentRecord } from '@/src/services/qrPayments';
 
 export const runtime = 'nodejs';
@@ -34,7 +35,7 @@ export async function PATCH(
     if (result.outcome === 'already_approved') {
       return NextResponse.json({
         ok: true,
-        message: 'This payment has already been approved.',
+        message: PAYMENT_ALREADY_APPROVED_MESSAGE,
         alreadyApproved: true,
       });
     }
