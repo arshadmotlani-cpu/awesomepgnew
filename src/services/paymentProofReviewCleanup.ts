@@ -5,6 +5,115 @@
 import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { actionItems, pgPaymentRecords, unresolvedActions } from '@/src/db/schema';
+import { resolveAction } from '@/src/services/unresolvedActions';
+
+/** Close action_items, unresolved_actions, and admin notifications for one review key. */
+export async function resolvePaymentReviewArtifactsForKey(reviewKey: string): Promise<void> {
+  const actionSourceKey = `payment_review:${reviewKey}`;
+  const unresolvedSourceKey = `unresolved:payment_review:${reviewKey}`;
+  const now = new Date();
+
+  await db
+    .update(actionItems)
+    .set({ status: 'resolved', updatedAt: now })
+    .where(
+      and(
+        eq(actionItems.sourceKey, actionSourceKey),
+        inArray(actionItems.status, ['open', 'in_progress']),
+      ),
+    );
+
+  await resolveAction({ sourceKey: unresolvedSourceKey });
+
+  await db.execute(sql`
+    UPDATE notifications
+    SET is_archived = true
+    WHERE audience = 'admin'
+      AND type IN ('payment_proof_uploaded', 'payment_received')
+      AND NOT is_archived
+      AND dedupe_key = ${actionSourceKey}
+  `);
+}
+
+/**
+ * Idempotent finalize — mark pending proof approved and remove all queue artifacts.
+ * Safe when booking is already active or financial effects were already applied.
+ */
+export async function finalizeStaleBookingPaymentReview(args: {
+  recordId: string;
+  bookingId?: string | null;
+  reviewedByAdminId?: string | null;
+}): Promise<void> {
+  const now = new Date();
+  const reviewKey = `qr-${args.recordId}`;
+
+  await db
+    .update(pgPaymentRecords)
+    .set({
+      status: 'approved',
+      ...(args.reviewedByAdminId ? { reviewedByAdminId: args.reviewedByAdminId } : {}),
+      reviewedAt: now,
+      updatedAt: now,
+    })
+    .where(
+      and(eq(pgPaymentRecords.id, args.recordId), eq(pgPaymentRecords.status, 'pending')),
+    );
+
+  await resolvePaymentReviewArtifactsForKey(reviewKey);
+
+  if (args.bookingId) {
+    await resolveDuplicateBookingPaymentProofs({
+      bookingId: args.bookingId,
+      keepRecordId: args.recordId,
+      resolution: 'approved',
+    });
+  }
+}
+
+/**
+ * Remove orphan pending booking payment proofs when the booking is already past checkout review
+ * or a succeeded booking payment already exists (prevents stale Operations rows).
+ */
+export async function cleanupOrphanPendingBookingPaymentReviews(): Promise<{
+  recordsFinalized: number;
+}> {
+  const orphans = await db.execute<{ id: string; booking_id: string | null }>(sql`
+    SELECT pr.id::text AS id, pr.booking_id::text AS booking_id
+    FROM pg_payment_records pr
+    LEFT JOIN bookings b ON b.id = pr.booking_id
+    WHERE pr.status = 'pending'
+      AND pr.payment_screenshot_url IS NOT NULL
+      AND trim(pr.payment_screenshot_url) <> ''
+      AND (
+        (
+          pr.booking_id IS NOT NULL
+          AND b.status IS NOT NULL
+          AND b.status NOT IN ('pending_payment', 'pending_approval', 'draft')
+        )
+        OR EXISTS (
+          SELECT 1 FROM payments p
+          WHERE p.booking_id = pr.booking_id
+            AND p.purpose = 'booking'
+            AND p.status = 'succeeded'
+        )
+        OR EXISTS (
+          SELECT 1 FROM payments p
+          WHERE p.provider = 'upi_manual'
+            AND p.provider_payment_id = 'qr_record_' || pr.id::text
+            AND p.status = 'succeeded'
+        )
+      )
+  `);
+
+  for (const row of orphans) {
+    await finalizeStaleBookingPaymentReview({
+      recordId: row.id,
+      bookingId: row.booking_id,
+    });
+  }
+
+  return { recordsFinalized: orphans.length };
+}
 
 /** Resolve sibling pending QR proofs for the same booking (keep approved/rejected record). */
 export async function resolveDuplicateBookingPaymentProofs(args: {

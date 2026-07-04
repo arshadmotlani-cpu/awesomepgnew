@@ -114,6 +114,11 @@ async function collectStalePaymentReviewRows(
 export async function resolveStalePaymentReviewArtifacts(
   session: AdminSession,
 ): Promise<{ resolvedActionItems: number; closedUnresolved: number; archivedNotifications: number }> {
+  const { cleanupOrphanPendingBookingPaymentReviews } = await import(
+    '@/src/services/paymentProofReviewCleanup'
+  );
+  await cleanupOrphanPendingBookingPaymentReviews();
+
   const items = await listPendingPaymentReviews(session);
   const { actionKeys, unresolvedKeys } = paymentReviewSourceKeys(items);
 

@@ -30,7 +30,14 @@ export async function PATCH(
   }
 
   try {
-    await reviewPaymentRecord(session, id, body.status);
+    const result = await reviewPaymentRecord(session, id, body.status);
+    if (result.outcome === 'already_approved') {
+      return NextResponse.json({
+        ok: true,
+        message: 'This payment has already been approved.',
+        alreadyApproved: true,
+      });
+    }
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json(

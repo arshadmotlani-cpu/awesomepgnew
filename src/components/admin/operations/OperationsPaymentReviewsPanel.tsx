@@ -126,6 +126,9 @@ export function OperationsPaymentReviewsPanel({
         setError(result.message ?? 'Approval failed.');
         return;
       }
+      if ('message' in result && result.message) {
+        setError(result.message);
+      }
       await advanceAfterAction(item.key, result.nextKey);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Approval failed.');

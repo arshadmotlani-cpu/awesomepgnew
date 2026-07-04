@@ -53,11 +53,26 @@ export async function approveQrPaymentAction(
   currentKey?: string,
 ) {
   const session = await requireAdminPermission('payments:write');
-  await reviewPaymentRecord(session, recordId, 'approved', {
-    reviewMeta: meta,
-  });
-  revalidatePaymentReviewSurfaces(pgId);
-  return withNextReviewKey(session, currentKey, { ok: true });
+  try {
+    const result = await reviewPaymentRecord(session, recordId, 'approved', {
+      reviewMeta: meta,
+    });
+    revalidatePaymentReviewSurfaces(pgId);
+    if (result.outcome === 'already_approved') {
+      const nextKey = await getNextPendingPaymentReviewKey(session, currentKey);
+      return {
+        ok: true as const,
+        message: 'This payment has already been approved.',
+        nextKey,
+      };
+    }
+    return withNextReviewKey(session, currentKey, { ok: true });
+  } catch (err) {
+    return {
+      ok: false as const,
+      message: err instanceof Error ? err.message : 'Approval failed.',
+    };
+  }
 }
 
 export async function approvePartialQrPaymentAction(
@@ -71,10 +86,19 @@ export async function approvePartialQrPaymentAction(
     return { ok: false as const, message: 'Invalid due date.' };
   }
   try {
-    await reviewPaymentRecord(session, recordId, 'approved', {
+    const result = await reviewPaymentRecord(session, recordId, 'approved', {
       partialDeposit: { depositDueDate },
       reviewMeta: meta,
     });
+    if (result.outcome === 'already_approved') {
+      revalidatePath('/admin/collections');
+      revalidatePath('/admin/deposits');
+      revalidatePaymentReviewSurfaces(pgId);
+      return {
+        ok: true as const,
+        message: 'This payment has already been approved.',
+      };
+    }
   } catch (err) {
     return {
       ok: false as const,

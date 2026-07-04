@@ -6,11 +6,13 @@ import {
   bookings,
   customers,
   floors,
+  payments,
   pgPaymentCategories,
   pgPaymentRecords,
   pgs,
   rooms,
 } from '@/src/db/schema';
+import { isBookingCheckoutEligibleForPaymentReview } from '@/src/lib/operations/paymentReviewEligibility';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { RENT_DEPOSIT_BOOKING_CATEGORY_NAME } from '@/src/lib/payments/defaultQr';
@@ -535,6 +537,41 @@ export async function listCustomerPaymentsForPg(
     .orderBy(desc(pgPaymentRecords.createdAt));
 }
 
+export type ReviewPaymentRecordResult =
+  | { outcome: 'approved' }
+  | { outcome: 'already_approved' };
+
+async function bookingQrPaymentAlreadyProcessed(
+  bookingId: string,
+  recordId: string,
+): Promise<boolean> {
+  const [byProviderId] = await db
+    .select({ id: payments.id })
+    .from(payments)
+    .where(
+      and(
+        eq(payments.provider, 'upi_manual'),
+        eq(payments.providerPaymentId, `qr_record_${recordId}`),
+        eq(payments.status, 'succeeded'),
+      ),
+    )
+    .limit(1);
+  if (byProviderId) return true;
+
+  const [byBooking] = await db
+    .select({ id: payments.id })
+    .from(payments)
+    .where(
+      and(
+        eq(payments.bookingId, bookingId),
+        eq(payments.purpose, 'booking'),
+        eq(payments.status, 'succeeded'),
+      ),
+    )
+    .limit(1);
+  return Boolean(byBooking);
+}
+
 export async function reviewPaymentRecord(
   session: AdminSession,
   recordId: string,
@@ -547,7 +584,7 @@ export async function reviewPaymentRecord(
       approvalNotes?: string;
     };
   },
-) {
+): Promise<ReviewPaymentRecordResult> {
   const [record] = await db
     .select()
     .from(pgPaymentRecords)
@@ -556,8 +593,15 @@ export async function reviewPaymentRecord(
   if (!record) throw new Error('Payment record not found.');
   assertPgAccess(session, record.pgId);
 
+  const { finalizeStaleBookingPaymentReview } = await import('./paymentProofReviewCleanup');
+
   if (record.status === 'approved') {
-    return;
+    await finalizeStaleBookingPaymentReview({
+      recordId,
+      bookingId: record.bookingId,
+      reviewedByAdminId: session.adminId,
+    });
+    return { outcome: 'already_approved' };
   }
   if (record.status !== 'pending') {
     throw new Error('Only pending payments can be reviewed.');
@@ -577,25 +621,28 @@ export async function reviewPaymentRecord(
       .from(bookings)
       .where(eq(bookings.id, record.bookingId))
       .limit(1);
+
+    const financialAlreadyApplied = await bookingQrPaymentAlreadyProcessed(
+      record.bookingId,
+      recordId,
+    );
+
     if (
       booking &&
-      booking.status !== 'pending_payment' &&
-      booking.status !== 'pending_approval' &&
+      (financialAlreadyApplied ||
+        !isBookingCheckoutEligibleForPaymentReview(booking.status)) &&
       status === 'approved'
     ) {
-      await db
-        .update(pgPaymentRecords)
-        .set({
-          status: 'approved',
-          reviewedByAdminId: session.adminId,
-          reviewedAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(
-          and(eq(pgPaymentRecords.id, recordId), eq(pgPaymentRecords.status, 'pending')),
-        );
-      return;
+      await finalizeStaleBookingPaymentReview({
+        recordId,
+        bookingId: record.bookingId,
+        reviewedByAdminId: session.adminId,
+      });
+      return financialAlreadyApplied
+        ? { outcome: 'already_approved' }
+        : { outcome: 'approved' };
     }
+
     if (booking?.status === 'pending_payment' || booking?.status === 'pending_approval') {
       const { recordPaymentSuccess } = await import('./bookingLifecycle');
       const {
@@ -652,6 +699,18 @@ export async function reviewPaymentRecord(
         overpayment,
       });
       if (!paymentResult.ok) {
+        const alreadyProcessed = await bookingQrPaymentAlreadyProcessed(
+          record.bookingId,
+          recordId,
+        );
+        if (alreadyProcessed) {
+          await finalizeStaleBookingPaymentReview({
+            recordId,
+            bookingId: record.bookingId,
+            reviewedByAdminId: session.adminId,
+          });
+          return { outcome: 'already_approved' };
+        }
         throw new Error(
           paymentResult.reason ??
             'Could not confirm booking — the bed may already be taken by another approved payment.',
@@ -666,15 +725,11 @@ export async function reviewPaymentRecord(
     );
   }
 
-  await db
-    .update(pgPaymentRecords)
-    .set({
-      status,
-      reviewedByAdminId: session.adminId,
-      reviewedAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(and(eq(pgPaymentRecords.id, recordId), eq(pgPaymentRecords.status, 'pending')));
+  await finalizeStaleBookingPaymentReview({
+    recordId,
+    bookingId: record.bookingId,
+    reviewedByAdminId: session.adminId,
+  });
 
   if (status === 'approved') {
     const { trackAnalyticsEvent } = await import('./visitorAnalytics');
@@ -684,16 +739,7 @@ export async function reviewPaymentRecord(
     });
   }
 
-  if (record.bookingId) {
-    const { resolveDuplicateBookingPaymentProofs } = await import(
-      './paymentProofReviewCleanup'
-    );
-    await resolveDuplicateBookingPaymentProofs({
-      bookingId: record.bookingId,
-      keepRecordId: recordId,
-      resolution: status,
-    });
-  }
+  return { outcome: 'approved' };
 }
 
 export async function listPublicPgsWithPayments() {

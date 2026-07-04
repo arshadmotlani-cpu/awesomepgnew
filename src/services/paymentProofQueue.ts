@@ -38,6 +38,7 @@ import {
 import { titleCase } from '@/src/lib/format';
 import { formatDate as formatIsoDate } from '@/src/lib/dates';
 import { dedupePendingPaymentReviews } from '@/src/lib/operations/dedupePendingPaymentReviews';
+import { isBookingCheckoutEligibleForPaymentReview } from '@/src/lib/operations/paymentReviewEligibility';
 import { and, eq, isNull } from 'drizzle-orm';
 import { cache } from 'react';
 import { adminRequestScopeKey } from '@/src/lib/admin/adminRequestCache';
@@ -658,25 +659,40 @@ async function fetchPendingPaymentReviews(
   session: AdminSession,
 ): Promise<PendingPaymentReviewItem[]> {
   paymentReviewFetchCount += 1;
+
+  const { cleanupOrphanPendingBookingPaymentReviews } = await import(
+    '@/src/services/paymentProofReviewCleanup'
+  );
+  await cleanupOrphanPendingBookingPaymentReviews();
+
   const items: PendingPaymentReviewItem[] = [];
 
   const qrRows = await listOwnerPayments(session, { status: 'pending' });
   const { listPriorBookingDepositsForReview } = await import('@/src/services/depositCredit');
-  const qrItems = await Promise.all(
-    qrRows
-      .filter((p) => p.paymentScreenshotUrl?.trim())
-      .map(async (p) => {
-        const isBookingCheckout = Boolean(p.bookingCode);
-        const bookingPaymentReview =
-          isBookingCheckout && p.bookingId ? await getQrBookingPaymentReview(p.id) : null;
-        const bookingDetails = p.bookingId ? await loadBookingReviewDetails(p.bookingId) : null;
-        const priorBookingDeposits =
-          isBookingCheckout && p.customerId
-            ? await listPriorBookingDepositsForReview(p.customerId, p.bookingId)
-            : [];
-        return buildQrReviewItem(p, bookingPaymentReview, bookingDetails, priorBookingDeposits);
-      }),
-  );
+  const qrItems = (
+    await Promise.all(
+      qrRows
+        .filter((p) => p.paymentScreenshotUrl?.trim())
+        .map(async (p) => {
+          const isBookingCheckout = Boolean(p.bookingCode);
+          const bookingDetails = p.bookingId ? await loadBookingReviewDetails(p.bookingId) : null;
+          if (
+            isBookingCheckout &&
+            bookingDetails?.bookingStatus &&
+            !isBookingCheckoutEligibleForPaymentReview(bookingDetails.bookingStatus)
+          ) {
+            return null;
+          }
+          const bookingPaymentReview =
+            isBookingCheckout && p.bookingId ? await getQrBookingPaymentReview(p.id) : null;
+          const priorBookingDeposits =
+            isBookingCheckout && p.customerId
+              ? await listPriorBookingDepositsForReview(p.customerId, p.bookingId)
+              : [];
+          return buildQrReviewItem(p, bookingPaymentReview, bookingDetails, priorBookingDeposits);
+        }),
+    )
+  ).filter((item): item is PendingPaymentReviewItem => item !== null);
   items.push(...qrItems);
 
   const pgRows = await db
