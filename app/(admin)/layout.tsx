@@ -5,11 +5,14 @@ import { AdminTopNav } from '@/src/components/admin/AdminTopNav';
 import { AdminLiveRefreshProvider } from '@/src/components/admin/AdminLiveRefreshProvider';
 import { AdminActionDrawerProvider } from '@/src/components/admin/AdminActionDrawerProvider';
 import { SidebarLayoutProvider } from '@/src/components/admin/sidebar/SidebarLayoutProvider';
+import { profileAdminStep } from '@/src/lib/admin/adminProfile';
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import { loadAdminNavBadges } from '@/src/services/adminNavBadges';
 import { getResolvedSidebarLayout } from '@/src/services/sidebarLayouts';
 import { AdminPushRegistration } from '@/src/components/admin/AdminPushRegistration';
 import { NotificationReadOnArrival } from '@/src/components/admin/NotificationReadOnArrival';
+
+export const maxDuration = 60;
 
 export const metadata: Metadata = {
   title: 'Admin · Awesome PG',
@@ -31,10 +34,9 @@ export const metadata: Metadata = {
 
 export default async function AdminGroupLayout({ children }: { children: ReactNode }) {
   const session = await requireAdminSession('/admin');
-  const [badges, sidebarLayout] = await Promise.all([
-    loadAdminNavBadges(session),
-    getResolvedSidebarLayout(session),
-  ]);
+  const [badges, sidebarLayout] = await profileAdminStep('adminLayout', () =>
+    Promise.all([loadAdminNavBadges(session), getResolvedSidebarLayout(session)]),
+  );
   const sidebarNavItems = sidebarLayout.items.map((item) => ({
     key: item.key,
     label: item.label,

@@ -39,6 +39,8 @@ import {
 import { titleCase } from '@/src/lib/format';
 import { formatDate as formatIsoDate } from '@/src/lib/dates';
 import { and, eq, isNull } from 'drizzle-orm';
+import { cache } from 'react';
+import { adminRequestScopeKey } from '@/src/lib/admin/adminRequestCache';
 
 export type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 
@@ -649,28 +651,29 @@ async function buildDepositLinkReviewItem(
   };
 }
 
-export async function listPendingPaymentReviews(
+async function fetchPendingPaymentReviews(
   session: AdminSession,
 ): Promise<PendingPaymentReviewItem[]> {
   const items: PendingPaymentReviewItem[] = [];
 
   const qrRows = await listOwnerPayments(session, { status: 'pending' });
   const { listPriorBookingDepositsForReview } = await import('@/src/services/depositCredit');
-  for (const p of qrRows) {
-    if (!p.paymentScreenshotUrl?.trim()) continue;
-    const isBookingCheckout = Boolean(p.bookingCode);
-    const bookingPaymentReview =
-      isBookingCheckout && p.bookingId ? await getQrBookingPaymentReview(p.id) : null;
-    const bookingDetails =
-      p.bookingId ? await loadBookingReviewDetails(p.bookingId) : null;
-    const priorBookingDeposits =
-      isBookingCheckout && p.customerId
-        ? await listPriorBookingDepositsForReview(p.customerId, p.bookingId)
-        : [];
-    items.push(
-      buildQrReviewItem(p, bookingPaymentReview, bookingDetails, priorBookingDeposits),
-    );
-  }
+  const qrItems = await Promise.all(
+    qrRows
+      .filter((p) => p.paymentScreenshotUrl?.trim())
+      .map(async (p) => {
+        const isBookingCheckout = Boolean(p.bookingCode);
+        const bookingPaymentReview =
+          isBookingCheckout && p.bookingId ? await getQrBookingPaymentReview(p.id) : null;
+        const bookingDetails = p.bookingId ? await loadBookingReviewDetails(p.bookingId) : null;
+        const priorBookingDeposits =
+          isBookingCheckout && p.customerId
+            ? await listPriorBookingDepositsForReview(p.customerId, p.bookingId)
+            : [];
+        return buildQrReviewItem(p, bookingPaymentReview, bookingDetails, priorBookingDeposits);
+      }),
+  );
+  items.push(...qrItems);
 
   const pgRows = await db
     .select({ id: pgs.id, name: pgs.name })
@@ -717,6 +720,26 @@ export async function listPendingPaymentReviews(
   return items;
 }
 
+const listPendingPaymentReviewsCached = cache(
+  async (scopeKey: string, session: AdminSession): Promise<PendingPaymentReviewItem[]> => {
+    void scopeKey;
+    return fetchPendingPaymentReviews(session);
+  },
+);
+
+/** Deduped within a single admin RSC request (layout + page). */
+export function getPendingPaymentReviewsForRequest(
+  session: AdminSession,
+): Promise<PendingPaymentReviewItem[]> {
+  return listPendingPaymentReviewsCached(adminRequestScopeKey(session), session);
+}
+
+export async function listPendingPaymentReviews(
+  session: AdminSession,
+): Promise<PendingPaymentReviewItem[]> {
+  return getPendingPaymentReviewsForRequest(session);
+}
+
 /** Next item in FIFO review queue after the current key (excludes current). */
 export async function getNextPendingPaymentReviewKey(
   session: AdminSession,
@@ -731,6 +754,6 @@ export async function getNextPendingPaymentReviewKey(
 }
 
 export async function countPendingPaymentReviews(session: AdminSession): Promise<number> {
-  const items = await listPendingPaymentReviews(session);
+  const items = await getPendingPaymentReviewsForRequest(session);
   return items.length;
 }

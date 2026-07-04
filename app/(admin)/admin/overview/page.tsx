@@ -5,6 +5,7 @@ import { BillingCertificationNotice } from '@/src/components/admin/overview/Bill
 import { ModuleBreadcrumbs } from '@/src/components/admin/ModuleBreadcrumbs';
 import { moduleHref } from '@/src/lib/admin/navigation';
 import { requireAdminSession } from '@/src/lib/auth/guards';
+import { profileAdminStep } from '@/src/lib/admin/adminProfile';
 import { loadOverviewContext } from '@/src/services/overviewData';
 import { loadBillingReconciliationSafe } from '@/src/services/billingCycleReconciliation';
 import { buildOverviewDashboard } from '@/src/services/overviewDashboard';
@@ -15,10 +16,12 @@ export const maxDuration = 60;
 export default async function OverviewPage() {
   const session = await requireAdminSession('/admin/overview');
 
-  const [overviewResult, billingCert] = await Promise.all([
-    loadOverviewContext(session, undefined, { syncActions: true }),
-    loadBillingReconciliationSafe(session),
-  ]);
+  const [overviewResult, billingCert] = await profileAdminStep('overviewPage', () =>
+    Promise.all([
+      loadOverviewContext(session, undefined, { syncActions: false }),
+      loadBillingReconciliationSafe(session),
+    ]),
+  );
 
   if (!overviewResult.ok) {
     return (

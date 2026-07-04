@@ -19,7 +19,7 @@ import {
 import { getMoveOutPipelineSnapshot } from '@/src/services/moveOutPipelineService';
 import { getUpcomingCheckinsCount } from '@/src/services/operationsCenter';
 import { getRevenueCommandCenterData, type RevenueCommandCenterData } from '@/src/services/revenueCommandCenter';
-import { loadUnifiedOperationsQueue } from '@/src/services/unifiedOperationsQueue';
+import { getUnifiedOperationsQueueForRequest } from '@/src/services/unifiedOperationsQueue';
 import { getActiveTenantCount, getVisitorCountSummary } from '@/src/services/visitorAnalytics';
 
 export type OperationsQueueCounts = Record<OpsQueueFilter, number>;
@@ -99,7 +99,7 @@ export async function loadOverviewReportingSnapshot(
       invoiceSnapshot,
     }),
     loadBillingCommandCenterSnapshot(session, billingMonth),
-    loadUnifiedOperationsQueue(session, null),
+    getUnifiedOperationsQueueForRequest(session, null),
     getDashboardStats().catch(() => ({ ok: false as const, error: '' })),
     getVisitorCountSummary().catch((err) => {
       console.error('[overview] visitor analytics query failed', err);

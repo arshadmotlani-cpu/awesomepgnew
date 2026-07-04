@@ -36,7 +36,7 @@ import {
   computeElectricityInvoiceEffectiveStatus,
   computeElectricityInvoiceOutstandingPaise,
 } from '@/src/services/residentFinancialEngine';
-import { loadApprovalQueueSnapshot } from '@/src/services/approvalService';
+import { getPendingPaymentReviewsForRequest } from '@/src/services/paymentProofQueue';
 import { listPipelineCheckoutSettlements } from '@/src/services/checkoutSettlement';
 import { getMoveOutPipelineSnapshot } from '@/src/services/moveOutPipelineService';
 import { isStaleZeroRefundSettlement } from '@/src/lib/residents/checkoutOpsQueueCopy';
@@ -456,7 +456,7 @@ export async function getOperationsCenterData(
   const today = todayString();
 
   const [
-    paymentItems,
+    rawPaymentReviews,
     pendingKycItems,
     moveOutPipeline,
     reservations,
@@ -466,7 +466,7 @@ export async function getOperationsCenterData(
     ps4RenewalItems,
     dismissalIndex,
   ] = await Promise.all([
-    loadApprovalQueueSnapshot(session).then((s) => s.visiblePaymentReviews),
+    getPendingPaymentReviewsForRequest(session),
     listPendingKycWithPg(session),
     getMoveOutPipelineSnapshot(session),
     listActiveBedReserves(session),
@@ -476,6 +476,12 @@ export async function getOperationsCenterData(
     listPs4RenewalsForOps(session, today),
     loadOperationsQueueDismissalIndex(),
   ]);
+
+  const paymentItems = rawPaymentReviews.filter(
+    (p) =>
+      !p.customerId ||
+      !isDismissedFromOperationsQueue(dismissalIndex, { customerId: p.customerId }),
+  );
 
   const visibleRefunds = refunds.filter(
     (r) => !isDismissedFromOperationsQueue(dismissalIndex, { bookingId: r.bookingId }),

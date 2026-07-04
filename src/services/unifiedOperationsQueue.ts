@@ -35,9 +35,11 @@ import {
   loadOperationsQueueDismissalIndex,
 } from '@/src/services/operationsQueueDismissals';
 import { listPipelineCheckoutSettlements } from '@/src/services/checkoutSettlement';
-import { listPendingPaymentReviews } from '@/src/services/paymentProofQueue';
+import { getPendingPaymentReviewsForRequest } from '@/src/services/paymentProofQueue';
 import { loadMoveOutPipelineBundle } from '@/src/services/moveOutPipelineService';
 import { loadResidentOperationsResidentsPage } from '@/src/services/residentOperationsResidentsPage';
+import { cache } from 'react';
+import { adminRequestScopeKey } from '@/src/lib/admin/adminRequestCache';
 
 export type UnifiedOpsOutstandingLine = {
   categoryLabel: string;
@@ -320,6 +322,19 @@ export async function loadUnifiedOperationsQueue(
   filterInput?: OpsQueueFilter | null,
   focusReviewKey?: string | null,
 ): Promise<UnifiedOperationsQueue> {
+  return getUnifiedOperationsQueueForRequest(session, filterInput, focusReviewKey);
+}
+
+async function buildUnifiedOperationsQueue(
+  session: AdminSession,
+  _filterInput?: OpsQueueFilter | null,
+  focusReviewKey?: string | null,
+): Promise<{
+  allItems: UnifiedOpsItem[];
+  paymentReviews: PendingPaymentReviewItem[];
+  filterCounts: Array<{ id: OpsQueueFilter; label: string; count: number }>;
+  focusReviewKey: string | null;
+}> {
   const [
     residentsPage,
     bookingApprovals,
@@ -332,7 +347,7 @@ export async function loadUnifiedOperationsQueue(
   ] = await Promise.all([
     loadResidentOperationsResidentsPage(session, null),
     listPendingBookingApprovalsForSync(session),
-    listPendingPaymentReviews(session),
+    getPendingPaymentReviewsForRequest(session),
     loadOperationsQueueDismissalIndex(),
     import('@/src/services/depositExpress').then((m) => m.listDepositDueBookings(session)),
     listAdminElectricityInvoicesForReminders(),
@@ -472,20 +487,66 @@ export async function loadUnifiedOperationsQueue(
 
   const counts = countOperationsQueueItems(items);
   assertOperationsQueueParity(items, counts);
-  const filter = filterInput ?? defaultOperationsFilter(counts);
-
-  const filtered = filterOperationsQueueItems(items, filter);
-
   const filterCounts = buildOperationsQueueFilterCounts(items);
+
+  return {
+    allItems: items,
+    paymentReviews,
+    filterCounts,
+    focusReviewKey: focusReviewKey ?? null,
+  };
+}
+
+function applyUnifiedOperationsFilter(
+  base: {
+    allItems: UnifiedOpsItem[];
+    paymentReviews: PendingPaymentReviewItem[];
+    filterCounts: Array<{ id: OpsQueueFilter; label: string; count: number }>;
+    focusReviewKey: string | null;
+  },
+  filterInput?: OpsQueueFilter | null,
+): UnifiedOperationsQueue {
+  const counts = countOperationsQueueItems(base.allItems);
+  const filter = filterInput ?? defaultOperationsFilter(counts);
+  const filtered = filterOperationsQueueItems(base.allItems, filter);
 
   return {
     items: filtered,
     filter,
-    filterCounts,
-    paymentReviews,
-    focusReviewKey: focusReviewKey ?? null,
-    totalCount: items.length,
+    filterCounts: base.filterCounts,
+    paymentReviews: base.paymentReviews,
+    focusReviewKey: base.focusReviewKey,
+    totalCount: base.allItems.length,
   };
+}
+
+const buildUnifiedOperationsQueueBaseCached = cache(
+  async (
+    scopeKey: string,
+    session: AdminSession,
+    focusReviewKey: string | null | undefined,
+  ): Promise<{
+    allItems: UnifiedOpsItem[];
+    paymentReviews: PendingPaymentReviewItem[];
+    filterCounts: Array<{ id: OpsQueueFilter; label: string; count: number }>;
+    focusReviewKey: string | null;
+  }> => {
+    void scopeKey;
+    return buildUnifiedOperationsQueue(session, null, focusReviewKey);
+  },
+);
+
+/** Deduped within a single admin RSC request (layout + page). */
+export function getUnifiedOperationsQueueForRequest(
+  session: AdminSession,
+  filterInput?: OpsQueueFilter | null,
+  focusReviewKey?: string | null,
+): Promise<UnifiedOperationsQueue> {
+  return buildUnifiedOperationsQueueBaseCached(
+    adminRequestScopeKey(session),
+    session,
+    focusReviewKey ?? null,
+  ).then((base) => applyUnifiedOperationsFilter(base, filterInput));
 }
 
 /** @deprecated Use buildUnifiedOpsFilterTags from tests only — queues are assigned in row mappers. */
