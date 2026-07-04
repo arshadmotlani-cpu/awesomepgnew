@@ -20,7 +20,9 @@ import type { CheckoutSettlementStatus } from '@/src/db/schema/enums';
 import type { RefundDeductionsSnapshot } from '@/src/db/schema/residentRequests';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
-import { diffDays } from '@/src/lib/dates';
+import type { PricingSnapshot } from '@/src/db/schema/bookings';
+import type { CheckoutSource } from '@/src/lib/checkout/checkoutSource';
+import { diffDays, formatDate, parseDate, todayString } from '@/src/lib/dates';
 import { asPlainNumber } from '@/src/lib/format';
 import {
   DEPOSIT_REFUND_MISSING_DETAILS_MESSAGE,
@@ -583,6 +585,237 @@ export async function createCheckoutSettlementFromVacating(input: {
 
   scheduleAdminNotificationSync();
   return { ok: true, settlementId: created.id };
+}
+
+function monthlyRentFromBookingSnapshot(snapshot: PricingSnapshot | null): number {
+  if (!snapshot || !Array.isArray(snapshot.perBed)) return 0;
+  return snapshot.perBed.reduce((acc, bed) => acc + (bed.monthlyRatePaise ?? 0), 0);
+}
+
+async function resolveEmergencyVacatingDate(bookingId: string, fallback: string): Promise<string> {
+  const [reservationEnd] = await db.execute<{ end_date: string | null }>(sql`
+    SELECT to_char(max(upper(br.stay_range)), 'YYYY-MM-DD') AS end_date
+    FROM bed_reservations br
+    WHERE br.booking_id = ${bookingId}::uuid
+      AND br.kind = 'primary'
+  `);
+  const upper = reservationEnd?.end_date;
+  if (upper && upper !== 'infinity' && /^\d{4}-\d{2}-\d{2}$/.test(upper)) {
+    const end = parseDate(upper);
+    end.setUTCDate(end.getUTCDate() - 1);
+    return formatDate(end);
+  }
+  return fallback;
+}
+
+/**
+ * Idempotent — ensures a completed vacating row + open checkout settlement exist
+ * for admin/emergency checkouts and completed bookings missing refund artifacts.
+ */
+export async function ensureEmergencyCheckoutForBooking(input: {
+  bookingId: string;
+  customerId: string;
+  checkoutSource?: CheckoutSource;
+  resolvedByAdminId?: string | null;
+  notes?: string | null;
+}): Promise<
+  | { ok: true; settlementId: string; vacatingRequestId: string; created: boolean }
+  | { ok: false; error: string }
+> {
+  const checkoutSource = input.checkoutSource ?? 'emergency_checkout';
+
+  const [existingSettlement] = await db
+    .select({ id: checkoutSettlements.id })
+    .from(checkoutSettlements)
+    .where(
+      and(
+        eq(checkoutSettlements.bookingId, input.bookingId),
+        eq(checkoutSettlements.customerId, input.customerId),
+        sql`${checkoutSettlements.status} <> 'archived'`,
+      ),
+    )
+    .orderBy(desc(checkoutSettlements.updatedAt))
+    .limit(1);
+  if (existingSettlement) {
+    const [vr] = await db
+      .select({ id: vacatingRequests.id })
+      .from(vacatingRequests)
+      .where(eq(vacatingRequests.bookingId, input.bookingId))
+      .orderBy(desc(vacatingRequests.updatedAt))
+      .limit(1);
+    return {
+      ok: true,
+      settlementId: existingSettlement.id,
+      vacatingRequestId: vr?.id ?? '',
+      created: false,
+    };
+  }
+
+  const [booking] = await db
+    .select({
+      id: bookings.id,
+      customerId: bookings.customerId,
+      status: bookings.status,
+      depositPaise: bookings.depositPaise,
+      expectedCheckoutDate: bookings.expectedCheckoutDate,
+      createdAt: bookings.createdAt,
+      pricingSnapshot: bookings.pricingSnapshot,
+    })
+    .from(bookings)
+    .where(
+      and(eq(bookings.id, input.bookingId), eq(bookings.customerId, input.customerId)),
+    )
+    .limit(1);
+  if (!booking) return { ok: false, error: 'Booking not found.' };
+  if (booking.status !== 'confirmed' && booking.status !== 'completed') {
+    return { ok: false, error: 'Booking is not eligible for emergency checkout.' };
+  }
+
+  let vacatingRequestId: string | null = null;
+
+  const [usableVacating] = await db
+    .select({ id: vacatingRequests.id, status: vacatingRequests.status })
+    .from(vacatingRequests)
+    .where(
+      and(
+        eq(vacatingRequests.bookingId, input.bookingId),
+        inArray(vacatingRequests.status, ['approved', 'completed']),
+      ),
+    )
+    .orderBy(desc(vacatingRequests.updatedAt))
+    .limit(1);
+
+  if (usableVacating) {
+    vacatingRequestId = usableVacating.id;
+    await db
+      .update(vacatingRequests)
+      .set({
+        checkoutSettlementSuppressed: false,
+        status: 'completed',
+        resolvedAt: new Date(),
+        ...(input.resolvedByAdminId
+          ? { resolvedByAdminId: input.resolvedByAdminId }
+          : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(vacatingRequests.id, usableVacating.id));
+  } else {
+    const fallbackDate =
+      booking.expectedCheckoutDate ??
+      (await resolveEmergencyVacatingDate(input.bookingId, todayString()));
+    const noticeGivenDate = formatDate(parseDate(booking.createdAt));
+    const monthlyRent = monthlyRentFromBookingSnapshot(
+      booking.pricingSnapshot as PricingSnapshot | null,
+    );
+
+    const [createdVacating] = await db
+      .insert(vacatingRequests)
+      .values({
+        bookingId: input.bookingId,
+        customerId: input.customerId,
+        noticeGivenDate,
+        vacatingDate: fallbackDate,
+        noticeCompliant: true,
+        deductionPaise: 0,
+        depositRefundPaise: 0,
+        monthlyRentPaiseSnapshot: monthlyRent,
+        status: 'completed',
+        checkoutSettlementSuppressed: false,
+        resolvedAt: new Date(),
+        resolvedByAdminId: input.resolvedByAdminId ?? null,
+        notes:
+          input.notes ??
+          'Emergency checkout — resident removed from bed without a vacating record.',
+      })
+      .returning({ id: vacatingRequests.id });
+
+    vacatingRequestId = createdVacating.id;
+
+    await db.insert(auditLog).values({
+      actorType: input.resolvedByAdminId ? 'admin' : 'system',
+      actorId: input.resolvedByAdminId ?? null,
+      entity: 'vacating_request',
+      entityId: createdVacating.id,
+      action: 'emergency_checkout_backfill',
+      diff: {
+        bookingId: input.bookingId,
+        vacatingDate: fallbackDate,
+        checkoutSource,
+      },
+    });
+  }
+
+  const settlement = await createCheckoutSettlementFromVacating({
+    vacatingRequestId: vacatingRequestId!,
+    checkoutSource,
+  });
+  if (!settlement.ok) return { ok: false, error: settlement.error };
+
+  return {
+    ok: true,
+    settlementId: settlement.settlementId,
+    vacatingRequestId: vacatingRequestId!,
+    created: true,
+  };
+}
+
+export type RepairMissingCheckoutSettlementRow = {
+  bookingId: string;
+  bookingCode: string;
+  customerName: string;
+};
+
+/** One-time / cron repair for completed bookings with deposit but no settlement. */
+export async function repairMissingCheckoutSettlements(input?: {
+  bookingCode?: string;
+  dryRun?: boolean;
+}): Promise<{
+  scanned: number;
+  repaired: number;
+  failures: Array<{ bookingCode: string; error: string }>;
+}> {
+  const rows = await db.execute<{
+    booking_id: string;
+    booking_code: string;
+    customer_id: string;
+    customer_name: string;
+  }>(sql`
+    SELECT bk.id::text AS booking_id, bk.booking_code, bk.customer_id::text AS customer_id,
+           c.full_name AS customer_name
+    FROM bookings bk
+    INNER JOIN customers c ON c.id = bk.customer_id
+    WHERE bk.status = 'completed' AND bk.deposit_paise > 0
+      AND NOT EXISTS (
+        SELECT 1 FROM checkout_settlements cs
+        WHERE cs.booking_id = bk.id AND cs.status <> 'archived'
+      )
+      ${input?.bookingCode ? sql`AND bk.booking_code = ${input.bookingCode}` : sql``}
+    ORDER BY bk.updated_at DESC
+    LIMIT 200
+  `);
+
+  const failures: Array<{ bookingCode: string; error: string }> = [];
+  let repaired = 0;
+
+  for (const row of rows) {
+    if (input?.dryRun) {
+      repaired += 1;
+      continue;
+    }
+    const result = await ensureEmergencyCheckoutForBooking({
+      bookingId: row.booking_id,
+      customerId: row.customer_id,
+      checkoutSource: 'emergency_checkout',
+      notes: 'Repaired missing checkout settlement for completed stay.',
+    });
+    if (result.ok) {
+      repaired += 1;
+    } else {
+      failures.push({ bookingCode: row.booking_code, error: result.error });
+    }
+  }
+
+  return { scanned: rows.length, repaired, failures };
 }
 
 /** Idempotent — creates settlements for approved/completed vacating rows that pre-date f311358. */
@@ -1205,11 +1438,17 @@ export async function ensureCheckoutSettlementForBooking(input: {
 
     if (
       vacatingRow &&
-      (vacatingRow.status === 'approved' ||
-        vacatingRow.status === 'completed' ||
-        booking.status === 'completed')
+      (vacatingRow.status === 'approved' || vacatingRow.status === 'completed')
     ) {
       vacatingRequestId = vacatingRow.id;
+    } else if (booking.status === 'completed') {
+      const emergency = await ensureEmergencyCheckoutForBooking({
+        bookingId: booking.id,
+        customerId: booking.customerId,
+        checkoutSource: 'emergency_checkout',
+      });
+      if (!emergency.ok) return { ok: false, error: emergency.error };
+      return { ok: true, settlementId: emergency.settlementId };
     } else {
       const [approvedVacating] = await db
         .select({ id: vacatingRequests.id })
@@ -1225,10 +1464,7 @@ export async function ensureCheckoutSettlementForBooking(input: {
       if (!approvedVacating) {
         return {
           ok: false,
-          error:
-            booking.status === 'completed'
-              ? 'Checkout record is missing for this stay. Contact the PG office.'
-              : 'Move-out must be approved before you can request a refund.',
+          error: 'Move-out must be approved before you can request a refund.',
         };
       }
       vacatingRequestId = approvedVacating.id;

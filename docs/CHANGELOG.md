@@ -256,37 +256,20 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-04 13:22:49 UTC
+### Pending pre-commit sync · 2026-07-04 13:50:05 UTC
 
-**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Residents]], [[Bookings]], [[Vacating]]
+**Areas touched:** [[Vacating]]
 
 **Docs flagged for review:**
-- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DATABASE.md` — review for accuracy
 - `DECISIONS.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
-- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (16):**
-- `app/(admin)/admin/bookings/[bookingId]/actions.ts`
-- `app/(admin)/admin/bookings/[bookingId]/page.tsx`
-- `app/(admin)/admin/pgs/[pgId]/map/actions.ts`
-- `app/api/cron/production-data-audit/route.ts`
-- `src/db/migrations/meta/_journal.json`
-- `src/db/schema/bookings.ts`
-- `src/lib/billing/billingCycleEngine.ts`
-- `src/lib/billing/checkoutRentProration.ts`
-- `src/lib/billing/rentInvoiceBreakdown.ts`
-- `src/lib/residents/stayBillingRules.ts`
-- `src/services/billing.ts`
-- `src/services/bookingAdminOps.ts`
-- `src/services/bookingPaymentFinancialProjection.ts`
-- `src/services/bookingPaymentInvoices.ts`
-- `src/services/rentInvoices.ts`
-- `src/services/vacatingCheckoutBilling.ts`
+**Staged code files (2):**
+- `src/services/checkoutSettlement.ts`
+- `src/services/vacating.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

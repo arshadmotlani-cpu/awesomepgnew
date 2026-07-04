@@ -1360,6 +1360,7 @@ export async function adminRemoveTenantFromBed(input: {
     .select({
       id: bookings.id,
       bookingCode: bookings.bookingCode,
+      customerId: bookings.customerId,
       status: bookings.status,
       durationMode: bookings.durationMode,
     })
@@ -1476,10 +1477,13 @@ export async function adminRemoveTenantFromBed(input: {
 
   await shortenBookingReservationsToDate(booking.id, today);
 
-  const { createCheckoutSettlementFromVacating } = await import('./checkoutSettlement');
-  const settlement = await createCheckoutSettlementFromVacating({
-    vacatingRequestId: requestId,
+  const { ensureEmergencyCheckoutForBooking } = await import('./checkoutSettlement');
+  const settlement = await ensureEmergencyCheckoutForBooking({
+    bookingId: booking.id,
+    customerId: booking.customerId,
     checkoutSource: 'admin_force_checkout',
+    resolvedByAdminId: input.resolvedByAdminId,
+    notes: input.reason ?? 'Removed from bed via admin bed map',
   });
   if (!settlement.ok) {
     return { ok: false, error: settlement.error };
@@ -1504,17 +1508,10 @@ export async function adminRemoveTenantFromBed(input: {
     .set({ status: 'completed', updatedAt: new Date() })
     .where(and(eq(bookings.id, booking.id), eq(bookings.status, 'confirmed')));
 
-  const [bookingRow] = await db
-    .select({ customerId: bookings.customerId })
-    .from(bookings)
-    .where(eq(bookings.id, booking.id))
-    .limit(1);
-  if (bookingRow) {
-    await db
-      .update(customers)
-      .set({ residencyStatus: 'vacated', updatedAt: new Date() })
-      .where(eq(customers.id, bookingRow.customerId));
-  }
+  await db
+    .update(customers)
+    .set({ residencyStatus: 'vacated', updatedAt: new Date() })
+    .where(eq(customers.id, booking.customerId));
 
   await completeBookingReservations(booking.id);
   await reconcileBookingOccupancy(booking.id);
