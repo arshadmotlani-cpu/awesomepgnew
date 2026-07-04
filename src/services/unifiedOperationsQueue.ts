@@ -328,12 +328,11 @@ export async function loadUnifiedOperationsQueue(
 async function buildUnifiedOperationsQueue(
   session: AdminSession,
   _filterInput?: OpsQueueFilter | null,
-  focusReviewKey?: string | null,
+  _focusReviewKey?: string | null,
 ): Promise<{
   allItems: UnifiedOpsItem[];
   paymentReviews: PendingPaymentReviewItem[];
   filterCounts: Array<{ id: OpsQueueFilter; label: string; count: number }>;
-  focusReviewKey: string | null;
 }> {
   unifiedQueueBuildCount += 1;
   const [
@@ -391,7 +390,7 @@ async function buildUnifiedOperationsQueue(
 
   const electricityDueItems = buildCollectionsQueue({
     rentRows: [],
-    electricityRows: elecPendingRes.ok ? elecPendingRes.data : [],
+    electricityRows: elecPendingRes.ok ? (elecPendingRes.data ?? []) : [],
   });
 
   for (const row of electricityDueItems) {
@@ -494,7 +493,6 @@ async function buildUnifiedOperationsQueue(
     allItems: items,
     paymentReviews,
     filterCounts,
-    focusReviewKey: focusReviewKey ?? null,
   };
 }
 
@@ -503,9 +501,9 @@ function applyUnifiedOperationsFilter(
     allItems: UnifiedOpsItem[];
     paymentReviews: PendingPaymentReviewItem[];
     filterCounts: Array<{ id: OpsQueueFilter; label: string; count: number }>;
-    focusReviewKey: string | null;
   },
   filterInput?: OpsQueueFilter | null,
+  focusReviewKey?: string | null,
 ): UnifiedOperationsQueue {
   const counts = countOperationsQueueItems(base.allItems);
   const filter = filterInput ?? defaultOperationsFilter(counts);
@@ -516,7 +514,7 @@ function applyUnifiedOperationsFilter(
     filter,
     filterCounts: base.filterCounts,
     paymentReviews: base.paymentReviews,
-    focusReviewKey: base.focusReviewKey,
+    focusReviewKey: focusReviewKey ?? null,
     totalCount: base.allItems.length,
   };
 }
@@ -525,15 +523,13 @@ const buildUnifiedOperationsQueueBaseCached = cache(
   async (
     scopeKey: string,
     session: AdminSession,
-    focusReviewKey: string | null | undefined,
   ): Promise<{
     allItems: UnifiedOpsItem[];
     paymentReviews: PendingPaymentReviewItem[];
     filterCounts: Array<{ id: OpsQueueFilter; label: string; count: number }>;
-    focusReviewKey: string | null;
   }> => {
     void scopeKey;
-    return buildUnifiedOperationsQueue(session, null, focusReviewKey);
+    return buildUnifiedOperationsQueue(session, null, null);
   },
 );
 
@@ -546,8 +542,7 @@ export function getUnifiedOperationsQueueForRequest(
   return buildUnifiedOperationsQueueBaseCached(
     adminRequestScopeKey(session),
     session,
-    focusReviewKey ?? null,
-  ).then((base) => applyUnifiedOperationsFilter(base, filterInput));
+  ).then((base) => applyUnifiedOperationsFilter(base, filterInput, focusReviewKey ?? null));
 }
 
 let unifiedQueueBuildCount = 0;

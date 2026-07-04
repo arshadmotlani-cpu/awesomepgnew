@@ -352,7 +352,7 @@ export function toCustomerAvailabilityView(
       expectedCompletion: input.maintenanceExpectedCompletion ?? null,
       notes: input.maintenanceNotes ?? null,
     });
-    return { kind: 'maintenance', label: 'Maintenance', sublabel };
+    return { kind: 'maintenance', label: 'Under Maintenance', sublabel };
   }
 
   if (snap.adminState === 'checkout_pending') {
@@ -463,7 +463,7 @@ export function toAdminAvailabilityView(
       expectedCompletion: input.maintenanceExpectedCompletion ?? null,
       notes: input.maintenanceNotes ?? null,
     });
-    return { kind: 'maintenance', label: 'Maintenance', sublabel };
+    return { kind: 'maintenance', label: 'Under Maintenance', sublabel };
   }
   if (input.bedStatus === 'blocked') {
     return { kind: 'blocked', label: 'Blocked' };

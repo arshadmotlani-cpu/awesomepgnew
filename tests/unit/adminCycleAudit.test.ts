@@ -79,6 +79,15 @@ test('unified queue base build is cached per request', () => {
   const src = fileSrc('src/services/unifiedOperationsQueue.ts');
   assert.match(src, /buildUnifiedOperationsQueueBaseCached/);
   assert.match(src, /getUnifiedOperationsQueueForRequest/);
+  const cacheStart = src.indexOf('const buildUnifiedOperationsQueueBaseCached = cache(');
+  assert.ok(cacheStart >= 0);
+  const cacheEnd = src.indexOf('/** Deduped within a single admin RSC request', cacheStart);
+  const cacheDecl = src.slice(cacheStart, cacheEnd);
+  assert.doesNotMatch(
+    cacheDecl,
+    /focusReviewKey/,
+    'queue cache must not vary by focus — opening Review must not rebuild a different queue',
+  );
 });
 
 test('payment proof reviews are cached per request', () => {

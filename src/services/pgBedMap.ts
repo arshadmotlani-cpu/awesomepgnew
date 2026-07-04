@@ -562,20 +562,23 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
     }));
 
   const allBeds = floors.flatMap((f) => f.rooms.flatMap((r) => r.beds));
+
+  const { fetchBedOccupancyRows, resolveBedOccupancyRows } = await import(
+    '@/src/services/bedOccupancyBatch'
+  );
+  const { aggregateOccupancyCounts } = await import('@/src/lib/bedOccupancyResolve');
+  const occupancyAgg = aggregateOccupancyCounts(
+    resolveBedOccupancyRows(await fetchBedOccupancyRows({ pgId })),
+  );
+
   const summary: PgBedMapSummary = {
-    totalBeds: allBeds.length,
-    occupiedBeds: allBeds.filter((b) => b.isOccupiedToday || b.vacating).length,
-    openNowBeds: allBeds.filter((b) => b.isAvailableNow).length,
-    reservedBeds: allBeds.filter(
-      (b) =>
-        b.availability.kind === 'reserved' ||
-        b.availability.kind === 'booked' ||
-        Boolean(b.manualReservedCheckIn) ||
-        Boolean(b.bedReserveCheckIn),
-    ).length,
-    maintenanceBeds: allBeds.filter((b) => b.bedStatus === 'maintenance').length,
-    blockedBeds: allBeds.filter((b) => b.bedStatus === 'blocked').length,
-    vacatingSoon: allBeds.filter((b) => b.vacating).length,
+    totalBeds: occupancyAgg.totalBeds,
+    occupiedBeds: occupancyAgg.occupiedBeds,
+    openNowBeds: occupancyAgg.openNowBeds,
+    reservedBeds: occupancyAgg.reservedBeds,
+    maintenanceBeds: occupancyAgg.maintenanceBeds,
+    blockedBeds: occupancyAgg.blockedBeds,
+    vacatingSoon: occupancyAgg.vacatingSoon,
   };
 
   return { pgId, floors, summary };

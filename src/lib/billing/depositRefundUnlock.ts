@@ -6,6 +6,10 @@ import { normalizeIsoDateOnly, todayString, type DateLike } from '@/src/lib/date
 import { formatDate as formatDisplayDate } from '@/src/lib/format';
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
 import { isFixedStayDurationMode, isMonthlyDurationMode } from '@/src/lib/checkout/checkoutWorkflow';
+import {
+  isBookingLifecycleCheckedOut,
+  isImmediateRefundCheckoutSource,
+} from '@/src/lib/checkout/checkoutSource';
 import { computeNoticeDeduction } from '@/src/services/billing';
 
 export type DepositRefundUnlockState =
@@ -43,6 +47,7 @@ function displayDateLabel(value: string | null | undefined): string {
 type SettlementContext = {
   status: string;
   rejectionReason?: string | null;
+  checkoutSource?: string | null;
 } | null;
 
 type ResidentRequestContext = {
@@ -71,6 +76,8 @@ export function computeDepositRefundUnlockState(args: {
   monthlyRentPaise?: number;
   today?: string;
   now?: Date;
+  /** When false, resident has checked out — refund unlocks without new move-out request (CASE B). */
+  hasActiveBedToday?: boolean;
 }): DepositRefundUnlockResult {
   const today = args.today ?? todayString();
   const monthlyRent = args.monthlyRentPaise ?? 0;
@@ -79,8 +86,7 @@ export function computeDepositRefundUnlockState(args: {
 
   if (
     args.settlement?.status === 'refund_paid' ||
-    args.settlement?.status === 'completed' ||
-    (args.booking.status === 'completed' && args.vacating?.status === 'completed')
+    args.settlement?.status === 'completed'
   ) {
     return {
       state: 'paid',
@@ -144,6 +150,7 @@ export function computeDepositRefundUnlockState(args: {
 
   const checkoutDate =
     dateOnly(args.booking.expectedCheckoutDate) ?? dateOnly(args.vacating?.vacatingDate) ?? null;
+  const vacatingDate = dateOnly(args.vacating?.vacatingDate);
 
   let estimatedNoticeDeductionPaise = 0;
   const noticeGivenDate = dateOnly(args.vacating?.noticeGivenDate);
@@ -158,6 +165,23 @@ export function computeDepositRefundUnlockState(args: {
       estimatedNoticeDeductionPaise = 0;
     }
   }
+
+  const checkedOut = isBookingLifecycleCheckedOut({
+    bookingStatus: args.booking.status,
+    hasActiveBedToday: args.hasActiveBedToday,
+    checkoutSource: args.settlement?.checkoutSource,
+    settlementStatus: args.settlement?.status,
+  });
+
+  const residentStillOccupiesBed = (): boolean => {
+    if (checkedOut) return false;
+    if (args.hasActiveBedToday === true) return true;
+    if (args.hasActiveBedToday === false) return false;
+    if (args.booking.status === 'completed') return false;
+    if (args.vacating?.status === 'completed') return false;
+    if (args.vacating?.status === 'approved' && vacatingDate && today >= vacatingDate) return false;
+    return args.booking.status === 'confirmed';
+  };
 
   if (fixedStay) {
     if (args.booking.status === 'confirmed' || args.booking.status === 'completed') {
@@ -178,11 +202,36 @@ export function computeDepositRefundUnlockState(args: {
     };
   }
 
+  if (monthly && !residentStillOccupiesBed()) {
+    return {
+      state: 'unlocked',
+      canRequestRefund: true,
+      lockReason: null,
+      unlockDate: vacatingDate ?? checkoutDate,
+      estimatedNoticeDeductionPaise,
+    };
+  }
+
+  if (
+    monthly &&
+    checkedOut &&
+    isImmediateRefundCheckoutSource(args.settlement?.checkoutSource) &&
+    !args.vacating
+  ) {
+    return {
+      state: 'unlocked',
+      canRequestRefund: true,
+      lockReason: null,
+      unlockDate: checkoutDate,
+      estimatedNoticeDeductionPaise: 0,
+    };
+  }
+
   if (!args.vacating) {
     return {
       state: 'locked',
       canRequestRefund: false,
-      lockReason: 'Submit a move-out request and wait for admin approval before requesting a deposit refund.',
+      lockReason: 'Submit a move-out request first.',
       unlockDate: checkoutDate,
       estimatedNoticeDeductionPaise,
     };
@@ -200,6 +249,15 @@ export function computeDepositRefundUnlockState(args: {
   }
 
   if (args.vacating.status === 'rejected') {
+    if (!residentStillOccupiesBed()) {
+      return {
+        state: 'unlocked',
+        canRequestRefund: true,
+        lockReason: null,
+        unlockDate: vacatingDate ?? checkoutDate,
+        estimatedNoticeDeductionPaise: 0,
+      };
+    }
     return {
       state: 'rejected',
       canRequestRefund: false,
@@ -220,13 +278,13 @@ export function computeDepositRefundUnlockState(args: {
     };
   }
 
-  const vacatingDate = dateOnly(args.vacating.vacatingDate);
-  if (vacatingDate && today < vacatingDate) {
+  const vacatingDateFinal = dateOnly(args.vacating.vacatingDate);
+  if (vacatingDateFinal && today < vacatingDateFinal) {
     return {
       state: 'locked',
       canRequestRefund: false,
-      lockReason: `Request Refund unlocks on your approved move-out date (${displayDateLabel(vacatingDate)}).`,
-      unlockDate: vacatingDate,
+      lockReason: `Request Refund unlocks on your approved move-out date (${displayDateLabel(vacatingDateFinal)}).`,
+      unlockDate: vacatingDateFinal,
       estimatedNoticeDeductionPaise,
     };
   }
@@ -235,7 +293,7 @@ export function computeDepositRefundUnlockState(args: {
     state: 'unlocked',
     canRequestRefund: true,
     lockReason: null,
-    unlockDate: vacatingDate,
+    unlockDate: vacatingDateFinal,
     estimatedNoticeDeductionPaise,
   };
 }

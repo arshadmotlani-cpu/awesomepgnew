@@ -116,11 +116,13 @@ function buildNetDepositPosition(input: {
   priorBookingDeposits: PriorBookingDepositInfo[];
   priorOutstandingItems: PriorOutstandingItem[];
 }): NetDepositPosition {
-  const refundableDepositsPaise = input.priorBookingDeposits.reduce(
+  const priorBookingDeposits = input.priorBookingDeposits ?? [];
+  const priorOutstandingItems = input.priorOutstandingItems ?? [];
+  const refundableDepositsPaise = priorBookingDeposits.reduce(
     (sum, d) => sum + Math.max(0, d.refundablePaise),
     0,
   );
-  const outstandingDepositsPaise = input.priorOutstandingItems
+  const outstandingDepositsPaise = priorOutstandingItems
     .filter((item) => item.kind === 'deposit')
     .reduce((sum, item) => sum + item.amountPaise, 0);
 
@@ -164,9 +166,9 @@ export function buildBookingPaymentExplanation(input: {
     depositCreditAppliedPaise,
     depositCreditSourceBookingId,
     depositCreditSourceBookingCode,
-    priorOutstandingItems,
-    priorBookingDeposits,
   } = input;
+  const priorOutstandingItems = input.priorOutstandingItems ?? [];
+  const priorBookingDeposits = input.priorBookingDeposits ?? [];
 
   const rentDuePaise = review.rentDuePaise;
   const depositCashDuePaise = review.depositCashDuePaise;

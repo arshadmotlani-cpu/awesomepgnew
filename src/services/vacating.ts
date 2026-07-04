@@ -1474,17 +1474,64 @@ export async function adminRemoveTenantFromBed(input: {
     }
   }
 
-  const completed = await completeVacatingRequest({
-    requestId,
-    resolvedByAdminId: input.resolvedByAdminId,
+  await shortenBookingReservationsToDate(booking.id, today);
+
+  const { createCheckoutSettlementFromVacating } = await import('./checkoutSettlement');
+  const settlement = await createCheckoutSettlementFromVacating({
+    vacatingRequestId: requestId,
+    checkoutSource: 'admin_force_checkout',
   });
-  if (!completed.ok) {
-    const msg =
-      completed.kind === 'bed_not_occupied'
-        ? completed.message
-        : `Could not complete checkout (${completed.kind}).`;
-    return { ok: false, error: msg };
+  if (!settlement.ok) {
+    return { ok: false, error: settlement.error };
   }
+
+  await cancelFutureRentInvoices(booking.id, `admin force checkout ${today}`);
+  await cancelElectricityInvoicesForBooking(booking.id);
+
+  await db
+    .update(vacatingRequests)
+    .set({
+      status: 'completed',
+      depositRefundPaise: 0,
+      resolvedAt: new Date(),
+      resolvedByAdminId: input.resolvedByAdminId,
+      updatedAt: new Date(),
+    })
+    .where(eq(vacatingRequests.id, requestId));
+
+  await db
+    .update(bookings)
+    .set({ status: 'completed', updatedAt: new Date() })
+    .where(and(eq(bookings.id, booking.id), eq(bookings.status, 'confirmed')));
+
+  const [bookingRow] = await db
+    .select({ customerId: bookings.customerId })
+    .from(bookings)
+    .where(eq(bookings.id, booking.id))
+    .limit(1);
+  if (bookingRow) {
+    await db
+      .update(customers)
+      .set({ residencyStatus: 'vacated', updatedAt: new Date() })
+      .where(eq(customers.id, bookingRow.customerId));
+  }
+
+  await completeBookingReservations(booking.id);
+  await reconcileBookingOccupancy(booking.id);
+
+  await db.insert(auditLog).values({
+    actorType: 'admin',
+    actorId: input.resolvedByAdminId,
+    entity: 'booking',
+    entityId: booking.id,
+    action: 'admin_force_checkout',
+    diff: {
+      vacatingRequestId: requestId,
+      checkoutSettlementId: settlement.settlementId,
+      checkoutSource: 'admin_force_checkout',
+      reason: input.reason ?? null,
+    },
+  });
 
   return { ok: true };
 }

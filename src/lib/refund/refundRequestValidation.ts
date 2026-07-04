@@ -25,6 +25,7 @@ export type RefundRequestBookingInput = {
 export type RefundRequestSettlementInput = {
   status: string;
   rejectionReason?: string | null;
+  checkoutSource?: string | null;
 } | null;
 
 export type RefundRequestPageModel = {
@@ -65,6 +66,7 @@ export function buildRefundRequestPageModel(input: {
   vacating: VacatingForBookingRow | null;
   settlement: RefundRequestSettlementInput;
   developerTestEmail?: string | null;
+  hasActiveBedToday?: boolean;
 }): RefundRequestPageModel {
   const missingRequirements: string[] = [];
   const bookingId = input.booking.bookingId?.trim() ?? '';
@@ -110,6 +112,7 @@ export function buildRefundRequestPageModel(input: {
           : null,
       settlement: input.settlement,
       monthlyRentPaise: coerceNonNegativePaise(input.booking.monthlyRentPaise ?? 0),
+      hasActiveBedToday: input.hasActiveBedToday,
     });
   } catch {
     eligibility = {

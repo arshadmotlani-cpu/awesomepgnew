@@ -70,13 +70,20 @@ export async function fetchBedOccupancyRows(
       floorId: floors.id,
       bedStatus: beds.status,
       manualOccupied: beds.manualOccupied,
+      maintenanceReason: beds.maintenanceReason,
+      maintenanceReasonCustom: beds.maintenanceReasonCustom,
+      maintenanceStartedAt: beds.maintenanceStartedAt,
+      maintenanceExpectedCompletion: beds.maintenanceExpectedCompletion,
+      maintenanceNotes: beds.maintenanceNotes,
       isOccupiedToday: sql<boolean>`(${bedOccupiedTodayExistsSql})`,
       stayType: sql<string | null>`(
         SELECT bk.stay_type::text
         FROM ${bedReservations} br
         INNER JOIN ${bookings} bk ON bk.id = br.booking_id
         WHERE br.bed_id = beds.id
+          AND bk.status = 'confirmed'
           AND br.status = 'active'
+          AND br.kind = 'primary'
           AND ${refDate}::date <@ br.stay_range
         LIMIT 1
       )`,
@@ -85,7 +92,9 @@ export async function fetchBedOccupancyRows(
         FROM ${bedReservations} br
         INNER JOIN ${bookings} bk ON bk.id = br.booking_id
         WHERE br.bed_id = beds.id
+          AND bk.status = 'confirmed'
           AND br.status = 'active'
+          AND br.kind = 'primary'
           AND ${refDate}::date <@ br.stay_range
         LIMIT 1
       )`,
@@ -94,7 +103,9 @@ export async function fetchBedOccupancyRows(
         FROM ${bedReservations} br
         INNER JOIN ${bookings} bk ON bk.id = br.booking_id
         WHERE br.bed_id = beds.id
+          AND bk.status = 'confirmed'
           AND br.status = 'active'
+          AND br.kind = 'primary'
           AND ${refDate}::date <@ br.stay_range
         LIMIT 1
       )`,
@@ -275,6 +286,11 @@ export async function fetchBedOccupancyRows(
     asOfDate: refDate,
     isOccupiedToday: row.isOccupiedToday,
     manualOccupied: row.manualOccupied ?? false,
+    maintenanceReason: row.maintenanceReason,
+    maintenanceReasonCustom: row.maintenanceReasonCustom,
+    maintenanceStartedAt: row.maintenanceStartedAt,
+    maintenanceExpectedCompletion: row.maintenanceExpectedCompletion,
+    maintenanceNotes: row.maintenanceNotes,
     stayType: row.stayType,
     durationMode: row.durationMode,
     expectedCheckoutDate: row.expectedCheckoutDate,

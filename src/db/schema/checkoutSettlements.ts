@@ -89,6 +89,7 @@ export const checkoutSettlements = pgTable(
     depositSettlementId: uuid('deposit_settlement_id').references(() => depositSettlements.id, {
       onDelete: 'set null',
     }),
+    checkoutSource: text('checkout_source').notNull().default('resident_vacating'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

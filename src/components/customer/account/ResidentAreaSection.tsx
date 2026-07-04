@@ -648,6 +648,7 @@ export async function ResidentAreaSection({
         },
         settlement: checkoutSettlementByBooking.get(walletBooking.bookingId) ?? null,
         monthlyRentPaise: walletBooking.booking.monthlyRentPaise,
+        hasActiveBedToday: Boolean(activeTenancy?.bookingId === walletBooking.bookingId),
       })
     : { canRequestRefund: false, lockReason: 'No active booking found.' };
 

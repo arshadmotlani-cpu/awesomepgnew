@@ -23,9 +23,10 @@ export function getDepositRefundEligibility(args: {
     expectedCheckoutDate: string | null;
     createdAt: Date | string;
   } | null;
-  settlement?: { status: string; rejectionReason?: string | null } | null;
+  settlement?: { status: string; rejectionReason?: string | null; checkoutSource?: string | null } | null;
   residentRequest?: { status: string } | null;
   monthlyRentPaise?: number;
+  hasActiveBedToday?: boolean;
 }): DepositRefundEligibility {
   try {
     return computeDepositRefundEligibilitySafe(args);
@@ -48,9 +49,10 @@ function computeDepositRefundEligibilitySafe(args: {
     expectedCheckoutDate: string | null;
     createdAt: Date | string;
   } | null;
-  settlement?: { status: string; rejectionReason?: string | null } | null;
+  settlement?: { status: string; rejectionReason?: string | null; checkoutSource?: string | null } | null;
   residentRequest?: { status: string } | null;
   monthlyRentPaise?: number;
+  hasActiveBedToday?: boolean;
 }): DepositRefundEligibility {
   const bookingCreatedAt =
     args.booking?.createdAt instanceof Date
@@ -86,6 +88,7 @@ function computeDepositRefundEligibilitySafe(args: {
       residentRequest: args.residentRequest ?? null,
       monthlyRentPaise: args.monthlyRentPaise,
       today: args.today,
+      hasActiveBedToday: args.hasActiveBedToday,
     });
     return { ...depositRefundEligibilityFromUnlock(unlock), unlockState: unlock.state };
   }
@@ -117,6 +120,7 @@ function computeDepositRefundEligibilitySafe(args: {
     residentRequest: args.residentRequest ?? null,
     monthlyRentPaise: args.monthlyRentPaise ?? vacating.monthlyRentPaiseSnapshot,
     today: args.today,
+    hasActiveBedToday: args.hasActiveBedToday,
   });
   return { ...depositRefundEligibilityFromUnlock(unlock), unlockState: unlock.state };
 }

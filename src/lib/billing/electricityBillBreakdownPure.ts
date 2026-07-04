@@ -216,7 +216,7 @@ export function breakdownToInvoiceLines(
     amountPaise: m.grossTotalPaise,
   });
 
-  for (const credit of breakdown.adjustments.checkoutCredits) {
+  for (const credit of breakdown.adjustments.checkoutCredits ?? []) {
     const parts: string[] = [];
     if (credit.recoveredFromDepositPaise > 0) {
       parts.push(`₹${(credit.recoveredFromDepositPaise / 100).toFixed(0)} from deposit`);
@@ -247,7 +247,7 @@ export function breakdownToInvoiceLines(
     });
   }
 
-  for (const contribution of breakdown.previousContributions) {
+  for (const contribution of breakdown.previousContributions ?? []) {
     const label =
       contribution.kind === 'checkout_recovery'
         ? `${contribution.customerName} — recovered from checkout`

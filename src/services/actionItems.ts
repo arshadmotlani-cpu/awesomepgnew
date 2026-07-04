@@ -758,7 +758,7 @@ async function syncBookingApprovals(session: AdminSession): Promise<void> {
 
   const bookingIdsWithPaymentProof = new Set(
     paymentReviews
-      .filter((item) => item.kind === 'qr' && item.bookingId)
+      .filter((item) => item.bookingId)
       .map((item) => item.bookingId as string),
   );
 

@@ -62,9 +62,11 @@ export function dedupeOperationsQueueItems(items: UnifiedOpsItem[]): UnifiedOpsI
         ? `refund:${item.bookingId}`
         : item.queue === 'vacating_requests' && item.vacatingRequestId
           ? `vacating:${item.vacatingRequestId}`
-          : item.queue === 'waiting_for_approval' && item.paymentReviewKey
-            ? `approval:${item.paymentReviewKey}`
-            : item.id;
+          : item.queue === 'waiting_for_approval' && item.bookingId && item.paymentReviewKey?.startsWith('qr-')
+            ? `approval-booking:${item.bookingId}`
+            : item.queue === 'waiting_for_approval' && item.paymentReviewKey
+              ? `approval:${item.paymentReviewKey}`
+              : item.id;
     if (seen.has(key)) continue;
     seen.add(key);
     result.push(item);

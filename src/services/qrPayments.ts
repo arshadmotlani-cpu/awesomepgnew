@@ -152,6 +152,23 @@ export async function setPgPaymentEnabled(session: AdminSession, pgId: string, e
 export async function submitPaymentRecord(input: SubmitPaymentInput) {
   if (input.amountPaise <= 0) throw new Error('Amount must be greater than zero.');
 
+  if (input.bookingId) {
+    const [booking] = await db
+      .select({ bookingCode: bookings.bookingCode, customerId: bookings.customerId })
+      .from(bookings)
+      .where(eq(bookings.id, input.bookingId))
+      .limit(1);
+    if (!booking) throw new Error('Booking not found.');
+    if (booking.customerId !== input.customerId) throw new Error('Access denied.');
+    return submitBookingPaymentRecord({
+      bookingCode: booking.bookingCode,
+      customerId: input.customerId,
+      amountPaise: input.amountPaise,
+      paymentScreenshotUrl: input.paymentScreenshotUrl,
+      transactionRef: input.transactionRef,
+    });
+  }
+
   const linked = await customerLinkedToPg(input.customerId, input.pgId);
   if (!linked) throw new Error('You are not linked to this PG as a resident.');
 
@@ -538,7 +555,13 @@ export async function reviewPaymentRecord(
     .limit(1);
   if (!record) throw new Error('Payment record not found.');
   assertPgAccess(session, record.pgId);
-  if (record.status !== 'pending') throw new Error('Only pending payments can be reviewed.');
+
+  if (record.status === 'approved') {
+    return;
+  }
+  if (record.status !== 'pending') {
+    throw new Error('Only pending payments can be reviewed.');
+  }
 
   if (status === 'approved' && record.bookingId) {
     const [booking] = await db
@@ -554,6 +577,25 @@ export async function reviewPaymentRecord(
       .from(bookings)
       .where(eq(bookings.id, record.bookingId))
       .limit(1);
+    if (
+      booking &&
+      booking.status !== 'pending_payment' &&
+      booking.status !== 'pending_approval' &&
+      status === 'approved'
+    ) {
+      await db
+        .update(pgPaymentRecords)
+        .set({
+          status: 'approved',
+          reviewedByAdminId: session.adminId,
+          reviewedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(
+          and(eq(pgPaymentRecords.id, recordId), eq(pgPaymentRecords.status, 'pending')),
+        );
+      return;
+    }
     if (booking?.status === 'pending_payment' || booking?.status === 'pending_approval') {
       const { recordPaymentSuccess } = await import('./bookingLifecycle');
       const {
@@ -632,13 +674,24 @@ export async function reviewPaymentRecord(
       reviewedAt: new Date(),
       updatedAt: new Date(),
     })
-    .where(eq(pgPaymentRecords.id, recordId));
+    .where(and(eq(pgPaymentRecords.id, recordId), eq(pgPaymentRecords.status, 'pending')));
 
   if (status === 'approved') {
     const { trackAnalyticsEvent } = await import('./visitorAnalytics');
     void trackAnalyticsEvent({
       eventType: 'booking_approved',
       metadata: { bookingId: record.bookingId, pgId: record.pgId },
+    });
+  }
+
+  if (record.bookingId) {
+    const { resolveDuplicateBookingPaymentProofs } = await import(
+      './paymentProofReviewCleanup'
+    );
+    await resolveDuplicateBookingPaymentProofs({
+      bookingId: record.bookingId,
+      keepRecordId: recordId,
+      resolution: status,
     });
   }
 }

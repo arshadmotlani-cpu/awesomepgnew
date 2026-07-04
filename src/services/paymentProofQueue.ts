@@ -37,6 +37,7 @@ import {
 } from '@/src/lib/operations/paymentBookingContextView';
 import { titleCase } from '@/src/lib/format';
 import { formatDate as formatIsoDate } from '@/src/lib/dates';
+import { dedupePendingPaymentReviews } from '@/src/lib/operations/dedupePendingPaymentReviews';
 import { and, eq, isNull } from 'drizzle-orm';
 import { cache } from 'react';
 import { adminRequestScopeKey } from '@/src/lib/admin/adminRequestCache';
@@ -128,7 +129,9 @@ async function loadBookingReviewDetails(
     depositCreditAppliedPaise: resolveBookingDepositCreditAppliedPaise(depositCredit),
     depositCreditSourceBookingId: depositCredit?.sourceBookingId ?? null,
     depositCreditSourceBookingCode: depositCredit?.sourceBookingCode ?? null,
-    priorOutstandingItems: snapshot?.priorOutstanding?.items ?? [],
+    priorOutstandingItems: Array.isArray(snapshot?.priorOutstanding?.items)
+      ? snapshot.priorOutstanding.items
+      : [],
   };
 }
 
@@ -207,8 +210,9 @@ function buildQrReviewItem(
   p: Awaited<ReturnType<typeof listOwnerPayments>>[number],
   bookingPaymentReview: Awaited<ReturnType<typeof getQrBookingPaymentReview>> | null,
   bookingDetails: PaymentReviewBookingDetails | null,
-  priorBookingDeposits: import('@/src/services/depositCredit').PriorBookingDepositInfo[] = [],
+  priorBookingDepositsInput: import('@/src/services/depositCredit').PriorBookingDepositInfo[] | null | undefined = [],
 ): PendingPaymentReviewItem {
+  const priorBookingDeposits = priorBookingDepositsInput ?? [];
   const isBookingCheckout = Boolean(p.bookingCode);
   const paymentTypeLabel = isBookingCheckout
     ? bookingPaymentReview?.canPartialApprove
@@ -693,16 +697,16 @@ async function fetchPendingPaymentReviews(
     ]);
 
     const pgItems = await Promise.all([
-      ...rentProofs
+      ...(rentProofs ?? [])
         .filter((r) => r.paymentProofUrl)
         .map((r) => buildRentReviewItem(pg, r)),
-      ...elecProofs
+      ...(elecProofs ?? [])
         .filter((e) => e.paymentProofUrl)
         .map((e) => buildElectricityReviewItem(pg, e)),
-      ...extProofs
+      ...(extProofs ?? [])
         .filter((x) => x.paymentProofUrl)
         .map((x) => buildExtensionReviewItem(pg, x)),
-      ...depositLinks
+      ...(depositLinks ?? [])
         .filter((d) => d.paymentProofUrl)
         .map((d) => buildDepositLinkReviewItem(pg, d)),
     ]);
@@ -711,7 +715,7 @@ async function fetchPendingPaymentReviews(
     }
   }
 
-  return items;
+  return dedupePendingPaymentReviews(items);
 }
 
 const listPendingPaymentReviewsCached = cache(

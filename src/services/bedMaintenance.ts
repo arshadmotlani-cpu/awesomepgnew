@@ -1,6 +1,6 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { auditLog, bedReservations, beds, bookings, floors, pgs, rooms } from '@/src/db/schema';
+import { auditLog, beds, floors, pgs, rooms } from '@/src/db/schema';
 import type { AdminSession } from '@/src/lib/auth/session';
 import {
   BED_MAINTENANCE_REASONS,
@@ -9,7 +9,6 @@ import {
 } from '@/src/lib/bedMaintenance';
 import { todayString } from '@/src/lib/dates';
 import { assertBedAccess } from '@/src/services/bookingAdminOps';
-import { occupancyReservationCoreSql } from '@/src/lib/occupancySsot';
 
 export type PutBedUnderMaintenanceInput = {
   reason: BedMaintenanceReason;
@@ -24,19 +23,19 @@ function isValidReason(value: string): value is BedMaintenanceReason {
 }
 
 async function assertBedHasNoActiveOccupant(bedId: string): Promise<void> {
-  const [row] = await db
-    .select({ bookingId: bookings.id })
-    .from(bedReservations)
-    .innerJoin(bookings, eq(bookings.id, bedReservations.bookingId))
-    .where(
-      and(
-        eq(bedReservations.bedId, bedId),
-        sql`${occupancyReservationCoreSql}`,
-        eq(bookings.status, 'confirmed'),
-      ),
-    )
-    .limit(1);
-  if (row) {
+  const [check] = await db.execute<{ occupied: boolean }>(sql`
+    SELECT EXISTS (
+      SELECT 1
+      FROM bed_reservations br
+      INNER JOIN bookings bk ON bk.id = br.booking_id
+      WHERE br.bed_id = ${bedId}::uuid
+        AND bk.status = 'confirmed'
+        AND br.status = 'active'
+        AND br.kind = 'primary'
+        AND CURRENT_DATE <@ br.stay_range
+    ) AS occupied
+  `);
+  if (check?.occupied) {
     throw new Error('Cannot put an occupied or reserved bed under maintenance. Complete move-out first.');
   }
 }

@@ -357,6 +357,7 @@ type SettlementJoinRow = {
   approved_by_admin_id: string | null;
   refund_paid_by_admin_id: string | null;
   deposit_settlement_id: string | null;
+  checkout_source: string;
   created_at: Date;
   updated_at: Date;
   customer_name: string;
@@ -422,6 +423,7 @@ function mapDbSettlement(row: SettlementJoinRow): CheckoutSettlement {
     approvedByAdminId: row.approved_by_admin_id,
     refundPaidByAdminId: row.refund_paid_by_admin_id,
     depositSettlementId: row.deposit_settlement_id,
+    checkoutSource: row.checkout_source ?? 'resident_vacating',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -498,6 +500,7 @@ async function loadSettlementRow(
 
 export async function createCheckoutSettlementFromVacating(input: {
   vacatingRequestId: string;
+  checkoutSource?: string;
 }): Promise<{ ok: true; settlementId: string } | { ok: false; error: string }> {
   const [vr] = await db
     .select()
@@ -560,6 +563,7 @@ export async function createCheckoutSettlementFromVacating(input: {
       bookingId: vr.bookingId,
       customerId: vr.customerId,
       status: 'awaiting_resident_details',
+      checkoutSource: input.checkoutSource ?? 'resident_vacating',
       noticeRequiredDays: VACATING_NOTICE_MIN_DAYS,
       noticeGivenDays: policy.noticeGivenDays,
       noticeShortfallDays: policy.noticeShortfallDays,
@@ -877,6 +881,39 @@ export async function getCheckoutSettlementDetailForBooking(
   return buildCheckoutSettlementDetailFromJoinRow(row);
 }
 
+/** Latest non-archived settlement for refund eligibility (includes checkout source). */
+export async function getRefundEligibilitySettlementForCustomer(
+  customerId: string,
+  bookingId: string,
+): Promise<{
+  status: string;
+  rejectionReason?: string | null;
+  checkoutSource?: string | null;
+} | null> {
+  const [row] = await db
+    .select({
+      status: checkoutSettlements.status,
+      refundNotes: checkoutSettlements.refundNotes,
+      checkoutSource: checkoutSettlements.checkoutSource,
+    })
+    .from(checkoutSettlements)
+    .where(
+      and(
+        eq(checkoutSettlements.customerId, customerId),
+        eq(checkoutSettlements.bookingId, bookingId),
+        sql`${checkoutSettlements.status} <> 'archived'`,
+      ),
+    )
+    .orderBy(desc(checkoutSettlements.updatedAt))
+    .limit(1);
+  if (!row) return null;
+  return {
+    status: row.status,
+    rejectionReason: row.refundNotes,
+    checkoutSource: row.checkoutSource,
+  };
+}
+
 export async function getCheckoutSettlementForCustomer(
   customerId: string,
   bookingId: string,
@@ -1118,6 +1155,20 @@ export async function ensureCheckoutSettlementForBooking(input: {
   const existing = await getCheckoutSettlementForCustomer(input.customerId, input.bookingId);
   if (existing) return { ok: true, settlementId: existing.id };
 
+  const [existingAny] = await db
+    .select({ id: checkoutSettlements.id })
+    .from(checkoutSettlements)
+    .where(
+      and(
+        eq(checkoutSettlements.customerId, input.customerId),
+        eq(checkoutSettlements.bookingId, input.bookingId),
+        sql`${checkoutSettlements.status} <> 'archived'`,
+      ),
+    )
+    .orderBy(desc(checkoutSettlements.updatedAt))
+    .limit(1);
+  if (existingAny) return { ok: true, settlementId: existingAny.id };
+
   const [booking] = await db
     .select({
       id: bookings.id,
@@ -1145,24 +1196,43 @@ export async function ensureCheckoutSettlementForBooking(input: {
     );
     vacatingRequestId = await ensureFixedStayCheckoutPrerequisites({ id: booking.id });
   } else {
-    const [approvedVacating] = await db
-      .select({ id: vacatingRequests.id })
+    const [vacatingRow] = await db
+      .select({ id: vacatingRequests.id, status: vacatingRequests.status })
       .from(vacatingRequests)
-      .where(
-        and(
-          eq(vacatingRequests.bookingId, booking.id),
-          eq(vacatingRequests.status, 'approved'),
-        ),
-      )
+      .where(eq(vacatingRequests.bookingId, booking.id))
       .orderBy(desc(vacatingRequests.updatedAt))
       .limit(1);
-    if (!approvedVacating) {
-      return {
-        ok: false,
-        error: 'Move-out must be approved before you can request a refund.',
-      };
+
+    if (
+      vacatingRow &&
+      (vacatingRow.status === 'approved' ||
+        vacatingRow.status === 'completed' ||
+        booking.status === 'completed')
+    ) {
+      vacatingRequestId = vacatingRow.id;
+    } else {
+      const [approvedVacating] = await db
+        .select({ id: vacatingRequests.id })
+        .from(vacatingRequests)
+        .where(
+          and(
+            eq(vacatingRequests.bookingId, booking.id),
+            eq(vacatingRequests.status, 'approved'),
+          ),
+        )
+        .orderBy(desc(vacatingRequests.updatedAt))
+        .limit(1);
+      if (!approvedVacating) {
+        return {
+          ok: false,
+          error:
+            booking.status === 'completed'
+              ? 'Checkout record is missing for this stay. Contact the PG office.'
+              : 'Move-out must be approved before you can request a refund.',
+        };
+      }
+      vacatingRequestId = approvedVacating.id;
     }
-    vacatingRequestId = approvedVacating.id;
   }
 
   const created = await createCheckoutSettlementFromVacating({ vacatingRequestId });
