@@ -9,10 +9,16 @@ import {
   filterOperationsQueueItems,
 } from '@/src/lib/operations/operationsQueueDefinition';
 import {
+  assertUnifiedOperationsActiveFilterParity,
+  operationsFilterCount,
+  operationsVisibleRowCount,
+} from '@/src/lib/operations/operationsQueueCounts';
+import {
+  countVacatingOperationsQueueItems,
   mapVacatingPipelineItemToOpsItem,
   vacatingOperationsQueueTarget,
 } from '@/src/lib/operations/operationsQueueVacating';
-import type { UnifiedOpsItem } from '@/src/services/unifiedOperationsQueue';
+import type { UnifiedOperationsQueue, UnifiedOpsItem } from '@/src/services/unifiedOperationsQueue';
 import { buildMoveOutCommandStats } from '@/src/lib/moveOut/moveOutPipelineUi';
 import { toClientMoveOutPipelineItem } from '@/src/lib/moveOut/moveOutPipeline';
 
@@ -219,4 +225,178 @@ test('move-out command stats match filter-visible rows', () => {
   ).length;
   assert.equal(stats.needsAction, needsActionVisible);
   assert.equal(stats.pendingApproval, 1);
+});
+
+function mockQueue(
+  items: UnifiedOpsItem[],
+  filter: UnifiedOpsItem['queue'],
+  paymentReviews: UnifiedOperationsQueue['paymentReviews'] = [],
+): UnifiedOperationsQueue {
+  const filterCounts = buildOperationsQueueFilterCounts(items);
+  return {
+    items: filterOperationsQueueItems(items, filter),
+    filter,
+    filterCounts,
+    paymentReviews,
+    focusReviewKey: null,
+    totalCount: items.length,
+  };
+}
+
+test('active filter badge always equals visible rows for every tab', () => {
+  const items = [
+    opsItem('vacating_requests', 'm1'),
+    opsItem('vacating_requests', 'm2'),
+    opsItem('refund_due', 'r1'),
+    opsItem('kyc_review', 'k1'),
+  ];
+
+  for (const filter of [
+    'vacating_requests',
+    'refund_due',
+    'kyc_review',
+  ] as const) {
+    const queue = mockQueue(items, filter);
+    assert.equal(operationsFilterCount(queue, filter), operationsVisibleRowCount(queue));
+    assert.doesNotThrow(() => assertUnifiedOperationsActiveFilterParity(queue));
+  }
+});
+
+test('waiting for approval uses paymentReviews length not generic items', () => {
+  const queue: UnifiedOperationsQueue = {
+    items: [],
+    filter: 'waiting_for_approval',
+    filterCounts: buildOperationsQueueFilterCounts([
+      opsItem('waiting_for_approval', 'a1'),
+      opsItem('waiting_for_approval', 'a2'),
+    ]),
+    paymentReviews: [
+      {
+        key: 'qr-1',
+        kind: 'qr',
+        entityId: 'e1',
+        residentName: 'Resident',
+        title: 'Proof',
+        subtitle: 'Pending',
+        pgName: 'PG',
+        pgId: 'pg-1',
+        phone: null,
+        bookingCode: null,
+        roomNumber: null,
+        bedCode: null,
+        amountPaise: 1000,
+        paymentTypeLabel: 'Rent',
+        screenshotUrl: '/x',
+        customerId: null,
+        bookingId: null,
+        expectedLines: [],
+        expectedTotalPaise: 1000,
+        receivedPaise: 1000,
+        outstandingAfterApprovalPaise: 0,
+        overpaidPaise: 0,
+        outstandingSummary: null,
+        canPartialApprove: false,
+        canReject: true,
+        proofSubmittedAt: '2026-07-01',
+      },
+      {
+        key: 'qr-2',
+        kind: 'qr',
+        entityId: 'e2',
+        residentName: 'Resident Two',
+        title: 'Proof',
+        subtitle: 'Pending',
+        pgName: 'PG',
+        pgId: 'pg-1',
+        phone: null,
+        bookingCode: null,
+        roomNumber: null,
+        bedCode: null,
+        amountPaise: 2000,
+        paymentTypeLabel: 'Rent',
+        screenshotUrl: '/x',
+        customerId: null,
+        bookingId: null,
+        expectedLines: [],
+        expectedTotalPaise: 2000,
+        receivedPaise: 2000,
+        outstandingAfterApprovalPaise: 0,
+        overpaidPaise: 0,
+        outstandingSummary: null,
+        canPartialApprove: false,
+        canReject: true,
+        proofSubmittedAt: '2026-07-02',
+      },
+    ],
+    focusReviewKey: null,
+    totalCount: 2,
+  };
+
+  assert.equal(operationsFilterCount(queue, 'waiting_for_approval'), 2);
+  assert.equal(operationsVisibleRowCount(queue), 2);
+  assert.doesNotThrow(() => assertUnifiedOperationsActiveFilterParity(queue));
+});
+
+test('vacating move-out count matches unified visibility filters', () => {
+  const pipeline = buildMoveOutPipeline({
+    vacatingRows: [
+      {
+        ...baseVacating,
+        id: 'vr-pending',
+        vacatingDate: '2026-07-15',
+        status: 'pending',
+      },
+      {
+        ...baseVacating,
+        id: 'vr-wait',
+        customerId: 'cust-2',
+        vacatingDate: '2026-07-01',
+        status: 'approved',
+      },
+    ],
+    settlements: [
+      {
+        id: 'cs-wait',
+        vacatingRequestId: 'vr-wait',
+        status: 'awaiting_resident_details',
+        createdAt: new Date('2026-06-20'),
+        updatedAt: new Date('2026-06-20'),
+        approvedAt: null,
+        refundPaidAt: null,
+      },
+    ],
+  });
+
+  const session = {
+    kind: 'admin' as const,
+    sessionId: 'test',
+    adminId: 'admin',
+    email: 'test@test.com',
+    fullName: 'Test',
+    role: 'super_admin' as const,
+    pgScope: [],
+    mustChangePassword: false,
+    rememberMe: false,
+    expiresAt: new Date(Date.now() + 86_400_000),
+  };
+
+  const pgMap = new Map([
+    ['vr-pending', 'pg-1'],
+    ['vr-wait', 'pg-1'],
+  ]);
+
+  assert.equal(
+    countVacatingOperationsQueueItems(
+      pipeline,
+      session,
+      {
+        customerIds: new Set(),
+        bookingIds: new Set(),
+        vacatingIds: new Set(),
+        settlementIds: new Set(),
+      },
+      pgMap,
+    ),
+    1,
+  );
 });

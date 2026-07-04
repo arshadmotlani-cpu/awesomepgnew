@@ -7,6 +7,7 @@
 
 import type { AdminSession } from '@/src/lib/auth/session';
 import type { OpsQueueFilter } from '@/src/lib/operations/operationsFilterLinks';
+import { operationsFilterCount } from '@/src/lib/operations/operationsQueueCounts';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 import { getPendingPaymentReviewsForRequest } from '@/src/services/paymentProofQueue';
 import {
@@ -49,8 +50,7 @@ export async function loadApprovalQueueSnapshot(
     getUnifiedOperationsQueueForRequest(session, 'waiting_for_approval'),
   ]);
 
-  const waitingForApprovalCount =
-    queue.filterCounts.find((c) => c.id === 'waiting_for_approval')?.count ?? 0;
+  const waitingForApprovalCount = operationsFilterCount(queue, 'waiting_for_approval');
 
   return {
     allPaymentReviews,
@@ -74,7 +74,7 @@ export async function loadApprovalCounts(session: AdminSession): Promise<Approva
 
 export async function getWaitingForApprovalCount(session: AdminSession): Promise<number> {
   const queue = await getUnifiedOperationsQueueForRequest(session, 'waiting_for_approval');
-  return queue.filterCounts.find((c) => c.id === 'waiting_for_approval')?.count ?? 0;
+  return operationsFilterCount(queue, 'waiting_for_approval');
 }
 
 export async function countAllPendingPaymentReviews(session: AdminSession): Promise<number> {

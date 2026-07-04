@@ -32,6 +32,7 @@ import {
 } from '@/src/lib/approvals/paymentProofRejectionReasons';
 import { writeAuditLogNonBlocking } from '@/src/lib/audit/writeAuditLog';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
+import { PAYMENT_ALREADY_PROCESSED_MESSAGE } from '@/src/lib/operations/paymentReviewMessages';
 import { projectInvoice } from '@/src/services/rentInvoices';
 
 /** Drizzle client or transaction — pass when superseding inside an upload transaction. */
@@ -439,7 +440,7 @@ export async function rejectPaymentProof(
   session: AdminSession,
   input: RejectPaymentProofInput,
 ): Promise<
-  | { ok: true; rejectionId: string; whatsappUrl?: string }
+  | { ok: true; rejectionId: string; whatsappUrl?: string; message?: string }
   | { ok: false; message: string }
 > {
   const validation = validateRejectionInput({
@@ -467,6 +468,25 @@ export async function rejectPaymentProof(
   if (!adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, ctx.pgId)) {
     return { ok: false, message: 'Access denied.' };
   }
+
+  if (input.entityType === 'pg_payment_record') {
+    const { isBookingPaymentProofProcessed } = await import(
+      '@/src/services/paymentReviewReconciliation'
+    );
+    const { finalizeStaleBookingPaymentReview, resolvePaymentReviewArtifactsForKey } =
+      await import('@/src/services/paymentProofReviewCleanup');
+    const processed = await isBookingPaymentProofProcessed(input.entityId);
+    if (processed) {
+      await finalizeStaleBookingPaymentReview({
+        recordId: input.entityId,
+        bookingId: ctx.bookingId,
+        reviewedByAdminId: session.adminId,
+      });
+      await resolvePaymentReviewArtifactsForKey(input.reviewKey);
+      return { ok: true, rejectionId: '', message: PAYMENT_ALREADY_PROCESSED_MESSAGE };
+    }
+  }
+
   if (!ctx.hasProof) {
     return { ok: false, message: 'No payment photo uploaded.' };
   }

@@ -4,11 +4,11 @@ import {
 } from '@/src/db/queries/admin';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { operationsFilterHref } from '@/src/lib/operations/operationsFilterLinks';
+import { operationsFilterCount } from '@/src/lib/operations/operationsQueueCounts';
 import { BILLING_INVOICE_REVIEW_HREF } from '@/src/lib/approvals/approvalRegistry';
 import { buildCollectionsQueue } from '@/src/lib/billing/collectionsQueue';
 import { getWaitingForApprovalCount } from '@/src/services/approvalService';
-import { listPendingKycSubmissions } from '@/src/services/kyc';
-import { getMoveOutPipelineSnapshot } from '@/src/services/moveOutPipelineService';
+import { getUnifiedOperationsQueueForRequest } from '@/src/services/unifiedOperationsQueue';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import {
   loadBillingReconciliationSafe,
@@ -65,13 +65,15 @@ export async function loadBillingCommandCenterSnapshot(
 ): Promise<BillingCommandCenterSnapshot> {
   const billingMonth = resolveBillingMonth(billingMonthInput);
 
-  const [invoiceSnapshot, paymentReviewCount, kycPending, moveOut, billingCert] = await Promise.all([
+  const [invoiceSnapshot, paymentReviewCount, operationsQueue, billingCert] = await Promise.all([
     loadInvoiceOutstandingSnapshot(session),
     getWaitingForApprovalCount(session),
-    listPendingKycSubmissions(),
-    getMoveOutPipelineSnapshot(session),
+    getUnifiedOperationsQueueForRequest(session, null),
     loadBillingReconciliationSafe(session, billingMonth),
   ]);
+
+  const moveOutCount = operationsFilterCount(operationsQueue, 'vacating_requests');
+  const kycReviewCount = operationsFilterCount(operationsQueue, 'kyc_review');
 
   const reconciliation = billingCert.ok ? billingCert.reconciliation : null;
 
@@ -144,16 +146,16 @@ export async function loadBillingCommandCenterSnapshot(
     {
       id: 'move_outs',
       label: 'Move-outs in progress',
-      count: moveOut.activeItems.length,
-      href: '/admin/operations?filter=move_out',
-      tone: moveOut.activeItems.length > 0 ? 'warn' : 'default',
+      count: moveOutCount,
+      href: operationsFilterHref('vacating_requests'),
+      tone: moveOutCount > 0 ? 'warn' : 'default',
     },
     {
       id: 'kyc',
       label: 'KYC reviews',
-      count: kycPending.length,
-      href: '/admin/operations?filter=kyc',
-      tone: kycPending.length > 0 ? 'warn' : 'default',
+      count: kycReviewCount,
+      href: operationsFilterHref('kyc_review'),
+      tone: kycReviewCount > 0 ? 'warn' : 'default',
     },
   ];
 
@@ -170,8 +172,8 @@ export async function loadBillingCommandCenterSnapshot(
     bothDueCount,
     paymentReviewCount,
     overdueCount,
-    moveOutCount: moveOut.activeItems.length,
-    kycReviewCount: kycPending.length,
+    moveOutCount,
+    kycReviewCount,
     pendingInvoiceCount:
       rentWaiting.length + elecWaiting.length + rentInReview.length + elecInReview.length,
     totalOutstandingPaise,

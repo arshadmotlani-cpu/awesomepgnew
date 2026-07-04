@@ -15,10 +15,7 @@ import {
   countPendingPaymentReviews,
   listPendingPaymentReviews,
 } from '@/src/services/paymentProofQueue';
-import {
-  getOpenActionsCount,
-  resolveAction,
-} from '@/src/services/unresolvedActions';
+import { resolveAction } from '@/src/services/unresolvedActions';
 
 export type PaymentReviewAuditRow = {
   surface: string;
@@ -51,7 +48,7 @@ function paymentReviewSourceKeys(items: Awaited<ReturnType<typeof listPendingPay
 }
 
 async function countOpenPaymentProofReviews(session: AdminSession): Promise<number> {
-  return getOpenActionsCount(session, 'payments');
+  return getWaitingForApprovalCount(session);
 }
 
 async function collectStalePaymentReviewRows(
@@ -114,10 +111,10 @@ async function collectStalePaymentReviewRows(
 export async function resolveStalePaymentReviewArtifacts(
   session: AdminSession,
 ): Promise<{ resolvedActionItems: number; closedUnresolved: number; archivedNotifications: number }> {
-  const { cleanupOrphanPendingBookingPaymentReviews } = await import(
-    '@/src/services/paymentProofReviewCleanup'
+  const { reconcileBookingPaymentReviewQueue } = await import(
+    '@/src/services/paymentReviewReconciliation'
   );
-  await cleanupOrphanPendingBookingPaymentReviews();
+  await reconcileBookingPaymentReviewQueue();
 
   const items = await listPendingPaymentReviews(session);
   const { actionKeys, unresolvedKeys } = paymentReviewSourceKeys(items);

@@ -133,9 +133,9 @@ describe('booking payment review acceptance contract', () => {
     assert.match(lifecycle, /stateChanged: false/);
   });
 
-  test('8 — orphan cleanup runs on every queue fetch (self-heal stale rows)', () => {
+  test('8 — reconciliation self-heals on every queue fetch', () => {
     const queue = read('src/services/paymentProofQueue.ts');
-    assert.match(queue, /cleanupOrphanPendingBookingPaymentReviews/);
+    assert.match(queue, /reconcileBookingPaymentReviewQueue/);
     assert.match(queue, /isBookingCheckoutEligibleForPaymentReview/);
   });
 

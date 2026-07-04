@@ -111,6 +111,38 @@ export async function runCounterParityAudit(
     matches: billingSnapshot.paymentReviewCount === approvalCounts.waitingForApprovalVisible,
   });
 
+  rows.push({
+    metric: 'Billing move-out count',
+    overviewValue: billingSnapshot.moveOutCount,
+    destinationValue: unifiedCounts.vacating_requests ?? 0,
+    destination: 'loadUnifiedOperationsQueue.filterCounts.vacating_requests',
+    matches: billingSnapshot.moveOutCount === (unifiedCounts.vacating_requests ?? 0),
+  });
+
+  rows.push({
+    metric: 'Billing KYC review count',
+    overviewValue: billingSnapshot.kycReviewCount,
+    destinationValue: unifiedCounts.kyc_review ?? 0,
+    destination: 'loadUnifiedOperationsQueue.filterCounts.kyc_review',
+    matches: billingSnapshot.kycReviewCount === (unifiedCounts.kyc_review ?? 0),
+  });
+
+  rows.push({
+    metric: 'KYC nav badge',
+    overviewValue: navBadges.kyc ?? 0,
+    destinationValue: unifiedCounts.kyc_review ?? 0,
+    destination: 'loadUnifiedOperationsQueue.filterCounts.kyc_review',
+    matches: (navBadges.kyc ?? 0) === (unifiedCounts.kyc_review ?? 0),
+  });
+
+  rows.push({
+    metric: 'Checkout settlements nav badge',
+    overviewValue: navBadges.checkoutSettlements ?? 0,
+    destinationValue: unifiedCounts.refund_due ?? 0,
+    destination: 'loadUnifiedOperationsQueue.filterCounts.refund_due',
+    matches: (navBadges.checkoutSettlements ?? 0) === (unifiedCounts.refund_due ?? 0),
+  });
+
   const pass = rows.every((r) => r.matches);
   const mismatches = rows.filter((r) => !r.matches);
 

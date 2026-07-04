@@ -73,46 +73,16 @@ export async function finalizeStaleBookingPaymentReview(args: {
 /**
  * Remove orphan pending booking payment proofs when the booking is already past checkout review
  * or a succeeded booking payment already exists (prevents stale Operations rows).
+ * @deprecated Use reconcileBookingPaymentReviewQueue — kept for callers during migration.
  */
 export async function cleanupOrphanPendingBookingPaymentReviews(): Promise<{
   recordsFinalized: number;
 }> {
-  const orphans = await db.execute<{ id: string; booking_id: string | null }>(sql`
-    SELECT pr.id::text AS id, pr.booking_id::text AS booking_id
-    FROM pg_payment_records pr
-    LEFT JOIN bookings b ON b.id = pr.booking_id
-    WHERE pr.status = 'pending'
-      AND pr.payment_screenshot_url IS NOT NULL
-      AND trim(pr.payment_screenshot_url) <> ''
-      AND (
-        (
-          pr.booking_id IS NOT NULL
-          AND b.status IS NOT NULL
-          AND b.status NOT IN ('pending_payment', 'pending_approval', 'draft')
-        )
-        OR EXISTS (
-          SELECT 1 FROM payments p
-          WHERE p.booking_id = pr.booking_id
-            AND p.purpose = 'booking'
-            AND p.status = 'succeeded'
-        )
-        OR EXISTS (
-          SELECT 1 FROM payments p
-          WHERE p.provider = 'upi_manual'
-            AND p.provider_payment_id = 'qr_record_' || pr.id::text
-            AND p.status = 'succeeded'
-        )
-      )
-  `);
-
-  for (const row of orphans) {
-    await finalizeStaleBookingPaymentReview({
-      recordId: row.id,
-      bookingId: row.booking_id,
-    });
-  }
-
-  return { recordsFinalized: orphans.length };
+  const { reconcileBookingPaymentReviewQueue } = await import(
+    '@/src/services/paymentReviewReconciliation'
+  );
+  const report = await reconcileBookingPaymentReviewQueue();
+  return { recordsFinalized: report.finalizedStaleRecords };
 }
 
 /** Resolve sibling pending QR proofs for the same booking (keep approved/rejected record). */

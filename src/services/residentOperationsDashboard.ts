@@ -2,7 +2,7 @@ import { requireAdminSession } from '@/src/lib/auth/guards';
 import { isResidentBedAssignmentEligible } from '@/src/lib/residentBedAssignment';
 import { buildCollectionsQueue } from '@/src/lib/billing/collectionsQueue';
 import { resolveFinancialInvoiceIdMap } from '@/src/services/adminCashSettlement';
-import { vacatingOperationsQueueTarget } from '@/src/lib/operations/operationsQueueVacating';
+import { countVacatingOperationsQueueItems } from '@/src/lib/operations/operationsQueueVacating';
 import { todayString } from '@/src/lib/dates';
 import { buildResidentOperationsDashboard } from '@/src/lib/residents/residentOperationsDashboard';
 import {
@@ -162,9 +162,16 @@ export async function loadResidentOperationsDashboard(session: AdminSession) {
       pgName: v.pgName,
     }));
 
-  const moveOutOpsCount = moveOutPipeline.activeItems.filter(
-    (item) => vacatingOperationsQueueTarget(item) === 'vacating_requests',
-  ).length;
+  const vacatingPgByRequestId = new Map(
+    (vacatingRes.ok ? vacatingRes.data : []).map((v) => [v.id, v.pgId ?? null]),
+  );
+
+  const moveOutOpsCount = countVacatingOperationsQueueItems(
+    moveOutPipeline.activeItems,
+    session,
+    dismissalIndex,
+    vacatingPgByRequestId,
+  );
 
   const dashboard = buildResidentOperationsDashboard({
     unpaidBilling: collectionsQueue.filter(

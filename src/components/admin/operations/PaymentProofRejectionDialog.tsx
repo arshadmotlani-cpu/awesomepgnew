@@ -91,6 +91,9 @@ export function PaymentProofRejectionDialog({ item, open, onClose, onRejected }:
         setError(result.message ?? 'Rejection failed.');
         return;
       }
+      if (result.message) {
+        setError(result.message);
+      }
       onRejected({ nextKey: result.nextKey, whatsappUrl: result.whatsappUrl });
       if (result.whatsappUrl && sendWhatsApp) {
         window.open(result.whatsappUrl, '_blank', 'noopener,noreferrer');

@@ -127,7 +127,7 @@ export type RejectPaymentProofActionInput = {
 export async function rejectPaymentProofAction(
   input: RejectPaymentProofActionInput,
 ): Promise<
-  | { ok: true; nextKey?: string | null; whatsappUrl?: string }
+  | { ok: true; nextKey?: string | null; whatsappUrl?: string; message?: string }
   | { ok: false; message: string }
 > {
   const session = await requireAdminPermission('payments:write');
@@ -152,7 +152,7 @@ export async function rejectPaymentProofAction(
     revalidatePath('/admin/residents');
   }
   const nextKey = await getNextPendingPaymentReviewKey(session, input.reviewKey);
-  return { ok: true, nextKey, whatsappUrl: result.whatsappUrl };
+  return { ok: true, nextKey, whatsappUrl: result.whatsappUrl, message: result.message };
 }
 
 export async function approveRentProofAction(

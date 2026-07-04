@@ -38,7 +38,8 @@ import {
 import { titleCase } from '@/src/lib/format';
 import { formatDate as formatIsoDate } from '@/src/lib/dates';
 import { dedupePendingPaymentReviews } from '@/src/lib/operations/dedupePendingPaymentReviews';
-import { isBookingCheckoutEligibleForPaymentReview } from '@/src/lib/operations/paymentReviewEligibility';
+import { isBookingCheckoutEligibleForPaymentReview } from '@/src/lib/operations/paymentReviewSsot';
+import { reconcileBookingPaymentReviewQueue } from '@/src/services/paymentReviewReconciliation';
 import { and, eq, isNull } from 'drizzle-orm';
 import { cache } from 'react';
 import { adminRequestScopeKey } from '@/src/lib/admin/adminRequestCache';
@@ -660,10 +661,7 @@ async function fetchPendingPaymentReviews(
 ): Promise<PendingPaymentReviewItem[]> {
   paymentReviewFetchCount += 1;
 
-  const { cleanupOrphanPendingBookingPaymentReviews } = await import(
-    '@/src/services/paymentProofReviewCleanup'
-  );
-  await cleanupOrphanPendingBookingPaymentReviews();
+  await reconcileBookingPaymentReviewQueue();
 
   const items: PendingPaymentReviewItem[] = [];
 
@@ -674,14 +672,15 @@ async function fetchPendingPaymentReviews(
       qrRows
         .filter((p) => p.paymentScreenshotUrl?.trim())
         .map(async (p) => {
-          const isBookingCheckout = Boolean(p.bookingCode);
+          const isBookingCheckout = Boolean(p.bookingCode || p.bookingId);
           const bookingDetails = p.bookingId ? await loadBookingReviewDetails(p.bookingId) : null;
-          if (
-            isBookingCheckout &&
-            bookingDetails?.bookingStatus &&
-            !isBookingCheckoutEligibleForPaymentReview(bookingDetails.bookingStatus)
-          ) {
-            return null;
+          if (isBookingCheckout && p.bookingId) {
+            if (
+              !bookingDetails?.bookingStatus ||
+              !isBookingCheckoutEligibleForPaymentReview(bookingDetails.bookingStatus)
+            ) {
+              return null;
+            }
           }
           const bookingPaymentReview =
             isBookingCheckout && p.bookingId ? await getQrBookingPaymentReview(p.id) : null;

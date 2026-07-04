@@ -1,10 +1,16 @@
 /**
  * Vacating / move-out eligibility for the Operations action center — shared by badges and rows.
  */
+import { adminCanAccessPg } from '@/src/lib/auth/roles';
+import type { AdminSession } from '@/src/lib/auth/session';
 import type { MoveOutPipelineItem } from '@/src/lib/moveOut/moveOutPipeline';
 import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import { isStaleZeroRefundSettlement } from '@/src/lib/residents/checkoutOpsQueueCopy';
 import type { UnifiedOpsItem } from '@/src/services/unifiedOperationsQueue';
+import {
+  isDismissedFromOperationsQueue,
+  type OperationsQueueDismissalIndex,
+} from '@/src/services/operationsQueueDismissals';
 
 export function isTerminalVacatingPipelineItem(
   item: Pick<MoveOutPipelineItem, 'stage' | 'vacatingStatus' | 'settlementStatus'>,
@@ -54,6 +60,45 @@ export function vacatingOperationsQueueTarget(
   }
 
   return null;
+}
+
+/** Same visibility rules as `buildUnifiedOperationsQueue` vacating rows (Move-out tab only). */
+export function isVacatingPipelineItemVisibleInOperationsQueue(
+  item: MoveOutPipelineItem,
+  session: AdminSession,
+  dismissalIndex: OperationsQueueDismissalIndex,
+  pgId: string | null,
+): boolean {
+  if (vacatingOperationsQueueTarget(item) !== 'vacating_requests') return false;
+  if (
+    isDismissedFromOperationsQueue(dismissalIndex, {
+      customerId: item.customerId,
+      bookingId: item.bookingId,
+      vacatingRequestId: item.vacatingRequestId,
+    })
+  ) {
+    return false;
+  }
+  if (pgId && !adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, pgId)) {
+    return false;
+  }
+  return true;
+}
+
+export function countVacatingOperationsQueueItems(
+  activeItems: MoveOutPipelineItem[],
+  session: AdminSession,
+  dismissalIndex: OperationsQueueDismissalIndex,
+  vacatingPgByRequestId: Map<string, string | null>,
+): number {
+  return activeItems.filter((item) =>
+    isVacatingPipelineItemVisibleInOperationsQueue(
+      item,
+      session,
+      dismissalIndex,
+      vacatingPgByRequestId.get(item.vacatingRequestId) ?? null,
+    ),
+  ).length;
 }
 
 export function mapVacatingPipelineItemToOpsItem(

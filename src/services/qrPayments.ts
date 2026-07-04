@@ -12,7 +12,7 @@ import {
   pgs,
   rooms,
 } from '@/src/db/schema';
-import { isBookingCheckoutEligibleForPaymentReview } from '@/src/lib/operations/paymentReviewEligibility';
+import { isBookingCheckoutEligibleForPaymentReview } from '@/src/lib/operations/paymentReviewSsot';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { RENT_DEPOSIT_BOOKING_CATEGORY_NAME } from '@/src/lib/payments/defaultQr';

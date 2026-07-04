@@ -21,6 +21,10 @@ import {
   filterOperationsQueueItems,
 } from '@/src/lib/operations/operationsQueueDefinition';
 import {
+  assertUnifiedOperationsActiveFilterParity,
+  recomputeOperationsFilterCounts,
+} from '@/src/lib/operations/operationsQueueCounts';
+import {
   defaultOperationsFilter,
   operationsFilterHref,
   parseOperationsFilter,
@@ -38,6 +42,8 @@ import { listPipelineCheckoutSettlements } from '@/src/services/checkoutSettleme
 import { getPendingPaymentReviewsForRequest } from '@/src/services/paymentProofQueue';
 import { loadMoveOutPipelineBundle } from '@/src/services/moveOutPipelineService';
 import { loadResidentOperationsResidentsPage } from '@/src/services/residentOperationsResidentsPage';
+import { repairTerminalCheckoutOperations } from '@/src/services/terminalCheckoutOperationsRepair';
+import { resolveTerminalCheckoutUnresolvedActions } from '@/src/services/unresolvedActionSync';
 import { cache } from 'react';
 import { adminRequestScopeKey } from '@/src/lib/admin/adminRequestCache';
 
@@ -335,6 +341,11 @@ async function buildUnifiedOperationsQueue(
   filterCounts: Array<{ id: OpsQueueFilter; label: string; count: number }>;
 }> {
   unifiedQueueBuildCount += 1;
+
+  // Close terminal checkout rows that still inflate vacating / refund queue counts.
+  await repairTerminalCheckoutOperations();
+  await resolveTerminalCheckoutUnresolvedActions();
+
   const [
     residentsPage,
     bookingApprovals,
@@ -505,18 +516,23 @@ function applyUnifiedOperationsFilter(
   filterInput?: OpsQueueFilter | null,
   focusReviewKey?: string | null,
 ): UnifiedOperationsQueue {
+  const filterCounts = recomputeOperationsFilterCounts(base.allItems);
   const counts = countOperationsQueueItems(base.allItems);
+  assertOperationsQueueParity(base.allItems, counts);
   const filter = filterInput ?? defaultOperationsFilter(counts);
   const filtered = filterOperationsQueueItems(base.allItems, filter);
 
-  return {
+  const queue: UnifiedOperationsQueue = {
     items: filtered,
     filter,
-    filterCounts: base.filterCounts,
+    filterCounts,
     paymentReviews: base.paymentReviews,
     focusReviewKey: focusReviewKey ?? null,
     totalCount: base.allItems.length,
   };
+
+  assertUnifiedOperationsActiveFilterParity(queue);
+  return queue;
 }
 
 const buildUnifiedOperationsQueueBaseCached = cache(
