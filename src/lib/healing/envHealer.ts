@@ -82,9 +82,9 @@ export function assertProductionBootSecrets(): void {
     missing.push('BLOB_READ_WRITE_TOKEN (private blob)');
   }
 
-  const provider = (process.env.PAYMENT_PROVIDER ?? 'mock').toLowerCase();
-  if (provider === 'mock') {
-    missing.push('PAYMENT_PROVIDER must not be mock in production');
+  const provider = (process.env.PAYMENT_PROVIDER ?? '').trim().toLowerCase();
+  if (!provider) {
+    missing.push('PAYMENT_PROVIDER (mock or razorpay)');
   } else if (provider === 'razorpay') {
     if (!process.env.RAZORPAY_KEY_ID?.trim()) missing.push('RAZORPAY_KEY_ID');
     if (!process.env.RAZORPAY_KEY_SECRET?.trim()) missing.push('RAZORPAY_KEY_SECRET');

@@ -39,15 +39,14 @@ function paymentProvider(): PaymentProvider {
   const fallback = isProd ? '' : 'mock';
   const raw = (process.env.PAYMENT_PROVIDER ?? fallback).toLowerCase();
   if (!raw) {
-    throw new Error('PAYMENT_PROVIDER is required in production (use razorpay).');
+    throw new Error(
+      'PAYMENT_PROVIDER is required in production (mock = QR screenshot + admin approval, or razorpay).',
+    );
   }
   if (raw !== 'mock' && raw !== 'razorpay') {
     throw new Error(
       `PAYMENT_PROVIDER must be "mock" or "razorpay", got "${process.env.PAYMENT_PROVIDER}"`,
     );
-  }
-  if (isProd && raw === 'mock') {
-    throw new Error('PAYMENT_PROVIDER=mock is not allowed in production.');
   }
   return raw as PaymentProvider;
 }
