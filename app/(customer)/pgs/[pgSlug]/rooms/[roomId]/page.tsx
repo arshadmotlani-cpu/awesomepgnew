@@ -17,7 +17,6 @@ import { getRoomDetail } from '@/src/db/queries/customer';
 import { getCustomerSession } from '@/src/lib/auth/session';
 import { enrichBedsWithQuotedMonthlyDeposit } from '@/src/lib/booking/publicQuote';
 import { displayMonthlyDepositPaise } from '@/src/lib/customerDepositDisplay';
-import { isPublicAlwaysOccupiedPg } from '@/src/lib/publicPgAvailabilityOverrides';
 import { getRoomActivityStats, recordRoomPageView } from '@/src/services/roomActivity';
 import { trackAnalyticsEvent } from '@/src/services/visitorAnalytics';
 
@@ -44,7 +43,6 @@ export default async function RoomDetailPage(
     notFound();
   }
   const room = detail.data;
-  const forceOccupied = isPublicAlwaysOccupiedPg({ pgSlug: room.pgSlug, pgName: room.pgName });
 
   const [session, reqHeaders, activity] = await Promise.all([
     getCustomerSession(),
@@ -66,22 +64,21 @@ export default async function RoomDetailPage(
   const beds: BedSelectorBed[] = room.beds.map((b) => ({
     bedId: b.bedId,
     bedCode: b.bedCode,
-    forcePublicOccupied: forceOccupied,
     status: b.status,
-    isAvailableNow: forceOccupied ? false : b.isAvailableNow,
-    isOccupiedToday: forceOccupied ? true : b.isOccupiedToday,
-    nextAvailableDate: forceOccupied ? null : b.nextAvailableDate,
+    isAvailableNow: b.isAvailableNow,
+    isOccupiedToday: b.isOccupiedToday,
+    nextAvailableDate: b.nextAvailableDate,
     interestCount: b.interestCount,
     noticeInterestCount: b.noticeInterestCount,
-    vacatingDate: forceOccupied ? null : (b.vacatingDate ?? null),
+    vacatingDate: b.vacatingDate ?? null,
     vacatingStatus: b.vacatingStatus ?? null,
-    reservedFrom: forceOccupied ? null : (b.reservedFrom ?? null),
-    activeBedReserveCheckIn: forceOccupied ? null : (b.activeBedReserveCheckIn ?? null),
-    manualOccupied: forceOccupied ? true : (b.manualOccupied ?? false),
-    stayType: forceOccupied ? null : (b.stayType ?? null),
-    durationMode: forceOccupied ? null : (b.durationMode ?? null),
-    expectedCheckoutDate: forceOccupied ? null : (b.expectedCheckoutDate ?? null),
-    checkoutSettlement: forceOccupied ? null : (b.checkoutSettlement ?? null),
+    reservedFrom: b.reservedFrom ?? null,
+    activeBedReserveCheckIn: b.activeBedReserveCheckIn ?? null,
+    manualOccupied: b.manualOccupied ?? false,
+    stayType: b.stayType ?? null,
+    durationMode: b.durationMode ?? null,
+    expectedCheckoutDate: b.expectedCheckoutDate ?? null,
+    checkoutSettlement: b.checkoutSettlement ?? null,
     dailyRatePaise: b.dailyRatePaise,
     weeklyRatePaise: b.weeklyRatePaise,
     monthlyRatePaise: b.monthlyRatePaise,

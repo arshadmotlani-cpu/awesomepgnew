@@ -47,7 +47,7 @@ import { ResidentConciergeChat } from '@/src/components/customer/account/Residen
 import { ResidentHubShell } from '@/src/components/customer/account/ResidentHubShell';
 import type { ConciergeContext } from '@/src/lib/concierge/answers';
 import type { ResidentTab, ResidentProfileSub, ResidentPaymentsSub } from '@/src/lib/accountNavigation';
-import { getCheckoutSettlementForCustomer, getLatestCheckoutSettlementStatusForCustomer } from '@/src/services/checkoutSettlement';
+import { getCheckoutSettlementForCustomer, getLatestCheckoutSettlementStatusForCustomer, getRefundEligibilitySettlementForCustomer } from '@/src/services/checkoutSettlement';
 import { getLatestKycSubmission } from '@/src/services/kyc';
 import type { PaidHistoryRow } from '@/src/components/customer/account/resident/ResidentPaymentsV2Hub';
 import type { PaymentDueRow } from '@/src/components/customer/account/resident/ResidentPaymentsPanel';
@@ -495,9 +495,18 @@ export async function ResidentAreaSection({
   const checkoutByBooking = new Map<string, string>();
   const checkoutSettlementByBooking = new Map<
     string,
-    { status: string; rejectionReason?: string | null }
+    { status: string; rejectionReason?: string | null; checkoutSource?: string | null }
   >();
   for (const d of detail) {
+    const eligibilitySettlement = await getRefundEligibilitySettlementForCustomer(
+      session.customerId,
+      d.bookingId,
+    );
+    if (eligibilitySettlement) {
+      checkoutSettlementByBooking.set(d.bookingId, eligibilitySettlement);
+      checkoutByBooking.set(d.bookingId, eligibilitySettlement.status);
+      continue;
+    }
     const openSettlement = await getCheckoutSettlementForCustomer(
       session.customerId,
       d.bookingId,
@@ -507,6 +516,7 @@ export async function ResidentAreaSection({
       checkoutSettlementByBooking.set(d.bookingId, {
         status: openSettlement.status,
         rejectionReason: openSettlement.refundNotes,
+        checkoutSource: openSettlement.checkoutSource,
       });
       continue;
     }

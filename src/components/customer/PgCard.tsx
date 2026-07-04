@@ -22,6 +22,9 @@ export type PgCardData = {
   heroImage: string | null;
   totalBeds: number;
   availableBeds: number;
+  occupiedBeds?: number;
+  reservedBeds?: number;
+  maintenanceBeds?: number;
   startingFromPaise: number;
   hasPaymentEnabled?: boolean;
 };
@@ -33,6 +36,16 @@ export function PgCard({
   pg: PgCardData;
   uploadScreenshot?: (formData: FormData) => Promise<string>;
 }) {
+  const occupied = pg.occupiedBeds ?? Math.max(0, pg.totalBeds - pg.availableBeds);
+  const reserved = pg.reservedBeds ?? 0;
+  const maintenance = pg.maintenanceBeds ?? 0;
+  const availabilityBadge =
+    pg.totalBeds > 0 && pg.availableBeds === 0
+      ? maintenance > 0 && occupied + reserved === 0
+        ? `${maintenance} under maintenance`
+        : 'Fully occupied · no beds'
+      : `${pg.availableBeds} of ${pg.totalBeds} beds free today`;
+
   return (
     <motion.div whileHover={{ y: -6, scale: 1.01 }} transition={{ type: 'spring', stiffness: 320, damping: 24 }} className="apg-glass overflow-hidden rounded-2xl">
       <Link
@@ -58,9 +71,7 @@ export function PgCard({
             <GenderBadge policy={pg.genderPolicy} />
           </div>
           <div className="absolute right-3 top-3 rounded-full border border-white/10 bg-black/50 px-2 py-0.5 text-[11px] font-semibold text-apg-silver backdrop-blur">
-            {pg.totalBeds > 0 && pg.availableBeds === 0
-              ? 'Fully occupied · no beds'
-              : `${pg.availableBeds} of ${pg.totalBeds} beds free today`}
+            {availabilityBadge}
           </div>
           <PgFavoriteButton pgSlug={pg.slug} pgName={pg.name} />
         </div>
@@ -80,6 +91,14 @@ export function PgCard({
           ) : null}
 
           <AmenityList amenities={pg.amenities} />
+
+          {pg.totalBeds > 0 && (reserved > 0 || maintenance > 0) ? (
+            <p className="text-[11px] text-apg-silver/80">
+              {pg.availableBeds} available · {occupied} occupied
+              {reserved > 0 ? ` · ${reserved} reserved` : ''}
+              {maintenance > 0 ? ` · ${maintenance} under maintenance` : ''}
+            </p>
+          ) : null}
 
           <div className="mt-auto flex items-end justify-between border-t border-white/5 pt-3">
             <div>

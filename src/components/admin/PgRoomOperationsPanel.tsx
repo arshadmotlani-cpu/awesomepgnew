@@ -44,12 +44,19 @@ export function PgRoomOperationsPanel({
   beds,
   roomMeters,
   blobUploadConfigured,
+  availabilitySummary,
 }: {
   pgId: string;
   floors: FloorRow[];
   beds: PgInventoryBedRow[];
   roomMeters: RoomMeterData[];
   blobUploadConfigured: boolean;
+  availabilitySummary?: {
+    availableBeds: number;
+    occupiedBeds: number;
+    reservedBeds: number;
+    maintenanceBeds: number;
+  };
 }) {
   const [showAddBed, setShowAddBed] = useState(beds.length === 0);
 
@@ -100,7 +107,11 @@ export function PgRoomOperationsPanel({
     );
   }, [beds, roomMeters, floors]);
 
-  const availableCount = beds.filter((b) => b.bedStatus === 'available').length;
+  const availableCount =
+    availabilitySummary?.availableBeds ??
+    beds.filter((b) => b.bedStatus === 'available').length;
+  const occupiedCount = availabilitySummary?.occupiedBeds ?? null;
+  const maintenanceCount = availabilitySummary?.maintenanceBeds ?? null;
 
   return (
     <section
@@ -135,6 +146,16 @@ export function PgRoomOperationsPanel({
         <Stat label="Beds" value={beds.length} />
         <Stat label="Available beds" value={availableCount} highlight />
       </div>
+      {occupiedCount != null || maintenanceCount != null ? (
+        <p className="text-xs text-zinc-500">
+          SSOT today: {availableCount} available
+          {occupiedCount != null ? ` · ${occupiedCount} occupied` : ''}
+          {availabilitySummary?.reservedBeds ? ` · ${availabilitySummary.reservedBeds} reserved` : ''}
+          {maintenanceCount != null && maintenanceCount > 0
+            ? ` · ${maintenanceCount} under maintenance`
+            : ''}
+        </p>
+      ) : null}
 
       <div className="rounded-xl border border-zinc-800">
         <button

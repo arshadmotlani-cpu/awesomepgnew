@@ -105,13 +105,37 @@ describe('depositRefundUnlock CASE A / CASE B', () => {
         monthlyRentPaiseSnapshot: 120_000,
         createdAt: new Date('2026-06-20'),
       },
-      settlement: { status: 'awaiting_resident_details' },
+      settlement: {
+        status: 'awaiting_resident_details',
+        checkoutSource: 'admin_force_checkout',
+      },
       residentRequest: null,
       hasActiveBedToday: false,
       today: '2026-07-02',
     });
     assert.equal(unlock.canRequestRefund, true);
     assert.equal(unlock.state, 'unlocked');
+  });
+
+  test('CASE B — emergency checkout with settlement unlocks without vacating row', () => {
+    const unlock = computeDepositRefundUnlockState({
+      booking: {
+        status: 'completed',
+        durationMode: 'monthly',
+        expectedCheckoutDate: '2026-07-01',
+        createdAt: new Date('2026-01-01'),
+      },
+      vacating: null,
+      settlement: {
+        status: 'awaiting_resident_details',
+        checkoutSource: 'emergency_checkout',
+      },
+      residentRequest: null,
+      hasActiveBedToday: false,
+      today: '2026-07-02',
+    });
+    assert.equal(unlock.canRequestRefund, true);
+    assert.equal(unlock.lockReason, null);
   });
 });
 

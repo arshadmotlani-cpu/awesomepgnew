@@ -38,7 +38,7 @@ import { classifyDatabaseError } from '@/src/lib/db/connectionOptions';
 import { getDatabaseHost, getDatabaseUrlSource } from '@/src/lib/db/env';
 import { todayString } from '@/src/lib/dates';
 import { resolveBedOccupancy } from '@/src/lib/bedOccupancyResolve';
-import { getOccupancyCountsByPg, getOccupancyCountsByRoom } from '@/src/services/bedOccupancyBatch';
+import { getPgAvailabilitySummaries, getRoomAvailabilitySummaries } from '@/src/services/availabilityService';
 import { logger } from '@/src/lib/logger';
 import { safeQuery } from '@/src/lib/healing/safeQuery';
 import { traceQuery } from '@/src/lib/monitoring/traceQuery';
@@ -97,6 +97,9 @@ export type CustomerPgListRow = {
   heroImage: string | null;
   totalBeds: number;
   availableBeds: number;
+  occupiedBeds: number;
+  reservedBeds: number;
+  maintenanceBeds: number;
   startingFromPaise: number;
   hasPaymentEnabled: boolean;
 };
@@ -153,7 +156,7 @@ export function listPublicPgs(): Promise<QueryResult<CustomerPgListRow[]>> {
       .where(and(sql`${pgs.archivedAt} IS NULL`, eq(pgs.isActive, true)));
 
     const pgIds = rows.map((r) => r.id);
-    const countsByPg = await getOccupancyCountsByPg(pgIds);
+    const countsByPg = await getPgAvailabilitySummaries(pgIds);
 
     const result = sortPublicPgs(
       rows.map((r) => {
@@ -176,7 +179,10 @@ export function listPublicPgs(): Promise<QueryResult<CustomerPgListRow[]>> {
           description: r.description,
           heroImage: Array.isArray(r.images) && r.images.length > 0 ? r.images[0] : null,
           totalBeds: r.totalBeds,
-          availableBeds: counts?.openNowBeds ?? 0,
+          availableBeds: counts?.availableBeds ?? 0,
+          occupiedBeds: counts?.occupiedBeds ?? 0,
+          reservedBeds: counts?.reservedBeds ?? 0,
+          maintenanceBeds: counts?.maintenanceBeds ?? 0,
           startingFromPaise: r.startingFromPaise,
           hasPaymentEnabled: r.hasPaymentEnabled,
           displayOrder: presented.displayOrder,
@@ -346,10 +352,10 @@ export function listRoomsForPg(
       .orderBy(asc(floors.floorNumber), asc(rooms.roomNumber));
 
     const roomIds = rows.map((r) => r.roomId);
-    const countsByRoom = await getOccupancyCountsByRoom(roomIds, refDate);
+    const countsByRoom = await getRoomAvailabilitySummaries(roomIds, refDate);
     return rows.map((r) => ({
       ...r,
-      availableBeds: countsByRoom.get(r.roomId)?.openNowBeds ?? 0,
+      availableBeds: countsByRoom.get(r.roomId)?.availableBeds ?? 0,
     }));
   });
 }
@@ -456,6 +462,11 @@ export function getRoomDetail(
         bedCode: beds.bedCode,
         status: beds.status,
         manualOccupied: beds.manualOccupied,
+        maintenanceReason: beds.maintenanceReason,
+        maintenanceReasonCustom: beds.maintenanceReasonCustom,
+        maintenanceStartedAt: beds.maintenanceStartedAt,
+        maintenanceExpectedCompletion: beds.maintenanceExpectedCompletion,
+        maintenanceNotes: beds.maintenanceNotes,
         // Correlated references to the outer `beds.id` / `beds.status` are
         // qualified literals to avoid the ambiguity bug — see the note in
         // listPublicPgs above.
@@ -746,6 +757,11 @@ export function getRoomDetail(
           asOfDate: refDate,
           isOccupiedToday: row.isOccupiedToday,
           manualOccupied: row.manualOccupied ?? false,
+          maintenanceReason: row.maintenanceReason,
+          maintenanceReasonCustom: row.maintenanceReasonCustom,
+          maintenanceStartedAt: row.maintenanceStartedAt,
+          maintenanceExpectedCompletion: row.maintenanceExpectedCompletion,
+          maintenanceNotes: row.maintenanceNotes,
           stayType: row.stayType,
           durationMode: row.durationMode,
           expectedCheckoutDate: row.expectedCheckoutDate,

@@ -24,13 +24,13 @@ test('maintenance bed is not occupied and not bookable', () => {
 
   const admin = toAdminAvailabilityView(input, snap);
   assert.equal(admin.kind, 'maintenance');
-  assert.equal(admin.label, 'Maintenance');
+  assert.equal(admin.label, 'Under Maintenance');
   assert.match(admin.sublabel ?? '', /Plumbing/);
   assert.match(admin.sublabel ?? '', /Since/);
 
   const customer = toCustomerAvailabilityView(input, snap);
   assert.equal(customer.kind, 'maintenance');
-  assert.equal(customer.label, 'Maintenance');
+  assert.equal(customer.label, 'Under Maintenance');
 });
 
 test('formatMaintenanceReason resolves presets and custom other', () => {

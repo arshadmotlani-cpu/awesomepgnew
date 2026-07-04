@@ -16,9 +16,6 @@ import { BedStateTile, type BedVisualState } from '@/src/components/customer/des
 import { BOOK_THIS_BED, HOLD_THIS_BED } from '@/src/lib/booking/bookingFunnelLabels';
 
 function bedAvailability(bed: BedSelectorBed) {
-  if (bed.forcePublicOccupied) {
-    return { kind: 'occupied' as const, label: 'Occupied' };
-  }
   return deriveCustomerBedAvailabilityView({
     bedStatus: bed.status,
     isAvailableNow: bed.isAvailableNow,
@@ -40,7 +37,6 @@ function bedAvailability(bed: BedSelectorBed) {
 }
 
 export function canBookBed(bed: BedSelectorBed): boolean {
-  if (bed.forcePublicOccupied) return false;
   return resolveBedOccupancy({
     bedId: bed.bedId,
     bedStatus: bed.status,

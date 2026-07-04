@@ -32,7 +32,7 @@ const LEGEND = [
   { label: 'Occupied', kind: 'occupied' as const },
   { label: 'Booked', kind: 'booked' as const },
   { label: 'Available soon', kind: 'pre_bookable' as const },
-  { label: 'Maintenance', kind: 'maintenance' as const },
+  { label: 'Under Maintenance', kind: 'maintenance' as const },
 ];
 
 function RoomBedCard({

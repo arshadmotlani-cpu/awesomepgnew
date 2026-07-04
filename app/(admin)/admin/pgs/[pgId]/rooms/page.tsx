@@ -4,6 +4,7 @@ import { MarkPgFullyOccupiedButton } from '@/src/components/admin/MarkPgFullyOcc
 import { PgRoomOperationsPanel } from '@/src/components/admin/PgRoomOperationsPanel';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { isBlobPublicConfigured } from '@/src/lib/storage/blob';
+import { getPgAvailabilitySummary } from '@/src/services/availabilityService';
 import { getPgInventory } from '@/src/services/pgInventory';
 import { getPgForAdmin } from '@/src/services/pgAdmin';
 import { getPgMeterSummaries } from '@/src/services/meterElectricity';
@@ -18,6 +19,7 @@ export default async function PgRoomsPage({ params }: { params: Promise<{ pgId: 
   if (!pg) notFound();
 
   const inventory = await getPgInventory(session, pgId);
+  const availabilitySummary = await getPgAvailabilitySummary(pgId);
   const blobUpload = isBlobPublicConfigured();
   const meterSummaries = await getPgMeterSummaries(session, pgId);
 
@@ -38,6 +40,7 @@ export default async function PgRoomsPage({ params }: { params: Promise<{ pgId: 
         beds={inventory.beds}
         roomMeters={meterSummaries}
         blobUploadConfigured={blobUpload}
+        availabilitySummary={availabilitySummary}
       />
     </section>
   );

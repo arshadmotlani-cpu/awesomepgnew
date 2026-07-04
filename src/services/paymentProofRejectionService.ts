@@ -594,6 +594,17 @@ export async function rejectPaymentProof(
     }).catch(() => undefined);
   }
 
+  if (input.entityType === 'pg_payment_record' && ctx.bookingId) {
+    const { resolveDuplicateBookingPaymentProofs } = await import(
+      '@/src/services/paymentProofReviewCleanup'
+    );
+    await resolveDuplicateBookingPaymentProofs({
+      bookingId: ctx.bookingId,
+      keepRecordId: input.entityId,
+      resolution: 'rejected',
+    });
+  }
+
   const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
   scheduleAdminNotificationSync();
 

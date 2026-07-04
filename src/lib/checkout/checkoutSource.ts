@@ -35,17 +35,11 @@ export function isBookingLifecycleCheckedOut(input: {
     return true;
   }
   if (input.hasActiveBedToday === false) return true;
+  if (input.hasActiveBedToday === true) return false;
   if (isImmediateRefundCheckoutSource(input.checkoutSource)) return true;
   if (
     input.settlementStatus &&
-    [
-      'awaiting_resident_details',
-      'awaiting_admin_review',
-      'approved',
-      'refund_pending',
-      'refund_paid',
-      'completed',
-    ].includes(input.settlementStatus)
+    ['approved', 'refund_pending', 'refund_paid', 'completed'].includes(input.settlementStatus)
   ) {
     return true;
   }

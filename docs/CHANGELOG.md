@@ -256,30 +256,20 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-04 10:39:29 UTC
+### Pending pre-commit sync · 2026-07-04 11:05:57 UTC
 
-**Areas touched:** [[DATABASE]], [[Billing]], [[Bed Assignment]], [[Vacating]], [[Action Center]]
+**Areas touched:** [[ROUTES]]
 
 **Docs flagged for review:**
-- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DATABASE.md` — review for accuracy
-- `DECISIONS.md` — review for accuracy
-- `PROJECT/features.md` — review for accuracy
+- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
-- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (10):**
-- `src/db/migrations/0101_checkout_source.sql`
-- `src/db/schema/checkoutSettlements.ts`
-- `src/lib/billing/depositRefundUnlock.ts`
-- `src/lib/billing/electricityBillBreakdownPure.ts`
-- `src/lib/occupancyRevalidate.ts`
-- `src/lib/vacating/depositRefundEligibility.ts`
-- `src/services/actionItems.ts`
-- `src/services/checkoutSettlement.ts`
-- `src/services/pgBedMap.ts`
-- `src/services/vacating.ts`
+**Staged code files (4):**
+- `app/(admin)/admin/pgs/[pgId]/map/actions.ts`
+- `app/(admin)/admin/pgs/[pgId]/rooms/page.tsx`
+- `app/(customer)/pgs/[pgSlug]/page.tsx`
+- `app/(customer)/pgs/[pgSlug]/rooms/[roomId]/page.tsx`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

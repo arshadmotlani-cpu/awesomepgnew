@@ -16,6 +16,7 @@ type Props = {
   vacating: VacatingForBookingRow | null;
   settlement: RefundRequestSettlementInput;
   developerTestEmail?: string | null;
+  hasActiveBedToday?: boolean;
   onBack: () => void;
 };
 
@@ -25,6 +26,7 @@ export function RefundRequestPageGuard({
   vacating,
   settlement,
   developerTestEmail = null,
+  hasActiveBedToday,
   onBack,
 }: Props) {
   const model = useMemo(
@@ -34,8 +36,9 @@ export function RefundRequestPageGuard({
         vacating,
         settlement,
         developerTestEmail,
+        hasActiveBedToday,
       }),
-    [booking, vacating, settlement, developerTestEmail],
+    [booking, vacating, settlement, developerTestEmail, hasActiveBedToday],
   );
 
   useEffect(() => {
