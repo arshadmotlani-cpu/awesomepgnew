@@ -101,7 +101,7 @@ describe('2 — Booking extension suggested check-in', () => {
 });
 
 describe('3 — Vacating past-due and checkout settlement paths', () => {
-  it('approved vacating past due shows checkout pending on customer picker', () => {
+  it('approved vacating past due shows move-out overdue on customer picker', () => {
     const view = deriveCustomerBedAvailabilityView({
       bedStatus: 'available',
       isAvailableNow: false,
@@ -112,7 +112,8 @@ describe('3 — Vacating past-due and checkout settlement paths', () => {
     });
     assert.equal(view.kind, 'notice');
     assert.equal(view.label, 'Move-out overdue');
-    assert.match(view.sublabel ?? '', /checkout pending/i);
+    assert.match(view.sublabel ?? '', /Move-out was/i);
+    assert.doesNotMatch(view.sublabel ?? '', /checkout pending/i);
   });
 
   it('pending vacating past due prompts admin review', () => {

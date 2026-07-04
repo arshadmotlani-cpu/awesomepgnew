@@ -23,7 +23,6 @@ export type AvailabilitySummary = {
   occupiedBeds: number;
   reservedBeds: number;
   noticeBeds: number;
-  checkoutPendingBeds: number;
   maintenanceBeds: number;
   blockedBeds: number;
   vacatingSoon: number;
@@ -40,7 +39,6 @@ const EMPTY_SUMMARY: AvailabilitySummary = {
   occupiedBeds: 0,
   reservedBeds: 0,
   noticeBeds: 0,
-  checkoutPendingBeds: 0,
   maintenanceBeds: 0,
   blockedBeds: 0,
   vacatingSoon: 0,
@@ -56,7 +54,6 @@ function toSummary(counts: OccupancyAggregateCounts): AvailabilitySummary {
     occupiedBeds: counts.occupiedBeds,
     reservedBeds: counts.reservedBeds,
     noticeBeds: counts.noticeBeds,
-    checkoutPendingBeds: counts.checkoutPendingBeds,
     maintenanceBeds: counts.maintenanceBeds,
     blockedBeds: counts.blockedBeds,
     vacatingSoon: counts.vacatingSoon,

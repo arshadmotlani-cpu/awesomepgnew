@@ -399,14 +399,6 @@ export type CustomerRoomDetail = {
     stayType?: string | null;
     durationMode?: string | null;
     expectedCheckoutDate?: string | null;
-    checkoutSettlement?: {
-      id: string;
-      status: string;
-      suppressed?: boolean;
-      depositRequiredPaise?: number;
-      depositHeldPaise?: number;
-      electricityPending?: boolean;
-    } | null;
     dailyRatePaise: number;
     weeklyRatePaise: number;
     monthlyRatePaise: number;
@@ -526,104 +518,6 @@ export function getRoomDetail(
             AND ${refDate}::date <@ br.stay_range
           LIMIT 1
         )`,
-        checkoutSettlementId: sql<string | null>`(
-          SELECT cs.id::text
-          FROM checkout_settlements cs
-          INNER JOIN ${bedReservations} br ON br.booking_id = cs.booking_id
-            AND br.bed_id = beds.id
-            AND br.kind = 'primary'
-          WHERE cs.status IN (
-            'awaiting_resident_details',
-            'awaiting_admin_review',
-            'approved',
-            'refund_pending'
-          )
-          ORDER BY cs.created_at DESC
-          LIMIT 1
-        )`,
-        checkoutSettlementStatus: sql<string | null>`(
-          SELECT cs.status::text
-          FROM checkout_settlements cs
-          INNER JOIN ${bedReservations} br ON br.booking_id = cs.booking_id
-            AND br.bed_id = beds.id
-            AND br.kind = 'primary'
-          WHERE cs.status IN (
-            'awaiting_resident_details',
-            'awaiting_admin_review',
-            'approved',
-            'refund_pending'
-          )
-          ORDER BY cs.created_at DESC
-          LIMIT 1
-        )`,
-        checkoutSettlementSuppressed: sql<boolean | null>`(
-          SELECT vr.checkout_settlement_suppressed
-          FROM checkout_settlements cs
-          INNER JOIN ${bedReservations} br ON br.booking_id = cs.booking_id
-            AND br.bed_id = beds.id
-            AND br.kind = 'primary'
-          LEFT JOIN ${vacatingRequests} vr ON vr.id = cs.vacating_request_id
-          WHERE cs.status IN (
-            'awaiting_resident_details',
-            'awaiting_admin_review',
-            'approved',
-            'refund_pending'
-          )
-          ORDER BY cs.created_at DESC
-          LIMIT 1
-        )`,
-        checkoutDepositRequiredPaise: sql<number | null>`(
-          SELECT cs.deposit_required_paise::bigint::int
-          FROM checkout_settlements cs
-          INNER JOIN ${bedReservations} br ON br.booking_id = cs.booking_id
-            AND br.bed_id = beds.id
-            AND br.kind = 'primary'
-          WHERE cs.status IN (
-            'awaiting_resident_details',
-            'awaiting_admin_review',
-            'approved',
-            'refund_pending'
-          )
-          ORDER BY cs.created_at DESC
-          LIMIT 1
-        )`,
-        checkoutDepositHeldPaise: sql<number | null>`(
-          SELECT coalesce((
-            SELECT sum(dl.amount_paise)::bigint::int
-            FROM deposit_ledger dl
-            WHERE dl.booking_id = cs.booking_id
-          ), 0)
-          FROM checkout_settlements cs
-          INNER JOIN ${bedReservations} br ON br.booking_id = cs.booking_id
-            AND br.bed_id = beds.id
-            AND br.kind = 'primary'
-          WHERE cs.status IN (
-            'awaiting_resident_details',
-            'awaiting_admin_review',
-            'approved',
-            'refund_pending'
-          )
-          ORDER BY cs.created_at DESC
-          LIMIT 1
-        )`,
-        checkoutElectricityPending: sql<boolean | null>`(
-          SELECT EXISTS (
-            SELECT 1 FROM ${electricityInvoices} ei
-            WHERE ei.booking_id = cs.booking_id AND ei.status = 'pending'
-          )
-          FROM checkout_settlements cs
-          INNER JOIN ${bedReservations} br ON br.booking_id = cs.booking_id
-            AND br.bed_id = beds.id
-            AND br.kind = 'primary'
-          WHERE cs.status IN (
-            'awaiting_resident_details',
-            'awaiting_admin_review',
-            'approved',
-            'refund_pending'
-          )
-          ORDER BY cs.created_at DESC
-          LIMIT 1
-        )`,
         vacatingDate: sql<string | null>`(
           SELECT vr.vacating_date::text
           FROM ${bedReservations} br
@@ -740,17 +634,6 @@ export function getRoomDetail(
         displayOrder,
       }).name,
       beds: bedRows.map((row) => {
-        const checkoutSettlement =
-          row.checkoutSettlementId && row.checkoutSettlementStatus
-            ? {
-                id: row.checkoutSettlementId,
-                status: row.checkoutSettlementStatus,
-                suppressed: Boolean(row.checkoutSettlementSuppressed),
-                depositRequiredPaise: row.checkoutDepositRequiredPaise ?? 0,
-                depositHeldPaise: row.checkoutDepositHeldPaise ?? 0,
-                electricityPending: Boolean(row.checkoutElectricityPending),
-              }
-            : null;
         const resolved = resolveBedOccupancy({
           bedId: row.bedId,
           bedStatus: row.status,
@@ -768,7 +651,6 @@ export function getRoomDetail(
           stayUpper: row.nextAvailableDate,
           vacatingDate: row.vacatingDate,
           vacatingStatus: row.vacatingStatus,
-          checkoutSettlement,
           activeBedReserveCheckIn: row.activeBedReserveCheckIn,
           reservedFrom: row.reservedFrom,
           noticeInterestCount: row.noticeInterestCount,
@@ -791,7 +673,6 @@ export function getRoomDetail(
           stayType: row.stayType,
           durationMode: row.durationMode,
           expectedCheckoutDate: row.expectedCheckoutDate,
-          checkoutSettlement,
           dailyRatePaise: row.dailyRatePaise,
           weeklyRatePaise: row.weeklyRatePaise,
           monthlyRatePaise: row.monthlyRatePaise,

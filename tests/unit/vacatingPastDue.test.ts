@@ -5,7 +5,7 @@ import { deriveBedAvailabilityView, deriveCustomerBedAvailabilityView } from '..
 const PAST = '2026-06-18';
 const TODAY = '2026-06-22';
 
-test('approved vacating past due shows checkout pending on customer picker', () => {
+test('approved vacating past due shows move-out overdue on customer picker', () => {
   const view = deriveCustomerBedAvailabilityView({
     bedStatus: 'available',
     isAvailableNow: false,
@@ -16,7 +16,8 @@ test('approved vacating past due shows checkout pending on customer picker', () 
   });
   assert.equal(view.kind, 'notice');
   assert.equal(view.label, 'Move-out overdue');
-  assert.match(view.sublabel ?? '', /checkout pending/i);
+  assert.match(view.sublabel ?? '', /Move-out was/i);
+  assert.doesNotMatch(view.sublabel ?? '', /checkout pending/i);
 });
 
 test('pending vacating past due prompts admin review on customer picker', () => {
@@ -45,15 +46,18 @@ test('future approved vacating still shows notice period', () => {
   assert.match(view.sublabel ?? '', /Available from/i);
 });
 
-test('admin map shows overdue checkout for approved past-due stay', () => {
+test('admin map shows overdue notice for approved past-due stay', () => {
   const view = deriveBedAvailabilityView({
     bedStatus: 'available',
     isOccupiedToday: true,
     vacatingDate: PAST,
     vacatingStatus: 'approved',
+    occupantFirstName: 'Priya',
   });
   assert.equal(view.kind, 'notice');
-  assert.match(view.sublabel ?? '', /checkout settlement/i);
+  assert.equal(view.label, 'Priya');
+  assert.equal(view.sublabel, 'Move-out overdue');
+  assert.doesNotMatch(view.sublabel ?? '', /settlement/i);
 });
 
 test('vacating past due title copy uses days overdue', () => {

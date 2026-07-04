@@ -11,7 +11,6 @@ import {
   toCustomerAvailabilityView,
   type BedOccupancyInput,
   type BedOccupancySnapshot,
-  type CheckoutSettlementSnapshot,
 } from '@/src/lib/bedOccupancyEngine';
 import { todayString } from '@/src/lib/dates';
 
@@ -27,7 +26,6 @@ export type RawBedOccupancyFacts = {
   stayUpper?: string | null;
   vacatingDate?: string | null;
   vacatingStatus?: 'pending' | 'approved' | null;
-  checkoutSettlement?: CheckoutSettlementSnapshot | null;
   manualReservedCheckIn?: string | null;
   activeBedReserveCheckIn?: string | null;
   reservedFrom?: string | null;
@@ -50,7 +48,7 @@ export type ResolvedBedOccupancy = {
   isOpenNow: boolean;
   /** Eligible to start a booking flow today. */
   isBookable: boolean;
-  /** Occupied for KPI / occupancy % (checked-in, notice, checkout pending, manual). */
+  /** Occupied for KPI / occupancy % (checked-in, notice, manual). */
   isOccupiedForKpi: boolean;
   adminView: BedAvailabilityView;
   customerView: CustomerBedAvailabilityView;
@@ -68,7 +66,6 @@ export function rawFactsToInput(facts: RawBedOccupancyFacts): BedOccupancyInput 
     stayUpper: facts.stayUpper,
     vacatingDate: facts.vacatingDate,
     vacatingStatus: facts.vacatingStatus,
-    checkoutSettlement: facts.checkoutSettlement,
     manualReservedCheckIn: facts.manualReservedCheckIn,
     activeBedReserveCheckIn: facts.activeBedReserveCheckIn,
     reservedFrom: facts.reservedFrom,
@@ -105,7 +102,6 @@ export function occupancyFactsForInventory(facts: RawBedOccupancyFacts): RawBedO
   if (facts.isOccupiedToday) return facts;
   return {
     ...facts,
-    checkoutSettlement: null,
     vacatingDate: undefined,
     vacatingStatus: undefined,
     stayType: undefined,
@@ -153,7 +149,6 @@ export type OccupancyAggregateCounts = {
   occupiedBeds: number;
   reservedBeds: number;
   noticeBeds: number;
-  checkoutPendingBeds: number;
   maintenanceBeds: number;
   blockedBeds: number;
   vacatingSoon: number;
@@ -174,7 +169,6 @@ export function resolveFromSelectorBed(bed: {
   stayType?: string | null;
   durationMode?: string | null;
   expectedCheckoutDate?: string | null;
-  checkoutSettlement?: RawBedOccupancyFacts['checkoutSettlement'];
   interestCount?: number;
   noticeInterestCount?: number;
   availableUntilDate?: string | null;
@@ -190,7 +184,6 @@ export function resolveFromSelectorBed(bed: {
     stayUpper: bed.nextAvailableDate,
     vacatingDate: bed.vacatingDate,
     vacatingStatus: bed.vacatingStatus,
-    checkoutSettlement: bed.checkoutSettlement,
     activeBedReserveCheckIn: bed.activeBedReserveCheckIn,
     reservedFrom: bed.reservedFrom,
     noticeInterestCount: bed.noticeInterestCount,
@@ -208,7 +201,6 @@ export function aggregateOccupancyCounts(
   let occupiedBeds = 0;
   let reservedBeds = 0;
   let noticeBeds = 0;
-  let checkoutPendingBeds = 0;
   let maintenanceBeds = 0;
   let blockedBeds = 0;
   let vacatingSoon = 0;
@@ -219,7 +211,6 @@ export function aggregateOccupancyCounts(
     if (r.isOccupiedForKpi) occupiedBeds += 1;
     if (r.snapshot.publicState === 'reserved') reservedBeds += 1;
     if (r.snapshot.publicState === 'notice_period') noticeBeds += 1;
-    if (r.snapshot.adminState === 'checkout_pending') checkoutPendingBeds += 1;
     if (r.input.bedStatus === 'maintenance') maintenanceBeds += 1;
     if (r.input.bedStatus === 'blocked') blockedBeds += 1;
     if (r.input.vacatingDate) vacatingSoon += 1;
@@ -238,7 +229,6 @@ export function aggregateOccupancyCounts(
     occupiedBeds,
     reservedBeds,
     noticeBeds,
-    checkoutPendingBeds,
     maintenanceBeds,
     blockedBeds,
     vacatingSoon,

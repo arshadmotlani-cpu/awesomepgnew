@@ -30,7 +30,7 @@ export type PublicBedOccupancyState =
   | 'notice_period'
   | 'maintenance';
 
-export type AdminBedOccupancyState = PublicBedOccupancyState | 'checkout_pending';
+export type AdminBedOccupancyState = PublicBedOccupancyState;
 
 export type CheckoutSettlementSnapshot = {
   id: string;
@@ -116,7 +116,7 @@ export function isFixedTenancy(input: {
 /** Contractual checkout for fixed stays only — never monthly billing period ends. */
 export function resolveContractualCheckoutDate(input: BedOccupancyInput): string | null {
   if (isMonthlyTenancy(input)) return null;
-  if (!input.isOccupiedToday && !input.checkoutSettlement && !isFixedTenancy(input)) {
+  if (!input.isOccupiedToday && !isFixedTenancy(input)) {
     return null;
   }
   const fromExpected = customerBookableFromDate(input.expectedCheckoutDate ?? null);
@@ -381,7 +381,7 @@ export function toCustomerAvailabilityView(
     const pastDue = isVacatingPastDue(input.vacatingDate, input.asOfDate ?? todayString());
     const leaveLabel = pastDue
       ? input.vacatingStatus === 'approved'
-        ? `Move-out was ${formatShortDate(input.vacatingDate)} · checkout pending`
+        ? `Move-out was ${formatShortDate(input.vacatingDate)}`
         : `Notice expired ${formatShortDate(input.vacatingDate)} · admin review needed`
       : input.vacatingStatus === 'approved'
         ? `Available from ${formatShortDate(input.vacatingDate)}`
@@ -497,7 +497,7 @@ export function toAdminAvailabilityView(
       return {
         kind: 'notice',
         label: input.occupantFirstName ?? 'Occupied',
-        sublabel: `Move-out overdue · complete checkout settlement`,
+        sublabel: 'Move-out overdue',
       };
     }
     if (input.vacatingStatus === 'approved') {
@@ -563,7 +563,11 @@ export function toAdminAvailabilityView(
     };
   }
 
-  return { kind: 'occupied', label: 'Unavailable' };
+  if (input.bedStatus === 'available' && !input.isOccupiedToday && !input.manualOccupied) {
+    return { kind: 'open_now', label: 'Open · book now' };
+  }
+
+  return { kind: 'blocked', label: 'Blocked' };
 }
 
 export function canBookBedFromSnapshot(

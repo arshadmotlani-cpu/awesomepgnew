@@ -67,7 +67,6 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
             stayType: b.stayType,
             durationMode: b.durationMode,
             expectedCheckoutDate: b.expectedCheckoutDate,
-            checkoutSettlement: b.checkoutSettlement,
             dailyRatePaise: b.dailyRatePaise,
             weeklyRatePaise: b.weeklyRatePaise,
             monthlyRatePaise: b.monthlyRatePaise,

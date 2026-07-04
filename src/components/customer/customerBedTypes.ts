@@ -18,14 +18,6 @@ export type BedSelectorBed = {
   stayType?: string | null;
   durationMode?: string | null;
   expectedCheckoutDate?: string | null;
-  checkoutSettlement?: {
-    id: string;
-    status: string;
-    suppressed?: boolean;
-    depositRequiredPaise?: number;
-    depositHeldPaise?: number;
-    electricityPending?: boolean;
-  } | null;
   availableUntilDate?: string | null;
   dailyRatePaise: number;
   weeklyRatePaise: number;

@@ -49,7 +49,6 @@ function toRawFacts(input: {
   durationMode?: string | null;
   expectedCheckoutDate?: string | null;
   stayUpper?: string | null;
-  checkoutSettlement?: RawBedOccupancyFacts['checkoutSettlement'];
   activeBedReserveCheckIn?: string | null;
 }): RawBedOccupancyFacts {
   return {
@@ -63,7 +62,6 @@ function toRawFacts(input: {
     stayUpper: input.stayUpper ?? input.preBookableFrom ?? input.nextAvailableDate,
     vacatingDate: input.vacatingDate,
     vacatingStatus: input.vacatingStatus,
-    checkoutSettlement: input.checkoutSettlement,
     manualReservedCheckIn: input.manualReservedCheckIn,
     activeBedReserveCheckIn: input.activeBedReserveCheckIn,
     reservedFrom: input.reservedFrom,
@@ -92,7 +90,6 @@ export function deriveBedAvailabilityView(input: {
   durationMode?: string | null;
   expectedCheckoutDate?: string | null;
   stayUpper?: string | null;
-  checkoutSettlement?: RawBedOccupancyFacts['checkoutSettlement'];
   activeBedReserveCheckIn?: string | null;
 }): BedAvailabilityView {
   return resolveBedOccupancy(toRawFacts(input)).adminView;
@@ -115,7 +112,6 @@ export function deriveCustomerBedAvailabilityView(input: {
   stayType?: string | null;
   durationMode?: string | null;
   expectedCheckoutDate?: string | null;
-  checkoutSettlement?: RawBedOccupancyFacts['checkoutSettlement'];
 }): CustomerBedAvailabilityView {
   return resolveBedOccupancy({
     bedId: '',
@@ -128,7 +124,6 @@ export function deriveCustomerBedAvailabilityView(input: {
     stayUpper: input.nextAvailableDate,
     vacatingDate: input.vacatingDate,
     vacatingStatus: input.vacatingStatus,
-    checkoutSettlement: input.checkoutSettlement,
     activeBedReserveCheckIn: input.activeBedReserveCheckIn,
     reservedFrom: input.reservedFrom,
     noticeInterestCount: input.noticeInterestCount,

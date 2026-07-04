@@ -78,7 +78,6 @@ export default async function RoomDetailPage(
     stayType: b.stayType ?? null,
     durationMode: b.durationMode ?? null,
     expectedCheckoutDate: b.expectedCheckoutDate ?? null,
-    checkoutSettlement: b.checkoutSettlement ?? null,
     dailyRatePaise: b.dailyRatePaise,
     weeklyRatePaise: b.weeklyRatePaise,
     monthlyRatePaise: b.monthlyRatePaise,

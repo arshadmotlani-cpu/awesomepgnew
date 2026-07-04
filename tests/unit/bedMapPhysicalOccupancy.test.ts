@@ -25,11 +25,6 @@ describe('bed map physical occupancy vs financial checkout', () => {
       bedId: 'bed-b5',
       bedStatus: 'available' as const,
       isOccupiedToday: false,
-      checkoutSettlement: {
-        id: 'cs-sahil',
-        status: 'awaiting_resident_details',
-        depositHeldPaise: 15_000,
-      },
       stayType: 'open_ended',
       durationMode: 'open_ended',
       occupantFirstName: 'Sahil',
@@ -41,24 +36,22 @@ describe('bed map physical occupancy vs financial checkout', () => {
     assert.equal(resolved.isOccupiedForKpi, false);
   });
 
-  test('occupancyFactsForInventory strips stale checkout fields when vacant', () => {
+  test('occupancyFactsForInventory strips stale vacating fields when vacant', () => {
     const stripped = occupancyFactsForInventory({
       bedId: 'bed-b4',
       bedStatus: 'available',
       isOccupiedToday: false,
-      checkoutSettlement: { id: 'cs-1', status: 'refund_pending' },
       stayType: 'open_ended',
       durationMode: 'open_ended',
       vacatingDate: '2026-07-01',
       vacatingStatus: 'approved',
       occupantFirstName: 'Former',
     });
-    assert.equal(stripped.checkoutSettlement, null);
     assert.equal(stripped.vacatingDate, undefined);
     assert.equal(stripped.occupantFirstName, undefined);
   });
 
-  test('physically occupied bed with open settlement still shows resident name', () => {
+  test('physically occupied bed still shows resident name without settlement copy', () => {
     const input = {
       bedStatus: 'available' as const,
       isOccupiedToday: true,
@@ -66,11 +59,6 @@ describe('bed map physical occupancy vs financial checkout', () => {
       stayType: 'open_ended',
       durationMode: 'open_ended',
       occupantFirstName: 'Priya',
-      checkoutSettlement: {
-        id: 'cs-live',
-        status: 'awaiting_admin_review',
-        depositHeldPaise: 5000,
-      },
     };
     const snap = computeBedOccupancySnapshot(input);
     assert.equal(snap.adminState, 'occupied');
@@ -80,16 +68,11 @@ describe('bed map physical occupancy vs financial checkout', () => {
     assert.equal(canBookBedFromSnapshot(input, snap), false);
   });
 
-  test('regression: checkout ends reservation, settlement open, new assignee unaffected', () => {
+  test('regression: former resident vacated, new assignee unaffected', () => {
     const formerResidentBed = resolveBedOccupancy({
       bedId: 'bed-b5',
       bedStatus: 'available',
       isOccupiedToday: false,
-      checkoutSettlement: {
-        id: 'cs-former',
-        status: 'awaiting_resident_details',
-        depositHeldPaise: 10_000,
-      },
       occupantFirstName: 'Former',
     });
     assert.equal(formerResidentBed.adminView.label, 'Open · book now');
@@ -102,13 +85,8 @@ describe('bed map physical occupancy vs financial checkout', () => {
       occupantFirstName: 'New',
       stayType: 'open_ended',
       durationMode: 'open_ended',
-      checkoutSettlement: {
-        id: 'cs-former',
-        status: 'awaiting_resident_details',
-        depositHeldPaise: 10_000,
-      },
     });
     assert.equal(afterReassign.adminView.label, 'New');
-    assert.notEqual(afterReassign.adminView.sublabel ?? '', 'Checkout pending · open settlement');
+    assert.doesNotMatch(afterReassign.adminView.sublabel ?? '', /settlement/i);
   });
 });

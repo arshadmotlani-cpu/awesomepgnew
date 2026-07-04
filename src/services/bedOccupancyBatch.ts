@@ -9,7 +9,6 @@ import {
   bedReserveHolds,
   beds,
   bookings,
-  electricityInvoices,
   floors,
   rooms,
   vacatingRequests,
@@ -173,104 +172,6 @@ export async function fetchBedOccupancyRows(
           END
         )
       )`,
-      checkoutSettlementId: sql<string | null>`(
-        SELECT cs.id::text
-        FROM checkout_settlements cs
-        INNER JOIN ${bedReservations} br ON br.booking_id = cs.booking_id
-          AND br.bed_id = beds.id
-          AND br.kind = 'primary'
-        WHERE cs.status IN (
-          'awaiting_resident_details',
-          'awaiting_admin_review',
-          'approved',
-          'refund_pending'
-        )
-        ORDER BY cs.created_at DESC
-        LIMIT 1
-      )`,
-      checkoutSettlementStatus: sql<string | null>`(
-        SELECT cs.status::text
-        FROM checkout_settlements cs
-        INNER JOIN ${bedReservations} br ON br.booking_id = cs.booking_id
-          AND br.bed_id = beds.id
-          AND br.kind = 'primary'
-        WHERE cs.status IN (
-          'awaiting_resident_details',
-          'awaiting_admin_review',
-          'approved',
-          'refund_pending'
-        )
-        ORDER BY cs.created_at DESC
-        LIMIT 1
-      )`,
-      checkoutSettlementSuppressed: sql<boolean | null>`(
-        SELECT vr.checkout_settlement_suppressed
-        FROM checkout_settlements cs
-        INNER JOIN ${bedReservations} br ON br.booking_id = cs.booking_id
-          AND br.bed_id = beds.id
-          AND br.kind = 'primary'
-        LEFT JOIN ${vacatingRequests} vr ON vr.id = cs.vacating_request_id
-        WHERE cs.status IN (
-          'awaiting_resident_details',
-          'awaiting_admin_review',
-          'approved',
-          'refund_pending'
-        )
-        ORDER BY cs.created_at DESC
-        LIMIT 1
-      )`,
-      checkoutDepositRequiredPaise: sql<number | null>`(
-        SELECT cs.deposit_required_paise::bigint::int
-        FROM checkout_settlements cs
-        INNER JOIN ${bedReservations} br ON br.booking_id = cs.booking_id
-          AND br.bed_id = beds.id
-          AND br.kind = 'primary'
-        WHERE cs.status IN (
-          'awaiting_resident_details',
-          'awaiting_admin_review',
-          'approved',
-          'refund_pending'
-        )
-        ORDER BY cs.created_at DESC
-        LIMIT 1
-      )`,
-      checkoutDepositHeldPaise: sql<number | null>`(
-        SELECT coalesce((
-          SELECT sum(dl.amount_paise)::bigint::int
-          FROM deposit_ledger dl
-          WHERE dl.booking_id = cs.booking_id
-        ), 0)
-        FROM checkout_settlements cs
-        INNER JOIN ${bedReservations} br ON br.booking_id = cs.booking_id
-          AND br.bed_id = beds.id
-          AND br.kind = 'primary'
-        WHERE cs.status IN (
-          'awaiting_resident_details',
-          'awaiting_admin_review',
-          'approved',
-          'refund_pending'
-        )
-        ORDER BY cs.created_at DESC
-        LIMIT 1
-      )`,
-      checkoutElectricityPending: sql<boolean | null>`(
-        SELECT EXISTS (
-          SELECT 1 FROM ${electricityInvoices} ei
-          WHERE ei.booking_id = cs.booking_id AND ei.status = 'pending'
-        )
-        FROM checkout_settlements cs
-        INNER JOIN ${bedReservations} br ON br.booking_id = cs.booking_id
-          AND br.bed_id = beds.id
-          AND br.kind = 'primary'
-        WHERE cs.status IN (
-          'awaiting_resident_details',
-          'awaiting_admin_review',
-          'approved',
-          'refund_pending'
-        )
-        ORDER BY cs.created_at DESC
-        LIMIT 1
-      )`,
     })
     .from(beds)
     .innerJoin(rooms, eq(rooms.id, beds.roomId))
@@ -299,17 +200,6 @@ export async function fetchBedOccupancyRows(
     vacatingStatus: row.vacatingStatus,
     reservedFrom: row.reservedFrom,
     activeBedReserveCheckIn: row.activeBedReserveCheckIn,
-    checkoutSettlement:
-      row.checkoutSettlementId && row.checkoutSettlementStatus
-        ? {
-            id: row.checkoutSettlementId,
-            status: row.checkoutSettlementStatus,
-            suppressed: Boolean(row.checkoutSettlementSuppressed),
-            depositRequiredPaise: row.checkoutDepositRequiredPaise ?? 0,
-            depositHeldPaise: row.checkoutDepositHeldPaise ?? 0,
-            electricityPending: Boolean(row.checkoutElectricityPending),
-          }
-        : null,
   }));
 }
 
