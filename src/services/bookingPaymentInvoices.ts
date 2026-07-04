@@ -22,6 +22,9 @@ import {
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import { formatDate } from '@/src/lib/dates';
 import { firstOfMonth } from '@/src/services/billing';
+import {
+  computeCheckoutRentProration,
+} from '@/src/lib/billing/checkoutRentProration';
 import { allocateBookingCheckoutPayment } from '@/src/lib/billing/bookingPaymentAllocation';
 import {
   createAdhocRentInvoice,
@@ -41,6 +44,27 @@ type BookingForRentInvoice = {
   totalPaise: number;
   pricingSnapshot: PricingSnapshot | null;
 };
+
+function computeRentAppliedToFirstInvoice(input: {
+  booking: BookingForRentInvoice;
+  paymentAmountPaise: number;
+  membershipAmountPaise?: number;
+  stayStartDate: string | null;
+}): { rentPaisePaid: number; invoiceRentPaise: number; proration: ReturnType<typeof computeCheckoutRentProration> } {
+  const bookingPaymentPaise = Math.max(
+    0,
+    input.paymentAmountPaise - (input.membershipAmountPaise ?? 0),
+  );
+  const rentPaisePaid = allocateBookingCheckoutPayment(input.booking, bookingPaymentPaise).rentPaise;
+  const proration = computeCheckoutRentProration({
+    subtotalPaise: input.booking.subtotalPaise,
+    discountPaise: input.booking.discountPaise,
+    durationMode: input.booking.durationMode,
+    stayStartDate: input.stayStartDate,
+    pricingSnapshot: input.booking.pricingSnapshot,
+  });
+  return { rentPaisePaid, invoiceRentPaise: rentPaisePaid, proration };
+}
 
 export function computeBookingRentPaisePaid(input: {
   booking: BookingForRentInvoice;
@@ -123,10 +147,12 @@ export async function applyBookingRentInvoiceOnPaymentSuccess(input: {
   paidAt?: Date;
   source?: 'webhook' | 'backfill';
 }): Promise<ApplyBookingRentInvoiceResult> {
-  const rentPaisePaid = computeBookingRentPaisePaid({
+  const stayStart = await primaryStayStartDate(input.booking.id);
+  const { rentPaisePaid, invoiceRentPaise, proration } = computeRentAppliedToFirstInvoice({
     booking: input.booking,
     paymentAmountPaise: input.paymentAmountPaise,
     membershipAmountPaise: input.membershipAmountPaise,
+    stayStartDate: stayStart,
   });
 
   if (rentPaisePaid <= 0) {
@@ -144,13 +170,11 @@ export async function applyBookingRentInvoiceOnPaymentSuccess(input: {
     };
   }
 
-  const stayStart = await primaryStayStartDate(input.booking.id);
   const billingAnchor = stayStart ?? formatDate(new Date());
 
   const ensured = await ensureMonthlyRentInvoice({
     bookingId: input.booking.id,
     billingMonth: firstOfMonth(billingAnchor),
-    amountPaise: rentPaisePaid,
   });
 
   if (!ensured.ok) {
@@ -160,18 +184,29 @@ export async function applyBookingRentInvoiceOnPaymentSuccess(input: {
   const marked = await markRentInvoicePaidFromExistingPayment({
     invoiceId: ensured.invoiceId,
     paymentId: input.paymentId,
-    principalPaise: rentPaisePaid,
+    principalPaise: invoiceRentPaise,
     paidAt: input.paidAt,
     source: input.source === 'backfill' ? 'system' : 'webhook',
     meta: {
       bookingCode: input.booking.bookingCode,
       providerPaymentId: input.providerPaymentId,
       durationMode: input.booking.durationMode,
+      checkoutRentPaisePaid: rentPaisePaid,
+      advanceRentCreditPaise: proration.advanceRentCreditPaise,
     },
   });
 
   if (!marked.ok) {
     return { ok: false, reason: marked.reason };
+  }
+
+  if (proration.advanceRentCreditPaise > 0) {
+    const { recordAdvanceRentCreditFromCheckout } = await import('@/src/services/advanceRentCredit');
+    await recordAdvanceRentCreditFromCheckout({
+      bookingId: input.booking.id,
+      paymentId: input.paymentId,
+      proration,
+    });
   }
 
   const financialInvoiceId = await syncRentInvoiceToUnified(ensured.invoiceId);

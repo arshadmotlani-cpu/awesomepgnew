@@ -2,14 +2,18 @@
  * SSOT — booking checkout payment financial story for invoices and admin surfaces.
  * Allocation uses allocateBookingCheckoutPayment; deposit held uses getDepositSummaryForBooking.
  */
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { bookings, payments } from '@/src/db/schema';
+import { bedReservations, bookings, payments } from '@/src/db/schema';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import {
   allocateBookingCheckoutPayment,
   type BookingPaymentAllocation,
 } from '@/src/lib/billing/bookingPaymentAllocation';
+import {
+  computeCheckoutRentProration,
+  sumAdvanceRentCreditFromSnapshot,
+} from '@/src/lib/billing/checkoutRentProration';
 import { formatDate } from '@/src/lib/format';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 
@@ -24,6 +28,8 @@ export type BookingPaymentFinancialStory = {
   totalPaymentPaise: number;
   paidAt: string | null;
   allocationLines: BookingPaymentAllocationLine[];
+  totalAllocatedPaise: number;
+  advanceRentCreditPaise: number;
   currentDepositHeldPaise: number;
 };
 
@@ -32,6 +38,7 @@ type BookingCheckoutRow = {
   discountPaise: number;
   depositPaise: number;
   totalPaise: number;
+  durationMode: string;
   pricingSnapshot: PricingSnapshot | null;
 };
 
@@ -62,15 +69,41 @@ function priorOutstandingLabel(snapshot: PricingSnapshot | null | undefined): st
 }
 
 export function buildBookingPaymentAllocationLines(
-  booking: { pricingSnapshot?: PricingSnapshot | null },
+  booking: {
+    pricingSnapshot?: PricingSnapshot | null;
+    subtotalPaise: number;
+    discountPaise: number;
+    durationMode: string;
+  },
   allocation: BookingPaymentAllocation,
+  options?: {
+    stayStartDate?: string | null;
+    paymentId?: string | null;
+  },
 ): BookingPaymentAllocationLine[] {
   const snapshot = booking.pricingSnapshot;
   const lines: BookingPaymentAllocationLine[] = [];
 
-  if (allocation.rentPaise > 0) {
-    lines.push({ key: 'rent', label: 'Rent', amountPaise: allocation.rentPaise });
+  const proration = computeCheckoutRentProration({
+    subtotalPaise: booking.subtotalPaise,
+    discountPaise: booking.discountPaise,
+    durationMode: booking.durationMode,
+    stayStartDate: options?.stayStartDate,
+    pricingSnapshot: snapshot,
+  });
+
+    if (allocation.rentPaise > 0) {
+    const rentLabel =
+      proration.rentAllocationLabel === "First month's rent"
+        ? "✓ First month's rent"
+        : `✓ ${proration.rentAllocationLabel}`;
+    lines.push({
+      key: 'rent_invoice',
+      label: rentLabel,
+      amountPaise: allocation.rentPaise,
+    });
   }
+
   if (allocation.depositTransferCreditPaise > 0) {
     lines.push({
       key: 'deposit_transfer',
@@ -81,7 +114,7 @@ export function buildBookingPaymentAllocationLines(
   if (allocation.depositCashPaise > 0) {
     lines.push({
       key: 'deposit_collected',
-      label: 'Deposit collected',
+      label: '✓ Security deposit',
       amountPaise: allocation.depositCashPaise,
     });
   }
@@ -93,7 +126,19 @@ export function buildBookingPaymentAllocationLines(
     });
   }
 
+  if (allocation.unallocatedPaise > 0) {
+    lines.push({
+      key: 'unallocated',
+      label: 'Unallocated (requires admin disposition)',
+      amountPaise: allocation.unallocatedPaise,
+    });
+  }
+
   return lines;
+}
+
+export function sumAllocationLines(lines: BookingPaymentAllocationLine[]): number {
+  return lines.reduce((sum, line) => sum + line.amountPaise, 0);
 }
 
 async function loadBookingCheckoutRow(bookingId: string): Promise<BookingCheckoutRow | null> {
@@ -103,6 +148,7 @@ async function loadBookingCheckoutRow(bookingId: string): Promise<BookingCheckou
       discountPaise: bookings.discountPaise,
       depositPaise: bookings.depositPaise,
       totalPaise: bookings.totalPaise,
+      durationMode: bookings.durationMode,
       pricingSnapshot: bookings.pricingSnapshot,
     })
     .from(bookings)
@@ -111,8 +157,22 @@ async function loadBookingCheckoutRow(bookingId: string): Promise<BookingCheckou
   if (!booking) return null;
   return {
     ...booking,
+    durationMode: booking.durationMode,
     pricingSnapshot: (booking.pricingSnapshot as PricingSnapshot | null) ?? null,
   };
+}
+
+async function loadPrimaryStayStart(bookingId: string): Promise<string | null> {
+  const [row] = await db
+    .select({
+      stayStart: sql<string>`to_char(lower(${bedReservations.stayRange}), 'YYYY-MM-DD')`,
+    })
+    .from(bedReservations)
+    .where(
+      and(eq(bedReservations.bookingId, bookingId), eq(bedReservations.kind, 'primary')),
+    )
+    .limit(1);
+  return row?.stayStart ?? null;
 }
 
 async function resolveSucceededBookingPaymentId(
@@ -157,17 +217,26 @@ export async function loadBookingPaymentFinancialStory(input: {
     .limit(1);
   if (!pay) return null;
 
+  const stayStartDate = await loadPrimaryStayStart(input.bookingId);
   const allocation = allocateBookingCheckoutPayment(booking, pay.amountPaise);
-  const allocationLines = buildBookingPaymentAllocationLines(booking, allocation);
+  const allocationLines = buildBookingPaymentAllocationLines(booking, allocation, {
+    stayStartDate,
+    paymentId,
+  });
   if (allocationLines.length === 0) return null;
 
   const depositSummary = await getDepositSummaryForBooking(input.bookingId);
+  const storedAdvance = sumAdvanceRentCreditFromSnapshot(booking.pricingSnapshot, paymentId);
+  const computedAdvance =
+    allocationLines.find((l) => l.key === 'advance_rent_credit')?.amountPaise ?? 0;
 
   return {
     paymentId,
     totalPaymentPaise: pay.amountPaise,
     paidAt: pay.paidAt ? formatDate(pay.paidAt) : null,
     allocationLines,
+    totalAllocatedPaise: sumAllocationLines(allocationLines),
+    advanceRentCreditPaise: storedAdvance > 0 ? storedAdvance : computedAdvance,
     currentDepositHeldPaise: depositSummary?.refundableBalancePaise ?? 0,
   };
 }

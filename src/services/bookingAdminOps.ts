@@ -1,8 +1,15 @@
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { auditLog, beds, bedReservations, bedReserveHolds, bookings, customers, floors, pgs, rooms } from '@/src/db/schema';
+import { auditLog, beds, bedReservations, bedReserveHolds, bookings, floors, pgs, rooms } from '@/src/db/schema';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
+import {
+  assertBedNotOccupiedToday,
+  findBlockingConfirmedBooking,
+  findPendingPaymentHold,
+  listUnpaidHoldReservations,
+  sanitizeBedStatusError,
+} from '@/src/lib/bedOccupancyCheck';
 import { formatDate, isBefore, parseDate, todayString } from '@/src/lib/dates';
 import { RESERVE_MIN_PERIOD_DAYS } from '@/src/lib/bedReservePolicy';
 import type {
@@ -24,113 +31,72 @@ export type BedInventoryStatus = 'available' | 'maintenance' | 'blocked';
 export async function reconcileBedForAdminMark(
   bedId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  await db.execute(sql`
-    UPDATE bed_reservations br
-    SET status = 'cancelled', updated_at = now()
-    FROM bookings bk
-    WHERE br.booking_id = bk.id
-      AND br.bed_id = ${bedId}::uuid
-      AND br.status IN ('hold', 'active')
-      AND CURRENT_DATE <@ br.stay_range
-      AND bk.status IN ('cancelled', 'refunded', 'completed')
-  `);
+  try {
+    await db.execute(sql`
+      UPDATE bed_reservations br
+      SET status = 'cancelled', updated_at = now()
+      FROM bookings bk
+      WHERE br.booking_id = bk.id
+        AND br.bed_id = ${bedId}::uuid
+        AND br.status IN ('hold', 'active')
+        AND CURRENT_DATE <@ br.stay_range
+        AND bk.status IN ('cancelled', 'refunded', 'completed')
+    `);
 
-  const unpaidHolds = await db
-    .select({
-      reservationId: bedReservations.id,
-      bookingId: bookings.id,
-    })
-    .from(bedReservations)
-    .innerJoin(bookings, eq(bookings.id, bedReservations.bookingId))
-    .where(
-      and(
-        eq(bedReservations.bedId, bedId),
-        eq(bedReservations.status, 'hold'),
-        eq(bookings.status, 'pending_payment'),
-        sql`CURRENT_DATE <@ ${bedReservations.stayRange}`,
-      ),
-    );
+    const unpaidHolds = await listUnpaidHoldReservations(bedId);
 
-  for (const row of unpaidHolds) {
-    await db.transaction(async (tx) => {
-      await tx
-        .update(bedReservations)
-        .set({ status: 'cancelled', updatedAt: new Date() })
-        .where(eq(bedReservations.id, row.reservationId));
-
-      const [counts] = await tx
-        .select({
-          live: sql<number>`count(*) FILTER (WHERE ${bedReservations.status} IN ('hold', 'active'))::int`,
-        })
-        .from(bedReservations)
-        .where(eq(bedReservations.bookingId, row.bookingId));
-
-      if ((counts?.live ?? 0) === 0) {
+    for (const row of unpaidHolds) {
+      await db.transaction(async (tx) => {
         await tx
-          .update(bookings)
-          .set({
-            status: 'cancelled',
-            cancelledAt: new Date(),
-            cancellationReason: 'Unpaid hold cleared for admin bed mark.',
-            updatedAt: new Date(),
+          .update(bedReservations)
+          .set({ status: 'cancelled', updatedAt: new Date() })
+          .where(eq(bedReservations.id, row.reservationId));
+
+        const [counts] = await tx
+          .select({
+            live: sql<number>`count(*) FILTER (WHERE ${bedReservations.status} IN ('hold', 'active'))::int`,
           })
-          .where(eq(bookings.id, row.bookingId));
-      }
-    });
+          .from(bedReservations)
+          .where(eq(bedReservations.bookingId, row.bookingId));
+
+        if ((counts?.live ?? 0) === 0) {
+          await tx
+            .update(bookings)
+            .set({
+              status: 'cancelled',
+              cancelledAt: new Date(),
+              cancellationReason: 'Unpaid hold cleared for admin bed mark.',
+              updatedAt: new Date(),
+            })
+            .where(eq(bookings.id, row.bookingId));
+        }
+      });
+    }
+
+    const remaining = await findBlockingConfirmedBooking(bedId);
+    if (remaining) {
+      const guest = remaining.customerName ? ` (${remaining.customerName})` : '';
+      return {
+        ok: false,
+        error:
+          `Bed has confirmed booking ${remaining.bookingCode}${guest} — ` +
+          `${remaining.durationMode.replace('_', ' ')} stay. Cancel or reassign that booking first, ` +
+          `or use Assign tenant if this person is moving in.`,
+      };
+    }
+
+    const pendingHold = await findPendingPaymentHold(bedId);
+    if (pendingHold) {
+      return {
+        ok: false,
+        error: `Bed has unpaid checkout ${pendingHold.bookingCode}. Wait for payment or cancel it from Bookings.`,
+      };
+    }
+
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: sanitizeBedStatusError(err) };
   }
-
-  const [remaining] = await db
-    .select({
-      bookingCode: bookings.bookingCode,
-      durationMode: bookings.durationMode,
-      customerName: customers.fullName,
-    })
-    .from(bedReservations)
-    .innerJoin(bookings, eq(bookings.id, bedReservations.bookingId))
-    .innerJoin(customers, eq(customers.id, bookings.customerId))
-    .where(
-      and(
-        eq(bedReservations.bedId, bedId),
-        inArray(bedReservations.status, ['hold', 'active']),
-        eq(bookings.status, 'confirmed'),
-        sql`CURRENT_DATE <@ ${bedReservations.stayRange}`,
-      ),
-    )
-    .limit(1);
-
-  if (remaining) {
-    const guest = remaining.customerName ? ` (${remaining.customerName})` : '';
-    return {
-      ok: false,
-      error:
-        `Bed has confirmed booking ${remaining.bookingCode}${guest} — ` +
-        `${remaining.durationMode.replace('_', ' ')} stay. Cancel or reassign that booking first, ` +
-        `or use Assign tenant if this person is moving in.`,
-    };
-  }
-
-  const [pendingHold] = await db
-    .select({ bookingCode: bookings.bookingCode })
-    .from(bedReservations)
-    .innerJoin(bookings, eq(bookings.id, bedReservations.bookingId))
-    .where(
-      and(
-        eq(bedReservations.bedId, bedId),
-        eq(bedReservations.status, 'hold'),
-        eq(bookings.status, 'pending_payment'),
-        sql`CURRENT_DATE <@ ${bedReservations.stayRange}`,
-      ),
-    )
-    .limit(1);
-
-  if (pendingHold) {
-    return {
-      ok: false,
-      error: `Bed has unpaid checkout ${pendingHold.bookingCode}. Wait for payment or cancel it from Bookings.`,
-    };
-  }
-
-  return { ok: true };
 }
 
 async function assertBookingAccess(session: AdminSession, bookingId: string) {
@@ -233,6 +199,10 @@ export async function updateBedInventoryStatus(
     .where(eq(beds.id, bedId))
     .limit(1);
   if (!before) throw new Error('Bed not found.');
+
+  if (status === 'maintenance' || status === 'blocked') {
+    await assertBedNotOccupiedToday(bedId);
+  }
 
   await db
     .update(beds)
@@ -358,7 +328,7 @@ export async function setBedManualOccupied(
 
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    return { ok: false, error: sanitizeBedStatusError(err) };
   }
 }
 
@@ -449,7 +419,7 @@ export async function setBedManualReserved(
 
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    return { ok: false, error: sanitizeBedStatusError(err) };
   }
 }
 
@@ -501,6 +471,6 @@ export async function clearBedManualReserved(
 
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    return { ok: false, error: sanitizeBedStatusError(err) };
   }
 }

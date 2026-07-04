@@ -310,18 +310,19 @@ export function InvoiceDocument({ document: doc, variant = 'admin', className = 
             Booking payment summary
           </h2>
           <p className={`mt-1 text-xs ${muted}`}>
-            How the checkout payment was allocated across rent, deposit, and prior balances.
+            Every rupee from checkout is accounted for — rent applied to invoice, deposit held,
+            and any advance credit toward future rent.
           </p>
           <dl className="mt-4 space-y-2 text-sm">
             <div className="flex justify-between gap-4 font-medium">
-              <dt>Total payment received</dt>
+              <dt>Booking payment received</dt>
               <dd className="tabular-nums">
                 {paiseToInr(doc.bookingPaymentSummary.totalPaymentPaise)}
               </dd>
             </div>
           </dl>
           <h3 className={`mt-4 text-[10px] font-semibold uppercase tracking-wide ${muted}`}>
-            Allocation
+            Allocated
           </h3>
           <dl className="mt-2 space-y-2 text-sm">
             {(doc.bookingPaymentSummary?.allocationLines ?? []).map((line) => (
@@ -330,6 +331,19 @@ export function InvoiceDocument({ document: doc, variant = 'admin', className = 
                 <dd className="tabular-nums">{paiseToInr(line.amountPaise)}</dd>
               </div>
             ))}
+            <div className={`flex justify-between gap-4 border-t pt-2 font-semibold ${divider}`}>
+              <dt>Total allocated</dt>
+              <dd className="tabular-nums">
+                {paiseToInr(doc.bookingPaymentSummary.totalAllocatedPaise)}
+              </dd>
+            </div>
+            {doc.bookingPaymentSummary.advanceRentCreditPaise > 0 ? (
+              <p className={`text-xs ${muted}`}>
+                Advance rent credit (₹
+                {(doc.bookingPaymentSummary.advanceRentCreditPaise / 100).toLocaleString('en-IN')})
+                is stored on the booking and applies toward future monthly rent invoices.
+              </p>
+            ) : null}
             <div className={`flex justify-between gap-4 border-t pt-2 font-medium ${divider}`}>
               <dt>Current refundable deposit held</dt>
               <dd className="tabular-nums">
@@ -338,7 +352,7 @@ export function InvoiceDocument({ document: doc, variant = 'admin', className = 
             </div>
           </dl>
           <p className={`mt-3 text-xs ${muted}`}>
-            This amount may be refunded at checkout after electricity, damage, notice, and other
+            Deposit may be refunded at checkout after electricity, damage, notice, and other
             approved deductions.
           </p>
         </section>

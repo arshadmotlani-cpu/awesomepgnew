@@ -44,11 +44,11 @@ test('APG-2026-0036 allocation lines match invoice booking payment summary label
   const allocation = allocateBookingCheckoutPayment(APG_0036_BOOKING, 268_500);
   const lines = buildBookingPaymentAllocationLines(APG_0036_BOOKING, allocation);
   assert.equal(lines.length, 4);
-  assert.equal(lines[0].label, 'Rent');
+  assert.equal(lines[0].label, '✓ Rent');
   assert.equal(lines[0].amountPaise, 190_000);
   assert.equal(lines[1].label, 'Deposit transfer from APG-2026-0032');
   assert.equal(lines[1].amountPaise, 33_000);
-  assert.equal(lines[2].label, 'Deposit collected');
+  assert.equal(lines[2].label, '✓ Security deposit');
   assert.equal(lines[2].amountPaise, 62_000);
   assert.equal(lines[3].label, 'Previous deposit due cleared');
   assert.equal(lines[3].amountPaise, 16_500);

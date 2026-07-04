@@ -42,7 +42,7 @@ test('buildRentInvoiceBreakdownFromContext itemizes full-month rent', () => {
   assert.match(breakdown.billingMonthLabel, /July 2026/);
 });
 
-test('buildRentInvoiceBreakdownFromContext exposes proration from notes', () => {
+test('buildRentInvoiceBreakdownFromContext shows anniversary billing period from notes', () => {
   const breakdown = buildRentInvoiceBreakdownFromContext({
     invoice: {
       id: 'inv-2',
@@ -53,12 +53,12 @@ test('buildRentInvoiceBreakdownFromContext exposes proration from notes', () => 
       pgId: 'pg-1',
       billingMonth: '2026-06-01',
       dueDate: '2026-06-05',
-      rentPaise: 360_570,
+      rentPaise: 721_140,
       status: 'pending',
       paidPrincipalPaise: 0,
       paidLateFeePaise: 0,
       lateFeeLockedPaise: null,
-      notes: 'Pro-rated: 15/30 days active.',
+      notes: 'Billing period: 4 May 2026 → 4 Jun 2026',
       paymentProofUrl: null,
       paymentId: null,
       paidAt: null,
@@ -75,10 +75,10 @@ test('buildRentInvoiceBreakdownFromContext exposes proration from notes', () => 
     isPrivateRoom: false,
   });
 
-  assert.ok(breakdown.proration);
-  assert.equal(breakdown.proration?.daysStayed, 15);
-  assert.equal(breakdown.proration?.daysInMonth, 30);
-  assert.equal(breakdown.finalRentPaise, 360_570);
+  assert.equal(breakdown.proration, null);
+  assert.match(breakdown.billingMonthLabel, /4 May 2026/);
+  assert.match(breakdown.billingMonthLabel, /4 Jun 2026/);
+  assert.equal(breakdown.finalRentPaise, 721_140);
 });
 
 test('buildRentInvoiceBreakdownFromContext labels private room occupancy', () => {

@@ -177,12 +177,29 @@ export function PaymentExplanationBlock({
         <div className="mt-4 border-t border-white/10 pt-4">
           <SectionTitle>After approval</SectionTitle>
           <dl className="mt-2 space-y-2 text-sm">
-            <div className="flex justify-between gap-3">
-              <dt className="text-apg-silver">Rent collected</dt>
-              <dd className="font-medium tabular-nums text-white">
-                {paiseToInr(explanation.afterApproval.rentCollectedPaise)}
-              </dd>
-            </div>
+            {explanation.afterApproval.advanceRentCreditPaise > 0 ? (
+              <>
+                <div className="flex justify-between gap-3">
+                  <dt className="text-apg-silver">Rent applied to first invoice</dt>
+                  <dd className="font-medium tabular-nums text-white">
+                    {paiseToInr(explanation.afterApproval.rentAppliedToInvoicePaise)}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <dt className="text-apg-silver">Advance rent credit (stored on booking)</dt>
+                  <dd className="font-medium tabular-nums text-sky-300">
+                    {paiseToInr(explanation.afterApproval.advanceRentCreditPaise)}
+                  </dd>
+                </div>
+              </>
+            ) : (
+              <div className="flex justify-between gap-3">
+                <dt className="text-apg-silver">Rent collected</dt>
+                <dd className="font-medium tabular-nums text-white">
+                  {paiseToInr(explanation.afterApproval.rentCollectedPaise)}
+                </dd>
+              </div>
+            )}
             {explanation.afterApproval.depositTransferredPaise > 0 ? (
               <div className="flex justify-between gap-3">
                 <dt className="text-apg-silver">

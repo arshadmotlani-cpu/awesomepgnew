@@ -9,6 +9,7 @@ import { defaultVacatingDate } from '@/src/lib/dateDefaults';
 import { isOpenEndedStayEnd, todayString } from '@/src/lib/dates';
 import { paiseToInr } from '@/src/lib/format';
 import { estimateVacateDepositPreview } from '@/src/lib/vacating/depositRefundEligibility';
+import { VACATING_CHECKOUT_DEADLINE_COPY } from '@/src/lib/residents/stayBillingRules';
 import { ACCOUNT_SURFACE_PRIMARY_BTN } from '@/src/components/customer/accountStyles';
 
 const idleState: VacatingActionState = { status: 'idle' };
@@ -71,6 +72,7 @@ export function VacatingRequestForm({
       <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-700">
         <p className="font-medium text-zinc-900">Important information</p>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-relaxed">
+          <li>{VACATING_CHECKOUT_DEADLINE_COPY}</li>
           <li>Electricity will be calculated on the day of vacating.</li>
           <li>Final settlement will be completed after vacating.</li>
           <li>

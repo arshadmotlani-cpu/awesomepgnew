@@ -1,4 +1,5 @@
 import type { PriorOutstandingItem } from '@/src/lib/billing/bookingCheckoutTotals';
+import type { CheckoutRentProration } from '@/src/lib/billing/checkoutRentProration';
 import type { getQrBookingPaymentReview } from '@/src/services/qrPayments';
 import type { PriorBookingDepositInfo } from '@/src/services/depositCredit';
 
@@ -28,6 +29,10 @@ export type PaymentFinancialTraceEntry = {
 
 export type PaymentAfterApprovalPreview = {
   rentCollectedPaise: number;
+  /** Portion of rent applied to the first (pro-rated) monthly invoice. */
+  rentAppliedToInvoicePaise: number;
+  /** Stored as advance rent credit when checkout rent exceeds pro-rated first invoice. */
+  advanceRentCreditPaise: number;
   /** Cash deposit portion from this payment. */
   depositCollectedPaise: number;
   /** Admin-transferred deposit credit applied to this booking. */
@@ -159,6 +164,7 @@ export function buildBookingPaymentExplanation(input: {
   depositCreditSourceBookingCode?: string | null;
   priorOutstandingItems: PriorOutstandingItem[];
   priorBookingDeposits: PriorBookingDepositInfo[];
+  checkoutProration?: CheckoutRentProration | null;
 }): PaymentExplanationView {
   const {
     review,
@@ -166,6 +172,7 @@ export function buildBookingPaymentExplanation(input: {
     depositCreditAppliedPaise,
     depositCreditSourceBookingId,
     depositCreditSourceBookingCode,
+    checkoutProration,
   } = input;
   const priorOutstandingItems = input.priorOutstandingItems ?? [];
   const priorBookingDeposits = input.priorBookingDeposits ?? [];
@@ -309,6 +316,15 @@ export function buildBookingPaymentExplanation(input: {
     priorOutstandingItems,
   });
 
+  const rentAppliedToInvoicePaise =
+    checkoutProration?.isProrated && review.rentPaisePaid > 0
+      ? Math.min(review.rentPaisePaid, checkoutProration.firstMonthInvoiceRentPaise)
+      : review.rentPaisePaid;
+  const advanceRentCreditPaise =
+    checkoutProration?.isProrated && review.rentPaisePaid > 0
+      ? Math.max(0, review.rentPaisePaid - rentAppliedToInvoicePaise)
+      : 0;
+
   return {
     newBookingLines,
     depositCalculationLines,
@@ -326,6 +342,8 @@ export function buildBookingPaymentExplanation(input: {
     resultTone,
     afterApproval: {
       rentCollectedPaise: review.rentPaisePaid,
+      rentAppliedToInvoicePaise,
+      advanceRentCreditPaise,
       depositCollectedPaise: review.depositPaisePaid,
       depositTransferredPaise: depositCreditAppliedPaise,
       depositTransferSourceBookingCode: depositCreditSourceBookingCode,

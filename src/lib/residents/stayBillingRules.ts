@@ -3,6 +3,10 @@ export const STAY_CHECK_IN_TIME = '11:00 AM';
 export const STAY_CHECK_OUT_TIME = '11:00 AM';
 export const STAY_CYCLE_HOURS = 24;
 
+/** Shown on vacating / checkout surfaces. */
+export const VACATING_CHECKOUT_DEADLINE_COPY =
+  'Vacate before 11:00 AM on your checkout date.';
+
 export const STAY_TIMING_RULE_COPY =
   `Check-in: ${STAY_CHECK_IN_TIME}. Check-out: ${STAY_CHECK_OUT_TIME} next day. ` +
   'Even if you arrive late at night (e.g. 1 AM), billing is counted from the previous 11:00 AM cycle.';

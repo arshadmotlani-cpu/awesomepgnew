@@ -1,17 +1,16 @@
 /**
  * Rent invoice transparency SSOT — single builder for resident + admin UI.
  */
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
-  bedReservations,
   beds,
   financialInvoices,
   rentInvoices,
   rooms,
 } from '@/src/db/schema';
 import type { InvoiceBreakdown } from '@/src/db/schema/financialInvoices';
-import { addDays, formatDate, parseDate } from '@/src/lib/dates';
+import { parseDate } from '@/src/lib/dates';
 import { getRoomBillingConfigForBed } from '@/src/lib/billing/roomBilling';
 import {
   resolveMonthlyRentPaiseForBooking,
@@ -21,7 +20,6 @@ import type {
   RentInvoiceBreakdown,
   RentInvoiceProration,
 } from '@/src/lib/billing/rentInvoiceBreakdownTypes';
-import { monthBounds, prorateForMonth } from '@/src/services/billing';
 import { projectInvoice } from '@/src/services/rentInvoices';
 
 function monthLabel(billingMonth: string): string {
@@ -29,95 +27,20 @@ function monthLabel(billingMonth: string): string {
   return d.toLocaleString('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 }
 
-function parseProrationFromNotes(
-  notes: string | null,
-  monthlyRentPaise: number,
-  finalRentPaise: number,
-): RentInvoiceProration | null {
+function parseBillingPeriodFromNotes(notes: string | null): string | null {
   if (!notes) return null;
-  const match = notes.match(/Pro-rated:\s*(\d+)\/(\d+)\s*days active/i);
-  if (!match) return null;
-  const daysStayed = Number(match[1]);
-  const daysInMonth = Number(match[2]);
-  if (!Number.isFinite(daysStayed) || !Number.isFinite(daysInMonth) || daysInMonth <= 0) {
-    return null;
-  }
-  return {
-    checkInDate: null,
-    checkOutDate: null,
-    daysStayed,
-    daysInMonth,
-    monthlyRentPaise,
-    calculatedSharePaise: finalRentPaise,
-    amountAlreadyCollectedPaise: 0,
-    remainingAmountPaise: finalRentPaise,
-  };
-}
-
-/** Stay window for invoice display — includes completed reservations for past months. */
-async function loadStayWindowForBooking(
-  bookingId: string,
-): Promise<{ start: string; end: string | null } | null> {
-  const rows = await db
-    .select({
-      lower: sql<string>`to_char(lower(${bedReservations.stayRange}), 'YYYY-MM-DD')`,
-      upper: sql<string | null>`to_char(upper(${bedReservations.stayRange}), 'YYYY-MM-DD')`,
-    })
-    .from(bedReservations)
-    .where(
-      and(
-        eq(bedReservations.bookingId, bookingId),
-        inArray(bedReservations.status, ['active', 'completed']),
-      ),
-    );
-  if (rows.length === 0) return null;
-  const lowers = rows.map((r) => r.lower).filter(Boolean) as string[];
-  const uppers = rows.map((r) => r.upper).filter((u): u is string => !!u);
-  if (lowers.length === 0) return null;
-  const start = lowers.sort()[0];
-  const end =
-    uppers.length === rows.length ? uppers.sort().slice(-1)[0] : null;
-  return { start, end };
+  const match = notes.match(/Billing period:\s*(.+)/i);
+  return match?.[1]?.trim() ?? null;
 }
 
 async function resolveRentInvoiceProration(
   invoice: typeof rentInvoices.$inferSelect,
-  monthlyRentPaise: number,
+  _monthlyRentPaise: number,
 ): Promise<RentInvoiceProration | null> {
-  const stay = await loadStayWindowForBooking(invoice.bookingId);
-  if (stay) {
-    const prorated = prorateForMonth({
-      monthlyRatePaise: monthlyRentPaise,
-      billingMonth: invoice.billingMonth,
-      activeStart: stay.start,
-      activeEnd: stay.end ?? '9999-12-31',
-    });
-    if (!prorated.isFullMonth && prorated.daysActive > 0) {
-      const { start: monthStart, end: monthEnd } = monthBounds(invoice.billingMonth);
-      const aStart = parseDate(stay.start);
-      const aEnd = parseDate(stay.end ?? '9999-12-31');
-      const intersectStart = aStart > monthStart ? aStart : monthStart;
-      const intersectEnd = aEnd < monthEnd ? aEnd : monthEnd;
-      const checkInDate = formatDate(intersectStart);
-      const checkOutDate =
-        intersectEnd < monthEnd ? formatDate(addDays(intersectEnd, -1)) : null;
-
-      return {
-        checkInDate,
-        checkOutDate,
-        daysStayed: prorated.daysActive,
-        daysInMonth: prorated.daysInMonth,
-        monthlyRentPaise,
-        calculatedSharePaise: invoice.rentPaise,
-        amountAlreadyCollectedPaise: 0,
-        remainingAmountPaise: invoice.rentPaise,
-      };
-    }
-    if (prorated.isFullMonth) return null;
-  }
-
-  if (invoice.rentPaise >= monthlyRentPaise) return null;
-  return parseProrationFromNotes(invoice.notes, monthlyRentPaise, invoice.rentPaise);
+  // Anniversary billing — no proration breakdown for normal invoices.
+  if (parseBillingPeriodFromNotes(invoice.notes)) return null;
+  if (invoice.notes?.includes('Pro-rated:')) return null;
+  return null;
 }
 
 function discountsAndCreditsFromBreakdown(
@@ -162,13 +85,10 @@ export function buildRentInvoiceBreakdownFromContext(input: {
   const proration =
     input.proration !== undefined
       ? input.proration
-      : input.invoice.rentPaise < input.monthlyRentPaise
-        ? parseProrationFromNotes(
-            input.invoice.notes,
-            input.monthlyRentPaise,
-            input.invoice.rentPaise,
-          )
-        : null;
+      : null;
+
+  const billingPeriodLabel = parseBillingPeriodFromNotes(input.invoice.notes);
+  const billingMonthLabel = billingPeriodLabel ?? monthLabel(input.invoice.billingMonth);
 
   const occupancyLabel = input.isPrivateRoom
     ? 'Private room · 1 resident'
@@ -179,7 +99,7 @@ export function buildRentInvoiceBreakdownFromContext(input: {
     invoiceId: input.invoice.id,
     invoiceNumber: input.invoice.invoiceNumber,
     billingMonth: input.invoice.billingMonth,
-    billingMonthLabel: monthLabel(input.invoice.billingMonth),
+    billingMonthLabel,
     dueDate: input.invoice.dueDate,
     roomNumber: input.roomNumber,
     bedCode: input.bedCode,

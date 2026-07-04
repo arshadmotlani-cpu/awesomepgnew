@@ -25,6 +25,10 @@ import {
 import { formatDate, formatDateTime, paiseToInr, titleCase } from '@/src/lib/format';
 import { adminStayTypeLabel, isMonthlyStayType } from '@/src/lib/stayType';
 import { allocateBookingCheckoutPayment } from '@/src/lib/billing/bookingPaymentAllocation';
+import {
+  buildBookingPaymentAllocationLines,
+  sumAllocationLines,
+} from '@/src/services/bookingPaymentFinancialProjection';
 import { buildAdminInvoiceHrefMap } from '@/src/lib/billing/invoiceHrefMap';
 import { diffDays, parseDate } from '@/src/lib/dates';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
@@ -99,8 +103,12 @@ export default async function AdminBookingDetailPage(
     discountPaise: b.discountPaise,
     depositPaise: b.depositPaise,
     totalPaise: b.totalPaise,
+    durationMode: b.durationMode,
     pricingSnapshot: b.pricingSnapshot,
   };
+  const primaryStayStart = primaryRes?.stayRange
+    ? parseDaterange(primaryRes.stayRange)?.start ?? null
+    : null;
   const succeededBookingPayments = b.payments.filter(
     (p) => p.status === 'succeeded' && p.purpose === 'booking',
   );
@@ -392,48 +400,35 @@ export default async function AdminBookingDetailPage(
             <div className="rounded-xl border border-white/10 bg-[#1A1F27] p-5">
               <h2 className="text-sm font-semibold text-white">Checkout payment allocation</h2>
               <p className="mt-1 text-xs text-apg-silver">
-                How each succeeded booking payment is split into rent, deposit cash, and prior balances.
+                Every rupee reconciles with rent invoices, deposit held, and advance rent credit.
               </p>
-              <Table>
-                <THead>
-                  <TR>
-                    <TH>When</TH>
-                    <TH className="text-right">Total</TH>
-                    <TH className="text-right">Rent</TH>
-                    <TH className="text-right">Deposit cash</TH>
-                    <TH className="text-right">Prior deposit</TH>
-                    <TH className="text-right">Transfer credit</TH>
-                  </TR>
-                </THead>
-                <TBody>
-                  {succeededBookingPayments.map((p) => {
-                    const allocation = allocateBookingCheckoutPayment(
-                      bookingCheckout,
-                      p.amountPaise,
-                    );
-                    return (
-                      <TR key={p.id}>
-                        <TD className="text-xs text-apg-silver">
-                          {formatDateTime(p.paidAt ?? p.createdAt)}
-                        </TD>
-                        <TD className="text-right tabular-nums">{paiseToInr(p.amountPaise)}</TD>
-                        <TD className="text-right tabular-nums">{paiseToInr(allocation.rentPaise)}</TD>
-                        <TD className="text-right tabular-nums">
-                          {paiseToInr(allocation.depositCashPaise)}
-                        </TD>
-                        <TD className="text-right tabular-nums">
-                          {paiseToInr(allocation.priorOutstandingPaise)}
-                        </TD>
-                        <TD className="text-right tabular-nums text-apg-silver">
-                          {allocation.depositTransferCreditPaise > 0
-                            ? paiseToInr(allocation.depositTransferCreditPaise)
-                            : '—'}
-                        </TD>
-                      </TR>
-                    );
-                  })}
-                </TBody>
-              </Table>
+              {succeededBookingPayments.map((p) => {
+                const allocation = allocateBookingCheckoutPayment(bookingCheckout, p.amountPaise);
+                const lines = buildBookingPaymentAllocationLines(bookingCheckout, allocation, {
+                  stayStartDate: primaryStayStart,
+                  paymentId: p.id,
+                });
+                const totalAllocated = sumAllocationLines(lines);
+                return (
+                  <div key={p.id} className="mt-4 border-t border-white/10 pt-4 first:mt-0 first:border-0 first:pt-0">
+                    <p className="text-xs text-apg-silver mb-2">
+                      {formatDateTime(p.paidAt ?? p.createdAt)} · Payment {paiseToInr(p.amountPaise)}
+                    </p>
+                    <dl className="space-y-1 text-sm">
+                      {lines.map((line) => (
+                        <div key={line.key} className="flex justify-between gap-4">
+                          <dt className="text-apg-silver">{line.label}</dt>
+                          <dd className="tabular-nums text-white">{paiseToInr(line.amountPaise)}</dd>
+                        </div>
+                      ))}
+                      <div className="flex justify-between gap-4 border-t border-white/10 pt-2 font-semibold">
+                        <dt className="text-white">Total allocated</dt>
+                        <dd className="tabular-nums text-white">{paiseToInr(totalAllocated)}</dd>
+                      </div>
+                    </dl>
+                  </div>
+                );
+              })}
             </div>
           ) : null}
 

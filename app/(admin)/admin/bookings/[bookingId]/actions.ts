@@ -6,6 +6,7 @@ import { and, eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { bookings, stayExtensions } from '@/src/db/schema';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
+import { sanitizeBedStatusError } from '@/src/lib/bedOccupancyCheck';
 import { assertAdminBookingAccess, assertAdminBookingCodeAccess } from '@/src/lib/auth/pgAccess';
 import { adminHasPermission } from '@/src/lib/auth/roles';
 import {
@@ -411,6 +412,6 @@ export async function updateBedStatusAction(
     revalidatePath('/pgs');
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    return { ok: false, error: sanitizeBedStatusError(err) };
   }
 }

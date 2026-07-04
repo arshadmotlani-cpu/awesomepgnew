@@ -10,6 +10,7 @@
 
 import { addMonths, formatDate, parseDate, type DateLike } from '@/src/lib/dates';
 import {
+  anniversaryBillingPeriod,
   billingDayFromMoveIn,
   billingMonthForAnniversaryDate,
   daysInMonth,
@@ -17,19 +18,28 @@ import {
   effectiveBillingDayInMonth,
   firstAutoBillingDate,
   firstOfMonth,
+  formatAnniversaryBillingPeriodLabel,
+  fullMonthlyRentPaise,
   isBillingAnniversaryToday,
+  isResidentActiveOnDate,
   monthBounds,
+  rentInvoiceBillingPeriodNote,
 } from '@/src/services/billing';
 
 export {
+  anniversaryBillingPeriod,
   billingDayFromMoveIn,
   billingMonthForAnniversaryDate,
   dueDateForBillingDay,
   effectiveBillingDayInMonth,
   firstAutoBillingDate,
   firstOfMonth,
+  formatAnniversaryBillingPeriodLabel,
+  fullMonthlyRentPaise,
   isBillingAnniversaryToday,
+  isResidentActiveOnDate,
   monthBounds,
+  rentInvoiceBillingPeriodNote,
 };
 
 /** Stable idempotency key for a booking billing cycle. */

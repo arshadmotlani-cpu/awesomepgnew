@@ -103,7 +103,7 @@ export type PricingSnapshot = {
   /** Credits from checkout overpayment or admin adjustments — applied to future billing. */
   checkoutCredits?: Array<{
     amountPaise: number;
-    kind: 'future_rent_adjustment' | 'refund_pending';
+    kind: 'future_rent_adjustment' | 'refund_pending' | 'advance_rent_credit';
     relatedPaymentId?: string;
     createdAt: string;
     note?: string;

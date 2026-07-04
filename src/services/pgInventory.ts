@@ -13,6 +13,7 @@ import {
 } from '@/src/db/schema';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
+import { hasBedActiveOrHoldReservation } from '@/src/lib/bedOccupancyCheck';
 import { monthStartFor, writeBedPriceVersion } from '@/src/services/pgInventoryPricing';
 
 export type PgPricingRateTier = 'daily' | 'weekly' | 'monthly';
@@ -809,20 +810,6 @@ export async function updateRoomDetails(
   }
 }
 
-async function bedHasActiveReservation(bedId: string): Promise<boolean> {
-  const [row] = await db
-    .select({ id: bedReservations.id })
-    .from(bedReservations)
-    .where(
-      and(
-        eq(bedReservations.bedId, bedId),
-        sql`${bedReservations.status} IN ('hold', 'active')`,
-      ),
-    )
-    .limit(1);
-  return Boolean(row);
-}
-
 async function assertBedInPg(pgId: string, bedId: string) {
   const [row] = await db
     .select({ bedId: beds.id })
@@ -868,7 +855,7 @@ export async function archiveBed(
   assertPgAccess(session, pgId);
   await assertBedInPg(pgId, bedId);
 
-  if (await bedHasActiveReservation(bedId)) {
+  if (await hasBedActiveOrHoldReservation(bedId)) {
     throw new Error('Cannot remove this bed — it has an active booking or hold.');
   }
 
@@ -893,7 +880,7 @@ export async function archiveRoom(
     .where(and(eq(beds.roomId, roomId), isNull(beds.archivedAt)));
 
   for (const { bedId } of roomBeds) {
-    if (await bedHasActiveReservation(bedId)) {
+    if (await hasBedActiveOrHoldReservation(bedId)) {
       throw new Error(
         'Cannot remove this room — one or more beds have an active booking or hold.',
       );

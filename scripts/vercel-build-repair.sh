@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
+if [ "${REPAIR_PRODUCTION_DATA:-}" = "1" ]; then
+  echo "=== Production data repair (idempotent) ==="
+  npx tsx scripts/repair-production-data-consistency.ts || true
+fi
 if [ "${VERIFY_APG_0036_E2E:-}" = "1" ]; then
   echo "Running APG-2026-0036 production E2E verification…"
   npx tsx scripts/verify-apg-0036-production.ts

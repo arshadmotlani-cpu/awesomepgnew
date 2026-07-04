@@ -78,6 +78,64 @@ export function billingMonthForAnniversaryDate(today: DateLike): string {
 }
 
 /**
+ * Full monthly rent for anniversary billing — normal invoices are never prorated.
+ */
+export function fullMonthlyRentPaise(monthlyRatePaise: number): number {
+  return Math.max(0, monthlyRatePaise);
+}
+
+/**
+ * Billing period ending on the anniversary invoice date.
+ * Example: periodEnd 2026-08-04, billingDay 4 → 2026-07-04 → 2026-08-04.
+ */
+export function anniversaryBillingPeriod(
+  periodEnd: DateLike,
+  billingDay: number,
+): { periodStart: string; periodEnd: string } {
+  const end = parseDate(periodEnd);
+  const endStr = formatDate(end);
+  const { start: monthStart } = monthBounds(end);
+  const prevMonthStart = addMonths(monthStart, -1);
+  const effectiveDay = effectiveBillingDayInMonth(prevMonthStart, billingDay);
+  const periodStart = formatDate(
+    new Date(Date.UTC(prevMonthStart.getUTCFullYear(), prevMonthStart.getUTCMonth(), effectiveDay)),
+  );
+  return { periodStart, periodEnd: endStr };
+}
+
+export function formatAnniversaryBillingPeriodLabel(
+  periodStart: string,
+  periodEnd: string,
+): string {
+  const fmt = (d: string) => {
+    const p = parseDate(d);
+    return p.toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      timeZone: 'UTC',
+    });
+  };
+  return `${fmt(periodStart)} → ${fmt(periodEnd)}`;
+}
+
+/** Invoice notes line for anniversary billing period. */
+export function rentInvoiceBillingPeriodNote(periodStart: string, periodEnd: string): string {
+  return `Billing period: ${formatAnniversaryBillingPeriodLabel(periodStart, periodEnd)}`;
+}
+
+/** Half-open stay [start, end): active on calendar date `date`. */
+export function isResidentActiveOnDate(
+  stay: { start: string; end: string | null },
+  date: DateLike,
+): boolean {
+  const d = formatDate(parseDate(date));
+  if (d < stay.start) return false;
+  if (stay.end && d >= stay.end) return false;
+  return true;
+}
+
+/**
  * Due date for a billing month. Per spec, rent is due on the 1st with a
  * grace period through the 5th; late fees start accruing on the 6th.
  * We store `due_date = billing_month + 4 days` (= the 5th, inclusive)
@@ -257,6 +315,9 @@ export function isNoticeCompliant(args: {
 
 /**
  * Pro-rate a monthly rent for a partial month.
+ *
+ * @deprecated Not used for normal monthly rent invoices (anniversary billing uses
+ * {@link fullMonthlyRentPaise}). Retained for electricity allocation and legacy audits only.
  *
  *   monthlyRate * (daysActive / daysInMonth)
  *
@@ -446,9 +507,14 @@ export function buildRentBillingTimeline(args: {
     openInvoiceDueDate: args.openInvoiceDueDate,
   });
 
-  const currentBillingPeriod = args.openInvoiceBillingMonth
-    ? args.openInvoiceBillingMonth.slice(0, 7)
-    : firstOfMonth(today).slice(0, 7);
+  const currentBillingPeriod = (() => {
+    if (args.openInvoiceDueDate) {
+      const period = anniversaryBillingPeriod(args.openInvoiceDueDate, billingDay);
+      return formatAnniversaryBillingPeriodLabel(period.periodStart, period.periodEnd);
+    }
+    const period = anniversaryBillingPeriod(nextDueDate, billingDay);
+    return formatAnniversaryBillingPeriodLabel(period.periodStart, period.periodEnd);
+  })();
 
   return {
     checkInDate: formatDate(parseDate(args.moveInDate)),

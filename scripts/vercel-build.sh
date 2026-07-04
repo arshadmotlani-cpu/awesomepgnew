@@ -17,6 +17,8 @@ run_migrate() {
 if has_db_url; then
   if is_production_deployment; then
     run_migrate
+    echo "=== Production data consistency audit (read-only) ==="
+    npx tsx scripts/audit-production-data-consistency.ts || true
   elif ! run_migrate; then
     echo "⚠ Non-production: db:migrate failed — continuing build so the PR preview can still deploy."
     echo "  Fix migrations on a branch or run db:migrate against preview DB manually."

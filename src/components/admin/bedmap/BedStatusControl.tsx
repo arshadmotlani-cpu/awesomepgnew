@@ -11,6 +11,7 @@ import {
 } from '@/app/(admin)/admin/pgs/[pgId]/map/actions';
 import { AdminConfirmDialog } from '@/src/components/admin/AdminConfirmDialog';
 import { RESERVE_MIN_PERIOD_DAYS } from '@/src/lib/bedReservePolicy';
+import { BED_MAINTENANCE_MARKED_MESSAGE } from '@/src/lib/bedOccupancyCheck';
 import { addDays, formatDate, todayString } from '@/src/lib/dates';
 import type { PgBedMapBed } from '@/src/services/pgBedMap';
 
@@ -41,6 +42,7 @@ export function BedStatusControl({ pgId, bed }: { pgId: string; bed: PgBedMapBed
   );
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [confirmMaintenance, setConfirmMaintenance] = useState(false);
 
   const locked = hasTenant;
@@ -54,6 +56,7 @@ export function BedStatusControl({ pgId, bed }: { pgId: string; bed: PgBedMapBed
     if (!dirty || locked) return;
     setPending(true);
     setError(null);
+    setSuccess(null);
     try {
       if (selected === 'available') {
         if (bed.bedStatus === 'maintenance') {
@@ -110,6 +113,7 @@ export function BedStatusControl({ pgId, bed }: { pgId: string; bed: PgBedMapBed
   async function confirmPutUnderMaintenance() {
     setPending(true);
     setError(null);
+    setSuccess(null);
     try {
       const result = await putBedUnderMaintenanceAction(pgId, bed.bedId, {
         reason: 'other',
@@ -120,6 +124,7 @@ export function BedStatusControl({ pgId, bed }: { pgId: string; bed: PgBedMapBed
         setError(result.error ?? 'Could not put bed under maintenance.');
         return;
       }
+      setSuccess(BED_MAINTENANCE_MARKED_MESSAGE);
       router.refresh();
     } finally {
       setPending(false);
@@ -201,6 +206,7 @@ export function BedStatusControl({ pgId, bed }: { pgId: string; bed: PgBedMapBed
       )}
 
       {error ? <p className="mt-2 text-xs text-rose-300">{error}</p> : null}
+      {success ? <p className="mt-2 text-xs text-emerald-300">{success}</p> : null}
 
       <AdminConfirmDialog
         open={confirmMaintenance}

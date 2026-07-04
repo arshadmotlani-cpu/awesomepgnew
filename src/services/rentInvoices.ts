@@ -16,10 +16,10 @@
  *   bed_prices (per-bed) → rooms.private_room_monthly_rent_paise (negotiated)
  *   → resident_billing_profiles → pricing snapshot (historical fallback only).
  *
- * Pro-ration:
- *   - First month (resident moves in mid-month): pro-rated by days active.
- *   - Last month (vacating mid-month): pro-rated.
- *   - Full months: full monthly rate, no pro-ration.
+ * Anniversary billing:
+ *   - Every invoice is the full monthly rent (no calendar proration).
+ *   - Invoices generate on the resident's billing day each month.
+ *   - Billing period is shown as e.g. 4 Jul 2026 → 4 Aug 2026.
  *
  * Idempotency:
  *   - UNIQUE(booking_id, billing_month) on rent_invoices.
@@ -56,13 +56,16 @@ import { addDays, diffDays, formatDate, parseDate, type DateLike } from '../lib/
 import { writeAuditLogNonBlocking } from '@/src/lib/audit/writeAuditLog';
 import { formatPostgresError } from '@/src/lib/db/postgresError';
 import {
+  anniversaryBillingPeriod,
   computeLateFee,
   daysOverdue,
   dueDateForBillingDay,
   dueDateForMonth,
   firstOfMonth,
+  fullMonthlyRentPaise,
+  isResidentActiveOnDate,
   monthBounds,
-  prorateForMonth,
+  rentInvoiceBillingPeriodNote,
 } from './billing';
 import type { AnyPaymentProvider } from './bookingLifecycle';
 import type { ProviderName } from './payments';
@@ -787,18 +790,23 @@ export async function generateRentInvoicesForMonth(
           ? formatDate(addDays(stay.start, 4))
           : calendarDue;
 
-    const prorated = prorateForMonth({
-      monthlyRatePaise: monthlyRent,
-      billingMonth,
-      activeStart: stay.start,
-      // For open-ended bookings (no upper bound), use far-future so
-      // intersection = full month.
-      activeEnd: stay.end ?? '9999-12-31',
-    });
-    if (prorated.amountPaise <= 0) {
+    const rentPaise = fullMonthlyRentPaise(monthlyRent);
+    if (rentPaise <= 0) {
       skipped += 1;
       continue;
     }
+
+    const anniversaryDate = dueDate;
+    if (!isResidentActiveOnDate(stay, anniversaryDate)) {
+      skipped += 1;
+      continue;
+    }
+
+    const billingPeriod = anniversaryBillingPeriod(anniversaryDate, billingDay);
+    const invoiceNotes = rentInvoiceBillingPeriodNote(
+      billingPeriod.periodStart,
+      billingPeriod.periodEnd,
+    );
 
     // Look up pgId for the bed (so we can index by PG cheaply).
     const [pgRow] = await db.execute<{ pg_id: string }>(sql`
@@ -830,11 +838,9 @@ export async function generateRentInvoicesForMonth(
             pgId,
             billingMonth,
             dueDate,
-            rentPaise: prorated.amountPaise,
+            rentPaise,
             status: 'pending',
-            notes: prorated.isFullMonth
-              ? null
-              : `Pro-rated: ${prorated.daysActive}/${prorated.daysInMonth} days active.`,
+            notes: invoiceNotes,
           })
           .onConflictDoNothing({
             target: [rentInvoices.bookingId, rentInvoices.billingMonth],
@@ -866,16 +872,15 @@ export async function generateRentInvoicesForMonth(
         diff: {
           bookingId: c.bookingId,
           billingMonth,
-          rentPaise: prorated.amountPaise,
-          isFullMonth: prorated.isFullMonth,
-          daysActive: prorated.daysActive,
+          rentPaise,
+          billingPeriod,
         },
       });
       const { notifyRentReminder } = await import('@/src/lib/email/notifications');
       notifyRentReminder({
         customerId: c.customerId,
         billingMonth,
-        amountPaise: prorated.amountPaise,
+        amountPaise: rentPaise,
         dueDate,
       });
     } else {
@@ -1952,13 +1957,7 @@ export async function recalculatePendingRentInvoicesForBooking(args: {
 
   for (const inv of pending) {
     if (!stay) continue;
-    const prorated = prorateForMonth({
-      monthlyRatePaise: monthlyRent,
-      billingMonth: inv.billingMonth,
-      activeStart: stay.start,
-      activeEnd: stay.end ?? '9999-12-31',
-    });
-    const newPaise = prorated.amountPaise;
+    const newPaise = fullMonthlyRentPaise(monthlyRent);
     if (newPaise <= 0 || newPaise === inv.rentPaise) continue;
 
     await db
@@ -2130,15 +2129,7 @@ export async function listRentBillingOverview(
     if (!stay) continue;
 
     const monthlyRent = monthlyRentFromSnapshot(c.pricingSnapshot as PricingSnapshot | null);
-    const prorated =
-      monthlyRent > 0
-        ? prorateForMonth({
-            monthlyRatePaise: monthlyRent,
-            billingMonth: month,
-            activeStart: stay.start,
-            activeEnd: stay.end ?? '9999-12-31',
-          })
-        : { amountPaise: 0 };
+    const invoiceRentPaise = monthlyRent > 0 ? fullMonthlyRentPaise(monthlyRent) : 0;
 
     const [bedMeta] = await db.execute<{
       pg_id: string;
@@ -2170,7 +2161,7 @@ export async function listRentBillingOverview(
 
     const invoiceStatus = (inv?.status ?? 'none') as RentBillingOverviewRow['invoiceStatus'];
     const isDueForGeneration =
-      prorated.amountPaise > 0 && stay.start <= asOf && !inv;
+      invoiceRentPaise > 0 && stay.start <= asOf && !inv;
 
     overview.push({
       bookingId: c.bookingId,
@@ -2183,7 +2174,7 @@ export async function listRentBillingOverview(
       roomNumber: bedMeta.room_number,
       bedCode: bedMeta.bed_code,
       checkInDate: stay.start,
-      expectedRentPaise: prorated.amountPaise,
+      expectedRentPaise: invoiceRentPaise,
       invoiceId: inv?.id ?? null,
       invoiceNumber: inv?.invoiceNumber ?? null,
       invoiceStatus: inv ? invoiceStatus : 'none',

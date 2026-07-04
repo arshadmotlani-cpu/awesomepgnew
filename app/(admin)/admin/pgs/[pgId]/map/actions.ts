@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { assertAdminBookingAccess } from '@/src/lib/auth/pgAccess';
 import { revalidateOccupancyViews } from '@/src/lib/occupancyRevalidate';
+import { sanitizeBedStatusError } from '@/src/lib/bedOccupancyCheck';
 import {
   revalidateVacatingLifecycleForBooking,
   revalidateVacatingLifecycleViews,
@@ -117,7 +118,7 @@ export async function setBedManualOccupiedAction(
     revalidatePath('/pgs');
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    return { ok: false, error: sanitizeBedStatusError(err) };
   }
 }
 
@@ -137,7 +138,7 @@ export async function setBedManualReservedAction(
     revalidatePath('/pgs');
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    return { ok: false, error: sanitizeBedStatusError(err) };
   }
 }
 
@@ -155,7 +156,7 @@ export async function clearBedManualReservedAction(
     revalidatePath('/pgs');
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    return { ok: false, error: sanitizeBedStatusError(err) };
   }
 }
 
@@ -186,7 +187,7 @@ export async function putBedUnderMaintenanceAction(
     revalidatePath('/pgs');
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    return { ok: false, error: sanitizeBedStatusError(err) };
   }
 }
 
@@ -204,7 +205,7 @@ export async function completeBedMaintenanceAction(
     revalidatePath('/pgs');
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    return { ok: false, error: sanitizeBedStatusError(err) };
   }
 }
 

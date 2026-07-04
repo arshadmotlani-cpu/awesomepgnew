@@ -1,7 +1,11 @@
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { auditLog, beds, floors, pgs, rooms } from '@/src/db/schema';
 import type { AdminSession } from '@/src/lib/auth/session';
+import {
+  assertBedNotOccupiedToday,
+  sanitizeBedStatusError,
+} from '@/src/lib/bedOccupancyCheck';
 import {
   BED_MAINTENANCE_REASONS,
   type BedMaintenanceReason,
@@ -20,24 +24,6 @@ export type PutBedUnderMaintenanceInput = {
 
 function isValidReason(value: string): value is BedMaintenanceReason {
   return BED_MAINTENANCE_REASONS.some((r) => r.value === value);
-}
-
-async function assertBedHasNoActiveOccupant(bedId: string): Promise<void> {
-  const [check] = await db.execute<{ occupied: boolean }>(sql`
-    SELECT EXISTS (
-      SELECT 1
-      FROM bed_reservations br
-      INNER JOIN bookings bk ON bk.id = br.booking_id
-      WHERE br.bed_id = ${bedId}::uuid
-        AND bk.status = 'confirmed'
-        AND br.status = 'active'
-        AND br.kind = 'primary'
-        AND CURRENT_DATE <@ br.stay_range
-    ) AS occupied
-  `);
-  if (check?.occupied) {
-    throw new Error('Cannot put an occupied or reserved bed under maintenance. Complete move-out first.');
-  }
 }
 
 export async function putBedUnderMaintenance(
@@ -77,7 +63,7 @@ export async function putBedUnderMaintenance(
       return { ok: false, error: 'Bed is already under maintenance. Update details or complete maintenance first.' };
     }
 
-    await assertBedHasNoActiveOccupant(bedId);
+    await assertBedNotOccupiedToday(bedId);
 
     await db
       .update(beds)
@@ -115,7 +101,7 @@ export async function putBedUnderMaintenance(
 
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    return { ok: false, error: sanitizeBedStatusError(err) };
   }
 }
 
@@ -177,6 +163,6 @@ export async function completeBedMaintenance(
 
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    return { ok: false, error: sanitizeBedStatusError(err) };
   }
 }
