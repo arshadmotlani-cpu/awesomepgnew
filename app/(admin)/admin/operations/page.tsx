@@ -15,7 +15,6 @@ import {
 import {
   loadUnifiedOperationsQueue,
 } from '@/src/services/unifiedOperationsQueue';
-import { syncActionItems } from '@/src/services/actionItems';
 import {
   listPaymentProofRejectionsForEntity,
   reviewKindToEntityType,
@@ -32,9 +31,8 @@ export default async function OperationsPage({
   const params = await searchParams;
   const session = await requireAdminSession('/admin/operations');
   await ensureAdminPageNotificationsSeen('/admin/operations', '/admin/operations');
-  await syncActionItems(session).catch(() => undefined);
 
-  let filter = parseOperationsFilter(params.filter);
+  const filter = parseOperationsFilter(params.filter);
   const focus = resolveOperationsFocusParam(params);
 
   if (!filter) {

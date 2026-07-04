@@ -7,7 +7,6 @@ import {
   type NotificationCategory,
 } from '@/src/lib/notifications/notificationTypes';
 import { listUserNotifications } from '@/src/services/notificationEngine';
-import { syncActionItems } from '@/src/services/actionItems';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +28,6 @@ export default async function AdminNotificationsPage({
 }) {
   const sp = await searchParams;
   const session = await requireAdminSession('/admin/notifications');
-  await syncActionItems(session).catch(() => undefined);
 
   const tab =
     sp.tab === 'archived' ? 'archived' : sp.tab === 'read' ? 'read' : 'unread';

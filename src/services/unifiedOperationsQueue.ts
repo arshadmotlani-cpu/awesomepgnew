@@ -335,6 +335,7 @@ async function buildUnifiedOperationsQueue(
   filterCounts: Array<{ id: OpsQueueFilter; label: string; count: number }>;
   focusReviewKey: string | null;
 }> {
+  unifiedQueueBuildCount += 1;
   const [
     residentsPage,
     bookingApprovals,
@@ -547,6 +548,17 @@ export function getUnifiedOperationsQueueForRequest(
     session,
     focusReviewKey ?? null,
   ).then((base) => applyUnifiedOperationsFilter(base, filterInput));
+}
+
+let unifiedQueueBuildCount = 0;
+
+/** Test/profiling only — count uncached base queue builds in this process. */
+export function resetUnifiedQueueBuildCount(): void {
+  unifiedQueueBuildCount = 0;
+}
+
+export function getUnifiedQueueBuildCount(): number {
+  return unifiedQueueBuildCount;
 }
 
 /** @deprecated Use buildUnifiedOpsFilterTags from tests only — queues are assigned in row mappers. */

@@ -10,9 +10,8 @@ import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { ADMIN_MODULES, moduleHref } from '@/src/lib/admin/navigation';
 import { evaluateNotificationDeepLink } from '@/src/lib/admin/notificationDeepLinkGuard';
 import { ensureAdminPageNotificationsSeen } from '@/src/lib/admin/notificationRead';
-import { syncActionItems } from '@/src/services/actionItems';
-import { listAssignableBeds } from '@/src/services/tenantAssignment';
 import { loadResidentCommandCenter } from '@/src/services/residentCommandCenter';
+import { listAssignableBeds } from '@/src/services/tenantAssignment';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,7 +63,6 @@ export default async function ResidentDetailPage({
   }
 
   const session = await requireAdminPermission('bookings:write');
-  await syncActionItems(session).catch(() => undefined);
 
   const data = await loadResidentCommandCenter(session, customerId);
   if (!data) notFound();

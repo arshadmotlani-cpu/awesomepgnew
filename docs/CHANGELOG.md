@@ -256,19 +256,22 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-04 08:06:49 UTC
+### Pending pre-commit sync · 2026-07-04 08:11:46 UTC
 
-**Areas touched:** [[DATABASE]]
+**Areas touched:** [[ROUTES]]
 
 **Docs flagged for review:**
 - `CHANGELOG.md` — review for accuracy
-- `DATABASE.md` — review for accuracy
+- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 
-**Staged code files (7):**
+**Staged code files (10):**
 - `app/api/cron/billing-production-verify/route.ts`
 - `app/(admin)/admin/overview/page.tsx`
 - `app/(admin)/layout.tsx`
+- `app/(admin)/admin/notifications/page.tsx`
+- `app/(admin)/admin/operations/page.tsx`
+- `app/(admin)/admin/residents/[customerId]/page.tsx`
 - `src/db/migrations/meta/_journal.json`
 - `src/services/meterElectricity.ts`
 - `src/services/rentInvoices.ts`

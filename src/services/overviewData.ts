@@ -6,6 +6,9 @@ import {
 } from '@/src/db/queries/admin';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import type { AdminSession } from '@/src/lib/auth/session';
+import { cache } from 'react';
+import { adminRequestScopeKey } from '@/src/lib/admin/adminRequestCache';
+import { profileAdminStep } from '@/src/lib/admin/adminProfile';
 import { syncActionItems } from '@/src/services/actionItems';
 import {
   loadOverviewReportingSnapshot,
@@ -26,6 +29,39 @@ export async function loadOverviewContext(
   | { ok: true; data: OverviewContext }
   | { ok: false; error: string; partial?: { billingMonth: string; monthLabel: string } }
 > {
+  return loadOverviewContextForRequest(
+    adminRequestScopeKey(session),
+    session,
+    billingMonthInput,
+    opts?.syncActions === true,
+  );
+}
+
+const loadOverviewContextForRequest = cache(
+  async (
+    scopeKey: string,
+    session: AdminSession,
+    billingMonthInput: string | undefined,
+    syncActions: boolean,
+  ): Promise<
+    | { ok: true; data: OverviewContext }
+    | { ok: false; error: string; partial?: { billingMonth: string; monthLabel: string } }
+  > => {
+    void scopeKey;
+    return profileAdminStep('loadOverviewContext', () =>
+      loadOverviewContextImpl(session, billingMonthInput, syncActions),
+    );
+  },
+);
+
+async function loadOverviewContextImpl(
+  session: AdminSession,
+  billingMonthInput: string | undefined,
+  syncActions: boolean,
+): Promise<
+  | { ok: true; data: OverviewContext }
+  | { ok: false; error: string; partial?: { billingMonth: string; monthLabel: string } }
+> {
   const billingMonth = resolveBillingMonth(billingMonthInput);
   const monthLabel = new Intl.DateTimeFormat('en-IN', {
     month: 'long',
@@ -33,7 +69,7 @@ export async function loadOverviewContext(
     timeZone: 'UTC',
   }).format(new Date(`${billingMonth}T00:00:00.000Z`));
 
-  if (opts?.syncActions === true) {
+  if (syncActions) {
     await syncActionItems(session).catch(() => undefined);
     const { reconcileStaleFinancialInvoices } = await import('@/src/lib/billing/financialMetrics');
     await reconcileStaleFinancialInvoices({ billingMonth }).catch(() => undefined);

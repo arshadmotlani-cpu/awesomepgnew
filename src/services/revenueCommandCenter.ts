@@ -13,7 +13,11 @@ import type { DepositPortfolioMetrics } from '@/src/services/depositLedgerMetric
 import type { AdminSession } from '@/src/lib/auth/session';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import type { PendingPaymentReviewItem } from '@/src/services/paymentProofQueue';
-import { loadApprovalQueueSnapshot } from '@/src/services/approvalService';
+import { getPendingPaymentReviewsForRequest } from '@/src/services/paymentProofQueue';
+import {
+  isDismissedFromOperationsQueue,
+  loadOperationsQueueDismissalIndex,
+} from '@/src/services/operationsQueueDismissals';
 import {
   computeOutstandingMoneyFromInvoices,
   loadCollectionsSnapshot,
@@ -155,14 +159,15 @@ export async function getRevenueCommandCenterData(
 ): Promise<RevenueCommandCenterData> {
   const billingMonth = resolveBillingMonth(input.billingMonth);
 
-  const [collections, depositRows, depositSummaries, approvalSnapshot, invoiceSnapshot, depositPortfolio, collectionsByModeResult, pgFinancial] =
+  const [collections, depositRows, depositSummaries, rawPaymentReviews, dismissalIndex, invoiceSnapshot, depositPortfolio, collectionsByModeResult, pgFinancial] =
     await Promise.all([
     loadCollectionsSnapshot(billingMonth),
     getDepositCollectedByPgForBillingMonth(billingMonth),
     import('@/src/services/pgDepositCollection').then((m) =>
       m.getAllPgDepositCollectionSummaries(billingMonth),
     ),
-    loadApprovalQueueSnapshot(input.session),
+    getPendingPaymentReviewsForRequest(input.session),
+    loadOperationsQueueDismissalIndex(),
     input.invoiceSnapshot
       ? Promise.resolve(input.invoiceSnapshot)
       : loadInvoiceOutstandingSnapshot(input.session),
@@ -172,6 +177,12 @@ export async function getRevenueCommandCenterData(
     getMtdCollectionByPaymentMode(billingMonth),
     getPgFinancialMetrics(billingMonth),
   ]);
+
+  const visiblePaymentReviews = rawPaymentReviews.filter(
+    (p) =>
+      !p.customerId ||
+      !isDismissedFromOperationsQueue(dismissalIndex, { customerId: p.customerId }),
+  );
 
   const today = collections.today;
 
@@ -200,7 +211,7 @@ export async function getRevenueCommandCenterData(
   const mtd = collections.mtd;
   const byPg = buildByPgRows(pgFinancial, depositByPg, depositCountsByPg);
 
-  const pendingPayments = approvalSnapshot.visiblePaymentReviews;
+  const pendingPayments = visiblePaymentReviews;
   const invoiceOutstanding = computeOutstandingMoneyFromInvoices(invoiceSnapshot);
   const outstanding = buildOutstandingFromSsot(
     invoiceOutstanding,

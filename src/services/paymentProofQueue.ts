@@ -14,7 +14,6 @@ import {
   beds,
   bookings,
   customers,
-  electricityInvoices,
   paymentLinks,
   pgs,
   rentInvoices,
@@ -654,6 +653,7 @@ async function buildDepositLinkReviewItem(
 async function fetchPendingPaymentReviews(
   session: AdminSession,
 ): Promise<PendingPaymentReviewItem[]> {
+  paymentReviewFetchCount += 1;
   const items: PendingPaymentReviewItem[] = [];
 
   const qrRows = await listOwnerPayments(session, { status: 'pending' });
@@ -692,27 +692,21 @@ async function fetchPendingPaymentReviews(
       listPendingDepositLinkProofsForPg(pg.id),
     ]);
 
-    for (const r of rentProofs) {
-      if (!r.paymentProofUrl) continue;
-      const item = await buildRentReviewItem(pg, r);
-      if (item) items.push(item);
-    }
-
-    for (const e of elecProofs) {
-      if (!e.paymentProofUrl) continue;
-      const item = await buildElectricityReviewItem(pg, e);
-      if (item) items.push(item);
-    }
-
-    for (const x of extProofs) {
-      if (!x.paymentProofUrl) continue;
-      const item = await buildExtensionReviewItem(pg, x);
-      if (item) items.push(item);
-    }
-
-    for (const d of depositLinks) {
-      if (!d.paymentProofUrl) continue;
-      const item = await buildDepositLinkReviewItem(pg, d);
+    const pgItems = await Promise.all([
+      ...rentProofs
+        .filter((r) => r.paymentProofUrl)
+        .map((r) => buildRentReviewItem(pg, r)),
+      ...elecProofs
+        .filter((e) => e.paymentProofUrl)
+        .map((e) => buildElectricityReviewItem(pg, e)),
+      ...extProofs
+        .filter((x) => x.paymentProofUrl)
+        .map((x) => buildExtensionReviewItem(pg, x)),
+      ...depositLinks
+        .filter((d) => d.paymentProofUrl)
+        .map((d) => buildDepositLinkReviewItem(pg, d)),
+    ]);
+    for (const item of pgItems) {
       if (item) items.push(item);
     }
   }
@@ -756,4 +750,15 @@ export async function getNextPendingPaymentReviewKey(
 export async function countPendingPaymentReviews(session: AdminSession): Promise<number> {
   const items = await getPendingPaymentReviewsForRequest(session);
   return items.length;
+}
+
+let paymentReviewFetchCount = 0;
+
+/** Test/profiling only — count uncached payment review fetches in this process. */
+export function resetPaymentReviewFetchCount(): void {
+  paymentReviewFetchCount = 0;
+}
+
+export function getPaymentReviewFetchCount(): number {
+  return paymentReviewFetchCount;
 }
