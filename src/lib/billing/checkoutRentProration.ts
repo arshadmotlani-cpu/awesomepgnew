@@ -5,7 +5,6 @@
  * rent invoice is also one full month. No calendar proration or advance credit.
  */
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
-import { breakdownBookingCheckoutPayment } from '@/src/lib/billing/bookingCheckoutTotals';
 
 export type CheckoutRentProration = {
   quotedRentPaise: number;
@@ -39,8 +38,7 @@ export function computeCheckoutRentProration(input: {
   stayStartDate: string | null | undefined;
   pricingSnapshot?: PricingSnapshot | null;
 }): CheckoutRentProration {
-  const breakdown = breakdownBookingCheckoutPayment(input);
-  const quotedRentPaise = breakdown.rentDuePaise;
+  const quotedRentPaise = Math.max(0, input.subtotalPaise - input.discountPaise);
   const monthlyRentPaise = resolveMonthlyRentPaise(input);
 
   const isMonthlyLike =

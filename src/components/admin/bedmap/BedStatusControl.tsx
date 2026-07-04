@@ -11,7 +11,7 @@ import {
 } from '@/app/(admin)/admin/pgs/[pgId]/map/actions';
 import { AdminConfirmDialog } from '@/src/components/admin/AdminConfirmDialog';
 import { RESERVE_MIN_PERIOD_DAYS } from '@/src/lib/bedReservePolicy';
-import { BED_MAINTENANCE_MARKED_MESSAGE } from '@/src/lib/bedOccupancyCheck';
+import { BED_MAINTENANCE_MARKED_MESSAGE } from '@/src/lib/bedOccupancyMessages';
 import { addDays, formatDate, todayString } from '@/src/lib/dates';
 import type { PgBedMapBed } from '@/src/services/pgBedMap';
 

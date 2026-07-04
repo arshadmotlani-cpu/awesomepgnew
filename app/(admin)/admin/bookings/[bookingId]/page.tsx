@@ -107,7 +107,10 @@ export default async function AdminBookingDetailPage(
     pricingSnapshot: b.pricingSnapshot,
   };
   const primaryStayStart = primaryRes?.stayRange
-    ? parseDaterange(primaryRes.stayRange)?.start ?? null
+    ? (() => {
+        const parsed = parseDaterange(primaryRes.stayRange);
+        return parsed.lower ? formatDateIso(parsed.lower) : null;
+      })()
     : null;
   const succeededBookingPayments = b.payments.filter(
     (p) => p.status === 'succeeded' && p.purpose === 'booking',
