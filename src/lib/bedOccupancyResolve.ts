@@ -97,6 +97,25 @@ export function isOpenNowFromSnapshot(
   return true;
 }
 
+/**
+ * Strip financial checkout / stale stay fields when the bed has no active reservation today.
+ * Bed map and availability surfaces are inventory-only.
+ */
+export function occupancyFactsForInventory(facts: RawBedOccupancyFacts): RawBedOccupancyFacts {
+  if (facts.isOccupiedToday) return facts;
+  return {
+    ...facts,
+    checkoutSettlement: null,
+    vacatingDate: undefined,
+    vacatingStatus: undefined,
+    stayType: undefined,
+    durationMode: undefined,
+    expectedCheckoutDate: undefined,
+    stayUpper: undefined,
+    occupantFirstName: undefined,
+  };
+}
+
 /** Beds counted as occupied in dashboards and occupancy %. */
 export function isOccupiedForKpi(
   snapshot: BedOccupancySnapshot,
@@ -104,7 +123,6 @@ export function isOccupiedForKpi(
 ): boolean {
   if (input.bedStatus === 'maintenance' || input.bedStatus === 'blocked') return false;
   if (input.isOccupiedToday) return true;
-  if (snapshot.adminState === 'checkout_pending') return true;
   if (input.manualOccupied) return true;
   if (snapshot.publicState === 'occupied' || snapshot.publicState === 'notice_period') {
     return true;
@@ -113,7 +131,7 @@ export function isOccupiedForKpi(
 }
 
 export function resolveBedOccupancy(facts: RawBedOccupancyFacts): ResolvedBedOccupancy {
-  const input = rawFactsToInput(facts);
+  const input = rawFactsToInput(occupancyFactsForInventory(facts));
   const snapshot = computeBedOccupancySnapshot(input);
   const isOpenNow = isOpenNowFromSnapshot(snapshot, input);
   const inputWithOpen: BedOccupancyInput = { ...input, isAvailableNow: isOpenNow };

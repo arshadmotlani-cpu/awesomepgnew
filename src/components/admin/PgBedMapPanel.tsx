@@ -48,7 +48,6 @@ const LEGEND_FULL = [
   { label: 'Occupied', className: 'border-zinc-500/50 bg-zinc-700/40' },
   { label: 'Booked', className: 'border-violet-400/55 bg-violet-500/15' },
   { label: 'Reserved', className: 'border-violet-400/55 bg-violet-500/15' },
-  { label: 'Checkout pending', className: 'border-cyan-400/50 bg-cyan-500/12' },
   { label: 'Maintenance', className: 'border-rose-500/60 bg-rose-600/20' },
 ];
 

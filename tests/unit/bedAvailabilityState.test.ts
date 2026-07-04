@@ -46,19 +46,18 @@ test('finite checkout while checked in shows Occupied not Available soon', () =>
   assert.match(view.sublabel ?? '', /August 2027/);
 });
 
-test('finite checkout without occupant shows Available soon', () => {
+test('vacant bed with stale stay end date shows Available now (inventory SSOT)', () => {
   const view = deriveCustomerBedAvailabilityView({
     bedStatus: 'available',
-    isAvailableNow: false,
+    isAvailableNow: true,
     isOccupiedToday: false,
     nextAvailableDate: '2027-08-01',
     vacatingDate: null,
     vacatingStatus: null,
     reservedFrom: null,
   });
-  assert.equal(view.kind, 'pre_bookable');
-  assert.equal(view.label, 'Available soon');
-  assert.match(view.sublabel ?? '', /August 2027/);
+  assert.equal(view.kind, 'open_now');
+  assert.equal(view.label, 'Available');
 });
 
 test('notice period still wins over open-ended stay end', () => {

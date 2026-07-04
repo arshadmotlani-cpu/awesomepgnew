@@ -220,29 +220,8 @@ function buildBed(row: RawRow): PgBedMapBed {
         ? row.stay_upper
         : null;
 
-  const checkoutSettlement =
-    row.pending_settlement_id && row.pending_settlement_status
-      ? {
-          id: row.pending_settlement_id,
-          status: row.pending_settlement_status,
-          suppressed: Boolean(row.vacating_settlement_suppressed),
-          depositRequiredPaise: row.pending_deposit_required_paise ?? 0,
-          depositHeldPaise: row.pending_deposit_held_paise ?? 0,
-          electricityPending: Boolean(row.pending_electricity_pending),
-        }
-      : vacating?.settlementId && row.vacating_settlement_id
-        ? {
-            id: vacating.settlementId,
-            status: 'awaiting_resident_details',
-            suppressed: Boolean(row.vacating_settlement_suppressed),
-            depositRequiredPaise: 0,
-            depositHeldPaise: 0,
-            electricityPending: row.electricity_pending_count > 0,
-          }
-        : null;
-
-  const stayType = row.stay_type ?? row.pending_stay_type;
-  const durationMode = row.duration_mode ?? row.pending_duration_mode;
+  const stayType = row.stay_type ?? (isOccupiedToday ? row.pending_stay_type : null);
+  const durationMode = row.duration_mode ?? (isOccupiedToday ? row.pending_duration_mode : null);
 
   const resolved = resolveBedOccupancy({
     bedId: row.bed_id,
@@ -251,11 +230,11 @@ function buildBed(row: RawRow): PgBedMapBed {
     manualOccupied,
     stayType,
     durationMode,
-    expectedCheckoutDate: row.expected_checkout_date,
-    stayUpper: row.stay_upper,
-    vacatingDate: vacating?.vacatingDate,
-    vacatingStatus: vacating?.status,
-    checkoutSettlement,
+    expectedCheckoutDate: isOccupiedToday ? row.expected_checkout_date : null,
+    stayUpper: isOccupiedToday ? row.stay_upper : null,
+    vacatingDate: isOccupiedToday ? vacating?.vacatingDate : undefined,
+    vacatingStatus: isOccupiedToday ? vacating?.status : undefined,
+    checkoutSettlement: null,
     manualReservedCheckIn: effectiveReserveCheckIn,
     activeBedReserveCheckIn: bedReserveCheckIn,
     reservedFrom: row.reserved_from,

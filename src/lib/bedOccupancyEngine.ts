@@ -145,8 +145,16 @@ export function hasActiveCheckoutSettlement(
   return ACTIVE_CHECKOUT_SETTLEMENT_STATUSES.has(settlement.status);
 }
 
-/** Monthly: mandatory. Fixed: only when refund/electricity/damages workflow exists. */
-export function isCheckoutPending(input: BedOccupancyInput): boolean {
+/** Active primary reservation covering today — sole source for bed map occupancy. */
+export function isPhysicallyOccupiedToday(input: BedOccupancyInput): boolean {
+  return input.isOccupiedToday;
+}
+
+/**
+ * Open checkout settlement (financial workflow). Never drives bed map / inventory UI.
+ * Use move-out queue, refund module, and resident profile instead.
+ */
+export function isFinancialCheckoutPending(input: BedOccupancyInput): boolean {
   const settlement = input.checkoutSettlement;
   if (!hasActiveCheckoutSettlement(settlement)) return false;
   if (isMonthlyTenancy(input)) return true;
@@ -156,13 +164,17 @@ export function isCheckoutPending(input: BedOccupancyInput): boolean {
   return checkoutSettlementRequiresWorkflow(settlement!);
 }
 
+/** @deprecated Use isFinancialCheckoutPending — kept for existing imports. */
+export function isCheckoutPending(input: BedOccupancyInput): boolean {
+  return isFinancialCheckoutPending(input);
+}
+
 function applyTurnoverBuffer(isoDate: string): string {
   return formatDate(addDays(parseDate(isoDate), TURNOVER_BUFFER_DAYS));
 }
 
 export function resolveBookableFromDate(input: BedOccupancyInput): string | null {
   if (input.bedStatus !== 'available') return null;
-  if (isCheckoutPending(input)) return null;
 
   if (input.isOccupiedToday) {
     if (isMonthlyTenancy(input)) {
@@ -203,18 +215,6 @@ export function computeBedOccupancySnapshot(input: BedOccupancyInput): BedOccupa
       adminState: 'maintenance',
       bookableFromDate: null,
       checkoutSettlementId: null,
-      isMonthlyTenancy: monthly,
-      isFixedTenancy: fixed,
-    };
-  }
-
-  const checkoutPending = isCheckoutPending(input);
-  if (checkoutPending) {
-    return {
-      publicState: 'occupied',
-      adminState: 'checkout_pending',
-      bookableFromDate: null,
-      checkoutSettlementId: input.checkoutSettlement?.id ?? null,
       isMonthlyTenancy: monthly,
       isFixedTenancy: fixed,
     };
@@ -355,10 +355,6 @@ export function toCustomerAvailabilityView(
     return { kind: 'maintenance', label: 'Under Maintenance', sublabel };
   }
 
-  if (snap.adminState === 'checkout_pending') {
-    return { kind: 'occupied', label: 'Occupied' };
-  }
-
   if (input.manualOccupied) {
     return { kind: 'occupied', label: 'Occupied' };
   }
@@ -469,15 +465,6 @@ export function toAdminAvailabilityView(
     return { kind: 'blocked', label: 'Blocked' };
   }
 
-  if (snap.adminState === 'checkout_pending') {
-    const name = input.occupantFirstName ?? 'Resident';
-    return {
-      kind: 'notice',
-      label: name,
-      sublabel: 'Checkout pending · open settlement',
-    };
-  }
-
   if (input.manualOccupied && !input.isOccupiedToday) {
     return {
       kind: 'occupied',
@@ -584,7 +571,6 @@ export function canBookBedFromSnapshot(
   snapshot?: BedOccupancySnapshot,
 ): boolean {
   const snap = snapshot ?? computeBedOccupancySnapshot(input);
-  if (snap.adminState === 'checkout_pending') return false;
   if (snap.publicState === 'maintenance' || input.bedStatus !== 'available') return false;
   if (input.manualOccupied || input.isOccupiedToday) return false;
   if (input.vacatingDate) return false;

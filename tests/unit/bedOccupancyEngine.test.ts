@@ -60,11 +60,11 @@ test('fixed post-checkout without settlement becomes available after buffer', ()
   assert.equal(canBookBedFromSnapshot(input, snap), true);
 });
 
-test('monthly checkout pending blocks booking even when bed is empty', () => {
+test('open checkout settlement on empty bed does not block booking or show checkout pending', () => {
   const input = {
     bedStatus: 'available' as const,
     isOccupiedToday: false,
-    isAvailableNow: false,
+    isAvailableNow: true,
     stayType: 'open_ended',
     durationMode: 'open_ended',
     checkoutSettlement: {
@@ -75,13 +75,13 @@ test('monthly checkout pending blocks booking even when bed is empty', () => {
   };
   assert.equal(isCheckoutPending(input), true);
   const snap = computeBedOccupancySnapshot(input);
-  assert.equal(snap.adminState, 'checkout_pending');
-  assert.equal(snap.publicState, 'occupied');
-  assert.equal(canBookBedFromSnapshot(input, snap), false);
+  assert.equal(snap.adminState, 'available');
+  assert.equal(snap.publicState, 'available');
+  assert.equal(canBookBedFromSnapshot(input, snap), true);
 });
 
-test('fixed checkout pending only when settlement workflow exists', () => {
-  const suppressed = {
+test('fixed open settlement on empty bed is available after turnover buffer', () => {
+  const input = {
     bedStatus: 'available' as const,
     isOccupiedToday: false,
     isAvailableNow: true,
@@ -90,25 +90,15 @@ test('fixed checkout pending only when settlement workflow exists', () => {
     expectedCheckoutDate: '2026-06-30',
     stayUpper: '2026-06-30',
     checkoutSettlement: {
-      id: 'cs-2',
-      status: 'awaiting_resident_details',
-      suppressed: true,
-    },
-  };
-  assert.equal(isCheckoutPending(suppressed), false);
-  const snap = computeBedOccupancySnapshot(suppressed);
-  assert.equal(snap.adminState, 'available');
-
-  const withDeposit = {
-    ...suppressed,
-    checkoutSettlement: {
       id: 'cs-3',
       status: 'refund_pending',
       depositHeldPaise: 1000,
     },
   };
-  assert.equal(isCheckoutPending(withDeposit), true);
-  assert.equal(computeBedOccupancySnapshot(withDeposit).adminState, 'checkout_pending');
+  assert.equal(isCheckoutPending(input), true);
+  const snap = computeBedOccupancySnapshot(input);
+  assert.equal(snap.adminState, 'available');
+  assert.equal(snap.publicState, 'available');
 });
 
 test('monthly notice approved pre-books from vacating date plus buffer', () => {

@@ -1,7 +1,7 @@
 /**
  * Fixed-stay / short-stay auto-expiry at 11:00 AM IST on expected checkout date.
- * Holds the bed in checkout_pending until settlement completes — does not
- * mark the booking completed or release reservations early.
+ * Opens checkout settlement at expiry; physical bed release follows reservation
+ * end (inventory is reservation-driven, not settlement-driven).
  */
 
 import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
