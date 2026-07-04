@@ -178,6 +178,13 @@
       "breakpoints": true
     },
     {
+      "idx": 25,
+      "version": "7",
+      "when": 1784300000000,
+      "tag": "0025_room_page_views",
+      "breakpoints": true
+    },
+    {
       "idx": 26,
       "version": "7",
       "when": 1784400000000,
@@ -339,6 +346,13 @@
       "breakpoints": true
     },
     {
+      "idx": 49,
+      "version": "7",
+      "when": 1786700000000,
+      "tag": "0049_drop_dev_assistant",
+      "breakpoints": true
+    },
+    {
       "idx": 50,
       "version": "7",
       "when": 1786800000000,
@@ -385,6 +399,13 @@
       "version": "7",
       "when": 1787400000000,
       "tag": "0056_residency_lifecycle_and_test_flags",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1787500000000,
+      "tag": "0057_admin_perf_indexes",
       "breakpoints": true
     },
     {
@@ -448,6 +469,13 @@
       "version": "7",
       "when": 1788400000000,
       "tag": "0066_booking_pending_approval",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1788500000000,
+      "tag": "0067_booking_pending_approval_backfill",
       "breakpoints": true
     },
     {

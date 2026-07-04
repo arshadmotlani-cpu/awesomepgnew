@@ -304,6 +304,19 @@ Add `DATABASE_URL` to **Development** in Vercel (non-sensitive) if you want the 
 
 Migrations refuse **localhost** targets when `NODE_ENV=production` or on Vercel builds, so CI never silently migrates an empty local Postgres.
 
+### Drizzle journal — orphan SQL files (resolved 2026-07-04)
+
+Drizzle only runs migrations listed in `src/db/migrations/meta/_journal.json`. Four SQL files existed on disk but were never registered (journal skipped their numeric slot when the next migration was added). All four are **registered** — not deleted, not intentionally orphaned.
+
+| File | Why missing | Decision | Rationale |
+|------|-------------|----------|-----------|
+| `0025_room_page_views.sql` | Journal jumped `0024` → `0026` when `0026_active_only_overlap` was added | **Register** | Active Drizzle schema (`roomPageViews.ts`); table required for room analytics |
+| `0049_drop_dev_assistant.sql` | Journal jumped `0048` → `0050` when combined invoices landed | **Register** | Drops experimental tables created by `0047`/`0048`; production may still have dead `dev_assistant_*` tables |
+| `0057_admin_perf_indexes.sql` | Journal jumped `0056` → `0058` when checkout settlements shipped | **Register** | `CREATE INDEX IF NOT EXISTS` — safe idempotent perf indexes for admin drill-down |
+| `0067_booking_pending_approval_backfill.sql` | Journal jumped `0066` → `0068`; backfill must run in a separate migration after enum commit (see `tests/unit/migration0066.test.ts`) | **Register** | One-time `UPDATE` backfill for bookings with pending UPI proof; idempotent |
+
+**Rule:** Every new file under `src/db/migrations/*.sql` must get a journal entry before merge. Run `npm run db:status` or `readMigrationFiles` count vs SQL file count to detect drift.
+
 ---
 
 ## Critical constraints (never break)

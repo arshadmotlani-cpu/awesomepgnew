@@ -283,11 +283,12 @@ async function loadEntityContext(
 async function clearEntityProof(
   entityType: PaymentProofEntityType,
   entityId: string,
+  executor: DbExecutor = db,
 ): Promise<void> {
   const now = new Date();
   switch (entityType) {
     case 'rent_invoice': {
-      const [invoice] = await db
+      const [invoice] = await executor
         .select()
         .from(rentInvoices)
         .where(eq(rentInvoices.id, entityId))
@@ -295,32 +296,32 @@ async function clearEntityProof(
       if (!invoice) return;
       const projected = projectInvoice({ ...invoice, status: 'pending', paymentProofUrl: null });
       const nextStatus = projected.effectiveStatus === 'overdue' ? 'overdue' : 'pending';
-      await db
+      await executor
         .update(rentInvoices)
         .set({ paymentProofUrl: null, status: nextStatus, updatedAt: now })
         .where(eq(rentInvoices.id, entityId));
       break;
     }
     case 'electricity_invoice':
-      await db
+      await executor
         .update(electricityInvoices)
         .set({ paymentProofUrl: null, updatedAt: now })
         .where(eq(electricityInvoices.id, entityId));
       break;
     case 'payment_link':
-      await db
+      await executor
         .update(paymentLinks)
         .set({ paymentProofUrl: null })
         .where(eq(paymentLinks.id, entityId));
       break;
     case 'stay_extension':
-      await db
+      await executor
         .update(stayExtensions)
         .set({ paymentProofUrl: null, updatedAt: now })
         .where(eq(stayExtensions.id, entityId));
       break;
     case 'pg_payment_record':
-      await db
+      await executor
         .update(pgPaymentRecords)
         .set({
           paymentScreenshotUrl: null,
@@ -339,11 +340,12 @@ async function appendInvoiceAuditEvent(
   entityId: string,
   adminId: string,
   diff: Record<string, unknown>,
+  executor: DbExecutor = db,
 ): Promise<void> {
   if (entityType !== 'rent_invoice' && entityType !== 'electricity_invoice') return;
   const sourceTable =
     entityType === 'rent_invoice' ? 'rent_invoices' : 'electricity_invoices';
-  const [fi] = await db
+  const [fi] = await executor
     .select({ id: financialInvoices.id })
     .from(financialInvoices)
     .where(
@@ -351,7 +353,7 @@ async function appendInvoiceAuditEvent(
     )
     .limit(1);
   if (!fi) return;
-  await db.insert(invoiceAuditEvents).values({
+  await executor.insert(invoiceAuditEvents).values({
     invoiceId: fi.id,
     action: 'payment_proof_rejected',
     actorType: 'admin',
@@ -469,36 +471,11 @@ export async function rejectPaymentProof(
     return { ok: false, message: 'No payment photo uploaded.' };
   }
 
-  await supersedeActiveRejection(input.entityType, input.entityId);
-  await clearEntityProof(input.entityType, input.entityId);
-
   const reasonLabel = rejectionReasonLabel(input.reasonCode);
   const messagePreview = input.residentMessage.trim().slice(0, 500);
   const whatsappUrl = input.sendWhatsApp
     ? buildPaymentRejectionWhatsAppUrl({ phone: ctx.phone, message: input.residentMessage.trim() })
     : null;
-
-  const [rejection] = await db
-    .insert(paymentProofRejections)
-    .values({
-      reviewKey: input.reviewKey,
-      entityType: input.entityType,
-      entityId: input.entityId,
-      customerId: ctx.customerId,
-      pgId: ctx.pgId,
-      bookingId: ctx.bookingId,
-      reasonCode: input.reasonCode,
-      reasonLabel,
-      reasonDetail: input.reasonDetail?.trim() || null,
-      adminNote: input.adminNote?.trim() || null,
-      residentMessage: input.residentMessage.trim(),
-      rejectedByAdminId: session.adminId,
-      rejectedAt: new Date(),
-      whatsappSent: Boolean(input.sendWhatsApp && whatsappUrl),
-      whatsappMessagePreview: input.sendWhatsApp ? messagePreview : null,
-      status: 'active',
-    })
-    .returning({ id: paymentProofRejections.id });
 
   const auditDiff = {
     reviewKey: input.reviewKey,
@@ -511,6 +488,44 @@ export async function rejectPaymentProof(
     billLabel: ctx.billLabel,
   };
 
+  const rejectionId = await db.transaction(async (tx) => {
+    await supersedeActiveRejection(input.entityType, input.entityId, tx);
+    await clearEntityProof(input.entityType, input.entityId, tx);
+
+    const [rejection] = await tx
+      .insert(paymentProofRejections)
+      .values({
+        reviewKey: input.reviewKey,
+        entityType: input.entityType,
+        entityId: input.entityId,
+        customerId: ctx.customerId,
+        pgId: ctx.pgId,
+        bookingId: ctx.bookingId,
+        reasonCode: input.reasonCode,
+        reasonLabel,
+        reasonDetail: input.reasonDetail?.trim() || null,
+        adminNote: input.adminNote?.trim() || null,
+        residentMessage: input.residentMessage.trim(),
+        rejectedByAdminId: session.adminId,
+        rejectedAt: new Date(),
+        whatsappSent: Boolean(input.sendWhatsApp && whatsappUrl),
+        whatsappMessagePreview: input.sendWhatsApp ? messagePreview : null,
+        status: 'active',
+      })
+      .returning({ id: paymentProofRejections.id });
+
+    await appendInvoiceAuditEvent(
+      input.entityType,
+      input.entityId,
+      session.adminId,
+      auditDiff,
+      tx,
+    );
+
+    if (!rejection) throw new Error('Could not create payment proof rejection.');
+    return rejection.id;
+  });
+
   await writeAuditLogNonBlocking(db, {
     actorType: 'admin',
     actorId: session.adminId,
@@ -519,8 +534,6 @@ export async function rejectPaymentProof(
     action: 'payment_proof_rejected',
     diff: auditDiff,
   });
-
-  await appendInvoiceAuditEvent(input.entityType, input.entityId, session.adminId, auditDiff);
 
   const payHref = residentPayHrefForEntity(
     input.entityType,
@@ -586,7 +599,7 @@ export async function rejectPaymentProof(
 
   return {
     ok: true,
-    rejectionId: rejection!.id,
+    rejectionId,
     whatsappUrl: whatsappUrl ?? undefined,
   };
 }

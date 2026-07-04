@@ -11,6 +11,7 @@ test('rejectPaymentProof clears proof and writes rejection row', () => {
 
   assert.match(src, /async function clearEntityProof/);
   assert.match(src, /insert\(paymentProofRejections\)/);
+  assert.match(src, /rejectPaymentProof[\s\S]*db\.transaction/);
   assert.match(src, /writeAuditLogNonBlocking/);
   assert.match(src, /scheduleAdminNotificationSync/);
   assert.match(src, /supersedeActiveRejection/);
