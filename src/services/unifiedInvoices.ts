@@ -36,6 +36,7 @@ import {
   mergeFinancialStatusFromRent,
   rentStatusToUnifiedStatus,
 } from '@/src/lib/billing/invoiceStateMachine';
+import { computeRentDuePaise } from '@/src/services/rentInvoices';
 
 export const REVENUE_INVOICE_STATUSES = ['paid'] as const;
 
@@ -106,7 +107,7 @@ export async function syncRentInvoiceToUnified(rentInvoiceId: string): Promise<s
 
   const ctx = await loadBedContext(ri.bedId);
   const discountPaise = ri.discountPaise ?? 0;
-  const rentDuePaise = Math.max(0, ri.rentPaise - discountPaise);
+  const rentDuePaise = computeRentDuePaise(ri.rentPaise, discountPaise);
   const amountPaise = rentDuePaise + (ri.paidLateFeePaise ?? 0);
   const rentLabel =
     ri.isAdhoc && ri.notes ? ri.notes.split(' — ')[0] : 'Monthly rent';

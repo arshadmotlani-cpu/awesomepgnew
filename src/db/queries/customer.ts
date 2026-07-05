@@ -1380,6 +1380,8 @@ export type RentInvoiceRow = {
   billingMonth: string;
   dueDate: string;
   rentPaise: number;
+  discountPaise: number;
+  promoCode: string | null;
   paidPrincipalPaise: number;
   paidLateFeePaise: number;
   lateFeeLockedPaise: number | null;
@@ -1402,6 +1404,8 @@ export function listRentInvoicesForBooking(
         billingMonth: rentInvoices.billingMonth,
         dueDate: rentInvoices.dueDate,
         rentPaise: rentInvoices.rentPaise,
+        discountPaise: rentInvoices.discountPaise,
+        promoCode: rentInvoices.promoCode,
         paidPrincipalPaise: rentInvoices.paidPrincipalPaise,
         paidLateFeePaise: rentInvoices.paidLateFeePaise,
         lateFeeLockedPaise: rentInvoices.lateFeeLockedPaise,

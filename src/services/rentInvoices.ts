@@ -1258,7 +1258,7 @@ export async function recordRentPaymentSuccess(
     };
   }
 
-  const rentDuePaise = Math.max(0, invoice.rentPaise - (invoice.discountPaise ?? 0));
+  const rentDuePaise = computeRentDuePaise(invoice.rentPaise, invoice.discountPaise);
   const lateFee = input.historical
     ? 0
     : computeLateFee({
@@ -1438,6 +1438,18 @@ export async function recordRentPaymentSuccess(
     }
   }
 
+  if (fullyPaid && !input.historical) {
+    try {
+      const { creditReferralEarningOnBookingPayment } = await import('./referrals');
+      await creditReferralEarningOnBookingPayment({
+        bookingId: invoice.bookingId,
+        rentSubtotalPaise: rentDuePaise,
+      });
+    } catch (referralErr) {
+      console.error('referral earning credit on rent payment failed:', referralErr);
+    }
+  }
+
   return {
     ok: true,
     paymentId,
@@ -1545,6 +1557,14 @@ export type RentInvoiceProjectInput = Omit<RentInvoice, 'discountPaise' | 'promo
   promoCode?: string | null;
 };
 
+/** Net rent principal due after promo discount — SSOT for all billing surfaces. */
+export function computeRentDuePaise(
+  rentPaise: number,
+  discountPaise?: number | null,
+): number {
+  return Math.max(0, rentPaise - (discountPaise ?? 0));
+}
+
 /**
  * Augment a stored `rent_invoices` row with the live late fee and
  * effective UI status. The stored `status` is "pending" until the
@@ -1576,7 +1596,7 @@ export function projectInvoice(
       effectiveStatus: 'cancelled',
     };
   }
-  const rentDuePaise = Math.max(0, inv.rentPaise - (inv.discountPaise ?? 0));
+  const rentDuePaise = computeRentDuePaise(inv.rentPaise, inv.discountPaise);
   if (inv.status === 'payment_in_progress') {
     const lateFee = computeLateFee({
       rentPaise: rentDuePaise,

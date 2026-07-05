@@ -23,6 +23,7 @@ import {
   isElectricityAwaitingResidentPayment,
 } from '@/src/lib/billing/electricityCollectibility';
 import { collectibleResidentFilters } from '@/src/lib/billing/productionDataFilter';
+import { computeRentDuePaise } from '@/src/services/rentInvoices';
 import { getFinancialMetrics } from '@/src/services/financialMetricsEngine';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 
@@ -172,7 +173,10 @@ export async function loadRentInvoiceStats(
     (sum, row) => sum + row.paidPrincipalPaise + row.paidLateFeePaise,
     0,
   );
-  const totalRentPaise = rentWaiting.reduce((sum, row) => sum + row.rentPaise, 0);
+  const totalRentPaise = rentWaiting.reduce(
+    (sum, row) => sum + computeRentDuePaise(row.rentPaise, row.discountPaise),
+    0,
+  );
 
   return {
     pendingCount: rentWaiting.filter((r) => r.effectiveStatus === 'pending').length,

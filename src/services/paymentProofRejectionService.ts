@@ -121,13 +121,7 @@ async function loadEntityContext(
     case 'rent_invoice': {
       const [row] = await db
         .select({
-          customerId: rentInvoices.customerId,
-          pgId: rentInvoices.pgId,
-          bookingId: rentInvoices.bookingId,
-          paymentProofUrl: rentInvoices.paymentProofUrl,
-          invoiceNumber: rentInvoices.invoiceNumber,
-          billingMonth: rentInvoices.billingMonth,
-          rentPaise: rentInvoices.rentPaise,
+          invoice: rentInvoices,
           customerName: customers.fullName,
           phone: customers.phone,
         })
@@ -136,15 +130,17 @@ async function loadEntityContext(
         .where(eq(rentInvoices.id, entityId))
         .limit(1);
       if (!row) return null;
+      const { projectInvoice } = await import('@/src/services/rentInvoices');
+      const projected = projectInvoice(row.invoice);
       return {
-        customerId: row.customerId,
-        pgId: row.pgId,
-        bookingId: row.bookingId,
+        customerId: row.invoice.customerId,
+        pgId: row.invoice.pgId,
+        bookingId: row.invoice.bookingId,
         residentName: row.customerName,
         phone: row.phone,
-        billLabel: `Rent · ${row.billingMonth.slice(0, 7)} (${row.invoiceNumber})`,
-        amountPaise: row.rentPaise,
-        hasProof: Boolean(row.paymentProofUrl),
+        billLabel: `Rent · ${row.invoice.billingMonth.slice(0, 7)} (${row.invoice.invoiceNumber})`,
+        amountPaise: projected.outstandingPaise,
+        hasProof: Boolean(row.invoice.paymentProofUrl),
       };
     }
     case 'electricity_invoice': {

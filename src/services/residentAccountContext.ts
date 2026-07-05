@@ -14,7 +14,7 @@ import type { ResidentFinancialSummary } from '@/src/lib/billing/residentFinanci
 import { deriveResidencyJourney, type ResidencyJourneyState } from '@/src/lib/residents/residencyJourney';
 import { formatStayDateTime } from '@/src/lib/residents/stayBillingRules';
 import { projectElectricityInvoice } from '@/src/services/electricityBilling';
-import { projectInvoice } from '@/src/services/rentInvoices';
+import { computeRentDuePaise, projectInvoice } from '@/src/services/rentInvoices';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import { getResidentFinancialAccount } from '@/src/services/residentFinancialEngine';
 import { getCustomerById, isProfileComplete } from '@/src/services/profile';
@@ -215,7 +215,8 @@ export async function loadResidentAccountContext(
           inv.status === 'paid'
             ? (inv.lateFeeLockedPaise ?? 0)
             : projected.accruedLateFeePaise;
-        const finalAmount = inv.rentPaise + lateFee;
+        const rentDuePaise = computeRentDuePaise(inv.rentPaise, inv.discountPaise);
+        const finalAmount = rentDuePaise + lateFee;
         invoices.push({
           id: inv.id,
           kind: 'rent',

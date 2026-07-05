@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { projectInvoice } from '@/src/services/rentInvoices';
+import { computeRentDuePaise, projectInvoice } from '@/src/services/rentInvoices';
+
+describe('computeRentDuePaise SSOT', () => {
+  test('subtracts discount from gross rent', () => {
+    assert.equal(computeRentDuePaise(900_000, 90_000), 810_000);
+    assert.equal(computeRentDuePaise(900_000, 0), 900_000);
+    assert.equal(computeRentDuePaise(900_000, null), 900_000);
+    assert.equal(computeRentDuePaise(50_000, 100_000), 0);
+  });
+});
 
 describe('rent invoice promo projection', () => {
   test('projectInvoice subtracts discount from outstanding rent', () => {

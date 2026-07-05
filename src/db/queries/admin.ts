@@ -1351,6 +1351,7 @@ export type AdminRentInvoiceRow = {
   billingMonth: string;
   dueDate: string;
   rentPaise: number;
+  discountPaise: number;
   paidPrincipalPaise: number;
   paidLateFeePaise: number;
   lateFeeLockedPaise: number | null;
@@ -1395,6 +1396,7 @@ export function listAdminRentInvoices(
         billingMonth: rentInvoices.billingMonth,
         dueDate: rentInvoices.dueDate,
         rentPaise: rentInvoices.rentPaise,
+        discountPaise: rentInvoices.discountPaise,
         paidPrincipalPaise: rentInvoices.paidPrincipalPaise,
         paidLateFeePaise: rentInvoices.paidLateFeePaise,
         lateFeeLockedPaise: rentInvoices.lateFeeLockedPaise,
@@ -1426,6 +1428,7 @@ export function listAdminRentInvoices(
         billingMonth: r.billingMonth,
         dueDate: r.dueDate,
         rentPaise: r.rentPaise,
+        discountPaise: r.discountPaise,
         paidPrincipalPaise: r.paidPrincipalPaise,
         paidLateFeePaise: r.paidLateFeePaise,
         lateFeeLockedPaise: r.lateFeeLockedPaise,
@@ -1479,6 +1482,7 @@ export function listAdminOpenRentInvoices(filter?: {
         billingMonth: rentInvoices.billingMonth,
         dueDate: rentInvoices.dueDate,
         rentPaise: rentInvoices.rentPaise,
+        discountPaise: rentInvoices.discountPaise,
         paidPrincipalPaise: rentInvoices.paidPrincipalPaise,
         paidLateFeePaise: rentInvoices.paidLateFeePaise,
         lateFeeLockedPaise: rentInvoices.lateFeeLockedPaise,
@@ -1511,6 +1515,7 @@ export function listAdminOpenRentInvoices(filter?: {
         billingMonth: r.billingMonth,
         dueDate: r.dueDate,
         rentPaise: r.rentPaise,
+        discountPaise: r.discountPaise,
         paidPrincipalPaise: r.paidPrincipalPaise,
         paidLateFeePaise: r.paidLateFeePaise,
         lateFeeLockedPaise: r.lateFeeLockedPaise,

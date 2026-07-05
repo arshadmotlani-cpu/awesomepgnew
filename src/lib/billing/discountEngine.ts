@@ -141,8 +141,11 @@ export async function resolveCheckoutDiscount(input: {
     };
   }
 
-  // Priority 1: Referral (booking checkout only).
-  if (input.kind === 'booking_checkout' && input.customerEmail) {
+  // Priority 1: Referral — booking checkout and rent invoice (same validation rules).
+  if (
+    input.customerEmail &&
+    (input.kind === 'booking_checkout' || input.kind === 'rent_invoice')
+  ) {
     const referrer = await findReferrerByCode(code);
     if (referrer) {
       const referral = await validateReferralForBooking({

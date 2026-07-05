@@ -4,6 +4,7 @@
  */
 import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
+import { computeRentDuePaise } from '@/src/services/rentInvoices';
 import {
   automationActions,
   automationEvents,
@@ -324,6 +325,7 @@ export async function detectAutomationEvents(): Promise<{ emitted: number; skipp
       bookingId: rentInvoices.bookingId,
       dueDate: rentInvoices.dueDate,
       rentPaise: rentInvoices.rentPaise,
+      discountPaise: rentInvoices.discountPaise,
       customerName: customers.fullName,
       pgName: pgs.name,
     })
@@ -342,7 +344,7 @@ export async function detectAutomationEvents(): Promise<{ emitted: number; skipp
       metadata: {
         customerName: row.customerName,
         pgName: row.pgName,
-        amountPaise: row.rentPaise,
+        amountPaise: computeRentDuePaise(row.rentPaise, row.discountPaise),
         dueDate: row.dueDate,
       },
     });
@@ -355,6 +357,7 @@ export async function detectAutomationEvents(): Promise<{ emitted: number; skipp
       customerId: rentInvoices.customerId,
       bookingId: rentInvoices.bookingId,
       rentPaise: rentInvoices.rentPaise,
+      discountPaise: rentInvoices.discountPaise,
       customerName: customers.fullName,
       pgName: pgs.name,
     })
@@ -373,7 +376,7 @@ export async function detectAutomationEvents(): Promise<{ emitted: number; skipp
       metadata: {
         customerName: row.customerName,
         pgName: row.pgName,
-        amountPaise: row.rentPaise,
+        amountPaise: computeRentDuePaise(row.rentPaise, row.discountPaise),
       },
     });
   }

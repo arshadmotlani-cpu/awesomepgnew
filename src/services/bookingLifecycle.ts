@@ -1960,6 +1960,9 @@ export async function cancelBooking(
         providerRefundId,
       },
     });
+
+    const { reverseReferralOnBookingCancel } = await import('./referrals');
+    await reverseReferralOnBookingCancel(b.id, tx);
   });
 
   if (!noMoneyMoved && refund.depositRefundPaise > 0 && refundPaymentId) {

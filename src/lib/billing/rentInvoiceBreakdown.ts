@@ -20,7 +20,7 @@ import type {
   RentInvoiceBreakdown,
   RentInvoiceProration,
 } from '@/src/lib/billing/rentInvoiceBreakdownTypes';
-import { projectInvoice } from '@/src/services/rentInvoices';
+import { projectInvoice, computeRentDuePaise } from '@/src/services/rentInvoices';
 
 function monthLabel(billingMonth: string): string {
   const d = parseDate(billingMonth);
@@ -108,7 +108,7 @@ export function buildRentInvoiceBreakdownFromContext(input: {
     discountsPaise,
     creditsPaise,
     previousBalancePaise,
-    finalRentPaise: input.invoice.rentPaise,
+    finalRentPaise: computeRentDuePaise(input.invoice.rentPaise, input.invoice.discountPaise),
     lateFeePaise: projected.accruedLateFeePaise,
     paidPrincipalPaise: input.invoice.paidPrincipalPaise,
     paidLateFeePaise: input.invoice.paidLateFeePaise,

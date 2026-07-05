@@ -44,7 +44,7 @@ import {
   buildPaidElectricityBookingMonthKeys,
   isElectricityAwaitingResidentPayment,
 } from '@/src/lib/billing/electricityCollectibility';
-import { projectInvoice } from '@/src/services/rentInvoices';
+import { computeRentDuePaise, projectInvoice } from '@/src/services/rentInvoices';
 import { firstOfMonth } from '@/src/services/billing';
 
 const ACTIVE_BOOKING_STATUSES = ['confirmed'] as const;
@@ -89,7 +89,8 @@ function buildRentCategory(
       inv.status === 'paid'
         ? (inv.lateFeeLockedPaise ?? 0)
         : projected.accruedLateFeePaise;
-    const required = inv.rentPaise + lateFee;
+    const rentDuePaise = computeRentDuePaise(inv.rentPaise, inv.discountPaise);
+    const required = rentDuePaise + lateFee;
     const paid = inv.paidPrincipalPaise + inv.paidLateFeePaise;
     const outstanding = projected.outstandingPaise;
 

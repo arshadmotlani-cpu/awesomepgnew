@@ -7,6 +7,7 @@ import {
   couponRedemptions,
   customers,
   discountApplications,
+  referralRedemptions,
   rentInvoices,
 } from '@/src/db/schema';
 import {
@@ -26,6 +27,21 @@ export type ApplyRentPromoResult =
   | { ok: false; error: string };
 
 export type RemoveRentPromoResult = { ok: true } | { ok: false; error: string };
+
+type PayableInvoice = {
+  id: string;
+  customerId: string;
+  bookingId: string;
+  rentPaise: number;
+  discountPaise: number;
+  promoCode: string | null;
+  status: string;
+  paymentProofUrl: string | null;
+  email: string;
+  phone: string;
+};
+
+type RentPromoTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 async function loadPayableInvoice(invoiceId: string, customerId: string) {
   const [row] = await db
@@ -64,6 +80,40 @@ function payableStatusError(status: string): string | null {
   return null;
 }
 
+/** Roll back promo redemptions, audit rows, and invoice discount fields. */
+export async function rollbackRentPromoInTx(
+  tx: RentPromoTx,
+  invoice: Pick<PayableInvoice, 'id' | 'bookingId'>,
+) {
+  await tx.delete(couponRedemptions).where(eq(couponRedemptions.rentInvoiceId, invoice.id));
+
+  const removedApps = await tx
+    .delete(discountApplications)
+    .where(eq(discountApplications.rentInvoiceId, invoice.id))
+    .returning({ discountType: discountApplications.discountType });
+
+  if (removedApps.some((a) => a.discountType === 'referral')) {
+    await tx
+      .update(referralRedemptions)
+      .set({ status: 'voided' })
+      .where(
+        and(
+          eq(referralRedemptions.bookingId, invoice.bookingId),
+          eq(referralRedemptions.status, 'pending'),
+        ),
+      );
+  }
+
+  await tx
+    .update(rentInvoices)
+    .set({
+      discountPaise: 0,
+      promoCode: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(rentInvoices.id, invoice.id));
+}
+
 export async function applyPromoToRentInvoice(input: {
   invoiceId: string;
   customerId: string;
@@ -94,7 +144,15 @@ export async function applyPromoToRentInvoice(input: {
     return { ok: false, error: 'Invalid or expired promo code' };
   }
 
-  await persistRentPromo(invoice.id, invoice.rentPaise, resolved, input.customerId);
+  await db.transaction(async (tx) => {
+    if ((invoice.discountPaise ?? 0) > 0 || invoice.promoCode) {
+      await rollbackRentPromoInTx(tx, invoice);
+    }
+    await persistRentPromoInTx(tx, invoice, invoice.rentPaise, resolved, input.customerId);
+  });
+
+  const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
+  await syncRentInvoiceToUnified(invoice.id).catch(() => undefined);
 
   return {
     ok: true,
@@ -105,8 +163,9 @@ export async function applyPromoToRentInvoice(input: {
   };
 }
 
-async function persistRentPromo(
-  invoiceId: string,
+async function persistRentPromoInTx(
+  tx: RentPromoTx,
+  invoice: Pick<PayableInvoice, 'id' | 'bookingId' | 'email'>,
   rentPaise: number,
   resolved: ResolvedDiscount,
   customerId: string,
@@ -115,49 +174,55 @@ async function persistRentPromo(
   const promoCode = resolved.code;
   const finalAmountPaise = rentPaise - discountPaise;
 
-  await db.transaction(async (tx) => {
-    await tx
-      .update(rentInvoices)
-      .set({
-        discountPaise,
-        promoCode,
-        updatedAt: new Date(),
-      })
-      .where(eq(rentInvoices.id, invoiceId));
+  await tx
+    .update(rentInvoices)
+    .set({
+      discountPaise,
+      promoCode,
+      updatedAt: new Date(),
+    })
+    .where(eq(rentInvoices.id, invoice.id));
 
-    await tx.insert(discountApplications).values({
-      discountType:
-        resolved.discountType === 'date_coupon'
-          ? 'date_coupon'
-          : resolved.discountType === 'referral'
-            ? 'referral'
-            : 'promo_code',
-      originalAmountPaise: rentPaise,
-      discountAmountPaise: discountPaise,
-      finalAmountPaise,
-      appliedByCustomerId: customerId,
-      rentInvoiceId: invoiceId,
-      couponCode:
-        resolved.discountType === 'date_coupon' || resolved.discountType === 'promo_code'
-          ? promoCode
-          : null,
-      referralCode: resolved.discountType === 'referral' ? promoCode : null,
-      reason: resolved.label ?? resolved.reason ?? null,
-    });
-
-    if (resolved.discountType === 'date_coupon' && resolved.dateCoupon) {
-      await tx.insert(couponRedemptions).values({
-        customerId,
-        couponCode: resolved.dateCoupon.code,
-        couponDate: resolved.dateCoupon.couponDate,
-        rentInvoiceId: invoiceId,
-        discountPaise,
-      });
-    }
+  await tx.insert(discountApplications).values({
+    discountType:
+      resolved.discountType === 'date_coupon'
+        ? 'date_coupon'
+        : resolved.discountType === 'referral'
+          ? 'referral'
+          : 'promo_code',
+    originalAmountPaise: rentPaise,
+    discountAmountPaise: discountPaise,
+    finalAmountPaise,
+    appliedByCustomerId: customerId,
+    rentInvoiceId: invoice.id,
+    couponCode:
+      resolved.discountType === 'date_coupon' || resolved.discountType === 'promo_code'
+        ? promoCode
+        : null,
+    referralCode: resolved.discountType === 'referral' ? promoCode : null,
+    reason: resolved.label ?? resolved.reason ?? null,
   });
 
-  const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
-  await syncRentInvoiceToUnified(invoiceId).catch(() => undefined);
+  if (resolved.discountType === 'date_coupon' && resolved.dateCoupon) {
+    await tx.insert(couponRedemptions).values({
+      customerId,
+      couponCode: resolved.dateCoupon.code,
+      couponDate: resolved.dateCoupon.couponDate,
+      rentInvoiceId: invoice.id,
+      discountPaise,
+    });
+  }
+
+  if (resolved.discountType === 'referral' && resolved.referrerCustomerId) {
+    await tx.insert(referralRedemptions).values({
+      referrerCustomerId: resolved.referrerCustomerId,
+      refereeEmail: invoice.email.toLowerCase(),
+      refereeCustomerId: customerId,
+      bookingId: invoice.bookingId,
+      discountPaise,
+      status: 'pending',
+    });
+  }
 }
 
 export async function removePromoFromRentInvoice(input: {
@@ -174,14 +239,9 @@ export async function removePromoFromRentInvoice(input: {
     return { ok: true };
   }
 
-  await db
-    .update(rentInvoices)
-    .set({
-      discountPaise: 0,
-      promoCode: null,
-      updatedAt: new Date(),
-    })
-    .where(eq(rentInvoices.id, invoice.id));
+  await db.transaction(async (tx) => {
+    await rollbackRentPromoInTx(tx, invoice);
+  });
 
   const { syncRentInvoiceToUnified } = await import('@/src/services/unifiedInvoices');
   await syncRentInvoiceToUnified(invoice.id).catch(() => undefined);

@@ -224,3 +224,73 @@ export async function unlockReferralEarningsOnVacate(customerId: string) {
       ),
     );
 }
+
+type DbLike = Pick<typeof db, 'query' | 'update'>;
+
+/**
+ * Reverse referral redemption + earning when a booking is cancelled.
+ * Idempotent — safe to call multiple times for the same booking.
+ */
+export async function reverseReferralOnBookingCancel(
+  bookingId: string,
+  tx?: DbLike,
+): Promise<{ reversed: boolean }> {
+  const run = async (t: DbLike): Promise<{ reversed: boolean }> => {
+    const redemption = await t.query.referralRedemptions.findFirst({
+      where: and(
+        eq(referralRedemptions.bookingId, bookingId),
+        inArray(referralRedemptions.status, ['pending', 'applied']),
+      ),
+    });
+    if (!redemption) return { reversed: false };
+
+    if (redemption.status === 'pending') {
+      const updated = await t
+        .update(referralRedemptions)
+        .set({ status: 'voided' })
+        .where(
+          and(
+            eq(referralRedemptions.id, redemption.id),
+            eq(referralRedemptions.status, 'pending'),
+          ),
+        )
+        .returning({ id: referralRedemptions.id });
+      return { reversed: updated.length > 0 };
+    }
+
+    const earning = await t.query.referralEarnings.findFirst({
+      where: eq(referralEarnings.redemptionId, redemption.id),
+    });
+
+    if (earning?.status === 'clawed_back') {
+      return { reversed: false };
+    }
+
+    if (earning && earning.status !== 'withdrawn') {
+      await t
+        .update(referralEarnings)
+        .set({ status: 'clawed_back' })
+        .where(
+          and(
+            eq(referralEarnings.id, earning.id),
+            inArray(referralEarnings.status, ['locked', 'available']),
+          ),
+        );
+    }
+
+    await t
+      .update(referralRedemptions)
+      .set({ status: 'voided' })
+      .where(
+        and(
+          eq(referralRedemptions.id, redemption.id),
+          eq(referralRedemptions.status, 'applied'),
+        ),
+      );
+
+    return { reversed: true };
+  };
+
+  if (tx) return run(tx);
+  return db.transaction(async (innerTx) => run(innerTx));
+}

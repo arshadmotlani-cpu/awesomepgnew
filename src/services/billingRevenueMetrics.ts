@@ -41,7 +41,9 @@ export async function getBillingRevenueMetrics(
   const monthStart = billingMonth.slice(0, 7) + '-01';
 
   const [rentGen] = await db
-    .select({ total: sum(rentInvoices.rentPaise) })
+    .select({
+      total: sql<number>`coalesce(sum(${rentInvoices.rentPaise} - ${rentInvoices.discountPaise}), 0)::bigint::int`,
+    })
     .from(rentInvoices)
     .innerJoin(bookings, eq(bookings.id, rentInvoices.bookingId))
     .innerJoin(customers, eq(customers.id, rentInvoices.customerId))
@@ -69,7 +71,9 @@ export async function getBillingRevenueMetrics(
     );
 
   const [rentOverdue] = await db
-    .select({ total: sum(rentInvoices.rentPaise) })
+    .select({
+      total: sql<number>`coalesce(sum(${rentInvoices.rentPaise} - ${rentInvoices.discountPaise}), 0)::bigint::int`,
+    })
     .from(rentInvoices)
     .innerJoin(bookings, eq(bookings.id, rentInvoices.bookingId))
     .innerJoin(customers, eq(customers.id, rentInvoices.customerId))

@@ -21,6 +21,7 @@ import {
   mergeFinancialStatusFromRent,
   rentStatusToUnifiedStatus,
 } from '@/src/lib/billing/invoiceStateMachine';
+import { computeRentDuePaise } from '@/src/services/rentInvoices';
 
 export type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -68,12 +69,27 @@ export async function syncRentInvoiceToUnifiedInTx(
   if (!ri) return null;
 
   const ctx = await loadBedContextInTx(tx, ri.bedId);
-  const amountPaise = ri.rentPaise + (ri.paidLateFeePaise ?? 0);
+  const discountPaise = ri.discountPaise ?? 0;
+  const rentDuePaise = computeRentDuePaise(ri.rentPaise, discountPaise);
+  const amountPaise = rentDuePaise + (ri.paidLateFeePaise ?? 0);
   const rentLabel = ri.isAdhoc && ri.notes ? ri.notes.split(' — ')[0] : 'Monthly rent';
   const breakdown: InvoiceBreakdown = {
     rentPaise: ri.rentPaise,
+    discountPaise: discountPaise > 0 ? discountPaise : undefined,
+    promoCode: ri.promoCode ?? undefined,
     lateFeePaise: ri.paidLateFeePaise ?? 0,
-    lines: [{ kind: 'rent', label: rentLabel, amountPaise: ri.rentPaise }],
+    lines: [
+      { kind: 'rent', label: rentLabel, amountPaise: ri.rentPaise },
+      ...(discountPaise > 0
+        ? [
+            {
+              kind: 'discount' as const,
+              label: ri.promoCode ? `Promo ${ri.promoCode}` : 'Discount',
+              amountPaise: -discountPaise,
+            },
+          ]
+        : []),
+    ],
   };
 
   const [existing] = await tx
