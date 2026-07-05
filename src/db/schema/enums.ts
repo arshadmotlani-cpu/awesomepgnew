@@ -55,10 +55,14 @@ export const bookingStatusEnum = pgEnum('booking_status', [
   /** UPI proof submitted — awaiting admin review before resident activation. */
   'pending_approval',
   'confirmed',
+  /** Replaced by a newer confirmed booking for the same customer stay at this PG. */
+  'superseded',
   'cancelled',
   'completed',
   'refunded',
 ]);
+
+export type BookingStatus = (typeof bookingStatusEnum.enumValues)[number];
 export const durationModeEnum = pgEnum('duration_mode', [
   'daily',
   'weekly',
@@ -366,6 +370,28 @@ export const paymentProofEntityTypeEnum = pgEnum('payment_proof_entity_type', [
 export const paymentProofRejectionStatusEnum = pgEnum('payment_proof_rejection_status', [
   'active',
   'superseded',
+]);
+
+export const discountTypeEnum = pgEnum('discount_type', [
+  'referral',
+  'promo_code',
+  'date_coupon',
+  'reservation',
+]);
+
+export const promoCouponTypeEnum = pgEnum('promo_coupon_type', ['percentage', 'fixed']);
+
+export const promoCouponScopeEnum = pgEnum('promo_coupon_scope', [
+  'booking_rent',
+  'rent_invoice',
+  'bed_reserve',
+]);
+
+export const referralWithdrawalStatusEnum = pgEnum('referral_withdrawal_status', [
+  'pending',
+  'approved',
+  'paid',
+  'rejected',
 ]);
 
 export type ActionItemType = (typeof actionItemTypeEnum.enumValues)[number];

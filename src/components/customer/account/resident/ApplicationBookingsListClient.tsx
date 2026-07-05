@@ -1,13 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ACCOUNT_LINK_ON_DARK,
   ACCOUNT_SURFACE,
 } from '@/src/components/customer/accountStyles';
-import { legacyResidentTabHref, residentTabHref } from '@/src/lib/accountNavigation';
+import { legacyResidentTabHref } from '@/src/lib/accountNavigation';
 import type { MyBookingCardModel } from '@/src/lib/account/myBookingRowPresentation';
+import { partitionMyBookingCardModels } from '@/src/lib/account/myBookingRowPresentation';
 import { logResidentClientInfo } from '@/src/lib/client/residentClientLogger';
 import { ApplicationBookingCard } from '@/src/components/customer/account/resident/ApplicationBookingCard';
 import { ApplicationBookingCardErrorBoundary } from '@/src/components/customer/account/resident/ApplicationBookingCardErrorBoundary';
@@ -19,12 +20,41 @@ type Props = {
   email?: string | null;
 };
 
+function BookingListSection({
+  models,
+  customerId,
+  email,
+}: {
+  models: MyBookingCardModel[];
+  customerId?: string | null;
+  email?: string | null;
+}) {
+  return (
+    <ul className={`${ACCOUNT_SURFACE} divide-y divide-zinc-200`}>
+      {models.map((model) => (
+        <ApplicationBookingCardErrorBoundary
+          key={model.id}
+          bookingId={model.id}
+          bookingCode={model.bookingCode}
+          customerId={customerId}
+          email={email}
+        >
+          <ApplicationBookingCard model={model} />
+        </ApplicationBookingCardErrorBoundary>
+      ))}
+    </ul>
+  );
+}
+
 export function ApplicationBookingsListClient({
   models,
   showResidentHome = false,
   customerId = null,
   email = null,
 }: Props) {
+  const { open, closed } = partitionMyBookingCardModels(models);
+  const [showClosed, setShowClosed] = useState(false);
+
   useEffect(() => {
     logResidentClientInfo('account bookings list mounted', {
       page: 'account_bookings',
@@ -32,12 +62,14 @@ export function ApplicationBookingsListClient({
       email,
       extra: {
         bookingCount: models.length,
+        openCount: open.length,
+        closedCount: closed.length,
         warningCount: models.filter((m) => m.warnings.length > 0).length,
         statuses: models.map((m) => m.status),
         durationModes: models.map((m) => m.durationMode),
       },
     });
-  }, [customerId, email, models]);
+  }, [customerId, email, models, open.length, closed.length]);
 
   if (models.length === 0) {
     return (
@@ -50,7 +82,7 @@ export function ApplicationBookingsListClient({
     );
   }
 
-  const latestLinkable = models.find((m) => m.isLinkable) ?? null;
+  const latestLinkable = open.find((m) => m.isLinkable) ?? models.find((m) => m.isLinkable) ?? null;
 
   return (
     <div className="space-y-6">
@@ -83,19 +115,34 @@ export function ApplicationBookingsListClient({
         </div>
       </section>
 
-      <ul className={`${ACCOUNT_SURFACE} divide-y divide-zinc-200`}>
-        {models.map((model) => (
-          <ApplicationBookingCardErrorBoundary
-            key={model.id}
-            bookingId={model.id}
-            bookingCode={model.bookingCode}
-            customerId={customerId}
-            email={email}
-          >
-            <ApplicationBookingCard model={model} />
-          </ApplicationBookingCardErrorBoundary>
-        ))}
-      </ul>
+      {open.length > 0 ? (
+        <div className="space-y-2">
+          <h2 className="text-sm font-semibold text-zinc-900">Active bookings</h2>
+          <BookingListSection models={open} customerId={customerId} email={email} />
+        </div>
+      ) : null}
+
+      {closed.length > 0 ? (
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-zinc-900">Closed bookings</h2>
+            <button
+              type="button"
+              onClick={() => setShowClosed((value) => !value)}
+              className="text-sm font-medium text-indigo-700 hover:text-indigo-600"
+            >
+              {showClosed ? 'Hide closed bookings' : `Show closed bookings (${closed.length})`}
+            </button>
+          </div>
+          {showClosed ? (
+            <BookingListSection models={closed} customerId={customerId} email={email} />
+          ) : (
+            <p className={`${ACCOUNT_SURFACE} px-4 py-3 text-sm text-zinc-600`}>
+              Superseded, cancelled, completed, and refunded bookings are hidden by default.
+            </p>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

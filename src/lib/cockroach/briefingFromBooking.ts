@@ -5,6 +5,7 @@ import { PS4_PLANS, type Ps4PlanId } from '@/src/lib/playstation/plans';
 import { tryParseDaterange } from '@/src/services/availability';
 import { formatDate as formatDateUtc, normalizeIsoDateOnly } from '@/src/lib/dates';
 import type { ResidentBriefingInput } from '@/src/lib/cockroach/residentBriefing';
+import { isBookingStatus, labelBookingStatus } from '@/src/lib/booking/bookingStatus';
 import {
   getMembershipForDashboard,
   isActiveTenant,
@@ -89,7 +90,9 @@ export async function buildBriefingInputForBooking(args: {
       : booking.durationMode === 'open_ended'
         ? 'Open-ended (living here)'
         : '—',
-    statusLabel: titleCase(booking.status),
+    statusLabel: isBookingStatus(booking.status)
+      ? labelBookingStatus(booking.status)
+      : titleCase(booking.status),
     paymentLabel:
       booking.status === 'confirmed'
         ? 'Paid'
@@ -97,7 +100,11 @@ export async function buildBriefingInputForBooking(args: {
           ? 'Under admin review'
           : booking.status === 'pending_payment'
             ? 'Awaiting payment'
-            : titleCase(booking.status),
+            : booking.status === 'superseded'
+              ? 'Superseded'
+              : isBookingStatus(booking.status)
+                ? labelBookingStatus(booking.status)
+                : titleCase(booking.status),
     monthlyRentLabel: monthlyRentPaise > 0 ? paiseToInr(monthlyRentPaise) : undefined,
     kycLabel,
     isActiveResident: tenantActive,

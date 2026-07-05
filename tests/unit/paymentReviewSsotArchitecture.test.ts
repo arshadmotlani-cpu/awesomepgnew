@@ -21,9 +21,11 @@ describe('payment review SSOT architecture', () => {
   test('stale SQL detects confirmed booking, succeeded payment, and active assignment', () => {
     const ssot = read('src/lib/operations/paymentReviewSsot.ts');
     assert.match(ssot, /b\.status NOT IN/);
+    assert.match(ssot, /b\.status = 'superseded'/);
     assert.match(ssot, /purpose IN \('booking', 'bed_reserve'\)/);
     assert.match(ssot, /bed_reservations br/);
     assert.match(ssot, /CURRENT_DATE <@ br\.stay_range/);
+    assert.match(ssot, /FROM bookings newer/);
   });
 
   test('reconciliation is the single self-heal entry on queue load', () => {
@@ -51,6 +53,7 @@ describe('payment review SSOT architecture', () => {
 
   test('confirmed booking never eligible for display', () => {
     assert.equal(isBookingCheckoutEligibleForPaymentReview('confirmed'), false);
+    assert.equal(isBookingCheckoutEligibleForPaymentReview('superseded'), false);
     assert.equal(isBookingCheckoutEligibleForPaymentReview('pending_approval'), true);
   });
 

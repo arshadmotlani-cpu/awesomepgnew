@@ -16,7 +16,6 @@ import {
   RESERVE_MIN_PERIOD_DAYS,
   RESERVE_NOTICE_BUFFER_DAYS,
   reserveBufferDate,
-  reserveFeePaise,
   reserveShortStayEndExclusive,
 } from '../lib/bedReservePolicy';
 import {
@@ -31,7 +30,7 @@ import {
 import { nextReserveCode } from '../lib/reserveCode';
 import { BLOCKING_RESERVATION_STATUS_SQL } from '../lib/reservationBlocking';
 import { env } from '../lib/env';
-import { computeLowestFixedStayRent } from '../lib/pricing/fixedStayOptimizer';
+import { computeReservePricing } from '../lib/pricing/reservePricing';
 import { loadBedPrice, quoteBedPrice, type PricingMode } from './pricing';
 import { stayTypeFromPricingMode } from '../lib/stayType';
 import { ensureBillingProfileForBooking } from './residentBillingProfiles';
@@ -247,12 +246,11 @@ export async function quoteBedReserve(input: QuoteBedReserveInput) {
     throw new Error('No rent price configured for this bed on the reserve start date.');
   }
 
-  const optimized = computeLowestFixedStayRent({
-    nights: periodDays,
-    dailyRatePaise: rate.dailyRatePaise,
-    weeklyRatePaise: rate.weeklyRatePaise,
+  const pricing = computeReservePricing({
+    monthlyRentPaise: rate.monthlyRatePaise,
+    reserveStart,
+    reservedDays: periodDays,
   });
-  const feePaise = reserveFeePaise(optimized.subtotalPaise);
 
   return {
     bedId: input.bedId,
@@ -261,8 +259,12 @@ export async function quoteBedReserve(input: QuoteBedReserveInput) {
     bufferDate: reserveBufferDate(checkInDate),
     periodDays,
     monthlyRatePaise: rate.monthlyRatePaise,
-    optimizedRentPaise: optimized.subtotalPaise,
-    feePaise,
+    daysInMonth: pricing.daysInMonth,
+    dailyRentPaise: pricing.dailyRentPaise,
+    fullReservationPaise: pricing.fullReservationPaise,
+    feePaise: pricing.feePaise,
+    savingsPaise: pricing.savingsPaise,
+    offerPercent: pricing.offerPercent,
     nonRefundable: true,
   };
 }
@@ -336,7 +338,7 @@ export async function createBedReserve(input: CreateBedReserveInput) {
                 },
               ],
               computedAt: new Date().toISOString(),
-              notes: `Bed reserve ${reserveCode}: 50% of optimized rent until ${quote.checkInDate}. Non-refundable.`,
+              notes: `Bed reserve ${reserveCode}: ${quote.offerPercent}% of monthly-prorated rent (${quote.periodDays} days) until ${quote.checkInDate}. Non-refundable.`,
             },
             notes: `Reserve hold ${reserveCode}`,
             createdVia: 'customer',

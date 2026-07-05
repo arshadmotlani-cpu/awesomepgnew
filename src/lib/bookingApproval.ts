@@ -12,6 +12,7 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { auditLog, bedReservations, bookings, pgPaymentRecords, rentInvoices } from '@/src/db/schema';
+import { isTerminalBookingLifecycleStatus } from '@/src/lib/booking/bookingStatus';
 
 export type BookingApprovalPhase =
   | 'awaiting_payment'
@@ -35,7 +36,7 @@ export function deriveBookingApprovalPhase(input: {
   hasPendingPaymentProof: boolean;
 }): BookingApprovalPhase {
   if (isApprovedBookingStatus(input.status)) return 'approved';
-  if (input.status === 'cancelled' || input.status === 'refunded' || input.status === 'draft') {
+  if (input.status === 'draft' || isTerminalBookingLifecycleStatus(input.status)) {
     return 'inactive';
   }
   if (input.status === 'pending_approval' || input.hasPendingPaymentProof) {

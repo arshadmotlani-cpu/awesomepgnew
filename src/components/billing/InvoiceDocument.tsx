@@ -273,10 +273,25 @@ export function InvoiceDocument({ document: doc, variant = 'admin', className = 
           ) : null}
           {doc.totals.discountPaise > 0 ? (
             <div className="flex justify-between gap-4">
-              <dt className={muted}>Discount</dt>
+              <dt className={muted}>
+                {doc.totals.discountLabel
+                  ? doc.totals.discountLabel.startsWith('Referral')
+                    ? 'Referral discount'
+                    : doc.totals.discountLabel.startsWith('Promo') ||
+                        doc.totals.discountLabel.startsWith('Daily')
+                      ? `Promo (${doc.totals.discountLabel.replace(/^Promo\s*/i, '')})`
+                      : `Discount (${doc.totals.discountLabel})`
+                  : 'Discount'}
+              </dt>
               <dd className="tabular-nums text-emerald-600">
                 −{paiseToInr(doc.totals.discountPaise)}
               </dd>
+            </div>
+          ) : null}
+          {doc.totals.discountPaise > 0 ? (
+            <div className={`flex justify-between gap-4 text-xs ${muted}`}>
+              <dt>You save</dt>
+              <dd className="tabular-nums">{paiseToInr(doc.totals.discountPaise)}</dd>
             </div>
           ) : null}
           {doc.totals.taxPaise != null && doc.totals.taxPaise > 0 ? (

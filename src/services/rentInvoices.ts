@@ -1187,6 +1187,7 @@ export async function recordRentPaymentSuccess(
       customerId: rentInvoices.customerId,
       status: rentInvoices.status,
       rentPaise: rentInvoices.rentPaise,
+      discountPaise: rentInvoices.discountPaise,
       billingMonth: rentInvoices.billingMonth,
       paidPrincipalPaise: rentInvoices.paidPrincipalPaise,
       paidLateFeePaise: rentInvoices.paidLateFeePaise,
@@ -1257,10 +1258,11 @@ export async function recordRentPaymentSuccess(
     };
   }
 
+  const rentDuePaise = Math.max(0, invoice.rentPaise - (invoice.discountPaise ?? 0));
   const lateFee = input.historical
     ? 0
     : computeLateFee({
-        rentPaise: invoice.rentPaise,
+        rentPaise: rentDuePaise,
         billingMonth: invoice.billingMonth,
       });
 
@@ -1268,11 +1270,11 @@ export async function recordRentPaymentSuccess(
   const lateOwed = Math.max(0, lateFee - invoice.paidLateFeePaise);
   const latePaid = Math.min(remaining, lateOwed);
   remaining -= latePaid;
-  const principalOwed = Math.max(0, invoice.rentPaise - invoice.paidPrincipalPaise);
+  const principalOwed = Math.max(0, rentDuePaise - invoice.paidPrincipalPaise);
   const principalPaid = Math.min(remaining, principalOwed);
   const newPaidLate = invoice.paidLateFeePaise + latePaid;
   const newPaidPrincipal = invoice.paidPrincipalPaise + principalPaid;
-  const newOutstanding = invoice.rentPaise + lateFee - newPaidPrincipal - newPaidLate;
+  const newOutstanding = rentDuePaise + lateFee - newPaidPrincipal - newPaidLate;
   const fullyPaid = newOutstanding <= 0;
   const paidAt = input.paidAt ?? new Date();
 
@@ -1537,6 +1539,12 @@ export async function recordRentPaymentFailure(input: {
 // View helpers (dynamic late-fee accrual on read)
 // ───────────────────────────────────────────────────────────────────────────
 
+/** Rows from joins may omit new promo columns until migration runs. */
+export type RentInvoiceProjectInput = Omit<RentInvoice, 'discountPaise' | 'promoCode'> & {
+  discountPaise?: number;
+  promoCode?: string | null;
+};
+
 /**
  * Augment a stored `rent_invoices` row with the live late fee and
  * effective UI status. The stored `status` is "pending" until the
@@ -1544,69 +1552,75 @@ export async function recordRentPaymentFailure(input: {
  * should reflect overdue immediately on the 6th regardless of cron lag.
  */
 export function projectInvoice(
-  invoice: RentInvoice,
+  invoice: RentInvoiceProjectInput,
   asOf: DateLike = formatDate(new Date()),
 ): RentInvoiceView {
-  if (invoice.status === 'paid') {
+  const inv: RentInvoice = {
+    ...invoice,
+    discountPaise: invoice.discountPaise ?? 0,
+    promoCode: invoice.promoCode ?? null,
+  };
+  if (inv.status === 'paid') {
     return {
-      ...invoice,
-      accruedLateFeePaise: invoice.lateFeeLockedPaise ?? 0,
+      ...inv,
+      accruedLateFeePaise: inv.lateFeeLockedPaise ?? 0,
       outstandingPaise: 0,
       effectiveStatus: 'paid',
     };
   }
-  if (invoice.status === 'cancelled') {
+  if (inv.status === 'cancelled') {
     return {
-      ...invoice,
+      ...inv,
       accruedLateFeePaise: 0,
       outstandingPaise: 0,
       effectiveStatus: 'cancelled',
     };
   }
-  if (invoice.status === 'payment_in_progress') {
+  const rentDuePaise = Math.max(0, inv.rentPaise - (inv.discountPaise ?? 0));
+  if (inv.status === 'payment_in_progress') {
     const lateFee = computeLateFee({
-      rentPaise: invoice.rentPaise,
-      billingMonth: invoice.billingMonth,
+      rentPaise: rentDuePaise,
+      billingMonth: inv.billingMonth,
       today: asOf,
     });
     const outstandingPaise = Math.max(
       0,
-      invoice.rentPaise + lateFee - invoice.paidPrincipalPaise - invoice.paidLateFeePaise,
+      rentDuePaise + lateFee - inv.paidPrincipalPaise - inv.paidLateFeePaise,
     );
     return {
-      ...invoice,
+      ...inv,
       accruedLateFeePaise: lateFee,
       outstandingPaise,
       effectiveStatus: 'payment_in_progress',
     };
   }
-  if (invoice.status === 'expired') {
+  if (inv.status === 'expired') {
     return {
-      ...invoice,
+      ...inv,
       accruedLateFeePaise: 0,
       outstandingPaise: 0,
       effectiveStatus: 'expired',
     };
   }
   const lateFee = computeLateFee({
-    rentPaise: invoice.rentPaise,
-    billingMonth: invoice.billingMonth,
+    rentPaise: rentDuePaise,
+    billingMonth: inv.billingMonth,
     today: asOf,
   });
-  const outstanding = invoice.rentPaise + lateFee
-    - invoice.paidPrincipalPaise
-    - invoice.paidLateFeePaise;
+  const outstanding = rentDuePaise + lateFee
+    - inv.paidPrincipalPaise
+    - inv.paidLateFeePaise;
   const outstandingPaise = Math.max(0, outstanding);
   const hasPartial =
     outstandingPaise > 0 &&
-    (invoice.paidPrincipalPaise > 0 || invoice.paidLateFeePaise > 0);
+    (inv.paidPrincipalPaise > 0 || inv.paidLateFeePaise > 0);
   const effectiveStatus = hasPartial
     ? 'partial'
-    : daysOverdue(invoice.billingMonth, asOf) > 0
+    : daysOverdue(inv.billingMonth, asOf) > 0
       ? 'overdue'
       : 'pending';
   return {
-    ...invoice,
+    ...inv,
     accruedLateFeePaise: lateFee,
     outstandingPaise,
     effectiveStatus,

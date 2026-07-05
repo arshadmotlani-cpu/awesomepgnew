@@ -1,6 +1,12 @@
 import type { MyBookingRow } from '@/src/db/queries/customer';
-import { asPlainNumber, formatDate, paiseToInr, titleCase } from '@/src/lib/format';
+import { asPlainNumber, formatDate, paiseToInr } from '@/src/lib/format';
 import { stayTypeFromPricingMode, stayTypeLabel } from '@/src/lib/stayType';
+import {
+  isBookingStatus,
+  isClosedBookingStatus,
+  labelBookingStatus,
+  type BookingStatus,
+} from '@/src/lib/booking/bookingStatus';
 
 export type MyBookingCardModel = {
   id: string;
@@ -15,22 +21,14 @@ export type MyBookingCardModel = {
   durationLabel: string;
   totalPaise: number;
   totalLabel: string;
-  status: string;
+  status: BookingStatus | 'invalid';
   statusLabel: string;
   warnings: string[];
   /** False when the row is too incomplete to link anywhere useful. */
   isLinkable: boolean;
+  /** Closed bookings (superseded, cancelled, completed, refunded). */
+  isClosed: boolean;
 };
-
-const KNOWN_STATUSES = new Set([
-  'pending_payment',
-  'pending_approval',
-  'confirmed',
-  'cancelled',
-  'refunded',
-  'draft',
-  'completed',
-]);
 
 function nonEmptyString(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -38,23 +36,18 @@ function nonEmptyString(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function normalizeStatus(value: unknown): { status: string; warnings: string[] } {
+function normalizeStatus(value: unknown): {
+  status: BookingStatus | 'invalid';
+  warnings: string[];
+} {
   const raw = nonEmptyString(value);
   if (!raw) {
-    return { status: 'unknown', warnings: ['missing booking status'] };
+    return { status: 'invalid', warnings: ['missing booking status'] };
   }
-  if (!KNOWN_STATUSES.has(raw)) {
-    return { status: raw, warnings: [`unrecognized booking status: ${raw}`] };
+  if (!isBookingStatus(raw)) {
+    return { status: 'invalid', warnings: [`invalid booking status: ${raw}`] };
   }
   return { status: raw, warnings: [] };
-}
-
-function normalizeDurationMode(value: unknown): { mode: string; warnings: string[] } {
-  const raw = nonEmptyString(value);
-  if (!raw) {
-    return { mode: 'open_ended', warnings: ['missing duration mode'] };
-  }
-  return { mode: raw, warnings: [] };
 }
 
 /** Validates and normalizes a My Bookings row — never throws. */
@@ -70,8 +63,8 @@ export function normalizeMyBookingRow(raw: Partial<MyBookingRow> | null | undefi
   const { status, warnings: statusWarnings } = normalizeStatus(raw?.status);
   warnings.push(...statusWarnings);
 
-  const { mode: durationMode, warnings: modeWarnings } = normalizeDurationMode(raw?.durationMode);
-  warnings.push(...modeWarnings);
+  const durationMode = nonEmptyString(raw?.durationMode) ?? 'open_ended';
+  if (!nonEmptyString(raw?.durationMode)) warnings.push('missing duration mode');
 
   const pgName = nonEmptyString(raw?.pgName) ?? 'PG details unavailable';
   if (!nonEmptyString(raw?.pgName)) warnings.push('missing PG name');
@@ -91,7 +84,10 @@ export function normalizeMyBookingRow(raw: Partial<MyBookingRow> | null | undefi
     warnings.push('could not derive stay type label');
   }
 
-  const statusLabel = titleCase(status.replace(/_/g, ' '));
+  const statusLabel =
+    status === 'invalid' ? 'Invalid' : labelBookingStatus(status);
+
+  const isClosed = status !== 'invalid' && isClosedBookingStatus(status);
 
   return {
     id: id || `missing-${bookingCode ?? 'booking'}`,
@@ -110,10 +106,24 @@ export function normalizeMyBookingRow(raw: Partial<MyBookingRow> | null | undefi
     statusLabel,
     warnings,
     isLinkable: Boolean(bookingCode),
+    isClosed,
   };
 }
 
 export function buildMyBookingCardModels(rows: Partial<MyBookingRow>[] | null | undefined): MyBookingCardModel[] {
   if (!rows?.length) return [];
   return rows.map((row) => normalizeMyBookingRow(row));
+}
+
+export function partitionMyBookingCardModels(models: MyBookingCardModel[]): {
+  open: MyBookingCardModel[];
+  closed: MyBookingCardModel[];
+} {
+  const open: MyBookingCardModel[] = [];
+  const closed: MyBookingCardModel[] = [];
+  for (const model of models) {
+    if (model.isClosed) closed.push(model);
+    else open.push(model);
+  }
+  return { open, closed };
 }

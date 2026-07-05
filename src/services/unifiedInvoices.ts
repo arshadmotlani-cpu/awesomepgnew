@@ -105,13 +105,28 @@ export async function syncRentInvoiceToUnified(rentInvoiceId: string): Promise<s
   if (!ri) return null;
 
   const ctx = await loadBedContext(ri.bedId);
-  const amountPaise = ri.rentPaise + (ri.paidLateFeePaise ?? 0);
+  const discountPaise = ri.discountPaise ?? 0;
+  const rentDuePaise = Math.max(0, ri.rentPaise - discountPaise);
+  const amountPaise = rentDuePaise + (ri.paidLateFeePaise ?? 0);
   const rentLabel =
     ri.isAdhoc && ri.notes ? ri.notes.split(' — ')[0] : 'Monthly rent';
   const breakdown: InvoiceBreakdown = {
     rentPaise: ri.rentPaise,
     lateFeePaise: ri.paidLateFeePaise ?? 0,
-    lines: [{ kind: 'rent', label: rentLabel, amountPaise: ri.rentPaise }],
+    discountPaise: discountPaise > 0 ? discountPaise : undefined,
+    promoCode: ri.promoCode ?? undefined,
+    lines: [
+      { kind: 'rent', label: rentLabel, amountPaise: ri.rentPaise },
+      ...(discountPaise > 0
+        ? [
+            {
+              kind: 'discount' as const,
+              label: ri.promoCode ? `Promo ${ri.promoCode}` : 'Discount',
+              amountPaise: -discountPaise,
+            },
+          ]
+        : []),
+    ],
   };
 
   const [existing] = await db

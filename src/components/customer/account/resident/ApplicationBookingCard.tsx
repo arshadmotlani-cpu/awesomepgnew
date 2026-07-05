@@ -2,26 +2,19 @@
 
 import Link from 'next/link';
 import type { MyBookingCardModel } from '@/src/lib/account/myBookingRowPresentation';
+import { myBookingStatusChipClass } from '@/src/lib/booking/bookingStatus';
 import { ACCOUNT_LINK_IN_SURFACE } from '@/src/components/customer/accountStyles';
 
-const STATUS_TONE: Record<string, string> = {
-  pending_payment: 'bg-amber-50 text-amber-700 ring-amber-200',
-  pending_approval: 'bg-amber-50 text-amber-700 ring-amber-200',
-  confirmed: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  cancelled: 'bg-rose-50 text-rose-700 ring-rose-200',
-  refunded: 'bg-zinc-100 text-zinc-700 ring-zinc-200',
-  draft: 'bg-zinc-100 text-zinc-700 ring-zinc-200',
-  completed: 'bg-zinc-100 text-zinc-700 ring-zinc-200',
-  unknown: 'bg-amber-50 text-amber-800 ring-amber-200',
-};
-
-function StatusBadge({ status, label }: { status: string; label: string }) {
-  const tone = STATUS_TONE[status] ?? STATUS_TONE.unknown;
+function StatusBadge({ model }: { model: MyBookingCardModel }) {
+  const tone =
+    model.status === 'invalid'
+      ? 'bg-amber-50 text-amber-800 ring-amber-200'
+      : myBookingStatusChipClass(model.status);
   return (
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${tone}`}
     >
-      {label}
+      {model.statusLabel}
     </span>
   );
 }
@@ -69,11 +62,16 @@ export function ApplicationBookingCard({ model }: { model: MyBookingCardModel })
         <p className="text-xs text-zinc-600">
           {model.durationLabel} · {model.totalLabel}
         </p>
+        {model.status === 'superseded' ? (
+          <p className="mt-2 text-xs text-violet-800">
+            Replaced by a newer confirmed booking.
+          </p>
+        ) : null}
         {model.warnings.length > 0 ? (
           <p className="mt-2 text-xs text-amber-700">{model.warnings.join(' · ')}</p>
         ) : null}
       </div>
-      <StatusBadge status={model.status} label={model.statusLabel} />
+      <StatusBadge model={model} />
     </li>
   );
 }

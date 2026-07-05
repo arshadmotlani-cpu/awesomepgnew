@@ -7,7 +7,8 @@ import { PageHeader } from '@/src/components/admin/PageHeader';
 import { TBody, TD, TH, THead, TR, Table } from '@/src/components/admin/Table';
 import { listBookings } from '@/src/db/queries/admin';
 import { adminStayTypeLabel } from '@/src/lib/stayType';
-import { formatDate, formatDateTime, paiseToInr, titleCase } from '@/src/lib/format';
+import { formatDate, formatDateTime, paiseToInr } from '@/src/lib/format';
+import { isBookingStatus, labelBookingStatus } from '@/src/lib/booking/bookingStatus';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,7 +64,9 @@ export default async function BookingsPage() {
                 </TD>
                 <TD>{b.customerName}</TD>
                 <TD>
-                  <Badge tone={toneForStatus(b.status)}>{titleCase(b.status)}</Badge>
+                  <Badge tone={toneForStatus(b.status)}>
+                    {isBookingStatus(b.status) ? labelBookingStatus(b.status) : b.status}
+                  </Badge>
                 </TD>
                 <TD>{adminStayTypeLabel({ durationMode: b.durationMode })}</TD>
                 <TD>{formatDate(b.expectedCheckoutDate)}</TD>

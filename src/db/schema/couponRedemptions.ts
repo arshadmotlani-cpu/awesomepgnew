@@ -1,17 +1,19 @@
 import { bigint, date, index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { bookings } from './bookings';
 import { customers } from './customers';
+import { rentInvoices } from './rentInvoices';
 
 export const couponRedemptions = pgTable(
   'coupon_redemptions',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    bookingId: uuid('booking_id')
-      .notNull()
-      .references(() => bookings.id, { onDelete: 'cascade' }),
+    bookingId: uuid('booking_id').references(() => bookings.id, { onDelete: 'cascade' }),
     customerId: uuid('customer_id')
       .notNull()
       .references(() => customers.id, { onDelete: 'cascade' }),
+    rentInvoiceId: uuid('rent_invoice_id').references(() => rentInvoices.id, {
+      onDelete: 'cascade',
+    }),
     couponCode: text('coupon_code').notNull(),
     couponDate: date('coupon_date').notNull(),
     discountPaise: bigint('discount_paise', { mode: 'number' }).notNull(),

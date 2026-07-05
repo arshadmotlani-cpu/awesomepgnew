@@ -66,6 +66,7 @@ export type InvoiceDocumentTotals = {
   subtotalPaise: number;
   lateFeePaise: number;
   discountPaise: number;
+  discountLabel?: string | null;
   taxPaise?: number;
   taxLabel?: string;
   totalPaise: number;
@@ -301,9 +302,10 @@ export function computeInvoiceDocumentTotals(input: {
   taxPaise?: number;
   taxLabel?: string;
   discountPaise?: number;
+  discountLabel?: string | null;
 }): InvoiceDocumentTotals {
   const lateFeePaise = input.breakdown?.lateFeePaise ?? 0;
-  const discountPaise = input.discountPaise ?? 0;
+  const discountPaise = input.discountPaise ?? input.breakdown?.discountPaise ?? 0;
   const lineSum = input.lineItems.reduce((s, l) => s + l.amountPaise, 0);
   const subtotalPaise = lineSum > 0 ? lineSum : Math.max(0, input.amountPaise - lateFeePaise);
 
@@ -324,6 +326,7 @@ export function computeInvoiceDocumentTotals(input: {
     subtotalPaise,
     lateFeePaise,
     discountPaise,
+    discountLabel: input.discountLabel ?? input.breakdown?.promoCode ?? null,
     taxPaise: input.taxPaise,
     taxLabel: input.taxLabel,
     totalPaise,
@@ -460,11 +463,30 @@ export async function getInvoiceDocumentDetail(
   const paymentLinkUrl = base.paymentLink ? paymentLinkPublicUrl(base.paymentLink.id) : null;
 
   const lineItems = buildInvoiceDocumentLineItems(base.breakdown, base.billingMonth);
+  let discountPaise = base.breakdown?.discountPaise ?? 0;
+  let discountLabel: string | null = base.breakdown?.promoCode ?? null;
+  if (base.sourceTable === 'rent_invoices' && base.sourceId) {
+    const { rentInvoices } = await import('@/src/db/schema');
+    const [ri] = await db
+      .select({
+        discountPaise: rentInvoices.discountPaise,
+        promoCode: rentInvoices.promoCode,
+      })
+      .from(rentInvoices)
+      .where(eq(rentInvoices.id, base.sourceId))
+      .limit(1);
+    if (ri) {
+      discountPaise = ri.discountPaise ?? 0;
+      discountLabel = ri.promoCode ?? discountLabel;
+    }
+  }
   const totals = computeInvoiceDocumentTotals({
     amountPaise: base.amountPaise,
     status: base.status,
     breakdown: base.breakdown,
     lineItems,
+    discountPaise,
+    discountLabel,
   });
 
   const issuedAtIso = formatIsoDate(base.createdAt);

@@ -46,18 +46,24 @@ test('wallet sub-tab is always available for residents with a booking', () => {
 });
 
 test('wallet sub-tab wires deposit balance, ledger, policy, and refund tracking', () => {
-  assert.match(profileWalletPanel, /ResidentRequestForms/);
+  assert.match(profileWalletPanel, /RequestMoneySheet/);
+  assert.match(profileWalletPanel, /RequestMoneySheet/);
   assert.match(profileWalletPanel, /Deposit deductions/);
   assert.match(profileWalletPanel, /Refund history/);
-  assert.match(profileWalletPanel, /Refund not available yet/);
+  assert.match(profileWalletPanel, /Deposit refund not available yet/);
   assert.match(residentAreaSection, /getDepositSummaryForBooking/);
   assert.match(residentAreaSection, /refundableBalancePaise/);
 });
 
-test('request refund lives only in wallet', () => {
-  assert.match(residentRequestForms, /Request refund/);
+test('request money lives only in wallet', () => {
+  assert.match(profileWalletPanel, /RequestMoneySheet/);
+  const requestMoneySheet = readFileSync(
+    join(process.cwd(), 'src/components/customer/account/RequestMoneySheet.tsx'),
+    'utf8',
+  );
+  assert.match(requestMoneySheet, /Request money/);
   assert.doesNotMatch(requestsHome, /Request deposit refund/);
-  assert.doesNotMatch(vacatingHome, /Request refund/);
+  assert.doesNotMatch(vacatingHome, /Request refund</);
   assert.match(vacatingHome, /residentProfileHref\('wallet'\)/);
   assert.match(requestsHome, /residentProfileHref\('wallet'\)/);
 });

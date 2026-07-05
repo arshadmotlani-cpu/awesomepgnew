@@ -15,7 +15,7 @@ import {
   DEFAULT_RENT_DEPOSIT_QR_PATH,
   DEFAULT_RENT_DEPOSIT_UPI_ID,
 } from '@/src/lib/payments/defaultQr';
-import { ResidentPayRentClient } from '@/src/components/customer/account/resident/ResidentPayRentClient';
+import { ResidentPayRentWithPromo } from '@/src/components/customer/account/resident/ResidentPayRentWithPromo';
 import {
   InvoiceBreakdownRow,
 } from '@/src/components/customer/account/resident/ResidentPaymentsHub';
@@ -71,6 +71,8 @@ export default async function PayRentPage({
       billingMonth: rentInvoices.billingMonth,
       dueDate: rentInvoices.dueDate,
       rentPaise: rentInvoices.rentPaise,
+      discountPaise: rentInvoices.discountPaise,
+      promoCode: rentInvoices.promoCode,
       status: rentInvoices.status,
       paidAt: rentInvoices.paidAt,
       paymentProofUrl: rentInvoices.paymentProofUrl,
@@ -129,6 +131,19 @@ export default async function PayRentPage({
           <InvoiceBreakdownRow label="Due date" value={formatDate(row.dueDate)} />
           <InvoiceBreakdownRow label="Room / bed" value={`R${row.roomNumber} · ${row.bedCode}`} />
           <InvoiceBreakdownRow label="Rent" value={paiseToInr(row.rentPaise)} />
+          {(row.discountPaise ?? 0) > 0 ? (
+            <>
+              <InvoiceBreakdownRow
+                label={row.promoCode ? `Discount (${row.promoCode})` : 'Discount'}
+                value={`−${paiseToInr(row.discountPaise ?? 0)}`}
+                tone="success"
+              />
+              <InvoiceBreakdownRow
+                label="Rent after discount"
+                value={paiseToInr(row.rentPaise - (row.discountPaise ?? 0))}
+              />
+            </>
+          ) : null}
           <InvoiceBreakdownRow
             label="Late fee"
             value={paiseToInr(projected.accruedLateFeePaise)}
@@ -154,10 +169,16 @@ export default async function PayRentPage({
           This invoice was cancelled — no payment needed.
         </ApgCard>
       ) : (
-        <ResidentPayRentClient
+        <ResidentPayRentWithPromo
           invoiceId={row.id}
-          amountLabel={amountLabel}
-          confirmMessage={`You are paying ${amountLabel} for rent for ${periodLabel}. Pay the exact amount via UPI, then upload your payment screenshot for verification.`}
+          customerId={session.customerId}
+          rentPaise={row.rentPaise}
+          initialDiscountPaise={row.discountPaise ?? 0}
+          initialPromoCode={row.promoCode}
+          initialOutstandingPaise={projected.outstandingPaise - projected.accruedLateFeePaise}
+          lateFeePaise={projected.accruedLateFeePaise}
+          periodLabel={periodLabel}
+          confirmMessageBase={`You are paying ${amountLabel} for rent for ${periodLabel}.`}
           qrImageUrl={rentCategory?.qrCodeImageUrl ?? DEFAULT_RENT_DEPOSIT_QR_PATH}
           upiId={rentCategory?.upiId ?? DEFAULT_RENT_DEPOSIT_UPI_ID}
           existingProofUrl={row.paymentProofUrl}

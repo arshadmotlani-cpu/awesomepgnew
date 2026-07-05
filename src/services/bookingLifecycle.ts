@@ -50,6 +50,11 @@ import {
 } from './cancellationPolicy';
 import { markExpiredExtensions } from './extension';
 import { env } from '@/src/lib/env';
+import {
+  bookingCancellationBlockedReason,
+  isTerminalBookingLifecycleStatus,
+  type BookingStatus,
+} from '@/src/lib/booking/bookingStatus';
 
 // ───────────────────────────────────────────────────────────────────────────
 // Types
@@ -772,6 +777,34 @@ export async function recordPaymentSuccess(
         await ensureContinuousResidencyOnBookingConfirmed(booking.id);
       } catch (residencyErr) {
         console.error('continuous residency on booking confirm failed:', residencyErr);
+      }
+    }
+
+    if (!isReserveBooking && wasAwaitingConfirm) {
+      try {
+        const { supersedePriorOpenBookingsForConfirmedBooking } = await import(
+          '@/src/services/supersededBookingLifecycle'
+        );
+        await supersedePriorOpenBookingsForConfirmedBooking(booking.id, {
+          supersededByAdminId: input.recordedByAdminId ?? null,
+        });
+      } catch (supersedeErr) {
+        console.error('supersede prior open bookings failed:', supersedeErr);
+      }
+    }
+
+    if (!isReserveBooking && wasAwaitingConfirm) {
+      try {
+        const { creditReferralEarningOnBookingPayment } = await import('./referrals');
+        await creditReferralEarningOnBookingPayment({
+          bookingId: booking.id,
+          rentSubtotalPaise: Math.max(
+            0,
+            Number(booking.subtotalPaise ?? 0) - Number(booking.discountPaise ?? 0),
+          ),
+        });
+      } catch (referralErr) {
+        console.error('referral earning credit failed:', referralErr);
       }
     }
 
@@ -1763,11 +1796,14 @@ export async function cancelBooking(
     .limit(1);
   if (!b) return { ok: false, reason: `no booking "${input.bookingCode}"` };
 
-  if (b.status === 'cancelled' || b.status === 'refunded') {
-    return { ok: false, reason: `booking ${b.bookingCode} is already ${b.status}` };
-  }
   if (b.status === 'completed') {
     return { ok: false, reason: `booking ${b.bookingCode} is completed — past cancellation` };
+  }
+  if (isTerminalBookingLifecycleStatus(b.status)) {
+    return {
+      ok: false,
+      reason: bookingCancellationBlockedReason(b.bookingCode, b.status as BookingStatus),
+    };
   }
 
   const checkIn = (await earliestCheckIn(b.id)) ?? cancelAt;

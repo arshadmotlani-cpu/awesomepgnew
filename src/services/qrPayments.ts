@@ -607,6 +607,25 @@ export async function reviewPaymentRecord(
     throw new Error('Only pending payments can be reviewed.');
   }
 
+  if (record.bookingId) {
+    const [bookingRow] = await db
+      .select({ status: bookings.status })
+      .from(bookings)
+      .where(eq(bookings.id, record.bookingId))
+      .limit(1);
+    if (
+      bookingRow &&
+      !isBookingCheckoutEligibleForPaymentReview(bookingRow.status)
+    ) {
+      await finalizeStaleBookingPaymentReview({
+        recordId,
+        bookingId: record.bookingId,
+        reviewedByAdminId: session.adminId,
+      });
+      return { outcome: 'already_approved' };
+    }
+  }
+
   if (status === 'approved' && record.bookingId) {
     const [booking] = await db
       .select({

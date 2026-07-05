@@ -1,6 +1,6 @@
 /** Bed reserve (50% rent hold) business constants. */
 
-/** Non-refundable reservation fee = 50% of optimized fixed-stay rent for the reserve window. */
+/** Non-refundable reservation fee = 50% of monthly-prorated reservation cost. */
 export const RESERVE_FEE_PERCENT = 50;
 
 /** Days kept empty for cleaning before the reserve holder's check-in date. */

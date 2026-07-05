@@ -982,6 +982,9 @@ export async function completeVacatingRequest(
     vacatingDate: updated.vacatingDate,
   });
 
+  const { unlockReferralEarningsOnVacate } = await import('@/src/services/referrals');
+  await unlockReferralEarningsOnVacate(updated.customerId).catch(() => undefined);
+
   scheduleAdminNotificationSync();
 
   return {

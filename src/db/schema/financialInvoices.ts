@@ -28,6 +28,8 @@ export type InvoiceBreakdown = {
   otherPaise?: number;
   lateFeePaise?: number;
   paidPaise?: number;
+  discountPaise?: number;
+  promoCode?: string;
   lines?: Array<{
     kind: string;
     label: string;

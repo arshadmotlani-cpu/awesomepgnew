@@ -4,6 +4,7 @@ import { getBedsForCart } from '@/src/db/queries/customer';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
 import { quoteBedReserve } from '@/src/services/bedReserve';
 import { getCustomerById, isProfileComplete } from '@/src/services/profile';
+import { ReserveQuoteBreakdown } from '@/src/components/customer/ReserveQuoteBreakdown';
 import { paiseToInr, formatDate } from '@/src/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -78,16 +79,7 @@ export default async function NewReservePage(props: PageProps<'/reserve/new'>) {
       </p>
 
       <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
-        <dl className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <dt className="text-zinc-500">Reserve fee (50% rent)</dt>
-            <dd className="font-semibold text-zinc-900">{paiseToInr(quote.feePaise)}</dd>
-          </div>
-          <div className="flex justify-between">
-            <dt className="text-zinc-500">Deposit now</dt>
-            <dd>₹0 — paid at check-in booking</dd>
-          </div>
-        </dl>
+        <ReserveQuoteBreakdown quote={quote} variant="light" />
         <p className="mt-4 text-xs text-rose-700">
           Non-refundable. Not credited toward your future rent or deposit. On{' '}
           {formatDate(quote.checkInDate)} you must complete a normal booking and pay full rent +

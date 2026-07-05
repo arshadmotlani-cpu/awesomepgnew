@@ -20,55 +20,15 @@ import { ApplicationBookingPrimaryActions } from '@/src/components/customer/acco
 import { AwaitingBookingApprovalPanel } from '@/src/components/customer/account/resident/AwaitingBookingApprovalPanel';
 import { accountProfileHref, legacyResidentTabHref, residentTabHref } from '@/src/lib/accountNavigation';
 import { deriveBookingApprovalPhase } from '@/src/lib/bookingApproval';
+import {
+  customerBookingBannerCopy,
+  customerBookingStatusTone,
+  isBookingStatus,
+} from '@/src/lib/booking/bookingStatus';
 import { getPendingBookingPaymentRecord } from '@/src/services/qrPayments';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 
 export const dynamic = 'force-dynamic';
-
-const STATUS_TONE: Record<string, { bg: string; text: string; ring: string; label: string }> = {
-  confirmed: {
-    bg: 'bg-emerald-50',
-    text: 'text-emerald-700',
-    ring: 'ring-emerald-200',
-    label: 'Confirmed',
-  },
-  pending_payment: {
-    bg: 'bg-amber-50',
-    text: 'text-amber-700',
-    ring: 'ring-amber-200',
-    label: 'Pending payment',
-  },
-  pending_approval: {
-    bg: 'bg-amber-50',
-    text: 'text-amber-700',
-    ring: 'ring-amber-200',
-    label: 'Awaiting approval',
-  },
-  draft: {
-    bg: 'bg-zinc-100',
-    text: 'text-zinc-700',
-    ring: 'ring-zinc-200',
-    label: 'Draft',
-  },
-  cancelled: {
-    bg: 'bg-rose-50',
-    text: 'text-rose-700',
-    ring: 'ring-rose-200',
-    label: 'Cancelled',
-  },
-  completed: {
-    bg: 'bg-zinc-100',
-    text: 'text-zinc-700',
-    ring: 'ring-zinc-200',
-    label: 'Completed',
-  },
-  refunded: {
-    bg: 'bg-zinc-100',
-    text: 'text-zinc-700',
-    ring: 'ring-zinc-200',
-    label: 'Refunded',
-  },
-};
 
 export async function generateMetadata(
   props: PageProps<'/booking/[bookingCode]'>,
@@ -112,16 +72,11 @@ export default async function BookingConfirmationPage(
     latestKyc != null &&
     latestKyc.status === 'pending';
   const checkInAllowed = customer ? canCheckIn(customer) : false;
-  const tone = STATUS_TONE[b.status] ?? STATUS_TONE.confirmed;
+  const bookingStatus = isBookingStatus(b.status) ? b.status : 'draft';
+  const tone = customerBookingStatusTone(bookingStatus);
+  const banner = customerBookingBannerCopy(bookingStatus);
 
-  const paymentStatusLabel =
-    b.status === 'confirmed'
-      ? 'Paid'
-      : b.status === 'pending_approval'
-        ? 'Under admin review'
-        : b.status === 'pending_payment'
-          ? 'Awaiting payment'
-          : titleCase(b.status);
+  const paymentStatusLabel = banner.paymentStatusLabel;
 
   const kycStatusLabel = !customer
     ? '—'
@@ -152,37 +107,45 @@ export default async function BookingConfirmationPage(
   const isAwaitingApproval = approvalPhase === 'awaiting_admin_approval';
   const isPendingPayment = approvalPhase === 'awaiting_payment';
   const isPending = isPendingPayment || isAwaitingApproval;
-  const isCancelled = b.status === 'cancelled' || b.status === 'refunded';
-  const isConfirmed = b.status === 'confirmed';
-  const bannerHeadline = isAwaitingApproval
-    ? 'Awaiting booking approval'
-    : isPendingPayment
-      ? 'Booking awaiting payment'
-      : isCancelled
-        ? `Booking ${b.status === 'refunded' ? 'refunded' : 'cancelled'}`
-        : 'Booking confirmed';
-  const bannerCopy = isAwaitingApproval
-    ? 'Payment proof received. The office will verify your UPI payment and documents before confirming your stay.'
-    : isPendingPayment
-      ? 'Your beds are held for you. Complete payment to confirm the stay — if the hold lapses, the beds are released.'
-      : isCancelled
-        ? 'This booking is no longer active. Contact your PG if you have questions about settlement.'
-        : `Your stay at ${b.pg.name} is locked in. The operator will reach out with check-in instructions.`;
-  const bannerClasses = isPending
-    ? 'border-amber-200 from-amber-50 to-white'
-    : isCancelled
-      ? 'border-rose-200 from-rose-50 to-white'
-      : 'border-emerald-200 from-emerald-50 to-white';
-  const iconBgClass = isPending
-    ? 'bg-amber-600'
-    : isCancelled
-      ? 'bg-rose-600'
-      : 'bg-emerald-600';
-  const headlineClass = isPending
-    ? 'text-amber-700'
-    : isCancelled
-      ? 'text-rose-700'
-      : 'text-emerald-700';
+  const isSuperseded = bookingStatus === 'superseded';
+  const isTerminalBanner =
+    banner.variant === 'cancelled' || banner.variant === 'superseded' || banner.variant === 'neutral';
+  const isConfirmed = bookingStatus === 'confirmed';
+  const bannerHeadline = banner.headline;
+  const bannerCopy =
+    bookingStatus === 'confirmed'
+      ? `Your stay at ${b.pg.name} is locked in. The operator will reach out with check-in instructions.`
+      : banner.copy;
+  const bannerClasses =
+    banner.variant === 'pending'
+      ? 'border-amber-200 from-amber-50 to-white'
+      : banner.variant === 'confirmed'
+        ? 'border-emerald-200 from-emerald-50 to-white'
+        : banner.variant === 'superseded'
+          ? 'border-violet-200 from-violet-50 to-white'
+          : banner.variant === 'cancelled'
+            ? 'border-rose-200 from-rose-50 to-white'
+            : 'border-zinc-200 from-zinc-50 to-white';
+  const iconBgClass =
+    banner.variant === 'pending'
+      ? 'bg-amber-600'
+      : banner.variant === 'confirmed'
+        ? 'bg-emerald-600'
+        : banner.variant === 'superseded'
+          ? 'bg-violet-600'
+          : banner.variant === 'cancelled'
+            ? 'bg-rose-600'
+            : 'bg-zinc-600';
+  const headlineClass =
+    banner.variant === 'pending'
+      ? 'text-amber-700'
+      : banner.variant === 'confirmed'
+        ? 'text-emerald-700'
+        : banner.variant === 'superseded'
+          ? 'text-violet-800'
+          : banner.variant === 'cancelled'
+            ? 'text-rose-700'
+            : 'text-zinc-700';
 
   // Extend stay retired — to continue living, cancel vacating notice instead.
   const canExtend = false;
@@ -242,7 +205,11 @@ export default async function BookingConfirmationPage(
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
               <path
-                d={isCancelled ? 'M6 6l12 12M18 6L6 18' : 'M5 12l4 4L19 7'}
+                d={
+                  isTerminalBanner
+                    ? 'M6 6l12 12M18 6L6 18'
+                    : 'M5 12l4 4L19 7'
+                }
                 stroke="currentColor"
                 strokeWidth="2"
                 strokeLinecap="round"
@@ -273,7 +240,7 @@ export default async function BookingConfirmationPage(
       </div>
 
       <div className="mt-6">
-        {isAwaitingApproval ? (
+        {isSuperseded ? null : isAwaitingApproval ? (
           <AwaitingBookingApprovalPanel
             bookingCode={b.bookingCode}
             paymentProofRecordId={pendingPayment?.id}
@@ -283,7 +250,7 @@ export default async function BookingConfirmationPage(
         ) : (
           <ApplicationBookingPrimaryActions
             bookingCode={b.bookingCode}
-            status={b.status}
+            status={bookingStatus}
             payHref={isPendingPayment ? `/booking/${b.bookingCode}/pay` : null}
             identityHref={accountProfileHref('identity', { booking: b.bookingCode })}
             showIdentity={Boolean(customer && !checkInAllowed && isConfirmed)}

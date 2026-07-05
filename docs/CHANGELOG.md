@@ -256,20 +256,47 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-04 17:09:04 UTC
+### Pending pre-commit sync · 2026-07-05 10:29:21 UTC
 
-**Areas touched:** [[ROUTES]], [[Residents]]
+**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Bookings]], [[Vacating]]
 
 **Docs flagged for review:**
+- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
+- `DATABASE.md` — review for accuracy
+- `DECISIONS.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (2):**
-- `app/(admin)/admin/payments/actions.ts`
-- `src/services/residentOperationsDashboard.ts`
+**Staged code files (31):**
+- `app/(admin)/admin/bookings/[bookingId]/page.tsx`
+- `app/(admin)/admin/bookings/page.tsx`
+- `app/(admin)/admin/revenue/page.tsx`
+- `app/(admin)/admin/revenue/promo-actions.ts`
+- `app/(admin)/admin/revenue/referral-withdrawal-actions.ts`
+- `app/(admin)/admin/revenue/referral-withdrawals/page.tsx`
+- `app/(customer)/account/resident/pay-rent/[invoiceId]/page.tsx`
+- `app/(customer)/account/resident/pay-rent/promoActions.ts`
+- `app/(customer)/booking/[bookingCode]/page.tsx`
+- `app/(customer)/booking/new/couponActions.ts`
+- `app/(customer)/reserve/new/page.tsx`
+- `app/api/resident/referrals/withdraw/route.ts`
+- `src/db/migrations/0102_superseded_booking_status.sql`
+- `src/db/migrations/0103_supersede_orphan_open_bookings.sql`
+- `src/db/migrations/0104_promo_discount_system.sql`
+- `src/db/migrations/meta/_journal.json`
+- `src/db/schema/couponRedemptions.ts`
+- `src/db/schema/discountApplications.ts`
+- `src/db/schema/enums.ts`
+- `src/db/schema/financialInvoices.ts`
+- `src/db/schema/index.ts`
+- `src/db/schema/promoCoupons.ts`
+- `src/db/schema/referralWithdrawalRequests.ts`
+- `src/db/schema/rentInvoices.ts`
+- `src/lib/billing/discountEngine.ts`
+- _…and 6 more staged files_
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

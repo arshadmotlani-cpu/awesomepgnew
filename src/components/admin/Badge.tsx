@@ -72,6 +72,8 @@ export function toneForStatus(status: string): BadgeTone {
       return 'rose';
     case 'draft':
       return 'sky';
+    case 'superseded':
+      return 'violet';
     default:
       return 'zinc';
   }

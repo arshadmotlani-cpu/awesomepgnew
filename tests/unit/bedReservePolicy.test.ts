@@ -9,8 +9,8 @@ import {
   reserveShortStayEndExclusive,
 } from '../../src/lib/bedReservePolicy';
 
-test('charges 50% of monthly rent', () => {
-  assert.equal(reserveFeePaise(408_000), 204_000);
+test('reserve fee is 50% of passed reservation amount', () => {
+  assert.equal(reserveFeePaise(300_000), 150_000);
   assert.equal(RESERVE_FEE_PERCENT, 50);
 });
 

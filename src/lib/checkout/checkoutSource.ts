@@ -31,7 +31,12 @@ export function isBookingLifecycleCheckedOut(input: {
   checkoutSource?: string | null;
   settlementStatus?: string | null;
 }): boolean {
-  if (input.bookingStatus === 'completed' || input.bookingStatus === 'cancelled') {
+  if (
+    input.bookingStatus === 'completed' ||
+    input.bookingStatus === 'cancelled' ||
+    input.bookingStatus === 'refunded' ||
+    input.bookingStatus === 'superseded'
+  ) {
     return true;
   }
   if (input.hasActiveBedToday === false) return true;

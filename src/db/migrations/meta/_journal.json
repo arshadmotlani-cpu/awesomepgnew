@@ -717,10 +717,24 @@
       "breakpoints": true
     },
     {
-      "idx": 102,
+      "idx": 103,
       "version": "7",
-      "when": 1791500000000,
-      "tag": "0101_checkout_source",
+      "when": 1791550000000,
+      "tag": "0102_superseded_booking_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 1791600000000,
+      "tag": "0103_supersede_orphan_open_bookings",
+      "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "7",
+      "when": 1791650000000,
+      "tag": "0104_promo_discount_system",
       "breakpoints": true
     }
   ]

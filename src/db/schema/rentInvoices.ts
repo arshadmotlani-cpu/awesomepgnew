@@ -48,6 +48,8 @@ export const rentInvoices = pgTable(
     billingMonth: date('billing_month').notNull(),
     dueDate: date('due_date').notNull(),
     rentPaise: bigint('rent_paise', { mode: 'number' }).notNull(),
+    discountPaise: bigint('discount_paise', { mode: 'number' }).notNull().default(0),
+    promoCode: text('promo_code'),
     paidPrincipalPaise: bigint('paid_principal_paise', { mode: 'number' })
       .notNull()
       .default(0),

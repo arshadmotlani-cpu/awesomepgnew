@@ -106,6 +106,47 @@ export async function recordReferralRedemption(input: {
   return row ?? null;
 }
 
+export async function creditReferralEarningOnBookingPayment(input: {
+  bookingId: string;
+  rentSubtotalPaise: number;
+}) {
+  const redemption = await db.query.referralRedemptions.findFirst({
+    where: and(
+      eq(referralRedemptions.bookingId, input.bookingId),
+      eq(referralRedemptions.status, 'pending'),
+    ),
+  });
+  if (!redemption) return null;
+
+  const [booking] = await db
+    .select({ status: bookings.status })
+    .from(bookings)
+    .where(eq(bookings.id, input.bookingId))
+    .limit(1);
+  if (!booking || booking.status === 'cancelled' || booking.status === 'superseded') {
+    return null;
+  }
+
+  const earningPaise = Math.floor((input.rentSubtotalPaise * REFERRAL_DISCOUNT_BPS) / 10_000);
+  await db
+    .update(referralRedemptions)
+    .set({ status: 'applied' })
+    .where(eq(referralRedemptions.id, redemption.id));
+
+  const [earning] = await db
+    .insert(referralEarnings)
+    .values({
+      referrerCustomerId: redemption.referrerCustomerId,
+      redemptionId: redemption.id,
+      amountPaise: earningPaise,
+      status: 'locked',
+    })
+    .returning();
+
+  return earning ?? null;
+}
+
+/** @deprecated Prefer creditReferralEarningOnBookingPayment at checkout confirm. */
 export async function creditReferralEarningOnFirstRentPayment(input: {
   bookingId: string;
   firstMonthRentPaise: number;

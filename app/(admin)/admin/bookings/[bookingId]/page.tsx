@@ -23,6 +23,7 @@ import {
   listRentInvoicesForBooking,
 } from '@/src/db/queries/customer';
 import { formatDate, formatDateTime, paiseToInr, titleCase } from '@/src/lib/format';
+import { isBookingStatus, labelBookingStatus } from '@/src/lib/booking/bookingStatus';
 import { adminStayTypeLabel, isMonthlyStayType } from '@/src/lib/stayType';
 import { allocateBookingCheckoutPayment } from '@/src/lib/billing/bookingPaymentAllocation';
 import {
@@ -195,7 +196,9 @@ export default async function AdminBookingDetailPage(
           <div className="rounded-xl border border-white/10 bg-[#1A1F27] p-5">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold text-white">Status</h2>
-              <Badge tone={toneForStatus(b.status)}>{titleCase(b.status)}</Badge>
+              <Badge tone={toneForStatus(b.status)}>
+                {isBookingStatus(b.status) ? labelBookingStatus(b.status) : titleCase(b.status)}
+              </Badge>
             </div>
             <dl className="mt-3 grid grid-cols-2 gap-y-1.5 text-sm">
               <dt className="text-apg-silver">Created</dt>

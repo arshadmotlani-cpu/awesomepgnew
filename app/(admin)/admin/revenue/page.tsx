@@ -11,12 +11,22 @@ import { RevenueMtdBarChart } from '@/src/components/admin/revenue/charts/Revenu
 import { RevenueLiveRefresh } from '@/src/components/admin/RevenueLiveRefresh';
 import { RevenueMonthSummary } from '@/src/components/admin/RevenueMonthSummary';
 import { DateCouponAdminPanel } from '@/src/components/admin/DateCouponAdminPanel';
+import { PromoCouponsAdminPanel } from '@/src/components/admin/PromoCouponsAdminPanel';
+import { ReferralAnalyticsPanel } from '@/src/components/admin/ReferralAnalyticsPanel';
+import { CouponAnalyticsPanel } from '@/src/components/admin/CouponAnalyticsPanel';
 import { requireAdminSession } from '@/src/lib/auth/guards';
 import { ADMIN_MODULES, moduleHref, modulePgHref } from '@/src/lib/admin/navigation';
 import { isCurrentBillingMonth } from '@/src/lib/billing/monthNavigation';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
-import { getDateCouponAdminSnapshot } from '@/src/services/dateCouponAdmin';
+import { getDateCouponAdminSnapshot, listDateCouponAnalytics } from '@/src/services/dateCouponAdmin';
+import { listPromoCouponsAdmin, getTopPromoCoupons } from '@/src/services/promoCouponAdmin';
+import { getReferralProgramSnapshot } from '@/src/services/referralAdmin';
 import { loadOverviewContext } from '@/src/services/overviewData';
+import {
+  createPromoCouponAction,
+  deletePromoCouponAction,
+  togglePromoCouponAction,
+} from './promo-actions';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -43,6 +53,10 @@ export default async function RevenueModulePage({
   const { data } = ctx;
   const pgHref = (pgId: string) => modulePgHref('revenue', pgId, billingMonth);
   const couponSnapshot = await getDateCouponAdminSnapshot();
+  const couponAnalytics = await listDateCouponAnalytics(14);
+  const promoCoupons = await listPromoCouponsAdmin();
+  const topCoupons = await getTopPromoCoupons(5);
+  const referralSnapshot = await getReferralProgramSnapshot();
   const donutRows = data.revenue.byPg.map((row) => ({
     pgId: row.pgId,
     pgName: row.pgName,
@@ -87,6 +101,33 @@ export default async function RevenueModulePage({
         />
 
         <DateCouponAdminPanel {...couponSnapshot} />
+
+        <PromoCouponsAdminPanel
+          coupons={promoCoupons}
+          createAction={createPromoCouponAction}
+          toggleAction={togglePromoCouponAction}
+          deleteAction={deletePromoCouponAction}
+        />
+
+        <CouponAnalyticsPanel rows={couponAnalytics} />
+
+        <ReferralAnalyticsPanel snapshot={referralSnapshot} />
+
+        {topCoupons.length > 0 ? (
+          <section className="rounded-2xl border border-white/10 bg-[#1A1F27] p-5">
+            <h2 className="text-sm font-semibold text-white">Top coupons (all time)</h2>
+            <ul className="mt-3 space-y-2 text-sm">
+              {topCoupons.map((c) => (
+                <li key={c.coupon_code} className="flex justify-between text-apg-silver">
+                  <span className="font-mono text-white">{c.coupon_code}</span>
+                  <span>
+                    {c.usage_count} uses · ₹{Math.round(Number(c.total_discount_paise) / 100)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
 
         <AdminSectionErrorBoundary title="Revenue command center">
           <RevenueCommandCenter data={data.revenue} monthLabel={data.monthLabel} pgHref={pgHref} />

@@ -8,6 +8,7 @@ import {
   financialInvoices,
   rentInvoices,
 } from '@/src/db/schema';
+import { isTerminalBookingLifecycleStatus } from '@/src/lib/booking/bookingStatus';
 
 export const OPERATOR_EMAIL = 'arshadmotlani@gmail.com';
 
@@ -136,7 +137,7 @@ export async function previewOperatorTestDataCleanup() {
   const testDeductions = [...deductionById.values()];
 
   const activeBookingIds = operatorBookings
-    .filter((b) => b.status !== 'cancelled' && b.status !== 'refunded')
+    .filter((b) => !isTerminalBookingLifecycleStatus(b.status))
     .map((b) => b.id);
 
   const removedDeductionPaise = testDeductions.reduce(

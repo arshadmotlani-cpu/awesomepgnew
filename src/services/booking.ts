@@ -37,13 +37,17 @@ import {
   bookings,
   couponRedemptions,
   customers,
+  discountApplications,
   pgs,
+  referralRedemptions,
   rooms,
   floors,
   adminUsers,
 } from '../db/schema';
 import type { PricingSnapshot } from '../db/schema/bookings';
-import { applyDateCouponToRentSubtotal } from '../lib/dateCoupon';
+import {
+  resolveCheckoutDiscount,
+} from '../lib/billing/discountEngine';
 import { env } from '../lib/env';
 import { formatDate, parseDate, type DateLike } from '../lib/dates';
 import {
@@ -474,17 +478,33 @@ export async function createBooking(
 
   let discountPaise = 0;
   let dateCoupon: PricingSnapshot['dateCoupon'];
+  let appliedDiscountType: 'referral' | 'date_coupon' | 'promo_code' | null = null;
+  let appliedPromoCode: string | null = null;
+  let referralReferrerId: string | null = null;
+
   if (!isAdminCreated && input.couponCode?.trim()) {
-    const couponResult = applyDateCouponToRentSubtotal(quote.subtotalPaise, input.couponCode);
-    if (!couponResult.ok) {
+    const resolved = await resolveCheckoutDiscount({
+      kind: 'booking_checkout',
+      amountPaise: quote.subtotalPaise,
+      promoCode: input.couponCode,
+      customerId: input.customerId,
+      customerEmail: input.customer.email,
+      customerPhone: input.customer.phone,
+    });
+    if ('error' in resolved) {
       return {
         ok: false,
         kind: 'validation',
-        message: 'Invalid coupon',
+        message: resolved.error,
       };
     }
-    discountPaise = couponResult.discountPaise;
-    dateCoupon = couponResult.coupon ?? undefined;
+    discountPaise = resolved.discountPaise;
+    dateCoupon = resolved.dateCoupon;
+    appliedDiscountType = resolved.discountType;
+    appliedPromoCode = resolved.code;
+    if (resolved.discountType === 'referral' && resolved.referrerCustomerId) {
+      referralReferrerId = resolved.referrerCustomerId;
+    }
   }
 
   // Booking deposits are booking-scoped. Cross-booking wallet credit is never
@@ -651,6 +671,31 @@ export async function createBooking(
           });
         }
 
+        if (referralReferrerId && appliedPromoCode && discountPaise > 0) {
+          await tx.insert(referralRedemptions).values({
+            referrerCustomerId: referralReferrerId,
+            refereeEmail: input.customer.email.toLowerCase(),
+            refereeCustomerId: customer.id,
+            bookingId: booking.id,
+            discountPaise,
+            status: 'pending',
+          });
+        }
+
+        if (discountPaise > 0 && appliedDiscountType) {
+          await tx.insert(discountApplications).values({
+            discountType: appliedDiscountType,
+            originalAmountPaise: quote.subtotalPaise,
+            discountAmountPaise: discountPaise,
+            finalAmountPaise: quote.subtotalPaise - discountPaise,
+            appliedByCustomerId: customer.id,
+            bookingId: booking.id,
+            couponCode:
+              appliedDiscountType === 'referral' ? null : appliedPromoCode,
+            referralCode: appliedDiscountType === 'referral' ? appliedPromoCode : null,
+          });
+        }
+
         await tx.insert(auditLog).values({
           actorType: isAdminCreated ? 'admin' : 'customer',
           actorId: isAdminCreated ? input.createdByAdminId ?? null : customer.id,
@@ -677,6 +722,19 @@ export async function createBooking(
       });
 
       await stampProfileCompletedAtIfReady(result.customerId);
+
+      if (isAdminCreated && bookingStatus === 'confirmed') {
+        try {
+          const { supersedePriorOpenBookingsForConfirmedBooking } = await import(
+            '@/src/services/supersededBookingLifecycle'
+          );
+          await supersedePriorOpenBookingsForConfirmedBooking(result.id, {
+            supersededByAdminId: input.createdByAdminId ?? null,
+          });
+        } catch (supersedeErr) {
+          console.error('supersede prior open bookings on admin create failed:', supersedeErr);
+        }
+      }
 
       scheduleAdminNotificationSync();
 

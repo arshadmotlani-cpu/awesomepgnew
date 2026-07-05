@@ -971,7 +971,7 @@ export function getBookingByCode(
 export type MyBookingRow = {
   id: string;
   bookingCode: string;
-  status: string;
+  status: import('@/src/db/schema/enums').BookingStatus;
   durationMode: string;
   expectedCheckoutDate: string | null;
   totalPaise: number;
@@ -1255,7 +1255,7 @@ export type ResidentBookingRow = {
   roomId: string;
   roomNumber: string;
   durationMode: 'monthly' | 'open_ended' | 'fixed_stay' | 'daily' | 'weekly';
-  status: 'confirmed' | 'completed' | 'cancelled' | 'refunded' | 'draft' | 'pending_payment' | 'pending_approval';
+  status: 'confirmed' | 'completed' | 'cancelled' | 'refunded' | 'draft' | 'pending_payment' | 'pending_approval' | 'superseded';
   checkInDate: string; // YYYY-MM-DD
   expectedCheckoutDate: string | null;
   createdAt: Date;

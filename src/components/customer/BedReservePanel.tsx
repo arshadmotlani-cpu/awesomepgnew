@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { MobileBottomSheet } from '@/src/components/customer/block/MobileBottomSheet';
 import { addDays, formatDate, todayString } from '@/src/lib/dates';
 import { RESERVE_MAX_PERIOD_DAYS, RESERVE_MIN_PERIOD_DAYS } from '@/src/lib/bedReservePolicy';
-import { formatDate as formatDisplayDate, paiseToInr } from '@/src/lib/format';
+import { ReserveQuoteBreakdown } from '@/src/components/customer/ReserveQuoteBreakdown';
 import { HOLD_THIS_BED } from '@/src/lib/booking/bookingFunnelLabels';
 import type { BedSelectorBed } from './customerBedTypes';
 
@@ -30,9 +30,13 @@ export function BedReservePanel({
   );
   const [quote, setQuote] = useState<{
     feePaise: number;
+    fullReservationPaise: number;
     monthlyRatePaise: number;
-    bufferDate: string;
+    daysInMonth: number;
+    dailyRentPaise: number;
     periodDays: number;
+    bufferDate: string;
+    offerPercent?: number;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -99,8 +103,8 @@ export function BedReservePanel({
       </div>
 
       <p className="mt-3 text-xs leading-relaxed text-apg-silver">
-        Pay <strong className="text-white">50% of one month&apos;s rent</strong> now to hold this bed
-        until your check-in date.
+        Pay <strong className="text-white">50% of the monthly-prorated reservation</strong> now to
+        hold this bed until your check-in date.
       </p>
 
       <div className="mt-4 space-y-3">
@@ -131,20 +135,9 @@ export function BedReservePanel({
       {error ? <p className="mt-3 text-sm text-rose-400">{error}</p> : null}
 
       {quote ? (
-        <dl className="mt-4 rounded-[14px] border border-white/10 bg-white/[0.03] p-4 text-sm">
-          <div className="flex justify-between">
-            <dt className="text-apg-silver">Monthly rent (reference)</dt>
-            <dd className="text-white">{paiseToInr(quote.monthlyRatePaise)}</dd>
-          </div>
-          <div className="mt-2 flex justify-between font-semibold">
-            <dt className="text-white">Hold fee (50%)</dt>
-            <dd className="text-apg-orange">{paiseToInr(quote.feePaise)}</dd>
-          </div>
-          <div className="mt-2 flex justify-between text-xs">
-            <dt className="text-apg-silver">Cleaning buffer</dt>
-            <dd className="text-apg-silver">{formatDisplayDate(quote.bufferDate)}</dd>
-          </div>
-        </dl>
+        <div className="mt-4 rounded-[14px] border border-white/10 bg-white/[0.03] p-4">
+          <ReserveQuoteBreakdown quote={quote} variant="dark" />
+        </div>
       ) : null}
 
       <button

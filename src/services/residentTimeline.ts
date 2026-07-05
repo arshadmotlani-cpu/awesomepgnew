@@ -29,6 +29,12 @@ import type {
 import type { AdminSession } from '@/src/lib/auth/session';
 import { searchResidentsForAdmin } from '@/src/services/adminResidentSearch';
 import { residentUploadTypeLabel } from '@/src/services/residentUploadEvents';
+import {
+  bookingTimelineDetailForStatus,
+  bookingTimelineKindForStatus,
+  isBookingStatus,
+  labelBookingStatus,
+} from '@/src/lib/booking/bookingStatus';
 
 function canAccessPg(session: AdminSession, pgId: string | null | undefined): boolean {
   if (!pgId) return session.role === 'super_admin';
@@ -45,10 +51,13 @@ function evt(
 }
 
 function kindForStatus(status: string): ResidentTimelineEventKind {
-  if (status === 'approved' || status === 'confirmed' || status === 'completed') return 'approved';
+  if (isBookingStatus(status)) {
+    return bookingTimelineKindForStatus(status);
+  }
+  if (status === 'approved' || status === 'verified') return 'approved';
   if (status === 'rejected') return 'rejected';
   if (status === 'cancelled' || status === 'withdrawn') return 'cancelled';
-  if (status === 'pending' || status === 'submitted' || status === 'pending_approval' || status === 'pending_payment') {
+  if (status === 'pending' || status === 'submitted') {
     return 'submitted';
   }
   return 'status_changed';
@@ -316,11 +325,9 @@ export async function buildResidentTimeline(
           bookingId: b.id,
           bookingCode: b.bookingCode,
           detail:
-            b.status === 'pending_approval'
-              ? 'Payment proof submitted — awaiting admin approval in Operations'
-              : b.status === 'pending_payment'
-                ? 'Bed held — resident must pay and upload proof'
-                : null,
+            isBookingStatus(b.status)
+              ? bookingTimelineDetailForStatus(b.status)
+              : null,
           adminHref: `/admin/bookings/${b.id}`,
         }),
       );
@@ -328,7 +335,7 @@ export async function buildResidentTimeline(
         events.push(
           evt({
             kind: kindForStatus(b.status),
-            label: `Booking status: ${b.status.replace(/_/g, ' ')}`,
+            label: `Booking status: ${labelBookingStatus(b.status)}`,
             status: b.status,
             recordId: b.id,
             sourceTable: 'bookings',
@@ -732,6 +739,14 @@ export function deriveTimelineSummary(
       existsSummary: 'Yes — file upload exists but may not be linked to a review queue.',
       nextAction: 'Resident: complete the submit step after upload, or admin links manually',
       blockedReason: orphanUpload.detail,
+    };
+  }
+
+  if (subject.bookingStatus === 'superseded') {
+    return {
+      existsSummary: 'Yes — an older booking was superseded by a newer confirmed booking.',
+      nextAction: 'No action — use the active confirmed booking for this resident',
+      blockedReason: 'Superseded bookings are terminal and not shown in Operations.',
     };
   }
 

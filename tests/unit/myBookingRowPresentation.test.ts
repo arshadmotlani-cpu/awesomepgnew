@@ -35,8 +35,8 @@ test('formatStayDateTime never throws for null check-in date', () => {
 
 test('normalizeMyBookingRow never throws when status is null (production crash)', () => {
   const model = normalizeMyBookingRow(corruptDeveloperBooking);
-  assert.equal(model.status, 'unknown');
-  assert.equal(model.statusLabel, 'Unknown');
+  assert.equal(model.status, 'invalid');
+  assert.equal(model.statusLabel, 'Invalid');
   assert.match(model.warnings.join(' '), /missing booking status/i);
   assert.equal(model.isLinkable, true);
 });
@@ -115,6 +115,22 @@ test('normalizeMyBookingRow surfaces warning card when booking code missing', ()
   assert.ok(model.warnings.length >= 2);
 });
 
+test('normalizeMyBookingRow handles superseded closed booking', () => {
+  const model = normalizeMyBookingRow({
+    id: 'b-super',
+    bookingCode: 'APG-2026-0044',
+    status: 'superseded',
+    durationMode: 'monthly',
+    totalPaise: 80_000,
+    pgName: 'Test PG',
+    bedCount: 1,
+    checkInDate: '2026-05-01',
+  });
+  assert.equal(model.statusLabel, 'Superseded');
+  assert.equal(model.isClosed, true);
+  assert.equal(model.warnings.length, 0);
+});
+
 test('buildMyBookingCardModels maps mixed booking list without throwing', () => {
   const models = buildMyBookingCardModels([
     corruptDeveloperBooking,
@@ -130,6 +146,6 @@ test('buildMyBookingCardModels maps mixed booking list without throwing', () => 
     },
   ]);
   assert.equal(models.length, 2);
-  assert.equal(models[0]?.status, 'unknown');
+  assert.equal(models[0]?.status, 'invalid');
   assert.equal(models[1]?.status, 'confirmed');
 });
