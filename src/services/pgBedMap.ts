@@ -7,6 +7,8 @@ import type { AdminSession } from '@/src/lib/auth/session';
 import { todayString } from '@/src/lib/dates';
 import { occupancyReservationCoreSql } from '@/src/lib/occupancySsot';
 
+import type { BedBlockReason } from '@/src/lib/inventoryBlocking';
+
 export type PgBedMapOccupant = {
   customerId: string;
   customerName: string;
@@ -55,6 +57,9 @@ export type PgBedMapBed = {
   vacating: PgBedMapVacating | null;
   billing: PgBedMapBillingHints;
   availability: BedAvailabilityView;
+  blockReason: BedBlockReason;
+  underReview: PgBedMapOccupant | null;
+  transferHoldRequestId: string | null;
 };
 
 export type PgBedMapRoom = {
@@ -140,6 +145,15 @@ type RawRow = {
   electricity_pending_count: number;
   interest_count: number;
   notice_interest_count: number;
+  review_customer_id: string | null;
+  review_customer_name: string | null;
+  review_customer_phone: string | null;
+  review_kyc_status: 'pending' | 'approved' | 'rejected' | null;
+  review_booking_id: string | null;
+  review_booking_code: string | null;
+  review_move_in: string | null;
+  review_rent_paise: number | null;
+  transfer_hold_request_id: string | null;
 };
 
 function buildOccupant(
@@ -187,6 +201,23 @@ function buildBed(row: RawRow): PgBedMapBed {
     'reserved_rent_paise',
   );
 
+  const underReview = buildOccupant(
+    {
+      ...row,
+      customer_id: row.review_customer_id,
+      customer_name: row.review_customer_name,
+      customer_phone: row.review_customer_phone,
+      kyc_status: row.review_kyc_status,
+      booking_id: row.review_booking_id,
+      booking_code: row.review_booking_code,
+      monthly_rent_paise: row.review_rent_paise,
+    } as RawRow,
+    'customer',
+    'booking',
+    row.review_move_in,
+    'monthly_rent_paise',
+  );
+
   const vacating =
     row.vacating_request_id && row.vacating_status && row.vacating_date
       ? {
@@ -230,6 +261,9 @@ function buildBed(row: RawRow): PgBedMapBed {
     occupantFirstName: occupant?.customerName.split(' ')[0],
     interestCount: row.interest_count,
     noticeInterestCount: row.notice_interest_count,
+    underReviewRequest: Boolean(underReview),
+    underReviewMoveIn: row.review_move_in,
+    transferHoldActive: Boolean(row.transfer_hold_request_id),
     maintenanceReason: row.maintenance_reason,
     maintenanceReasonCustom: row.maintenance_reason_custom,
     maintenanceStartedAt: row.maintenance_started_at,
@@ -239,6 +273,14 @@ function buildBed(row: RawRow): PgBedMapBed {
 
   const availability = resolved.adminView;
   const isAvailableNow = resolved.isOpenNow;
+
+  let blockReason: BedBlockReason = 'none';
+  if (underReview) blockReason = 'under_review';
+  else if (row.transfer_hold_request_id) blockReason = 'transfer_hold';
+  else if (reserved) blockReason = 'reserved_incoming';
+  else if (occupant) blockReason = 'occupied';
+  else if (bedReserveCheckIn) blockReason = 'bed_reserve';
+  else if (row.bed_status === 'maintenance') blockReason = 'maintenance';
 
   return {
     bedId: row.bed_id,
@@ -267,6 +309,9 @@ function buildBed(row: RawRow): PgBedMapBed {
       electricityPendingCount: row.electricity_pending_count,
     },
     availability,
+    blockReason,
+    underReview,
+    transferHoldRequestId: row.transfer_hold_request_id,
   };
 }
 
@@ -328,7 +373,16 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
       coalesce(bill.rent_pending, 0)::int AS rent_pending_count,
       coalesce(bill.elec_pending, 0)::int AS electricity_pending_count,
       coalesce(hold.interest_count, 0)::int AS interest_count,
-      coalesce(notice_i.notice_interest_count, 0)::int AS notice_interest_count
+      coalesce(notice_i.notice_interest_count, 0)::int AS notice_interest_count,
+      review_req.review_customer_id::text,
+      review_req.review_customer_name,
+      review_req.review_customer_phone,
+      review_req.review_kyc_status,
+      review_req.review_booking_id::text,
+      review_req.review_booking_code,
+      review_req.review_move_in,
+      review_req.review_rent_paise,
+      xfer.transfer_hold_request_id
     FROM beds b
     INNER JOIN rooms r ON r.id = b.room_id AND r.archived_at IS NULL
     INNER JOIN floors f ON f.id = r.floor_id AND f.archived_at IS NULL
@@ -403,7 +457,10 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
       SELECT brh.check_in_date
       FROM bed_reserve_holds brh
       WHERE brh.bed_id = b.id
-        AND brh.status IN ('pending_payment', 'active')
+        AND (
+          brh.status = 'active'
+          OR (brh.status = 'pending_payment' AND brh.payment_proof_url IS NOT NULL)
+        )
         AND brh.reserve_start <= CURRENT_DATE
         AND brh.check_in_date >= CURRENT_DATE
       LIMIT 1
@@ -445,6 +502,45 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
         AND (br.hold_expires_at IS NULL OR br.hold_expires_at > now())
         AND CURRENT_DATE <@ br.stay_range
     ) hold ON true
+    LEFT JOIN LATERAL (
+      SELECT
+        c.id AS review_customer_id,
+        c.full_name AS review_customer_name,
+        c.phone AS review_customer_phone,
+        c.kyc_status AS review_kyc_status,
+        bk.id AS review_booking_id,
+        bk.booking_code AS review_booking_code,
+        lower(br.stay_range)::text AS review_move_in,
+        coalesce((
+          SELECT bp.monthly_rate_paise::int
+          FROM bed_prices bp
+          WHERE bp.bed_id = b.id
+            AND bp.effective_from <= CURRENT_DATE
+            AND (bp.effective_to IS NULL OR bp.effective_to > CURRENT_DATE)
+          ORDER BY bp.effective_from DESC, bp.created_at DESC
+          LIMIT 1
+        ), (
+          SELECT sum((elem->>'monthlyRatePaise')::bigint)::int
+          FROM jsonb_array_elements(bk.pricing_snapshot->'perBed') elem
+        ), 0) AS review_rent_paise
+      FROM bed_reservations br
+      INNER JOIN bookings bk ON bk.id = br.booking_id
+      INNER JOIN customers c ON c.id = bk.customer_id
+      WHERE br.bed_id = b.id
+        AND br.status = 'under_review'
+        AND br.kind = 'primary'
+        AND bk.status = 'pending_approval'
+      ORDER BY br.created_at DESC
+      LIMIT 1
+    ) review_req ON true
+    LEFT JOIN LATERAL (
+      SELECT rcr.id::text AS transfer_hold_request_id
+      FROM room_transfer_bed_holds rth
+      INNER JOIN room_change_requests rcr ON rcr.id = rth.room_change_request_id
+      WHERE rth.bed_id = b.id
+        AND rth.status = 'active'
+      LIMIT 1
+    ) xfer ON true
     LEFT JOIN LATERAL (
       SELECT count(distinct bni.visitor_key)::int AS notice_interest_count
       FROM bed_notice_interest bni

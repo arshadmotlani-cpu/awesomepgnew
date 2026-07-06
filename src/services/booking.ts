@@ -129,12 +129,9 @@ export type CreateBookingSuccess = {
   totalPaise: number;
   depositPaise: number;
   /** Final booking status after createBooking returns. */
-  status: 'pending_payment' | 'confirmed';
-  /**
-   * For customer-initiated bookings, when the hold lapses. null for
-   * admin-initiated bookings (which are already active).
-   */
+  status: 'draft' | 'pending_payment' | 'confirmed';
   holdExpiresAt: Date | null;
+  draftExpiresAt: Date | null;
 };
 
 export type CreateBookingFailure = {
@@ -556,15 +553,14 @@ export async function createBooking(
   const yearPrefix = `APG-${year}-`;
   let baseCount = await countBookingsInYear(yearPrefix);
 
-  // Phase 4 state machine. Customer bookings need payment; admin bookings
-  // are recorded as already-confirmed walk-ins.
-  const bookingStatus: 'pending_payment' | 'confirmed' = isAdminCreated
-    ? 'confirmed'
-    : 'pending_payment';
-  const reservationStatus: 'hold' | 'active' = isAdminCreated ? 'active' : 'hold';
-  const holdExpiresAt: Date | null = isAdminCreated
+  // Five-state lifecycle: customer path creates draft only (no bed_reservations).
+  // Reservations are created as under_review when payment proof is submitted.
+  const bookingStatus: 'draft' | 'confirmed' = isAdminCreated ? 'confirmed' : 'draft';
+  const reservationStatus: 'active' | null = isAdminCreated ? 'active' : null;
+  const draftExpiresAt: Date | null = isAdminCreated
     ? null
-    : new Date(Date.now() + env.BOOKING_HOLD_MINUTES * 60 * 1000);
+    : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const holdExpiresAt = null as Date | null;
 
   let lastErr: unknown = null;
   for (let attempt = 0; attempt < MAX_CODE_RETRIES; attempt += 1) {
@@ -629,7 +625,7 @@ export async function createBooking(
               isOpenEndedMonthly || !endDate
                 ? null
                 : formatDate(endDate),
-            billingAnchorDate: isOpenEndedMonthly ? startIso : null,
+            billingAnchorDate: startIso,
             subtotalPaise: quote.subtotalPaise,
             discountPaise,
             taxPaise: 0,
@@ -640,25 +636,28 @@ export async function createBooking(
             createdVia: isAdminCreated ? 'admin' : 'customer',
             createdByAdminId: input.createdByAdminId ?? null,
             blocksRoomAvailability: input.blocksRoomAvailability === true,
+            draftExpiresAt,
           })
           .returning({ id: bookings.id });
 
-        // One insert per bed.
-        for (const bedId of reservationBedIds) {
-          const stayRange =
-            isOpenEndedMonthly
-              ? (sql`daterange(${startIso}::date, NULL, '[)')` as unknown as string)
-              : (sql`daterange(${startIso}::date, ${formatDate(reservationEnd!)}::date, '[)')` as unknown as string);
-          await tx
-            .insert(bedReservations)
-            .values({
-              bookingId: booking.id,
-              bedId,
-              stayRange,
-              kind: 'primary',
-              status: reservationStatus,
-              holdExpiresAt,
-            });
+        // Admin walk-ins only — customer drafts get reservations on proof submit.
+        if (reservationStatus) {
+          for (const bedId of reservationBedIds) {
+            const stayRange =
+              isOpenEndedMonthly
+                ? (sql`daterange(${startIso}::date, NULL, '[)')` as unknown as string)
+                : (sql`daterange(${startIso}::date, ${formatDate(reservationEnd!)}::date, '[)')` as unknown as string);
+            await tx
+              .insert(bedReservations)
+              .values({
+                bookingId: booking.id,
+                bedId,
+                stayRange,
+                kind: 'primary',
+                status: reservationStatus,
+                holdExpiresAt,
+              });
+          }
         }
 
         if (dateCoupon && discountPaise > 0) {
@@ -780,6 +779,7 @@ export async function createBooking(
         depositPaise: quote.depositPaise,
         status: bookingStatus,
         holdExpiresAt,
+        draftExpiresAt,
       };
     } catch (err) {
       lastErr = err;

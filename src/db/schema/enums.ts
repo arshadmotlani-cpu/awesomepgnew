@@ -111,6 +111,7 @@ export const depositCollectionStatusEnum = pgEnum('deposit_collection_status', [
 export const reservationKindEnum = pgEnum('reservation_kind', ['primary', 'extension']);
 export const reservationStatusEnum = pgEnum('reservation_status', [
   'hold',
+  'under_review',
   'active',
   'cancelled',
   'completed',

@@ -611,6 +611,23 @@ export async function rejectPaymentProof(
   }
 
   if (input.entityType === 'pg_payment_record' && ctx.bookingId) {
+    const { cleanupRejectedBookingRequest } = await import('@/src/lib/bookingApproval');
+    const [bookingRow] = await db
+      .select({ bookingCode: bookings.bookingCode })
+      .from(bookings)
+      .where(eq(bookings.id, ctx.bookingId))
+      .limit(1);
+    await cleanupRejectedBookingRequest({
+      bookingId: ctx.bookingId,
+      reason: input.residentMessage.trim() || reasonLabel,
+      rejectedByAdminId: session.adminId,
+      pgPaymentRecordId: input.entityId,
+      customerId: ctx.customerId,
+      bookingCode: bookingRow?.bookingCode ?? null,
+    });
+  }
+
+  if (input.entityType === 'pg_payment_record' && ctx.bookingId) {
     const { resolveDuplicateBookingPaymentProofs } = await import(
       '@/src/services/paymentProofReviewCleanup'
     );

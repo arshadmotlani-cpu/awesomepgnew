@@ -90,6 +90,9 @@ export async function quoteRoomChangeAction(input: {
   if (!scenario) {
     return { ok: false, message: 'This bed is not available for room transfer.' };
   }
+  if (scenario.mode === 'waitlist') {
+    return { ok: false, message: 'This bed requires waitlist signup, not a transfer quote.' };
+  }
 
   const deposit = await getDepositSummaryForBooking(input.bookingId);
   if (!deposit) return { ok: false, message: 'Deposit summary unavailable.' };
@@ -143,6 +146,9 @@ export async function submitRoomChangeAction(input: {
       message: `Transfer type changed — this move is now ${scenario.label}, not ${input.quoteSnapshot.transferLabel}. Please get a fresh quote.`,
     };
   }
+  if (scenario.mode === 'waitlist') {
+    return { ok: false, message: 'Use waitlist signup for this bed.' };
+  }
 
   const snapshot = booking.pricingSnapshot as { perBed?: Array<{ bedId?: string }> } | null;
   const fromBedId = snapshot?.perBed?.[0]?.bedId;
@@ -181,4 +187,30 @@ export async function getPayAllHrefAction(input: {
   const href = input.payHrefs[0];
   if (!href) return { ok: false, message: 'No payable bills.' };
   return { ok: true, data: { href } };
+}
+
+export async function joinBedWaitlistAction(input: {
+  bedId: string;
+  bookingId: string;
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+  const session = await requireCustomerSession('/account/profile');
+  const booking = await db.query.bookings.findFirst({
+    where: eq(bookings.id, input.bookingId),
+  });
+  if (!booking || booking.customerId !== session.customerId) {
+    return { ok: false, message: 'Booking not found.' };
+  }
+  const scenario = await classifyTransferAvailability(input.bedId);
+  if (!scenario || scenario.mode !== 'waitlist') {
+    return { ok: false, message: 'Waitlist is not available for this bed.' };
+  }
+  const { joinBedWaitlist } = await import('@/src/services/bedWaitlist');
+  const result = await joinBedWaitlist({
+    bedId: input.bedId,
+    customerId: session.customerId,
+    bookingId: input.bookingId,
+  });
+  if (!result.ok) return result;
+  revalidatePath('/account/profile');
+  return { ok: true };
 }

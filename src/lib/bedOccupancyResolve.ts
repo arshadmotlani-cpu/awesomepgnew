@@ -33,6 +33,9 @@ export type RawBedOccupancyFacts = {
   interestCount?: number;
   noticeInterestCount?: number;
   holdInterestCount?: number;
+  underReviewRequest?: boolean;
+  underReviewMoveIn?: string | null;
+  transferHoldActive?: boolean;
   availableUntilDate?: string | null;
   maintenanceReason?: string | null;
   maintenanceReasonCustom?: string | null;
@@ -73,6 +76,9 @@ export function rawFactsToInput(facts: RawBedOccupancyFacts): BedOccupancyInput 
     interestCount: facts.interestCount,
     noticeInterestCount: facts.noticeInterestCount,
     holdInterestCount: facts.holdInterestCount,
+    underReviewRequest: facts.underReviewRequest,
+    underReviewMoveIn: facts.underReviewMoveIn,
+    transferHoldActive: facts.transferHoldActive,
     availableUntilDate: facts.availableUntilDate,
     maintenanceReason: facts.maintenanceReason,
     maintenanceReasonCustom: facts.maintenanceReasonCustom,

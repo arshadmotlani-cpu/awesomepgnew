@@ -65,7 +65,7 @@ export async function hasBedActiveOrHoldReservation(bedId: string): Promise<bool
       SELECT 1
       FROM bed_reservations br
       WHERE br.bed_id = ${bedId}::uuid
-        AND br.status IN ('hold', 'active')
+        AND br.status IN ('hold', 'under_review', 'active')
     ) AS blocked
   `);
   const [row] = rowsOf(result);
@@ -91,8 +91,8 @@ export async function findBlockingConfirmedBooking(
     INNER JOIN bookings bk ON bk.id = br.booking_id
     INNER JOIN customers c ON c.id = bk.customer_id
     WHERE br.bed_id = ${bedId}::uuid
-      AND br.status IN ('hold', 'active')
-      AND bk.status = 'confirmed'
+      AND br.status IN ('under_review', 'active')
+      AND bk.status IN ('pending_approval', 'confirmed')
       AND CURRENT_DATE <@ br.stay_range
     LIMIT 1
   `);
@@ -106,7 +106,7 @@ export async function findBlockingConfirmedBooking(
   };
 }
 
-/** Unpaid checkout hold still on the bed after stale-hold cleanup. */
+/** Under-review or unpaid legacy hold on the bed. */
 export async function findPendingPaymentHold(
   bedId: string,
 ): Promise<{ bookingCode: string } | null> {
@@ -115,8 +115,8 @@ export async function findPendingPaymentHold(
     FROM bed_reservations br
     INNER JOIN bookings bk ON bk.id = br.booking_id
     WHERE br.bed_id = ${bedId}::uuid
-      AND br.status = 'hold'
-      AND bk.status = 'pending_payment'
+      AND br.status = 'under_review'
+      AND bk.status = 'pending_approval'
       AND CURRENT_DATE <@ br.stay_range
     LIMIT 1
   `);
@@ -133,8 +133,8 @@ export async function listUnpaidHoldReservations(
     FROM bed_reservations br
     INNER JOIN bookings bk ON bk.id = br.booking_id
     WHERE br.bed_id = ${bedId}::uuid
-      AND br.status = 'hold'
-      AND bk.status = 'pending_payment'
+      AND br.status IN ('hold', 'under_review')
+      AND bk.status IN ('pending_payment', 'pending_approval')
       AND CURRENT_DATE <@ br.stay_range
   `);
   return rowsOf(result).map((row) => ({

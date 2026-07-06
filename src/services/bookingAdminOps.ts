@@ -386,7 +386,10 @@ export async function setBedManualReserved(
       .where(
         and(
           eq(bedReserveHolds.bedId, bedId),
-          sql`${bedReserveHolds.status} IN ('pending_payment', 'active')`,
+          sql`(
+            ${bedReserveHolds.status} = 'active'
+            OR (${bedReserveHolds.status} = 'pending_payment' AND ${bedReserveHolds.paymentProofUrl} IS NOT NULL)
+          )`,
         ),
       )
       .limit(1);

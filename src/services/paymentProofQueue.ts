@@ -219,7 +219,7 @@ function buildQrReviewItem(
   const paymentTypeLabel = isBookingCheckout
     ? bookingPaymentReview?.canPartialApprove
       ? 'Partial payment'
-      : 'New booking'
+      : 'Reservation Request'
     : p.categoryName;
 
   let expectedLines: PaymentReviewExpectedLine[] = [];
@@ -303,7 +303,7 @@ function buildQrReviewItem(
     bedCode,
     paymentTypeLabel,
     title: isBookingCheckout
-      ? `${p.customerName} · Booking ${p.bookingCode}`
+      ? `${p.customerName} · Reservation Request ${p.bookingCode}`
       : `${p.customerName} · ${p.categoryName}`,
     subtitle: isBookingCheckout
       ? 'Booking checkout — rent, deposit & reservation'
@@ -329,6 +329,7 @@ function buildQrReviewItem(
       priorBookingDeposits.length > 0 ? priorBookingDeposits : undefined,
     paymentExplanation,
     bookingContext,
+    lifecycleState: isBookingCheckout ? 'reservation_request' : 'payment_collection',
   };
 }
 

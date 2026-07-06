@@ -19,7 +19,7 @@ import { BLOCKING_RESERVATION_STATUS_SQL } from '@/src/lib/reservationBlocking';
 import { formatDate, parseDate, todayString } from '@/src/lib/dates';
 import { isBedAvailable } from '@/src/services/availability';
 
-export type RoomTransferMode = 'immediate' | 'scheduled';
+export type RoomTransferMode = 'immediate' | 'scheduled' | 'waitlist';
 
 export type TransferAvailabilityScenario = {
   mode: RoomTransferMode;
@@ -28,7 +28,7 @@ export type TransferAvailabilityScenario = {
   /** Present only for scheduled transfers. */
   occupantCheckoutDate?: string;
   sourceVacatingRequestId?: string;
-  label: 'Immediate' | 'Scheduled';
+  label: 'Immediate' | 'Scheduled' | 'Waitlist';
   summary: string;
 };
 
@@ -116,7 +116,30 @@ export async function classifyTransferAvailability(
   }
 
   const vacating = await findApprovedVacatingOnBed(bedId);
-  if (!vacating) return null;
+  if (!vacating) {
+    const [occupied] = await db
+      .select({ id: bedReservations.id })
+      .from(bedReservations)
+      .innerJoin(bookings, eq(bookings.id, bedReservations.bookingId))
+      .where(
+        and(
+          eq(bedReservations.bedId, bedId),
+          sql`${bedReservations.status} IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
+          eq(bookings.status, 'confirmed'),
+          sql`CURRENT_DATE <@ ${bedReservations.stayRange}`,
+        ),
+      )
+      .limit(1);
+    if (occupied) {
+      return {
+        mode: 'waitlist',
+        expectedTransferDate: asOfDate,
+        label: 'Waitlist',
+        summary: 'Bed is occupied with no approved vacating notice — join the waitlist.',
+      };
+    }
+    return null;
+  }
 
   const checkoutDate = vacating.vacatingDate;
   const expectedTransferDate = checkoutDate;
@@ -131,6 +154,8 @@ export async function classifyTransferAvailability(
   };
 }
 
-export function transferModeLabel(mode: RoomTransferMode): 'Immediate' | 'Scheduled' {
-  return mode === 'immediate' ? 'Immediate' : 'Scheduled';
+export function transferModeLabel(mode: RoomTransferMode): 'Immediate' | 'Scheduled' | 'Waitlist' {
+  if (mode === 'immediate') return 'Immediate';
+  if (mode === 'scheduled') return 'Scheduled';
+  return 'Waitlist';
 }

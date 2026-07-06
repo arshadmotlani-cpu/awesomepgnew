@@ -140,6 +140,7 @@ function electricityCollectionToItem(row: CollectionQueueItem): UnifiedOpsItem {
 }
 
 function paymentReviewToItem(review: PendingPaymentReviewItem): UnifiedOpsItem {
+  const isReservationRequest = review.lifecycleState === 'reservation_request';
   return {
     id: `approval-${review.key}`,
     queue: 'waiting_for_approval',
@@ -150,9 +151,11 @@ function paymentReviewToItem(review: PendingPaymentReviewItem): UnifiedOpsItem {
     pgName: review.pgName,
     roomNumber: review.roomNumber,
     bedCode: review.bedCode,
-    reason: review.subtitle || review.title,
+    reason: isReservationRequest
+      ? `Reservation request — ${review.subtitle || review.title}`
+      : review.subtitle || review.title,
     openHref: operationsFilterHref('waiting_for_approval', review.key),
-    openLabel: 'Review',
+    openLabel: isReservationRequest ? 'Review request' : 'Review',
     category: 'payment_proof',
     bookingId: review.bookingId,
     amountPaise: review.amountPaise,
@@ -312,6 +315,11 @@ export async function listPendingBookingApprovalsForSync(session: AdminSession) 
       and(
         eq(bookings.status, 'pending_approval'),
         not(openBookingRowSupersededByNewerAnchoredStaySql),
+        sql`NOT EXISTS (
+          SELECT 1 FROM bed_reservations br2
+          WHERE br2.booking_id = ${bookings.id}
+            AND br2.status = 'under_review'
+        )`,
       ),
     );
 
@@ -458,12 +466,38 @@ async function buildUnifiedOperationsQueue(
       pgName: b.pgName,
       roomNumber: null,
       bedCode: null,
-      reason: 'Booking pending admin approval',
+      reason: 'Booking pending admin approval (legacy — no payment proof)',
       openHref: `/admin/bookings/${b.id}`,
       openLabel: 'Review booking',
       bookingId: b.id,
       bookingCode: b.bookingCode,
       statusLabel: 'Pending approval',
+    });
+  }
+
+  const { listDueRoomTransferOperations } = await import('@/src/services/roomTransferExecution');
+  const dueTransfers = await listDueRoomTransferOperations();
+  for (const transfer of dueTransfers) {
+    if (
+      transfer.pgId &&
+      !adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, transfer.pgId)
+    ) {
+      continue;
+    }
+    items.push({
+      id: `room-transfer-due-${transfer.id}`,
+      queue: 'vacating_requests',
+      customerId: transfer.customerId,
+      residentName: transfer.customerName,
+      pgId: transfer.pgId,
+      pgName: transfer.pgName,
+      roomNumber: transfer.roomNumber,
+      bedCode: transfer.bedCode,
+      reason: `Scheduled room transfer due today (${transfer.transferDate})`,
+      openHref: '/admin/requests',
+      openLabel: 'Execute transfer',
+      bookingId: transfer.bookingId,
+      statusLabel: 'Transfer due',
     });
   }
 

@@ -481,11 +481,19 @@ export function getRoomDetail(
           FROM ${bedReservations} br
           INNER JOIN ${bookings} bk ON bk.id = br.booking_id
           WHERE br.bed_id = beds.id
-            AND br.status = 'hold'
-            AND bk.status = 'pending_payment'
-            AND (br.hold_expires_at IS NULL OR br.hold_expires_at > now())
+            AND br.status = 'under_review'
+            AND bk.status = 'pending_approval'
             AND ${refDate}::date <@ br.stay_range
         ), 0)`,
+        underReviewBlocked: sql<boolean>`EXISTS (
+          SELECT 1
+          FROM ${bedReservations} br
+          INNER JOIN ${bookings} bk ON bk.id = br.booking_id
+          WHERE br.bed_id = beds.id
+            AND br.status = 'under_review'
+            AND bk.status = 'pending_approval'
+            AND ${refDate}::date <@ br.stay_range
+        )`,
         noticeInterestCount: sql<number>`coalesce((
           SELECT count(distinct bni.visitor_key)::int
           FROM bed_notice_interest bni
@@ -655,6 +663,7 @@ export function getRoomDetail(
           reservedFrom: row.reservedFrom,
           noticeInterestCount: row.noticeInterestCount,
           holdInterestCount: row.interestCount,
+          underReviewRequest: row.underReviewBlocked,
         });
         return {
           bedId: row.bedId,

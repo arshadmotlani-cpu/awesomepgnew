@@ -53,11 +53,33 @@ const LEGEND_FULL = [
 
 const COMMAND_LEGEND = [
   { label: 'Available', className: 'border-emerald-400/60 bg-emerald-500/15' },
+  { label: 'Under review', className: 'border-amber-400/55 bg-amber-500/12' },
   { label: 'Occupied', className: 'border-zinc-500/50 bg-zinc-700/40' },
   { label: 'Releasing soon', className: 'border-orange-400/55 bg-orange-500/12' },
   { label: 'Reserved', className: 'border-violet-400/55 bg-violet-500/15' },
   { label: 'Selected', className: 'border-[#FF5A1F] bg-[#FF5A1F]/20' },
 ];
+
+function blockReasonLabel(reason: PgBedMapBed['blockReason']): string | null {
+  switch (reason) {
+    case 'under_review':
+      return 'Blocked — reservation request under review';
+    case 'reserved_incoming':
+      return 'Blocked — approved future move-in';
+    case 'transfer_hold':
+      return 'Blocked — reserved for room transfer';
+    case 'occupied':
+      return 'Occupied today';
+    case 'bed_reserve':
+      return 'Blocked — bed reserve hold';
+    case 'maintenance':
+      return 'Maintenance';
+    case 'blocked':
+      return 'Bed blocked';
+    default:
+      return null;
+  }
+}
 
 function BedDetailPanel({
   ctx,
@@ -73,7 +95,12 @@ function BedDetailPanel({
   inlineAssign?: InlineAssignContext | null;
 }) {
   const { bed, room, floor } = ctx;
-  const person = bed.occupant ?? bed.reserved;
+  const person = bed.occupant ?? bed.underReview ?? bed.reserved;
+  const personLabel = bed.occupant
+    ? 'Living here'
+    : bed.underReview
+      ? 'Reservation request (under review)'
+      : 'Reserved for';
 
   return (
     <aside className={`${SURFACE} flex max-h-[min(calc(100dvh-10rem),900px)] flex-col shadow-xl`}>
@@ -96,6 +123,9 @@ function BedDetailPanel({
               {room.roomTypeName}
               {room.hasAc ? ' · AC' : ''} · {room.sharingCount}-sharing · {bed.availability.label}
             </p>
+            {blockReasonLabel(bed.blockReason) ? (
+              <p className="mt-1 text-xs text-amber-200/90">{blockReasonLabel(bed.blockReason)}</p>
+            ) : null}
           </div>
         </div>
         <button
@@ -115,7 +145,7 @@ function BedDetailPanel({
           <>
             <section className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-apg-silver">
-                {bed.occupant ? 'Living here' : 'Reserved for'}
+                {personLabel}
               </p>
               <p className="mt-1 text-base font-semibold text-white">{person.customerName}</p>
               <p className="text-sm text-apg-silver">{person.customerPhone}</p>
@@ -123,6 +153,14 @@ function BedDetailPanel({
                 {person.bookingCode} · {bed.occupant ? 'Move-in' : 'From'}{' '}
                 {formatDate(person.moveInDate)} · {paiseToInr(person.monthlyRentPaise)}/mo
               </p>
+              {bed.occupant &&
+              (bed.billing.rentOverdueCount > 0 || bed.billing.rentPendingCount > 0) ? (
+                <p className="mt-1 text-xs text-amber-200/90">
+                  {bed.billing.rentOverdueCount} overdue bill
+                  {bed.billing.rentOverdueCount === 1 ? '' : 's'} · {bed.billing.rentPendingCount}{' '}
+                  pending
+                </p>
+              ) : null}
               <p className="mt-1">
                 <AdminKycStatusWithWhatsApp
                   kycStatus={person.kycStatus}

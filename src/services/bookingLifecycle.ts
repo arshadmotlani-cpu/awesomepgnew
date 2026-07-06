@@ -29,7 +29,9 @@ import {
   stayExtensions,
 } from '../db/schema';
 import type { PricingSnapshot } from '../db/schema/bookings';
-import { getPaymentProvider, type ProviderName } from './payments';
+import { formatDate, parseDate } from '../lib/dates';
+import type { ProviderName } from './payments';
+import { getPaymentProvider } from './payments';
 
 /**
  * Phase 5 — superset of {@link ProviderName} that also accepts the
@@ -469,6 +471,8 @@ export async function recordPaymentSuccess(
       customerId: bookings.customerId,
       bookingCode: bookings.bookingCode,
       pricingSnapshot: bookings.pricingSnapshot,
+      billingAnchorDate: bookings.billingAnchorDate,
+      expectedCheckoutDate: bookings.expectedCheckoutDate,
     })
     .from(bookings)
     .where(eq(bookings.bookingCode, input.bookingCode))
@@ -580,12 +584,41 @@ export async function recordPaymentSuccess(
           .where(
             and(
               eq(bedReservations.bookingId, booking.id),
-              eq(bedReservations.status, 'hold'),
+              inArray(bedReservations.status, ['hold', 'under_review']),
               eq(bedReservations.kind, 'primary'),
             ),
           )
           .returning({ id: bedReservations.id });
         flippedCount = flipped.length;
+
+        if (flippedCount === 0 && wasAwaitingConfirm) {
+          const snapshot = booking.pricingSnapshot as {
+            perBed?: Array<{ bedId: string }>;
+          } | null;
+          const bedIds = snapshot?.perBed?.map((b) => b.bedId).filter(Boolean) ?? [];
+          const startIso = booking.billingAnchorDate;
+          const isOpenEnded =
+            booking.durationMode === 'open_ended' || booking.durationMode === 'monthly';
+          if (startIso && bedIds.length > 0) {
+            const endIso =
+              !isOpenEnded && booking.expectedCheckoutDate
+                ? formatDate(parseDate(booking.expectedCheckoutDate))
+                : null;
+            for (const bedId of bedIds) {
+              const stayRange = isOpenEnded
+                ? (sql`daterange(${startIso}::date, NULL, '[)')` as unknown as string)
+                : (sql`daterange(${startIso}::date, ${endIso}::date, '[)')` as unknown as string);
+              await tx.insert(bedReservations).values({
+                bookingId: booking.id,
+                bedId,
+                stayRange,
+                kind: 'primary',
+                status: 'active',
+              });
+              flippedCount += 1;
+            }
+          }
+        }
       }
 
       // Flip the booking itself if it was awaiting payment. We do NOT flip
@@ -1267,7 +1300,23 @@ export async function releaseExpiredHolds(
       ),
     );
 
-  if (expired.length === 0) {
+  const expiredUnderReview = await db
+    .select({
+      reservationId: bedReservations.id,
+      bookingId: bedReservations.bookingId,
+    })
+    .from(bedReservations)
+    .where(
+      and(
+        eq(bedReservations.status, 'under_review'),
+        isNotNull(bedReservations.holdExpiresAt),
+        lte(bedReservations.holdExpiresAt, now),
+      ),
+    );
+
+  const allExpired = [...expired, ...expiredUnderReview];
+
+  if (allExpired.length === 0) {
     // Even when no primary holds expired, a previous sweep may have left
     // an extension row that needs the pending → cancelled flip.
     const expiredExt = await markExpiredExtensions();
@@ -1279,8 +1328,8 @@ export async function releaseExpiredHolds(
     };
   }
 
-  const affectedReservationIds = expired.map((r) => r.reservationId);
-  const affectedBookingIds = Array.from(new Set(expired.map((r) => r.bookingId)));
+  const affectedReservationIds = allExpired.map((r) => r.reservationId);
+  const affectedBookingIds = Array.from(new Set(allExpired.map((r) => r.bookingId)));
 
   const cancelledCodes: string[] = [];
   await db.transaction(async (tx) => {
@@ -1295,7 +1344,7 @@ export async function releaseExpiredHolds(
     for (const bookingId of affectedBookingIds) {
       const [{ remaining }] = await tx
         .select({
-          remaining: sql<number>`count(*) FILTER (WHERE status IN ('hold','active'))::int`,
+          remaining: sql<number>`count(*) FILTER (WHERE status IN ('hold','under_review','active'))::int`,
         })
         .from(bedReservations)
         .where(eq(bedReservations.bookingId, bookingId));
@@ -2003,4 +2052,59 @@ export async function cancelBooking(
     refund,
     refundPaymentId,
   };
+}
+
+/**
+ * Expire confirmed short-stay reservations when move-in grace elapsed without check-in.
+ */
+export async function expireStaleReservations(
+  today: string = formatDate(new Date()),
+): Promise<{ expired: number; bookingCodes: string[] }> {
+  const rows = await db.execute<{ booking_id: string; booking_code: string; reservation_id: string }>(
+    sql`
+    SELECT bk.id AS booking_id, bk.booking_code, br.id AS reservation_id
+    FROM bed_reservations br
+    INNER JOIN bookings bk ON bk.id = br.booking_id
+    WHERE br.status = 'active'
+      AND br.kind = 'primary'
+      AND bk.status = 'confirmed'
+      AND bk.duration_mode IN ('daily', 'weekly', 'fixed_stay')
+      AND lower(br.stay_range) < (${today}::date - interval '1 day')
+      AND upper(br.stay_range) IS NOT NULL
+      AND upper(br.stay_range) > ${today}::date
+    `,
+  );
+
+  const resultRows = Array.isArray(rows) ? rows : ((rows as { rows?: typeof rows }).rows ?? []);
+  if (resultRows.length === 0) return { expired: 0, bookingCodes: [] };
+
+  const codes: string[] = [];
+  await db.transaction(async (tx) => {
+    for (const row of resultRows) {
+      await tx
+        .update(bedReservations)
+        .set({ status: 'cancelled', updatedAt: new Date() })
+        .where(eq(bedReservations.id, row.reservation_id));
+      await tx
+        .update(bookings)
+        .set({
+          status: 'cancelled',
+          cancelledAt: new Date(),
+          cancellationReason: 'Reservation expired — no check-in before move-in date.',
+          updatedAt: new Date(),
+        })
+        .where(eq(bookings.id, row.booking_id));
+      await tx.insert(auditLog).values({
+        actorType: 'system',
+        actorId: null,
+        entity: 'booking',
+        entityId: row.booking_id,
+        action: 'reservation_expired',
+        diff: { moveInBefore: today },
+      });
+      codes.push(row.booking_code);
+    }
+  });
+
+  return { expired: resultRows.length, bookingCodes: codes };
 }

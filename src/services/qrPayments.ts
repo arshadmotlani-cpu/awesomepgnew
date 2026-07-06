@@ -244,7 +244,7 @@ export async function submitPaymentRecord(input: SubmitPaymentInput) {
   return row;
 }
 
-/** Submit UPI proof for a new booking checkout (rent + deposit + reservation). */
+/** Submit UPI proof for a new booking checkout (rent + deposit + reservation request). */
 export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInput) {
   if (input.amountPaise <= 0) throw new Error('Amount must be greater than zero.');
 
@@ -254,24 +254,28 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
       bookingCode: bookings.bookingCode,
       customerId: bookings.customerId,
       status: bookings.status,
+      durationMode: bookings.durationMode,
       totalPaise: bookings.totalPaise,
-      pgId: floors.pgId,
     })
     .from(bookings)
-    .innerJoin(bedReservations, eq(bedReservations.bookingId, bookings.id))
-    .innerJoin(beds, eq(beds.id, bedReservations.bedId))
-    .innerJoin(rooms, eq(rooms.id, beds.roomId))
-    .innerJoin(floors, eq(floors.id, rooms.floorId))
     .where(eq(bookings.bookingCode, input.bookingCode))
     .limit(1);
 
   if (!booking) throw new Error('Booking not found.');
   if (booking.customerId !== input.customerId) throw new Error('Access denied.');
-  if (booking.status !== 'pending_payment' && booking.status !== 'pending_approval') {
+  if (
+    booking.status !== 'draft' &&
+    booking.status !== 'pending_payment' &&
+    booking.status !== 'pending_approval'
+  ) {
     throw new Error('This booking is not awaiting payment.');
   }
 
-  const category = await getRentDepositBookingCategory(booking.pgId);
+  const { pgIdForBookingDraft } = await import('@/src/services/reservationRequest');
+  const pgId = await pgIdForBookingDraft(booking.id);
+  if (!pgId) throw new Error('Could not resolve PG for this booking.');
+
+  const category = await getRentDepositBookingCategory(pgId);
   if (!category) {
     throw new Error('Payment QR is not configured for this PG yet.');
   }
@@ -331,7 +335,7 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
       const [inserted] = await tx
         .insert(pgPaymentRecords)
         .values({
-          pgId: booking.pgId,
+          pgId,
           categoryId: category.id,
           customerId: input.customerId,
           amountPaise: input.amountPaise,
@@ -345,29 +349,24 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
       paymentRow = inserted;
     }
 
-    const reviewHoldUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    await tx
-      .update(bedReservations)
-      .set({ holdExpiresAt: reviewHoldUntil, updatedAt: new Date() })
-      .where(
-        and(
-          eq(bedReservations.bookingId, booking.id),
-          eq(bedReservations.status, 'hold'),
-        ),
-      );
-
-    await tx
-      .update(bookings)
-      .set({ status: 'pending_approval', updatedAt: new Date() })
-      .where(
-        and(eq(bookings.id, booking.id), inArray(bookings.status, ['pending_payment'])),
-      );
-
     const { supersedeActiveRejection } = await import('@/src/services/paymentProofRejectionService');
     await supersedeActiveRejection('pg_payment_record', paymentRow.id, tx);
 
     return paymentRow;
   });
+
+  const { activateReservationRequestForBooking } = await import(
+    '@/src/services/reservationRequest'
+  );
+  if (booking.durationMode === 'reserve') {
+    const { activateBedReserveRequestForBooking } = await import('@/src/services/bedReserve');
+    await activateBedReserveRequestForBooking(booking.id, {
+      paymentScreenshotUrl: input.paymentScreenshotUrl.trim(),
+      transactionRef: input.transactionRef,
+    });
+  } else {
+    await activateReservationRequestForBooking(booking.id);
+  }
 
   const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
   await linkResidentUpload({
@@ -376,7 +375,7 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
     linkedEntity: 'pg_payment_record',
     linkedEntityId: row.id,
     bookingId: booking.id,
-    pgId: booking.pgId,
+    pgId,
   }).catch(() => undefined);
 
   if (input.membershipId && input.membershipAmountPaise) {

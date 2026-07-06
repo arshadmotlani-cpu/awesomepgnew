@@ -8,7 +8,9 @@ import {
   auditLog,
   bedReservations,
   beds,
+  customers,
   floors,
+  pgs,
   roomChangeRequests,
   roomTransferBedHolds,
   rooms,
@@ -82,6 +84,12 @@ export async function approveRoomChangeRequest(input: {
   if (!scenario) {
     return { ok: false, message: 'Destination bed is no longer available for transfer.' };
   }
+  if (scenario.mode === 'waitlist') {
+    return {
+      ok: false,
+      message: 'Destination bed is occupied with no vacating notice — use the waitlist instead.',
+    };
+  }
   if (current.transferMode && scenario.mode !== current.transferMode) {
     return {
       ok: false,
@@ -93,6 +101,8 @@ export async function approveRoomChangeRequest(input: {
   const transferDate = current.expectedTransferDate ?? scenario.expectedTransferDate;
   const holdFrom = scenario.mode === 'immediate' ? today : today;
 
+  const transferMode: 'immediate' | 'scheduled' = scenario.mode;
+
   await db.transaction(async (tx) => {
     await tx
       .update(roomChangeRequests)
@@ -100,7 +110,7 @@ export async function approveRoomChangeRequest(input: {
         status: 'approved',
         reviewedByAdminId: input.adminId,
         adminNotes: input.notes ?? current.adminNotes,
-        transferMode: scenario.mode,
+        transferMode,
         expectedTransferDate: transferDate,
         occupantCheckoutDate: scenario.occupantCheckoutDate ?? current.occupantCheckoutDate,
         sourceVacatingRequestId:
@@ -272,7 +282,18 @@ export async function revertScheduledTransfersOnVacatingCancel(input: {
 
 /** Scheduled transfers whose transfer date is today — admin journey entry point. */
 export async function listRoomTransfersDueToday(): Promise<
-  Array<{ id: string; bookingId: string; toBedId: string; transferDate: string }>
+  Array<{
+    id: string;
+    bookingId: string;
+    toBedId: string;
+    transferDate: string;
+    customerId: string;
+    customerName: string;
+    pgId: string | null;
+    pgName: string | null;
+    bedCode: string | null;
+    roomNumber: string | null;
+  }>
 > {
   const today = todayString();
   const rows = await db
@@ -281,8 +302,19 @@ export async function listRoomTransfersDueToday(): Promise<
       bookingId: roomChangeRequests.bookingId,
       toBedId: roomChangeRequests.toBedId,
       transferDate: roomChangeRequests.expectedTransferDate,
+      customerId: roomChangeRequests.customerId,
+      customerName: customers.fullName,
+      pgId: floors.pgId,
+      pgName: pgs.name,
+      bedCode: beds.bedCode,
+      roomNumber: rooms.roomNumber,
     })
     .from(roomChangeRequests)
+    .innerJoin(customers, eq(customers.id, roomChangeRequests.customerId))
+    .innerJoin(beds, eq(beds.id, roomChangeRequests.toBedId))
+    .innerJoin(rooms, eq(rooms.id, beds.roomId))
+    .innerJoin(floors, eq(floors.id, rooms.floorId))
+    .innerJoin(pgs, eq(pgs.id, floors.pgId))
     .where(
       and(
         eq(roomChangeRequests.status, 'approved'),
@@ -297,5 +329,11 @@ export async function listRoomTransfersDueToday(): Promise<
       bookingId: r.bookingId,
       toBedId: r.toBedId,
       transferDate: r.transferDate,
+      customerId: r.customerId,
+      customerName: r.customerName,
+      pgId: r.pgId,
+      pgName: r.pgName,
+      bedCode: r.bedCode,
+      roomNumber: r.roomNumber,
     }));
 }

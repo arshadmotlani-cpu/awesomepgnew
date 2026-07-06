@@ -60,8 +60,8 @@ function getAll(form: FormData, key: string): string[] {
     .filter((v) => v.length > 0);
 }
 
-function nextRouteForBooking(status: 'pending_payment' | 'confirmed', bookingCode: string): string {
-  return status === 'pending_payment'
+function nextRouteForBooking(status: 'draft' | 'pending_payment' | 'confirmed', bookingCode: string): string {
+  return status === 'draft' || status === 'pending_payment'
     ? `/booking/${bookingCode}/pay`
     : `/booking/${bookingCode}`;
 }

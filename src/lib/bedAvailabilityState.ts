@@ -13,6 +13,7 @@ export type BedAvailabilityKind =
   | 'occupied'
   | 'booked'
   | 'reserved'
+  | 'under_review'
   | 'hold_interest'
   | 'maintenance'
   | 'blocked';
@@ -140,6 +141,7 @@ export const ADMIN_BED_KIND_CLASS: Record<BedAvailabilityKind, string> = {
   occupied: 'border-zinc-500/50 bg-zinc-700/40 text-zinc-100 hover:border-zinc-400/60',
   booked: 'border-violet-400/55 bg-violet-500/15 text-violet-50 hover:border-violet-400/75',
   reserved: 'border-violet-400/55 bg-violet-500/15 text-violet-50 hover:border-violet-400/75',
+  under_review: 'border-amber-400/55 bg-amber-500/15 text-amber-50 hover:border-amber-400/75',
   hold_interest: 'border-cyan-400/50 bg-cyan-500/12 text-cyan-50 hover:border-cyan-400/70',
   maintenance: 'border-rose-500/60 bg-rose-600/20 text-rose-50 hover:border-rose-400/80',
   blocked: 'border-rose-400/50 bg-rose-500/12 text-rose-100 hover:border-rose-400/70',
@@ -153,6 +155,7 @@ export const CUSTOMER_BED_KIND_CLASS: Record<BedAvailabilityKind, string> = {
   occupied: 'border-zinc-500/40 bg-zinc-800/50 text-zinc-300',
   booked: 'border-violet-400/45 bg-violet-500/12 text-violet-100',
   reserved: 'border-violet-400/45 bg-violet-500/12 text-violet-100',
+  under_review: 'border-amber-400/45 bg-amber-500/12 text-amber-100',
   hold_interest: 'border-cyan-400/40 bg-cyan-500/10 text-cyan-100',
   maintenance: 'border-rose-500/50 bg-rose-600/15 text-rose-100',
   blocked: 'border-rose-400/40 bg-rose-500/10 text-rose-200/80',

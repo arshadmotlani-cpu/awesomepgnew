@@ -70,6 +70,9 @@ export type BedOccupancyInput = {
   interestCount?: number;
   noticeInterestCount?: number;
   holdInterestCount?: number;
+  underReviewRequest?: boolean;
+  underReviewMoveIn?: string | null;
+  transferHoldActive?: boolean;
   availableUntilDate?: string | null;
 
   maintenanceReason?: string | null;
@@ -213,6 +216,17 @@ export function computeBedOccupancySnapshot(input: BedOccupancyInput): BedOccupa
     return {
       publicState: 'maintenance',
       adminState: 'maintenance',
+      bookableFromDate: null,
+      checkoutSettlementId: null,
+      isMonthlyTenancy: monthly,
+      isFixedTenancy: fixed,
+    };
+  }
+
+  if (input.underReviewRequest && !input.isOccupiedToday) {
+    return {
+      publicState: 'reserved',
+      adminState: 'reserved',
       bookableFromDate: null,
       checkoutSettlementId: null,
       isMonthlyTenancy: monthly,
@@ -463,6 +477,16 @@ export function toAdminAvailabilityView(
   }
   if (input.bedStatus === 'blocked') {
     return { kind: 'blocked', label: 'Blocked' };
+  }
+
+  if (input.underReviewRequest && !input.isOccupiedToday) {
+    return {
+      kind: 'under_review',
+      label: 'Under review',
+      sublabel: input.underReviewMoveIn
+        ? `Reservation request · move-in ${formatShortDate(input.underReviewMoveIn)}`
+        : 'Reservation request · awaiting admin approval',
+    };
   }
 
   if (input.manualOccupied && !input.isOccupiedToday) {

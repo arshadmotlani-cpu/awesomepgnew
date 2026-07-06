@@ -180,6 +180,8 @@ export const bookings = pgTable(
     adminOpsNotes: text('admin_ops_notes'),
     /** When true, reservations cover all beds in the room (single-tenant whole room). */
     blocksRoomAvailability: boolean('blocks_room_availability').notNull().default(false),
+    draftExpiresAt: timestamp('draft_expires_at', { withTimezone: true }),
+    rejectionReason: text('rejection_reason'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

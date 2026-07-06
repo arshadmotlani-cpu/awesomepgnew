@@ -72,6 +72,8 @@ export type PendingPaymentReviewItem = {
   paymentExplanation?: PaymentExplanationView;
   /** Booking + pricing story for admin review (presentation only). */
   bookingContext?: PaymentBookingContextView;
+  /** Checkout lifecycle — reservation request vs routine collection. */
+  lifecycleState?: 'reservation_request' | 'payment_collection';
   /** Dedicated approval card fields (rent / electricity). */
   invoiceNumber?: string | null;
   invoiceAmountPaise?: number | null;

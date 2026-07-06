@@ -182,7 +182,7 @@ export function customerBookingBannerCopy(status: BookingStatus): {
     case 'pending_approval':
       return {
         variant: 'pending',
-        headline: 'Awaiting booking approval',
+        headline: 'Request received — bed under review',
         copy: 'Payment proof received. The office will verify your UPI payment and documents before confirming your stay.',
         paymentStatusLabel: 'Under admin review',
       };

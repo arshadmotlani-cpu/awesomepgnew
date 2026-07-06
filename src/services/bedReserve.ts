@@ -44,7 +44,18 @@ export type ActiveBedReserve = {
   checkInDate: string;
   bufferDate: string;
   status: 'pending_payment' | 'active' | 'expired' | 'cancelled' | 'converted';
+  paymentProofUrl?: string | null;
 };
+
+/** Reserve holds that block inventory — approved (active) or under review (proof submitted). */
+export function bedReserveHoldBlocksInventory(hold: {
+  status: string;
+  paymentProofUrl?: string | null;
+}): boolean {
+  if (hold.status === 'active') return true;
+  if (hold.status === 'pending_payment' && Boolean(hold.paymentProofUrl?.trim())) return true;
+  return false;
+}
 
 export type EffectiveBedReserveWindow = {
   source: 'hold' | 'manual';
@@ -82,8 +93,8 @@ async function getManualReserveWindow(bedId: string): Promise<EffectiveBedReserv
 export async function getEffectiveReserveForBed(
   bedId: string,
 ): Promise<EffectiveBedReserveWindow | null> {
-  const hold = await getActiveReserveForBed(bedId);
-  if (hold?.status === 'active') {
+  const hold = await getInventoryBlockingReserveForBed(bedId);
+  if (hold) {
     return {
       source: 'hold',
       reserveStart: hold.reserveStart,
@@ -112,6 +123,7 @@ export async function getActiveReserveForBed(bedId: string): Promise<ActiveBedRe
       reserveStart: bedReserveHolds.reserveStart,
       checkInDate: bedReserveHolds.checkInDate,
       status: bedReserveHolds.status,
+      paymentProofUrl: bedReserveHolds.paymentProofUrl,
     })
     .from(bedReserveHolds)
     .where(
@@ -130,6 +142,15 @@ export async function getActiveReserveForBed(bedId: string): Promise<ActiveBedRe
     bufferDate: reserveBufferDate(String(row.checkInDate)),
     status: row.status,
   };
+}
+
+/** Inventory-blocking reserve on a bed (active or pending with proof). */
+export async function getInventoryBlockingReserveForBed(
+  bedId: string,
+): Promise<ActiveBedReserve | null> {
+  const hold = await getActiveReserveForBed(bedId);
+  if (!hold || !bedReserveHoldBlocksInventory(hold)) return null;
+  return hold;
 }
 
 async function bedHasFuturePreBook(bedId: string, fromDate: string): Promise<boolean> {
@@ -381,6 +402,53 @@ export async function createBedReserve(input: CreateBedReserveInput) {
   }
 
   throw new Error('Could not allocate reserve code.');
+}
+
+/**
+ * Move bed reserve into under-review when customer submits payment proof.
+ * Inventory blocks only after proof (pending_payment + proof), not at cart create.
+ */
+export async function activateBedReserveRequestForBooking(
+  bookingId: string,
+  proof: { paymentScreenshotUrl: string; transactionRef?: string | null },
+): Promise<void> {
+  const [hold] = await db
+    .select()
+    .from(bedReserveHolds)
+    .where(eq(bedReserveHolds.bookingId, bookingId))
+    .limit(1);
+  if (!hold) throw new Error('Reserve hold not found.');
+  if (hold.status === 'active') return;
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(bedReserveHolds)
+      .set({
+        paymentProofUrl: proof.paymentScreenshotUrl.trim(),
+        transactionRef: proof.transactionRef?.trim() || null,
+        updatedAt: new Date(),
+      })
+      .where(eq(bedReserveHolds.id, hold.id));
+
+    await tx
+      .update(bookings)
+      .set({ status: 'pending_approval', updatedAt: new Date() })
+      .where(
+        and(
+          eq(bookings.id, bookingId),
+          inArray(bookings.status, ['pending_payment', 'pending_approval']),
+        ),
+      );
+
+    await tx.insert(auditLog).values({
+      actorType: 'customer',
+      actorId: hold.customerId,
+      entity: 'bed_reserve',
+      entityId: hold.id,
+      action: 'reservation_request_submitted',
+      diff: { reserveCode: hold.reserveCode, bookingId },
+    });
+  });
 }
 
 function rateDailyFromMonthly(monthly: number): number {

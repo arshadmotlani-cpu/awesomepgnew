@@ -1,12 +1,18 @@
 /**
  * Which reservation rows block inventory on the customer-facing calendar.
  *
- * `hold` rows track in-progress checkouts awaiting UPI proof + admin review.
- * They must not make a bed look "booked" to other visitors.
+ * `under_review` — reservation request submitted with payment proof; blocks
+ *   inventory until admin approves or rejects.
+ * `active` — confirmed reservation after admin approval.
+ *
+ * Legacy `hold` rows must not block (pre-proof checkout; being phased out).
  */
-export const BLOCKING_RESERVATION_STATUSES = ['active'] as const;
+export const BLOCKING_RESERVATION_STATUSES = ['under_review', 'active'] as const;
 
 export type BlockingReservationStatus = (typeof BLOCKING_RESERVATION_STATUSES)[number];
 
-/** SQL fragment: `br.status IN ('active')` — use inside raw sql templates. */
-export const BLOCKING_RESERVATION_STATUS_SQL = "('active')";
+/** SQL fragment: `br.status IN ('under_review','active')` */
+export const BLOCKING_RESERVATION_STATUS_SQL = "('under_review', 'active')";
+
+/** Booking statuses paired with blocking reservations. */
+export const BLOCKING_BOOKING_STATUSES_SQL = "('pending_approval', 'confirmed', 'completed')";

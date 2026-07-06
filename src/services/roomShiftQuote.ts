@@ -17,8 +17,8 @@ export type RoomShiftQuoteLine = {
 
 export type RoomShiftQuoteSnapshot = {
   shiftDate: string;
-  transferMode: 'immediate' | 'scheduled';
-  transferLabel: 'Immediate' | 'Scheduled';
+  transferMode: 'immediate' | 'scheduled' | 'waitlist';
+  transferLabel: 'Immediate' | 'Scheduled' | 'Waitlist';
   occupantCheckoutDate?: string;
   expectedTransferDate: string;
   fromBedId: string;

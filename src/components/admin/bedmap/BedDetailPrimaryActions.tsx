@@ -7,7 +7,7 @@ const PRIMARY =
 const SECONDARY =
   'flex items-center justify-between rounded-lg border border-white/15 px-3 py-2.5 text-sm font-medium text-white hover:bg-white/5';
 
-type Person = NonNullable<PgBedMapBed['occupant']> | NonNullable<PgBedMapBed['reserved']>;
+type Person = NonNullable<PgBedMapBed['occupant']> | NonNullable<PgBedMapBed['reserved']> | NonNullable<PgBedMapBed['underReview']>;
 
 export function BedDetailPrimaryActions({
   pgId,
@@ -19,6 +19,7 @@ export function BedDetailPrimaryActions({
   person: Person;
 }) {
   const isOccupant = Boolean(bed.occupant);
+  const isUnderReview = Boolean(bed.underReview);
 
   return (
     <section className="space-y-2">
@@ -28,14 +29,25 @@ export function BedDetailPrimaryActions({
           Resident profile
           <span aria-hidden>→</span>
         </Link>
+        {isUnderReview ? (
+          <Link
+            href={`/admin/operations?filter=waiting_for_approval`}
+            className={PRIMARY}
+          >
+            Open payment review
+            <span aria-hidden>→</span>
+          </Link>
+        ) : null}
         <Link href={`/admin/bookings/${person.bookingId}`} className={SECONDARY}>
-          Rent &amp; bills
+          {isUnderReview ? 'View booking request' : 'Rent & bills'}
           <span aria-hidden>→</span>
         </Link>
-        <Link href={`/admin/deposits/${person.bookingId}`} className={SECONDARY}>
-          Security deposit
-          <span aria-hidden>→</span>
-        </Link>
+        {!isUnderReview ? (
+          <Link href={`/admin/deposits/${person.bookingId}`} className={SECONDARY}>
+            Security deposit
+            <span aria-hidden>→</span>
+          </Link>
+        ) : null}
         {bed.vacating?.status === 'pending' ? (
           <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 p-3">
             <p className="mb-2 text-xs text-amber-100">Move-out waiting for approval</p>

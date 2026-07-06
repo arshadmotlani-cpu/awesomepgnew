@@ -9,6 +9,7 @@ import type { RoomShiftQuoteSnapshot } from '@/src/services/roomShiftQuote';
 import type { RoomChangeBedOption } from '@/app/(customer)/account/resident/room-change-actions';
 import {
   fetchRoomChangeAvailabilityAction,
+  joinBedWaitlistAction,
   quoteRoomChangeAction,
   submitRoomChangeAction,
 } from '@/app/(customer)/account/resident/room-change-actions';
@@ -24,10 +25,14 @@ type Props = {
   onClose: () => void;
 };
 
-function scenarioBadgeClass(mode: 'immediate' | 'scheduled'): string {
-  return mode === 'immediate'
-    ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-200'
-    : 'border-amber-400/40 bg-amber-500/10 text-amber-200';
+function scenarioBadgeClass(mode: 'immediate' | 'scheduled' | 'waitlist'): string {
+  if (mode === 'immediate') {
+    return 'border-emerald-400/40 bg-emerald-500/10 text-emerald-200';
+  }
+  if (mode === 'scheduled') {
+    return 'border-amber-400/40 bg-amber-500/10 text-amber-200';
+  }
+  return 'border-sky-400/40 bg-sky-500/10 text-sky-200';
 }
 
 export function RoomChangeFlow({
@@ -58,6 +63,23 @@ export function RoomChangeFlow({
         return;
       }
       setBeds(res.beds);
+    });
+  }
+
+  function joinWaitlist() {
+    if (!selectedBed || selectedBed.scenario.mode !== 'waitlist') return;
+    startTransition(async () => {
+      setError(null);
+      const res = await joinBedWaitlistAction({
+        bedId: selectedBed.bedId,
+        bookingId,
+      });
+      if (!res.ok) {
+        setError(res.message);
+        return;
+      }
+      router.refresh();
+      onClose();
     });
   }
 
@@ -152,9 +174,15 @@ export function RoomChangeFlow({
           </ul>
         )}
         {selectedBed && !quote ? (
-          <button type="button" onClick={loadQuote} disabled={pending} className={`${primaryBtn} mt-4 w-full`}>
-            Preview billing ({selectedBed.scenario.label})
-          </button>
+          selectedBed.scenario.mode === 'waitlist' ? (
+            <button type="button" onClick={joinWaitlist} disabled={pending} className={`${primaryBtn} mt-4 w-full`}>
+              Join waitlist
+            </button>
+          ) : (
+            <button type="button" onClick={loadQuote} disabled={pending} className={`${primaryBtn} mt-4 w-full`}>
+              Preview billing ({selectedBed.scenario.label})
+            </button>
+          )
         ) : null}
       </ApgCard>
 

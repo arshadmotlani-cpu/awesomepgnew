@@ -100,7 +100,7 @@ export async function cleanupRejectedBookingRequest(input: {
       .where(
         and(
           eq(bedReservations.bookingId, input.bookingId),
-          inArray(bedReservations.status, ['hold', 'active']),
+          inArray(bedReservations.status, ['hold', 'under_review', 'active']),
           eq(bedReservations.kind, 'primary'),
         ),
       );

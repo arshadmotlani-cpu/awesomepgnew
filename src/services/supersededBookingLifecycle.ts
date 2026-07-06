@@ -158,7 +158,7 @@ export async function supersedeBooking(args: {
     .where(
       and(
         eq(bedReservations.bookingId, args.bookingId),
-        eq(bedReservations.status, 'hold'),
+        inArray(bedReservations.status, ['hold', 'under_review']),
       ),
     );
 

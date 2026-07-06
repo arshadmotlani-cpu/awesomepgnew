@@ -49,6 +49,7 @@ import {
   todayString,
   type DateLike,
 } from '../lib/dates';
+import { bedBlocksInventory } from '@/src/lib/inventoryBlocking';
 import { BLOCKING_RESERVATION_STATUS_SQL } from '../lib/reservationBlocking';
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -200,46 +201,13 @@ export async function isBedAvailable(
   input: IsBedAvailableInput,
   options?: IsBedAvailableOptions,
 ): Promise<boolean> {
-  const start = formatDate(parseDate(input.startDate));
-
-  const [bed] = await db
-    .select({
-      status: beds.status,
-      manualOccupied: beds.manualOccupied,
-      archivedAt: beds.archivedAt,
-    })
-    .from(beds)
-    .where(eq(beds.id, input.bedId))
-    .limit(1);
-  if (!bed || bed.archivedAt || bed.status !== 'available') return false;
-  // Reservations are SSOT — manualOccupied is legacy admin mark only, not operational.
-
-  if (!options?.skipRoomTransferHoldCheck) {
-    const { bedHasActiveRoomTransferHold } = await import(
-      '@/src/lib/roomTransfer/transferAvailability'
-    );
-    if (await bedHasActiveRoomTransferHold(input.bedId)) return false;
-  }
-
-  const rangeOverlap =
-    input.endDate == null
-      ? sql`${bedReservations.stayRange} && daterange(${start}::date, NULL, '[)')`
-      : sql`${bedReservations.stayRange} && daterange(${start}::date, ${formatDate(parseDate(input.endDate))}::date, '[)')`;
-
-  const [conflict] = await db
-    .select({ id: bedReservations.id })
-    .from(bedReservations)
-    .innerJoin(bookings, eq(bookings.id, bedReservations.bookingId))
-    .where(
-      and(
-        eq(bedReservations.bedId, input.bedId),
-        sql`${bedReservations.status} IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
-        eq(bookings.status, 'confirmed'),
-        rangeOverlap,
-      ),
-    )
-    .limit(1);
-  return !conflict;
+  const blocked = await bedBlocksInventory({
+    bedId: input.bedId,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    skipTransferHoldCheck: options?.skipRoomTransferHoldCheck,
+  });
+  return !blocked;
 }
 
 export type NextAvailableInput = {
