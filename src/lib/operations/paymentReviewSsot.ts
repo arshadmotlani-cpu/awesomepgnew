@@ -8,6 +8,7 @@
  * and no successful booking payment or active primary assignment exists yet.
  */
 import { sql } from 'drizzle-orm';
+import { bookings } from '@/src/db/schema';
 import {
   isOpenBookingLifecycleStatus,
   isSupersededBookingStatus,
@@ -18,6 +19,74 @@ export const BOOKING_AWAITING_PAYMENT_REVIEW_STATUSES = [
   'pending_approval',
   'draft',
 ] as const;
+
+/** Statuses for a newer booking that closes orphan open bookings / stale payment reviews. */
+export const ANCHORED_STAY_SUPERSEDE_STATUSES = ['confirmed', 'completed'] as const;
+
+/**
+ * True when open booking alias `b` is obsolete because the same customer has a newer
+ * confirmed/completed stay at the same PG (Kunal APG-0044 / 0045 scenario).
+ */
+export const bookingSupersededByNewerAnchoredStaySql = sql`
+  EXISTS (
+    SELECT 1
+    FROM bookings newer
+    INNER JOIN bed_reservations nbr ON nbr.booking_id = newer.id AND nbr.kind = 'primary'
+    INNER JOIN beds nbd ON nbd.id = nbr.bed_id
+    INNER JOIN rooms nr ON nr.id = nbd.room_id
+    INNER JOIN floors nf ON nf.id = nr.floor_id
+    WHERE newer.customer_id = b.customer_id
+      AND newer.status IN ('confirmed', 'completed')
+      AND newer.created_at > b.created_at
+      AND newer.id <> b.id
+      AND (
+        nf.pg_id IN (
+          SELECT f2.pg_id
+          FROM bed_reservations obr2
+          INNER JOIN beds bd2 ON bd2.id = obr2.bed_id
+          INNER JOIN rooms r2 ON r2.id = bd2.room_id
+          INNER JOIN floors f2 ON f2.id = r2.floor_id
+          WHERE obr2.booking_id = b.id AND obr2.kind = 'primary'
+        )
+        OR nf.pg_id IN (
+          SELECT pr2.pg_id
+          FROM pg_payment_records pr2
+          WHERE pr2.booking_id = b.id
+        )
+      )
+  )
+`;
+
+/** Drizzle bookings-table variant for listPendingBookingApprovalsForSync. */
+export const openBookingRowSupersededByNewerAnchoredStaySql = sql`
+  EXISTS (
+    SELECT 1
+    FROM bookings newer
+    INNER JOIN bed_reservations nbr ON nbr.booking_id = newer.id AND nbr.kind = 'primary'
+    INNER JOIN beds nbd ON nbd.id = nbr.bed_id
+    INNER JOIN rooms nr ON nr.id = nbd.room_id
+    INNER JOIN floors nf ON nf.id = nr.floor_id
+    WHERE newer.customer_id = ${bookings.customerId}
+      AND newer.status IN ('confirmed', 'completed')
+      AND newer.created_at > ${bookings.createdAt}
+      AND newer.id <> ${bookings.id}
+      AND (
+        nf.pg_id IN (
+          SELECT f2.pg_id
+          FROM bed_reservations obr2
+          INNER JOIN beds bd2 ON bd2.id = obr2.bed_id
+          INNER JOIN rooms r2 ON r2.id = bd2.room_id
+          INNER JOIN floors f2 ON f2.id = r2.floor_id
+          WHERE obr2.booking_id = ${bookings.id} AND obr2.kind = 'primary'
+        )
+        OR nf.pg_id IN (
+          SELECT pr2.pg_id
+          FROM pg_payment_records pr2
+          WHERE pr2.booking_id = ${bookings.id}
+        )
+      )
+  )
+`;
 
 /** Pending booking checkout proofs that must be finalized (never shown in Operations). */
 export const staleBookingPaymentReviewSql = sql`
@@ -49,33 +118,7 @@ export const staleBookingPaymentReviewSql = sql`
         AND b.status IN ('confirmed', 'completed')
         AND CURRENT_DATE <@ br.stay_range
     )
-    OR EXISTS (
-      SELECT 1
-      FROM bookings newer
-      INNER JOIN bed_reservations nbr ON nbr.booking_id = newer.id AND nbr.kind = 'primary'
-      INNER JOIN beds nbd ON nbd.id = nbr.bed_id
-      INNER JOIN rooms nr ON nr.id = nbd.room_id
-      INNER JOIN floors nf ON nf.id = nr.floor_id
-      WHERE newer.customer_id = b.customer_id
-        AND newer.status = 'confirmed'
-        AND newer.created_at > b.created_at
-        AND newer.id <> b.id
-        AND (
-          nf.pg_id IN (
-            SELECT f2.pg_id
-            FROM bed_reservations obr2
-            INNER JOIN beds bd2 ON bd2.id = obr2.bed_id
-            INNER JOIN rooms r2 ON r2.id = bd2.room_id
-            INNER JOIN floors f2 ON f2.id = r2.floor_id
-            WHERE obr2.booking_id = b.id AND obr2.kind = 'primary'
-          )
-          OR nf.pg_id IN (
-            SELECT pr2.pg_id
-            FROM pg_payment_records pr2
-            WHERE pr2.booking_id = b.id
-          )
-        )
-    )
+    OR (${bookingSupersededByNewerAnchoredStaySql})
   )
 `;
 

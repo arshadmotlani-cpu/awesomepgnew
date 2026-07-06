@@ -4,12 +4,16 @@
  */
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { actionItems, pgPaymentRecords, unresolvedActions } from '@/src/db/schema';
-import { staleBookingPaymentReviewSql } from '@/src/lib/operations/paymentReviewSsot';
+import { actionItems, bookings, pgPaymentRecords, unresolvedActions } from '@/src/db/schema';
+import {
+  bookingSupersededByNewerAnchoredStaySql,
+  staleBookingPaymentReviewSql,
+} from '@/src/lib/operations/paymentReviewSsot';
 import { finalizeStaleBookingPaymentReview } from '@/src/services/paymentProofReviewCleanup';
 import { resolveAction } from '@/src/services/unresolvedActions';
 
 export type PaymentReviewReconciliationReport = {
+  supersededOrphanBookings: number;
   linkedOrphanRecords: number;
   finalizedStaleRecords: number;
   resolvedActionItems: number;
@@ -39,6 +43,57 @@ async function linkOrphanBookingPaymentRecords(): Promise<number> {
   return linked.length;
 }
 
+async function supersedeOrphanOpenBookingsWithNewerStay(): Promise<number> {
+  const rows = await db.execute<{ open_id: string; newer_id: string }>(sql`
+    SELECT
+      b.id::text AS open_id,
+      (
+        SELECT newer.id::text
+        FROM bookings newer
+        INNER JOIN bed_reservations nbr ON nbr.booking_id = newer.id AND nbr.kind = 'primary'
+        INNER JOIN beds nbd ON nbd.id = nbr.bed_id
+        INNER JOIN rooms nr ON nr.id = nbd.room_id
+        INNER JOIN floors nf ON nf.id = nr.floor_id
+        WHERE newer.customer_id = b.customer_id
+          AND newer.status IN ('confirmed', 'completed')
+          AND newer.created_at > b.created_at
+          AND newer.id <> b.id
+          AND (
+            nf.pg_id IN (
+              SELECT f2.pg_id
+              FROM bed_reservations obr2
+              INNER JOIN beds bd2 ON bd2.id = obr2.bed_id
+              INNER JOIN rooms r2 ON r2.id = bd2.room_id
+              INNER JOIN floors f2 ON f2.id = r2.floor_id
+              WHERE obr2.booking_id = b.id AND obr2.kind = 'primary'
+            )
+            OR nf.pg_id IN (
+              SELECT pr2.pg_id FROM pg_payment_records pr2 WHERE pr2.booking_id = b.id
+            )
+          )
+        ORDER BY newer.created_at DESC
+        LIMIT 1
+      ) AS newer_id
+    FROM bookings b
+    WHERE b.status IN ('draft', 'pending_payment', 'pending_approval')
+      AND (${bookingSupersededByNewerAnchoredStaySql})
+  `);
+
+  if (rows.length === 0) return 0;
+
+  const { supersedeBooking } = await import('@/src/services/supersededBookingLifecycle');
+  let count = 0;
+  for (const row of rows) {
+    if (!row.newer_id) continue;
+    await supersedeBooking({
+      bookingId: row.open_id,
+      supersededByBookingId: row.newer_id,
+    });
+    count += 1;
+  }
+  return count;
+}
+
 async function listActiveBookingPaymentReviewKeys(): Promise<Set<string>> {
   const rows = await db.execute<{ review_key: string }>(sql`
     SELECT ('qr-' || pr.id::text) AS review_key
@@ -48,6 +103,7 @@ async function listActiveBookingPaymentReviewKeys(): Promise<Set<string>> {
       AND pr.payment_screenshot_url IS NOT NULL
       AND trim(pr.payment_screenshot_url) <> ''
       AND b.status IN ('pending_payment', 'pending_approval', 'draft')
+      AND NOT (${bookingSupersededByNewerAnchoredStaySql})
       AND NOT EXISTS (
         SELECT 1 FROM payments p
         WHERE p.booking_id = pr.booking_id
@@ -166,6 +222,7 @@ export async function isBookingPaymentProofProcessed(recordId: string): Promise<
  * close all orphaned queue artifacts.
  */
 export async function reconcileBookingPaymentReviewQueue(): Promise<PaymentReviewReconciliationReport> {
+  const supersededOrphanBookings = await supersedeOrphanOpenBookingsWithNewerStay();
   const linkedOrphanRecords = await linkOrphanBookingPaymentRecords();
 
   const staleRows = await db.execute<{ id: string; booking_id: string }>(sql`
@@ -186,6 +243,7 @@ export async function reconcileBookingPaymentReviewQueue(): Promise<PaymentRevie
   const artifactCleanup = await closeOrphanPaymentReviewArtifacts(activeKeys);
 
   return {
+    supersededOrphanBookings,
     linkedOrphanRecords,
     finalizedStaleRecords: staleRows.length,
     ...artifactCleanup,

@@ -57,11 +57,11 @@ describe('superseded booking architecture wiring', () => {
     assert.match(booking, /supersedePriorOpenBookingsForConfirmedBooking/);
   });
 
-  test('stale payment review SQL covers superseded status and newer confirmed booking', () => {
+  test('stale payment review SQL covers superseded status and newer confirmed/completed booking', () => {
     const ssot = read('src/lib/operations/paymentReviewSsot.ts');
     assert.match(ssot, /b\.status = 'superseded'/);
     assert.match(ssot, /FROM bookings newer/);
-    assert.match(ssot, /newer\.status = 'confirmed'/);
+    assert.match(ssot, /newer\.status IN \('confirmed', 'completed'\)/);
   });
 
   test('qr payment review blocks ineligible superseded booking proofs', () => {
@@ -86,8 +86,20 @@ describe('Kunal scenario — pending older booking must not pass eligibility', (
     // After supersedeBooking marks 0044 superseded, queue must exclude it.
     assert.equal(isBookingCheckoutEligibleForPaymentReview('superseded'), false);
 
-    // Stale SQL includes newer-confirmed branch as safety net before status flip.
+    // Stale SQL includes newer confirmed/completed branch as safety net before status flip.
     const ssot = read('src/lib/operations/paymentReviewSsot.ts');
     assert.match(ssot, /newer\.created_at > b\.created_at/);
+    assert.match(ssot, /newer\.status IN \('confirmed', 'completed'\)/);
+  });
+
+  test('reconciliation supersedes orphan open bookings on queue load', () => {
+    const recon = read('src/services/paymentReviewReconciliation.ts');
+    assert.match(recon, /supersedeOrphanOpenBookingsWithNewerStay/);
+  });
+
+  test('booking approval sync excludes orphan open bookings superseded by newer stay', () => {
+    const ops = read('src/services/unifiedOperationsQueue.ts');
+    assert.match(ops, /openBookingRowSupersededByNewerAnchoredStaySql/);
+    assert.match(ops, /not\(openBookingRowSupersededByNewerAnchoredStaySql\)/);
   });
 });

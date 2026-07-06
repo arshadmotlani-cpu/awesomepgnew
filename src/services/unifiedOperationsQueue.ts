@@ -2,7 +2,7 @@
  * Operations action center — eight admin queues, one action per row.
  */
 
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray, not, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { bedReservations, beds, bookings, customers, floors, pgs, rooms } from '@/src/db/schema';
 import type { AdminSession } from '@/src/lib/auth/session';
@@ -44,6 +44,7 @@ import { loadMoveOutPipelineBundle } from '@/src/services/moveOutPipelineService
 import { loadResidentOperationsResidentsPage } from '@/src/services/residentOperationsResidentsPage';
 import { repairTerminalCheckoutOperations } from '@/src/services/terminalCheckoutOperationsRepair';
 import { resolveTerminalCheckoutUnresolvedActions } from '@/src/services/unresolvedActionSync';
+import { openBookingRowSupersededByNewerAnchoredStaySql } from '@/src/lib/operations/paymentReviewSsot';
 import { cache } from 'react';
 import { adminRequestScopeKey } from '@/src/lib/admin/adminRequestCache';
 
@@ -307,7 +308,12 @@ export async function listPendingBookingApprovalsForSync(session: AdminSession) 
     .innerJoin(rooms, eq(rooms.id, beds.roomId))
     .innerJoin(floors, eq(floors.id, rooms.floorId))
     .innerJoin(pgs, eq(pgs.id, floors.pgId))
-    .where(eq(bookings.status, 'pending_approval'));
+    .where(
+      and(
+        eq(bookings.status, 'pending_approval'),
+        not(openBookingRowSupersededByNewerAnchoredStaySql),
+      ),
+    );
 
   const byBooking = new Map<string, (typeof rows)[number]>();
   for (const row of rows) {
