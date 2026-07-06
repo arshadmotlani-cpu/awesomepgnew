@@ -38,6 +38,10 @@ import { classifyDatabaseError } from '@/src/lib/db/connectionOptions';
 import { getDatabaseHost, getDatabaseUrlSource } from '@/src/lib/db/env';
 import { todayString } from '@/src/lib/dates';
 import { resolveBedOccupancy } from '@/src/lib/bedOccupancyResolve';
+import {
+  RESERVATION_REQUEST_INTEREST_PAIR_SQL,
+  UNDER_REVIEW_RESERVATION_PAIR_SQL,
+} from '@/src/lib/reservationBlocking';
 import { getPgAvailabilitySummaries, getRoomAvailabilitySummaries } from '@/src/services/availabilityService';
 import { logger } from '@/src/lib/logger';
 import { safeQuery } from '@/src/lib/healing/safeQuery';
@@ -481,8 +485,8 @@ export function getRoomDetail(
           FROM ${bedReservations} br
           INNER JOIN ${bookings} bk ON bk.id = br.booking_id
           WHERE br.bed_id = beds.id
-            AND br.status = 'under_review'
-            AND bk.status = 'pending_approval'
+            AND br.kind = 'primary'
+            AND (${sql.raw(RESERVATION_REQUEST_INTEREST_PAIR_SQL)})
             AND ${refDate}::date <@ br.stay_range
         ), 0)`,
         underReviewBlocked: sql<boolean>`EXISTS (
@@ -490,8 +494,8 @@ export function getRoomDetail(
           FROM ${bedReservations} br
           INNER JOIN ${bookings} bk ON bk.id = br.booking_id
           WHERE br.bed_id = beds.id
-            AND br.status = 'under_review'
-            AND bk.status = 'pending_approval'
+            AND br.kind = 'primary'
+            AND (${sql.raw(UNDER_REVIEW_RESERVATION_PAIR_SQL)})
             AND ${refDate}::date <@ br.stay_range
         )`,
         noticeInterestCount: sql<number>`coalesce((

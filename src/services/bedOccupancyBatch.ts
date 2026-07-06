@@ -15,6 +15,10 @@ import {
 } from '@/src/db/schema';
 import { bedOccupiedTodayExistsSql } from '@/src/lib/occupancySsot';
 import {
+  RESERVATION_REQUEST_INTEREST_PAIR_SQL,
+  UNDER_REVIEW_RESERVATION_PAIR_SQL,
+} from '@/src/lib/reservationBlocking';
+import {
   aggregateOccupancyCounts,
   rawFactsToInput,
   resolveBedOccupancy,
@@ -172,6 +176,24 @@ export async function fetchBedOccupancyRows(
           END
         )
       )`,
+      holdInterestCount: sql<number>`coalesce((
+        SELECT count(distinct bk.id)::int
+        FROM ${bedReservations} br
+        INNER JOIN ${bookings} bk ON bk.id = br.booking_id
+        WHERE br.bed_id = beds.id
+          AND br.kind = 'primary'
+          AND (${sql.raw(RESERVATION_REQUEST_INTEREST_PAIR_SQL)})
+          AND ${refDate}::date <@ br.stay_range
+      ), 0)`,
+      underReviewRequest: sql<boolean>`EXISTS (
+        SELECT 1
+        FROM ${bedReservations} br
+        INNER JOIN ${bookings} bk ON bk.id = br.booking_id
+        WHERE br.bed_id = beds.id
+          AND br.kind = 'primary'
+          AND (${sql.raw(UNDER_REVIEW_RESERVATION_PAIR_SQL)})
+          AND ${refDate}::date <@ br.stay_range
+      )`,
     })
     .from(beds)
     .innerJoin(rooms, eq(rooms.id, beds.roomId))
@@ -200,6 +222,8 @@ export async function fetchBedOccupancyRows(
     vacatingStatus: row.vacatingStatus,
     reservedFrom: row.reservedFrom,
     activeBedReserveCheckIn: row.activeBedReserveCheckIn,
+    holdInterestCount: row.holdInterestCount,
+    underReviewRequest: row.underReviewRequest,
   }));
 }
 

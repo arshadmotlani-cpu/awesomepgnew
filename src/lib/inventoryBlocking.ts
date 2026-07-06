@@ -55,7 +55,7 @@ export async function bedBlocksInventory(input: BedBlocksInventoryInput): Promis
     .where(
       and(
         eq(bedReservations.bedId, input.bedId),
-        sql`${bedReservations.status} IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
+        sql`${bedReservations.status}::text IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
         sql`${bookings.status} IN ${sql.raw(BLOCKING_BOOKING_STATUSES_SQL)}`,
         eq(bedReservations.kind, 'primary'),
         rangeOverlap,

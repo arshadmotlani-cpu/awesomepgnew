@@ -740,7 +740,7 @@ export async function shiftBookingToReservation(
     .where(
       and(
         eq(bedReservations.bedId, ctx.bedId),
-        sql`${bedReservations.status} IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
+        sql`${bedReservations.status}::text IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
         sql`${bedReservations.stayRange} && daterange(${moveInDate}::date, NULL, '[)')`,
         sql`${bedReservations.bookingId} <> ${input.bookingId}`,
       ),
@@ -882,7 +882,7 @@ export async function updateBookingMoveInDate(
     .where(
       and(
         eq(bedReservations.bedId, ctx.bedId),
-        sql`${bedReservations.status} IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
+        sql`${bedReservations.status}::text IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
         overlapSql,
         sql`${bedReservations.bookingId} <> ${input.bookingId}`,
       ),

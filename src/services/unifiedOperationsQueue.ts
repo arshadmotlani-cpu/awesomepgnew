@@ -318,7 +318,7 @@ export async function listPendingBookingApprovalsForSync(session: AdminSession) 
         sql`NOT EXISTS (
           SELECT 1 FROM bed_reservations br2
           WHERE br2.booking_id = ${bookings.id}
-            AND br2.status = 'under_review'
+            AND br2.status::text = 'under_review'
         )`,
       ),
     );

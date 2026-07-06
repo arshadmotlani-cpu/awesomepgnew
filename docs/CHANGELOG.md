@@ -256,35 +256,20 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-06 17:29:38 UTC
+### Pending pre-commit sync · 2026-07-06 17:42:27 UTC
 
-**Areas touched:** [[ROUTES]], [[DATABASE]], [[Bookings]], [[Bed Assignment]]
+**Areas touched:** [[Bed Assignment]], [[Residents]]
 
 **Docs flagged for review:**
 - `CHANGELOG.md` — review for accuracy
-- `DATABASE.md` — review for accuracy
 - `DECISIONS.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
-- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (15):**
-- `app/(customer)/account/resident/room-change-actions.ts`
-- `app/(customer)/booking/new/actions.ts`
-- `app/api/cron/release-holds/route.ts`
-- `src/db/migrations/0107_reservation_under_review.sql`
-- `src/db/migrations/0108_reservation_overlap_under_review.sql`
-- `src/db/migrations/0109_reservation_lifecycle_backfill.sql`
-- `src/db/migrations/0110_bed_waitlist_entries.sql`
-- `src/db/schema/bedWaitlistEntries.ts`
-- `src/db/schema/bookings.ts`
-- `src/db/schema/enums.ts`
-- `src/db/schema/index.ts`
-- `src/services/booking.ts`
-- `src/services/bookingAdminOps.ts`
-- `src/services/bookingLifecycle.ts`
+**Staged code files (2):**
 - `src/services/pgBedMap.ts`
+- `src/services/residentAdmin.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

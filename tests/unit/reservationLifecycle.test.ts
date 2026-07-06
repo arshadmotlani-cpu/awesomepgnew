@@ -59,4 +59,5 @@ test('public room detail uses bedOccupancyEngine with under-review input', () =>
   const src = read('src/db/queries/customer.ts');
   assert.match(src, /resolveBedOccupancy/);
   assert.match(src, /underReviewRequest/);
+  assert.match(src, /UNDER_REVIEW_RESERVATION_PAIR_SQL/);
 });

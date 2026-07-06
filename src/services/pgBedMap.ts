@@ -527,7 +527,7 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
       INNER JOIN bookings bk ON bk.id = br.booking_id
       INNER JOIN customers c ON c.id = bk.customer_id
       WHERE br.bed_id = b.id
-        AND br.status = 'under_review'
+        AND br.status::text = 'under_review'
         AND br.kind = 'primary'
         AND bk.status = 'pending_approval'
       ORDER BY br.created_at DESC

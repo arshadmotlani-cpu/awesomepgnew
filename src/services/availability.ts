@@ -337,7 +337,7 @@ export async function getBedAvailabilityTimeline(
     .where(
       and(
         eq(bedReservations.bedId, input.bedId),
-        sql`${bedReservations.status} IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
+        sql`${bedReservations.status}::text IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
         eq(bookings.status, 'confirmed'),
         sql`${bedReservations.stayRange} && daterange(${ws}::date, ${we}::date, '[)')`,
       ),
@@ -480,7 +480,7 @@ async function loadBusyRanges(
     .where(
       and(
         eq(bedReservations.bedId, bedId),
-        sql`${bedReservations.status} IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
+        sql`${bedReservations.status}::text IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
         eq(bookings.status, 'confirmed'),
         sql`${bedReservations.stayRange} && daterange(${ws}::date, ${we}::date, '[)')`,
       ),
@@ -611,7 +611,7 @@ export async function getPgAvailability(
       .where(
         and(
           sql`${bedReservations.bedId} = ANY(${sql.raw(`'{${bedIds.join(',')}}'::uuid[]`)})`,
-          sql`${bedReservations.status} IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
+          sql`${bedReservations.status}::text IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
           eq(bookings.status, 'confirmed'),
           sql`${bedReservations.stayRange} && daterange(${startIso}::date, ${horizonIso}::date, '[)')`,
         ),

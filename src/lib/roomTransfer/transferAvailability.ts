@@ -70,7 +70,7 @@ export async function findApprovedVacatingOnBed(
     .where(
       and(
         eq(bedReservations.bedId, bedId),
-        sql`${bedReservations.status} IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
+        sql`${bedReservations.status}::text IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
         eq(bookings.status, 'confirmed'),
         eq(vacatingRequests.status, 'approved'),
       ),
@@ -124,7 +124,7 @@ export async function classifyTransferAvailability(
       .where(
         and(
           eq(bedReservations.bedId, bedId),
-          sql`${bedReservations.status} IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
+          sql`${bedReservations.status}::text IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
           eq(bookings.status, 'confirmed'),
           sql`CURRENT_DATE <@ ${bedReservations.stayRange}`,
         ),

@@ -161,7 +161,7 @@ async function bedHasFuturePreBook(bedId: string, fromDate: string): Promise<boo
     .where(
       and(
         eq(bedReservations.bedId, bedId),
-        sql`${bedReservations.status} IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
+        sql`${bedReservations.status}::text IN ${sql.raw(BLOCKING_RESERVATION_STATUS_SQL)}`,
         eq(bookings.status, 'confirmed'),
         sql`lower(${bedReservations.stayRange}) > ${fromDate}::date`,
       ),
