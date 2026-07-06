@@ -1,10 +1,5 @@
 -- Bed reserve draft-first lifecycle: holds block inventory only after proof (under_review).
 
-DO $$ BEGIN
-  ALTER TYPE bed_reserve_status ADD VALUE IF NOT EXISTS 'under_review';
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
 DROP INDEX IF EXISTS bed_reserve_holds_one_active_per_bed;
 
 CREATE UNIQUE INDEX bed_reserve_holds_one_active_per_bed
