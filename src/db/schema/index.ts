@@ -65,6 +65,7 @@ export * from './pgPriceRevisions';
 export * from './sidebarLayouts';
 export * from './referrals';
 export * from './roomChangeRequests';
+export * from './roomTransferBedHolds';
 export * from './operationsQueueDismissals';
 export * from './userNotifications';
 export * from './paymentProofRejections';

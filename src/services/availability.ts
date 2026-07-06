@@ -192,6 +192,8 @@ export type IsBedAvailableInput = {
 export type IsBedAvailableOptions = {
   /** Admin assignment clears manual marks first; listing assignable beds skips this flag. */
   ignoreManualOccupied?: boolean;
+  /** Internal: classifyTransferAvailability calls isBedAvailable without hold recursion. */
+  skipRoomTransferHoldCheck?: boolean;
 };
 
 export async function isBedAvailable(
@@ -211,6 +213,13 @@ export async function isBedAvailable(
     .limit(1);
   if (!bed || bed.archivedAt || bed.status !== 'available') return false;
   // Reservations are SSOT — manualOccupied is legacy admin mark only, not operational.
+
+  if (!options?.skipRoomTransferHoldCheck) {
+    const { bedHasActiveRoomTransferHold } = await import(
+      '@/src/lib/roomTransfer/transferAvailability'
+    );
+    if (await bedHasActiveRoomTransferHold(input.bedId)) return false;
+  }
 
   const rangeOverlap =
     input.endDate == null

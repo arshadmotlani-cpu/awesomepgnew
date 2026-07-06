@@ -2,9 +2,10 @@
  * Room shift quote engine — SSOT for resident room change pricing.
  */
 
-import { todayString, parseDate, formatDate, addDays } from '@/src/lib/dates';
+import { parseDate, formatDate, addDays } from '@/src/lib/dates';
 import { billingDayFromMoveIn, prorateForMonth } from '@/src/services/billing';
 import { computeMonthlyDepositPaise, loadBedPrice } from '@/src/services/pricing';
+import type { TransferAvailabilityScenario } from '@/src/lib/roomTransfer/transferAvailability';
 
 export const ROOM_SHIFT_FEE_PAISE = 10_000; // ₹100
 
@@ -16,6 +17,10 @@ export type RoomShiftQuoteLine = {
 
 export type RoomShiftQuoteSnapshot = {
   shiftDate: string;
+  transferMode: 'immediate' | 'scheduled';
+  transferLabel: 'Immediate' | 'Scheduled';
+  occupantCheckoutDate?: string;
+  expectedTransferDate: string;
   fromBedId: string;
   toBedId: string;
   oldMonthlyRentPaise: number;
@@ -59,8 +64,9 @@ export async function computeRoomShiftQuote(input: {
   oldMonthlyRentPaise: number;
   depositHeldPaise: number;
   moveInDate: string;
+  scenario: TransferAvailabilityScenario;
 }): Promise<RoomShiftQuoteSnapshot> {
-  const shiftDate = input.shiftDate ?? todayString();
+  const shiftDate = input.shiftDate ?? input.scenario.expectedTransferDate;
   const newPrice = await loadBedPrice(input.toBedId, shiftDate);
   if (!newPrice) {
     throw new Error('Could not load pricing for target bed.');
@@ -110,6 +116,10 @@ export async function computeRoomShiftQuote(input: {
 
   return {
     shiftDate,
+    transferMode: input.scenario.mode,
+    transferLabel: input.scenario.label,
+    occupantCheckoutDate: input.scenario.occupantCheckoutDate,
+    expectedTransferDate: input.scenario.expectedTransferDate,
     fromBedId: input.fromBedId,
     toBedId: input.toBedId,
     oldMonthlyRentPaise: input.oldMonthlyRentPaise,

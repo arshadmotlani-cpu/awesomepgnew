@@ -1,18 +1,22 @@
-import { pgEnum, pgTable, text, timestamp, uuid, bigint, jsonb, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgEnum, pgTable, text, timestamp, uuid, jsonb, index } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { bookings } from './bookings';
 import { customers } from './customers';
 import { beds } from './beds';
 import { adminUsers } from './adminUsers';
+import { vacatingRequests } from './vacatingRequests';
 
 export const roomChangeStatusEnum = pgEnum('room_change_status', [
   'draft',
   'submitted',
   'approved',
+  'waiting',
   'rejected',
   'completed',
   'cancelled',
 ]);
+
+export const roomTransferModeEnum = pgEnum('room_transfer_mode', ['immediate', 'scheduled']);
 
 export const roomChangeRequests = pgTable(
   'room_change_requests',
@@ -32,6 +36,13 @@ export const roomChangeRequests = pgTable(
       .references(() => beds.id, { onDelete: 'restrict' }),
     requestedShiftDate: text('requested_shift_date').notNull(),
     quoteSnapshot: jsonb('quote_snapshot').notNull(),
+    transferMode: roomTransferModeEnum('transfer_mode'),
+    occupantCheckoutDate: text('occupant_checkout_date'),
+    expectedTransferDate: text('expected_transfer_date'),
+    sourceVacatingRequestId: uuid('source_vacating_request_id').references(
+      () => vacatingRequests.id,
+      { onDelete: 'set null' },
+    ),
     status: roomChangeStatusEnum('status').notNull().default('submitted'),
     adminNotes: text('admin_notes'),
     reviewedByAdminId: uuid('reviewed_by_admin_id').references(() => adminUsers.id, {
@@ -44,6 +55,7 @@ export const roomChangeRequests = pgTable(
   (t) => [
     index('room_change_requests_booking_idx').on(t.bookingId),
     index('room_change_requests_status_idx').on(t.status),
+    index('room_change_requests_to_bed_status_idx').on(t.toBedId, t.status),
   ],
 );
 

@@ -256,18 +256,27 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-06 16:04:00 UTC
+### Pending pre-commit sync · 2026-07-06 16:23:12 UTC
 
-**Areas touched:** [[DATABASE]]
+**Areas touched:** [[ROUTES]], [[DATABASE]], [[Vacating]]
 
 **Docs flagged for review:**
 - `CHANGELOG.md` — review for accuracy
 - `DATABASE.md` — review for accuracy
+- `DECISIONS.md` — review for accuracy
+- `PROJECT/features.md` — review for accuracy
+- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
+- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (2):**
-- `src/db/migrations/0105_supersede_orphan_open_bookings_completed_anchor.sql`
-- `src/db/migrations/meta/_journal.json`
+**Staged code files (7):**
+- `app/(admin)/admin/room-change-actions.ts`
+- `app/(customer)/account/resident/room-change-actions.ts`
+- `src/db/migrations/0106_room_transfer_availability.sql`
+- `src/db/schema/index.ts`
+- `src/db/schema/roomChangeRequests.ts`
+- `src/db/schema/roomTransferBedHolds.ts`
+- `src/services/vacating.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

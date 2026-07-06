@@ -609,6 +609,14 @@ export async function rejectVacatingRequest(input: {
     context: 'reject',
   });
 
+  const { revertScheduledTransfersOnVacatingCancel } = await import(
+    '@/src/services/roomTransferLifecycle'
+  );
+  await revertScheduledTransfersOnVacatingCancel({
+    vacatingRequestId: input.requestId,
+    reason: 'Occupant vacating notice was rejected — scheduled room transfer is on hold.',
+  });
+
   scheduleAdminNotificationSync();
 
   return { ok: true, request: updated };
@@ -632,6 +640,14 @@ export async function cancelVacatingRequestByCustomer(input: {
   if (current.status !== 'pending') {
     return { ok: false, kind: 'wrong_status', status: current.status };
   }
+
+  const { revertScheduledTransfersOnVacatingCancel } = await import(
+    '@/src/services/roomTransferLifecycle'
+  );
+  await revertScheduledTransfersOnVacatingCancel({
+    vacatingRequestId: input.requestId,
+    reason: 'Occupant withdrew vacating notice — scheduled room transfer is on hold.',
+  });
 
   await db.delete(vacatingRequests).where(eq(vacatingRequests.id, current.id));
 
