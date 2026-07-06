@@ -27,8 +27,9 @@ export async function createBedReserveAction(
     return { status: 'error', message: 'Missing reserve details.' };
   }
 
+  let result;
   try {
-    const result = await createBedReserve({
+    result = await createBedReserve({
       bedId,
       customerId: session.customerId,
       reserveStart,
@@ -40,11 +41,12 @@ export async function createBedReserveAction(
         gender: customer.gender,
       },
     });
-    redirect(`/booking/${result.bookingCode}/pay`);
   } catch (err) {
     return {
       status: 'error',
       message: err instanceof Error ? err.message : 'Could not create reserve.',
     };
   }
+
+  redirect(`/booking/${result.bookingCode}/pay`);
 }
