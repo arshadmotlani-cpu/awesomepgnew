@@ -79,6 +79,14 @@ export const env = {
   get BOOKING_HOLD_MINUTES() {
     return optionalInt('BOOKING_HOLD_MINUTES', 15);
   },
+  /** Server-persisted reservation draft TTL (bed reserve + booking checkout). Default 24h. */
+  get RESERVATION_DRAFT_TTL_HOURS() {
+    return optionalInt('RESERVATION_DRAFT_TTL_HOURS', 24);
+  },
+  /** Under-review reservation auto-expiry after proof submit. Default 48h. */
+  get RESERVATION_REVIEW_TTL_HOURS() {
+    return optionalInt('RESERVATION_REVIEW_TTL_HOURS', 48);
+  },
   /** Razorpay credentials. Only required when PAYMENT_PROVIDER=razorpay. */
   get RAZORPAY_KEY_ID() {
     return optional('RAZORPAY_KEY_ID');

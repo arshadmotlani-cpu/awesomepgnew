@@ -182,6 +182,9 @@ export const bookings = pgTable(
     blocksRoomAvailability: boolean('blocks_room_availability').notNull().default(false),
     draftExpiresAt: timestamp('draft_expires_at', { withTimezone: true }),
     rejectionReason: text('rejection_reason'),
+    reservationReviewReminderAt: timestamp('reservation_review_reminder_at', {
+      withTimezone: true,
+    }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

@@ -1,13 +1,25 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
-import { createBedReserve } from '@/src/services/bedReserve';
+import {
+  cancelBedReserveDraftByCustomer,
+  createBedReserve,
+} from '@/src/services/bedReserve';
 import { getCustomerById } from '@/src/services/profile';
 
 export type ReserveActionState =
   | { status: 'idle' }
   | { status: 'error'; message: string };
+
+export async function cancelBedReserveDraftAction(bookingId: string): Promise<void> {
+  const session = await requireCustomerSession('/account/bookings');
+  await cancelBedReserveDraftByCustomer(bookingId, session.customerId);
+  revalidatePath('/reserve/new');
+  revalidatePath('/pgs');
+  redirect('/pgs');
+}
 
 export async function createBedReserveAction(
   _prev: ReserveActionState,

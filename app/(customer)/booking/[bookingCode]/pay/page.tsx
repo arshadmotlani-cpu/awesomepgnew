@@ -61,7 +61,11 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
   const customer = await getCustomerById(session.customerId);
   const profileComplete = customer ? isProfileComplete(customer) : false;
 
-  if (booking.status !== 'pending_payment' && booking.status !== 'pending_approval') {
+  if (
+    booking.status !== 'draft' &&
+    booking.status !== 'pending_payment' &&
+    booking.status !== 'pending_approval'
+  ) {
     if (booking.status === 'confirmed') {
       redirect(`/booking/${booking.bookingCode}/payment-success`);
     }

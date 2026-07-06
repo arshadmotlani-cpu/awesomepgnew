@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { getCustomerSession } from '@/src/lib/auth/session';
 import { quoteBedReserve } from '@/src/services/bedReserve';
 
 export const dynamic = 'force-dynamic';
@@ -17,10 +18,12 @@ export async function GET(
     );
   }
   try {
+    const session = await getCustomerSession();
     const data = await quoteBedReserve({
       bedId,
       reserveStart: start,
       checkInDate: checkIn,
+      customerId: session?.customerId,
     });
     return Response.json({ ok: true, data });
   } catch (err) {

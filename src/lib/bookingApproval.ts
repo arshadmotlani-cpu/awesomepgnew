@@ -11,7 +11,7 @@
 
 import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { auditLog, bedReservations, bookings, pgPaymentRecords, rentInvoices } from '@/src/db/schema';
+import { auditLog, bedReservations, bedReserveHolds, bookings, pgPaymentRecords, rentInvoices } from '@/src/db/schema';
 import { isTerminalBookingLifecycleStatus } from '@/src/lib/booking/bookingStatus';
 
 export type BookingApprovalPhase =
@@ -102,6 +102,16 @@ export async function cleanupRejectedBookingRequest(input: {
           eq(bedReservations.bookingId, input.bookingId),
           inArray(bedReservations.status, ['hold', 'under_review', 'active']),
           eq(bedReservations.kind, 'primary'),
+        ),
+      );
+
+    await tx
+      .update(bedReserveHolds)
+      .set({ status: 'cancelled', holdExpiresAt: null, updatedAt: new Date() })
+      .where(
+        and(
+          eq(bedReserveHolds.bookingId, input.bookingId),
+          inArray(bedReserveHolds.status, ['pending_payment', 'under_review', 'active']),
         ),
       );
 

@@ -256,17 +256,29 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-06 18:03:58 UTC
+### Pending pre-commit sync · 2026-07-06 18:24:13 UTC
 
-**Areas touched:** [[ROUTES]]
+**Areas touched:** [[ROUTES]], [[DATABASE]], [[Bookings]]
 
 **Docs flagged for review:**
 - `CHANGELOG.md` — review for accuracy
+- `DATABASE.md` — review for accuracy
+- `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
+- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (1):**
+**Staged code files (10):**
+- `app/(customer)/booking/[bookingCode]/pay/page.tsx`
 - `app/(customer)/reserve/new/actions.ts`
+- `app/(customer)/reserve/new/page.tsx`
+- `app/api/beds/[bedId]/reserve-quote/route.ts`
+- `src/db/migrations/0111_bed_reserve_draft_lifecycle.sql`
+- `src/db/migrations/0112_reservation_lifecycle_ttl.sql`
+- `src/db/migrations/meta/_journal.json`
+- `src/db/schema/bookings.ts`
+- `src/db/schema/enums.ts`
+- `src/services/booking.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

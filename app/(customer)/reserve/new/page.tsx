@@ -1,11 +1,15 @@
 import Link from 'next/link';
 import { ReserveConfirmForm } from '@/src/components/customer/ReserveConfirmForm';
+import { UnfinishedReservationBanner } from '@/src/components/customer/UnfinishedReservationBanner';
 import { getBedsForCart } from '@/src/db/queries/customer';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
-import { quoteBedReserve } from '@/src/services/bedReserve';
+import {
+  getCustomerBedReserveDraft,
+  quoteBedReserve,
+} from '@/src/services/bedReserve';
 import { getCustomerById, isProfileComplete } from '@/src/services/profile';
 import { ReserveQuoteBreakdown } from '@/src/components/customer/ReserveQuoteBreakdown';
-import { paiseToInr, formatDate } from '@/src/lib/format';
+import { formatDate } from '@/src/lib/format';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,14 +55,31 @@ export default async function NewReservePage(props: PageProps<'/reserve/new'>) {
     );
   }
 
+  const existingDraft = await getCustomerBedReserveDraft(session.customerId, bedId);
+
   let quote;
   try {
     quote = await quoteBedReserve({
       bedId,
       reserveStart: sp.start,
       checkInDate: sp.checkIn,
+      customerId: session.customerId,
     });
   } catch (err) {
+    if (existingDraft) {
+      return (
+        <main className="mx-auto max-w-lg px-4 py-10 sm:px-6">
+          <h1 className="text-2xl font-semibold text-zinc-900">Confirm bed reserve</h1>
+          <div className="mt-6">
+            <UnfinishedReservationBanner
+              bookingCode={existingDraft.bookingCode}
+              bookingId={existingDraft.id}
+              variant="light"
+            />
+          </div>
+        </main>
+      );
+    }
     return (
       <main className="mx-auto max-w-lg px-4 py-12">
         <p className="text-sm text-rose-700">
@@ -70,6 +91,9 @@ export default async function NewReservePage(props: PageProps<'/reserve/new'>) {
 
   const beds = await getBedsForCart([bedId]);
   const bed = beds.ok ? beds.data[0] : null;
+  const showDraftBanner =
+    existingDraft?.bookingCode &&
+    (quote.existingDraft || quote.resumePayment || existingDraft);
 
   return (
     <main className="mx-auto max-w-lg px-4 py-10 sm:px-6">
@@ -77,6 +101,16 @@ export default async function NewReservePage(props: PageProps<'/reserve/new'>) {
       <p className="mt-2 text-sm text-zinc-600">
         Bed {bed?.bedCode ?? '—'} · check-in {formatDate(quote.checkInDate)}
       </p>
+
+      {showDraftBanner && existingDraft ? (
+        <div className="mt-4">
+          <UnfinishedReservationBanner
+            bookingCode={existingDraft.bookingCode}
+            bookingId={existingDraft.id}
+            variant="light"
+          />
+        </div>
+      ) : null}
 
       <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
         <ReserveQuoteBreakdown quote={quote} variant="light" />

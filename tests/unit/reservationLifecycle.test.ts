@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { deriveBookingApprovalPhase } from '@/src/lib/bookingApproval';
 import { customerBookingBannerCopy } from '@/src/lib/booking/bookingStatus';
-import { bedReserveHoldBlocksInventory } from '@/src/services/bedReserve';
+import { bedReserveHoldBlocksInventory } from '@/src/lib/reservationLifecycle/constants';
 import { BOOKING_AWAITING_PAYMENT_REVIEW_STATUSES } from '@/src/lib/operations/paymentReviewSsot';
 
 const root = join(process.cwd());
@@ -27,6 +27,7 @@ test('customer banner — pending approval shows under-review headline', () => {
 
 test('bedReserveHoldBlocksInventory — proof-gated blocking', () => {
   assert.equal(bedReserveHoldBlocksInventory({ status: 'pending_payment' }), false);
+  assert.equal(bedReserveHoldBlocksInventory({ status: 'under_review' }), true);
   assert.equal(
     bedReserveHoldBlocksInventory({ status: 'pending_payment', paymentProofUrl: 'proof.png' }),
     true,
@@ -44,15 +45,17 @@ test('reservation request service emits lifecycle audit actions', () => {
   assert.match(src, /draft_abandoned/);
 });
 
-test('bed reserve proof submit moves to under-review blocking', () => {
+test('bed reserve proof submit creates hold at under_review', () => {
   const src = read('src/services/bedReserve.ts');
   assert.match(src, /activateBedReserveRequestForBooking/);
-  assert.match(src, /reservation_request_submitted/);
+  assert.match(src, /status: 'under_review'/);
+  assert.match(src, /status: 'draft'/);
 });
 
-test('cleanupRejectedBookingRequest cancels under_review reservations', () => {
+test('cleanupRejectedBookingRequest cancels under_review reservations and bed holds', () => {
   const src = read('src/lib/bookingApproval.ts');
   assert.match(src, /under_review/);
+  assert.match(src, /bedReserveHolds/);
 });
 
 test('public room detail uses bedOccupancyEngine with under-review input', () => {

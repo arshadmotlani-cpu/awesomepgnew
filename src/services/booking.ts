@@ -559,7 +559,7 @@ export async function createBooking(
   const reservationStatus: 'active' | null = isAdminCreated ? 'active' : null;
   const draftExpiresAt: Date | null = isAdminCreated
     ? null
-    : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    : (await import('@/src/lib/reservationLifecycle')).draftExpiresAtFromNow();
   const holdExpiresAt = null as Date | null;
 
   let lastErr: unknown = null;

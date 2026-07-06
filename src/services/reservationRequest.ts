@@ -16,11 +16,12 @@ import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import { bedBlocksInventory } from '@/src/lib/inventoryBlocking';
 import { formatDate, parseDate } from '@/src/lib/dates';
 import { scheduleAdminNotificationSync } from '@/src/services/adminLiveSync';
+import { draftExpiresAtFromNow, reviewExpiresAtFromNow } from '@/src/lib/reservationLifecycle';
 
-const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+export { draftExpiresAtFromNow };
 
-export function draftExpiresAtFromNow(): Date {
-  return new Date(Date.now() + DRAFT_TTL_MS);
+export function reviewExpiresAtForReservation(): Date {
+  return reviewExpiresAtFromNow();
 }
 
 function bedIdsFromSnapshot(snapshot: PricingSnapshot | null | undefined): string[] {
@@ -112,7 +113,7 @@ export async function activateReservationRequestForBooking(bookingId: string): P
       return;
     }
 
-    const reviewHoldUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const reviewHoldUntil = reviewExpiresAtForReservation();
 
     if (existing.length > 0) {
       await tx

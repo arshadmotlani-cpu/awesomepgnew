@@ -79,6 +79,7 @@ export type StayType = (typeof stayTypeEnum.enumValues)[number];
 
 export const bedReserveStatusEnum = pgEnum('bed_reserve_status', [
   'pending_payment',
+  'under_review',
   'active',
   'expired',
   'cancelled',

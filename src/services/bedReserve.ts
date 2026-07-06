@@ -29,11 +29,15 @@ import {
 } from '../lib/dates';
 import { nextReserveCode } from '../lib/reserveCode';
 import { BLOCKING_RESERVATION_STATUS_SQL } from '../lib/reservationBlocking';
+import { bedReserveHoldBlocksInventory } from '@/src/lib/reservationLifecycle/constants';
+import { draftExpiresAtFromNow, reviewExpiresAtFromNow } from '@/src/lib/reservationLifecycle/ttl';
 import { env } from '../lib/env';
 import { computeReservePricing } from '../lib/pricing/reservePricing';
 import { loadBedPrice, quoteBedPrice, type PricingMode } from './pricing';
 import { stayTypeFromPricingMode } from '../lib/stayType';
 import { ensureBillingProfileForBooking } from './residentBillingProfiles';
+
+import type { PricingSnapshot } from '../db/schema/bookings';
 
 export type ActiveBedReserve = {
   id: string;
@@ -43,18 +47,14 @@ export type ActiveBedReserve = {
   reserveStart: string;
   checkInDate: string;
   bufferDate: string;
-  status: 'pending_payment' | 'active' | 'expired' | 'cancelled' | 'converted';
+  status: 'pending_payment' | 'under_review' | 'active' | 'expired' | 'cancelled' | 'converted';
   paymentProofUrl?: string | null;
 };
 
-/** Reserve holds that block inventory — approved (active) or under review (proof submitted). */
-export function bedReserveHoldBlocksInventory(hold: {
-  status: string;
-  paymentProofUrl?: string | null;
-}): boolean {
-  if (hold.status === 'active') return true;
-  if (hold.status === 'pending_payment' && Boolean(hold.paymentProofUrl?.trim())) return true;
-  return false;
+export { bedReserveHoldBlocksInventory };
+
+function bedIdFromReserveSnapshot(snapshot: PricingSnapshot | null | undefined): string | null {
+  return snapshot?.perBed?.[0]?.bedId ?? null;
 }
 
 export type EffectiveBedReserveWindow = {
@@ -113,6 +113,47 @@ async function countReservesInYear(year: number): Promise<number> {
   return row?.count ?? 0;
 }
 
+export async function getInventoryBlockingReserveForBed(
+  bedId: string,
+): Promise<ActiveBedReserve | null> {
+  const [row] = await db
+    .select({
+      id: bedReserveHolds.id,
+      reserveCode: bedReserveHolds.reserveCode,
+      bedId: bedReserveHolds.bedId,
+      customerId: bedReserveHolds.customerId,
+      reserveStart: bedReserveHolds.reserveStart,
+      checkInDate: bedReserveHolds.checkInDate,
+      status: bedReserveHolds.status,
+      paymentProofUrl: bedReserveHolds.paymentProofUrl,
+    })
+    .from(bedReserveHolds)
+    .where(
+      and(
+        eq(bedReserveHolds.bedId, bedId),
+        sql`(
+          ${bedReserveHolds.status}::text IN ('under_review', 'active')
+          OR (
+            ${bedReserveHolds.status}::text = 'pending_payment'
+            AND ${bedReserveHolds.paymentProofUrl} IS NOT NULL
+            AND trim(${bedReserveHolds.paymentProofUrl}) <> ''
+          )
+        )`,
+      ),
+    )
+    .orderBy(desc(bedReserveHolds.createdAt))
+    .limit(1);
+  if (!row) return null;
+  return {
+    ...row,
+    reserveStart: String(row.reserveStart),
+    checkInDate: String(row.checkInDate),
+    bufferDate: reserveBufferDate(String(row.checkInDate)),
+    status: row.status,
+  };
+}
+
+/** @deprecated Use getInventoryBlockingReserveForBed — kept for legacy unpaid hold resume. */
 export async function getActiveReserveForBed(bedId: string): Promise<ActiveBedReserve | null> {
   const [row] = await db
     .select({
@@ -129,7 +170,7 @@ export async function getActiveReserveForBed(bedId: string): Promise<ActiveBedRe
     .where(
       and(
         eq(bedReserveHolds.bedId, bedId),
-        inArray(bedReserveHolds.status, ['pending_payment', 'active']),
+        inArray(bedReserveHolds.status, ['pending_payment', 'under_review', 'active']),
       ),
     )
     .orderBy(desc(bedReserveHolds.createdAt))
@@ -142,15 +183,6 @@ export async function getActiveReserveForBed(bedId: string): Promise<ActiveBedRe
     bufferDate: reserveBufferDate(String(row.checkInDate)),
     status: row.status,
   };
-}
-
-/** Inventory-blocking reserve on a bed (active or pending with proof). */
-export async function getInventoryBlockingReserveForBed(
-  bedId: string,
-): Promise<ActiveBedReserve | null> {
-  const hold = await getActiveReserveForBed(bedId);
-  if (!hold || !bedReserveHoldBlocksInventory(hold)) return null;
-  return hold;
 }
 
 async function bedHasFuturePreBook(bedId: string, fromDate: string): Promise<boolean> {
@@ -199,10 +231,70 @@ async function earliestReserveStartForBed(bedId: string): Promise<string | null>
   return today;
 }
 
-export async function canOfferBedReserve(bedId: string): Promise<{
+export async function getCustomerBedReserveDraft(
+  customerId: string,
+  bedId?: string,
+): Promise<{
+  id: string;
+  bookingCode: string;
+  bedId: string;
+  reserveStart: string;
+  checkInDate: string;
+} | null> {
+  const rows = await db
+    .select({
+      id: bookings.id,
+      bookingCode: bookings.bookingCode,
+      pricingSnapshot: bookings.pricingSnapshot,
+      billingAnchorDate: bookings.billingAnchorDate,
+      expectedCheckoutDate: bookings.expectedCheckoutDate,
+      draftExpiresAt: bookings.draftExpiresAt,
+    })
+    .from(bookings)
+    .where(
+      and(
+        eq(bookings.customerId, customerId),
+        eq(bookings.status, 'draft'),
+        eq(bookings.durationMode, 'reserve'),
+        sql`(${bookings.draftExpiresAt} IS NULL OR ${bookings.draftExpiresAt} > now())`,
+      ),
+    )
+    .orderBy(desc(bookings.createdAt));
+
+  for (const row of rows) {
+    const snapBedId = bedIdFromReserveSnapshot(row.pricingSnapshot as PricingSnapshot | null);
+    if (!snapBedId) continue;
+    if (bedId && snapBedId !== bedId) continue;
+    const reserveStart = row.billingAnchorDate
+      ? String(row.billingAnchorDate)
+      : null;
+    const checkInDate = row.expectedCheckoutDate ? String(row.expectedCheckoutDate) : null;
+    if (!reserveStart || !checkInDate) continue;
+    return {
+      id: row.id,
+      bookingCode: row.bookingCode,
+      bedId: snapBedId,
+      reserveStart,
+      checkInDate,
+    };
+  }
+  return null;
+}
+
+export async function canOfferBedReserve(
+  bedId: string,
+  options?: { customerId?: string },
+): Promise<{
   ok: boolean;
   reason?: string;
   earliestStart?: string;
+  existingDraft?: {
+    bookingCode: string;
+    bedId: string;
+    reserveStart: string;
+    checkInDate: string;
+  };
+  resumePayment?: { bookingCode: string };
 }> {
   const [bed] = await db
     .select({ status: beds.status, manualOccupied: beds.manualOccupied })
@@ -216,9 +308,56 @@ export async function canOfferBedReserve(bedId: string): Promise<{
     return { ok: false, reason: 'Bed is not available for reserve.' };
   }
 
-  const existing = await getActiveReserveForBed(bedId);
-  if (existing) {
-    return { ok: false, reason: 'This bed already has an active reserve.' };
+  const blocking = await getInventoryBlockingReserveForBed(bedId);
+  if (blocking) {
+    if (options?.customerId && blocking.customerId === options.customerId) {
+      const [row] = await db
+        .select({ bookingCode: bookings.bookingCode })
+        .from(bookings)
+        .innerJoin(bedReserveHolds, eq(bedReserveHolds.bookingId, bookings.id))
+        .where(eq(bedReserveHolds.id, blocking.id))
+        .limit(1);
+      if (row) {
+        return { ok: true, resumePayment: { bookingCode: row.bookingCode } };
+      }
+    }
+    return {
+      ok: false,
+      reason: 'This bed is reserved and under review.',
+    };
+  }
+
+  if (options?.customerId) {
+    const draft = await getCustomerBedReserveDraft(options.customerId, bedId);
+    if (draft) {
+      return {
+        ok: true,
+        earliestStart: draft.reserveStart,
+        existingDraft: draft,
+      };
+    }
+
+    const legacyHold = await getActiveReserveForBed(bedId);
+    if (
+      legacyHold &&
+      legacyHold.customerId === options.customerId &&
+      legacyHold.status === 'pending_payment' &&
+      !bedReserveHoldBlocksInventory(legacyHold)
+    ) {
+      const [legacyBooking] = await db
+        .select({ bookingCode: bookings.bookingCode })
+        .from(bookings)
+        .innerJoin(bedReserveHolds, eq(bedReserveHolds.bookingId, bookings.id))
+        .where(eq(bedReserveHolds.id, legacyHold.id))
+        .limit(1);
+      if (legacyBooking) {
+        return {
+          ok: true,
+          earliestStart: legacyHold.reserveStart,
+          resumePayment: { bookingCode: legacyBooking.bookingCode },
+        };
+      }
+    }
   }
 
   const manual = await getManualReserveWindow(bedId);
@@ -241,7 +380,9 @@ export type QuoteBedReserveInput = {
   checkInDate: DateLike;
 };
 
-export async function quoteBedReserve(input: QuoteBedReserveInput) {
+export async function quoteBedReserve(
+  input: QuoteBedReserveInput & { customerId?: string },
+) {
   const reserveStart = formatDate(parseDate(input.reserveStart));
   const checkInDate = formatDate(parseDate(input.checkInDate));
   const periodDays = diffDays(parseDate(reserveStart), parseDate(checkInDate));
@@ -256,7 +397,7 @@ export async function quoteBedReserve(input: QuoteBedReserveInput) {
     throw new Error(`Reserve period cannot exceed ${RESERVE_MAX_PERIOD_DAYS} days.`);
   }
 
-  const offer = await canOfferBedReserve(input.bedId);
+  const offer = await canOfferBedReserve(input.bedId, { customerId: input.customerId });
   if (!offer.ok) throw new Error(offer.reason ?? 'Reserve not available.');
   if (offer.earliestStart && reserveStart < offer.earliestStart) {
     throw new Error(`Reserve can start from ${offer.earliestStart} on this bed.`);
@@ -287,6 +428,8 @@ export async function quoteBedReserve(input: QuoteBedReserveInput) {
     savingsPaise: pricing.savingsPaise,
     offerPercent: pricing.offerPercent,
     nonRefundable: true,
+    existingDraft: offer.existingDraft,
+    resumePayment: offer.resumePayment,
   };
 }
 
@@ -308,18 +451,42 @@ export async function createBedReserve(input: CreateBedReserveInput) {
     bedId: input.bedId,
     reserveStart: input.reserveStart,
     checkInDate: input.checkInDate,
+    customerId: input.customerId,
   });
+
+  const existingDraft = await getCustomerBedReserveDraft(input.customerId, input.bedId);
+  if (existingDraft) {
+    await db
+      .update(bookings)
+      .set({
+        expectedCheckoutDate: quote.checkInDate,
+        billingAnchorDate: quote.reserveStart,
+        subtotalPaise: quote.feePaise,
+        totalPaise: quote.feePaise,
+        pricingSnapshot: buildReservePricingSnapshot(input.bedId, quote, existingDraft.bookingCode),
+        draftExpiresAt: draftExpiresAtFromNow(),
+        updatedAt: new Date(),
+      })
+      .where(eq(bookings.id, existingDraft.id));
+
+    return {
+      ok: true as const,
+      bookingId: existingDraft.id,
+      bookingCode: existingDraft.bookingCode,
+      reserveId: null,
+      reserveCode: null,
+      ...quote,
+      draftExpiresAt: draftExpiresAtFromNow(),
+    };
+  }
 
   const year = utcYear();
   const yearPrefix = `APG-${year}-`;
-  const holdMinutes = env.BOOKING_HOLD_MINUTES;
-  const holdExpiresAt = new Date(Date.now() + holdMinutes * 60_000);
+  const draftExpiresAt = draftExpiresAtFromNow();
 
   for (let attempt = 0; attempt < 5; attempt++) {
     const bookingSeq = (await countBookingsInYear(yearPrefix)) + attempt;
-    const reserveSeq = (await countReservesInYear(year)) + attempt;
     const bookingCode = nextBookingCode(year, bookingSeq);
-    const reserveCode = nextReserveCode(year, reserveSeq);
 
     try {
       const result = await db.transaction(async (tx) => {
@@ -339,61 +506,34 @@ export async function createBedReserve(input: CreateBedReserveInput) {
           .values({
             bookingCode,
             customerId: input.customerId,
-            status: 'pending_payment',
+            status: 'draft',
             durationMode: 'reserve',
             expectedCheckoutDate: quote.checkInDate,
+            billingAnchorDate: quote.reserveStart,
             subtotalPaise: quote.feePaise,
             totalPaise: quote.feePaise,
             depositPaise: 0,
-            pricingSnapshot: {
-              perBed: [
-                {
-                  bedId: input.bedId,
-                  dailyRatePaise: rateDailyFromMonthly(quote.monthlyRatePaise),
-                  weeklyRatePaise: 0,
-                  monthlyRatePaise: quote.monthlyRatePaise,
-                  securityDepositPaise: 0,
-                  durationMode: 'monthly',
-                  units: 1,
-                  lineTotalPaise: quote.feePaise,
-                },
-              ],
-              computedAt: new Date().toISOString(),
-              notes: `Bed reserve ${reserveCode}: ${quote.offerPercent}% of monthly-prorated rent (${quote.periodDays} days) until ${quote.checkInDate}. Non-refundable.`,
-            },
-            notes: `Reserve hold ${reserveCode}`,
+            pricingSnapshot: buildReservePricingSnapshot(input.bedId, quote, bookingCode),
+            notes: `Bed reserve draft ${bookingCode}`,
             createdVia: 'customer',
+            draftExpiresAt,
           })
           .returning({ id: bookings.id });
-
-        const [hold] = await tx
-          .insert(bedReserveHolds)
-          .values({
-            reserveCode,
-            customerId: input.customerId,
-            bedId: input.bedId,
-            bookingId: booking!.id,
-            reserveStart: quote.reserveStart,
-            checkInDate: quote.checkInDate,
-            status: 'pending_payment',
-            amountPaise: quote.feePaise,
-            monthlyRateSnapshotPaise: quote.monthlyRatePaise,
-            holdExpiresAt,
-          })
-          .returning({
-            id: bedReserveHolds.id,
-            reserveCode: bedReserveHolds.reserveCode,
-          });
 
         return {
           bookingId: booking!.id,
           bookingCode,
-          reserveId: hold!.id,
-          reserveCode: hold!.reserveCode,
         };
       });
 
-      return { ok: true as const, ...result, ...quote, holdExpiresAt };
+      return {
+        ok: true as const,
+        ...result,
+        reserveId: null,
+        reserveCode: null,
+        ...quote,
+        draftExpiresAt,
+      };
     } catch (err) {
       const code = (err as { code?: string }).code;
       if (code === '23505' && attempt < 4) continue;
@@ -401,52 +541,159 @@ export async function createBedReserve(input: CreateBedReserveInput) {
     }
   }
 
-  throw new Error('Could not allocate reserve code.');
+  throw new Error('Could not allocate booking code.');
+}
+
+function buildReservePricingSnapshot(
+  bedId: string,
+  quote: Awaited<ReturnType<typeof quoteBedReserve>>,
+  codeLabel: string,
+): PricingSnapshot {
+  return {
+    perBed: [
+      {
+        bedId,
+        dailyRatePaise: rateDailyFromMonthly(quote.monthlyRatePaise),
+        weeklyRatePaise: 0,
+        monthlyRatePaise: quote.monthlyRatePaise,
+        securityDepositPaise: 0,
+        durationMode: 'monthly',
+        units: 1,
+        lineTotalPaise: quote.feePaise,
+      },
+    ],
+    computedAt: new Date().toISOString(),
+    notes: `Bed reserve ${codeLabel}: ${quote.offerPercent}% of monthly-prorated rent (${quote.periodDays} days) until ${quote.checkInDate}. Non-refundable.`,
+  };
 }
 
 /**
- * Move bed reserve into under-review when customer submits payment proof.
- * Inventory blocks only after proof (pending_payment + proof), not at cart create.
+ * Create under-review bed reserve hold when customer submits payment proof.
+ * Draft bookings have no hold row until this runs — inventory blocks only here.
  */
 export async function activateBedReserveRequestForBooking(
   bookingId: string,
   proof: { paymentScreenshotUrl: string; transactionRef?: string | null },
 ): Promise<void> {
-  const [hold] = await db
+  const [booking] = await db
+    .select({
+      id: bookings.id,
+      bookingCode: bookings.bookingCode,
+      customerId: bookings.customerId,
+      status: bookings.status,
+      durationMode: bookings.durationMode,
+      totalPaise: bookings.totalPaise,
+      billingAnchorDate: bookings.billingAnchorDate,
+      expectedCheckoutDate: bookings.expectedCheckoutDate,
+      pricingSnapshot: bookings.pricingSnapshot,
+    })
+    .from(bookings)
+    .where(eq(bookings.id, bookingId))
+    .limit(1);
+  if (!booking || booking.durationMode !== 'reserve') {
+    throw new Error('Reserve booking not found.');
+  }
+
+  const snapshot = booking.pricingSnapshot as PricingSnapshot | null;
+  const bedId = bedIdFromReserveSnapshot(snapshot);
+  const reserveStart = booking.billingAnchorDate ? String(booking.billingAnchorDate) : null;
+  const checkInDate = booking.expectedCheckoutDate ? String(booking.expectedCheckoutDate) : null;
+  if (!bedId || !reserveStart || !checkInDate) {
+    throw new Error('Reserve draft is missing bed or dates.');
+  }
+
+  const monthlyRatePaise = snapshot?.perBed?.[0]?.monthlyRatePaise ?? booking.totalPaise * 2;
+  const reviewExpiresAt = reviewExpiresAtFromNow();
+
+  const { bedBlocksInventory } = await import('@/src/lib/inventoryBlocking');
+  const blocked = await bedBlocksInventory({
+    bedId,
+    startDate: reserveStart,
+    endDate: checkInDate,
+  });
+  if (blocked) {
+    throw new Error('This bed is no longer available for the selected dates.');
+  }
+
+  const [existingHold] = await db
     .select()
     .from(bedReserveHolds)
     .where(eq(bedReserveHolds.bookingId, bookingId))
     .limit(1);
-  if (!hold) throw new Error('Reserve hold not found.');
-  if (hold.status === 'active') return;
+  if (existingHold?.status === 'active') return;
 
   await db.transaction(async (tx) => {
-    await tx
-      .update(bedReserveHolds)
-      .set({
-        paymentProofUrl: proof.paymentScreenshotUrl.trim(),
-        transactionRef: proof.transactionRef?.trim() || null,
-        updatedAt: new Date(),
-      })
-      .where(eq(bedReserveHolds.id, hold.id));
+    let holdId = existingHold?.id;
+    let reserveCode = existingHold?.reserveCode;
+
+    if (!existingHold) {
+      const year = utcYear();
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const reserveSeq = (await countReservesInYear(year)) + attempt;
+        reserveCode = nextReserveCode(year, reserveSeq);
+        try {
+          const [inserted] = await tx
+            .insert(bedReserveHolds)
+            .values({
+              reserveCode,
+              customerId: booking.customerId,
+              bedId,
+              bookingId: booking.id,
+              reserveStart,
+              checkInDate,
+              status: 'under_review',
+              amountPaise: booking.totalPaise,
+              monthlyRateSnapshotPaise: monthlyRatePaise,
+              paymentProofUrl: proof.paymentScreenshotUrl.trim(),
+              transactionRef: proof.transactionRef?.trim() || null,
+              holdExpiresAt: reviewExpiresAt,
+            })
+            .returning({ id: bedReserveHolds.id });
+          holdId = inserted!.id;
+          break;
+        } catch (err) {
+          const code = (err as { code?: string }).code;
+          if (code === '23505' && attempt < 4) continue;
+          throw err;
+        }
+      }
+      if (!holdId) throw new Error('Could not allocate reserve code.');
+    } else {
+      await tx
+        .update(bedReserveHolds)
+        .set({
+          status: 'under_review',
+          paymentProofUrl: proof.paymentScreenshotUrl.trim(),
+          transactionRef: proof.transactionRef?.trim() || null,
+          holdExpiresAt: reviewExpiresAt,
+          updatedAt: new Date(),
+        })
+        .where(eq(bedReserveHolds.id, existingHold.id));
+      holdId = existingHold.id;
+    }
 
     await tx
       .update(bookings)
-      .set({ status: 'pending_approval', updatedAt: new Date() })
+      .set({
+        status: 'pending_approval',
+        draftExpiresAt: null,
+        notes: `Reserve hold ${reserveCode}`,
+        updatedAt: new Date(),
+      })
       .where(
         and(
           eq(bookings.id, bookingId),
-          inArray(bookings.status, ['pending_payment', 'pending_approval']),
+          inArray(bookings.status, ['draft', 'pending_payment', 'pending_approval']),
         ),
       );
 
     await tx.insert(auditLog).values({
       actorType: 'customer',
-      actorId: hold.customerId,
+      actorId: booking.customerId,
       entity: 'bed_reserve',
-      entityId: hold.id,
+      entityId: holdId!,
       action: 'reservation_request_submitted',
-      diff: { reserveCode: hold.reserveCode, bookingId },
+      diff: { reserveCode, bookingId, bookingCode: booking.bookingCode },
     });
   });
 }
@@ -488,6 +735,27 @@ export async function markBedReserveConverted(reserveId: string) {
     .where(and(eq(bedReserveHolds.id, reserveId), eq(bedReserveHolds.status, 'active')));
 }
 
+export async function cancelBedReserveDraftByCustomer(bookingId: string, customerId: string) {
+  const [booking] = await db
+    .select({ id: bookings.id, status: bookings.status, durationMode: bookings.durationMode })
+    .from(bookings)
+    .where(and(eq(bookings.id, bookingId), eq(bookings.customerId, customerId)))
+    .limit(1);
+  if (!booking || booking.durationMode !== 'reserve' || booking.status !== 'draft') {
+    throw new Error('Reservation draft not found.');
+  }
+
+  await db
+    .update(bookings)
+    .set({
+      status: 'cancelled',
+      cancelledAt: new Date(),
+      cancellationReason: 'Reservation draft cancelled by customer.',
+      updatedAt: new Date(),
+    })
+    .where(eq(bookings.id, bookingId));
+}
+
 export async function cancelBedReserveByCustomer(reserveId: string, customerId: string) {
   const [hold] = await db
     .select()
@@ -497,7 +765,7 @@ export async function cancelBedReserveByCustomer(reserveId: string, customerId: 
   if (!hold || hold.customerId !== customerId) {
     throw new Error('Reserve not found.');
   }
-  if (!['pending_payment', 'active'].includes(hold.status)) {
+  if (!['pending_payment', 'under_review', 'active'].includes(hold.status)) {
     throw new Error('This reserve cannot be cancelled.');
   }
 
@@ -673,26 +941,31 @@ export async function expireStaleBedReserves() {
   const today = todayString();
   const conversions = await processDueBedReserveConversions(today);
 
-  const expiredHolds = await db
+  const expiredUnderReview = await db
     .select({ id: bedReserveHolds.id, bookingId: bedReserveHolds.bookingId })
     .from(bedReserveHolds)
     .where(
       and(
-        eq(bedReserveHolds.status, 'pending_payment'),
+        sql`${bedReserveHolds.status}::text IN ('under_review', 'pending_payment')`,
         sql`${bedReserveHolds.holdExpiresAt} IS NOT NULL`,
         sql`${bedReserveHolds.holdExpiresAt} <= now()`,
       ),
     );
 
-  for (const row of expiredHolds) {
+  for (const row of expiredUnderReview) {
     await db.transaction(async (tx) => {
       await tx
         .update(bedReserveHolds)
-        .set({ status: 'cancelled', updatedAt: new Date() })
+        .set({ status: 'expired', updatedAt: new Date() })
         .where(eq(bedReserveHolds.id, row.id));
       await tx
         .update(bookings)
-        .set({ status: 'cancelled', updatedAt: new Date() })
+        .set({
+          status: 'cancelled',
+          cancelledAt: new Date(),
+          cancellationReason: 'Bed reserve request expired before admin review.',
+          updatedAt: new Date(),
+        })
         .where(eq(bookings.id, row.bookingId));
     });
   }
@@ -700,7 +973,7 @@ export async function expireStaleBedReserves() {
   return {
     converted: conversions.converted,
     conversionErrors: conversions.errors,
-    cancelledPending: expiredHolds.length,
+    cancelledPending: expiredUnderReview.length,
   };
 }
 
