@@ -25,6 +25,7 @@ export async function createBedReserveAction(
   _prev: ReserveActionState,
   formData: FormData,
 ): Promise<ReserveActionState> {
+  console.info('[reserve-pay][STEP A1] create reserve action start');
   const session = await requireCustomerSession('/account/bookings');
   const customer = await getCustomerById(session.customerId);
   if (!customer) {
@@ -41,6 +42,12 @@ export async function createBedReserveAction(
 
   let result;
   try {
+    console.info('[reserve-pay][STEP A2] creating reserve draft', {
+      customerId: session.customerId,
+      bedId,
+      reserveStart,
+      checkInDate,
+    });
     result = await createBedReserve({
       bedId,
       customerId: session.customerId,
@@ -54,11 +61,15 @@ export async function createBedReserveAction(
       },
     });
   } catch (err) {
+    console.error('[reserve-pay][STEP A2_FAIL] reserve draft create failed', err);
     return {
       status: 'error',
       message: err instanceof Error ? err.message : 'Could not create reserve.',
     };
   }
 
+  console.info('[reserve-pay][STEP A3] reserve draft created, redirecting', {
+    bookingCode: result.bookingCode,
+  });
   redirect(`/booking/${result.bookingCode}/pay`);
 }

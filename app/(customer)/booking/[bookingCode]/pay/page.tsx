@@ -37,12 +37,18 @@ function checkInFromStayRange(stayRange: string): string | null {
 
 export default async function PayPage(props: PageProps<'/booking/[bookingCode]/pay'>) {
   const { bookingCode } = await props.params;
+  console.info('[reserve-pay][STEP 1] enter pay page', { bookingCode });
   const session = await requireCustomerSession(`/booking/${bookingCode}/pay`);
+  console.info('[reserve-pay][STEP 2] customer session ok', {
+    bookingCode,
+    customerId: session.customerId,
+  });
   try {
     await requireCustomerOwnsBookingCode(session, bookingCode);
   } catch {
     notFound();
   }
+  console.info('[reserve-pay][STEP 3] booking ownership validated', { bookingCode });
 
   const result = await getBookingByCode(bookingCode);
   if (!result.ok) {
@@ -62,6 +68,23 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
   const customer = await getCustomerById(session.customerId);
   const profileComplete = customer ? isProfileComplete(customer) : false;
 
+  if (!booking.pg.id) {
+    console.error('[reserve-pay] missing booking PG context', {
+      bookingCode,
+      bookingId: booking.id,
+      durationMode: booking.durationMode,
+      reservationCount: booking.reservations.length,
+    });
+    return (
+      <main className="apg-aurora mx-auto max-w-3xl px-4 py-16 sm:px-6">
+        <h1 className="text-2xl font-bold text-white">Couldn&apos;t prepare payment</h1>
+        <p className="mt-3 text-sm text-rose-300">
+          We couldn&apos;t resolve this booking&apos;s PG details yet. Please retry in a moment.
+        </p>
+      </main>
+    );
+  }
+
   if (
     booking.status !== 'draft' &&
     booking.status !== 'pending_payment' &&
@@ -73,9 +96,18 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
     redirect(`/booking/${booking.bookingCode}`);
   }
 
+  console.info('[reserve-pay][STEP 4] loading payment categories', {
+    bookingCode,
+    pgId: booking.pg.id,
+  });
   await ensureDefaultPaymentCategoriesForPg(booking.pg.id);
   const rentCategory = await getRentDepositBookingCategory(booking.pg.id);
   const elecCategory = await getElectricityDailyCategory(booking.pg.id);
+  console.info('[reserve-pay][STEP 5] payment categories ready', {
+    bookingCode,
+    hasRentCategory: Boolean(rentCategory),
+    hasElectricityCategory: Boolean(elecCategory),
+  });
   const pendingPs4 = isReserveBooking ? null : await getPendingMembershipForBooking(booking.id);
   const pendingPayment = await getPendingBookingPaymentRecord(booking.id, session.customerId);
   const bookingRejection = pendingPayment

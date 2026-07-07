@@ -256,7 +256,7 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-07 08:41:59 UTC
+### Pending pre-commit sync · 2026-07-07 08:54:10 UTC
 
 **Areas touched:** [[ROUTES]]
 
@@ -265,13 +265,9 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 
-**Staged code files (6):**
-- `app/(customer)/account/resident/pay-electricity/[invoiceId]/page.tsx`
-- `app/(customer)/account/resident/pay-ps4/[membershipId]/page.tsx`
-- `app/(customer)/account/resident/pay-rent/[invoiceId]/page.tsx`
-- `app/(customer)/booking/[bookingCode]/extend/[extensionId]/pay/page.tsx`
+**Staged code files (2):**
 - `app/(customer)/booking/[bookingCode]/pay/page.tsx`
-- `app/(customer)/pay/[linkId]/page.tsx`
+- `app/(customer)/reserve/new/actions.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

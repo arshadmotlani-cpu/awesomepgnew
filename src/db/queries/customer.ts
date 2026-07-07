@@ -825,6 +825,7 @@ export function getBookingByCode(
         bookingCode: bookings.bookingCode,
         status: bookings.status,
         durationMode: bookings.durationMode,
+        billingAnchorDate: bookings.billingAnchorDate,
         expectedCheckoutDate: bookings.expectedCheckoutDate,
         subtotalPaise: bookings.subtotalPaise,
         discountPaise: bookings.discountPaise,
@@ -948,6 +949,57 @@ export function getBookingByCode(
             status: 'active',
           },
         ];
+      }
+    }
+
+    if (b.durationMode === 'reserve' && reservationRows.length === 0 && !reserveStart) {
+      const snapshot = (b.pricingSnapshot as PricingSnapshot | null) ?? null;
+      const reserveBedId = snapshot?.perBed?.[0]?.bedId ?? null;
+      if (reserveBedId) {
+        const [bedCtx] = await db
+          .select({
+            bedCode: beds.bedCode,
+            roomNumber: rooms.roomNumber,
+            floorLabel: sql<string>`coalesce(${floors.label}, 'Floor ' || ${floors.floorNumber})`,
+            pgName: pgs.name,
+            pgId: pgs.id,
+            pgSlug: pgs.slug,
+            pgAddressLine1: pgs.addressLine1,
+            pgCity: pgs.city,
+            pgState: pgs.state,
+            pgPincode: pgs.pincode,
+          })
+          .from(beds)
+          .innerJoin(rooms, eq(rooms.id, beds.roomId))
+          .innerJoin(floors, eq(floors.id, rooms.floorId))
+          .innerJoin(pgs, eq(pgs.id, floors.pgId))
+          .where(eq(beds.id, reserveBedId))
+          .limit(1);
+        if (bedCtx) {
+          reserveStart = b.billingAnchorDate ? String(b.billingAnchorDate) : null;
+          reserveCheckIn = b.expectedCheckoutDate ? String(b.expectedCheckoutDate) : null;
+          pg = {
+            id: bedCtx.pgId,
+            name: bedCtx.pgName,
+            slug: bedCtx.pgSlug,
+            addressLine1: bedCtx.pgAddressLine1,
+            city: bedCtx.pgCity,
+            state: bedCtx.pgState,
+            pincode: bedCtx.pgPincode,
+          };
+          if (reserveStart && reserveCheckIn) {
+            reservations = [
+              {
+                id: b.id,
+                bedCode: bedCtx.bedCode,
+                roomNumber: bedCtx.roomNumber,
+                floorLabel: bedCtx.floorLabel,
+                stayRange: `[${reserveStart},${reserveCheckIn})`,
+                status: 'hold',
+              },
+            ];
+          }
+        }
       }
     }
 
