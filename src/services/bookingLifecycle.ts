@@ -23,6 +23,7 @@ import { and, eq, inArray, isNotNull, lte, sql } from 'drizzle-orm';
 import { db } from '../db/client';
 import {
   auditLog,
+  bedReserveHolds,
   bedReservations,
   bookings,
   payments,
@@ -631,8 +632,27 @@ export async function recordPaymentSuccess(
       ) {
         await tx
           .update(bookings)
-          .set({ status: 'confirmed', updatedAt: new Date() })
+          .set({
+            status: isReserveBooking ? 'pending_approval' : 'confirmed',
+            updatedAt: new Date(),
+          })
           .where(eq(bookings.id, booking.id));
+      }
+
+      if (isReserveBooking) {
+        const activated = await tx
+          .update(bedReserveHolds)
+          .set({ status: 'active', holdExpiresAt: null, updatedAt: new Date() })
+          .where(
+            and(
+              eq(bedReserveHolds.bookingId, booking.id),
+              inArray(bedReserveHolds.status, ['under_review', 'pending_payment']),
+            ),
+          )
+          .returning({ id: bedReserveHolds.id });
+        if (activated.length === 0) {
+          throw new Error('Reserve hold not found for this booking.');
+        }
       }
 
       await tx.insert(auditLog).values({
@@ -647,7 +667,11 @@ export async function recordPaymentSuccess(
           amountPaise: input.amountPaise,
           reservationsFlipped: flippedCount,
           fromStatus: booking.status,
-          toStatus: wasAwaitingConfirm ? 'confirmed' : booking.status,
+          toStatus: wasAwaitingConfirm
+            ? isReserveBooking
+              ? 'pending_approval'
+              : 'confirmed'
+            : booking.status,
           reserveBooking: isReserveBooking,
           adminAmountOverrideReason: input.rawPayload
             ? (input.rawPayload as { adminAmountOverrideReason?: string }).adminAmountOverrideReason
@@ -658,17 +682,10 @@ export async function recordPaymentSuccess(
       return { paymentId: payment.id, isReserveBooking };
     });
 
-    if (result.isReserveBooking) {
-      try {
-        const { activateBedReserveAfterPayment } = await import('./bedReserve');
-        await activateBedReserveAfterPayment(booking.id);
-      } catch (reserveErr) {
-        console.error('bed reserve activation failed:', reserveErr);
-      }
-    } else if (
+    if (!result.isReserveBooking && (
       wasAwaitingConfirm &&
       (booking.durationMode === 'monthly' || booking.durationMode === 'open_ended')
-    ) {
+    )) {
       try {
         const { clearBedAdminMarks } = await import('./bookingAdminOps');
         const assignedBeds = await db

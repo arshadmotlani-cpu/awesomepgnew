@@ -926,15 +926,7 @@ export async function processDueBedReserveConversions(asOfDate?: string) {
         sql`${bedReserveHolds.checkInDate} <= ${today}::date`,
       ),
     );
-
-  let converted = 0;
-  const errors: string[] = [];
-  for (const row of due) {
-    const result = await convertBedReserveToMonthlyStay(row.id);
-    if (result.ok) converted += 1;
-    else errors.push(`${row.id}: ${result.reason}`);
-  }
-  return { scanned: due.length, converted, errors };
+  return { scanned: due.length, converted: 0, errors: [] as string[] };
 }
 
 export async function expireStaleBedReserves() {
@@ -970,10 +962,38 @@ export async function expireStaleBedReserves() {
     });
   }
 
+  const expiredActive = await db
+    .select({ id: bedReserveHolds.id, bookingId: bedReserveHolds.bookingId })
+    .from(bedReserveHolds)
+    .where(
+      and(
+        eq(bedReserveHolds.status, 'active'),
+        sql`${bedReserveHolds.checkInDate} < ${today}::date`,
+      ),
+    );
+
+  for (const row of expiredActive) {
+    await db.transaction(async (tx) => {
+      await tx
+        .update(bedReserveHolds)
+        .set({ status: 'expired', updatedAt: new Date() })
+        .where(eq(bedReserveHolds.id, row.id));
+      await tx
+        .update(bookings)
+        .set({
+          status: 'cancelled',
+          cancelledAt: new Date(),
+          cancellationReason: 'Bed reservation expired before booking completion.',
+          updatedAt: new Date(),
+        })
+        .where(eq(bookings.id, row.bookingId));
+    });
+  }
+
   return {
     converted: conversions.converted,
     conversionErrors: conversions.errors,
-    cancelledPending: expiredUnderReview.length,
+    cancelledPending: expiredUnderReview.length + expiredActive.length,
   };
 }
 

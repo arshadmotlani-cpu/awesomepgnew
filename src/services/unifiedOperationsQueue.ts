@@ -4,7 +4,7 @@
 
 import { and, eq, inArray, not, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { bedReservations, beds, bookings, customers, floors, pgs, rooms } from '@/src/db/schema';
+import { bedReserveHolds, bedReservations, beds, bookings, customers, floors, pgs, rooms } from '@/src/db/schema';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import { buildCollectionsQueue, type CollectionQueueItem } from '@/src/lib/billing/collectionsQueue';
@@ -300,6 +300,7 @@ export async function listPendingBookingApprovalsForSync(session: AdminSession) 
     .select({
       id: bookings.id,
       bookingCode: bookings.bookingCode,
+      durationMode: bookings.durationMode,
       customerName: customers.fullName,
       pgId: floors.pgId,
       pgName: pgs.name,
@@ -314,11 +315,17 @@ export async function listPendingBookingApprovalsForSync(session: AdminSession) 
     .where(
       and(
         eq(bookings.status, 'pending_approval'),
+        sql`${bookings.durationMode}::text <> 'reserve'`,
         not(openBookingRowSupersededByNewerAnchoredStaySql),
         sql`NOT EXISTS (
           SELECT 1 FROM bed_reservations br2
           WHERE br2.booking_id = ${bookings.id}
             AND br2.status::text = 'under_review'
+        )`,
+        sql`NOT EXISTS (
+          SELECT 1 FROM ${bedReserveHolds} brh
+          WHERE brh.booking_id = ${bookings.id}
+            AND brh.status::text = 'active'
         )`,
       ),
     );

@@ -65,6 +65,9 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
 
   const booking = result.data;
   const isReserveBooking = booking.durationMode === 'reserve';
+  if (isReserveBooking && booking.reserveStatus === 'active') {
+    redirect(`/booking/${booking.bookingCode}`);
+  }
   const customer = await getCustomerById(session.customerId);
   const profileComplete = customer ? isProfileComplete(customer) : false;
 

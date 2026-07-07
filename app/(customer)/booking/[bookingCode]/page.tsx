@@ -6,7 +6,7 @@ import {
   requireCustomerSession,
 } from '@/src/lib/auth/guards';
 import { parseDaterange } from '@/src/services/availability';
-import { formatDate as formatDateUtc } from '@/src/lib/dates';
+import { formatDate as formatDateUtc, parseDate } from '@/src/lib/dates';
 import { adminStayTypeLabel, stayTypeFromPricingMode, stayTypeLabel } from '@/src/lib/stayType';
 import { formatDate, formatDateTime, paiseToInr, titleCase } from '@/src/lib/format';
 import { BookingRequestVacateSection } from '@/src/components/customer/BookingRequestVacateSection';
@@ -27,6 +27,7 @@ import {
 } from '@/src/lib/booking/bookingStatus';
 import { getPendingBookingPaymentRecord } from '@/src/services/qrPayments';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
+import { completeReserveBookingAction } from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -100,9 +101,11 @@ export default async function BookingConfirmationPage(
   const checkOut = stayRange?.upper ? formatDateUtc(stayRange.upper) : '—';
 
   const pendingPayment = await getPendingBookingPaymentRecord(b.id, session.customerId);
+  const reserveConfirmed = b.durationMode === 'reserve' && b.reserveStatus === 'active';
   const approvalPhase = deriveBookingApprovalPhase({
     status: b.status,
     hasPendingPaymentProof: Boolean(pendingPayment),
+    hasActiveReserve: reserveConfirmed,
   });
   const isAwaitingApproval = approvalPhase === 'awaiting_admin_approval';
   const isPendingPayment = approvalPhase === 'awaiting_payment';
@@ -110,14 +113,22 @@ export default async function BookingConfirmationPage(
   const isSuperseded = bookingStatus === 'superseded';
   const isTerminalBanner =
     banner.variant === 'cancelled' || banner.variant === 'superseded' || banner.variant === 'neutral';
-  const isConfirmed = bookingStatus === 'confirmed';
-  const bannerHeadline = banner.headline;
+  const isConfirmed = bookingStatus === 'confirmed' && !reserveConfirmed;
+  const reserveDeadline = b.reserveCheckIn ?? b.expectedCheckoutDate;
+  const reserveDaysRemaining = reserveDeadline
+    ? Math.max(0, Math.ceil((parseDate(reserveDeadline).getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
+    : null;
+  const bannerHeadline = reserveConfirmed ? 'Reservation confirmed' : banner.headline;
   const bannerCopy =
-    bookingStatus === 'confirmed'
+    reserveConfirmed
+      ? `Your bed is reserved until ${reserveDeadline ? formatDate(reserveDeadline) : 'your booking deadline'}. Complete booking before expiry to start your stay.`
+      : bookingStatus === 'confirmed'
       ? `Your stay at ${b.pg.name} is locked in. The operator will reach out with check-in instructions.`
       : banner.copy;
   const bannerClasses =
-    banner.variant === 'pending'
+    reserveConfirmed
+      ? 'border-violet-200 from-violet-50 to-white'
+      : banner.variant === 'pending'
       ? 'border-amber-200 from-amber-50 to-white'
       : banner.variant === 'confirmed'
         ? 'border-emerald-200 from-emerald-50 to-white'
@@ -127,7 +138,9 @@ export default async function BookingConfirmationPage(
             ? 'border-rose-200 from-rose-50 to-white'
             : 'border-zinc-200 from-zinc-50 to-white';
   const iconBgClass =
-    banner.variant === 'pending'
+    reserveConfirmed
+      ? 'bg-violet-600'
+      : banner.variant === 'pending'
       ? 'bg-amber-600'
       : banner.variant === 'confirmed'
         ? 'bg-emerald-600'
@@ -137,7 +150,9 @@ export default async function BookingConfirmationPage(
             ? 'bg-rose-600'
             : 'bg-zinc-600';
   const headlineClass =
-    banner.variant === 'pending'
+    reserveConfirmed
+      ? 'text-violet-800'
+      : banner.variant === 'pending'
       ? 'text-amber-700'
       : banner.variant === 'confirmed'
         ? 'text-emerald-700'
@@ -255,12 +270,48 @@ export default async function BookingConfirmationPage(
             identityHref={accountProfileHref('identity', { booking: b.bookingCode })}
             showIdentity={Boolean(customer && !checkInAllowed && isConfirmed)}
             residentHomeHref={legacyResidentTabHref('home')}
+            isReserveConfirmed={reserveConfirmed}
           />
         )}
       </div>
 
+      {reserveConfirmed ? (
+        <section className="mt-6 rounded-xl border border-violet-200 bg-violet-50/60 p-5 shadow-sm">
+          <h2 className="text-base font-semibold text-violet-900">Reservation confirmed</h2>
+          <p className="mt-1 text-sm text-violet-800">
+            This is a reservation hold only. Deposit, move-in, and resident billing start after you complete booking.
+          </p>
+          <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+            <SummaryRow term="Reservation code" value={b.reserveCode ?? '—'} mono />
+            <SummaryRow term="Reserved room" value={roomSummary || '—'} />
+            <SummaryRow term="Reserved bed" value={bedSummary || '—'} />
+            <SummaryRow term="Reservation amount paid" value={paiseToInr(b.totalPaise)} />
+            <SummaryRow term="Reservation status" value="Reserved" />
+            <SummaryRow term="Booking deadline" value={reserveDeadline ? formatDate(reserveDeadline) : '—'} />
+            <SummaryRow term="Days remaining" value={reserveDaysRemaining != null ? String(reserveDaysRemaining) : '—'} />
+            <SummaryRow term="Remaining balance" value={paiseToInr(0)} />
+          </dl>
+          <form
+            action={async () => {
+              'use server';
+              await completeReserveBookingAction(b.bookingCode);
+            }}
+            className="mt-4"
+          >
+            <button
+              type="submit"
+              className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-[#FF5A1F] px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110"
+            >
+              Complete booking before expiry
+            </button>
+          </form>
+        </section>
+      ) : null}
+
       <section className="mt-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
-        <h2 className="text-base font-semibold text-zinc-900">Booking summary</h2>
+        <h2 className="text-base font-semibold text-zinc-900">
+          {reserveConfirmed ? 'Reservation summary' : 'Booking summary'}
+        </h2>
         <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
           <SummaryRow term="Booking code" value={b.bookingCode} mono />
           <SummaryRow term="PG name" value={b.pg.name} />

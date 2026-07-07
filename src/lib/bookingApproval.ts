@@ -34,7 +34,9 @@ export function isApprovedBookingStatus(status: string): boolean {
 export function deriveBookingApprovalPhase(input: {
   status: string;
   hasPendingPaymentProof: boolean;
+  hasActiveReserve?: boolean;
 }): BookingApprovalPhase {
+  if (input.hasActiveReserve) return 'approved';
   if (isApprovedBookingStatus(input.status)) return 'approved';
   if (input.status === 'draft' || isTerminalBookingLifecycleStatus(input.status)) {
     return 'inactive';

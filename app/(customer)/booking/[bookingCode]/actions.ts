@@ -1,9 +1,15 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+import { eq } from 'drizzle-orm';
+import { db } from '@/src/db/client';
+import { bedReserveHolds } from '@/src/db/schema';
 import { cancelBooking } from '@/src/services/bookingLifecycle';
 import { getCustomerSession } from '@/src/lib/auth/session';
 import { requireCustomerOwnsBookingCode } from '@/src/lib/auth/guards';
+import { getBookingByCode } from '@/src/db/queries/customer';
+import { convertBedReserveToMonthlyStay } from '@/src/services/bedReserve';
 
 export type CancelActionState =
   | { status: 'idle' }
@@ -67,4 +73,44 @@ export async function cancelBookingAction(
     tier: result.refund.tier,
     hoursBefore: result.refund.hoursBeforeCheckIn,
   };
+}
+
+export async function completeReserveBookingAction(bookingCode: string): Promise<void> {
+  const session = await getCustomerSession();
+  if (!session) {
+    redirect(`/login?next=${encodeURIComponent(`/booking/${bookingCode}`)}`);
+  }
+  await requireCustomerOwnsBookingCode(session, bookingCode);
+
+  const bookingRes = await getBookingByCode(bookingCode);
+  if (!bookingRes.ok || !bookingRes.data) {
+    throw new Error('Booking not found.');
+  }
+  const booking = bookingRes.data;
+  if (booking.durationMode !== 'reserve' || booking.reserveStatus !== 'active') {
+    throw new Error('This reservation is not ready for completion.');
+  }
+  if (!booking.reserveCode) {
+    throw new Error('Reservation details are unavailable.');
+  }
+
+  const reserve = await db
+    .select({ id: bedReserveHolds.id })
+    .from(bedReserveHolds)
+    .where(eq(bedReserveHolds.reserveCode, booking.reserveCode))
+    .limit(1);
+  const reserveId = reserve[0]?.id;
+  if (!reserveId) {
+    throw new Error('Reservation not found.');
+  }
+
+  const converted = await convertBedReserveToMonthlyStay(reserveId);
+  if (!converted.ok) {
+    throw new Error(converted.reason);
+  }
+
+  revalidatePath(`/booking/${bookingCode}`);
+  revalidatePath(`/booking/${bookingCode}/pay`);
+  revalidatePath('/account/bookings');
+  redirect(converted.monthlyDuePaise > 0 ? `/booking/${bookingCode}/pay` : `/booking/${bookingCode}`);
 }

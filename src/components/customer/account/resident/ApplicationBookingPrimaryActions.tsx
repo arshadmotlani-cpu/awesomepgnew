@@ -12,6 +12,7 @@ export function ApplicationBookingPrimaryActions({
   identityHref,
   showIdentity,
   residentHomeHref,
+  isReserveConfirmed = false,
 }: {
   bookingCode: string;
   status: string;
@@ -19,9 +20,10 @@ export function ApplicationBookingPrimaryActions({
   identityHref: string;
   showIdentity: boolean;
   residentHomeHref: string;
+  isReserveConfirmed?: boolean;
 }) {
   const isPending = status === 'pending_payment' || status === 'pending_approval';
-  const isConfirmed = status === 'confirmed';
+  const isConfirmed = status === 'confirmed' && !isReserveConfirmed;
 
   return (
     <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
@@ -31,6 +33,8 @@ export function ApplicationBookingPrimaryActions({
           ? status === 'pending_approval'
             ? 'Your payment proof is with the office for review. Upload identity documents while you wait.'
             : 'Complete payment to lock in your bed. Then upload identity documents before check-in.'
+          : isReserveConfirmed
+            ? 'Your bed reservation is approved. Complete booking when you are ready to start your stay.'
           : isConfirmed
             ? showIdentity
               ? 'Payment is done. Finish identity check so we can approve check-in.'

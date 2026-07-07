@@ -791,6 +791,10 @@ export type CustomerBookingDetail = {
   /** Set when durationMode is `reserve`. */
   reserveStart?: string | null;
   reserveCheckIn?: string | null;
+  reserveStatus?: 'pending_payment' | 'under_review' | 'active' | 'expired' | 'cancelled' | 'converted' | null;
+  reserveCode?: string | null;
+  reserveExpiresAt?: string | null;
+  reserveApprovedAt?: string | null;
   customer: {
     fullName: string;
     email: string;
@@ -902,12 +906,20 @@ export function getBookingByCode(
 
     let reserveStart: string | null = null;
     let reserveCheckIn: string | null = null;
+    let reserveStatus: CustomerBookingDetail['reserveStatus'] = null;
+    let reserveCode: string | null = null;
+    let reserveExpiresAt: string | null = null;
+    let reserveApprovedAt: string | null = null;
 
     if (b.durationMode === 'reserve' && reservationRows.length === 0) {
       const [hold] = await db
         .select({
+          reserveCode: bedReserveHolds.reserveCode,
           reserveStart: bedReserveHolds.reserveStart,
           checkInDate: bedReserveHolds.checkInDate,
+          status: bedReserveHolds.status,
+          holdExpiresAt: bedReserveHolds.holdExpiresAt,
+          updatedAt: bedReserveHolds.updatedAt,
           bedCode: beds.bedCode,
           roomNumber: rooms.roomNumber,
           floorLabel: sql<string>`coalesce(${floors.label}, 'Floor ' || ${floors.floorNumber})`,
@@ -928,8 +940,13 @@ export function getBookingByCode(
         .limit(1);
 
       if (hold) {
+        reserveCode = hold.reserveCode;
         reserveStart = String(hold.reserveStart);
         reserveCheckIn = String(hold.checkInDate);
+        reserveStatus = hold.status;
+        reserveExpiresAt = hold.holdExpiresAt ? hold.holdExpiresAt.toISOString() : null;
+        reserveApprovedAt =
+          hold.status === 'active' ? hold.updatedAt.toISOString() : null;
         pg = {
           id: hold.pgId,
           name: hold.pgName,
@@ -1003,6 +1020,30 @@ export function getBookingByCode(
       }
     }
 
+    if (b.durationMode === 'reserve' && !reserveStatus) {
+      const [latestHold] = await db
+        .select({
+          reserveCode: bedReserveHolds.reserveCode,
+          status: bedReserveHolds.status,
+          holdExpiresAt: bedReserveHolds.holdExpiresAt,
+          updatedAt: bedReserveHolds.updatedAt,
+          reserveStart: bedReserveHolds.reserveStart,
+          checkInDate: bedReserveHolds.checkInDate,
+        })
+        .from(bedReserveHolds)
+        .where(eq(bedReserveHolds.bookingId, b.id))
+        .limit(1);
+      if (latestHold) {
+        reserveCode = latestHold.reserveCode;
+        reserveStatus = latestHold.status;
+        reserveExpiresAt = latestHold.holdExpiresAt ? latestHold.holdExpiresAt.toISOString() : null;
+        reserveApprovedAt =
+          latestHold.status === 'active' ? latestHold.updatedAt.toISOString() : null;
+        if (!reserveStart) reserveStart = String(latestHold.reserveStart);
+        if (!reserveCheckIn) reserveCheckIn = String(latestHold.checkInDate);
+      }
+    }
+
     return {
       id: b.id,
       bookingCode: b.bookingCode,
@@ -1018,6 +1059,10 @@ export function getBookingByCode(
       createdAt: b.createdAt,
       reserveStart,
       reserveCheckIn,
+      reserveStatus,
+      reserveCode,
+      reserveExpiresAt,
+      reserveApprovedAt,
       customer: {
         fullName: b.customerFullName,
         email: b.customerEmail,

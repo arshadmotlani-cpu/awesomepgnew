@@ -219,7 +219,7 @@ async function listActiveBedReserves(session: AdminSession) {
       and(
         eq(bedReserveHolds.status, 'active'),
         sql`${bedReserveHolds.checkInDate} >= ${today}::date`,
-        inArray(bookings.status, ['pending_payment', 'confirmed']),
+        inArray(bookings.status, ['pending_approval']),
       ),
     )
     .orderBy(bedReserveHolds.checkInDate);
