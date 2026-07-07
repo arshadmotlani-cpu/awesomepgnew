@@ -655,17 +655,9 @@ export async function recordPaymentSuccess(
           )
           .returning({ id: bedReserveHolds.id });
         if (activated.length === 0) {
-          const [activeHold] = await tx
-            .select({ id: bedReserveHolds.id })
-            .from(bedReserveHolds)
-            .where(
-              and(
-                eq(bedReserveHolds.bookingId, booking.id),
-                eq(bedReserveHolds.status, 'active'),
-              ),
-            )
-            .limit(1);
-          if (!activeHold) {
+          const { ensureBedReserveHoldActiveForBooking } = await import('./bedReserve');
+          const repaired = await ensureBedReserveHoldActiveForBooking(booking.id, tx);
+          if (!repaired.ok) {
             throw new Error('Reserve hold not found for this booking.');
           }
         }

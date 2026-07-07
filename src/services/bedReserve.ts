@@ -41,6 +41,8 @@ import { ensureBillingProfileForBooking } from './residentBillingProfiles';
 
 import type { PricingSnapshot } from '../db/schema/bookings';
 
+type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 export type ActiveBedReserve = {
   id: string;
   reserveCode: string;
@@ -576,55 +578,46 @@ function buildReservePricingSnapshot(
 export async function activateBedReserveRequestForBooking(
   bookingId: string,
   proof: { paymentScreenshotUrl: string; transactionRef?: string | null },
+  existingTx?: DbTx,
 ): Promise<void> {
-  const [booking] = await db
-    .select({
-      id: bookings.id,
-      bookingCode: bookings.bookingCode,
-      customerId: bookings.customerId,
-      status: bookings.status,
-      durationMode: bookings.durationMode,
-      totalPaise: bookings.totalPaise,
-      billingAnchorDate: bookings.billingAnchorDate,
-      expectedCheckoutDate: bookings.expectedCheckoutDate,
-      pricingSnapshot: bookings.pricingSnapshot,
-    })
-    .from(bookings)
-    .where(eq(bookings.id, bookingId))
-    .limit(1);
-  if (!booking || booking.durationMode !== 'reserve') {
-    throw new Error('Reserve booking not found.');
-  }
+  const run = async (tx: DbTx) => {
+    const [booking] = await tx
+      .select({
+        id: bookings.id,
+        bookingCode: bookings.bookingCode,
+        customerId: bookings.customerId,
+        status: bookings.status,
+        durationMode: bookings.durationMode,
+        totalPaise: bookings.totalPaise,
+        billingAnchorDate: bookings.billingAnchorDate,
+        expectedCheckoutDate: bookings.expectedCheckoutDate,
+        pricingSnapshot: bookings.pricingSnapshot,
+      })
+      .from(bookings)
+      .where(eq(bookings.id, bookingId))
+      .limit(1);
+    if (!booking || booking.durationMode !== 'reserve') {
+      throw new Error('Reserve booking not found.');
+    }
 
-  const snapshot = booking.pricingSnapshot as PricingSnapshot | null;
-  const bedId = bedIdFromReserveSnapshot(snapshot);
-  const reserveStart = booking.billingAnchorDate ? String(booking.billingAnchorDate) : null;
-  const checkInDate = booking.expectedCheckoutDate ? String(booking.expectedCheckoutDate) : null;
-  if (!bedId || !reserveStart || !checkInDate) {
-    throw new Error('Reserve draft is missing bed or dates.');
-  }
+    const snapshot = booking.pricingSnapshot as PricingSnapshot | null;
+    const bedId = bedIdFromReserveSnapshot(snapshot);
+    const reserveStart = booking.billingAnchorDate ? String(booking.billingAnchorDate) : null;
+    const checkInDate = booking.expectedCheckoutDate ? String(booking.expectedCheckoutDate) : null;
+    if (!bedId || !reserveStart || !checkInDate) {
+      throw new Error('Reserve draft is missing bed or dates.');
+    }
 
-  const monthlyRatePaise = snapshot?.perBed?.[0]?.monthlyRatePaise ?? booking.totalPaise * 2;
-  const reviewExpiresAt = reviewExpiresAtFromNow();
+    const monthlyRatePaise = snapshot?.perBed?.[0]?.monthlyRatePaise ?? booking.totalPaise * 2;
+    const reviewExpiresAt = reviewExpiresAtFromNow();
 
-  const { bedBlocksInventory } = await import('@/src/lib/inventoryBlocking');
-  const blocked = await bedBlocksInventory({
-    bedId,
-    startDate: reserveStart,
-    endDate: checkInDate,
-  });
-  if (blocked) {
-    throw new Error('This bed is no longer available for the selected dates.');
-  }
+    const [existingHold] = await tx
+      .select()
+      .from(bedReserveHolds)
+      .where(eq(bedReserveHolds.bookingId, bookingId))
+      .limit(1);
+    if (existingHold?.status === 'active') return;
 
-  const [existingHold] = await db
-    .select()
-    .from(bedReserveHolds)
-    .where(eq(bedReserveHolds.bookingId, bookingId))
-    .limit(1);
-  if (existingHold?.status === 'active') return;
-
-  await db.transaction(async (tx) => {
     let holdId = existingHold?.id;
     let reserveCode = existingHold?.reserveCode;
 
@@ -697,7 +690,37 @@ export async function activateBedReserveRequestForBooking(
       action: 'reservation_request_submitted',
       diff: { reserveCode, bookingId, bookingCode: booking.bookingCode },
     });
-  });
+  };
+
+  const { bedBlocksInventory } = await import('@/src/lib/inventoryBlocking');
+  const [bookingMeta] = await db
+    .select({
+      billingAnchorDate: bookings.billingAnchorDate,
+      expectedCheckoutDate: bookings.expectedCheckoutDate,
+      pricingSnapshot: bookings.pricingSnapshot,
+    })
+    .from(bookings)
+    .where(eq(bookings.id, bookingId))
+    .limit(1);
+  const snapshot = bookingMeta?.pricingSnapshot as PricingSnapshot | null;
+  const bedId = bedIdFromReserveSnapshot(snapshot);
+  const reserveStart = bookingMeta?.billingAnchorDate ? String(bookingMeta.billingAnchorDate) : null;
+  const checkInDate = bookingMeta?.expectedCheckoutDate
+    ? String(bookingMeta.expectedCheckoutDate)
+    : null;
+  if (bedId && reserveStart && checkInDate) {
+    const blocked = await bedBlocksInventory({
+      bedId,
+      startDate: reserveStart,
+      endDate: checkInDate,
+    });
+    if (blocked) {
+      throw new Error('This bed is no longer available for the selected dates.');
+    }
+  }
+
+  if (existingTx) return run(existingTx);
+  return db.transaction(run);
 }
 
 function rateDailyFromMonthly(monthly: number): number {
@@ -714,8 +737,6 @@ export async function activateBedReserveAfterPayment(bookingId: string) {
     .limit(1);
   return hold ?? null;
 }
-
-type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
  * Idempotent — flips under_review/pending_payment → active after admin approval.

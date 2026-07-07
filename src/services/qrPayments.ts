@@ -297,6 +297,11 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
     throw new Error('Payment proof is already pending review for this booking.');
   }
 
+  const proof = {
+    paymentScreenshotUrl: input.paymentScreenshotUrl.trim(),
+    transactionRef: input.transactionRef,
+  };
+
   const row = await db.transaction(async (tx) => {
     const [dupInTx] = await tx
       .select({
@@ -321,8 +326,8 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
         .update(pgPaymentRecords)
         .set({
           amountPaise: input.amountPaise,
-          paymentScreenshotUrl: input.paymentScreenshotUrl.trim(),
-          transactionRef: input.transactionRef?.trim() || null,
+          paymentScreenshotUrl: proof.paymentScreenshotUrl,
+          transactionRef: proof.transactionRef?.trim() || null,
           reviewedByAdminId: null,
           reviewedAt: null,
           updatedAt: new Date(),
@@ -339,8 +344,8 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
           categoryId: category.id,
           customerId: input.customerId,
           amountPaise: input.amountPaise,
-          paymentScreenshotUrl: input.paymentScreenshotUrl.trim(),
-          transactionRef: input.transactionRef?.trim() || null,
+          paymentScreenshotUrl: proof.paymentScreenshotUrl,
+          transactionRef: proof.transactionRef?.trim() || null,
           status: 'pending',
           bookingId: booking.id,
         })
@@ -352,52 +357,84 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
     const { supersedeActiveRejection } = await import('@/src/services/paymentProofRejectionService');
     await supersedeActiveRejection('pg_payment_record', paymentRow.id, tx);
 
+    if (booking.durationMode === 'reserve') {
+      const { activateBedReserveRequestForBooking } = await import('@/src/services/bedReserve');
+      await activateBedReserveRequestForBooking(booking.id, proof, tx);
+    }
+
     return paymentRow;
   });
 
-  const { activateReservationRequestForBooking } = await import(
-    '@/src/services/reservationRequest'
-  );
-  if (booking.durationMode === 'reserve') {
-    const { activateBedReserveRequestForBooking } = await import('@/src/services/bedReserve');
-    await activateBedReserveRequestForBooking(booking.id, {
-      paymentScreenshotUrl: input.paymentScreenshotUrl.trim(),
-      transactionRef: input.transactionRef,
-    });
-  } else {
+  if (booking.durationMode !== 'reserve') {
+    const { activateReservationRequestForBooking } = await import(
+      '@/src/services/reservationRequest'
+    );
     await activateReservationRequestForBooking(booking.id);
   }
 
-  const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
-  await linkResidentUpload({
-    storagePath: input.paymentScreenshotUrl.trim(),
-    adminQueue: 'collections',
-    linkedEntity: 'pg_payment_record',
-    linkedEntityId: row.id,
+  void runPostBookingPaymentSubmitSideEffects({
+    row,
     bookingId: booking.id,
+    bookingCode: input.bookingCode,
     pgId,
-  }).catch(() => undefined);
-
-  if (input.membershipId && input.membershipAmountPaise) {
-    const { submitMembershipPaymentProof } = await import('./playstationMembership');
-    await submitMembershipPaymentProof({
-      membershipId: input.membershipId,
-      customerId: input.customerId,
-      paymentProofUrl: input.paymentScreenshotUrl,
-      transactionRef: input.transactionRef,
-    });
-  }
-
-  const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
-  scheduleAdminNotificationSync();
-
-  const { trackAnalyticsEvent } = await import('./visitorAnalytics');
-  void trackAnalyticsEvent({
-    eventType: 'payment_uploaded',
-    metadata: { bookingCode: input.bookingCode, bookingId: booking.id },
+    proofUrl: proof.paymentScreenshotUrl,
+    membershipId: input.membershipId,
+    membershipAmountPaise: input.membershipAmountPaise,
+    customerId: input.customerId,
+    transactionRef: input.transactionRef,
   });
 
   return row;
+}
+
+function runPostBookingPaymentSubmitSideEffects(input: {
+  row: { id: string };
+  bookingId: string;
+  bookingCode: string;
+  pgId: string;
+  proofUrl: string;
+  customerId: string;
+  membershipId?: string;
+  membershipAmountPaise?: number;
+  transactionRef?: string | null;
+}): void {
+  void (async () => {
+    try {
+      const { linkResidentUpload } = await import('@/src/services/residentUploadEvents');
+      await linkResidentUpload({
+        storagePath: input.proofUrl,
+        adminQueue: 'collections',
+        linkedEntity: 'pg_payment_record',
+        linkedEntityId: input.row.id,
+        bookingId: input.bookingId,
+        pgId: input.pgId,
+      }).catch(() => undefined);
+
+      if (input.membershipId && input.membershipAmountPaise) {
+        const { submitMembershipPaymentProof } = await import('./playstationMembership');
+        await submitMembershipPaymentProof({
+          membershipId: input.membershipId,
+          customerId: input.customerId,
+          paymentProofUrl: input.proofUrl,
+          transactionRef: input.transactionRef ?? undefined,
+        });
+      }
+
+      const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
+      scheduleAdminNotificationSync();
+
+      const { trackAnalyticsEvent } = await import('./visitorAnalytics');
+      void trackAnalyticsEvent({
+        eventType: 'payment_uploaded',
+        metadata: { bookingCode: input.bookingCode, bookingId: input.bookingId },
+      });
+
+      const { revalidateOccupancyViews } = await import('@/src/lib/occupancyRevalidate');
+      revalidateOccupancyViews(input.pgId);
+    } catch (err) {
+      console.error('post booking payment submit side effects failed', err);
+    }
+  })();
 }
 
 /** Pending UPI proof for a booking checkout (rent + deposit ± PS4 add-on). */
@@ -571,6 +608,24 @@ async function bookingQrPaymentAlreadyProcessed(
   return Boolean(byBooking);
 }
 
+/** After reserve payment approval — activate/repair hold and bust occupancy caches. */
+async function finalizeApprovedReserveBooking(
+  bookingId: string | null | undefined,
+  pgId?: string | null,
+): Promise<void> {
+  if (!bookingId) return;
+  const [booking] = await db
+    .select({ durationMode: bookings.durationMode })
+    .from(bookings)
+    .where(eq(bookings.id, bookingId))
+    .limit(1);
+  if (booking?.durationMode !== 'reserve') return;
+  const { ensureBedReserveHoldActiveForBooking } = await import('./bedReserve');
+  await ensureBedReserveHoldActiveForBooking(bookingId);
+  const { revalidateOccupancyViews } = await import('@/src/lib/occupancyRevalidate');
+  revalidateOccupancyViews(pgId);
+}
+
 export async function reviewPaymentRecord(
   session: AdminSession,
   recordId: string,
@@ -656,6 +711,7 @@ export async function reviewPaymentRecord(
         bookingId: record.bookingId,
         reviewedByAdminId: session.adminId,
       });
+      await finalizeApprovedReserveBooking(record.bookingId, record.pgId);
       return financialAlreadyApplied
         ? { outcome: 'already_approved' }
         : { outcome: 'approved' };
@@ -727,6 +783,7 @@ export async function reviewPaymentRecord(
             bookingId: record.bookingId,
             reviewedByAdminId: session.adminId,
           });
+          await finalizeApprovedReserveBooking(record.bookingId, record.pgId);
           return { outcome: 'already_approved' };
         }
         throw new Error(
@@ -749,17 +806,7 @@ export async function reviewPaymentRecord(
     reviewedByAdminId: session.adminId,
   });
 
-  if (record.bookingId) {
-    const [reserveBooking] = await db
-      .select({ durationMode: bookings.durationMode })
-      .from(bookings)
-      .where(eq(bookings.id, record.bookingId))
-      .limit(1);
-    if (reserveBooking?.durationMode === 'reserve') {
-      const { ensureBedReserveHoldActiveForBooking } = await import('./bedReserve');
-      await ensureBedReserveHoldActiveForBooking(record.bookingId);
-    }
-  }
+  await finalizeApprovedReserveBooking(record.bookingId, record.pgId);
 
   if (status === 'approved') {
     const { trackAnalyticsEvent } = await import('./visitorAnalytics');

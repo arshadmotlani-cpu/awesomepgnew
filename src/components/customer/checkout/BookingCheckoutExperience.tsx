@@ -255,10 +255,13 @@ export function BookingCheckoutExperience({
     }
     setPending(true);
     setError(null);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 90_000);
     try {
       const res = await fetch('/api/payment-record/booking', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           bookingCode,
           amountPaise: payNowPaise,
@@ -269,20 +272,36 @@ export function BookingCheckoutExperience({
           partialDepositRequested: false,
         }),
       });
-      const data = (await res.json()) as SubmitResult;
+      let data: SubmitResult;
+      try {
+        data = (await res.json()) as SubmitResult;
+      } catch {
+        throw new Error('Invalid server response. Your proof may still have been received — check booking status.');
+      }
       if (!res.ok || !data.ok) {
         setError(data.message ?? 'Submission failed.');
         return;
       }
       mirrorClientEventToPostHog('payment_uploaded', { bookingCode });
+      if (isReserveBooking) {
+        window.location.assign(`/booking/${encodeURIComponent(bookingCode)}`);
+        return;
+      }
       setDone(true);
     } catch (err) {
       logPaymentClientException('Booking payment submit failed', err, {
         page: 'booking-payment',
         bookingCode,
       });
-      setError('Network error. Try again.');
+      if (err instanceof Error && err.name === 'AbortError') {
+        setError(
+          'Submission timed out. Open your booking — your proof may already be with the office.',
+        );
+      } else {
+        setError(err instanceof Error ? err.message : 'Network error. Try again.');
+      }
     } finally {
+      clearTimeout(timeoutId);
       setPending(false);
     }
   }

@@ -4,6 +4,7 @@ import { submitBookingPaymentRecord } from '@/src/services/qrPayments';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   const session = await getCustomerSession();
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
         ? Math.round(body.membershipAmountPaise)
         : undefined,
     });
-    return NextResponse.json({ ok: true, record });
+    return NextResponse.json({ ok: true, recordId: record.id, bookingCode: body.bookingCode });
   } catch (err) {
     return NextResponse.json(
       { ok: false, message: err instanceof Error ? err.message : String(err) },
