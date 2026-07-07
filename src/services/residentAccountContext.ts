@@ -5,7 +5,6 @@ import {
   listElectricityInvoicesForBooking,
   listRentInvoicesForBooking,
   listResidentBookingsForCustomer,
-  customerHasConfirmedBooking,
   type ResidentBookingRow,
 } from '@/src/db/queries/customer';
 import { firstOfMonth } from '@/src/services/billing';
@@ -55,7 +54,10 @@ export type RentPaymentHistoryRow = {
 export type ResidentAccountContext = {
   customer: NonNullable<Awaited<ReturnType<typeof getCustomerById>>>;
   profileComplete: boolean;
+  /** @deprecated Use hasResidentPortalAccess for routing — excludes reserve + historical-only. */
   hasConfirmedBooking: boolean;
+  /** Unlocks resident home, billing, deposit, move-out surfaces. */
+  hasResidentPortalAccess: boolean;
   isActiveStay: boolean;
   primaryBooking: ResidentBookingRow | null;
   financialSummary: ResidentFinancialSummary | null;
@@ -97,8 +99,11 @@ export async function loadResidentAccountContext(
   if (!customer) return null;
 
   const profileComplete = isProfileComplete(customer);
-  const confirmed = await customerHasConfirmedBooking(customerId);
-  const hasConfirmedBooking = confirmed.ok && confirmed.data;
+  const { customerHasResidentPortalAccess } = await import(
+    '@/src/lib/residents/residentPortalAccess'
+  );
+  const hasResidentPortalAccess = await customerHasResidentPortalAccess(customerId);
+  const hasConfirmedBooking = hasResidentPortalAccess;
   const tenancy = await getActiveTenancyForCustomer(customerId);
   const isActiveStay = customer.residencyStatus === 'active' && tenancy != null;
 
@@ -421,6 +426,7 @@ export async function loadResidentAccountContext(
     customer,
     profileComplete,
     hasConfirmedBooking,
+    hasResidentPortalAccess,
     isActiveStay,
     primaryBooking,
     financialSummary,

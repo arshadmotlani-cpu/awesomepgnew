@@ -4,9 +4,9 @@ import {
   listPaymentsForBooking,
   listRentInvoicesForBooking,
   listResidentBookingsForCustomer,
-  customerHasConfirmedBooking,
   type ResidentBookingRow,
 } from '@/src/db/queries/customer';
+import { customerHasResidentPortalAccess } from '@/src/lib/residents/residentPortalAccess';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
 import {
   getBookingFinancialAccount,
@@ -350,8 +350,8 @@ export async function ResidentAreaSection({
   const simulatedDurationMode = developerTestMode
     ? parseDevResidentDurationMode(cookieStore.get(DEV_RESIDENT_DURATION_COOKIE)?.value)
     : null;
-  const confirmedBooking = await customerHasConfirmedBooking(session.customerId);
-  const hasConfirmedBookingWithoutDetail = confirmedBooking.ok && confirmedBooking.data;
+  const confirmedBooking = await customerHasResidentPortalAccess(session.customerId);
+  const hasConfirmedBookingWithoutDetail = confirmedBooking;
   const customer = await getCustomerById(session.customerId);
   const depositWallet = await getCustomerDepositCredit(session.customerId);
   const openRequests = await listOpenRequestsForCustomer(session.customerId);

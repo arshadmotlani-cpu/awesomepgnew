@@ -256,9 +256,9 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-07 11:00:30 UTC
+### Pending pre-commit sync · 2026-07-07 12:48:06 UTC
 
-**Areas touched:** [[ROUTES]], [[Bookings]]
+**Areas touched:** [[ROUTES]], [[Residents]]
 
 **Docs flagged for review:**
 - `CHANGELOG.md` — review for accuracy
@@ -267,9 +267,13 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (2):**
+**Staged code files (6):**
+- `app/(customer)/account/bookings/page.tsx`
+- `app/(customer)/account/profile/page.tsx`
+- `app/(customer)/account/resident/layout.tsx`
+- `app/(customer)/booking/[bookingCode]/page.tsx`
 - `app/api/payment-record/booking/route.ts`
-- `src/services/bookingLifecycle.ts`
+- `src/lib/residents/residentPortalAccess.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

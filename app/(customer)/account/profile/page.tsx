@@ -120,8 +120,8 @@ export default async function ProfilePage(props: PageProps<'/account/profile'>) 
           email={session.email}
         />
         <nav className="apg-account-nav mb-4 text-xs">
-          <Link href={ctx.hasConfirmedBooking ? residentProfileHref('overview') : '/account/profile'}>
-            ← {ctx.hasConfirmedBooking ? 'Profile' : 'My account'}
+          <Link href={ctx.hasResidentPortalAccess ? residentProfileHref('overview') : '/account/profile'}>
+            ← {ctx.hasResidentPortalAccess ? 'Profile' : 'My account'}
           </Link>
         </nav>
         <DocumentsModule
@@ -133,7 +133,7 @@ export default async function ProfilePage(props: PageProps<'/account/profile'>) 
     );
   }
 
-  if (ctx.hasConfirmedBooking && !explicitSettings) {
+  if (ctx.hasResidentPortalAccess && !explicitSettings) {
     if (sectionRaw === 'profile') {
       redirect(residentTabHref(residentTab, { sub: profileSub }));
     }

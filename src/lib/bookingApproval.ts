@@ -62,14 +62,12 @@ export async function bookingHasPendingPaymentProof(bookingId: string): Promise<
   return Boolean(row);
 }
 
-/** Resident billing dashboard unlocks only after admin-approved booking. */
+/** Resident billing dashboard unlocks only for active confirmed non-reserve stays. */
 export async function isResidentDashboardUnlocked(customerId: string): Promise<boolean> {
-  const [row] = await db
-    .select({ id: bookings.id })
-    .from(bookings)
-    .where(and(eq(bookings.customerId, customerId), eq(bookings.status, 'confirmed')))
-    .limit(1);
-  return Boolean(row);
+  const { customerHasResidentPortalAccess } = await import(
+    '@/src/lib/residents/residentPortalAccess'
+  );
+  return customerHasResidentPortalAccess(customerId);
 }
 
 /**

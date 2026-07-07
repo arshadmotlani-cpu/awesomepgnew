@@ -50,7 +50,11 @@ export async function POST(req: NextRequest) {
         ? Math.round(body.membershipAmountPaise)
         : undefined,
     });
-    return NextResponse.json({ ok: true, recordId: record.id, bookingCode: body.bookingCode });
+    return NextResponse.json({
+      ok: true as const,
+      recordId: String(record.id),
+      bookingCode: body.bookingCode,
+    });
   } catch (err) {
     return NextResponse.json(
       { ok: false, message: err instanceof Error ? err.message : String(err) },

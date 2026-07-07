@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { customerHasConfirmedBooking, listBookingsForCustomer } from '@/src/db/queries/customer';
+import { listBookingsForCustomer } from '@/src/db/queries/customer';
+import { customerHasResidentPortalAccess } from '@/src/lib/residents/residentPortalAccess';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
 import { formatIndianPhoneDisplay } from '@/src/lib/phone';
 import { LogoutButton } from '@/src/components/auth/LogoutButton';
@@ -34,8 +35,7 @@ export default async function AccountBookingsPage() {
   ]);
 
   const rows = bookings.ok ? bookings.data : [];
-  const confirmed = await customerHasConfirmedBooking(session.customerId);
-  const hasConfirmedBooking = confirmed.ok && confirmed.data;
+  const hasResidentPortalAccess = await customerHasResidentPortalAccess(session.customerId);
   const ctx = contextLoad.ok ? contextLoad.ctx : null;
 
   logger.info('post-login bookings page data loaded', {
@@ -44,7 +44,7 @@ export default async function AccountBookingsPage() {
     bookingCount: rows.length,
     contextOk: contextLoad.ok,
     contextReason: contextLoad.ok ? null : contextLoad.reason,
-    hasConfirmedBooking,
+    hasResidentPortalAccess,
     bookingCodes: rows.map((row) => row.bookingCode),
     bookingStatuses: rows.map((row) => row.status),
   });
@@ -108,7 +108,7 @@ export default async function AccountBookingsPage() {
         >
           <ApplicationBookingsList
             rows={rows}
-            showResidentHome={hasConfirmedBooking}
+            showResidentHome={hasResidentPortalAccess}
             customerId={session.customerId}
             email={session.email}
           />
@@ -116,7 +116,7 @@ export default async function AccountBookingsPage() {
       )}
 
       <p className="text-sm text-apg-silver">
-        {hasConfirmedBooking ? (
+        {hasResidentPortalAccess ? (
           <>
             Monthly stay?{' '}
             <Link href={legacyResidentTabHref('home')} className={ACCOUNT_LINK_ON_DARK}>

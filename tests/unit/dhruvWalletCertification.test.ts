@@ -43,16 +43,23 @@ test('certification: deposit SSOT is deposit_ledger via getDepositSummaryForBook
   );
 });
 
-test('certification: completed bookings count as residents (Dhruv regression root cause)', () => {
+test('certification: resident portal excludes reserve lifecycle and completed-only history', () => {
+  const portalAccess = readFileSync(
+    join(process.cwd(), 'src/lib/residents/residentPortalAccess.ts'),
+    'utf8',
+  );
+  assert.match(portalAccess, /customerHasOpenReserveLifecycle/);
+  assert.match(portalAccess, /customerHasResidentPortalAccess/);
+  assert.match(portalAccess, /getActiveTenancyForCustomer/);
+  assert.match(portalAccess, /durationMode !== 'reserve'/);
   assert.match(
     customerQuery,
-    /customerHasConfirmedBooking[\s\S]*inArray\(bookings\.status, \['confirmed', 'completed'\]\)/,
-    'was only confirmed — completed residents fell through to Account Settings',
+    /customerHasConfirmedBooking[\s\S]*customerHasResidentPortalAccess/,
   );
 });
 
 test('certification: residents land on My Stay dashboard, not profile settings', () => {
-  assert.match(profilePage, /hasConfirmedBooking && !explicitSettings/);
+  assert.match(profilePage, /hasResidentPortalAccess && !explicitSettings/);
   assert.match(profilePage, /<ResidentAreaSection/);
   assert.match(safeNext, /fallback = '\/account\/resident'/);
   assert.doesNotMatch(

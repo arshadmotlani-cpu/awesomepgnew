@@ -1271,22 +1271,15 @@ export function listBookingsForCustomer(
   });
 }
 
-/** True when the customer has a resident portal booking (active or historical). */
+/** True when the customer has an active confirmed non-reserve stay (resident portal). */
 export function customerHasConfirmedBooking(
   customerId: string,
 ): Promise<QueryResult<boolean>> {
   return guard(async () => {
-    const [row] = await db
-      .select({ id: bookings.id })
-      .from(bookings)
-      .where(
-        and(
-          eq(bookings.customerId, customerId),
-          inArray(bookings.status, ['confirmed', 'completed']),
-        ),
-      )
-      .limit(1);
-    return Boolean(row);
+    const { customerHasResidentPortalAccess } = await import(
+      '@/src/lib/residents/residentPortalAccess'
+    );
+    return customerHasResidentPortalAccess(customerId);
   });
 }
 

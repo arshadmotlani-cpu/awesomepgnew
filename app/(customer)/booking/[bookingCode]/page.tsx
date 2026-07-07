@@ -102,6 +102,10 @@ export default async function BookingConfirmationPage(
 
   const pendingPayment = await getPendingBookingPaymentRecord(b.id, session.customerId);
   const reserveConfirmed = b.durationMode === 'reserve' && b.reserveStatus === 'active';
+  const reserveUnderReview =
+    b.durationMode === 'reserve' &&
+    !reserveConfirmed &&
+    (b.reserveStatus === 'under_review' || bookingStatus === 'pending_approval');
   const approvalPhase = deriveBookingApprovalPhase({
     status: b.status,
     hasPendingPaymentProof: Boolean(pendingPayment),
@@ -118,15 +122,21 @@ export default async function BookingConfirmationPage(
   const reserveDaysRemaining = reserveDeadline
     ? Math.max(0, Math.ceil((parseDate(reserveDeadline).getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
     : null;
-  const bannerHeadline = reserveConfirmed ? 'Reservation confirmed' : banner.headline;
+  const bannerHeadline = reserveConfirmed
+    ? 'Reservation confirmed'
+    : reserveUnderReview
+      ? 'Reservation under review'
+      : banner.headline;
   const bannerCopy =
     reserveConfirmed
       ? `Your bed is reserved until ${reserveDeadline ? formatDate(reserveDeadline) : 'your booking deadline'}. Complete booking before expiry to start your stay.`
+      : reserveUnderReview
+        ? 'Your reservation payment proof is with the office. We will confirm your bed hold once review is complete.'
       : bookingStatus === 'confirmed'
       ? `Your stay at ${b.pg.name} is locked in. The operator will reach out with check-in instructions.`
       : banner.copy;
   const bannerClasses =
-    reserveConfirmed
+    reserveConfirmed || reserveUnderReview
       ? 'border-violet-200 from-violet-50 to-white'
       : banner.variant === 'pending'
       ? 'border-amber-200 from-amber-50 to-white'
@@ -138,7 +148,7 @@ export default async function BookingConfirmationPage(
             ? 'border-rose-200 from-rose-50 to-white'
             : 'border-zinc-200 from-zinc-50 to-white';
   const iconBgClass =
-    reserveConfirmed
+    reserveConfirmed || reserveUnderReview
       ? 'bg-violet-600'
       : banner.variant === 'pending'
       ? 'bg-amber-600'
@@ -150,7 +160,7 @@ export default async function BookingConfirmationPage(
             ? 'bg-rose-600'
             : 'bg-zinc-600';
   const headlineClass =
-    reserveConfirmed
+    reserveConfirmed || reserveUnderReview
       ? 'text-violet-800'
       : banner.variant === 'pending'
       ? 'text-amber-700'

@@ -28,9 +28,18 @@ test('recordPaymentSuccess repairs missing reserve hold inside approval tx', () 
   assert.match(src, /ensureBedReserveHoldActiveForBooking\(booking\.id, tx\)/);
 });
 
-test('booking checkout submit uses fetch timeout and reserve redirect', () => {
+test('booking checkout submit uses fetch timeout and redirects to booking page', () => {
   const src = read('src/components/customer/checkout/BookingCheckoutExperience.tsx');
   assert.match(src, /AbortController/);
-  assert.match(src, /window\.location\.assign/);
+  assert.match(src, /window\.location\.assign\(`\/booking\/\$\{/);
+  assert.match(src, /recordId\?: string/);
+  assert.doesNotMatch(src, /Invalid server response/);
   assert.match(src, /finally/);
+});
+
+test('payment-record booking API returns JSON-safe slim payload', () => {
+  const src = read('app/api/payment-record/booking/route.ts');
+  assert.match(src, /recordId: String\(record\.id\)/);
+  assert.match(src, /bookingCode: body\.bookingCode/);
+  assert.doesNotMatch(src, /record,/);
 });

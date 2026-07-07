@@ -22,7 +22,12 @@ import {
   STAY_CHECK_OUT_TIME,
 } from '@/src/lib/residents/stayBillingRules';
 
-type SubmitResult = { ok: boolean; message?: string };
+type SubmitResult = {
+  ok: boolean;
+  message?: string;
+  recordId?: string;
+  bookingCode?: string;
+};
 
 export type BookingCheckoutExperienceProps = {
   bookingCode: string;
@@ -269,25 +274,15 @@ export function BookingCheckoutExperience({
           transactionRef: transactionRef || undefined,
           membershipId,
           membershipAmountPaise,
-          partialDepositRequested: false,
         }),
       });
-      let data: SubmitResult;
-      try {
-        data = (await res.json()) as SubmitResult;
-      } catch {
-        throw new Error('Invalid server response. Your proof may still have been received — check booking status.');
-      }
+      const data = (await res.json()) as SubmitResult;
       if (!res.ok || !data.ok) {
         setError(data.message ?? 'Submission failed.');
         return;
       }
       mirrorClientEventToPostHog('payment_uploaded', { bookingCode });
-      if (isReserveBooking) {
-        window.location.assign(`/booking/${encodeURIComponent(bookingCode)}`);
-        return;
-      }
-      setDone(true);
+      window.location.assign(`/booking/${encodeURIComponent(data.bookingCode ?? bookingCode)}`);
     } catch (err) {
       logPaymentClientException('Booking payment submit failed', err, {
         page: 'booking-payment',
