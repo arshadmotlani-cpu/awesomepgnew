@@ -52,3 +52,13 @@ test('activateBedReserveRequestForBooking skips parallel db when nested in payme
   assert.match(src, /if \(existingTx\) return run\(existingTx\)/);
   assert.match(src, /countReservesInYear\(year, tx\)/);
 });
+
+test('reserve hold insert converts bed uniqueness conflict into a friendly error', () => {
+  const src = read('src/services/bedReserve.ts');
+  // Reads pg error code from both the wrapper and postgres.js `.cause`.
+  assert.match(src, /function pgErrorInfo/);
+  assert.match(src, /\.cause\b/);
+  // In-tx guard fails cleanly before hitting the DB constraint.
+  assert.match(src, /bed_reserve_holds_one_active_per_bed/);
+  assert.match(src, /This bed is no longer available for the selected dates\./);
+});

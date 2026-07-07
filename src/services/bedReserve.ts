@@ -575,6 +575,21 @@ function buildReservePricingSnapshot(
  * Create under-review bed reserve hold when customer submits payment proof.
  * Draft bookings have no hold row until this runs — inventory blocks only here.
  */
+/** postgres.js wraps the driver error under `.cause`; Drizzle rethrows a plain
+ * Error whose own `.code` is undefined. Read both levels so 23505 handling works. */
+function pgErrorInfo(err: unknown): { code?: string; constraint?: string } {
+  const direct = err as { code?: string; constraint_name?: string; constraint?: string };
+  const cause = (err as { cause?: unknown }).cause as
+    | { code?: string; constraint_name?: string; constraint?: string }
+    | undefined;
+  return {
+    code: direct?.code ?? cause?.code,
+    constraint: direct?.constraint_name ?? direct?.constraint ?? cause?.constraint_name ?? cause?.constraint,
+  };
+}
+
+const BED_ALREADY_RESERVED_MESSAGE = 'This bed is no longer available for the selected dates.';
+
 export async function activateBedReserveRequestForBooking(
   bookingId: string,
   proof: { paymentScreenshotUrl: string; transactionRef?: string | null },
@@ -618,6 +633,24 @@ export async function activateBedReserveRequestForBooking(
       .limit(1);
     if (existingHold?.status === 'active') return;
 
+    // The partial unique index bed_reserve_holds_one_active_per_bed permits only
+    // one under_review/active hold per bed. If another booking already holds this
+    // bed (lost-the-bed race), fail with a friendly message inside the tx instead
+    // of leaking a raw 23505 SQL string to the client.
+    const [bedConflict] = await tx
+      .select({ id: bedReserveHolds.id, bookingId: bedReserveHolds.bookingId })
+      .from(bedReserveHolds)
+      .where(
+        and(
+          eq(bedReserveHolds.bedId, bedId),
+          inArray(bedReserveHolds.status, ['under_review', 'active']),
+        ),
+      )
+      .limit(1);
+    if (bedConflict && bedConflict.bookingId !== bookingId) {
+      throw new Error(BED_ALREADY_RESERVED_MESSAGE);
+    }
+
     let holdId = existingHold?.id;
     let reserveCode = existingHold?.reserveCode;
 
@@ -647,7 +680,11 @@ export async function activateBedReserveRequestForBooking(
           holdId = inserted!.id;
           break;
         } catch (err) {
-          const code = (err as { code?: string }).code;
+          const { code, constraint } = pgErrorInfo(err);
+          if (code === '23505' && constraint === 'bed_reserve_holds_one_active_per_bed') {
+            throw new Error(BED_ALREADY_RESERVED_MESSAGE);
+          }
+          // Only reserve_code collisions are retryable — advance the sequence.
           if (code === '23505' && attempt < 4) continue;
           throw err;
         }
@@ -854,7 +891,10 @@ export async function ensureBedReserveHoldActiveForBooking(
         holdId = inserted!.id;
         break;
       } catch (err) {
-        const code = (err as { code?: string }).code;
+        const { code, constraint } = pgErrorInfo(err);
+        if (code === '23505' && constraint === 'bed_reserve_holds_one_active_per_bed') {
+          throw new Error(BED_ALREADY_RESERVED_MESSAGE);
+        }
         if (code === '23505' && attempt < 4) continue;
         throw err;
       }
