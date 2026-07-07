@@ -41,6 +41,14 @@ test('payment-record booking API returns JSON-safe slim payload', () => {
   const src = read('app/api/payment-record/booking/route.ts');
   assert.match(src, /recordId: String\(record\.id\)/);
   assert.match(src, /bookingCode: body\.bookingCode/);
+  assert.match(src, /errorId/);
+  assert.match(src, /\[payment-record\/booking\] submit failed/);
   assert.doesNotMatch(src, /record,/);
   assert.doesNotMatch(src, /revalidateReservationLifecycle/);
+});
+
+test('activateBedReserveRequestForBooking skips parallel db when nested in payment tx', () => {
+  const src = read('src/services/bedReserve.ts');
+  assert.match(src, /if \(existingTx\) return run\(existingTx\)/);
+  assert.match(src, /countReservesInYear\(year, tx\)/);
 });

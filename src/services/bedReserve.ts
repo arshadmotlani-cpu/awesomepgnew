@@ -109,8 +109,8 @@ export async function getEffectiveReserveForBed(
   return getManualReserveWindow(bedId);
 }
 
-async function countReservesInYear(year: number): Promise<number> {
-  const [row] = await db
+async function countReservesInYear(year: number, executor: DbTx | typeof db = db): Promise<number> {
+  const [row] = await executor
     .select({ count: sql<number>`count(*)::int` })
     .from(bedReserveHolds)
     .where(sql`extract(year from ${bedReserveHolds.createdAt}) = ${year}`);
@@ -624,7 +624,7 @@ export async function activateBedReserveRequestForBooking(
     if (!existingHold) {
       const year = utcYear();
       for (let attempt = 0; attempt < 5; attempt++) {
-        const reserveSeq = (await countReservesInYear(year)) + attempt;
+        const reserveSeq = (await countReservesInYear(year, tx)) + attempt;
         reserveCode = nextReserveCode(year, reserveSeq);
         try {
           const [inserted] = await tx
@@ -692,6 +692,11 @@ export async function activateBedReserveRequestForBooking(
     });
   };
 
+  // When called inside an outer transaction (payment proof submit), never issue
+  // parallel `db` queries here — Vercel uses DATABASE_POOL_MAX=1 and a second
+  // connection would deadlock until the route times out with an HTML error page.
+  if (existingTx) return run(existingTx);
+
   const { bedBlocksInventory } = await import('@/src/lib/inventoryBlocking');
   const [bookingMeta] = await db
     .select({
@@ -719,7 +724,6 @@ export async function activateBedReserveRequestForBooking(
     }
   }
 
-  if (existingTx) return run(existingTx);
   return db.transaction(run);
 }
 
@@ -827,7 +831,7 @@ export async function ensureBedReserveHoldActiveForBooking(
     const year = utcYear();
     let holdId: string | null = null;
     for (let attempt = 0; attempt < 5; attempt++) {
-      const reserveSeq = (await countReservesInYear(year)) + attempt;
+      const reserveSeq = (await countReservesInYear(year, runner)) + attempt;
       const reserveCode = nextReserveCode(year, reserveSeq);
       try {
         const [inserted] = await runner
