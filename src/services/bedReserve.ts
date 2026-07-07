@@ -8,6 +8,8 @@ import {
   beds,
   bookings,
   customers,
+  payments,
+  pgPaymentRecords,
   vacatingRequests,
 } from '../db/schema';
 import { nextBookingCode, utcYear } from '../lib/bookingCode';
@@ -703,29 +705,161 @@ function rateDailyFromMonthly(monthly: number): number {
 }
 
 export async function activateBedReserveAfterPayment(bookingId: string) {
+  const result = await ensureBedReserveHoldActiveForBooking(bookingId);
+  if (!result.holdId) return null;
   const [hold] = await db
     .select()
     .from(bedReserveHolds)
-    .where(eq(bedReserveHolds.bookingId, bookingId))
+    .where(eq(bedReserveHolds.id, result.holdId))
     .limit(1);
-  if (!hold) return null;
-  if (hold.status === 'active') return hold;
+  return hold ?? null;
+}
 
-  await db
-    .update(bedReserveHolds)
-    .set({ status: 'active', holdExpiresAt: null, updatedAt: new Date() })
-    .where(eq(bedReserveHolds.id, hold.id));
+type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-  await db.insert(auditLog).values({
-    actorType: 'system',
-    actorId: null,
-    entity: 'bed_reserve',
-    entityId: hold.id,
-    action: 'activated',
-    diff: { reserveCode: hold.reserveCode, checkInDate: hold.checkInDate },
-  });
+/**
+ * Idempotent — flips under_review/pending_payment → active after admin approval.
+ * Repairs missing holds when a bed_reserve payment already succeeded (production heal).
+ */
+export async function ensureBedReserveHoldActiveForBooking(
+  bookingId: string,
+  tx?: DbTx,
+): Promise<{ ok: boolean; holdId: string | null; repaired: boolean }> {
+  const run = async (runner: DbTx) => {
+    const [booking] = await runner
+      .select({
+        id: bookings.id,
+        bookingCode: bookings.bookingCode,
+        customerId: bookings.customerId,
+        durationMode: bookings.durationMode,
+        totalPaise: bookings.totalPaise,
+        billingAnchorDate: bookings.billingAnchorDate,
+        expectedCheckoutDate: bookings.expectedCheckoutDate,
+        pricingSnapshot: bookings.pricingSnapshot,
+      })
+      .from(bookings)
+      .where(eq(bookings.id, bookingId))
+      .limit(1);
+    if (!booking || booking.durationMode !== 'reserve') {
+      return { ok: false, holdId: null, repaired: false };
+    }
 
-  return hold;
+    const [alreadyActive] = await runner
+      .select({ id: bedReserveHolds.id })
+      .from(bedReserveHolds)
+      .where(
+        and(eq(bedReserveHolds.bookingId, bookingId), eq(bedReserveHolds.status, 'active')),
+      )
+      .limit(1);
+    if (alreadyActive) {
+      return { ok: true, holdId: alreadyActive.id, repaired: false };
+    }
+
+    const activated = await runner
+      .update(bedReserveHolds)
+      .set({ status: 'active', holdExpiresAt: null, updatedAt: new Date() })
+      .where(
+        and(
+          eq(bedReserveHolds.bookingId, bookingId),
+          inArray(bedReserveHolds.status, ['under_review', 'pending_payment']),
+        ),
+      )
+      .returning({ id: bedReserveHolds.id });
+    if (activated.length > 0) {
+      return { ok: true, holdId: activated[0].id, repaired: false };
+    }
+
+    const [payment] = await runner
+      .select({ id: payments.id })
+      .from(payments)
+      .where(
+        and(
+          eq(payments.bookingId, bookingId),
+          eq(payments.purpose, 'bed_reserve'),
+          eq(payments.status, 'succeeded'),
+        ),
+      )
+      .limit(1);
+    if (!payment) return { ok: false, holdId: null, repaired: false };
+
+    const snapshot = booking.pricingSnapshot as PricingSnapshot | null;
+    const bedId = bedIdFromReserveSnapshot(snapshot);
+    const reserveStart = booking.billingAnchorDate ? String(booking.billingAnchorDate) : null;
+    const checkInDate = booking.expectedCheckoutDate ? String(booking.expectedCheckoutDate) : null;
+    if (!bedId || !reserveStart || !checkInDate) {
+      return { ok: false, holdId: null, repaired: false };
+    }
+
+    const [proof] = await runner
+      .select({
+        paymentScreenshotUrl: pgPaymentRecords.paymentScreenshotUrl,
+        transactionRef: pgPaymentRecords.transactionRef,
+      })
+      .from(pgPaymentRecords)
+      .where(
+        and(eq(pgPaymentRecords.bookingId, bookingId), eq(pgPaymentRecords.status, 'approved')),
+      )
+      .orderBy(desc(pgPaymentRecords.reviewedAt))
+      .limit(1);
+
+    const monthlyRatePaise = snapshot?.perBed?.[0]?.monthlyRatePaise ?? booking.totalPaise * 2;
+    const year = utcYear();
+    let holdId: string | null = null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const reserveSeq = (await countReservesInYear(year)) + attempt;
+      const reserveCode = nextReserveCode(year, reserveSeq);
+      try {
+        const [inserted] = await runner
+          .insert(bedReserveHolds)
+          .values({
+            reserveCode,
+            customerId: booking.customerId,
+            bedId,
+            bookingId: booking.id,
+            reserveStart,
+            checkInDate,
+            status: 'active',
+            amountPaise: booking.totalPaise,
+            monthlyRateSnapshotPaise: monthlyRatePaise,
+            paymentProofUrl: proof?.paymentScreenshotUrl?.trim() || null,
+            transactionRef: proof?.transactionRef?.trim() || null,
+            holdExpiresAt: null,
+          })
+          .returning({ id: bedReserveHolds.id });
+        holdId = inserted!.id;
+        break;
+      } catch (err) {
+        const code = (err as { code?: string }).code;
+        if (code === '23505' && attempt < 4) continue;
+        throw err;
+      }
+    }
+    if (!holdId) return { ok: false, holdId: null, repaired: false };
+
+    await runner
+      .update(bookings)
+      .set({ status: 'pending_approval', updatedAt: new Date() })
+      .where(
+        and(
+          eq(bookings.id, bookingId),
+          inArray(bookings.status, ['draft', 'pending_payment', 'confirmed']),
+        ),
+      );
+
+    await runner.insert(auditLog).values({
+      actorType: 'system',
+      actorId: null,
+      entity: 'bed_reserve',
+      entityId: holdId,
+      action: 'reserve_hold_repaired',
+      diff: { bookingId, bookingCode: booking.bookingCode },
+    });
+
+    return { ok: true, holdId, repaired: true };
+  };
+
+  if (tx) return run(tx);
+  return db.transaction(run);
 }
 
 export async function markBedReserveConverted(reserveId: string) {

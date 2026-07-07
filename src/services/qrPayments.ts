@@ -563,7 +563,7 @@ async function bookingQrPaymentAlreadyProcessed(
     .where(
       and(
         eq(payments.bookingId, bookingId),
-        eq(payments.purpose, 'booking'),
+        inArray(payments.purpose, ['booking', 'bed_reserve']),
         eq(payments.status, 'succeeded'),
       ),
     )
@@ -748,6 +748,18 @@ export async function reviewPaymentRecord(
     bookingId: record.bookingId,
     reviewedByAdminId: session.adminId,
   });
+
+  if (record.bookingId) {
+    const [reserveBooking] = await db
+      .select({ durationMode: bookings.durationMode })
+      .from(bookings)
+      .where(eq(bookings.id, record.bookingId))
+      .limit(1);
+    if (reserveBooking?.durationMode === 'reserve') {
+      const { ensureBedReserveHoldActiveForBooking } = await import('./bedReserve');
+      await ensureBedReserveHoldActiveForBooking(record.bookingId);
+    }
+  }
 
   if (status === 'approved') {
     const { trackAnalyticsEvent } = await import('./visitorAnalytics');

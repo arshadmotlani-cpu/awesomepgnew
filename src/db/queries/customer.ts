@@ -42,6 +42,7 @@ import {
   RESERVATION_REQUEST_INTEREST_PAIR_SQL,
   UNDER_REVIEW_RESERVATION_PAIR_SQL,
 } from '@/src/lib/reservationBlocking';
+import { BED_RESERVE_HOLD_INVENTORY_STATUS_SQL } from '@/src/lib/reservationLifecycle/bedReserveOccupancySql';
 import { getPgAvailabilitySummaries, getRoomAvailabilitySummaries } from '@/src/services/availabilityService';
 import { logger } from '@/src/lib/logger';
 import { safeQuery } from '@/src/lib/healing/safeQuery';
@@ -568,9 +569,9 @@ export function getRoomDetail(
               SELECT brh.check_in_date::text
               FROM ${bedReserveHolds} brh
               WHERE brh.bed_id = beds.id
-                AND brh.status = 'active'
-                AND brh.reserve_start <= ${refDate}::date
+                AND ${sql.raw(BED_RESERVE_HOLD_INVENTORY_STATUS_SQL)}
                 AND brh.check_in_date >= ${refDate}::date
+              ORDER BY brh.created_at DESC
               LIMIT 1
             ),
             CASE
@@ -1044,6 +1045,49 @@ export function getBookingByCode(
       }
     }
 
+    if (b.durationMode === 'reserve' && reserveStatus !== 'active') {
+      const [reservePayment] = await db
+        .select({ id: payments.id })
+        .from(payments)
+        .where(
+          and(
+            eq(payments.bookingId, b.id),
+            eq(payments.purpose, 'bed_reserve'),
+            eq(payments.status, 'succeeded'),
+          ),
+        )
+        .limit(1);
+      if (reservePayment) {
+        const { ensureBedReserveHoldActiveForBooking } = await import('@/src/services/bedReserve');
+        const healed = await ensureBedReserveHoldActiveForBooking(b.id);
+        if (healed.ok) {
+          const [activeHold] = await db
+            .select({
+              reserveCode: bedReserveHolds.reserveCode,
+              status: bedReserveHolds.status,
+              holdExpiresAt: bedReserveHolds.holdExpiresAt,
+              updatedAt: bedReserveHolds.updatedAt,
+              reserveStart: bedReserveHolds.reserveStart,
+              checkInDate: bedReserveHolds.checkInDate,
+            })
+            .from(bedReserveHolds)
+            .where(eq(bedReserveHolds.bookingId, b.id))
+            .limit(1);
+          if (activeHold) {
+            reserveCode = activeHold.reserveCode;
+            reserveStatus = activeHold.status;
+            reserveExpiresAt = activeHold.holdExpiresAt
+              ? activeHold.holdExpiresAt.toISOString()
+              : null;
+            reserveApprovedAt =
+              activeHold.status === 'active' ? activeHold.updatedAt.toISOString() : null;
+            if (!reserveStart) reserveStart = String(activeHold.reserveStart);
+            if (!reserveCheckIn) reserveCheckIn = String(activeHold.checkInDate);
+          }
+        }
+      }
+    }
+
     return {
       id: b.id,
       bookingCode: b.bookingCode,
@@ -1092,6 +1136,9 @@ export type MyBookingRow = {
   bedCount: number;
   /** Earliest check-in across the booking's primary reservations. */
   checkInDate: string | null;
+  reserveStatus?: 'pending_payment' | 'under_review' | 'active' | 'expired' | 'cancelled' | 'converted' | null;
+  reserveCode?: string | null;
+  reserveExpiresAt?: Date | null;
 };
 
 /**
@@ -1113,36 +1160,100 @@ function myBookingsSelect() {
     totalPaise: bookings.totalPaise,
     discountPaise: bookings.discountPaise,
     createdAt: bookings.createdAt,
-    pgName: sql<string>`(
-      select pgs.name
-      from pgs
-      inner join floors on floors.pg_id = pgs.id
-      inner join rooms on rooms.floor_id = floors.id
-      inner join beds on beds.room_id = rooms.id
-      inner join bed_reservations on bed_reservations.bed_id = beds.id
-      where bed_reservations.booking_id = bookings.id
+    pgName: sql<string>`coalesce(
+      (
+        select pgs.name
+        from pgs
+        inner join floors on floors.pg_id = pgs.id
+        inner join rooms on rooms.floor_id = floors.id
+        inner join beds on beds.room_id = rooms.id
+        inner join bed_reservations on bed_reservations.bed_id = beds.id
+        where bed_reservations.booking_id = bookings.id
+        limit 1
+      ),
+      (
+        select pgs.name
+        from bed_reserve_holds brh
+        inner join beds on beds.id = brh.bed_id
+        inner join rooms on rooms.id = beds.room_id
+        inner join floors on floors.id = rooms.floor_id
+        inner join pgs on pgs.id = floors.pg_id
+        where brh.booking_id = bookings.id
+        limit 1
+      ),
+      ''
+    )`,
+    pgSlug: sql<string>`coalesce(
+      (
+        select pgs.slug
+        from pgs
+        inner join floors on floors.pg_id = pgs.id
+        inner join rooms on rooms.floor_id = floors.id
+        inner join beds on beds.room_id = rooms.id
+        inner join bed_reservations on bed_reservations.bed_id = beds.id
+        where bed_reservations.booking_id = bookings.id
+        limit 1
+      ),
+      (
+        select pgs.slug
+        from bed_reserve_holds brh
+        inner join beds on beds.id = brh.bed_id
+        inner join rooms on rooms.id = beds.room_id
+        inner join floors on floors.id = rooms.floor_id
+        inner join pgs on pgs.id = floors.pg_id
+        where brh.booking_id = bookings.id
+        limit 1
+      ),
+      ''
+    )`,
+    bedCount: sql<number>`greatest(
+      (
+        select count(*)::int from bed_reservations
+        where bed_reservations.booking_id = bookings.id
+          and bed_reservations.kind = 'primary'
+      ),
+      (
+        select count(*)::int from bed_reserve_holds brh
+        where brh.booking_id = bookings.id
+          and brh.status::text in ('under_review', 'active', 'pending_payment')
+      )
+    )`,
+    checkInDate: sql<string | null>`coalesce(
+      (
+        select to_char(min(lower(stay_range)), 'YYYY-MM-DD')
+        from bed_reservations
+        where bed_reservations.booking_id = bookings.id
+          and bed_reservations.kind = 'primary'
+      ),
+      (
+        select brh.check_in_date::text
+        from bed_reserve_holds brh
+        where brh.booking_id = bookings.id
+        order by brh.created_at desc
+        limit 1
+      ),
+      bookings.expected_checkout_date::text
+    )`,
+    reserveStatus: sql<'pending_payment' | 'under_review' | 'active' | 'expired' | 'cancelled' | 'converted' | null>`(
+      select brh.status::text
+      from bed_reserve_holds brh
+      where brh.booking_id = bookings.id
+      order by brh.created_at desc
       limit 1
     )`,
-    pgSlug: sql<string>`(
-      select pgs.slug
-      from pgs
-      inner join floors on floors.pg_id = pgs.id
-      inner join rooms on rooms.floor_id = floors.id
-      inner join beds on beds.room_id = rooms.id
-      inner join bed_reservations on bed_reservations.bed_id = beds.id
-      where bed_reservations.booking_id = bookings.id
+    reserveCode: sql<string | null>`(
+      select brh.reserve_code
+      from bed_reserve_holds brh
+      where brh.booking_id = bookings.id
+      order by brh.created_at desc
       limit 1
     )`,
-    bedCount: sql<number>`(
-      select count(*)::int from bed_reservations
-      where bed_reservations.booking_id = bookings.id
-        and bed_reservations.kind = 'primary'
-    )`,
-    checkInDate: sql<string | null>`(
-      select to_char(min(lower(stay_range)), 'YYYY-MM-DD')
-      from bed_reservations
-      where bed_reservations.booking_id = bookings.id
-        and bed_reservations.kind = 'primary'
+    reserveExpiresAt: sql<Date | null>`(
+      select brh.hold_expires_at
+      from bed_reserve_holds brh
+      where brh.booking_id = bookings.id
+      order by brh.created_at desc
+      limit 1
     )`,
   };
 }

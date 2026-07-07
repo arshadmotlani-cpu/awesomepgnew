@@ -85,7 +85,13 @@ export function normalizeMyBookingRow(raw: Partial<MyBookingRow> | null | undefi
   }
 
   const statusLabel =
-    status === 'invalid' ? 'Invalid' : labelBookingStatus(status);
+    durationMode === 'reserve' && raw?.reserveStatus === 'active'
+      ? 'Reservation confirmed'
+      : durationMode === 'reserve' && raw?.reserveStatus === 'under_review'
+        ? 'Reservation under review'
+        : status === 'invalid'
+          ? 'Invalid'
+          : labelBookingStatus(status);
 
   const isClosed = status !== 'invalid' && isClosedBookingStatus(status);
 

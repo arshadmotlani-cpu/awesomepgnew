@@ -546,6 +546,10 @@ export async function recordPaymentSuccess(
     } catch (repairErr) {
       console.error('booking rent invoice replay repair failed:', repairErr);
     }
+    if (isReserveBooking) {
+      const { ensureBedReserveHoldActiveForBooking } = await import('./bedReserve');
+      await ensureBedReserveHoldActiveForBooking(booking.id);
+    }
     return {
       ok: true,
       paymentId: existing.id,
@@ -651,7 +655,19 @@ export async function recordPaymentSuccess(
           )
           .returning({ id: bedReserveHolds.id });
         if (activated.length === 0) {
-          throw new Error('Reserve hold not found for this booking.');
+          const [activeHold] = await tx
+            .select({ id: bedReserveHolds.id })
+            .from(bedReserveHolds)
+            .where(
+              and(
+                eq(bedReserveHolds.bookingId, booking.id),
+                eq(bedReserveHolds.status, 'active'),
+              ),
+            )
+            .limit(1);
+          if (!activeHold) {
+            throw new Error('Reserve hold not found for this booking.');
+          }
         }
       }
 

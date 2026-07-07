@@ -4,7 +4,7 @@
  */
 import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { actionItems, pgPaymentRecords, unresolvedActions } from '@/src/db/schema';
+import { actionItems, bookings, pgPaymentRecords, unresolvedActions } from '@/src/db/schema';
 import { resolveAction } from '@/src/services/unresolvedActions';
 
 /** Close action_items, unresolved_actions, and admin notifications for one review key. */
@@ -62,6 +62,16 @@ export async function finalizeStaleBookingPaymentReview(args: {
   await resolvePaymentReviewArtifactsForKey(reviewKey);
 
   if (args.bookingId) {
+    const [booking] = await db
+      .select({ durationMode: bookings.durationMode })
+      .from(bookings)
+      .where(eq(bookings.id, args.bookingId))
+      .limit(1);
+    if (booking?.durationMode === 'reserve') {
+      const { ensureBedReserveHoldActiveForBooking } = await import('./bedReserve');
+      await ensureBedReserveHoldActiveForBooking(args.bookingId);
+    }
+
     await resolveDuplicateBookingPaymentProofs({
       bookingId: args.bookingId,
       keepRecordId: args.recordId,

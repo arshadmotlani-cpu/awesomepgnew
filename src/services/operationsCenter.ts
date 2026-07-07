@@ -201,12 +201,16 @@ async function listActiveBedReserves(session: AdminSession) {
   const rows = await db
     .select({
       id: bedReserveHolds.id,
+      bookingId: bookings.id,
+      bookingCode: bookings.bookingCode,
+      customerId: bedReserveHolds.customerId,
       pgId: floors.pgId,
       pgName: pgs.name,
       customerName: customers.fullName,
       bedCode: beds.bedCode,
       roomNumber: rooms.roomNumber,
       checkInDate: bedReserveHolds.checkInDate,
+      reserveCode: bedReserveHolds.reserveCode,
     })
     .from(bedReserveHolds)
     .innerJoin(customers, eq(customers.id, bedReserveHolds.customerId))
@@ -219,7 +223,8 @@ async function listActiveBedReserves(session: AdminSession) {
       and(
         eq(bedReserveHolds.status, 'active'),
         sql`${bedReserveHolds.checkInDate} >= ${today}::date`,
-        inArray(bookings.status, ['pending_approval']),
+        eq(bookings.durationMode, 'reserve'),
+        inArray(bookings.status, ['pending_approval', 'confirmed']),
       ),
     )
     .orderBy(bedReserveHolds.checkInDate);
@@ -228,14 +233,20 @@ async function listActiveBedReserves(session: AdminSession) {
     .filter((r) => sessionCanAccessPg(session, r.pgId))
     .map((r) => ({
       id: r.id,
+      bookingId: r.bookingId,
+      bookingCode: r.bookingCode,
+      customerId: r.customerId,
       residentName: r.customerName,
       bedCode: r.bedCode,
       roomNumber: r.roomNumber,
       pgName: formatPgDisplayName(r.pgName),
       checkInDate: r.checkInDate,
+      reserveCode: r.reserveCode,
       priority: reservationPriority(r.checkInDate, today),
     }));
 }
+
+export { listActiveBedReserves };
 
 
 async function listPendingDepositRefunds(session: AdminSession) {

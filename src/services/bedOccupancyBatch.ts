@@ -18,6 +18,7 @@ import {
   RESERVATION_REQUEST_INTEREST_PAIR_SQL,
   UNDER_REVIEW_RESERVATION_PAIR_SQL,
 } from '@/src/lib/reservationBlocking';
+import { BED_RESERVE_HOLD_INVENTORY_STATUS_SQL } from '@/src/lib/reservationLifecycle/bedReserveOccupancySql';
 import {
   aggregateOccupancyCounts,
   rawFactsToInput,
@@ -162,9 +163,9 @@ export async function fetchBedOccupancyRows(
             SELECT brh.check_in_date::text
             FROM ${bedReserveHolds} brh
             WHERE brh.bed_id = beds.id
-              AND brh.status = 'active'
-              AND brh.reserve_start <= ${refDate}::date
+              AND ${sql.raw(BED_RESERVE_HOLD_INVENTORY_STATUS_SQL)}
               AND brh.check_in_date >= ${refDate}::date
+            ORDER BY brh.created_at DESC
             LIMIT 1
           ),
           CASE

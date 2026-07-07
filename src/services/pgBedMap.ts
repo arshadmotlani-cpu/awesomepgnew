@@ -458,11 +458,15 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
       FROM bed_reserve_holds brh
       WHERE brh.bed_id = b.id
         AND (
-          brh.status = 'active'
-          OR (brh.status = 'pending_payment' AND brh.payment_proof_url IS NOT NULL)
+          brh.status::text IN ('under_review', 'active')
+          OR (
+            brh.status::text = 'pending_payment'
+            AND brh.payment_proof_url IS NOT NULL
+            AND trim(brh.payment_proof_url) <> ''
+          )
         )
-        AND brh.reserve_start <= CURRENT_DATE
         AND brh.check_in_date >= CURRENT_DATE
+      ORDER BY brh.created_at DESC
       LIMIT 1
     ) brhold ON true
     LEFT JOIN LATERAL (
