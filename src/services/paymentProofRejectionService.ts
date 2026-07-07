@@ -295,7 +295,15 @@ async function clearEntityProof(
       const nextStatus = projected.effectiveStatus === 'overdue' ? 'overdue' : 'pending';
       await executor
         .update(rentInvoices)
-        .set({ paymentProofUrl: null, status: nextStatus, updatedAt: now })
+        .set({
+          paymentProofUrl: null,
+          status: nextStatus,
+          proofSubmittedAt: null,
+          proofSnapshotOutstandingPaise: null,
+          proofSnapshotLateFeePaise: null,
+          proofSnapshotPrincipalDuePaise: null,
+          updatedAt: now,
+        })
         .where(eq(rentInvoices.id, entityId));
       break;
     }

@@ -1193,6 +1193,11 @@ export async function recordRentPaymentSuccess(
       paidLateFeePaise: rentInvoices.paidLateFeePaise,
       lateFeeLockedPaise: rentInvoices.lateFeeLockedPaise,
       paymentId: rentInvoices.paymentId,
+      paymentProofUrl: rentInvoices.paymentProofUrl,
+      proofSubmittedAt: rentInvoices.proofSubmittedAt,
+      proofSnapshotOutstandingPaise: rentInvoices.proofSnapshotOutstandingPaise,
+      proofSnapshotLateFeePaise: rentInvoices.proofSnapshotLateFeePaise,
+      proofSnapshotPrincipalDuePaise: rentInvoices.proofSnapshotPrincipalDuePaise,
     })
     .from(rentInvoices)
     .where(eq(rentInvoices.id, input.invoiceId))
@@ -1248,23 +1253,28 @@ export async function recordRentPaymentSuccess(
   }
 
   const projected = projectInvoice(invoice as RentInvoice);
+  const maxPayablePaise =
+    rentProofApprovalAmountPaise(invoice as RentInvoice) ?? projected.outstandingPaise;
   if (input.amountPaise <= 0) {
     return { ok: false, reason: 'payment amount must be > 0' };
   }
-  if (input.amountPaise > projected.outstandingPaise) {
+  if (input.amountPaise > maxPayablePaise) {
     return {
       ok: false,
-      reason: `payment ${input.amountPaise} exceeds outstanding ${projected.outstandingPaise}`,
+      reason: `payment ${input.amountPaise} exceeds outstanding ${maxPayablePaise}`,
     };
   }
 
   const rentDuePaise = computeRentDuePaise(invoice.rentPaise, invoice.discountPaise);
+  const snapshotLateFee = rentProofSnapshotLateFeeOwedPaise(invoice as RentInvoice);
   const lateFee = input.historical
     ? 0
-    : computeLateFee({
-        rentPaise: rentDuePaise,
-        billingMonth: invoice.billingMonth,
-      });
+    : snapshotLateFee != null
+      ? (invoice.proofSnapshotLateFeePaise ?? 0)
+      : computeLateFee({
+          rentPaise: rentDuePaise,
+          billingMonth: invoice.billingMonth,
+        });
 
   let remaining = input.amountPaise;
   const lateOwed = Math.max(0, lateFee - invoice.paidLateFeePaise);
@@ -1551,11 +1561,115 @@ export async function recordRentPaymentFailure(input: {
 // View helpers (dynamic late-fee accrual on read)
 // ───────────────────────────────────────────────────────────────────────────
 
-/** Rows from joins may omit new promo columns until migration runs. */
-export type RentInvoiceProjectInput = Omit<RentInvoice, 'discountPaise' | 'promoCode'> & {
+/** Rows from joins may omit new promo / proof-snapshot columns until migration runs. */
+export type RentInvoiceProjectInput = Omit<
+  RentInvoice,
+  'discountPaise' | 'promoCode' | 'proofSubmittedAt' | 'proofSnapshotOutstandingPaise' | 'proofSnapshotLateFeePaise' | 'proofSnapshotPrincipalDuePaise'
+> & {
   discountPaise?: number;
   promoCode?: string | null;
+  proofSubmittedAt?: Date | null;
+  proofSnapshotOutstandingPaise?: number | null;
+  proofSnapshotLateFeePaise?: number | null;
+  proofSnapshotPrincipalDuePaise?: number | null;
 };
+
+export type ProjectInvoiceOptions = {
+  /** When true, always accrue late fees live (used when capturing proof snapshot). */
+  bypassProofSnapshot?: boolean;
+};
+
+function hasFrozenProofSnapshot(
+  invoice: RentInvoiceProjectInput,
+): invoice is RentInvoiceProjectInput & { proofSnapshotOutstandingPaise: number } {
+  return (
+    invoice.proofSnapshotOutstandingPaise != null &&
+    invoice.proofSnapshotOutstandingPaise >= 0 &&
+    Boolean(invoice.paymentProofUrl)
+  );
+}
+
+/** Financial snapshot frozen at payment-proof upload — SSOT for review + approval. */
+export function buildRentProofFinancialSnapshot(
+  invoice: RentInvoiceProjectInput,
+  submittedAt: Date = new Date(),
+): {
+  proofSubmittedAt: Date;
+  proofSnapshotOutstandingPaise: number;
+  proofSnapshotLateFeePaise: number;
+  proofSnapshotPrincipalDuePaise: number;
+} {
+  const live = projectInvoice(invoice, formatDate(submittedAt), { bypassProofSnapshot: true });
+  const rentDuePaise = computeRentDuePaise(invoice.rentPaise, invoice.discountPaise);
+  const principalDuePaise = Math.max(0, rentDuePaise - (invoice.paidPrincipalPaise ?? 0));
+  return {
+    proofSubmittedAt: submittedAt,
+    proofSnapshotOutstandingPaise: live.outstandingPaise,
+    proofSnapshotLateFeePaise: live.accruedLateFeePaise,
+    proofSnapshotPrincipalDuePaise: principalDuePaise,
+  };
+}
+
+/**
+ * Backfill missing paise columns for legacy rows that only have proof_submitted_at.
+ * Reconstructs amounts as-of submission time — never uses approval-time accrual.
+ */
+export async function ensureRentProofSnapshot(
+  invoiceId: string,
+): Promise<RentInvoice | null> {
+  const [invoice] = await db
+    .select()
+    .from(rentInvoices)
+    .where(eq(rentInvoices.id, invoiceId))
+    .limit(1);
+  if (!invoice?.paymentProofUrl) return invoice ?? null;
+  if (invoice.proofSnapshotOutstandingPaise != null) return invoice;
+
+  const anchor = invoice.proofSubmittedAt ?? invoice.updatedAt;
+  const snapshot = buildRentProofFinancialSnapshot(invoice, anchor);
+
+  const [updated] = await db
+    .update(rentInvoices)
+    .set({
+      proofSubmittedAt: invoice.proofSubmittedAt ?? snapshot.proofSubmittedAt,
+      proofSnapshotOutstandingPaise: snapshot.proofSnapshotOutstandingPaise,
+      proofSnapshotLateFeePaise: snapshot.proofSnapshotLateFeePaise,
+      proofSnapshotPrincipalDuePaise: snapshot.proofSnapshotPrincipalDuePaise,
+      updatedAt: new Date(),
+    })
+    .where(eq(rentInvoices.id, invoiceId))
+    .returning();
+
+  return updated ?? invoice;
+}
+
+/** Outstanding paise for admin proof approval — always the frozen snapshot. */
+export function rentProofApprovalAmountPaise(invoice: RentInvoiceProjectInput): number | null {
+  if (!hasFrozenProofSnapshot(invoice)) return null;
+  return Math.max(
+    0,
+    invoice.proofSnapshotOutstandingPaise -
+      (invoice.paidPrincipalPaise ?? 0) -
+      (invoice.paidLateFeePaise ?? 0),
+  );
+}
+
+/** Net rent principal still owed per proof snapshot (for settlement allocation). */
+export function rentProofSnapshotPrincipalOwedPaise(invoice: RentInvoiceProjectInput): number | null {
+  if (!hasFrozenProofSnapshot(invoice)) return null;
+  if (invoice.proofSnapshotPrincipalDuePaise != null) {
+    return Math.max(0, invoice.proofSnapshotPrincipalDuePaise);
+  }
+  const rentDuePaise = computeRentDuePaise(invoice.rentPaise, invoice.discountPaise);
+  return Math.max(0, rentDuePaise - (invoice.paidPrincipalPaise ?? 0));
+}
+
+/** Late fee owed per proof snapshot (for settlement allocation). */
+export function rentProofSnapshotLateFeeOwedPaise(invoice: RentInvoiceProjectInput): number | null {
+  if (!hasFrozenProofSnapshot(invoice)) return null;
+  const frozenLate = invoice.proofSnapshotLateFeePaise ?? 0;
+  return Math.max(0, frozenLate - (invoice.paidLateFeePaise ?? 0));
+}
 
 /** Net rent principal due after promo discount — SSOT for all billing surfaces. */
 export function computeRentDuePaise(
@@ -1566,19 +1680,25 @@ export function computeRentDuePaise(
 }
 
 /**
- * Augment a stored `rent_invoices` row with the live late fee and
- * effective UI status. The stored `status` is "pending" until the
- * sweeper flips it to "overdue", but the customer-facing dashboard
- * should reflect overdue immediately on the 6th regardless of cron lag.
+ * Augment a stored `rent_invoices` row with late fee and effective UI status.
+ *
+ * - Before proof upload: late fee accrues live from billing month / due date.
+ * - After proof upload: uses `proof_snapshot_*` — payable never moves during review.
+ * - After payment: uses `late_fee_locked_paise`.
  */
 export function projectInvoice(
   invoice: RentInvoiceProjectInput,
   asOf: DateLike = formatDate(new Date()),
+  options?: ProjectInvoiceOptions,
 ): RentInvoiceView {
   const inv: RentInvoice = {
     ...invoice,
     discountPaise: invoice.discountPaise ?? 0,
     promoCode: invoice.promoCode ?? null,
+    proofSubmittedAt: invoice.proofSubmittedAt ?? null,
+    proofSnapshotOutstandingPaise: invoice.proofSnapshotOutstandingPaise ?? null,
+    proofSnapshotLateFeePaise: invoice.proofSnapshotLateFeePaise ?? null,
+    proofSnapshotPrincipalDuePaise: invoice.proofSnapshotPrincipalDuePaise ?? null,
   };
   if (inv.status === 'paid') {
     return {
@@ -1596,6 +1716,31 @@ export function projectInvoice(
       effectiveStatus: 'cancelled',
     };
   }
+  if (inv.status === 'expired') {
+    return {
+      ...inv,
+      accruedLateFeePaise: 0,
+      outstandingPaise: 0,
+      effectiveStatus: 'expired',
+    };
+  }
+
+  if (!options?.bypassProofSnapshot && hasFrozenProofSnapshot(inv)) {
+    const accruedLateFeePaise = inv.proofSnapshotLateFeePaise ?? 0;
+    const outstandingPaise = Math.max(
+      0,
+      inv.proofSnapshotOutstandingPaise -
+        inv.paidPrincipalPaise -
+        inv.paidLateFeePaise,
+    );
+    return {
+      ...inv,
+      accruedLateFeePaise,
+      outstandingPaise,
+      effectiveStatus: 'payment_in_progress',
+    };
+  }
+
   const rentDuePaise = computeRentDuePaise(inv.rentPaise, inv.discountPaise);
   if (inv.status === 'payment_in_progress') {
     const lateFee = computeLateFee({
@@ -1612,14 +1757,6 @@ export function projectInvoice(
       accruedLateFeePaise: lateFee,
       outstandingPaise,
       effectiveStatus: 'payment_in_progress',
-    };
-  }
-  if (inv.status === 'expired') {
-    return {
-      ...inv,
-      accruedLateFeePaise: 0,
-      outstandingPaise: 0,
-      effectiveStatus: 'expired',
     };
   }
   const lateFee = computeLateFee({
@@ -1793,18 +1930,40 @@ export async function submitRentPaymentProof(
       return { ok: false as const, message: 'This invoice is not awaiting payment.' };
     }
     if (invoice.paymentProofUrl === proofUrl) {
+      if (invoice.proofSnapshotOutstandingPaise == null) {
+        const snapshot = buildRentProofFinancialSnapshot(
+          invoice,
+          invoice.proofSubmittedAt ?? invoice.updatedAt,
+        );
+        await tx
+          .update(rentInvoices)
+          .set({
+            proofSubmittedAt: invoice.proofSubmittedAt ?? snapshot.proofSubmittedAt,
+            proofSnapshotOutstandingPaise: snapshot.proofSnapshotOutstandingPaise,
+            proofSnapshotLateFeePaise: snapshot.proofSnapshotLateFeePaise,
+            proofSnapshotPrincipalDuePaise: snapshot.proofSnapshotPrincipalDuePaise,
+            updatedAt: new Date(),
+          })
+          .where(eq(rentInvoices.id, invoiceId));
+      }
       return { ok: true as const };
     }
 
     const previousStatus = invoice.status;
     const nextStatus = previousStatus === 'payment_in_progress' ? previousStatus : 'payment_in_progress';
+    const submittedAt = new Date();
+    const snapshot = buildRentProofFinancialSnapshot(invoice, submittedAt);
 
     await tx
       .update(rentInvoices)
       .set({
         paymentProofUrl: proofUrl,
         status: nextStatus,
-        updatedAt: new Date(),
+        proofSubmittedAt: snapshot.proofSubmittedAt,
+        proofSnapshotOutstandingPaise: snapshot.proofSnapshotOutstandingPaise,
+        proofSnapshotLateFeePaise: snapshot.proofSnapshotLateFeePaise,
+        proofSnapshotPrincipalDuePaise: snapshot.proofSnapshotPrincipalDuePaise,
+        updatedAt: submittedAt,
       })
       .where(eq(rentInvoices.id, invoiceId));
 
@@ -1814,7 +1973,12 @@ export async function submitRentPaymentProof(
       previousStatus,
       newStatus: nextStatus,
       source: 'user',
-      meta: { idempotencyKey, action: 'payment_proof_uploaded' },
+      meta: {
+        idempotencyKey,
+        action: 'payment_proof_uploaded',
+        proofSnapshotOutstandingPaise: snapshot.proofSnapshotOutstandingPaise,
+        proofSnapshotLateFeePaise: snapshot.proofSnapshotLateFeePaise,
+      },
     });
 
     const { supersedeActiveRejection } = await import('@/src/services/paymentProofRejectionService');
@@ -1899,8 +2063,14 @@ export async function approveRentPaymentProof(
     return { ok: false, message: 'Invoice is not awaiting payment.' };
   }
 
-  const projected = projectInvoice(invoice);
-  const amountPaise = projected.outstandingPaise;
+  const invoiceWithSnapshot = (await ensureRentProofSnapshot(invoiceId)) ?? invoice;
+  const amountPaise = rentProofApprovalAmountPaise(invoiceWithSnapshot);
+  if (amountPaise == null || amountPaise <= 0) {
+    return {
+      ok: false,
+      message: 'Payment snapshot missing — ask the resident to re-upload proof.',
+    };
+  }
 
   const { applyApprovedPaymentAtomic } = await import('@/src/services/paymentSettlementAtomic');
   const result = await applyApprovedPaymentAtomic({
@@ -1910,7 +2080,12 @@ export async function approveRentPaymentProof(
     providerPaymentId: `rent-proof-${invoiceId}`,
     amountPaise,
     invoiceId,
-    rawPayload: { source: 'payment_proof', proofUrl: invoice.paymentProofUrl },
+    rawPayload: {
+      source: 'payment_proof',
+      proofUrl: invoiceWithSnapshot.paymentProofUrl,
+      proofSnapshotOutstandingPaise: invoiceWithSnapshot.proofSnapshotOutstandingPaise,
+      proofSubmittedAt: invoiceWithSnapshot.proofSubmittedAt?.toISOString() ?? null,
+    },
   });
 
   if (result.ok) return { ok: true };

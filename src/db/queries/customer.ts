@@ -1402,6 +1402,10 @@ export type RentInvoiceRow = {
   paidAt: Date | null;
   notes: string | null;
   paymentProofUrl: string | null;
+  proofSubmittedAt: Date | null;
+  proofSnapshotOutstandingPaise: number | null;
+  proofSnapshotLateFeePaise: number | null;
+  proofSnapshotPrincipalDuePaise: number | null;
 };
 
 export function listRentInvoicesForBooking(
@@ -1426,6 +1430,10 @@ export function listRentInvoicesForBooking(
         paidAt: rentInvoices.paidAt,
         notes: rentInvoices.notes,
         paymentProofUrl: rentInvoices.paymentProofUrl,
+        proofSubmittedAt: rentInvoices.proofSubmittedAt,
+        proofSnapshotOutstandingPaise: rentInvoices.proofSnapshotOutstandingPaise,
+        proofSnapshotLateFeePaise: rentInvoices.proofSnapshotLateFeePaise,
+        proofSnapshotPrincipalDuePaise: rentInvoices.proofSnapshotPrincipalDuePaise,
       })
       .from(rentInvoices)
       .innerJoin(bookings, eq(bookings.id, rentInvoices.bookingId))

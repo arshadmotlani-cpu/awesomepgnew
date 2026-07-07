@@ -141,7 +141,6 @@ function buildBillRowsFromDetail(
         bedId: '',
         pgId: '',
         paymentId: null,
-        paymentProofUrl: null,
         isAdhoc: false,
         createdAt: new Date(),
         updatedAt: new Date(),

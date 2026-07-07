@@ -345,8 +345,10 @@ async function buildRentReviewItem(
   if (!invoice) return null;
 
   const projected = projectInvoice(invoice);
+  const frozenOutstanding =
+    invoice.proofSnapshotOutstandingPaise ?? projected.outstandingPaise;
   const expectedLines: PaymentReviewExpectedLine[] = [
-    { label: 'Amount due', amountPaise: projected.outstandingPaise },
+    { label: 'Amount due', amountPaise: frozenOutstanding },
   ];
 
   const [customer] = await db
@@ -374,32 +376,32 @@ async function buildRentReviewItem(
     paymentTypeLabel: 'Monthly rent',
     title: `${r.customerName} · Rent ${r.invoiceNumber}`,
     subtitle: `Room ${r.roomNumber} · ${r.bedCode} · ${r.billingMonth.slice(0, 7)}`,
-    amountPaise: projected.outstandingPaise,
+    amountPaise: frozenOutstanding,
     screenshotUrl: r.paymentProofUrl!,
     entityId: r.invoiceId,
     customerId: invoice.customerId,
     bookingId: invoice.bookingId,
     expectedLines,
-    expectedTotalPaise: projected.outstandingPaise,
+    expectedTotalPaise: frozenOutstanding,
     receivedPaise: null,
     outstandingAfterApprovalPaise: 0,
     overpaidPaise: 0,
     outstandingSummary:
-      'Verify screenshot — approval records full outstanding rent',
+      'Verify screenshot — approval records amount frozen at proof submission',
     canPartialApprove: false,
     canReject: true,
     invoiceNumber: r.invoiceNumber,
-    invoiceAmountPaise: projected.outstandingPaise,
-    submittedAmountPaise: projected.outstandingPaise,
-    proofSubmittedAt: invoice.updatedAt.toISOString(),
+    invoiceAmountPaise: frozenOutstanding,
+    submittedAmountPaise: frozenOutstanding,
+    proofSubmittedAt: (invoice.proofSubmittedAt ?? invoice.updatedAt).toISOString(),
     billingMonth: r.billingMonth,
     isPipelineTest: false,
     financialInvoiceId,
     paymentExplanation: buildSimplePaymentExplanation({
       lines: expectedLines,
-      totalExpectedPaise: projected.outstandingPaise,
+      totalExpectedPaise: frozenOutstanding,
       receivedPaise: null,
-      resultLabel: 'Verify screenshot — approval records full outstanding rent',
+      resultLabel: 'Verify screenshot — approval records amount frozen at proof submission',
     }),
     bookingContext: contextFromItem(
       {
@@ -410,7 +412,7 @@ async function buildRentReviewItem(
         bedCode: r.bedCode,
         paymentTypeLabel: 'Monthly rent',
         subtitle: `Room ${r.roomNumber} · ${r.bedCode} · ${r.billingMonth.slice(0, 7)}`,
-        amountPaise: projected.outstandingPaise,
+        amountPaise: frozenOutstanding,
       },
       null,
     ),

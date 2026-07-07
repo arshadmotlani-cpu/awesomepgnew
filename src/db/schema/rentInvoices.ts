@@ -23,10 +23,10 @@ import { rentInvoiceStatusEnum } from './enums';
  * - `billing_month` is always the 1st of the month (DB-enforced via CHECK).
  * - `due_date` is the 5th of the month — late fees kick in on the 6th
  *   at 1% of `rent_paise` per day, accrued linearly (NOT compounded).
- * - The late fee is computed dynamically from `(today - due_date)` while
- *   the invoice is unpaid; on payment, the accrued late fee is frozen
- *   into `late_fee_locked_paise` so the customer + admin ledger never
- *   moves after the payment lands.
+ * - While unpaid (no proof): late fee accrues dynamically from due date.
+ * - On payment-proof upload: outstanding + late fee are frozen into
+ *   `proof_snapshot_*` — payable amount never moves during admin review.
+ * - On payment settlement: late fee is copied into `late_fee_locked_paise`.
  */
 export const rentInvoices = pgTable(
   'rent_invoices',
@@ -60,6 +60,16 @@ export const rentInvoices = pgTable(
     lateFeeLockedPaise: bigint('late_fee_locked_paise', { mode: 'number' }),
     status: rentInvoiceStatusEnum('status').notNull().default('pending'),
     paymentProofUrl: text('payment_proof_url'),
+    /** When proof was uploaded; late-fee accrual stops after this moment. */
+    proofSubmittedAt: timestamp('proof_submitted_at', { withTimezone: true }),
+    /** Outstanding paise frozen at proof submission — approval uses this, not live accrual. */
+    proofSnapshotOutstandingPaise: bigint('proof_snapshot_outstanding_paise', {
+      mode: 'number',
+    }),
+    proofSnapshotLateFeePaise: bigint('proof_snapshot_late_fee_paise', { mode: 'number' }),
+    proofSnapshotPrincipalDuePaise: bigint('proof_snapshot_principal_due_paise', {
+      mode: 'number',
+    }),
     paymentId: uuid('payment_id').references(() => payments.id, {
       onDelete: 'set null',
     }),

@@ -1492,6 +1492,10 @@ export function listAdminOpenRentInvoices(filter?: {
         notes: rentInvoices.notes,
         paymentProvider: payments.provider,
         paymentProofUrl: rentInvoices.paymentProofUrl,
+        proofSubmittedAt: rentInvoices.proofSubmittedAt,
+        proofSnapshotOutstandingPaise: rentInvoices.proofSnapshotOutstandingPaise,
+        proofSnapshotLateFeePaise: rentInvoices.proofSnapshotLateFeePaise,
+        proofSnapshotPrincipalDuePaise: rentInvoices.proofSnapshotPrincipalDuePaise,
       })
       .from(rentInvoices)
       .innerJoin(bookings, eq(bookings.id, rentInvoices.bookingId))
@@ -1523,6 +1527,10 @@ export function listAdminOpenRentInvoices(filter?: {
         paidAt: r.paidAt,
         paymentId: null,
         paymentProofUrl: r.paymentProofUrl,
+        proofSubmittedAt: r.proofSubmittedAt,
+        proofSnapshotOutstandingPaise: r.proofSnapshotOutstandingPaise,
+        proofSnapshotLateFeePaise: r.proofSnapshotLateFeePaise,
+        proofSnapshotPrincipalDuePaise: r.proofSnapshotPrincipalDuePaise,
         notes: r.notes,
         cancelledAt: null,
         cancellationReason: null,

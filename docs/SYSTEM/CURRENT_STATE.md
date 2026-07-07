@@ -147,3 +147,6 @@ See [[BUGS]] for full list. Highlights:
 
 <!-- DOC_SYNC_TOUCH_2026-07-06 -->
 > **2026-07-06 16:04:00 UTC** — Code changed in: Database. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-07-07 -->
+> **2026-07-07 06:19:57 UTC** — Code changed in: Database, Billing. Manual review recommended.
