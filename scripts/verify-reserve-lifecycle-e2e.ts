@@ -31,9 +31,14 @@ const adminSession: AdminSession = {
 async function pickBed(): Promise<string> {
   const start = todayString();
   const end = addDays(start, 14);
-  const candidates = await db.select({ id: beds.id, bedCode: beds.bedCode }).from(beds).limit(40);
+  const candidates = await db
+    .select({ id: beds.id, bedCode: beds.bedCode })
+    .from(beds)
+    .where(eq(beds.status, 'available'))
+    .limit(8);
   for (const bed of candidates) {
     if (await isBedInventoryAvailable({ bedId: bed.id, startDate: start, endDate: end })) {
+      console.log('using bed', bed.bedCode);
       return bed.id;
     }
   }
