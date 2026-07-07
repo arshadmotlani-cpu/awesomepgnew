@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import type { ReactNode } from 'react';
 import { ConfirmationGate } from '@/src/components/customer/design-system';
 import { UpiPaymentProofForm } from '@/src/components/customer/UpiPaymentProofForm';
 import { ResidentPaymentSuccess } from '@/src/components/customer/account/resident/ResidentPaymentSuccess';
@@ -20,6 +19,15 @@ type Props = {
   rejectionMessage?: string | null;
   uploadScreenshot: (formData: FormData) => Promise<string>;
   submitProof: (args: { screenshotUrl: string; transactionRef?: string }) => Promise<SubmitResult>;
+  logContext?: {
+    page: string;
+    invoiceId?: string;
+    bookingId?: string;
+    residentId?: string;
+    paymentLinkId?: string;
+    membershipId?: string;
+    extensionId?: string;
+  };
   successChecklist: string[];
   backHref: string;
 };
@@ -42,6 +50,7 @@ export function ResidentPaymentConfirmFlow({
   rejectionMessage,
   uploadScreenshot,
   submitProof,
+  logContext,
   successChecklist,
   backHref,
 }: Props) {
@@ -106,6 +115,7 @@ export function ResidentPaymentConfirmFlow({
       existingProofUrl={existingProofUrl}
       proofViewHref={proofViewHref}
       uploadScreenshot={uploadScreenshot}
+      logContext={logContext}
       submitProof={async (args) => {
         const result = await submitProof(args);
         if (result.ok) setStep('success');

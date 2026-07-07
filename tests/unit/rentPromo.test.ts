@@ -38,11 +38,11 @@ describe('rent invoice promo projection', () => {
       isAdhoc: false,
       createdAt: new Date('2026-07-01'),
       updatedAt: new Date('2026-07-01'),
-    } as never);
+    } as never, '2026-07-05');
 
     assert.equal(view.discountPaise, 90_000);
     assert.equal(view.promoCode, '050726');
-    assert.ok(view.outstandingPaise <= 810_000 + 5000);
+    assert.equal(view.outstandingPaise, 810_000);
   });
 });
 

@@ -14,7 +14,7 @@ import { persistedBookingToSummaryData } from '@/src/lib/booking/bookingDraft';
 import { stayTypeFromPricingMode } from '@/src/lib/stayType';
 import { resolveBookingCheckoutQr } from '@/src/lib/payments/checkoutQr';
 import { paiseToInr as formatPaise } from '@/src/lib/format';
-import { PS4_ADDON_LABEL, PS4_PLANS } from '@/src/lib/playstation/plans';
+import { PS4_PLANS } from '@/src/lib/playstation/plans';
 import { getCustomerById, isProfileComplete } from '@/src/services/profile';
 import {
   ensureDefaultPaymentCategoriesForPg,
@@ -26,6 +26,7 @@ import { getPendingBookingPaymentRecord } from '@/src/services/qrPayments';
 import { getActiveRejectionForEntity } from '@/src/services/paymentProofRejectionService';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import { resolveBookingDepositCreditAppliedPaise } from '@/src/lib/billing/bookingCheckoutTotals';
+import { PaymentFlowErrorBoundary } from '@/src/components/customer/payments/PaymentFlowErrorBoundary';
 
 export const dynamic = 'force-dynamic';
 
@@ -153,39 +154,46 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
                 <BookingInlineAuth />
               </div>
             ) : (
-            <BookingCheckoutExperience
-              bookingCode={booking.bookingCode}
-              pgName={booking.pg.name}
-              roomNumber={roomNumber ?? undefined}
-              bedCode={bedCode ?? undefined}
-              bedsLabel={bedsLabel}
-              isReserveBooking={isReserveBooking}
-              durationMode={booking.durationMode}
-              expectedCheckoutDate={booking.expectedCheckoutDate}
-              checkInDate={checkInDate}
-              stayNights={stayNights}
-              reserveStart={booking.reserveStart}
-              reserveCheckIn={booking.reserveCheckIn ?? booking.expectedCheckoutDate}
-              subtotalPaise={booking.subtotalPaise}
-              depositPaise={booking.depositPaise}
-              depositCreditAppliedPaise={depositCreditAppliedPaise}
-              additionalDepositDuePaise={additionalDepositDuePaise}
-              priorOutstandingItems={priorOutstandingItems}
-              rentLineItems={rentLineItems}
-              discountPaise={booking.discountPaise}
-              totalPaise={checkoutTotalPaise}
-              totalLabel={totalLabel}
-              qrImageUrl={qrImageUrl}
-              upiId={upiId}
-              uploadScreenshot={uploadPaymentScreenshotAction}
-              membershipId={pendingPs4?.id}
-              membershipAmountPaise={ps4Paise > 0 ? ps4Paise : undefined}
-              membershipLabel={ps4PlanLabel}
-              existingProofRecordId={hasSubmittedProof ? pendingPayment?.id : undefined}
-              rejectionReason={bookingRejection?.reasonLabel ?? null}
-              rejectionMessage={bookingRejection?.residentMessage ?? null}
-              compactLayout
-            />
+              <PaymentFlowErrorBoundary
+                page="booking-payment"
+                bookingId={booking.id}
+                bookingCode={booking.bookingCode}
+                residentId={session.customerId}
+              >
+                <BookingCheckoutExperience
+                  bookingCode={booking.bookingCode}
+                  pgName={booking.pg.name}
+                  roomNumber={roomNumber ?? undefined}
+                  bedCode={bedCode ?? undefined}
+                  bedsLabel={bedsLabel}
+                  isReserveBooking={isReserveBooking}
+                  durationMode={booking.durationMode}
+                  expectedCheckoutDate={booking.expectedCheckoutDate}
+                  checkInDate={checkInDate}
+                  stayNights={stayNights}
+                  reserveStart={booking.reserveStart}
+                  reserveCheckIn={booking.reserveCheckIn ?? booking.expectedCheckoutDate}
+                  subtotalPaise={booking.subtotalPaise}
+                  depositPaise={booking.depositPaise}
+                  depositCreditAppliedPaise={depositCreditAppliedPaise}
+                  additionalDepositDuePaise={additionalDepositDuePaise}
+                  priorOutstandingItems={priorOutstandingItems}
+                  rentLineItems={rentLineItems}
+                  discountPaise={booking.discountPaise}
+                  totalPaise={checkoutTotalPaise}
+                  totalLabel={totalLabel}
+                  qrImageUrl={qrImageUrl}
+                  upiId={upiId}
+                  uploadScreenshot={uploadPaymentScreenshotAction}
+                  membershipId={pendingPs4?.id}
+                  membershipAmountPaise={ps4Paise > 0 ? ps4Paise : undefined}
+                  membershipLabel={ps4PlanLabel}
+                  existingProofRecordId={hasSubmittedProof ? pendingPayment?.id : undefined}
+                  rejectionReason={bookingRejection?.reasonLabel ?? null}
+                  rejectionMessage={bookingRejection?.residentMessage ?? null}
+                  compactLayout
+                />
+              </PaymentFlowErrorBoundary>
             )}
           </BookingFunnelShell>
         </div>

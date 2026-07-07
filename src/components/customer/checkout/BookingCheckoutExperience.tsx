@@ -7,6 +7,7 @@ import { ImageFileInput } from '@/src/components/shared/ImageFileInput';
 import { customerPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import { resolveBlobLinkHref } from '@/src/lib/storage/blobImageDisplay';
 import { paiseToInr } from '@/src/lib/format';
+import { logPaymentClientException } from '@/src/lib/client/paymentClientLogger';
 import { stayTypeFromPricingMode, stayTypeLabel } from '@/src/lib/stayType';
 import type { PriorOutstandingItem } from '@/src/lib/billing/bookingCheckoutTotals';
 import { computeNewBookingCheckoutTotals } from '@/src/lib/billing/bookingCheckoutTotals';
@@ -100,7 +101,6 @@ export function BookingCheckoutExperience({
   reserveCheckIn,
   subtotalPaise,
   depositPaise,
-  totalPaise,
   totalLabel,
   qrImageUrl,
   upiId,
@@ -129,6 +129,8 @@ export function BookingCheckoutExperience({
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(Boolean(existingProofRecordId) && !rejectionReason);
   const [copied, setCopied] = useState(false);
+  const [qrFailed, setQrFailed] = useState(false);
+  const [qrNonce, setQrNonce] = useState(0);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const depositDueNowPaise =
@@ -201,17 +203,24 @@ export function BookingCheckoutExperience({
         setUploading(false);
       }
     },
-    [uploadScreenshot],
+    [previewObjectUrl, uploadScreenshot],
   );
 
   async function copyUpi() {
     if (!upiId) return;
     try {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error('Clipboard API unavailable');
+      }
       await navigator.clipboard.writeText(upiId);
       setCopied(true);
       if (copyTimer.current) clearTimeout(copyTimer.current);
       copyTimer.current = setTimeout(() => setCopied(false), 2000);
-    } catch {
+    } catch (err) {
+      logPaymentClientException('Booking payment UPI copy failed', err, {
+        page: 'booking-payment',
+        bookingCode,
+      });
       setError('Could not copy UPI ID. Select and copy manually.');
     }
   }
@@ -229,7 +238,11 @@ export function BookingCheckoutExperience({
       anchor.click();
       anchor.remove();
       URL.revokeObjectURL(objectUrl);
-    } catch {
+    } catch (err) {
+      logPaymentClientException('Booking payment QR download failed', err, {
+        page: 'booking-payment',
+        bookingCode,
+      });
       window.open(qrImageUrl, '_blank', 'noopener,noreferrer');
     }
   }
@@ -263,7 +276,11 @@ export function BookingCheckoutExperience({
       }
       mirrorClientEventToPostHog('payment_uploaded', { bookingCode });
       setDone(true);
-    } catch {
+    } catch (err) {
+      logPaymentClientException('Booking payment submit failed', err, {
+        page: 'booking-payment',
+        bookingCode,
+      });
       setError('Network error. Try again.');
     } finally {
       setPending(false);
@@ -486,7 +503,19 @@ export function BookingCheckoutExperience({
         <p className="text-sm font-semibold text-white">Scan &amp; pay {payNowLabel}</p>
         <div className="mx-auto mt-4 max-w-[280px] rounded-[14px] border border-white/10 bg-white p-3 shadow-sm">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={qrImageUrl} alt="UPI QR code" className="mx-auto w-full object-contain" />
+          <img
+            src={`${qrImageUrl}${qrNonce ? `${qrImageUrl.includes('?') ? '&' : '?'}r=${qrNonce}` : ''}`}
+            alt="UPI QR code"
+            className="mx-auto w-full object-contain"
+            onLoad={() => setQrFailed(false)}
+            onError={() => {
+              setQrFailed(true);
+              logPaymentClientException('Booking payment QR render failed', new Error('qr-load-failed'), {
+                page: 'booking-payment',
+                bookingCode,
+              });
+            }}
+          />
         </div>
         <button
           type="button"
@@ -495,6 +524,18 @@ export function BookingCheckoutExperience({
         >
           Download QR
         </button>
+        {qrFailed ? (
+          <p className="mt-2 text-xs text-rose-300">
+            QR failed to load.
+            <button
+              type="button"
+              className="ml-2 font-semibold underline"
+              onClick={() => setQrNonce((n) => n + 1)}
+            >
+              Retry
+            </button>
+          </p>
+        ) : null}
         {upiId ? (
           <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
             <code className="text-sm font-semibold text-white">{upiId}</code>

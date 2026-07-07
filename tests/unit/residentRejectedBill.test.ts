@@ -23,9 +23,9 @@ function rentRowStatus(input: {
     bookingId: 'b-1',
     billingMonth: input.billingMonth ?? '2026-07-01',
     dueDate: '2026-07-05',
-    amountPaise: 500_000,
     rentPaise: 500_000,
-    lateFeePaise: 0,
+    discountPaise: 0,
+    promoCode: null,
     paidPrincipalPaise: 0,
     paidLateFeePaise: 0,
     lateFeeLockedPaise: null,
@@ -101,7 +101,14 @@ test('proof awaiting approval takes precedence over stale rejection map entry', 
 });
 
 test('no rejection and no proof shows Due or Overdue', () => {
-  assert.equal(rentRowStatus({ paymentProofUrl: null, status: 'pending' }), 'Due');
+  assert.equal(
+    rentRowStatus({
+      paymentProofUrl: null,
+      status: 'pending',
+      billingMonth: '2099-01-01',
+    }),
+    'Due',
+  );
   assert.equal(
     rentRowStatus({
       paymentProofUrl: null,

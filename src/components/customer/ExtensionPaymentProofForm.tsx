@@ -3,6 +3,14 @@
 import { customerPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import { UpiPaymentProofForm } from './UpiPaymentProofForm';
 
+async function safeJson<T>(res: Response): Promise<T | null> {
+  try {
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
 export function ExtensionPaymentProofForm({
   extensionId,
   amountLabel,
@@ -28,6 +36,7 @@ export function ExtensionPaymentProofForm({
       existingProofUrl={existingProofUrl}
       proofViewHref={customerPaymentProofViewUrl('extension', extensionId)}
       uploadScreenshot={uploadScreenshot}
+      logContext={{ page: 'extension-payment', extensionId }}
       submitProof={async ({ screenshotUrl, transactionRef }) => {
         const res = await fetch(`/api/stay-extension/${extensionId}/payment-proof`, {
           method: 'POST',
@@ -37,8 +46,8 @@ export function ExtensionPaymentProofForm({
             transactionRef,
           }),
         });
-        const data = (await res.json()) as { ok: boolean; message?: string };
-        return { ok: res.ok && data.ok, message: data.message };
+        const data = await safeJson<{ ok: boolean; message?: string }>(res);
+        return { ok: Boolean(res.ok && data?.ok), message: data?.message ?? 'Request failed.' };
       }}
     />
   );

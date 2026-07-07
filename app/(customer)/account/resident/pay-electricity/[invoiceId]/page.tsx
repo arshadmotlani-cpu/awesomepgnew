@@ -35,6 +35,7 @@ import {
 } from '@/src/services/pgPaymentDefaults';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
 import { getActiveRejectionForEntity } from '@/src/services/paymentProofRejectionService';
+import { PaymentFlowErrorBoundary } from '@/src/components/customer/payments/PaymentFlowErrorBoundary';
 
 export const dynamic = 'force-dynamic';
 
@@ -157,18 +158,26 @@ export default async function PayElectricityPage({
           This invoice was cancelled.
         </ApgCard>
       ) : (
-        <ResidentPayElectricityClient
+        <PaymentFlowErrorBoundary
+          page="resident-pay-electricity"
           invoiceId={invoiceRow.id}
-          amountLabel={amountLabel}
-          confirmMessage={`You are paying ${amountLabel} for electricity for ${periodLabel}. Pay the exact amount via UPI, then upload your payment screenshot for verification.`}
-          qrImageUrl={elecCategory?.qrCodeImageUrl ?? DEFAULT_ELECTRICITY_DAILY_QR_PATH}
-          upiId={elecCategory?.upiId ?? DEFAULT_ELECTRICITY_DAILY_UPI_ID}
-          existingProofUrl={row.paymentProofUrl}
-          rejectionReason={activeRejection?.reasonLabel ?? null}
-          rejectionMessage={activeRejection?.residentMessage ?? null}
-          uploadScreenshot={uploadPaymentScreenshotAction}
-          backHref={backHref}
-        />
+          bookingId={invoiceRow.bookingId}
+          residentId={session.customerId}
+        >
+          <ResidentPayElectricityClient
+            invoiceId={invoiceRow.id}
+            amountLabel={amountLabel}
+            confirmMessage={`You are paying ${amountLabel} for electricity for ${periodLabel}. Pay the exact amount via UPI, then upload your payment screenshot for verification.`}
+            qrImageUrl={elecCategory?.qrCodeImageUrl ?? DEFAULT_ELECTRICITY_DAILY_QR_PATH}
+            upiId={elecCategory?.upiId ?? DEFAULT_ELECTRICITY_DAILY_UPI_ID}
+            existingProofUrl={row.paymentProofUrl}
+            rejectionReason={activeRejection?.reasonLabel ?? null}
+            rejectionMessage={activeRejection?.residentMessage ?? null}
+            uploadScreenshot={uploadPaymentScreenshotAction}
+            backHref={backHref}
+            residentId={session.customerId}
+          />
+        </PaymentFlowErrorBoundary>
       )}
     </div>
   );

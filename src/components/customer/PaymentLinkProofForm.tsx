@@ -34,6 +34,7 @@ export function PaymentLinkProofForm({
       rejectionReason={rejectionReason}
       rejectionMessage={rejectionMessage}
       proofViewHref={customerPaymentProofViewUrl('deposit_link', linkId)}
+      logContext={{ page: 'payment-link', paymentLinkId: linkId }}
       uploadScreenshot={async (formData) => {
         formData.set('linkId', linkId);
         return uploadPaymentLinkScreenshotAction(formData);

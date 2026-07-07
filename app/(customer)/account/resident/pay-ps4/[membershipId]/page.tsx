@@ -24,6 +24,7 @@ import {
 import { db } from '@/src/db/client';
 import { eq } from 'drizzle-orm';
 import { playstationMemberships } from '@/src/db/schema';
+import { PaymentFlowErrorBoundary } from '@/src/components/customer/payments/PaymentFlowErrorBoundary';
 
 export const dynamic = 'force-dynamic';
 
@@ -144,13 +145,20 @@ export default async function PayPs4Page({
             </a>
           </div>
         ) : (
-          <Ps4PaymentProofForm
+          <PaymentFlowErrorBoundary
+            page="ps4-payment"
             membershipId={membership.id}
-            amountLabel={paiseToInr(membership.amountPaise)}
-            uploadScreenshot={uploadPaymentScreenshotAction}
-            qrImageUrl={qrImageUrl}
-            upiId={upiId}
-          />
+            bookingId={membership.bookingId}
+            residentId={session.customerId}
+          >
+            <Ps4PaymentProofForm
+              membershipId={membership.id}
+              amountLabel={paiseToInr(membership.amountPaise)}
+              uploadScreenshot={uploadPaymentScreenshotAction}
+              qrImageUrl={qrImageUrl}
+              upiId={upiId}
+            />
+          </PaymentFlowErrorBoundary>
         )
       ) : active?.id === membership.id ? (
         <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">

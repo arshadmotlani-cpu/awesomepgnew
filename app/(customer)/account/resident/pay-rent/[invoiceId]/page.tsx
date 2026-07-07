@@ -37,6 +37,7 @@ import {
 } from '@/src/services/pgPaymentDefaults';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
 import { getActiveRejectionForEntity } from '@/src/services/paymentProofRejectionService';
+import { PaymentFlowErrorBoundary } from '@/src/components/customer/payments/PaymentFlowErrorBoundary';
 
 export const dynamic = 'force-dynamic';
 
@@ -169,24 +170,31 @@ export default async function PayRentPage({
           This invoice was cancelled — no payment needed.
         </ApgCard>
       ) : (
-        <ResidentPayRentWithPromo
+        <PaymentFlowErrorBoundary
+          page="resident-pay-rent"
           invoiceId={row.id}
-          customerId={session.customerId}
-          rentPaise={row.rentPaise}
-          initialDiscountPaise={row.discountPaise ?? 0}
-          initialPromoCode={row.promoCode}
-          initialOutstandingPaise={projected.outstandingPaise - projected.accruedLateFeePaise}
-          lateFeePaise={projected.accruedLateFeePaise}
-          periodLabel={periodLabel}
-          confirmMessageBase={`You are paying ${amountLabel} for rent for ${periodLabel}.`}
-          qrImageUrl={rentCategory?.qrCodeImageUrl ?? DEFAULT_RENT_DEPOSIT_QR_PATH}
-          upiId={rentCategory?.upiId ?? DEFAULT_RENT_DEPOSIT_UPI_ID}
-          existingProofUrl={row.paymentProofUrl}
-          rejectionReason={activeRejection?.reasonLabel ?? null}
-          rejectionMessage={activeRejection?.residentMessage ?? null}
-          uploadScreenshot={uploadPaymentScreenshotAction}
-          backHref={backHref}
-        />
+          bookingId={row.bookingId}
+          residentId={session.customerId}
+        >
+          <ResidentPayRentWithPromo
+            invoiceId={row.id}
+            customerId={session.customerId}
+            rentPaise={row.rentPaise}
+            initialDiscountPaise={row.discountPaise ?? 0}
+            initialPromoCode={row.promoCode}
+            initialOutstandingPaise={projected.outstandingPaise - projected.accruedLateFeePaise}
+            lateFeePaise={projected.accruedLateFeePaise}
+            periodLabel={periodLabel}
+            confirmMessageBase={`You are paying ${amountLabel} for rent for ${periodLabel}.`}
+            qrImageUrl={rentCategory?.qrCodeImageUrl ?? DEFAULT_RENT_DEPOSIT_QR_PATH}
+            upiId={rentCategory?.upiId ?? DEFAULT_RENT_DEPOSIT_UPI_ID}
+            existingProofUrl={row.paymentProofUrl}
+            rejectionReason={activeRejection?.reasonLabel ?? null}
+            rejectionMessage={activeRejection?.residentMessage ?? null}
+            uploadScreenshot={uploadPaymentScreenshotAction}
+            backHref={backHref}
+          />
+        </PaymentFlowErrorBoundary>
       )}
     </div>
   );

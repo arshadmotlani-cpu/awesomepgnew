@@ -7,6 +7,7 @@ import { paiseToInr, titleCase } from '@/src/lib/format';
 import { assertActivePaymentLink } from '@/src/lib/billing/paymentLinkAccess';
 import { PaymentLinkProofForm } from '@/src/components/customer/PaymentLinkProofForm';
 import { getActiveRejectionForEntity } from '@/src/services/paymentProofRejectionService';
+import { PaymentFlowErrorBoundary } from '@/src/components/customer/payments/PaymentFlowErrorBoundary';
 
 export const dynamic = 'force-dynamic';
 
@@ -130,15 +131,22 @@ export default async function PaymentLinkPage({
 
       {(link.purpose === 'deposit' && link.bookingId) || link.rentInvoiceId ? (
         <section className="mt-6">
-          <PaymentLinkProofForm
-            linkId={link.id}
-            amountLabel={paiseToInr(finalPaise)}
-            qrImageUrl={link.upiQrUrl}
-            existingProofUrl={link.paymentProofUrl}
-            rejectionReason={activeRejection?.reasonLabel ?? null}
-            rejectionMessage={activeRejection?.residentMessage ?? null}
-            title={link.title}
-          />
+          <PaymentFlowErrorBoundary
+            page="payment-link"
+            paymentLinkId={link.id}
+            bookingId={link.bookingId}
+            residentId={link.residentId}
+          >
+            <PaymentLinkProofForm
+              linkId={link.id}
+              amountLabel={paiseToInr(finalPaise)}
+              qrImageUrl={link.upiQrUrl}
+              existingProofUrl={link.paymentProofUrl}
+              rejectionReason={activeRejection?.reasonLabel ?? null}
+              rejectionMessage={activeRejection?.residentMessage ?? null}
+              title={link.title}
+            />
+          </PaymentFlowErrorBoundary>
         </section>
       ) : (
         <p className="mt-6 text-center text-xs text-zinc-500">

@@ -21,6 +21,7 @@ import {
   ensureDefaultPaymentCategoriesForPg,
   getRentDepositBookingCategory,
 } from '@/src/services/pgPaymentDefaults';
+import { PaymentFlowErrorBoundary } from '@/src/components/customer/payments/PaymentFlowErrorBoundary';
 
 export const dynamic = 'force-dynamic';
 
@@ -166,14 +167,22 @@ export default async function ExtensionPayPage(
 
             <div className="mt-5">
               {paymentUploadAvailable ? (
-                <ExtensionPaymentProofForm
+                <PaymentFlowErrorBoundary
+                  page="extension-payment"
                   extensionId={ext.id}
-                  amountLabel={totalLabel}
-                  uploadScreenshot={uploadPaymentScreenshotAction}
-                  existingProofUrl={extMeta?.paymentProofUrl}
-                  qrImageUrl={rentCategory?.qrCodeImageUrl ?? DEFAULT_RENT_DEPOSIT_QR_PATH}
-                  upiId={rentCategory?.upiId ?? DEFAULT_RENT_DEPOSIT_UPI_ID}
-                />
+                  bookingId={ext.bookingId}
+                  bookingCode={ext.bookingCode}
+                  residentId={session.customerId}
+                >
+                  <ExtensionPaymentProofForm
+                    extensionId={ext.id}
+                    amountLabel={totalLabel}
+                    uploadScreenshot={uploadPaymentScreenshotAction}
+                    existingProofUrl={extMeta?.paymentProofUrl}
+                    qrImageUrl={rentCategory?.qrCodeImageUrl ?? DEFAULT_RENT_DEPOSIT_QR_PATH}
+                    upiId={rentCategory?.upiId ?? DEFAULT_RENT_DEPOSIT_UPI_ID}
+                  />
+                </PaymentFlowErrorBoundary>
               ) : (
                 <p className="text-sm text-amber-800">
                   Payment proof upload is temporarily unavailable. Please contact Awesome PG support.

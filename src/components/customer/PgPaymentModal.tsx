@@ -2,6 +2,7 @@
 
 import { useId, useState } from 'react';
 import { ImageFileInput } from '@/src/components/shared/ImageFileInput';
+import { logPaymentClientException } from '@/src/lib/client/paymentClientLogger';
 
 type Category = {
   id: string;
@@ -47,6 +48,10 @@ export function PgPaymentModal({
       const url = await uploadScreenshot(fd);
       setScreenshotUrl(url);
     } catch (err) {
+      logPaymentClientException('PG payment screenshot upload failed', err, {
+        page: 'pg-payment-modal',
+        residentId: null,
+      });
       setError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
       setUploading(false);
@@ -88,7 +93,11 @@ export function PgPaymentModal({
       }
       onSubmitted();
       onClose();
-    } catch {
+    } catch (err) {
+      logPaymentClientException('PG payment submit failed', err, {
+        page: 'pg-payment-modal',
+        residentId: null,
+      });
       setError('Network error. Try again.');
     } finally {
       setPending(false);
@@ -136,7 +145,20 @@ export function PgPaymentModal({
               <button
                 type="button"
                 className="text-xs text-apg-silver underline"
-                onClick={() => navigator.clipboard.writeText(category.upiId ?? '')}
+                onClick={async () => {
+                  try {
+                    if (!navigator.clipboard?.writeText) {
+                      throw new Error('Clipboard API unavailable');
+                    }
+                    await navigator.clipboard.writeText(category.upiId ?? '');
+                  } catch (err) {
+                    logPaymentClientException('PG payment UPI copy failed', err, {
+                      page: 'pg-payment-modal',
+                      residentId: null,
+                    });
+                    setError('Could not copy UPI ID. Please copy manually.');
+                  }
+                }}
               >
                 Copy
               </button>

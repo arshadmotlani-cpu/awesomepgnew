@@ -23,6 +23,7 @@ const baseInvoice = {
   lateFeeLockedPaise: null,
   paymentId: null,
   paidAt: null,
+  paymentProofUrl: null,
   notes: null,
   cancelledAt: null,
   cancellationReason: null,

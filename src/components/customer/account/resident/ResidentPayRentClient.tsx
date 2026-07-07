@@ -3,6 +3,14 @@
 import { customerPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import { ResidentPaymentConfirmFlow } from '@/src/components/customer/account/resident/ResidentPaymentConfirmFlow';
 
+async function safeJson<T>(res: Response): Promise<T | null> {
+  try {
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
 export function ResidentPayRentClient({
   invoiceId,
   amountLabel,
@@ -14,6 +22,7 @@ export function ResidentPayRentClient({
   rejectionMessage,
   uploadScreenshot,
   backHref,
+  residentId,
 }: {
   invoiceId: string;
   amountLabel: string;
@@ -25,6 +34,7 @@ export function ResidentPayRentClient({
   rejectionMessage?: string | null;
   uploadScreenshot: (formData: FormData) => Promise<string>;
   backHref: string;
+  residentId?: string;
 }) {
   return (
     <ResidentPaymentConfirmFlow
@@ -38,14 +48,15 @@ export function ResidentPayRentClient({
       rejectionMessage={rejectionMessage}
       proofViewHref={customerPaymentProofViewUrl('rent', invoiceId)}
       uploadScreenshot={uploadScreenshot}
+      logContext={{ page: 'resident-pay-rent', invoiceId, residentId }}
       submitProof={async ({ screenshotUrl }) => {
         const res = await fetch(`/api/rent-invoice/${invoiceId}/payment-proof`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ paymentProofUrl: screenshotUrl }),
         });
-        const data = (await res.json()) as { ok: boolean; message?: string };
-        return { ok: res.ok && data.ok, message: data.message };
+        const data = await safeJson<{ ok: boolean; message?: string }>(res);
+        return { ok: Boolean(res.ok && data?.ok), message: data?.message ?? 'Request failed.' };
       }}
       successChecklist={[
         'Payment screenshot saved on your invoice',

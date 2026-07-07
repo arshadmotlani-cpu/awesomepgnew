@@ -4,6 +4,14 @@ import { customerPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import { PS4_LOUNGE_HEADLINE, PS4_LOUNGE_HOURLY_NOTE } from '@/src/lib/playstation/plans';
 import { UpiPaymentProofForm } from './UpiPaymentProofForm';
 
+async function safeJson<T>(res: Response): Promise<T | null> {
+  try {
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
 export function Ps4PaymentProofForm({
   membershipId,
   amountLabel,
@@ -29,6 +37,7 @@ export function Ps4PaymentProofForm({
       existingProofUrl={existingProofUrl}
       proofViewHref={customerPaymentProofViewUrl('playstation', membershipId)}
       uploadScreenshot={uploadScreenshot}
+      logContext={{ page: 'ps4-payment', membershipId }}
       doneMessage="Payment proof submitted. Your PS4 lounge access activates once admin verifies the UPI payment (usually within a few hours)."
       submitProof={async ({ screenshotUrl, transactionRef }) => {
         const res = await fetch(`/api/playstation/membership/${membershipId}/payment-proof`, {
@@ -39,8 +48,8 @@ export function Ps4PaymentProofForm({
             transactionRef,
           }),
         });
-        const data = (await res.json()) as { ok: boolean; message?: string };
-        return { ok: res.ok && data.ok, message: data.message };
+        const data = await safeJson<{ ok: boolean; message?: string }>(res);
+        return { ok: Boolean(res.ok && data?.ok), message: data?.message ?? 'Request failed.' };
       }}
     />
   );

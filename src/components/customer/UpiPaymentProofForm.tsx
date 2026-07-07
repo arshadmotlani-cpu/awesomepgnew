@@ -3,6 +3,7 @@
 import { useEffect, useId, useState } from 'react';
 import { ImageFileInput } from '@/src/components/shared/ImageFileInput';
 import { resolveBlobLinkHref } from '@/src/lib/storage/blobImageDisplay';
+import { logPaymentClientException } from '@/src/lib/client/paymentClientLogger';
 
 type SubmitResult = { ok: boolean; message?: string };
 
@@ -21,6 +22,7 @@ export function UpiPaymentProofForm({
   doneMessage = 'Payment proof submitted. An admin will verify the screenshot and mark it paid.',
   variant = 'dark',
   qrFootnote,
+  logContext,
 }: {
   amountLabel: string;
   heading?: string;
@@ -41,6 +43,15 @@ export function UpiPaymentProofForm({
   /** Light surfaces for booking checkout; dark glass for resident dashboard. */
   variant?: 'light' | 'dark';
   qrFootnote?: string;
+  logContext?: {
+    page: string;
+    invoiceId?: string;
+    bookingId?: string;
+    residentId?: string;
+    paymentLinkId?: string;
+    membershipId?: string;
+    extensionId?: string;
+  };
 }) {
   const isLight = variant === 'light';
   const inputId = useId();
@@ -52,6 +63,8 @@ export function UpiPaymentProofForm({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(Boolean(existingProofUrl) && !rejectionReason);
+  const [qrFailed, setQrFailed] = useState(false);
+  const [qrNonce, setQrNonce] = useState(0);
 
   const rejectionBanner =
     rejectionReason || rejectionMessage ? (
@@ -107,6 +120,15 @@ export function UpiPaymentProofForm({
       const url = await uploadScreenshot(fd);
       setScreenshotUrl(url);
     } catch (err) {
+      logPaymentClientException('Payment screenshot upload failed', err, {
+        page: logContext?.page ?? 'upi-payment-proof',
+        invoiceId: logContext?.invoiceId ?? null,
+        bookingId: logContext?.bookingId ?? null,
+        residentId: logContext?.residentId ?? null,
+        paymentLinkId: logContext?.paymentLinkId ?? null,
+        membershipId: logContext?.membershipId ?? null,
+        extensionId: logContext?.extensionId ?? null,
+      });
       setScreenshotUrl('');
       setFileName(null);
       if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
@@ -135,10 +157,40 @@ export function UpiPaymentProofForm({
         return;
       }
       setDone(true);
-    } catch {
+    } catch (err) {
+      logPaymentClientException('Payment proof submit failed', err, {
+        page: logContext?.page ?? 'upi-payment-proof',
+        invoiceId: logContext?.invoiceId ?? null,
+        bookingId: logContext?.bookingId ?? null,
+        residentId: logContext?.residentId ?? null,
+        paymentLinkId: logContext?.paymentLinkId ?? null,
+        membershipId: logContext?.membershipId ?? null,
+        extensionId: logContext?.extensionId ?? null,
+      });
       setError('Network error. Try again.');
     } finally {
       setPending(false);
+    }
+  }
+
+  async function copyUpiId() {
+    if (!upiId) return;
+    try {
+      if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+        throw new Error('Clipboard API unavailable');
+      }
+      await navigator.clipboard.writeText(upiId);
+    } catch (err) {
+      logPaymentClientException('UPI copy failed', err, {
+        page: logContext?.page ?? 'upi-payment-proof',
+        invoiceId: logContext?.invoiceId ?? null,
+        bookingId: logContext?.bookingId ?? null,
+        residentId: logContext?.residentId ?? null,
+        paymentLinkId: logContext?.paymentLinkId ?? null,
+        membershipId: logContext?.membershipId ?? null,
+        extensionId: logContext?.extensionId ?? null,
+      });
+      setError('Could not copy UPI ID. Please copy it manually.');
     }
   }
 
@@ -198,10 +250,35 @@ export function UpiPaymentProofForm({
         <div className="rounded-xl border border-white/10 bg-white p-4 text-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={qrImageUrl}
+            src={`${qrImageUrl}${qrNonce ? `${qrImageUrl.includes('?') ? '&' : '?'}r=${qrNonce}` : ''}`}
             alt="UPI QR code — scan to pay"
             className="mx-auto max-h-52 w-full max-w-xs object-contain"
+            onLoad={() => setQrFailed(false)}
+            onError={() => {
+              setQrFailed(true);
+              logPaymentClientException('QR image failed to load', new Error('qr-load-failed'), {
+                page: logContext?.page ?? 'upi-payment-proof',
+                invoiceId: logContext?.invoiceId ?? null,
+                bookingId: logContext?.bookingId ?? null,
+                residentId: logContext?.residentId ?? null,
+                paymentLinkId: logContext?.paymentLinkId ?? null,
+                membershipId: logContext?.membershipId ?? null,
+                extensionId: logContext?.extensionId ?? null,
+              });
+            }}
           />
+          {qrFailed ? (
+            <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+              QR failed to load.
+              <button
+                type="button"
+                className="ml-2 font-semibold underline"
+                onClick={() => setQrNonce((n) => n + 1)}
+              >
+                Retry
+              </button>
+            </div>
+          ) : null}
           {upiId ? (
             <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-sm">
               <span className="text-zinc-600">UPI ID:</span>
@@ -211,7 +288,7 @@ export function UpiPaymentProofForm({
               <button
                 type="button"
                 className="rounded-md bg-[#FF5A1F] px-2.5 py-1 text-xs font-semibold text-white hover:brightness-110"
-                onClick={() => void navigator.clipboard.writeText(upiId)}
+                onClick={() => void copyUpiId()}
               >
                 Copy
               </button>
