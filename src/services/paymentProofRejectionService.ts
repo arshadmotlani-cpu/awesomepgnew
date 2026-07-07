@@ -33,6 +33,7 @@ import {
 import { writeAuditLogNonBlocking } from '@/src/lib/audit/writeAuditLog';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 import { PAYMENT_ALREADY_PROCESSED_MESSAGE } from '@/src/lib/operations/paymentReviewMessages';
+import { revalidateReservationLifecycleViews } from '@/src/lib/occupancyRevalidate';
 import { projectInvoice } from '@/src/services/rentInvoices';
 
 /** Drizzle client or transaction — pass when superseding inside an upload transaction. */
@@ -487,6 +488,7 @@ export async function rejectPaymentProof(
         reviewedByAdminId: session.adminId,
       });
       await resolvePaymentReviewArtifactsForKey(input.reviewKey);
+      await revalidateAfterPaymentProofMutation(ctx.pgId, ctx.bookingId);
       return { ok: true, rejectionId: '', message: PAYMENT_ALREADY_PROCESSED_MESSAGE };
     }
   }
@@ -649,11 +651,32 @@ export async function rejectPaymentProof(
   const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
   scheduleAdminNotificationSync();
 
+  await revalidateAfterPaymentProofMutation(ctx.pgId, ctx.bookingId);
+
   return {
     ok: true,
     rejectionId,
     whatsappUrl: whatsappUrl ?? undefined,
   };
+}
+
+async function revalidateAfterPaymentProofMutation(
+  pgId: string,
+  bookingId: string | null,
+): Promise<void> {
+  if (!bookingId) {
+    revalidateReservationLifecycleViews({ pgId });
+    return;
+  }
+  const [booking] = await db
+    .select({ bookingCode: bookings.bookingCode })
+    .from(bookings)
+    .where(eq(bookings.id, bookingId))
+    .limit(1);
+  revalidateReservationLifecycleViews({
+    pgId,
+    bookingCode: booking?.bookingCode ?? null,
+  });
 }
 
 export async function batchActiveRejectionsByEntity(

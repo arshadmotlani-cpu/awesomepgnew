@@ -1,6 +1,5 @@
 'use server';
 
-import { revalidateReservationLifecycleViews } from '@/src/lib/occupancyRevalidate';
 import { redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
@@ -60,8 +59,6 @@ export async function cancelBookingAction(
     return { status: 'error', message: result.reason };
   }
 
-  revalidateReservationLifecycleViews({ bookingCode });
-
   return {
     status: 'cancelled',
     bookingCode: result.bookingCode,
@@ -105,6 +102,5 @@ export async function completeReserveBookingAction(bookingCode: string): Promise
     throw new Error(converted.reason);
   }
 
-  revalidateReservationLifecycleViews({ bookingCode });
   redirect(converted.monthlyDuePaise > 0 ? `/booking/${bookingCode}/pay` : `/booking/${bookingCode}`);
 }

@@ -1,6 +1,5 @@
 'use server';
 
-import { revalidateReservationLifecycleViews } from '@/src/lib/occupancyRevalidate';
 import { redirect } from 'next/navigation';
 import { requireCustomerSession } from '@/src/lib/auth/guards';
 import {
@@ -16,7 +15,6 @@ export type ReserveActionState =
 export async function cancelBedReserveDraftAction(bookingId: string): Promise<void> {
   const session = await requireCustomerSession('/account/bookings');
   await cancelBedReserveDraftByCustomer(bookingId, session.customerId);
-  revalidateReservationLifecycleViews();
   redirect('/pgs');
 }
 

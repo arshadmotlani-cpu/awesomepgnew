@@ -1169,9 +1169,6 @@ export async function expireStaleBedReserves() {
       '@/src/lib/occupancyRevalidate'
     );
     await revalidateReservationLifecycleForBookingIds(affectedBookingIds);
-  } else {
-    const { revalidateReservationLifecycleViews } = await import('@/src/lib/occupancyRevalidate');
-    revalidateReservationLifecycleViews();
   }
 
   return {

@@ -42,4 +42,5 @@ test('payment-record booking API returns JSON-safe slim payload', () => {
   assert.match(src, /recordId: String\(record\.id\)/);
   assert.match(src, /bookingCode: body\.bookingCode/);
   assert.doesNotMatch(src, /record,/);
+  assert.doesNotMatch(src, /revalidateReservationLifecycle/);
 });

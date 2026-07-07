@@ -2,7 +2,6 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
-import { revalidateReservationLifecycleViews } from '@/src/lib/occupancyRevalidate';
 import type { OverpaymentDisposition } from '@/src/lib/operations/paymentReviewTypes';
 import { approveExtensionPaymentProof } from '@/src/services/extension';
 import { approveElectricityPaymentProof } from '@/src/services/meterElectricity';
@@ -20,8 +19,7 @@ import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentRevie
 
 const PAYMENT_REVIEW_PATH = '/admin/operations?filter=waiting_for_approval';
 
-function revalidatePaymentReviewSurfaces(pgId: string, bookingCode?: string | null) {
-  revalidateReservationLifecycleViews({ pgId, bookingCode });
+function revalidatePaymentReviewSurfaces(pgId: string) {
   revalidatePath('/admin');
   revalidatePath('/admin/billing');
   revalidatePath(PAYMENT_REVIEW_PATH);

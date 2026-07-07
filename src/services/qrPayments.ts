@@ -16,6 +16,7 @@ import { isBookingCheckoutEligibleForPaymentReview } from '@/src/lib/operations/
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { RENT_DEPOSIT_BOOKING_CATEGORY_NAME } from '@/src/lib/payments/defaultQr';
+import { revalidateReservationLifecycleViews } from '@/src/lib/occupancyRevalidate';
 import { getRentDepositBookingCategory } from '@/src/services/pgPaymentDefaults';
 
 export type PaymentCategoryInput = {
@@ -384,7 +385,6 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
     transactionRef: input.transactionRef,
   });
 
-  const { revalidateReservationLifecycleViews } = await import('@/src/lib/occupancyRevalidate');
   revalidateReservationLifecycleViews({ pgId, bookingCode: input.bookingCode });
 
   return row;
@@ -608,22 +608,38 @@ async function bookingQrPaymentAlreadyProcessed(
   return Boolean(byBooking);
 }
 
-/** After reserve payment approval — activate/repair hold and bust occupancy caches. */
+/** After reserve payment approval — activate/repair hold (no cache bust; caller revalidates). */
 async function finalizeApprovedReserveBooking(
   bookingId: string | null | undefined,
-  pgId?: string | null,
 ): Promise<void> {
   if (!bookingId) return;
   const [booking] = await db
-    .select({ durationMode: bookings.durationMode, bookingCode: bookings.bookingCode })
+    .select({ durationMode: bookings.durationMode })
     .from(bookings)
     .where(eq(bookings.id, bookingId))
     .limit(1);
   if (booking?.durationMode !== 'reserve') return;
   const { ensureBedReserveHoldActiveForBooking } = await import('./bedReserve');
   await ensureBedReserveHoldActiveForBooking(bookingId);
-  const { revalidateReservationLifecycleViews } = await import('@/src/lib/occupancyRevalidate');
-  revalidateReservationLifecycleViews({ pgId, bookingCode: booking.bookingCode });
+}
+
+async function revalidateAfterBookingPaymentReview(input: {
+  pgId: string;
+  bookingId: string | null;
+}): Promise<void> {
+  if (!input.bookingId) {
+    revalidateReservationLifecycleViews({ pgId: input.pgId });
+    return;
+  }
+  const [bookingRow] = await db
+    .select({ bookingCode: bookings.bookingCode })
+    .from(bookings)
+    .where(eq(bookings.id, input.bookingId))
+    .limit(1);
+  revalidateReservationLifecycleViews({
+    pgId: input.pgId,
+    bookingCode: bookingRow?.bookingCode ?? null,
+  });
 }
 
 export async function reviewPaymentRecord(
@@ -639,6 +655,12 @@ export async function reviewPaymentRecord(
     };
   },
 ): Promise<ReviewPaymentRecordResult> {
+  if (status === 'rejected') {
+    throw new Error(
+      'Use rejectPaymentProof for payment proof rejection — booking stays active for re-upload.',
+    );
+  }
+
   const [record] = await db
     .select()
     .from(pgPaymentRecords)
@@ -649,19 +671,18 @@ export async function reviewPaymentRecord(
 
   const { finalizeStaleBookingPaymentReview } = await import('./paymentProofReviewCleanup');
 
+  let outcome: ReviewPaymentRecordResult;
+
   if (record.status === 'approved') {
     await finalizeStaleBookingPaymentReview({
       recordId,
       bookingId: record.bookingId,
       reviewedByAdminId: session.adminId,
     });
-    return { outcome: 'already_approved' };
-  }
-  if (record.status !== 'pending') {
+    outcome = { outcome: 'already_approved' };
+  } else if (record.status !== 'pending') {
     throw new Error('Only pending payments can be reviewed.');
-  }
-
-  if (record.bookingId) {
+  } else if (record.bookingId) {
     const [bookingRow] = await db
       .select({ status: bookings.status })
       .from(bookings)
@@ -676,160 +697,155 @@ export async function reviewPaymentRecord(
         bookingId: record.bookingId,
         reviewedByAdminId: session.adminId,
       });
-      return { outcome: 'already_approved' };
-    }
-  }
+      outcome = { outcome: 'already_approved' };
+    } else {
+      const [booking] = await db
+        .select({
+          bookingCode: bookings.bookingCode,
+          status: bookings.status,
+          subtotalPaise: bookings.subtotalPaise,
+          discountPaise: bookings.discountPaise,
+          depositPaise: bookings.depositPaise,
+          totalPaise: bookings.totalPaise,
+          pricingSnapshot: bookings.pricingSnapshot,
+        })
+        .from(bookings)
+        .where(eq(bookings.id, record.bookingId))
+        .limit(1);
 
-  if (status === 'approved' && record.bookingId) {
-    const [booking] = await db
-      .select({
-        bookingCode: bookings.bookingCode,
-        status: bookings.status,
-        subtotalPaise: bookings.subtotalPaise,
-        discountPaise: bookings.discountPaise,
-        depositPaise: bookings.depositPaise,
-        totalPaise: bookings.totalPaise,
-        pricingSnapshot: bookings.pricingSnapshot,
-      })
-      .from(bookings)
-      .where(eq(bookings.id, record.bookingId))
-      .limit(1);
-
-    const financialAlreadyApplied = await bookingQrPaymentAlreadyProcessed(
-      record.bookingId,
-      recordId,
-    );
-
-    if (
-      booking &&
-      (financialAlreadyApplied ||
-        !isBookingCheckoutEligibleForPaymentReview(booking.status)) &&
-      status === 'approved'
-    ) {
-      await finalizeStaleBookingPaymentReview({
+      const financialAlreadyApplied = await bookingQrPaymentAlreadyProcessed(
+        record.bookingId,
         recordId,
-        bookingId: record.bookingId,
-        reviewedByAdminId: session.adminId,
-      });
-      await finalizeApprovedReserveBooking(record.bookingId, record.pgId);
-      return financialAlreadyApplied
-        ? { outcome: 'already_approved' }
-        : { outcome: 'approved' };
-    }
+      );
 
-    if (booking?.status === 'pending_payment' || booking?.status === 'pending_approval') {
-      const { recordPaymentSuccess } = await import('./bookingLifecycle');
-      const {
-        computeBookingCheckoutOverpaymentPaise,
-        normalizeOverpaymentDisposition,
-      } = await import('./bookingOverpayment');
-
-      let overpayment:
-        | {
-            excessPaise: number;
-            disposition: 'wallet_credit' | 'future_adjustment' | 'refund' | 'refund_later';
-            approvedByAdminId: string;
-          }
-        | undefined;
-
-      const excessPaise = computeBookingCheckoutOverpaymentPaise({
-        booking,
-        amountPaise: record.amountPaise,
-      });
-      if (excessPaise > 0) {
-        const disposition = normalizeOverpaymentDisposition(
-          opts?.reviewMeta?.overpaymentDisposition,
-        );
-        if (!disposition) {
-          throw new Error(
-            `Payment exceeds checkout total by ₹${(excessPaise / 100).toFixed(0)}. Select an overpayment disposition before approving.`,
-          );
-        }
-        overpayment = {
-          excessPaise,
-          disposition,
-          approvedByAdminId: session.adminId,
-        };
-      }
-
-      const paymentResult = await recordPaymentSuccess({
-        provider: 'upi_manual',
-        providerPaymentId: `qr_record_${recordId}`,
-        providerOrderId: record.transactionRef ?? recordId,
-        amountPaise: record.amountPaise,
-        bookingCode: booking.bookingCode,
-        rawPayload: {
-          pgPaymentRecordId: recordId,
-          category: RENT_DEPOSIT_BOOKING_CATEGORY_NAME,
-          partialDeposit: opts?.partialDeposit ?? null,
-          operationsReview: opts?.reviewMeta ?? null,
-        },
-        partialDeposit: opts?.partialDeposit
-          ? {
-              depositDueDate: opts.partialDeposit.depositDueDate,
-              approvedByAdminId: session.adminId,
-            }
-          : undefined,
-        overpayment,
-      });
-      if (!paymentResult.ok) {
-        const alreadyProcessed = await bookingQrPaymentAlreadyProcessed(
-          record.bookingId,
+      if (
+        booking &&
+        (financialAlreadyApplied ||
+          !isBookingCheckoutEligibleForPaymentReview(booking.status))
+      ) {
+        await finalizeStaleBookingPaymentReview({
           recordId,
-        );
-        if (alreadyProcessed) {
+          bookingId: record.bookingId,
+          reviewedByAdminId: session.adminId,
+        });
+        await finalizeApprovedReserveBooking(record.bookingId);
+        outcome = financialAlreadyApplied
+          ? { outcome: 'already_approved' }
+          : { outcome: 'approved' };
+      } else if (booking?.status === 'pending_payment' || booking?.status === 'pending_approval') {
+        const { recordPaymentSuccess } = await import('./bookingLifecycle');
+        const {
+          computeBookingCheckoutOverpaymentPaise,
+          normalizeOverpaymentDisposition,
+        } = await import('./bookingOverpayment');
+
+        let overpayment:
+          | {
+              excessPaise: number;
+              disposition: 'wallet_credit' | 'future_adjustment' | 'refund' | 'refund_later';
+              approvedByAdminId: string;
+            }
+          | undefined;
+
+        const excessPaise = computeBookingCheckoutOverpaymentPaise({
+          booking,
+          amountPaise: record.amountPaise,
+        });
+        if (excessPaise > 0) {
+          const disposition = normalizeOverpaymentDisposition(
+            opts?.reviewMeta?.overpaymentDisposition,
+          );
+          if (!disposition) {
+            throw new Error(
+              `Payment exceeds checkout total by ₹${(excessPaise / 100).toFixed(0)}. Select an overpayment disposition before approving.`,
+            );
+          }
+          overpayment = {
+            excessPaise,
+            disposition,
+            approvedByAdminId: session.adminId,
+          };
+        }
+
+        const paymentResult = await recordPaymentSuccess({
+          provider: 'upi_manual',
+          providerPaymentId: `qr_record_${recordId}`,
+          providerOrderId: record.transactionRef ?? recordId,
+          amountPaise: record.amountPaise,
+          bookingCode: booking.bookingCode,
+          rawPayload: {
+            pgPaymentRecordId: recordId,
+            category: RENT_DEPOSIT_BOOKING_CATEGORY_NAME,
+            partialDeposit: opts?.partialDeposit ?? null,
+            operationsReview: opts?.reviewMeta ?? null,
+          },
+          partialDeposit: opts?.partialDeposit
+            ? {
+                depositDueDate: opts.partialDeposit.depositDueDate,
+                approvedByAdminId: session.adminId,
+              }
+            : undefined,
+          overpayment,
+        });
+        if (!paymentResult.ok) {
+          const alreadyProcessed = await bookingQrPaymentAlreadyProcessed(
+            record.bookingId,
+            recordId,
+          );
+          if (alreadyProcessed) {
+            await finalizeStaleBookingPaymentReview({
+              recordId,
+              bookingId: record.bookingId,
+              reviewedByAdminId: session.adminId,
+            });
+            await finalizeApprovedReserveBooking(record.bookingId);
+            outcome = { outcome: 'already_approved' };
+          } else {
+            throw new Error(
+              paymentResult.reason ??
+                'Could not confirm booking — the bed may already be taken by another approved payment.',
+            );
+          }
+        } else {
           await finalizeStaleBookingPaymentReview({
             recordId,
             bookingId: record.bookingId,
             reviewedByAdminId: session.adminId,
           });
-          await finalizeApprovedReserveBooking(record.bookingId, record.pgId);
-          return { outcome: 'already_approved' };
+          await finalizeApprovedReserveBooking(record.bookingId);
+          outcome = { outcome: 'approved' };
         }
-        throw new Error(
-          paymentResult.reason ??
-            'Could not confirm booking — the bed may already be taken by another approved payment.',
-        );
+      } else {
+        await finalizeStaleBookingPaymentReview({
+          recordId,
+          bookingId: record.bookingId,
+          reviewedByAdminId: session.adminId,
+        });
+        await finalizeApprovedReserveBooking(record.bookingId);
+        outcome = { outcome: 'approved' };
       }
     }
+  } else {
+    await finalizeStaleBookingPaymentReview({
+      recordId,
+      bookingId: record.bookingId,
+      reviewedByAdminId: session.adminId,
+    });
+    await finalizeApprovedReserveBooking(record.bookingId);
+    outcome = { outcome: 'approved' };
   }
 
-  if (status === 'rejected') {
-    throw new Error(
-      'Use rejectPaymentProof for payment proof rejection — booking stays active for re-upload.',
-    );
-  }
-
-  await finalizeStaleBookingPaymentReview({
-    recordId,
-    bookingId: record.bookingId,
-    reviewedByAdminId: session.adminId,
+  const { trackAnalyticsEvent } = await import('./visitorAnalytics');
+  void trackAnalyticsEvent({
+    eventType: 'booking_approved',
+    metadata: { bookingId: record.bookingId, pgId: record.pgId },
   });
 
-  await finalizeApprovedReserveBooking(record.bookingId, record.pgId);
-
-  if (status === 'approved') {
-    const { trackAnalyticsEvent } = await import('./visitorAnalytics');
-    void trackAnalyticsEvent({
-      eventType: 'booking_approved',
-      metadata: { bookingId: record.bookingId, pgId: record.pgId },
-    });
-  }
-
-  if (record.bookingId) {
-    const [bookingRow] = await db
-      .select({ bookingCode: bookings.bookingCode })
-      .from(bookings)
-      .where(eq(bookings.id, record.bookingId))
-      .limit(1);
-    const { revalidateReservationLifecycleViews } = await import('@/src/lib/occupancyRevalidate');
-    revalidateReservationLifecycleViews({
-      pgId: record.pgId,
-      bookingCode: bookingRow?.bookingCode ?? null,
-    });
-  }
-
-  return { outcome: 'approved' };
+  await revalidateAfterBookingPaymentReview({
+    pgId: record.pgId,
+    bookingId: record.bookingId,
+  });
+  return outcome;
 }
 
 export async function listPublicPgsWithPayments() {

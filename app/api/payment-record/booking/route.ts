@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCustomerSession } from '@/src/lib/auth/session';
 import { submitBookingPaymentRecord } from '@/src/services/qrPayments';
-import { revalidateReservationLifecycleViews } from '@/src/lib/occupancyRevalidate';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -51,7 +50,6 @@ export async function POST(req: NextRequest) {
         ? Math.round(body.membershipAmountPaise)
         : undefined,
     });
-    revalidateReservationLifecycleViews({ bookingCode: body.bookingCode });
     return NextResponse.json({
       ok: true as const,
       recordId: String(record.id),

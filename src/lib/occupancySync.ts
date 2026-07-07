@@ -84,7 +84,6 @@ export async function reconcileBookingOccupancy(
       .from(bookings)
       .where(eq(bookings.id, bookingId))
       .limit(1);
-    const { revalidateReservationLifecycleViews } = await import('@/src/lib/occupancyRevalidate');
     revalidateReservationLifecycleViews({ bookingCode: booking?.bookingCode ?? null });
   }
 

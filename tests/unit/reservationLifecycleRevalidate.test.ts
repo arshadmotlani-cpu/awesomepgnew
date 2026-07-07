@@ -9,35 +9,50 @@ function read(rel: string): string {
   return readFileSync(join(root, rel), 'utf8');
 }
 
-test('reservation lifecycle revalidate covers admin map, public PG, booking, bookings list, operations', () => {
-  const src = read('src/lib/occupancyRevalidate.ts');
-  assert.match(src, /revalidatePath\('\/admin\/operations', 'layout'\)/);
-  assert.match(src, /revalidatePath\(`\/admin\/pgs\/\$\{input\.pgId\}\/map`\)/);
-  assert.match(src, /revalidatePath\(`\/pgs\/\$\{input\.pgSlug\}`\)/);
-  assert.match(src, /revalidatePath\(`\/booking\/\$\{input\.bookingCode\}`\)/);
-  assert.match(src, /revalidatePath\('\/account\/bookings'\)/);
-});
-
-test('payment proof submit revalidates before API response', () => {
-  const route = read('app/api/payment-record/booking/route.ts');
-  const service = read('src/services/qrPayments.ts');
-  assert.match(route, /revalidateReservationLifecycleViews/);
-  assert.match(service, /revalidateReservationLifecycleViews\(\{ pgId, bookingCode: input\.bookingCode \}\)/);
-});
-
-test('reserve lifecycle mutations revalidate dependent views', () => {
-  const bedReserve = read('src/services/bedReserve.ts');
-  assert.match(bedReserve, /revalidateReservationLifecycleForBookingId/);
-  assert.match(bedReserve, /revalidateReservationLifecycleForBookingIds/);
-  const cron = read('app/api/cron/expire-bed-reserves/route.ts');
-  assert.match(cron, /revalidateReservationLifecycleViews/);
-  const bookingActions = read('app/(customer)/booking/[bookingCode]/actions.ts');
-  assert.match(bookingActions, /revalidateReservationLifecycleViews/);
-});
-
-test('admin payment approval revalidates operations queue surfaces', () => {
-  const payments = read('app/(admin)/admin/payments/actions.ts');
+test('lifecycle revalidation runs once per mutation in service SSOT', () => {
   const qr = read('src/services/qrPayments.ts');
-  assert.match(payments, /revalidateReservationLifecycleViews/);
-  assert.match(qr, /revalidateReservationLifecycleViews\(\{[\s\S]*bookingCode/);
+  const reject = read('src/services/paymentProofRejectionService.ts');
+  const bedReserve = read('src/services/bedReserve.ts');
+
+  assert.match(qr, /revalidateReservationLifecycleViews\(\{ pgId, bookingCode: input\.bookingCode \}\)/);
+  assert.match(qr, /await revalidateAfterBookingPaymentReview\(/);
+  const finalizeFn = qr.slice(
+    qr.indexOf('async function finalizeApprovedReserveBooking'),
+    qr.indexOf('async function revalidateAfterBookingPaymentReview'),
+  );
+  assert.doesNotMatch(finalizeFn, /revalidateReservationLifecycleViews/);
+
+  assert.match(reject, /await revalidateAfterPaymentProofMutation\(ctx\.pgId, ctx\.bookingId\)/);
+
+  assert.match(bedReserve, /await revalidateReservationLifecycleForBookingId/);
+  assert.match(bedReserve, /await revalidateReservationLifecycleForBookingIds/);
+});
+
+test('route and action layers do not duplicate lifecycle revalidation', () => {
+  const apiRoute = read('app/api/payment-record/booking/route.ts');
+  const cron = read('app/api/cron/expire-bed-reserves/route.ts');
+  const reserveActions = read('app/(customer)/reserve/new/actions.ts');
+  const bookingActions = read('app/(customer)/booking/[bookingCode]/actions.ts');
+  const adminPayments = read('app/(admin)/admin/payments/actions.ts');
+
+  assert.doesNotMatch(apiRoute, /revalidateReservationLifecycle/);
+  assert.doesNotMatch(cron, /revalidateReservationLifecycle/);
+  assert.doesNotMatch(reserveActions, /revalidateReservationLifecycle/);
+  assert.doesNotMatch(bookingActions, /revalidateReservationLifecycle/);
+  assert.doesNotMatch(adminPayments, /revalidateReservationLifecycleViews/);
+});
+
+test('revalidate helper dedupes base and target paths', () => {
+  const src = read('src/lib/occupancyRevalidate.ts');
+  assert.match(src, /revalidateReservationLifecycleBase/);
+  assert.match(src, /revalidateReservationLifecycleTargets/);
+  assert.match(src, /for \(const bookingCode of bookingCodes\)/);
+  assert.doesNotMatch(src, /revalidateReservationLifecycleViews\(\);[\s\S]*revalidateReservationLifecycleViews\(\);/);
+});
+
+test('post-submit side effects remain fire-and-forget without cache busting', () => {
+  const qr = read('src/services/qrPayments.ts');
+  assert.match(qr, /void runPostBookingPaymentSubmitSideEffects/);
+  const sideEffects = qr.slice(qr.indexOf('function runPostBookingPaymentSubmitSideEffects'));
+  assert.doesNotMatch(sideEffects.slice(0, 800), /revalidateReservationLifecycle/);
 });
