@@ -20,7 +20,7 @@ test('reviewPaymentRecord heals reserve hold on every approval exit path', () =>
   const src = read('src/services/qrPayments.ts');
   assert.match(src, /finalizeApprovedReserveBooking/);
   assert.match(src, /ensureBedReserveHoldActiveForBooking/);
-  assert.match(src, /revalidateOccupancyViews/);
+  assert.match(src, /revalidateReservationLifecycleViews/);
 });
 
 test('recordPaymentSuccess repairs missing reserve hold inside approval tx', () => {

@@ -384,6 +384,9 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
     transactionRef: input.transactionRef,
   });
 
+  const { revalidateReservationLifecycleViews } = await import('@/src/lib/occupancyRevalidate');
+  revalidateReservationLifecycleViews({ pgId, bookingCode: input.bookingCode });
+
   return row;
 }
 
@@ -428,9 +431,6 @@ function runPostBookingPaymentSubmitSideEffects(input: {
         eventType: 'payment_uploaded',
         metadata: { bookingCode: input.bookingCode, bookingId: input.bookingId },
       });
-
-      const { revalidateOccupancyViews } = await import('@/src/lib/occupancyRevalidate');
-      revalidateOccupancyViews(input.pgId);
     } catch (err) {
       console.error('post booking payment submit side effects failed', err);
     }
@@ -615,15 +615,15 @@ async function finalizeApprovedReserveBooking(
 ): Promise<void> {
   if (!bookingId) return;
   const [booking] = await db
-    .select({ durationMode: bookings.durationMode })
+    .select({ durationMode: bookings.durationMode, bookingCode: bookings.bookingCode })
     .from(bookings)
     .where(eq(bookings.id, bookingId))
     .limit(1);
   if (booking?.durationMode !== 'reserve') return;
   const { ensureBedReserveHoldActiveForBooking } = await import('./bedReserve');
   await ensureBedReserveHoldActiveForBooking(bookingId);
-  const { revalidateOccupancyViews } = await import('@/src/lib/occupancyRevalidate');
-  revalidateOccupancyViews(pgId);
+  const { revalidateReservationLifecycleViews } = await import('@/src/lib/occupancyRevalidate');
+  revalidateReservationLifecycleViews({ pgId, bookingCode: booking.bookingCode });
 }
 
 export async function reviewPaymentRecord(
@@ -813,6 +813,19 @@ export async function reviewPaymentRecord(
     void trackAnalyticsEvent({
       eventType: 'booking_approved',
       metadata: { bookingId: record.bookingId, pgId: record.pgId },
+    });
+  }
+
+  if (record.bookingId) {
+    const [bookingRow] = await db
+      .select({ bookingCode: bookings.bookingCode })
+      .from(bookings)
+      .where(eq(bookings.id, record.bookingId))
+      .limit(1);
+    const { revalidateReservationLifecycleViews } = await import('@/src/lib/occupancyRevalidate');
+    revalidateReservationLifecycleViews({
+      pgId: record.pgId,
+      bookingCode: bookingRow?.bookingCode ?? null,
     });
   }
 

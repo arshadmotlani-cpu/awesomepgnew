@@ -6,7 +6,7 @@
 import { eq, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { bedReservations, bookings } from '@/src/db/schema';
-import { revalidateOccupancyViews } from '@/src/lib/occupancyRevalidate';
+import { revalidateReservationLifecycleViews } from '@/src/lib/occupancyRevalidate';
 import { clearBedAdminMarks } from '@/src/services/bookingAdminOps';
 
 /**
@@ -79,7 +79,13 @@ export async function reconcileBookingOccupancy(
   }
 
   if (opts?.revalidate !== false) {
-    revalidateOccupancyViews();
+    const [booking] = await db
+      .select({ bookingCode: bookings.bookingCode })
+      .from(bookings)
+      .where(eq(bookings.id, bookingId))
+      .limit(1);
+    const { revalidateReservationLifecycleViews } = await import('@/src/lib/occupancyRevalidate');
+    revalidateReservationLifecycleViews({ bookingCode: booking?.bookingCode ?? null });
   }
 
   return { bedsTouched, orphansReconciled, terminalClosed };

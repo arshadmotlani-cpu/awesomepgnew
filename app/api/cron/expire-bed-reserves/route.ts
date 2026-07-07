@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { env } from '@/src/lib/env';
 import { expireStaleBedReserves } from '@/src/services/bedReserve';
+import { revalidateReservationLifecycleViews } from '@/src/lib/occupancyRevalidate';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -22,6 +23,7 @@ async function handle(req: NextRequest) {
     return new Response('Unauthorized', { status: 401 });
   }
   const result = await expireStaleBedReserves();
+  revalidateReservationLifecycleViews();
   return Response.json({ ok: true, ...result });
 }
 

@@ -909,6 +909,11 @@ export async function cancelBedReserveDraftByCustomer(bookingId: string, custome
       updatedAt: new Date(),
     })
     .where(eq(bookings.id, bookingId));
+
+  const { revalidateReservationLifecycleForBookingId } = await import(
+    '@/src/lib/occupancyRevalidate'
+  );
+  await revalidateReservationLifecycleForBookingId(bookingId);
 }
 
 export async function cancelBedReserveByCustomer(reserveId: string, customerId: string) {
@@ -939,6 +944,11 @@ export async function cancelBedReserveByCustomer(reserveId: string, customerId: 
       })
       .where(eq(bookings.id, hold.bookingId));
   });
+
+  const { revalidateReservationLifecycleForBookingId } = await import(
+    '@/src/lib/occupancyRevalidate'
+  );
+  await revalidateReservationLifecycleForBookingId(hold.bookingId);
 }
 
 export async function extendBedReserve(
@@ -1067,6 +1077,11 @@ export async function convertBedReserveToMonthlyStay(reserveId: string) {
     await ensureBillingProfileForBooking(hold.bookingId);
   }
 
+  const { revalidateReservationLifecycleForBookingId } = await import(
+    '@/src/lib/occupancyRevalidate'
+  );
+  await revalidateReservationLifecycleForBookingId(hold.bookingId);
+
   return { ok: true as const, bookingId: hold.bookingId, monthlyDuePaise };
 }
 
@@ -1143,6 +1158,20 @@ export async function expireStaleBedReserves() {
         })
         .where(eq(bookings.id, row.bookingId));
     });
+  }
+
+  const affectedBookingIds = [
+    ...expiredUnderReview.map((row) => row.bookingId),
+    ...expiredActive.map((row) => row.bookingId),
+  ];
+  if (affectedBookingIds.length > 0) {
+    const { revalidateReservationLifecycleForBookingIds } = await import(
+      '@/src/lib/occupancyRevalidate'
+    );
+    await revalidateReservationLifecycleForBookingIds(affectedBookingIds);
+  } else {
+    const { revalidateReservationLifecycleViews } = await import('@/src/lib/occupancyRevalidate');
+    revalidateReservationLifecycleViews();
   }
 
   return {
