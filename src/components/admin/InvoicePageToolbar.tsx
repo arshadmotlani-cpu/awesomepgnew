@@ -13,12 +13,14 @@ export function InvoicePageToolbar({
   invoiceId,
   shareUrl,
   printHref,
+  pdfHref,
   backHref,
   backLabel,
 }: {
   invoiceId: string;
   shareUrl: string;
   printHref: string;
+  pdfHref: string;
   backHref: string;
   backLabel: string;
 }) {
@@ -34,6 +36,7 @@ export function InvoicePageToolbar({
     <>
       <FinancialDocumentToolbar
         printHref={printHref}
+        pdfHref={pdfHref}
         shareUrl={shareUrl}
         whatsAppAction={(formData) => {
           formData.set('invoiceId', invoiceId);

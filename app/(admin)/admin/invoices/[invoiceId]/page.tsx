@@ -16,6 +16,7 @@ import { EXPRESS_SALE_RETURN_PATH } from '@/src/lib/expressBooking/expressSaleLi
 import { residentProfileHref } from '@/src/lib/billing/residentBillingLinks';
 import { invoicePublicSharePath } from '@/src/lib/billing/invoiceShareToken';
 import { ensureInvoiceShareToken } from '@/src/lib/billing/invoiceShareToken';
+import { invoicePdfDownloadHref } from '@/src/lib/billing/invoicePdfLinks';
 import { getAppUrl } from '@/src/lib/url';
 
 export const dynamic = 'force-dynamic';
@@ -74,6 +75,7 @@ export default async function InvoiceDetailPage({
             invoiceId={invoiceId}
             shareUrl={shareUrl}
             printHref={`/admin/invoices/${invoiceId}/print`}
+            pdfHref={invoicePdfDownloadHref(invoiceId)}
             backHref={backHref}
             backLabel={backLabel}
           />

@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { paiseToInr, formatDate } from '@/src/lib/format';
+import { InvoicePdfDownloadLink } from '@/src/components/billing/InvoicePdfDownloadLink';
+import { invoicePdfDownloadHref } from '@/src/lib/billing/invoicePdfLinks';
 
 export type ResidentElectricityHistoryItem = {
   id: string;
@@ -78,12 +80,19 @@ function ElectricityHistoryRow({
           {item.invoiceNumber} · due {formatDate(item.dueDate)}
         </p>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <span className="font-semibold tabular-nums text-zinc-900">
           {paiseToInr(item.paidPaise > 0 ? item.paidPaise : item.amountPaise)}
         </span>
+        {action === 'receipt' && item.invoiceNumber ? (
+          <InvoicePdfDownloadLink
+            href={invoicePdfDownloadHref(item.invoiceNumber)}
+            className="text-sm font-medium text-orange-600 hover:underline border-0 px-0 py-0"
+            label="Download PDF"
+          />
+        ) : null}
         <Link href={href} className="text-sm font-medium text-orange-600 hover:underline">
-          {action === 'pay' ? 'Pay →' : 'Receipt →'}
+          {action === 'pay' ? 'Pay →' : 'View →'}
         </Link>
       </div>
     </div>

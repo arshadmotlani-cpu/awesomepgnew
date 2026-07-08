@@ -256,17 +256,26 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-07 15:05:22 UTC
+### Pending pre-commit sync · 2026-07-08 08:33:09 UTC
 
-**Areas touched:** [[ROUTES]]
+**Areas touched:** [[ROUTES]], [[Billing]]
 
 **Docs flagged for review:**
+- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
+- `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
+- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (1):**
-- `app/api/payment-record/booking/route.ts`
+**Staged code files (7):**
+- `app/(admin)/admin/invoices/[invoiceId]/page.tsx`
+- `app/api/invoices/[ref]/pdf/route.ts`
+- `app/api/invoices/share/[shareToken]/pdf/route.ts`
+- `app/i/[shareToken]/page.tsx`
+- `src/lib/billing/invoicePdf.ts`
+- `src/lib/billing/invoicePdfDownload.ts`
+- `src/lib/billing/invoicePdfLinks.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

@@ -8,6 +8,8 @@ import { ResidentSubNav } from '@/src/components/customer/account/resident/Resid
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import { residentPaymentsHref } from '@/src/lib/accountNavigation';
 import type { ResidentPaymentsSub } from '@/src/lib/accountNavigation';
+import { InvoicePdfDownloadLink } from '@/src/components/billing/InvoicePdfDownloadLink';
+import { invoicePdfDownloadHref } from '@/src/lib/billing/invoicePdfLinks';
 import { requestStatusTone, primaryBtn, secondaryBtn } from '@/src/lib/design-system/tokens';
 import type { PaymentDueRow } from '@/src/components/customer/account/resident/ResidentPaymentsPanel';
 export type PaidHistoryRow = {
@@ -230,10 +232,16 @@ export function ResidentPaymentsV2Hub({
                         <p className="text-xs text-apg-silver">Paid {row.paidAt}</p>
                       ) : null}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-semibold tabular-nums text-white">
                         {paiseToInr(row.amountPaise)}
                       </span>
+                      {row.invoiceNumber ? (
+                        <InvoicePdfDownloadLink
+                          href={invoicePdfDownloadHref(row.invoiceNumber)}
+                          className="rounded-lg border border-white/15 px-2 py-1 text-[11px] font-medium text-apg-silver hover:text-white"
+                        />
+                      ) : null}
                       <StatusChip status={row.status} toneMap={requestStatusTone} />
                     </div>
                   </li>

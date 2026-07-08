@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { ApgCard } from '@/src/components/customer/design-system';
 import { StatusChip } from '@/src/components/customer/design-system';
+import { InvoicePdfDownloadLink } from '@/src/components/billing/InvoicePdfDownloadLink';
+import { invoicePdfDownloadHref } from '@/src/lib/billing/invoicePdfLinks';
 import { GlossaryTip } from '@/src/components/customer/account/resident/GlossaryTip';
 import { ResidentMoreSection } from '@/src/components/customer/account/resident/ResidentMoreSection';
 import {
@@ -74,6 +76,7 @@ function BillList({
 }
 
 function BillRowContent({ row }: { row: PaymentDueRow }) {
+  const pdfHref = row.invoiceNumber ? invoicePdfDownloadHref(row.invoiceNumber) : null;
   return (
     <>
       <div className="min-w-0">
@@ -85,7 +88,13 @@ function BillRowContent({ row }: { row: PaymentDueRow }) {
           <p className="text-xs text-zinc-500">Due {formatDate(row.dueDate)}</p>
         ) : null}
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {pdfHref ? (
+          <InvoicePdfDownloadLink
+            href={pdfHref}
+            className="rounded-lg border border-zinc-200 px-2 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50"
+          />
+        ) : null}
         <span className="text-sm font-semibold tabular-nums">{paiseToInr(row.amountPaise)}</span>
         <StatusChip status={row.status} toneMap={BILL_STATUS_TONE} />
       </div>

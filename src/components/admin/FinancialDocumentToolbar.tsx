@@ -5,6 +5,7 @@ import Link from 'next/link';
 
 type Props = {
   printHref: string;
+  pdfHref?: string;
   shareUrl: string;
   whatsAppAction?: (formData: FormData) => void;
   whatsAppPending?: boolean;
@@ -14,6 +15,7 @@ type Props = {
 
 export function FinancialDocumentToolbar({
   printHref,
+  pdfHref,
   shareUrl,
   whatsAppAction,
   whatsAppPending = false,
@@ -53,7 +55,7 @@ export function FinancialDocumentToolbar({
         Print
       </Link>
       <Link
-        href={printHref}
+        href={pdfHref ?? printHref}
         target="_blank"
         className="rounded-lg border border-white/10 px-3 py-2 text-sm text-apg-silver hover:text-white"
       >
