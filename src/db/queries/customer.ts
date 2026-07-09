@@ -10,6 +10,7 @@
 
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../client';
+import { isTerminalBookingLifecycleStatus } from '@/src/lib/booking/bookingStatus';
 import {
   applyPublicPgPresentation,
   sortPublicPgs,
@@ -1046,6 +1047,10 @@ export function getBookingByCode(
     }
 
     if (b.durationMode === 'reserve' && reserveStatus !== 'active') {
+      const bookingTerminal = isTerminalBookingLifecycleStatus(b.status);
+      const holdTerminated =
+        reserveStatus === 'cancelled' || reserveStatus === 'expired';
+      if (!bookingTerminal && !holdTerminated) {
       const [reservePayment] = await db
         .select({ id: payments.id })
         .from(payments)
@@ -1085,6 +1090,7 @@ export function getBookingByCode(
             if (!reserveCheckIn) reserveCheckIn = String(activeHold.checkInDate);
           }
         }
+      }
       }
     }
 

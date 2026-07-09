@@ -3,7 +3,10 @@ import { getAdminSession } from '@/src/lib/auth/session';
 import {
   markNotificationRead,
 } from '@/src/services/adminNotifications';
-import { markUserNotificationRead } from '@/src/services/notificationEngine';
+import {
+  markUserNotificationRead,
+  markUserNotificationsRead,
+} from '@/src/services/notificationEngine';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,21 +22,44 @@ export async function POST(req: NextRequest) {
     sourceKey?: string;
     readKey?: string;
     archive?: boolean;
+    markAllVisible?: boolean;
+    notificationIds?: string[];
   };
 
+  if (body.markAllVisible && body.notificationIds?.length) {
+    const unreadCount = await markUserNotificationsRead(
+      'admin',
+      session.adminId,
+      body.notificationIds,
+    );
+    return NextResponse.json({ ok: true, unreadCount });
+  }
+
   if (body.notificationId) {
-    await markUserNotificationRead('admin', session.adminId, body.notificationId);
-    return NextResponse.json({ ok: true });
+    const unreadCount = await markUserNotificationRead(
+      'admin',
+      session.adminId,
+      body.notificationId,
+    );
+    return NextResponse.json({ ok: true, unreadCount });
   }
 
   if (body.userNotificationId) {
-    await markUserNotificationRead('admin', session.adminId, body.userNotificationId);
-    return NextResponse.json({ ok: true });
+    const unreadCount = await markUserNotificationRead(
+      'admin',
+      session.adminId,
+      body.userNotificationId,
+    );
+    return NextResponse.json({ ok: true, unreadCount });
   }
 
   if (body.archive && body.notificationId) {
-    await markUserNotificationRead('admin', session.adminId, body.notificationId);
-    return NextResponse.json({ ok: true });
+    const unreadCount = await markUserNotificationRead(
+      'admin',
+      session.adminId,
+      body.notificationId,
+    );
+    return NextResponse.json({ ok: true, unreadCount });
   }
 
   if (body.sourceKey || body.readKey) {
@@ -44,5 +70,5 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, unreadCount: 0 });
 }

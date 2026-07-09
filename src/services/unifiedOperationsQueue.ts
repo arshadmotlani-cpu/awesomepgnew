@@ -328,6 +328,11 @@ export async function listPendingBookingApprovalsForSync(session: AdminSession) 
           WHERE brh.booking_id = ${bookings.id}
             AND brh.status::text = 'active'
         )`,
+        sql`NOT EXISTS (
+          SELECT 1 FROM ${bedReserveHolds} brh
+          WHERE brh.booking_id = ${bookings.id}
+            AND brh.status::text IN ('cancelled', 'expired')
+        )`,
       ),
     );
 

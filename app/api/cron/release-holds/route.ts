@@ -36,6 +36,23 @@ async function handle(req: NextRequest) {
   const result = await releaseExpiredHolds();
   const drafts = await expireAbandonedReservationDrafts();
   const stale = await expireStaleReservations();
+
+  if (
+    result.reservationsReleased > 0 ||
+    result.bookingsCancelled > 0 ||
+    drafts.expired > 0 ||
+    stale.expired > 0
+  ) {
+    const { revalidateReservationLifecycleViews } = await import(
+      '@/src/lib/occupancyRevalidate'
+    );
+    revalidateReservationLifecycleViews();
+    const codes = [...result.cancelledCodes, ...stale.bookingCodes];
+    for (const bookingCode of new Set(codes)) {
+      revalidateReservationLifecycleViews({ bookingCode });
+    }
+  }
+
   return Response.json({ ok: true, ...result, draftsExpired: drafts.expired, staleReservations: stale });
 }
 

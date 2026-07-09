@@ -8,10 +8,12 @@ import {
   beds,
   bookings,
   customers,
+  paymentProofRejections,
   payments,
   pgPaymentRecords,
   vacatingRequests,
 } from '../db/schema';
+import { isTerminalBookingLifecycleStatus } from '@/src/lib/booking/bookingStatus';
 import { nextBookingCode, utcYear } from '../lib/bookingCode';
 import {
   RESERVE_MAX_PERIOD_DAYS,
@@ -794,6 +796,7 @@ export async function ensureBedReserveHoldActiveForBooking(
         bookingCode: bookings.bookingCode,
         customerId: bookings.customerId,
         durationMode: bookings.durationMode,
+        status: bookings.status,
         totalPaise: bookings.totalPaise,
         billingAnchorDate: bookings.billingAnchorDate,
         expectedCheckoutDate: bookings.expectedCheckoutDate,
@@ -804,6 +807,34 @@ export async function ensureBedReserveHoldActiveForBooking(
       .limit(1);
     if (!booking || booking.durationMode !== 'reserve') {
       return { ok: false, holdId: null, repaired: false };
+    }
+    if (isTerminalBookingLifecycleStatus(booking.status)) {
+      return { ok: false, holdId: null, repaired: false };
+    }
+
+    const [latestHold] = await runner
+      .select({ status: bedReserveHolds.status })
+      .from(bedReserveHolds)
+      .where(eq(bedReserveHolds.bookingId, bookingId))
+      .orderBy(desc(bedReserveHolds.createdAt))
+      .limit(1);
+    if (
+      latestHold &&
+      (latestHold.status === 'cancelled' || latestHold.status === 'expired')
+    ) {
+      const [activeRejection] = await runner
+        .select({ id: paymentProofRejections.id })
+        .from(paymentProofRejections)
+        .where(
+          and(
+            eq(paymentProofRejections.bookingId, bookingId),
+            eq(paymentProofRejections.status, 'active'),
+          ),
+        )
+        .limit(1);
+      if (activeRejection) {
+        return { ok: false, holdId: null, repaired: false };
+      }
     }
 
     const [alreadyActive] = await runner

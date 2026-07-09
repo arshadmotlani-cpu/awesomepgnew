@@ -17,7 +17,7 @@ test('rejectPaymentProof clears proof and writes rejection row', () => {
   assert.match(src, /supersedeActiveRejection/);
 });
 
-test('booking QR rejection keeps record pending without cleanupRejectedBookingRequest', () => {
+test('booking QR rejection cancels holds and booking via cleanupRejectedBookingRequest', () => {
   const service = readFileSync(
     join(process.cwd(), 'src/services/paymentProofRejectionService.ts'),
     'utf8',
@@ -26,7 +26,8 @@ test('booking QR rejection keeps record pending without cleanupRejectedBookingRe
 
   assert.match(service, /case 'pg_payment_record':[\s\S]*paymentScreenshotUrl: null/);
   assert.match(service, /status: 'pending'/);
-  assert.doesNotMatch(service, /cleanupRejectedBookingRequest/);
+  assert.match(service, /cleanupRejectedBookingRequest/);
+  assert.doesNotMatch(service, /finalizeStaleBookingPaymentReview/);
 
   const rejectBlock = qr.slice(
     qr.indexOf("if (status === 'rejected')"),

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
 
-test('reviewPaymentRecord rejected status routes to SSOT instead of cancelling booking', () => {
+test('reviewPaymentRecord rejected status routes to SSOT instead of inline cancel', () => {
   const src = readFileSync(join(process.cwd(), 'src/services/qrPayments.ts'), 'utf8');
 
   assert.doesNotMatch(src, /cleanupRejectedBookingRequest/);
@@ -13,7 +13,6 @@ test('reviewPaymentRecord rejected status routes to SSOT instead of cancelling b
     src.indexOf('await db', src.indexOf("if (status === 'rejected')")),
   );
   assert.match(rejectGuard, /rejectPaymentProof/);
-  assert.match(rejectGuard, /booking stays active/);
 });
 
 test('submitBookingPaymentRecord updates cleared pending record on re-upload', () => {
@@ -39,6 +38,14 @@ test('paymentProofRejectionService pg_payment_record handler clears screenshot o
 
   assert.match(block, /paymentScreenshotUrl: null/);
   assert.match(block, /status: 'pending'/);
-  assert.doesNotMatch(block, /cleanupRejectedBookingRequest/);
-  assert.doesNotMatch(block, /cancelled/);
+});
+
+test('rejectPaymentProof cancels booking via cleanupRejectedBookingRequest', () => {
+  const src = readFileSync(
+    join(process.cwd(), 'src/services/paymentProofRejectionService.ts'),
+    'utf8',
+  );
+
+  assert.match(src, /cleanupRejectedBookingRequest/);
+  assert.doesNotMatch(src, /finalizeStaleBookingPaymentReview/);
 });

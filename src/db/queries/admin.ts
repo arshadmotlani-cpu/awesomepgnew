@@ -960,7 +960,7 @@ export function getPgBusinessMetrics(
       db.execute<{ pg_id: string; total: number }>(sql`
         SELECT
           eb.pg_id::text AS pg_id,
-          coalesce(sum(ei.paid_paise + coalesce(ei.late_fee_locked_paise, 0)), 0)::bigint::int AS total
+          coalesce(sum(ei.paid_paise), 0)::bigint::int AS total
         FROM electricity_invoices ei
         INNER JOIN electricity_bills eb ON eb.id = ei.electricity_bill_id
         INNER JOIN bookings bk ON bk.id = ei.booking_id
@@ -1179,7 +1179,7 @@ export function getDailyCollectionTotals(
         ),
       db
         .select({
-          total: sql<number>`coalesce(sum(${electricityInvoices.paidPaise} + coalesce(${electricityInvoices.lateFeeLockedPaise}, 0)), 0)::bigint::int`,
+          total: sql<number>`coalesce(sum(${electricityInvoices.paidPaise}), 0)::bigint::int`,
         })
         .from(electricityInvoices)
         .innerJoin(bookings, eq(bookings.id, electricityInvoices.bookingId))

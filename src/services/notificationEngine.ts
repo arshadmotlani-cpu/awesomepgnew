@@ -207,7 +207,7 @@ export async function markUserNotificationRead(
   audience: NotificationAudience,
   userId: string,
   notificationId: string,
-): Promise<void> {
+): Promise<number> {
   const now = new Date();
   const updated = await db
     .update(notifications)
@@ -230,6 +230,34 @@ export async function markUserNotificationRead(
 
   const unreadCount = await countUnreadForUser(audience, userId);
   void syncBadgeToDevices(audience, userId, unreadCount);
+  return unreadCount;
+}
+
+/** Mark multiple inbox notifications read — returns remaining unread count. */
+export async function markUserNotificationsRead(
+  audience: NotificationAudience,
+  userId: string,
+  notificationIds: string[],
+): Promise<number> {
+  if (notificationIds.length === 0) {
+    return countUnreadForUser(audience, userId);
+  }
+  const now = new Date();
+  await db
+    .update(notifications)
+    .set({ isRead: true, readAt: now })
+    .where(
+      and(
+        inArray(notifications.id, notificationIds),
+        eq(notifications.audience, audience),
+        eq(notifications.userId, userId),
+        eq(notifications.isRead, false),
+      ),
+    );
+
+  const unreadCount = await countUnreadForUser(audience, userId);
+  void syncBadgeToDevices(audience, userId, unreadCount);
+  return unreadCount;
 }
 
 export async function markUserNotificationReadByDedupeKey(

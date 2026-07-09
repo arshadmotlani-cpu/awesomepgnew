@@ -22,6 +22,12 @@ async function handle(req: NextRequest) {
     return new Response('Unauthorized', { status: 401 });
   }
   const result = await expireStaleBedReserves();
+  if (result.cancelledPending > 0 || result.converted > 0) {
+    const { revalidateReservationLifecycleViews } = await import(
+      '@/src/lib/occupancyRevalidate'
+    );
+    revalidateReservationLifecycleViews();
+  }
   return Response.json({ ok: true, ...result });
 }
 

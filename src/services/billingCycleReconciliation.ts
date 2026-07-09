@@ -264,7 +264,7 @@ export async function evaluateBillingCycleReconciliation(
       .then((r) => r[0]?.count ?? 0),
     db
       .select({
-        total: sql<number>`coalesce(sum(${rentInvoices.rentPaise} - ${rentInvoices.discountPaise}), 0)::bigint::int`,
+        total: sql<number>`coalesce(sum(${rentInvoices.rentPaise} - ${rentInvoices.discountPaise} + coalesce(${rentInvoices.lateFeeLockedPaise}, ${rentInvoices.paidLateFeePaise}, 0)), 0)::bigint::int`,
       })
       .from(rentInvoices)
       .where(
@@ -276,7 +276,9 @@ export async function evaluateBillingCycleReconciliation(
       )
       .then((r) => Number(r[0]?.total ?? 0)),
     db
-      .select({ total: sum(electricityInvoices.amountPaise) })
+      .select({
+        total: sql<number>`coalesce(sum(${electricityInvoices.amountPaise} + coalesce(${electricityInvoices.lateFeeLockedPaise}, 0)), 0)::bigint::int`,
+      })
       .from(electricityInvoices)
       .where(
         and(eq(electricityInvoices.billingMonth, billingMonth), ne(electricityInvoices.status, 'cancelled')),
@@ -461,7 +463,7 @@ export async function evaluateBillingCycleReconciliation(
       id: 'revenue_integrity',
       label: 'Revenue counts approved payments only',
       pass: totalCollectedPaise <= totalBilledPaise,
-      detail: `Collected ${totalCollectedPaise} paise of ${totalBilledPaise} paise billed — outstanding stays in queues until approval`,
+      detail: `Collected ${totalCollectedPaise} paise of ${totalBilledPaise} paise billed (principal + late fees) — outstanding stays in queues until approval`,
     },
   ];
 

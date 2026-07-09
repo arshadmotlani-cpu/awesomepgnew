@@ -1064,7 +1064,7 @@ export async function recordPaymentFailure(
         .where(
           and(
             eq(bedReservations.bookingId, booking.id),
-            eq(bedReservations.status, 'hold'),
+            inArray(bedReservations.status, ['hold', 'under_review']),
             eq(bedReservations.kind, 'primary'),
           ),
         );
@@ -1995,7 +1995,17 @@ export async function cancelBooking(
       .where(
         and(
           eq(bedReservations.bookingId, b.id),
-          inArray(bedReservations.status, ['hold', 'active']),
+          inArray(bedReservations.status, ['hold', 'under_review', 'active']),
+        ),
+      );
+
+    await tx
+      .update(bedReserveHolds)
+      .set({ status: 'cancelled', holdExpiresAt: null, updatedAt: new Date() })
+      .where(
+        and(
+          eq(bedReserveHolds.bookingId, b.id),
+          inArray(bedReserveHolds.status, ['pending_payment', 'under_review', 'active']),
         ),
       );
 

@@ -256,9 +256,9 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-08 08:33:09 UTC
+### Pending pre-commit sync · 2026-07-09 08:00:44 UTC
 
-**Areas touched:** [[ROUTES]], [[Billing]]
+**Areas touched:** [[ROUTES]], [[Billing]], [[Bookings]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
@@ -268,14 +268,15 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (7):**
-- `app/(admin)/admin/invoices/[invoiceId]/page.tsx`
-- `app/api/invoices/[ref]/pdf/route.ts`
-- `app/api/invoices/share/[shareToken]/pdf/route.ts`
-- `app/i/[shareToken]/page.tsx`
-- `src/lib/billing/invoicePdf.ts`
-- `src/lib/billing/invoicePdfDownload.ts`
-- `src/lib/billing/invoicePdfLinks.ts`
+**Staged code files (8):**
+- `app/(customer)/booking/[bookingCode]/page.tsx`
+- `app/(customer)/booking/[bookingCode]/pay/page.tsx`
+- `app/api/admin/notifications/read/route.ts`
+- `app/api/cron/expire-bed-reserves/route.ts`
+- `app/api/cron/release-holds/route.ts`
+- `app/api/webhooks/razorpay/route.ts`
+- `src/lib/billing/financialMetrics.ts`
+- `src/services/bookingLifecycle.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

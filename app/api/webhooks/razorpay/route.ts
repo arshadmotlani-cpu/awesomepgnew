@@ -7,6 +7,7 @@ import {
   recordPaymentFailure,
   recordPaymentSuccess,
 } from '@/src/services/bookingLifecycle';
+import { revalidateReservationLifecycleViews } from '@/src/lib/occupancyRevalidate';
 import {
   recordRentPaymentFailure,
   recordRentPaymentSuccess,
@@ -97,6 +98,9 @@ export async function POST(req: NextRequest) {
       bookingCode: evt.receipt,
       rawPayload: evt.raw,
     });
+    if (r.ok && r.stateChanged && evt.receipt) {
+      revalidateReservationLifecycleViews({ bookingCode: evt.receipt });
+    }
     return Response.json(r, { status: r.ok ? 200 : 200 });
   }
 

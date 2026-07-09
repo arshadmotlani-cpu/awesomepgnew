@@ -32,11 +32,14 @@ function NotificationReadOnArrivalInner() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ notificationId: notifRead }),
     })
-      .then(() => {
+      .then((res) => res.json())
+      .then((json: { ok?: boolean; unreadCount?: number }) => {
         if (typeof window !== 'undefined') {
           window.dispatchEvent(
             new CustomEvent('admin-badges-updated', {
-              detail: { unreadCount: undefined },
+              detail: {
+                unreadCount: json.ok && typeof json.unreadCount === 'number' ? json.unreadCount : 0,
+              },
             }),
           );
         }

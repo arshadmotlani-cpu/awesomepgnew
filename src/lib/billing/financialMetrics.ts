@@ -169,7 +169,7 @@ export async function sumPaidElectricityByPgForBillingMonth(billingMonth: string
   const rows = await db.execute<{ pg_id: string; total: number }>(sql`
     SELECT
       eb.pg_id::text AS pg_id,
-      coalesce(sum(ei.paid_paise + coalesce(ei.late_fee_locked_paise, 0)), 0)::bigint::int AS total
+      coalesce(sum(ei.paid_paise), 0)::bigint::int AS total
     FROM electricity_invoices ei
     INNER JOIN electricity_bills eb ON eb.id = ei.electricity_bill_id
     WHERE ei.status = 'paid'
@@ -182,7 +182,7 @@ export async function sumPaidElectricityByPgForBillingMonth(billingMonth: string
 /** Global paid electricity for a billing month — SSOT check helper. */
 export async function sumPaidElectricityForBillingMonth(billingMonth: string): Promise<number> {
   const rows = await db.execute<{ total: number }>(sql`
-    SELECT coalesce(sum(ei.paid_paise + coalesce(ei.late_fee_locked_paise, 0)), 0)::bigint::int AS total
+    SELECT coalesce(sum(ei.paid_paise), 0)::bigint::int AS total
     FROM electricity_invoices ei
     WHERE ei.status = 'paid'
       AND ei.billing_month = ${billingMonth}::date
@@ -197,7 +197,13 @@ export async function sumPaidRentForBillingMonth(billingMonth: string): Promise<
       total: sql<number>`coalesce(sum(${rentInvoices.paidPrincipalPaise} + ${rentInvoices.paidLateFeePaise}), 0)::bigint::int`,
     })
     .from(rentInvoices)
-    .where(and(eq(rentInvoices.status, 'paid'), eq(rentInvoices.billingMonth, billingMonth)));
+    .where(
+      and(
+        eq(rentInvoices.status, 'paid'),
+        eq(rentInvoices.billingMonth, billingMonth),
+        eq(rentInvoices.isAdhoc, false),
+      ),
+    );
   return Number(row?.total ?? 0);
 }
 

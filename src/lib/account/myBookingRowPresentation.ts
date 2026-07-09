@@ -89,11 +89,18 @@ export function normalizeMyBookingRow(raw: Partial<MyBookingRow> | null | undefi
       ? 'Reservation confirmed'
       : durationMode === 'reserve' && raw?.reserveStatus === 'under_review'
         ? 'Reservation under review'
+        : durationMode === 'reserve' &&
+            (raw?.reserveStatus === 'cancelled' || raw?.reserveStatus === 'expired')
+          ? 'Reservation cancelled'
         : status === 'invalid'
           ? 'Invalid'
           : labelBookingStatus(status);
 
-  const isClosed = status !== 'invalid' && isClosedBookingStatus(status);
+  const reserveHoldClosed =
+    durationMode === 'reserve' &&
+    (raw?.reserveStatus === 'cancelled' || raw?.reserveStatus === 'expired');
+  const isClosed =
+    status !== 'invalid' && (isClosedBookingStatus(status) || reserveHoldClosed);
 
   return {
     id: id || `missing-${bookingCode ?? 'booking'}`,

@@ -65,6 +65,17 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
 
   const booking = result.data;
   const isReserveBooking = booking.durationMode === 'reserve';
+  const reserveTerminated =
+    isReserveBooking &&
+    (booking.reserveStatus === 'cancelled' || booking.reserveStatus === 'expired');
+  if (
+    booking.status === 'cancelled' ||
+    booking.status === 'superseded' ||
+    booking.status === 'refunded' ||
+    reserveTerminated
+  ) {
+    redirect('/account/bookings');
+  }
   if (isReserveBooking && booking.reserveStatus === 'active') {
     redirect(`/booking/${booking.bookingCode}`);
   }

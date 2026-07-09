@@ -32,7 +32,6 @@ import {
 } from '@/src/lib/approvals/paymentProofRejectionReasons';
 import { writeAuditLogNonBlocking } from '@/src/lib/audit/writeAuditLog';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
-import { PAYMENT_ALREADY_PROCESSED_MESSAGE } from '@/src/lib/operations/paymentReviewMessages';
 import { revalidateReservationLifecycleViews } from '@/src/lib/occupancyRevalidate';
 import { projectInvoice } from '@/src/services/rentInvoices';
 
@@ -472,25 +471,6 @@ export async function rejectPaymentProof(
   if (!ctx) return { ok: false, message: 'Payment proof not found.' };
   if (!adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, ctx.pgId)) {
     return { ok: false, message: 'Access denied.' };
-  }
-
-  if (input.entityType === 'pg_payment_record') {
-    const { isBookingPaymentProofProcessed } = await import(
-      '@/src/services/paymentReviewReconciliation'
-    );
-    const { finalizeStaleBookingPaymentReview, resolvePaymentReviewArtifactsForKey } =
-      await import('@/src/services/paymentProofReviewCleanup');
-    const processed = await isBookingPaymentProofProcessed(input.entityId);
-    if (processed) {
-      await finalizeStaleBookingPaymentReview({
-        recordId: input.entityId,
-        bookingId: ctx.bookingId,
-        reviewedByAdminId: session.adminId,
-      });
-      await resolvePaymentReviewArtifactsForKey(input.reviewKey);
-      await revalidateAfterPaymentProofMutation(ctx.pgId, ctx.bookingId);
-      return { ok: true, rejectionId: '', message: PAYMENT_ALREADY_PROCESSED_MESSAGE };
-    }
   }
 
   if (!ctx.hasProof) {

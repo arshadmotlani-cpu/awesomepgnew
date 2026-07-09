@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { getBookingByCode, listExtensionsForBooking } from '@/src/db/queries/customer';
 import {
   requireCustomerOwnsBookingCode,
@@ -24,6 +24,7 @@ import {
   customerBookingBannerCopy,
   customerBookingStatusTone,
   isBookingStatus,
+  isTerminalBookingLifecycleStatus,
 } from '@/src/lib/booking/bookingStatus';
 import { getPendingBookingPaymentRecord } from '@/src/services/qrPayments';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
@@ -64,6 +65,13 @@ export default async function BookingConfirmationPage(
   if (!result.data) notFound();
 
   const b = result.data;
+  const reserveTerminated =
+    b.durationMode === 'reserve' &&
+    (b.reserveStatus === 'cancelled' || b.reserveStatus === 'expired');
+  if (isTerminalBookingLifecycleStatus(b.status) || reserveTerminated) {
+    redirect('/account/bookings');
+  }
+
   const customer = await getCustomerById(session.customerId);
   const latestKyc = customer
     ? await getLatestKycSubmission(session.customerId)

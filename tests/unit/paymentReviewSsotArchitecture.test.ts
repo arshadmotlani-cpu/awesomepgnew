@@ -38,17 +38,12 @@ describe('payment review SSOT architecture', () => {
     assert.match(reconciliation, /linkOrphanBookingPaymentRecords/);
   });
 
-  test('reject is idempotent for processed booking payments', () => {
+  test('reject always cancels booking holds even when payment already processed', () => {
     const reject = read('src/services/paymentProofRejectionService.ts');
-    assert.match(reject, /isBookingPaymentProofProcessed/);
-    assert.match(reject, /PAYMENT_ALREADY_PROCESSED_MESSAGE/);
-    const processedBlock = reject.slice(
-      reject.indexOf("if (input.entityType === 'pg_payment_record')"),
-      reject.indexOf('if (!ctx.hasProof)'),
-    );
-    assert.match(processedBlock, /finalizeStaleBookingPaymentReview/);
-    assert.doesNotMatch(processedBlock, /clearEntityProof/);
-    assert.doesNotMatch(processedBlock, /notifyBookingPaymentProofRejected/);
+    assert.match(reject, /cleanupRejectedBookingRequest/);
+    assert.doesNotMatch(reject, /finalizeStaleBookingPaymentReview/);
+    assert.doesNotMatch(reject, /isBookingPaymentProofProcessed/);
+    assert.doesNotMatch(reject, /PAYMENT_ALREADY_PROCESSED_MESSAGE/);
   });
 
   test('confirmed booking never eligible for display', () => {

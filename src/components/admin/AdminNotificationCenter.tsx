@@ -33,8 +33,32 @@ export function AdminNotificationCenter({ initialUnread = 0 }: { initialUnread?:
         unreadCount?: number;
       };
       if (json.ok) {
-        setItems(json.data ?? []);
-        setUnreadCount(json.unreadCount ?? json.data?.length ?? 0);
+        const loaded = json.data ?? [];
+        setItems(loaded);
+        if (loaded.length > 0) {
+          setUnreadCount(0);
+          const readRes = await fetch('/api/admin/notifications/read', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              markAllVisible: true,
+              notificationIds: loaded.map((item) => item.id),
+            }),
+          });
+          const readJson = (await readRes.json()) as { ok?: boolean; unreadCount?: number };
+          const nextUnread =
+            readJson.ok && typeof readJson.unreadCount === 'number' ? readJson.unreadCount : 0;
+          setUnreadCount(nextUnread);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(
+              new CustomEvent('admin-badges-updated', {
+                detail: { unreadCount: nextUnread },
+              }),
+            );
+          }
+        } else {
+          setUnreadCount(0);
+        }
       }
     } finally {
       setLoading(false);
@@ -91,11 +115,11 @@ export function AdminNotificationCenter({ initialUnread = 0 }: { initialUnread?:
   }
 
   return (
-    <div className="relative" ref={panelRef}>
+    <div className="relative shrink-0" ref={panelRef}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="relative inline-flex h-10 min-w-10 items-center justify-center rounded-lg border border-white/10 bg-[#1A1F27] text-apg-silver hover:bg-white/5 hover:text-white"
+        className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-[#1A1F27] text-apg-silver hover:bg-white/5 hover:text-white"
         aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -107,7 +131,7 @@ export function AdminNotificationCenter({ initialUnread = 0 }: { initialUnread?:
           />
         </svg>
         {unreadCount > 0 ? (
-          <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#FF5A1F] px-1 text-[10px] font-bold text-white">
+          <span className="absolute right-0 top-0 flex h-[1.125rem] min-w-[1.125rem] translate-x-1/4 -translate-y-1/4 items-center justify-center rounded-full bg-[#FF5A1F] px-0.5 text-[9px] font-bold leading-none text-white sm:text-[10px]">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         ) : null}

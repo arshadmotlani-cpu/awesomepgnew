@@ -30,16 +30,21 @@ test('lifecycle revalidation runs once per mutation in service SSOT', () => {
 
 test('route and action layers do not duplicate lifecycle revalidation', () => {
   const apiRoute = read('app/api/payment-record/booking/route.ts');
-  const cron = read('app/api/cron/expire-bed-reserves/route.ts');
   const reserveActions = read('app/(customer)/reserve/new/actions.ts');
   const bookingActions = read('app/(customer)/booking/[bookingCode]/actions.ts');
   const adminPayments = read('app/(admin)/admin/payments/actions.ts');
 
   assert.doesNotMatch(apiRoute, /revalidateReservationLifecycle/);
-  assert.doesNotMatch(cron, /revalidateReservationLifecycle/);
   assert.doesNotMatch(reserveActions, /revalidateReservationLifecycle/);
   assert.doesNotMatch(bookingActions, /revalidateReservationLifecycle/);
   assert.doesNotMatch(adminPayments, /revalidateReservationLifecycleViews/);
+});
+
+test('expire cron routes revalidate lifecycle after mutations', () => {
+  const expireReservesCron = read('app/api/cron/expire-bed-reserves/route.ts');
+  const releaseHoldsCron = read('app/api/cron/release-holds/route.ts');
+  assert.match(expireReservesCron, /revalidateReservationLifecycleViews/);
+  assert.match(releaseHoldsCron, /revalidateReservationLifecycleViews/);
 });
 
 test('revalidate helper dedupes base and target paths', () => {

@@ -3,6 +3,7 @@ import type { AdminModule } from '@/src/lib/admin/navigation';
 import type { OpsQueueFilter } from '@/src/lib/operations/operationsFilterLinks';
 import { operationsFilterCount } from '@/src/lib/operations/operationsQueueCounts';
 import { getUnifiedOperationsQueueForRequest } from '@/src/services/unifiedOperationsQueue';
+import { countUnreadForAdmin } from '@/src/services/notificationEngine';
 import { profileAdminStep } from '@/src/lib/admin/adminProfile';
 
 /** Sidebar badge keys — all Operations tab counts from unified queue SSOT. */
@@ -41,6 +42,11 @@ export async function loadAdminNavBadges(session: AdminSession): Promise<AdminNa
       const total =
         (badges.operations ?? 0) + (badges.kyc ?? 0) + (badges.checkoutSettlements ?? 0);
       if (total > 0) badges.overview = total;
+
+      const unreadNotifications = await countUnreadForAdmin(session);
+      if (unreadNotifications > 0) {
+        badges.notifications = unreadNotifications;
+      }
 
       return badges;
     });
