@@ -33,6 +33,7 @@ test('buildRentInvoiceBreakdownFromContext itemizes full-month rent', () => {
     monthlyRentPaise: 721_140,
     rentPricingSource: 'bed_price',
     isPrivateRoom: false,
+    asOf: '2026-07-01',
   });
 
   assert.equal(breakdown.finalRentPaise, 721_140);
@@ -73,6 +74,7 @@ test('buildRentInvoiceBreakdownFromContext shows anniversary billing period from
     monthlyRentPaise: 721_140,
     rentPricingSource: 'bed_price',
     isPrivateRoom: false,
+    asOf: '2026-07-01',
   });
 
   assert.equal(breakdown.proration, null);
