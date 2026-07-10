@@ -22,3 +22,8 @@ test('scoped admins cannot see unassigned residents in search', () => {
   assert.match(src, /session\.role === 'super_admin'/);
   assert.match(src, /!row\.pg_id/);
 });
+
+test('resident search includes invoice number tiers', () => {
+  const src = readFileSync(join(process.cwd(), 'src/services/adminResidentSearch.ts'), 'utf8');
+  assert.match(src, /invoice_number ILIKE/);
+});

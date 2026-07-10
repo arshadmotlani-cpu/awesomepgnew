@@ -130,6 +130,17 @@ function matchSql(
         WHERE bk.customer_id = c.id
           AND bk.booking_code ILIKE ${pattern}
       )
+      OR EXISTS (
+        SELECT 1 FROM rent_invoices ri
+        INNER JOIN bookings bk ON bk.id = ri.booking_id
+        WHERE bk.customer_id = c.id
+          AND ri.invoice_number ILIKE ${pattern}
+      )
+      OR EXISTS (
+        SELECT 1 FROM financial_invoices fi
+        WHERE fi.customer_id = c.id
+          AND fi.invoice_number ILIKE ${pattern}
+      )
       OR (
         ${phoneSearchEnabled}
         AND regexp_replace(c.phone, '[^0-9]', '', 'g') LIKE ${`%${phoneDigits}%`}
