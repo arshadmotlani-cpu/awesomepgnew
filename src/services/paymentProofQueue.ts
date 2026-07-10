@@ -40,7 +40,7 @@ import { formatDate as formatIsoDate } from '@/src/lib/dates';
 import { dedupePendingPaymentReviews } from '@/src/lib/operations/dedupePendingPaymentReviews';
 import { isBookingCheckoutEligibleForPaymentReview } from '@/src/lib/operations/paymentReviewSsot';
 import { reconcileBookingPaymentReviewQueue } from '@/src/services/paymentReviewReconciliation';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { cache } from 'react';
 import { adminRequestScopeKey } from '@/src/lib/admin/adminRequestCache';
 
@@ -135,6 +135,92 @@ async function loadBookingReviewDetails(
       ? snapshot.priorOutstanding.items
       : [],
   };
+}
+
+async function loadBookingReviewDetailsMap(
+  bookingIds: string[],
+): Promise<Map<string, PaymentReviewBookingDetails>> {
+  const unique = [...new Set(bookingIds.filter(Boolean))];
+  if (unique.length === 0) return new Map();
+
+  const rows = await db
+    .select({
+      bookingId: bookings.id,
+      expectedCheckoutDate: bookings.expectedCheckoutDate,
+      durationMode: bookings.durationMode,
+      stayType: bookings.stayType,
+      status: bookings.status,
+      subtotalPaise: bookings.subtotalPaise,
+      discountPaise: bookings.discountPaise,
+      depositPaise: bookings.depositPaise,
+      pricingSnapshot: bookings.pricingSnapshot,
+      bedCode: beds.bedCode,
+      roomNumber: rooms.roomNumber,
+      stayRange: bedReservations.stayRange,
+    })
+    .from(bookings)
+    .leftJoin(
+      bedReservations,
+      and(eq(bedReservations.bookingId, bookings.id), eq(bedReservations.kind, 'primary')),
+    )
+    .leftJoin(beds, eq(beds.id, bedReservations.bedId))
+    .leftJoin(rooms, eq(rooms.id, beds.roomId))
+    .where(inArray(bookings.id, unique));
+
+  const out = new Map<string, PaymentReviewBookingDetails>();
+  for (const row of rows) {
+    let moveInDate: string | null = null;
+    let moveOutDate: string | null = row.expectedCheckoutDate ?? null;
+    if (row.stayRange) {
+      try {
+        const parsed = parseDaterange(String(row.stayRange));
+        moveInDate = parsed.lower ? formatIsoDate(parsed.lower) : null;
+        if (!moveOutDate && parsed.upper) moveOutDate = formatIsoDate(parsed.upper);
+      } catch {
+        moveInDate = null;
+      }
+    }
+
+    const durationLabel = row.durationMode
+      ? titleCase(String(row.durationMode).replace(/_/g, ' '))
+      : null;
+
+    const snapshot = row.pricingSnapshot as PricingSnapshot | null;
+    const depositCredit = snapshot?.depositCredit;
+    const subtotalPaise = row.subtotalPaise ?? null;
+    const discountPaise = row.discountPaise ?? null;
+    const rentDuePaise =
+      subtotalPaise != null
+        ? Math.max(0, subtotalPaise - (discountPaise ?? 0))
+        : null;
+
+    out.set(row.bookingId, {
+      moveInDate,
+      moveOutDate,
+      durationLabel,
+      roomType: row.stayType ? titleCase(String(row.stayType).replace(/_/g, ' ')) : null,
+      bedCode: row.bedCode ?? null,
+      roomNumber: row.roomNumber ?? null,
+      monthlyRentPaise: monthlyRentFromSnapshot(snapshot),
+      depositRequiredPaise: row.depositPaise ?? null,
+      durationMode: row.durationMode ? String(row.durationMode) : null,
+      stayType: row.stayType ? String(row.stayType) : null,
+      bookingStatus: row.status ? String(row.status) : null,
+      subtotalPaise,
+      discountPaise,
+      rentDuePaise,
+      rentLineItems: snapshot?.rentLineItems,
+      snapshotPerBedDurationMode: snapshot?.perBed?.[0]?.durationMode ?? null,
+      snapshotPerBedUnits: snapshot?.perBed?.[0]?.units ?? null,
+      depositCreditAppliedPaise: resolveBookingDepositCreditAppliedPaise(depositCredit),
+      depositCreditSourceBookingId: depositCredit?.sourceBookingId ?? null,
+      depositCreditSourceBookingCode: depositCredit?.sourceBookingCode ?? null,
+      priorOutstandingItems: Array.isArray(snapshot?.priorOutstanding?.items)
+        ? snapshot.priorOutstanding.items
+        : [],
+    });
+  }
+  return out;
 }
 
 function bookingDetailsForContext(
@@ -670,13 +756,15 @@ async function fetchPendingPaymentReviews(
 
   const qrRows = await listOwnerPayments(session, { status: 'pending' });
   const { listPriorBookingDepositsForReview } = await import('@/src/services/depositCredit');
+  const qrBookingIds = qrRows.map((p) => p.bookingId).filter((id): id is string => Boolean(id));
+  const bookingDetailsById = await loadBookingReviewDetailsMap(qrBookingIds);
   const qrItems = (
     await Promise.all(
       qrRows
         .filter((p) => p.paymentScreenshotUrl?.trim())
         .map(async (p) => {
           const isBookingCheckout = Boolean(p.bookingCode || p.bookingId);
-          const bookingDetails = p.bookingId ? await loadBookingReviewDetails(p.bookingId) : null;
+          const bookingDetails = p.bookingId ? bookingDetailsById.get(p.bookingId) ?? null : null;
           if (isBookingCheckout && p.bookingId) {
             if (
               !bookingDetails?.bookingStatus ||
