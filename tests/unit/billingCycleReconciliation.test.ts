@@ -14,7 +14,7 @@ test('billing cycle reconciliation aligns billed and collected formulas', () => 
   );
 
   assert.match(src, /lateFeeLockedPaise.*paidLateFeePaise/);
-  assert.match(src, /lateFeeLockedPaise.*amountPaise/);
+  assert.match(src, /electricityInvoices\.amountPaise.*lateFeeLockedPaise/);
   assert.match(src, /totalCollectedPaise <= totalBilledPaise/);
   assert.match(metrics, /eq\(rentInvoices\.isAdhoc, false\)/);
   assert.match(metrics, /sum\(ei\.paid_paise\)/);

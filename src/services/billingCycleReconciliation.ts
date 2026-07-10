@@ -288,7 +288,7 @@ export async function evaluateBillingCycleReconciliation(
     sumPaidElectricityForBillingMonth(billingMonth),
     db
       .select({
-        total: sql<number>`coalesce(sum((${rentInvoices.rentPaise} - ${rentInvoices.discountPaise}) - ${rentInvoices.paidPrincipalPaise} - ${rentInvoices.paidLateFeePaise}), 0)::bigint::int`,
+        total: sql<number>`coalesce(sum((${rentInvoices.rentPaise} - ${rentInvoices.discountPaise} + coalesce(${rentInvoices.lateFeeLockedPaise}, ${rentInvoices.paidLateFeePaise}, 0)) - ${rentInvoices.paidPrincipalPaise} - ${rentInvoices.paidLateFeePaise}), 0)::bigint::int`,
       })
       .from(rentInvoices)
       .innerJoin(bookings, eq(bookings.id, rentInvoices.bookingId))
@@ -302,7 +302,9 @@ export async function evaluateBillingCycleReconciliation(
       )
       .then((r) => Number(r[0]?.total ?? 0)),
     db
-      .select({ total: sum(electricityInvoices.amountPaise) })
+      .select({
+        total: sql<number>`coalesce(sum((${electricityInvoices.amountPaise} + coalesce(${electricityInvoices.lateFeeLockedPaise}, 0)) - ${electricityInvoices.paidPaise}), 0)::bigint::int`,
+      })
       .from(electricityInvoices)
       .innerJoin(bookings, eq(bookings.id, electricityInvoices.bookingId))
       .innerJoin(customers, eq(customers.id, electricityInvoices.customerId))
