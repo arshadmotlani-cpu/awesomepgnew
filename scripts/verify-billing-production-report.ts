@@ -1,10 +1,15 @@
 /* eslint-disable no-console */
 /**
  * Read-only production billing verification report.
- * Run: npx vercel env run --environment production npx tsx scripts/verify-billing-production-report.ts
+ *
+ * Target: Production Neon. Provide DATABASE_URL from Neon dashboard.
+ *
+ *   DATABASE_URL='postgresql://…' npx tsx scripts/verify-billing-production-report.ts
  */
-import { loadAppEnv } from '../src/lib/db/loadEnv';
-loadAppEnv();
+import { loadProductionAuditEnv, requireDatabaseUrl } from '../src/lib/db/loadEnv';
+
+loadProductionAuditEnv();
+requireDatabaseUrl('verify-billing-production-report.ts');
 
 import { and, count, desc, eq, inArray, isNull, ne, sql, sum } from 'drizzle-orm';
 import { db, closeDb } from '../src/db/client';
@@ -217,7 +222,7 @@ async function main() {
 
   if (conn.isLocalhost) {
     record('Production access', 'BLOCKED', 'Connected to localhost — not production Neon cluster');
-    console.error('BLOCKED: Script must run against production via `vercel env run --environment production`');
+    console.error('BLOCKED: Script must run against production Neon — set DATABASE_URL from Neon dashboard');
     process.exit(2);
   }
 

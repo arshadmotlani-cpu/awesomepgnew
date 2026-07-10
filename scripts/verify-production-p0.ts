@@ -2,14 +2,17 @@
 /**
  * Production P0 verification bundle — run before Production Stabilization commit.
  *
- * Requires production Neon DATABASE_URL (not empty Vercel pull placeholders):
- *   npx vercel env run --environment production -- npx tsx scripts/verify-production-p0.ts
+ * Target: Production Neon (not Preview / Development).
+ * Neon integration DATABASE_URL is deploy-time only — not exportable via Vercel CLI.
  *
- * Or paste Neon connection string into .env.local as DATABASE_URL.
+ * Usage:
+ *   DATABASE_URL='postgresql://…' npx tsx scripts/verify-production-p0.ts
+ *   USE_PRODUCTION_DB=1 npx tsx scripts/verify-production-p0.ts
  */
-import { loadAppEnv } from '@/src/lib/db/loadEnv';
+import { loadProductionAuditEnv, requireDatabaseUrl } from '@/src/lib/db/loadEnv';
 
-loadAppEnv();
+loadProductionAuditEnv();
+requireDatabaseUrl('verify-production-p0.ts');
 
 import { getDatabaseUrl } from '@/src/lib/db/env';
 import { closeDb } from '@/src/db/client';
@@ -114,7 +117,7 @@ async function main() {
       'production-db',
       'Production DATABASE_URL',
       false,
-      'Set Neon URL — `vercel env run` does not export integration secrets locally',
+      'Set Neon production URL from dashboard (not via vercel env pull/run)',
     );
   }
 

@@ -1,9 +1,17 @@
 /**
- * Phase 3.2 — run bed, financial, and system health audits against live DB.
+ * Phase 3.2 — run bed, financial, and system health audits against **production** DB.
  *
- * Usage: npx tsx scripts/run-production-health-audit.ts
+ * Target: Production Neon (not Preview / Development).
+ * Neon integration secrets are not exportable via `vercel env pull` or `vercel env run`.
+ *
+ * Usage:
+ *   DATABASE_URL='postgresql://…' npx tsx scripts/run-production-health-audit.ts
+ *   USE_PRODUCTION_DB=1 npx tsx scripts/run-production-health-audit.ts  # .env.prod.live
  */
-import 'dotenv/config';
+import { loadProductionAuditEnv, requireDatabaseUrl } from '../src/lib/db/loadEnv';
+
+loadProductionAuditEnv();
+requireDatabaseUrl('run-production-health-audit.ts');
 
 import { closeDb } from '../src/db/client';
 import type { AdminSession } from '../src/lib/auth/session';

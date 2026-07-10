@@ -2,11 +2,15 @@
 /**
  * Production issues audit — Operations badge, Room 201, KYC, July rent preview.
  *
- *   npx tsx scripts/production-issues-audit-report.ts
- *   npx tsx scripts/production-issues-audit-report.ts --fix
+ * Target: Production Neon. Provide DATABASE_URL from Neon dashboard.
+ *
+ *   DATABASE_URL='postgresql://…' npx tsx scripts/production-issues-audit-report.ts
+ *   USE_PRODUCTION_DB=1 npx tsx scripts/production-issues-audit-report.ts --fix
  */
-import { loadScriptEnv } from '@/src/lib/scripts/loadScriptEnv';
-loadScriptEnv();
+import { loadProductionAuditEnv, requireDatabaseUrl } from '@/src/lib/db/loadEnv';
+
+loadProductionAuditEnv();
+requireDatabaseUrl('production-issues-audit-report.ts');
 import { execSync } from 'node:child_process';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { closeDb, db } from '@/src/db/client';

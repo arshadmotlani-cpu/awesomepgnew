@@ -1,8 +1,19 @@
 #!/usr/bin/env npx tsx
 /**
- * Production readiness simulation — read-only counts against live DB.
- * Usage: DATABASE_URL=... npx tsx scripts/production-readiness-simulation.ts
+ * Production readiness simulation — read-only counts against **production** DB.
+ *
+ * Target: Production Neon (not Preview / Development).
+ * Provide DATABASE_URL from Neon dashboard — not via `vercel env pull`.
+ *
+ * Usage:
+ *   DATABASE_URL='postgresql://…' npx tsx scripts/production-readiness-simulation.ts
+ *   USE_PRODUCTION_DB=1 npx tsx scripts/production-readiness-simulation.ts
  */
+import { loadProductionAuditEnv, requireDatabaseUrl } from '../src/lib/db/loadEnv';
+
+loadProductionAuditEnv();
+requireDatabaseUrl('production-readiness-simulation.ts');
+
 import { sql } from 'drizzle-orm';
 import { db } from '../src/db/client';
 

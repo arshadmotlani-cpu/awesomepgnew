@@ -55,6 +55,32 @@ test('formatDatabaseConfigReport lists missing vars and setup steps', { concurre
   }
 });
 
+test('clearEmptyDatabaseEnvPlaceholders removes Neon integration empty strings', { concurrency: false }, async () => {
+  const prev = {
+    DATABASE_URL: process.env.DATABASE_URL,
+    POSTGRES_URL: process.env.POSTGRES_URL,
+    POSTGRES_PRISMA_URL: process.env.POSTGRES_PRISMA_URL,
+  };
+
+  try {
+    process.env.DATABASE_URL = '';
+    process.env.POSTGRES_URL = '   ';
+    process.env.POSTGRES_PRISMA_URL = 'postgres://prisma@host/prisma';
+
+    const { clearEmptyDatabaseEnvPlaceholders } = await import('../../src/lib/db/loadEnv');
+    clearEmptyDatabaseEnvPlaceholders();
+
+    assert.equal(process.env.DATABASE_URL, undefined);
+    assert.equal(process.env.POSTGRES_URL, undefined);
+    assert.equal(process.env.POSTGRES_PRISMA_URL, 'postgres://prisma@host/prisma');
+  } finally {
+    for (const [key, value] of Object.entries(prev)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});
+
 test('loadAppEnv loads .env.local over .env', { concurrency: false }, async () => {
   const { writeFileSync, unlinkSync, existsSync } = await import('node:fs');
   const { join } = await import('node:path');
