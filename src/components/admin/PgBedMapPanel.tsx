@@ -225,7 +225,12 @@ function RoomCard({
   onSelectBed: (bedId: string) => void;
 }) {
   const openCount = room.beds.filter((b) => b.isAvailableNow).length;
-  const occupiedCount = room.beds.filter((b) => b.isOccupiedToday || b.manualOccupied).length;
+  const occupiedCount = room.beds.filter(
+    (b) =>
+      b.manualOccupied ||
+      b.availability.kind === 'occupied' ||
+      b.availability.kind === 'notice',
+  ).length;
 
   return (
     <article className={`${SURFACE} flex flex-col gap-4 p-5`}>

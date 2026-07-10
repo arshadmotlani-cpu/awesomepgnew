@@ -5,6 +5,7 @@
 import type { AdminSession } from '@/src/lib/auth/session';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import { getBusinessMetricsSummary, getDashboardStats, getPgBusinessMetrics } from '@/src/db/queries/admin';
+import { getExecutiveMetrics } from '@/src/services/executiveMetrics';
 import { getRevenueCommandCenterData } from '@/src/services/revenueCommandCenter';
 import { getVisitorCountSummary } from '@/src/services/visitorAnalytics';
 
@@ -27,11 +28,12 @@ export async function loadBusinessAnalytics(
 ): Promise<BusinessAnalyticsSnapshot> {
   const billingMonth = resolveBillingMonth(billingMonthInput);
 
-  const [summaryRes, metricsRes, visitors, dashboard] = await Promise.all([
+  const [summaryRes, metricsRes, visitors, dashboard, executive] = await Promise.all([
     getBusinessMetricsSummary(billingMonth),
     getPgBusinessMetrics(billingMonth),
     getVisitorCountSummary(),
     getDashboardStats().catch(() => ({ ok: false as const, error: '' })),
+    getExecutiveMetrics(billingMonth).catch(() => null),
   ]);
 
   const summary = summaryRes.ok ? summaryRes.data : null;
@@ -50,9 +52,9 @@ export async function loadBusinessAnalytics(
 
   return {
     billingMonth,
-    occupancyPct: summary?.occupancyPct ?? 0,
-    occupiedBeds: summary?.occupiedBeds ?? 0,
-    totalBeds: summary?.totalBeds ?? 0,
+    occupancyPct: executive?.occupancyPct ?? summary?.occupancyPct ?? 0,
+    occupiedBeds: executive?.occupiedBeds ?? summary?.occupiedBeds ?? 0,
+    totalBeds: executive?.totalBeds ?? summary?.totalBeds ?? 0,
     revenueMtdPaise: revenue?.mtd.totalPaise ?? 0,
     rentMtdPaise: summary?.incomeRentPaise ?? 0,
     visitorsMonth: visitors.month,
