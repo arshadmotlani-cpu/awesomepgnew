@@ -9,7 +9,10 @@ import {
 } from '@/src/db/queries/customer';
 import { firstOfMonth } from '@/src/services/billing';
 import { getActiveTenancyForCustomer } from '@/src/lib/residentActiveTenancy';
-import type { ResidentFinancialSummary } from '@/src/lib/billing/residentFinancialTypes';
+import type {
+  ResidentFinancialAccount,
+  ResidentFinancialLineItem,
+} from '@/src/lib/billing/residentFinancialTypes';
 import { deriveResidencyJourney, type ResidencyJourneyState } from '@/src/lib/residents/residencyJourney';
 import { formatStayDateTime } from '@/src/lib/residents/stayBillingRules';
 import { projectElectricityInvoice } from '@/src/services/electricityBilling';
@@ -60,7 +63,7 @@ export type ResidentAccountContext = {
   hasResidentPortalAccess: boolean;
   isActiveStay: boolean;
   primaryBooking: ResidentBookingRow | null;
-  financialSummary: ResidentFinancialSummary | null;
+  financialSummary: ResidentFinancialAccount | null;
   journey: ResidencyJourneyState;
   invoices: ResidentInvoiceCard[];
   rentPaymentHistory: RentPaymentHistoryRow[];
@@ -92,6 +95,17 @@ function billingMonthLabel(value: string | null | undefined): string {
   return '—';
 }
 
+function buildRfeLineItemMap(
+  account: ResidentFinancialAccount | null,
+): Map<string, ResidentFinancialLineItem> {
+  const map = new Map<string, ResidentFinancialLineItem>();
+  if (!account) return map;
+  for (const item of [...account.rent.items, ...account.electricity.items]) {
+    if (item.sourceId) map.set(`${item.kind}:${item.sourceId}`, item);
+  }
+  return map;
+}
+
 export async function loadResidentAccountContext(
   customerId: string,
 ): Promise<ResidentAccountContext | null> {
@@ -120,6 +134,7 @@ export async function loadResidentAccountContext(
   const financialSummary = primaryBooking
     ? await getResidentFinancialAccount(customerId)
     : null;
+  const rfeLineItems = buildRfeLineItemMap(financialSummary);
 
   const depositPaid =
     financialSummary != null &&
@@ -203,6 +218,7 @@ export async function loadResidentAccountContext(
           });
           continue;
         }
+        const rfeLine = rfeLineItems.get(`rent:${inv.id}`);
         const projected = projectInvoice({
           ...inv,
           cancelledAt: null,
@@ -215,6 +231,7 @@ export async function loadResidentAccountContext(
           createdAt: new Date(),
           updatedAt: new Date(),
         });
+        const outstandingPaise = rfeLine?.outstandingPaise ?? projected.outstandingPaise;
         const lateFee =
           inv.status === 'paid'
             ? (inv.lateFeeLockedPaise ?? 0)
@@ -232,11 +249,11 @@ export async function loadResidentAccountContext(
           rentPaise: finalAmount,
           electricityPaise: 0,
           depositPaidPaise: 0,
-          finalAmountPaise: projected.outstandingPaise > 0 ? projected.outstandingPaise : finalAmount,
-          status: projected.effectiveStatus,
+          finalAmountPaise: outstandingPaise > 0 ? outstandingPaise : finalAmount,
+          status: rfeLine?.status ?? projected.effectiveStatus,
           dueDate: inv.dueDate,
           payHref:
-            projected.outstandingPaise > 0
+            outstandingPaise > 0
               ? `/account/resident/pay-rent/${inv.id}`
               : null,
           detailHref: null,
@@ -284,6 +301,8 @@ export async function loadResidentAccountContext(
           createdAt: inv.createdAt,
           updatedAt: inv.updatedAt,
         });
+        const rfeLine = rfeLineItems.get(`electricity:${inv.id}`);
+        const outstandingPaise = rfeLine?.outstandingPaise ?? projected.outstandingPaise;
         const totalAmount = inv.amountPaise + projected.accruedLateFeePaise;
         invoices.push({
           id: inv.id,
@@ -296,11 +315,11 @@ export async function loadResidentAccountContext(
           rentPaise: 0,
           electricityPaise: totalAmount,
           depositPaidPaise: 0,
-          finalAmountPaise: projected.outstandingPaise > 0 ? projected.outstandingPaise : totalAmount,
-          status: projected.effectiveStatus,
+          finalAmountPaise: outstandingPaise > 0 ? outstandingPaise : totalAmount,
+          status: rfeLine?.status ?? projected.effectiveStatus,
           dueDate: inv.dueDate,
           payHref:
-            projected.outstandingPaise > 0
+            outstandingPaise > 0
               ? `/account/resident/pay-electricity/${inv.id}`
               : null,
           detailHref: null,

@@ -64,6 +64,18 @@ export function SimpleInvoiceCard({
       </p>
 
       <div className="mt-4 flex flex-wrap gap-2">
+        {invoice.detailHref ? (
+          <Link
+            href={invoice.detailHref}
+            className={`inline-flex min-h-[44px] flex-1 items-center justify-center rounded-xl border px-4 text-sm font-semibold ${
+              dark
+                ? 'border-white/20 text-white hover:bg-white/10'
+                : 'border-zinc-300 text-zinc-900 hover:bg-zinc-50'
+            }`}
+          >
+            View invoice
+          </Link>
+        ) : null}
         {invoice.payHref ? (
           <Link
             href={invoice.payHref}

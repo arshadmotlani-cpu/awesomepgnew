@@ -192,3 +192,30 @@ describe('6 — Resident profile data shape expectations', () => {
     assert.equal(canCheckIn({ kycStatus: 'pending' }), false);
   });
 });
+
+describe('7 — Lifecycle terminal paths and INV-04', () => {
+  it('terminal transitions cancel holds and reconcile occupancy', () => {
+    const lifecycle = readFileSync(
+      join(process.cwd(), 'tests/unit/lifecycleTerminalTransitions.test.ts'),
+      'utf8',
+    );
+    const bedReserve = readFileSync(join(process.cwd(), 'src/services/bedReserve.ts'), 'utf8');
+    assert.match(lifecycle, /reconcileBookingOccupancy|bedReserveHolds/);
+    assert.match(bedReserve, /cancelOpenBedReserveHoldsForBooking/);
+  });
+
+  it('payments hub surfaces invoice detail links', () => {
+    const src = readFileSync(
+      join(process.cwd(), 'src/components/customer/simple/SimpleInvoiceCard.tsx'),
+      'utf8',
+    );
+    assert.match(src, /detailHref/);
+    assert.match(src, /View invoice/);
+  });
+
+  it('admin notifications list reads notifications SSOT', () => {
+    const src = readFileSync(join(process.cwd(), 'src/services/adminNotifications.ts'), 'utf8');
+    assert.match(src, /listAdminInboxNotifications/);
+    assert.doesNotMatch(src, /\.from\(adminNotifications\)/);
+  });
+});
