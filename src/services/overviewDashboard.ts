@@ -3,6 +3,7 @@ import { FEATURED_PG_PATTERNS } from '@/src/lib/admin/featuredPgs';
 import { moduleHref, withMonth } from '@/src/lib/admin/navigation';
 import type { RevenueByPgRow } from '@/src/services/revenueCommandCenter';
 import type { OverviewReportingSnapshot } from '@/src/services/overviewReportingService';
+import type { ExecutiveMetrics } from '@/src/services/executiveMetrics';
 
 export type MetricKind = 'money' | 'count' | 'percent';
 
@@ -128,12 +129,16 @@ function opsCount(
 }
 
 /** Pure mapping from reporting snapshot to dashboard cards — no business logic. */
-export function buildOverviewDashboard(ctx: OverviewReportingSnapshot): OverviewDashboardData {
+export function buildOverviewDashboard(
+  ctx: OverviewReportingSnapshot,
+  executive?: ExecutiveMetrics | null,
+): OverviewDashboardData {
   const month = ctx.billingMonth;
   const r = ctx.revenue;
   const out = r.outstanding;
   const rentStats = ctx.rentStats;
   const d = ctx.dashboard;
+  const exec = executive;
   const visitors = ctx.visitors;
   const ops = ctx.operationsQueueCounts;
   const moveOut = ctx.moveOutPipeline;
@@ -256,11 +261,17 @@ export function buildOverviewDashboard(ctx: OverviewReportingSnapshot): Overview
       emoji: '🛏',
       title: 'OCCUPANCY & INVENTORY',
       metrics: [
-        percentMetric('occupancy', 'Occupancy', d?.occupancyPct ?? 0, {
+        percentMetric('occupancy', 'Occupancy', exec?.occupancyPct ?? d?.occupancyPct ?? 0, {
           href: '/admin/occupancy',
-          hint: `${d?.occupiedBeds ?? 0}/${d?.totalBeds ?? 0} beds`,
+          hint: `${exec?.occupiedBeds ?? d?.occupiedBeds ?? 0}/${exec?.totalBeds ?? d?.totalBeds ?? 0} beds`,
         }),
-        countMetric('occupied_beds', 'Occupied Beds', d?.occupiedBeds ?? 0, {
+        countMetric('occupied_beds', 'Occupied Beds', exec?.occupiedBeds ?? d?.occupiedBeds ?? 0, {
+          href: '/admin/occupancy',
+        }),
+        countMetric('vacant_beds', 'Vacant Beds', exec?.vacantBeds ?? d?.availableBeds ?? 0, {
+          href: '/admin/beds',
+        }),
+        countMetric('reserved_beds', 'Reserved Beds', exec?.reservedBeds ?? 0, {
           href: '/admin/occupancy',
         }),
         countMetric('bed_availability', 'Bed Availability', d?.availableBeds ?? 0, {
@@ -271,6 +282,15 @@ export function buildOverviewDashboard(ctx: OverviewReportingSnapshot): Overview
         }),
         countMetric('maintenance_beds', 'Maintenance Beds', d?.maintenanceBeds ?? 0, {
           hint: 'Beds marked under maintenance on the PG map',
+        }),
+        moneyMetric('deposit_liability', 'Deposit Liability', exec?.depositLiabilityPaise ?? 0, {
+          href: '/admin/deposits',
+        }),
+        countMetric('move_ins_month', 'Move-ins this month', exec?.moveInsThisMonth ?? 0, {
+          href: '/admin/bookings',
+        }),
+        countMetric('move_outs_month', 'Move-outs this month', exec?.moveOutsThisMonth ?? 0, {
+          href: '/admin/vacating',
         }),
       ],
     },

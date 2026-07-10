@@ -36,7 +36,10 @@ export default async function OverviewPage() {
     );
   }
 
-  const dashboard = buildOverviewDashboard(overviewResult.data);
+  const dashboard = buildOverviewDashboard(
+    overviewResult.data,
+    overviewResult.data.executiveMetrics,
+  );
 
   return (
     <>

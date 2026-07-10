@@ -10,6 +10,7 @@ import { cache } from 'react';
 import { adminRequestScopeKey } from '@/src/lib/admin/adminRequestCache';
 import { profileAdminStep } from '@/src/lib/admin/adminProfile';
 import { syncActionItems } from '@/src/services/actionItems';
+import type { ExecutiveMetrics } from '@/src/services/executiveMetrics';
 import {
   loadOverviewReportingSnapshot,
   type OverviewReportingSnapshot,
@@ -19,6 +20,7 @@ import {
 export type OverviewContext = OverviewReportingSnapshot & {
   summary: BusinessMetricsSummary;
   pgMetrics: PgBusinessMetrics[];
+  executiveMetrics: ExecutiveMetrics | null;
 };
 
 export async function loadOverviewContext(
@@ -75,10 +77,13 @@ async function loadOverviewContextImpl(
     await reconcileStaleFinancialInvoices({ billingMonth }).catch(() => undefined);
   }
 
-  const [reporting, summary, metrics] = await Promise.all([
+  const [reporting, summary, metrics, executiveMetrics] = await Promise.all([
     loadOverviewReportingSnapshot(session, billingMonth),
     getBusinessMetricsSummary(billingMonth),
     getPgBusinessMetrics(billingMonth),
+    import('@/src/services/executiveMetrics').then((m) =>
+      m.getExecutiveMetrics(billingMonth).catch(() => null),
+    ),
   ]);
 
   if (!summary.ok) {
@@ -94,6 +99,7 @@ async function loadOverviewContextImpl(
       ...reporting,
       summary: summary.data,
       pgMetrics: metrics.data,
+      executiveMetrics,
     },
   };
 }
