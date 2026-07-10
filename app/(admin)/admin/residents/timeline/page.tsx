@@ -10,6 +10,8 @@ import {
   buildResidentTimeline,
   resolveResidentTimelineMatches,
 } from '@/src/services/residentTimeline';
+import { searchActivityTimeline } from '@/src/services/activityTimeline';
+import { formatPostgresError } from '@/src/lib/db/postgresError';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,6 +32,7 @@ export default async function ResidentTimelinePage({
 
   let matches = null;
   let timeline = null;
+  let activityEntries: Awaited<ReturnType<typeof searchActivityTimeline>> | null = null;
   let error: string | null = null;
 
   try {
@@ -43,10 +46,12 @@ export default async function ResidentTimelinePage({
           matches[0]!.customerId,
           matches[0]!.bookingId,
         );
+      } else if (matches.length === 0) {
+        activityEntries = await searchActivityTimeline({ query, limit: 40 });
       }
     }
   } catch (err) {
-    error = err instanceof Error ? err.message : String(err);
+    error = formatPostgresError(err);
   }
 
   return (
@@ -103,10 +108,31 @@ export default async function ResidentTimelinePage({
       ) : null}
 
       {matches && matches.length === 0 && query.length >= 2 ? (
-        <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-6 text-sm text-amber-100">
-          No resident found for &ldquo;{query}&rdquo;. Try phone, booking code (APG-…), name, or
-          room/bed like <strong>204 B2</strong>.
-        </div>
+        activityEntries && activityEntries.length > 0 ? (
+          <section className="mb-6 rounded-xl border border-white/10 bg-[#1A1F27] p-4">
+            <h2 className="text-sm font-semibold text-white">Activity log matches</h2>
+            <ul className="mt-3 space-y-2 text-sm">
+              {activityEntries.map((entry) => (
+                <li
+                  key={entry.id}
+                  className="rounded-lg border border-white/10 px-3 py-2 text-apg-silver"
+                >
+                  <span className="font-medium text-white">{entry.summary}</span>
+                  {entry.residentName ? ` · ${entry.residentName}` : ''}
+                  {entry.bookingCode ? ` · ${entry.bookingCode}` : ''}
+                  <span className="block text-xs text-apg-muted">
+                    {entry.occurredAt.toISOString()}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : (
+          <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-6 text-sm text-amber-100">
+            No resident found for &ldquo;{query}&rdquo;. Try phone, booking code (APG-…), name, invoice
+            number, or room/bed like <strong>204 B2</strong>.
+          </div>
+        )
       ) : null}
 
       {timeline ? <ResidentTimelinePanel data={timeline} /> : null}
