@@ -256,26 +256,19 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-09 08:00:44 UTC
+### Pending pre-commit sync · 2026-07-10 09:24:52 UTC
 
-**Areas touched:** [[ROUTES]], [[Billing]], [[Bookings]]
+**Areas touched:** [[Bed Assignment]], [[Bookings]]
 
 **Docs flagged for review:**
-- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
+- `DECISIONS.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
-- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (8):**
-- `app/(customer)/booking/[bookingCode]/page.tsx`
-- `app/(customer)/booking/[bookingCode]/pay/page.tsx`
-- `app/api/admin/notifications/read/route.ts`
-- `app/api/cron/expire-bed-reserves/route.ts`
-- `app/api/cron/release-holds/route.ts`
-- `app/api/webhooks/razorpay/route.ts`
-- `src/lib/billing/financialMetrics.ts`
+**Staged code files (2):**
+- `src/lib/occupancyRevalidate.ts`
 - `src/services/bookingLifecycle.ts`
 
 **Changed:**

@@ -232,3 +232,6 @@ Cross-links: [[ARCHITECTURE]] · [[WORKFLOWS]] · [[AI_CONTEXT]] · [[BUGS]]
 
 <!-- DOC_SYNC_TOUCH_2026-07-07 -->
 > **2026-07-07 10:28:44 UTC** — Code changed in: Bookings, Bed Assignment. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-07-10 -->
+> **2026-07-10 09:24:52 UTC** — Code changed in: Bed Assignment, Bookings. Manual review recommended.

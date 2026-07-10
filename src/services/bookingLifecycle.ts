@@ -1068,6 +1068,23 @@ export async function recordPaymentFailure(
             eq(bedReservations.kind, 'primary'),
           ),
         );
+
+      if (
+        booking.status === 'pending_payment' ||
+        booking.status === 'pending_approval' ||
+        booking.status === 'draft'
+      ) {
+        await tx
+          .update(bedReserveHolds)
+          .set({ status: 'cancelled', holdExpiresAt: null, updatedAt: new Date() })
+          .where(
+            and(
+              eq(bedReserveHolds.bookingId, booking.id),
+              inArray(bedReserveHolds.status, ['pending_payment', 'under_review', 'active']),
+            ),
+          );
+      }
+
       if (
         booking.status === 'pending_payment' ||
         booking.status === 'pending_approval' ||
@@ -1107,6 +1124,16 @@ export async function recordPaymentFailure(
 
       return { paymentId: row.id };
     });
+
+    const bookingWasCancelled =
+      booking.status === 'pending_payment' ||
+      booking.status === 'pending_approval' ||
+      booking.status === 'draft';
+    if (bookingWasCancelled) {
+      const { reconcileBookingOccupancy } = await import('@/src/lib/occupancySync');
+      await reconcileBookingOccupancy(booking.id);
+    }
+
     return {
       ok: true,
       paymentId: result.paymentId,
@@ -1404,7 +1431,31 @@ export async function releaseExpiredHolds(
         bookingsCancelled: cancelledCodes.length,
       },
     });
+
+    for (const bookingId of affectedBookingIds) {
+      await tx
+        .update(bedReserveHolds)
+        .set({ status: 'cancelled', holdExpiresAt: null, updatedAt: new Date() })
+        .where(
+          and(
+            eq(bedReserveHolds.bookingId, bookingId),
+            inArray(bedReserveHolds.status, ['pending_payment', 'under_review', 'active']),
+          ),
+        );
+    }
   });
+
+  const { reconcileBookingOccupancy } = await import('@/src/lib/occupancySync');
+  for (const bookingId of affectedBookingIds) {
+    await reconcileBookingOccupancy(bookingId, { revalidate: false });
+  }
+  if (cancelledCodes.length > 0 || affectedBookingIds.length > 0) {
+    const { revalidateReservationLifecycleViews } = await import('@/src/lib/occupancyRevalidate');
+    revalidateReservationLifecycleViews();
+    for (const bookingCode of cancelledCodes) {
+      revalidateReservationLifecycleViews({ bookingCode });
+    }
+  }
 
   // Phase 5 fold-in: any `stay_extensions` rows whose reservations all just
   // got cancelled need to flip from `pending` to `cancelled` too, so the

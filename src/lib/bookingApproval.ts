@@ -187,4 +187,7 @@ export async function cleanupRejectedBookingRequest(input: {
       reason: input.reason,
     });
   }
+
+  const { reconcileBookingOccupancy } = await import('@/src/lib/occupancySync');
+  await reconcileBookingOccupancy(input.bookingId);
 }

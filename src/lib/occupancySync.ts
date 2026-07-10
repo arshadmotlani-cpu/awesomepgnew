@@ -18,10 +18,15 @@ export async function reconcileOrphanBedReservations(bedId?: string): Promise<nu
 
   const result = await db.execute(sql`
     UPDATE bed_reservations br
-    SET status = 'completed', updated_at = now()
+    SET status = CASE
+      WHEN bk.status = 'completed' THEN 'completed'
+      ELSE 'cancelled'
+    END,
+    hold_expires_at = NULL,
+    updated_at = now()
     FROM bookings bk
     WHERE br.booking_id = bk.id
-      AND br.status IN ('hold', 'active')
+      AND br.status IN ('hold', 'under_review', 'active')
       AND bk.status IN ('completed', 'cancelled', 'refunded')
       ${bedFilter}
     RETURNING br.id
@@ -41,11 +46,16 @@ export async function closeReservationsForTerminalBooking(
 ): Promise<number> {
   const result = await db.execute(sql`
     UPDATE bed_reservations br
-    SET status = 'completed', updated_at = now()
+    SET status = CASE
+      WHEN bk.status = 'completed' THEN 'completed'
+      ELSE 'cancelled'
+    END,
+    hold_expires_at = NULL,
+    updated_at = now()
     FROM bookings bk
     WHERE br.booking_id = bk.id
       AND br.booking_id = ${bookingId}::uuid
-      AND br.status IN ('hold', 'active')
+      AND br.status IN ('hold', 'under_review', 'active')
       AND bk.status IN ('completed', 'cancelled', 'refunded')
     RETURNING br.id
   `);
@@ -63,6 +73,10 @@ export async function reconcileBookingOccupancy(
     SELECT DISTINCT br.bed_id AS bed_id
     FROM bed_reservations br
     WHERE br.booking_id = ${bookingId}::uuid
+    UNION
+    SELECT DISTINCT brh.bed_id AS bed_id
+    FROM bed_reserve_holds brh
+    WHERE brh.booking_id = ${bookingId}::uuid
   `);
 
   const terminalClosed = await closeReservationsForTerminalBooking(bookingId);

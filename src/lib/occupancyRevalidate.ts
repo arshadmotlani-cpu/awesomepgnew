@@ -53,6 +53,8 @@ export function revalidateReservationLifecycleTargets(
 /**
  * Bust cached RSC/router payloads for every surface that reads reservation
  * occupancy, booking status, or operations queue items.
+ *
+ * Uses path-based `revalidatePath` only (no cache tags in this codebase).
  */
 export function revalidateReservationLifecycleViews(
   input?: ReservationLifecycleRevalidateInput,

@@ -989,6 +989,8 @@ export async function cancelBedReserveDraftByCustomer(bookingId: string, custome
     '@/src/lib/occupancyRevalidate'
   );
   await revalidateReservationLifecycleForBookingId(bookingId);
+  const { reconcileBookingOccupancy } = await import('@/src/lib/occupancySync');
+  await reconcileBookingOccupancy(bookingId);
 }
 
 export async function cancelBedReserveByCustomer(reserveId: string, customerId: string) {
@@ -1024,6 +1026,8 @@ export async function cancelBedReserveByCustomer(reserveId: string, customerId: 
     '@/src/lib/occupancyRevalidate'
   );
   await revalidateReservationLifecycleForBookingId(hold.bookingId);
+  const { reconcileBookingOccupancy } = await import('@/src/lib/occupancySync');
+  await reconcileBookingOccupancy(hold.bookingId);
 }
 
 export async function extendBedReserve(
@@ -1160,6 +1164,21 @@ export async function convertBedReserveToMonthlyStay(reserveId: string) {
   return { ok: true as const, bookingId: hold.bookingId, monthlyDuePaise };
 }
 
+export async function cancelOpenBedReserveHoldsForBooking(
+  bookingId: string,
+  executor: typeof db = db,
+): Promise<void> {
+  await executor
+    .update(bedReserveHolds)
+    .set({ status: 'cancelled', holdExpiresAt: null, updatedAt: new Date() })
+    .where(
+      and(
+        eq(bedReserveHolds.bookingId, bookingId),
+        inArray(bedReserveHolds.status, ['pending_payment', 'under_review', 'active']),
+      ),
+    );
+}
+
 export async function processDueBedReserveConversions(asOfDate?: string) {
   const today = asOfDate ?? todayString();
   const due = await db
@@ -1171,7 +1190,33 @@ export async function processDueBedReserveConversions(asOfDate?: string) {
         sql`${bedReserveHolds.checkInDate} <= ${today}::date`,
       ),
     );
-  return { scanned: due.length, converted: 0, errors: [] as string[] };
+
+  const errors: string[] = [];
+  let converted = 0;
+  const convertedBookingIds: string[] = [];
+
+  for (const row of due) {
+    try {
+      const result = await convertBedReserveToMonthlyStay(row.id);
+      if (result.ok) {
+        converted += 1;
+        convertedBookingIds.push(result.bookingId);
+      } else {
+        errors.push(`${row.id}: ${result.reason}`);
+      }
+    } catch (err) {
+      errors.push(`${row.id}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  if (convertedBookingIds.length > 0) {
+    const { reconcileBookingOccupancy } = await import('@/src/lib/occupancySync');
+    for (const bookingId of new Set(convertedBookingIds)) {
+      await reconcileBookingOccupancy(bookingId);
+    }
+  }
+
+  return { scanned: due.length, converted, errors };
 }
 
 export async function expireStaleBedReserves() {
@@ -1244,6 +1289,10 @@ export async function expireStaleBedReserves() {
       '@/src/lib/occupancyRevalidate'
     );
     await revalidateReservationLifecycleForBookingIds(affectedBookingIds);
+    const { reconcileBookingOccupancy } = await import('@/src/lib/occupancySync');
+    for (const bookingId of new Set(affectedBookingIds)) {
+      await reconcileBookingOccupancy(bookingId, { revalidate: false });
+    }
   }
 
   return {

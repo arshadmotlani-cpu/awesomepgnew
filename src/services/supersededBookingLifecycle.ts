@@ -10,6 +10,7 @@ import {
   actionItems,
   auditLog,
   bedReservations,
+  bedReserveHolds,
   bookings,
   pgPaymentRecords,
 } from '@/src/db/schema';
@@ -159,6 +160,16 @@ export async function supersedeBooking(args: {
       and(
         eq(bedReservations.bookingId, args.bookingId),
         inArray(bedReservations.status, ['hold', 'under_review']),
+      ),
+    );
+
+  await executor
+    .update(bedReserveHolds)
+    .set({ status: 'cancelled', holdExpiresAt: null, updatedAt: now })
+    .where(
+      and(
+        eq(bedReserveHolds.bookingId, args.bookingId),
+        inArray(bedReserveHolds.status, ['pending_payment', 'under_review', 'active']),
       ),
     );
 
