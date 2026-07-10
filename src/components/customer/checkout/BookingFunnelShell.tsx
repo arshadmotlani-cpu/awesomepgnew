@@ -48,7 +48,7 @@ export function BookingFunnelShell({
 
   return (
     <BookingFunnelContext.Provider value={ctx}>
-      <div className="mx-auto w-full max-w-7xl">
+      <div className="mx-auto w-full max-w-7xl px-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-4">
         <div className="mb-6 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-4 sm:px-5 sm:py-5">
           <BookingFunnelProgressBar activeStep={activeStep} />
         </div>

@@ -400,8 +400,8 @@ export function UpiPaymentProofForm({
         disabled={pending || uploading || !screenshotUrl}
         className={
           isLight
-            ? 'w-full rounded-lg bg-[#FF5A1F] px-4 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40'
-            : 'apg-glow-btn w-full rounded-lg bg-[#FF5A1F] px-4 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40'
+            ? 'sticky bottom-0 z-10 w-full rounded-lg bg-[#FF5A1F] px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-sm font-semibold text-white shadow-[0_-4px_12px_rgba(0,0,0,0.08)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 sm:static sm:shadow-none'
+            : 'apg-glow-btn sticky bottom-0 z-10 w-full rounded-lg bg-[#FF5A1F] px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-sm font-semibold text-white shadow-[0_-4px_12px_rgba(0,0,0,0.25)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 sm:static sm:shadow-none'
         }
       >
         {pending ? 'Submitting…' : 'Submit payment for approval'}

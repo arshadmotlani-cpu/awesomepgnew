@@ -113,7 +113,7 @@ export default async function PayRentPage({
   const activeRejection = await getActiveRejectionForEntity('rent_invoice', invoiceId);
 
   return (
-    <div className="mx-auto w-full max-w-xl space-y-5 px-4 py-10 sm:px-6">
+    <div className="mx-auto w-full max-w-xl space-y-5 px-4 py-10 pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:px-6">
       <header>
         <Link href={backHref} className={ACCOUNT_BACK_LINK}>
           ← Back to payments
