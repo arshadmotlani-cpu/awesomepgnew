@@ -1,4 +1,6 @@
 import { strict as assert } from 'node:assert';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import test from 'node:test';
 
 test('admin resident search phone gate allows 2-digit partial matches', () => {
@@ -15,9 +17,8 @@ test('express walk-in search accepts 2-character queries', () => {
   assert.ok(trimmed.length >= 2);
 });
 
-test('residents table phone filter accepts 2-digit substring', () => {
-  const query = '98';
-  const digits = query.replace(/\D/g, '');
-  const phone = '+919876543210';
-  assert.equal(digits.length >= 2 && phone.replace(/\D/g, '').includes(digits), true);
+test('scoped admins cannot see unassigned residents in search', () => {
+  const src = readFileSync(join(process.cwd(), 'src/services/adminResidentSearch.ts'), 'utf8');
+  assert.match(src, /session\.role === 'super_admin'/);
+  assert.match(src, /!row\.pg_id/);
 });

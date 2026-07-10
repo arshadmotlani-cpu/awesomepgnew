@@ -337,14 +337,14 @@ export async function searchResidentsForAdmin(
     try {
       const rows = await runSearchQuery(q, limit, tier, caps);
       const mapped = rows
-        .filter(
-          (row) =>
-            !row.pg_id ||
-            adminCanAccessPg(
-              { role: session.role, pgScope: session.pgScope },
-              row.pg_id,
-            ),
-        )
+        .filter((row) => {
+          if (session.role === 'super_admin') return true;
+          if (!row.pg_id) return false;
+          return adminCanAccessPg(
+            { role: session.role, pgScope: session.pgScope },
+            row.pg_id,
+          );
+        })
         .map(mapRow);
 
       logger.info('admin resident search', {
