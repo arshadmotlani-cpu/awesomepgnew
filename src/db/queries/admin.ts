@@ -1416,9 +1416,9 @@ export function listAdminRentInvoices(
       .where(where)
       .orderBy(desc(rentInvoices.billingMonth), desc(rentInvoices.createdAt));
 
-    const { projectInvoice } = await import('@/src/services/rentInvoices');
+    const { projectRentInvoiceAdminView } = await import('@/src/services/residentFinancialEngine');
     return rows.map((r) => {
-      const projected = projectInvoice({
+      const projected = projectRentInvoiceAdminView({
         id: r.id,
         invoiceNumber: r.invoiceNumber,
         bookingId: r.bookingId,
@@ -1507,9 +1507,9 @@ export function listAdminOpenRentInvoices(filter?: {
       .where(and(...conditions))
       .orderBy(desc(rentInvoices.billingMonth), desc(rentInvoices.createdAt));
 
-    const { projectInvoice } = await import('@/src/services/rentInvoices');
+    const { projectRentInvoiceAdminView } = await import('@/src/services/residentFinancialEngine');
     return rows.map((r) => {
-      const projected = projectInvoice({
+      const projected = projectRentInvoiceAdminView({
         id: r.id,
         invoiceNumber: r.invoiceNumber,
         bookingId: r.bookingId,

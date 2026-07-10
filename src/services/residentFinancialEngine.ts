@@ -49,6 +49,18 @@ import { firstOfMonth } from '@/src/services/billing';
 
 const ACTIVE_BOOKING_STATUSES = ['confirmed'] as const;
 
+/** RFE rent projection for admin open-invoice lists — SSOT wrapper around projectInvoice. */
+export function projectRentInvoiceAdminView(
+  inv: Parameters<typeof projectInvoice>[0],
+) {
+  const projected = projectInvoice(inv);
+  return {
+    outstandingPaise: projected.outstandingPaise,
+    effectiveStatus: projected.effectiveStatus,
+    accruedLateFeePaise: projected.accruedLateFeePaise,
+  };
+}
+
 function emptyCategory(): ResidentFinancialCategory {
   return { requiredPaise: 0, paidPaise: 0, outstandingPaise: 0, items: [] };
 }
