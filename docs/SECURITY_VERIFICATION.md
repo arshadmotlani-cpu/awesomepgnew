@@ -44,6 +44,10 @@ Required on: deposit transfer, express walk-in credit, booking cancel refund, se
 
 ## Sign-off
 
+- [x] Code: mock webhook blocked in production (`app/api/webhooks/mock/route.ts`)
+- [x] Code: customer booking ownership guards (`requireCustomerOwnsBookingCode`)
+- [x] Code: scoped admin resident search hides unassigned rows
+- [x] Code: notifications SSOT via `notifications` table (`notificationEngine.ts`)
 - [ ] SECURITY_REMEDIATION.md items verified on production
-- [ ] Cross-PG mutation attempt fails
-- [ ] Mock webhook returns 403 in production
+- [ ] Cross-PG mutation attempt fails (live test)
+- [ ] Mock webhook returns 403 in production (live test)

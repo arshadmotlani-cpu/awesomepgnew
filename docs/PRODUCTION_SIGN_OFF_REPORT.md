@@ -1,11 +1,30 @@
 # Awesome PG — Production Sign-off Report
 
-**Date:** 2026-06-27  
+**Date:** 2026-07-10 (updated)  
 **Target:** https://www.awesomepg.in  
-**Scope:** Final verification & certification (no new features)  
-**Local commit:** Post sign-off bug fixes (B-004, UI-001, RED-001)
+**Scope:** Production readiness hardening (phases 3–18 code complete)  
+**Latest wave:** RFE billing alignment, INV-04 invoice links, notifications SSOT migration, executive overview KPIs, activity timeline merge, 1150+ unit tests
 
 ---
+
+## Code certification (2026-07-10)
+
+| Gate | Status |
+|------|--------|
+| `npm run build` | PASS (local) |
+| `npm test` | PASS — 1150+ tests |
+| Lifecycle terminal hold cleanup | Shipped `d730f0d` |
+| Billing RFE projections | `projectRentInvoiceAdminView` + resident RFE line map |
+| INV-04 invoice detail from hub | `SimpleInvoiceCard` View invoice link |
+| Notifications SSOT | `listAdminInboxNotifications` only |
+| Executive metrics on overview | `getExecutiveMetrics` wired |
+| Activity timeline | audit_log + invoice_audit_events merge |
+
+**Live DB audits still require operator:** set `DATABASE_URL` and run `scripts/run-production-health-audit.ts`, `scripts/verify-production-p0.ts`, `scripts/production-readiness-simulation.ts`.
+
+---
+
+**Original report (2026-06-27):**
 
 ## Recommendation
 

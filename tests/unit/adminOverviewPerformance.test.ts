@@ -24,3 +24,15 @@ test('overview page does not sync action items on every load', () => {
   assert.match(src, /syncActions:\s*false/);
   assert.doesNotMatch(src, /syncActions:\s*true/);
 });
+
+test('overview loads executive metrics from SSOT', () => {
+  const data = readFileSync(join(process.cwd(), 'src/services/overviewData.ts'), 'utf8');
+  const dash = readFileSync(join(process.cwd(), 'src/services/overviewDashboard.ts'), 'utf8');
+  assert.match(data, /getExecutiveMetrics/);
+  assert.match(dash, /executive\?/);
+});
+
+test('payment proof queue batches booking detail lookups', () => {
+  const src = readFileSync(join(process.cwd(), 'src/services/paymentProofQueue.ts'), 'utf8');
+  assert.match(src, /loadBookingReviewDetailsMap/);
+});
