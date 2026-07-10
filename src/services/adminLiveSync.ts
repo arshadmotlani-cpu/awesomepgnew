@@ -1,6 +1,7 @@
 /**
  * Event-driven admin notification sync.
  * Call after resident/admin writes so badges update without waiting for cron.
+ * Dedupe is enforced per source_key in notificationEngine.emitAdminNotificationsForActionItem.
  */
 
 import { logger } from '@/src/lib/logger';

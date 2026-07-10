@@ -9,8 +9,6 @@
 import { and, desc, eq, inArray, notInArray, or, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
-  adminNotificationStates,
-  adminNotifications,
   adminUsers,
 } from '@/src/db/schema';
 import type { ActionItem } from '@/src/db/schema/actionItems';
@@ -123,42 +121,6 @@ async function adminsForPg(pgId: string): Promise<string[]> {
     .map((a) => a.id);
 }
 
-async function seedUnreadForAllActiveAdmins(notificationId: string): Promise<void> {
-  const rows = await db
-    .select({ id: adminUsers.id })
-    .from(adminUsers)
-    .where(eq(adminUsers.isActive, true));
-
-  for (const row of rows) {
-    await db
-      .insert(adminNotificationStates)
-      .values({
-        adminId: row.id,
-        notificationId,
-        state: 'unread',
-        updatedAt: new Date(),
-      })
-      .onConflictDoNothing();
-  }
-}
-
-async function seedUnreadForAdmins(notificationId: string, pgId: string) {
-  const adminIds = await adminsForPg(pgId);
-  if (adminIds.length === 0) return;
-
-  for (const adminId of adminIds) {
-    await db
-      .insert(adminNotificationStates)
-      .values({
-        adminId,
-        notificationId,
-        state: 'unread',
-        updatedAt: new Date(),
-      })
-      .onConflictDoNothing();
-  }
-}
-
 function rowFromActionItem(item: ActionItemRow): {
   sourceKey: string;
   type: ActionItem['type'];
@@ -238,100 +200,32 @@ export async function listAdminNotifications(
   filter: 'unread' | 'read' | 'archived' | 'all' = 'unread',
   limit = 50,
 ): Promise<AdminNotificationRow[]> {
-  const rows = await db
-    .select({
-      id: adminNotifications.id,
-      sourceKey: adminNotifications.sourceKey,
-      type: adminNotifications.type,
-      title: adminNotifications.title,
-      pgId: adminNotifications.pgId,
-      href: adminNotifications.href,
-      metadata: adminNotifications.metadata,
-      createdAt: adminNotifications.createdAt,
-      state: adminNotificationStates.state,
-      readAt: adminNotificationStates.readAt,
-      archivedAt: adminNotificationStates.archivedAt,
-    })
-    .from(adminNotifications)
-    .leftJoin(
-      adminNotificationStates,
-      and(
-        eq(adminNotificationStates.notificationId, adminNotifications.id),
-        eq(adminNotificationStates.adminId, session.adminId),
-      ),
-    )
-    .orderBy(desc(adminNotifications.createdAt))
-    .limit(limit * 2);
-
-  const result: AdminNotificationRow[] = [];
-
-  for (const row of rows) {
-    if (!sessionCanSeePg(session, row.pgId)) continue;
-
-    const state = row.state ?? 'unread';
-    if (filter === 'unread' && state !== 'unread') continue;
-    if (filter === 'read' && state !== 'read') continue;
-    if (filter === 'archived' && state !== 'archived') continue;
-    if (filter === 'all' && state === 'archived') continue;
-
-    const meta = (row.metadata ?? {}) as ActionItemMetadata & {
-      typeLabel?: string;
-      detail?: string;
-    };
-
-    result.push({
-      id: row.id,
-      sourceKey: row.sourceKey,
-      type: row.type,
-      typeLabel: meta.typeLabel ?? TYPE_LABELS[row.type] ?? row.type,
-      title: row.title,
-      residentName: meta.residentName ?? null,
-      pgName: meta.pgName ?? null,
-      detail: meta.detail ?? null,
-      href: row.href,
-      state,
-      createdAt: row.createdAt,
-      readAt: row.readAt ?? null,
-      resolvedAt: row.archivedAt ?? null,
-    });
-
-    if (result.length >= limit) break;
-  }
-
-  return result;
+  const { listAdminInboxNotifications } = await import('@/src/services/notificationEngine');
+  const rows = await listAdminInboxNotifications(session, filter, limit);
+  return rows.map((row) => ({
+    id: row.id,
+    sourceKey: row.sourceKey,
+    type: row.type as AdminNotificationRow['type'],
+    typeLabel: row.typeLabel,
+    title: row.title,
+    residentName: row.residentName,
+    pgName: row.pgName,
+    detail: row.detail,
+    href: row.href,
+    state: row.state,
+    createdAt: row.createdAt,
+    readAt: row.readAt,
+    resolvedAt: row.resolvedAt,
+  }));
 }
 
-/** Lightweight badge counts — type column only, no full notification hydration. */
+/** Lightweight badge counts — reads notifications SSOT. */
 export async function listUnreadNotificationTypesForBadges(
   session: AdminSession,
   limit = 300,
 ): Promise<AdminNotificationRow['type'][]> {
-  const rows = await db
-    .select({
-      type: adminNotifications.type,
-      pgId: adminNotifications.pgId,
-      state: adminNotificationStates.state,
-    })
-    .from(adminNotifications)
-    .leftJoin(
-      adminNotificationStates,
-      and(
-        eq(adminNotificationStates.notificationId, adminNotifications.id),
-        eq(adminNotificationStates.adminId, session.adminId),
-      ),
-    )
-    .orderBy(desc(adminNotifications.createdAt))
-    .limit(limit * 2);
-
-  const types: AdminNotificationRow['type'][] = [];
-  for (const row of rows) {
-    if (!sessionCanSeePg(session, row.pgId)) continue;
-    const state = row.state ?? 'unread';
-    if (state !== 'unread') continue;
-    types.push(row.type);
-    if (types.length >= limit) break;
-  }
-  return types;
+  const unread = await listAdminNotifications(session, 'unread', limit);
+  return unread.map((n) => n.type);
 }
 
 export async function countUnreadNotifications(session: AdminSession): Promise<number> {
@@ -383,57 +277,14 @@ export async function markNotificationRead(
     });
     await markUserNotificationReadByDedupeKey('admin', session.adminId, dedupeKey);
   }
-
-  const [legacyRow] = dedupeKey
-    ? await db
-        .select({ id: adminNotifications.id, pgId: adminNotifications.pgId })
-        .from(adminNotifications)
-        .where(eq(adminNotifications.sourceKey, dedupeKey))
-        .limit(1)
-    : [];
-
-  if (!legacyRow || !sessionCanSeePg(session, legacyRow.pgId)) return;
-
-  await db
-    .insert(adminNotificationStates)
-    .values({
-      adminId: session.adminId,
-      notificationId: legacyRow.id,
-      state: 'read',
-      readAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: [adminNotificationStates.adminId, adminNotificationStates.notificationId],
-      set: {
-        state: 'read',
-        readAt: new Date(),
-        updatedAt: new Date(),
-      },
-    });
 }
 
 export async function archiveNotification(
   session: AdminSession,
   notificationId: string,
 ): Promise<void> {
-  await db
-    .insert(adminNotificationStates)
-    .values({
-      adminId: session.adminId,
-      notificationId,
-      state: 'archived',
-      archivedAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: [adminNotificationStates.adminId, adminNotificationStates.notificationId],
-      set: {
-        state: 'archived',
-        archivedAt: new Date(),
-        updatedAt: new Date(),
-      },
-    });
+  const { archiveUserNotification } = await import('@/src/services/notificationEngine');
+  await archiveUserNotification('admin', session.adminId, notificationId);
 }
 
 function resolveReadKeyToSourceKey(readKey: string): string | null {
