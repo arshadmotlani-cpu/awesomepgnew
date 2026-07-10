@@ -2,7 +2,7 @@
  * WhatsApp-style admin notifications: unread vs active tasks.
  *
  * - action_items = active tasks (stay until resolved)
- * - admin_notifications + per-admin state = unread badge counts
+ * - notifications table = SSOT for badge counts and drawer reads
  * - One notification per source_key (no duplicate counting)
  */
 
