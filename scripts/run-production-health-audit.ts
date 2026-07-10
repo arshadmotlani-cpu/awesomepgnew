@@ -4,9 +4,8 @@
  * Target: Production Neon (not Preview / Development).
  * Neon integration secrets are not exportable via `vercel env pull` or `vercel env run`.
  *
- * Usage:
- *   DATABASE_URL='postgresql://…' npx tsx scripts/run-production-health-audit.ts
- *   USE_PRODUCTION_DB=1 npx tsx scripts/run-production-health-audit.ts  # .env.prod.live
+ * Usage (with `.env.prod.live` in repo root — gitignored):
+ *   npx tsx scripts/run-production-health-audit.ts
  */
 import { loadProductionAuditEnv, requireDatabaseUrl } from '../src/lib/db/loadEnv';
 

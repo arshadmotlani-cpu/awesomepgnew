@@ -535,9 +535,13 @@ export type BillingReconciliationLoadResult =
 export async function loadBillingReconciliationSafe(
   session: AdminSession,
   billingMonthInput?: string,
+  opts?: { reconcile?: boolean },
 ): Promise<BillingReconciliationLoadResult> {
   try {
-    const reconciliation = await reconcileAndEvaluateBillingCycle(session, billingMonthInput);
+    const reconciliation =
+      opts?.reconcile === false
+        ? await evaluateBillingCycleReconciliation(session, billingMonthInput)
+        : await reconcileAndEvaluateBillingCycle(session, billingMonthInput);
     return { ok: true, reconciliation };
   } catch (err) {
     console.error('[billing-reconciliation]', err);

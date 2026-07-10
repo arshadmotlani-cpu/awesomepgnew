@@ -5,9 +5,8 @@
  * Target: Production Neon (not Preview / Development).
  * Neon integration DATABASE_URL is deploy-time only — not exportable via Vercel CLI.
  *
- * Usage:
- *   DATABASE_URL='postgresql://…' npx tsx scripts/verify-production-p0.ts
- *   USE_PRODUCTION_DB=1 npx tsx scripts/verify-production-p0.ts
+ * Usage (with `.env.prod.live` in repo root — gitignored):
+ *   npx tsx scripts/verify-production-p0.ts
  */
 import { loadProductionAuditEnv, requireDatabaseUrl } from '@/src/lib/db/loadEnv';
 

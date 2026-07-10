@@ -60,9 +60,9 @@ export async function runFinancialHealthAudit(
 ): Promise<FinancialAuditReport> {
   const billingMonth = resolveBillingMonth(billingMonthInput);
   const [ctx, invoiceSnapshot, billingCenter, rentStats, pgs] = await Promise.all([
-    loadOverviewContext(session, billingMonth, { syncActions: false }),
+    loadOverviewContext(session, billingMonth, { syncActions: false, reconcile: false }),
     loadInvoiceOutstandingSnapshot(session),
-    loadBillingCommandCenterSnapshot(session, billingMonth),
+    loadBillingCommandCenterSnapshot(session, billingMonth, { reconcile: false }),
     getRentStats(),
     listPgs(),
   ]);

@@ -11,6 +11,7 @@ import { loadAdminNavBadges } from '@/src/services/adminNavBadges';
 import { loadApprovalCounts } from '@/src/services/approvalService';
 import { loadBillingCommandCenterSnapshot } from '@/src/services/billingCommandCenter';
 import { getMoveOutPipelineSnapshot } from '@/src/services/moveOutPipelineService';
+import { loadResidentOperationsResidentsPage } from '@/src/services/residentOperationsResidentsPage';
 import { loadUnifiedOperationsQueue } from '@/src/services/unifiedOperationsQueue';
 
 export type CounterParityRow = {
@@ -43,7 +44,10 @@ export async function runCounterParityAudit(
   billingMonthInput?: string,
 ): Promise<CounterParityReport> {
   const billingMonth = resolveBillingMonth(billingMonthInput);
-  const ctx = await loadOverviewContext(session, billingMonth, { syncActions: false });
+  const ctx = await loadOverviewContext(session, billingMonth, {
+    syncActions: false,
+    reconcile: false,
+  });
   if (!ctx.ok) {
     return {
       rows: [],
@@ -53,13 +57,14 @@ export async function runCounterParityAudit(
   }
 
   const dashboard = buildOverviewDashboard(ctx.data);
-  const [navBadges, moveOutPipeline, unifiedOpsAll, approvalCounts, billingSnapshot] =
+  const [navBadges, moveOutPipeline, unifiedOpsAll, approvalCounts, billingSnapshot, residentsOps] =
     await Promise.all([
     loadAdminNavBadges(session),
     getMoveOutPipelineSnapshot(session),
     loadUnifiedOperationsQueue(session, null),
     loadApprovalCounts(session),
-    loadBillingCommandCenterSnapshot(session, billingMonth),
+    loadBillingCommandCenterSnapshot(session, billingMonth, { reconcile: false }),
+    loadResidentOperationsResidentsPage(session, null),
   ]);
 
   const unifiedCounts = Object.fromEntries(
@@ -90,9 +95,9 @@ export async function runCounterParityAudit(
   rows.push({
     metric: 'Operations queue total',
     overviewValue: navBadges.operations ?? 0,
-    destinationValue: unifiedOpsAll.totalCount,
-    destination: 'loadUnifiedOperationsQueue.totalCount',
-    matches: (navBadges.operations ?? 0) === unifiedOpsAll.totalCount,
+    destinationValue: residentsOps.allQueueCount,
+    destination: 'loadResidentOperationsResidentsPage.allQueueCount',
+    matches: (navBadges.operations ?? 0) === residentsOps.allQueueCount,
   });
 
   rows.push({

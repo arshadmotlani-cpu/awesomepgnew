@@ -30,12 +30,24 @@ export const DATABASE_ENV_KEYS: readonly DatabaseEnvSource[] = [
   'POSTGRES_PRISMA_URL',
 ];
 
+export const INVEST_DATABASE_ENV_KEYS = [
+  'INVEST_DATABASE_URL',
+  'INVEST_DATABASE_DATABASE_URL',
+  'INVEST_POSTGRES_URL',
+  'INVEST_POSTGRES_PRISMA_URL',
+] as const;
+
 /**
  * Remove empty Neon/Vercel integration placeholders from `process.env`.
  * `vercel env pull` and `vercel env run` set DATABASE_URL="" for integration secrets.
  */
 export function clearEmptyDatabaseEnvPlaceholders(): void {
   for (const key of DATABASE_ENV_KEYS) {
+    if (process.env[key] !== undefined && !process.env[key]?.trim()) {
+      delete process.env[key];
+    }
+  }
+  for (const key of INVEST_DATABASE_ENV_KEYS) {
     if (process.env[key] !== undefined && !process.env[key]?.trim()) {
       delete process.env[key];
     }
@@ -64,6 +76,45 @@ function applyEnvFile(path: string, overrideFile: boolean): void {
 
     if (!overrideFile && process.env[key] !== undefined) continue;
     process.env[key] = trimmed;
+  }
+}
+
+/** Snapshot non-empty database URLs already set in the shell (must win over files). */
+function snapshotShellDatabaseEnv(): Partial<Record<DatabaseEnvSource, string>> {
+  const shell: Partial<Record<DatabaseEnvSource, string>> = {};
+  for (const key of DATABASE_ENV_KEYS) {
+    const value = process.env[key]?.trim();
+    if (value) shell[key] = value;
+  }
+  return shell;
+}
+
+function restoreShellDatabaseEnv(shell: Partial<Record<DatabaseEnvSource, string>>): void {
+  for (const key of DATABASE_ENV_KEYS) {
+    if (!(key in shell)) continue;
+    const value = shell[key];
+    if (value) process.env[key] = value;
+    else delete process.env[key];
+  }
+}
+
+/** Production Neon file — database keys override .env / .env.local file values. */
+function applyProdLiveEnvFile(path: string): void {
+  const raw = readFileSync(path, 'utf8');
+  const parsed = parse(raw);
+  for (const [key, value] of Object.entries(parsed)) {
+    if (isRuntimeOnlyKey(key)) continue;
+
+    const trimmed = value.trim();
+    if (!trimmed) continue;
+
+    if (DATABASE_ENV_KEYS.includes(key as DatabaseEnvSource)) {
+      process.env[key] = trimmed;
+      continue;
+    }
+
+    const existing = process.env[key]?.trim();
+    if (!existing) process.env[key] = trimmed;
   }
 }
 
@@ -108,23 +159,31 @@ const PRODUCTION_AUDIT_ENV_FILES = [
  * It cannot be exported via `vercel env pull` or `vercel env run` (values are empty).
  *
  * Provide the URL via one of:
- *   1. Shell: `DATABASE_URL='postgresql://…' npx tsx scripts/…`
- *   2. `.env.prod.live` (gitignored) + `USE_PRODUCTION_DB=1`
+ *   1. `.env.prod.live` (gitignored) — loaded automatically when present
+ *   2. Shell: `DATABASE_URL='postgresql://…' npx tsx scripts/…`
  *   3. Neon dashboard → paste into `.env.local` as `DATABASE_URL`
  */
 export function loadProductionAuditEnv(): void {
+  const shellDatabaseEnv = snapshotShellDatabaseEnv();
+
   clearEmptyDatabaseEnvPlaceholders();
   loadAppEnv();
 
-  if (process.env.USE_PRODUCTION_DB !== '1') return;
-
   const cwd = process.cwd();
-  for (const name of PRODUCTION_AUDIT_ENV_FILES) {
-    const path = join(cwd, name);
-    if (existsSync(path)) {
-      applyEnvFile(path, true);
+  const prodLivePath = join(cwd, '.env.prod.live');
+  if (existsSync(prodLivePath)) {
+    applyProdLiveEnvFile(prodLivePath);
+  } else if (process.env.USE_PRODUCTION_DB === '1') {
+    for (const name of PRODUCTION_AUDIT_ENV_FILES) {
+      if (name === '.env.prod.live') continue;
+      const path = join(cwd, name);
+      if (existsSync(path)) {
+        applyEnvFile(path, true);
+      }
     }
   }
+
+  restoreShellDatabaseEnv(shellDatabaseEnv);
 }
 
 /** Exit with configuration help when no database URL is available. */
@@ -134,7 +193,7 @@ export function requireDatabaseUrl(scriptName: string): void {
   console.error(formatDatabaseConfigReport());
   console.error('');
   console.error(`Cannot run ${scriptName} — production Neon DATABASE_URL required.`);
+  console.error('  Create .env.prod.live (gitignored) with DATABASE_URL from Neon dashboard');
   console.error('  DATABASE_URL=\'postgresql://…\' npx tsx scripts/' + scriptName);
-  console.error('  USE_PRODUCTION_DB=1 npx tsx scripts/' + scriptName + '  # URL in .env.prod.live');
   process.exit(1);
 }

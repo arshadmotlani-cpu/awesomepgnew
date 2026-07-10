@@ -3,6 +3,7 @@ import type { AdminModule } from '@/src/lib/admin/navigation';
 import type { OpsQueueFilter } from '@/src/lib/operations/operationsFilterLinks';
 import { operationsFilterCount } from '@/src/lib/operations/operationsQueueCounts';
 import { getUnifiedOperationsQueueForRequest } from '@/src/services/unifiedOperationsQueue';
+import { loadResidentOperationsResidentsPage } from '@/src/services/residentOperationsResidentsPage';
 import { countUnreadForAdmin } from '@/src/services/notificationEngine';
 import { profileAdminStep } from '@/src/lib/admin/adminProfile';
 
@@ -19,15 +20,18 @@ function badgeFromFilterCount(
   return count > 0 ? count : undefined;
 }
 
-/** Sidebar badges — single unified queue load per request. */
+/** Sidebar badges — Operations count from residents queue; filter badges from unified queue. */
 export async function loadAdminNavBadges(session: AdminSession): Promise<AdminNavBadges> {
   try {
     return await profileAdminStep('loadAdminNavBadges', async () => {
-      const operationsQueue = await getUnifiedOperationsQueueForRequest(session, null);
+      const [residentsPage, operationsQueue] = await Promise.all([
+        loadResidentOperationsResidentsPage(session, null),
+        getUnifiedOperationsQueueForRequest(session, null),
+      ]);
       const badges: AdminNavBadges = {};
 
-      if (operationsQueue.totalCount > 0) {
-        badges.operations = operationsQueue.totalCount;
+      if (residentsPage.allQueueCount > 0) {
+        badges.operations = residentsPage.allQueueCount;
       }
 
       const waitingForApproval = badgeFromFilterCount(operationsQueue, 'waiting_for_approval');

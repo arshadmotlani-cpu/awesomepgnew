@@ -69,6 +69,7 @@ function queueCountsFromFilterCounts(
 export async function loadOverviewReportingSnapshot(
   session: AdminSession,
   billingMonthInput?: string,
+  opts?: { reconcile?: boolean },
 ): Promise<OverviewReportingSnapshot> {
   const billingMonth = resolveBillingMonth(billingMonthInput);
   const monthLabel = new Intl.DateTimeFormat('en-IN', {
@@ -98,7 +99,7 @@ export async function loadOverviewReportingSnapshot(
       session,
       invoiceSnapshot,
     }),
-    loadBillingCommandCenterSnapshot(session, billingMonth),
+    loadBillingCommandCenterSnapshot(session, billingMonth, opts),
     getUnifiedOperationsQueueForRequest(session, null),
     getDashboardStats().catch(() => ({ ok: false as const, error: '' })),
     getVisitorCountSummary().catch((err) => {

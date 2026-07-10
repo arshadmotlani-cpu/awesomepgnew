@@ -81,6 +81,45 @@ test('clearEmptyDatabaseEnvPlaceholders removes Neon integration empty strings',
   }
 });
 
+test('loadProductionAuditEnv loads .env.prod.live when present', { concurrency: false }, async () => {
+  const { writeFileSync, unlinkSync, existsSync } = await import('node:fs');
+  const { join } = await import('node:path');
+
+  const prodLivePath = join(process.cwd(), '.env.prod.live');
+  const backup = existsSync(prodLivePath) ? (await import('node:fs')).readFileSync(prodLivePath, 'utf8') : null;
+  const prev = {
+    DATABASE_URL: process.env.DATABASE_URL,
+    POSTGRES_URL: process.env.POSTGRES_URL,
+    POSTGRES_PRISMA_URL: process.env.POSTGRES_PRISMA_URL,
+  };
+
+  try {
+    delete process.env.DATABASE_URL;
+    delete process.env.POSTGRES_URL;
+    delete process.env.POSTGRES_PRISMA_URL;
+
+    writeFileSync(
+      prodLivePath,
+      'DATABASE_URL=postgres://prod-live-user:secret@ep-prod.example/neondb?sslmode=require\n',
+    );
+
+    const { loadProductionAuditEnv } = await import('../../src/lib/db/loadEnv');
+    loadProductionAuditEnv();
+
+    const { getDatabaseUrl, getDatabaseHost } = await import('../../src/lib/db/env');
+    assert.equal(getDatabaseHost(), 'ep-prod.example');
+    assert.match(getDatabaseUrl(), /prod-live-user/);
+  } finally {
+    if (backup !== null) writeFileSync(prodLivePath, backup);
+    else if (existsSync(prodLivePath)) unlinkSync(prodLivePath);
+
+    for (const [key, value] of Object.entries(prev)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});
+
 test('loadAppEnv loads .env.local over .env', { concurrency: false }, async () => {
   const { writeFileSync, unlinkSync, existsSync } = await import('node:fs');
   const { join } = await import('node:path');

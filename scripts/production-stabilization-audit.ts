@@ -2,19 +2,14 @@
 /**
  * Read-only Production Stabilization audit (Phases 1, 2, 4).
  *
- *   USE_PRODUCTION_DB=1 npx tsx scripts/production-stabilization-audit.ts
- *   USE_PRODUCTION_DB=1 npx tsx scripts/production-stabilization-audit.ts --write-docs
+ * Loads `.env.prod.live` automatically when present.
  */
-import { config } from 'dotenv';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { loadProductionAuditEnv, requireDatabaseUrl } from '@/src/lib/db/loadEnv';
 
-config({ path: '.env' });
-config({ path: '.env.local' });
-if (process.env.USE_PRODUCTION_DB === '1') {
-  config({ path: '.env.prod.live', override: true });
-  config({ path: '.env.production.pull', override: true });
-}
+loadProductionAuditEnv();
+requireDatabaseUrl('production-stabilization-audit.ts');
 
 import { and, desc, eq, gt, ilike, isNull, sql } from 'drizzle-orm';
 import {
@@ -29,7 +24,7 @@ import {
   floors,
 } from '@/src/db/schema';
 import { env } from '@/src/lib/env';
-import { getDatabaseUrl } from '@/src/lib/db/env';
+import { getDatabaseHost } from '@/src/lib/db/env';
 import {
   DEFAULT_ELECTRICITY_DAILY_UPI_ID,
   DEFAULT_RENT_DEPOSIT_UPI_ID,
@@ -51,10 +46,6 @@ type Report = {
   phase2: Record<string, unknown>;
   phase4: Record<string, unknown>;
 };
-
-function hostHint(url: string): string {
-  return url.replace(/:[^:@]+@/, ':***@').slice(0, 100);
-}
 
 function maskSecret(name: string, value: string | undefined): string {
   if (!value?.trim()) return '(unset — using code default)';
@@ -166,7 +157,7 @@ async function auditPhase2Room203(): Promise<Record<string, unknown>> {
     return { error: 'Room 203 Shantinagar not found' };
   }
 
-  const occupants = await loadRoomElectricityOccupantsForMonth({
+  const occupantLoad = await loadRoomElectricityOccupantsForMonth({
     roomId: room.id,
     billingMonth: BILLING_MONTH,
   });
@@ -174,10 +165,9 @@ async function auditPhase2Room203(): Promise<Record<string, unknown>> {
   const [bill] = await db
     .select({
       id: electricityBills.id,
-      invoiceNumber: electricityBills.invoiceNumber,
-      grossTotalPaise: electricityBills.grossTotalPaise,
+      totalPaise: electricityBills.totalPaise,
       calculationBreakdown: electricityBills.calculationBreakdown,
-      status: electricityBills.status,
+      billStatus: electricityBills.billStatus,
     })
     .from(electricityBills)
     .where(
@@ -193,7 +183,7 @@ async function auditPhase2Room203(): Promise<Record<string, unknown>> {
       bookingId: electricityInvoices.bookingId,
       amountPaise: electricityInvoices.amountPaise,
       status: electricityInvoices.status,
-      paidPrincipalPaise: electricityInvoices.paidPrincipalPaise,
+      paidPaise: electricityInvoices.paidPaise,
     })
     .from(electricityInvoices)
     .where(
@@ -215,7 +205,10 @@ async function auditPhase2Room203(): Promise<Record<string, unknown>> {
 
   const nameById = new Map(customerNames.map((c) => [c.id, c]));
 
-  const ledgerView = await getElectricitySettlementLedgerView(room.id, BILLING_MONTH);
+  const ledgerView = await getElectricitySettlementLedgerView({
+    roomId: room.id,
+    billingMonth: BILLING_MONTH,
+  });
 
   const invoiceRows = invoices.map((inv) => ({
     ...inv,
@@ -232,35 +225,35 @@ async function auditPhase2Room203(): Promise<Record<string, unknown>> {
     bill: bill
       ? {
           ...bill,
-          grossTotalInr: paiseToInr(bill.grossTotalPaise),
+          grossTotalInr: paiseToInr(bill.totalPaise),
           breakdown: bill.calculationBreakdown,
         }
       : null,
-    occupants: occupants.map((o) => ({
+    occupants: occupantLoad.occupants.map((o) => ({
       customerId: o.customerId,
-      customerName: o.customerName,
       bookingId: o.bookingId,
-      bedCode: o.bedCode,
-      activeDays: o.activeDays,
       bedCount: o.bedCount,
+      weight: o.weight,
     })),
     invoices: invoiceRows,
     invoiceSumPaise: invoiceSum,
     invoiceSumInr: paiseToInr(invoiceSum),
-    ledgerView: {
-      totalRoomBillPaise: ledgerView.totalRoomBillPaise,
-      remainingRoomBalancePaise: ledgerView.remainingRoomBalancePaise,
-      reconciliationGapPaise: ledgerView.reconciliationGapPaise,
-      isBalanced: ledgerView.isBalanced,
-    },
+    ledgerView: ledgerView
+      ? {
+          totalRoomBillPaise: ledgerView.totalRoomBillPaise,
+          remainingRoomBalancePaise: ledgerView.remainingRoomBalancePaise,
+          reconciliationGapPaise: ledgerView.reconciliationGapPaise,
+          isBalanced: ledgerView.isBalanced,
+        }
+      : null,
     findings: [
-      bill && invoiceSum !== bill.grossTotalPaise
-        ? `Invoice sum (${paiseToInr(invoiceSum)}) ≠ bill gross (${paiseToInr(bill.grossTotalPaise)})`
+      bill && invoiceSum !== bill.totalPaise
+        ? `Invoice sum (${paiseToInr(invoiceSum)}) ≠ bill gross (${paiseToInr(bill.totalPaise)})`
         : null,
-      ledgerView.reconciliationGapPaise !== 0
+      ledgerView && ledgerView.reconciliationGapPaise !== 0
         ? `Room reconciliation gap: ${paiseToInr(ledgerView.reconciliationGapPaise)}`
         : null,
-      !ledgerView.isBalanced ? 'Room ledger reports isBalanced=false' : null,
+      ledgerView && !ledgerView.isBalanced ? 'Room ledger reports isBalanced=false' : null,
     ].filter(Boolean),
   };
 }
@@ -359,13 +352,13 @@ ${JSON.stringify(report.phase4, null, 2)}
 }
 
 async function main() {
-  const dbUrl = getDatabaseUrl();
+  const dbHost = getDatabaseHost() ?? 'unknown';
   console.log('Production Stabilization Audit (read-only)');
-  console.log('Database:', hostHint(dbUrl));
+  console.log('Database host:', dbHost);
 
   const report: Report = {
     generatedAt: new Date().toISOString(),
-    databaseHostHint: hostHint(dbUrl),
+    databaseHostHint: dbHost,
     phase1: await auditPhase1(),
     phase2: await auditPhase2Room203(),
     phase4: await auditPhase4Upi(),

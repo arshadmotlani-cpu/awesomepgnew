@@ -5,9 +5,8 @@
  * Target: Production Neon (not Preview / Development).
  * Provide DATABASE_URL from Neon dashboard — not via `vercel env pull`.
  *
- * Usage:
- *   DATABASE_URL='postgresql://…' npx tsx scripts/production-readiness-simulation.ts
- *   USE_PRODUCTION_DB=1 npx tsx scripts/production-readiness-simulation.ts
+ * Usage (with `.env.prod.live` in repo root — gitignored):
+ *   npx tsx scripts/production-readiness-simulation.ts
  */
 import { loadProductionAuditEnv, requireDatabaseUrl } from '../src/lib/db/loadEnv';
 

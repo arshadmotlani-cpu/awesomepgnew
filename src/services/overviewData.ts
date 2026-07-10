@@ -26,7 +26,7 @@ export type OverviewContext = OverviewReportingSnapshot & {
 export async function loadOverviewContext(
   session: AdminSession,
   billingMonthInput?: string,
-  opts?: { syncActions?: boolean },
+  opts?: { syncActions?: boolean; reconcile?: boolean },
 ): Promise<
   | { ok: true; data: OverviewContext }
   | { ok: false; error: string; partial?: { billingMonth: string; monthLabel: string } }
@@ -36,6 +36,7 @@ export async function loadOverviewContext(
     session,
     billingMonthInput,
     opts?.syncActions === true,
+    opts?.reconcile !== false,
   );
 }
 
@@ -45,13 +46,14 @@ const loadOverviewContextForRequest = cache(
     session: AdminSession,
     billingMonthInput: string | undefined,
     syncActions: boolean,
+    reconcile: boolean,
   ): Promise<
     | { ok: true; data: OverviewContext }
     | { ok: false; error: string; partial?: { billingMonth: string; monthLabel: string } }
   > => {
     void scopeKey;
     return profileAdminStep('loadOverviewContext', () =>
-      loadOverviewContextImpl(session, billingMonthInput, syncActions),
+      loadOverviewContextImpl(session, billingMonthInput, syncActions, reconcile),
     );
   },
 );
@@ -60,6 +62,7 @@ async function loadOverviewContextImpl(
   session: AdminSession,
   billingMonthInput: string | undefined,
   syncActions: boolean,
+  reconcile: boolean,
 ): Promise<
   | { ok: true; data: OverviewContext }
   | { ok: false; error: string; partial?: { billingMonth: string; monthLabel: string } }
@@ -78,7 +81,7 @@ async function loadOverviewContextImpl(
   }
 
   const [reporting, summary, metrics, executiveMetrics] = await Promise.all([
-    loadOverviewReportingSnapshot(session, billingMonth),
+    loadOverviewReportingSnapshot(session, billingMonth, { reconcile }),
     getBusinessMetricsSummary(billingMonth),
     getPgBusinessMetrics(billingMonth),
     import('@/src/services/executiveMetrics').then((m) =>

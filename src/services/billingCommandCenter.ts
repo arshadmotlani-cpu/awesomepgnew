@@ -62,6 +62,7 @@ function countBothDue(
 export async function loadBillingCommandCenterSnapshot(
   session: AdminSession,
   billingMonthInput?: string,
+  opts?: { reconcile?: boolean },
 ): Promise<BillingCommandCenterSnapshot> {
   const billingMonth = resolveBillingMonth(billingMonthInput);
 
@@ -69,7 +70,7 @@ export async function loadBillingCommandCenterSnapshot(
     loadInvoiceOutstandingSnapshot(session),
     getWaitingForApprovalCount(session),
     getUnifiedOperationsQueueForRequest(session, null),
-    loadBillingReconciliationSafe(session, billingMonth),
+    loadBillingReconciliationSafe(session, billingMonth, opts),
   ]);
 
   const moveOutCount = operationsFilterCount(operationsQueue, 'vacating_requests');
