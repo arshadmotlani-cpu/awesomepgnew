@@ -2,6 +2,7 @@ import {
   buildMyBookingCardModels,
 } from '@/src/lib/account/myBookingRowPresentation';
 import type { MyBookingRow } from '@/src/db/queries/customer';
+import type { PaymentProofRejectionRow } from '@/src/services/paymentProofRejectionService';
 import { ApplicationBookingsListClient } from '@/src/components/customer/account/resident/ApplicationBookingsListClient';
 import {
   ACCOUNT_PAGE_SUBTITLE,
@@ -13,11 +14,13 @@ export function ApplicationBookingsList({
   showResidentHome = false,
   customerId = null,
   email = null,
+  rejections = [],
 }: {
   rows: MyBookingRow[];
   showResidentHome?: boolean;
   customerId?: string | null;
   email?: string | null;
+  rejections?: PaymentProofRejectionRow[];
 }) {
   const models = buildMyBookingCardModels(rows);
 
@@ -27,6 +30,7 @@ export function ApplicationBookingsList({
       showResidentHome={showResidentHome}
       customerId={customerId}
       email={email}
+      rejections={rejections}
     />
   );
 }

@@ -13,6 +13,7 @@ import {
 } from '@/app/(admin)/admin/payments/actions';
 import { PaymentProofRejectionDialog } from '@/src/components/admin/operations/PaymentProofRejectionDialog';
 import { PaymentProofRejectionHistory } from '@/src/components/admin/operations/PaymentProofRejectionHistory';
+import { useOperationsActionToast } from '@/src/components/admin/operations/OperationsActionToast';
 import { PaymentScreenshotPreview } from '@/src/components/admin/PaymentScreenshotPreview';
 import type { PaymentProofRejectionHistoryRow } from '@/src/services/paymentProofRejectionService';
 import { PipelineTestInvoiceBadge } from '@/src/components/admin/PipelineTestInvoiceBadge';
@@ -72,16 +73,24 @@ export function OperationsPaymentReviewsPanel({
   const [reviewNotes, setReviewNotes] = useState('');
   const [approvalNotes, setApprovalNotes] = useState('');
   const [rejectDialogItem, setRejectDialogItem] = useState<PendingPaymentReviewItem | null>(null);
+  const { showToast, toastNode } = useOperationsActionToast();
 
   const visibleItems = useMemo(() => {
     if (!reviewMode || items.length <= 1) return items;
     return [items[0]];
   }, [items, reviewMode]);
 
-  async function advanceAfterAction(_currentKey: string, nextKey?: string | null) {
+  async function advanceAfterAction(
+    _currentKey: string,
+    nextKey?: string | null,
+    opts?: { rejected?: boolean },
+  ) {
     setRejectDialogItem(null);
     setPartialOpenKey(null);
     setMoreOpenKey(null);
+    if (opts?.rejected) {
+      showToast('Payment rejected successfully.');
+    }
     if (reviewMode && nextKey) {
       router.push(`/admin/operations?filter=waiting_for_approval&focus=${encodeURIComponent(nextKey)}`);
     } else {
@@ -183,13 +192,14 @@ export function OperationsPaymentReviewsPanel({
 
   return (
     <div className="space-y-5">
+      {toastNode}
       {rejectDialogItem ? (
         <PaymentProofRejectionDialog
           item={rejectDialogItem}
           open
           onClose={() => setRejectDialogItem(null)}
           onRejected={({ nextKey }) =>
-            void advanceAfterAction(rejectDialogItem.key, nextKey)
+            void advanceAfterAction(rejectDialogItem.key, nextKey, { rejected: true })
           }
         />
       ) : null}

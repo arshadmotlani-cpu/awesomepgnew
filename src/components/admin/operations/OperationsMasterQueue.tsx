@@ -1,8 +1,10 @@
 import Link from 'next/link';
 import { OperationsOpsRowActions } from '@/src/components/admin/operations/OperationsOpsRowActions';
 import { OperationsWaitingForApprovalTable } from '@/src/components/admin/operations/OperationsWaitingForApprovalTable';
+import { OperationsRejectedPaymentsSection } from '@/src/components/admin/operations/OperationsRejectedPaymentsSection';
 import { OPS_QUEUE_LABELS, operationsFilterHref, type OpsQueueFilter } from '@/src/lib/operations/operationsFilterLinks';
 import type { UnifiedOpsItem, UnifiedOperationsQueue } from '@/src/services/unifiedOperationsQueue';
+import type { PaymentProofRejectionHistoryRow } from '@/src/services/paymentProofRejectionService';
 import { paiseToInr } from '@/src/lib/format';
 import { billingMonthLabel } from '@/src/lib/billing/invoiceCollectionWhatsApp';
 
@@ -24,9 +26,11 @@ function OutstandingCell({ item }: { item: UnifiedOpsItem }) {
 export function OperationsMasterQueue({
   data,
   isSuperAdmin = false,
+  recentRejections = [],
 }: {
   data: UnifiedOperationsQueue;
   isSuperAdmin?: boolean;
+  recentRejections?: PaymentProofRejectionHistoryRow[];
 }) {
   const activeFilter = data.filter;
 
@@ -38,6 +42,7 @@ export function OperationsMasterQueue({
           items={data.paymentReviews}
           focusKey={data.focusReviewKey}
         />
+        <OperationsRejectedPaymentsSection rows={recentRejections} />
       </div>
     );
   }

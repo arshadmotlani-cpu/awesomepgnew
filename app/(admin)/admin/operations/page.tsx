@@ -18,8 +18,10 @@ import {
 import { PAYMENT_ALREADY_APPROVED_MESSAGE } from '@/src/lib/operations/paymentReviewMessages';
 import {
   listPaymentProofRejectionsForEntity,
+  listRecentPaymentProofRejectionsForAdmin,
   reviewKindToEntityType,
 } from '@/src/services/paymentProofRejectionService';
+import { OperationsRejectedPaymentsSection } from '@/src/components/admin/operations/OperationsRejectedPaymentsSection';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -61,6 +63,11 @@ export default async function OperationsPage({
       )
     : [];
 
+  const recentRejections =
+    filter === 'waiting_for_approval'
+      ? await listRecentPaymentProofRejectionsForAdmin(session, 40)
+      : [];
+
   return (
     <>
       <ModuleBreadcrumbs
@@ -85,7 +92,11 @@ export default async function OperationsPage({
             />
           </section>
         ) : null}
-        <OperationsMasterQueue data={data} isSuperAdmin={session.role === 'super_admin'} />
+        <OperationsMasterQueue
+          data={data}
+          isSuperAdmin={session.role === 'super_admin'}
+          recentRejections={recentRejections}
+        />
       </AdminSectionErrorBoundary>
     </>
   );

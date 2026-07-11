@@ -440,6 +440,30 @@ export async function listPaymentProofRejectionsForEntity(
   return rows.map((r) => ({ ...r.rejection, rejectedByName: r.rejectedByName }));
 }
 
+/** Recent rejections across PGs the admin can access — Operations history panel. */
+export async function listRecentPaymentProofRejectionsForAdmin(
+  session: AdminSession,
+  limit = 40,
+): Promise<PaymentProofRejectionHistoryRow[]> {
+  const rows = await db
+    .select({
+      rejection: paymentProofRejections,
+      rejectedByName: adminUsers.fullName,
+    })
+    .from(paymentProofRejections)
+    .leftJoin(adminUsers, eq(adminUsers.id, paymentProofRejections.rejectedByAdminId))
+    .orderBy(desc(paymentProofRejections.rejectedAt))
+    .limit(Math.min(Math.max(limit * 3, limit), 200));
+
+  const scoped = rows
+    .filter((r) =>
+      adminCanAccessPg({ role: session.role, pgScope: session.pgScope }, r.rejection.pgId),
+    )
+    .slice(0, limit);
+
+  return scoped.map((r) => ({ ...r.rejection, rejectedByName: r.rejectedByName }));
+}
+
 export async function rejectPaymentProof(
   session: AdminSession,
   input: RejectPaymentProofInput,

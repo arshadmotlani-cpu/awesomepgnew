@@ -191,6 +191,7 @@ export default async function PayRentPage({
             existingProofUrl={row.paymentProofUrl}
             rejectionReason={activeRejection?.reasonLabel ?? null}
             rejectionMessage={activeRejection?.residentMessage ?? null}
+            rejectedAt={activeRejection?.rejectedAt ?? null}
             uploadScreenshot={uploadPaymentScreenshotAction}
             backHref={backHref}
           />

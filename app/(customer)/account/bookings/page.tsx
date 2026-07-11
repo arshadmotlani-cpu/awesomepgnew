@@ -16,6 +16,7 @@ import { ResidentAccountIncompletePanel } from '@/src/components/customer/accoun
 import { ACCOUNT_LINK_ON_DARK } from '@/src/components/customer/accountStyles';
 import { legacyResidentTabHref, residentTabHref } from '@/src/lib/accountNavigation';
 import { loadResidentAccountContextSafe } from '@/src/services/residentAccountContextSafe';
+import { listActiveRejectionsForCustomer } from '@/src/services/paymentProofRejectionService';
 import { logger } from '@/src/lib/logger';
 
 export const dynamic = 'force-dynamic';
@@ -29,9 +30,10 @@ export default async function AccountBookingsPage() {
     sessionId: session.sessionId,
   });
 
-  const [bookings, contextLoad] = await Promise.all([
+  const [bookings, contextLoad, rejections] = await Promise.all([
     listBookingsForCustomer(session.customerId),
     loadResidentAccountContextSafe(session.customerId, session.email),
+    listActiveRejectionsForCustomer(session.customerId),
   ]);
 
   const rows = bookings.ok ? bookings.data : [];
@@ -111,6 +113,7 @@ export default async function AccountBookingsPage() {
             showResidentHome={hasResidentPortalAccess}
             customerId={session.customerId}
             email={session.email}
+            rejections={rejections}
           />
         </ResidentSectionErrorBoundary>
       )}

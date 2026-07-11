@@ -21,6 +21,7 @@ type Props = {
   existingProofUrl?: string | null;
   rejectionReason?: string | null;
   rejectionMessage?: string | null;
+  rejectedAt?: Date | string | null;
   uploadScreenshot: (formData: FormData) => Promise<string>;
   backHref: string;
 };
@@ -98,6 +99,7 @@ export function ResidentPayRentWithPromo(props: Props) {
         existingProofUrl={props.existingProofUrl}
         rejectionReason={props.rejectionReason}
         rejectionMessage={props.rejectionMessage}
+        rejectedAt={props.rejectedAt}
         uploadScreenshot={props.uploadScreenshot}
         backHref={props.backHref}
       />

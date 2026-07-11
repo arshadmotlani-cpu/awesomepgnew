@@ -237,6 +237,7 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
                   existingProofRecordId={hasSubmittedProof ? pendingPayment?.id : undefined}
                   rejectionReason={bookingRejection?.reasonLabel ?? null}
                   rejectionMessage={bookingRejection?.residentMessage ?? null}
+                  rejectedAt={bookingRejection?.rejectedAt ?? null}
                   compactLayout
                 />
               </PaymentFlowErrorBoundary>

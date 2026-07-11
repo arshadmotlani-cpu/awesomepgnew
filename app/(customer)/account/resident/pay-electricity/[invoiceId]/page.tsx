@@ -173,6 +173,7 @@ export default async function PayElectricityPage({
             existingProofUrl={row.paymentProofUrl}
             rejectionReason={activeRejection?.reasonLabel ?? null}
             rejectionMessage={activeRejection?.residentMessage ?? null}
+            rejectedAt={activeRejection?.rejectedAt ?? null}
             uploadScreenshot={uploadPaymentScreenshotAction}
             backHref={backHref}
             residentId={session.customerId}

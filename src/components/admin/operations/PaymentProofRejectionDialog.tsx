@@ -18,7 +18,11 @@ type Props = {
   item: PendingPaymentReviewItem;
   open: boolean;
   onClose: () => void;
-  onRejected: (result: { nextKey?: string | null; whatsappUrl?: string }) => void;
+  onRejected: (result: {
+    nextKey?: string | null;
+    whatsappUrl?: string;
+    success: true;
+  }) => void;
 };
 
 type Step = 'confirm' | 'details';
@@ -61,27 +65,7 @@ export function PaymentProofRejectionDialog({ item, open, onClose, onRejected }:
         amountPaise: item.amountPaise,
       }),
     );
-    // #region agent log
-    fetch('http://127.0.0.1:7596/ingest/7ac86f2a-cbab-4d25-8804-7532d754a1bb', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '2142b1' },
-      body: JSON.stringify({
-        sessionId: '2142b1',
-        runId: 'reject-ux',
-        hypothesisId: 'A',
-        location: 'PaymentProofRejectionDialog.tsx:open',
-        message: 'Reject dialog opened',
-        data: {
-          hasScreenshot,
-          screenshotLen: item.screenshotUrl?.trim().length ?? 0,
-          initialReason,
-          step: 'confirm',
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
-  }, [open, item.residentName, billLabel, item.amountPaise, item.screenshotUrl, hasScreenshot]);
+  }, [open, item.residentName, billLabel, item.amountPaise, item.screenshotUrl]);
 
   useEffect(() => {
     if (!open || messageTouched) return;
@@ -106,7 +90,7 @@ export function PaymentProofRejectionDialog({ item, open, onClose, onRejected }:
 
   if (!open) return null;
 
-  function applyReason(code: PaymentProofRejectionReasonCode, opts?: { fromQuick?: boolean }) {
+  function applyReason(code: PaymentProofRejectionReasonCode) {
     setReasonCode(code);
     setMessageTouched(false);
     setError(null);
@@ -114,27 +98,11 @@ export function PaymentProofRejectionDialog({ item, open, onClose, onRejected }:
     setResidentMessage(
       buildResidentRejectionMessage({
         reasonCode: code,
-        reasonDetail: code === 'other' ? reasonDetail : undefined,
         residentName: item.residentName,
         billLabel,
         amountPaise: item.amountPaise,
       }),
     );
-    // #region agent log
-    fetch('http://127.0.0.1:7596/ingest/7ac86f2a-cbab-4d25-8804-7532d754a1bb', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '2142b1' },
-      body: JSON.stringify({
-        sessionId: '2142b1',
-        runId: 'reject-ux',
-        hypothesisId: 'D',
-        location: 'PaymentProofRejectionDialog.tsx:applyReason',
-        message: 'Reason applied',
-        data: { code, fromQuick: Boolean(opts?.fromQuick), step },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
   }
 
   function handleContinue() {
@@ -144,21 +112,6 @@ export function PaymentProofRejectionDialog({ item, open, onClose, onRejected }:
     }
     setError(null);
     setStep('details');
-    // #region agent log
-    fetch('http://127.0.0.1:7596/ingest/7ac86f2a-cbab-4d25-8804-7532d754a1bb', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '2142b1' },
-      body: JSON.stringify({
-        sessionId: '2142b1',
-        runId: 'reject-ux',
-        hypothesisId: 'C',
-        location: 'PaymentProofRejectionDialog.tsx:continue',
-        message: 'Advanced to details step',
-        data: { reasonCode, hasScreenshot },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
   }
 
   async function handleReject() {
@@ -180,14 +133,19 @@ export function PaymentProofRejectionDialog({ item, open, onClose, onRejected }:
         setError(result.message ?? 'Rejection failed.');
         return;
       }
-      if (result.message) {
-        setError(result.message);
-      }
-      onRejected({ nextKey: result.nextKey, whatsappUrl: result.whatsappUrl });
-      if (result.whatsappUrl && sendWhatsApp) {
+
+      // Close immediately so admin never wonders if reject succeeded.
+      onClose();
+
+      if (sendWhatsApp && result.whatsappUrl) {
         window.open(result.whatsappUrl, '_blank', 'noopener,noreferrer');
       }
-      onClose();
+
+      onRejected({
+        success: true,
+        nextKey: result.nextKey,
+        whatsappUrl: result.whatsappUrl,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Rejection failed.');
     } finally {
@@ -230,7 +188,7 @@ export function PaymentProofRejectionDialog({ item, open, onClose, onRejected }:
                     <button
                       key={action.code}
                       type="button"
-                      onClick={() => applyReason(action.code, { fromQuick: true })}
+                      onClick={() => applyReason(action.code)}
                       className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
                         active
                           ? 'border-rose-400/50 bg-rose-500/20 text-rose-100'

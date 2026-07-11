@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ConfirmationGate } from '@/src/components/customer/design-system';
 import { UpiPaymentProofForm } from '@/src/components/customer/UpiPaymentProofForm';
 import { ResidentPaymentSuccess } from '@/src/components/customer/account/resident/ResidentPaymentSuccess';
+import { PaymentRejectionStatusPanel } from '@/src/components/customer/payments/PaymentRejectionStatusPanel';
 
 type SubmitResult = { ok: boolean; message?: string };
 
@@ -17,6 +18,7 @@ type Props = {
   proofViewHref?: string;
   rejectionReason?: string | null;
   rejectionMessage?: string | null;
+  rejectedAt?: Date | string | null;
   uploadScreenshot: (formData: FormData) => Promise<string>;
   submitProof: (args: { screenshotUrl: string; transactionRef?: string }) => Promise<SubmitResult>;
   logContext?: {
@@ -48,6 +50,7 @@ export function ResidentPaymentConfirmFlow({
   proofViewHref,
   rejectionReason,
   rejectionMessage,
+  rejectedAt,
   uploadScreenshot,
   submitProof,
   logContext,
@@ -60,15 +63,15 @@ export function ResidentPaymentConfirmFlow({
 
   const rejectionBanner =
     rejectionReason || rejectionMessage ? (
-      <div className="mb-6 rounded-xl border border-rose-400/40 bg-rose-500/10 px-4 py-4 text-sm text-rose-100">
-        <p className="font-semibold text-rose-200">Payment rejected</p>
-        {rejectionReason ? (
-          <p className="mt-2">
-            <span className="font-medium">Reason:</span> {rejectionReason}
-          </p>
-        ) : null}
-        {rejectionMessage ? <p className="mt-2 text-apg-silver">{rejectionMessage}</p> : null}
-        <p className="mt-3 text-xs text-rose-100/90">Please upload a new payment screenshot below.</p>
+      <div className="mb-6">
+        <PaymentRejectionStatusPanel
+          reasonLabel={rejectionReason ?? 'Payment rejected'}
+          residentMessage={rejectionMessage}
+          rejectedAt={rejectedAt}
+          actionHref="#upload-new-screenshot"
+          actionLabel="Upload New Screenshot"
+          showTimeline
+        />
       </div>
     ) : null;
 
@@ -77,10 +80,10 @@ export function ResidentPaymentConfirmFlow({
       <>
         {rejectionBanner}
         <ResidentPaymentSuccess
-        amountLabel={amountLabel}
-        checklist={successChecklist}
-        backHref={backHref}
-      />
+          amountLabel={amountLabel}
+          checklist={successChecklist}
+          backHref={backHref}
+        />
       </>
     );
   }
@@ -90,15 +93,15 @@ export function ResidentPaymentConfirmFlow({
       <>
         {rejectionBanner}
         <ConfirmationGate
-        title="Confirm payment"
-        message={confirmMessage}
-        confirmLabel="Confirm payment"
-        cancelLabel="Go back"
-        onConfirm={() => setStep('pay')}
-        onCancel={() => {
-          if (typeof window !== 'undefined') window.history.back();
-        }}
-      />
+          title="Confirm payment"
+          message={confirmMessage}
+          confirmLabel="Confirm payment"
+          cancelLabel="Go back"
+          onConfirm={() => setStep('pay')}
+          onCancel={() => {
+            if (typeof window !== 'undefined') window.history.back();
+          }}
+        />
       </>
     );
   }
@@ -106,24 +109,24 @@ export function ResidentPaymentConfirmFlow({
   return (
     <>
       {rejectionBanner}
-      <UpiPaymentProofForm
-      variant="light"
-      amountLabel={amountLabel}
-      instructions={instructions}
-      qrImageUrl={qrImageUrl}
-      upiId={upiId}
-      existingProofUrl={existingProofUrl}
-      proofViewHref={proofViewHref}
-      uploadScreenshot={uploadScreenshot}
-      logContext={logContext}
-      submitProof={async (args) => {
-        const result = await submitProof(args);
-        if (result.ok) setStep('success');
-        return result;
-      }}
-      doneMessage=""
-      heading="Pay with UPI"
-    />
+      <div id="upload-new-screenshot">
+        <UpiPaymentProofForm
+          variant="light"
+          amountLabel={amountLabel}
+          instructions={instructions}
+          qrImageUrl={qrImageUrl}
+          upiId={upiId}
+          existingProofUrl={existingProofUrl}
+          proofViewHref={proofViewHref}
+          uploadScreenshot={uploadScreenshot}
+          logContext={logContext}
+          submitProof={async (args) => {
+            const result = await submitProof(args);
+            if (result.ok) setStep('success');
+            return result;
+          }}
+        />
+      </div>
     </>
   );
 }

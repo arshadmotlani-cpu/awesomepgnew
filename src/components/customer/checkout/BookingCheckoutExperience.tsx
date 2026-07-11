@@ -21,6 +21,7 @@ import {
   formatStayDateTime,
   STAY_CHECK_OUT_TIME,
 } from '@/src/lib/residents/stayBillingRules';
+import { PaymentRejectionStatusPanel } from '@/src/components/customer/payments/PaymentRejectionStatusPanel';
 
 type SubmitResult = {
   ok: boolean;
@@ -56,6 +57,7 @@ export type BookingCheckoutExperienceProps = {
   existingProofRecordId?: string | null;
   rejectionReason?: string | null;
   rejectionMessage?: string | null;
+  rejectedAt?: Date | string | null;
   /** Kept for API compat — not shown in the customer breakdown. */
   discountPaise?: number;
   depositCreditAppliedPaise?: number;
@@ -116,6 +118,7 @@ export function BookingCheckoutExperience({
   existingProofRecordId,
   rejectionReason,
   rejectionMessage,
+  rejectedAt,
   discountPaise = 0,
   depositCreditAppliedPaise = 0,
   additionalDepositDuePaise,
@@ -329,16 +332,14 @@ export function BookingCheckoutExperience({
 
   const rejectionBanner =
     rejectionReason || rejectionMessage ? (
-      <div className="rounded-[16px] border border-rose-500/30 bg-rose-500/10 px-5 py-4 text-sm text-rose-100">
-        <p className="font-semibold text-rose-200">Payment rejected</p>
-        {rejectionReason ? (
-          <p className="mt-2">
-            <span className="font-medium">Reason:</span> {rejectionReason}
-          </p>
-        ) : null}
-        {rejectionMessage ? <p className="mt-2 text-apg-silver">{rejectionMessage}</p> : null}
-        <p className="mt-3 text-xs text-rose-100/90">Please upload a new payment screenshot below.</p>
-      </div>
+      <PaymentRejectionStatusPanel
+        reasonLabel={rejectionReason ?? 'Payment rejected'}
+        residentMessage={rejectionMessage}
+        rejectedAt={rejectedAt}
+        actionHref="#booking-upload-proof"
+        actionLabel="Upload New Screenshot"
+        showTimeline
+      />
     ) : null;
 
   if (done) {
@@ -360,7 +361,7 @@ export function BookingCheckoutExperience({
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5 pb-28">
+    <form id="booking-upload-proof" onSubmit={onSubmit} className="space-y-5 pb-28">
       {rejectionBanner}
       {!compactLayout ? (
       <>

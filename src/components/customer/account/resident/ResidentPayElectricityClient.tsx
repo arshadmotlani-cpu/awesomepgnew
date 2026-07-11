@@ -20,6 +20,7 @@ export function ResidentPayElectricityClient({
   existingProofUrl,
   rejectionReason,
   rejectionMessage,
+  rejectedAt,
   uploadScreenshot,
   backHref,
   residentId,
@@ -32,6 +33,7 @@ export function ResidentPayElectricityClient({
   existingProofUrl?: string | null;
   rejectionReason?: string | null;
   rejectionMessage?: string | null;
+  rejectedAt?: Date | string | null;
   uploadScreenshot: (formData: FormData) => Promise<string>;
   backHref: string;
   residentId?: string;
@@ -46,6 +48,7 @@ export function ResidentPayElectricityClient({
       existingProofUrl={existingProofUrl}
       rejectionReason={rejectionReason}
       rejectionMessage={rejectionMessage}
+      rejectedAt={rejectedAt}
       proofViewHref={customerPaymentProofViewUrl('electricity', invoiceId)}
       uploadScreenshot={uploadScreenshot}
       logContext={{ page: 'resident-pay-electricity', invoiceId, residentId }}

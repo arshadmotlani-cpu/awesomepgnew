@@ -11,6 +11,7 @@ import {
   approveRentProofAction,
 } from '@/app/(admin)/admin/payments/actions';
 import { PaymentProofRejectionDialog } from '@/src/components/admin/operations/PaymentProofRejectionDialog';
+import { useOperationsActionToast } from '@/src/components/admin/operations/OperationsActionToast';
 import { billingMonthLabel } from '@/src/lib/billing/invoiceCollectionWhatsApp';
 import { formatDateTime, paiseToInr } from '@/src/lib/format';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
@@ -41,14 +42,18 @@ export function OperationsWaitingForApprovalTable({
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [rejectDialogItem, setRejectDialogItem] = useState<PendingPaymentReviewItem | null>(null);
+  const { showToast, toastNode } = useOperationsActionToast();
 
   const focusItem = useMemo(
     () => (focusKey ? items.find((i) => i.key === focusKey) : items[0]),
     [focusKey, items],
   );
 
-  async function refreshAfterAction() {
+  async function refreshAfterAction(opts?: { rejected?: boolean }) {
     setRejectDialogItem(null);
+    if (opts?.rejected) {
+      showToast('Payment rejected successfully.');
+    }
     router.refresh();
   }
 
@@ -97,12 +102,13 @@ export function OperationsWaitingForApprovalTable({
 
   return (
     <div className="space-y-4">
+      {toastNode}
       {rejectDialogItem ? (
         <PaymentProofRejectionDialog
           item={rejectDialogItem}
           open
           onClose={() => setRejectDialogItem(null)}
-          onRejected={() => void refreshAfterAction()}
+          onRejected={() => void refreshAfterAction({ rejected: true })}
         />
       ) : null}
 
