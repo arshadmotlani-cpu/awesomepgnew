@@ -7,6 +7,10 @@
 
 ---
 
+## 2026-07-11
+
+- **OPS-BA-01** — Booking Approval queue kept showing Reserved bed reserves after payment proof approval (injected via `listActiveBedReserves` into `booking_approval`); "View reservation" linked to public `/booking/:code` (404 for admin). Fixed: remove active-reserve injection; approval rows use `/admin/bookings/:id` only (`bookingApprovalQueue.ts`).
+
 ## 2026-06-23
 
 - **NAV-SB-01** — Admin sidebar clicks ignored / required double-click → periodic `router.refresh()` in `AdminLiveRefreshProvider` raced Link navigation and re-suspended dynamic layout; removed 30s refresh, added optimistic active state + nav timing logs

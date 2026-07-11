@@ -8,6 +8,10 @@
 
 ## Active
 
+## 2026-07-11
+
+- [x] **OPS-BA-01** — Fix Booking Approval queue retaining Reserved bookings + broken `/booking/:code` View reservation link
+
 ## 2026-07-10 — Automotive Capital
 
 - [ ] **Review Automotive Capital planning docs** — `docs/automotive-capital/` (13 documents); approve before Phase 1 implementation

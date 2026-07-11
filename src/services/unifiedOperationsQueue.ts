@@ -42,9 +42,9 @@ import { listPipelineCheckoutSettlements } from '@/src/services/checkoutSettleme
 import { getPendingPaymentReviewsForRequest } from '@/src/services/paymentProofQueue';
 import { loadMoveOutPipelineBundle } from '@/src/services/moveOutPipelineService';
 import { loadResidentOperationsResidentsPage } from '@/src/services/residentOperationsResidentsPage';
-import { listActiveBedReserves } from '@/src/services/operationsCenter';
 import { repairTerminalCheckoutOperations } from '@/src/services/terminalCheckoutOperationsRepair';
 import { resolveTerminalCheckoutUnresolvedActions } from '@/src/services/unresolvedActionSync';
+import { mapLegacyBookingApprovalToOpsItem } from '@/src/lib/operations/bookingApprovalQueue';
 import { openBookingRowSupersededByNewerAnchoredStaySql } from '@/src/lib/operations/paymentReviewSsot';
 import { cache } from 'react';
 import { adminRequestScopeKey } from '@/src/lib/admin/adminRequestCache';
@@ -382,7 +382,6 @@ async function buildUnifiedOperationsQueue(
     elecPendingRes,
     checkoutSettlements,
     moveOutBundle,
-    activeBedReserves,
   ] = await Promise.all([
     loadResidentOperationsResidentsPage(session, null),
     listPendingBookingApprovalsForSync(session),
@@ -392,7 +391,6 @@ async function buildUnifiedOperationsQueue(
     listAdminElectricityInvoicesForReminders(),
     listPipelineCheckoutSettlements(session),
     loadMoveOutPipelineBundle(session, { syncSettlements: false }),
-    listActiveBedReserves(session),
   ]);
 
   const vacatingPgByRequestId = new Map(
@@ -474,48 +472,8 @@ async function buildUnifiedOperationsQueue(
 
   for (const b of bookingApprovals) {
     if (bookingIdsWithPaymentProof.has(b.id)) continue;
-    items.push({
-      id: `booking-${b.id}`,
-      queue: 'booking_approval',
-      residentName: b.customerName,
-      pgName: b.pgName,
-      roomNumber: null,
-      bedCode: null,
-      reason: 'Booking pending admin approval (legacy — no payment proof)',
-      openHref: `/admin/bookings/${b.id}`,
-      openLabel: 'Review booking',
-      bookingId: b.id,
-      bookingCode: b.bookingCode,
-      statusLabel: 'Pending approval',
-    });
-  }
-
-  for (const reserve of activeBedReserves) {
-    if (
-      isDismissedFromOperationsQueue(dismissalIndex, {
-        customerId: reserve.customerId,
-        bookingId: reserve.bookingId,
-      })
-    ) {
-      continue;
-    }
-    items.push({
-      id: `bed-reserve-${reserve.id}`,
-      queue: 'booking_approval',
-      customerId: reserve.customerId,
-      residentName: reserve.residentName,
-      pgName: reserve.pgName,
-      roomNumber: reserve.roomNumber,
-      bedCode: reserve.bedCode,
-      reason: `Active bed reservation — check-in ${reserve.checkInDate}`,
-      openHref: reserve.bookingCode
-        ? `/booking/${reserve.bookingCode}`
-        : `/admin/bookings/${reserve.bookingId}`,
-      openLabel: 'View reservation',
-      bookingId: reserve.bookingId,
-      bookingCode: reserve.bookingCode,
-      statusLabel: 'Reserved',
-    });
+    // Pending approval only — never inject active/confirmed reserves into this queue.
+    items.push(mapLegacyBookingApprovalToOpsItem(b));
   }
 
   const { listDueRoomTransferOperations } = await import('@/src/services/roomTransferExecution');

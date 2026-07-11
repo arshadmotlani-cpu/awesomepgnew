@@ -7,6 +7,10 @@
 
 ---
 
+## 2026-07-11
+
+- **OPS-BA-01** — Booking Approval no longer lists approved/Reserved bed reserves; open href SSOT is `/admin/bookings/:id` (`src/lib/operations/bookingApprovalQueue.ts`)
+
 ## 2026-07-10 (continued)
 
 - **AUTOMOTIVE-CAPITAL-IMPLEMENTATION** — Full Phase 1–5 implementation: host routing, `src/capital/` module, 14-table schema, auth, dashboard, assets/expenses/payments/ledger, reports/exports, PWA, command palette, tests; build green → `docs/automotive-capital/DEPLOYMENT_CHECKLIST.md`

@@ -52,6 +52,7 @@ test('booking_approval deep link routes to booking page', () => {
     null,
   );
   assert.equal(href, '/admin/bookings/bk-1');
+  assert.equal(href.startsWith('/booking/'), false);
 });
 
 test('registry has unique kinds', () => {
