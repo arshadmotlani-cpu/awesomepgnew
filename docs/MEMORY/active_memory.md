@@ -7,7 +7,7 @@
 
 ## Current Focus
 
-- **Automotive Capital rotating pool model** — Working Capital / Free Cash / Current Investment (no capital double-count). ROI + pool formulas in `src/capital/lib/`. Awaiting production verify after deploy.
+- **Automotive Capital My vs Business dashboard** — Toggle switches full KPI + chart datasets (My share vs Business gross). Removed Working Capital / Free Cash / Lifetime Purchase Volume / Initial Capital from Overview.
 
 - **Automotive Capital Overview redesign** — Shipped (`a8ed762`); invest production verified (hero KPIs, graph+KPI rows, month cursor, Portfolio Summary / Current Month).
 

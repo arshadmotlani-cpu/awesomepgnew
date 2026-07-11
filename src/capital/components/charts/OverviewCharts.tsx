@@ -119,6 +119,65 @@ export function PortfolioGrowthArea({
   );
 }
 
+/** Monthly ROI line (%). */
+export function MonthlyRoiLine({
+  data,
+  label = 'ROI',
+}: {
+  data: { month: string; roiBps: number }[];
+  label?: string;
+}) {
+  const chartData = useMemo(
+    () =>
+      data.map((d) => ({
+        month: shortMonth(d.month),
+        roi: d.roiBps / 100,
+      })),
+    [data],
+  );
+  if (!chartData.length) return <Empty />;
+  const hasAny = chartData.some((d) => d.roi !== 0);
+  if (!hasAny) return <Empty />;
+  return (
+    <Wrap height={300}>
+      <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+        <defs>
+          <linearGradient id="roiFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#A78BFA" stopOpacity={0.35} />
+            <stop offset="100%" stopColor="#A78BFA" stopOpacity={0.02} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+        <XAxis dataKey="month" stroke="#71717A" fontSize={11} tickLine={false} axisLine={false} />
+        <YAxis
+          stroke="#71717A"
+          fontSize={11}
+          tickLine={false}
+          axisLine={false}
+          tickFormatter={(v) => `${v}%`}
+          width={48}
+        />
+        <Tooltip
+          formatter={(v) => [`${Number(v).toFixed(1)}%`, label]}
+          contentStyle={tooltipStyle}
+          cursor={{ stroke: 'rgba(167,139,250,0.35)', strokeWidth: 1 }}
+        />
+        <Area
+          type="monotone"
+          dataKey="roi"
+          name={label}
+          stroke="#A78BFA"
+          fill="url(#roiFill)"
+          strokeWidth={2.5}
+          activeDot={{ r: 6, stroke: '#fff', strokeWidth: 2, fill: '#A78BFA' }}
+          animationDuration={1000}
+          animationEasing="ease-out"
+        />
+      </AreaChart>
+    </Wrap>
+  );
+}
+
 /** Monthly profit bars. */
 export function MonthlyProfitBars({
   data,

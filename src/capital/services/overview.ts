@@ -27,7 +27,6 @@ import {
   type DashboardRange,
 } from '@/src/capital/lib/dashboardRange';
 import { computePortfolioRois } from '@/src/capital/lib/roi';
-import { computeWorkingCapitalPool } from '@/src/capital/lib/workingCapital';
 import { monthlyManualProfitSeries, sumManualMySharePaise, sumManualProfitsPaise } from './manualProfits';
 
 export type { DateRange, DashboardRange };
@@ -142,11 +141,13 @@ export async function getOverviewBundle(range: DateRange) {
     myAssetShareAll,
     grossAssetProfitRange,
     myAssetShareRange,
+    grossAssetProfitPrev,
     myAssetSharePrev,
     manualGrossAll,
     manualMyAll,
     manualGrossRange,
     manualMyRange,
+    manualGrossPrev,
     manualMyPrev,
     purchaseVolumeRange,
     currentInvestment,
@@ -155,6 +156,7 @@ export async function getOverviewBundle(range: DateRange) {
     soldVehiclesRange,
     purchasesRange,
     avgMyProfitSold,
+    avgGrossProfitSold,
     avgHolding,
     capitalReturnedRange,
     repairsRange,
@@ -164,9 +166,12 @@ export async function getOverviewBundle(range: DateRange) {
     monthlyMyAsset,
     monthlyManualGross,
     monthlyManualMine,
+    monthlyRoiBusiness,
+    monthlyRoiMine,
     monthlyPurchases,
     activity,
-    capitalInTransitSold,
+    _capitalInTransitSold,
+    activeByStatus,
   ] = await Promise.all([
     sumCapitalInvested(),
     sumPurchaseVolume(),
@@ -207,6 +212,17 @@ export async function getOverviewBundle(range: DateRange) {
           )
           .then((r) => Number(r[0]?.total ?? 0)),
     capitalDb
+      .select({ total: sum(acAssets.profitPaise) })
+      .from(acAssets)
+      .where(
+        and(
+          sql`${acAssets.profitPaise} IS NOT NULL AND ${acAssets.status} <> 'cancelled'`,
+          prev.from ? gte(acAssets.saleDate, prev.from) : sql`true`,
+          prev.to ? lte(acAssets.saleDate, prev.to) : sql`true`,
+        ),
+      )
+      .then((r) => Number(r[0]?.total ?? 0)),
+    capitalDb
       .select({ total: sum(acAssets.mySharePaise) })
       .from(acAssets)
       .where(
@@ -221,6 +237,7 @@ export async function getOverviewBundle(range: DateRange) {
     sumManualMySharePaise(),
     future ? Promise.resolve(0) : sumManualProfitsPaise({ from: range.from, to: range.to }),
     future ? Promise.resolve(0) : sumManualMySharePaise({ from: range.from, to: range.to }),
+    sumManualProfitsPaise({ from: prev.from, to: prev.to }),
     sumManualMySharePaise({ from: prev.from, to: prev.to }),
     future ? Promise.resolve(0) : sumPurchaseVolume(range),
     capitalDb
@@ -244,6 +261,11 @@ export async function getOverviewBundle(range: DateRange) {
       .select({ avg: sql<number>`COALESCE(AVG(${acAssets.mySharePaise}), 0)` })
       .from(acAssets)
       .where(sql`${acAssets.mySharePaise} IS NOT NULL AND ${acAssets.status} <> 'cancelled'`)
+      .then((r) => Math.round(Number(r[0]?.avg ?? 0))),
+    capitalDb
+      .select({ avg: sql<number>`COALESCE(AVG(${acAssets.profitPaise}), 0)` })
+      .from(acAssets)
+      .where(sql`${acAssets.profitPaise} IS NOT NULL AND ${acAssets.status} <> 'cancelled'`)
       .then((r) => Math.round(Number(r[0]?.avg ?? 0))),
     capitalDb
       .select({ avg: sql<number>`COALESCE(AVG(${acAssets.holdingDays}), 0)` })
@@ -282,6 +304,32 @@ export async function getOverviewBundle(range: DateRange) {
     monthlyManualProfitSeries({ mine: true }),
     capitalDb
       .select({
+        month: sql<string>`to_char(${acAssets.saleDate}::date, 'YYYY-MM')`,
+        avgRoi: sql<number>`COALESCE(AVG(COALESCE(${acAssets.businessRoiBps}, ${acAssets.roiBps})), 0)`,
+      })
+      .from(acAssets)
+      .where(
+        sql`${acAssets.saleDate} IS NOT NULL AND COALESCE(${acAssets.businessRoiBps}, ${acAssets.roiBps}) IS NOT NULL`,
+      )
+      .groupBy(sql`to_char(${acAssets.saleDate}::date, 'YYYY-MM')`)
+      .orderBy(sql`to_char(${acAssets.saleDate}::date, 'YYYY-MM')`)
+      .then((rows) =>
+        rows.map((r) => ({ month: r.month, roiBps: Math.round(Number(r.avgRoi)) })),
+      ),
+    capitalDb
+      .select({
+        month: sql<string>`to_char(${acAssets.saleDate}::date, 'YYYY-MM')`,
+        avgRoi: sql<number>`COALESCE(AVG(${acAssets.myRoiBps}), 0)`,
+      })
+      .from(acAssets)
+      .where(sql`${acAssets.saleDate} IS NOT NULL AND ${acAssets.myRoiBps} IS NOT NULL`)
+      .groupBy(sql`to_char(${acAssets.saleDate}::date, 'YYYY-MM')`)
+      .orderBy(sql`to_char(${acAssets.saleDate}::date, 'YYYY-MM')`)
+      .then((rows) =>
+        rows.map((r) => ({ month: r.month, roiBps: Math.round(Number(r.avgRoi)) })),
+      ),
+    capitalDb
+      .select({
         month: sql<string>`to_char(${acAssets.purchaseDate}::date, 'YYYY-MM')`,
         total: sum(acAssets.purchasePricePaise),
       })
@@ -302,6 +350,14 @@ export async function getOverviewBundle(range: DateRange) {
       .from(acAssets)
       .where(sql`${acAssets.status} = 'sold'`)
       .then((r) => Number(r[0]?.total ?? 0)),
+    capitalDb
+      .select({
+        status: acAssets.status,
+        total: sum(acAssets.totalInvestmentPaise),
+      })
+      .from(acAssets)
+      .where(sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled')`)
+      .groupBy(acAssets.status),
   ]);
 
   const grossBusinessProfit = grossAssetProfitAll + manualGrossAll;
@@ -311,8 +367,9 @@ export async function getOverviewBundle(range: DateRange) {
   const periodMy = myAssetShareRange + manualMyRange;
   const periodPartnerShare = Math.max(0, periodGross - periodMy);
   const prevMy = myAssetSharePrev + manualMyPrev;
+  const prevGross = grossAssetProfitPrev + manualGrossPrev;
 
-  // Business ROI = Gross ÷ Lifetime Purchase Volume
+  // Business ROI = Gross ÷ Lifetime Purchase Volume (total capital deployed)
   // Personal ROI = My Profit ÷ My Capital Invested (clamped ≤ Business when partner share > 0)
   const { businessRoiBps, myRoiBps } = computePortfolioRois({
     grossBusinessProfitPaise: grossBusinessProfit,
@@ -320,18 +377,6 @@ export async function getOverviewBundle(range: DateRange) {
     partnerSharePaise: partnerLifetimeShare,
     lifetimePurchaseVolumePaise: lifetimePurchaseVolume,
     myCapitalInvestedPaise: capitalInjectedAll,
-  });
-
-  // Rotating pool: wealth grows only via profit — never by counting returned capital twice
-  const {
-    workingCapitalPaise,
-    freeCashPaise,
-    capitalInTransitPaise,
-  } = computeWorkingCapitalPool({
-    initialCapitalPaise: capitalInjectedAll,
-    myProfitPaise: myLifetimeProfit,
-    currentInvestmentPaise: currentInvestment,
-    capitalInTransitPaise: capitalInTransitSold,
   });
 
   function mergeMonthSeries(
@@ -369,10 +414,32 @@ export async function getOverviewBundle(range: DateRange) {
     return next;
   };
 
+  const clipRoiSeries = (series: { month: string; roiBps: number }[]) => {
+    let next = series;
+    if (range.to) next = next.filter((m) => m.month <= range.to!.slice(0, 7));
+    if (range.from && range.key !== 'all' && range.key !== 'month') {
+      next = next.filter((m) => m.month >= range.from!.slice(0, 7));
+    }
+    if (range.key === 'month' && range.month) {
+      const end = range.month;
+      const start = shiftMonth(end, -11);
+      const map = new Map(series.map((m) => [m.month, m.roiBps]));
+      next = [...Array(12)]
+        .map((_, i) => {
+          const month = shiftMonth(start, i);
+          return { month, roiBps: map.get(month) ?? 0 };
+        })
+        .filter((m) => m.month <= end);
+    }
+    return next;
+  };
+
   monthlyGrossSeries = clipSeries(monthlyGrossSeries);
   monthlyMySeries = clipSeries(monthlyMySeries);
+  const monthlyRoiBusinessClipped = clipRoiSeries(monthlyRoiBusiness);
+  const monthlyRoiMineClipped = clipRoiSeries(monthlyRoiMine);
 
-  // Portfolio growth = cumulative MY profit (personal returns)
+  // Portfolio growth = cumulative profit (mode-specific series)
   let runningMy = 0;
   const allMyMonths = mergeMonthSeries(monthlyMyAsset, monthlyManualMine);
   const portfolioGrowth: { month: string; valuePaise: number }[] = [];
@@ -391,7 +458,6 @@ export async function getOverviewBundle(range: DateRange) {
     portfolioGrowthGross.push({ month: row.month, valuePaise: runningGross });
   }
 
-  // Period ROIs use the same purchase-volume base so a 50:50 split ≈ half the business ROI
   const periodRoiBundle = computePortfolioRois({
     grossBusinessProfitPaise: periodGross,
     myProfitPaise: periodMy,
@@ -402,30 +468,45 @@ export async function getOverviewBundle(range: DateRange) {
   const periodRoiBusinessBps = periodRoiBundle.businessRoiBps;
   const periodRoiMyBps = periodRoiBundle.myRoiBps;
 
-  const profitGrowthPct = pctChange(periodMy, prevMy);
+  const myProfitGrowthPct = pctChange(periodMy, prevMy);
+  const businessProfitGrowthPct = pctChange(periodGross, prevGross);
 
-  const monthsWithProfit = monthlyMySeries.filter((m) => m.valuePaise !== 0);
-  const avgMonthlyProfit =
-    monthsWithProfit.length > 0
+  const monthsWithMyProfit = monthlyMySeries.filter((m) => m.valuePaise !== 0);
+  const avgMonthlyMyProfit =
+    monthsWithMyProfit.length > 0
       ? Math.round(
-          monthsWithProfit.reduce((s, m) => s + m.valuePaise, 0) / monthsWithProfit.length,
+          monthsWithMyProfit.reduce((s, m) => s + m.valuePaise, 0) / monthsWithMyProfit.length,
+        )
+      : 0;
+  const monthsWithGrossProfit = monthlyGrossSeries.filter((m) => m.valuePaise !== 0);
+  const avgMonthlyGrossProfit =
+    monthsWithGrossProfit.length > 0
+      ? Math.round(
+          monthsWithGrossProfit.reduce((s, m) => s + m.valuePaise, 0) /
+            monthsWithGrossProfit.length,
         )
       : 0;
 
-  const allocation = [
-    { label: 'Current Investment', valuePaise: currentInvestment },
-    { label: 'Free Cash', valuePaise: Math.max(0, freeCashPaise) },
-    ...(capitalInTransitPaise > 0
-      ? [{ label: 'Capital in Transit', valuePaise: capitalInTransitPaise }]
-      : []),
-  ].filter((a) => a.valuePaise > 0);
+  // Allocation = locked capital by vehicle status only (no free cash / working capital)
+  const allocation = activeByStatus
+    .map((row) => ({
+      label: String(row.status).replace(/_/g, ' '),
+      valuePaise: Number(row.total ?? 0),
+    }))
+    .filter((a) => a.valuePaise > 0);
 
-  const waterfall = [
+  const waterfallBase = [
     { label: 'Purchases', valuePaise: purchaseVolumeRange, kind: 'out' as const },
     { label: 'Repairs', valuePaise: repairsRange || expensesRange, kind: 'out' as const },
     { label: 'Sale Proceeds', valuePaise: saleProceedsRange, kind: 'in' as const },
-    { label: 'Gross Profit', valuePaise: periodGross, kind: 'result' as const },
-    { label: 'My Share', valuePaise: periodMy, kind: 'result' as const },
+  ];
+  const waterfallMine = [
+    ...waterfallBase,
+    { label: 'My Profit', valuePaise: periodMy, kind: 'result' as const },
+  ];
+  const waterfallBusiness = [
+    ...waterfallBase,
+    { label: 'Business Profit', valuePaise: periodGross, kind: 'result' as const },
   ];
 
   const timeline = activity
@@ -460,40 +541,58 @@ export async function getOverviewBundle(range: DateRange) {
       expensesRange > 0 ||
       saleProceedsRange > 0);
 
+  const growthTrend = (pct: number | null) =>
+    pct == null
+      ? ('neutral' as const)
+      : pct > 0
+        ? ('up' as const)
+        : pct < 0
+          ? ('down' as const)
+          : ('neutral' as const);
+
+  const growthText = (pct: number | null) =>
+    pct == null ? '—' : `${pct > 0 ? '+' : ''}${pct}%`;
+
   return {
     range,
     isFuture: future,
     today,
-    hero: {
-      workingCapitalPaise,
+    shared: {
       currentInvestmentPaise: currentInvestment,
-      freeCashPaise,
-      lifetimePurchaseVolumePaise: lifetimePurchaseVolume,
-      grossBusinessProfitPaise: grossBusinessProfit,
-      myLifetimeProfitPaise: myLifetimeProfit,
-      businessRoiBps,
-      myRoiBps,
-    },
-    secondary: {
-      initialCapitalPaise: capitalInjectedAll,
-      capitalInTransitPaise,
       activeVehicles,
       vehiclesSold: soldVehiclesLifetime,
-      avgProfitPerVehiclePaise: avgMyProfitSold,
-    },
-    portfolioSummary: {
-      workingCapitalPaise,
-      freeCashPaise,
-      currentInvestmentPaise: currentInvestment,
-      lifetimePurchaseVolumePaise: lifetimePurchaseVolume,
-      grossBusinessProfitPaise: grossBusinessProfit,
-      myLifetimeProfitPaise: myLifetimeProfit,
-      businessRoiBps,
-      myRoiBps,
-      vehiclesSold: soldVehiclesLifetime,
-      avgProfitPerVehiclePaise: avgMyProfitSold,
       avgHoldingDays: avgHolding,
-      initialCapitalPaise: capitalInjectedAll,
+    },
+    /** Dual financial views — toggle switches the entire dashboard between these */
+    views: {
+      mine: {
+        profitPaise: myLifetimeProfit,
+        roiBps: myRoiBps,
+        avgProfitPerVehiclePaise: avgMyProfitSold,
+        periodProfitPaise: periodMy,
+        periodRoiBps: periodRoiMyBps,
+        profitGrowthPct: myProfitGrowthPct,
+        avgMonthlyProfitPaise: avgMonthlyMyProfit,
+        portfolioGrowth: portfolioGrowth,
+        monthlyProfit: future ? [] : monthlyMySeries,
+        monthlyRoi: future ? [] : monthlyRoiMineClipped,
+        waterfall: future ? [] : waterfallMine,
+        allocation,
+      },
+      business: {
+        profitPaise: grossBusinessProfit,
+        roiBps: businessRoiBps,
+        avgProfitPerVehiclePaise: avgGrossProfitSold,
+        periodProfitPaise: periodGross,
+        periodRoiBps: periodRoiBusinessBps,
+        profitGrowthPct: businessProfitGrowthPct,
+        avgMonthlyProfitPaise: avgMonthlyGrossProfit,
+        portfolioGrowth: portfolioGrowthGross,
+        monthlyProfit: future ? [] : monthlyGrossSeries,
+        monthlyRoi: future ? [] : monthlyRoiBusinessClipped,
+        waterfall: future ? [] : waterfallBusiness,
+        allocation,
+      },
     },
     period: {
       label: range.label,
@@ -501,137 +600,257 @@ export async function getOverviewBundle(range: DateRange) {
       vehiclesPurchased: purchasesRange,
       vehiclesSold: soldVehiclesRange,
       moneyInvestedPaise: purchaseVolumeRange,
-      /** Capital recycled from sales — not new wealth */
       capitalRecoveredPaise: capitalReturnedRange,
-      grossProfitPaise: periodGross,
-      myProfitPaise: periodMy,
       repairsPaise: repairsRange || expensesRange,
-      workingCapitalPaise,
-      freeCashPaise,
       currentInvestmentPaise: currentInvestment,
     },
     chartBlocks: {
+      capitalAllocation: {
+        series: allocation,
+      },
       portfolioGrowth: {
         seriesMine: portfolioGrowth,
         seriesBusiness: portfolioGrowthGross,
-        kpis: [
-          {
-            label: 'Working Capital',
-            valuePaise: workingCapitalPaise,
-            kind: 'paise' as const,
-          },
-          {
-            label: 'My Lifetime Profit',
-            valuePaise: myLifetimeProfit,
-            kind: 'paise' as const,
-          },
-          {
-            label: 'My ROI',
-            valueText: `${(myRoiBps / 100).toFixed(1)}%`,
-            kind: 'text' as const,
-          },
-          {
-            label: 'Business ROI',
-            valueText: `${(businessRoiBps / 100).toFixed(1)}%`,
-            kind: 'text' as const,
-          },
-        ],
       },
       monthlyProfit: {
         seriesMine: future ? [] : monthlyMySeries,
         seriesBusiness: future ? [] : monthlyGrossSeries,
-        kpis: [
-          {
-            label: 'My Period Profit',
-            valuePaise: periodMy,
-            kind: 'paise' as const,
-          },
-          {
-            label: 'Gross Period Profit',
-            valuePaise: periodGross,
-            kind: 'paise' as const,
-          },
-          {
-            label: 'Profit Growth',
-            valueText:
-              profitGrowthPct == null
-                ? '—'
-                : `${profitGrowthPct > 0 ? '+' : ''}${profitGrowthPct}%`,
-            kind: 'text' as const,
-            trend:
-              profitGrowthPct == null
-                ? ('neutral' as const)
-                : profitGrowthPct > 0
-                  ? ('up' as const)
-                  : profitGrowthPct < 0
-                    ? ('down' as const)
-                    : ('neutral' as const),
-          },
-          {
-            label: 'Avg Monthly (Mine)',
-            valuePaise: avgMonthlyProfit,
-            kind: 'paise' as const,
-          },
-        ],
       },
-      capitalAllocation: {
-        series: allocation,
-        kpis: [
-          {
-            label: 'Working Capital',
-            valuePaise: workingCapitalPaise,
-            kind: 'paise' as const,
-          },
-          {
-            label: 'Current Investment',
-            valuePaise: currentInvestment,
-            kind: 'paise' as const,
-          },
-          {
-            label: 'Free Cash',
-            valuePaise: freeCashPaise,
-            kind: 'paise' as const,
-          },
-          {
-            label: 'Deployed',
-            valueText:
-              workingCapitalPaise > 0
-                ? `${((currentInvestment / workingCapitalPaise) * 100).toFixed(0)}%`
-                : '—',
-            kind: 'text' as const,
-          },
-        ],
+      monthlyRoi: {
+        seriesMine: future ? [] : monthlyRoiMineClipped,
+        seriesBusiness: future ? [] : monthlyRoiBusinessClipped,
       },
       waterfall: {
-        series: future ? [] : waterfall,
-        kpis: [
-          {
-            label: 'Money Invested',
-            valuePaise: purchaseVolumeRange,
-            kind: 'paise' as const,
-          },
-          {
-            label: 'Gross Profit',
-            valuePaise: periodGross,
-            kind: 'paise' as const,
-          },
-          {
-            label: 'My Share',
-            valuePaise: periodMy,
-            kind: 'paise' as const,
-          },
-          {
-            label: 'Period My ROI',
-            valueText: `${(periodRoiMyBps / 100).toFixed(1)}%`,
-            kind: 'text' as const,
-          },
-        ],
+        seriesMine: future ? [] : waterfallMine,
+        seriesBusiness: future ? [] : waterfallBusiness,
       },
-      roiCompare: {
-        businessRoiBps,
-        myRoiBps,
-        periodBusinessRoiBps: periodRoiBusinessBps,
-        periodMyRoiBps: periodRoiMyBps,
+      sideKpis: {
+        mine: {
+          portfolioGrowth: [
+            {
+              label: 'My Profit',
+              valuePaise: myLifetimeProfit,
+              kind: 'paise' as const,
+            },
+            {
+              label: 'My ROI',
+              valueText: `${(myRoiBps / 100).toFixed(1)}%`,
+              kind: 'text' as const,
+            },
+            {
+              label: 'Vehicles Sold',
+              valueText: String(soldVehiclesLifetime),
+              kind: 'text' as const,
+            },
+            {
+              label: 'Avg Profit / Vehicle',
+              valuePaise: avgMyProfitSold,
+              kind: 'paise' as const,
+            },
+          ],
+          monthlyProfit: [
+            {
+              label: 'My Period Profit',
+              valuePaise: periodMy,
+              kind: 'paise' as const,
+            },
+            {
+              label: 'Profit Growth',
+              valueText: growthText(myProfitGrowthPct),
+              kind: 'text' as const,
+              trend: growthTrend(myProfitGrowthPct),
+            },
+            {
+              label: 'Avg Monthly (Mine)',
+              valuePaise: avgMonthlyMyProfit,
+              kind: 'paise' as const,
+            },
+            {
+              label: 'Period My ROI',
+              valueText: `${(periodRoiMyBps / 100).toFixed(1)}%`,
+              kind: 'text' as const,
+            },
+          ],
+          monthlyRoi: [
+            {
+              label: 'My ROI',
+              valueText: `${(myRoiBps / 100).toFixed(1)}%`,
+              kind: 'text' as const,
+            },
+            {
+              label: 'Period My ROI',
+              valueText: `${(periodRoiMyBps / 100).toFixed(1)}%`,
+              kind: 'text' as const,
+            },
+            {
+              label: 'My Profit',
+              valuePaise: myLifetimeProfit,
+              kind: 'paise' as const,
+            },
+            {
+              label: 'Avg Profit / Vehicle',
+              valuePaise: avgMyProfitSold,
+              kind: 'paise' as const,
+            },
+          ],
+          waterfall: [
+            {
+              label: 'Purchases',
+              valuePaise: purchaseVolumeRange,
+              kind: 'paise' as const,
+            },
+            {
+              label: 'My Profit',
+              valuePaise: periodMy,
+              kind: 'paise' as const,
+            },
+            {
+              label: 'Period My ROI',
+              valueText: `${(periodRoiMyBps / 100).toFixed(1)}%`,
+              kind: 'text' as const,
+            },
+            {
+              label: 'Repairs',
+              valuePaise: repairsRange || expensesRange,
+              kind: 'paise' as const,
+            },
+          ],
+          allocation: [
+            {
+              label: 'Current Investment',
+              valuePaise: currentInvestment,
+              kind: 'paise' as const,
+            },
+            {
+              label: 'Active Vehicles',
+              valueText: String(activeVehicles),
+              kind: 'text' as const,
+            },
+            {
+              label: 'My Profit',
+              valuePaise: myLifetimeProfit,
+              kind: 'paise' as const,
+            },
+            {
+              label: 'My ROI',
+              valueText: `${(myRoiBps / 100).toFixed(1)}%`,
+              kind: 'text' as const,
+            },
+          ],
+        },
+        business: {
+          portfolioGrowth: [
+            {
+              label: 'Business Profit',
+              valuePaise: grossBusinessProfit,
+              kind: 'paise' as const,
+            },
+            {
+              label: 'Business ROI',
+              valueText: `${(businessRoiBps / 100).toFixed(1)}%`,
+              kind: 'text' as const,
+            },
+            {
+              label: 'Vehicles Sold',
+              valueText: String(soldVehiclesLifetime),
+              kind: 'text' as const,
+            },
+            {
+              label: 'Avg Profit / Vehicle',
+              valuePaise: avgGrossProfitSold,
+              kind: 'paise' as const,
+            },
+          ],
+          monthlyProfit: [
+            {
+              label: 'Business Period Profit',
+              valuePaise: periodGross,
+              kind: 'paise' as const,
+            },
+            {
+              label: 'Profit Growth',
+              valueText: growthText(businessProfitGrowthPct),
+              kind: 'text' as const,
+              trend: growthTrend(businessProfitGrowthPct),
+            },
+            {
+              label: 'Avg Monthly (Business)',
+              valuePaise: avgMonthlyGrossProfit,
+              kind: 'paise' as const,
+            },
+            {
+              label: 'Period Business ROI',
+              valueText: `${(periodRoiBusinessBps / 100).toFixed(1)}%`,
+              kind: 'text' as const,
+            },
+          ],
+          monthlyRoi: [
+            {
+              label: 'Business ROI',
+              valueText: `${(businessRoiBps / 100).toFixed(1)}%`,
+              kind: 'text' as const,
+            },
+            {
+              label: 'Period Business ROI',
+              valueText: `${(periodRoiBusinessBps / 100).toFixed(1)}%`,
+              kind: 'text' as const,
+            },
+            {
+              label: 'Business Profit',
+              valuePaise: grossBusinessProfit,
+              kind: 'paise' as const,
+            },
+            {
+              label: 'Avg Profit / Vehicle',
+              valuePaise: avgGrossProfitSold,
+              kind: 'paise' as const,
+            },
+          ],
+          waterfall: [
+            {
+              label: 'Purchases',
+              valuePaise: purchaseVolumeRange,
+              kind: 'paise' as const,
+            },
+            {
+              label: 'Business Profit',
+              valuePaise: periodGross,
+              kind: 'paise' as const,
+            },
+            {
+              label: 'Period Business ROI',
+              valueText: `${(periodRoiBusinessBps / 100).toFixed(1)}%`,
+              kind: 'text' as const,
+            },
+            {
+              label: 'Repairs',
+              valuePaise: repairsRange || expensesRange,
+              kind: 'paise' as const,
+            },
+          ],
+          allocation: [
+            {
+              label: 'Current Investment',
+              valuePaise: currentInvestment,
+              kind: 'paise' as const,
+            },
+            {
+              label: 'Active Vehicles',
+              valueText: String(activeVehicles),
+              kind: 'text' as const,
+            },
+            {
+              label: 'Business Profit',
+              valuePaise: grossBusinessProfit,
+              kind: 'paise' as const,
+            },
+            {
+              label: 'Business ROI',
+              valueText: `${(businessRoiBps / 100).toFixed(1)}%`,
+              kind: 'text' as const,
+            },
+          ],
+        },
       },
     },
     timeline,
