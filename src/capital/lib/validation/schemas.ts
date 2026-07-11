@@ -66,6 +66,14 @@ export const createCapitalSchema = z.object({
   notes: z.string().optional(),
 });
 
+export const createManualProfitSchema = z.object({
+  profitDate: dateStr,
+  amount: rupees,
+  source: z.string().min(1, 'Source is required'),
+  description: z.string().min(1, 'Description is required'),
+  category: z.enum(['investment_return', 'adjustment', 'bonus', 'settlement', 'other']),
+});
+
 export const recordSaleSchema = z.object({
   assetId: uuid,
   salePrice: rupees,
@@ -121,4 +129,5 @@ export type CreateAssetInput = z.infer<typeof createAssetSchema>;
 export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;
 export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;
 export type CreateCapitalInput = z.infer<typeof createCapitalSchema>;
+export type CreateManualProfitInput = z.infer<typeof createManualProfitSchema>;
 export type AssetListQuery = z.infer<typeof assetListQuerySchema>;

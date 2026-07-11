@@ -7,6 +7,10 @@
 
 ---
 
+## 2026-07-11
+
+- **Manual profits are first-class ledger credits** — Non-vehicle profits (`ac_manual_profits`) post `manual_profit` ledger credits and roll into Overview KPIs, ROI, monthly profit series, cash-flow exports, and activity — not a side table ignored by totals
+
 ## 2026-07-10
 
 - **Automotive Capital architecture** — Host-based routing in same Next.js app; separate Neon DB (`INVEST_DATABASE_URL`); asset-first polymorphic schema; append-only ledger with reversals; custom DB sessions; Vercel Blob; shadcn/ui; code under `src/capital/` → `docs/automotive-capital/DECISIONS.md` (ADR-001–010)

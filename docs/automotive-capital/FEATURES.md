@@ -409,3 +409,21 @@ Extended analysis beyond dashboard:
 - GST/tax calculations
 - Multi-currency
 - Property/gold/other asset classes (schema ready, UI not built)
+
+---
+
+## F17 — Investment OS Overview + Manual Profit (2026-07-11)
+
+### F17.1 Executive Overview dashboard
+
+- [x] Premium dark glass KPI grid with MoM trend % and icons
+- [x] Interactive Recharts (profit, investment, ROI, allocation, expenses, status, profit sources, portfolio OHLC)
+- [x] Range filters: Today / Week / Month / Quarter / Year / Custom / All
+- [x] Auto insights, recent activity timeline, quick actions
+- [x] Charts driven from live Capital DB (empty states when no data)
+
+### F17.2 Add Manual Profit
+
+- [x] Table `ac_manual_profits` + ledger entry type `manual_profit`
+- [x] Categories: investment_return, adjustment, bonus, settlement, other
+- [x] Flows into Total Profit, ROI, monthly profit charts, cash-flow reports, ledger, activity

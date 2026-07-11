@@ -7,11 +7,12 @@
 
 ## Current Focus
 
+- **Automotive Capital Investment OS Overview** — Premium executive dashboard (KPIs, interactive charts, manual profit, insights, range filters) implemented; migration `0003_manual_profits` applied on Neon invest DB. Awaiting commit/deploy to production invest host.
+
 - **Automotive Capital host routing** — Root cause: Capital code was never on `main`; production git deploys served Awesome PG on invest. Fix: commit Capital + harden host/`x-forwarded-host` allowlist middleware.
 
-- **Automotive Capital production deploy** — App deployed on Vercel (`dpl_AUmX7CZo4PnTVwz2VAAgV3LwsYm4`); migrate+seed OK; login/dashboard/health/isolation verified via Vercel edge. **BLOCKED on public DNS**: add GoDaddy A record `invest → 76.76.21.21` (nameservers still domaincontrol.com).
+- **Automotive Capital production deploy** — App live on invest host; DNS resolved via Vercel. Admin credentials synced for both apps.
 
-- **Automotive Capital planning** — Complete (2026-07-10): 13 docs in `docs/automotive-capital/`; private investment OS at `invest.awesomepg.in`; awaiting review/approval before Phase 1 code
 - **Operations Center P0 redesign** — Phase 1 audit complete (`docs/OPERATIONS_CENTER_AUDIT.md`); awaiting approval before implementation. Goal: true action center only, invoice/payment SSOT, no duplicate queues.
 - **Occupancy SSOT** — Critical: Admin bed map ≠ Public PG page for same bed; audit complete, implementation blocked on approval → `docs/OCCUPANCY_SSOT_AUDIT.md`
 - **Resident Portal V2** — 5-tab resident hub shipped (Profile/Payments/Requests/Referrals/ Concierge); legacy tab URLs redirect to V2
@@ -24,7 +25,7 @@
 
 ## Current Blockers
 
-- **invest.awesomepg.in DNS** — GoDaddy NS; missing A record `invest 76.76.21.21` (Vercel domain attached but not resolving publicly)
+- **Automotive Capital Overview** — Code ready locally; not yet committed/deployed to production invest (user must approve commit/push)
 
 - **Occupancy SSOT** — 6 independent compute paths; Phase 0 (`bedOccupancyEngine.ts` + parity tests) awaiting architecture approval
 - None for vault sync (GitHub push working via SSH)
@@ -102,12 +103,13 @@ See [[tasks]] for full task log. Current:
 <!-- SEMANTIC_STATE_START -->
 ## Semantic State
 
-> **Last analyzed:** 2026-06-21T20:59:03Z
+> **Last analyzed:** 2026-07-11T06:49:12Z
 
-- **Current system intent:** Move-out and checkout documentation is evolving — likely reflecting vacating ops or refund workflow changes.
+- **Current system intent:** The AI memory / intelligence automation layer is being extended — cognition pipeline or MEMORY structure changed.
 - **Dominant change type:** MIXED (see changelog)
-- **System momentum:** HIGH (8 vault commits in 24h)
+- **System momentum:** LOW (1 vault commits in 24h)
 - **Risk level:** LOW
 
 <!-- SEMANTIC_STATE_END -->
+
 

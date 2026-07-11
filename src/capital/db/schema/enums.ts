@@ -54,6 +54,15 @@ export const ledgerEntryTypeEnum = pgEnum('ac_ledger_entry_type', [
   'settlement',
   'reversal',
   'adjustment',
+  'manual_profit',
 ]);
 
 export const ledgerDirectionEnum = pgEnum('ac_ledger_direction', ['debit', 'credit']);
+
+export const manualProfitCategoryEnum = pgEnum('ac_manual_profit_category', [
+  'investment_return',
+  'adjustment',
+  'bonus',
+  'settlement',
+  'other',
+]);

@@ -18,6 +18,7 @@ import {
   acExpenses,
   acPaymentsReceived,
 } from '@/src/capital/db/schema';
+import { monthlyManualProfitSeries, sumManualProfitsPaise } from './manualProfits';
 
 async function computeDashboardKpis() {
   const [capitalRow] = await capitalDb
@@ -75,15 +76,19 @@ async function computeDashboardKpis() {
 
   const totalCapital = Number(capitalRow?.total ?? 0);
   const capitalReturned = Number(paymentRows?.capital ?? 0);
-  const profitEarned = Number(paymentRows?.profit ?? 0);
-  const moneyReceived = Number(paymentRows?.total ?? 0);
+  const manualProfitAll = await sumManualProfitsPaise();
+  const manualProfitMonth = await sumManualProfitsPaise({ from: monthStart });
+  const manualProfitYear = await sumManualProfitsPaise({ from: yearStart });
+  const paymentProfit = Number(paymentRows?.profit ?? 0);
+  const profitEarned = paymentProfit + manualProfitAll;
+  const moneyReceived = Number(paymentRows?.total ?? 0) + manualProfitAll;
 
   const [pendingProfitSold] = await capitalDb
     .select({ total: sum(acAssets.profitPaise) })
     .from(acAssets)
     .where(sql`${acAssets.status} IN ('sold', 'settled') AND ${acAssets.profitPaise} IS NOT NULL`);
 
-  const pendingProfitPaise = Math.max(0, Number(pendingProfitSold?.total ?? 0) - profitEarned);
+  const pendingProfitPaise = Math.max(0, Number(pendingProfitSold?.total ?? 0) - paymentProfit);
 
   return {
     totalCapitalInvestedPaise: totalCapital,
@@ -95,10 +100,10 @@ async function computeDashboardKpis() {
     assetsSold: Number(soldCount?.c ?? 0),
     averageRoiBps: Math.round(Number(avgRoi?.avg ?? 0)),
     averageHoldingDays: Math.round(Number(avgHolding?.avg ?? 0)),
-    monthlyProfitPaise: Number(monthProfit?.total ?? 0),
-    yearlyProfitPaise: Number(yearProfit?.total ?? 0),
+    monthlyProfitPaise: Number(monthProfit?.total ?? 0) + manualProfitMonth,
+    yearlyProfitPaise: Number(yearProfit?.total ?? 0) + manualProfitYear,
     lifetimeProfitPaise: profitEarned,
-    monthlyCashPaise: Number(monthCash?.total ?? 0),
+    monthlyCashPaise: Number(monthCash?.total ?? 0) + manualProfitMonth,
   };
 }
 
@@ -117,7 +122,16 @@ export async function getMonthlyProfitChart() {
     .where(eq(acPaymentsReceived.isReversed, false))
     .groupBy(sql`to_char(${acPaymentsReceived.receivedAt}::date, 'YYYY-MM')`)
     .orderBy(sql`to_char(${acPaymentsReceived.receivedAt}::date, 'YYYY-MM')`);
-  return rows.map((r) => ({ month: r.month, valuePaise: Number(r.profit ?? 0) }));
+
+  const monthMap = new Map(
+    rows.map((r) => [r.month, Number(r.profit ?? 0)] as const),
+  );
+  for (const m of await monthlyManualProfitSeries()) {
+    monthMap.set(m.month, (monthMap.get(m.month) ?? 0) + m.valuePaise);
+  }
+  return [...monthMap.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, valuePaise]) => ({ month, valuePaise }));
 }
 
 export async function getCashFlowChart() {

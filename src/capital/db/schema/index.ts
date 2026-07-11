@@ -6,5 +6,6 @@ export * from './categories';
 export * from './capital';
 export * from './expenses';
 export * from './payments';
+export * from './manualProfits';
 export * from './ledger';
 export * from './documents';

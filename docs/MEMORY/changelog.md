@@ -9,6 +9,7 @@
 
 ## 2026-07-11
 
+- **CAPITAL-OS-OVERVIEW** — Investment OS Overview dashboard + manual profits (`ac_manual_profits`, ledger `manual_profit`); Neon migration applied; screenshots in `.invoice-pdf-samples/dashboard-screenshots/`
 - **OPS-BA-02** — Sidebar Operations/Overview badges now equal `unifiedOperationsQueue.totalCount` (same SSOT as Operations page); no residents parallel queue
 - **OPS-BA-01** — Booking Approval no longer lists approved/Reserved bed reserves; open href SSOT is `/admin/bookings/:id` (`src/lib/operations/bookingApprovalQueue.ts`)
 
@@ -158,3 +159,24 @@ Files:
 - 2026-07-11: Capital prod deploy live on Vercel; public invest DNS still missing (GoDaddy A record required)
 
 - 2026-07-11: Fixed invest.awesomepg.in serving PG — Capital app committed to main with host allowlist middleware
+
+<!-- SEMANTIC_2026-07-11T06:49:12Z -->
+---
+Time: 2026-07-11T06:49:12Z
+Type: MIXED
+Impact: HIGH
+Reason: The AI memory / intelligence automation layer is being extended — cognition pipeline or MEMORY structure changed.
+Files:
+- CHANGELOG.md
+- CURRENT_STATE.md
+- DECISIONS.md
+- MEMORY/active_memory.md
+- MEMORY/bugs.md
+- MEMORY/changelog.md
+- MEMORY/decisions.md
+- MEMORY/tasks.md
+- PROJECT/features.md
+- SYSTEM/WORKFLOWS.md
+- automotive-capital/FEATURES.md
+
+---

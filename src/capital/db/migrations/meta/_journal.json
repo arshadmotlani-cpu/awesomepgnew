@@ -15,6 +15,13 @@
       "when": 1720641700000,
       "tag": "0002_integrity",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1720641800000,
+      "tag": "0003_manual_profits",
+      "breakpoints": true
     }
   ]
 }

@@ -54,10 +54,19 @@
   border-radius: 12px;
   backdrop-filter: blur(16px);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
 }
 
 .ac-glass-card:hover {
   border-color: var(--ac-border-hover);
+}
+
+.ac-kpi-card {
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(20, 20, 26, 0.85) 100%
+  );
 }
 
 .ac-money {

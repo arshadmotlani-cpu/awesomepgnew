@@ -41,6 +41,14 @@ export async function generateCsvReport(type: string): Promise<string> {
     for (const c of capital) {
       lines.push([c.investedAt, 'capital_investment', paiseToRupees(c.amountPaise), c.paymentMode, c.referenceNumber ?? ''].join(','));
     }
+    const { acManualProfits } = await import('@/src/capital/db/schema');
+    const manuals = await capitalDb
+      .select()
+      .from(acManualProfits)
+      .where(eq(acManualProfits.isReversed, false));
+    for (const m of manuals) {
+      lines.push([m.profitDate, `manual_profit:${m.category}`, paiseToRupees(m.amountPaise), m.source, m.description].join(','));
+    }
   } else if (type === 'ledger') {
     lines.push('Date,Type,Direction,Amount,Description,Asset');
     const { acLedgerEntries } = await import('@/src/capital/db/schema');
