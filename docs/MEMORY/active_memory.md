@@ -7,7 +7,7 @@
 
 ## Current Focus
 
-- **Automotive Capital new-asset form** — Replace Registration/VIN/Expected Sale/Variant with Manufacturer (searchable), Model, Fuel Type, Year, Ownership (1–3 only), Purchase Date (default today), Purchase Price. Migration `0004_asset_form_fields` applied on invest Neon.
+- **Automotive Capital new-asset form** — Shipped (`cd61a3c`); production `/assets/new` verified (Manufacturer/Model/Fuel/Year/Ownership/Purchase Date+Price; Registration/VIN/Expected Sale/Variant removed). Migration `0004` applied on invest Neon.
 
 - **Automotive Capital Investment OS Overview** — Shipped to production (`6a9ec49`); invest Overview + manual profits verified live (19/19 checks). Neon migration already applied.
 
