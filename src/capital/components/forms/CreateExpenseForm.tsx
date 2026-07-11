@@ -118,7 +118,15 @@ export function CreateExpenseForm({
             <Input id="expenseDate" type="date" {...form.register('expenseDate')} />
           </FormField>
           <FormField label="Amount (₹) *" name="amount" form={form}>
-            <Input id="amount" type="number" step="0.01" {...form.register('amount')} />
+            <Input
+              id="amount"
+              type="number"
+              step="0.01"
+              {...form.register('amount')}
+            />
+            <p className="mt-1 text-xs text-ac-text-muted">
+              Use a negative amount for refunds, credits, or Expense Adjustment (reduces vehicle cost).
+            </p>
           </FormField>
           <FormField label="Description *" name="description" form={form} className="md:col-span-2">
             <Input id="description" {...form.register('description')} />

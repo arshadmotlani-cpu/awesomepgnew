@@ -1,19 +1,30 @@
 /**
- * Seed six historical SOLD/CLOSED vehicle investments (Dec 2025 → mid-2026).
- * Total realised MY profit = ₹480,000 (50% of ₹9,60,000 business profit).
- * Business profit = ₹9,60,000 with 50:50 Me / Investor 2 funding + profit split.
+ * Seed six historical 50/50 MG / Tata Harrier deals (Dec 2025 → May 2026).
  *
- * Usage:
- *   INVEST_DATABASE_DATABASE_URL=... npx tsx scripts/seed-capital-history.ts
- *   # or with env already loaded:
- *   npx tsx scripts/seed-capital-history.ts
+ * Per vehicle: purchase ₹11,00,000 · Business profit ₹1,60,000 · My / Partner ₹80k each
+ * Portfolio: Business ₹9,60,000 · My ₹4,80,000
+ *
+ * Idempotent: wipes prior HISTORICAL_* seed assets (and related rows) before insert.
+ *
+ * Usage: npx tsx scripts/seed-capital-history.ts
  */
 import { loadAppEnv } from '../src/lib/db/loadEnv';
 loadAppEnv();
 
-import { eq } from 'drizzle-orm';
+import { eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import { capitalDb } from '../src/capital/db/client';
-import { acAssets, acAutomotiveDetails, acCapitalInvestments } from '../src/capital/db/schema';
+import {
+  acActivityLog,
+  acAssetInvestors,
+  acAssets,
+  acAutomotiveDetails,
+  acCapitalInvestments,
+  acDocuments,
+  acExpenses,
+  acLedgerEntries,
+  acPaymentsReceived,
+  acSettlements,
+} from '../src/capital/db/schema';
 import { rupeesToPaise } from '../src/capital/lib/money';
 import { createCapitalInvestment } from '../src/capital/services/capital';
 import { createAsset, recordSale, updateAssetStatus } from '../src/capital/services/assets';
@@ -22,7 +33,13 @@ import { createPayment } from '../src/capital/services/payments';
 import { createSettlement } from '../src/capital/services/settlements';
 import { listCategories } from '../src/capital/services/categories';
 
-const HISTORY_TAG = 'HISTORICAL_CLOSED_SEED_v1';
+const HISTORY_TAG = 'HISTORICAL_MG_HARRIER_v2';
+const LEGACY_TAGS = [
+  'HISTORICAL_CLOSED_SEED_v1',
+  'HISTORICAL_5050_FIX',
+  'HISTORICAL_MG_HARRIER',
+  HISTORY_TAG,
+] as const;
 
 type VehiclePlan = {
   manufacturer: string;
@@ -34,96 +51,93 @@ type VehiclePlan = {
   purchaseDate: string;
   purchaseRupees: number;
   repairRupees: number;
-  miscRupees: number;
   saleDate: string;
-  /** Realised profit in rupees — sale = investment + profit */
+  /** Business profit — sale = net vehicle cost + profit */
   profitRupees: number;
 };
 
+const PURCHASE = 11_00_000;
+const PROFIT = 1_60_000;
+const REPAIR = 25_000; // small cost line so ledger is non-trivial
+
 const VEHICLES: VehiclePlan[] = [
   {
-    manufacturer: 'Maruti Suzuki',
-    model: 'Swift',
-    variant: 'VXI',
-    year: 2019,
-    registrationNumber: 'MH12AC2501',
-    color: 'Pearl White',
-    purchaseDate: '2025-12-05',
-    purchaseRupees: 425_000,
-    repairRupees: 35_000,
-    miscRupees: 8_000,
-    saleDate: '2026-01-18',
-    profitRupees: 72_000,
-  },
-  {
-    manufacturer: 'Hyundai',
-    model: 'i20',
-    variant: 'Sportz',
-    year: 2020,
-    registrationNumber: 'MH14BD2612',
-    color: 'Polar White',
-    purchaseDate: '2025-12-22',
-    purchaseRupees: 510_000,
-    repairRupees: 42_000,
-    miscRupees: 12_000,
-    saleDate: '2026-02-14',
-    profitRupees: 85_000,
+    manufacturer: 'MG',
+    model: 'Hector',
+    variant: 'Sharp',
+    year: 2021,
+    registrationNumber: 'MH12MG2501',
+    color: 'Glaze Red',
+    purchaseDate: '2025-12-08',
+    purchaseRupees: PURCHASE,
+    repairRupees: REPAIR,
+    saleDate: '2026-01-12',
+    profitRupees: PROFIT,
   },
   {
     manufacturer: 'Tata',
-    model: 'Nexon',
+    model: 'Harrier',
     variant: 'XZ+',
-    year: 2021,
-    registrationNumber: 'MH12CF2703',
+    year: 2022,
+    registrationNumber: 'MH14HR2602',
     color: 'Daytona Grey',
-    purchaseDate: '2026-01-18',
-    purchaseRupees: 680_000,
-    repairRupees: 55_000,
-    miscRupees: 15_000,
-    saleDate: '2026-03-08',
-    profitRupees: 78_000,
+    purchaseDate: '2026-01-10',
+    purchaseRupees: PURCHASE,
+    repairRupees: REPAIR,
+    saleDate: '2026-02-18',
+    profitRupees: PROFIT,
   },
   {
-    manufacturer: 'Honda',
-    model: 'City',
-    variant: 'VX CVT',
-    year: 2018,
-    registrationNumber: 'MH04DG2804',
-    color: 'Modern Steel',
-    purchaseDate: '2026-02-10',
-    purchaseRupees: 720_000,
-    repairRupees: 48_000,
-    miscRupees: 10_000,
-    saleDate: '2026-04-15',
-    profitRupees: 90_000,
+    manufacturer: 'MG',
+    model: 'Astor',
+    variant: 'Savvy',
+    year: 2022,
+    registrationNumber: 'MH12MG2703',
+    color: 'Aurora Silver',
+    purchaseDate: '2026-02-05',
+    purchaseRupees: PURCHASE,
+    repairRupees: REPAIR,
+    saleDate: '2026-03-20',
+    profitRupees: PROFIT,
   },
   {
-    manufacturer: 'Toyota',
-    model: 'Innova Crysta',
-    variant: 'GX 7S',
-    year: 2017,
-    registrationNumber: 'MH12EH2905',
-    color: 'Super White',
-    purchaseDate: '2026-03-25',
-    purchaseRupees: 1_250_000,
-    repairRupees: 85_000,
-    miscRupees: 20_000,
-    saleDate: '2026-05-30',
-    profitRupees: 75_000,
+    manufacturer: 'Tata',
+    model: 'Harrier',
+    variant: 'XZA+',
+    year: 2021,
+    registrationNumber: 'MH04HR2804',
+    color: 'Calgary White',
+    purchaseDate: '2026-03-08',
+    purchaseRupees: PURCHASE,
+    repairRupees: REPAIR,
+    saleDate: '2026-04-22',
+    profitRupees: PROFIT,
   },
   {
-    manufacturer: 'Mahindra',
-    model: 'XUV300',
-    variant: 'W8',
+    manufacturer: 'MG',
+    model: 'Hector Plus',
+    variant: 'Smart',
     year: 2020,
-    registrationNumber: 'MH14FJ3006',
-    color: 'Red Rage',
-    purchaseDate: '2026-05-12',
-    purchaseRupees: 890_000,
-    repairRupees: 60_000,
-    miscRupees: 18_000,
-    saleDate: '2026-07-02',
-    profitRupees: 80_000,
+    registrationNumber: 'MH12MG2905',
+    color: 'Starry Black',
+    purchaseDate: '2026-04-05',
+    purchaseRupees: PURCHASE,
+    repairRupees: REPAIR,
+    saleDate: '2026-05-18',
+    profitRupees: PROFIT,
+  },
+  {
+    manufacturer: 'Tata',
+    model: 'Harrier',
+    variant: 'XZ',
+    year: 2023,
+    registrationNumber: 'MH14HR3006',
+    color: 'Oberon Black',
+    purchaseDate: '2026-05-10',
+    purchaseRupees: PURCHASE,
+    repairRupees: REPAIR,
+    saleDate: '2026-06-28',
+    profitRupees: PROFIT,
   },
 ];
 
@@ -135,56 +149,102 @@ function inr(n: number) {
   }).format(n);
 }
 
-async function alreadySeeded(): Promise<boolean> {
-  for (const v of VEHICLES) {
-    const [row] = await capitalDb
-      .select({ reg: acAutomotiveDetails.registrationNumber })
-      .from(acAutomotiveDetails)
-      .where(eq(acAutomotiveDetails.registrationNumber, v.registrationNumber))
-      .limit(1);
-    if (row) return true;
+function addDays(iso: string, days: number): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+async function wipeHistoricalSeed() {
+  const tagConds = LEGACY_TAGS.map((t) => ilike(acAssets.notes, `%${t}%`));
+  const historical = await capitalDb
+    .select({ id: acAssets.id, name: acAssets.displayName, notes: acAssets.notes })
+    .from(acAssets)
+    .where(or(...tagConds));
+
+  if (historical.length === 0) {
+    console.log('No prior historical seed assets to wipe.');
+  } else {
+    const ids = historical.map((a) => a.id);
+    console.log(`→ Wiping ${ids.length} historical asset(s)…`);
+    for (const a of historical) {
+      console.log(`    ${a.name} (${a.notes})`);
+    }
+
+    await capitalDb.transaction(async (tx) => {
+      await tx.delete(acDocuments).where(inArray(acDocuments.assetId, ids));
+      await tx.delete(acSettlements).where(inArray(acSettlements.assetId, ids));
+      await tx.delete(acPaymentsReceived).where(inArray(acPaymentsReceived.assetId, ids));
+      await tx.delete(acExpenses).where(inArray(acExpenses.assetId, ids));
+      await tx.delete(acLedgerEntries).where(inArray(acLedgerEntries.assetId, ids));
+      // Best-effort activity cleanup (non-blocking for orphan log rows)
+      await tx
+        .delete(acActivityLog)
+        .where(
+          sql`${acActivityLog.entityType} = 'asset' AND ${acActivityLog.entityId} IN (${sql.join(
+            ids.map((id) => sql`${id}::uuid`),
+            sql`, `,
+          )})`,
+        );
+      await tx.delete(acAutomotiveDetails).where(inArray(acAutomotiveDetails.assetId, ids));
+      await tx.delete(acAssetInvestors).where(inArray(acAssetInvestors.assetId, ids));
+      await tx.delete(acAssets).where(inArray(acAssets.id, ids));
+    });
   }
-  return false;
+
+  // Wipe historical capital injections
+  const caps = await capitalDb
+    .select({ id: acCapitalInvestments.id, notes: acCapitalInvestments.notes })
+    .from(acCapitalInvestments)
+    .where(
+      or(
+        ...LEGACY_TAGS.map((t) => ilike(acCapitalInvestments.notes, `%${t}%`)),
+        ilike(acCapitalInvestments.referenceNumber, 'HIST-CAP-%'),
+        ilike(acCapitalInvestments.referenceNumber, 'HIST-MG-%'),
+      ),
+    );
+  if (caps.length > 0) {
+    console.log(`→ Wiping ${caps.length} historical capital injection(s)…`);
+    for (const c of caps) {
+      await capitalDb.transaction(async (tx) => {
+        await tx
+          .delete(acLedgerEntries)
+          .where(
+            sql`${acLedgerEntries.sourceTable} = 'ac_capital_investments' AND ${acLedgerEntries.sourceId} = ${c.id}`,
+          );
+        await tx.delete(acCapitalInvestments).where(eq(acCapitalInvestments.id, c.id));
+      });
+    }
+  }
 }
 
 async function main() {
-  const profitSum = VEHICLES.reduce((s, v) => s + v.profitRupees, 0);
-  if (profitSum !== 480_000) {
-    throw new Error(`Profit sum must be 480000, got ${profitSum}`);
+  const businessTotal = VEHICLES.reduce((s, v) => s + v.profitRupees, 0);
+  if (businessTotal !== 9_60_000) {
+    throw new Error(`Business profit sum must be 960000, got ${businessTotal}`);
+  }
+  if (VEHICLES.length !== 6) {
+    throw new Error(`Expected 6 vehicles, got ${VEHICLES.length}`);
   }
 
-  if (await alreadySeeded()) {
-    console.log('Historical seed already present — skipping create. Computing summary…');
-    await printSummary();
-    process.exit(0);
-  }
+  await wipeHistoricalSeed();
 
   const categories = await listCategories();
   const repair = categories.find((c) => c.slug === 'repair');
-  const misc = categories.find((c) => c.slug === 'miscellaneous');
-  if (!repair || !misc) {
-    throw new Error('Required categories missing — run capital:db:seed first');
+  if (!repair) {
+    throw new Error('Required category "repair" missing — run capital:db:seed first');
   }
 
-  const totalPurchase = VEHICLES.reduce((s, v) => s + v.purchaseRupees, 0);
-  const totalExpenses = VEHICLES.reduce((s, v) => s + v.repairRupees + v.miscRupees, 0);
-  const capitalNeeded = totalPurchase + totalExpenses;
+  const halfPurchase = Math.round(PURCHASE / 2);
+  const myCapitalPool = halfPurchase * VEHICLES.length;
 
-  // Pool capital in two tranches matching business start
-  console.log('→ Injecting capital pool…');
+  console.log('→ Injecting my capital pool…');
   await createCapitalInvestment({
     investedAt: '2025-12-01',
-    amountPaise: rupeesToPaise(Math.ceil(capitalNeeded * 0.55)),
+    amountPaise: rupeesToPaise(myCapitalPool),
     paymentMode: 'neft',
-    referenceNumber: 'HIST-CAP-001',
-    notes: `${HISTORY_TAG} — initial capital Dec 2025`,
-  });
-  await createCapitalInvestment({
-    investedAt: '2026-02-01',
-    amountPaise: rupeesToPaise(Math.ceil(capitalNeeded * 0.45)),
-    paymentMode: 'neft',
-    referenceNumber: 'HIST-CAP-002',
-    notes: `${HISTORY_TAG} — top-up Feb 2026`,
+    referenceNumber: 'HIST-MG-CAP-001',
+    notes: `${HISTORY_TAG} — my capital pool for six 50/50 deals`,
   });
 
   const created: Array<{
@@ -192,14 +252,18 @@ async function main() {
     label: string;
     purchase: number;
     expenses: number;
-    investment: number;
+    netCost: number;
     sale: number;
     profit: number;
+    myProfit: number;
   }> = [];
 
   for (const v of VEHICLES) {
-    const investment = v.purchaseRupees + v.repairRupees + v.miscRupees;
-    const saleRupees = investment + v.profitRupees;
+    const netCost = v.purchaseRupees + v.repairRupees;
+    const saleRupees = netCost + v.profitRupees;
+    const myProfit = Math.round(v.profitRupees / 2);
+    const meInvested = Math.round(v.purchaseRupees / 2);
+    const partnerInvested = v.purchaseRupees - meInvested;
 
     console.log(`→ ${v.manufacturer} ${v.model} (${v.registrationNumber})…`);
 
@@ -208,14 +272,23 @@ async function main() {
       model: v.model,
       variant: v.variant,
       year: v.year,
-      fuelType: 'petrol',
-      ownership: 'first_owner',
+      fuelType: 'diesel',
+      ownership: 'second_owner',
       registrationNumber: v.registrationNumber,
       color: v.color,
       purchaseDate: v.purchaseDate,
       purchasePricePaise: rupeesToPaise(v.purchaseRupees),
       notes: HISTORY_TAG,
+      investors: [
+        { slot: 'me', investedPaise: rupeesToPaise(meInvested), label: 'Me' },
+        {
+          slot: 'investor_2',
+          investedPaise: rupeesToPaise(partnerInvested),
+          label: 'Investor 2',
+        },
+      ],
     });
+
     await createExpense({
       assetId: asset.id,
       categoryId: repair.id,
@@ -227,27 +300,16 @@ async function main() {
       notes: HISTORY_TAG,
     });
 
-    await createExpense({
-      assetId: asset.id,
-      categoryId: misc.id,
-      expenseDate: addDays(v.purchaseDate, 10),
-      vendor: 'Misc vendors',
-      amountPaise: rupeesToPaise(v.miscRupees),
-      description: `Miscellaneous expenses — RTO / cleaning / docs`,
-      paymentMethod: 'cash',
-      notes: HISTORY_TAG,
-    });
-
     await updateAssetStatus(asset.id, 'listed');
     await recordSale(asset.id, rupeesToPaise(saleRupees), v.saleDate);
 
-    // Capital return (full investment)
+    // Full vehicle cost returned so settlement outstanding = 0
     await createPayment({
       assetId: asset.id,
       receivedAt: v.saleDate,
-      amountPaise: rupeesToPaise(investment),
+      amountPaise: rupeesToPaise(netCost),
       paymentType: 'capital_returned',
-      capitalReturnedPaise: rupeesToPaise(investment),
+      capitalReturnedPaise: rupeesToPaise(netCost),
       profitPaise: 0,
       adjustmentPaise: 0,
       paymentMode: 'neft',
@@ -255,14 +317,14 @@ async function main() {
       notes: HISTORY_TAG,
     });
 
-    // Profit realised
+    // My profit only (partner profit is not cash into this OS)
     await createPayment({
       assetId: asset.id,
       receivedAt: v.saleDate,
-      amountPaise: rupeesToPaise(v.profitRupees),
+      amountPaise: rupeesToPaise(myProfit),
       paymentType: 'profit',
       capitalReturnedPaise: 0,
-      profitPaise: rupeesToPaise(v.profitRupees),
+      profitPaise: rupeesToPaise(myProfit),
       adjustmentPaise: 0,
       paymentMode: 'upi',
       referenceNumber: `HIST-PROFIT-${v.registrationNumber}`,
@@ -275,45 +337,39 @@ async function main() {
       reg: v.registrationNumber,
       label: `${v.manufacturer} ${v.model} ${v.variant}`,
       purchase: v.purchaseRupees,
-      expenses: v.repairRupees + v.miscRupees,
-      investment,
+      expenses: v.repairRupees,
+      netCost,
       sale: saleRupees,
       profit: v.profitRupees,
+      myProfit,
     });
   }
 
-  console.log('\n========== HISTORICAL SEED COMPLETE ==========\n');
+  console.log('\n========== HISTORICAL MG/HARRIER SEED COMPLETE ==========\n');
   for (const c of created) {
     console.log(
       `${c.reg}  ${c.label}\n` +
-        `  Purchase ${inr(c.purchase)} + Expenses ${inr(c.expenses)} = Investment ${inr(c.investment)}\n` +
-        `  Sale ${inr(c.sale)} → Profit ${inr(c.profit)}\n`,
+        `  Purchase ${inr(c.purchase)} + Expenses ${inr(c.expenses)} = Net cost ${inr(c.netCost)}\n` +
+        `  Sale ${inr(c.sale)} → Business ${inr(c.profit)} · My ${inr(c.myProfit)}\n`,
     );
   }
 
   const purchaseTotal = created.reduce((s, c) => s + c.purchase, 0);
-  const expenseTotal = created.reduce((s, c) => s + c.expenses, 0);
-  const saleTotal = created.reduce((s, c) => s + c.sale, 0);
+  const costTotal = created.reduce((s, c) => s + c.netCost, 0);
   const profitTotal = created.reduce((s, c) => s + c.profit, 0);
-  const avgProfit = Math.round(profitTotal / created.length);
+  const myTotal = created.reduce((s, c) => s + c.myProfit, 0);
 
   console.log('---------- TOTALS ----------');
-  console.log(`Vehicles created:     ${created.length} (all settled/closed)`);
+  console.log(`Vehicles:             ${created.length} settled`);
   console.log(`Purchase totals:      ${inr(purchaseTotal)}`);
-  console.log(`Total expenses:       ${inr(expenseTotal)}`);
-  console.log(`Sale totals:          ${inr(saleTotal)}`);
-  console.log(`Total realised profit:${inr(profitTotal)}`);
-  console.log(`Average profit:       ${inr(avgProfit)}`);
-  console.log(`Capital pool injected:${inr(capitalNeeded)}`);
+  console.log(`Total vehicle cost:   ${inr(costTotal)}`);
+  console.log(`Business profit:      ${inr(profitTotal)}`);
+  console.log(`My profit:            ${inr(myTotal)}`);
+  console.log(`Business ROI (cost):  ${((profitTotal / costTotal) * 100).toFixed(2)}%`);
+  console.log(`My ROI (stake):       ${((myTotal / myCapitalPool) * 100).toFixed(2)}%`);
 
   await printSummary();
   process.exit(0);
-}
-
-function addDays(iso: string, days: number): string {
-  const d = new Date(`${iso}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
 }
 
 async function printSummary() {
@@ -327,27 +383,27 @@ async function printSummary() {
       investment: acAssets.totalInvestmentPaise,
       sale: acAssets.actualSalePricePaise,
       profit: acAssets.profitPaise,
+      myShare: acAssets.mySharePaise,
+      businessRoi: acAssets.businessRoiBps,
+      myRoi: acAssets.myRoiBps,
       reg: acAutomotiveDetails.registrationNumber,
     })
     .from(acAssets)
     .innerJoin(acAutomotiveDetails, eq(acAssets.id, acAutomotiveDetails.assetId))
-    .where(eq(acAssets.notes, HISTORY_TAG));
+    .where(ilike(acAssets.notes, `%${HISTORY_TAG}%`));
 
-  const [cap] = await capitalDb
-    .select()
-    .from(acCapitalInvestments)
-    .where(eq(acCapitalInvestments.notes, `${HISTORY_TAG} — initial capital Dec 2025`))
-    .limit(1);
-
-  console.log(`\nDB check: ${sold.length} historical assets tagged ${HISTORY_TAG}`);
+  console.log(`\nDB check: ${sold.length} assets tagged ${HISTORY_TAG}`);
   for (const s of sold) {
     console.log(
-      `  [${s.status}] ${s.reg} profit=${inr((s.profit ?? 0) / 100)} sale=${inr((s.sale ?? 0) / 100)}`,
+      `  [${s.status}] ${s.reg} biz=${inr((s.profit ?? 0) / 100)} my=${inr((s.myShare ?? 0) / 100)} ` +
+        `cost=${inr((s.investment ?? 0) / 100)} bizROI=${((s.businessRoi ?? 0) / 100).toFixed(1)}% ` +
+        `myROI=${((s.myRoi ?? 0) / 100).toFixed(1)}%`,
     );
   }
-  const dbProfit = sold.reduce((a, s) => a + (s.profit ?? 0), 0) / 100;
-  console.log(`DB total profit: ${inr(dbProfit)}`);
-  if (cap) console.log(`Capital tranche 1 present: yes`);
+  const dbBiz = sold.reduce((a, s) => a + (s.profit ?? 0), 0) / 100;
+  const dbMy = sold.reduce((a, s) => a + (s.myShare ?? 0), 0) / 100;
+  console.log(`DB business profit: ${inr(dbBiz)}`);
+  console.log(`DB my profit:       ${inr(dbMy)}`);
 }
 
 main().catch((e) => {

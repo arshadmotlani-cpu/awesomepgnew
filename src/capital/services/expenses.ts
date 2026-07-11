@@ -18,7 +18,7 @@ export type CreateExpenseInput = {
 };
 
 export async function createExpense(input: CreateExpenseInput) {
-  if (input.amountPaise <= 0) throw new Error('Expense amount must be positive');
+  if (input.amountPaise === 0) throw new Error('Expense amount must be non-zero');
 
   return capitalDb.transaction(async (tx) => {
     await assertAssetAcceptsExpenses(input.assetId, tx);
@@ -37,15 +37,20 @@ export async function createExpense(input: CreateExpenseInput) {
       })
       .returning();
 
+    // Positive expense → debit (increases vehicle cost); negative → credit (reduces cost)
+    const absAmount = Math.abs(input.amountPaise);
     await postLedgerEntry(
       {
         entryType: 'expense',
-        direction: 'debit',
-        amountPaise: input.amountPaise,
+        direction: input.amountPaise > 0 ? 'debit' : 'credit',
+        amountPaise: absAmount,
         assetId: input.assetId,
         sourceTable: 'ac_expenses',
         sourceId: row.id,
-        description: `Expense: ${input.description}`,
+        description:
+          input.amountPaise > 0
+            ? `Expense: ${input.description}`
+            : `Expense credit/adjustment: ${input.description}`,
       },
       tx,
     );

@@ -24,6 +24,7 @@ const EXPENSE_CATEGORIES = [
   { slug: 'cleaning', label: 'Cleaning', sortOrder: 11 },
   { slug: 'rto', label: 'RTO', sortOrder: 12 },
   { slug: 'miscellaneous', label: 'Miscellaneous', sortOrder: 13 },
+  { slug: 'expense_adjustment', label: 'Expense Adjustment', sortOrder: 14 },
 ] as const;
 
 async function main() {

@@ -70,6 +70,18 @@ async function sumPurchaseVolume(range?: DateRange): Promise<number> {
   return Number(row?.total ?? 0);
 }
 
+/** Σ net vehicle cost (purchase + signed expenses) for sold/settled deals — Business ROI base */
+async function sumSoldVehicleCost(range?: DateRange): Promise<number> {
+  const conditions = [sql`${acAssets.status} IN ('sold', 'settled')`];
+  if (range?.from) conditions.push(gte(acAssets.saleDate, range.from));
+  if (range?.to) conditions.push(lte(acAssets.saleDate, range.to));
+  const [row] = await capitalDb
+    .select({ total: sum(acAssets.totalInvestmentPaise) })
+    .from(acAssets)
+    .where(and(...conditions));
+  return Number(row?.total ?? 0);
+}
+
 async function sumExpenses(range?: DateRange, repairOnly = false): Promise<number> {
   const conditions = [eq(acExpenses.isReversed, false)];
   if (range?.from) conditions.push(gte(acExpenses.expenseDate, range.from));
@@ -139,6 +151,7 @@ export async function getOverviewBundle(range: DateRange) {
     capitalInjectedAll,
     myVehicleCapitalAll,
     lifetimePurchaseVolume,
+    soldVehicleCostAll,
     grossAssetProfitAll,
     myAssetShareAll,
     grossAssetProfitRange,
@@ -152,6 +165,7 @@ export async function getOverviewBundle(range: DateRange) {
     manualGrossPrev,
     manualMyPrev,
     purchaseVolumeRange,
+    soldVehicleCostRange,
     currentInvestment,
     activeVehicles,
     soldVehiclesLifetime,
@@ -178,6 +192,7 @@ export async function getOverviewBundle(range: DateRange) {
     sumCapitalInvested(),
     sumMyInvestedCapitalPaise(),
     sumPurchaseVolume(),
+    sumSoldVehicleCost(),
     capitalDb
       .select({ total: sum(acAssets.profitPaise) })
       .from(acAssets)
@@ -243,6 +258,7 @@ export async function getOverviewBundle(range: DateRange) {
     sumManualProfitsPaise({ from: prev.from, to: prev.to }),
     sumManualMySharePaise({ from: prev.from, to: prev.to }),
     future ? Promise.resolve(0) : sumPurchaseVolume(range),
+    future ? Promise.resolve(0) : sumSoldVehicleCost(range),
     capitalDb
       .select({ total: sum(acAssets.totalInvestmentPaise) })
       .from(acAssets)
@@ -382,12 +398,12 @@ export async function getOverviewBundle(range: DateRange) {
     );
   }
 
-  // Business ROI = Gross Business Profit ÷ Lifetime Purchase Volume
-  // My ROI = My Profit ÷ My vehicle capital stakes (never full purchase unless I funded 100%)
+  // Business ROI = Gross Business Profit ÷ Σ total vehicle cost (sold/settled)
+  // My ROI = My Profit ÷ My vehicle capital stakes (never full cost unless I funded 100%)
   const { businessRoiBps, myRoiBps } = computePortfolioRois({
     grossBusinessProfitPaise: grossBusinessProfit,
     myProfitPaise: myLifetimeProfit,
-    lifetimePurchaseVolumePaise: lifetimePurchaseVolume,
+    totalVehicleCostPaise: soldVehicleCostAll > 0 ? soldVehicleCostAll : lifetimePurchaseVolume,
     myCapitalInvestedPaise: myVehicleCapitalAll > 0 ? myVehicleCapitalAll : capitalInjectedAll,
   });
 
@@ -473,12 +489,15 @@ export async function getOverviewBundle(range: DateRange) {
   const periodRoiBundle = computePortfolioRois({
     grossBusinessProfitPaise: periodGross,
     myProfitPaise: periodMy,
-    lifetimePurchaseVolumePaise: purchaseVolumeRange,
-    // Period personal base: scale my stakes by period purchase share when possible
+    totalVehicleCostPaise:
+      soldVehicleCostRange > 0 ? soldVehicleCostRange : purchaseVolumeRange,
+    // Period personal base: scale my stakes by period cost share when possible
     myCapitalInvestedPaise:
-      lifetimePurchaseVolume > 0 && myVehicleCapitalAll > 0
-        ? Math.round((myVehicleCapitalAll * purchaseVolumeRange) / lifetimePurchaseVolume)
-        : purchaseVolumeRange,
+      soldVehicleCostAll > 0 && myVehicleCapitalAll > 0 && soldVehicleCostRange > 0
+        ? Math.round((myVehicleCapitalAll * soldVehicleCostRange) / soldVehicleCostAll)
+        : lifetimePurchaseVolume > 0 && myVehicleCapitalAll > 0
+          ? Math.round((myVehicleCapitalAll * purchaseVolumeRange) / lifetimePurchaseVolume)
+          : purchaseVolumeRange,
   });
   const periodRoiBusinessBps = periodRoiBundle.businessRoiBps;
   const periodRoiMyBps = periodRoiBundle.myRoiBps;

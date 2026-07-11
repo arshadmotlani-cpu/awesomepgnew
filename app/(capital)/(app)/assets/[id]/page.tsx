@@ -56,7 +56,7 @@ export default async function AssetDetailPage({ params }: Props) {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Investment" paise={asset.totalInvestmentPaise} />
+        <StatCard label="Total Vehicle Cost" paise={asset.totalInvestmentPaise} />
         <StatCard label="Outstanding" paise={asset.outstandingPaise} />
         <StatCard label="Gross Profit" paise={asset.profitPaise ?? 0} />
         <StatCard label="Holding days" text={String(asset.holdingDays)} />
@@ -120,6 +120,26 @@ export default async function AssetDetailPage({ params }: Props) {
           </CardContent>
         </Card>
       ) : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Cost ledger</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          <div className="flex justify-between gap-4 border-b border-white/5 py-2">
+            <span className="text-ac-text-muted">Purchase price</span>
+            <MoneyDisplay paise={asset.purchasePricePaise} />
+          </div>
+          <div className="flex justify-between gap-4 border-b border-white/5 py-2">
+            <span className="text-ac-text-muted">Net expenses (incl. credits)</span>
+            <MoneyDisplay paise={asset.totalExpensePaise} />
+          </div>
+          <div className="flex justify-between gap-4 py-2 font-medium">
+            <span>Total Vehicle Cost</span>
+            <MoneyDisplay paise={asset.totalInvestmentPaise} />
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

@@ -1,6 +1,10 @@
 import { z } from 'zod';
 
 const rupees = z.coerce.number().positive('Amount must be greater than zero');
+/** Signed rupees for cost ledger — positive cost or negative credit/refund (never zero). */
+const signedRupees = z.coerce
+  .number()
+  .refine((n) => Number.isFinite(n) && n !== 0, 'Amount must be non-zero (use negative for credits)');
 const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date');
 const uuid = z.string().uuid();
 const paymentMode = z.enum(['cash', 'upi', 'neft', 'rtgs', 'cheque', 'bank']);
@@ -46,7 +50,7 @@ export const createExpenseSchema = z.object({
   assetId: uuid,
   categoryId: uuid,
   expenseDate: dateStr,
-  amount: rupees,
+  amount: signedRupees,
   description: z.string().min(1, 'Description is required'),
   vendor: z.string().optional(),
   paymentMethod: paymentMode.optional(),

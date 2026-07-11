@@ -52,28 +52,21 @@ try {
   ok('dashboard Manual Profit CTA', manualBtn > 0);
   await page.screenshot({ path: `${outDir}/prod-overview.png`, fullPage: true });
 
-  // Manual profit modal + submit tiny amount then verify ledger
+  // Manual profit modal — open only (do not leave junk ₹1 rows in production)
   await page.getByRole('button', { name: /Add Manual Profit/i }).first().click();
   await page.waitForTimeout(500);
   const modal = page.locator('.fixed.inset-0.z-50');
   const modalTitle = await modal.getByRole('heading', { name: 'Add Manual Profit' }).count();
   ok('manual profit modal', modalTitle > 0);
-  const stamp = `Deploy verify ${Date.now()}`;
-  await modal.locator('input[type="number"]').fill('1');
-  await modal.locator('input[placeholder*="Investor"]').fill('Deploy verification');
-  await modal.locator('textarea').fill(stamp);
-  await modal.getByRole('button', { name: /^Add Manual Profit$/ }).click();
-  await page.waitForTimeout(4000);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
   const modalGone = (await page.getByRole('heading', { name: 'Add Manual Profit' }).count()) === 0;
-  ok('manual profit submit closes modal', modalGone);
+  ok('manual profit modal closes without submit', modalGone);
 
-  // Ledger should show manual_profit
+  // Ledger page loads (no verification junk required)
   const ledgerRes = await page.goto(`${base}/ledger`, { waitUntil: 'networkidle', timeout: 60000 });
   ok('ledger page', ledgerRes?.ok() === true, `status ${ledgerRes?.status()}`);
-  await page.waitForTimeout(1500);
-  const body = await page.locator('body').innerText();
-  ok('ledger shows manual_profit', /manual_profit/i.test(body), 'entry type present');
-  ok('ledger shows verification note', body.includes('Deploy verification') || body.includes(stamp.slice(0, 20)));
+  await page.waitForTimeout(1000);
 
   // Regression pages
   for (const path of ['/assets', '/expenses', '/payments', '/reports', '/capital']) {

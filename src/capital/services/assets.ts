@@ -125,7 +125,7 @@ export async function recalculateAsset(assetId: string, db: CapitalDbClient = ca
     profitPaise != null
       ? computeVehicleRois({
           grossProfitPaise: profitPaise,
-          purchasePricePaise: asset.purchasePricePaise,
+          totalVehicleCostPaise: totalInvestment,
           myProfitPaise: myShare,
           myInvestedPaise: myInvested,
         })
@@ -321,7 +321,7 @@ export async function recordSale(
   const summary = summarizeInvestorShares(distributed);
   const rois = computeVehicleRois({
     grossProfitPaise: grossProfit,
-    purchasePricePaise: fresh.purchasePricePaise,
+    totalVehicleCostPaise: totalInvestment,
     myProfitPaise: summary.myProfitPaise,
     myInvestedPaise: summary.myInvestedPaise,
   });

@@ -24,14 +24,15 @@ export type ProfitShareResult = {
 
 /**
  * Legacy 2-party profit split helper (manual profits / older sale UI).
- * ROI uses purchase price for business and myInvested for personal when provided.
+ * Business ROI uses total vehicle cost; My ROI uses myInvested when provided.
  */
 export function computeProfitShare(
   input: ProfitShareInput,
   opts?: {
+    totalVehicleCostPaise?: number;
     purchasePricePaise?: number;
     myInvestedPaise?: number;
-    /** @deprecated alias for purchasePricePaise */
+    /** @deprecated alias for totalVehicleCostPaise */
     investmentPaise?: number;
   },
 ): ProfitShareResult {
@@ -79,18 +80,19 @@ export function computeProfitShare(
     }
   }
 
-  const purchasePricePaise = opts?.purchasePricePaise ?? opts?.investmentPaise;
+  const totalVehicleCostPaise =
+    opts?.totalVehicleCostPaise ?? opts?.purchasePricePaise ?? opts?.investmentPaise;
   const myInvestedPaise =
     opts?.myInvestedPaise ??
-    (purchasePricePaise != null
-      ? Math.round((purchasePricePaise * mySharePctBps) / 10000)
+    (totalVehicleCostPaise != null
+      ? Math.round((totalVehicleCostPaise * mySharePctBps) / 10000)
       : undefined);
 
   const rois =
-    purchasePricePaise != null && purchasePricePaise > 0 && myInvestedPaise != null
+    totalVehicleCostPaise != null && totalVehicleCostPaise > 0 && myInvestedPaise != null
       ? computeVehicleRois({
           grossProfitPaise: gross,
-          purchasePricePaise,
+          totalVehicleCostPaise,
           myProfitPaise: mySharePaise,
           myInvestedPaise,
         })
@@ -110,13 +112,13 @@ export function computeProfitShare(
 
 export function fullInvestorShare(
   grossPaise: number,
-  purchasePricePaise?: number,
+  totalVehicleCostPaise?: number,
 ): ProfitShareResult {
   return computeProfitShare(
     { grossPaise, mode: 'percentage', partnerPct: 0, myPct: 100 },
     {
-      purchasePricePaise,
-      myInvestedPaise: purchasePricePaise,
+      totalVehicleCostPaise,
+      myInvestedPaise: totalVehicleCostPaise,
     },
   );
 }
