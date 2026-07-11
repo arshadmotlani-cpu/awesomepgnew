@@ -31,5 +31,26 @@ else
   echo "  Add DATABASE_URL to Vercel → Settings → Environment Variables → Preview for full API/DB behavior."
 fi
 
+has_invest_db_url() {
+  [[ -n "${INVEST_DATABASE_URL:-}" ]] \
+    || [[ -n "${INVEST_DATABASE_DATABASE_URL:-}" ]] \
+    || [[ -n "${INVEST_POSTGRES_URL:-}" ]] \
+    || [[ -n "${INVEST_POSTGRES_PRISMA_URL:-}" ]]
+}
+
+if has_invest_db_url; then
+  echo "=== Capital database migrations ==="
+  if is_production_deployment; then
+    npm run capital:db:migrate
+    npm run capital:db:seed || true
+  elif npm run capital:db:migrate; then
+    npm run capital:db:seed || true
+  else
+    echo "⚠ Capital db:migrate failed — continuing build."
+  fi
+else
+  echo "⚠ Capital database URL not set (INVEST_DATABASE_URL or INVEST_DATABASE_DATABASE_URL) — skipping Capital migrations."
+fi
+
 bash scripts/vercel-build-repair.sh
 next build

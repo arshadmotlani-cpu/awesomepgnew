@@ -24,6 +24,7 @@ function collectTests(dir, out = []) {
 const files = [
   ...collectTests('tests/unit'),
   ...collectTests('tests/integration'),
+  ...collectTests('tests/capital/unit'),
 ].sort();
 
 if (files.length === 0) {

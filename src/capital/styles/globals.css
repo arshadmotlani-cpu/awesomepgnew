@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+:root {
+  --ac-bg-base: #08080c;
+  --ac-bg-elevated: #0f0f14;
+  --ac-bg-surface: #14141a;
+  --ac-bg-glass: rgba(20, 20, 26, 0.72);
+  --ac-accent: #22d3ee;
+  --ac-accent-muted: #0891b2;
+  --ac-accent-glow: rgba(34, 211, 238, 0.15);
+  --ac-violet: #8b5cf6;
+  --ac-success: #34d399;
+  --ac-warning: #fbbf24;
+  --ac-danger: #f87171;
+  --ac-info: #60a5fa;
+  --ac-text-primary: #f4f4f5;
+  --ac-text-secondary: #a1a1aa;
+  --ac-text-muted: #71717a;
+  --ac-border: rgba(255, 255, 255, 0.08);
+  --ac-border-hover: rgba(255, 255, 255, 0.14);
+}
+
+@theme inline {
+  --color-ac-base: var(--ac-bg-base);
+  --color-ac-elevated: var(--ac-bg-elevated);
+  --color-ac-surface: var(--ac-bg-surface);
+  --color-ac-accent: var(--ac-accent);
+  --color-ac-accent-muted: var(--ac-accent-muted);
+  --color-ac-success: var(--ac-success);
+  --color-ac-warning: var(--ac-warning);
+  --color-ac-danger: var(--ac-danger);
+  --color-ac-info: var(--ac-info);
+  --color-ac-text: var(--ac-text-primary);
+  --color-ac-text-secondary: var(--ac-text-secondary);
+  --color-ac-text-muted: var(--ac-text-muted);
+}
+
+.ac-capital-root {
+  color: var(--ac-text-primary);
+  background: var(--ac-bg-base);
+  min-height: 100vh;
+}
+
+.ac-mesh-bg {
+  background-color: var(--ac-bg-base);
+  background-image:
+    radial-gradient(ellipse at 20% 50%, rgba(34, 211, 238, 0.08), transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(139, 92, 246, 0.06), transparent 50%);
+}
+
+.ac-glass-card {
+  background: var(--ac-bg-glass);
+  border: 1px solid var(--ac-border);
+  border-radius: 12px;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+}
+
+.ac-glass-card:hover {
+  border-color: var(--ac-border-hover);
+}
+
+.ac-money {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}

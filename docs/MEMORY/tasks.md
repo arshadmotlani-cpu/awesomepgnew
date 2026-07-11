@@ -8,6 +8,12 @@
 
 ## Active
 
+## 2026-07-10 — Automotive Capital
+
+- [ ] **Review Automotive Capital planning docs** — `docs/automotive-capital/` (13 documents); approve before Phase 1 implementation
+- [ ] **Provision Neon database** — Create `INVEST_DATABASE_URL` for Capital (separate from PG)
+- [ ] **Phase 1 Foundation** — After approval: scaffold `src/capital/`, host middleware, auth, dashboard shell → `docs/automotive-capital/TASKS.md`
+
 ## 2026-07-02
 
 - [ ] **P0 Operations Center** — Await approval of `docs/OPERATIONS_CENTER_AUDIT.md`, then implement SSOT-only unified queue (fix electricity/maintenance/financial_audit bugs, status labels, WhatsApp, Pending Reviews + Timeline cleanup)
@@ -114,3 +120,10 @@
 - `MEMORY/changelog.md`
 - `Vacating.md`
 
+
+
+### 2026-07-11 — Capital production DNS cutover
+- [ ] At GoDaddy DNS for awesomepg.in: add **A** record host `invest` → `76.76.21.21`
+- [ ] Confirm `dig +short invest.awesomepg.in` returns `76.76.21.21`
+- [ ] Open https://invest.awesomepg.in/login and sign in with seeded admin
+- [ ] Optional: point www/apex A records to Vercel `76.76.21.21` if public www still serves lander HTML

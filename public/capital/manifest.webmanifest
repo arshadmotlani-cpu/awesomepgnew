@@ -1,0 +1,26 @@
+{
+  "name": "Automotive Capital",
+  "short_name": "Auto Capital",
+  "description": "Private Automotive Investment Operating System",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#08080C",
+  "theme_color": "#08080C",
+  "categories": ["business", "finance", "productivity"],
+  "icons": [
+    {
+      "src": "/capital/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/capital/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

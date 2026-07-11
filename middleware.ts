@@ -5,6 +5,10 @@ import {
   CUSTOMER_SESSION_COOKIE,
   SIGNUP_SESSION_COOKIE,
 } from '@/src/lib/auth/constants';
+import {
+  capitalMiddleware,
+  shouldRunCapitalMiddleware,
+} from '@/src/capital/middleware/capitalMiddleware';
 
 function needsCustomerAuth(pathname: string): boolean {
   if (pathname === '/booking/new') return true;
@@ -43,6 +47,31 @@ function attachMonitoringHeaders(request: NextRequest): Headers {
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  if (shouldRunCapitalMiddleware(request)) {
+    return capitalMiddleware(request);
+  }
+
+  const capitalOnlyPaths = [
+    '/dashboard',
+    '/assets',
+    '/expenses',
+    '/payments',
+    '/capital',
+    '/ledger',
+    '/documents',
+    '/reports',
+    '/analytics',
+    '/settings',
+    '/activity',
+    '/search',
+    '/auth',
+    '/api/capital',
+  ];
+  if (capitalOnlyPaths.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+    return new NextResponse(null, { status: 404 });
+  }
+
   const requestHeaders = attachMonitoringHeaders(request);
 
   if (needsCustomerAuth(pathname)) {
@@ -112,12 +141,10 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/api/:path*',
-    '/pgs/:path*',
-    '/booking/:path*',
-    '/account/:path*',
-    '/resident/invoices/:path*',
-    '/admin',
-    '/admin/:path*',
+    /*
+     * Run on all app paths so invest.awesomepg.in can allowlist Capital routes
+     * and 404 Awesome PG pages. Skip Next internals and common static assets.
+     */
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|webmanifest)$).*)',
   ],
 };

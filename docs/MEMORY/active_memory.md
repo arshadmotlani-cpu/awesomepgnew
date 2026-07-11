@@ -7,6 +7,11 @@
 
 ## Current Focus
 
+- **Automotive Capital host routing** — Root cause: Capital code was never on `main`; production git deploys served Awesome PG on invest. Fix: commit Capital + harden host/`x-forwarded-host` allowlist middleware.
+
+- **Automotive Capital production deploy** — App deployed on Vercel (`dpl_AUmX7CZo4PnTVwz2VAAgV3LwsYm4`); migrate+seed OK; login/dashboard/health/isolation verified via Vercel edge. **BLOCKED on public DNS**: add GoDaddy A record `invest → 76.76.21.21` (nameservers still domaincontrol.com).
+
+- **Automotive Capital planning** — Complete (2026-07-10): 13 docs in `docs/automotive-capital/`; private investment OS at `invest.awesomepg.in`; awaiting review/approval before Phase 1 code
 - **Operations Center P0 redesign** — Phase 1 audit complete (`docs/OPERATIONS_CENTER_AUDIT.md`); awaiting approval before implementation. Goal: true action center only, invoice/payment SSOT, no duplicate queues.
 - **Occupancy SSOT** — Critical: Admin bed map ≠ Public PG page for same bed; audit complete, implementation blocked on approval → `docs/OCCUPANCY_SSOT_AUDIT.md`
 - **Resident Portal V2** — 5-tab resident hub shipped (Profile/Payments/Requests/Referrals/ Concierge); legacy tab URLs redirect to V2
@@ -18,6 +23,8 @@
 ---
 
 ## Current Blockers
+
+- **invest.awesomepg.in DNS** — GoDaddy NS; missing A record `invest 76.76.21.21` (Vercel domain attached but not resolving publicly)
 
 - **Occupancy SSOT** — 6 independent compute paths; Phase 0 (`bedOccupancyEngine.ts` + parity tests) awaiting architecture approval
 - None for vault sync (GitHub push working via SSH)

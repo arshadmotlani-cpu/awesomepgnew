@@ -7,6 +7,16 @@
 
 ---
 
+## 2026-07-10 (continued)
+
+- **AUTOMOTIVE-CAPITAL-IMPLEMENTATION** — Full Phase 1–5 implementation: host routing, `src/capital/` module, 14-table schema, auth, dashboard, assets/expenses/payments/ledger, reports/exports, PWA, command palette, tests; build green → `docs/automotive-capital/DEPLOYMENT_CHECKLIST.md`
+
+## 2026-07-10
+
+- **AUTOMOTIVE-CAPITAL-PLANNING** — Complete planning documentation suite (13 docs) for Automotive Capital private investment OS at `invest.awesomepg.in`: asset-first schema, host routing, separate `INVEST_DATABASE_URL`, ledger/reversal model, premium UI system, phased roadmap → `docs/automotive-capital/`
+
+---
+
 ## 2026-07-03
 
 - **APPROVAL-SSOT-REBUILD** — Full approval architecture: `approvalRegistry.ts`, wired `approvalService`, booking_approval action items, notification deepLink upsert, Billing Centre approvals redirect, counter/badge parity via approvalService, resident timeline rejection history, backfill script
@@ -139,3 +149,7 @@ Files:
 - **QUICK-ACTIONS-DEPOSIT** — Quick Actions simplified to Sale Express, Deposit Express, Refund of Deposit; Operations bed_assignment → deposit_due queue
 
 ---
+
+- 2026-07-11: Capital prod deploy live on Vercel; public invest DNS still missing (GoDaddy A record required)
+
+- 2026-07-11: Fixed invest.awesomepg.in serving PG — Capital app committed to main with host allowlist middleware
