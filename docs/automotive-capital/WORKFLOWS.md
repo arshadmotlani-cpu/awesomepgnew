@@ -149,13 +149,14 @@ After:  total_investment = purchase_price + existing_expenses + new_expense
 ### 6.1 Record Sale
 
 1. Admin on asset detail → "Record sale"
-2. Enter actual sale price + sale date
-3. System:
-   - Update `ac_assets`: `actual_sale_price_paise`, `sale_date`, `status = sold`
-   - Recalculate: `profit_paise`, `roi_bps`, `holding_days`
-   - Timeline event: "Sold for ₹X"
-   - Log activity
-   - Dashboard insights update (highest profit/loss)
+2. Enter **sale price + sale date only** (vehicle must be fully funded: stakes = Net Vehicle Cost)
+3. System auto-calculates:
+   - Net Vehicle Cost, Business Profit
+   - Sufii (operating partner) share from Settings ratio (default 50%)
+   - Investor Pool → each capital investor by stake %
+   - Business ROI, My ROI
+   - Update `ac_assets` + `ac_asset_investors`; status → `sold`
+4. Timeline + activity + dashboard KPIs update
 
 ### 6.2 Post-Sale
 
@@ -227,15 +228,15 @@ When all money is received:
 5. Status → `settled`
 6. Timeline event + activity log
 
-### 8.2 Profit Sharing
+### 8.2 Profit Sharing (vehicle sales)
 
 ```
-profit_share = settings.profit_share_numerator / settings.profit_share_denominator
-admin_share = gross_profit × profit_share
-partner_share = gross_profit - admin_share
+operating_partner_share = business_profit × (settings.numerator / settings.denominator)  -- Sufii
+investor_pool = business_profit − operating_partner_share
+each_investor = investor_pool × (invested / total_invested)
 ```
 
-Default: 50/50 (numerator=1, denominator=2).
+Default Settings: 50/50 (numerator=1, denominator=2). Settlement snapshots use stored shares.
 
 ---
 

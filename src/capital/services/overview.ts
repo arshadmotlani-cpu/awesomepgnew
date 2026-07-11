@@ -11,6 +11,7 @@ import {
 import { capitalDb } from '@/src/capital/db/client';
 import {
   acActivityLog,
+  acAssetInvestors,
   acAssets,
   acCapitalInvestments,
   acCategories,
@@ -28,7 +29,7 @@ import {
 } from '@/src/capital/lib/dashboardRange';
 import { computePortfolioRois } from '@/src/capital/lib/roi';
 import { monthlyManualProfitSeries, sumManualMySharePaise, sumManualProfitsPaise } from './manualProfits';
-import { sumMyInvestedCapitalPaise } from './assets';
+import { sumMyActiveInvestedCapitalPaise, sumMyInvestedCapitalPaise } from './assets';
 
 export type { DateRange, DashboardRange };
 export {
@@ -150,10 +151,12 @@ export async function getOverviewBundle(range: DateRange) {
   const [
     capitalInjectedAll,
     myVehicleCapitalAll,
+    myActiveInvestmentAll,
     lifetimePurchaseVolume,
     soldVehicleCostAll,
     grossAssetProfitAll,
     myAssetShareAll,
+    operatingPartnerProfitAll,
     grossAssetProfitRange,
     myAssetShareRange,
     grossAssetProfitPrev,
@@ -171,8 +174,8 @@ export async function getOverviewBundle(range: DateRange) {
     soldVehiclesLifetime,
     soldVehiclesRange,
     purchasesRange,
-    avgMyProfitSold,
-    avgGrossProfitSold,
+    myActiveVehicles,
+    mySoldVehicles,
     avgHolding,
     capitalReturnedRange,
     repairsRange,
@@ -188,9 +191,13 @@ export async function getOverviewBundle(range: DateRange) {
     activity,
     _capitalInTransitSold,
     activeByStatus,
+    myActiveByStatus,
+    estimatedActiveProfit,
+    activeVehiclesWithEstimate,
   ] = await Promise.all([
     sumCapitalInvested(),
     sumMyInvestedCapitalPaise(),
+    sumMyActiveInvestedCapitalPaise(),
     sumPurchaseVolume(),
     sumSoldVehicleCost(),
     capitalDb
@@ -202,6 +209,15 @@ export async function getOverviewBundle(range: DateRange) {
       .select({ total: sum(acAssets.mySharePaise) })
       .from(acAssets)
       .where(sql`${acAssets.mySharePaise} IS NOT NULL AND ${acAssets.status} <> 'cancelled'`)
+      .then((r) => Number(r[0]?.total ?? 0)),
+    capitalDb
+      .select({
+        total: sum(
+          sql`COALESCE(${acAssets.operatingPartnerProfitPaise}, ${acAssets.partnerSharePaise}, 0)`,
+        ),
+      })
+      .from(acAssets)
+      .where(sql`${acAssets.status} <> 'cancelled'`)
       .then((r) => Number(r[0]?.total ?? 0)),
     future
       ? Promise.resolve(0)
@@ -277,15 +293,29 @@ export async function getOverviewBundle(range: DateRange) {
     future ? Promise.resolve(0) : countSold(range),
     future ? Promise.resolve(0) : countPurchases(range),
     capitalDb
-      .select({ avg: sql<number>`COALESCE(AVG(${acAssets.mySharePaise}), 0)` })
-      .from(acAssets)
-      .where(sql`${acAssets.mySharePaise} IS NOT NULL AND ${acAssets.status} <> 'cancelled'`)
-      .then((r) => Math.round(Number(r[0]?.avg ?? 0))),
+      .select({ c: count() })
+      .from(acAssetInvestors)
+      .innerJoin(acAssets, eq(acAssetInvestors.assetId, acAssets.id))
+      .where(
+        and(
+          eq(acAssetInvestors.slot, 'me'),
+          sql`${acAssetInvestors.investedPaise} > 0`,
+          sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled')`,
+        ),
+      )
+      .then((r) => Number(r[0]?.c ?? 0)),
     capitalDb
-      .select({ avg: sql<number>`COALESCE(AVG(${acAssets.profitPaise}), 0)` })
-      .from(acAssets)
-      .where(sql`${acAssets.profitPaise} IS NOT NULL AND ${acAssets.status} <> 'cancelled'`)
-      .then((r) => Math.round(Number(r[0]?.avg ?? 0))),
+      .select({ c: count() })
+      .from(acAssetInvestors)
+      .innerJoin(acAssets, eq(acAssetInvestors.assetId, acAssets.id))
+      .where(
+        and(
+          eq(acAssetInvestors.slot, 'me'),
+          sql`${acAssetInvestors.investedPaise} > 0`,
+          sql`${acAssets.status} IN ('sold', 'settled')`,
+        ),
+      )
+      .then((r) => Number(r[0]?.c ?? 0)),
     capitalDb
       .select({ avg: sql<number>`COALESCE(AVG(${acAssets.holdingDays}), 0)` })
       .from(acAssets)
@@ -377,26 +407,54 @@ export async function getOverviewBundle(range: DateRange) {
       .from(acAssets)
       .where(sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled')`)
       .groupBy(acAssets.status),
+    capitalDb
+      .select({
+        status: acAssets.status,
+        total: sum(acAssetInvestors.investedPaise),
+      })
+      .from(acAssetInvestors)
+      .innerJoin(acAssets, eq(acAssetInvestors.assetId, acAssets.id))
+      .where(
+        and(
+          eq(acAssetInvestors.slot, 'me'),
+          sql`${acAssetInvestors.investedPaise} > 0`,
+          sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled')`,
+        ),
+      )
+      .groupBy(acAssets.status),
+    capitalDb
+      .select({
+        total: sql<number>`COALESCE(SUM(${acAssets.expectedSalePricePaise} - ${acAssets.totalInvestmentPaise}), 0)`,
+      })
+      .from(acAssets)
+      .where(
+        sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled')
+          AND ${acAssets.expectedSalePricePaise} IS NOT NULL`,
+      )
+      .then((r) => Math.round(Number(r[0]?.total ?? 0))),
+    capitalDb
+      .select({ c: count() })
+      .from(acAssets)
+      .where(
+        sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled')
+          AND ${acAssets.expectedSalePricePaise} IS NOT NULL`,
+      )
+      .then((r) => Number(r[0]?.c ?? 0)),
   ]);
+
+  const hasEstimatedPortfolioValue = activeVehiclesWithEstimate > 0;
+  const estimatedPortfolioValuePaise = hasEstimatedPortfolioValue
+    ? currentInvestment + estimatedActiveProfit
+    : null;
 
   const grossBusinessProfit = grossAssetProfitAll + manualGrossAll;
   const myLifetimeProfit = myAssetShareAll + manualMyAll;
-  /** Partner share is residual — never use my figures as business profit */
-  const partnerLifetimeProfit = Math.max(0, grossBusinessProfit - myLifetimeProfit);
+  /** Sufii / operating partner — stored share (not residual of other capital investors) */
+  const partnerLifetimeProfit = Math.max(0, operatingPartnerProfitAll);
   const periodGross = grossAssetProfitRange + manualGrossRange;
   const periodMy = myAssetShareRange + manualMyRange;
   const prevMy = myAssetSharePrev + manualMyPrev;
   const prevGross = grossAssetProfitPrev + manualGrossPrev;
-
-  if (
-    process.env.NODE_ENV !== 'production' &&
-    partnerLifetimeProfit > 0 &&
-    grossBusinessProfit === myLifetimeProfit
-  ) {
-    console.warn(
-      '[capital overview] Business profit equals My profit while partner share > 0 — check profit_paise vs my_share_paise',
-    );
-  }
 
   // Business ROI = Gross Business Profit ÷ Σ total vehicle cost (sold/settled)
   // My ROI = My Profit ÷ My vehicle capital stakes (never full cost unless I funded 100%)
@@ -522,12 +580,24 @@ export async function getOverviewBundle(range: DateRange) {
       : 0;
 
   // Allocation = locked capital by vehicle status only (no free cash / working capital)
-  const allocation = activeByStatus
+  const allocationBusiness = activeByStatus
     .map((row) => ({
       label: String(row.status).replace(/_/g, ' '),
       valuePaise: Number(row.total ?? 0),
     }))
     .filter((a) => a.valuePaise > 0);
+  const allocationMine = myActiveByStatus
+    .map((row) => ({
+      label: String(row.status).replace(/_/g, ' '),
+      valuePaise: Number(row.total ?? 0),
+    }))
+    .filter((a) => a.valuePaise > 0);
+
+  // Average profit per vehicle = total profit ÷ vehicles sold (mode-specific)
+  const avgMyProfitSold =
+    mySoldVehicles > 0 ? Math.round(myLifetimeProfit / mySoldVehicles) : 0;
+  const avgGrossProfitSold =
+    soldVehiclesLifetime > 0 ? Math.round(grossBusinessProfit / soldVehiclesLifetime) : 0;
 
   const waterfallBase = [
     { label: 'Purchases', valuePaise: purchaseVolumeRange, kind: 'out' as const },
@@ -593,6 +663,7 @@ export async function getOverviewBundle(range: DateRange) {
     today,
     shared: {
       currentInvestmentPaise: currentInvestment,
+      myActiveInvestmentPaise: myActiveInvestmentAll,
       activeVehicles,
       vehiclesSold: soldVehiclesLifetime,
       avgHoldingDays: avgHolding,
@@ -600,9 +671,13 @@ export async function getOverviewBundle(range: DateRange) {
     /** Dual financial views — toggle switches the entire dashboard between these */
     views: {
       mine: {
+        capitalInvestedPaise: myActiveInvestmentAll,
+        capitalAtRiskPaise: myActiveInvestmentAll,
         profitPaise: myLifetimeProfit,
         partnerProfitPaise: partnerLifetimeProfit,
         roiBps: myRoiBps,
+        activeVehicles: myActiveVehicles,
+        vehiclesSold: mySoldVehicles,
         avgProfitPerVehiclePaise: avgMyProfitSold,
         periodProfitPaise: periodMy,
         periodRoiBps: periodRoiMyBps,
@@ -612,14 +687,20 @@ export async function getOverviewBundle(range: DateRange) {
         monthlyProfit: future ? [] : monthlyMySeries,
         monthlyRoi: future ? [] : monthlyRoiMineClipped,
         waterfall: future ? [] : waterfallMine,
-        allocation,
+        allocation: allocationMine,
+        estimatedPortfolioValuePaise: null as number | null,
+        hasEstimatedPortfolioValue: false,
       },
       business: {
         /** ALWAYS gross before distribution — never myShare */
+        capitalInvestedPaise: currentInvestment,
+        capitalAtRiskPaise: myActiveInvestmentAll,
         profitPaise: grossBusinessProfit,
         partnerProfitPaise: partnerLifetimeProfit,
         myProfitPaise: myLifetimeProfit,
         roiBps: businessRoiBps,
+        activeVehicles,
+        vehiclesSold: soldVehiclesLifetime,
         avgProfitPerVehiclePaise: avgGrossProfitSold,
         periodProfitPaise: periodGross,
         periodRoiBps: periodRoiBusinessBps,
@@ -629,7 +710,9 @@ export async function getOverviewBundle(range: DateRange) {
         monthlyProfit: future ? [] : monthlyGrossSeries,
         monthlyRoi: future ? [] : monthlyRoiBusinessClipped,
         waterfall: future ? [] : waterfallBusiness,
-        allocation,
+        allocation: allocationBusiness,
+        estimatedPortfolioValuePaise,
+        hasEstimatedPortfolioValue,
       },
     },
     period: {
@@ -641,10 +724,12 @@ export async function getOverviewBundle(range: DateRange) {
       capitalRecoveredPaise: capitalReturnedRange,
       repairsPaise: repairsRange || expensesRange,
       currentInvestmentPaise: currentInvestment,
+      myCapitalInvestedPaise: myActiveInvestmentAll,
     },
     chartBlocks: {
       capitalAllocation: {
-        series: allocation,
+        seriesMine: allocationMine,
+        seriesBusiness: allocationBusiness,
       },
       portfolioGrowth: {
         seriesMine: portfolioGrowth,
@@ -677,11 +762,11 @@ export async function getOverviewBundle(range: DateRange) {
             },
             {
               label: 'Vehicles Sold',
-              valueText: String(soldVehiclesLifetime),
+              valueText: String(mySoldVehicles),
               kind: 'text' as const,
             },
             {
-              label: 'Avg Profit / Vehicle',
+              label: 'Average My Profit Per Vehicle',
               valuePaise: avgMyProfitSold,
               kind: 'paise' as const,
             },
@@ -693,13 +778,13 @@ export async function getOverviewBundle(range: DateRange) {
               kind: 'paise' as const,
             },
             {
-              label: 'Profit Growth',
+              label: 'My Profit Growth',
               valueText: growthText(myProfitGrowthPct),
               kind: 'text' as const,
               trend: growthTrend(myProfitGrowthPct),
             },
             {
-              label: 'Avg Monthly (Mine)',
+              label: 'Average Monthly My Profit',
               valuePaise: avgMonthlyMyProfit,
               kind: 'paise' as const,
             },
@@ -726,7 +811,7 @@ export async function getOverviewBundle(range: DateRange) {
               kind: 'paise' as const,
             },
             {
-              label: 'Avg Profit / Vehicle',
+              label: 'Average My Profit Per Vehicle',
               valuePaise: avgMyProfitSold,
               kind: 'paise' as const,
             },
@@ -755,13 +840,13 @@ export async function getOverviewBundle(range: DateRange) {
           ],
           allocation: [
             {
-              label: 'Current Investment',
-              valuePaise: currentInvestment,
+              label: 'My Capital Invested',
+              valuePaise: myActiveInvestmentAll,
               kind: 'paise' as const,
             },
             {
               label: 'Active Vehicles',
-              valueText: String(activeVehicles),
+              valueText: String(myActiveVehicles),
               kind: 'text' as const,
             },
             {
@@ -794,7 +879,7 @@ export async function getOverviewBundle(range: DateRange) {
               kind: 'text' as const,
             },
             {
-              label: 'Avg Profit / Vehicle',
+              label: 'Average Business Profit Per Vehicle',
               valuePaise: avgGrossProfitSold,
               kind: 'paise' as const,
             },
@@ -806,13 +891,13 @@ export async function getOverviewBundle(range: DateRange) {
               kind: 'paise' as const,
             },
             {
-              label: 'Profit Growth',
+              label: 'Business Profit Growth',
               valueText: growthText(businessProfitGrowthPct),
               kind: 'text' as const,
               trend: growthTrend(businessProfitGrowthPct),
             },
             {
-              label: 'Avg Monthly (Business)',
+              label: 'Average Monthly Business Profit',
               valuePaise: avgMonthlyGrossProfit,
               kind: 'paise' as const,
             },
@@ -868,7 +953,7 @@ export async function getOverviewBundle(range: DateRange) {
           ],
           allocation: [
             {
-              label: 'Current Investment',
+              label: 'Business Capital Invested',
               valuePaise: currentInvestment,
               kind: 'paise' as const,
             },

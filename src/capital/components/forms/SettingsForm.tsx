@@ -50,13 +50,33 @@ export function SettingsForm({ defaults }: { defaults: SettingsInput }) {
             <Input id="businessName" {...form.register('businessName')} />
           </FormField>
           <div className="grid gap-4 sm:grid-cols-2">
-            <FormField label="Profit share numerator" name="profitShareNumerator" form={form}>
-              <Input id="profitShareNumerator" type="number" {...form.register('profitShareNumerator')} />
+            <FormField
+              label="Operating partner (Sufii) share — numerator"
+              name="profitShareNumerator"
+              form={form}
+            >
+              <Input
+                id="profitShareNumerator"
+                type="number"
+                {...form.register('profitShareNumerator')}
+              />
             </FormField>
-            <FormField label="Profit share denominator" name="profitShareDenominator" form={form}>
-              <Input id="profitShareDenominator" type="number" {...form.register('profitShareDenominator')} />
+            <FormField
+              label="Operating partner (Sufii) share — denominator"
+              name="profitShareDenominator"
+              form={form}
+            >
+              <Input
+                id="profitShareDenominator"
+                type="number"
+                {...form.register('profitShareDenominator')}
+              />
             </FormField>
           </div>
+          <p className="text-xs text-ac-text-muted">
+            Default 1/2 = 50% of business profit to Sufii; the rest is the Investor Pool split by
+            capital stakes.
+          </p>
           <FormField label="Currency code" name="currencyCode" form={form}>
             <Input id="currencyCode" maxLength={3} {...form.register('currencyCode')} />
           </FormField>

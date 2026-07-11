@@ -50,6 +50,13 @@
       "when": 1720642200000,
       "tag": "0007_expense_signed_amounts",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1720642300000,
+      "tag": "0008_deal_economics",
+      "breakpoints": true
     }
   ]
 }

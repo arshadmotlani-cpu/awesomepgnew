@@ -26,10 +26,19 @@ const CATEGORIES: { value: CreateManualProfitInput['category']; label: string }[
   { value: 'other', label: 'Other' },
 ];
 
-export function ManualProfitForm({ onSuccess }: { onSuccess?: () => void }) {
+export function ManualProfitForm({
+  onSuccess,
+  defaultPartnerPct = 50,
+}: {
+  onSuccess?: () => void;
+  /** Operating partner (Sufii) % from Settings — default 50 */
+  defaultPartnerPct?: number;
+}) {
   const [state, setState] = useState<ManualProfitActionState>({});
   const [pending, startTransition] = useTransition();
   const { showToast } = useCapitalToast();
+  const partnerDefault = Math.min(100, Math.max(0, defaultPartnerPct));
+  const myDefault = 100 - partnerDefault;
 
   const form = useForm<CreateManualProfitInput>({
     resolver: capitalZodResolver(createManualProfitSchema),
@@ -40,16 +49,16 @@ export function ManualProfitForm({ onSuccess }: { onSuccess?: () => void }) {
       description: '',
       category: 'investment_return',
       shareMode: 'percentage',
-      partnerPct: 40,
-      myPct: 60,
+      partnerPct: partnerDefault,
+      myPct: myDefault,
       partnerFixed: 0,
     },
   });
 
   const amount = useWatch({ control: form.control, name: 'amount' }) ?? 0;
   const shareMode = useWatch({ control: form.control, name: 'shareMode' }) ?? 'percentage';
-  const partnerPct = useWatch({ control: form.control, name: 'partnerPct' }) ?? 40;
-  const myPct = useWatch({ control: form.control, name: 'myPct' }) ?? 60;
+  const partnerPct = useWatch({ control: form.control, name: 'partnerPct' }) ?? partnerDefault;
+  const myPct = useWatch({ control: form.control, name: 'myPct' }) ?? myDefault;
   const partnerFixed = useWatch({ control: form.control, name: 'partnerFixed' }) ?? 0;
 
   const onSubmit = form.handleSubmit((values) => {
@@ -72,8 +81,8 @@ export function ManualProfitForm({ onSuccess }: { onSuccess?: () => void }) {
           description: '',
           category: 'investment_return',
           shareMode: 'percentage',
-          partnerPct: 40,
-          myPct: 60,
+          partnerPct: partnerDefault,
+          myPct: myDefault,
           partnerFixed: 0,
         });
         onSuccess?.();

@@ -231,10 +231,12 @@ export function OverviewDashboard({
   bundle,
   customFrom,
   customTo,
+  defaultPartnerPct = 50,
 }: {
   bundle: OverviewBundle;
   customFrom?: string;
   customTo?: string;
+  defaultPartnerPct?: number;
 }) {
   const router = useRouter();
   const [manualOpen, setManualOpen] = useState(false);
@@ -281,6 +283,15 @@ export function OverviewDashboard({
   const modeKey = profitView;
   const profitLabel = isMine ? 'My Profit' : 'Business Profit';
   const roiLabel = isMine ? 'My ROI' : 'Business ROI';
+  const capitalLabel = isMine ? 'My Capital Currently Deployed' : 'Business Capital Currently Deployed';
+  const avgProfitLabel = isMine
+    ? 'Average My Profit Per Vehicle'
+    : 'Average Business Profit Per Vehicle';
+  const viewTitle = isMine ? 'My View' : 'Business View';
+  const viewSubtitle = isMine
+    ? 'Showing only my personal investment performance.'
+    : 'Showing entire business performance.';
+  const capitalAtRiskPaise = bundle.views.mine.capitalAtRiskPaise;
 
   return (
     <div className="mx-auto max-w-[1440px] space-y-8 pb-14">
@@ -290,14 +301,22 @@ export function OverviewDashboard({
           <p className="text-xs font-medium uppercase tracking-[0.22em] text-ac-accent">
             Investment OS
           </p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight">Overview</h1>
-          <p className="mt-1 text-sm text-ac-text-secondary">
-            {isMine
-              ? 'Personal investment performance · my share only'
-              : 'Entire business performance · gross profit'}
-            {' · '}
-            {bundle.range.label}
-          </p>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={modeKey}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.25 }}
+            >
+              <h1 className="mt-1 text-3xl font-semibold tracking-tight">{viewTitle}</h1>
+              <p className="mt-1 text-sm text-ac-text-secondary">
+                {viewSubtitle}
+                {' · '}
+                {bundle.range.label}
+              </p>
+            </motion.div>
+          </AnimatePresence>
         </div>
 
         <div className="flex flex-col items-stretch gap-2 sm:items-end">
@@ -390,18 +409,14 @@ export function OverviewDashboard({
       {/* Mode toggle — switches every KPI + chart dataset */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-wider text-ac-text-muted">Financial view</p>
-          <p className="text-sm text-ac-text-secondary">
-            {isMine
-              ? 'Showing your 50% share after partner distribution'
-              : 'Showing total business profit before partner share'}
-          </p>
+          <p className="text-xs uppercase tracking-wider text-ac-text-muted">Perspective</p>
+          <p className="text-sm text-ac-text-secondary">{viewSubtitle}</p>
         </div>
         <div className="inline-flex rounded-xl border border-white/10 bg-white/[0.03] p-1">
           {(
             [
-              { key: 'mine' as const, label: 'My Profit' },
-              { key: 'business' as const, label: 'Business Profit' },
+              { key: 'mine' as const, label: 'My View' },
+              { key: 'business' as const, label: 'Business View' },
             ] as const
           ).map((v) => (
             <button
@@ -444,40 +459,116 @@ export function OverviewDashboard({
         })}
       </div>
 
-      {/* Top KPIs — mode-switched */}
+      {/* Current portfolio position — answers "If I stopped today…" */}
+      <AnimatePresence mode="wait">
+        <motion.section
+          key={`position-${modeKey}`}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.3 }}
+          className="space-y-4"
+        >
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">Current Portfolio Position</h2>
+            <p className="mt-1 text-sm text-ac-text-secondary">
+              If I stopped today, what is my current financial position?
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {isMine ? (
+              <>
+                <HeroMetric
+                  label="My Capital Currently Deployed"
+                  valuePaise={view.capitalInvestedPaise}
+                  accent
+                />
+                <HeroMetric
+                  label="My Current Capital At Risk"
+                  valuePaise={view.capitalAtRiskPaise}
+                  accent
+                />
+                <HeroMetric label="My Lifetime Profit" valuePaise={view.profitPaise} accent />
+                <HeroMetric
+                  label="My ROI (Realized)"
+                  valueText={`${(view.roiBps / 100).toFixed(1)}%`}
+                  accent
+                />
+                <HeroMetric
+                  label="Active Vehicles"
+                  valueText={String(view.activeVehicles)}
+                />
+                <HeroMetric
+                  label="Vehicles Sold"
+                  valueText={String(view.vehiclesSold)}
+                />
+              </>
+            ) : (
+              <>
+                <HeroMetric
+                  label="Business Capital Currently Deployed"
+                  valuePaise={view.capitalInvestedPaise}
+                  accent
+                />
+                {view.hasEstimatedPortfolioValue && view.estimatedPortfolioValuePaise != null ? (
+                  <HeroMetric
+                    label="Estimated Portfolio Value"
+                    valuePaise={view.estimatedPortfolioValuePaise}
+                    accent
+                  />
+                ) : null}
+                <HeroMetric label="Business Profit (Lifetime)" valuePaise={view.profitPaise} accent />
+                <HeroMetric
+                  label="Business ROI (Realized)"
+                  valueText={`${(view.roiBps / 100).toFixed(1)}%`}
+                  accent
+                />
+                <HeroMetric
+                  label="Active Vehicles"
+                  valueText={String(view.activeVehicles)}
+                />
+                <HeroMetric
+                  label="Vehicles Sold"
+                  valueText={String(view.vehiclesSold)}
+                />
+              </>
+            )}
+          </div>
+
+          {/* Dedicated capital-at-risk card — always my money in active vehicles */}
+          <Card className="border-ac-accent/25 bg-ac-accent/[0.06]">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Current Capital At Risk</CardTitle>
+              <p className="text-xs text-ac-text-muted">
+                The amount of my own money currently invested in active vehicles. Updates when
+                vehicles are bought, funded, edited, or sold.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-semibold tracking-tight">
+                <MoneyDisplay paise={capitalAtRiskPaise} className="text-3xl" />
+              </p>
+            </CardContent>
+          </Card>
+        </motion.section>
+      </AnimatePresence>
+
+      {/* Secondary KPIs */}
       <AnimatePresence mode="wait">
         <motion.div
-          key={modeKey}
+          key={`secondary-${modeKey}`}
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -8 }}
           transition={{ duration: 0.3 }}
           className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
         >
-          <HeroMetric
-            label="Current Active Investment"
-            valuePaise={bundle.shared.currentInvestmentPaise}
-            accent
-          />
-          <HeroMetric label={profitLabel} valuePaise={view.profitPaise} accent />
           {!isMine && view.partnerProfitPaise > 0 ? (
             <HeroMetric label="Partner Profit" valuePaise={view.partnerProfitPaise} />
           ) : null}
           <HeroMetric
-            label={roiLabel}
-            valueText={`${(view.roiBps / 100).toFixed(1)}%`}
-            accent
-          />
-          <HeroMetric
-            label="Active Vehicles"
-            valueText={String(bundle.shared.activeVehicles)}
-          />
-          <HeroMetric
-            label="Vehicles Sold"
-            valueText={String(bundle.shared.vehiclesSold)}
-          />
-          <HeroMetric
-            label="Average Profit per Vehicle"
+            label={avgProfitLabel}
             valuePaise={view.avgProfitPerVehiclePaise}
           />
         </motion.div>
@@ -488,22 +579,22 @@ export function OverviewDashboard({
         title="Portfolio Growth"
         subtitle={
           isMine
-            ? 'Cumulative my profit trajectory'
-            : 'Cumulative business profit trajectory'
+            ? 'Cumulative My Profit trajectory'
+            : 'Cumulative Business Profit trajectory'
         }
         empty={view.portfolioGrowth.length === 0}
-        chart={<PortfolioGrowthArea data={view.portfolioGrowth} />}
+        chart={<PortfolioGrowthArea data={view.portfolioGrowth} label={profitLabel} />}
         kpis={side.portfolioGrowth}
       />
 
       <AnalyticRow
         modeKey={`${modeKey}-monthly`}
         title="Monthly Profit"
-        subtitle={`${bundle.range.label} · ${isMine ? 'My share' : 'Business gross'}`}
+        subtitle={`${bundle.range.label} · ${isMine ? 'My Profit' : 'Business Profit'}`}
         empty={
           periodEmpty && view.monthlyProfit.every((s) => s.valuePaise === 0)
         }
-        chart={<MonthlyProfitBars data={view.monthlyProfit} />}
+        chart={<MonthlyProfitBars data={view.monthlyProfit} label={profitLabel} />}
         kpis={side.monthlyProfit}
       />
 
@@ -521,7 +612,11 @@ export function OverviewDashboard({
       <AnalyticRow
         modeKey={`${modeKey}-alloc`}
         title="Current Capital Allocation"
-        subtitle="Money locked in unsold vehicles by status"
+        subtitle={
+          isMine
+            ? 'My capital locked in unsold vehicles by status'
+            : 'Business capital locked in unsold vehicles by status'
+        }
         empty={view.allocation.length === 0}
         chart={<CapitalAllocationDonut data={view.allocation} />}
         kpis={side.allocation}
@@ -530,7 +625,7 @@ export function OverviewDashboard({
       <AnalyticRow
         modeKey={`${modeKey}-flow`}
         title="Investment Flow"
-        subtitle={`Purchases → repairs → sale → ${isMine ? 'my profit' : 'business profit'} · ${bundle.range.label}`}
+        subtitle={`Purchases → repairs → sale → ${isMine ? 'My Profit' : 'Business Profit'} · ${bundle.range.label}`}
         empty={periodEmpty}
         chart={<InvestmentWaterfall data={view.waterfall} />}
         kpis={side.waterfall}
@@ -543,7 +638,7 @@ export function OverviewDashboard({
             {isMine ? 'My Portfolio Summary' : 'Business Portfolio Summary'}
           </CardTitle>
           <p className="text-xs text-ac-text-muted">
-            Lifetime · {isMine ? 'personal share only' : 'full business figures'}
+            Lifetime · {isMine ? 'personal investment performance only' : 'entire business performance'}
           </p>
         </CardHeader>
         <CardContent>
@@ -556,22 +651,42 @@ export function OverviewDashboard({
               transition={{ duration: 0.25 }}
               className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
             >
-              <StatTile label="Current Active Investment" valuePaise={bundle.shared.currentInvestmentPaise} />
-              <StatTile label={profitLabel} valuePaise={view.profitPaise} />
+              <StatTile
+                label={isMine ? 'My Capital Currently Deployed' : 'Business Capital Currently Deployed'}
+                valuePaise={view.capitalInvestedPaise}
+              />
+              {isMine ? (
+                <StatTile
+                  label="My Current Capital At Risk"
+                  valuePaise={view.capitalAtRiskPaise}
+                />
+              ) : view.hasEstimatedPortfolioValue && view.estimatedPortfolioValuePaise != null ? (
+                <StatTile
+                  label="Estimated Portfolio Value"
+                  valuePaise={view.estimatedPortfolioValuePaise}
+                />
+              ) : null}
+              <StatTile
+                label={isMine ? 'My Lifetime Profit' : 'Business Profit (Lifetime)'}
+                valuePaise={view.profitPaise}
+              />
               {!isMine && view.partnerProfitPaise > 0 ? (
                 <StatTile label="Partner Profit" valuePaise={view.partnerProfitPaise} />
               ) : null}
-              <StatTile label={roiLabel} valueText={`${(view.roiBps / 100).toFixed(1)}%`} />
+              <StatTile
+                label={isMine ? 'My ROI (Realized)' : 'Business ROI (Realized)'}
+                valueText={`${(view.roiBps / 100).toFixed(1)}%`}
+              />
               <StatTile
                 label="Active Vehicles"
-                valueText={String(bundle.shared.activeVehicles)}
+                valueText={String(view.activeVehicles)}
               />
               <StatTile
                 label="Vehicles Sold"
-                valueText={String(bundle.shared.vehiclesSold)}
+                valueText={String(view.vehiclesSold)}
               />
               <StatTile
-                label="Average Profit per Vehicle"
+                label={avgProfitLabel}
                 valuePaise={view.avgProfitPerVehiclePaise}
               />
               <StatTile
@@ -622,8 +737,12 @@ export function OverviewDashboard({
                 />
                 <StatTile label="Repairs" valuePaise={bundle.period.repairsPaise} />
                 <StatTile
-                  label="Current Active Investment"
-                  valuePaise={bundle.period.currentInvestmentPaise}
+                  label={capitalLabel}
+                  valuePaise={
+                    isMine
+                      ? bundle.period.myCapitalInvestedPaise
+                      : bundle.period.currentInvestmentPaise
+                  }
                 />
               </motion.div>
             </AnimatePresence>
@@ -721,6 +840,7 @@ export function OverviewDashboard({
                 </button>
               </div>
               <ManualProfitForm
+                defaultPartnerPct={defaultPartnerPct}
                 onSuccess={() => {
                   setManualOpen(false);
                   router.refresh();

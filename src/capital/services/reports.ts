@@ -10,6 +10,44 @@ import {
 import { formatInrPlain, paiseToRupees } from '@/src/capital/lib/money';
 import { logActivity } from './activity';
 
+function vehicleDealRowsCsvHeader() {
+  return [
+    'Name',
+    'Status',
+    'Purchase',
+    'Repairs',
+    'Refunds',
+    'Net Cost',
+    'Sale',
+    'Business Profit',
+    'Sufii Share',
+    'Investor Pool',
+    'My Share',
+    'Business ROI %',
+    'My ROI %',
+  ].join(',');
+}
+
+function vehicleDealRowCsv(asset: typeof acAssets.$inferSelect): string {
+  return [
+    `"${asset.displayName.replace(/"/g, '""')}"`,
+    asset.status,
+    paiseToRupees(asset.purchasePricePaise),
+    paiseToRupees(asset.repairTotalPaise ?? 0),
+    paiseToRupees(asset.dealerRefundTotalPaise ?? 0),
+    paiseToRupees(asset.totalInvestmentPaise),
+    asset.actualSalePricePaise != null ? paiseToRupees(asset.actualSalePricePaise) : '',
+    asset.profitPaise != null ? paiseToRupees(asset.profitPaise) : '',
+    asset.operatingPartnerProfitPaise != null || asset.partnerSharePaise != null
+      ? paiseToRupees(asset.operatingPartnerProfitPaise ?? asset.partnerSharePaise ?? 0)
+      : '',
+    asset.investorProfitPoolPaise != null ? paiseToRupees(asset.investorProfitPoolPaise) : '',
+    asset.mySharePaise != null ? paiseToRupees(asset.mySharePaise) : '',
+    asset.businessRoiBps != null ? (asset.businessRoiBps / 100).toFixed(1) : '',
+    asset.myRoiBps != null ? (asset.myRoiBps / 100).toFixed(1) : '',
+  ].join(',');
+}
+
 export async function generateCsvReport(type: string): Promise<string> {
   const lines: string[] = [];
 
@@ -33,13 +71,35 @@ export async function generateCsvReport(type: string): Promise<string> {
     }
   } else if (type === 'cash-flow') {
     lines.push('Date,Type,Amount,Mode,Reference');
-    const payments = await capitalDb.select().from(acPaymentsReceived).where(eq(acPaymentsReceived.isReversed, false));
+    const payments = await capitalDb
+      .select()
+      .from(acPaymentsReceived)
+      .where(eq(acPaymentsReceived.isReversed, false));
     for (const p of payments) {
-      lines.push([p.receivedAt, p.paymentType, paiseToRupees(p.amountPaise), p.paymentMode, p.referenceNumber ?? ''].join(','));
+      lines.push(
+        [
+          p.receivedAt,
+          p.paymentType,
+          paiseToRupees(p.amountPaise),
+          p.paymentMode,
+          p.referenceNumber ?? '',
+        ].join(','),
+      );
     }
-    const capital = await capitalDb.select().from(acCapitalInvestments).where(eq(acCapitalInvestments.isReversed, false));
+    const capital = await capitalDb
+      .select()
+      .from(acCapitalInvestments)
+      .where(eq(acCapitalInvestments.isReversed, false));
     for (const c of capital) {
-      lines.push([c.investedAt, 'capital_investment', paiseToRupees(c.amountPaise), c.paymentMode, c.referenceNumber ?? ''].join(','));
+      lines.push(
+        [
+          c.investedAt,
+          'capital_investment',
+          paiseToRupees(c.amountPaise),
+          c.paymentMode,
+          c.referenceNumber ?? '',
+        ].join(','),
+      );
     }
     const { acManualProfits } = await import('@/src/capital/db/schema');
     const manuals = await capitalDb
@@ -47,13 +107,24 @@ export async function generateCsvReport(type: string): Promise<string> {
       .from(acManualProfits)
       .where(eq(acManualProfits.isReversed, false));
     for (const m of manuals) {
-      lines.push([m.profitDate, `manual_profit:${m.category}`, paiseToRupees(m.amountPaise), m.source, m.description].join(','));
+      lines.push(
+        [
+          m.profitDate,
+          `manual_profit:${m.category}`,
+          paiseToRupees(m.amountPaise),
+          m.source,
+          m.description,
+        ].join(','),
+      );
     }
   } else if (type === 'ledger') {
     lines.push('Date,Type,Direction,Amount,Description,Asset');
     const { acLedgerEntries } = await import('@/src/capital/db/schema');
     const { desc } = await import('drizzle-orm');
-    const entries = await capitalDb.select().from(acLedgerEntries).orderBy(desc(acLedgerEntries.createdAt));
+    const entries = await capitalDb
+      .select()
+      .from(acLedgerEntries)
+      .orderBy(desc(acLedgerEntries.createdAt));
     for (const e of entries) {
       lines.push(
         [
@@ -66,10 +137,26 @@ export async function generateCsvReport(type: string): Promise<string> {
         ].join(','),
       );
     }
+  } else if (type === 'vehicles' || type === 'pnl' || type === 'roi') {
+    lines.push(vehicleDealRowsCsvHeader());
+    const rows = await capitalDb
+      .select({ asset: acAssets })
+      .from(acAssets)
+      .innerJoin(acAutomotiveDetails, eq(acAssets.id, acAutomotiveDetails.assetId));
+    for (const { asset } of rows) {
+      if (asset.status === 'cancelled') continue;
+      lines.push(vehicleDealRowCsv(asset));
+    }
   } else {
     lines.push('Report,Value');
-    const [cap] = await capitalDb.select({ t: sum(acCapitalInvestments.amountPaise) }).from(acCapitalInvestments).where(eq(acCapitalInvestments.isReversed, false));
-    const [pay] = await capitalDb.select({ t: sum(acPaymentsReceived.amountPaise) }).from(acPaymentsReceived).where(eq(acPaymentsReceived.isReversed, false));
+    const [cap] = await capitalDb
+      .select({ t: sum(acCapitalInvestments.amountPaise) })
+      .from(acCapitalInvestments)
+      .where(eq(acCapitalInvestments.isReversed, false));
+    const [pay] = await capitalDb
+      .select({ t: sum(acPaymentsReceived.amountPaise) })
+      .from(acPaymentsReceived)
+      .where(eq(acPaymentsReceived.isReversed, false));
     lines.push(`Total Capital,${formatInrPlain(Number(cap?.t ?? 0))}`);
     lines.push(`Total Received,${formatInrPlain(Number(pay?.t ?? 0))}`);
   }
@@ -101,6 +188,48 @@ export async function generateExcelReport(type: string): Promise<Buffer> {
         status: asset.status,
         investment: paiseToRupees(asset.totalInvestmentPaise),
         outstanding: paiseToRupees(asset.outstandingPaise),
+      });
+    }
+  } else if (type === 'vehicles' || type === 'pnl' || type === 'roi') {
+    sheet.columns = [
+      { header: 'Name', key: 'name', width: 28 },
+      { header: 'Status', key: 'status', width: 12 },
+      { header: 'Purchase', key: 'purchase', width: 12 },
+      { header: 'Repairs', key: 'repairs', width: 12 },
+      { header: 'Refunds', key: 'refunds', width: 12 },
+      { header: 'Net Cost', key: 'netCost', width: 12 },
+      { header: 'Sale', key: 'sale', width: 12 },
+      { header: 'Business Profit', key: 'businessProfit', width: 14 },
+      { header: 'Sufii Share', key: 'sufii', width: 12 },
+      { header: 'Investor Pool', key: 'investorPool', width: 12 },
+      { header: 'My Share', key: 'myShare', width: 12 },
+      { header: 'Business ROI %', key: 'bizRoi', width: 12 },
+      { header: 'My ROI %', key: 'myRoi', width: 10 },
+    ];
+    const rows = await capitalDb.select().from(acAssets);
+    for (const asset of rows) {
+      if (asset.status === 'cancelled') continue;
+      sheet.addRow({
+        name: asset.displayName,
+        status: asset.status,
+        purchase: paiseToRupees(asset.purchasePricePaise),
+        repairs: paiseToRupees(asset.repairTotalPaise ?? 0),
+        refunds: paiseToRupees(asset.dealerRefundTotalPaise ?? 0),
+        netCost: paiseToRupees(asset.totalInvestmentPaise),
+        sale:
+          asset.actualSalePricePaise != null ? paiseToRupees(asset.actualSalePricePaise) : '',
+        businessProfit: asset.profitPaise != null ? paiseToRupees(asset.profitPaise) : '',
+        sufii:
+          asset.operatingPartnerProfitPaise != null || asset.partnerSharePaise != null
+            ? paiseToRupees(asset.operatingPartnerProfitPaise ?? asset.partnerSharePaise ?? 0)
+            : '',
+        investorPool:
+          asset.investorProfitPoolPaise != null
+            ? paiseToRupees(asset.investorProfitPoolPaise)
+            : '',
+        myShare: asset.mySharePaise != null ? paiseToRupees(asset.mySharePaise) : '',
+        bizRoi: asset.businessRoiBps != null ? asset.businessRoiBps / 100 : '',
+        myRoi: asset.myRoiBps != null ? asset.myRoiBps / 100 : '',
       });
     }
   } else {

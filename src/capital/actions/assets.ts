@@ -8,11 +8,13 @@ import { formDataToObject, parseZod } from '@/src/capital/lib/validation/parse';
 import {
   createAssetSchema,
   recordSaleSchema,
+  updateAssetFundingSchema,
   updateStatusSchema,
 } from '@/src/capital/lib/validation/schemas';
 import {
   createAsset,
   recordSale,
+  updateAssetFunding,
   updateAssetStatus,
 } from '@/src/capital/services/assets';
 
@@ -97,6 +99,52 @@ export async function recordSaleAction(
     return { success: 'Sale recorded.' };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Failed to record sale' };
+  }
+}
+
+export async function updateAssetFundingAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    await requireCapitalAuth();
+    const parsed = parseZod(updateAssetFundingSchema, formDataToObject(formData));
+    if (!parsed.ok) return { error: parsed.error };
+
+    const input = parsed.data;
+    const mePaise = rupeesToPaise(input.meInvested);
+    const i2Paise = rupeesToPaise(input.investor2Invested ?? 0);
+    const i3Paise = rupeesToPaise(input.investor3Invested ?? 0);
+    const investors = [
+      { slot: 'me' as const, investedPaise: mePaise, label: 'Me' },
+      ...(i2Paise > 0
+        ? [
+            {
+              slot: 'investor_2' as const,
+              investedPaise: i2Paise,
+              label: input.investor2Label?.trim() || 'Investor 2',
+            },
+          ]
+        : []),
+      ...(i3Paise > 0
+        ? [
+            {
+              slot: 'investor_3' as const,
+              investedPaise: i3Paise,
+              label: input.investor3Label?.trim() || 'Investor 3',
+            },
+          ]
+        : []),
+    ];
+
+    await updateAssetFunding(input.assetId, investors);
+    revalidatePath(`/assets/${input.assetId}`);
+    revalidatePath('/assets');
+    revalidatePath('/dashboard');
+    revalidateTag('capital-dashboard', 'default');
+    return { success: 'Investments updated.' };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Failed to update investments' };
   }
 }
 

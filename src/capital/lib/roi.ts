@@ -1,5 +1,5 @@
 /**
- * Business ROI = Business Profit ÷ Total Vehicle Cost (purchase + signed expenses)
+ * Business ROI = Business Profit ÷ Net Vehicle Cost (purchase + repairs − refunds)
  * My ROI       = My Profit ÷ My Invested stake
  *
  * Never compute My ROI against full vehicle cost unless I funded 100%.

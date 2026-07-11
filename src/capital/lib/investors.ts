@@ -25,13 +25,14 @@ export type ResolvedInvestor = {
 };
 
 /**
- * Validate Layer 2 funding: sum of investor stakes must equal purchase price.
+ * Validate Layer 2 funding: sum of investor stakes must equal Net Vehicle Cost
+ * (Purchase + Repairs − Refunds/Credits).
  */
 export function validateFundingStructure(
-  purchasePricePaise: number,
+  netVehicleCostPaise: number,
   investors: InvestorFundingInput[],
 ): ResolvedInvestor[] {
-  if (purchasePricePaise <= 0) throw new Error('Purchase price must be positive');
+  if (netVehicleCostPaise <= 0) throw new Error('Net vehicle cost must be positive');
 
   const bySlot = new Map<InvestorSlot, InvestorFundingInput>();
   for (const inv of investors) {
@@ -65,9 +66,9 @@ export function validateFundingStructure(
   }
 
   const total = resolved.reduce((s, r) => s + r.investedPaise, 0);
-  if (total !== purchasePricePaise) {
+  if (total !== netVehicleCostPaise) {
     throw new Error(
-      `Investor funding (₹${(total / 100).toLocaleString('en-IN')}) must equal purchase price (₹${(purchasePricePaise / 100).toLocaleString('en-IN')})`,
+      `Investor funding (₹${(total / 100).toLocaleString('en-IN')}) must equal net vehicle cost (₹${(netVehicleCostPaise / 100).toLocaleString('en-IN')})`,
     );
   }
   if (total === 0) throw new Error('At least one investor must fund the vehicle');
@@ -75,24 +76,24 @@ export function validateFundingStructure(
   return resolved;
 }
 
-/** Default: Me funds 100% of purchase. */
-export function fullSelfFunding(purchasePricePaise: number): ResolvedInvestor[] {
-  return validateFundingStructure(purchasePricePaise, [
-    { slot: 'me', investedPaise: purchasePricePaise },
+/** Default: Me funds 100% of net vehicle cost (at create = purchase). */
+export function fullSelfFunding(netVehicleCostPaise: number): ResolvedInvestor[] {
+  return validateFundingStructure(netVehicleCostPaise, [
+    { slot: 'me', investedPaise: netVehicleCostPaise },
   ]);
 }
 
 /**
- * Distribute business profit across investors.
- * Default: proportional to invested capital.
- * Optional overrides must sum to gross profit.
+ * Distribute a profit pool across capital investors proportional to invested capital.
+ * Used for the Investor Pool (after operating-partner cut), not gross business profit.
+ * Optional overrides must sum to the pool (legacy / tests only — vehicle sale never uses overrides).
  */
 export function distributeInvestorProfits(
-  grossProfitPaise: number,
+  poolPaise: number,
   funding: { slot: InvestorSlot; investedPaise: number; label: string }[],
   overrides?: InvestorProfitInput[],
 ): ResolvedInvestor[] {
-  const gross = Math.round(grossProfitPaise);
+  const pool = Math.round(poolPaise);
   const active = funding.filter((f) => f.investedPaise > 0 || f.slot === 'me');
   const totalInvested = active.reduce((s, f) => s + f.investedPaise, 0);
   if (totalInvested <= 0) throw new Error('No investor capital to allocate profit against');
@@ -110,9 +111,9 @@ export function distributeInvestorProfits(
       };
     });
     const sum = rows.reduce((s, r) => s + (r.profitPaise ?? 0), 0);
-    if (sum !== gross) {
+    if (sum !== pool) {
       throw new Error(
-        `Investor profits (₹${(sum / 100).toLocaleString('en-IN')}) must equal business profit (₹${(gross / 100).toLocaleString('en-IN')})`,
+        `Investor profits (₹${(sum / 100).toLocaleString('en-IN')}) must equal investor pool (₹${(pool / 100).toLocaleString('en-IN')})`,
       );
     }
     return rows;
@@ -123,16 +124,15 @@ export function distributeInvestorProfits(
   const rows: ResolvedInvestor[] = active.map((f, idx) => {
     const isLast = idx === active.length - 1;
     const profitPaise = isLast
-      ? gross - allocated
-      : Math.round((gross * f.investedPaise) / totalInvested);
+      ? pool - allocated
+      : Math.round((pool * f.investedPaise) / totalInvested);
     if (!isLast) allocated += profitPaise;
     return {
       slot: f.slot,
       label: f.label,
       investedPaise: f.investedPaise,
       profitPaise,
-      roiBps:
-        f.investedPaise > 0 ? calcRoiBps(profitPaise, f.investedPaise) : null,
+      roiBps: f.investedPaise > 0 ? calcRoiBps(profitPaise, f.investedPaise) : null,
     };
   });
   return rows;

@@ -5,6 +5,7 @@ import { MoneyDisplay } from '@/src/capital/components/MoneyDisplay';
 import { Badge } from '@/src/capital/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/src/capital/components/ui/tabs';
 import { AssetActionsForms } from '@/src/capital/components/forms/AssetActionsForms';
+import { UpdateFundingForm } from '@/src/capital/components/forms/UpdateFundingForm';
 
 type TimelineData = {
   activities: { id: string; action: string; createdAt: Date }[];
@@ -30,15 +31,26 @@ export function AssetCommandCenter({
   assetId,
   currentStatus,
   totalInvestmentPaise,
+  fundingGapPaise = 0,
+  operatingPartnerNumerator = 1,
+  operatingPartnerDenominator = 2,
   timeline,
   investors = [],
 }: {
   assetId: string;
   currentStatus: string;
   totalInvestmentPaise: number;
+  fundingGapPaise?: number;
+  operatingPartnerNumerator?: number;
+  operatingPartnerDenominator?: number;
   timeline: TimelineData;
   investors?: { slot: string; label: string; investedPaise: number }[];
 }) {
+  const canEditFunding =
+    currentStatus !== 'sold' &&
+    currentStatus !== 'settled' &&
+    currentStatus !== 'cancelled';
+
   return (
     <Tabs defaultValue="actions" className="w-full">
       <TabsList className="mb-4 flex flex-wrap">
@@ -50,11 +62,22 @@ export function AssetCommandCenter({
         <TabsTrigger value="documents">Documents ({timeline.documents.length})</TabsTrigger>
       </TabsList>
 
-      <TabsContent value="actions">
+      <TabsContent value="actions" className="space-y-4">
+        {canEditFunding ? (
+          <UpdateFundingForm
+            assetId={assetId}
+            netVehicleCostPaise={totalInvestmentPaise}
+            fundingGapPaise={fundingGapPaise}
+            investors={investors}
+          />
+        ) : null}
         <AssetActionsForms
           assetId={assetId}
           currentStatus={currentStatus}
           totalInvestmentPaise={totalInvestmentPaise}
+          fundingGapPaise={fundingGapPaise}
+          operatingPartnerNumerator={operatingPartnerNumerator}
+          operatingPartnerDenominator={operatingPartnerDenominator}
           investors={investors}
         />
       </TabsContent>

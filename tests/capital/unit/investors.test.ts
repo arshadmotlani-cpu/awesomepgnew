@@ -11,7 +11,7 @@ import { computeProfitShare, fullInvestorShare } from '../../../src/capital/lib/
 const INR = (r: number) => Math.round(r * 100);
 
 describe('investors funding', () => {
-  it('requires funding to equal purchase price', () => {
+  it('requires funding to equal net vehicle cost', () => {
     assert.throws(() =>
       validateFundingStructure(INR(11_00_000), [
         { slot: 'me', investedPaise: INR(5_00_000) },
@@ -20,7 +20,7 @@ describe('investors funding', () => {
     );
   });
 
-  it('accepts 50/50 Me + Investor 2', () => {
+  it('accepts 50/50 Me + Investor 2 against net cost', () => {
     const rows = validateFundingStructure(INR(11_00_000), [
       { slot: 'me', investedPaise: INR(5_50_000) },
       { slot: 'investor_2', investedPaise: INR(5_50_000) },
@@ -32,11 +32,12 @@ describe('investors funding', () => {
     );
   });
 
-  it('distributes profit proportional to capital', () => {
+  it('distributes investor pool proportional to capital', () => {
     const funding = validateFundingStructure(INR(11_00_000), [
       { slot: 'me', investedPaise: INR(5_50_000) },
       { slot: 'investor_2', investedPaise: INR(5_50_000) },
     ]);
+    // Investor pool only (after Sufii cut) — e.g. ₹1,20,000 pool
     const profits = distributeInvestorProfits(INR(1_20_000), funding);
     const summary = summarizeInvestorShares(profits);
     assert.equal(summary.myProfitPaise, INR(60_000));
@@ -52,7 +53,7 @@ describe('investors funding', () => {
   });
 });
 
-describe('profitShare (legacy)', () => {
+describe('profitShare (legacy manual / non-vehicle)', () => {
   it('splits percentage 50/50 with equal capital ⇒ equal ROI', () => {
     const purchase = INR(10_00_000);
     const gross = INR(2_00_000);
@@ -79,17 +80,17 @@ describe('profitShare (legacy)', () => {
 
   it('fixed partner amount leaves remainder to me', () => {
     const r = computeProfitShare({
-      grossPaise: 80_000_00,
+      grossPaise: INR(80_000),
       mode: 'fixed',
-      partnerFixedPaise: 40_000_00,
+      partnerFixedPaise: INR(40_000),
     });
-    assert.equal(r.partnerSharePaise, 40_000_00);
-    assert.equal(r.mySharePaise, 40_000_00);
+    assert.equal(r.partnerSharePaise, INR(40_000));
+    assert.equal(r.mySharePaise, INR(40_000));
   });
 
   it('fullInvestorShare is 100% mine', () => {
-    const r = fullInvestorShare(50_000_00, 200_000_00);
+    const r = fullInvestorShare(INR(50_000), INR(2_00_000));
     assert.equal(r.partnerSharePaise, 0);
-    assert.equal(r.mySharePaise, 50_000_00);
+    assert.equal(r.mySharePaise, INR(50_000));
   });
 });

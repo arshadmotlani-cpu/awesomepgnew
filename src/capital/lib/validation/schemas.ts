@@ -40,7 +40,32 @@ export const createAssetSchema = z
     if (me + i2 + i3 !== purchasePaise) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Me + Investor 2 + Investor 3 must equal purchase price',
+        message: 'Total investment (Me + Investor 2 + Investor 3) must equal purchase price',
+        path: ['meInvested'],
+      });
+    }
+  });
+
+export const updateAssetFundingSchema = z
+  .object({
+    assetId: uuid,
+    meInvested: z.coerce.number().min(0),
+    investor2Invested: z.coerce.number().min(0).optional(),
+    investor3Invested: z.coerce.number().min(0).optional(),
+    investor2Label: z.string().optional(),
+    investor3Label: z.string().optional(),
+    /** Required net vehicle cost in rupees — client/server must match current asset */
+    netVehicleCostRupees: z.coerce.number().positive(),
+  })
+  .superRefine((d, ctx) => {
+    const target = Math.round(d.netVehicleCostRupees * 100);
+    const me = Math.round(d.meInvested * 100);
+    const i2 = Math.round((d.investor2Invested ?? 0) * 100);
+    const i3 = Math.round((d.investor3Invested ?? 0) * 100);
+    if (me + i2 + i3 !== target) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Total investment must equal net vehicle cost',
         path: ['meInvested'],
       });
     }

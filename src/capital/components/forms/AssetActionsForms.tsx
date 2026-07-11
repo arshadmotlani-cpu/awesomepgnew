@@ -7,6 +7,8 @@ import { MoneyDisplay } from '@/src/capital/components/MoneyDisplay';
 import { Button } from '@/src/capital/components/ui/button';
 import { Input } from '@/src/capital/components/ui/input';
 import { assetStatusEnum } from '@/src/capital/db/schema/enums';
+import { distributeDealProfits } from '@/src/capital/lib/dealEconomics';
+import type { InvestorSlot } from '@/src/capital/db/schema/investors';
 
 const initialState: ActionState = {};
 
@@ -18,11 +20,17 @@ export function AssetActionsForms({
   assetId,
   currentStatus,
   totalInvestmentPaise = 0,
+  fundingGapPaise = 0,
+  operatingPartnerNumerator = 1,
+  operatingPartnerDenominator = 2,
   investors = [],
 }: {
   assetId: string;
   currentStatus: string;
   totalInvestmentPaise?: number;
+  fundingGapPaise?: number;
+  operatingPartnerNumerator?: number;
+  operatingPartnerDenominator?: number;
   investors?: { slot: string; label: string; investedPaise: number }[];
 }) {
   const isClosed =
@@ -48,6 +56,9 @@ export function AssetActionsForms({
           <SaleForm
             assetId={assetId}
             totalInvestmentPaise={totalInvestmentPaise}
+            fundingGapPaise={fundingGapPaise}
+            operatingPartnerNumerator={operatingPartnerNumerator}
+            operatingPartnerDenominator={operatingPartnerDenominator}
             investors={investors}
           />
         ) : null}
@@ -92,33 +103,67 @@ function StatusForm({ assetId, currentStatus }: { assetId: string; currentStatus
 function SaleForm({
   assetId,
   totalInvestmentPaise,
+  fundingGapPaise,
+  operatingPartnerNumerator,
+  operatingPartnerDenominator,
   investors,
 }: {
   assetId: string;
   totalInvestmentPaise: number;
+  fundingGapPaise: number;
+  operatingPartnerNumerator: number;
+  operatingPartnerDenominator: number;
   investors: { slot: string; label: string; investedPaise: number }[];
 }) {
   const [state, formAction, pending] = useActionState(recordSaleAction, initialState);
   const [salePrice, setSalePrice] = useState('');
-  const grossPaise = useMemo(() => {
-    const price = Math.round((Number(salePrice) || 0) * 100);
-    return price - totalInvestmentPaise;
-  }, [salePrice, totalInvestmentPaise]);
+  const fullyFunded = fundingGapPaise === 0;
 
-  const totalInvested = investors.reduce((s, i) => s + i.investedPaise, 0) || 1;
-  const preview = investors
-    .filter((i) => i.investedPaise > 0 || i.slot === 'me')
-    .map((i) => ({
-      ...i,
-      profitPaise: Math.round((grossPaise * i.investedPaise) / totalInvested),
-    }));
+  const preview = useMemo(() => {
+    const price = Math.round((Number(salePrice) || 0) * 100);
+    if (!salePrice || price <= 0) return null;
+    const businessProfit = price - totalInvestmentPaise;
+    try {
+      const deal = distributeDealProfits({
+        businessProfitPaise: businessProfit,
+        netVehicleCostPaise: totalInvestmentPaise,
+        settings: {
+          numerator: operatingPartnerNumerator,
+          denominator: operatingPartnerDenominator,
+        },
+        funding: investors.map((i) => ({
+          slot: i.slot as InvestorSlot,
+          investedPaise: i.investedPaise,
+          label: i.label,
+        })),
+      });
+      return deal;
+    } catch {
+      return null;
+    }
+  }, [
+    salePrice,
+    totalInvestmentPaise,
+    operatingPartnerNumerator,
+    operatingPartnerDenominator,
+    investors,
+  ]);
 
   return (
     <form action={formAction} className="ac-glass-card space-y-3 p-4 md:col-span-2 lg:col-span-1">
       <h3 className="font-medium">Record sale</h3>
       <p className="text-xs text-ac-text-muted">
-        Business profit is split in proportion to each investor&apos;s capital.
+        Enter sale price and date only. Profits and ROI are calculated automatically.
       </p>
+      {!fullyFunded ? (
+        <p className="rounded-lg border border-ac-danger/30 bg-ac-danger/10 px-3 py-2 text-sm text-ac-danger">
+          Funding must equal net vehicle cost before sale. Update investments first
+          {fundingGapPaise > 0
+            ? ` (underfunded by ₹${(fundingGapPaise / 100).toLocaleString('en-IN')})`
+            : ` (overfunded by ₹${(Math.abs(fundingGapPaise) / 100).toLocaleString('en-IN')})`}
+          .
+        </p>
+      ) : null}
       <input type="hidden" name="assetId" value={assetId} />
       <div>
         <label className="mb-1 block text-sm text-ac-text-secondary">Sale price (₹)</label>
@@ -128,34 +173,70 @@ function SaleForm({
           required
           value={salePrice}
           onChange={(e) => setSalePrice(e.target.value)}
+          disabled={!fullyFunded}
         />
       </div>
       <div>
         <label className="mb-1 block text-sm text-ac-text-secondary">Sale date</label>
-        <Input name="saleDate" type="date" required />
+        <Input name="saleDate" type="date" required disabled={!fullyFunded} />
       </div>
-      {salePrice ? (
+      {preview ? (
         <div className="space-y-2 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-sm">
           <div className="flex justify-between">
-            <span className="text-ac-text-muted">Business profit</span>
-            <MoneyDisplay paise={grossPaise} />
+            <span className="text-ac-text-muted">Net vehicle cost</span>
+            <MoneyDisplay paise={totalInvestmentPaise} />
           </div>
-          {preview.map((p) => (
-            <div key={p.slot} className="flex justify-between gap-2">
+          <div className="flex justify-between">
+            <span className="text-ac-text-muted">Business profit</span>
+            <MoneyDisplay paise={preview.businessProfitPaise} />
+          </div>
+          <div className="flex justify-between">
+            <span className="text-ac-text-secondary">
+              Sufii (operating partner){' '}
+              <span className="text-ac-text-muted">
+                ({(preview.operatingPartnerPctBps / 100).toFixed(0)}%)
+              </span>
+            </span>
+            <MoneyDisplay paise={preview.operatingPartnerSharePaise} />
+          </div>
+          <div className="flex justify-between">
+            <span className="text-ac-text-muted">Investor pool</span>
+            <MoneyDisplay paise={preview.investorPoolPaise} />
+          </div>
+          {preview.investors.map((p) => (
+            <div key={p.slot} className="flex justify-between gap-2 pl-2">
               <span className="text-ac-text-secondary">
                 {p.label}{' '}
                 <span className="text-ac-text-muted">
-                  ({((p.investedPaise / totalInvested) * 100).toFixed(0)}%)
+                  (
+                  {totalInvestmentPaise > 0
+                    ? ((p.investedPaise / totalInvestmentPaise) * 100).toFixed(0)
+                    : 0}
+                  %)
                 </span>
               </span>
-              <MoneyDisplay paise={p.profitPaise} />
+              <MoneyDisplay paise={p.profitPaise ?? 0} />
             </div>
           ))}
+          <div className="flex justify-between border-t border-white/10 pt-2">
+            <span className="text-ac-text-muted">Business ROI</span>
+            <span>
+              {preview.businessRoiBps != null
+                ? `${(preview.businessRoiBps / 100).toFixed(1)}%`
+                : '—'}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-ac-text-muted">My ROI</span>
+            <span>
+              {preview.myRoiBps != null ? `${(preview.myRoiBps / 100).toFixed(1)}%` : '—'}
+            </span>
+          </div>
         </div>
       ) : null}
       {state.error ? <p className="text-sm text-ac-danger">{state.error}</p> : null}
       {state.success ? <p className="text-sm text-ac-success">{state.success}</p> : null}
-      <Button type="submit" size="sm" disabled={pending}>
+      <Button type="submit" size="sm" disabled={pending || !fullyFunded}>
         Record sale
       </Button>
     </form>

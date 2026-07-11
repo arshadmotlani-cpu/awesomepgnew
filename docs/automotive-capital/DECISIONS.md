@@ -235,6 +235,33 @@ Seed script creates only: settings singleton, expense categories, admin user. No
 
 ---
 
+## ADR-011: Partnership Profit Model (Operating Partner + Investor Pool)
+
+**Date:** 2026-07-11  
+**Status:** Accepted
+
+### Context
+Automotive Capital is an investment partnership, not a traditional dealership. Sufii is the operating partner and does not invest capital by default. Capital investors (Me / Investor 2 / Investor 3) fund Net Vehicle Cost. Profit must never be entered manually on vehicle sale.
+
+### Decision
+1. **Net Vehicle Cost** = Purchase + Repairs − Dealer Refunds/Credits (signed expenses). `total_investment_paise` stores this value.
+2. **Funding** = Σ capital investor stakes must always equal Net Vehicle Cost (`funding_gap_paise === 0` before sale).
+3. **Business Profit** = Sale − Net Vehicle Cost.
+4. **Operating partner (Sufii)** receives Settings ratio of Business Profit (default `1/2` = 50%).
+5. **Investor Pool** = remainder; split proportional to invested stakes among Me / Investor 2 / Investor 3.
+6. Sale UI accepts only Sale Price + Sale Date. SSOT: `src/capital/lib/dealEconomics.ts`. Migration: `0008_deal_economics.sql`.
+
+### Alternatives Considered
+1. **100% profit to capital by stake** — Incorrect for operating partnership.
+2. **Hardcoded 50/50 Sufii cut** — Too rigid; agreement may change (Settings kept).
+
+### Consequences
+- `partner_share_paise` means Sufii / operating partner, not co-investor residual.
+- Expenses may create a funding gap; Update Investments form rebalances before sale.
+- Payment-type `refund` remains cash-recovery and does not change Net Vehicle Cost.
+
+---
+
 ## Template for Future ADRs
 
 ```

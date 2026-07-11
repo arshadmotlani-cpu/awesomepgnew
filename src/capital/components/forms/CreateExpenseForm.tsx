@@ -125,7 +125,9 @@ export function CreateExpenseForm({
               {...form.register('amount')}
             />
             <p className="mt-1 text-xs text-ac-text-muted">
-              Use a negative amount for refunds, credits, or Expense Adjustment (reduces vehicle cost).
+              Positive = repair / cost (raises Net Vehicle Cost). Negative = dealer refund or credit
+              (lowers Net Vehicle Cost). After saving, update investments so Total Investment equals
+              Net Vehicle Cost.
             </p>
           </FormField>
           <FormField label="Description *" name="description" form={form} className="md:col-span-2">

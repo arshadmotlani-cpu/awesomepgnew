@@ -235,11 +235,13 @@ export function CreateAssetForm() {
         <CardHeader>
           <CardTitle>Investment structure</CardTitle>
           <p className="text-sm text-ac-text-secondary">
-            Who funded this vehicle. Amounts must add up to the purchase price.
+            Capital investors only (Sufii does not invest by default). Total investment must equal
+            purchase price at create; after repairs/refunds, update investments to match net vehicle
+            cost.
           </p>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-3">
-          <FormField label="Me — invested (₹)" name="meInvested" form={form}>
+          <FormField label="My Investment (₹)" name="meInvested" form={form}>
             <Input
               type="number"
               step="0.01"
@@ -275,13 +277,13 @@ export function CreateAssetForm() {
           </div>
           <div className="md:col-span-3 rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3 text-sm">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-ac-text-secondary">Funding total</span>
+              <span className="text-ac-text-secondary">Total investment</span>
               <span className={fundingOk ? 'text-ac-success' : 'text-ac-danger'}>
                 ₹{formatInrPlain(Math.round(fundingTotal * 100))}
                 {purchasePrice != null
                   ? ` / ₹${formatInrPlain(Math.round(purchasePrice * 100))}`
                   : ''}
-                {fundingOk ? ' · balanced' : ' · must match purchase price'}
+                {fundingOk ? ' · balanced' : ' · must equal purchase price'}
               </span>
             </div>
           </div>

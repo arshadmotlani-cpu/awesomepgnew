@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import { capitalDb } from '@/src/capital/db/client';
-import { acAssets, acPaymentsReceived, acSettlements, acSettings } from '@/src/capital/db/schema';
+import { acAssets, acPaymentsReceived, acSettlements } from '@/src/capital/db/schema';
 import { postLedgerEntry } from './ledger';
 import { logActivity } from './activity';
 import { recalculateAsset } from './assets';
@@ -39,14 +39,10 @@ export async function createSettlement(assetId: string, notes?: string) {
     const grossProfit =
       asset.profitPaise ?? (asset.actualSalePricePaise ?? 0) - asset.totalInvestmentPaise;
 
-    const [settings] = await tx.select().from(acSettings).limit(1);
-    const adminShare =
-      asset.mySharePaise ??
-      Math.round(
-        (grossProfit * (settings?.profitShareNumerator ?? 1)) /
-          (settings?.profitShareDenominator ?? 2),
-      );
-    const partnerShare = asset.partnerSharePaise ?? grossProfit - adminShare;
+    // Stored deal economics: myShare = my Investor Pool slice; partnerShare = Sufii (operating partner)
+    const adminShare = asset.mySharePaise ?? 0;
+    const partnerShare =
+      asset.operatingPartnerProfitPaise ?? asset.partnerSharePaise ?? grossProfit - adminShare;
 
     const [settlement] = await tx
       .insert(acSettlements)

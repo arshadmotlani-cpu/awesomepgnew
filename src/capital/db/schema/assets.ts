@@ -23,16 +23,38 @@ export const acAssets = pgTable(
     expectedSalePricePaise: bigint('expected_sale_price_paise', { mode: 'number' }),
     actualSalePricePaise: bigint('actual_sale_price_paise', { mode: 'number' }),
     saleDate: date('sale_date'),
+    /** Signed expense sum (repairs − refunds/credits) */
     totalExpensePaise: bigint('total_expense_paise', { mode: 'number' }).notNull().default(0),
+    /** Σ positive expenses (repairs) */
+    repairTotalPaise: bigint('repair_total_paise', { mode: 'number' }).notNull().default(0),
+    /** Σ |negative| expenses (dealer refunds / credits) */
+    dealerRefundTotalPaise: bigint('dealer_refund_total_paise', { mode: 'number' })
+      .notNull()
+      .default(0),
+    /**
+     * Net Vehicle Cost = purchase + repairs − refunds.
+     * UI label: Net Vehicle Cost (column kept for compatibility).
+     */
     totalInvestmentPaise: bigint('total_investment_paise', { mode: 'number' }).notNull().default(0),
+    /** netVehicleCost − Σ capital investor stakes (0 = fully funded) */
+    fundingGapPaise: bigint('funding_gap_paise', { mode: 'number' }).notNull().default(0),
     holdingDays: integer('holding_days'),
+    /** Business profit = sale − net vehicle cost */
     profitPaise: bigint('profit_paise', { mode: 'number' }),
     roiBps: integer('roi_bps'),
     /** Profit distribution — set when sale is recorded */
     profitShareMode: profitShareModeEnum('profit_share_mode'),
+    /** Operating partner (Sufii) share of business profit, in bps */
     partnerSharePctBps: integer('partner_share_pct_bps'),
+    /** My capital stake as % of total funding, in bps */
     mySharePctBps: integer('my_share_pct_bps'),
+    myInvestmentPctBps: integer('my_investment_pct_bps'),
+    /** Operating partner (Sufii) profit — alias of operatingPartnerProfitPaise for compatibility */
     partnerSharePaise: bigint('partner_share_paise', { mode: 'number' }),
+    operatingPartnerProfitPaise: bigint('operating_partner_profit_paise', { mode: 'number' }),
+    /** Investor Pool after Sufii cut */
+    investorProfitPoolPaise: bigint('investor_profit_pool_paise', { mode: 'number' }),
+    /** My slice of Investor Pool */
     mySharePaise: bigint('my_share_paise', { mode: 'number' }),
     businessRoiBps: integer('business_roi_bps'),
     myRoiBps: integer('my_roi_bps'),

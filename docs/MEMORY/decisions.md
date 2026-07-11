@@ -9,6 +9,7 @@
 
 ## 2026-07-11
 
+- **Partnership profit model (Sufii + Investor Pool)** — Net Vehicle Cost = purchase + repairs − refunds. Capital stakes must always equal Net Cost. Business Profit → Settings% to operating partner (Sufii, default 50%) + remainder Investor Pool split by stake. Sale enters only price + date. SSOT: `src/capital/lib/dealEconomics.ts`, migration `0008_deal_economics`. → `docs/automotive-capital/DECISIONS.md` ADR-011
 - **Multi-investor vehicle funding** — Each asset has business layer (purchase/sale/expenses) and investment layer (`ac_asset_investors`). Stakes must sum to purchase price. Business ROI = profit ÷ purchase price. My ROI = my profit ÷ my invested capital. Profit defaults to proportional to capital. SSOT: `src/capital/lib/investors.ts`, migration `0006_asset_investors`.
 - **Rotating working-capital pool** — Dashboard models a continuous capital pool, not an accounting ledger. Working Capital = Initial Capital + My Lifetime Profit. Free Cash = Working Capital − Current Investment − Capital in Transit. Selling recycles capital; only profit increases wealth. SSOT: `src/capital/lib/workingCapital.ts`.
 - **ROI formulas (Business vs Personal)** — Business ROI = Gross Business Profit ÷ Lifetime Purchase Volume. Personal ROI = My Profit ÷ My Capital Invested. When partner share > 0, Personal is clamped ≤ Business so a 50:50 equal-capital deal shows ~half (e.g. 20% / 10%). Per-vehicle ROIs use total investment (purchase + expenses) as the shared base. SSOT: `src/capital/lib/roi.ts`.

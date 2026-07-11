@@ -67,8 +67,10 @@ function shortMonth(ym: string) {
 /** Cumulative portfolio growth (lifetime profit trajectory). */
 export function PortfolioGrowthArea({
   data,
+  label = 'Portfolio Growth',
 }: {
   data: { month: string; valuePaise: number }[];
+  label?: string;
 }) {
   const chartData = useMemo(
     () =>
@@ -99,14 +101,14 @@ export function PortfolioGrowthArea({
           width={56}
         />
         <Tooltip
-          formatter={(v) => [moneyTip(v), 'Portfolio']}
+          formatter={(v) => [moneyTip(v), label]}
           contentStyle={tooltipStyle}
           cursor={{ stroke: 'rgba(34,211,238,0.35)', strokeWidth: 1 }}
         />
         <Area
           type="monotone"
           dataKey="value"
-          name="Growth"
+          name={label}
           stroke="#22D3EE"
           fill="url(#growthFill)"
           strokeWidth={2.5}
@@ -181,8 +183,10 @@ export function MonthlyRoiLine({
 /** Monthly profit bars. */
 export function MonthlyProfitBars({
   data,
+  label = 'Profit',
 }: {
   data: { month: string; valuePaise: number }[];
+  label?: string;
 }) {
   const chartData = useMemo(
     () =>
@@ -209,13 +213,13 @@ export function MonthlyProfitBars({
           width={56}
         />
         <Tooltip
-          formatter={(v) => [moneyTip(v), 'Profit']}
+          formatter={(v) => [moneyTip(v), label]}
           contentStyle={tooltipStyle}
           cursor={{ fill: 'rgba(34,211,238,0.08)' }}
         />
         <Bar
           dataKey="profit"
-          name="Profit"
+          name={label}
           fill="#34D399"
           radius={[6, 6, 0, 0]}
           animationDuration={900}

@@ -7,6 +7,8 @@
 
 ## Current Focus
 
+- **Automotive Capital partnership profit model** — Sufii operating-partner cut (Settings, default 50%) + Investor Pool by stake; funding always = Net Vehicle Cost; sale auto-calcs only. Migration `0008_deal_economics`.
+
 - **Automotive Capital multi-investor model** — Each vehicle has Layer 1 (business: purchase/sale/expenses) + Layer 2 (`ac_asset_investors`: Me / Investor 2 / Investor 3). My ROI uses my stake only. Migration `0006` applied on invest Neon.
 
 - **Automotive Capital My vs Business dashboard** — Toggle switches full KPI + chart datasets (My share vs Business gross). Removed Working Capital / Free Cash / Lifetime Purchase Volume / Initial Capital from Overview.
