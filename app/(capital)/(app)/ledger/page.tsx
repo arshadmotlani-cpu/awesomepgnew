@@ -1,26 +1,61 @@
 import type { Metadata } from 'next';
-import { desc } from 'drizzle-orm';
+import { Suspense } from 'react';
+import { desc, eq, isNull, or, sql } from 'drizzle-orm';
+import { IncludeSoldToggle } from '@/src/capital/components/IncludeSoldToggle';
 import { LedgerExportPanel } from '@/src/capital/components/forms/LedgerExportPanel';
 import { MoneyDisplay } from '@/src/capital/components/MoneyDisplay';
 import { Badge } from '@/src/capital/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/capital/components/ui/card';
 import { capitalDb } from '@/src/capital/db/client';
-import { acLedgerEntries } from '@/src/capital/db/schema';
+import { acAssets, acLedgerEntries } from '@/src/capital/db/schema';
 
 export const metadata: Metadata = { title: 'Ledger' };
 
-export default async function LedgerPage() {
-  const entries = await capitalDb
-    .select()
-    .from(acLedgerEntries)
-    .orderBy(desc(acLedgerEntries.createdAt))
-    .limit(100);
+export default async function LedgerPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ includeSold?: string }>;
+}) {
+  const params = await searchParams;
+  const includeSold = params.includeSold === '1';
+
+  const entries = includeSold
+    ? await capitalDb
+        .select()
+        .from(acLedgerEntries)
+        .orderBy(desc(acLedgerEntries.createdAt))
+        .limit(100)
+    : await capitalDb
+        .select({
+          id: acLedgerEntries.id,
+          entryType: acLedgerEntries.entryType,
+          direction: acLedgerEntries.direction,
+          description: acLedgerEntries.description,
+          amountPaise: acLedgerEntries.amountPaise,
+          createdAt: acLedgerEntries.createdAt,
+          assetId: acLedgerEntries.assetId,
+        })
+        .from(acLedgerEntries)
+        .leftJoin(acAssets, eq(acLedgerEntries.assetId, acAssets.id))
+        .where(
+          or(
+            isNull(acLedgerEntries.assetId),
+            sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled')`,
+          ),
+        )
+        .orderBy(desc(acLedgerEntries.createdAt))
+        .limit(100);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Ledger</h1>
-        <p className="text-sm text-ac-text-secondary">Immutable financial history</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Ledger</h1>
+          <p className="text-sm text-ac-text-secondary">Immutable financial history</p>
+        </div>
+        <Suspense fallback={null}>
+          <IncludeSoldToggle />
+        </Suspense>
       </div>
 
       <LedgerExportPanel />
@@ -28,6 +63,11 @@ export default async function LedgerPage() {
       <Card>
         <CardHeader>
           <CardTitle>Recent entries</CardTitle>
+          <p className="text-xs text-ac-text-muted">
+            {includeSold
+              ? 'Showing all entries including sold vehicles'
+              : 'Active vehicles + unassigned entries'}
+          </p>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <table className="w-full text-sm">

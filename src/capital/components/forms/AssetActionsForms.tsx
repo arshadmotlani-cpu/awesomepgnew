@@ -23,11 +23,35 @@ export function AssetActionsForms({
   currentStatus: string;
   totalInvestmentPaise?: number;
 }) {
+  const isClosed =
+    currentStatus === 'sold' || currentStatus === 'settled' || currentStatus === 'cancelled';
+  const isSettledOrCancelled = currentStatus === 'settled' || currentStatus === 'cancelled';
+
   return (
-    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-      <StatusForm assetId={assetId} currentStatus={currentStatus} />
-      <SaleForm assetId={assetId} totalInvestmentPaise={totalInvestmentPaise} />
-      {currentStatus === 'sold' ? <SettlementForm assetId={assetId} /> : null}
+    <div className="space-y-4">
+      {isClosed ? (
+        <div className="rounded-xl border border-ac-warning/30 bg-ac-warning/10 px-4 py-3 text-sm text-ac-warning">
+          This vehicle is <strong>{currentStatus}</strong> and read-only for new costs.
+          {currentStatus === 'sold'
+            ? ' Record capital return & profit under Payments, then settle.'
+            : ' History remains available.'}
+        </div>
+      ) : null}
+
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {!isClosed ? (
+          <StatusForm assetId={assetId} currentStatus={currentStatus} />
+        ) : null}
+        {!isClosed ? (
+          <SaleForm assetId={assetId} totalInvestmentPaise={totalInvestmentPaise} />
+        ) : null}
+        {currentStatus === 'sold' ? <SettlementForm assetId={assetId} /> : null}
+        {isSettledOrCancelled ? (
+          <p className="text-sm text-ac-text-muted md:col-span-2">
+            No further actions — view timeline, expenses, and ledger history below.
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }

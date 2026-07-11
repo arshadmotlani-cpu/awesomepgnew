@@ -4,6 +4,7 @@ import { acAssets, acPaymentsReceived } from '@/src/capital/db/schema';
 import { postLedgerEntry, reverseAllSourceLedger } from './ledger';
 import { logActivity } from './activity';
 import { assertAssetMutable, recalculateAsset } from './assets';
+import { assertAssetAcceptsPayments } from '@/src/capital/lib/assetLifecycle';
 
 export type CreatePaymentInput = {
   assetId?: string;
@@ -65,6 +66,13 @@ async function validatePaymentAllocation(input: CreatePaymentInput) {
   }
 
   if (
+    asset.mySharePaise != null &&
+    existingProfit + input.profitPaise > Math.max(0, asset.mySharePaise)
+  ) {
+    throw new Error('Profit received would exceed your share of profit for this asset');
+  }
+  if (
+    asset.mySharePaise == null &&
     asset.profitPaise != null &&
     existingProfit + input.profitPaise > Math.max(0, asset.profitPaise)
   ) {
@@ -78,7 +86,7 @@ export async function createPayment(input: CreatePaymentInput) {
   const isRefund = input.paymentType === 'refund';
 
   return capitalDb.transaction(async (tx) => {
-    if (input.assetId) await assertAssetMutable(input.assetId, tx);
+    if (input.assetId) await assertAssetAcceptsPayments(input.assetId, tx);
 
     const [row] = await tx
       .insert(acPaymentsReceived)

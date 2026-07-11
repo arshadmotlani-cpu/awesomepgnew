@@ -9,7 +9,10 @@ import { listAssets } from '@/src/capital/services/assets';
 export const metadata: Metadata = { title: 'Documents' };
 
 export default async function DocumentsPage() {
-  const [docs, assets] = await Promise.all([listDocuments(), listAssets()]);
+  const [docs, assets] = await Promise.all([
+    listDocuments(),
+    listAssets({ activeOnly: true, pageSize: 200 }),
+  ]);
   const assetOptions = assets.map(({ asset, auto }) => ({
     id: asset.id,
     label: auto.registrationNumber

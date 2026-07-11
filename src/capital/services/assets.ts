@@ -16,6 +16,10 @@ import {
   normalizeRegistration,
 } from '@/src/capital/lib/money';
 import { computeProfitShare } from '@/src/capital/lib/profitShare';
+import {
+  activeInvestmentSql,
+  paymentEligibleSql,
+} from '@/src/capital/lib/assetLifecycle';
 import type { AssetListQuery } from '@/src/capital/lib/validation/schemas';
 import type { CapitalDbClient } from '@/src/capital/lib/db/types';
 import { postLedgerEntry } from './ledger';
@@ -277,15 +281,21 @@ export async function listAssets(opts?: {
   search?: string;
   page?: number;
   pageSize?: number;
+  /** Only open investments (excludes sold/settled/cancelled) */
+  activeOnly?: boolean;
+  /** Open investments + sold (for payments awaiting settlement) */
+  paymentEligibleOnly?: boolean;
 }) {
   const result = await listAssetsQuery({
     page: opts?.page ?? 1,
-    pageSize: opts?.pageSize ?? 50,
+    pageSize: opts?.pageSize ?? 200,
     status: opts?.status,
     search: opts?.search,
     sort: 'created',
     order: 'desc',
     profitFilter: 'all',
+    activeOnly: opts?.activeOnly,
+    paymentEligibleOnly: opts?.paymentEligibleOnly,
   });
   return result.rows;
 }
@@ -314,6 +324,11 @@ export async function listAssetsQuery(query: AssetListQuery) {
   }
   if (query.profitFilter === 'loss') {
     conditions.push(sql`${acAssets.profitPaise} < 0`);
+  }
+  if (query.activeOnly) {
+    conditions.push(activeInvestmentSql());
+  } else if (query.paymentEligibleOnly) {
+    conditions.push(paymentEligibleSql());
   }
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;

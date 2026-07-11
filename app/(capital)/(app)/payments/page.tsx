@@ -11,22 +11,37 @@ import { listAssets } from '@/src/capital/services/assets';
 export const metadata: Metadata = { title: 'Payments' };
 
 export default async function PaymentsPage() {
-  const [payments, assets] = await Promise.all([listPayments(), listAssets()]);
+  const [payments, eligibleAssets, allAssets] = await Promise.all([
+    listPayments(),
+    // Active + sold (awaiting settlement) — settled/cancelled excluded
+    listAssets({ paymentEligibleOnly: true, pageSize: 200 }),
+    listAssets({ pageSize: 200 }),
+  ]);
   const assetMap = new Map(
-    assets.map(({ asset, auto }) => [asset.id, auto.registrationNumber ?? asset.displayName]),
+    allAssets.map(({ asset, auto }) => [
+      asset.id,
+      auto.registrationNumber ?? asset.displayName,
+    ]),
   );
-  const assetOptions = assets.map(({ asset, auto }) => ({
+  const assetOptions = eligibleAssets.map(({ asset, auto }) => ({
     id: asset.id,
-    label: auto.registrationNumber
-      ? `${auto.registrationNumber} — ${asset.displayName}`
-      : asset.displayName,
+    label: [
+      auto.registrationNumber
+        ? `${auto.registrationNumber} — ${asset.displayName}`
+        : asset.displayName,
+      asset.status === 'sold' ? '(Sold)' : null,
+    ]
+      .filter(Boolean)
+      .join(' '),
   }));
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Payments</h1>
-        <p className="text-sm text-ac-text-secondary">All payments received</p>
+        <p className="text-sm text-ac-text-secondary">
+          Capital return & profit on open or sold (pre-settlement) vehicles
+        </p>
       </div>
 
       <CreatePaymentForm assets={assetOptions} />
@@ -54,10 +69,10 @@ export default async function PaymentsPage() {
                   <td className="py-3 pr-4">
                     {p.assetId ? (
                       <Link href={`/assets/${p.assetId}`} className="text-ac-accent hover:underline">
-                        {assetMap.get(p.assetId) ?? '—'}
+                        {assetMap.get(p.assetId) ?? p.assetId.slice(0, 8)}
                       </Link>
                     ) : (
-                      <span className="text-ac-text-muted">General</span>
+                      '—'
                     )}
                   </td>
                   <td className="py-3 pr-4">

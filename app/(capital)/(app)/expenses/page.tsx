@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { CreateExpenseForm } from '@/src/capital/components/forms/CreateExpenseForm';
+import { IncludeSoldToggle } from '@/src/capital/components/IncludeSoldToggle';
 import { MoneyDisplay } from '@/src/capital/components/MoneyDisplay';
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/capital/components/ui/card';
 import { listExpenses } from '@/src/capital/services/expenses';
@@ -10,16 +12,30 @@ import { ReverseExpenseButton } from './ReverseExpenseButton';
 
 export const metadata: Metadata = { title: 'Expenses' };
 
-export default async function ExpensesPage() {
-  const [expenses, assets, categories] = await Promise.all([
-    listExpenses(),
-    listAssets(),
+export default async function ExpensesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ includeSold?: string }>;
+}) {
+  const params = await searchParams;
+  const includeSold = params.includeSold === '1';
+
+  const [expenses, activeAssets, allAssets, categories] = await Promise.all([
+    listExpenses({ includeClosed: includeSold }),
+    listAssets({ activeOnly: true, pageSize: 200 }),
+    listAssets({ pageSize: 200 }),
     listCategories(),
   ]);
+
+  // Labels for history rows — need all assets so sold ones still resolve
   const assetMap = new Map(
-    assets.map(({ asset, auto }) => [asset.id, auto.registrationNumber ?? asset.displayName]),
+    allAssets.map(({ asset, auto }) => [
+      asset.id,
+      auto.registrationNumber ?? asset.displayName,
+    ]),
   );
-  const assetOptions = assets.map(({ asset, auto }) => ({
+
+  const assetOptions = activeAssets.map(({ asset, auto }) => ({
     id: asset.id,
     label: auto.registrationNumber
       ? `${auto.registrationNumber} — ${asset.displayName}`
@@ -28,9 +44,16 @@ export default async function ExpensesPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Expenses</h1>
-        <p className="text-sm text-ac-text-secondary">Cross-asset expense ledger</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Expenses</h1>
+          <p className="text-sm text-ac-text-secondary">
+            Costs on active vehicles only — sold vehicles are read-only
+          </p>
+        </div>
+        <Suspense fallback={null}>
+          <IncludeSoldToggle />
+        </Suspense>
       </div>
 
       <CreateExpenseForm
@@ -39,8 +62,15 @@ export default async function ExpensesPage() {
       />
 
       <Card>
-        <CardHeader>
-          <CardTitle>All expenses</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <div>
+            <CardTitle>All expenses</CardTitle>
+            <p className="mt-1 text-xs text-ac-text-muted">
+              {includeSold
+                ? 'Showing active + sold vehicle expenses'
+                : 'Showing active vehicles only'}
+            </p>
+          </div>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <table className="w-full text-sm">

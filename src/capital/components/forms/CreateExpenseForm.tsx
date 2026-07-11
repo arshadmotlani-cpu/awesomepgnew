@@ -82,6 +82,11 @@ export function CreateExpenseForm({
         <CardTitle>Record expense</CardTitle>
       </CardHeader>
       <CardContent>
+        {assets.length === 0 ? (
+          <p className="text-sm text-ac-text-muted">
+            No active vehicles. Sold and settled vehicles cannot receive new expenses.
+          </p>
+        ) : (
         <form onSubmit={onSubmit} className="grid gap-4 md:grid-cols-2">
           <FormField label="Asset *" name="assetId" form={form}>
             <select
@@ -146,6 +151,7 @@ export function CreateExpenseForm({
             </Button>
           </div>
         </form>
+        )}
       </CardContent>
     </Card>
   );

@@ -148,13 +148,15 @@ export const changePasswordSchema = z
 
 export const assetListQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
-  pageSize: z.coerce.number().int().positive().max(100).default(50),
+  pageSize: z.coerce.number().int().positive().max(200).default(50),
   status: z.string().optional(),
   search: z.string().optional(),
   manufacturer: z.string().optional(),
   sort: z.enum(['created', 'purchase', 'investment', 'profit', 'holding']).default('created'),
   order: z.enum(['asc', 'desc']).default('desc'),
   profitFilter: z.enum(['all', 'profit', 'loss']).default('all'),
+  activeOnly: z.coerce.boolean().optional(),
+  paymentEligibleOnly: z.coerce.boolean().optional(),
 });
 
 export type CreateAssetInput = z.infer<typeof createAssetSchema>;

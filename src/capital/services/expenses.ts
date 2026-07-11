@@ -1,9 +1,10 @@
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { capitalDb } from '@/src/capital/db/client';
-import { acExpenses } from '@/src/capital/db/schema';
+import { acAssets, acExpenses } from '@/src/capital/db/schema';
 import { postLedgerEntry, reverseSourceLedger } from './ledger';
 import { logActivity } from './activity';
-import { assertAssetMutable, recalculateAsset } from './assets';
+import { recalculateAsset } from './assets';
+import { assertAssetAcceptsExpenses } from '@/src/capital/lib/assetLifecycle';
 
 export type CreateExpenseInput = {
   assetId: string;
@@ -20,7 +21,7 @@ export async function createExpense(input: CreateExpenseInput) {
   if (input.amountPaise <= 0) throw new Error('Expense amount must be positive');
 
   return capitalDb.transaction(async (tx) => {
-    await assertAssetMutable(input.assetId, tx);
+    await assertAssetAcceptsExpenses(input.assetId, tx);
 
     const [row] = await tx
       .insert(acExpenses)
@@ -95,17 +96,52 @@ export async function reverseExpense(expenseId: string, reason: string) {
   });
 }
 
-export async function listExpenses(assetId?: string) {
+export async function listExpenses(opts?: {
+  assetId?: string;
+  /** When false (default), hide expenses on sold/settled/cancelled vehicles */
+  includeClosed?: boolean;
+}) {
+  const assetId = typeof opts === 'string' ? opts : opts?.assetId;
+  const includeClosed = typeof opts === 'object' ? Boolean(opts?.includeClosed) : false;
+
   if (assetId) {
     return capitalDb
       .select()
       .from(acExpenses)
       .where(and(eq(acExpenses.assetId, assetId), eq(acExpenses.isReversed, false)))
-      .orderBy(acExpenses.expenseDate);
+      .orderBy(desc(acExpenses.expenseDate));
   }
+
+  if (includeClosed) {
+    return capitalDb
+      .select()
+      .from(acExpenses)
+      .where(eq(acExpenses.isReversed, false))
+      .orderBy(desc(acExpenses.expenseDate));
+  }
+
   return capitalDb
-    .select()
+    .select({
+      id: acExpenses.id,
+      assetId: acExpenses.assetId,
+      categoryId: acExpenses.categoryId,
+      expenseDate: acExpenses.expenseDate,
+      vendor: acExpenses.vendor,
+      amountPaise: acExpenses.amountPaise,
+      description: acExpenses.description,
+      paymentMethod: acExpenses.paymentMethod,
+      notes: acExpenses.notes,
+      isReversed: acExpenses.isReversed,
+      createdAt: acExpenses.createdAt,
+      updatedAt: acExpenses.updatedAt,
+    })
     .from(acExpenses)
-    .where(eq(acExpenses.isReversed, false))
-    .orderBy(acExpenses.expenseDate);
+    .innerJoin(acAssets, eq(acExpenses.assetId, acAssets.id))
+    .where(
+      and(
+        eq(acExpenses.isReversed, false),
+        sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled')`,
+      ),
+    )
+    .orderBy(desc(acExpenses.expenseDate));
 }
