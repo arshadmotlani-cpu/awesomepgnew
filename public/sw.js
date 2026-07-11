@@ -1,6 +1,6 @@
 /* Awesome PG Admin — service worker for Web Push + Badge API */
 
-const CACHE_VERSION = 'apg-admin-v1';
+const CACHE_VERSION = 'apg-admin-v2-brand';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

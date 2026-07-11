@@ -4,6 +4,7 @@ import { AdminQuickMenu } from '@/src/components/admin/AdminQuickMenu';
 import { AdminNotificationCenter } from '@/src/components/admin/AdminNotificationCenter';
 import { useAdminNavBadges } from '@/src/components/admin/AdminLiveRefreshProvider';
 import { LogoutButton } from '@/src/components/auth/LogoutButton';
+import { AwesomePgLogo } from '@/src/components/brand/AwesomePgLogo';
 import { MobileNav } from './MobileNav';
 
 export function AdminTopNav({
@@ -21,9 +22,12 @@ export function AdminTopNav({
       <MobileNav />
       <AdminQuickMenu />
 
-      <div className="min-w-0 flex-1 lg:hidden">
-        <p className="truncate text-sm font-semibold text-white">Awesome PG</p>
-        <p className="hidden truncate text-[11px] text-apg-silver min-[360px]:block">Admin console</p>
+      <div className="flex min-w-0 flex-1 items-center gap-2 lg:hidden">
+        <AwesomePgLogo size={28} className="shrink-0" />
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-white">Awesome PG</p>
+          <p className="hidden truncate text-[11px] text-apg-silver min-[360px]:block">Admin console</p>
+        </div>
       </div>
 
       <p className="hidden text-sm font-medium text-apg-silver lg:block">Admin console</p>

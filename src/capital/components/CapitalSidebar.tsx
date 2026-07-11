@@ -16,6 +16,7 @@ import {
   Settings,
   TrendingUp,
 } from 'lucide-react';
+import { CapitalBrandLogo } from '@/src/capital/components/CapitalBrandLogo';
 import { cn } from '@/src/capital/lib/utils';
 
 const navItems = [
@@ -38,12 +39,10 @@ export function CapitalSidebar() {
 
   return (
     <aside className="hidden w-60 shrink-0 border-r border-white/8 bg-ac-elevated/80 backdrop-blur-xl md:flex md:flex-col">
-      <div className="flex h-14 items-center gap-2 border-b border-white/8 px-5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-ac-accent to-ac-violet text-sm font-bold text-ac-base">
-          A
-        </div>
-        <div>
-          <p className="text-sm font-semibold tracking-tight">Automotive Capital</p>
+      <div className="flex h-14 items-center gap-2 border-b border-white/8 px-4">
+        <CapitalBrandLogo size={32} className="shrink-0" />
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold tracking-tight">Automotive Capital</p>
           <p className="text-[10px] text-ac-text-muted">Investment OS</p>
         </div>
       </div>

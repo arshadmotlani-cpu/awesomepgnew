@@ -3,6 +3,7 @@
 import { useActionState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { loginAction, type LoginState } from '@/src/capital/actions/auth';
+import { CapitalBrandLogo } from '@/src/capital/components/CapitalBrandLogo';
 import { Button } from '@/src/capital/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/src/capital/components/ui/card';
 import { Input } from '@/src/capital/components/ui/input';
@@ -18,8 +19,8 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-ac-accent to-ac-violet text-lg font-bold text-ac-base">
-            A
+          <div className="mx-auto mb-4">
+            <CapitalBrandLogo size={64} priority className="mx-auto shadow-lg shadow-black/40" />
           </div>
           <CardTitle>Sign in</CardTitle>
           <CardDescription>Automotive Capital — private investment OS</CardDescription>

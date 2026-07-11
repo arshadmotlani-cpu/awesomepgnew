@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { authFieldLabelClassName, authInputClassName } from '@/src/components/auth/authFieldStyles';
+import { AwesomePgLogo } from '@/src/components/brand/AwesomePgLogo';
 import { redirectAfterAuth, safeAdminNext } from '@/src/lib/auth/safeNext';
 
 type AdminLoginFormProps = {
@@ -61,7 +62,8 @@ export function AdminLoginForm({
       onSubmit={onSubmit}
       className="mx-auto w-full max-w-md space-y-4 rounded-xl border border-zinc-200 bg-white p-6 text-base text-zinc-900 shadow-sm scheme-light sm:p-8"
     >
-      <div>
+      <div className="flex flex-col items-center text-center sm:items-start sm:text-left">
+        <AwesomePgLogo size={56} priority className="mb-3 shadow-md shadow-orange-500/20" />
         <h1 className="text-xl font-semibold text-zinc-900">Admin sign in</h1>
         <p className="mt-1 text-sm text-zinc-500">Email and password for staff accounts.</p>
       </div>

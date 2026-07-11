@@ -1,15 +1,39 @@
 {
   "name": "Automotive Capital",
-  "short_name": "Auto Capital",
+  "short_name": "Capital Investments",
   "description": "Private Automotive Investment Operating System",
   "start_url": "/dashboard",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#08080C",
-  "theme_color": "#08080C",
+  "theme_color": "#E85A1C",
   "categories": ["business", "finance", "productivity"],
   "icons": [
+    {
+      "src": "/capital/icons/favicon-32.png",
+      "sizes": "32x32",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/capital/icons/icon-64.png",
+      "sizes": "64x64",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/capital/icons/icon-128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/capital/icons/apple-touch.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
     {
       "src": "/capital/icons/icon-192.png",
       "sizes": "192x192",
@@ -17,10 +41,28 @@
       "purpose": "any"
     },
     {
+      "src": "/capital/icons/icon-256.png",
+      "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
       "src": "/capital/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/capital/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/capital/icons/icon-1024.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }

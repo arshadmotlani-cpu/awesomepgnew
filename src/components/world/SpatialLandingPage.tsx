@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { LiveAvailabilityStrip } from '@/src/components/customer/marketing/LiveAvailabilityStrip';
 import { ApgCard } from '@/src/components/customer/design-system';
 import { PgCard, type PgCardData } from '@/src/components/customer/PgCard';
+import { AwesomePgLogo } from '@/src/components/brand/AwesomePgLogo';
 import { paiseToInr } from '@/src/lib/format';
 
 type LifestyleItem = {
@@ -80,10 +81,13 @@ export function SpatialLandingPage({
     <div className="apg-landing">
       {/* A — Hero: headline + CTAs in first viewport */}
       <section className="mx-auto w-full max-w-6xl px-4 pb-10 pt-6 text-center sm:px-6 sm:pb-12 sm:pt-8">
-        <span className="inline-flex items-center gap-2 rounded-full border border-apg-orange/40 bg-apg-orange/15 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-orange-100">
-          <span className="h-1.5 w-1.5 rounded-full bg-apg-orange" />
-          Awesome PG
-        </span>
+        <div className="flex flex-col items-center gap-3">
+          <AwesomePgLogo size={72} priority className="shadow-lg shadow-orange-500/30" />
+          <span className="inline-flex items-center gap-2 rounded-full border border-apg-orange/40 bg-apg-orange/15 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-orange-100">
+            <span className="h-1.5 w-1.5 rounded-full bg-apg-orange" />
+            Awesome PG
+          </span>
+        </div>
         <h1 className="mx-auto mt-5 max-w-4xl text-3xl font-semibold leading-[1.1] tracking-tight text-white sm:mt-6 sm:text-5xl lg:text-6xl">
           Not just a room.
           <br />

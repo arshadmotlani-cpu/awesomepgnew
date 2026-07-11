@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { AwesomePgLogo } from '@/src/components/brand/AwesomePgLogo';
 
 export function SiteFooter({ theme = 'dark' }: { theme?: 'dark' | 'light' }) {
   const light = theme === 'light';
@@ -14,9 +15,12 @@ export function SiteFooter({ theme = 'dark' }: { theme?: 'dark' | 'light' }) {
       <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
         <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <p className={`text-sm font-semibold ${light ? 'text-slate-900' : 'text-white'}`}>
-              Awesome PG
-            </p>
+            <div className="flex items-center gap-2.5">
+              <AwesomePgLogo size={36} />
+              <p className={`text-sm font-semibold ${light ? 'text-slate-900' : 'text-white'}`}>
+                Awesome PG
+              </p>
+            </div>
             <p
               className={`mt-2 max-w-xs text-xs leading-relaxed ${light ? 'text-slate-600' : 'text-apg-silver'}`}
             >

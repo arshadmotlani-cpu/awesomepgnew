@@ -1,4 +1,4 @@
-const CACHE = 'capital-shell-v1';
+const CACHE = 'capital-shell-v2-brand';
 const SHELL = ['/login', '/dashboard'];
 
 self.addEventListener('install', (event) => {

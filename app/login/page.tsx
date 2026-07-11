@@ -4,6 +4,7 @@ import { SiteFooter } from '@/src/components/customer/SiteFooter';
 import { SiteHeader } from '@/src/components/customer/SiteHeader';
 import { WhatsAppSupportButton } from '@/src/components/customer/WhatsAppSupportButton';
 import { CustomerLoginForm } from '@/src/components/auth/CustomerLoginForm';
+import { AwesomePgLogo } from '@/src/components/brand/AwesomePgLogo';
 import { bootstrapLoginPage } from '@/src/lib/auth/loginBootstrap';
 
 export const metadata = {
@@ -32,6 +33,7 @@ export default async function LoginPage({
           ← Back to browse PGs
         </Link>
         <div className="mt-6 apg-glass rounded-2xl p-6 sm:p-8">
+          <AwesomePgLogo size={56} priority className="mb-4 shadow-md shadow-orange-500/25" />
           <h1 className="text-xl font-semibold text-white">Welcome back</h1>
           <p className="mt-2 text-sm text-apg-silver">
             Sign in with your email or mobile number and password to book a bed, pay rent, or manage

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getCustomerSession } from '@/src/lib/auth/session';
 import { LogoutButton } from '@/src/components/auth/LogoutButton';
+import { AwesomePgLogo } from '@/src/components/brand/AwesomePgLogo';
 
 export async function SiteHeader({ theme = 'dark' }: { theme?: 'dark' | 'light' }) {
   const session = await getCustomerSession();
@@ -24,12 +25,7 @@ export async function SiteHeader({ theme = 'dark' }: { theme?: 'dark' | 'light' 
               : 'flex items-center gap-2.5 text-sm font-semibold tracking-tight text-white'
           }
         >
-          <span
-            aria-hidden
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-apg-orange text-xs font-bold text-white shadow-md shadow-orange-500/30"
-          >
-            A
-          </span>
+          <AwesomePgLogo size={32} priority className="shadow-md shadow-orange-500/25" />
           <span className="hidden sm:inline">Awesome PG</span>
         </Link>
         <nav
