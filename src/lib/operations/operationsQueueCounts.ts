@@ -13,6 +13,14 @@ export function operationsFilterCount(
   return queue.filterCounts.find((c) => c.id === filter)?.count ?? 0;
 }
 
+/**
+ * Total pending Operations actions — sidebar Operations/Overview badges and the
+ * Operations page must all use this (queue.totalCount from the unified item list).
+ */
+export function operationsTotalPendingCount(queue: UnifiedOperationsQueue): number {
+  return queue.totalCount;
+}
+
 export function operationsFilterCountsRecord(
   queue: UnifiedOperationsQueue,
 ): Record<OpsQueueFilter, number> {

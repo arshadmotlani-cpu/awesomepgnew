@@ -4,8 +4,8 @@
 import { revalidatePath } from 'next/cache';
 
 const ADMIN_PATHS = [
+  '/admin',
   '/admin/overview',
-  '/admin/operations',
   '/admin/operations',
   '/admin/revenue',
   '/admin/collections',
@@ -15,7 +15,6 @@ const ADMIN_PATHS = [
   '/admin/residents',
   '/admin/residents/kyc',
   '/admin/notifications',
-  '/admin',
 ] as const;
 
 export function revalidateAdminSurfaces(): void {

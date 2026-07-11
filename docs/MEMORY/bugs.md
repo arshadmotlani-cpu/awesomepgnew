@@ -9,6 +9,7 @@
 
 ## 2026-07-11
 
+- **OPS-BA-02** — Sidebar/Overview badges used `residentsPage.allQueueCount` while Operations page used unified queue; after Booking Approval cleared, badges stayed inflated. Fixed: `loadAdminNavBadges` reads `operationsTotalPendingCount` from unified queue only; revalidate `/admin` layout after booking mutations.
 - **OPS-BA-01** — Booking Approval queue kept showing Reserved bed reserves after payment proof approval (injected via `listActiveBedReserves` into `booking_approval`); "View reservation" linked to public `/booking/:code` (404 for admin). Fixed: remove active-reserve injection; approval rows use `/admin/bookings/:id` only (`bookingApprovalQueue.ts`).
 
 ## 2026-06-23

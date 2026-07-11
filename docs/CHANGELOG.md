@@ -256,43 +256,19 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-11 04:31:31 UTC
+### Pending pre-commit sync · 2026-07-11 06:40:31 UTC
 
-**Areas touched:** [[ROUTES]], [[Auth]]
+**Areas touched:** [[Bed Assignment]]
 
 **Docs flagged for review:**
-- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `ROUTES.md` — review for accuracy
+- `DECISIONS.md` — review for accuracy
+- `PROJECT/features.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
+- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (28):**
-- `app/(capital)/(app)/activity/page.tsx`
-- `app/(capital)/(app)/analytics/loading.tsx`
-- `app/(capital)/(app)/analytics/page.tsx`
-- `app/(capital)/(app)/assets/[id]/page.tsx`
-- `app/(capital)/(app)/assets/loading.tsx`
-- `app/(capital)/(app)/assets/new/page.tsx`
-- `app/(capital)/(app)/assets/page.tsx`
-- `app/(capital)/(app)/capital/page.tsx`
-- `app/(capital)/(app)/dashboard/loading.tsx`
-- `app/(capital)/(app)/dashboard/page.tsx`
-- `app/(capital)/(app)/documents/page.tsx`
-- `app/(capital)/(app)/expenses/ReverseExpenseButton.tsx`
-- `app/(capital)/(app)/expenses/page.tsx`
-- `app/(capital)/(app)/layout.tsx`
-- `app/(capital)/(app)/ledger/page.tsx`
-- `app/(capital)/(app)/payments/page.tsx`
-- `app/(capital)/(app)/reports/[type]/page.tsx`
-- `app/(capital)/(app)/reports/page.tsx`
-- `app/(capital)/(app)/search/page.tsx`
-- `app/(capital)/(app)/settings/page.tsx`
-- `app/(capital)/auth/login/page.tsx`
-- `app/(capital)/layout.tsx`
-- `app/(capital)/not-found.tsx`
-- `app/api/capital/export/[type]/route.ts`
-- `app/api/capital/files/[id]/route.ts`
-- _…and 3 more staged files_
+**Staged code files (1):**
+- `src/lib/occupancyRevalidate.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

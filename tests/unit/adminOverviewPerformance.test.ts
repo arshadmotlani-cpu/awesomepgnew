@@ -13,7 +13,9 @@ test('getOperationsCenterData does not call loadUnifiedOperationsQueue (prevents
 test('adminNavBadges uses single unified queue load', () => {
   const src = readFileSync(join(process.cwd(), 'src/services/adminNavBadges.ts'), 'utf8');
   assert.match(src, /getUnifiedOperationsQueueForRequest/);
+  assert.match(src, /operationsTotalPendingCount/);
   assert.doesNotMatch(src, /getWaitingForApprovalCount/);
+  assert.doesNotMatch(src, /loadResidentOperationsResidentsPage/);
 });
 
 test('overview page does not sync action items on every load', () => {

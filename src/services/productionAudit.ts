@@ -31,17 +31,20 @@ export type ProductionAuditReport = {
 
 async function runOpsBadgeAudit(session: AdminSession): Promise<ProductionAuditGate> {
   const { loadAdminNavBadges } = await import('@/src/services/adminNavBadges');
-  const { loadResidentOperationsResidentsPage } = await import(
-    '@/src/services/residentOperationsResidentsPage'
-  );
+  const { loadUnifiedOperationsQueue } = await import('@/src/services/unifiedOperationsQueue');
 
   const badges = await loadAdminNavBadges(session);
-  const ops = await loadResidentOperationsResidentsPage(session, null);
+  const ops = await loadUnifiedOperationsQueue(session, null);
   const mismatches: string[] = [];
 
-  if ((badges.operations ?? 0) !== ops.allQueueCount) {
+  if ((badges.operations ?? 0) !== ops.totalCount) {
     mismatches.push(
-      `Operations badge ${badges.operations ?? 0} != queue ${ops.allQueueCount}`,
+      `Operations badge ${badges.operations ?? 0} != unified queue ${ops.totalCount}`,
+    );
+  }
+  if ((badges.overview ?? 0) !== ops.totalCount) {
+    mismatches.push(
+      `Overview badge ${badges.overview ?? 0} != unified queue ${ops.totalCount}`,
     );
   }
 
@@ -68,7 +71,7 @@ async function runOpsBadgeAudit(session: AdminSession): Promise<ProductionAuditG
     pass: mismatches.length === 0,
     summary:
       mismatches.length === 0
-        ? `Operations badge ${badges.operations ?? 0} matches queue.`
+        ? `Operations badge ${badges.operations ?? 0} matches unified queue.`
         : `${mismatches.length} ops badge issue(s).`,
     mismatches,
   };

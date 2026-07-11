@@ -1,9 +1,11 @@
 import type { AdminSession } from '@/src/lib/auth/session';
 import type { AdminModule } from '@/src/lib/admin/navigation';
 import type { OpsQueueFilter } from '@/src/lib/operations/operationsFilterLinks';
-import { operationsFilterCount } from '@/src/lib/operations/operationsQueueCounts';
+import {
+  operationsFilterCount,
+  operationsTotalPendingCount,
+} from '@/src/lib/operations/operationsQueueCounts';
 import { getUnifiedOperationsQueueForRequest } from '@/src/services/unifiedOperationsQueue';
-import { loadResidentOperationsResidentsPage } from '@/src/services/residentOperationsResidentsPage';
 import { countUnreadForAdmin } from '@/src/services/notificationEngine';
 import { profileAdminStep } from '@/src/lib/admin/adminProfile';
 
@@ -20,18 +22,21 @@ function badgeFromFilterCount(
   return count > 0 ? count : undefined;
 }
 
-/** Sidebar badges — Operations count from residents queue; filter badges from unified queue. */
+/**
+ * Sidebar badges — Operations + Overview totals from the same unified queue as
+ * `/admin/operations`. Never use the residents parallel queue for badge counts.
+ */
 export async function loadAdminNavBadges(session: AdminSession): Promise<AdminNavBadges> {
   try {
     return await profileAdminStep('loadAdminNavBadges', async () => {
-      const [residentsPage, operationsQueue] = await Promise.all([
-        loadResidentOperationsResidentsPage(session, null),
-        getUnifiedOperationsQueueForRequest(session, null),
-      ]);
+      const operationsQueue = await getUnifiedOperationsQueueForRequest(session, null);
       const badges: AdminNavBadges = {};
 
-      if (residentsPage.allQueueCount > 0) {
-        badges.operations = residentsPage.allQueueCount;
+      const pendingTotal = operationsTotalPendingCount(operationsQueue);
+      if (pendingTotal > 0) {
+        badges.operations = pendingTotal;
+        // Overview badge = live pending ops total (same SSOT as Operations page).
+        badges.overview = pendingTotal;
       }
 
       const waitingForApproval = badgeFromFilterCount(operationsQueue, 'waiting_for_approval');
@@ -42,10 +47,6 @@ export async function loadAdminNavBadges(session: AdminSession): Promise<AdminNa
 
       const checkoutSettlements = badgeFromFilterCount(operationsQueue, 'refund_due');
       if (checkoutSettlements) badges.checkoutSettlements = checkoutSettlements;
-
-      const total =
-        (badges.operations ?? 0) + (badges.kyc ?? 0) + (badges.checkoutSettlements ?? 0);
-      if (total > 0) badges.overview = total;
 
       const unreadNotifications = await countUnreadForAdmin(session);
       if (unreadNotifications > 0) {
