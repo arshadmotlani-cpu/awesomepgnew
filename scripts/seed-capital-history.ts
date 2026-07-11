@@ -1,6 +1,7 @@
 /**
  * Seed six historical SOLD/CLOSED vehicle investments (Dec 2025 → mid-2026).
- * Total realised profit = ₹480,000 (avg ₹80,000). Uses real Capital services.
+ * Total realised MY profit = ₹480,000 (50% of ₹9,60,000 business profit).
+ * Business profit = ₹9,60,000 with 50:50 Me / Investor 2 funding + profit split.
  *
  * Usage:
  *   INVEST_DATABASE_DATABASE_URL=... npx tsx scripts/seed-capital-history.ts

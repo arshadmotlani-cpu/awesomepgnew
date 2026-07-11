@@ -460,6 +460,9 @@ export function OverviewDashboard({
             accent
           />
           <HeroMetric label={profitLabel} valuePaise={view.profitPaise} accent />
+          {!isMine && view.partnerProfitPaise > 0 ? (
+            <HeroMetric label="Partner Profit" valuePaise={view.partnerProfitPaise} />
+          ) : null}
           <HeroMetric
             label={roiLabel}
             valueText={`${(view.roiBps / 100).toFixed(1)}%`}
@@ -555,6 +558,9 @@ export function OverviewDashboard({
             >
               <StatTile label="Current Active Investment" valuePaise={bundle.shared.currentInvestmentPaise} />
               <StatTile label={profitLabel} valuePaise={view.profitPaise} />
+              {!isMine && view.partnerProfitPaise > 0 ? (
+                <StatTile label="Partner Profit" valuePaise={view.partnerProfitPaise} />
+              ) : null}
               <StatTile label={roiLabel} valueText={`${(view.roiBps / 100).toFixed(1)}%`} />
               <StatTile
                 label="Active Vehicles"

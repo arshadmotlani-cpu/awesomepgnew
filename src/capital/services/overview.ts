@@ -365,13 +365,25 @@ export async function getOverviewBundle(range: DateRange) {
 
   const grossBusinessProfit = grossAssetProfitAll + manualGrossAll;
   const myLifetimeProfit = myAssetShareAll + manualMyAll;
+  /** Partner share is residual — never use my figures as business profit */
+  const partnerLifetimeProfit = Math.max(0, grossBusinessProfit - myLifetimeProfit);
   const periodGross = grossAssetProfitRange + manualGrossRange;
   const periodMy = myAssetShareRange + manualMyRange;
   const prevMy = myAssetSharePrev + manualMyPrev;
   const prevGross = grossAssetProfitPrev + manualGrossPrev;
 
-  // Business ROI = Gross ÷ Lifetime Purchase Volume
-  // My ROI = My Profit ÷ My vehicle capital stakes (not full purchase prices)
+  if (
+    process.env.NODE_ENV !== 'production' &&
+    partnerLifetimeProfit > 0 &&
+    grossBusinessProfit === myLifetimeProfit
+  ) {
+    console.warn(
+      '[capital overview] Business profit equals My profit while partner share > 0 — check profit_paise vs my_share_paise',
+    );
+  }
+
+  // Business ROI = Gross Business Profit ÷ Lifetime Purchase Volume
+  // My ROI = My Profit ÷ My vehicle capital stakes (never full purchase unless I funded 100%)
   const { businessRoiBps, myRoiBps } = computePortfolioRois({
     grossBusinessProfitPaise: grossBusinessProfit,
     myProfitPaise: myLifetimeProfit,
@@ -570,6 +582,7 @@ export async function getOverviewBundle(range: DateRange) {
     views: {
       mine: {
         profitPaise: myLifetimeProfit,
+        partnerProfitPaise: partnerLifetimeProfit,
         roiBps: myRoiBps,
         avgProfitPerVehiclePaise: avgMyProfitSold,
         periodProfitPaise: periodMy,
@@ -583,7 +596,10 @@ export async function getOverviewBundle(range: DateRange) {
         allocation,
       },
       business: {
+        /** ALWAYS gross before distribution — never myShare */
         profitPaise: grossBusinessProfit,
+        partnerProfitPaise: partnerLifetimeProfit,
+        myProfitPaise: myLifetimeProfit,
         roiBps: businessRoiBps,
         avgProfitPerVehiclePaise: avgGrossProfitSold,
         periodProfitPaise: periodGross,
@@ -749,13 +765,13 @@ export async function getOverviewBundle(range: DateRange) {
               kind: 'paise' as const,
             },
             {
-              label: 'Business ROI',
-              valueText: `${(businessRoiBps / 100).toFixed(1)}%`,
-              kind: 'text' as const,
+              label: 'Partner Profit',
+              valuePaise: partnerLifetimeProfit,
+              kind: 'paise' as const,
             },
             {
-              label: 'Vehicles Sold',
-              valueText: String(soldVehiclesLifetime),
+              label: 'Business ROI',
+              valueText: `${(businessRoiBps / 100).toFixed(1)}%`,
               kind: 'text' as const,
             },
             {
@@ -804,8 +820,8 @@ export async function getOverviewBundle(range: DateRange) {
               kind: 'paise' as const,
             },
             {
-              label: 'Avg Profit / Vehicle',
-              valuePaise: avgGrossProfitSold,
+              label: 'Partner Profit',
+              valuePaise: partnerLifetimeProfit,
               kind: 'paise' as const,
             },
           ],
