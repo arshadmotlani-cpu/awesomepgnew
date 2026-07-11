@@ -74,7 +74,7 @@ export default async function AssetsPage({ searchParams }: Props) {
               <tr className="border-b border-white/8 text-left text-ac-text-muted">
                 <th className="pb-3 pr-4 font-medium">Vehicle</th>
                 <th className="pb-3 pr-4 font-medium">Status</th>
-                <th className="pb-3 pr-4 font-medium text-right">Investment</th>
+                <th className="pb-3 pr-4 font-medium text-right">Total Vehicle Cost</th>
                 <th className="pb-3 font-medium text-right">Outstanding</th>
               </tr>
             </thead>
