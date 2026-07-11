@@ -3,17 +3,17 @@ import { describe, it } from 'node:test';
 import { computeProfitShare, fullInvestorShare } from '../../../src/capital/lib/profitShare';
 
 describe('profitShare', () => {
-  it('splits percentage 50/50 with correct ROIs on equal capital', () => {
-    const investment = 10_00_000_00;
+  it('splits percentage 50/50 with equal capital ⇒ equal ROI', () => {
+    const purchase = 10_00_000_00;
     const gross = 2_00_000_00;
     const r = computeProfitShare(
       { grossPaise: gross, mode: 'percentage', partnerPct: 50, myPct: 50 },
-      investment,
+      { purchasePricePaise: purchase, myInvestedPaise: 5_00_000_00 },
     );
     assert.equal(r.partnerSharePaise, 1_00_000_00);
     assert.equal(r.mySharePaise, 1_00_000_00);
     assert.equal(r.businessRoiBps, 2000);
-    assert.equal(r.myRoiBps, 1000);
+    assert.equal(r.myRoiBps, 2000);
   });
 
   it('rejects percentages that do not sum to 100', () => {

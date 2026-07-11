@@ -31,11 +31,13 @@ export function AssetCommandCenter({
   currentStatus,
   totalInvestmentPaise,
   timeline,
+  investors = [],
 }: {
   assetId: string;
   currentStatus: string;
   totalInvestmentPaise: number;
   timeline: TimelineData;
+  investors?: { slot: string; label: string; investedPaise: number }[];
 }) {
   return (
     <Tabs defaultValue="actions" className="w-full">
@@ -53,6 +55,7 @@ export function AssetCommandCenter({
           assetId={assetId}
           currentStatus={currentStatus}
           totalInvestmentPaise={totalInvestmentPaise}
+          investors={investors}
         />
       </TabsContent>
 

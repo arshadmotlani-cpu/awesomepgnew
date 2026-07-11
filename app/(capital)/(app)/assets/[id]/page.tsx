@@ -22,7 +22,7 @@ export default async function AssetDetailPage({ params }: Props) {
   const detail = await getAssetDetail(id);
   if (!detail) notFound();
 
-  const { asset, auto } = detail;
+  const { asset, auto, investors } = detail;
   const timeline = await getAssetTimeline(id);
 
   const fuelLabels: Record<string, string> = {
@@ -81,6 +81,46 @@ export default async function AssetDetailPage({ params }: Props) {
         </div>
       ) : null}
 
+      {investors.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Investment structure</CardTitle>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-white/8 text-left text-ac-text-muted">
+                  <th className="pb-2 pr-4 font-medium">Investor</th>
+                  <th className="pb-2 pr-4 font-medium">Invested</th>
+                  <th className="pb-2 pr-4 font-medium">Profit</th>
+                  <th className="pb-2 font-medium">ROI</th>
+                </tr>
+              </thead>
+              <tbody>
+                {investors.map((inv) => (
+                  <tr key={inv.id} className="border-b border-white/5">
+                    <td className="py-2 pr-4 font-medium">{inv.label}</td>
+                    <td className="py-2 pr-4">
+                      <MoneyDisplay paise={inv.investedPaise} />
+                    </td>
+                    <td className="py-2 pr-4">
+                      {inv.profitPaise != null ? (
+                        <MoneyDisplay paise={inv.profitPaise} />
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td className="py-2">
+                      {inv.roiBps != null ? `${(inv.roiBps / 100).toFixed(1)}%` : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      ) : null}
+
       <Card>
         <CardHeader>
           <CardTitle>Vehicle details</CardTitle>
@@ -104,6 +144,11 @@ export default async function AssetDetailPage({ params }: Props) {
         currentStatus={asset.status}
         totalInvestmentPaise={asset.totalInvestmentPaise}
         timeline={timeline}
+        investors={investors.map((i) => ({
+          slot: i.slot,
+          label: i.label,
+          investedPaise: i.investedPaise,
+        }))}
       />
     </div>
   );

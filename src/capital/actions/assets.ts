@@ -29,6 +29,32 @@ export async function createAssetAction(
     if (!parsed.ok) return { error: parsed.error };
 
     const input = parsed.data;
+    const purchasePaise = rupeesToPaise(input.purchasePrice);
+    const mePaise = rupeesToPaise(input.meInvested ?? input.purchasePrice);
+    const i2Paise = rupeesToPaise(input.investor2Invested ?? 0);
+    const i3Paise = rupeesToPaise(input.investor3Invested ?? 0);
+    const investors = [
+      { slot: 'me' as const, investedPaise: mePaise, label: 'Me' },
+      ...(i2Paise > 0
+        ? [
+            {
+              slot: 'investor_2' as const,
+              investedPaise: i2Paise,
+              label: input.investor2Label?.trim() || 'Investor 2',
+            },
+          ]
+        : []),
+      ...(i3Paise > 0
+        ? [
+            {
+              slot: 'investor_3' as const,
+              investedPaise: i3Paise,
+              label: input.investor3Label?.trim() || 'Investor 3',
+            },
+          ]
+        : []),
+    ];
+
     const asset = await createAsset({
       manufacturer: input.manufacturer,
       model: input.model,
@@ -36,8 +62,9 @@ export async function createAssetAction(
       fuelType: input.fuelType,
       ownership: input.ownership,
       purchaseDate: input.purchaseDate,
-      purchasePricePaise: rupeesToPaise(input.purchasePrice),
+      purchasePricePaise: purchasePaise,
       notes: input.notes,
+      investors,
     });
     assetId = asset.id;
     revalidatePath('/assets');
@@ -62,17 +89,6 @@ export async function recordSaleAction(
       parsed.data.assetId,
       rupeesToPaise(parsed.data.salePrice),
       parsed.data.saleDate,
-      {
-        mode: parsed.data.shareMode,
-        partnerPct: parsed.data.partnerPct,
-        myPct: parsed.data.myPct,
-        partnerFixedPaise:
-          parsed.data.partnerFixed != null
-            ? rupeesToPaise(parsed.data.partnerFixed)
-            : undefined,
-        myFixedPaise:
-          parsed.data.myFixed != null ? rupeesToPaise(parsed.data.myFixed) : undefined,
-      },
     );
     revalidatePath(`/assets/${parsed.data.assetId}`);
     revalidatePath('/assets');

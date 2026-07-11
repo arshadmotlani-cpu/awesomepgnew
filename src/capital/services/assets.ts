@@ -2,6 +2,7 @@ import { and, asc, count, desc, eq, ilike, or, sql, sum, type SQL } from 'drizzl
 import { capitalDb } from '@/src/capital/db/client';
 import {
   acActivityLog,
+  acAssetInvestors,
   acAssets,
   acAutomotiveDetails,
   acDocuments,
@@ -9,12 +10,20 @@ import {
   acLedgerEntries,
   acPaymentsReceived,
 } from '@/src/capital/db/schema';
+import type { InvestorSlot } from '@/src/capital/db/schema/investors';
 import {
   calcHoldingDays,
   calcSettlementPctBps,
   normalizeRegistration,
 } from '@/src/capital/lib/money';
-import { computeProfitShare } from '@/src/capital/lib/profitShare';
+import {
+  distributeInvestorProfits,
+  fullSelfFunding,
+  summarizeInvestorShares,
+  validateFundingStructure,
+  type InvestorFundingInput,
+  type InvestorProfitInput,
+} from '@/src/capital/lib/investors';
 import { computeVehicleRois } from '@/src/capital/lib/roi';
 import {
   activeInvestmentSql,
@@ -36,11 +45,31 @@ export type CreateAssetInput = {
   purchaseDate: string;
   purchasePricePaise: number;
   notes?: string;
-  /** Optional — not collected on the new-asset form; used for historical imports */
+  /** Layer 2 funding — must sum to purchase price. Defaults to Me = 100%. */
+  investors?: InvestorFundingInput[];
   registrationNumber?: string;
   variant?: string;
   color?: string;
 };
+
+export async function listAssetInvestors(assetId: string, db: CapitalDbClient = capitalDb) {
+  return db
+    .select()
+    .from(acAssetInvestors)
+    .where(eq(acAssetInvestors.assetId, assetId))
+    .orderBy(asc(acAssetInvestors.slot));
+}
+
+export async function sumMyInvestedCapitalPaise(db: CapitalDbClient = capitalDb): Promise<number> {
+  const [row] = await db
+    .select({ total: sum(acAssetInvestors.investedPaise) })
+    .from(acAssetInvestors)
+    .innerJoin(acAssets, eq(acAssetInvestors.assetId, acAssets.id))
+    .where(
+      and(eq(acAssetInvestors.slot, 'me'), sql`${acAssets.status} <> 'cancelled'`),
+    );
+  return Number(row?.total ?? 0);
+}
 
 export async function recalculateAsset(assetId: string, db: CapitalDbClient = capitalDb) {
   const [expenseSum] = await db
@@ -84,16 +113,38 @@ export async function recalculateAsset(assetId: string, db: CapitalDbClient = ca
     );
   }
 
-  // Refresh business/personal ROI from gross vs my share over total investment
+  const investors = await db
+    .select()
+    .from(acAssetInvestors)
+    .where(eq(acAssetInvestors.assetId, assetId));
+  const me = investors.find((i) => i.slot === 'me');
+  const myInvested = me?.investedPaise ?? asset.purchasePricePaise;
+  const myShare = asset.mySharePaise ?? (profitPaise != null ? profitPaise : 0);
+
   const roiFields =
     profitPaise != null
-      ? (() => {
-          const myShare = asset.mySharePaise ?? profitPaise;
-          const partnerShare =
-            asset.partnerSharePaise ?? Math.max(0, profitPaise - myShare);
-          return computeVehicleRois(profitPaise, myShare, partnerShare, totalInvestment);
-        })()
+      ? computeVehicleRois({
+          grossProfitPaise: profitPaise,
+          purchasePricePaise: asset.purchasePricePaise,
+          myProfitPaise: myShare,
+          myInvestedPaise: myInvested,
+        })
       : { businessRoiBps: null, myRoiBps: null, roiBps: null };
+
+  // Keep investor ROI rows in sync when profit already allocated
+  if (profitPaise != null && investors.length > 0) {
+    for (const inv of investors) {
+      if (inv.profitPaise == null) continue;
+      const invRoi =
+        inv.investedPaise > 0
+          ? Math.round((inv.profitPaise * 10000) / inv.investedPaise)
+          : null;
+      await db
+        .update(acAssetInvestors)
+        .set({ roiBps: invRoi, updatedAt: new Date() })
+        .where(eq(acAssetInvestors.id, inv.id));
+    }
+  }
 
   await db
     .update(acAssets)
@@ -125,6 +176,9 @@ export async function assertAssetMutable(assetId: string, db: CapitalDbClient = 
 
 export async function createAsset(input: CreateAssetInput) {
   const displayName = `${input.year} ${input.manufacturer} ${input.model}`;
+  const funding = input.investors?.length
+    ? validateFundingStructure(input.purchasePricePaise, input.investors)
+    : fullSelfFunding(input.purchasePricePaise);
 
   return capitalDb.transaction(async (tx) => {
     const [asset] = await tx
@@ -154,6 +208,15 @@ export async function createAsset(input: CreateAssetInput) {
         : null,
     });
 
+    await tx.insert(acAssetInvestors).values(
+      funding.map((f) => ({
+        assetId: asset.id,
+        slot: f.slot,
+        label: f.label,
+        investedPaise: f.investedPaise,
+      })),
+    );
+
     await postLedgerEntry(
       {
         entryType: 'asset_purchase',
@@ -178,6 +241,11 @@ export async function createAsset(input: CreateAssetInput) {
           model: input.model,
           fuelType: input.fuelType,
           ownership: input.ownership,
+          investors: funding.map((f) => ({
+            slot: f.slot,
+            label: f.label,
+            investedPaise: f.investedPaise,
+          })),
         },
       },
       tx,
@@ -216,51 +284,87 @@ export async function recordSale(
   assetId: string,
   actualSalePricePaise: number,
   saleDate: string,
-  share?: {
-    mode: 'percentage' | 'fixed';
-    partnerPct?: number;
-    myPct?: number;
-    partnerFixedPaise?: number;
-    myFixedPaise?: number;
-  },
+  profitOverrides?: InvestorProfitInput[],
 ) {
   await assertAssetMutable(assetId);
 
-  // Recalc expenses first so share uses current investment
   await recalculateAsset(assetId);
   const [fresh] = await capitalDb.select().from(acAssets).where(eq(acAssets.id, assetId)).limit(1);
   if (!fresh) throw new Error('Asset not found');
 
+  let investors = await listAssetInvestors(assetId);
+  if (investors.length === 0) {
+    // Legacy asset without Layer 2 — self-fund and persist
+    const funding = fullSelfFunding(fresh.purchasePricePaise);
+    await capitalDb.insert(acAssetInvestors).values(
+      funding.map((f) => ({
+        assetId,
+        slot: f.slot,
+        label: f.label,
+        investedPaise: f.investedPaise,
+      })),
+    );
+    investors = await listAssetInvestors(assetId);
+  }
+
   const totalInvestment = fresh.totalInvestmentPaise;
   const grossProfit = actualSalePricePaise - totalInvestment;
-  const shareResult = computeProfitShare(
-    {
-      grossPaise: grossProfit,
-      mode: share?.mode ?? 'percentage',
-      partnerPct: share?.partnerPct ?? 0,
-      myPct: share?.myPct ?? 100,
-      partnerFixedPaise: share?.partnerFixedPaise,
-      myFixedPaise: share?.myFixedPaise,
-    },
-    totalInvestment,
+  const distributed = distributeInvestorProfits(
+    grossProfit,
+    investors.map((i) => ({
+      slot: i.slot as InvestorSlot,
+      investedPaise: i.investedPaise,
+      label: i.label,
+    })),
+    profitOverrides,
   );
+  const summary = summarizeInvestorShares(distributed);
+  const rois = computeVehicleRois({
+    grossProfitPaise: grossProfit,
+    purchasePricePaise: fresh.purchasePricePaise,
+    myProfitPaise: summary.myProfitPaise,
+    myInvestedPaise: summary.myInvestedPaise,
+  });
 
-  await capitalDb
-    .update(acAssets)
-    .set({
-      actualSalePricePaise,
-      saleDate,
-      status: 'sold',
-      profitShareMode: shareResult.mode,
-      partnerSharePctBps: shareResult.partnerSharePctBps,
-      mySharePctBps: shareResult.mySharePctBps,
-      partnerSharePaise: shareResult.partnerSharePaise,
-      mySharePaise: shareResult.mySharePaise,
-      businessRoiBps: shareResult.businessRoiBps,
-      myRoiBps: shareResult.myRoiBps,
-      updatedAt: new Date(),
-    })
-    .where(eq(acAssets.id, assetId));
+  const totalInvested = investors.reduce((s, i) => s + i.investedPaise, 0);
+  const mySharePctBps =
+    totalInvested > 0 ? Math.round((summary.myInvestedPaise * 10000) / totalInvested) : 10000;
+  const partnerSharePctBps = 10000 - mySharePctBps;
+
+  await capitalDb.transaction(async (tx) => {
+    for (const row of distributed) {
+      await tx
+        .update(acAssetInvestors)
+        .set({
+          profitPaise: row.profitPaise,
+          roiBps: row.roiBps,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(acAssetInvestors.assetId, assetId),
+            eq(acAssetInvestors.slot, row.slot),
+          ),
+        );
+    }
+
+    await tx
+      .update(acAssets)
+      .set({
+        actualSalePricePaise,
+        saleDate,
+        status: 'sold',
+        profitShareMode: 'percentage',
+        partnerSharePctBps,
+        mySharePctBps,
+        partnerSharePaise: summary.partnerProfitPaise,
+        mySharePaise: summary.myProfitPaise,
+        businessRoiBps: rois.businessRoiBps,
+        myRoiBps: rois.myRoiBps,
+        updatedAt: new Date(),
+      })
+      .where(eq(acAssets.id, assetId));
+  });
 
   await recalculateAsset(assetId);
   await logActivity({
@@ -271,9 +375,10 @@ export async function recordSale(
       actualSalePricePaise,
       saleDate,
       status: 'sold',
-      grossProfitPaise: shareResult.grossPaise,
-      partnerSharePaise: shareResult.partnerSharePaise,
-      mySharePaise: shareResult.mySharePaise,
+      grossProfitPaise: grossProfit,
+      partnerSharePaise: summary.partnerProfitPaise,
+      mySharePaise: summary.myProfitPaise,
+      investors: distributed,
     },
   });
 }
@@ -415,5 +520,7 @@ export async function getAssetDetail(assetId: string) {
     .innerJoin(acAutomotiveDetails, eq(acAssets.id, acAutomotiveDetails.assetId))
     .where(eq(acAssets.id, assetId))
     .limit(1);
-  return row ?? null;
+  if (!row) return null;
+  const investors = await listAssetInvestors(assetId);
+  return { ...row, investors };
 }

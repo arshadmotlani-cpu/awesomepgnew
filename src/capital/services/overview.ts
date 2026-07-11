@@ -28,6 +28,7 @@ import {
 } from '@/src/capital/lib/dashboardRange';
 import { computePortfolioRois } from '@/src/capital/lib/roi';
 import { monthlyManualProfitSeries, sumManualMySharePaise, sumManualProfitsPaise } from './manualProfits';
+import { sumMyInvestedCapitalPaise } from './assets';
 
 export type { DateRange, DashboardRange };
 export {
@@ -136,6 +137,7 @@ export async function getOverviewBundle(range: DateRange) {
 
   const [
     capitalInjectedAll,
+    myVehicleCapitalAll,
     lifetimePurchaseVolume,
     grossAssetProfitAll,
     myAssetShareAll,
@@ -174,6 +176,7 @@ export async function getOverviewBundle(range: DateRange) {
     activeByStatus,
   ] = await Promise.all([
     sumCapitalInvested(),
+    sumMyInvestedCapitalPaise(),
     sumPurchaseVolume(),
     capitalDb
       .select({ total: sum(acAssets.profitPaise) })
@@ -362,21 +365,18 @@ export async function getOverviewBundle(range: DateRange) {
 
   const grossBusinessProfit = grossAssetProfitAll + manualGrossAll;
   const myLifetimeProfit = myAssetShareAll + manualMyAll;
-  const partnerLifetimeShare = Math.max(0, grossBusinessProfit - myLifetimeProfit);
   const periodGross = grossAssetProfitRange + manualGrossRange;
   const periodMy = myAssetShareRange + manualMyRange;
-  const periodPartnerShare = Math.max(0, periodGross - periodMy);
   const prevMy = myAssetSharePrev + manualMyPrev;
   const prevGross = grossAssetProfitPrev + manualGrossPrev;
 
-  // Business ROI = Gross ÷ Lifetime Purchase Volume (total capital deployed)
-  // Personal ROI = My Profit ÷ My Capital Invested (clamped ≤ Business when partner share > 0)
+  // Business ROI = Gross ÷ Lifetime Purchase Volume
+  // My ROI = My Profit ÷ My vehicle capital stakes (not full purchase prices)
   const { businessRoiBps, myRoiBps } = computePortfolioRois({
     grossBusinessProfitPaise: grossBusinessProfit,
     myProfitPaise: myLifetimeProfit,
-    partnerSharePaise: partnerLifetimeShare,
     lifetimePurchaseVolumePaise: lifetimePurchaseVolume,
-    myCapitalInvestedPaise: capitalInjectedAll,
+    myCapitalInvestedPaise: myVehicleCapitalAll > 0 ? myVehicleCapitalAll : capitalInjectedAll,
   });
 
   function mergeMonthSeries(
@@ -461,9 +461,12 @@ export async function getOverviewBundle(range: DateRange) {
   const periodRoiBundle = computePortfolioRois({
     grossBusinessProfitPaise: periodGross,
     myProfitPaise: periodMy,
-    partnerSharePaise: periodPartnerShare,
     lifetimePurchaseVolumePaise: purchaseVolumeRange,
-    myCapitalInvestedPaise: purchaseVolumeRange,
+    // Period personal base: scale my stakes by period purchase share when possible
+    myCapitalInvestedPaise:
+      lifetimePurchaseVolume > 0 && myVehicleCapitalAll > 0
+        ? Math.round((myVehicleCapitalAll * purchaseVolumeRange) / lifetimePurchaseVolume)
+        : purchaseVolumeRange,
   });
   const periodRoiBusinessBps = periodRoiBundle.businessRoiBps;
   const periodRoiMyBps = periodRoiBundle.myRoiBps;

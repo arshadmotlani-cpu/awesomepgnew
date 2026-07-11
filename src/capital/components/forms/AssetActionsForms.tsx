@@ -3,7 +3,7 @@
 import { useActionState, useMemo, useState } from 'react';
 import { recordSaleAction, updateStatusAction, type ActionState } from '@/src/capital/actions/assets';
 import { createSettlementAction } from '@/src/capital/actions/settlements';
-import { ProfitShareFields } from '@/src/capital/components/forms/ProfitShareFields';
+import { MoneyDisplay } from '@/src/capital/components/MoneyDisplay';
 import { Button } from '@/src/capital/components/ui/button';
 import { Input } from '@/src/capital/components/ui/input';
 import { assetStatusEnum } from '@/src/capital/db/schema/enums';
@@ -18,10 +18,12 @@ export function AssetActionsForms({
   assetId,
   currentStatus,
   totalInvestmentPaise = 0,
+  investors = [],
 }: {
   assetId: string;
   currentStatus: string;
   totalInvestmentPaise?: number;
+  investors?: { slot: string; label: string; investedPaise: number }[];
 }) {
   const isClosed =
     currentStatus === 'sold' || currentStatus === 'settled' || currentStatus === 'cancelled';
@@ -43,7 +45,11 @@ export function AssetActionsForms({
           <StatusForm assetId={assetId} currentStatus={currentStatus} />
         ) : null}
         {!isClosed ? (
-          <SaleForm assetId={assetId} totalInvestmentPaise={totalInvestmentPaise} />
+          <SaleForm
+            assetId={assetId}
+            totalInvestmentPaise={totalInvestmentPaise}
+            investors={investors}
+          />
         ) : null}
         {currentStatus === 'sold' ? <SettlementForm assetId={assetId} /> : null}
         {isSettledOrCancelled ? (
@@ -86,20 +92,33 @@ function StatusForm({ assetId, currentStatus }: { assetId: string; currentStatus
 function SaleForm({
   assetId,
   totalInvestmentPaise,
+  investors,
 }: {
   assetId: string;
   totalInvestmentPaise: number;
+  investors: { slot: string; label: string; investedPaise: number }[];
 }) {
   const [state, formAction, pending] = useActionState(recordSaleAction, initialState);
   const [salePrice, setSalePrice] = useState('');
-  const grossRupees = useMemo(() => {
-    const price = Number(salePrice) || 0;
-    return price - totalInvestmentPaise / 100;
+  const grossPaise = useMemo(() => {
+    const price = Math.round((Number(salePrice) || 0) * 100);
+    return price - totalInvestmentPaise;
   }, [salePrice, totalInvestmentPaise]);
+
+  const totalInvested = investors.reduce((s, i) => s + i.investedPaise, 0) || 1;
+  const preview = investors
+    .filter((i) => i.investedPaise > 0 || i.slot === 'me')
+    .map((i) => ({
+      ...i,
+      profitPaise: Math.round((grossPaise * i.investedPaise) / totalInvested),
+    }));
 
   return (
     <form action={formAction} className="ac-glass-card space-y-3 p-4 md:col-span-2 lg:col-span-1">
       <h3 className="font-medium">Record sale</h3>
+      <p className="text-xs text-ac-text-muted">
+        Business profit is split in proportion to each investor&apos;s capital.
+      </p>
       <input type="hidden" name="assetId" value={assetId} />
       <div>
         <label className="mb-1 block text-sm text-ac-text-secondary">Sale price (₹)</label>
@@ -115,7 +134,25 @@ function SaleForm({
         <label className="mb-1 block text-sm text-ac-text-secondary">Sale date</label>
         <Input name="saleDate" type="date" required />
       </div>
-      <ProfitShareFields grossRupees={grossRupees} defaultPartnerPct={40} />
+      {salePrice ? (
+        <div className="space-y-2 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-sm">
+          <div className="flex justify-between">
+            <span className="text-ac-text-muted">Business profit</span>
+            <MoneyDisplay paise={grossPaise} />
+          </div>
+          {preview.map((p) => (
+            <div key={p.slot} className="flex justify-between gap-2">
+              <span className="text-ac-text-secondary">
+                {p.label}{' '}
+                <span className="text-ac-text-muted">
+                  ({((p.investedPaise / totalInvested) * 100).toFixed(0)}%)
+                </span>
+              </span>
+              <MoneyDisplay paise={p.profitPaise} />
+            </div>
+          ))}
+        </div>
+      ) : null}
       {state.error ? <p className="text-sm text-ac-danger">{state.error}</p> : null}
       {state.success ? <p className="text-sm text-ac-success">{state.success}</p> : null}
       <Button type="submit" size="sm" disabled={pending}>
@@ -138,8 +175,8 @@ function SettlementForm({ assetId }: { assetId: string }) {
       </div>
       {state.error ? <p className="text-sm text-ac-danger">{state.error}</p> : null}
       {state.success ? <p className="text-sm text-ac-success">{state.success}</p> : null}
-      <Button type="submit" size="sm" variant="default" disabled={pending}>
-        Settle asset
+      <Button type="submit" size="sm" disabled={pending}>
+        Settle
       </Button>
     </form>
   );

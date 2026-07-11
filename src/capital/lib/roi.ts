@@ -1,20 +1,19 @@
 import { calcRoiBps } from '@/src/capital/lib/money';
 
 /**
- * Portfolio / period ROI — canonical formulas:
+ * Portfolio / vehicle ROI — two layers:
  *
- * Business ROI = Gross Business Profit ÷ Lifetime Purchase Volume
- * Personal ROI = My Profit ÷ My Capital Invested
+ * Business ROI = Business Profit ÷ Purchase Price (full vehicle cost)
+ * My ROI       = My Profit ÷ My Invested Capital in that vehicle
  *
- * When partner share > 0, Personal ROI is clamped so it never exceeds Business ROI
- * (50:50 on equal capital → Personal ≈ half of Business).
+ * Never compute My ROI against the full purchase price unless I funded 100%.
  */
 
 export function computeBusinessRoiBps(
   grossBusinessProfitPaise: number,
-  lifetimePurchaseVolumePaise: number,
+  purchaseVolumePaise: number,
 ): number {
-  return calcRoiBps(grossBusinessProfitPaise, lifetimePurchaseVolumePaise) ?? 0;
+  return calcRoiBps(grossBusinessProfitPaise, purchaseVolumePaise) ?? 0;
 }
 
 export function computePersonalRoiBps(
@@ -24,37 +23,17 @@ export function computePersonalRoiBps(
   return calcRoiBps(myProfitPaise, myCapitalInvestedPaise) ?? 0;
 }
 
-/**
- * Resolve personal capital base. Prefer capital investments; if none recorded,
- * fall back to purchase volume so ROI is defined.
- */
 export function resolvePersonalCapitalBase(
-  capitalInvestedPaise: number,
-  lifetimePurchaseVolumePaise: number,
+  myVehicleCapitalPaise: number,
+  fallbackPurchaseVolumePaise: number,
 ): number {
-  if (capitalInvestedPaise > 0) return capitalInvestedPaise;
-  return lifetimePurchaseVolumePaise;
-}
-
-/**
- * When profits are shared with a partner, Personal ROI must not exceed Business ROI.
- * (Equal capital + 50% share ⇒ Personal ≈ Business / 2.)
- */
-export function clampPersonalRoiBps(
-  personalRoiBps: number,
-  businessRoiBps: number,
-  partnerSharePaise: number,
-): number {
-  if (partnerSharePaise > 0 && personalRoiBps > businessRoiBps) {
-    return businessRoiBps;
-  }
-  return personalRoiBps;
+  if (myVehicleCapitalPaise > 0) return myVehicleCapitalPaise;
+  return fallbackPurchaseVolumePaise;
 }
 
 export function computePortfolioRois(input: {
   grossBusinessProfitPaise: number;
   myProfitPaise: number;
-  partnerSharePaise: number;
   lifetimePurchaseVolumePaise: number;
   myCapitalInvestedPaise: number;
 }): { businessRoiBps: number; myRoiBps: number; capitalBasePaise: number } {
@@ -66,32 +45,25 @@ export function computePortfolioRois(input: {
     input.grossBusinessProfitPaise,
     input.lifetimePurchaseVolumePaise,
   );
-  const rawPersonal = computePersonalRoiBps(input.myProfitPaise, capitalBasePaise);
-  const myRoiBps = clampPersonalRoiBps(
-    rawPersonal,
-    businessRoiBps,
-    input.partnerSharePaise,
-  );
+  const myRoiBps = computePersonalRoiBps(input.myProfitPaise, capitalBasePaise);
   return { businessRoiBps, myRoiBps, capitalBasePaise };
 }
 
-/** Per-vehicle ROIs share the same investment base (purchase + expenses). */
-export function computeVehicleRois(
-  grossProfitPaise: number,
-  mySharePaise: number,
-  partnerSharePaise: number,
-  totalInvestmentPaise: number,
-): { businessRoiBps: number | null; myRoiBps: number | null; roiBps: number | null } {
-  const businessRoiBps = calcRoiBps(grossProfitPaise, totalInvestmentPaise);
-  const rawMy = calcRoiBps(mySharePaise, totalInvestmentPaise);
-  const myRoiBps =
-    rawMy == null
-      ? null
-      : clampPersonalRoiBps(rawMy, businessRoiBps ?? 0, partnerSharePaise);
+/**
+ * Per-vehicle ROIs use separate capital bases:
+ * Business → purchase price; Personal → my invested stake.
+ */
+export function computeVehicleRois(input: {
+  grossProfitPaise: number;
+  purchasePricePaise: number;
+  myProfitPaise: number;
+  myInvestedPaise: number;
+}): { businessRoiBps: number | null; myRoiBps: number | null; roiBps: number | null } {
+  const businessRoiBps = calcRoiBps(input.grossProfitPaise, input.purchasePricePaise);
+  const myRoiBps = calcRoiBps(input.myProfitPaise, input.myInvestedPaise);
   return {
     businessRoiBps,
     myRoiBps,
-    /** Legacy field = business (gross) ROI */
     roiBps: businessRoiBps,
   };
 }

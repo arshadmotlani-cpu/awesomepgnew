@@ -5,13 +5,9 @@ export type ProfitShareMode = 'percentage' | 'fixed';
 export type ProfitShareInput = {
   grossPaise: number;
   mode: ProfitShareMode;
-  /** Partner percentage 0–100 when mode=percentage */
   partnerPct?: number;
-  /** My percentage 0–100 when mode=percentage */
   myPct?: number;
-  /** Partner fixed amount in paise when mode=fixed */
   partnerFixedPaise?: number;
-  /** My fixed amount in paise when mode=fixed (optional — remainder if omitted) */
   myFixedPaise?: number;
 };
 
@@ -27,13 +23,17 @@ export type ProfitShareResult = {
 };
 
 /**
- * Compute partner vs investor (me) split from gross profit.
- * Percentage mode: partnerPct + myPct must equal 100.
- * Fixed mode: partner fixed amount; my share = remainder (or explicit myFixed).
+ * Legacy 2-party profit split helper (manual profits / older sale UI).
+ * ROI uses purchase price for business and myInvested for personal when provided.
  */
 export function computeProfitShare(
   input: ProfitShareInput,
-  investmentPaise?: number,
+  opts?: {
+    purchasePricePaise?: number;
+    myInvestedPaise?: number;
+    /** @deprecated alias for purchasePricePaise */
+    investmentPaise?: number;
+  },
 ): ProfitShareResult {
   const gross = Math.round(input.grossPaise);
   if (!Number.isFinite(gross)) throw new Error('Invalid gross profit');
@@ -79,12 +79,22 @@ export function computeProfitShare(
     }
   }
 
-  const { businessRoiBps, myRoiBps } = computeVehicleRois(
-    gross,
-    mySharePaise,
-    partnerSharePaise,
-    investmentPaise ?? 0,
-  );
+  const purchasePricePaise = opts?.purchasePricePaise ?? opts?.investmentPaise;
+  const myInvestedPaise =
+    opts?.myInvestedPaise ??
+    (purchasePricePaise != null
+      ? Math.round((purchasePricePaise * mySharePctBps) / 10000)
+      : undefined);
+
+  const rois =
+    purchasePricePaise != null && purchasePricePaise > 0 && myInvestedPaise != null
+      ? computeVehicleRois({
+          grossProfitPaise: gross,
+          purchasePricePaise,
+          myProfitPaise: mySharePaise,
+          myInvestedPaise,
+        })
+      : { businessRoiBps: null, myRoiBps: null, roiBps: null };
 
   return {
     mode: input.mode,
@@ -93,15 +103,20 @@ export function computeProfitShare(
     mySharePaise,
     partnerSharePctBps,
     mySharePctBps,
-    businessRoiBps: investmentPaise != null && investmentPaise > 0 ? businessRoiBps : null,
-    myRoiBps: investmentPaise != null && investmentPaise > 0 ? myRoiBps : null,
+    businessRoiBps: rois.businessRoiBps,
+    myRoiBps: rois.myRoiBps,
   };
 }
 
-/** Default: 100% to investor (no partner cut) — used for backfill / unspecified. */
-export function fullInvestorShare(grossPaise: number, investmentPaise?: number): ProfitShareResult {
+export function fullInvestorShare(
+  grossPaise: number,
+  purchasePricePaise?: number,
+): ProfitShareResult {
   return computeProfitShare(
     { grossPaise, mode: 'percentage', partnerPct: 0, myPct: 100 },
-    investmentPaise,
+    {
+      purchasePricePaise,
+      myInvestedPaise: purchasePricePaise,
+    },
   );
 }

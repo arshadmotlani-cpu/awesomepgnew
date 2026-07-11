@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  clampPersonalRoiBps,
   computeBusinessRoiBps,
   computePersonalRoiBps,
   computePortfolioRois,
@@ -9,65 +8,58 @@ import {
   resolvePersonalCapitalBase,
 } from '../../../src/capital/lib/roi';
 
-/** ₹ amounts → paise */
 const INR = (rupees: number) => Math.round(rupees * 100);
 
 describe('roi formulas', () => {
-  it('matches the 50:50 equal-capital example (Business 20%, Personal 10%)', () => {
-    const investment = INR(10_00_000);
-    const gross = INR(2_00_000);
-    const partner = INR(1_00_000);
-    const mine = INR(1_00_000);
+  it('Business ROI uses purchase price; My ROI uses my stake', () => {
+    // Vehicle ₹11L, Me ₹5.5L, Investor2 ₹5.5L, profit ₹1.2L split 60k/60k
+    const purchase = INR(11_00_000);
+    const myInvested = INR(5_50_000);
+    const gross = INR(1_20_000);
+    const myProfit = INR(60_000);
 
-    const business = computeBusinessRoiBps(gross, investment);
-    const personal = computePersonalRoiBps(mine, investment);
+    const business = computeBusinessRoiBps(gross, purchase);
+    const personal = computePersonalRoiBps(myProfit, myInvested);
 
-    assert.equal(business, 2000); // 20.00%
-    assert.equal(personal, 1000); // 10.00%
+    // Both ≈ 10.91% when capital share matches profit share
+    assert.equal(business, personal);
+    assert.equal(business, 1091);
 
-    const portfolio = computePortfolioRois({
-      grossBusinessProfitPaise: gross,
-      myProfitPaise: mine,
-      partnerSharePaise: partner,
-      lifetimePurchaseVolumePaise: investment,
-      myCapitalInvestedPaise: investment,
+    const vehicle = computeVehicleRois({
+      grossProfitPaise: gross,
+      purchasePricePaise: purchase,
+      myProfitPaise: myProfit,
+      myInvestedPaise: myInvested,
     });
-    assert.equal(portfolio.businessRoiBps, 2000);
-    assert.equal(portfolio.myRoiBps, 1000);
+    assert.equal(vehicle.businessRoiBps, 1091);
+    assert.equal(vehicle.myRoiBps, 1091);
   });
 
-  it('vehicle ROIs use total investment; 50:50 ⇒ personal ≈ half business', () => {
-    const investment = INR(10_00_000);
-    const gross = INR(2_00_000);
-    const partner = INR(1_00_000);
-    const mine = INR(1_00_000);
+  it('My ROI is higher when I fund less but take equal profit (20% capital)', () => {
+    const purchase = INR(10_00_000);
+    const myInvested = INR(2_00_000); // 20%
+    const gross = INR(1_00_000);
+    const myProfit = INR(50_000); // 50% of profit
 
-    const { businessRoiBps, myRoiBps, roiBps } = computeVehicleRois(
-      gross,
-      mine,
-      partner,
-      investment,
-    );
-    assert.equal(businessRoiBps, 2000);
-    assert.equal(myRoiBps, 1000);
-    assert.equal(roiBps, businessRoiBps);
+    const business = computeBusinessRoiBps(gross, purchase); // 10%
+    const personal = computePersonalRoiBps(myProfit, myInvested); // 25%
+    assert.equal(business, 1000);
+    assert.equal(personal, 2500);
+    assert.ok(personal > business);
   });
 
-  it('clamps personal ROI when partner share > 0 and personal would exceed business', () => {
-    // Small personal capital base would inflate personal ROI above business
-    const business = computeBusinessRoiBps(INR(2_00_000), INR(10_00_000)); // 20%
-    const inflated = computePersonalRoiBps(INR(1_00_000), INR(2_00_000)); // 50%
-    assert.ok(inflated > business);
-    assert.equal(clampPersonalRoiBps(inflated, business, INR(1_00_000)), business);
+  it('portfolio ROI uses my vehicle capital, not full purchase volume', () => {
+    const r = computePortfolioRois({
+      grossBusinessProfitPaise: INR(9_60_000),
+      myProfitPaise: INR(4_80_000),
+      lifetimePurchaseVolumePaise: INR(50_00_000),
+      myCapitalInvestedPaise: INR(25_00_000),
+    });
+    assert.equal(r.businessRoiBps, 1920); // 19.2%
+    assert.equal(r.myRoiBps, 1920); // same rate on half capital
   });
 
-  it('does not clamp when there is no partner share', () => {
-    const business = 2000;
-    const personal = 5000;
-    assert.equal(clampPersonalRoiBps(personal, business, 0), personal);
-  });
-
-  it('falls back personal capital base to purchase volume when capital injected is 0', () => {
+  it('falls back personal capital base to purchase volume when my stakes are 0', () => {
     assert.equal(resolvePersonalCapitalBase(0, INR(10_00_000)), INR(10_00_000));
     assert.equal(resolvePersonalCapitalBase(INR(5_00_000), INR(10_00_000)), INR(5_00_000));
   });

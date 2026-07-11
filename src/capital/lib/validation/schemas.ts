@@ -12,16 +12,35 @@ const documentType = z.enum([
   'purchase_invoice', 'repair_bill', 'insurance', 'rc', 'photo', 'sale_invoice', 'other',
 ]);
 
-export const createAssetSchema = z.object({
-  manufacturer: z.string().min(1, 'Manufacturer is required'),
-  model: z.string().min(1, 'Model is required'),
-  fuelType: z.enum(['petrol', 'diesel', 'cng', 'ev', 'hybrid']),
-  year: z.coerce.number().int().min(1990).max(new Date().getFullYear() + 1),
-  ownership: z.enum(['first_owner', 'second_owner', 'third_owner']),
-  purchaseDate: dateStr,
-  purchasePrice: rupees,
-  notes: z.string().optional(),
-});
+export const createAssetSchema = z
+  .object({
+    manufacturer: z.string().min(1, 'Manufacturer is required'),
+    model: z.string().min(1, 'Model is required'),
+    fuelType: z.enum(['petrol', 'diesel', 'cng', 'ev', 'hybrid']),
+    year: z.coerce.number().int().min(1990).max(new Date().getFullYear() + 1),
+    ownership: z.enum(['first_owner', 'second_owner', 'third_owner']),
+    purchaseDate: dateStr,
+    purchasePrice: rupees,
+    notes: z.string().optional(),
+    meInvested: z.coerce.number().min(0).optional(),
+    investor2Invested: z.coerce.number().min(0).optional(),
+    investor3Invested: z.coerce.number().min(0).optional(),
+    investor2Label: z.string().optional(),
+    investor3Label: z.string().optional(),
+  })
+  .superRefine((d, ctx) => {
+    const purchasePaise = Math.round(d.purchasePrice * 100);
+    const me = Math.round((d.meInvested ?? d.purchasePrice) * 100);
+    const i2 = Math.round((d.investor2Invested ?? 0) * 100);
+    const i3 = Math.round((d.investor3Invested ?? 0) * 100);
+    if (me + i2 + i3 !== purchasePaise) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Me + Investor 2 + Investor 3 must equal purchase price',
+        path: ['meInvested'],
+      });
+    }
+  });
 
 export const createExpenseSchema = z.object({
   assetId: uuid,
@@ -87,30 +106,11 @@ export const createManualProfitSchema = z
     }
   });
 
-export const recordSaleSchema = z
-  .object({
-    assetId: uuid,
-    salePrice: rupees,
-    saleDate: dateStr,
-    shareMode: z.enum(['percentage', 'fixed']).default('percentage'),
-    partnerPct: z.coerce.number().min(0).max(100).optional(),
-    myPct: z.coerce.number().min(0).max(100).optional(),
-    partnerFixed: z.coerce.number().min(0).optional(),
-    myFixed: z.coerce.number().min(0).optional(),
-  })
-  .superRefine((d, ctx) => {
-    if (d.shareMode === 'percentage') {
-      const p = d.partnerPct ?? 0;
-      const m = d.myPct ?? 100 - p;
-      if (Math.round(p + m) !== 100) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Partner % and My % must add up to 100',
-          path: ['myPct'],
-        });
-      }
-    }
-  });
+export const recordSaleSchema = z.object({
+  assetId: uuid,
+  salePrice: rupees,
+  saleDate: dateStr,
+});
 
 export const updateStatusSchema = z.object({
   assetId: uuid,

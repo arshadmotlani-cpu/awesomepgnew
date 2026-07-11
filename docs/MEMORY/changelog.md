@@ -9,6 +9,7 @@
 
 ## 2026-07-11
 
+- **CAPITAL-MULTI-INVESTOR** — Per-vehicle funding table `ac_asset_investors` (Me + Investor 2/3); funding must equal purchase price; profit proportional to capital; My ROI = my profit ÷ my invested
 - **CAPITAL-DUAL-VIEW** — Overview My/Business toggle switches all KPIs + charts to my share vs gross business datasets; removed WC/Free Cash/Purchase Volume/Initial Capital cards
 - **CAPITAL-POOL-MODEL** — Working Capital = Initial + My Profit; Free Cash = WC − Current Investment − Capital in Transit; Lifetime Purchase Volume never used for cash; returned capital is not new wealth
 - **CAPITAL-ROI-AUDIT** — Canonical Business ROI = gross÷purchase volume; Personal ROI = my profit÷capital invested; clamp when partner share > 0; wired through overview, analytics, reports, vehicle recalc, sale/manual profit

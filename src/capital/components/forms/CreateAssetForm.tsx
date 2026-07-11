@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { capitalZodResolver } from '@/src/capital/lib/validation/parse';
 import { createAssetAction, type ActionState } from '@/src/capital/actions/assets';
 import { loadDraftAction } from '@/src/capital/actions/drafts';
@@ -11,6 +11,7 @@ import { Input } from '@/src/capital/components/ui/input';
 import { FormField } from '@/src/capital/components/forms/FormField';
 import { useAutosaveDraft } from '@/src/capital/hooks/useAutosaveDraft';
 import { createAssetSchema, type CreateAssetInput } from '@/src/capital/lib/validation/schemas';
+import { formatInrPlain } from '@/src/capital/lib/money';
 
 const DRAFT_KEY = 'asset-new';
 
@@ -79,8 +80,35 @@ export function CreateAssetForm() {
       ownership: 'first_owner',
       purchaseDate: today,
       purchasePrice: undefined as unknown as number,
+      meInvested: undefined as unknown as number,
+      investor2Invested: 0,
+      investor3Invested: 0,
+      investor2Label: 'Investor 2',
+      investor3Label: 'Investor 3',
     },
   });
+
+  const purchasePrice = useWatch({ control: form.control, name: 'purchasePrice' });
+  const meInvested = useWatch({ control: form.control, name: 'meInvested' });
+  const investor2Invested = useWatch({ control: form.control, name: 'investor2Invested' });
+  const investor3Invested = useWatch({ control: form.control, name: 'investor3Invested' });
+
+  // Keep Me defaulted to full purchase when user hasn't customized funding yet
+  useEffect(() => {
+    if (purchasePrice == null || !Number.isFinite(purchasePrice)) return;
+    const me = meInvested ?? 0;
+    const i2 = investor2Invested ?? 0;
+    const i3 = investor3Invested ?? 0;
+    if (me === 0 && i2 === 0 && i3 === 0) {
+      form.setValue('meInvested', purchasePrice, { shouldValidate: true });
+    }
+  }, [purchasePrice, meInvested, investor2Invested, investor3Invested, form]);
+
+  const fundingTotal = (meInvested ?? 0) + (investor2Invested ?? 0) + (investor3Invested ?? 0);
+  const fundingOk =
+    purchasePrice != null &&
+    Number.isFinite(purchasePrice) &&
+    Math.round(fundingTotal * 100) === Math.round(purchasePrice * 100);
 
   useEffect(() => {
     void loadDraftAction(DRAFT_KEY).then(({ payload }) => {
@@ -112,118 +140,158 @@ export function CreateAssetForm() {
   });
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Vehicle details</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={onSubmit} className="grid gap-4 md:grid-cols-2">
-          <FormField label="Manufacturer (Brand) *" name="manufacturer" form={form} className="md:col-span-2">
-            <div className="relative">
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Vehicle details</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form id="create-asset-form" onSubmit={onSubmit} className="grid gap-4 md:grid-cols-2">
+            <FormField label="Manufacturer" name="manufacturer" form={form}>
+              <div className="relative">
+                <Input
+                  autoComplete="off"
+                  value={brandQuery}
+                  onChange={(e) => {
+                    setBrandQuery(e.target.value);
+                    setBrandOpen(true);
+                    form.setValue('manufacturer', e.target.value, { shouldValidate: true });
+                  }}
+                  onFocus={() => setBrandOpen(true)}
+                  placeholder="Search brand"
+                />
+                {brandOpen && filteredBrands.length > 0 ? (
+                  <ul className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-white/10 bg-ac-surface py-1 shadow-xl">
+                    {filteredBrands.map((b) => (
+                      <li key={b}>
+                        <button
+                          type="button"
+                          className="w-full px-3 py-2 text-left text-sm hover:bg-white/10"
+                          onClick={() => {
+                            setBrandQuery(b);
+                            form.setValue('manufacturer', b, { shouldValidate: true });
+                            setBrandOpen(false);
+                          }}
+                        >
+                          {b}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            </FormField>
+
+            <FormField label="Model" name="model" form={form}>
+              <Input {...form.register('model')} />
+            </FormField>
+
+            <FormField label="Fuel Type" name="fuelType" form={form}>
+              <select className={selectClass} {...form.register('fuelType')}>
+                {FUEL_TYPES.map((f) => (
+                  <option key={f.value} value={f.value}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+
+            <FormField label="Year" name="year" form={form}>
+              <select className={selectClass} {...form.register('year', { valueAsNumber: true })}>
+                {yearOptions().map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+
+            <FormField label="Ownership" name="ownership" form={form}>
+              <select className={selectClass} {...form.register('ownership')}>
+                {OWNERSHIP.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+
+            <FormField label="Purchase Date" name="purchaseDate" form={form}>
+              <Input type="date" {...form.register('purchaseDate')} />
+            </FormField>
+
+            <FormField label="Purchase Price (₹)" name="purchasePrice" form={form}>
               <Input
-                id="manufacturer"
-                autoComplete="off"
-                placeholder="Search brand…"
-                value={brandQuery}
-                onChange={(e) => {
-                  setBrandQuery(e.target.value);
-                  setBrandOpen(true);
-                  form.setValue('manufacturer', e.target.value, { shouldValidate: true });
-                }}
-                onFocus={() => setBrandOpen(true)}
-                onBlur={() => {
-                  // delay so option click registers
-                  window.setTimeout(() => setBrandOpen(false), 150);
-                }}
+                type="number"
+                step="0.01"
+                {...form.register('purchasePrice', { valueAsNumber: true })}
               />
-              {brandOpen && filteredBrands.length > 0 ? (
-                <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-white/10 bg-[#121218] py-1 shadow-xl">
-                  {filteredBrands.map((brand) => (
-                    <li key={brand}>
-                      <button
-                        type="button"
-                        className="w-full px-3 py-2 text-left text-sm text-ac-text hover:bg-white/10"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => {
-                          setBrandQuery(brand);
-                          form.setValue('manufacturer', brand, { shouldValidate: true });
-                          setBrandOpen(false);
-                        }}
-                      >
-                        {brand}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </div>
-          </FormField>
+            </FormField>
+          </form>
+        </CardContent>
+      </Card>
 
-          <FormField label="Model *" name="model" form={form}>
-            <Input id="model" placeholder="e.g. Swift, City, Nexon" {...form.register('model')} />
-          </FormField>
-
-          <FormField label="Fuel Type *" name="fuelType" form={form}>
-            <select id="fuelType" className={selectClass} {...form.register('fuelType')}>
-              {FUEL_TYPES.map((f) => (
-                <option key={f.value} value={f.value}>
-                  {f.label}
-                </option>
-              ))}
-            </select>
-          </FormField>
-
-          <FormField label="Year *" name="year" form={form}>
-            <select
-              id="year"
-              className={selectClass}
-              {...form.register('year', { valueAsNumber: true })}
-            >
-              {yearOptions().map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </select>
-          </FormField>
-
-          <FormField label="Ownership *" name="ownership" form={form}>
-            <select id="ownership" className={selectClass} {...form.register('ownership')}>
-              {OWNERSHIP.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </FormField>
-
-          <FormField label="Purchase Date *" name="purchaseDate" form={form}>
-            <Input id="purchaseDate" type="date" {...form.register('purchaseDate')} />
-          </FormField>
-
-          <FormField label="Purchase Price (₹) *" name="purchasePrice" form={form}>
+      <Card>
+        <CardHeader>
+          <CardTitle>Investment structure</CardTitle>
+          <p className="text-sm text-ac-text-secondary">
+            Who funded this vehicle. Amounts must add up to the purchase price.
+          </p>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-3">
+          <FormField label="Me — invested (₹)" name="meInvested" form={form}>
             <Input
-              id="purchasePrice"
               type="number"
               step="0.01"
-              min="0"
-              placeholder="0.00"
-              {...form.register('purchasePrice', { valueAsNumber: true })}
+              form="create-asset-form"
+              {...form.register('meInvested', { valueAsNumber: true })}
             />
           </FormField>
-
-          {state.error ? (
-            <p className="text-sm text-ac-danger md:col-span-2" role="alert">
-              {state.error}
-            </p>
-          ) : null}
-          <div className="md:col-span-2">
-            <Button type="submit" disabled={pending}>
-              {pending ? 'Creating…' : 'Create asset'}
-            </Button>
+          <div className="space-y-2">
+            <FormField label="Investor 2 — name" name="investor2Label" form={form}>
+              <Input form="create-asset-form" {...form.register('investor2Label')} />
+            </FormField>
+            <FormField label="Investor 2 — invested (₹)" name="investor2Invested" form={form}>
+              <Input
+                type="number"
+                step="0.01"
+                form="create-asset-form"
+                {...form.register('investor2Invested', { valueAsNumber: true })}
+              />
+            </FormField>
           </div>
-        </form>
-      </CardContent>
-    </Card>
+          <div className="space-y-2">
+            <FormField label="Investor 3 — name" name="investor3Label" form={form}>
+              <Input form="create-asset-form" {...form.register('investor3Label')} />
+            </FormField>
+            <FormField label="Investor 3 — invested (₹)" name="investor3Invested" form={form}>
+              <Input
+                type="number"
+                step="0.01"
+                form="create-asset-form"
+                {...form.register('investor3Invested', { valueAsNumber: true })}
+              />
+            </FormField>
+          </div>
+          <div className="md:col-span-3 rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-ac-text-secondary">Funding total</span>
+              <span className={fundingOk ? 'text-ac-success' : 'text-ac-danger'}>
+                ₹{formatInrPlain(Math.round(fundingTotal * 100))}
+                {purchasePrice != null
+                  ? ` / ₹${formatInrPlain(Math.round(purchasePrice * 100))}`
+                  : ''}
+                {fundingOk ? ' · balanced' : ' · must match purchase price'}
+              </span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {state.error ? <p className="text-sm text-ac-danger">{state.error}</p> : null}
+      <Button type="submit" form="create-asset-form" disabled={pending || !fundingOk}>
+        {pending ? 'Creating…' : 'Create asset'}
+      </Button>
+    </div>
   );
 }

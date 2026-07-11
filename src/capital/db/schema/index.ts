@@ -2,6 +2,7 @@ export * from './enums';
 export * from './settings';
 export * from './admin';
 export * from './assets';
+export * from './investors';
 export * from './categories';
 export * from './capital';
 export * from './expenses';
