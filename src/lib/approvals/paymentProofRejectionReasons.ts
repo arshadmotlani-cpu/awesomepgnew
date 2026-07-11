@@ -2,6 +2,7 @@ import { paiseToInr } from '@/src/lib/format';
 import { whatsAppPhoneDigits } from '@/src/lib/kyc/adminWhatsApp';
 
 export const PAYMENT_PROOF_REJECTION_REASON_CODES = [
+  'screenshot_not_uploaded',
   'incorrect_screenshot',
   'not_clear',
   'wrong_amount',
@@ -22,6 +23,12 @@ export type PaymentProofRejectionReasonOption = {
 
 export const PAYMENT_PROOF_REJECTION_REASONS: PaymentProofRejectionReasonOption[] = [
   {
+    code: 'screenshot_not_uploaded',
+    label: 'Payment screenshot not uploaded',
+    messageTemplate:
+      'We could not verify your payment because no payment screenshot was uploaded.\n\nPlease upload a clear screenshot of the successful transaction for verification.\n\nOnce uploaded, we will review it as soon as possible.\n\nThank you.',
+  },
+  {
     code: 'incorrect_screenshot',
     label: 'Incorrect screenshot',
     messageTemplate:
@@ -35,7 +42,7 @@ export const PAYMENT_PROOF_REJECTION_REASONS: PaymentProofRejectionReasonOption[
   },
   {
     code: 'wrong_amount',
-    label: 'Wrong payment amount',
+    label: 'Wrong amount',
     messageTemplate:
       'The amount in your payment screenshot does not match the bill amount.\n\nPlease pay the correct amount and upload a new screenshot for verification.\n\nThank you.',
   },
@@ -53,7 +60,7 @@ export const PAYMENT_PROOF_REJECTION_REASONS: PaymentProofRejectionReasonOption[
   },
   {
     code: 'duplicate',
-    label: 'Duplicate upload',
+    label: 'Duplicate payment',
     messageTemplate:
       'This payment screenshot has already been submitted or processed.\n\nIf you need to pay again, please upload a new screenshot for the latest payment.\n\nThank you.',
   },
@@ -71,6 +78,41 @@ export const PAYMENT_PROOF_REJECTION_REASONS: PaymentProofRejectionReasonOption[
   },
 ];
 
+/** Compact Operations reject dialog dropdown (subset of full catalog). */
+export const PAYMENT_PROOF_REJECTION_DIALOG_REASONS: PaymentProofRejectionReasonCode[] = [
+  'screenshot_not_uploaded',
+  'incorrect_screenshot',
+  'wrong_amount',
+  'duplicate',
+  'not_received',
+  'other',
+];
+
+export type PaymentProofRejectionQuickAction = {
+  code: Exclude<PaymentProofRejectionReasonCode, 'other'>;
+  buttonLabel: string;
+};
+
+/** One-tap reason chips shown above the dropdown. */
+export const PAYMENT_PROOF_REJECTION_QUICK_ACTIONS: PaymentProofRejectionQuickAction[] = [
+  { code: 'screenshot_not_uploaded', buttonLabel: '❌ Screenshot Missing' },
+  { code: 'incorrect_screenshot', buttonLabel: '❌ Incorrect Screenshot' },
+  { code: 'wrong_amount', buttonLabel: '❌ Wrong Amount' },
+  { code: 'duplicate', buttonLabel: '❌ Duplicate' },
+  { code: 'not_received', buttonLabel: '❌ Payment Not Received' },
+];
+
+export function hasUploadedPaymentScreenshot(screenshotUrl: string | null | undefined): boolean {
+  return Boolean(screenshotUrl?.trim());
+}
+
+export function defaultRejectionReasonCode(
+  screenshotUrl: string | null | undefined,
+): PaymentProofRejectionReasonCode {
+  return hasUploadedPaymentScreenshot(screenshotUrl)
+    ? 'incorrect_screenshot'
+    : 'screenshot_not_uploaded';
+}
 export function rejectionReasonLabel(code: PaymentProofRejectionReasonCode): string {
   return PAYMENT_PROOF_REJECTION_REASONS.find((r) => r.code === code)?.label ?? code;
 }

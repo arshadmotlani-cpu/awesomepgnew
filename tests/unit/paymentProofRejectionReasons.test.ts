@@ -4,6 +4,7 @@ import {
   PAYMENT_PROOF_REJECTION_REASONS,
   buildPaymentRejectionWhatsAppUrl,
   buildResidentRejectionMessage,
+  defaultRejectionReasonCode,
   validateRejectionInput,
 } from '../../src/lib/approvals/paymentProofRejectionReasons';
 
@@ -45,9 +46,19 @@ test('buildPaymentRejectionWhatsAppUrl encodes message', () => {
 });
 
 test('all rejection reasons have labels and templates', () => {
-  assert.equal(PAYMENT_PROOF_REJECTION_REASONS.length, 8);
+  assert.equal(PAYMENT_PROOF_REJECTION_REASONS.length, 9);
   for (const r of PAYMENT_PROOF_REJECTION_REASONS) {
     assert.ok(r.label.length > 0);
     assert.ok(r.messageTemplate.length > 20);
   }
+});
+
+test('defaultRejectionReasonCode uses screenshot_not_uploaded when missing', () => {
+  assert.equal(defaultRejectionReasonCode(''), 'screenshot_not_uploaded');
+  assert.equal(defaultRejectionReasonCode(null), 'screenshot_not_uploaded');
+  assert.equal(defaultRejectionReasonCode('   '), 'screenshot_not_uploaded');
+  assert.equal(
+    defaultRejectionReasonCode('https://blob.example/proof.jpg'),
+    'incorrect_screenshot',
+  );
 });
