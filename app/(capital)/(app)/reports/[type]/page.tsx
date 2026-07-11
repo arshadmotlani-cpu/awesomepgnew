@@ -47,7 +47,7 @@ export default async function ReportDetailPage({
               <p>{outstanding.total} assets with outstanding capital</p>
               {outstanding.rows.slice(0, 5).map(({ asset, auto }) => (
                 <div key={asset.id} className="flex justify-between border-b border-white/5 py-2">
-                  <span>{auto.registrationNumber}</span>
+                  <span>{auto.registrationNumber ?? asset.displayName}</span>
                   <MoneyDisplay paise={asset.outstandingPaise} />
                 </div>
               ))}

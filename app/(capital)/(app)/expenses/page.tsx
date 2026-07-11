@@ -16,10 +16,14 @@ export default async function ExpensesPage() {
     listAssets(),
     listCategories(),
   ]);
-  const assetMap = new Map(assets.map(({ asset, auto }) => [asset.id, auto.registrationNumber]));
+  const assetMap = new Map(
+    assets.map(({ asset, auto }) => [asset.id, auto.registrationNumber ?? asset.displayName]),
+  );
   const assetOptions = assets.map(({ asset, auto }) => ({
     id: asset.id,
-    label: `${auto.registrationNumber} — ${asset.displayName}`,
+    label: auto.registrationNumber
+      ? `${auto.registrationNumber} — ${asset.displayName}`
+      : asset.displayName,
   }));
 
   return (

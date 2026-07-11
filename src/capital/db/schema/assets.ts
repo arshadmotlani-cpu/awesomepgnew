@@ -9,7 +9,7 @@ import {
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { assetClassEnum, assetStatusEnum } from './enums';
+import { assetClassEnum, assetStatusEnum, fuelTypeEnum, ownershipEnum } from './enums';
 
 export const acAssets = pgTable(
   'ac_assets',
@@ -55,11 +55,13 @@ export const acAutomotiveDetails = pgTable(
     model: text('model').notNull(),
     variant: text('variant'),
     year: integer('year').notNull(),
-    registrationNumber: text('registration_number').notNull().unique(),
+    registrationNumber: text('registration_number').unique(),
     vin: text('vin'),
     engineNumber: text('engine_number'),
     chassisNumber: text('chassis_number'),
     color: text('color'),
+    fuelType: fuelTypeEnum('fuel_type'),
+    ownership: ownershipEnum('ownership'),
     purchaseNotes: text('purchase_notes'),
   },
   (t) => [

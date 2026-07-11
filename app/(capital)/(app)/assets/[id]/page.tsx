@@ -14,7 +14,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const detail = await getAssetDetail(id);
   if (!detail) return { title: 'Asset' };
-  return { title: `${detail.auto.registrationNumber} · Assets` };
+  return { title: `${detail.asset.displayName} · Assets` };
 }
 
 export default async function AssetDetailPage({ params }: Props) {
@@ -25,15 +25,30 @@ export default async function AssetDetailPage({ params }: Props) {
   const { asset, auto } = detail;
   const timeline = await getAssetTimeline(id);
 
+  const fuelLabels: Record<string, string> = {
+    petrol: 'Petrol',
+    diesel: 'Diesel',
+    cng: 'CNG',
+    ev: 'EV',
+    hybrid: 'Hybrid',
+  };
+  const ownershipLabels: Record<string, string> = {
+    first_owner: 'First Owner',
+    second_owner: 'Second Owner',
+    third_owner: 'Third Owner',
+  };
+
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="mb-2 flex items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight">{auto.registrationNumber}</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">{asset.displayName}</h1>
             <Badge>{asset.status}</Badge>
           </div>
-          <p className="text-ac-text-secondary">{asset.displayName}</p>
+          {auto.registrationNumber ? (
+            <p className="text-ac-text-secondary">{auto.registrationNumber}</p>
+          ) : null}
         </div>
         <Link href="/assets">
           <Button variant="ghost">Back to assets</Button>
@@ -54,8 +69,12 @@ export default async function AssetDetailPage({ params }: Props) {
         <CardContent className="grid gap-2 text-sm sm:grid-cols-2">
           <Detail label="Manufacturer" value={auto.manufacturer} />
           <Detail label="Model" value={auto.model} />
+          <Detail label="Fuel Type" value={auto.fuelType ? fuelLabels[auto.fuelType] ?? auto.fuelType : '—'} />
           <Detail label="Year" value={String(auto.year)} />
-          <Detail label="Color" value={auto.color ?? '—'} />
+          <Detail
+            label="Ownership"
+            value={auto.ownership ? ownershipLabels[auto.ownership] ?? auto.ownership : '—'}
+          />
           <Detail label="Purchase date" value={asset.purchaseDate} />
           <Detail label="Purchase price" value={<MoneyDisplay paise={asset.purchasePricePaise} />} />
         </CardContent>

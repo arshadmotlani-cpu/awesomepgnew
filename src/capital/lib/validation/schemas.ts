@@ -15,18 +15,12 @@ const documentType = z.enum([
 export const createAssetSchema = z.object({
   manufacturer: z.string().min(1, 'Manufacturer is required'),
   model: z.string().min(1, 'Model is required'),
-  variant: z.string().optional(),
+  fuelType: z.enum(['petrol', 'diesel', 'cng', 'ev', 'hybrid']),
   year: z.coerce.number().int().min(1990).max(new Date().getFullYear() + 1),
-  registrationNumber: z.string().min(2, 'Registration is required'),
-  vin: z.string().optional(),
-  engineNumber: z.string().optional(),
-  chassisNumber: z.string().optional(),
-  color: z.string().optional(),
+  ownership: z.enum(['first_owner', 'second_owner', 'third_owner']),
   purchaseDate: dateStr,
   purchasePrice: rupees,
-  expectedSalePrice: z.coerce.number().positive().optional().or(z.literal('')),
   notes: z.string().optional(),
-  purchaseNotes: z.string().optional(),
 });
 
 export const createExpenseSchema = z.object({

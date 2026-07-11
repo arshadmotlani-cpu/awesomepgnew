@@ -134,3 +134,7 @@
 - [ ] Confirm `dig +short invest.awesomepg.in` returns `76.76.21.21`
 - [ ] Open https://invest.awesomepg.in/login and sign in with seeded admin
 - [ ] Optional: point www/apex A records to Vercel `76.76.21.21` if public www still serves lander HTML
+
+## TASK — Capital asset form fields (2026-07-11)
+- Update `/assets/new` CreateAssetForm: Manufacturer searchable, Model, Fuel, Year, Ownership (1–3), Purchase Date default today, Purchase Price; remove Registration/VIN/Expected Sale/Variant.
+- Migration 0004 + deploy + verify invest production.

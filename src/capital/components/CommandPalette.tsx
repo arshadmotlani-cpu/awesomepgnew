@@ -20,7 +20,7 @@ export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<
-    { id: string; displayName: string; registrationNumber: string }[]
+    { id: string; displayName: string; registrationNumber: string | null }[]
   >([]);
   const router = useRouter();
 
@@ -118,7 +118,9 @@ export function CommandPalette() {
                   className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm aria-selected:bg-white/10"
                 >
                   <Plus className="h-4 w-4 text-ac-accent" />
-                  {r.registrationNumber} — {r.displayName}
+                  {r.registrationNumber
+                    ? `${r.registrationNumber} — ${r.displayName}`
+                    : r.displayName}
                 </Command.Item>
               ))}
             </Command.Group>

@@ -72,7 +72,6 @@ export default async function AssetsPage({ searchParams }: Props) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/8 text-left text-ac-text-muted">
-                <th className="pb-3 pr-4 font-medium">Registration</th>
                 <th className="pb-3 pr-4 font-medium">Vehicle</th>
                 <th className="pb-3 pr-4 font-medium">Status</th>
                 <th className="pb-3 pr-4 font-medium text-right">Investment</th>
@@ -84,10 +83,12 @@ export default async function AssetsPage({ searchParams }: Props) {
                 <tr key={asset.id} className="border-b border-white/5 hover:bg-white/[0.02]">
                   <td className="py-3 pr-4">
                     <Link href={`/assets/${asset.id}`} className="font-medium text-ac-accent hover:underline">
-                      {auto.registrationNumber}
+                      {asset.displayName}
                     </Link>
+                    {auto.registrationNumber ? (
+                      <p className="text-xs text-ac-text-muted">{auto.registrationNumber}</p>
+                    ) : null}
                   </td>
-                  <td className="py-3 pr-4 text-ac-text-secondary">{asset.displayName}</td>
                   <td className="py-3 pr-4">
                     <Badge variant={statusVariant(asset.status)}>{asset.status}</Badge>
                   </td>
@@ -101,7 +102,7 @@ export default async function AssetsPage({ searchParams }: Props) {
               ))}
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-ac-text-muted">
+                  <td colSpan={4} className="py-8 text-center text-ac-text-muted">
                     No assets match your filters.{' '}
                     <Link href="/assets/new" className="text-ac-accent hover:underline">
                       Create your first asset

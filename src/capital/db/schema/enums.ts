@@ -66,3 +66,17 @@ export const manualProfitCategoryEnum = pgEnum('ac_manual_profit_category', [
   'settlement',
   'other',
 ]);
+
+export const fuelTypeEnum = pgEnum('ac_fuel_type', [
+  'petrol',
+  'diesel',
+  'cng',
+  'ev',
+  'hybrid',
+]);
+
+export const ownershipEnum = pgEnum('ac_ownership', [
+  'first_owner',
+  'second_owner',
+  'third_owner',
+]);

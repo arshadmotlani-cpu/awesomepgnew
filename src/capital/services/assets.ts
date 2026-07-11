@@ -25,18 +25,16 @@ const TERMINAL_STATUSES = new Set(['cancelled', 'settled']);
 export type CreateAssetInput = {
   manufacturer: string;
   model: string;
-  variant?: string;
   year: number;
-  registrationNumber: string;
-  vin?: string;
-  engineNumber?: string;
-  chassisNumber?: string;
-  color?: string;
+  fuelType: 'petrol' | 'diesel' | 'cng' | 'ev' | 'hybrid';
+  ownership: 'first_owner' | 'second_owner' | 'third_owner';
   purchaseDate: string;
   purchasePricePaise: number;
-  expectedSalePricePaise?: number;
   notes?: string;
-  purchaseNotes?: string;
+  /** Optional — not collected on the new-asset form; used for historical imports */
+  registrationNumber?: string;
+  variant?: string;
+  color?: string;
 };
 
 export async function recalculateAsset(assetId: string, db: CapitalDbClient = capitalDb) {
@@ -109,7 +107,6 @@ export async function assertAssetMutable(assetId: string, db: CapitalDbClient = 
 }
 
 export async function createAsset(input: CreateAssetInput) {
-  const reg = normalizeRegistration(input.registrationNumber);
   const displayName = `${input.year} ${input.manufacturer} ${input.model}`;
 
   return capitalDb.transaction(async (tx) => {
@@ -119,7 +116,6 @@ export async function createAsset(input: CreateAssetInput) {
         displayName,
         purchaseDate: input.purchaseDate,
         purchasePricePaise: input.purchasePricePaise,
-        expectedSalePricePaise: input.expectedSalePricePaise,
         totalInvestmentPaise: input.purchasePricePaise,
         outstandingPaise: input.purchasePricePaise,
         notes: input.notes,
@@ -133,12 +129,12 @@ export async function createAsset(input: CreateAssetInput) {
       model: input.model,
       variant: input.variant,
       year: input.year,
-      registrationNumber: reg,
-      vin: input.vin,
-      engineNumber: input.engineNumber,
-      chassisNumber: input.chassisNumber,
+      fuelType: input.fuelType,
+      ownership: input.ownership,
       color: input.color,
-      purchaseNotes: input.purchaseNotes,
+      registrationNumber: input.registrationNumber
+        ? normalizeRegistration(input.registrationNumber)
+        : null,
     });
 
     await postLedgerEntry(
@@ -149,7 +145,7 @@ export async function createAsset(input: CreateAssetInput) {
         assetId: asset.id,
         sourceTable: 'ac_assets',
         sourceId: asset.id,
-        description: `Asset purchase: ${displayName} (${reg})`,
+        description: `Asset purchase: ${displayName}`,
       },
       tx,
     );
@@ -159,7 +155,13 @@ export async function createAsset(input: CreateAssetInput) {
         action: 'asset_created',
         entityType: 'asset',
         entityId: asset.id,
-        afterState: { displayName, registrationNumber: reg },
+        afterState: {
+          displayName,
+          manufacturer: input.manufacturer,
+          model: input.model,
+          fuelType: input.fuelType,
+          ownership: input.ownership,
+        },
       },
       tx,
     );

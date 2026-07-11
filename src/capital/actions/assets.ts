@@ -32,20 +32,12 @@ export async function createAssetAction(
     const asset = await createAsset({
       manufacturer: input.manufacturer,
       model: input.model,
-      variant: input.variant,
       year: input.year,
-      registrationNumber: input.registrationNumber,
-      vin: input.vin,
-      engineNumber: input.engineNumber,
-      chassisNumber: input.chassisNumber,
-      color: input.color,
+      fuelType: input.fuelType,
+      ownership: input.ownership,
       purchaseDate: input.purchaseDate,
       purchasePricePaise: rupeesToPaise(input.purchasePrice),
-      expectedSalePricePaise: input.expectedSalePrice
-        ? rupeesToPaise(Number(input.expectedSalePrice))
-        : undefined,
       notes: input.notes,
-      purchaseNotes: input.purchaseNotes,
     });
     assetId = asset.id;
     revalidatePath('/assets');

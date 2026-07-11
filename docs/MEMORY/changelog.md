@@ -181,3 +181,5 @@ Files:
 - automotive-capital/FEATURES.md
 
 ---
+
+- 2026-07-11: Capital asset create form field redesign (fuel/ownership; drop reg/VIN/expected sale from form)

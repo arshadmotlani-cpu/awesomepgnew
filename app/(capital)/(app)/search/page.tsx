@@ -35,8 +35,10 @@ export default async function SearchPage({ searchParams }: Props) {
               className="flex items-center justify-between rounded-lg border border-white/8 p-4 transition-colors hover:border-ac-accent/30 hover:bg-white/[0.02]"
             >
               <div>
-                <p className="font-medium">{auto.registrationNumber}</p>
-                <p className="text-sm text-ac-text-secondary">{asset.displayName}</p>
+                <p className="font-medium">{asset.displayName}</p>
+                {auto.registrationNumber ? (
+                  <p className="text-sm text-ac-text-secondary">{auto.registrationNumber}</p>
+                ) : null}
               </div>
               <div className="flex items-center gap-3">
                 <Badge>{asset.status}</Badge>

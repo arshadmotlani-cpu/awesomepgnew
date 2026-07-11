@@ -108,3 +108,6 @@
 - `MEMORY/changelog.md`
 - `Vacating.md`
 
+
+## DECISION — Asset create form fields (2026-07-11)
+- Registration/VIN/expected sale not collected on create; registration nullable in DB. Ownership capped at third owner. Fuel type enum: petrol/diesel/cng/ev/hybrid.

@@ -12,7 +12,9 @@ export default async function DocumentsPage() {
   const [docs, assets] = await Promise.all([listDocuments(), listAssets()]);
   const assetOptions = assets.map(({ asset, auto }) => ({
     id: asset.id,
-    label: `${auto.registrationNumber} — ${asset.displayName}`,
+    label: auto.registrationNumber
+      ? `${auto.registrationNumber} — ${asset.displayName}`
+      : asset.displayName,
   }));
 
   return (

@@ -12,10 +12,14 @@ export const metadata: Metadata = { title: 'Payments' };
 
 export default async function PaymentsPage() {
   const [payments, assets] = await Promise.all([listPayments(), listAssets()]);
-  const assetMap = new Map(assets.map(({ asset, auto }) => [asset.id, auto.registrationNumber]));
+  const assetMap = new Map(
+    assets.map(({ asset, auto }) => [asset.id, auto.registrationNumber ?? asset.displayName]),
+  );
   const assetOptions = assets.map(({ asset, auto }) => ({
     id: asset.id,
-    label: `${auto.registrationNumber} — ${asset.displayName}`,
+    label: auto.registrationNumber
+      ? `${auto.registrationNumber} — ${asset.displayName}`
+      : asset.displayName,
   }));
 
   return (
