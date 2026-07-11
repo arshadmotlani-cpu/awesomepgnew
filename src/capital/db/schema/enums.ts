@@ -80,3 +80,5 @@ export const ownershipEnum = pgEnum('ac_ownership', [
   'second_owner',
   'third_owner',
 ]);
+
+export const profitShareModeEnum = pgEnum('ac_profit_share_mode', ['percentage', 'fixed']);

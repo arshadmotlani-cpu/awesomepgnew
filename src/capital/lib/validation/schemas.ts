@@ -60,19 +60,57 @@ export const createCapitalSchema = z.object({
   notes: z.string().optional(),
 });
 
-export const createManualProfitSchema = z.object({
-  profitDate: dateStr,
-  amount: rupees,
-  source: z.string().min(1, 'Source is required'),
-  description: z.string().min(1, 'Description is required'),
-  category: z.enum(['investment_return', 'adjustment', 'bonus', 'settlement', 'other']),
-});
+export const createManualProfitSchema = z
+  .object({
+    profitDate: dateStr,
+    amount: rupees,
+    source: z.string().min(1, 'Source is required'),
+    description: z.string().min(1, 'Description is required'),
+    category: z.enum(['investment_return', 'adjustment', 'bonus', 'settlement', 'other']),
+    shareMode: z.enum(['percentage', 'fixed']).default('percentage'),
+    partnerPct: z.coerce.number().min(0).max(100).optional(),
+    myPct: z.coerce.number().min(0).max(100).optional(),
+    partnerFixed: z.coerce.number().min(0).optional(),
+    myFixed: z.coerce.number().min(0).optional(),
+  })
+  .superRefine((d, ctx) => {
+    if (d.shareMode === 'percentage') {
+      const p = d.partnerPct ?? 0;
+      const m = d.myPct ?? 100 - p;
+      if (Math.round(p + m) !== 100) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Partner % and My % must add up to 100',
+          path: ['myPct'],
+        });
+      }
+    }
+  });
 
-export const recordSaleSchema = z.object({
-  assetId: uuid,
-  salePrice: rupees,
-  saleDate: dateStr,
-});
+export const recordSaleSchema = z
+  .object({
+    assetId: uuid,
+    salePrice: rupees,
+    saleDate: dateStr,
+    shareMode: z.enum(['percentage', 'fixed']).default('percentage'),
+    partnerPct: z.coerce.number().min(0).max(100).optional(),
+    myPct: z.coerce.number().min(0).max(100).optional(),
+    partnerFixed: z.coerce.number().min(0).optional(),
+    myFixed: z.coerce.number().min(0).optional(),
+  })
+  .superRefine((d, ctx) => {
+    if (d.shareMode === 'percentage') {
+      const p = d.partnerPct ?? 0;
+      const m = d.myPct ?? 100 - p;
+      if (Math.round(p + m) !== 100) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Partner % and My % must add up to 100',
+          path: ['myPct'],
+        });
+      }
+    }
+  });
 
 export const updateStatusSchema = z.object({
   assetId: uuid,

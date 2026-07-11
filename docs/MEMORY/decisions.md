@@ -114,3 +114,6 @@
 
 ## DECISION — Overview capital metrics (2026-07-11)
 - Current Investment = SUM(total_investment) on active vehicles. Lifetime Purchase Volume = SUM(purchase_price) all non-cancelled. Lifetime Profit = payment profits + manual. Overall ROI = profit / purchase volume. Cash ≈ capital injected − current investment + lifetime profit. Not a multi-investor dealership product.
+
+## DECISION — Profit sharing (2026-07-11)
+- Each sale/manual profit stores its own split. Business ROI = gross ÷ purchase volume. My ROI = my share ÷ capital invested. Existing deals backfilled 100% to investor.

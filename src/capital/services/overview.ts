@@ -27,7 +27,7 @@ import {
   type DateRange,
   type DashboardRange,
 } from '@/src/capital/lib/dashboardRange';
-import { monthlyManualProfitSeries, sumManualProfitsPaise } from './manualProfits';
+import { monthlyManualProfitSeries, sumManualMySharePaise, sumManualProfitsPaise } from './manualProfits';
 
 export type { DateRange, DashboardRange };
 export {
@@ -35,17 +35,6 @@ export {
   shiftMonth,
   currentMonthKey,
 } from '@/src/capital/lib/dashboardRange';
-
-async function sumPaymentProfit(range?: DateRange): Promise<number> {
-  const conditions = [eq(acPaymentsReceived.isReversed, false)];
-  if (range?.from) conditions.push(gte(acPaymentsReceived.receivedAt, range.from));
-  if (range?.to) conditions.push(lte(acPaymentsReceived.receivedAt, range.to));
-  const [row] = await capitalDb
-    .select({ total: sum(acPaymentsReceived.profitPaise) })
-    .from(acPaymentsReceived)
-    .where(and(...conditions));
-  return Number(row?.total ?? 0);
-}
 
 async function sumCapitalInvested(range?: DateRange): Promise<number> {
   const conditions = [eq(acCapitalInvestments.isReversed, false)];
@@ -148,38 +137,90 @@ export async function getOverviewBundle(range: DateRange) {
   const [
     capitalInjectedAll,
     lifetimePurchaseVolume,
-    paymentProfitAll,
-    manualProfitAll,
-    paymentProfitRange,
-    manualProfitRange,
-    paymentProfitPrev,
-    manualProfitPrev,
+    grossAssetProfitAll,
+    myAssetShareAll,
+    grossAssetProfitRange,
+    myAssetShareRange,
+    myAssetSharePrev,
+    manualGrossAll,
+    manualMyAll,
+    manualGrossRange,
+    manualMyRange,
+    manualMyPrev,
     purchaseVolumeRange,
     currentInvestment,
     activeVehicles,
     soldVehiclesLifetime,
     soldVehiclesRange,
     purchasesRange,
-    avgProfitSold,
+    avgMyProfitSold,
     avgHolding,
     capitalReturnedRange,
     repairsRange,
     expensesRange,
     saleProceedsRange,
-    monthlyProfitPayments,
-    monthlyManual,
+    monthlyGrossAsset,
+    monthlyMyAsset,
+    monthlyManualGross,
+    monthlyManualMine,
     monthlyPurchases,
     activity,
     activeInvestmentRows,
   ] = await Promise.all([
     sumCapitalInvested(),
     sumPurchaseVolume(),
-    sumPaymentProfit(),
+    capitalDb
+      .select({ total: sum(acAssets.profitPaise) })
+      .from(acAssets)
+      .where(sql`${acAssets.profitPaise} IS NOT NULL AND ${acAssets.status} <> 'cancelled'`)
+      .then((r) => Number(r[0]?.total ?? 0)),
+    capitalDb
+      .select({ total: sum(acAssets.mySharePaise) })
+      .from(acAssets)
+      .where(sql`${acAssets.mySharePaise} IS NOT NULL AND ${acAssets.status} <> 'cancelled'`)
+      .then((r) => Number(r[0]?.total ?? 0)),
+    future
+      ? Promise.resolve(0)
+      : capitalDb
+          .select({ total: sum(acAssets.profitPaise) })
+          .from(acAssets)
+          .where(
+            and(
+              sql`${acAssets.profitPaise} IS NOT NULL AND ${acAssets.status} <> 'cancelled'`,
+              range.from ? gte(acAssets.saleDate, range.from) : sql`true`,
+              range.to ? lte(acAssets.saleDate, range.to) : sql`true`,
+            ),
+          )
+          .then((r) => Number(r[0]?.total ?? 0)),
+    future
+      ? Promise.resolve(0)
+      : capitalDb
+          .select({ total: sum(acAssets.mySharePaise) })
+          .from(acAssets)
+          .where(
+            and(
+              sql`${acAssets.mySharePaise} IS NOT NULL AND ${acAssets.status} <> 'cancelled'`,
+              range.from ? gte(acAssets.saleDate, range.from) : sql`true`,
+              range.to ? lte(acAssets.saleDate, range.to) : sql`true`,
+            ),
+          )
+          .then((r) => Number(r[0]?.total ?? 0)),
+    capitalDb
+      .select({ total: sum(acAssets.mySharePaise) })
+      .from(acAssets)
+      .where(
+        and(
+          sql`${acAssets.mySharePaise} IS NOT NULL AND ${acAssets.status} <> 'cancelled'`,
+          prev.from ? gte(acAssets.saleDate, prev.from) : sql`true`,
+          prev.to ? lte(acAssets.saleDate, prev.to) : sql`true`,
+        ),
+      )
+      .then((r) => Number(r[0]?.total ?? 0)),
     sumManualProfitsPaise(),
-    future ? Promise.resolve(0) : sumPaymentProfit(range),
+    sumManualMySharePaise(),
     future ? Promise.resolve(0) : sumManualProfitsPaise({ from: range.from, to: range.to }),
-    sumPaymentProfit(prev),
-    sumManualProfitsPaise({ from: prev.from, to: prev.to }),
+    future ? Promise.resolve(0) : sumManualMySharePaise({ from: range.from, to: range.to }),
+    sumManualMySharePaise({ from: prev.from, to: prev.to }),
     future ? Promise.resolve(0) : sumPurchaseVolume(range),
     capitalDb
       .select({ total: sum(acAssets.totalInvestmentPaise) })
@@ -199,9 +240,9 @@ export async function getOverviewBundle(range: DateRange) {
     future ? Promise.resolve(0) : countSold(range),
     future ? Promise.resolve(0) : countPurchases(range),
     capitalDb
-      .select({ avg: sql<number>`COALESCE(AVG(${acAssets.profitPaise}), 0)` })
+      .select({ avg: sql<number>`COALESCE(AVG(${acAssets.mySharePaise}), 0)` })
       .from(acAssets)
-      .where(sql`${acAssets.profitPaise} IS NOT NULL AND ${acAssets.status} <> 'cancelled'`)
+      .where(sql`${acAssets.mySharePaise} IS NOT NULL AND ${acAssets.status} <> 'cancelled'`)
       .then((r) => Math.round(Number(r[0]?.avg ?? 0))),
     capitalDb
       .select({ avg: sql<number>`COALESCE(AVG(${acAssets.holdingDays}), 0)` })
@@ -214,17 +255,30 @@ export async function getOverviewBundle(range: DateRange) {
     future ? Promise.resolve(0) : sumSaleProceeds(range),
     capitalDb
       .select({
-        month: sql<string>`to_char(${acPaymentsReceived.receivedAt}::date, 'YYYY-MM')`,
-        profit: sum(acPaymentsReceived.profitPaise),
+        month: sql<string>`to_char(${acAssets.saleDate}::date, 'YYYY-MM')`,
+        profit: sum(acAssets.profitPaise),
       })
-      .from(acPaymentsReceived)
-      .where(eq(acPaymentsReceived.isReversed, false))
-      .groupBy(sql`to_char(${acPaymentsReceived.receivedAt}::date, 'YYYY-MM')`)
-      .orderBy(sql`to_char(${acPaymentsReceived.receivedAt}::date, 'YYYY-MM')`)
+      .from(acAssets)
+      .where(sql`${acAssets.saleDate} IS NOT NULL AND ${acAssets.profitPaise} IS NOT NULL`)
+      .groupBy(sql`to_char(${acAssets.saleDate}::date, 'YYYY-MM')`)
+      .orderBy(sql`to_char(${acAssets.saleDate}::date, 'YYYY-MM')`)
+      .then((rows) =>
+        rows.map((r) => ({ month: r.month, valuePaise: Number(r.profit ?? 0) })),
+      ),
+    capitalDb
+      .select({
+        month: sql<string>`to_char(${acAssets.saleDate}::date, 'YYYY-MM')`,
+        profit: sum(acAssets.mySharePaise),
+      })
+      .from(acAssets)
+      .where(sql`${acAssets.saleDate} IS NOT NULL AND ${acAssets.mySharePaise} IS NOT NULL`)
+      .groupBy(sql`to_char(${acAssets.saleDate}::date, 'YYYY-MM')`)
+      .orderBy(sql`to_char(${acAssets.saleDate}::date, 'YYYY-MM')`)
       .then((rows) =>
         rows.map((r) => ({ month: r.month, valuePaise: Number(r.profit ?? 0) })),
       ),
     monthlyManualProfitSeries(),
+    monthlyManualProfitSeries({ mine: true }),
     capitalDb
       .select({
         month: sql<string>`to_char(${acAssets.purchaseDate}::date, 'YYYY-MM')`,
@@ -253,66 +307,83 @@ export async function getOverviewBundle(range: DateRange) {
       .groupBy(acAssets.status),
   ]);
 
-  const lifetimeProfit = paymentProfitAll + manualProfitAll;
-  const periodProfit = paymentProfitRange + manualProfitRange;
-  const prevProfit = paymentProfitPrev + manualProfitPrev;
-  const overallRoiBps = calcRoiBps(lifetimeProfit, lifetimePurchaseVolume) ?? 0;
+  const grossBusinessProfit = grossAssetProfitAll + manualGrossAll;
+  const myLifetimeProfit = myAssetShareAll + manualMyAll;
+  const periodGross = grossAssetProfitRange + manualGrossRange;
+  const periodMy = myAssetShareRange + manualMyRange;
+  const prevMy = myAssetSharePrev + manualMyPrev;
 
-  // Liquid cash ≈ capital injected − money locked in active vehicles + lifetime profit
-  const cashAvailable = Math.max(0, capitalInjectedAll - currentInvestment + lifetimeProfit);
+  const businessRoiBps = calcRoiBps(grossBusinessProfit, lifetimePurchaseVolume) ?? 0;
+  const myRoiBps = calcRoiBps(myLifetimeProfit, capitalInjectedAll) ?? 0;
 
-  const monthMap = new Map<string, number>();
-  for (const p of monthlyProfitPayments) {
-    monthMap.set(p.month, (monthMap.get(p.month) ?? 0) + p.valuePaise);
-  }
-  for (const m of monthlyManual) {
-    monthMap.set(m.month, (monthMap.get(m.month) ?? 0) + m.valuePaise);
-  }
-  let monthlyProfitSeries = [...monthMap.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([month, valuePaise]) => ({ month, valuePaise }));
+  // Liquid cash ≈ capital injected − locked in vehicles + my profit share
+  const cashAvailable = Math.max(0, capitalInjectedAll - currentInvestment + myLifetimeProfit);
 
-  // Clip series to selected range end when a bounded range is active
-  if (range.to) {
-    const endYm = range.to.slice(0, 7);
-    monthlyProfitSeries = monthlyProfitSeries.filter((m) => m.month <= endYm);
-  }
-  if (range.from && range.key !== 'all' && range.key !== 'month') {
-    const startYm = range.from.slice(0, 7);
-    monthlyProfitSeries = monthlyProfitSeries.filter((m) => m.month >= startYm);
-  }
-  // For month cursor, show trailing 12 months ending at selected month
-  if (range.key === 'month' && range.month) {
-    const end = range.month;
-    const start = shiftMonth(end, -11);
-    monthlyProfitSeries = [...Array(12)].map((_, i) => {
-      const month = shiftMonth(start, i);
-      return {
-        month,
-        valuePaise: monthMap.get(month) ?? 0,
-      };
-    }).filter((m) => m.month <= end);
+  function mergeMonthSeries(
+    a: { month: string; valuePaise: number }[],
+    b: { month: string; valuePaise: number }[],
+  ) {
+    const map = new Map<string, number>();
+    for (const p of a) map.set(p.month, (map.get(p.month) ?? 0) + p.valuePaise);
+    for (const p of b) map.set(p.month, (map.get(p.month) ?? 0) + p.valuePaise);
+    return [...map.entries()]
+      .sort(([x], [y]) => x.localeCompare(y))
+      .map(([month, valuePaise]) => ({ month, valuePaise }));
   }
 
-  // Portfolio growth = cumulative lifetime profit by month (through range end)
-  let runningProfit = 0;
-  const allProfitMonths = [...monthMap.entries()].sort(([a], [b]) => a.localeCompare(b));
+  let monthlyGrossSeries = mergeMonthSeries(monthlyGrossAsset, monthlyManualGross);
+  let monthlyMySeries = mergeMonthSeries(monthlyMyAsset, monthlyManualMine);
+
+  const clipSeries = (series: { month: string; valuePaise: number }[]) => {
+    let next = series;
+    if (range.to) next = next.filter((m) => m.month <= range.to!.slice(0, 7));
+    if (range.from && range.key !== 'all' && range.key !== 'month') {
+      next = next.filter((m) => m.month >= range.from!.slice(0, 7));
+    }
+    if (range.key === 'month' && range.month) {
+      const end = range.month;
+      const start = shiftMonth(end, -11);
+      const map = new Map(series.map((m) => [m.month, m.valuePaise]));
+      next = [...Array(12)]
+        .map((_, i) => {
+          const month = shiftMonth(start, i);
+          return { month, valuePaise: map.get(month) ?? 0 };
+        })
+        .filter((m) => m.month <= end);
+    }
+    return next;
+  };
+
+  monthlyGrossSeries = clipSeries(monthlyGrossSeries);
+  monthlyMySeries = clipSeries(monthlyMySeries);
+
+  // Portfolio growth = cumulative MY profit (personal returns)
+  let runningMy = 0;
+  const allMyMonths = mergeMonthSeries(monthlyMyAsset, monthlyManualMine);
   const portfolioGrowth: { month: string; valuePaise: number }[] = [];
-  for (const [month, value] of allProfitMonths) {
-    if (range.to && month > range.to.slice(0, 7)) break;
-    runningProfit += value;
-    portfolioGrowth.push({ month, valuePaise: runningProfit });
+  for (const row of allMyMonths) {
+    if (range.to && row.month > range.to.slice(0, 7)) break;
+    runningMy += row.valuePaise;
+    portfolioGrowth.push({ month: row.month, valuePaise: runningMy });
   }
 
-  const periodRoiBps =
-    purchaseVolumeRange > 0
-      ? (calcRoiBps(periodProfit, purchaseVolumeRange) ?? 0)
-      : 0;
+  let runningGross = 0;
+  const allGrossMonths = mergeMonthSeries(monthlyGrossAsset, monthlyManualGross);
+  const portfolioGrowthGross: { month: string; valuePaise: number }[] = [];
+  for (const row of allGrossMonths) {
+    if (range.to && row.month > range.to.slice(0, 7)) break;
+    runningGross += row.valuePaise;
+    portfolioGrowthGross.push({ month: row.month, valuePaise: runningGross });
+  }
 
-  const profitGrowthPct = pctChange(periodProfit, prevProfit);
+  const periodRoiBusinessBps =
+    purchaseVolumeRange > 0 ? (calcRoiBps(periodGross, purchaseVolumeRange) ?? 0) : 0;
+  const periodRoiMyBps =
+    capitalInjectedAll > 0 ? (calcRoiBps(periodMy, capitalInjectedAll) ?? 0) : 0;
 
-  // Avg profit across months with data in the displayed series
-  const monthsWithProfit = monthlyProfitSeries.filter((m) => m.valuePaise !== 0);
+  const profitGrowthPct = pctChange(periodMy, prevMy);
+
+  const monthsWithProfit = monthlyMySeries.filter((m) => m.valuePaise !== 0);
   const avgMonthlyProfit =
     monthsWithProfit.length > 0
       ? Math.round(
@@ -325,7 +396,6 @@ export async function getOverviewBundle(range: DateRange) {
     { label: 'Cash Available', valuePaise: cashAvailable },
   ].filter((a) => a.valuePaise > 0);
 
-  // Add status breakdown of active capital for donut detail
   for (const row of activeInvestmentRows) {
     const v = Number(row.total ?? 0);
     if (v > 0 && row.status !== 'purchased') {
@@ -340,10 +410,10 @@ export async function getOverviewBundle(range: DateRange) {
     { label: 'Purchases', valuePaise: purchaseVolumeRange, kind: 'out' as const },
     { label: 'Repairs', valuePaise: repairsRange || expensesRange, kind: 'out' as const },
     { label: 'Sale Proceeds', valuePaise: saleProceedsRange, kind: 'in' as const },
-    { label: 'Profit', valuePaise: periodProfit, kind: 'result' as const },
+    { label: 'Gross Profit', valuePaise: periodGross, kind: 'result' as const },
+    { label: 'My Share', valuePaise: periodMy, kind: 'result' as const },
   ];
 
-  // Timeline from activity filtered to range
   const timeline = activity
     .filter((a) => {
       if (future) return false;
@@ -369,13 +439,14 @@ export async function getOverviewBundle(range: DateRange) {
     !future &&
     (purchasesRange > 0 ||
       soldVehiclesRange > 0 ||
-      periodProfit !== 0 ||
+      periodGross !== 0 ||
+      periodMy !== 0 ||
       purchaseVolumeRange > 0 ||
       capitalReturnedRange > 0 ||
       expensesRange > 0 ||
       saleProceedsRange > 0);
 
-  const moneyReturnedRange = capitalReturnedRange + periodProfit;
+  const moneyReturnedRange = capitalReturnedRange + periodMy;
 
   return {
     range,
@@ -384,22 +455,27 @@ export async function getOverviewBundle(range: DateRange) {
     hero: {
       currentInvestmentPaise: currentInvestment,
       lifetimePurchaseVolumePaise: lifetimePurchaseVolume,
-      lifetimeProfitPaise: lifetimeProfit,
-      overallRoiBps,
+      grossBusinessProfitPaise: grossBusinessProfit,
+      myLifetimeProfitPaise: myLifetimeProfit,
+      businessRoiBps,
+      myRoiBps,
     },
     secondary: {
       cashAvailablePaise: cashAvailable,
       activeVehicles,
       vehiclesSold: soldVehiclesLifetime,
-      avgProfitPerVehiclePaise: avgProfitSold,
+      avgProfitPerVehiclePaise: avgMyProfitSold,
     },
     portfolioSummary: {
       lifetimePurchaseVolumePaise: lifetimePurchaseVolume,
-      lifetimeProfitPaise: lifetimeProfit,
-      overallRoiBps,
+      grossBusinessProfitPaise: grossBusinessProfit,
+      myLifetimeProfitPaise: myLifetimeProfit,
+      businessRoiBps,
+      myRoiBps,
       vehiclesSold: soldVehiclesLifetime,
-      avgProfitPerVehiclePaise: avgProfitSold,
+      avgProfitPerVehiclePaise: avgMyProfitSold,
       avgHoldingDays: avgHolding,
+      capitalInvestedPaise: capitalInjectedAll,
     },
     period: {
       label: range.label,
@@ -408,48 +484,51 @@ export async function getOverviewBundle(range: DateRange) {
       vehiclesSold: soldVehiclesRange,
       moneyInvestedPaise: purchaseVolumeRange,
       moneyReturnedPaise: moneyReturnedRange,
-      profitPaise: periodProfit,
+      grossProfitPaise: periodGross,
+      myProfitPaise: periodMy,
       repairsPaise: repairsRange || expensesRange,
       cashAvailablePaise: cashAvailable,
       currentInvestmentPaise: currentInvestment,
     },
     chartBlocks: {
       portfolioGrowth: {
-        series: portfolioGrowth,
+        seriesMine: portfolioGrowth,
+        seriesBusiness: portfolioGrowthGross,
         kpis: [
           {
-            label: 'Portfolio Value',
-            valuePaise: portfolioGrowth.at(-1)?.valuePaise ?? lifetimeProfit,
+            label: 'My Portfolio Value',
+            valuePaise: portfolioGrowth.at(-1)?.valuePaise ?? myLifetimeProfit,
             kind: 'paise' as const,
           },
           {
-            label: 'Lifetime Profit',
-            valuePaise: lifetimeProfit,
+            label: 'My Lifetime Profit',
+            valuePaise: myLifetimeProfit,
             kind: 'paise' as const,
           },
           {
-            label: 'Overall ROI',
-            valueText: `${(overallRoiBps / 100).toFixed(1)}%`,
+            label: 'My ROI',
+            valueText: `${(myRoiBps / 100).toFixed(1)}%`,
             kind: 'text' as const,
           },
           {
-            label: 'Purchase Volume',
-            valuePaise: lifetimePurchaseVolume,
-            kind: 'paise' as const,
+            label: 'Business ROI',
+            valueText: `${(businessRoiBps / 100).toFixed(1)}%`,
+            kind: 'text' as const,
           },
         ],
       },
       monthlyProfit: {
-        series: future ? [] : monthlyProfitSeries,
+        seriesMine: future ? [] : monthlyMySeries,
+        seriesBusiness: future ? [] : monthlyGrossSeries,
         kpis: [
           {
-            label: range.key === 'month' ? 'Monthly Profit' : 'Period Profit',
-            valuePaise: periodProfit,
+            label: 'My Period Profit',
+            valuePaise: periodMy,
             kind: 'paise' as const,
           },
           {
-            label: 'Average Profit',
-            valuePaise: avgMonthlyProfit,
+            label: 'Gross Period Profit',
+            valuePaise: periodGross,
             kind: 'paise' as const,
           },
           {
@@ -469,9 +548,9 @@ export async function getOverviewBundle(range: DateRange) {
                     : ('neutral' as const),
           },
           {
-            label: 'Period ROI',
-            valueText: `${(periodRoiBps / 100).toFixed(1)}%`,
-            kind: 'text' as const,
+            label: 'Avg Monthly (Mine)',
+            valuePaise: avgMonthlyProfit,
+            kind: 'paise' as const,
           },
         ],
       },
@@ -512,21 +591,27 @@ export async function getOverviewBundle(range: DateRange) {
             kind: 'paise' as const,
           },
           {
-            label: 'Repairs',
-            valuePaise: repairsRange || expensesRange,
+            label: 'Gross Profit',
+            valuePaise: periodGross,
             kind: 'paise' as const,
           },
           {
-            label: 'Sale Proceeds',
-            valuePaise: saleProceedsRange,
+            label: 'My Share',
+            valuePaise: periodMy,
             kind: 'paise' as const,
           },
           {
-            label: 'Profit',
-            valuePaise: periodProfit,
-            kind: 'paise' as const,
+            label: 'Period My ROI',
+            valueText: `${(periodRoiMyBps / 100).toFixed(1)}%`,
+            kind: 'text' as const,
           },
         ],
+      },
+      roiCompare: {
+        businessRoiBps,
+        myRoiBps,
+        periodBusinessRoiBps: periodRoiBusinessBps,
+        periodMyRoiBps: periodRoiMyBps,
       },
     },
     timeline,
@@ -543,3 +628,4 @@ export async function getOverviewBundle(range: DateRange) {
 }
 
 export type OverviewBundle = Awaited<ReturnType<typeof getOverviewBundle>>;
+

@@ -36,13 +36,17 @@ export async function createSettlement(assetId: string, notes?: string) {
       .where(and(eq(acPaymentsReceived.assetId, assetId), eq(acPaymentsReceived.isReversed, false)));
 
     const totalReceived = payments.reduce((s, p) => s + p.amountPaise, 0);
-    const grossProfit = (asset.actualSalePricePaise ?? 0) - asset.totalInvestmentPaise;
+    const grossProfit =
+      asset.profitPaise ?? (asset.actualSalePricePaise ?? 0) - asset.totalInvestmentPaise;
 
     const [settings] = await tx.select().from(acSettings).limit(1);
-    const num = settings?.profitShareNumerator ?? 1;
-    const den = settings?.profitShareDenominator ?? 2;
-    const adminShare = Math.round((grossProfit * num) / den);
-    const partnerShare = grossProfit - adminShare;
+    const adminShare =
+      asset.mySharePaise ??
+      Math.round(
+        (grossProfit * (settings?.profitShareNumerator ?? 1)) /
+          (settings?.profitShareDenominator ?? 2),
+      );
+    const partnerShare = asset.partnerSharePaise ?? grossProfit - adminShare;
 
     const [settlement] = await tx
       .insert(acSettlements)

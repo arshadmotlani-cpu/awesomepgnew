@@ -32,7 +32,10 @@ try {
   const investmentOs = await page.getByText('Investment OS').count();
   const kpi = await page.getByText('Current Investment').count();
   const purchaseVol = await page.getByText('Lifetime Purchase Volume').count();
-  const lifetimeProfit = await page.getByText('Lifetime Profit').count();
+  const grossProfit = await page.getByText('Gross Business Profit').count();
+  const myProfit = await page.getByText('My Lifetime Profit').count();
+  const businessRoi = await page.getByText('Overall Business ROI').count();
+  const myRoi = await page.getByText('My Personal ROI').count();
   const charts = await page.getByText('Portfolio Growth').count();
   const monthlyProfit = await page.getByText('Monthly Profit').count();
   const manualBtn = await page.getByRole('button', { name: /Add Manual Profit/i }).count();
@@ -40,7 +43,10 @@ try {
   ok('dashboard Investment OS label', investmentOs > 0);
   ok('dashboard Current Investment KPI', kpi > 0);
   ok('dashboard Lifetime Purchase Volume', purchaseVol > 0);
-  ok('dashboard Lifetime Profit', lifetimeProfit > 0);
+  ok('dashboard Gross Business Profit', grossProfit > 0);
+  ok('dashboard My Lifetime Profit', myProfit > 0);
+  ok('dashboard Business ROI', businessRoi > 0);
+  ok('dashboard My ROI', myRoi > 0);
   ok('dashboard Portfolio Growth chart', charts > 0);
   ok('dashboard Monthly Profit chart', monthlyProfit > 0);
   ok('dashboard Manual Profit CTA', manualBtn > 0);

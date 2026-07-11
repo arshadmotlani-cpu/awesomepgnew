@@ -5,6 +5,7 @@ import {
   acLedgerEntries,
   acManualProfits,
 } from '@/src/capital/db/schema';
+import { computeProfitShare, type ProfitShareMode } from '@/src/capital/lib/profitShare';
 import { postLedgerEntry } from './ledger';
 import { logActivity } from './activity';
 
@@ -21,12 +22,28 @@ export type CreateManualProfitInput = {
   source: string;
   description: string;
   category: ManualProfitCategory;
+  share?: {
+    mode: ProfitShareMode;
+    partnerPct?: number;
+    myPct?: number;
+    partnerFixedPaise?: number;
+    myFixedPaise?: number;
+  };
 };
 
 export async function createManualProfit(input: CreateManualProfitInput) {
   if (input.amountPaise <= 0) throw new Error('Amount must be positive');
   if (!input.source.trim()) throw new Error('Source is required');
   if (!input.description.trim()) throw new Error('Description is required');
+
+  const shareResult = computeProfitShare({
+    grossPaise: input.amountPaise,
+    mode: input.share?.mode ?? 'percentage',
+    partnerPct: input.share?.partnerPct ?? 0,
+    myPct: input.share?.myPct ?? 100,
+    partnerFixedPaise: input.share?.partnerFixedPaise,
+    myFixedPaise: input.share?.myFixedPaise,
+  });
 
   return capitalDb.transaction(async (tx) => {
     const [row] = await tx
@@ -37,14 +54,20 @@ export async function createManualProfit(input: CreateManualProfitInput) {
         source: input.source.trim(),
         description: input.description.trim(),
         category: input.category,
+        profitShareMode: shareResult.mode,
+        partnerSharePctBps: shareResult.partnerSharePctBps,
+        mySharePctBps: shareResult.mySharePctBps,
+        partnerSharePaise: shareResult.partnerSharePaise,
+        mySharePaise: shareResult.mySharePaise,
       })
       .returning();
 
+    // Ledger credits MY share only — partner cut is not cash to me
     await postLedgerEntry(
       {
         entryType: 'manual_profit',
         direction: 'credit',
-        amountPaise: input.amountPaise,
+        amountPaise: shareResult.mySharePaise,
         sourceTable: 'ac_manual_profits',
         sourceId: row.id,
         description: `Manual profit: ${input.source.trim()} — ${input.description.trim()}`,
@@ -52,6 +75,9 @@ export async function createManualProfit(input: CreateManualProfitInput) {
           category: input.category,
           source: input.source.trim(),
           profitDate: input.profitDate,
+          grossPaise: shareResult.grossPaise,
+          partnerSharePaise: shareResult.partnerSharePaise,
+          mySharePaise: shareResult.mySharePaise,
         },
       },
       tx,
@@ -64,6 +90,8 @@ export async function createManualProfit(input: CreateManualProfitInput) {
         entityId: row.id,
         afterState: {
           amountPaise: input.amountPaise,
+          mySharePaise: shareResult.mySharePaise,
+          partnerSharePaise: shareResult.partnerSharePaise,
           category: input.category,
           source: input.source.trim(),
         },
@@ -90,6 +118,21 @@ export async function sumManualProfitsPaise(opts?: {
   return Number(row?.total ?? 0);
 }
 
+export async function sumManualMySharePaise(opts?: {
+  from?: string;
+  to?: string;
+}): Promise<number> {
+  const conditions = [eq(acManualProfits.isReversed, false)];
+  if (opts?.from) conditions.push(gte(acManualProfits.profitDate, opts.from));
+  if (opts?.to) conditions.push(lte(acManualProfits.profitDate, opts.to));
+
+  const [row] = await capitalDb
+    .select({ total: sum(acManualProfits.mySharePaise) })
+    .from(acManualProfits)
+    .where(and(...conditions));
+  return Number(row?.total ?? 0);
+}
+
 export async function listManualProfits(limit = 50) {
   return capitalDb
     .select()
@@ -99,11 +142,12 @@ export async function listManualProfits(limit = 50) {
     .limit(limit);
 }
 
-export async function monthlyManualProfitSeries() {
+export async function monthlyManualProfitSeries(opts?: { mine?: boolean }) {
+  const valueCol = opts?.mine ? acManualProfits.mySharePaise : acManualProfits.amountPaise;
   const rows = await capitalDb
     .select({
       month: sql<string>`to_char(${acManualProfits.profitDate}::date, 'YYYY-MM')`,
-      total: sum(acManualProfits.amountPaise),
+      total: sum(valueCol),
     })
     .from(acManualProfits)
     .where(eq(acManualProfits.isReversed, false))

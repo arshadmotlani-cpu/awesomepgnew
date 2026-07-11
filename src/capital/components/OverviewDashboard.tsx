@@ -261,6 +261,7 @@ export function OverviewDashboard({
   );
 
   const periodEmpty = bundle.isFuture || !bundle.period.hasData;
+  const [profitView, setProfitView] = useState<'mine' | 'business'>('mine');
 
   return (
     <div className="mx-auto max-w-[1440px] space-y-8 pb-14">
@@ -387,7 +388,7 @@ export function OverviewDashboard({
       </div>
 
       {/* Hero KPIs */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <HeroMetric
           label="Current Investment"
           valuePaise={bundle.hero.currentInvestmentPaise}
@@ -397,10 +398,22 @@ export function OverviewDashboard({
           label="Lifetime Purchase Volume"
           valuePaise={bundle.hero.lifetimePurchaseVolumePaise}
         />
-        <HeroMetric label="Lifetime Profit" valuePaise={bundle.hero.lifetimeProfitPaise} />
         <HeroMetric
-          label="Overall ROI"
-          valueText={`${(bundle.hero.overallRoiBps / 100).toFixed(1)}%`}
+          label="Gross Business Profit"
+          valuePaise={bundle.hero.grossBusinessProfitPaise}
+        />
+        <HeroMetric
+          label="My Lifetime Profit"
+          valuePaise={bundle.hero.myLifetimeProfitPaise}
+          accent
+        />
+        <HeroMetric
+          label="Overall Business ROI"
+          valueText={`${(bundle.hero.businessRoiBps / 100).toFixed(1)}%`}
+        />
+        <HeroMetric
+          label="My Personal ROI"
+          valueText={`${(bundle.hero.myRoiBps / 100).toFixed(1)}%`}
         />
       </div>
 
@@ -422,19 +435,78 @@ export function OverviewDashboard({
       </div>
 
       {/* Analytic rows: graph 65% + related KPIs 35% */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-xs uppercase tracking-wider text-ac-text-muted">
+          Chart view
+        </p>
+        <div className="flex gap-1.5">
+          {(
+            [
+              { key: 'mine' as const, label: 'My Profit / ROI' },
+              { key: 'business' as const, label: 'Business Profit / ROI' },
+            ] as const
+          ).map((v) => (
+            <button
+              key={v.key}
+              type="button"
+              onClick={() => setProfitView(v.key)}
+              className={cn(
+                'rounded-md px-3 py-1.5 text-xs font-medium transition',
+                profitView === v.key
+                  ? 'bg-ac-accent/20 text-ac-accent ring-1 ring-ac-accent/40'
+                  : 'bg-white/5 text-ac-text-secondary hover:bg-white/10',
+              )}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <AnalyticRow
         title="Portfolio Growth"
-        subtitle="Cumulative profit trajectory"
-        empty={bundle.chartBlocks.portfolioGrowth.series.length === 0}
-        chart={<PortfolioGrowthArea data={bundle.chartBlocks.portfolioGrowth.series} />}
+        subtitle={
+          profitView === 'mine'
+            ? 'Cumulative my profit trajectory'
+            : 'Cumulative gross business profit'
+        }
+        empty={
+          (profitView === 'mine'
+            ? bundle.chartBlocks.portfolioGrowth.seriesMine
+            : bundle.chartBlocks.portfolioGrowth.seriesBusiness
+          ).length === 0
+        }
+        chart={
+          <PortfolioGrowthArea
+            data={
+              profitView === 'mine'
+                ? bundle.chartBlocks.portfolioGrowth.seriesMine
+                : bundle.chartBlocks.portfolioGrowth.seriesBusiness
+            }
+          />
+        }
         kpis={bundle.chartBlocks.portfolioGrowth.kpis}
       />
 
       <AnalyticRow
         title="Monthly Profit"
-        subtitle={bundle.range.label}
-        empty={periodEmpty && bundle.chartBlocks.monthlyProfit.series.every((s) => s.valuePaise === 0)}
-        chart={<MonthlyProfitBars data={bundle.chartBlocks.monthlyProfit.series} />}
+        subtitle={`${bundle.range.label} · ${profitView === 'mine' ? 'My share' : 'Gross business'}`}
+        empty={
+          periodEmpty &&
+          (profitView === 'mine'
+            ? bundle.chartBlocks.monthlyProfit.seriesMine
+            : bundle.chartBlocks.monthlyProfit.seriesBusiness
+          ).every((s) => s.valuePaise === 0)
+        }
+        chart={
+          <MonthlyProfitBars
+            data={
+              profitView === 'mine'
+                ? bundle.chartBlocks.monthlyProfit.seriesMine
+                : bundle.chartBlocks.monthlyProfit.seriesBusiness
+            }
+          />
+        }
         kpis={bundle.chartBlocks.monthlyProfit.kpis}
       />
 
@@ -454,6 +526,34 @@ export function OverviewDashboard({
         kpis={bundle.chartBlocks.waterfall.kpis}
       />
 
+      {/* ROI compare */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">ROI Comparison</CardTitle>
+          <p className="text-xs text-ac-text-muted">Business vs personal returns</p>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <StatTile
+              label="Business ROI"
+              valueText={`${(bundle.chartBlocks.roiCompare.businessRoiBps / 100).toFixed(1)}%`}
+            />
+            <StatTile
+              label="My ROI"
+              valueText={`${(bundle.chartBlocks.roiCompare.myRoiBps / 100).toFixed(1)}%`}
+            />
+            <StatTile
+              label="Period Business ROI"
+              valueText={`${(bundle.chartBlocks.roiCompare.periodBusinessRoiBps / 100).toFixed(1)}%`}
+            />
+            <StatTile
+              label="Period My ROI"
+              valueText={`${(bundle.chartBlocks.roiCompare.periodMyRoiBps / 100).toFixed(1)}%`}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Portfolio Summary — lifetime */}
       <Card>
         <CardHeader>
@@ -467,19 +567,31 @@ export function OverviewDashboard({
               valuePaise={bundle.portfolioSummary.lifetimePurchaseVolumePaise}
             />
             <StatTile
-              label="Lifetime Profit"
-              valuePaise={bundle.portfolioSummary.lifetimeProfitPaise}
+              label="Gross Business Profit"
+              valuePaise={bundle.portfolioSummary.grossBusinessProfitPaise}
             />
             <StatTile
-              label="Overall ROI"
-              valueText={`${(bundle.portfolioSummary.overallRoiBps / 100).toFixed(1)}%`}
+              label="My Lifetime Profit"
+              valuePaise={bundle.portfolioSummary.myLifetimeProfitPaise}
+            />
+            <StatTile
+              label="Business ROI"
+              valueText={`${(bundle.portfolioSummary.businessRoiBps / 100).toFixed(1)}%`}
+            />
+            <StatTile
+              label="My ROI"
+              valueText={`${(bundle.portfolioSummary.myRoiBps / 100).toFixed(1)}%`}
+            />
+            <StatTile
+              label="My Capital Invested"
+              valuePaise={bundle.portfolioSummary.capitalInvestedPaise}
             />
             <StatTile
               label="Vehicles Sold"
               valueText={String(bundle.portfolioSummary.vehiclesSold)}
             />
             <StatTile
-              label="Average Profit per Vehicle"
+              label="Average Profit per Vehicle (Mine)"
               valuePaise={bundle.portfolioSummary.avgProfitPerVehiclePaise}
             />
             <StatTile
@@ -515,7 +627,8 @@ export function OverviewDashboard({
               />
               <StatTile label="Money Invested" valuePaise={bundle.period.moneyInvestedPaise} />
               <StatTile label="Money Returned" valuePaise={bundle.period.moneyReturnedPaise} />
-              <StatTile label="Profit" valuePaise={bundle.period.profitPaise} />
+              <StatTile label="Gross Profit" valuePaise={bundle.period.grossProfitPaise} />
+              <StatTile label="My Profit" valuePaise={bundle.period.myProfitPaise} />
               <StatTile label="Repairs" valuePaise={bundle.period.repairsPaise} />
               <StatTile label="Cash Available" valuePaise={bundle.period.cashAvailablePaise} />
               <StatTile

@@ -62,6 +62,17 @@ export async function recordSaleAction(
       parsed.data.assetId,
       rupeesToPaise(parsed.data.salePrice),
       parsed.data.saleDate,
+      {
+        mode: parsed.data.shareMode,
+        partnerPct: parsed.data.partnerPct,
+        myPct: parsed.data.myPct,
+        partnerFixedPaise:
+          parsed.data.partnerFixed != null
+            ? rupeesToPaise(parsed.data.partnerFixed)
+            : undefined,
+        myFixedPaise:
+          parsed.data.myFixed != null ? rupeesToPaise(parsed.data.myFixed) : undefined,
+      },
     );
     revalidatePath(`/assets/${parsed.data.assetId}`);
     revalidatePath('/assets');

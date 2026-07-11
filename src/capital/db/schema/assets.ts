@@ -9,7 +9,7 @@ import {
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { assetClassEnum, assetStatusEnum, fuelTypeEnum, ownershipEnum } from './enums';
+import { assetClassEnum, assetStatusEnum, fuelTypeEnum, ownershipEnum, profitShareModeEnum } from './enums';
 
 export const acAssets = pgTable(
   'ac_assets',
@@ -28,6 +28,14 @@ export const acAssets = pgTable(
     holdingDays: integer('holding_days'),
     profitPaise: bigint('profit_paise', { mode: 'number' }),
     roiBps: integer('roi_bps'),
+    /** Profit distribution — set when sale is recorded */
+    profitShareMode: profitShareModeEnum('profit_share_mode'),
+    partnerSharePctBps: integer('partner_share_pct_bps'),
+    mySharePctBps: integer('my_share_pct_bps'),
+    partnerSharePaise: bigint('partner_share_paise', { mode: 'number' }),
+    mySharePaise: bigint('my_share_paise', { mode: 'number' }),
+    businessRoiBps: integer('business_roi_bps'),
+    myRoiBps: integer('my_roi_bps'),
     capitalReturnedPaise: bigint('capital_returned_paise', { mode: 'number' }).notNull().default(0),
     profitReceivedPaise: bigint('profit_received_paise', { mode: 'number' }).notNull().default(0),
     outstandingPaise: bigint('outstanding_paise', { mode: 'number' }).notNull().default(0),

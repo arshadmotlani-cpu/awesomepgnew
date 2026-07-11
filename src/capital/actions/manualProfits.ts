@@ -24,6 +24,17 @@ export async function createManualProfitAction(
       source: parsed.data.source,
       description: parsed.data.description,
       category: parsed.data.category,
+      share: {
+        mode: parsed.data.shareMode,
+        partnerPct: parsed.data.partnerPct,
+        myPct: parsed.data.myPct,
+        partnerFixedPaise:
+          parsed.data.partnerFixed != null
+            ? rupeesToPaise(parsed.data.partnerFixed)
+            : undefined,
+        myFixedPaise:
+          parsed.data.myFixed != null ? rupeesToPaise(parsed.data.myFixed) : undefined,
+      },
     });
     revalidateTag('capital-dashboard', 'default');
     revalidatePath('/dashboard');

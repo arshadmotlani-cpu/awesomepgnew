@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { capitalZodResolver } from '@/src/capital/lib/validation/parse';
 import {
   createManualProfitAction,
@@ -11,6 +11,7 @@ import { Button } from '@/src/capital/components/ui/button';
 import { Input } from '@/src/capital/components/ui/input';
 import { Textarea } from '@/src/capital/components/ui/textarea';
 import { FormField } from '@/src/capital/components/forms/FormField';
+import { ProfitShareFieldsControlled } from '@/src/capital/components/forms/ProfitShareFields';
 import { useCapitalToast } from '@/src/capital/components/CapitalToastProvider';
 import {
   createManualProfitSchema,
@@ -38,8 +39,18 @@ export function ManualProfitForm({ onSuccess }: { onSuccess?: () => void }) {
       source: '',
       description: '',
       category: 'investment_return',
+      shareMode: 'percentage',
+      partnerPct: 40,
+      myPct: 60,
+      partnerFixed: 0,
     },
   });
+
+  const amount = useWatch({ control: form.control, name: 'amount' }) ?? 0;
+  const shareMode = useWatch({ control: form.control, name: 'shareMode' }) ?? 'percentage';
+  const partnerPct = useWatch({ control: form.control, name: 'partnerPct' }) ?? 40;
+  const myPct = useWatch({ control: form.control, name: 'myPct' }) ?? 60;
+  const partnerFixed = useWatch({ control: form.control, name: 'partnerFixed' }) ?? 0;
 
   const onSubmit = form.handleSubmit((values) => {
     const fd = new FormData();
@@ -60,6 +71,10 @@ export function ManualProfitForm({ onSuccess }: { onSuccess?: () => void }) {
           source: '',
           description: '',
           category: 'investment_return',
+          shareMode: 'percentage',
+          partnerPct: 40,
+          myPct: 60,
+          partnerFixed: 0,
         });
         onSuccess?.();
       }
@@ -72,7 +87,7 @@ export function ManualProfitForm({ onSuccess }: { onSuccess?: () => void }) {
         <FormField label="Date" name="profitDate" form={form}>
           <Input type="date" {...form.register('profitDate')} />
         </FormField>
-        <FormField label="Amount (₹)" name="amount" form={form}>
+        <FormField label="Gross Profit (₹)" name="amount" form={form}>
           <Input
             type="number"
             step="0.01"
@@ -99,6 +114,19 @@ export function ManualProfitForm({ onSuccess }: { onSuccess?: () => void }) {
       <FormField label="Description" name="description" form={form}>
         <Textarea rows={3} placeholder="What is this profit from?" {...form.register('description')} />
       </FormField>
+
+      <ProfitShareFieldsControlled
+        grossRupees={Number(amount) || 0}
+        mode={shareMode}
+        partnerPct={partnerPct}
+        myPct={myPct}
+        partnerFixed={partnerFixed}
+        onModeChange={(m) => form.setValue('shareMode', m)}
+        onPartnerPctChange={(n) => form.setValue('partnerPct', n)}
+        onMyPctChange={(n) => form.setValue('myPct', n)}
+        onPartnerFixedChange={(n) => form.setValue('partnerFixed', n)}
+      />
+
       {state.error ? <p className="text-sm text-ac-danger">{state.error}</p> : null}
       <Button type="submit" disabled={pending} className="w-full sm:w-auto">
         {pending ? 'Saving…' : 'Add Manual Profit'}

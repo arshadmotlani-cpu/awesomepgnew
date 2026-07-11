@@ -29,10 +29,12 @@ type TimelineData = {
 export function AssetCommandCenter({
   assetId,
   currentStatus,
+  totalInvestmentPaise,
   timeline,
 }: {
   assetId: string;
   currentStatus: string;
+  totalInvestmentPaise: number;
   timeline: TimelineData;
 }) {
   return (
@@ -47,7 +49,11 @@ export function AssetCommandCenter({
       </TabsList>
 
       <TabsContent value="actions">
-        <AssetActionsForms assetId={assetId} currentStatus={currentStatus} />
+        <AssetActionsForms
+          assetId={assetId}
+          currentStatus={currentStatus}
+          totalInvestmentPaise={totalInvestmentPaise}
+        />
       </TabsContent>
 
       <TabsContent value="timeline" className="space-y-2">

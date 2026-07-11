@@ -58,9 +58,28 @@ export default async function AssetDetailPage({ params }: Props) {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Investment" paise={asset.totalInvestmentPaise} />
         <StatCard label="Outstanding" paise={asset.outstandingPaise} />
-        <StatCard label="Profit" paise={asset.profitPaise ?? 0} />
+        <StatCard label="Gross Profit" paise={asset.profitPaise ?? 0} />
         <StatCard label="Holding days" text={String(asset.holdingDays)} />
       </div>
+
+      {asset.mySharePaise != null || asset.partnerSharePaise != null ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard label="Partner Share" paise={asset.partnerSharePaise ?? 0} />
+          <StatCard label="My Share" paise={asset.mySharePaise ?? 0} />
+          <StatCard
+            label="Business ROI"
+            text={
+              asset.businessRoiBps != null
+                ? `${(asset.businessRoiBps / 100).toFixed(1)}%`
+                : '—'
+            }
+          />
+          <StatCard
+            label="My ROI"
+            text={asset.myRoiBps != null ? `${(asset.myRoiBps / 100).toFixed(1)}%` : '—'}
+          />
+        </div>
+      ) : null}
 
       <Card>
         <CardHeader>
@@ -80,7 +99,12 @@ export default async function AssetDetailPage({ params }: Props) {
         </CardContent>
       </Card>
 
-      <AssetCommandCenter assetId={asset.id} currentStatus={asset.status} timeline={timeline} />
+      <AssetCommandCenter
+        assetId={asset.id}
+        currentStatus={asset.status}
+        totalInvestmentPaise={asset.totalInvestmentPaise}
+        timeline={timeline}
+      />
     </div>
   );
 }

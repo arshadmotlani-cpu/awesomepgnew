@@ -29,6 +29,13 @@
       "when": 1720641900000,
       "tag": "0004_asset_form_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1720642000000,
+      "tag": "0005_profit_sharing",
+      "breakpoints": true
     }
   ]
 }

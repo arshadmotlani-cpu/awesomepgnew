@@ -141,3 +141,6 @@
 
 ## TASK — Capital Overview Investment OS redesign (2026-07-11)
 - Redesign `/dashboard` as personal portfolio OS: hero KPIs, 65/35 chart+KPI rows, month nav, portfolio summary, period section; remove best/worst and misleading total capital invested.
+
+## FEATURE — Profit sharing (2026-07-11)
+- Per-deal partner vs investor split on sale + manual profit (percentage or fixed). Dashboard shows Gross Business Profit vs My Lifetime Profit; Business ROI vs My ROI. Charts toggle Business / My.

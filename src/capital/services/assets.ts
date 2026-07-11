@@ -15,6 +15,7 @@ import {
   calcSettlementPctBps,
   normalizeRegistration,
 } from '@/src/capital/lib/money';
+import { computeProfitShare } from '@/src/capital/lib/profitShare';
 import type { AssetListQuery } from '@/src/capital/lib/validation/schemas';
 import type { CapitalDbClient } from '@/src/capital/lib/db/types';
 import { postLedgerEntry } from './ledger';
@@ -74,11 +75,20 @@ export async function recalculateAsset(assetId: string, db: CapitalDbClient = ca
     );
   }
 
-  if (profitPaise != null && profitReceived > Math.max(0, profitPaise)) {
+  if (profitPaise != null && profitReceived > Math.max(0, asset.mySharePaise ?? profitPaise)) {
     throw new Error(
-      `Profit received exceeds gross profit for asset ${assetId}`,
+      `Profit received exceeds your share of profit for asset ${assetId}`,
     );
   }
+
+  // Preserve share fields; refresh business/my ROI if share already set
+  const shareUpdate =
+    profitPaise != null && asset.mySharePaise != null
+      ? {
+          businessRoiBps: calcRoiBps(profitPaise, totalInvestment),
+          myRoiBps: calcRoiBps(asset.mySharePaise, totalInvestment),
+        }
+      : {};
 
   await db
     .update(acAssets)
@@ -93,6 +103,7 @@ export async function recalculateAsset(assetId: string, db: CapitalDbClient = ca
       outstandingPaise: Math.max(0, outstandingPaise),
       settlementPctBps,
       updatedAt: new Date(),
+      ...shareUpdate,
     })
     .where(eq(acAssets.id, assetId));
 }
@@ -195,8 +206,38 @@ export async function updateAssetStatus(assetId: string, status: string) {
   });
 }
 
-export async function recordSale(assetId: string, actualSalePricePaise: number, saleDate: string) {
+export async function recordSale(
+  assetId: string,
+  actualSalePricePaise: number,
+  saleDate: string,
+  share?: {
+    mode: 'percentage' | 'fixed';
+    partnerPct?: number;
+    myPct?: number;
+    partnerFixedPaise?: number;
+    myFixedPaise?: number;
+  },
+) {
   await assertAssetMutable(assetId);
+
+  // Recalc expenses first so share uses current investment
+  await recalculateAsset(assetId);
+  const [fresh] = await capitalDb.select().from(acAssets).where(eq(acAssets.id, assetId)).limit(1);
+  if (!fresh) throw new Error('Asset not found');
+
+  const totalInvestment = fresh.totalInvestmentPaise;
+  const grossProfit = actualSalePricePaise - totalInvestment;
+  const shareResult = computeProfitShare(
+    {
+      grossPaise: grossProfit,
+      mode: share?.mode ?? 'percentage',
+      partnerPct: share?.partnerPct ?? 0,
+      myPct: share?.myPct ?? 100,
+      partnerFixedPaise: share?.partnerFixedPaise,
+      myFixedPaise: share?.myFixedPaise,
+    },
+    totalInvestment,
+  );
 
   await capitalDb
     .update(acAssets)
@@ -204,6 +245,13 @@ export async function recordSale(assetId: string, actualSalePricePaise: number, 
       actualSalePricePaise,
       saleDate,
       status: 'sold',
+      profitShareMode: shareResult.mode,
+      partnerSharePctBps: shareResult.partnerSharePctBps,
+      mySharePctBps: shareResult.mySharePctBps,
+      partnerSharePaise: shareResult.partnerSharePaise,
+      mySharePaise: shareResult.mySharePaise,
+      businessRoiBps: shareResult.businessRoiBps,
+      myRoiBps: shareResult.myRoiBps,
       updatedAt: new Date(),
     })
     .where(eq(acAssets.id, assetId));
@@ -213,7 +261,14 @@ export async function recordSale(assetId: string, actualSalePricePaise: number, 
     action: 'asset_updated',
     entityType: 'asset',
     entityId: assetId,
-    afterState: { actualSalePricePaise, saleDate, status: 'sold' },
+    afterState: {
+      actualSalePricePaise,
+      saleDate,
+      status: 'sold',
+      grossProfitPaise: shareResult.grossPaise,
+      partnerSharePaise: shareResult.partnerSharePaise,
+      mySharePaise: shareResult.mySharePaise,
+    },
   });
 }
 
