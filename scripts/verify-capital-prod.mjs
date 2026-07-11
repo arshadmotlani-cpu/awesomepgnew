@@ -30,13 +30,19 @@ try {
   await page.waitForTimeout(2000);
   const overview = await page.getByRole('heading', { name: 'Overview' }).count();
   const investmentOs = await page.getByText('Investment OS').count();
-  const kpi = await page.getByText('Total Capital Invested').count();
-  const charts = await page.getByText('Monthly Profit Trend').count();
+  const kpi = await page.getByText('Current Investment').count();
+  const purchaseVol = await page.getByText('Lifetime Purchase Volume').count();
+  const lifetimeProfit = await page.getByText('Lifetime Profit').count();
+  const charts = await page.getByText('Portfolio Growth').count();
+  const monthlyProfit = await page.getByText('Monthly Profit').count();
   const manualBtn = await page.getByRole('button', { name: /Add Manual Profit/i }).count();
   ok('dashboard Overview heading', overview > 0);
   ok('dashboard Investment OS label', investmentOs > 0);
-  ok('dashboard KPI cards', kpi > 0);
-  ok('dashboard charts section', charts > 0);
+  ok('dashboard Current Investment KPI', kpi > 0);
+  ok('dashboard Lifetime Purchase Volume', purchaseVol > 0);
+  ok('dashboard Lifetime Profit', lifetimeProfit > 0);
+  ok('dashboard Portfolio Growth chart', charts > 0);
+  ok('dashboard Monthly Profit chart', monthlyProfit > 0);
   ok('dashboard Manual Profit CTA', manualBtn > 0);
   await page.screenshot({ path: `${outDir}/prod-overview.png`, fullPage: true });
 

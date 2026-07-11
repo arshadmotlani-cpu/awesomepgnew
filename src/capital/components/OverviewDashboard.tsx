@@ -6,32 +6,31 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Car,
+  ChevronLeft,
+  ChevronRight,
   CircleDollarSign,
   HandCoins,
-  Lightbulb,
   Plus,
   Receipt,
   Sparkles,
-  UserPlus,
   Wallet,
   X,
 } from 'lucide-react';
-import { KpiCard } from '@/src/capital/components/KpiCard';
 import {
-  AllocationDonut,
-  ExpensePie,
-  MonthlyInvestmentArea,
-  MonthlyProfitLine,
-  PortfolioOhlcChart,
-  ProfitSourcesBar,
-  RoiGrowthLine,
-  StatusDonut,
+  CapitalAllocationDonut,
+  InvestmentWaterfall,
+  MonthlyProfitBars,
+  PortfolioGrowthArea,
 } from '@/src/capital/components/charts/OverviewCharts';
 import { ManualProfitForm } from '@/src/capital/components/forms/ManualProfitForm';
+import { MoneyDisplay } from '@/src/capital/components/MoneyDisplay';
 import { Button } from '@/src/capital/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/capital/components/ui/card';
 import { Input } from '@/src/capital/components/ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/src/capital/components/ui/tabs';
+import {
+  currentMonthKey,
+  shiftMonth,
+} from '@/src/capital/lib/dashboardRange';
 import type { OverviewBundle } from '@/src/capital/services/overview';
 import { cn } from '@/src/capital/lib/utils';
 
@@ -47,16 +46,15 @@ const RANGES = [
 
 const ACTIVITY_LABELS: Record<string, string> = {
   asset_created: 'Vehicle Purchased',
-  asset_status_changed: 'Vehicle Status Updated',
-  asset_updated: 'Vehicle Updated',
+  asset_status_changed: 'Status Updated',
   expense_created: 'Expense Added',
   expense_reversed: 'Expense Reversed',
   payment_created: 'Profit Received',
   payment_reversed: 'Payment Reversed',
-  capital_invested: 'Capital Invested',
+  capital_invested: 'Capital Deployed',
   capital_reversed: 'Capital Reversed',
-  manual_profit_added: 'Manual Profit Added',
-  settlement_created: 'Investor Paid',
+  manual_profit_added: 'Manual Profit',
+  settlement_created: 'Settlement',
   document_uploaded: 'Document Uploaded',
 };
 
@@ -64,7 +62,7 @@ function activityTitle(action: string, afterState: unknown): string {
   if (action === 'asset_status_changed' && afterState && typeof afterState === 'object') {
     const status = (afterState as { status?: string }).status;
     if (status === 'sold' || status === 'settled') return 'Vehicle Sold';
-    if (status === 'repair') return 'Repair Started';
+    if (status === 'repairing' || status === 'painting') return 'In Repair';
     if (status === 'listed') return 'Vehicle Listed';
   }
   if (action === 'expense_created' && afterState && typeof afterState === 'object') {
@@ -74,31 +72,145 @@ function activityTitle(action: string, afterState: unknown): string {
   return ACTIVITY_LABELS[action] ?? action.replace(/_/g, ' ');
 }
 
-function ChartPanel({
+type SideKpi = {
+  label: string;
+  valuePaise?: number;
+  valueText?: string;
+  kind: 'paise' | 'text';
+  trend?: 'up' | 'down' | 'neutral';
+};
+
+function SideKpiStack({ items }: { items: SideKpi[] }) {
+  return (
+    <div className="flex h-full flex-col justify-center gap-3">
+      {items.map((kpi, i) => (
+        <motion.div
+          key={kpi.label}
+          initial={{ opacity: 0, x: 12 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.05 * i, duration: 0.35 }}
+          className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-3 transition-colors hover:border-ac-accent/25 hover:bg-white/[0.05]"
+        >
+          <p className="text-[11px] font-medium uppercase tracking-wider text-ac-text-muted">
+            {kpi.label}
+          </p>
+          <p
+            className={cn(
+              'mt-1 text-xl font-semibold tracking-tight',
+              kpi.trend === 'up' && 'text-ac-success',
+              kpi.trend === 'down' && 'text-ac-danger',
+            )}
+          >
+            {kpi.kind === 'paise' && kpi.valuePaise != null ? (
+              <MoneyDisplay paise={kpi.valuePaise} className="text-xl" />
+            ) : (
+              (kpi.valueText ?? '—')
+            )}
+          </p>
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
+function AnalyticRow({
   title,
-  children,
-  className,
+  subtitle,
+  chart,
+  kpis,
+  empty,
 }: {
   title: string;
-  children: React.ReactNode;
-  className?: string;
+  subtitle?: string;
+  chart: React.ReactNode;
+  kpis: SideKpi[];
+  empty?: boolean;
+}) {
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 18 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: '-60px' }}
+      transition={{ duration: 0.45 }}
+      className="ac-glass-card overflow-hidden"
+    >
+      <div className="border-b border-white/[0.06] px-5 py-4 sm:px-6">
+        <h2 className="text-base font-semibold tracking-tight">{title}</h2>
+        {subtitle ? <p className="mt-0.5 text-xs text-ac-text-muted">{subtitle}</p> : null}
+      </div>
+      <div className="grid gap-0 lg:grid-cols-[minmax(0,1.85fr)_minmax(240px,1fr)]">
+        <div className="border-b border-white/[0.06] p-4 sm:p-5 lg:border-b-0 lg:border-r">
+          {empty ? (
+            <div className="flex h-64 items-center justify-center text-sm text-ac-text-muted">
+              No data available for this period.
+            </div>
+          ) : (
+            chart
+          )}
+        </div>
+        <div className="p-4 sm:p-5">
+          {empty ? (
+            <div className="flex h-full min-h-48 items-center justify-center text-sm text-ac-text-muted">
+              No data.
+            </div>
+          ) : (
+            <SideKpiStack items={kpis} />
+          )}
+        </div>
+      </div>
+    </motion.section>
+  );
+}
+
+function HeroMetric({
+  label,
+  valuePaise,
+  valueText,
+  accent,
+}: {
+  label: string;
+  valuePaise?: number;
+  valueText?: string;
+  accent?: boolean;
 }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: '-40px' }}
-      transition={{ duration: 0.45 }}
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -3 }}
-      className={className}
+      className={cn(
+        'ac-kpi-card rounded-2xl border border-white/[0.08] p-5 transition-shadow duration-300 hover:shadow-[0_16px_48px_rgba(0,0,0,0.35)]',
+        accent && 'ring-1 ring-ac-accent/30',
+      )}
     >
-      <Card className="h-full transition-shadow duration-300 hover:shadow-[0_16px_48px_rgba(0,0,0,0.4)]">
-        <CardHeader>
-          <CardTitle className="text-base">{title}</CardTitle>
-        </CardHeader>
-        <CardContent>{children}</CardContent>
-      </Card>
+      <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-ac-text-muted">
+        {label}
+      </p>
+      <div className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
+        {valueText ??
+          (valuePaise != null ? <MoneyDisplay paise={valuePaise} className="text-2xl sm:text-3xl" /> : '—')}
+      </div>
     </motion.div>
+  );
+}
+
+function StatTile({
+  label,
+  valuePaise,
+  valueText,
+}: {
+  label: string;
+  valuePaise?: number;
+  valueText?: string;
+}) {
+  return (
+    <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] px-4 py-4 transition-colors hover:border-white/12">
+      <p className="text-[11px] uppercase tracking-wider text-ac-text-muted">{label}</p>
+      <p className="mt-1.5 text-lg font-semibold">
+        {valueText ??
+          (valuePaise != null ? <MoneyDisplay paise={valuePaise} className="text-lg" /> : '—')}
+      </p>
+    </div>
   );
 }
 
@@ -116,48 +228,68 @@ export function OverviewDashboard({
   const [from, setFrom] = useState(customFrom ?? '');
   const [to, setTo] = useState(customTo ?? '');
 
-  const navigateRange = (key: string, f?: string, t?: string) => {
+  const navigateRange = (key: string, opts?: { from?: string; to?: string; month?: string }) => {
     const params = new URLSearchParams();
     params.set('range', key);
     if (key === 'custom') {
-      if (f) params.set('from', f);
-      if (t) params.set('to', t);
+      if (opts?.from) params.set('from', opts.from);
+      if (opts?.to) params.set('to', opts.to);
+    }
+    if (key === 'month' && opts?.month) {
+      params.set('month', opts.month);
     }
     router.push(`/dashboard?${params.toString()}`);
   };
+
+  const monthCursor = bundle.range.month ?? currentMonthKey();
 
   const quickActions = useMemo(
     () => [
       { href: '/assets/new', label: 'Add Vehicle', icon: Car },
       { href: '/expenses', label: 'Record Expense', icon: Receipt },
-      { href: '/assets?status=listed', label: 'Sell Vehicle', icon: CircleDollarSign },
+      { href: '/assets?status=listed', label: 'Record Sale', icon: CircleDollarSign },
       { href: '/payments', label: 'Receive Profit', icon: HandCoins },
-      { href: '#manual-profit', label: 'Add Manual Profit', icon: Sparkles, onClick: () => setManualOpen(true) },
-      { href: '/capital', label: 'Add Investor', icon: UserPlus },
+      {
+        href: '#manual-profit',
+        label: 'Add Manual Profit',
+        icon: Sparkles,
+        onClick: () => setManualOpen(true),
+      },
+      { href: '/capital', label: 'Deploy Capital', icon: Wallet },
     ],
     [],
   );
 
+  const periodEmpty = bundle.isFuture || !bundle.period.hasData;
+
   return (
-    <div className="mx-auto max-w-[1400px] space-y-8 pb-12">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <div className="mx-auto max-w-[1440px] space-y-8 pb-14">
+      {/* Header */}
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.2em] text-ac-accent">Investment OS</p>
+          <p className="text-xs font-medium uppercase tracking-[0.22em] text-ac-accent">
+            Investment OS
+          </p>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight">Overview</h1>
           <p className="mt-1 text-sm text-ac-text-secondary">
-            Executive portfolio command center · {bundle.range.label}
+            Personal vehicle investment portfolio · {bundle.range.label}
           </p>
         </div>
 
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col items-stretch gap-2 sm:items-end">
           <div className="flex flex-wrap gap-1.5">
             {RANGES.map((r) => (
               <button
                 key={r.key}
                 type="button"
                 onClick={() => {
-                  if (r.key === 'custom') navigateRange('custom', from || undefined, to || undefined);
-                  else navigateRange(r.key);
+                  if (r.key === 'custom') {
+                    navigateRange('custom', { from: from || undefined, to: to || undefined });
+                  } else if (r.key === 'month') {
+                    navigateRange('month', { month: currentMonthKey() });
+                  } else {
+                    navigateRange(r.key);
+                  }
                 }}
                 className={cn(
                   'rounded-md px-3 py-1.5 text-xs font-medium transition-all',
@@ -170,20 +302,59 @@ export function OverviewDashboard({
               </button>
             ))}
           </div>
+
+          {bundle.range.key === 'month' ? (
+            <div className="flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1">
+              <button
+                type="button"
+                aria-label="Previous month"
+                className="rounded-md p-1.5 text-ac-text-secondary transition hover:bg-white/10 hover:text-ac-text"
+                onClick={() =>
+                  navigateRange('month', { month: shiftMonth(monthCursor, -1) })
+                }
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="min-w-[9.5rem] text-center text-sm font-medium tabular-nums">
+                {bundle.range.label}
+              </span>
+              <button
+                type="button"
+                aria-label="Next month"
+                className="rounded-md p-1.5 text-ac-text-secondary transition hover:bg-white/10 hover:text-ac-text"
+                onClick={() =>
+                  navigateRange('month', { month: shiftMonth(monthCursor, 1) })
+                }
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          ) : null}
+
           {bundle.range.key === 'custom' ? (
             <div className="flex flex-wrap items-end gap-2">
               <div>
                 <label className="mb-1 block text-[10px] uppercase text-ac-text-muted">From</label>
-                <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-8 w-36" />
+                <Input
+                  type="date"
+                  value={from}
+                  onChange={(e) => setFrom(e.target.value)}
+                  className="h-8 w-36"
+                />
               </div>
               <div>
                 <label className="mb-1 block text-[10px] uppercase text-ac-text-muted">To</label>
-                <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-8 w-36" />
+                <Input
+                  type="date"
+                  value={to}
+                  onChange={(e) => setTo(e.target.value)}
+                  className="h-8 w-36"
+                />
               </div>
               <Button
                 size="sm"
                 variant="secondary"
-                onClick={() => navigateRange('custom', from, to)}
+                onClick={() => navigateRange('custom', { from, to })}
               >
                 Apply
               </Button>
@@ -192,6 +363,7 @@ export function OverviewDashboard({
         </div>
       </div>
 
+      {/* Quick actions */}
       <div className="flex flex-wrap gap-2">
         {quickActions.map((a) => {
           const Icon = a.icon;
@@ -214,117 +386,180 @@ export function OverviewDashboard({
         })}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {bundle.kpis.map((k, i) => (
-          <KpiCard
-            key={k.title}
-            title={k.title}
-            index={i}
-            icon={k.icon}
-            trend={k.trend}
-            changePct={'changePct' in k ? k.changePct : null}
-            valuePaise={'valuePaise' in k ? k.valuePaise : undefined}
-            valueText={'valueText' in k ? k.valueText : undefined}
-            href={'href' in k ? k.href : undefined}
-          />
-        ))}
+      {/* Hero KPIs */}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <HeroMetric
+          label="Current Investment"
+          valuePaise={bundle.hero.currentInvestmentPaise}
+          accent
+        />
+        <HeroMetric
+          label="Lifetime Purchase Volume"
+          valuePaise={bundle.hero.lifetimePurchaseVolumePaise}
+        />
+        <HeroMetric label="Lifetime Profit" valuePaise={bundle.hero.lifetimeProfitPaise} />
+        <HeroMetric
+          label="Overall ROI"
+          valueText={`${(bundle.hero.overallRoiBps / 100).toFixed(1)}%`}
+        />
       </div>
 
-      {bundle.insights.length > 0 ? (
-        <Card>
-          <CardHeader className="flex flex-row items-center gap-2">
-            <Lightbulb className="h-4 w-4 text-ac-warning" />
-            <CardTitle className="text-base">Insights</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="grid gap-2 sm:grid-cols-2">
-              {bundle.insights.map((insight) => (
-                <li
-                  key={insight}
-                  className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2.5 text-sm text-ac-text-secondary"
-                >
-                  {insight}
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <ChartPanel title="Monthly Profit Trend">
-          <MonthlyProfitLine data={bundle.charts.monthlyProfit} />
-        </ChartPanel>
-        <ChartPanel title="Monthly Investment">
-          <MonthlyInvestmentArea data={bundle.charts.monthlyInvestment} />
-        </ChartPanel>
-        <ChartPanel title="ROI Growth">
-          <RoiGrowthLine data={bundle.charts.roiGrowth} />
-        </ChartPanel>
-        <ChartPanel title="Capital Allocation">
-          <AllocationDonut data={bundle.charts.capitalAllocation} />
-        </ChartPanel>
-        <ChartPanel title="Expense Breakdown">
-          <ExpensePie data={bundle.charts.expenseBreakdown} />
-        </ChartPanel>
-        <ChartPanel title="Vehicle Status">
-          <StatusDonut data={bundle.charts.vehicleStatus} />
-        </ChartPanel>
+      {/* Secondary row */}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatTile label="Cash Available" valuePaise={bundle.secondary.cashAvailablePaise} />
+        <StatTile
+          label="Active Vehicles"
+          valueText={String(bundle.secondary.activeVehicles)}
+        />
+        <StatTile
+          label="Vehicles Sold"
+          valueText={String(bundle.secondary.vehiclesSold)}
+        />
+        <StatTile
+          label="Average Profit Per Vehicle"
+          valuePaise={bundle.secondary.avgProfitPerVehiclePaise}
+        />
       </div>
 
-      <ChartPanel title="Profit Sources">
-        <Tabs defaultValue="brand">
-          <TabsList>
-            <TabsTrigger value="brand">Brand</TabsTrigger>
-            <TabsTrigger value="source">Investor / Source</TabsTrigger>
-            <TabsTrigger value="vehicle">Vehicle</TabsTrigger>
-            <TabsTrigger value="month">Month</TabsTrigger>
-          </TabsList>
-          <TabsContent value="brand">
-            <ProfitSourcesBar data={bundle.charts.profitByManufacturer} />
-          </TabsContent>
-          <TabsContent value="source">
-            <ProfitSourcesBar data={bundle.charts.profitBySource} />
-          </TabsContent>
-          <TabsContent value="vehicle">
-            <ProfitSourcesBar data={bundle.charts.profitByVehicle} />
-          </TabsContent>
-          <TabsContent value="month">
-            <ProfitSourcesBar data={bundle.charts.profitByMonth} />
-          </TabsContent>
-        </Tabs>
-      </ChartPanel>
+      {/* Analytic rows: graph 65% + related KPIs 35% */}
+      <AnalyticRow
+        title="Portfolio Growth"
+        subtitle="Cumulative profit trajectory"
+        empty={bundle.chartBlocks.portfolioGrowth.series.length === 0}
+        chart={<PortfolioGrowthArea data={bundle.chartBlocks.portfolioGrowth.series} />}
+        kpis={bundle.chartBlocks.portfolioGrowth.kpis}
+      />
 
-      <ChartPanel title="Portfolio Performance">
-        <PortfolioOhlcChart data={bundle.charts.portfolioOhlc} />
-      </ChartPanel>
+      <AnalyticRow
+        title="Monthly Profit"
+        subtitle={bundle.range.label}
+        empty={periodEmpty && bundle.chartBlocks.monthlyProfit.series.every((s) => s.valuePaise === 0)}
+        chart={<MonthlyProfitBars data={bundle.chartBlocks.monthlyProfit.series} />}
+        kpis={bundle.chartBlocks.monthlyProfit.kpis}
+      />
 
+      <AnalyticRow
+        title="Current Capital Allocation"
+        subtitle="Where your money sits right now"
+        empty={bundle.chartBlocks.capitalAllocation.series.length === 0}
+        chart={<CapitalAllocationDonut data={bundle.chartBlocks.capitalAllocation.series} />}
+        kpis={bundle.chartBlocks.capitalAllocation.kpis}
+      />
+
+      <AnalyticRow
+        title="Investment Flow"
+        subtitle={`Purchases → repairs → sale → profit · ${bundle.range.label}`}
+        empty={periodEmpty}
+        chart={<InvestmentWaterfall data={bundle.chartBlocks.waterfall.series} />}
+        kpis={bundle.chartBlocks.waterfall.kpis}
+      />
+
+      {/* Portfolio Summary — lifetime */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Portfolio Summary</CardTitle>
+          <p className="text-xs text-ac-text-muted">Lifetime · all-time performance</p>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <StatTile
+              label="Lifetime Purchase Volume"
+              valuePaise={bundle.portfolioSummary.lifetimePurchaseVolumePaise}
+            />
+            <StatTile
+              label="Lifetime Profit"
+              valuePaise={bundle.portfolioSummary.lifetimeProfitPaise}
+            />
+            <StatTile
+              label="Overall ROI"
+              valueText={`${(bundle.portfolioSummary.overallRoiBps / 100).toFixed(1)}%`}
+            />
+            <StatTile
+              label="Vehicles Sold"
+              valueText={String(bundle.portfolioSummary.vehiclesSold)}
+            />
+            <StatTile
+              label="Average Profit per Vehicle"
+              valuePaise={bundle.portfolioSummary.avgProfitPerVehiclePaise}
+            />
+            <StatTile
+              label="Average Holding Days"
+              valueText={`${bundle.portfolioSummary.avgHoldingDays} days`}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Period section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">
+            {bundle.range.key === 'month' ? 'Current Month' : 'Selected Period'}
+          </CardTitle>
+          <p className="text-xs text-ac-text-muted">{bundle.period.label}</p>
+        </CardHeader>
+        <CardContent>
+          {bundle.isFuture || !bundle.period.hasData ? (
+            <p className="py-10 text-center text-sm text-ac-text-muted">
+              No data available for this period.
+            </p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <StatTile
+                label="Vehicles Purchased"
+                valueText={String(bundle.period.vehiclesPurchased)}
+              />
+              <StatTile
+                label="Vehicles Sold"
+                valueText={String(bundle.period.vehiclesSold)}
+              />
+              <StatTile label="Money Invested" valuePaise={bundle.period.moneyInvestedPaise} />
+              <StatTile label="Money Returned" valuePaise={bundle.period.moneyReturnedPaise} />
+              <StatTile label="Profit" valuePaise={bundle.period.profitPaise} />
+              <StatTile label="Repairs" valuePaise={bundle.period.repairsPaise} />
+              <StatTile label="Cash Available" valuePaise={bundle.period.cashAvailablePaise} />
+              <StatTile
+                label="Current Investment"
+                valuePaise={bundle.period.currentInvestmentPaise}
+              />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Activity + Manual profit */}
       <div className="grid gap-4 lg:grid-cols-5">
         <Card className="lg:col-span-3">
           <CardHeader>
-            <CardTitle className="text-base">Recent Activity</CardTitle>
+            <CardTitle className="text-base">Activity Timeline</CardTitle>
+            <p className="text-xs text-ac-text-muted">Purchase → repair → sale</p>
           </CardHeader>
           <CardContent>
             <ol className="relative space-y-0 border-l border-white/10 pl-5">
-              {bundle.activity.length === 0 ? (
-                <p className="text-sm text-ac-text-muted">No activity yet</p>
+              {(bundle.timeline.length ? bundle.timeline : bundle.activity.slice(0, 12)).length ===
+              0 ? (
+                <p className="text-sm text-ac-text-muted">No data available for this period.</p>
               ) : (
-                bundle.activity.map((item, i) => (
-                  <li key={item.id} className="relative pb-5 last:pb-0">
-                    <span className="absolute -left-[1.4rem] top-1.5 h-2.5 w-2.5 rounded-full bg-ac-accent shadow-[0_0_10px_var(--ac-accent-glow)]" />
-                    <motion.div
-                      initial={{ opacity: 0, x: -8 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.03 }}
-                    >
-                      <p className="text-sm font-medium">{activityTitle(item.action, item.afterState)}</p>
-                      <p className="text-xs text-ac-text-muted">
-                        {new Date(item.createdAt).toLocaleString('en-IN')}
-                        {item.entityType ? ` · ${item.entityType}` : ''}
-                      </p>
-                    </motion.div>
-                  </li>
-                ))
+                (bundle.timeline.length ? bundle.timeline : bundle.activity.slice(0, 12)).map(
+                  (item, i) => (
+                    <li key={item.id} className="relative pb-5 last:pb-0">
+                      <span className="absolute -left-[1.4rem] top-1.5 h-2.5 w-2.5 rounded-full bg-ac-accent shadow-[0_0_10px_var(--ac-accent-glow)]" />
+                      <motion.div
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.03 }}
+                      >
+                        <p className="text-sm font-medium">
+                          {activityTitle(item.action, item.afterState)}
+                        </p>
+                        <p className="text-xs text-ac-text-muted">
+                          {new Date(item.createdAt).toLocaleString('en-IN')}
+                          {item.entityType ? ` · ${item.entityType}` : ''}
+                        </p>
+                      </motion.div>
+                    </li>
+                  ),
+                )
               )}
             </ol>
           </CardContent>
@@ -337,16 +572,13 @@ export function OverviewDashboard({
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-ac-text-secondary">
-              Record non-vehicle profits — settlements, bonuses, adjustments. They flow into totals,
-              ROI, charts, and the ledger.
+              Record non-vehicle returns — bonuses, adjustments, settlements. Included in lifetime
+              profit and ROI.
             </p>
             <Button onClick={() => setManualOpen(true)} className="w-full">
               <Plus className="h-4 w-4" />
               Add Manual Profit
             </Button>
-            <p className="text-xs text-ac-text-muted">
-              Lifetime manual profit included in dashboard totals.
-            </p>
           </CardContent>
         </Card>
       </div>

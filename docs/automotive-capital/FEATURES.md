@@ -36,28 +36,25 @@ Feature specifications with acceptance criteria. Each feature is independently t
 
 ## F2 — Dashboard
 
-### F2.1 KPI Cards
+### F2.1 Hero KPIs (personal Investment OS)
 
 **Metrics displayed:**
 
 | Card | Calculation |
 |------|-------------|
-| Total Capital Invested | SUM(capital investments) − reversals |
-| Capital Outstanding | Invested − capital returned |
-| Money Received | SUM(all payments) |
-| Profit Earned | SUM(profit payments) |
-| Pending Profit | Sold asset profit − profit received |
-| Assets In Stock | COUNT(status NOT IN sold, settled, cancelled) |
-| Assets Sold | COUNT(status IN sold, settled) |
-| Average ROI | AVG(roi_bps) across sold assets |
-| Average Holding Days | AVG(holding_days) across sold assets |
-| Monthly Profit | Profit received in current month |
-| Yearly Profit | Profit received in current year |
-| Lifetime Profit | All-time profit received |
+| Current Investment | SUM(total_investment) on active vehicles (not sold/settled/cancelled) |
+| Lifetime Purchase Volume | SUM(purchase_price) of all non-cancelled vehicles |
+| Lifetime Profit | Payment profits + manual profits (all-time) |
+| Overall ROI | Lifetime profit ÷ lifetime purchase volume |
+| Cash Available | max(0, capital injected − current investment + lifetime profit) |
+| Active Vehicles | COUNT active |
+| Vehicles Sold | COUNT sold/settled |
+| Average Profit Per Vehicle | AVG(profit_paise) where set |
 
-- [ ] All cards load with skeleton state
-- [ ] Numbers animate on load (count-up)
-- [ ] Money formatted in Indian numbering
+Layout: each analytics block is **graph (≈65%) + related KPIs (≈35%)**. Month filter includes `< Month Year >` cursor. Default range = current month. No Best/Worst vehicle cards.
+
+- [x] All cards load with skeleton state
+- [x] Money formatted in Indian numbering
 - [ ] Cards clickable → relevant detail page
 
 ### F2.2 Charts

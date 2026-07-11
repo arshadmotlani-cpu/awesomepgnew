@@ -7,7 +7,9 @@
 
 ## Current Focus
 
-- **Automotive Capital new-asset form** — Shipped (`cd61a3c`); production `/assets/new` verified (Manufacturer/Model/Fuel/Year/Ownership/Purchase Date+Price; Registration/VIN/Expected Sale/Variant removed). Migration `0004` applied on invest Neon.
+- **Automotive Capital Overview redesign** — Personal Investment OS: Current Investment / Lifetime Purchase Volume / Lifetime Profit / ROI; graph+KPI rows; month cursor; Portfolio Summary + period sections. Deploy after tests green.
+
+- **Automotive Capital new-asset form** — Shipped (`cd61a3c`); production `/assets/new` verified. Migration `0004` applied on invest Neon.
 
 - **Automotive Capital Investment OS Overview** — Shipped to production (`6a9ec49`); invest Overview + manual profits verified live (19/19 checks). Neon migration already applied.
 

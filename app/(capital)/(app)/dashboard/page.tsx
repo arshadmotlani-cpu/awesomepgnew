@@ -7,10 +7,16 @@ export const metadata: Metadata = { title: 'Overview' };
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ range?: string; from?: string; to?: string }>;
+  searchParams: Promise<{ range?: string; from?: string; to?: string; month?: string }>;
 }) {
   const params = await searchParams;
-  const range = resolveDashboardRange(params.range, params.from, params.to);
+  // Default: current month
+  const range = resolveDashboardRange(
+    params.range ?? 'month',
+    params.from,
+    params.to,
+    params.month,
+  );
   const bundle = await getOverviewBundle(range);
 
   return (

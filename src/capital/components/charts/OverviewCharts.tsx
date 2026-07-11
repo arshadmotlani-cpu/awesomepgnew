@@ -8,10 +8,6 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  ComposedChart,
-  Legend,
-  Line,
-  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -22,20 +18,25 @@ import {
 import { formatInr } from '@/src/capital/lib/money';
 
 const tooltipStyle = {
-  background: 'rgba(15,15,20,0.95)',
-  border: '1px solid rgba(255,255,255,0.1)',
-  borderRadius: 10,
+  background: 'rgba(15,15,20,0.96)',
+  border: '1px solid rgba(255,255,255,0.12)',
+  borderRadius: 12,
   color: '#F4F4F5',
   fontSize: 12,
+  boxShadow: '0 12px 40px rgba(0,0,0,0.45)',
 };
 
-const COLORS = ['#22D3EE', '#8B5CF6', '#34D399', '#FBBF24', '#F87171', '#60A5FA', '#A78BFA', '#FB7185'];
+const COLORS = ['#22D3EE', '#8B5CF6', '#34D399', '#FBBF24', '#60A5FA', '#F87171'];
 
-function Empty() {
-  return <p className="flex h-56 items-center justify-center text-sm text-ac-text-muted">No data yet</p>;
+function Empty({ message = 'No data available for this period.' }: { message?: string }) {
+  return (
+    <div className="flex h-64 items-center justify-center px-6 text-center text-sm text-ac-text-muted">
+      {message}
+    </div>
+  );
 }
 
-function Wrap({ children, height = 260 }: { children: React.ReactNode; height?: number }) {
+function Wrap({ children, height = 280 }: { children: React.ReactNode; height?: number }) {
   return (
     <div className="w-full" style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
@@ -45,217 +46,202 @@ function Wrap({ children, height = 260 }: { children: React.ReactNode; height?: 
   );
 }
 
-function moneyTip(value: unknown) {
-  return formatInr(Math.round(Number(value) * 100));
+function formatAxis(rupees: number) {
+  const abs = Math.abs(rupees);
+  if (abs >= 1_00_00_000) return `₹${(rupees / 1_00_00_000).toFixed(1)}Cr`;
+  if (abs >= 1_00_000) return `₹${(rupees / 1_00_000).toFixed(1)}L`;
+  if (abs >= 1_000) return `₹${(rupees / 1_000).toFixed(0)}k`;
+  return `₹${rupees.toLocaleString('en-IN')}`;
 }
 
-export function MonthlyProfitLine({ data }: { data: { month: string; valuePaise: number }[] }) {
-  const chartData = useMemo(
-    () => data.map((d) => ({ month: d.month, profit: d.valuePaise / 100 })),
-    [data],
-  );
-  if (!chartData.length) return <Empty />;
-  return (
-    <Wrap>
-      <LineChart data={chartData}>
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-        <XAxis dataKey="month" stroke="#71717A" fontSize={11} />
-        <YAxis stroke="#71717A" fontSize={11} tickFormatter={(v) => `₹${Number(v).toLocaleString('en-IN')}`} />
-        <Tooltip formatter={(v) => moneyTip(v)} contentStyle={tooltipStyle} />
-        <Line
-          type="monotone"
-          dataKey="profit"
-          name="Profit"
-          stroke="#22D3EE"
-          strokeWidth={2.5}
-          dot={{ r: 3, fill: '#22D3EE' }}
-          activeDot={{ r: 7, stroke: '#fff', strokeWidth: 2 }}
-          animationDuration={900}
-        />
-      </LineChart>
-    </Wrap>
-  );
+function moneyTip(rupees: unknown) {
+  return formatInr(Math.round(Number(rupees) * 100));
 }
 
-export function MonthlyInvestmentArea({ data }: { data: { month: string; valuePaise: number }[] }) {
-  const chartData = useMemo(
-    () => data.map((d) => ({ month: d.month, invested: d.valuePaise / 100 })),
-    [data],
-  );
-  if (!chartData.length) return <Empty />;
-  return (
-    <Wrap>
-      <AreaChart data={chartData}>
-        <defs>
-          <linearGradient id="investFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#8B5CF6" stopOpacity={0.45} />
-            <stop offset="100%" stopColor="#8B5CF6" stopOpacity={0.02} />
-          </linearGradient>
-        </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-        <XAxis dataKey="month" stroke="#71717A" fontSize={11} />
-        <YAxis stroke="#71717A" fontSize={11} />
-        <Tooltip formatter={(v) => moneyTip(v)} contentStyle={tooltipStyle} />
-        <Area
-          type="monotone"
-          dataKey="invested"
-          name="Investment"
-          stroke="#8B5CF6"
-          fill="url(#investFill)"
-          strokeWidth={2}
-          activeDot={{ r: 6 }}
-          animationDuration={900}
-        />
-      </AreaChart>
-    </Wrap>
-  );
+function shortMonth(ym: string) {
+  const [y, m] = ym.split('-');
+  const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${names[Number(m) - 1] ?? m} ${y?.slice(2) ?? ''}`;
 }
 
-export function RoiGrowthLine({ data }: { data: { month: string; roiBps: number }[] }) {
-  const chartData = useMemo(
-    () => data.map((d) => ({ month: d.month, roi: d.roiBps / 100 })),
-    [data],
-  );
-  if (!chartData.length) return <Empty />;
-  return (
-    <Wrap>
-      <LineChart data={chartData}>
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-        <XAxis dataKey="month" stroke="#71717A" fontSize={11} />
-        <YAxis stroke="#71717A" fontSize={11} tickFormatter={(v) => `${v}%`} />
-        <Tooltip formatter={(v) => `${Number(v).toFixed(1)}%`} contentStyle={tooltipStyle} />
-        <Line
-          type="monotone"
-          dataKey="roi"
-          name="ROI"
-          stroke="#34D399"
-          strokeWidth={2.5}
-          activeDot={{ r: 7 }}
-          animationDuration={900}
-        />
-      </LineChart>
-    </Wrap>
-  );
-}
-
-export function AllocationDonut({ data }: { data: { label: string; valuePaise: number }[] }) {
-  const chartData = data
-    .filter((d) => d.valuePaise > 0)
-    .map((d) => ({ name: d.label, value: d.valuePaise / 100 }));
-  if (!chartData.length) return <Empty />;
-  return (
-    <Wrap>
-      <PieChart>
-        <Pie
-          data={chartData}
-          dataKey="value"
-          nameKey="name"
-          innerRadius={58}
-          outerRadius={90}
-          paddingAngle={3}
-          animationDuration={900}
-        >
-          {chartData.map((_, i) => (
-            <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="rgba(0,0,0,0.2)" />
-          ))}
-        </Pie>
-        <Tooltip formatter={(v) => moneyTip(v)} contentStyle={tooltipStyle} />
-        <Legend />
-      </PieChart>
-    </Wrap>
-  );
-}
-
-export function ExpensePie({ data }: { data: { label: string; valuePaise: number }[] }) {
-  const chartData = data.map((d) => ({ name: d.label, value: d.valuePaise / 100 }));
-  if (!chartData.length) return <Empty />;
-  return (
-    <Wrap>
-      <PieChart>
-        <Pie
-          data={chartData}
-          dataKey="value"
-          nameKey="name"
-          outerRadius={95}
-          animationDuration={900}
-        >
-          {chartData.map((_, i) => (
-            <Cell key={i} fill={COLORS[i % COLORS.length]} />
-          ))}
-        </Pie>
-        <Tooltip formatter={(v) => moneyTip(v)} contentStyle={tooltipStyle} />
-        <Legend />
-      </PieChart>
-    </Wrap>
-  );
-}
-
-export function ProfitSourcesBar({ data }: { data: { label: string; valuePaise: number }[] }) {
-  const chartData = data.map((d) => ({ label: d.label, value: d.valuePaise / 100 }));
-  if (!chartData.length) return <Empty />;
-  return (
-    <Wrap height={280}>
-      <BarChart data={chartData} layout="vertical" margin={{ left: 12 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-        <XAxis type="number" stroke="#71717A" fontSize={11} />
-        <YAxis type="category" dataKey="label" width={90} stroke="#71717A" fontSize={11} />
-        <Tooltip formatter={(v) => moneyTip(v)} contentStyle={tooltipStyle} />
-        <Bar dataKey="value" name="Profit" fill="#22D3EE" radius={[0, 6, 6, 0]} animationDuration={900} />
-      </BarChart>
-    </Wrap>
-  );
-}
-
-export function StatusDonut({ data }: { data: { label: string; value: number }[] }) {
-  const chartData = data.filter((d) => d.value > 0).map((d) => ({ name: d.label, value: d.value }));
-  if (!chartData.length) return <Empty />;
-  return (
-    <Wrap>
-      <PieChart>
-        <Pie data={chartData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={88} paddingAngle={2}>
-          {chartData.map((_, i) => (
-            <Cell key={i} fill={COLORS[i % COLORS.length]} />
-          ))}
-        </Pie>
-        <Tooltip contentStyle={tooltipStyle} />
-        <Legend />
-      </PieChart>
-    </Wrap>
-  );
-}
-
-export function PortfolioOhlcChart({
+/** Cumulative portfolio growth (lifetime profit trajectory). */
+export function PortfolioGrowthArea({
   data,
 }: {
-  data: { month: string; openPaise: number; highPaise: number; lowPaise: number; closePaise: number }[];
+  data: { month: string; valuePaise: number }[];
 }) {
   const chartData = useMemo(
     () =>
       data.map((d) => ({
-        month: d.month,
-        open: d.openPaise / 100,
-        high: d.highPaise / 100,
-        low: d.lowPaise / 100,
-        close: d.closePaise / 100,
-        range: [d.lowPaise / 100, d.highPaise / 100],
+        month: shortMonth(d.month),
+        value: d.valuePaise / 100,
       })),
     [data],
   );
   if (!chartData.length) return <Empty />;
   return (
     <Wrap height={300}>
-      <ComposedChart data={chartData}>
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-        <XAxis dataKey="month" stroke="#71717A" fontSize={11} />
-        <YAxis stroke="#71717A" fontSize={11} />
-        <Tooltip
-          contentStyle={tooltipStyle}
-          formatter={(v, name) => [moneyTip(Array.isArray(v) ? v[1] : v), String(name)]}
+      <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+        <defs>
+          <linearGradient id="growthFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#22D3EE" stopOpacity={0.4} />
+            <stop offset="100%" stopColor="#22D3EE" stopOpacity={0.02} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+        <XAxis dataKey="month" stroke="#71717A" fontSize={11} tickLine={false} axisLine={false} />
+        <YAxis
+          stroke="#71717A"
+          fontSize={11}
+          tickLine={false}
+          axisLine={false}
+          tickFormatter={formatAxis}
+          width={56}
         />
-        <Bar dataKey="range" name="Range" fill="rgba(34,211,238,0.25)" barSize={10} />
-        <Line type="monotone" dataKey="close" name="Close" stroke="#FBBF24" strokeWidth={2} dot={{ r: 3 }} />
-        <Line type="monotone" dataKey="open" name="Open" stroke="#60A5FA" strokeWidth={1.5} strokeDasharray="4 4" dot={false} />
-      </ComposedChart>
+        <Tooltip
+          formatter={(v) => [moneyTip(v), 'Portfolio']}
+          contentStyle={tooltipStyle}
+          cursor={{ stroke: 'rgba(34,211,238,0.35)', strokeWidth: 1 }}
+        />
+        <Area
+          type="monotone"
+          dataKey="value"
+          name="Growth"
+          stroke="#22D3EE"
+          fill="url(#growthFill)"
+          strokeWidth={2.5}
+          activeDot={{ r: 6, stroke: '#fff', strokeWidth: 2, fill: '#22D3EE' }}
+          animationDuration={1000}
+          animationEasing="ease-out"
+        />
+      </AreaChart>
+    </Wrap>
+  );
+}
+
+/** Monthly profit bars. */
+export function MonthlyProfitBars({
+  data,
+}: {
+  data: { month: string; valuePaise: number }[];
+}) {
+  const chartData = useMemo(
+    () =>
+      data.map((d) => ({
+        month: shortMonth(d.month),
+        profit: d.valuePaise / 100,
+      })),
+    [data],
+  );
+  if (!chartData.length) return <Empty />;
+  const hasAny = chartData.some((d) => d.profit !== 0);
+  if (!hasAny) return <Empty />;
+  return (
+    <Wrap height={300}>
+      <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+        <XAxis dataKey="month" stroke="#71717A" fontSize={11} tickLine={false} axisLine={false} />
+        <YAxis
+          stroke="#71717A"
+          fontSize={11}
+          tickLine={false}
+          axisLine={false}
+          tickFormatter={formatAxis}
+          width={56}
+        />
+        <Tooltip
+          formatter={(v) => [moneyTip(v), 'Profit']}
+          contentStyle={tooltipStyle}
+          cursor={{ fill: 'rgba(34,211,238,0.08)' }}
+        />
+        <Bar
+          dataKey="profit"
+          name="Profit"
+          fill="#34D399"
+          radius={[6, 6, 0, 0]}
+          animationDuration={900}
+          activeBar={{ fill: '#6EE7B7' }}
+        />
+      </BarChart>
+    </Wrap>
+  );
+}
+
+/** Current capital allocation donut. */
+export function CapitalAllocationDonut({
+  data,
+}: {
+  data: { label: string; valuePaise: number }[];
+}) {
+  const chartData = data
+    .filter((d) => d.valuePaise > 0)
+    .map((d) => ({ name: d.label, value: d.valuePaise / 100 }));
+  if (!chartData.length) return <Empty />;
+  return (
+    <Wrap height={300}>
+      <PieChart>
+        <Pie
+          data={chartData}
+          dataKey="value"
+          nameKey="name"
+          innerRadius={68}
+          outerRadius={104}
+          paddingAngle={3}
+          animationDuration={1000}
+          stroke="rgba(8,8,12,0.6)"
+          strokeWidth={2}
+        >
+          {chartData.map((_, i) => (
+            <Cell key={i} fill={COLORS[i % COLORS.length]} />
+          ))}
+        </Pie>
+        <Tooltip formatter={(v) => moneyTip(v)} contentStyle={tooltipStyle} />
+      </PieChart>
+    </Wrap>
+  );
+}
+
+/** Investment → repairs → sale → profit waterfall (as signed flow bars). */
+export function InvestmentWaterfall({
+  data,
+}: {
+  data: { label: string; valuePaise: number; kind: 'out' | 'in' | 'result' }[];
+}) {
+  const chartData = useMemo(
+    () =>
+      data.map((d) => ({
+        label: d.label,
+        value: d.valuePaise / 100,
+        fill:
+          d.kind === 'result'
+            ? '#34D399'
+            : d.kind === 'in'
+              ? '#22D3EE'
+              : '#8B5CF6',
+      })),
+    [data],
+  );
+  if (!chartData.length || chartData.every((d) => d.value === 0)) return <Empty />;
+  return (
+    <Wrap height={300}>
+      <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+        <XAxis dataKey="label" stroke="#71717A" fontSize={11} tickLine={false} axisLine={false} />
+        <YAxis
+          stroke="#71717A"
+          fontSize={11}
+          tickLine={false}
+          axisLine={false}
+          tickFormatter={formatAxis}
+          width={56}
+        />
+        <Tooltip formatter={(v) => moneyTip(v)} contentStyle={tooltipStyle} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+        <Bar dataKey="value" radius={[6, 6, 0, 0]} animationDuration={900}>
+          {chartData.map((entry, i) => (
+            <Cell key={i} fill={entry.fill} />
+          ))}
+        </Bar>
+      </BarChart>
     </Wrap>
   );
 }

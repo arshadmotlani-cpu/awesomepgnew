@@ -183,3 +183,5 @@ Files:
 ---
 
 - 2026-07-11: Capital asset create form field redesign (fuel/ownership; drop reg/VIN/expected sale from form)
+
+- 2026-07-11: Capital Overview redesigned as personal Investment OS (portfolio KPIs + chart/KPI pairing + month cursor)

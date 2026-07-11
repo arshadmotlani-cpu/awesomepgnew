@@ -138,3 +138,6 @@
 ## TASK — Capital asset form fields (2026-07-11)
 - Update `/assets/new` CreateAssetForm: Manufacturer searchable, Model, Fuel, Year, Ownership (1–3), Purchase Date default today, Purchase Price; remove Registration/VIN/Expected Sale/Variant.
 - Migration 0004 + deploy + verify invest production.
+
+## TASK — Capital Overview Investment OS redesign (2026-07-11)
+- Redesign `/dashboard` as personal portfolio OS: hero KPIs, 65/35 chart+KPI rows, month nav, portfolio summary, period section; remove best/worst and misleading total capital invested.
