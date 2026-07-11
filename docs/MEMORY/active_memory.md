@@ -7,7 +7,7 @@
 
 ## Current Focus
 
-- **Automotive Capital Overview redesign** — Personal Investment OS: Current Investment / Lifetime Purchase Volume / Lifetime Profit / ROI; graph+KPI rows; month cursor; Portfolio Summary + period sections. Deploy after tests green.
+- **Automotive Capital Overview redesign** — Shipped (`a8ed762`); invest production verified (hero KPIs, graph+KPI rows, month cursor, Portfolio Summary / Current Month).
 
 - **Automotive Capital new-asset form** — Shipped (`cd61a3c`); production `/assets/new` verified. Migration `0004` applied on invest Neon.
 
