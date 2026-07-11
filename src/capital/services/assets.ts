@@ -11,11 +11,11 @@ import {
 } from '@/src/capital/db/schema';
 import {
   calcHoldingDays,
-  calcRoiBps,
   calcSettlementPctBps,
   normalizeRegistration,
 } from '@/src/capital/lib/money';
 import { computeProfitShare } from '@/src/capital/lib/profitShare';
+import { computeVehicleRois } from '@/src/capital/lib/roi';
 import {
   activeInvestmentSql,
   paymentEligibleSql,
@@ -69,7 +69,6 @@ export async function recalculateAsset(assetId: string, db: CapitalDbClient = ca
   const profitPaise =
     asset.actualSalePricePaise != null ? asset.actualSalePricePaise - totalInvestment : null;
   const holdingDays = calcHoldingDays(asset.purchaseDate, asset.saleDate);
-  const roiBps = profitPaise != null ? calcRoiBps(profitPaise, totalInvestment) : null;
   const settlementPctBps = calcSettlementPctBps(recoveredPaise, totalInvestment);
   const outstandingPaise = totalInvestment - capitalReturned + refundPaise;
 
@@ -85,14 +84,16 @@ export async function recalculateAsset(assetId: string, db: CapitalDbClient = ca
     );
   }
 
-  // Preserve share fields; refresh business/my ROI if share already set
-  const shareUpdate =
-    profitPaise != null && asset.mySharePaise != null
-      ? {
-          businessRoiBps: calcRoiBps(profitPaise, totalInvestment),
-          myRoiBps: calcRoiBps(asset.mySharePaise, totalInvestment),
-        }
-      : {};
+  // Refresh business/personal ROI from gross vs my share over total investment
+  const roiFields =
+    profitPaise != null
+      ? (() => {
+          const myShare = asset.mySharePaise ?? profitPaise;
+          const partnerShare =
+            asset.partnerSharePaise ?? Math.max(0, profitPaise - myShare);
+          return computeVehicleRois(profitPaise, myShare, partnerShare, totalInvestment);
+        })()
+      : { businessRoiBps: null, myRoiBps: null, roiBps: null };
 
   await db
     .update(acAssets)
@@ -101,13 +102,14 @@ export async function recalculateAsset(assetId: string, db: CapitalDbClient = ca
       totalInvestmentPaise: totalInvestment,
       holdingDays,
       profitPaise,
-      roiBps,
+      roiBps: roiFields.roiBps,
+      businessRoiBps: roiFields.businessRoiBps,
+      myRoiBps: roiFields.myRoiBps,
       capitalReturnedPaise: capitalReturned,
       profitReceivedPaise: profitReceived,
       outstandingPaise: Math.max(0, outstandingPaise),
       settlementPctBps,
       updatedAt: new Date(),
-      ...shareUpdate,
     })
     .where(eq(acAssets.id, assetId));
 }

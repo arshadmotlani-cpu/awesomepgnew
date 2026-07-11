@@ -387,13 +387,19 @@ export function OverviewDashboard({
         })}
       </div>
 
-      {/* Hero KPIs */}
+      {/* Hero KPIs — rotating pool model */}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <HeroMetric
+          label="Working Capital"
+          valuePaise={bundle.hero.workingCapitalPaise}
+          accent
+        />
         <HeroMetric
           label="Current Investment"
           valuePaise={bundle.hero.currentInvestmentPaise}
           accent
         />
+        <HeroMetric label="Free Cash" valuePaise={bundle.hero.freeCashPaise} accent />
         <HeroMetric
           label="Lifetime Purchase Volume"
           valuePaise={bundle.hero.lifetimePurchaseVolumePaise}
@@ -405,21 +411,15 @@ export function OverviewDashboard({
         <HeroMetric
           label="My Lifetime Profit"
           valuePaise={bundle.hero.myLifetimeProfitPaise}
-          accent
-        />
-        <HeroMetric
-          label="Overall Business ROI"
-          valueText={`${(bundle.hero.businessRoiBps / 100).toFixed(1)}%`}
-        />
-        <HeroMetric
-          label="My Personal ROI"
-          valueText={`${(bundle.hero.myRoiBps / 100).toFixed(1)}%`}
         />
       </div>
 
       {/* Secondary row */}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile label="Cash Available" valuePaise={bundle.secondary.cashAvailablePaise} />
+        <StatTile
+          label="Initial Capital"
+          valuePaise={bundle.secondary.initialCapitalPaise}
+        />
         <StatTile
           label="Active Vehicles"
           valueText={String(bundle.secondary.activeVehicles)}
@@ -563,6 +563,18 @@ export function OverviewDashboard({
         <CardContent>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <StatTile
+              label="Working Capital"
+              valuePaise={bundle.portfolioSummary.workingCapitalPaise}
+            />
+            <StatTile
+              label="Free Cash"
+              valuePaise={bundle.portfolioSummary.freeCashPaise}
+            />
+            <StatTile
+              label="Current Investment"
+              valuePaise={bundle.portfolioSummary.currentInvestmentPaise}
+            />
+            <StatTile
               label="Lifetime Purchase Volume"
               valuePaise={bundle.portfolioSummary.lifetimePurchaseVolumePaise}
             />
@@ -583,8 +595,8 @@ export function OverviewDashboard({
               valueText={`${(bundle.portfolioSummary.myRoiBps / 100).toFixed(1)}%`}
             />
             <StatTile
-              label="My Capital Invested"
-              valuePaise={bundle.portfolioSummary.capitalInvestedPaise}
+              label="Initial Capital"
+              valuePaise={bundle.portfolioSummary.initialCapitalPaise}
             />
             <StatTile
               label="Vehicles Sold"
@@ -625,12 +637,19 @@ export function OverviewDashboard({
                 label="Vehicles Sold"
                 valueText={String(bundle.period.vehiclesSold)}
               />
-              <StatTile label="Money Invested" valuePaise={bundle.period.moneyInvestedPaise} />
-              <StatTile label="Money Returned" valuePaise={bundle.period.moneyReturnedPaise} />
+              <StatTile label="Purchases (volume)" valuePaise={bundle.period.moneyInvestedPaise} />
+              <StatTile
+                label="Capital Recovered"
+                valuePaise={bundle.period.capitalRecoveredPaise}
+              />
               <StatTile label="Gross Profit" valuePaise={bundle.period.grossProfitPaise} />
               <StatTile label="My Profit" valuePaise={bundle.period.myProfitPaise} />
               <StatTile label="Repairs" valuePaise={bundle.period.repairsPaise} />
-              <StatTile label="Cash Available" valuePaise={bundle.period.cashAvailablePaise} />
+              <StatTile label="Free Cash" valuePaise={bundle.period.freeCashPaise} />
+              <StatTile
+                label="Working Capital"
+                valuePaise={bundle.period.workingCapitalPaise}
+              />
               <StatTile
                 label="Current Investment"
                 valuePaise={bundle.period.currentInvestmentPaise}

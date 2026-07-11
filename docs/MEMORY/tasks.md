@@ -10,6 +10,8 @@
 
 ## 2026-07-11
 
+- [x] **CAPITAL-POOL-01** — Replace Cash Available with Working Capital / Free Cash / Current Investment (rotating pool; no capital double-count)
+- [x] **CAPITAL-ROI-01** — Audit/fix Business vs Personal ROI formulas (gross÷purchase volume; my profit÷capital invested; clamp Personal ≤ Business when partner share > 0); unit tests for 20%/10% example
 - [x] **OPS-BA-02** — Align sidebar/Overview badges with unified Operations queue totalCount
 - [x] **OPS-BA-01** — Fix Booking Approval queue retaining Reserved bookings + broken `/booking/:code` View reservation link
 - [x] **CAPITAL-OS-01** — Redesign Overview into Investment OS (KPIs, charts, manual profit, insights, range filters); migration `0003_manual_profits` applied on Neon

@@ -1,4 +1,4 @@
-import { calcRoiBps } from '@/src/capital/lib/money';
+import { computeVehicleRois } from '@/src/capital/lib/roi';
 
 export type ProfitShareMode = 'percentage' | 'fixed';
 
@@ -79,14 +79,12 @@ export function computeProfitShare(
     }
   }
 
-  const businessRoiBps =
-    investmentPaise != null && investmentPaise > 0
-      ? calcRoiBps(gross, investmentPaise)
-      : null;
-  const myRoiBps =
-    investmentPaise != null && investmentPaise > 0
-      ? calcRoiBps(mySharePaise, investmentPaise)
-      : null;
+  const { businessRoiBps, myRoiBps } = computeVehicleRois(
+    gross,
+    mySharePaise,
+    partnerSharePaise,
+    investmentPaise ?? 0,
+  );
 
   return {
     mode: input.mode,
@@ -95,8 +93,8 @@ export function computeProfitShare(
     mySharePaise,
     partnerSharePctBps,
     mySharePctBps,
-    businessRoiBps,
-    myRoiBps,
+    businessRoiBps: investmentPaise != null && investmentPaise > 0 ? businessRoiBps : null,
+    myRoiBps: investmentPaise != null && investmentPaise > 0 ? myRoiBps : null,
   };
 }
 

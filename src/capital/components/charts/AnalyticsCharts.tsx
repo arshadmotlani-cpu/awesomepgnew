@@ -18,7 +18,7 @@ type ValuePoint = { month: string; valuePaise: number };
 type CashFlowPoint = { month: string; inflowPaise: number; outflowPaise: number };
 type LabelPoint = { label: string; valuePaise: number };
 type CountPoint = { month: string; count: number };
-type RoiPoint = { month: string; roiBps: number };
+type RoiPoint = { month: string; roiBps: number; myRoiBps?: number };
 type HoldingPoint = { month: string; days: number };
 
 export function ValueBarChart({ data, label }: { data: ValuePoint[]; label: string }) {
@@ -91,7 +91,11 @@ export function CountLineChart({ data, label }: { data: CountPoint[]; label: str
 }
 
 export function RoiLineChart({ data }: { data: RoiPoint[] }) {
-  const chartData = data.map((d) => ({ month: d.month, roi: d.roiBps / 100 }));
+  const chartData = data.map((d) => ({
+    month: d.month,
+    business: d.roiBps / 100,
+    mine: (d.myRoiBps ?? 0) / 100,
+  }));
   if (chartData.length === 0) return <Empty />;
   return (
     <ChartWrap>
@@ -100,7 +104,8 @@ export function RoiLineChart({ data }: { data: RoiPoint[] }) {
         <XAxis dataKey="month" stroke="#71717A" fontSize={12} />
         <YAxis stroke="#71717A" fontSize={12} tickFormatter={(v) => `${v}%`} />
         <Tooltip formatter={(v) => `${Number(v).toFixed(1)}%`} contentStyle={tooltipStyle} />
-        <Line type="monotone" dataKey="roi" name="ROI" stroke="#34D399" strokeWidth={2} />
+        <Line type="monotone" dataKey="business" name="Business ROI" stroke="#34D399" strokeWidth={2} />
+        <Line type="monotone" dataKey="mine" name="My ROI" stroke="#22D3EE" strokeWidth={2} />
       </LineChart>
     </ChartWrap>
   );

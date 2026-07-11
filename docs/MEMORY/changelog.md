@@ -9,6 +9,8 @@
 
 ## 2026-07-11
 
+- **CAPITAL-POOL-MODEL** — Working Capital = Initial + My Profit; Free Cash = WC − Current Investment − Capital in Transit; Lifetime Purchase Volume never used for cash; returned capital is not new wealth
+- **CAPITAL-ROI-AUDIT** — Canonical Business ROI = gross÷purchase volume; Personal ROI = my profit÷capital invested; clamp when partner share > 0; wired through overview, analytics, reports, vehicle recalc, sale/manual profit
 - **CAPITAL-OS-OVERVIEW** — Investment OS Overview dashboard + manual profits (`ac_manual_profits`, ledger `manual_profit`); Neon migration applied; screenshots in `.invoice-pdf-samples/dashboard-screenshots/`
 - **CAPITAL-OS-DEPLOY** — Production deploy `6a9ec49` Ready on invest; 19/19 live checks (login, Overview, manual profit→ledger, assets/expenses/payments/reports/capital, health)
 - **OPS-BA-02** — Sidebar Operations/Overview badges now equal `unifiedOperationsQueue.totalCount` (same SSOT as Operations page); no residents parallel queue

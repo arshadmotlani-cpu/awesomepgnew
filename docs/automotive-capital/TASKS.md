@@ -246,7 +246,7 @@ Granular implementation checklist. Mark items complete as work progresses.
 ### 5.1 Unit Tests
 - [ ] `tests/capital/unit/ledger.test.ts`
 - [ ] `tests/capital/unit/money.test.ts`
-- [ ] `tests/capital/unit/roi.test.ts`
+- [x] `tests/capital/unit/roi.test.ts`
 - [ ] `tests/capital/unit/paymentSplit.test.ts`
 - [ ] `tests/capital/unit/reversal.test.ts`
 - [ ] `tests/capital/unit/auth.test.ts`

@@ -7,6 +7,8 @@
 
 ## Current Focus
 
+- **Automotive Capital rotating pool model** — Working Capital / Free Cash / Current Investment (no capital double-count). ROI + pool formulas in `src/capital/lib/`. Awaiting production verify after deploy.
+
 - **Automotive Capital Overview redesign** — Shipped (`a8ed762`); invest production verified (hero KPIs, graph+KPI rows, month cursor, Portfolio Summary / Current Month).
 
 - **Automotive Capital new-asset form** — Shipped (`cd61a3c`); production `/assets/new` verified. Migration `0004` applied on invest Neon.

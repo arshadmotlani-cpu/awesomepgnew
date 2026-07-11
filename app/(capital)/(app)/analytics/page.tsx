@@ -26,7 +26,7 @@ export default async function AnalyticsPage() {
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm text-ac-text-secondary">Average ROI</CardTitle>
+            <CardTitle className="text-sm text-ac-text-secondary">Avg Business ROI</CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-semibold">
             {(data.kpis.averageRoiBps / 100).toFixed(1)}%
@@ -34,17 +34,17 @@ export default async function AnalyticsPage() {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm text-ac-text-secondary">Avg holding period</CardTitle>
+            <CardTitle className="text-sm text-ac-text-secondary">Avg My ROI</CardTitle>
           </CardHeader>
-          <CardContent className="text-2xl font-semibold">{data.kpis.averageHoldingDays} days</CardContent>
+          <CardContent className="text-2xl font-semibold">
+            {((data.kpis.averageMyRoiBps ?? 0) / 100).toFixed(1)}%
+          </CardContent>
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm text-ac-text-secondary">Yearly profit</CardTitle>
+            <CardTitle className="text-sm text-ac-text-secondary">Avg holding period</CardTitle>
           </CardHeader>
-          <CardContent className="text-2xl font-semibold">
-            <MoneyDisplay paise={data.kpis.yearlyProfitPaise} />
-          </CardContent>
+          <CardContent className="text-2xl font-semibold">{data.kpis.averageHoldingDays} days</CardContent>
         </Card>
       </div>
 
@@ -85,7 +85,8 @@ export default async function AnalyticsPage() {
               <tr className="border-b border-white/8 text-left text-ac-text-muted">
                 <th className="pb-3 pr-4 font-medium">Manufacturer</th>
                 <th className="pb-3 pr-4 font-medium">Assets</th>
-                <th className="pb-3 pr-4 font-medium">Avg ROI</th>
+                <th className="pb-3 pr-4 font-medium">Avg Business ROI</th>
+                <th className="pb-3 pr-4 font-medium">Avg My ROI</th>
                 <th className="pb-3 font-medium text-right">Total profit</th>
               </tr>
             </thead>
@@ -95,6 +96,7 @@ export default async function AnalyticsPage() {
                   <td className="py-3 pr-4 font-medium">{m.manufacturer}</td>
                   <td className="py-3 pr-4">{m.count}</td>
                   <td className="py-3 pr-4">{(m.avgRoiBps / 100).toFixed(1)}%</td>
+                  <td className="py-3 pr-4">{((m.avgMyRoiBps ?? 0) / 100).toFixed(1)}%</td>
                   <td className="py-3 text-right">
                     <MoneyDisplay paise={m.totalProfitPaise} />
                   </td>

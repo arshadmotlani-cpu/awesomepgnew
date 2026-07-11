@@ -18,7 +18,8 @@ import {
   acExpenses,
   acPaymentsReceived,
 } from '@/src/capital/db/schema';
-import { monthlyManualProfitSeries, sumManualProfitsPaise } from './manualProfits';
+import { monthlyManualProfitSeries, sumManualMySharePaise } from './manualProfits';
+import { computeWorkingCapitalPool } from '@/src/capital/lib/workingCapital';
 
 async function computeDashboardKpis() {
   const [capitalRow] = await capitalDb
@@ -46,9 +47,12 @@ async function computeDashboardKpis() {
     .where(sql`${acAssets.status} IN ('sold', 'settled')`);
 
   const [avgRoi] = await capitalDb
-    .select({ avg: sql<number>`COALESCE(AVG(${acAssets.roiBps}), 0)` })
+    .select({
+      avgBusiness: sql<number>`COALESCE(AVG(COALESCE(${acAssets.businessRoiBps}, ${acAssets.roiBps})), 0)`,
+      avgMine: sql<number>`COALESCE(AVG(${acAssets.myRoiBps}), 0)`,
+    })
     .from(acAssets)
-    .where(sql`${acAssets.roiBps} IS NOT NULL`);
+    .where(sql`${acAssets.roiBps} IS NOT NULL OR ${acAssets.businessRoiBps} IS NOT NULL`);
 
   const [avgHolding] = await capitalDb
     .select({ avg: sql<number>`COALESCE(AVG(${acAssets.holdingDays}), 0)` })
@@ -75,34 +79,62 @@ async function computeDashboardKpis() {
     .where(and(eq(acPaymentsReceived.isReversed, false), gte(acPaymentsReceived.receivedAt, monthStart)));
 
   const totalCapital = Number(capitalRow?.total ?? 0);
-  const capitalReturned = Number(paymentRows?.capital ?? 0);
-  const manualProfitAll = await sumManualProfitsPaise();
-  const manualProfitMonth = await sumManualProfitsPaise({ from: monthStart });
-  const manualProfitYear = await sumManualProfitsPaise({ from: yearStart });
+  const manualMyShareAll = await sumManualMySharePaise();
+  const manualProfitMonth = await sumManualMySharePaise({ from: monthStart });
+  const manualProfitYear = await sumManualMySharePaise({ from: yearStart });
   const paymentProfit = Number(paymentRows?.profit ?? 0);
-  const profitEarned = paymentProfit + manualProfitAll;
-  const moneyReceived = Number(paymentRows?.total ?? 0) + manualProfitAll;
+
+  const [myShareRow] = await capitalDb
+    .select({ total: sum(acAssets.mySharePaise) })
+    .from(acAssets)
+    .where(sql`${acAssets.mySharePaise} IS NOT NULL AND ${acAssets.status} <> 'cancelled'`);
+
+  // My lifetime profit = entitled share after partner cut (not capital returned)
+  const myLifetimeProfit = Number(myShareRow?.total ?? 0) + manualMyShareAll;
+  const moneyReceived = Number(paymentRows?.total ?? 0) + manualMyShareAll;
 
   const [pendingProfitSold] = await capitalDb
-    .select({ total: sum(acAssets.profitPaise) })
+    .select({ total: sum(acAssets.mySharePaise) })
     .from(acAssets)
-    .where(sql`${acAssets.status} IN ('sold', 'settled') AND ${acAssets.profitPaise} IS NOT NULL`);
+    .where(sql`${acAssets.status} IN ('sold', 'settled') AND ${acAssets.mySharePaise} IS NOT NULL`);
 
+  const [currentInvestmentRow] = await capitalDb
+    .select({ total: sum(acAssets.totalInvestmentPaise) })
+    .from(acAssets)
+    .where(sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled')`);
+
+  const [inTransitRow] = await capitalDb
+    .select({ total: sum(acAssets.outstandingPaise) })
+    .from(acAssets)
+    .where(sql`${acAssets.status} = 'sold'`);
+
+  const currentInvestmentPaise = Number(currentInvestmentRow?.total ?? 0);
   const pendingProfitPaise = Math.max(0, Number(pendingProfitSold?.total ?? 0) - paymentProfit);
+
+  const { workingCapitalPaise, freeCashPaise } = computeWorkingCapitalPool({
+    initialCapitalPaise: totalCapital,
+    myProfitPaise: myLifetimeProfit,
+    currentInvestmentPaise,
+    capitalInTransitPaise: Number(inTransitRow?.total ?? 0),
+  });
 
   return {
     totalCapitalInvestedPaise: totalCapital,
-    capitalOutstandingPaise: Math.max(0, totalCapital - capitalReturned),
+    workingCapitalPaise,
+    freeCashPaise,
+    currentInvestmentPaise,
+    capitalOutstandingPaise: currentInvestmentPaise,
     moneyReceivedPaise: moneyReceived,
-    profitEarnedPaise: profitEarned,
+    profitEarnedPaise: myLifetimeProfit,
     pendingProfitPaise,
     assetsInStock: Number(stockCount?.c ?? 0),
     assetsSold: Number(soldCount?.c ?? 0),
-    averageRoiBps: Math.round(Number(avgRoi?.avg ?? 0)),
+    averageRoiBps: Math.round(Number(avgRoi?.avgBusiness ?? 0)),
+    averageMyRoiBps: Math.round(Number(avgRoi?.avgMine ?? 0)),
     averageHoldingDays: Math.round(Number(avgHolding?.avg ?? 0)),
     monthlyProfitPaise: Number(monthProfit?.total ?? 0) + manualProfitMonth,
     yearlyProfitPaise: Number(yearProfit?.total ?? 0) + manualProfitYear,
-    lifetimeProfitPaise: profitEarned,
+    lifetimeProfitPaise: myLifetimeProfit,
     monthlyCashPaise: Number(monthCash?.total ?? 0) + manualProfitMonth,
   };
 }
@@ -219,13 +251,20 @@ export async function getRoiTrendChart() {
   const rows = await capitalDb
     .select({
       month: sql<string>`to_char(${acAssets.saleDate}::date, 'YYYY-MM')`,
-      avgRoi: sql<number>`COALESCE(AVG(${acAssets.roiBps}), 0)`,
+      avgBusinessRoi: sql<number>`COALESCE(AVG(COALESCE(${acAssets.businessRoiBps}, ${acAssets.roiBps})), 0)`,
+      avgMyRoi: sql<number>`COALESCE(AVG(${acAssets.myRoiBps}), 0)`,
     })
     .from(acAssets)
-    .where(sql`${acAssets.saleDate} IS NOT NULL AND ${acAssets.roiBps} IS NOT NULL`)
-    .groupBy(sql`1`)
-    .orderBy(sql`1`);
-  return rows.map((r) => ({ month: r.month, roiBps: Math.round(Number(r.avgRoi)) }));
+    .where(
+      sql`${acAssets.saleDate} IS NOT NULL AND COALESCE(${acAssets.businessRoiBps}, ${acAssets.roiBps}) IS NOT NULL`,
+    )
+    .groupBy(sql`to_char(${acAssets.saleDate}::date, 'YYYY-MM')`)
+    .orderBy(sql`to_char(${acAssets.saleDate}::date, 'YYYY-MM')`);
+  return rows.map((r) => ({
+    month: r.month,
+    roiBps: Math.round(Number(r.avgBusinessRoi)),
+    myRoiBps: Math.round(Number(r.avgMyRoi)),
+  }));
 }
 
 export async function getHoldingTimeChart() {
@@ -245,20 +284,24 @@ export async function getManufacturerPerformance() {
   const rows = await capitalDb
     .select({
       manufacturer: acAutomotiveDetails.manufacturer,
-      avgRoi: sql<number>`COALESCE(AVG(${acAssets.roiBps}), 0)`,
+      avgRoi: sql<number>`COALESCE(AVG(COALESCE(${acAssets.businessRoiBps}, ${acAssets.roiBps})), 0)`,
+      avgMyRoi: sql<number>`COALESCE(AVG(${acAssets.myRoiBps}), 0)`,
       count: count(),
       totalProfit: sum(acAssets.profitPaise),
+      totalMyShare: sum(acAssets.mySharePaise),
     })
     .from(acAssets)
     .innerJoin(acAutomotiveDetails, eq(acAssets.id, acAutomotiveDetails.assetId))
     .where(sql`${acAssets.profitPaise} IS NOT NULL`)
     .groupBy(acAutomotiveDetails.manufacturer)
-    .orderBy(desc(sql`COALESCE(AVG(${acAssets.roiBps}), 0)`));
+    .orderBy(desc(sql`COALESCE(AVG(COALESCE(${acAssets.businessRoiBps}, ${acAssets.roiBps})), 0)`));
   return rows.map((r) => ({
     manufacturer: r.manufacturer,
     avgRoiBps: Math.round(Number(r.avgRoi)),
+    avgMyRoiBps: Math.round(Number(r.avgMyRoi)),
     count: Number(r.count),
     totalProfitPaise: Number(r.totalProfit ?? 0),
+    totalMySharePaise: Number(r.totalMyShare ?? 0),
   }));
 }
 

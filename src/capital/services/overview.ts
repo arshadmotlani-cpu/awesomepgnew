@@ -17,7 +17,6 @@ import {
   acExpenses,
   acPaymentsReceived,
 } from '@/src/capital/db/schema';
-import { calcRoiBps } from '@/src/capital/lib/money';
 import {
   isFutureRange,
   isoDate,
@@ -27,6 +26,8 @@ import {
   type DateRange,
   type DashboardRange,
 } from '@/src/capital/lib/dashboardRange';
+import { computePortfolioRois } from '@/src/capital/lib/roi';
+import { computeWorkingCapitalPool } from '@/src/capital/lib/workingCapital';
 import { monthlyManualProfitSeries, sumManualMySharePaise, sumManualProfitsPaise } from './manualProfits';
 
 export type { DateRange, DashboardRange };
@@ -165,7 +166,7 @@ export async function getOverviewBundle(range: DateRange) {
     monthlyManualMine,
     monthlyPurchases,
     activity,
-    activeInvestmentRows,
+    capitalInTransitSold,
   ] = await Promise.all([
     sumCapitalInvested(),
     sumPurchaseVolume(),
@@ -297,27 +298,41 @@ export async function getOverviewBundle(range: DateRange) {
       .orderBy(desc(acActivityLog.createdAt))
       .limit(24),
     capitalDb
-      .select({
-        status: acAssets.status,
-        total: sum(acAssets.totalInvestmentPaise),
-        c: count(),
-      })
+      .select({ total: sum(acAssets.outstandingPaise) })
       .from(acAssets)
-      .where(sql`${acAssets.status} NOT IN ('sold', 'settled', 'cancelled')`)
-      .groupBy(acAssets.status),
+      .where(sql`${acAssets.status} = 'sold'`)
+      .then((r) => Number(r[0]?.total ?? 0)),
   ]);
 
   const grossBusinessProfit = grossAssetProfitAll + manualGrossAll;
   const myLifetimeProfit = myAssetShareAll + manualMyAll;
+  const partnerLifetimeShare = Math.max(0, grossBusinessProfit - myLifetimeProfit);
   const periodGross = grossAssetProfitRange + manualGrossRange;
   const periodMy = myAssetShareRange + manualMyRange;
+  const periodPartnerShare = Math.max(0, periodGross - periodMy);
   const prevMy = myAssetSharePrev + manualMyPrev;
 
-  const businessRoiBps = calcRoiBps(grossBusinessProfit, lifetimePurchaseVolume) ?? 0;
-  const myRoiBps = calcRoiBps(myLifetimeProfit, capitalInjectedAll) ?? 0;
+  // Business ROI = Gross ÷ Lifetime Purchase Volume
+  // Personal ROI = My Profit ÷ My Capital Invested (clamped ≤ Business when partner share > 0)
+  const { businessRoiBps, myRoiBps } = computePortfolioRois({
+    grossBusinessProfitPaise: grossBusinessProfit,
+    myProfitPaise: myLifetimeProfit,
+    partnerSharePaise: partnerLifetimeShare,
+    lifetimePurchaseVolumePaise: lifetimePurchaseVolume,
+    myCapitalInvestedPaise: capitalInjectedAll,
+  });
 
-  // Liquid cash ≈ capital injected − locked in vehicles + my profit share
-  const cashAvailable = Math.max(0, capitalInjectedAll - currentInvestment + myLifetimeProfit);
+  // Rotating pool: wealth grows only via profit — never by counting returned capital twice
+  const {
+    workingCapitalPaise,
+    freeCashPaise,
+    capitalInTransitPaise,
+  } = computeWorkingCapitalPool({
+    initialCapitalPaise: capitalInjectedAll,
+    myProfitPaise: myLifetimeProfit,
+    currentInvestmentPaise: currentInvestment,
+    capitalInTransitPaise: capitalInTransitSold,
+  });
 
   function mergeMonthSeries(
     a: { month: string; valuePaise: number }[],
@@ -376,10 +391,16 @@ export async function getOverviewBundle(range: DateRange) {
     portfolioGrowthGross.push({ month: row.month, valuePaise: runningGross });
   }
 
-  const periodRoiBusinessBps =
-    purchaseVolumeRange > 0 ? (calcRoiBps(periodGross, purchaseVolumeRange) ?? 0) : 0;
-  const periodRoiMyBps =
-    capitalInjectedAll > 0 ? (calcRoiBps(periodMy, capitalInjectedAll) ?? 0) : 0;
+  // Period ROIs use the same purchase-volume base so a 50:50 split ≈ half the business ROI
+  const periodRoiBundle = computePortfolioRois({
+    grossBusinessProfitPaise: periodGross,
+    myProfitPaise: periodMy,
+    partnerSharePaise: periodPartnerShare,
+    lifetimePurchaseVolumePaise: purchaseVolumeRange,
+    myCapitalInvestedPaise: purchaseVolumeRange,
+  });
+  const periodRoiBusinessBps = periodRoiBundle.businessRoiBps;
+  const periodRoiMyBps = periodRoiBundle.myRoiBps;
 
   const profitGrowthPct = pctChange(periodMy, prevMy);
 
@@ -392,19 +413,12 @@ export async function getOverviewBundle(range: DateRange) {
       : 0;
 
   const allocation = [
-    { label: 'Active Vehicles', valuePaise: currentInvestment },
-    { label: 'Cash Available', valuePaise: cashAvailable },
+    { label: 'Current Investment', valuePaise: currentInvestment },
+    { label: 'Free Cash', valuePaise: Math.max(0, freeCashPaise) },
+    ...(capitalInTransitPaise > 0
+      ? [{ label: 'Capital in Transit', valuePaise: capitalInTransitPaise }]
+      : []),
   ].filter((a) => a.valuePaise > 0);
-
-  for (const row of activeInvestmentRows) {
-    const v = Number(row.total ?? 0);
-    if (v > 0 && row.status !== 'purchased') {
-      allocation.push({
-        label: String(row.status).replace(/_/g, ' '),
-        valuePaise: v,
-      });
-    }
-  }
 
   const waterfall = [
     { label: 'Purchases', valuePaise: purchaseVolumeRange, kind: 'out' as const },
@@ -446,14 +460,14 @@ export async function getOverviewBundle(range: DateRange) {
       expensesRange > 0 ||
       saleProceedsRange > 0);
 
-  const moneyReturnedRange = capitalReturnedRange + periodMy;
-
   return {
     range,
     isFuture: future,
     today,
     hero: {
+      workingCapitalPaise,
       currentInvestmentPaise: currentInvestment,
+      freeCashPaise,
       lifetimePurchaseVolumePaise: lifetimePurchaseVolume,
       grossBusinessProfitPaise: grossBusinessProfit,
       myLifetimeProfitPaise: myLifetimeProfit,
@@ -461,12 +475,16 @@ export async function getOverviewBundle(range: DateRange) {
       myRoiBps,
     },
     secondary: {
-      cashAvailablePaise: cashAvailable,
+      initialCapitalPaise: capitalInjectedAll,
+      capitalInTransitPaise,
       activeVehicles,
       vehiclesSold: soldVehiclesLifetime,
       avgProfitPerVehiclePaise: avgMyProfitSold,
     },
     portfolioSummary: {
+      workingCapitalPaise,
+      freeCashPaise,
+      currentInvestmentPaise: currentInvestment,
       lifetimePurchaseVolumePaise: lifetimePurchaseVolume,
       grossBusinessProfitPaise: grossBusinessProfit,
       myLifetimeProfitPaise: myLifetimeProfit,
@@ -475,7 +493,7 @@ export async function getOverviewBundle(range: DateRange) {
       vehiclesSold: soldVehiclesLifetime,
       avgProfitPerVehiclePaise: avgMyProfitSold,
       avgHoldingDays: avgHolding,
-      capitalInvestedPaise: capitalInjectedAll,
+      initialCapitalPaise: capitalInjectedAll,
     },
     period: {
       label: range.label,
@@ -483,11 +501,13 @@ export async function getOverviewBundle(range: DateRange) {
       vehiclesPurchased: purchasesRange,
       vehiclesSold: soldVehiclesRange,
       moneyInvestedPaise: purchaseVolumeRange,
-      moneyReturnedPaise: moneyReturnedRange,
+      /** Capital recycled from sales — not new wealth */
+      capitalRecoveredPaise: capitalReturnedRange,
       grossProfitPaise: periodGross,
       myProfitPaise: periodMy,
       repairsPaise: repairsRange || expensesRange,
-      cashAvailablePaise: cashAvailable,
+      workingCapitalPaise,
+      freeCashPaise,
       currentInvestmentPaise: currentInvestment,
     },
     chartBlocks: {
@@ -496,8 +516,8 @@ export async function getOverviewBundle(range: DateRange) {
         seriesBusiness: portfolioGrowthGross,
         kpis: [
           {
-            label: 'My Portfolio Value',
-            valuePaise: portfolioGrowth.at(-1)?.valuePaise ?? myLifetimeProfit,
+            label: 'Working Capital',
+            valuePaise: workingCapitalPaise,
             kind: 'paise' as const,
           },
           {
@@ -558,25 +578,25 @@ export async function getOverviewBundle(range: DateRange) {
         series: allocation,
         kpis: [
           {
+            label: 'Working Capital',
+            valuePaise: workingCapitalPaise,
+            kind: 'paise' as const,
+          },
+          {
             label: 'Current Investment',
             valuePaise: currentInvestment,
             kind: 'paise' as const,
           },
           {
-            label: 'Cash Available',
-            valuePaise: cashAvailable,
+            label: 'Free Cash',
+            valuePaise: freeCashPaise,
             kind: 'paise' as const,
-          },
-          {
-            label: 'Active Vehicles',
-            valueText: String(activeVehicles),
-            kind: 'text' as const,
           },
           {
             label: 'Deployed',
             valueText:
-              currentInvestment + cashAvailable > 0
-                ? `${((currentInvestment / (currentInvestment + cashAvailable)) * 100).toFixed(0)}%`
+              workingCapitalPaise > 0
+                ? `${((currentInvestment / workingCapitalPaise) * 100).toFixed(0)}%`
                 : '—',
             kind: 'text' as const,
           },
