@@ -7,7 +7,7 @@
 
 ## Current Focus
 
-- **Automotive Capital Investment OS Overview** — Premium executive dashboard (KPIs, interactive charts, manual profit, insights, range filters) implemented; migration `0003_manual_profits` applied on Neon invest DB. Awaiting commit/deploy to production invest host.
+- **Automotive Capital Investment OS Overview** — Shipped to production (`6a9ec49`); invest Overview + manual profits verified live (19/19 checks). Neon migration already applied.
 
 - **Automotive Capital host routing** — Root cause: Capital code was never on `main`; production git deploys served Awesome PG on invest. Fix: commit Capital + harden host/`x-forwarded-host` allowlist middleware.
 
@@ -25,7 +25,7 @@
 
 ## Current Blockers
 
-- **Automotive Capital Overview** — Code ready locally; not yet committed/deployed to production invest (user must approve commit/push)
+- **Automotive Capital Overview** — Deployed and verified on invest production
 
 - **Occupancy SSOT** — 6 independent compute paths; Phase 0 (`bedOccupancyEngine.ts` + parity tests) awaiting architecture approval
 - None for vault sync (GitHub push working via SSH)

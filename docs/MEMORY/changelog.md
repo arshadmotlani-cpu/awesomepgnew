@@ -10,6 +10,7 @@
 ## 2026-07-11
 
 - **CAPITAL-OS-OVERVIEW** — Investment OS Overview dashboard + manual profits (`ac_manual_profits`, ledger `manual_profit`); Neon migration applied; screenshots in `.invoice-pdf-samples/dashboard-screenshots/`
+- **CAPITAL-OS-DEPLOY** — Production deploy `6a9ec49` Ready on invest; 19/19 live checks (login, Overview, manual profit→ledger, assets/expenses/payments/reports/capital, health)
 - **OPS-BA-02** — Sidebar Operations/Overview badges now equal `unifiedOperationsQueue.totalCount` (same SSOT as Operations page); no residents parallel queue
 - **OPS-BA-01** — Booking Approval no longer lists approved/Reserved bed reserves; open href SSOT is `/admin/bookings/:id` (`src/lib/operations/bookingApprovalQueue.ts`)
 

@@ -13,7 +13,7 @@
 - [x] **OPS-BA-02** — Align sidebar/Overview badges with unified Operations queue totalCount
 - [x] **OPS-BA-01** — Fix Booking Approval queue retaining Reserved bookings + broken `/booking/:code` View reservation link
 - [x] **CAPITAL-OS-01** — Redesign Overview into Investment OS (KPIs, charts, manual profit, insights, range filters); migration `0003_manual_profits` applied on Neon
-- [ ] **CAPITAL-OS-02** — Commit + deploy Investment OS Overview to production invest host
+- [x] **CAPITAL-OS-02** — Commit + deploy Investment OS Overview to production invest host (`6a9ec49`, verified)
 
 ## 2026-07-10 — Automotive Capital
 
