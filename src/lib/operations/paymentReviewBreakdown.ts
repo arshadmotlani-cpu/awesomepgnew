@@ -1,8 +1,7 @@
 /**
- * Admin payment-review breakdown — presentation only.
- * Uses existing allocation SSOT (rent → deposit) without changing formulas.
+ * Admin payment-review breakdown — presentation only (client-safe).
+ * Uses precomputed review splits / invoice amounts; never import server services here.
  */
-import { allocateBookingCheckoutPayment } from '@/src/lib/billing/bookingPaymentAllocation';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 
 export type PaymentReviewBreakdown = {
@@ -146,7 +145,7 @@ export function buildPaymentReviewBreakdown(
   };
 }
 
-/** Persistable allocation snapshot at approval time. */
+/** Persistable allocation snapshot at approval time (mirrors the admin UI). */
 export function allocationSnapshotForApproval(item: PendingPaymentReviewItem): {
   roomChargesPaidPaise: number;
   securityDepositPaidPaise: number;
@@ -154,28 +153,6 @@ export function allocationSnapshotForApproval(item: PendingPaymentReviewItem): {
   paymentCategoryLabel: string;
 } {
   const b = buildPaymentReviewBreakdown(item);
-  if (
-    item.kind === 'qr' &&
-    item.bookingDetails?.subtotalPaise != null &&
-    item.bookingDetails?.depositRequiredPaise != null
-  ) {
-    const alloc = allocateBookingCheckoutPayment(
-      {
-        subtotalPaise: item.bookingDetails.subtotalPaise,
-        discountPaise: item.bookingDetails.discountPaise ?? 0,
-        depositPaise: item.bookingDetails.depositRequiredPaise,
-        totalPaise: item.expectedTotalPaise,
-        pricingSnapshot: null,
-      },
-      b.receivedPaise,
-    );
-    return {
-      roomChargesPaidPaise: alloc.rentPaise,
-      securityDepositPaidPaise: alloc.depositCashPaise,
-      totalAmountReceivedPaise: b.receivedPaise,
-      paymentCategoryLabel: b.paymentCategoryLabel,
-    };
-  }
   return {
     roomChargesPaidPaise: b.roomChargesPaidPaise,
     securityDepositPaidPaise: b.depositPaidPaise,
