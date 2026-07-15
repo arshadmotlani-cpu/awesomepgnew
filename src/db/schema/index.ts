@@ -70,6 +70,7 @@ export * from './bedWaitlistEntries';
 export * from './operationsQueueDismissals';
 export * from './userNotifications';
 export * from './paymentProofRejections';
+export * from './paymentApprovalAllocations';
 export * from './promoCoupons';
 export * from './discountApplications';
 export * from './referralWithdrawalRequests';

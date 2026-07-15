@@ -9,6 +9,7 @@ import { approveRentPaymentProof } from '@/src/services/rentInvoices';
 import { approveDepositLinkPaymentProof } from '@/src/services/residentCharges';
 import { reviewPaymentRecord } from '@/src/services/qrPayments';
 import { getNextPendingPaymentReviewKey } from '@/src/services/paymentProofQueue';
+import { persistApprovalAllocationAfterSuccess } from '@/src/services/persistPaymentApprovalAllocation';
 import { PAYMENT_ALREADY_APPROVED_MESSAGE } from '@/src/lib/operations/paymentReviewMessages';
 import {
   rejectPaymentProof,
@@ -55,6 +56,12 @@ export async function approveQrPaymentAction(
     const result = await reviewPaymentRecord(session, recordId, 'approved', {
       reviewMeta: meta,
     });
+    await persistApprovalAllocationAfterSuccess({
+      kind: 'qr',
+      entityId: recordId,
+      pgId,
+      approvedByAdminId: session.adminId,
+    });
     revalidatePaymentReviewSurfaces(pgId);
     if (result.outcome === 'already_approved') {
       const nextKey = await getNextPendingPaymentReviewKey(session, currentKey);
@@ -87,6 +94,12 @@ export async function approvePartialQrPaymentAction(
     const result = await reviewPaymentRecord(session, recordId, 'approved', {
       partialDeposit: { depositDueDate },
       reviewMeta: meta,
+    });
+    await persistApprovalAllocationAfterSuccess({
+      kind: 'qr',
+      entityId: recordId,
+      pgId,
+      approvedByAdminId: session.adminId,
     });
     if (result.outcome === 'already_approved') {
       revalidatePath('/admin/collections');
@@ -160,6 +173,12 @@ export async function approveRentProofAction(
   const session = await requireAdminPermission('payments:write');
   const result = await approveRentPaymentProof(session, invoiceId);
   if (!result.ok) return result;
+  await persistApprovalAllocationAfterSuccess({
+    kind: 'rent',
+    entityId: invoiceId,
+    pgId,
+    approvedByAdminId: session.adminId,
+  });
   revalidatePath('/admin/rent');
   revalidatePaymentReviewSurfaces(pgId);
   return withNextReviewKey(session, currentKey, { ok: true });
@@ -173,6 +192,12 @@ export async function approveElectricityProofAction(
   const session = await requireAdminPermission('payments:write');
   const result = await approveElectricityPaymentProof(session, invoiceId);
   if (!result.ok) return result;
+  await persistApprovalAllocationAfterSuccess({
+    kind: 'electricity',
+    entityId: invoiceId,
+    pgId,
+    approvedByAdminId: session.adminId,
+  });
   revalidatePath('/admin/electricity');
   revalidatePaymentReviewSurfaces(pgId);
   return withNextReviewKey(session, currentKey, { ok: true });
@@ -186,6 +211,12 @@ export async function approveExtensionProofAction(
   const session = await requireAdminPermission('payments:write');
   const result = await approveExtensionPaymentProof(session, extensionId);
   if (!result.ok) return result;
+  await persistApprovalAllocationAfterSuccess({
+    kind: 'extension',
+    entityId: extensionId,
+    pgId,
+    approvedByAdminId: session.adminId,
+  });
   revalidatePath('/admin/bookings');
   revalidatePaymentReviewSurfaces(pgId);
   return withNextReviewKey(session, currentKey, { ok: true });
@@ -199,6 +230,12 @@ export async function approveDepositLinkProofAction(
   const session = await requireAdminPermission('payments:write');
   const result = await approveDepositLinkPaymentProof(session, linkId);
   if (!result.ok) return result;
+  await persistApprovalAllocationAfterSuccess({
+    kind: 'deposit_link',
+    entityId: linkId,
+    pgId,
+    approvedByAdminId: session.adminId,
+  });
   revalidatePath('/admin/collections');
   revalidatePath('/admin/residents');
   revalidatePaymentReviewSurfaces(pgId);

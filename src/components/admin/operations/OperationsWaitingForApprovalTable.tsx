@@ -10,10 +10,12 @@ import {
   approveQrPaymentAction,
   approveRentProofAction,
 } from '@/app/(admin)/admin/payments/actions';
+import { PaymentApprovalConfirmDialog } from '@/src/components/admin/operations/PaymentApprovalConfirmDialog';
 import { PaymentProofRejectionDialog } from '@/src/components/admin/operations/PaymentProofRejectionDialog';
 import { useOperationsActionToast } from '@/src/components/admin/operations/OperationsActionToast';
 import { billingMonthLabel } from '@/src/lib/billing/invoiceCollectionWhatsApp';
 import { formatDateTime, paiseToInr } from '@/src/lib/format';
+import { buildPaymentReviewBreakdown } from '@/src/lib/operations/paymentReviewBreakdown';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 import { operationsFilterHref } from '@/src/lib/operations/operationsFilterLinks';
 
@@ -42,6 +44,7 @@ export function OperationsWaitingForApprovalTable({
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [rejectDialogItem, setRejectDialogItem] = useState<PendingPaymentReviewItem | null>(null);
+  const [confirmItem, setConfirmItem] = useState<PendingPaymentReviewItem | null>(null);
   const { showToast, toastNode } = useOperationsActionToast();
 
   const focusItem = useMemo(
@@ -51,6 +54,7 @@ export function OperationsWaitingForApprovalTable({
 
   async function refreshAfterAction(opts?: { rejected?: boolean }) {
     setRejectDialogItem(null);
+    setConfirmItem(null);
     if (opts?.rejected) {
       showToast('Payment rejected successfully.');
     }
@@ -88,6 +92,7 @@ export function OperationsWaitingForApprovalTable({
       setError(err instanceof Error ? err.message : 'Approval failed.');
     } finally {
       setBusyKey(null);
+      setConfirmItem(null);
     }
   }
 
@@ -100,6 +105,8 @@ export function OperationsWaitingForApprovalTable({
     );
   }
 
+  const confirmBreakdown = confirmItem ? buildPaymentReviewBreakdown(confirmItem) : null;
+
   return (
     <div className="space-y-4">
       {toastNode}
@@ -109,6 +116,16 @@ export function OperationsWaitingForApprovalTable({
           open
           onClose={() => setRejectDialogItem(null)}
           onRejected={() => void refreshAfterAction({ rejected: true })}
+        />
+      ) : null}
+      {confirmItem && confirmBreakdown ? (
+        <PaymentApprovalConfirmDialog
+          open
+          residentName={confirmItem.residentName}
+          breakdown={confirmBreakdown}
+          pending={busyKey === confirmItem.key}
+          onCancel={() => setConfirmItem(null)}
+          onConfirm={() => void onApprove(confirmItem)}
         />
       ) : null}
 
@@ -121,7 +138,12 @@ export function OperationsWaitingForApprovalTable({
       {focusItem ? (
         <div className="rounded-xl border border-[#FF5A1F]/30 bg-[#FF5A1F]/5 px-4 py-3 text-sm text-apg-silver">
           Reviewing <span className="font-medium text-white">{focusItem.residentName}</span> —{' '}
-          {focusItem.paymentTypeLabel} · {paiseToInr(focusItem.amountPaise)}
+          {focusItem.paymentTypeLabel} · Expected{' '}
+          {paiseToInr(
+            focusItem.invoiceAmountPaise != null
+              ? focusItem.invoiceAmountPaise
+              : focusItem.expectedTotalPaise,
+          )}
         </div>
       ) : null}
 
@@ -131,7 +153,8 @@ export function OperationsWaitingForApprovalTable({
             <tr>
               <th className="px-4 py-3 font-medium">Resident</th>
               <th className="px-4 py-3 font-medium">Payment type</th>
-              <th className="px-4 py-3 font-medium">Amount</th>
+              <th className="px-4 py-3 font-medium">Expected</th>
+              <th className="px-4 py-3 font-medium">Received</th>
               <th className="px-4 py-3 font-medium">Billing month</th>
               <th className="px-4 py-3 font-medium">Upload time</th>
               <th className="px-4 py-3 font-medium text-right">Actions</th>
@@ -140,11 +163,17 @@ export function OperationsWaitingForApprovalTable({
           <tbody className="divide-y divide-white/5 bg-[#1A1F27]">
             {items.map((item) => {
               const busy = busyKey === item.key;
+              const breakdown = buildPaymentReviewBreakdown(item);
               return (
                 <tr key={item.key} className="transition hover:bg-white/[0.02]">
                   <td className="px-4 py-4 font-medium text-white">{item.residentName}</td>
                   <td className="px-4 py-4 text-apg-silver">{item.paymentTypeLabel}</td>
-                  <td className="px-4 py-4 text-white">{paiseToInr(item.amountPaise)}</td>
+                  <td className="px-4 py-4 text-white">
+                    {paiseToInr(breakdown.totalExpectedPaise)}
+                  </td>
+                  <td className="px-4 py-4 text-emerald-300">
+                    {paiseToInr(breakdown.receivedPaise)}
+                  </td>
                   <td className="px-4 py-4 text-apg-silver">
                     {formatBillingMonth(item.billingMonth)}
                   </td>
@@ -172,14 +201,19 @@ export function OperationsWaitingForApprovalTable({
                           Reject
                         </button>
                       ) : null}
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => void onApprove(item)}
-                        className="inline-flex min-h-[36px] items-center rounded-lg border border-emerald-400/40 px-4 py-2 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/10 disabled:opacity-50"
-                      >
-                        {busy ? '…' : 'Approve'}
-                      </button>
+                      {item.overpaidPaise > 0 ? null : (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => {
+                            setConfirmItem(item);
+                            setError(null);
+                          }}
+                          className="inline-flex min-h-[36px] items-center rounded-lg border border-emerald-400/40 px-4 py-2 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/10 disabled:opacity-50"
+                        >
+                          {busy ? '…' : 'Approve'}
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

@@ -813,6 +813,13 @@
       "when": 1792200000000,
       "tag": "0114_rent_invoice_proof_snapshot",
       "breakpoints": true
+    },
+    {
+      "idx": 118,
+      "version": "7",
+      "when": 1792500000000,
+      "tag": "0115_payment_approval_allocations",
+      "breakpoints": true
     }
   ]
 }

@@ -416,6 +416,8 @@ function buildQrReviewItem(
     paymentExplanation,
     bookingContext,
     lifecycleState: isBookingCheckout ? 'reservation_request' : 'payment_collection',
+    submittedAmountPaise: receivedPaise,
+    proofSubmittedAt: p.createdAt?.toISOString?.() ?? null,
   };
 }
 

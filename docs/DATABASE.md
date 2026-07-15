@@ -382,3 +382,6 @@ Drizzle only runs migrations listed in `src/db/migrations/meta/_journal.json`. F
 
 <!-- DOC_SYNC_TOUCH_2026-07-07 -->
 > **2026-07-07 06:19:57 UTC** — Code changed in: Database, Billing. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-07-15 -->
+> **2026-07-15 07:05:30 UTC** — Code changed in: Routes, Database. Manual review recommended.

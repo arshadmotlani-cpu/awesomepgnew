@@ -11,6 +11,8 @@ import {
   approveQrPaymentAction,
   approveRentProofAction,
 } from '@/app/(admin)/admin/payments/actions';
+import { PaymentApprovalConfirmDialog } from '@/src/components/admin/operations/PaymentApprovalConfirmDialog';
+import { PaymentBreakdownSection } from '@/src/components/admin/operations/PaymentBreakdownSection';
 import { PaymentProofRejectionDialog } from '@/src/components/admin/operations/PaymentProofRejectionDialog';
 import { PaymentProofRejectionHistory } from '@/src/components/admin/operations/PaymentProofRejectionHistory';
 import { useOperationsActionToast } from '@/src/components/admin/operations/OperationsActionToast';
@@ -20,7 +22,11 @@ import { PipelineTestInvoiceBadge } from '@/src/components/admin/PipelineTestInv
 import { InvoiceAdminRowActions } from '@/src/components/admin/InvoiceAdminRowActions';
 import { OPS_ORANGE, OPS_PANEL } from '@/src/components/admin/residentOps/residentOpsUi';
 import { adminPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
-import type { OverpaymentDisposition, PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
+import { buildPaymentReviewBreakdown } from '@/src/lib/operations/paymentReviewBreakdown';
+import type {
+  OverpaymentDisposition,
+  PendingPaymentReviewItem,
+} from '@/src/lib/operations/paymentReviewTypes';
 import { PAYMENT_ALREADY_APPROVED_MESSAGE } from '@/src/lib/operations/paymentReviewMessages';
 import { paiseToInr } from '@/src/lib/format';
 
@@ -44,15 +50,6 @@ function formatBillingMonth(value: string | null | undefined): string {
   return value.slice(0, 7);
 }
 
-function ReviewField({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0">
-      <dt className="text-[10px] font-semibold uppercase tracking-wide text-apg-silver">{label}</dt>
-      <dd className="mt-1 text-sm font-medium text-white">{value}</dd>
-    </div>
-  );
-}
-
 export function OperationsPaymentReviewsPanel({
   items,
   reviewMode = true,
@@ -69,10 +66,14 @@ export function OperationsPaymentReviewsPanel({
   const [partialOpenKey, setPartialOpenKey] = useState<string | null>(null);
   const [depositDueDate, setDepositDueDate] = useState('');
   const [moreOpenKey, setMoreOpenKey] = useState<string | null>(null);
-  const [overpayDisposition, setOverpayDisposition] = useState<OverpaymentDisposition>('wallet_credit');
+  const [overpayDisposition, setOverpayDisposition] =
+    useState<OverpaymentDisposition>('wallet_credit');
   const [reviewNotes, setReviewNotes] = useState('');
   const [approvalNotes, setApprovalNotes] = useState('');
-  const [rejectDialogItem, setRejectDialogItem] = useState<PendingPaymentReviewItem | null>(null);
+  const [rejectDialogItem, setRejectDialogItem] = useState<PendingPaymentReviewItem | null>(
+    null,
+  );
+  const [confirmItem, setConfirmItem] = useState<PendingPaymentReviewItem | null>(null);
   const { showToast, toastNode } = useOperationsActionToast();
 
   const visibleItems = useMemo(() => {
@@ -86,16 +87,28 @@ export function OperationsPaymentReviewsPanel({
     opts?: { rejected?: boolean },
   ) {
     setRejectDialogItem(null);
+    setConfirmItem(null);
     setPartialOpenKey(null);
     setMoreOpenKey(null);
     if (opts?.rejected) {
       showToast('Payment rejected successfully.');
     }
     if (reviewMode && nextKey) {
-      router.push(`/admin/operations?filter=waiting_for_approval&focus=${encodeURIComponent(nextKey)}`);
+      router.push(
+        `/admin/operations?filter=waiting_for_approval&focus=${encodeURIComponent(nextKey)}`,
+      );
     } else {
       router.refresh();
     }
+  }
+
+  function requestApprove(item: PendingPaymentReviewItem) {
+    if (item.overpaidPaise > 0 && !overpayDisposition) {
+      setError('Choose how to handle the overpayment.');
+      return;
+    }
+    setError(null);
+    setConfirmItem(item);
   }
 
   async function onApprove(item: PendingPaymentReviewItem) {
@@ -114,7 +127,8 @@ export function OperationsPaymentReviewsPanel({
             item.entityId,
             item.pgId,
             {
-              overpaymentDisposition: item.overpaidPaise > 0 ? overpayDisposition : undefined,
+              overpaymentDisposition:
+                item.overpaidPaise > 0 ? overpayDisposition : undefined,
               reviewNotes: reviewNotes.trim() || undefined,
               approvalNotes: approvalNotes.trim() || undefined,
             },
@@ -146,6 +160,7 @@ export function OperationsPaymentReviewsPanel({
       setError(err instanceof Error ? err.message : 'Approval failed.');
     } finally {
       setBusyKey(null);
+      setConfirmItem(null);
     }
   }
 
@@ -190,6 +205,8 @@ export function OperationsPaymentReviewsPanel({
     );
   }
 
+  const confirmBreakdown = confirmItem ? buildPaymentReviewBreakdown(confirmItem) : null;
+
   return (
     <div className="space-y-5">
       {toastNode}
@@ -201,6 +218,16 @@ export function OperationsPaymentReviewsPanel({
           onRejected={({ nextKey }) =>
             void advanceAfterAction(rejectDialogItem.key, nextKey, { rejected: true })
           }
+        />
+      ) : null}
+      {confirmItem && confirmBreakdown ? (
+        <PaymentApprovalConfirmDialog
+          open
+          residentName={confirmItem.residentName}
+          breakdown={confirmBreakdown}
+          pending={busyKey === confirmItem.key}
+          onCancel={() => setConfirmItem(null)}
+          onConfirm={() => void onApprove(confirmItem)}
         />
       ) : null}
       {reviewMode && items.length > 0 ? (
@@ -226,18 +253,7 @@ export function OperationsPaymentReviewsPanel({
         const review = item.bookingPaymentReview;
         const showPartial = item.canPartialApprove;
         const busy = busyKey === item.key;
-        const amountDue =
-          item.invoiceAmountPaise != null
-            ? paiseToInr(item.invoiceAmountPaise)
-            : paiseToInr(item.expectedTotalPaise);
-        const amountPaid =
-          item.submittedAmountPaise != null ? paiseToInr(item.submittedAmountPaise) : '—';
-        const roomBed = [
-          item.roomNumber ? `Room ${item.roomNumber}` : null,
-          item.bedCode ? `Bed ${item.bedCode}` : null,
-        ]
-          .filter(Boolean)
-          .join(' · ');
+        const breakdown = buildPaymentReviewBreakdown(item);
 
         return (
           <article
@@ -249,18 +265,41 @@ export function OperationsPaymentReviewsPanel({
               <div className="min-w-0 space-y-4">
                 <div className="flex flex-wrap items-center gap-2">
                   {item.isPipelineTest ? <PipelineTestInvoiceBadge /> : null}
-                  <span className="text-xs text-apg-silver">{item.pgName}</span>
+                  <h3 className="text-base font-semibold text-white">{item.residentName}</h3>
+                  <span className="text-xs text-apg-silver">
+                    {item.bookingCode ?? item.title}
+                  </span>
                 </div>
 
-                <dl className="grid gap-4 sm:grid-cols-2">
-                  <ReviewField label="Resident" value={item.residentName} />
-                  <ReviewField label="Room / bed" value={roomBed || '—'} />
-                  <ReviewField label="Invoice" value={item.invoiceNumber ?? item.title} />
-                  <ReviewField label="Amount due" value={amountDue} />
-                  <ReviewField label="Amount paid" value={amountPaid} />
-                  <ReviewField label="Invoice type" value={item.paymentTypeLabel} />
-                  <ReviewField label="Billing month" value={formatBillingMonth(item.billingMonth)} />
-                  <ReviewField label="Submitted" value={formatUploadTime(item.proofSubmittedAt)} />
+                <PaymentBreakdownSection breakdown={breakdown} />
+
+                <dl className="grid gap-3 text-xs text-apg-silver sm:grid-cols-2">
+                  {item.invoiceNumber ? (
+                    <div>
+                      <dt className="uppercase tracking-wide">Invoice</dt>
+                      <dd className="mt-0.5 font-medium text-white">{item.invoiceNumber}</dd>
+                    </div>
+                  ) : null}
+                  {item.billingMonth ? (
+                    <div>
+                      <dt className="uppercase tracking-wide">Billing month</dt>
+                      <dd className="mt-0.5 font-medium text-white">
+                        {formatBillingMonth(item.billingMonth)}
+                      </dd>
+                    </div>
+                  ) : null}
+                  <div>
+                    <dt className="uppercase tracking-wide">Submitted</dt>
+                    <dd className="mt-0.5 font-medium text-white">
+                      {formatUploadTime(item.proofSubmittedAt)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="uppercase tracking-wide">Category</dt>
+                    <dd className="mt-0.5 font-medium text-white">
+                      {breakdown.paymentCategoryLabel}
+                    </dd>
+                  </div>
                 </dl>
 
                 {item.referenceNumber ? (
@@ -294,7 +333,7 @@ export function OperationsPaymentReviewsPanel({
                     </div>
                     {item.overpaidPaise > 0 ? (
                       <label className="block text-apg-silver">
-                        Overpayment handling
+                        Overpayment handling ({paiseToInr(item.overpaidPaise)} extra)
                         <select
                           value={overpayDisposition}
                           onChange={(e) =>
@@ -377,7 +416,7 @@ export function OperationsPaymentReviewsPanel({
                   <button
                     type="button"
                     disabled={busy}
-                    onClick={() => void onApprove(item)}
+                    onClick={() => requestApprove(item)}
                     className="rounded-lg px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50"
                     style={{ backgroundColor: OPS_ORANGE }}
                   >
@@ -397,7 +436,7 @@ export function OperationsPaymentReviewsPanel({
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => void onApprove(item)}
+                  onClick={() => requestApprove(item)}
                   className="min-w-[120px] rounded-lg px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50"
                   style={{ backgroundColor: OPS_ORANGE }}
                 >
