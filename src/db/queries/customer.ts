@@ -821,6 +821,18 @@ export type CustomerBookingDetail = {
   }>;
 };
 
+/**
+ * Draft bookings (five-state lifecycle) store bed selection on pricingSnapshot
+ * and create bed_reservations only after payment proof. Payment prep must use
+ * this bed id to join room → floor → PG for every duration mode.
+ */
+export function primaryBedIdFromPricingSnapshot(
+  snapshot: PricingSnapshot | null | undefined,
+): string | null {
+  const bedId = snapshot?.perBed?.[0]?.bedId;
+  return typeof bedId === 'string' && bedId.length > 0 ? bedId : null;
+}
+
 export function getBookingByCode(
   bookingCode: string,
 ): Promise<QueryResult<CustomerBookingDetail | null>> {
@@ -971,10 +983,15 @@ export function getBookingByCode(
       }
     }
 
-    if (b.durationMode === 'reserve' && reservationRows.length === 0 && !reserveStart) {
+    /**
+     * Five-state customer drafts intentionally have no bed_reservations until
+     * payment proof. PG/bed/room/floor must come from pricingSnapshot.perBed
+     * for every duration mode — not only reserve.
+     */
+    if (!pg.id) {
       const snapshot = (b.pricingSnapshot as PricingSnapshot | null) ?? null;
-      const reserveBedId = snapshot?.perBed?.[0]?.bedId ?? null;
-      if (reserveBedId) {
+      const snapshotBedId = primaryBedIdFromPricingSnapshot(snapshot);
+      if (snapshotBedId) {
         const [bedCtx] = await db
           .select({
             bedCode: beds.bedCode,
@@ -992,11 +1009,11 @@ export function getBookingByCode(
           .innerJoin(rooms, eq(rooms.id, beds.roomId))
           .innerJoin(floors, eq(floors.id, rooms.floorId))
           .innerJoin(pgs, eq(pgs.id, floors.pgId))
-          .where(eq(beds.id, reserveBedId))
+          .where(eq(beds.id, snapshotBedId))
           .limit(1);
         if (bedCtx) {
-          reserveStart = b.billingAnchorDate ? String(b.billingAnchorDate) : null;
-          reserveCheckIn = b.expectedCheckoutDate ? String(b.expectedCheckoutDate) : null;
+          const start = b.billingAnchorDate ? String(b.billingAnchorDate) : null;
+          const end = b.expectedCheckoutDate ? String(b.expectedCheckoutDate) : null;
           pg = {
             id: bedCtx.pgId,
             name: bedCtx.pgName,
@@ -1006,17 +1023,21 @@ export function getBookingByCode(
             state: bedCtx.pgState,
             pincode: bedCtx.pgPincode,
           };
-          if (reserveStart && reserveCheckIn) {
+          if (reservations.length === 0 && start) {
             reservations = [
               {
                 id: b.id,
                 bedCode: bedCtx.bedCode,
                 roomNumber: bedCtx.roomNumber,
                 floorLabel: bedCtx.floorLabel,
-                stayRange: `[${reserveStart},${reserveCheckIn})`,
+                stayRange: end ? `[${start},${end})` : `[${start},)`,
                 status: 'hold',
               },
             ];
+          }
+          if (b.durationMode === 'reserve') {
+            if (!reserveStart) reserveStart = start;
+            if (!reserveCheckIn) reserveCheckIn = end;
           }
         }
       }
