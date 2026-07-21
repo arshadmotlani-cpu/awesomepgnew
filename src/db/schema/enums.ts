@@ -107,6 +107,7 @@ export const depositCollectionStatusEnum = pgEnum('deposit_collection_status', [
   'partial',
   'overdue',
   'waived',
+  'closed_uncollected',
 ]);
 
 export const reservationKindEnum = pgEnum('reservation_kind', ['primary', 'extension']);

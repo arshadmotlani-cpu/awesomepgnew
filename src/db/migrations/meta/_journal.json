@@ -834,6 +834,13 @@
       "when": 1793200000000,
       "tag": "0118_payment_allocation_electricity_other",
       "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
+      "when": 1793300000000,
+      "tag": "0119_deposit_closed_uncollected",
+      "breakpoints": true
     }
   ]
 }

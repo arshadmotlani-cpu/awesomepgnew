@@ -46,9 +46,13 @@ export function DepositSummaryCard({
         </div>
       ) : null}
 
-      <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-4 sm:grid-cols-5">
         <SummaryStat label="Required deposit" value={paiseToInr(v.requiredPaise)} />
         <SummaryStat label="Collected deposit" value={paiseToInr(v.collectedPaise)} accent="emerald" />
+        <SummaryStat
+          label="Outstanding deposit"
+          value={paiseToInr(Math.max(0, v.requiredPaise - v.collectedPaise))}
+        />
         <SummaryStat label="Refundable deposit" value={paiseToInr(v.refundablePaise)} accent="strong" />
         <div className="rounded-lg border border-white/10 bg-[#12161C] p-3">
           <dt className="text-[10px] font-medium uppercase tracking-wide text-apg-silver">

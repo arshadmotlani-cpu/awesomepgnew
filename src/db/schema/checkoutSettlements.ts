@@ -43,6 +43,7 @@ export const checkoutSettlements = pgTable(
       .notNull()
       .default(0),
     depositRequiredPaise: bigint('deposit_required_paise', { mode: 'number' }).notNull().default(0),
+    depositReceivedPaise: bigint('deposit_received_paise', { mode: 'number' }).notNull().default(0),
     electricityMeterPhotoUrl: text('electricity_meter_photo_url'),
     electricityUseAverage: boolean('electricity_use_average').notNull().default(false),
     electricityPreviousReading: numeric('electricity_previous_reading', {

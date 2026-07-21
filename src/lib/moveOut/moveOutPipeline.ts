@@ -1,4 +1,4 @@
-import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
+import { bookingFinancialWorkspaceSectionHref } from '@/src/lib/bookings/bookingFinancialLinks';
 import type { CheckoutWorkflowKind } from '@/src/lib/checkout/checkoutWorkflow';
 import { checkoutWorkflowKind } from '@/src/lib/checkout/checkoutWorkflow';
 import {
@@ -179,11 +179,6 @@ const STAFF_SORT_PRIORITY: Record<MoveOutStageId, number> = {
   bed_released: 6,
 };
 
-function settlementHash(status: CheckoutSettlementStatus | null): string | null {
-  if (status === 'awaiting_admin_review') return '#approve-settlement';
-  return null;
-}
-
 export function deriveMoveOutStage(
   vacating: VacatingInput,
   settlement: SettlementInput | null,
@@ -193,11 +188,17 @@ export function deriveMoveOutStage(
 > {
   const settlementId = settlement?.id ?? null;
   const settlementStatus = settlement?.status ?? null;
-  const baseHref = settlementId ? `/admin/checkout-settlements/${settlementId}` : null;
-  const refundHref =
-    settlementStatus === 'refund_pending' ? refundConsoleHref(vacating.bookingId) : null;
-  const hash = settlementStatus === 'refund_pending' ? null : settlementHash(settlementStatus);
-  const settlementContinue = refundHref ?? (baseHref ? `${baseHref}${hash ?? ''}` : null);
+  const workspaceCheckout = bookingFinancialWorkspaceSectionHref(vacating.bookingId, 'checkout');
+  const workspaceMoveOut = bookingFinancialWorkspaceSectionHref(vacating.bookingId, 'move-out');
+  const workspaceRefund = bookingFinancialWorkspaceSectionHref(vacating.bookingId, 'refund');
+  const settlementContinue =
+    settlementStatus === 'refund_pending'
+      ? workspaceRefund
+      : settlementId
+        ? workspaceCheckout
+        : vacating.status === 'pending'
+          ? workspaceMoveOut
+          : workspaceCheckout;
   const workflow = checkoutWorkflowKind({
     durationMode: vacating.durationMode,
     stayType: vacating.stayType,
@@ -292,7 +293,7 @@ export function deriveMoveOutStage(
   }
 
   if (vacating.status === 'pending') {
-    return stageMeta('requested', 'Verify notice period and approve move-out', null, 'approve');
+    return stageMeta('requested', 'Verify notice period and approve move-out', workspaceMoveOut, 'approve');
   }
 
   return stageMeta('bed_released', 'Move-out complete', settlementContinue, 'view');

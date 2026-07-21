@@ -30,7 +30,7 @@ const zeroRefundCheckout = toClientMoveOutPipelineItem({
   stageIndex: 3,
   stageLabel: 'Charges calculated',
   nextAction: 'Review electricity and charges, approve refund',
-  continueHref: '/admin/checkout-settlements/cs-1#approve-settlement',
+  continueHref: '/admin/bookings/bk-1/financial#checkout',
   continueKind: 'settlement',
   sortPriority: 1,
   resolvedAt: null,

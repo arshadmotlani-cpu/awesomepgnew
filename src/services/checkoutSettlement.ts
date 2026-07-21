@@ -570,6 +570,9 @@ export async function createCheckoutSettlementFromVacating(input: {
     durationMode: booking?.durationMode,
   });
 
+  const wallet = await getDepositSummaryForBooking(vr.bookingId);
+  const depositReceivedPaise = wallet?.collectedPaise ?? 0;
+
   const [created] = await db
     .insert(checkoutSettlements)
     .values({
@@ -584,6 +587,7 @@ export async function createCheckoutSettlementFromVacating(input: {
       noticeDeductionPaise: policy.noticeDeductionPaise,
       monthlyRentPaiseSnapshot: vr.monthlyRentPaiseSnapshot,
       depositRequiredPaise: booking?.depositPaise ?? 0,
+      depositReceivedPaise,
     })
     .returning({ id: checkoutSettlements.id });
 
@@ -1870,6 +1874,16 @@ export async function approveCheckoutSettlement(input: {
       ? resolvedSharePaise
       : undefined,
   });
+
+  if (finalRefundPaise <= 0) {
+    const { closeUncollectedDepositDue } = await import('./depositCollection');
+    await closeUncollectedDepositDue({
+      bookingId: current.bookingId,
+      adminId: input.adminId,
+      reason: 'Zero-refund checkout complete — deposit balance closed',
+    });
+  }
+
   return { ok: true, finalRefundPaise };
 }
 
@@ -1964,6 +1978,14 @@ export async function markCheckoutRefundPaid(input: {
   });
 
   scheduleAdminNotificationSync();
+
+  const { closeUncollectedDepositDue } = await import('./depositCollection');
+  await closeUncollectedDepositDue({
+    bookingId: current.bookingId,
+    adminId: input.adminId,
+    reason: 'Checkout refund paid — deposit balance closed',
+  });
+
   return { ok: true };
 }
 

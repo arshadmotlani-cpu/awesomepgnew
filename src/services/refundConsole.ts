@@ -456,19 +456,7 @@ export async function getRefundConsoleBookingDetail(
   }
 
   if (ledger.length === 0 && wallet.remainingDepositPaise === 0) {
-    const [depositRow] = await db
-      .select({ depositPaise: bookings.depositPaise })
-      .from(bookings)
-      .where(eq(bookings.id, bookingId))
-      .limit(1);
-    const depositPaise = guardDepositPaise(depositRow?.depositPaise ?? 0, 'refundConsole.fallbackDepositPaise');
-    if (depositPaise > 0) {
-      wallet = {
-        ...emptyRefundConsoleWallet(),
-        depositPaidPaise: depositPaise,
-        remainingDepositPaise: depositPaise,
-      };
-    }
+    // Refund base is ledger-only — never assume required deposit was received.
   }
 
   return {

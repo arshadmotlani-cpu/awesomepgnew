@@ -1010,6 +1010,13 @@ export async function completeVacatingRequest(
 
   scheduleAdminNotificationSync();
 
+  const { closeUncollectedDepositDue } = await import('./depositCollection');
+  await closeUncollectedDepositDue({
+    bookingId: current.bookingId,
+    adminId: input.resolvedByAdminId ?? null,
+    reason: 'Vacating completed — deposit balance closed',
+  });
+
   return {
     ok: true,
     request: updated,

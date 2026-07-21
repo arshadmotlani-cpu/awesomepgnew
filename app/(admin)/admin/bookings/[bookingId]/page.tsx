@@ -179,6 +179,13 @@ export default async function AdminBookingDetailPage(
               {b.customer.fullName}
             </Link>
             <span className="mx-2 text-white/30">·</span>
+            <Link
+              href={`/admin/bookings/${bookingId}/financial`}
+              className="text-[#FF5A1F] hover:underline"
+            >
+              Financial workspace
+            </Link>
+            <span className="mx-2 text-white/30">·</span>
             Customer link:{' '}
             <Link
               href={`/booking/${b.bookingCode}`}

@@ -3,8 +3,11 @@
  */
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
+import {
+  bookingFinancialWorkspaceHref,
+  bookingFinancialWorkspaceSectionHref,
+} from '@/src/lib/bookings/bookingFinancialLinks';
 import type { MoveOutPipelineItem } from '@/src/lib/moveOut/moveOutPipeline';
-import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import { isStaleZeroRefundSettlement } from '@/src/lib/residents/checkoutOpsQueueCopy';
 import type { UnifiedOpsItem } from '@/src/services/unifiedOperationsQueue';
 import {
@@ -110,18 +113,11 @@ export function mapVacatingPipelineItemToOpsItem(
 
   const openHref =
     queue === 'refund_due'
-      ? refundConsoleHref(item.bookingId)
-      : item.continueHref ??
-        (item.settlementId
-          ? `/admin/checkout-settlements/${item.settlementId}`
-          : '/admin/vacating?status=pending');
+      ? bookingFinancialWorkspaceSectionHref(item.bookingId, 'refund')
+      : (item.continueHref ?? bookingFinancialWorkspaceHref(item.bookingId));
 
   const openLabel =
-    queue === 'refund_due'
-      ? 'Review refund'
-      : item.continueKind === 'approve'
-        ? 'Approve move-out'
-        : 'Review';
+    queue === 'refund_due' ? 'Review finances' : 'Review finances';
 
   const reason =
     queue === 'refund_due'

@@ -37,7 +37,7 @@ mustInclude(
 );
 mustInclude(
   'app/(admin)/admin/refunds/page.tsx',
-  'Refund Console',
+  'RefundConsoleWorkspace',
   'Refund Console page exists',
 );
 mustInclude(
@@ -60,6 +60,22 @@ const revenueUi = read('src/components/admin/RevenueCommandCenter.tsx');
 assert.ok(
   !revenueUi.includes('byPg.reduce') || revenueUi.includes('depositPaidCount'),
   'Revenue UI must not independently sum revenue totals from PG rows',
+);
+
+mustInclude(
+  'app/(admin)/admin/bookings/[bookingId]/financial/page.tsx',
+  'BookingFinancialWorkspace',
+  'Booking financial workspace page exists',
+);
+mustInclude(
+  'src/services/depositCollection.ts',
+  'closeUncollectedDepositDue',
+  'Post-checkout uncollected deposit closer exists',
+);
+mustInclude(
+  'src/lib/bookings/bookingFinancialLinks.ts',
+  'bookingFinancialWorkspaceHref',
+  'Canonical financial workspace href helper exists',
 );
 
 console.log('OK — financial SSOT static checks passed.');

@@ -9,7 +9,7 @@ import type { AdminSession } from '@/src/lib/auth/session';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import { buildCollectionsQueue, type CollectionQueueItem } from '@/src/lib/billing/collectionsQueue';
 import { billingMonthLabel } from '@/src/lib/billing/invoiceCollectionWhatsApp';
-import { depositExpressHref } from '@/src/lib/deposits/depositExpressLinks';
+import { bookingFinancialWorkspaceHref } from '@/src/lib/bookings/bookingFinancialLinks';
 import { listAdminElectricityInvoicesForReminders } from '@/src/db/queries/admin';
 import { isActiveCheckoutSettlement } from '@/src/lib/residents/residentLifecycleState';
 import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
@@ -514,8 +514,8 @@ async function buildUnifiedOperationsQueue(
       roomNumber: row.roomNumber,
       bedCode: row.bedCode,
       reason: 'Security deposit outstanding',
-      openHref: depositExpressHref(row.bookingId),
-      openLabel: 'Open Deposit',
+      openHref: bookingFinancialWorkspaceHref(row.bookingId),
+      openLabel: 'Review finances',
       bookingId: row.bookingId,
       bookingCode: row.bookingCode,
       amountPaise: row.remainingDuePaise,

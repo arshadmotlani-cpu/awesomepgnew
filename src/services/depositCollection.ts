@@ -411,6 +411,96 @@ export type OutstandingDepositRow = {
   depositCollectionStatus: DepositCollectionStatus;
 };
 
+/**
+ * After checkout completes — outstanding deposit is no longer collectible.
+ * Sets status closed_uncollected and clears deposit_due_paise.
+ */
+export async function closeUncollectedDepositDue(input: {
+  bookingId: string;
+  adminId?: string | null;
+  reason?: string;
+}): Promise<void> {
+  const { getBookingMoneyBalances } = await import('./bookingMoneyBalances');
+  const balances = await getBookingMoneyBalances(input.bookingId);
+  if (!balances) return;
+
+  if (balances.deposit.outstandingPaise <= 0) {
+    if (balances.deposit.receivedPaise > 0 && balances.deposit.requiredPaise > 0) {
+      await applyFullDepositOnConfirm(input.bookingId);
+    }
+    return;
+  }
+
+  await db
+    .update(bookings)
+    .set({
+      depositDuePaise: 0,
+      depositCollectionStatus: 'closed_uncollected',
+      updatedAt: new Date(),
+    })
+    .where(eq(bookings.id, input.bookingId));
+
+  await db.insert(auditLog).values({
+    actorType: input.adminId ? 'admin' : 'system',
+    actorId: input.adminId ?? null,
+    entity: 'booking',
+    entityId: input.bookingId,
+    action: 'deposit_closed_uncollected',
+    diff: {
+      requiredPaise: balances.deposit.requiredPaise,
+      receivedPaise: balances.deposit.receivedPaise,
+      outstandingPaise: balances.deposit.outstandingPaise,
+      reason: input.reason ?? 'Tenancy ended — remaining deposit not collectible',
+    },
+  });
+}
+
+/** Completed bookings with post-checkout uncollected deposit — reporting only. */
+export async function listClosedUncollectedDepositBookings(): Promise<
+  Array<{
+    bookingId: string;
+    bookingCode: string;
+    requiredPaise: number;
+    receivedPaise: number;
+    outstandingPaise: number;
+  }>
+> {
+  const rows = await db
+    .select({
+      bookingId: bookings.id,
+      bookingCode: bookings.bookingCode,
+      depositPaise: bookings.depositPaise,
+    })
+    .from(bookings)
+    .where(eq(bookings.depositCollectionStatus, 'closed_uncollected'));
+
+  const result: Array<{
+    bookingId: string;
+    bookingCode: string;
+    requiredPaise: number;
+    receivedPaise: number;
+    outstandingPaise: number;
+  }> = [];
+
+  for (const row of rows) {
+    const { getBookingMoneyBalances } = await import('./bookingMoneyBalances');
+    const balances = await getBookingMoneyBalances(row.bookingId);
+    result.push({
+      bookingId: row.bookingId,
+      bookingCode: row.bookingCode,
+      requiredPaise: balances?.deposit.requiredPaise ?? row.depositPaise,
+      receivedPaise: balances?.deposit.receivedPaise ?? 0,
+      outstandingPaise: Math.max(
+        0,
+        (balances?.deposit.requiredPaise ?? row.depositPaise) -
+          (balances?.deposit.receivedPaise ?? 0),
+      ),
+    });
+  }
+
+  return result;
+}
+
 export async function listOutstandingDeposits(filter?: {
   overdueOnly?: boolean;
   dueWithinDays?: number;

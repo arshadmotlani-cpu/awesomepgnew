@@ -11,6 +11,8 @@ import {
 } from '@/src/lib/deposits/depositCollectionStatus';
 import { paiseToInr } from '@/src/lib/format';
 import { getDepositCollectionAuditReport } from '@/src/services/pgDepositCollection';
+import { listClosedUncollectedDepositBookings } from '@/src/services/depositCollection';
+import { bookingFinancialWorkspaceHref } from '@/src/lib/bookings/bookingFinancialLinks';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,8 +31,12 @@ export default async function DepositAuditPage() {
   await requireAdminSession('/admin/deposits/audit');
 
   let rows;
+  let closedUncollected: Awaited<ReturnType<typeof listClosedUncollectedDepositBookings>> = [];
   try {
-    rows = await getDepositCollectionAuditReport();
+    [rows, closedUncollected] = await Promise.all([
+      getDepositCollectionAuditReport(),
+      listClosedUncollectedDepositBookings(),
+    ]);
   } catch (err) {
     return (
       <>
@@ -66,7 +72,7 @@ export default async function DepositAuditPage() {
         }
       />
 
-      <section className="mb-6 grid gap-3 sm:grid-cols-4">
+      <section className="mb-6 grid gap-3 sm:grid-cols-5">
         <div className="rounded-xl border border-white/10 bg-[#1A1F27] p-4">
           <p className="text-[10px] uppercase tracking-wide text-apg-silver">Assigned</p>
           <p className="mt-1 text-2xl font-semibold text-white">{rows.length}</p>
@@ -83,7 +89,61 @@ export default async function DepositAuditPage() {
           <p className="text-[10px] uppercase tracking-wide text-apg-silver">Requirement missing</p>
           <p className="mt-1 text-2xl font-semibold text-white">{missing.length}</p>
         </div>
+        <div className="rounded-xl border border-zinc-400/30 bg-zinc-500/10 p-4">
+          <p className="text-[10px] uppercase tracking-wide text-apg-silver">Closed uncollected</p>
+          <p className="mt-1 text-2xl font-semibold text-white">{closedUncollected.length}</p>
+        </div>
       </section>
+
+      {closedUncollected.length > 0 ? (
+        <section className="mb-6 overflow-hidden rounded-xl border border-white/10 bg-[#1A1F27]">
+          <div className="border-b border-white/10 px-4 py-3">
+            <h2 className="text-sm font-semibold text-white">Post-checkout uncollected deposits</h2>
+            <p className="mt-1 text-xs text-apg-silver">
+              Required minus received at checkout — not collectible after tenancy ended.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="border-b border-white/10 bg-white/[0.03]">
+                <tr>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase text-apg-silver">Booking</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-apg-silver">
+                    Required
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-apg-silver">
+                    Received
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-apg-silver">
+                    Uncollected
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {closedUncollected.map((row) => (
+                  <tr key={row.bookingId} className="border-b border-white/5 last:border-0">
+                    <td className="px-4 py-3">
+                      <Link
+                        href={bookingFinancialWorkspaceHref(row.bookingId)}
+                        className="font-medium text-[#FF5A1F] hover:underline"
+                      >
+                        {row.bookingCode}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-right text-white">{paiseToInr(row.requiredPaise)}</td>
+                    <td className="px-4 py-3 text-right text-emerald-300">
+                      {paiseToInr(row.receivedPaise)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-amber-200">
+                      {paiseToInr(row.outstandingPaise)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
 
       {missing.length > 0 ? (
         <div className="mb-6 rounded-xl border border-violet-400/30 bg-violet-500/10 px-4 py-3 text-sm text-violet-100">

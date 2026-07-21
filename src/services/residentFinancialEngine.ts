@@ -1048,6 +1048,8 @@ export async function listOutstandingDepositsFromEngine(
       AND b.is_test = false
       AND c.is_test = false
       AND c.residency_status = 'active'
+      AND b.deposit_collection_status NOT IN ('closed_uncollected', 'waived', 'full')
+      AND coalesce(b.deposit_due_paise, 0) > 0
     ORDER BY b.id, br.created_at DESC
   `);
 
