@@ -1,5 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { logger } from '@/src/lib/logger';
+import { recordRouteStat } from '@/src/lib/monitoring/runtimeDiagnostics';
 import { createRequestId } from '@/src/lib/monitoring/requestContext';
 
 type RouteHandler = (req: NextRequest, ctx?: unknown) => Promise<Response>;
@@ -14,6 +15,7 @@ export function withErrorHandler(handler: RouteHandler, routeLabel?: string): Ro
     try {
       const response = await handler(req, ctx);
       const latencyMs = Date.now() - startedAt;
+      recordRouteStat(route, latencyMs);
 
       logger.api('request completed', {
         route,

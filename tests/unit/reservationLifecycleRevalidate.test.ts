@@ -51,6 +51,7 @@ test('revalidate helper dedupes base and target paths', () => {
   const src = read('src/lib/occupancyRevalidate.ts');
   assert.match(src, /revalidateReservationLifecycleBase/);
   assert.match(src, /revalidateReservationLifecycleTargets/);
+  assert.match(src, /scheduleAvailabilityCacheInvalidation/);
   assert.match(src, /for \(const bookingCode of bookingCodes\)/);
   assert.doesNotMatch(src, /revalidateReservationLifecycleViews\(\);[\s\S]*revalidateReservationLifecycleViews\(\);/);
 });

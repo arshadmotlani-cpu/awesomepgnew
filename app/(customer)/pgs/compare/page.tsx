@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { PgCompareTable } from '@/src/components/customer/PgCompareTable';
-import { listPublicPgs } from '@/src/db/queries/customer';
+import { listPublicPgs } from '@/src/services/publicPgReadCache';
 import { titleCase } from '@/src/lib/format';
 
 export const metadata = { title: 'Compare PGs' };

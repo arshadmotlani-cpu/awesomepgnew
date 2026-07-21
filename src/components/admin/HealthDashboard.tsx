@@ -68,7 +68,7 @@ export function HealthDashboard({
   }, []);
 
   useEffect(() => {
-    const id = setInterval(() => void refresh(), 10_000);
+    const id = setInterval(() => void refresh(), 60_000);
     return () => clearInterval(id);
   }, [refresh]);
 

@@ -185,7 +185,7 @@ export function VisitorAnalyticsDashboard({
 
   useEffect(() => {
     void fetchLive();
-    const id = window.setInterval(() => void fetchLive(), 30_000);
+    const id = window.setInterval(() => void fetchLive(), 60_000);
     return () => window.clearInterval(id);
   }, [fetchLive]);
 

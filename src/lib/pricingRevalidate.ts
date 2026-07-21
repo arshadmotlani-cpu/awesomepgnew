@@ -3,14 +3,12 @@
  */
 
 import { revalidatePath } from 'next/cache';
+import { invalidateAdminKpiCache } from '@/src/lib/cache/invalidate';
+import { revalidatePublicPgBrowseCache } from '@/src/lib/cache/revalidatePublicPg';
 
-export function revalidatePricingViews(pgSlug?: string) {
+export function revalidatePricingViews(pgSlug?: string, opts?: { pgId?: string }) {
+  revalidatePublicPgBrowseCache({ pgSlug, pgId: opts?.pgId });
   try {
-    revalidatePath('/pgs');
-    if (pgSlug) {
-      revalidatePath(`/pgs/${pgSlug}`);
-      revalidatePath(`/pgs/${pgSlug}`, 'page');
-    }
     revalidatePath('/booking/new');
     revalidatePath('/account');
     revalidatePath('/admin/overview');
@@ -24,4 +22,5 @@ export function revalidatePricingViews(pgSlug?: string) {
   } catch {
     // No-op outside Next.js request context (CLI remediation scripts).
   }
+  void invalidateAdminKpiCache();
 }

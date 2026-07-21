@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { revalidatePublicPgBrowseCache } from '@/src/lib/cache/revalidatePublicPg';
 import { revalidatePgAdminPages } from '@/src/lib/revalidatePgAdmin';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { parseSharingCount, sharingTypeName } from '@/src/lib/roomSharing';
@@ -67,7 +68,7 @@ export async function quickAddBedAction(
     });
 
     revalidatePgAdminPages(pgId);
-    revalidatePath('/pgs');
+    revalidatePublicPgBrowseCache({ pgId });
     revalidatePath('/admin/beds');
     revalidatePath('/admin/pricing');
 
@@ -111,7 +112,7 @@ export async function updateRoomDetailsAction(
     });
 
     revalidatePgAdminPages(pgId);
-    revalidatePath('/pgs');
+    revalidatePublicPgBrowseCache({ pgId });
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -126,7 +127,7 @@ export async function markPgFullyOccupiedAction(
     const result = await markPgFullyOccupied(session, pgId);
     revalidatePgAdminPages(pgId);
     revalidatePath('/admin');
-    revalidatePath('/pgs');
+    revalidatePublicPgBrowseCache({ pgId });
     if (result.bedsMarked === 0) {
       return { ok: true, message: 'All beds are already marked occupied.' };
     }
@@ -149,7 +150,7 @@ export async function clearPgOccupancyPlaceholdersAction(
     revalidatePath('/admin');
     revalidatePath('/admin/bookings');
     revalidatePath('/admin/residents');
-    revalidatePath('/pgs');
+    revalidatePublicPgBrowseCache({ pgId });
     if (result.bedsReleased === 0) {
       return { ok: true, message: 'No placeholder occupancy to clear — beds should already be available.' };
     }
@@ -170,7 +171,7 @@ export async function archiveBedAction(
     const session = await requireAdminPermission('pgs:write');
     await archiveBed(session, pgId, bedId);
     revalidatePgAdminPages(pgId);
-    revalidatePath('/pgs');
+    revalidatePublicPgBrowseCache({ pgId });
     revalidatePath('/admin/beds');
     return { ok: true };
   } catch (err) {
@@ -186,7 +187,7 @@ export async function archiveRoomAction(
     const session = await requireAdminPermission('pgs:write');
     await archiveRoom(session, pgId, roomId);
     revalidatePgAdminPages(pgId);
-    revalidatePath('/pgs');
+    revalidatePublicPgBrowseCache({ pgId });
     revalidatePath('/admin/beds');
     revalidatePath('/admin/rooms');
     return { ok: true };
@@ -223,7 +224,7 @@ export async function updateRoomPricingAction(
     });
 
     revalidatePgAdminPages(pgId);
-    revalidatePath('/pgs');
+    revalidatePublicPgBrowseCache({ pgId });
     revalidatePath('/admin/pricing');
     return { ok: true };
   } catch (err) {

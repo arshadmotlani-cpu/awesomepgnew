@@ -3,10 +3,14 @@
  * No SQL, filters, aggregations, or business rules in this module.
  */
 
-import { getDashboardStats, listPgs, type DashboardStats } from '@/src/db/queries/admin';
+import { listPgs, type DashboardStats } from '@/src/db/queries/admin';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import { OPS_QUEUE_FILTERS, type OpsQueueFilter } from '@/src/lib/operations/operationsFilterLinks';
 import type { AdminSession } from '@/src/lib/auth/session';
+import {
+  getCachedDashboardStats,
+  getCachedVisitorCountSummary,
+} from '@/src/services/adminKpiCache';
 import { loadBillingCommandCenterSnapshot } from '@/src/services/billingCommandCenter';
 import {
   computeOutstandingMoneyFromInvoices,
@@ -20,7 +24,7 @@ import { getMoveOutPipelineSnapshot } from '@/src/services/moveOutPipelineServic
 import { getUpcomingCheckinsCount } from '@/src/services/operationsCenter';
 import { getRevenueCommandCenterData, type RevenueCommandCenterData } from '@/src/services/revenueCommandCenter';
 import { getUnifiedOperationsQueueForRequest } from '@/src/services/unifiedOperationsQueue';
-import { getActiveTenantCount, getVisitorCountSummary } from '@/src/services/visitorAnalytics';
+import { getActiveTenantCount } from '@/src/services/visitorAnalytics';
 
 export type OperationsQueueCounts = Record<OpsQueueFilter, number>;
 
@@ -34,7 +38,7 @@ export type OverviewReportingSnapshot = {
   billingCenter: Awaited<ReturnType<typeof loadBillingCommandCenterSnapshot>>;
   operationsQueueCounts: OperationsQueueCounts;
   dashboard: DashboardStats | null;
-  visitors: Awaited<ReturnType<typeof getVisitorCountSummary>>;
+  visitors: Awaited<ReturnType<typeof getCachedVisitorCountSummary>>;
   activeTenants: number;
   upcomingCheckins: number;
   moveOutPipeline: Awaited<ReturnType<typeof getMoveOutPipelineSnapshot>>;
@@ -101,8 +105,8 @@ export async function loadOverviewReportingSnapshot(
     }),
     loadBillingCommandCenterSnapshot(session, billingMonth, opts),
     getUnifiedOperationsQueueForRequest(session, null),
-    getDashboardStats().catch(() => ({ ok: false as const, error: '' })),
-    getVisitorCountSummary().catch((err) => {
+    getCachedDashboardStats().catch(() => ({ ok: false as const, error: '' })),
+    getCachedVisitorCountSummary().catch((err) => {
       console.error('[overview] visitor analytics query failed', err);
       return EMPTY_VISITORS;
     }),

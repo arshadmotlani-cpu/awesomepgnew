@@ -13,6 +13,7 @@ import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { nextBookingCode, utcYear } from '@/src/lib/bookingCode';
 import { formatDate } from '@/src/lib/dates';
+import { scheduleAvailabilityCacheInvalidation } from '@/src/lib/cache/invalidateAvailability';
 import {
   OCCUPANCY_PLACEHOLDER_EMAIL,
   OCCUPANCY_PLACEHOLDER_NAME,
@@ -136,6 +137,10 @@ export async function markPgFullyOccupied(
     }
   });
 
+  if (vacantBeds.length > 0) {
+    scheduleAvailabilityCacheInvalidation({ pgId });
+  }
+
   return { bedsMarked: vacantBeds.length, bookingCode };
 }
 
@@ -223,6 +228,10 @@ export async function clearPgOccupancyPlaceholders(
       return cancelled.length;
     });
     bedsReleased += released;
+  }
+
+  if (bedsReleased > 0 || rows.length > 0) {
+    scheduleAvailabilityCacheInvalidation({ pgId });
   }
 
   return { bedsReleased, bookingsCancelled: rows.length };

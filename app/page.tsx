@@ -3,7 +3,7 @@ import { SiteHeader } from '@/src/components/customer/SiteHeader';
 import { WhatsAppSupportButton } from '@/src/components/customer/WhatsAppSupportButton';
 import { SpatialLandingPage } from '@/src/components/world/SpatialLandingPage';
 import { WorldShell } from '@/src/components/world';
-import { listPublicPgs } from '@/src/db/queries/customer';
+import { listPublicPgs } from '@/src/services/publicPgReadCache';
 
 export const metadata = {
   title: 'Awesome PG · Premium living beyond ordinary PGs',

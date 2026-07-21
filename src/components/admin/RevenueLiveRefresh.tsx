@@ -13,7 +13,7 @@ export function RevenueLiveRefresh({ billingMonth }: { billingMonth: string }) {
 
     const id = window.setInterval(() => {
       router.refresh();
-    }, 60_000);
+    }, 120_000);
 
     return () => window.clearInterval(id);
   }, [billingMonth, router]);

@@ -13,7 +13,7 @@ import { CountUpNumber } from '@/src/components/customer/design-system';
 import { RoomDetailInsights } from '@/src/components/customer/RoomDetailInsights';
 import { AnalyticsMountEvent } from '@/src/components/analytics/AnalyticsMountEvent';
 import { RoomDetailFlowShell, RoomBedMapCta } from '@/src/components/world/RoomDetailFlowShell';
-import { getRoomDetail } from '@/src/db/queries/customer';
+import { getRoomDetail } from '@/src/services/publicPgReadCache';
 import { getCustomerSession } from '@/src/lib/auth/session';
 import { enrichBedsWithQuotedMonthlyDeposit } from '@/src/lib/booking/publicQuote';
 import { displayMonthlyDepositPaise } from '@/src/lib/customerDepositDisplay';

@@ -169,6 +169,11 @@ export async function activateReservationRequestForBooking(bookingId: string): P
     });
   });
 
+  const { scheduleAvailabilityCacheInvalidation } = await import(
+    '@/src/lib/cache/invalidateAvailability'
+  );
+  scheduleAvailabilityCacheInvalidation({ bookingId });
+
   scheduleAdminNotificationSync();
 }
 

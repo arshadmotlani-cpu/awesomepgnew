@@ -6,6 +6,7 @@
 import { eq, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { bedReservations, bookings } from '@/src/db/schema';
+import { scheduleAvailabilityCacheInvalidation } from '@/src/lib/cache/invalidateAvailability';
 import { revalidateReservationLifecycleViews } from '@/src/lib/occupancyRevalidate';
 import { clearBedAdminMarks } from '@/src/services/bookingAdminOps';
 
@@ -99,6 +100,7 @@ export async function reconcileBookingOccupancy(
       .where(eq(bookings.id, bookingId))
       .limit(1);
     revalidateReservationLifecycleViews({ bookingCode: booking?.bookingCode ?? null });
+    scheduleAvailabilityCacheInvalidation({ bookingId });
   }
 
   return { bedsTouched, orphansReconciled, terminalClosed };

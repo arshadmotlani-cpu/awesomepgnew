@@ -1,14 +1,13 @@
-import {
-  getBusinessMetricsSummary,
-  getPgBusinessMetrics,
-  type BusinessMetricsSummary,
-  type PgBusinessMetrics,
-} from '@/src/db/queries/admin';
+import type { BusinessMetricsSummary, PgBusinessMetrics } from '@/src/db/queries/admin';
 import { resolveBillingMonth } from '@/src/lib/dateDefaults';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { cache } from 'react';
 import { adminRequestScopeKey } from '@/src/lib/admin/adminRequestCache';
 import { profileAdminStep } from '@/src/lib/admin/adminProfile';
+import {
+  getCachedBusinessMetricsSummary,
+  getCachedPgBusinessMetrics,
+} from '@/src/services/adminKpiCache';
 import { syncActionItems } from '@/src/services/actionItems';
 import type { ExecutiveMetrics } from '@/src/services/executiveMetrics';
 import {
@@ -82,8 +81,8 @@ async function loadOverviewContextImpl(
 
   const [reporting, summary, metrics, executiveMetrics] = await Promise.all([
     loadOverviewReportingSnapshot(session, billingMonth, { reconcile }),
-    getBusinessMetricsSummary(billingMonth),
-    getPgBusinessMetrics(billingMonth),
+    getCachedBusinessMetricsSummary(billingMonth),
+    getCachedPgBusinessMetrics(billingMonth),
     import('@/src/services/executiveMetrics').then((m) =>
       m.getExecutiveMetrics(billingMonth).catch(() => null),
     ),

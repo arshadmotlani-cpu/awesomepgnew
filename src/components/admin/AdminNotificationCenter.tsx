@@ -92,7 +92,7 @@ export function AdminNotificationCenter({ initialUnread = 0 }: { initialUnread?:
           }
         })
         .catch(() => undefined);
-    }, 20_000);
+    }, 60_000);
     return () => window.clearInterval(timer);
   }, []);
 

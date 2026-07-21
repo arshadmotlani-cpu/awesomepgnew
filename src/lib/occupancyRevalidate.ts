@@ -2,6 +2,7 @@ import { revalidatePath } from 'next/cache';
 import { eq, inArray } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { bedReserveHolds, beds, bookings, floors, pgs, rooms } from '@/src/db/schema';
+import { scheduleAvailabilityCacheInvalidation } from '@/src/lib/cache/invalidateAvailability';
 
 export type ReservationLifecycleRevalidateInput = {
   pgId?: string | null;
@@ -63,6 +64,12 @@ export function revalidateReservationLifecycleViews(
 ): void {
   revalidateReservationLifecycleBase();
   revalidateReservationLifecycleTargets(input);
+  if (input?.pgId || input?.pgSlug) {
+    scheduleAvailabilityCacheInvalidation({
+      pgId: input.pgId,
+      pgSlug: input.pgSlug,
+    });
+  }
 }
 
 /** @deprecated Prefer revalidateReservationLifecycleViews — kept for existing call sites. */
@@ -94,22 +101,25 @@ export async function revalidateReservationLifecycleForBookingIds(
     .where(inArray(bookings.id, uniqueIds));
 
   const bookingCodes = new Set<string>();
-  const pgIds = new Set<string>();
-  const pgSlugs = new Set<string>();
+  const pgById = new Map<string, string | null>();
   for (const row of rows) {
     if (row.bookingCode) bookingCodes.add(row.bookingCode);
-    if (row.pgId) pgIds.add(row.pgId);
-    if (row.pgSlug) pgSlugs.add(row.pgSlug);
+    if (row.pgId) {
+      pgById.set(row.pgId, row.pgSlug ?? pgById.get(row.pgId) ?? null);
+    }
   }
 
   for (const bookingCode of bookingCodes) {
     revalidateReservationLifecycleTargets({ bookingCode });
   }
-  for (const pgId of pgIds) {
+  for (const pgId of pgById.keys()) {
     revalidateReservationLifecycleTargets({ pgId });
   }
-  for (const pgSlug of pgSlugs) {
-    revalidateReservationLifecycleTargets({ pgSlug });
+  for (const pgSlug of pgById.values()) {
+    if (pgSlug) revalidateReservationLifecycleTargets({ pgSlug });
+  }
+  for (const [pgId, pgSlug] of pgById) {
+    scheduleAvailabilityCacheInvalidation({ pgId, pgSlug });
   }
 }
 

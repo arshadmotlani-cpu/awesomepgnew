@@ -297,3 +297,6 @@ See [[DECISIONS#Operations as action hub]].
 
 <!-- DOC_SYNC_TOUCH_2026-07-15 -->
 > **2026-07-15 07:05:30 UTC** — Code changed in: Routes, Database. Manual review recommended.
+
+<!-- DOC_SYNC_TOUCH_2026-07-21 -->
+> **2026-07-21 08:32:20 UTC** — Code changed in: Routes, Bed Assignment, Bookings, Residents, Vacating. Manual review recommended.

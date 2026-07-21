@@ -58,7 +58,7 @@ export function MonitoringDashboard({ initial, initialError }: Props) {
   useEffect(() => {
     const id = setInterval(() => {
       void fetchData();
-    }, 8_000);
+    }, 60_000);
     return () => clearInterval(id);
   }, [fetchData]);
 

@@ -12,6 +12,7 @@ import {
   formatMaintenanceReason,
 } from '@/src/lib/bedMaintenance';
 import { todayString } from '@/src/lib/dates';
+import { scheduleAvailabilityCacheInvalidation } from '@/src/lib/cache/invalidateAvailability';
 import { assertBedAccess } from '@/src/services/bookingAdminOps';
 
 export type PutBedUnderMaintenanceInput = {
@@ -99,6 +100,7 @@ export async function putBedUnderMaintenance(
       },
     });
 
+    scheduleAvailabilityCacheInvalidation({ bedId });
     return { ok: true };
   } catch (err) {
     return { ok: false, error: sanitizeBedStatusError(err) };
@@ -161,6 +163,7 @@ export async function completeBedMaintenance(
       },
     });
 
+    scheduleAvailabilityCacheInvalidation({ bedId });
     return { ok: true };
   } catch (err) {
     return { ok: false, error: sanitizeBedStatusError(err) };

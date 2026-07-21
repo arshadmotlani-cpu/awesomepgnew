@@ -770,6 +770,11 @@ export async function createBooking(
         }
       }
 
+      const { scheduleAvailabilityCacheInvalidation } = await import(
+        '@/src/lib/cache/invalidateAvailability'
+      );
+      scheduleAvailabilityCacheInvalidation({ bookingId: result.id });
+
       return {
         ok: true,
         bookingId: result.id,

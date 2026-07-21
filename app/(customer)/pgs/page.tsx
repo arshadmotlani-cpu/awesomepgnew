@@ -1,5 +1,5 @@
 import { uploadPaymentScreenshotAction } from '@/app/(admin)/admin/pgs/payment-actions';
-import { listPublicPgs, type CustomerPgListRow } from '@/src/db/queries/customer';
+import { listPublicPgs, type CustomerPgListRow } from '@/src/services/publicPgReadCache';
 import { isPaymentScreenshotUploadAvailable } from '@/src/lib/payments/screenshotUpload';
 import { EmptyPgList } from '@/src/components/customer/EmptyPgList';
 import { SpatialPgHeader } from '@/src/components/world/SpatialPgExplorer';

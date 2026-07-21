@@ -245,5 +245,15 @@ export async function supersedePriorOpenBookingsForConfirmedBooking(
     finalizedPaymentRecordIds.push(...result.finalizedPaymentRecordIds);
   }
 
+  if (supersededBookingIds.length > 0) {
+    const { scheduleAvailabilityCacheInvalidation } = await import(
+      '@/src/lib/cache/invalidateAvailability'
+    );
+    for (const bookingId of supersededBookingIds) {
+      scheduleAvailabilityCacheInvalidation({ bookingId });
+    }
+    scheduleAvailabilityCacheInvalidation({ bookingId: confirmedBookingId });
+  }
+
   return { supersededBookingIds, finalizedPaymentRecordIds };
 }

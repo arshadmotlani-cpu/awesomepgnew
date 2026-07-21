@@ -944,6 +944,11 @@ export async function recordPaymentSuccess(
       }
     }
 
+    if (wasAwaitingConfirm) {
+      const { reconcileBookingOccupancy } = await import('@/src/lib/occupancySync');
+      await reconcileBookingOccupancy(booking.id);
+    }
+
     return {
       ok: true,
       paymentId: result.paymentId,
@@ -1451,9 +1456,15 @@ export async function releaseExpiredHolds(
   }
   if (cancelledCodes.length > 0 || affectedBookingIds.length > 0) {
     const { revalidateReservationLifecycleViews } = await import('@/src/lib/occupancyRevalidate');
+    const { scheduleAvailabilityCacheInvalidation } = await import(
+      '@/src/lib/cache/invalidateAvailability'
+    );
     revalidateReservationLifecycleViews();
     for (const bookingCode of cancelledCodes) {
       revalidateReservationLifecycleViews({ bookingCode });
+    }
+    for (const bookingId of affectedBookingIds) {
+      scheduleAvailabilityCacheInvalidation({ bookingId });
     }
   }
 
@@ -1710,6 +1721,9 @@ export async function recordExtensionPaymentSuccess(
       return { ok: false, reason };
     }
 
+    const { reconcileBookingOccupancy } = await import('@/src/lib/occupancySync');
+    await reconcileBookingOccupancy(booking.id);
+
     return {
       ok: true,
       paymentId: result.paymentId,
@@ -1861,6 +1875,10 @@ export async function recordExtensionPaymentFailure(
 
       return { paymentId: row.id };
     });
+
+    const { reconcileBookingOccupancy } = await import('@/src/lib/occupancySync');
+    await reconcileBookingOccupancy(ext.bookingId);
+
     return {
       ok: true,
       paymentId: result.paymentId,
@@ -2191,6 +2209,14 @@ export async function expireStaleReservations(
       codes.push(row.booking_code);
     }
   });
+
+  const uniqueBookingIds = [...new Set(resultRows.map((row) => row.booking_id))];
+  for (const bookingId of uniqueBookingIds) {
+    const { scheduleAvailabilityCacheInvalidation } = await import(
+      '@/src/lib/cache/invalidateAvailability'
+    );
+    scheduleAvailabilityCacheInvalidation({ bookingId });
+  }
 
   return { expired: resultRows.length, bookingCodes: codes };
 }

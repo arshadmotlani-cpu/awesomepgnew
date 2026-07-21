@@ -492,6 +492,7 @@ export async function approveVacatingRequest(input: {
 
   if (shouldShortenStayOnVacatingApproval(updated.vacatingDate)) {
     await shortenBookingReservationsToDate(updated.bookingId, updated.vacatingDate);
+    await reconcileBookingOccupancy(updated.bookingId);
   }
 
   await syncCheckoutRentForVacating({

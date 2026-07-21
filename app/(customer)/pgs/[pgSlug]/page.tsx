@@ -4,7 +4,7 @@ import { PgBlockBooking } from '@/src/components/customer/block/PgBlockBooking';
 import { BookingFunnelShell } from '@/src/components/customer/checkout/BookingFunnelShell';
 import type { CustomerRoomBedMap } from '@/src/components/customer/CustomerBedMap';
 import { AnalyticsMountEvent } from '@/src/components/analytics/AnalyticsMountEvent';
-import { getPgBySlug, getRoomDetail, listRoomsForPg } from '@/src/db/queries/customer';
+import { getPgBySlug, getRoomDetail, listRoomsForPg } from '@/src/services/publicPgReadCache';
 import { buildSingleSharedSummaries } from '@/src/lib/booking/pgRoomTypeSummaries';
 import { enrichBedsWithQuotedMonthlyDeposit } from '@/src/lib/booking/publicQuote';
 import { trackAnalyticsEvent } from '@/src/services/visitorAnalytics';

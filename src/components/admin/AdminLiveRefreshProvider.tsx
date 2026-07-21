@@ -11,7 +11,7 @@ import {
 } from 'react';
 import type { AdminNavBadges } from '@/src/services/adminNavBadges';
 
-const BADGE_POLL_MS = 20_000;
+const BADGE_POLL_MS = 60_000;
 
 const AdminBadgesContext = createContext<AdminNavBadges>({});
 

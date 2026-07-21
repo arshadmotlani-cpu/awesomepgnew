@@ -11,6 +11,7 @@ import {
   sanitizeBedStatusError,
 } from '@/src/lib/bedOccupancyCheck';
 import { formatDate, isBefore, parseDate, todayString } from '@/src/lib/dates';
+import { scheduleAvailabilityCacheInvalidation } from '@/src/lib/cache/invalidateAvailability';
 import { RESERVE_MIN_PERIOD_DAYS } from '@/src/lib/bedReservePolicy';
 import type {
   AdminDepositRefundStatus,
@@ -247,6 +248,8 @@ export async function updateBedInventoryStatus(
       to: status,
     },
   });
+
+  scheduleAvailabilityCacheInvalidation({ bedId });
 }
 
 export async function clearBedAdminMarks(bedId: string): Promise<void> {
@@ -326,6 +329,7 @@ export async function setBedManualOccupied(
       },
     });
 
+    scheduleAvailabilityCacheInvalidation({ bedId });
     return { ok: true };
   } catch (err) {
     return { ok: false, error: sanitizeBedStatusError(err) };
@@ -420,6 +424,7 @@ export async function setBedManualReserved(
       },
     });
 
+    scheduleAvailabilityCacheInvalidation({ bedId });
     return { ok: true };
   } catch (err) {
     return { ok: false, error: sanitizeBedStatusError(err) };
@@ -472,6 +477,7 @@ export async function clearBedManualReserved(
       },
     });
 
+    scheduleAvailabilityCacheInvalidation({ bedId });
     return { ok: true };
   } catch (err) {
     return { ok: false, error: sanitizeBedStatusError(err) };

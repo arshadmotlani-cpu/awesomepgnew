@@ -1,4 +1,5 @@
 import { logger } from '@/src/lib/logger';
+import { recordQueryStat } from '@/src/lib/monitoring/runtimeDiagnostics';
 import { getMonitoringContext } from '@/src/lib/monitoring/requestContext';
 
 const SLOW_QUERY_MS = 200;
@@ -10,6 +11,7 @@ export async function traceQuery<T>(queryName: string, fn: () => Promise<T>): Pr
   try {
     const result = await fn();
     const durationMs = Date.now() - startedAt;
+    recordQueryStat(queryName, durationMs);
 
     logger.db('query completed', {
       query: queryName,
@@ -31,6 +33,7 @@ export async function traceQuery<T>(queryName: string, fn: () => Promise<T>): Pr
     return result;
   } catch (error) {
     const durationMs = Date.now() - startedAt;
+    recordQueryStat(queryName, durationMs);
     const message = error instanceof Error ? error.message : String(error);
     const stack = error instanceof Error ? error.stack : undefined;
 

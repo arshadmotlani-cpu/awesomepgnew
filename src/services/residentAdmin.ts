@@ -768,6 +768,9 @@ export async function shiftBookingToReservation(
     })
     .where(eq(bookings.id, input.bookingId));
 
+  const { reconcileBookingOccupancy } = await import('@/src/lib/occupancySync');
+  await reconcileBookingOccupancy(input.bookingId);
+
   return { ok: true };
 }
 
@@ -818,6 +821,9 @@ export async function activateReservationNow(
 
   const { clearBedAdminMarks } = await import('@/src/services/bookingAdminOps');
   await clearBedAdminMarks(ctx.bedId);
+
+  const { reconcileBookingOccupancy } = await import('@/src/lib/occupancySync');
+  await reconcileBookingOccupancy(input.bookingId);
 
   return { ok: true };
 }
