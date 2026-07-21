@@ -24,7 +24,7 @@ mock adapter for development.
 - [`PHASE5_5_OPERATIONS.md`](./PHASE5_5_OPERATIONS.md) — resident-billing
   runbook: monthly rent invoices + late fees, room-level electricity
   bills + per-resident split, deposit ledger, and the vacating workflow
-  with its 5-day fixed-penalty rule.
+  with pro-rata missing-notice-days deduction.
 
 ## Quick start
 
@@ -104,7 +104,7 @@ src/
     rentInvoices.ts     Phase 5.5 — generate / pay / overdue-sweep monthly rent
     electricityBilling.ts Phase 5.5 — create room bill + fan out per-resident invoices
     deposits.ts         Phase 5.5 — append-only deposit ledger
-    vacating.ts         Phase 5.5 — vacating workflow + 5-day fixed-penalty rule
+    vacating.ts         Phase 5.5 — vacating workflow + pro-rata notice deduction
   components/{admin,customer}/  React UI
   lib/                  env, format, phone normaliser, booking-code minter
 
@@ -133,7 +133,7 @@ npx tsx scripts/verify-extension-hold-expiry.ts # Phase 5: pending extension cle
 npx tsx scripts/verify-rent-billing.ts       # Phase 5.5: generate → pay → idempotent replay → overdue sweep
 npx tsx scripts/verify-electricity-split.ts  # Phase 5.5: monthly-only occupancy, ₹750 × 2 split, duplicate guard
 npx tsx scripts/verify-late-fee-calculation.ts # Phase 5.5: 1%/day from day 6, locked on payment
-npx tsx scripts/verify-vacating-deduction.ts # Phase 5.5: 5-day fixed penalty vs full refund
+npx tsx scripts/verify-vacating-deduction.ts # Phase 5.5: pro-rata notice deduction vs full refund
 npx tsx scripts/verify-deposit-ledger.ts     # Phase 5.5: auto-mirror, signed ledger, CHECK guards
 npx tsx scripts/sweep-holds.ts               # manual hold-expiry sweep
 ```

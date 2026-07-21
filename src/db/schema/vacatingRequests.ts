@@ -18,10 +18,10 @@ import { vacatingStatusEnum } from './enums';
 /**
  * Vacating workflow for monthly residents.
  *
- * The 5-day rent penalty is computed at submit time from
- * `monthly_rent_paise_snapshot` (daily rate = monthly / 30, penalty =
- * daily * 5) and stored on the row so a later rent-rate change can't
- * silently rewrite the deduction for past requests.
+ * Pro-rata notice deduction (missing notice days × daily rent) is computed at
+ * submit time from `monthly_rent_paise_snapshot` (daily = floor(monthly/30),
+ * missing days = max(0, 14 − noticeGivenDays)) and stored on the row so a
+ * later rent-rate change cannot silently rewrite the deduction.
  *
  * Status transitions:
  *   pending   → approved (admin acknowledges; deposit not yet touched)

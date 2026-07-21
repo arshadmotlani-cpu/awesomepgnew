@@ -56,7 +56,14 @@ export function CheckoutRefundSummaryRail({
       <p className="text-xs font-medium uppercase tracking-wider text-apg-silver">Refund summary</p>
 
       <dl className="mt-5 space-y-3 text-sm">
-        <SummaryRow label="Deposit" value={paiseToInr(detail.depositRefundablePaise)} />
+        <SummaryRow label="Deposit (escrow)" value={paiseToInr(detail.depositRefundablePaise)} />
+        {detail.creditBalancePaise > 0 ? (
+          <SummaryRow
+            label="Credit balance"
+            value={paiseToInr(detail.creditBalancePaise)}
+            hint="Separate from deposit — may auto-apply to future invoices"
+          />
+        ) : null}
         <SummaryRow
           label="Notice fee"
           value={`−${paiseToInr(preview.noticeDeductionPaise)}`}
@@ -125,15 +132,20 @@ function SummaryRow({
   label,
   value,
   muted,
+  hint,
 }: {
   label: string;
   value: string;
   muted?: boolean;
+  hint?: string;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <dt className="text-apg-silver">{label}</dt>
-      <dd className={muted ? 'font-medium text-white/80' : 'font-medium text-white'}>{value}</dd>
+    <div>
+      <div className="flex items-center justify-between gap-3">
+        <dt className="text-apg-silver">{label}</dt>
+        <dd className={muted ? 'font-medium text-white/80' : 'font-medium text-white'}>{value}</dd>
+      </div>
+      {hint ? <p className="mt-0.5 text-[10px] text-zinc-500">{hint}</p> : null}
     </div>
   );
 }

@@ -10,10 +10,15 @@
 
 import { addDays, addMonths, diffDays, formatDate, parseDate, type DateLike } from '../lib/dates';
 
-/** Minimum days of notice before vacating for 100% deposit refund (no 5-day penalty). */
+/** Minimum calendar days of notice before vacating for zero deposit deduction. */
 export const VACATING_NOTICE_MIN_DAYS = 14;
 
-/** Fixed rent days deducted when notice is under {@link VACATING_NOTICE_MIN_DAYS}. */
+/** Maximum missing-notice days charged (0-day notice → 14 × daily rent). */
+export const VACATING_NOTICE_MAX_DEDUCTION_DAYS = VACATING_NOTICE_MIN_DAYS;
+
+/**
+ * @deprecated Fixed 5-day penalty removed 2026-07-21. Use {@link maxNoticeDeduction} for worst-case previews.
+ */
 export const VACATING_NOTICE_PENALTY_DAYS = 5;
 
 /** Days in the calendar month containing `date`. */
@@ -162,9 +167,15 @@ export function dueDateForBillingDay(billingMonth: DateLike, billingDay: number)
  * Days that the invoice is past the grace period (the 5th). On the 5th
  * itself this is 0 (still within grace). On the 6th this is 1. Anything
  * before the due date returns 0.
+ *
+ * Prefer {@link daysOverdueFromDueDate} when `invoice.due_date` is available.
  */
 export function daysOverdue(billingMonth: DateLike, today: DateLike): number {
-  const dueDate = dueDateForMonth(billingMonth);
+  return daysOverdueFromDueDate(dueDateForMonth(billingMonth), today);
+}
+
+/** Days past invoice due date (0 on due date, 1 the day after, etc.). */
+export function daysOverdueFromDueDate(dueDate: DateLike, today: DateLike): number {
   const days = diffDays(dueDate, today);
   return Math.max(0, days);
 }
@@ -183,12 +194,18 @@ export function daysOverdue(billingMonth: DateLike, today: DateLike): number {
  */
 export function computeLateFee(args: {
   rentPaise: number;
-  billingMonth: DateLike;
+  billingMonth?: DateLike;
+  dueDate?: DateLike;
   today?: DateLike;
 }): number {
   if (args.rentPaise <= 0) return 0;
   const today = args.today ?? formatDate(new Date());
-  const overdue = daysOverdue(args.billingMonth, today);
+  const overdue =
+    args.dueDate != null
+      ? daysOverdueFromDueDate(args.dueDate, today)
+      : args.billingMonth != null
+        ? daysOverdue(args.billingMonth, today)
+        : 0;
   if (overdue === 0) return 0;
   // 1% of original rent per day, floored to whole paise.
   return Math.floor((args.rentPaise * overdue) / 100);
@@ -255,9 +272,16 @@ export function dailyRateFromMonthly(monthlyRatePaise: number): number {
   return Math.floor(monthlyRatePaise / 30);
 }
 
+/** Worst-case notice deduction (0 calendar days of notice). For admin previews only. */
+export function maxNoticeDeduction(monthlyRatePaise: number): number {
+  return (
+    dailyRateFromMonthly(monthlyRatePaise) * VACATING_NOTICE_MAX_DEDUCTION_DAYS
+  );
+}
+
 /**
- * Fixed {@link VACATING_NOTICE_PENALTY_DAYS}-day vacating penalty when notice is short.
- * `daily * 5` — never scaled by notice shortfall days.
+ * @deprecated Use {@link maxNoticeDeduction} or {@link computeNoticeDeduction}.
+ * Kept for scripts/tests referencing the old fixed 5-day penalty.
  */
 export function vacatingPenalty(monthlyRatePaise: number): number {
   return dailyRateFromMonthly(monthlyRatePaise) * VACATING_NOTICE_PENALTY_DAYS;
@@ -265,7 +289,8 @@ export function vacatingPenalty(monthlyRatePaise: number): number {
 
 /**
  * Awesome PG notice policy (SSOT):
- * IF notice_days < {@link VACATING_NOTICE_MIN_DAYS} THEN deduction = 5 days rent ELSE 0.
+ * deduction = missingNoticeDays × dailyRent, where missingNoticeDays =
+ * max(0, {@link VACATING_NOTICE_MIN_DAYS} - noticeGivenDays).
  */
 export function computeNoticeDeduction(
   monthlyRatePaise: number,
@@ -276,18 +301,18 @@ export function computeNoticeDeduction(
   },
 ): number {
   if (monthlyRatePaise <= 0) return 0;
-  return isNoticeCompliant(args) ? 0 : vacatingPenalty(monthlyRatePaise);
+  const missing = noticeShortfallDays(args);
+  if (missing <= 0) return 0;
+  return dailyRateFromMonthly(monthlyRatePaise) * missing;
 }
 
-/**
- * @deprecated Use {@link computeNoticeDeduction}. Shortfall days are informational only.
- */
+/** Pro-rata notice deduction from a precomputed shortfall day count. */
 export function noticeShortfallDeduction(
   monthlyRatePaise: number,
   shortfallDays: number,
 ): number {
   if (shortfallDays <= 0 || monthlyRatePaise <= 0) return 0;
-  return vacatingPenalty(monthlyRatePaise);
+  return dailyRateFromMonthly(monthlyRatePaise) * shortfallDays;
 }
 
 export function noticeShortfallDays(args: {

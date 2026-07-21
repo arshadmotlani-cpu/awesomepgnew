@@ -192,3 +192,8 @@ Files:
 - 2026-07-11: Capital Overview redesigned as personal Investment OS (portfolio KPIs + chart/KPI pairing + month cursor)
 
 - 2026-07-11: Capital profit-sharing system (gross vs partner vs my share; dual ROI)
+
+## 2026-07-21
+
+- **BILLING-ENGINE** — Implemented approved billing engine plan: `docs/BILLING_ENGINE.md` (design lock); Billing Command Centre (health tiles, upcoming 14-day rent schedule, diagnostics tab); anniversary-only rent UI (removed bulk Generate Rent Bills; super-admin backfill only); late fee SSOT via `invoice.due_date`; auto-retry failed generations (max 3); `MeterTimelineService` + baseline advance on monthly finalize; `resident_credit_ledger` + escrow/credit separation in checkout; billing health score 0–100; migration `0116_billing_engine.sql`
+- **NOTICE-DEDUCTION-POLICY** — Replaced fixed 5-day vacating penalty with pro-rata missingNoticeDays × dailyRent; SSOT `billing.computeNoticeDeduction()`; backfill `scripts/migrate-notice-deduction-policy.ts`; reports `docs/NOTICE_DEDUCTION_MIGRATION.md`, `docs/NOTICE_DEDUCTION_MIGRATION_REPORT.md`

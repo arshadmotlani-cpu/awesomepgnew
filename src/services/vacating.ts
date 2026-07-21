@@ -11,8 +11,9 @@
  *
  * Policy (spec):
  *   - If notice >= 14 days: no deposit deduction.
- *   - If notice < 14 days: deduct exactly 5 days' worth of rent
- *     (monthlyRent / 30 * 5). FIXED — never the full notice shortfall.
+ *   - If notice < 14 days: deduct missingNoticeDays × dailyRent
+ *     (dailyRent = floor(monthlyRent / 30), missingNoticeDays =
+ *     max(0, 14 - noticeGivenDays)).
  *
  * The monthly rent and computed deduction are snapshotted onto the
  * vacating_requests row at SUBMIT time, so a later rate change can't
@@ -51,6 +52,7 @@ import { reconcileBookingOccupancy } from '../lib/occupancySync';
 import {
   computeNoticeDeduction,
   isNoticeCompliant,
+  noticeShortfallDays,
 } from './billing';
 import { getDepositSummaryForBooking } from './deposits';
 import { settleVacatingDepositRefund, applyDepositDeduction } from './depositSettlement';
@@ -124,7 +126,7 @@ export type SubmitVacatingInput = {
   /** Defaults to today. Admin can backdate if filing on behalf of resident. */
   noticeGivenDate?: DateLike;
   notes?: string | null;
-  /** Admin: skip 5-day penalty regardless of notice length. */
+  /** Admin: skip notice deduction regardless of notice length. */
   waiveDeduction?: boolean;
   /** Admin: approve immediately so the bed is pre-bookable on the website from vacatingDate. */
   openBedForBookingFromVacatingDate?: boolean;
@@ -893,13 +895,17 @@ export async function completeVacatingRequest(
 
   if (refundReq?.status === 'approved') {
     if (deductionPaise > 0) {
+      const missingDays = noticeShortfallDays({
+        noticeGivenDate: current.noticeGivenDate,
+        vacatingDate: current.vacatingDate,
+      });
       const deducted = await applyDepositDeduction({
         bookingId: current.bookingId,
         customerId: current.customerId,
         amountPaise: deductionPaise,
         reason: `vacating notice ${
           current.noticeCompliant ? 'compliant' : 'short'
-        } — 5-day rent penalty`,
+        } — ${missingDays} day(s) rent`,
         relatedVacatingId: current.id,
         adminId: input.resolvedByAdminId ?? null,
       });

@@ -148,11 +148,15 @@ export function BillingHealthCardPanel({
     unresolvedFailures: number;
     pendingApprovals: number;
     overdueRentInvoices: number;
+    dueInSevenDays?: number;
+    healthScore?: number;
+    healthGrade?: string;
     lastElectricityBatchAt: string | null;
     lastRun: { status: string; createdCount: number } | null;
   };
 }) {
   const rows = [
+    { label: 'Health score', value: health.healthScore != null ? `${health.healthScore} (${health.healthGrade ?? '—'})` : '—' },
     { label: 'Today (IST)', value: health.todayIst },
     {
       label: 'Next scheduler run',

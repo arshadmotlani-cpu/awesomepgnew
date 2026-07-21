@@ -16,13 +16,14 @@ function rentRowStatus(input: {
   paymentProofUrl: string | null;
   status: 'pending' | 'overdue' | 'payment_in_progress';
   billingMonth?: string;
+  dueDate?: string;
   rejection?: PaymentProofRejection;
 }): 'Rejected' | 'Waiting for admin approval' | 'Due' | 'Overdue' {
   const projected = projectInvoice({
     id: 'inv-1',
     bookingId: 'b-1',
     billingMonth: input.billingMonth ?? '2026-07-01',
-    dueDate: '2026-07-05',
+    dueDate: input.dueDate ?? '2026-07-05',
     rentPaise: 500_000,
     discountPaise: 0,
     promoCode: null,
@@ -106,6 +107,7 @@ test('no rejection and no proof shows Due or Overdue', () => {
       paymentProofUrl: null,
       status: 'pending',
       billingMonth: '2099-01-01',
+      dueDate: '2099-01-05',
     }),
     'Due',
   );
@@ -114,6 +116,7 @@ test('no rejection and no proof shows Due or Overdue', () => {
       paymentProofUrl: null,
       status: 'overdue',
       billingMonth: '2020-01-01',
+      dueDate: '2020-01-05',
     }),
     'Overdue',
   );

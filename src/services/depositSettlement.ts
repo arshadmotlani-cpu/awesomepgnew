@@ -459,7 +459,7 @@ export async function settleVacatingDepositRefund(input: {
               amountPaise: input.deductionPaise,
               reason: `vacating notice ${
                 input.noticeCompliant ? 'compliant' : 'short'
-              } — 5-day rent penalty`,
+              } — missing notice period rent`,
             },
           ],
         });

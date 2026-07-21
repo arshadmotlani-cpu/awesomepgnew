@@ -19,7 +19,7 @@ import {
   rooms,
   vacatingRequests,
 } from '@/src/db/schema';
-import { vacatingPenalty } from '@/src/services/billing';
+import { maxNoticeDeduction } from '@/src/services/billing';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import {
   previewOperatorTestDataCleanup,
@@ -266,7 +266,7 @@ export async function fixHarishDepositWallet(adminId: string): Promise<HarishCor
   const snapshot = (row.pricingSnapshot ?? { perBed: [] }) as PricingSnapshot;
   const monthlyRent =
     snapshot.perBed?.reduce((a, b) => a + (b.monthlyRatePaise ?? 0), 0) ?? row.depositPaise;
-  const penaltyPaise = vacating?.deductionPaise ?? vacatingPenalty(monthlyRent);
+  const penaltyPaise = vacating?.deductionPaise ?? maxNoticeDeduction(monthlyRent);
 
   await db.transaction(async (tx) => {
     await tx.delete(depositLedger).where(eq(depositLedger.bookingId, row.bookingId));
@@ -286,7 +286,7 @@ export async function fixHarishDepositWallet(adminId: string): Promise<HarishCor
         customerId: row.customerId,
         entryKind: 'deducted',
         amountPaise: -penaltyPaise,
-        reason: 'vacating notice short — 5-day rent penalty',
+        reason: 'vacating notice short — missing notice period rent',
         createdByAdminId: adminId,
       });
     }

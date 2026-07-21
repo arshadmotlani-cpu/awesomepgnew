@@ -2,7 +2,7 @@
  * Daily rent billing scheduler — midnight IST anniversary generation.
  */
 
-import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import {
   auditLog,
@@ -99,6 +99,48 @@ export async function listAnniversaryCandidates(runDate: string) {
   return eligible;
 }
 
+const MAX_AUTO_RETRIES = 3;
+
+/** Auto-retry unresolved failures from prior runs (max 3 attempts per failure). */
+export async function autoRetryEligibleBillingFailures(): Promise<{
+  attempted: number;
+  resolved: number;
+}> {
+  const failures = await db
+    .select()
+    .from(billingGenerationFailures)
+    .where(
+      and(
+        isNull(billingGenerationFailures.resolvedAt),
+        lt(billingGenerationFailures.retryCount, MAX_AUTO_RETRIES),
+      ),
+    )
+    .orderBy(desc(billingGenerationFailures.createdAt))
+    .limit(50);
+
+  let resolved = 0;
+  for (const failure of failures) {
+    if (!failure.billingMonth) continue;
+    const result = await generateRentInvoiceForBookingAnniversary({
+      bookingId: failure.bookingId,
+      billingMonth: failure.billingMonth,
+    });
+    if (result.ok) {
+      await db
+        .update(billingGenerationFailures)
+        .set({ resolvedAt: new Date() })
+        .where(eq(billingGenerationFailures.id, failure.id));
+      resolved += 1;
+    } else {
+      await db
+        .update(billingGenerationFailures)
+        .set({ retryCount: failure.retryCount + 1 })
+        .where(eq(billingGenerationFailures.id, failure.id));
+    }
+  }
+  return { attempted: failures.length, resolved };
+}
+
 export async function runDailyRentBillingJob(opts?: {
   asOfIst?: string;
   triggeredBy?: string;
@@ -106,6 +148,8 @@ export async function runDailyRentBillingJob(opts?: {
   const runDate = opts?.asOfIst ?? todayInBillingTimezone();
   const billingMonth = billingCycleMonthForRunDate(runDate);
   const triggeredBy = opts?.triggeredBy ?? 'system';
+
+  await autoRetryEligibleBillingFailures().catch(() => undefined);
 
   const [run] = await db
     .insert(billingGenerationRuns)

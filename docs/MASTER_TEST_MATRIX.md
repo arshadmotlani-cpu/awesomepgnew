@@ -245,7 +245,7 @@
 |----|-----------|-------------------|---------------------------|---------|----------|--------|
 | V-01 | Resident submit | Pending vacating | Verified | request-vacating page | `vacating.ts` | `vacating_requests` |
 | V-02 | Admin approve | Checkout settlement created | Verified | `/admin/vacating` | `checkoutSettlement.ts` | `checkout_settlements` |
-| V-03 | Notice penalty | Applied if short notice | `vacatingPenalty()` | — | `billing.ts` | `rent_invoices` |
+| V-03 | Notice penalty | Applied if short notice | `computeNoticeDeduction()` | — | `billing.ts` | `vacating_requests` |
 | V-04 | Complete blocked if checkout | Cannot double-complete | Guard in service | — | `vacating.ts` | — |
 
 ---

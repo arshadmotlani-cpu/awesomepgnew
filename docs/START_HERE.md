@@ -95,7 +95,7 @@ PostgreSQL
 
 1. **Half-open stays:** `bed_reservations.stay_range` is `[check_in, check_out)` — last occupied day = end − 1 day ([[DECISIONS#Half-open stay ranges]]).
 2. **Pricing snapshot:** `bookings.pricing_snapshot` is frozen at checkout — never mutate for historical billing ([[DECISIONS#Pricing snapshot immutability]]).
-3. **Vacating notice:** ≥14 days → no deposit deduction; &lt;14 days → exactly 5 days rent deducted (snapshotted at submit).
+3. **Vacating notice:** ≥14 days → no deposit deduction; &lt;14 days → missing notice days × daily rent deducted (snapshotted at submit).
 4. **Checkout-month rent:** On vacating submit/approve, pro-rate move-out month and cancel future rent invoices ([[DECISIONS#Vacating checkout rent sync]]).
 5. **Split vacate vs refund:** Resident files notice first; meter + UPI refund only after admin approval **and** vacate date reached ([[DECISIONS#Split vacate request from deposit refund]]).
 6. **Refund SSOT:** All move-out refunds via `checkout_settlements` — not legacy `/admin/requests` ([[DECISIONS#Checkout settlements as refund SSOT]]).

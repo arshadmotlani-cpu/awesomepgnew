@@ -90,14 +90,14 @@ time so post-payment displays are stable.
 
 ### Vacating policy
 
-Always **5 days × dailyRate**, where `dailyRate = floor(monthlyRent/30)`
-— the spec's example: ₹6,000 → ₹200/day → ₹1,000 fixed penalty.
+**Missing notice days × dailyRate**, where `dailyRate = floor(monthlyRent/30)`
+and `missingNoticeDays = max(0, 14 − noticeGivenDays)`.
 
-* `noticeDays ≥ 15` ⇒ no deduction; full deposit refunded.
-* `noticeDays < 15` ⇒ deduction = `vacatingPenalty(monthlyRent)`,
+* `noticeGivenDays ≥ 14` ⇒ no deduction; full deposit refunded.
+* `noticeGivenDays < 14` ⇒ deduction = `missingNoticeDays × dailyRate`,
   refund = `max(0, depositBalance − deduction)`.
 
-The penalty is **snapshotted on the `vacating_requests` row at SUBMIT
+The deduction is **snapshotted on the `vacating_requests` row at SUBMIT
 time** so future rent changes don't silently rewrite an old request.
 
 ### Electricity split

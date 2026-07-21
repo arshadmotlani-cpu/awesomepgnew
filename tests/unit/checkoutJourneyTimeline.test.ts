@@ -37,6 +37,7 @@ function baseDetail(
       customChargePaise: 0,
     },
     depositRefundablePaise: 525000,
+    creditBalancePaise: 0,
     ...overrides,
   } as CheckoutSettlementDetail;
 }

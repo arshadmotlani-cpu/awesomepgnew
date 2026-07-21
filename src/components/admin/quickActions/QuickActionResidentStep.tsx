@@ -72,7 +72,7 @@ export function QuickActionResidentStep({
                 </p>
               ) : null}
               {ctx.vacatingPenaltyEstimatePaise > 0 ? (
-                <p>Est. vacating penalty: {paiseToInr(ctx.vacatingPenaltyEstimatePaise)}</p>
+                <p>Est. max notice deduction: {paiseToInr(ctx.vacatingPenaltyEstimatePaise)}</p>
               ) : null}
             </div>
           ) : null}

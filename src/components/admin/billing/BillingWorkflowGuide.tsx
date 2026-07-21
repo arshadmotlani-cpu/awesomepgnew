@@ -26,26 +26,26 @@ export function BillingWorkflowGuide({
     <section className="mb-6 rounded-2xl border border-[#FF5A1F]/25 bg-[#FF5A1F]/5 p-5">
       <h2 className="text-base font-semibold text-white">How billing works</h2>
       <p className="mt-1 text-sm text-apg-silver">
-        Rent is created automatically after each resident&apos;s check-in date (daily at 2 AM). You
-        create electricity bills manually at month-end from meter readings.
+        Rent is created automatically on each resident&apos;s billing anniversary (daily scheduler).
+        Enter room meters at month-end for electricity — never bulk-generate rent from this page.
       </p>
 
       <ol className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
         <li className="rounded-xl border border-white/10 bg-[#1A1F27] p-3">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-[#FF5A1F]">1 · Rent</p>
           <p className="mt-1 text-apg-silver">
-            Auto-generated after check-in.{' '}
+            Auto-generated on billing anniversary.{' '}
             {needsBillCount > 0 ? (
-              <strong className="text-amber-200">{needsBillCount} still need a bill</strong>
+              <strong className="text-amber-200">{needsBillCount} exception(s) in queue</strong>
             ) : (
-              <span className="text-emerald-300">Up to date for {monthLabel}</span>
+              <span className="text-emerald-300">Scheduler up to date</span>
             )}
           </p>
           <Link
-            href={`/admin/revenue/billing?tab=rent&month=${monthParam}`}
+            href={`/admin/billing?tab=dashboard`}
             className="mt-2 inline-block text-xs font-semibold text-[#FF5A1F] hover:underline"
           >
-            View rent bills ({unpaidRentCount} unpaid) →
+            View upcoming schedule →
           </Link>
         </li>
 

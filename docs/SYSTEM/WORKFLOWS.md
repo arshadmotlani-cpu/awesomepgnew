@@ -90,7 +90,7 @@ flowchart LR
 flowchart TD
   A[Resident submits notice] --> B{Notice >= 14 days?}
   B -->|Yes| C[No penalty]
-  B -->|No| D[5-day rent deduction snapshotted]
+  B -->|No| D[missing-days rent deduction snapshotted]
   C --> E[syncVacatingCheckoutRentBilling]
   D --> E
   E --> F[Admin approves notice]

@@ -9,7 +9,7 @@ export default async function SettingsPoliciesPage() {
       <ModuleBreadcrumbs items={[{ label: 'Settings', href: '/admin/settings' }, { label: 'Policies' }]} />
       <PageHeader
         title="Policies"
-        description="Notice period (15 days), deposit rules, and house policies — configured per PG in listing setup."
+        description="Notice period (14 days), deposit rules, and house policies — configured per PG in listing setup."
       />
     </>
   );

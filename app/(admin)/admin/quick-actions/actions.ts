@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { requireAdminPermission } from '@/src/lib/auth/guards';
 import { assertAdminBookingAccess } from '@/src/lib/auth/pgAccess';
 import { revalidateFinancialViews } from '@/src/lib/billing/revalidateFinancialViews';
-import { vacatingPenalty } from '@/src/services/billing';
+import { maxNoticeDeduction } from '@/src/services/billing';
 import type { CustomChargeKind } from '@/src/services/customCharges';
 import { settleDepositRefund } from '@/src/services/depositSettlement';
 import { getCustomerDepositCredit } from '@/src/services/depositCredit';
@@ -163,7 +163,7 @@ export async function getResidentQuickContextAction(
       depositCollectedPaise,
       depositRefundablePaise,
       depositDeductedPaise,
-      vacatingPenaltyEstimatePaise: monthlyRentPaise > 0 ? vacatingPenalty(monthlyRentPaise) : 0,
+      vacatingPenaltyEstimatePaise: monthlyRentPaise > 0 ? maxNoticeDeduction(monthlyRentPaise) : 0,
     };
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Could not load resident.' };

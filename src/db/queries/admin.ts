@@ -843,7 +843,7 @@ export type PgBusinessMetrics = OccupancyByPg & {
   expectedMonthlyRentPaise: number;
   /** Rent late fees collected (extra income). */
   lateFeePaise: number;
-  /** 5-day vacating penalties kept from deposit (pure profit). */
+  /** Vacating notice deductions kept from deposit (pure profit). */
   vacatingDeductionPaise: number;
   /** Other deposit deductions — damages, admin charges, etc. */
   otherDeductionPaise: number;

@@ -24,6 +24,7 @@ type Props = {
   canSendLinks: boolean;
   dueSoon?: BillingCycleOperationRow[];
   generatedPending?: BillingCycleOperationRow[];
+  allowManualBackfill?: boolean;
 };
 
 export function BillingOverviewPanel({
@@ -33,6 +34,7 @@ export function BillingOverviewPanel({
   canSendLinks,
   dueSoon = [],
   generatedPending = [],
+  allowManualBackfill = false,
 }: Props) {
   const [query, setQuery] = useState('');
   const [bulkOpen, setBulkOpen] = useState(false);
@@ -270,6 +272,7 @@ export function BillingOverviewPanel({
                     billingMonth={billingMonth}
                     canGenerateRent={canGenerateRent}
                     canSendLinks={canSendLinks}
+                    allowManualBackfill={allowManualBackfill}
                     onSend={() => sendOne(r)}
                   />
                 ))}
@@ -317,12 +320,14 @@ function OverviewRow({
   billingMonth,
   canGenerateRent,
   canSendLinks,
+  allowManualBackfill,
   onSend,
 }: {
   row: RentBillingOverviewRow;
   billingMonth: string;
   canGenerateRent: boolean;
   canSendLinks: boolean;
+  allowManualBackfill: boolean;
   onSend: () => Promise<string | null>;
 }) {
   const [genState, genAction, genPending] = useActionState(generateInvoicesAction, idle);
@@ -362,7 +367,7 @@ function OverviewRow({
       </td>
       <td className="px-4 py-3 text-right">
         <div className="flex flex-col items-end gap-1">
-          {canGenerateRent && row.isDueForGeneration ? (
+          {allowManualBackfill && canGenerateRent && row.isDueForGeneration ? (
             <form action={genAction}>
               <input type="hidden" name="billingMonth" value={billingMonth} />
               <input type="hidden" name="bookingIds" value={row.bookingId} />

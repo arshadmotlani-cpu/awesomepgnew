@@ -55,6 +55,7 @@ export const billingGenerationFailures = pgTable(
     errorCode: text('error_code'),
     errorMessage: text('error_message').notNull(),
     resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    retryCount: integer('retry_count').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

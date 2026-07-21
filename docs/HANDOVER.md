@@ -31,7 +31,7 @@ Full vault index: [[README]]
 
 1. **Money SSOT:** `src/services/residentFinancialEngine.ts` — never duplicate outstanding math in UI.
 2. **Occupancy SSOT:** `src/lib/occupancySsot.ts` + `bed_reservations.stay_range` half-open `[start, end)`.
-3. **Vacating:** 14-day notice; &lt;14 days = 5-day rent penalty snapshotted at submit.
+3. **Vacating:** 14-day notice; &lt;14 days = missing notice days × daily rent snapshotted at submit.
 4. **Checkout rent:** On vacating submit/approve → `vacatingCheckoutBilling.ts` pro-rates move-out month.
 5. **Deposit refund:** Locked until vacating **approved** AND **vacate date reached** (`depositRefundEligibility.ts`).
 6. **RSC → client:** Never pass `Date` or `Map` to `'use client'` components — serialize first.

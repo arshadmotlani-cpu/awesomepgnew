@@ -156,7 +156,7 @@ Full schema: [[DATABASE]].
 ## Non-negotiable system rules
 
 1. **Half-open stay ranges:** PostgreSQL `daterange` uses `[start, end)` — last occupied day is `end - 1 day`. See [[DECISIONS#Half-open stay ranges]].
-2. **14-day vacating notice:** ≥14 days = no penalty; &lt;14 days = fixed 5-day rent deduction (not full shortfall).
+2. **14-day vacating notice:** ≥14 days = no penalty; &lt;14 days = missing notice days × daily rent (pro-rata).
 3. **Rent due date:** 5th of billing month (grace through 5th; late fee from 6th).
 4. **Pro-ration:** `monthly / daysInMonth`, floored to paise — used for partial months and vacating checkout.
 5. **Vacating checkout rent:** On submit/approve, `vacatingCheckoutBilling.ts` pro-rates move-out month and cancels future rent invoices.

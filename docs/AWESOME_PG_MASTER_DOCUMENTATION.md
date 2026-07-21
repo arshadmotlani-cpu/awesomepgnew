@@ -352,7 +352,7 @@ This is the **single source of truth** for product and engineering questions wit
 ## 2.8 Vacating
 
 1. Customer: `/account/resident/request-vacating/[bookingId]` → `submitVacatingRequest()`.
-2. Requires 30+ days notice for compliant vacating (5-day rent penalty if short — `vacatingPenalty.ts`).
+2. Requires **14 calendar days** notice for compliant vacating (missing notice days × daily rent if short — `billing.computeNoticeDeduction()`).
 3. Admin reviews at `/admin/vacating` — approve or complete.
 4. `completeVacatingRequest()` (`vacating.ts`):
    - Records deposit deduction/refund in `deposit_ledger`

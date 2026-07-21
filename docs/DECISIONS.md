@@ -43,15 +43,15 @@ Cross-links: [[ARCHITECTURE]] · [[WORKFLOWS]] · [[AI_CONTEXT]] · [[BUGS]]
 
 ---
 
-## Vacating: 14-day notice + fixed 5-day penalty
+## Vacating: 14-day notice + pro-rata missing-days deduction
 
 | | |
 |---|---|
-| **Date** | Phase 5.5 |
-| **Decision** | ≥14 days notice → no deposit deduction. &lt;14 days → deduct exactly **5 days rent** (monthly/30 × 5), not proportional shortfall |
-| **Reason** | Business policy — predictable, fair, auditable |
-| **Impact** | Snapshotted on `vacating_requests` at submit; never recalculate from live rates |
-| **See** | [[WORKFLOWS#Vacating]], `billing.vacatingPenalty()` |
+| **Date** | Phase 5.5; **updated 2026-07-21** |
+| **Decision** | ≥14 calendar days notice → no deposit deduction. &lt;14 days → deduct **missingNoticeDays × dailyRent**, where `missingNoticeDays = max(0, 14 − noticeGivenDays)` and `dailyRent = floor(monthlyRent/30)` |
+| **Reason** | Business policy — fair pro-rata charge for short notice |
+| **Impact** | Snapshotted on `vacating_requests` at submit; active rows migrated via `scripts/migrate-notice-deduction-policy.ts` |
+| **See** | [[WORKFLOWS#Vacating]], `billing.computeNoticeDeduction()` |
 
 ---
 

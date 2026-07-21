@@ -308,7 +308,7 @@ export const ADMIN_GUIDE: GuideCatalog = {
       title: 'Vacating workflow (approve → complete)',
       category: 'Vacating',
       keywords: ['vacating', 'move out', 'notice', 'approve', 'complete', 'pre-book'],
-      summary: `Residents need ${VACATING_NOTICE_MIN_DAYS}+ days notice to avoid 5-day rent penalty on deposit.`,
+      summary: `Residents need ${VACATING_NOTICE_MIN_DAYS}+ days notice to avoid notice-period rent deduction on deposit.`,
       steps: [
         'Vacating queue or bed map → pending request.',
         'Approve — bed becomes pre-bookable on website from vacating date.',

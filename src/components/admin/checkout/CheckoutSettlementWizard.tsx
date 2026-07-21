@@ -10,6 +10,7 @@ import {
   CheckoutElectricityDraftProvider,
   useCheckoutElectricityDraft,
 } from '@/src/components/admin/checkout/CheckoutElectricityDraftContext';
+import { FixedStayCheckoutBanner } from '@/src/components/admin/checkout/FixedStayCheckoutBanner';
 import { CheckoutCompleteStep } from '@/src/components/admin/checkout/CheckoutCompleteStep';
 import { CheckoutJourneyTimeline } from '@/src/components/admin/checkout/CheckoutJourneyTimeline';
 import { CheckoutRefundSummaryRail } from '@/src/components/admin/checkout/CheckoutRefundSummaryRail';
@@ -93,6 +94,8 @@ function CheckoutSettlementWizardInner({ detail }: { detail: CheckoutSettlementD
           {detail.customerName} · {detail.pgName} · Room {detail.roomNumber}
         </p>
       </div>
+
+      <FixedStayCheckoutBanner durationMode={detail.durationMode} />
 
       <div className="mb-10 space-y-6">
         <CheckoutJourneyTimeline detail={detail} />

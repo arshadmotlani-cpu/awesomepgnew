@@ -92,7 +92,7 @@ export function AdminVacatingSubmitForm({
       <label className="flex items-start gap-2 text-xs text-apg-silver">
         <input type="checkbox" name="waiveDeduction" className="mt-0.5" />
         <span>
-          No deposit deduction (waive the fixed {paiseToInr(penalty)} penalty even if notice is
+          No deposit deduction (waive the estimated {paiseToInr(penalty)} notice fee even if notice is
           under {VACATING_NOTICE_MIN_DAYS} days)
         </span>
       </label>

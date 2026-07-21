@@ -71,7 +71,7 @@ import { loadRoomElectricityContributionsForMonth } from './electricityRoomContr
 import { getElectricityInvoiceSchemaCaps } from '@/src/lib/db/electricityInvoiceSchemaCaps';
 import { fetchElectricityInvoiceById } from '@/src/lib/db/electricityInvoiceSelect';
 import { validateContinuousPreviousReading } from '@/src/lib/billing/roomMeterReadingSsot';
-import { resolveRoomPreviousMeterReading } from '@/src/services/roomMeterReadingSsot';
+import { resolveOfficialPreviousReading, advanceBaseline } from '@/src/services/meterTimelineService';
 import { countActiveBedsInRoom } from '@/src/lib/roomCapacitySsotDb';
 
 const INVOICE_PREFIX = 'ELE';
@@ -295,7 +295,7 @@ export async function createElectricityBill(
     return { ok: false, kind: 'invalid_input', message: 'ratePerUnitPaise must be ≥ 0' };
   }
 
-  const baseline = await resolveRoomPreviousMeterReading(input.roomId);
+  const baseline = await resolveOfficialPreviousReading(input.roomId);
   const continuity = validateContinuousPreviousReading({
     providedPreviousUnits: input.previousReadingUnits,
     expectedPreviousUnits: baseline.previousReadingUnits,
@@ -691,6 +691,13 @@ export async function createElectricityBill(
       billId: result.billId,
       invoiceCount: result.invoiceIds.length,
     });
+
+    await advanceBaseline({
+      roomId: input.roomId,
+      billingMonth,
+      currentReadingUnits: input.currentReadingUnits,
+      electricityBillId: result.billId,
+    }).catch(() => undefined);
 
     const calculationBreakdown = await composeElectricityBillBreakdown({
       roomId: input.roomId,

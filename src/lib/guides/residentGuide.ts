@@ -149,7 +149,7 @@ export const RESIDENT_GUIDE: GuideCatalog = {
         'Open Resident area → Request vacating (or the vacating link for your booking).',
         'Pick your vacating (last) date.',
         `If notice is ${VACATING_NOTICE_MIN_DAYS}+ days: no rent penalty on deposit.`,
-        `If notice is under ${VACATING_NOTICE_MIN_DAYS} days: a 5-day rent penalty may be deducted from deposit.`,
+        `If notice is under ${VACATING_NOTICE_MIN_DAYS} days: missing notice days × daily rent may be deducted from deposit.`,
         'Submit — status shows Pending until admin approves.',
         'After approval, your bed may show as pre-bookable for new tenants from your leaving date.',
         'Cancel a pending request from Resident area if your plans change.',

@@ -81,7 +81,7 @@ export function buildResidentBriefingMessage(input: ResidentBriefingInput): stri
       lines.push(`   (Direct link: ${vacatingPath})`);
       lines.push('2. Choose your vacating date in the calendar — the website saves it automatically when you submit.');
       lines.push(
-        `3. Give at least ${VACATING_NOTICE_MIN_DAYS} days notice to protect your full deposit; shorter notice triggers a fixed 5-day rent deduction.`,
+        `3. Give at least ${VACATING_NOTICE_MIN_DAYS} days notice to protect your full deposit; shorter notice triggers a pro-rata rent deduction (missing days × daily rent).`,
       );
     }
   } else {

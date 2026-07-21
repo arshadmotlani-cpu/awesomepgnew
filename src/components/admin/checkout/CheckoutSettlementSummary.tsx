@@ -1,5 +1,4 @@
 import { Badge } from '@/src/components/admin/Badge';
-import { VACATING_NOTICE_PENALTY_DAYS } from '@/src/services/billing';
 import { paiseToInr, titleCase } from '@/src/lib/format';
 import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement';
 
@@ -23,7 +22,7 @@ export function CheckoutSettlementSummary({ detail }: { detail: CheckoutSettleme
           value={paiseToInr(detail.preview.noticeDeductionPaise)}
           hint={
             detail.noticeShortfallDays > 0
-              ? `${VACATING_NOTICE_PENALTY_DAYS}-day rent fee`
+              ? `${detail.noticeShortfallDays} day${detail.noticeShortfallDays === 1 ? '' : 's'} rent`
               : 'Compliant notice'
           }
         />

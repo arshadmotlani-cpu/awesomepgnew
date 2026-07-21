@@ -33,7 +33,6 @@ import {
   firstOfMonth,
   noticeShortfallDays,
   VACATING_NOTICE_MIN_DAYS,
-  VACATING_NOTICE_PENALTY_DAYS,
 } from '@/src/services/billing';
 import { isFixedStayDurationMode } from '@/src/lib/checkout/checkoutWorkflow';
 import { noticeDeductionAppliesToBooking } from '@/src/lib/checkout/noticeDeductionPolicy';
@@ -133,6 +132,7 @@ export type CheckoutSettlementDetail = CheckoutSettlementRow & {
   roomElectricityLedger: RoomElectricityLedgerCycleView | null;
   meterPhotoEvidence: CheckoutSettlementImageEvidence;
   refundQrEvidence: CheckoutSettlementImageEvidence;
+  creditBalancePaise: number;
   preview: RefundDeductionsSnapshot & {
     finalRefundPaise: number;
     totalDeductionsPaise: number;
@@ -164,7 +164,10 @@ export function buildCheckoutSettlementDeductionPlan(
   if (row.noticeDeductionPaise > 0) {
     deductions.push({
       amountPaise: row.noticeDeductionPaise,
-      reason: `Notice period fee (${VACATING_NOTICE_PENALTY_DAYS} days rent)`,
+      reason:
+        row.noticeShortfallDays > 0
+          ? `Notice period fee (${row.noticeShortfallDays} day${row.noticeShortfallDays === 1 ? '' : 's'} rent)`
+          : 'Notice period fee',
     });
   }
   if (row.electricitySharePaise > 0 && row.electricityDeductFromDeposit) {
@@ -227,7 +230,7 @@ function policyNoticeFields(args: {
   };
 }
 
-/** Repair settlements created with the old shortfall×daily formula before approval. */
+/** Repair open settlements still on the legacy fixed 5-day notice formula. */
 async function reconcileCheckoutSettlementNoticePolicy(
   settlement: CheckoutSettlement,
   noticeGivenDate: string,
@@ -979,6 +982,8 @@ async function buildCheckoutSettlementDetailFromJoinRow(
 ): Promise<CheckoutSettlementDetail> {
   const wallet = await getDepositSummaryForBooking(row.bookingId);
   const depositHeld = paiseField(wallet?.refundableBalancePaise ?? 0);
+  const { getResidentCreditBalance } = await import('@/src/services/residentCreditLedger');
+  const creditBalancePaise = paiseField(await getResidentCreditBalance(row.customerId));
   let settlement = mapDbSettlement(row);
   settlement = await reconcileCheckoutSettlementNoticePolicy(
     settlement,
@@ -1081,6 +1086,7 @@ async function buildCheckoutSettlementDetailFromJoinRow(
     depositDeductedPaise: paiseField(wallet?.deductedPaise ?? 0),
     depositRefundedPaise: paiseField(wallet?.refundedPaise ?? 0),
     depositRefundablePaise: depositHeld,
+    creditBalancePaise,
     moveInDate: row.move_in_date,
     noticeGivenDate: row.notice_given_date,
     roomMonthlyOccupants: roomOccupancy.autoDetectedCount,

@@ -675,7 +675,7 @@ Interpreted as **monthly rent invoice generation** (not read-only Revenue Comman
 | `submitVacatingRequest()`, `approveVacatingRequest()`, `rejectVacatingRequest()`, `completeVacatingRequest()` | `src/services/vacating.ts` |
 | `syncVacatingCheckoutRentBilling()` | `src/services/vacatingCheckoutBilling.ts` |
 | `createCheckoutSettlementFromVacating()` | `src/services/checkoutSettlement.ts` |
-| Notice policy | `src/services/billing.ts` — `isNoticeCompliant()`, `vacatingPenalty()` |
+| Notice policy | `src/services/billing.ts` — `computeNoticeDeduction()`, `noticeShortfallDays()` |
 
 ### Status machine
 

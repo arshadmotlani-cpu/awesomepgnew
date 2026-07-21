@@ -64,13 +64,14 @@ test('notice penalty zero when notice >= 14 days at booking', () => {
   assert.equal(deduction, 0);
 });
 
-test('notice penalty uses 5-day vacating penalty for short notice monthly path', () => {
+test('notice penalty uses missing days × daily rent for short notice monthly path', () => {
   const deduction = estimateNoticeDeductionPaise({
     monthlyRentPaise: 30_000,
     noticeGivenDate: '2026-06-05',
     vacatingDate: '2026-06-10',
   });
-  assert.equal(deduction, 5000);
+  // 5 days notice → 9 missing × floor(30000/30)=1000 → 9000
+  assert.equal(deduction, 9000);
 });
 
 test('monthly vacating locked until vacate date after approval', () => {

@@ -51,6 +51,7 @@ export function BillingAdvancedTools({
         canSendLinks={canSendLinks}
         dueSoon={billingCycleOps.dueSoon}
         generatedPending={billingCycleOps.generatedPending}
+        allowManualBackfill={allowManualBackfill}
       />
 
       <CollectionsBillingTools billingMonth={billingMonth} canGenerateRent={canGenerateRent} />

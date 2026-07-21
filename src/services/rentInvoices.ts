@@ -59,6 +59,7 @@ import {
   anniversaryBillingPeriod,
   computeLateFee,
   daysOverdue,
+  daysOverdueFromDueDate,
   dueDateForBillingDay,
   dueDateForMonth,
   firstOfMonth,
@@ -976,6 +977,29 @@ export async function generateRentInvoiceForBookingAnniversary(input: {
     })
     .where(eq(residentBillingProfiles.bookingId, input.bookingId));
 
+  const [issued] = await db
+    .select({
+      id: rentInvoices.id,
+      customerId: rentInvoices.customerId,
+      rentPaise: rentInvoices.rentPaise,
+      discountPaise: rentInvoices.discountPaise,
+    })
+    .from(rentInvoices)
+    .where(eq(rentInvoices.id, created.id))
+    .limit(1);
+
+  if (issued) {
+    const rentDue =
+      Math.max(0, issued.rentPaise - (issued.discountPaise ?? 0));
+    const { autoApplyCreditToRentInvoice } = await import('@/src/services/residentCreditLedger');
+    await autoApplyCreditToRentInvoice({
+      customerId: issued.customerId,
+      bookingId: input.bookingId,
+      invoiceId: issued.id,
+      outstandingPaise: rentDue,
+    }).catch(() => undefined);
+  }
+
   return {
     ok: true,
     created: true,
@@ -1189,6 +1213,7 @@ export async function recordRentPaymentSuccess(
       rentPaise: rentInvoices.rentPaise,
       discountPaise: rentInvoices.discountPaise,
       billingMonth: rentInvoices.billingMonth,
+      dueDate: rentInvoices.dueDate,
       paidPrincipalPaise: rentInvoices.paidPrincipalPaise,
       paidLateFeePaise: rentInvoices.paidLateFeePaise,
       lateFeeLockedPaise: rentInvoices.lateFeeLockedPaise,
@@ -1273,6 +1298,7 @@ export async function recordRentPaymentSuccess(
       ? (invoice.proofSnapshotLateFeePaise ?? 0)
       : computeLateFee({
           rentPaise: rentDuePaise,
+          dueDate: invoice.dueDate,
           billingMonth: invoice.billingMonth,
         });
 
@@ -1745,6 +1771,7 @@ export function projectInvoice(
   if (inv.status === 'payment_in_progress') {
     const lateFee = computeLateFee({
       rentPaise: rentDuePaise,
+      dueDate: inv.dueDate,
       billingMonth: inv.billingMonth,
       today: asOf,
     });
@@ -1761,6 +1788,7 @@ export function projectInvoice(
   }
   const lateFee = computeLateFee({
     rentPaise: rentDuePaise,
+    dueDate: inv.dueDate,
     billingMonth: inv.billingMonth,
     today: asOf,
   });
@@ -1773,7 +1801,7 @@ export function projectInvoice(
     (inv.paidPrincipalPaise > 0 || inv.paidLateFeePaise > 0);
   const effectiveStatus = hasPartial
     ? 'partial'
-    : daysOverdue(inv.billingMonth, asOf) > 0
+    : daysOverdueFromDueDate(inv.dueDate, asOf) > 0
       ? 'overdue'
       : 'pending';
   return {

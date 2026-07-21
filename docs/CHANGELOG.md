@@ -256,28 +256,34 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-21 09:38:31 UTC
+### Pending pre-commit sync · 2026-07-21 14:22:36 UTC
 
-**Areas touched:** [[ROUTES]], [[Billing]], [[Electricity]], [[Bed Assignment]]
+**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Vacating]], [[Electricity]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
+- `DATABASE.md` — review for accuracy
 - `DECISIONS.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (8):**
-- `app/(admin)/admin/pgs/[pgId]/rooms/page.tsx`
-- `app/(admin)/admin/pgs/inventory-actions.ts`
-- `app/api/admin/rooms/[id]/last-electricity-reading/route.ts`
-- `src/lib/billing/roomElectricityMonthlyAllocation.ts`
-- `src/lib/billing/roomMeterReadingSsot.ts`
+**Staged code files (13):**
+- `app/(admin)/admin/billing/page.tsx`
+- `app/(admin)/admin/quick-actions/actions.ts`
+- `app/(admin)/admin/settings/policies/page.tsx`
+- `src/db/migrations/0116_billing_engine.sql`
+- `src/db/schema/billingGeneration.ts`
+- `src/db/schema/index.ts`
+- `src/db/schema/residentCreditLedger.ts`
+- `src/db/schema/vacatingRequests.ts`
+- `src/services/billing.ts`
+- `src/services/checkoutSettlement.ts`
 - `src/services/electricityBilling.ts`
-- `src/services/meterElectricity.ts`
-- `src/services/pgBedMap.ts`
+- `src/services/rentInvoices.ts`
+- `src/services/vacating.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

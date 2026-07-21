@@ -19,7 +19,7 @@ Track **security deposits** per booking: required amount, collection at checkout
 - [[Deposits]] admin — `/admin/deposits`, `/admin/deposits/[bookingId]`
 - Deposit at public booking checkout
 - Offline collection — `/admin/deposits/add`
-- Vacating penalty deduction (5-day rent) snapshotted on notice
+- Vacating notice deduction (missing days × daily rent) snapshotted on notice
 - Refund via [[Checkout Settlements]]
 - Express collection on [[Residents]] profile
 
@@ -69,7 +69,7 @@ See [[DATABASE#Deposits — Deposits]]
 
 ## Related decisions
 
-- [[DECISIONS#Vacating: 14-day notice + fixed 5-day penalty]]
+- [[DECISIONS#Vacating: 14-day notice + pro-rata missing-days deduction]]
 - [[DECISIONS#Split vacate request from deposit refund]]
 - [[DECISIONS#Checkout settlements as refund SSOT]]
 - [[DECISIONS#Pricing snapshot immutability]]

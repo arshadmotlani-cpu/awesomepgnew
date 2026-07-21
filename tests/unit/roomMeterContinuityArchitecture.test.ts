@@ -21,7 +21,8 @@ describe('continuous room meter architecture', () => {
   test('monthly bill create enforces continuous previous reading', () => {
     const src = read('src/services/electricityBilling.ts');
     assert.match(src, /validateContinuousPreviousReading/);
-    assert.match(src, /resolveRoomPreviousMeterReading/);
+    assert.match(src, /resolveOfficialPreviousReading/);
+    assert.match(src, /advanceBaseline/);
     assert.match(src, /allowPreviousReadingOverride/);
   });
 

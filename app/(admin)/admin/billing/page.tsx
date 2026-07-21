@@ -4,7 +4,8 @@ import { AdminSectionErrorBoundary } from '@/src/components/admin/AdminSectionEr
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { BillingWorkflowGuide } from '@/src/components/admin/billing/BillingWorkflowGuide';
 import { BillingAdvancedTools } from '@/src/components/admin/billing/BillingAdvancedTools';
-import { BillingPrimaryActions } from '@/src/components/admin/billing/BillingPrimaryActions';
+import { BillingCommandCentreHeader, BillingUpcomingRentSchedule } from '@/src/components/admin/billing/BillingCommandCentreHeader';
+import { BillingDiagnosticsPanel } from '@/src/components/admin/billing/BillingDiagnosticsPanel';
 import { BillingRecentCollections } from '@/src/components/admin/billing/BillingRecentCollections';
 import { CollectionsActionQueue } from '@/src/components/admin/billing/CollectionsActionQueue';
 import { CollectionsCommandCenter } from '@/src/components/admin/billing/CollectionsCommandCenter';
@@ -59,6 +60,7 @@ import {
   listBillingGenerationFailures,
   listTodayGeneratedInvoices,
 } from '@/src/services/billingScheduler';
+import { loadUpcomingRentSchedule } from '@/src/services/billingUpcomingSchedule';
 import { listRentBillingOverview, listBillingCycleOperations } from '@/src/services/rentInvoices';
 import { listRoomsMissingElectricityBill } from '@/src/services/electricityBilling';
 import { count, sql } from 'drizzle-orm';
@@ -77,6 +79,7 @@ const TABS = [
   { id: 'rent', label: 'Rent bills' },
   { id: 'electricity', label: 'Electricity' },
   { id: 'paid', label: 'Recent payments' },
+  { id: 'diagnostics', label: 'Diagnostics' },
 ] as const;
 
 function mergeUnpaidRent(open: AdminRentInvoiceRow[]): AdminRentInvoiceRow[] {
@@ -123,7 +126,7 @@ export default async function CollectionsModulePage({
   await ensureAdminPageNotificationsSeen('/admin/billing', '/admin/billing');
   const canGenerateRent = adminHasPermission(session.role, 'rent:write');
   const canSendLinks = adminHasPermission(session.role, 'payments:write');
-  const [openRent, rentPaid, elecPending, pgs, billingOverview, billingCycleOps, roomsMissingElectricity, billingHealth, lastRun, generatedToday, failures, electricityBillsToday, billingSnapshot, pipelineIssues, strayZeroInvoices] =
+  const [openRent, rentPaid, elecPending, pgs, billingOverview, billingCycleOps, roomsMissingElectricity, billingHealth, lastRun, generatedToday, failures, electricityBillsToday, billingSnapshot, pipelineIssues, strayZeroInvoices, upcomingSchedule] =
     await Promise.all([
     listAdminOpenRentInvoices(),
     listAdminRentInvoices({ status: 'paid' }),
@@ -146,6 +149,7 @@ export default async function CollectionsModulePage({
     loadBillingCommandCenterSnapshot(session, billingMonth),
     listPipelineTestIntegrityIssues(),
     listStrayZeroProductionInvoices(),
+    loadUpcomingRentSchedule({ fromDate: todayIst, horizonDays: 14 }),
   ]);
 
   const allUnpaidRent = mergeUnpaidRent(openRent.ok ? openRent.data : []);
@@ -203,9 +207,10 @@ export default async function CollectionsModulePage({
         description="Automatic rent generation, payment approvals, electricity bills, and collections."
       />
 
-      <BillingPrimaryActions
-        billingMonth={billingMonth}
-        canGenerateRent={canGenerateRent}
+      <BillingCommandCentreHeader
+        health={billingHealth}
+        roomsMissingElectricity={roomsMissingElectricity.length}
+        checkoutPendingCount={billingSnapshot.moveOutCount}
       />
 
       <div className="mb-4">
@@ -282,6 +287,9 @@ export default async function CollectionsModulePage({
               ].slice(0, 12),
             }}
           />
+          <div className="mt-8">
+            <BillingUpcomingRentSchedule schedule={upcomingSchedule} />
+          </div>
           <div className="mt-8">
             <BillingHealthCardPanel health={billingHealth} />
           </div>
@@ -443,6 +451,17 @@ export default async function CollectionsModulePage({
             financialIdMap={financialIdMap}
           />
         </>
+      ) : null}
+
+      {tab === 'diagnostics' ? (
+        <AdminSectionErrorBoundary title="Billing diagnostics">
+          <BillingDiagnosticsPanel
+            health={billingHealth}
+            reconciliation={billingSnapshot.reconciliation}
+            reconciliationError={billingSnapshot.reconciliationError}
+            isSuperAdmin={session.role === 'super_admin'}
+          />
+        </AdminSectionErrorBoundary>
       ) : null}
     </>
   );
