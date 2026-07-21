@@ -41,6 +41,7 @@ export function CheckoutRefundSummaryRail({
           detail.depositRefundablePaise -
             preview.noticeDeductionPaise -
             (preview.electricityDeductFromDeposit ? electricityDeduction : 0) -
+            (preview.outstandingRentDeductionPaise ?? 0) -
             damagePaise -
             otherCharges,
         )
@@ -100,6 +101,13 @@ export function CheckoutRefundSummaryRail({
               </dl>
             ) : null}
           </div>
+        ) : null}
+        {preview.outstandingRentDeductionPaise > 0 ? (
+          <SummaryRow
+            label="Outstanding rent"
+            value={`−${paiseToInr(preview.outstandingRentDeductionPaise)}`}
+            muted
+          />
         ) : null}
         <SummaryRow
           label="Damage"

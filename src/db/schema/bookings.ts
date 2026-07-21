@@ -177,6 +177,8 @@ export const bookings = pgTable(
       () => adminUsers.id,
       { onDelete: 'set null' },
     ),
+    /** First-month checkout rent collected (synced from paid rent invoices). */
+    rentReceivedPaise: bigint('rent_received_paise', { mode: 'number' }).notNull().default(0),
     adminOpsNotes: text('admin_ops_notes'),
     /** When true, reservations cover all beds in the room (single-tenant whole room). */
     blocksRoomAvailability: boolean('blocks_room_availability').notNull().default(false),

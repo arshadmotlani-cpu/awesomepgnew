@@ -81,6 +81,8 @@ flowchart LR
 3. Ledger entries in `deposit_ledger` (collected, deducted, refunded).
 4. `getDepositSummaryForBooking` → refundable balance.
 5. Partial collection tracked via `deposit_due_paise` / `deposit_collection_status`.
+6. **Admin allocation** — Operations payment review: admin sets confirmed received + rent/deposit split (`applyAdminPaymentAllocation`); balances via `getBookingMoneyBalances()`.
+7. **Checkout** — refund = collected deposit − notice − electricity − outstanding rent − damage; `deposit_due_paise` zeroed when checkout settlement opens.
 
 ---
 

@@ -100,6 +100,47 @@ export function RecordOfflinePaymentForm({
           />
         </label>
       </div>
+      <div className="grid grid-cols-3 gap-2">
+        <label className="block">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+            Confirmed received (₹)
+          </span>
+          <input
+            type="number"
+            name="confirmedReceivedRupees"
+            min="0"
+            step="1"
+            defaultValue={defaultAmountRupees}
+            className="mt-1 block w-full rounded-md border border-zinc-300 px-2 py-1.5 text-sm shadow-sm"
+          />
+        </label>
+        <label className="block">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+            Rent allocated (₹)
+          </span>
+          <input
+            type="number"
+            name="rentAllocatedRupees"
+            min="0"
+            step="1"
+            defaultValue={0}
+            className="mt-1 block w-full rounded-md border border-zinc-300 px-2 py-1.5 text-sm shadow-sm"
+          />
+        </label>
+        <label className="block">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+            Deposit allocated (₹)
+          </span>
+          <input
+            type="number"
+            name="depositAllocatedRupees"
+            min="0"
+            step="1"
+            defaultValue={0}
+            className="mt-1 block w-full rounded-md border border-zinc-300 px-2 py-1.5 text-sm shadow-sm"
+          />
+        </label>
+      </div>
       <label className="block">
         <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
           Reference (receipt # / UPI ref / NEFT id)

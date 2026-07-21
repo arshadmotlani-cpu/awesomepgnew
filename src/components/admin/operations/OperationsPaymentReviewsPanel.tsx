@@ -7,10 +7,14 @@ import {
   approveElectricityProofAction,
   approveDepositLinkProofAction,
   approveExtensionProofAction,
-  approvePartialQrPaymentAction,
+  approveQrPaymentWithAllocationAction,
   approveQrPaymentAction,
   approveRentProofAction,
+  getBookingMoneyBalancesForReviewAction,
 } from '@/app/(admin)/admin/payments/actions';
+import { PaymentAllocationDialog } from '@/src/components/admin/operations/PaymentAllocationDialog';
+import type { PaymentAllocationSubmit } from '@/src/components/admin/operations/PaymentAllocationDialog';
+import type { BookingMoneyBalances } from '@/src/lib/billing/bookingMoneyBalances';
 import { PaymentApprovalConfirmDialog } from '@/src/components/admin/operations/PaymentApprovalConfirmDialog';
 import { PaymentBreakdownSection } from '@/src/components/admin/operations/PaymentBreakdownSection';
 import { PaymentProofRejectionDialog } from '@/src/components/admin/operations/PaymentProofRejectionDialog';
@@ -64,8 +68,10 @@ export function OperationsPaymentReviewsPanel({
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
-  const [partialOpenKey, setPartialOpenKey] = useState<string | null>(null);
-  const [depositDueDate, setDepositDueDate] = useState('');
+  const [allocationItem, setAllocationItem] = useState<PendingPaymentReviewItem | null>(null);
+  const [allocationBalances, setAllocationBalances] = useState<BookingMoneyBalances | null>(null);
+  const [allocationBalancesLoading, setAllocationBalancesLoading] = useState(false);
+  const [allocationBalancesError, setAllocationBalancesError] = useState<string | null>(null);
   const [moreOpenKey, setMoreOpenKey] = useState<string | null>(null);
   const [overpayDisposition, setOverpayDisposition] =
     useState<OverpaymentDisposition>('wallet_credit');
@@ -89,7 +95,8 @@ export function OperationsPaymentReviewsPanel({
   ) {
     setRejectDialogItem(null);
     setConfirmItem(null);
-    setPartialOpenKey(null);
+    setAllocationItem(null);
+    setAllocationBalances(null);
     setMoreOpenKey(null);
     if (opts?.rejected) {
       showToast('Payment rejected successfully.');
@@ -167,34 +174,65 @@ export function OperationsPaymentReviewsPanel({
     }
   }
 
-  async function onPartialApprove(item: PendingPaymentReviewItem) {
-    if (!depositDueDate) {
-      setError('Pick a deposit due date.');
+  async function openAllocationDialog(item: PendingPaymentReviewItem) {
+    if (!item.bookingId) {
+      setError('Booking context missing for allocation.');
       return;
     }
-    setBusyKey(item.key);
+    setAllocationItem(item);
+    setAllocationBalances(null);
+    setAllocationBalancesError(null);
+    setAllocationBalancesLoading(true);
     setError(null);
     try {
-      const result = await approvePartialQrPaymentAction(
+      const result = await getBookingMoneyBalancesForReviewAction(item.bookingId);
+      if (!result.ok) {
+        setAllocationBalancesError(result.message ?? 'Could not load balances.');
+        return;
+      }
+      setAllocationBalances(result.balances);
+    } catch (err) {
+      setAllocationBalancesError(err instanceof Error ? err.message : 'Could not load balances.');
+    } finally {
+      setAllocationBalancesLoading(false);
+    }
+  }
+
+  async function onAllocationApprove(item: PendingPaymentReviewItem, alloc: PaymentAllocationSubmit) {
+    setBusyKey(item.key);
+    setError(null);
+    setInfo(null);
+    try {
+      const result = await approveQrPaymentWithAllocationAction(
         item.entityId,
         item.pgId,
-        depositDueDate,
         {
+          confirmedReceivedPaise: alloc.confirmedReceivedPaise,
+          rentAllocatedPaise: alloc.rentAllocatedPaise,
+          depositAllocatedPaise: alloc.depositAllocatedPaise,
+          depositDueDate: alloc.depositDueDate,
+          allocationNotes: alloc.allocationNotes,
+        },
+        {
+          overpaymentDisposition: alloc.overpaymentDisposition,
           reviewNotes: reviewNotes.trim() || undefined,
           approvalNotes: approvalNotes.trim() || undefined,
         },
+        item.key,
       );
       if (!result.ok) {
-        setError(result.message ?? 'Partial approval failed.');
+        setError(result.message ?? 'Allocation approval failed.');
         return;
       }
-      setPartialOpenKey(null);
-      setDepositDueDate('');
-      router.refresh();
+      if ('message' in result && result.message === PAYMENT_ALREADY_APPROVED_MESSAGE) {
+        setInfo(result.message);
+      }
+      advanceAfterAction(item.key, result.nextKey);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Partial approval failed.');
+      setError(err instanceof Error ? err.message : 'Allocation approval failed.');
     } finally {
       setBusyKey(null);
+      setAllocationItem(null);
     }
   }
 
@@ -233,6 +271,25 @@ export function OperationsPaymentReviewsPanel({
           onConfirm={() => void onApprove(confirmItem)}
         />
       ) : null}
+      {allocationItem ? (
+        <PaymentAllocationDialog
+          open
+          residentName={allocationItem.residentName}
+          submittedAmountPaise={
+            allocationItem.submittedAmountPaise ?? allocationItem.amountPaise
+          }
+          balances={allocationBalances}
+          balancesLoading={allocationBalancesLoading}
+          balancesError={allocationBalancesError}
+          pending={busyKey === allocationItem.key}
+          onClose={() => {
+            setAllocationItem(null);
+            setAllocationBalances(null);
+            setAllocationBalancesError(null);
+          }}
+          onSubmit={(alloc) => void onAllocationApprove(allocationItem, alloc)}
+        />
+      ) : null}
       {reviewMode && items.length > 0 ? (
         <p className="text-sm text-apg-silver">
           <span className="font-semibold text-white">{items.length}</span> pending
@@ -253,8 +310,7 @@ export function OperationsPaymentReviewsPanel({
       ) : null}
 
       {visibleItems.map((item) => {
-        const review = item.bookingPaymentReview;
-        const showPartial = item.canPartialApprove;
+        const isBookingQr = item.kind === 'qr' && Boolean(item.bookingId && item.bookingPaymentReview);
         const busy = busyKey === item.key;
         const breakdown = buildPaymentReviewBreakdown(item);
 
@@ -381,59 +437,21 @@ export function OperationsPaymentReviewsPanel({
               </div>
             ) : null}
 
-            {partialOpenKey === item.key && review ? (
-              <div className="border-t border-white/10 px-5 py-4">
-                <label className="block text-xs text-apg-silver">
-                  Deposit balance due date
-                  <input
-                    type="date"
-                    value={depositDueDate}
-                    onChange={(e) => setDepositDueDate(e.target.value)}
-                    className="mt-1 block rounded-lg border border-white/10 bg-[#0f1318] px-2 py-1.5 text-sm text-white"
-                  />
-                </label>
-              </div>
-            ) : null}
 
             <div className="sticky bottom-0 flex flex-wrap items-center gap-2 border-t border-white/10 bg-[#141820] px-5 py-4">
               {item.financialInvoiceId &&
               (item.kind === 'rent' || item.kind === 'electricity') ? (
                 <InvoiceAdminRowActions financialInvoiceId={item.financialInvoiceId} />
               ) : null}
-              {showPartial && partialOpenKey !== item.key ? (
-                <>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => {
-                      setPartialOpenKey(item.key);
-                      setError(null);
-                      const d = new Date();
-                      d.setDate(d.getDate() + 14);
-                      setDepositDueDate(d.toISOString().slice(0, 10));
-                    }}
-                    className="rounded-lg bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-sky-500 disabled:opacity-50"
-                  >
-                    Approve partial
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => requestApprove(item)}
-                    className="rounded-lg px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50"
-                    style={{ backgroundColor: OPS_ORANGE }}
-                  >
-                    {busy ? 'Working…' : 'Approve'}
-                  </button>
-                </>
-              ) : partialOpenKey === item.key ? (
+              {isBookingQr ? (
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => void onPartialApprove(item)}
-                  className="rounded-lg bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-sky-500 disabled:opacity-50"
+                  onClick={() => void openAllocationDialog(item)}
+                  className="min-w-[160px] rounded-lg px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50"
+                  style={{ backgroundColor: OPS_ORANGE }}
                 >
-                  Confirm partial approve
+                  {busy ? 'Working…' : 'Approve with allocation'}
                 </button>
               ) : (
                 <button

@@ -12,6 +12,7 @@ export type CheckoutRefundPreviewInput = {
   damageChargePaise?: number;
   cleaningChargePaise?: number;
   customChargePaise?: number;
+  outstandingRentAtCheckoutPaise?: number;
   finalRefundPaise?: number | null;
   amountsLocked?: boolean;
 };
@@ -30,6 +31,7 @@ export function computeCheckoutRefundPreview(input: CheckoutRefundPreviewInput):
       depositHeldPaise: guardDepositPaise(input.depositHeldPaise),
       noticeDeductionPaise: guardDepositPaise(input.noticeDeductionPaise),
       electricityDeductionPaise: 0,
+      outstandingRentDeductionPaise: 0,
       otherDeductionsPaise: 0,
       totalDeductionsPaise: Math.max(
         0,
@@ -45,18 +47,25 @@ export function computeCheckoutRefundPreview(input: CheckoutRefundPreviewInput):
     input.electricityDeductFromDeposit === false
       ? 0
       : guardDepositPaise(input.electricitySharePaise ?? 0);
+  const outstandingRentDeductionPaise = guardDepositPaise(
+    input.outstandingRentAtCheckoutPaise ?? 0,
+  );
   const otherDeductionsPaise =
     guardDepositPaise(input.damageChargePaise ?? 0) +
     guardDepositPaise(input.cleaningChargePaise ?? 0) +
     guardDepositPaise(input.customChargePaise ?? 0);
   const totalDeductionsPaise =
-    noticeDeductionPaise + electricityDeductionPaise + otherDeductionsPaise;
+    noticeDeductionPaise +
+    electricityDeductionPaise +
+    outstandingRentDeductionPaise +
+    otherDeductionsPaise;
   const finalRefundPaise = Math.max(0, depositHeldPaise - totalDeductionsPaise);
 
   return {
     depositHeldPaise,
     noticeDeductionPaise,
     electricityDeductionPaise,
+    outstandingRentDeductionPaise,
     otherDeductionsPaise,
     totalDeductionsPaise,
     finalRefundPaise,

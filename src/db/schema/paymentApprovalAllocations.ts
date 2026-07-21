@@ -35,7 +35,9 @@ export const paymentApprovalAllocations = pgTable(
       .notNull()
       .default(0),
     totalAmountReceivedPaise: bigint('total_amount_received_paise', { mode: 'number' }).notNull(),
+    confirmedReceivedPaise: bigint('confirmed_received_paise', { mode: 'number' }),
     totalExpectedPaise: bigint('total_expected_paise', { mode: 'number' }).notNull().default(0),
+    allocationNotes: text('allocation_notes'),
     paymentCategory: text('payment_category').notNull(),
     approvedByAdminId: uuid('approved_by_admin_id').references(() => adminUsers.id, {
       onDelete: 'set null',

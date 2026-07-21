@@ -333,8 +333,9 @@ async function verifyBookingChain(bookingCode: string): Promise<BookingFinancial
   const depositHeldPaise = depositSummary?.refundableBalancePaise ?? 0;
   const expectedDepositHeld = booking.depositPaise;
   const depositLedgerCorrect =
-    depositHeldPaise === expectedDepositHeld &&
-    ledgerRows.some((r) => r.entryKind === 'collected' && r.amountPaise > 0);
+    depositHeldPaise <= expectedDepositHeld &&
+    depositHeldPaise >= 0 &&
+    (expectedDepositHeld === 0 || ledgerRows.some((r) => r.entryKind === 'collected' && r.amountPaise > 0));
 
   const checks: ChainCheckResult = {
     bookingConfirmed: booking.status === 'confirmed',

@@ -21,6 +21,8 @@ export const pgPaymentRecords = pgTable(
       .references(() => customers.id, { onDelete: 'cascade' }),
     bookingId: uuid('booking_id').references(() => bookings.id, { onDelete: 'set null' }),
     amountPaise: bigint('amount_paise', { mode: 'number' }).notNull(),
+    /** Admin-confirmed received at approval; resident amount_paise is immutable. */
+    confirmedAmountPaise: bigint('confirmed_amount_paise', { mode: 'number' }),
     month: text('month'),
     status: pgPaymentRecordStatusEnum('status').notNull().default('pending'),
     paymentScreenshotUrl: text('payment_screenshot_url'),

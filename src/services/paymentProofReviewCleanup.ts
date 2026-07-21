@@ -43,6 +43,7 @@ export async function finalizeStaleBookingPaymentReview(args: {
   recordId: string;
   bookingId?: string | null;
   reviewedByAdminId?: string | null;
+  confirmedAmountPaise?: number | null;
 }): Promise<void> {
   const now = new Date();
   const reviewKey = `qr-${args.recordId}`;
@@ -52,6 +53,9 @@ export async function finalizeStaleBookingPaymentReview(args: {
     .set({
       status: 'approved',
       ...(args.reviewedByAdminId ? { reviewedByAdminId: args.reviewedByAdminId } : {}),
+      ...(args.confirmedAmountPaise != null
+        ? { confirmedAmountPaise: args.confirmedAmountPaise }
+        : {}),
       reviewedAt: now,
       updatedAt: now,
     })

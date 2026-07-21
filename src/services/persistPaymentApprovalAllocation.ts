@@ -20,6 +20,12 @@ export async function persistApprovalAllocationAfterSuccess(input: {
   entityId: string;
   pgId: string;
   approvedByAdminId: string;
+  adminAllocation?: {
+    confirmedReceivedPaise: number;
+    rentAllocatedPaise: number;
+    depositAllocatedPaise: number;
+    allocationNotes?: string;
+  };
 }): Promise<void> {
   try {
     const item = await buildMinimalReviewItemForAllocation(input);
@@ -27,6 +33,7 @@ export async function persistApprovalAllocationAfterSuccess(input: {
     await recordPaymentApprovalAllocation({
       item,
       approvedByAdminId: input.approvedByAdminId,
+      adminAllocation: input.adminAllocation,
     });
   } catch (err) {
     console.error('[payment-approval-allocation] persist failed', {

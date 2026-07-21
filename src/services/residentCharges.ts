@@ -425,6 +425,9 @@ export async function approveDepositLinkPaymentProof(
     return { ok: false, message: depositResult.error };
   }
 
+  const { syncDepositCollectionFromLedger } = await import('./depositCollection');
+  await syncDepositCollectionFromLedger(link.bookingId);
+
   await db
     .update(paymentLinks)
     .set({ status: 'paid' })

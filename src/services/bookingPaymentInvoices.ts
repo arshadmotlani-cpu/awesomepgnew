@@ -146,14 +146,19 @@ export async function applyBookingRentInvoiceOnPaymentSuccess(input: {
   providerPaymentId: string;
   paidAt?: Date;
   source?: 'webhook' | 'backfill';
+  /** Admin override — when set, skips auto rent-first split. */
+  rentPaisePaidOverride?: number;
 }): Promise<ApplyBookingRentInvoiceResult> {
   const stayStart = await primaryStayStartDate(input.booking.id);
-  const { rentPaisePaid, invoiceRentPaise, proration } = computeRentAppliedToFirstInvoice({
+  const computed = computeRentAppliedToFirstInvoice({
     booking: input.booking,
     paymentAmountPaise: input.paymentAmountPaise,
     membershipAmountPaise: input.membershipAmountPaise,
     stayStartDate: stayStart,
   });
+  const rentPaisePaid = input.rentPaisePaidOverride ?? computed.rentPaisePaid;
+  const invoiceRentPaise = rentPaisePaid;
+  const proration = computed.proration;
 
   if (rentPaisePaid <= 0) {
     return { ok: true, invoiceId: '', financialInvoiceId: null, created: false };

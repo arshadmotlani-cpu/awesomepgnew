@@ -85,6 +85,16 @@ export type RecordPaymentSuccessInput = {
     depositDueDate: string;
     approvedByAdminId: string;
   };
+  /** Admin-controlled rent + deposit allocation (Operations payment review). */
+  paymentAllocation?: {
+    confirmedReceivedPaise: number;
+    rentAllocatedPaise: number;
+    depositAllocatedPaise: number;
+    depositDueDate?: string;
+    approvedByAdminId: string;
+    allocationNotes?: string;
+    pgPaymentRecordId?: string;
+  };
   /** Admin who recorded an offline payment — used for audit attribution. */
   recordedByAdminId?: string;
   /** Overpayment after rent/deposit/prior allocation (admin-selected disposition). */
@@ -251,6 +261,7 @@ async function applyBookingPaymentFinancialMirrors(input: {
     id: string;
     customerId: string;
     bookingCode: string;
+    durationMode: string;
     subtotalPaise: number;
     discountPaise: number;
     depositPaise: number;
@@ -262,6 +273,35 @@ async function applyBookingPaymentFinancialMirrors(input: {
 }): Promise<void> {
   const { booking, paymentId, recordPaymentSuccessInput: payInput } = input;
   const snapshot = booking.pricingSnapshot as PricingSnapshot | null;
+
+  if (payInput.paymentAllocation) {
+    const { applyAdminPaymentAllocation } = await import('./paymentAllocation');
+    const allocResult = await applyAdminPaymentAllocation({
+      booking,
+      paymentId,
+      providerPaymentId: payInput.providerPaymentId,
+      membershipAmountPaise: payInput.membershipAmountPaise,
+      allocation: payInput.paymentAllocation,
+      pgPaymentRecordId: payInput.paymentAllocation.pgPaymentRecordId,
+    });
+    if (!allocResult.ok) {
+      throw new Error(allocResult.reason);
+    }
+    if (allocResult.unallocatedPaise > 0 && !payInput.overpayment) {
+      const { applyBookingOverpaymentDisposition } = await import('./bookingOverpayment');
+      await applyBookingOverpaymentDisposition({
+        bookingId: booking.id,
+        bookingCode: booking.bookingCode,
+        customerId: booking.customerId,
+        paymentId,
+        excessPaise: allocResult.unallocatedPaise,
+        disposition: 'wallet_credit',
+        approvedByAdminId: payInput.paymentAllocation.approvedByAdminId,
+      });
+    }
+    return;
+  }
+
   const creditApplied =
     snapshot?.depositCredit?.adminTransferred === true
       ? (snapshot.depositCredit.appliedPaise ?? 0)
@@ -489,7 +529,7 @@ export async function recordPaymentSuccess(
 
   const isReserveBooking = booking.durationMode === 'reserve';
 
-  if (!isReserveBooking && booking.depositPaise > 0) {
+  if (!isReserveBooking && booking.depositPaise > 0 && !input.paymentAllocation) {
     const { validateBookingPayment } = await import('./depositCollection');
     const validation = validateBookingPayment({
       booking,
@@ -500,7 +540,7 @@ export async function recordPaymentSuccess(
     if (!validation.ok) {
       return { ok: false, reason: validation.reason };
     }
-  } else if (!isReserveBooking && !input.partialDeposit) {
+  } else if (!isReserveBooking && !input.partialDeposit && !input.paymentAllocation) {
     const bookingPaymentPaise = Math.max(
       0,
       input.amountPaise - (input.membershipAmountPaise ?? 0),
@@ -713,7 +753,7 @@ export async function recordPaymentSuccess(
       }
     }
 
-    if (!isReserveBooking && booking.depositPaise > 0 && wasAwaitingConfirm) {
+    if (!isReserveBooking && wasAwaitingConfirm && (booking.depositPaise > 0 || input.paymentAllocation)) {
       try {
         await applyBookingPaymentFinancialMirrors({
           booking,
@@ -762,7 +802,7 @@ export async function recordPaymentSuccess(
       }
     }
 
-    if (!isReserveBooking && wasAwaitingConfirm) {
+    if (!isReserveBooking && wasAwaitingConfirm && !input.paymentAllocation) {
       try {
         const { applyBookingRentInvoiceOnPaymentSuccess } = await import(
           './bookingPaymentInvoices'

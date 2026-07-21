@@ -239,5 +239,17 @@ Cross-links: [[ARCHITECTURE]] · [[WORKFLOWS]] · [[AI_CONTEXT]] · [[BUGS]]
 <!-- DOC_SYNC_TOUCH_2026-07-11 -->
 > **2026-07-11 06:40:31 UTC** — Code changed in: Bed Assignment. Manual review recommended.
 
+## Manual payment allocation + partial deposit SSOT
+
+| | |
+|---|---|
+| **Date** | 2026-07-21 |
+| **Decision** | Admin fully controls rent vs deposit allocation on booking payment approval; resident `amount_paise` stays immutable; admin sets `confirmed_amount_paise` |
+| **Reason** | Partial deposit collection (e.g. ₹6,180 → rent ₹4,120 + deposit ₹2,060) requires independent allocation, not auto rent-first split |
+| **Impact** | `getBookingMoneyBalances()` + `applyAdminPaymentAllocation()` are SSOT; Operations payment review uses `PaymentAllocationDialog`; checkout refund deducts outstanding rent from collected deposit |
+| **See** | `bookingMoneyBalances.ts`, `paymentAllocation.ts`, [[Deposits]], migration `0117_partial_deposit_allocation` |
+
+---
+
 <!-- DOC_SYNC_TOUCH_2026-07-21 -->
 > **2026-07-21 08:32:20 UTC** — Code changed in: Routes, Bed Assignment, Bookings, Residents, Vacating. Manual review recommended.

@@ -10,7 +10,11 @@ Cross-links: [[START_HERE]] · [[features#Deposits]] · [[WORKFLOWS#Deposit Coll
 
 Track **security deposits** per booking: required amount, collection at checkout or offline, partial collection, vacating notice deductions, and final refund via checkout settlement. The deposit wallet is auditable through `deposit_ledger` entries.
 
-**SSOT:** `deposits.ts`, `depositOperations.ts`, `getDepositSummaryForBooking()`
+**SSOT:** `deposits.ts`, `depositOperations.ts`, `getDepositSummaryForBooking()`, `getBookingMoneyBalances()`, `applyAdminPaymentAllocation()`
+
+### Manual allocation (admin)
+
+At Operations payment review, admin sets **confirmed received**, **rent allocated**, and **deposit allocated** independently. Resident sees normal Required / Received / Outstanding; allocation is admin-only. Audit trail: `payment_approval_allocations`, `pg_payment_records.confirmed_amount_paise`, `deposit_ledger`.
 
 ---
 
@@ -61,7 +65,9 @@ See [[ROUTES#Deposits & checkout]]
 | `deposit_ledger` | collected, deducted, refunded entries |
 | `vacating_requests` | Penalty amount snapshot |
 | `checkout_settlements` | Final refund amount and status |
-| `payments` | Razorpay deposit capture |
+| `bookings.rent_received_paise` | First-month rent collected (synced from paid invoices) |
+| `pg_payment_records.confirmed_amount_paise` | Admin-confirmed received at approval |
+| `payment_approval_allocations` | Rent/deposit split audit at approve time |
 
 See [[DATABASE#Deposits — Deposits]]
 

@@ -515,6 +515,7 @@ export async function backfillDepositCollectedRows(): Promise<{
       id: bookings.id,
       customerId: bookings.customerId,
       depositPaise: bookings.depositPaise,
+      depositDuePaise: bookings.depositDuePaise,
     })
     .from(bookings)
     .leftJoin(
@@ -529,6 +530,7 @@ export async function backfillDepositCollectedRows(): Promise<{
         sql`${bookings.depositPaise} > 0`,
         eq(bookings.status, 'confirmed'),
         isNull(depositLedger.id),
+        sql`coalesce(${bookings.depositDuePaise}, 0) = 0`,
       ),
     );
 

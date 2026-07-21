@@ -311,19 +311,13 @@ async function buildDepositCategory(
   depositDuePaise: number,
   meta: { pgId: string; pgName: string; roomNumber: string },
 ): Promise<ResidentDepositCategory> {
-  const summary = await getDepositSummaryForBooking(bookingId);
+  const { getBookingMoneyBalances } = await import('@/src/services/bookingMoneyBalances');
+  const balances = await getBookingMoneyBalances(bookingId);
 
-  const requiredPaise = depositRequiredPaise;
-  const outstandingPaise = Math.max(0, depositDuePaise);
-  const bookingCollectedPaise = Math.max(0, depositRequiredPaise - depositDuePaise);
-
-  const collectedFromRecords = summary?.collectedPaise ?? 0;
-  const netHeldPaise =
-    summary != null && summary.entries.length > 0
-      ? Math.max(0, summary.refundableBalancePaise)
-      : Math.max(0, bookingCollectedPaise);
-  const paidPaise = netHeldPaise;
-  const refundablePaise = netHeldPaise;
+  const requiredPaise = balances?.deposit.requiredPaise ?? depositRequiredPaise;
+  const paidPaise = balances?.deposit.receivedPaise ?? 0;
+  const outstandingPaise = balances?.deposit.outstandingPaise ?? Math.max(0, depositDuePaise);
+  const refundablePaise = balances?.deposit.refundablePaise ?? paidPaise;
 
   const items: ResidentFinancialLineItem[] = [];
   if (outstandingPaise > 0) {

@@ -256,9 +256,9 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-21 14:22:36 UTC
+### Pending pre-commit sync · 2026-07-21 14:40:21 UTC
 
-**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Vacating]], [[Electricity]]
+**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Bookings]], [[Vacating]], [[Deposits]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
@@ -270,20 +270,22 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (13):**
-- `app/(admin)/admin/billing/page.tsx`
-- `app/(admin)/admin/quick-actions/actions.ts`
-- `app/(admin)/admin/settings/policies/page.tsx`
-- `src/db/migrations/0116_billing_engine.sql`
-- `src/db/schema/billingGeneration.ts`
-- `src/db/schema/index.ts`
-- `src/db/schema/residentCreditLedger.ts`
-- `src/db/schema/vacatingRequests.ts`
-- `src/services/billing.ts`
+**Staged code files (15):**
+- `app/(admin)/admin/bookings/[bookingId]/actions.ts`
+- `app/(admin)/admin/payments/actions.ts`
+- `src/db/migrations/0117_partial_deposit_allocation.sql`
+- `src/db/migrations/meta/_journal.json`
+- `src/db/schema/bookings.ts`
+- `src/db/schema/paymentApprovalAllocations.ts`
+- `src/db/schema/pgPaymentRecords.ts`
+- `src/lib/billing/bookingMoneyBalances.ts`
+- `src/lib/billing/checkoutRefundPreview.ts`
+- `src/services/bookingLifecycle.ts`
+- `src/services/bookingMoneyBalances.ts`
+- `src/services/bookingPaymentInvoices.ts`
 - `src/services/checkoutSettlement.ts`
-- `src/services/electricityBilling.ts`
-- `src/services/rentInvoices.ts`
-- `src/services/vacating.ts`
+- `src/services/deposits.ts`
+- `src/services/residentFinancialEngine.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

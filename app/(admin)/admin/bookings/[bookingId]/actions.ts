@@ -111,6 +111,20 @@ export async function recordOfflinePaymentAction(
   const amountPaise = Math.round(amountRupees * 100);
   const reference = String(formData.get('reference') ?? '').trim() || null;
   const amountOverrideReason = String(formData.get('amountOverrideReason') ?? '').trim();
+  const rentAllocatedRupees = Number.parseFloat(String(formData.get('rentAllocatedRupees') ?? ''));
+  const depositAllocatedRupees = Number.parseFloat(
+    String(formData.get('depositAllocatedRupees') ?? ''),
+  );
+  const hasManualAllocation =
+    Number.isFinite(rentAllocatedRupees) &&
+    Number.isFinite(depositAllocatedRupees) &&
+    (rentAllocatedRupees > 0 || depositAllocatedRupees > 0);
+  const confirmedReceivedRupees = Number.parseFloat(
+    String(formData.get('confirmedReceivedRupees') ?? amountRaw),
+  );
+  const confirmedReceivedPaise = Math.round(
+    (Number.isFinite(confirmedReceivedRupees) ? confirmedReceivedRupees : amountRupees) * 100,
+  );
 
   try {
     await assertAdminBookingCodeAccess(admin, bookingCode);
@@ -139,7 +153,7 @@ export async function recordOfflinePaymentAction(
   }
 
   const willConfirmBooking = b.status !== 'confirmed';
-  if (willConfirmBooking && amountPaise !== b.totalPaise) {
+  if (willConfirmBooking && amountPaise !== b.totalPaise && !hasManualAllocation) {
     const canOverride = adminHasPermission(admin.role, 'payments:override');
     if (!canOverride || amountOverrideReason.length < 5) {
       return {
@@ -161,6 +175,14 @@ export async function recordOfflinePaymentAction(
     amountPaise,
     bookingCode,
     recordedByAdminId: admin.adminId,
+    paymentAllocation: hasManualAllocation
+      ? {
+          confirmedReceivedPaise: confirmedReceivedPaise,
+          rentAllocatedPaise: Math.round(rentAllocatedRupees * 100),
+          depositAllocatedPaise: Math.round(depositAllocatedRupees * 100),
+          approvedByAdminId: admin.adminId,
+        }
+      : undefined,
     rawPayload: {
       recordedBy: 'admin',
       reference,

@@ -34,10 +34,23 @@ export function entityTypeForReviewKind(
 export async function recordPaymentApprovalAllocation(input: {
   item: PendingPaymentReviewItem;
   approvedByAdminId: string;
+  adminAllocation?: {
+    confirmedReceivedPaise: number;
+    rentAllocatedPaise: number;
+    depositAllocatedPaise: number;
+    allocationNotes?: string;
+  };
 }): Promise<void> {
-  const snapshot = allocationSnapshotForApproval(input.item);
+  const autoSnapshot = allocationSnapshotForApproval(input.item);
   const breakdown = buildPaymentReviewBreakdown(input.item);
   const entityType = entityTypeForReviewKind(input.item.kind);
+  const admin = input.adminAllocation;
+
+  const roomChargesPaidPaise = admin?.rentAllocatedPaise ?? autoSnapshot.roomChargesPaidPaise;
+  const securityDepositPaidPaise =
+    admin?.depositAllocatedPaise ?? autoSnapshot.securityDepositPaidPaise;
+  const totalAmountReceivedPaise =
+    admin?.confirmedReceivedPaise ?? autoSnapshot.totalAmountReceivedPaise;
 
   await db
     .insert(paymentApprovalAllocations)
@@ -47,12 +60,14 @@ export async function recordPaymentApprovalAllocation(input: {
       bookingId: input.item.bookingId,
       customerId: input.item.customerId,
       pgId: input.item.pgId,
-      roomChargesPaidPaise: snapshot.roomChargesPaidPaise,
-      securityDepositPaidPaise: snapshot.securityDepositPaidPaise,
+      roomChargesPaidPaise,
+      securityDepositPaidPaise,
       priorOutstandingPaidPaise: breakdown.priorPaidPaise,
-      totalAmountReceivedPaise: snapshot.totalAmountReceivedPaise,
+      totalAmountReceivedPaise,
+      confirmedReceivedPaise: admin?.confirmedReceivedPaise ?? null,
       totalExpectedPaise: breakdown.totalExpectedPaise,
-      paymentCategory: snapshot.paymentCategoryLabel,
+      allocationNotes: admin?.allocationNotes ?? null,
+      paymentCategory: autoSnapshot.paymentCategoryLabel,
       approvedByAdminId: input.approvedByAdminId,
       approvedAt: new Date(),
     })
@@ -65,12 +80,14 @@ export async function recordPaymentApprovalAllocation(input: {
         bookingId: input.item.bookingId,
         customerId: input.item.customerId,
         pgId: input.item.pgId,
-        roomChargesPaidPaise: snapshot.roomChargesPaidPaise,
-        securityDepositPaidPaise: snapshot.securityDepositPaidPaise,
+        roomChargesPaidPaise,
+        securityDepositPaidPaise,
         priorOutstandingPaidPaise: breakdown.priorPaidPaise,
-        totalAmountReceivedPaise: snapshot.totalAmountReceivedPaise,
+        totalAmountReceivedPaise,
+        confirmedReceivedPaise: admin?.confirmedReceivedPaise ?? null,
         totalExpectedPaise: breakdown.totalExpectedPaise,
-        paymentCategory: snapshot.paymentCategoryLabel,
+        allocationNotes: admin?.allocationNotes ?? null,
+        paymentCategory: autoSnapshot.paymentCategoryLabel,
         approvedByAdminId: input.approvedByAdminId,
         approvedAt: new Date(),
       },

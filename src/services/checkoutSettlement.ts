@@ -42,6 +42,8 @@ import {
   type CheckoutSettlementImageEvidence,
 } from '@/src/lib/checkout/checkoutSettlementImages';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
+import { computeCheckoutRefundPreview } from '@/src/lib/billing/checkoutRefundPreview';
+import { getBookingMoneyBalances } from '@/src/services/bookingMoneyBalances';
 import {
   applyDepositDeductionsInTx,
   settleDepositRefund,
@@ -138,6 +140,7 @@ export type CheckoutSettlementDetail = CheckoutSettlementRow & {
     totalDeductionsPaise: number;
     noticeDeductionPaise: number;
     electricityDeductionPaise: number;
+    outstandingRentDeductionPaise: number;
     electricityDeductFromDeposit: boolean;
     electricitySharePaise: number;
   };
@@ -281,40 +284,46 @@ function hasResidentRefundDetails(
   return Boolean(row.payoutUpiId?.trim()) || Boolean(row.payoutQrUrl?.trim());
 }
 
-function buildPreview(row: CheckoutSettlement, depositHeldPaise: number) {
+function buildPreview(
+  row: CheckoutSettlement,
+  depositHeldPaise: number,
+  outstandingRentAtCheckoutPaise = 0,
+) {
   const held = paiseField(depositHeldPaise);
   const noticeDeductionPaise = paiseField(row.noticeDeductionPaise);
   const electricitySharePaise = resolveCheckoutElectricitySharePaise(row);
   const electricityDeductFromDeposit = row.electricityDeductFromDeposit !== false;
-  const electricityDeductionPaise = resolveCheckoutElectricityDeductionPaise(row);
   const damageChargePaise = paiseField(row.damageChargePaise);
   const cleaningChargePaise = paiseField(row.cleaningChargePaise);
   const customChargePaise = paiseField(row.customChargePaise);
 
-  const totalDeductionsPaise =
-    noticeDeductionPaise +
-    electricityDeductionPaise +
-    damageChargePaise +
-    cleaningChargePaise +
-    customChargePaise;
-  const finalRefundPaise =
-    row.amountsLocked && row.finalRefundPaise != null
-      ? paiseField(row.finalRefundPaise)
-      : Math.max(0, held - totalDeductionsPaise);
+  const computed = computeCheckoutRefundPreview({
+    depositHeldPaise: held,
+    noticeDeductionPaise,
+    electricitySharePaise,
+    electricityDeductFromDeposit,
+    damageChargePaise,
+    cleaningChargePaise,
+    customChargePaise,
+    outstandingRentAtCheckoutPaise,
+    finalRefundPaise: row.finalRefundPaise,
+    amountsLocked: row.amountsLocked ?? false,
+  });
 
   return {
     depositHeldPaise: held,
     noticeDeductionPaise,
-    electricityDeductionPaise,
+    electricityDeductionPaise: computed.electricityDeductionPaise,
     electricitySharePaise,
     electricityDeductFromDeposit,
+    outstandingRentDeductionPaise: computed.outstandingRentDeductionPaise,
     damageChargePaise,
     cleaningChargePaise,
     penaltyChargePaise: noticeDeductionPaise,
     customChargePaise,
     customChargeLabel: row.customChargeLabel ?? undefined,
-    totalDeductionsPaise,
-    finalRefundPaise,
+    totalDeductionsPaise: computed.totalDeductionsPaise,
+    finalRefundPaise: computed.finalRefundPaise,
   };
 }
 
@@ -577,6 +586,11 @@ export async function createCheckoutSettlementFromVacating(input: {
       depositRequiredPaise: booking?.depositPaise ?? 0,
     })
     .returning({ id: checkoutSettlements.id });
+
+  await db
+    .update(bookings)
+    .set({ depositDuePaise: 0, updatedAt: new Date() })
+    .where(eq(bookings.id, vr.bookingId));
 
   await db.insert(auditLog).values({
     actorType: 'system',
@@ -982,6 +996,8 @@ async function buildCheckoutSettlementDetailFromJoinRow(
 ): Promise<CheckoutSettlementDetail> {
   const wallet = await getDepositSummaryForBooking(row.bookingId);
   const depositHeld = paiseField(wallet?.refundableBalancePaise ?? 0);
+  const moneyBalances = await getBookingMoneyBalances(row.bookingId);
+  const outstandingRentAtCheckoutPaise = moneyBalances?.rent.outstandingPaise ?? 0;
   const { getResidentCreditBalance } = await import('@/src/services/residentCreditLedger');
   const creditBalancePaise = paiseField(await getResidentCreditBalance(row.customerId));
   let settlement = mapDbSettlement(row);
@@ -1095,7 +1111,7 @@ async function buildCheckoutSettlementDetailFromJoinRow(
     electricityTotalBillPaise,
     roomElectricityAllocation,
     roomElectricityLedger,
-    preview: buildPreview(previewSettlement, depositHeld),
+    preview: buildPreview(previewSettlement, depositHeld, outstandingRentAtCheckoutPaise),
   });
 }
 

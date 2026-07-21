@@ -7,7 +7,8 @@ import { approveExtensionPaymentProof } from '@/src/services/extension';
 import { approveElectricityPaymentProof } from '@/src/services/meterElectricity';
 import { approveRentPaymentProof } from '@/src/services/rentInvoices';
 import { approveDepositLinkPaymentProof } from '@/src/services/residentCharges';
-import { reviewPaymentRecord } from '@/src/services/qrPayments';
+import { reviewPaymentRecord, type AdminPaymentAllocationInput } from '@/src/services/qrPayments';
+import { getBookingMoneyBalances } from '@/src/services/bookingMoneyBalances';
 import { getNextPendingPaymentReviewKey } from '@/src/services/paymentProofQueue';
 import { persistApprovalAllocationAfterSuccess } from '@/src/services/persistPaymentApprovalAllocation';
 import { PAYMENT_ALREADY_APPROVED_MESSAGE } from '@/src/lib/operations/paymentReviewMessages';
@@ -77,6 +78,60 @@ export async function approveQrPaymentAction(
     return {
       ok: false as const,
       message: err instanceof Error ? err.message : 'Approval failed.',
+    };
+  }
+}
+
+export async function getBookingMoneyBalancesForReviewAction(bookingId: string) {
+  await requireAdminPermission('payments:write');
+  const balances = await getBookingMoneyBalances(bookingId);
+  if (!balances) {
+    return { ok: false as const, message: 'Booking not found.' };
+  }
+  return { ok: true as const, balances };
+}
+
+export async function approveQrPaymentWithAllocationAction(
+  recordId: string,
+  pgId: string,
+  allocation: AdminPaymentAllocationInput,
+  meta?: ReviewMeta & { overpaymentDisposition?: OverpaymentDisposition },
+  currentKey?: string,
+) {
+  const session = await requireAdminPermission('payments:write');
+  try {
+    const result = await reviewPaymentRecord(session, recordId, 'approved', {
+      paymentAllocation: allocation,
+      reviewMeta: meta,
+    });
+    await persistApprovalAllocationAfterSuccess({
+      kind: 'qr',
+      entityId: recordId,
+      pgId,
+      approvedByAdminId: session.adminId,
+      adminAllocation: {
+        confirmedReceivedPaise: allocation.confirmedReceivedPaise,
+        rentAllocatedPaise: allocation.rentAllocatedPaise,
+        depositAllocatedPaise: allocation.depositAllocatedPaise,
+        allocationNotes: allocation.allocationNotes,
+      },
+    });
+    revalidatePaymentReviewSurfaces(pgId);
+    revalidatePath('/admin/collections');
+    revalidatePath('/admin/deposits');
+    if (result.outcome === 'already_approved') {
+      const nextKey = await getNextPendingPaymentReviewKey(session, currentKey);
+      return {
+        ok: true as const,
+        message: PAYMENT_ALREADY_APPROVED_MESSAGE,
+        nextKey,
+      };
+    }
+    return withNextReviewKey(session, currentKey, { ok: true });
+  } catch (err) {
+    return {
+      ok: false as const,
+      message: err instanceof Error ? err.message : 'Allocation approval failed.',
     };
   }
 }
