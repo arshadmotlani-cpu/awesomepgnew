@@ -5,8 +5,9 @@ import {
   submitVacatingAction,
   type VacatingActionState,
 } from '@/app/(customer)/account/resident/actions';
-import { NoticeDeductionBreakdown } from '@/src/components/shared/NoticeDeductionBreakdown';
+import { NoticeSettlementPanel } from '@/src/components/shared/NoticeDeductionBreakdown';
 import { useNoticeDeductionPreview } from '@/src/components/shared/useNoticeDeductionPreview';
+import { toNoticeSettlementDisplay } from '@/src/lib/vacating/noticeDeductionPresentation';
 import {
   ACCOUNT_SURFACE,
   ACCOUNT_SURFACE_PRIMARY_BTN,
@@ -52,7 +53,7 @@ export function VacatingRequestForm({
             depositHeldPaise,
             monthlyRentPaise,
             vacatingDate,
-            noticeBreakdown: breakdown,
+            noticeBreakdown: breakdown ? toNoticeSettlementDisplay(breakdown) : null,
           })
         : null,
     [breakdown, depositHeldPaise, monthlyRentPaise, vacatingDate],
@@ -99,7 +100,7 @@ export function VacatingRequestForm({
       ) : null}
 
       {preview?.noticeBreakdown ? (
-        <NoticeDeductionBreakdown breakdown={preview.noticeBreakdown} variant="resident" />
+        <NoticeSettlementPanel settlement={preview.noticeBreakdown} variant="resident" />
       ) : preview?.earlyVacate ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-4 text-sm text-amber-950">
           <p className="font-medium">Early vacate policy applies</p>

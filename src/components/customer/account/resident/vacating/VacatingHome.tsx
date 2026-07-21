@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { ApgCard } from '@/src/components/customer/design-system';
 import { StatusTimeline } from '@/src/components/customer/design-system';
-import { NoticeDeductionBreakdown } from '@/src/components/shared/NoticeDeductionBreakdown';
+import { NoticeSettlementPanel } from '@/src/components/shared/NoticeDeductionBreakdown';
 import { CancelVacatingForm } from '@/src/components/customer/CancelVacatingForm';
 import {
   buildVacatingSettlementLines,
@@ -260,7 +260,7 @@ export function VacatingHome({
               {vacating.deductionPaise > 0 && vacating.status !== 'completed' ? (
                 noticeBreakdown ? (
                   <div className="sm:col-span-2">
-                    <NoticeDeductionBreakdown breakdown={noticeBreakdown} variant="resident" compact />
+                    <NoticeSettlementPanel settlement={noticeBreakdown} variant="resident" compact />
                   </div>
                 ) : (
                   <div>

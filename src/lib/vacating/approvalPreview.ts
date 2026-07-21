@@ -3,7 +3,8 @@ import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import type { AdminVacatingRow } from '@/src/db/queries/admin';
 import {
   breakdownFromStoredNoticeSnapshot,
-  type NoticeDeductionDisplayBreakdown,
+  toNoticeSettlementDisplay,
+  type NoticeSettlementDisplay,
 } from '@/src/lib/vacating/noticeDeductionPresentation';
 import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
 
@@ -22,7 +23,7 @@ export type VacatingApprovalPreview = {
   estimatedDeductionPaise: number;
   estimatedRefundPaise: number;
   bedStatus: VacatingBedStatus;
-  noticeBreakdown: NoticeDeductionDisplayBreakdown | null;
+  noticeBreakdown: NoticeSettlementDisplay | null;
 };
 
 export function vacatingBedStatus(

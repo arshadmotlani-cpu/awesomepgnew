@@ -2,6 +2,7 @@
 
 import { paiseToInr } from '@/src/lib/format';
 import type { PaymentReviewBreakdown } from '@/src/lib/operations/paymentReviewBreakdown';
+import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 
 function Row({
   label,
@@ -12,7 +13,7 @@ function Row({
   label: string;
   value: string;
   emphasize?: boolean;
-  tone?: 'success' | 'warning' | 'danger' | 'muted';
+  tone?: 'success' | 'warning' | 'danger';
 }) {
   const valueClass =
     tone === 'success'
@@ -21,11 +22,10 @@ function Row({
         ? 'text-amber-200'
         : tone === 'danger'
           ? 'text-rose-300'
-          : tone === 'muted'
-            ? 'text-apg-silver'
-            : emphasize
-              ? 'text-white'
-              : 'text-white';
+          : emphasize
+            ? 'text-white'
+            : 'text-white';
+
   return (
     <div className="flex items-start justify-between gap-3 text-sm">
       <dt className="text-apg-silver">{label}</dt>
@@ -40,14 +40,18 @@ function Row({
   );
 }
 
-/**
- * Decision-first payment summary for admin review — what happened, what needs attention.
- */
-export function PaymentBreakdownSection({
+/** Decision-first payment review — what happened and what needs attention. Allocation is edited at approve time. */
+export function PaymentReviewEssentials({
+  item,
   breakdown,
 }: {
+  item: PendingPaymentReviewItem;
   breakdown: PaymentReviewBreakdown;
 }) {
+  const contextLine = [breakdown.pgName, breakdown.roomBed, breakdown.stayDuration]
+    .filter(Boolean)
+    .join(' · ');
+
   const diffLabel =
     breakdown.differenceTone === 'exact'
       ? `${paiseToInr(0)} ✓`
@@ -55,16 +59,10 @@ export function PaymentBreakdownSection({
         ? `${paiseToInr(Math.abs(breakdown.differencePaise))} short`
         : `${paiseToInr(breakdown.differencePaise)} extra`;
 
-  const diffTone =
-    breakdown.differenceTone === 'exact'
-      ? 'success'
-      : breakdown.differenceTone === 'short'
-        ? 'warning'
-        : 'danger';
-
-  const contextLine = [breakdown.pgName, breakdown.roomBed, breakdown.stayDuration]
-    .filter(Boolean)
-    .join(' · ');
+  const showAttention =
+    breakdown.differenceTone !== 'exact' ||
+    breakdown.priorOutstandingDuePaise > 0 ||
+    item.bookingPaymentReview?.canPartialApprove;
 
   return (
     <div className="rounded-xl border border-white/10 bg-[#121820] p-4">
@@ -84,11 +82,11 @@ export function PaymentBreakdownSection({
 
       <dl className="space-y-2.5">
         {breakdown.roomChargesDuePaise > 0 ? (
-          <Row label="Room charges" value={paiseToInr(breakdown.roomChargesDuePaise)} />
+          <Row label="Room charges due" value={paiseToInr(breakdown.roomChargesDuePaise)} />
         ) : null}
         {breakdown.securityDepositDuePaise > 0 ? (
           <Row
-            label="Security deposit"
+            label="Security deposit due"
             value={paiseToInr(breakdown.securityDepositDuePaise)}
           />
         ) : null}
@@ -99,30 +97,39 @@ export function PaymentBreakdownSection({
             tone="warning"
           />
         ) : null}
-        <Row
-          label="Total expected"
-          value={paiseToInr(breakdown.totalExpectedPaise)}
-          emphasize
-        />
+        <Row label="Total expected" value={paiseToInr(breakdown.totalExpectedPaise)} emphasize />
         <Row
           label="Resident paid"
           value={paiseToInr(breakdown.receivedPaise)}
           emphasize
           tone="success"
         />
-        <Row label="Difference" value={diffLabel} tone={diffTone} emphasize />
       </dl>
 
-      {breakdown.differenceTone === 'short' && breakdown.remainingBalancePaise > 0 ? (
-        <p className="mt-3 rounded-lg border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-          {paiseToInr(breakdown.remainingBalancePaise)} still due after this payment.
-        </p>
+      {showAttention ? (
+        <div className="mt-4 space-y-2 rounded-lg border border-amber-400/20 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-100">
+          {breakdown.differenceTone !== 'exact' ? (
+            <Row
+              label="Difference"
+              value={diffLabel}
+              tone={breakdown.differenceTone === 'short' ? 'warning' : 'danger'}
+            />
+          ) : null}
+          {breakdown.differenceTone === 'short' && breakdown.remainingBalancePaise > 0 ? (
+            <p>{paiseToInr(breakdown.remainingBalancePaise)} still due after this payment.</p>
+          ) : null}
+          {breakdown.differenceTone === 'excess' ? (
+            <p>Payment exceeds expected — split the extra when allocating.</p>
+          ) : null}
+          {item.bookingPaymentReview?.canPartialApprove ? (
+            <p>Partial deposit expected — set deposit balance due date when allocating.</p>
+          ) : null}
+        </div>
       ) : null}
-      {breakdown.differenceTone === 'excess' ? (
-        <p className="mt-3 rounded-lg border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-100">
-          Payment exceeds expected — choose allocation when approving.
-        </p>
-      ) : null}
+
+      <p className="mt-4 text-xs text-apg-silver">
+        Approve opens editable rent / deposit / electricity allocation. You decide where every rupee goes.
+      </p>
     </div>
   );
 }

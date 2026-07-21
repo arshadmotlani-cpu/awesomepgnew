@@ -66,13 +66,17 @@ function serializeBreakdown(breakdown: NoticeDeductionBreakdown) {
     noticeRequiredDays: breakdown.noticeRequiredDays,
     noticeGivenDays: breakdown.noticeGivenDays,
     missingNoticeDays: breakdown.missingNoticeDays,
+    billingDay: breakdown.billingDay,
+    billingCycleLabel: breakdown.billingCycleLabel,
+    paidUntilDate: breakdown.paidUntilDate,
+    vacatingDate: breakdown.vacatingDate,
+    unusedPrepaidRentDays: breakdown.unusedPrepaidRentDays,
+    noticeCoveredByPrepaidRent: breakdown.noticeCoveredByPrepaidRent,
     rentCoveredDays: breakdown.rentCoveredDays,
     chargeableNoticeDays: breakdown.chargeableNoticeDays,
     dailyRentPaise: breakdown.dailyRentPaise,
     noticeDeductionPaise: breakdown.noticeDeductionPaise,
-    chargeWindowStart: breakdown.chargeWindowStart,
-    chargeWindowEnd: breakdown.chargeWindowEnd,
-    coveredPeriodsUsed: breakdown.coveredPeriodsUsed,
+    paidPeriodUsed: breakdown.paidPeriodUsed,
   };
 }
 

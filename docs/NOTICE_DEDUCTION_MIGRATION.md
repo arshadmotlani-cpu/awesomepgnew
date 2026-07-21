@@ -8,9 +8,9 @@
 | `noticeGivenDays` | `diff(notice_given_date, vacating_date)` |
 | `missingNoticeDays` | `max(0, 14 - noticeGivenDays)` |
 | `dailyRent` | `floor(monthlyRent / 30)` |
-| Deduction | `chargeableNoticeDays × dailyRent` where `chargeableNoticeDays = missingNoticeDays − rentCoveredDays` (0 when compliant or fully covered) |
+| Deduction | `chargeableNoticeDays × dailyRent` where unused prepaid rent days after vacate satisfy missing notice first |
 
-**Rent coverage (2026-07-21):** Days in the missing-notice charge window that fall inside a **paid rent invoice period** (or booking checkout rent for move-in month) are excluded from deposit deduction. Charge window = last N calendar days before vacating date, half-open `[vacatingDate − N, vacatingDate)`.
+**Notice settlement (2026-07-21):** Unused prepaid rent = calendar days after vacating date through the resident's paid-until date. Those days offset missing notice before any deposit deduction. This is **not** outstanding rent accounting — it is prepaid rent credit on the billing cycle.
 
 **Grandfathering:** Completed checkouts, completed refunds, and historical deposit-ledger entries are **not** modified.
 

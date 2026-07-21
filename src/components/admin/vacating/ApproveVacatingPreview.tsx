@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { NoticeDeductionBreakdown } from '@/src/components/shared/NoticeDeductionBreakdown';
+import { NoticeSettlementPanel } from '@/src/components/shared/NoticeDeductionBreakdown';
 import { formatDate, paiseToInr } from '@/src/lib/format';
 import type { VacatingApprovalPreview } from '@/src/lib/vacating/approvalPreview';
 
@@ -36,7 +36,7 @@ export function ApproveVacatingPreview({ preview }: { preview: VacatingApprovalP
       </div>
 
       {preview.noticeBreakdown ? (
-        <NoticeDeductionBreakdown breakdown={preview.noticeBreakdown} variant="admin" />
+        <NoticeSettlementPanel settlement={preview.noticeBreakdown} variant="admin" />
       ) : noticeShort ? (
         <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
           <p className="font-semibold">Notice period shorter than required</p>

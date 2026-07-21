@@ -3,8 +3,9 @@
 import { useRouter } from 'next/navigation';
 import { useActionState, useEffect, useId, useMemo, useState } from 'react';
 import { AdminConfirmSubmit } from '@/src/components/admin/AdminConfirmSubmit';
-import { NoticeDeductionBreakdown } from '@/src/components/shared/NoticeDeductionBreakdown';
+import { NoticeSettlementPanel } from '@/src/components/shared/NoticeDeductionBreakdown';
 import { useNoticeDeductionPreview } from '@/src/components/shared/useNoticeDeductionPreview';
+import { toNoticeSettlementDisplay } from '@/src/lib/vacating/noticeDeductionPresentation';
 import {
   submitAdminVacatingAction,
   type MapActionState,
@@ -98,7 +99,11 @@ export function AdminVacatingSubmitForm({
       {loading ? (
         <p className="text-xs text-apg-silver">Calculating notice breakdown…</p>
       ) : breakdown && breakdown.missingNoticeDays > 0 ? (
-        <NoticeDeductionBreakdown breakdown={breakdown} variant="admin" compact />
+        <NoticeSettlementPanel
+          settlement={toNoticeSettlementDisplay(breakdown)}
+          variant="admin"
+          compact
+        />
       ) : null}
 
       <label className="flex items-start gap-2 text-xs text-apg-silver">

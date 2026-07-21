@@ -71,7 +71,7 @@ export function CheckoutRefundSummaryRail({
           muted
           hint={
             detail.noticeChargeableDays != null && detail.noticeChargeableDays > 0
-              ? `${detail.noticeChargeableDays} chargeable · ${detail.noticeRentCoveredDays ?? 0} covered by rent`
+              ? `${detail.noticeChargeableDays} chargeable · ${detail.noticeRentCoveredDays ?? 0} prepaid`
               : undefined
           }
         />

@@ -10,7 +10,7 @@ import {
   type CheckoutSettlementActionState,
 } from '@/app/(admin)/admin/checkout-settlements/actions';
 import { CheckoutSettlementElectricitySection } from '@/src/components/admin/CheckoutSettlementElectricitySection';
-import { NoticeDeductionBreakdown } from '@/src/components/shared/NoticeDeductionBreakdown';
+import { NoticeSettlementPanel } from '@/src/components/shared/NoticeDeductionBreakdown';
 import { assessCheckoutSettlementReadiness } from '@/src/lib/checkout/checkoutSettlementReadiness';
 import { paiseToInr } from '@/src/lib/format';
 import { breakdownFromStoredNoticeSnapshot } from '@/src/lib/vacating/noticeDeductionPresentation';
@@ -126,7 +126,7 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
 
       <Section title="Notice fee" defaultOpen={canApprove && !locked}>
         {noticeBreakdown ? (
-          <NoticeDeductionBreakdown breakdown={noticeBreakdown} variant="admin" compact />
+          <NoticeSettlementPanel settlement={noticeBreakdown} variant="admin" compact />
         ) : (
           <p className="text-xs text-apg-silver">Compliant notice — no notice fee.</p>
         )}

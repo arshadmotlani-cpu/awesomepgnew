@@ -59,14 +59,14 @@ export function BookingInvoiceHistorySection({
       </div>
 
       {!hasRows ? (
-        <div className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
-          <p className="text-sm text-zinc-500">No rent or electricity invoices on this booking yet.</p>
+        <div className="rounded-2xl border border-white/10 bg-[#121820] p-5">
+          <p className="text-sm text-apg-silver">No rent or electricity invoices on this booking yet.</p>
         </div>
       ) : null}
 
       {rentInvoices.length > 0 ? (
-        <div className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-zinc-900">Rent invoices</h2>
+        <div className="rounded-2xl border border-white/10 bg-[#1A1F27] p-5">
+          <h2 className="text-sm font-semibold text-white">Rent invoices</h2>
           <Table>
             <THead>
               <TR>
@@ -91,7 +91,7 @@ export function BookingInvoiceHistorySection({
                         inv.invoiceNumber
                       )}
                     </TD>
-                    <TD className="text-xs text-zinc-600">{inv.billingMonth.slice(0, 7)}</TD>
+                    <TD className="text-xs text-apg-silver">{inv.billingMonth.slice(0, 7)}</TD>
                     <TD>
                       <Badge tone={toneForStatus(inv.status)}>{titleCase(inv.status)}</Badge>
                     </TD>
@@ -108,8 +108,8 @@ export function BookingInvoiceHistorySection({
       ) : null}
 
       {electricityInvoices.length > 0 ? (
-        <div className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-zinc-900">Electricity invoices</h2>
+        <div className="rounded-2xl border border-white/10 bg-[#1A1F27] p-5">
+          <h2 className="text-sm font-semibold text-white">Electricity invoices</h2>
           <Table>
             <THead>
               <TR>
@@ -124,7 +124,7 @@ export function BookingInvoiceHistorySection({
               {electricityInvoices.map((inv) => (
                 <TR key={inv.id}>
                   <TD className="font-mono text-sm">{inv.invoiceNumber}</TD>
-                  <TD className="text-xs text-zinc-600">{inv.billingMonth.slice(0, 7)}</TD>
+                  <TD className="text-xs text-apg-silver">{inv.billingMonth.slice(0, 7)}</TD>
                   <TD>
                     <Badge tone={toneForStatus(inv.status)}>{titleCase(inv.status)}</Badge>
                   </TD>

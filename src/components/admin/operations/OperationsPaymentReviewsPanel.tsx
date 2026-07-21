@@ -4,19 +4,13 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { startTransition, useMemo, useState } from 'react';
 import {
-  approveElectricityProofAction,
-  approveDepositLinkProofAction,
-  approveExtensionProofAction,
-  approveQrPaymentWithAllocationAction,
-  approveQrPaymentAction,
-  approveRentProofAction,
+  approvePaymentProofWithAllocationAction,
   getBookingMoneyBalancesForReviewAction,
 } from '@/app/(admin)/admin/payments/actions';
 import { PaymentAllocationDialog } from '@/src/components/admin/operations/PaymentAllocationDialog';
 import type { PaymentAllocationSubmit } from '@/src/components/admin/operations/PaymentAllocationDialog';
 import type { BookingMoneyBalances } from '@/src/lib/billing/bookingMoneyBalances';
-import { PaymentApprovalConfirmDialog } from '@/src/components/admin/operations/PaymentApprovalConfirmDialog';
-import { PaymentBreakdownSection } from '@/src/components/admin/operations/PaymentBreakdownSection';
+import { PaymentReviewEssentials } from '@/src/components/admin/operations/PaymentReviewEssentials';
 import { PaymentProofRejectionDialog } from '@/src/components/admin/operations/PaymentProofRejectionDialog';
 import { PaymentProofRejectionHistory } from '@/src/components/admin/operations/PaymentProofRejectionHistory';
 import { useOperationsActionToast } from '@/src/components/admin/operations/OperationsActionToast';
@@ -27,21 +21,9 @@ import { InvoiceAdminRowActions } from '@/src/components/admin/InvoiceAdminRowAc
 import { OPS_ORANGE, OPS_PANEL } from '@/src/components/admin/residentOps/residentOpsUi';
 import { adminPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
 import { buildPaymentReviewBreakdown } from '@/src/lib/operations/paymentReviewBreakdown';
-import type {
-  OverpaymentDisposition,
-  PendingPaymentReviewItem,
-} from '@/src/lib/operations/paymentReviewTypes';
+import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 import { PAYMENT_ALREADY_APPROVED_MESSAGE } from '@/src/lib/operations/paymentReviewMessages';
 import { operationsFilterHref } from '@/src/lib/operations/operationsFilterLinks';
-import { paiseToInr } from '@/src/lib/format';
-
-const OVERPAYMENT_OPTIONS: Array<{ value: OverpaymentDisposition; label: string }> = [
-  { value: 'allocate_deposit', label: 'Apply remainder to deposit' },
-  { value: 'allocate_rent', label: 'Apply remainder to rent' },
-  { value: 'allocate_electricity', label: 'Apply remainder to electricity' },
-  { value: 'advance_credit', label: 'Advance credit' },
-  { value: 'refund_later', label: 'Refund later' },
-];
 
 function formatUploadTime(iso: string | null | undefined): string {
   if (!iso) return '—';
@@ -75,14 +57,11 @@ export function OperationsPaymentReviewsPanel({
   const [allocationBalancesLoading, setAllocationBalancesLoading] = useState(false);
   const [allocationBalancesError, setAllocationBalancesError] = useState<string | null>(null);
   const [moreOpenKey, setMoreOpenKey] = useState<string | null>(null);
-  const [overpayDisposition, setOverpayDisposition] =
-    useState<OverpaymentDisposition>('allocate_deposit');
   const [reviewNotes, setReviewNotes] = useState('');
   const [approvalNotes, setApprovalNotes] = useState('');
   const [rejectDialogItem, setRejectDialogItem] = useState<PendingPaymentReviewItem | null>(
     null,
   );
-  const [confirmItem, setConfirmItem] = useState<PendingPaymentReviewItem | null>(null);
   const { showToast, toastNode } = useOperationsActionToast();
 
   const visibleItems = useMemo(() => {
@@ -96,7 +75,6 @@ export function OperationsPaymentReviewsPanel({
     opts?: { rejected?: boolean },
   ) {
     setRejectDialogItem(null);
-    setConfirmItem(null);
     setAllocationItem(null);
     setAllocationBalances(null);
     setMoreOpenKey(null);
@@ -114,78 +92,18 @@ export function OperationsPaymentReviewsPanel({
     });
   }
 
-  function requestApprove(item: PendingPaymentReviewItem) {
-    if (item.overpaidPaise > 0 && !overpayDisposition) {
-      setError('Choose how to handle the overpayment.');
-      return;
-    }
-    setError(null);
-    setConfirmItem(item);
-  }
-
-  async function onApprove(item: PendingPaymentReviewItem) {
-    if (item.overpaidPaise > 0 && !overpayDisposition) {
-      setError('Choose how to handle the overpayment.');
-      return;
-    }
-    setBusyKey(item.key);
-    setError(null);
-    setInfo(null);
-    try {
-      let result: { ok: boolean; message?: string; nextKey?: string | null };
-      switch (item.kind) {
-        case 'qr':
-          result = await approveQrPaymentAction(
-            item.entityId,
-            item.pgId,
-            {
-              overpaymentDisposition:
-                item.overpaidPaise > 0 ? overpayDisposition : undefined,
-              reviewNotes: reviewNotes.trim() || undefined,
-              approvalNotes: approvalNotes.trim() || undefined,
-            },
-            item.key,
-          );
-          break;
-        case 'rent':
-          result = await approveRentProofAction(item.entityId, item.pgId, item.key);
-          break;
-        case 'electricity':
-          result = await approveElectricityProofAction(item.entityId, item.pgId, item.key);
-          break;
-        case 'extension':
-          result = await approveExtensionProofAction(item.entityId, item.pgId, item.key);
-          break;
-        case 'deposit_link':
-          result = await approveDepositLinkProofAction(item.entityId, item.pgId, item.key);
-          break;
-      }
-      if (!result.ok) {
-        setError(result.message ?? 'Approval failed.');
-        return;
-      }
-      if ('message' in result && result.message === PAYMENT_ALREADY_APPROVED_MESSAGE) {
-        setInfo(result.message);
-      }
-      advanceAfterAction(item.key, result.nextKey);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Approval failed.');
-    } finally {
-      setBusyKey(null);
-      setConfirmItem(null);
-    }
-  }
-
   async function openAllocationDialog(item: PendingPaymentReviewItem) {
-    if (!item.bookingId) {
-      setError('Booking context missing for allocation.');
-      return;
-    }
     setAllocationItem(item);
     setAllocationBalances(null);
     setAllocationBalancesError(null);
-    setAllocationBalancesLoading(true);
     setError(null);
+
+    if (!item.bookingId) {
+      setAllocationBalancesLoading(false);
+      return;
+    }
+
+    setAllocationBalancesLoading(true);
     try {
       const result = await getBookingMoneyBalancesForReviewAction(item.bookingId);
       if (!result.ok) {
@@ -205,7 +123,8 @@ export function OperationsPaymentReviewsPanel({
     setError(null);
     setInfo(null);
     try {
-      const result = await approveQrPaymentWithAllocationAction(
+      const result = await approvePaymentProofWithAllocationAction(
+        item.kind,
         item.entityId,
         item.pgId,
         {
@@ -218,7 +137,6 @@ export function OperationsPaymentReviewsPanel({
           allocationNotes: alloc.allocationNotes,
         },
         {
-          overpaymentDisposition: alloc.overpaymentDisposition,
           reviewNotes: reviewNotes.trim() || undefined,
           approvalNotes: approvalNotes.trim() || undefined,
         },
@@ -250,8 +168,6 @@ export function OperationsPaymentReviewsPanel({
     );
   }
 
-  const confirmBreakdown = confirmItem ? buildPaymentReviewBreakdown(confirmItem) : null;
-
   return (
     <div className="space-y-5">
       {toastNode}
@@ -265,19 +181,10 @@ export function OperationsPaymentReviewsPanel({
           }
         />
       ) : null}
-      {confirmItem && confirmBreakdown ? (
-        <PaymentApprovalConfirmDialog
-          open
-          residentName={confirmItem.residentName}
-          breakdown={confirmBreakdown}
-          pending={busyKey === confirmItem.key}
-          onCancel={() => setConfirmItem(null)}
-          onConfirm={() => void onApprove(confirmItem)}
-        />
-      ) : null}
       {allocationItem ? (
         <PaymentAllocationDialog
           open
+          item={allocationItem}
           residentName={allocationItem.residentName}
           submittedAmountPaise={
             allocationItem.submittedAmountPaise ?? allocationItem.amountPaise
@@ -314,7 +221,6 @@ export function OperationsPaymentReviewsPanel({
       ) : null}
 
       {visibleItems.map((item) => {
-        const isBookingQr = item.kind === 'qr' && Boolean(item.bookingId && item.bookingPaymentReview);
         const busy = busyKey === item.key;
         const breakdown = buildPaymentReviewBreakdown(item);
 
@@ -334,41 +240,43 @@ export function OperationsPaymentReviewsPanel({
                   </span>
                 </div>
 
-                <PaymentBreakdownSection breakdown={breakdown} />
+                <PaymentReviewEssentials item={item} breakdown={breakdown} />
 
-                <dl className="grid gap-3 text-xs text-apg-silver sm:grid-cols-2">
-                  {item.invoiceNumber ? (
+                {moreOpenKey === item.key ? (
+                  <dl className="grid gap-3 text-xs text-apg-silver sm:grid-cols-2">
+                    {item.invoiceNumber ? (
+                      <div>
+                        <dt className="uppercase tracking-wide">Invoice</dt>
+                        <dd className="mt-0.5 font-medium text-white">{item.invoiceNumber}</dd>
+                      </div>
+                    ) : null}
+                    {item.billingMonth ? (
+                      <div>
+                        <dt className="uppercase tracking-wide">Billing month</dt>
+                        <dd className="mt-0.5 font-medium text-white">
+                          {formatBillingMonth(item.billingMonth)}
+                        </dd>
+                      </div>
+                    ) : null}
                     <div>
-                      <dt className="uppercase tracking-wide">Invoice</dt>
-                      <dd className="mt-0.5 font-medium text-white">{item.invoiceNumber}</dd>
-                    </div>
-                  ) : null}
-                  {item.billingMonth ? (
-                    <div>
-                      <dt className="uppercase tracking-wide">Billing month</dt>
+                      <dt className="uppercase tracking-wide">Submitted</dt>
                       <dd className="mt-0.5 font-medium text-white">
-                        {formatBillingMonth(item.billingMonth)}
+                        {formatUploadTime(item.proofSubmittedAt)}
                       </dd>
                     </div>
-                  ) : null}
-                  <div>
-                    <dt className="uppercase tracking-wide">Submitted</dt>
-                    <dd className="mt-0.5 font-medium text-white">
-                      {formatUploadTime(item.proofSubmittedAt)}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="uppercase tracking-wide">Category</dt>
-                    <dd className="mt-0.5 font-medium text-white">
-                      {breakdown.paymentCategoryLabel}
-                    </dd>
-                  </div>
-                </dl>
-
-                {item.referenceNumber ? (
-                  <p className="text-xs text-apg-silver">
-                    Reference: <span className="text-white">{item.referenceNumber}</span>
-                  </p>
+                    <div>
+                      <dt className="uppercase tracking-wide">Category</dt>
+                      <dd className="mt-0.5 font-medium text-white">
+                        {breakdown.paymentCategoryLabel}
+                      </dd>
+                    </div>
+                    {item.referenceNumber ? (
+                      <div className="sm:col-span-2">
+                        <dt className="uppercase tracking-wide">Reference</dt>
+                        <dd className="mt-0.5 font-medium text-white">{item.referenceNumber}</dd>
+                      </div>
+                    ) : null}
+                  </dl>
                 ) : null}
 
                 {moreOpenKey === item.key ? (
@@ -394,24 +302,6 @@ export function OperationsPaymentReviewsPanel({
                         </Link>
                       ) : null}
                     </div>
-                    {item.overpaidPaise > 0 ? (
-                      <label className="block text-apg-silver">
-                        Overpayment handling ({paiseToInr(item.overpaidPaise)} extra)
-                        <select
-                          value={overpayDisposition}
-                          onChange={(e) =>
-                            setOverpayDisposition(e.target.value as OverpaymentDisposition)
-                          }
-                          className="mt-1 w-full rounded-lg border border-white/10 bg-[#0f1318] px-2 py-2 text-sm text-white"
-                        >
-                          {OVERPAYMENT_OPTIONS.map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    ) : null}
                     <label className="block text-apg-silver">
                       Review notes (internal)
                       <textarea
@@ -441,33 +331,20 @@ export function OperationsPaymentReviewsPanel({
               </div>
             ) : null}
 
-
             <div className="sticky bottom-0 flex flex-wrap items-center gap-2 border-t border-white/10 bg-[#141820] px-5 py-4">
               {item.financialInvoiceId &&
               (item.kind === 'rent' || item.kind === 'electricity') ? (
                 <InvoiceAdminRowActions financialInvoiceId={item.financialInvoiceId} />
               ) : null}
-              {isBookingQr ? (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void openAllocationDialog(item)}
-                  className="min-w-[160px] rounded-lg px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50"
-                  style={{ backgroundColor: OPS_ORANGE }}
-                >
-                  {busy ? 'Working…' : 'Approve with allocation'}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => requestApprove(item)}
-                  className="min-w-[120px] rounded-lg px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50"
-                  style={{ backgroundColor: OPS_ORANGE }}
-                >
-                  {busy ? 'Working…' : 'Approve'}
-                </button>
-              )}
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void openAllocationDialog(item)}
+                className="min-w-[160px] rounded-lg px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50"
+                style={{ backgroundColor: OPS_ORANGE }}
+              >
+                {busy ? 'Working…' : 'Approve'}
+              </button>
 
               {item.canReject ? (
                 <button

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 import { Badge, toneForStatus } from '@/src/components/admin/Badge';
 import { BookingInvoiceHistorySection } from '@/src/components/admin/bookings/BookingInvoiceHistorySection';
 import { CheckoutSettlementWizard } from '@/src/components/admin/checkout/CheckoutSettlementWizard';
@@ -6,7 +7,7 @@ import { CheckoutRefundReceiptFromDetail } from '@/src/components/admin/checkout
 import { DepositActivitySection } from '@/src/components/admin/deposits/DepositActivitySection';
 import { DepositSummaryCard } from '@/src/components/admin/deposits/DepositSummaryCard';
 import { VacatingRowActions } from '@/src/components/admin/vacating/VacatingRowActions';
-import { NoticeDeductionBreakdown } from '@/src/components/shared/NoticeDeductionBreakdown';
+import { NoticeSettlementPanel } from '@/src/components/shared/NoticeDeductionBreakdown';
 import { bookingFinancialWorkspaceSectionHref } from '@/src/lib/bookings/bookingFinancialLinks';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
@@ -14,9 +15,9 @@ import type { BookingFinancialWorkspaceData } from '@/src/services/bookingFinanc
 import type { BookingMoneyBalances } from '@/src/lib/billing/bookingMoneyBalances';
 
 const NAV_SECTIONS = [
-  { id: 'summary', label: 'Summary' },
+  { id: 'accounting', label: 'Accounting' },
+  { id: 'move-out', label: 'Move-out settlement' },
   { id: 'deposit', label: 'Deposit' },
-  { id: 'move-out', label: 'Move-out' },
   { id: 'checkout', label: 'Checkout' },
   { id: 'refund', label: 'Refund' },
   { id: 'invoices', label: 'Invoices' },
@@ -69,7 +70,7 @@ export function BookingFinancialWorkspace({ data }: { data: BookingFinancialWork
             <a
               key={section.id}
               href={bookingFinancialWorkspaceSectionHref(data.bookingId, section.id)}
-              className="rounded-full border border-white/10 px-3 py-1 text-xs font-medium text-apg-silver hover:border-[#FF5A1F]/40 hover:text-white"
+              className="rounded-full border border-white/10 px-3 py-1 text-xs font-medium text-apg-silver hover:border-apg-orange/40 hover:text-white"
             >
               {section.label}
             </a>
@@ -77,10 +78,72 @@ export function BookingFinancialWorkspace({ data }: { data: BookingFinancialWork
         </nav>
       </header>
 
-      <section id="summary" className="scroll-mt-28 space-y-4">
-        <SectionHeading title="Required / Received / Outstanding" />
+      <FinancialSectionCard
+        id="accounting"
+        title="Accounting"
+        subtitle="Required · Received · Outstanding — ongoing rent, deposit, and electricity balances."
+      >
         <MoneyBalancesGrid balances={data.moneyBalances} />
-      </section>
+      </FinancialSectionCard>
+
+      <FinancialSectionCard
+        id="move-out"
+        title="Move-out settlement"
+        subtitle="Notice coverage, deductions, and refund — separate from accounting balances above."
+        className="mt-10"
+        accent
+      >
+        {data.vacating ? (
+          <div className="space-y-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm text-apg-silver">
+                  Notice from {formatDate(data.vacating.noticeGivenDate)} · leaves{' '}
+                  {formatDate(data.vacating.vacatingDate)}
+                </p>
+                <p className="mt-1 text-sm text-white">
+                  Status:{' '}
+                  <span className="font-medium">{titleCase(data.vacating.status)}</span>
+                  {data.vacating.noticeCompliant ? ' · notice compliant' : ' · notice shortfall'}
+                </p>
+              </div>
+              <VacatingRowActions
+                requestId={data.vacating.id}
+                status={data.vacating.status}
+                settlementHref={data.settlementHref}
+                depositHeldPaise={data.moneyBalances.deposit.receivedPaise}
+                approvalPreview={data.vacating.approvalPreview ?? undefined}
+              />
+            </div>
+            {data.vacating.approvalPreview?.noticeBreakdown ? (
+              <NoticeSettlementPanel
+                settlement={data.vacating.approvalPreview.noticeBreakdown}
+                variant="admin"
+              />
+            ) : null}
+            {data.vacating.approvalPreview ? (
+              <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <MiniStat
+                  label="Deposit held"
+                  value={paiseToInr(data.vacating.approvalPreview.depositHeldPaise)}
+                />
+                <MiniStat
+                  label="Est. refund"
+                  value={paiseToInr(data.vacating.approvalPreview.estimatedRefundPaise)}
+                />
+                {data.checkoutDetail ? (
+                  <MiniStat
+                    label="Electricity deduction"
+                    value={paiseToInr(data.checkoutDetail.preview.electricityDeductionPaise ?? 0)}
+                  />
+                ) : null}
+              </dl>
+            ) : null}
+          </div>
+        ) : (
+          <p className="text-sm text-apg-silver">No move-out notice on this booking.</p>
+        )}
+      </FinancialSectionCard>
 
       <section id="deposit" className="scroll-mt-28 mt-10 space-y-4">
         <SectionHeading title="Deposit wallet" />
@@ -100,69 +163,11 @@ export function BookingFinancialWorkspace({ data }: { data: BookingFinancialWork
         <p className="text-sm text-apg-silver">
           <Link
             href={`/admin/deposits/${data.bookingId}`}
-            className="font-medium text-[#FF5A1F] hover:underline"
+            className="font-medium text-apg-orange hover:underline"
           >
             Open deposit detail →
           </Link>
         </p>
-      </section>
-
-      <section id="move-out" className="scroll-mt-28 mt-10 space-y-4">
-        <SectionHeading title="Move-out" />
-        {data.vacating ? (
-          <div className="rounded-2xl border border-white/10 bg-[#1A1F27] p-5">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <p className="text-sm text-apg-silver">
-                  Notice from {formatDate(data.vacating.noticeGivenDate)} · leaves{' '}
-                  {formatDate(data.vacating.vacatingDate)}
-                </p>
-                <p className="mt-1 text-sm text-white">
-                  Status:{' '}
-                  <span className="font-medium">{titleCase(data.vacating.status)}</span>
-                  {data.vacating.noticeCompliant ? ' · notice compliant' : ' · notice shortfall'}
-                </p>
-                {data.vacating.approvalPreview?.noticeBreakdown ? (
-                  <div className="mt-4 max-w-md">
-                    <NoticeDeductionBreakdown
-                      breakdown={data.vacating.approvalPreview.noticeBreakdown}
-                      variant="admin"
-                      compact
-                    />
-                  </div>
-                ) : null}
-                {data.vacating.approvalPreview ? (
-                  <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-                    <MiniStat
-                      label="Deposit held"
-                      value={paiseToInr(data.vacating.approvalPreview.depositHeldPaise)}
-                    />
-                    <MiniStat
-                      label="Est. notice fee"
-                      value={paiseToInr(data.vacating.approvalPreview.estimatedDeductionPaise)}
-                    />
-                    <MiniStat
-                      label="Est. refund"
-                      value={paiseToInr(data.vacating.approvalPreview.estimatedRefundPaise)}
-                    />
-                    <MiniStat label="Bed" value={data.vacating.approvalPreview.bedStatus} />
-                  </dl>
-                ) : null}
-              </div>
-              <VacatingRowActions
-                requestId={data.vacating.id}
-                status={data.vacating.status}
-                settlementHref={data.settlementHref}
-                depositHeldPaise={data.moneyBalances.deposit.receivedPaise}
-                approvalPreview={data.vacating.approvalPreview ?? undefined}
-              />
-            </div>
-          </div>
-        ) : (
-          <p className="rounded-xl border border-white/10 bg-[#1A1F27] px-4 py-3 text-sm text-apg-silver">
-            No move-out notice on this booking.
-          </p>
-        )}
       </section>
 
       <section id="checkout" className="scroll-mt-28 mt-10 space-y-4">
@@ -204,7 +209,7 @@ export function BookingFinancialWorkspace({ data }: { data: BookingFinancialWork
           </dl>
           <Link
             href={refundConsoleHref(data.bookingId)}
-            className="mt-4 inline-flex text-sm font-semibold text-[#FF5A1F] hover:underline"
+            className="mt-4 inline-flex text-sm font-semibold text-apg-orange hover:underline"
           >
             Open Refund Console →
           </Link>
@@ -238,6 +243,40 @@ export function BookingFinancialWorkspace({ data }: { data: BookingFinancialWork
   );
 }
 
+function FinancialSectionCard({
+  id,
+  title,
+  subtitle,
+  children,
+  className = '',
+  accent = false,
+}: {
+  id: string;
+  title: string;
+  subtitle: string;
+  children: ReactNode;
+  className?: string;
+  accent?: boolean;
+}) {
+  return (
+    <section id={id} className={`scroll-mt-28 space-y-4 ${className}`}>
+      <div>
+        <h2 className="text-lg font-semibold text-white">{title}</h2>
+        <p className="mt-1 text-sm text-apg-silver">{subtitle}</p>
+      </div>
+      <div
+        className={`rounded-2xl border p-5 ${
+          accent
+            ? 'border-apg-orange/25 bg-gradient-to-br from-[#1A1F27] to-[#141820]'
+            : 'border-white/10 bg-[#1A1F27]'
+        }`}
+      >
+        {children}
+      </div>
+    </section>
+  );
+}
+
 function SectionHeading({ title }: { title: string }) {
   return <h2 className="text-lg font-semibold text-white">{title}</h2>;
 }
@@ -250,7 +289,7 @@ function MoneyBalancesGrid({ balances }: { balances: BookingMoneyBalances }) {
   ];
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#1A1F27]">
+    <div className="overflow-hidden rounded-xl border border-white/10">
       <table className="min-w-full text-left text-sm">
         <thead className="border-b border-white/10 bg-white/[0.03]">
           <tr>

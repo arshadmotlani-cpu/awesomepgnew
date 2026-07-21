@@ -100,7 +100,7 @@ export function ApproveVacatingButton({
       action={approveVacatingAction}
       className={
         className ??
-        'rounded-md bg-indigo-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-indigo-500'
+        'rounded-lg bg-[#FF5A1F] px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110'
       }
       title="Approve move-out notice?"
       description={
@@ -130,7 +130,7 @@ export function RejectVacatingButton({
       pgId={pgId}
       label="Reject"
       action={rejectVacatingAction}
-      className="rounded-md bg-white px-2 py-1 text-[11px] font-medium text-zinc-700 ring-1 ring-inset ring-zinc-200 hover:bg-zinc-50"
+      className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-200 hover:bg-rose-500/20"
       title="Reject vacating notice?"
       description="The tenant must continue their stay. This cannot be undone from the vacating queue — they can file a new notice later."
       confirmLabel="Reject notice"
@@ -156,7 +156,7 @@ export function CompleteVacatingButton({
       pgId={pgId}
       label="Complete"
       action={completeVacatingAction}
-      className="rounded-md bg-emerald-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-emerald-500"
+      className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500"
       title="Complete vacating?"
       description={
         <>
@@ -186,7 +186,7 @@ export function UndoVacatingCompletionButton({
       label="Undo"
       pendingLabel="Undoing…"
       action={undoVacatingCompletionAction}
-      className="rounded-md bg-amber-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-amber-500"
+      className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-500/20"
       title="Undo vacating completion?"
       description="Restores the booking to confirmed, reopens the bed assignment, and reverses deposit ledger entries from this completion. Blocked if someone else took the bed."
       confirmLabel="Undo completion"
@@ -209,7 +209,7 @@ export function CancelVacatingNoticeButton({
       pgId={pgId}
       label="Cancel notice"
       action={cancelVacatingNoticeAction}
-      className="rounded-md bg-white px-2 py-1 text-[11px] font-medium text-amber-800 ring-1 ring-inset ring-amber-200 hover:bg-amber-50"
+      className="rounded-lg border border-white/15 px-3 py-1.5 text-xs font-semibold text-apg-silver hover:bg-white/5"
       title="Cancel vacating notice?"
       description="Removes the notice entirely. Tenancy continues without a new booking."
       confirmLabel="Remove notice"
@@ -279,7 +279,7 @@ export function UndoVacatingApprovalButton({
       pgId={pgId}
       label="Undo approve"
       action={undoVacatingApprovalAction}
-      className="rounded-md bg-white px-2 py-1 text-[11px] font-medium text-indigo-700 ring-1 ring-inset ring-indigo-200 hover:bg-indigo-50"
+      className="rounded-lg border border-white/15 px-3 py-1.5 text-xs font-semibold text-apg-silver hover:bg-white/5"
       title="Undo approval?"
       description="Notice goes back to pending. The bed will no longer show as pre-bookable on the website until you approve again."
       confirmLabel="Undo approval"

@@ -157,11 +157,12 @@ export async function computeNoticeDeductionForBooking(input: {
     }
   }
 
-  const { periods } = await loadPaidRentCoveragePeriods(input.bookingId);
+  const { periods, billingDay } = await loadPaidRentCoveragePeriods(input.bookingId);
   return computeNoticeDeductionBreakdown({
     monthlyRentPaise: input.monthlyRentPaise,
     noticeGivenDate: input.noticeGivenDate,
     vacatingDate: input.vacatingDate,
     paidRentPeriods: periods,
+    billingDay,
   });
 }

@@ -55,6 +55,31 @@ export type ValidatePaymentAllocationArgs = {
   allowRentPrepay?: boolean;
 };
 
+/** Suggested split for a standard booking payment — rent first, then deposit, then electricity. */
+export function suggestPaymentAllocation(input: {
+  confirmedReceivedPaise: number;
+  rentOutstandingPaise: number;
+  depositOutstandingPaise: number;
+  electricityOutstandingPaise?: number;
+}): PaymentAllocationInput {
+  let remaining = Math.max(0, input.confirmedReceivedPaise);
+  const rentAllocated = Math.min(remaining, Math.max(0, input.rentOutstandingPaise));
+  remaining -= rentAllocated;
+  const depositAllocated = Math.min(remaining, Math.max(0, input.depositOutstandingPaise));
+  remaining -= depositAllocated;
+  const electricityOutstanding = Math.max(0, input.electricityOutstandingPaise ?? 0);
+  const electricityAllocated = Math.min(remaining, electricityOutstanding);
+  remaining -= electricityAllocated;
+
+  return {
+    confirmedReceivedPaise: input.confirmedReceivedPaise,
+    rentAllocatedPaise: rentAllocated,
+    depositAllocatedPaise: depositAllocated,
+    electricityAllocatedPaise: electricityAllocated,
+    otherAllocatedPaise: 0,
+  };
+}
+
 export function validatePaymentAllocation(
   args: ValidatePaymentAllocationArgs,
 ): { ok: true } | { ok: false; reason: string } {

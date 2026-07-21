@@ -6,10 +6,73 @@
 import { and, eq, inArray, ne } from 'drizzle-orm';
 import { db } from '@/src/db/client';
 import { bedReservations, beds, bookings, customers, floors, pgs, rooms } from '@/src/db/schema';
+import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import type { PriorOutstandingBalance, PriorOutstandingItem } from '@/src/lib/billing/bookingCheckoutTotals';
+import {
+  COLLECTIBLE_PRIOR_BOOKING_STATUSES,
+  COLLECTIBLE_PRIOR_RESERVATION_STATUSES,
+  isCollectiblePriorBookingStatus,
+  isCollectiblePriorReservationStatus,
+} from '@/src/lib/billing/priorOutstandingEligibility';
 import { getBookingFinancialSummary } from '@/src/services/residentFinancialEngine';
 
-const PRIOR_BOOKING_STATUSES = ['confirmed', 'completed', 'pending_payment'] as const;
+function sumPriorOutstandingItems(items: PriorOutstandingItem[]): number {
+  return items.reduce((sum, item) => sum + item.amountPaise, 0);
+}
+
+/** Drop stale snapshot lines whose source booking is no longer collectible. */
+export async function filterCollectiblePriorOutstandingItems(
+  items: PriorOutstandingItem[],
+): Promise<PriorOutstandingItem[]> {
+  const bookingIds = [...new Set(items.map((item) => item.bookingId).filter(Boolean))] as string[];
+  if (bookingIds.length === 0) return [];
+
+  const rows = await db
+    .select({
+      bookingId: bookings.id,
+      bookingStatus: bookings.status,
+      reservationStatus: bedReservations.status,
+    })
+    .from(bookings)
+    .innerJoin(
+      bedReservations,
+      and(eq(bedReservations.bookingId, bookings.id), eq(bedReservations.kind, 'primary')),
+    )
+    .where(inArray(bookings.id, bookingIds));
+
+  const eligible = new Set<string>();
+  for (const row of rows) {
+    if (
+      isCollectiblePriorBookingStatus(row.bookingStatus) &&
+      isCollectiblePriorReservationStatus(row.reservationStatus)
+    ) {
+      eligible.add(row.bookingId);
+    }
+  }
+
+  return items.filter((item) => item.bookingId && eligible.has(item.bookingId));
+}
+
+/** Live prior-outstanding balance — never trust pricing snapshots for display or payment validation. */
+export async function resolveLivePriorOutstandingForCheckout(
+  customerId: string,
+  excludeBookingId?: string,
+): Promise<PriorOutstandingBalance> {
+  return getCustomerPriorOutstandingForCheckout(customerId, excludeBookingId);
+}
+
+/** Inject live prior outstanding into a booking row used for checkout payment math. */
+export function bookingRowWithLivePriorOutstanding<
+  T extends { pricingSnapshot?: PricingSnapshot | null },
+>(booking: T, priorOutstanding: PriorOutstandingBalance): T {
+  const snapshot = { ...(booking.pricingSnapshot ?? {}) } as PricingSnapshot;
+  if (priorOutstanding.totalPaise > 0) {
+    snapshot.priorOutstanding = priorOutstanding;
+  } else {
+    delete snapshot.priorOutstanding;
+  }
+  return { ...booking, pricingSnapshot: snapshot };
+}
 
 export async function getCustomerPriorOutstandingForCheckout(
   customerId: string,
@@ -29,7 +92,7 @@ export async function getCustomerPriorOutstandingForCheckout(
     })
     .from(bookings)
     .innerJoin(customers, eq(customers.id, bookings.customerId))
-    .innerJoin(bedReservations, eq(bedReservations.bookingId, bookings.id))
+    .innerJoin(bedReservations, and(eq(bedReservations.bookingId, bookings.id), eq(bedReservations.kind, 'primary')))
     .innerJoin(beds, eq(beds.id, bedReservations.bedId))
     .innerJoin(rooms, eq(rooms.id, beds.roomId))
     .innerJoin(floors, eq(floors.id, rooms.floorId))
@@ -37,7 +100,8 @@ export async function getCustomerPriorOutstandingForCheckout(
     .where(
       and(
         eq(bookings.customerId, customerId),
-        inArray(bookings.status, [...PRIOR_BOOKING_STATUSES]),
+        inArray(bookings.status, [...COLLECTIBLE_PRIOR_BOOKING_STATUSES]),
+        inArray(bedReservations.status, [...COLLECTIBLE_PRIOR_RESERVATION_STATUSES]),
         excludeBookingId ? ne(bookings.id, excludeBookingId) : undefined,
       ),
     );
@@ -107,8 +171,9 @@ export async function getCustomerPriorOutstandingForCheckout(
     }
   }
 
-  const totalPaise = items.reduce((sum, item) => sum + item.amountPaise, 0);
-  return { totalPaise, items };
+  const filtered = await filterCollectiblePriorOutstandingItems(items);
+  const totalPaise = sumPriorOutstandingItems(filtered);
+  return { totalPaise, items: filtered };
 }
 
 /** Allocate checkout payment remainder to prior deposit balances (append-only ledger). */

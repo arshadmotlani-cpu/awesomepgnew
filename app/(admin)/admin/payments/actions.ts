@@ -91,22 +91,31 @@ export async function getBookingMoneyBalancesForReviewAction(bookingId: string) 
   return { ok: true as const, balances };
 }
 
-export async function approveQrPaymentWithAllocationAction(
-  recordId: string,
+export async function approvePaymentProofWithAllocationAction(
+  kind: PendingPaymentReviewItem['kind'],
+  entityId: string,
   pgId: string,
   allocation: AdminPaymentAllocationInput,
-  meta?: ReviewMeta & { overpaymentDisposition?: OverpaymentDisposition },
+  meta?: ReviewMeta,
   currentKey?: string,
 ) {
   const session = await requireAdminPermission('payments:write');
   try {
-    const result = await reviewPaymentRecord(session, recordId, 'approved', {
-      paymentAllocation: allocation,
+    const { approvePaymentProofWithAllocation } = await import(
+      '@/src/services/paymentProofAllocationApproval'
+    );
+    const result = await approvePaymentProofWithAllocation(session, {
+      kind,
+      entityId,
+      pgId,
+      allocation,
       reviewMeta: meta,
     });
+    if (!result.ok) return result;
+
     await persistApprovalAllocationAfterSuccess({
-      kind: 'qr',
-      entityId: recordId,
+      kind,
+      entityId,
       pgId,
       approvedByAdminId: session.adminId,
       adminAllocation: {
@@ -118,9 +127,20 @@ export async function approveQrPaymentWithAllocationAction(
         allocationNotes: allocation.allocationNotes,
       },
     });
+
     revalidatePaymentReviewSurfaces(pgId);
-    revalidatePath('/admin/collections');
-    revalidatePath('/admin/deposits');
+    if (kind === 'rent') revalidatePath('/admin/rent');
+    if (kind === 'electricity') revalidatePath('/admin/electricity');
+    if (kind === 'extension') revalidatePath('/admin/bookings');
+    if (kind === 'deposit_link') {
+      revalidatePath('/admin/collections');
+      revalidatePath('/admin/residents');
+    }
+    if (kind === 'qr') {
+      revalidatePath('/admin/collections');
+      revalidatePath('/admin/deposits');
+    }
+
     if (result.outcome === 'already_approved') {
       const nextKey = await getNextPendingPaymentReviewKey(session, currentKey);
       return {
@@ -136,6 +156,16 @@ export async function approveQrPaymentWithAllocationAction(
       message: err instanceof Error ? err.message : 'Allocation approval failed.',
     };
   }
+}
+
+export async function approveQrPaymentWithAllocationAction(
+  recordId: string,
+  pgId: string,
+  allocation: AdminPaymentAllocationInput,
+  meta?: ReviewMeta & { overpaymentDisposition?: OverpaymentDisposition },
+  currentKey?: string,
+) {
+  return approvePaymentProofWithAllocationAction('qr', recordId, pgId, allocation, meta, currentKey);
 }
 
 export async function approvePartialQrPaymentAction(

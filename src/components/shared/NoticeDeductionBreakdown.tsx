@@ -1,14 +1,20 @@
 import { ACCOUNT_SURFACE } from '@/src/components/customer/accountStyles';
-import { paiseToInr } from '@/src/lib/format';
-import {
-  breakdownFromStoredNoticeSnapshot,
-  type NoticeDeductionDisplayBreakdown,
+import { formatDate, paiseToInr } from '@/src/lib/format';
+import type { NoticeSettlementDisplay } from '@/src/lib/vacating/noticeDeductionPresentation';
+export {
+  breakdownFromStoredNoticeSnapshot as breakdownFromVacatingRow,
+  toNoticeSettlementDisplay,
 } from '@/src/lib/vacating/noticeDeductionPresentation';
 
-export type NoticeDeductionBreakdownProps = {
-  breakdown: NoticeDeductionDisplayBreakdown;
+export type NoticeSettlementPanelProps = {
+  settlement: NoticeSettlementDisplay;
   variant?: 'admin' | 'resident';
   compact?: boolean;
+};
+
+/** @deprecated use NoticeSettlementPanel */
+export type NoticeDeductionBreakdownProps = NoticeSettlementPanelProps & {
+  breakdown: NoticeSettlementDisplay;
 };
 
 function Row({
@@ -22,8 +28,7 @@ function Row({
   variant: 'admin' | 'resident';
   accent?: boolean;
 }) {
-  const labelCls =
-    variant === 'admin' ? 'text-apg-silver' : 'text-zinc-600';
+  const labelCls = variant === 'admin' ? 'text-apg-silver' : 'text-zinc-600';
   const valueCls =
     variant === 'admin'
       ? accent
@@ -41,11 +46,11 @@ function Row({
   );
 }
 
-export function NoticeDeductionBreakdown({
-  breakdown,
+export function NoticeSettlementPanel({
+  settlement,
   variant = 'admin',
   compact = false,
-}: NoticeDeductionBreakdownProps) {
+}: NoticeSettlementPanelProps) {
   const shellCls =
     variant === 'admin'
       ? 'rounded-2xl border border-white/10 bg-[#1A1F27] p-4'
@@ -56,38 +61,63 @@ export function NoticeDeductionBreakdown({
       ? 'text-xs font-semibold uppercase tracking-wide text-apg-silver'
       : 'text-xs font-semibold uppercase tracking-wide text-zinc-600';
 
-  if (breakdown.missingNoticeDays <= 0) {
+  if (settlement.missingNoticeDays <= 0) {
     return (
       <div className={shellCls}>
-        <p className={titleCls}>Notice period</p>
-        <p className={`mt-2 text-sm ${variant === 'admin' ? 'text-emerald-300' : 'text-emerald-700'}`}>
-          Compliant — no notice deduction
+        <p className={titleCls}>Notice settlement</p>
+        <p
+          className={`mt-2 text-sm ${variant === 'admin' ? 'text-emerald-300' : 'text-emerald-700'}`}
+        >
+          Compliant notice — no deposit deduction
         </p>
+        <dl className={`mt-3 space-y-2 ${compact ? 'text-xs' : 'text-sm'}`}>
+          <Row label="Billing cycle" value={settlement.billingCycleLabel} variant={variant} />
+          <Row label="Vacating date" value={formatDate(settlement.vacatingDate)} variant={variant} />
+        </dl>
       </div>
     );
   }
 
   return (
     <div className={shellCls}>
-      <p className={titleCls}>Notice deduction breakdown</p>
+      <p className={titleCls}>Notice settlement</p>
+      <p
+        className={`mt-1 text-xs ${variant === 'admin' ? 'text-apg-silver/80' : 'text-zinc-500'}`}
+      >
+        Prepaid rent after vacate satisfies notice shortfall before deposit is charged.
+      </p>
       <dl className={`mt-3 space-y-2 ${compact ? 'text-xs' : 'text-sm'}`}>
-        <Row label="Required notice" value={`${breakdown.noticeRequiredDays} days`} variant={variant} />
-        <Row label="Notice given" value={`${breakdown.noticeGivenDays} days`} variant={variant} />
-        <Row label="Missing notice" value={`${breakdown.missingNoticeDays} days`} variant={variant} />
+        <Row label="Billing cycle" value={settlement.billingCycleLabel} variant={variant} />
         <Row
-          label="Covered by paid rent"
-          value={`${breakdown.rentCoveredDays} days`}
+          label="Paid until"
+          value={settlement.paidUntilDate ? formatDate(settlement.paidUntilDate) : '—'}
+          variant={variant}
+        />
+        <Row label="Vacating date" value={formatDate(settlement.vacatingDate)} variant={variant} />
+        <Row
+          label="Unused prepaid rent days"
+          value={`${settlement.unusedPrepaidRentDays} days`}
+          variant={variant}
+        />
+        <Row
+          label="Required notice days"
+          value={`${settlement.noticeRequiredDays} days`}
+          variant={variant}
+        />
+        <Row
+          label="Notice covered by prepaid rent"
+          value={`${settlement.noticeCoveredByPrepaidRent} days`}
           variant={variant}
         />
         <Row
           label="Chargeable notice days"
-          value={`${breakdown.chargeableNoticeDays} days`}
+          value={`${settlement.chargeableNoticeDays} days`}
           variant={variant}
           accent
         />
         <Row
-          label="Notice deduction"
-          value={paiseToInr(breakdown.noticeDeductionPaise)}
+          label="Notice deduction from deposit"
+          value={paiseToInr(settlement.noticeDeductionPaise)}
           variant={variant}
           accent
         />
@@ -96,4 +126,14 @@ export function NoticeDeductionBreakdown({
   );
 }
 
-export { breakdownFromStoredNoticeSnapshot as breakdownFromVacatingRow };
+/** @deprecated use NoticeSettlementPanel */
+export function NoticeDeductionBreakdown({
+  breakdown,
+  settlement,
+  variant = 'admin',
+  compact = false,
+}: NoticeDeductionBreakdownProps) {
+  const data = settlement ?? breakdown;
+  if (!data) return null;
+  return <NoticeSettlementPanel settlement={data} variant={variant} compact={compact} />;
+}

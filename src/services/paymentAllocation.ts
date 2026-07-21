@@ -276,21 +276,8 @@ export async function applyAdminPaymentAllocation(input: {
   return { ok: true, unallocatedPaise };
 }
 
-/** Suggested allocation prefilled in admin UI (defaults to zeros — admin decides). */
-export function suggestPaymentAllocation(input: {
-  confirmedReceivedPaise: number;
-  rentOutstandingPaise: number;
-  depositOutstandingPaise: number;
-  electricityOutstandingPaise?: number;
-}): PaymentAllocationInput {
-  return {
-    confirmedReceivedPaise: input.confirmedReceivedPaise,
-    rentAllocatedPaise: 0,
-    depositAllocatedPaise: 0,
-    electricityAllocatedPaise: 0,
-    otherAllocatedPaise: 0,
-  };
-}
+/** Re-export client-safe suggestion helper (implementation in bookingMoneyBalances). */
+export { suggestPaymentAllocation } from '@/src/lib/billing/bookingMoneyBalances';
 
 export function bookingCheckoutDues(booking: {
   subtotalPaise: number;

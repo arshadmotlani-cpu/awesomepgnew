@@ -8,7 +8,7 @@ import {
   RejectVacatingButton,
   UndoVacatingApprovalButton,
 } from '@/src/components/admin/VacatingActions';
-import { NoticeDeductionBreakdown } from '@/src/components/shared/NoticeDeductionBreakdown';
+import { NoticeSettlementPanel } from '@/src/components/shared/NoticeDeductionBreakdown';
 import { formatDate, formatDateTime, paiseToInr } from '@/src/lib/format';
 import { breakdownFromStoredNoticeSnapshot } from '@/src/lib/vacating/noticeDeductionPresentation';
 import { tryDiffDays, normalizeIsoDateOnly } from '@/src/lib/dates';
@@ -301,7 +301,7 @@ function MoveOutCard({
                   deductionPaise: row.deductionPaise,
                 });
                 return breakdown ? (
-                  <NoticeDeductionBreakdown breakdown={breakdown} variant="admin" compact />
+                  <NoticeSettlementPanel settlement={breakdown} variant="admin" compact />
                 ) : null;
               })()}
             </div>

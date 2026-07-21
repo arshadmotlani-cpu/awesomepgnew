@@ -109,8 +109,8 @@ async function main() {
   if (submit.noticeCompliant) fail('expected noticeCompliant=false');
   ok(
     `submitted: noticeCompliant=false, deduction=₹${expectedPenalty / 100}` +
-      (expectedBreakdown.rentCoveredDays > 0
-        ? ` (${expectedBreakdown.rentCoveredDays} days covered by paid rent)`
+      (expectedBreakdown.noticeCoveredByPrepaidRent > 0
+        ? ` (${expectedBreakdown.noticeCoveredByPrepaidRent} days unused prepaid rent applied to notice)`
         : ''),
   );
 

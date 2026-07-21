@@ -479,7 +479,7 @@ export async function getQrBookingPaymentReview(recordId: string) {
 
   return {
     bookingCode: ctx.bookingCode,
-    bookingTotalDuePaise: ctx.totalPaise,
+    bookingTotalDuePaise: ctx.bookingTotalDuePaise,
     amountSubmittedPaise: record.amountPaise,
     rentDuePaise: split.rentDuePaise,
     depositCashDuePaise: split.depositCashDuePaise,
@@ -754,15 +754,6 @@ export async function reviewPaymentRecord(
         }
 
         const { recordPaymentSuccess } = await import('./bookingLifecycle');
-        const { normalizeOverpaymentDisposition } = await import('./bookingOverpayment');
-
-        let overpayment:
-          | {
-              excessPaise: number;
-              disposition: OverpaymentDisposition;
-              approvedByAdminId: string;
-            }
-          | undefined;
 
         const confirmedReceivedPaise = allocation.confirmedReceivedPaise;
         const electricityAllocatedPaise = allocation.electricityAllocatedPaise ?? 0;
@@ -778,19 +769,9 @@ export async function reviewPaymentRecord(
         );
 
         if (unallocatedPaise > 0) {
-          const disposition = normalizeOverpaymentDisposition(
-            opts?.reviewMeta?.overpaymentDisposition,
+          throw new Error(
+            `₹${(unallocatedPaise / 100).toFixed(0)} is unallocated. Allocate the full payment before approving.`,
           );
-          if (!disposition) {
-            throw new Error(
-              `₹${(unallocatedPaise / 100).toFixed(0)} is unallocated. Select how to apply the remainder before approving.`,
-            );
-          }
-          overpayment = {
-            excessPaise: unallocatedPaise,
-            disposition,
-            approvedByAdminId: session.adminId,
-          };
         }
 
         const paymentResult = await recordPaymentSuccess({
@@ -823,7 +804,6 @@ export async function reviewPaymentRecord(
                 allocationNotes: allocation.allocationNotes,
                 pgPaymentRecordId: recordId,
               },
-          overpayment,
         });
         if (!paymentResult.ok) {
           const alreadyProcessed = await bookingQrPaymentAlreadyProcessed(

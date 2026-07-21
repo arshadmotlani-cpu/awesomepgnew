@@ -316,13 +316,21 @@ async function applyBookingPaymentFinancialMirrors(input: {
       ? (snapshot.depositCredit.appliedPaise ?? 0)
       : 0;
 
+  const { resolveLivePriorOutstandingForCheckout, bookingRowWithLivePriorOutstanding } =
+    await import('./bookingPriorOutstanding');
+  const priorOutstanding = await resolveLivePriorOutstandingForCheckout(
+    booking.customerId,
+    booking.id,
+  );
+  const bookingForPayment = bookingRowWithLivePriorOutstanding(booking, priorOutstanding);
+
   const {
     validateBookingPayment,
     applyPartialDepositOnConfirm,
     applyFullDepositOnConfirm,
   } = await import('./depositCollection');
   const validation = validateBookingPayment({
-    booking,
+    booking: bookingForPayment,
     amountPaise: payInput.amountPaise,
     membershipAmountPaise: payInput.membershipAmountPaise,
     allowPartialDeposit: Boolean(payInput.partialDeposit),
@@ -370,8 +378,7 @@ async function applyBookingPaymentFinancialMirrors(input: {
   }
 
   let priorOutstandingAppliedPaise = 0;
-  const priorOutstanding = snapshot?.priorOutstanding;
-  if (priorOutstanding && priorOutstanding.totalPaise > 0 && split) {
+  if (priorOutstanding.totalPaise > 0 && split) {
     const bookingPaymentPaise = Math.max(
       0,
       payInput.amountPaise - (payInput.membershipAmountPaise ?? 0),
@@ -408,7 +415,7 @@ async function applyBookingPaymentFinancialMirrors(input: {
   } else if (!overpaymentInput) {
     const { computeBookingCheckoutOverpaymentPaise } = await import('./bookingOverpayment');
     const excessPaise = computeBookingCheckoutOverpaymentPaise({
-      booking,
+      booking: bookingForPayment,
       amountPaise: payInput.amountPaise,
       membershipAmountPaise: payInput.membershipAmountPaise,
       priorOutstandingAppliedPaise,
@@ -538,10 +545,21 @@ export async function recordPaymentSuccess(
 
   const isReserveBooking = booking.durationMode === 'reserve';
 
+  let bookingForPaymentValidation = booking;
+  if (!isReserveBooking) {
+    const { resolveLivePriorOutstandingForCheckout, bookingRowWithLivePriorOutstanding } =
+      await import('./bookingPriorOutstanding');
+    const priorOutstanding = await resolveLivePriorOutstandingForCheckout(
+      booking.customerId,
+      booking.id,
+    );
+    bookingForPaymentValidation = bookingRowWithLivePriorOutstanding(booking, priorOutstanding);
+  }
+
   if (!isReserveBooking && booking.depositPaise > 0 && !input.paymentAllocation) {
     const { validateBookingPayment } = await import('./depositCollection');
     const validation = validateBookingPayment({
-      booking,
+      booking: bookingForPaymentValidation,
       amountPaise: input.amountPaise,
       membershipAmountPaise: input.membershipAmountPaise,
       allowPartialDeposit: Boolean(input.partialDeposit),
@@ -550,14 +568,19 @@ export async function recordPaymentSuccess(
       return { ok: false, reason: validation.reason };
     }
   } else if (!isReserveBooking && !input.partialDeposit && !input.paymentAllocation) {
+    const { breakdownBookingCheckoutPayment } = await import(
+      '@/src/lib/billing/bookingCheckoutTotals'
+    );
     const bookingPaymentPaise = Math.max(
       0,
       input.amountPaise - (input.membershipAmountPaise ?? 0),
     );
-    if (bookingPaymentPaise < booking.totalPaise) {
+    const expectedDuePaise = breakdownBookingCheckoutPayment(bookingForPaymentValidation)
+      .bookingTotalDuePaise;
+    if (bookingPaymentPaise < expectedDuePaise) {
       return {
         ok: false,
-        reason: `Payment is short by ₹${((booking.totalPaise - bookingPaymentPaise) / 100).toFixed(0)}.`,
+        reason: `Payment is short by ₹${((expectedDuePaise - bookingPaymentPaise) / 100).toFixed(0)}.`,
       };
     }
   }

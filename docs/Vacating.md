@@ -8,7 +8,7 @@ Cross-links: [[START_HERE]] · [[features#Vacating pipeline]] · [[WORKFLOWS#Vac
 
 ## Purpose
 
-Manage the **move-out lifecycle**: resident files notice → admin approves → stay shortened (optional) → checkout settlement created → resident submits meter/UPI after vacate date → admin pays refund. Includes 14-day notice policy, pro-rata missing-days deduction for short notice (minus days already covered by paid rent), and automatic checkout-month rent pro-ration.
+Manage the **move-out lifecycle**: resident files notice → admin approves → stay shortened (optional) → checkout settlement created → resident submits meter/UPI after vacate date → admin pays refund. Includes 14-day notice policy and **Notice settlement** — unused prepaid rent days after vacate (billing-cycle paid-until) satisfy notice shortfall before deposit deduction.
 
 **SSOT:** `vacating.ts`, `vacatingCheckoutBilling.ts`, `moveOutPipeline.ts`, `depositRefundEligibility.ts`, `vacatingJourney.ts`
 

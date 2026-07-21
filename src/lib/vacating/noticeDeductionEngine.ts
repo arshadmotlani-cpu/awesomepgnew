@@ -1,14 +1,17 @@
 /**
- * Notice deduction with paid-rent coverage — pure SSOT.
+ * Notice settlement — prepaid rent offsets notice shortfall.
  *
- * Charge window: last N days before vacating, where N = missing notice days.
- * Half-open [chargeWindowStart, vacatingDate).
+ * Business rule:
+ * 1. Determine paid rent period (billing cycle) and paid-until date.
+ * 2. Unused prepaid days = calendar days after vacating date through paid-until (exclusive vacate).
+ * 3. Prepaid days satisfy missing notice first; remainder is deposit deduction.
  */
 
-import { addDays, diffDays, formatDate, parseDate, type DateLike } from '@/src/lib/dates';
+import { diffDays, formatDate, parseDate, type DateLike } from '@/src/lib/dates';
 import {
   VACATING_NOTICE_MIN_DAYS,
   dailyRateFromMonthly,
+  formatAnniversaryBillingPeriodLabel,
   noticeShortfallDays,
 } from '@/src/services/billing';
 
@@ -23,44 +26,51 @@ export type NoticeDeductionBreakdown = {
   noticeRequiredDays: number;
   noticeGivenDays: number;
   missingNoticeDays: number;
+  billingDay: number;
+  billingCycleLabel: string;
+  paidUntilDate: string | null;
+  vacatingDate: string;
+  unusedPrepaidRentDays: number;
+  /** Stored in DB as notice_rent_covered_days — satisfied by unused prepaid rent. */
+  noticeCoveredByPrepaidRent: number;
+  /** Alias for noticeCoveredByPrepaidRent (legacy field name). */
   rentCoveredDays: number;
   chargeableNoticeDays: number;
   dailyRentPaise: number;
   noticeDeductionPaise: number;
-  chargeWindowStart: string;
-  chargeWindowEnd: string;
-  coveredPeriodsUsed: PaidRentCoveragePeriod[];
+  paidPeriodUsed: PaidRentCoveragePeriod | null;
 };
 
-export function buildNoticeChargeWindow(
+/** Latest paid-through date extending past the vacating date. */
+export function resolvePaidThroughDate(
   vacatingDate: DateLike,
-  missingNoticeDays: number,
-): { start: string; end: string } {
-  const end = formatDate(parseDate(vacatingDate));
-  if (missingNoticeDays <= 0) {
-    return { start: end, end };
-  }
-  const start = formatDate(addDays(end, -missingNoticeDays));
-  return { start, end };
-}
-
-/** Inclusive on both ends — matches anniversary billing period labels. */
-export function dayIsCoveredByPaidRent(
-  day: string,
   paidPeriods: PaidRentCoveragePeriod[],
-): boolean {
-  return paidPeriods.some((p) => day >= p.periodStart && day <= p.periodEnd);
+): { paidUntilDate: string | null; periodUsed: PaidRentCoveragePeriod | null } {
+  const vacate = formatDate(parseDate(vacatingDate));
+  let periodUsed: PaidRentCoveragePeriod | null = null;
+
+  for (const period of paidPeriods) {
+    if (period.periodEnd <= vacate) continue;
+    if (!periodUsed || period.periodEnd > periodUsed.periodEnd) {
+      periodUsed = period;
+    }
+  }
+
+  return {
+    paidUntilDate: periodUsed?.periodEnd ?? null,
+    periodUsed,
+  };
 }
 
-export function enumerateChargeWindowDays(start: string, endExclusive: string): string[] {
-  if (start >= endExclusive) return [];
-  const days: string[] = [];
-  let cursor = start;
-  while (cursor < endExclusive) {
-    days.push(cursor);
-    cursor = formatDate(addDays(cursor, 1));
-  }
-  return days;
+/** Whole calendar days after vacating date still covered by prepaid rent. */
+export function unusedPrepaidRentDaysAfterVacating(
+  vacatingDate: DateLike,
+  paidUntilDate: string | null,
+): number {
+  if (!paidUntilDate) return 0;
+  const vacate = formatDate(parseDate(vacatingDate));
+  if (paidUntilDate <= vacate) return 0;
+  return diffDays(vacate, paidUntilDate);
 }
 
 export function computeNoticeDeductionBreakdown(input: {
@@ -68,64 +78,57 @@ export function computeNoticeDeductionBreakdown(input: {
   noticeGivenDate: DateLike;
   vacatingDate: DateLike;
   paidRentPeriods?: PaidRentCoveragePeriod[];
+  billingDay?: number;
   minDays?: number;
 }): NoticeDeductionBreakdown {
   const minDays = input.minDays ?? VACATING_NOTICE_MIN_DAYS;
-  const noticeGivenDays = diffDays(input.noticeGivenDate, input.vacatingDate);
+  const vacatingDate = formatDate(parseDate(input.vacatingDate));
+  const noticeGivenDays = diffDays(input.noticeGivenDate, vacatingDate);
   const missingNoticeDays = noticeShortfallDays({
     noticeGivenDate: input.noticeGivenDate,
-    vacatingDate: input.vacatingDate,
+    vacatingDate,
     minDays,
   });
   const dailyRentPaise = dailyRateFromMonthly(input.monthlyRentPaise);
   const paidRentPeriods = input.paidRentPeriods ?? [];
+  const billingDay = input.billingDay ?? 5;
 
-  const { start: chargeWindowStart, end: chargeWindowEnd } = buildNoticeChargeWindow(
-    input.vacatingDate,
-    missingNoticeDays,
-  );
-
-  const windowDays = enumerateChargeWindowDays(chargeWindowStart, chargeWindowEnd);
-  let rentCoveredDays = 0;
-  const coveredPeriodsUsed: PaidRentCoveragePeriod[] = [];
-
-  for (const day of windowDays) {
-    const covering = paidRentPeriods.filter((p) => day >= p.periodStart && day <= p.periodEnd);
-    if (covering.length > 0) {
-      rentCoveredDays += 1;
-      for (const p of covering) {
-        if (!coveredPeriodsUsed.some((u) => u.sourceId === p.sourceId && u.source === p.source)) {
-          coveredPeriodsUsed.push(p);
-        }
-      }
-    }
-  }
-
-  const chargeableNoticeDays = Math.max(0, missingNoticeDays - rentCoveredDays);
+  const { paidUntilDate, periodUsed } = resolvePaidThroughDate(vacatingDate, paidRentPeriods);
+  const unusedPrepaidRentDays = unusedPrepaidRentDaysAfterVacating(vacatingDate, paidUntilDate);
+  const noticeCoveredByPrepaidRent = Math.min(missingNoticeDays, unusedPrepaidRentDays);
+  const chargeableNoticeDays = Math.max(0, missingNoticeDays - noticeCoveredByPrepaidRent);
   const noticeDeductionPaise =
     input.monthlyRentPaise <= 0 ? 0 : dailyRentPaise * chargeableNoticeDays;
+
+  const billingCycleLabel = periodUsed
+    ? formatAnniversaryBillingPeriodLabel(periodUsed.periodStart, periodUsed.periodEnd)
+    : 'No prepaid rent after vacate date';
 
   return {
     noticeRequiredDays: minDays,
     noticeGivenDays,
     missingNoticeDays,
-    rentCoveredDays,
+    billingDay,
+    billingCycleLabel,
+    paidUntilDate,
+    vacatingDate,
+    unusedPrepaidRentDays,
+    noticeCoveredByPrepaidRent,
+    rentCoveredDays: noticeCoveredByPrepaidRent,
     chargeableNoticeDays,
     dailyRentPaise,
     noticeDeductionPaise,
-    chargeWindowStart,
-    chargeWindowEnd,
-    coveredPeriodsUsed,
+    paidPeriodUsed: periodUsed,
   };
 }
 
 export function noticeDeductionLedgerReason(breakdown: NoticeDeductionBreakdown): string {
   if (breakdown.chargeableNoticeDays <= 0) {
-    return 'notice compliant or fully covered by paid rent';
+    return 'notice compliant or fully covered by unused prepaid rent';
   }
   const covered =
-    breakdown.rentCoveredDays > 0
-      ? ` (${breakdown.rentCoveredDays} covered by paid rent)`
+    breakdown.noticeCoveredByPrepaidRent > 0
+      ? ` (${breakdown.noticeCoveredByPrepaidRent} satisfied by unused prepaid rent)`
       : '';
   return `notice short — ${breakdown.chargeableNoticeDays} chargeable day(s) rent${covered}`;
 }

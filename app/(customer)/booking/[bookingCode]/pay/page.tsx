@@ -25,7 +25,11 @@ import { getPendingMembershipForBooking } from '@/src/services/playstationMember
 import { getPendingBookingPaymentRecord } from '@/src/services/qrPayments';
 import { getActiveRejectionForEntity } from '@/src/services/paymentProofRejectionService';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
-import { resolveBookingDepositCreditAppliedPaise } from '@/src/lib/billing/bookingCheckoutTotals';
+import {
+  computeNewBookingCheckoutTotals,
+  resolveBookingDepositCreditAppliedPaise,
+} from '@/src/lib/billing/bookingCheckoutTotals';
+import { resolveLivePriorOutstandingForCheckout } from '@/src/services/bookingPriorOutstanding';
 import { PaymentFlowErrorBoundary } from '@/src/components/customer/payments/PaymentFlowErrorBoundary';
 
 export const dynamic = 'force-dynamic';
@@ -136,9 +140,21 @@ export default async function PayPage(props: PageProps<'/booking/[bookingCode]/p
       ? (snapshot.depositCredit.additionalDuePaise ??
         Math.max(0, booking.depositPaise - depositCreditAppliedPaise))
       : booking.depositPaise;
-  const priorOutstandingItems = snapshot?.priorOutstanding?.items ?? [];
+  const priorOutstanding = await resolveLivePriorOutstandingForCheckout(
+    session.customerId,
+    booking.id,
+  );
+  const priorOutstandingItems = priorOutstanding.items;
   const rentLineItems = snapshot?.rentLineItems ?? [];
-  const checkoutTotalPaise = booking.totalPaise + ps4Paise;
+  const checkoutTotals = computeNewBookingCheckoutTotals({
+    rentSubtotalPaise: booking.subtotalPaise,
+    depositRequiredPaise: booking.depositPaise,
+    depositCreditAppliedPaise,
+    discountPaise: booking.discountPaise,
+    priorOutstanding,
+    ps4Paise: ps4Paise,
+  });
+  const checkoutTotalPaise = checkoutTotals.totalToCollectTodayPaise;
   const totalLabel = formatPaise(checkoutTotalPaise);
   const { qrImageUrl, upiId } = resolveBookingCheckoutQr({
     durationMode: booking.durationMode,

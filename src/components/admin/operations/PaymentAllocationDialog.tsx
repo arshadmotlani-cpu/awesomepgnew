@@ -2,18 +2,17 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { BookingMoneyBalances } from '@/src/lib/billing/bookingMoneyBalances';
-import type { OverpaymentDisposition } from '@/src/lib/operations/paymentReviewTypes';
-import { totalAllocatedPaise, unallocatedPaymentPaise } from '@/src/lib/billing/bookingMoneyBalances';
+import {
+  totalAllocatedPaise,
+  unallocatedPaymentPaise,
+} from '@/src/lib/billing/bookingMoneyBalances';
+import {
+  allocationIsFullyAllocated,
+  buildAllocationDefaultsFromReviewItem,
+} from '@/src/lib/operations/paymentAllocationUx';
+import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 import { paiseToInr } from '@/src/lib/format';
 import { OPS_ORANGE } from '@/src/components/admin/residentOps/residentOpsUi';
-
-const OVERPAYMENT_OPTIONS: Array<{ value: OverpaymentDisposition; label: string }> = [
-  { value: 'allocate_deposit', label: 'Apply remainder to deposit' },
-  { value: 'allocate_rent', label: 'Apply remainder to rent' },
-  { value: 'allocate_electricity', label: 'Apply remainder to electricity' },
-  { value: 'advance_credit', label: 'Advance credit (future bills)' },
-  { value: 'refund_later', label: 'Refund later' },
-];
 
 function rupeesFromPaise(paise: number): string {
   return (paise / 100).toFixed(0);
@@ -25,33 +24,33 @@ function paiseFromRupeesInput(value: string): number {
   return Math.round(n * 100);
 }
 
-function BalancePreview({
+function AllocationField({
   label,
-  balances,
+  value,
+  onChange,
 }: {
   label: string;
-  balances: BookingMoneyBalances['rent'];
+  value: string;
+  onChange: (value: string) => void;
 }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-[#121820]/80 p-3 text-xs">
-      <p className="font-semibold uppercase tracking-wide text-apg-silver">{label}</p>
-      <dl className="mt-2 grid grid-cols-3 gap-2 text-center">
-        <div>
-          <dt className="text-apg-silver">Required</dt>
-          <dd className="mt-0.5 font-medium text-white">{paiseToInr(balances.requiredPaise)}</dd>
-        </div>
-        <div>
-          <dt className="text-apg-silver">Received</dt>
-          <dd className="mt-0.5 font-medium text-white">{paiseToInr(balances.receivedPaise)}</dd>
-        </div>
-        <div>
-          <dt className="text-apg-silver">Outstanding</dt>
-          <dd className="mt-0.5 font-medium text-emerald-300">
-            {paiseToInr(balances.outstandingPaise)}
-          </dd>
-        </div>
-      </dl>
-    </div>
+    <label className="block text-xs text-apg-silver">
+      {label}
+      <div className="relative mt-1">
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-apg-silver">
+          ₹
+        </span>
+        <input
+          type="number"
+          min={0}
+          step={1}
+          inputMode="numeric"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full rounded-lg border border-white/10 bg-[#0f1318] py-2 pl-7 pr-3 text-sm tabular-nums text-white"
+        />
+      </div>
+    </label>
   );
 }
 
@@ -63,11 +62,11 @@ export type PaymentAllocationSubmit = {
   otherAllocatedPaise: number;
   depositDueDate?: string;
   allocationNotes?: string;
-  overpaymentDisposition?: OverpaymentDisposition;
 };
 
 export function PaymentAllocationDialog({
   open,
+  item,
   residentName,
   submittedAmountPaise,
   balances,
@@ -78,6 +77,7 @@ export function PaymentAllocationDialog({
   onSubmit,
 }: {
   open: boolean;
+  item: PendingPaymentReviewItem;
   residentName: string;
   submittedAmountPaise: number;
   balances: BookingMoneyBalances | null;
@@ -94,23 +94,22 @@ export function PaymentAllocationDialog({
   const [otherRupees, setOtherRupees] = useState('0');
   const [depositDueDate, setDepositDueDate] = useState('');
   const [allocationNotes, setAllocationNotes] = useState('');
-  const [overpayDisposition, setOverpayDisposition] =
-    useState<OverpaymentDisposition>('allocate_deposit');
   const [localError, setLocalError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    setConfirmedRupees(rupeesFromPaise(submittedAmountPaise));
-    setRentRupees('0');
-    setDepositRupees('0');
-    setElectricityRupees('0');
-    setOtherRupees('0');
+    const defaults = buildAllocationDefaultsFromReviewItem(item, balances);
+    setConfirmedRupees(rupeesFromPaise(defaults.confirmedReceivedPaise));
+    setRentRupees(rupeesFromPaise(defaults.rentAllocatedPaise));
+    setDepositRupees(rupeesFromPaise(defaults.depositAllocatedPaise));
+    setElectricityRupees(rupeesFromPaise(defaults.electricityAllocatedPaise));
+    setOtherRupees(rupeesFromPaise(defaults.otherAllocatedPaise));
     setAllocationNotes('');
     setLocalError(null);
     const d = new Date();
     d.setDate(d.getDate() + 14);
     setDepositDueDate(d.toISOString().slice(0, 10));
-  }, [open, submittedAmountPaise]);
+  }, [open, item, balances, submittedAmountPaise]);
 
   const allocation = useMemo(
     () => ({
@@ -123,79 +122,38 @@ export function PaymentAllocationDialog({
     [confirmedRupees, rentRupees, depositRupees, electricityRupees, otherRupees],
   );
 
-  const unallocatedPaise = unallocatedPaymentPaise(allocation);
+  const remainingPaise = unallocatedPaymentPaise(allocation);
+  const allocatedTotalPaise = totalAllocatedPaise(allocation);
+  const canApprove = allocationIsFullyAllocated(allocation);
 
-  const projected = useMemo(() => {
-    if (!balances) return null;
-    return {
-      rent: {
-        requiredPaise: balances.rent.requiredPaise,
-        receivedPaise: balances.rent.receivedPaise + allocation.rentAllocatedPaise,
-        outstandingPaise: Math.max(
-          0,
-          balances.rent.requiredPaise -
-            balances.rent.receivedPaise -
-            allocation.rentAllocatedPaise,
-        ),
-      },
-      deposit: {
-        requiredPaise: balances.deposit.requiredPaise,
-        receivedPaise: balances.deposit.receivedPaise + allocation.depositAllocatedPaise,
-        outstandingPaise: Math.max(
-          0,
-          balances.deposit.requiredPaise -
-            balances.deposit.receivedPaise -
-            allocation.depositAllocatedPaise,
-        ),
-      },
-      electricity: {
-        requiredPaise: balances.electricity.requiredPaise,
-        receivedPaise: balances.electricity.receivedPaise + allocation.electricityAllocatedPaise,
-        outstandingPaise: Math.max(
-          0,
-          balances.electricity.requiredPaise -
-            balances.electricity.receivedPaise -
-            allocation.electricityAllocatedPaise,
-        ),
-      },
-    };
-  }, [allocation, balances]);
+  const projectedDepositOutstanding = useMemo(() => {
+    if (!balances) return 0;
+    return Math.max(
+      0,
+      balances.deposit.requiredPaise -
+        balances.deposit.receivedPaise -
+        allocation.depositAllocatedPaise,
+    );
+  }, [allocation.depositAllocatedPaise, balances]);
 
   if (!open) return null;
 
   function handleSubmit() {
     setLocalError(null);
     if (allocation.confirmedReceivedPaise <= 0) {
-      setLocalError('Confirmed received amount must be greater than zero.');
+      setLocalError('Resident paid amount must be greater than zero.');
       return;
     }
-    const totalAllocated = totalAllocatedPaise(allocation);
-    if (totalAllocated > allocation.confirmedReceivedPaise) {
-      setLocalError('Total allocation cannot exceed confirmed received.');
+    if (allocatedTotalPaise > allocation.confirmedReceivedPaise) {
+      setLocalError('Allocated total cannot exceed resident paid.');
       return;
     }
-    if (balances && allocation.depositAllocatedPaise > balances.deposit.outstandingPaise) {
-      setLocalError(
-        `Deposit allocation exceeds outstanding (₹${rupeesFromPaise(balances.deposit.outstandingPaise)}).`,
-      );
+    if (remainingPaise > 0) {
+      setLocalError(`Allocate the remaining ${paiseToInr(remainingPaise)} before approving.`);
       return;
     }
     if (
-      balances &&
-      allocation.electricityAllocatedPaise > balances.electricity.outstandingPaise
-    ) {
-      setLocalError(
-        `Electricity allocation exceeds outstanding (₹${rupeesFromPaise(balances.electricity.outstandingPaise)}).`,
-      );
-      return;
-    }
-    if (unallocatedPaise > 0 && !overpayDisposition) {
-      setLocalError('Choose how to handle unallocated amount.');
-      return;
-    }
-    if (
-      projected &&
-      projected.deposit.outstandingPaise > 0 &&
+      projectedDepositOutstanding > 0 &&
       allocation.depositAllocatedPaise > 0 &&
       !depositDueDate
     ) {
@@ -205,11 +163,17 @@ export function PaymentAllocationDialog({
     onSubmit({
       ...allocation,
       depositDueDate:
-        projected && projected.deposit.outstandingPaise > 0 ? depositDueDate : undefined,
+        projectedDepositOutstanding > 0 ? depositDueDate : undefined,
       allocationNotes: allocationNotes.trim() || undefined,
-      overpaymentDisposition: unallocatedPaise > 0 ? overpayDisposition : undefined,
     });
   }
+
+  const remainingTone =
+    remainingPaise === 0
+      ? 'text-emerald-300'
+      : remainingPaise < 0
+        ? 'text-rose-300'
+        : 'text-amber-200';
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center">
@@ -219,7 +183,7 @@ export function PaymentAllocationDialog({
         aria-labelledby="allocation-dialog-title"
       >
         <h2 id="allocation-dialog-title" className="text-lg font-semibold text-white">
-          Approve with allocation
+          Allocate payment
         </h2>
         <p className="mt-1 text-sm text-apg-silver">{residentName}</p>
 
@@ -232,76 +196,49 @@ export function PaymentAllocationDialog({
           </p>
         ) : null}
 
-        <div className="mt-4 space-y-3">
-          <label className="block text-xs text-apg-silver">
-            Submitted amount (resident)
-            <input
-              readOnly
-              value={paiseToInr(submittedAmountPaise)}
-              className="mt-1 w-full rounded-lg border border-white/10 bg-[#0f1318]/80 px-3 py-2 text-sm text-apg-silver"
-            />
-          </label>
-          <label className="block text-xs text-apg-silver">
-            Confirmed received (₹)
-            <input
-              type="number"
-              min={0}
-              step={1}
-              value={confirmedRupees}
-              onChange={(e) => setConfirmedRupees(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-white/10 bg-[#0f1318] px-3 py-2 text-sm text-white"
-            />
-          </label>
-          <label className="block text-xs text-apg-silver">
-            Rent allocated (₹)
-            <input
-              type="number"
-              min={0}
-              step={1}
-              value={rentRupees}
-              onChange={(e) => setRentRupees(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-white/10 bg-[#0f1318] px-3 py-2 text-sm text-white"
-            />
-          </label>
-          <label className="block text-xs text-apg-silver">
-            Deposit allocated (₹)
-            <input
-              type="number"
-              min={0}
-              step={1}
-              value={depositRupees}
-              onChange={(e) => setDepositRupees(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-white/10 bg-[#0f1318] px-3 py-2 text-sm text-white"
-            />
-          </label>
-          <label className="block text-xs text-apg-silver">
-            Electricity allocated (₹)
-            <input
-              type="number"
-              min={0}
-              step={1}
-              value={electricityRupees}
-              onChange={(e) => setElectricityRupees(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-white/10 bg-[#0f1318] px-3 py-2 text-sm text-white"
-            />
-          </label>
-          <label className="block text-xs text-apg-silver">
-            Other / advance credit (₹)
-            <input
-              type="number"
-              min={0}
-              step={1}
-              value={otherRupees}
-              onChange={(e) => setOtherRupees(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-white/10 bg-[#0f1318] px-3 py-2 text-sm text-white"
-            />
-          </label>
-          {unallocatedPaise > 0 ? (
-            <p className="text-xs text-amber-200">
-              Unallocated: {paiseToInr(unallocatedPaise)} — choose disposition below.
+        <div className="mt-5 space-y-4">
+          <div className="rounded-xl border border-white/10 bg-[#121820] p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-apg-silver">
+              Resident paid
             </p>
-          ) : null}
-          {projected && projected.deposit.outstandingPaise > 0 ? (
+            <label className="relative mt-2 block">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-lg text-apg-silver">
+                ₹
+              </span>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                inputMode="numeric"
+                value={confirmedRupees}
+                onChange={(e) => setConfirmedRupees(e.target.value)}
+                className="w-full rounded-lg border border-white/10 bg-[#0f1318] py-2.5 pl-8 pr-3 text-2xl font-semibold tabular-nums text-emerald-300"
+              />
+            </label>
+          </div>
+
+          <div className="space-y-3 rounded-xl border border-white/10 bg-[#121820] p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-apg-silver">
+              Allocate payment
+            </p>
+            <AllocationField label="Rent" value={rentRupees} onChange={setRentRupees} />
+            <AllocationField label="Deposit" value={depositRupees} onChange={setDepositRupees} />
+            <AllocationField
+              label="Electricity"
+              value={electricityRupees}
+              onChange={setElectricityRupees}
+            />
+            <AllocationField label="Other" value={otherRupees} onChange={setOtherRupees} />
+
+            <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-3 text-sm">
+              <span className="font-medium text-white">Remaining</span>
+              <span className={`text-base font-semibold tabular-nums ${remainingTone}`}>
+                {paiseToInr(remainingPaise)}
+              </span>
+            </div>
+          </div>
+
+          {projectedDepositOutstanding > 0 && allocation.depositAllocatedPaise > 0 ? (
             <label className="block text-xs text-apg-silver">
               Deposit balance due date
               <input
@@ -312,24 +249,9 @@ export function PaymentAllocationDialog({
               />
             </label>
           ) : null}
-          {unallocatedPaise > 0 ? (
-            <label className="block text-xs text-apg-silver">
-              Unallocated disposition
-              <select
-                value={overpayDisposition}
-                onChange={(e) => setOverpayDisposition(e.target.value as OverpaymentDisposition)}
-                className="mt-1 w-full rounded-lg border border-white/10 bg-[#0f1318] px-3 py-2 text-sm text-white"
-              >
-                {OVERPAYMENT_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
+
           <label className="block text-xs text-apg-silver">
-            Allocation notes (internal)
+            Notes (internal, optional)
             <textarea
               value={allocationNotes}
               onChange={(e) => setAllocationNotes(e.target.value)}
@@ -339,32 +261,27 @@ export function PaymentAllocationDialog({
           </label>
         </div>
 
-        {balances && projected ? (
-          <div className="mt-4 space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-apg-silver">
-              After allocation
-            </p>
-            <BalancePreview label="Rent" balances={projected.rent} />
-            <BalancePreview label="Deposit" balances={projected.deposit} />
-            <BalancePreview label="Electricity" balances={projected.electricity} />
-          </div>
-        ) : null}
-
         {localError ? (
           <p className="mt-4 rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
             {localError}
           </p>
         ) : null}
 
+        {!canApprove && !localError ? (
+          <p className="mt-4 text-xs text-apg-silver">
+            Allocate every rupee before approving. Remaining must be {paiseToInr(0)}.
+          </p>
+        ) : null}
+
         <div className="mt-5 flex flex-wrap gap-2">
           <button
             type="button"
-            disabled={pending}
+            disabled={pending || balancesLoading || Boolean(balancesError) || !canApprove}
             onClick={handleSubmit}
             className="rounded-lg px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50"
             style={{ backgroundColor: OPS_ORANGE }}
           >
-            {pending ? 'Approving…' : 'Approve with allocation'}
+            {pending ? 'Approving…' : 'Approve'}
           </button>
           <button
             type="button"

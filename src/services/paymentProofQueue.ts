@@ -61,6 +61,7 @@ async function loadBookingReviewDetails(
 ): Promise<PaymentReviewBookingDetails | null> {
   const [row] = await db
     .select({
+      customerId: bookings.customerId,
       expectedCheckoutDate: bookings.expectedCheckoutDate,
       durationMode: bookings.durationMode,
       stayType: bookings.stayType,
@@ -110,6 +111,11 @@ async function loadBookingReviewDetails(
       ? Math.max(0, subtotalPaise - (discountPaise ?? 0))
       : null;
 
+  const { resolveLivePriorOutstandingForCheckout } = await import(
+    '@/src/services/bookingPriorOutstanding'
+  );
+  const priorOutstanding = await resolveLivePriorOutstandingForCheckout(row.customerId, bookingId);
+
   return {
     moveInDate,
     moveOutDate,
@@ -131,9 +137,7 @@ async function loadBookingReviewDetails(
     depositCreditAppliedPaise: resolveBookingDepositCreditAppliedPaise(depositCredit),
     depositCreditSourceBookingId: depositCredit?.sourceBookingId ?? null,
     depositCreditSourceBookingCode: depositCredit?.sourceBookingCode ?? null,
-    priorOutstandingItems: Array.isArray(snapshot?.priorOutstanding?.items)
-      ? snapshot.priorOutstanding.items
-      : [],
+    priorOutstandingItems: priorOutstanding.items,
   };
 }
 
@@ -146,6 +150,7 @@ async function loadBookingReviewDetailsMap(
   const rows = await db
     .select({
       bookingId: bookings.id,
+      customerId: bookings.customerId,
       expectedCheckoutDate: bookings.expectedCheckoutDate,
       durationMode: bookings.durationMode,
       stayType: bookings.stayType,
@@ -166,6 +171,10 @@ async function loadBookingReviewDetailsMap(
     .leftJoin(beds, eq(beds.id, bedReservations.bedId))
     .leftJoin(rooms, eq(rooms.id, beds.roomId))
     .where(inArray(bookings.id, unique));
+
+  const { resolveLivePriorOutstandingForCheckout } = await import(
+    '@/src/services/bookingPriorOutstanding'
+  );
 
   const out = new Map<string, PaymentReviewBookingDetails>();
   for (const row of rows) {
@@ -194,6 +203,11 @@ async function loadBookingReviewDetailsMap(
         ? Math.max(0, subtotalPaise - (discountPaise ?? 0))
         : null;
 
+    const priorOutstanding = await resolveLivePriorOutstandingForCheckout(
+      row.customerId,
+      row.bookingId,
+    );
+
     out.set(row.bookingId, {
       moveInDate,
       moveOutDate,
@@ -215,9 +229,7 @@ async function loadBookingReviewDetailsMap(
       depositCreditAppliedPaise: resolveBookingDepositCreditAppliedPaise(depositCredit),
       depositCreditSourceBookingId: depositCredit?.sourceBookingId ?? null,
       depositCreditSourceBookingCode: depositCredit?.sourceBookingCode ?? null,
-      priorOutstandingItems: Array.isArray(snapshot?.priorOutstanding?.items)
-        ? snapshot.priorOutstanding.items
-        : [],
+      priorOutstandingItems: priorOutstanding.items,
     });
   }
   return out;

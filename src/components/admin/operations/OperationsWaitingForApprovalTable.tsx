@@ -3,14 +3,6 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { startTransition, useMemo, useState } from 'react';
-import {
-  approveDepositLinkProofAction,
-  approveElectricityProofAction,
-  approveExtensionProofAction,
-  approveQrPaymentAction,
-  approveRentProofAction,
-} from '@/app/(admin)/admin/payments/actions';
-import { PaymentApprovalConfirmDialog } from '@/src/components/admin/operations/PaymentApprovalConfirmDialog';
 import { PaymentProofRejectionDialog } from '@/src/components/admin/operations/PaymentProofRejectionDialog';
 import { useOperationsActionToast } from '@/src/components/admin/operations/OperationsActionToast';
 import { billingMonthLabel } from '@/src/lib/billing/invoiceCollectionWhatsApp';
@@ -44,7 +36,6 @@ export function OperationsWaitingForApprovalTable({
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [rejectDialogItem, setRejectDialogItem] = useState<PendingPaymentReviewItem | null>(null);
-  const [confirmItem, setConfirmItem] = useState<PendingPaymentReviewItem | null>(null);
   const { showToast, toastNode } = useOperationsActionToast();
 
   const focusItem = useMemo(
@@ -54,50 +45,12 @@ export function OperationsWaitingForApprovalTable({
 
   function refreshAfterAction(opts?: { rejected?: boolean }) {
     setRejectDialogItem(null);
-    setConfirmItem(null);
     if (opts?.rejected) {
       showToast('Payment rejected successfully.');
     }
-    // Server action revalidates /admin/operations — replace clears stale focus keys.
-    // Avoid router.refresh(); it races with the server action's own RSC refresh.
     startTransition(() => {
       router.replace(operationsFilterHref('waiting_for_approval'));
     });
-  }
-
-  async function onApprove(item: PendingPaymentReviewItem) {
-    setBusyKey(item.key);
-    setError(null);
-    try {
-      let result: { ok: boolean; message?: string };
-      switch (item.kind) {
-        case 'qr':
-          result = await approveQrPaymentAction(item.entityId, item.pgId, {}, item.key);
-          break;
-        case 'rent':
-          result = await approveRentProofAction(item.entityId, item.pgId, item.key);
-          break;
-        case 'electricity':
-          result = await approveElectricityProofAction(item.entityId, item.pgId, item.key);
-          break;
-        case 'extension':
-          result = await approveExtensionProofAction(item.entityId, item.pgId, item.key);
-          break;
-        case 'deposit_link':
-          result = await approveDepositLinkProofAction(item.entityId, item.pgId, item.key);
-          break;
-      }
-      if (!result.ok) {
-        setError(result.message ?? 'Approval failed.');
-        return;
-      }
-      refreshAfterAction();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Approval failed.');
-    } finally {
-      setBusyKey(null);
-      setConfirmItem(null);
-    }
   }
 
   if (items.length === 0) {
@@ -109,8 +62,6 @@ export function OperationsWaitingForApprovalTable({
     );
   }
 
-  const confirmBreakdown = confirmItem ? buildPaymentReviewBreakdown(confirmItem) : null;
-
   return (
     <div className="space-y-4">
       {toastNode}
@@ -120,16 +71,6 @@ export function OperationsWaitingForApprovalTable({
           open
           onClose={() => setRejectDialogItem(null)}
           onRejected={() => void refreshAfterAction({ rejected: true })}
-        />
-      ) : null}
-      {confirmItem && confirmBreakdown ? (
-        <PaymentApprovalConfirmDialog
-          open
-          residentName={confirmItem.residentName}
-          breakdown={confirmBreakdown}
-          pending={busyKey === confirmItem.key}
-          onCancel={() => setConfirmItem(null)}
-          onConfirm={() => void onApprove(confirmItem)}
         />
       ) : null}
 
@@ -168,8 +109,6 @@ export function OperationsWaitingForApprovalTable({
             {items.map((item) => {
               const busy = busyKey === item.key;
               const breakdown = buildPaymentReviewBreakdown(item);
-              const requiresAllocation =
-                item.kind === 'qr' && Boolean(item.bookingId && item.bookingPaymentReview);
               return (
                 <tr key={item.key} className="transition hover:bg-white/[0.02]">
                   <td className="px-4 py-4 font-medium text-white">{item.residentName}</td>
@@ -192,7 +131,7 @@ export function OperationsWaitingForApprovalTable({
                         href={operationsFilterHref('waiting_for_approval', item.key)}
                         className="inline-flex min-h-[36px] items-center rounded-lg bg-[#FF5A1F] px-4 py-2 text-xs font-semibold text-white hover:brightness-110"
                       >
-                        Review
+                        Review &amp; allocate
                       </Link>
                       {item.canReject ? (
                         <button
@@ -205,19 +144,6 @@ export function OperationsWaitingForApprovalTable({
                           className="inline-flex min-h-[36px] items-center rounded-lg border border-rose-400/40 px-4 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-500/10 disabled:opacity-50"
                         >
                           Reject
-                        </button>
-                      ) : null}
-                      {!requiresAllocation && item.overpaidPaise > 0 ? null : !requiresAllocation ? (
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => {
-                            setConfirmItem(item);
-                            setError(null);
-                          }}
-                          className="inline-flex min-h-[36px] items-center rounded-lg border border-emerald-400/40 px-4 py-2 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/10 disabled:opacity-50"
-                        >
-                          {busy ? '…' : 'Approve'}
                         </button>
                       ) : null}
                     </div>

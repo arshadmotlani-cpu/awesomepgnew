@@ -160,3 +160,27 @@ export function allocationSnapshotForApproval(item: PendingPaymentReviewItem): {
     paymentCategoryLabel: b.paymentCategoryLabel,
   };
 }
+
+/** Manual allocation UI only when payment cannot be auto-approved with the suggested split. */
+export function paymentReviewNeedsManualAllocation(item: PendingPaymentReviewItem): boolean {
+  if (item.kind !== 'qr' || !item.bookingId || !item.bookingPaymentReview) {
+    return false;
+  }
+  const breakdown = buildPaymentReviewBreakdown(item);
+  if (breakdown.differenceTone !== 'exact') return true;
+  if (item.overpaidPaise > 0) return true;
+  if (item.bookingPaymentReview.canPartialApprove) return true;
+  return false;
+}
+
+export function paymentReviewSuggestedAllocation(item: PendingPaymentReviewItem): {
+  rentPaise: number;
+  depositPaise: number;
+} {
+  const breakdown = buildPaymentReviewBreakdown(item);
+  const review = item.bookingPaymentReview;
+  return {
+    rentPaise: review?.rentDuePaise ?? breakdown.roomChargesDuePaise,
+    depositPaise: review?.depositCashDuePaise ?? breakdown.securityDepositDuePaise,
+  };
+}

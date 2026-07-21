@@ -256,35 +256,30 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-21 15:24:03 UTC
+### Pending pre-commit sync · 2026-07-21 17:31:18 UTC
 
-**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Vacating]], [[Bookings]]
+**Areas touched:** [[ROUTES]], [[Billing]], [[Vacating]], [[Bookings]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DATABASE.md` — review for accuracy
 - `DECISIONS.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (16):**
-- `app/(admin)/admin/bookings/[bookingId]/financial/page.tsx`
-- `src/db/migrations/0120_notice_rent_coverage.sql`
-- `src/db/migrations/meta/_journal.json`
-- `src/db/schema/checkoutSettlements.ts`
-- `src/db/schema/vacatingRequests.ts`
-- `src/lib/billing/depositRefundUnlock.ts`
-- `src/lib/moveOut/moveOutPipeline.ts`
+**Staged code files (12):**
+- `app/(admin)/admin/payments/actions.ts`
+- `app/(customer)/booking/[bookingCode]/pay/page.tsx`
+- `src/lib/billing/bookingMoneyBalances.ts`
+- `src/lib/billing/priorOutstandingEligibility.ts`
 - `src/lib/vacating/approvalPreview.ts`
 - `src/lib/vacating/depositRefundEligibility.ts`
 - `src/lib/vacating/noticeDeductionEngine.ts`
 - `src/lib/vacating/noticeDeductionPresentation.ts`
-- `src/lib/vacating/previewNoticeDeductionAction.ts`
-- `src/services/billing.ts`
-- `src/services/bookingFinancialWorkspace.ts`
+- `src/services/bookingLifecycle.ts`
+- `src/services/bookingPriorOutstanding.ts`
 - `src/services/checkoutSettlement.ts`
 - `src/services/vacating.ts`
 

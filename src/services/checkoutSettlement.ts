@@ -172,7 +172,9 @@ export function buildCheckoutSettlementDeductionPlan(
     const chargeable = row.noticeChargeableDays ?? row.noticeShortfallDays;
     const covered = row.noticeRentCoveredDays ?? 0;
     const coveredSuffix =
-      covered > 0 ? ` (${covered} day${covered === 1 ? '' : 's'} covered by paid rent)` : '';
+      covered > 0
+        ? ` (${covered} day${covered === 1 ? '' : 's'} satisfied by unused prepaid rent)`
+        : '';
     deductions.push({
       amountPaise: row.noticeDeductionPaise,
       reason:

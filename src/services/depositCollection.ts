@@ -535,6 +535,7 @@ export async function getBookingPaymentContext(bookingId: string) {
     .select({
       bookingId: bookings.id,
       bookingCode: bookings.bookingCode,
+      customerId: bookings.customerId,
       subtotalPaise: bookings.subtotalPaise,
       discountPaise: bookings.discountPaise,
       depositPaise: bookings.depositPaise,
@@ -546,8 +547,19 @@ export async function getBookingPaymentContext(bookingId: string) {
     .where(eq(bookings.id, bookingId))
     .limit(1);
   if (!row) return null;
-  const breakdown = breakdownBookingPayment(row);
-  return { ...row, breakdown };
+
+  const { resolveLivePriorOutstandingForCheckout, bookingRowWithLivePriorOutstanding } =
+    await import('@/src/services/bookingPriorOutstanding');
+  const priorOutstanding = await resolveLivePriorOutstandingForCheckout(row.customerId, bookingId);
+  const bookingForPayment = bookingRowWithLivePriorOutstanding(row, priorOutstanding);
+  const breakdown = breakdownBookingPayment(bookingForPayment);
+
+  return {
+    ...bookingForPayment,
+    breakdown,
+    priorOutstanding,
+    bookingTotalDuePaise: breakdown.bookingTotalDuePaise,
+  };
 }
 
 export { labelDepositCollectionStatus, hasOutstandingDepositDue } from '@/src/lib/depositCollectionLabels';

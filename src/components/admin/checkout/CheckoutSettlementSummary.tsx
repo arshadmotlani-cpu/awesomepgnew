@@ -1,5 +1,5 @@
 import { Badge } from '@/src/components/admin/Badge';
-import { NoticeDeductionBreakdown } from '@/src/components/shared/NoticeDeductionBreakdown';
+import { NoticeSettlementPanel } from '@/src/components/shared/NoticeDeductionBreakdown';
 import { paiseToInr, titleCase } from '@/src/lib/format';
 import { breakdownFromStoredNoticeSnapshot } from '@/src/lib/vacating/noticeDeductionPresentation';
 import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement';
@@ -16,36 +16,28 @@ export function CheckoutSettlementSummary({ detail }: { detail: CheckoutSettleme
 
   return (
     <section className="mb-8">
-      <header className="mb-4">
-        <h2 className="text-base font-semibold text-white">Checkout summary</h2>
-        <p className="mt-1 text-sm text-apg-silver">
-          Move-out {detail.vacatingDate} · {detail.pgName} · Room {detail.roomNumber}
-        </p>
+      <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold text-white">Move-out settlement</h2>
+          <p className="mt-1 text-sm text-apg-silver">
+            Leaves {detail.vacatingDate} · {detail.pgName} · Room {detail.roomNumber}
+          </p>
+        </div>
+        <Badge tone={statusBadgeTone(detail.status)}>{statusLabel}</Badge>
       </header>
-      <dl className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      {noticeBreakdown ? (
+        <NoticeSettlementPanel settlement={noticeBreakdown} variant="admin" />
+      ) : null}
+      <dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
         <Stat label="Security deposit held" value={paiseToInr(detail.depositRefundablePaise)} />
         <Stat label="Final refund" value={paiseToInr(detail.preview.finalRefundPaise)} accent="emerald" />
-        <Stat label="Status" value={statusLabel} compact />
-        <Stat
-          label="Notice fee"
-          value={paiseToInr(detail.preview.noticeDeductionPaise)}
-          hint={
-            noticeBreakdown && noticeBreakdown.chargeableNoticeDays > 0
-              ? `${noticeBreakdown.chargeableNoticeDays} chargeable day${noticeBreakdown.chargeableNoticeDays === 1 ? '' : 's'} (${noticeBreakdown.rentCoveredDays} covered by rent)`
-              : detail.noticeShortfallDays > 0
-                ? `${detail.noticeShortfallDays} missing day${detail.noticeShortfallDays === 1 ? '' : 's'}`
-                : 'Compliant notice'
-          }
-        />
+        {detail.preview.electricityDeductionPaise > 0 ? (
+          <Stat
+            label="Electricity deduction"
+            value={`−${paiseToInr(detail.preview.electricityDeductionPaise)}`}
+          />
+        ) : null}
       </dl>
-      {noticeBreakdown ? (
-        <div className="mt-4 max-w-lg">
-          <NoticeDeductionBreakdown breakdown={noticeBreakdown} variant="admin" compact />
-        </div>
-      ) : null}
-      <p className="mt-3">
-        <Badge tone={statusBadgeTone(detail.status)}>{statusLabel}</Badge>
-      </p>
     </section>
   );
 }

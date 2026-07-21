@@ -125,14 +125,14 @@ function computeDepositRefundEligibilitySafe(args: {
   return { ...depositRefundEligibilityFromUnlock(unlock), unlockState: unlock.state };
 }
 
-import type { NoticeDeductionDisplayBreakdown } from '@/src/lib/vacating/noticeDeductionPresentation';
+import type { NoticeSettlementDisplay } from '@/src/lib/vacating/noticeDeductionPresentation';
 
 export function estimateVacateDepositPreview(args: {
   depositHeldPaise: number;
   monthlyRentPaise: number;
   vacatingDate: string;
   noticeGivenDate?: string;
-  noticeBreakdown?: NoticeDeductionDisplayBreakdown | null;
+  noticeBreakdown?: NoticeSettlementDisplay | null;
 }) {
   const noticeGivenDate = args.noticeGivenDate ?? todayString();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(args.vacatingDate)) {
@@ -141,7 +141,7 @@ export function estimateVacateDepositPreview(args: {
       earlyVacate: false,
       estimatedDeductionPaise: 0,
       estimatedRefundablePaise: args.depositHeldPaise,
-      noticeBreakdown: null as NoticeDeductionDisplayBreakdown | null,
+      noticeBreakdown: null as NoticeSettlementDisplay | null,
     };
   }
   const daysUntilVacate = tryDiffDays(noticeGivenDate, args.vacatingDate) ?? 0;

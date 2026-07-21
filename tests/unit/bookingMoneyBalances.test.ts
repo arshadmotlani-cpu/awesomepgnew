@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   computeMoneySlice,
+  suggestPaymentAllocation,
   totalAllocatedPaise,
   unallocatedPaymentPaise,
   validatePaymentAllocation,
 } from '@/src/lib/billing/bookingMoneyBalances';
-import { suggestPaymentAllocation } from '@/src/services/paymentAllocation';
 
 test('computeMoneySlice derives outstanding from required minus received', () => {
   const slice = computeMoneySlice(412_000, 206_000);
@@ -159,15 +159,15 @@ test('totalAllocatedPaise sums rent deposit electricity other', () => {
   );
 });
 
-test('suggestPaymentAllocation defaults to zero — admin decides', () => {
+test('suggestPaymentAllocation splits rent then deposit', () => {
   const suggestion = suggestPaymentAllocation({
     confirmedReceivedPaise: 618_000,
     rentOutstandingPaise: 412_000,
     depositOutstandingPaise: 412_000,
   });
   assert.equal(suggestion.confirmedReceivedPaise, 618_000);
-  assert.equal(suggestion.rentAllocatedPaise, 0);
-  assert.equal(suggestion.depositAllocatedPaise, 0);
+  assert.equal(suggestion.rentAllocatedPaise, 412_000);
+  assert.equal(suggestion.depositAllocatedPaise, 206_000);
   assert.equal(suggestion.electricityAllocatedPaise, 0);
   assert.equal(suggestion.otherAllocatedPaise, 0);
 });
