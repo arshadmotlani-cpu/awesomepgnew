@@ -1,6 +1,9 @@
 /**
- * Electricity preview for deposit refund approval — uses existing invoices,
- * meter readings, or room-average estimate before wallet deduction.
+ * Legacy resident-request electricity preview for refund approval.
+ *
+ * MUST NOT create mid-cycle room electricity bills or advance the room meter
+ * baseline. Move-out electricity belongs on checkout_settlements only.
+ * Month-end bills are the sole writers of continuous previous reading.
  */
 
 import { and, desc, eq } from 'drizzle-orm';
@@ -12,19 +15,11 @@ import {
   electricityBills,
   electricityInvoices,
   floors,
-  meterLogs,
   pgs,
   rooms,
 } from '@/src/db/schema';
-import { DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE } from '@/src/lib/billing/constants';
-import { formatDate } from '@/src/lib/dates';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { assertAdminCanAccessPg } from '@/src/lib/auth/pgAccess';
-import { firstOfMonth } from '@/src/services/billing';
-import {
-  createBillFromMeterLogs,
-  createEstimatedMonthlyBill,
-} from '@/src/services/meterElectricity';
 
 export type RefundElectricityPreview =
   | {
@@ -83,28 +78,6 @@ async function pendingInvoiceForBooking(bookingId: string) {
   return row ?? null;
 }
 
-async function invoiceAfterBill(bookingId: string, billId: string) {
-  const [row] = await db
-    .select({
-      invoiceId: electricityInvoices.id,
-      invoiceNumber: electricityInvoices.invoiceNumber,
-      amountPaise: electricityInvoices.amountPaise,
-      unitsShare: electricityInvoices.unitsShare,
-      billingMonth: electricityInvoices.billingMonth,
-      ratePerUnitPaise: electricityBills.ratePerUnitPaise,
-    })
-    .from(electricityInvoices)
-    .innerJoin(electricityBills, eq(electricityBills.id, electricityInvoices.electricityBillId))
-    .where(
-      and(
-        eq(electricityInvoices.bookingId, bookingId),
-        eq(electricityInvoices.electricityBillId, billId),
-      ),
-    )
-    .limit(1);
-  return row ?? null;
-}
-
 function toPreview(
   row: {
     invoiceId: string;
@@ -158,76 +131,13 @@ export async function calculateRefundElectricityForBooking(
     );
   }
 
-  const billingMonth = firstOfMonth(formatDate(new Date()));
-  const ratePerUnitPaise = DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE;
-
-  if (input.useAverageFallback) {
-    const bill = await createEstimatedMonthlyBill(session, {
-      roomId: ctx.roomId,
-      billingMonth,
-      ratePerUnitPaise,
-    });
-    if (!bill.ok) {
-      return { ok: false, error: bill.message };
-    }
-    const invoice = await invoiceAfterBill(input.bookingId, bill.billId);
-    if (!invoice) {
-      return { ok: false, error: 'Bill created but no invoice for this booking.' };
-    }
-    return toPreview(
-      invoice,
-      true,
-      `Estimated from room average for ${billingMonth}. Invoice ${invoice.invoiceNumber} generated.`,
-    );
-  }
-
-  const [latestLog] = await db
-    .select()
-    .from(meterLogs)
-    .where(and(eq(meterLogs.roomId, ctx.roomId), eq(meterLogs.isEstimated, false)))
-    .orderBy(desc(meterLogs.recordedAt))
-    .limit(1);
-
-  if (latestLog) {
-    const bill = await createBillFromMeterLogs(session, {
-      roomId: ctx.roomId,
-      billingMonth,
-      ratePerUnitPaise,
-      endMeterLogId: latestLog.id,
-    });
-    if (bill.ok) {
-      const invoice = await invoiceAfterBill(input.bookingId, bill.billId);
-      if (invoice) {
-        return toPreview(
-          invoice,
-          false,
-          `Generated from meter reading for ${billingMonth}. Invoice ${invoice.invoiceNumber}.`,
-        );
-      }
-    }
-  }
-
-  const [existingBill] = await db
-    .select({ id: electricityBills.id })
-    .from(electricityBills)
-    .where(
-      and(
-        eq(electricityBills.roomId, ctx.roomId),
-        eq(electricityBills.billingMonth, billingMonth),
-      ),
-    )
-    .limit(1);
-
-  if (existingBill) {
-    const invoice = await invoiceAfterBill(input.bookingId, existingBill.id);
-    if (invoice) {
-      return toPreview(invoice, false, `Using invoice from existing room bill for ${billingMonth}.`);
-    }
-  }
-
+  void input.useAverageFallback;
   return {
     ok: false,
     error:
-      'No meter reading or pending invoice found. Enable "Auto average per room" or enter electricity manually.',
+      'No pending electricity invoice for this booking. ' +
+      'Move-out electricity must be settled on the checkout settlement ' +
+      '(final meter reading) — that path does not create a room monthly bill or change the room previous meter reading. ' +
+      'Use Admin → Move-out / Checkout Settlements.',
   };
 }

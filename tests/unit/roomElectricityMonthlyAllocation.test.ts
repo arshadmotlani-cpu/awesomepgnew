@@ -13,6 +13,7 @@ test('checkout payer is excluded from monthly electricity invoices', () => {
     ],
     checkoutCollectedByCustomerId: checkout,
     useProRata: false,
+    activeBedCount: 2,
   });
 
   assert.equal(result.checkoutCreditAppliedPaise, 22_400);
@@ -21,7 +22,7 @@ test('checkout payer is excluded from monthly electricity invoices', () => {
   const bInvoice = result.invoices.find((i) => i.customerId === 'resident-b');
   assert.equal(aInvoice?.excludedBecauseCheckoutPaid, true);
   assert.equal(aInvoice?.amountPaise, 0);
-  assert.equal(bInvoice?.amountPaise, 97_600);
+  assert.equal(bInvoice?.amountPaise, 48_800);
 });
 
 test('room collection never exceeds gross bill', () => {
@@ -35,6 +36,7 @@ test('room collection never exceeds gross bill', () => {
     ],
     checkoutCollectedByCustomerId: checkout,
     useProRata: false,
+    activeBedCount: 2,
   });
 
   const invoiceTotal = result.invoices
@@ -45,7 +47,7 @@ test('room collection never exceeds gross bill', () => {
   assert.equal(result.netSplittablePaise, 60_000);
 });
 
-test('no checkout credit bills all occupants equally', () => {
+test('no checkout credit bills all occupants equally by active bed count', () => {
   const result = allocateMonthlyElectricityInvoices({
     grossTotalPaise: 40_000,
     prepaidCreditPaise: 0,
@@ -55,15 +57,16 @@ test('no checkout credit bills all occupants equally', () => {
     ],
     checkoutCollectedByCustomerId: new Map(),
     useProRata: false,
+    activeBedCount: 4,
   });
 
   assert.equal(result.netSplittablePaise, 40_000);
   assert.equal(result.invoices.filter((i) => i.amountPaise > 0).length, 2);
-  assert.equal(result.invoices[0]?.amountPaise, 20_000);
-  assert.equal(result.invoices[1]?.amountPaise, 20_000);
+  assert.equal(result.invoices[0]?.amountPaise, 10_000);
+  assert.equal(result.invoices[1]?.amountPaise, 10_000);
 });
 
-test('room 203 — deduct checkout collection then split among three active residents', () => {
+test('room 203 — deduct checkout collection then split per active bed', () => {
   const grossTotalPaise = 287 * 1_600; // 459_200 — 287 units @ ₹16
   const checkoutCollected = new Map<string, number>([['departed', 99_000]]);
   const result = allocateMonthlyElectricityInvoices({
@@ -77,6 +80,7 @@ test('room 203 — deduct checkout collection then split among three active resi
     ],
     checkoutCollectedByCustomerId: checkoutCollected,
     useProRata: false,
+    activeBedCount: 4,
   });
 
   assert.equal(result.checkoutCreditAppliedPaise, 99_000);
@@ -84,14 +88,14 @@ test('room 203 — deduct checkout collection then split among three active resi
   const billable = result.invoices.filter((i) => i.amountPaise > 0);
   assert.equal(billable.length, 3);
   for (const line of billable) {
-    assert.ok(line.amountPaise >= 120_000 && line.amountPaise <= 120_100);
+    assert.equal(line.amountPaise, 90_050);
   }
   const departed = result.invoices.find((i) => i.customerId === 'departed');
   assert.equal(departed?.amountPaise, 0);
   assert.equal(departed?.excludedBecauseCheckoutPaid, true);
 });
 
-test('historical contributions reduce pool and assign remainder to remaining occupant', () => {
+test('historical contributions reduce pool and assign per-bed share to remaining occupant', () => {
   const grossTotalPaise = 299_200; // ₹2,992
   const contributions = new Map<string, number>([
     ['resident-a', 122_000],
@@ -108,12 +112,13 @@ test('historical contributions reduce pool and assign remainder to remaining occ
     ],
     checkoutCollectedByCustomerId: new Map(),
     useProRata: false,
+    activeBedCount: 3,
   });
 
   assert.equal(result.roomContributionsAppliedPaise, 172_000);
   assert.equal(result.netSplittablePaise, 127_200);
   const remaining = result.invoices.find((i) => i.customerId === 'resident-c');
-  assert.equal(remaining?.amountPaise, 127_200);
+  assert.equal(remaining?.amountPaise, 42_400);
   assert.equal(result.invoices.find((i) => i.customerId === 'resident-a')?.amountPaise, 0);
   assert.equal(result.invoices.find((i) => i.customerId === 'resident-b')?.amountPaise, 0);
 });
@@ -128,6 +133,7 @@ test('july bill ignores june contributions when contributions map is empty', () 
     ],
     checkoutCollectedByCustomerId: new Map(),
     useProRata: false,
+    activeBedCount: 2,
   });
 
   assert.equal(result.netSplittablePaise, 300_000);

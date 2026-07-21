@@ -21,6 +21,7 @@ test('one resident leaves early — checkout recovery reduces month-end split', 
     ],
     checkoutCollectedByCustomerId: new Map(),
     useProRata: true,
+    activeBedCount: 2,
   });
   assert.equal(result.netSplittablePaise, 420_000);
   assert.equal(result.invoices.find((i) => i.customerId === 'stayer')?.amountPaise, 420_000);
@@ -42,6 +43,7 @@ test('multiple residents leave — all recoveries excluded from split', () => {
     ],
     checkoutCollectedByCustomerId: new Map(),
     useProRata: true,
+    activeBedCount: 2,
   });
   assert.equal(result.netSplittablePaise, 370_000);
   assert.equal(result.invoices.filter((i) => i.amountPaise > 0).length, 1);
@@ -87,6 +89,7 @@ test('entire month with no checkout recoveries splits gross equally', () => {
     ],
     checkoutCollectedByCustomerId: new Map(),
     useProRata: false,
+    activeBedCount: 2,
   });
   assert.equal(result.netSplittablePaise, 300_000);
   assert.equal(result.invoices[0]?.amountPaise, 150_000);
@@ -110,9 +113,10 @@ test('checkout recoveries reduce final bill correctly (room 204 scenario)', () =
     ],
     checkoutCollectedByCustomerId: new Map(),
     useProRata: false,
+    activeBedCount: 3,
   });
   assert.equal(result.netSplittablePaise, 127_200);
-  assert.equal(result.invoices.find((i) => i.customerId === 'resident-c')?.amountPaise, 127_200);
+  assert.equal(result.invoices.find((i) => i.customerId === 'resident-c')?.amountPaise, 42_400);
 });
 
 test('invoice breakdown shows contributions and remaining balance', () => {
@@ -164,6 +168,7 @@ test('july unaffected by june contributions when contributions map empty', () =>
     occupants: [{ bookingId: 'j1', customerId: 'july-only', bedCount: 1, weight: 30 }],
     checkoutCollectedByCustomerId: new Map(),
     useProRata: false,
+    activeBedCount: 1,
   });
   assert.equal(july.netSplittablePaise, 300_000);
 });
@@ -184,6 +189,7 @@ test('regenerating allocation with same contributions does not double-count reco
     ],
     checkoutCollectedByCustomerId: new Map<string, number>(),
     useProRata: false as const,
+    activeBedCount: 3,
   };
   const first = allocateMonthlyElectricityInvoices(base);
   const second = allocateMonthlyElectricityInvoices(base);
@@ -192,8 +198,10 @@ test('regenerating allocation with same contributions does not double-count reco
     second.invoices.map((i) => ({ customerId: i.customerId, amountPaise: i.amountPaise })),
   );
   assert.equal(
-    contributions.get('resident-a')! + contributions.get('resident-b')! + first.invoices.reduce((s, i) => s + i.amountPaise, 0),
-    299_200,
+    contributions.get('resident-a')! +
+      contributions.get('resident-b')! +
+      first.invoices.reduce((s, i) => s + i.amountPaise, 0),
+    214_400,
   );
 });
 

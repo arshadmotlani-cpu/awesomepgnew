@@ -24,6 +24,7 @@ import {
 } from '../src/services/electricityRoomContributions';
 import { allocateMonthlyElectricityInvoices } from '../src/lib/billing/roomElectricityMonthlyAllocation';
 import { loadRoomElectricityOccupantsForMonth } from '../src/lib/billing/roomElectricityOccupants';
+import { countActiveBedsInRoom } from '../src/lib/roomCapacitySsotDb';
 import { listAdminElectricityInvoicesForReminders } from '../src/db/queries/admin';
 import { getResidentFinancialSummary } from '../src/services/residentFinancialEngine';
 
@@ -292,6 +293,7 @@ async function main() {
     currentReadingUnits: CURRENT_READING,
     ratePerUnitPaise: bill.ratePerUnitPaise,
     useProRataByActiveDays: true,
+    allowPreviousReadingOverride: true,
     includeFixedStayOccupants: true,
   });
 
@@ -418,6 +420,7 @@ async function verifySurfaces(
     occupants: occupantLoad.occupants,
     checkoutCollectedByCustomerId: new Map(),
     useProRata: true,
+    activeBedCount: await countActiveBedsInRoom(ROOM_ID),
   });
 
   console.log('\n=== FINAL RECONCILIATION ===');

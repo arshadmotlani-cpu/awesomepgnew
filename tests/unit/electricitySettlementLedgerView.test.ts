@@ -29,11 +29,12 @@ test('manual credits reduce splittable pool after checkout credits', () => {
     ],
     checkoutCollectedByCustomerId: checkout,
     useProRata: false,
+    activeBedCount: 2,
   });
   assert.equal(result.checkoutCreditAppliedPaise, 22_400);
   assert.equal(result.manualCreditAppliedPaise, 5_000);
   assert.equal(result.netSplittablePaise, 92_600);
-  assert.equal(result.invoices.find((i) => i.customerId === 'b')?.amountPaise, 92_600);
+  assert.equal(result.invoices.find((i) => i.customerId === 'b')?.amountPaise, 46_300);
 });
 
 test('reconciliation gap surfaces billing math errors', () => {

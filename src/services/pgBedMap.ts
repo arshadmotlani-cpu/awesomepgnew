@@ -329,7 +329,10 @@ export async function getPgBedMap(session: AdminSession, pgId: string): Promise<
       r.id::text AS room_id,
       r.room_number,
       rt.name AS room_type_name,
-      rt.default_capacity::int AS sharing_count,
+      (
+        SELECT count(*)::int FROM beds b2
+        WHERE b2.room_id = r.id AND b2.archived_at IS NULL
+      ) AS sharing_count,
       rt.has_ac,
       b.id::text AS bed_id,
       b.bed_code,

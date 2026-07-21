@@ -148,6 +148,7 @@ async function main() {
     currentReadingUnits: 1650,
     ratePerUnitPaise: 1000, // ₹10
     notes: 'Phase 5.5 verify-electricity-split',
+    allowPreviousReadingOverride: true,
   });
   if (!bill.ok) fail('createElectricityBill failed', bill);
   if (bill.unitsConsumed !== 150) {
@@ -195,6 +196,7 @@ async function main() {
     previousReadingUnits: 0,
     currentReadingUnits: 200,
     ratePerUnitPaise: 1000,
+    allowPreviousReadingOverride: true,
   });
   if (duplicate.ok) fail('expected already_exists, got ok', duplicate);
   if (duplicate.kind !== 'already_exists') {

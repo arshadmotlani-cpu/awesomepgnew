@@ -703,6 +703,7 @@ async function regenerateJuneElectricityForRoom(input: {
     currentReadingUnits: meterSpec.currentReadingUnits,
     ratePerUnitPaise: RATE_PAISE,
     useProRataByActiveDays: true,
+    allowPreviousReadingOverride: true,
     includeFixedStayOccupants: true,
     notes: 'Shantinagar occupancy SSOT repair — June 2026',
   });

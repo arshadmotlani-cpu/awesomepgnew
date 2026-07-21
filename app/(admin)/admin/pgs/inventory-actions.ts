@@ -98,7 +98,6 @@ export async function updateRoomDetailsAction(
 
     const floorNumber = Number.parseInt(formData.get('floorNumber')?.toString() ?? '', 10);
     const roomNumber = formData.get('roomNumber')?.toString() ?? '';
-    const sharing = parseSharingCount(formData.get('sharingCount')?.toString());
     const roomTypeNameRaw = formData.get('roomTypeName')?.toString()?.trim();
 
     await updateRoomDetails(session, pgId, roomId, {
@@ -106,7 +105,6 @@ export async function updateRoomDetailsAction(
       floorLabel: formData.get('floorLabel')?.toString(),
       roomNumber,
       roomTypeName: roomTypeNameRaw || undefined,
-      sharingCount: sharing ?? undefined,
       hasAc: formData.get('hasAc') === 'on',
       notes: formData.get('notes')?.toString(),
     });

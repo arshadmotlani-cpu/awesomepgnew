@@ -27,7 +27,7 @@ export function effectiveSharingCount(input: {
   if (input.overrideEnabled && input.overrideCount != null && input.overrideCount >= 1) {
     return Math.floor(input.overrideCount);
   }
-  return Math.max(1, Math.floor(input.autoDetectedCount));
+  return Math.max(1, Math.floor(input.roomCapacity));
 }
 
 export function calculateCheckoutElectricity(input: {

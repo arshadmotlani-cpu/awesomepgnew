@@ -29,6 +29,7 @@ import { DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE } from '@/src/lib/billing/const
 import { computeElectricitySettlementLedgerReconciliation } from '@/src/lib/billing/electricitySettlementLedgerReconciliation';
 import { allocateMonthlyElectricityInvoices } from '@/src/lib/billing/roomElectricityMonthlyAllocation';
 import { loadRoomElectricityOccupantsForMonth } from '@/src/lib/billing/roomElectricityOccupants';
+import { countActiveBedsInRoom } from '@/src/lib/roomCapacitySsotDb';
 import { createElectricityBill } from '@/src/services/electricityBilling';
 import { firstOfMonth, monthBounds } from '@/src/services/billing';
 import { listCheckoutElectricityLedgerForRoomMonth } from '@/src/services/electricitySettlementLedger';
@@ -365,6 +366,7 @@ async function preflightRoom(
     occupants,
     checkoutCollectedByCustomerId,
     useProRata: totalWeight > 0,
+    activeBedCount: await countActiveBedsInRoom(ctx.roomId),
   });
 
   const residentAllocationsPaise = allocation.invoices
@@ -539,6 +541,7 @@ async function processRoom(
     currentReadingUnits: spec.currentReadingUnits,
     ratePerUnitPaise: RATE_PAISE,
     useProRataByActiveDays: true,
+    allowPreviousReadingOverride: true,
     includeFixedStayOccupants: true,
     notes: 'June 2026 batch generation',
   });

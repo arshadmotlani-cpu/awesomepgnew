@@ -19,6 +19,7 @@ import {
 import { DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE } from '@/src/lib/billing/constants';
 import { allocateMonthlyElectricityInvoices } from '@/src/lib/billing/roomElectricityMonthlyAllocation';
 import { loadRoomElectricityOccupantsForMonth } from '@/src/lib/billing/roomElectricityOccupants';
+import { countActiveBedsInRoom } from '@/src/lib/roomCapacitySsotDb';
 import { paiseToInr } from '@/src/lib/format';
 import { loadBedPrice } from '@/src/services/pricing';
 import {
@@ -119,6 +120,7 @@ async function expectedAllocation(roomId: string, spec: (typeof ROOM_SPECS)[numb
     occupants,
     checkoutCollectedByCustomerId,
     useProRata: totalWeight > 0,
+    activeBedCount: await countActiveBedsInRoom(roomId),
   });
 }
 
@@ -357,6 +359,7 @@ export async function runJuneElectricityIntegrityRepair(input: {
           currentReadingUnits: spec.currentReadingUnits,
           ratePerUnitPaise: RATE_PAISE,
           useProRataByActiveDays: true,
+          allowPreviousReadingOverride: true,
           includeFixedStayOccupants: true,
           notes: 'June 2026 integrity repair',
         });

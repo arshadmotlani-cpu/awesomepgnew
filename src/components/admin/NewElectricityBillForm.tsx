@@ -395,28 +395,16 @@ export function NewElectricityBillForm({
           <span className="text-xs font-medium uppercase tracking-wide text-apg-silver">
             Previous reading (units)
           </span>
-          {wizardMode ? (
-            <div className="apg-admin-field mt-1 block w-full rounded-lg border border-white/10 bg-[#12161D]/60 px-3 py-2 text-sm text-apg-silver">
-              {prevReading || (loadingPrev ? '…' : '—')}
-            </div>
-          ) : null}
-          <input
-            type={wizardMode ? 'hidden' : 'number'}
-            name="previousReadingUnits"
-            min="0"
-            step="0.01"
-            required
-            value={prevReading}
-            onChange={(e) => setPrevReading(e.target.value)}
-            readOnly={wizardMode}
-            disabled={isBusy}
-            className="apg-admin-field mt-1 block w-full rounded-lg border border-white/10 bg-[#12161D] px-3 py-2 text-sm text-white"
-          />
+          <div className="apg-admin-field mt-1 block w-full rounded-lg border border-white/10 bg-[#12161D]/60 px-3 py-2 text-sm text-apg-silver">
+            {prevReading || (loadingPrev ? '…' : '—')}
+          </div>
+          <input type="hidden" name="previousReadingUnits" value={prevReading} required />
           {loadingPrev ? (
             <p className="mt-1 text-[11px] text-apg-silver">Loading last reading…</p>
           ) : roomId ? (
             <p className="mt-1 text-[11px] text-apg-silver">
-              Auto-filled from last bill or meter log for this room.
+              Locked to last finalized monthly reading for this room (move-out settlements do not
+              change it).
             </p>
           ) : null}
         </label>

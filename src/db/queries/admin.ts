@@ -249,7 +249,7 @@ export type RoomListRow = {
 
 export function listRooms(): Promise<QueryResult<RoomListRow[]>> {
   return guard(async () => {
-    return await db
+    const rows = await db
       .select({
         id: rooms.id,
         roomNumber: rooms.roomNumber,
@@ -269,6 +269,8 @@ export function listRooms(): Promise<QueryResult<RoomListRow[]>> {
       .innerJoin(pgs, eq(pgs.id, floors.pgId))
       .where(sql`${rooms.archivedAt} IS NULL`)
       .orderBy(asc(pgs.name), asc(floors.floorNumber), asc(rooms.roomNumber));
+
+    return rows.map((row) => ({ ...row, capacity: row.bedCount }));
   });
 }
 

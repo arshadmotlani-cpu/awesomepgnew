@@ -104,8 +104,7 @@ async function main() {
     previousReadingUnits: prevReading,
     currentReadingUnits: currReading,
     ratePerUnitPaise: RATE_PER_UNIT_PAISE,
-    actorType: 'admin',
-    actorId: null,
+    allowPreviousReadingOverride: true,
   });
 
   if (!billResult.ok) {

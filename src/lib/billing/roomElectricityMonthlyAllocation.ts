@@ -28,6 +28,8 @@ export function allocateMonthlyElectricityInvoices(input: {
   occupants: MonthlyElectricityOccupant[];
   checkoutCollectedByCustomerId: Map<string, number>;
   useProRata: boolean;
+  /** Active beds in the room — SSOT divisor for equal split. */
+  activeBedCount: number;
 }): {
   prepaidCreditAppliedPaise: number;
   checkoutCreditAppliedPaise: number;
@@ -91,6 +93,7 @@ export function allocateMonthlyElectricityInvoices(input: {
   const billableBedShares = billable.reduce((sum, o) => sum + o.bedCount, 0);
   const billableWeight = billable.reduce((sum, o) => sum + o.weight, 0);
   const useProRata = input.useProRata && billableWeight > 0;
+  const splitDivisor = Math.max(1, input.activeBedCount);
 
   const invoices: MonthlyElectricityInvoiceLine[] = excluded.map((o) => ({
     bookingId: o.bookingId,
@@ -106,7 +109,7 @@ export function allocateMonthlyElectricityInvoices(input: {
       manualCreditAppliedPaise,
       roomContributionsAppliedPaise,
       netSplittablePaise,
-      billableOccupantCount: billableBedShares,
+      billableOccupantCount: splitDivisor,
       invoices,
       perResidentPaise: 0,
       remainderPaise: 0,
@@ -115,7 +118,7 @@ export function allocateMonthlyElectricityInvoices(input: {
 
   const equalSplit = splitElectricity({
     totalPaise: netSplittablePaise,
-    occupantCount: billableBedShares,
+    occupantCount: splitDivisor,
   });
   const weightedShares = useProRata
     ? splitElectricityWeighted({
@@ -146,7 +149,7 @@ export function allocateMonthlyElectricityInvoices(input: {
     manualCreditAppliedPaise,
     roomContributionsAppliedPaise,
     netSplittablePaise,
-    billableOccupantCount: billableBedShares,
+    billableOccupantCount: splitDivisor,
     invoices,
     perResidentPaise: useProRata ? 0 : equalSplit.perResidentPaise,
     remainderPaise: useProRata ? weightedShares!.remainderPaise : equalSplit.remainderPaise,

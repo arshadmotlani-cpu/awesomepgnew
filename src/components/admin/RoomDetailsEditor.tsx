@@ -6,7 +6,10 @@ import {
   archiveRoomAction,
   updateRoomDetailsAction,
 } from '@/app/(admin)/admin/pgs/inventory-actions';
-import { ROOM_SHARING_OPTIONS, type RoomSharingCount } from '@/src/lib/roomSharing';
+import {
+  resolveRoomTypeNameForCapacity,
+  sharingLabelFromActiveBedCount,
+} from '@/src/lib/roomCapacitySsot';
 
 function editableFloorLabel(label: string, floorNumber: number): string {
   const auto = `Floor ${floorNumber}`;
@@ -20,7 +23,7 @@ export function RoomDetailsEditor({
   floorNumber,
   floorLabel,
   roomTypeName,
-  sharingCount,
+  activeBedCount,
   hasAc,
   roomNotes,
 }: {
@@ -30,18 +33,19 @@ export function RoomDetailsEditor({
   floorNumber: number;
   floorLabel: string;
   roomTypeName: string;
-  sharingCount: number;
+  activeBedCount: number;
   hasAc: boolean;
   roomNotes: string | null;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const displayTypeName = resolveRoomTypeNameForCapacity(roomTypeName, activeBedCount);
+  const sharingLabel = sharingLabelFromActiveBedCount(activeBedCount);
   const [values, setValues] = useState({
     roomNumber,
     floorNumber: String(floorNumber),
     floorLabel: editableFloorLabel(floorLabel, floorNumber),
-    roomTypeName,
-    sharingCount: String(sharingCount) as `${RoomSharingCount}`,
+    roomTypeName: displayTypeName,
     hasAc,
     notes: roomNotes ?? '',
   });
@@ -54,8 +58,7 @@ export function RoomDetailsEditor({
       roomNumber,
       floorNumber: String(floorNumber),
       floorLabel: editableFloorLabel(floorLabel, floorNumber),
-      roomTypeName,
-      sharingCount: String(sharingCount) as `${RoomSharingCount}`,
+      roomTypeName: displayTypeName,
       hasAc,
       notes: roomNotes ?? '',
     });
@@ -71,7 +74,6 @@ export function RoomDetailsEditor({
     fd.set('floorNumber', values.floorNumber);
     fd.set('floorLabel', values.floorLabel);
     fd.set('roomTypeName', values.roomTypeName);
-    fd.set('sharingCount', values.sharingCount);
     if (values.hasAc) fd.set('hasAc', 'on');
     fd.set('notes', values.notes);
     const result = await updateRoomDetailsAction(pgId, fd);
@@ -108,10 +110,14 @@ export function RoomDetailsEditor({
           <span className="ml-2 text-sm font-normal text-zinc-500">{floorLabel}</span>
         </h4>
         <p className="mt-0.5 text-xs text-zinc-400">
-          {roomTypeName}
+          {displayTypeName}
           {hasAc ? ' · AC' : ''}
           {' · '}
-          {sharingCount} sharing max
+          {activeBedCount} sharing max
+        </p>
+        <p className="mt-0.5 text-[11px] text-zinc-500">
+          Capacity follows active beds ({sharingLabel} · {activeBedCount} bed
+          {activeBedCount === 1 ? '' : 's'})
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-3">
@@ -156,26 +162,15 @@ export function RoomDetailsEditor({
               Shown to tenants when browsing beds — rename anytime (e.g. Tuition room).
             </span>
           </label>
-          <label className="text-sm">
-            <span className="text-zinc-400">Max sharing *</span>
-            <select
-              required
-              value={values.sharingCount}
-              onChange={(e) =>
-                setValues((v) => ({
-                  ...v,
-                  sharingCount: e.target.value as `${RoomSharingCount}`,
-                }))
-              }
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-white"
-            >
-              {ROOM_SHARING_OPTIONS.map((opt) => (
-                <option key={opt.count} value={opt.count}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="text-sm">
+            <span className="text-zinc-400">Sharing capacity</span>
+            <p className="mt-1 rounded-lg border border-zinc-800 bg-zinc-950 px-2 py-1.5 text-white">
+              {sharingLabel} ({activeBedCount} active bed{activeBedCount === 1 ? '' : 's'})
+            </p>
+            <span className="mt-1 block text-xs text-zinc-500">
+              Derived from beds — add or remove beds to change sharing.
+            </span>
+          </div>
           <label className="flex items-center gap-2 text-sm text-zinc-300 sm:col-span-3">
             <input
               type="checkbox"

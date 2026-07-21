@@ -36,12 +36,15 @@ export async function resolveRoomOccupancyContext(
     room_capacity: number;
   }>(sql`
     WITH ctx AS (
-      SELECT bd.room_id, r.room_number, coalesce(rt.default_capacity, 1)::int AS room_capacity
+      SELECT bd.room_id, r.room_number,
+        (
+          SELECT count(*)::int FROM beds b_count
+          WHERE b_count.room_id = bd.room_id AND b_count.archived_at IS NULL
+        ) AS room_capacity
       FROM bookings b
       INNER JOIN bed_reservations br ON br.booking_id = b.id AND br.kind = 'primary'
       INNER JOIN beds bd ON bd.id = br.bed_id
       INNER JOIN rooms r ON r.id = bd.room_id
-      INNER JOIN room_types rt ON rt.id = r.room_type_id
       WHERE b.id = ${bookingId}::uuid
       LIMIT 1
     )

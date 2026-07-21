@@ -1,5 +1,13 @@
 import { and, asc, count, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import { autoBedCodes, sharingTypeName } from '@/src/lib/roomSharing';
+import {
+  countActiveBedsInRoom,
+  syncRoomCapacityFromActiveBeds,
+} from '@/src/lib/roomCapacitySsotDb';
+import {
+  resolveRoomTypeNameForCapacity,
+  roomCapacityFromActiveBedCount,
+} from '@/src/lib/roomCapacitySsot';
 import { formatDate, parseDate, todayString } from '@/src/lib/dates';
 import { db } from '@/src/db/client';
 import {
@@ -340,7 +348,22 @@ export async function getPgInventory(session: AdminSession, pgId: string) {
     )
     .orderBy(asc(floors.floorNumber), asc(rooms.roomNumber), asc(beds.bedCode));
 
-  return { floors: floorRows, beds: bedRows as PgInventoryBedRow[] };
+  const bedCountByRoom = new Map<string, number>();
+  for (const bed of bedRows) {
+    bedCountByRoom.set(bed.roomId, (bedCountByRoom.get(bed.roomId) ?? 0) + 1);
+  }
+
+  const normalizedBeds = bedRows.map((bed) => {
+    const activeBedCount = bedCountByRoom.get(bed.roomId) ?? 0;
+    const sharingCount = roomCapacityFromActiveBedCount(activeBedCount);
+    return {
+      ...bed,
+      sharingCount,
+      roomTypeName: resolveRoomTypeNameForCapacity(bed.roomTypeName, activeBedCount),
+    };
+  });
+
+  return { floors: floorRows, beds: normalizedBeds as PgInventoryBedRow[] };
 }
 
 export type QuickAddRoomBedsInput = {
@@ -483,17 +506,10 @@ async function quickAddBedsInternal(
     .from(beds)
     .where(and(eq(beds.roomId, room.id), isNull(beds.archivedAt)));
 
-  const maxBeds = roomType.defaultCapacity;
-  const vacant = maxBeds - existingCount;
-  if (vacant <= 0) {
-    throw new Error(
-      `Room ${input.roomNumber.trim()} already has ${existingCount} bed(s) (max ${maxBeds} for ${roomType.name}).`,
-    );
-  }
-  if (input.bedsToAdd > vacant) {
-    throw new Error(
-      `Only ${vacant} more bed(s) can be added to room ${input.roomNumber.trim()} (${maxBeds} sharing max).`,
-    );
+  if (existingCount > 0 && input.bedsToAdd > 0) {
+    // Capacity follows active beds — no separate max-sharing cap.
+  } else if (input.sharingCount < input.bedsToAdd) {
+    throw new Error('Cannot add more beds than the sharing type allows.');
   }
 
   const bedCodes = autoBedCodes(existingCount, input.bedsToAdd);
@@ -525,6 +541,8 @@ async function quickAddBedsInternal(
 
     bedIds.push(bed.id);
   }
+
+  await syncRoomCapacityFromActiveBeds(room.id);
 
   return {
     bedIds,
@@ -624,21 +642,13 @@ async function assignRoomTypeForRoom(
   currentRoomTypeId: string,
   input: { roomTypeName: string; sharingCount: number; hasAc: boolean },
 ): Promise<string> {
-  const typeName = input.roomTypeName.trim() || sharingTypeName(input.sharingCount);
+  const activeBedCount = await countActiveBedsInRoom(roomId);
+  const effectiveSharing = roomCapacityFromActiveBedCount(activeBedCount);
+  const typeName =
+    input.roomTypeName.trim() || sharingTypeName(Math.max(1, effectiveSharing));
 
-  if (input.sharingCount < 1 || input.sharingCount > 5) {
+  if (effectiveSharing > 5) {
     throw new Error('Sharing type must be between 1 and 5.');
-  }
-
-  const [{ bedCount }] = await db
-    .select({ bedCount: count() })
-    .from(beds)
-    .where(and(eq(beds.roomId, roomId), isNull(beds.archivedAt)));
-
-  if (bedCount > input.sharingCount) {
-    throw new Error(
-      `This room has ${bedCount} bed(s). Pick sharing ${bedCount} or higher, or remove beds first.`,
-    );
   }
 
   const [{ roomCount }] = await db
@@ -647,11 +657,12 @@ async function assignRoomTypeForRoom(
     .where(and(eq(rooms.roomTypeId, currentRoomTypeId), isNull(rooms.archivedAt)));
 
   if (roomCount === 1) {
+    const capacity = Math.max(1, effectiveSharing);
     await db
       .update(roomTypes)
       .set({
         name: typeName,
-        defaultCapacity: input.sharingCount,
+        defaultCapacity: capacity,
         hasAc: input.hasAc,
         updatedAt: new Date(),
       })
@@ -659,6 +670,7 @@ async function assignRoomTypeForRoom(
     return currentRoomTypeId;
   }
 
+  const capacity = Math.max(1, effectiveSharing);
   let [targetType] = await db
     .select()
     .from(roomTypes)
@@ -666,7 +678,7 @@ async function assignRoomTypeForRoom(
       and(
         eq(roomTypes.pgId, pgId),
         eq(roomTypes.name, typeName),
-        eq(roomTypes.defaultCapacity, input.sharingCount),
+        eq(roomTypes.defaultCapacity, capacity),
         eq(roomTypes.hasAc, input.hasAc),
       ),
     )
@@ -678,7 +690,7 @@ async function assignRoomTypeForRoom(
       .values({
         pgId,
         name: typeName,
-        defaultCapacity: input.sharingCount,
+        defaultCapacity: capacity,
         hasAc: input.hasAc,
       })
       .returning();
@@ -802,9 +814,12 @@ export async function updateRoomDetails(
       throw new Error('Room type not found.');
     }
 
+    const activeBedCount = await countActiveBedsInRoom(roomId);
+    const effectiveSharing = Math.max(1, roomCapacityFromActiveBedCount(activeBedCount));
+
     await assignRoomTypeForRoom(pgId, roomId, roomRow.roomTypeId, {
       roomTypeName: input.roomTypeName ?? currentType.name,
-      sharingCount: input.sharingCount ?? currentType.defaultCapacity,
+      sharingCount: effectiveSharing,
       hasAc: input.hasAc ?? currentType.hasAc,
     });
   }
@@ -855,6 +870,12 @@ export async function archiveBed(
   assertPgAccess(session, pgId);
   await assertBedInPg(pgId, bedId);
 
+  const [bedRow] = await db
+    .select({ roomId: beds.roomId })
+    .from(beds)
+    .where(eq(beds.id, bedId))
+    .limit(1);
+
   if (await hasBedActiveOrHoldReservation(bedId)) {
     throw new Error('Cannot remove this bed — it has an active booking or hold.');
   }
@@ -863,6 +884,10 @@ export async function archiveBed(
     .update(beds)
     .set({ archivedAt: new Date(), updatedAt: new Date() })
     .where(eq(beds.id, bedId));
+
+  if (bedRow?.roomId) {
+    await syncRoomCapacityFromActiveBeds(bedRow.roomId);
+  }
 }
 
 /** Soft-delete a room and all its beds. */

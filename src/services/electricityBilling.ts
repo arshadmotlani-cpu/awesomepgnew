@@ -70,6 +70,9 @@ import { sumManualElectricityCreditsForRoomMonth } from './electricitySettlement
 import { loadRoomElectricityContributionsForMonth } from './electricityRoomContributions';
 import { getElectricityInvoiceSchemaCaps } from '@/src/lib/db/electricityInvoiceSchemaCaps';
 import { fetchElectricityInvoiceById } from '@/src/lib/db/electricityInvoiceSelect';
+import { validateContinuousPreviousReading } from '@/src/lib/billing/roomMeterReadingSsot';
+import { resolveRoomPreviousMeterReading } from '@/src/services/roomMeterReadingSsot';
+import { countActiveBedsInRoom } from '@/src/lib/roomCapacitySsotDb';
 
 const INVOICE_PREFIX = 'ELE';
 
@@ -96,6 +99,11 @@ export type CreateElectricityBillInput = {
   includeFixedStayOccupants?: boolean;
   /** Correlates structured logs across action + service. */
   requestId?: string;
+  /**
+   * Repair / historical backfill only. Production month-end bills must use the
+   * continuous previous reading from the last finalized monthly bill.
+   */
+  allowPreviousReadingOverride?: boolean;
 };
 
 export type CreateElectricityBillResult =
@@ -286,6 +294,17 @@ export async function createElectricityBill(
   if (input.ratePerUnitPaise < 0) {
     return { ok: false, kind: 'invalid_input', message: 'ratePerUnitPaise must be ≥ 0' };
   }
+
+  const baseline = await resolveRoomPreviousMeterReading(input.roomId);
+  const continuity = validateContinuousPreviousReading({
+    providedPreviousUnits: input.previousReadingUnits,
+    expectedPreviousUnits: baseline.previousReadingUnits,
+    allowOverride: input.allowPreviousReadingOverride,
+  });
+  if (!continuity.ok) {
+    return { ok: false, kind: 'invalid_input', message: continuity.message };
+  }
+
   const unitsConsumed = roundToHundredth(
     input.currentReadingUnits - input.previousReadingUnits,
   );
@@ -374,6 +393,7 @@ export async function createElectricityBill(
   );
 
   const grossTotalPaise = Math.round(unitsConsumed * input.ratePerUnitPaise);
+  const activeBedCount = await countActiveBedsInRoom(input.roomId);
   const allocation = allocateMonthlyElectricityInvoices({
     grossTotalPaise,
     prepaidCreditPaise: room.prepaidCreditPaise ?? 0,
@@ -383,6 +403,7 @@ export async function createElectricityBill(
     occupants: occupantLoad.occupants,
     checkoutCollectedByCustomerId,
     useProRata: Boolean(input.useProRataByActiveDays && totalWeight > 0),
+    activeBedCount,
   });
 
   const prepaidCreditAppliedPaise = allocation.prepaidCreditAppliedPaise;
@@ -397,6 +418,7 @@ export async function createElectricityBill(
     requestId,
     monthlyOccupantCount: totalOccupantsAll,
     billableOccupantCount,
+    activeBedCount,
     bookingCount: occupantLoad.occupants.length,
     checkoutPayerCount: checkoutCollectedByCustomerId.size,
   });
@@ -501,7 +523,7 @@ export async function createElectricityBill(
           const unitsShare = useProRata
             ? roundToHundredth((unitsConsumed * bk.weight) / totalWeight)
             : roundToHundredth(
-                (unitsConsumed * bk.bedCount) / Math.max(1, billableOccupantCount),
+                (unitsConsumed * bk.bedCount) / Math.max(1, activeBedCount),
               );
           const activeDays = useProRata ? bk.weight : occupantLoad.daysInMonth;
           const representativeBed = [...bk.bedIds].sort()[0]!;

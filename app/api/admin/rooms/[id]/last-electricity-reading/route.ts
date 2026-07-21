@@ -1,11 +1,8 @@
 import { NextRequest } from 'next/server';
-import { desc, eq } from 'drizzle-orm';
-import { db } from '@/src/db/client';
-import { electricityBills, meterLogs } from '@/src/db/schema';
 import { getAdminSession } from '@/src/lib/auth/session';
 import { adminHasPermission } from '@/src/lib/auth/roles';
-import { DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE } from '@/src/lib/billing/constants';
 import { estimateRoomAverageBillPaise } from '@/src/services/meterElectricity';
+import { resolveRoomPreviousMeterReading } from '@/src/services/roomMeterReadingSsot';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -20,42 +17,21 @@ export async function GET(
   }
 
   const { id: roomId } = await ctx.params;
-
-  const [lastBill] = await db
-    .select({
-      currentReadingUnits: electricityBills.currentReadingUnits,
-      ratePerUnitPaise: electricityBills.ratePerUnitPaise,
-      billingMonth: electricityBills.billingMonth,
-    })
-    .from(electricityBills)
-    .where(eq(electricityBills.roomId, roomId))
-    .orderBy(desc(electricityBills.billingMonth))
-    .limit(1);
-
-  const [lastMeter] = await db
-    .select({ units: meterLogs.units })
-    .from(meterLogs)
-    .where(eq(meterLogs.roomId, roomId))
-    .orderBy(desc(meterLogs.createdAt))
-    .limit(1);
-
-  const previousReadingUnits =
-    lastBill?.currentReadingUnits != null
-      ? Number(lastBill.currentReadingUnits)
-      : lastMeter?.units != null
-        ? Number(lastMeter.units)
-        : 0;
-
-  const ratePaise = lastBill?.ratePerUnitPaise ?? DEFAULT_ELECTRICITY_RATE_PER_UNIT_PAISE;
-  const estimatedAverageBillPaise = await estimateRoomAverageBillPaise(roomId, ratePaise);
+  const baseline = await resolveRoomPreviousMeterReading(roomId);
+  const estimatedAverageBillPaise = await estimateRoomAverageBillPaise(
+    roomId,
+    baseline.ratePerUnitPaise,
+  );
 
   return Response.json({
     ok: true,
     data: {
-      previousReadingUnits,
-      ratePerUnitPaise: ratePaise,
+      previousReadingUnits: baseline.previousReadingUnits,
+      ratePerUnitPaise: baseline.ratePerUnitPaise,
       estimatedAverageBillPaise,
-      lastBillingMonth: lastBill?.billingMonth ?? null,
+      lastBillingMonth: baseline.lastBillingMonth,
+      previousReadingSource: baseline.source,
+      lastBillMeterImageUrl: baseline.lastBillMeterImageUrl,
     },
   });
 }

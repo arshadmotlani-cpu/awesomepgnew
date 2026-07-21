@@ -361,6 +361,7 @@ export function listRoomsForPg(
     const countsByRoom = await getRoomAvailabilitySummaries(roomIds, refDate);
     return rows.map((r) => ({
       ...r,
+      capacity: r.totalBeds,
       availableBeds: countsByRoom.get(r.roomId)?.availableBeds ?? 0,
     }));
   });
@@ -639,8 +640,10 @@ export function getRoomDetail(
       .orderBy(asc(beds.bedCode));
 
     const { publicDisplayName, displayOrder, ...roomMeta } = meta;
+    const activeBedCount = bedRows.length;
     return {
       ...roomMeta,
+      capacity: activeBedCount,
       pgName: applyPublicPgPresentation({
         name: meta.pgName,
         slug: meta.pgSlug,

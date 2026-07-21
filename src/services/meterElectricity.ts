@@ -1,5 +1,4 @@
-import { and, desc, eq, isNull, lt, sql } from 'drizzle-orm';
-import { db } from '@/src/db/client';
+import { and, desc, eq, isNull, sql } from 'drizzle-orm';import { db } from '@/src/db/client';
 import {
   beds,
   bookings,
@@ -19,6 +18,7 @@ import {
 } from './electricityBilling';
 import { fetchElectricityInvoiceById } from '@/src/lib/db/electricityInvoiceSelect';
 import { electricityInvoices } from '@/src/db/schema/electricityInvoices';
+import { resolveRoomPreviousMeterReading } from '@/src/services/roomMeterReadingSsot';
 
 export type RecordMeterLogInput = {
   pgId: string;
@@ -135,6 +135,8 @@ export async function createBillFromMeterLogs(
     isEstimated?: boolean;
     previousReadingUnits?: number;
     currentReadingUnits?: number;
+    /** Repair only — otherwise previous always comes from last finalized monthly bill. */
+    allowPreviousReadingOverride?: boolean;
   },
 ): Promise<{ ok: true; billId: string } | { ok: false; message: string }> {
   let previous = input.previousReadingUnits;
@@ -148,29 +150,19 @@ export async function createBillFromMeterLogs(
       .limit(1);
     if (!endLog) return { ok: false, message: 'End meter log not found.' };
     current = Number(endLog.units);
-
-    if (input.startMeterLogId) {
-      const [startLog] = await db
-        .select()
-        .from(meterLogs)
-        .where(eq(meterLogs.id, input.startMeterLogId))
-        .limit(1);
-      if (startLog) previous = Number(startLog.units);
-    } else {
-      const [prevLog] = await db
-        .select()
-        .from(meterLogs)
-        .where(
-          and(eq(meterLogs.roomId, input.roomId), lt(meterLogs.recordedAt, endLog.recordedAt)),
-        )
-        .orderBy(desc(meterLogs.recordedAt))
-        .limit(1);
-      previous = prevLog ? Number(prevLog.units) : 0;
-    }
   }
 
-  if (previous == null || current == null) {
-    return { ok: false, message: 'Could not resolve meter readings.' };
+  if (current == null) {
+    return { ok: false, message: 'Could not resolve current meter reading.' };
+  }
+
+  if (!input.allowPreviousReadingOverride || previous == null) {
+    const baseline = await resolveRoomPreviousMeterReading(input.roomId);
+    previous = baseline.previousReadingUnits;
+  }
+
+  if (previous == null) {
+    return { ok: false, message: 'Could not resolve previous meter reading.' };
   }
 
   const result = await createElectricityBill({
@@ -182,6 +174,7 @@ export async function createBillFromMeterLogs(
     createdByAdminId: session.adminId,
     notes: input.isEstimated ? 'Estimated bill (pending meter update)' : null,
     useProRataByActiveDays: true,
+    allowPreviousReadingOverride: input.allowPreviousReadingOverride,
   });
 
   if (!result.ok) {
@@ -337,14 +330,8 @@ export async function createEstimatedMonthlyBill(
   if (!floor) return { ok: false, message: 'Room not found.' };
   assertPgAccess(session, floor.pgId);
 
-  const [prevLog] = await db
-    .select()
-    .from(meterLogs)
-    .where(eq(meterLogs.roomId, input.roomId))
-    .orderBy(desc(meterLogs.recordedAt))
-    .limit(1);
-
-  const previous = prevLog ? Number(prevLog.units) : 0;
+  const baseline = await resolveRoomPreviousMeterReading(input.roomId);
+  const previous = baseline.previousReadingUnits;
   const current = previous + estimatedUnits;
   const recordedAt = formatDate(new Date());
 
@@ -368,7 +355,6 @@ export async function createEstimatedMonthlyBill(
     billingMonth: input.billingMonth,
     ratePerUnitPaise: input.ratePerUnitPaise,
     endMeterLogId: estLog.id,
-    startMeterLogId: prevLog?.id,
     isEstimated: true,
     previousReadingUnits: previous,
     currentReadingUnits: current,
