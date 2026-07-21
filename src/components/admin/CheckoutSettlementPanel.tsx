@@ -10,8 +10,10 @@ import {
   type CheckoutSettlementActionState,
 } from '@/app/(admin)/admin/checkout-settlements/actions';
 import { CheckoutSettlementElectricitySection } from '@/src/components/admin/CheckoutSettlementElectricitySection';
+import { NoticeDeductionBreakdown } from '@/src/components/shared/NoticeDeductionBreakdown';
 import { assessCheckoutSettlementReadiness } from '@/src/lib/checkout/checkoutSettlementReadiness';
 import { paiseToInr } from '@/src/lib/format';
+import { breakdownFromStoredNoticeSnapshot } from '@/src/lib/vacating/noticeDeductionPresentation';
 import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
 import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement';
 
@@ -71,6 +73,14 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
     !locked &&
     (detail.status === 'awaiting_admin_review' || detail.status === 'awaiting_resident_details');
 
+  const noticeBreakdown = breakdownFromStoredNoticeSnapshot({
+    noticeGivenDays: detail.noticeGivenDays,
+    noticeShortfallDays: detail.noticeShortfallDays,
+    noticeRentCoveredDays: detail.noticeRentCoveredDays,
+    noticeChargeableDays: detail.noticeChargeableDays,
+    noticeDeductionPaise: detail.noticeDeductionPaise,
+  });
+
   return (
     <div className="space-y-4">
       <Section title="Resident details" defaultOpen={false}>
@@ -115,11 +125,11 @@ export function CheckoutSettlementPanel({ detail }: { detail: CheckoutSettlement
       </Section>
 
       <Section title="Notice fee" defaultOpen={canApprove && !locked}>
-        <p className="text-xs text-apg-silver">
-          Short notice (&lt; {detail.noticeRequiredDays} days):{' '}
-          {detail.noticeShortfallDays} missing day
-          {detail.noticeShortfallDays === 1 ? '' : 's'} × daily rent
-        </p>
+        {noticeBreakdown ? (
+          <NoticeDeductionBreakdown breakdown={noticeBreakdown} variant="admin" compact />
+        ) : (
+          <p className="text-xs text-apg-silver">Compliant notice — no notice fee.</p>
+        )}
         {!locked && canApprove ? (
           <form action={saveAction} className="mt-3 flex flex-wrap items-end gap-3">
             <input type="hidden" name="settlementId" value={detail.id} />

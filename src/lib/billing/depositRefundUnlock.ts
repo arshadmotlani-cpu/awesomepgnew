@@ -10,6 +10,7 @@ import {
   isBookingLifecycleCheckedOut,
   isImmediateRefundCheckoutSource,
 } from '@/src/lib/checkout/checkoutSource';
+import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import { computeNoticeDeduction } from '@/src/services/billing';
 
 export type DepositRefundUnlockState =
@@ -154,16 +155,8 @@ export function computeDepositRefundUnlockState(args: {
 
   let estimatedNoticeDeductionPaise = 0;
   const noticeGivenDate = dateOnly(args.vacating?.noticeGivenDate);
-  if (monthly && checkoutDate && noticeGivenDate && monthlyRent > 0 && args.vacating) {
-    try {
-      estimatedNoticeDeductionPaise = estimateNoticeDeductionPaise({
-        monthlyRentPaise: monthlyRent,
-        noticeGivenDate,
-        vacatingDate: checkoutDate,
-      });
-    } catch {
-      estimatedNoticeDeductionPaise = 0;
-    }
+  if (monthly && checkoutDate && noticeGivenDate && args.vacating) {
+    estimatedNoticeDeductionPaise = guardDepositPaise(args.vacating.deductionPaise);
   }
 
   const checkedOut = isBookingLifecycleCheckedOut({

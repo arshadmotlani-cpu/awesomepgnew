@@ -69,6 +69,11 @@ export function CheckoutRefundSummaryRail({
           label="Notice fee"
           value={`−${paiseToInr(preview.noticeDeductionPaise)}`}
           muted
+          hint={
+            detail.noticeChargeableDays != null && detail.noticeChargeableDays > 0
+              ? `${detail.noticeChargeableDays} chargeable · ${detail.noticeRentCoveredDays ?? 0} covered by rent`
+              : undefined
+          }
         />
         <SummaryRow
           label="Electricity"
@@ -153,7 +158,7 @@ function SummaryRow({
         <dt className="text-apg-silver">{label}</dt>
         <dd className={muted ? 'font-medium text-white/80' : 'font-medium text-white'}>{value}</dd>
       </div>
-      {hint ? <p className="mt-0.5 text-[10px] text-zinc-500">{hint}</p> : null}
+      {hint ? <p className="mt-0.5 text-[10px] text-apg-silver">{hint}</p> : null}
     </div>
   );
 }

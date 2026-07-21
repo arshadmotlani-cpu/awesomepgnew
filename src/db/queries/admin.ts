@@ -21,6 +21,7 @@ import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import { normalizeIsoDateOnly, todayString } from '@/src/lib/dates';
 import { asPlainNumber } from '@/src/lib/format';
 import { sanitizeAdminQueryError } from '@/src/lib/admin/productionDbError';
+import type { DepositCollectionStatus } from '@/src/db/schema/enums';
 import { isProductionElectricityBillFilter } from '@/src/lib/billing/electricityProductionFilter';
 import { operationsElectricityInvoiceFilter } from '@/src/lib/billing/electricityOperationsFilter';
 import {
@@ -1832,6 +1833,8 @@ export type AdminVacatingRow = {
   deductionPaise: number;
   depositRefundPaise: number;
   monthlyRentPaiseSnapshot: number;
+  noticeRentCoveredDays: number;
+  noticeChargeableDays: number;
   durationMode: string;
   stayType: string;
   status: 'pending' | 'approved' | 'completed' | 'rejected';
@@ -1862,6 +1865,8 @@ export function listAdminVacatingRequests(filter?: {
       deduction_paise: number;
       deposit_refund_paise: number;
       monthly_rent_paise_snapshot: number;
+      notice_rent_covered_days: number;
+      notice_chargeable_days: number;
       duration_mode: string;
       stay_type: string;
       status: AdminVacatingRow['status'];
@@ -1886,6 +1891,8 @@ export function listAdminVacatingRequests(filter?: {
         vr.deduction_paise::bigint::int AS deduction_paise,
         vr.deposit_refund_paise::bigint::int AS deposit_refund_paise,
         vr.monthly_rent_paise_snapshot::bigint::int AS monthly_rent_paise_snapshot,
+        vr.notice_rent_covered_days,
+        vr.notice_chargeable_days,
         b.duration_mode,
         b.stay_type,
         vr.status,
@@ -1936,6 +1943,8 @@ export function listAdminVacatingRequests(filter?: {
             deductionPaise: guardDepositPaise(r.deduction_paise),
             depositRefundPaise: guardDepositPaise(r.deposit_refund_paise),
             monthlyRentPaiseSnapshot: guardDepositPaise(r.monthly_rent_paise_snapshot),
+            noticeRentCoveredDays: r.notice_rent_covered_days ?? 0,
+            noticeChargeableDays: r.notice_chargeable_days ?? 0,
             durationMode: r.duration_mode,
             stayType: r.stay_type,
             status: r.status,
@@ -1964,7 +1973,7 @@ export type DepositLedgerSummaryRow = {
   bedCode: string;
   depositPaise: number;
   depositDuePaise: number;
-  depositCollectionStatus: 'pending' | 'full' | 'partial' | 'overdue' | 'waived';
+  depositCollectionStatus: DepositCollectionStatus;
   collectedPaise: number;
   deductedPaise: number;
   refundedPaise: number;

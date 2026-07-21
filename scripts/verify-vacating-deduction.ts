@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
 /**
- * Verify vacating notice deduction — missing notice days × daily rent.
+ * Verify vacating notice deduction — chargeable missing-notice days × daily rent (rent-aware).
  *
  *   Scenario A — short notice (5 calendar days): deduction = 9 × dailyRate
  *   Scenario B — compliant notice (20 days): deduction = 0
@@ -24,7 +24,7 @@ import {
 } from '../src/services/vacating';
 import { getDepositSummaryForBooking } from '../src/services/deposits';
 import { isBedAvailable } from '../src/services/availability';
-import { computeNoticeDeduction } from '../src/services/billing';
+import { computeNoticeDeductionForBooking } from '../src/services/noticeDeduction';
 
 function ok(label: string) { console.log(`  \u2713 ${label}`); }
 function fail(label: string, extra?: unknown): never {
@@ -80,7 +80,7 @@ async function freshMonthlyBooking(label: string, phone: string): Promise<{ book
 }
 
 async function main() {
-  console.log('Verification — vacating notice deduction (missing days × daily rent)');
+  console.log('Verification — vacating notice deduction (chargeable days × daily rent)');
   const today = new Date();
   const fmt = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -96,15 +96,23 @@ async function main() {
     vacatingDate,
   });
   if (!submit.ok) fail('submit short-notice failed', submit);
-  const expectedPenalty = computeNoticeDeduction(a.monthlyRentPaise, {
+  const expectedBreakdown = await computeNoticeDeductionForBooking({
+    bookingId: a.bookingId,
     noticeGivenDate: noticeGiven,
     vacatingDate,
+    monthlyRentPaise: a.monthlyRentPaise,
   });
+  const expectedPenalty = expectedBreakdown.noticeDeductionPaise;
   if (submit.deductionPaise !== expectedPenalty) {
     fail(`expected penalty=${expectedPenalty}, got ${submit.deductionPaise}`, submit);
   }
   if (submit.noticeCompliant) fail('expected noticeCompliant=false');
-  ok(`submitted: noticeCompliant=false, deduction=₹${expectedPenalty / 100}`);
+  ok(
+    `submitted: noticeCompliant=false, deduction=₹${expectedPenalty / 100}` +
+      (expectedBreakdown.rentCoveredDays > 0
+        ? ` (${expectedBreakdown.rentCoveredDays} days covered by paid rent)`
+        : ''),
+  );
 
   const dup = await submitVacatingRequest({
     bookingId: a.bookingId,

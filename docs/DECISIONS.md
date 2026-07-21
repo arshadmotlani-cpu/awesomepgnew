@@ -48,10 +48,10 @@ Cross-links: [[ARCHITECTURE]] · [[WORKFLOWS]] · [[AI_CONTEXT]] · [[BUGS]]
 | | |
 |---|---|
 | **Date** | Phase 5.5; **updated 2026-07-21** |
-| **Decision** | ≥14 calendar days notice → no deposit deduction. &lt;14 days → deduct **missingNoticeDays × dailyRent**, where `missingNoticeDays = max(0, 14 − noticeGivenDays)` and `dailyRent = floor(monthlyRent/30)` |
-| **Reason** | Business policy — fair pro-rata charge for short notice |
-| **Impact** | Snapshotted on `vacating_requests` at submit; active rows migrated via `scripts/migrate-notice-deduction-policy.ts` |
-| **See** | [[WORKFLOWS#Vacating]], `billing.computeNoticeDeduction()` |
+| **Decision** | ≥14 calendar days notice → no deposit deduction. &lt;14 days → deduct **chargeableNoticeDays × dailyRent**, where `chargeableNoticeDays = max(0, missingNoticeDays − rentCoveredDays)`, `missingNoticeDays = max(0, 14 − noticeGivenDays)`, and `dailyRent = floor(monthlyRent/30)`. Days in the charge window already covered by paid rent invoices are excluded. |
+| **Reason** | Business policy — fair pro-rata charge for short notice without double-charging rent already paid |
+| **Impact** | Snapshotted on `vacating_requests` at submit (`notice_rent_covered_days`, `notice_chargeable_days`, optional `notice_breakdown_json`); active rows migrated via `scripts/migrate-notice-deduction-policy.ts` |
+| **See** | [[WORKFLOWS#Vacating]], `noticeDeductionEngine.ts`, `noticeDeduction.ts` |
 
 ---
 

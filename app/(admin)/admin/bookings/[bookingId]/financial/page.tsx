@@ -15,7 +15,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export default async function BookingFinancialWorkspacePage(
   props: PageProps<'/admin/bookings/[bookingId]/financial'>,
 ) {
-  const session = await requireAdminPermission('deposits:read');
+  const session = await requireAdminPermission('payments:write');
   const { bookingId } = await props.params;
   const sp = await props.searchParams;
   const readParam = typeof sp.read === 'string' ? sp.read : undefined;

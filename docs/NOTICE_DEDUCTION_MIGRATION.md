@@ -8,7 +8,9 @@
 | `noticeGivenDays` | `diff(notice_given_date, vacating_date)` |
 | `missingNoticeDays` | `max(0, 14 - noticeGivenDays)` |
 | `dailyRent` | `floor(monthlyRent / 30)` |
-| Deduction | `missingNoticeDays × dailyRent` (0 when compliant) |
+| Deduction | `chargeableNoticeDays × dailyRent` where `chargeableNoticeDays = missingNoticeDays − rentCoveredDays` (0 when compliant or fully covered) |
+
+**Rent coverage (2026-07-21):** Days in the missing-notice charge window that fall inside a **paid rent invoice period** (or booking checkout rent for move-in month) are excluded from deposit deduction. Charge window = last N calendar days before vacating date, half-open `[vacatingDate − N, vacatingDate)`.
 
 **Grandfathering:** Completed checkouts, completed refunds, and historical deposit-ledger entries are **not** modified.
 

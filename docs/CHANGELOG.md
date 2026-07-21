@@ -256,9 +256,9 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-21 15:00:07 UTC
+### Pending pre-commit sync · 2026-07-21 15:24:03 UTC
 
-**Areas touched:** [[ROUTES]], [[DATABASE]], [[Vacating]], [[Bookings]], [[Billing]]
+**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Vacating]], [[Bookings]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
@@ -270,18 +270,22 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (12):**
+**Staged code files (16):**
 - `app/(admin)/admin/bookings/[bookingId]/financial/page.tsx`
-- `app/(admin)/admin/bookings/[bookingId]/page.tsx`
-- `app/(admin)/admin/deposits/audit/page.tsx`
-- `src/db/migrations/0119_deposit_closed_uncollected.sql`
+- `src/db/migrations/0120_notice_rent_coverage.sql`
 - `src/db/migrations/meta/_journal.json`
 - `src/db/schema/checkoutSettlements.ts`
-- `src/db/schema/enums.ts`
+- `src/db/schema/vacatingRequests.ts`
+- `src/lib/billing/depositRefundUnlock.ts`
 - `src/lib/moveOut/moveOutPipeline.ts`
+- `src/lib/vacating/approvalPreview.ts`
+- `src/lib/vacating/depositRefundEligibility.ts`
+- `src/lib/vacating/noticeDeductionEngine.ts`
+- `src/lib/vacating/noticeDeductionPresentation.ts`
+- `src/lib/vacating/previewNoticeDeductionAction.ts`
+- `src/services/billing.ts`
 - `src/services/bookingFinancialWorkspace.ts`
 - `src/services/checkoutSettlement.ts`
-- `src/services/residentFinancialEngine.ts`
 - `src/services/vacating.ts`
 
 **Changed:**

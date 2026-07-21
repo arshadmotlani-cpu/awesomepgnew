@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { ApgCard } from '@/src/components/customer/design-system';
 import { StatusTimeline } from '@/src/components/customer/design-system';
+import { NoticeDeductionBreakdown } from '@/src/components/shared/NoticeDeductionBreakdown';
 import { CancelVacatingForm } from '@/src/components/customer/CancelVacatingForm';
 import {
   buildVacatingSettlementLines,
@@ -20,18 +21,21 @@ import { isFixedStayDurationMode } from '@/src/lib/checkout/checkoutWorkflow';
 import { residentProfileHref } from '@/src/lib/accountNavigation';
 import type { VacatingForBookingRow } from '@/src/db/queries/customer';
 import { formatDate, paiseToInr } from '@/src/lib/format';
+import { tryDiffDays } from '@/src/lib/dates';
+import { breakdownFromStoredNoticeSnapshot } from '@/src/lib/vacating/noticeDeductionPresentation';
+import { noticeShortfallDays } from '@/src/services/billing';
 
 const PRIMARY_BTN =
   'flex w-full min-h-[52px] items-center justify-center rounded-xl bg-[#FF5A1F] px-6 py-3.5 text-base font-semibold text-white hover:brightness-110';
 
 const SECONDARY_BTN =
-  'flex w-full min-h-[52px] items-center justify-center rounded-xl border border-zinc-300 bg-white px-6 py-3.5 text-base font-semibold text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50';
+  'flex w-full min-h-[52px] items-center justify-center rounded-xl border border-zinc-300 bg-zinc-50 px-6 py-3.5 text-base font-semibold text-zinc-800 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50';
 
 const STATUS_TONE: Record<string, string> = {
-  pending: 'bg-amber-50 text-amber-700 ring-amber-200',
-  approved: 'bg-indigo-50 text-indigo-700 ring-indigo-200',
-  completed: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  rejected: 'bg-rose-50 text-rose-700 ring-rose-200',
+  pending: 'bg-amber-100 text-amber-800 ring-amber-200',
+  approved: 'bg-orange-50 text-[#FF5A1F] ring-orange-200',
+  completed: 'bg-emerald-50 text-emerald-800 ring-emerald-200',
+  rejected: 'bg-rose-50 text-rose-800 ring-rose-200',
   none: 'bg-zinc-100 text-zinc-700 ring-zinc-200',
 };
 
@@ -70,7 +74,7 @@ export function VacatingHome({
     return (
       <div className="space-y-4 pb-2">
         <ApgCard tier="account" className="overflow-hidden p-0">
-          <div className="border-b border-emerald-200/60 bg-gradient-to-br from-emerald-50/80 via-white to-white px-5 py-6">
+          <div className="border-b border-emerald-200/60 bg-gradient-to-br from-emerald-50/90 via-zinc-50 to-zinc-50 px-5 py-6">
             <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
               Fixed-stay checkout
             </p>
@@ -141,13 +145,32 @@ export function VacatingHome({
     label: s.label,
   }));
 
+  const noticeBreakdown =
+    vacating != null
+      ? breakdownFromStoredNoticeSnapshot({
+          noticeGivenDate: vacating.noticeGivenDate,
+          vacatingDate: vacating.vacatingDate,
+          noticeGivenDays: Math.max(
+            0,
+            tryDiffDays(vacating.noticeGivenDate, vacating.vacatingDate) ?? 0,
+          ),
+          noticeShortfallDays: noticeShortfallDays({
+            noticeGivenDate: vacating.noticeGivenDate,
+            vacatingDate: vacating.vacatingDate,
+          }),
+          noticeRentCoveredDays: vacating.noticeRentCoveredDays,
+          noticeChargeableDays: vacating.noticeChargeableDays,
+          deductionPaise: vacating.deductionPaise,
+        })
+      : null;
+
   return (
     <div className="space-y-4 pb-2">
       <ApgCard tier="account" className="overflow-hidden p-0">
-        <div className="border-b border-indigo-200/60 bg-gradient-to-br from-indigo-50/80 via-white to-white px-5 py-6">
+        <div className="border-b border-zinc-200 bg-gradient-to-br from-zinc-50 via-white to-white px-5 py-6">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#FF5A1F]">
                 Current stage · {stageLabel}
               </p>
               <h2 className="mt-2 text-xl font-bold text-zinc-900">{nextStep.headline}</h2>
@@ -235,10 +258,16 @@ export function VacatingHome({
                 <dd className="font-medium text-zinc-900">{formatDate(vacating.vacatingDate)}</dd>
               </div>
               {vacating.deductionPaise > 0 && vacating.status !== 'completed' ? (
-                <div className="sm:col-span-2">
-                  <dt className="text-zinc-600">Expected notice deduction</dt>
-                  <dd className="font-medium text-rose-700">{paiseToInr(vacating.deductionPaise)}</dd>
-                </div>
+                noticeBreakdown ? (
+                  <div className="sm:col-span-2">
+                    <NoticeDeductionBreakdown breakdown={noticeBreakdown} variant="resident" compact />
+                  </div>
+                ) : (
+                  <div>
+                    <dt className="text-zinc-600">Notice deduction</dt>
+                    <dd className="font-medium text-rose-700">{paiseToInr(vacating.deductionPaise)}</dd>
+                  </div>
+                )
               ) : null}
               {vacating.status === 'completed' && vacating.deductionPaise > 0 ? (
                 <div>

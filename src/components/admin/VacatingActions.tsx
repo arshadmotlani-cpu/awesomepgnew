@@ -72,7 +72,7 @@ function MicroForm({
         {pending ? pendingLabel ?? '…' : label}
       </AdminConfirmSubmit>
       {state.status === 'error' ? (
-        <p className="mt-1 max-w-[14rem] text-[10px] leading-snug text-rose-600">{state.message}</p>
+        <p className="mt-1 max-w-[14rem] text-[10px] leading-snug text-rose-300">{state.message}</p>
       ) : null}
     </form>
   );

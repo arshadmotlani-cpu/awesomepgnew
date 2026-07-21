@@ -8,7 +8,9 @@ import {
   RejectVacatingButton,
   UndoVacatingApprovalButton,
 } from '@/src/components/admin/VacatingActions';
+import { NoticeDeductionBreakdown } from '@/src/components/shared/NoticeDeductionBreakdown';
 import { formatDate, formatDateTime, paiseToInr } from '@/src/lib/format';
+import { breakdownFromStoredNoticeSnapshot } from '@/src/lib/vacating/noticeDeductionPresentation';
 import { tryDiffDays, normalizeIsoDateOnly } from '@/src/lib/dates';
 import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
 import type { VacatingApprovalPreview } from '@/src/lib/vacating/approvalPreview';
@@ -283,6 +285,28 @@ function MoveOutCard({
             <StageTimeline row={row} />
           </div>
 
+          {row.deductionPaise > 0 ? (
+            <div className="mb-4">
+              {(() => {
+                const breakdown = breakdownFromStoredNoticeSnapshot({
+                  noticeGivenDate: row.noticeGivenDate,
+                  vacatingDate: row.vacatingDate,
+                  noticeGivenDays: noticeCompletedDaysForRow(row),
+                  noticeShortfallDays: Math.max(
+                    0,
+                    VACATING_NOTICE_MIN_DAYS - noticeCompletedDaysForRow(row),
+                  ),
+                  noticeRentCoveredDays: row.noticeRentCoveredDays,
+                  noticeChargeableDays: row.noticeChargeableDays,
+                  deductionPaise: row.deductionPaise,
+                });
+                return breakdown ? (
+                  <NoticeDeductionBreakdown breakdown={breakdown} variant="admin" compact />
+                ) : null;
+              })()}
+            </div>
+          ) : null}
+
           <DirectLinks row={row} />
           <DangerActions row={row} />
         </div>
@@ -483,10 +507,25 @@ function StageTimeline({ row }: { row: MoveOutPipelineItemClient }) {
   );
 }
 
+function noticeCompletedDaysForRow(row: MoveOutPipelineItemClient): number {
+  const noticeGivenDate = normalizeIsoDateOnly(row.noticeGivenDate);
+  const moveOutDate = normalizeIsoDateOnly(row.vacatingDate);
+  return Math.max(0, tryDiffDays(noticeGivenDate, moveOutDate) ?? 0);
+}
+
 function pipelineApprovalPreview(row: MoveOutPipelineItemClient): VacatingApprovalPreview {
   const noticeGivenDate = normalizeIsoDateOnly(row.noticeGivenDate);
   const moveOutDate = normalizeIsoDateOnly(row.vacatingDate);
-  const noticeCompletedDays = Math.max(0, tryDiffDays(noticeGivenDate, moveOutDate) ?? 0);
+  const noticeCompletedDays = noticeCompletedDaysForRow(row);
+  const noticeBreakdown = breakdownFromStoredNoticeSnapshot({
+    noticeGivenDate,
+    vacatingDate: moveOutDate,
+    noticeGivenDays: noticeCompletedDays,
+    noticeShortfallDays: Math.max(0, VACATING_NOTICE_MIN_DAYS - noticeCompletedDays),
+    noticeRentCoveredDays: row.noticeRentCoveredDays,
+    noticeChargeableDays: row.noticeChargeableDays,
+    deductionPaise: row.deductionPaise,
+  });
   return {
     residentName: row.customerFullName,
     pgName: row.pgName,
@@ -500,5 +539,6 @@ function pipelineApprovalPreview(row: MoveOutPipelineItemClient): VacatingApprov
     estimatedDeductionPaise: row.deductionPaise,
     estimatedRefundPaise: row.estimatedRefundPaise,
     bedStatus: row.bedStatus,
+    noticeBreakdown,
   };
 }

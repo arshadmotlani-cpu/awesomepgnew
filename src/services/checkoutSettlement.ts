@@ -29,11 +29,13 @@ import {
   validateDepositRefundSubmission,
 } from '@/src/lib/billing/depositRefundRequirements';
 import {
-  computeNoticeDeduction,
   firstOfMonth,
   noticeShortfallDays,
   VACATING_NOTICE_MIN_DAYS,
 } from '@/src/services/billing';
+import { computeNoticeDeductionForBooking } from '@/src/services/noticeDeduction';
+import { noticeDeductionLedgerReason } from '@/src/lib/vacating/noticeDeductionEngine';
+import type { NoticeDeductionBreakdown } from '@/src/lib/vacating/noticeDeductionEngine';
 import { isFixedStayDurationMode } from '@/src/lib/checkout/checkoutWorkflow';
 import { noticeDeductionAppliesToBooking } from '@/src/lib/checkout/noticeDeductionPolicy';
 import { hasCheckoutElectricityEvidence } from '@/src/lib/checkout/checkoutElectricityEvidence';
@@ -151,6 +153,8 @@ export { hasCheckoutElectricityEvidence } from '@/src/lib/checkout/checkoutElect
 export type CheckoutSettlementDeductionInput = {
   noticeDeductionPaise: number;
   noticeShortfallDays: number;
+  noticeChargeableDays?: number;
+  noticeRentCoveredDays?: number;
   electricitySharePaise: number;
   electricityDeductFromDeposit: boolean;
   damageChargePaise: number;
@@ -165,11 +169,15 @@ export function buildCheckoutSettlementDeductionPlan(
 ): Array<{ amountPaise: number; reason: string }> {
   const deductions: Array<{ amountPaise: number; reason: string }> = [];
   if (row.noticeDeductionPaise > 0) {
+    const chargeable = row.noticeChargeableDays ?? row.noticeShortfallDays;
+    const covered = row.noticeRentCoveredDays ?? 0;
+    const coveredSuffix =
+      covered > 0 ? ` (${covered} day${covered === 1 ? '' : 's'} covered by paid rent)` : '';
     deductions.push({
       amountPaise: row.noticeDeductionPaise,
       reason:
-        row.noticeShortfallDays > 0
-          ? `Notice period fee (${row.noticeShortfallDays} day${row.noticeShortfallDays === 1 ? '' : 's'} rent)`
+        chargeable > 0
+          ? `Notice period fee (${chargeable} chargeable day${chargeable === 1 ? '' : 's'} rent${coveredSuffix})`
           : 'Notice period fee',
     });
   }
@@ -200,36 +208,53 @@ export function checkoutSettlementRequiresLedgerDeductions(
   return buildCheckoutSettlementDeductionPlan(row).length > 0;
 }
 
-function policyNoticeFields(args: {
+async function resolvePolicyNoticeFields(args: {
+  bookingId: string;
   monthlyRentPaiseSnapshot: number;
   noticeGivenDate: string;
   vacatingDate: string;
   stayType?: string | null;
   durationMode?: string | null;
-}): {
+}): Promise<{
   noticeGivenDays: number;
   noticeShortfallDays: number;
   noticeDeductionPaise: number;
-} {
+  noticeRentCoveredDays: number;
+  noticeChargeableDays: number;
+  noticeBreakdownJson: Record<string, unknown> | null;
+}> {
   const noticeGivenDays = diffDays(args.noticeGivenDate, args.vacatingDate);
-  const shortfall = noticeShortfallDays({
-    noticeGivenDate: args.noticeGivenDate,
-    vacatingDate: args.vacatingDate,
-  });
   const applies = noticeDeductionAppliesToBooking({
     stayType: args.stayType,
     durationMode: args.durationMode,
   });
-  const noticeDeductionPaise = applies
-    ? computeNoticeDeduction(args.monthlyRentPaiseSnapshot, {
-        noticeGivenDate: args.noticeGivenDate,
-        vacatingDate: args.vacatingDate,
-      })
-    : 0;
+  if (!applies) {
+    return {
+      noticeGivenDays,
+      noticeShortfallDays: 0,
+      noticeDeductionPaise: 0,
+      noticeRentCoveredDays: 0,
+      noticeChargeableDays: 0,
+      noticeBreakdownJson: null,
+    };
+  }
+
+  const breakdown = await computeNoticeDeductionForBooking({
+    bookingId: args.bookingId,
+    noticeGivenDate: args.noticeGivenDate,
+    vacatingDate: args.vacatingDate,
+    monthlyRentPaise: args.monthlyRentPaiseSnapshot,
+    stayType: args.stayType,
+    durationMode: args.durationMode,
+  });
+
   return {
     noticeGivenDays,
-    noticeShortfallDays: applies ? shortfall : 0,
-    noticeDeductionPaise,
+    noticeShortfallDays: breakdown.missingNoticeDays,
+    noticeDeductionPaise: breakdown.noticeDeductionPaise,
+    noticeRentCoveredDays: breakdown.rentCoveredDays,
+    noticeChargeableDays: breakdown.chargeableNoticeDays,
+    noticeBreakdownJson: breakdown as unknown as Record<string, unknown>,
   };
 }
 
@@ -245,7 +270,8 @@ async function reconcileCheckoutSettlementNoticePolicy(
     return settlement;
   }
 
-  const policy = policyNoticeFields({
+  const policy = await resolvePolicyNoticeFields({
+    bookingId: settlement.bookingId,
     monthlyRentPaiseSnapshot: settlement.monthlyRentPaiseSnapshot,
     noticeGivenDate,
     vacatingDate,
@@ -253,7 +279,10 @@ async function reconcileCheckoutSettlementNoticePolicy(
     durationMode: booking?.durationMode,
   });
 
-  if (settlement.noticeDeductionPaise === policy.noticeDeductionPaise) {
+  if (
+    settlement.noticeDeductionPaise === policy.noticeDeductionPaise &&
+    (settlement.noticeChargeableDays ?? 0) === policy.noticeChargeableDays
+  ) {
     return settlement;
   }
 
@@ -263,6 +292,9 @@ async function reconcileCheckoutSettlementNoticePolicy(
       noticeGivenDays: policy.noticeGivenDays,
       noticeShortfallDays: policy.noticeShortfallDays,
       noticeDeductionPaise: policy.noticeDeductionPaise,
+      noticeRentCoveredDays: policy.noticeRentCoveredDays,
+      noticeChargeableDays: policy.noticeChargeableDays,
+      noticeBreakdownJson: policy.noticeBreakdownJson,
       updatedAt: new Date(),
     })
     .where(eq(checkoutSettlements.id, settlement.id));
@@ -272,6 +304,9 @@ async function reconcileCheckoutSettlementNoticePolicy(
     noticeGivenDays: policy.noticeGivenDays,
     noticeShortfallDays: policy.noticeShortfallDays,
     noticeDeductionPaise: policy.noticeDeductionPaise,
+    noticeRentCoveredDays: policy.noticeRentCoveredDays,
+    noticeChargeableDays: policy.noticeChargeableDays,
+    noticeBreakdownJson: policy.noticeBreakdownJson,
   };
 }
 
@@ -337,6 +372,10 @@ type SettlementJoinRow = {
   notice_given_days: number;
   notice_shortfall_days: number;
   notice_deduction_paise: number;
+  notice_rent_covered_days: number;
+  notice_chargeable_days: number;
+  notice_breakdown_json: NoticeDeductionBreakdown | null;
+  deposit_received_paise: number;
   monthly_rent_paise_snapshot: number;
   deposit_required_paise: number;
   electricity_meter_photo_url: string | null;
@@ -400,8 +439,12 @@ function mapDbSettlement(row: SettlementJoinRow): CheckoutSettlement {
     noticeGivenDays: asPlainNumber(row.notice_given_days),
     noticeShortfallDays: asPlainNumber(row.notice_shortfall_days),
     noticeDeductionPaise: paiseField(row.notice_deduction_paise),
+    noticeRentCoveredDays: asPlainNumber(row.notice_rent_covered_days ?? 0),
+    noticeChargeableDays: asPlainNumber(row.notice_chargeable_days ?? 0),
+    noticeBreakdownJson: row.notice_breakdown_json,
     monthlyRentPaiseSnapshot: paiseField(row.monthly_rent_paise_snapshot),
     depositRequiredPaise: paiseField(row.deposit_required_paise),
+    depositReceivedPaise: paiseField(row.deposit_received_paise ?? 0),
     electricityMeterPhotoUrl: row.electricity_meter_photo_url,
     electricityUseAverage: row.electricity_use_average,
     electricityPreviousReading: row.electricity_previous_reading,
@@ -562,7 +605,8 @@ export async function createCheckoutSettlementFromVacating(input: {
     .where(eq(bookings.id, vr.bookingId))
     .limit(1);
 
-  const policy = policyNoticeFields({
+  const policy = await resolvePolicyNoticeFields({
+    bookingId: vr.bookingId,
     monthlyRentPaiseSnapshot: vr.monthlyRentPaiseSnapshot,
     noticeGivenDate: vr.noticeGivenDate,
     vacatingDate: vr.vacatingDate,
@@ -585,6 +629,9 @@ export async function createCheckoutSettlementFromVacating(input: {
       noticeGivenDays: policy.noticeGivenDays,
       noticeShortfallDays: policy.noticeShortfallDays,
       noticeDeductionPaise: policy.noticeDeductionPaise,
+      noticeRentCoveredDays: policy.noticeRentCoveredDays,
+      noticeChargeableDays: policy.noticeChargeableDays,
+      noticeBreakdownJson: policy.noticeBreakdownJson,
       monthlyRentPaiseSnapshot: vr.monthlyRentPaiseSnapshot,
       depositRequiredPaise: booking?.depositPaise ?? 0,
       depositReceivedPaise,
@@ -1776,6 +1823,8 @@ export async function approveCheckoutSettlement(input: {
   const deductions = buildCheckoutSettlementDeductionPlan({
     noticeDeductionPaise: current.noticeDeductionPaise,
     noticeShortfallDays: current.noticeShortfallDays,
+    noticeChargeableDays: current.noticeChargeableDays,
+    noticeRentCoveredDays: current.noticeRentCoveredDays,
     electricitySharePaise: resolveCheckoutElectricitySharePaise(current),
     electricityDeductFromDeposit: current.electricityDeductFromDeposit !== false,
     damageChargePaise: current.damageChargePaise,
@@ -2076,7 +2125,8 @@ export async function backfillCheckoutSettlementsFromVacating(input?: {
       .where(eq(bookings.id, row.booking_id))
       .limit(1);
 
-    const policy = policyNoticeFields({
+    const policy = await resolvePolicyNoticeFields({
+      bookingId: row.booking_id,
       monthlyRentPaiseSnapshot: row.monthly_rent_paise_snapshot,
       noticeGivenDate: row.notice_given_date,
       vacatingDate: row.vacating_date,
@@ -2141,6 +2191,9 @@ export async function backfillCheckoutSettlementsFromVacating(input?: {
       noticeGivenDays: policy.noticeGivenDays,
       noticeShortfallDays: policy.noticeShortfallDays,
       noticeDeductionPaise: noticeDeduction,
+      noticeRentCoveredDays: policy.noticeRentCoveredDays,
+      noticeChargeableDays: policy.noticeChargeableDays,
+      noticeBreakdownJson: policy.noticeBreakdownJson,
       monthlyRentPaiseSnapshot: row.monthly_rent_paise_snapshot,
       depositRequiredPaise: booking?.depositPaise ?? 0,
       electricitySharePaise: 0,

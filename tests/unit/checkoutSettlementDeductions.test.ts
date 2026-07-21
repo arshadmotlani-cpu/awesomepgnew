@@ -17,7 +17,7 @@ test('Harish scenario builds notice and electricity deduction plan', () => {
   });
   assert.equal(plan.length, 2);
   assert.equal(plan[0]?.amountPaise, 59_500);
-  assert.match(plan[0]?.reason ?? '', /Notice period fee \(5 days rent\)/);
+  assert.match(plan[0]?.reason ?? '', /Notice period fee \(5 chargeable days rent\)/);
   assert.equal(plan[1]?.amountPaise, 90_500);
   assert.match(plan[1]?.reason ?? '', /Electricity/);
   const total = plan.reduce((sum, row) => sum + row.amountPaise, 0);

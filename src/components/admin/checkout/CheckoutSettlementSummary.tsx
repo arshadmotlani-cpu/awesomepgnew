@@ -1,9 +1,18 @@
 import { Badge } from '@/src/components/admin/Badge';
+import { NoticeDeductionBreakdown } from '@/src/components/shared/NoticeDeductionBreakdown';
 import { paiseToInr, titleCase } from '@/src/lib/format';
+import { breakdownFromStoredNoticeSnapshot } from '@/src/lib/vacating/noticeDeductionPresentation';
 import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement';
 
 export function CheckoutSettlementSummary({ detail }: { detail: CheckoutSettlementDetail }) {
   const statusLabel = plainStatus(detail.status);
+  const noticeBreakdown = breakdownFromStoredNoticeSnapshot({
+    noticeGivenDays: detail.noticeGivenDays,
+    noticeShortfallDays: detail.noticeShortfallDays,
+    noticeRentCoveredDays: detail.noticeRentCoveredDays,
+    noticeChargeableDays: detail.noticeChargeableDays,
+    noticeDeductionPaise: detail.preview.noticeDeductionPaise,
+  });
 
   return (
     <section className="mb-8">
@@ -21,12 +30,19 @@ export function CheckoutSettlementSummary({ detail }: { detail: CheckoutSettleme
           label="Notice fee"
           value={paiseToInr(detail.preview.noticeDeductionPaise)}
           hint={
-            detail.noticeShortfallDays > 0
-              ? `${detail.noticeShortfallDays} day${detail.noticeShortfallDays === 1 ? '' : 's'} rent`
-              : 'Compliant notice'
+            noticeBreakdown && noticeBreakdown.chargeableNoticeDays > 0
+              ? `${noticeBreakdown.chargeableNoticeDays} chargeable day${noticeBreakdown.chargeableNoticeDays === 1 ? '' : 's'} (${noticeBreakdown.rentCoveredDays} covered by rent)`
+              : detail.noticeShortfallDays > 0
+                ? `${detail.noticeShortfallDays} missing day${detail.noticeShortfallDays === 1 ? '' : 's'}`
+                : 'Compliant notice'
           }
         />
       </dl>
+      {noticeBreakdown ? (
+        <div className="mt-4 max-w-lg">
+          <NoticeDeductionBreakdown breakdown={noticeBreakdown} variant="admin" compact />
+        </div>
+      ) : null}
       <p className="mt-3">
         <Badge tone={statusBadgeTone(detail.status)}>{statusLabel}</Badge>
       </p>

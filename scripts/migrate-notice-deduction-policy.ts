@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
 /**
- * Migrate active vacating + open checkout settlements to the pro-rata notice policy.
+ * Migrate active vacating + open checkout settlements to rent-aware notice policy.
  *
  * Updates ONLY:
  *   - vacating_requests.status IN ('pending', 'approved')
@@ -23,8 +23,9 @@ import {
 } from '@/src/db/schema';
 import { noticeDeductionAppliesToBooking } from '@/src/lib/checkout/noticeDeductionPolicy';
 import { diffDays } from '@/src/lib/dates';
+import type { NoticeDeductionBreakdown } from '@/src/lib/vacating/noticeDeductionEngine';
+import { computeNoticeDeductionForBooking } from '@/src/services/noticeDeduction';
 import {
-  computeNoticeDeduction,
   isNoticeCompliant,
   noticeShortfallDays,
   VACATING_NOTICE_MIN_DAYS,
@@ -40,6 +41,10 @@ type VacatingPatch = {
   afterDeductionPaise: number;
   beforeCompliant: boolean;
   afterCompliant: boolean;
+  beforeRentCoveredDays: number;
+  afterRentCoveredDays: number;
+  beforeChargeableDays: number;
+  afterChargeableDays: number;
 };
 
 type SettlementPatch = {
@@ -50,25 +55,58 @@ type SettlementPatch = {
   afterNoticeDeductionPaise: number;
   beforeShortfallDays: number;
   afterShortfallDays: number;
+  beforeRentCoveredDays: number;
+  afterRentCoveredDays: number;
+  beforeChargeableDays: number;
+  afterChargeableDays: number;
 };
 
-function policyForVacating(row: {
+function serializeBreakdown(breakdown: NoticeDeductionBreakdown) {
+  return {
+    noticeRequiredDays: breakdown.noticeRequiredDays,
+    noticeGivenDays: breakdown.noticeGivenDays,
+    missingNoticeDays: breakdown.missingNoticeDays,
+    rentCoveredDays: breakdown.rentCoveredDays,
+    chargeableNoticeDays: breakdown.chargeableNoticeDays,
+    dailyRentPaise: breakdown.dailyRentPaise,
+    noticeDeductionPaise: breakdown.noticeDeductionPaise,
+    chargeWindowStart: breakdown.chargeWindowStart,
+    chargeWindowEnd: breakdown.chargeWindowEnd,
+    coveredPeriodsUsed: breakdown.coveredPeriodsUsed,
+  };
+}
+
+async function policyForVacating(row: {
+  bookingId: string;
   noticeGivenDate: string;
   vacatingDate: string;
   monthlyRentPaiseSnapshot: number;
+  stayType: string | null;
+  durationMode: string | null;
 }) {
   const noticeCompliant = isNoticeCompliant({
     noticeGivenDate: row.noticeGivenDate,
     vacatingDate: row.vacatingDate,
   });
-  const deductionPaise = computeNoticeDeduction(row.monthlyRentPaiseSnapshot, {
+  const breakdown = await computeNoticeDeductionForBooking({
+    bookingId: row.bookingId,
     noticeGivenDate: row.noticeGivenDate,
     vacatingDate: row.vacatingDate,
+    monthlyRentPaise: row.monthlyRentPaiseSnapshot,
+    stayType: row.stayType,
+    durationMode: row.durationMode,
   });
-  return { noticeCompliant, deductionPaise };
+  return {
+    noticeCompliant,
+    deductionPaise: breakdown.noticeDeductionPaise,
+    rentCoveredDays: breakdown.rentCoveredDays,
+    chargeableDays: breakdown.chargeableNoticeDays,
+    breakdown,
+  };
 }
 
-function policyForSettlement(row: {
+async function policyForSettlement(row: {
+  bookingId: string;
   noticeGivenDate: string;
   vacatingDate: string;
   monthlyRentPaiseSnapshot: number;
@@ -84,16 +122,31 @@ function policyForSettlement(row: {
     stayType: row.stayType,
     durationMode: row.durationMode,
   });
-  const noticeDeductionPaise = applies
-    ? computeNoticeDeduction(row.monthlyRentPaiseSnapshot, {
-        noticeGivenDate: row.noticeGivenDate,
-        vacatingDate: row.vacatingDate,
-      })
-    : 0;
+  if (!applies) {
+    return {
+      noticeGivenDays,
+      noticeShortfallDays: 0,
+      noticeDeductionPaise: 0,
+      rentCoveredDays: 0,
+      chargeableDays: 0,
+      breakdown: null as NoticeDeductionBreakdown | null,
+    };
+  }
+  const breakdown = await computeNoticeDeductionForBooking({
+    bookingId: row.bookingId,
+    noticeGivenDate: row.noticeGivenDate,
+    vacatingDate: row.vacatingDate,
+    monthlyRentPaise: row.monthlyRentPaiseSnapshot,
+    stayType: row.stayType,
+    durationMode: row.durationMode,
+  });
   return {
     noticeGivenDays,
-    noticeShortfallDays: applies ? shortfall : 0,
-    noticeDeductionPaise,
+    noticeShortfallDays: shortfall,
+    noticeDeductionPaise: breakdown.noticeDeductionPaise,
+    rentCoveredDays: breakdown.rentCoveredDays,
+    chargeableDays: breakdown.chargeableNoticeDays,
+    breakdown,
   };
 }
 
@@ -110,8 +163,12 @@ async function main() {
       vacatingDate: vacatingRequests.vacatingDate,
       noticeCompliant: vacatingRequests.noticeCompliant,
       deductionPaise: vacatingRequests.deductionPaise,
+      noticeRentCoveredDays: vacatingRequests.noticeRentCoveredDays,
+      noticeChargeableDays: vacatingRequests.noticeChargeableDays,
       monthlyRentPaiseSnapshot: vacatingRequests.monthlyRentPaiseSnapshot,
       bookingCode: bookings.bookingCode,
+      stayType: bookings.stayType,
+      durationMode: bookings.durationMode,
     })
     .from(vacatingRequests)
     .innerJoin(bookings, eq(bookings.id, vacatingRequests.bookingId))
@@ -119,10 +176,12 @@ async function main() {
 
   const vacatingPatches: VacatingPatch[] = [];
   for (const row of activeVacating) {
-    const policy = policyForVacating(row);
+    const policy = await policyForVacating(row);
     if (
       row.deductionPaise === policy.deductionPaise &&
-      row.noticeCompliant === policy.noticeCompliant
+      row.noticeCompliant === policy.noticeCompliant &&
+      row.noticeRentCoveredDays === policy.rentCoveredDays &&
+      row.noticeChargeableDays === policy.chargeableDays
     ) {
       continue;
     }
@@ -136,18 +195,25 @@ async function main() {
       afterDeductionPaise: policy.deductionPaise,
       beforeCompliant: row.noticeCompliant,
       afterCompliant: policy.noticeCompliant,
+      beforeRentCoveredDays: row.noticeRentCoveredDays,
+      afterRentCoveredDays: policy.rentCoveredDays,
+      beforeChargeableDays: row.noticeChargeableDays,
+      afterChargeableDays: policy.chargeableDays,
     });
   }
 
   const openSettlements = await db
     .select({
       id: checkoutSettlements.id,
+      bookingId: checkoutSettlements.bookingId,
       vacatingRequestId: checkoutSettlements.vacatingRequestId,
       status: checkoutSettlements.status,
       amountsLocked: checkoutSettlements.amountsLocked,
       noticeGivenDays: checkoutSettlements.noticeGivenDays,
       noticeShortfallDays: checkoutSettlements.noticeShortfallDays,
       noticeDeductionPaise: checkoutSettlements.noticeDeductionPaise,
+      noticeRentCoveredDays: checkoutSettlements.noticeRentCoveredDays,
+      noticeChargeableDays: checkoutSettlements.noticeChargeableDays,
       monthlyRentPaiseSnapshot: checkoutSettlements.monthlyRentPaiseSnapshot,
       noticeGivenDate: vacatingRequests.noticeGivenDate,
       vacatingDate: vacatingRequests.vacatingDate,
@@ -173,11 +239,13 @@ async function main() {
 
   const settlementPatches: SettlementPatch[] = [];
   for (const row of openSettlements) {
-    const policy = policyForSettlement(row);
+    const policy = await policyForSettlement(row);
     if (
       row.noticeDeductionPaise === policy.noticeDeductionPaise &&
       row.noticeShortfallDays === policy.noticeShortfallDays &&
-      row.noticeGivenDays === policy.noticeGivenDays
+      row.noticeGivenDays === policy.noticeGivenDays &&
+      row.noticeRentCoveredDays === policy.rentCoveredDays &&
+      row.noticeChargeableDays === policy.chargeableDays
     ) {
       continue;
     }
@@ -189,6 +257,10 @@ async function main() {
       afterNoticeDeductionPaise: policy.noticeDeductionPaise,
       beforeShortfallDays: row.noticeShortfallDays,
       afterShortfallDays: policy.noticeShortfallDays,
+      beforeRentCoveredDays: row.noticeRentCoveredDays,
+      afterRentCoveredDays: policy.rentCoveredDays,
+      beforeChargeableDays: row.noticeChargeableDays,
+      afterChargeableDays: policy.chargeableDays,
     });
   }
 
@@ -205,8 +277,10 @@ async function main() {
         vacatingDate: p.vacatingDate,
         deductionBefore: p.beforeDeductionPaise / 100,
         deductionAfter: p.afterDeductionPaise / 100,
-        compliantBefore: p.beforeCompliant,
-        compliantAfter: p.afterCompliant,
+        coveredBefore: p.beforeRentCoveredDays,
+        coveredAfter: p.afterRentCoveredDays,
+        chargeableBefore: p.beforeChargeableDays,
+        chargeableAfter: p.afterChargeableDays,
       })),
     );
   }
@@ -218,8 +292,8 @@ async function main() {
         status: p.status,
         noticeBefore: p.beforeNoticeDeductionPaise / 100,
         noticeAfter: p.afterNoticeDeductionPaise / 100,
-        shortfallBefore: p.beforeShortfallDays,
-        shortfallAfter: p.afterShortfallDays,
+        coveredBefore: p.beforeRentCoveredDays,
+        coveredAfter: p.afterRentCoveredDays,
       })),
     );
   }
@@ -232,11 +306,17 @@ async function main() {
 
   await db.transaction(async (tx) => {
     for (const patch of vacatingPatches) {
+      const row = activeVacating.find((v) => v.id === patch.id);
+      if (!row) continue;
+      const policy = await policyForVacating(row);
       await tx
         .update(vacatingRequests)
         .set({
           deductionPaise: patch.afterDeductionPaise,
           noticeCompliant: patch.afterCompliant,
+          noticeRentCoveredDays: policy.rentCoveredDays,
+          noticeChargeableDays: policy.chargeableDays,
+          noticeBreakdownJson: policy.breakdown ? serializeBreakdown(policy.breakdown) : null,
           updatedAt: new Date(),
         })
         .where(eq(vacatingRequests.id, patch.id));
@@ -245,7 +325,7 @@ async function main() {
     for (const patch of settlementPatches) {
       const row = openSettlements.find((s) => s.id === patch.id);
       if (!row) continue;
-      const policy = policyForSettlement(row);
+      const policy = await policyForSettlement(row);
       await tx
         .update(checkoutSettlements)
         .set({
@@ -253,6 +333,9 @@ async function main() {
           noticeGivenDays: policy.noticeGivenDays,
           noticeShortfallDays: policy.noticeShortfallDays,
           noticeDeductionPaise: policy.noticeDeductionPaise,
+          noticeRentCoveredDays: policy.rentCoveredDays,
+          noticeChargeableDays: policy.chargeableDays,
+          noticeBreakdownJson: policy.breakdown ? serializeBreakdown(policy.breakdown) : null,
           updatedAt: new Date(),
         })
         .where(eq(checkoutSettlements.id, patch.id));

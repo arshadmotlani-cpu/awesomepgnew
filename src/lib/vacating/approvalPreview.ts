@@ -1,6 +1,10 @@
 import { normalizeIsoDateOnly, tryDiffDays } from '@/src/lib/dates';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import type { AdminVacatingRow } from '@/src/db/queries/admin';
+import {
+  breakdownFromStoredNoticeSnapshot,
+  type NoticeDeductionDisplayBreakdown,
+} from '@/src/lib/vacating/noticeDeductionPresentation';
 import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
 
 export type VacatingBedStatus = 'Occupied' | 'Scheduled for Release' | 'Available';
@@ -18,6 +22,7 @@ export type VacatingApprovalPreview = {
   estimatedDeductionPaise: number;
   estimatedRefundPaise: number;
   bedStatus: VacatingBedStatus;
+  noticeBreakdown: NoticeDeductionDisplayBreakdown | null;
 };
 
 export function vacatingBedStatus(
@@ -39,6 +44,14 @@ export function buildVacatingApprovalPreview(
   const estimatedDeductionPaise = guardDepositPaise(row.deductionPaise);
   const held = guardDepositPaise(depositHeldPaise);
   const estimatedRefundPaise = Math.max(0, held - estimatedDeductionPaise);
+  const noticeBreakdown = breakdownFromStoredNoticeSnapshot({
+    noticeGivenDays: noticeCompletedDays,
+    noticeGivenDate,
+    vacatingDate,
+    noticeRentCoveredDays: row.noticeRentCoveredDays,
+    noticeChargeableDays: row.noticeChargeableDays,
+    deductionPaise: estimatedDeductionPaise,
+  });
 
   return {
     residentName: row.customerFullName,
@@ -53,6 +66,7 @@ export function buildVacatingApprovalPreview(
     estimatedDeductionPaise,
     estimatedRefundPaise,
     bedStatus: vacatingBedStatus(row.status),
+    noticeBreakdown,
   };
 }
 

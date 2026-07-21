@@ -56,6 +56,8 @@ export type MoveOutPipelineItem = {
   electricityDeductionPaise: number;
   depositHeldPaise: number;
   estimatedRefundPaise: number;
+  noticeRentCoveredDays: number;
+  noticeChargeableDays: number;
   daysRemaining: number;
   urgency: MoveOutUrgency;
   bedStatus: VacatingBedStatus;
@@ -115,6 +117,8 @@ type VacatingInput = {
   updatedAt: Date;
   deductionPaise: number;
   depositHeldPaise: number;
+  noticeRentCoveredDays?: number;
+  noticeChargeableDays?: number;
   durationMode?: string;
   stayType?: string;
 };
@@ -440,6 +444,8 @@ export function buildMoveOutPipeline(input: {
       electricityDeductionPaise,
       depositHeldPaise,
       estimatedRefundPaise,
+      noticeRentCoveredDays: v.noticeRentCoveredDays ?? 0,
+      noticeChargeableDays: v.noticeChargeableDays ?? 0,
       daysRemaining,
       urgency: moveOutUrgency(daysRemaining),
       bedStatus: deriveBedStatus(v),

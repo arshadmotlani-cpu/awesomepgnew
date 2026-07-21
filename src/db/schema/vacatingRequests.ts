@@ -4,6 +4,8 @@ import {
   boolean,
   date,
   index,
+  integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -56,6 +58,9 @@ export const vacatingRequests = pgTable(
     monthlyRentPaiseSnapshot: bigint('monthly_rent_paise_snapshot', {
       mode: 'number',
     }).notNull(),
+    noticeRentCoveredDays: integer('notice_rent_covered_days').notNull().default(0),
+    noticeChargeableDays: integer('notice_chargeable_days').notNull().default(0),
+    noticeBreakdownJson: jsonb('notice_breakdown_json'),
     status: vacatingStatusEnum('status').notNull().default('pending'),
     /** When true, auto-backfill must not recreate checkout_settlements for this vacating row. */
     checkoutSettlementSuppressed: boolean('checkout_settlement_suppressed')

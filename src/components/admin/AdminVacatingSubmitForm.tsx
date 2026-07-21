@@ -3,6 +3,8 @@
 import { useRouter } from 'next/navigation';
 import { useActionState, useEffect, useId, useMemo, useState } from 'react';
 import { AdminConfirmSubmit } from '@/src/components/admin/AdminConfirmSubmit';
+import { NoticeDeductionBreakdown } from '@/src/components/shared/NoticeDeductionBreakdown';
+import { useNoticeDeductionPreview } from '@/src/components/shared/useNoticeDeductionPreview';
 import {
   submitAdminVacatingAction,
   type MapActionState,
@@ -10,7 +12,8 @@ import {
 import { defaultVacatingDate } from '@/src/lib/dateDefaults';
 import { isOpenEndedStayEnd, todayString } from '@/src/lib/dates';
 import { paiseToInr } from '@/src/lib/format';
-import { VACATING_NOTICE_MIN_DAYS, computeNoticeDeduction } from '@/src/services/billing';
+import { previewNoticeDeductionForAdminAction } from '@/src/lib/vacating/previewNoticeDeductionAction';
+import { VACATING_NOTICE_MIN_DAYS } from '@/src/services/billing';
 
 function resolveDefaultVacatingDate(expectedCheckoutDate?: string | null): string {
   if (expectedCheckoutDate && !isOpenEndedStayEnd(expectedCheckoutDate)) {
@@ -43,6 +46,11 @@ export function AdminVacatingSubmitForm({
     ok: false,
   } satisfies MapActionState);
 
+  const { breakdown, loading } = useNoticeDeductionPreview(
+    previewNoticeDeductionForAdminAction,
+    { bookingId, vacatingDate, monthlyRentPaise },
+  );
+
   useEffect(() => {
     setVacatingDate(initialVacatingDate);
   }, [initialVacatingDate]);
@@ -53,10 +61,7 @@ export function AdminVacatingSubmitForm({
 
   if (hasExistingVacating) return null;
 
-  const penalty = computeNoticeDeduction(monthlyRentPaise, {
-    noticeGivenDate: todayString(),
-    vacatingDate,
-  });
+  const penalty = breakdown?.noticeDeductionPaise ?? 0;
 
   return (
     <form
@@ -89,6 +94,13 @@ export function AdminVacatingSubmitForm({
           className="apg-admin-field mt-1 w-full rounded-lg border border-white/10 px-3 py-2 text-sm"
         />
       </label>
+
+      {loading ? (
+        <p className="text-xs text-apg-silver">Calculating notice breakdown…</p>
+      ) : breakdown && breakdown.missingNoticeDays > 0 ? (
+        <NoticeDeductionBreakdown breakdown={breakdown} variant="admin" compact />
+      ) : null}
+
       <label className="flex items-start gap-2 text-xs text-apg-silver">
         <input type="checkbox" name="waiveDeduction" className="mt-0.5" />
         <span>

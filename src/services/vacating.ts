@@ -42,7 +42,7 @@ import {
   type VacatingRequest,
 } from '../db/schema';
 import type { PricingSnapshot } from '../db/schema/bookings';
-import { formatDate, parseDate, todayString, type DateLike } from '../lib/dates';
+import { formatDate, parseDate, todayString, diffDays, type DateLike } from '../lib/dates';
 import {
   assertMayRestoreOccupancy,
   canCompleteCheckoutWithoutActiveStayToday,
@@ -50,10 +50,12 @@ import {
 } from '../lib/occupancyEligibility';
 import { reconcileBookingOccupancy } from '../lib/occupancySync';
 import {
-  computeNoticeDeduction,
   isNoticeCompliant,
   noticeShortfallDays,
 } from './billing';
+import { computeNoticeDeductionForBooking } from './noticeDeduction';
+import { noticeDeductionLedgerReason } from '@/src/lib/vacating/noticeDeductionEngine';
+import type { NoticeDeductionBreakdown } from '@/src/lib/vacating/noticeDeductionEngine';
 import { getDepositSummaryForBooking } from './deposits';
 import { settleVacatingDepositRefund, applyDepositDeduction } from './depositSettlement';
 import {
@@ -69,6 +71,21 @@ import {
 } from './vacatingCheckoutBilling';
 import { scheduleAdminNotificationSync } from '@/src/services/adminLiveSync';
 import { ACTIVE_VACATING_STATUSES } from '@/src/lib/vacating/activeRequestPolicy';
+
+function serializeNoticeBreakdown(breakdown: NoticeDeductionBreakdown) {
+  return {
+    noticeRequiredDays: breakdown.noticeRequiredDays,
+    noticeGivenDays: breakdown.noticeGivenDays,
+    missingNoticeDays: breakdown.missingNoticeDays,
+    rentCoveredDays: breakdown.rentCoveredDays,
+    chargeableNoticeDays: breakdown.chargeableNoticeDays,
+    dailyRentPaise: breakdown.dailyRentPaise,
+    noticeDeductionPaise: breakdown.noticeDeductionPaise,
+    chargeWindowStart: breakdown.chargeWindowStart,
+    chargeWindowEnd: breakdown.chargeWindowEnd,
+    coveredPeriodsUsed: breakdown.coveredPeriodsUsed,
+  };
+}
 
 async function vacatingEmailMeta(bookingId: string) {
   const [row] = await db
@@ -302,6 +319,7 @@ export async function submitVacatingRequest(
       customerId: bookings.customerId,
       status: bookings.status,
       durationMode: bookings.durationMode,
+      stayType: bookings.stayType,
       pricingSnapshot: bookings.pricingSnapshot,
     })
     .from(bookings)
@@ -332,10 +350,17 @@ export async function submitVacatingRequest(
   const monthlyRent = monthlyRentFromBooking(
     booking.pricingSnapshot as PricingSnapshot | null,
   );
-  const deduction =
-    input.waiveDeduction
-      ? 0
-      : computeNoticeDeduction(monthlyRent, { noticeGivenDate, vacatingDate });
+  const noticeBreakdown = input.waiveDeduction
+    ? null
+    : await computeNoticeDeductionForBooking({
+        bookingId: booking.id,
+        noticeGivenDate,
+        vacatingDate,
+        monthlyRentPaise: monthlyRent,
+        stayType: booking.stayType,
+        durationMode: booking.durationMode,
+      });
+  const deduction = input.waiveDeduction ? 0 : (noticeBreakdown?.noticeDeductionPaise ?? 0);
 
   const [activeRequest] = await db
     .select({ id: vacatingRequests.id })
@@ -363,6 +388,9 @@ export async function submitVacatingRequest(
         deductionPaise: deduction,
         depositRefundPaise: 0, // computed at completion time
         monthlyRentPaiseSnapshot: monthlyRent,
+        noticeRentCoveredDays: noticeBreakdown?.rentCoveredDays ?? 0,
+        noticeChargeableDays: noticeBreakdown?.chargeableNoticeDays ?? 0,
+        noticeBreakdownJson: noticeBreakdown ? serializeNoticeBreakdown(noticeBreakdown) : null,
         status: 'pending',
         notes: input.notes ?? null,
       })
@@ -386,6 +414,12 @@ export async function submitVacatingRequest(
         noticeCompliant,
         deductionPaise: deduction,
         monthlyRentPaise: monthlyRent,
+        noticeBreakdown: noticeBreakdown
+          ? {
+              rentCoveredDays: noticeBreakdown.rentCoveredDays,
+              chargeableNoticeDays: noticeBreakdown.chargeableNoticeDays,
+            }
+          : null,
         waiveDeduction: input.waiveDeduction ?? false,
         openBedForBooking: input.openBedForBookingFromVacatingDate ?? false,
       },
@@ -895,17 +929,30 @@ export async function completeVacatingRequest(
 
   if (refundReq?.status === 'approved') {
     if (deductionPaise > 0) {
-      const missingDays = noticeShortfallDays({
-        noticeGivenDate: current.noticeGivenDate,
-        vacatingDate: current.vacatingDate,
-      });
+      const stored = current.noticeBreakdownJson as NoticeDeductionBreakdown | null;
+      const reason =
+        stored && typeof stored === 'object' && 'chargeableNoticeDays' in stored
+          ? noticeDeductionLedgerReason(stored as NoticeDeductionBreakdown)
+          : noticeDeductionLedgerReason({
+              noticeRequiredDays: 14,
+              noticeGivenDays: diffDays(current.noticeGivenDate, current.vacatingDate),
+              missingNoticeDays: noticeShortfallDays({
+                noticeGivenDate: current.noticeGivenDate,
+                vacatingDate: current.vacatingDate,
+              }),
+              rentCoveredDays: current.noticeRentCoveredDays ?? 0,
+              chargeableNoticeDays: current.noticeChargeableDays ?? 0,
+              dailyRentPaise: 0,
+              noticeDeductionPaise: deductionPaise,
+              chargeWindowStart: '',
+              chargeWindowEnd: '',
+              coveredPeriodsUsed: [],
+            });
       const deducted = await applyDepositDeduction({
         bookingId: current.bookingId,
         customerId: current.customerId,
         amountPaise: deductionPaise,
-        reason: `vacating notice ${
-          current.noticeCompliant ? 'compliant' : 'short'
-        } — ${missingDays} day(s) rent`,
+        reason,
         relatedVacatingId: current.id,
         adminId: input.resolvedByAdminId ?? null,
       });
@@ -1308,10 +1355,13 @@ export async function extendVacatingDate(input: {
       vacatingDate: newDate,
     });
     const monthlyRent = vacating.monthlyRentPaiseSnapshot;
-    const deduction = computeNoticeDeduction(monthlyRent, {
+    const noticeBreakdown = await computeNoticeDeductionForBooking({
+      bookingId: input.bookingId,
       noticeGivenDate: vacating.noticeGivenDate,
       vacatingDate: newDate,
+      monthlyRentPaise: monthlyRent,
     });
+    const deduction = noticeBreakdown.noticeDeductionPaise;
 
     const [updated] = await db
       .update(vacatingRequests)
@@ -1319,6 +1369,9 @@ export async function extendVacatingDate(input: {
         vacatingDate: newDate,
         noticeCompliant,
         deductionPaise: deduction,
+        noticeRentCoveredDays: noticeBreakdown.rentCoveredDays,
+        noticeChargeableDays: noticeBreakdown.chargeableNoticeDays,
+        noticeBreakdownJson: serializeNoticeBreakdown(noticeBreakdown),
         updatedAt: new Date(),
       })
       .where(eq(vacatingRequests.id, vacating.id))

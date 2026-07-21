@@ -6,8 +6,8 @@ import { CheckoutRefundReceiptFromDetail } from '@/src/components/admin/checkout
 import { DepositActivitySection } from '@/src/components/admin/deposits/DepositActivitySection';
 import { DepositSummaryCard } from '@/src/components/admin/deposits/DepositSummaryCard';
 import { VacatingRowActions } from '@/src/components/admin/vacating/VacatingRowActions';
+import { NoticeDeductionBreakdown } from '@/src/components/shared/NoticeDeductionBreakdown';
 import { bookingFinancialWorkspaceSectionHref } from '@/src/lib/bookings/bookingFinancialLinks';
-import { depositStatusLabel } from '@/src/lib/deposits/depositCollectionStatus';
 import { formatDate, paiseToInr, titleCase } from '@/src/lib/format';
 import { refundConsoleHref } from '@/src/lib/refund/refundConsoleLinks';
 import type { BookingFinancialWorkspaceData } from '@/src/services/bookingFinancialWorkspace';
@@ -90,7 +90,9 @@ export function BookingFinancialWorkspace({ data }: { data: BookingFinancialWork
             invoiceStatus={
               data.depositCollectionStatus === 'closed_uncollected'
                 ? 'Closed · uncollected'
-                : data.depositPage.invoice?.status ?? null
+                : data.depositPage.invoice?.displayStatus ??
+                  data.depositPage.invoice?.invoiceStatus ??
+                  null
             }
             isFrozen={data.depositPage.isFrozen}
           />
@@ -120,6 +122,15 @@ export function BookingFinancialWorkspace({ data }: { data: BookingFinancialWork
                   <span className="font-medium">{titleCase(data.vacating.status)}</span>
                   {data.vacating.noticeCompliant ? ' · notice compliant' : ' · notice shortfall'}
                 </p>
+                {data.vacating.approvalPreview?.noticeBreakdown ? (
+                  <div className="mt-4 max-w-md">
+                    <NoticeDeductionBreakdown
+                      breakdown={data.vacating.approvalPreview.noticeBreakdown}
+                      variant="admin"
+                      compact
+                    />
+                  </div>
+                ) : null}
                 {data.vacating.approvalPreview ? (
                   <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
                     <MiniStat

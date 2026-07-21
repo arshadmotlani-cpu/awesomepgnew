@@ -39,6 +39,9 @@ export const checkoutSettlements = pgTable(
     noticeGivenDays: integer('notice_given_days').notNull().default(0),
     noticeShortfallDays: integer('notice_shortfall_days').notNull().default(0),
     noticeDeductionPaise: bigint('notice_deduction_paise', { mode: 'number' }).notNull().default(0),
+    noticeRentCoveredDays: integer('notice_rent_covered_days').notNull().default(0),
+    noticeChargeableDays: integer('notice_chargeable_days').notNull().default(0),
+    noticeBreakdownJson: jsonb('notice_breakdown_json'),
     monthlyRentPaiseSnapshot: bigint('monthly_rent_paise_snapshot', { mode: 'number' })
       .notNull()
       .default(0),

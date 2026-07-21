@@ -40,18 +40,18 @@ export function BookingInvoiceHistorySection({
 
   return (
     <div className="space-y-5">
-      <div className="rounded-lg border border-indigo-200 bg-indigo-50/60 p-4 text-sm text-indigo-950">
-        <p className="font-semibold">Booking history only</p>
-        <p className="mt-1 text-indigo-900/80">
+      <div className="rounded-2xl border border-white/10 bg-[#1A1F27] p-4 text-sm text-apg-silver">
+        <p className="font-semibold text-white">Booking history only</p>
+        <p className="mt-1">
           Collect payments, record dues, and approve proofs on the{' '}
           <Link
             href={`/admin/residents/${residentId}#financial`}
-            className="font-semibold text-indigo-700 hover:underline"
+            className="font-semibold text-[#FF5A1F] hover:underline"
           >
             {residentName} resident profile
           </Link>{' '}
           or{' '}
-          <Link href="/admin/billing" className="font-semibold text-indigo-700 hover:underline">
+          <Link href="/admin/billing" className="font-semibold text-[#FF5A1F] hover:underline">
             Billing Center
           </Link>
           . All amounts come from invoices — not booking balances.
@@ -84,7 +84,7 @@ export function BookingInvoiceHistorySection({
                   <TR key={inv.id}>
                     <TD className="font-mono text-sm">
                       {href ? (
-                        <Link href={href} className="text-indigo-600 hover:underline">
+                        <Link href={href} className="text-[#FF5A1F] hover:underline">
                           {inv.invoiceNumber}
                         </Link>
                       ) : (

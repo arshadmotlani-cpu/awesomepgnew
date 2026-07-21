@@ -82,6 +82,8 @@ function vacatingPipelineInput(
     updatedAt: v.updatedAt,
     deductionPaise: guardDepositPaise(v.deductionPaise),
     depositHeldPaise: guardDepositPaise(depositHeldByBooking[v.bookingId] ?? 0),
+    noticeRentCoveredDays: v.noticeRentCoveredDays ?? 0,
+    noticeChargeableDays: v.noticeChargeableDays ?? 0,
     durationMode: v.durationMode,
     stayType: v.stayType,
   };

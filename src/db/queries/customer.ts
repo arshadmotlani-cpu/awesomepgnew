@@ -35,6 +35,7 @@ import {
   vacatingRequests,
 } from '../schema';
 import type { PricingSnapshot } from '../schema/bookings';
+import type { DepositCollectionStatus } from '../schema/enums';
 import { classifyDatabaseError } from '@/src/lib/db/connectionOptions';
 import { getDatabaseHost, getDatabaseUrlSource } from '@/src/lib/db/env';
 import { todayString } from '@/src/lib/dates';
@@ -1512,7 +1513,7 @@ export type ResidentBookingRow = {
     | 'refunded'
     | 'blocked'
     | 'not_applicable';
-  depositCollectionStatus: 'pending' | 'full' | 'partial' | 'overdue' | 'waived';
+  depositCollectionStatus: DepositCollectionStatus;
   depositDuePaise: number;
   depositDueDate: string | null;
 };
@@ -1747,6 +1748,8 @@ export type VacatingForBookingRow = {
   deductionPaise: number;
   depositRefundPaise: number;
   monthlyRentPaiseSnapshot: number;
+  noticeRentCoveredDays: number;
+  noticeChargeableDays: number;
   status: 'pending' | 'approved' | 'completed' | 'rejected';
   notes: string | null;
   resolvedAt: Date | null;

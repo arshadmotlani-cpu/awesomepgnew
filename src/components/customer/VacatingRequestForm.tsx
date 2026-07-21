@@ -5,12 +5,18 @@ import {
   submitVacatingAction,
   type VacatingActionState,
 } from '@/app/(customer)/account/resident/actions';
+import { NoticeDeductionBreakdown } from '@/src/components/shared/NoticeDeductionBreakdown';
+import { useNoticeDeductionPreview } from '@/src/components/shared/useNoticeDeductionPreview';
+import {
+  ACCOUNT_SURFACE,
+  ACCOUNT_SURFACE_PRIMARY_BTN,
+} from '@/src/components/customer/accountStyles';
 import { defaultVacatingDate } from '@/src/lib/dateDefaults';
 import { isOpenEndedStayEnd, todayString } from '@/src/lib/dates';
 import { paiseToInr } from '@/src/lib/format';
+import { previewNoticeDeductionForCustomerAction } from '@/src/lib/vacating/previewNoticeDeductionAction';
 import { estimateVacateDepositPreview } from '@/src/lib/vacating/depositRefundEligibility';
 import { VACATING_CHECKOUT_DEADLINE_COPY } from '@/src/lib/residents/stayBillingRules';
-import { ACCOUNT_SURFACE_PRIMARY_BTN } from '@/src/components/customer/accountStyles';
 
 const idleState: VacatingActionState = { status: 'idle' };
 
@@ -34,6 +40,11 @@ export function VacatingRequestForm({
   const [state, action, pending] = useActionState(submitVacatingAction, idleState);
   const [vacatingDate, setVacatingDate] = useState(initialDate);
 
+  const { breakdown, loading } = useNoticeDeductionPreview(
+    previewNoticeDeductionForCustomerAction,
+    { bookingId, vacatingDate, monthlyRentPaise },
+  );
+
   const preview = useMemo(
     () =>
       /^\d{4}-\d{2}-\d{2}$/.test(vacatingDate)
@@ -41,16 +52,17 @@ export function VacatingRequestForm({
             depositHeldPaise,
             monthlyRentPaise,
             vacatingDate,
+            noticeBreakdown: breakdown,
           })
         : null,
-    [depositHeldPaise, monthlyRentPaise, vacatingDate],
+    [breakdown, depositHeldPaise, monthlyRentPaise, vacatingDate],
   );
 
   return (
     <form
       action={action}
       data-roachie-focus="vacating"
-      className="apg-account-surface space-y-4 rounded-xl border border-zinc-200 p-5 shadow-sm"
+      className={`${ACCOUNT_SURFACE} space-y-4 p-5`}
     >
       <input type="hidden" name="bookingId" value={bookingId} />
 
@@ -65,11 +77,11 @@ export function VacatingRequestForm({
           min={todayString()}
           value={vacatingDate}
           onChange={(e) => setVacatingDate(e.target.value)}
-          className="apg-admin-field mt-1 block w-full rounded-md border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          className="apg-admin-field mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-[#FF5A1F] focus:outline-none focus:ring-1 focus:ring-[#FF5A1F]"
         />
       </label>
 
-      <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-700">
+      <div className={`${ACCOUNT_SURFACE} p-4 text-sm text-zinc-700`}>
         <p className="font-medium text-zinc-900">Important information</p>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-relaxed">
           <li>{VACATING_CHECKOUT_DEADLINE_COPY}</li>
@@ -82,29 +94,35 @@ export function VacatingRequestForm({
         </ul>
       </div>
 
-      {preview?.earlyVacate ? (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+      {loading ? (
+        <p className="text-xs text-zinc-500">Calculating notice breakdown…</p>
+      ) : null}
+
+      {preview?.noticeBreakdown ? (
+        <NoticeDeductionBreakdown breakdown={preview.noticeBreakdown} variant="resident" />
+      ) : preview?.earlyVacate ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-4 text-sm text-amber-950">
           <p className="font-medium">Early vacate policy applies</p>
           <p className="mt-1 text-xs">
-            Applicable deductions will be calculated from your deposit. Estimates below are
-            informational only — final settlement happens after admin approval.
+            A notice deduction may apply. Final settlement happens after admin approval.
           </p>
-          <dl className="mt-3 grid gap-2 text-xs sm:grid-cols-3">
-            <div>
-              <dt className="text-amber-800">Current deposit held</dt>
-              <dd className="font-semibold">{paiseToInr(depositHeldPaise)}</dd>
-            </div>
-            <div>
-              <dt className="text-amber-800">Estimated deduction</dt>
-              <dd className="font-semibold">{paiseToInr(preview.estimatedDeductionPaise)}</dd>
-            </div>
-            <div>
-              <dt className="text-amber-800">Estimated refundable balance</dt>
-              <dd className="font-semibold">{paiseToInr(preview.estimatedRefundablePaise)}</dd>
-            </div>
-          </dl>
         </div>
       ) : null}
+
+      {(preview?.earlyVacate || preview?.noticeBreakdown) && (
+        <dl className="grid gap-3 rounded-xl border border-zinc-200 bg-white p-4 text-sm sm:grid-cols-2">
+          <div>
+            <dt className="text-xs text-zinc-600">Current deposit held</dt>
+            <dd className="font-semibold text-zinc-900">{paiseToInr(depositHeldPaise)}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-zinc-600">Estimated refundable balance</dt>
+            <dd className="font-semibold text-emerald-700">
+              {paiseToInr(preview.estimatedRefundablePaise)}
+            </dd>
+          </div>
+        </dl>
+      )}
 
       <label className="block">
         <span className="text-xs font-medium uppercase tracking-wide text-zinc-600">
@@ -113,7 +131,7 @@ export function VacatingRequestForm({
         <textarea
           name="notes"
           rows={2}
-          className="apg-admin-field mt-1 block w-full rounded-md border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          className="apg-admin-field mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-[#FF5A1F] focus:outline-none focus:ring-1 focus:ring-[#FF5A1F]"
           placeholder="Anything the office should know about your move-out"
         />
       </label>
@@ -127,7 +145,7 @@ export function VacatingRequestForm({
       </button>
 
       {state.status === 'error' ? (
-        <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">
+        <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
           {state.message}
         </p>
       ) : null}

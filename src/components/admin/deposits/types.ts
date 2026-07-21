@@ -1,3 +1,5 @@
+import type { DepositCollectionStatus } from '@/src/db/schema/enums';
+
 export type DepositTableRow = {
   bookingId: string;
   bookingCode: string;
@@ -20,7 +22,7 @@ export type DepositTableRow = {
   /** Legacy fields */
   depositPaise: number;
   depositDuePaise: number;
-  depositCollectionStatus: 'pending' | 'full' | 'partial' | 'overdue' | 'waived';
+  depositCollectionStatus: DepositCollectionStatus;
   deductedPaise: number;
   refundedPaise: number;
   refundableBalancePaise: number;

@@ -118,7 +118,7 @@ test('maxNoticeDeduction is 14 × daily rent (worst case)', () => {
   assert.equal(maxNoticeDeduction(6_00_000), 280_000); // 14 × ₹200
 });
 
-test('computeNoticeDeduction: pro-rata missing notice days × daily rent', () => {
+test('computeNoticeDeduction (legacy, no rent coverage): pro-rata missing notice days × daily rent', () => {
   const monthly = 408_000; // ₹4,080/mo → ₹136/day
   const deduction = computeNoticeDeduction(monthly, {
     noticeGivenDate: '2026-06-01',

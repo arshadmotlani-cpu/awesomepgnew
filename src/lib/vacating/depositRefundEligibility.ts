@@ -125,11 +125,14 @@ function computeDepositRefundEligibilitySafe(args: {
   return { ...depositRefundEligibilityFromUnlock(unlock), unlockState: unlock.state };
 }
 
+import type { NoticeDeductionDisplayBreakdown } from '@/src/lib/vacating/noticeDeductionPresentation';
+
 export function estimateVacateDepositPreview(args: {
   depositHeldPaise: number;
   monthlyRentPaise: number;
   vacatingDate: string;
   noticeGivenDate?: string;
+  noticeBreakdown?: NoticeDeductionDisplayBreakdown | null;
 }) {
   const noticeGivenDate = args.noticeGivenDate ?? todayString();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(args.vacatingDate)) {
@@ -138,17 +141,27 @@ export function estimateVacateDepositPreview(args: {
       earlyVacate: false,
       estimatedDeductionPaise: 0,
       estimatedRefundablePaise: args.depositHeldPaise,
+      noticeBreakdown: null as NoticeDeductionDisplayBreakdown | null,
     };
   }
   const daysUntilVacate = tryDiffDays(noticeGivenDate, args.vacatingDate) ?? 0;
-  const estimatedDeductionPaise = computeNoticeDeduction(args.monthlyRentPaise, {
-    noticeGivenDate,
-    vacatingDate: args.vacatingDate,
-  });
+  const breakdown = args.noticeBreakdown;
+  const estimatedDeductionPaise =
+    breakdown?.noticeDeductionPaise ??
+    computeNoticeDeduction(args.monthlyRentPaise, {
+      noticeGivenDate,
+      vacatingDate: args.vacatingDate,
+    });
   const earlyVacate = estimatedDeductionPaise > 0;
   const estimatedRefundablePaise = Math.max(
     0,
     args.depositHeldPaise - estimatedDeductionPaise,
   );
-  return { daysUntilVacate, earlyVacate, estimatedDeductionPaise, estimatedRefundablePaise };
+  return {
+    daysUntilVacate,
+    earlyVacate,
+    estimatedDeductionPaise,
+    estimatedRefundablePaise,
+    noticeBreakdown: breakdown ?? null,
+  };
 }

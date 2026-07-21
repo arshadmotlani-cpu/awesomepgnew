@@ -9,6 +9,7 @@
  */
 
 import { addDays, addMonths, diffDays, formatDate, parseDate, type DateLike } from '../lib/dates';
+import { computeNoticeDeductionBreakdown } from '../lib/vacating/noticeDeductionEngine';
 
 /** Minimum calendar days of notice before vacating for zero deposit deduction. */
 export const VACATING_NOTICE_MIN_DAYS = 14;
@@ -289,8 +290,8 @@ export function vacatingPenalty(monthlyRatePaise: number): number {
 
 /**
  * Awesome PG notice policy (SSOT):
- * deduction = missingNoticeDays × dailyRent, where missingNoticeDays =
- * max(0, {@link VACATING_NOTICE_MIN_DAYS} - noticeGivenDays).
+ * Legacy path without rent coverage — use {@link computeNoticeDeductionBreakdown} via noticeDeduction service for production.
+ * deduction = missingNoticeDays × dailyRent when no paid-rent periods supplied.
  */
 export function computeNoticeDeduction(
   monthlyRatePaise: number,
@@ -301,9 +302,13 @@ export function computeNoticeDeduction(
   },
 ): number {
   if (monthlyRatePaise <= 0) return 0;
-  const missing = noticeShortfallDays(args);
-  if (missing <= 0) return 0;
-  return dailyRateFromMonthly(monthlyRatePaise) * missing;
+  return computeNoticeDeductionBreakdown({
+    monthlyRentPaise: monthlyRatePaise,
+    noticeGivenDate: args.noticeGivenDate,
+    vacatingDate: args.vacatingDate,
+    paidRentPeriods: [],
+    minDays: args.minDays,
+  }).noticeDeductionPaise;
 }
 
 /** Pro-rata notice deduction from a precomputed shortfall day count. */
