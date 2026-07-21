@@ -12,12 +12,15 @@ export type BookingMoneyBalances = {
   bookingId: string;
   rent: MoneyBalanceSlice;
   deposit: MoneyBalanceSlice & { refundablePaise: number };
+  electricity: MoneyBalanceSlice;
 };
 
 export type PaymentAllocationInput = {
   confirmedReceivedPaise: number;
   rentAllocatedPaise: number;
   depositAllocatedPaise: number;
+  electricityAllocatedPaise: number;
+  otherAllocatedPaise: number;
 };
 
 export function computeMoneySlice(requiredPaise: number, receivedPaise: number): MoneyBalanceSlice {
@@ -30,19 +33,24 @@ export function computeMoneySlice(requiredPaise: number, receivedPaise: number):
   };
 }
 
-export function unallocatedPaymentPaise(allocation: PaymentAllocationInput): number {
-  return Math.max(
-    0,
-    allocation.confirmedReceivedPaise -
-      allocation.rentAllocatedPaise -
-      allocation.depositAllocatedPaise,
+export function totalAllocatedPaise(allocation: PaymentAllocationInput): number {
+  return (
+    allocation.rentAllocatedPaise +
+    allocation.depositAllocatedPaise +
+    allocation.electricityAllocatedPaise +
+    allocation.otherAllocatedPaise
   );
+}
+
+export function unallocatedPaymentPaise(allocation: PaymentAllocationInput): number {
+  return Math.max(0, allocation.confirmedReceivedPaise - totalAllocatedPaise(allocation));
 }
 
 export type ValidatePaymentAllocationArgs = {
   allocation: PaymentAllocationInput;
   rentOutstandingBeforePaise: number;
   depositOutstandingBeforePaise: number;
+  electricityOutstandingBeforePaise?: number;
   /** When true, allow rent allocation above current outstanding (prepay). */
   allowRentPrepay?: boolean;
 };
@@ -54,15 +62,19 @@ export function validatePaymentAllocation(
   if (allocation.confirmedReceivedPaise < 0) {
     return { ok: false, reason: 'Confirmed received amount cannot be negative.' };
   }
-  if (allocation.rentAllocatedPaise < 0 || allocation.depositAllocatedPaise < 0) {
-    return { ok: false, reason: 'Rent and deposit allocations cannot be negative.' };
+  if (
+    allocation.rentAllocatedPaise < 0 ||
+    allocation.depositAllocatedPaise < 0 ||
+    allocation.electricityAllocatedPaise < 0 ||
+    allocation.otherAllocatedPaise < 0
+  ) {
+    return { ok: false, reason: 'Allocation amounts cannot be negative.' };
   }
-  const totalAllocated =
-    allocation.rentAllocatedPaise + allocation.depositAllocatedPaise;
+  const totalAllocated = totalAllocatedPaise(allocation);
   if (totalAllocated > allocation.confirmedReceivedPaise) {
     return {
       ok: false,
-      reason: 'Rent plus deposit allocation cannot exceed confirmed received amount.',
+      reason: 'Total allocation cannot exceed confirmed received amount.',
     };
   }
   if (!args.allowRentPrepay && allocation.rentAllocatedPaise > args.rentOutstandingBeforePaise) {
@@ -75,6 +87,13 @@ export function validatePaymentAllocation(
     return {
       ok: false,
       reason: `Deposit allocation exceeds outstanding deposit (₹${(args.depositOutstandingBeforePaise / 100).toFixed(0)}).`,
+    };
+  }
+  const elecOutstanding = args.electricityOutstandingBeforePaise ?? 0;
+  if (allocation.electricityAllocatedPaise > elecOutstanding) {
+    return {
+      ok: false,
+      reason: `Electricity allocation exceeds outstanding (₹${(elecOutstanding / 100).toFixed(0)}).`,
     };
   }
   return { ok: true };

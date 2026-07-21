@@ -827,6 +827,13 @@
       "when": 1793100000000,
       "tag": "0117_partial_deposit_allocation",
       "breakpoints": true
+    },
+    {
+      "idx": 121,
+      "version": "7",
+      "when": 1793200000000,
+      "tag": "0118_payment_allocation_electricity_other",
+      "breakpoints": true
     }
   ]
 }

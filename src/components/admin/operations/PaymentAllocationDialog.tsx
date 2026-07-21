@@ -2,14 +2,16 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { BookingMoneyBalances } from '@/src/lib/billing/bookingMoneyBalances';
-import { unallocatedPaymentPaise } from '@/src/lib/billing/bookingMoneyBalances';
 import type { OverpaymentDisposition } from '@/src/lib/operations/paymentReviewTypes';
+import { totalAllocatedPaise, unallocatedPaymentPaise } from '@/src/lib/billing/bookingMoneyBalances';
 import { paiseToInr } from '@/src/lib/format';
 import { OPS_ORANGE } from '@/src/components/admin/residentOps/residentOpsUi';
 
 const OVERPAYMENT_OPTIONS: Array<{ value: OverpaymentDisposition; label: string }> = [
-  { value: 'wallet_credit', label: 'Credit to wallet' },
-  { value: 'future_adjustment', label: 'Future adjustment' },
+  { value: 'allocate_deposit', label: 'Apply remainder to deposit' },
+  { value: 'allocate_rent', label: 'Apply remainder to rent' },
+  { value: 'allocate_electricity', label: 'Apply remainder to electricity' },
+  { value: 'advance_credit', label: 'Advance credit (future bills)' },
   { value: 'refund_later', label: 'Refund later' },
 ];
 
@@ -57,6 +59,8 @@ export type PaymentAllocationSubmit = {
   confirmedReceivedPaise: number;
   rentAllocatedPaise: number;
   depositAllocatedPaise: number;
+  electricityAllocatedPaise: number;
+  otherAllocatedPaise: number;
   depositDueDate?: string;
   allocationNotes?: string;
   overpaymentDisposition?: OverpaymentDisposition;
@@ -86,10 +90,12 @@ export function PaymentAllocationDialog({
   const [confirmedRupees, setConfirmedRupees] = useState(rupeesFromPaise(submittedAmountPaise));
   const [rentRupees, setRentRupees] = useState('0');
   const [depositRupees, setDepositRupees] = useState('0');
+  const [electricityRupees, setElectricityRupees] = useState('0');
+  const [otherRupees, setOtherRupees] = useState('0');
   const [depositDueDate, setDepositDueDate] = useState('');
   const [allocationNotes, setAllocationNotes] = useState('');
   const [overpayDisposition, setOverpayDisposition] =
-    useState<OverpaymentDisposition>('wallet_credit');
+    useState<OverpaymentDisposition>('allocate_deposit');
   const [localError, setLocalError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -97,6 +103,8 @@ export function PaymentAllocationDialog({
     setConfirmedRupees(rupeesFromPaise(submittedAmountPaise));
     setRentRupees('0');
     setDepositRupees('0');
+    setElectricityRupees('0');
+    setOtherRupees('0');
     setAllocationNotes('');
     setLocalError(null);
     const d = new Date();
@@ -109,8 +117,10 @@ export function PaymentAllocationDialog({
       confirmedReceivedPaise: paiseFromRupeesInput(confirmedRupees),
       rentAllocatedPaise: paiseFromRupeesInput(rentRupees),
       depositAllocatedPaise: paiseFromRupeesInput(depositRupees),
+      electricityAllocatedPaise: paiseFromRupeesInput(electricityRupees),
+      otherAllocatedPaise: paiseFromRupeesInput(otherRupees),
     }),
-    [confirmedRupees, rentRupees, depositRupees],
+    [confirmedRupees, rentRupees, depositRupees, electricityRupees, otherRupees],
   );
 
   const unallocatedPaise = unallocatedPaymentPaise(allocation);
@@ -138,6 +148,16 @@ export function PaymentAllocationDialog({
             allocation.depositAllocatedPaise,
         ),
       },
+      electricity: {
+        requiredPaise: balances.electricity.requiredPaise,
+        receivedPaise: balances.electricity.receivedPaise + allocation.electricityAllocatedPaise,
+        outstandingPaise: Math.max(
+          0,
+          balances.electricity.requiredPaise -
+            balances.electricity.receivedPaise -
+            allocation.electricityAllocatedPaise,
+        ),
+      },
     };
   }, [allocation, balances]);
 
@@ -149,15 +169,23 @@ export function PaymentAllocationDialog({
       setLocalError('Confirmed received amount must be greater than zero.');
       return;
     }
-    const totalAllocated =
-      allocation.rentAllocatedPaise + allocation.depositAllocatedPaise;
+    const totalAllocated = totalAllocatedPaise(allocation);
     if (totalAllocated > allocation.confirmedReceivedPaise) {
-      setLocalError('Rent plus deposit cannot exceed confirmed received.');
+      setLocalError('Total allocation cannot exceed confirmed received.');
       return;
     }
     if (balances && allocation.depositAllocatedPaise > balances.deposit.outstandingPaise) {
       setLocalError(
         `Deposit allocation exceeds outstanding (₹${rupeesFromPaise(balances.deposit.outstandingPaise)}).`,
+      );
+      return;
+    }
+    if (
+      balances &&
+      allocation.electricityAllocatedPaise > balances.electricity.outstandingPaise
+    ) {
+      setLocalError(
+        `Electricity allocation exceeds outstanding (₹${rupeesFromPaise(balances.electricity.outstandingPaise)}).`,
       );
       return;
     }
@@ -246,6 +274,28 @@ export function PaymentAllocationDialog({
               className="mt-1 w-full rounded-lg border border-white/10 bg-[#0f1318] px-3 py-2 text-sm text-white"
             />
           </label>
+          <label className="block text-xs text-apg-silver">
+            Electricity allocated (₹)
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={electricityRupees}
+              onChange={(e) => setElectricityRupees(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-white/10 bg-[#0f1318] px-3 py-2 text-sm text-white"
+            />
+          </label>
+          <label className="block text-xs text-apg-silver">
+            Other / advance credit (₹)
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={otherRupees}
+              onChange={(e) => setOtherRupees(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-white/10 bg-[#0f1318] px-3 py-2 text-sm text-white"
+            />
+          </label>
           {unallocatedPaise > 0 ? (
             <p className="text-xs text-amber-200">
               Unallocated: {paiseToInr(unallocatedPaise)} — choose disposition below.
@@ -296,6 +346,7 @@ export function PaymentAllocationDialog({
             </p>
             <BalancePreview label="Rent" balances={projected.rent} />
             <BalancePreview label="Deposit" balances={projected.deposit} />
+            <BalancePreview label="Electricity" balances={projected.electricity} />
           </div>
         ) : null}
 

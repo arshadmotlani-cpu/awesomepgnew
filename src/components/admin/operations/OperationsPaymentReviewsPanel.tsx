@@ -36,8 +36,10 @@ import { operationsFilterHref } from '@/src/lib/operations/operationsFilterLinks
 import { paiseToInr } from '@/src/lib/format';
 
 const OVERPAYMENT_OPTIONS: Array<{ value: OverpaymentDisposition; label: string }> = [
-  { value: 'wallet_credit', label: 'Credit to wallet' },
-  { value: 'future_adjustment', label: 'Future adjustment' },
+  { value: 'allocate_deposit', label: 'Apply remainder to deposit' },
+  { value: 'allocate_rent', label: 'Apply remainder to rent' },
+  { value: 'allocate_electricity', label: 'Apply remainder to electricity' },
+  { value: 'advance_credit', label: 'Advance credit' },
   { value: 'refund_later', label: 'Refund later' },
 ];
 
@@ -74,7 +76,7 @@ export function OperationsPaymentReviewsPanel({
   const [allocationBalancesError, setAllocationBalancesError] = useState<string | null>(null);
   const [moreOpenKey, setMoreOpenKey] = useState<string | null>(null);
   const [overpayDisposition, setOverpayDisposition] =
-    useState<OverpaymentDisposition>('wallet_credit');
+    useState<OverpaymentDisposition>('allocate_deposit');
   const [reviewNotes, setReviewNotes] = useState('');
   const [approvalNotes, setApprovalNotes] = useState('');
   const [rejectDialogItem, setRejectDialogItem] = useState<PendingPaymentReviewItem | null>(
@@ -210,6 +212,8 @@ export function OperationsPaymentReviewsPanel({
           confirmedReceivedPaise: alloc.confirmedReceivedPaise,
           rentAllocatedPaise: alloc.rentAllocatedPaise,
           depositAllocatedPaise: alloc.depositAllocatedPaise,
+          electricityAllocatedPaise: alloc.electricityAllocatedPaise,
+          otherAllocatedPaise: alloc.otherAllocatedPaise,
           depositDueDate: alloc.depositDueDate,
           allocationNotes: alloc.allocationNotes,
         },

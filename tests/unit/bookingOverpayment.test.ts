@@ -14,11 +14,13 @@ const BOOKING = {
 };
 
 describe('booking overpayment', () => {
-  it('normalizeOverpaymentDisposition maps refund_later to refund', () => {
-    assert.equal(normalizeOverpaymentDisposition('refund_later'), 'refund');
-    assert.equal(normalizeOverpaymentDisposition('refund'), 'refund');
-    assert.equal(normalizeOverpaymentDisposition('wallet_credit'), 'wallet_credit');
-    assert.equal(normalizeOverpaymentDisposition('future_adjustment'), 'future_adjustment');
+  it('normalizeOverpaymentDisposition maps legacy and new dispositions', () => {
+    assert.equal(normalizeOverpaymentDisposition('refund_later'), 'refund_later');
+    assert.equal(normalizeOverpaymentDisposition('refund'), 'refund_later');
+    assert.equal(normalizeOverpaymentDisposition('wallet_credit'), 'allocate_deposit');
+    assert.equal(normalizeOverpaymentDisposition('allocate_deposit'), 'allocate_deposit');
+    assert.equal(normalizeOverpaymentDisposition('advance_credit'), 'advance_credit');
+    assert.equal(normalizeOverpaymentDisposition('future_adjustment'), 'advance_credit');
     assert.equal(normalizeOverpaymentDisposition(undefined), null);
   });
 

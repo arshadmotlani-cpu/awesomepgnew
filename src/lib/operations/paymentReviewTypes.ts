@@ -36,7 +36,17 @@ export type PaymentReviewBookingDetails = {
   priorOutstandingItems?: PriorOutstandingItem[];
 };
 
-export type OverpaymentDisposition = 'wallet_credit' | 'future_adjustment' | 'refund_later' | 'refund';
+export type OverpaymentDisposition =
+  | 'allocate_deposit'
+  | 'allocate_rent'
+  | 'allocate_electricity'
+  | 'advance_credit'
+  | 'refund_later'
+  /** @deprecated Use allocate_deposit — kept for legacy audit rows */
+  | 'wallet_credit'
+  /** @deprecated Use advance_credit */
+  | 'future_adjustment'
+  | 'refund';
 
 export type PendingPaymentReviewItem = {
   key: string;

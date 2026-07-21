@@ -13,6 +13,7 @@ import {
   rooms,
 } from '@/src/db/schema';
 import { isBookingCheckoutEligibleForPaymentReview } from '@/src/lib/operations/paymentReviewSsot';
+import type { OverpaymentDisposition } from '@/src/lib/operations/paymentReviewTypes';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { RENT_DEPOSIT_BOOKING_CATEGORY_NAME } from '@/src/lib/payments/defaultQr';
@@ -646,6 +647,8 @@ export type AdminPaymentAllocationInput = {
   confirmedReceivedPaise: number;
   rentAllocatedPaise: number;
   depositAllocatedPaise: number;
+  electricityAllocatedPaise?: number;
+  otherAllocatedPaise?: number;
   depositDueDate?: string;
   allocationNotes?: string;
 };
@@ -743,66 +746,51 @@ export async function reviewPaymentRecord(
           ? { outcome: 'already_approved' }
           : { outcome: 'approved' };
       } else if (booking?.status === 'pending_payment' || booking?.status === 'pending_approval') {
+        const allocation = opts?.paymentAllocation;
+        if (!allocation) {
+          throw new Error(
+            'Admin payment allocation is required before approving booking checkout payments.',
+          );
+        }
+
         const { recordPaymentSuccess } = await import('./bookingLifecycle');
-        const {
-          computeBookingCheckoutOverpaymentPaise,
-          normalizeOverpaymentDisposition,
-        } = await import('./bookingOverpayment');
+        const { normalizeOverpaymentDisposition } = await import('./bookingOverpayment');
 
         let overpayment:
           | {
               excessPaise: number;
-              disposition: 'wallet_credit' | 'future_adjustment' | 'refund' | 'refund_later';
+              disposition: OverpaymentDisposition;
               approvedByAdminId: string;
             }
           | undefined;
 
-        const allocation = opts?.paymentAllocation;
-        const confirmedReceivedPaise =
-          allocation?.confirmedReceivedPaise ?? record.amountPaise;
+        const confirmedReceivedPaise = allocation.confirmedReceivedPaise;
+        const electricityAllocatedPaise = allocation.electricityAllocatedPaise ?? 0;
+        const otherAllocatedPaise = allocation.otherAllocatedPaise ?? 0;
 
-        if (allocation) {
-          const unallocatedPaise = Math.max(
-            0,
-            confirmedReceivedPaise -
-              allocation.rentAllocatedPaise -
-              allocation.depositAllocatedPaise,
+        const unallocatedPaise = Math.max(
+          0,
+          confirmedReceivedPaise -
+            allocation.rentAllocatedPaise -
+            allocation.depositAllocatedPaise -
+            electricityAllocatedPaise -
+            otherAllocatedPaise,
+        );
+
+        if (unallocatedPaise > 0) {
+          const disposition = normalizeOverpaymentDisposition(
+            opts?.reviewMeta?.overpaymentDisposition,
           );
-          if (unallocatedPaise > 0) {
-            const disposition = normalizeOverpaymentDisposition(
-              opts?.reviewMeta?.overpaymentDisposition,
+          if (!disposition) {
+            throw new Error(
+              `₹${(unallocatedPaise / 100).toFixed(0)} is unallocated. Select how to apply the remainder before approving.`,
             );
-            if (!disposition) {
-              throw new Error(
-                `₹${(unallocatedPaise / 100).toFixed(0)} is unallocated. Select an overpayment disposition before approving.`,
-              );
-            }
-            overpayment = {
-              excessPaise: unallocatedPaise,
-              disposition,
-              approvedByAdminId: session.adminId,
-            };
           }
-        } else {
-          const excessPaise = computeBookingCheckoutOverpaymentPaise({
-            booking,
-            amountPaise: record.amountPaise,
-          });
-          if (excessPaise > 0) {
-            const disposition = normalizeOverpaymentDisposition(
-              opts?.reviewMeta?.overpaymentDisposition,
-            );
-            if (!disposition) {
-              throw new Error(
-                `Payment exceeds checkout total by ₹${(excessPaise / 100).toFixed(0)}. Select an overpayment disposition before approving.`,
-              );
-            }
-            overpayment = {
-              excessPaise,
-              disposition,
-              approvedByAdminId: session.adminId,
-            };
-          }
+          overpayment = {
+            excessPaise: unallocatedPaise,
+            disposition,
+            approvedByAdminId: session.adminId,
+          };
         }
 
         const paymentResult = await recordPaymentSuccess({
@@ -824,17 +812,17 @@ export async function reviewPaymentRecord(
                 approvedByAdminId: session.adminId,
               }
             : undefined,
-          paymentAllocation: allocation
-            ? {
+          paymentAllocation: {
                 confirmedReceivedPaise,
                 rentAllocatedPaise: allocation.rentAllocatedPaise,
                 depositAllocatedPaise: allocation.depositAllocatedPaise,
+                electricityAllocatedPaise,
+                otherAllocatedPaise,
                 depositDueDate: allocation.depositDueDate,
                 approvedByAdminId: session.adminId,
                 allocationNotes: allocation.allocationNotes,
                 pgPaymentRecordId: recordId,
-              }
-            : undefined,
+              },
           overpayment,
         });
         if (!paymentResult.ok) {

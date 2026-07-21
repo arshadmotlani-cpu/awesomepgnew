@@ -14,6 +14,7 @@ import { breakdownBookingCheckoutPayment } from '@/src/lib/billing/bookingChecko
 import { resolveBookingDepositCreditAppliedPaise } from '@/src/lib/billing/bookingCheckoutTotals';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
+import { getBookingFinancialAccount } from '@/src/services/residentFinancialEngine';
 
 async function sumPaidRentInvoicesPaise(bookingId: string): Promise<number> {
   const [row] = await db
@@ -72,6 +73,20 @@ export async function getBookingMoneyBalances(
     invoiceRent,
   );
 
+  let electricityRequired = 0;
+  let electricityReceived = 0;
+  let electricityOutstanding = 0;
+  try {
+    const account = await getBookingFinancialAccount(bookingId);
+    if (account) {
+      electricityRequired = account.summary.electricity.requiredPaise;
+      electricityReceived = account.summary.electricity.paidPaise;
+      electricityOutstanding = account.summary.electricity.outstandingPaise;
+    }
+  } catch {
+    // Non-fatal — booking may lack electricity rows yet.
+  }
+
   return {
     bookingId: booking.id,
     rent: computeMoneySlice(rentRequired, rentReceived),
@@ -82,6 +97,7 @@ export async function getBookingMoneyBalances(
         'balances.refundable',
       ),
     },
+    electricity: computeMoneySlice(electricityRequired, electricityReceived),
   };
 }
 

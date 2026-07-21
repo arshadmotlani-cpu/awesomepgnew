@@ -85,11 +85,13 @@ export type RecordPaymentSuccessInput = {
     depositDueDate: string;
     approvedByAdminId: string;
   };
-  /** Admin-controlled rent + deposit allocation (Operations payment review). */
+  /** Admin-controlled payment allocation (Operations payment review). */
   paymentAllocation?: {
     confirmedReceivedPaise: number;
     rentAllocatedPaise: number;
     depositAllocatedPaise: number;
+    electricityAllocatedPaise?: number;
+    otherAllocatedPaise?: number;
     depositDueDate?: string;
     approvedByAdminId: string;
     allocationNotes?: string;
@@ -97,10 +99,10 @@ export type RecordPaymentSuccessInput = {
   };
   /** Admin who recorded an offline payment — used for audit attribution. */
   recordedByAdminId?: string;
-  /** Overpayment after rent/deposit/prior allocation (admin-selected disposition). */
+  /** Unallocated remainder after explicit allocation (admin-selected disposition). */
   overpayment?: {
     excessPaise: number;
-    disposition: 'wallet_credit' | 'future_adjustment' | 'refund' | 'refund_later';
+    disposition: import('@/src/lib/operations/paymentReviewTypes').OverpaymentDisposition;
     approvedByAdminId?: string;
   };
 };
@@ -287,16 +289,21 @@ async function applyBookingPaymentFinancialMirrors(input: {
     if (!allocResult.ok) {
       throw new Error(allocResult.reason);
     }
-    if (allocResult.unallocatedPaise > 0 && !payInput.overpayment) {
+    if (allocResult.unallocatedPaise > 0) {
+      if (!payInput.overpayment) {
+        throw new Error(
+          `₹${(allocResult.unallocatedPaise / 100).toFixed(0)} remains unallocated — select a disposition before approving.`,
+        );
+      }
       const { applyBookingOverpaymentDisposition } = await import('./bookingOverpayment');
       await applyBookingOverpaymentDisposition({
         bookingId: booking.id,
         bookingCode: booking.bookingCode,
         customerId: booking.customerId,
         paymentId,
-        excessPaise: allocResult.unallocatedPaise,
-        disposition: 'wallet_credit',
-        approvedByAdminId: payInput.paymentAllocation.approvedByAdminId,
+        excessPaise: payInput.overpayment.excessPaise,
+        disposition: payInput.overpayment.disposition,
+        approvedByAdminId: payInput.overpayment.approvedByAdminId,
       });
     }
     return;

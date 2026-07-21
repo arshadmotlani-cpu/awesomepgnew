@@ -31,6 +31,12 @@ export const paymentApprovalAllocations = pgTable(
     securityDepositPaidPaise: bigint('security_deposit_paid_paise', { mode: 'number' })
       .notNull()
       .default(0),
+    electricityPaidPaise: bigint('electricity_paid_paise', { mode: 'number' })
+      .notNull()
+      .default(0),
+    otherPaidPaise: bigint('other_paid_paise', { mode: 'number' })
+      .notNull()
+      .default(0),
     priorOutstandingPaidPaise: bigint('prior_outstanding_paid_paise', { mode: 'number' })
       .notNull()
       .default(0),

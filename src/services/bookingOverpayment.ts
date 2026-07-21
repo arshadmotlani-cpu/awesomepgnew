@@ -13,14 +13,17 @@ import {
 } from '@/src/lib/billing/bookingOverpaymentConstants';
 import { splitBookingPayment } from '@/src/services/depositCollection';
 
-export type BookingOverpaymentDisposition = OverpaymentDisposition | 'refund';
+export type BookingOverpaymentDisposition = OverpaymentDisposition;
 
 export function normalizeOverpaymentDisposition(
   raw: string | undefined | null,
 ): BookingOverpaymentDisposition | null {
   if (!raw) return null;
-  if (raw === 'refund' || raw === 'refund_later') return 'refund';
-  if (raw === 'wallet_credit' || raw === 'future_adjustment') return raw;
+  if (raw === 'refund' || raw === 'refund_later') return 'refund_later';
+  if (raw === 'wallet_credit' || raw === 'allocate_deposit') return 'allocate_deposit';
+  if (raw === 'future_adjustment' || raw === 'advance_credit') return 'advance_credit';
+  if (raw === 'allocate_rent') return 'allocate_rent';
+  if (raw === 'allocate_electricity') return 'allocate_electricity';
   return null;
 }
 
@@ -82,11 +85,10 @@ export async function applyBookingOverpaymentDisposition(
     return { snapshotUpdated: false };
   }
 
-  const disposition =
-    input.disposition === 'refund_later' ? 'refund' : input.disposition;
+  const disposition = input.disposition;
   const adminId = input.approvedByAdminId ?? null;
 
-  if (disposition === 'wallet_credit') {
+  if (disposition === 'allocate_deposit' || disposition === 'wallet_credit') {
     const { recordDepositCollected } = await import('@/src/services/deposits');
     const result = await recordDepositCollected({
       bookingId: input.bookingId,
@@ -127,7 +129,7 @@ export async function applyBookingOverpaymentDisposition(
     };
   }
 
-  if (disposition === 'refund') {
+  if (disposition === 'refund_later' || disposition === 'refund') {
     const [bookingRow] = await db
       .select({ pricingSnapshot: bookings.pricingSnapshot })
       .from(bookings)
@@ -181,56 +183,112 @@ export async function applyBookingOverpaymentDisposition(
     };
   }
 
-  // future_adjustment — credit stored on pricing snapshot for next rent cycle
-  const [bookingRow] = await db
-    .select({ pricingSnapshot: bookings.pricingSnapshot })
-    .from(bookings)
-    .where(eq(bookings.id, input.bookingId))
-    .limit(1);
+  if (disposition === 'advance_credit' || disposition === 'future_adjustment') {
+    const { recordResidentCredit } = await import('@/src/services/residentCreditLedger');
+    await recordResidentCredit({
+      customerId: input.customerId,
+      bookingId: input.bookingId,
+      amountPaise: input.excessPaise,
+      reason: `Advance credit from overpayment — booking ${input.bookingCode}`,
+      relatedPaymentId: input.paymentId,
+      createdByAdminId: adminId,
+    });
 
-  const snapshot = (bookingRow?.pricingSnapshot ?? {}) as PricingSnapshot;
-  const credits = [...(snapshot.checkoutCredits ?? [])];
-  credits.push({
-    amountPaise: input.excessPaise,
-    kind: 'future_rent_adjustment',
-    relatedPaymentId: input.paymentId,
-    createdAt: new Date().toISOString(),
-    note: 'Overpayment held as credit toward future rent invoices',
-  });
+    const [auditRow] = await db
+      .insert(auditLog)
+      .values({
+        actorType: adminId ? 'admin' : 'system',
+        actorId: adminId,
+        entity: 'booking',
+        entityId: input.bookingId,
+        action: 'booking_overpayment_advance_credit',
+        diff: {
+          paymentId: input.paymentId,
+          excessPaise: input.excessPaise,
+        },
+      })
+      .returning({ id: auditLog.id });
 
-  await db
-    .update(bookings)
-    .set({
-      pricingSnapshot: { ...snapshot, checkoutCredits: credits },
-      updatedAt: new Date(),
-    })
-    .where(eq(bookings.id, input.bookingId));
+    return {
+      auditLogId: auditRow.id,
+      snapshotUpdated: false,
+    };
+  }
 
-  const [auditRow] = await db
-    .insert(auditLog)
-    .values({
-      actorType: adminId ? 'admin' : 'system',
-      actorId: adminId,
-      entity: 'booking',
-      entityId: input.bookingId,
-      action: 'booking_overpayment_future_adjustment',
-      diff: {
-        paymentId: input.paymentId,
-        excessPaise: input.excessPaise,
-        checkoutCreditsCount: credits.length,
-      },
-    })
-    .returning({ id: auditLog.id });
+  if (disposition === 'allocate_rent') {
+    const [booking] = await db
+      .select({
+        id: bookings.id,
+        customerId: bookings.customerId,
+        bookingCode: bookings.bookingCode,
+        durationMode: bookings.durationMode,
+        subtotalPaise: bookings.subtotalPaise,
+        discountPaise: bookings.discountPaise,
+        depositPaise: bookings.depositPaise,
+        totalPaise: bookings.totalPaise,
+        pricingSnapshot: bookings.pricingSnapshot,
+      })
+      .from(bookings)
+      .where(eq(bookings.id, input.bookingId))
+      .limit(1);
+    if (!booking) {
+      throw new Error('Booking not found for rent overpayment allocation.');
+    }
+    const { applyBookingRentInvoiceOnPaymentSuccess } = await import('./bookingPaymentInvoices');
+    const rentResult = await applyBookingRentInvoiceOnPaymentSuccess({
+      booking,
+      paymentId: input.paymentId,
+      paymentAmountPaise: input.excessPaise,
+      providerPaymentId: input.paymentId,
+      rentPaisePaidOverride: input.excessPaise,
+    });
+    if (!rentResult.ok) {
+      throw new Error(rentResult.reason);
+    }
+    const { syncBookingRentReceivedPaise } = await import('./bookingMoneyBalances');
+    await syncBookingRentReceivedPaise(input.bookingId);
 
-  const { notifyBookingOverpaymentFutureCredit } = await import('@/src/lib/email/notifications');
-  notifyBookingOverpaymentFutureCredit({
-    customerId: input.customerId,
-    bookingCode: input.bookingCode,
-    excessPaise: input.excessPaise,
-  });
+    const [auditRow] = await db
+      .insert(auditLog)
+      .values({
+        actorType: adminId ? 'admin' : 'system',
+        actorId: adminId,
+        entity: 'booking',
+        entityId: input.bookingId,
+        action: 'booking_overpayment_allocate_rent',
+        diff: { paymentId: input.paymentId, excessPaise: input.excessPaise },
+      })
+      .returning({ id: auditLog.id });
 
-  return {
-    auditLogId: auditRow.id,
-    snapshotUpdated: true,
-  };
+    return { auditLogId: auditRow.id, snapshotUpdated: false };
+  }
+
+  if (disposition === 'allocate_electricity') {
+    const { applyElectricityAllocationForBooking } = await import('./paymentAllocation');
+    const elecResult = await applyElectricityAllocationForBooking({
+      bookingId: input.bookingId,
+      paymentId: input.paymentId,
+      amountPaise: input.excessPaise,
+      approvedByAdminId: adminId,
+    });
+    if (!elecResult.ok) {
+      throw new Error(elecResult.reason);
+    }
+
+    const [auditRow] = await db
+      .insert(auditLog)
+      .values({
+        actorType: adminId ? 'admin' : 'system',
+        actorId: adminId,
+        entity: 'booking',
+        entityId: input.bookingId,
+        action: 'booking_overpayment_allocate_electricity',
+        diff: { paymentId: input.paymentId, excessPaise: input.excessPaise },
+      })
+      .returning({ id: auditLog.id });
+
+    return { auditLogId: auditRow.id, snapshotUpdated: false };
+  }
+
+  throw new Error(`Unknown overpayment disposition: ${disposition}`);
 }

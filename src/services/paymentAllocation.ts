@@ -1,13 +1,14 @@
 /**
- * Admin-controlled payment allocation — rent and deposit independently.
- * Payment amount on pg_payment_records stays immutable; allocation drives ledger.
+ * Admin-controlled payment allocation — rent, deposit, electricity, and other independently.
+ * Payment amount on pg_payment_records stays immutable; allocation drives ledger + invoices.
  */
 
-import { eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { auditLog, bookings } from '@/src/db/schema';
+import { auditLog, bookings, electricityInvoices } from '@/src/db/schema';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import {
+  totalAllocatedPaise,
   validatePaymentAllocation,
   type PaymentAllocationInput,
 } from '@/src/lib/billing/bookingMoneyBalances';
@@ -25,6 +26,8 @@ import {
 } from '@/src/services/depositCollection';
 import { recordDepositCollected } from '@/src/services/deposits';
 import { applyBookingRentInvoiceOnPaymentSuccess } from '@/src/services/bookingPaymentInvoices';
+import { projectElectricityInvoice } from '@/src/services/electricityBilling';
+import { recordResidentCredit } from '@/src/services/residentCreditLedger';
 
 export type AdminPaymentAllocation = PaymentAllocationInput & {
   depositDueDate?: string;
@@ -35,7 +38,10 @@ export type AdminPaymentAllocation = PaymentAllocationInput & {
 export async function validateAdminPaymentAllocation(input: {
   bookingId: string;
   allocation: AdminPaymentAllocation;
-}): Promise<{ ok: true; balances: NonNullable<Awaited<ReturnType<typeof getBookingMoneyBalances>>> } | { ok: false; reason: string }> {
+}): Promise<
+  | { ok: true; balances: NonNullable<Awaited<ReturnType<typeof getBookingMoneyBalances>>> }
+  | { ok: false; reason: string }
+> {
   const balances = await getBookingMoneyBalances(input.bookingId);
   if (!balances) {
     return { ok: false, reason: 'Booking not found.' };
@@ -45,11 +51,70 @@ export async function validateAdminPaymentAllocation(input: {
     allocation: input.allocation,
     rentOutstandingBeforePaise: balances.rent.outstandingPaise,
     depositOutstandingBeforePaise: balances.deposit.outstandingPaise,
+    electricityOutstandingBeforePaise: balances.electricity.outstandingPaise,
     allowRentPrepay: true,
   });
   if (!check.ok) return check;
 
   return { ok: true, balances };
+}
+
+/** Apply electricity allocation to oldest outstanding invoice for a booking. */
+export async function applyElectricityAllocationForBooking(input: {
+  bookingId: string;
+  paymentId: string;
+  amountPaise: number;
+  approvedByAdminId?: string | null;
+}): Promise<{ ok: true } | { ok: false; reason: string }> {
+  if (input.amountPaise <= 0) return { ok: true };
+
+  const invoices = await db
+    .select()
+    .from(electricityInvoices)
+    .where(
+      and(
+        eq(electricityInvoices.bookingId, input.bookingId),
+        eq(electricityInvoices.status, 'pending'),
+      ),
+    )
+    .orderBy(asc(electricityInvoices.billingMonth));
+
+  let remaining = input.amountPaise;
+  for (const inv of invoices) {
+    if (remaining <= 0) break;
+    const projected = projectElectricityInvoice(inv);
+    const due = Math.max(0, projected.outstandingPaise);
+    if (due <= 0) continue;
+
+    const applyPaise = Math.min(remaining, due);
+    const { applyApprovedPaymentAtomic } = await import('./paymentSettlementAtomic');
+    const result = await applyApprovedPaymentAtomic({
+      purpose: 'electricity',
+      provider: 'mock',
+      providerPaymentId: `${input.paymentId}_elec_${inv.id}`,
+      amountPaise: applyPaise,
+      invoiceId: inv.id,
+      offlineProvider: 'upi_manual',
+      rawPayload: {
+        source: 'admin_payment_allocation',
+        relatedPaymentId: input.paymentId,
+        approvedByAdminId: input.approvedByAdminId,
+      },
+    });
+    if (!result.ok) {
+      return { ok: false, reason: result.reason ?? 'Electricity allocation failed.' };
+    }
+    remaining -= applyPaise;
+  }
+
+  if (remaining > 0) {
+    return {
+      ok: false,
+      reason: `₹${(remaining / 100).toFixed(0)} could not be applied — no outstanding electricity invoice.`,
+    };
+  }
+
+  return { ok: true };
 }
 
 export async function applyAdminPaymentAllocation(input: {
@@ -82,12 +147,17 @@ export async function applyAdminPaymentAllocation(input: {
     allocation.depositAllocatedPaise,
     'alloc.deposit',
   );
+  const electricityAllocated = guardDepositPaise(
+    allocation.electricityAllocatedPaise,
+    'alloc.electricity',
+  );
+  const otherAllocated = guardDepositPaise(allocation.otherAllocatedPaise, 'alloc.other');
 
   if (rentAllocated > 0) {
     const rentResult = await applyBookingRentInvoiceOnPaymentSuccess({
       booking: input.booking,
       paymentId: input.paymentId,
-      paymentAmountPaise: input.allocation.confirmedReceivedPaise,
+      paymentAmountPaise: allocation.confirmedReceivedPaise,
       membershipAmountPaise: input.membershipAmountPaise,
       providerPaymentId: input.providerPaymentId,
       rentPaisePaidOverride: rentAllocated,
@@ -105,6 +175,31 @@ export async function applyAdminPaymentAllocation(input: {
       reason: input.pgPaymentRecordId
         ? `deposit allocation — payment proof ${input.pgPaymentRecordId}`
         : `deposit allocation — payment ${input.providerPaymentId}`,
+      relatedPaymentId: input.paymentId,
+      createdByAdminId: allocation.approvedByAdminId,
+    });
+  }
+
+  if (electricityAllocated > 0) {
+    const elecResult = await applyElectricityAllocationForBooking({
+      bookingId: input.booking.id,
+      paymentId: input.paymentId,
+      amountPaise: electricityAllocated,
+      approvedByAdminId: allocation.approvedByAdminId,
+    });
+    if (!elecResult.ok) {
+      return elecResult;
+    }
+  }
+
+  if (otherAllocated > 0) {
+    await recordResidentCredit({
+      customerId: input.booking.customerId,
+      bookingId: input.booking.id,
+      amountPaise: otherAllocated,
+      reason: input.pgPaymentRecordId
+        ? `Other allocation — payment proof ${input.pgPaymentRecordId}`
+        : `Other allocation — payment ${input.providerPaymentId}`,
       relatedPaymentId: input.paymentId,
       createdByAdminId: allocation.approvedByAdminId,
     });
@@ -145,13 +240,15 @@ export async function applyAdminPaymentAllocation(input: {
       confirmedReceivedPaise: allocation.confirmedReceivedPaise,
       rentAllocatedPaise: rentAllocated,
       depositAllocatedPaise: depositAllocated,
+      electricityAllocatedPaise: electricityAllocated,
+      otherAllocatedPaise: otherAllocated,
       notes: allocation.allocationNotes ?? null,
     },
   });
 
   const unallocatedPaise = Math.max(
     0,
-    allocation.confirmedReceivedPaise - rentAllocated - depositAllocated,
+    allocation.confirmedReceivedPaise - totalAllocatedPaise(allocation),
   );
 
   return { ok: true, unallocatedPaise };
@@ -162,11 +259,14 @@ export function suggestPaymentAllocation(input: {
   confirmedReceivedPaise: number;
   rentOutstandingPaise: number;
   depositOutstandingPaise: number;
+  electricityOutstandingPaise?: number;
 }): PaymentAllocationInput {
   return {
     confirmedReceivedPaise: input.confirmedReceivedPaise,
     rentAllocatedPaise: 0,
     depositAllocatedPaise: 0,
+    electricityAllocatedPaise: 0,
+    otherAllocatedPaise: 0,
   };
 }
 

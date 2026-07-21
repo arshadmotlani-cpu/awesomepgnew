@@ -113,6 +113,8 @@ export async function approveQrPaymentWithAllocationAction(
         confirmedReceivedPaise: allocation.confirmedReceivedPaise,
         rentAllocatedPaise: allocation.rentAllocatedPaise,
         depositAllocatedPaise: allocation.depositAllocatedPaise,
+        electricityAllocatedPaise: allocation.electricityAllocatedPaise ?? 0,
+        otherAllocatedPaise: allocation.otherAllocatedPaise ?? 0,
         allocationNotes: allocation.allocationNotes,
       },
     });

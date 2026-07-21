@@ -38,6 +38,8 @@ export async function recordPaymentApprovalAllocation(input: {
     confirmedReceivedPaise: number;
     rentAllocatedPaise: number;
     depositAllocatedPaise: number;
+    electricityAllocatedPaise?: number;
+    otherAllocatedPaise?: number;
     allocationNotes?: string;
   };
 }): Promise<void> {
@@ -49,6 +51,8 @@ export async function recordPaymentApprovalAllocation(input: {
   const roomChargesPaidPaise = admin?.rentAllocatedPaise ?? autoSnapshot.roomChargesPaidPaise;
   const securityDepositPaidPaise =
     admin?.depositAllocatedPaise ?? autoSnapshot.securityDepositPaidPaise;
+  const electricityPaidPaise = admin?.electricityAllocatedPaise ?? 0;
+  const otherPaidPaise = admin?.otherAllocatedPaise ?? 0;
   const totalAmountReceivedPaise =
     admin?.confirmedReceivedPaise ?? autoSnapshot.totalAmountReceivedPaise;
 
@@ -62,6 +66,8 @@ export async function recordPaymentApprovalAllocation(input: {
       pgId: input.item.pgId,
       roomChargesPaidPaise,
       securityDepositPaidPaise,
+      electricityPaidPaise,
+      otherPaidPaise,
       priorOutstandingPaidPaise: breakdown.priorPaidPaise,
       totalAmountReceivedPaise,
       confirmedReceivedPaise: admin?.confirmedReceivedPaise ?? null,
@@ -82,6 +88,8 @@ export async function recordPaymentApprovalAllocation(input: {
         pgId: input.item.pgId,
         roomChargesPaidPaise,
         securityDepositPaidPaise,
+        electricityPaidPaise,
+        otherPaidPaise,
         priorOutstandingPaidPaise: breakdown.priorPaidPaise,
         totalAmountReceivedPaise,
         confirmedReceivedPaise: admin?.confirmedReceivedPaise ?? null,

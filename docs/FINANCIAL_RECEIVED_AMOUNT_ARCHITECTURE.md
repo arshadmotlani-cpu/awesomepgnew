@@ -1,7 +1,7 @@
 # Financial Received-Amount Architecture — Audit & Implementation Plan
 
 **Date:** 2026-07-21  
-**Status:** Plan only — **no implementation started**  
+**Status:** Phase 1 in progress — payment allocation engine (2026-07-21)  
 **Scope:** Move Awesome PG from assumed-deposit workflows to **received-amount SSOT**, admin-controlled payment allocation, and a unified **Checkout & Financial Workspace**.
 
 **Related:** [[Deposits]] · [[Billing]] · [[Checkout Settlements]] · [[Vacating]] · [[Operations]] · `docs/FINANCIAL_SSOT_AUDIT_REPORT.md` · `docs/NOTICE_DEDUCTION_MIGRATION.md`

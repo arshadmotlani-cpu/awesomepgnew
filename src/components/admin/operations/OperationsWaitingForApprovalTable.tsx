@@ -168,6 +168,8 @@ export function OperationsWaitingForApprovalTable({
             {items.map((item) => {
               const busy = busyKey === item.key;
               const breakdown = buildPaymentReviewBreakdown(item);
+              const requiresAllocation =
+                item.kind === 'qr' && Boolean(item.bookingId && item.bookingPaymentReview);
               return (
                 <tr key={item.key} className="transition hover:bg-white/[0.02]">
                   <td className="px-4 py-4 font-medium text-white">{item.residentName}</td>
@@ -205,7 +207,7 @@ export function OperationsWaitingForApprovalTable({
                           Reject
                         </button>
                       ) : null}
-                      {item.overpaidPaise > 0 ? null : (
+                      {!requiresAllocation && item.overpaidPaise > 0 ? null : !requiresAllocation ? (
                         <button
                           type="button"
                           disabled={busy}
@@ -217,7 +219,7 @@ export function OperationsWaitingForApprovalTable({
                         >
                           {busy ? '…' : 'Approve'}
                         </button>
-                      )}
+                      ) : null}
                     </div>
                   </td>
                 </tr>
