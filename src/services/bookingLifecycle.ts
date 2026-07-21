@@ -277,13 +277,15 @@ async function applyBookingPaymentFinancialMirrors(input: {
   const snapshot = booking.pricingSnapshot as PricingSnapshot | null;
 
   if (payInput.paymentAllocation) {
-    const { applyAdminPaymentAllocation } = await import('./paymentAllocation');
+    const { applyAdminPaymentAllocation, normalizeAdminPaymentAllocation } = await import(
+      './paymentAllocation'
+    );
     const allocResult = await applyAdminPaymentAllocation({
       booking,
       paymentId,
       providerPaymentId: payInput.providerPaymentId,
       membershipAmountPaise: payInput.membershipAmountPaise,
-      allocation: payInput.paymentAllocation,
+      allocation: normalizeAdminPaymentAllocation(payInput.paymentAllocation),
       pgPaymentRecordId: payInput.paymentAllocation.pgPaymentRecordId,
     });
     if (!allocResult.ok) {

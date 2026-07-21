@@ -256,28 +256,21 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-21 14:46:58 UTC
+### Pending pre-commit sync · 2026-07-21 14:54:12 UTC
 
-**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Bookings]]
+**Areas touched:** [[Billing]], [[Bookings]]
 
 **Docs flagged for review:**
 - `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DATABASE.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
-- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (8):**
-- `app/(admin)/admin/payments/actions.ts`
-- `src/db/migrations/0118_payment_allocation_electricity_other.sql`
-- `src/db/migrations/meta/_journal.json`
-- `src/db/schema/paymentApprovalAllocations.ts`
-- `src/lib/billing/bookingMoneyBalances.ts`
+**Staged code files (3):**
+- `src/lib/billing/checkoutRefundPreview.ts`
 - `src/services/bookingLifecycle.ts`
 - `src/services/bookingMoneyBalances.ts`
-- `src/services/bookingOverpayment.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed

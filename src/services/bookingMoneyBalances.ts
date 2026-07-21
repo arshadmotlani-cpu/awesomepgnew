@@ -4,26 +4,44 @@
 
 import { eq, sql } from 'drizzle-orm';
 import { db } from '@/src/db/client';
-import { bookings, rentInvoices } from '@/src/db/schema';
+import { bookings, electricityInvoices, rentInvoices } from '@/src/db/schema';
 import type { PricingSnapshot } from '@/src/db/schema/bookings';
 import {
   computeMoneySlice,
   type BookingMoneyBalances,
+  type MoneyBalanceSlice,
 } from '@/src/lib/billing/bookingMoneyBalances';
 import { breakdownBookingCheckoutPayment } from '@/src/lib/billing/bookingCheckoutTotals';
 import { resolveBookingDepositCreditAppliedPaise } from '@/src/lib/billing/bookingCheckoutTotals';
 import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
+import { projectElectricityInvoice } from '@/src/services/electricityBilling';
 import { getDepositSummaryForBooking } from '@/src/services/deposits';
-import { getBookingFinancialAccount } from '@/src/services/residentFinancialEngine';
 
 async function sumPaidRentInvoicesPaise(bookingId: string): Promise<number> {
   const [row] = await db
     .select({
-      total: sql<number>`coalesce(sum(${rentInvoices.paidPaise}), 0)::bigint::int`,
+      total: sql<number>`coalesce(sum(${rentInvoices.paidPrincipalPaise}), 0)::bigint::int`,
     })
     .from(rentInvoices)
     .where(eq(rentInvoices.bookingId, bookingId));
   return Math.max(0, row?.total ?? 0);
+}
+
+async function electricityBalancesForBooking(bookingId: string): Promise<MoneyBalanceSlice> {
+  const rows = await db
+    .select()
+    .from(electricityInvoices)
+    .where(eq(electricityInvoices.bookingId, bookingId));
+
+  let requiredPaise = 0;
+  let receivedPaise = 0;
+  for (const inv of rows) {
+    if (inv.status === 'cancelled') continue;
+    const projected = projectElectricityInvoice(inv);
+    requiredPaise += inv.amountPaise + projected.accruedLateFeePaise;
+    receivedPaise += inv.paidPaise;
+  }
+  return computeMoneySlice(requiredPaise, receivedPaise);
 }
 
 export async function getBookingMoneyBalances(
@@ -73,16 +91,9 @@ export async function getBookingMoneyBalances(
     invoiceRent,
   );
 
-  let electricityRequired = 0;
-  let electricityReceived = 0;
-  let electricityOutstanding = 0;
+  let electricity = computeMoneySlice(0, 0);
   try {
-    const account = await getBookingFinancialAccount(bookingId);
-    if (account) {
-      electricityRequired = account.summary.electricity.requiredPaise;
-      electricityReceived = account.summary.electricity.paidPaise;
-      electricityOutstanding = account.summary.electricity.outstandingPaise;
-    }
+    electricity = await electricityBalancesForBooking(bookingId);
   } catch {
     // Non-fatal — booking may lack electricity rows yet.
   }
@@ -97,7 +108,7 @@ export async function getBookingMoneyBalances(
         'balances.refundable',
       ),
     },
-    electricity: computeMoneySlice(electricityRequired, electricityReceived),
+    electricity,
   };
 }
 

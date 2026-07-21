@@ -21,6 +21,7 @@ export function computeCheckoutRefundPreview(input: CheckoutRefundPreviewInput):
   depositHeldPaise: number;
   noticeDeductionPaise: number;
   electricityDeductionPaise: number;
+  outstandingRentDeductionPaise: number;
   otherDeductionsPaise: number;
   totalDeductionsPaise: number;
   finalRefundPaise: number;

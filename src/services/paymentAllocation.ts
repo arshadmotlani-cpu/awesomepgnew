@@ -35,6 +35,28 @@ export type AdminPaymentAllocation = PaymentAllocationInput & {
   allocationNotes?: string;
 };
 
+export function normalizeAdminPaymentAllocation(input: {
+  confirmedReceivedPaise: number;
+  rentAllocatedPaise: number;
+  depositAllocatedPaise: number;
+  electricityAllocatedPaise?: number;
+  otherAllocatedPaise?: number;
+  depositDueDate?: string;
+  approvedByAdminId: string;
+  allocationNotes?: string;
+}): AdminPaymentAllocation {
+  return {
+    confirmedReceivedPaise: input.confirmedReceivedPaise,
+    rentAllocatedPaise: input.rentAllocatedPaise,
+    depositAllocatedPaise: input.depositAllocatedPaise,
+    electricityAllocatedPaise: input.electricityAllocatedPaise ?? 0,
+    otherAllocatedPaise: input.otherAllocatedPaise ?? 0,
+    depositDueDate: input.depositDueDate,
+    approvedByAdminId: input.approvedByAdminId,
+    allocationNotes: input.allocationNotes,
+  };
+}
+
 export async function validateAdminPaymentAllocation(input: {
   bookingId: string;
   allocation: AdminPaymentAllocation;

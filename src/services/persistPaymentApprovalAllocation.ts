@@ -24,6 +24,8 @@ export async function persistApprovalAllocationAfterSuccess(input: {
     confirmedReceivedPaise: number;
     rentAllocatedPaise: number;
     depositAllocatedPaise: number;
+    electricityAllocatedPaise?: number;
+    otherAllocatedPaise?: number;
     allocationNotes?: string;
   };
 }): Promise<void> {
