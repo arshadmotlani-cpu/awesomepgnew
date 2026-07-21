@@ -2,11 +2,12 @@
  * Cached public read paths — PG listings, room details, amenities, pricing.
  * Never used for bookings, payments, KYC, electricity, deposits, or check-ins.
  */
-import {
-  getPgBySlug as getPgBySlugDb,
-  getRoomDetail as getRoomDetailDb,
-  listPublicPgs as listPublicPgsDb,
-  listRoomsForPg as listRoomsForPgDb,
+import type {
+  CustomerPgDetail,
+  CustomerPgListRow,
+  CustomerRoomCard,
+  CustomerRoomDetail,
+  QueryResult,
 } from '@/src/db/queries/customer';
 export type {
   CustomerPgDetail,
@@ -14,6 +15,12 @@ export type {
   CustomerRoomCard,
   CustomerRoomDetail,
   QueryResult,
+};
+import {
+  getPgBySlug as getPgBySlugDb,
+  getRoomDetail as getRoomDetailDb,
+  listPublicPgs as listPublicPgsDb,
+  listRoomsForPg as listRoomsForPgDb,
 } from '@/src/db/queries/customer';
 import { cacheKeys, cacheTtl } from '@/src/lib/cache/keys';
 import { cacheReadThrough } from '@/src/lib/cache/readThrough';

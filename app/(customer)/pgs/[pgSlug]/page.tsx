@@ -4,7 +4,7 @@ import { PgBlockBooking } from '@/src/components/customer/block/PgBlockBooking';
 import { BookingFunnelShell } from '@/src/components/customer/checkout/BookingFunnelShell';
 import type { CustomerRoomBedMap } from '@/src/components/customer/CustomerBedMap';
 import { AnalyticsMountEvent } from '@/src/components/analytics/AnalyticsMountEvent';
-import { getPgBySlug, getRoomDetail, listRoomsForPg } from '@/src/services/publicPgReadCache';
+import { getPgBySlug, getRoomDetail, listRoomsForPg, type CustomerRoomCard, type CustomerRoomDetail } from '@/src/services/publicPgReadCache';
 import { buildSingleSharedSummaries } from '@/src/lib/booking/pgRoomTypeSummaries';
 import { enrichBedsWithQuotedMonthlyDeposit } from '@/src/lib/booking/publicQuote';
 import { trackAnalyticsEvent } from '@/src/services/visitorAnalytics';
@@ -29,12 +29,15 @@ export default async function PgDetailPage(props: PageProps<'/pgs/[pgSlug]'>) {
   const pg = pgResult.data;
 
   const roomsResult = await listRoomsForPg(pg.id);
-  const roomList = roomsResult.ok ? roomsResult.data : [];
+  const roomList: CustomerRoomCard[] = roomsResult.ok ? roomsResult.data : [];
   const roomTypeSummaries = buildSingleSharedSummaries(roomList);
 
-  const roomDetails = (
-    await Promise.all(roomList.map((r) => getRoomDetail(pg.slug, r.roomId)))
-  ).flatMap((d) => (d.ok && d.data ? [d.data] : []));
+  const roomDetailResults = await Promise.all(
+    roomList.map((r) => getRoomDetail(pg.slug, r.roomId)),
+  );
+  const roomDetails: CustomerRoomDetail[] = roomDetailResults.flatMap((d) =>
+    d.ok && d.data ? [d.data] : [],
+  );
 
   const bedMapRooms: CustomerRoomBedMap[] = await Promise.all(
     roomDetails.map(async (room) => {

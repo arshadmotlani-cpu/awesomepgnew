@@ -256,33 +256,17 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-21 08:32:20 UTC
+### Pending pre-commit sync · 2026-07-21 08:57:02 UTC
 
-**Areas touched:** [[ROUTES]], [[Bed Assignment]], [[Bookings]], [[Residents]], [[Vacating]]
+**Areas touched:** [[ROUTES]]
 
 **Docs flagged for review:**
 - `CHANGELOG.md` — review for accuracy
-- `DECISIONS.md` — review for accuracy
-- `PROJECT/features.md` — review for accuracy
 - `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
-- `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (14):**
-- `app/(admin)/admin/monitoring/page.tsx`
-- `app/(admin)/admin/pgs/inventory-actions.ts`
+**Staged code files (1):**
 - `app/(customer)/pgs/[pgSlug]/page.tsx`
-- `app/(customer)/pgs/[pgSlug]/rooms/[roomId]/page.tsx`
-- `app/(customer)/pgs/compare/page.tsx`
-- `app/(customer)/pgs/page.tsx`
-- `app/api/admin/cache-diagnostics/route.ts`
-- `app/page.tsx`
-- `src/lib/occupancyRevalidate.ts`
-- `src/services/booking.ts`
-- `src/services/bookingAdminOps.ts`
-- `src/services/bookingLifecycle.ts`
-- `src/services/residentAdmin.ts`
-- `src/services/vacating.ts`
 
 **Changed:**
 - _(auto)_ Pre-commit doc sync — expand FEATURES/WORKFLOWS/DATABASE sections if behavior changed
