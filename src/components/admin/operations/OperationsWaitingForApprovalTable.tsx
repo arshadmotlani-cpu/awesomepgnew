@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { startTransition, useMemo, useState } from 'react';
 import {
   approveDepositLinkProofAction,
   approveElectricityProofAction,
@@ -52,13 +52,17 @@ export function OperationsWaitingForApprovalTable({
     [focusKey, items],
   );
 
-  async function refreshAfterAction(opts?: { rejected?: boolean }) {
+  function refreshAfterAction(opts?: { rejected?: boolean }) {
     setRejectDialogItem(null);
     setConfirmItem(null);
     if (opts?.rejected) {
       showToast('Payment rejected successfully.');
     }
-    router.refresh();
+    // Server action revalidates /admin/operations — replace clears stale focus keys.
+    // Avoid router.refresh(); it races with the server action's own RSC refresh.
+    startTransition(() => {
+      router.replace(operationsFilterHref('waiting_for_approval'));
+    });
   }
 
   async function onApprove(item: PendingPaymentReviewItem) {
@@ -87,7 +91,7 @@ export function OperationsWaitingForApprovalTable({
         setError(result.message ?? 'Approval failed.');
         return;
       }
-      await refreshAfterAction();
+      refreshAfterAction();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Approval failed.');
     } finally {

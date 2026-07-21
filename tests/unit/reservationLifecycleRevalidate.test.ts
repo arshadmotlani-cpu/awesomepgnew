@@ -23,9 +23,20 @@ test('lifecycle revalidation runs once per mutation in service SSOT', () => {
   assert.doesNotMatch(finalizeFn, /revalidateReservationLifecycleViews/);
 
   assert.match(reject, /await revalidateAfterPaymentProofMutation\(ctx\.pgId, ctx\.bookingId\)/);
+  assert.match(reject, /lifecycle revalidate after reject failed/);
 
   assert.match(bedReserve, /await revalidateReservationLifecycleForBookingId/);
   assert.match(bedReserve, /await revalidateReservationLifecycleForBookingIds/);
+});
+
+test('payment review action revalidates operations without query string', () => {
+  const adminPayments = read('app/(admin)/admin/payments/actions.ts');
+
+  assert.doesNotMatch(adminPayments, /revalidatePath\([^)]*\?/);
+  assert.match(adminPayments, /revalidatePath\(PAYMENT_REVIEW_PATH, 'page'\)/);
+  assert.match(adminPayments, /revalidatePath\(PAYMENT_REVIEW_PATH, 'layout'\)/);
+  assert.match(adminPayments, /export async function rejectPaymentProofAction[\s\S]*try \{[\s\S]*catch \(err\)/);
+  assert.match(adminPayments, /revalidate after reject failed/);
 });
 
 test('route and action layers do not duplicate lifecycle revalidation', () => {

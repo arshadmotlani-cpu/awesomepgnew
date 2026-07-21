@@ -7,7 +7,6 @@ import { db } from '@/src/db/client';
 import { beds, floors, pgs, rooms } from '@/src/db/schema';
 import { resolvePgIdForBooking } from '@/src/lib/auth/pgAccess';
 import { invalidatePublicPgCache } from '@/src/lib/cache/invalidate';
-import { revalidatePublicPgBrowseCache } from '@/src/lib/cache/revalidatePublicPg';
 
 export type AvailabilityCacheScope = {
   pgId?: string | null;
@@ -87,19 +86,21 @@ export async function resolveAvailabilityPgContext(
   return null;
 }
 
-/** Invalidate public PG browse caches for the affected property. */
+/**
+ * Bust Redis public browse keys for the affected property.
+ * Next.js path revalidation stays synchronous on the mutation request — see
+ * revalidateReservationLifecycleViews call sites.
+ */
 export async function invalidateAvailabilityCache(
   scope: AvailabilityCacheScope,
 ): Promise<void> {
   const ctx = await resolveAvailabilityPgContext(scope);
   if (!ctx) {
     await invalidatePublicPgCache();
-    revalidatePublicPgBrowseCache();
     return;
   }
 
   await invalidatePublicPgCache({ pgId: ctx.pgId, pgSlug: ctx.pgSlug });
-  revalidatePublicPgBrowseCache({ pgId: ctx.pgId, pgSlug: ctx.pgSlug });
 }
 
 /** Fire-and-forget — never blocks booking / occupancy mutations. */

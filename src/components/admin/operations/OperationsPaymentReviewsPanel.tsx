@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { startTransition, useMemo, useState } from 'react';
 import {
   approveElectricityProofAction,
   approveDepositLinkProofAction,
@@ -28,6 +28,7 @@ import type {
   PendingPaymentReviewItem,
 } from '@/src/lib/operations/paymentReviewTypes';
 import { PAYMENT_ALREADY_APPROVED_MESSAGE } from '@/src/lib/operations/paymentReviewMessages';
+import { operationsFilterHref } from '@/src/lib/operations/operationsFilterLinks';
 import { paiseToInr } from '@/src/lib/format';
 
 const OVERPAYMENT_OPTIONS: Array<{ value: OverpaymentDisposition; label: string }> = [
@@ -81,7 +82,7 @@ export function OperationsPaymentReviewsPanel({
     return [items[0]];
   }, [items, reviewMode]);
 
-  async function advanceAfterAction(
+  function advanceAfterAction(
     _currentKey: string,
     nextKey?: string | null,
     opts?: { rejected?: boolean },
@@ -93,13 +94,15 @@ export function OperationsPaymentReviewsPanel({
     if (opts?.rejected) {
       showToast('Payment rejected successfully.');
     }
-    if (reviewMode && nextKey) {
-      router.push(
-        `/admin/operations?filter=waiting_for_approval&focus=${encodeURIComponent(nextKey)}`,
-      );
-    } else {
-      router.refresh();
-    }
+    startTransition(() => {
+      if (reviewMode && nextKey) {
+        router.push(
+          `/admin/operations?filter=waiting_for_approval&focus=${encodeURIComponent(nextKey)}`,
+        );
+        return;
+      }
+      router.replace(operationsFilterHref('waiting_for_approval'));
+    });
   }
 
   function requestApprove(item: PendingPaymentReviewItem) {
@@ -155,7 +158,7 @@ export function OperationsPaymentReviewsPanel({
       if ('message' in result && result.message === PAYMENT_ALREADY_APPROVED_MESSAGE) {
         setInfo(result.message);
       }
-      await advanceAfterAction(item.key, result.nextKey);
+      advanceAfterAction(item.key, result.nextKey);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Approval failed.');
     } finally {

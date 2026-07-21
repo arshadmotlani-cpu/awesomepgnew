@@ -655,7 +655,11 @@ export async function rejectPaymentProof(
   const { scheduleAdminNotificationSync } = await import('@/src/services/adminLiveSync');
   scheduleAdminNotificationSync();
 
-  await revalidateAfterPaymentProofMutation(ctx.pgId, ctx.bookingId);
+  try {
+    await revalidateAfterPaymentProofMutation(ctx.pgId, ctx.bookingId);
+  } catch (revalidateErr) {
+    console.warn('[payments] lifecycle revalidate after reject failed', revalidateErr);
+  }
 
   return {
     ok: true,

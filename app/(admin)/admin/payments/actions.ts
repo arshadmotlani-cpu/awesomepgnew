@@ -18,12 +18,13 @@ import {
 import type { PaymentProofRejectionReasonCode } from '@/src/lib/approvals/paymentProofRejectionReasons';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 
-const PAYMENT_REVIEW_PATH = '/admin/operations?filter=waiting_for_approval';
+const PAYMENT_REVIEW_PATH = '/admin/operations';
 
 function revalidatePaymentReviewSurfaces(pgId: string) {
-  revalidatePath('/admin');
+  revalidatePath('/admin', 'layout');
   revalidatePath('/admin/billing');
-  revalidatePath(PAYMENT_REVIEW_PATH);
+  revalidatePath(PAYMENT_REVIEW_PATH, 'page');
+  revalidatePath(PAYMENT_REVIEW_PATH, 'layout');
   revalidatePath('/admin/revenue');
   revalidatePath('/admin/revenue/billing');
   revalidatePath(`/admin/pgs/${pgId}/collections`);
@@ -140,29 +141,40 @@ export async function rejectPaymentProofAction(
   | { ok: true; nextKey?: string | null; whatsappUrl?: string; message?: string }
   | { ok: false; message: string }
 > {
-  const session = await requireAdminPermission('payments:write');
-  const entityType = reviewKindToEntityType(input.kind);
-  const result = await rejectPaymentProof(session, {
-    reviewKey: input.reviewKey,
-    entityType,
-    entityId: input.entityId,
-    reasonCode: input.reasonCode,
-    reasonDetail: input.reasonDetail,
-    adminNote: input.adminNote,
-    residentMessage: input.residentMessage,
-    sendWhatsApp: input.sendWhatsApp,
-  });
-  if (!result.ok) return result;
-  revalidatePaymentReviewSurfaces(input.pgId);
-  if (input.kind === 'rent') revalidatePath('/admin/rent');
-  if (input.kind === 'electricity') revalidatePath('/admin/electricity');
-  if (input.kind === 'extension') revalidatePath('/admin/bookings');
-  if (input.kind === 'deposit_link') {
-    revalidatePath('/admin/collections');
-    revalidatePath('/admin/residents');
+  try {
+    const session = await requireAdminPermission('payments:write');
+    const entityType = reviewKindToEntityType(input.kind);
+    const result = await rejectPaymentProof(session, {
+      reviewKey: input.reviewKey,
+      entityType,
+      entityId: input.entityId,
+      reasonCode: input.reasonCode,
+      reasonDetail: input.reasonDetail,
+      adminNote: input.adminNote,
+      residentMessage: input.residentMessage,
+      sendWhatsApp: input.sendWhatsApp,
+    });
+    if (!result.ok) return result;
+    try {
+      revalidatePaymentReviewSurfaces(input.pgId);
+      if (input.kind === 'rent') revalidatePath('/admin/rent');
+      if (input.kind === 'electricity') revalidatePath('/admin/electricity');
+      if (input.kind === 'extension') revalidatePath('/admin/bookings');
+      if (input.kind === 'deposit_link') {
+        revalidatePath('/admin/collections');
+        revalidatePath('/admin/residents');
+      }
+    } catch (revalidateErr) {
+      console.warn('[payments] revalidate after reject failed', revalidateErr);
+    }
+    const nextKey = await getNextPendingPaymentReviewKey(session, input.reviewKey);
+    return { ok: true, nextKey, whatsappUrl: result.whatsappUrl, message: result.message };
+  } catch (err) {
+    return {
+      ok: false,
+      message: err instanceof Error ? err.message : 'Rejection failed.',
+    };
   }
-  const nextKey = await getNextPendingPaymentReviewKey(session, input.reviewKey);
-  return { ok: true, nextKey, whatsappUrl: result.whatsappUrl, message: result.message };
 }
 
 export async function approveRentProofAction(

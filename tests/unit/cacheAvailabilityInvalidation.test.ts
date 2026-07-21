@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   publicRoomDetailPatternForSlug,
   publicRoomsPatternForPg,
@@ -21,6 +23,17 @@ describe('availability cache key patterns', () => {
       publicRoomDetailPatternForSlug('shanti-nagar'),
       /^apg:v1:public:room:shanti-nagar:\*$/,
     );
+  });
+});
+
+describe('availability invalidation safety', () => {
+  test('async availability bust does not call revalidatePath (Redis only)', () => {
+    const src = readFileSync(
+      join(process.cwd(), 'src/lib/cache/invalidateAvailability.ts'),
+      'utf8',
+    );
+    assert.doesNotMatch(src, /revalidatePublicPgBrowseCache/);
+    assert.doesNotMatch(src, /revalidatePath\s*\(/);
   });
 });
 
