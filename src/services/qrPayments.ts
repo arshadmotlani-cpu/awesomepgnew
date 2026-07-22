@@ -525,16 +525,18 @@ export async function getQrBookingPaymentReview(recordId: string) {
   const split = splitBookingPayment(
     {
       ...ctx,
-      pricingSnapshot: {
-        ...(ctx.pricingSnapshot ?? {}),
-        priorOutstanding:
-          expected.priorOutstandingPaise > 0
-            ? {
-                totalPaise: expected.priorOutstandingPaise,
-                items: expected.priorOutstandingItems,
-              }
-            : undefined,
-      },
+      pricingSnapshot: ctx.pricingSnapshot
+        ? {
+            ...ctx.pricingSnapshot,
+            priorOutstanding:
+              expected.priorOutstandingPaise > 0
+                ? {
+                    totalPaise: expected.priorOutstandingPaise,
+                    items: expected.priorOutstandingItems,
+                  }
+                : undefined,
+          }
+        : null,
     },
     bookingPaymentPaise,
   );

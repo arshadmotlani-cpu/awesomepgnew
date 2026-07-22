@@ -256,27 +256,17 @@ See [[AWESOME_PG_MASTER_DOCUMENTATION]] for Phase 1–5.5 baseline (schema, bill
 [[CURRENT_STATE]] · [[BUGS]] · [[DECISIONS]] · [[AI_CONTEXT]]
 
 <!-- DOC_SYNC_PENDING_START -->
-### Pending pre-commit sync · 2026-07-22 04:46:18 UTC
+### Pending pre-commit sync · 2026-07-22 04:54:39 UTC
 
-**Areas touched:** [[ROUTES]], [[DATABASE]], [[Billing]], [[Bookings]]
+**Areas touched:** [[Bookings]]
 
 **Docs flagged for review:**
-- `ARCHITECTURE.md` — review for accuracy
 - `CHANGELOG.md` — review for accuracy
-- `DATABASE.md` — review for accuracy
 - `PROJECT/features.md` — review for accuracy
-- `ROUTES.md` — review for accuracy
 - `SYSTEM/CURRENT_STATE.md` — review for accuracy
 - `SYSTEM/WORKFLOWS.md` — review for accuracy
 
-**Staged code files (8):**
-- `app/(admin)/admin/operations/page.tsx`
-- `app/(admin)/admin/payment-review/[reviewKey]/page.tsx`
-- `app/(admin)/admin/payments/actions.ts`
-- `src/db/migrations/0121_booking_payment_proof_snapshot.sql`
-- `src/db/migrations/meta/_journal.json`
-- `src/db/schema/pgPaymentRecords.ts`
-- `src/lib/billing/bookingPaymentProofSnapshot.ts`
+**Staged code files (1):**
 - `src/services/bookingFinancialWorkspace.ts`
 
 **Changed:**

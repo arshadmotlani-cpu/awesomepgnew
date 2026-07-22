@@ -23,7 +23,7 @@ import {
 } from '@/src/services/checkoutSettlement';
 import type { CheckoutSettlementDetail } from '@/src/services/checkoutSettlement';
 import type { BookingMoneyBalances } from '@/src/lib/billing/bookingMoneyBalances';
-import { pendingPaymentReviewHrefForBooking } from '@/src/lib/operations/paymentReviewLinks';
+import { pendingPaymentReviewHrefForBooking } from '@/src/lib/operations/paymentReviewLinks.server';
 
 export type BookingFinancialWorkspaceData = {
   bookingId: string;
