@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import {
-  detectProofAmountCorruption,
+  isRentDoubleCountCorruption,
   proofAmountPaiseFromReviewItem,
+  resolveVerifiedProofAmountPaise,
 } from '@/src/lib/operations/paymentReviewProofAmount';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 
@@ -38,34 +39,64 @@ function item(overrides: Partial<PendingPaymentReviewItem>): PendingPaymentRevie
 }
 
 describe('paymentReviewProofAmount', () => {
-  test('proofAmountPaiseFromReviewItem uses entity amount only', () => {
+  test('proofAmountPaiseFromReviewItem prefers verified proof amount', () => {
     assert.equal(
       proofAmountPaiseFromReviewItem(
-        item({ amountPaise: 618_000, submittedAmountPaise: 1_236_200, receivedPaise: 1_236_200 }),
+        item({
+          amountPaise: 1_236_200,
+          verifiedProofAmountPaise: 618_000,
+          submittedAmountPaise: 1_236_200,
+          receivedPaise: 1_236_200,
+        }),
       ),
       618_000,
     );
   });
 
-  test('detectProofAmountCorruption flags rent double-count pattern', () => {
-    const warning = detectProofAmountCorruption({
-      proofAmountPaise: 1_236_200,
-      rentDuePaise: 412_000,
-      depositDuePaise: 412_000,
-      expectedCheckoutPaise: 824_200,
-    });
-    assert.match(warning ?? '', /double-counted|rent plus expected/i);
-  });
-
-  test('detectProofAmountCorruption silent for normal partial proof', () => {
+  test('isRentDoubleCountCorruption detects rent + expected pattern', () => {
     assert.equal(
-      detectProofAmountCorruption({
-        proofAmountPaise: 618_000,
-        rentDuePaise: 412_100,
-        depositDuePaise: 412_100,
+      isRentDoubleCountCorruption({
+        storedAmountPaise: 1_236_200,
+        rentDuePaise: 412_000,
         expectedCheckoutPaise: 824_200,
       }),
-      null,
+      true,
     );
+  });
+
+  test('resolveVerifiedProofAmountPaise auto-repairs rent double-count', () => {
+    const resolution = resolveVerifiedProofAmountPaise({
+      storedAmountPaise: 1_236_200,
+      proofSnapshotSubmittedPaise: null,
+      rentDuePaise: 412_000,
+      expectedCheckoutPaise: 824_200,
+    });
+    assert.equal(resolution.verifiedAmountPaise, 824_200);
+    assert.equal(resolution.shouldRepairStoredAmount, true);
+    assert.equal(resolution.repairReason, 'rent_double_count');
+  });
+
+  test('resolveVerifiedProofAmountPaise prefers frozen submit snapshot', () => {
+    const resolution = resolveVerifiedProofAmountPaise({
+      storedAmountPaise: 1_236_200,
+      proofSnapshotSubmittedPaise: 618_000,
+      rentDuePaise: 412_000,
+      expectedCheckoutPaise: 824_200,
+    });
+    assert.equal(resolution.verifiedAmountPaise, 618_000);
+    assert.equal(resolution.shouldRepairStoredAmount, true);
+    assert.equal(resolution.repairReason, 'submitted_snapshot');
+  });
+
+  test('resolveVerifiedProofAmountPaise leaves normal partial proof unchanged', () => {
+    const resolution = resolveVerifiedProofAmountPaise({
+      storedAmountPaise: 618_000,
+      proofSnapshotSubmittedPaise: 618_000,
+      rentDuePaise: 412_100,
+      expectedCheckoutPaise: 824_200,
+    });
+    assert.equal(resolution.verifiedAmountPaise, 618_000);
+    assert.equal(resolution.shouldRepairStoredAmount, false);
+    assert.equal(resolution.repairReason, null);
   });
 });

@@ -39,6 +39,8 @@ export const pgPaymentRecords = pgTable(
     proofSnapshotPriorOutstandingJson: jsonb('proof_snapshot_prior_outstanding_json').$type<
       PriorOutstandingItem[]
     >(),
+    /** Resident-declared screenshot amount frozen at proof submit. */
+    proofSnapshotSubmittedPaise: bigint('proof_snapshot_submitted_paise', { mode: 'number' }),
     reviewedByAdminId: uuid('reviewed_by_admin_id'),
     reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

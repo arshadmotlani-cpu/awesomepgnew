@@ -156,12 +156,6 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
         </div>
       </header>
 
-      {breakdown.proofAmountCorruptionWarning ? (
-        <p className="mb-4 rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
-          {breakdown.proofAmountCorruptionWarning}
-        </p>
-      ) : null}
-
       {driftWarning ? (
         <p className="mb-4 rounded-xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
           {driftWarning}

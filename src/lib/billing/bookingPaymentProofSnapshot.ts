@@ -19,6 +19,7 @@ export type PgPaymentRecordProofSnapshotFields = {
   proofSnapshotDepositDuePaise?: number | null;
   proofSnapshotPriorOutstandingPaise?: number | null;
   proofSnapshotPriorOutstandingJson?: PriorOutstandingItem[] | null;
+  proofSnapshotSubmittedPaise?: number | null;
   status?: string;
 };
 
@@ -42,7 +43,10 @@ export function buildBookingPaymentProofSnapshot(input: {
   };
 }
 
-export function proofSnapshotRowValues(snapshot: BookingPaymentProofSnapshot) {
+export function proofSnapshotRowValues(
+  snapshot: BookingPaymentProofSnapshot,
+  submittedPaise: number,
+) {
   return {
     proofSnapshotCheckoutTotalPaise: snapshot.checkoutTotalPaise,
     proofSnapshotRentDuePaise: snapshot.rentDuePaise,
@@ -50,6 +54,7 @@ export function proofSnapshotRowValues(snapshot: BookingPaymentProofSnapshot) {
     proofSnapshotPriorOutstandingPaise: snapshot.priorOutstandingPaise,
     proofSnapshotPriorOutstandingJson:
       snapshot.priorOutstandingItems.length > 0 ? snapshot.priorOutstandingItems : null,
+    proofSnapshotSubmittedPaise: submittedPaise,
   };
 }
 

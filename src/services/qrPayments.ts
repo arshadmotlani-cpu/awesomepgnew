@@ -327,7 +327,7 @@ export async function submitBookingPaymentRecord(input: SubmitBookingPaymentInpu
   );
   if (!amountCheck.ok) throw new Error(amountCheck.message);
 
-  const snapshotValues = proofSnapshotRowValues(proofSnapshot);
+  const snapshotValues = proofSnapshotRowValues(proofSnapshot, input.amountPaise);
 
   const row = await db.transaction(async (tx) => {
     const [dupInTx] = await tx
@@ -497,6 +497,7 @@ export async function getQrBookingPaymentReview(recordId: string) {
       proofSnapshotDepositDuePaise: pgPaymentRecords.proofSnapshotDepositDuePaise,
       proofSnapshotPriorOutstandingPaise: pgPaymentRecords.proofSnapshotPriorOutstandingPaise,
       proofSnapshotPriorOutstandingJson: pgPaymentRecords.proofSnapshotPriorOutstandingJson,
+      proofSnapshotSubmittedPaise: pgPaymentRecords.proofSnapshotSubmittedPaise,
     })
     .from(pgPaymentRecords)
     .where(eq(pgPaymentRecords.id, recordId))
@@ -511,6 +512,9 @@ export async function getQrBookingPaymentReview(recordId: string) {
     buildBookingPaymentProofSnapshot,
     resolveBookingProofExpectedCheckout,
   } = await import('@/src/lib/billing/bookingPaymentProofSnapshot');
+  const { resolveVerifiedProofAmountPaise } = await import(
+    '@/src/lib/operations/paymentReviewProofAmount'
+  );
 
   const liveSnapshot = buildBookingPaymentProofSnapshot({
     rentDuePaise: ctx.breakdown.rentDuePaise,
@@ -521,7 +525,26 @@ export async function getQrBookingPaymentReview(recordId: string) {
 
   const expected = resolveBookingProofExpectedCheckout(record, liveSnapshot);
 
-  const bookingPaymentPaise = record.amountPaise;
+  const resolution = resolveVerifiedProofAmountPaise({
+    storedAmountPaise: record.amountPaise,
+    proofSnapshotSubmittedPaise: record.proofSnapshotSubmittedPaise,
+    rentDuePaise: expected.rentDuePaise,
+    expectedCheckoutPaise: expected.checkoutTotalPaise,
+  });
+
+  if (record.status === 'pending' && resolution.shouldRepairStoredAmount) {
+    await db
+      .update(pgPaymentRecords)
+      .set({
+        amountPaise: resolution.verifiedAmountPaise,
+        proofSnapshotSubmittedPaise:
+          record.proofSnapshotSubmittedPaise ?? resolution.verifiedAmountPaise,
+        updatedAt: new Date(),
+      })
+      .where(eq(pgPaymentRecords.id, recordId));
+  }
+
+  const bookingPaymentPaise = resolution.verifiedAmountPaise;
   const split = splitBookingPayment(
     {
       ...ctx,
@@ -544,7 +567,8 @@ export async function getQrBookingPaymentReview(recordId: string) {
   return {
     bookingCode: ctx.bookingCode,
     bookingTotalDuePaise: expected.checkoutTotalPaise,
-    amountSubmittedPaise: record.amountPaise,
+    amountSubmittedPaise: bookingPaymentPaise,
+    verifiedProofAmountPaise: bookingPaymentPaise,
     rentDuePaise: expected.rentDuePaise,
     depositCashDuePaise: expected.depositDuePaise,
     priorOutstandingDuePaise: expected.priorOutstandingPaise,

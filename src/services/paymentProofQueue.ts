@@ -344,6 +344,11 @@ function buildQrReviewItem(
   let overpaidPaise = 0;
   let canPartialApprove = false;
   let outstandingSummary: string | null = null;
+  const verifiedProofAmountPaise = bookingPaymentReview
+    ? (bookingPaymentReview.verifiedProofAmountPaise ??
+      bookingPaymentReview.amountSubmittedPaise ??
+      p.amountPaise)
+    : p.amountPaise;
 
   if (bookingPaymentReview) {
     expectedLines = [
@@ -357,9 +362,9 @@ function buildQrReviewItem(
       });
     }
     expectedTotalPaise = bookingPaymentReview.bookingTotalDuePaise;
-    receivedPaise = p.amountPaise;
+    receivedPaise = verifiedProofAmountPaise;
     outstandingAfterApprovalPaise = bookingPaymentReview.depositDuePaise;
-    overpaidPaise = Math.max(0, receivedPaise - expectedTotalPaise);
+    overpaidPaise = Math.max(0, verifiedProofAmountPaise - expectedTotalPaise);
     canPartialApprove = bookingPaymentReview.canPartialApprove;
     outstandingSummary = buildOutstandingSummary({
       outstandingAfterApprovalPaise,
@@ -406,7 +411,7 @@ function buildQrReviewItem(
         : p.month
           ? `Month ${p.month}`
           : 'QR payment',
-      amountPaise: p.amountPaise,
+      amountPaise: verifiedProofAmountPaise,
       bookingPaymentReview: bookingPaymentReview ?? undefined,
     },
     bookingDetails,
@@ -431,7 +436,8 @@ function buildQrReviewItem(
       : p.month
         ? `Month ${p.month}`
         : 'QR payment',
-    amountPaise: p.amountPaise,
+    amountPaise: verifiedProofAmountPaise,
+    verifiedProofAmountPaise,
     screenshotUrl: p.paymentScreenshotUrl ?? '',
     entityId: p.id,
     customerId: p.customerId,

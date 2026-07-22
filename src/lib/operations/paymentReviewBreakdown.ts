@@ -3,10 +3,7 @@
  * Uses precomputed review splits / invoice amounts; never import server services here.
  */
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
-import {
-  detectProofAmountCorruption,
-  proofAmountPaiseFromReviewItem,
-} from '@/src/lib/operations/paymentReviewProofAmount';
+import { proofAmountPaiseFromReviewItem } from '@/src/lib/operations/paymentReviewProofAmount';
 
 export type PaymentReviewBreakdown = {
   bookingType: string;
@@ -31,7 +28,6 @@ export type PaymentReviewBreakdown = {
   extraReceivedPaise: number;
   remainingBalancePaise: number;
   paymentCategoryLabel: string;
-  proofAmountCorruptionWarning: string | null;
 };
 
 function differenceTone(diff: number): PaymentReviewBreakdown['differenceTone'] {
@@ -85,12 +81,6 @@ export function buildPaymentReviewBreakdown(
         : rentDue + depositDue + priorDue;
     const difference = proofAmountPaise - totalExpected;
     const remaining = Math.max(0, totalExpected - proofAmountPaise);
-    const proofAmountCorruptionWarning = detectProofAmountCorruption({
-      proofAmountPaise,
-      rentDuePaise: rentDue,
-      depositDuePaise: depositDue,
-      expectedCheckoutPaise: totalExpected,
-    });
 
     return {
       bookingType,
@@ -113,7 +103,6 @@ export function buildPaymentReviewBreakdown(
       extraReceivedPaise: extra,
       remainingBalancePaise: remaining,
       paymentCategoryLabel: item.paymentTypeLabel,
-      proofAmountCorruptionWarning,
     };
   }
 
@@ -152,7 +141,6 @@ export function buildPaymentReviewBreakdown(
     extraReceivedPaise: Math.max(0, difference),
     remainingBalancePaise: Math.max(0, totalExpected - proofAmountPaise),
     paymentCategoryLabel: item.paymentTypeLabel,
-    proofAmountCorruptionWarning: null,
   };
 }
 

@@ -132,6 +132,7 @@ export function BookingCheckoutExperience({
   const [previewObjectUrl, setPreviewObjectUrl] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [transactionRef, setTransactionRef] = useState('');
+  const [screenshotAmountInr, setScreenshotAmountInr] = useState('');
   const [uploading, setUploading] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -158,6 +159,12 @@ export function BookingCheckoutExperience({
   const depositLinePaise = isReserveBooking ? 0 : depositDueNowPaise;
   const payNowPaise = checkoutTotals.totalToCollectTodayPaise;
   const payNowLabel = paiseToInr(payNowPaise);
+
+  useEffect(() => {
+    if (!screenshotAmountInr) {
+      setScreenshotAmountInr((payNowPaise / 100).toFixed(0));
+    }
+  }, [payNowPaise, screenshotAmountInr]);
   const showHybridRent = shouldShowHybridRentBreakdown(rentLineItems);
   const hasPrior = priorOutstandingItems.length > 0;
   const hasScreenshot = Boolean(screenshotUrl);
@@ -263,6 +270,17 @@ export function BookingCheckoutExperience({
     }
     setPending(true);
     setError(null);
+    const screenshotAmountPaise = Math.round(Number(screenshotAmountInr.replace(/,/g, '')) * 100);
+    if (!Number.isFinite(screenshotAmountPaise) || screenshotAmountPaise <= 0) {
+      setError('Enter the amount shown on your payment screenshot.');
+      setPending(false);
+      return;
+    }
+    if (screenshotAmountPaise > payNowPaise + 100) {
+      setError(`Amount cannot exceed ${payNowLabel}.`);
+      setPending(false);
+      return;
+    }
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 90_000);
     try {
@@ -272,7 +290,7 @@ export function BookingCheckoutExperience({
         signal: controller.signal,
         body: JSON.stringify({
           bookingCode,
-          amountPaise: payNowPaise,
+          amountPaise: screenshotAmountPaise,
           paymentScreenshotUrl: screenshotUrl,
           transactionRef: transactionRef || undefined,
           membershipId,
@@ -621,6 +639,23 @@ export function BookingCheckoutExperience({
             className="mx-auto mt-3 max-h-40 rounded-lg border border-white/10 object-contain"
           />
         ) : null}
+
+        <label className="mt-4 block">
+          <span className="text-xs text-apg-muted">Amount on screenshot (₹)</span>
+          <input
+            type="number"
+            min={1}
+            max={Math.ceil(payNowPaise / 100)}
+            step={1}
+            value={screenshotAmountInr}
+            onChange={(e) => setScreenshotAmountInr(e.target.value)}
+            placeholder={(payNowPaise / 100).toFixed(0)}
+            className="apg-input-dark mt-1.5 w-full rounded-[12px] px-3 py-2.5 text-sm text-white"
+          />
+          <span className="mt-1 block text-[11px] text-apg-muted">
+            Enter the exact UPI amount from your screenshot. Defaults to {payNowLabel} for full payment.
+          </span>
+        </label>
 
         <label className="mt-4 block">
           <span className="text-xs text-apg-muted">UPI reference (optional)</span>

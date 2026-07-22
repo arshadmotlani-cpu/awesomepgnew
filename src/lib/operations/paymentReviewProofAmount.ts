@@ -4,34 +4,98 @@
 
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 
-/** Immutable proof row amount — pg_payment_records.amount_paise or invoice proof amount. */
+const PROOF_AMOUNT_TOLERANCE_PAISE = 100;
+
+/** Immutable proof row amount — verified screenshot amount, not corrupt stored values. */
 export function proofAmountPaiseFromReviewItem(item: PendingPaymentReviewItem): number {
+  if (item.verifiedProofAmountPaise != null && item.verifiedProofAmountPaise > 0) {
+    return item.verifiedProofAmountPaise;
+  }
   if (item.amountPaise > 0) return item.amountPaise;
   return item.submittedAmountPaise ?? item.receivedPaise ?? 0;
 }
 
+export function isRentDoubleCountCorruption(input: {
+  storedAmountPaise: number;
+  rentDuePaise: number;
+  expectedCheckoutPaise: number;
+}): boolean {
+  const { storedAmountPaise, rentDuePaise, expectedCheckoutPaise } = input;
+  if (storedAmountPaise <= 0 || expectedCheckoutPaise <= 0) return false;
+
+  const rentPlusExpected = rentDuePaise + expectedCheckoutPaise;
+  if (Math.abs(storedAmountPaise - rentPlusExpected) <= PROOF_AMOUNT_TOLERANCE_PAISE) {
+    return true;
+  }
+
+  const excess = storedAmountPaise - expectedCheckoutPaise;
+  return excess > PROOF_AMOUNT_TOLERANCE_PAISE && Math.abs(excess - rentDuePaise) <= PROOF_AMOUNT_TOLERANCE_PAISE;
+}
+
+export type VerifiedProofAmountResolution = {
+  verifiedAmountPaise: number;
+  /** Stored amount_paise should be updated to match verified amount. */
+  shouldRepairStoredAmount: boolean;
+  repairReason: 'submitted_snapshot' | 'rent_double_count' | null;
+};
+
 /**
- * Detect corrupted proof amounts where rent was added on top of full checkout expected.
- * Example: rent ₹4,120 + expected ₹8,242 = stored ₹12,362 while screenshot shows ₹6,180.
+ * Resolve the verified screenshot amount for a pending proof.
+ * Prefers frozen submit snapshot; auto-corrects rent double-count corruption.
  */
+export function resolveVerifiedProofAmountPaise(input: {
+  storedAmountPaise: number;
+  proofSnapshotSubmittedPaise?: number | null;
+  rentDuePaise: number;
+  expectedCheckoutPaise: number;
+}): VerifiedProofAmountResolution {
+  const submitted = input.proofSnapshotSubmittedPaise;
+  if (submitted != null && submitted > 0) {
+    const shouldRepairStoredAmount =
+      Math.abs(submitted - input.storedAmountPaise) > PROOF_AMOUNT_TOLERANCE_PAISE;
+    return {
+      verifiedAmountPaise: submitted,
+      shouldRepairStoredAmount,
+      repairReason: shouldRepairStoredAmount ? 'submitted_snapshot' : null,
+    };
+  }
+
+  if (
+    isRentDoubleCountCorruption({
+      storedAmountPaise: input.storedAmountPaise,
+      rentDuePaise: input.rentDuePaise,
+      expectedCheckoutPaise: input.expectedCheckoutPaise,
+    })
+  ) {
+    return {
+      verifiedAmountPaise: Math.max(0, input.storedAmountPaise - input.rentDuePaise),
+      shouldRepairStoredAmount: true,
+      repairReason: 'rent_double_count',
+    };
+  }
+
+  return {
+    verifiedAmountPaise: input.storedAmountPaise,
+    shouldRepairStoredAmount: false,
+    repairReason: null,
+  };
+}
+
+/** @deprecated Internal diagnostics only — never surface to admin UI. */
 export function detectProofAmountCorruption(input: {
   proofAmountPaise: number;
   rentDuePaise: number;
   depositDuePaise: number;
   expectedCheckoutPaise: number;
 }): string | null {
-  const { proofAmountPaise, rentDuePaise, expectedCheckoutPaise } = input;
-  if (proofAmountPaise <= 0 || expectedCheckoutPaise <= 0) return null;
-
-  const rentPlusExpected = rentDuePaise + expectedCheckoutPaise;
-  if (Math.abs(proofAmountPaise - rentPlusExpected) <= 100) {
-    return `Stored proof amount matches rent + expected checkout (₹${(rentDuePaise / 100).toFixed(0)} + ₹${(expectedCheckoutPaise / 100).toFixed(0)}). Rent was likely double-counted at submit — use the screenshot amount in allocation.`;
+  if (
+    isRentDoubleCountCorruption({
+      storedAmountPaise: input.proofAmountPaise,
+      rentDuePaise: input.rentDuePaise,
+      expectedCheckoutPaise: input.expectedCheckoutPaise,
+    })
+  ) {
+    return 'rent_double_count';
   }
-
-  const excess = proofAmountPaise - expectedCheckoutPaise;
-  if (excess > 100 && Math.abs(excess - rentDuePaise) <= 100) {
-    return `Stored proof amount is expected checkout plus rent again. Enter the screenshot amount under allocation before approving.`;
-  }
-
   return null;
 }
