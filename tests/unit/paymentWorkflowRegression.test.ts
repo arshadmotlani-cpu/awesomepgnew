@@ -226,6 +226,14 @@ describe('payment workflow regression', () => {
     assert.match(workspace, /approvePaymentReviewVerificationAction/);
   });
 
+  test('Payment Review footer stays within main content column', () => {
+    const workspace = read('src/components/admin/payment-review/PaymentReviewWorkspace.tsx');
+    assert.doesNotMatch(workspace, /fixed inset-x-0 bottom-0/);
+    assert.doesNotMatch(workspace, /ml-auto[\s\S]*Back to queue/);
+    assert.match(workspace, /Back to queue[\s\S]*Reject[\s\S]*Approve/);
+    assert.match(workspace, /justify-between/);
+  });
+
   test('queue loader does not call getQrBookingPaymentReview on page load', () => {
     const queue = read('src/services/paymentProofQueue.ts');
     assert.doesNotMatch(queue, /getQrBookingPaymentReview\(p\.id\)/);

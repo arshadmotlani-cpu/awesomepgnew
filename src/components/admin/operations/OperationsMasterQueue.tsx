@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { OperationsFlashToast } from '@/src/components/admin/operations/OperationsFlashToast';
 import { OperationsOpsRowActions } from '@/src/components/admin/operations/OperationsOpsRowActions';
 import { OperationsWaitingForApprovalTable } from '@/src/components/admin/operations/OperationsWaitingForApprovalTable';
 import { OperationsRejectedPaymentsSection } from '@/src/components/admin/operations/OperationsRejectedPaymentsSection';
@@ -37,6 +38,7 @@ export function OperationsMasterQueue({
   if (activeFilter === 'waiting_for_approval') {
     return (
       <div className="space-y-8">
+        <OperationsFlashToast />
         <QueueHeader activeFilter={activeFilter} filterCounts={data.filterCounts} />
         <OperationsWaitingForApprovalTable
           items={data.paymentReviews}
@@ -49,6 +51,7 @@ export function OperationsMasterQueue({
 
   return (
     <div className="space-y-8">
+      <OperationsFlashToast />
       <QueueHeader activeFilter={activeFilter} filterCounts={data.filterCounts} />
 
       {data.items.length === 0 ? (
