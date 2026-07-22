@@ -7,6 +7,7 @@ import {
   type AdminCancelState,
   type AdminRecordPaymentState,
 } from '@/app/(admin)/admin/bookings/[bookingId]/actions';
+import { adminMoneyInputClassName, bindAdminMoneyInput } from '@/src/components/admin/AdminMoneyInput';
 
 const idleCancel: AdminCancelState = { status: 'idle' };
 const idleRecord: AdminRecordPaymentState = { status: 'idle' };
@@ -90,13 +91,11 @@ export function RecordOfflinePaymentForm({
             Amount (₹)
           </span>
           <input
-            type="number"
+            {...bindAdminMoneyInput()}
             name="amountRupees"
-            min="1"
-            step="1"
             defaultValue={defaultAmountRupees}
             required
-            className="mt-1 block w-full rounded-md border border-zinc-300 px-2 py-1.5 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            className={`mt-1 block w-full rounded-md border border-zinc-300 px-2 py-1.5 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 ${adminMoneyInputClassName}`}
           />
         </label>
       </div>
@@ -106,12 +105,10 @@ export function RecordOfflinePaymentForm({
             Confirmed received (₹)
           </span>
           <input
-            type="number"
+            {...bindAdminMoneyInput()}
             name="confirmedReceivedRupees"
-            min="0"
-            step="1"
             defaultValue={defaultAmountRupees}
-            className="mt-1 block w-full rounded-md border border-zinc-300 px-2 py-1.5 text-sm shadow-sm"
+            className={`mt-1 block w-full rounded-md border border-zinc-300 px-2 py-1.5 text-sm shadow-sm ${adminMoneyInputClassName}`}
           />
         </label>
         <label className="block">
@@ -119,12 +116,10 @@ export function RecordOfflinePaymentForm({
             Rent allocated (₹)
           </span>
           <input
-            type="number"
+            {...bindAdminMoneyInput()}
             name="rentAllocatedRupees"
-            min="0"
-            step="1"
             defaultValue={0}
-            className="mt-1 block w-full rounded-md border border-zinc-300 px-2 py-1.5 text-sm shadow-sm"
+            className={`mt-1 block w-full rounded-md border border-zinc-300 px-2 py-1.5 text-sm shadow-sm ${adminMoneyInputClassName}`}
           />
         </label>
         <label className="block">
@@ -132,12 +127,10 @@ export function RecordOfflinePaymentForm({
             Deposit allocated (₹)
           </span>
           <input
-            type="number"
+            {...bindAdminMoneyInput()}
             name="depositAllocatedRupees"
-            min="0"
-            step="1"
             defaultValue={0}
-            className="mt-1 block w-full rounded-md border border-zinc-300 px-2 py-1.5 text-sm shadow-sm"
+            className={`mt-1 block w-full rounded-md border border-zinc-300 px-2 py-1.5 text-sm shadow-sm ${adminMoneyInputClassName}`}
           />
         </label>
       </div>

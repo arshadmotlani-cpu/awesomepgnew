@@ -49,21 +49,24 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
   const [allocationValid, setAllocationValid] = useState(false);
   const [saveBusy, setSaveBusy] = useState(false);
   const [correctionSaved, setCorrectionSaved] = useState(false);
+  const [savedProofAmountPaise, setSavedProofAmountPaise] = useState<number | null>(null);
   const [projected, setProjected] = useState<{
     rent: MoneyBalanceSlice;
     deposit: MoneyBalanceSlice;
   } | null>(null);
 
-  const proofAmountPaise = breakdown.proofAmountPaise;
+  const proofAmountPaise = savedProofAmountPaise ?? breakdown.proofAmountPaise;
   const needsProofCorrection =
     item.kind === 'qr' &&
     allocation != null &&
+    !correctionSaved &&
     allocation.confirmedReceivedPaise !== proofAmountPaise;
-  const diff = differenceLabel(breakdown.differencePaise);
+  const diff = differenceLabel(proofAmountPaise - breakdown.totalExpectedPaise);
 
   const handleAllocationChange = useCallback((next: PaymentAllocationSubmit) => {
     setAllocation(next);
     setCorrectionSaved(false);
+    setSavedProofAmountPaise(null);
     setProjected(null);
   }, []);
 
@@ -86,6 +89,7 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
           otherAllocatedPaise: allocation.otherAllocatedPaise,
           allocationNotes: allocation.allocationNotes,
         },
+        data.reviewKey,
       );
       if (!result.ok) {
         setError(result.message ?? 'Proof correction failed.');
@@ -93,6 +97,9 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
       }
       setCorrectionSaved(true);
       setProjected(result.projected);
+      if (result.proofAmountPaise > 0) {
+        setSavedProofAmountPaise(result.proofAmountPaise);
+      }
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Proof correction failed.');

@@ -10,6 +10,7 @@ import {
   type ActionState,
 } from '@/app/(admin)/admin/deposits/[bookingId]/actions';
 import { paiseToInr, asPlainNumber } from '@/src/lib/format';
+import { adminMoneyInputClassName, bindAdminMoneyInput } from '@/src/components/admin/AdminMoneyInput';
 
 type ServerAction = (
   bookingId: string,
@@ -58,13 +59,11 @@ export function DepositLedgerReconcileForm({
         <label className="block text-sm">
           <span className="text-apg-silver">Total deposit collected (₹)</span>
           <input
-            type="number"
+            {...bindAdminMoneyInput()}
             name="amountInr"
-            min="0"
-            step="1"
             required
             defaultValue={defaultValueInr}
-            className="apg-admin-field mt-1 block w-full max-w-xs rounded-lg border border-white/10 bg-[#0B0F14] px-3 py-2 text-white"
+            className={`apg-admin-field mt-1 block w-full max-w-xs rounded-lg border border-white/10 bg-[#0B0F14] px-3 py-2 text-white ${adminMoneyInputClassName}`}
           />
         </label>
         <label className="block text-sm">
@@ -135,12 +134,10 @@ function DepositForm({
       <label className="block text-sm">
         <span className="text-apg-silver">Amount (₹)</span>
         <input
-          type="number"
+          {...bindAdminMoneyInput({ allowDecimal: true })}
           name="amountInr"
-          min={minAmount}
-          step="0.01"
           required
-          className="apg-admin-field mt-1 block w-full rounded-lg border border-white/10 bg-[#0B0F14] px-3 py-2 text-white"
+          className={`apg-admin-field mt-1 block w-full rounded-lg border border-white/10 bg-[#0B0F14] px-3 py-2 text-white ${adminMoneyInputClassName}`}
         />
       </label>
       {showPaymentMethod ? (

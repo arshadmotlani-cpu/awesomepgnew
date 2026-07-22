@@ -6,6 +6,7 @@ import {
 } from '@/src/lib/deposits/unifiedDepositView';
 import { asPlainNumber } from '@/src/lib/format';
 import { DepositDetailSection } from '@/src/components/admin/deposits/DepositDetailSection';
+import { adminMoneyInputClassName, bindAdminMoneyInput } from '@/src/components/admin/AdminMoneyInput';
 
 export function DepositCorrectForm({
   view,
@@ -58,23 +59,19 @@ export function DepositCorrectForm({
         <label className="text-sm">
           <span className="text-apg-silver">Required deposit (₹)</span>
           <input
+            {...bindAdminMoneyInput()}
             name="requiredInr"
-            type="number"
-            min="0"
-            step="1"
             placeholder={requiredPlaceholder}
-            className="apg-admin-field mt-1 w-full rounded-lg border border-white/10 bg-[#0B0F14] px-3 py-2 text-white"
+            className={`apg-admin-field mt-1 w-full rounded-lg border border-white/10 bg-[#0B0F14] px-3 py-2 text-white ${adminMoneyInputClassName}`}
           />
         </label>
         <label className="text-sm">
           <span className="text-apg-silver">Collected deposit (₹)</span>
           <input
+            {...bindAdminMoneyInput()}
             name="collectedInr"
-            type="number"
-            min="0"
-            step="1"
             placeholder={collectedPlaceholder}
-            className="apg-admin-field mt-1 w-full rounded-lg border border-white/10 bg-[#0B0F14] px-3 py-2 text-white"
+            className={`apg-admin-field mt-1 w-full rounded-lg border border-white/10 bg-[#0B0F14] px-3 py-2 text-white ${adminMoneyInputClassName}`}
           />
         </label>
         <label className="sm:col-span-2 text-sm">

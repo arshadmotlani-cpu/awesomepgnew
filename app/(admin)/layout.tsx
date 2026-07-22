@@ -10,6 +10,7 @@ import { requireAdminSession } from '@/src/lib/auth/guards';
 import { loadAdminNavBadges } from '@/src/services/adminNavBadges';
 import { getResolvedSidebarLayout } from '@/src/services/sidebarLayouts';
 import { AdminPushRegistration } from '@/src/components/admin/AdminPushRegistration';
+import { AdminMoneyInputGuard } from '@/src/components/admin/AdminMoneyInputGuard';
 import { NotificationReadOnArrival } from '@/src/components/admin/NotificationReadOnArrival';
 
 export const maxDuration = 60;
@@ -62,6 +63,7 @@ export default async function AdminGroupLayout({ children }: { children: ReactNo
       >
       <div className="apg-admin-shell flex h-[100dvh] w-full max-w-[100vw] overflow-hidden bg-[#0B0F14] text-[#f4f6f8]">
         <AdminPushRegistration />
+        <AdminMoneyInputGuard />
         <NotificationReadOnArrival />
         <aside className="relative z-20 hidden h-full shrink-0 lg:block lg:w-64">
           <Sidebar />

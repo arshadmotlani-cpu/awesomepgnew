@@ -5,6 +5,7 @@ import {
   createCustomChargeAction,
   type CustomChargeActionState,
 } from '@/app/(admin)/admin/residents/[customerId]/customChargeActions';
+import { adminMoneyInputClassName, bindAdminMoneyInput } from '@/src/components/admin/AdminMoneyInput';
 
 const CHARGE_KINDS = [
   { value: 'damage', label: 'Damage charge' },
@@ -54,12 +55,10 @@ export function CreateCustomChargeForm({
         <label className="block text-xs text-apg-silver">
           Amount (₹)
           <input
-            type="number"
+            {...bindAdminMoneyInput({ allowDecimal: true })}
             name="amountInr"
-            min="0.01"
-            step="0.01"
             required
-            className="mt-1 w-full rounded-lg border border-white/10 bg-[#1A1F27] px-3 py-2 text-sm text-white"
+            className={`mt-1 w-full rounded-lg border border-white/10 bg-[#1A1F27] px-3 py-2 text-sm text-white ${adminMoneyInputClassName}`}
           />
         </label>
         <label className="block text-xs text-apg-silver sm:col-span-2">

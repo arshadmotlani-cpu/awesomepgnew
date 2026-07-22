@@ -18,6 +18,7 @@ import {
 } from '@/src/services/paymentProofRejectionService';
 import type { PaymentProofRejectionReasonCode } from '@/src/lib/approvals/paymentProofRejectionReasons';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
+import { formatPostgresError } from '@/src/lib/db/postgresError';
 
 const PAYMENT_REVIEW_PATH = '/admin/operations';
 
@@ -96,24 +97,34 @@ export async function savePendingPaymentProofCorrectionAction(
   recordId: string,
   pgId: string,
   allocation: AdminPaymentAllocationInput,
+  reviewKey?: string,
 ) {
   const session = await requireAdminPermission('payments:write');
-  const { savePendingPaymentProofCorrection } = await import(
-    '@/src/services/paymentProofCorrection'
-  );
-  const result = await savePendingPaymentProofCorrection(session, {
-    recordId,
-    pgId,
-    allocation,
-  });
-  if (!result.ok) return result;
-  revalidatePaymentReviewSurfaces(pgId);
-  revalidatePath('/admin/collections');
-  revalidatePath('/admin/deposits');
-  if (result.ok) {
-    revalidatePath(`/admin/payment-review`, 'layout');
+  try {
+    const { savePendingPaymentProofCorrection } = await import(
+      '@/src/services/paymentProofCorrection'
+    );
+    const result = await savePendingPaymentProofCorrection(session, {
+      recordId,
+      pgId,
+      allocation,
+    });
+    if (!result.ok) return result;
+
+    revalidatePaymentReviewSurfaces(pgId);
+    revalidatePath('/admin/collections');
+    revalidatePath('/admin/deposits');
+    revalidatePath('/admin/payment-review', 'layout');
+    const key = reviewKey ?? `qr-${recordId}`;
+    revalidatePath(`/admin/payment-review/${encodeURIComponent(key)}`);
+    return result;
+  } catch (err) {
+    console.error('[save-proof-correction]', err);
+    return {
+      ok: false as const,
+      message: formatPostgresError(err),
+    };
   }
-  return result;
 }
 
 export async function approvePaymentProofWithAllocationAction(

@@ -8,6 +8,7 @@ import {
 } from '@/app/(admin)/admin/residents/[customerId]/chargeGeneratorActions';
 import { CHARGE_DEFAULTS } from '@/src/lib/billing/chargeGeneratorConstants';
 import { paiseToInr } from '@/src/lib/format';
+import { adminMoneyInputClassName, bindAdminMoneyInput } from '@/src/components/admin/AdminMoneyInput';
 
 const CHARGE_TYPES = [
   { value: 'additional_deposit', label: 'Additional deposit' },
@@ -97,14 +98,12 @@ export function CreateChargeGeneratorForm({
         <label className="block text-xs text-apg-silver">
           Amount (₹)
           <input
-            type="number"
+            {...bindAdminMoneyInput({ allowDecimal: true })}
             name="amountInr"
-            min="0.01"
-            step="0.01"
             required
             defaultValue={defaultAmountInr || undefined}
             key={`amount-${defaultAmountInr}-${chargeType}`}
-            className="mt-1 w-full rounded-lg border border-white/10 bg-[#1A1F27] px-3 py-2 text-sm text-white"
+            className={`mt-1 w-full rounded-lg border border-white/10 bg-[#1A1F27] px-3 py-2 text-sm text-white ${adminMoneyInputClassName}`}
           />
         </label>
 

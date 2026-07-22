@@ -8,47 +8,9 @@ import {
 import { buildAllocationDefaultsFromReviewItem } from '@/src/lib/operations/paymentAllocationUx';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 import { paiseToInr } from '@/src/lib/format';
+import { paiseFromRupeeInput, rupeesStringFromPaise } from '@/src/lib/admin/moneyInput';
+import { AdminMoneyField } from '@/src/components/admin/AdminMoneyInput';
 import type { PaymentAllocationSubmit } from '@/src/components/admin/operations/PaymentAllocationDialog';
-
-function rupeesFromPaise(paise: number): string {
-  return (paise / 100).toFixed(0);
-}
-
-function paiseFromRupeesInput(value: string): number {
-  const n = Number.parseFloat(value);
-  if (!Number.isFinite(n) || n < 0) return 0;
-  return Math.round(n * 100);
-}
-
-function AllocationField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="block text-xs text-apg-silver">
-      {label}
-      <div className="relative mt-1">
-        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-apg-silver">
-          ₹
-        </span>
-        <input
-          type="number"
-          min={0}
-          step={1}
-          inputMode="numeric"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-full rounded-lg border border-white/10 bg-[#0f1318] py-2 pl-7 pr-3 text-sm tabular-nums text-white"
-        />
-      </div>
-    </label>
-  );
-}
 
 export function PaymentAllocationEditor({
   item,
@@ -76,20 +38,20 @@ export function PaymentAllocationEditor({
       submittedAmountPaise: defaultProofAmountPaise,
       receivedPaise: defaultProofAmountPaise,
     });
-    setAmountReceivedRupees(rupeesFromPaise(defaults.confirmedReceivedPaise));
-    setRentRupees(rupeesFromPaise(defaults.rentAllocatedPaise));
-    setDepositRupees(rupeesFromPaise(defaults.depositAllocatedPaise));
-    setElectricityRupees(rupeesFromPaise(defaults.electricityAllocatedPaise));
-    setOtherRupees(rupeesFromPaise(defaults.otherAllocatedPaise));
+    setAmountReceivedRupees(rupeesStringFromPaise(defaults.confirmedReceivedPaise));
+    setRentRupees(rupeesStringFromPaise(defaults.rentAllocatedPaise));
+    setDepositRupees(rupeesStringFromPaise(defaults.depositAllocatedPaise));
+    setElectricityRupees(rupeesStringFromPaise(defaults.electricityAllocatedPaise));
+    setOtherRupees(rupeesStringFromPaise(defaults.otherAllocatedPaise));
   }, [item, defaultProofAmountPaise]);
 
   const allocation = useMemo(
     () => ({
-      confirmedReceivedPaise: paiseFromRupeesInput(amountReceivedRupees),
-      rentAllocatedPaise: paiseFromRupeesInput(rentRupees),
-      depositAllocatedPaise: paiseFromRupeesInput(depositRupees),
-      electricityAllocatedPaise: paiseFromRupeesInput(electricityRupees),
-      otherAllocatedPaise: paiseFromRupeesInput(otherRupees),
+      confirmedReceivedPaise: paiseFromRupeeInput(amountReceivedRupees),
+      rentAllocatedPaise: paiseFromRupeeInput(rentRupees),
+      depositAllocatedPaise: paiseFromRupeeInput(depositRupees),
+      electricityAllocatedPaise: paiseFromRupeeInput(electricityRupees),
+      otherAllocatedPaise: paiseFromRupeeInput(otherRupees),
     }),
     [amountReceivedRupees, rentRupees, depositRupees, electricityRupees, otherRupees],
   );
@@ -133,7 +95,7 @@ export function PaymentAllocationEditor({
           <p className="mt-1 text-xs text-apg-silver">
             {expanded
               ? 'Assign this payment only — not lifetime account totals.'
-              : `Default: Rent ${paiseToInr(paiseFromRupeesInput(rentRupees))} · Deposit ${paiseToInr(paiseFromRupeesInput(depositRupees))}`}
+              : `Default: Rent ${paiseToInr(paiseFromRupeeInput(rentRupees))} · Deposit ${paiseToInr(paiseFromRupeeInput(depositRupees))}`}
           </p>
         </div>
         <span className="text-sm text-apg-orange">{expanded ? '▲' : '▼'}</span>
@@ -141,25 +103,29 @@ export function PaymentAllocationEditor({
 
       {expanded ? (
         <div className="mt-4 space-y-4 border-t border-white/10 pt-4">
-          <AllocationField
+          <AdminMoneyField
             label="Amount received (this proof)"
             value={amountReceivedRupees}
             onChange={setAmountReceivedRupees}
           />
           {showRent ? (
-            <AllocationField label="Rent received" value={rentRupees} onChange={setRentRupees} />
+            <AdminMoneyField label="Rent received" value={rentRupees} onChange={setRentRupees} />
           ) : null}
           {showDeposit ? (
-            <AllocationField label="Deposit received" value={depositRupees} onChange={setDepositRupees} />
+            <AdminMoneyField
+              label="Deposit received"
+              value={depositRupees}
+              onChange={setDepositRupees}
+            />
           ) : null}
           {showElectricity ? (
-            <AllocationField
+            <AdminMoneyField
               label="Electricity"
               value={electricityRupees}
               onChange={setElectricityRupees}
             />
           ) : null}
-          <AllocationField label="Other" value={otherRupees} onChange={setOtherRupees} />
+          <AdminMoneyField label="Other" value={otherRupees} onChange={setOtherRupees} />
 
           <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-3 text-sm">
             <span className="font-medium text-white">Remaining</span>

@@ -12,47 +12,9 @@ import {
 } from '@/src/lib/operations/paymentAllocationUx';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 import { paiseToInr } from '@/src/lib/format';
+import { paiseFromRupeeInput, rupeesStringFromPaise } from '@/src/lib/admin/moneyInput';
+import { AdminMoneyField, AdminMoneyInput } from '@/src/components/admin/AdminMoneyInput';
 import { OPS_ORANGE } from '@/src/components/admin/residentOps/residentOpsUi';
-
-function rupeesFromPaise(paise: number): string {
-  return (paise / 100).toFixed(0);
-}
-
-function paiseFromRupeesInput(value: string): number {
-  const n = Number.parseFloat(value);
-  if (!Number.isFinite(n) || n < 0) return 0;
-  return Math.round(n * 100);
-}
-
-function AllocationField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="block text-xs text-apg-silver">
-      {label}
-      <div className="relative mt-1">
-        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-apg-silver">
-          ₹
-        </span>
-        <input
-          type="number"
-          min={0}
-          step={1}
-          inputMode="numeric"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-full rounded-lg border border-white/10 bg-[#0f1318] py-2 pl-7 pr-3 text-sm tabular-nums text-white"
-        />
-      </div>
-    </label>
-  );
-}
 
 export type PaymentAllocationSubmit = {
   confirmedReceivedPaise: number;
@@ -87,7 +49,7 @@ export function PaymentAllocationDialog({
   onClose: () => void;
   onSubmit: (input: PaymentAllocationSubmit) => void;
 }) {
-  const [confirmedRupees, setConfirmedRupees] = useState(rupeesFromPaise(submittedAmountPaise));
+  const [confirmedRupees, setConfirmedRupees] = useState(rupeesStringFromPaise(submittedAmountPaise));
   const [rentRupees, setRentRupees] = useState('0');
   const [depositRupees, setDepositRupees] = useState('0');
   const [electricityRupees, setElectricityRupees] = useState('0');
@@ -99,11 +61,11 @@ export function PaymentAllocationDialog({
   useEffect(() => {
     if (!open) return;
     const defaults = buildAllocationDefaultsFromReviewItem(item);
-    setConfirmedRupees(rupeesFromPaise(defaults.confirmedReceivedPaise));
-    setRentRupees(rupeesFromPaise(defaults.rentAllocatedPaise));
-    setDepositRupees(rupeesFromPaise(defaults.depositAllocatedPaise));
-    setElectricityRupees(rupeesFromPaise(defaults.electricityAllocatedPaise));
-    setOtherRupees(rupeesFromPaise(defaults.otherAllocatedPaise));
+    setConfirmedRupees(rupeesStringFromPaise(defaults.confirmedReceivedPaise));
+    setRentRupees(rupeesStringFromPaise(defaults.rentAllocatedPaise));
+    setDepositRupees(rupeesStringFromPaise(defaults.depositAllocatedPaise));
+    setElectricityRupees(rupeesStringFromPaise(defaults.electricityAllocatedPaise));
+    setOtherRupees(rupeesStringFromPaise(defaults.otherAllocatedPaise));
     setAllocationNotes('');
     setLocalError(null);
     const d = new Date();
@@ -113,11 +75,11 @@ export function PaymentAllocationDialog({
 
   const allocation = useMemo(
     () => ({
-      confirmedReceivedPaise: paiseFromRupeesInput(confirmedRupees),
-      rentAllocatedPaise: paiseFromRupeesInput(rentRupees),
-      depositAllocatedPaise: paiseFromRupeesInput(depositRupees),
-      electricityAllocatedPaise: paiseFromRupeesInput(electricityRupees),
-      otherAllocatedPaise: paiseFromRupeesInput(otherRupees),
+      confirmedReceivedPaise: paiseFromRupeeInput(confirmedRupees),
+      rentAllocatedPaise: paiseFromRupeeInput(rentRupees),
+      depositAllocatedPaise: paiseFromRupeeInput(depositRupees),
+      electricityAllocatedPaise: paiseFromRupeeInput(electricityRupees),
+      otherAllocatedPaise: paiseFromRupeeInput(otherRupees),
     }),
     [confirmedRupees, rentRupees, depositRupees, electricityRupees, otherRupees],
   );
@@ -201,34 +163,27 @@ export function PaymentAllocationDialog({
             <p className="text-xs font-semibold uppercase tracking-wide text-apg-silver">
               Resident paid
             </p>
-            <label className="relative mt-2 block">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-lg text-apg-silver">
-                ₹
-              </span>
-              <input
-                type="number"
-                min={0}
-                step={1}
-                inputMode="numeric"
+            <div className="mt-2">
+              <AdminMoneyInput
                 value={confirmedRupees}
-                onChange={(e) => setConfirmedRupees(e.target.value)}
-                className="w-full rounded-lg border border-white/10 bg-[#0f1318] py-2.5 pl-8 pr-3 text-2xl font-semibold tabular-nums text-emerald-300"
+                onChange={setConfirmedRupees}
+                className="py-2.5 pl-8 pr-3 text-2xl font-semibold text-emerald-300"
               />
-            </label>
+            </div>
           </div>
 
           <div className="space-y-3 rounded-xl border border-white/10 bg-[#121820] p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-apg-silver">
               Allocate payment
             </p>
-            <AllocationField label="Rent" value={rentRupees} onChange={setRentRupees} />
-            <AllocationField label="Deposit" value={depositRupees} onChange={setDepositRupees} />
-            <AllocationField
+            <AdminMoneyField label="Rent" value={rentRupees} onChange={setRentRupees} />
+            <AdminMoneyField label="Deposit" value={depositRupees} onChange={setDepositRupees} />
+            <AdminMoneyField
               label="Electricity"
               value={electricityRupees}
               onChange={setElectricityRupees}
             />
-            <AllocationField label="Other" value={otherRupees} onChange={setOtherRupees} />
+            <AdminMoneyField label="Other" value={otherRupees} onChange={setOtherRupees} />
 
             <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-3 text-sm">
               <span className="font-medium text-white">Remaining</span>

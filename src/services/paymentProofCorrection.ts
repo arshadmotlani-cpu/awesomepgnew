@@ -4,15 +4,16 @@
  */
 
 import { eq } from 'drizzle-orm';
+import { writeAuditLogNonBlocking } from '@/src/lib/audit/writeAuditLog';
 import { isDatabaseSchemaMismatchError, schemaMismatchHint } from '@/src/lib/db/schemaMismatchError';
 import { db } from '@/src/db/client';
-import { auditLog, bookings, pgPaymentRecords } from '@/src/db/schema';
+import { bookings, pgPaymentRecords } from '@/src/db/schema';
 import {
   computeMoneySlice,
   type MoneyBalanceSlice,
 } from '@/src/lib/billing/bookingMoneyBalances';
 import { breakdownBookingCheckoutPayment } from '@/src/lib/billing/bookingCheckoutTotals';
-import { guardDepositPaise } from '@/src/lib/deposits/paiseSafety';
+import { guardDepositPaise, guardPlainPaise } from '@/src/lib/deposits/paiseSafety';
 import type { AdminSession } from '@/src/lib/auth/session';
 import { adminCanAccessPg } from '@/src/lib/auth/roles';
 import type { AdminPaymentAllocationInput } from '@/src/services/qrPayments';
@@ -21,6 +22,31 @@ export type ProjectedBookingBalances = {
   rent: MoneyBalanceSlice;
   deposit: MoneyBalanceSlice;
 };
+
+export function normalizePaymentProofAllocation(
+  allocation: AdminPaymentAllocationInput,
+): AdminPaymentAllocationInput {
+  return {
+    ...allocation,
+    confirmedReceivedPaise: guardPlainPaise(
+      allocation.confirmedReceivedPaise,
+      'correction.confirmedReceived',
+    ),
+    rentAllocatedPaise: guardPlainPaise(allocation.rentAllocatedPaise, 'correction.rentAllocated'),
+    depositAllocatedPaise: guardPlainPaise(
+      allocation.depositAllocatedPaise,
+      'correction.depositAllocated',
+    ),
+    electricityAllocatedPaise: guardPlainPaise(
+      allocation.electricityAllocatedPaise ?? 0,
+      'correction.electricityAllocated',
+    ),
+    otherAllocatedPaise: guardPlainPaise(
+      allocation.otherAllocatedPaise ?? 0,
+      'correction.otherAllocated',
+    ),
+  };
+}
 
 export function projectBalancesAfterAllocation(input: {
   rentRequiredPaise: number;
@@ -34,6 +60,48 @@ export function projectBalancesAfterAllocation(input: {
   };
 }
 
+async function updatePendingProofAmount(
+  tx: Pick<typeof db, 'update'>,
+  input: {
+    recordId: string;
+    verifiedAmountPaise: number;
+    snapshotColumnsAvailable: boolean;
+  },
+): Promise<void> {
+  const basePatch = {
+    amountPaise: input.verifiedAmountPaise,
+    updatedAt: new Date(),
+  };
+
+  if (!input.snapshotColumnsAvailable) {
+    await tx
+      .update(pgPaymentRecords)
+      .set(basePatch)
+      .where(eq(pgPaymentRecords.id, input.recordId));
+    return;
+  }
+
+  try {
+    await tx
+      .update(pgPaymentRecords)
+      .set({
+        ...basePatch,
+        proofSnapshotSubmittedPaise: input.verifiedAmountPaise,
+      })
+      .where(eq(pgPaymentRecords.id, input.recordId));
+  } catch (err) {
+    if (!isDatabaseSchemaMismatchError(err)) throw err;
+    console.error(
+      '[payment-review] correction write failed — snapshot column missing',
+      schemaMismatchHint(err),
+    );
+    await tx
+      .update(pgPaymentRecords)
+      .set(basePatch)
+      .where(eq(pgPaymentRecords.id, input.recordId));
+  }
+}
+
 export async function correctPendingPaymentProofAmount(input: {
   recordId: string;
   verifiedAmountPaise: number;
@@ -43,7 +111,11 @@ export async function correctPendingPaymentProofAmount(input: {
   | { ok: true; previousAmountPaise: number; verifiedAmountPaise: number }
   | { ok: false; reason: string }
 > {
-  if (input.verifiedAmountPaise <= 0) {
+  const verifiedAmountPaise = guardPlainPaise(
+    input.verifiedAmountPaise,
+    'correction.verifiedAmount',
+  );
+  if (verifiedAmountPaise <= 0) {
     return { ok: false, reason: 'Verified proof amount must be greater than zero.' };
   }
 
@@ -100,25 +172,21 @@ export async function correctPendingPaymentProofAmount(input: {
     return { ok: false, reason: 'Booking checkout proof required for amount correction.' };
   }
 
-  const previousAmountPaise = record.amountPaise;
+  const previousAmountPaise = guardPlainPaise(record.amountPaise, 'correction.previousAmount');
+  const previousSubmittedPaise =
+    record.proofSnapshotSubmittedPaise == null
+      ? null
+      : guardPlainPaise(record.proofSnapshotSubmittedPaise, 'correction.previousSubmitted');
 
-  await db
-    .update(pgPaymentRecords)
-    .set(
-      snapshotColumnsAvailable
-        ? {
-            amountPaise: input.verifiedAmountPaise,
-            proofSnapshotSubmittedPaise: input.verifiedAmountPaise,
-            updatedAt: new Date(),
-          }
-        : {
-            amountPaise: input.verifiedAmountPaise,
-            updatedAt: new Date(),
-          },
-    )
-    .where(eq(pgPaymentRecords.id, input.recordId));
+  await db.transaction(async (tx) => {
+    await updatePendingProofAmount(tx, {
+      recordId: input.recordId,
+      verifiedAmountPaise,
+      snapshotColumnsAvailable,
+    });
+  });
 
-  await db.insert(auditLog).values({
+  const auditResult = await writeAuditLogNonBlocking(db, {
     actorType: 'admin',
     actorId: input.adminId,
     entity: 'pg_payment_record',
@@ -127,16 +195,19 @@ export async function correctPendingPaymentProofAmount(input: {
     diff: {
       bookingId: record.bookingId,
       previousAmountPaise,
-      verifiedAmountPaise: input.verifiedAmountPaise,
-      previousSubmittedPaise: record.proofSnapshotSubmittedPaise,
+      verifiedAmountPaise,
+      previousSubmittedPaise,
       reason: input.reason ?? 'Admin verified screenshot amount',
     },
   });
+  if (!auditResult.ok) {
+    console.error('[payment-proof-correction] audit log failed after amount update', auditResult.error);
+  }
 
   return {
     ok: true,
     previousAmountPaise,
-    verifiedAmountPaise: input.verifiedAmountPaise,
+    verifiedAmountPaise,
   };
 }
 
@@ -152,6 +223,7 @@ export async function savePendingPaymentProofCorrection(
       ok: true;
       corrected: { previousAmountPaise: number; verifiedAmountPaise: number };
       projected: ProjectedBookingBalances;
+      proofAmountPaise: number;
     }
   | { ok: false; message: string }
 > {
@@ -159,10 +231,12 @@ export async function savePendingPaymentProofCorrection(
     return { ok: false, message: 'Access denied.' };
   }
 
+  const allocation = normalizePaymentProofAllocation(input.allocation);
+
   const { validatePaymentProofAllocation } = await import(
     '@/src/services/paymentProofAllocationApproval'
   );
-  const validation = validatePaymentProofAllocation(input.allocation);
+  const validation = validatePaymentProofAllocation(allocation);
   if (!validation.ok) return { ok: false, message: validation.reason };
 
   const [record] = await db
@@ -194,18 +268,23 @@ export async function savePendingPaymentProofCorrection(
 
   const corrected = await correctPendingPaymentProofAmount({
     recordId: input.recordId,
-    verifiedAmountPaise: input.allocation.confirmedReceivedPaise,
+    verifiedAmountPaise: allocation.confirmedReceivedPaise,
     adminId: session.adminId,
-    reason: input.allocation.allocationNotes ?? 'Admin proof correction before approval',
+    reason: allocation.allocationNotes ?? 'Admin proof correction before approval',
   });
   if (!corrected.ok) return { ok: false, message: corrected.reason };
 
   const projected = projectBalancesAfterAllocation({
     rentRequiredPaise: breakdown.rentDuePaise,
     depositRequiredPaise: depositRequired,
-    rentAllocatedPaise: input.allocation.rentAllocatedPaise,
-    depositAllocatedPaise: input.allocation.depositAllocatedPaise,
+    rentAllocatedPaise: allocation.rentAllocatedPaise,
+    depositAllocatedPaise: allocation.depositAllocatedPaise,
   });
 
-  return { ok: true, corrected, projected };
+  return {
+    ok: true,
+    corrected,
+    projected,
+    proofAmountPaise: corrected.verifiedAmountPaise,
+  };
 }

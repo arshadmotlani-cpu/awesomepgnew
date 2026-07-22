@@ -12,6 +12,7 @@ import {
   type ExpressCollectionChargeType,
 } from '@/src/lib/billing/expressCollectionConstants';
 import { formatDate } from '@/src/lib/format';
+import { adminMoneyInputClassName, bindAdminMoneyInput } from '@/src/components/admin/AdminMoneyInput';
 
 const idle: ExpressCollectionActionState = { status: 'idle' };
 
@@ -134,14 +135,12 @@ export function ExpressCollectionButton({
             <label className="block text-xs text-apg-silver">
               Amount (₹)
               <input
-                type="number"
+                {...bindAdminMoneyInput({ allowDecimal: true })}
                 name="amountInr"
-                min="0.01"
-                step="0.01"
                 required
                 defaultValue={defaultAmountInr || undefined}
                 placeholder="3570"
-                className="mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white"
+                className={`mt-1 w-full rounded-lg border border-white/10 bg-[#12161C] px-3 py-2 text-sm text-white ${adminMoneyInputClassName}`}
               />
             </label>
 

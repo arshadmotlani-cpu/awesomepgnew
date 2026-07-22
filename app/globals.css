@@ -410,6 +410,23 @@ body {
   max-width: 100vw;
 }
 
+/* Currency / money inputs — no native number spinners anywhere in admin. */
+.apg-admin-shell input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.apg-admin-shell input[type='number']::-webkit-outer-spin-button,
+.apg-admin-shell input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.apg-admin-money-input {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 .apg-admin-shell main {
   -webkit-overflow-scrolling: touch;
 }
