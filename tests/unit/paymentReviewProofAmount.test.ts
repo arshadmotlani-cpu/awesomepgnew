@@ -4,6 +4,7 @@ import {
   isRentDoubleCountCorruption,
   proofAmountPaiseFromReviewItem,
   resolveVerifiedProofAmountPaise,
+  shouldFreezeSubmittedSnapshotOnRepair,
 } from '@/src/lib/operations/paymentReviewProofAmount';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 
@@ -64,7 +65,7 @@ describe('paymentReviewProofAmount', () => {
     );
   });
 
-  test('resolveVerifiedProofAmountPaise auto-repairs rent double-count', () => {
+  test('resolveVerifiedProofAmountPaise auto-repairs rent double-count as ambiguous', () => {
     const resolution = resolveVerifiedProofAmountPaise({
       storedAmountPaise: 1_236_200,
       proofSnapshotSubmittedPaise: null,
@@ -74,6 +75,8 @@ describe('paymentReviewProofAmount', () => {
     assert.equal(resolution.verifiedAmountPaise, 824_200);
     assert.equal(resolution.shouldRepairStoredAmount, true);
     assert.equal(resolution.repairReason, 'rent_double_count');
+    assert.equal(resolution.isAmbiguousRepair, true);
+    assert.equal(shouldFreezeSubmittedSnapshotOnRepair(resolution, null), false);
   });
 
   test('resolveVerifiedProofAmountPaise prefers frozen submit snapshot', () => {
@@ -86,6 +89,7 @@ describe('paymentReviewProofAmount', () => {
     assert.equal(resolution.verifiedAmountPaise, 618_000);
     assert.equal(resolution.shouldRepairStoredAmount, true);
     assert.equal(resolution.repairReason, 'submitted_snapshot');
+    assert.equal(resolution.isAmbiguousRepair, false);
   });
 
   test('resolveVerifiedProofAmountPaise leaves normal partial proof unchanged', () => {
@@ -98,5 +102,6 @@ describe('paymentReviewProofAmount', () => {
     assert.equal(resolution.verifiedAmountPaise, 618_000);
     assert.equal(resolution.shouldRepairStoredAmount, false);
     assert.equal(resolution.repairReason, null);
+    assert.equal(resolution.isAmbiguousRepair, false);
   });
 });

@@ -67,7 +67,6 @@ export type PaymentReviewWorkspaceData = {
   booking: PaymentReviewWorkspaceBookingContext | null;
   kycStatus: 'pending' | 'approved' | 'rejected' | null;
   nextReviewKey: string | null;
-  driftWarning: string | null;
 };
 
 export type LoadPaymentReviewWorkspaceResult =
@@ -157,15 +156,6 @@ async function loadBookingContext(
   };
 }
 
-function buildDriftWarning(item: PendingPaymentReviewItem): string | null {
-  const review = item.bookingPaymentReview;
-  if (!review?.proofSnapshotFrozen || review.liveCheckoutTotalPaise == null) return null;
-  if (review.liveCheckoutTotalPaise === review.bookingTotalDuePaise) return null;
-  const liveInr = (review.liveCheckoutTotalPaise / 100).toFixed(0);
-  const frozenInr = (review.bookingTotalDuePaise / 100).toFixed(0);
-  return `Live expected (₹${liveInr}) differs from amount at proof submit (₹${frozenInr}). Review uses the frozen proof-time total.`;
-}
-
 export async function loadPaymentReviewWorkspace(
   session: AdminSession,
   reviewKey: string,
@@ -222,7 +212,6 @@ export async function loadPaymentReviewWorkspace(
       booking,
       kycStatus,
       nextReviewKey,
-      driftWarning: buildDriftWarning(item),
     },
   };
 }

@@ -5,16 +5,18 @@
  * Fixes:
  * - Corrupt amount_paise (rent double-counted at submit)
  * - Missing proof snapshot columns
- * - Missing proof_snapshot_submitted_paise
+ * - Missing proof_snapshot_submitted_paise (non-ambiguous rows only)
  *
  * Usage:
  *   npx tsx scripts/repair-booking-payment-proof-snapshots.ts
  *   npx tsx scripts/repair-booking-payment-proof-snapshots.ts --apply
  *   npx tsx scripts/repair-booking-payment-proof-snapshots.ts --csv report.csv
+ *   npx tsx scripts/repair-booking-payment-proof-snapshots.ts --ambiguous-csv ambiguous.csv
+ *   npx tsx scripts/repair-booking-payment-proof-snapshots.ts --verify-migration
  */
 import 'dotenv/config';
 import { writeFileSync } from 'node:fs';
-import { and, eq, isNotNull } from 'drizzle-orm';
+import { and, eq, isNotNull, sql } from 'drizzle-orm';
 import { closeDb, db } from '../src/db/client';
 import { bookings, customers, pgPaymentRecords } from '../src/db/schema';
 import { breakdownBookingCheckoutPayment } from '../src/lib/billing/bookingCheckoutTotals';
@@ -25,12 +27,19 @@ import {
   proofSnapshotRowValues,
   resolveBookingProofExpectedCheckout,
 } from '../src/lib/billing/bookingPaymentProofSnapshot';
-import { resolveVerifiedProofAmountPaise } from '../src/lib/operations/paymentReviewProofAmount';
+import {
+  resolveVerifiedProofAmountPaise,
+  shouldFreezeSubmittedSnapshotOnRepair,
+} from '../src/lib/operations/paymentReviewProofAmount';
 import { resolveLivePriorOutstandingForCheckout } from '../src/services/bookingPriorOutstanding';
 
 const APPLY = process.argv.includes('--apply');
+const VERIFY_MIGRATION = process.argv.includes('--verify-migration');
 const csvArgIndex = process.argv.indexOf('--csv');
+const ambiguousCsvIndex = process.argv.indexOf('--ambiguous-csv');
 const CSV_PATH = csvArgIndex >= 0 ? process.argv[csvArgIndex + 1] : null;
+const AMBIGUOUS_CSV_PATH =
+  ambiguousCsvIndex >= 0 ? process.argv[ambiguousCsvIndex + 1] : null;
 
 type RepairRow = {
   recordId: string;
@@ -43,7 +52,8 @@ type RepairRow = {
   liveExpectedPaise: number;
   impliedPriorPaise: number;
   snapshotPriorPaise: number | null;
-  action: 'repair_amount' | 'backfill' | 'ok' | 'flag_approved_mismatch' | 'skip';
+  submittedSnapshotPaise: number | null;
+  action: 'repair_amount' | 'backfill' | 'ambiguous' | 'ok' | 'flag_approved_mismatch';
   reason: string;
 };
 
@@ -55,7 +65,52 @@ function csvEscape(value: string | number | null | undefined): string {
   return s;
 }
 
+function writeCsv(path: string, rows: RepairRow[]) {
+  const header =
+    'record_id,booking_code,customer,status,amount_paise,verified_amount_paise,live_expected_paise,implied_prior_paise,snapshot_prior_paise,submitted_snapshot_paise,action,reason';
+  const lines = rows.map((r) =>
+    [
+      csvEscape(r.recordId),
+      csvEscape(r.bookingCode),
+      csvEscape(r.customerName),
+      csvEscape(r.status),
+      csvEscape(r.amountPaise),
+      csvEscape(r.verifiedAmountPaise),
+      csvEscape(r.liveExpectedPaise),
+      csvEscape(r.impliedPriorPaise),
+      csvEscape(r.snapshotPriorPaise),
+      csvEscape(r.submittedSnapshotPaise),
+      csvEscape(r.action),
+      csvEscape(r.reason),
+    ].join(','),
+  );
+  writeFileSync(path, [header, ...lines].join('\n'));
+  console.log(`Wrote ${path}`);
+}
+
+async function verifyMigration0122() {
+  const cols = await db.execute(sql`
+    SELECT column_name FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'pg_payment_records'
+    ORDER BY ordinal_position
+  `);
+  const names = cols.map((c) => String((c as { column_name: string }).column_name));
+  const exists = names.includes('proof_snapshot_submitted_paise');
+  console.log(
+    exists
+      ? 'OK — migration 0122 column proof_snapshot_submitted_paise exists'
+      : 'MISSING — run src/db/migrations/0122_proof_snapshot_submitted_paise.sql',
+  );
+  if (!exists) process.exitCode = 1;
+}
+
 async function main() {
+  if (VERIFY_MIGRATION) {
+    await verifyMigration0122();
+    await closeDb();
+    return;
+  }
+
   const rows = await db
     .select({
       recordId: pgPaymentRecords.id,
@@ -84,6 +139,7 @@ async function main() {
   const report: RepairRow[] = [];
   let repaired = 0;
   let backfilled = 0;
+  let ambiguousCount = 0;
   let flagged = 0;
 
   for (const row of rows) {
@@ -154,12 +210,17 @@ async function main() {
       action = 'flag_approved_mismatch';
       reason = 'Approved row may have misclassified prior slice as overpayment';
       flagged += 1;
+    } else if (resolution.isAmbiguousRepair) {
+      action = 'ambiguous';
+      reason =
+        'Rent double-count without submitted snapshot — exact partial screenshot amount unknown; best-guess repair only';
+      ambiguousCount += 1;
     } else if (amountCorrupt) {
       action = 'repair_amount';
       reason =
-        resolution.repairReason === 'rent_double_count'
-          ? 'Rent double-counted in amount_paise — repair to verified screenshot amount'
-          : 'Stored amount differs from frozen submit snapshot';
+        resolution.repairReason === 'submitted_snapshot'
+          ? 'Stored amount differs from frozen submit snapshot'
+          : 'Corrupt amount_paise repaired to verified value';
     } else if (missingSnapshot || missingSubmittedSnapshot || staleMismatch) {
       action = 'backfill';
       reason = missingSnapshot
@@ -180,11 +241,15 @@ async function main() {
       liveExpectedPaise: liveExpected,
       impliedPriorPaise: impliedPrior,
       snapshotPriorPaise: row.proofSnapshotPriorOutstandingPaise,
+      submittedSnapshotPaise: row.proofSnapshotSubmittedPaise,
       action,
       reason,
     });
 
-    if ((action === 'repair_amount' || action === 'backfill') && APPLY) {
+    const shouldApply =
+      action === 'repair_amount' || action === 'backfill' || action === 'ambiguous';
+
+    if (shouldApply && APPLY) {
       const snapshot = inferProofSnapshotFromPaidAmount({
         amountPaise: verifiedAmountPaise,
         rentDuePaise: breakdown.rentDuePaise,
@@ -192,11 +257,21 @@ async function main() {
         priorOutstandingItems: row.pricingSnapshot?.priorOutstanding?.items,
       });
 
+      const snapshotFields = proofSnapshotRowValues(
+        snapshot,
+        shouldFreezeSubmittedSnapshotOnRepair(resolution, row.proofSnapshotSubmittedPaise)
+          ? verifiedAmountPaise
+          : (row.proofSnapshotSubmittedPaise ?? verifiedAmountPaise),
+      );
+      if (!shouldFreezeSubmittedSnapshotOnRepair(resolution, row.proofSnapshotSubmittedPaise)) {
+        delete snapshotFields.proofSnapshotSubmittedPaise;
+      }
+
       await db
         .update(pgPaymentRecords)
         .set({
           amountPaise: verifiedAmountPaise,
-          ...proofSnapshotRowValues(snapshot, verifiedAmountPaise),
+          ...snapshotFields,
           updatedAt: new Date(),
         })
         .where(
@@ -206,15 +281,17 @@ async function main() {
           ),
         );
 
-      if (action === 'repair_amount') repaired += 1;
+      if (action === 'repair_amount' || action === 'ambiguous') repaired += 1;
       else backfilled += 1;
     }
   }
 
   const actionable = report.filter((r) => r.action !== 'ok');
+  const ambiguous = report.filter((r) => r.action === 'ambiguous');
+
   console.log(`Scanned ${report.length} booking payment records`);
   console.log(
-    `Actionable: ${actionable.length} (repair_amount: ${report.filter((r) => r.action === 'repair_amount').length}, backfill: ${report.filter((r) => r.action === 'backfill').length}, flagged approved: ${flagged})`,
+    `Actionable: ${actionable.length} (repair/ambiguous: ${report.filter((r) => r.action === 'repair_amount' || r.action === 'ambiguous').length}, backfill: ${report.filter((r) => r.action === 'backfill').length}, ambiguous: ${ambiguousCount}, flagged approved: ${flagged})`,
   );
   if (APPLY) {
     console.log(`Repaired amounts: ${repaired}, backfilled snapshots: ${backfilled}`);
@@ -222,27 +299,8 @@ async function main() {
     console.log('Dry run — pass --apply to write repairs');
   }
 
-  if (CSV_PATH) {
-    const header =
-      'record_id,booking_code,customer,status,amount_paise,verified_amount_paise,live_expected_paise,implied_prior_paise,snapshot_prior_paise,action,reason';
-    const lines = report.map((r) =>
-      [
-        csvEscape(r.recordId),
-        csvEscape(r.bookingCode),
-        csvEscape(r.customerName),
-        csvEscape(r.status),
-        csvEscape(r.amountPaise),
-        csvEscape(r.verifiedAmountPaise),
-        csvEscape(r.liveExpectedPaise),
-        csvEscape(r.impliedPriorPaise),
-        csvEscape(r.snapshotPriorPaise),
-        csvEscape(r.action),
-        csvEscape(r.reason),
-      ].join(','),
-    );
-    writeFileSync(CSV_PATH, [header, ...lines].join('\n'));
-    console.log(`Wrote ${CSV_PATH}`);
-  }
+  if (CSV_PATH) writeCsv(CSV_PATH, report);
+  if (AMBIGUOUS_CSV_PATH) writeCsv(AMBIGUOUS_CSV_PATH, ambiguous);
 
   for (const row of actionable.slice(0, 20)) {
     console.log(
@@ -251,6 +309,15 @@ async function main() {
   }
   if (actionable.length > 20) {
     console.log(`… and ${actionable.length - 20} more`);
+  }
+
+  if (ambiguous.length > 0) {
+    console.log(`\nAmbiguous rows (exact screenshot amount not reconstructable): ${ambiguous.length}`);
+    for (const row of ambiguous.slice(0, 10)) {
+      console.log(
+        `  · ${row.bookingCode ?? row.bookingId} stored ₹${(row.amountPaise / 100).toFixed(0)} → guess ₹${(row.verifiedAmountPaise / 100).toFixed(0)}`,
+      );
+    }
   }
 
   await closeDb();

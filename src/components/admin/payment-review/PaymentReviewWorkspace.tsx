@@ -37,7 +37,7 @@ function differenceLabel(differencePaise: number): { text: string; tone: string 
 
 export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceData }) {
   const router = useRouter();
-  const { item, breakdown, booking, rejectionHistory, driftWarning } = data;
+  const { item, breakdown, booking, rejectionHistory } = data;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rejectOpen, setRejectOpen] = useState(false);
@@ -156,12 +156,6 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
         </div>
       </header>
 
-      {driftWarning ? (
-        <p className="mb-4 rounded-xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-          {driftWarning}
-        </p>
-      ) : null}
-
       {error ? (
         <p className="mb-4 rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
           {error}
@@ -172,9 +166,6 @@ export function PaymentReviewWorkspace({ data }: { data: PaymentReviewWorkspaceD
         <div className="space-y-6">
           <section className="rounded-2xl border border-white/10 bg-[#1A1F27] p-5">
             <h2 className="text-base font-semibold text-white">Payment under review</h2>
-            <p className="mt-1 text-xs text-apg-silver">
-              One uploaded proof — not lifetime account totals.
-            </p>
             <dl className="mt-4 grid gap-4 sm:grid-cols-2">
               <SummaryRow
                 label="Screenshot amount"

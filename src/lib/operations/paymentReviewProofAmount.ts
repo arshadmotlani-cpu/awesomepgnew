@@ -37,6 +37,11 @@ export type VerifiedProofAmountResolution = {
   /** Stored amount_paise should be updated to match verified amount. */
   shouldRepairStoredAmount: boolean;
   repairReason: 'submitted_snapshot' | 'rent_double_count' | null;
+  /**
+   * Historical row where true screenshot amount cannot be proven from DB alone.
+   * Repair may still apply a best-guess amount_paise — never write submitted snapshot.
+   */
+  isAmbiguousRepair: boolean;
 };
 
 /**
@@ -57,6 +62,7 @@ export function resolveVerifiedProofAmountPaise(input: {
       verifiedAmountPaise: submitted,
       shouldRepairStoredAmount,
       repairReason: shouldRepairStoredAmount ? 'submitted_snapshot' : null,
+      isAmbiguousRepair: false,
     };
   }
 
@@ -71,6 +77,7 @@ export function resolveVerifiedProofAmountPaise(input: {
       verifiedAmountPaise: Math.max(0, input.storedAmountPaise - input.rentDuePaise),
       shouldRepairStoredAmount: true,
       repairReason: 'rent_double_count',
+      isAmbiguousRepair: true,
     };
   }
 
@@ -78,24 +85,16 @@ export function resolveVerifiedProofAmountPaise(input: {
     verifiedAmountPaise: input.storedAmountPaise,
     shouldRepairStoredAmount: false,
     repairReason: null,
+    isAmbiguousRepair: false,
   };
 }
 
-/** @deprecated Internal diagnostics only — never surface to admin UI. */
-export function detectProofAmountCorruption(input: {
-  proofAmountPaise: number;
-  rentDuePaise: number;
-  depositDuePaise: number;
-  expectedCheckoutPaise: number;
-}): string | null {
-  if (
-    isRentDoubleCountCorruption({
-      storedAmountPaise: input.proofAmountPaise,
-      rentDuePaise: input.rentDuePaise,
-      expectedCheckoutPaise: input.expectedCheckoutPaise,
-    })
-  ) {
-    return 'rent_double_count';
-  }
-  return null;
+/** Whether proof_snapshot_submitted_paise may be written for this repair. */
+export function shouldFreezeSubmittedSnapshotOnRepair(
+  resolution: VerifiedProofAmountResolution,
+  existingSubmittedPaise?: number | null,
+): boolean {
+  if (existingSubmittedPaise != null && existingSubmittedPaise > 0) return false;
+  if (resolution.isAmbiguousRepair) return false;
+  return resolution.shouldRepairStoredAmount || resolution.verifiedAmountPaise > 0;
 }
