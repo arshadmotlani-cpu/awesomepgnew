@@ -9,6 +9,7 @@ import {
   RecordOfflinePaymentForm,
 } from '@/src/components/admin/AdminBookingActions';
 import { AdminBookingOpsPanel } from '@/src/components/admin/AdminBookingOpsPanel';
+import { BookingPaymentVerificationAuditSection } from '@/src/components/admin/bookings/BookingPaymentVerificationAuditSection';
 import { BookingInvoiceHistorySection } from '@/src/components/admin/bookings/BookingInvoiceHistorySection';
 import { getBookingFinancialPhase, showBookingCheckoutFinancialOps, showBookingCheckoutOpsPanel } from '@/src/lib/admin/bookingFinancialPhase';
 import { evaluateBookingDetailDeepLink } from '@/src/lib/admin/notificationDeepLinkGuard';
@@ -32,7 +33,7 @@ import {
 } from '@/src/services/bookingPaymentFinancialProjection';
 import { buildAdminInvoiceHrefMap } from '@/src/lib/billing/invoiceHrefMap';
 import { diffDays, parseDate } from '@/src/lib/dates';
-import { getDepositSummaryForBooking } from '@/src/services/deposits';
+import { loadBookingPaymentVerificationAudit } from '@/src/services/bookingPaymentVerificationAudit';
 import { getCheckoutSettlementDetailForBooking } from '@/src/services/checkoutSettlement';
 import { getBookingFinancialAccount } from '@/src/services/residentFinancialEngine';
 import { parseDaterange } from '@/src/services/availability';
@@ -72,7 +73,8 @@ export default async function AdminBookingDetailPage(
 
   const b = res.data;
   const primaryRes = b.reservations.find((r) => r.kind === 'primary') ?? b.reservations[0];
-  const [rentInvoices, electricityInvoices, financialAccount] = await Promise.all([
+  const [rentInvoices, electricityInvoices, financialAccount, paymentVerificationAudit] =
+    await Promise.all([
     listRentInvoicesForBooking(bookingId),
     listElectricityInvoicesForBooking(bookingId),
     primaryRes
@@ -89,6 +91,7 @@ export default async function AdminBookingDetailPage(
           depositDuePaise: 0,
         })
       : Promise.resolve(null),
+    loadBookingPaymentVerificationAudit(bookingId),
   ]);
   const rentInvoiceHrefMap =
     rentInvoices.ok && rentInvoices.data.length > 0
@@ -246,6 +249,10 @@ export default async function AdminBookingDetailPage(
               ) : null}
             </dl>
           </div>
+
+          {paymentVerificationAudit ? (
+            <BookingPaymentVerificationAuditSection audit={paymentVerificationAudit} />
+          ) : null}
 
           <div className="rounded-xl border border-white/10 bg-[#1A1F27] p-5">
             <h2 className="text-sm font-semibold text-white">Reservations</h2>

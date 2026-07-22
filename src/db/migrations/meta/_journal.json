@@ -855,6 +855,13 @@
       "when": 1793500000000,
       "tag": "0121_booking_payment_proof_snapshot",
       "breakpoints": true
+    },
+    {
+      "idx": 125,
+      "version": "7",
+      "when": 1793600000000,
+      "tag": "0122_proof_snapshot_submitted_paise",
+      "breakpoints": true
     }
   ]
 }

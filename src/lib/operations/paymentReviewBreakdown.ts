@@ -8,6 +8,11 @@ import type {
   PendingPaymentReviewItem,
 } from '@/src/lib/operations/paymentReviewTypes';
 import { proofAmountPaiseFromReviewItem } from '@/src/lib/operations/paymentReviewProofAmount';
+import {
+  depositRequiredPaiseFromBooking,
+  expectedPaymentPaiseFromBooking,
+  monthlyRentPaiseFromBooking,
+} from '@/src/lib/operations/paymentReviewVerification';
 
 export type BookingExpectedCheckoutLines = {
   rentDuePaise: number;
@@ -50,33 +55,35 @@ export function expectedCheckoutFromBookingDetails(
   };
 }
 
-/** SSOT — expected checkout lines from booking financial data, never the payment proof amount. */
+/** SSOT — expected checkout = monthly rent + deposit from booking only (no proof, no prior). */
 export function resolveBookingExpectedCheckoutLines(
   item: PendingPaymentReviewItem,
 ): BookingExpectedCheckoutLines | null {
-  const review = item.bookingPaymentReview;
-  if (review) {
-    const priorOutstandingPaise = Math.max(
-      0,
-      review.priorOutstandingDuePaise ??
-        item.expectedLines?.find((line) => line.label.toLowerCase().includes('prior'))?.amountPaise ??
-        0,
-    );
-    const rentDuePaise = review.rentDuePaise;
-    const depositCashDuePaise = review.depositCashDuePaise;
-    return {
-      rentDuePaise,
-      depositCashDuePaise,
-      priorOutstandingPaise,
-      checkoutTotalPaise: rentDuePaise + depositCashDuePaise + priorOutstandingPaise,
-    };
+  const bookingExpected = expectedPaymentPaiseFromBooking(item);
+  if (bookingExpected == null) {
+    if (item.bookingDetails) {
+      const rentDuePaise = monthlyRentPaiseFromBooking(item);
+      const depositCashDuePaise = depositRequiredPaiseFromBooking(item);
+      if (rentDuePaise > 0 || depositCashDuePaise > 0) {
+        return {
+          rentDuePaise,
+          depositCashDuePaise,
+          priorOutstandingPaise: 0,
+          checkoutTotalPaise: rentDuePaise + depositCashDuePaise,
+        };
+      }
+    }
+    return null;
   }
 
-  if (item.bookingDetails) {
-    return expectedCheckoutFromBookingDetails(item.bookingDetails);
-  }
-
-  return null;
+  const rentDuePaise = monthlyRentPaiseFromBooking(item);
+  const depositCashDuePaise = depositRequiredPaiseFromBooking(item);
+  return {
+    rentDuePaise,
+    depositCashDuePaise,
+    priorOutstandingPaise: 0,
+    checkoutTotalPaise: rentDuePaise + depositCashDuePaise,
+  };
 }
 
 export type PaymentReviewBreakdown = {
@@ -137,17 +144,10 @@ export function buildPaymentReviewBreakdown(
   if (item.kind === 'qr' && expectedCheckout) {
     const rentDue = expectedCheckout.rentDuePaise;
     const depositDue = expectedCheckout.depositCashDuePaise;
-    const priorDue = expectedCheckout.priorOutstandingPaise;
-    const review = item.bookingPaymentReview;
-    const roomChargesPaid = review?.rentPaisePaid ?? 0;
-    const depositPaid = review?.depositPaisePaid ?? 0;
-    const depositRemaining = review?.depositDuePaise ?? Math.max(0, depositDue - depositPaid);
-    const allocatedCore = roomChargesPaid + depositPaid;
-    const priorPaid = Math.min(priorDue, Math.max(0, proofAmountPaise - allocatedCore));
-    const extra = Math.max(0, proofAmountPaise - allocatedCore - priorPaid);
     const totalExpected = expectedCheckout.checkoutTotalPaise;
     const difference = proofAmountPaise - totalExpected;
     const remaining = Math.max(0, totalExpected - proofAmountPaise);
+    const extra = Math.max(0, difference);
 
     return {
       bookingType,
@@ -156,17 +156,17 @@ export function buildPaymentReviewBreakdown(
       stayDuration,
       roomChargesDuePaise: rentDue,
       securityDepositDuePaise: depositDue,
-      priorOutstandingDuePaise: priorDue,
+      priorOutstandingDuePaise: 0,
       totalExpectedPaise: totalExpected,
       proofAmountPaise,
       receivedPaise: proofAmountPaise,
       differencePaise: difference,
       differenceTone: differenceTone(difference),
       statusLabel: 'Awaiting review',
-      roomChargesPaidPaise: roomChargesPaid,
-      depositPaidPaise: depositPaid,
-      depositRemainingPaise: depositRemaining,
-      priorPaidPaise: priorPaid,
+      roomChargesPaidPaise: 0,
+      depositPaidPaise: 0,
+      depositRemainingPaise: depositDue,
+      priorPaidPaise: 0,
       extraReceivedPaise: extra,
       remainingBalancePaise: remaining,
       paymentCategoryLabel: item.paymentTypeLabel,
@@ -227,17 +227,9 @@ export function allocationSnapshotForApproval(item: PendingPaymentReviewItem): {
   };
 }
 
-/** Manual allocation UI only when payment cannot be auto-approved with the suggested split. */
-export function paymentReviewNeedsManualAllocation(item: PendingPaymentReviewItem): boolean {
-  if (!item.bookingId && item.kind === 'qr') return true;
-  if (item.kind === 'qr' && item.bookingPaymentReview) {
-    const breakdown = buildPaymentReviewBreakdown(item);
-    if (breakdown.differenceTone !== 'exact') return true;
-    if (item.bookingPaymentReview.canPartialApprove) return true;
-    return false;
-  }
-  const breakdown = buildPaymentReviewBreakdown(item);
-  return breakdown.differenceTone !== 'exact';
+/** @deprecated Payment Review is verification-only — allocation happens in Booking Financial Workspace. */
+export function paymentReviewNeedsManualAllocation(_item: PendingPaymentReviewItem): boolean {
+  return false;
 }
 
 export function paymentReviewSuggestedAllocation(item: PendingPaymentReviewItem): {

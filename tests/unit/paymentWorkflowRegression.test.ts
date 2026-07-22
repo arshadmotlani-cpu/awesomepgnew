@@ -143,33 +143,32 @@ describe('payment workflow regression', () => {
     assert.equal(split.depositPaisePaid, DEPOSIT);
   });
 
-  test('underpayment partial deposit allocation defaults', () => {
+  test('underpayment shows short difference without auto-split', () => {
     const item = reviewItem({
       amountPaise: 618_000,
-      verifiedProofAmountPaise: 618_000,
-      bookingPaymentReview: {
-        bookingCode: 'BK-1',
-        bookingTotalDuePaise: EXPECTED,
-        amountSubmittedPaise: 618_000,
-        verifiedProofAmountPaise: 618_000,
+      submittedAmountPaise: 618_000,
+      bookingDetails: {
+        moveInDate: null,
+        moveOutDate: null,
+        durationLabel: 'Monthly',
+        roomType: null,
+        bedCode: 'A',
+        roomNumber: '101',
+        monthlyRentPaise: RENT,
+        depositRequiredPaise: DEPOSIT,
+        durationMode: 'monthly',
+        stayType: 'monthly_stay',
+        bookingStatus: 'pending_payment',
+        subtotalPaise: RENT,
+        discountPaise: 0,
         rentDuePaise: RENT,
-        depositCashDuePaise: DEPOSIT,
-        priorOutstandingDuePaise: 0,
-        priorOutstandingItems: [],
-        rentPaisePaid: RENT,
-        depositPaisePaid: PARTIAL_DEPOSIT_PAID,
-        depositDuePaise: PARTIAL_DEPOSIT_OUTSTANDING,
-        isFullPayment: false,
-        canPartialApprove: true,
-        liveCheckoutTotalPaise: EXPECTED,
-        proofSnapshotFrozen: true,
       },
     });
     const breakdown = buildPaymentReviewBreakdown(item);
     assert.equal(breakdown.proofAmountPaise, 618_000);
     assert.equal(breakdown.totalExpectedPaise, EXPECTED);
     assert.equal(breakdown.differencePaise, 618_000 - EXPECTED);
-    assert.equal(breakdown.depositRemainingPaise, PARTIAL_DEPOSIT_OUTSTANDING);
+    assert.equal(breakdown.depositRemainingPaise, DEPOSIT);
     assert.ok(!('proofAmountCorruptionWarning' in breakdown));
   });
 
@@ -218,50 +217,37 @@ describe('payment workflow regression', () => {
     assert.equal(shouldFreezeSubmittedSnapshotOnRepair(resolution, null), false);
   });
 
-  test('new proof after migration always resolves from verified amount', () => {
+  test('Payment Review workspace is verification-only', () => {
+    const workspace = read('src/components/admin/payment-review/PaymentReviewWorkspace.tsx');
+    assert.doesNotMatch(workspace, /PaymentAllocationEditor/);
+    assert.doesNotMatch(workspace, /savePendingPaymentProofCorrectionAction/);
+    assert.doesNotMatch(workspace, /Save proof correction/i);
+    assert.match(workspace, /buildPaymentReviewVerification/);
+    assert.match(workspace, /approvePaymentReviewVerificationAction/);
+  });
+
+  test('queue loader does not call getQrBookingPaymentReview on page load', () => {
+    const queue = read('src/services/paymentProofQueue.ts');
+    assert.doesNotMatch(queue, /getQrBookingPaymentReview\(p\.id\)/);
+  });
+
+  test('review approve applies booking contract amount on verification approve', () => {
+    const qr = read('src/services/qrPayments.ts');
+    assert.match(qr, /verificationOnly/);
+    assert.match(qr, /contractAmountPaise/);
+    assert.match(qr, /amountPaise: contractAmountPaise/);
+    assert.doesNotMatch(qr, /deferFinancialAllocation/);
+  });
+
+  test('APG display uses submitted snapshot not corrupt amount_paise', () => {
     assert.equal(
       proofAmountPaiseFromReviewItem(
         reviewItem({
           amountPaise: 1_236_200,
-          verifiedProofAmountPaise: 618_000,
+          submittedAmountPaise: 618_000,
         }),
       ),
       618_000,
-    );
-  });
-
-  test('Payment Review workspace has no corruption or drift warnings', () => {
-    const workspace = read('src/components/admin/payment-review/PaymentReviewWorkspace.tsx');
-    assert.doesNotMatch(workspace, /proofAmountCorruptionWarning/);
-    assert.doesNotMatch(workspace, /driftWarning/);
-    assert.doesNotMatch(workspace, /Resident paid/i);
-    assert.doesNotMatch(workspace, /lifetime account totals/i);
-  });
-
-  test('submit path freezes proof_snapshot_submitted_paise at upload', () => {
-    const qr = read('src/services/qrPayments.ts');
-    assert.match(qr, /proofSnapshotRowValues\(proofSnapshot, input\.amountPaise\)/);
-    assert.match(qr, /proofSnapshotSubmittedPaise/);
-    assert.match(qr, /shouldApplyProofAmountSelfHeal/);
-    assert.match(qr, /correctPendingPaymentProofAmount/);
-  });
-
-  test('APG admin-corrected proof amount is ₹6180 not corrupt ₹12362', () => {
-    const resolution = resolveVerifiedProofAmountPaise({
-      storedAmountPaise: PARTIAL_PROOF,
-      proofSnapshotSubmittedPaise: 1_236_200,
-      rentDuePaise: RENT,
-      expectedCheckoutPaise: EXPECTED,
-    });
-    assert.equal(resolution.verifiedAmountPaise, PARTIAL_PROOF);
-    assert.equal(
-      proofAmountPaiseFromReviewItem(
-        reviewItem({
-          amountPaise: PARTIAL_PROOF,
-          verifiedProofAmountPaise: PARTIAL_PROOF,
-        }),
-      ),
-      PARTIAL_PROOF,
     );
   });
 

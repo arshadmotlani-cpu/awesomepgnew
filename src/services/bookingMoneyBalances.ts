@@ -82,7 +82,6 @@ export async function getBookingMoneyBalances(
     wallet?.collectedPaise ?? 0,
     'balances.depositReceived',
   );
-  const depositOutstanding = Math.max(0, depositRequired - depositReceived);
 
   const rentRequired = breakdown.rentDuePaise;
   const invoiceRent = await sumPaidRentInvoicesPaise(bookingId);

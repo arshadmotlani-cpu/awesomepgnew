@@ -41,14 +41,26 @@ function item(overrides: Partial<PendingPaymentReviewItem>): PendingPaymentRevie
 }
 
 describe('paymentReviewProofAmount', () => {
-  test('proofAmountPaiseFromReviewItem prefers verified proof amount', () => {
+  test('proofAmountPaiseFromReviewItem uses raw submitted snapshot', () => {
     assert.equal(
       proofAmountPaiseFromReviewItem(
         item({
           amountPaise: 1_236_200,
           verifiedProofAmountPaise: 618_000,
-          submittedAmountPaise: 1_236_200,
+          submittedAmountPaise: 618_000,
           receivedPaise: 1_236_200,
+        }),
+      ),
+      618_000,
+    );
+  });
+
+  test('proofAmountPaiseFromReviewItem falls back to amountPaise when no snapshot', () => {
+    assert.equal(
+      proofAmountPaiseFromReviewItem(
+        item({
+          amountPaise: 618_000,
+          verifiedProofAmountPaise: 618_000,
         }),
       ),
       618_000,

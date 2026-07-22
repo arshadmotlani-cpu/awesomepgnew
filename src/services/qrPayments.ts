@@ -697,6 +697,7 @@ export async function listOwnerPayments(
       customerPhone: customers.phone,
       customerEmail: customers.email,
       amountPaise: pgPaymentRecords.amountPaise,
+      proofSnapshotSubmittedPaise: pgPaymentRecords.proofSnapshotSubmittedPaise,
       month: pgPaymentRecords.month,
       status: pgPaymentRecords.status,
       paymentScreenshotUrl: pgPaymentRecords.paymentScreenshotUrl,
@@ -836,6 +837,8 @@ export async function reviewPaymentRecord(
       reviewNotes?: string;
       approvalNotes?: string;
     };
+    /** Verification-only approve — confirm booking without rent/deposit allocation. */
+    verificationOnly?: boolean;
   },
 ): Promise<ReviewPaymentRecordResult> {
   if (status === 'rejected') {
@@ -917,6 +920,71 @@ export async function reviewPaymentRecord(
           ? { outcome: 'already_approved' }
           : { outcome: 'approved' };
       } else if (booking?.status === 'pending_payment' || booking?.status === 'pending_approval') {
+        if (opts?.verificationOnly) {
+          const screenshotAmountPaise =
+            record.proofSnapshotSubmittedPaise != null && record.proofSnapshotSubmittedPaise > 0
+              ? record.proofSnapshotSubmittedPaise
+              : record.amountPaise;
+
+          const { breakdownBookingCheckoutPayment } = await import(
+            '@/src/lib/billing/bookingCheckoutTotals'
+          );
+          const checkoutBreakdown = breakdownBookingCheckoutPayment({
+            subtotalPaise: booking.subtotalPaise,
+            discountPaise: booking.discountPaise,
+            depositPaise: booking.depositPaise,
+            pricingSnapshot: booking.pricingSnapshot,
+          });
+          const contractAmountPaise =
+            checkoutBreakdown.rentDuePaise + checkoutBreakdown.depositCashDuePaise;
+
+          const { recordPaymentSuccess } = await import('./bookingLifecycle');
+
+          const paymentResult = await recordPaymentSuccess({
+            provider: 'upi_manual',
+            providerPaymentId: `qr_record_${recordId}`,
+            providerOrderId: record.transactionRef ?? recordId,
+            amountPaise: contractAmountPaise,
+            bookingCode: booking.bookingCode,
+            rawPayload: {
+              pgPaymentRecordId: recordId,
+              category: RENT_DEPOSIT_BOOKING_CATEGORY_NAME,
+              verificationOnly: true,
+              screenshotAmountPaise,
+              operationsReview: opts?.reviewMeta ?? null,
+            },
+            recordedByAdminId: session.adminId,
+          });
+          if (!paymentResult.ok) {
+            const alreadyProcessed = await bookingQrPaymentAlreadyProcessed(
+              record.bookingId,
+              recordId,
+            );
+            if (alreadyProcessed) {
+              await finalizeStaleBookingPaymentReview({
+                recordId,
+                bookingId: record.bookingId,
+                reviewedByAdminId: session.adminId,
+              });
+              await finalizeApprovedReserveBooking(record.bookingId);
+              outcome = { outcome: 'already_approved' };
+            } else {
+              throw new Error(
+                paymentResult.reason ??
+                  'Could not confirm booking — the bed may already be taken by another approved payment.',
+              );
+            }
+          } else {
+            await finalizeStaleBookingPaymentReview({
+              recordId,
+              bookingId: record.bookingId,
+              reviewedByAdminId: session.adminId,
+              confirmedAmountPaise: screenshotAmountPaise,
+            });
+            await finalizeApprovedReserveBooking(record.bookingId);
+            outcome = { outcome: 'approved' };
+          }
+        } else {
         const allocation = opts?.paymentAllocation;
         if (!allocation) {
           throw new Error(
@@ -1015,6 +1083,7 @@ export async function reviewPaymentRecord(
           });
           await finalizeApprovedReserveBooking(record.bookingId);
           outcome = { outcome: 'approved' };
+        }
         }
       } else {
         await finalizeStaleBookingPaymentReview({

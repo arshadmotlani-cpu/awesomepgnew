@@ -3,13 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { startTransition, useMemo, useState } from 'react';
-import {
-  approvePaymentProofWithAllocationAction,
-  getBookingMoneyBalancesForReviewAction,
-} from '@/app/(admin)/admin/payments/actions';
-import { PaymentAllocationDialog } from '@/src/components/admin/operations/PaymentAllocationDialog';
-import type { PaymentAllocationSubmit } from '@/src/components/admin/operations/PaymentAllocationDialog';
-import type { BookingMoneyBalances } from '@/src/lib/billing/bookingMoneyBalances';
+import { approvePaymentReviewVerificationAction } from '@/app/(admin)/admin/payments/actions';
 import { PaymentReviewEssentials } from '@/src/components/admin/operations/PaymentReviewEssentials';
 import { PaymentProofRejectionDialog } from '@/src/components/admin/operations/PaymentProofRejectionDialog';
 import { PaymentProofRejectionHistory } from '@/src/components/admin/operations/PaymentProofRejectionHistory';
@@ -20,7 +14,6 @@ import { PipelineTestInvoiceBadge } from '@/src/components/admin/PipelineTestInv
 import { InvoiceAdminRowActions } from '@/src/components/admin/InvoiceAdminRowActions';
 import { OPS_ORANGE, OPS_PANEL } from '@/src/components/admin/residentOps/residentOpsUi';
 import { adminPaymentProofViewUrl } from '@/src/lib/payments/proofResponse';
-import { buildPaymentReviewBreakdown } from '@/src/lib/operations/paymentReviewBreakdown';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 import { PAYMENT_ALREADY_APPROVED_MESSAGE } from '@/src/lib/operations/paymentReviewMessages';
 import { operationsFilterHref } from '@/src/lib/operations/operationsFilterLinks';
@@ -52,13 +45,7 @@ export function OperationsPaymentReviewsPanel({
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
-  const [allocationItem, setAllocationItem] = useState<PendingPaymentReviewItem | null>(null);
-  const [allocationBalances, setAllocationBalances] = useState<BookingMoneyBalances | null>(null);
-  const [allocationBalancesLoading, setAllocationBalancesLoading] = useState(false);
-  const [allocationBalancesError, setAllocationBalancesError] = useState<string | null>(null);
   const [moreOpenKey, setMoreOpenKey] = useState<string | null>(null);
-  const [reviewNotes, setReviewNotes] = useState('');
-  const [approvalNotes, setApprovalNotes] = useState('');
   const [rejectDialogItem, setRejectDialogItem] = useState<PendingPaymentReviewItem | null>(
     null,
   );
@@ -75,8 +62,6 @@ export function OperationsPaymentReviewsPanel({
     opts?: { rejected?: boolean },
   ) {
     setRejectDialogItem(null);
-    setAllocationItem(null);
-    setAllocationBalances(null);
     setMoreOpenKey(null);
     if (opts?.rejected) {
       showToast('Payment rejected successfully.');
@@ -92,58 +77,20 @@ export function OperationsPaymentReviewsPanel({
     });
   }
 
-  async function openAllocationDialog(item: PendingPaymentReviewItem) {
-    setAllocationItem(item);
-    setAllocationBalances(null);
-    setAllocationBalancesError(null);
-    setError(null);
-
-    if (!item.bookingId) {
-      setAllocationBalancesLoading(false);
-      return;
-    }
-
-    setAllocationBalancesLoading(true);
-    try {
-      const result = await getBookingMoneyBalancesForReviewAction(item.bookingId);
-      if (!result.ok) {
-        setAllocationBalancesError(result.message ?? 'Could not load balances.');
-        return;
-      }
-      setAllocationBalances(result.balances);
-    } catch (err) {
-      setAllocationBalancesError(err instanceof Error ? err.message : 'Could not load balances.');
-    } finally {
-      setAllocationBalancesLoading(false);
-    }
-  }
-
-  async function onAllocationApprove(item: PendingPaymentReviewItem, alloc: PaymentAllocationSubmit) {
+  async function handleApprove(item: PendingPaymentReviewItem) {
     setBusyKey(item.key);
     setError(null);
     setInfo(null);
     try {
-      const result = await approvePaymentProofWithAllocationAction(
+      const result = await approvePaymentReviewVerificationAction(
         item.kind,
         item.entityId,
         item.pgId,
-        {
-          confirmedReceivedPaise: alloc.confirmedReceivedPaise,
-          rentAllocatedPaise: alloc.rentAllocatedPaise,
-          depositAllocatedPaise: alloc.depositAllocatedPaise,
-          electricityAllocatedPaise: alloc.electricityAllocatedPaise,
-          otherAllocatedPaise: alloc.otherAllocatedPaise,
-          depositDueDate: alloc.depositDueDate,
-          allocationNotes: alloc.allocationNotes,
-        },
-        {
-          reviewNotes: reviewNotes.trim() || undefined,
-          approvalNotes: approvalNotes.trim() || undefined,
-        },
+        undefined,
         item.key,
       );
       if (!result.ok) {
-        setError(result.message ?? 'Allocation approval failed.');
+        setError(result.message ?? 'Approval failed.');
         return;
       }
       if ('message' in result && result.message === PAYMENT_ALREADY_APPROVED_MESSAGE) {
@@ -151,10 +98,9 @@ export function OperationsPaymentReviewsPanel({
       }
       advanceAfterAction(item.key, result.nextKey);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Allocation approval failed.');
+      setError(err instanceof Error ? err.message : 'Approval failed.');
     } finally {
       setBusyKey(null);
-      setAllocationItem(null);
     }
   }
 
@@ -181,26 +127,6 @@ export function OperationsPaymentReviewsPanel({
           }
         />
       ) : null}
-      {allocationItem ? (
-        <PaymentAllocationDialog
-          open
-          item={allocationItem}
-          residentName={allocationItem.residentName}
-          submittedAmountPaise={
-            allocationItem.submittedAmountPaise ?? allocationItem.amountPaise
-          }
-          balances={allocationBalances}
-          balancesLoading={allocationBalancesLoading}
-          balancesError={allocationBalancesError}
-          pending={busyKey === allocationItem.key}
-          onClose={() => {
-            setAllocationItem(null);
-            setAllocationBalances(null);
-            setAllocationBalancesError(null);
-          }}
-          onSubmit={(alloc) => void onAllocationApprove(allocationItem, alloc)}
-        />
-      ) : null}
       {reviewMode && items.length > 0 ? (
         <p className="text-sm text-apg-silver">
           <span className="font-semibold text-white">{items.length}</span> pending
@@ -222,7 +148,6 @@ export function OperationsPaymentReviewsPanel({
 
       {visibleItems.map((item) => {
         const busy = busyKey === item.key;
-        const breakdown = buildPaymentReviewBreakdown(item);
 
         return (
           <article
@@ -240,7 +165,7 @@ export function OperationsPaymentReviewsPanel({
                   </span>
                 </div>
 
-                <PaymentReviewEssentials item={item} breakdown={breakdown} />
+                <PaymentReviewEssentials item={item} />
 
                 {moreOpenKey === item.key ? (
                   <dl className="grid gap-3 text-xs text-apg-silver sm:grid-cols-2">
@@ -266,9 +191,7 @@ export function OperationsPaymentReviewsPanel({
                     </div>
                     <div>
                       <dt className="uppercase tracking-wide">Category</dt>
-                      <dd className="mt-0.5 font-medium text-white">
-                        {breakdown.paymentCategoryLabel}
-                      </dd>
+                      <dd className="mt-0.5 font-medium text-white">{item.paymentTypeLabel}</dd>
                     </div>
                     {item.referenceNumber ? (
                       <div className="sm:col-span-2">
@@ -281,9 +204,6 @@ export function OperationsPaymentReviewsPanel({
 
                 {moreOpenKey === item.key ? (
                   <div className="space-y-3 rounded-xl border border-white/10 bg-[#121820]/80 p-4 text-xs">
-                    {item.outstandingSummary ? (
-                      <p className="text-apg-silver">{item.outstandingSummary}</p>
-                    ) : null}
                     <div className="flex flex-wrap gap-3">
                       {item.customerId ? (
                         <Link
@@ -295,22 +215,13 @@ export function OperationsPaymentReviewsPanel({
                       ) : null}
                       {item.bookingId ? (
                         <Link
-                          href={`/admin/bookings/${item.bookingId}`}
+                          href={`/admin/bookings/${item.bookingId}/financial`}
                           className="font-medium text-[#FF5A1F] hover:underline"
                         >
-                          Booking
+                          Booking financials
                         </Link>
                       ) : null}
                     </div>
-                    <label className="block text-apg-silver">
-                      Review notes (internal)
-                      <textarea
-                        value={reviewNotes}
-                        onChange={(e) => setReviewNotes(e.target.value)}
-                        rows={2}
-                        className="mt-1 w-full rounded-lg border border-white/10 bg-[#0f1318] px-2 py-1.5 text-sm text-white"
-                      />
-                    </label>
                   </div>
                 ) : null}
               </div>
@@ -339,7 +250,7 @@ export function OperationsPaymentReviewsPanel({
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => void openAllocationDialog(item)}
+                onClick={() => void handleApprove(item)}
                 className="min-w-[160px] rounded-lg px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50"
                 style={{ backgroundColor: OPS_ORANGE }}
               >

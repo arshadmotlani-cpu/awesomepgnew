@@ -54,60 +54,16 @@ test('collectible prior reservation statuses exclude holds and cancelled beds', 
   assert.equal(isCollectiblePriorReservationStatus('cancelled'), false);
 });
 
-test('payment review skips manual allocation when booking QR payment matches expected split', () => {
+test('payment review is verification-only — no manual allocation gate', () => {
   const item = {
     kind: 'qr',
     bookingId: 'bk-1',
-    overpaidPaise: 0,
-    bookingPaymentReview: {
-      rentDuePaise: 190_000,
-      depositCashDuePaise: 95_000,
-      bookingTotalDuePaise: 285_000,
-      amountSubmittedPaise: 285_000,
-      rentPaisePaid: 190_000,
-      depositPaisePaid: 95_000,
-      depositDuePaise: 0,
-      isFullPayment: true,
-      canPartialApprove: false,
-      bookingCode: 'APG-2026-1',
-    },
-    bookingDetails: { priorOutstandingItems: [] },
+    overpaidPaise: 5_000,
     expectedTotalPaise: 285_000,
-    submittedAmountPaise: 285_000,
-    amountPaise: 285_000,
+    submittedAmountPaise: 290_000,
+    amountPaise: 290_000,
     pgName: 'Demo',
   } as PendingPaymentReviewItem;
 
   assert.equal(paymentReviewNeedsManualAllocation(item), false);
-});
-
-test('payment review requires manual allocation for short or over payments', () => {
-  const base = {
-    kind: 'qr',
-    bookingId: 'bk-1',
-    bookingPaymentReview: {
-      rentDuePaise: 190_000,
-      depositCashDuePaise: 95_000,
-      bookingTotalDuePaise: 285_000,
-      amountSubmittedPaise: 200_000,
-      rentPaisePaid: 190_000,
-      depositPaisePaid: 10_000,
-      depositDuePaise: 85_000,
-      isFullPayment: false,
-      canPartialApprove: true,
-      bookingCode: 'APG-2026-1',
-    },
-    bookingDetails: { priorOutstandingItems: [] },
-    expectedTotalPaise: 285_000,
-    pgName: 'Demo',
-  } as PendingPaymentReviewItem;
-
-  assert.equal(
-    paymentReviewNeedsManualAllocation({ ...base, overpaidPaise: 0, submittedAmountPaise: 200_000, amountPaise: 200_000 }),
-    true,
-  );
-  assert.equal(
-    paymentReviewNeedsManualAllocation({ ...base, overpaidPaise: 5_000, submittedAmountPaise: 290_000, amountPaise: 290_000 }),
-    true,
-  );
 });

@@ -49,6 +49,54 @@ type ReviewMeta = {
   approvalNotes?: string;
 };
 
+export async function approvePaymentReviewVerificationAction(
+  kind: PendingPaymentReviewItem['kind'],
+  entityId: string,
+  pgId: string,
+  meta?: ReviewMeta,
+  currentKey?: string,
+) {
+  const session = await requireAdminPermission('payments:write');
+  try {
+    if (kind === 'qr') {
+      const result = await reviewPaymentRecord(session, entityId, 'approved', {
+        reviewMeta: meta,
+        verificationOnly: true,
+      });
+      revalidatePaymentReviewSurfaces(pgId);
+      revalidatePath('/admin/collections');
+      revalidatePath('/admin/deposits');
+      if (result.outcome === 'already_approved') {
+        const nextKey = await getNextPendingPaymentReviewKey(session, currentKey);
+        return {
+          ok: true as const,
+          message: PAYMENT_ALREADY_APPROVED_MESSAGE,
+          nextKey,
+        };
+      }
+      return withNextReviewKey(session, currentKey, { ok: true });
+    }
+    if (kind === 'rent') {
+      return approveRentProofAction(entityId, pgId, currentKey);
+    }
+    if (kind === 'electricity') {
+      return approveElectricityProofAction(entityId, pgId, currentKey);
+    }
+    if (kind === 'extension') {
+      return approveExtensionProofAction(entityId, pgId, currentKey);
+    }
+    if (kind === 'deposit_link') {
+      return approveDepositLinkProofAction(entityId, pgId, currentKey);
+    }
+    return { ok: false as const, message: 'Unsupported payment review kind.' };
+  } catch (err) {
+    return {
+      ok: false as const,
+      message: err instanceof Error ? err.message : 'Approval failed.',
+    };
+  }
+}
+
 export async function approveQrPaymentAction(
   recordId: string,
   pgId: string,

@@ -556,7 +556,11 @@ export async function recordPaymentSuccess(
     bookingForPaymentValidation = bookingRowWithLivePriorOutstanding(booking, priorOutstanding);
   }
 
-  if (!isReserveBooking && booking.depositPaise > 0 && !input.paymentAllocation) {
+  if (
+    !isReserveBooking &&
+    booking.depositPaise > 0 &&
+    !input.paymentAllocation
+  ) {
     const { validateBookingPayment } = await import('./depositCollection');
     const validation = validateBookingPayment({
       booking: bookingForPaymentValidation,
@@ -567,7 +571,11 @@ export async function recordPaymentSuccess(
     if (!validation.ok) {
       return { ok: false, reason: validation.reason };
     }
-  } else if (!isReserveBooking && !input.partialDeposit && !input.paymentAllocation) {
+  } else if (
+    !isReserveBooking &&
+    !input.partialDeposit &&
+    !input.paymentAllocation
+  ) {
     const { breakdownBookingCheckoutPayment } = await import(
       '@/src/lib/billing/bookingCheckoutTotals'
     );
@@ -785,7 +793,11 @@ export async function recordPaymentSuccess(
       }
     }
 
-    if (!isReserveBooking && wasAwaitingConfirm && (booking.depositPaise > 0 || input.paymentAllocation)) {
+    if (
+      !isReserveBooking &&
+      wasAwaitingConfirm &&
+      (booking.depositPaise > 0 || input.paymentAllocation)
+    ) {
       try {
         await applyBookingPaymentFinancialMirrors({
           booking,
@@ -807,7 +819,11 @@ export async function recordPaymentSuccess(
         });
         return { ok: false, reason };
       }
-    } else if (!isReserveBooking && wasAwaitingConfirm && booking.depositPaise <= 0) {
+    } else if (
+      !isReserveBooking &&
+      wasAwaitingConfirm &&
+      booking.depositPaise <= 0
+    ) {
       const overpaymentInput = input.overpayment;
       if (overpaymentInput && overpaymentInput.excessPaise > 0) {
         try {
@@ -834,7 +850,11 @@ export async function recordPaymentSuccess(
       }
     }
 
-    if (!isReserveBooking && wasAwaitingConfirm && !input.paymentAllocation) {
+    if (
+      !isReserveBooking &&
+      wasAwaitingConfirm &&
+      !input.paymentAllocation
+    ) {
       try {
         const { applyBookingRentInvoiceOnPaymentSuccess } = await import(
           './bookingPaymentInvoices'

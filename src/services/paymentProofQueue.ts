@@ -7,7 +7,7 @@ import { projectElectricityInvoice } from '@/src/services/electricityBilling';
 import { fetchElectricityInvoiceById } from '@/src/lib/db/electricityInvoiceSelect';
 import { listPendingRentProofsForPg, projectInvoice } from '@/src/services/rentInvoices';
 import { listPendingDepositLinkProofsForPg } from '@/src/services/residentCharges';
-import { listOwnerPayments, getQrBookingPaymentReview } from '@/src/services/qrPayments';
+import { listOwnerPayments } from '@/src/services/qrPayments';
 import { db } from '@/src/db/client';
 import {
   bedReservations,
@@ -28,7 +28,6 @@ import type {
 import { resolveBookingDepositCreditAppliedPaise } from '@/src/lib/billing/bookingCheckoutTotals';
 import { resolveFinancialInvoiceIdForSource } from '@/src/services/adminCashSettlement';
 import {
-  buildBookingPaymentExplanation,
   buildSimplePaymentExplanation,
 } from '@/src/lib/operations/paymentExplanationView';
 import {
@@ -39,7 +38,11 @@ import { paymentCategoryBusinessLabel, stayTypeBusinessLabel } from '@/src/lib/s
 import { titleCase } from '@/src/lib/format';
 import { formatDate as formatIsoDate } from '@/src/lib/dates';
 import { dedupePendingPaymentReviews } from '@/src/lib/operations/dedupePendingPaymentReviews';
-import { expectedCheckoutFromBookingDetails } from '@/src/lib/operations/paymentReviewBreakdown';
+import { resolveVerifiedProofAmountPaise } from '@/src/lib/operations/paymentReviewProofAmount';
+import {
+  depositRequiredPaiseFromBooking,
+  monthlyRentPaiseFromBooking,
+} from '@/src/lib/operations/paymentReviewVerification';
 import { isBookingCheckoutEligibleForPaymentReview } from '@/src/lib/operations/paymentReviewSsot';
 import { reconcileBookingPaymentReviewQueue } from '@/src/services/paymentReviewReconciliation';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
@@ -293,24 +296,8 @@ function contextFromItem(
   return buildPaymentBookingContext(item, bookingDetailsForContext(details));
 }
 
-function buildOutstandingSummary(args: {
-  outstandingAfterApprovalPaise: number;
-  overpaidPaise: number;
-  partialLabel?: string | null;
-}): string | null {
-  if (args.overpaidPaise > 0) {
-    return `Overpaid by ₹${(args.overpaidPaise / 100).toLocaleString('en-IN')}`;
-  }
-  if (args.outstandingAfterApprovalPaise <= 0) {
-    return 'Fully settled after approval';
-  }
-  if (args.partialLabel) return args.partialLabel;
-  return `₹${(args.outstandingAfterApprovalPaise / 100).toLocaleString('en-IN')} still due after approval`;
-}
-
 function buildQrExpectedTotals(input: {
   isBookingCheckout: boolean;
-  bookingPaymentReview: Awaited<ReturnType<typeof getQrBookingPaymentReview>> | null;
   bookingDetails: PaymentReviewBookingDetails | null;
   fallbackAmountPaise: number;
   paymentTypeLabel: string;
@@ -318,43 +305,22 @@ function buildQrExpectedTotals(input: {
   expectedLines: PaymentReviewExpectedLine[];
   expectedTotalPaise: number;
 } {
-  if (input.bookingPaymentReview) {
-    const review = input.bookingPaymentReview;
-    const lines: PaymentReviewExpectedLine[] = [
-      { label: 'Rent', amountPaise: review.rentDuePaise },
-      { label: 'Deposit', amountPaise: review.depositCashDuePaise },
-    ];
-    if ((review.priorOutstandingDuePaise ?? 0) > 0) {
-      lines.push({
-        label: 'Prior outstanding',
-        amountPaise: review.priorOutstandingDuePaise ?? 0,
-      });
-    }
-    return {
-      expectedLines: lines,
-      expectedTotalPaise:
-        review.rentDuePaise +
-        review.depositCashDuePaise +
-        (review.priorOutstandingDuePaise ?? 0),
-    };
-  }
-
   if (input.isBookingCheckout && input.bookingDetails) {
-    const checkout = expectedCheckoutFromBookingDetails(input.bookingDetails);
-    if (checkout) {
-      const lines: PaymentReviewExpectedLine[] = [
-        { label: 'Rent', amountPaise: checkout.rentDuePaise },
-        { label: 'Deposit', amountPaise: checkout.depositCashDuePaise },
-      ];
-      if (checkout.priorOutstandingPaise > 0) {
-        lines.push({
-          label: 'Prior outstanding',
-          amountPaise: checkout.priorOutstandingPaise,
-        });
-      }
+    const stubItem = {
+      kind: 'qr' as const,
+      bookingId: 'stub',
+      bookingDetails: input.bookingDetails,
+      expectedLines: [] as PaymentReviewExpectedLine[],
+    };
+    const rentDuePaise = monthlyRentPaiseFromBooking(stubItem as PendingPaymentReviewItem);
+    const depositDuePaise = depositRequiredPaiseFromBooking(stubItem as PendingPaymentReviewItem);
+    if (rentDuePaise > 0 || depositDuePaise > 0) {
       return {
-        expectedLines: lines,
-        expectedTotalPaise: checkout.checkoutTotalPaise,
+        expectedLines: [
+          { label: 'Rent', amountPaise: rentDuePaise },
+          { label: 'Deposit', amountPaise: depositDuePaise },
+        ],
+        expectedTotalPaise: rentDuePaise + depositDuePaise,
       };
     }
   }
@@ -367,7 +333,6 @@ function buildQrExpectedTotals(input: {
 
 function buildQrReviewItem(
   p: Awaited<ReturnType<typeof listOwnerPayments>>[number],
-  bookingPaymentReview: Awaited<ReturnType<typeof getQrBookingPaymentReview>> | null,
   bookingDetails: PaymentReviewBookingDetails | null,
   priorBookingDepositsInput: import('@/src/services/depositCredit').PriorBookingDepositInfo[] | null | undefined = [],
 ): PendingPaymentReviewItem {
@@ -384,9 +349,7 @@ function buildQrReviewItem(
         )
       : null;
   const paymentTypeLabel = isBookingCheckout
-    ? bookingPaymentReview?.canPartialApprove
-      ? `${stayLabel ?? 'New stay'} · Partial payment`
-      : (stayLabel ?? paymentCategoryBusinessLabel('qr'))
+    ? (stayLabel ?? paymentCategoryBusinessLabel('qr'))
     : paymentCategoryBusinessLabel(
         p.categoryName?.toLowerCase().includes('electric')
           ? 'electricity'
@@ -395,71 +358,52 @@ function buildQrReviewItem(
             : 'rent',
       );
 
-  let expectedLines: PaymentReviewExpectedLine[] = [];
-  let expectedTotalPaise = p.amountPaise;
-  let receivedPaise: number | null = p.amountPaise;
-  let outstandingAfterApprovalPaise = 0;
-  let overpaidPaise = 0;
-  let canPartialApprove = false;
-  let outstandingSummary: string | null = null;
-  const verifiedProofAmountPaise = bookingPaymentReview
-    ? (bookingPaymentReview.verifiedProofAmountPaise ??
-      bookingPaymentReview.amountSubmittedPaise ??
-      p.amountPaise)
-    : p.amountPaise;
+  const screenshotAmountPaise = (() => {
+    if (isBookingCheckout && bookingDetails) {
+      const rentDuePaise = Math.max(
+        0,
+        (bookingDetails.subtotalPaise ?? bookingDetails.rentDuePaise ?? 0) -
+          (bookingDetails.discountPaise ?? 0),
+      );
+      const depositRequiredPaise = bookingDetails.depositRequiredPaise ?? 0;
+      const expectedCheckoutPaise = rentDuePaise + depositRequiredPaise;
+      if (expectedCheckoutPaise > 0) {
+        return resolveVerifiedProofAmountPaise({
+          storedAmountPaise: p.amountPaise,
+          proofSnapshotSubmittedPaise: p.proofSnapshotSubmittedPaise,
+          rentDuePaise,
+          expectedCheckoutPaise,
+        }).verifiedAmountPaise;
+      }
+    }
+    return p.proofSnapshotSubmittedPaise != null && p.proofSnapshotSubmittedPaise > 0
+      ? p.proofSnapshotSubmittedPaise
+      : p.amountPaise;
+  })();
 
   const expectedTotals = buildQrExpectedTotals({
     isBookingCheckout,
-    bookingPaymentReview,
     bookingDetails,
     fallbackAmountPaise: p.amountPaise,
     paymentTypeLabel,
   });
-  expectedLines = expectedTotals.expectedLines;
-  expectedTotalPaise = expectedTotals.expectedTotalPaise;
+  const expectedLines = expectedTotals.expectedLines;
+  const expectedTotalPaise = expectedTotals.expectedTotalPaise;
+  const differencePaise = expectedTotalPaise - screenshotAmountPaise;
+  const outstandingSummary = isBookingCheckout
+    ? differencePaise === 0
+      ? 'Payment matches expected'
+      : differencePaise < 0
+        ? `₹${(Math.abs(differencePaise) / 100).toLocaleString('en-IN')} short`
+        : `₹${(differencePaise / 100).toLocaleString('en-IN')} over expected`
+    : 'Approval records this collection';
 
-  if (bookingPaymentReview) {
-    outstandingAfterApprovalPaise = bookingPaymentReview.depositDuePaise;
-    overpaidPaise = Math.max(0, verifiedProofAmountPaise - expectedTotalPaise);
-    canPartialApprove = bookingPaymentReview.canPartialApprove;
-    outstandingSummary = buildOutstandingSummary({
-      outstandingAfterApprovalPaise,
-      overpaidPaise,
-    });
-  } else if (isBookingCheckout) {
-    receivedPaise = verifiedProofAmountPaise;
-    outstandingAfterApprovalPaise = Math.max(0, expectedTotalPaise - verifiedProofAmountPaise);
-    overpaidPaise = Math.max(0, verifiedProofAmountPaise - expectedTotalPaise);
-    canPartialApprove = verifiedProofAmountPaise < expectedTotalPaise;
-    outstandingSummary = buildOutstandingSummary({
-      outstandingAfterApprovalPaise,
-      overpaidPaise,
-    });
-  } else {
-    expectedLines = [{ label: paymentTypeLabel, amountPaise: p.amountPaise }];
-    expectedTotalPaise = p.amountPaise;
-    receivedPaise = p.amountPaise;
-    outstandingAfterApprovalPaise = 0;
-    overpaidPaise = 0;
-    outstandingSummary = 'Approval records this collection';
-  }
-
-  const paymentExplanation = bookingPaymentReview
-    ? buildBookingPaymentExplanation({
-        review: bookingPaymentReview,
-        depositRequiredPaise: bookingDetails?.depositRequiredPaise ?? null,
-        depositCreditAppliedPaise: bookingDetails?.depositCreditAppliedPaise ?? 0,
-        depositCreditSourceBookingId: bookingDetails?.depositCreditSourceBookingId,
-        depositCreditSourceBookingCode: bookingDetails?.depositCreditSourceBookingCode,
-        priorOutstandingItems: bookingDetails?.priorOutstandingItems ?? [],
-        priorBookingDeposits,
-      })
-    : buildSimplePaymentExplanation({
-        lines: expectedLines,
-        totalExpectedPaise: expectedTotalPaise,
-        receivedPaise,
-        resultLabel: outstandingSummary,
-      });
+  const paymentExplanation = buildSimplePaymentExplanation({
+    lines: expectedLines,
+    totalExpectedPaise: expectedTotalPaise,
+    receivedPaise: screenshotAmountPaise,
+    resultLabel: outstandingSummary,
+  });
 
   const roomNumber = bookingDetails?.roomNumber ?? null;
   const bedCode = bookingDetails?.bedCode ?? null;
@@ -472,12 +416,11 @@ function buildQrReviewItem(
       bedCode,
       paymentTypeLabel,
       subtitle: isBookingCheckout
-        ? 'New stay checkout — rent, deposit & prior balance'
+        ? 'New stay checkout — rent & deposit'
         : p.month
           ? `Month ${p.month}`
           : 'QR payment',
-      amountPaise: verifiedProofAmountPaise,
-      bookingPaymentReview: bookingPaymentReview ?? undefined,
+      amountPaise: screenshotAmountPaise,
     },
     bookingDetails,
   );
@@ -497,32 +440,30 @@ function buildQrReviewItem(
       ? `${p.customerName} · ${stayLabel ?? paymentCategoryBusinessLabel('qr')} ${p.bookingCode ?? ''}`.trim()
       : `${p.customerName} · ${p.categoryName}`,
     subtitle: isBookingCheckout
-      ? 'New stay checkout — rent, deposit & prior balance'
+      ? 'New stay checkout — rent & deposit'
       : p.month
         ? `Month ${p.month}`
         : 'QR payment',
-    amountPaise: verifiedProofAmountPaise,
-    verifiedProofAmountPaise,
+    amountPaise: p.amountPaise,
     screenshotUrl: p.paymentScreenshotUrl ?? '',
     entityId: p.id,
     customerId: p.customerId,
     bookingId: p.bookingId ?? null,
     expectedLines,
     expectedTotalPaise,
-    receivedPaise,
-    outstandingAfterApprovalPaise,
-    overpaidPaise,
+    receivedPaise: screenshotAmountPaise,
+    outstandingAfterApprovalPaise: Math.max(0, expectedTotalPaise - screenshotAmountPaise),
+    overpaidPaise: Math.max(0, screenshotAmountPaise - expectedTotalPaise),
     outstandingSummary,
-    canPartialApprove,
+    canPartialApprove: false,
     canReject: true,
     bookingDetails: bookingDetails ?? undefined,
-    bookingPaymentReview: bookingPaymentReview ?? undefined,
     priorBookingDeposits:
       priorBookingDeposits.length > 0 ? priorBookingDeposits : undefined,
     paymentExplanation,
     bookingContext,
     lifecycleState: isBookingCheckout ? 'reservation_request' : 'payment_collection',
-    submittedAmountPaise: receivedPaise,
+    submittedAmountPaise: p.proofSnapshotSubmittedPaise ?? null,
     referenceNumber: p.transactionRef ?? null,
     proofSubmittedAt: p.createdAt?.toISOString?.() ?? null,
   };
@@ -897,18 +838,11 @@ async function loadPendingPaymentReviewItems(
               return null;
             }
           }
-          const bookingPaymentReview =
-            isBookingCheckout && p.bookingId
-              ? await getQrBookingPaymentReview(p.id).catch((err) => {
-                  console.error('[payment-review] booking review context failed', p.id, err);
-                  return null;
-                })
-              : null;
           const priorBookingDeposits =
             isBookingCheckout && p.customerId
               ? await listPriorBookingDepositsForReview(p.customerId, p.bookingId)
               : [];
-          return buildQrReviewItem(p, bookingPaymentReview, bookingDetails, priorBookingDeposits);
+          return buildQrReviewItem(p, bookingDetails, priorBookingDeposits);
         }),
     )
   ).filter((item): item is PendingPaymentReviewItem => item !== null);

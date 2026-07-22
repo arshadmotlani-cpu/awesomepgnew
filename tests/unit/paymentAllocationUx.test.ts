@@ -118,10 +118,10 @@ test('validatePaymentProofAllocation rejects partial allocation', () => {
   assert.equal(result.ok, false);
 });
 
-test('residentPaidPaiseFromReviewItem uses proof row amount', () => {
+test('residentPaidPaiseFromReviewItem uses submitted snapshot when present', () => {
   assert.equal(
     residentPaidPaiseFromReviewItem(reviewItem({ submittedAmountPaise: 700_000, amountPaise: 618_000 })),
-    618_000,
+    700_000,
   );
 });
 

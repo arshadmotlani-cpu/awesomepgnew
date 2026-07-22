@@ -1,7 +1,7 @@
 'use client';
 
 import { paiseToInr } from '@/src/lib/format';
-import type { PaymentReviewBreakdown } from '@/src/lib/operations/paymentReviewBreakdown';
+import { buildPaymentReviewVerification } from '@/src/lib/operations/paymentReviewVerification';
 import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentReviewTypes';
 
 function Row({
@@ -40,95 +40,79 @@ function Row({
   );
 }
 
-/** Decision-first payment review — what happened and what needs attention. Allocation is edited at approve time. */
-export function PaymentReviewEssentials({
-  item,
-  breakdown,
-}: {
-  item: PendingPaymentReviewItem;
-  breakdown: PaymentReviewBreakdown;
-}) {
-  const contextLine = [breakdown.pgName, breakdown.roomBed, breakdown.stayDuration]
+/** Verification-only payment review — Expected / Screenshot / Difference. */
+export function PaymentReviewEssentials({ item }: { item: PendingPaymentReviewItem }) {
+  const verification = buildPaymentReviewVerification(item);
+  const contextLine = [item.pgName, item.roomNumber, item.bedCode ? `Bed ${item.bedCode}` : null]
     .filter(Boolean)
     .join(' · ');
 
   const diffLabel =
-    breakdown.differenceTone === 'exact'
-      ? `${paiseToInr(0)} ✓`
-      : breakdown.differenceTone === 'short'
-        ? `${paiseToInr(Math.abs(breakdown.differencePaise))} short`
-        : `${paiseToInr(breakdown.differencePaise)} extra`;
+    verification.differenceTone === 'exact'
+      ? paiseToInr(0)
+      : verification.differenceTone === 'short'
+        ? paiseToInr(verification.differencePaise)
+        : `${paiseToInr(Math.abs(verification.differencePaise))} extra`;
 
-  const showAttention =
-    breakdown.differenceTone !== 'exact' ||
-    breakdown.priorOutstandingDuePaise > 0 ||
-    item.bookingPaymentReview?.canPartialApprove;
+  const diffTone =
+    verification.differenceTone === 'exact'
+      ? undefined
+      : verification.differenceTone === 'short'
+        ? 'warning'
+        : 'danger';
+
+  const showBooking =
+    item.bookingId &&
+    (verification.monthlyRentPaise > 0 || verification.depositRequiredPaise > 0);
 
   return (
     <div className="rounded-xl border border-white/10 bg-[#121820] p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <p className="text-sm font-semibold text-white">{breakdown.bookingType}</p>
+          <p className="text-sm font-semibold text-white">
+            {item.bookingContext?.bookingType ?? item.paymentTypeLabel}
+          </p>
           {contextLine ? (
             <p className="mt-0.5 text-xs text-apg-silver">{contextLine}</p>
           ) : null}
         </div>
         <span className="rounded-full border border-amber-400/30 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-100">
-          {breakdown.statusLabel}
+          Awaiting review
         </span>
       </div>
 
       <div className="my-4 border-t border-white/10" />
 
       <dl className="space-y-2.5">
-        {breakdown.roomChargesDuePaise > 0 ? (
-          <Row label="Room charges due" value={paiseToInr(breakdown.roomChargesDuePaise)} />
-        ) : null}
-        {breakdown.securityDepositDuePaise > 0 ? (
+        {showBooking ? (
+          <>
+            <Row label="Monthly rent" value={paiseToInr(verification.monthlyRentPaise)} />
+            <Row label="Required deposit" value={paiseToInr(verification.depositRequiredPaise)} />
+            <Row
+              label="Expected payment"
+              value={paiseToInr(verification.expectedPaymentPaise)}
+              emphasize
+            />
+          </>
+        ) : (
           <Row
-            label="Security deposit due"
-            value={paiseToInr(breakdown.securityDepositDuePaise)}
+            label="Expected"
+            value={paiseToInr(verification.expectedPaymentPaise)}
+            emphasize
           />
-        ) : null}
-        {breakdown.priorOutstandingDuePaise > 0 ? (
-          <Row
-            label="Prior outstanding"
-            value={paiseToInr(breakdown.priorOutstandingDuePaise)}
-            tone="warning"
-          />
-        ) : null}
-        <Row label="Total expected" value={paiseToInr(breakdown.totalExpectedPaise)} emphasize />
+        )}
         <Row
-          label="Resident paid"
-          value={paiseToInr(breakdown.receivedPaise)}
+          label="Screenshot amount"
+          value={paiseToInr(verification.screenshotAmountPaise)}
           emphasize
           tone="success"
         />
+        <Row label="Difference" value={diffLabel} emphasize tone={diffTone} />
       </dl>
 
-      {showAttention ? (
-        <div className="mt-4 space-y-2 rounded-lg border border-amber-400/20 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-100">
-          {breakdown.differenceTone !== 'exact' ? (
-            <Row
-              label="Difference"
-              value={diffLabel}
-              tone={breakdown.differenceTone === 'short' ? 'warning' : 'danger'}
-            />
-          ) : null}
-          {breakdown.differenceTone === 'short' && breakdown.remainingBalancePaise > 0 ? (
-            <p>{paiseToInr(breakdown.remainingBalancePaise)} still due after this payment.</p>
-          ) : null}
-          {breakdown.differenceTone === 'excess' ? (
-            <p>Payment exceeds expected — split the extra when allocating.</p>
-          ) : null}
-          {item.bookingPaymentReview?.canPartialApprove ? (
-            <p>Partial deposit expected — set deposit balance due date when allocating.</p>
-          ) : null}
-        </div>
-      ) : null}
-
       <p className="mt-4 text-xs text-apg-silver">
-        Approve opens editable rent / deposit / electricity allocation. You decide where every rupee goes.
+        Approve confirms the booking using contract rent and deposit values. The screenshot is
+        verification only.
       </p>
     </div>
   );

@@ -6,13 +6,13 @@ import type { PendingPaymentReviewItem } from '@/src/lib/operations/paymentRevie
 
 const PROOF_AMOUNT_TOLERANCE_PAISE = 100;
 
-/** Immutable proof row amount — verified screenshot amount, not corrupt stored values. */
+/** Raw uploaded proof amount — never repaired or booking-derived. */
 export function proofAmountPaiseFromReviewItem(item: PendingPaymentReviewItem): number {
-  if (item.verifiedProofAmountPaise != null && item.verifiedProofAmountPaise > 0) {
-    return item.verifiedProofAmountPaise;
+  if (item.submittedAmountPaise != null && item.submittedAmountPaise > 0) {
+    return item.submittedAmountPaise;
   }
   if (item.amountPaise > 0) return item.amountPaise;
-  return item.submittedAmountPaise ?? item.receivedPaise ?? 0;
+  return item.receivedPaise ?? 0;
 }
 
 export function isRentDoubleCountCorruption(input: {
